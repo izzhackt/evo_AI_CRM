@@ -100,9 +100,9 @@ export async function reviewPlatformDocumentAction(form: FormData): Promise<Docu
       || receipt.decision !== decision || receipt.slot_status !== decision
       || receipt.reason !== reason) return "unavailable";
 
-    revalidatePath("/v3/profile");
-    revalidatePath("/v3/main");
-    revalidatePath("/v3/knowledge");
+    revalidatePath("/profile");
+    revalidatePath("/main");
+    revalidatePath("/knowledge");
     revalidatePath("/portal");
     revalidatePath("/portal/documents");
     revalidatePath("/portal/notifications");

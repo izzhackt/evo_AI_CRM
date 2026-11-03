@@ -9,7 +9,7 @@ import {
 import {
   profileNotesSubjectKey,
   toProfileNotesSnapshot,
-} from "../src/components/v3/profile/profile-notes-view.ts";
+} from "../src/components/staff/profile/profile-notes-view.ts";
 import { isPlatformCaseNoteBodyWithinCodePointLimit } from "../src/lib/platform-case-note-contract.ts";
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
@@ -129,9 +129,9 @@ test("Sales queue rejects partial note tuples and accepts the all-null absence",
 });
 
 test("Profile notes preserve exact route subjects and bounded keyset paging", () => {
-  const page = source("src/app/(v3)/v3/profile/page.tsx");
+  const page = source("src/app/(staff)/profile/page.tsx");
   const adapter = source("src/lib/v3/profile-source.ts");
-  const component = source("src/components/v3/profile/ProfileNotes.tsx");
+  const component = source("src/components/staff/profile/ProfileNotes.tsx");
 
   assert.match(adapter, /target\.leadId !== null[\s\S]*leadId: target\.leadId, studentCaseId: null/u);
   assert.match(adapter, /leadId: null, studentCaseId: target\.studentCaseId/u);
@@ -146,7 +146,7 @@ test("Profile notes preserve exact route subjects and bounded keyset paging", ()
   assert.match(component, /isPlatformCaseNoteBodyWithinCodePointLimit/u);
   assert.match(component, /role="alert"/u);
   assert.match(component, /disabled=\{pending \|\| lengthRejected\}/u);
-  const profile = source("src/components/v3/profile/Profile.tsx");
+  const profile = source("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /key=\{profileNotesSubjectKey\(notes\.subject\)\}/u);
   assert.match(component, />\s*Ранее\s*</u);
   assert.match(page, /parsePlatformCaseNoteCursor\(noteBeforeAt, noteBeforeId\)/u);
@@ -227,7 +227,7 @@ test("Profile note draft limit uses Unicode code points", () => {
 
 test("Pipeline cards use batched latest notes and suppress synthetic handoff age", () => {
   const adapter = source("src/lib/v3/pipeline-source.ts");
-  const card = source("src/components/v3/Pipeline.tsx");
+  const card = source("src/components/staff/Pipeline.tsx");
   const migration = source("supabase/migrations/123_platform_profile_pipeline_notes.sql");
 
   assert.match(adapter, /stageAgeDays\(row\.stageEnteredAt, today\)/u);

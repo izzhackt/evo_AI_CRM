@@ -106,7 +106,7 @@ export default async function PlatformPendingPage() {
         </dl>
         <div className="mt-6 flex flex-wrap gap-3">
           {canOpenInbox && (
-            <Link href="/v3/inbox" className={btnCls}>
+            <Link href="/inbox" className={btnCls}>
               {copy.openInbox}
             </Link>
           )}

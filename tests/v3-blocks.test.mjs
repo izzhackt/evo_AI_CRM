@@ -4,11 +4,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { dueWordOf } from "../src/components/v3/queue/due-bucket.ts";
-import { personInitials } from "../src/components/v3/queue/person-name.ts";
-import { progressOf } from "../src/components/v3/blocks/progress.ts";
-import { QUEUE_PASSIVE_POPOVER, popoverBlocksQueueKeys } from "../src/components/v3/queue/queue-navigation.ts";
-import { resumedUndoDeadline } from "../src/components/v3/tasks/undo-deadline.ts";
+import { dueWordOf } from "../src/components/staff/queue/due-bucket.ts";
+import { personInitials } from "../src/components/staff/queue/person-name.ts";
+import { progressOf } from "../src/components/staff/blocks/progress.ts";
+import { QUEUE_PASSIVE_POPOVER, popoverBlocksQueueKeys } from "../src/components/staff/queue/queue-navigation.ts";
+import { resumedUndoDeadline } from "../src/components/staff/tasks/undo-deadline.ts";
 import { ADMISSIONS_PIPELINE_STAGES } from "../src/lib/platform-admissions-pipeline-contract.ts";
 import {
   ADMISSIONS_TRACK_STAGES,
@@ -38,7 +38,7 @@ const render = (script, ...flags) => new Map(JSON.parse(execFileSync(
 )).map((surface) => [surface.name, surface.html]));
 
 const blocks = render("blocks-static-render.cjs");
-const css = read("src/app/(v3)/v3.css");
+const css = read("src/app/(staff)/staff.css");
 const NOW = new Date("2026-09-26T06:00:00.000Z");
 const BLOCK_CLASSES = /\bv3-(?:chip|stage|phase-dot|due|initials|progress|track|toasts?)\b/u;
 const textOf = (html) => html.replace(/<[^>]+>/gu, "").trim();
@@ -82,7 +82,7 @@ test("the stage track marks one current stage and knows nothing it cannot name",
 
 test("staff screens never show the separate process-stage words", () => {
   // Слова этапа процесса (`studentOperationalStage`) читает только портал студента.
-  const roots = ["src/app/(v3)", "src/components/v3", "src/lib/v3"];
+  const roots = ["src/app/(staff)", "src/components/staff", "src/lib/v3"];
   const offenders = [];
   for (const root of roots) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
@@ -95,10 +95,10 @@ test("staff screens never show the separate process-stage words", () => {
   assert.deepEqual(offenders, []);
   // Экраны, которые показывают этап дела, называют его словом доски.
   for (const path of [
-    "src/components/v3/students/StudentsQueueTable.tsx",
-    "src/components/v3/students/StudentQuickView.tsx",
-    "src/components/v3/students/StudentsQueueHead.tsx",
-    "src/components/v3/profile/CaseHeader.tsx",
+    "src/components/staff/students/StudentsQueueTable.tsx",
+    "src/components/staff/students/StudentQuickView.tsx",
+    "src/components/staff/students/StudentsQueueHead.tsx",
+    "src/components/staff/profile/CaseHeader.tsx",
   ]) {
     assert.match(read(path), /admissionsPipelineStage\(/u, `${path} names the stage with the board's word`);
   }
@@ -180,7 +180,7 @@ test("progress only from real counts: «N из M», nothing estimated", () => {
   // Без полосы остаётся строка итога словами — прочитанные числа не пропадают.
   assert.equal(blocks.get("progress-inconsistent-fallback"), '<p class="t-body-compact text-fg">8 из 7 принято</p>');
   assert.equal(blocks.get("progress-empty-fallback"), '<p class="t-body-compact text-fg">Чек-лист не собран</p>');
-  for (const path of ["src/components/v3/profile/CaseOverview.tsx", "src/components/v3/students/StudentQuickView.tsx"]) {
+  for (const path of ["src/components/staff/profile/CaseOverview.tsx", "src/components/staff/students/StudentQuickView.tsx"]) {
     const source = read(path);
     assert.match(source, /<ProgressBar done=\{[a-z.]+\?\.approved\} total=\{[a-z.]+\?\.total\} word="принято"\s+fallback=\{<p className="t-body-compact text-fg">\{[a-z]+\.summary\}<\/p>\} \/>/u, `${path}: summary line when there is no bar`);
     assert.doesNotMatch(source, /documents\.total > 0\s*\?\s*<ProgressBar/u, `${path}: no bar-or-nothing branch`);
@@ -209,8 +209,8 @@ test("a closed case has no current stage: the stage word «при закрыти
   const closed = blocks.get("track-closed");
   assert.equal(closed, '<div class="v3-track" data-track="admissions" data-closed=""><p class="v3-track-caption"><span class="t-body-compact text-fg">Документы</span> <span class="t-meta text-fg-2">этап при закрытии</span></p></div>');
   assert.doesNotMatch(closed, /aria-current|текущий этап|v3-track-step/u);
-  assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /<StageTrack kind="admissions" current=\{row\.pipelineStage\} closed=\{input\.state === "closed"\} \/>/u);
-  assert.match(read("src/components/v3/students/StudentQuickView.tsx"), /<StageTrack kind="admissions" current=\{row\.pipelineStage\} closed=\{row\.state === "closed"\} \/>/u);
+  assert.match(read("src/components/staff/profile/CaseHeader.tsx"), /<StageTrack kind="admissions" current=\{row\.pipelineStage\} closed=\{input\.state === "closed"\} \/>/u);
+  assert.match(read("src/components/staff/students/StudentQuickView.tsx"), /<StageTrack kind="admissions" current=\{row\.pipelineStage\} closed=\{row\.state === "closed"\} \/>/u);
 });
 
 // --- «Отменить» -------------------------------------------------------------
@@ -224,33 +224,33 @@ test("undo lives in the top layer and only where a real reverse command exists",
   // состояния с версией; «Сегодня» нового вида — те же хуки в виджетах) и доска поступления
   // (Э7, 251: обратное перемещение с версией).
   const users = [];
-  for (const root of ["src/app/(v3)", "src/components/v3"]) {
+  for (const root of ["src/app/(staff)", "src/components/staff"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
       const path = `${root}/${String(entry).split("\\").join("/")}`;
       if (/\.tsx?$/u.test(path) && /<UndoToast\b|import \{[^}]*\bUndoToast\b/u.test(read(path))) users.push(path);
     }
   }
   // «Новый вид» «Задач» (27.10.2026): таблица `TasksTable` — тот же хук и та же обратная команда, отдельного «Отменить» нет.
-  assert.deepEqual(users.sort(), ["src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
+  assert.deepEqual(users.sort(), ["src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/staff/tasks/TaskQueueList.tsx", "src/components/staff/tasks/next/TasksTable.tsx", "src/components/staff/today-next/TodayDashboard.tsx", "src/components/staff/today/TodayQueueList.tsx"]);
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
-  assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
+  assert.match(read("src/components/staff/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   // Строки «Отменить» «Задач» и «Сегодня» собирает один хук; в строке списка своей «Отменить» нет.
-  for (const path of ["src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today/TodayQueueList.tsx"]) {
+  for (const path of ["src/components/staff/tasks/TaskQueueList.tsx", "src/components/staff/tasks/next/TasksTable.tsx", "src/components/staff/today/TodayQueueList.tsx"]) {
     assert.match(read(path), /const toasts = useUndoToasts\(recent, undo\);/u, path);
     assert.match(read(path), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u, path);
   }
-  assert.doesNotMatch(read("src/components/v3/tasks/TaskQueueRow.tsx"), /data-queue-undo|onUndo/u, "no inline undo in the row");
+  assert.doesNotMatch(read("src/components/staff/tasks/TaskQueueRow.tsx"), /data-queue-undo|onUndo/u, "no inline undo in the row");
   // Доска поступления: у v1 (187/244) проверки версии нет, поэтому отмена идёт
   // через move_case_pipeline_v2 (251) с версией из квитанции своего перемещения.
   assert.match(read("supabase/migrations/244_platform_access_by_permissions.sql"), /Deliberately no optimistic version check/u);
   assert.match(read("supabase/migrations/251_platform_pipeline_move_undo.sql"), /RAISE EXCEPTION 'case_pipeline_moved' USING ERRCODE = 'PT409'/u);
   // Движок — `useAdmissionsBoard`, «Отменить» рисует доска «Нового вида».
-  const board = read("src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx");
-  assert.match(read("src/components/v3/admissions-board/useAdmissionsBoard.ts"), /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
+  const board = read("src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx");
+  assert.match(read("src/components/staff/admissions-board/useAdmissionsBoard.ts"), /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
   assert.match(board, /<UndoToast items=\{board\.toasts\} onHold=\{board\.hold\} \/>/u, "the board's undo is the same top-layer row");
   assert.doesNotMatch(board, /data-board-undo/u, "no second undo line on the board");
   // Задача по студенту завершается с результатом, отмены у неё нет.
-  assert.match(read("src/components/v3/profile/CaseTaskList.tsx"), /onCompleted=\{\(\) => \{\}\}/u);
+  assert.match(read("src/components/staff/profile/CaseTaskList.tsx"), /onCompleted=\{\(\) => \{\}\}/u);
 });
 
 test("the undo deadline stands still while focus or the pointer is on the undo row", () => {
@@ -260,16 +260,16 @@ test("the undo deadline stands still while focus or the pointer is on the undo r
   assert.equal(resumedUndoDeadline({ completedAt: 5_000, expiresAt: 11_000 }, 3_000, 20_000), 26_000);
   // Пауза без времени — срок прежний.
   assert.equal(resumedUndoDeadline({ completedAt: 1_000, expiresAt: 7_000 }, 3_000, 3_000), 7_000);
-  const hook = read("src/components/v3/tasks/useRecentCompletions.ts");
+  const hook = read("src/components/staff/tasks/useRecentCompletions.ts");
   assert.match(hook, /if \(!live\.length \|\| held\) return;/u, "no timer while held");
   assert.match(hook, /expiresAt: resumedUndoDeadline\(entry, since, now\)/u);
-  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
-  const toast = read("src/components/v3/blocks/UndoToast.tsx");
+  assert.match(read("src/components/staff/tasks/TaskQueueList.tsx"), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
+  const toast = read("src/components/staff/blocks/UndoToast.tsx");
   for (const handler of ["onFocus", "onBlur", "onPointerEnter", "onPointerLeave"]) assert.match(toast, new RegExp(`${handler}=\\{`, "u"), handler);
   assert.match(toast, /event\.currentTarget\.contains\(event\.relatedTarget\)\) return;/u, "focus moving inside the row keeps the pause");
   assert.match(toast, /items\.length === 0\s*\? \{ focus: false, pointer: false \}/u, "hidden rows release the pause");
   // «Сегодня» держит паузу той же строкой.
-  assert.match(read("src/components/v3/today/TodayQueueList.tsx"), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
+  assert.match(read("src/components/staff/today/TodayQueueList.tsx"), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u);
 });
 
 test("the queue keys keep working while the undo row is open", () => {
@@ -288,26 +288,26 @@ test("the queue keys keep working while the undo row is open", () => {
   // Строка «Отменить» помечена пассивной; другие окна верхнего слоя — нет.
   assert.match(blocks.get("toast"), /^<div [^>]*data-testid="v3-undo-toasts" data-queue-passive=""/u);
   const passive = [];
-  for (const root of ["src/app/(v3)", "src/components/v3"]) {
+  for (const root of ["src/app/(staff)", "src/components/staff"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
       const path = `${root}/${String(entry).split("\\").join("/")}`;
       if (/\.tsx?$/u.test(path) && /data-queue-passive=/u.test(read(path))) passive.push(path);
     }
   }
-  assert.deepEqual(passive, ["src/components/v3/blocks/UndoToast.tsx"], "only the undo row is passive");
+  assert.deepEqual(passive, ["src/components/staff/blocks/UndoToast.tsx"], "only the undo row is passive");
   // Обе проверки клавиш — клавиатура очереди и Esc панели — идут через одно правило.
-  const hook = read("src/components/v3/queue/useQueueKeyboard.ts");
+  const hook = read("src/components/staff/queue/useQueueKeyboard.ts");
   assert.match(hook, /export function openPopover\(\): boolean \{\s*try \{ return popoverBlocksQueueKeys\(document\.querySelectorAll\(":popover-open"\)\); \} catch \{ return false; \}/u);
   assert.doesNotMatch(hook, /querySelector\(":popover-open"\)/u, "no «any popover» check is left");
   assert.match(hook, /if \(openPopover\(\) \|\| modalOpen\(\)\) return;/u);
-  assert.match(read("src/components/v3/panel/SidePanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
+  assert.match(read("src/components/staff/panel/SidePanel.tsx"), /event\.key !== "Escape"[^\n]*openPopover\(\) \|\| modalOpen\(\)\) return;/u);
   // j/k с «Отменить» продолжают от завершённой строки (data-undo-row), а не с начала списка.
   assert.match(hook, /active\.closest<HTMLElement>\("\[data-undo-row\]"\)\?\.dataset\.undoRow/u);
   assert.match(hook, /const current = focusedRowIndex\(links\);/u);
 });
 
 test("an undo error belongs to one completion and does not come back with the next", () => {
-  const list = read("src/components/v3/tasks/useRecentCompletions.ts");
+  const list = read("src/components/staff/tasks/useRecentCompletions.ts");
   assert.match(list, /const state = undoState\[key\]\?\.completedAt === completedAt \? undoState\[key\] : undefined;/u);
   assert.equal(list.match(/\[key\]: \{ completedAt, pending: (?:true|false), error: (?:null|failure) \}/gu)?.length, 2);
 });

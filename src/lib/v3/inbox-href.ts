@@ -45,5 +45,5 @@ export function buildV3InboxHref({
   }
 
   const serialized = query.toString();
-  return serialized ? `/v3/inbox?${serialized}` : "/v3/inbox";
+  return serialized ? `/inbox?${serialized}` : "/inbox";
 }

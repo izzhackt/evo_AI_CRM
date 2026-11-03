@@ -12,10 +12,10 @@ function source(path) {
 
 test("the active Platform amoCRM command panel remains on Admissions Student 360", () => {
   const studentWorkspace = source(
-    "src/components/v3/profile/ProfileContractWorkspace.tsx",
+    "src/components/staff/profile/ProfileContractWorkspace.tsx",
   );
   const admissions = source(
-    "src/components/v3/profile/ProfileAmoCrmCommandSection.tsx",
+    "src/components/staff/profile/ProfileAmoCrmCommandSection.tsx",
   );
 
   assert.match(admissions, /CanonicalAmoCrmCommandPanel/);
@@ -41,11 +41,11 @@ test("the active Platform amoCRM command panel remains on Admissions Student 360
 test("the sales WhatsApp chat no longer mounts the amoCRM command panel (owner decision 06.10.2026)", () => {
   // «amocrm убирай просто, пока не надо в чате продаж»: the panel and its
   // readers stay for the profile (ProfileAmoCrmCommandSection) and settings.
-  const inboxPage = source("src/app/(v3)/v3/inbox/page.tsx");
+  const inboxPage = source("src/app/(staff)/inbox/page.tsx");
   const inboxSource = source("src/lib/v3/inbox-source.ts");
   assert.doesNotMatch(inboxPage, /CanonicalAmoCrmCommandPanel|v3-inbox-amocrm/u);
   assert.doesNotMatch(inboxSource, /readPlatformBlockingAmoCrmCommand|readCanonicalAmoCrmCommandAvailability/u);
-  assert.match(source("src/components/v3/profile/ProfileAmoCrmCommandSection.tsx"), /CanonicalAmoCrmCommandPanel/u);
+  assert.match(source("src/components/staff/profile/ProfileAmoCrmCommandSection.tsx"), /CanonicalAmoCrmCommandPanel/u);
 });
 
 test("the panel exposes exact inputs, honest states, per-step evidence, and explicit unknown reconciliation", () => {
@@ -115,8 +115,8 @@ test("server actions use only canonical seams and active V3 revalidation", () =>
   assert.match(actions, /executePlatformAmoCrmAdmissionsSync/);
   assert.match(actions, /reconcilePlatformAmoCrmSyncAttempt/);
   assert.match(actions, /releasePlatformAmoCrmPreparedAttempt/);
-  assert.match(actions, /revalidatePath\("\/v3\/profile"\)/);
-  assert.match(actions, /revalidatePath\("\/v3\/inbox"\)/);
+  assert.match(actions, /revalidatePath\("\/profile"\)/);
+  assert.match(actions, /revalidatePath\("\/inbox"\)/);
   assert.doesNotMatch(actions, /\/clients/u);
   assert.doesNotMatch(actions, /revalidatePath\([^\n]*\/sales\//);
   assert.doesNotMatch(

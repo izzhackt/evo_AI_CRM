@@ -73,8 +73,8 @@ export async function saveCaseTrancheAction(
       p_archive: archive,
     });
     if (state.status === "saved") {
-      revalidatePath("/v3/profile");
-      revalidatePath("/v3/main");
+      revalidatePath("/profile");
+      revalidatePath("/main");
     }
     return state;
   } catch {
@@ -132,8 +132,8 @@ export async function recordCasePaymentAction(
       p_note: note || null,
     });
     if (state.status === "saved") {
-      revalidatePath("/v3/profile");
-      revalidatePath("/v3/main");
+      revalidatePath("/profile");
+      revalidatePath("/main");
     }
     return state;
   } catch {

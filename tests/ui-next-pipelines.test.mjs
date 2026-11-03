@@ -1,5 +1,5 @@
-// «Новый вид» (решение владельца 27.10.2026), поток «pipelines»: «Воронка продаж» (`/v3/pipeline`), «Воронка поступления»
-// (`/v3/admissions-pipeline`) и «Отчёт продаж» (`/v3/main?view=sales`). Проверяется то, что обещано: новый вид выбирает переключатель и
+// «Новый вид» (решение владельца 27.10.2026), поток «pipelines»: «Воронка продаж» (`/pipeline`), «Воронка поступления»
+// (`/admissions-pipeline`) и «Отчёт продаж» (`/main?view=sales`). Проверяется то, что обещано: новый вид выбирает переключатель и
 // только настоящий администратор; у сотрудника, в просмотре роли и у администратора без cookie — прежняя разметка байт в байт; чтения,
 // права, адреса, request_id и команды те же; числа и слова нового вида совпадают с прежним видом; перетаскивание — `@dnd-kit/core` с
 // теми же серверными действиями и тем же клавиатурным путём (меню «⋯»); экраны собраны из набора виджетов короткими файлами; первая
@@ -38,12 +38,12 @@ function navText(html, label) {
 }
 
 const NEXT_FILES = [
-  ...readdirSync(new URL("../src/components/v3/pipeline-next", import.meta.url)).map((name) => `src/components/v3/pipeline-next/${name}`),
-  ...readdirSync(new URL("../src/components/v3/admissions-pipeline-next", import.meta.url)).map((name) => `src/components/v3/admissions-pipeline-next/${name}`),
-  ...readdirSync(new URL("../src/components/v3/board-next", import.meta.url)).map((name) => `src/components/v3/board-next/${name}`),
-  ...readdirSync(new URL("../src/components/v3/sales-next", import.meta.url)).map((name) => `src/components/v3/sales-next/${name}`),
-  ...readdirSync(new URL("../src/components/v3/admissions-board", import.meta.url)).map((name) => `src/components/v3/admissions-board/${name}`),
-  ...readdirSync(new URL("../src/components/v3/sales-report", import.meta.url)).map((name) => `src/components/v3/sales-report/${name}`),
+  ...readdirSync(new URL("../src/components/staff/pipeline-next", import.meta.url)).map((name) => `src/components/staff/pipeline-next/${name}`),
+  ...readdirSync(new URL("../src/components/staff/admissions-pipeline-next", import.meta.url)).map((name) => `src/components/staff/admissions-pipeline-next/${name}`),
+  ...readdirSync(new URL("../src/components/staff/board-next", import.meta.url)).map((name) => `src/components/staff/board-next/${name}`),
+  ...readdirSync(new URL("../src/components/staff/sales-next", import.meta.url)).map((name) => `src/components/staff/sales-next/${name}`),
+  ...readdirSync(new URL("../src/components/staff/admissions-board", import.meta.url)).map((name) => `src/components/staff/admissions-board/${name}`),
+  ...readdirSync(new URL("../src/components/staff/sales-report", import.meta.url)).map((name) => `src/components/staff/sales-report/${name}`),
   "src/lib/v3/sales-register-page.ts", "src/lib/sales-register-money-view.ts",
 ];
 
@@ -108,19 +108,19 @@ test("«Воронка продаж»: те же лиды в тех же кол�
 test("«Воронка продаж»: строка поиска и фильтров — те же части, что у прежней страницы (адреса, скрытые поля, «Закрытые»); красная кнопка одна; перетаскивания нет", () => {
   assert.equal(count(mainOf(nextBoards.get("next-sales")), RED), 1, "сплошной красный — «Добавить лида»");
   assert.match(text(mainOf(nextBoards.get("next-sales"))), /Добавить лида/u);
-  assert.doesNotMatch(read("src/components/v3/pipeline-next/PipelineBoardNext.tsx") + read("src/components/v3/pipeline-next/PipelineColumn.tsx"), /draggable|@dnd-kit|onDrop/u, "в продажах этап меняет форма решения в панели: перетаскивания нет, как у прежней доски");
+  assert.doesNotMatch(read("src/components/staff/pipeline-next/PipelineBoardNext.tsx") + read("src/components/staff/pipeline-next/PipelineColumn.tsx"), /draggable|@dnd-kit|onDrop/u, "в продажах этап меняет форма решения в панели: перетаскивания нет, как у прежней доски");
   // Панель — настоящая форма решения прежнего вида: те же поля, версия и request_id, а не новая.
-  const body = read("src/components/v3/pipeline-next/LeadSheetBody.tsx");
+  const body = read("src/components/staff/pipeline-next/LeadSheetBody.tsx");
   assert.match(body, /<PipelineDecisionForm key=\{`\$\{lead\.workflow\.leadId\}:\$\{lead\.workflow\.workflowVersion\}`\}/u);
   assert.match(body, /requestId=\{requestId\}/u);
-  assert.match(read("src/components/v3/pipeline-next/LeadSheetNext.tsx"), /<CloseRecordMenu kind="lead"[\s\S]*onClosed=\{onLeadClosed\}/u, "«Закрыть лид» — прежняя команда");
+  assert.match(read("src/components/staff/pipeline-next/LeadSheetNext.tsx"), /<CloseRecordMenu kind="lead"[\s\S]*onClosed=\{onLeadClosed\}/u, "«Закрыть лид» — прежняя команда");
 });
 
 test("«Воронка продаж»: закрытые лиды — тот же список в рамке нового вида с возвратом к доске", () => {
   const next = nextBoards.get("next-sales-closed");
   assert.match(next, /data-testid="v3-pipeline-closed"/u);
   assert.match(text(next), /Закрытые лиды/u);
-  assert.match(next, /href="\/v3\/pipeline"/u, "возврат к доске");
+  assert.match(next, /href="\/pipeline"/u, "возврат к доске");
 });
 
 test("«Воронка продаж»: при усечённом чтении (4000+ лидов) числа нет ни в заголовке, ни у вкладки «Все этапы» — нет чтения, нет числа", () => {
@@ -155,10 +155,10 @@ test("«Воронка поступления»: перетаскивание �
   const lock = JSON.parse(read("package-lock.json"));
   assert.equal(lock.packages["node_modules/@dnd-kit/core"].version, "6.3.1");
   assert.equal(lock.packages["node_modules/@dnd-kit/core"].license, "MIT");
-  const card = read("src/components/v3/admissions-pipeline-next/AdmissionsCardNext.tsx");
+  const card = read("src/components/staff/admissions-pipeline-next/AdmissionsCardNext.tsx");
   assert.match(card, /useDraggable\(\{ id: row\.studentCaseId/u);
   assert.match(card, /<AdmissionsCardMenu row=\{row\} tab=\{tab\} onMove=\{onMove\} \/>/u, "то же меню");
-  const board = read("src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx");
+  const board = read("src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx");
   // Мышь и палец — разные датчики: `PointerSensor` перехватывает и касание (`pointerdown` приходит раньше `touchstart`), `TouchSensor` с удержанием
   // тогда не срабатывает никогда, а жест забирает прокрутка и отменяет перетаскивание (CDP-проверка в pipelines-next-static-render.cjs).
   assert.match(board, /MouseSensor[\s\S]*TouchSensor/u);
@@ -174,9 +174,9 @@ test("«Воронка поступления»: перетаскивание �
   assert.match(card, /<StatusBadge label=\{replyWord\} tone="warn" className="underline [^"]*" \/>/u);
   assert.doesNotMatch(board, /KeyboardSensor/u, "клавиатурный путь — меню, не второй способ перетаскивания");
   assert.match(board, /board\.moveCard\(String\(active\.id\), \{ stage: over\.id as AdmissionsPipelineStage \}, "drag"\)/u);
-  assert.match(read("src/components/v3/admissions-pipeline-next/AdmissionsColumnNext.tsx"), /useDroppable\(\{ id: stage/u);
+  assert.match(read("src/components/staff/admissions-pipeline-next/AdmissionsColumnNext.tsx"), /useDroppable\(\{ id: stage/u);
   // Движок — один: его зовёт доска; серверное действие стоит только в нём.
-  const hook = read("src/components/v3/admissions-board/useAdmissionsBoard.ts");
+  const hook = read("src/components/staff/admissions-board/useAdmissionsBoard.ts");
   assert.match(hook, /moveCasePipelineAction\(/u);
   assert.match(board, /useAdmissionsBoard\(props\)/u);
   for (const file of NEXT_FILES.filter((name) => !name.endsWith("useAdmissionsBoard.ts"))) assert.doesNotMatch(read(file), /moveCasePipelineAction/u, `${file}: действие зовёт только движок`);
@@ -237,7 +237,7 @@ test("«Отчёт продаж»: таблицы сумм и поступлен
     const tag = next.lastIndexOf("<table", at);
     assert.ok(next.slice(Math.max(0, tag - 200), tag).endsWith(`<div role="region" aria-label="${region}" tabindex="0" class="relative hidden min-w-0 overflow-x-auto @min-[34rem]:block">`), `${testId}: область прокрутки с подписью и фокусом клавиатуры (таблица — от 34rem карточки, уже — стопка)`);
   }
-  const table = read("src/components/v3/sales-next/SalesRecordsTable.tsx");
+  const table = read("src/components/staff/sales-next/SalesRecordsTable.tsx");
   assert.match(table, /footer=\{shown && \(shown\.open \|\| shown\.extra\) \? \(/u, "подвал панели есть, только когда в нём есть действие");
   assert.match(table, /toolbar=\{toolbar \? <div className="min-w-0 flex-1">\{toolbar\}<\/div> : null\}/u, "строка фильтров занимает всю строку инструментов, как у прежнего вида");
 });
@@ -257,25 +257,25 @@ test("«Отчёт продаж»: «Убрать» / «Вернуть» — т�
 });
 
 test("«Отчёт продаж»: в клиентские свойства таблицы не идут телефон, заметки и источник записи; модель строки — слова, как на экране", () => {
-  const types = read("src/components/v3/sales-next/sales-next-types.ts");
+  const types = read("src/components/staff/sales-next/sales-next-types.ts");
   const rowType = types.slice(types.indexOf("export type SalesRowData"), types.indexOf("}>;", types.indexOf("export type SalesRowData")));
   for (const field of ["phone", "notes", "sourceSha256", "sourceKey", "contractNumber", "statusRaw"]) assert.doesNotMatch(rowType, new RegExp(`\\b${field}\\b`, "u"), field);
-  const rows = read("src/components/v3/sales-next/sales-next-rows.ts");
+  const rows = read("src/components/staff/sales-next/sales-next-rows.ts");
   assert.match(rows, /salesRowReview\(row\)/u);
   assert.match(rows, /salesRowRemainder\(row\)/u);
   assert.match(rows, /salesWithdrawalWord\(row\.withdrawal\.kind\)/u);
-  const view = read("src/components/v3/sales-next/SalesRegisterNextView.tsx");
+  const view = read("src/components/staff/sales-next/SalesRegisterNextView.tsx");
   assert.match(view, /readSalesRegisterPage\(actor, query\)/u, "те же чтения, что у прежнего вида");
-  assert.match(read("src/components/v3/SalesRegisterView.tsx"), /readSalesRegisterPage\(actor, query\)/u);
-  assert.match(read("src/components/v3/sales-next/sales-next-sheet.tsx"), /<SalesRegisterForm[\s\S]*<SalesRecordPreview/u, "панель — прежние просмотр и форма");
+  assert.match(read("src/components/staff/SalesRegisterView.tsx"), /readSalesRegisterPage\(actor, query\)/u);
+  assert.match(read("src/components/staff/sales-next/sales-next-sheet.tsx"), /<SalesRegisterForm[\s\S]*<SalesRecordPreview/u, "панель — прежние просмотр и форма");
 });
 
 /* ---------------------------------------------------------------- страницы: выбор вида, ленивые входы, первая загрузка */
 
 test("страницы всегда рисуют новый вид (#1327) — только ленивые входы; прежних веток в страницах нет", () => {
-  const pipeline = read("src/app/(v3)/v3/pipeline/page.tsx");
-  const admissions = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
-  const main = read("src/app/(v3)/v3/main/page.tsx");
+  const pipeline = read("src/app/(staff)/pipeline/page.tsx");
+  const admissions = read("src/app/(staff)/admissions-pipeline/page.tsx");
+  const main = read("src/app/(staff)/main/page.tsx");
   for (const page of [pipeline, admissions, main]) {
     assert.doesNotMatch(page, /isNextUi/u);
     assert.doesNotMatch(page, /from "@\/components\/kit"|from "@\/components\/ui\/|from "@dnd-kit/u, "виджеты нового вида в первую загрузку страницы не входят");
@@ -291,9 +291,9 @@ test("страницы всегда рисуют новый вид (#1327) — �
 
 test("ленивые входы: «use client», `next/dynamic` и `.catch(onScreenLoadFailed)`; у маршрутов есть `loading.tsx` (граница Suspense над входом)", () => {
   const entries = {
-    "src/components/v3/pipeline-next/PipelineNextLazy.tsx": ["PipelineNextPage", "PipelineClosedNextPage"],
-    "src/components/v3/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx": ["AdmissionsPipelineNextPage"],
-    "src/components/v3/sales-next/SalesNextLazy.tsx": ["SalesReportNextPage", "SalesFrameNextPage"],
+    "src/components/staff/pipeline-next/PipelineNextLazy.tsx": ["PipelineNextPage", "PipelineClosedNextPage"],
+    "src/components/staff/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx": ["AdmissionsPipelineNextPage"],
+    "src/components/staff/sales-next/SalesNextLazy.tsx": ["SalesReportNextPage", "SalesFrameNextPage"],
   };
   for (const [file, modules] of Object.entries(entries)) {
     const source = read(file);
@@ -303,10 +303,10 @@ test("ленивые входы: «use client», `next/dynamic` и `.catch(onScr
     for (const name of modules) assert.match(source, new RegExp(`module\\.${name}\\)`, "u"), `${file}: ${name}`);
     assert.doesNotMatch(source, /\.catch\(\(\) =>/u);
   }
-  for (const route of ["pipeline", "admissions-pipeline", "main"]) assert.ok(existsSync(new URL(`../src/app/(v3)/v3/${route}/loading.tsx`, import.meta.url)), `${route}: есть loading.tsx`);
+  for (const route of ["pipeline", "admissions-pipeline", "main"]) assert.ok(existsSync(new URL(`../src/app/(staff)/${route}/loading.tsx`, import.meta.url)), `${route}: есть loading.tsx`);
   // Серверные части отчёта не тянут виджеты набора в первую загрузку (их клиентские куски приходят только лениво).
   for (const file of ["SalesRegisterNextView.tsx", "SalesFramesNext.tsx", "sales-next-sheet.tsx", "sales-next-rows.ts", "sales-next-summary.ts", "sales-next-toolbar.ts"]) {
-    assert.doesNotMatch(read(`src/components/v3/sales-next/${file}`), /@\/components\/kit|radix-ui|@\/components\/ui\/(?!card)/u, `${file}: без клиентских виджетов`);
+    assert.doesNotMatch(read(`src/components/staff/sales-next/${file}`), /@\/components\/kit|radix-ui|@\/components\/ui\/(?!card)/u, `${file}: без клиентских виджетов`);
   }
 });
 
@@ -322,15 +322,15 @@ test("новые файлы короче 150 строк, собраны из н�
     assert.doesNotMatch(source, /text-fg\/\d|bg-[a-z-]+\/\d|opacity-(?!40)/u, `${file}: без прозрачности`);
     assert.doesNotMatch(source, /dark:/u, `${file}: CRM только светлая`);
   }
-  assert.match(read("src/components/v3/pipeline-next/PipelineBoardNext.tsx"), /SectionTabs/u);
-  assert.match(read("src/components/v3/board-next/BoardColumnCard.tsx"), /Card size="sm"/u);
-  assert.match(read("src/components/v3/pipeline-next/LeadSheetNext.tsx"), /<DetailSheet/u);
-  assert.match(read("src/components/v3/admissions-pipeline-next/AdmissionsPipelineNextPage.tsx"), /PageShell[\s\S]*SectionTabs/u);
-  assert.match(read("src/components/v3/sales-next/SalesRecordsTable.tsx"), /<DataTable[\s\S]*<DetailSheet/u);
-  assert.match(read("src/components/v3/sales-next/SalesHeadlineTiles.tsx"), /StatTile/u);
-  assert.match(read("src/components/v3/sales-next/SalesMoneyCard.tsx"), /WidgetCard/u);
-  assert.match(read("src/components/v3/sales-next/SalesRecordsTable.tsx"), /^"use client";/u);
-  assert.match(read("src/components/v3/sales-next/SalesRecordsTable.tsx"), /searchable=\{false\}[\s\S]*paginate=\{false\}/u, "поиск, фильтры и страницы ведёт сервер");
+  assert.match(read("src/components/staff/pipeline-next/PipelineBoardNext.tsx"), /SectionTabs/u);
+  assert.match(read("src/components/staff/board-next/BoardColumnCard.tsx"), /Card size="sm"/u);
+  assert.match(read("src/components/staff/pipeline-next/LeadSheetNext.tsx"), /<DetailSheet/u);
+  assert.match(read("src/components/staff/admissions-pipeline-next/AdmissionsPipelineNextPage.tsx"), /PageShell[\s\S]*SectionTabs/u);
+  assert.match(read("src/components/staff/sales-next/SalesRecordsTable.tsx"), /<DataTable[\s\S]*<DetailSheet/u);
+  assert.match(read("src/components/staff/sales-next/SalesHeadlineTiles.tsx"), /StatTile/u);
+  assert.match(read("src/components/staff/sales-next/SalesMoneyCard.tsx"), /WidgetCard/u);
+  assert.match(read("src/components/staff/sales-next/SalesRecordsTable.tsx"), /^"use client";/u);
+  assert.match(read("src/components/staff/sales-next/SalesRecordsTable.tsx"), /searchable=\{false\}[\s\S]*paginate=\{false\}/u, "поиск, фильтры и страницы ведёт сервер");
 });
 
 test("набор: у `DataTable` есть `searchable` (по умолчанию включён); без него поля поиска нет, остальное то же", () => {
@@ -344,33 +344,33 @@ test("набор: у `DataTable` есть `searchable` (по умолчанию 
 });
 
 test("правила нового вида: доски — карточки набора; «Закрыть лид», «Убрать» и «Связать с лидом» остаются прежними командами; текст на экране — заголовки, данные, кнопки", () => {
-  const sheet = read("src/components/v3/pipeline-next/LeadSheetNext.tsx");
+  const sheet = read("src/components/staff/pipeline-next/LeadSheetNext.tsx");
   assert.match(sheet, /blockedReason=\{terminal \? closureWords\.lead\.handedOff : null\}/u, "переданный лид: причина названа");
   const closed = text(mainOf(nextBoards.get("next-sales-closed")));
   assert.match(closed, /Вернуть в работу/u);
   // Пояснения за «?»: «Фильтр направления точный…» остаётся на виду (предупреждение о данных), а справка «Менеджеров в отчёте» — за «?».
-  const managers = read("src/components/v3/sales-next/SalesFramesNext.tsx");
+  const managers = read("src/components/staff/sales-next/SalesFramesNext.tsx");
   assert.match(managers, /help="Написания с разным регистром/u);
-  assert.match(read("src/components/v3/sales-next/SalesCashCard.tsx"), /help="Подтверждённые финансовые события/u);
+  assert.match(read("src/components/staff/sales-next/SalesCashCard.tsx"), /help="Подтверждённые финансовые события/u);
   // Предупреждения остаются на виду: сбой чтения, граница роли, неполный итог.
-  assert.match(read("src/components/v3/sales-next/SalesReportNextPage.tsx"), /role=\{alert\.role\}/u);
-  assert.match(read("src/components/v3/sales-next/SalesMoneyCard.tsx"), /\{data\.footnote\}/u);
-  assert.match(read("src/components/v3/sales-next/SalesFramesNext.tsx"), /Записи продаж вашей роли недоступны/u);
+  assert.match(read("src/components/staff/sales-next/SalesReportNextPage.tsx"), /role=\{alert\.role\}/u);
+  assert.match(read("src/components/staff/sales-next/SalesMoneyCard.tsx"), /\{data\.footnote\}/u);
+  assert.match(read("src/components/staff/sales-next/SalesFramesNext.tsx"), /Записи продаж вашей роли недоступны/u);
 });
 
 /* ---------------------------------------------------------------- исправления после независимой проверки сборки 2A (28.10.2026) */
 
 test("Esc в панелях лида, записи и плана: первая Esc только выводит из поля (`sheetEscape`), набранное не пропадает; в браузере — pipelines-next и sales-report-next --screenshots", () => {
   for (const file of ["pipeline-next/LeadSheetNext", "sales-next/SalesRecordsTable", "sales-next/SalesPlanCard"]) {
-    const source = read(`src/components/v3/${file}.tsx`);
+    const source = read(`src/components/staff/${file}.tsx`);
     assert.equal(count(source, /<DetailSheet\b/gu), 1, `${file}: одна панель`);
     assert.match(source, /onEscapeKeyDown=\{sheetEscape\}/u, `${file}: Esc решает правило боковой панели`);
-    assert.match(source, /import \{ sheetEscape \} from "@\/components\/v3\/panel\/sheet-escape";/u, file);
+    assert.match(source, /import \{ sheetEscape \} from "@\/components\/staff\/panel\/sheet-escape";/u, file);
   }
 });
 
 test("подвал панели лида: «Открыть карточку лида» и «⋯» — одна строка и на телефоне (кнопка занимает остаток, «⋯» справа), а не столбец с одинокой «⋯»", () => {
-  const sheet = read("src/components/v3/pipeline-next/LeadSheetNext.tsx");
+  const sheet = read("src/components/staff/pipeline-next/LeadSheetNext.tsx");
   assert.match(sheet, /footer=\{\s*(?:\/\/[^\n]*\n\s*)?<div className="flex items-center gap-2 sm:justify-end">\s*<Button variant="outline" asChild className="flex-1 sm:flex-none">/u);
   assert.match(sheet, /<CloseRecordMenu [\s\S]*?\/>\s*\) : null\}\s*<\/div>\s*\}/u, "меню закрытия лежит в той же строке");
   // Подвал панели — столбец наизнанку: две отдельные кнопки без обёртки опять дали бы «⋯» одну над кнопкой.

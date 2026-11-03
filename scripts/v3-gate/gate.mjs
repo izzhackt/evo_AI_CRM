@@ -18,14 +18,14 @@ const adminPassword = requiredEnvironment("EVO_STAFF_AUTH_ADMIN_PASSWORD");
 const scratch = requiredEnvironment("SCRATCH");
 const base = `http://127.0.0.1:${appPort}`;
 const routes = [
-  "/v3",
-  "/v3/main",
-  "/v3/pipeline",
-  "/v3/inbox",
-  "/v3/profile",
-  "/v3/settings",
-  "/v3/knowledge",
-  "/v3/calendar",
+  "/",
+  "/main",
+  "/pipeline",
+  "/inbox",
+  "/profile",
+  "/settings",
+  "/knowledge",
+  "/calendar",
 ];
 const profiles = [
   ["desktop", { viewport: { width: 1360, height: 1000 } }, true],
@@ -49,14 +49,14 @@ try {
       await page.locator("#staff-password").fill(adminPassword);
       await page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click();
       await page.getByTestId("v3-shell").waitFor();
-      assert.equal(new URL(page.url()).pathname, "/v3/main");
+      assert.equal(new URL(page.url()).pathname, "/main");
       const activeRole = page.getByTestId("active-role");
       assert.equal(await activeRole.getAttribute("data-role"), "admin");
       assert.equal(await activeRole.getAttribute("data-system-role"), "admin");
 
       for (const route of routes) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle" });
-        if (route === "/v3/main") {
+        if (route === "/main") {
           await page.getByRole("heading", { level: 1, name: "Сегодня" }).waitFor();
         }
         await assertStyled(page, base, { v3: true, surface: "staff" });

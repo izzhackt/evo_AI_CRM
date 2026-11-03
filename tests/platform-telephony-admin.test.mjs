@@ -329,7 +329,7 @@ test("everything off, nothing on the server: «выключено», no work cla
   assert.equal(row.state, "выключено");
   assert.equal(row.tone, "off");
   assert.equal(row.blocksWork, false);
-  assert.equal(row.action.link.href, "/v3/settings?section=telephony");
+  assert.equal(row.action.link.href, "/settings?section=telephony");
   const lines = telephonyStatusLines(SERVER_OFF, parsed, NOW);
   assert.deepEqual(lines.map((line) => line.id), ["intake", "crm_key", "pbx_key", "pbx_link", "last_event", "reconcile", "directory", "evidence", "divergence", "record", "backfill", "automation"]);
   assert.equal(lines.find((line) => line.id === "intake").value, "выключен");
@@ -792,26 +792,26 @@ test("database refusals reach the browser as a status, a code and (for CHECKs) t
 
 test("the settings page opens for the Admin and for a telephony.manage holder, for nobody else", () => {
   const staff = (...permissionKeys) => ({ systemRole: "staff", presentationRole: null, permissionKeys, platformAccessVersion: 1 });
-  assert.equal(staffCanAccessRoute(ADMIN, "/v3/settings"), true);
-  assert.equal(staffCanAccessRoute(staff("telephony.manage"), "/v3/settings"), true);
+  assert.equal(staffCanAccessRoute(ADMIN, "/settings"), true);
+  assert.equal(staffCanAccessRoute(staff("telephony.manage"), "/settings"), true);
   for (const keys of [[], ["telephony.call.dial"], ["telephony.recording.listen.all", "telephony.report.read.all"], ["lead.read", "case.read.full", "ai.agent.use"]]) {
-    assert.equal(staffCanAccessRoute(staff(...keys), "/v3/settings"), false, keys.join());
+    assert.equal(staffCanAccessRoute(staff(...keys), "/settings"), false, keys.join());
   }
   // Role preview never inherits the right: the previewed role decides.
   for (const role of ["sales", "admissions"]) {
-    assert.equal(staffCanAccessRoute({ ...ADMIN, presentationRole: role }, "/v3/settings"), false, role);
+    assert.equal(staffCanAccessRoute({ ...ADMIN, presentationRole: role }, "/settings"), false, role);
   }
   // The right opens nothing else.
-  for (const route of ["/v3/knowledge", "/v3/marketing", "/v3/finance", "/v3/main", "/v3/requests", "/v3/profile"]) {
+  for (const route of ["/knowledge", "/marketing", "/finance", "/main", "/requests", "/profile"]) {
     assert.equal(staffCanAccessRoute(staff("telephony.manage"), route), false, route);
   }
 });
 
 test("navigation shows «Настройки» to the holder and to nobody without the right", () => {
-  const nav = (permissionKeys, systemRole = "staff") => buildV3Navigation({ systemRole, presentationRole: null, permissionKeys, platformAccessVersion: 1 }, "/v3/settings", new URLSearchParams());
-  assert.equal(nav(["telephony.manage"]).settings?.href, "/v3/settings");
+  const nav = (permissionKeys, systemRole = "staff") => buildV3Navigation({ systemRole, presentationRole: null, permissionKeys, platformAccessVersion: 1 }, "/settings", new URLSearchParams());
+  assert.equal(nav(["telephony.manage"]).settings?.href, "/settings");
   assert.equal(nav(["telephony.call.dial"]).settings, null);
-  assert.equal(nav([], "admin").settings?.href, "/v3/settings");
+  assert.equal(nav([], "admin").settings?.href, "/settings");
   assert.deepEqual([nav(["telephony.manage"]).home, ...nav(["telephony.manage"]).groups, ...nav(["telephony.manage"]).sections, ...nav(["telephony.manage"]).common].filter(Boolean), []);
 });
 

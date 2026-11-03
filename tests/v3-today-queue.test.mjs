@@ -113,9 +113,9 @@ test("tasks: my open tasks by the Bishkek day rule, within 14 days, nothing else
   ]);
   const caseItem = items.at(-1);
   assert.equal(caseItem.key, `case:${uuid("cccccccc", 1)}`, "the row key is the «Задачи» row key");
-  assert.equal(caseItem.openHref, `/v3/tasks?task=${uuid("cccccccc", 1)}&kind=case&case=${uuid("dddddddd", 1)}`);
-  assert.deepEqual(caseItem.who, { name: "Студент 1", href: `/v3/profile?case=${uuid("dddddddd", 1)}&tab=overview` });
-  assert.equal(items[0].openHref, `/v3/tasks?task=${uuid("bbbbbbbb", 1)}`);
+  assert.equal(caseItem.openHref, `/tasks?task=${uuid("cccccccc", 1)}&kind=case&case=${uuid("dddddddd", 1)}`);
+  assert.deepEqual(caseItem.who, { name: "Студент 1", href: `/profile?case=${uuid("dddddddd", 1)}&tab=overview` });
+  assert.equal(items[0].openHref, `/tasks?task=${uuid("bbbbbbbb", 1)}`);
   assert.equal(items[0].who, null);
   assert.throws(() => todayTaskItems({ staff: [staffTask(1, {}), staffTask(1, {})], cases: [], actorMembershipId: ME, now: NOW }), /duplicate/u);
 });
@@ -141,7 +141,7 @@ test("students: one row per case in its most urgent band; the step date only for
     ["Решение", "overdue", "дедлайн просрочен", null],
     ["Задачи", "upcoming", "следующий шаг", "2026-09-30"],
   ]);
-  assert.equal(items[0].openHref, `/v3/profile?view=mine&open=${uuid("dddddddd", 1)}`);
+  assert.equal(items[0].openHref, `/profile?view=mine&open=${uuid("dddddddd", 1)}`);
 });
 
 test("handoffs: only my acceptance, and «нужен куратор» only for those who assign curators", () => {
@@ -154,8 +154,8 @@ test("handoffs: only my acceptance, and «нужен куратор» only for t
   assert.deepEqual(todayHandoffItems(rows, { coverage: false }).map((item) => [item.title, item.reason]), [["Принять дело", "ждёт принятия"]]);
   const coverage = todayHandoffItems(rows, { coverage: true });
   assert.deepEqual(coverage.map((item) => [item.title, item.reason, item.openHref]), [
-    ["Принять дело", "ждёт принятия", `/v3/profile?view=needs_action&open=${uuid("dddddddd", 1)}`],
-    ["Назначить куратора", "нужен куратор", `/v3/profile?view=needs_curator&open=${uuid("dddddddd", 3)}`],
+    ["Принять дело", "ждёт принятия", `/profile?view=needs_action&open=${uuid("dddddddd", 1)}`],
+    ["Назначить куратора", "нужен куратор", `/profile?view=needs_curator&open=${uuid("dddddddd", 3)}`],
   ]);
   assert.ok(coverage.every((item) => item.band === "waiting"));
 });
@@ -177,8 +177,8 @@ test("leads and requests: working stages only, the board's due words, unowned re
     ["Без даты", "no_step", "срок не назначен"],
     ["Встреча", "upcoming", "следующее действие"],
   ]);
-  assert.equal(leads[0].openHref, `/v3/pipeline?lead=${uuid("ffffffff", 1)}`);
-  assert.equal(leads[0].who.href, `/v3/profile?id=${uuid("ffffffff", 1)}`);
+  assert.equal(leads[0].openHref, `/pipeline?lead=${uuid("ffffffff", 1)}`);
+  assert.equal(leads[0].who.href, `/profile?id=${uuid("ffffffff", 1)}`);
   const requests = todayRequestItems([
     lead(8, { stage: "new", owner: null, source: "website" }),
     lead(9, { stage: "qualified", owner: null, source: "unknown_source" }),
@@ -220,7 +220,7 @@ test("an unknown-number lead is «Номер …» in Today as in «Заявки
 test("chats: the «Нужен ответ» state of the read, waiting since the last message", () => {
   const items = todayChatItems([thread(1, { at: "2026-09-22T08:30:00.000Z" }), thread(2, { state: "awaiting_student" })]);
   assert.equal(items.length, 1);
-  assert.equal(items[0].openHref, `/v3/messages?case=${uuid("dddddddd", 1)}&queue=needs_reply`);
+  assert.equal(items[0].openHref, `/messages?case=${uuid("dddddddd", 1)}&queue=needs_reply`);
   assert.deepEqual(todayWhen(items[0], NOW), { dateTime: "2026-09-22T08:30:00.000Z", text: "22.09", word: "4 дн назад", overdue: false });
   assert.deepEqual(todayWhen({ due: { dueOn: "2026-09-24", dueAt: null }, since: null }, NOW), { dateTime: "2026-09-24", text: "24.09", word: "прошёл", overdue: true });
   assert.equal(todayWhen({ due: null, since: null }, NOW), null);
@@ -273,13 +273,13 @@ test("no invented numbers: a band counts only when every read writing into it is
   assert.equal(partial.complete, false);
   assert.deepEqual(partial.notices, [{
     source: "tasks", kind: "partial", text: "Показаны не все задачи — числа скрыты.",
-    link: { label: "Все задачи", href: "/v3/tasks" },
+    link: { label: "Все задачи", href: "/tasks" },
   }]);
 
   // Ошибка источника — на месте и с «Повторить»; строки остальных источников остаются.
   const failed = buildTodayQueue([{ source: "tasks", state: "error" }, read("students", todayStudentItems([caseRow(1, { step: "Шаг", due: TODAY, band: "today" })], TODAY)), read("requests", requests)], NOW);
   assert.deepEqual(failed.bands.map((band) => [band.band, band.count, band.items.length]), [["today", null, 1], ["waiting", 1, 1]]);
-  assert.deepEqual(failed.notices[0], { source: "tasks", kind: "error", text: "Задачи не загрузились.", link: { label: "Повторить", href: "/v3/main" } });
+  assert.deepEqual(failed.notices[0], { source: "tasks", kind: "error", text: "Задачи не загрузились.", link: { label: "Повторить", href: "/main" } });
   assert.equal(failed.applicable, true);
 
   // «Нужен ответ» не снимается ответом сотрудника (разбор 26.09): число группы с перепиской было бы
@@ -423,14 +423,14 @@ test("the empty-day action follows the role's sources, not lead.read alone; the 
     return todayLinks(who, todayAccess(who), { canReadReport });
   };
   // Настоящая Admissions (lead.read по 173): «Открыть студентов», без воронки продаж.
-  assert.deepEqual(linksOf({ permissionKeys: ADMISSIONS }), { mainAction: { label: "Открыть студентов", href: "/v3/profile" } });
-  assert.deepEqual(linksOf({ permissionKeys: SALES }, true), { mainAction: { label: "Открыть воронку продаж", href: "/v3/pipeline" } });
-  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { mainAction: { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" } });
+  assert.deepEqual(linksOf({ permissionKeys: ADMISSIONS }), { mainAction: { label: "Открыть студентов", href: "/profile" } });
+  assert.deepEqual(linksOf({ permissionKeys: SALES }, true), { mainAction: { label: "Открыть воронку продаж", href: "/pipeline" } });
+  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { mainAction: { label: "Открыть отчёт продаж", href: "/main?view=sales" } });
   assert.deepEqual(linksOf({ permissionKeys: ["lead.read"] }), { mainAction: null });
 });
 
 test("«Отчёт продаж» stays reachable for lead readers without the report: menu item and a report of the section", () => {
-  const menu = (permissionKeys) => buildV3Navigation(actor({ permissionKeys }), "/v3/main", new URLSearchParams("view=sales"));
+  const menu = (permissionKeys) => buildV3Navigation(actor({ permissionKeys }), "/main", new URLSearchParams("view=sales"));
   const ids = (model) => model.groups.flatMap((group) => group.links.map((link) => link.id));
   // До «Сегодня» Admissions (lead.read без sales.register.read) видела графики и воронку на Главной.
   const admissions = menu(ADMISSIONS);
@@ -438,8 +438,8 @@ test("«Отчёт продаж» stays reachable for lead readers without the r
   assert.equal(admissions.activeId, "sales-report");
   assert.ok(ids(menu(["sales.register.read"])).includes("sales-report"), "report-only role keeps its item");
   assert.ok(!ids(menu(["case.read.full", "profile.read.full"])).includes("sales-report"), "no lead and no report read — no item");
-  const page = readFileSync(new URL("../src/app/(v3)/v3/main/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /if \(!canReadReport && !canReadSales\) redirect\("\/access-denied\?from=%2Fv3%2Fmain"\);/u);
+  const page = readFileSync(new URL("../src/app/(staff)/main/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /if \(!canReadReport && !canReadSales\) redirect\("\/access-denied\?from=%2Fmain"\);/u);
   assert.match(page, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} \/>;/u);
   assert.match(page, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
 });
@@ -517,7 +517,7 @@ test("«Динамика по дням» links keep the report period and filter
   const query = { view: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co", record: "x", returnTo: "https://untrusted.invalid/" };
   assert.deepEqual(salesDynamicsCarry(query), { view: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co" });
   const week = new URL(salesDynamicsHref(query, { key: "week" }), "https://crm.test");
-  assert.equal(week.pathname, "/v3/main");
+  assert.equal(week.pathname, "/main");
   assert.equal(week.hash, "#sales-dynamics");
   assert.deepEqual(Object.fromEntries(week.searchParams), { view: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co", period: "week" });
   const custom = new URL(salesDynamicsHref({}, { key: "custom", from: "2026-09-01", to: "2026-09-10" }), "https://crm.test");
@@ -587,14 +587,14 @@ test("a long group shows the first TODAY_WINDOW rows; a group within the slack s
   assert.equal(todayVisibleCount(TODAY_WINDOW + TODAY_WINDOW_SLACK + 1, false), TODAY_WINDOW);
   assert.equal(todayVisibleCount(38, false), TODAY_WINDOW);
   assert.equal(todayVisibleCount(38, true), 38);
-  const list = sourceText("src/components/v3/today/TodayQueueList.tsx");
+  const list = sourceText("src/components/staff/today/TodayQueueList.tsx");
   assert.match(list, /rows: band\.rows\.slice\(0, visible\)\.map\(/u, "rows beyond the window are not rendered, so j/k never lands on a hidden row");
   // Имя кнопки меняется вместе с состоянием, поэтому `aria-expanded` не нужен: одно из двух, не оба сразу.
   assert.doesNotMatch(list, /aria-expanded/u);
   assert.match(list, /\{open \? "Свернуть" : `Показать ещё \$\{hidden\}`\}/u);
   // Клавиатура: после раскрытия фокус уходит на первую открывшуюся строку, а j/k от кнопки идут от конца её группы.
   assert.match(list, /if \(!open\) requestAnimationFrame\(\(\) => focusQueueRow\(band\.rows\[hiddenFrom\]\.key\)\);/u);
-  assert.match(sourceText("src/components/v3/queue/useQueueKeyboard.ts"), /closest<HTMLElement>\("\[data-today-more\]"\)/u);
+  assert.match(sourceText("src/components/staff/queue/useQueueKeyboard.ts"), /closest<HTMLElement>\("\[data-today-more\]"\)/u);
   // Клиент у задачи-перезвона читается у видимых строк, но не больше предела: два чтения на задачу в одной отрисовке.
   const leads = sourceText("src/lib/v3/telephony-task-leads-source.ts");
   assert.match(leads, /band\.items\.slice\(0, todayVisibleCount\(band\.items\.length, false\)\)/u);
@@ -604,8 +604,8 @@ test("a long group shows the first TODAY_WINDOW rows; a group within the slack s
 });
 
 test("the one reason of a whole «Ждут вас» group stands once under the heading, not on every row", () => {
-  const list = sourceText("src/components/v3/today/TodayQueueList.tsx");
+  const list = sourceText("src/components/staff/today/TodayQueueList.tsx");
   assert.match(list, /band\.band !== "waiting" \|\| band\.note !== null \|\| band\.items\.length < SHARED_REASON_ROWS/u, "only «Ждут вас» without its own note");
   assert.match(list, /band\.items\.some\(\(item\) => item\.task \|\| item\.reason !== reason\)/u, "every row must share it, and none is a task");
-  assert.match(sourceText("src/components/v3/today/TodayRow.tsx"), /\(hideReason \? \[\] : item\.reason\.split\(" · "\)\)/u);
+  assert.match(sourceText("src/components/staff/today/TodayRow.tsx"), /\(hideReason \? \[\] : item\.reason\.split\(" · "\)\)/u);
 });

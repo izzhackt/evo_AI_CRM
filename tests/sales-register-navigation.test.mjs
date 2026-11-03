@@ -15,11 +15,11 @@ test("report to import and back preserves the selected period, page and normaliz
     q: "Анна", archived: "true", manager: "Иван & Co", direction: "Китай / магистратура", review: "false", offset: "50", mode: "import" });
   const back = resolve(Object.fromEntries(params(context.importHref))).reportHref;
   assert.equal(back, context.reportHref);
-  assert.equal(context.clearFiltersHref, "/v3/main?view=sales&year=2025&month=2");
+  assert.equal(context.clearFiltersHref, "/main?view=sales&year=2025&month=2");
 });
 
 test("settings entry receives an explicit organization period and annual context remains annual", () => {
-  assert.equal(resolve({ mode: "import" }).reportHref, "/v3/main?view=sales&year=2026&month=9");
+  assert.equal(resolve({ mode: "import" }).reportHref, "/main?view=sales&year=2026&month=9");
   const annual = resolve({ year: "2024", month: "all", offset: "25" });
   assert.equal(annual.valid, true);
   assert.equal(annual.month, undefined);
@@ -44,7 +44,7 @@ test("links remain on the report route and discard unrelated destinations and ed
     record: "record-id", new: "true", edit: "true", saved: "saved-id", q: "https://untrusted.invalid/?mode=import" });
   const back = new URL(context.reportHref, "https://crm.example.invalid");
   assert.equal(back.origin, "https://crm.example.invalid");
-  assert.equal(back.pathname, "/v3/main");
+  assert.equal(back.pathname, "/main");
   assert.deepEqual([...back.searchParams.keys()], ["view", "year", "month", "q"]);
   assert.equal(back.searchParams.get("q"), "https://untrusted.invalid/?mode=import");
   assert.equal(params(context.importHref).getAll("mode").length, 1);

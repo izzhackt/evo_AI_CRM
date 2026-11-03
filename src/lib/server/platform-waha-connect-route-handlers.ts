@@ -59,7 +59,7 @@ export function whatsappConnectAuthorization(result: PlatformActorResult): Autho
   if (result.status === "invalid") return { status: "unavailable", actor: null };
   // Просмотр роли — только вид экрана: подключение он не запускает.
   if (isStaffPreview(result.actor)) return { status: "preview", actor: null };
-  if (!canConnectWhatsApp(result.actor) || !staffCanAccessRoute(result.actor, "/v3/settings")) {
+  if (!canConnectWhatsApp(result.actor) || !staffCanAccessRoute(result.actor, "/settings")) {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };

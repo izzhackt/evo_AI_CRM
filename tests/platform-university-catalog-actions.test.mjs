@@ -34,7 +34,7 @@ test("real action binds organization to actor and invokes only reviewed stage RP
   assert.equal(outcome.status, "saved"); assert.equal(outcome.draftId, draftId);
   assert.equal(harness.calls.length, 1); assert.equal(harness.calls[0].schema, "platform"); assert.equal(harness.calls[0].name, "stage_university_catalog_publication");
   assert.equal(harness.calls[0].args.p_organization_id, harness.actor.organizationId); assert.deepEqual(harness.calls[0].args.p_content, content);
-  assert.deepEqual(harness.revalidated, [["/v3/universities"], ["/v3/universities/manage"], ["/portal/universities"]]);
+  assert.deepEqual(harness.revalidated, [["/universities"], ["/universities/manage"], ["/portal/universities"]]);
   // Черновик не меняет опубликованный индекс студента: тег не сбрасывается.
   assert.deepEqual(harness.tags, []);
 });
@@ -54,10 +54,10 @@ const review = () => form({ operation: "publish", draft_id: draftId, institution
 test("published receipt leaves the pending-only draft route for its exact published card", async () => {
   reset(); harness.response.data = { requestId, draftId, institutionId, status: "published" };
   await assert.rejects(mutateUniversityCatalogAction(previous, review()), (error) => {
-    assert.equal(getURLFromRedirectError(error), `/v3/universities/${institutionId}`);
+    assert.equal(getURLFromRedirectError(error), `/universities/${institutionId}`);
     return true;
   });
-  assert.equal(harness.revalidated.some(([path]) => path === "/v3/universities/manage"), false);
+  assert.equal(harness.revalidated.some(([path]) => path === "/universities/manage"), false);
   // Публикация сбрасывает серверный кэш индекса студента (S3, контракт 2.4).
   assert.deepEqual(harness.tags, [["portal-student-university-index", { expire: 0 }]]);
   assert.equal(harness.calls[0].name, "review_university_catalog_publication"); assert.equal(harness.calls[0].args.p_draft_id, draftId); assert.equal(harness.calls[0].args.p_decision, "publish");
@@ -70,13 +70,13 @@ test("rejected receipt leaves the pending-only draft route and old links retain 
   reset(); harness.response.data = { requestId, draftId, institutionId: null, status: "rejected" };
   const data = review(); data.set("operation", "reject");
   await assert.rejects(mutateUniversityCatalogAction(previous, data), (error) => {
-    assert.equal(getURLFromRedirectError(error), "/v3/universities/manage");
+    assert.equal(getURLFromRedirectError(error), "/universities/manage");
     return true;
   });
-  assert.equal(harness.revalidated.some(([path]) => path === "/v3/universities/manage"), false);
+  assert.equal(harness.revalidated.some(([path]) => path === "/universities/manage"), false);
   // Отклонение не меняет опубликованный индекс студента: тег не сбрасывается.
   assert.deepEqual(harness.tags, []);
-  const page = readFileSync(new URL("../src/app/(v3)/v3/universities/manage/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../src/app/(staff)/universities/manage/page.tsx", import.meta.url), "utf8");
   // «Университеты» ставят рамку `UniversityShell`: прежняя `PartShell` без переключателя «Нового вида», тот же возврат.
   assert.match(page, /if \(!draft\) return <(?:PartShell|UniversityShell)/u);
   assert.doesNotMatch(page, /drafts\[0\] \?\? notFound/u);
@@ -85,7 +85,7 @@ test("rejected receipt leaves the pending-only draft route and old links retain 
 // Exercise the real form action closure with hook storage, without a browser or
 // database. Next's navigation and the server action remain real implementations.
 function reviewFormAction(serverAction = mutateUniversityCatalogAction) {
-  const source = readFileSync(new URL("../src/components/v3/universities/UniversityEditor.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/components/staff/universities/UniversityEditor.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const componentModule = { exports: {} };
   runInNewContext(compiled, { module: componentModule, exports: componentModule.exports, require(specifier) {
@@ -104,7 +104,7 @@ function reviewFormAction(serverAction = mutateUniversityCatalogAction) {
 }
 
 test("the review form propagates real Next navigation instead of reporting an uncertain save", async () => {
-  for (const [decision, id, destination] of [["publish", institutionId, `/v3/universities/${institutionId}`], ["reject", null, "/v3/universities/manage"]]) {
+  for (const [decision, id, destination] of [["publish", institutionId, `/universities/${institutionId}`], ["reject", null, "/universities/manage"]]) {
     reset(); harness.response.data = { requestId, draftId, institutionId: id, status: decision === "publish" ? "published" : "rejected" };
     const data = review(); data.set("operation", decision);
     await assert.rejects(reviewFormAction()(previous, data), (error) => {
@@ -115,7 +115,7 @@ test("the review form propagates real Next navigation instead of reporting an un
 });
 
 test("exact reviewed-request replay follows the same validated destination", async () => {
-  for (const [decision, id, destination] of [["publish", institutionId, `/v3/universities/${institutionId}`], ["reject", null, "/v3/universities/manage"]]) {
+  for (const [decision, id, destination] of [["publish", institutionId, `/universities/${institutionId}`], ["reject", null, "/universities/manage"]]) {
     reset(); harness.response.data = { requestId, draftId, institutionId: id, status: decision === "publish" ? "published" : "rejected" };
     const data = review(); data.set("operation", decision);
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -140,7 +140,7 @@ test("ordinary client transport failure keeps the exact review intent for retry"
   assert.equal(harness.calls.length, 0);
   failTransport = false; harness.response.data = { requestId, draftId, institutionId, status: "published" };
   const changedIntent = review(); changedIntent.set("operation", "reject"); changedIntent.set("request_id", institutionId);
-  await assert.rejects(submit(uncertain, changedIntent), (error) => getURLFromRedirectError(error) === `/v3/universities/${institutionId}`);
+  await assert.rejects(submit(uncertain, changedIntent), (error) => getURLFromRedirectError(error) === `/universities/${institutionId}`);
   assert.equal(harness.calls.length, 1);
   assert.equal(harness.calls[0].args.p_request_id, requestId);
   assert.equal(harness.calls[0].args.p_decision, "publish");

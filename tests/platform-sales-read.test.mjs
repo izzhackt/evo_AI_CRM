@@ -198,7 +198,7 @@ test("Workflow-only permission can read owner options without granting lead-read
 
 test("Pipeline page uses the tested coordinator and manual creation keeps the actual SQL action permission", () => {
   const source = (file) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-  const page = source("src/app/(v3)/v3/pipeline/page.tsx");
+  const page = source("src/app/(staff)/pipeline/page.tsx");
   const adapter = source("src/lib/v3/pipeline-source.ts");
   assert.match(page, /readPipelineWorkspace\(actor, filters\)/);
   assert.match(adapter, /readPlatformSalesPipeline\(actor, \{/);

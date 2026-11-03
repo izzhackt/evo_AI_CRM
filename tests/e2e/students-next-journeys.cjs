@@ -44,7 +44,7 @@ const journeys = [
       report(`queue ${view}: panel shows stage, curator, next step, tasks and documents`, /Этап/u.test(text) && /Куратор/u.test(text) && /Следующий шаг/u.test(text) && /Задачи/u.test(text) && /Документы/u.test(text) && /из 12 принято/u.test(text), text.slice(0, 160));
       report(`queue ${view}: panel focus is inside, on the title`, await page.evaluate(() => Boolean(document.activeElement?.closest("[role=dialog]"))), null);
       const caseLink = dialog.getByRole("link", { name: "Открыть дело", exact: true });
-      report(`queue ${view}: «Открыть дело» goes to the case with the return address`, /\/v3\/profile\?case=cccccccc-2222-4222-8222-000000000001&tab=overview&returnTo=/u.test((await caseLink.getAttribute("href")) ?? ""), await caseLink.getAttribute("href"));
+      report(`queue ${view}: «Открыть дело» goes to the case with the return address`, /\/profile\?case=cccccccc-2222-4222-8222-000000000001&tab=overview&returnTo=/u.test((await caseLink.getAttribute("href")) ?? ""), await caseLink.getAttribute("href"));
       await shot(page, `queue-sheet-${view}`);
       const axe = await new AxeBuilder({ page }).include("[role=dialog]").analyze();
       report(`queue ${view}: axe (panel)`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
@@ -223,7 +223,7 @@ const journeys = [
     for (const view of ["d1280", "m390"]) {
       const { context, page, errors } = await open("uni-list", view);
       await pressRow(page, view, "Fudan University", view === "m390" ? 0 : 1);
-      report(`uni-list ${view}: a row goes to the university card`, /^\/v3\/universities\/57ce9b97-43fb-4563-9c61-\d{12}$/u.test((await pushes(page)).at(-1) ?? ""), await pushes(page));
+      report(`uni-list ${view}: a row goes to the university card`, /^\/universities\/57ce9b97-43fb-4563-9c61-\d{12}$/u.test((await pushes(page)).at(-1) ?? ""), await pushes(page));
       report(`uni-list ${view}: no browser errors`, errors.length === 0, errors);
       await context.close();
     }

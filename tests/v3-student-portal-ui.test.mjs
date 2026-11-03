@@ -176,10 +176,10 @@ test("Student preview implementation and staff entry are retired without removin
     "src/lib/server/student-portal-preview.ts",
     "src/lib/server/student-portal-assessment-preview.ts",
     "src/lib/server/student-portal-assessment-preview-content.ts",
-    "src/components/v3/portal/assessments/AssessmentPreviewPage.tsx",
-    "src/components/v3/portal/assessments/AssessmentPreviewRunner.tsx",
+    "src/components/staff/portal/assessments/AssessmentPreviewPage.tsx",
+    "src/components/staff/portal/assessments/AssessmentPreviewRunner.tsx",
   ]) assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), false, path);
-  const staffShell = source("src/components/v3/AppShell.tsx");
+  const staffShell = source("src/components/staff/AppShell.tsx");
   assert.doesNotMatch(staffShell, /student-portal-preview|\/preview\/student|Предпросмотр кабинета студента/u);
   assert.match(staffShell, /selectStaffRolePreviewAction/u);
   for (const path of [
@@ -455,7 +455,7 @@ test("migration 131 adds a v2 overview while preserving the rollback v1", () => 
 
 test("views consume the exact E2 DTOs without an invented wrapper", () => {
   // PORT-5d: перенос в Атлас не изобретает обёрточных DTO — те же E2-типы.
-  for (const dir of ["src/components/v3/portal", "src/components/portal/admission"]) {
+  for (const dir of ["src/components/staff/portal", "src/components/portal/admission"]) {
     assert.equal(existsSync(new URL(`${dir}/types.ts`, ROOT)), false, dir);
   }
 
@@ -472,14 +472,14 @@ test("views consume the exact E2 DTOs without an invented wrapper", () => {
     assert.doesNotMatch(view, /Portal(?:Overview|Documents|Applications|Payments|Notifications)View/u);
     // Replace-don't-layer: старый v3-файл удалён, не задублирован.
     assert.equal(
-      existsSync(new URL(`../src/components/v3/portal/${filename}`, import.meta.url)),
+      existsSync(new URL(`../src/components/staff/portal/${filename}`, import.meta.url)),
       false,
       filename,
     );
   }
 
   assert.equal(
-    existsSync(new URL("../src/components/v3/portal/ApplicationsView.tsx", import.meta.url)),
+    existsSync(new URL("../src/components/staff/portal/ApplicationsView.tsx", import.meta.url)),
     false,
   );
   const payments = source("src/components/portal/admission/PaymentsView.tsx");
@@ -613,10 +613,10 @@ test("existing case portal views stay presentation-only and never render raw sta
   // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
   // useEffect-механику и закреплён tests/student-assessments.test.mjs).
   // d1404aef1 (#928, 2026-09-20) увёл последний файл из
-  // src/components/v3/portal/ (PortalNotificationUpdates.tsx) в
-  // src/components/portal/ — каталог src/components/v3/portal/ не существует
+  // src/components/staff/portal/ (PortalNotificationUpdates.tsx) в
+  // src/components/portal/ — каталог src/components/staff/portal/ не существует
   // вовсе (проверено ниже), поэтому сканируем только portal/admission.
-  assert.equal(existsSync(new URL("src/components/v3/portal/", ROOT)), false);
+  assert.equal(existsSync(new URL("src/components/staff/portal/", ROOT)), false);
   const componentFiles = filesUnder("src/components/portal/admission/")
     .filter((path) => path.endsWith(".tsx"));
   const components = componentFiles.map(source).join("\n");
@@ -838,7 +838,7 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
     "DocumentsView.module.css",
   ]) {
     assert.equal(
-      existsSync(new URL(`../src/components/v3/portal/${removed}`, import.meta.url)),
+      existsSync(new URL(`../src/components/staff/portal/${removed}`, import.meta.url)),
       false,
       removed,
     );

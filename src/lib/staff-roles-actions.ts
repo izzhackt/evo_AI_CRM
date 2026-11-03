@@ -12,7 +12,7 @@ export async function staffRolesAction(previous: StaffRolesActionState, form: Fo
     if ("archiveImpact" in result) return { status: "success", message: "Проверьте изменение доступа перед архивированием.", archiveImpact: result.archiveImpact };
     if ("impact" in result) return { status: "success", message: "Проверьте изменение доступа перед публикацией.", impact: result.impact };
     confirmed = true;
-    revalidatePath("/v3/settings");
+    revalidatePath("/settings");
     return { status: "success", message: form.get("operation") === "save" || form.get("operation") === "create" || form.get("operation") === "copy"
       ? "Черновик роли сохранён. Для изменения доступа опубликуйте его." : "Изменение доступа сохранено.", ...result };
   } catch (error) {

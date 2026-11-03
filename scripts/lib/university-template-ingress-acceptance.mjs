@@ -224,7 +224,7 @@ export function requireTemplateAcceptanceImages() {
   for (const path of ["scripts/lib/university-template-ingress-acceptance.mjs", "scripts/lib/university-template-ingress-browser-proof.mjs",
     "scripts/lib/university-template-mapping-browser-proof.mjs", "scripts/lib/university-template-mapping-evidence.mjs",
     "scripts/lib/university-pdf-mapping-browser-proof.mjs", "src/lib/university-pdf-region-client.ts",
-    "src/components/v3/universities/forms/UniversityPdfMappingEditor.tsx",
+    "src/components/staff/universities/forms/UniversityPdfMappingEditor.tsx",
     "scripts/lib/student-profile-fields-browser-proof.mjs", "scripts/test-runners/test-postgres-v2-foundation.sh",
     "src/lib/server/university-template-ingress-route-handlers.ts", "src/lib/server/university-template-source-storage.ts",
     "src/lib/server/university-template-runtime-identity.ts", "src/lib/server/university-template-preflight.ts",

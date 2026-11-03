@@ -1,5 +1,5 @@
-// «Новый вид» (решение владельца 27.10.2026), поток «карточка»: карточка лида (`/v3/profile?id=…`) и дела студента
-// (`/v3/profile?case=…`) из набора виджетов. Разметка — настоящей сборкой страницы на синтетических данных тех же
+// «Новый вид» (решение владельца 27.10.2026), поток «карточка»: карточка лида (`/profile?id=…`) и дела студента
+// (`/profile?case=…`) из набора виджетов. Разметка — настоящей сборкой страницы на синтетических данных тех же
 // сценариев, что у прежнего вида (tests/e2e/card-next-static-render.cjs --json, отдельный node-процесс); границы
 // включения «нового вида» и размеры файлов — по исходникам. Это не живая проверка данных: чтения, права и серверные
 // действия страницы те же, их проверяют прежние тесты. Снимки, фокус, 44 px и доступность — тот же harness с
@@ -139,7 +139,7 @@ test("«Интересует»: значение, сбой словами, и н
 });
 
 test("«Новый вид» страницы единственный (#1327), данные и права не меняются", () => {
-  const source = read("src/app/(v3)/v3/profile/page.tsx");
+  const source = read("src/app/(staff)/profile/page.tsx");
   assert.doesNotMatch(source, /isNextUi/u);
   // Части прежнего вида строятся одним и тем же вызовом, признак в них не передаётся.
   assert.match(source, /caseWorkParts\(\{\s*actor,/u);
@@ -156,7 +156,7 @@ test("«Новый вид» страницы единственный (#1327), �
 });
 
 test("новый вид не читает и не пишет сам: в виджетах нет серверных действий, источников и Supabase", () => {
-  const dir = "src/components/v3/profile/next";
+  const dir = "src/components/staff/profile/next";
   for (const file of readdirSync(new URL(`../${dir}`, import.meta.url)).filter((name) => name.endsWith(".tsx"))) {
     const source = read(`${dir}/${file}`);
     const imports = [...source.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]);
@@ -175,24 +175,24 @@ test("новый вид не читает и не пишет сам: в видж
 });
 
 test("«Обращения студента»: общий с кабинетом студента CaseHelpPanel не знает про новый вид; карточка — свои файлы и тот же читатель", () => {
-  for (const file of ["src/components/v3/profile/CaseHelpPanel.tsx", "src/components/v3/profile/CaseHelpWorkspace.tsx"]) {
+  for (const file of ["src/components/staff/profile/CaseHelpPanel.tsx", "src/components/staff/profile/CaseHelpWorkspace.tsx"]) {
     const source = read(file);
     assert.doesNotMatch(source, /NamedCard|\bcard\s*=\s*false|\bcard\?:|\bcard=\{|from "\.\/next\//u, `${file}: ни NamedCard, ни свойства card, ни импортов из next/`);
   }
-  const workspace = read("src/components/v3/profile/next/CaseHelpCardWorkspace.tsx");
+  const workspace = read("src/components/staff/profile/next/CaseHelpCardWorkspace.tsx");
   assert.match(workspace, /readCaseHelp\(actor, caseId\)\.catch\(\(\) => null\)/u, "то же чтение, что у CaseHelpWorkspace");
-  assert.match(read("src/components/v3/profile/CaseHelpWorkspace.tsx"), /readCaseHelp\(actor, caseId\)\.catch\(\(\) => null\)/u);
-  assert.match(read("src/components/v3/profile/next/CaseHelpCardImpl.tsx"), /loadCaseHelpAction\(page\.caseId, page\.nextCursor, false\)/u, "то же действие «Более ранние обращения», как у сотрудника в CaseHelpPanel");
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.match(read("src/components/staff/profile/CaseHelpWorkspace.tsx"), /readCaseHelp\(actor, caseId\)\.catch\(\(\) => null\)/u);
+  assert.match(read("src/components/staff/profile/next/CaseHelpCardImpl.tsx"), /loadCaseHelpAction\(page\.caseId, page\.nextCursor, false\)/u, "то же действие «Более ранние обращения», как у сотрудника в CaseHelpPanel");
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /<CaseHelpCardWorkspace actor=\{actor\} caseId=\{caseTarget\.studentCaseId\} \/>/u);
   assert.doesNotMatch(page, /<CaseHelpWorkspace/u);
-  const card = read("src/components/v3/profile/next/CaseHelpCard.tsx");
+  const card = read("src/components/staff/profile/next/CaseHelpCard.tsx");
   assert.match(card, /lazy\(\(\) => import\("\.\/CaseHelpCardImpl"\)/u, "карточка подгружается лениво: её склейка классов и Radix не идут в первую загрузку профиля");
   assert.doesNotMatch(card, /NamedCard|@\/lib\/utils/u);
 });
 
 test("прежний вид не тронут признаком: вкладки профиля, шапка дела и «Лента» лида без `nextUi` рисуются как раньше", () => {
-  const profile = read("src/components/v3/profile/Profile.tsx");
+  const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
   assert.match(profile, /nextUi = false,/u);
   assert.match(profile, /tabs\.length > 1 && nextUi \? \(\s*<SectionTabs/u);
@@ -201,7 +201,7 @@ test("прежний вид не тронут признаком: вкладки
   assert.match(profile, /<section id=\{LEAD_GATE_ANCHOR\} aria-labelledby=\{`\$\{LEAD_GATE_ANCHOR\}-title`\} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">\s*<h2 id=\{`\$\{LEAD_GATE_ANCHOR\}-title`\} className="t-section text-fg">Подтверждение вручную<\/h2>\s*<p className="mt-1 t-body-compact text-fg-2">/u);
   assert.match(profile, /<NamedCard title="Подтверждение вручную" id=\{LEAD_GATE_ANCHOR\} testId="v3-lead-gate"\s*help="Для передачи в поступление/u);
   // Шапка дела: без `bare` линии сверху и снизу ряда прежние.
-  assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /input\.bare \? "grid grid-cols-1 sm:flex sm:flex-wrap" : "grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap"/u);
+  assert.match(read("src/components/staff/profile/CaseHeader.tsx"), /input\.bare \? "grid grid-cols-1 sm:flex sm:flex-wrap" : "grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap"/u);
 });
 
 test("замечания ревью: «Передача» считает колонки по своей карточке, обращения - карточка с заголовком, шапка без второй линии", () => {
@@ -224,27 +224,27 @@ test("замечания ревью: «Передача» считает кол�
   const needs = page("case-needs-curator");
   const header = needs.slice(needs.indexOf('data-testid="v3-case-header"'), needs.indexOf("Назначить куратора"));
   assert.doesNotMatch(header, /border-b border-border pb-3/u);
-  assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /className=\{input\.bare \? undefined : "border-b border-border pb-3"\}/u);
+  assert.match(read("src/components/staff/profile/CaseHeader.tsx"), /className=\{input\.bare \? undefined : "border-b border-border pb-3"\}/u);
   // 44 px цели телефона и «Сменить» выходят за строку (`-my-3`), только в новом виде; прежняя строка «Направление» не тронута.
   assert.match(page("lead-potential"), /<a href="tel:\+996000000002" class="-my-3 flex min-h-11/u);
-  assert.match(read("src/components/v3/profile/next/CaseNext.tsx"), /caseFactValues\(source\.overview, \{ links: false, flush: true \}\)/u);
-  assert.match(read("src/components/v3/profile/CaseDirection.tsx"), /className=\{flush \? `\$\{FACT_ACTION\} -my-3` : FACT_ACTION\}/u);
-  assert.match(read("src/components/v3/profile/CaseOverview.tsx"), /requestId=\{input\.directionAction\.requestId\} flush=\{options\.flush\}/u);
+  assert.match(read("src/components/staff/profile/next/CaseNext.tsx"), /caseFactValues\(source\.overview, \{ links: false, flush: true \}\)/u);
+  assert.match(read("src/components/staff/profile/CaseDirection.tsx"), /className=\{flush \? `\$\{FACT_ACTION\} -my-3` : FACT_ACTION\}/u);
+  assert.match(read("src/components/staff/profile/CaseOverview.tsx"), /requestId=\{input\.directionAction\.requestId\} flush=\{options\.flush\}/u);
 });
 
 test("«Ещё N»: ссылка строки на место страницы закрывает панель и не возвращает фокус на кнопку; вкладки профиля берут `focusable`", () => {
   // «Ещё N» подгружается лениво: `FeedOverflow` — заглушка с той же кнопкой, настоящая панель — в `FeedOverflowImpl`.
-  const facade = read("src/components/v3/profile/next/FeedOverflow.tsx");
+  const facade = read("src/components/staff/profile/next/FeedOverflow.tsx");
   assert.match(facade, /lazy\(\(\) => import\("\.\/FeedOverflowImpl"\)/u);
   assert.match(facade, /aria-label=\{`Ещё \$\{count\} в ленте`\} data-testid="v3-feed-overflow"/u, "заглушка называется и находится так же, как настоящая кнопка");
   assert.doesNotMatch(facade, /DetailSheet|ui\/button/u, "панель и Radix Dialog не импортируются статически");
-  const overflow = read("src/components/v3/profile/next/FeedOverflowImpl.tsx");
+  const overflow = read("src/components/staff/profile/next/FeedOverflowImpl.tsx");
   assert.match(overflow, /open=\{open\}/u);
   assert.match(overflow, /closest\('a\[href\^="#"\]'\)/u);
   assert.match(overflow, /onCloseAutoFocus=\{\(event\) => \{\s*if \(!toAnchor\.current\) return;/u);
   // Возврат фокуса остался прежним для Esc и крестика: `DetailSheet` зовёт чужой обработчик первым и уважает `preventDefault`.
   assert.match(read("src/components/kit/DetailSheet.tsx"), /onCloseAutoFocus\?\.\(event\);[\s\S]*?if \(event\.defaultPrevented\) return;/u);
-  assert.match(read("src/components/v3/profile/Profile.tsx"), /<SectionTabs\s+label="Разделы профиля"\s+focusable\s+value=\{current\}/u);
+  assert.match(read("src/components/staff/profile/Profile.tsx"), /<SectionTabs\s+label="Разделы профиля"\s+focusable\s+value=\{current\}/u);
   assert.match(read("src/components/kit/SectionTabs.tsx"), /<QueueViewTabs\s+label=\{label\}\s+focusable=\{focusable\}/u);
-  assert.match(read("src/components/v3/queue/QueueViewTabs.tsx"), /<QueueTabStrip id=\{id\} label=\{label\} focusable=\{focusable\}>/u);
+  assert.match(read("src/components/staff/queue/QueueViewTabs.tsx"), /<QueueTabStrip id=\{id\} label=\{label\} focusable=\{focusable\}>/u);
 });

@@ -48,27 +48,27 @@ test("fixed roles enforce the Sales, Admissions and Admin union", () => {
 
 test("the same policy resolves home routes and direct page access", () => {
   for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/tasks"), true);
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/team-chat"), true);
+    assert.equal(fixedRoleCanAccessRoute(role, "/tasks"), true);
+    assert.equal(fixedRoleCanAccessRoute(role, "/team-chat"), true);
   }
-  assert.equal(fixedRoleHomeRoute("admin"), "/v3/main");
-  assert.equal(fixedRoleHomeRoute("sales"), "/v3/main");
-  assert.equal(fixedRoleHomeRoute("admissions"), "/v3/main");
+  assert.equal(fixedRoleHomeRoute("admin"), "/main");
+  assert.equal(fixedRoleHomeRoute("sales"), "/main");
+  assert.equal(fixedRoleHomeRoute("admissions"), "/main");
 
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/main"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/pipeline"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/calendar"), false);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/main"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/pipeline"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/calendar"), false);
   assert.equal(fixedRoleCan("sales", "documents.read"), false);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/knowledge"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/main"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/pipeline"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/calendar"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/knowledge"), false);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/profile"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/profile"), true);
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/settings"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/knowledge"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/main"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/pipeline"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/knowledge"), false);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/profile"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/profile"), true);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/settings"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/settings"), false);
 });
 
 test("only Admin authority can select an exact fixed-role preview", () => {

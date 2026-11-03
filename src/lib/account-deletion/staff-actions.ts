@@ -71,7 +71,7 @@ export async function processAccountDeletionAction(
   }
   const { runAccountDeletion } = await import("../server/account-deletion-processor.ts");
   const result = await runAccountDeletion(id, requestedAtOf(fields.get("requested_at")), await services());
-  revalidatePath("/v3/settings");
+  revalidatePath("/settings");
   return state(result);
 }
 
@@ -98,7 +98,7 @@ export async function markAccountDeletionDoneAction(
   }
   const { markAccountDeletionDone } = await import("../server/account-deletion-processor.ts");
   const result = await markAccountDeletionDone(id, requestedAtOf(fields.get("requested_at")), note, await services());
-  revalidatePath("/v3/settings");
+  revalidatePath("/settings");
   return state(result);
 }
 
@@ -121,6 +121,6 @@ export async function retryAccountDeletionEmailAction(
   if (!fields || !UUID.test(id)) return { status: "invalid", step: null, emailStatus: null };
   const { resendAccountDeletionEmail } = await import("../server/account-deletion-processor.ts");
   const result = await resendAccountDeletionEmail(id, requestedAtOf(fields.get("requested_at")), await services());
-  revalidatePath("/v3/settings");
+  revalidatePath("/settings");
   return state(result);
 }

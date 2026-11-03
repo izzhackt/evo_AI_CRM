@@ -72,7 +72,7 @@ function isRelation(value: unknown): value is ParentPhoneRelation {
 
 /** Адрес дела в CRM: страница профиля с `?case=`. */
 export function parentPhoneCaseHref(studentCaseId: string): string {
-  return `/v3/profile?case=${encodeURIComponent(studentCaseId)}`;
+  return `/profile?case=${encodeURIComponent(studentCaseId)}`;
 }
 
 /** Ровно массив до пяти `{studentCaseId, studentName, relation}`; иначе `null`. */

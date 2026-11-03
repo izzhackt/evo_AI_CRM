@@ -287,8 +287,8 @@ function applicationFailureState(
 
 function revalidateApplication(studentCaseId: string): void {
   void studentCaseId;
-  revalidatePath("/v3/calendar");
-  revalidatePath("/v3/profile");
+  revalidatePath("/calendar");
+  revalidatePath("/profile");
 }
 
 export async function createPlatformUniversityApplicationAction(

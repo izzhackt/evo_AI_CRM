@@ -505,7 +505,7 @@ test("the student's refusal (migration 320) reaches the window as its own code a
   assert.equal(normalizeAiAnswerView({ ...VIEW, studentAiAllowed: true }).studentAiAllowed, true);
   assert.equal(normalizeAiAnswerView(VIEW).studentAiAllowed, true);
   // The window states the line on open (no ticket asked) and on a refused ticket, with no retry.
-  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  const assistant = read("src/components/staff/inbox/InboxAiAssistant.tsx");
   assert.match(assistant, /if \(!view\.studentAiAllowed\) \{ setPhase\(\{ kind: "blocked", code: AI_CONSENT_MISSING_CODE \}\); return; \}/u);
   assert.ok(assistant.indexOf("view.studentAiAllowed") < assistant.indexOf("view.answer && view.answer.current"), "the line comes before the saved answer");
   assert.equal(aiWindowErrorReason("ai_consent_missing"), "Студент не дал согласия на ИИ-помощников — помощник не читает эту переписку.");
@@ -534,7 +534,7 @@ test("an unpriced model is a blocked state of its own, not the exhausted budget"
   assert.equal(aiErrorRetryable("budget_exhausted"), false);
   assert.equal(aiErrorRetryable("rate_limited"), true);
   // В окне чата и то и другое — «Помощник сейчас недоступен» и строка причины, без ссылок (08.10).
-  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  const assistant = read("src/components/staff/inbox/InboxAiAssistant.tsx");
   assert.match(assistant, /if \(aiErrorBlocked\(code\) \|\| aiWindowUnavailable\(code\) !== null\) \{\n\s+setPhase\(\{ kind: "blocked", code \}\);/u);
   assert.match(assistant, /\{aiWindowUnavailable\(phase\.code\) \?\? aiErrorCopy\(phase\.code\)\}/u);
   assert.doesNotMatch(assistant, /ai_model_unpriced/u);
@@ -570,7 +570,7 @@ test("section reads: documents, rules, spend and settings are validated, money k
   assert.equal(parseAiAgentSection("laboratory"), null);
   assert.equal(parseAiAgentSection("autosend"), "autosend", "P4: «Автоответчик»");
   assert.equal(parseAiAgentSection("dictation"), null, "«Диктовка» does not exist yet");
-  assert.equal(aiAgentHref("rules"), "/v3/ai-agent?section=rules");
+  assert.equal(aiAgentHref("rules"), "/ai-agent?section=rules");
 });
 
 // ------------------------------------------------------------ route, access, menu
@@ -582,28 +582,28 @@ test("route contract: only the three AI routes and the section page are connecte
     `/api/v3/ai-agent/answers/${ID(2)}`, "/api/v3/ai-agent/status", "/api/internal/ai-agent/storage/x"]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
-  assert.equal(isConnectedPlatformPage("/v3/ai-agent"), true);
-  assert.equal(isConnectedPlatformPage("/v3/ai-agent/laboratory"), false);
+  assert.equal(isConnectedPlatformPage("/ai-agent"), true);
+  assert.equal(isConnectedPlatformPage("/ai-agent/laboratory"), false);
 });
 
 test("access: the section and the menu item follow ai.agent.use; every preview role sees it", () => {
   const staff = (permissionKeys) => ({ systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys });
-  assert.equal(staffCanAccessRoute(staff(["ai.agent.use"]), "/v3/ai-agent"), true);
-  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/v3/ai-agent"), false);
-  assert.equal(staffCanAccessRoute({ ...staff([]), systemRole: "admin" }, "/v3/ai-agent"), true);
+  assert.equal(staffCanAccessRoute(staff(["ai.agent.use"]), "/ai-agent"), true);
+  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/ai-agent"), false);
+  assert.equal(staffCanAccessRoute({ ...staff([]), systemRole: "admin" }, "/ai-agent"), true);
   for (const role of ["sales", "admissions"]) {
-    assert.equal(staffCanAccessRoute({ ...staff([]), systemRole: "admin", presentationRole: role }, "/v3/ai-agent"), true, role);
+    assert.equal(staffCanAccessRoute({ ...staff([]), systemRole: "admin", presentationRole: role }, "/ai-agent"), true, role);
   }
-  const nav = buildV3Navigation(staff(["ai.agent.use"]), "/v3/ai-agent", new URLSearchParams());
+  const nav = buildV3Navigation(staff(["ai.agent.use"]), "/ai-agent", new URLSearchParams());
   // 22.10.2026: пункт меню — «ИИ-агенты» (хаб); Gemini-страница — его дочерняя, пункт подсвечен и на ней.
   assert.equal(nav.activeId, "ai-agents");
-  assert.deepEqual(nav.common.map((link) => [link.label, link.href]), [["ИИ-агенты", "/v3/ai-agents"]]);
+  assert.deepEqual(nav.common.map((link) => [link.label, link.href]), [["ИИ-агенты", "/ai-agents"]]);
 });
 
 // ------------------------------------------------------------ source contract
 
 test("the window never reaches the agent, inserts only stored text and never sends", () => {
-  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  const assistant = read("src/components/staff/inbox/InboxAiAssistant.tsx");
   assert.doesNotMatch(assistant, /evo-ai-agent|:8080|\/v1\//u, "the browser talks only to CRM routes");
   assert.match(assistant, /fetch\(`\/api\/v3\/ai-agent\/conversations\/\$\{conversationId\}\/answer`/u);
   assert.match(assistant, /fetch\(`\/api\/v3\/ai-agent\/answers\/\$\{answer\.answerId\}\/insert`/u);
@@ -618,14 +618,14 @@ test("the window never reaches the agent, inserts only stored text and never sen
   // «давай без этого»: ни ссылок на настройки, согласие, лимит и расходы — ни в
   // самом окне, ни в памяти и автоответчике внутри его карточки.
   for (const file of ["InboxAiAssistant.tsx", "InboxAiMemory.tsx", "InboxAiAutosend.tsx"]) {
-    assert.doesNotMatch(read(`src/components/v3/inbox/${file}`), /next\/link|<Link\b|href=|section=spend|["'`]\/v3\/ai-agent\b/u, file);
+    assert.doesNotMatch(read(`src/components/staff/inbox/${file}`), /next\/link|<Link\b|href=|section=spend|["'`]\/ai-agent\b/u, file);
   }
   assert.match(assistant, /event\.key === "Escape"/u);
   assert.match(assistant, /aria-label="Помочь с ответом — открыть помощника"/u);
   assert.match(assistant, /role="dialog"\n\s+aria-modal="false"/u, "a non-modal dialog: the chat is not locked");
   assert.match(assistant, /document\.addEventListener\("pointerdown", onPointerDown, true\)/u, "a click outside closes the card");
   assert.match(assistant, /onInsert\(body\.text\);[\s\S]{0,600}collapse\(false\);/u, "inserting closes the card");
-  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  const chat = read("src/components/staff/inbox/InboxChat.tsx");
   assert.match(chat, /appendChatDraft\(storeKey, text\);/u);
   assert.match(chat, /\{assistant && canSend \? \(/u);
   assert.match(chat, /fieldHasText=\{store\.draft\.trim\(\) !== ""\}/u);
@@ -643,18 +643,18 @@ test("the section shows P1, P2 and P4 sub-pages and no dictation or knowledge-co
   // P4 adds «Автоответчик» in its own view (tests/ai-agent-p4-ui.test.mjs).
   assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title),
     ["Материалы", "Лист сверки", "Лаборатория", "Правила общения", "Расходы", "Автоответчик"]);
-  const page = read("src/app/(v3)/v3/ai-agent/page.tsx");
-  assert.match(page, /requireV3PageActor\("\/v3\/ai-agent"\)/u);
+  const page = read("src/app/(staff)/ai-agent/page.tsx");
+  assert.match(page, /requireV3PageActor\("\/ai-agent"\)/u);
   assert.match(page, /<AiAgentNextLazy/u);
 });
 
-test("AI styles: own stylesheet right after v3.css, outside the shared blocks, motion only when the system allows it", () => {
-  // Стек дописал CSS «ИИ-агента» в конец v3.css — внутрь раздела общих блоков
-  // (tests/v3-blocks.test.mjs). Свой файл сразу после v3.css — тот же порядок каскада.
-  assert.match(read("src/app/(v3)/layout.tsx"), /import "\.\/v3\.css";\nimport "\.\/ai-agent\.css";\n/u);
-  assert.doesNotMatch(read("src/app/(v3)/v3.css"), /\.v3-ai-|\.v3-switch/u, "no AI rules in v3.css");
+test("AI styles: own stylesheet right after staff.css, outside the shared blocks, motion only when the system allows it", () => {
+  // Стек дописал CSS «ИИ-агента» в конец staff.css — внутрь раздела общих блоков
+  // (tests/v3-blocks.test.mjs). Свой файл сразу после staff.css — тот же порядок каскада.
+  assert.match(read("src/app/(staff)/layout.tsx"), /import "\.\/staff\.css";\nimport "\.\/ai-agent\.css";\n/u);
+  assert.doesNotMatch(read("src/app/(staff)/staff.css"), /\.v3-ai-|\.v3-switch/u, "no AI rules in staff.css");
   assert.doesNotMatch(read("src/app/(portal)/layout.tsx"), /ai-agent\.css/u, "the student portal has no AI surfaces");
-  const plain = read("src/app/(v3)/ai-agent.css").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const plain = read("src/app/(staff)/ai-agent.css").replace(/\/\*[\s\S]*?\*\//gu, "");
   const motion = [...plain.matchAll(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/gu)];
   assert.equal(motion.length, 1, "one motion block");
   assert.doesNotMatch(plain.replace(motion[0][0], ""), /\b(?:transition|animation)(?:-[a-z]+)?:/u, "no motion outside it");

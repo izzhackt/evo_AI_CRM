@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { knowledgeDay, knowledgeMoment } from "../src/components/v3/knowledge/knowledge-look.ts";
+import { knowledgeDay, knowledgeMoment } from "../src/components/staff/knowledge/knowledge-look.ts";
 
 /*
  * Э8.10 (28.09.2026): облик «Базы знаний» — только интерфейс. Сервер, API,
@@ -10,10 +10,10 @@ import { knowledgeDay, knowledgeMoment } from "../src/components/v3/knowledge/kn
  * правила облика и то, что облик не должен был задеть.
  */
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const DIR = "src/components/v3/knowledge";
+const DIR = "src/components/staff/knowledge";
 const files = readdirSync(new URL(`../${DIR}`, import.meta.url)).filter((name) => /\.(tsx|ts|css)$/u.test(name));
 const source = Object.fromEntries(files.map((name) => [name, read(`${DIR}/${name}`)]));
-const nextDir = "src/components/v3/knowledge/next";
+const nextDir = "src/components/staff/knowledge/next";
 const knowledgeData = read(`${nextDir}/useKnowledgeData.ts`);
 const knowledgeActions = read(`${nextDir}/useKnowledgeActions.ts`);
 const tree = source["KnowledgeTree.tsx"];
@@ -37,8 +37,8 @@ test("the staff look: tokens, neutral selection, no pink, no red checkboxes, no 
     assert.doesNotMatch(text, /accent-color:\s*var\(--accent/u, `${name} paints checkboxes red`);
     assert.doesNotMatch(text, /Загрузка…|Загрузка базы знаний|>Поиск…</u, `${name} shows a loading text instead of skeleton rows`);
   }
-  assert.doesNotMatch(read("src/app/(v3)/v3/knowledge/page.tsx"), /Загрузка/u);
-  assert.match(read("src/app/(v3)/v3/knowledge/page.tsx"), /<Suspense fallback=\{<PartShell title="База знаний"><KnowledgeLibrarySkeleton \/><\/PartShell>\}>/u);
+  assert.doesNotMatch(read("src/app/(staff)/knowledge/page.tsx"), /Загрузка/u);
+  assert.match(read("src/app/(staff)/knowledge/page.tsx"), /<Suspense fallback=\{<PartShell title="База знаний"><KnowledgeLibrarySkeleton \/><\/PartShell>\}>/u);
   // Выбор — общий нейтральный `.v3-choice` по aria-current / aria-pressed.
   assert.match(tree, /v3-choice/u);
   assert.match(tree, /aria-current=\{current \? "page" : undefined\}/u);
@@ -71,7 +71,7 @@ test("local import and export dialogs keep their contract; export keeps its File
   assert.match(exporter, /<legend className="t-label text-fg-2">Включить в ZIP<\/legend>/u);
   assert.match(exporter, /export function KnowledgeExport\(\{ ids, area, caseIds, canonical, buttonClassName, label = "Выгрузить", open: openProp, onOpenChange \}/u);
   assert.match(exporter, /\{controlled \? null : <button type="button" aria-haspopup="dialog" className=\{buttonClassName \?\? QUEUE_SECONDARY\} onClick=\{\(\) => setOpen\(true\)\}>\{label\}<\/button>\}/u);
-  assert.match(read("src/components/v3/FileManager.tsx"), /<KnowledgeExport canonical=\{folderExport\} label=\{current \? "Выгрузить папку" : "Выгрузить все документы"\} buttonClassName=\{btnGhostCls\} \/>/u);
+  assert.match(read("src/components/staff/FileManager.tsx"), /<KnowledgeExport canonical=\{folderExport\} label=\{current \? "Выгрузить папку" : "Выгрузить все документы"\} buttonClassName=\{btnGhostCls\} \/>/u);
 });
 
 test("the tree draws only open branches, rows are a 44 px button and a 44 px link, secrets never open by themselves", () => {
@@ -93,11 +93,11 @@ test("the tree draws only open branches, rows are a 44 px button and a 44 px lin
 
 test("the redesign keeps URLs, commands and access unchanged", () => {
   for (const key of ["area", "folder", "item", "view", "case"]) assert.match(key === "case" ? read(`${nextDir}/KnowledgeNextLibrary.tsx`) : knowledgeData, new RegExp(`params\\.get\\("${key}"\\)`, "u"), `reads ?${key}=`);
-  const page = read("src/app/(v3)/v3/knowledge/page.tsx");
-  assert.match(page, /requireV3PageActor\("\/v3\/knowledge"\); requireKnowledgeAdmin\(actor\);/u);
-  assert.match(page, /if \(query\.tab === "snippets"\) redirect\("\/v3\/knowledge\?section=snippets"\);/u);
-  assert.match(read("src/app/(v3)/v3/documents/page.tsx"), /section=documents/u);
-  assert.match(read("src/app/(v3)/v3/reply-snippets/page.tsx"), /section=snippets/u);
+  const page = read("src/app/(staff)/knowledge/page.tsx");
+  assert.match(page, /requireV3PageActor\("\/knowledge"\); requireKnowledgeAdmin\(actor\);/u);
+  assert.match(page, /if \(query\.tab === "snippets"\) redirect\("\/knowledge\?section=snippets"\);/u);
+  assert.match(read("src/app/(staff)/documents/page.tsx"), /section=documents/u);
+  assert.match(read("src/app/(staff)/reply-snippets/page.tsx"), /section=snippets/u);
   const nextSources = readdirSync(new URL(`../${nextDir}`, import.meta.url)).filter((name) => /\.(tsx|ts)$/u.test(name)).map((name) => read(`${nextDir}/${name}`));
   const ops = new Set([...[...Object.values(source), ...nextSources].join("\n").matchAll(/\{ op: "([a-z_]+)"/gu)].map((match) => match[1]));
   assert.deepEqual([...ops].sort(), ["assign_case", "create", "edit", "move", "reserve_blob", "restore_version"]);

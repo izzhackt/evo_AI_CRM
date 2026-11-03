@@ -6,7 +6,7 @@
 
 /**
  * Настоящие страницы потока «tools» («Календарь», «База знаний» с разделами «Документы» и «Шаблоны ответов», «Командный чат» и
- * прежние `/v3/documents`, `/v3/reply-snippets`) в четырёх режимах: администратор, администратор
+ * прежние `/documents`, `/reply-snippets`) в четырёх режимах: администратор, администратор
  * без cookie, просмотр роли с cookie, сотрудник с cookie. Подменены только границы страницы: актёр, cookie и читатели данных
  * (синтетика `tools-next-fixtures.cjs`); `page.tsx`, его проверки прав и выбор вида — настоящие. Данные ВЫДУМАНЫ и не являются
  * записями EVO.
@@ -56,7 +56,7 @@ const { ImageConfigContext } = require("next/dist/shared/lib/image-config-contex
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
 const routerStub = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
-const withContexts = (node, pathname = "/v3/knowledge", search = "") =>
+const withContexts = (node, pathname = "/knowledge", search = "") =>
   createElement(AppRouterContext.Provider, { value: routerStub },
     createElement(PathnameContext.Provider, { value: pathname },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
@@ -112,16 +112,16 @@ chatSource.readV3TeamChatFeed = async () => {
   return { page: fx.CHAT.page, channels: fx.CHAT.channels, participants: fx.CHAT.participants };
 };
 
-const page = (path) => require(join(ROOT, "src/app", "(v3)", "v3", path, "page.tsx")).default;
+const page = (path) => require(join(ROOT, "src/app", "(staff)", path, "page.tsx")).default;
 const SCREENS = [
-  ["calendar", "calendar", {}, "/v3/calendar", "view=week&date=2026-09-26"],
-  ["knowledge-library", "knowledge", {}, "/v3/knowledge", "area=internal"],
-  ["knowledge-documents", "knowledge", { section: "documents" }, "/v3/knowledge", "section=documents"],
-  ["knowledge-snippets", "knowledge", { section: "snippets" }, "/v3/knowledge", "section=snippets"],
-  ["team-chat", "team-chat", { channel: "general" }, "/v3/team-chat", "channel=general"],
-  ["team-chat-failure", "team-chat", { channel: "general" }, "/v3/team-chat", "channel=general", true],
-  ["documents-page", "documents", {}, "/v3/documents", ""],
-  ["reply-snippets-page", "reply-snippets", {}, "/v3/reply-snippets", ""],
+  ["calendar", "calendar", {}, "/calendar", "view=week&date=2026-09-26"],
+  ["knowledge-library", "knowledge", {}, "/knowledge", "area=internal"],
+  ["knowledge-documents", "knowledge", { section: "documents" }, "/knowledge", "section=documents"],
+  ["knowledge-snippets", "knowledge", { section: "snippets" }, "/knowledge", "section=snippets"],
+  ["team-chat", "team-chat", { channel: "general" }, "/team-chat", "channel=general"],
+  ["team-chat-failure", "team-chat", { channel: "general" }, "/team-chat", "channel=general", true],
+  ["documents-page", "documents", {}, "/documents", ""],
+  ["reply-snippets-page", "reply-snippets", {}, "/reply-snippets", ""],
 ];
 
 async function renderAll(modes) {

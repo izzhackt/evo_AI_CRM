@@ -7,9 +7,9 @@ import {
   fixedRoleCanAccessRoute,
 } from "../src/lib/fixed-role-policy.ts";
 import { buildV3Navigation, v3SectionTitle } from "../src/lib/v3/navigation.ts";
-import { admissionsDirectoryHref, withDocsSection } from "../src/components/v3/profile/admissions-view.ts";
+import { admissionsDirectoryHref, withDocsSection } from "../src/components/staff/profile/admissions-view.ts";
 
-function navigation(role, href = "/v3/main") {
+function navigation(role, href = "/main") {
   const url = new URL(href, "https://navigation.test");
   return buildV3Navigation({ systemRole: "admin", presentationRole: role === "admin" ? null : role, platformAccessVersion: 1, assignments: [], permissionKeys: [] }, url.pathname, url.searchParams);
 }
@@ -28,15 +28,15 @@ function links(model) {
 // at the FRONT of the Продажи group (plan §3 order: Заявки, WhatsApp,
 // Воронка продаж, Отчёт продаж) and never reaches the admissions preview,
 // which lacks sales.read entirely — its list is unchanged from before this slice.
-// OTH-1: «Воронка поступления» (id admissions-pipeline, /v3/admissions-pipeline) is the
+// OTH-1: «Воронка поступления» (id admissions-pipeline, /admissions-pipeline) is the
 // FIRST item of the Поступление group (owner plan) — inserted right after
 // "home"/"sales-report" and before "admissions-worklist" for admin and
 // admissions; Sales never sees it (no admissions.read, matching the group's
 // existing admissions-worklist/universities-only visibility for that role).
 // Owner decision 27.09.2026 (replaces the one common «Переписки» item of Э5):
-// «WhatsApp» (id inbox, /v3/inbox, messaging.read) is the sales WhatsApp where
+// «WhatsApp» (id inbox, /inbox, messaging.read) is the sales WhatsApp where
 // leads arrive and stands in «Продажи» right after the sales board;
-// «Переписка» (id messages, /v3/messages, admissions.read; «Переписка со
+// «Переписка» (id messages, /messages, admissions.read; «Переписка со
 // студентами» until the owner decision 28.09.2026 shortened it to one menu
 // line) is the cabinet chat with existing students and stands in
 // «Поступление» right after the admissions board. Each page stands alone.
@@ -45,10 +45,10 @@ function links(model) {
 // «Продажи»? Да»): «Заявки» lead «Продажи» for every role that may open them
 // (they stood first in «Общее» from Э6 until then); WhatsApp still follows the
 // board (owner decision 27.09.2026). Rights are unchanged: the item is shown
-// exactly when /v3/requests is open.
+// exactly when /requests is open.
 // Owner decision 06.10.2026 («нет, все могут»: every employee answers WhatsApp
 // from the CRM) supersedes the 27.09 rule that the admissions role has no
-// WhatsApp item: «WhatsApp» is shown exactly when /v3/inbox is open
+// WhatsApp item: «WhatsApp» is shown exactly when /inbox is open
 // (messaging.read), so the admissions preview now lists it right after «Сегодня»
 // as the only item of «Продажи» it has.
 // «ИИ-агент» (plan of the AI agent §12.2, owner Q9 «нет, все могут»): one item
@@ -77,13 +77,13 @@ for (const role of ["admin", "sales", "admissions"]) {
       : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний", "ИИ-агенты"]
       : ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов", "ИИ-агенты"]);
     const every = links(model);
-    assert.equal(every.find((link) => link.id === "inbox")?.href, "/v3/inbox", `${role}: WhatsApp (06.10.2026)`);
-    assert.equal(every.find((link) => link.id === "messages")?.href, role === "sales" ? undefined : "/v3/messages");
+    assert.equal(every.find((link) => link.id === "inbox")?.href, "/inbox", `${role}: WhatsApp (06.10.2026)`);
+    assert.equal(every.find((link) => link.id === "messages")?.href, role === "sales" ? undefined : "/messages");
   });
 
   test(`Admin presentation preview of ${role} follows that role, not Admin authority`, () => {
     assert.equal(canAdminSelectEffectiveRole("admin", role), true);
-    const model = navigation(role, "/v3/profile?section=summary");
+    const model = navigation(role, "/profile?section=summary");
     assert.deepEqual(links(model).map((link) => link.id), expectedRoleLinks[role]);
     assert.equal(Boolean(model.settings), role === "admin");
     // «Сводка по направлениям» merged into «Студенты» (2026-09-24): no role
@@ -105,13 +105,13 @@ test("the two disclosure groups use the approved destinations and worklist remai
   // in the label (UX quick win 2, 2026-09-24): an Admin sees both groups, and
   // two identical «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Заявки", "/v3/requests"], ["Воронка продаж", "/v3/pipeline"], ["WhatsApp", "/v3/inbox"], ["Отчёт продаж", "/v3/main?view=sales"]]],
-    ["Поступление", [["Воронка поступления", "/v3/admissions-pipeline"], ["Переписка", "/v3/messages"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"]]],
+    ["Продажи", [["Заявки", "/requests"], ["Воронка продаж", "/pipeline"], ["WhatsApp", "/inbox"], ["Отчёт продаж", "/main?view=sales"]]],
+    ["Поступление", [["Воронка поступления", "/admissions-pipeline"], ["Переписка", "/messages"], ["Студенты", "/profile"], ["EVO Docs", "/profile?section=docs"], ["Университеты", "/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["sales", "admissions"]);
   assert.deepEqual(navigation("admissions").groups[0].links.map((link) => link.id), ["inbox"], "06.10.2026: WhatsApp is the admissions role's only «Продажи» item");
-  assert.equal(model.settings?.href, "/v3/settings");
+  assert.equal(model.settings?.href, "/settings");
 });
 
 /** Where a destination stands: a department group, a top-level section, «Общее», or the top/bottom of the menu. */
@@ -154,23 +154,23 @@ test("Э6: every destination has one fixed place for all roles, and no role sees
 
 test("«Заявки» highlight themselves and open «Продажи» with their filters (owner decision 28.09.2026)", () => {
   for (const role of ["admin", "sales"]) {
-    for (const href of ["/v3/requests", "/v3/requests?status=all", "/v3/requests?source=website&lead=record"]) {
+    for (const href of ["/requests", "/requests?status=all", "/requests?source=website&lead=record"]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "requests", `${role} ${href}`);
       assert.deepEqual(model.groups.filter((group) => group.active).map((group) => group.id), ["sales"], `${role} ${href}`);
-      assert.equal(model.destinationKey, navigation(role, "/v3/requests").destinationKey, `${role} ${href}`);
+      assert.equal(model.destinationKey, navigation(role, "/requests").destinationKey, `${role} ${href}`);
     }
   }
 });
 
 test("main and sales report have mutually exclusive, query-aware current links", () => {
   for (const role of ["admin", "sales"]) {
-    for (const href of ["/v3/main", "/v3/main?period=month", "/v3/main?view=unknown", "/v3/main?view=", "/v3/main?view=sales&view=sales"]) {
+    for (const href of ["/main", "/main?period=month", "/main?view=unknown", "/main?view=", "/main?view=sales&view=sales"]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "home", href);
       assert.equal(model.groups.find((group) => group.id === "sales").active, false);
     }
-    for (const href of ["/v3/main?view=sales", "/v3/main?period=month&view=sales"]) {
+    for (const href of ["/main?view=sales", "/main?period=month&view=sales"]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "sales-report", href);
       assert.equal(model.groups.find((group) => group.id === "sales").active, true);
@@ -185,28 +185,28 @@ test("the former summary address lands on «Студенты» for every role", 
   // stay on the same destination: none of them opens a separate summary.
   for (const role of ["admin", "sales", "admissions"]) {
     for (const href of [
-      "/v3/profile?section=summary", "/v3/profile?section=summary&period=month#admissions-summary",
-      "/v3/profile", "/v3/profile?section=", "/v3/profile?section=unknown",
-      "/v3/profile?section=summary&section=summary", "/v3/profile?section=summary&section=other",
-      "/v3/profile?case=record&section=summary",
-      "/v3/profile?case=&section=summary", "/v3/profile?id=&section=summary",
-      "/v3/profile?case=record&tab=history", "/v3/profile?query=test&state=closed",
+      "/profile?section=summary", "/profile?section=summary&period=month#admissions-summary",
+      "/profile", "/profile?section=", "/profile?section=unknown",
+      "/profile?section=summary&section=summary", "/profile?section=summary&section=other",
+      "/profile?case=record&section=summary",
+      "/profile?case=&section=summary", "/profile?id=&section=summary",
+      "/profile?case=record&tab=history", "/profile?query=test&state=closed",
     ]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "admissions-worklist", `${role} ${href}`);
       assert.equal(links(model).some((link) => link.label === "Сводка по направлениям"), false, `${role} ${href}`);
-      assert.equal(model.destinationKey, navigation(role, "/v3/profile").destinationKey, `${role} ${href}`);
+      assert.equal(model.destinationKey, navigation(role, "/profile").destinationKey, `${role} ${href}`);
       assert.equal(sectionTitle(href), "Студенты", `${role} ${href}`);
     }
   }
-  assert.equal(v3SectionTitle("/v3/profile", { section: "summary" }), "Студенты");
+  assert.equal(v3SectionTitle("/profile", { section: "summary" }), "Студенты");
 });
 
 test("a lead card lives under «Воронка продаж» and names itself «Лид» in the tab", () => {
   // Audit 26.09: Lead 360 highlighted Поступление › Студенты and the tab read
   // «Студенты — EVO CRM». A case (`?case=`) stays «Студенты».
-  for (const href of ["/v3/profile?id=record", "/v3/profile?id=record&tab=history", "/v3/profile?id=record&section=summary",
-    "/v3/profile?id=record&returnTo=%2Fv3%2Fpipeline%3Fdue%3Dunscheduled"]) {
+  for (const href of ["/profile?id=record", "/profile?id=record&tab=history", "/profile?id=record&section=summary",
+    "/profile?id=record&returnTo=%2Fpipeline%3Fdue%3Dunscheduled"]) {
     for (const role of ["admin", "sales"]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "pipeline", `${role} ${href}`);
@@ -216,44 +216,44 @@ test("a lead card lives under «Воронка продаж» and names itself �
     assert.equal(navigation("admissions", href).activeId, "admissions-worklist", href);
     assert.equal(sectionTitle(href), "Лид", href);
   }
-  for (const href of ["/v3/profile?case=record", "/v3/profile?id=record&case=record", "/v3/profile?id=&tab=overview",
-    "/v3/profile?id=a&id=b"]) {
+  for (const href of ["/profile?case=record", "/profile?id=record&case=record", "/profile?id=&tab=overview",
+    "/profile?id=a&id=b"]) {
     assert.equal(navigation("admin", href).activeId, "admissions-worklist", href);
     assert.equal(sectionTitle(href), "Студенты", href);
   }
-  assert.equal(sectionTitle("/v3/profile?id=record&section=docs"), "EVO Docs");
+  assert.equal(sectionTitle("/profile?id=record&section=docs"), "EVO Docs");
 });
 
 test("forbidden and unknown paths never mark an unrelated link current", () => {
-  // /v3/main is «Сегодня» for admissions too (Э3, 26.09.2026); only the sales
+  // /main is «Сегодня» for admissions too (Э3, 26.09.2026); only the sales
   // report view and sales-only routes stay outside that role's navigation.
-  assert.equal(navigation("admissions", "/v3/main").activeId, "home");
+  assert.equal(navigation("admissions", "/main").activeId, "home");
   // «Заявки» is sales.read-gated (unified workflow S1); admissions lacks that
   // capability entirely, so it never becomes this preview's active link.
-  for (const href of ["/v3/main?view=sales", "/v3/pipeline", "/v3/settings", "/v3/requests"]) {
+  for (const href of ["/main?view=sales", "/pipeline", "/settings", "/requests"]) {
     assert.equal(navigation("admissions", href).activeId, null, href);
   }
-  for (const href of ["/v3/settings", "/v3/calendar"]) {
+  for (const href of ["/settings", "/calendar"]) {
     assert.equal(navigation("sales", href).activeId, null, href);
   }
   for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(navigation(role, "/v3/unknown").activeId, null);
+    assert.equal(navigation(role, "/unknown").activeId, null);
   }
 });
 
 test("Docs keeps its own navigation context for directory and case routes", () => {
   for (const role of ["admin", "admissions"]) {
-    for (const href of ["/v3/profile?section=docs", "/v3/profile?section=docs&direction=MY", "/v3/profile?case=record&tab=anketa&section=docs", "/v3/profile?case=record&tab=route&panel=packets&section=docs#partner-packets"]) {
+    for (const href of ["/profile?section=docs", "/profile?section=docs&direction=MY", "/profile?case=record&tab=anketa&section=docs", "/profile?case=record&tab=route&panel=packets&section=docs#partner-packets"]) {
       assert.equal(navigation(role, href).activeId, "evo-docs", href);
     }
-    assert.equal(navigation(role, "/v3/profile?section=docs&section=docs").activeId, "admissions-worklist");
+    assert.equal(navigation(role, "/profile?section=docs&section=docs").activeId, "admissions-worklist");
   }
-  assert.equal(navigation("sales", "/v3/profile?section=docs").activeId, "admissions-worklist");
+  assert.equal(navigation("sales", "/profile?section=docs").activeId, "admissions-worklist");
 });
 
 test("Docs presentation requires profile read authority and does not expose it to summary-only staff", () => {
   const actor = { systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: ["lead.read", "case.read.summary"] };
-  const url = new URL("https://navigation.test/v3/profile?section=docs");
+  const url = new URL("https://navigation.test/profile?section=docs");
   assert.equal(links(buildV3Navigation(actor, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), false);
   assert.equal(links(buildV3Navigation({ ...actor, permissionKeys: ["case.read.full"] }, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), false);
   assert.equal(links(buildV3Navigation({ ...actor, permissionKeys: ["case.read.full", "profile.read.full"] }, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), true);
@@ -267,18 +267,18 @@ test("Docs links preserve filters, cursor, selected case, tab and ZIP anchor", (
   assert.equal(directory.searchParams.get("case_q"), "Student");
   assert.equal(directory.searchParams.get("direction"), "MY");
   assert.equal(directory.searchParams.get("case_before_id"), "case");
-  const zip = new URL(withDocsSection("/v3/profile?case=case&tab=route&panel=packets#partner-packets", true), "https://navigation.test");
+  const zip = new URL(withDocsSection("/profile?case=case&tab=route&panel=packets#partner-packets", true), "https://navigation.test");
   assert.equal(zip.searchParams.get("case"), "case");
   assert.equal(zip.searchParams.get("tab"), "route");
   assert.equal(zip.searchParams.get("panel"), "packets");
   assert.equal(zip.searchParams.get("section"), "docs");
   assert.equal(zip.hash, "#partner-packets");
-  assert.equal(withDocsSection("/v3/profile?tab=anketa", false), "/v3/profile?tab=anketa");
+  assert.equal(withDocsSection("/profile?tab=anketa", false), "/profile?tab=anketa");
 });
 
 test("university details keep the catalogue and Admissions section active", () => {
   for (const role of ["admin", "sales", "admissions"]) {
-    const model = navigation(role, "/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b");
+    const model = navigation(role, "/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b");
     assert.equal(model.activeId, "universities");
     assert.equal(model.groups.find((group) => group.id === "admissions").active, true);
   }
@@ -298,13 +298,13 @@ test("each visible destination marks exactly one link and only its own disclosur
 
 test("destination keys preserve disclosure identity through filters and client detail transitions", () => {
   const destinations = [
-    ["sales-report", ["/v3/main?view=sales", "/v3/main?view=sales&year=2026&month=9&q=Name&offset=30&review=true", "/v3/main?archived=true&month=10&view=sales&year=2026"]],
-    ["calendar", ["/v3/calendar", "/v3/calendar?view=month&date=2026-09-01", "/v3/calendar?date=2026-10-01&view=week"]],
-    ["admissions-worklist", ["/v3/profile", "/v3/profile?case=record&tab=route", "/v3/profile?section=summary&case=", "/v3/profile?section=summary&id="]],
+    ["sales-report", ["/main?view=sales", "/main?view=sales&year=2026&month=9&q=Name&offset=30&review=true", "/main?archived=true&month=10&view=sales&year=2026"]],
+    ["calendar", ["/calendar", "/calendar?view=month&date=2026-09-01", "/calendar?date=2026-10-01&view=week"]],
+    ["admissions-worklist", ["/profile", "/profile?case=record&tab=route", "/profile?section=summary&case=", "/profile?section=summary&id="]],
     // The board and a lead card opened from it keep the same sidebar identity.
-    ["pipeline", ["/v3/pipeline", "/v3/pipeline?due=unscheduled&lead=record", "/v3/profile?id=record&query=updated"]],
-    ["evo-docs", ["/v3/profile?section=docs", "/v3/profile?case=record&section=docs&tab=anketa"]],
-    ["universities", ["/v3/universities", "/v3/universities?country=MY&level=bachelor", "/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b"]],
+    ["pipeline", ["/pipeline", "/pipeline?due=unscheduled&lead=record", "/profile?id=record&query=updated"]],
+    ["evo-docs", ["/profile?section=docs", "/profile?case=record&section=docs&tab=anketa"]],
+    ["universities", ["/universities", "/universities?country=MY&level=bachelor", "/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b"]],
   ];
   for (const [activeId, hrefs] of destinations) {
     const first = navigation("admin", hrefs[0]);
@@ -317,46 +317,46 @@ test("destination keys preserve disclosure identity through filters and client d
 });
 
 test("different authorized destinations reset identity and malformed queries retain existing classification", () => {
-  const destinations = ["/v3/main", "/v3/main?view=sales", "/v3/profile", "/v3/profile?section=docs", "/v3/pipeline"];
+  const destinations = ["/main", "/main?view=sales", "/profile", "/profile?section=docs", "/pipeline"];
   assert.equal(new Set(destinations.map((href) => navigation("admin", href).destinationKey)).size, destinations.length);
-  for (const href of ["/v3/main?view=unknown", "/v3/main?view=sales&view=sales"]) {
-    assert.equal(navigation("admin", href).destinationKey, navigation("admin", "/v3/main").destinationKey);
+  for (const href of ["/main?view=unknown", "/main?view=sales&view=sales"]) {
+    assert.equal(navigation("admin", href).destinationKey, navigation("admin", "/main").destinationKey);
   }
-  assert.equal(navigation("admin", "/v3/profile?section=docs&section=docs").destinationKey, navigation("admin", "/v3/profile").destinationKey);
+  assert.equal(navigation("admin", "/profile?section=docs&section=docs").destinationKey, navigation("admin", "/profile").destinationKey);
 });
 
 test("unknown destinations keep pathname identity without activating an unavailable link", () => {
-  const first = navigation("admin", "/v3/unknown");
+  const first = navigation("admin", "/unknown");
   assert.equal(first.activeId, null);
-  assert.equal(navigation("admin", "/v3/unknown?q=changed").destinationKey, first.destinationKey);
-  assert.notEqual(navigation("admin", "/v3/another-unknown").destinationKey, first.destinationKey);
+  assert.equal(navigation("admin", "/unknown?q=changed").destinationKey, first.destinationKey);
+  assert.notEqual(navigation("admin", "/another-unknown").destinationKey, first.destinationKey);
 
   const actor = { systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: ["sales.register.read"] };
   const staffNavigation = (href) => {
     const url = new URL(href, "https://navigation.test");
     return buildV3Navigation(actor, url.pathname, url.searchParams);
   };
-  const report = staffNavigation("/v3/main?view=sales");
+  const report = staffNavigation("/main?view=sales");
   assert.equal(report.activeId, "sales-report");
-  assert.equal(staffNavigation("/v3/main?view=sales&month=9").destinationKey, report.destinationKey);
+  assert.equal(staffNavigation("/main?view=sales&month=9").destinationKey, report.destinationKey);
   assert.deepEqual(links(report).map((link) => link.id), ["home", "sales-report"]);
-  const denied = staffNavigation("/v3/profile?section=summary");
+  const denied = staffNavigation("/profile?section=summary");
   assert.equal(denied.activeId, null);
-  assert.equal(staffNavigation("/v3/profile?section=docs").destinationKey, denied.destinationKey);
-  assert.notEqual(staffNavigation("/v3/universities").destinationKey, denied.destinationKey);
+  assert.equal(staffNavigation("/profile?section=docs").destinationKey, denied.destinationKey);
+  assert.notEqual(staffNavigation("/universities").destinationKey, denied.destinationKey);
   assert.notEqual(denied.destinationKey, report.destinationKey);
 });
 
 test("presentation role and access version changes reset the same destination", () => {
   const actor = { systemRole: "admin", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: [] };
   const query = new URLSearchParams("view=sales");
-  const current = buildV3Navigation(actor, "/v3/main", query);
+  const current = buildV3Navigation(actor, "/main", query);
   for (const changed of [{ ...actor, presentationRole: "sales" }, { ...actor, platformAccessVersion: 2 }]) {
-    const next = buildV3Navigation(changed, "/v3/main", query);
+    const next = buildV3Navigation(changed, "/main", query);
     assert.equal(next.activeId, current.activeId);
     assert.notEqual(next.destinationKey, current.destinationKey);
   }
-  assert.equal(buildV3Navigation(actor, "/v3/main", query).destinationKey, current.destinationKey);
+  assert.equal(buildV3Navigation(actor, "/main", query).destinationKey, current.destinationKey);
 });
 
 // UX quick win 2 (2026-09-24, Impeccable clarify): one name per destination —
@@ -401,35 +401,35 @@ test("the browser tab names the sidebar item that the same address highlights", 
     for (const link of links(navigation(role))) assert.equal(sectionTitle(link.href), link.label, `${role} ${link.href}`);
   }
   for (const [href, title] of [
-    ["/v3/main?period=month", "Сегодня"],
-    ["/v3/main?view=sales&view=sales", "Сегодня"],
-    ["/v3/main?view=sales&year=2026&month=9", "Отчёт продаж"],
-    ["/v3/profile?case=record&tab=route", "Студенты"],
-    ["/v3/profile?section=docs&section=docs", "Студенты"],
-    ["/v3/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
-    ["/v3/profile?section=summary&period=month", "Студенты"],
-    ["/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b", "Университеты"],
+    ["/main?period=month", "Сегодня"],
+    ["/main?view=sales&view=sales", "Сегодня"],
+    ["/main?view=sales&year=2026&month=9", "Отчёт продаж"],
+    ["/profile?case=record&tab=route", "Студенты"],
+    ["/profile?section=docs&section=docs", "Студенты"],
+    ["/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
+    ["/profile?section=summary&period=month", "Студенты"],
+    ["/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b", "Университеты"],
     // The former board subpages redirect to EVO Docs; the address itself still names the board.
-    ["/v3/admissions-pipeline?view=documents", "Воронка поступления"],
+    ["/admissions-pipeline?view=documents", "Воронка поступления"],
     // 27.09.2026: each conversation page highlights its own item and names its own tab.
-    ["/v3/inbox", "WhatsApp"],
-    ["/v3/inbox?waiting=1", "WhatsApp"],
-    ["/v3/messages?queue=all", "Переписка"],
-    ["/v3/messages?case=record", "Переписка"],
+    ["/inbox", "WhatsApp"],
+    ["/inbox?waiting=1", "WhatsApp"],
+    ["/messages?queue=all", "Переписка"],
+    ["/messages?case=record", "Переписка"],
   ]) {
     assert.equal(sectionTitle(href), title, href);
     const model = navigation("admin", href);
     assert.equal(links(model).find((link) => link.id === model.activeId)?.label, title, href);
   }
-  assert.equal(v3SectionTitle("/v3/unknown"), undefined);
+  assert.equal(v3SectionTitle("/unknown"), undefined);
 });
 
 test("every staff page uses the one «<Раздел> — EVO CRM» tab pattern", () => {
-  assert.match(source("src/app/(v3)/layout.tsx"), /title: \{ absolute: "EVO CRM", template: "%s — EVO CRM" \}/u);
-  const redirectOnly = new Set(["src/app/(v3)/v3/page.tsx", "src/app/(v3)/v3/admissions-requests/page.tsx"]);
-  const pages = readdirSync(new URL("../src/app/(v3)", import.meta.url), { recursive: true })
+  assert.match(source("src/app/(staff)/layout.tsx"), /title: \{ absolute: "EVO CRM", template: "%s — EVO CRM" \}/u);
+  const redirectOnly = new Set(["src/app/(staff)/admissions-requests/page.tsx"]);
+  const pages = readdirSync(new URL("../src/app/(staff)", import.meta.url), { recursive: true })
     .filter((file) => file.endsWith("page.tsx") || file === "not-found.tsx")
-    .map((file) => `src/app/(v3)/${file}`);
+    .map((file) => `src/app/(staff)/${file}`);
   assert.ok(pages.length >= 20, pages.join(", "));
   for (const file of pages) {
     const page = source(file);
@@ -441,26 +441,27 @@ test("every staff page uses the one «<Раздел> — EVO CRM» tab pattern",
     const title = page.match(/export const metadata = \{ title: "([^"]+)" \};/u)?.[1];
     if (title === undefined) {
       // Страница агента называет в вкладке самого агента, но слово раздела берёт у меню, как карточка лида.
-      const agentTab = /export async function generateMetadata\([\s\S]*?v3SectionTitle\(`\/v3\/ai-agents\/\$\{key\}`\)[\s\S]*?title: title \? `\$\{title\} — \$\{section\}` : section/u;
+      const agentTab = /export async function generateMetadata\([\s\S]*?v3SectionTitle\(`\/ai-agents\/\$\{key\}`\)[\s\S]*?title: title \? `\$\{title\} — \$\{section\}` : section/u;
       assert.ok(
-        /export async function generateMetadata\([\s\S]*?title: v3SectionTitle\("\/v3\/(?:main|profile)", await searchParams\)/u.test(page) || agentTab.test(page),
+        /export async function generateMetadata\([\s\S]*?title: v3SectionTitle\("\/(?:main|profile)", await searchParams\)/u.test(page) || agentTab.test(page),
         file,
       );
       continue;
     }
     assert.doesNotMatch(title, /V3|EVO|·|\|/u, file);
-    const route = file.match(/^src\/app\/\(v3\)(\/v3\/[^/]+)\//u)?.[1];
-    if (route) assert.equal(title, v3SectionTitle(route), file);
+    const route = file.match(/^src\/app\/\(staff\)(\/[^/]+)\//u)?.[1];
+    // `access-denied` is not a menu section: its tab says «Нет доступа».
+    if (route && route !== "/access-denied") assert.equal(title, v3SectionTitle(route), file);
   }
-  assert.equal(v3SectionTitle("/v3/ai-agents/director"), "ИИ-агенты", "the agent tab's section word is the sidebar item");
-  const denied = source("src/app/(v3)/access-denied/page.tsx");
-  for (const [, route, label] of denied.matchAll(/^  "(\/v3\/[^"]+)": "([^"]+)",$/gmu)) {
+  assert.equal(v3SectionTitle("/ai-agents/director"), "ИИ-агенты", "the agent tab's section word is the sidebar item");
+  const denied = source("src/app/(staff)/access-denied/page.tsx");
+  for (const [, route, label] of denied.matchAll(/^  "(\/[^"]+)": "([^"]+)",$/gmu)) {
     assert.equal(label, v3SectionTitle(route), route);
   }
 });
 
 test("each sidebar destination opens under a heading with the same words", () => {
-  const V3 = "src/app/(v3)/v3";
+  const V3 = "src/app/(staff)";
   // [link id, file, every literal PartShell title in the file is that label] — «Университеты» ставят рамку `UniversityShell`
   // (та же `PartShell` у прежнего вида, рамка набора у «Нового вида»), тот же заголовок.
   const headings = [
@@ -468,7 +469,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["requests", `${V3}/requests/page.tsx`, true], ["requests", `${V3}/requests/loading.tsx`, true],
     ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
     ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
-    ["sales-report", "src/components/v3/SalesRegisterView.tsx", false],
+    ["sales-report", "src/components/staff/SalesRegisterView.tsx", false],
     // Э8.5 (28.09): the board's review subpages are EVO Docs tabs — one heading again.
     ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, true],
     ["messages", `${V3}/messages/page.tsx`, true],
@@ -476,7 +477,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["evo-docs", `${V3}/profile/page.tsx`, false],
     ["universities", `${V3}/universities/page.tsx`, true], ["universities", `${V3}/universities/loading.tsx`, true],
     ["tasks", `${V3}/tasks/page.tsx`, true], ["tasks", `${V3}/tasks/loading.tsx`, true],
-    ["team-chat", `${V3}/team-chat/page.tsx`, true], ["team-chat", "src/components/v3/team-chat/TeamChat.tsx", false],
+    ["team-chat", `${V3}/team-chat/page.tsx`, true], ["team-chat", "src/components/staff/team-chat/TeamChat.tsx", false],
     ["calendar", `${V3}/calendar/page.tsx`, true], ["calendar", `${V3}/calendar/loading.tsx`, true],
     ["documents", `${V3}/documents/page.tsx`, true],
     ["reply-snippets", `${V3}/reply-snippets/page.tsx`, true],
@@ -489,7 +490,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
   const nextSources = () => {
     const walk = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) => (
       entry.isDirectory() ? walk(`${dir}/${entry.name}`) : /\.(?:ts|tsx)$/u.test(entry.name) && /next/u.test(`${dir}/${entry.name}`) ? [`${dir}/${entry.name}`] : []));
-    return walk("src/components/v3").map((file) => source(file)).join("\n");
+    return walk("src/components/staff").map((file) => source(file)).join("\n");
   };
   const visible = new Map(["admin", "sales", "admissions"].flatMap((role) => links(navigation(role)).map((link) => [link.id, link.label])));
   assert.deepEqual([...new Set(headings.map(([id]) => id))].sort(), [...visible.keys()].sort());
@@ -504,8 +505,8 @@ test("each sidebar destination opens under a heading with the same words", () =>
     }
   }
   // «Сегодня | Отчёт продаж» tabs are gone (Э3, 26.09.2026): the report keeps its own menu item.
-  assert.equal(existsSync(new URL("../src/components/v3/SalesReportNavigation.tsx", import.meta.url)), false);
-  assert.doesNotMatch(source("src/components/v3/SalesRegisterView.tsx"), /SalesReportNavigation|Раздел главной/u);
+  assert.equal(existsSync(new URL("../src/components/staff/SalesReportNavigation.tsx", import.meta.url)), false);
+  assert.doesNotMatch(source("src/components/staff/SalesRegisterView.tsx"), /SalesReportNavigation|Раздел главной/u);
   // Э8.5 (28.09): no «Разделы поступления» nav and no subpage titles on the board page.
   assert.doesNotMatch(source(`${V3}/admissions-pipeline/page.tsx`), /Разделы поступления|title="(?:Документы|Комплекты) на проверку"/u);
 });
@@ -514,12 +515,12 @@ test("each sidebar destination opens under a heading with the same words", () =>
 // без чтения документов: ни просмотр роли (в том числе «Admin»), ни сотрудник без роли admin пункта не видят.
 // С 26.10.2026 (решение владельца) оба — разделы верхнего уровня после «Поступления», а не пункты «Общего».
 test("«Маркетинг» and «Финансы» stand as top-level sections after the two departments for the real Admin only, never in role preview or for staff", () => {
-  const model = (actor, href = "/v3/main") => buildV3Navigation(actor, new URL(href, "https://navigation.test").pathname, new URL(href, "https://navigation.test").searchParams);
+  const model = (actor, href = "/main") => buildV3Navigation(actor, new URL(href, "https://navigation.test").pathname, new URL(href, "https://navigation.test").searchParams);
   const ids = (actor) => links(model(actor)).map((link) => link.id);
   const admin = { systemRole: "admin", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: [] };
   const full = model(admin);
   // Before: «Маркетинг» was the last item of «Общее»; now both are sections, in this order, and «Общее» holds neither.
-  assert.deepEqual(full.sections.map((link) => [link.id, link.label, link.href]), [["marketing", "Маркетинг", "/v3/marketing"], ["finance", "Финансы", "/v3/finance"]]);
+  assert.deepEqual(full.sections.map((link) => [link.id, link.label, link.href]), [["marketing", "Маркетинг", "/marketing"], ["finance", "Финансы", "/finance"]]);
   assert.equal(full.common.some((link) => link.id === "marketing" || link.id === "finance"), false);
   // Menu order: Сегодня · Продажи · Поступление · Маркетинг · Финансы · Общее · Настройки.
   const order = ids(admin);
@@ -535,13 +536,13 @@ test("«Маркетинг» and «Финансы» stand as top-level sections 
     }
   }
   // Вкладка браузера называет раздел теми же словами.
-  assert.equal(v3SectionTitle("/v3/marketing"), "Маркетинг");
-  assert.equal(v3SectionTitle("/v3/finance"), "Финансы");
+  assert.equal(v3SectionTitle("/marketing"), "Маркетинг");
+  assert.equal(v3SectionTitle("/finance"), "Финансы");
   // Адрес раздела с видом — тот же пункт, выбранный; ни один отдел при этом не раскрывается.
-  const marketing = model(admin, "/v3/marketing?view=leads");
+  const marketing = model(admin, "/marketing?view=leads");
   assert.equal(marketing.activeId, "marketing");
   assert.deepEqual(marketing.groups.filter((group) => group.active), []);
-  const finance = model(admin, "/v3/finance");
+  const finance = model(admin, "/finance");
   assert.equal(finance.activeId, "finance");
   assert.deepEqual(finance.groups.filter((group) => group.active), []);
 });

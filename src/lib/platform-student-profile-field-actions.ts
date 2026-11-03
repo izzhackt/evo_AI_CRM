@@ -22,8 +22,8 @@ function failure(status: PlatformStudentProfileFieldOutcome, requestId: string):
 }
 
 function refreshProfile(): void {
-  revalidatePath("/v3/profile");
-  revalidatePath("/v3/main");
+  revalidatePath("/profile");
+  revalidatePath("/main");
   revalidatePath("/portal");
 }
 

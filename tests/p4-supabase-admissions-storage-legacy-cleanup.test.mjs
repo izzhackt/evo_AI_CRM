@@ -50,11 +50,11 @@ const REMOVED_RUNTIME_PATHS = [
 const ACTIVE_ADMISSIONS_AND_DOCUMENT_PATHS = [
   "src/app/api/v2/document-slots/[documentSlotId]/versions/route.ts",
   "src/app/api/v2/document-versions/[versionId]/download/route.ts",
-  "src/app/(v3)/v3/calendar/page.tsx",
-  "src/app/(v3)/v3/profile/page.tsx",
-  "src/components/v3/calendar/TaskControls.tsx",
-  "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
-  "src/components/v3/profile/ProfileDocumentsClient.tsx",
+  "src/app/(staff)/calendar/page.tsx",
+  "src/app/(staff)/profile/page.tsx",
+  "src/components/staff/calendar/TaskControls.tsx",
+  "src/components/staff/profile/ProfileAdmissionsWorkspace.tsx",
+  "src/components/staff/profile/ProfileDocumentsClient.tsx",
   "src/lib/platform-admissions-actions.ts",
   "src/lib/platform-admissions-task-actions.ts",
   "src/lib/platform-admissions-workspace.ts",
@@ -88,7 +88,7 @@ test("P4 active surfaces have one Supabase authority and no compatibility fallba
     activeSource,
     /AdmissionsCaseOperationsSection|CanonicalAdmissions(?:Operations|Task)Panel|CanonicalPrivateDocumentsPanel|canonical-admissions-(?:operations|task)-actions|private-document-(?:authorization|files|multipart|repository|route-handlers)|canonical-crm-repository|EVO_PRIVATE_DOCUMENT_ROOT|\bdrizzle\b|\bsqlite\b|compatib(?:ility|le)/i,
   );
-  assert.match(activeSource, /\/v3\/(?:calendar|profile)/);
+  assert.match(activeSource, /\/(?:calendar|profile)/);
 });
 
 test("P4 package and environment contracts no longer carry local-file dependencies", () => {

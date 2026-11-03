@@ -15,15 +15,15 @@ import ts from "typescript";
 import * as access from "../src/lib/platform-access.ts";
 import * as taskContract from "../src/lib/platform-admissions-task-contract.ts";
 import * as taskDeadline from "../src/lib/platform-task-deadline.ts";
-import * as calendarTypes from "../src/components/v3/calendar/types.ts";
-import * as dueBucket from "../src/components/v3/queue/due-bucket.ts";
-import * as queueButtons from "../src/components/v3/queue/queue-buttons.ts";
-import * as bulkRun from "../src/components/v3/queue/bulk-run.ts";
-import * as taskCommands from "../src/components/v3/tasks/task-commands.ts";
-import * as composerRequestId from "../src/components/v3/tasks/composer-request-id.ts";
-import * as composerDraft from "../src/components/v3/tasks/composer-draft.ts";
-import * as nextStepInput from "../src/components/v3/students/next-step-input.ts";
-import * as studentsView from "../src/components/v3/students/students-queue-view.ts";
+import * as calendarTypes from "../src/components/staff/calendar/types.ts";
+import * as dueBucket from "../src/components/staff/queue/due-bucket.ts";
+import * as queueButtons from "../src/components/staff/queue/queue-buttons.ts";
+import * as bulkRun from "../src/components/staff/queue/bulk-run.ts";
+import * as taskCommands from "../src/components/staff/tasks/task-commands.ts";
+import * as composerRequestId from "../src/components/staff/tasks/composer-request-id.ts";
+import * as composerDraft from "../src/components/staff/tasks/composer-draft.ts";
+import * as nextStepInput from "../src/components/staff/students/next-step-input.ts";
+import * as studentsView from "../src/components/staff/students/students-queue-view.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 import {
   PALETTE_GROUP_LIMIT,
@@ -33,7 +33,7 @@ import {
   paletteQuery,
   searchCommandPalette,
 } from "../src/lib/v3/command-palette.ts";
-import { LIST_KEYS, PALETTE_KEY, QUEUE_KEYS, SELECT_KEY, SHELL_KEYS } from "../src/components/v3/queue/keyboard-keys.ts";
+import { LIST_KEYS, PALETTE_KEY, QUEUE_KEYS, SELECT_KEY, SHELL_KEYS } from "../src/components/staff/queue/keyboard-keys.ts";
 
 const require = createRequire(import.meta.url);
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime.js");
@@ -65,7 +65,7 @@ function forbiddenAction() {
 }
 
 const icons = compile("src/components/icons.tsx", (id) => require(id));
-const bulk = compile("src/components/v3/queue/Bulk.tsx", (id) => {
+const bulk = compile("src/components/staff/queue/Bulk.tsx", (id) => {
   if (id === "@/components/icons") return icons;
   if (id === "../calendar/types") return calendarTypes;
   if (id === "./bulk-run") return bulkRun;
@@ -73,17 +73,17 @@ const bulk = compile("src/components/v3/queue/Bulk.tsx", (id) => {
   if (id === "./queue-buttons") return queueButtons;
   return require(id);
 });
-const casePicker = compile("src/components/v3/tasks/TaskCasePicker.tsx", (id) => {
+const casePicker = compile("src/components/staff/tasks/TaskCasePicker.tsx", (id) => {
   if (id === "@/lib/v3/task-case-actions") return { searchTaskCasesAction: forbiddenAction };
   return require(id);
 });
-const deadlineField = compile("src/components/v3/tasks/ComposerDeadlineField.tsx", (id) => {
+const deadlineField = compile("src/components/staff/tasks/ComposerDeadlineField.tsx", (id) => {
   if (id === "../queue/due-bucket") return dueBucket;
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "../calendar/types") return calendarTypes;
   return require(id);
 });
-const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", (id) => {
+const composer = compile("src/components/staff/tasks/TaskComposerDialog.tsx", (id) => {
   if (id === "@/components/icons") return icons;
   if (id === "@/lib/platform-access") return access;
   if (id === "@/lib/platform-admissions-task-contract") return taskContract;
@@ -127,9 +127,9 @@ const SOURCES = sourceFiles("src").map((path) => ({ path, text: read(path) }));
 
 test("one composer: only TaskComposerDialog builds the create commands; the calendar form is gone", () => {
   const createCase = SOURCES.filter(({ path, text }) => /createPlatformAdmissionsTaskAction\(/u.test(text) && path !== "src/lib/platform-admissions-task-actions.ts");
-  assert.deepEqual(createCase.map(({ path }) => path), ["src/components/v3/tasks/TaskComposerDialog.tsx"]);
+  assert.deepEqual(createCase.map(({ path }) => path), ["src/components/staff/tasks/TaskComposerDialog.tsx"]);
   const createStaff = SOURCES.filter(({ text }) => /form\.set\("operation", "create"\)/u.test(text));
-  assert.deepEqual(createStaff.map(({ path }) => path), ["src/components/v3/tasks/TaskComposerDialog.tsx"]);
+  assert.deepEqual(createStaff.map(({ path }) => path), ["src/components/staff/tasks/TaskComposerDialog.tsx"]);
   assert.deepEqual(SOURCES.filter(({ text }) => /CalendarCreateTaskForm|create-lifecycle/u.test(text)).map(({ path }) => path), []);
 });
 
@@ -151,7 +151,7 @@ test("a retry after an unconfirmed save keeps its request id; only a spent key r
 
   // Обе команды диалога идут через это правило; безусловный новый ключ — только
   // «Создать ещё» после подтверждённого сохранения; брошенная ошибка ключ не меняет.
-  const source = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+  const source = read("src/components/staff/tasks/TaskComposerDialog.tsx");
   assert.equal([...source.matchAll(/requestId\.current = nextComposerRequestId\(shown, requestId\.current\);/gu)].length, 2);
   assert.equal([...source.matchAll(/requestId\.current = crypto\.randomUUID\(\);/gu)].length, 1);
   const createAnother = source.match(/function createAnother\(\) \{[\s\S]*?\n {2}\}/u)?.[0] ?? "";
@@ -189,10 +189,10 @@ test("composer drafts are keyed by the task a submit would create now", () => {
   assert.equal(composerDraftContext({ caseId: "", sourceLeadId: LEAD.id }), `lead:${LEAD.id}`);
   assert.equal(composerDraftContext({ caseId: "" }), "general");
   // Дело считается, только пока задача идёт по делу: свёрнутый раздел «Студент/дело» — рабочая задача.
-  const source = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+  const source = read("src/components/staff/tasks/TaskComposerDialog.tsx");
   assert.match(source, /const draftContext = composerDraftContext\(\{ caseId: caseMode \? caseId : "", sourceMessageId, sourceLeadId \}\);/u);
   // Ключи прежние: черновики, набранные до этого среза, читаются.
-  assert.match(read("src/components/v3/tasks/composer-draft.ts"), /const STORAGE_PREFIX = "evo-task-composer-draft:";/u);
+  assert.match(read("src/components/staff/tasks/composer-draft.ts"), /const STORAGE_PREFIX = "evo-task-composer-draft:";/u);
 });
 
 test("opening the composer: a title typed before opening beats the draft; otherwise the entry's own draft", () => {
@@ -256,7 +256,7 @@ test("an empty composer takes the new key's own draft; nothing else ever fills t
 });
 
 test("the dialog moves drafts only through switchComposerDraft and never overwrites typed fields", () => {
-  const source = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+  const source = read("src/components/staff/tasks/TaskComposerDialog.tsx");
   const effect = source.match(/useEffect\(\(\) => \{\n\s+if \(state\.status === "saved"\) return;[\s\S]*?\n {2}\}, \[draftContext, title, description, state\.status\]\);/u)?.[0] ?? "";
   assert.ok(effect, "the draft effect is present");
   assert.match(effect, /const next = switchComposerDraft\(drafts, from, draftContext, \{ title, description \}\);/u);
@@ -310,28 +310,28 @@ test("the browser draft store tolerates a blocked or corrupt localStorage", () =
 test("every entry point opens that one composer: menu, Ctrl+K, «Новая задача…», calendar, case, quick view, Lead 360", () => {
   const source = (path) => SOURCES.find((file) => file.path === path)?.text ?? "";
   // «Создать задачу» меню (одна оболочка с Э1.5): прежняя ссылка, обычное нажатие — диалог на месте.
-  const shell = source("src/components/v3/AppShell.tsx");
-  assert.match(shell, /href="\/v3\/tasks\?create=staff"/u);
+  const shell = source("src/components/staff/AppShell.tsx");
+  assert.match(shell, /href="\/tasks\?create=staff"/u);
   assert.match(shell, /onCreateTaskClick\(event,/u);
   assert.match(shell, /<ShellCommands actor=\{actor\} navigation=\{navigation\} \/>/u);
-  const shellCommands = source("src/components/v3/palette/ShellCommands.tsx");
+  const shellCommands = source("src/components/staff/palette/ShellCommands.tsx");
   assert.match(shellCommands, /<TaskComposerHost actor=\{actor\} \/>/u);
   assert.match(shellCommands, /if \(!openTaskComposer\(undefined, returnFocus\)\) fallback\(\);/u);
-  assert.match(source("src/components/v3/tasks/TaskComposerHost.tsx"), /<TaskComposerDialog\s/u);
-  assert.match(source("src/components/v3/palette/CommandPalette.tsx"), /openTaskComposer\(\);/u);
-  assert.match(source("src/components/v3/tasks/TaskQuickAdd.tsx"), /<TaskComposerDialog\s+\{\.\.\.composer\}\s+hideTrigger/u);
-  assert.match(source("src/components/v3/calendar/Calendar.tsx"), /<TaskComposerDialog[\s\S]*?defaultDueDay=\{day\}/u);
-  for (const path of ["src/components/v3/profile/CaseWorkParts.tsx", "src/components/v3/profile/CaseTasksPanel.tsx",
-    "src/components/v3/profile/Profile.tsx", "src/components/v3/profile/LeadWorkParts.tsx"]) {
+  assert.match(source("src/components/staff/tasks/TaskComposerHost.tsx"), /<TaskComposerDialog\s/u);
+  assert.match(source("src/components/staff/palette/CommandPalette.tsx"), /openTaskComposer\(\);/u);
+  assert.match(source("src/components/staff/tasks/TaskQuickAdd.tsx"), /<TaskComposerDialog\s+\{\.\.\.composer\}\s+hideTrigger/u);
+  assert.match(source("src/components/staff/calendar/Calendar.tsx"), /<TaskComposerDialog[\s\S]*?defaultDueDay=\{day\}/u);
+  for (const path of ["src/components/staff/profile/CaseWorkParts.tsx", "src/components/staff/profile/CaseTasksPanel.tsx",
+    "src/components/staff/profile/Profile.tsx", "src/components/staff/profile/LeadWorkParts.tsx"]) {
     assert.match(source(path), /<TaskComposerDialog\s/u, path);
   }
-  assert.match(source("src/components/v3/students/StudentQuickView.tsx"), /openTaskComposer\(\{ case: \{ id: row\.studentCaseId, name: row\.studentDisplayName \}, caseFixed: true \}\)/u);
+  assert.match(source("src/components/staff/students/StudentQuickView.tsx"), /openTaskComposer\(\{ case: \{ id: row\.studentCaseId, name: row\.studentDisplayName \}, caseFixed: true \}\)/u);
   // «Сегодня» своей кнопки не получает: одна кнопка на экран — «Создать задачу» меню.
-  assert.doesNotMatch(source("src/app/(v3)/v3/main/page.tsx"), /TaskComposer/u);
+  assert.doesNotMatch(source("src/app/(staff)/main/page.tsx"), /TaskComposer/u);
   // Контекст страницы для кнопки меню и Ctrl+K: дело, лид, день календаря.
-  assert.match(source("src/components/v3/profile/CaseWorkParts.tsx"), /<TaskComposerContextMark value=\{\{\s*case: \{ id: caseId, name: profile\.person \}/u);
-  assert.match(source("src/components/v3/profile/LeadWorkParts.tsx"), /\{ lead: \{ id: leadId, version: sales\.lead\.workflowVersion, name: profile\.person \} \}/u);
-  assert.match(source("src/components/v3/calendar/Calendar.tsx"), /<TaskComposerContextMark value=\{\{ dueDay: day, cases, casesHaveMore \}\} \/>/u);
+  assert.match(source("src/components/staff/profile/CaseWorkParts.tsx"), /<TaskComposerContextMark value=\{\{\s*case: \{ id: caseId, name: profile\.person \}/u);
+  assert.match(source("src/components/staff/profile/LeadWorkParts.tsx"), /\{ lead: \{ id: leadId, version: sales\.lead\.workflowVersion, name: profile\.person \} \}/u);
+  assert.match(source("src/components/staff/calendar/Calendar.tsx"), /<TaskComposerContextMark value=\{\{ dueDay: day, cases, casesHaveMore \}\} \/>/u);
 });
 
 test("the composer is prefilled by its entry point: case, page case, lead, calendar day, typed title", () => {
@@ -381,7 +381,7 @@ test("bulk runs each item through its own command in order and reports partial f
   assert.equal(bulkRun.bulkSummaryText(summary, { one: "дело", few: "дела", many: "дел" }), "Сохранено 1 из 3. Не сохранено 2. Не подошло 1 дело.");
   // Несохранённые остаются выбранными для повтора; сохранённые и неподошедшие снимаются.
   assert.deepEqual(bulkRun.keysToKeep([...outcomes, { key: "d", label: "Г", status: "skipped", reason: "x" }]), ["b", "c"]);
-  const dialog = read("src/components/v3/queue/Bulk.tsx");
+  const dialog = read("src/components/staff/queue/Bulk.tsx");
   assert.match(dialog, /data-bulk-outcome=\{outcome\.status\}/u);
   assert.match(dialog, /Несохранённые остались выбранными: их можно повторить\./u);
   assert.match(dialog, /selection\.set\(keysToKeep\(all\)\)/u);
@@ -394,7 +394,7 @@ test("«Перенести срок» sends each task through its existing comma
     { status: "unavailable", requestId: "r", taskId: null, version: null },
   ]);
   const caseAction = recorder("changePlatformAdmissionsTaskAction", [{ status: "forbidden", requestId: "r", caseTaskId: null, version: null, changedAt: null }]);
-  const tasksBulk = compile("src/components/v3/tasks/TaskBulkActions.tsx", (id) => {
+  const tasksBulk = compile("src/components/staff/tasks/TaskBulkActions.tsx", (id) => {
     if (id === "@/lib/platform-staff-task-actions") return { mutateStaffTaskAction: staff.action };
     if (id === "@/lib/platform-admissions-task-actions") return { changePlatformAdmissionsTaskAction: caseAction.action };
     if (id === "@/lib/platform-task-deadline") return taskDeadline;
@@ -433,10 +433,10 @@ test("«Перенести срок» sends each task through its existing comma
   );
   // Выбрать можно то, что сотрудник может править («⋯» строки) или завершить (круг); «Перенести срок» берёт только первое,
   // а остальным называет причину — не отправляет молча.
-  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  const list = read("src/components/staff/tasks/TaskQueueList.tsx");
   assert.match(list, /if \(!can\.edit && !can\.complete\) continue;/u);
   assert.match(list, /if \(!can\.edit\) skip\.edit\.set\(task\.key, taskBulkSkipReason\(task, permissions, "edit"\)\);/u);
-  assert.match(read("src/components/v3/tasks/TaskBulkActions.tsx"), /items=\{edit\.fit\}\s*skipped=\{edit\.skipped\}/u);
+  assert.match(read("src/components/staff/tasks/TaskBulkActions.tsx"), /items=\{edit\.fit\}\s*skipped=\{edit\.skipped\}/u);
 });
 
 test("«Завершить» выбранных sends each task through the command of its row circle: a staff task by status, a case task with the result as its reason", async () => {
@@ -445,7 +445,7 @@ test("«Завершить» выбранных sends each task through the comm
     { status: "unavailable", requestId: "r", taskId: null, version: null },
   ]);
   const caseAction = recorder("changePlatformAdmissionsTaskAction", [{ status: "saved", requestId: "r", caseTaskId: "c", version: "6", changedAt: null }]);
-  const tasksBulk = compile("src/components/v3/tasks/TaskBulkActions.tsx", (id) => {
+  const tasksBulk = compile("src/components/staff/tasks/TaskBulkActions.tsx", (id) => {
     if (id === "@/lib/platform-staff-task-actions") return { mutateStaffTaskAction: staff.action };
     if (id === "@/lib/platform-admissions-task-actions") return { changePlatformAdmissionsTaskAction: caseAction.action };
     if (id === "@/lib/platform-task-deadline") return taskDeadline;
@@ -474,14 +474,14 @@ test("«Завершить» выбранных sends each task through the comm
   );
   // Завершает тот, кто может завершить строкой: список считает это тем же `taskRowAbilities().complete`, а не правом правки,
   // и исполнитель чужой задачи тоже может выбрать её (отметка есть, пока можно завершить ИЛИ править).
-  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  const list = read("src/components/staff/tasks/TaskQueueList.tsx");
   assert.match(list, /const can = taskRowAbilities\(task, permissions, open, now\);/u);
   assert.match(list, /if \(!can\.complete\) skip\.complete\.set\(task\.key, taskBulkSkipReason\(task, permissions, "complete"\)\);/u);
-  assert.match(read("src/components/v3/tasks/TaskBulkActions.tsx"), /items=\{complete\.fit\}\s*skipped=\{complete\.skipped\}/u);
+  assert.match(read("src/components/staff/tasks/TaskBulkActions.tsx"), /items=\{complete\.fit\}\s*skipped=\{complete\.skipped\}/u);
   // Причина названа настоящая: нет права — одно, не исполнитель — другое.
   // Модуль строки целиком не нужен: этому тесту — только слова причин, остальные его зависимости — пустые заглушки.
   const quiet = () => new Proxy({}, { get: (_target, name) => (name === "__esModule" ? true : () => null) });
-  const { taskBulkSkipReason } = compile("src/components/v3/tasks/TaskQueueRow.tsx", (id) => (/^(react|next\/)/u.test(id) ? require(id) : quiet()));
+  const { taskBulkSkipReason } = compile("src/components/staff/tasks/TaskQueueRow.tsx", (id) => (/^(react|next\/)/u.test(id) ? require(id) : quiet()));
   const perms = { actorMembershipId: ME, admin: false, preview: false, staffComplete: true, staffEdit: true, caseManage: true, caseAssign: true };
   assert.equal(taskBulkSkipReason(staffTask, perms, "complete"), "завершает исполнитель");
   assert.equal(taskBulkSkipReason(staffTask, { ...perms, staffComplete: false }, "complete"), "нет права завершать");
@@ -510,14 +510,14 @@ test("the task panel's deadline editor sends an unchanged deadline exactly as st
   const none = field({ day: null, minutes: null, dueAt: null });
   assert.deepEqual([hidden(none, "deadline_kind"), hidden(none, "due_on"), hidden(none, "due_at")], ["none", "", ""]);
   // Панель передаёт редактору именно `dueAt` задачи.
-  assert.match(read("src/components/v3/tasks/next/TaskSheetForms.tsx"), /<ComposerDeadlineField day=\{data\.day\} current=\{\{ day: projection\.day, minutes: projection\.minutes, dueAt: data\.task\.dueAt \}\}/u);
-  assert.match(read("src/components/v3/tasks/ComposerDeadlineField.tsx"), /unchanged && current\?\.dueAt \? current\.dueAt : `\$\{date\}T\$\{time\}`/u, "recomputed only after an explicit change");
+  assert.match(read("src/components/staff/tasks/next/TaskSheetForms.tsx"), /<ComposerDeadlineField day=\{data\.day\} current=\{\{ day: projection\.day, minutes: projection\.minutes, dueAt: data\.task\.dueAt \}\}/u);
+  assert.match(read("src/components/staff/tasks/ComposerDeadlineField.tsx"), /unchanged && current\?\.dueAt \? current\.dueAt : `\$\{date\}T\$\{time\}`/u, "recomputed only after an explicit change");
 });
 
 test("«Назначить куратора» and «Изменить срок шага» use the single-case commands with their own checks", async () => {
   const curator = recorder("assignCaseCuratorAction", [{ status: "saved", requestId: "n" }, { status: "stale", requestId: "r" }]);
   const step = recorder("saveCaseNextActionAction", [{ status: "stale", requestId: "r", message: "m", receipt: null }]);
-  const studentsBulk = compile("src/components/v3/students/StudentsBulkActions.tsx", (id) => {
+  const studentsBulk = compile("src/components/staff/students/StudentsBulkActions.tsx", (id) => {
     if (id === "@/lib/platform-case-curator-assignment-actions") return { assignCaseCuratorAction: curator.action };
     if (id === "@/lib/platform-case-next-action-actions") return { saveCaseNextActionAction: step.action };
     if (id === "../queue/Bulk") return bulk;
@@ -551,7 +551,7 @@ test("«Назначить куратора» and «Изменить срок ш
   assert.deepEqual(step.calls[0], { student_case_id: stepped.studentCaseId, expected_version: "9", next_action: "Собрать апостиль",
     next_action_due_on: "2026-09-30", request_id: "80000000-0000-4000-8000-000000000003" });
   // Гейт кнопки «Назначить куратора» — то же право, что у команды (`case.curator.assign`), список — у кого оно есть.
-  assert.match(read("src/components/v3/students/StudentsQueueScreen.tsx"), /curators=\{input\.actor\.coverage \? input\.curatorNames : null\}/u);
+  assert.match(read("src/components/staff/students/StudentsQueueScreen.tsx"), /curators=\{input\.actor\.coverage \? input\.curatorNames : null\}/u);
   assert.match(read("src/lib/platform-case-curator-assignment-actions.ts"), /!staffHasPermission\(actor, "case\.curator\.assign"\)/u);
 });
 
@@ -583,7 +583,7 @@ test("Ctrl+K search never returns what the role cannot open", async () => {
   const forSales = await searchCommandPalette(sales, "Ст", readers(log));
   assert.equal(forSales.students.status, "hidden");
   assert.deepEqual(log.map(([group]) => group), ["leads"], "the students read is never called for Sales");
-  assert.deepEqual(forSales.leads.rows, [{ id: "a0000000-0000-4000-8000-000000000001", label: "Лид без имени", meta: null, href: "/v3/profile?id=a0000000-0000-4000-8000-000000000001" }]);
+  assert.deepEqual(forSales.leads.rows, [{ id: "a0000000-0000-4000-8000-000000000001", label: "Лид без имени", meta: null, href: "/profile?id=a0000000-0000-4000-8000-000000000001" }]);
 
   log = [];
   const forAdmissions = await searchCommandPalette(admissions, "Ст", readers(log));
@@ -591,12 +591,12 @@ test("Ctrl+K search never returns what the role cannot open", async () => {
   assert.deepEqual(log.map(([group]) => group), ["students"]);
   // Только дела с полным доступом: краткая сводка продаж дело не открывает.
   assert.deepEqual(forAdmissions.students.rows.map((row) => row.href), [
-    "/v3/profile?case=90000000-0000-4000-8000-000000000001", "/v3/profile?case=90000000-0000-4000-8000-000000000002"]);
+    "/profile?case=90000000-0000-4000-8000-000000000001", "/profile?case=90000000-0000-4000-8000-000000000002"]);
   assert.equal(forAdmissions.students.rows[1].meta, "Китай · ожидает начала");
 
   log = [];
   const none = await searchCommandPalette(tasksOnly, "Ст", readers(log));
-  assert.deepEqual([none.students.status, none.leads.status, log.length], ["hidden", "hidden", 0], "no /v3/profile route — no people at all");
+  assert.deepEqual([none.students.status, none.leads.status, log.length], ["hidden", "hidden", 0], "no /profile route — no people at all");
 
   // Просмотр роли: группы — по правам роли, как у страниц.
   for (const [role, students, leads] of [["sales", "hidden", "ready"], ["admissions", "ready", "hidden"]]) {
@@ -623,19 +623,19 @@ test("Ctrl+K destinations are exactly the menu links the role can open", () => {
   const query = new URLSearchParams();
   const sales = staffActor(["lead.read", "lead.sales.workflow.manage", "sales.register.read", "staff.task.read"]);
   const admissions = staffActor(["case.read.full", "profile.read.full", "task.create", "task.manage", "catalog.read"]);
-  const hrefs = (actor) => paletteDestinations(buildV3Navigation(actor, "/v3/main", query)).map((entry) => entry.href);
-  assert.ok(hrefs(sales).includes("/v3/pipeline"));
-  assert.ok(!hrefs(sales).includes("/v3/admissions-pipeline"));
-  assert.ok(!hrefs(sales).includes("/v3/settings"));
-  assert.ok(hrefs(admissions).includes("/v3/admissions-pipeline"));
-  assert.ok(!hrefs(admissions).includes("/v3/pipeline"));
+  const hrefs = (actor) => paletteDestinations(buildV3Navigation(actor, "/main", query)).map((entry) => entry.href);
+  assert.ok(hrefs(sales).includes("/pipeline"));
+  assert.ok(!hrefs(sales).includes("/admissions-pipeline"));
+  assert.ok(!hrefs(sales).includes("/settings"));
+  assert.ok(hrefs(admissions).includes("/admissions-pipeline"));
+  assert.ok(!hrefs(admissions).includes("/pipeline"));
   for (const actor of [sales, admissions, admin]) {
-    for (const entry of paletteDestinations(buildV3Navigation(actor, "/v3/main", query))) {
+    for (const entry of paletteDestinations(buildV3Navigation(actor, "/main", query))) {
       const route = entry.href.split("?")[0];
       assert.ok(access.staffCanAccessRoute(actor, route), `${entry.label}: ${route}`);
     }
   }
-  assert.ok(hrefs(admin).includes("/v3/settings"));
+  assert.ok(hrefs(admin).includes("/settings"));
   assert.equal(paletteMatches("зад", "Задачи", "Общее"), true);
   assert.equal(paletteMatches("прод", "Воронка продаж", "Продажи"), true);
   assert.equal(paletteMatches("ежд", "Задачи", "Общее"), false, "matches word starts, not the middle of a word");
@@ -657,23 +657,23 @@ test("keys: Ctrl+K / ⌘K on any layout, and the «?» windows list /, j/k, Ente
   assert.deepEqual(combos(SHELL_KEYS), ["Ctrl / ⌘ K", "?", "Esc"]);
   assert.deepEqual(combos(LIST_KEYS), ["/", "↑ ↓", "j k", "Enter", "x"]);
   assert.deepEqual(SELECT_KEY[0], ["x"]);
-  const help = read("src/components/v3/queue/QueueKeyboardHelp.tsx");
+  const help = read("src/components/staff/queue/QueueKeyboardHelp.tsx");
   assert.match(help, /<KeyList keys=\{\[\.\.\.QUEUE_KEYS, \.\.\.extra, PALETTE_KEY\]\}/u);
   assert.ok(PALETTE_KEY);
   // «x» в окне «?» — только там, где у роли есть массовые действия.
-  assert.match(read("src/components/v3/tasks/TasksWorkspace.tsx"), /\? \[SELECT_KEY\] : \[\]/u);
-  assert.match(read("src/components/v3/students/StudentsQueueHead.tsx"), /\.\.\.\(selectKey \? \[SELECT_KEY\] : \[\]\)/u);
+  assert.match(read("src/components/staff/tasks/TasksWorkspace.tsx"), /\? \[SELECT_KEY\] : \[\]/u);
+  assert.match(read("src/components/staff/students/StudentsQueueHead.tsx"), /\.\.\.\(selectKey \? \[SELECT_KEY\] : \[\]\)/u);
   // Окно «?» оболочки уступает окну очереди.
-  assert.match(read("src/components/v3/palette/KeyboardHelpDialog.tsx"), /if \(document\.getElementById\(QUEUE_HELP_ID\)\) return;/u);
+  assert.match(read("src/components/staff/palette/KeyboardHelpDialog.tsx"), /if \(document\.getElementById\(QUEUE_HELP_ID\)\) return;/u);
 });
 
 test("focus: top-layer windows trap and return focus; «x» marks the focused row; a checkbox does not silence the queue keys", () => {
-  const keyboard = read("src/components/v3/queue/useQueueKeyboard.ts");
+  const keyboard = read("src/components/staff/queue/useQueueKeyboard.ts");
   assert.match(keyboard, /event\.key === "x" \|\| event\.code === "KeyX"/u);
   assert.match(keyboard, /row\?\.querySelector<HTMLInputElement>\(QUEUE_SELECT_SELECTOR\)/u);
   assert.match(keyboard, /\["checkbox", "radio", "button", "submit", "reset"\]\.includes\(target\.type\)\) return false;/u);
 
-  const palette = read("src/components/v3/palette/CommandPalette.tsx");
+  const palette = read("src/components/staff/palette/CommandPalette.tsx");
   assert.match(palette, /if \(!dialog\.open\) dialog\.showModal\(\);/u, "a modal <dialog> in the top layer: the page is inert");
   assert.match(palette, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); hide\(\); \}\}/u, "Esc closes through hide()");
   assert.match(palette, /dialogRef\.current\?\.close\(\);\s*const target = returnTo\.current;\s*if \(restoreFocus && target\?\.isConnected\) target\.focus\(\);/u);
@@ -682,8 +682,8 @@ test("focus: top-layer windows trap and return focus; «x» marks the focused ro
   assert.match(palette, /role="listbox"/u);
   assert.match(palette, /role="option"\s+aria-selected=\{selected\}/u);
   // Диалог задачи закрывается до возврата фокуса: иначе страница ещё инертна.
-  assert.match(read("src/components/v3/tasks/TaskComposerDialog.tsx"), /function close\(\) \{\s*dialogRef\.current\?\.close\(\);\s*onClose\(\);\s*\}/u);
-  const bulkSource = read("src/components/v3/queue/Bulk.tsx");
+  assert.match(read("src/components/staff/tasks/TaskComposerDialog.tsx"), /function close\(\) \{\s*dialogRef\.current\?\.close\(\);\s*onClose\(\);\s*\}/u);
+  const bulkSource = read("src/components/staff/queue/Bulk.tsx");
   assert.match(bulkSource, /if \(phase\.kind === "done"\) doneRef\.current\?\.focus\(\);/u, "the result keeps focus inside the window");
   // Кнопка действия остаётся — фокус на неё; выбор опустел (всё сохранено) — на отправленную строку, не на body.
   assert.match(bulkSource, /const triggerStays = selection\.count > 0 && trigger !== null && !trigger\.disabled && trigger\.getClientRects\(\)\.length > 0;/u);
@@ -712,19 +712,19 @@ test("the composer keeps «Создать задачу» in a pinned footer and 
 });
 
 test("one create button per calendar screen: the shell opens the composer with the day and the cases already read", () => {
-  const calendar = read("src/components/v3/calendar/Calendar.tsx");
+  const calendar = read("src/components/staff/calendar/Calendar.tsx");
   assert.match(calendar, /<TaskComposerContextMark value=\{\{ dueDay: day, cases, casesHaveMore \}\} \/>/u);
   // Своя кнопка — только у того, у кого нет «Создать задачу» оболочки (`staff.task.create`); имя то же.
   assert.match(calendar, /canCreate && !canCreateStaff \? <TaskComposerDialog[\s\S]*?triggerChildren=\{<><Icon name="plus" size=\{16\} \/>Создать задачу<\/>\}/u);
   assert.doesNotMatch(calendar, /Новая задача<\/>/u);
-  const host = read("src/components/v3/tasks/TaskComposerHost.tsx");
+  const host = read("src/components/staff/tasks/TaskComposerHost.tsx");
   assert.match(host, /initialCases=\{access\.case \? context\.cases \?\? \[\] : \[\]\}/u);
   assert.match(host, /casesHaveMore=\{access\.case \? context\.casesHaveMore \?\? false : false\}/u);
   // Кнопка оболочки — у того же права, что и рабочая задача календаря.
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.match(shell, /const canCreateTask = !previewing && staffHasPermission\(actor, "staff\.task\.create"\);/u);
   // План A скорости (#1201): та же ссылка стала IntentPrefetchLink (подгрузка по намерению), адрес и условие прежние.
-  assert.match(shell, /\{canCreateTask \? \(\s*<IntentPrefetchLink\s*href="\/v3\/tasks\?create=staff"/u);
+  assert.match(shell, /\{canCreateTask \? \(\s*<IntentPrefetchLink\s*href="\/tasks\?create=staff"/u);
 });
 
 const NOUN = { one: "дело", few: "дела", many: "дел" };
@@ -745,10 +745,10 @@ test("bulk bar: spaced «Выбрать все · N», a ground band down to the
   assert.match(html, /data-bulk-select-all=""[^>]*><span><span class="sm:hidden">[\s\S]*?<span class="hidden sm:inline">Выбрать все на странице<\/span> · <span class="tabular-nums">3<\/span><\/span><\/button>/u);
   // Недоступное действие: причина словами рядом с кнопкой; на телефоне его нет.
   assert.match(html, /<span class="inline-flex items-center gap-1\.5 me-3 max-sm:hidden"><button [^>]*disabled=""[^>]*aria-describedby="([^"]+)"[^>]*>Назначить куратора<\/button><span id="\1" class="t-meta text-fg-2" data-testid="t-unavailable">Нет дел, ждущих куратора<\/span><\/span>/u);
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   assert.match(css, /\.v3-world \.v3-bulk-dock \{\s*bottom: calc\(var\(--shell-tabbar, 0px\) \+ var\(--shell-safe-bottom, 0px\)\);\s*\}/u, "no gap above the phone tab bar");
   assert.doesNotMatch(css, /v3-bulk-bar/u);
-  const students = read("src/components/v3/students/StudentsBulkActions.tsx");
+  const students = read("src/components/staff/students/StudentsBulkActions.tsx");
   assert.match(students, /emptyReason="Нет дел, ждущих куратора"/u);
   assert.match(students, /emptyReason="Нет дел с шагом, доступным вам"/u);
   assert.match(students, /disabledReason="Некого назначить: список кураторов пуст"/u);
@@ -760,15 +760,15 @@ test("phone: no checkbox beside the completion circle until «Выбрать»; 
   assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], true) })), />Отмена<\/button>/u);
   assert.match(renderToStaticMarkup(createElement(bulk.RowSelect, { label: "А", checked: false, onToggle() {}, phoneHidden: true })), /^<label class="relative z-10 grid size-11 [^"]* max-sm:hidden">/u);
   assert.doesNotMatch(renderToStaticMarkup(createElement(bulk.RowSelect, { label: "А", checked: false, onToggle() {} })), /max-sm:hidden/u);
-  const source = read("src/components/v3/queue/Bulk.tsx");
+  const source = read("src/components/staff/queue/Bulk.tsx");
   assert.match(source, /clear: \(\) => \{ setSelected\(\[\]\); setPicking\(false\); \}/u);
   assert.match(source, /revealed: picking \|\| live\.length > 0/u);
   // «Студенты»: «Выбрать» на заголовке первой группы (без заголовка — строка над таблицей). «Задачи»: своя кнопка в строке заголовка первой группы и отметки, скрытые на любой ширине, пока не нажато «Выбрать».
-  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /data-testid="queue-bulk-pick"[\s\S]*?\{selection\.revealed \? "Отмена" : "Выбрать"\}/u);
-  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /revealed: selection\.revealed \}/u);
-  assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} onHeading=\{bands\[0\]\?\.label != null\} \/> : null\}/u);
+  assert.match(read("src/components/staff/tasks/TaskQueueList.tsx"), /data-testid="queue-bulk-pick"[\s\S]*?\{selection\.revealed \? "Отмена" : "Выбрать"\}/u);
+  assert.match(read("src/components/staff/tasks/TaskQueueList.tsx"), /revealed: selection\.revealed \}/u);
+  assert.match(read("src/components/staff/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} onHeading=\{bands\[0\]\?\.label != null\} \/> : null\}/u);
   assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], false), onHeading: true })), /^<div class="absolute end-0 -top-1\.5 z-30 sm:hidden @min-\[30rem\]\/students:top-\[1\.625rem\]"><button /u);
-  assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /selectHidden \? "\[--row-lead:2\.75rem\]" : "\[--row-lead:5\.5rem\]"/u);
+  assert.match(read("src/components/staff/tasks/TaskQueueRow.tsx"), /selectHidden \? "\[--row-lead:2\.75rem\]" : "\[--row-lead:5\.5rem\]"/u);
 });
 
 test("after a full success focus goes to a sent row still on the page, then the first row — never body", () => {
@@ -802,11 +802,11 @@ test("after a full success focus goes to a sent row still on the page, then the 
 });
 
 test("palette footer hides on phone without a status; the «?» window lists two groups on one key column", () => {
-  const palette = read("src/components/v3/palette/CommandPalette.tsx");
+  const palette = read("src/components/staff/palette/CommandPalette.tsx");
   assert.match(palette, /border-t border-border px-4 py-2\$\{status \? "" : " max-md:sr-only"\}/u, "the live status stays in the tree");
-  const help = read("src/components/v3/palette/KeyboardHelpDialog.tsx");
+  const help = read("src/components/staff/palette/KeyboardHelpDialog.tsx");
   assert.match(help, /<div className="p-4 \[--key-column:7rem\]">/u);
   assert.match(help, /<h3 className="mt-3 t-item text-fg">Везде<\/h3>\s*<KeyList keys=\{SHELL_KEYS\}/u);
   assert.match(help, /<h3 className="mt-4 t-item text-fg">В списках<\/h3>/u);
-  assert.match(read("src/components/v3/queue/KeyList.tsx"), /grid-cols-\[var\(--key-column,auto\)_1fr\]/u);
+  assert.match(read("src/components/staff/queue/KeyList.tsx"), /grid-cols-\[var\(--key-column,auto\)_1fr\]/u);
 });

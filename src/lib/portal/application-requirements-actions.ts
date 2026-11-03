@@ -30,8 +30,8 @@ async function initializeRequirements(
     const receipt = parseApplicationRequirementsReceipt(response.data, intent);
     if (!receipt) return { ok: false, reason: "unavailable", intent };
     revalidatePath("/portal");
-    revalidatePath("/v3/profile");
-    revalidatePath("/v3/documents");
+    revalidatePath("/profile");
+    revalidatePath("/documents");
     return { ok: true, receipt };
   } catch {
     // A lost response may follow a committed command. Keep the exact request for replay.

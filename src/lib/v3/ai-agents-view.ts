@@ -102,7 +102,7 @@ export function parseAiAgentRoute(query: Query): AiAgentPageRoute | null {
   return { tab: known, runId: run ?? null, runsLimit, draftsFilter: show === "all" ? "all" : "pending", fresh: fresh === "1" };
 }
 
-export const AI_AGENTS_HUB_HREF = "/v3/ai-agents";
+export const AI_AGENTS_HUB_HREF = "/ai-agents";
 
 export function aiAgentHref(
   key: AiAgentKey,
@@ -1157,8 +1157,8 @@ export const AI_AGENTS_DRAFT_FAILURE_WORDS: Readonly<Record<string, string>> = {
 };
 
 export function draftTargetHref(draft: Pick<AiAgentDraftRow, "channel" | "conversationId" | "studentCaseId">): string | null {
-  if (draft.channel === "whatsapp" && draft.conversationId && isAiAgentUuid(draft.conversationId)) return `/v3/inbox?conversation=${draft.conversationId}`;
-  if (draft.channel === "portal" && draft.studentCaseId && isAiAgentUuid(draft.studentCaseId)) return `/v3/messages?case=${draft.studentCaseId}`;
+  if (draft.channel === "whatsapp" && draft.conversationId && isAiAgentUuid(draft.conversationId)) return `/inbox?conversation=${draft.conversationId}`;
+  if (draft.channel === "portal" && draft.studentCaseId && isAiAgentUuid(draft.studentCaseId)) return `/messages?case=${draft.studentCaseId}`;
   return null;
 }
 

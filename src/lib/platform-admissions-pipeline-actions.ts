@@ -72,7 +72,7 @@ export async function moveCasePipelineAction(
     return { ...fallback, status: "invalid" };
   }
 
-  const actor = await requirePlatformMutationCapability("admissions.write", "/v3/admissions-pipeline");
+  const actor = await requirePlatformMutationCapability("admissions.write", "/admissions-pipeline");
   const expected = input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion };
 
   try {
@@ -89,7 +89,7 @@ export async function moveCasePipelineAction(
           stage: input.stage as AdmissionsPipelineStage,
           ...expected,
         });
-    revalidatePath("/v3/admissions-pipeline");
+    revalidatePath("/admissions-pipeline");
     return {
       status: "saved",
       requestId: receipt.requestId,
@@ -102,7 +102,7 @@ export async function moveCasePipelineAction(
     if (!(error instanceof PlatformAdmissionsPipelineMutationError)) return { ...fallback, status: "unavailable" };
     if (error.status === "moved") {
       // The board is stale: read it again, and say where the case is now.
-      revalidatePath("/v3/admissions-pipeline");
+      revalidatePath("/admissions-pipeline");
       return error.current
         ? {
             ...fallback,

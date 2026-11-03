@@ -22,7 +22,7 @@ import {
   hasCalendarAllDayRow,
   calendarAccessNotice,
   calendarEmptyPeriodLabel,
-} from "../src/components/v3/calendar/types.ts";
+} from "../src/components/staff/calendar/types.ts";
 import { personalCalendarAccess } from "../src/lib/v3/personal-calendar-contract.ts";
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
 
@@ -92,8 +92,8 @@ for (const [name, changes, expected] of [
 
 test("Admin Sales preview never reaches the calendar: the route is closed before any task read", () => {
   const salesPreview = { ...actor, systemRole: "admin", presentationRole: "sales", permissionKeys: [] };
-  assert.equal(staffCanAccessRoute(salesPreview, "/v3/calendar"), false);
-  assert.equal(staffCanAccessRoute({ ...salesPreview, presentationRole: "admissions" }, "/v3/calendar"), true);
+  assert.equal(staffCanAccessRoute(salesPreview, "/calendar"), false);
+  assert.equal(staffCanAccessRoute({ ...salesPreview, presentationRole: "admissions" }, "/calendar"), true);
 });
 
 test("personal calendar distinguishes denied access from an empty task period", () => {
@@ -275,16 +275,16 @@ test("D2 calendar exhausts bounded ranges but reads only one undated page", () =
 });
 
 test("D2 undated continuation is URL-backed and never silently claims completeness", () => {
-  const page = source("src/app/(v3)/v3/calendar/page.tsx");
-  const calendar = source("src/components/v3/calendar/Calendar.tsx");
-  const href = calendarUndatedContinuationHref("/v3/calendar", "week", "2026-09-10", {
+  const page = source("src/app/(staff)/calendar/page.tsx");
+  const calendar = source("src/components/staff/calendar/Calendar.tsx");
+  const href = calendarUndatedContinuationHref("/calendar", "week", "2026-09-10", {
     sortAt: SENTINEL,
     caseTaskId: TASK_ID,
   });
 
   assert.equal(
     href,
-    "/v3/calendar?view=week&date=2026-09-10&undated_after_sort_at=9999-12-31T00%3A00%3A00%2B00%3A00&undated_after_case_task_id=12400000-0000-4000-8000-000000000101",
+    "/calendar?view=week&date=2026-09-10&undated_after_sort_at=9999-12-31T00%3A00%3A00%2B00%3A00&undated_after_case_task_id=12400000-0000-4000-8000-000000000101",
   );
   assert.match(page, /undatedCursorFromParams[\s\S]*parsePersonalCalendarCursor/u);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
@@ -303,8 +303,8 @@ test("D2 undated continuation is URL-backed and never silently claims completene
 });
 
 test("the calendar carries no university deadlines, and «Сегодня» dropped its deadline group too (owner 28.09)", () => {
-  assert.equal(existsSync(new URL("../src/components/v3/calendar/ApplicationDeadline.tsx", import.meta.url)), false);
-  const calendarFiles = ["Calendar.tsx", "grids.tsx", "types.ts"].map((name) => source(`src/components/v3/calendar/${name}`)).join("\n");
+  assert.equal(existsSync(new URL("../src/components/staff/calendar/ApplicationDeadline.tsx", import.meta.url)), false);
+  const calendarFiles = ["Calendar.tsx", "grids.tsx", "types.ts"].map((name) => source(`src/components/staff/calendar/${name}`)).join("\n");
   assert.doesNotMatch(calendarFiles, /ApplicationDeadline|application_deadline|deadlines=|deadlines\.filter|applicationDeadlines/u);
   assert.doesNotMatch(source("src/lib/v3/calendar-source.ts"), /DeadlinePage|readNearestCalendarApplicationDeadline/u);
   // Читатели только для тестов ушли вместе со сроками календаря.
@@ -317,11 +317,11 @@ test("the calendar carries no university deadlines, and «Сегодня» dropp
   assert.equal("CalendarContractDeniedError" in calendarContract, false);
   assert.doesNotMatch(source("src/lib/v3/today-source.ts"), /listCalendarApplicationDeadlinePage|readDeadlines|TODAY_DEADLINE/u);
   assert.doesNotMatch(source("src/lib/v3/today-queue.ts"), /"deadlines"|todayDeadlineItems|TODAY_DEADLINE/u);
-  assert.match(source("src/components/v3/calendar/Calendar.tsx"), /Без срока/u);
+  assert.match(source("src/components/staff/calendar/Calendar.tsx"), /Без срока/u);
 });
 
 test("the all-day row appears only with an all-day task", () => {
-  const grids = source("src/components/v3/calendar/grids.tsx");
+  const grids = source("src/components/staff/calendar/grids.tsx");
   assert.equal(hasCalendarAllDayRow([]), false);
   assert.equal(hasCalendarAllDayRow([{ day: "2026-09-10", minutes: null }]), true);
   assert.match(grids, /hasCalendarAllDayRow\(allDay\)/u);
@@ -373,8 +373,8 @@ test("Э8.8: the phone day list groups days with tasks and folds empty runs, kee
 });
 
 test("Э8.8: calendar markup — one sheet, staff type roles, 44 px day links, neutral hover and selected day", () => {
-  const calendar = source("src/components/v3/calendar/Calendar.tsx");
-  const grids = source("src/components/v3/calendar/grids.tsx");
+  const calendar = source("src/components/staff/calendar/Calendar.tsx");
+  const grids = source("src/components/staff/calendar/grids.tsx");
   // Строка периода, пустой период, «Без срока» и сетка — один белый лист.
   assert.equal([...calendar.matchAll(/rounded-card border border-border bg-surface/gu)].length, 1);
   assert.match(calendar, /<p className="flex flex-wrap items-center gap-x-2 t-section text-fg" data-calendar-period="">\s*<span>\{periodTitle\}<\/span>/u);
@@ -391,7 +391,7 @@ test("Э8.8: calendar markup — one sheet, staff type roles, 44 px day links, n
   assert.doesNotMatch(calendar + grids, /text-brand|\btext-(?:xs|sm)\b|hover:border-accent/u);
   assert.match(calendar, /const PANEL_LINK =\s*"inline-flex min-h-11 items-center t-label text-accent-text underline underline-offset-4/u);
   // Управление задачей в той же панели — роли `t-*`; «Изменить задачу» — такая же подчёркнутая тёмная ссылка, не красный текст.
-  const controls = source("src/components/v3/calendar/TaskControls.tsx");
+  const controls = source("src/components/staff/calendar/TaskControls.tsx");
   assert.doesNotMatch(controls, /\btext-(?:xs|sm)\b|\bfont-semibold\b|\btext-accent(?![-\w])/u);
   assert.match(controls, /<summary className="min-h-11 cursor-pointer py-3 t-label text-accent-text underline underline-offset-4 hover:text-fg">\s*Изменить задачу/u);
   // Дни — ссылки 44 px, «сегодня» — заливка 24 px внутри; выбранный день — нейтральный «выбрано».

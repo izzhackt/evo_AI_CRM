@@ -277,18 +277,18 @@ test("ошибки: сообщения базы → коды → русские 
   assert.equal(parseAiAgentRoute({ tab: "runs", run: "11111111-1111-4111-8111-111111111111" })?.runId, "11111111-1111-4111-8111-111111111111");
   assert.equal(parseAiAgentRoute({ tab: "runs", limit: "60" })?.runsLimit, 60);
   for (const bad of [{ tab: "nope" }, { tab: ["runs", "drafts"] }, { run: "x" }, { limit: "abc" }, { show: "weird" }, { new: "0" }, { new: ["1", "1"] }]) assert.equal(parseAiAgentRoute(bad), null, JSON.stringify(bad));
-  assert.equal(aiAgentHref("director"), "/v3/ai-agents/director");
-  assert.equal(aiAgentHref("sales", { tab: "drafts", show: "all" }), "/v3/ai-agents/sales?tab=drafts&show=all");
-  assert.equal(aiAgentHref("sales", { tab: "runs", run: "r1" }), "/v3/ai-agents/sales?tab=runs&run=r1");
-  assert.equal(aiAgentHref("sales", { tab: "command", fresh: true }), "/v3/ai-agents/sales?new=1");
-  assert.equal(aiAgentHref("sales", { tab: "overview" }), "/v3/ai-agents/sales?tab=overview", "агент открывается на «Чате» (решение владельца 26.10.2026), «Обзор» — по адресу");
-  assert.equal(aiAgentHref("sales", { tab: "command", run: "r1" }), "/v3/ai-agents/sales?run=r1");
+  assert.equal(aiAgentHref("director"), "/ai-agents/director");
+  assert.equal(aiAgentHref("sales", { tab: "drafts", show: "all" }), "/ai-agents/sales?tab=drafts&show=all");
+  assert.equal(aiAgentHref("sales", { tab: "runs", run: "r1" }), "/ai-agents/sales?tab=runs&run=r1");
+  assert.equal(aiAgentHref("sales", { tab: "command", fresh: true }), "/ai-agents/sales?new=1");
+  assert.equal(aiAgentHref("sales", { tab: "overview" }), "/ai-agents/sales?tab=overview", "агент открывается на «Чате» (решение владельца 26.10.2026), «Обзор» — по адресу");
+  assert.equal(aiAgentHref("sales", { tab: "command", run: "r1" }), "/ai-agents/sales?run=r1");
 
   assert.deepEqual(draftStatusWords({ status: "pending", failureCode: "whatsapp_unavailable", sentByAgent: false }), { label: "Ждёт решения", tone: "warn", note: "Остаётся в очереди: WhatsApp сейчас не подключён" });
   assert.equal(draftStatusWords({ status: "failed", failureCode: "conversation_moved_on", sentByAgent: false }).note, "Не отправлено: клиент написал ещё — ответ устарел");
   assert.equal(draftStatusWords({ status: "sent", failureCode: null, sentByAgent: true }).note, "Агент отправил сам (Авто)");
-  assert.equal(draftTargetHref({ channel: "whatsapp", conversationId: "5d3b1a2c-1111-4222-8333-444455556666", studentCaseId: null }), "/v3/inbox?conversation=5d3b1a2c-1111-4222-8333-444455556666");
-  assert.equal(draftTargetHref({ channel: "portal", conversationId: null, studentCaseId: "7e3b1a2c-1111-4222-8333-444455556666" }), "/v3/messages?case=7e3b1a2c-1111-4222-8333-444455556666");
+  assert.equal(draftTargetHref({ channel: "whatsapp", conversationId: "5d3b1a2c-1111-4222-8333-444455556666", studentCaseId: null }), "/inbox?conversation=5d3b1a2c-1111-4222-8333-444455556666");
+  assert.equal(draftTargetHref({ channel: "portal", conversationId: null, studentCaseId: "7e3b1a2c-1111-4222-8333-444455556666" }), "/messages?case=7e3b1a2c-1111-4222-8333-444455556666");
   assert.equal(draftTargetHref({ channel: "portal", conversationId: null, studentCaseId: "не-uuid" }), null);
 });
 
@@ -327,12 +327,12 @@ test("разбор ответов RPC: нормальная форма прох�
 /* --------------------------------------------- маршрут, права, пункт меню */
 
 test("маршруты: хаб и семь страниц агентов подключены, чужие — нет; MCP — приватный путь", () => {
-  assert.equal(isConnectedPlatformPage("/v3/ai-agents"), true);
-  for (const key of AI_AGENT_KEYS) assert.equal(isConnectedPlatformPage(`/v3/ai-agents/${key}`), true, key);
-  for (const path of ["/v3/ai-agents/unknown", "/v3/ai-agents/director/extra", "/v3/ai-agents/", "/v3/ai-agents/Director", "/v3/ai-agents/director?x=1"]) {
+  assert.equal(isConnectedPlatformPage("/ai-agents"), true);
+  for (const key of AI_AGENT_KEYS) assert.equal(isConnectedPlatformPage(`/ai-agents/${key}`), true, key);
+  for (const path of ["/ai-agents/unknown", "/ai-agents/director/extra", "/ai-agents/", "/ai-agents/Director", "/ai-agents/director?x=1"]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
-  assert.equal(isConnectedPlatformPage("/v3/ai-agent"), true, "Gemini-страница осталась");
+  assert.equal(isConnectedPlatformPage("/ai-agent"), true, "Gemini-страница осталась");
   // MCP — частный путь со своей проверкой токена: сессионных cookie у него нет и браузерным API он не становится.
   assert.equal(isConnectedPlatformPrivateApi(AI_AGENTS_MCP_PATH), true);
   assert.equal(isConnectedPlatformApi(AI_AGENTS_MCP_PATH), true);
@@ -345,39 +345,39 @@ test("маршруты: хаб и семь страниц агентов под�
 });
 
 test("доступ: раздел и пункт меню — право ai.agent.use, каждая роль просмотра видит; активен на хабе, странице агента и Gemini", () => {
-  assert.ok(FIXED_ROLE_ROUTES.includes("/v3/ai-agents") && FIXED_ROLE_ROUTES.includes("/v3/ai-agent"));
+  assert.ok(FIXED_ROLE_ROUTES.includes("/ai-agents") && FIXED_ROLE_ROUTES.includes("/ai-agent"));
   const staff = (permissionKeys, over = {}) => ({ systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys, ...over });
-  assert.equal(staffCanAccessRoute(staff(["ai.agent.use"]), "/v3/ai-agents"), true);
-  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/v3/ai-agents"), false);
-  assert.equal(staffCanAccessRoute(staff([], { systemRole: "admin" }), "/v3/ai-agents"), true);
+  assert.equal(staffCanAccessRoute(staff(["ai.agent.use"]), "/ai-agents"), true);
+  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/ai-agents"), false);
+  assert.equal(staffCanAccessRoute(staff([], { systemRole: "admin" }), "/ai-agents"), true);
   for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/ai-agents"), true, role);
-    assert.equal(staffCanAccessRoute(staff([], { systemRole: "admin", presentationRole: role }), "/v3/ai-agents"), true, role);
+    assert.equal(fixedRoleCanAccessRoute(role, "/ai-agents"), true, role);
+    assert.equal(staffCanAccessRoute(staff([], { systemRole: "admin", presentationRole: role }), "/ai-agents"), true, role);
   }
   const actor = staff(["ai.agent.use"]);
-  for (const path of ["/v3/ai-agents", "/v3/ai-agents/director", "/v3/ai-agents/curator-cn", "/v3/ai-agent"]) {
+  for (const path of ["/ai-agents", "/ai-agents/director", "/ai-agents/curator-cn", "/ai-agent"]) {
     const nav = buildV3Navigation(actor, path, new URLSearchParams());
     assert.equal(nav.activeId, "ai-agents", path);
-    assert.deepEqual(nav.common.map((link) => [link.id, link.label, link.href]), [["ai-agents", "ИИ-агенты", "/v3/ai-agents"]], path);
+    assert.deepEqual(nav.common.map((link) => [link.id, link.label, link.href]), [["ai-agents", "ИИ-агенты", "/ai-agents"]], path);
   }
   assert.equal(LINK_ICONS["ai-agents"], "sparkles");
-  assert.equal(v3SectionTitle("/v3/ai-agents"), "ИИ-агенты");
-  assert.equal(v3SectionTitle("/v3/ai-agents/director"), "ИИ-агенты");
-  assert.equal(v3SectionTitle("/v3/ai-agent"), "ИИ-агент", "вкладка Gemini-страницы называет саму страницу");
-  assert.match(read("src/app/(v3)/access-denied/page.tsx"), /"\/v3\/ai-agents": "ИИ-агенты",/u);
+  assert.equal(v3SectionTitle("/ai-agents"), "ИИ-агенты");
+  assert.equal(v3SectionTitle("/ai-agents/director"), "ИИ-агенты");
+  assert.equal(v3SectionTitle("/ai-agent"), "ИИ-агент", "вкладка Gemini-страницы называет саму страницу");
+  assert.match(read("src/app/(staff)/access-denied/page.tsx"), /"\/ai-agents": "ИИ-агенты",/u);
 });
 
 /* ------------------------------------------------------------ рендер разметки */
 
 const ENTRY = `
 import { renderToStaticMarkup } from "react-dom/server";
-import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
-import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
-import { PartShell } from "@/components/v3/PartShell";
+import { AgentBody } from "@/components/staff/ai-agents/AgentBody";
+import { NotReady, Unavailable } from "@/components/staff/ai-agents/Notices";
+import { PartShell } from "@/components/staff/PartShell";
 export const html = {
   body: (props) => renderToStaticMarkup(<AgentBody {...props} />),
   notReady: () => renderToStaticMarkup(<PartShell title="ИИ-агенты"><NotReady /></PartShell>),
-  unavailable: () => renderToStaticMarkup(<Unavailable what="агентов" retryHref="/v3/ai-agents" />),
+  unavailable: () => renderToStaticMarkup(<Unavailable what="агентов" retryHref="/ai-agents" />),
 };
 `;
 const LINK_SHIM = `const React = require("react");
@@ -430,7 +430,7 @@ const bodyProps = (over = {}) => ({
 test("хаб, миграция не применена: «Раздел готовится», а не ошибка", async () => {
   const { notReady, unavailable } = await views();
   assert.match(notReady(), /data-testid="v3-aia-not-ready"[\s\S]*Раздел готовится[\s\S]*База ещё не обновлена/u);
-  assert.match(unavailable(), /role="alert"[\s\S]*Не удалось загрузить агентов[\s\S]*href="\/v3\/ai-agents"[\s\S]*Повторить/u);
+  assert.match(unavailable(), /role="alert"[\s\S]*Не удалось загрузить агентов[\s\S]*href="\/ai-agents"[\s\S]*Повторить/u);
 });
 
 test("страница агента, «Обзор»: показатели, три графика с таблицей-эквивалентом, отчёт без сырого HTML", async () => {
@@ -453,10 +453,10 @@ test("страница агента, «Обзор»: показатели, тр�
   assert.doesNotMatch(html, /href="javascript:/u);
   assert.match(html, /href="https:\/\/crm\.example\/x"[^>]*rel="noopener noreferrer nofollow"/u);
   // вкладки — настоящие ссылки, текущая отмечена
-  for (const tab of ["runs", "drafts", "instructions", "settings"]) assert.match(html, new RegExp(`href="/v3/ai-agents/director\\?tab=${tab}"`, "u"), tab);
+  for (const tab of ["runs", "drafts", "instructions", "settings"]) assert.match(html, new RegExp(`href="/ai-agents/director\\?tab=${tab}"`, "u"), tab);
   // «Чат» — вкладка по умолчанию (решение владельца 26.10.2026): без `?tab=`, первым в ряду; «Обзор» — по адресу.
-  assert.match(html, /href="\/v3\/ai-agents\/director">Чат<\/a>[\s\S]*Обзор/u);
-  assert.match(html, /<a aria-current="page"[^>]*href="\/v3\/ai-agents\/director\?tab=overview">Обзор<\/a>/u);
+  assert.match(html, /href="\/ai-agents\/director">Чат<\/a>[\s\S]*Обзор/u);
+  assert.match(html, /<a aria-current="page"[^>]*href="\/ai-agents\/director\?tab=overview">Обзор<\/a>/u);
 });
 
 test("страница агента, пустое состояние: слова вместо нулей и ссылка на «Поручить»", async () => {
@@ -465,7 +465,7 @@ test("страница агента, пустое состояние: слова
     charts: { runsPerDay: [], spendPerDay: [], actionsByTool: [] }, lastDigest: null };
   const html = body(bodyProps({ detail: empty, digests: { status: "available", data: { digests: [] } } }));
   // Агент, который ещё не работал: одно слово и одна кнопка вместо десяти пустых блоков.
-  assert.match(html, /data-testid="v3-aia-first-run"[\s\S]*Запусков ещё не было[\s\S]*href="\/v3\/ai-agents\/director"[^>]*>Поручить первую задачу/u);
+  assert.match(html, /data-testid="v3-aia-first-run"[\s\S]*Запусков ещё не было[\s\S]*href="\/ai-agents\/director"[^>]*>Поручить первую задачу/u);
   assert.doesNotMatch(html, /За 30 дней запусков не было|Расхода за 30 дней нет|Агент пока не вызывал инструменты|Отчётов пока нет|нет запусков/u);
   assert.doesNotMatch(html, /Запусков за 7 дней|v3-aia-day-bars/u, "нулевые плитки и графики не рисуются");
 });
@@ -579,7 +579,7 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   // «Мои разговоры»: колонка со ссылкой на «Запуски» и пустым словом; «Поручить» — рабочая область окна
   assert.match(command, /<nav aria-label="Мои разговоры с агентом"[^>]*data-testid="v3-aia-conversations"/u);
   assert.match(command, /Здесь появятся ваши разговоры с агентом\./u);
-  assert.match(command, /href="\/v3\/ai-agents\/director\?tab=runs"[^>]*>Вся история работы|data-testid="v3-aia-all-runs" href="\/v3\/ai-agents\/director\?tab=runs"/u);
+  assert.match(command, /href="\/ai-agents\/director\?tab=runs"[^>]*>Вся история работы|data-testid="v3-aia-all-runs" href="\/ai-agents\/director\?tab=runs"/u);
   assert.match(command, /data-aia-workspace/u);
   assert.doesNotMatch(command, /aria-label="Разделы агента/u, "на «Поручить» вкладки стоят в строке шапки страницы (`AgentChatShell`), второго ряда в содержимом нет");
   assert.match(body(bodyProps({ tab: "runs", runs: { status: "available", data: { runs: [], hasMore: false } } })), /<nav[^>]*aria-label="Разделы агента «Директор \/ Аналитик»"/u, "остальные вкладки — ряд над содержимым, как был");
@@ -595,12 +595,12 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(runs, /По расписанию/u);
   assert.match(runs, />Ошибка</u);
   assert.match(runs, /Токен доступа агента к CRM не принят/u, "причина ошибки словами, а не mcp_auth_failed");
-  assert.match(runs, /href="\/v3\/ai-agents\/director\?tab=runs&amp;run=11111111-1111-4111-8111-111111111111"/u);
+  assert.match(runs, /href="\/ai-agents\/director\?tab=runs&amp;run=11111111-1111-4111-8111-111111111111"/u);
   assert.match(runs, /Показать ещё/u);
   assert.match(runs, /<span class="mt-0\.5 block t-meta text-fg-3">По расписанию<\/span>/u, "повод запуска — один раз, под датой");
   const empty = body(bodyProps({ tab: "runs", runs: { status: "available", data: { runs: [], hasMore: false } } }));
   assert.match(empty, /Запусков ещё не было/u);
-  assert.match(empty, /href="\/v3\/ai-agents\/director"[^>]*>Поручить<\/a>/u, "пустая «История работы» ведёт в «Чат»");
+  assert.match(empty, /href="\/ai-agents\/director"[^>]*>Поручить<\/a>/u, "пустая «История работы» ведёт в «Чат»");
   assert.doesNotMatch(empty, /Запуск появляется, когда/u);
   const detail = body(bodyProps({ tab: "runs", runId: run.id, run: { status: "available", data: { run: { ...run, status: "completed", errorCode: null, summary: "Готово: **48**" }, actions: [{ id: "1", agentKey: "director", runId: run.id, tool: "sales_report", argsSummary: "from_month=2026-09", resultStatus: "ok", errorCode: null, durationMs: 5, at: NOW }], drafts: [] } } }));
   assert.doesNotMatch(detail, /Все запуски|Вся история работы/u, "вкладка «История работы» уже ведёт к списку: второй «Назад» не нужен");
@@ -621,7 +621,7 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(drafts, /Клиент написал[\s\S]*Когда подавать документы\?/u);
   assert.match(drafts, /Остаётся в очереди: WhatsApp сейчас не подключён/u);
   assert.match(drafts, /Подключите WhatsApp в[\s\S]*Настройки → Интеграции/u);
-  assert.match(drafts, /href="\/v3\/inbox\?conversation=5d3b1a2c-1111-4222-8333-444455556666"/u);
+  assert.match(drafts, /href="\/inbox\?conversation=5d3b1a2c-1111-4222-8333-444455556666"/u);
   assert.doesNotMatch(body(bodyProps({ tab: "drafts", canManage: false, drafts: { status: "available", data: { drafts: [draft], counts: { pending: 1, approved: 0, sending: 0, sent: 0, discarded: 0, failed: 0, expired: 0 } } } })), /Одобрить и отправить/u);
   assert.match(drafts, /<h2[^>]*class="sr-only">На одобрение<\/h2>/u, "заголовок вкладки — только для читалки");
   assert.doesNotMatch(drafts, /Они уходят только после вашего одобрения|можно поправить перед отправкой|Текст агента без правок/u);
@@ -919,7 +919,7 @@ test("«Поручить» при открытии на запуске: разм
   const locked = body(bodyProps({ tab: "command", runtimeConfigured: false, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() }, conversations: [resumeRun()] }));
   assert.doesNotMatch(locked, /v3-aia-progress|Покажи студентов с просроченными/u);
   assert.doesNotMatch(locked, /v3-aia-conversations|v3-aia-new/u, "заперто — списка разговоров и поля нет, только объяснение");
-  assert.match(locked, /<a[^>]*data-testid="v3-aia-back" href="\/v3\/ai-agents\/director\?tab=overview">[\s\S]*К разделам агента<\/a>/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента");
+  assert.match(locked, /<a[^>]*data-testid="v3-aia-back" href="\/ai-agents\/director\?tab=overview">[\s\S]*К разделам агента<\/a>/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента");
   const fresh = body(bodyProps({ tab: "command" }));
   assert.doesNotMatch(fresh, /v3-aia-progress/u);
   assert.match(fresh, /placeholder="Что поручить\?"/u);
@@ -958,15 +958,15 @@ test("первый клик: кнопки синхронизации запер�
 });
 
 test("исходники «Поручить»: ключ чата — у рабочей области, страница передаёт строку запуска и «Мои разговоры», набранное до гидратации подхватывается", () => {
-  const bodySource = read("src/components/v3/ai-agents/AgentBody.tsx");
+  const bodySource = read("src/components/staff/ai-agents/AgentBody.tsx");
   assert.doesNotMatch(bodySource, /key=\{props\.runId/u, "ключ не от ?run=: после перерисовки сервером адрес и свойства меняются, а разговор — нет");
   assert.doesNotMatch(bodySource, /key=\{props\.resume/u);
-  const workspace = read("src/components/v3/ai-agents/CommandWorkspace.tsx");
+  const workspace = read("src/components/staff/ai-agents/CommandWorkspace.tsx");
   assert.match(workspace, /<Console\s+key=\{opened\.n\}/u, "ключ Console — счётчик рабочей области");
   assert.match(workspace, /n: previous\.n \+ 1/u, "растёт только по выбору строки или «Новому разговору»");
   assert.doesNotMatch(workspace, /history\.pushState/u, "адрес обновляется на месте, без записей в истории");
   assert.match(workspace, /window\.history\.replaceState\(null, "", href\)/u);
-  const pageSource = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
+  const pageSource = read("src/app/(staff)/ai-agents/[key]/page.tsx");
   assert.match(pageSource, /run: toConversationRow\(runRead\.data\.run\)/u);
   assert.match(pageSource, /run: mine \}/u);
   assert.match(pageSource, /!route\.runId && !route\.fresh/u, "?new=1 пропускает автоподхват");
@@ -974,7 +974,7 @@ test("исходники «Поручить»: ключ чата — у рабо
   // «Поручить» — рамка на всю рабочую область (решение владельца 26.10.2026); с #1327 её рисует «Новый вид» (`NextChatShell`), страница прежних рамок не несёт.
   assert.doesNotMatch(pageSource, /<AgentChatShell|<PartShell/u);
   assert.doesNotMatch(pageSource, /fill=\{tab === "command"\}/u);
-  const consoleSource = read("src/components/v3/ai-agents/Console.tsx");
+  const consoleSource = read("src/components/staff/ai-agents/Console.tsx");
   assert.match(consoleSource, /useLayoutEffect\(\(\) => \{\s*const typed = input\.current\?\.value/u, "текст из поля, набранный до гидратации, попадает в состояние");
   assert.doesNotMatch(consoleSource, /setWorking\(true\);\s*schedule\(/u, "«работает» следует статусу запуска, а не тому, что опрос не закончился");
   assert.match(consoleSource, /setWorking\(aiAgentRunIsActive\(poll\.run\.status\)\)|setWorking\(active\)/u);
@@ -984,11 +984,11 @@ test("исходники «Поручить»: ключ чата — у рабо
 /* Настоящий React в Chromium: серверная разметка гидратируется, как на странице (без Next). Серверные действия — записанные
  * заглушки в `window.__fake`; без установленного Chromium проверка пропускается словами, а не зеленеет. */
 const BROWSER_SSR = `import { renderToString } from "react-dom/server";
-import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
+import { AgentBody } from "@/components/staff/ai-agents/AgentBody";
 export const render = (props) => renderToString(<AgentBody {...props} />);`;
 const BROWSER_CLIENT = `import { hydrateRoot } from "react-dom/client";
-import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
-import { registerTaskComposerOpener } from "@/components/v3/tasks/task-composer-context";
+import { AgentBody } from "@/components/staff/ai-agents/AgentBody";
+import { registerTaskComposerOpener } from "@/components/staff/tasks/task-composer-context";
 window.__registerOpener = (open) => registerTaskComposerOpener(open);
 window.__gate.then(() => {
   const root = hydrateRoot(document.getElementById("root"), <AgentBody {...window.__PROPS} />, { onRecoverableError: (error) => window.__errors.push(String(error)) });
@@ -1369,13 +1369,13 @@ test("браузер: продолжение закончившегося раз
 });
 
 test("исходники: меню страницы не прячет фокус на телефоне, поле поручения следит за шириной, запертое состояние не тупик", () => {
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   assert.equal((css.match(/> :not\(:last-child\):not\(:focus-within\)/gu) ?? []).length, 2, "скрытая шапка и полоса вкладок показываются, пока в них фокус");
-  const composer = read("src/components/v3/ai-agents/AgentComposer.tsx");
+  const composer = read("src/components/staff/ai-agents/AgentComposer.tsx");
   assert.match(composer, /new ResizeObserver/u, "высота поля пересчитывается и при смене ширины");
   assert.match(composer, /@max-md:flex-wrap/u);
   assert.match(composer, /bg-warn-weak text-warn @max-md:basis-full/u, "нажатая «Без черновика» на узком экране занимает свою строку");
-  assert.match(read("src/components/v3/ai-agents/CommandWorkspace.tsx"), /data-testid="v3-aia-back"/u);
+  assert.match(read("src/components/staff/ai-agents/CommandWorkspace.tsx"), /data-testid="v3-aia-back"/u);
 });
 
 test("браузер: кнопка «Синхронизировать» после гидратации работает с первого нажатия", async (t) => {
@@ -1447,14 +1447,14 @@ test("браузер: несохранённая инструкция — пер
     page.on("dialog", (dialog) => { dialogs.push(dialog.message()); void dialog.dismiss(); });
     await hydrated("[data-testid=v3-aia-instructions-text]");
     const before = page.url();
-    await page.click("a[href='/v3/ai-agents/director?tab=runs']");
+    await page.click("a[href='/ai-agents/director?tab=runs']");
     assert.deepEqual(dialogs, [], "без правок переход не спрашивает (страницы-цели в стенде нет — запрос уходит и ничего не ломает)");
     await page.goto(before);
     await page.evaluate(() => window.__release());
     await hydrated("[data-testid=v3-aia-instructions-text]");
     await page.fill("[data-testid=v3-aia-instructions-text]", "Другая инструкция");
     assert.match(await page.innerText("[data-testid=v3-aia-instructions]"), /Есть несохранённые изменения/u);
-    await page.click("a[href='/v3/ai-agents/director?tab=runs']");
+    await page.click("a[href='/ai-agents/director?tab=runs']");
     assert.deepEqual(dialogs, ["Есть несохранённые изменения. Перейти без сохранения?"]);
     assert.equal(page.url(), before, "«Отмена» — остались на странице");
     assert.equal(await page.inputValue("[data-testid=v3-aia-instructions-text]"), "Другая инструкция", "набранное цело");
@@ -1478,14 +1478,14 @@ test("браузер: два правленых черновика — пере�
     const before = page.url();
     // «Отмена»: один вопрос, остались на странице, набранное цело
     answer = "dismiss";
-    await page.click("a[href='/v3/ai-agents/director?tab=runs']");
+    await page.click("a[href='/ai-agents/director?tab=runs']");
     assert.equal(dialogs.length, 1, "«Отмена» первому охраннику — второй не переспрашивает");
     assert.equal(page.url(), before);
     assert.equal(await fields.nth(1).inputValue(), "Правка второго");
     // «Перейти»: тоже один вопрос на переход, а не по одному на каждый правленый черновик
     answer = "accept";
     dialogs.length = 0;
-    await Promise.all([page.waitForNavigation({ timeout: 5000 }).catch(() => null), page.click("a[href='/v3/ai-agents/director?tab=runs']")]);
+    await Promise.all([page.waitForNavigation({ timeout: 5000 }).catch(() => null), page.click("a[href='/ai-agents/director?tab=runs']")]);
     assert.equal(dialogs.length, 1, "«Перейти» подтверждено один раз");
   } finally { await context.close(); }
 });
@@ -1606,7 +1606,7 @@ test("ненастроенный агент: «Обзор» — три шага 
   const { body } = await views();
   const overview = body(bodyProps({ detail: unsetDetail(), digests: { status: "available", data: { digests: [] } } }));
   assert.match(overview, /data-testid="v3-aia-setup"[\s\S]*Агент не настроен[\s\S]*Правила агента[\s\S]*Написать правила[\s\S]*Включение[\s\S]*Отправка в Claude/u);
-  assert.match(overview, /<a[^>]*data-testid="v3-aia-setup-instructions" href="\/v3\/ai-agents\/curator-eu\?tab=instructions">Написать правила<\/a>/u);
+  assert.match(overview, /<a[^>]*data-testid="v3-aia-setup-instructions" href="\/ai-agents\/curator-eu\?tab=instructions">Написать правила<\/a>/u);
   assert.doesNotMatch(overview, /Запусков ещё не было|Поручите агенту первую задачу|v3-aia-first-run/u, "«Поручить» не предлагается, пока оно заперто (раньше два экрана противоречили друг другу)");
   assert.doesNotMatch(overview, /Запусков за 7 дней|v3-aia-day-bars|Отчётов пока нет/u, "десяти пустых блоков нет");
 
@@ -1635,7 +1635,7 @@ test("ненастроенный агент: «Обзор» — три шага 
   // «Синхронизировать» без инструкции заперта и объясняет причину ссылкой
   const settings = body(bodyProps({ tab: "settings", detail: unsetDetail() }));
   assert.match(settings, /<button[^>]*disabled=""[^>]*data-testid="v3-aia-sync"/u);
-  assert.match(settings, /Сначала напишите <a[^>]*href="\/v3\/ai-agents\/curator-eu\?tab=instructions">правила<\/a>/u);
+  assert.match(settings, /Сначала напишите <a[^>]*href="\/ai-agents\/curator-eu\?tab=instructions">правила<\/a>/u);
 });
 
 test("запуск: ошибки действий словами, неудавшиеся выше, «Готово» при ошибках говорит об этом, действия — над своим поручением", async () => {
@@ -1656,7 +1656,7 @@ test("запуск: ошибки действий словами, неудавш
   assert.match(html, /Действия агента <span[^>]*>2 · 1 с ошибкой<\/span>/u);
   assert.match(html, /<td[^>]*>16:31<\/td>/u, "время в тот же день — без даты: «22 окт» девять раз подряд — шум");
   assert.match(html, /data-testid="v3-aia-run-meta-line"[^>]*>[^<]*· 42 с · 0,17 \$ · Вы</u, "факты — одной строкой, свой запуск подписан «Вы»");
-  assert.match(html, /<a[^>]*data-testid="v3-aia-run-open-chat" href="\/v3\/ai-agents\/director\?run=33333333-3333-4333-8333-333333333333"[^>]*>[\s\S]*Открыть в чате<\/a>/u);
+  assert.match(html, /<a[^>]*data-testid="v3-aia-run-open-chat" href="\/ai-agents\/director\?run=33333333-3333-4333-8333-333333333333"[^>]*>[\s\S]*Открыть в чате<\/a>/u);
   assert.match(html, /data-testid="v3-aia-run-copy"/u);
   assert.doesNotMatch(html, /data-testid="v3-aia-run-stop"|data-testid="v3-aia-run-repeat"/u, "готовый запуск не останавливают и не повторяют");
   assert.match(html, /<div data-testid="v3-aia-markdown">/u, "ширину таблицы не зажимает «72ch» текста");
@@ -1715,9 +1715,9 @@ function escapeRegExp(value) {
 }
 
 test("исходники: нет сырого HTML и service-клиента в интерфейсе, действия — только async, заголовки страниц совпадают с меню", () => {
-  const files = readdirSync(root("src/components/v3/ai-agents")).map((file) => `src/components/v3/ai-agents/${file}`);
+  const files = readdirSync(root("src/components/staff/ai-agents")).map((file) => `src/components/staff/ai-agents/${file}`);
   const own = [...files, "src/lib/v3/ai-agents-source.ts", "src/lib/v3/ai-agents-view.ts", "src/lib/platform-ai-agents-actions.ts",
-    "src/app/(v3)/v3/ai-agents/page.tsx", "src/app/(v3)/v3/ai-agents/[key]/page.tsx"];
+    "src/app/(staff)/ai-agents/page.tsx", "src/app/(staff)/ai-agents/[key]/page.tsx"];
   for (const file of own) {
     const text = read(file);
     assert.doesNotMatch(text, /dangerouslySetInnerHTML/u, file);
@@ -1736,12 +1736,12 @@ test("исходники: нет сырого HTML и service-клиента в 
   assert.match(actions, /Инструкции пока нет|instructions_empty/u);
   // «Включить» агента без инструкции отказывает до обращения к базе
   assert.ok(actions.indexOf("instructions_empty") < actions.indexOf("AI_AGENT_STAFF_RPC.update, {"), "отказ раньше записи в базу");
-  const page = read("src/app/(v3)/v3/ai-agents/page.tsx");
+  const page = read("src/app/(staff)/ai-agents/page.tsx");
   assert.match(page, /export const metadata = \{ title: "ИИ-агенты" \};/u);
-  assert.match(page, /requireV3PageActor\("\/v3\/ai-agents"\)/u);
+  assert.match(page, /requireV3PageActor\("\/ai-agents"\)/u);
   assert.match(page, /export const dynamic = "force-dynamic"/u);
-  const agentPage = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
+  const agentPage = read("src/app/(staff)/ai-agents/[key]/page.tsx");
   assert.match(agentPage, /isAiAgentKey\(key\)\) notFound\(\)/u);
   assert.match(agentPage, /parseAiAgentRoute\(await searchParams\);\s*if \(!route\) notFound\(\)/u);
-  assert.match(agentPage, /requireV3PageActor\("\/v3\/ai-agents"\)/u);
+  assert.match(agentPage, /requireV3PageActor\("\/ai-agents"\)/u);
 });

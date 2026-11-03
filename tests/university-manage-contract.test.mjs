@@ -37,14 +37,14 @@ test('closed canonical listContext cannot smuggle a URL or duplicate key',()=>{
  assert.deepEqual(parseManageListContext(context),index);
  for(const bad of ['{"q":"","q":"CN","cursor":null}','{"cursor":null,"q":""}','{"q":"","cursor":null,"href":"https://evil.test"}',JSON.stringify({q:' CN ',cursor:null}),' '.repeat(4097)]) assert.equal(parseManageListContext(bad),null);
  assert.equal(manageListContext({q:'',cursor:null}),null);
- assert.equal(manageEditorHref('new','1','{"q":"","cursor":null}'),'/v3/universities/manage?new=1');
+ assert.equal(manageEditorHref('new','1','{"q":"","cursor":null}'),'/universities/manage?new=1');
  for(const mode of ['draft','edit','identify','template','new','batch']) {
   const href=manageEditorHref(mode,['new','batch'].includes(mode)?'1':mode==='template'?'apu':id(1),context);
   const parsed=parseManageRoute(new URL(href,'https://local.test').searchParams);
   assert.equal(parsed.listContext,context);
   assert.equal(manageListHref(parseManageListContext(parsed.listContext)),manageListHref(index));
  }
- assert.equal(manageListHref({q:'',cursor:null}),'/v3/universities/manage');
+ assert.equal(manageListHref({q:'',cursor:null}),'/universities/manage');
 });
 test('page validates tenant/query/closed envelope, payload and mixed-key ordering',()=>{
  assert.deepEqual(parseManageDraftPage(page([]),id(999),{q:'',cursor:null}),{items:[],nextCursor:null});

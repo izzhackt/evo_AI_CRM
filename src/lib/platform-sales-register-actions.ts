@@ -134,12 +134,12 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
       if (actor.systemRole === "admin" && curatorId === actor.membershipId) {
         needsLogin = !(await refreshConfirmedSelfHandoffSession(actor));
       }
-      revalidatePath("/v3/admissions");
-      revalidatePath("/v3/tasks");
-      revalidatePath("/v3/profile");
+      revalidatePath("/admissions");
+      revalidatePath("/tasks");
+      revalidatePath("/profile");
     }
-    revalidatePath("/v3/main");
-    revalidatePath("/v3/pipeline");
+    revalidatePath("/main");
+    revalidatePath("/pipeline");
     savedRecordId = data.record_id;
   } catch { return outcome(form, "unavailable"); }
   if (needsLogin) redirect("/login?error=session_invalid");
@@ -221,8 +221,8 @@ export async function linkSalesRecordLeadAction(_previous: SalesRecordLeadLinkAc
       organizationId: actor.organizationId, recordId, requestId, expectedVersion: version, operation: leadId === null ? "unlink" : "link",
     });
     if (savedVersion === null) return outcome("unavailable");
-    revalidatePath("/v3/main");
-    revalidatePath("/v3/profile");
+    revalidatePath("/main");
+    revalidatePath("/profile");
     return outcome("saved", recordId);
   } catch { return outcome("unavailable"); }
 }
@@ -267,8 +267,8 @@ export async function setSalesRegisterWithdrawalAction(_previous: SalesWithdrawa
       organizationId: actor.organizationId, recordId, requestId, expectedVersion: version, operation: kind === null ? "withdraw_undo" : "withdraw",
     });
     if (saved === null) return outcome("unavailable");
-    revalidatePath("/v3/main");
-    revalidatePath("/v3/profile");
+    revalidatePath("/main");
+    revalidatePath("/profile");
     return outcome("saved", recordId, kind === null ? "withdraw_undo" : "withdraw");
   } catch { return outcome("unavailable"); }
 }
@@ -302,7 +302,7 @@ export async function saveSalesTargetAction(_previous: SalesRegisterActionState,
     if (!data || typeof data !== "object" || Array.isArray(data) || data.organization_id !== actor.organizationId
       || data.operation !== "target" || data.request_id !== requestId || !parseSalesUuid(data.record_id)
       || (recordId !== null && data.record_id !== recordId) || parseSalesInteger(data.version) !== version + 1) return outcome(form, "unavailable");
-    revalidatePath("/v3/main");
+    revalidatePath("/main");
     return outcome(form, "saved", data.record_id);
   } catch { return outcome(form, "unavailable"); }
 }
@@ -349,7 +349,7 @@ export async function importSalesRegisterAction(_previous: SalesImportActionStat
     const targetsInserted = parseSalesInteger(data.targets_inserted, 120), targetsSkipped = parseSalesInteger(data.targets_skipped, 120), targetsMismatched = parseSalesInteger(data.targets_mismatched, 120);
     if (inserted === null || skipped === null || mismatches === null || targetsInserted === null || targetsSkipped === null || targetsMismatched === null
       || inserted + skipped + mismatches !== input.sales.length || targetsInserted + targetsSkipped + targetsMismatched !== input.targets.length) return result("unavailable");
-    revalidatePath("/v3/main");
+    revalidatePath("/main");
     return { ...outcome(form, "saved"), importResult: { sourceSha256: input.source_sha256, inserted, skipped, mismatches, targetsInserted, targetsSkipped, targetsMismatched } };
   } catch { return result("unavailable"); }
 }
@@ -393,7 +393,7 @@ export async function saveSalesManagerLabelAction(_previous: SalesManagerLabelAc
     if (!data || typeof data !== "object" || Array.isArray(data) || data.organization_id !== actor.organizationId
       || data.operation !== "manager_label" || data.request_id !== requestId || data.label_key !== key
       || parseSalesInteger(data.version) !== version + 1) return result("unavailable");
-    revalidatePath("/v3/main");
+    revalidatePath("/main");
     return result("saved");
   } catch { return result("unavailable"); }
 }

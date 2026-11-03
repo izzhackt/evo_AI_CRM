@@ -235,7 +235,7 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       let runtimeError = false;
       page.on("pageerror", () => { runtimeError = true; });
       checkpoint("admin_login");
-      await signIn(page, configuration.baseUrl, configuration.email, configuration.password, "/v3/main");
+      await signIn(page, configuration.baseUrl, configuration.email, configuration.password, "/main");
       const shell = page.getByTestId("v3-shell");
       const activeRole = page.getByTestId("active-role");
       const operationalDashboard = page.getByTestId("v3-operational-dashboard");
@@ -250,11 +250,11 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
 
       await verifyVersion(page, configuration);
       checkpoint("case_route");
-      await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=route`);
+      await visit(page, `${configuration.baseUrl}/profile?case=${configuration.caseId}&tab=route`);
       // «Вузы и программы» replaced the route tracker at the same URL (S4).
       await page.getByTestId("v3-universities-programs").waitFor({ state: "visible", timeout: 30_000 });
       checkpoint("case_contract");
-      await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=contract`);
+      await visit(page, `${configuration.baseUrl}/profile?case=${configuration.caseId}&tab=contract`);
       const contract = page.getByTestId("v3-profile-contract-workspace");
       await contract.waitFor({ state: "visible", timeout: 30_000 });
       if (await contract.getAttribute("data-student-case-id") !== configuration.caseId) {
@@ -263,7 +263,7 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_case_smoke_passed"}\n');
       checkpoint("admissions_pipeline");
-      await visit(page, `${configuration.baseUrl}/v3/admissions-pipeline`);
+      await visit(page, `${configuration.baseUrl}/admissions-pipeline`);
       await page.getByTestId("v3-admissions-pipeline-board").waitFor({ state: "visible", timeout: 30_000 });
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_admissions_pipeline_smoke_passed"}\n');
@@ -273,17 +273,17 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       // EVO Docs opens on its first non-empty tab; the «Документы дела» link is
       // always in the row, current or not.
       checkpoint("students_queue");
-      await visit(page, `${configuration.baseUrl}/v3/profile`);
+      await visit(page, `${configuration.baseUrl}/profile`);
       await verifyStudentsQueue(page, "students_queue", /^Все в работе/u);
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_students_queue_smoke_passed"}\n');
       checkpoint("evo_docs");
-      await visit(page, `${configuration.baseUrl}/v3/profile?section=docs`);
+      await visit(page, `${configuration.baseUrl}/profile?section=docs`);
       await verifyStudentsQueue(page, "evo_docs_queue", /^Документы дела/u);
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_evo_docs_smoke_passed"}\n');
       checkpoint("team_chat");
-      await visit(page, `${configuration.baseUrl}/v3/team-chat`);
+      await visit(page, `${configuration.baseUrl}/team-chat`);
       const channels = page.getByRole("navigation", { name: "Каналы команды", exact: true });
       await channels.waitFor({ state: "visible", timeout: 30_000 });
       await page.locator('[aria-label="История сообщений"]').waitFor({ state: "visible", timeout: 30_000 });

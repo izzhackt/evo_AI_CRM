@@ -7,7 +7,7 @@
 
 /**
  * Статический рендер вкладки «Вузы и программы» дела студента
- * (`/v3/profile?case=…&tab=route`, Э8.2, решение владельца 28.09.2026).
+ * (`/profile?case=…&tab=route`, Э8.2, решение владельца 28.09.2026).
  *
  * Рендерит НАСТОЯЩУЮ сборку страницы — `caseWorkParts` (шапка и действия у
  * заголовка), `Profile` с вкладкой `route`, `UniversityProgramsView` (та же
@@ -26,7 +26,7 @@
  *       партнёру», «Документы программы», окно каталога, ручной ввод и
  *       сохранённые запросы без результата. Проверки печатаются.
  *   node tests/e2e/case-route-static-render.cjs --screenshots [outDir]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844 в outDir (по умолчанию
  *       .impeccable/review, не коммитится), файлы `route-*.png`, и строка
@@ -65,7 +65,7 @@ Module._extensions[".png"] = (module, filename) => {
   module.exports = { src: pathToFileURL(filename).href, width: 1843, height: 842 };
 };
 // CSS-модули: имя класса — сам ключ; у окна добавления вуза — с префиксом, его стили подключаются ниже.
-const DIALOG_CSS = join(ROOT, "src/components/v3/profile/ApplicationCreateDialog.module.css");
+const DIALOG_CSS = join(ROOT, "src/components/staff/profile/ApplicationCreateDialog.module.css");
 // `import styles from "…module.css"` компилируется в `__importDefault(require(…)).default`: у прокси нет
 // `__esModule`, а `default` — он сам.
 Module._extensions[".css"] = (module, filename) => {
@@ -96,11 +96,11 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { caseWorkParts } = require(join(ROOT, "src/components/v3/profile/CaseWorkParts.tsx"));
-const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
-const { UniversityProgramsView } = require(join(ROOT, "src/components/v3/profile/UniversityProgramsTab.tsx"));
-const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
-const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
+const { caseWorkParts } = require(join(ROOT, "src/components/staff/profile/CaseWorkParts.tsx"));
+const { Profile } = require(join(ROOT, "src/components/staff/profile/Profile.tsx"));
+const { UniversityProgramsView } = require(join(ROOT, "src/components/staff/profile/UniversityProgramsTab.tsx"));
+const { buildV3ProfileHref } = require(join(ROOT, "src/components/staff/profile/types.ts"));
+const queueView = require(join(ROOT, "src/components/staff/students/students-queue-view.ts"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — среда 23.09.2026 по Бишкеку (как в статическом рендере дела).
@@ -112,7 +112,7 @@ const CASE_ID = "cccccccc-2222-4222-8222-000000000001";
 const LEAD_ID = "dddddddd-3333-4333-8333-000000000001";
 const NAME = "Айдана Сыдыкова";
 const uuid = (prefix, n) => `${prefix}-5555-4555-8555-${String(n).padStart(12, "0")}`;
-const RETURN_TO = "/v3/profile?view=mine";
+const RETURN_TO = "/profile?view=mine";
 const HASH = "a".repeat(64);
 
 const CURATOR = {
@@ -294,7 +294,7 @@ const routerStub = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, pus
 
 function withContexts(node, search) {
   return createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
@@ -309,8 +309,8 @@ function renderWorkspace(name) {
 }
 
 function renderPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const back = createElement("a", { href: RETURN_TO, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "Студенты");
@@ -331,7 +331,7 @@ async function compileCss() {
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
   const dialog = readFileSync(DIALOG_CSS, "utf8").replace(/\.(dialog|layout|header|body)\b/gu, ".acd-$1");
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), dialog].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), dialog].join("\n");
 }
 
 function writeHtml(path, css, markup) {
@@ -480,17 +480,17 @@ const CLIENT_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
-const { ProfileAdmissionsWorkspacePanel } = require("@/components/v3/profile/ProfileAdmissionsWorkspace");
-const { ApplicationCreateDialog } = require("@/components/v3/profile/ApplicationCreateDialog");
-const { CatalogPreparationLauncher } = require("@/components/v3/profile/StaffCatalogPreparationPicker");
-const { PartnerPacketsPanel } = require("@/components/v3/profile/PartnerPacketsPanel");
+const { ProfileAdmissionsWorkspacePanel } = require("@/components/staff/profile/ProfileAdmissionsWorkspace");
+const { ApplicationCreateDialog } = require("@/components/staff/profile/ApplicationCreateDialog");
+const { CatalogPreparationLauncher } = require("@/components/staff/profile/StaffCatalogPreparationPicker");
+const { PartnerPacketsPanel } = require("@/components/staff/profile/PartnerPacketsPanel");
 const h = React.createElement;
 window.__route = { calls: [], refreshes: 0, navigate: null };
 // Страница — файл: переход по ссылке CRM здесь не выполняется (после обработчиков React, как клиентский переход).
 // Адрес с \`packet_application\` — как переход Next по той же странице: дерево остаётся смонтированным,
 // меняются только свойства (layout-router не учитывает параметры адреса в ключе страницы).
 window.addEventListener("click", (event) => {
-  const link = event.target.closest ? event.target.closest("a[href^='/v3/']") : null;
+  const link = event.target.closest ? event.target.closest("a[href^='/']") : null;
   if (!link) return;
   event.preventDefault();
   const packet = new URL(link.getAttribute("href"), "https://crm.invalid").searchParams.get("packet_application");

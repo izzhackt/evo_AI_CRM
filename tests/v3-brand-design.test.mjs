@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const css = read("src/app/(v3)/v3.css");
+const css = read("src/app/(staff)/staff.css");
 // Базовые значения — первый блок `.v3-world { … }` (их делит кабинет студента);
 // облик staff CRM (`[data-surface="staff"]`, Э1.5) проверяет tests/v3-staff-look.test.mjs.
 const baseBlock = css.slice(css.indexOf(".v3-world {"), css.indexOf("}", css.indexOf(".v3-world {")));
@@ -55,8 +55,8 @@ test("original logo bytes are preserved and statically imported outside auth rou
 });
 
 test("role settings retain native disclosure and shell retains visible preview exit", () => {
-  const shell = read("src/components/v3/AppShell.tsx");
-  const roleSettings = read("src/components/v3/settings/StaffRolesSection.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
+  const roleSettings = read("src/components/staff/settings/StaffRolesSection.tsx");
   assert.match(roleSettings, /<details[^>]*data-testid="staff-role-preview"/u);
   assert.doesNotMatch(shell, /data-testid="staff-role-preview"/u);
   assert.match(shell, /data-testid="preview-active"[\s\S]*data-testid="preview-role-admin"/u);
@@ -70,22 +70,22 @@ test("directory filters reset native form state when applied URL filters change"
   // keyed by the applied query, carries the view and filters as hidden
   // fields, and «Сбросить» (only when something is set) keeps the view and
   // the EVO Docs section.
-  const toolbar = read("src/components/v3/queue/QueueToolbar.tsx");
+  const toolbar = read("src/components/staff/queue/QueueToolbar.tsx");
   assert.match(toolbar, /<form key=\{search\.defaultValue\}/u);
   assert.match(toolbar, /Object\.entries\(search\.hidden\)\.map\(\(\[name, value\]\) => value \? <input key=\{name\} type="hidden" name=\{name\} value=\{value\} \/> : null\)/u);
   assert.match(toolbar, /\{resetHref \? \([\s\S]*Сбросить[\s\S]*\) : null\}/u);
-  const students = read("src/components/v3/students/StudentsQueueHead.tsx");
+  const students = read("src/components/staff/students/StudentsQueueHead.tsx");
   // EVO Docs always keeps its tab: an address without a view there means «first non-empty tab».
   assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*(?:\/\/[^\n]*\n\s*)?view: params\.mode === "docs" \|\| params\.view !== params\.defaultView \? params\.view : null,/u);
   assert.match(students, /resetHref=\{active \? studentsListHref\(params, \{ query: null, direction: null, curator: null, stage: null, sort: null \}\) : null\}/u);
   // The Sales list keeps the 078 parameters and the chosen section.
-  const fallback = read("src/components/v3/students/StudentsDirectoryFallback.tsx");
-  assert.match(fallback, /const baseHref = withDocsSection\("\/v3\/profile", docsMode\);/u);
+  const fallback = read("src/components/staff/students/StudentsDirectoryFallback.tsx");
+  assert.match(fallback, /const baseHref = withDocsSection\("\/profile", docsMode\);/u);
   assert.match(fallback, /resetHref=\{active \? baseHref : null\}/u);
 });
 
 test("sales table scroll regions contain absolutely positioned screen-reader labels", () => {
-  const sales = read("src/components/v3/SalesRegisterView.tsx");
+  const sales = read("src/components/staff/SalesRegisterView.tsx");
   // Э4 (27.09.2026, «Отчёт продаж» без коробок): денежные итоги больше не лежат в прокручиваемой области -
   // это выровненная таблица с подписью и заголовками столбцов, она переносится вместе со страницей.
   // Правило прежнее для каждой оставшейся прокручиваемой области: имя, горизонтальная прокрутка и
@@ -111,31 +111,31 @@ test("solid red stays for the main action and every selection shares one accent-
   assert.ok(contrast("surface", "text") >= 4.5, "dark neutral badge, solid pill and today marker");
 
   const selectable = [
-    "src/components/v3/calendar/Calendar.tsx",
-    "src/components/v3/calendar/grids.tsx",
+    "src/components/staff/calendar/Calendar.tsx",
+    "src/components/staff/calendar/grids.tsx",
     // Boards 25.09: segments and the filter toggle of both boards live in the
     // shared Board primitive. Э7 (27.09): the open-lead card of the sales board is
     // selected like a list row beside the shared side panel — aria-current and
     // surface-2 (tests/v3-e7-side-panel.test.mjs), not this tab/segment style.
-    "src/components/v3/board/Board.tsx",
-    "src/components/v3/board/BoardToolbar.tsx",
+    "src/components/staff/board/Board.tsx",
+    "src/components/staff/board/BoardToolbar.tsx",
     // Э8.5 (28.09): the admissions board has no «Разделы поступления» choice any
     // more — its review queues are EVO Docs tabs (QueueViewTabs below).
     // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
-    "src/components/v3/queue/QueueViewTabs.tsx",
-    "src/components/v3/queue/FilterMenu.tsx",
-    "src/components/v3/tasks/ComposerDeadlineField.tsx",
-    "src/components/v3/MainHeader.tsx",
-    "src/components/v3/profile/Profile.tsx",
+    "src/components/staff/queue/QueueViewTabs.tsx",
+    "src/components/staff/queue/FilterMenu.tsx",
+    "src/components/staff/tasks/ComposerDeadlineField.tsx",
+    "src/components/staff/MainHeader.tsx",
+    "src/components/staff/profile/Profile.tsx",
     // «База знаний» (Э8.10, 28.09): дерево, «Вся база / Текущая папка», режим
     // редактора и вкладки досье — общий нейтральный выбор, без розового.
-    "src/components/v3/knowledge/KnowledgeTree.tsx",
-    "src/components/v3/knowledge/KnowledgeEditor.tsx",
-    "src/components/v3/knowledge/KnowledgeDossiers.tsx",
+    "src/components/staff/knowledge/KnowledgeTree.tsx",
+    "src/components/staff/knowledge/KnowledgeEditor.tsx",
+    "src/components/staff/knowledge/KnowledgeDossiers.tsx",
     // «Заявки» (Э3, 27.09): выбор — вкладки очереди (QueueViewTabs) и «Ждут
     // разбора / Все» (BoardSegments), оба выше в этом списке.
     // «Студенты» (25.09.2026): срок в редакторе шага — тот же выбор, что в диалоге задачи.
-    "src/components/v3/students/NextStepEditor.tsx",
+    "src/components/staff/students/NextStepEditor.tsx",
   ];
   for (const path of selectable) {
     // «Сегодня» в календаре — не выбор, а маленькая красная заливка (правило плана редизайна, Э6).
@@ -146,15 +146,15 @@ test("solid red stays for the main action and every selection shares one accent-
   }
   // A selected form template keeps a non-colour cue: the edge v3-choice recolours
   // and the 600 weight reaching the title (no weight fixed on the title itself).
-  const forms = read("src/app/(v3)/v3/universities/[id]/forms/page.tsx");
+  const forms = read("src/app/(staff)/universities/[id]/forms/page.tsx");
   assert.match(forms, /className="v3-choice [^"]*\bborder-l-2 border-transparent\b[^"]*"/u, "selected template has an edge, not only a tint");
   assert.doesNotMatch(forms, /text-sm font-medium">\{item\.title\}/u, "the title does not pin its own weight over v3-choice");
 
   const filterSubmits = [
-    "src/components/v3/Inbox.tsx",
-    "src/components/v3/MainHeader.tsx",
+    "src/components/staff/Inbox.tsx",
+    "src/components/staff/MainHeader.tsx",
     // Э6: the catalogue applies its filters on change; «Найти» stays for a browser without scripts.
-    "src/components/v3/universities/UniversityToolbar.tsx",
+    "src/components/staff/universities/UniversityToolbar.tsx",
   ];
   for (const path of filterSubmits) {
     const source = read(path);
@@ -175,24 +175,24 @@ test("solid red stays for the main action and every selection shares one accent-
   // EVO Docs (25.09.2026): one quiet row action «Открыть документы», and the
   // former «Анкета и формы» / «Пакет ZIP» in the row menu — none of them red
   // or a bordered button.
-  const docsTable = read("src/components/v3/students/StudentsDocsTable.tsx");
+  const docsTable = read("src/components/staff/students/StudentsDocsTable.tsx");
   const openDocuments = docsTable.match(/data-queue-open=""\s+className="([^"]+)"\s*>\s*Открыть документы/u)?.[1] ?? "";
   assert.ok(openDocuments, "«Открыть документы» is the row action");
   assert.doesNotMatch(openDocuments, /\bbg-accent\b|\bborder\b/u);
-  const docsMenu = read("src/components/v3/students/DocsRowMenu.tsx");
+  const docsMenu = read("src/components/staff/students/DocsRowMenu.tsx");
   assert.match(docsMenu, /className=\{MENU_ITEM\}>Анкета и формы<\/Link>/u);
   assert.doesNotMatch(docsMenu.match(/const MENU_ITEM = "([^"]+)";/u)?.[1] ?? "", /\bbg-accent\b|\bborder\b/u);
-  const notifications = read("src/components/v3/StaffNotifications.tsx");
+  const notifications = read("src/components/staff/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);
   // Pill — тот же вид, что у StatusChip (`.v3-chip`): один чип на весь CRM, без своей палитры и без «solid».
-  const pill = read("src/components/v3/Pill.tsx");
+  const pill = read("src/components/staff/Pill.tsx");
   assert.match(pill, /className="v3-chip t-caption shrink-0" data-tone=\{tone\}/u);
   assert.doesNotMatch(pill, /solid|bg-fg|rounded-\[5px\]/u);
 });
 
 // Шрифтовые роли staff CRM (решение владельца 24.09.2026): Golos Text и
-// JetBrains Mono остаются, текст получает одну из ролей `t-*` из v3.css.
+// JetBrains Mono остаются, текст получает одну из ролей `t-*` из staff.css.
 const TYPE_ROLES = {
   "page-title": [24, 32, 600],
   "record-title": [20, 28, 600],
@@ -206,23 +206,23 @@ const TYPE_ROLES = {
   figure: [28, 32, 600],
 };
 
-// Эти v3-компоненты рендерит и Student portal. Портал тоже грузит v3.css
+// Эти v3-компоненты рендерит и Student portal. Портал тоже грузит staff.css
 // (src/app/(portal)/layout.tsx) и оборачивает содержимое в .v3-world
 // (components/portal/Shell.tsx), поэтому роль `t-*` сработала бы и там — но
 // срез касается только staff CRM: чтобы портал не изменился визуально, эти
 // файлы остаются на утилитах Tailwind.
 const PORTAL_SHARED_FILES = [
-  "src/components/v3/profile/CaseHelpPanel.tsx",
-  "src/components/v3/profile/CaseHelpWorkspace.tsx",
-  "src/components/v3/profile/CaseOperationsForms.tsx",
-  "src/components/v3/profile/StudentProfileExportHistory.tsx",
-  "src/components/v3/profile/UniversityFormExportPanel.tsx",
-  "src/components/v3/settings/StaffDisclosure.tsx",
+  "src/components/staff/profile/CaseHelpPanel.tsx",
+  "src/components/staff/profile/CaseHelpWorkspace.tsx",
+  "src/components/staff/profile/CaseOperationsForms.tsx",
+  "src/components/staff/profile/StudentProfileExportHistory.tsx",
+  "src/components/staff/profile/UniversityFormExportPanel.tsx",
+  "src/components/staff/settings/StaffDisclosure.tsx",
 ];
 
 function staffCrmSources() {
   const files = ["src/components/ui.tsx"];
-  for (const root of ["src/app/(v3)", "src/components/v3"]) {
+  for (const root of ["src/app/(staff)", "src/components/staff"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
       if (/\.(tsx|ts|css)$/u.test(entry)) files.push(`${root}/${entry.split("\\").join("/")}`);
     }
@@ -232,7 +232,7 @@ function staffCrmSources() {
 
 const ROLE_CLASS = /(?<![\w-])t-(?:page-title|record-title|section|item|body|body-compact|label|meta|caption|figure)(?![\w-])/u;
 
-test("type roles are defined once in v3.css on the staff shell and never below 12px", () => {
+test("type roles are defined once in staff.css on the staff shell and never below 12px", () => {
   assert.match(css, /@layer properties, theme, base, components, utilities;/u, "layer order matches Tailwind 4");
   for (const [role, [size, leading, weight]] of Object.entries(TYPE_ROLES)) {
     assert.match(css, new RegExp(`--type-${role}: ${size}px;`, "u"), `--type-${role} token`);
@@ -269,7 +269,7 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
     if (/\btext-(?:2xl|3xl)\b/u.test(source)) fail(path, "title size outside the page-title role");
     if (/fontSize=(?:"|\{)(?:\d|1[01])(?:"|\})/u.test(source)) fail(path, "SVG text below 12px");
     const uppercase = [...source.matchAll(/\buppercase\b/gu)].length;
-    const inputTransform = path === "src/components/v3/profile/ProfileSalesTransition.tsx"
+    const inputTransform = path === "src/components/staff/profile/ProfileSalesTransition.tsx"
       ? [...source.matchAll(/cn\(inputCls, "uppercase"\)/gu)].length : 0;
     if (uppercase > inputTransform) fail(path, "uppercase label (only the currency input value may be uppercased)");
     if (PORTAL_SHARED_FILES.includes(path)) continue;
@@ -287,40 +287,40 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.match(ui, /eyebrow \? \(\s*<h3 className="t-section /u, "compact card title is a section heading, not 11px caps");
   assert.match(ui, /export const fieldLabelCls = "mb-1 block t-label text-fg-2";/u);
   assert.match(ui, /export const labelCls = "mb-1 block text-xs font-medium text-fg-2";/u, "auth/Student label unchanged");
-  for (const path of ["src/components/v3/MetricCard.tsx"]) {
+  for (const path of ["src/components/staff/MetricCard.tsx"]) {
     const source = read(path);
     assert.match(source, /\bt-figure\b/u, `${path} KPI uses t-figure`);
     assert.doesNotMatch(source, /font-mono/u, `${path} KPI is not monospace`);
   }
-  assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /<h1 className=\{`t-page-title \$\{styles\.channelTitle\}`\}>/u);
+  assert.match(read("src/components/staff/team-chat/TeamChat.tsx"), /<h1 className=\{`t-page-title \$\{styles\.channelTitle\}`\}>/u);
 
   // График «Динамики по дням» (26.09.2026): поле растягивается на ширину
   // контейнера без прокрутки и без минимальной ширины, линии не меняют толщину,
   // а подписи осей — HTML-роль t-meta (12 px) при любой ширине; чернила, не красный.
-  const trend = read("src/components/v3/TrendChart.tsx");
+  const trend = read("src/components/staff/TrendChart.tsx");
   assert.match(trend, /viewBox="0 0 100 100" preserveAspectRatio="none"/u);
   assert.doesNotMatch(trend, /min-w-\[\d+px\]|overflow-x-auto/u, "no fixed minimum width, no horizontal scroll");
   assert.ok((trend.match(/vectorEffect="non-scaling-stroke"/gu)?.length ?? 0) >= 2, "grid and series keep their stroke width");
   assert.equal(trend.match(/className="relative h-(?:44|6) t-meta tabular-nums text-fg-3"/gu)?.length, 2, "both axes use the 12px meta role");
   assert.doesNotMatch(trend, /fontSize=|<text\b/u, "no SVG text that scales with the chart");
   assert.doesNotMatch(trend, /--accent|bg-accent|linearGradient/u, "the chart is ink, not red");
-  assert.doesNotMatch(read("src/components/v3/Funnel.tsx"), /\bbg-accent\b/u, "funnel bars and dots are ink, not red");
+  assert.doesNotMatch(read("src/components/staff/Funnel.tsx"), /\bbg-accent\b/u, "funnel bars and dots are ink, not red");
 
   // Подпись настоящего поля или фильтра — t-label (14 px), даже в строке с
   // контролом; t-caption остаётся подписям данных: колонкам, терминам, чипам.
   // Boards 25.09: filter selects of both boards share NavigateSelect, whose
   // label is t-label; the search field is named «Поиск» for assistive tech.
-  const toolbar = read("src/components/v3/board/BoardToolbar.tsx");
+  const toolbar = read("src/components/staff/board/BoardToolbar.tsx");
   assert.match(toolbar, /<label className="t-label [^"]*">\s*\{label\}\s*<select/u, "board filter label");
-  const pipelinePage = read("src/app/(v3)/v3/pipeline/page.tsx");
+  const pipelinePage = read("src/app/(staff)/pipeline/page.tsx");
   assert.match(pipelinePage, /label="Ответственный"/u, "pipeline «Ответственный» filter label");
-  assert.match(read("src/components/v3/board/Board.tsx"), /<span className="sr-only">Поиск<\/span>/u, "board search is named");
+  assert.match(read("src/components/staff/board/Board.tsx"), /<span className="sr-only">Поиск<\/span>/u, "board search is named");
   // Э6: one 44 px toolbar row — the field names are labels for the screen reader, the values say what is chosen.
-  const catalogue = read("src/components/v3/universities/UniversityToolbar.tsx");
+  const catalogue = read("src/components/staff/universities/UniversityToolbar.tsx");
   for (const name of ["Название университета", "Страна", "Уровень"]) {
     assert.match(catalogue, new RegExp(`<span className="t-label sr-only">${name}</span>`, "u"), `university «${name}» filter label`);
   }
-  assert.match(read("src/components/v3/inbox/InboxMessageMedia.tsx"),
+  assert.match(read("src/components/staff/inbox/InboxMessageMedia.tsx"),
     /<label className="t-label flex flex-col gap-1">\s*<span>Документ в деле студента<\/span>/u);
 
   for (const path of PORTAL_SHARED_FILES) {
@@ -331,7 +331,7 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   // группы по сроку — t-item, шапка таблицы — t-caption, имя — t-item, строка
   // «направление · уровень» — t-meta. Числа — табличные цифры Golos,
   // JetBrains Mono — только даты срока и замещения куратора.
-  const caseTable = read("src/components/v3/students/StudentsQueueTable.tsx");
+  const caseTable = read("src/components/staff/students/StudentsQueueTable.tsx");
   assert.match(caseTable, /const HEAD = "[^"]*\bt-caption text-fg-2\b[^"]*";/u);
   // Э8.11: имя — до двух строк, не многоточие.
   assert.match(caseTable, /className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0/u);
@@ -344,17 +344,17 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 1, "one mono class for the row's dates");
   assert.match(caseTable, /const DATE = "font-mono tabular-nums";/u);
   assert.equal(caseTable.match(/className=\{`?\$?\{?DATE\b/gu)?.length, 2, "the due <time> and the update <time>");
-  for (const path of ["src/components/v3/students/StudentsQueueHead.tsx", "src/components/v3/queue/QueueViewTabs.tsx", "src/components/v3/queue/FilterMenu.tsx"]) {
+  for (const path of ["src/components/staff/students/StudentsQueueHead.tsx", "src/components/staff/queue/QueueViewTabs.tsx", "src/components/staff/queue/FilterMenu.tsx"]) {
     assert.doesNotMatch(read(path), /font-mono/u, `${path}: counts are Golos tabular digits`);
   }
-  const coveragePanel = read("src/components/v3/profile/CuratorCoveragePanel.tsx");
+  const coveragePanel = read("src/components/staff/profile/CuratorCoveragePanel.tsx");
   // Since 25.09 the coverage heading is the record heading of the queue panel;
   // Э7: it is the header of the shared side panel (t-record-title), which names the section.
   assert.match(coveragePanel, /<section id="curator-coverage" aria-labelledby="curator-coverage-title"/u);
-  assert.match(read("src/components/v3/students/CuratorWorkloadView.tsx"), /headingId="curator-coverage-title"\s+title=\{subject\.name\}/u);
+  assert.match(read("src/components/staff/students/CuratorWorkloadView.tsx"), /headingId="curator-coverage-title"\s+title=\{subject\.name\}/u);
   assert.doesNotMatch(coveragePanel, /font-mono/u, "workload counts are Golos tabular digits");
-  assert.match(read("src/components/v3/profile/CoverageDueTime.tsx"), /className="whitespace-nowrap font-mono tabular-nums"/u);
-  for (const path of ["src/components/v3/profile/CuratorCoveragePanel.tsx", "src/components/v3/profile/CuratorCoverageForm.tsx"]) {
+  assert.match(read("src/components/staff/profile/CoverageDueTime.tsx"), /className="whitespace-nowrap font-mono tabular-nums"/u);
+  for (const path of ["src/components/staff/profile/CuratorCoveragePanel.tsx", "src/components/staff/profile/CuratorCoverageForm.tsx"]) {
     assert.doesNotMatch(read(path), /\blabelCls\b/u, `${path} field labels use fieldLabelCls (t-label)`);
   }
 });

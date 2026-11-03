@@ -146,8 +146,8 @@ export async function attachPlatformMessageMediaToCaseAction(
     return failureState(form, result.code);
   }
 
-  revalidatePath("/v3/inbox");
-  revalidatePath("/v3/profile");
+  revalidatePath("/inbox");
+  revalidatePath("/profile");
   return Object.freeze({
     status: "attached" as const,
     requestId: randomUUID(),

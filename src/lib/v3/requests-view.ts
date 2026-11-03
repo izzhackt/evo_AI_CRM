@@ -1,5 +1,5 @@
-import { dayDelta } from "../../components/v3/calendar/types.ts";
-import { formatQueueDay } from "../../components/v3/queue/due-bucket.ts";
+import { dayDelta } from "../../components/staff/calendar/types.ts";
+import { formatQueueDay } from "../../components/staff/queue/due-bucket.ts";
 import { dayInOrganizationTimezone } from "../platform-task-deadline.ts";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 import {

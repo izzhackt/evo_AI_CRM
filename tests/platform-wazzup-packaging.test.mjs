@@ -519,12 +519,12 @@ test("the runbook's A6 event ids are the test client's inbound events in the A2-
   assert.doesNotMatch(between(runbook), /canonical_client_id|canonical_lead_id|test_client/u);
   assert.match(runbook, /-v test_conversation="\$CONV"/u);
   assert.doesNotMatch(runbook, /CLIENT=<|-v test_client=/u, "no variable asks for a client id");
-  assert.ok(runbook.includes("/v3/inbox?conversation=") && runbook.includes("/v3/profile?id=…"), "the runbook names the address that carries the id and warns about the card address");
+  assert.ok(runbook.includes("/inbox?conversation=") && runbook.includes("/profile?id=…"), "the runbook names the address that carries the id and warns about the card address");
   assert.ok(runbook.includes("номер лида"), "the card address id is called a lead id");
   // The two address shapes are as the runbook says: the Inbox address carries `conversation`, the card address `id` read as a LEAD id.
   assert.match(read("src/lib/v3/inbox-href.ts"), /query\.set\("conversation", conversationId\)/u);
-  assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /const leadParam = singleSearchParam\(params\.id\)/u);
-  assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /\? \{ leadId: leadParam, studentCaseId: null \}/u);
+  assert.match(read("src/app/(staff)/profile/page.tsx"), /const leadParam = singleSearchParam\(params\.id\)/u);
+  assert.match(read("src/app/(staff)/profile/page.tsx"), /\? \{ leadId: leadParam, studentCaseId: null \}/u);
   assert.ok(suite.includes("c.id = :'test_conversation'::uuid") && suite.includes("A6 ids: the client id of the test conversation"), "the SQL suite keys on the conversation id and proves a non-conversation id gives nothing");
   assert.doesNotMatch(runbook, /order by received_at desc|limit 2/u, "the replay ids are never «the latest two»");
   assert.ok(runbook.includes("не «последние»") || runbook.includes("Не брать «последние N»"));

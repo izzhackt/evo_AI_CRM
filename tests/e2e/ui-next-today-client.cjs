@@ -42,8 +42,8 @@ import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { PageShell } from "@/components/kit";
-import { ManualLeadDisclosure } from "@/components/v3/ManualLeadForm";
-import { RequestsNextView } from "@/components/v3/requests-next/RequestsNextView";
+import { ManualLeadDisclosure } from "@/components/staff/ManualLeadForm";
+import { RequestsNextView } from "@/components/staff/requests-next/RequestsNextView";
 import { parseRequestOpen } from "@/lib/requests-queue-contract";
 ${IDS}
 const fixture = JSON.parse(document.getElementById("fixture").textContent);
@@ -56,7 +56,7 @@ function render(search) {
   window.__ids = { take: takeRequestIds, decision: decisionRequestId };
   root.render(
     createElement(AppRouterContext.Provider, { value: router },
-      createElement(PathnameContext.Provider, { value: "/v3/requests" },
+      createElement(PathnameContext.Provider, { value: "/requests" },
         createElement(SearchParamsContext.Provider, { value: params },
           createElement(ManualLeadDisclosure, null,
             createElement(PageShell, { title: "Заявки" },
@@ -77,12 +77,12 @@ import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { PageShell } from "@/components/kit";
-import { TodayNext } from "@/components/v3/today-next/TodayNext";
+import { TodayNext } from "@/components/staff/today-next/TodayNext";
 const fixture = JSON.parse(document.getElementById("fixture").textContent);
 const router = { push() {}, refresh() { window.__refreshes = (window.__refreshes || 0) + 1; }, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
 createRoot(document.getElementById("root")).render(
   createElement(AppRouterContext.Provider, { value: router },
-    createElement(PathnameContext.Provider, { value: "/v3/main" },
+    createElement(PathnameContext.Provider, { value: "/main" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams("") },
         createElement(PageShell, { title: "Сегодня" }, createElement(TodayNext, fixture.props))))));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
@@ -133,7 +133,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 function writePage(outDir, name, css, bundleName, fixture) {
@@ -268,7 +268,7 @@ async function main() {
     report(`${key}: stale answer is shown as a warning in the panel`, (await dialog.getByRole("alert").innerText()).includes("Лид уже изменён"), await dialog.getByRole("alert").innerText());
     await closeBy("esc");
     const lastPush = await page.evaluate(() => window.__pushes.at(-1) ?? "");
-    report(`${key}: Esc pushes the list address`, lastPush.startsWith("/v3/requests") && !lastPush.includes("open="), lastPush);
+    report(`${key}: Esc pushes the list address`, lastPush.startsWith("/requests") && !lastPush.includes("open="), lastPush);
     // Нажатие мышью фокуса строке не даёт (строка не остановка клавиатуры): возврат фокуса проверяет блок «Клавиатура» ниже.
     report(`${key}: the clicked row is not a tab stop`, wide ? (await leadRow.getAttribute("tabindex")) === null : true, wide ? await leadRow.getAttribute("tabindex") : null);
 

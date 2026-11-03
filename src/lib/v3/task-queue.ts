@@ -12,7 +12,7 @@
 import type { PlatformAdmissionsTaskQueueRow, PlatformCaseTaskPriority, PlatformCaseTaskStatus } from "../platform-admissions-task-contract.ts";
 import type { StaffTask } from "../platform-staff-task-contract.ts";
 import { platformTaskDeadlineSortTime } from "../platform-task-deadline.ts";
-import { DUE_BUCKETS, dueBucket, parseDueFilter, type DueBucket, type DueFilter } from "../../components/v3/queue/due-bucket.ts";
+import { DUE_BUCKETS, dueBucket, parseDueFilter, type DueBucket, type DueFilter } from "../../components/staff/queue/due-bucket.ts";
 
 export const TASK_QUEUE_VIEWS = ["mine", "created", "all"] as const;
 export type TaskQueueView = (typeof TASK_QUEUE_VIEWS)[number];

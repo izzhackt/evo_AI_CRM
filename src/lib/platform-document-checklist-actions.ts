@@ -251,8 +251,8 @@ function baselineChecklistFailureState(
 }
 
 function revalidateChecklist(): void {
-  revalidatePath("/v3/profile");
-  revalidatePath("/v3/knowledge");
+  revalidatePath("/profile");
+  revalidatePath("/knowledge");
 }
 
 export async function createPlatformCustomDocumentSlotAction(

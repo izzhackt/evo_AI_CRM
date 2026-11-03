@@ -4,7 +4,7 @@ export type ManageIndex = { q: string; cursor: string | null };
 export type ManageCursor = { q: string; createdAt: string; id: string };
 export type ManageMode = "draft" | "edit" | "identify" | "template" | "new" | "batch";
 export type ManageRoute = { kind: "index"; index: ManageIndex } | { kind: "editor"; mode: ManageMode; value: string; listContext: string | null };
-const path = "/v3/universities/manage";
+const path = "/universities/manage";
 const controls = /[\u0000-\u001f\u007f-\u009f]/;
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);

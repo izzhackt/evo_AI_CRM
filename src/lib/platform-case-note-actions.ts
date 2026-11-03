@@ -107,10 +107,10 @@ export async function createCaseNoteAction(
 
   try {
     const receipt = await createCaseNote(actor, input);
-    revalidatePath("/v3/profile");
+    revalidatePath("/profile");
     if (receipt.leadId) {
-      revalidatePath("/v3/pipeline");
-      revalidatePath(`/v3/profile?id=${receipt.leadId}`);
+      revalidatePath("/pipeline");
+      revalidatePath(`/profile?id=${receipt.leadId}`);
     }
     return Object.freeze({
       status: "saved" as const,

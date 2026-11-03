@@ -1,0 +1,177 @@
+"use client";
+
+import { useActionState, useCallback, useId, useRef, useState } from "react";
+import Link from "next/link";
+import { staffAuthAction, staffMemberAction } from "@/lib/staff-workspace-actions";
+import { STAFF_WORKSPACE_INITIAL_STATE, staffAuthRejectionMessage,
+  type StaffWorkspaceData, type StaffWorkspaceMember,
+  type StaffAuthRequest } from "@/lib/v3/staff-workspace-contract";
+import { btnDangerGhostCls, btnGhostCls, inputCls } from "@/components/ui";
+import { StaffDirectoryList } from "./StaffDirectoryList";
+import { StaffMemberDetails } from "./StaffMemberDetails";
+import { DepartmentsSection } from "./DepartmentsSection";
+import { StaffRolesSection } from "./StaffRolesSection";
+import { StaffRoleAssignments } from "./StaffRoleAssignments";
+import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
+import { StaffInviteForm, StaffPasswordForm } from "./StaffInviteForm";
+import { StaffPendingAccess } from "./StaffPendingAccess";
+import { StaffDisclosure } from "./StaffDisclosure";
+import { useStaffCommandForm, StaffCommandFeedback as Feedback } from "./useStaffCommandForm";
+import { staffReconcileAllowsPreparation } from "@/lib/v3/staff-invitation-access";
+import { useStaffSheetLock } from "./staff-sheet-lock";
+
+function MemberChange({ member }: { member: StaffWorkspaceMember }) {
+  const [command, setCommand] = useState(0);
+  return <MemberChangeForm key={command} member={member} onNext={() => setCommand((value) => value + 1)} />;
+}
+
+function MemberChangeForm({ member, onNext }: { member: StaffWorkspaceMember; onNext: () => void }) {
+  const [state, action, pending] = useStaffCommandForm(staffMemberAction);
+  const [reason, setReason] = useState("");
+  const value = member.status === "active" ? "suspended" : "active";
+  if (state.status === "success" && state.outcome !== "unknown") return <div className="space-y-3">
+    <Feedback state={state} />
+    <button type="button" className={`${btnGhostCls} min-h-11`} onClick={onNext}>Изменить доступ снова</button>
+  </div>;
+  return <form action={action} aria-busy={pending} className="space-y-3">
+    <input type="hidden" name="operation" value="status" />
+    <input type="hidden" name="membership_id" value={member.membershipId} />
+    <input type="hidden" name="expected_version" value={member.version} />
+    <fieldset disabled={pending || state.status === "success" || state.outcome === "unknown"} className="space-y-3">
+      <input type="hidden" name="value" value={value} />
+      <label className="block text-sm">Причина изменения<input className={`${inputCls} mt-1 min-h-11 w-full`} name="reason" required maxLength={500}
+        value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+    </fieldset>
+    <button className={btnDangerGhostCls} type="submit" disabled={pending || state.status === "success"} formNoValidate={state.outcome === "unknown"}>
+      {pending ? "Сохраняем…" : state.outcome === "unknown" ? "Проверить сохранение" : value === "active" ? "Восстановить доступ" : "Заблокировать доступ"}
+    </button>
+    <Feedback state={state} />
+  </form>;
+}
+
+function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
+  const [state, action, pending] = useStaffCommandForm(staffAuthAction);
+  const [reason, setReason] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  return <form action={action} aria-busy={pending} className="space-y-3">
+    <input type="hidden" name="operation" value="recovery" />
+    <input type="hidden" name="membership_id" value={member.membershipId} />
+    <input type="hidden" name="expected_version" value={member.version} />
+    <fieldset disabled={pending || state.status === "success" || state.outcome === "unknown"} className="space-y-3">
+      <label className="grid gap-1.5 text-sm">Причина восстановления<input className={`${inputCls} min-h-11 w-full`} name="reason" required minLength={3} maxLength={500}
+        value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+      <label className="flex min-h-11 items-center gap-3 text-sm leading-6"><input type="checkbox" required name="recipient_confirmed" value="yes" className="h-5 w-5 shrink-0"
+        checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+        Сотрудник согласовал письмо для восстановления входа на свой email</label>
+    </fieldset>
+    <button type="submit" className={btnDangerGhostCls} name="retry_rejected" value={state.retryAllowed ? "yes" : "no"}
+      disabled={pending || state.status === "success"} formNoValidate={state.outcome === "unknown"}>
+      {pending ? "Проверяем запрос…" : state.outcome === "unknown" ? "Проверить тот же запрос" : state.retryAllowed ? "Отправить новый запрос восстановления" : "Отправить восстановление входа"}</button>
+    <Feedback state={state} />
+  </form>;
+}
+
+/** Blocking and sign-in recovery sit apart from routine assignments, never in the same stack. */
+export function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
+  const headingId = useId();
+  return <section aria-labelledby={headingId} className="mt-8 space-y-4 rounded-card border border-danger/40 p-4">
+    <h4 id={headingId} className="t-section text-danger">Опасные действия</h4>
+    <MemberChange member={member} />
+    {member.status === "active" ? <div className="border-t border-border pt-4"><RecoveryForm member={member} /></div> : null}
+  </section>;
+}
+
+export function RequestRow({ request, workspace, organizationId }: { request: StaffAuthRequest; workspace: StaffRoleWorkspace; organizationId: string }) {
+  const activeOperation = useRef<"prepare" | "reconcile" | null>(null);
+  const [operation, setOperation] = useState<"prepare" | "reconcile" | null>(null);
+  const claim = useCallback((next: "prepare" | "reconcile") => {
+    if (activeOperation.current !== null && activeOperation.current !== next) return false;
+    activeOperation.current = next;
+    setOperation(next);
+    return true;
+  }, []);
+  const release = useCallback((previous: "prepare" | "reconcile") => {
+    if (activeOperation.current !== previous) return;
+    activeOperation.current = null;
+    setOperation(null);
+  }, []);
+  const onPrepareStart = useCallback(() => claim("prepare"), [claim]);
+  const onPrepareFinish = useCallback(() => release("prepare"), [release]);
+  const [state, action, pending] = useActionState(async (previous: typeof STAFF_WORKSPACE_INITIAL_STATE, form: FormData) => {
+    if (!claim("reconcile")) return previous;
+    try {
+      const result = await staffAuthAction(previous, form);
+      if (staffReconcileAllowsPreparation(result)) release("reconcile");
+      return result;
+    } catch {
+      return { status: "error" as const, outcome: "unknown" as const, requestId: request.requestId,
+        message: "Ответ не получен. Проверьте этот запрос ещё раз; повторное письмо не отправляется." };
+    }
+  }, STAFF_WORKSPACE_INITIAL_STATE);
+  useStaffSheetLock(pending || state.outcome === "unknown");
+  return <li className="space-y-2 border-b border-border py-4 last:border-0">
+    <p className="break-words text-sm font-medium">{request.displayName} · {request.operation === "password" ? "Создание аккаунта" : request.operation === "invite" ? "Приглашение" : "Восстановление входа"}</p>
+    <p className="text-sm text-fg-3">{request.status === "completed" ? request.operation === "password" ? "Аккаунт создан; пароль повторно не показывается" : "Зарегистрировано в сервисе входа; доставка письма не подтверждена"
+      : request.status === "rejected" ? `${staffAuthRejectionMessage(request.rejectionCode)} Изменений в Auth не обнаружено. Проверьте причину отказа перед новым запросом.`
+      : "Требуется проверка результата; повторная отправка заблокирована"}</p>
+    <p className="t-meta text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Bishkek", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+    {request.status !== "completed" && request.status !== "rejected" ? <form action={action}>
+      <input type="hidden" name="operation" value="reconcile" /><input type="hidden" name="request_id" value={request.requestId} />
+      <button className={`${btnGhostCls} min-h-11`} disabled={pending || operation === "prepare"}>{pending ? "Проверяем…" : "Проверить результат"}</button>
+    </form> : null}<Feedback state={state} />
+    {(request.operation === "invite" || request.operation === "password") && request.status !== "completed" && request.status !== "rejected"
+      ? <StaffPendingAccess requestId={request.requestId} workspace={workspace} organizationId={organizationId}
+        reconcileLocked={operation === "reconcile"} onPrepareStart={onPrepareStart} onPrepareFinish={onPrepareFinish} /> : null}
+  </li>;
+}
+
+export function StaffSection({ data, roles, organizationId, view, selectedMemberId, selectedRoleId }: {
+  data: StaffWorkspaceData; roles: StaffRoleWorkspace; organizationId: string;
+  view: "people" | "departments" | "roles"; selectedMemberId?: string; selectedRoleId?: string;
+}) {
+  const selectedMember = data.members.find((member) => member.membershipId === selectedMemberId);
+  const selectedAccess = roles.members.find((member) => member.membershipId === selectedMemberId);
+  // «Сотрудники», «Роли и доступ» и «Отделы» — пункты списка разделов
+  // настроек (Э6, 27.09.2026): своего ряда вкладок здесь нет. Заголовок
+  // раздела (h2) ставит сам вид — с числом, где оно есть; Settings второго
+  // заголовка с тем же названием не ставит (ревью #1079).
+  if (!data.available) return <div className="space-y-3">
+    <h2 className="t-section">{view === "roles" ? "Роли и доступ" : view === "departments" ? "Отделы" : "Сотрудники"}</h2>
+    <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm leading-6">
+      Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>
+  </div>;
+  return <div className="space-y-5">
+    {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <h2 className="t-section">Сотрудники · {data.members.length}</h2>
+        <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="t-label text-fg-2 hover:text-fg">
+          <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
+        </StaffDisclosure>
+        <StaffDisclosure label="Пригласить сотрудника" className="w-full" buttonClassName="t-label text-fg-2 hover:text-fg">
+          <div className="pt-3"><StaffInviteForm workspace={roles} organizationId={organizationId} /></div>
+        </StaffDisclosure>
+      </div>
+      {/* Поиск и фильтры — одной строкой над списком и карточкой (StaffDirectoryList). */}
+      <StaffDirectoryList members={data.members} accessMembers={roles.members} departments={data.departments} selectedMemberId={selectedMemberId}>
+        {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
+          <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="t-item">
+            <div className="space-y-4 pt-2">
+              {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
+                : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
+              <StaffDangerZone member={selectedMember} /></div>
+          </StaffDisclosure>
+        </StaffMemberDetails> : <div className="space-y-3 py-5">
+          <p role={selectedMemberId ? "alert" : undefined} className="t-body-compact text-fg-3">{selectedMemberId
+            ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника."}</p>
+          {selectedMemberId ? <Link href="/settings?section=staff&view=people" className={btnGhostCls}>К сотрудникам</Link> : null}
+        </div>}
+      </StaffDirectoryList>
+    </>}
+    {/* Журнал — о созданных аккаунтах и приглашениях: у «Ролей» и «Отделов» ему нечего делать. */}
+    {view === "people" ? <StaffDisclosure label={`Журнал доступа · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="t-item">
+      <p className="t-body-compact mt-2 text-fg-3">Проверка сверяет результат с сервисом входа и ничего не отправляет повторно.</p>
+      {data.requests.length ? <ul>{data.requests.map((request) => <RequestRow key={request.requestId} request={request} workspace={roles} organizationId={organizationId} />)}</ul>
+        : <p className="t-body-compact mt-3 text-fg-3">Запросов доступа пока нет.</p>}
+    </StaffDisclosure> : null}
+  </div>;
+}

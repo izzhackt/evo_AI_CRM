@@ -82,8 +82,8 @@ export async function leadClosureAction(
     const receipt = await setLeadClosed(actor, {
       leadId, expectedWorkflowVersion: version, closed: flag, reason, note: note.note, requestId,
     });
-    revalidatePath("/v3/pipeline");
-    revalidatePath("/v3/profile");
+    revalidatePath("/pipeline");
+    revalidatePath("/profile");
     return { status: "saved", requestId: randomUUID(), message: closureOutcome("saved", "lead", flag), receipt };
   } catch (error) {
     return refusal("lead", flag, error instanceof PlatformClosureError ? error.status : "unavailable", requestId);
@@ -113,8 +113,8 @@ export async function caseClosureAction(
     const receipt = await setCaseClosed(actor, {
       studentCaseId, expectedVersion: version, closed: flag, outcome, note: note.note, requestId,
     });
-    revalidatePath("/v3/profile");
-    revalidatePath("/v3/admissions-pipeline");
+    revalidatePath("/profile");
+    revalidatePath("/admissions-pipeline");
     return { status: "saved", requestId: randomUUID(), message: closureOutcome("saved", "case", flag), receipt };
   } catch (error) {
     return refusal("case", flag, error instanceof PlatformClosureError ? error.status : "unavailable", requestId);

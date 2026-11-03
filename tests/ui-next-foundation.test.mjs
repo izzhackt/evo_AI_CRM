@@ -51,7 +51,7 @@ const PREVIEW = actor({ presentationRole: "sales" });
 /* ---------------------------------------------------------------- переключателя больше нет (#1327) */
 
 test("переключателя «Новый вид» нет: файлы удалены, ни в одном исходнике нет cookie evo_ui, isNextUi и NextUiToggle", () => {
-  for (const gone of ["src/lib/ui-next.ts", "src/lib/ui-next-contract.ts", "src/lib/ui-next-actions.ts", "src/components/v3/NextUiToggle.tsx"]) {
+  for (const gone of ["src/lib/ui-next.ts", "src/lib/ui-next-contract.ts", "src/lib/ui-next-actions.ts", "src/components/staff/NextUiToggle.tsx"]) {
     assert.ok(!existsSync(new URL(`../${gone}`, import.meta.url)), gone);
   }
   const walk = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) => (
@@ -70,9 +70,9 @@ function renderLayout(who) {
     "@/lib/v3/staff-notification-source": { readStaffNotificationsForActor: async () => null },
     "@/lib/v3/report-links-source": { readFinanceSectionAccess: async () => false },
     "@/components/ServerReleaseMark": { ServerReleaseMark: () => null },
-    "@/components/v3/AppShell": { AppShell: (props) => { seen.props = props; return createElement("div", { "data-shell": "" }, props.children); } },
+    "@/components/staff/AppShell": { AppShell: (props) => { seen.props = props; return createElement("div", { "data-shell": "" }, props.children); } },
   });
-  return load("src/app/(v3)/layout.tsx").default({ children: createElement("main", null, "страница") }).then((tree) => ({ html: renderToStaticMarkup(tree), seen }));
+  return load("src/app/(staff)/layout.tsx").default({ children: createElement("main", null, "страница") }).then((tree) => ({ html: renderToStaticMarkup(tree), seen }));
 }
 
 test("layout ставит data-ui=next каждому сотруднику (администратор, роль, просмотр роли), оболочка не получает свойства переключателя", async () => {
@@ -84,27 +84,27 @@ test("layout ставит data-ui=next каждому сотруднику (ад
 });
 
 test("оболочка не рисует переключатель; ссылка «Набор виджетов» — только настоящему администратору вне просмотра роли", () => {
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.doesNotMatch(shell, /nextUi|NextUiToggle/);
   assert.match(shell, /actor\.systemRole === "admin" && !previewing \? \(/);
-  assert.match(shell, /href="\/v3\/ui-kit"/);
+  assert.match(shell, /href="\/ui-kit"/);
 });
 
 /* ---------------------------------------------------------------- страница набора виджетов */
 
-test("«/v3/ui-kit» — маршрут политики ролей только для настоящего администратора, как «Финансы»", () => {
-  assert.ok(FIXED_ROLE_ROUTES.includes("/v3/ui-kit"));
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/ui-kit"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/ui-kit"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/ui-kit"), false);
-  assert.equal(isConnectedPlatformPage("/v3/ui-kit"), true, "прокси пропускает страницу");
-  assert.equal(isConnectedPlatformPage("/v3/ui-kit/extra"), false);
-  assert.equal(staffCanAccessRoute(ADMIN, "/v3/ui-kit"), true);
-  for (const presentationRole of ["sales", "admissions"]) assert.equal(staffCanAccessRoute({ ...ADMIN, presentationRole }, "/v3/ui-kit"), false, `preview ${presentationRole}`);
-  assert.equal(staffCanAccessRoute(STAFF, "/v3/ui-kit"), false);
-  assert.equal(staffCanAccessRoute({ ...STAFF, permissionKeys: ["admin.preview", "lead.read", "case.read.full"] }, "/v3/ui-kit"), false, "права не заменяют роль администратора");
-  assert.match(read("src/app/(v3)/access-denied/page.tsx"), /"\/v3\/ui-kit": "Набор виджетов"/);
-  assert.equal(v3SectionTitle("/v3/ui-kit"), "Набор виджетов", "вкладка браузера называет страницу, пункта меню у неё нет");
+test("«/ui-kit» — маршрут политики ролей только для настоящего администратора, как «Финансы»", () => {
+  assert.ok(FIXED_ROLE_ROUTES.includes("/ui-kit"));
+  assert.equal(fixedRoleCanAccessRoute("admin", "/ui-kit"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/ui-kit"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/ui-kit"), false);
+  assert.equal(isConnectedPlatformPage("/ui-kit"), true, "прокси пропускает страницу");
+  assert.equal(isConnectedPlatformPage("/ui-kit/extra"), false);
+  assert.equal(staffCanAccessRoute(ADMIN, "/ui-kit"), true);
+  for (const presentationRole of ["sales", "admissions"]) assert.equal(staffCanAccessRoute({ ...ADMIN, presentationRole }, "/ui-kit"), false, `preview ${presentationRole}`);
+  assert.equal(staffCanAccessRoute(STAFF, "/ui-kit"), false);
+  assert.equal(staffCanAccessRoute({ ...STAFF, permissionKeys: ["admin.preview", "lead.read", "case.read.full"] }, "/ui-kit"), false, "права не заменяют роль администратора");
+  assert.match(read("src/app/(staff)/access-denied/page.tsx"), /"\/ui-kit": "Набор виджетов"/);
+  assert.equal(v3SectionTitle("/ui-kit"), "Набор виджетов", "вкладка браузера называет страницу, пункта меню у неё нет");
 });
 
 test("страница набора: гвард маршрута и сам набор без переключателя", async () => {
@@ -112,13 +112,13 @@ test("страница набора: гвард маршрута и сам на�
   const load = loader({
     "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return ADMIN; } },
   });
-  const page = load("src/app/(v3)/v3/ui-kit/page.tsx").default;
+  const page = load("src/app/(staff)/ui-kit/page.tsx").default;
   const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ tab: "history" }) }));
   assert.match(html, /data-testid="v3-ui-kit"/);
   assert.doesNotMatch(html, /v3-ui-kit-off/);
   assert.match(html, /aria-current="page"[^>]*>История/, "?tab=history выбирает вкладку-ссылку");
-  assert.deepEqual(guards, ["/v3/ui-kit"]);
-  assert.match(read("src/app/(v3)/v3/ui-kit/page.tsx"), /requireV3PageActor\("\/v3\/ui-kit"\)/);
+  assert.deepEqual(guards, ["/ui-kit"]);
+  assert.match(read("src/app/(staff)/ui-kit/page.tsx"), /requireV3PageActor\("\/ui-kit"\)/);
 });
 
 /* ---------------------------------------------------------------- виджеты набора */
@@ -130,10 +130,10 @@ const kit = () => loader({
   } },
 })("src/components/kit/index.ts");
 
-test("PageHeader: h1 — прямой потомок первого потомка корня, как в прежней шапке (на это опирается v3.css), число и «?» — по данным", () => {
+test("PageHeader: h1 — прямой потомок первого потомка корня, как в прежней шапке (на это опирается staff.css), число и «?» — по данным", () => {
   const { PageHeader } = kit();
   const html = renderToStaticMarkup(createElement(PageHeader, { title: "Заявки", count: 12, meta: "Сегодня", help: "Пояснение страницы", actions: createElement("button", null, "Создать") }));
-  // корень > div > h1 (прежний `PageHeader` из ui.tsx: корень > div.min-w-0 > h1); на глубину `main:has(> div:first-child > div:first-child > h1.t-page-title)` в v3.css опираются отступ сверху и телефонные правила
+  // корень > div > h1 (прежний `PageHeader` из ui.tsx: корень > div.min-w-0 > h1); на глубину `main:has(> div:first-child > div:first-child > h1.t-page-title)` в staff.css опираются отступ сверху и телефонные правила
   assert.match(html, /^<div data-slot="page-header"[^>]*><div class="[^"]*"><h1 class="t-page-title text-fg">Заявки<span[^>]*>12<\/span><\/h1>/);
   assert.doesNotMatch(html, /^<div data-slot="page-header"[^>]*><div class="[^"]*"><div/, "ряда между блоком и h1 нет");
   assert.match(html, /<\/h1><button[^>]*aria-label="Пояснение: Заявки"/, "«?» рядом с h1, имя кнопки — по заголовку");
@@ -174,7 +174,7 @@ test("StatTile: нет значения — «—» без выдуманных 
   assert.match(danger, /t-figure px-4 text-danger">3</);
   assert.match(danger, /нужно сегодня/);
   assert.doesNotMatch(danger, /<a /);
-  assert.match(renderToStaticMarkup(createElement(StatTile, { label: "Новые", value: 12, href: "/v3/requests" })), /<a [^>]*href="\/v3\/requests"/);
+  assert.match(renderToStaticMarkup(createElement(StatTile, { label: "Новые", value: 12, href: "/requests" })), /<a [^>]*href="\/requests"/);
   assert.doesNotMatch(empty, /text-danger|%|↑|↓/);
   assert.match(danger, /data-\[size=sm\]:gap-1/, "промежуток плитки того же варианта, что у Card (data-[size=sm]:gap-2), иначе twMerge оставляет оба");
   assert.doesNotMatch(danger, /data-\[size=sm\]:gap-2/);
@@ -372,13 +372,13 @@ test("прежние строки очередей: каждый класс — 
     const base = new URL(`../${dirname(file)}`, import.meta.url).pathname;
     return new Set(new Scanner({ sources: [{ base, pattern: file.split("/").pop(), negated: false }] }).scan());
   };
-  for (const file of ["src/components/v3/today/TodayRow.tsx", "src/components/v3/tasks/TaskQueueRow.tsx"]) {
+  for (const file of ["src/components/staff/today/TodayRow.tsx", "src/components/staff/tasks/TaskQueueRow.tsx"]) {
     assert.doesNotMatch(read(file), /[A-Za-z0-9_\]\)-]\$\{\s*(?:w|wide)\(/u, `${file}: класс вплотную к интерполяции`);
     assert.match(read(file), /joinClasses\(/u, `${file}: классы собирает joinClasses`);
   }
   // `.basis-0` была только здесь: без неё у «кто» прежней строки «Сегодня» flex-basis считался бы 0%, а не 0px.
-  assert.ok(candidates("src/components/v3/today/TodayRow.tsx").has("basis-0"), "TodayRow: basis-0 читается сборщиком");
-  assert.ok(candidates("src/components/v3/today/TodayRow.tsx").has("@min-[32rem]:order-1"));
+  assert.ok(candidates("src/components/staff/today/TodayRow.tsx").has("basis-0"), "TodayRow: basis-0 читается сборщиком");
+  assert.ok(candidates("src/components/staff/today/TodayRow.tsx").has("@min-[32rem]:order-1"));
   // У прежней строки задач класс `gap-x-1` для широкого варианта никогда не попадал в CSS (он был приклеен к `${metaHidden}`): зазор строки —
   // Tailwind v4 читает весь репозиторий (код, тесты, документы), и комментарии тоже: правило для широкого варианта этого `gap-x-1`
   // не должно появиться нигде. Сам класс здесь собран из частей: написанный целиком, он породил бы правило из этого файла.
@@ -387,7 +387,7 @@ test("прежние строки очередей: каждый класс — 
   const sources = ["src", "tests", "docs", "scripts"].map((dir) => ({ base: join(repo, dir), pattern: "**/*", negated: false }))
     .concat({ base: repo, pattern: "*.md", negated: false });
   assert.ok(!new Set(new Scanner({ sources }).scan()).has(wide), "широкая строка задач сохраняет gap-x-2, как на main: в CSS нет правила для широкого gap-x-1");
-  assert.doesNotMatch(read("src/components/v3/tasks/TaskQueueRow.tsx"), /gap-x-1\b/);
+  assert.doesNotMatch(read("src/components/staff/tasks/TaskQueueRow.tsx"), /gap-x-1\b/);
 });
 
 test("DetailSheet, HelpTip и примитивы: портал внутри корня нового вида, подписи и размеры целей", () => {
@@ -443,7 +443,7 @@ test("шапка `WidgetCard`: у заголовка нет запасных 12r
 test("`DataTable`: область прокрутки позиционирована (`relative`) — абсолютно расположенные `sr-only` в ячейках не растягивают страницу пустой полосой", () => {
   const table = read("src/components/kit/DataTable.tsx");
   assert.match(table, /<div role="region" aria-label=\{label\} tabIndex=\{0\} aria-busy=\{loading \|\| undefined\} className="relative hidden max-h-\[min\(70dvh,48rem\)\] overflow-auto /u);
-  assert.match(read("src/components/v3/students-next/StudentCells.tsx"), /className="sr-only"[^>]*>Нет</u, "ячейка «Сигналы» кладёт `sr-only` в ячейку, у которой нет своего `relative`: опора — область таблицы");
+  assert.match(read("src/components/staff/students-next/StudentCells.tsx"), /className="sr-only"[^>]*>Нет</u, "ячейка «Сигналы» кладёт `sr-only` в ячейку, у которой нет своего `relative`: опора — область таблицы");
 });
 
 test("DESIGN.md: карточка лида не называет очередь «Студенты» и EVO Docs прежними — они в разделе потока students, остальное в подразделе card-tabs", () => {
@@ -453,5 +453,5 @@ test("DESIGN.md: карточка лида не называет очередь 
   assert.match(design, /Очередь «Студенты» и EVO Docs — раздел «Новый вид: «Студенты»,\nEVO Docs и «Университеты»» ниже; остальные вкладки и закрытый лид — его подраздел «Остальные вкладки карточки»\./u);
   assert.match(design, /^## Новый вид: «Студенты», EVO Docs и «Университеты»/mu, "раздел, на который ссылается карточка, есть");
   assert.match(design, /^### Остальные вкладки карточки/mu, "подраздел, на который ссылается карточка, есть");
-  assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /if \(queueInput\) return <StudentsNextLazy /u, "и страница правда рисует очередь новым видом");
+  assert.match(read("src/app/(staff)/profile/page.tsx"), /if \(queueInput\) return <StudentsNextLazy /u, "и страница правда рисует очередь новым видом");
 });

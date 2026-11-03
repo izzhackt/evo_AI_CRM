@@ -29,17 +29,17 @@ test("platform Sales workflow action keeps the exact reviewed form boundary", ()
 });
 
 test("platform Sales workflow action is staff-bound and revalidates only verified success", () => {
-  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/v3\/pipeline"\)/);
+  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/pipeline"\)/);
   assert.match(
     actionSource,
-    /const receipt = await mutatePlatformSalesLeadWorkflow\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+    /const receipt = await mutatePlatformSalesLeadWorkflow\(actor, input\);[\s\S]*revalidatePath\("\/pipeline"\);[\s\S]*revalidatePath\(`\/profile\?id=\$\{receipt\.leadId\}`\)/,
   );
   assert.doesNotMatch(actionSource, /revalidatePath\("\/sales"\)/);
   assert.doesNotMatch(
     actionSource,
     /revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/,
   );
-  assert.doesNotMatch(actionSource, /revalidatePath\("\/v3\/profile"\)/);
+  assert.doesNotMatch(actionSource, /revalidatePath\("\/profile"\)/);
   assert.match(actionSource, /error instanceof PlatformSalesWorkflowMutationError/);
   assert.match(actionSource, /failureState\(form, error\.reason, input\.requestId\)/);
   assert.doesNotMatch(
@@ -90,7 +90,7 @@ test("saveLeadSaleConditionsAction keeps the exact reviewed card-block form boun
     assert.match(actionSource, new RegExp(`"${field}"`));
   }
   assert.match(actionSource, /exactActionStringFields\(form, SALE_CONDITIONS_FORM_FIELDS\)/);
-  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/v3\/profile"\)/);
+  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/profile"\)/);
 });
 
 test("saveLeadSaleConditionsAction is staff-bound, validates money pairs and revalidates only the exact lead route on success", () => {
@@ -102,8 +102,8 @@ test("saveLeadSaleConditionsAction is staff-bound, validates money pairs and rev
     actionSource,
     /\(amount === null\) !== \(currencyValue === null\)/,
   );
-  assert.match(actionSource, /revalidatePath\(`\/v3\/profile\?id=\$\{leadId\}`\)/);
-  assert.doesNotMatch(actionSource, /revalidatePath\("\/v3\/profile"\)/);
+  assert.match(actionSource, /revalidatePath\(`\/profile\?id=\$\{leadId\}`\)/);
+  assert.doesNotMatch(actionSource, /revalidatePath\("\/profile"\)/);
   assert.match(actionSource, /error\.code === "PT409"\) return saleConditionsOutcome\(form, "stale"\)/);
   assert.match(
     actionSource,
@@ -137,12 +137,12 @@ test("saveLeadSaleConditionsAction's form boundary widens to the three new S7 ca
 test("prepareLeadCabinetAction keeps a narrow form boundary and calls prepare_lead_cabinet_v1 exactly", () => {
   assert.match(actionSource, /const PREPARE_LEAD_CABINET_FORM_FIELDS = \["lead_id", "request_id"\]/);
   assert.match(actionSource, /exactActionStringFields\(form, PREPARE_LEAD_CABINET_FORM_FIELDS\)/);
-  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/v3\/profile"\)/);
+  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/profile"\)/);
   assert.match(
     actionSource,
     /await client\.schema\("platform"\)\.rpc\("prepare_lead_cabinet_v1", \{\s*p_organization_id: actor\.organizationId,\s*p_request_id: requestId,\s*p_lead_id: leadId,/,
   );
   assert.match(actionSource, /error\.code === "PT409"\) return prepareLeadCabinetOutcome\(form, "conflict"\)/);
   assert.match(actionSource, /error\.code === "42501"\) return prepareLeadCabinetOutcome\(form, "forbidden"\)/);
-  assert.match(actionSource, /revalidatePath\(`\/v3\/profile\?id=\$\{leadId\}`\)/);
+  assert.match(actionSource, /revalidatePath\(`\/profile\?id=\$\{leadId\}`\)/);
 });

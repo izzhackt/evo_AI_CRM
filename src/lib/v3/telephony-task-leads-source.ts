@@ -16,7 +16,7 @@ import { todayVisibleCount, type TodayQueue } from "./today-queue.ts";
 export type TaskLeadRef = Readonly<{ leadId: string; name: string; href: string }>;
 
 export function leadCardHref(leadId: string): string {
-  return `/v3/profile?id=${encodeURIComponent(leadId)}`;
+  return `/profile?id=${encodeURIComponent(leadId)}`;
 }
 
 /** Имя лида под сессией сотрудника; null — лид закрыт, недоступен или чтение не удалось. */

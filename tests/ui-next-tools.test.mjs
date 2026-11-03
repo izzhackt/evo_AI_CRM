@@ -1,5 +1,5 @@
-// «Новый вид» (решение владельца 27.10.2026), поток «tools»: «Календарь» (`/v3/calendar`), «Документы», «Шаблоны ответов» и «База знаний»
-// (`/v3/knowledge`, разделы `?section=documents|snippets`), «Командный чат» (`/v3/team-chat`). Проверяется то, что обещано: новый вид выбирает
+// «Новый вид» (решение владельца 27.10.2026), поток «tools»: «Календарь» (`/calendar`), «Документы», «Шаблоны ответов» и «База знаний»
+// (`/knowledge`, разделы `?section=documents|snippets`), «Командный чат» (`/team-chat`). Проверяется то, что обещано: новый вид выбирает
 // переключатель и только настоящий администратор, у остальных страница прежняя, байт в байт (сверку с базовым коммитом даёт
 // `tests/e2e/tools-next-pages.cjs --legacy-json`); данные, права, команды и request_id те же, что у прежнего вида (поля форм и серверные
 // действия совпадают с прежними файлами); ленивые входы не тянут новый вид в первую загрузку; файлы нового вида короткие и собраны из набора.
@@ -11,7 +11,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { replySnippetIdFromHash } from "../src/components/v3/reply-snippets/next/snippet-hash.ts";
+import { replySnippetIdFromHash } from "../src/components/staff/reply-snippets/next/snippet-hash.ts";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
@@ -24,7 +24,7 @@ const MODES = ["admin-cookie", "admin-no-cookie", "preview-cookie", "staff-cooki
 
 const sourcesIn = (directory) => readdirSync(root(directory), { recursive: true }).filter((file) => /\.(tsx?|ts)$/u.test(String(file))).map((file) => `${directory}/${file}`);
 const NEW_DIRS = [
-  "src/components/v3/calendar/next", "src/components/v3/knowledge/next", "src/components/v3/reply-snippets/next", "src/components/v3/team-chat/next",
+  "src/components/staff/calendar/next", "src/components/staff/knowledge/next", "src/components/staff/reply-snippets/next", "src/components/staff/team-chat/next",
 ];
 const NEW_FILES = NEW_DIRS.flatMap(sourcesIn);
 
@@ -45,11 +45,11 @@ test("«База знаний»: новый вид единственный, р�
     for (const mode of ["admin-cookie", "admin-no-cookie"]) assert.match(html(`${name}:${mode}`), /data-testid="v3-knowledge-next"/u, `${name}:${mode}: новый вид`);
     for (const mode of ["preview-cookie", "staff-cookie"]) assert.equal(pages.get(`${name}:${mode}`).rejected, "knowledge_forbidden", `${name}:${mode}: раздел только для администратора`);
   }
-  // `/v3/documents` и `/v3/reply-snippets`: администратор уходит в разделы базы знаний, поэтому отдельных страниц ему не нужно;
+  // `/documents` и `/reply-snippets`: администратор уходит в разделы базы знаний, поэтому отдельных страниц ему не нужно;
   // сотрудники без «Базы знаний» открывают их в новом виде (раньше у них был прежний).
   for (const mode of ["admin-cookie", "admin-no-cookie"]) {
-    assert.equal(pages.get(`documents-page:${mode}`).redirect, "/v3/knowledge?section=documents");
-    assert.equal(pages.get(`reply-snippets-page:${mode}`).redirect, "/v3/knowledge?section=snippets");
+    assert.equal(pages.get(`documents-page:${mode}`).redirect, "/knowledge?section=documents");
+    assert.equal(pages.get(`reply-snippets-page:${mode}`).redirect, "/knowledge?section=snippets");
   }
   for (const mode of ["preview-cookie", "staff-cookie"]) {
     assert.match(html(`documents-page:${mode}`), /data-testid="v3-documents-next"/u, `${mode}: документы — новый вид`);
@@ -59,7 +59,7 @@ test("«База знаний»: новый вид единственный, р�
     assert.doesNotMatch(html(`documents-page:${mode}`), /Выгрузить|Выбрать документы/u, `${mode}: выгрузки нет`);
   }
   assert.match(html("knowledge-documents:admin-cookie"), /Выгрузить/u, "у Admin в «Базе знаний» выгрузка есть");
-  assert.match(read("src/components/v3/knowledge/KnowledgeDocuments.tsx"), /allowExport=\{embedded\}/u);
+  assert.match(read("src/components/staff/knowledge/KnowledgeDocuments.tsx"), /allowExport=\{embedded\}/u);
 });
 
 test("«Командный чат»: новая рамка у каждой роли (#1327); один h1 — шапка страницы; движок чата тот же", () => {
@@ -77,7 +77,7 @@ test("«Командный чат»: ошибка чтения остаётся 
   for (const mode of MODES) {
     const failure = html(`team-chat-failure:${mode}`);
     assert.match(failure, /role="alert"/u, mode);
-    assert.match(failure, /href="\/v3\/team-chat\?channel=general"/u, mode);
+    assert.match(failure, /href="\/team-chat\?channel=general"/u, mode);
     assert.match(text(failure), /Обновить канал/u, mode);
   }
   assert.match(html("team-chat-failure:admin-cookie"), /data-testid="v3-team-chat-next-failure"/u);
@@ -108,7 +108,7 @@ test("«Документы»: те же файлы, папки студенто�
 
 test("«База знаний»: рамка с тремя вкладками-ссылками и список материалов; адреса разделов прежние", () => {
   const library = html("knowledge-library:admin-cookie");
-  assert.deepEqual(all(library.slice(library.indexOf('data-testid="queue-view-tabs"')), /<a [^>]*href="([^"]+)"/gu).slice(0, 3), ["/v3/knowledge", "/v3/knowledge?section=documents", "/v3/knowledge?section=snippets"]);
+  assert.deepEqual(all(library.slice(library.indexOf('data-testid="queue-view-tabs"')), /<a [^>]*href="([^"]+)"/gu).slice(0, 3), ["/knowledge", "/knowledge?section=documents", "/knowledge?section=snippets"]);
   assert.match(library, /aria-current="page"[^>]*>Материалы</u, "Материалы — текущий раздел");
   assert.match(library, /data-testid="knowledge-library"/u);
   assert.match(library, /aria-label="Папки базы знаний"/u, "дерево папок слева");
@@ -120,8 +120,8 @@ test("«База знаний»: рамка с тремя вкладками-с�
 });
 
 test("поля форм и серверные действия те же, что в прежних файлах: ни одного нового имени поля и ни одной новой команды", () => {
-  const legacyFiles = read("src/components/v3/FileManager.tsx");
-  const nextFiles = ["FileActionForm", "FileSheetBody", "FileUploadForm", "FolderSheets", "FilesNext"].map((name) => read(`src/components/v3/knowledge/next/${name}.tsx`)).join("\n");
+  const legacyFiles = read("src/components/staff/FileManager.tsx");
+  const nextFiles = ["FileActionForm", "FileSheetBody", "FileUploadForm", "FolderSheets", "FilesNext"].map((name) => read(`src/components/staff/knowledge/next/${name}.tsx`)).join("\n");
   const actions = (source) => [...new Set(all(source, /\b((?:archive|create|move|rename)PlatformCompanyFile(?:Folder)?Action)\b/gu))].sort();
   assert.deepEqual(actions(nextFiles), actions(legacyFiles), "те же восемь действий над файлами и папками");
   assert.equal(actions(legacyFiles).length, 8);
@@ -130,8 +130,8 @@ test("поля форм и серверные действия те же, что
     assert.ok(new RegExp(`name="${field}"|\\b${field}\\b`, "u").test(nextFiles), `новый вид шлёт поле ${field}`);
   }
   assert.match(nextFiles, /\/api\/v3\/company-files\/\$\{encodeURIComponent\(file\.id\)\}\/versions/u, "загрузка файла — тот же адрес");
-  const legacySnippets = read("src/components/v3/reply-snippets/KnowledgeReplySnippetSection.tsx");
-  const nextSnippets = ["SnippetCreateSheet", "SnippetSheetBody", "SnippetFields", "SnippetsNext"].map((name) => read(`src/components/v3/reply-snippets/next/${name}.tsx`)).join("\n");
+  const legacySnippets = read("src/components/staff/reply-snippets/KnowledgeReplySnippetSection.tsx");
+  const nextSnippets = ["SnippetCreateSheet", "SnippetSheetBody", "SnippetFields", "SnippetsNext"].map((name) => read(`src/components/staff/reply-snippets/next/${name}.tsx`)).join("\n");
   const snippetActions = (source) => [...new Set(all(source, /\b((?:archive|create|update)PlatformReplySnippetAction)\b/gu))].sort();
   assert.deepEqual(snippetActions(nextSnippets), snippetActions(legacySnippets));
   for (const field of ["reply_snippet_id", "expected_version", "request_id", "title", "body", "audience"]) assert.match(nextSnippets, new RegExp(`name="${field}"`, "u"), `шаблон: поле ${field}`);
@@ -140,7 +140,7 @@ test("поля форм и серверные действия те же, что
 });
 
 test("«База знаний»: команды и чтения — те же `op` и те же адреса `/api/v3/knowledge`", () => {
-  const next = ["useKnowledgeData", "useKnowledgeActions"].map((name) => read(`src/components/v3/knowledge/next/${name}.ts`)).join("\n");
+  const next = ["useKnowledgeData", "useKnowledgeActions"].map((name) => read(`src/components/staff/knowledge/next/${name}.ts`)).join("\n");
   const ops = (source) => [...new Set(all(source, /\bop(?:: |\s*=\s*)"(\w+)"|\bop: "(\w+)"/gu).concat(all(source, /\{ op, id: item\.id/gu).map(() => "dynamic")))].sort();
   for (const op of ["trash", "restore", "archive", "unarchive", "create", "edit", "move"]) {
     assert.ok(next.includes(`"${op}"`), `новая знает ${op}`);
@@ -149,15 +149,15 @@ test("«База знаний»: команды и чтения — те же `o
   for (const route of ["list?", "item/", "mode: \"folders\"", "limit: \"200\"", "afterTitle", "afterId"]) assert.ok(next.includes(route), `чтение: ${route}`);
   assert.match(next, /configureKnowledgeCommands\(commandScope\)/u, "команды помнят область запросов как раньше");
   assert.match(next, /setTimeout\([\s\S]*search \? 250 : 0/u, "поиск с задержкой 250 мс, как раньше");
-  assert.match(read("src/components/v3/knowledge/next/LibraryToolbar.tsx"), /type="search" maxLength=\{240\}/u);
+  assert.match(read("src/components/staff/knowledge/next/LibraryToolbar.tsx"), /type="search" maxLength=\{240\}/u);
 });
 
 test("«Календарь»: тот же движок сетки и те же формы дела; адрес открытой задачи собирается так же", () => {
-  const page = read("src/components/v3/calendar/next/CalendarNextPage.tsx");
-  const sheet = read("src/components/v3/calendar/next/CalendarTaskSheet.tsx");
+  const page = read("src/components/staff/calendar/next/CalendarNextPage.tsx");
+  const sheet = read("src/components/staff/calendar/next/CalendarTaskSheet.tsx");
   assert.match(page, /import \{ DayList, MonthGrid, TimeGrid, type CalendarCellProps \} from "\.\.\/grids";/u, "сетки прежние");
   assert.match(sheet, /import \{ CalendarTaskControls \} from "\.\.\/TaskControls";/u, "формы дела прежние: те же команды и request_id");
-  assert.match(read("src/components/v3/calendar/next/useCalendarTaskSheet.ts"), /params\.set\("case", target\.studentCaseId\)[\s\S]*params\.set\("kind", "staff"\)[\s\S]*params\.set\("task", target\.id\)/u);
+  assert.match(read("src/components/staff/calendar/next/useCalendarTaskSheet.ts"), /params\.set\("case", target\.studentCaseId\)[\s\S]*params\.set\("kind", "staff"\)[\s\S]*params\.set\("task", target\.id\)/u);
   assert.match(page, /staffPresentationCan\(actor, "admissions\.read"\) && !isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/u, "та же граница права на создание");
   assert.match(sheet, /task\?\.kind === "case" && confirmed && caps && requestIds\[task\.key\] && task\.caseState === "active"/u, "формы дела — когда сервер подтвердил права на задачу");
   assert.match(page, /TaskComposerContextMark value=\{\{ dueDay: day, cases, casesHaveMore \}\}/u, "«Создать задача» оболочки берёт выбранный день");
@@ -175,27 +175,27 @@ test("новые файлы короче 150 строк, собраны из н�
     assert.doesNotMatch(source, /text-fg\/\d|bg-[a-z-]+\/\d|opacity-/u, `${file}: без прозрачности`);
     assert.doesNotMatch(source, /dark:/u, `${file}: CRM только светлая`);
   }
-  assert.match(read("src/components/v3/calendar/next/CalendarNextPage.tsx"), /PageShell[\s\S]*SectionTabs[\s\S]*WidgetCard/u);
-  assert.match(read("src/components/v3/calendar/next/CalendarTaskSheet.tsx"), /DetailSheet[\s\S]*KeyFacts/u);
-  assert.match(read("src/components/v3/knowledge/next/LibraryTable.tsx"), /DataTable/u);
-  assert.match(read("src/components/v3/knowledge/next/FilesNext.tsx"), /DataTable[\s\S]*DetailSheet/u);
-  assert.match(read("src/components/v3/reply-snippets/next/SnippetsNext.tsx"), /DataTable[\s\S]*DetailSheet/u);
-  assert.match(read("src/components/v3/knowledge/next/KnowledgeNextPage.tsx"), /PageShell[\s\S]*SectionTabs/u);
-  assert.match(read("src/components/v3/team-chat/next/TeamChatNextPage.tsx"), /PageHeader/u);
+  assert.match(read("src/components/staff/calendar/next/CalendarNextPage.tsx"), /PageShell[\s\S]*SectionTabs[\s\S]*WidgetCard/u);
+  assert.match(read("src/components/staff/calendar/next/CalendarTaskSheet.tsx"), /DetailSheet[\s\S]*KeyFacts/u);
+  assert.match(read("src/components/staff/knowledge/next/LibraryTable.tsx"), /DataTable/u);
+  assert.match(read("src/components/staff/knowledge/next/FilesNext.tsx"), /DataTable[\s\S]*DetailSheet/u);
+  assert.match(read("src/components/staff/reply-snippets/next/SnippetsNext.tsx"), /DataTable[\s\S]*DetailSheet/u);
+  assert.match(read("src/components/staff/knowledge/next/KnowledgeNextPage.tsx"), /PageShell[\s\S]*SectionTabs/u);
+  assert.match(read("src/components/staff/team-chat/next/TeamChatNextPage.tsx"), /PageHeader/u);
 });
 
 test("красная кнопка одна: у «Нового шаблона», «Нового файла», «Создать» библиотеки; подтверждения в панелях — тёмные", () => {
-  assert.match(read("src/components/v3/reply-snippets/next/SnippetCreateSheet.tsx"), /<Button><PlusIcon[^>]*\/>Новый шаблон<\/Button>/u);
-  assert.match(read("src/components/v3/knowledge/next/FolderSheets.tsx"), /<Button><FilePlusIcon[^>]*\/>Новый файл<\/Button>/u);
-  assert.match(read("src/components/v3/knowledge/next/LibraryToolbar.tsx"), /<Button data-testid="knowledge-create-menu">Создать/u);
-  for (const file of ["SnippetSheetBody", "SnippetCreateSheet"]) assert.match(read(`src/components/v3/reply-snippets/next/${file}.tsx`), /QUEUE_CONFIRM/u, file);
-  assert.match(read("src/components/v3/knowledge/next/FileActionForm.tsx"), /QUEUE_CONFIRM/u);
-  assert.match(read("src/components/v3/knowledge/next/LibraryDialogs.tsx"), /QUEUE_CONFIRM/u);
+  assert.match(read("src/components/staff/reply-snippets/next/SnippetCreateSheet.tsx"), /<Button><PlusIcon[^>]*\/>Новый шаблон<\/Button>/u);
+  assert.match(read("src/components/staff/knowledge/next/FolderSheets.tsx"), /<Button><FilePlusIcon[^>]*\/>Новый файл<\/Button>/u);
+  assert.match(read("src/components/staff/knowledge/next/LibraryToolbar.tsx"), /<Button data-testid="knowledge-create-menu">Создать/u);
+  for (const file of ["SnippetSheetBody", "SnippetCreateSheet"]) assert.match(read(`src/components/staff/reply-snippets/next/${file}.tsx`), /QUEUE_CONFIRM/u, file);
+  assert.match(read("src/components/staff/knowledge/next/FileActionForm.tsx"), /QUEUE_CONFIRM/u);
+  assert.match(read("src/components/staff/knowledge/next/LibraryDialogs.tsx"), /QUEUE_CONFIRM/u);
 });
 
 test("«Выбрать» на телефоне стоит в заголовке карточки, а таблица не ищет сама, когда ищет страница", () => {
-  assert.match(read("src/components/v3/knowledge/next/LibraryColumns.tsx"), /className="mt-3 md:hidden"/u);
-  assert.match(read("src/components/v3/knowledge/next/files-columns.tsx"), /className="mt-0\.5 md:hidden"/u);
+  assert.match(read("src/components/staff/knowledge/next/LibraryColumns.tsx"), /className="mt-3 md:hidden"/u);
+  assert.match(read("src/components/staff/knowledge/next/files-columns.tsx"), /className="mt-0\.5 md:hidden"/u);
   assert.match(read("src/components/kit/DataTable.tsx"), /searchPlaceholder\?: string \| null;/u);
   assert.match(read("src/components/kit/DataTableToolbar.tsx"), /placeholder === null \? null : \(/u);
   assert.match(read("src/components/kit/DataTable.tsx"), /searchPlaceholder = "Поиск"/u, "по умолчанию поиск есть, как у первой волны");
@@ -206,33 +206,33 @@ test("«Выбрать» на телефоне стоит в заголовке 
 /* ------------------------------------------------------------------------ выбор вида в страницах, первая загрузка */
 
 test("страницы всегда рисуют новый вид (#1327) после тех же чтений и проверок; в первую загрузку он не входит", () => {
-  const calendar = read("src/app/(v3)/v3/calendar/page.tsx");
+  const calendar = read("src/app/(staff)/calendar/page.tsx");
   assert.doesNotMatch(calendar, /isNextUi/u);
   assert.match(calendar, /return \(\s*<CalendarNextLazy/u);
   assert.doesNotMatch(calendar, /<PartShell|<Calendar\b/u, "прежнего вида нет");
   assert.ok(calendar.indexOf("<CalendarNextLazy") > calendar.indexOf("readCalendarWorkspace(actor"), "после чтений");
-  const knowledge = read("src/app/(v3)/v3/knowledge/page.tsx");
+  const knowledge = read("src/app/(staff)/knowledge/page.tsx");
   assert.doesNotMatch(knowledge, /isNextUi/u);
   assert.match(knowledge, /requireKnowledgeAdmin\(actor\);/u, "граница администратора та же");
   assert.match(knowledge, /<KnowledgeNextLazy commandScope=\{`\$\{actor\.organizationId\}:\$\{actor\.membershipId\}`\} section=\{section\}>/u);
   assert.match(knowledge, /<KnowledgeDocuments actor=\{actor\} embedded next \/>/u);
   assert.match(knowledge, /<KnowledgeSnippets actor=\{actor\} next \/>/u);
   assert.doesNotMatch(knowledge, /<KnowledgeLibrary\b/u, "прежней библиотеки нет");
-  const chat = read("src/app/(v3)/v3/team-chat/page.tsx");
+  const chat = read("src/app/(staff)/team-chat/page.tsx");
   assert.doesNotMatch(chat, /isNextUi/u);
   assert.match(chat, /return <TeamChatNextFailureLazy/u);
   assert.match(chat, /return <TeamChatNextLazy/u);
   assert.doesNotMatch(chat, /<TeamChat\b/u, "прежней рамки нет");
   // Отдельные страницы для сотрудников без «Базы знаний»: рамка набора и режим `next` тех же серверных частей.
-  const documents = read("src/app/(v3)/v3/documents/page.tsx");
-  const snippets = read("src/app/(v3)/v3/reply-snippets/page.tsx");
+  const documents = read("src/app/(staff)/documents/page.tsx");
+  const snippets = read("src/app/(staff)/reply-snippets/page.tsx");
   assert.match(documents, /<KnowledgeDocuments actor=\{actor\} next \/>/u);
   assert.match(snippets, /<KnowledgeSnippets actor=\{actor\} next \/>/u);
-  assert.match(documents, /redirect\("\/v3\/knowledge\?section=documents"\)/u, "администратор по-прежнему уходит в базу знаний");
-  assert.match(snippets, /redirect\("\/v3\/knowledge\?section=snippets"\)/u);
+  assert.match(documents, /redirect\("\/knowledge\?section=documents"\)/u, "администратор по-прежнему уходит в базу знаний");
+  assert.match(snippets, /redirect\("\/knowledge\?section=snippets"\)/u);
   for (const page of [calendar, knowledge, chat, documents, snippets]) assert.doesNotMatch(page, /next\/(?:CalendarNextPage|KnowledgeNextPage|TeamChatNextPage|FilesNext|SnippetsNext)"/u, "виджеты нового вида в первую загрузку страницы не входят");
   for (const page of [calendar, knowledge, chat]) assert.doesNotMatch(page, /from "@\/components\/kit"/u);
-  for (const server of ["KnowledgeDocuments", "KnowledgeSnippets"]) assert.doesNotMatch(read(`src/components/v3/knowledge/${server}.tsx`), /from "@\/components\/kit"|next\/(?:FilesNext|SnippetsNext)"/u, `${server}: только ленивый вход`);
+  for (const server of ["KnowledgeDocuments", "KnowledgeSnippets"]) assert.doesNotMatch(read(`src/components/staff/knowledge/${server}.tsx`), /from "@\/components\/kit"|next\/(?:FilesNext|SnippetsNext)"/u, `${server}: только ленивый вход`);
 });
 
 test("ленивые входы: «use client», подгрузка настоящего вида и `.catch(onScreenLoadFailed)`", () => {
@@ -242,11 +242,11 @@ test("ленивые входы: «use client», подгрузка настоя
     ["team-chat/next/TeamChatNextLazy", "TeamChatNextPage", "TeamChatNextPage"],
   ];
   for (const [file, module, exported] of entries) {
-    const source = read(`src/components/v3/${file}.tsx`);
+    const source = read(`src/components/staff/${file}.tsx`);
     assert.match(source, /^"use client";/u, file);
     assert.match(source, new RegExp(`dynamic\\(\\(\\) => import\\("\\./${module}"\\)\\.then\\(\\(module\\) => module\\.${exported}\\)\\.catch\\(onScreenLoadFailed\\)\\)`, "u"), file);
   }
-  assert.match(read("src/components/v3/team-chat/next/TeamChatNextLazy.tsx"), /module\.TeamChatNextFailure\)\.catch\(onScreenLoadFailed\)/u);
+  assert.match(read("src/components/staff/team-chat/next/TeamChatNextLazy.tsx"), /module\.TeamChatNextFailure\)\.catch\(onScreenLoadFailed\)/u);
 });
 
 test("свойства, которые страницы отдают ленивым входам, проходят границу сервер → клиент (проверил стенд на настоящих страницах)", () => {
@@ -254,12 +254,12 @@ test("свойства, которые страницы отдают ленив�
 });
 
 test("прежние части получили только то, что нужно новому виду: общие значения экспортированы, у чата и дерева — необязательное свойство", () => {
-  const manager = read("src/components/v3/FileManager.tsx");
+  const manager = read("src/components/staff/FileManager.tsx");
   for (const name of ["ACTION_MESSAGE", "MAX_FILE_BYTES", "FILE_ACCEPT", "initialActionState", "useRefreshAfterMutation", "folderValue", "isDescendant", "uploadConfirmed"]) assert.match(manager, new RegExp(`export (?:const|function) ${name}\\b`, "u"), name);
-  assert.match(read("src/components/v3/knowledge/KnowledgeTree.tsx"), /sections = true/u, "по умолчанию группа «Файлы и шаблоны» есть");
-  assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /frame = "page"/u);
-  assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /data-frame=\{frame === "card" \? "card" : undefined\}/u, "у прежнего вида атрибута нет");
-  assert.match(read("src/components/v3/team-chat/team-chat.module.css"), /\.workspace\[data-frame="card"\] \.channels \{ padding-top: 12px; \}/u);
+  assert.match(read("src/components/staff/knowledge/KnowledgeTree.tsx"), /sections = true/u, "по умолчанию группа «Файлы и шаблоны» есть");
+  assert.match(read("src/components/staff/team-chat/TeamChat.tsx"), /frame = "page"/u);
+  assert.match(read("src/components/staff/team-chat/TeamChat.tsx"), /data-frame=\{frame === "card" \? "card" : undefined\}/u, "у прежнего вида атрибута нет");
+  assert.match(read("src/components/staff/team-chat/team-chat.module.css"), /\.workspace\[data-frame="card"\] \.channels \{ padding-top: 12px; \}/u);
   assert.ok(existsSync(root("src/components/ui/native-select.tsx")));
 });
 
@@ -270,15 +270,15 @@ test("шаблон из адреса: `#reply-snippet-<id>` (ссылка пои
   assert.equal(replySnippetIdFromHash("#reply-snippet-a%20b"), "a b");
   for (const hash of ["", "#", "#reply-snippet-", "#snippet-1", "#reply-snippet-%E0", "reply-snippet-1"]) assert.equal(replySnippetIdFromHash(hash), null, JSON.stringify(hash));
   const search = read("src/lib/server/knowledge-library/search.ts");
-  assert.match(search, /\/v3\/knowledge\?section=snippets#reply-snippet-\$\{/u, "поиск строит именно эту ссылку");
-  const snippets = read("src/components/v3/reply-snippets/next/SnippetsNext.tsx");
+  assert.match(search, /\/knowledge\?section=snippets#reply-snippet-\$\{/u, "поиск строит именно эту ссылку");
+  const snippets = read("src/components/staff/reply-snippets/next/SnippetsNext.tsx");
   assert.match(snippets, /replySnippetIdFromHash\(window\.location\.hash\)/u);
   assert.match(snippets, /items\.some\(\(item\) => item\.snippet\.replySnippetId === id\)\) setOpenId\(id\)/u, "открывается только шаблон, который есть в списке");
   assert.match(snippets, /addEventListener\("hashchange", onHash\)[\s\S]*removeEventListener\("hashchange", onHash\)/u);
 });
 
 test("«Календарь»: закрытие прячет любую задачу, пока сервер не подтвердит адрес без задачи (Esc на грузящейся задаче не возвращает прежнюю)", () => {
-  const hook = read("src/components/v3/calendar/next/useCalendarTaskSheet.ts");
+  const hook = read("src/components/staff/calendar/next/useCalendarTaskSheet.ts");
   assert.doesNotMatch(hook, /dismissed/u, "отметка «закрыто» относится к панели, а не к ключу задачи");
   assert.match(hook, /const \[closing, setClosing\] = useState\(false\);/u);
   assert.match(hook, /if \(closing && confirmedKey === null\) setClosing\(false\);/u, "отметка снимается, когда адрес без задачи подтверждён");
@@ -288,19 +288,19 @@ test("«Календарь»: закрытие прячет любую зада�
 });
 
 test("«Выбрать все» есть и на телефоне: флажок над карточками с тем же названием и той же логикой, что в шапке таблицы", () => {
-  const phone = read("src/components/v3/knowledge/next/PhoneSelectAll.tsx");
+  const phone = read("src/components/staff/knowledge/next/PhoneSelectAll.tsx");
   assert.match(phone, /t-label text-fg-2 md:hidden/u, "только до 768 px: выше — флажок шапки таблицы");
   assert.match(phone, /min-h-11/u, "цель 44 px вместе с подписью");
-  const library = read("src/components/v3/knowledge/next/LibraryTable.tsx");
+  const library = read("src/components/staff/knowledge/next/LibraryTable.tsx");
   assert.match(library, /<PhoneSelectAll label="Выбрать показанные материалы"[\s\S]*?onChange=\{toggleAll\} \/>/u);
-  assert.match(read("src/components/v3/knowledge/next/LibraryColumns.tsx"), /aria-label="Выбрать показанные материалы"[\s\S]*?onCheckedChange=\{\(on\) => onToggleAll\(on === true\)\}/u, "в шапке таблицы — то же название и та же логика");
-  const files = read("src/components/v3/knowledge/next/FilesNext.tsx");
+  assert.match(read("src/components/staff/knowledge/next/LibraryColumns.tsx"), /aria-label="Выбрать показанные материалы"[\s\S]*?onCheckedChange=\{\(on\) => onToggleAll\(on === true\)\}/u, "в шапке таблицы — то же название и та же логика");
+  const files = read("src/components/staff/knowledge/next/FilesNext.tsx");
   assert.match(files, /<PhoneSelectAll label="Выбрать документы на экране"[\s\S]*?onChange=\{toggleAll\} \/>/u);
-  assert.match(read("src/components/v3/knowledge/next/files-columns.tsx"), /aria-label="Выбрать документы на экране"[\s\S]*?onCheckedChange=\{\(on\) => onToggleAll\(on === true\)\}/u);
+  assert.match(read("src/components/staff/knowledge/next/files-columns.tsx"), /aria-label="Выбрать документы на экране"[\s\S]*?onCheckedChange=\{\(on\) => onToggleAll\(on === true\)\}/u);
 });
 
 test("«Шаблоны ответов»: автор назван в панели у того, кто управляет шаблонами, и у редактируемого, и у только читаемого", () => {
-  const body = read("src/components/v3/reply-snippets/next/SnippetSheetBody.tsx");
+  const body = read("src/components/staff/reply-snippets/next/SnippetSheetBody.tsx");
   assert.match(body, /const author = canManage \? <p className="t-meta text-fg-3">Автор: \{snippet\.createdByDisplayName\}<\/p> : null;/u);
   assert.match(body, /if \(canManage && item\.canMutate\) return <div className="grid gap-4">\{author\}<EditForms/u, "у редактируемого автор над формами");
   assert.match(body, /\{snippet\.body\}<\/p>\s*\{author\}/u, "у читаемого автор под текстом");
@@ -308,7 +308,7 @@ test("«Шаблоны ответов»: автор назван в панели
 });
 
 test("«Материалы»: колонка «Тип» не `wide` (в блоке рядом с деревом он никогда не шире 64rem), поэтому видна от 768 px", () => {
-  const columns = read("src/components/v3/knowledge/next/LibraryColumns.tsx");
+  const columns = read("src/components/staff/knowledge/next/LibraryColumns.tsx");
   const kind = columns.split("\n").find((line) => line.includes('id: "kind"'));
   assert.ok(kind, "колонка есть");
   assert.doesNotMatch(kind, /wide/u);
@@ -316,27 +316,27 @@ test("«Материалы»: колонка «Тип» не `wide` (в блок
 });
 
 test("«Документы»: фокус не падает на страницу после открытия папки; вопрос перед удалением и архивом принимает фокус и описывает кнопку", () => {
-  const crumbs = read("src/components/v3/knowledge/next/FilesBreadcrumb.tsx");
+  const crumbs = read("src/components/staff/knowledge/next/FilesBreadcrumb.tsx");
   assert.match(crumbs, /<span ref=\{currentRef\} tabIndex=\{-1\} aria-current="page"/u, "текущее звено пути принимает фокус программно");
-  const files = read("src/components/v3/knowledge/next/FilesNext.tsx");
+  const files = read("src/components/staff/knowledge/next/FilesNext.tsx");
   assert.match(files, /const openFolder = \(id: string \| null\) => \{ refocus\.current = true;/u);
   assert.match(files, /focusAfterOpen\(frame\.current, currentCrumb\.current\)/u);
-  assert.match(read("src/components/v3/knowledge/next/focus-after-open.ts"), /currentCrumb \?\? \[/u, "корень: таблица или первая карточка телефона");
+  assert.match(read("src/components/staff/knowledge/next/focus-after-open.ts"), /currentCrumb \?\? \[/u, "корень: таблица или первая карточка телефона");
   for (const file of ["knowledge/next/FileActionForm", "reply-snippets/next/SnippetSheetBody"]) {
-    const source = read(`src/components/v3/${file}.tsx`);
+    const source = read(`src/components/staff/${file}.tsx`);
     assert.match(source, /useConfirmStep\(\)/u, file);
     assert.match(source, /ref=\{(?:confirm|confirmButton)\}[^>]*aria-describedby=\{(?:confirm \? )?questionId/u, `${file}: кнопка подтверждения описана вопросом`);
     assert.match(source, /ref=\{trigger\}/u, `${file}: «Отмена» возвращает фокус на исходную кнопку`);
   }
-  const step = read("src/components/v3/knowledge/next/useConfirmStep.ts");
+  const step = read("src/components/staff/knowledge/next/useConfirmStep.ts");
   assert.match(step, /moveTo\.current === "confirm" \? confirm\.current : moveTo\.current === "trigger" \? trigger\.current : null/u);
 });
 
 test("«Новая папка» и «Новый файл» закрываются после сохранения: панели ключом request_id, как «Новый шаблон»", () => {
-  const toolbar = read("src/components/v3/knowledge/next/FilesToolbar.tsx");
+  const toolbar = read("src/components/staff/knowledge/next/FilesToolbar.tsx");
   assert.match(toolbar, /<CreateFolderSheet key=\{createFolderRequestId\} parent=\{current\} requestId=\{createFolderRequestId\} \/>/u);
   assert.match(toolbar, /<CreateFileSheet key=\{createFileRequestId\} parent=\{current\} requestId=\{createFileRequestId\} \/>/u);
-  assert.match(read("src/components/v3/reply-snippets/next/SnippetsNext.tsx"), /<SnippetCreateSheet key=\{createReplySnippetFormKey\(createRequestId\)\}/u, "образец, по которому сделано");
+  assert.match(read("src/components/staff/reply-snippets/next/SnippetsNext.tsx"), /<SnippetCreateSheet key=\{createReplySnippetFormKey\(createRequestId\)\}/u, "образец, по которому сделано");
 });
 
 test("колонки выбора и «Скачать» узкие (`meta.fit`), а выбирать и скачивать нечего — колонок нет, и отключённого «выбрать все» тоже", () => {
@@ -344,27 +344,27 @@ test("колонки выбора и «Скачать» узкие (`meta.fit`),
   assert.match(read("src/components/kit/DataTableParts.tsx"), /meta\?\.fit && "w-px"/u, "шапка");
   assert.match(read("src/components/kit/DataTableParts.tsx"), /meta\?\.fit && "w-px whitespace-nowrap"/u, "ячейка");
   assert.match(read("src/components/kit/DataTable.tsx"), /meta=\{header\.column\.columnDef\.meta\}/u);
-  assert.match(read("src/components/v3/knowledge/next/LibraryColumns.tsx"), /id: "select"[^\n]*meta: \{ label: "Выбрать", mobile: "hide", fit: true \}/u);
-  const columns = read("src/components/v3/knowledge/next/files-columns.tsx");
+  assert.match(read("src/components/staff/knowledge/next/LibraryColumns.tsx"), /id: "select"[^\n]*meta: \{ label: "Выбрать", mobile: "hide", fit: true \}/u);
+  const columns = read("src/components/staff/knowledge/next/files-columns.tsx");
   assert.match(columns, /id: "select"[^\n]*meta: \{ label: "Выбрать", mobile: "hide", fit: true \}/u);
   assert.match(columns, /meta: \{ label: "Скачать", mobile: "hide", align: "end", fit: true \}/u);
   assert.doesNotMatch(columns, /disabled=\{exportableVersions\.length === 0\}/u, "отключённого флажка «выбрать все» нет");
-  assert.match(read("src/components/v3/knowledge/next/FilesNext.tsx"), /selectable: exportable\.length > 0, downloadable: model\.entries\.some\(/u);
+  assert.match(read("src/components/staff/knowledge/next/FilesNext.tsx"), /selectable: exportable\.length > 0, downloadable: model\.entries\.some\(/u);
   assert.match(read("DESIGN.md"), /meta: \{ label\?, mobile\?: "title" \| "hide", align\?: "end", opensRow\?, wide\?, fit\? \}/u, "каталог набора назвал новое свойство");
 });
 
 test("подписи «Документов»: число записей папки — под названием, размер — у файла (null не рисуется), в панели файла студента размер один раз", () => {
-  const columns = read("src/components/v3/knowledge/next/files-columns.tsx");
+  const columns = read("src/components/staff/knowledge/next/files-columns.tsx");
   assert.match(columns, /entry\.kind === "folder" \? <span className="block t-meta text-fg-3">\{entry\.count\} \{plural\(entry\.count, RECORDS\)\}<\/span>/u);
   assert.match(columns, /accessorFn: \(entry\) => \(entry\.kind === "file" \? entry\.file\.size : null\)/u);
   assert.doesNotMatch(columns, /\?\? "—"/u, "прочерк вместо null не рисуется");
   assert.match(columns, /id: "size"[^\n]*meta: \{ label: "Размер", mobile: "hide" \}/u, "на телефоне размер — под названием файла, а не пустая строка «Размер» у папки");
-  assert.doesNotMatch(read("src/components/v3/knowledge/next/FileSheetBody.tsx"), /Размер:/u, "размер под названием панели уже есть (описание)");
+  assert.doesNotMatch(read("src/components/staff/knowledge/next/FileSheetBody.tsx"), /Размер:/u, "размер под названием панели уже есть (описание)");
 });
 
 test("«Командный чат» на телефоне: открытая переписка без шапки страницы теряет и отступы, и поле над рамкой, и саму рамку (≤ 800 px)", () => {
-  const page = read("src/components/v3/team-chat/next/TeamChatNextPage.tsx");
-  assert.match(page, /has-\[\[data-panel=messages\]\]:max-\[800px\]:p-0!/u, "отступы страницы (в том числе padding-top из v3.css) снимаются с `!`");
+  const page = read("src/components/staff/team-chat/next/TeamChatNextPage.tsx");
+  assert.match(page, /has-\[\[data-panel=messages\]\]:max-\[800px\]:p-0!/u, "отступы страницы (в том числе padding-top из staff.css) снимаются с `!`");
   for (const rule of ["mt-0", "rounded-none!", "border-0"]) assert.ok(page.includes(`group-has-[[data-panel=messages]]/chat:max-[800px]:${rule}`), rule);
   assert.match(page, /group-has-\[\[data-panel=messages\]\]\/chat:max-\[800px\]:hidden/u, "шапка убирается по тому же условию");
   assert.match(page, /className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-border bg-surface /u, "на столе и в списке каналов рамка прежняя");
@@ -374,15 +374,15 @@ test("«Командный чат» на телефоне: открытая пе
 
 test("Esc в панелях «Шаблоны ответов», «Документы» и «Календарь»: первая Esc только выводит из поля (`sheetEscape`), набранное не пропадает; в браузере — tests/e2e/tools-next-flows-esc.cjs", () => {
   const sheets = [
-    ["src/components/v3/reply-snippets/next/SnippetsNext.tsx", 1], ["src/components/v3/reply-snippets/next/SnippetCreateSheet.tsx", 1],
-    ["src/components/v3/knowledge/next/FolderSheets.tsx", 3], ["src/components/v3/knowledge/next/FilesNext.tsx", 1], ["src/components/v3/calendar/next/CalendarTaskSheet.tsx", 1],
+    ["src/components/staff/reply-snippets/next/SnippetsNext.tsx", 1], ["src/components/staff/reply-snippets/next/SnippetCreateSheet.tsx", 1],
+    ["src/components/staff/knowledge/next/FolderSheets.tsx", 3], ["src/components/staff/knowledge/next/FilesNext.tsx", 1], ["src/components/staff/calendar/next/CalendarTaskSheet.tsx", 1],
   ];
   for (const [file, expected] of sheets) {
     const source = read(file);
     assert.equal(count(source, /<DetailSheet\b/gu), expected, `${file}: панелей`);
     assert.equal(count(source, /onEscapeKeyDown=\{sheetEscape\}/gu), expected, `${file}: каждая панель с полями отдаёт Esc правилам боковой панели`);
-    assert.match(source, /import \{ sheetEscape \} from "@\/components\/v3\/panel\/sheet-escape";/u, file);
+    assert.match(source, /import \{ sheetEscape \} from "@\/components\/staff\/panel\/sheet-escape";/u, file);
   }
   // Панель без полей («Папки» — дерево ссылок) правил не меняет: Esc в ней закрывает панель, как раньше.
-  assert.doesNotMatch(read("src/components/v3/knowledge/next/LibraryOverlays.tsx"), /sheetEscape/u);
+  assert.doesNotMatch(read("src/components/staff/knowledge/next/LibraryOverlays.tsx"), /sheetEscape/u);
 });

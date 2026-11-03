@@ -48,7 +48,7 @@ test("invitation conflicts have actionable Russian copy instead of internal code
 });
 
 test("UI keeps original commands and offers no unconditional new invitation escape", () => {
-  const source = (file) => readFileSync(new URL(`../src/components/v3/settings/${file}`, import.meta.url), "utf8");
+  const source = (file) => readFileSync(new URL(`../src/components/staff/settings/${file}`, import.meta.url), "utf8");
   const hook = source("useStaffCommandForm.tsx");
   assert.match(hook, /original\.current = copyForm\(form\)/u);
   assert.match(hook, /const command = copyForm\(original\.current\)/u);
@@ -72,8 +72,8 @@ test("confirmed access-review response opens preparation without treating an unk
 });
 
 test("status restart is explicit and invitation operations share a parent interlock", () => {
-  const section = readFileSync(new URL("../src/components/v3/settings/StaffSection.tsx", import.meta.url), "utf8");
-  const preparation = readFileSync(new URL("../src/components/v3/settings/StaffPendingAccess.tsx", import.meta.url), "utf8");
+  const section = readFileSync(new URL("../src/components/staff/settings/StaffSection.tsx", import.meta.url), "utf8");
+  const preparation = readFileSync(new URL("../src/components/staff/settings/StaffPendingAccess.tsx", import.meta.url), "utf8");
   assert.match(section, /state\.status === "success" && state\.outcome !== "unknown"/u);
   assert.match(section, /<MemberChangeForm key=\{command\}/u);
   assert.match(section, /onClick=\{onNext\}>Изменить доступ снова/u);
@@ -88,7 +88,7 @@ test("status restart is explicit and invitation operations share a parent interl
 
 test("the access log shows request time in the CRM zone, Asia/Bishkek, without a zone label", () => {
   // 24.10.2026: журнал показывал Дубай; остальная CRM — Бишкек. Сохранённое время не меняется.
-  const section = readFileSync(new URL("../src/components/v3/settings/StaffSection.tsx", import.meta.url), "utf8");
+  const section = readFileSync(new URL("../src/components/staff/settings/StaffSection.tsx", import.meta.url), "utf8");
   assert.match(section, /new Date\(request\.createdAt\)\.toLocaleString\("ru-RU", \{ timeZone: "Asia\/Bishkek", day: "2-digit"/u);
   assert.doesNotMatch(section, /Asia\/Dubai|\(Dubai\)/u);
 });
@@ -98,5 +98,5 @@ test("development request logging excludes credential callbacks but keeps ordina
   for (const url of ["/auth/staff", "/auth/staff?token_hash=local-fixture", "/auth/staff/?token_hash=local-fixture", "/auth/callback?code=local-fixture"]) {
     assert.equal(ignored(url), true);
   }
-  for (const url of ["/login", "/v3/settings?section=staff", "/api/health", "/auth/staffing"]) assert.equal(ignored(url), false);
+  for (const url of ["/login", "/settings?section=staff", "/api/health", "/auth/staffing"]) assert.equal(ignored(url), false);
 });

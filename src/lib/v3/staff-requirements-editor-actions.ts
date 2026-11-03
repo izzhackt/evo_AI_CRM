@@ -56,7 +56,7 @@ export async function saveStaffRequirementsEditorAction(owner: RequirementsEdito
     if (!receipt) return { ok: false, reason: "unavailable", resolution: "retain" };
   } catch { return { ok: false, reason: "unavailable", resolution: "retain" }; }
   // Once a correlated immutable receipt exists, refresh failure cannot erase success.
-  for (const path of ["/portal", "/v3/profile", "/v3/documents"]) {
+  for (const path of ["/portal", "/profile", "/documents"]) {
     try { revalidatePath(path); } catch { /* The caller can read again; this save is known. */ }
   }
   return { ok: true, receipt };

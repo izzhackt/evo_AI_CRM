@@ -926,7 +926,7 @@ test("failure evidence separates login from profile rendering and never emits ra
 
 test("safe diagnostic classes discard query strings, credentials, exception text and stack", () => {
   const origin = "http://127.0.0.1:43210";
-  assert.equal(proofPathClass(`${origin}/v3/profile?case=synthetic&token=not-for-output`, origin), "PROFILE");
+  assert.equal(proofPathClass(`${origin}/profile?case=synthetic&token=not-for-output`, origin), "PROFILE");
   assert.equal(proofPathClass(`${origin}/login?error=private-detail`, origin), "LOGIN");
   assert.equal(proofPathClass("https://example.test/private", origin), "OTHER_ORIGIN");
   assert.equal(proofPathClass("not a URL", origin), "UNAVAILABLE");
@@ -945,7 +945,7 @@ test("server diagnostics retain only known static errors and repository stack lo
     "  private diagnostic payload with secret sentinel and private@example.test",
     "Error: private payload must never be retained",
     "TypeError: Platform Student handoff data is unavailable. appended-secret",
-    "GET /v3/profile?case=private-id&token=private-token 500",
+    "GET /profile?case=private-id&token=private-token 500",
   ].join("\n"));
   assert.deepEqual(summary.errorClasses, ["Error", "PlatformStudentHandoffRepositoryError", "TypeError"]);
   assert.deepEqual(summary.staticMessages, ["Platform Student handoff data is unavailable."]);

@@ -124,7 +124,7 @@ test('review uses current staff permission and binds the complete receipt', asyn
   assert.equal(result.ok, true); assert.deepEqual(json(result.receipt), reviewReceipt);
   assert.deepEqual(h.permissionsChecked, ['document.review']);
   assert.deepEqual(json(h.calls), [['application_package_review_v1', { p_intent: reviewIntent }]]);
-  assert.deepEqual(h.refreshed, ['/portal', '/portal/notifications', `/portal/preparations/${target.applicationId}`, '/v3/profile', '/v3/admissions-pipeline']);
+  assert.deepEqual(h.refreshed, ['/portal', '/portal/notifications', `/portal/preparations/${target.applicationId}`, '/profile', '/admissions-pipeline']);
 });
 
 test('mutation errors and thrown transport/Auth failures always retain without raw provider text', async () => {

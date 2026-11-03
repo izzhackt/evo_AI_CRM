@@ -553,7 +553,7 @@ test("the route refuses a non-admin on the server before the service runs", asyn
 
 test("the service refuses a non-admin by itself, even for a holder who opens the settings page", async () => {
   // Держатель telephony.manage открывает «Настройки» ради одного раздела; подключение WhatsApp ему не принадлежит.
-  assert.equal(staffCanAccessRoute(STAFF, "/v3/settings"), true);
+  assert.equal(staffCanAccessRoute(STAFF, "/settings"), true);
   assert.equal((await performWhatsAppConnect(STAFF, { action: "connect" }, fixture({ handler: () => session("WORKING") }).dependencies)).code, "forbidden");
 });
 
@@ -631,7 +631,7 @@ test("the path is one exact connected staff API; everything near it stays closed
 test("the WhatsApp row points to the connect block instead of a technician when the session needs linking", () => {
   const NOW = new Date("2026-10-20T10:00:00.000Z");
   const row = (waha) => settingsIntegrations({ waha: { observedAt: null, ...waha }, gemini: "not_configured", amo: { status: "blocked", reason: "feature_disabled" } }, NOW).find((entry) => entry.key === "whatsapp");
-  const href = `/v3/settings?section=integrations#${WHATSAPP_CONNECT_ANCHOR}`;
+  const href = `/settings?section=integrations#${WHATSAPP_CONNECT_ANCHOR}`;
   const failed = row({ display: "blocked", sessionStatus: "FAILED" });
   assert.deepEqual(failed.action, { handoff: null, link: { label: "Подключить WhatsApp", href } });
   assert.equal(failed.blocksWork, true);
@@ -641,7 +641,7 @@ test("the WhatsApp row points to the connect block instead of a technician when 
   for (const sessionStatus of ["UNREACHABLE", "PASSKEY_REQUIRED", "PASSKEY_CONFIRMATION_REQUIRED"]) {
     const down = row({ display: "blocked", sessionStatus });
     assert.match(down.action.handoff, /техническ/u, sessionStatus);
-    assert.equal(down.action.link.href, "/v3/inbox", sessionStatus);
+    assert.equal(down.action.link.href, "/inbox", sessionStatus);
   }
-  assert.equal(row({ display: "ready", sessionStatus: "WORKING" }).action.link.href, "/v3/inbox");
+  assert.equal(row({ display: "ready", sessionStatus: "WORKING" }).action.link.href, "/inbox");
 });

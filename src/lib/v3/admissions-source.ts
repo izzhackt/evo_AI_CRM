@@ -1,7 +1,7 @@
 import { staffPresentationCan } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
-import type { ApplicationPartnerDetails } from "@/components/v3/profile/types";
+import type { ApplicationPartnerDetails } from "@/components/staff/profile/types";
 
 export class AdmissionsSourceError extends Error {
   readonly code: "invalid" | "stale" | "denied" | "request_conflict" | "unavailable";

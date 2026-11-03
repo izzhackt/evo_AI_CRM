@@ -31,7 +31,7 @@ export function syntheticMappingDocx() {
 /** UI -> real Auth/RPC/native/Storage -> cold publication readback. No providers. */
 export async function proveUniversityTemplateMapping({ page, context, client, storage, config, catalogId, stage }) {
   const bytes = syntheticMappingDocx(), sha256 = hash(bytes);
-  const base = `${config.appOrigin}/v3/universities/${catalogId}/forms`;
+  const base = `${config.appOrigin}/universities/${catalogId}/forms`;
   stage("DOCX_CREATE_UI");
   await page.goto(base, { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(base);

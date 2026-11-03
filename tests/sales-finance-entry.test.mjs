@@ -39,7 +39,7 @@ test("entry adapter writes through original ledger commands, never report paid",
   assert.match(source, /"create_payment_obligation" : "record_payment_event"/);
   assert.doesNotMatch(source, /manage_sales_register|\.insert\(/);
   for (const file of ["ManualLeadForm.tsx", "profile/FinanceEntryForms.tsx"]) {
-    const form = readFileSync(new URL(`../src/components/v3/${file}`, import.meta.url), "utf8");
+    const form = readFileSync(new URL(`../src/components/staff/${file}`, import.meta.url), "utf8");
     assert.match(form, /frozen\.current \?\? form/);
     assert.match(form, /result\.status !== "unavailable"/);
     assert.match(form, /currentRequestId === state\.requestId/);
@@ -105,7 +105,7 @@ test("monthly cash validates the period before invoking readers and accepts true
 
 test("sales record totals and plan remain independent of monthly cash availability", () => {
   // «Отчёт продаж»: чтения вынесены в `sales-register-page.ts` без изменений (27.10.2026) — прежний вид это оба файла.
-  const view = ["../src/components/v3/SalesRegisterView.tsx", "../src/lib/v3/sales-register-page.ts", "../src/lib/sales-register-money-view.ts"].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
+  const view = ["../src/components/staff/SalesRegisterView.tsx", "../src/lib/v3/sales-register-page.ts", "../src/lib/sales-register-money-view.ts"].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   // Э4 (27.09.2026, «Отчёт продаж» без коробок): сводка поступлений - факт месяца, а не архива записей; её не читает только
   // страница формы «Новая продажа» (`creatingForm`). Условие по-прежнему требует право на финансы и выбранный месяц.
   assert.match(view, /checkFinanceAccess && month && !creatingForm/);

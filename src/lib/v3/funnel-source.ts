@@ -1,8 +1,8 @@
 import "server-only";
 
-import type { FunnelStage } from "@/components/v3/Funnel";
-import type { Metric } from "@/components/v3/MetricCard";
-import type { TrendSeries } from "@/components/v3/TrendChart";
+import type { FunnelStage } from "@/components/staff/Funnel";
+import type { Metric } from "@/components/staff/MetricCard";
+import type { TrendSeries } from "@/components/staff/TrendChart";
 import { isStaffPreview } from "@/lib/platform-access";
 import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import type { PlatformSalesLeadRow } from "@/lib/platform-sales";

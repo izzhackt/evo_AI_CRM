@@ -148,7 +148,7 @@ function request(host, path, method = "GET", extra = {}) {
 
 test("the proxy hands its live staff rows to the render of the same GET request", async () => {
   const run = proxyHarness({ role: "staff" });
-  const response = await run.proxy(request("crm.evoadmissions.com", "/v3/main", "GET", { [handoff.ACCESS_HANDOFF_HEADER]: "forged.value" }));
+  const response = await run.proxy(request("crm.evoadmissions.com", "/main", "GET", { [handoff.ACCESS_HANDOFF_HEADER]: "forged.value" }));
   assert.equal(response.headers.get("x-middleware-next"), "1");
   assert.deepEqual(run.calls, ["staff"], "staff route: one staff read, no Student read");
   const value = forwarded(response, handoff.ACCESS_HANDOFF_HEADER);
@@ -173,7 +173,7 @@ test("a staff actor on a Student route still gets the staff answer, and a POST n
   assert.equal(new URL(redirected.headers.get("location")).pathname, "/");
 
   const action = proxyHarness({ role: "staff" });
-  const response = await action.proxy(request("crm.evoadmissions.com", "/v3/main", "POST", { [handoff.ACCESS_HANDOFF_HEADER]: "forged.value" }));
+  const response = await action.proxy(request("crm.evoadmissions.com", "/main", "POST", { [handoff.ACCESS_HANDOFF_HEADER]: "forged.value" }));
   assert.equal(response.headers.get("x-middleware-next"), "1");
   assert.equal(forwarded(response, handoff.ACCESS_HANDOFF_HEADER), null, "commands keep their own live check");
 });

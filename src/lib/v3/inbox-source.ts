@@ -5,7 +5,7 @@ import type {
   InboxConversation,
   InboxSelectedConversation,
   InboxView,
-} from "@/components/v3/Inbox";
+} from "@/components/staff/Inbox";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import {
   getPlatformConversationCommandContext,

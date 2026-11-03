@@ -23,37 +23,37 @@ type FixedRole = "admin" | "sales" | "admissions";
 
 const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
   admin: [
-    "/v3/main",
-    "/v3/pipeline",
-    "/v3/inbox",
-    "/v3/profile",
-    "/v3/calendar",
-    "/v3/knowledge",
-    "/v3/settings",
+    "/main",
+    "/pipeline",
+    "/inbox",
+    "/profile",
+    "/calendar",
+    "/knowledge",
+    "/settings",
   ],
   sales: [
-    "/v3/main",
-    "/v3/pipeline",
-    "/v3/inbox",
-    "/v3/profile",
-    "/v3/calendar",
-    "/v3/knowledge",
+    "/main",
+    "/pipeline",
+    "/inbox",
+    "/profile",
+    "/calendar",
+    "/knowledge",
   ],
   admissions: [
-    "/v3/main",
-    "/v3/pipeline",
-    "/v3/inbox",
-    "/v3/profile",
-    "/v3/calendar",
-    "/v3/knowledge",
+    "/main",
+    "/pipeline",
+    "/inbox",
+    "/profile",
+    "/calendar",
+    "/knowledge",
   ],
 };
 
 /** A denied route for each role, so the access-denied surface is covered too. */
 const ROLE_DENIED_ROUTE: Readonly<Record<FixedRole, string | null>> = {
   admin: null,
-  sales: "/v3/settings",
-  admissions: "/v3/settings",
+  sales: "/settings",
+  admissions: "/settings",
 };
 
 const RETIRED_UI_ROUTES = [
@@ -181,7 +181,7 @@ for (const role of ["admin", "sales", "admissions"] as const) {
     for (const route of ROLE_ROUTES[role]) {
       await page.goto(route);
       await expect(page.locator("main")).toBeVisible();
-      if (route === "/v3/knowledge") {
+      if (route === "/knowledge") {
         await expectRoleKnowledgeSurface(page, role);
       }
       const context = `${role} ${route}`;
@@ -215,7 +215,7 @@ test("the unauthenticated gate and authenticated V3 root meet the WCAG A/AA gate
 
   await signInAsStaff(page, "admin");
   await page.goto("/");
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
   await expectExactlyOneMainHeading(page, "authenticated V3 root");
   await expectNoDocumentOverflow(page, "authenticated V3 root");
   await expectNoAutomatedWcagViolations(page, "authenticated V3 root");
@@ -253,7 +253,7 @@ test("the conversation pane fits the fold for every role", async ({ page }, test
 
   for (const role of ["admin", "sales", "admissions"] as const) {
     await signInAsStaff(page, role);
-    await page.goto("/v3/inbox");
+    await page.goto("/inbox");
     await expect(page.locator("main")).toBeVisible();
 
     const pane = await page.locator("main").evaluate((el) => {

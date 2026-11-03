@@ -30,8 +30,8 @@ function compile(path, extra = {}) {
     "next/navigation": { useRouter: () => ({ refresh: () => refreshes.push(1) }) },
     "@/components/icons": { Icon: ({ name }) => React.createElement("i", { "data-icon": name }) },
     "@/components/ui": { btnCls: "btn-primary" },
-    "@/components/v3/blocks/StatusChip": { StatusChip: ({ label, tone }) => React.createElement("span", { "data-chip": tone }, label) },
-    "@/components/v3/queue/queue-buttons": { QUEUE_CONFIRM: "queue-confirm", QUEUE_SECONDARY: "queue-secondary" },
+    "@/components/staff/blocks/StatusChip": { StatusChip: ({ label, tone }) => React.createElement("span", { "data-chip": tone }, label) },
+    "@/components/staff/queue/queue-buttons": { QUEUE_CONFIRM: "queue-confirm", QUEUE_SECONDARY: "queue-secondary" },
     "@/lib/v3/telephony-settings": telephonySettings,
     "@/lib/v3/telephony-health": telephonyHealth,
     ...extra,
@@ -94,7 +94,7 @@ const flat = (markup) => markup.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
 /* -------------------------------------------------- сопоставление */
 
 test("the mapping list: one row per PBX user, the state in words, a choice of staff, the stored-legs warning", () => {
-  const { TelephonyExtensions } = compile("src/components/v3/settings/TelephonyExtensions.tsx");
+  const { TelephonyExtensions } = compile("src/components/staff/settings/TelephonyExtensions.tsx");
   const { extensions, staff } = overview();
   const markup = render(React.createElement(TelephonyExtensions, { extensions, staff, readOnly: false }));
   const text = flat(markup);
@@ -133,7 +133,7 @@ test("the mapping list: one row per PBX user, the state in words, a choice of st
 });
 
 test("the mapping list: empty directory and a preview", () => {
-  const { TelephonyExtensions } = compile("src/components/v3/settings/TelephonyExtensions.tsx");
+  const { TelephonyExtensions } = compile("src/components/staff/settings/TelephonyExtensions.tsx");
   const empty = render(React.createElement(TelephonyExtensions, { extensions: [], staff: [], readOnly: false }));
   assert.match(empty, /data-testid="v3-telephony-extensions-empty"/u);
   assert.match(flat(empty), /Пользователей ВАТС пока нет\. Список появится после того, как на сервере задан ключ ВАТС/u);
@@ -148,7 +148,7 @@ test("the mapping list: empty directory and a preview", () => {
 });
 
 test("the mapping client confirms against what the person saw and sends only ids", () => {
-  const code = source("src/components/v3/settings/TelephonyExtensions.tsx");
+  const code = source("src/components/staff/settings/TelephonyExtensions.tsx");
   assert.match(code, /^"use client";/u);
   assert.match(code, /fetch\("\/api\/v3\/telephony\/extensions", \{\s*method: "POST",\s*credentials: "same-origin"/u);
   assert.match(code, /previousMembershipId: extension\.membershipId,\s*membershipId: choice \|\| null/u);
@@ -173,7 +173,7 @@ test("the mapping client confirms against what the person saw and sends only ids
 /* ---------------------------------------------------------- настройки */
 
 test("the settings form: seven switches with their words, hours, days, dial, ceilings and recipients", () => {
-  const { TelephonySettingsForm } = compile("src/components/v3/settings/TelephonySettingsForm.tsx");
+  const { TelephonySettingsForm } = compile("src/components/staff/settings/TelephonySettingsForm.tsx");
   const markup = render(React.createElement(TelephonySettingsForm, { overview: overview(), server: SERVER_ON, readOnly: false }));
   const text = flat(markup);
   for (const key of ["projectionEnabled", "uiEnabled", "dialEnabled", "missedTaskEnabled", "unknownLeadEnabled", "backfillEnabled", "outboundPaused"]) {
@@ -228,7 +228,7 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
 });
 
 test("the settings form tells the truth about what the server cannot do yet", () => {
-  const { TelephonySettingsForm } = compile("src/components/v3/settings/TelephonySettingsForm.tsx");
+  const { TelephonySettingsForm } = compile("src/components/staff/settings/TelephonySettingsForm.tsx");
   const off = flat(render(React.createElement(TelephonySettingsForm, { overview: overview(), server: SERVER_OFF, readOnly: false })));
   assert.match(off, /Приём событий выключен на сервере: звонков для разбора нет, пока технический специалист его не включит/u);
   assert.match(off, /Ключ ВАТС на сервере не задан: запросы к ВАТС не идут, пока его не внесут/u);
@@ -239,7 +239,7 @@ test("the settings form tells the truth about what the server cannot do yet", ()
 });
 
 test("a recipient who lost the right is shown with a warning and can be replaced; a preview is read-only", () => {
-  const { TelephonySettingsForm } = compile("src/components/v3/settings/TelephonySettingsForm.tsx");
+  const { TelephonySettingsForm } = compile("src/components/staff/settings/TelephonySettingsForm.tsx");
   const lost = overview({
     escalationMembershipId: B,
     escalation: { membershipId: B, name: "Staff B", allowed: false },
@@ -255,7 +255,7 @@ test("a recipient who lost the right is shown with a warning and can be replaced
 });
 
 test("the settings client sends one versioned patch, asks for a confirmation before opening anything and repeats nothing blindly", () => {
-  const code = source("src/components/v3/settings/TelephonySettingsForm.tsx");
+  const code = source("src/components/staff/settings/TelephonySettingsForm.tsx");
   assert.match(code, /^"use client";/u);
   assert.match(code, /fetch\("\/api\/v3\/telephony\/settings", \{\s*method: "POST",\s*credentials: "same-origin"/u);
   assert.match(code, /JSON\.stringify\(\{ requestId: id, expectedVersion: settings\.version, patch \}\)/u);
@@ -267,14 +267,14 @@ test("the settings client sends one versioned patch, asks for a confirmation bef
   assert.match(code, /router\.refresh\(\)/u);
   assert.match(code, /const issues = useMemo\(\(\) => telephonyDraftIssues\(draft\), \[draft\]\)/u);
   // The page re-keys the form by version so it restarts from the saved settings.
-  assert.match(source("src/components/v3/settings-next/TelephonyNext.tsx"), /<TelephonySettingsForm key=\{overview\.settings\.version\}/u);
+  assert.match(source("src/components/staff/settings-next/TelephonyNext.tsx"), /<TelephonySettingsForm key=\{overview\.settings\.version\}/u);
 });
 
 test("the draft check in the form is the same function the lib tests pin, and the form owns no CHECK of its own", () => {
-  const code = source("src/components/v3/settings/TelephonySettingsForm.tsx");
+  const code = source("src/components/staff/settings/TelephonySettingsForm.tsx");
   assert.doesNotMatch(code, /localStorage|sessionStorage|process\.env|server-only|NEXT_PUBLIC/u);
   for (const file of ["TelephonyExtensions", "TelephonySettingsForm", "TelephonyCopyValue"]) {
-    const text = source(`src/components/v3/settings/${file}.tsx`);
+    const text = source(`src/components/staff/settings/${file}.tsx`);
     assert.doesNotMatch(text, /process\.env|from "server-only"|import "server-only"|EVO_PLATFORM_TELEPHONY|crm_token|X-API-KEY/u, file);
     assert.match(text, /^"use client";/u, `${file} is a client component: it needs hooks`);
   }
@@ -283,7 +283,7 @@ test("the draft check in the form is the same function the lib tests pin, and th
 /* ---------------------------------------------------- страница и разделы */
 
 test("the page keeps the Admin sections as they were and gives a non-Admin holder one section only", () => {
-  const page = source("src/app/(v3)/v3/settings/page.tsx");
+  const page = source("src/app/(staff)/settings/page.tsx");
   assert.match(page, /const section = isSectionKey\(params\.section\) \? params\.section : "staff";/u, "settings still open on «Сотрудники»");
   assert.match(page, /const isAdmin = actor\.systemRole === "admin" && actor\.presentationRole === null;/u);
   const early = page.indexOf('if (actor.systemRole !== "admin") {');
@@ -300,11 +300,11 @@ test("the page keeps the Admin sections as they were and gives a non-Admin holde
 });
 
 test("the sections list gets «Телефония» right after «Интеграции»; the list is otherwise as before (plus «Отчёты», 323, after «Телефонии»)", () => {
-  const types = source("src/components/v3/settings/types.ts");
+  const types = source("src/components/staff/settings/types.ts");
   const keys = [...types.matchAll(/\{ key: "([a-z]+)", view: (?:"[a-z]+"|null), title: "([^"]+)" \}/gu)].map((match) => `${match[1]}:${match[2]}`);
   assert.deepEqual(keys, ["staff:Сотрудники", "staff:Роли и доступ", "staff:Отделы", "integrations:Интеграции", "telephony:Телефония", "reports:Отчёты", "journal:Журнал действий",
     "deletion:Запросы на удаление", "documents:Документы и передача", "platform:Платформа"]);
-  assert.match(source("src/components/v3/settings-next/SettingsSection.tsx"), /section === "telephony" && props\.telephony\) return <TelephonyNext \{\.\.\.props\.telephony\}/u);
+  assert.match(source("src/components/staff/settings-next/SettingsSection.tsx"), /section === "telephony" && props\.telephony\) return <TelephonyNext \{\.\.\.props\.telephony\}/u);
 });
 
 test("the two route files export POST only, on the Node runtime, never cached", () => {

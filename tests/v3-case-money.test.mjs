@@ -11,7 +11,7 @@ import {
   caseTrancheState,
   moneyDay,
   moneyMomentDay,
-} from "../src/components/v3/profile/case-money-view.ts";
+} from "../src/components/staff/profile/case-money-view.ts";
 
 /**
  * Вкладка «Договор и оплата» (Э8.3, PLAN_CHANGES 28.09 «Э8: срезы по
@@ -221,12 +221,12 @@ test("the template warnings on the page address the viewer", () => {
   assert.match(sheet(pages.get("admin-template-source")), /<details id="contract-template-create"/u);
   // Без утверждённого шаблона выбирать нечего — подсказки «Выберите утверждённый шаблон…» нет.
   for (const [name, html] of pages) assert.doesNotMatch(text(sheet(html)), /Выберите утверждённый шаблон/u, name);
-  assert.match(read("src/components/v3/profile/ContractDraftReportWorkspace.tsx"),
+  assert.match(read("src/components/staff/profile/ContractDraftReportWorkspace.tsx"),
     /\{approvedTemplates\.length > 0 \? \(\s*<p[^>]*>\s*Выберите утверждённый шаблон/u);
   // Кнопки подготовки — тёмные нейтральные, не красные.
-  assert.doesNotMatch(read("src/components/v3/profile/ContractDraftReportWorkspace.tsx"), /\bbtnCls\b/u);
-  assert.doesNotMatch(read("src/components/v3/profile/CaseAgreementForms.tsx"), /\bbtnCls\b/u);
-  assert.doesNotMatch(read("src/components/v3/profile/FinanceEntryForms.tsx"), /\bbtnCls\b/u);
+  assert.doesNotMatch(read("src/components/staff/profile/ContractDraftReportWorkspace.tsx"), /\bbtnCls\b/u);
+  assert.doesNotMatch(read("src/components/staff/profile/CaseAgreementForms.tsx"), /\bbtnCls\b/u);
+  assert.doesNotMatch(read("src/components/staff/profile/FinanceEntryForms.tsx"), /\bbtnCls\b/u);
 });
 
 test("wide sheet: summary rows top-aligned, the term and the action on the value's first line; phone: «Транш · кто» on its own line", () => {
@@ -258,7 +258,7 @@ test("service panel: «Продажа: этап · источник» is the sto
 });
 
 test("a malformed address anchor does not take the sheet down: the decode is guarded", () => {
-  const source = read("src/components/v3/profile/CaseMoney.tsx");
+  const source = read("src/components/staff/profile/CaseMoney.tsx");
   assert.match(source, /try \{\s*id = decodeURIComponent\(window\.location\.hash\.slice\(1\)\);\s*\} catch \{\s*return;\s*\}/u);
   assert.equal((source.match(/decodeURIComponent\(/gu) ?? []).length, 1, "no unguarded decode elsewhere");
 });

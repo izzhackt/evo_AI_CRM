@@ -8,7 +8,7 @@ import { PLATFORM_SALES_STAGES } from "../platform-sales-contract.ts";
  * целиком: только путь доски и только её собственные параметры, каждый не
  * больше одного раза, со значениями, которые доска сама принимает.
  */
-export const PIPELINE_PATH = "/v3/pipeline";
+export const PIPELINE_PATH = "/pipeline";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const CONTROL = /[\u0000-\u001F\u007F]/u;
@@ -46,7 +46,7 @@ export function withPipelineReturn(href: string, returnTo: string): string {
 
 /** Проверенный адрес доски или null: чужой путь, параметр или значение — отказ. */
 export function parsePipelineReturnTo(value: unknown): string | null {
-  if (typeof value !== "string" || value.length > 1600 || !/^\/v3\/pipeline(?:\?|$)/u.test(value)) return null;
+  if (typeof value !== "string" || value.length > 1600 || !/^\/pipeline(?:\?|$)/u.test(value)) return null;
   try {
     const url = new URL(value, "https://internal.invalid");
     if (url.pathname !== PIPELINE_PATH || url.hash || url.origin !== "https://internal.invalid") return null;

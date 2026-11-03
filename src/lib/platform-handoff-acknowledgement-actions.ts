@@ -37,7 +37,7 @@ export async function respondToHandoffAction(
   const submittedContext = `${input.assignmentEventId}:${input.expectedAcknowledgementId ?? ""}`;
   try {
     const saved = await respondToHandoff(actor, input);
-    revalidatePath("/v3/profile");
+    revalidatePath("/profile");
     return { status: "saved", requestId: randomUUID(), acknowledgementId: saved.acknowledgementId, submittedContext };
   } catch (error) {
     const status = error instanceof HandoffResponseError ? error.reason : "unavailable";

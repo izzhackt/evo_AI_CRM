@@ -88,9 +88,9 @@ async function compileCss() {
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
   return [
-    ...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"),
-    readFileSync(join(ROOT, "src/components/v3/team-chat/team-chat.module.css"), "utf8"),
-    readFileSync(join(ROOT, "src/components/v3/knowledge/KnowledgeLibrary.module.css"), "utf8"),
+    ...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"),
+    readFileSync(join(ROOT, "src/components/staff/team-chat/team-chat.module.css"), "utf8"),
+    readFileSync(join(ROOT, "src/components/staff/knowledge/KnowledgeLibrary.module.css"), "utf8"),
   ].join("\n");
 }
 
@@ -153,34 +153,34 @@ const chat = (extra = {}) => ({
   realtimeConfig: { url: "http://127.0.0.1:9", publishableKey: "synthetic-harness-key" }, canModerate: true, initialMessageId: null, showChannelsInitially: false, ...extra,
 });
 const knowledgeData = { folders: knowledge.folders, items: knowledge.items };
-const kb = (search, extra = {}) => base("knowledge", "/v3/knowledge", search.replace(/@([a-z0-9]+)/gu, (_, key) => A[key] ?? knowledge.editor), { knowledge: knowledgeData, ...extra });
+const kb = (search, extra = {}) => base("knowledge", "/knowledge", search.replace(/@([a-z0-9]+)/gu, (_, key) => A[key] ?? knowledge.editor), { knowledge: knowledgeData, ...extra });
 
 const PAGES = {
-  "calendar-week": base("calendar", "/v3/calendar", "view=week&date=2026-09-26", { calendar: calendar(fx.WEEK) }),
-  "calendar-month": base("calendar", "/v3/calendar", "view=month&date=2026-09-26", { calendar: calendar([...fx.WEEK, ...fx.MONTH_EXTRA]) }),
-  "calendar-day": base("calendar", "/v3/calendar", "view=day&date=2026-09-24", { calendar: calendar(fx.WEEK) }),
-  "calendar-empty": base("calendar", "/v3/calendar", "view=week&date=2026-09-26", { calendar: calendar([]) }),
-  "calendar-denied": base("calendar", "/v3/calendar", "view=week&date=2026-09-26", { calendar: calendar([], { readAccess: { caseTasks: false, staffTasks: false, tasks: false } }) }),
-  "calendar-panel": base("calendar", "/v3/calendar", `view=week&date=2026-09-24&case=${fx.id("dddddddd", 41)}&task=${fx.id("cccccccc", 41)}`, { calendar: calendar(fx.WEEK) }),
-  "snippets": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets() }),
+  "calendar-week": base("calendar", "/calendar", "view=week&date=2026-09-26", { calendar: calendar(fx.WEEK) }),
+  "calendar-month": base("calendar", "/calendar", "view=month&date=2026-09-26", { calendar: calendar([...fx.WEEK, ...fx.MONTH_EXTRA]) }),
+  "calendar-day": base("calendar", "/calendar", "view=day&date=2026-09-24", { calendar: calendar(fx.WEEK) }),
+  "calendar-empty": base("calendar", "/calendar", "view=week&date=2026-09-26", { calendar: calendar([]) }),
+  "calendar-denied": base("calendar", "/calendar", "view=week&date=2026-09-26", { calendar: calendar([], { readAccess: { caseTasks: false, staffTasks: false, tasks: false } }) }),
+  "calendar-panel": base("calendar", "/calendar", `view=week&date=2026-09-24&case=${fx.id("dddddddd", 41)}&task=${fx.id("cccccccc", 41)}`, { calendar: calendar(fx.WEEK) }),
+  "snippets": base("snippets", "/knowledge", "section=snippets", { snippets: snippets() }),
   // Двенадцатый шаблон — на второй странице таблицы; ссылка из «Материалов CRM» ведёт на него (`search.ts`: `#reply-snippet-<id>`).
-  "snippets-deep": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets({ items: fx.SNIPPETS_MANY }), hash: `#reply-snippet-${fx.id("99999999", 12)}` }),
-  "snippets-readonly": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets({ canManage: false }) }),
-  "snippets-empty": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets({ items: [] }) }),
-  "documents": base("documents", "/v3/knowledge", "section=documents", { files: files() }),
-  "documents-folder": base("documents", "/v3/knowledge", `section=documents&documentFolder=${fx.id("60000000", 1)}`, { files: files() }),
-  "documents-student": base("documents", "/v3/knowledge", `section=documents&documentFolder=student-${fx.id("dddddddd", 41)}`, { files: files() }),
+  "snippets-deep": base("snippets", "/knowledge", "section=snippets", { snippets: snippets({ items: fx.SNIPPETS_MANY }), hash: `#reply-snippet-${fx.id("99999999", 12)}` }),
+  "snippets-readonly": base("snippets", "/knowledge", "section=snippets", { snippets: snippets({ canManage: false }) }),
+  "snippets-empty": base("snippets", "/knowledge", "section=snippets", { snippets: snippets({ items: [] }) }),
+  "documents": base("documents", "/knowledge", "section=documents", { files: files() }),
+  "documents-folder": base("documents", "/knowledge", `section=documents&documentFolder=${fx.id("60000000", 1)}`, { files: files() }),
+  "documents-student": base("documents", "/knowledge", `section=documents&documentFolder=student-${fx.id("dddddddd", 41)}`, { files: files() }),
   // После сохранения страница читает заново и присылает новые request_id создания (как `KnowledgeDocuments` с `randomUUID()`).
-  "documents-refresh": base("documents", "/v3/knowledge", `section=documents&documentFolder=${fx.id("60000000", 1)}`, { files: files(), refreshIds: true }),
-  "documents-readonly": base("documents", "/v3/knowledge", "section=documents", { files: files({ canManage: false, canUpload: false }) }),
+  "documents-refresh": base("documents", "/knowledge", `section=documents&documentFolder=${fx.id("60000000", 1)}`, { files: files(), refreshIds: true }),
+  "documents-readonly": base("documents", "/knowledge", "section=documents", { files: files({ canManage: false, canUpload: false }) }),
   "knowledge-folder": kb("area=internal&folder=@bjdocs"),
   "knowledge-root": kb("area=internal"),
   "knowledge-clients": kb("area=clients"),
   "knowledge-item": kb("area=internal&folder=@bjdocs&item=@editor"),
   "knowledge-loading": kb("area=internal", { hang: true }),
-  "chat": base("chat", "/v3/team-chat", "channel=general", { chat: chat() }),
-  "chat-channels": base("chat", "/v3/team-chat", "", { chat: chat({ showChannelsInitially: true }) }),
-  "chat-failure": base("chat", "/v3/team-chat", "channel=general", { chat: chat(), failure: { text: "Не удалось загрузить канал. Проверьте связь и повторите.", retryHref: "/v3/team-chat?channel=general" } }),
+  "chat": base("chat", "/team-chat", "channel=general", { chat: chat() }),
+  "chat-channels": base("chat", "/team-chat", "", { chat: chat({ showChannelsInitially: true }) }),
+  "chat-failure": base("chat", "/team-chat", "channel=general", { chat: chat(), failure: { text: "Не удалось загрузить канал. Проверьте связь и повторите.", retryHref: "/team-chat?channel=general" } }),
 };
 
 // Прежний вид на тех же данных: снимки «до» (только снимки, проверок нового вида у них нет).

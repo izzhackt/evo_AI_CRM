@@ -13,7 +13,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
-import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
+import { CaseHelpWorkspace } from "@/components/staff/profile/CaseHelpWorkspace";
 
 export const dynamic = "force-dynamic";
 

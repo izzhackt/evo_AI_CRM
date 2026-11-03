@@ -92,13 +92,13 @@ test("the staff queue source pins the migration-197 contract", () => {
 });
 
 test("the requests screen keeps consultations as a tab and their command", () => {
-  const page = source("src/app/(v3)/v3/requests/page.tsx");
+  const page = source("src/app/(staff)/requests/page.tsx");
   // Э3 (27.09): вкладка «Консультации» очереди разбора вместо обведённого чипа.
   assert.match(source("src/lib/v3/requests-view.ts"), /portal_consultation: "Консультации"/u);
   // CRM-03 keeps the command while consultations join «Все»; the details and
   // «Обработано» live in the right panel of the queue.
   assert.match(page, /loadScopedRequestsQueue/u);
-  assert.match(source("src/components/v3/requests/RequestsQueueView.tsx"),
+  assert.match(source("src/components/staff/requests/RequestsQueueView.tsx"),
     /<PortalConsultationDetails row=\{row.consultation\} readOnly=\{props.readOnly\} refreshHref=\{listHref\}/u);
 });
 

@@ -20,7 +20,7 @@
  *     → stdout: JSON [{ name, html }] — разметка страницы без оболочки
  *       (для tests/v3-today-queue.test.mjs).
  *   node tests/e2e/today-static-render.cjs --screenshots [outDir]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844, Admin ещё 320 (reflow), во весь рост и
  *       фокус клавиатуры на строке «Сегодня» и на строке задачи (1440 и 390);
@@ -89,7 +89,7 @@ const { readTodayQueue, todayLinks, TodaySourceDenied } = require(join(ROOT, "sr
 const { staffCan } = require(join(ROOT, "src/lib/platform-access.ts"));
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const { buildTodayQueue } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
-const { TodayNextPage } = require(join(ROOT, "src/components/v3/today-next/TodayNextPage.tsx"));
+const { TodayNextPage } = require(join(ROOT, "src/components/staff/today-next/TodayNextPage.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сейчас» — суббота 26.09.2026, 10:00 по Бишкеку (04:00 UTC).
@@ -162,7 +162,7 @@ function lead(n, fields) {
   return {
     id: leadId(n), name: fields.name, stageKey: fields.stage ?? "contacting", source: fields.source ?? "website",
     nextAction: fields.action ?? null, nextActionAt: dueDate ? `${dueDate.slice(8)}.${dueDate.slice(5, 7)}` : null, due,
-    stageAgeDays: fields.stage === "handed_off" ? null : fields.age ?? 2, latestNote: null, href: `/v3/profile?id=${leadId(n)}`,
+    stageAgeDays: fields.stage === "handed_off" ? null : fields.age ?? 2, latestNote: null, href: `/profile?id=${leadId(n)}`,
     workflow: {
       leadId: leadId(n), currentOwnerMembershipId: owner, currentOwnerDisplayName: owner ? NAMES[owner] : null,
       stageKey: fields.stage === "handed_off" ? "qualified" : fields.stage ?? "contacting",
@@ -300,7 +300,7 @@ function withContexts(node, search = "") {
     { value: routerStub },
     createElement(
       PathnameContext.Provider,
-      { value: "/v3/main" },
+      { value: "/main" },
       createElement(
         SearchParamsContext.Provider,
         { value: new URLSearchParams(search) },
@@ -392,8 +392,8 @@ function stubSalesRegister() {
     async readLeadHandoffStrip() { return { status: "unavailable" }; },
   });
   // Формы и просмотр записи в виде списка не рисуются; их серверные действия рендеру не нужны.
-  stubModule("src/components/v3/SalesRegisterForms.tsx", { SalesRegisterForm: () => null, SalesTargetForm: () => null });
-  stubModule("src/components/v3/SalesRecordPreview.tsx", {
+  stubModule("src/components/staff/SalesRegisterForms.tsx", { SalesRegisterForm: () => null, SalesTargetForm: () => null });
+  stubModule("src/components/staff/SalesRecordPreview.tsx", {
     SalesRecordPreview: () => null,
     // Шапка боковой панели записи (Э7): запись здесь не открывается, но отчёт импортирует функцию.
     salesRecordPanelHeader: () => ({ title: "Запись продажи", context: null, open: null }),
@@ -403,8 +403,8 @@ function stubSalesRegister() {
 async function buildReport(report) {
   const { open, leadsOnly } = report;
   stubSalesRegister();
-  const { SalesDynamicsReport, SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
-  const { SalesDynamics } = require(join(ROOT, "src/components/v3/SalesDynamics.tsx"));
+  const { SalesDynamicsReport, SalesRegisterView } = require(join(ROOT, "src/components/staff/SalesRegisterView.tsx"));
+  const { SalesDynamics } = require(join(ROOT, "src/components/staff/SalesDynamics.tsx"));
   const { salesBoardFunnel } = require(join(ROOT, "src/lib/v3/sales-board-funnel.ts"));
   const { salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
   const { FUNNEL_STEP, leadStage } = require(join(ROOT, "src/lib/v3/wording.ts"));
@@ -425,7 +425,7 @@ async function buildReport(report) {
     choices: periods.map(([key, label]) => ({ key, title: label, href: salesDynamicsHref(query, { key }), active: key === (open ? "week" : "month") })),
     range: null,
     periodText: "20 сен — 26 сен",
-    formAction: "/v3/main#sales-dynamics",
+    formAction: "/main#sales-dynamics",
     carry: salesDynamicsCarry(query),
     retryHref: salesDynamicsHref(query, { key: "week" }),
     read: {
@@ -466,11 +466,11 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 async function renderFullPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const report = REPORTS[name];
   const { who, node } = { who: report.leadsOnly ? ACTORS.admissions : ACTORS.sales, node: await buildReport(report) };
   const page = createElement(
@@ -478,12 +478,12 @@ async function renderFullPage(name) {
     { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: who, initialNotifications: null }, node),
   );
-  // Отчёт — `/v3/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
+  // Отчёт — `/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
   return renderToStaticMarkup(withContexts(page, reportSearch(report)));
 }
 
 async function renderNextFullPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const { who, node } = await buildNextPage(name);
   const page = createElement(
     "div",
@@ -631,7 +631,7 @@ async function pageJson() {
   const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
   const todaySource = require(join(ROOT, "src/lib/v3/today-source.ts"));
   const original = todaySource.readTodayQueue.harnessOriginal ?? todaySource.readTodayQueue;
-  const { default: MainPart } = require(join(ROOT, "src/app/(v3)/v3/main/page.tsx"));
+  const { default: MainPart } = require(join(ROOT, "src/app/(staff)/main/page.tsx"));
   const RealDate = Date;
   globalThis.Date = class extends RealDate {
     constructor(...args) { if (args.length) super(...args); else super(NOW.getTime()); }

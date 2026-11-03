@@ -4,8 +4,8 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
 
-import { calendarUndatedOpenCount } from "../src/components/v3/calendar/types.ts";
-import { caseMessageNotificationCopy } from "../src/components/v3/staff-notification-copy.ts";
+import { calendarUndatedOpenCount } from "../src/components/staff/calendar/types.ts";
+import { caseMessageNotificationCopy } from "../src/components/staff/staff-notification-copy.ts";
 import { isBoardRoute, isFillRoute } from "../src/lib/v3/board-layout.ts";
 import {
   parsePipelineReturnTo,
@@ -78,7 +78,7 @@ test("settings: unconfigured providers, an unchecked check and a deliberately un
   // 20.10.2026: the Admin connects it himself — QR or a code by phone number, in the block under the table.
   assert.deepEqual(rows.whatsapp.action, {
     handoff: null,
-    link: { label: "Подключить WhatsApp", href: "/v3/settings?section=integrations#whatsapp-connect" },
+    link: { label: "Подключить WhatsApp", href: "/settings?section=integrations#whatsapp-connect" },
   });
   for (const key of ["gemini", "amocrm"]) {
     assert.equal(rows[key].state, "не используется", key);
@@ -111,7 +111,7 @@ test("settings: a configured but broken provider is the one warning, with its re
   // A session that waits for a scan is linked by the Admin himself (20.10.2026); the other server-side steps name who does them.
   assert.deepEqual(rows.whatsapp.action, {
     handoff: null,
-    link: { label: "Подключить WhatsApp", href: "/v3/settings?section=integrations#whatsapp-connect" },
+    link: { label: "Подключить WhatsApp", href: "/settings?section=integrations#whatsapp-connect" },
   });
   for (const key of ["amocrm", "gemini"]) {
     assert.deepEqual(rows[key].action, { handoff: "Передать техническому специалисту: исправить параметры на сервере", link: null }, key);
@@ -123,7 +123,7 @@ test("settings: a configured but broken provider is the one warning, with its re
     amo: { status: "ready" },
   }, NOW));
   assert.equal(unverified.whatsapp.state, "подключён");
-  assert.deepEqual(unverified.whatsapp.action, { handoff: null, link: { label: "Открыть WhatsApp", href: "/v3/inbox" } });
+  assert.deepEqual(unverified.whatsapp.action, { handoff: null, link: { label: "Открыть WhatsApp", href: "/inbox" } });
   assert.equal(unverified.gemini.action.handoff, "Передать техническому специалисту: проверить работу сервиса на сервере");
   assert.equal(unverified.amocrm.action.handoff, "Передать техническому специалисту: проверить синхронизацию на сервере");
   for (const row of [...Object.values(rows), ...Object.values(unverified)]) {
@@ -138,21 +138,21 @@ test("settings: a configured but broken provider is the one warning, with its re
 });
 
 test("settings: the warning above the sections exists only when work stops, and it has no side stripes", () => {
-  const { BlockingNotice } = compile("src/components/v3/settings-next/BlockingNotice.tsx", (id) => {
+  const { BlockingNotice } = compile("src/components/staff/settings-next/BlockingNotice.tsx", (id) => {
     if (id === "next/link") return { default: function Link() { return null; } };
     if (id === "@/components/ui/button") return { Button: function Button() { return null; } };
     if (id === "lucide-react") return { AlertTriangleIcon: function AlertTriangleIcon() { return null; } };
     return undefined;
   });
-  assert.equal(BlockingNotice({ rows: settingsIntegrations(PRODUCTION_26_09, NOW), href: "/v3/settings?section=integrations" }), null);
+  assert.equal(BlockingNotice({ rows: settingsIntegrations(PRODUCTION_26_09, NOW), href: "/settings?section=integrations" }), null);
   const blocked = settingsIntegrations({ ...PRODUCTION_26_09, amo: { status: "blocked", reason: "configuration_invalid" } }, NOW);
-  const banner = BlockingNotice({ rows: blocked, href: "/v3/settings?section=integrations" });
+  const banner = BlockingNotice({ rows: blocked, href: "/settings?section=integrations" });
   assert.match(textOf(banner), /Не работает: amoCRM — параметры подключения некорректны\./u);
-  assert.equal(findElements(banner, (node) => node.type?.name === "Link")[0].props.href, "/v3/settings?section=integrations");
+  assert.equal(findElements(banner, (node) => node.type?.name === "Link")[0].props.href, "/settings?section=integrations");
   // На самих «Интеграциях» то же предупреждение стоит в таблице: баннера над ней нет, на остальных разделах он есть.
-  assert.match(source("src/components/v3/settings-next/SettingsNextPage.tsx"), /props\.section === "integrations" \? null : <BlockingNotice rows=\{props\.integrations\} href=\{props\.integrationsHref\} \/>/u);
-  assert.doesNotMatch(source("src/components/v3/settings-next/BlockingNotice.tsx"), /v3-edge-|border-s-2|Требует внимания/u, "no side-stripe cards, no second attention list");
-  assert.doesNotMatch(source("src/components/v3/settings-next/SettingsNextPage.tsx"), /виден только администратору|>\s*админ\s*</u);
+  assert.match(source("src/components/staff/settings-next/SettingsNextPage.tsx"), /props\.section === "integrations" \? null : <BlockingNotice rows=\{props\.integrations\} href=\{props\.integrationsHref\} \/>/u);
+  assert.doesNotMatch(source("src/components/staff/settings-next/BlockingNotice.tsx"), /v3-edge-|border-s-2|Требует внимания/u, "no side-stripe cards, no second attention list");
+  assert.doesNotMatch(source("src/components/staff/settings-next/SettingsNextPage.tsx"), /виден только администратору|>\s*админ\s*</u);
 });
 
 test("settings journal: the type filter is hidden only when there is nothing to filter and nothing active — an active type keeps «Все»", () => {
@@ -183,7 +183,7 @@ test("settings: a working WhatsApp session with intake switched off says so plai
   assert.equal(off.blocksWork, false, "a staged setup is not an alarm");
   assert.deepEqual(off.action, {
     handoff: "Передать техническому специалисту: включить приём сообщений на сервере",
-    link: { label: "Открыть WhatsApp", href: "/v3/inbox" },
+    link: { label: "Открыть WhatsApp", href: "/inbox" },
   });
   // Switched on, or the fact not passed at all: «подключён» as before.
   for (const ingressEnabled of [true, undefined]) {
@@ -226,40 +226,40 @@ test("settings source reads the integrations once and tells an unchecked databas
   assert.match(settings, /checked: isPlatformP7BObservabilityEnabled\(\),/u);
   assert.match(settings, /return settingsIntegrations\(\{/u);
   assert.doesNotMatch(settings, /readHealth|settingsHealth/u);
-  const page = source("src/app/(v3)/v3/settings/page.tsx");
-  assert.match(page, /if \(params\.section === "state"\) redirect\("\/v3\/settings\?section=integrations"\);/u);
+  const page = source("src/app/(staff)/settings/page.tsx");
+  assert.match(page, /if \(params\.section === "state"\) redirect\("\/settings\?section=integrations"\);/u);
   assert.match(page, /const section = isSectionKey\(params\.section\) \? params\.section : "staff";/u, "settings open on «Сотрудники»");
 });
 
 /* ------------------------------------------------------------ WhatsApp */
 
 function inboxModule() {
-  return compile("src/components/v3/Inbox.tsx", (id) => {
+  return compile("src/components/staff/Inbox.tsx", (id) => {
     if (id === "next/link") return { default: function Link() { return null; } };
     if (id === "@/components/icons") return { Icon: () => null };
     if (id === "@/components/ui") return { btnGhostCls: "" };
-    if (id === "@/components/v3/inbox/InboxMessageMedia") return { InboxMessageMedia: () => null };
-    if (id === "@/components/v3/Pill") return { Pill: () => null };
-    if (id === "@/components/v3/blocks/StatusChip") return { StageChip: () => null };
-    if (id === "@/components/v3/inbox/InboxChat") return { InboxChat: () => null };
-    if (id === "@/components/v3/inbox/InboxListPulse") return { InboxListPulse: () => null };
-    if (id === "@/components/v3/queue/FilterMenu") return { FilterMenu: function FilterMenu() { return null; } };
-    if (id === "@/components/v3/queue/queue-buttons") return { QUEUE_SECONDARY: "" };
-    if (id === "@/components/v3/telephony/DialButton") return { DialButton: () => null };
+    if (id === "@/components/staff/inbox/InboxMessageMedia") return { InboxMessageMedia: () => null };
+    if (id === "@/components/staff/Pill") return { Pill: () => null };
+    if (id === "@/components/staff/blocks/StatusChip") return { StageChip: () => null };
+    if (id === "@/components/staff/inbox/InboxChat") return { InboxChat: () => null };
+    if (id === "@/components/staff/inbox/InboxListPulse") return { InboxListPulse: () => null };
+    if (id === "@/components/staff/queue/FilterMenu") return { FilterMenu: function FilterMenu() { return null; } };
+    if (id === "@/components/staff/queue/queue-buttons") return { QUEUE_SECONDARY: "" };
+    if (id === "@/components/staff/telephony/DialButton") return { DialButton: () => null };
     return undefined;
   });
 }
 
 const EMPTY_VIEW = Object.freeze({
-  conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-  searchQuery: null, sort: "newest", sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" },
+  conversations: [], selected: null, queueCurrentHref: "/inbox", queueNewestHref: null, queueOlderHref: null,
+  searchQuery: null, sort: "newest", sortHrefs: { newest: "/inbox", unanswered: "/inbox?sort=unanswered" },
   channelState: "not_connected", listPulse: null,
 });
 
 test("WhatsApp page (07.10.2026): a working channel says nothing; two chats ending in the same four digits read differently", () => {
   const { Inbox } = inboxModule();
   const row = (id, person, phone) => ({ id, person, phone, queue: "sales", status: "open", updatedAt: "07.10 12:40",
-    waitingSince: null, awaitingReplyFor: null, href: `/v3/inbox?conversation=${id}` });
+    waitingSince: null, awaitingReplyFor: null, href: `/inbox?conversation=${id}` });
   const rows = [row("a", "Айгуль", "+996 ••• 12 46 64"), row("b", "WhatsApp", "+996 ••• 90 46 64"), row("c", "Аружан Примерова", null)];
   const list = Inbox({ view: { ...EMPTY_VIEW, channelState: "ready", conversations: rows }, profileHref: null, settingsHref: null });
   assert.equal(findElements(list, (node) => node.props?.["data-testid"] === "v3-inbox-channel-status").length, 0,
@@ -302,7 +302,7 @@ test("WhatsApp page (07.10.2026): a working channel says nothing; two chats endi
 test("WhatsApp empty pane: «Все ответы даны» only for a healthy channel and a fully read list; a warned channel never claims a clean state", () => {
   const { Inbox } = inboxModule();
   const answered = { id: "a", person: "Айгуль", phone: null, queue: "sales", status: "open", updatedAt: "07.10 12:40",
-    waitingSince: null, awaitingReplyFor: null, href: "/v3/inbox?conversation=a" };
+    waitingSince: null, awaitingReplyFor: null, href: "/inbox?conversation=a" };
   const pane = (view) => textOf(findElements(Inbox({ view, profileHref: null, settingsHref: null }),
     (node) => node.props?.["data-testid"] === "v3-inbox-next")[0]);
   assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered] }), "Все ответы даны");
@@ -310,18 +310,18 @@ test("WhatsApp empty pane: «Все ответы даны» only for a healthy c
     assert.equal(pane({ ...EMPTY_VIEW, channelState: state, conversations: [answered] }), "Выберите диалог слева",
       `${state}: the pane does not reassure next to the channel warning`);
   }
-  assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered], queueOlderHref: "/v3/inbox?before=x" }),
+  assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered], queueOlderHref: "/inbox?before=x" }),
     "Выберите диалог слева", "another page may still hold waiting chats");
 });
 
 test("WhatsApp not connected: one honest state instead of «не подтверждено» and an empty list", () => {
   const { Inbox, inboxNotConnected } = inboxModule();
-  const admin = Inbox({ view: EMPTY_VIEW, profileHref: null, settingsHref: "/v3/settings?section=integrations" });
+  const admin = Inbox({ view: EMPTY_VIEW, profileHref: null, settingsHref: "/settings?section=integrations" });
   assert.equal(admin.props["data-testid"], "v3-inbox-not-connected");
   assert.match(textOf(admin), /^WhatsApp не подключён к CRM — подключает Администратор/u);
   assert.doesNotMatch(textOf(admin), /не подтверждено|Пока нет доступных диалогов|Найти/u);
   const [settings] = findElements(admin, (node) => node.type?.name === "Link");
-  assert.equal(settings.props.href, "/v3/settings?section=integrations");
+  assert.equal(settings.props.href, "/settings?section=integrations");
   assert.equal(textOf(settings), "Открыть настройки");
   assert.doesNotMatch(settings.props.className, /bg-accent/u, "a quiet link, not a second red action");
 
@@ -335,10 +335,10 @@ test("WhatsApp not connected: one honest state instead of «не подтвер�
   assert.equal(inboxNotConnected({ ...EMPTY_VIEW, sort: "unanswered" }), true);
   for (const view of [
     { ...EMPTY_VIEW, searchQuery: "Имя" },
-    { ...EMPTY_VIEW, queueNewestHref: "/v3/inbox" },
+    { ...EMPTY_VIEW, queueNewestHref: "/inbox" },
     { ...EMPTY_VIEW, channelState: "unknown" },
     { ...EMPTY_VIEW, channelState: "unavailable" },
-    { ...EMPTY_VIEW, conversations: [{ id: "c", person: "Абитуриент", href: "/v3/inbox?conversation=c" }] },
+    { ...EMPTY_VIEW, conversations: [{ id: "c", person: "Абитуриент", href: "/inbox?conversation=c" }] },
   ]) {
     assert.equal(inboxNotConnected(view), false, JSON.stringify(view));
     assert.equal(Inbox({ view, profileHref: null, settingsHref: null }).props["data-testid"], "v3-inbox");
@@ -346,8 +346,8 @@ test("WhatsApp not connected: one honest state instead of «не подтвер�
 });
 
 test("WhatsApp page: settings link only for Admin outside role preview, no count when there is nothing to count", () => {
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
-  assert.match(page, /const settingsHref = actor\.systemRole === "admin" && actor\.presentationRole === null\s*\? "\/v3\/settings\?section=integrations"\s*: null;/u);
+  const page = source("src/app/(staff)/inbox/page.tsx");
+  assert.match(page, /const settingsHref = actor\.systemRole === "admin" && actor\.presentationRole === null\s*\? "\/settings\?section=integrations"\s*: null;/u);
   assert.match(page, /count=\{notConnected \|\| paged \? null : view\.conversations\.length\}/u);
   const adapter = source("src/lib/v3/inbox-source.ts");
   // No session row is «not connected»; a failed read stays «unavailable».
@@ -356,22 +356,22 @@ test("WhatsApp page: settings link only for Admin outside role preview, no count
 });
 
 test("WhatsApp fills the window from the shell column instead of its own 100dvh", () => {
-  assert.equal(isFillRoute("/v3/inbox"), true);
-  assert.equal(isBoardRoute("/v3/inbox"), false, "no icon rail on WhatsApp");
-  for (const board of ["/v3/pipeline", "/v3/admissions-pipeline"]) assert.equal(isFillRoute(board), true);
-  for (const other of ["/v3/profile", "/v3/inbox/x", null]) assert.equal(isFillRoute(other), false);
+  assert.equal(isFillRoute("/inbox"), true);
+  assert.equal(isBoardRoute("/inbox"), false, "no icon rail on WhatsApp");
+  for (const board of ["/pipeline", "/admissions-pipeline"]) assert.equal(isFillRoute(board), true);
+  for (const other of ["/profile", "/inbox/x", null]) assert.equal(isFillRoute(other), false);
   // «Чат» ИИ-агента — чат во всю высоту окна, но только его вкладка, а не обзор и не хаб. С #1306 вкладка по умолчанию —
   // «Чат» (`command`), поэтому и адрес без `?tab=` — это чат.
-  assert.equal(isFillRoute("/v3/ai-agents/director", "command"), true);
-  assert.equal(isFillRoute("/v3/ai-agents/curator-cn", "command"), true);
-  assert.equal(isFillRoute("/v3/ai-agents/director", null), true, "без ?tab= страница агента открывается на «Чате»");
-  for (const [path, tab] of [["/v3/ai-agents/director", "runs"], ["/v3/ai-agents", "command"], ["/v3/ai-agents/director/x", "command"], ["/v3/profile", "command"]]) {
+  assert.equal(isFillRoute("/ai-agents/director", "command"), true);
+  assert.equal(isFillRoute("/ai-agents/curator-cn", "command"), true);
+  assert.equal(isFillRoute("/ai-agents/director", null), true, "без ?tab= страница агента открывается на «Чате»");
+  for (const [path, tab] of [["/ai-agents/director", "runs"], ["/ai-agents", "command"], ["/ai-agents/director/x", "command"], ["/profile", "command"]]) {
     assert.equal(isFillRoute(path, tab), false, `${path}?tab=${tab}`);
   }
-  const shell = source("src/components/v3/PartShell.tsx");
+  const shell = source("src/components/staff/PartShell.tsx");
   assert.doesNotMatch(shell, /h-dvh/u);
   assert.match(shell, /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  const app = source("src/components/v3/AppShell.tsx");
+  const app = source("src/components/staff/AppShell.tsx");
   assert.match(app, /fill && "md:flex md:h-dvh md:flex-col"/u);
   assert.match(app, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
   // Рейка 64 px — только у досок, не у WhatsApp (одна оболочка с Э1.5).
@@ -391,7 +391,7 @@ test("calendar «Без срока»: only open tasks, a lower bound with more p
   assert.equal(calendarUndatedOpenCount(tasks, false, true), "3+");
   assert.equal(calendarUndatedOpenCount([{ day: null, state: "done" }], false, true), null);
   assert.equal(calendarUndatedOpenCount(tasks, true, false), null);
-  const calendar = source("src/components/v3/calendar/Calendar.tsx");
+  const calendar = source("src/components/staff/calendar/Calendar.tsx");
   assert.match(calendar, /calendarUndatedOpenCount\(unscheduled, undatedContinuationPage, undatedNextHref !== null\)/u);
   assert.match(calendar, /undatedOpen === null \? "Без срока" : `Без срока — \$\{undatedOpen\}`/u);
   assert.doesNotMatch(calendar, /undatedCount/u, "the read's total counts closed tasks too");
@@ -404,25 +404,25 @@ const OWNER = "bbbbbbbb-2222-4222-8222-000000000002";
 
 test("lead card from the board panel returns to the same board state", () => {
   const board = pipelineReturnHref(new URLSearchParams(`q=Тимур&due=unscheduled&owner=${OWNER}&handed=all&lead=${LEAD}&evil=1&due=today`));
-  assert.equal(board, `/v3/pipeline?q=${encodeURIComponent("Тимур").replace(/%20/gu, "+")}&due=unscheduled&owner=${OWNER}&handed=all&lead=${LEAD}`);
-  assert.equal(pipelineReturnHref(null), "/v3/pipeline");
+  assert.equal(board, `/pipeline?q=${encodeURIComponent("Тимур").replace(/%20/gu, "+")}&due=unscheduled&owner=${OWNER}&handed=all&lead=${LEAD}`);
+  assert.equal(pipelineReturnHref(null), "/pipeline");
   assert.equal(parsePipelineReturnTo(board), board);
-  assert.equal(parsePipelineReturnTo("/v3/pipeline"), "/v3/pipeline");
-  assert.equal(parsePipelineReturnTo("/v3/pipeline?stage=handed_off"), "/v3/pipeline?stage=handed_off");
+  assert.equal(parsePipelineReturnTo("/pipeline"), "/pipeline");
+  assert.equal(parsePipelineReturnTo("/pipeline?stage=handed_off"), "/pipeline?stage=handed_off");
   for (const bad of [
-    "/v3/pipeline?evil=1", "/v3/pipeline?due=later", "/v3/pipeline?stage=nope", "/v3/pipeline?lead=x",
-    "/v3/pipeline?due=today&due=overdue", "/v3/pipeline?owner=", "/v3/pipeline#x", "/v3/pipelines",
-    "/v3/profile?id=1", "https://evil.example/v3/pipeline", "//evil.example/v3/pipeline", `/v3/pipeline?q=${"я".repeat(201)}`, 42, null,
+    "/pipeline?evil=1", "/pipeline?due=later", "/pipeline?stage=nope", "/pipeline?lead=x",
+    "/pipeline?due=today&due=overdue", "/pipeline?owner=", "/pipeline#x", "/v3/pipelines",
+    "/profile?id=1", "https://evil.example/pipeline", "//evil.example/v3/pipeline", `/pipeline?q=${"я".repeat(201)}`, 42, null,
   ]) {
     assert.equal(parsePipelineReturnTo(bad), null, String(bad));
   }
-  assert.equal(withPipelineReturn(`/v3/profile?id=${LEAD}`, board), `/v3/profile?id=${LEAD}&returnTo=${encodeURIComponent(board)}`);
+  assert.equal(withPipelineReturn(`/profile?id=${LEAD}`, board), `/profile?id=${LEAD}&returnTo=${encodeURIComponent(board)}`);
 
-  const pipeline = source("src/components/v3/Pipeline.tsx");
+  const pipeline = source("src/components/staff/Pipeline.tsx");
   // Э7: «Открыть карточку лида» — ссылка шапки общей боковой панели (`SidePanel`).
   assert.match(pipeline, /open=\{\{ href: withPipelineReturn\(lead\.href, returnTo\), label: "Открыть карточку лида", prefetch: false \}\}/u);
   assert.match(pipeline, /returnTo=\{pipelineReturnHref\(search\)\}/u);
-  const profile = source("src/app/(v3)/v3/profile/page.tsx");
+  const profile = source("src/app/(staff)/profile/page.tsx");
   assert.match(profile, /const pipelineReturnTo = requestsReturnTo \|\| studentsReturnTo \? null : parsePipelineReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);
   assert.match(profile, /const listReturnTo = requestsReturnTo \?\? studentsReturnTo \?\? pipelineReturnTo;/u);
   // A lead opened without a return address goes back to the board it lives on.
@@ -430,7 +430,7 @@ test("lead card from the board panel returns to the same board state", () => {
   assert.match(profile, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);
   assert.match(profile, /href=\{requestsReturnTo \?\? pipelineBackHref \?\? directoryHref\}/u);
   // The English «Sales» card title is gone.
-  const tabs = source("src/components/v3/profile/tabs.tsx");
+  const tabs = source("src/components/staff/profile/tabs.tsx");
   assert.doesNotMatch(tabs, /title="Sales"/u);
   assert.match(tabs, /title="Продажи"/u);
 });
@@ -444,14 +444,14 @@ test("a case message notification does not repeat the author as the case", () =>
   assert.equal(caseMessageNotificationCopy("Куратор Первый", "Абитуриент Тестов"), "Куратор Первый: новое сообщение в переписке · Абитуриент Тестов");
   assert.equal(caseMessageNotificationCopy(null, "Абитуриент Тестов"), "Новое сообщение в переписке по делу");
   assert.equal(caseMessageNotificationCopy("Куратор Первый", null), "Новое сообщение в переписке по делу");
-  assert.match(source("src/components/v3/StaffNotifications.tsx"), /return caseMessageNotificationCopy\(item\.actorDisplayName, item\.studentDisplayName\);/u);
+  assert.match(source("src/components/staff/StaffNotifications.tsx"), /return caseMessageNotificationCopy\(item\.actorDisplayName, item\.studentDisplayName\);/u);
 });
 
 test("placeholders say what is missing: an unconfirmed deadline, an unknown country", () => {
-  const catalogue = source("src/components/v3/universities/UniversityCatalogue.tsx");
+  const catalogue = source("src/components/staff/universities/UniversityCatalogue.tsx");
   assert.match(catalogue, />Срок не подтверждён<\/p>/u);
   assert.doesNotMatch(catalogue, /Сроки подачи — в карточке/u);
-  for (const file of ["src/components/v3/students/StudentsQueueTable.tsx", "src/components/v3/students/StudentsDirectoryFallback.tsx"]) {
+  for (const file of ["src/components/staff/students/StudentsQueueTable.tsx", "src/components/staff/students/StudentsDirectoryFallback.tsx"]) {
     const text = source(file);
     assert.match(text, /row\.targetCountry \?\? "Страна не указана"/u, file);
     assert.doesNotMatch(text, /"не указано"/u, file);

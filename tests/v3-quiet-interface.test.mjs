@@ -22,7 +22,7 @@ const REMOVED_PHRASES = [
   "Откройте переписку из списка слева",
 ];
 
-const SCAN_ROOTS = ["src/components/v3", "src/app/(v3)"];
+const SCAN_ROOTS = ["src/components/staff", "src/app/(staff)"];
 const SKIP_DIRECTORIES = new Set(["portal"]);
 
 function collectSourceFiles(root) {

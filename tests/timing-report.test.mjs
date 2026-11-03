@@ -89,12 +89,12 @@ test("filters by kind and minimum count, and splits by release on request", () =
 });
 
 test("the text report names the coverage, the table has one row per group, and no field of a person appears", () => {
-  const { records } = parseTimingLines([line(), line({ class: "v3/profile/[caseId]", kind: "nav", ts: "2026-10-19T10:00:00Z" })].join("\n"));
+  const { records } = parseTimingLines([line(), line({ class: "profile/[caseId]", kind: "nav", ts: "2026-10-19T10:00:00Z" })].join("\n"));
   const text = formatReport(summarize(records));
   assert.match(text, /Запросов: 2/);
   assert.match(text, /Охват: 2026-10-19T08:00:00.000Z \.\. 2026-10-19T10:00:00.000Z \(2.00 ч\)/);
   assert.match(text, /portal\/home\s+page\s+1\s+0\s+100/);
-  assert.match(text, /v3\/profile\/\[caseId\]\s+nav/);
+  assert.match(text, /profile\/\[caseId\]\s+nav/);
 });
 
 test("the command reads stdin and exits non-zero when there are no records", () => {

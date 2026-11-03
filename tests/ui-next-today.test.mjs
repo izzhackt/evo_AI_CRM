@@ -1,4 +1,4 @@
-// «Новый вид» (решение владельца 27.10.2026), поток «today»: «Сегодня» (`/v3/main`) и «Заявки» (`/v3/requests`).
+// «Новый вид» (решение владельца 27.10.2026), поток «today»: «Сегодня» (`/main`) и «Заявки» (`/requests`).
 // Проверяется то, что обещано: новый вид выбирает переключатель и только настоящий администратор, прежний вид у
 // сотрудников и в просмотре роли — байт в байт тот же; данные, права, request_id и действия в новом виде те же, что в
 // прежнем; плитки честны («—» вместо выдуманного числа); экраны собраны из виджетов набора и короткими файлами.
@@ -29,13 +29,13 @@ const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").r
 /** Плитки и карточки виджетов нового вида (у прежнего вида тот же `id="today-band-…"` стоит на заголовке группы). */
 const WIDGETS = /data-slot="stat-tile"|data-slot="card"[^>]*id="today-band-/u;
 const NEW_FILES = [
-  "src/components/v3/today-next/TodayNext.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today-next/TodayBandWidget.tsx",
-  "src/components/v3/today-next/TodayTiles.tsx",
-  "src/components/v3/requests-next/RequestsNextView.tsx", "src/components/v3/requests-next/RequestsNextTable.tsx",
-  "src/components/v3/requests-next/RequestSheetBody.tsx", "src/components/v3/requests-next/requests-next-rows.tsx",
-  "src/components/v3/requests-next/RequestsNextEmpty.tsx",
-  "src/components/v3/today-next/TodayNextPage.tsx", "src/components/v3/today-next/TodayNextLazy.tsx",
-  "src/components/v3/requests-next/RequestsNextPage.tsx", "src/components/v3/requests-next/RequestsNextLazy.tsx",
+  "src/components/staff/today-next/TodayNext.tsx", "src/components/staff/today-next/TodayDashboard.tsx", "src/components/staff/today-next/TodayBandWidget.tsx",
+  "src/components/staff/today-next/TodayTiles.tsx",
+  "src/components/staff/requests-next/RequestsNextView.tsx", "src/components/staff/requests-next/RequestsNextTable.tsx",
+  "src/components/staff/requests-next/RequestSheetBody.tsx", "src/components/staff/requests-next/requests-next-rows.tsx",
+  "src/components/staff/requests-next/RequestsNextEmpty.tsx",
+  "src/components/staff/today-next/TodayNextPage.tsx", "src/components/staff/today-next/TodayNextLazy.tsx",
+  "src/components/staff/requests-next/RequestsNextPage.tsx", "src/components/staff/requests-next/RequestsNextLazy.tsx",
 ];
 
 /* ---------------------------------------------------------------- выбор вида: переключатель и только администратор */
@@ -97,7 +97,7 @@ test("«Заявки»: пустая очередь, сбой чтения и н
   assert.match(empty, /Последняя пришла вчера в 19:05\./u);
   assert.match(empty, /Показать все/u);
   assert.doesNotMatch(empty, /Сюда приходят/u, "пояснение не стоит на экране");
-  const page = read("src/app/(v3)/v3/requests/page.tsx");
+  const page = read("src/app/(staff)/requests/page.tsx");
   assert.match(page, /requestEmptyWhat\(read\.queue, selection\.source\)/u, "и теперь живёт в справке шапки");
   const error = nextRequests.get("next-error");
   assert.match(error, /role="alert"/u);
@@ -167,36 +167,36 @@ test("новые файлы короче 150 строк, собраны из н�
     assert.doesNotMatch(source, /text-fg\/\d|bg-[a-z-]+\/\d|opacity-/u, `${file}: без прозрачности`);
     assert.doesNotMatch(source, /dark:/u, `${file}: CRM только светлая`);
   }
-  assert.match(read("src/components/v3/today-next/TodayBandWidget.tsx"), /WidgetCard/u);
-  assert.match(read("src/components/v3/today-next/TodayTiles.tsx"), /StatTile/u);
-  assert.match(read("src/components/v3/requests-next/RequestsNextTable.tsx"), /DataTable[\s\S]*DetailSheet/u);
-  assert.match(read("src/components/v3/requests-next/RequestsNextView.tsx"), /SectionTabs/u);
-  assert.match(read("src/components/v3/requests-next/RequestsNextTable.tsx"), /^"use client";/u);
-  assert.match(read("src/components/v3/today-next/TodayDashboard.tsx"), /^"use client";/u);
+  assert.match(read("src/components/staff/today-next/TodayBandWidget.tsx"), /WidgetCard/u);
+  assert.match(read("src/components/staff/today-next/TodayTiles.tsx"), /StatTile/u);
+  assert.match(read("src/components/staff/requests-next/RequestsNextTable.tsx"), /DataTable[\s\S]*DetailSheet/u);
+  assert.match(read("src/components/staff/requests-next/RequestsNextView.tsx"), /SectionTabs/u);
+  assert.match(read("src/components/staff/requests-next/RequestsNextTable.tsx"), /^"use client";/u);
+  assert.match(read("src/components/staff/today-next/TodayDashboard.tsx"), /^"use client";/u);
 });
 
 test("страницы всегда рисуют новый вид (#1327), читают и проверяют права как прежде", () => {
-  const main = read("src/app/(v3)/v3/main/page.tsx");
+  const main = read("src/app/(staff)/main/page.tsx");
   assert.doesNotMatch(main, /isNextUi/u);
   // Новый вид подгружается лениво и не импортируется статически.
   assert.match(main, /return <TodayNextLazy queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
-  assert.doesNotMatch(main, /from "@\/components\/v3\/today-next\/Today(Next|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
+  assert.doesNotMatch(main, /from "@\/components\/staff\/today-next\/Today(Next|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
   assert.doesNotMatch(main, /<PartShell|<TodayScreen/u, "прежнего вида нет");
   assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "чтения прежние");
-  const requests = read("src/app/(v3)/v3/requests/page.tsx");
+  const requests = read("src/app/(staff)/requests/page.tsx");
   assert.doesNotMatch(requests, /isNextUi/u);
   assert.match(requests, /return \(\s*<ManualLeadDisclosure>\s*<RequestsNextLazy/u);
   assert.match(requests, /return <RequestsNextInvalidLazy \/>;/u);
-  assert.doesNotMatch(requests, /from "@\/components\/v3\/requests-next\/RequestsNext(View|Page)"|from "@\/components\/kit"/u, "очередь нового вида в первую загрузку страницы не входит");
+  assert.doesNotMatch(requests, /from "@\/components\/staff\/requests-next\/RequestsNext(View|Page)"|from "@\/components\/kit"/u, "очередь нового вида в первую загрузку страницы не входит");
   assert.doesNotMatch(requests, /<PartShell|<RequestsQueueView/u, "прежнего вида нет");
   assert.match(requests, /const \[read, owners, dial\] = await Promise\.all\(\[/u, "чтения прежние");
 });
 
 test("ленивые входы нового вида: «use client» и подгрузка настоящего вида, свойства страницы доходят целиком", () => {
-  const today = read("src/components/v3/today-next/TodayNextLazy.tsx");
+  const today = read("src/components/staff/today-next/TodayNextLazy.tsx");
   assert.match(today, /^"use client";/u);
   assert.match(today, /dynamic\(\(\) => import\("\.\/TodayNextPage"\)\.then\(\(module\) => module\.TodayNextPage\)\.catch\(onScreenLoadFailed\)\)/u);
-  const requests = read("src/components/v3/requests-next/RequestsNextLazy.tsx");
+  const requests = read("src/components/staff/requests-next/RequestsNextLazy.tsx");
   assert.match(requests, /^"use client";/u);
   assert.match(requests, /import\("\.\/RequestsNextPage"\)\.then\(\(module\) => module\.RequestsNextPage\)/u);
   assert.match(requests, /import\("\.\/RequestsNextPage"\)\.then\(\(module\) => module\.RequestsNextInvalid\)/u);
@@ -210,7 +210,7 @@ test("список карточек телефона занимает одну �
 });
 
 test("панель заявки открывается адресом, а закрытие и открытие идут сразу (состояние нажатой строки)", () => {
-  const table = read("src/components/v3/requests-next/RequestsNextTable.tsx");
+  const table = read("src/components/staff/requests-next/RequestsNextTable.tsx");
   assert.match(table, /router\.push\(href, \{ scroll: false \}\)/u);
   assert.match(table, /requestsHref|openHref/u);
   assert.match(table, /onOpenChange=\{\(next\) => \{ if \(!next\) go\(null, listHref\); \}\}/u);
@@ -226,8 +226,8 @@ test("«Заявки»: страницы ведёт сервер — у табл
     assert.doesNotMatch(text(html), /\d+–\d+ из \d+/u, `${name}: «1–N из N» по загруженным строкам не пишется`);
     assert.doesNotMatch(html, /aria-label="Строк на странице"/u, name);
   }
-  assert.match(read("src/components/v3/requests-next/RequestsNextTable.tsx"), /paginate=\{false\}/u);
-  assert.doesNotMatch(read("src/components/v3/requests-next/RequestsNextTable.tsx"), /pageSize=/u);
+  assert.match(read("src/components/staff/requests-next/RequestsNextTable.tsx"), /paginate=\{false\}/u);
+  assert.doesNotMatch(read("src/components/staff/requests-next/RequestsNextTable.tsx"), /pageSize=/u);
   // Набор: без `paginate` таблица листает сама, как раньше (страница «Новый вид: набор виджетов»).
   assert.match(read("src/components/kit/DataTable.tsx"), /paginate = true/u);
   assert.match(read("src/components/kit/DataTable.tsx"), /loading \|\| !paginate \? null/u);
@@ -255,5 +255,5 @@ test("«Сегодня»: клавиатура очереди ↑/↓ — по �
   assert.match(admin, /md:grid-cols-\[repeat\(auto-fit,minmax\(11rem,1fr\)\)\]/u);
   for (const name of ["next-empty", "next-empty-admissions"]) assert.doesNotMatch(nextToday.get(name), /data-testid="today-tiles"/u, `${name}: плиток нет`);
   assert.match(text(nextToday.get("next-empty")), /Ближайший срок — чт 01\.10/u, "срок назван один раз, в панели");
-  assert.match(read("src/components/v3/today-next/TodayBandWidget.tsx"), /stacked/u);
+  assert.match(read("src/components/staff/today-next/TodayBandWidget.tsx"), /stacked/u);
 });

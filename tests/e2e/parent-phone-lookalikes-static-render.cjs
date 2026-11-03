@@ -51,7 +51,7 @@ require.cache[sourcePath] = { id: sourcePath, filename: sourcePath, loaded: true
 
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { ParentPhoneLookalikesView } = require(join(ROOT, "src/components/v3/profile/ParentPhoneLookalikes.tsx"));
+const { ParentPhoneLookalikesView } = require(join(ROOT, "src/components/staff/profile/ParentPhoneLookalikes.tsx"));
 
 const ID = (n) => `30600000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const AIDAI = { studentCaseId: ID(1), studentName: "Айдай Условная", relation: "mother" };

@@ -25,7 +25,7 @@ const read = (path) => readFileSync(new URL(path, root), "utf8");
 const AI_FOLDER = "ИИ-ассистент";
 
 test("the import structure never creates the «ИИ-ассистент» folder", () => {
-  const source = read("src/components/v3/knowledge/import-structure.ts");
+  const source = read("src/components/staff/knowledge/import-structure.ts");
   const list = source.match(/const paths = (\[[\s\S]*?\]);/u);
   assert.ok(list, "prepareKnowledgeStructure keeps one literal folder list");
   const paths = JSON.parse(list[1].replace(/,\s*\]$/u, "]"));

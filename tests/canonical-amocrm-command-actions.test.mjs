@@ -245,8 +245,8 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
     },
   ]);
   assert.deepEqual(harness.revalidated, [
-    "/v3/profile",
-    "/v3/inbox",
+    "/profile",
+    "/inbox",
   ]);
   assert.deepEqual(result, harness.result);
 });
@@ -280,8 +280,8 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
     },
   });
   assert.deepEqual(harness.revalidated, [
-    "/v3/profile",
-    "/v3/inbox",
+    "/profile",
+    "/inbox",
   ]);
 });
 
@@ -430,8 +430,8 @@ test("read-only reconciliation selects the workflow guard and exact path without
     },
   ]);
   assert.deepEqual(harness.revalidated, [
-    "/v3/profile",
-    "/v3/inbox",
+    "/profile",
+    "/inbox",
   ]);
   assert.deepEqual(result, harness.result);
 });
@@ -470,8 +470,8 @@ test("prepared-attempt release uses the workflow guard and never enters the prov
     },
   ]);
   assert.deepEqual(harness.revalidated, [
-    "/v3/profile",
-    "/v3/inbox",
+    "/profile",
+    "/inbox",
   ]);
   assert.deepEqual(result, harness.result);
 });

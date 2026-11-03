@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * НАСТОЯЩАЯ страница `/v3/profile` (`src/app/(v3)/v3/profile/page.tsx`) для вкладок «Нового вида»: администратор, сотрудник и
+ * НАСТОЯЩАЯ страница `/profile` (`src/app/(staff)/profile/page.tsx`) для вкладок «Нового вида»: администратор, сотрудник и
  * администратор в просмотре роли. Переключателя больше нет; имена режимов «cookie» / «no-cookie» прежние (их читают тесты) и дают один вид.
  * Границы сервера (вход, чтения источников) заменены данными сценария; всё остальное - настоящий код страницы,
  * `caseWorkParts`/`caseNextParts`, `Profile`, вкладки. Асинхронные вкладки (`Documents`, `UniversityProgramsTab`, `CaseAgreement*`) заменены тем же
@@ -50,11 +50,11 @@ async function pageHtml({ fx, leads, scenarios, prepare }) {
   stub("@/lib/v3/telephony-lead-calls-source", { readLeadCalls: async () => null }, true);
   stub("@/lib/v3/telephony-dial-source", { readDialOptions: async () => ({ status: "off" }) }, true);
   stub("@/lib/server/platform-staff-task-repository", { readLeadTaskLinks: async () => ({ rows: [], truncated: false }) }, true);
-  for (const [spec, name] of [["@/components/v3/profile/ParentPhoneLookalikes", "ParentPhoneLookalikes"], ["@/components/v3/profile/CaseHelpWorkspace", "CaseHelpWorkspace"],
-    ["@/components/v3/profile/next/CaseHelpCardWorkspace", "CaseHelpCardWorkspace"], ["@/components/v3/profile/LeadChannelFact", "LeadChannelFact"],
-    ["@/components/v3/profile/LeadInterestFact", "LeadInterestFact"], ["@/components/v3/profile/WebsiteLeadSubmissions", "WebsiteLeadSubmissions"]]) stub(spec, { [name]: nothing }, true);
-  stub("@/components/v3/students/StudentsQueueScreen", { buildStudentsQueueScreen: async () => ({ content: null, count: null }) }, true);
-  const page = require(Module._resolveFilename("@/app/(v3)/v3/profile/page", module)).default;
+  for (const [spec, name] of [["@/components/staff/profile/ParentPhoneLookalikes", "ParentPhoneLookalikes"], ["@/components/staff/profile/CaseHelpWorkspace", "CaseHelpWorkspace"],
+    ["@/components/staff/profile/next/CaseHelpCardWorkspace", "CaseHelpCardWorkspace"], ["@/components/staff/profile/LeadChannelFact", "LeadChannelFact"],
+    ["@/components/staff/profile/LeadInterestFact", "LeadInterestFact"], ["@/components/staff/profile/WebsiteLeadSubmissions", "WebsiteLeadSubmissions"]]) stub(spec, { [name]: nothing }, true);
+  stub("@/components/staff/students/StudentsQueueScreen", { buildStudentsQueueScreen: async () => ({ content: null, count: null }) }, true);
+  const page = require(Module._resolveFilename("@/app/(staff)/profile/page", module)).default;
 
   const actors = { admin: cases.ADMIN, staff: { ...cases.CURATOR, permissionKeys: [...cases.CURATOR.permissionKeys, "document.upload", "document.manage"] }, preview: { ...cases.ADMIN, presentationRole: "admissions", permissionKeys: [] } };
   const out = [];
@@ -69,7 +69,7 @@ async function pageHtml({ fx, leads, scenarios, prepare }) {
       const params = scenario.closed ? { id: cases.LEAD_ID } : { case: cases.CASE_ID, tab: scenario.def.tab, ...(scenario.def.filter ? { doc_state: scenario.def.filter } : {}) };
       const element = await page({ searchParams: Promise.resolve(params) });
       // Страница выдаёт случайные ключи запросов форм (`randomUUID`): в разметке они заменены, остальное сравнивается как есть.
-      const html = renderToStaticMarkup(leads.withContexts(element, "/v3/profile", new URLSearchParams(params).toString()));
+      const html = renderToStaticMarkup(leads.withContexts(element, "/profile", new URLSearchParams(params).toString()));
       out.push({ name: `${scenario.name}:${mode}`, html: html.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/giu, "UUID") });
     }
   }

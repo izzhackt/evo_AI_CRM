@@ -239,10 +239,10 @@ test("the read-only line is one short sentence, shared by the chat, the table an
   assert.equal(REPLY_ACCESS_COPY.receive_only, WAZZUP_READ_ONLY_LINE);
   assert.ok(WAZZUP_READ_ONLY_LINE.length <= 60);
   // Поле ответа есть только при allowed/attention: receive_only показывает строку (data-reason), а не поле.
-  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  const chat = read("src/components/staff/inbox/InboxChat.tsx");
   assert.match(chat, /const canSend = chat\.replyAccess === "allowed" \|\| chat\.replyAccess === "attention";/u);
   assert.match(chat, /data-reason=\{chat\.replyAccess\}/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const canReply = selected\.chat\.replyAccess === "allowed" \|\| selected\.chat\.replyAccess === "attention";/u);
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /const canReply = selected\.chat\.replyAccess === "allowed" \|\| selected\.chat\.replyAccess === "attention";/u);
   // Отказ при гонке (путь переключили, пока сотрудник писал) прежний: текст остаётся в поле.
   assert.match(SEND_REFUSAL_COPY.receive_only, /Текст остался в поле/u);
 });
@@ -324,8 +324,8 @@ test("a stale WORKING row (key revoked, API down or the timer stopped - nothing 
   assert.equal(wazzupInboxChannelState(wazzupTransport("active"), true, STALE_NOW), "unknown");
   assert.equal(wazzupInboxChannelState(wazzupTransport("active"), false, STALE_NOW), "unknown", "unconfirmed outranks the stopped intake");
   assert.equal(wazzupInboxChannelState(wazzupTransport("qr"), true, STALE_NOW), "attention", "trouble stays trouble");
-  assert.match(read("src/components/v3/Inbox.tsx"), /return "Состояние WhatsApp не подтверждено";/u, "the banner for `unknown` says it");
-  assert.match(read("src/components/v3/Inbox.tsx"), /wholeListRead = view\.channelState === "ready"/u, "«Все ответы даны» needs `ready`");
+  assert.match(read("src/components/staff/Inbox.tsx"), /return "Состояние WhatsApp не подтверждено";/u, "the banner for `unknown` says it");
+  assert.match(read("src/components/staff/Inbox.tsx"), /wholeListRead = view\.channelState === "ready"/u, "«Все ответы даны» needs `ready`");
   // «Настройки»: строка и чип не «подключён» и не зелёные.
   const stale = (settingsNow) => settingsIntegrations(facts({ wazzup: { channelState: "active", observedAt: "2026-10-27T10:00:00+00:00", intakeEnabled: true } }), settingsNow).find((row) => row.key === "whatsapp");
   const row = stale(new Date("2026-10-27T10:16:00Z"));
@@ -334,7 +334,7 @@ test("a stale WORKING row (key revoked, API down or the timer stopped - nothing 
   assert.notEqual(row.tone, "ok");
   assert.equal(stale(new Date("2026-10-27T10:14:00Z")).state, "подключён", "inside the window the row is as before");
   // Карточка канала берёт то же слово с тем же «сейчас» (чип «Подключён» без проверки возраста был бы неправдой).
-  const card = read("src/components/v3/settings-next/TransportCardNext.tsx");
+  const card = read("src/components/staff/settings-next/TransportCardNext.tsx");
   assert.match(card, /wazzupChannelWords\(transport\.channel\?\.state \?\? null, \{\s*observedAt: transport\.channel\?\.observedAt \?\? null,\s*nowMs: now\.getTime\(\),\s*\}\)/u);
 });
 
@@ -394,7 +394,7 @@ test("the integrations table: the WhatsApp row speaks about the Wazzup channel a
   assert.match(stopped.action.handoff, /включить приём сообщений на сервере/u);
   for (const row of [working, broken, waiting, stopped]) {
     assert.doesNotMatch(JSON.stringify(row.action), /whatsapp-connect|Подключить WhatsApp/u);
-    assert.equal(row.action?.link?.href, "/v3/inbox");
+    assert.equal(row.action?.link?.href, "/inbox");
   }
   assert.deepEqual(settingsBlockingIntegrations(settingsIntegrations(facts({ wazzup: { channelState: "notEnoughMoney", observedAt: null, intakeEnabled: true } }), NOW)).map((row) => row.name), ["WhatsApp · Wazzup"]);
 });
@@ -409,15 +409,15 @@ test("the integrations table without Wazzup is the WAHA table as before", () => 
 // ---------------------------------------------------------------- исходники
 
 test("Settings: the WAHA connect block gives way to the Wazzup card; the WAHA session is not probed while Wazzup is active", () => {
-  const settings = read("src/components/v3/settings-next/IntegrationsNext.tsx");
+  const settings = read("src/components/staff/settings-next/IntegrationsNext.tsx");
   assert.match(settings, /whatsapp\.wazzup\s*\? <TransportCardNext/u);
   assert.match(settings, /: <WhatsAppConnectSection initialStatus=/u);
-  assert.match(read("src/app/(v3)/v3/settings/page.tsx"), /wazzup: whatsappConnection\.wazzup/u);
+  assert.match(read("src/app/(staff)/settings/page.tsx"), /wazzup: whatsappConnection\.wazzup/u);
   const source = read("src/lib/v3/settings-source.ts");
   assert.match(source, /readPlatformWhatsAppTransport\(actor\)/u);
   assert.match(source, /const recordedWaha = wazzupPath \? null : await getPlatformWahaSessionHealth\(actor, "crm_primary"\);/u, "no WAHA read on the Wazzup path");
   assert.match(source, /const waha = wazzupPath\s*\? null\s*: await withLivePlatformWahaHealth\(/u, "no WAHA probe on the Wazzup path");
-  const card = read("src/components/v3/settings-next/TransportCardNext.tsx");
+  const card = read("src/components/staff/settings-next/TransportCardNext.tsx");
   assert.ok(card.split("\n").length <= 150);
   assert.doesNotMatch(card, /"use client"|onClick|<button|<form|fetch\(|WHATSAPP_CONNECT_PATH/u, "a read-only block: no action in it");
 });
@@ -436,12 +436,12 @@ test("the sales chat reads the way once, probes WAHA only on the WAHA path and g
 });
 
 test("agent drafts: «Скопировать текст» appears for a draft the base kept with receive_only; the send stays", () => {
-  const card = read("src/components/v3/ai-agents/DraftCard.tsx");
+  const card = read("src/components/staff/ai-agents/DraftCard.tsx");
   assert.match(card, /const receiveOnly = isReceiveOnlyDraft\(draft\.channel, failure\) && effective;/u);
   assert.match(card, /<CopyTextButton text=\{canManage \? text : draft\.editedText \?\? draft\.text\} \/>/u, "the edited text is what is copied");
   assert.match(card, /className=\{receiveOnly \? QUEUE_SECONDARY : QUEUE_CONFIRM\}/u);
   assert.match(card, /data-testid="v3-aia-approve"/u);
-  const button = read("src/components/v3/ai-agents/CopyTextButton.tsx");
+  const button = read("src/components/staff/ai-agents/CopyTextButton.tsx");
   assert.ok(button.split("\n").length <= 150);
   assert.match(button, /navigator\.clipboard\.writeText\(text\.trim\(\)\)/u);
   assert.match(button, /"Скопировать текст"/u);
@@ -468,7 +468,7 @@ function sourcesUnder(dir) {
 }
 
 test("«Новый вид»: WhatsApp из EVO уходит только теми же воротами - карточкой черновика и серверным решением; своего пути отправки нет", () => {
-  const newViewDirs = ["src/components/v3/ai-agents-next", "src/components/v3/profile/next", "src/components/v3/requests-next", "src/components/v3/tasks/next", "src/components/kit"];
+  const newViewDirs = ["src/components/staff/ai-agents-next", "src/components/staff/profile/next", "src/components/staff/requests-next", "src/components/staff/tasks/next", "src/components/kit"];
   const files = newViewDirs.flatMap(sourcesUnder);
   assert.ok(files.length > 60, "the scan sees the new view");
   const draftCardUsers = [];
@@ -478,25 +478,25 @@ test("«Новый вид»: WhatsApp из EVO уходит только тем�
     assert.doesNotMatch(text, /InboxChat|sendPlatformWhatsAppMessageAction|reconcilePlatformWhatsAppSendAction|platform-provider-actions|platform-wazzup|platform-waha|WhatsAppTransportCard/u, file);
     // Решение по черновику принимает действие `decideAiAgentDraftAction` и только карточка черновика.
     assert.doesNotMatch(text, /decideAiAgentDraftAction/u, file);
-    if (/@\/components\/v3\/ai-agents\/DraftCard/u.test(text)) draftCardUsers.push(file);
+    if (/@\/components\/staff\/ai-agents\/DraftCard/u.test(text)) draftCardUsers.push(file);
   }
-  assert.deepEqual(draftCardUsers, ["src/components/v3/ai-agents-next/NextDrafts.tsx"], "the queue panel reuses the one card with the receive_only rule");
-  const drafts = read("src/components/v3/ai-agents-next/NextDrafts.tsx");
+  assert.deepEqual(draftCardUsers, ["src/components/staff/ai-agents-next/NextDrafts.tsx"], "the queue panel reuses the one card with the receive_only rule");
+  const drafts = read("src/components/staff/ai-agents-next/NextDrafts.tsx");
   assert.match(drafts, /<DraftCard key=\{current\.id\} draft=\{current\} canManage=\{canManage\} now=\{now\} bare \/>/u);
   // Строка очереди читает то же правило, что карточка.
   assert.match(drafts, /isReceiveOnlyDraft\(draft\.channel, draft\.failureCode\)/u);
   assert.match(drafts, /receiveOnly \? WAZZUP_READ_ONLY_LINE :/u);
-  const card = read("src/components/v3/ai-agents/DraftCard.tsx");
+  const card = read("src/components/staff/ai-agents/DraftCard.tsx");
   assert.match(card, /decideAiAgentDraftAction/u, "the one decision action stays in the card");
   assert.match(card, /bare = false/u, "the new view's panel flag survives next to the receive_only rule");
   assert.match(card, /\{receiveOnly \? <CopyTextButton text=\{canManage \? text : draft\.editedText \?\? draft\.text\} \/> : null\}/u);
   // Единственное место отправки из интерфейса - чат «Продажи → WhatsApp», закрытый для Wazzup.
   const senders = ["src/components", "src/app"].flatMap(sourcesUnder).filter((file) => /sendPlatformWhatsAppMessageAction/u.test(read(file)));
-  assert.deepEqual(senders, ["src/components/v3/inbox/InboxChat.tsx"], `unexpected WhatsApp senders: ${senders.join(", ")}`);
+  assert.deepEqual(senders, ["src/components/staff/inbox/InboxChat.tsx"], `unexpected WhatsApp senders: ${senders.join(", ")}`);
 });
 
 test("new UI files stay within 150 lines and carry no key, address or number", () => {
-  for (const file of ["src/lib/v3/wazzup-words.ts", "src/components/v3/settings-next/TransportCardNext.tsx", "src/components/v3/ai-agents/CopyTextButton.tsx"]) {
+  for (const file of ["src/lib/v3/wazzup-words.ts", "src/components/staff/settings-next/TransportCardNext.tsx", "src/components/staff/ai-agents/CopyTextButton.tsx"]) {
     const text = read(file);
     assert.ok(text.split("\n").length <= 150, file);
     assert.doesNotMatch(text, /Bearer|crmKey|api\.wazzup24|EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN|\+\d{6,}/u, file);

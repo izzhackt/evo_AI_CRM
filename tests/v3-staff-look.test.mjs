@@ -6,17 +6,17 @@ import test from "node:test";
 /**
  * Э1.5 плана редизайна (решение владельца 27.09.2026): облик плана — единственный
  * облик staff CRM. Его значения — те же имена токенов на корне staff CRM
- * (`.v3-world[data-surface="staff"]`, атрибут ставит layout `(v3)`), без
+ * (`.v3-world[data-surface="staff"]`, атрибут ставит layout `(staff)`), без
  * параллельного набора `--v3-*`; каждое значение проверено расчётом контраста
  * (CLAUDE.md). Кабинет студента тоже рисует экраны в `.v3-world` и подключает
- * v3.css, но без этого атрибута — он живёт базовыми значениями и не меняется.
+ * staff.css, но без этого атрибута — он живёт базовыми значениями и не меняется.
  * Переключатель предпросмотра (cookie, атрибут облика на корне, карточка в
  * «Настройки → Платформа») удалён (izzhackt/evo_AI_CRM#1061).
  */
 
 const ROOT = new URL("..", import.meta.url);
 const read = (path) => readFileSync(new URL(path, ROOT), "utf8");
-const css = read("src/app/(v3)/v3.css");
+const css = read("src/app/(staff)/staff.css");
 const STAFF = '.v3-world[data-surface="staff"]';
 
 function block(selector) {
@@ -74,23 +74,23 @@ test("the staff look overrides the same token names in one place and every value
 test("links keep an underline without red, and only buttons and board cards are raised", () => {
   assert.match(css, /\.v3-world\[data-surface="staff"\] :is\(a, button\):is\(\.text-accent, \.text-accent-text\):not\(\[aria-current\], \[aria-pressed="true"\], \.bg-accent-weak\) \{\s*text-decoration-line: underline;/u);
   // The active rail group is a button with the selected fill — not underlined (AppShell).
-  assert.match(read("src/components/v3/AppShell.tsx"), /group\.active \? "bg-accent-weak text-accent-text"/u);
+  assert.match(read("src/components/staff/AppShell.tsx"), /group\.active \? "bg-accent-weak text-accent-text"/u);
   // The raised shadow never replaces the keyboard focus halo of globals.css.
   assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-raised:not\(:disabled\):not\(:focus-visible\) \{\s*box-shadow: var\(--shadow-raised\);/u);
   const raisedRules = [...css.matchAll(/^([^\n*]*\.v3-raised[^\n]*)\{$/gmu)].map((match) => match[1]);
   assert.deepEqual(raisedRules, ['.v3-world[data-surface="staff"] .v3-raised:not(:disabled):not(:focus-visible) '], "the raised shadow is staff-only");
   const ui = read("src/components/ui.tsx");
   for (const name of ["btnCls", "btnGhostCls", "btnDangerGhostCls"]) assert.match(ui, new RegExp(`export const ${name} =\\s*"v3-raised `, "u"), name);
-  const queue = read("src/components/v3/queue/queue-buttons.ts");
+  const queue = read("src/components/staff/queue/queue-buttons.ts");
   for (const name of ["QUEUE_CONFIRM", "QUEUE_SECONDARY"]) assert.match(queue, new RegExp(`export const ${name} = \`v3-raised `, "u"), name);
-  assert.match(read("src/components/v3/board/Board.tsx"), /export const BOARD_CARD_CLASS =\s*"v3-raised /u);
+  assert.match(read("src/components/staff/board/Board.tsx"), /export const BOARD_CARD_CLASS =\s*"v3-raised /u);
 });
 
 test("one look for every staff member: the staff layout marks its root, and the preview is gone", () => {
-  const layout = read("src/app/(v3)/layout.tsx");
+  const layout = read("src/app/(staff)/layout.tsx");
   // `data-ui="next"` — «Новый вид» (27.10.2026), с #1327 у каждого сотрудника: переключателя нет.
   assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui="next">/u);
-  for (const path of ["src/lib/v3/look-preview.ts", "src/lib/v3/look-preview-contract.ts", "src/lib/v3/look-preview-actions.ts", "src/components/v3/blocks/look.ts"]) {
+  for (const path of ["src/lib/v3/look-preview.ts", "src/lib/v3/look-preview-contract.ts", "src/lib/v3/look-preview-actions.ts", "src/components/staff/blocks/look.ts"]) {
     assert.equal(existsSync(new URL(path, ROOT)), false, `${path} is removed`);
   }
   for (const file of sourceFiles(new URL("src", ROOT).pathname)) {
@@ -98,16 +98,16 @@ test("one look for every staff member: the staff layout marks its root, and the 
     assert.doesNotMatch(source, /data-look|evo_look_preview|readLookPreview|setLookPreviewAction|isNextLook|V3Look|data-shell-look/u, file);
   }
   // Карточки предпросмотра в «Настройки → Платформа» нет.
-  const sections = read("src/components/v3/settings-next/PlatformNext.tsx");
+  const sections = read("src/components/staff/settings-next/PlatformNext.tsx");
   assert.doesNotMatch(sections, /v3-look-preview|предпросмотр/iu);
   // «Платформа»: перенос данных и «Менеджеры в отчёте» (Э8.6) — ссылки, без предпросмотра облика.
   assert.match(sections, /export function PlatformNext\(\{ platform, salesImportHref, salesManagersHref \}: Readonly<\{ platform: string; salesImportHref\?: string; salesManagersHref\?: string \}>\)/u);
 });
 
 test("the student portal keeps its look: it renders in .v3-world without the staff mark, on the unchanged base values", () => {
-  // Кабинет подключает v3.css и рисует прежние экраны в `.v3-world` — без атрибута staff CRM.
+  // Кабинет подключает staff.css и рисует прежние экраны в `.v3-world` — без атрибута staff CRM.
   const portalLayout = read("src/app/(portal)/layout.tsx");
-  assert.match(portalLayout, /import "\.\.\/\(v3\)\/v3\.css";\s*import "\.\/portal\.css";/u);
+  assert.match(portalLayout, /import "\.\.\/\(staff\)\/staff\.css";\s*import "\.\/portal\.css";/u);
   assert.match(read("src/components/portal/Shell.tsx"), /<div id="portal-content" tabIndex=\{-1\} className="pt-content v3-world">/u);
   for (const dir of ["src/app/(portal)", "src/components/portal"]) {
     for (const file of sourceFiles(new URL(dir, ROOT).pathname)) assert.doesNotMatch(readFileSync(file, "utf8"), /data-surface/u, file);

@@ -153,7 +153,7 @@ async function run({ all, worldPage, inContexts, fx, renderToStaticMarkup, lazyS
   };
   try {
     for (const scenario of all()) {
-      const pathname = "/v3/profile";
+      const pathname = "/profile";
       const htmlPath = join(outDir, `tab-next-${scenario.name}.html`);
       fx.writeHtml(htmlPath, scenario.name, css, renderToStaticMarkup(inContexts(worldPage(scenario), pathname, scenario.search)));
       for (const [key, options] of Object.entries({ ...VIEWPORTS, ...NARROW })) {
@@ -193,7 +193,7 @@ async function run({ all, worldPage, inContexts, fx, renderToStaticMarkup, lazyS
     // «До»: прежний вид тех же вкладок - для сравнения снимков.
     for (const scenario of all()) {
       const htmlPath = join(outDir, `tab-before-${scenario.name}.html`);
-      fx.writeHtml(htmlPath, scenario.name, css, renderToStaticMarkup(inContexts(worldPage(scenario, true), "/v3/profile", scenario.search)));
+      fx.writeHtml(htmlPath, scenario.name, css, renderToStaticMarkup(inContexts(worldPage(scenario, true), "/profile", scenario.search)));
       for (const key of ["d1440", "m390"]) {
         const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
         const page = await context.newPage();

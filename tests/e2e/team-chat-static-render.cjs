@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Командный чат» (`/v3/team-chat`, Э8.9 плана 28.09.2026): облик staff CRM —
+ * «Командный чат» (`/team-chat`, Э8.9 плана 28.09.2026): облик staff CRM —
  * нейтральный выбор канала, знаки отделов меню на нейтральных кругах вместо
  * букв, нейтральный счётчик непрочитанных, своё сообщение нейтральное,
  * подсветка кольцом фокуса, тёмное подтверждение удаления, красным остаётся
@@ -14,7 +14,7 @@
  * сообщения — как A15 на main: каждое своей строкой «Сообщение удалено»
  * (сворачивать подряд идущие владелец 28.09 отказался — «оставить как есть»).
  *
- * Страницу строит НАСТОЯЩИЙ `v3/team-chat/page.tsx`: его чтение подменено
+ * Страницу строит НАСТОЯЩИЙ `team-chat/page.tsx`: его чтение подменено
  * синтетическим (актёр, лента V2, каналы, участники). Оболочка (`AppShell`) и
  * `TeamChat` рендерятся на сервере и гидратируются в браузере настоящими
  * клиентскими компонентами (бандл esbuild); серверные действия отвечают той
@@ -236,7 +236,7 @@ const SCENARIOS = {
 };
 // Сценарии общего обхода (снимок на каждой ширине); «unread-race» — только в пути.
 const PAGES = ["conversation", "channels", "all-deleted", "all-deleted-link"];
-const PATHNAME = "/v3/team-chat";
+const PATHNAME = "/team-chat";
 const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
 
 // --- настоящая страница с подменённым чтением ---------------------------------------
@@ -255,7 +255,7 @@ function stubReads(scenario) {
 async function buildPage(name) {
   const scenario = SCENARIOS[name];
   stubReads(scenario);
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/team-chat/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/team-chat/page.tsx"));
   const element = await Page({ searchParams: Promise.resolve(scenario.search) });
   const { children: chat, ...main } = element.props;
   return { scenario, element, main, chat: chat.props };
@@ -263,8 +263,8 @@ async function buildPage(name) {
 
 // --- оболочка -------------------------------------------------------------------
 function shellTree({ search, main, chat }) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { TeamChat } = require(join(ROOT, "src/components/v3/team-chat/TeamChat.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { TeamChat } = require(join(ROOT, "src/components/staff/team-chat/TeamChat.tsx"));
   return withContexts(
     h("div", { className: "v3-world", "data-surface": "staff" },
       h(AppShell, { actor: ADMIN, initialNotifications: null }, h("main", main, h(TeamChat, chat)))),
@@ -280,7 +280,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 // --- браузерная сборка ----------------------------------------------------------
@@ -330,8 +330,8 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { TeamChat } = require("@/components/v3/team-chat/TeamChat");
+const { AppShell } = require("@/components/staff/AppShell");
+const { TeamChat } = require("@/components/staff/team-chat/TeamChat");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
 window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], deleted: [], commandSaves: false };
@@ -540,7 +540,7 @@ async function screenshots() {
   const prefix = process.argv.find((arg) => arg.startsWith("--prefix="))?.slice("--prefix=".length) || "e89";
   const bundleName = `${prefix}-team-chat-client.js`;
   // CSS-модуль чата попадает в стили при первом require компонента.
-  require(join(ROOT, "src/components/v3/team-chat/TeamChat.tsx"));
+  require(join(ROOT, "src/components/staff/team-chat/TeamChat.tsx"));
   const css = await compileCss();
   await buildClientBundle(join(outDir, bundleName));
   const failures = [];
@@ -800,7 +800,7 @@ async function screenshots() {
       const { page } = session;
       await page.locator("form textarea").first().fill("Черновик для проверки вёрстки");
       await page.waitForSelector('button[aria-label="Отправить"]:not([disabled])');
-      // Фон кнопок меняется с переходом 150 мс (v3.css) — дождаться его конца.
+      // Фон кнопок меняется с переходом 150 мс (staff.css) — дождаться его конца.
       await page.waitForTimeout(400);
       const metrics = await page.evaluate(pageMetrics);
       const send = await page.evaluate(() => { const button = document.querySelector('main form button[type=submit]'); return button ? { label: button.getAttribute("aria-label"), bg: getComputedStyle(button).backgroundColor, disabled: button.disabled, hover: button.matches(":hover") } : null; });

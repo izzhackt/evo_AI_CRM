@@ -20,11 +20,11 @@ function read(relativePath) {
 const actionSource = read("src/lib/platform-admissions-task-actions.ts");
 const repositorySource = read("src/lib/platform-admissions-workspace.ts");
 const taskContractSource = read("src/lib/platform-admissions-task-contract.ts");
-const calendarSource = read("src/components/v3/calendar/Calendar.tsx");
-const controlsSource = read("src/components/v3/calendar/TaskControls.tsx");
-const casePickerSource = read("src/components/v3/tasks/TaskCasePicker.tsx");
+const calendarSource = read("src/components/staff/calendar/Calendar.tsx");
+const controlsSource = read("src/components/staff/calendar/TaskControls.tsx");
+const casePickerSource = read("src/components/staff/tasks/TaskCasePicker.tsx");
 // Э7 «Один способ создать задачу»: создание — единый диалог для всех входов, календарь тоже.
-const composerSource = read("src/components/v3/tasks/TaskComposerDialog.tsx");
+const composerSource = read("src/components/staff/tasks/TaskComposerDialog.tsx");
 const caseSearchSource = read("src/lib/v3/task-case-actions.ts");
 const adapterSource = read("src/lib/v3/calendar-source.ts");
 const curatorTaskMigration = read("supabase/migrations/129_platform_curator_own_task_controls.sql");
@@ -201,7 +201,7 @@ test("V3 calendar is the only active task mutation surface", () => {
   );
   assert.equal(
     existsSync(
-      new URL("../src/components/v3/calendar/TaskActions.tsx", import.meta.url),
+      new URL("../src/components/staff/calendar/TaskActions.tsx", import.meta.url),
     ),
     false,
   );
@@ -267,8 +267,8 @@ test("task adapters fail closed on malformed database rows and RPC errors", () =
 });
 
 test("Admissions and Admin can open the V3 calendar while Sales fails closed", () => {
-  assert.equal(isConnectedPlatformPage("/v3/calendar"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/calendar"), true);
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/calendar"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/calendar"), false);
+  assert.equal(isConnectedPlatformPage("/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/calendar"), false);
 });

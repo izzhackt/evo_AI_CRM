@@ -39,7 +39,7 @@ export async function addMarketingSpendAction(previous: SpendFormState, form: Fo
   if (result.status !== "saved") {
     return fail(result.status === "not_found" || result.status === "already_cancelled" ? "unavailable" : result.status);
   }
-  revalidatePath("/v3/marketing");
+  revalidatePath("/marketing");
   return { status: "saved", requestId };
 }
 
@@ -53,7 +53,7 @@ export async function cancelMarketingSpendAction(previous: SpendCancelState, for
   if (!canUseMarketing(actor)) return fail("forbidden");
   const result = await cancelMarketingSpend(actor, { requestId, spendId });
   if (result.status !== "cancelled") return fail(result.status);
-  revalidatePath("/v3/marketing");
+  revalidatePath("/marketing");
   return { status: "cancelled", requestId };
 }
 

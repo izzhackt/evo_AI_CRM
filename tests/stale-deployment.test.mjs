@@ -312,19 +312,19 @@ function stubPollFetch(answers) {
 const pollAnswer = (version, unread = 1, release = POLL_REVISION) => ({ release, unread, version });
 
 function staffNotifications(runtime, shared, action, mark = async () => ({ ok: true })) {
-  const notice = compile("src/components/v3/StaleDeploymentNotice.tsx", shared);
-  const component = compile("src/components/v3/StaffNotifications.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
+  const notice = compile("src/components/staff/StaleDeploymentNotice.tsx", shared);
+  const component = compile("src/components/staff/StaffNotifications.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
     "next/navigation": { useRouter: () => ({ push() {} }) },
     "@/components/icons": { Icon: () => null },
-    "@/components/v3/board/menu-position": { placeMenu: () => ({ top: 0, left: 0, maxHeight: 400 }) },
+    "@/components/staff/board/menu-position": { placeMenu: () => ({ top: 0, left: 0, maxHeight: 400 }) },
     "@/lib/v3/staff-notification-actions": {
       loadStaffNotificationsAction: action,
       markAllStaffNotificationsReadAction: async () => ({ ok: true }),
       markStaffNotificationReadAction: mark,
     },
     "@/lib/platform-task-deadline": { dayInOrganizationTimezone: () => "2026-10-10", projectPlatformTaskDeadline: () => ({ day: null, overdue: false }) },
-    "@/components/v3/staff-notification-copy": { caseMessageNotificationCopy: () => "Сообщение по делу" },
-    "@/components/v3/StaleDeploymentNotice": notice,
+    "@/components/staff/staff-notification-copy": { caseMessageNotificationCopy: () => "Сообщение по делу" },
+    "@/components/staff/StaleDeploymentNotice": notice,
   })[id]);
   return { ...component, notice };
 }
@@ -908,7 +908,7 @@ const caseChatLibs = {
   "@/lib/v3/stages": await import("../src/lib/v3/stages.ts"),
   "@/lib/v3/wording": await import("../src/lib/v3/wording.ts"),
   "@/lib/platform-organization-time": await import("../src/lib/platform-organization-time.ts"),
-  "./case-chat-queue": await import("../src/components/v3/case-chat/case-chat-queue.ts"),
+  "./case-chat-queue": await import("../src/components/staff/case-chat/case-chat-queue.ts"),
 };
 const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
 
@@ -937,12 +937,12 @@ const TEAM_SNAPSHOT = {
 };
 
 function teamChat(runtime, shared, browser, realtime, actions) {
-  const seenHook = compile("src/components/v3/team-chat/useTeamChatSeen.ts", (id) => shared(id) ?? ({
+  const seenHook = compile("src/components/staff/team-chat/useTeamChatSeen.ts", (id) => shared(id) ?? ({
     "@/lib/platform-team-chat-seen-actions": { markTeamChatSeenAction: actions.seen },
     "@/lib/platform-team-chat-seen": { decodeTeamChatSeenReceipt: () => true },
     "@/lib/team-chat-feed": teamChatLibs["@/lib/team-chat-feed"],
   })[id], browser.timers);
-  return compile("src/components/v3/team-chat/TeamChat.tsx", (id) => shared(id) ?? teamChatLibs[id] ?? ({
+  return compile("src/components/staff/team-chat/TeamChat.tsx", (id) => shared(id) ?? teamChatLibs[id] ?? ({
     "next/link": { default: () => null },
     "@supabase/ssr": realtime.module,
     "@/lib/platform-team-chat-actions": { readTeamChatAction: actions.read },
@@ -1037,16 +1037,16 @@ async function caseChatThread(error) {
   const realtime = fakeRealtime();
   const calls = { read: 0, list: 0, mark: 0 };
   const failure = error;
-  const { CaseChatWorkspace } = compile("src/components/v3/case-chat/CaseChatThread.tsx", (id) => shared(id) ?? caseChatLibs[id] ?? ({
+  const { CaseChatWorkspace } = compile("src/components/staff/case-chat/CaseChatThread.tsx", (id) => shared(id) ?? caseChatLibs[id] ?? ({
     "next/link": { default: () => null },
     "next/navigation": { useRouter: () => ({ push() {} }), useSearchParams: () => new URLSearchParams("case=case-1") },
     "@supabase/ssr": realtime.module,
     "@/components/icons": { Icon: () => null },
-    "@/components/v3/blocks/Initials": { Initials: () => null },
-    "@/components/v3/blocks/StatusChip": { StageChip: () => null, StatusChip: () => null },
-    "@/components/v3/queue/queue-buttons": { QUEUE_SECONDARY: "" },
-    "@/components/v3/queue/useAnchoredPopover": { useAnchoredPopover: () => ({ popoverId: "p", popoverStyle: {}, anchorProps: {} }) },
-    "@/components/v3/reply-snippets/ReplySnippetPicker": { ReplySnippetPicker: () => null },
+    "@/components/staff/blocks/Initials": { Initials: () => null },
+    "@/components/staff/blocks/StatusChip": { StageChip: () => null, StatusChip: () => null },
+    "@/components/staff/queue/queue-buttons": { QUEUE_SECONDARY: "" },
+    "@/components/staff/queue/useAnchoredPopover": { useAnchoredPopover: () => ({ popoverId: "p", popoverStyle: {}, anchorProps: {} }) },
+    "@/components/staff/reply-snippets/ReplySnippetPicker": { ReplySnippetPicker: () => null },
     "@/lib/platform-case-chat-actions": {
       loadStaffCaseChatThreadsAction: async () => { calls.list += 1; throw failure(); },
       markCaseChatReadAction: async () => { calls.mark += 1; throw failure(); },
@@ -1116,7 +1116,7 @@ test("case chat still reports an ordinary failure", async () => {
 const portalBoundaryStub = { useBoundaryStrings: () => compile("src/lib/portal/boundary-i18n.ts", () => undefined).getBoundaryStrings("ru") };
 
 test("error boundaries reload instead of reset() for a stale action and keep reset() otherwise", async () => {
-  for (const path of ["src/app/(v3)/error.tsx", "src/app/(portal)/portal/error.tsx", "src/app/(portal)/portal/tests/error.tsx", "src/app/apply/error.tsx"]) {
+  for (const path of ["src/app/(staff)/error.tsx", "src/app/(portal)/portal/error.tsx", "src/app/(portal)/portal/tests/error.tsx", "src/app/apply/error.tsx"]) {
     const browser = fakeBrowser();
     const restore = browser.install();
     const runtime = createRuntime();

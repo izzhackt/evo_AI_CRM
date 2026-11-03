@@ -8,8 +8,8 @@ import ts from "typescript";
 
 import * as access from "../src/lib/platform-access.ts";
 import * as wording from "../src/lib/v3/wording.ts";
-import * as profileTypes from "../src/components/v3/profile/types.ts";
-import * as stripView from "../src/components/v3/profile/handoff-strip-view.ts";
+import * as profileTypes from "../src/components/staff/profile/types.ts";
+import * as stripView from "../src/components/staff/profile/handoff-strip-view.ts";
 
 const { handoffStripView } = stripView;
 
@@ -24,7 +24,7 @@ function compile(path, resolve = require) {
   new Function("require", "module", "exports", code)(resolve, compiledModule, compiledModule.exports);
   return compiledModule.exports;
 }
-const pill = compile("src/components/v3/Pill.tsx");
+const pill = compile("src/components/staff/Pill.tsx");
 const ui = compile("src/components/ui.tsx");
 const icons = compile("src/components/icons.tsx");
 const unavailableAction = () => { throw new Error("SSR outcome check never executes a server mutation"); };
@@ -37,12 +37,12 @@ const unavailableAction = () => { throw new Error("SSR outcome check never execu
 // here any more, and the (already nonexistent) "./Card" compile — Card has
 // lived in @/components/ui, not a sibling Card.tsx, since before this
 // slice — is dropped too.
-const component = compile("src/components/v3/profile/ProfileSalesTransition.tsx", id => {
+const component = compile("src/components/staff/profile/ProfileSalesTransition.tsx", id => {
   if (id === "@/lib/platform-access") return access;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "@/components/ui") return ui;
   if (id === "@/components/icons") return icons;
-  if (id === "@/components/v3/Pill") return pill;
+  if (id === "@/components/staff/Pill") return pill;
   if (id === "@/lib/platform-student-handoff-actions") return {
     mutatePlatformLeadAdmissionsGateAction: unavailableAction,
   };

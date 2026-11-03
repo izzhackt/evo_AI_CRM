@@ -20,8 +20,8 @@ import {
   caseEventLink,
   caseFeed,
   casePrimaryAction,
-} from "../src/components/v3/profile/case-work-view.ts";
-import { studentsHandoffPending } from "../src/components/v3/students/students-queue-view.ts";
+} from "../src/components/staff/profile/case-work-view.ts";
+import { studentsHandoffPending } from "../src/components/staff/students/students-queue-view.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
@@ -66,7 +66,7 @@ test("one main action by state: «Принять дело» only while this cura
 
 const NOTE = (body, createdAt) => ({ body, authorDisplayName: "Сотрудник", createdAt });
 const EVENT = (id, transition, targetKind, occurredAt) => ({
-  id: `abababab-5555-4555-8555-${String(id).padStart(12, "0")}`, transition, role: "", at: occurredAt ? "x" : null, href: "/v3/profile",
+  id: `abababab-5555-4555-8555-${String(id).padStart(12, "0")}`, transition, role: "", at: occurredAt ? "x" : null, href: "/profile",
   changedFields: [], targetKind, occurredAt,
 });
 const REVIEW = (id, name, status, reviewedAt) => ({
@@ -82,7 +82,7 @@ const DOCS = [
   { kind: "removed", title: "Удалённые", items: [{ id: "d5", name: "Старое", removedAt: "2026-09-21T05:00:00.000Z" }] },
 ];
 const CHAT = { kind: "ready", awaitState: "needs_reply", last: { authorName: "Студент", mine: false, text: "Можно в пятницу?", createdAt: "2026-09-22T08:00:00.000Z" } };
-const LINKS = { route: "/route", money: "/money", documents: "/documents", messages: "/v3/messages?case=c" };
+const LINKS = { route: "/route", money: "/money", documents: "/documents", messages: "/messages?case=c" };
 
 test("document events are review decisions from the documents already read — with the review time, never an upload", () => {
   assert.deepEqual(caseDocumentReviews(DOCS).map(({ key, text: words, at }) => [key, words, at]), [
@@ -129,10 +129,10 @@ test("each feed row leads to its object; the application is named only from what
   // Журнал: заявки — «Вузы и программы», деньги — «Договор и оплата», переписка — адрес самого чтения,
   // шаг и состояние — шапка, куратор и передача — «Сведения», само дело — без ссылки.
   const at = "2026-09-25T05:00:00.000Z";
-  const link = (transition, targetKind, href = "/v3/profile") => caseEventLink({ transition, targetKind, href }, LINKS);
+  const link = (transition, targetKind, href = "/profile") => caseEventLink({ transition, targetKind, href }, LINKS);
   assert.equal(link("application.status.change", "overview"), "/route");
   assert.equal(link("finance.payment.record", "money"), "/money");
-  assert.equal(link("communication.conversation.link", "conversation", "/v3/inbox?conversation=x"), "/v3/inbox?conversation=x");
+  assert.equal(link("communication.conversation.link", "conversation", "/inbox?conversation=x"), "/inbox?conversation=x");
   assert.equal(link("case.next.action.change", "overview"), `#${CASE_HEADER_ID}`);
   assert.equal(link("case.lifecycle.change", "overview"), `#${CASE_HEADER_ID}`);
   for (const transition of ["case.curator.set", "case.handoff.acknowledge", "case.handoff.clarification", "case.coverage.start", "lead.admissions.handoff.completed", "case.route.change"]) {
@@ -194,7 +194,7 @@ test("reads are reused: the History journal, the handoff context already read, n
   const activity = read("src/lib/v3/profile-activity-source.ts");
   assert.match(activity, /rpc\("staff_student_case_activity"/u, "the same 132/241 read as the «История» tab");
   assert.match(activity, /targetKind: kind as NonNullable<ProfileEvent\["targetKind"\]>,\n\s+occurredAt: timestamp as string \| null,/u);
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
   // 281 (delta review #1194): the «Ждут куратора» reader without the case itself reads no tasks, chat or journal.
   assert.match(page, /readCaseWork\(actor, caseTarget, \{\s+overview: tab === "overview", feed: tab === "overview" && noteCursor === null, assignOnly: view\?\.details\.assignOnly === true,\s+\}\)/u);
   const profile = read("src/lib/v3/profile-source.ts");
@@ -219,13 +219,13 @@ test("awaiting acceptance: the one solid red is «Принять дело» at t
   assert.equal((drawer.match(/aria-pressed="true"/gu) ?? []).length, 1, "one decision selected");
   assert.match(drawer, /class="v3-raised [^"]*bg-fg [^"]*"[^>]*>Подтвердить приём<\/button>/u, "confirm is the dark neutral button");
   // Панель — модальный <dialog>: фон недоступен, Esc закрывает, фокус возвращается на кнопку.
-  const drawerSource = read("src/components/v3/profile/CaseAcceptDrawer.tsx");
+  const drawerSource = read("src/components/staff/profile/CaseAcceptDrawer.tsx");
   assert.match(drawerSource, /dialog\.showModal\(\);/u);
   assert.match(drawerSource, /dialog\.addEventListener\("close", onClose\);/u);
   assert.match(drawerSource, /if \(triggerRef\.current\?\.isConnected\) triggerRef\.current\.focus\(\);/u);
   assert.match(drawerSource, /document\.getElementById\("case-tasks-title"\)/u, "focus does not fall to the page when the button goes away");
   // Та же форма и то же действие, что у карточки «Приём дела» и «Быстрого просмотра».
-  const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  const form = read("src/components/staff/profile/ProfileSalesTransition.tsx");
   assert.match(form, /const \[state, action, pending\] = useActionState<HandoffResponseActionState, FormData>\(\n\s+async \(previous, formData\) => \{\n\s+const next = await respondToHandoffAction\(previous, formData\);/u);
 });
 
@@ -242,7 +242,7 @@ test("otherwise no red action: active, closed, needs a curator, Admin, preview �
   const today = (html) => html.match(/class="v3-due t-caption" data-due="today"/gu)?.length ?? 0;
   assert.ok(today(tasksPart) > 0, "the task due today shows «сегодня»");
   assert.equal(today(active), today(tasksPart), "no «сегодня» fill outside the task rows");
-  assert.match(read("src/components/v3/blocks/DueWord.tsx"), /«сегодня» — маленькая красная заливка с белым текстом \(правило плана:\n \* сплошной красный — главное действие и «сегодня»\)/u);
+  assert.match(read("src/components/staff/blocks/DueWord.tsx"), /«сегодня» — маленькая красная заливка с белым текстом \(правило плана:\n \* сплошной красный — главное действие и «сегодня»\)/u);
   assert.match(read("DESIGN.md"), /единственная другая сплошная\s+красная заливка — слово срока «сегодня»/u, "the docs name the exception");
 });
 
@@ -254,17 +254,17 @@ test("no capability is lost: every action of the case overview is still on the p
   // Задачи: строки «Задач» с выполнением на месте; новая задача — тот же диалог Э7 с делом.
   assert.match(curator, /aria-label="Завершить с результатом: Проверить перевод аттестата у нотариуса"/u);
   assert.match(curator, /data-testid="v3-case-task"[^>]*>[\s\S]*?Задача по делу/u);
-  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<TaskComposerDialog\n\s+participants=\{\[\]\} actorMembershipId=\{actor\.membershipId\} actor=\{actor\} day=\{work\.today\}\n\s+staffAllowed=\{false\} caseAllowed\n\s+initialCase=\{\{ id: caseId, name: profile\.person \}\}/u);
+  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /<TaskComposerDialog\n\s+participants=\{\[\]\} actorMembershipId=\{actor\.membershipId\} actor=\{actor\} day=\{work\.today\}\n\s+staffAllowed=\{false\} caseAllowed\n\s+initialCase=\{\{ id: caseId, name: profile\.person \}\}/u);
   // Заметка: то же действие, субъект и ключ запроса; прежняя страница заметок — «К последним».
   assert.match(curator, /<input type="hidden" name="student_case_id" value="cccccccc-2222-4222-8222-000000000001"\/><input type="hidden" name="request_id" value="12121212-5555-4555-8555-000000000014"\/>/u);
-  assert.match(read("src/components/v3/profile/LeadNoteComposer.tsx"), /useActionState\(createCaseNoteAction,/u);
+  assert.match(read("src/components/staff/profile/LeadNoteComposer.tsx"), /useActionState\(createCaseNoteAction,/u);
   assert.match(pages.get("notes-page"), />К последним<\/a>/u);
   // «⋯»: «Завершить дело…» (246); у Admin — и «Доступ к порталу».
   assert.match(text(curator), /Завершить дело…/u);
   assert.match(text(pages.get("admin")), /^Написать Задача по делу Доступ к порталу /u);
   // «Написать» и переписка, документы, заявки, договор — ссылки на свои вкладки.
   const admin = pages.get("admin");
-  for (const href of ["/v3/messages?case=cccccccc-2222-4222-8222-000000000001", "tab=documents", "tab=route", "tab=money"]) {
+  for (const href of ["/messages?case=cccccccc-2222-4222-8222-000000000001", "tab=documents", "tab=route", "tab=money"]) {
     assert.ok(admin.includes(href), href);
   }
   // Ответ на передачу можно изменить; назначение куратора и «Сменить куратора» (нагрузка кураторов по этому делу) — у того, кто назначает.
@@ -277,11 +277,11 @@ test("no capability is lost: every action of the case overview is still on the p
   assert.match(admin, /id="sales-data"[\s\S]*?id="sale-conditions"/u);
   assert.match(text(pages.get("closed-outcome")), /Вернуть в работу/u);
   // Другие вкладки не меняются: адреса проверки выпуска и их testid — прежние.
-  const profile = read("src/components/v3/profile/Profile.tsx");
+  const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /\{current === "route" \? universityProgramsTab : null\}/u);
-  assert.match(read("src/components/v3/profile/UniversityProgramsTab.tsx"), /data-testid="v3-universities-programs"/u);
+  assert.match(read("src/components/staff/profile/UniversityProgramsTab.tsx"), /data-testid="v3-universities-programs"/u);
   // Э8.3: раздел договора — панели «⋯» листа «Договор и оплата»; testid проверки выпуска — на самом листе (он всегда виден).
-  assert.match(read("src/components/v3/profile/CaseMoney.tsx"), /data-testid=\{contractCaseId \? "v3-profile-contract-workspace" : undefined\}/u);
+  assert.match(read("src/components/staff/profile/CaseMoney.tsx"), /data-testid=\{contractCaseId \? "v3-profile-contract-workspace" : undefined\}/u);
 });
 
 test("a role preview writes nothing: no answer, no task, no note — the stage and the facts stay", () => {
@@ -315,11 +315,11 @@ test("the header: the stage track with the board's stage word; the feed is the p
 });
 
 test("«Показать ещё» keeps the keyboard in place: tasks and feed move focus to the first revealed row", () => {
-  const feedMore = read("src/components/v3/profile/FeedMore.tsx");
+  const feedMore = read("src/components/staff/profile/FeedMore.tsx");
   assert.match(feedMore, /<ol ref=\{listRef\} start=\{start\} hidden=\{!open\}/u);
   assert.match(feedMore, /onClick=\{\(\) => \{ moveFocus\.current = true; setOpen\(true\); \}\}/u);
   assert.match(feedMore, /listRef\.current\?\.querySelector<HTMLElement>\(':scope > \[tabindex="-1"\]'\)\?\.focus\(\);/u);
-  const tasks = read("src/components/v3/profile/CaseTaskList.tsx");
+  const tasks = read("src/components/staff/profile/CaseTaskList.tsx");
   assert.match(tasks, /onClick=\{\(\) => \{ revealFrom\.current = shown\.length; setAll\(true\); \}\}/u);
   assert.match(tasks, /row\?\.querySelector<HTMLElement>\("\[data-queue-open\]"\)\?\.focus\(\);/u);
   // Браузер с настоящим React проверяет то же с клавиатуры (Enter) и видимую рамку фокуса.
@@ -331,14 +331,14 @@ test("«Показать ещё» keeps the keyboard in place: tasks and feed mo
 test("feed rows lead to their objects on the page: tabs keep the way back, the step and the curator are anchors here", () => {
   const admin = pages.get("admin");
   const row = (words) => admin.match(new RegExp(`<li class="[^"]*" data-feed="(?:event|chat)">(?:(?!</li>).)*?${words}(?:(?!</li>).)*?</li>`, "u"))?.[0] ?? "";
-  const back = "&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dmine";
-  assert.match(row("Статус заявки изменён · Чжэцзянский университет · Компьютерные науки"), new RegExp(`href="/v3/profile\\?case=cccccccc-2222-4222-8222-000000000001&amp;tab=route${back.replaceAll("?", "\\?")}"`, "u"));
+  const back = "&amp;returnTo=%2Fprofile%3Fview%3Dmine";
+  assert.match(row("Статус заявки изменён · Чжэцзянский университет · Компьютерные науки"), new RegExp(`href="/profile\\?case=cccccccc-2222-4222-8222-000000000001&amp;tab=route${back.replaceAll("?", "\\?")}"`, "u"));
   assert.match(row("Заявка заведена · Шанхайский университет · Международная торговля"), /tab=route/u);
   assert.match(row("План обучения — нужно исправить"), /tab=documents&amp;returnTo=/u);
   assert.match(row("Следующий шаг изменён"), /href="#case-header"/u);
   assert.match(row("Куратор принял передачу"), /href="#case-facts"/u);
   assert.match(row("Дело передано в сопровождение"), /href="#case-facts"/u);
-  assert.match(row("Переписка</a> · Вы"), /href="\/v3\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
+  assert.match(row("Переписка</a> · Вы"), /href="\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
   // Само дело — это страница: «Дело заведено» без ссылки. Якоря существуют.
   assert.doesNotMatch(row("Дело заведено"), /<a /u);
   assert.match(admin, /<section id="case-header" /u);
@@ -350,12 +350,12 @@ test("feed rows lead to their objects on the page: tabs keep the way back, the s
 });
 
 test("one gutter, one text edge: Lead 360 and Student 360 draw feed rows with the same shared markup", () => {
-  for (const file of ["src/components/v3/profile/CaseOverview.tsx", "src/components/v3/profile/LeadWorkParts.tsx"]) {
+  for (const file of ["src/components/staff/profile/CaseOverview.tsx", "src/components/staff/profile/LeadWorkParts.tsx"]) {
     const source = read(file);
     assert.match(source, /from "\.\/FeedRow";/u, file);
     assert.doesNotMatch(source, /data-feed=/u, `${file}: no own row markup`);
   }
-  const rows = read("src/components/v3/profile/FeedRow.tsx");
+  const rows = read("src/components/staff/profile/FeedRow.tsx");
   assert.match(rows, /className=\{`flex \$\{link \? "h-6" : "h-\[1lh\]"\} w-4 shrink-0 items-center justify-center \$\{type\}`\}/u);
   const html = pages.get("admin");
   const items = html.match(/<li class="[^"]*" data-feed="(?:note|event|chat)"[^>]*>/gu) ?? [];
@@ -382,7 +382,7 @@ test("the accept panel decides with context: who handed off and when, direction,
   // Продажу куратору не читают — её в панели нет; ответ не повторяется ниже выбора.
   assert.doesNotMatch(text(drawer), /Продажа/u);
   assert.equal((text(drawer).match(/Ожидает ответа куратора/gu) ?? []).length, 1);
-  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  const parts = read("src/components/staff/profile/CaseWorkParts.tsx");
   assert.match(parts, /handedOffBy: draft\.handedOffBy \? \{ \.\.\.draft\.handedOffBy, label: caseMomentLabel\(draft\.handedOffBy\.at, work\.today\) \} : null,/u);
   assert.match(parts, /sale: salesVisible && sales \? \{ manager: sales\.lead\.currentOwnerDisplayName, nextAction: sales\.lead\.nextActionText \} : null,/u);
 });
@@ -397,13 +397,13 @@ test("«Нужно уточнить» keeps the panel open; «Отклонить
   const afterDecline = { assignmentEventId: null, canRespond: false, current: null };
   assert.equal(studentsHandoffPending(afterDecline), false);
   assert.equal(casePrimaryAction({ handoffPending: studentsHandoffPending(afterDecline), preview: false }), null);
-  const drawerSource = read("src/components/v3/profile/CaseAcceptDrawer.tsx");
+  const drawerSource = read("src/components/staff/profile/CaseAcceptDrawer.tsx");
   assert.match(drawerSource, /onSaved=\{\(decision\) => \{\n(?:\s+\/\/[^\n]*\n)*\s+answered\.current = true;\n\s+if \(decision === "accepted"\) close\(\);\n\s+\}\}/u,
     "every saved answer is marked; only acceptance closes the panel");
   assert.doesNotMatch(drawerSource, /if \(decision !== "accepted"\) return;/u);
   assert.match(drawerSource, /useEffect\(\(\) => \(\) => \{\n\s+if \(!answered\.current\) return;[\s\S]{0,200}document\.getElementById\("case-tasks-title"\)/u,
     "a vanished button hands focus to «Задачи»");
-  const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  const form = read("src/components/staff/profile/ProfileSalesTransition.tsx");
   assert.match(form, /if \(!inDrawer \|\| !saved\) return;[\s\S]{0,200}querySelector<HTMLElement>\('\[aria-pressed="true"\]'\)\?\.focus\(\);/u,
     "after the save focus goes back to the chosen decision, not the page");
   const html = pages.get("curator-clarified");

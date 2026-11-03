@@ -153,13 +153,13 @@ test("only the author may send a stalled message again, with the same request id
 test("a send the chat's queue holds is asked again less and less often, then only by hand", () => {
   assert.deepEqual([1, 2, 3, 4, 5, 8].map(queuedRetryDelay), [5_000, 10_000, 20_000, 30_000, 30_000, 30_000]);
   assert.equal(WHATSAPP_CHAT_QUEUED_RETRY_LIMIT, 8);
-  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  const chat = read("src/components/staff/inbox/InboxChat.tsx");
   assert.match(chat, /queuedAnswers >= WHATSAPP_CHAT_QUEUED_RETRY_LIMIT \? "stuck" : "queued"/u);
   assert.match(chat, /queuedRetryDelay\(Math\.min\(\.\.\.waiting\.map\(\(item\) => item\.queuedAnswers\)\)\)/u);
 });
 
 test("an unknown result keeps «Проверить» after «not found»; the text returns to the field only after a settled check", () => {
-  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  const chat = read("src/components/staff/inbox/InboxChat.tsx");
   assert.match(chat, /action=\{notFound && bubble\.readbackSettled && returnAction[\s\S]{0,120}?\? <span[^>]*>\{checkAction\}\{returnAction\}<\/span>\s*: checkAction\}/u);
   assert.match(chat, /"В WhatsApp пока не найдено — проверьте ещё раз через несколько минут"/u);
   assert.doesNotMatch(chat, /bubble\.readback === "message_not_found"\) \{\s*return <StatusRow tone="muted" action=\{returnAction\}>/u);
@@ -315,29 +315,29 @@ test("older messages: an exact keyset cursor of the chat, 404 when the chat is n
 // ---------------------------------------------------------------- source contracts
 
 test("the chat imports no Gemini or amoCRM code; the AI window fills the slot only where the composer is", () => {
-  const files = ["src/components/v3/inbox/InboxChat.tsx", "src/components/v3/inbox/InboxComposer.tsx",
-    "src/components/v3/inbox/useInboxPulse.ts", "src/components/v3/inbox/chat-store.ts", "src/components/v3/Inbox.tsx",
-    "src/app/(v3)/v3/inbox/page.tsx", "src/lib/v3/inbox-source.ts", "src/components/v3/inbox/InboxAiAssistant.tsx"];
+  const files = ["src/components/staff/inbox/InboxChat.tsx", "src/components/staff/inbox/InboxComposer.tsx",
+    "src/components/staff/inbox/useInboxPulse.ts", "src/components/staff/inbox/chat-store.ts", "src/components/staff/Inbox.tsx",
+    "src/app/(staff)/inbox/page.tsx", "src/lib/v3/inbox-source.ts", "src/components/staff/inbox/InboxAiAssistant.tsx"];
   for (const file of files) {
     assert.doesNotMatch(read(file), /from "[^"]*(gemini|amocrm)[^"]*"/iu, file);
   }
   // «ИИ-агент» P1 (план §12.1): окно — у того, у кого есть ai.agent.use, не в просмотре роли.
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const assistant = !isStaffPreview\(actor\) && staffHasPermission\(actor, "ai\.agent\.use"\)/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /assistant=\{assistant\}/u);
-  assert.match(read("src/components/v3/inbox/InboxChat.tsx"), /\{assistant && canSend \? \(/u, "no window without the composer");
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /const assistant = !isStaffPreview\(actor\) && staffHasPermission\(actor, "ai\.agent\.use"\)/u);
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /assistant=\{assistant\}/u);
+  assert.match(read("src/components/staff/inbox/InboxChat.tsx"), /\{assistant && canSend \? \(/u, "no window without the composer");
 });
 
 test("the request id is frozen until a definite answer: retries and reloads reuse it", () => {
-  const chat = read("src/components/v3/inbox/InboxChat.tsx");
+  const chat = read("src/components/staff/inbox/InboxChat.tsx");
   // A new id is minted only when a new message is written.
   assert.equal(chat.match(/requestId: crypto\.randomUUID\(\)/gu)?.length, 2, "one for a new message, one per readback click");
   assert.match(chat, /requestId: next\.requestId/u);
   assert.match(chat, /item\.state === "queued" \? \{ \.\.\.item, state: "sending" as const \}/u, "a queued send is asked again with the same id");
-  assert.match(read("src/components/v3/inbox/chat-store.ts"), /localStorage/u);
+  assert.match(read("src/components/staff/inbox/chat-store.ts"), /localStorage/u);
 });
 
 test("the pulse pauses when hidden, slows without focus, never refreshes mid-send and carries no text", () => {
-  const pulse = read("src/components/v3/inbox/useInboxPulse.ts");
+  const pulse = read("src/components/staff/inbox/useInboxPulse.ts");
   assert.match(pulse, /const FOCUSED_MS = 5_000;/u);
   assert.match(pulse, /const VISIBLE_MS = 20_000;/u);
   assert.match(pulse, /document\.visibilityState !== "visible"/u);
@@ -350,8 +350,8 @@ test("the pulse pauses when hidden, slows without focus, never refreshes mid-sen
 });
 
 test("one solid red: only «Отправить»; our bubbles are the neutral selection, not red", () => {
-  const chat = read("src/components/v3/inbox/InboxChat.tsx");
-  const composer = read("src/components/v3/inbox/InboxComposer.tsx");
+  const chat = read("src/components/staff/inbox/InboxChat.tsx");
+  const composer = read("src/components/staff/inbox/InboxComposer.tsx");
   assert.equal(`${chat}\n${composer}`.match(/\bbg-accent\b(?!-)/gu)?.length, 1);
   assert.match(composer, /aria-label="Отправить"[\s\S]*?bg-accent text-on-accent/u);
   assert.match(chat, /message\.inbound \? "border border-border bg-surface" : "bg-accent-weak"/u);

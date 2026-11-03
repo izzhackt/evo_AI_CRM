@@ -47,7 +47,7 @@ async function signIn(page: Page) {
   await page.locator("#staff-email").fill(credentials.email);
   await page.locator("#staff-password").fill(credentials.password);
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
@@ -156,7 +156,7 @@ test("signed WAHA ingress projects once and one explicit staff action sends once
   });
 
   await signIn(page);
-  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await page.goto(`/inbox?conversation=${conversationId}`);
   await expect(page.getByTestId("v3-inbox")).toBeVisible();
   await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
   // A working channel is not announced (owner, 07.10.2026); only a problem is.
@@ -244,7 +244,7 @@ test("an ambiguous provider result blocks resend and exact WAHA readback resolve
   });
 
   await signIn(page);
-  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await page.goto(`/inbox?conversation=${conversationId}`);
   const controls = page.getByTestId("v3-inbox-provider-workflow-controls");
   await expect(controls).toBeVisible();
   await controls.locator('textarea[name="message_text"]').fill(unknownResultText);

@@ -62,14 +62,14 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
+const { AppShell } = require("@/components/staff/AppShell");
 const { Icon } = require("@/components/icons");
-const { StudentsNextPage } = require("@/components/v3/students-next/StudentsNextPage");
-const { UniversitiesListNext } = require("@/components/v3/universities-next/UniversitiesListNext");
-const { UniversityDetailNext } = require("@/components/v3/universities-next/UniversityDetailNext");
-const { UniversityFrame } = require("@/components/v3/universities-next/UniversityFrame");
-const { UniversityBack } = require("@/components/v3/universities-next/UniversityBack");
-const { ManageIndexNext } = require("@/components/v3/universities-next/ManageIndexNext");
+const { StudentsNextPage } = require("@/components/staff/students-next/StudentsNextPage");
+const { UniversitiesListNext } = require("@/components/staff/universities-next/UniversitiesListNext");
+const { UniversityDetailNext } = require("@/components/staff/universities-next/UniversityDetailNext");
+const { UniversityFrame } = require("@/components/staff/universities-next/UniversityFrame");
+const { UniversityBack } = require("@/components/staff/universities-next/UniversityBack");
+const { ManageIndexNext } = require("@/components/staff/universities-next/ManageIndexNext");
 const h = React.createElement;
 const fx = JSON.parse(document.getElementById("fixture").textContent);
 window.__harness = { pushes: [], calls: [], history: [fx.search] };
@@ -85,8 +85,8 @@ function body(search) {
     case "universities": return h(UniversitiesListNext, { ...fx.data, rows: fx.data.rows.map((row) => ({ ...row, thumb: thumb() })) });
     case "university": return h(UniversityDetailNext, { ...fx.data, photo: photo() }, fx.data.canManage ? geography() : null);
     case "manage": return h(UniversityFrame, {
-      title: "Управление каталогом", back: h(UniversityBack, { href: "/v3/universities", label: "Все университеты" }),
-      actions: h("a", { href: "/v3/universities/manage?new=1", className: "v3-raised inline-flex h-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent" }, "Добавить университет"),
+      title: "Управление каталогом", back: h(UniversityBack, { href: "/universities", label: "Все университеты" }),
+      actions: h("a", { href: "/universities/manage?new=1", className: "v3-raised inline-flex h-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent" }, "Добавить университет"),
     }, h(ManageIndexNext, fx.data));
     default: throw new Error("unknown fixture kind " + fx.kind);
   }
@@ -126,7 +126,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 async function buildBundle(outFile) {
@@ -204,8 +204,8 @@ function writePage(outDir, name, css, data) {
 function pagesOf(fixtures) {
   const { students, universities } = fixtures;
   const actorOf = (name) => (name === "curator" ? legacy.CURATOR_ACTOR : legacy.ACTOR);
-  const queue = (entry) => ({ kind: "students", path: "/v3/profile", search: entry.search, inputs: entry.inputs, actor: actorOf(entry.actor) });
-  const uni = (kind, data, path = "/v3/universities") => ({ kind, path, search: "", data, actor: legacy.ACTOR });
+  const queue = (entry) => ({ kind: "students", path: "/profile", search: entry.search, inputs: entry.inputs, actor: actorOf(entry.actor) });
+  const uni = (kind, data, path = "/universities") => ({ kind, path, search: "", data, actor: legacy.ACTOR });
   return {
     queue: queue(students.queue),
     mine: queue(students.mine),
@@ -219,11 +219,11 @@ function pagesOf(fixtures) {
     "uni-filtered": uni("universities", universities.filtered),
     "uni-empty": uni("universities", universities.empty),
     "uni-paged": uni("universities", universities.withPaging),
-    "uni-detail": uni("university", universities.detail, `/v3/universities/${universities.detail.id}`),
-    "uni-detail-plain": uni("university", universities.detailUnconfirmed, `/v3/universities/${universities.detailUnconfirmed.id}`),
-    "uni-manage": uni("manage", universities.manage, "/v3/universities/manage"),
-    "uni-manage-search": uni("manage", universities.manageSearch, "/v3/universities/manage"),
-    "uni-manage-error": uni("manage", universities.manageError, "/v3/universities/manage"),
+    "uni-detail": uni("university", universities.detail, `/universities/${universities.detail.id}`),
+    "uni-detail-plain": uni("university", universities.detailUnconfirmed, `/universities/${universities.detailUnconfirmed.id}`),
+    "uni-manage": uni("manage", universities.manage, "/universities/manage"),
+    "uni-manage-search": uni("manage", universities.manageSearch, "/universities/manage"),
+    "uni-manage-error": uni("manage", universities.manageError, "/universities/manage"),
   };
 }
 

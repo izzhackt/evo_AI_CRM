@@ -8,42 +8,42 @@ function source(path) {
 }
 
 test("«Сегодня» is the one start page of every role and replaces the operational overview", () => {
-  const main = source("src/app/(v3)/v3/main/page.tsx");
-  const calendar = source("src/app/(v3)/v3/calendar/page.tsx");
+  const main = source("src/app/(staff)/main/page.tsx");
+  const calendar = source("src/app/(staff)/calendar/page.tsx");
   const today = source("src/lib/v3/today-source.ts");
 
-  // Э3 (26.09.2026): /v3/main is «Сегодня» for every role — Admissions is no
+  // Э3 (26.09.2026): /main is «Сегодня» for every role — Admissions is no
   // longer redirected to its board — and the release smoke finds the page
   // root by the same test id. The queue reads only existing sources.
   // С #1327 корень страницы с этим test id рисует «Новый вид» («Сегодня»), страница отдаёт ему очередь.
-  assert.match(source("src/components/v3/today-next/TodayNextPage.tsx"), /testId="v3-operational-dashboard"/u);
+  assert.match(source("src/components/staff/today-next/TodayNextPage.tsx"), /testId="v3-operational-dashboard"/u);
   assert.match(main, /readTodayQueue\(actor, \{ now, callsTab: /u);
   assert.match(main, /<TodayNextLazy\b/u);
-  assert.doesNotMatch(main, /redirect\("\/v3\/admissions-pipeline"\)/u);
+  assert.doesNotMatch(main, /redirect\("\/admissions-pipeline"\)/u);
   assert.doesNotMatch(main, /OperationsOverview|readV3OperationalDashboard|readCurrentSalesFunnel|TrendChart|MetricCard/u);
   // Charts, period and funnel live in the report's «Динамика по дням».
   assert.match(main, /query\.view === "sales"/u);
   assert.match(main, /<SalesDynamics\b/u);
   assert.doesNotMatch(calendar, /OperationsOverview|TodayScreen/u);
-  assert.doesNotMatch(calendar, /href="\/v3\/main"/u);
+  assert.doesNotMatch(calendar, /href="\/main"/u);
   assert.doesNotMatch(calendar, /Сводка на Главной/u);
   for (const reader of ["staff.listStaffTasks", "workspace.listPlatformAdmissionsTaskQueue", "queue.readStudentCaseQueue",
     "pipeline.readPipelineLeads", "chat.readStaffCaseChatThreads"]) {
     assert.match(today, new RegExp(reader.replace(".", "\\.")), reader);
   }
   assert.doesNotMatch(today, /\.rpc\(|createSupabaseServerClient/u, "no new read: only the existing readers");
-  for (const retired of ["src/components/v3/OperationsOverview.tsx", "src/lib/v3/operations-source.ts", "src/components/v3/SalesReportNavigation.tsx"]) {
+  for (const retired of ["src/components/staff/OperationsOverview.tsx", "src/lib/v3/operations-source.ts", "src/components/staff/SalesReportNavigation.tsx"]) {
     assert.equal(existsSync(new URL(`../${retired}`, import.meta.url)), false, retired);
   }
 });
 
 test("V3 profile preserves strict searchable paginated Student Case discovery", () => {
-  const page = source("src/app/(v3)/v3/profile/page.tsx");
+  const page = source("src/app/(staff)/profile/page.tsx");
   const adapter = source("src/lib/v3/profile-source.ts");
   // Since 2026-09-25 Admin and curators get the migration-241 work queue;
   // Sales (and the Sales role preview), which 241 refuses, keep the 078 page.
-  const fallback = source("src/components/v3/students/StudentsDirectoryFallback.tsx");
-  const queueView = source("src/components/v3/students/students-queue-view.ts");
+  const fallback = source("src/components/staff/students/StudentsDirectoryFallback.tsx");
+  const queueView = source("src/components/staff/students/students-queue-view.ts");
   const queueSource = source("src/lib/v3/students-queue-source.ts");
 
   assert.match(page, /parseV3ProfileCaseDirectoryParams\(params\)/u);
@@ -97,36 +97,36 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(fallback, /name: "case_q"/u);
   assert.match(fallback, /case_status: params\.state \?\? null/u);
   assert.match(fallback, /closed: "Закрыто"/u);
-  const directoryLinks = source("src/components/v3/profile/admissions-view.ts");
+  const directoryLinks = source("src/components/staff/profile/admissions-view.ts");
   assert.match(directoryLinks, /case_before_at/u);
   assert.match(directoryLinks, /case_before_id/u);
   assert.match(fallback, /admissionsDirectoryHref\(params, directory\.nextCursor, docsMode\)/u);
   // A handed-off summary opens the lead card; a full case opens its overview.
   // «EVO Docs» ведёт на вкладку «Документы» дела, кроме дела без куратора: у него вкладки нет (`caseDocumentsAwaitCurator`,
   // срез «ссылки у pending», 17.10.2026), имя ведёт в «Обзор». В обычном списке студентов вкладка по-прежнему «Обзор».
-  assert.match(fallback, /if \(row\.access === "full"\) \{\s*const tab = docsMode && !caseDocumentsAwaitCurator\(row\.state\) \? "documents" : "overview";\s*return withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\);\s*\}/u);
-  assert.match(fallback, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null;/u);
+  assert.match(fallback, /if \(row\.access === "full"\) \{\s*const tab = docsMode && !caseDocumentsAwaitCurator\(row\.state\) \? "documents" : "overview";\s*return withDocsSection\(`\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\);\s*\}/u);
+  assert.match(fallback, /return row\.leadId \? `\/profile\?id=\$\{row\.leadId\}` : null;/u);
   assert.match(fallback, /data-access=\{row\.access\}/u);
   assert.match(fallback, /<caption className="sr-only">Дела студентов: \{rows\.length\} на этой странице<\/caption>/u);
-  for (const file of [fallback, source("src/components/v3/students/StudentsQueueTable.tsx")]) {
+  for (const file of [fallback, source("src/components/staff/students/StudentsQueueTable.tsx")]) {
     assert.doesNotMatch(file, />\s*\{row\.studentCaseId\}\s*</u);
     assert.doesNotMatch(file, /href=["']\/clients/u);
   }
 });
 
 test("the student directory stays discoverable from navigation and both inbox queues", () => {
-  const shell = source("src/components/v3/AppShell.tsx");
-  const inbox = source("src/app/(v3)/v3/inbox/page.tsx");
+  const shell = source("src/components/staff/AppShell.tsx");
+  const inbox = source("src/app/(staff)/inbox/page.tsx");
 
   assert.match(shell, /buildV3Navigation\(actor,/u);
   for (const role of ["admin", "sales", "admissions"]) {
     const actor = { systemRole: role === "admin" ? "admin" : "staff", presentationRole: null,
       permissionKeys: role === "sales" ? ["lead.read", "case.read.summary"] : ["case.read.full"], assignments: [] };
-    const navigation = buildV3Navigation(actor, "/v3/profile", new URLSearchParams());
+    const navigation = buildV3Navigation(actor, "/profile", new URLSearchParams());
     const group = navigation.groups.find((item) => item.id === "admissions");
     assert.equal(group?.label, "Поступление");
     assert.equal(group?.active, true);
-    assert.ok(group.links.some((link) => link.href === "/v3/profile" && link.label === "Студенты"));
+    assert.ok(group.links.some((link) => link.href === "/profile" && link.label === "Студенты"));
   }
   assert.match(inbox, /v3InboxProfileHref\(/u);
 });

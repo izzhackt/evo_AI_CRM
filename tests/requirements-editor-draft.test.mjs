@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { initialRequirementsDraft, draftProblems, buildRequirementsPayload, rebaseRequirementsDraft,
-  newRequirementsDraftItem, sourceCanUseItem, requirementChanges, requirementsRebaseConflicts, requirementsDraftMatchesPayload } from '../src/components/v3/profile/requirements-editor-draft.ts';
+  newRequirementsDraftItem, sourceCanUseItem, requirementChanges, requirementsRebaseConflicts, requirementsDraftMatchesPayload } from '../src/components/staff/profile/requirements-editor-draft.ts';
 
 // Pure form/protocol cases. Not QA records, backend execution or UI acceptance.
 const corpus = JSON.parse(readFileSync(new URL('./fixtures/application-requirements-v2.json', import.meta.url), 'utf8'));

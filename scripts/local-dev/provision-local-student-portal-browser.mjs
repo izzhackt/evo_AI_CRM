@@ -424,7 +424,7 @@ async function main() {
       `;
 
       if (process.env.EVO_E4_REVIEW_UI_FIXTURE === "1") {
-        // The staff document route (/v3/profile?case=…&tab=documents) reads the
+        // The staff document route (/profile?case=…&tab=documents) reads the
         // case and its documents; since the unified workflow (#849) it no longer
         // needs a Sales handoff, lead or starter tasks, so none are seeded. A raw
         // handoff INSERT is also refused since 208: its sales-register trigger

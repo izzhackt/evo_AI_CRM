@@ -1,0 +1,110 @@
+import Link from "next/link";
+
+import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
+import { CoverageDueTime } from "./CoverageDueTime";
+import { CuratorCoverageForm } from "./CuratorCoverageForm";
+import { COVERAGE_VIEW_HREF, coverageHref as href, coverageWorkload, type StudentsCoverage } from "./students-coverage-view";
+
+/**
+ * Нагрузка и замещение куратора внутри «Студентов»: с 25.09.2026 открывается
+ * в правой панели вида «Нагрузка кураторов» выбором куратора в его таблице.
+ * Поведение и права прежние: раздел виден только при `case.curator.assign`,
+ * чтение и перенос — те же `read_curator_coverage_workspace` и
+ * `CuratorCoverageForm`. С Э7 имя куратора и его нагрузка — шапка общей
+ * боковой панели (`SidePanel`, заголовок `curator-coverage-title`): их дают
+ * `curatorCoverageSubject` и `CuratorCoverageFacts`, а раздел называет
+ * заголовок панели.
+ */
+
+const LINK = "inline-flex min-h-11 items-center text-sm font-medium text-fg underline decoration-border-strong underline-offset-4 hover:decoration-fg";
+
+type Curator = NonNullable<ReturnType<typeof coverageWorkload>>[number];
+
+/** Выбранный куратор и имя для шапки панели: из чтения нагрузки, иначе из списка. */
+export function curatorCoverageSubject(coverage: StudentsCoverage, fallbackName: string | null): Readonly<{ name: string; selected: Curator | null }> {
+  const curatorId = coverage.kind === "hidden" || coverage.kind === "invalid" ? null : coverage.curatorId;
+  const selected = coverageWorkload(coverage)?.find((curator) => curator.id === curatorId) ?? null;
+  return { name: selected?.name ?? fallbackName ?? "Выбранный куратор", selected };
+}
+
+/** Нагрузка выбранного куратора одной строкой — строка контекста шапки панели. */
+export function CuratorCoverageFacts({ selected, today }: Readonly<{ selected: Curator; today: string }>) {
+  return (
+    <dl className="flex flex-wrap gap-x-5 gap-y-1">
+      <div><dt className="inline">Активных дел: </dt><dd className="inline tabular-nums text-fg">{selected.active_case_count}</dd></div>
+      <div><dt className="inline">Открытых задач: </dt><dd className="inline tabular-nums text-fg">{selected.open_task_count}</dd></div>
+      <div><dt className="inline">Ближайший срок: </dt><dd className="inline text-fg"><CoverageDueTime value={selected.nearest_due} today={today} /></dd></div>
+      {!selected.active ? <div><dt className="sr-only">Назначение: </dt><dd className="inline">недоступен для нового назначения</dd></div> : null}
+    </dl>
+  );
+}
+
+export function CuratorCoveragePanel({ coverage, fallbackName, requestId, today }: Readonly<{
+  coverage: StudentsCoverage;
+  /** Имя из списка кураторов, если чтение нагрузки недоступно. */
+  fallbackName: string | null;
+  requestId: string;
+  /** Сегодня в Бишкеке, YYYY-MM-DD: год в дате только если он другой. */
+  today: string;
+}>) {
+  if (coverage.kind === "hidden") return null;
+  if (coverage.kind === "invalid") {
+    return <section id="curator-coverage" aria-label="Замещение куратора" data-testid="v3-curator-coverage" className="border-b border-border pb-3">
+      <p role="alert" className="py-2 text-sm text-fg-2">Параметры замещения не приняты. <Link href={COVERAGE_VIEW_HREF} className="underline underline-offset-4">Начать выбор заново</Link>.</p>
+    </section>;
+  }
+  const { curatorId, caseId, afterCaseId, explicit } = coverage;
+  if (!curatorId) {
+    return coverage.kind === "unavailable" && explicit
+      ? <section id="curator-coverage" aria-label="Замещение куратора" data-testid="v3-curator-coverage" className="border-b border-border pb-3">
+        <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет.</p>
+      </section>
+      : null;
+  }
+  const workspace = coverage.kind === "ready" ? coverage.workspace : null;
+  const workload = coverageWorkload(coverage);
+  const { selected } = curatorCoverageSubject(coverage, fallbackName);
+  // Нагрузка прочитана, а выбранного среди кураторов нет: замещать некого.
+  // Раздел говорит это одной строкой, а не раскрывается пустым.
+  const notCurator = workload !== null && !selected;
+  // Имя и нагрузка — в шапке боковой панели (CuratorWorkloadView): раздел называет её заголовок.
+  return (
+    <section id="curator-coverage" aria-labelledby="curator-coverage-title" data-testid="v3-curator-coverage" className="pb-2">
+      {!workload ? <p role="alert" className="py-2 text-sm text-fg-2">Нагрузка сейчас недоступна. Это не означает, что дел или задач нет. <Link href={href(curatorId, caseId ?? undefined, afterCaseId ?? undefined)} className="underline underline-offset-4">Повторить чтение</Link>.</p> : null}
+      {/* One stable position for the form: a failed re-read keeps the open draft
+          (CuratorCoverageForm holds its last read and blocks submission). */}
+      {workload || caseId ? <details open={explicit}>
+        <summary className={`${LINK} cursor-pointer`}>Замещение куратора</summary>
+        <div className="space-y-4 pb-4 pt-2">
+          {notCurator ? <p role="status" className="text-sm text-fg-2">Этот куратор сейчас недоступен для замещения.</p> : null}
+          {workspace ? <>
+            {selected ? <>
+              {workspace.cases.length === 0 ? <p className="text-sm text-fg-2">На этой странице активных дел нет.</p> : <form action="/profile#curator-coverage" method="get" className="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="view" value="curators" />
+                <input type="hidden" name="coverage_curator" value={selected.id} />
+                {afterCaseId ? <input type="hidden" name="coverage_after" value={afterCaseId} /> : null}
+                <label className="min-w-0 flex-1 basis-56"><span className={fieldLabelCls}>Найти студента</span>
+                  <select name="coverage_case" defaultValue={caseId ?? ""} required className={`${inputCls} min-h-11`}>
+                    <option value="">Выберите студента</option>
+                    {workspace.cases.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+                    {workspace.preview && !workspace.cases.some((student) => student.id === workspace.preview!.id) ? <option value={workspace.preview.id}>{workspace.preview.name}</option> : null}
+                  </select>
+                </label>
+                <button type="submit" className={`${btnGhostCls} min-h-11`}>Проверить перенос</button>
+              </form>}
+              {afterCaseId || workspace.next_case_id ? <nav aria-label="Страницы студентов куратора" className="flex flex-wrap gap-x-5">
+                {afterCaseId ? <Link href={href(selected.id)} className={LINK}>К началу списка</Link> : null}
+                {workspace.next_case_id ? <Link href={href(selected.id, undefined, workspace.next_case_id)} className={LINK}>Следующие студенты</Link> : null}
+              </nav> : null}
+            </> : null}
+            {workspace.preview && workspace.preview.owner_id !== curatorId ? <div role="alert" className="space-y-2 text-sm text-fg-2">
+              <p>Текущий куратор: {workspace.curators.find((curator) => curator.id === workspace.preview!.owner_id)?.name}. Старый выбор больше не подходит для переноса.</p>
+              <Link href={href(workspace.preview.owner_id, workspace.preview.id)} className={`${btnGhostCls} min-h-11`}>Открыть актуальное назначение</Link>
+            </div> : null}
+          </> : null}
+          {caseId ? <CuratorCoverageForm key={caseId} preview={workspace?.preview ?? null} curators={workspace?.curators ?? []} requestId={requestId} today={today} /> : null}
+        </div>
+      </details> : null}
+    </section>
+  );
+}

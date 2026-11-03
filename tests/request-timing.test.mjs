@@ -74,16 +74,16 @@ test("kind comes from the raw request headers, in the order action > prefetch > 
 });
 
 test("route class is the Next template, never a raw path, and rejects anything that looks like an id", () => {
-  assert.equal(timing.routeClassFromTemplate("/v3/profile/[caseId]"), "v3/profile/[caseId]");
+  assert.equal(timing.routeClassFromTemplate("/profile/[caseId]"), "profile/[caseId]");
   assert.equal(timing.routeClassFromTemplate("/portal/universities/[id]"), "portal/universities/[id]");
   assert.equal(timing.routeClassFromTemplate("/portal/home"), "portal/home");
   assert.equal(timing.routeClassFromTemplate("/api/v3/knowledge/[...slug]"), "api/v3/knowledge/[...slug]");
   assert.equal(timing.routeClassFromTemplate("/"), "/");
   for (const value of [
-    `/v3/profile/${UUID}`,
+    `/profile/${UUID}`,
     "/portal/universities/12345678",
-    "/v3/profile?case=1",
-    "/v3/profile/a b",
+    "/profile?case=1",
+    "/profile/a b",
     "/a@b.test",
     "",
     null,
@@ -97,8 +97,8 @@ test("route class is the Next template, never a raw path, and rejects anything t
 
 test("the matched route is read from Next's request meta; no match is null", () => {
   const meta = Symbol.for("NextInternalRequestMeta");
-  const page = { [meta]: { match: { definition: { kind: "APP_PAGE", pathname: "/v3/profile/[caseId]" } } } };
-  assert.deepEqual(timing.matchedRouteOf(page), { kind: "APP_PAGE", template: "/v3/profile/[caseId]" });
+  const page = { [meta]: { match: { definition: { kind: "APP_PAGE", pathname: "/profile/[caseId]" } } } };
+  assert.deepEqual(timing.matchedRouteOf(page), { kind: "APP_PAGE", template: "/profile/[caseId]" });
   const route = { [meta]: { match: { definition: { kind: "APP_ROUTE", pathname: "/api/portal/updates" } } } };
   assert.equal(timing.matchedRouteOf(route).kind, "APP_ROUTE");
   assert.equal(timing.matchedRouteOf({}), null);
@@ -141,7 +141,7 @@ test("a record has a closed set of fields and no user data", () => {
   assert.equal(timing.buildTimingRecord(fresh(), { status: 99_999, aborted: false, route: null }, "dev", 1).status, 0);
   // Класс с идентификатором в статическом сегменте не попадает в строку.
   assert.equal(
-    timing.buildTimingRecord(fresh(), { status: 200, aborted: false, route: { kind: "APP_PAGE", template: `/v3/${UUID}` } }, "dev", 1).class,
+    timing.buildTimingRecord(fresh(), { status: 200, aborted: false, route: { kind: "APP_PAGE", template: `/${UUID}` } }, "dev", 1).class,
     "unmatched",
   );
 });
@@ -204,7 +204,7 @@ test("a real server: one record per proxied request, RPC and depth counted by th
         if (request.url.startsWith("/static")) { response.end("file"); return; }
         timing.markProxied();
         request[Symbol.for("NextInternalRequestMeta")] = {
-          match: { definition: { kind: "APP_PAGE", pathname: "/v3/profile/[caseId]" } },
+          match: { definition: { kind: "APP_PAGE", pathname: "/profile/[caseId]" } },
         };
         // Две волны: два вызова вместе, затем третий; плюс обращение к Auth.
         await Promise.all([
@@ -221,7 +221,7 @@ test("a real server: one record per proxied request, RPC and depth counted by th
       try {
         assert.equal((await send(port, { path: "/static/chunk.js" })).status, 200);
         const reply = await send(port, {
-          path: `/v3/profile/${UUID}?email=person%40example.test&token=secret-value`,
+          path: `/profile/${UUID}?email=person%40example.test&token=secret-value`,
           headers: { cookie: "sb-project-auth-token=cookie-secret", "x-forwarded-for": "203.0.113.9", "next-router-prefetch": "1" },
         });
         assert.equal(reply.status, 201);
@@ -229,7 +229,7 @@ test("a real server: one record per proxied request, RPC and depth counted by th
         await wait(30);
         assert.equal(log.length, 1, "the static file is not logged, the page is");
         const [record] = log;
-        assert.equal(record.class, "v3/profile/[caseId]");
+        assert.equal(record.class, "profile/[caseId]");
         assert.equal(record.kind, "prefetch");
         assert.equal(record.status, 201);
         assert.equal(record.rel, "r199+01234567");

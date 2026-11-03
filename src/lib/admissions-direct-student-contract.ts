@@ -389,8 +389,8 @@ export function admissionsDirectServerField(key: string | null): AdmissionsDirec
  */
 export function admissionsDirectCaseHref(result: Readonly<{ studentCaseId: string; state: "active" | "pending" }>): string {
   return result.state === "active"
-    ? `/v3/profile?case=${result.studentCaseId}`
-    : `/v3/profile?view=needs_curator&open=${result.studentCaseId}`;
+    ? `/profile?case=${result.studentCaseId}`
+    : `/profile?view=needs_curator&open=${result.studentCaseId}`;
 }
 
 /** Слова ответа. Без технических кодов; что делать дальше — в самой фразе. */

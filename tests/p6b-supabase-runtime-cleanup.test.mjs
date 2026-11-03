@@ -146,7 +146,7 @@ test("P6B scoped staff retains permitted cases without reading the task queue fr
     },
   });
   assert.deepEqual(snapshot.cards, [
-    { key: "clients", href: "/v3/profile", loadedCount: 1, hasMore: false, attentionCount: 1 },
+    { key: "clients", href: "/profile", loadedCount: 1, hasMore: false, attentionCount: 1 },
   ]);
   assert.deepEqual(snapshot.attentionItems.map(({ key, value }) => ({ key, value })), [
     { key: "student_attention", value: 1 },
@@ -172,8 +172,8 @@ test("P6B scoped staff with task.manage still reads the admissions task queue", 
     },
   });
   assert.deepEqual(snapshot.cards, [
-    { key: "clients", href: "/v3/profile", loadedCount: 0, hasMore: false, attentionCount: 0 },
-    { key: "tasks", href: "/v3/calendar", loadedCount: 1, hasMore: false, overdueCount: 1 },
+    { key: "clients", href: "/profile", loadedCount: 0, hasMore: false, attentionCount: 0 },
+    { key: "tasks", href: "/calendar", loadedCount: 1, hasMore: false, overdueCount: 1 },
   ]);
   assert.deepEqual(snapshot.attentionItems.map(({ key, value }) => ({ key, value })), [
     { key: "admissions_overdue", value: 1 },
@@ -221,7 +221,7 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
   assert.deepEqual(snapshot.cards, [
     {
       key: "sales",
-      href: "/v3/pipeline",
+      href: "/pipeline",
       loadedCount: 2,
       hasMore: false,
       overdueCount: 1,
@@ -229,7 +229,7 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
     },
     {
       key: "whatsapp",
-      href: "/v3/inbox",
+      href: "/inbox",
       loadedCount: 2,
       hasMore: false,
       salesCount: 1,
@@ -239,12 +239,12 @@ test("P6B Admin Sales preview reads only Sales and messaging outcomes", async ()
   assert.deepEqual(
     snapshot.attentionItems.map(({ key, value, href }) => ({ key, value, href })),
     [
-      { key: "whatsapp_open", value: 2, href: "/v3/inbox" },
-      { key: "sales_overdue", value: 1, href: "/v3/pipeline?due=overdue" },
+      { key: "whatsapp_open", value: 2, href: "/inbox" },
+      { key: "sales_overdue", value: 1, href: "/pipeline?due=overdue" },
       {
         key: "sales_unassigned",
         value: 1,
-        href: "/v3/pipeline?assignment=unassigned",
+        href: "/pipeline?assignment=unassigned",
       },
     ],
   );
@@ -279,7 +279,7 @@ test("P6B page-limited queues surface honest partial counts", async () => {
   const sales = snapshot.cards.find((card) => card.key === "sales");
   assert.deepEqual(sales, {
     key: "sales",
-    href: "/v3/pipeline",
+    href: "/pipeline",
     loadedCount: 2,
     hasMore: true,
     overdueCount: null,
@@ -358,14 +358,14 @@ test("P6B Admin Admissions preview aggregates overdue work and finance stops", a
   assert.deepEqual(
     snapshot.cards.map((card) => [card.key, card]),
     [
-      ["clients", { key: "clients", href: "/v3/profile", loadedCount: 2, hasMore: false, attentionCount: 1 }],
-      ["tasks", { key: "tasks", href: "/v3/calendar", loadedCount: 5, hasMore: false, overdueCount: 2 }],
-      ["finance", { key: "finance", href: "/v3/profile", loadedCount: 2, hasMore: false, blockedCount: 1 }],
+      ["clients", { key: "clients", href: "/profile", loadedCount: 2, hasMore: false, attentionCount: 1 }],
+      ["tasks", { key: "tasks", href: "/calendar", loadedCount: 5, hasMore: false, overdueCount: 2 }],
+      ["finance", { key: "finance", href: "/profile", loadedCount: 2, hasMore: false, blockedCount: 1 }],
       [
         "whatsapp",
         {
           key: "whatsapp",
-          href: "/v3/inbox",
+          href: "/inbox",
           loadedCount: 0,
           hasMore: false,
           salesCount: 0,

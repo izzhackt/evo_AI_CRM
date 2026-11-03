@@ -609,11 +609,11 @@ async function expectTodayQueue(page: Page) {
 async function expectDirectRouteDenied(
   page: Page,
   path:
-    | "/v3/main"
-    | "/v3/pipeline"
-    | "/v3/calendar"
-    | "/v3/knowledge"
-    | "/v3/settings",
+    | "/main"
+    | "/pipeline"
+    | "/calendar"
+    | "/knowledge"
+    | "/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(
@@ -624,13 +624,13 @@ async function expectDirectRouteDenied(
 async function expectDirectRouteAllowed(
   page: Page,
   path:
-    | "/v3/main"
-    | "/v3/pipeline"
-    | "/v3/inbox"
-    | "/v3/profile"
-    | "/v3/calendar"
-    | "/v3/knowledge"
-    | "/v3/settings",
+    | "/main"
+    | "/pipeline"
+    | "/inbox"
+    | "/profile"
+    | "/calendar"
+    | "/knowledge"
+    | "/settings",
 ) {
   await page.goto(path);
   await expect(page).toHaveURL(new RegExp(`${path}$`));
@@ -656,7 +656,7 @@ async function expectKnowledgeDocumentsAndSnippets(page: Page) {
   await page
     .getByRole("link", { name: "Шаблоны ответов", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/v3\/knowledge\?tab=snippets$/);
+  await expect(page).toHaveURL(/\/knowledge\?tab=snippets$/);
   await expectKnowledgeSurface(page, { documents: false, snippets: true });
 }
 
@@ -665,7 +665,7 @@ async function expectExactSupabaseSalesRead(
   leadId: string,
   readOnly = false,
 ) {
-  await page.goto("/v3/pipeline");
+  await page.goto("/pipeline");
   // Boards 25.09: PageHeader puts the working-lead count inside the <h1>
   // («Воронка продаж 12»); the count is absent when the read is truncated.
   await expect(
@@ -688,7 +688,7 @@ async function expectExactSupabaseSalesRead(
   // Boards 25.09: the card opens the right-hand lead panel (?lead=); the
   // decision form and the link to the lead card live in that panel.
   await exactLead.locator(`a[data-lead-link="${leadId}"]`).click();
-  await expect(page).toHaveURL(new RegExp(`/v3/pipeline\\?lead=${leadId}$`));
+  await expect(page).toHaveURL(new RegExp(`/pipeline\\?lead=${leadId}$`));
   const leadPanel = page.getByTestId("v3-pipeline-lead-panel");
   await expect(leadPanel).toHaveAttribute("data-lead-id", leadId);
   if (readOnly) {
@@ -703,11 +703,11 @@ async function expectExactSupabaseSalesRead(
   // 360 carries that return above the title as «Воронка продаж» (the case
   // page's «Студенты» pattern); the side-menu link of the same name points
   // at the bare board, so the assertion pins the exact return href.
-  const boardHref = `/v3/pipeline?lead=${leadId}`;
+  const boardHref = `/pipeline?lead=${leadId}`;
   const leadCardSearch = `?id=${leadId}&returnTo=${encodeURIComponent(boardHref)}`;
-  await leadPanel.locator(`a[href="/v3/profile${leadCardSearch}"]`).click();
+  await leadPanel.locator(`a[href="/profile${leadCardSearch}"]`).click();
   await expect(page).toHaveURL(
-    (url) => url.pathname === "/v3/profile" && url.search === leadCardSearch,
+    (url) => url.pathname === "/profile" && url.search === leadCardSearch,
   );
   await expect(page.getByTestId("v3-profile")).toHaveAttribute(
     "data-lead-id",
@@ -840,7 +840,7 @@ test("Student preview routes are retired for anonymous and Admin visitors", asyn
     }
   }
   await page.goto("/portal");
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
 });
 
 test("retired V2 staff and API routes are absent from the authenticated runtime", async ({
@@ -891,14 +891,14 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
 
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
-  await expect(page).toHaveURL(/\/v3\/main$/);
-  await expectDirectRouteDenied(page, "/v3/settings");
+  await expect(page).toHaveURL(/\/main$/);
+  await expectDirectRouteDenied(page, "/settings");
   for (const path of [
-    "/v3/main",
-    "/v3/calendar",
-    "/v3/pipeline",
-    "/v3/inbox",
-    "/v3/knowledge",
+    "/main",
+    "/calendar",
+    "/pipeline",
+    "/inbox",
+    "/knowledge",
   ] as const) {
     await expectDirectRouteAllowed(page, path);
   }
@@ -914,14 +914,14 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
-  await expect(page).toHaveURL(/\/v3\/main$/);
-  await expectDirectRouteAllowed(page, "/v3/main");
-  await expectDirectRouteAllowed(page, "/v3/pipeline");
-  await expectDirectRouteDenied(page, "/v3/settings");
-  await expectDirectRouteAllowed(page, "/v3/calendar");
-  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expect(page).toHaveURL(/\/main$/);
+  await expectDirectRouteAllowed(page, "/main");
+  await expectDirectRouteAllowed(page, "/pipeline");
+  await expectDirectRouteDenied(page, "/settings");
+  await expectDirectRouteAllowed(page, "/calendar");
+  await expectDirectRouteAllowed(page, "/knowledge");
   await expectKnowledgeDocumentsAndSnippets(page);
-  await expectDirectRouteAllowed(page, "/v3/inbox");
+  await expectDirectRouteAllowed(page, "/inbox");
   for (const path of ["/preview/student", "/preview/student/tests/career"]) {
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(404);
@@ -936,7 +936,7 @@ test("Admin downloads the canonical audit CSV while Sales is denied", async ({
   test.skip(authMode !== "configured");
 
   await signIn(page, "admin");
-  await page.goto("/v3/settings?section=journal");
+  await page.goto("/settings?section=journal");
   const exportForm = page.getByTestId("v3-audit-export");
   await expect(exportForm).toBeVisible();
 
@@ -985,7 +985,7 @@ test("Admin department changes recalculate access while job-title-only edits pre
   const name = `S1 isolated department ${randomUUID().slice(0, 8)}`;
   const updatedName = `${name} revised`;
   await signIn(page, "admin");
-  await page.goto("/v3/settings?section=staff&view=departments");
+  await page.goto("/settings?section=staff&view=departments");
   await page.getByRole("button", { name: "Добавить отдел", exact: true }).click();
   const create = page.getByRole("form", { name: "Создать отдел", exact: true });
   await create.getByLabel("Название отдела").fill(name);
@@ -1024,7 +1024,7 @@ test("Admin department changes recalculate access while job-title-only edits pre
   expect(department).toMatchObject({ status: "active", version: 4 });
   const departmentId = requireUuidValue(department.id);
 
-  await page.goto(`/v3/settings?section=staff&view=people&member=${membershipId}`);
+  await page.goto(`/settings?section=staff&view=people&member=${membershipId}`);
   const details = page.getByRole("article", { name: `Сотрудник: ${actor.display_name}`, exact: true });
   await details.getByRole("button", { name: "Редактировать", exact: true }).click();
   const metadata = details.getByRole("form", { name: `Рабочие сведения: ${actor.display_name}`, exact: true });
@@ -1083,7 +1083,7 @@ test("disabled canonical audit hides export and rejects the route", async ({
   test.skip(authMode !== "audit-disabled");
 
   await signIn(page, "admin");
-  await page.goto("/v3/settings?section=journal");
+  await page.goto("/settings?section=journal");
   await expect(page.getByTestId("v3-audit-export")).toHaveCount(0);
 
   const endAt = new Date();
@@ -1113,8 +1113,8 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
-  await page.goto(`/v3/profile?id=${leadId}`);
-  await expect(page).toHaveURL(new RegExp(`/v3/profile\\?id=${leadId}$`));
+  await page.goto(`/profile?id=${leadId}`);
+  await expect(page).toHaveURL(new RegExp(`/profile\\?id=${leadId}$`));
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
@@ -1131,9 +1131,9 @@ test("Sales inbox renders the exact verified conversation with canonical amoCRM 
   const leadId = requireUuid("EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID");
 
   await signIn(page, "sales");
-  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await page.goto(`/inbox?conversation=${conversationId}`);
   await expect(page).toHaveURL(
-    new RegExp(`/v3/inbox\\?conversation=${conversationId}$`),
+    new RegExp(`/inbox\\?conversation=${conversationId}$`),
   );
   await expect(page.getByTestId("v3-inbox")).toBeVisible();
   await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
@@ -1143,7 +1143,7 @@ test("Sales inbox renders the exact verified conversation with canonical amoCRM 
   );
   await expect(
     page.getByRole("link", { name: "Открыть профиль" }),
-  ).toHaveAttribute("href", `/v3/profile?id=${leadId}`);
+  ).toHaveAttribute("href", `/profile?id=${leadId}`);
   await expect(
     page
       .getByTestId("v3-inbox-thread")
@@ -1356,7 +1356,7 @@ test("Sales and Admin mutate one canonical workflow while anonymous and Admissio
   // <dl>: «Из них квалифицированы» names the cohort; the trend legend and the
   // board funnel («Квалифицирован») are separate elements.
   await page.goto(
-    `/v3/main?view=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
+    `/main?view=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
   );
   const periodFigures = page.locator("#sales-dynamics dl[data-period-figures]");
   await expect(periodFigures).toBeVisible();
@@ -1393,7 +1393,7 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   };
 
   await signIn(page, "sales");
-  await page.goto("/v3/pipeline");
+  await page.goto("/pipeline");
   let form = await openWorkflow();
   await expect(form).toBeVisible();
   await expect(form.getByTestId("v3-pipeline-stage")).toHaveValue("new");
@@ -1426,7 +1426,7 @@ test("Sales and Admin persist the same canonical workflow through the real inter
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto("/v3/pipeline");
+  await page.goto("/pipeline");
   form = await openWorkflow();
   await expect(form.locator('input[name="expected_version"]')).toHaveValue("12");
   await form.getByTestId("v3-pipeline-stage").selectOption("qualified");
@@ -1525,7 +1525,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   // Э8.4: подтверждение вручную — наверху вкладки «Договор и оплата» лида.
   // (Форма передачи ниже, `v3-sales-handoff-form`, снята в S2 — эта часть
   // проверки устарела раньше Э8.4 и требует своей переделки.)
-  await page.goto(`/v3/profile?id=${leadId}&tab=money`);
+  await page.goto(`/profile?id=${leadId}&tab=money`);
   await expect(page.getByTestId("v3-lead-gate")).toBeVisible();
 
   const contractForm = page.getByTestId("v3-gate-contract-form");
@@ -1591,7 +1591,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(salesCaseView.status).toBe(200);
   expect(salesCaseView.payload).toHaveLength(1);
   expect(expectObject((salesCaseView.payload as unknown[])[0]).access_mode).toBe("sales_summary");
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=documents`);
   await expect(page.getByText(
     "Профиль не найден или недоступен вам.",
   )).toBeVisible();
@@ -1608,20 +1608,20 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await signIn(page, "admissions");
   // The case «Обзор» keeps one line per application (owner decision 2026-09-26);
   // the applications workspace lives on «Вузы и программы» (`tab=route`).
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=route`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=route`);
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto(`/v3/profile?id=${leadId}&tab=overview`);
+  await page.goto(`/profile?id=${leadId}&tab=overview`);
   const adminHandoff = page.getByTestId("v3-sales-handoff-completed");
   await expect(adminHandoff).toBeVisible();
   const caseLink = adminHandoff.getByRole("link", { name: "Открыть дело" });
-  const caseHref = `/v3/profile?case=${studentCaseId}&tab=overview`;
+  const caseHref = `/profile?case=${studentCaseId}&tab=overview`;
   await expect(caseLink).toHaveAttribute("href", caseHref);
 
-  await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
+  await page.goto(`/profile?id=${leadId}&case_q=${studentCaseId}`);
   await expect(page.getByText(
     "Ссылка на профиль некорректна.",
   )).toBeVisible();
@@ -1632,18 +1632,18 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   // «Студенты» work queue (2026-09-25): the 241 search matches names, not
   // case numbers, so a case number (also the old `case_q` address) opens that
   // case's overview for Admin and curators.
-  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  await page.goto(`/profile?case_q=${studentCaseId}`);
   await expect(page).toHaveURL(
-    new RegExp(`/v3/profile\\?case=${studentCaseId}&tab=overview$`),
+    new RegExp(`/profile\\?case=${studentCaseId}&tab=overview$`),
   );
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
 
-  await page.goto("/v3/settings?section=staff&view=roles");
+  await page.goto("/settings?section=staff&view=roles");
   await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
-  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  await page.goto(`/profile?case_q=${studentCaseId}`);
   const salesPreviewCaseRow = page.locator(
     `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
   );
@@ -1653,20 +1653,20 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   );
   await expect(salesPreviewCaseRow.locator('a[href*="case="]')).toHaveCount(0);
   await expect(
-    salesPreviewCaseRow.locator(`a[href="/v3/profile?id=${leadId}"]`),
+    salesPreviewCaseRow.locator(`a[href="/profile?id=${leadId}"]`),
   ).toHaveCount(1);
   await page.goto(caseHref);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
 
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin");
-  await page.goto(`/v3/profile?case_q=${studentCaseId}`);
+  await page.goto(`/profile?case_q=${studentCaseId}`);
   await expect(page).toHaveURL(new RegExp(
-    `/v3/profile\\?case=${studentCaseId}&tab=overview$`,
+    `/profile\\?case=${studentCaseId}&tab=overview$`,
   ));
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=route`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=route`);
   await expect(page).toHaveURL(new RegExp(
-    `/v3/profile\\?case=${studentCaseId}&tab=route$`,
+    `/profile\\?case=${studentCaseId}&tab=route$`,
   ));
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await page.locator("summary").filter({
@@ -1674,14 +1674,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   }).click();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
-  const contractHref = `/v3/profile?case=${studentCaseId}&tab=contract`;
+  const contractHref = `/profile?case=${studentCaseId}&tab=contract`;
   const contractTab = page.getByRole("link", { name: "Договор", exact: true });
   await expect(contractTab).toHaveAttribute("href", contractHref);
   await contractTab.click();
   await expect(page).toHaveURL(new RegExp(
-    `/v3/profile\\?case=${studentCaseId}&tab=contract$`,
+    `/profile\\?case=${studentCaseId}&tab=contract$`,
   ));
-  expect(new URL(page.url()).pathname).toBe("/v3/profile");
+  expect(new URL(page.url()).pathname).toBe("/profile");
 
   const contractProfile = page.getByTestId("v3-profile-contract-workspace");
   await expect(contractProfile).toBeVisible();
@@ -1913,11 +1913,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.context().clearCookies();
   await signIn(page, "admissions");
-  await page.goto("/v3/calendar?view=day&date=2099-09-12");
+  await page.goto("/calendar?view=day&date=2099-09-12");
   // Э7: календарь создаёт задачу тем же диалогом «Новая задача», что и
   // остальные входы, со сроком на выбранный день: «Создать задачу» оболочки
   // (у кого есть staff.task.create), иначе своя кнопка календаря.
-  await page.locator('a[href="/v3/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true }).first().click();
+  await page.locator('a[href="/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true }).first().click();
   const createTask = page.getByTestId("v3-task-composer-dialog");
   await expect(createTask).toBeVisible();
   await createTask
@@ -1998,7 +1998,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto("/v3/calendar?view=day&date=2099-09-12");
+  await page.goto("/calendar?view=day&date=2099-09-12");
   const timedTask = page.locator(`#task-${timedCaseTaskId}`);
   await expect(timedTask).toContainText("18:45");
   await timedTask.click();
@@ -2066,7 +2066,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   // Applications are created and changed on «Вузы и программы» (`tab=route`);
   // the reloads below stay on that tab.
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=route`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=route`);
   await expect(page.getByTestId("v3-profile")).toBeVisible();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
@@ -2405,7 +2405,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const visaCaseId = requireUuidValue(persistedVisa?.visa_case_id);
 
   // Э8.3: управление стопами — панель «Стопы» («⋯» листа «Договор и оплата»); якорь открывает её.
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money#money-stops`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=money#money-stops`);
   const admissionsObligation = page
     .getByTestId("v3-profile-finance-controls")
     .locator("article")
@@ -2473,7 +2473,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(directBucketList.status).toBe(200);
   expect(directBucketList.payload).toEqual([]);
 
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=documents`);
   const documentItem = page
     .getByTestId("v3-document-item")
     .filter({ hasText: "P4 real private Storage proof" });
@@ -2654,7 +2654,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.context().clearCookies();
   await signIn(page, "sales");
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=documents`);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
@@ -2694,13 +2694,13 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto(`/v3/profile?id=${leadId}&tab=overview`);
+  await page.goto(`/profile?id=${leadId}&tab=overview`);
   await expect(
     page
       .getByTestId("v3-sales-handoff-completed")
-      .locator(`a[href="/v3/profile?case=${studentCaseId}&tab=overview"]`),
+      .locator(`a[href="/profile?case=${studentCaseId}&tab=overview"]`),
   ).toBeVisible();
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=documents`);
   const adminDocumentItem = page
     .getByTestId("v3-document-item")
     .filter({ hasText: "P4 real private Storage proof" });
@@ -2708,7 +2708,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(adminDocumentItem).toContainText("версия 2");
 
   // Э8.3: управление стопами — панель «Стопы» («⋯» листа «Договор и оплата»); якорь открывает её.
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=money#money-stops`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=money#money-stops`);
   const adminObligation = page
     .getByTestId("v3-profile-finance-controls")
     .locator("article")
@@ -2763,7 +2763,7 @@ test("D2 media stays opaque and exact-case attach fails safely without source by
   test.skip(authMode !== "configured");
   test.setTimeout(120_000);
   const fixture = await provisionExactCaseMediaFixture();
-  const inboxHref = `/v3/inbox?conversation=${fixture.conversationId}`;
+  const inboxHref = `/inbox?conversation=${fixture.conversationId}`;
   const previewHref = `/api/v3/communication-media/${fixture.mediaId}`;
   const downloadHref = `${previewHref}?download=1`;
   const attachmentFormName = `Добавить ${fixture.fileName} в дело студента`;
@@ -2776,7 +2776,7 @@ test("D2 media stays opaque and exact-case attach fails safely without source by
 
   await page.context().clearCookies();
   await signIn(page, "admin");
-  await page.goto("/v3/settings?section=staff&view=roles");
+  await page.goto("/settings?section=staff&view=roles");
   await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
@@ -2789,7 +2789,7 @@ test("D2 media stays opaque and exact-case attach fails safely without source by
   await signIn(page, "admissions");
   await page.goto(inboxHref);
   await expect(page).toHaveURL(
-    new RegExp(`/v3/inbox\\?conversation=${fixture.conversationId}$`),
+    new RegExp(`/inbox\\?conversation=${fixture.conversationId}$`),
   );
   const mediaList = page.getByTestId("v3-inbox-message-media");
   await expect(mediaList).toBeVisible();
@@ -2839,7 +2839,7 @@ test("D2 media stays opaque and exact-case attach fails safely without source by
   );
   await expect(attachmentForm.getByRole("status")).toHaveCount(0);
   await expect(page).toHaveURL(
-    new RegExp(`/v3/inbox\\?conversation=${fixture.conversationId}$`),
+    new RegExp(`/inbox\\?conversation=${fixture.conversationId}$`),
   );
 });
 
@@ -2859,7 +2859,7 @@ test("Admissions manages one real private company file through V3", async ({
   );
 
   await signIn(page, "admissions");
-  await page.goto("/v3/knowledge");
+  await page.goto("/knowledge");
 
   const folderLinks = page.getByTestId("v3-knowledge-folder-link");
   await folderLinks.filter({ hasText: "Компания" }).first().click();
@@ -3054,37 +3054,37 @@ test("Admin preview changes only the effective interface, not Supabase authority
 
   await signIn(page, "admin");
   await expectActiveRole(page, "admin");
-  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectDirectRouteAllowed(page, "/knowledge");
   await expectKnowledgeDocumentsAndSnippets(page);
   await expectExactSupabaseSalesRead(page, leadId);
-  await page.goto("/v3/settings?section=staff&view=roles");
+  await page.goto("/settings?section=staff&view=roles");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 
   await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
   await expect(page.getByTestId("preview-active")).toBeVisible();
   await expectExactSupabaseSalesRead(page, leadId, true);
-  await expectDirectRouteAllowed(page, "/v3/pipeline");
-  await expectDirectRouteDenied(page, "/v3/calendar");
-  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expectDirectRouteAllowed(page, "/pipeline");
+  await expectDirectRouteDenied(page, "/calendar");
+  await expectDirectRouteAllowed(page, "/knowledge");
   await expectKnowledgeSurface(page, { documents: false, snippets: true });
-  await expectDirectRouteDenied(page, "/v3/settings");
+  await expectDirectRouteDenied(page, "/settings");
 
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin", "admin");
-  await page.goto("/v3/settings?section=staff&view=roles");
+  await page.goto("/settings?section=staff&view=roles");
   await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
-  await expect(page).toHaveURL(/\/v3\/calendar$/);
-  await expectDirectRouteDenied(page, "/v3/main");
-  await expectDirectRouteDenied(page, "/v3/pipeline");
-  await expectDirectRouteDenied(page, "/v3/settings");
-  await expectDirectRouteAllowed(page, "/v3/knowledge");
+  await expect(page).toHaveURL(/\/calendar$/);
+  await expectDirectRouteDenied(page, "/main");
+  await expectDirectRouteDenied(page, "/pipeline");
+  await expectDirectRouteDenied(page, "/settings");
+  await expectDirectRouteAllowed(page, "/knowledge");
   await expectKnowledgeDocumentsAndSnippets(page);
-  await page.goto(`/v3/profile?id=${leadId}`);
+  await page.goto(`/profile?id=${leadId}`);
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
@@ -3093,8 +3093,8 @@ test("Admin preview changes only the effective interface, not Supabase authority
   ).toBeVisible();
   await page.getByTestId("preview-role-admin").click();
   await expectActiveRole(page, "admin", "admin");
-  await expect(page).toHaveURL(/\/v3\/main$/);
-  await expectDirectRouteAllowed(page, "/v3/settings");
+  await expect(page).toHaveURL(/\/main$/);
+  await expectDirectRouteAllowed(page, "/settings");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 });
 
@@ -3105,7 +3105,7 @@ test("an expired or removed browser session fails closed with no fallback", asyn
   await signIn(page, "sales");
 
   await page.context().clearCookies();
-  await page.goto("/v3/main");
+  await page.goto("/main");
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByTestId("v3-shell")).toHaveCount(0);
 });

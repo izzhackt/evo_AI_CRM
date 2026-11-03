@@ -18,9 +18,9 @@ function source(path) {
 
 test("V3 Inbox reads one URL-selected canonical chat; older messages load inside the chat", () => {
   const adapter = source("src/lib/v3/inbox-source.ts");
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
-  const inbox = source("src/components/v3/Inbox.tsx");
-  const chat = source("src/components/v3/inbox/InboxChat.tsx");
+  const page = source("src/app/(staff)/inbox/page.tsx");
+  const inbox = source("src/components/staff/Inbox.tsx");
+  const chat = source("src/components/staff/inbox/InboxChat.tsx");
 
   assert.match(adapter, /listPlatformConversations\(actor,/u);
   // 06.10.2026: the queue filter of the role preview lives in inbox-access.ts
@@ -89,7 +89,7 @@ test("V3 Inbox href preserves filters and both cursor pairs behaviorally", () =>
 
   assert.equal(
     href,
-    "/v3/inbox?q=%D0%98%D0%B2%D0%B0%D0%BD+%D0%9F%D0%B5%D1%82%D1%80%D0%BE%D0%B2&sort=unanswered&before_at=2026-09-07T09%3A00%3A00.000Z&before_id=62000000-0000-4000-8000-000000000001&before_waiting=1&conversation=62000000-0000-4000-8000-000000000002&messages_before_at=2026-09-07T08%3A00%3A00.000Z&messages_before_id=62000000-0000-4000-8000-000000000003",
+    "/inbox?q=%D0%98%D0%B2%D0%B0%D0%BD+%D0%9F%D0%B5%D1%82%D1%80%D0%BE%D0%B2&sort=unanswered&before_at=2026-09-07T09%3A00%3A00.000Z&before_id=62000000-0000-4000-8000-000000000001&before_waiting=1&conversation=62000000-0000-4000-8000-000000000002&messages_before_at=2026-09-07T08%3A00%3A00.000Z&messages_before_id=62000000-0000-4000-8000-000000000003",
   );
 });
 
@@ -98,20 +98,20 @@ test("V3 Inbox href produces q-only, both sort orders and newest states", () => 
     buildV3InboxHref({
       filters: { query: "Анна", sort: "newest" },
     }),
-    "/v3/inbox?q=%D0%90%D0%BD%D0%BD%D0%B0",
+    "/inbox?q=%D0%90%D0%BD%D0%BD%D0%B0",
   );
   assert.equal(
     buildV3InboxHref({
       filters: { query: "Анна", sort: "unanswered" },
     }),
-    "/v3/inbox?q=%D0%90%D0%BD%D0%BD%D0%B0&sort=unanswered",
+    "/inbox?q=%D0%90%D0%BD%D0%BD%D0%B0&sort=unanswered",
   );
   assert.equal(
     buildV3InboxHref({
       filters: { query: null, sort: "unanswered" },
       conversationId: "62000000-0000-4000-8000-000000000002",
     }),
-    "/v3/inbox?sort=unanswered&conversation=62000000-0000-4000-8000-000000000002",
+    "/inbox?sort=unanswered&conversation=62000000-0000-4000-8000-000000000002",
   );
   // «Неотвеченные»: the cursor carries its row's group, «0» included.
   assert.equal(
@@ -119,18 +119,18 @@ test("V3 Inbox href produces q-only, both sort orders and newest states", () => 
       filters: { query: null, sort: "unanswered" },
       queueCursor: { sortAt: "2026-09-07T09:00:00.000Z", id: "62000000-0000-4000-8000-000000000001", waiting: false },
     }),
-    "/v3/inbox?sort=unanswered&before_at=2026-09-07T09%3A00%3A00.000Z&before_id=62000000-0000-4000-8000-000000000001&before_waiting=0",
+    "/inbox?sort=unanswered&before_at=2026-09-07T09%3A00%3A00.000Z&before_id=62000000-0000-4000-8000-000000000001&before_waiting=0",
   );
   // «Сначала новые» is the address without a parameter: the section always opens there.
   assert.equal(
     buildV3InboxHref({ filters: { query: null, sort: "newest" } }),
-    "/v3/inbox",
+    "/inbox",
   );
 });
 
 test("V3 Inbox search and «Сортировка» use the server waiting_since projection", () => {
   const adapter = source("src/lib/v3/inbox-source.ts");
-  const inbox = source("src/components/v3/Inbox.tsx");
+  const inbox = source("src/components/staff/Inbox.tsx");
 
   assert.match(adapter, /summary\.waitingSince/u);
   assert.match(adapter, /formatWaitingRu\(summary\.waitingSince\)/u);
@@ -287,9 +287,9 @@ test("«Сортировка» sends its arguments only in «Неотвечен�
 });
 
 test("«Сортировка» in the page and the poll: «Сначала новые» every time the section opens, the order kept by search, pages and polling", () => {
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const page = source("src/app/(staff)/inbox/page.tsx");
   const adapter = source("src/lib/v3/inbox-source.ts");
-  const pulse = source("src/components/v3/inbox/useInboxPulse.ts");
+  const pulse = source("src/components/staff/inbox/useInboxPulse.ts");
   // No parameter — «Сначала новые»; nothing remembers the last choice.
   assert.match(page, /if \(value === undefined\) return "newest";/u);
   assert.doesNotMatch(`${page}\n${adapter}\n${pulse}`, /localStorage|sessionStorage|cookies\(/u);
@@ -304,8 +304,8 @@ test("«Сортировка» in the page and the poll: «Сначала нов
 });
 
 test("V3 Inbox loads exact-audience reply snippets only for a chat the member may answer", () => {
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
-  const picker = source("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
+  const page = source("src/app/(staff)/inbox/page.tsx");
+  const picker = source("src/components/staff/reply-snippets/ReplySnippetPicker.tsx");
 
   assert.match(page, /if \(view\.selected\)[\s\S]*canReply \? readSnippets\(actor\)/u);
   assert.match(page, /if \(!staffPresentationCan\(actor, "messaging\.send"\)\) return null;\s*const snippets = await readV3ReplySnippets\(actor\);/u);
@@ -318,7 +318,7 @@ test("V3 Inbox loads exact-audience reply snippets only for a chat the member ma
 
 test("V3 Inbox warns about a WhatsApp problem only; a working channel is not announced (07.10.2026)", () => {
   const adapter = source("src/lib/v3/inbox-source.ts");
-  const inbox = source("src/components/v3/Inbox.tsx");
+  const inbox = source("src/components/staff/Inbox.tsx");
 
   assert.match(adapter, /wahaSessionName === "crm_primary"/u);
   assert.match(adapter, /getPlatformWahaSessionHealth\(actor, "crm_primary"\)/u);
@@ -435,5 +435,5 @@ test("WhatsApp chat titles: profile name or «WhatsApp» with the number; no 278
   assert.match(source("src/lib/v3/ai-agent-autosend-source.ts"), /whatsAppChatLabel\(whatsAppChatTitle\(subject, contacts\.get\(id\)\)\)/u);
   assert.match(source("src/lib/v3/profile-source.ts"), /linkedConversations: await linkedConversationsRead,/u);
   // The masked number is built by the database; the full number never reaches the page.
-  assert.doesNotMatch(`${adapter}\n${contactSource}\n${source("src/components/v3/Inbox.tsx")}`, /normalized_phone|clients\.phone|\.phone\.slice/u);
+  assert.doesNotMatch(`${adapter}\n${contactSource}\n${source("src/components/staff/Inbox.tsx")}`, /normalized_phone|clients\.phone|\.phone\.slice/u);
 });

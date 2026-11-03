@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Задачи» в «Новом виде» (`/v3/tasks`, решение владельца 27.10.2026) — клиентская сборка НАСТОЯЩИХ компонентов
+ * «Задачи» в «Новом виде» (`/tasks`, решение владельца 27.10.2026) — клиентская сборка НАСТОЯЩИХ компонентов
  * (`TasksNext`: шапка, вкладки видов, `DataTable`, фильтры, панель задачи, «Отменить», массовый выбор) на СИНТЕТИЧЕСКИХ
  * данных: имена, задачи и даты выдуманы и не являются записями EVO. Очередь собирает тот же `buildTaskQueue`, что и
  * страница. Адрес в стенде — состояние: `router.push` открывает и закрывает панель задачи и меняет фильтры, как это делает
@@ -100,8 +100,8 @@ const CASES = [
 const MANY = Array.from({ length: 30 }, (_, index) => staff(100 + index, { title: `Синтетическая задача ${String(index + 1).padStart(2, "0")}`, dueOn: `2026-10-${String(1 + (index % 28)).padStart(2, "0")}` }));
 const PARTICIPANTS = [ME, COLLEAGUE, COLLEAGUE_2].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId], role: "admissions" }));
 const LEADS = {
-  [`staff:${staffId(21)}`]: { leadId: "ffffffff-7777-4777-8777-000000000021", name: "Айдар Условный", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000021" },
-  [`staff:${staffId(22)}`]: { leadId: "ffffffff-7777-4777-8777-000000000022", name: "Номер ••••4521", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000022" },
+  [`staff:${staffId(21)}`]: { leadId: "ffffffff-7777-4777-8777-000000000021", name: "Айдар Условный", href: "/profile?id=ffffffff-7777-4777-8777-000000000021" },
+  [`staff:${staffId(22)}`]: { leadId: "ffffffff-7777-4777-8777-000000000022", name: "Номер ••••4521", href: "/profile?id=ffffffff-7777-4777-8777-000000000022" },
 };
 const ADMIN = {
   authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002",
@@ -145,12 +145,12 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { TasksNext } = require("@/components/v3/tasks/next/TasksNext");
-const { TasksNextFailure } = require("@/components/v3/tasks/next/TasksNextFailure");
+const { AppShell } = require("@/components/staff/AppShell");
+const { TasksNext } = require("@/components/staff/tasks/next/TasksNext");
+const { TasksNextFailure } = require("@/components/staff/tasks/next/TasksNextFailure");
 const { buildTaskQueue, parseTaskQueueFilters, taskQueueParams } = require("@/lib/v3/task-queue");
-const { queueHref } = require("@/components/v3/queue/queue-url");
-const { staffSheetData, caseSheetData } = require("@/components/v3/tasks/next/task-sheet-data");
+const { queueHref } = require("@/components/staff/queue/queue-url");
+const { staffSheetData, caseSheetData } = require("@/components/staff/tasks/next/task-sheet-data");
 const h = React.createElement;
 const fx = JSON.parse(document.getElementById("fixture").textContent);
 const o = fx.options;
@@ -198,7 +198,7 @@ function serve(search) {
     composer: { participants: fx.participants, actorMembershipId: fx.me, actor: fx.actor, day: fx.today, staffAllowed: true, caseAllowed: true, initialCase: null, initialCaseAssignees: [] },
     composerKey: o.message ? o.message.id : "standalone", canCreate: o.canCreate, urlIntent: o.urlIntent, permissions: o.permissions,
     taskLeads: o.canReadStaff ? o.leads : null, dial: o.dial, count: canRead && queue.complete && !o.canReadStaff && !o.teamView ? queue.rows.length : null,
-    sheet, closeHref: queueHref("/v3/tasks", listParams), moveOpen: params.get("move") === "1",
+    sheet, closeHref: queueHref("/tasks", listParams), moveOpen: params.get("move") === "1",
     sourceMessage: o.message, sourceLead: o.lead, leadTasks: o.leadTasks,
   };
 }
@@ -218,7 +218,7 @@ function App() {
   window.__harness.back = router.back;
   const body = o.failure ? h(TasksNextFailure, o.failure) : h(TasksNext, serve(search));
   return h(AppRouterContext.Provider, { value: router },
-    h(PathnameContext.Provider, { value: "/v3/tasks" },
+    h(PathnameContext.Provider, { value: "/tasks" },
       h(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
           h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
@@ -237,7 +237,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 async function buildBundle(outFile) {
@@ -311,7 +311,7 @@ async function main() {
       message: { id: "11111111-2222-4222-8222-000000000001", channelKey: "sales", authorName: "Эрмек Токтосунов", body: "Нужно до пятницы собрать у семьи копии аттестата и перевод — напомните, кто делает." },
       urlIntent: "staff",
     })),
-    failure: writePage(outDir, "tasks-next-failure", css, fixture("", { failure: { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/v3/tasks" } })),
+    failure: writePage(outDir, "tasks-next-failure", css, fixture("", { failure: { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/tasks" } })),
   };
   const { chromium } = require("playwright");
   const AxeBuilder = require("@axe-core/playwright").default;
@@ -420,7 +420,7 @@ async function main() {
     report(`${key}: panel completes with the existing action`, Boolean(done) && done[1].operation === "status" && done[1].status === "done" && done[1].completion_note === "Согласовано с руководителем" && done[1].expected_version === "3", done);
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
-    report(`${key}: panel closed by Esc and the address returns to the list`, (await pushes(page)).at(-1) === "/v3/tasks", await pushes(page));
+    report(`${key}: panel closed by Esc and the address returns to the list`, (await pushes(page)).at(-1) === "/tasks", await pushes(page));
     // Нажатие мышью по ячейке строки фокуса не даёт (строка не остановка клавиатуры); на телефоне нажата кнопка карточки, и фокус вернётся на неё.
     if (key === "m390") report(`${key}: focus returns to the card after Esc`, await page.evaluate(() => { const active = document.activeElement; return Boolean(active && (active.closest("tr, li")?.textContent ?? "").includes("Согласовать шаблон письма")); }), await page.evaluate(() => document.activeElement?.tagName));
 
@@ -549,7 +549,7 @@ async function main() {
     await page.getByRole("menuitem", { name: "Просрочено" }).click();
     await page.locator("[data-slot=dropdown-menu-trigger]", { hasText: "Срок: Просрочено" }).waitFor();
     const filterPush = (await pushes(page)).at(-1);
-    report(`${key}: filter is an address change`, filterPush === "/v3/tasks?due=overdue", filterPush);
+    report(`${key}: filter is an address change`, filterPush === "/tasks?due=overdue", filterPush);
     const overdueRows = key === "m390" ? await page.locator("[data-slot=data-table-cards] > li").allInnerTexts() : await page.locator("tbody tr").allInnerTexts();
     report(`${key}: overdue filter keeps only overdue tasks`, overdueRows.length > 0 && overdueRows.every((text) => /прошёл/u.test(text)), overdueRows.map((text) => text.slice(0, 60)));
     await shot(page, `filtered-${key}`);

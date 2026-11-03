@@ -47,7 +47,7 @@ export async function handlePortalConsultationAction(
     if (receipt === null || typeof receipt !== "object" || receipt.status !== "handled") {
       return { status: "unavailable" };
     }
-    revalidatePath("/v3/requests");
+    revalidatePath("/requests");
     return { status: "handled" };
   } catch {
     return { status: "unavailable" };

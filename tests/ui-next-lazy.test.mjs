@@ -4,7 +4,7 @@
 // `console.error`, а не глотается; что любая другая ошибка (бросок при загрузке модуля, то есть ошибка в коде куска) уходит выше как
 // есть и в браузере, и на сервере: заглушка «проверьте связь» скрыла бы её. Дальше она идёт так: на сервере у настоящих маршрутов
 // есть `loading.tsx`, то есть над входом экрана стоит `Suspense`, поэтому сервер слышит её (`onError`, журнал), отвечает 200 и отдаёт
-// границу браузеру на дорисовку (`<!--$!-->`), а браузер уже ловит её своей границей ошибок (`(v3)/error.tsx`). Оболочку (ответ 500)
+// границу браузеру на дорисовку (`<!--$!-->`), а браузер уже ловит её своей границей ошибок (`(staff)/error.tsx`). Оболочку (ответ 500)
 // ошибка роняет, только если над входом нет `Suspense`; такой случай тоже смоделирован, но он не про настоящие маршруты. Код куска
 // «не приходит»: модуль, который грузит `lazy` или `next/dynamic`, при загрузке бросает ошибку (как отклонённый `import()`
 // в браузере): `ChunkLoadError` (вид `chunk`) или обычную ошибку кода (вид `bug`). Заглушка «Ещё N» выглядит как настоящая кнопка.
@@ -35,16 +35,16 @@ import { OUTLINE_BUTTON } from "@/components/kit/outline-button";
 import { SectionTabsInPlace } from "@/components/kit/SectionTabsInPlace";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CaseHelpCard } from "@/components/v3/profile/next/CaseHelpCard";
-import { FeedOverflow } from "@/components/v3/profile/next/FeedOverflow";
-import { RequestsNextInvalidLazy, RequestsNextLazy } from "@/components/v3/requests-next/RequestsNextLazy";
-import { TasksNextFailureLazy, TasksNextLazy } from "@/components/v3/tasks/next/TasksNextLazy";
-import { TodayNextLazy } from "@/components/v3/today-next/TodayNextLazy";
-import { NextAgentPageLazy, NextAgentUnavailableLazy, NextAgentsViewLazy } from "@/components/v3/ai-agents-next/NextAgentsLazy";
-import { SettingsNextLazy } from "@/components/v3/settings-next/SettingsNextLazy";
-import { MarketingNextLazy } from "@/components/v3/marketing-next/MarketingNextLazy";
-import { FinanceNextLazy } from "@/components/v3/finance-next/FinanceNextLazy";
-import { AiAgentNextLazy } from "@/components/v3/ai-agent-next/AiAgentNextLazy";
+import { CaseHelpCard } from "@/components/staff/profile/next/CaseHelpCard";
+import { FeedOverflow } from "@/components/staff/profile/next/FeedOverflow";
+import { RequestsNextInvalidLazy, RequestsNextLazy } from "@/components/staff/requests-next/RequestsNextLazy";
+import { TasksNextFailureLazy, TasksNextLazy } from "@/components/staff/tasks/next/TasksNextLazy";
+import { TodayNextLazy } from "@/components/staff/today-next/TodayNextLazy";
+import { NextAgentPageLazy, NextAgentUnavailableLazy, NextAgentsViewLazy } from "@/components/staff/ai-agents-next/NextAgentsLazy";
+import { SettingsNextLazy } from "@/components/staff/settings-next/SettingsNextLazy";
+import { MarketingNextLazy } from "@/components/staff/marketing-next/MarketingNextLazy";
+import { FinanceNextLazy } from "@/components/staff/finance-next/FinanceNextLazy";
+import { AiAgentNextLazy } from "@/components/staff/ai-agent-next/AiAgentNextLazy";
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Рисует, пока две отдачи подряд не совпадут; первая отдача (заглушка, пока код грузится) возвращается отдельно. */
@@ -236,7 +236,7 @@ test("у каждого маршрута, что рисует вход экра�
     "ai-agents/[key]": ["NextAgentPageLazy", "NextAgentUnavailableLazy"],
   };
   for (const [route, names] of Object.entries(routes)) {
-    const dir = `src/app/(v3)/v3/${route}`;
+    const dir = `src/app/(staff)/${route}`;
     assert.ok(existsSync(root(`${dir}/loading.tsx`)), `${route}: есть loading.tsx`);
     for (const name of names) assert.match(read(`${dir}/page.tsx`), new RegExp(`<${name}\\b`, "u"), `${route}: страница рисует ${name}`);
   }
@@ -271,7 +271,7 @@ test("входы потока «admin» («Настройки», «Маркет�
       assert.doesNotMatch(markup, /v3-load-failed|Не удалось загрузить экран/u, `${kind} ${name}: на сервере заглушка не рисуется`);
     }
   }
-  for (const route of ["settings", "marketing", "finance", "ai-agent"]) assert.equal(existsSync(root(`src/app/(v3)/v3/${route}/loading.tsx`)), false, `${route}: без loading.tsx`);
+  for (const route of ["settings", "marketing", "finance", "ai-agent"]) assert.equal(existsSync(root(`src/app/(staff)/${route}/loading.tsx`)), false, `${route}: без loading.tsx`);
 });
 
 test("в браузере код входа потока «admin» не пришёл: строка и «Обновить страницу»; ошибка в `console.error` (ошибка в коде куска уходит выше в границу ошибок — это проверяет стенд Chromium `lazy-failure-client.cjs`: отрисовка без DOM границу ошибок не воспроизводит)", async () => {
@@ -318,20 +318,20 @@ test("помощник отказа: на сервере бросает любу
   for (const cause of [bug, new Error("ChunkLoadError: похоже на обрыв, но имя другое"), null, undefined, "ChunkLoadError"]) {
     const other = await inBrowserCatching(async () => onLazyFailed(fallback)(cause));
     assert.equal(other.result, null, "браузер: заглушки нет");
-    assert.equal(other.thrown, cause, "браузер: ошибка в коде уходит выше как есть (в `(v3)/error.tsx`)");
+    assert.equal(other.thrown, cause, "браузер: ошибка в коде уходит выше как есть (в `(staff)/error.tsx`)");
     assert.equal(other.helper.length, 0, "браузер: записи помощника нет");
   }
   const source = read("src/components/kit/lazy-failure.ts");
   assert.doesNotMatch(source, /^\s*import\s/mu, "файл без импортов: `HelpTip` остаётся лёгким");
   assert.ok(source.split("\n").length <= 150, "файл набора до 150 строк");
   // Все двенадцать мест отказа: четыре заглушки виджетов зовут помощник сами, восемь входов экранов — через `onScreenLoadFailed`.
-  for (const path of ["src/components/kit/HelpTip.tsx", "src/components/kit/SectionTabsInPlace.tsx", "src/components/v3/profile/next/CaseHelpCard.tsx", "src/components/v3/profile/next/FeedOverflow.tsx"]) {
+  for (const path of ["src/components/kit/HelpTip.tsx", "src/components/kit/SectionTabsInPlace.tsx", "src/components/staff/profile/next/CaseHelpCard.tsx", "src/components/staff/profile/next/FeedOverflow.tsx"]) {
     assert.match(read(path), /\.catch\(onLazyFailed\(/u, path);
     assert.match(read(path), /from "@\/components\/kit\/lazy-failure"/u, path);
     assert.doesNotMatch(read(path), /\.catch\(\(\) =>/u, `${path}: отказ не глотается молча`);
   }
   assert.match(read("src/components/kit/LoadFailed.tsx"), /onScreenLoadFailed = onLazyFailed\(LoadFailed\)/u);
-  const entries = ["today-next/TodayNextLazy", "requests-next/RequestsNextLazy", "tasks/next/TasksNextLazy", "ai-agents-next/NextAgentsLazy"].map((name) => read(`src/components/v3/${name}.tsx`)).join("\n");
+  const entries = ["today-next/TodayNextLazy", "requests-next/RequestsNextLazy", "tasks/next/TasksNextLazy", "ai-agents-next/NextAgentsLazy"].map((name) => read(`src/components/staff/${name}.tsx`)).join("\n");
   assert.equal(entries.match(/\.catch\(onScreenLoadFailed\)/gu).length, 8, "восемь входов экранов");
   assert.doesNotMatch(entries, /\.catch\(\(\) =>/u);
 });
@@ -356,5 +356,5 @@ test("заглушка «Ещё N» выглядит как настоящая �
   const { result: { first } } = await inBrowser(feed);
   assert.equal(classOf(first), outline.constant, "первая отдача — заглушка с классами настоящей кнопки");
   assert.doesNotMatch(first, /data-slot/u);
-  assert.doesNotMatch(read("src/components/v3/profile/next/FeedOverflow.tsx"), /class-variance|tailwind-merge|ui\/button|@\/lib\/utils/u, "заглушка не тянет склейку классов");
+  assert.doesNotMatch(read("src/components/staff/profile/next/FeedOverflow.tsx"), /class-variance|tailwind-merge|ui\/button|@\/lib\/utils/u, "заглушка не тянет склейку классов");
 });

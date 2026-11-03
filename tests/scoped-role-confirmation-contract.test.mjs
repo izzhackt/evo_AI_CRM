@@ -169,10 +169,10 @@ test("reviewed inputs reach the existing exact-replay form and command without a
   assert.match(service, /JSON\.parse\(field\(form, "expected_role_bindings", 32000\)\), assignments/);
   const mutation = service.slice(service.indexOf("  const base = { ...organization"));
   assert.doesNotMatch(mutation, /staff_role_impact|staff_role_workspace/);
-  const publication = read("src/components/v3/settings/StaffRolesSection.tsx").split("function RolePublication")[1].split("function RoleLifecycle")[0];
+  const publication = read("src/components/staff/settings/StaffRolesSection.tsx").split("function RolePublication")[1].split("function RoleLifecycle")[0];
   assert.match(publication, /name="expected_impact_fingerprint" value=\{impact\.impactFingerprint\}/);
   assert.match(publication, /publication\.status === "error" && publication\.outcome !== "unknown"/);
-  const form = read("src/components/v3/settings/StaffRoleForms.tsx");
+  const form = read("src/components/staff/settings/StaffRoleForms.tsx");
   assert.match(form, /unknown/);
   assert.match(form, /request_id/);
 });

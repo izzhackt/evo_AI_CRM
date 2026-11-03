@@ -122,7 +122,7 @@ test("contract: a foreign shape is null, never a guessed match", () => {
 });
 
 test("contract: words and the case address", () => {
-  assert.equal(parentPhoneCaseHref(ID(1)), `/v3/profile?case=${ID(1)}`);
+  assert.equal(parentPhoneCaseHref(ID(1)), `/profile?case=${ID(1)}`);
   assert.match(parentPhoneRelationText("mother"), /мамы$/u);
   assert.match(parentPhoneRelationText("father"), /папы$/u);
   assert.match(parentPhoneRelationText("both"), /мамы и папы$/u);
@@ -199,8 +199,8 @@ test("read: not exactly one well-formed subject is unavailable without a databas
 // ------------------------------------------------------------ the page and the component
 
 test("page: the hint sits above the card of a lead or a case, never in preview, in its own Suspense", () => {
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(page, /import \{ ParentPhoneLookalikes \} from "@\/components\/v3\/profile\/ParentPhoneLookalikes"/u);
+  const page = read("src/app/(staff)/profile/page.tsx");
+  assert.match(page, /import \{ ParentPhoneLookalikes \} from "@\/components\/staff\/profile\/ParentPhoneLookalikes"/u);
   assert.match(page, /const lookalikeSubject: ParentPhoneSubject \| null = caseParts && caseTarget \? \{ studentCaseId: caseTarget\.studentCaseId \}\s*:\s*leadParts && view\?\.details\.routeTarget\.leadId \? \{ leadId: view\.details\.routeTarget\.leadId \} : null;/u);
   const mount = page.indexOf("{lookalikeSubject && !isStaffPreview(actor) ?");
   assert.ok(mount > 0 && mount < page.indexOf("<Profile\n"), "mounted before the card");
@@ -212,7 +212,7 @@ test("component: names, links, relation words and the no-merge note; nothing for
   const one = pages.get("one");
   assert.match(one, /data-testid="v3-parent-phone-lookalikes"/u);
   assert.match(text(one), /^Похоже на: Айдай Условная дело студента, номер записан в анкете как телефон мамы Не объединены\. Проверьте вручную\.$/u);
-  assert.ok(one.includes(`href="/v3/profile?case=${ID(1)}"`), "links to the case");
+  assert.ok(one.includes(`href="/profile?case=${ID(1)}"`), "links to the case");
   assert.match(pages.get("father"), /как телефон папы/u);
   assert.match(pages.get("both"), /как телефон мамы и папы/u);
   const three = pages.get("three");
@@ -265,7 +265,7 @@ test("component: calm look, big targets, no number, no dash in the words", () =>
   assert.match(pages.get("one"), /bg-info-weak/u, "info tone, a state of the record");
   assert.match(pages.get("both"), /break-words/u, "a long name wraps by words");
   for (const path of ["src/lib/parent-phone-lookalikes-contract.ts", "src/lib/v3/parent-phone-lookalikes-source.ts",
-    "src/components/v3/profile/ParentPhoneLookalikes.tsx", "supabase/migrations/306_platform_parent_phone_lookalikes.sql",
+    "src/components/staff/profile/ParentPhoneLookalikes.tsx", "supabase/migrations/306_platform_parent_phone_lookalikes.sql",
     "supabase/tests/platform_parent_phone_lookalikes.sql"]) {
     assert.doesNotMatch(read(path), /[\u2013\u2014]/u, `${path}: no em or en dash`);
   }

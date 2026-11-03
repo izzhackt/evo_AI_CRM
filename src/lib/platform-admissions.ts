@@ -291,7 +291,7 @@ export function summarizePlatformStudentCaseApplicationPreview(
     preview: Object.freeze({
       visibleCount: applications.length,
       hasMore,
-      fullListHref: `/v3/profile?case=${normalizedStudentCaseId}`,
+      fullListHref: `/profile?case=${normalizedStudentCaseId}`,
     }),
   });
 }

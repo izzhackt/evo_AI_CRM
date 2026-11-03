@@ -7,7 +7,7 @@
  *
  * Чистая функция: по ней рисует раздел и проверяет unit-тест.
  */
-import type { PipelineLead, PipelineStage } from "../../components/v3/Pipeline.tsx";
+import type { PipelineLead, PipelineStage } from "../../components/staff/Pipeline.tsx";
 
 export type SalesBoardFunnel =
   | Readonly<{

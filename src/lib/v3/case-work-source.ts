@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { CaseWorkActivity, CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWorkTasks } from "@/components/v3/profile/case-work-view";
-import { caseChatWork, caseOpenTasks } from "@/components/v3/profile/case-work-view";
+import type { CaseWorkActivity, CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWorkTasks } from "@/components/staff/profile/case-work-view";
+import { caseChatWork, caseOpenTasks } from "@/components/staff/profile/case-work-view";
 
 import { hasOpenAccountDeletionRequestForCase } from "../platform-account-deletion";
 import { readCaseAiConsent } from "./ai-consent-source";

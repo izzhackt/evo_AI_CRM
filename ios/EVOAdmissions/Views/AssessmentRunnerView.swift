@@ -2,7 +2,7 @@ import SwiftUI
 import Supabase
 
 /// Прохождение теста по контракту миграции 135, зеркально веб-раннеру
-/// (`src/components/v3/portal/assessments/AssessmentRunner.tsx`):
+/// (`src/components/staff/portal/assessments/AssessmentRunner.tsx`):
 /// - один вопрос на экран;
 /// - автосейв с дебаунсом и optimistic-lock ревизией;
 /// - неподтверждённый запрос повторяется с ТЕМ ЖЕ `request_id` и тем же

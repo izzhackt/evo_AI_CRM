@@ -7,7 +7,7 @@
 
 /**
  * Статический рендер общих блоков staff CRM (Э1.3–Э1.4 плана редизайна,
- * `src/components/v3/blocks/`): каждый блок в своих состояниях — со словом,
+ * `src/components/staff/blocks/`): каждый блок в своих состояниях — со словом,
  * без слова, без чтения, с неизвестным этапом. Данные синтетические.
  *
  *   node tests/e2e/blocks-static-render.cjs --json
@@ -52,14 +52,14 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 
-const block = (name) => require(join(ROOT, "src/components/v3/blocks", name));
+const block = (name) => require(join(ROOT, "src/components/staff/blocks", name));
 const { StatusChip, StageChip } = block("StatusChip.tsx");
 const { DueWord } = block("DueWord.tsx");
 const { Initials } = block("Initials.tsx");
 const { ProgressBar } = block("ProgressBar.tsx");
 const { StageTrack } = block("StageTrack.tsx");
 const { UndoToast } = block("UndoToast.tsx");
-const { dueWordOf } = require(join(ROOT, "src/components/v3/queue/due-bucket.ts"));
+const { dueWordOf } = require(join(ROOT, "src/components/staff/queue/due-bucket.ts"));
 
 // «Сейчас» — полдень 26.09.2026 по Бишкеку (06:00 UTC).
 const NOW = new Date("2026-09-26T06:00:00.000Z");

@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
-const source = readFileSync(new URL("../src/components/v3/settings/StaffRoleControls.tsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/components/staff/settings/StaffRoleControls.tsx", import.meta.url), "utf8");
 const code = ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText;
@@ -17,7 +17,7 @@ test("server-rendered role controls are natively disabled until hydration withou
   const html = renderToStaticMarkup(createElement(componentModule.exports.StaffRoleControls, null,
     createElement("button", { type: "button" }, "Создать роль"),
     createElement("input", { type: "search", "aria-label": "Найти роль" }),
-    createElement("a", { href: "/v3/settings?section=staff&view=roles" }, "К списку ролей"),
+    createElement("a", { href: "/settings?section=staff&view=roles" }, "К списку ролей"),
   ));
   assert.match(html, /^<fieldset\b[^>]*\bdisabled=""/);
   assert.match(html, /^<fieldset\b[^>]*\baria-busy="true"/);

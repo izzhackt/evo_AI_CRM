@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import type { SettingsNextProps } from "@/components/v3/settings-next/settings-next-types";
-import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "@/components/v3/settings/types";
+import type { SettingsNextProps } from "@/components/staff/settings-next/settings-next-types";
+import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "@/components/staff/settings/types";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import { REPORT_KEYS, type ReportKey, type ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";

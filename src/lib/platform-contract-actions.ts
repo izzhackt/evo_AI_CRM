@@ -36,7 +36,7 @@ type RetryMetadata = Readonly<{
 
 /** Mutations use live staff identity and object RPC authority; preview is read-only. */
 function requirePlatformContractActor() {
-  return requirePlatformMutationCapability("admissions.read", "/v3/profile");
+  return requirePlatformMutationCapability("admissions.read", "/profile");
 }
 
 function strictFormString(form: FormData, key: string): string | undefined {
@@ -231,7 +231,7 @@ export async function createPlatformContractTemplateVersionAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(input.studentCaseId, "template_created");
 }
 
@@ -292,7 +292,7 @@ async function templateLifecycleAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(
     input.studentCaseId,
     operation === "approve_template" ? "template_approved" : "template_retired",
@@ -387,7 +387,7 @@ export async function generatePlatformStudentCaseContractDraftAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(input.studentCaseId, "draft_generated");
 }
 
@@ -473,7 +473,7 @@ export async function reviewPlatformStudentCaseContractDraftAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(
     input.studentCaseId,
     input.decision === "approved" ? "draft_approved" : "draft_rejected",
@@ -559,7 +559,7 @@ export async function seedPlatformPostContractItemsAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(input.studentCaseId, "items_seeded");
 }
 
@@ -651,7 +651,7 @@ export async function updatePlatformPostContractItemAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(input.studentCaseId, "item_updated");
 }
 
@@ -775,7 +775,7 @@ export async function generatePlatformPostContractReportAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(input.studentCaseId, "report_generated");
 }
 
@@ -832,7 +832,7 @@ export async function reviewPlatformPostContractReportAction(
   } catch {
     mutationRedirect(input.studentCaseId, "unavailable", retry);
   }
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   mutationRedirect(
     input.studentCaseId,
     input.decision === "approved" ? "report_approved" : "report_rejected",

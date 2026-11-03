@@ -48,11 +48,11 @@ function textOf(node) {
 }
 
 test("V3 profile documents use the canonical private Storage routes", () => {
-  const wrapper = source("src/components/v3/profile/Documents.tsx");
-  const view = source("src/components/v3/profile/DocumentsView.tsx");
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  const row = source("src/components/v3/profile/DocumentRow.tsx");
-  const types = source("src/components/v3/profile/document-types.ts");
+  const wrapper = source("src/components/staff/profile/Documents.tsx");
+  const view = source("src/components/staff/profile/DocumentsView.tsx");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/staff/profile/DocumentRow.tsx");
+  const types = source("src/components/staff/profile/document-types.ts");
 
   // The async wrapper only reads baseline options; the tab is the synchronous view (Э8.1).
   assert.match(wrapper, /return documentsView\(\{/u);
@@ -86,7 +86,7 @@ test("V3 profile documents use the canonical private Storage routes", () => {
 });
 
 test("V3 profile document row shows one state word, the version date and the reason the student sees", () => {
-  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  const row = source("src/components/staff/profile/DocumentRow.tsx");
   const wording = source("src/lib/v3/wording.ts");
   const profileSource = source("src/lib/v3/profile-source.ts");
 
@@ -109,8 +109,8 @@ test("V3 profile document row shows one state word, the version date and the rea
 });
 
 test("V3 profile document decision follows the live item and names the refusal of «Принять»", () => {
-  const row = source("src/components/v3/profile/DocumentRow.tsx");
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/staff/profile/DocumentRow.tsx");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
   // The frozen key keeps a lost-response retry idempotent; the live key decides whether the buttons are shown.
   assert.match(row, /const \[reviewRequestId\] = useState\(item\.presence === "present" \? item\.reviewRequestId : null\);/u);
   assert.match(row, /current !== null\s*&& current\.reviewRequestId !== null && reviewRequestId !== null;/u);
@@ -130,9 +130,9 @@ test("V3 profile document decision follows the live item and names the refusal o
 });
 
 test("V3 profile document upload fails closed and explains every failure class", async () => {
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  const row = source("src/components/v3/profile/DocumentRow.tsx");
-  const upload = await import("../src/components/v3/profile/document-upload.ts");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/staff/profile/DocumentRow.tsx");
+  const upload = await import("../src/components/staff/profile/document-upload.ts");
 
   assert.match(client, /!item\.uploadRequestId/u);
   assert.match(row, /Загрузка сейчас недоступна\. Обновите страницу\./u);
@@ -192,13 +192,13 @@ test("V3 profile document upload fails closed and explains every failure class",
 });
 
 test("V3 profile document upload starts on file choice; the hint and the busy state are visible", () => {
-  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  const row = source("src/components/staff/profile/DocumentRow.tsx");
   // A hidden file field under a visible label; no separate «Сохранить» sends it.
   assert.match(row, /<label className=\{UPLOAD_LABEL\}>\s*<input\s+ref=\{fileRef\}\s+name="file"\s+type="file"[\s\S]*?className="sr-only"[\s\S]*?onChange=\{choose\}/u);
   assert.match(row, /\{sending \? "Загружаем…" : "Загрузить файл"\}/u);
   // Форматы сказаны один раз на весь список, а не у каждой «Загрузить файл».
   assert.doesNotMatch(row, /DOCUMENT_UPLOAD_HINT/u);
-  assert.match(source("src/components/v3/profile/ProfileDocumentsClient.tsx"), /data-testid="v3-document-upload-hint">Загрузка: \{DOCUMENT_UPLOAD_HINT\}<\/p>/u);
+  assert.match(source("src/components/staff/profile/ProfileDocumentsClient.tsx"), /data-testid="v3-document-upload-hint">Загрузка: \{DOCUMENT_UPLOAD_HINT\}<\/p>/u);
   assert.doesNotMatch(row, /type="submit"[^>]*>\s*\{?[^<]*Сохранить[^<]*\}?\s*<\/button>\s*<\/form>\s*\) : null\}\s*<\/div>\s*<div className="flex justify-end/u);
   assert.match(row, /if \(file\) onUpload\(item, file\);/u);
   // Before hydration the handler does not exist yet: the field is unavailable, not silently dead.
@@ -206,11 +206,11 @@ test("V3 profile document upload starts on file choice; the hint and the busy st
 });
 
 test("V3 profile mutates one canonical case checklist with versioned commands", () => {
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  const row = source("src/components/v3/profile/DocumentRow.tsx");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
+  const row = source("src/components/staff/profile/DocumentRow.tsx");
   const both = `${client}\n${row}`;
   const profileSource = source("src/lib/v3/profile-source.ts");
-  const types = source("src/components/v3/profile/document-types.ts");
+  const types = source("src/components/staff/profile/document-types.ts");
 
   assert.match(client, /createPlatformCustomDocumentSlotAction/u);
   assert.match(row, /changePlatformDocumentSlotMetadataAction/u);
@@ -220,7 +220,7 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
     assert.match(both, new RegExp(`name="${field}"`, "u"));
   }
   assert.match(row, /Файлы сохранятся в истории дела/u);
-  assert.match(source("src/components/v3/profile/DocumentChecklistFeedback.tsx"), /router\.refresh\(\)/u);
+  assert.match(source("src/components/staff/profile/DocumentChecklistFeedback.tsx"), /router\.refresh\(\)/u);
 
   assert.match(profileSource, /new Map<string, ActiveGroup\["items"\]\[number\]\[\]>/u);
   assert.match(profileSource, /groups\.get\(slot\.groupLabel\)/u);
@@ -229,9 +229,9 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
 });
 
 test("V3 profile links documents to canonical applications or visa cases", () => {
-  const client = source("src/components/v3/profile/DocumentRow.tsx");
+  const client = source("src/components/staff/profile/DocumentRow.tsx");
   const profileSource = source("src/lib/v3/profile-source.ts");
-  const types = source("src/components/v3/profile/document-types.ts");
+  const types = source("src/components/staff/profile/document-types.ts");
 
   assert.match(types, /export type DocumentCaseLinkTarget/u);
   assert.match(types, /kind: DocumentCaseLinkTargetKind/u);
@@ -280,9 +280,9 @@ test("V3 profile links documents to canonical applications or visa cases", () =>
 });
 
 test("V3 profile renders removed checklist history as a separate read-only projection", () => {
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
   const profileSource = source("src/lib/v3/profile-source.ts");
-  const types = source("src/components/v3/profile/document-types.ts");
+  const types = source("src/components/staff/profile/document-types.ts");
   const historyComponent = client.slice(
     client.indexOf("function RemovedDocumentHistory"),
     client.indexOf("function ApplyBaselineChecklist"),
@@ -312,10 +312,10 @@ test("V3 profile renders removed checklist history as a separate read-only proje
 });
 
 test("V3 profile offers staff a one-time baseline checklist seed above the custom-item form", () => {
-  const wrapper = source("src/components/v3/profile/Documents.tsx");
-  const view = source("src/components/v3/profile/DocumentsView.tsx");
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  const types = source("src/components/v3/profile/document-types.ts");
+  const wrapper = source("src/components/staff/profile/Documents.tsx");
+  const view = source("src/components/staff/profile/DocumentsView.tsx");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
+  const types = source("src/components/staff/profile/document-types.ts");
   const privateDocuments = source("src/lib/platform-private-documents.ts");
   const actions = source("src/lib/platform-document-checklist-actions.ts");
 
@@ -365,7 +365,7 @@ function DocumentsClientMarker() { return null; }
 
 function documentsWrapper(read) {
   const calls = [];
-  const { Documents } = compile("src/components/v3/profile/Documents.tsx", (id) => {
+  const { Documents } = compile("src/components/staff/profile/Documents.tsx", (id) => {
     if (id === "@/lib/platform-task-deadline") return { dayInOrganizationTimezone: () => "2026-09-28" };
     // The synchronous tab view receives exactly what the wrapper read and issued.
     if (id === "./DocumentsView") return { documentsView: (input) => ({ type: DocumentsClientMarker, props: input }) };
@@ -400,7 +400,7 @@ async function wrapperClientProps(read, actor = MANAGER, groups = []) {
     uploadAccess: "allowed",
     studentCaseId: CASE_ID,
     actor,
-    tabHref: `/v3/profile?case=${CASE_ID}&tab=documents`,
+    tabHref: `/profile?case=${CASE_ID}&tab=documents`,
   });
   const [client] = findElements(tree, (node) => node.type === DocumentsClientMarker);
   assert.ok(client, "Documents must render the documents client");
@@ -465,11 +465,11 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
   assert.equal(uploadOnly.props.baselineChecklistRequestId, null);
 });
 
-const documentUpload = await import("../src/components/v3/profile/document-upload.ts");
-const documentsViewModule = await import("../src/components/v3/profile/documents-view.ts");
+const documentUpload = await import("../src/components/staff/profile/document-upload.ts");
+const documentsViewModule = await import("../src/components/staff/profile/documents-view.ts");
 
 function documentsClient(router) {
-  return compile("src/components/v3/profile/ProfileDocumentsClient.tsx", (id) => {
+  return compile("src/components/staff/profile/ProfileDocumentsClient.tsx", (id) => {
     if (id === "react") {
       return {
         useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}],
@@ -485,7 +485,7 @@ function documentsClient(router) {
     if (id === "@/components/ui") {
       return { btnGhostCls: "btn-ghost", inputCls: "input", fieldLabelCls: "label" };
     }
-    if (id === "@/components/v3/queue/queue-buttons") return { QUEUE_CONFIRM: "confirm", QUEUE_SECONDARY: "secondary" };
+    if (id === "@/components/staff/queue/queue-buttons") return { QUEUE_CONFIRM: "confirm", QUEUE_SECONDARY: "secondary" };
     if (id === "@/lib/platform-document-checklist-actions") {
       const action = async (state) => state;
       return {
@@ -589,7 +589,7 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
 });
 
 test("the document add region stays open for an emptied checklist: no toggle, so it must not stay hidden", () => {
-  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const client = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
   assert.match(client, /hidden=\{!\(addOpen \|\| checklistEmpty\)\}/u);
   assert.match(client, /canChangeChecklist && !checklistEmpty \? \(\s*<button/u);
 });
@@ -609,7 +609,7 @@ test("328 pins the 068 review wrapper by md5 and only adds the shortcut for a ca
   assert.match(added, /student_membership_id IS NULL OR student_case\.portal_activated_at IS NULL/u);
   assert.equal(body328.replace(added, "").replace("  no_portal_account BOOLEAN;\n", ""), body068, "only the no-portal shortcut is added");
   assert.ok(source328.indexOf("a328_already_applied") < source328.indexOf("a328_anchor_drift"), "a repeat is told apart from drift");
-  assert.match(fileOf("src/components/v3/profile/DocumentRow.tsx"), /Причину увидит студент, если у него есть кабинет\./u);
+  assert.match(fileOf("src/components/staff/profile/DocumentRow.tsx"), /Причину увидит студент, если у него есть кабинет\./u);
   const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(fileOf("supabase/tests/platform_document_review_without_portal.sql"), /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED") > 0 && script.indexOf("A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));

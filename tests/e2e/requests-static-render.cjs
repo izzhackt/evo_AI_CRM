@@ -8,7 +8,7 @@
 /**
  * Статический рендер «Заявок» (Э3, 27.09.2026) — очереди разбора.
  *
- * Рисуется НАСТОЯЩАЯ страница `src/app/(v3)/v3/requests/page.tsx` в
+ * Рисуется НАСТОЯЩАЯ страница `src/app/(staff)/requests/page.tsx` в
  * настоящем `AppShell`; подменены только границы данных и прав: смотрящий,
  * список сотрудников формы лида, серверные действия и чтение очереди.
  * Чтение отдаёт СИНТЕТИЧЕСКИЙ ответ в форме `staff_requests_queue_v3`
@@ -346,7 +346,7 @@ const routerStub = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, pus
 
 function withContexts(node, search) {
   return createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/requests" },
+    createElement(PathnameContext.Provider, { value: "/requests" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
@@ -359,8 +359,8 @@ function syntheticUuids() {
 /** Настоящая страница в настоящей оболочке; «сейчас» и `randomUUID` предсказуемы. */
 async function renderScenario(name) {
   current = SCENARIOS[name] ?? NEXT_SCENARIOS[name];
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const page = require(join(ROOT, "src/app/(staff)/requests/page.tsx")).default;
   const originalUuid = nodeCrypto.randomUUID;
   const RealDate = Date;
   nodeCrypto.randomUUID = syntheticUuids();
@@ -371,7 +371,7 @@ async function renderScenario(name) {
   };
   try {
     const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
-    // `data-ui="next"` ставит layout `(v3)` всем (#1327); здесь страница рисует единственный вид, и стенд ждёт ленивый вход.
+    // `data-ui="next"` ставит layout `(staff)` всем (#1327); здесь страница рисует единственный вид, и стенд ждёт ленивый вход.
     const tree = createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
       createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null }, content));
     // Новый вид страница подгружает лениво (`RequestsNextLazy`): рисуем, пока разметка не устоится.
@@ -391,7 +391,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 async function screenshots() {
@@ -476,8 +476,8 @@ async function json() {
  * собирает тот же компонент esbuild'ом и гоняет в Chromium (панель записи, действия, клавиатура).
  */
 async function nextProps() {
-  const { RequestsNextLazy } = require(join(ROOT, "src/components/v3/requests-next/RequestsNextLazy.tsx"));
-  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const { RequestsNextLazy } = require(join(ROOT, "src/components/staff/requests-next/RequestsNextLazy.tsx"));
+  const page = require(join(ROOT, "src/app/(staff)/requests/page.tsx")).default;
   const out = {};
   for (const name of ["next-populated", "next-calls-dial", "next-waiting"]) {
     current = NEXT_SCENARIOS[name];
@@ -619,9 +619,9 @@ function findElement(node, match) {
  *     → stdout: JSON [{ open, key, row }] (для tests/v3-requests-triage.test.mjs).
  */
 async function panelKeys() {
-  const { RequestsQueueView } = require(join(ROOT, "src/components/v3/requests/RequestsQueueView.tsx"));
+  const { RequestsQueueView } = require(join(ROOT, "src/components/staff/requests/RequestsQueueView.tsx"));
   const { requestOpenKey } = require(join(ROOT, "src/lib/requests-queue-contract.ts"));
-  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const page = require(join(ROOT, "src/app/(staff)/requests/page.tsx")).default;
   const out = [];
   for (const open of PANEL_SWITCH) {
     current = { actor: "admin", search: `status=all&open=${open}`, rows: SWITCH_ROWS, states: SWITCH_STATES };
@@ -640,8 +640,8 @@ async function panelKeys() {
  * Ревью PR #1084. Смотрит элемент `ManualLeadForm` настоящей страницы.
  */
 async function manualLeadOwners() {
-  const { ManualLeadForm } = require(join(ROOT, "src/components/v3/ManualLeadForm.tsx"));
-  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const { ManualLeadForm } = require(join(ROOT, "src/components/staff/ManualLeadForm.tsx"));
+  const page = require(join(ROOT, "src/app/(staff)/requests/page.tsx")).default;
   const out = {};
   for (const [name, ownersFail] of [["read", false], ["failed", true]]) {
     current = { ...SCENARIOS.populated, ownersFail };
@@ -665,7 +665,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import { RequestsQueueView } from "../../src/components/v3/requests/RequestsQueueView";
+import { RequestsQueueView } from "../../src/components/staff/requests/RequestsQueueView";
 
 const fixture = JSON.parse(document.getElementById("${SWITCH_FIXTURE_ID}").textContent);
 const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
@@ -680,7 +680,7 @@ function render(key) {
   const search = new URLSearchParams("status=all&open=" + key);
   root.render(
     createElement(AppRouterContext.Provider, { value: router },
-      createElement(PathnameContext.Provider, { value: "/v3/requests" },
+      createElement(PathnameContext.Provider, { value: "/requests" },
         createElement(SearchParamsContext.Provider, { value: search },
           createElement(RequestsQueueView, { ...fixture.props, open: { kind, id }, takeRequestIds, decisionRequestId: fresh() })))),
   );
@@ -859,7 +859,7 @@ const MANUAL_LEAD_ROOT_ID = "manual-lead-root";
 const MANUAL_LEAD_ENTRY = `
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "../../src/components/v3/ManualLeadForm";
+import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "../../src/components/staff/ManualLeadForm";
 
 createRoot(document.getElementById("${MANUAL_LEAD_ROOT_ID}")).render(
   createElement(ManualLeadDisclosure, null,
@@ -1003,7 +1003,7 @@ const CHANNEL_SPEND_ROOT_ID = "channel-spend-root";
 const CHANNEL_SPEND_ENTRY = `
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { LeadChannelCorrection } from "../../src/components/v3/profile/LeadChannelCorrection";
+import { LeadChannelCorrection } from "../../src/components/staff/profile/LeadChannelCorrection";
 
 createRoot(document.getElementById("${CHANNEL_SPEND_ROOT_ID}")).render(
   createElement("div", { className: "space-y-6" },
@@ -1100,7 +1100,7 @@ import { createElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import { RequestsQueueView } from "../../src/components/v3/requests/RequestsQueueView";
+import { RequestsQueueView } from "../../src/components/staff/requests/RequestsQueueView";
 
 const fixture = JSON.parse(document.getElementById("${F1_FIXTURE_ID}").textContent);
 const listeners = new Set();
@@ -1123,7 +1123,7 @@ function Host() {
 }
 createRoot(document.getElementById("${F1_ROOT_ID}")).render(
   createElement(AppRouterContext.Provider, { value: router },
-    createElement(PathnameContext.Provider, { value: "/v3/requests" },
+    createElement(PathnameContext.Provider, { value: "/requests" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, createElement(Host)))),
 );
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
@@ -1148,9 +1148,9 @@ async function f1() {
   const outIndex = process.argv.indexOf("--f1") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
   mkdirSync(outDir, { recursive: true });
-  const { RequestsQueueView } = require(join(ROOT, "src/components/v3/requests/RequestsQueueView.tsx"));
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const { RequestsQueueView } = require(join(ROOT, "src/components/staff/requests/RequestsQueueView.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const page = require(join(ROOT, "src/app/(staff)/requests/page.tsx")).default;
   current = SCENARIOS["drawer-lead"];
   const originalUuid = nodeCrypto.randomUUID;
   const RealDate = Date;

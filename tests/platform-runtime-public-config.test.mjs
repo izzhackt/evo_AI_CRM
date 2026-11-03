@@ -56,11 +56,11 @@ function chatPage(runtimeEnv, authorize = async () => ({
 })) {
   const publicConfig = loadSource("src/lib/supabase/config.ts", {}, { process: { env: runtimeEnv } });
   const jsx = (type, props) => ({ type, props });
-  const { default: page } = loadSource("src/app/(v3)/v3/team-chat/page.tsx", {
+  const { default: page } = loadSource("src/app/(staff)/team-chat/page.tsx", {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "next/navigation": { notFound() { throw new Error("not_found"); } },
     // «Новый вид» — единственный вид (#1327): страница отдаёт чат ленивому входу вместе с публичной конфигурацией.
-    "@/components/v3/team-chat/next/TeamChatNextLazy": { TeamChatNextLazy: "TeamChatNextLazy", TeamChatNextFailureLazy: "TeamChatNextFailureLazy" },
+    "@/components/staff/team-chat/next/TeamChatNextLazy": { TeamChatNextLazy: "TeamChatNextLazy", TeamChatNextFailureLazy: "TeamChatNextFailureLazy" },
     "@/lib/platform-guards": { requireV3PageActor: authorize },
     "@/lib/platform-team-chat": loadSource("src/lib/platform-team-chat.ts"),
     "@/lib/server/platform-team-chat-repository": { TeamChatReadError: class extends Error {} },
@@ -110,11 +110,11 @@ test("chat connects with supplied public config in an env-free browser and keeps
   };
   const hooks = { useState: (value) => [typeof value === "function" ? value() : value, () => {}], useRef: (current) => ({ current }),
     useCallback: (callback) => callback, useEffect: (effect) => effects.push(effect), useLayoutEffect: (effect) => effects.push(effect) };
-  const seenHook = loadSource("src/components/v3/team-chat/useTeamChatSeen.ts", {
+  const seenHook = loadSource("src/components/staff/team-chat/useTeamChatSeen.ts", {
     react: hooks, "@/lib/platform-team-chat-seen-actions": {},
     "@/lib/platform-team-chat-seen": chatSeen, "@/lib/team-chat-feed": chatFeed,
   });
-  const { TeamChat } = loadSource("src/components/v3/team-chat/TeamChat.tsx", {
+  const { TeamChat } = loadSource("src/components/staff/team-chat/TeamChat.tsx", {
     ...chatLibs(),
     "@/components/icons": loadSource("src/components/icons.tsx", { "react/jsx-runtime": jsxRuntime }),
     "@/lib/platform-organization-time": loadSource("src/lib/platform-organization-time.ts"),
@@ -162,11 +162,11 @@ test("revocation remains terminal when an earlier context request rejects afterw
     useEffect: (effect) => effects.push(effect), useLayoutEffect: (effect) => effects.push(effect),
   };
   const jsx = (type, props) => ({ type, props });
-  const seenHook = loadSource("src/components/v3/team-chat/useTeamChatSeen.ts", {
+  const seenHook = loadSource("src/components/staff/team-chat/useTeamChatSeen.ts", {
     react: hooks, "@/lib/platform-team-chat-seen-actions": {},
     "@/lib/platform-team-chat-seen": chatSeen, "@/lib/team-chat-feed": chatFeed,
   });
-  const { TeamChat } = loadSource("src/components/v3/team-chat/TeamChat.tsx", {
+  const { TeamChat } = loadSource("src/components/staff/team-chat/TeamChat.tsx", {
     ...chatLibs(),
     react: hooks, "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": { default: "Link" },
     "@supabase/ssr": { createBrowserClient() { connections++; throw new Error("must not reconnect after revocation"); } },

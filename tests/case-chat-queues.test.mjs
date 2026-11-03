@@ -31,7 +31,7 @@ test("selected-case and return links round-trip a literal search and queue witho
   const query = "Анна & queue=all #?+%_";
   for (const queue of ["all", "needs_reply", "awaiting_student"]) {
     const current = new URL(caseChatHref(query, queue, id, attachment), "https://example.invalid");
-    assert.equal(current.pathname, "/v3/messages");
+    assert.equal(current.pathname, "/messages");
     assert.equal(current.searchParams.get("q"), query);
     assert.equal(current.searchParams.get("case"), id);
     assert.equal(parseCaseChatQueue(current.searchParams.get("queue") ?? undefined), queue);
@@ -44,13 +44,13 @@ test("selected-case and return links round-trip a literal search and queue witho
     assert.equal(anotherCase.searchParams.get("case"), attachment.id);
     assert.equal(anotherCase.searchParams.has("attach"), false);
   }
-  assert.equal(caseChatHref("", "needs_reply"), "/v3/messages");
-  assert.equal(caseChatHref("", "all"), "/v3/messages?queue=all");
+  assert.equal(caseChatHref("", "needs_reply"), "/messages");
+  assert.equal(caseChatHref("", "all"), "/messages?queue=all");
   const reset = new URL(caseChatHref("", "awaiting_student", id), "https://example.invalid");
   assert.equal(reset.searchParams.has("q"), false);
   assert.equal(reset.searchParams.get("queue"), "awaiting_student");
   // Прежние ссылки «Сегодня» с явной очередью открывают ту же очередь.
-  assert.equal(parseCaseChatQueue(new URL("/v3/messages?case=x&queue=needs_reply", "https://example.invalid").searchParams.get("queue") ?? undefined), "needs_reply");
+  assert.equal(parseCaseChatQueue(new URL("/messages?case=x&queue=needs_reply", "https://example.invalid").searchParams.get("queue") ?? undefined), "needs_reply");
 });
 
 // These are source-contract guards, not SQL execution or authorization proof.

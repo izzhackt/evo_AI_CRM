@@ -252,15 +252,15 @@ function compile(path, resolve = require) {
   new Function("require", "module", "exports", code)(resolve, compiledModule, compiledModule.exports);
   return compiledModule.exports;
 }
-const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
-const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
-const formPanel = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", id => {
+const disclosure = compile("src/components/staff/settings/StaffDisclosure.tsx");
+const queueButtons = compile("src/components/staff/queue/queue-buttons.ts");
+const formPanel = compile("src/components/staff/profile/UniversityFormExportPanel.tsx", id => {
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return client;
   if (id === "@/lib/v3/wording") return wording;
   return require(id);
 });
-const ui = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
+const ui = compile("src/components/staff/profile/StudentProfileExportHistory.tsx", id => {
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return client;
   if (id === "@/lib/v3/wording") return wording;
@@ -288,17 +288,17 @@ test("actual empty/busy history SSR and shared editor guard remain explicit; no 
   }));
   assert.match(busy, /<button[^>]*disabled=""[^>]*>Скачать файл/);
   assert.match(busy, /<button[^>]*disabled=""[^>]*>Проверить сохранение/);
-  const source = read("src/components/v3/profile/StudentProfileExportHistory.tsx");
+  const source = read("src/components/staff/profile/StudentProfileExportHistory.tsx");
   assert.doesNotMatch(source, /setInterval|setTimeout|localStorage|sessionStorage|profile-exports/);
   assert.match(source, /execute\(unresolvedCommand.command\)/);
   assert.match(source, /unresolvedCommand.studentCaseId !== studentCaseId/);
   assert.match(source, /reconcileRequests.current.get\(artifact.id\) \?\? crypto.randomUUID\(\)/);
   assert.match(source, /commandInFlightRef.current = true/);
-  assert.match(read("src/components/v3/profile/StudentProfileFields.tsx"), /commandInFlightRef=\{commandInFlight\}/);
+  assert.match(read("src/components/staff/profile/StudentProfileFields.tsx"), /commandInFlightRef=\{commandInFlight\}/);
 });
 
 test("university form panel: «обновите список» messages get an in-place refresh, not only a failure retry", () => {
-  const src = read("src/components/v3/profile/UniversityFormExportPanel.tsx");
+  const src = read("src/components/staff/profile/UniversityFormExportPanel.tsx");
   assert.match(src, /const listStale = catalog !== null && \(!forms \|\| forms\.items\.length === 0/u);
   assert.match(src, /\{failure \|\| listStale \? <button[^>]*onClick=\{refresh\}>\{failure \? words\.retry : words\.refresh\}<\/button> : null\}/u);
   for (const key of ["noCatalog", "noMoreForms", "mappingChanged"]) assert.match(wording.universityFormExport[key], /[Оо]бновит/u, key);

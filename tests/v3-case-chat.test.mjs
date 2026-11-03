@@ -195,7 +195,7 @@ test("case chat actions echo the caller's request id verbatim (frozen-retry is t
 });
 
 test("the composer freezes the exact submitted field values (not just the request id) on 'unavailable' and never narrates", () => {
-  const component = source("src/components/v3/case-chat/CaseChatThread.tsx");
+  const component = source("src/components/staff/case-chat/CaseChatThread.tsx");
   assert.match(component, /retryBody\?: string; retryQuotedMessageId\?: string; retryAttachmentKind\?: string; retryAttachmentId\?: string;/u);
   assert.match(component, /value=\{draft\.retryBody \?\? draft\.body\}/u);
   assert.match(component, /else if \(result\.status !== "unavailable"\) \{\s*persist\(\{ \.\.\.draft, requestId: crypto\.randomUUID\(\), retryBody: undefined, retryQuotedMessageId: undefined, retryAttachmentKind: undefined, retryAttachmentId: undefined \}\);/u);
@@ -211,25 +211,25 @@ test("the composer freezes the exact submitted field values (not just the reques
 });
 
 test("the messages route registers in all three route maps and as «Переписка» in «Поступление»", () => {
-  assert.match(source("src/lib/fixed-role-policy.ts"), /"\/v3\/messages",/u);
-  assert.match(source("src/lib/fixed-role-policy.ts"), /"\/v3\/messages": \["admissions\.read"\]/u);
-  assert.match(source("src/lib/platform-route-contract.ts"), /"\/v3\/messages",/u);
-  assert.match(source("src/lib/platform-access.ts"), /"\/v3\/messages": \["admissions\.read"\]/u);
+  assert.match(source("src/lib/fixed-role-policy.ts"), /"\/messages",/u);
+  assert.match(source("src/lib/fixed-role-policy.ts"), /"\/messages": \["admissions\.read"\]/u);
+  assert.match(source("src/lib/platform-route-contract.ts"), /"\/messages",/u);
+  assert.match(source("src/lib/platform-access.ts"), /"\/messages": \["admissions\.read"\]/u);
   // 27.09.2026 (owner decision): the per-case chat is its own admissions item
   // again; 28.09.2026: its short name «Переписка» fits the menu on one line.
   const navigation = source("src/lib/v3/navigation.ts");
-  assert.match(navigation, /\{ id: "messages", href: "\/v3\/messages", route: "\/v3\/messages", label: "Переписка" \}/u);
+  assert.match(navigation, /\{ id: "messages", href: "\/messages", route: "\/messages", label: "Переписка" \}/u);
 });
 
 test("«Обсудить» links exist from the case card and the task detail panel (case tasks); the documents tab relies on the header «Написать»", () => {
-  assert.match(source("src/components/v3/profile/tabs.tsx"), /href=\{`\/v3\/messages\?case=\$\{draft\.admissions\.studentCaseId\}`\}/u);
-  const taskPanel = source("src/components/v3/tasks/next/TaskSheetBody.tsx");
-  assert.match(taskPanel, /href=\{`\/v3\/messages\?case=\$\{data\.caseId\}&attach=case_task:\$\{data\.task\.id\}`\}/u);
+  assert.match(source("src/components/staff/profile/tabs.tsx"), /href=\{`\/messages\?case=\$\{draft\.admissions\.studentCaseId\}`\}/u);
+  const taskPanel = source("src/components/staff/tasks/next/TaskSheetBody.tsx");
+  assert.match(taskPanel, /href=\{`\/messages\?case=\$\{data\.caseId\}&attach=case_task:\$\{data\.task\.id\}`\}/u);
   assert.match(taskPanel, />\s*Обсудить\s*</u);
   // Documents tab: the second «Обсудить» to the same chat sat beside the header's «Написать» on the same screen — removed (24.10.2026).
-  const documents = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  assert.doesNotMatch(documents, /\/v3\/messages\?case=|Обсудить/u);
-  assert.match(source("src/components/v3/profile/CaseWorkParts.tsx"), /const messagesHref = `\/v3\/messages\?case=\$\{encodeURIComponent\(caseId\)\}`;[\s\S]*?<span className="sr-only sm:not-sr-only">Написать<\/span>/u);
+  const documents = source("src/components/staff/profile/ProfileDocumentsClient.tsx");
+  assert.doesNotMatch(documents, /\/messages\?case=|Обсудить/u);
+  assert.match(source("src/components/staff/profile/CaseWorkParts.tsx"), /const messagesHref = `\/messages\?case=\$\{encodeURIComponent\(caseId\)\}`;[\s\S]*?<span className="sr-only sm:not-sr-only">Написать<\/span>/u);
 });
 
 test("the board decoder tolerates the new needs_reply key (field-picking, no exhaustive key check) — verified, not assumed", () => {
@@ -249,9 +249,9 @@ test("the pipeline board renders needs_reply as a warning word with a link to th
   // the shared card grammar — a StatusChip with its word (Э1.3), linked to the
   // case chat; the wording source is the same. 24.10.2026 (owner): «нужен ответ» is a
   // warning, not a problem — warn, like the case overview and «Переписки» (Э5); red is «просрочено».
-  const board = source("src/components/v3/admissions-pipeline-next/AdmissionsCardNext.tsx");
+  const board = source("src/components/staff/admissions-pipeline-next/AdmissionsCardNext.tsx");
   assert.match(board, /row\.needsReply \?/u);
-  assert.match(board, /href=\{`\/v3\/messages\?case=\$\{row\.studentCaseId\}`\}/u);
+  assert.match(board, /href=\{`\/messages\?case=\$\{row\.studentCaseId\}`\}/u);
   assert.match(board, /const replyWord = caseChatAwaitState\("needs_reply"\)\?\.toLocaleLowerCase\("ru-RU"\) \?\? "";/u);
   assert.match(board, /<StatusBadge label=\{replyWord\} tone="warn"/u);
   assert.doesNotMatch(board, /<StatusBadge label=\{replyWord\} tone="danger"/u);
@@ -260,7 +260,7 @@ test("the pipeline board renders needs_reply as a warning word with a link to th
 test("the staff notification contract decodes case_message with an ids-only href to the messages screen", () => {
   const contract = source("src/lib/platform-staff-notifications-contract.ts");
   assert.match(contract, /\| "case_message";/u);
-  assert.match(contract, /else if \(row\.kind === "case_message"\) \{\s*if \(!isStaffNotificationId\(row\.student_case_id\)\) return fail\(\);\s*href = `\/v3\/messages\?case=\$\{row\.student_case_id\}`;/u);
+  assert.match(contract, /else if \(row\.kind === "case_message"\) \{\s*if \(!isStaffNotificationId\(row\.student_case_id\)\) return fail\(\);\s*href = `\/messages\?case=\$\{row\.student_case_id\}`;/u);
 });
 
 test("wording.ts carries the await-state dictionary used by the composer and the board", () => {

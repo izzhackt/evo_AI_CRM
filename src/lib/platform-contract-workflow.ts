@@ -1679,7 +1679,7 @@ export function buildPlatformContractRedirectTarget(
       if (subjectId) params.set("bw6_subject_id", subjectId);
     }
   }
-  return `/v3/profile?${params.toString()}#contract-workflow`;
+  return `/profile?${params.toString()}#contract-workflow`;
 }
 
 export type PlatformContractMutationResponse = Readonly<

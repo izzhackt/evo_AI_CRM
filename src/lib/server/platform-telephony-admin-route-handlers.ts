@@ -47,7 +47,7 @@ async function defaultAuthorize(): Promise<Authorization> {
   if (result.status === "invalid") return { status: "unavailable", actor: null };
   // Просмотр роли — только вид экрана: настройки он не меняет.
   if (isStaffPreview(result.actor)) return { status: "preview", actor: null };
-  if (!staffHasPermission(result.actor, "telephony.manage") || !staffCanAccessRoute(result.actor, "/v3/settings")) {
+  if (!staffHasPermission(result.actor, "telephony.manage") || !staffCanAccessRoute(result.actor, "/settings")) {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };

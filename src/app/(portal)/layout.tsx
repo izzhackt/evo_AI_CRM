@@ -11,7 +11,7 @@ import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import { readRequestTheme } from "@/lib/theme-server";
 
-import "../(v3)/v3.css";
+import "../(staff)/staff.css";
 import "./portal.css";
 
 // Страницы кабинета сами дописывают «— EVO Admissions»; корневой шаблон

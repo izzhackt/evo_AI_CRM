@@ -1,0 +1,739 @@
+"use client";
+
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+
+import { Icon } from "@/components/icons";
+import { cn } from "@/components/ui";
+import {
+  BOARD_CARD_CLASS,
+  BOARD_EMPTY,
+  BOARD_PANEL_FOLD,
+  BoardColumn,
+  BoardRail,
+  boardTracks,
+} from "@/components/staff/board/Board";
+import { DueWord } from "@/components/staff/blocks/DueWord";
+import { Initials } from "@/components/staff/blocks/Initials";
+import { StageTrack } from "@/components/staff/blocks/StageTrack";
+import { dueWordOf, type DueWordView } from "@/components/staff/queue/due-bucket";
+import { PipelineDecisionForm } from "@/components/staff/PipelineDecisionForm";
+import { ClosedLine, CloseRecordMenu } from "@/components/staff/closure/Closure";
+import { attributeReturn } from "@/components/staff/panel/side-panel";
+import { SidePanel } from "@/components/staff/panel/SidePanel";
+import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
+import { closureWords, leadDisplayName } from "@/lib/v3/wording";
+import type {
+  PlatformSalesOwnerOption,
+  PlatformSalesStage,
+  PlatformSalesWorkflowLead,
+} from "@/lib/platform-sales-contract";
+import type { PlatformSalesLeadLatestNote } from "@/lib/platform-sales";
+import { pipelineReturnHref, withPipelineReturn } from "@/lib/v3/pipeline-return";
+
+export type PipelineStageKey = PlatformSalesStage | "handed_off";
+
+export type PipelineStage = Readonly<{
+  key: PipelineStageKey;
+  title: string;
+  gate: boolean;
+  terminal: boolean;
+}>;
+
+/**
+ * Имя лида на доске: лид, которого завёл звонок с неизвестного номера, база называет «Звонок +996 ••• …», а экраны
+ * пишут «Номер +996 ••• …» (как «Заявки» и «Сегодня»). Только показ: данные лида и поиск остаются как в базе.
+ */
+function leadLabel(lead: Pick<PipelineLead, "source" | "name">): string {
+  return leadDisplayName(lead.source, lead.name);
+}
+
+export type PipelineLead = Readonly<{
+  id: string;
+  name: string;
+  stageKey: PipelineStageKey;
+  source: string;
+  nextAction: string | null;
+  nextActionAt: string | null;
+  due: "overdue" | "today" | "later" | "none";
+  stageAgeDays: number | null;
+  latestNote: PlatformSalesLeadLatestNote | null;
+  href: string;
+  workflow: PlatformSalesWorkflowLead;
+}>;
+
+/**
+ * Терминальная колонка копится вечно, поэтому свёрнутой она показывает только
+ * последние карточки: строки приходят от RPC новыми вперёд, срез честен.
+ */
+const HANDED_VISIBLE_LIMIT = 20;
+
+const NOTE_TIME = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Asia/Bishkek",
+});
+
+/** «на этапе 4 дн» (Э1.3) — слово этапа и «дн», как у срока словом. */
+export function stageAgeCopy(days: number): string {
+  return `на этапе ${days} дн`;
+}
+
+/**
+ * Срок лида словом (Э1.3) — «прошёл 3 дн», «сегодня», «через
+ * 2 дн» — от полудня сегодняшнего дня Бишкека, который прочитала страница
+ * (тот же день, что у `due` из pipeline-source). Без срока — null.
+ */
+function leadDueWord(lead: PipelineLead, today: string): DueWordView | null {
+  const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
+  if (!dueDate) return null;
+  return dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`));
+}
+
+/** Адрес доски с изменёнными параметрами; прочие фильтры сохраняются. */
+function useBoardHref() {
+  const pathname = usePathname() ?? "/pipeline";
+  const search = useSearchParams();
+  return (patch: Readonly<Record<string, string | null>>) => {
+    const params = new URLSearchParams(search?.toString() ?? "");
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) params.delete(key);
+      else params.set(key, value);
+    }
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  };
+}
+
+/** Панель открывается без запроса к серверу, но остаётся в адресе (`?lead=`). */
+function pushBoardState(event: MouseEvent<HTMLAnchorElement>, href: string): boolean {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+  event.preventDefault();
+  window.history.pushState(null, "", href);
+  return true;
+}
+
+function LeadCard({
+  lead,
+  terminal,
+  selected,
+  showOwner,
+  href,
+  onOpen,
+  dueWord = null,
+}: {
+  lead: PipelineLead;
+  terminal: boolean;
+  selected: boolean;
+  showOwner: boolean;
+  href: string;
+  onOpen: (event: MouseEvent<HTMLAnchorElement>) => void;
+  /** Срок словом (блок `DueWord`); null — у лида нет срока или дня чтения. */
+  dueWord?: DueWordView | null;
+}) {
+  const owner = lead.workflow.currentOwnerDisplayName;
+  const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;
+  // Третья строка (Э1.3): сначала дата, затем слово срока — как в «Задачах»,
+  // деле и панели лида; возраст этапа подписан («на этапе 4 дн») и не
+  // обрезается посреди слова: не помещается рядом со сроком — уходит целиком
+  // (staff.css), а остаётся в панели лида и для читалки. Имя в первой строке
+  // получает всю ширину карточки, а инициалы ответственного стоят справа от
+  // его следующего действия.
+  const word = terminal ? null : dueWord;
+  const age = terminal ? null : lead.stageAgeDays;
+  const meta = dueDate || age !== null ? (
+    <p className="v3-card-meta t-meta text-fg-3">
+      {dueDate ? (
+        <span className="v3-card-due">
+          <time dateTime={dueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time>
+          {word ? <>{" "}<DueWord view={word} /></> : null}
+        </span>
+      ) : null}
+      {dueDate && age !== null ? " " : null}
+      {age !== null ? <span className="v3-card-age">{dueDate ? <span aria-hidden="true">· </span> : null}{stageAgeCopy(age)}</span> : null}
+    </p>
+  ) : null;
+  const actionLine = !(terminal && !lead.nextAction);
+  const initials = showOwner && owner ? <Initials name={owner} size="sm" /> : null;
+
+  return (
+    <article
+      data-testid="v3-pipeline-card"
+      data-lead-id={lead.id}
+      aria-current={selected ? "true" : undefined}
+      // Карточка, чья панель открыта рядом, выбрана как строка списка (Э7):
+      // `aria-current` и подложка `surface-2`, рамка — как у наведения.
+      className={`${BOARD_CARD_CLASS} aria-[current=true]:border-control-edge aria-[current=true]:bg-surface-2`}
+    >
+      <p className="flex min-w-0 items-baseline gap-2">
+        {/* Вся карточка нажимается: ссылка растянута на неё псевдоэлементом. */}
+        <Link
+          href={href}
+          prefetch={false}
+          scroll={false}
+          onClick={onOpen}
+          title={leadLabel(lead)}
+          data-lead-link={lead.id}
+          className="t-item min-w-0 flex-1 truncate text-fg after:absolute after:inset-0 after:rounded-ctl"
+        >
+          {leadLabel(lead)}
+        </Link>
+        {/* Переданный лид без действия: инициалы у имени, а не одни в строке. */}
+        {actionLine ? null : initials ? <span className="t-meta text-fg-3">{initials}</span> : null}
+      </p>
+      {actionLine ? (
+        <p className="t-meta flex min-w-0 items-baseline gap-2 text-fg-3">
+          <span className={`min-w-0 flex-1 truncate ${lead.nextAction ? "text-fg-2" : ""}`} title={lead.nextAction ?? undefined}>
+            {lead.nextAction ?? "Без действия"}
+          </span>
+          {initials}
+        </p>
+      ) : null}
+      {meta}
+    </article>
+  );
+}
+
+function LeadPanel({
+  lead,
+  today,
+  stageTitle,
+  terminal,
+  workflowStages,
+  ownerOptions,
+  ownerOptionsHaveMore,
+  actor,
+  actorMembershipId,
+  requestId,
+  closeHref,
+  returnTo,
+  focusReturn,
+  saved,
+  onClose,
+  onSaved,
+  onLeadClosed,
+}: {
+  lead: PipelineLead;
+  /** Сегодня в Бишкеке (страница): день, от которого считается слово срока. */
+  today: string;
+  stageTitle: string;
+  terminal: boolean;
+  workflowStages: readonly Readonly<{ key: PlatformSalesStage; title: string }>[];
+  ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHaveMore: boolean;
+  actor: ActivePlatformActor;
+  actorMembershipId: string;
+  requestId: string;
+  closeHref: string;
+  /** Текущее состояние доски — туда ведёт «К воронке продаж» из карточки. */
+  returnTo: string;
+  /** Куда встаёт фокус после закрытия: карточка лида, иначе рейка её этапа. */
+  focusReturn: readonly string[] | undefined;
+  saved: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  /** «Закрыть лид» подтверждён сервером: лид уходит с доски. */
+  onLeadClosed: (receipt: LeadClosureReceipt) => void;
+}) {
+  const savedRef = useRef<HTMLParagraphElement>(null);
+  const owner = lead.workflow.currentOwnerDisplayName;
+  // Строка контекста шапки (Э7): этап и ответственный — из списка фактов
+  // панели. Над ней — дорожка этапа, без своей подписи: слово этапа уже в
+  // строке.
+  const contextLine = `${stageTitle} · ${owner ? `Ответственный: ${owner}` : "Ответственный не назначен"}`;
+
+  // Итог сохранения появляется после обновления доски под кнопкой — панель
+  // докручивается до него, если он оказался ниже края.
+  useEffect(() => {
+    if (saved) savedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [saved]);
+
+  // Общая боковая панель (Э7): от 1280 px окна — в ряд с доской (`fill`:
+  // высотой доски, доска остаётся рабочей), уже — модальный лист поверх
+  // страницы. Закрытие — без запроса к серверу (`onClose`, `?lead=` уходит
+  // из адреса через history).
+  return (
+    <SidePanel
+      closeHref={closeHref}
+      onClose={onClose}
+      backLabel="К воронке"
+      title={leadLabel(lead)}
+      context={(
+        <>
+          <StageTrack kind="sales" current={lead.stageKey} caption={false} className="mb-1.5 pt-1" />
+          <p>{contextLine}</p>
+        </>
+      )}
+      open={{ href: withPipelineReturn(lead.href, returnTo), label: "Открыть карточку лида", prefetch: false }}
+      // «⋯» лида: «Закрыть лид». Переданный лид — продажа: пункт недоступен
+      // и называет причину. Права — подсказка; решает сервер (246).
+      actions={!isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
+        <CloseRecordMenu
+          kind="lead"
+          subjectId={lead.workflow.leadId}
+          subjectName={leadLabel(lead)}
+          expectedVersion={lead.workflow.workflowVersion}
+          blockedReason={terminal ? closureWords.lead.handedOff : null}
+          onClosed={onLeadClosed}
+        />
+      ) : null}
+      returnTo={focusReturn}
+      fill
+      testId="v3-pipeline-lead-panel"
+      data={{ "data-lead-id": lead.id }}
+    >
+      <dl className="t-body-compact grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-fg">
+        <dt className="t-caption pt-0.5 text-fg-3">Действие</dt>
+        <dd className={`break-words ${lead.nextAction ? "" : "text-fg-3"}`}>{lead.nextAction ?? "Без следующего действия"}</dd>
+        {lead.nextActionAt && lead.workflow.nextActionDueDate ? (
+          <>
+            <dt className="t-caption pt-0.5 text-fg-3">Срок</dt>
+            <dd className="flex items-baseline gap-2">
+              <time dateTime={lead.workflow.nextActionDueDate} className="font-mono tabular-nums">{lead.nextActionAt}</time>
+              {terminal ? null : <DueWord view={leadDueWord(lead, today)} />}
+            </dd>
+          </>
+        ) : null}
+        {!terminal && lead.stageAgeDays !== null ? (
+          <>
+            <dt className="t-caption pt-0.5 text-fg-3">На этапе</dt>
+            <dd className="tabular-nums">{lead.stageAgeDays} дн</dd>
+          </>
+        ) : null}
+      </dl>
+
+      {/* Ролям без права на задачи ссылка просто не показывается —
+          без постоянной строки-инструкции в каждой карточке. */}
+      {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read") ? (
+        <p className="mt-2 flex flex-wrap gap-x-5">
+          <Link href={`/tasks?lead=${lead.workflow.leadId}&create=staff`} prefetch={false} className="t-item inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
+            Задача по лиду
+          </Link>
+        </p>
+      ) : null}
+
+      {lead.latestNote ? (
+        <section aria-label="Последняя заметка" className="mt-3 border-t border-border pt-3">
+          <h3 className="t-caption text-fg-3">Последняя заметка</h3>
+          <p className="t-body-compact mt-1 line-clamp-6 whitespace-pre-wrap break-words text-fg-2">{lead.latestNote.body}</p>
+          <p className="t-meta mt-1 truncate text-fg-3">
+            {lead.latestNote.authorDisplayName}
+            {" · "}
+            <time dateTime={lead.latestNote.createdAt} className="font-mono tabular-nums">
+              {NOTE_TIME.format(new Date(lead.latestNote.createdAt))}
+            </time>
+          </p>
+        </section>
+      ) : null}
+
+      {!terminal && !isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
+        <div className="mt-3 border-t border-border pt-3">
+          <PipelineDecisionForm
+            key={`${lead.workflow.leadId}:${lead.workflow.workflowVersion}`}
+            lead={lead.workflow}
+            stages={workflowStages}
+            ownerOptions={ownerOptions}
+            ownerOptionsHaveMore={ownerOptionsHaveMore}
+            actor={actor}
+            actorMembershipId={actorMembershipId}
+            requestId={requestId}
+            onSaved={onSaved}
+          />
+          {/* Итог — там же, где его показывала форма до обновления доски:
+              у кнопки, куда смотрит сотрудник. */}
+          {saved ? <p ref={savedRef} role="status" className="t-body-compact mt-2 text-ok">Решение сохранено.</p> : null}
+        </div>
+      ) : null}
+    </SidePanel>
+  );
+}
+
+export function Pipeline({
+  stages,
+  leads,
+  ownerOptions,
+  ownerOptionsHaveMore,
+  actor,
+  actorMembershipId,
+  requestIds,
+  handedExpanded,
+  filteredStage,
+  showOwner,
+  today,
+}: {
+  stages: readonly PipelineStage[];
+  leads: readonly PipelineLead[];
+  ownerOptions: readonly PlatformSalesOwnerOption[];
+  ownerOptionsHaveMore: boolean;
+  actor: ActivePlatformActor;
+  actorMembershipId: string;
+  requestIds: Readonly<Record<string, string>>;
+  handedExpanded: boolean;
+  /** Этап в фокусе (`?stage=`); остальные колонки — рейки с числами. */
+  filteredStage: PipelineStageKey | "all";
+  /** Инициалы ответственного не нужны, когда показаны только «Мои». */
+  showOwner: boolean;
+  /** Сегодня в Бишкеке (страница): день, от которого считается слово срока. */
+  today: string;
+}) {
+  const search = useSearchParams();
+  const router = useRouter();
+  const boardHref = useBoardHref();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
+  // Закрытый лид уходит с доски; строка над доской называет его и даёт
+  // настоящий «Вернуть в работу» (обратная команда 246).
+  // `reopened` — «Вернуть в работу» подтверждён: строка говорит итог, пока её не скроют.
+  const [closedNotice, setClosedNotice] = useState<Readonly<{ name: string; receipt: LeadClosureReceipt; reopened: boolean }> | null>(null);
+  // Сохранённое решение: лид и версия, с которой его сохранили. Пока доска
+  // не обновилась, итог показывает сама форма; после обновления форма
+  // пересоздаётся с новой версией, и итог остаётся строкой панели — без
+  // двух одинаковых «Решение сохранено.» подряд.
+  const [saved, setSaved] = useState<Readonly<{ leadId: string; version: string }> | null>(null);
+  const idPrefix = useId();
+
+  const selectedId = search?.get("lead") ?? null;
+  const selected = leads.find((lead) => lead.id === selectedId) ?? null;
+  const selectedStage = selected ? stages.find((stage) => stage.key === selected.stageKey) : undefined;
+  const focus = filteredStage;
+  const workflowStages = stages.flatMap((stage) =>
+    stage.key === "handed_off"
+      ? []
+      : [{ key: stage.key, title: stage.title }],
+  );
+  const terminalKeys = stages.filter((stage) => stage.terminal).map((stage) => stage.key);
+  const stageKeys = stages.map((stage) => stage.key);
+  const tracks = boardTracks(stageKeys, focus, terminalKeys);
+  // Панель открыта при всех этапах: где шести колонкам рядом с ней не хватает
+  // места, раскрыт только этап выбранного лида (дорожки как у фокуса). Для
+  // переданного лида это «Переданы»: рабочие этапы сворачиваются в рейки,
+  // а не сжимаются до 111 px рядом с панелью.
+  const foldFor = focus === "all" && selectedStage ? selectedStage.key : null;
+  const emptyWorking = focus === "all"
+    ? stages.filter((stage) => !stage.terminal && !leads.some((lead) => lead.stageKey === stage.key))
+    : [];
+  // Панель открыта при всех этапах: пустые рабочие этапы не держат по 183 px
+  // «Нет лидов» — они стоят рейками, а этапы с лидами делят место и читаются
+  // (иначе имена в единственной заполненной колонке режутся до «Номер +996 ••• …»).
+  // Если лидов нет ни в одном рабочем этапе (открыт переданный лид), рейками
+  // стали бы все колонки — тогда доска остаётся как есть. Единственная
+  // заполненная колонка раскладывает карточки сеткой, как фокус этапа.
+  const panelBoard = selected !== null && focus === "all";
+  const populatedWorking = stages.filter((stage) => !stage.terminal && leads.some((lead) => lead.stageKey === stage.key));
+  const emptyRailKeys = panelBoard && populatedWorking.length > 0 ? emptyWorking.map((stage) => stage.key) : [];
+  const soleColumn = panelBoard && populatedWorking.length === 1;
+  const boardStyle = {
+    "--board-tracks": tracks,
+    ...(foldFor ? { "--board-tracks-panel": boardTracks(stageKeys, foldFor, terminalKeys) } : {}),
+    ...(emptyRailKeys.length > 0 ? { "--board-tracks-open": boardTracks(stageKeys, "all", [...terminalKeys, ...emptyRailKeys]) } : {}),
+  } as CSSProperties;
+
+  // Открытие переводит фокус на заголовок панели — и с карточки, и по адресу
+  // (переход из «Сегодня»); закрытие возвращает его на карточку (`SidePanel`).
+  // Карточка переданного лида уходит вместе с раскрытой рядом с панелью
+  // колонкой «Переданы» — тогда фокус встаёт на рейку её этапа. Закрытый лид
+  // уходит с доски: фокус получает строка над доской, а не его карточка.
+  const closedHere = closedNotice !== null && !closedNotice.reopened && closedNotice.receipt.leadId === selected?.workflow.leadId;
+  const focusReturn = selected && !closedHere
+    ? [attributeReturn("data-lead-link", selected.id), attributeReturn("data-stage-rail", selected.stageKey)]
+    : undefined;
+
+  const openLead = (lead: PipelineLead) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!pushBoardState(event, boardHref({ lead: lead.id }))) return;
+    if (saved?.leadId !== lead.id) setSaved(null);
+  };
+  const closePanel = () => {
+    setSaved(null);
+    if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
+  };
+  function leadClosed(name: string, receipt: LeadClosureReceipt) {
+    setClosedNotice({ name, receipt, reopened: false });
+    setSaved(null);
+    if (search?.get("lead")) window.history.pushState(null, "", boardHref({ lead: null }));
+    router.refresh();
+  }
+  // Карточка закрытого лида уходит с доски (или возвращается) — фокус встаёт на его строку.
+  useEffect(() => {
+    if (closedNotice) noticeRef.current?.focus();
+  }, [closedNotice]);
+  // Строку скрыли — она больше не нужна; фокус — на первую карточку доски, а не в никуда.
+  function dismissNotice() {
+    setClosedNotice(null);
+    [...(rootRef.current?.querySelectorAll<HTMLElement>("a[data-lead-link]") ?? [])]
+      .find((element) => element.getClientRects().length > 0)?.focus();
+  }
+
+  const cardsOf = (stage: PipelineStage) => {
+    const inStage = leads.filter((lead) => lead.stageKey === stage.key);
+    const visible = stage.terminal && !handedExpanded ? inStage.slice(0, HANDED_VISIBLE_LIMIT) : inStage;
+    return { inStage, visible };
+  };
+
+  const renderCards = (stage: PipelineStage, visible: readonly PipelineLead[]) =>
+    visible.map((lead) => {
+      if (!requestIds[lead.id]) {
+        throw new Error("Pipeline decision request ID is missing.");
+      }
+      return (
+        <li key={lead.id}>
+          <LeadCard
+            lead={lead}
+            terminal={stage.terminal}
+            selected={lead.id === selectedId}
+            showOwner={showOwner}
+            href={boardHref({ lead: lead.id })}
+            onOpen={openLead(lead)}
+            dueWord={leadDueWord(lead, today)}
+          />
+        </li>
+      );
+    });
+
+  /** Заголовок колонки без фокуса: ссылка «Только этап …». */
+  const stageTitleLink = (stage: PipelineStage, href: string) => (
+    <Link
+      href={href}
+      prefetch={false}
+      scroll={false}
+      title={`Только этап «${stage.title}»`}
+      className="flex min-h-11 min-w-0 items-center truncate rounded-nav hover:underline hover:underline-offset-4"
+    >
+      <span className="truncate">{stage.title}</span>
+    </Link>
+  );
+
+  const handedLinks = (stage: PipelineStage, inStage: readonly PipelineLead[], visible: readonly PipelineLead[]) => (
+    <>
+      {stage.terminal && visible.length < inStage.length ? (
+        <li className="col-span-full">
+          <Link
+            href={boardHref({ handed: "all" })}
+            prefetch={false}
+            scroll={false}
+            className="flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
+          >
+            Показать все {inStage.length}
+          </Link>
+        </li>
+      ) : null}
+      {stage.terminal && handedExpanded && inStage.length > HANDED_VISIBLE_LIMIT ? (
+        <li className="col-span-full">
+          <Link
+            href={boardHref({ handed: null })}
+            prefetch={false}
+            scroll={false}
+            className="flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
+          >
+            Показать последние {HANDED_VISIBLE_LIMIT}
+          </Link>
+        </li>
+      ) : null}
+    </>
+  );
+
+  return (
+    <>
+    {closedNotice ? (
+      // Фокус переходит сюда после закрытия и возврата: читалка прочтёт строку целиком.
+      // Строка живёт до «Скрыть» (или следующего закрытия), а не до ухода со страницы.
+      <div ref={noticeRef} tabIndex={-1} data-testid="v3-pipeline-closed-notice"
+        className="mb-2 flex shrink-0 items-start gap-2 rounded-ctl border border-border bg-surface ps-3 outline-none focus-visible:outline-2 focus-visible:outline-focus-ring">
+        {closedNotice.reopened ? (
+          <p role="status" className="flex min-h-11 min-w-0 flex-1 items-center break-words t-body-compact text-ok">
+            Лид «{closedNotice.name}» снова в работе.
+          </p>
+        ) : (
+          <ClosedLine
+            key={`${closedNotice.receipt.leadId}:${closedNotice.receipt.changedAt}`}
+            kind="lead"
+            subject={<>Лид «{closedNotice.name}»</>}
+            subjectId={closedNotice.receipt.leadId}
+            expectedVersion={closedNotice.receipt.workflowVersion}
+            reasonKey={closedNotice.receipt.reason}
+            note={closedNotice.receipt.note}
+            closedAt={closedNotice.receipt.changedAt}
+            canReopen
+            onReopened={() => {
+              setClosedNotice((notice) => notice ? { ...notice, reopened: true } : notice);
+              router.refresh();
+            }}
+            className="min-w-0 flex-1 pt-3"
+          />
+        )}
+        <button type="button" onClick={dismissNotice} aria-label={closureWords.dismiss}
+          data-testid="v3-pipeline-closed-notice-dismiss"
+          className="flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg">
+          <Icon name="x" size={20} />
+        </button>
+      </div>
+    ) : null}
+    {/* От 1280 px окна доска и панель лида — один ряд, панель не перекрывает
+        колонки, а забирает у доски свою ширину (`--side-panel-width`) и 8 px. */}
+    <div ref={rootRef} className="relative flex min-w-0 flex-col @6xl:h-full @6xl:min-h-0 @6xl:flex-row @6xl:gap-2">
+      <div
+        role="group"
+        aria-label="Воронка продаж"
+        data-testid="v3-pipeline-board"
+        data-focus={focus}
+        className={cn(
+          "flex min-w-0 flex-col gap-4 @6xl:grid @6xl:h-full @6xl:min-h-0 @6xl:flex-1 @6xl:grid-rows-[minmax(0,1fr)] @6xl:gap-2 @6xl:[grid-template-columns:var(--board-tracks)]",
+          foldFor && BOARD_PANEL_FOLD.tracks,
+          emptyRailKeys.length > 0 && BOARD_PANEL_FOLD.openTracks,
+        )}
+        style={boardStyle}
+      >
+        {stages.map((stage) => {
+          const { inStage, visible } = cardsOf(stage);
+          const headingId = `${idPrefix}-${stage.key}`;
+          const focusHref = boardHref({ stage: stage.key });
+
+          if (focus !== "all" && focus !== stage.key) {
+            // Свёрнутая колонка: только на широком экране; на узком виден
+            // один этап в фокусе.
+            return (
+              <BoardRail
+                key={stage.key}
+                title={stage.title}
+                count={inStage.length}
+                href={focusHref}
+                className="hidden @6xl:flex"
+                testId="v3-pipeline-rail"
+              />
+            );
+          }
+
+          if (stage.terminal && focus === "all") {
+            // «Переданы» — исход, а не рабочий этап: рейка справа на широком
+            // экране, свёрнутая группа в конце списка на узком. Открыта панель
+            // переданного лида и места мало — рейку заменяет колонка с его
+            // карточкой, а рабочие этапы свёрнуты (одна дорожка, один элемент).
+            const unfold = foldFor === stage.key;
+            return (
+              <div key={stage.key} className="contents">
+                {emptyWorking.length > 0 ? (
+                  <p className="t-meta text-fg-3 @6xl:hidden">
+                    Пусто: {emptyWorking.map((one) => one.title).join(", ")}
+                  </p>
+                ) : null}
+                <BoardRail
+                  title={stage.title}
+                  count={inStage.length}
+                  href={focusHref}
+                  stage={stage.key}
+                  className={unfold ? BOARD_PANEL_FOLD.wideRail : "hidden @6xl:flex"}
+                  testId="v3-pipeline-rail"
+                />
+                {unfold ? (
+                  <BoardColumn
+                    headingId={headingId}
+                    testId="v3-pipeline-column"
+                    spread
+                    title={stageTitleLink(stage, focusHref)}
+                    count={inStage.length}
+                    emptyText={BOARD_EMPTY.leads}
+                    className={BOARD_PANEL_FOLD.column}
+                  >
+                    {renderCards(stage, visible)}
+                    {handedLinks(stage, inStage, visible)}
+                  </BoardColumn>
+                ) : null}
+                {inStage.length > 0 ? (
+                  <details className="border-t border-border @6xl:hidden">
+                    <summary className="t-item flex min-h-11 cursor-pointer items-center gap-2 px-1.5 text-fg">
+                      {stage.title}
+                      <span className="t-meta tabular-nums text-fg-3">{inStage.length}</span>
+                    </summary>
+                    <ul className="flex flex-col gap-1.5 pb-2">
+                      {renderCards(stage, visible)}
+                      {handedLinks(stage, inStage, visible)}
+                    </ul>
+                  </details>
+                ) : null}
+              </div>
+            );
+          }
+
+          const focused = focus === stage.key;
+          const railed = emptyRailKeys.includes(stage.key);
+          return (
+            <Fragment key={stage.key}>
+            <BoardColumn
+              headingId={headingId}
+              testId="v3-pipeline-column"
+              spread={focused || foldFor === stage.key || (soleColumn && inStage.length > 0)}
+              fold={foldFor && foldFor !== stage.key ? { title: stage.title, href: boardHref({ stage: stage.key, lead: null }) } : undefined}
+              // Заголовок колонки — слово без точки фазы: у доски продаж одна фаза,
+              // точка повторяла бы один цвет над каждой колонкой («колонки не подкрашиваются»).
+              title={focused ? <span className="truncate">{stage.title}</span> : stageTitleLink(stage, focusHref)}
+              marker={
+                stage.gate ? (
+                  <span title="Есть условия" className="flex shrink-0 items-center text-fg-3">
+                    <Icon name="lock" size={14} />
+                    <span className="sr-only">Есть условия</span>
+                  </span>
+                ) : null
+              }
+              count={inStage.length}
+              headerAction={
+                focused ? (
+                  <Link
+                    href={boardHref({ stage: null })}
+                    prefetch={false}
+                    scroll={false}
+                    className="t-meta inline-flex min-h-11 shrink-0 items-center px-1 text-fg-2 underline underline-offset-4 hover:text-fg"
+                  >
+                    Все этапы
+                  </Link>
+                ) : null
+              }
+              emptyText={BOARD_EMPTY.leads}
+              className={inStage.length === 0 && !focused ? (railed ? BOARD_PANEL_FOLD.emptyColumn : "hidden @6xl:flex") : "flex"}
+            >
+              {renderCards(stage, visible)}
+              {handedLinks(stage, inStage, visible)}
+            </BoardColumn>
+            {railed ? (
+              <BoardRail
+                title={stage.title}
+                count={0}
+                href={boardHref({ stage: stage.key, lead: null })}
+                className={BOARD_PANEL_FOLD.emptyRail}
+                testId="v3-pipeline-rail"
+              />
+            ) : null}
+            </Fragment>
+          );
+        })}
+      </div>
+
+      {selected ? (
+        <LeadPanel
+          key={selected.id}
+          lead={selected}
+          today={today}
+          stageTitle={selectedStage?.title ?? ""}
+          terminal={selectedStage?.terminal ?? false}
+          workflowStages={workflowStages}
+          ownerOptions={ownerOptions}
+          ownerOptionsHaveMore={ownerOptionsHaveMore}
+          actor={actor}
+          actorMembershipId={actorMembershipId}
+          requestId={requestIds[selected.id] ?? ""}
+          closeHref={boardHref({ lead: null })}
+          returnTo={pipelineReturnHref(search)}
+          focusReturn={focusReturn}
+          saved={saved?.leadId === selected.id && saved.version !== selected.workflow.workflowVersion}
+          onClose={closePanel}
+          onSaved={() => setSaved({ leadId: selected.id, version: selected.workflow.workflowVersion })}
+          onLeadClosed={(receipt) => leadClosed(leadLabel(selected), receipt)}
+        />
+      ) : null}
+    </div>
+    </>
+  );
+}

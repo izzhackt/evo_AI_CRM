@@ -22,7 +22,7 @@
  *   node tests/e2e/case-money-static-render.cjs --json
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки.
  *   node tests/e2e/case-money-static-render.cjs --screenshots [outDir]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844 в outDir (по умолчанию .impeccable/review,
  *       не коммитится), файлы `money-*.png`, и замеры каждого снимка:
@@ -88,13 +88,13 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { caseWorkParts } = require(join(ROOT, "src/components/v3/profile/CaseWorkParts.tsx"));
-const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
-const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
-const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
-const agreementModule = require(join(ROOT, "src/components/v3/profile/CaseAgreementBlock.tsx"));
-const financeEntryModule = require(join(ROOT, "src/components/v3/profile/FinanceEntryWorkspace.tsx"));
-const amoModule = require(join(ROOT, "src/components/v3/profile/ProfileAmoCrmCommandSection.tsx"));
+const { caseWorkParts } = require(join(ROOT, "src/components/staff/profile/CaseWorkParts.tsx"));
+const { Profile } = require(join(ROOT, "src/components/staff/profile/Profile.tsx"));
+const { buildV3ProfileHref } = require(join(ROOT, "src/components/staff/profile/types.ts"));
+const queueView = require(join(ROOT, "src/components/staff/students/students-queue-view.ts"));
+const agreementModule = require(join(ROOT, "src/components/staff/profile/CaseAgreementBlock.tsx"));
+const financeEntryModule = require(join(ROOT, "src/components/staff/profile/FinanceEntryWorkspace.tsx"));
+const amoModule = require(join(ROOT, "src/components/staff/profile/ProfileAmoCrmCommandSection.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — среда 23.09.2026 по Бишкеку (как в статическом рендере дела).
@@ -107,7 +107,7 @@ const CASE_ID = "cccccccc-2222-4222-8222-000000000001";
 const LEAD_ID = "dddddddd-3333-4333-8333-000000000001";
 const NAME = "Айдана Сыдыкова";
 const uuid = (prefix, n) => `${prefix}-5555-4555-8555-${String(n).padStart(12, "0")}`;
-const RETURN_TO = "/v3/students?view=mine";
+const RETURN_TO = "/profile?view=mine";
 
 const ADMIN = {
   authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002",
@@ -297,7 +297,7 @@ const SEARCH = `case=${CASE_ID}&tab=money&returnTo=${encodeURIComponent(RETURN_T
 
 function withContexts(node) {
   return createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(SEARCH) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
@@ -334,8 +334,8 @@ function renderWorkspace(name) {
 }
 
 function renderPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const back = createElement("a", { href: RETURN_TO, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "Студенты");
@@ -355,7 +355,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 function writeHtml(path, css, markup) {

@@ -14,10 +14,10 @@ export function v3InboxProfileHref(
     staffPresentationCan(actor, "sales.read") &&
     context.leadId
   ) {
-    return `/v3/profile?id=${context.leadId}`;
+    return `/profile?id=${context.leadId}`;
   }
   if (staffPresentationCan(actor, "admissions.read") && context.studentCaseId) {
-    return `/v3/profile?case=${context.studentCaseId}`;
+    return `/profile?case=${context.studentCaseId}`;
   }
   return null;
 }

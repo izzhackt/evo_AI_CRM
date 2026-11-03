@@ -4,7 +4,7 @@
 
 /**
  * «Новый вид»: не пришёл код ленивого куска (обрыв связи, Turbopack повторяет загрузку один раз, потом `ChunkLoadError`). В
- * настоящем браузере (Playwright Chromium, `react-dom/client`) под границей ошибок вроде `(v3)/error.tsx`: уже нарисованная
+ * настоящем браузере (Playwright Chromium, `react-dom/client`) под границей ошибок вроде `(staff)/error.tsx`: уже нарисованная
  * страница не должна заменяться экраном ошибки из-за необязательного куска («?», «Ещё N», обращения, вкладки), а вход экрана
  * показывает строку и кнопку, которая перезагружает страницу. Ошибка при этом не глотается: каждый отказ записан в
  * `console.error` один раз. Код куска «не приходит» (режим по умолчанию): модуль при загрузке бросает ошибку с именем
@@ -33,21 +33,21 @@ const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { HelpTip } = require("@/components/kit/HelpTip");
 const { SectionTabsInPlace } = require("@/components/kit/SectionTabsInPlace");
-const { CaseHelpCard } = require("@/components/v3/profile/next/CaseHelpCard");
-const { FeedOverflow } = require("@/components/v3/profile/next/FeedOverflow");
-const { RequestsNextLazy } = require("@/components/v3/requests-next/RequestsNextLazy");
-const { TodayNextLazy } = require("@/components/v3/today-next/TodayNextLazy");
-const { CalendarNextLazy } = require("@/components/v3/calendar/next/CalendarNextLazy");
-const { SnippetsNextLazy } = require("@/components/v3/reply-snippets/next/SnippetsNextLazy");
-const { FilesNextLazy } = require("@/components/v3/knowledge/next/FilesNextLazy");
-const { KnowledgeNextLazy } = require("@/components/v3/knowledge/next/KnowledgeNextLazy");
-const { TeamChatNextLazy } = require("@/components/v3/team-chat/next/TeamChatNextLazy");
-const { SettingsNextLazy } = require("@/components/v3/settings-next/SettingsNextLazy");
-const { MarketingNextLazy } = require("@/components/v3/marketing-next/MarketingNextLazy");
-const { FinanceNextLazy } = require("@/components/v3/finance-next/FinanceNextLazy");
-const { AiAgentNextLazy } = require("@/components/v3/ai-agent-next/AiAgentNextLazy");
+const { CaseHelpCard } = require("@/components/staff/profile/next/CaseHelpCard");
+const { FeedOverflow } = require("@/components/staff/profile/next/FeedOverflow");
+const { RequestsNextLazy } = require("@/components/staff/requests-next/RequestsNextLazy");
+const { TodayNextLazy } = require("@/components/staff/today-next/TodayNextLazy");
+const { CalendarNextLazy } = require("@/components/staff/calendar/next/CalendarNextLazy");
+const { SnippetsNextLazy } = require("@/components/staff/reply-snippets/next/SnippetsNextLazy");
+const { FilesNextLazy } = require("@/components/staff/knowledge/next/FilesNextLazy");
+const { KnowledgeNextLazy } = require("@/components/staff/knowledge/next/KnowledgeNextLazy");
+const { TeamChatNextLazy } = require("@/components/staff/team-chat/next/TeamChatNextLazy");
+const { SettingsNextLazy } = require("@/components/staff/settings-next/SettingsNextLazy");
+const { MarketingNextLazy } = require("@/components/staff/marketing-next/MarketingNextLazy");
+const { FinanceNextLazy } = require("@/components/staff/finance-next/FinanceNextLazy");
+const { AiAgentNextLazy } = require("@/components/staff/ai-agent-next/AiAgentNextLazy");
 const h = React.createElement;
-// Граница ошибок вроде (v3)/error.tsx: что она поймала, то заменило страницу.
+// Граница ошибок вроде (staff)/error.tsx: что она поймала, то заменило страницу.
 class Boundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }

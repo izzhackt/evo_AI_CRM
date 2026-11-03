@@ -14,8 +14,8 @@ import ts from "typescript";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const sql = source("supabase/migrations/189_platform_case_agreement.sql");
-const blockSource = source("src/components/v3/profile/CaseAgreementBlock.tsx");
-const formsSource = source("src/components/v3/profile/CaseAgreementForms.tsx");
+const blockSource = source("src/components/staff/profile/CaseAgreementBlock.tsx");
+const formsSource = source("src/components/staff/profile/CaseAgreementForms.tsx");
 const contractSource = source("src/lib/platform-case-agreement-contract.ts");
 const actionsSource = source("src/lib/platform-case-agreement-actions.ts");
 const financeControlSource = source("src/lib/platform-finance-control.ts");
@@ -23,10 +23,10 @@ const financeEntryContractSource = source("src/lib/platform-finance-entry-contra
 const portalSourceSource = source("src/lib/v3/portal-source.ts");
 // PORT-5d: «Моё поступление» живёт в Атласе — путь обновлён вместе с переносом.
 const paymentsViewSource = source("src/components/portal/admission/PaymentsView.tsx");
-const tabsSource = source("src/components/v3/profile/tabs.tsx");
-const profileSource = source("src/components/v3/profile/Profile.tsx");
+const tabsSource = source("src/components/staff/profile/tabs.tsx");
+const profileSource = source("src/components/staff/profile/Profile.tsx");
 const sourceSource = source("src/lib/v3/case-agreement-source.ts");
-const viewSource = source("src/components/v3/profile/case-money-view.ts");
+const viewSource = source("src/components/staff/profile/case-money-view.ts");
 
 test("migration 189 is transactional and fails closed on source drift, like 181/184/185", () => {
   assert.match(sql, /^BEGIN;$/mu);

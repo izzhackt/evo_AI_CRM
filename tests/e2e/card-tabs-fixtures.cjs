@@ -202,7 +202,7 @@ function profileFields({ canReview = true, canExport = true } = {}) {
 
 // --- журнал ----------------------------------------------------------------------
 function event(n, transition, kind, at, targetId = CASE_ID) {
-  const href = kind === "conversation" ? `/v3/inbox?conversation=${targetId}` : `/v3/profile?case=${CASE_ID}&tab=${kind}`;
+  const href = kind === "conversation" ? `/inbox?conversation=${targetId}` : `/profile?case=${CASE_ID}&tab=${kind}`;
   return { id: uuid("abababab", n), transition, role: n % 3 === 0 ? "admissions" : "", at: null, href, changedFields: n === 10 ? ["title", "due_on"] : [], targetKind: kind, occurredAt: at, targetId };
 }
 const TIMELINE = [

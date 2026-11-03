@@ -364,7 +364,7 @@ test("real proxy: GET and DELETE memory reach the session gate (401); near misse
 // ------------------------------------------------------------ UI source
 
 test("UI window: a collapsed «Что ИИ знает о клиенте» under the answer, read on open, never blocking the answer", () => {
-  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  const assistant = read("src/components/staff/inbox/InboxAiAssistant.tsx");
   const body = assistant.slice(assistant.indexOf('<div className="v3-ai-body">'));
   // Окно «как в SoodaCloser» (08.10): ответ, «Стоит уточнить», «Источники», «Почему такой ответ», затем память.
   const at = (needle) => { const index = body.indexOf(needle); assert.notEqual(index, -1, needle); return index; };
@@ -380,7 +380,7 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» under 
   assert.match(body, /\{showExtras \? \(\n\s+<div className="v3-ai-extras">\n\s+<InboxAiMemory conversationId=\{conversationId\} \/>/u);
   assert.match(assistant, /const NO_EXTRAS = new Set\(\["forbidden", "preview"\]\);/u);
   assert.match(assistant, /const showExtras = !\(phase\.kind === "blocked" && NO_EXTRAS\.has\(phase\.code\)\);/u);
-  const memory = read("src/components/v3/inbox/InboxAiMemory.tsx");
+  const memory = read("src/components/staff/inbox/InboxAiMemory.tsx");
   assert.match(memory, /<details className="v3-ai-memory"/u);
   assert.doesNotMatch(memory, /<details[^>]*\bopen\b/u, "collapsed by default");
   assert.match(memory, /`\/api\/v3\/ai-agent\/conversations\/\$\{conversationId\}\/memory`/u);
@@ -427,13 +427,13 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» under 
   // Окончательный отказ (400/401/403/404) — без «Повторить» и без role=alert.
   assert.match(memory, /const FINAL_STATUSES = new Set\(\[400, 401, 403, 404\]\);/u);
   // Раскрыто — строка интереса под заголовком скрыта (не повторяет «Интерес»).
-  assert.match(read("src/app/(v3)/ai-agent.css"), /\.v3-ai-memory\[open\] \.v3-ai-memory-hint \{\s*display: none;/u);
-  const css = read("src/app/(v3)/ai-agent.css");
+  assert.match(read("src/app/(staff)/ai-agent.css"), /\.v3-ai-memory\[open\] \.v3-ai-memory-hint \{\s*display: none;/u);
+  const css = read("src/app/(staff)/ai-agent.css");
   assert.match(css, /\.v3-ai-memory-summary\[data-clamped\] \{[^}]*-webkit-line-clamp: 6;/u);
 });
 
 test("UI section: «Память о клиенте» in «Агент и лимит» — status, toggle, disable confirm, no consent is disabled", () => {
-  const views = read("src/components/v3/ai-agent-next/AiAgentSettingsCard.tsx");
+  const views = read("src/components/staff/ai-agent-next/AiAgentSettingsCard.tsx");
   const settings = views.slice(views.indexOf("function MemoryBlock"));
   assert.match(views, /<MemoryBlock settings=\{settings\} preview=\{preview\} requestId=\{memoryRequestId\} \/>/u);
   assert.match(settings, /id="ai-memory"/u);
@@ -441,7 +441,7 @@ test("UI section: «Память о клиенте» in «Агент и лими
   assert.match(settings, /settings\.canManage && !preview/u);
   assert.match(settings, /<AiMemoryToggle\s/u);
   // Один клиентский переключатель на оба положения: строка итога вне ветвей переживает перерисовку.
-  const toggle = read("src/components/v3/ai-agent/AiMemoryToggle.tsx");
+  const toggle = read("src/components/staff/ai-agent/AiMemoryToggle.tsx");
   assert.match(toggle, /^"use client";/u);
   assert.match(toggle, /hidden\("enable"\)/u);
   assert.match(toggle, /hidden\("disable"\)/u);
@@ -456,7 +456,7 @@ test("UI section: «Память о клиенте» in «Агент и лими
   assert.equal(AI_MEMORY_SETTINGS_COPY.disable, "Выключить память");
   assert.equal(AI_MEMORY_SETTINGS_COPY.disableConfirm, "Сводки всех клиентов удалятся.");
   assert.equal(AI_MEMORY_SETTINGS_COPY.noConsent, "Сначала администратор записывает согласие на Gemini.");
-  assert.match(read("src/app/(v3)/v3/ai-agent/page.tsx"), /memoryRequestId: randomUUID\(\)/u);
+  assert.match(read("src/app/(staff)/ai-agent/page.tsx"), /memoryRequestId: randomUUID\(\)/u);
   // Отзыв согласия (274) выключает память и удаляет сводки всех клиентов; новое согласие её не включает.
   assert.equal(AI_MEMORY_SETTINGS_COPY.revokeConfirm,
     "ИИ перестанет готовить ответы. Память о клиенте выключится, сводки всех клиентов удалятся. После нового согласия память нужно включить снова.");
@@ -474,5 +474,5 @@ test("UI section: «Память о клиенте» in «Агент и лими
   assert.match(source, /rpc\("ai_agent_memory_toggle_v1", \{\s*p_organization_id: actor\.organizationId, p_enabled: input\.enabled,\s*p_expected_version: input\.expectedVersion, p_request_id: input\.requestId,/u);
   assert.match(source, /code === "PT412" \? "consent_required"/u);
   assert.match(source, /export async function saveAiMemory[\s\S]*?if \(isStaffPreview\(actor\)\) return "forbidden";/u);
-  assert.match(read("src/components/v3/ai-agent/AiActionForm.tsx"), /consent_required: "Сначала администратор записывает согласие на Gemini\."/u);
+  assert.match(read("src/components/staff/ai-agent/AiActionForm.tsx"), /consent_required: "Сначала администратор записывает согласие на Gemini\."/u);
 });

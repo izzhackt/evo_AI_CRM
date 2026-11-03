@@ -65,7 +65,7 @@ async function defaultAuthorize(): Promise<Authorization> {
   const result = await resolvePlatformActor();
   if (result.status === "anonymous") return { status: "anonymous", actor: null };
   if (result.status === "invalid") return { status: "unavailable", actor: null };
-  if (!staffCan(result.actor, "messaging.read") || !staffCanAccessRoute(result.actor, "/v3/inbox")) {
+  if (!staffCan(result.actor, "messaging.read") || !staffCanAccessRoute(result.actor, "/inbox")) {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };

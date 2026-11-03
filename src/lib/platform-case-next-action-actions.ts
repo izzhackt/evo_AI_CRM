@@ -69,7 +69,7 @@ export async function saveCaseNextActionAction(
   }
   try {
     const receipt = await setCaseNextAction(actor, { ...input, studentCaseId, expectedVersion, requestId });
-    revalidatePath("/v3/profile");
+    revalidatePath("/profile");
     return {
       status: "saved",
       requestId: randomUUID(),

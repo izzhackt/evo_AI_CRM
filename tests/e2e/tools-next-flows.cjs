@@ -48,7 +48,7 @@ const calendar = {
       const tabs = await page.getByRole("link", { name: "Неделя", exact: true }).getAttribute("aria-current");
       report(`${label}: current view tab is a link with aria-current`, tabs === "page", tabs);
       await page.getByRole("link", { name: "Месяц", exact: true }).click();
-      report(`${label}: view tab goes to the same address as before`, (await pushes(page)).at(-1) === "/v3/calendar?view=month&date=2026-09-26", await pushes(page));
+      report(`${label}: view tab goes to the same address as before`, (await pushes(page)).at(-1) === "/calendar?view=month&date=2026-09-26", await pushes(page));
       // Карточка → панель задачи (адрес с делом и задачей), сразу со скелетом, потом формы дела.
       const reopened = await open("calendar-week", key);
       const p = reopened.page;
@@ -69,7 +69,7 @@ const calendar = {
       await staffChip.click();
       await p.getByRole("dialog").waitFor();
       const staffLink = await p.getByRole("link", { name: "Открыть задачу" }).getAttribute("href");
-      report(`${label}: a staff task has no case forms and links to «Задачи»`, (await p.getByRole("button", { name: "Завершить", exact: true }).count()) === 0 && staffLink?.startsWith("/v3/tasks?type=staff") === true, staffLink);
+      report(`${label}: a staff task has no case forms and links to «Задачи»`, (await p.getByRole("button", { name: "Завершить", exact: true }).count()) === 0 && staffLink?.startsWith("/tasks?type=staff") === true, staffLink);
       await p.keyboard.press("Escape");
       // «Без срока»: свёрнуто, раскрывается, карточка открывает панель.
       const toggle = p.getByRole("button", { name: /Показать|Свернуть/u }).first();
@@ -220,7 +220,7 @@ const knowledge = {
       const label = `knowledge ${key}`;
       const { context, page, errors } = await open("knowledge-folder", key);
       const links = await page.getByRole("navigation", { name: "Материалы, документы, шаблоны ответов" }).getByRole("link").evaluateAll((els) => els.map((el) => [el.textContent.trim(), el.getAttribute("href"), el.getAttribute("aria-current")]));
-      report(`${label}: section tabs are links to the same addresses`, JSON.stringify(links.slice(0, 3)) === JSON.stringify([["Материалы", "/v3/knowledge", "page"], ["Документы", "/v3/knowledge?section=documents", null], ["Шаблоны ответов", "/v3/knowledge?section=snippets", null]]), links);
+      report(`${label}: section tabs are links to the same addresses`, JSON.stringify(links.slice(0, 3)) === JSON.stringify([["Материалы", "/knowledge", "page"], ["Документы", "/knowledge?section=documents", null], ["Шаблоны ответов", "/knowledge?section=snippets", null]]), links);
       await page.getByRole("button", { name: /Показать ещё/u }).count();
       report(`${label}: the list is the server's rows`, (await (key === "m390" ? page.locator("[data-slot=data-table-cards] > li") : page.locator("tbody tr")).count()) === 5, null);
       // Окна из меню: Esc закрывает окно, фокус возвращается на кнопку меню, откуда его открыли.
@@ -337,12 +337,12 @@ const chat = {
     report("chat m390: «К каналам» brings the header back", back === 1, back);
     // Другой канал — ссылка на тот же адрес, что раньше.
     await phone.page.getByRole("link", { name: /Продажи/u }).first().click();
-    report("chat m390: another channel is a link to the same address", (await pushes(phone.page)).at(-1) === "/v3/team-chat?channel=sales", await pushes(phone.page));
+    report("chat m390: another channel is a link to the same address", (await pushes(phone.page)).at(-1) === "/team-chat?channel=sales", await pushes(phone.page));
     await phone.context.close();
     const failure = await open("chat-failure", "d1280");
     const alert = await failure.page.getByRole("alert").innerText();
     const retry = await failure.page.getByRole("link", { name: "Обновить канал" }).getAttribute("href");
-    report("chat-failure: the reason stays on screen with the same retry link", /Не удалось загрузить канал/u.test(alert) && retry === "/v3/team-chat?channel=general", [alert, retry]);
+    report("chat-failure: the reason stays on screen with the same retry link", /Не удалось загрузить канал/u.test(alert) && retry === "/team-chat?channel=general", [alert, retry]);
     await shot(failure.page, "chat-failure-d1280");
     await failure.context.close();
   },

@@ -118,8 +118,8 @@ export async function syncCanonicalAmoCrmSalesAction(
     taskText,
     taskCompleteTill,
   });
-  revalidatePath("/v3/profile");
-  revalidatePath("/v3/inbox");
+  revalidatePath("/profile");
+  revalidatePath("/inbox");
   return result;
 }
 
@@ -137,7 +137,7 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
     taskCompleteTill,
   } = parsed;
 
-  const actor = await requirePlatformAdmissionsActor("/v3/profile");
+  const actor = await requirePlatformAdmissionsActor("/profile");
   if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
     return deniedState();
   }
@@ -150,8 +150,8 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
     taskText,
     taskCompleteTill,
   });
-  revalidatePath("/v3/profile");
-  revalidatePath("/v3/inbox");
+  revalidatePath("/profile");
+  revalidatePath("/inbox");
   return result;
 }
 
@@ -166,7 +166,7 @@ export async function reconcileCanonicalAmoCrmCommandAction(
   const actor =
     workflowScope === "sales_pre_handoff"
       ? await requirePlatformSalesActor()
-      : await requirePlatformAdmissionsActor("/v3/profile");
+      : await requirePlatformAdmissionsActor("/profile");
   if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
     return deniedState();
   }
@@ -179,8 +179,8 @@ export async function reconcileCanonicalAmoCrmCommandAction(
     studentCaseId,
     attemptId,
   });
-  revalidatePath("/v3/profile");
-  revalidatePath("/v3/inbox");
+  revalidatePath("/profile");
+  revalidatePath("/inbox");
   return result;
 }
 
@@ -195,7 +195,7 @@ export async function releaseCanonicalAmoCrmPreparedCommandAction(
   const actor =
     workflowScope === "sales_pre_handoff"
       ? await requirePlatformSalesActor()
-      : await requirePlatformAdmissionsActor("/v3/profile");
+      : await requirePlatformAdmissionsActor("/profile");
   if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
     return deniedState();
   }
@@ -208,7 +208,7 @@ export async function releaseCanonicalAmoCrmPreparedCommandAction(
     studentCaseId,
     attemptId,
   });
-  revalidatePath("/v3/profile");
-  revalidatePath("/v3/inbox");
+  revalidatePath("/profile");
+  revalidatePath("/inbox");
   return result;
 }

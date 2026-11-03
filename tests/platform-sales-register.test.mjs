@@ -58,7 +58,7 @@ test("source and actions use cookie authority with no provider or elevated clien
   assert.doesNotMatch(source + actions, /createSupabaseAdmin|SERVICE_ROLE|SECRET_KEY|\.from\(/);
   assert.match(actions, /inserted \+ skipped \+ mismatches !== input\.sales\.length/);
   // 254 adds linkSalesRecordLeadAction's own revalidation (report panel + Lead 360); 307 adds «Убрать» / «Вернуть».
-  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 6);
+  assert.equal((actions.match(/revalidatePath\("\/main"\)/g) ?? []).length, 6);
   assert.match(actions, /rpc\("link_sales_record_lead_v1"/);
 });
 
@@ -88,7 +88,7 @@ test("saveSalesRegisterAction's create path takes lead+curator and lets the serv
 
 test("conditions-missing UX: a distinct status routes the create form back to the lead card, never a generic invalid message", () => {
   const actions = readFileSync(new URL("../src/lib/platform-sales-register-actions.ts", import.meta.url), "utf8");
-  const forms = readFileSync(new URL("../src/components/v3/SalesRegisterForms.tsx", import.meta.url), "utf8");
+  const forms = readFileSync(new URL("../src/components/staff/SalesRegisterForms.tsx", import.meta.url), "utf8");
   assert.match(
     actions,
     /error\.message\.includes\("sale_conditions_missing"\)\) return outcome\(form, "conditions_missing"\);/,

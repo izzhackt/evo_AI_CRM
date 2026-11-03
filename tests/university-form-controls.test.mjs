@@ -30,13 +30,13 @@ function compile(relativePath) {
   return compiled.exports;
 }
 const wording = compile("../src/lib/v3/wording.ts");
-const { UniversityFormCreate } = compile("../src/components/v3/universities/forms/UniversityFormCreate.tsx");
-const { UniversityFormUpload } = compile("../src/components/v3/universities/forms/UniversityFormUpload.tsx");
-const { UniversityFormUploadStatus } = compile("../src/components/v3/universities/forms/UniversityFormUploadStatus.tsx");
-const { UniversityFormDecision } = compile("../src/components/v3/universities/forms/UniversityFormDecision.tsx");
-const { UniversityFormMappingEditor, UniversityFormSavedFragment } = compile("../src/components/v3/universities/forms/UniversityFormMappingEditor.tsx");
-const { UniversityPdfMappingEditor } = compile("../src/components/v3/universities/forms/UniversityPdfMappingEditor.tsx");
-const { UniversityFormMappingHistory } = compile("../src/components/v3/universities/forms/UniversityFormMappingHistory.tsx");
+const { UniversityFormCreate } = compile("../src/components/staff/universities/forms/UniversityFormCreate.tsx");
+const { UniversityFormUpload } = compile("../src/components/staff/universities/forms/UniversityFormUpload.tsx");
+const { UniversityFormUploadStatus } = compile("../src/components/staff/universities/forms/UniversityFormUploadStatus.tsx");
+const { UniversityFormDecision } = compile("../src/components/staff/universities/forms/UniversityFormDecision.tsx");
+const { UniversityFormMappingEditor, UniversityFormSavedFragment } = compile("../src/components/staff/universities/forms/UniversityFormMappingEditor.tsx");
+const { UniversityPdfMappingEditor } = compile("../src/components/staff/universities/forms/UniversityPdfMappingEditor.tsx");
+const { UniversityFormMappingHistory } = compile("../src/components/staff/universities/forms/UniversityFormMappingHistory.tsx");
 const { universityFormWorkspaceMatches } = compile("../src/lib/university-form-ui.ts");
 
 test("PDF editor renders labelled keyboard alternatives and waits for the actual private page before save", () => {
@@ -72,7 +72,7 @@ test("actual React SSR renders one labelled create control and a recovery URL wi
   assert.ok(field?.includes(`id="${label[1]}"`));
   assert.match(field, /required=""/u);
   assert.match(html, /type="submit" disabled=""[^>]*>Создать бланк<\/button>/u);
-  assert.match(html, /href="\/v3\/universities\/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\/forms"/u);
+  assert.match(html, /href="\/universities\/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\/forms"/u);
   assert.equal((html.match(/<button\b/gu) ?? []).length, 1);
   assert.doesNotMatch(html, /role="(?:tab|tablist)"|source_object_name|inspector_image|<table/u);
 });
@@ -131,7 +131,7 @@ function uploadLifecycleProbe({ prepare, reserve }) {
     useEffect: setup => cleanups.push(setup()),
     useActionState: (callback, initial) => { submit = callback; return [initial, () => {}, false]; },
   };
-  const source = readFileSync(new URL("../src/components/v3/universities/forms/UniversityFormUpload.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/components/staff/universities/forms/UniversityFormUpload.tsx", import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } });
@@ -232,13 +232,13 @@ test("mapping editor preserves supplied selections but waits for an authorized s
 test("every mapping in a 20-row history page has an exact link without skipping intermediate rows", () => {
   const rows = Array.from({ length: 20 }, (_, index) => ({ ...mapping,
     id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(index + 1).padStart(12, "0")}`, revision: 80 - index }));
-  const html = renderToStaticMarkup(createElement(UniversityFormMappingHistory, { base: `/v3/universities/${catalogId}/forms`,
+  const html = renderToStaticMarkup(createElement(UniversityFormMappingHistory, { base: `/universities/${catalogId}/forms`,
     templateId, versionId: version.id, mappings: rows, selectedId: rows[8].id, before: 90, next: 61 }));
   for (const item of rows) assert.ok(html.includes(`before_mapping=90&amp;mapping=${item.id}`), item.id);
   assert.equal((html.match(/&amp;mapping=/gu) ?? []).length, 20);
   assert.match(html, /before_mapping=61/u);
   assert.equal((html.match(/aria-current="page"/gu) ?? []).length, 1);
-  const short = renderToStaticMarkup(createElement(UniversityFormMappingHistory, { base: `/v3/universities/${catalogId}/forms`,
+  const short = renderToStaticMarkup(createElement(UniversityFormMappingHistory, { base: `/universities/${catalogId}/forms`,
     templateId, versionId: version.id, mappings: rows.slice(0, 3), before: null, next: null }));
   assert.equal((short.match(/&amp;mapping=/gu) ?? []).length, 3);
   assert.doesNotMatch(short, /before_mapping=/u);
@@ -313,7 +313,7 @@ function pdfReadLifetimeProbe(t) {
     slots.forEach(slot => slot?.cleanup?.());
     if (originalImage) Object.defineProperty(globalThis, "Image", originalImage); else delete globalThis.Image;
   });
-  const source = readFileSync(new URL("../src/components/v3/universities/forms/UniversityPdfMappingEditor.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/components/staff/universities/forms/UniversityPdfMappingEditor.tsx", import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } });

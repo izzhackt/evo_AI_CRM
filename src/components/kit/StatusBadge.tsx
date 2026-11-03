@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-/** Названия тонов — те же, что у `StatusChip` и `Pill` (src/components/v3): значения состояний переносятся как есть. */
+/** Названия тонов — те же, что у `StatusChip` и `Pill` (src/components/staff): значения состояний переносятся как есть. */
 export type StatusTone = "neutral" | "ok" | "warn" | "danger" | "info";
 
 /**

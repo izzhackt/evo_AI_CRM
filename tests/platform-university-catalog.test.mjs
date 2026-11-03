@@ -196,7 +196,7 @@ test("real catalogue content renders known facts without missing-field or uncert
         import { readFileSync } from "node:fs";
         import { createElement } from "react";
         import { renderToStaticMarkup } from "react-dom/server";
-        import { UniversityContentView } from "./src/components/v3/universities/UniversityCatalogue";
+        import { UniversityContentView } from "./src/components/staff/universities/UniversityCatalogue";
         const entries = ${JSON.stringify(currentBundles)}.flatMap((name) =>
           JSON.parse(readFileSync("src/lib/server/" + name, "utf8")));
         process.stdout.write(JSON.stringify(entries.map(({ key, content }) => ({

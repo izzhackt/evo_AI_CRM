@@ -64,7 +64,7 @@ flow("settings-staff", async (env) => {
   await rowSheet(env, page, "settings-staff", "Камила Вымыслова", "Камила Вымыслова");
   report("settings-staff: the sheet shows the work details and «Редактировать»", /Куратор/u.test(await sheet(page).innerText()) && (await sheet(page).getByRole("button", { name: "Редактировать" }).count()) === 1, null);
   const replaced = await page.evaluate(() => window.__harness.replaces);
-  report("settings-staff: the address follows the choice (`?member=`) without a new read", replaced.some((href) => href === `/v3/settings?section=staff&view=people&member=${fx.settings.MEMBERS[2].membershipId}`), replaced);
+  report("settings-staff: the address follows the choice (`?member=`) without a new read", replaced.some((href) => href === `/settings?section=staff&view=people&member=${fx.settings.MEMBERS[2].membershipId}`), replaced);
   await sheet(page).getByRole("button", { name: "Редактировать" }).click();
   await page.waitForTimeout(150);
   report("settings-staff: editing opens the old form with a reason and a version", (await sheet(page).locator("input[name=job_title]").count()) === 1 && (await sheet(page).locator("select[name=department_id]").count()) === 1 && (await sheet(page).locator("input[name=reason]").count()) >= 1 && (await sheet(page).locator("input[name=expected_version]").count()) >= 1, null);
@@ -100,7 +100,7 @@ flow("settings-roles", async (env) => {
   await sheet(page).waitFor({ state: "visible" });
   report("settings-roles: the address `?role=` opens that role's sheet", /Sales Manager/u.test(await sheet(page).locator("[data-slot=sheet-title]").innerText()), null);
   await esc(page);
-  report("settings-roles: closing drops the choice from the address", (await page.evaluate(() => window.__harness.replaces)).includes("/v3/settings?section=staff&view=roles"), null);
+  report("settings-roles: closing drops the choice from the address", (await page.evaluate(() => window.__harness.replaces)).includes("/settings?section=staff&view=roles"), null);
   await rowSheet(env, page, "settings-roles", "Sales Manager", "Sales Manager");
   const text = await sheet(page).innerText();
   report("settings-roles: the role sheet has the old commands (Изменить, Скопировать, Опубликовать изменения, Архивировать)", ["Изменить", "Скопировать", "Опубликовать изменения", "Архивировать"].every((word) => text.includes(word)), text.slice(0, 200));
@@ -208,13 +208,13 @@ flow("settings-deletion", async (env) => {
   await sheet(page).waitFor({ state: "visible" });
   report("settings-deletion: the sheet opens at once under the name, with a skeleton", (await sheet(page).locator('[aria-busy="true"]').count()) >= 0 && /Заявитель 1/u.test(await sheet(page).locator("[data-slot=sheet-title]").innerText()), null);
   const pushed = await page.evaluate(() => window.__harness.pushes);
-  report("settings-deletion: the row pushes the old address `?request=`", pushed.some((href) => href === `/v3/settings?section=deletion&request=${fx.settings.DELETION_ROWS[0].id}`), pushed);
+  report("settings-deletion: the row pushes the old address `?request=`", pushed.some((href) => href === `/settings?section=deletion&request=${fx.settings.DELETION_ROWS[0].id}`), pushed);
   await page.waitForTimeout(400);
   const text = await sheet(page).innerText();
   report("settings-deletion: the server's answer shows the plan and the destructive command with its word", /Удалится автоматически/u.test(text) && (await sheet(page).getByRole("button", { name: /Удалить/u }).count()) >= 1, text.slice(0, 160));
   await axeSheet(env, page, "settings-deletion");
   await esc(page);
-  report("settings-deletion: closing returns to the queue address", (await page.evaluate(() => window.__harness.pushes)).includes("/v3/settings?section=deletion"), null);
+  report("settings-deletion: closing returns to the queue address", (await page.evaluate(() => window.__harness.pushes)).includes("/settings?section=deletion"), null);
   report("settings-deletion: console clean", errors.length === 0, errors);
   await context.close();
 });
@@ -226,12 +226,12 @@ flow("marketing-leads", async (env) => {
   const { report } = env;
   await rowSheet(env, page, "marketing-leads", "Лид Вымышленный 2", "Лид Вымышленный 2");
   const link = sheet(page).getByRole("link", { name: "Открыть карточку" });
-  report("marketing-leads: the sheet links to the lead card", (await link.getAttribute("href")) === `/v3/profile?id=${fx.id("44444444", 2)}`, await link.getAttribute("href"));
+  report("marketing-leads: the sheet links to the lead card", (await link.getAttribute("href")) === `/profile?id=${fx.id("44444444", 2)}`, await link.getAttribute("href"));
   report("marketing-leads: the nine facts are in the sheet (phone, connection, stage, deal, owner)", ["Телефон", "Канал связи", "Этап", "Договор и оплата", "Ответственный"].every((word) => /./u.test(word)) && /Телефон/u.test(await sheet(page).innerText()), null);
   await closeAndCheckFocus(env, page, "marketing-leads", "Лид Вымышленный 2");
   await page.getByRole("button", { name: /Фильтры/u }).click();
   await sheet(page).waitFor({ state: "visible" });
-  report("marketing-leads: «Фильтры» opens the GET form with the old names", (await sheet(page).locator('form[method=get][action="/v3/marketing"] select[name=channel]').count()) === 1 && (await sheet(page).locator("input[name=campaign]").count()) === 1, null);
+  report("marketing-leads: «Фильтры» opens the GET form with the old names", (await sheet(page).locator('form[method=get][action="/marketing"] select[name=channel]').count()) === 1 && (await sheet(page).locator("input[name=campaign]").count()) === 1, null);
   await esc(page);
   const before = await page.locator("tbody tr").count();
   await page.getByRole("button", { name: "Показать ещё" }).click();

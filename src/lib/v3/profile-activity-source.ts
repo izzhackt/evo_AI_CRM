@@ -1,7 +1,7 @@
 import "server-only";
 import { staffPresentationCan } from "../platform-access.ts";
 
-import type { ProfileEvent } from "@/components/v3/profile/types";
+import type { ProfileEvent } from "@/components/staff/profile/types";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { parseCaseDirectionChange } from "@/lib/platform-case-direction-change";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -80,7 +80,7 @@ export async function readProfileActivity(
         : new URLSearchParams({ case: studentCaseId, tab: String(kind) });
     return Object.freeze({
       id, transition: row.action, role: "", at: timestamp === null ? null : DATE.format(new Date(timestamp as string)),
-      href: `${kind === "task" ? "/v3/calendar" : kind === "conversation" ? "/v3/inbox" : "/v3/profile"}?${query}`,
+      href: `${kind === "task" ? "/calendar" : kind === "conversation" ? "/inbox" : "/profile"}?${query}`,
       changedFields: fields,
       targetKind: kind as NonNullable<ProfileEvent["targetKind"]>,
       occurredAt: timestamp as string | null,

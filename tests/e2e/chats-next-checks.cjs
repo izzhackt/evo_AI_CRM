@@ -183,13 +183,13 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     const facts = await page.locator("[data-testid=v3-inbox-row]").first().innerText();
     report(`inbox list ${key}: first row = name, time, number, waiting (4 facts)`, /Аружан Примерова[\s\S]*06\.10 13:40[\s\S]*\+996[\s\S]*Ждёт ответа · 20 мин/u.test(facts), facts);
     const form = await page.evaluate(() => { const f = document.querySelector("form[role=search]"); return { action: f.getAttribute("action"), method: f.getAttribute("method"), input: f.querySelector("input[name=q]")?.getAttribute("placeholder"), button: f.querySelector("button[type=submit]")?.getAttribute("aria-label") }; });
-    report(`inbox list ${key}: search is the same GET form`, form.action === "/v3/inbox" && form.method === "get" && form.input === "Имя, телефон или тема" && form.button === "Найти", form);
+    report(`inbox list ${key}: search is the same GET form`, form.action === "/inbox" && form.method === "get" && form.input === "Имя, телефон или тема" && form.button === "Найти", form);
     // Строка — ссылка на диалог: мышь и клавиатура.
     await page.locator("[data-testid=v3-inbox-row] a").nth(2).click();
-    report(`inbox list ${key}: a row opens its conversation`, (await harness(page)).pushes.at(-1) === `/v3/inbox?conversation=${fx.waId(3)}`, (await harness(page)).pushes);
+    report(`inbox list ${key}: a row opens its conversation`, (await harness(page)).pushes.at(-1) === `/inbox?conversation=${fx.waId(3)}`, (await harness(page)).pushes);
     await page.locator("[data-testid=v3-inbox-row] a").nth(1).focus();
     await page.keyboard.press("Enter");
-    report(`inbox list ${key}: Enter on a focused row opens it`, (await harness(page)).pushes.at(-1) === `/v3/inbox?conversation=${fx.waId(2)}`, (await harness(page)).pushes);
+    report(`inbox list ${key}: Enter on a focused row opens it`, (await harness(page)).pushes.at(-1) === `/inbox?conversation=${fx.waId(2)}`, (await harness(page)).pushes);
     const ring = await page.locator("[data-testid=v3-inbox-row] a").nth(1).evaluate((element) => { const style = getComputedStyle(element); return { style: style.outlineStyle, width: style.outlineWidth }; });
     report(`inbox list ${key}: focus ring is visible on a row`, ring.style !== "none" && parseFloat(ring.width) > 0, ring);
     // «Сортировка»: меню внутри корня нового вида, Esc возвращает фокус на кнопку, пункты — ссылки.
@@ -198,7 +198,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     await page.keyboard.press("Enter");
     await page.getByRole("menu").waitFor();
     const menu = await page.evaluate(() => { const element = document.querySelector("[data-slot=dropdown-menu-content]"); const background = getComputedStyle(element).backgroundColor; return { inside: Boolean(element.closest('.v3-world[data-ui="next"]')), opaque: !/rgba\(0, 0, 0, 0\)|transparent/u.test(background), items: [...element.querySelectorAll("a")].map((a) => `${a.textContent.trim()}=${a.getAttribute("href")}${a.getAttribute("aria-current") ? "*" : ""}`) }; });
-    report(`inbox list ${key}: sort menu inside the world, opaque, two links, current marked`, menu.inside && menu.opaque && menu.items.join("|") === "Сначала новые=/v3/inbox*|Неотвеченные=/v3/inbox?sort=unanswered", menu);
+    report(`inbox list ${key}: sort menu inside the world, opaque, two links, current marked`, menu.inside && menu.opaque && menu.items.join("|") === "Сначала новые=/inbox*|Неотвеченные=/inbox?sort=unanswered", menu);
     if (key === "d1280") await shot(page, `inbox-list-sort-menu-${key}`);
     await page.keyboard.press("Escape");
     await page.getByRole("menu").waitFor({ state: "detached" });
@@ -237,7 +237,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
   for (const key of ["d1280", "m390"]) {
     const { context, page } = await open("inbox-not-connected", key);
     const text = await page.locator("[data-testid=v3-inbox-not-connected]").innerText();
-    report(`not connected ${key}: honest state and the settings link for the administrator`, /WhatsApp не подключён к CRM — подключает Администратор/u.test(text) && await page.locator("[data-testid=v3-inbox-settings]").getAttribute("href") === "/v3/settings?section=integrations", text);
+    report(`not connected ${key}: honest state and the settings link for the administrator`, /WhatsApp не подключён к CRM — подключает Администратор/u.test(text) && await page.locator("[data-testid=v3-inbox-settings]").getAttribute("href") === "/settings?section=integrations", text);
     report(`not connected ${key}: no count in the title`, !/\d/u.test(await page.locator("h1").innerText()), await page.locator("h1").innerText());
     await context.close();
   }
@@ -268,7 +268,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     report(`chat ${key}: «Назад» only on the phone`, (await back.isVisible()) === (key === "m390"), null);
     if (key === "m390") {
       await back.click();
-      report("chat m390: «Назад» goes to the list address", (await harness(page)).pushes.at(-1) === "/v3/inbox", (await harness(page)).pushes);
+      report("chat m390: «Назад» goes to the list address", (await harness(page)).pushes.at(-1) === "/inbox", (await harness(page)).pushes);
     }
     const composerIn = await page.evaluate(() => { const box = document.querySelector("[data-testid=v3-inbox-chat] textarea").getBoundingClientRect(); return box.bottom <= window.innerHeight; });
     report(`chat ${key}: the reply field is inside the window`, composerIn, null);
@@ -284,13 +284,13 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
   // Одно действие — один значок: «Открыть дело» в «WhatsApp» (диалог привязан к делу, не к лиду) и в «Переписке» — папка, «Карточка лида» — человек.
   {
     const icons = {};
-    for (const [name, link] of [["inbox-chat", "[data-testid=v3-inbox-profile-link]"], ["inbox-chat-case-only", "[data-testid=v3-inbox-profile-link]"], ["messages-thread", "a[href^='/v3/profile?case=']"]]) {
+    for (const [name, link] of [["inbox-chat", "[data-testid=v3-inbox-profile-link]"], ["inbox-chat-case-only", "[data-testid=v3-inbox-profile-link]"], ["messages-thread", "a[href^='/profile?case=']"]]) {
       const { context, page } = await open(name, "m390");
       icons[name] = await page.locator(link).evaluate((a) => ({ href: a.getAttribute("href"), title: a.getAttribute("title"), icon: [...a.querySelector("svg").classList].join(" ") }));
       await context.close();
     }
     report("profile link icons: «Карточка лида» is a person", /lucide-user-round/u.test(icons["inbox-chat"].icon) && icons["inbox-chat"].title === "Карточка лида", icons["inbox-chat"]);
-    report("profile link icons: «Открыть дело» in «WhatsApp» is a folder, like in «Переписка»", icons["inbox-chat-case-only"].title === "Открыть дело" && icons["inbox-chat-case-only"].href === `/v3/profile?case=${fx.caseId(1)}` && /lucide-folder-open/u.test(icons["inbox-chat-case-only"].icon) && icons["inbox-chat-case-only"].icon === icons["messages-thread"].icon, icons);
+    report("profile link icons: «Открыть дело» in «WhatsApp» is a folder, like in «Переписка»", icons["inbox-chat-case-only"].title === "Открыть дело" && icons["inbox-chat-case-only"].href === `/profile?case=${fx.caseId(1)}` && /lucide-folder-open/u.test(icons["inbox-chat-case-only"].icon) && icons["inbox-chat-case-only"].icon === icons["messages-thread"].icon, icons);
   }
 
   // Скрытая шапка (открытый чат на узком экране) не оставляет в порядке табуляции невидимого «?»: при видимой шапке «?» на месте.
@@ -352,7 +352,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
   }
   report("the new frame imports nothing of WAHA, Wazzup, the connect route or the send actions", await (async () => {
     const { readFileSync, readdirSync } = require("node:fs");
-    const dirs = ["inbox-next", "case-chat-next", "chats-next"].map((dir) => join(ROOT, "src/components/v3", dir));
+    const dirs = ["inbox-next", "case-chat-next", "chats-next"].map((dir) => join(ROOT, "src/components/staff", dir));
     const imports = dirs.flatMap((dir) => readdirSync(dir).map((file) => readFileSync(join(dir, file), "utf8"))).flatMap((source) => source.match(/^import [^;]*from "[^"]+";$/gmu) ?? []);
     return imports.length > 20 && imports.every((line) => !/waha|wazzup|whatsapp-connect|provider-actions|platform-whatsapp/iu.test(line));
   })(), null);
@@ -370,7 +370,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     report(`cabinet ${key}: row = name, time, last phrase and marks`, /Нурай Образцова[\s\S]*Добрый день! Какие документы нужны для визы\?/u.test(first), first);
     if (key === "d1280") report("cabinet d1280: the right side names the next conversation", /Следующий: Нурай Образцова — ждёт 2 дн/u.test(await page.locator("[data-testid=case-chat-next]").innerText()), await page.locator("[data-testid=case-chat-next]").innerText());
     await page.locator("[data-case-chat-row]").nth(1).click();
-    report(`cabinet ${key}: a row opens its conversation`, (await harness(page)).pushes.at(-1) === `/v3/messages?queue=needs_reply&case=${fx.caseId(4)}` || (await harness(page)).pushes.at(-1)?.includes(`case=${fx.caseId(4)}`), (await harness(page)).pushes);
+    report(`cabinet ${key}: a row opens its conversation`, (await harness(page)).pushes.at(-1) === `/messages?queue=needs_reply&case=${fx.caseId(4)}` || (await harness(page)).pushes.at(-1)?.includes(`case=${fx.caseId(4)}`), (await harness(page)).pushes);
     // Очередь: прежний движок перечитывает список (адрес — состояние), число и выбранное обновляются.
     await page.getByRole("button", { name: /Ждём студента/u }).click();
     await page.waitForFunction(() => document.querySelector('[data-testid="case-chat-queues"] button[aria-pressed="true"]')?.textContent.startsWith("Ждём студента"));
@@ -394,7 +394,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     report(`thread ${key}: the pressed state is a warning tone, not red`, tone === "warn", tone);
     const back = page.getByRole("link", { name: "К списку" });
     report(`thread ${key}: «К списку» only on the narrow screen`, (await back.isVisible()) === (key === "m390"), null);
-    report(`thread ${key}: «Открыть дело» keeps its address`, await page.getByRole("link", { name: "Открыть дело" }).getAttribute("href") === `/v3/profile?case=${fx.caseId(1)}`, null);
+    report(`thread ${key}: «Открыть дело» keeps its address`, await page.getByRole("link", { name: "Открыть дело" }).getAttribute("href") === `/profile?case=${fx.caseId(1)}`, null);
     report(`thread ${key}: the engine renders the reply field and the feed`, await page.locator('form[aria-label="Новое сообщение"] textarea').count() === 1 && await page.locator('[aria-label="История переписки"]').count() === 1, null);
     report(`thread ${key}: the page itself does not scroll`, (await metrics(page)).overflowY <= 0, null);
     // Переключатель состояния — прежняя команда `set_await`, список перечитывается: 3·2 → 2·3.
@@ -413,7 +413,7 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     const alert = page.locator("[data-testid=case-chat-error]");
     const text = await alert.innerText();
     report(`${name}: the alert says what happened and offers to reload`, await alert.getAttribute("role") === "alert" && (name === "messages-forbidden" ? /Доступ к перепискам изменился/u.test(text) : /Не удалось загрузить переписки/u.test(text)) && /Обновить страницу/u.test(text), text);
-    report(`${name}: the reload link keeps the address`, await alert.getByRole("link", { name: "Обновить страницу" }).getAttribute("href") === "/v3/messages", await alert.getByRole("link").getAttribute("href"));
+    report(`${name}: the reload link keeps the address`, await alert.getByRole("link", { name: "Обновить страницу" }).getAttribute("href") === "/messages", await alert.getByRole("link").getAttribute("href"));
     await context.close();
   }
   {

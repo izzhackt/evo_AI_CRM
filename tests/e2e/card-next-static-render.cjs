@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Новый вид»: карточка лида (`/v3/profile?id=…`) и дела студента (`/v3/profile?case=…`) — НАСТОЯЩАЯ сборка
+ * «Новый вид»: карточка лида (`/profile?id=…`) и дела студента (`/profile?case=…`) — НАСТОЯЩАЯ сборка
  * страницы (`caseWorkParts`/`leadWorkParts` → `caseNextParts`/`leadNextParts`, `ProfileNextShell`, `Profile` с
  * `nextUi`, `AppShell` с включённым переключателем) на СИНТЕТИЧЕСКИХ данных тех же сценариев, что у прежнего вида
  * (`case-static-render.cjs`, `numbers-static-render.cjs`): имена и числа выдуманы для проверки вёрстки. Живой
@@ -57,8 +57,8 @@ const EMPTY_IDS = Object.fromEntries(["contract", "firstPayment", "override", "h
 
 /** Рамка страницы и профиль — как в `page.tsx` для карточки в «Новом виде». */
 function pageBody({ title, backHref, backLabel, next, profile, draft, sales, actor, notes, hrefFor, requestIds = EMPTY_IDS }) {
-  const { Profile } = src("components/v3/profile/Profile.tsx");
-  const { ProfileNextShell } = src("components/v3/profile/next/ProfileNextShell.tsx");
+  const { Profile } = src("components/staff/profile/Profile.tsx");
+  const { ProfileNextShell } = src("components/staff/profile/next/ProfileNextShell.tsx");
   const { Icon } = src("components/icons.tsx");
   const back = createElement("a", { href: backHref, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), backLabel);
@@ -72,8 +72,8 @@ function pageBody({ title, backHref, backLabel, next, profile, draft, sales, act
 
 /** Тот же профиль в прежнем виде (`PartShell` + `Profile` без `nextUi`) — снимок «до» рядом со снимком «после». */
 function legacyBody({ title, backHref, backLabel, parts, profile, draft, sales, actor, notes, hrefFor, requestIds = EMPTY_IDS }) {
-  const { Profile } = src("components/v3/profile/Profile.tsx");
-  const { PartShell } = src("components/v3/PartShell.tsx");
+  const { Profile } = src("components/staff/profile/Profile.tsx");
+  const { PartShell } = src("components/staff/PartShell.tsx");
   const { Icon } = src("components/icons.tsx");
   const back = createElement("a", { href: backHref, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), backLabel);
@@ -88,14 +88,14 @@ function legacyBody({ title, backHref, backLabel, parts, profile, draft, sales, 
 function caseScenario(name) {
   const withHelp = name === "admin-help";
   const { item, parts, hrefFor } = cases.buildParts(withHelp ? "admin" : name);
-  const { caseNextParts } = src("components/v3/profile/next/CaseNext.tsx");
+  const { caseNextParts } = src("components/staff/profile/next/CaseNext.tsx");
   if (withHelp) {
     // Настоящая страница подгружает карточку лениво (`CaseHelpCard`); статический рендер берёт её саму.
-    const { CaseHelpCardImpl } = src("components/v3/profile/next/CaseHelpCardImpl.tsx");
+    const { CaseHelpCardImpl } = src("components/staff/profile/next/CaseHelpCardImpl.tsx");
     parts.next = { ...parts.next, overview: { ...parts.next.overview, help: createElement(CaseHelpCardImpl, { initialPage: HELP_PAGE }) } };
   }
   const next = caseNextParts(parts.next, parts.actions);
-  return { name: `case-${name}`, actor: item.actor, pathname: "/v3/profile", search: `case=${cases.CASE_ID}&tab=overview`, title: cases.NAME,
+  return { name: `case-${name}`, actor: item.actor, pathname: "/profile", search: `case=${cases.CASE_ID}&tab=overview`, title: cases.NAME,
     body: pageBody({ title: cases.NAME, backHref: cases.RETURN_TO, backLabel: "Студенты", next, profile: item.profile, draft: item.draft,
       sales: item.sales, actor: item.actor, notes: item.notes ?? cases.NOTES, hrefFor }),
     before: () => legacyBody({ title: cases.NAME, backHref: cases.RETURN_TO, backLabel: "Студенты", parts, profile: item.profile, draft: item.draft,
@@ -104,12 +104,12 @@ function caseScenario(name) {
 
 function leadScenario([name, extra]) {
   const built = leads.leadBuild(name, extra);
-  const { leadNextParts } = src("components/v3/profile/next/LeadNext.tsx");
+  const { leadNextParts } = src("components/staff/profile/next/LeadNext.tsx");
   const next = leadNextParts(built.parts.next);
-  return { name: leadKey([name, extra]), actor: leads.ADMIN, pathname: "/v3/profile", search: `id=${leads.LEAD_ID}&tab=overview`, title: built.profile.person,
-    body: pageBody({ title: built.profile.person, backHref: "/v3/pipeline", backLabel: "Воронка продаж", next, profile: built.profile, draft: built.draft,
+  return { name: leadKey([name, extra]), actor: leads.ADMIN, pathname: "/profile", search: `id=${leads.LEAD_ID}&tab=overview`, title: built.profile.person,
+    body: pageBody({ title: built.profile.person, backHref: "/pipeline", backLabel: "Воронка продаж", next, profile: built.profile, draft: built.draft,
       sales: built.sales, actor: leads.ADMIN, notes: built.notes, hrefFor: built.hrefFor, requestIds: built.requestIds }),
-    before: () => legacyBody({ title: built.profile.person, backHref: "/v3/pipeline", backLabel: "Воронка продаж", parts: built.parts, profile: built.profile, draft: built.draft,
+    before: () => legacyBody({ title: built.profile.person, backHref: "/pipeline", backLabel: "Воронка продаж", parts: built.parts, profile: built.profile, draft: built.draft,
       sales: built.sales, actor: leads.ADMIN, notes: built.notes, hrefFor: built.hrefFor, requestIds: built.requestIds }) };
 }
 
@@ -118,7 +118,7 @@ const scenarios = () => [...CASE_SCENARIOS.map(caseScenario), ...LEAD_SCENARIOS.
 const inContexts = (node, pathname, search) => leads.withContexts(node, pathname, search);
 
 function worldPage(scenario, before = false) {
-  const { AppShell } = src("components/v3/AppShell.tsx");
+  const { AppShell } = src("components/staff/AppShell.tsx");
   // «До»: тот же корень без `data-ui` и без переключателя — как у сотрудника и у администратора с выключенным видом.
   if (before) return createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: scenario.actor, initialNotifications: null }, scenario.before()));
@@ -131,8 +131,8 @@ const OVERFLOW_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
-const { FeedCard } = require("@/components/v3/profile/next/FeedCard");
-const { FeedNote, FeedEvent } = require("@/components/v3/profile/FeedRow");
+const { FeedCard } = require("@/components/staff/profile/next/FeedCard");
+const { FeedNote, FeedEvent } = require("@/components/staff/profile/FeedRow");
 const h = React.createElement;
 const rows = Array.from({ length: 8 }, (_, index) => index % 2 === 0
   ? h(FeedNote, { key: index, body: "Синтетическая заметка " + (index + 1), author: "Менеджер Синтетический", at: "2026-09-2" + index + "T09:00:00.000Z", label: "2" + index + ".09" })
@@ -380,11 +380,11 @@ async function screenshots() {
 // «Сведения» лида с тремя исходами чтения «Интересует» (само чтение — отдельный серверный компонент, здесь его результат).
 function interestWidgets() {
   const built = leads.leadBuild("potential", {});
-  const { LeadSideFacts } = src("components/v3/profile/next/LeadSideFacts.tsx");
+  const { LeadSideFacts } = src("components/staff/profile/next/LeadSideFacts.tsx");
   const source = { ...built.parts.next, facts: { ...built.parts.next.facts, hasInterest: true } };
   return [["value", { status: "value", direction: "Малайзия" }], ["error", { status: "error" }], ["none", { status: "none" }]].map(([key, interest]) => ({
     name: `widget-interest-${key}`,
-    html: renderToStaticMarkup(inContexts(createElement(LeadSideFacts, { source, interest }), "/v3/profile", `id=${leads.LEAD_ID}`)),
+    html: renderToStaticMarkup(inContexts(createElement(LeadSideFacts, { source, interest }), "/profile", `id=${leads.LEAD_ID}`)),
   }));
 }
 

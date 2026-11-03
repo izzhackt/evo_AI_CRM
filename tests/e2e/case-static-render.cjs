@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Статический рендер дела студента (`/v3/profile?case=…`, решение владельца
+ * Статический рендер дела студента (`/profile?case=…`, решение владельца
  * 26.09.2026 «сначала работа»).
  *
  * Рендерит НАСТОЯЩУЮ сборку страницы дела — `caseWorkParts` (строка фактов
@@ -20,7 +20,7 @@
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
  *       (для tests/v3-case-work.test.mjs).
  *   node tests/e2e/case-static-render.cjs --screenshots [outDir] [--compare-root=<dir>]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844 в outDir (по умолчанию .impeccable/review,
  *       не коммитится), файлы `case-*.png`. Страница не гидратируется: окно шага и
@@ -71,7 +71,7 @@ for (const extension of [".ts", ".tsx"]) {
 Module._extensions[".png"] = (module, filename) => {
   module.exports = { src: pathToFileURL(filename).href, width: 1843, height: 842 };
 };
-// CSS-модули: имя класса — сам ключ (стили страницы приходят из globals.css и v3.css).
+// CSS-модули: имя класса — сам ключ (стили страницы приходят из globals.css и staff.css).
 Module._extensions[".css"] = (module) => {
   module.exports = new Proxy({}, { get: (_target, key) => (typeof key === "string" ? key : undefined) });
 };
@@ -101,13 +101,13 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { caseWorkParts } = require(join(ROOT, "src/components/v3/profile/CaseWorkParts.tsx"));
-const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
-const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
-const workView = require(join(ROOT, "src/components/v3/profile/case-work-view.ts"));
-const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
-const closureUi = require(join(ROOT, "src/components/v3/closure/Closure.tsx"));
-const { placeMenu } = require(join(ROOT, "src/components/v3/board/menu-position.ts"));
+const { caseWorkParts } = require(join(ROOT, "src/components/staff/profile/CaseWorkParts.tsx"));
+const { Profile } = require(join(ROOT, "src/components/staff/profile/Profile.tsx"));
+const { buildV3ProfileHref } = require(join(ROOT, "src/components/staff/profile/types.ts"));
+const workView = require(join(ROOT, "src/components/staff/profile/case-work-view.ts"));
+const queueView = require(join(ROOT, "src/components/staff/students/students-queue-view.ts"));
+const closureUi = require(join(ROOT, "src/components/staff/closure/Closure.tsx"));
+const { placeMenu } = require(join(ROOT, "src/components/staff/board/menu-position.ts"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — среда 23.09.2026 по Бишкеку (как в статическом рендере «Студентов»).
@@ -120,7 +120,7 @@ const CASE_ID = "cccccccc-2222-4222-8222-000000000001";
 const LEAD_ID = "dddddddd-3333-4333-8333-000000000001";
 const NAME = "Айдана Сыдыкова";
 const uuid = (prefix, n) => `${prefix}-5555-4555-8555-${String(n).padStart(12, "0")}`;
-const RETURN_TO = "/v3/profile?view=mine";
+const RETURN_TO = "/profile?view=mine";
 
 const ADMIN = {
   authUserId: "bbbbbbbb-7777-4777-8777-000000000001", profileId: "bbbbbbbb-7777-4777-8777-000000000002",
@@ -182,7 +182,7 @@ const DOCUMENTS = [{ kind: "active", title: "Документы", items: [
 // задачи, записи сообщений и документы без времени в ленту не идут (их проверяет тест).
 // `href` и `targetId` — как их строит readProfileActivity: у заявки — её id, у переписки — диалог во «Входящих».
 function activityEvent(n, transition, targetKind, occurredAt, targetId = CASE_ID) {
-  const href = targetKind === "conversation" ? `/v3/inbox?conversation=${targetId}` : `/v3/profile?case=${CASE_ID}&tab=${targetKind}`;
+  const href = targetKind === "conversation" ? `/inbox?conversation=${targetId}` : `/profile?case=${CASE_ID}&tab=${targetKind}`;
   return { id: uuid("abababab", n), transition, role: "", at: occurredAt ? "синтетика" : null, href, changedFields: [], targetKind, occurredAt, targetId };
 }
 const HANDOFF_EVENTS = [
@@ -481,7 +481,7 @@ const SCENARIOS = {
       chat: { kind: "ready", awaitState: "none", last: null }, activity: { kind: "ready", olderThan: null, events: [] } }) },
   // Более ранняя страница заметок: в ленте только заметки, событий нет (они — на первой странице).
   "notes-page": { actor: CURATOR, profile: profile(), draft: draft(), sales: null, work: work(),
-    notesLatestHref: `/v3/profile?case=${CASE_ID}&tab=overview` },
+    notesLatestHref: `/profile?case=${CASE_ID}&tab=overview` },
   // Закрытое дело: шаг не меняется, задач нет.
   "closed": { actor: CURATOR, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
     work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null },
@@ -538,7 +538,7 @@ const SEARCH = `case=${CASE_ID}&tab=overview&returnTo=${encodeURIComponent(RETUR
 
 function withContexts(node) {
   return createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(SEARCH) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
@@ -550,8 +550,8 @@ function renderWorkspace(name, tab) {
 }
 
 function renderPage(name, { closeDialog = false } = {}) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const back = createElement("a", { href: RETURN_TO, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "Студенты");
@@ -585,13 +585,13 @@ const LEAD = {
 
 // Разметка страницы лида как в page.tsx: «Профиль», ссылка к списку, Profile без caseHeader/caseOverview.
 function renderLeadPage(root) {
-  const { AppShell } = require(join(root, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(root, "src/components/v3/PartShell.tsx"));
-  const { Profile: RootProfile } = require(join(root, "src/components/v3/profile/Profile.tsx"));
-  const { buildV3ProfileHref: rootHref } = require(join(root, "src/components/v3/profile/types.ts"));
+  const { AppShell } = require(join(root, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(root, "src/components/staff/PartShell.tsx"));
+  const { Profile: RootProfile } = require(join(root, "src/components/staff/profile/Profile.tsx"));
+  const { buildV3ProfileHref: rootHref } = require(join(root, "src/components/staff/profile/types.ts"));
   const hrefFor = (tab) => rootHref({ leadId: LEAD_ID, studentCaseId: null }, tab);
   const body = createElement("div", { className: "space-y-6" },
-    createElement("a", { href: "/v3/profile", className: "inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline" }, "К списку студентов"),
+    createElement("a", { href: "/profile", className: "inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline" }, "К списку студентов"),
     createElement(RootProfile, {
       profile: LEAD.profile, draft: LEAD.draft, sales: LEAD.sales, actor: LEAD.actor, organizationId: ORG,
       studentPortalCurators: [], studentPortalCuratorsAvailable: true,
@@ -608,7 +608,7 @@ function renderLeadPage(root) {
     createElement(AppShell, { actor: LEAD.actor, initialNotifications: null },
       createElement(PartShell, { title: "Профиль", count: null }, body)));
   return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(`id=${LEAD_ID}&tab=overview`) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, page)))));
 }
@@ -622,7 +622,7 @@ async function compileCss(root = ROOT) {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(root, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(root, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 function writeHtml(path, title, css, markup) {
@@ -967,11 +967,11 @@ const DRAWER_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
-const { CaseAcceptDrawer } = require("@/components/v3/profile/CaseAcceptDrawer");
-const { CaseTaskList } = require("@/components/v3/profile/CaseTaskList");
-const { FeedMore } = require("@/components/v3/profile/FeedMore");
-const { FeedEvent, FeedNote } = require("@/components/v3/profile/FeedRow");
-const { studentsHandoffPending } = require("@/components/v3/students/students-queue-view");
+const { CaseAcceptDrawer } = require("@/components/staff/profile/CaseAcceptDrawer");
+const { CaseTaskList } = require("@/components/staff/profile/CaseTaskList");
+const { FeedMore } = require("@/components/staff/profile/FeedMore");
+const { FeedEvent, FeedNote } = require("@/components/staff/profile/FeedRow");
+const { studentsHandoffPending } = require("@/components/staff/students/students-queue-view");
 const h = React.createElement;
 window.__s360 = { calls: [], refreshes: 0 };
 const router = { refresh() { window.__s360.refreshes += 1; }, push() {}, replace() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };

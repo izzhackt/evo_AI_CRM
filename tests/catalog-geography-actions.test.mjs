@@ -47,7 +47,7 @@ test("publish binds the session organization, calls only the cost RPC and expire
   assert.equal(harness.calls.length, 1);
   assert.deepEqual(harness.calls[0], { schema: "platform", name: "staff_catalog_cost_publish_v1", args: { p_cost_id: costId, p_status: "published", p_base_version: 3, p_organization_id: organizationId, p_request_id: requestId } });
   assert.deepEqual(harness.tags, [["portal-student-university-index", { expire: 0 }]]);
-  assert.deepEqual(harness.revalidated, [["/v3/universities", "layout"], ["/portal/universities", "layout"]]);
+  assert.deepEqual(harness.revalidated, [["/universities", "layout"], ["/portal/universities", "layout"]]);
 });
 
 test("staff without catalog publication, Admin role preview and a forged confirmation stop before any RPC", async () => {

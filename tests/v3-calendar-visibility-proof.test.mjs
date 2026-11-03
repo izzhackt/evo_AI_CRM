@@ -8,11 +8,11 @@ import ts from "typescript";
 
 import * as access from "../src/lib/platform-access.ts";
 import * as taskContract from "../src/lib/platform-admissions-task-contract.ts";
-import * as calendarTypes from "../src/components/v3/calendar/types.ts";
-import * as dueBucket from "../src/components/v3/queue/due-bucket.ts";
-import * as queueButtons from "../src/components/v3/queue/queue-buttons.ts";
-import * as composerRequestId from "../src/components/v3/tasks/composer-request-id.ts";
-import * as composerDraft from "../src/components/v3/tasks/composer-draft.ts";
+import * as calendarTypes from "../src/components/staff/calendar/types.ts";
+import * as dueBucket from "../src/components/staff/queue/due-bucket.ts";
+import * as queueButtons from "../src/components/staff/queue/queue-buttons.ts";
+import * as composerRequestId from "../src/components/staff/tasks/composer-request-id.ts";
+import * as composerDraft from "../src/components/staff/tasks/composer-draft.ts";
 
 /*
  * Э7 «Один способ создать задачу»: календарь создаёт задачу тем же диалогом
@@ -40,17 +40,17 @@ function compile(path, resolve) {
 // Actual React, components and permission helper. Only nonexecuted server-action
 // references fail fast; no Auth/API/DB outcome or permission evaluator is replaced.
 const icons = compile("src/components/icons.tsx", id => require(id));
-const casePicker = compile("src/components/v3/tasks/TaskCasePicker.tsx", id => {
+const casePicker = compile("src/components/staff/tasks/TaskCasePicker.tsx", id => {
   if (id === "@/lib/v3/task-case-actions") return { searchTaskCasesAction: unavailableAction };
   return require(id);
 });
-const deadline = compile("src/components/v3/tasks/ComposerDeadlineField.tsx", id => {
+const deadline = compile("src/components/staff/tasks/ComposerDeadlineField.tsx", id => {
   if (id === "../queue/due-bucket") return dueBucket;
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "../calendar/types") return calendarTypes;
   return require(id);
 });
-const composer = compile("src/components/v3/tasks/TaskComposerDialog.tsx", id => {
+const composer = compile("src/components/staff/tasks/TaskComposerDialog.tsx", id => {
   if (id === "@/components/icons") return icons;
   if (id === "@/lib/platform-access") return access;
   if (id === "@/lib/platform-admissions-task-contract") return taskContract;
@@ -96,7 +96,7 @@ test("actual scoped Admissions dialog renders no visibility selector and the com
   assert.doesNotMatch(html, /name="student_visible"/);
   assert.match(html, /Студент: <\/span>Synthetic student/);
   // The command form is built by the dialog itself: hidden unless the grant is held.
-  assert.match(read("src/components/v3/tasks/TaskComposerDialog.tsx"),
+  assert.match(read("src/components/staff/tasks/TaskComposerDialog.tsx"),
     /form\.set\("student_visible", canChangeVisibility && studentVisible \? "true" : "false"\);/);
   // The calendar's chosen day is the default deadline: all day on 12.09.2099.
   assert.match(html, /<input type="hidden" name="deadline_kind" value="all_day"\/>/);
@@ -133,7 +133,7 @@ test("the real Auth scenario binds current Admissions rights and expects no visi
   assert.ok(createBegin >= 0 && createEnd > createBegin);
   const creation = scenario.slice(createBegin, createEnd);
   // Э7: «Создать задачу» оболочки (с днём календаря), а у кого её нет — своя кнопка календаря.
-  assert.match(scenario, /page\.locator\('a\[href="\/v3\/tasks\?create=staff"\], \[data-testid="v3-calendar-new-task"\]'\)\.filter\(\{ visible: true \}\)\.first\(\)\.click\(\)/);
+  assert.match(scenario, /page\.locator\('a\[href="\/tasks\?create=staff"\], \[data-testid="v3-calendar-new-task"\]'\)\.filter\(\{ visible: true \}\)\.first\(\)\.click\(\)/);
   assert.doesNotMatch(render(scopedAdmissions), /name="student_visible"/);
   assert.ok(/expect\(createTask\.locator\('select\[name="student_visible"\]'\)\)\.toHaveCount\(0\)/.test(creation));
   assert.equal(/locator\('select\[name="student_visible"\]'\)[\s\S]*?\.selectOption/.test(creation), false);

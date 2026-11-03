@@ -18,7 +18,7 @@ export async function staffAuthAction(_previous: StaffWorkspaceActionState, form
   try {
     const result = await requestStaffAuth(form);
     confirmedRequestId = result.requestId;
-    revalidatePath("/v3/settings");
+    revalidatePath("/settings");
     if (result.status === "rejected") return {
       status: "error", retryAllowed: true, requestId: result.requestId,
       message: `${staffAuthRejectionMessage(result.rejectionCode)} Изменений в Auth не обнаружено. После устранения причины можно явно создать новый запрос.`,
@@ -57,7 +57,7 @@ export async function staffPreparePendingAccessAction(_previous: StaffWorkspaceA
     const result = await prepareStaffPendingAccess(form);
     confirmedRequestId = result.requestId;
     const preparation = await readStaffAuthPreparation(form);
-    revalidatePath("/v3/settings");
+    revalidatePath("/settings");
     return { status: "success", requestId: result.requestId, preparation,
       message: "Настройки запроса сохранены. Нажмите «Проверить», чтобы сверить приглашение. Повторное письмо не отправлялось." };
   } catch (error) {
@@ -76,7 +76,7 @@ export async function staffMemberAction(_previous: StaffWorkspaceActionState, fo
   try {
     const result = await changeStaffMember(form);
     confirmedRequestId = result.requestId;
-    revalidatePath("/v3/settings");
+    revalidatePath("/settings");
     return { status: "success", requestId: result.requestId, message: "Статус сотрудника сохранён. Изменение доступа действует сразу." };
   } catch (error) {
     if (error instanceof StaffCommandVersionRejectedError && !confirmedRequestId) {
@@ -96,7 +96,7 @@ export async function staffDepartmentAction(_previous: StaffWorkspaceActionState
   try {
     await changeStaffDepartment(form);
     confirmed = true;
-    revalidatePath("/v3/settings");
+    revalidatePath("/settings");
     return { status: "success", message: "Отдел сохранён." };
   } catch (error) {
     if (_previous.metadataOutcome === "unknown" || confirmed || error instanceof StaffMetadataOutcomeUnknownError) return {
@@ -112,7 +112,7 @@ export async function staffOrganizationalDetailsAction(_previous: StaffWorkspace
   try {
     await saveStaffOrganizationalDetails(form);
     confirmed = true;
-    revalidatePath("/v3/settings");
+    revalidatePath("/settings");
     return { status: "success", message: "Рабочие сведения сохранены." };
   } catch (error) {
     if (_previous.metadataOutcome === "unknown" || confirmed || error instanceof StaffMetadataOutcomeUnknownError) return {

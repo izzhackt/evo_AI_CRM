@@ -303,7 +303,7 @@ test("Admin invitation UI submits the two planned recipients once and returns ca
   assert.deepEqual(result.invitations.map(({ membershipId }) => membershipId), [member, profileId]);
   assert.deepEqual(result.invitations.map(({ permissionKeys }) => permissionKeys), [["lead.read"], ["case.read.full"]]);
   assert.equal(fixture.reads.filter((name) => name === "staff_workspace_auth_history").length, 4);
-  assert.deepEqual(fixture.navigations, [`${appOrigin}/login`, `${appOrigin}/v3/settings?section=staff&view=people`]);
+  assert.deepEqual(fixture.navigations, [`${appOrigin}/login`, `${appOrigin}/settings?section=staff&view=people`]);
   assert.equal(fixture.closed(), 1);
   assert.doesNotMatch(JSON.stringify(result), /email|authUser|password|token|@/);
 });
@@ -496,7 +496,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     async click() {
       act(`click:${name}`);
-      if (path === "/navigation:Разделы настроек/link:Роли и доступ") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
+      if (path === "/navigation:Разделы настроек/link:Роли и доступ") pageUrl = `${appOrigin}/settings?section=staff&view=roles`;
       if (name === "Создать роль") {
         draft = emptyRole(ids[0]); operation = "create";
         for (let index = 0; index < mainFrameNavigations; index += 1) listeners.get("framenavigated")?.(mainFrame);
@@ -522,7 +522,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
         selected.version += 1; selected.status = name === "Перенести в архив" ? "archived" : "active";
         actions.push(name === "Перенести в архив" ? "command:archive" : "command:restore");
       }
-      if (selected) pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles&role=${selected.id}`;
+      if (selected) pageUrl = `${appOrigin}/settings?section=staff&view=roles&role=${selected.id}`;
     },
     async waitFor() {
       act(`wait:${name}`);
@@ -541,7 +541,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     mainFrame() { if (observationFailure === "main-frame") throw privateError; return mainFrame; },
     url: () => pageUrl,
     async waitForURL(expected) {
-      assert.equal(expected, `${appOrigin}/v3/settings?section=staff&view=roles`);
+      assert.equal(expected, `${appOrigin}/settings?section=staff&view=roles`);
       assert.equal(pageUrl, expected);
     },
     getByTestId: () => locator("shell"), async goto(url) { act("goto"); pageUrl = url; },
@@ -675,7 +675,7 @@ test("role editor drives only role-screen copy and buttons that the roles UI sti
   // Браузерный путь редактора ролей (Playwright) нельзя прогнать без локального Supabase, а тесты выше — на заглушках:
   // слова, на которые он ждёт и нажимает, сверяются с самим экраном «Роли и доступ».
   const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
-  const ui = readFileSync(new URL("../src/components/v3/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../src/components/staff/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
   const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"), helper.indexOf("export async function verifyScopedStaffMemberEditor"));
   // Пустая правая часть — одно слово «Выберите роль.»: ждёт и по нему, и в счётчике состояния.
   const empty = [...editor.matchAll(/getByText\("(Выберите роль[^"]*)", \{ exact: true \}\)/g)].map((match) => match[1]);
@@ -783,7 +783,7 @@ test("member editor proves two same-card UI saves and restores existing assignme
   assert.deepEqual(fixture.commands.map(({ version, assignments }) => [version, assignments.length]), [[7, 1], [8, 2]]);
   assert.deepEqual(fixture.reopenedVersions, [8, 9]);
   assert.equal(fixture.navigation.length, 2);
-  assert.equal(fixture.navigation[1], `${appOrigin}/v3/settings?section=staff&view=people&member=${fixture.members[1].membershipId}`);
+  assert.equal(fixture.navigation[1], `${appOrigin}/settings?section=staff&view=people&member=${fixture.members[1].membershipId}`);
   assert.deepEqual(fixture.members, fixture.baseline.map((row, index) => index === 1 ? { ...row, accessVersion: 9 } : row));
   assert.deepEqual(fixture.roles, fixture.baselineRoles);
   assert.ok(fixture.reads.every((name) => ["staff_access_snapshot", "staff_role_workspace"].includes(name)));

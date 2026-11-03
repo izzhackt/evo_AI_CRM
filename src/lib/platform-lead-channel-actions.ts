@@ -22,6 +22,6 @@ export async function correctLeadChannelAction(previous: LeadChannelCorrectionSt
   if (isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage")) return fail("forbidden");
   const touch = await recordLeadTouch(actor, { leadId, channel, kind: "staff_correction", requestId });
   if (touch.status !== "saved") return fail(touch.status);
-  revalidatePath("/v3/profile");
+  revalidatePath("/profile");
   return { status: "saved", requestId, read: touch.read };
 }

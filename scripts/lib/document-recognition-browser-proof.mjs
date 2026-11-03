@@ -68,7 +68,7 @@ async function main() {
     stage = "ACTUAL_ADMIN_SHELL";
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-system-role", "admin");
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-presentation-role", "actual");
-    const profileUrl = `${config.appOrigin}/v3/profile?case=${caseId}&tab=anketa`;
+    const profileUrl = `${config.appOrigin}/profile?case=${caseId}&tab=anketa`;
     stage = "PROFILE_START"; await page.goto(profileUrl, { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "Начать анкету", exact: true }).click();
     await expect.poll(async () => (await snapshot()).profile?.revision).toBe(1);
@@ -84,7 +84,7 @@ async function main() {
     const confirmed = await snapshot();
     requireProof(confirmed.profile.revision === 2, "PROFILE_REVISION_INVALID");
     stage = "DOCUMENT_CHECKLIST";
-    const documentUrl = `${config.appOrigin}/v3/profile?case=${caseId}&tab=documents`;
+    const documentUrl = `${config.appOrigin}/profile?case=${caseId}&tab=documents`;
     await page.goto(documentUrl, { waitUntil: "domcontentloaded" });
     const form = page.getByTestId("v3-document-checklist-create");
     // Э8.1: формы пункта раскрывает «+ Документ» (у пустого чек-листа они уже открыты).

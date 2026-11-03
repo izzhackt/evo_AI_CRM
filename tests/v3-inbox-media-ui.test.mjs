@@ -271,10 +271,10 @@ test("closed, mismatched and nonwritable workspaces fail closed", async () => {
 });
 
 test("Inbox integrates media for both directions without provider calls or byte transport", () => {
-  const inbox = source("src/components/v3/Inbox.tsx");
-  const component = source("src/components/v3/inbox/InboxMessageMedia.tsx");
+  const inbox = source("src/components/staff/Inbox.tsx");
+  const component = source("src/components/staff/inbox/InboxMessageMedia.tsx");
   const adapter = source("src/lib/v3/inbox-source.ts");
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const page = source("src/app/(staff)/inbox/page.tsx");
 
   assert.match(adapter, /message\.media\.map\(toV3InboxMessageMedia\)/u);
   assert.match(
@@ -286,7 +286,7 @@ test("Inbox integrates media for both directions without provider calls or byte 
     /studentCaseId: thread\.conversation\.studentCaseId/u,
   );
   // 06.10.2026: the bubbles live in the chat (InboxChat), media unchanged.
-  const chat = source("src/components/v3/inbox/InboxChat.tsx");
+  const chat = source("src/components/staff/inbox/InboxChat.tsx");
   assert.match(inbox, /mediaAttachmentContext=\{mediaAttachmentContext\}/u);
   assert.match(chat, /items=\{message\.media\}/u);
   assert.match(chat, /inbound=\{message\.inbound\}/u);

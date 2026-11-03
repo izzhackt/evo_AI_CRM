@@ -169,7 +169,7 @@ function successState(
   versionValue: string,
   archivedAt: string | null,
 ): PlatformCompanyFileActionState {
-  revalidatePath("/v3/knowledge");
+  revalidatePath("/knowledge");
   return Object.freeze({
     status: "saved",
     requestId: randomUUID(),

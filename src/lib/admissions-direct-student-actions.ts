@@ -28,8 +28,8 @@ export async function createAdmissionsStudentAction(input: unknown): Promise<Adm
   try {
     const result = await createAdmissionsStudentCase(actor, requestId, parsed);
     if (result.status === "saved") {
-      revalidatePath("/v3/admissions-pipeline");
-      revalidatePath("/v3/profile");
+      revalidatePath("/admissions-pipeline");
+      revalidatePath("/profile");
     }
     return result;
   } catch {

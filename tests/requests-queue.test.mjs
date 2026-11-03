@@ -37,15 +37,15 @@ test("request selection defaults to «Ждут разбора» and rejects ambi
     assert.throws(() => parseRequestSelection(params));
   }
   const filters = parseRequestSelection({ source: "platform_application", status: "all", limit: "1" });
-  assert.equal(requestsHref(filters), "/v3/requests?source=platform_application&status=all&limit=1");
-  assert.equal(requestsHref(parseRequestSelection({})), "/v3/requests");
+  assert.equal(requestsHref(filters), "/requests?source=platform_application&status=all&limit=1");
+  assert.equal(requestsHref(parseRequestSelection({})), "/requests");
   // Прежние параметры v1 не ломают страницу: они просто не читаются.
   assert.deepEqual(parseRequestSelection({ applications: "all", consultations: "handled" }), parseRequestSelection({}));
 });
 
 test("the open record lives in the address and is a strict kind:uuid", () => {
   const id = row(4).id;
-  assert.equal(requestsHref(selection, `lead:${id}`), `/v3/requests?source=website&status=all&open=lead%3A${id}`);
+  assert.equal(requestsHref(selection, `lead:${id}`), `/requests?source=website&status=all&open=lead%3A${id}`);
   assert.deepEqual(parseRequestOpen(`application:${id}`), { kind: "application", id });
   for (const value of [undefined, ["lead:" + id], `task:${id}`, `lead:${id}:x`, "lead:not-a-uuid", "lead:ABCDEF00-0000-4000-8000-000000000004"]) {
     assert.equal(parseRequestOpen(value), null);
@@ -66,7 +66,7 @@ test("retry and card return preserve the complete cursor, external or ambiguous 
   const href = requestsHref(filters);
   assert.deepEqual(parseRequestSelection(Object.fromEntries(new URL(href, "https://internal.invalid").searchParams)), filters);
   assert.equal(parseRequestsReturnTo(href), href);
-  for (const value of ["https://evil.test/v3/requests", "//evil.test/v3/requests", "/v3/requests/other", "/v3/requests#x", "/v3/requests?source=website&source=whatsapp", "/v3/requests?unexpected=x", "/v3/requests?cursor=broken", "/v3/requests?open=lead%3Ax", "javascript:alert(1)"]) assert.equal(parseRequestsReturnTo(value), null);
+  for (const value of ["https://evil.test/requests", "//evil.test/v3/requests", "/requests/other", "/requests#x", "/requests?source=website&source=whatsapp", "/requests?unexpected=x", "/requests?cursor=broken", "/requests?open=lead%3Ax", "javascript:alert(1)"]) assert.equal(parseRequestsReturnTo(value), null);
 });
 
 test("an unreadable kind has no count, never a fabricated zero; «Все» sums only what the role reads", () => {
@@ -147,7 +147,7 @@ const callRow = (number, fields = {}) => row(number, undefined, { source: "phone
 
 test("«Звонки» is a lead source: the filter, the tab and the row source are the same word", () => {
   assert.equal(parseRequestSelection({ source: "phone_call" }).source, "phone_call");
-  assert.equal(requestsHref(callsSelection), "/v3/requests?source=phone_call&status=all");
+  assert.equal(requestsHref(callsSelection), "/requests?source=phone_call&status=all");
   const parsed = parse(callPage([callRow(1)], callsSelection), callsSelection);
   assert.equal(parsed.rows[0].source, "phone_call");
   assert.equal(parsed.rows[0].kind, "lead");

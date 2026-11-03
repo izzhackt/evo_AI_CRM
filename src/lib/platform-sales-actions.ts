@@ -189,14 +189,14 @@ export async function updatePlatformSalesWorkflowAction(
   _previous: PlatformSalesWorkflowActionState,
   form: FormData,
 ): Promise<PlatformSalesWorkflowActionState> {
-  const actor = await requirePlatformMutationCapability("sales.write", "/v3/pipeline");
+  const actor = await requirePlatformMutationCapability("sales.write", "/pipeline");
   const input = parseInput(form);
   if (!input) return failureState(form, "invalid");
 
   try {
     const receipt = await mutatePlatformSalesLeadWorkflow(actor, input);
-    revalidatePath("/v3/pipeline");
-    revalidatePath(`/v3/profile?id=${receipt.leadId}`);
+    revalidatePath("/pipeline");
+    revalidatePath(`/profile?id=${receipt.leadId}`);
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),
@@ -302,7 +302,7 @@ export async function saveLeadSaleConditionsAction(
   _previous: SaveLeadSaleConditionsActionState,
   form: FormData,
 ): Promise<SaveLeadSaleConditionsActionState> {
-  const actor = await requirePlatformMutationCapability("sales.write", "/v3/profile");
+  const actor = await requirePlatformMutationCapability("sales.write", "/profile");
   const fields = exactActionStringFields(form, SALE_CONDITIONS_FORM_FIELDS);
   if (!fields) return saleConditionsOutcome(form, "invalid");
   const leadId = parsePlatformSalesUuid(fields.get("lead_id"));
@@ -382,7 +382,7 @@ export async function saveLeadSaleConditionsAction(
     ) {
       return saleConditionsOutcome(form, "unavailable");
     }
-    revalidatePath(`/v3/profile?id=${leadId}`);
+    revalidatePath(`/profile?id=${leadId}`);
     return saleConditionsOutcome(form, "saved", data.revision as string);
   } catch {
     return saleConditionsOutcome(form, "unavailable");
@@ -394,7 +394,7 @@ export async function saveLeadSaleConditionsGroupAction(
   _previous: SaveLeadSaleConditionsActionState,
   form: FormData,
 ): Promise<SaveLeadSaleConditionsActionState> {
-  const actor = await requirePlatformMutationCapability("sales.write", "/v3/profile");
+  const actor = await requirePlatformMutationCapability("sales.write", "/profile");
   const decoded = decodeLeadSaleConditionsGroupForm(form);
   if (!decoded) return saleConditionsOutcome(form, "invalid");
   const { group, fields } = decoded;
@@ -467,7 +467,7 @@ export async function saveLeadSaleConditionsGroupAction(
       || parseSalesInteger(data.revision) !== revision + 1) {
       return saleConditionsOutcome(form, "unavailable");
     }
-    revalidatePath(`/v3/profile?id=${leadId}`);
+    revalidatePath(`/profile?id=${leadId}`);
     return saleConditionsOutcome(form, "saved", data.revision as string);
   } catch {
     return saleConditionsOutcome(form, "unavailable");
@@ -516,7 +516,7 @@ export async function prepareLeadCabinetAction(
   _previous: PrepareLeadCabinetActionState,
   form: FormData,
 ): Promise<PrepareLeadCabinetActionState> {
-  const actor = await requirePlatformMutationCapability("sales.write", "/v3/profile");
+  const actor = await requirePlatformMutationCapability("sales.write", "/profile");
   const fields = exactActionStringFields(form, PREPARE_LEAD_CABINET_FORM_FIELDS);
   if (!fields) return prepareLeadCabinetOutcome(form, "invalid");
   const leadId = parsePlatformSalesUuid(fields.get("lead_id"));
@@ -546,7 +546,7 @@ export async function prepareLeadCabinetAction(
     ) {
       return prepareLeadCabinetOutcome(form, "unavailable");
     }
-    revalidatePath(`/v3/profile?id=${leadId}`);
+    revalidatePath(`/profile?id=${leadId}`);
     return prepareLeadCabinetOutcome(form, "saved", data.student_case_id);
   } catch {
     return prepareLeadCabinetOutcome(form, "unavailable");

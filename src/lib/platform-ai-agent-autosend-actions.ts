@@ -37,11 +37,11 @@ const SETTINGS_JSON_LIMIT = 32_768;
 
 async function actorFor() {
   const actor = await requirePlatformStaffActor();
-  return staffCanAccessRoute(actor, "/v3/ai-agent") ? actor : null;
+  return staffCanAccessRoute(actor, "/ai-agent") ? actor : null;
 }
 
 function done<S extends AiAutosendSaveStatus>(status: S, requestId: string): Readonly<{ status: S; requestId: string }> {
-  if (status === "saved") revalidatePath("/v3/ai-agent");
+  if (status === "saved") revalidatePath("/ai-agent");
   return { status, requestId };
 }
 

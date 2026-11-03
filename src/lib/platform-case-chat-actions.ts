@@ -5,7 +5,7 @@ import {
   caseChatCursor, caseChatUuid, isCaseChatAttachmentKind, isCaseChatAwaitState,
   type CaseChatActionState, type CaseChatFailure, type CaseChatPage, type CaseChatQueue,
 } from "./platform-case-chat-contract";
-import type { CaseChatQueueRead } from "../components/v3/case-chat/case-chat-queue";
+import type { CaseChatQueueRead } from "../components/staff/case-chat/case-chat-queue";
 import { caseChatErrorStatus, CaseChatReadError, readCaseChatPage, readStaffCaseChatQueue } from "./v3/case-chat-source";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { createSupabaseServerClient } from "./supabase/server";

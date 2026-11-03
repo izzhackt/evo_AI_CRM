@@ -43,13 +43,13 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
     if (error) return result(error.code === "42501" ? "forbidden" : error.code === "40001" ? "stale" : error.code === "23505" ? "request_conflict" : error.code === "22023" ? "invalid" : "unavailable");
     const expected = staging ? "saved" : operation === "publish" ? "published" : "rejected";
     if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).sort().join() !== "draftId,institutionId,requestId,status" || data.requestId !== requestId || data.status !== expected || !universityUuid(data.draftId) || !(data.institutionId === null || universityUuid(data.institutionId)) || (draftId && data.draftId !== draftId) || (targetId && data.institutionId !== targetId) || (expected === "published" && !data.institutionId)) return result("unavailable");
-    revalidatePath("/v3/universities");
+    revalidatePath("/universities");
     // A decision removes this draft from the pending-only reader. Any cache
     // invalidation can rerender that route, so navigate after a validated receipt.
-    if (staging) revalidatePath("/v3/universities/manage");
+    if (staging) revalidatePath("/universities/manage");
     revalidatePath("/portal/universities");
     if (data.institutionId) {
-      revalidatePath(`/v3/universities/${data.institutionId}`);
+      revalidatePath(`/universities/${data.institutionId}`);
       revalidatePath(`/portal/universities/${data.institutionId}`);
     }
     // Новая публикация меняет версию индекса студента (S3): старые копии
@@ -58,7 +58,7 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
     receipt = result(expected, data.draftId, data.institutionId);
   } catch { return result("unavailable"); }
   // Next uses an exception for navigation; never translate it into an uncertain save.
-  if (receipt.status === "published") redirect(`/v3/universities/${receipt.institutionId}`);
-  if (receipt.status === "rejected") redirect("/v3/universities/manage");
+  if (receipt.status === "published") redirect(`/universities/${receipt.institutionId}`);
+  if (receipt.status === "rejected") redirect("/universities/manage");
   return receipt;
 }

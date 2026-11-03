@@ -177,7 +177,7 @@ test("«Университеты»: one dense table of 30 rows with the photo, t
   assert.ok(rows.filter((row) => row.includes('data-deadline="none"')).every((row) => row.includes(">Срок не подтверждён</p>")));
   assert.ok(rows.every((row) => /<img[^>]*alt=""[^>]*class="size-full object-cover"|<span aria-hidden="true" class="grid size-12/u.test(row)), "a 48 px photo or its neutral place in each row");
   assert.match(html, /<nav aria-label="Страницы каталога"[\s\S]*?1–30<\/span> из <span class="tabular-nums">143<\/span>/u);
-  assert.match(html, /href="\/v3\/universities\?offset=30"/u);
+  assert.match(html, /href="\/universities\?offset=30"/u);
   // «Управлять каталогом» is a quiet link, not the page's red action.
   const end = html.indexOf("Управлять каталогом</a>");
   assert.ok(end > 0, "manage link");
@@ -188,11 +188,11 @@ test("«Университеты»: one dense table of 30 rows with the photo, t
 
 test("«Университеты»: the toolbar applies filters on change and keeps «Найти» for a browser without scripts", () => {
   const html = page("universities-list-filtered");
-  assert.match(html, /<form role="search" aria-label="Поиск университетов" data-testid="university-toolbar"[^>]*action="\/v3\/universities" method="get">/u);
+  assert.match(html, /<form role="search" aria-label="Поиск университетов" data-testid="university-toolbar"[^>]*action="\/universities" method="get">/u);
   assert.match(html, /<noscript>/u);
-  assert.match(html, /href="\/v3\/universities"[^>]*>Сбросить<\/a>/u, "«Сбросить» only when something is chosen");
+  assert.match(html, /href="\/universities"[^>]*>Сбросить<\/a>/u, "«Сбросить» only when something is chosen");
   assert.doesNotMatch(page("universities-list"), />Сбросить<\/a>/u);
-  const toolbar = source("src/components/v3/universities/UniversityToolbar.tsx");
+  const toolbar = source("src/components/staff/universities/UniversityToolbar.tsx");
   // Controlled selects, no remount after a choice: keyboard focus stays on the select (review #1079).
   assert.match(toolbar, /<select name="country" value=\{countryValue\} onChange=\{\(event\) => \{\s*setCountryValue\(event\.target\.value\);\s*router\.push\(href\(\{ country: event\.target\.value \}\)/u);
   assert.match(toolbar, /<select name="level" value=\{levelValue\} onChange=\{\(event\) => \{\s*setLevelValue\(event\.target\.value\);\s*router\.push\(href\(\{ level: event\.target\.value \}\)/u);
@@ -228,7 +228,7 @@ test("university page: programmes and intakes first, then the overview; the phot
   const place = html.indexOf('<p class="t-meta mt-1 text-fg-3">Малайзия · Johor Bahru · <span class="tabular-nums">3</span> программы</p>');
   assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, "h1 → place → Admin links → programmes");
   assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
-  assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
+  assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
   assert.match(html, /aspect-\[4\/3\]/u);
   assert.match(html, /<th role="columnheader" scope="col" class="t-caption text-start text-fg-2">Срок подачи<\/th>/u);
@@ -266,7 +266,7 @@ test("«Настройки»: every staff view has one section heading — no hi
   }
   // `verifyScopedStaffRoleEditor` waits for this exact heading: one element, not two.
   assert.equal([...page("settings-roles").matchAll(/<h[1-6][^>]*>Роли и доступ<\/h[1-6]>/gu)].length, 1);
-  const roles = source("src/components/v3/settings/StaffRolesSection.tsx");
+  const roles = source("src/components/staff/settings/StaffRolesSection.tsx");
   assert.match(roles, /if \(newRole\) return <><h2 className="sr-only">Роли и доступ<\/h2><RoleEditor /u, "the new-role form keeps the section heading");
 });
 
@@ -281,7 +281,7 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.deepEqual([...nav.matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
     ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Отчёты", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
   // «Телефония» (T4b, 17.10.2026): раздел «Настройки → Телефония» стоит сразу после «Интеграций»; «Отчёты» (323, 27.10.2026) — после «Телефонии».
-  assert.match(nav, /<a aria-current="page"[^>]*href="\/v3\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
+  assert.match(nav, /<a aria-current="page"[^>]*href="\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
   assert.doesNotMatch(staff, /aria-label="Управление командой"|виден только администратору|>админ</u, "no second tab row, no admin marks");
   assert.match(staff, /<h2 class="t-section">Сотрудники · 5<\/h2>/u);
   // Search, «Отдел» and «Доступ» in one toolbar row above the list and the card (review #1079).
@@ -298,7 +298,7 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.doesNotMatch(integrations, /Требует внимания|v3-edge-|border-s-2/u);
   assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя/u);
   // Блок «Подключение WhatsApp» стоит под таблицей, поэтому ссылка на него из строки не нужна: путь один — кнопка «Подключить» в блоке.
-  assert.doesNotMatch(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/settings\?section=integrations#whatsapp-connect">Подключить WhatsApp<\/a>/u);
+  assert.doesNotMatch(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/settings\?section=integrations#whatsapp-connect">Подключить WhatsApp<\/a>/u);
 
   // «Подключение WhatsApp» (20.10.2026): блок под таблицей, у Администратора. Состояния WAHA нет — слова состояния нет,
   // только честное «определить не удалось»; кнопки «Подключить» и «Получить код» есть, «Отключить» и «Выйти» нет.
@@ -343,28 +343,28 @@ test("menu: «Заявки» lead «Продажи»; WhatsApp stands in «Пр�
     const menu = html.slice(0, html.indexOf('aria-label="Общее"'));
     // «Продажи» — группа с кнопкой отдела; её первый пункт — «Заявки».
     const salesGroup = menu.match(/<span class="min-w-0 flex-1">Продажи<\/span>[\s\S]*?<\/button><ul [^>]*>([\s\S]*?)<\/ul>/u)?.[1] ?? assert.fail(`${role}: «Продажи»`);
-    const salesItems = [...salesGroup.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
-    assert.equal(salesItems[0], "/v3/requests", `${role}: «Заявки» lead «Продажи» (${salesItems})`);
-    assert.equal([...menu.matchAll(/href="\/v3\/requests"/gu)].length, 1, `${role}: «Заявки» stand once`);
+    const salesItems = [...salesGroup.matchAll(/href="(\/[^"]*)"/gu)].map((match) => match[1]);
+    assert.equal(salesItems[0], "/requests", `${role}: «Заявки» lead «Продажи» (${salesItems})`);
+    assert.equal([...menu.matchAll(/href="\/requests"/gu)].length, 1, `${role}: «Заявки» stand once`);
     // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
     // «Отчётом продаж», «Переписка» — сразу после «Воронки поступления».
     // WhatsApp виден и роли поступления (решение владельца 06.10.2026 «нет, все могут»,
     // миграция 261; src/lib/v3/navigation.ts): без работы продаж скрыта только доска.
-    const order = [...menu.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+    const order = [...menu.matchAll(/href="(\/[^"]*)"/gu)].map((match) => match[1]);
     const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
-    if (role === "admissions") assert.ok(after("/v3/inbox", "/v3/requests") && after("/v3/main?view=sales", "/v3/inbox"), `${role}: D leaves «Заявки», WhatsApp and «Отчёт продаж» (${order})`);
-    else assert.ok(after("/v3/pipeline", "/v3/requests"), `${role}: the board follows «Заявки» (${order})`);
-    if (role === "admissions") assert.equal(order.includes("/v3/pipeline"), false, `${role}: the sales board is hidden without sales work (D)`);
-    else assert.ok(after("/v3/inbox", "/v3/pipeline") && after("/v3/main?view=sales", "/v3/inbox"), `${role}: WhatsApp in «Продажи» (${order})`);
-    if (role === "sales") assert.equal(order.includes("/v3/messages"), false, `${role}: no student chat for sales`);
-    else assert.ok(after("/v3/messages", "/v3/admissions-pipeline"), `${role}: «Переписка» in «Поступление» (${order})`);
+    if (role === "admissions") assert.ok(after("/inbox", "/requests") && after("/main?view=sales", "/inbox"), `${role}: D leaves «Заявки», WhatsApp and «Отчёт продаж» (${order})`);
+    else assert.ok(after("/pipeline", "/requests"), `${role}: the board follows «Заявки» (${order})`);
+    if (role === "admissions") assert.equal(order.includes("/pipeline"), false, `${role}: the sales board is hidden without sales work (D)`);
+    else assert.ok(after("/inbox", "/pipeline") && after("/main?view=sales", "/inbox"), `${role}: WhatsApp in «Продажи» (${order})`);
+    if (role === "sales") assert.equal(order.includes("/messages"), false, `${role}: no student chat for sales`);
+    else assert.ok(after("/messages", "/admissions-pipeline"), `${role}: «Переписка» in «Поступление» (${order})`);
   }
 });
 
 test("«Календарь»: «сегодня» is a small red fill with a white figure", () => {
-  const grids = source("src/components/v3/calendar/grids.tsx");
+  const grids = source("src/components/staff/calendar/grids.tsx");
   assert.match(grids, /data-calendar-today=\{isToday \? "" : undefined\}/u);
   assert.match(grids, /isToday \? "bg-accent text-on-accent" : muted \? "text-fg-3" : "text-fg"/u);
-  // Одна заливка — классом; своего правила в v3.css (прежнее тёмное пятно поверх) нет.
-  assert.doesNotMatch(source("src/app/(v3)/v3.css"), /\[data-calendar-today\]/u);
+  // Одна заливка — классом; своего правила в staff.css (прежнее тёмное пятно поверх) нет.
+  assert.doesNotMatch(source("src/app/(staff)/staff.css"), /\[data-calendar-today\]/u);
 });

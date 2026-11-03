@@ -223,7 +223,7 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
     requireValue(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_STAFF_INVITATION_ADMIN_UI_REQUIRED");
     stage = "FORM";
-    await page.goto(`${appOrigin}/v3/settings?section=staff&view=people`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${appOrigin}/settings?section=staff&view=people`, { waitUntil: "domcontentloaded" });
     // «Новый вид» (#1327) подгружает экран лениво: щелчок до гидратации ничего не раскрыл бы, поэтому ждём, пока страница затихнет.
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Пригласить сотрудника", exact: true }).click();
@@ -465,7 +465,7 @@ export async function acceptScopedStaffInvitations({ browser, adminClient, authA
         const surface = new Map([["/login", "LOGIN"], ["/", "HOME"],
           ["/platform-pending", "STAFF_PENDING"], ["/access-denied", "ACCESS_DENIED"],
           ["/auth/account-pending", "STUDENT_PENDING"], ["/portal", "STUDENT_PORTAL"]]).get(pathname)
-          ?? (pathname === "/v3" || pathname.startsWith("/v3/") ? "V3" : "OTHER");
+          ?? (/^\/(?:main|pipeline|admissions-pipeline|inbox|profile|requests|calendar|tasks|team-chat|messages|universities|documents|reply-snippets|knowledge|marketing|finance|settings|ai-agents?)(?:\/|$)/u.test(pathname) ? "STAFF" : "OTHER");
         browserStage = `LOGIN_SHELL_${surface}`;
         if (loginClientError) browserStage += `_CLIENT_${loginClientError}`;
       } catch { /* Keep the fixed stage if the page has already closed. */ }
@@ -557,13 +557,13 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     requireValue(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_ROLE_EDITOR_ADMIN_UI_REQUIRED");
     stage = "SETTINGS";
-    await page.goto(`${appOrigin}/v3/settings?section=staff`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${appOrigin}/settings?section=staff`, { waitUntil: "domcontentloaded" });
     // «Роли и доступ» — пункт списка разделов настроек (Э6, #1079): отдельного
     // ряда вкладок «Управление командой» больше нет.
     const rolesTab = () => page.getByRole("navigation", { name: "Разделы настроек", exact: true })
       .getByRole("link", { name: "Роли и доступ", exact: true });
     await rolesTab().click();
-    await page.waitForURL(`${appOrigin}/v3/settings?section=staff&view=roles`);
+    await page.waitForURL(`${appOrigin}/settings?section=staff&view=roles`);
     await page.getByRole("heading", { name: "Роли и доступ", exact: true }).waitFor();
     const details = () => page.getByRole("region", { name: "Выбранная роль", exact: true });
     const editor = () => page.getByRole("form", { name: "Редактор роли", exact: true });
@@ -712,7 +712,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     stage = "CLEAN_SETTINGS";
     const cleanSettings = async () => {
       const current = new URL(page.url());
-      requireValue(current.origin === appOrigin && current.pathname === "/v3/settings" && current.searchParams.get("section") === "staff"
+      requireValue(current.origin === appOrigin && current.pathname === "/settings" && current.searchParams.get("section") === "staff"
         && current.searchParams.get("view") === "roles" && [...current.searchParams.keys()].every((key) => ["section", "view", "role"].includes(key))
         && !current.hash && !clientError && await page.locator('input[type="password"]').count() === 0
         && await page.locator("[data-nextjs-dialog-overlay]").count() === 0, "LOCAL_ROLE_EDITOR_SETTINGS_NOT_CLEAN");
@@ -818,7 +818,7 @@ export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiU
     requireValue(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_MEMBER_EDITOR_ADMIN_UI_REQUIRED");
     stage = "CARD";
-    const memberUrl = `${appOrigin}/v3/settings?section=staff&view=people&member=${original.membershipId}`;
+    const memberUrl = `${appOrigin}/settings?section=staff&view=people&member=${original.membershipId}`;
     await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
     const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
     await card.getByRole("button", { name: "Доступ", exact: true }).click();
@@ -1122,7 +1122,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     check(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual");
     stage = "CARD";
-    const memberUrl = `${appOrigin}/v3/settings?section=staff&view=people&member=${original.membershipId}`;
+    const memberUrl = `${appOrigin}/settings?section=staff&view=people&member=${original.membershipId}`;
     await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
     const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
     await card.getByRole("button", { name: "Доступ", exact: true }).click();
@@ -1217,7 +1217,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     const assignedMember = await readback(original.accessVersion + 5, assigned);
     await freshSales(assignedMember.accessVersion, assignedMember.assignments, true);
     stage = "ASSIGNED_ARCHIVE_PREVIEW";
-    await page.goto(`${appOrigin}/v3/settings?section=staff&view=roles&role=${archiveRole.id}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${appOrigin}/settings?section=staff&view=roles&role=${archiveRole.id}`, { waitUntil: "domcontentloaded" });
     const roleDetails = page.getByRole("region", { name: "Выбранная роль", exact: true });
     await roleDetails.getByRole("heading", { name: archiveRole.label, exact: true }).waitFor();
     await roleDetails.getByRole("button", { name: "Архивировать", exact: true }).click();

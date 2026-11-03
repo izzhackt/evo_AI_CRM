@@ -10,7 +10,7 @@ import { UniversityTile } from "./UniversityTile";
  * вузы) собраны из Places/UniversityTile; здесь карточка вуза по полной
  * опубликованной карточке (для «Избранного»), честная ошибка чтения и
  * сводка карты. Staff продолжает пользоваться
- * `src/components/v3/universities/UniversityCatalogue` (разделение аудиторий
+ * `src/components/staff/universities/UniversityCatalogue` (разделение аудиторий
  * по дизайн-контракту).
  */
 

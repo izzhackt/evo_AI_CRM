@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { tabsFor, resolveTab, buildV3ProfileHref } from "../src/components/v3/profile/types.ts";
+import { tabsFor, resolveTab, buildV3ProfileHref } from "../src/components/staff/profile/types.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
 test("V3 Student 360 owns the complete canonical BW6 workspace", () => {
-  const page = source("src/app/(v3)/v3/profile/page.tsx");
-  const profile = source("src/components/v3/profile/Profile.tsx");
-  const types = source("src/components/v3/profile/types.ts");
+  const page = source("src/app/(staff)/profile/page.tsx");
+  const profile = source("src/components/staff/profile/Profile.tsx");
+  const types = source("src/components/staff/profile/types.ts");
   const adapter = source("src/lib/v3/profile-source.ts");
-  const bridge = source("src/components/v3/profile/ProfileContractWorkspace.tsx");
-  const workspace = source("src/components/v3/profile/ContractDraftReportWorkspace.tsx");
+  const bridge = source("src/components/staff/profile/ProfileContractWorkspace.tsx");
+  const workspace = source("src/components/staff/profile/ContractDraftReportWorkspace.tsx");
 
   assert.match(types, /\{ key: "money", title: "Договор и оплата" \}/u);
   assert.match(profile, /contractWorkspace=\{draft\.access\.contract && draft\.contract/u);
@@ -82,8 +82,8 @@ test("unified section preserves independent finance and contract access and old 
 });
 
 test("V3 contract context preserves handoff override and fail-closed amoCRM state", () => {
-  const bridge = source("src/components/v3/profile/ProfileContractWorkspace.tsx");
-  const amocrm = source("src/components/v3/profile/ProfileAmoCrmCommandSection.tsx");
+  const bridge = source("src/components/staff/profile/ProfileContractWorkspace.tsx");
+  const amocrm = source("src/components/staff/profile/ProfileAmoCrmCommandSection.tsx");
 
   assert.match(bridge, /data-testid="canonical-student-case-handoff"/u);
   assert.match(bridge, /data-testid=\{exceptional \? "canonical-handoff-override-reason"/u);

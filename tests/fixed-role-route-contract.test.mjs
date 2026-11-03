@@ -130,7 +130,7 @@ test("canonical audience hosts relocate only exact known pages, not API authorit
     assert.equal(canonicalPlatformPageOrigin("crm.evoadmissions.com", path), PRODUCTION_STUDENT_ORIGIN, path);
     assert.equal(canonicalPlatformPageOrigin("app.evoadmissions.com", path), null, path);
   }
-  for (const path of ["/v3/main", "/v3/calendar", "/auth/staff", "/platform-pending", "/access-denied"]) {
+  for (const path of ["/main", "/calendar", "/auth/staff", "/platform-pending", "/access-denied"]) {
     assert.equal(canonicalPlatformPageOrigin("app.evoadmissions.com", path), PRODUCTION_STAFF_ORIGIN, path);
     assert.equal(canonicalPlatformPageOrigin("crm.evoadmissions.com", path), null, path);
   }
@@ -142,12 +142,12 @@ test("canonical audience hosts relocate only exact known pages, not API authorit
 });
 
 test("verified actor home dispatch cannot loop Staff through the Student portal", () => {
-  assert.equal(platformAudienceHomeRoute("app.evoadmissions.com", "staff", "/v3/main"), "https://crm.evoadmissions.com/v3/main");
+  assert.equal(platformAudienceHomeRoute("app.evoadmissions.com", "staff", "/main"), "https://crm.evoadmissions.com/main");
   assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "student", "/portal"), "https://app.evoadmissions.com/portal");
   assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "student", "/auth/account-pending"), "https://app.evoadmissions.com/auth/account-pending");
   assert.equal(platformAudienceHomeRoute("app.evoadmissions.com", "student", "/portal"), "/portal");
-  assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "staff", "/v3/calendar"), "/v3/calendar");
-  assert.equal(platformAudienceHomeRoute("127.0.0.1:31457", "staff", "/v3/main"), "/v3/main");
+  assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "staff", "/calendar"), "/calendar");
+  assert.equal(platformAudienceHomeRoute("127.0.0.1:31457", "staff", "/main"), "/main");
   assert.equal(platformAudienceHomeRoute("127.0.0.1:31457", "student", "/portal"), "/portal");
   assert.equal(new URL(platformAudienceHomeRoute("app.evoadmissions.com", "staff", "//attacker.invalid")).origin, PRODUCTION_STAFF_ORIGIN);
   const proxy = source("src/proxy.ts");
@@ -208,17 +208,16 @@ test("only the exact V3 pages enter the active staff page contract", () => {
     "/auth/staff",
     "/access-denied",
     "/platform-pending",
-    "/v3",
     ...FIXED_ROLE_ROUTES,
   ]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
 
   for (const path of [
-    "/v3/unknown",
-    "/v3/main/child",
-    "/v3//main",
-    "/v3/Profile",
+    "/unknown",
+    "/main/child",
+    "//main",
+    "/Profile",
   ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
@@ -226,10 +225,10 @@ test("only the exact V3 pages enter the active staff page contract", () => {
 
 test("university template workspace is an exact staff page, never Student or preview", () => {
   const id = "b6214cbe-6d08-4a33-86b4-cdf5cc6ca5e2";
-  assert.equal(isConnectedPlatformPage(`/v3/universities/${id}/forms`), true);
-  assert.equal(isConnectedStudentPortalPage(`/v3/universities/${id}/forms`), false);
-  for (const path of [`/v3/universities/${id}/forms/`, `/v3/universities/${id}/forms/edit`,
-    "/v3/universities/invalid/forms", `/portal/universities/${id}/forms`, `/preview/student/universities/${id}/forms`]) {
+  assert.equal(isConnectedPlatformPage(`/universities/${id}/forms`), true);
+  assert.equal(isConnectedStudentPortalPage(`/universities/${id}/forms`), false);
+  for (const path of [`/universities/${id}/forms/`, `/universities/${id}/forms/edit`,
+    "/universities/invalid/forms", `/portal/universities/${id}/forms`, `/preview/student/universities/${id}/forms`]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
     assert.equal(isConnectedStudentPortalPage(path), false, path);
   }
@@ -237,60 +236,60 @@ test("university template workspace is an exact staff page, never Student or pre
 
 test("the active V3 route policy exposes each exact presentation interface", () => {
   for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/inbox"), true, role);
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/profile"), true, role);
+    assert.equal(fixedRoleCanAccessRoute(role, "/inbox"), true, role);
+    assert.equal(fixedRoleCanAccessRoute(role, "/profile"), true, role);
   }
 
-  for (const route of ["/v3/main", "/v3/pipeline"]) {
+  for (const route of ["/main", "/pipeline"]) {
     assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
     assert.equal(fixedRoleCanAccessRoute("sales", route), true, route);
   }
-  // «Мой день» gives admissions its own /v3/main dashboard; pipeline stays sales-only.
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/main"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/pipeline"), false);
+  // «Мой день» gives admissions its own /main dashboard; pipeline stays sales-only.
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/main"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/pipeline"), false);
 
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/calendar"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/calendar"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/calendar"), false);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/calendar"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/calendar"), false);
 
   for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/knowledge"), role === "admin", role);
+    assert.equal(fixedRoleCanAccessRoute(role, "/knowledge"), role === "admin", role);
   }
 
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/settings"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/settings"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/settings"), false);
 
   // Unified workflow S1: «Заявки» is Продажи-only (sales.read), replacing the
-  // retired /v3/admissions-requests (admissions.read). Admissions has no
+  // retired /admissions-requests (admissions.read). Admissions has no
   // sales.read at all, so it stays denied even though the intake queue used
   // to live in its own worklist.
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/requests"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/requests"), true);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/requests"), false);
+  assert.equal(fixedRoleCanAccessRoute("admin", "/requests"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/requests"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/requests"), false);
 });
 
-test("the retired /v3/admissions-requests route stays connected for old links but leaves the fixed-role capability contract", () => {
+test("the retired /admissions-requests route stays connected for old links but leaves the fixed-role capability contract", () => {
   // "keep the route so old links work" (unified workflow S1): the page itself
-  // is an unconditional redirect to /v3/requests and no longer needs its own
+  // is an unconditional redirect to /requests and no longer needs its own
   // FixedRoleRoute/capability entry — isConnectedPlatformPage covers the
   // proxy allowlist, which is the only gate that still matters for it.
-  assert.equal(isConnectedPlatformPage("/v3/admissions-requests"), true);
-  assert.equal(FIXED_ROLE_ROUTES.includes("/v3/admissions-requests"), false);
-  assert.equal(FIXED_ROLE_ROUTES.includes("/v3/requests"), true);
+  assert.equal(isConnectedPlatformPage("/admissions-requests"), true);
+  assert.equal(FIXED_ROLE_ROUTES.includes("/admissions-requests"), false);
+  assert.equal(FIXED_ROLE_ROUTES.includes("/requests"), true);
 });
 
 test("university routes admit only catalogue, management and bounded detail paths", () => {
   const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-  for (const path of ["/v3/universities", "/v3/universities/manage", "/v3/universities/cities", "/v3/universities/rates", `/v3/universities/${id}`, "/portal/universities", `/portal/universities/${id}`]) {
+  for (const path of ["/universities", "/universities/manage", "/universities/cities", "/universities/rates", `/universities/${id}`, "/portal/universities", `/portal/universities/${id}`]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
-  for (const path of ["/v3/universities/manage/extra", "/v3/universities/cities/hangzhou", "/v3/universities/rates/CNY", "/portal/universities/manage", "/v3/universities/not-an-id", `/portal/universities/${id}/edit`]) {
+  for (const path of ["/universities/manage/extra", "/universities/cities/hangzhou", "/universities/rates/CNY", "/portal/universities/manage", "/universities/not-an-id", `/portal/universities/${id}/edit`]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
   assert.equal(isConnectedStudentPortalPage(`/portal/universities/${id}`), true);
-  assert.equal(isConnectedStudentPortalPage("/v3/universities/manage"), false);
-  assert.equal(isConnectedStudentPortalPage("/v3/universities/cities"), false);
+  assert.equal(isConnectedStudentPortalPage("/universities/manage"), false);
+  assert.equal(isConnectedStudentPortalPage("/universities/cities"), false);
   // S3: страна и город каталога; что страна из шести и город опубликован, решает страница.
   for (const path of ["/portal/universities/country/cn", "/portal/universities/country/cn/shanghai", "/portal/universities/country/my/kuala-lumpur"]) {
     assert.equal(isConnectedStudentPortalPage(path), true, path);
@@ -309,7 +308,7 @@ test("program preparation detail connects only a bounded Student page, never new
   assert.equal(isConnectedPlatformPage(path), true);
   assert.equal(isConnectedStudentAuthPage(path), false);
   for (const invalid of ["/portal/preparations", "/portal/preparations/new", `${path}/edit`,
-    `/portal/preparations/${id}/documents`, `/v3/preparations/${id}`]) {
+    `/portal/preparations/${id}/documents`, `/preparations/${id}`]) {
     assert.equal(isConnectedStudentPortalPage(invalid), false, invalid);
     assert.equal(isConnectedPlatformPage(invalid), false, invalid);
   }
@@ -402,11 +401,12 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
 });
 
 test("root and V3 entry share the exact role-home policy", () => {
-  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admin" === "admin" ? null : "admin", permissionKeys: [] }), "/v3/main");
-  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "sales" === "admin" ? null : "sales", permissionKeys: [] }), "/v3/main");
-  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admissions" === "admin" ? null : "admissions", permissionKeys: [] }), "/v3/main");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admin" === "admin" ? null : "admin", permissionKeys: [] }), "/main");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "sales" === "admin" ? null : "sales", permissionKeys: [] }), "/main");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admissions" === "admin" ? null : "admissions", permissionKeys: [] }), "/main");
 
-  for (const path of ["src/app/page.tsx", "src/app/(v3)/v3/page.tsx"]) {
+  // `/v3` no longer has a page: next.config.ts redirects it to `/`, which resolves the home route.
+  for (const path of ["src/app/page.tsx"]) {
     const entry = source(path);
     assert.match(entry, /staffHomeRoute\(actor\)/, path);
     assert.doesNotMatch(entry, /\/sales|\/clients/, path);
@@ -415,16 +415,16 @@ test("root and V3 entry share the exact role-home policy", () => {
 
 test("V3 pages guard presentation access before loading their workspace", () => {
   const pageRoutes = new Map([
-    ["main", "/v3/main"],
-    ["pipeline", "/v3/pipeline"],
-    ["inbox", "/v3/inbox"],
-    ["calendar", "/v3/calendar"],
-    ["knowledge", "/v3/knowledge"],
-    ["settings", "/v3/settings"],
+    ["main", "/main"],
+    ["pipeline", "/pipeline"],
+    ["inbox", "/inbox"],
+    ["calendar", "/calendar"],
+    ["knowledge", "/knowledge"],
+    ["settings", "/settings"],
   ]);
 
   for (const [page, route] of pageRoutes) {
-    const pageSource = source(`src/app/(v3)/v3/${page}/page.tsx`);
+    const pageSource = source(`src/app/(staff)/${page}/page.tsx`);
     assert.match(
       pageSource,
       new RegExp(`requireV3PageActor\\(\"${route.replaceAll("/", "\\/")}\"\\)`),
@@ -432,7 +432,7 @@ test("V3 pages guard presentation access before loading their workspace", () => 
     );
   }
 
-  const pipeline = source("src/app/(v3)/v3/pipeline/page.tsx");
+  const pipeline = source("src/app/(staff)/pipeline/page.tsx");
   assert.match(pipeline, /actor=\{actor\}/);
   assert.doesNotMatch(pipeline, /actorRole=\{actor\.authorityRole\}/);
 
@@ -445,7 +445,7 @@ test("V3 pages guard presentation access before loading their workspace", () => 
 });
 
 test("access denial is a V3 surface and recovers only through active routes", () => {
-  const denied = source("src/app/(v3)/access-denied/page.tsx");
+  const denied = source("src/app/(staff)/access-denied/page.tsx");
   assert.match(denied, /requirePlatformStaffActor\(\)/);
   assert.match(denied, /staffCanAccessRoute\(actor/);
   assert.match(denied, /staffHomeRoute\(actor\)/);
@@ -458,11 +458,7 @@ test("retired staff roots are hidden tombstones before auth", () => {
     "/sales",
     "/clients",
     "/applications",
-    "/documents",
     "/visa",
-    "/finance",
-    "/tasks",
-    "/settings",
     "/portal/legacy",
     "/calls",
     "/chat",
@@ -472,6 +468,15 @@ test("retired staff roots are hidden tombstones before auth", () => {
   ]) {
     assert.equal(isConnectedPlatformPage(root), false, root);
     assert.equal(isRetiredPlatformRoute(root), true, root);
+    assert.equal(isRetiredPlatformRoute(`${root}/anything`), true, root);
+  }
+
+  // `/documents`, `/finance`, `/tasks`, `/settings` are live staff pages since #1328: the exact path is connected,
+  // everything below it is still a hidden tombstone.
+  for (const root of ["/documents", "/finance", "/tasks", "/settings"]) {
+    assert.equal(isConnectedPlatformPage(root), true, root);
+    assert.equal(isRetiredPlatformRoute(root), false, root);
+    assert.equal(isConnectedPlatformPage(`${root}/anything`), false, root);
     assert.equal(isRetiredPlatformRoute(`${root}/anything`), true, root);
   }
 

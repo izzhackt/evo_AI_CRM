@@ -372,7 +372,7 @@ test("processor: manual «Отметить выполненным», database re
 });
 
 test("wiring: settings section, applicant screens and service-role use stay where they belong", () => {
-  const settings = source("src/components/v3/settings/types.ts");
+  const settings = source("src/components/staff/settings/types.ts");
   assert.match(settings, /\{ key: "deletion", view: null, title: "Запросы на удаление" \}/u);
   const action = source("src/lib/account-deletion/staff-actions.ts");
   assert.match(action, /^"use server";/u);
@@ -383,22 +383,22 @@ test("wiring: settings section, applicant screens and service-role use stay wher
   assert.match(action, /ACCOUNT_DELETION_DONE_WORD/u);
   assert.match(action, /normalizeAccountDeletionNote/u);
   assert.doesNotMatch(action, /resolve_account_deletion_candidate|amocrm/iu, "no per-item review and no amoCRM logic");
-  const section = source("src/components/v3/settings/AccountDeletionSection.tsx");
+  const section = source("src/components/staff/settings/AccountDeletionSection.tsx");
   assert.match(section, /Ручная обработка/u);
   assert.match(section, /<AccountDeletionManualDone /u);
   assert.match(section, /<AccountDeletionProcess /u);
   assert.match(section, /docs\/runbooks\/account-deletion\.md/u);
-  const manual = source("src/components/v3/settings/AccountDeletionManualDone.tsx");
+  const manual = source("src/components/staff/settings/AccountDeletionManualDone.tsx");
   assert.match(manual, /Отметить выполненным/u);
   assert.match(manual, /disabled=\{loginActive\}/u, "marking waits for the login to go");
-  for (const file of ["src/components/v3/settings/AccountDeletionSection.tsx", "src/components/v3/settings/AccountDeletionManualDone.tsx",
-    "src/components/v3/settings/AccountDeletionProcess.tsx", "src/components/v3/settings/AccountDeletionEmailRetry.tsx"]) {
+  for (const file of ["src/components/staff/settings/AccountDeletionSection.tsx", "src/components/staff/settings/AccountDeletionManualDone.tsx",
+    "src/components/staff/settings/AccountDeletionProcess.tsx", "src/components/staff/settings/AccountDeletionEmailRetry.tsx"]) {
     const strings = [...source(file).matchAll(/"([^"\n]*[А-Яа-яЁё][^"\n]*)"|>([^<>{}\n]*[А-Яа-яЁё][^<>{}\n]*)</gu)]
       .map((match) => match[1] ?? match[2]);
     assert.ok(strings.length > 5, file);
     for (const text of strings) assert.doesNotMatch(text, /[–—]/u, `${file}: ${text}`);
   }
-  assert.ok(!existsSync(new URL("../src/components/v3/settings/AccountDeletionReview.tsx", import.meta.url)),
+  assert.ok(!existsSync(new URL("../src/components/staff/settings/AccountDeletionReview.tsx", import.meta.url)),
     "the review list is gone");
   for (const page of ["src/app/apply/status/page.tsx", "src/app/apply/page.tsx", "src/app/auth/account-pending/page.tsx",
     "src/app/(portal)/portal/profile/page.tsx"]) {
@@ -453,7 +453,7 @@ test("deleted account session: user_not_found, sign-out route, proxy and screens
 
 // Ревью 280, доработки P3 (миграция 315): что проводит экран и где стоит счётчик.
 test("P3 wiring: counts, labels, the email retry, the note rule and the Auth journal warning", () => {
-  const section = source("src/components/v3/settings/AccountDeletionSection.tsx");
+  const section = source("src/components/staff/settings/AccountDeletionSection.tsx");
   assert.match(section, /accountDeletionDueText\(row, now\)/u, "UI-F3: the due word comes from the tested contract function");
   assert.match(section, /accountDeletionKindWord\(row\.kind, row\.applicationSubmitted\)/u, "UI-F4");
   assert.match(section, /accountDeletionKindWord\(d\.kind, d\.applicationSubmitted\)/u, "UI-F4, the card");
@@ -465,33 +465,33 @@ test("P3 wiring: counts, labels, the email retry, the note rule and the Auth jou
   assert.doesNotMatch(section, /Порядок и кто что делает: инструкция|\(docs\/runbooks\/account-deletion\.md\)\.|мягким удалением Auth|\(инструкция docs\/runbooks/u, "no repository paths or database words in what the card says");
   assert.match(section, /d\.mode === "manual"\s*\n?\s*\? "Автоматическое удаление было начато, но у аккаунта появились связанные записи/u,
     "F3: a started request that stopped being simple is told apart from a retry");
-  const retry = source("src/components/v3/settings/AccountDeletionEmailRetry.tsx");
+  const retry = source("src/components/staff/settings/AccountDeletionEmailRetry.tsx");
   assert.match(retry, /^"use client";/u);
   assert.match(retry, /retryAccountDeletionEmailAction/u);
   assert.doesNotMatch(retry, /name="confirm"/u, "the retry deletes nothing and asks for no word");
-  const manual = source("src/components/v3/settings/AccountDeletionManualDone.tsx");
+  const manual = source("src/components/staff/settings/AccountDeletionManualDone.tsx");
   assert.match(manual, /checkAccountDeletionNote\(note\)/u, "UI-F1: the same rule as the database");
   assert.match(manual, /data-testid="v3-deletion-note-rule"/u);
   assert.match(manual, /data-testid="v3-deletion-submit-hint"/u);
   assert.match(manual, /aria-describedby=\{blocker && !pending \? submitHintId : undefined\}/u, "the disabled button names what is missing");
-  for (const file of ["src/components/v3/settings/AccountDeletionProcess.tsx", "src/components/v3/settings/AccountDeletionManualDone.tsx"]) {
+  for (const file of ["src/components/staff/settings/AccountDeletionProcess.tsx", "src/components/staff/settings/AccountDeletionManualDone.tsx"]) {
     assert.match(source(file), /state\.step === "email"\) router\.refresh\(\)/u, `${file}: the card refreshes when only the email status failed`);
   }
-  assert.doesNotMatch(source("src/components/v3/settings/AccountDeletionProcess.tsx"), /письмо не уйдёт дважды/u,
+  assert.doesNotMatch(source("src/components/staff/settings/AccountDeletionProcess.tsx"), /письмо не уйдёт дважды/u,
     "no promise the code cannot keep: the retry of the email lives on the card");
 
   // UI-F6: the counter next to «Настройки» and next to «Запросы на удаление».
-  const shell = source("src/components/v3/AppShell.tsx");
+  const shell = source("src/components/staff/AppShell.tsx");
   assert.match(shell, /deletionRequests\?: AccountDeletionOpenCount \| null/u);
   assert.match(shell, /badge=\{settingsBadge\}/u);
   assert.match(shell, /aria-label=\{badge \? `\$\{link\.label\}: \$\{badge\.name\}` : undefined\}/u, "the link keeps its visible name and adds the count");
-  const layout = source("src/app/(v3)/layout.tsx");
+  const layout = source("src/app/(staff)/layout.tsx");
   assert.match(layout, /readOpenAccountDeletionCount\(actor\)/u);
   assert.match(layout, /deletionRequests=\{deletionRequests\}/u);
-  const settingsPage = source("src/app/(v3)/v3/settings/page.tsx");
+  const settingsPage = source("src/app/(staff)/settings/page.tsx");
   assert.match(settingsPage, /readOpenAccountDeletionCount\(actor\)/u);
   assert.match(settingsPage, /deletionOpen=\{deletionOpen\}/u);
-  const settingsView = source("src/components/v3/settings/Settings.tsx");
+  const settingsView = source("src/components/staff/settings/Settings.tsx");
   assert.match(settingsView, /if \(!open \|\| open\.open <= 0\) return null;/u, "no counter at zero");
   assert.match(settingsView, /entry\.key === "deletion" \? <DeletionCount open=\{deletionOpen\}/u, "the list item carries the count");
   assert.match(settingsView, /current\.key === "deletion" \? null : <DeletionCount open=\{deletionOpen\} \/>/u, "the folded phone list still shows the count on its button");

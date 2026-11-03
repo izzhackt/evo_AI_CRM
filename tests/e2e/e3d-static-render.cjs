@@ -21,7 +21,7 @@
  *     → stdout: JSON [{ name, html }] — разметка сценариев без оболочки
  *       (для tests/v3-e3-docs-deadlines.test.mjs).
  *   node tests/e2e/e3d-static-render.cjs --screenshots [outDir]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844 во весь рост: `e3d-<сценарий>-<ширина>.png`.
  *       По умолчанию outDir — .impeccable/review (не коммитится).
@@ -96,9 +96,9 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { buildStudentsQueueScreen } = require(join(ROOT, "src/components/v3/students/StudentsQueueScreen.tsx"));
-const view = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
-const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+const { buildStudentsQueueScreen } = require(join(ROOT, "src/components/staff/students/StudentsQueueScreen.tsx"));
+const view = require(join(ROOT, "src/components/staff/students/students-queue-view.ts"));
+const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
 
 
 // --- синтетические данные ---------------------------------------------------
@@ -307,8 +307,8 @@ async function docsPage(name) {
   const packages = typeof item.input.packages === "function" ? await item.input.packages() : item.input.packages;
   const program = typeof item.input.program === "function" ? await item.input.program() : item.input.program;
   const built = buildStudentsQueueScreen({ ...item.input, packages, program });
-  const action = createElement("a", { href: "/v3/universities", className: "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" }, "Университеты и бланки");
-  return { node: createElement(PartShell, { title: "EVO Docs", count: built.count, action, dense: true }, createElement("div", { className: "space-y-6" }, built.content)), pathname: "/v3/profile", search: item.search };
+  const action = createElement("a", { href: "/universities", className: "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" }, "Университеты и бланки");
+  return { node: createElement(PartShell, { title: "EVO Docs", count: built.count, action, dense: true }, createElement("div", { className: "space-y-6" }, built.content)), pathname: "/profile", search: item.search };
 }
 
 const ADMIN = {
@@ -322,7 +322,7 @@ async function build(name) {
 }
 
 async function renderFullPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const { node, pathname, search } = await build(name);
   const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: ADMIN, initialNotifications: null }, node));
@@ -338,7 +338,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 /** Снимки: основные сценарии — на трёх ширинах, остальные состояния — на 1440 и 390. */

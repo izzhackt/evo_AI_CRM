@@ -60,7 +60,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
   try {
     // 1. Страница на трёх ширинах.
     for (const key of ["d1440", "d1280", "m390"]) {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
+      const { context, page, errors } = await open(`/main?${SEARCH}`, key);
       const name = `report ${key}`;
       await shot(page, `report-${key}`, { fullPage: true });
       report(`${name}: new view (data-ui=next, kit table)`, await page.evaluate(() => Boolean(document.querySelector('.v3-world[data-ui="next"] [data-testid="v3-sales-report"] [data-slot="data-table"]'))), null);
@@ -89,7 +89,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
     // стопка «валюта: подпись — число», таблица скрыта. Ни одно число не обрезано краем карточки (раньше последний столбец, «Итого» и «Остаток», прятался за
     // прокруткой без подсказки), а числа стопки те же, что в таблице.
     for (const key of ["d1440", "d1280", "m390", "m360", "m320"]) {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
+      const { context, page, errors } = await open(`/main?${SEARCH}`, key);
       const name = `report ${key}`;
       const width = VIEWPORTS[key].viewport.width;
       const phone = width < 600;
@@ -129,7 +129,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 1c. Поле поиска: «Имя, телефон, договор» не обрезано, строка фильтров занимает всю строку инструментов таблицы; план месяца числом не повторяется.
     for (const key of ["d1440", "d1280", "m390"]) {
-      const { context, page } = await open(`/v3/main?${SEARCH}`, key);
+      const { context, page } = await open(`/main?${SEARCH}`, key);
       const width = await page.evaluate(() => {
         const input = document.querySelector('[data-testid="sales-report-toolbar"] input[type="search"]');
         return { input: Math.round(input.getBoundingClientRect().width), toolbar: Math.round(input.closest('[data-testid="sales-report-toolbar"]').getBoundingClientRect().width), clipped: input.scrollWidth > input.clientWidth };
@@ -145,7 +145,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 2. Панель записи: строка → панель (адрес ?record=, фокус на названии) → Esc → фокус на строке; «Исправить запись» открывает форму.
     for (const key of ["d1440", "m390"]) {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
+      const { context, page, errors } = await open(`/main?${SEARCH}`, key);
       const name = `report sheet ${key}`;
       const row = rowOf(page, key, "Айжан Примерова");
       await row.click({ position: { x: 20, y: 8 } });
@@ -196,7 +196,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 2b. Запись со связанным лидом: действие «Открыть карточку клиента» стоит в подвале панели (подвал есть, когда есть что в нём показать).
     {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, "d1440");
+      const { context, page, errors } = await open(`/main?${SEARCH}`, "d1440");
       await rowOf(page, "d1440", "Данияр Макетов").click({ position: { x: 20, y: 8 } });
       const dialog = page.getByRole("dialog");
       await dialog.waitFor();
@@ -209,7 +209,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 3. «Убрать» / «Вернуть» в строке: прежняя кнопка и действие, строка получает слово отказа.
     {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, "d1440");
+      const { context, page, errors } = await open(`/main?${SEARCH}`, "d1440");
       const row = rowOf(page, "d1440", "Тимур Образцов");
       await row.getByRole("button", { name: /Убрать из продаж: Тимур Образцов/u }).click();
       await page.waitForSelector("[popover]:popover-open");
@@ -228,7 +228,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 4. Фильтры и поиск: те же адреса; выбор менеджера — переход, поиск — форма GET; «Сбросить».
     {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, "d1440");
+      const { context, page, errors } = await open(`/main?${SEARCH}`, "d1440");
       await page.locator("button[popovertarget]").filter({ hasText: "Менеджер" }).first().click();
       await page.getByRole("group", { name: "Менеджер" }).getByRole("link", { name: /Айдана Макетова/u }).click();
       await page.waitForFunction(() => location.search.includes("manager=") && [...document.querySelectorAll("[data-slot=data-table] tbody tr")].filter((e) => e.getClientRects().length).length === 2, null, { timeout: 10_000 });
@@ -247,7 +247,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 5. Новая продажа, «Менеджеры в отчёте», «Перенос данных», план месяца, пустой результат, архив, срез.
     {
-      const { context, page } = await open(`/v3/main?${SEARCH}&new=true`, "d1440");
+      const { context, page } = await open(`/main?${SEARCH}&new=true`, "d1440");
       report("report new sale: the same form (its own heading and «← К отчёту») in a card of the new view", await page.evaluate(() => Boolean(document.querySelector('.v3-world[data-ui="next"] [data-testid="v3-sales-new"] form')) && document.querySelectorAll("h1").length === 1), null);
       report("report new sale: axe", (await axeOf(page, "[data-testid=v3-sales-new]")).length === 0, await axeOf(page, "[data-testid=v3-sales-new]"));
       await shot(page, "report-new-d1440");
@@ -255,8 +255,8 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
     }
     for (const [name, query, title, scope] of [["managers", `${SEARCH}&mode=managers`, "Менеджеры в отчёте", "sales-managers"], ["import", `${SEARCH}&mode=import`, "Перенос данных отчёта", "v3-sales-frame"]]) {
       for (const key of ["d1440", "m390"]) {
-        const { context, page, errors } = await open(`/v3/main?${query}`, key);
-        const frame = await page.evaluate((id) => ({ h1: document.querySelector("main h1")?.textContent?.trim(), back: Boolean(document.querySelector('main a[href^="/v3/main?view=sales"]')), body: Boolean(document.querySelector(`[data-testid="${id}"]`)) || Boolean(document.querySelector("main form")),
+        const { context, page, errors } = await open(`/main?${query}`, key);
+        const frame = await page.evaluate((id) => ({ h1: document.querySelector("main h1")?.textContent?.trim(), back: Boolean(document.querySelector('main a[href^="/main?view=sales"]')), body: Boolean(document.querySelector(`[data-testid="${id}"]`)) || Boolean(document.querySelector("main form")),
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }), scope);
         report(`report ${name} ${key}: new frame, back to the report, body, no horizontal scroll`, frame.h1 === title && frame.back && frame.body && frame.overflow <= 0, frame);
         report(`report ${name} ${key}: axe`, (await axeOf(page, "[data-testid=v3-sales-frame]")).length === 0, await axeOf(page, "[data-testid=v3-sales-frame]"));
@@ -266,7 +266,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       }
     }
     {
-      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, "d1440");
+      const { context, page, errors } = await open(`/main?${SEARCH}`, "d1440");
       await page.getByRole("button", { name: "Изменить план" }).click();
       await page.getByRole("dialog").waitFor();
       report("report plan: «Изменить план» opens the old form in a panel", (await page.getByRole("dialog").locator("form").count()) > 0, null);
@@ -282,14 +282,14 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
       report("report plan: the second Esc closes the panel", planKept.dialogs === 1 && (await page.getByRole("dialog").count()) === 0, null);
       await context.close();
-      const empty = await open(`/v3/main?${SEARCH}&q=нет-такого-имени`, "d1440");
+      const empty = await open(`/main?${SEARCH}&q=нет-такого-имени`, "d1440");
       report("report empty: no rows says so and offers «Сбросить фильтры»", /По выбранным фильтрам записей не найдено\./u.test(await empty.page.locator("main").textContent()) && (await empty.page.getByRole("link", { name: "Сбросить фильтры" }).count()) > 0, null);
       await empty.context.close();
-      const archive = await open(`/v3/main?${SEARCH}&archived=true`, "d1440");
+      const archive = await open(`/main?${SEARCH}&archived=true`, "d1440");
       report("report archive: a sentence instead of sums, no «Остаток» column", /Архивные записи не входят в рабочие итоги/u.test(await archive.page.locator("main").textContent()) && (await archive.page.getByRole("columnheader", { name: /Остаток/u }).count()) === 0, null);
       await shot(archive.page, "report-archive-d1440");
       await archive.context.close();
-      const slice = await open(`/v3/main?${SEARCH}&sale=undated`, "d1440");
+      const slice = await open(`/main?${SEARCH}&sale=undated`, "d1440");
       report("report slice: «без даты продажи» shows the slice sentence with a way back", /Записи без даты продажи/u.test(await slice.page.locator("main").textContent()) && (await slice.page.getByRole("link", { name: "Все записи периода" }).count()) > 0, null);
       await slice.context.close();
       report("report plan/empty/archive/slice: console clean", errors.length === 0, errors);
@@ -297,7 +297,7 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
 
     // 6. Другие миры: сотрудник и просмотр роли видят тот же новый вид (корень с data-ui, таблица набора).
     for (const [label, options] of [["staff", { actor: "staff" }], ["preview", { actor: "preview" }]]) {
-      const { context, page } = await open(`/v3/main?${SEARCH}`, "d1440", options);
+      const { context, page } = await open(`/main?${SEARCH}`, "d1440", options);
       const world = await page.evaluate(() => ({ nextRoot: Boolean(document.querySelector('.v3-world[data-ui="next"]')), table: Boolean(document.querySelector('[data-slot="data-table"]')) }));
       report(`${label}: new view root and kit table`, world.nextRoot && world.table, world);
       await context.close();

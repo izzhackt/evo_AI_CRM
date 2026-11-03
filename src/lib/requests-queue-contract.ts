@@ -152,7 +152,7 @@ export function requestsHref(selection: RequestSelection, open: string | null = 
   if (selection.limit !== REQUESTS_PAGE_SIZE) params.set("limit", String(selection.limit));
   if (selection.cursor) params.set("cursor", encodeRequestCursor(selection.cursor));
   if (open) params.set("open", open);
-  return `/v3/requests${params.size ? `?${params}` : ""}`;
+  return `/requests${params.size ? `?${params}` : ""}`;
 }
 /** Запись правой панели из адреса: «lead|application|consultation:uuid», иначе null. */
 export function parseRequestOpen(value: unknown): Readonly<{ kind: RequestKind; id: string }> | null {
@@ -164,10 +164,10 @@ export function requestOpenKey(row: Pick<RequestRow, "kind" | "id">): string {
   return `${row.kind}:${row.id}`;
 }
 export function parseRequestsReturnTo(value: unknown): string | null {
-  if (typeof value !== "string" || value.length > 1600 || !/^\/v3\/requests(?:\?|$)/u.test(value)) return null;
+  if (typeof value !== "string" || value.length > 1600 || !/^\/requests(?:\?|$)/u.test(value)) return null;
   try {
     const url = new URL(value, "https://internal.invalid");
-    if (url.pathname !== "/v3/requests" || url.hash || url.origin !== "https://internal.invalid") return null;
+    if (url.pathname !== "/requests" || url.hash || url.origin !== "https://internal.invalid") return null;
     const params: Record<string, string> = {};
     for (const [key, val] of url.searchParams) {
       if (!["source", "status", "limit", "cursor"].includes(key) || key in params) return null;

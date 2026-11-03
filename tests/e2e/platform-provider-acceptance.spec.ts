@@ -102,7 +102,7 @@ async function signIn(page: Page): Promise<void> {
     .locator("#staff-password")
     .fill(requiredText("EVO_STAFF_AUTH_SALES_PASSWORD"));
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
@@ -310,7 +310,7 @@ test("one reviewed Gemini proposal produces one exact Supabase-backed WAHA send"
     }
 
     await signIn(page);
-    await page.goto(`/v3/inbox?conversation=${conversationId}`);
+    await page.goto(`/inbox?conversation=${conversationId}`);
     const controls = page.getByTestId("v3-inbox-provider-workflow-controls");
     await expect(controls).toBeVisible();
 

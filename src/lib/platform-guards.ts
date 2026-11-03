@@ -64,19 +64,19 @@ export async function requireV3PageActor(
 }
 
 export async function requirePlatformMessagingActor(): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("messaging.read", "/v3/inbox");
+  return requirePlatformCapability("messaging.read", "/inbox");
 }
 
 export async function requirePlatformMessagingSendActor(): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("messaging.send", "/v3/inbox");
+  return requirePlatformCapability("messaging.send", "/inbox");
 }
 
 export async function requirePlatformAdmissionsActor(
-  route: "/v3/profile" = "/v3/profile",
+  route: "/profile" = "/profile",
 ): Promise<ActivePlatformActor> {
   return requirePlatformCapability("admissions.read", route);
 }
 
 export async function requirePlatformSalesActor(): Promise<ActivePlatformActor> {
-  return requirePlatformCapability("sales.read", "/v3/pipeline");
+  return requirePlatformCapability("sales.read", "/pipeline");
 }

@@ -22,7 +22,7 @@
  *     → stdout: JSON [{ name, html }] — серверная разметка сценариев без
  *       оболочки (для tests/v3-students-queue-ui.test.mjs).
  *   node tests/e2e/students-static-render.cjs --screenshots [outDir]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800, 1920×1080 и 390×844; по умолчанию outDir —
  *       .impeccable/review (не коммитится). Тело страницы в браузере
@@ -100,9 +100,9 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { buildStudentsQueueScreen } = require(join(ROOT, "src/components/v3/students/StudentsQueueScreen.tsx"));
-const { StudentsDirectoryFallback } = require(join(ROOT, "src/components/v3/students/StudentsDirectoryFallback.tsx"));
-const view = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
+const { buildStudentsQueueScreen } = require(join(ROOT, "src/components/staff/students/StudentsQueueScreen.tsx"));
+const { StudentsDirectoryFallback } = require(join(ROOT, "src/components/staff/students/StudentsDirectoryFallback.tsx"));
+const view = require(join(ROOT, "src/components/staff/students/students-queue-view.ts"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — среда 23.09.2026 по Бишкеку: видны «Сегодня», «На этой неделе»
@@ -496,7 +496,7 @@ function screen(name) {
 }
 
 function renderWorkspace(name) {
-  return renderToStaticMarkup(withContexts(screen(name).content, "/v3/profile", SCENARIOS[name].search));
+  return renderToStaticMarkup(withContexts(screen(name).content, "/profile", SCENARIOS[name].search));
 }
 
 async function compileCss() {
@@ -508,7 +508,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 const ACTOR = {
@@ -530,12 +530,12 @@ const CLIENT_ROOT_ID = "students-client-root";
 const FIXTURE_ID = "students-client-fixture";
 
 function renderPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const item = SCENARIOS[name];
   const built = screen(name);
   const action = item.docsMode
-    ? createElement("a", { href: "/v3/universities", className: "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" }, "Университеты и бланки")
+    ? createElement("a", { href: "/universities", className: "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" }, "Университеты и бланки")
     : undefined;
   const page = createElement(
     "div",
@@ -550,7 +550,7 @@ function renderPage(name) {
         createElement("div", { id: CLIENT_ROOT_ID }, built.content)),
     ),
   );
-  return renderToStaticMarkup(withContexts(page, "/v3/profile", item.search));
+  return renderToStaticMarkup(withContexts(page, "/profile", item.search));
 }
 
 function clientFixture(name) {
@@ -563,8 +563,8 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import { buildStudentsQueueScreen } from "../../src/components/v3/students/StudentsQueueScreen";
-import { StudentsDirectoryFallback } from "../../src/components/v3/students/StudentsDirectoryFallback";
+import { buildStudentsQueueScreen } from "../../src/components/staff/students/StudentsQueueScreen";
+import { StudentsDirectoryFallback } from "../../src/components/staff/students/StudentsDirectoryFallback";
 
 const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
 const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
@@ -574,7 +574,7 @@ const content = item.kind === "sales"
   : buildStudentsQueueScreen(item.input).content;
 createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
   createElement(AppRouterContext.Provider, { value: router },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(item.search) }, content))),
 );
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
@@ -840,7 +840,7 @@ import { createElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import { buildStudentsQueueScreen } from "../../src/components/v3/students/StudentsQueueScreen";
+import { buildStudentsQueueScreen } from "../../src/components/staff/students/StudentsQueueScreen";
 
 const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
 const item = fixture.item;
@@ -870,7 +870,7 @@ function Host() {
 }
 createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
   createElement(AppRouterContext.Provider, { value: router },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(item.search) }, createElement(Host)))),
 );
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));

@@ -40,15 +40,15 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { PartShell } = require("@/components/v3/PartShell");
-const { TasksWorkspace } = require("@/components/v3/tasks/TasksWorkspace");
+const { AppShell } = require("@/components/staff/AppShell");
+const { PartShell } = require("@/components/staff/PartShell");
+const { TasksWorkspace } = require("@/components/staff/tasks/TasksWorkspace");
 const { buildTaskQueue, parseTaskQueueFilters } = require("@/lib/v3/task-queue");
-const { buildStudentsQueueScreen } = require("@/components/v3/students/StudentsQueueScreen");
-const studentsView = require("@/components/v3/students/students-queue-view");
-const { Calendar } = require("@/components/v3/calendar/Calendar");
-const { gridDays } = require("@/components/v3/calendar/types");
-const { TaskComposerContextMark } = require("@/components/v3/tasks/task-composer-context");
+const { buildStudentsQueueScreen } = require("@/components/staff/students/StudentsQueueScreen");
+const studentsView = require("@/components/staff/students/students-queue-view");
+const { Calendar } = require("@/components/staff/calendar/Calendar");
+const { gridDays } = require("@/components/staff/calendar/types");
+const { TaskComposerContextMark } = require("@/components/staff/tasks/task-composer-context");
 const h = React.createElement;
 
 const fixture = JSON.parse(document.getElementById("e7-fixture").textContent);
@@ -214,7 +214,7 @@ function calendarPage() {
     undatedNextHref: null, undatedCursor: null,
     cases: STUDENTS.slice(0, 5).map((row) => ({ id: row.studentCaseId, name: row.studentDisplayName })), casesHaveMore: false,
     assignees: open ? [ME, B, C].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId] })) : [],
-    actorMembershipId: ME, actor: ACTOR, basePath: "/v3/calendar",
+    actorMembershipId: ME, actor: ACTOR, basePath: "/calendar",
     taskRequestIds: open ? { [open.key]: { change: id("eeeeeeee", 1), complete: id("eeeeeeee", 2), cancel: id("eeeeeeee", 3) } } : {},
   }));
 }
@@ -227,10 +227,10 @@ window.__e7Actions = {
     window.__e7.calls.push("search:" + query);
     await new Promise((resolve) => setTimeout(resolve, 60));
     const students = [
-      { id: S(1), label: "Айдана Сыдыкова", meta: "Бакалавриат", href: "/v3/profile?case=" + S(1) },
-      { id: S(2), label: "Айбек Турсунов", meta: "Магистратура · ожидает начала", href: "/v3/profile?case=" + S(2) },
+      { id: S(1), label: "Айдана Сыдыкова", meta: "Бакалавриат", href: "/profile?case=" + S(1) },
+      { id: S(2), label: "Айбек Турсунов", meta: "Магистратура · ожидает начала", href: "/profile?case=" + S(2) },
     ];
-    const leads = [{ id: id("dddddddd", 90), label: "Айжан Примерова", meta: null, href: "/v3/profile?id=" + id("dddddddd", 90) }];
+    const leads = [{ id: id("dddddddd", 90), label: "Айжан Примерова", meta: null, href: "/profile?id=" + id("dddddddd", 90) }];
     return { status: "ready", query, students: { status: "ready", rows: students, more: false }, leads: { status: "ready", rows: leads, more: false } };
   },
   readTaskComposerAssigneesAction: async () => ({ status: "ready", participants: PARTICIPANTS }),
@@ -357,33 +357,33 @@ async function compileCss() {
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
   return [
-    ...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"),
-    readFileSync(join(ROOT, "src/components/v3/calendar/CalendarPanel.module.css"), "utf8"),
+    ...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"),
+    readFileSync(join(ROOT, "src/components/staff/calendar/CalendarPanel.module.css"), "utf8"),
   ].join("\n");
 }
 
 // --- сценарии -------------------------------------------------------------------
 const PAGES = {
-  tasks: { pathname: "/v3/tasks", search: "" },
-  students: { pathname: "/v3/profile", search: `view=active&open=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
-  "students-plain": { page: "students", pathname: "/v3/profile", search: "view=active" },
-  calendar: { pathname: "/v3/calendar", search: "view=week&date=2026-09-26" },
-  "calendar-case-only": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", actor: "case" },
-  "calendar-empty": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "empty" },
-  "calendar-undated": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "undated" },
-  "calendar-month": { page: "calendar", pathname: "/v3/calendar", search: "view=month&date=2026-09-26", calendar: "month" },
-  "calendar-day": { page: "calendar", pathname: "/v3/calendar", search: "view=day&date=2026-09-24", calendar: "day" },
-  "calendar-panel": { page: "calendar", pathname: "/v3/calendar", search: "view=week&date=2026-09-26", calendar: "panel" },
-  case: { pathname: "/v3/profile", search: `case=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
+  tasks: { pathname: "/tasks", search: "" },
+  students: { pathname: "/profile", search: `view=active&open=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
+  "students-plain": { page: "students", pathname: "/profile", search: "view=active" },
+  calendar: { pathname: "/calendar", search: "view=week&date=2026-09-26" },
+  "calendar-case-only": { page: "calendar", pathname: "/calendar", search: "view=week&date=2026-09-26", actor: "case" },
+  "calendar-empty": { page: "calendar", pathname: "/calendar", search: "view=week&date=2026-09-26", calendar: "empty" },
+  "calendar-undated": { page: "calendar", pathname: "/calendar", search: "view=week&date=2026-09-26", calendar: "undated" },
+  "calendar-month": { page: "calendar", pathname: "/calendar", search: "view=month&date=2026-09-26", calendar: "month" },
+  "calendar-day": { page: "calendar", pathname: "/calendar", search: "view=day&date=2026-09-24", calendar: "day" },
+  "calendar-panel": { page: "calendar", pathname: "/calendar", search: "view=week&date=2026-09-26", calendar: "panel" },
+  case: { pathname: "/profile", search: `case=cccccccc-2222-4222-8222-${"3".padStart(12, "0")}` },
 };
 
 const isPhone = (page) => page.viewportSize().width < 768;
 
 /** «Создать задачу» оболочки: на телефоне — в листе «Ещё». */
 async function clickShellCreate(page) {
-  const link = page.locator('a[href="/v3/tasks?create=staff"]').filter({ visible: true }).first();
+  const link = page.locator('a[href="/tasks?create=staff"]').filter({ visible: true }).first();
   if (!(await link.count())) await page.locator('[data-shell-tab="more"]').click();
-  await page.locator('a[href="/v3/tasks?create=staff"]').filter({ visible: true }).first().click();
+  await page.locator('a[href="/tasks?create=staff"]').filter({ visible: true }).first().click();
   await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
 }
 
@@ -714,12 +714,12 @@ async function keyboardProbe(browser, outDir, failures) {
   await page.keyboard.type("кален");
   await page.keyboard.press("Enter");
   const pushes = await page.evaluate(() => window.__e7.pushes);
-  expect("Enter on a destination navigates there", pushes.at(-1) === "/v3/calendar", { pushes });
+  expect("Enter on a destination navigates there", pushes.at(-1) === "/calendar", { pushes });
   await page.keyboard.press("Control+k");
   await page.keyboard.press("Escape");
   const closed = await page.evaluate(() => document.querySelector('[data-testid="v3-command-palette"]')?.open);
   expect("Esc closes the palette", closed === false, { closed });
-  process.stdout.write(`keyboard: x, j+x, Ctrl+K, Tab trap, «созд»+Enter → composer, Esc → row, «кален»+Enter → /v3/calendar, Esc ok\n`);
+  process.stdout.write(`keyboard: x, j+x, Ctrl+K, Tab trap, «созд»+Enter → composer, Esc → row, «кален»+Enter → /calendar, Esc ok\n`);
   await context.close();
   await bulkFocusProbe(browser, outDir, expect);
 }
@@ -941,7 +941,7 @@ async function draftProbe(browser, outDir, expect, width) {
       const journey = `type → pick case (spec order, ${entry}, ${seedName})`;
       const { context, page, errors } = await open(pageName, seed);
       // Как в сценарии: первая видимая из кнопки оболочки и своей кнопки календаря; на телефоне кнопка оболочки — в листе «Ещё».
-      const entryButton = page.locator('a[href="/v3/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true });
+      const entryButton = page.locator('a[href="/tasks?create=staff"], [data-testid="v3-calendar-new-task"]').filter({ visible: true });
       if (await entryButton.count()) await entryButton.first().click();
       else await clickShellCreate(page);
       const dialog = page.getByTestId("v3-task-composer-dialog");

@@ -8,9 +8,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const chat = read("src/components/v3/inbox/InboxChat.tsx");
-const composer = read("src/components/v3/inbox/InboxComposer.tsx");
-const page = read("src/app/(v3)/v3/inbox/page.tsx");
+const chat = read("src/components/staff/inbox/InboxChat.tsx");
+const composer = read("src/components/staff/inbox/InboxComposer.tsx");
+const page = read("src/app/(staff)/inbox/page.tsx");
 const inboxSource = read("src/lib/v3/inbox-source.ts");
 // W3 (Wazzup): порядок причин «нельзя ответить» - чистое правило `replyAccessFor`, его же проверяют тесты Wazzup по значениям.
 const replyRules = read("src/lib/v3/whatsapp-chat.ts");
@@ -29,7 +29,7 @@ test("a lost answer is retried with the same request id; the queue sends one mes
   assert.match(chat, /CONNECTION_LOST_COPY/u);
   assert.match(chat, /WHATSAPP_CHAT_PENDING_LIMIT/u);
   // The draft and the pending sends survive a reload (localStorage via the chat store).
-  assert.match(read("src/components/v3/inbox/chat-store.ts"), /window\.localStorage\.setItem\(key, JSON\.stringify\(\{ draft: next\.draft, local: next\.local \}\)\)/u);
+  assert.match(read("src/components/staff/inbox/chat-store.ts"), /window\.localStorage\.setItem\(key, JSON\.stringify\(\{ draft: next\.draft, local: next\.local \}\)\)/u);
 });
 
 test("an unknown result is checked for THAT attempt without a resend", () => {

@@ -16,8 +16,8 @@ import {
   casePortalStatus,
   caseSaleBlocks,
   caseSaleSummary,
-} from "../src/components/v3/profile/case-work-view.ts";
-import { studentsDocumentsLine } from "../src/components/v3/students/students-queue-view.ts";
+} from "../src/components/staff/profile/case-work-view.ts";
+import { studentsDocumentsLine } from "../src/components/staff/students/students-queue-view.ts";
 import { caseDocumentsAwaitCurator, caseSectionAccessForState, readCaseProfileSections } from "../src/lib/v3/case-access-contract.ts";
 import { getPlatformCaseDocumentWorkspace, PlatformPrivateDocumentsRepositoryError } from "../src/lib/platform-private-documents.ts";
 import { caseDocumentsWords, country } from "../src/lib/v3/wording.ts";
@@ -171,7 +171,7 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.match(text, /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Открыть документы Заявки/u);
   assert.doesNotMatch(text, /Открыть вузы и программы|Открыть договор и оплату/u, "заявки есть, оплата не видна — ссылок нет");
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
-  assert.match(html, /href="\/v3\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
+  assert.match(html, /href="\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
   assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · срок подачи 30\.11/u);
   // Последнее сообщение переписки — в ленте.
   assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
@@ -226,7 +226,7 @@ test("«Приём дела» in «Сведения» keeps the curator's answer
   assert.doesNotMatch(texts(declined), /Изменить ответ|Принять дело/u);
   assert.doesNotMatch(declined, /data-testid="v3-case-accept-drawer"/u);
   // Тот же HandoffResponseSummary, что у карточки «Приём дела» на лиде и во вкладке «Вузы и программы».
-  const overview = read("src/components/v3/profile/CaseOverview.tsx");
+  const overview = read("src/components/staff/profile/CaseOverview.tsx");
   assert.match(overview, /import \{ HandoffResponseSummary \} from "\.\/ProfileSalesTransition";/u);
   // Значение «Приёма дела» — одно на два вида («Сведения» прежнего вида и «Новый вид», `caseFactValues`).
   assert.match(overview, /reception: onRecord && handoff \? \([\s\S]*?<HandoffResponseSummary current=\{handoff\.current \? \{\n\s+decision: handoff\.current\.decision,\n\s+clarification: handoff\.current\.clarification,\n\s+agreedContactDate: handoff\.current\.agreedContactDate,/u);
@@ -242,7 +242,7 @@ test("329: the staff sees that a student has no cabinet and the agent gets an ho
   assert.match(fileOf("src/lib/ai-agents/contract.ts"), /"no_student_portal"/u);
   assert.match(fileOf("src/lib/server/ai-agents/mcp-tools.ts"), /no_student_portal: "У студента нет кабинета/u);
   assert.match(fileOf("src/lib/v3/case-chat-source.ts"), /typeof data\.studentHasPortal === "boolean" \? data\.studentHasPortal : null/u);
-  const thread = fileOf("src/components/v3/case-chat/CaseChatThread.tsx");
+  const thread = fileOf("src/components/staff/case-chat/CaseChatThread.tsx");
   assert.match(thread, /page\.studentHasPortal === false \?/u, "null stays silent: only a confirmed absence warns");
   assert.match(thread, /У студента нет кабинета: он не увидит это сообщение\./u);
   for (const agent of ["curator-my", "curator-cn"]) {
@@ -270,13 +270,13 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   const salesData = html.slice(html.indexOf('id="sales-data"'));
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
-  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
+  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
   assert.match(text, /Оплата 40% оплачено · остаток 900 \$/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
   assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
   assert.match(html, /href="tel:\+996000000001"/u);
-  assert.match(html, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
+  assert.match(html, /href="\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
 });
 
 test("unread parts say so: no stage, no step editor, no invented task, chat, document numbers or events", () => {
@@ -288,7 +288,7 @@ test("unread parts say so: no stage, no step editor, no invented task, chat, doc
   assert.match(text, /Переписка нет доступа/u);
   assert.match(text, /События журнала дела сейчас не прочитаны\. Обновите страницу, чтобы повторить\./u);
   assert.doesNotMatch(text, /Передал/u, "a case not from Sales has no «Передал»");
-  assert.doesNotMatch(surfaces.get("unread"), /href="\/v3\/messages\?case=/u);
+  assert.doesNotMatch(surfaces.get("unread"), /href="\/messages\?case=/u);
   const closed = texts(surfaces.get("closed"));
   assert.match(closed, /Состояние Дело закрыто/u);
   assert.doesNotMatch(closed, /Изменить|Задать шаг/u);
@@ -296,7 +296,7 @@ test("unread parts say so: no stage, no step editor, no invented task, chat, doc
 });
 
 test("the page: name as h1, «Дело студента» tab title, back to the same list; the lead view keeps its own overview", () => {
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /if \(typeof caseParam === "string" && leadParam === undefined\) return \{ title: "Дело студента" \};/u);
   // Закрытый лид (246) — его имя, как у дела.
   // Лид (Э4) — тоже по имени: `leadParts` — Lead 360 как рабочая карточка.
@@ -309,7 +309,7 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // Права редактора шага — одни для «Быстрого просмотра» и дела.
   assert.match(page, /stepAccess: caseWork\.row \? nextStepAccess\(editor\.input, caseWork\.row, editor\.recordScopes\) : \{ kind: "read_only", reason: null \}/u);
   assert.match(page, /editor: editor\.input,\n    recordScopes: editor\.recordScopes,/u);
-  const profile = read("src/components/v3/profile/Profile.tsx");
+  const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /\{current === "overview" && caseOverview \? caseOverview : null\}/u);
   assert.match(profile, /\{current === "overview" && !caseOverview \? \(/u);
   assert.match(profile, /<Overview\n/u);
@@ -318,10 +318,10 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
   // Одна вкладка («Обзор» у лида без содержимого) — ряда нет.
   assert.match(profile, /tabs\.length > 1 \? \(\s*<QueueTabStrip/u);
-  assert.match(read("src/components/v3/queue/QueueTabStrip.tsx"), /tabIndex=\{focusable \? 0 : undefined\}\n\s+data-tab-strip=\{focusable \? "" : undefined\}/u);
-  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
+  assert.match(read("src/components/staff/queue/QueueTabStrip.tsx"), /tabIndex=\{focusable \? 0 : undefined\}\n\s+data-tab-strip=\{focusable \? "" : undefined\}/u);
+  assert.match(read("src/app/(staff)/staff.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
   // Прежний «Обзор» лида рисует ту же часть продажи, что «Данные продажи» дела.
-  assert.match(read("src/components/v3/profile/tabs.tsx"), /<SalesOverview profile=\{profile\} sales=\{sales\} draft=\{draft\} actor=\{actor\} requestIds=\{requestIds\} quiet \/>/u);
+  assert.match(read("src/components/staff/profile/tabs.tsx"), /<SalesOverview profile=\{profile\} sales=\{sales\} draft=\{draft\} actor=\{actor\} requestIds=\{requestIds\} quiet \/>/u);
   // Строка очереди дела — то же чтение 241, выбранная по id; не нашлась — null, а не выдумка.
   const source = read("src/lib/v3/case-work-source.ts");
   assert.match(source, /view: target\.state, sort: "due", pageSize: STUDENT_CASE_QUEUE_PAGE_SIZE_MAX, query,/u);
@@ -470,12 +470,12 @@ test("caseContacts: own client value first, then the field with its state word; 
 });
 
 test("the direction is the snapshot's only: no queue-row or target-country fallback remains in the case parts", () => {
-  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  const parts = read("src/components/staff/profile/CaseWorkParts.tsx");
   assert.match(parts, /const direction = admissions\.direction \? DIRECTION_LABELS\[admissions\.direction\] : null;/u);
   assert.doesNotMatch(parts, /caseDirectionLabel|work\.row\?\.admissionsDirection|targetCountry/u);
-  const view = read("src/components/v3/profile/case-work-view.ts");
+  const view = read("src/components/staff/profile/case-work-view.ts");
   assert.doesNotMatch(view, /caseDirectionLabel|targetCountry/u);
-  assert.doesNotMatch(read("src/components/v3/profile/types.ts"), /targetCountry/u);
+  assert.doesNotMatch(read("src/components/staff/profile/types.ts"), /targetCountry/u);
   // Словарь стран знает только свои ключи: имена из прототипа объекта - не слова.
   for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
 });
@@ -534,7 +534,7 @@ test("the invite address stays visible after a blocked answer (the form stays), 
   for (const status of ["inviteIssued", "portalActivated", "reconciliationRequired", "accountPending", "reissueAvailable"]) {
     assert.equal(inviteAddressVisible(status), false, status);
   }
-  assert.match(read("src/components/v3/profile/StudentPortalAccessCard.tsx"), /const inviteOpen = inviteAddressVisible\(state\?\.status\);/u);
+  assert.match(read("src/components/staff/profile/StudentPortalAccessCard.tsx"), /const inviteOpen = inviteAddressVisible\(state\?\.status\);/u);
 });
 
 test("the invite address counts as confirmed only when it matches the student's approved application", async () => {
@@ -547,7 +547,7 @@ test("the invite address counts as confirmed only when it matches the student's 
   assert.equal(inviteEmailConfirmed(null, approved), false);
   // Все места, где блок рисуется, передают это решение, а не значение по умолчанию.
   for (const path of ["CaseWorkParts", "LeadWorkParts", "Profile"]) {
-    const file = readFileSync(new URL(`../src/components/v3/profile/${path}.tsx`, import.meta.url), "utf8");
+    const file = readFileSync(new URL(`../src/components/staff/profile/${path}.tsx`, import.meta.url), "utf8");
     assert.equal((file.match(/<StudentPortalAccessControls/gu) ?? []).length, (file.match(/emailConfirmed=\{inviteEmailConfirmed\(/gu) ?? []).length, path);
   }
 });
@@ -587,7 +587,7 @@ test("the case-only branch of readCaseProfile keeps the client e-mail/phone null
   assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}portalInviteEmail: [^\n]+\n {4}phone: null,\n {4}student: true,/u);
   assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}applications: data\.applications,/u);
   // Контакты собираются чистой функцией из уже прочитанного, без нового чтения.
-  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  const parts = read("src/components/staff/profile/CaseWorkParts.tsx");
   assert.match(parts, /contacts(?:=\{|: )caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)/u);
   assert.match(parts, /email=\{profile\.email \?\? profile\.portalInviteEmail \?\? null\}/u, "portal access still takes the client e-mail only, never the анкета value");
   // Условия продажи (290): одно чтение дела параллельно с делом, не бросает, без запасного пути; блок лида остаётся null.
@@ -723,7 +723,7 @@ test("loadFullCase narrows the snapshot by case state and passes pending to the 
   assert.match(source, /readCaseProfileSections\(access, \{[\s\S]*?documents: \(\) => getPlatformCaseDocumentWorkspace\(actor, studentCaseId\),/u);
   // Ни try/catch, ни `.catch` вокруг чтения рабочего места документов: отказ active/closed остаётся ошибкой.
   assert.doesNotMatch(source, /getPlatformCaseDocumentWorkspace\([^)]*\)[^\n]*\.catch|catch[^\n]*getPlatformCaseDocumentWorkspace/u);
-  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  const parts = read("src/components/staff/profile/CaseWorkParts.tsx");
   // Правило состояния не переписывается по месту: страница дела спрашивает ту же функцию, что и остальные экраны.
   assert.match(parts, /documentsAwaitCurator(?:=\{|: )caseDocumentsAwaitCurator\(admissions\.caseState\)/u);
   assert.doesNotMatch(parts, /caseState === "pending"/u);
@@ -741,9 +741,9 @@ test("the case-state rule for documents is one function that every screen asks",
     assert.equal(caseSectionAccessForState(all, state).documents, !caseDocumentsAwaitCurator(state), state);
   }
   const consumers = [
-    "src/components/v3/profile/CaseWorkParts.tsx",
-    "src/components/v3/students/StudentQuickView.tsx",
-    "src/components/v3/knowledge/KnowledgeDossiers.tsx",
+    "src/components/staff/profile/CaseWorkParts.tsx",
+    "src/components/staff/students/StudentQuickView.tsx",
+    "src/components/staff/knowledge/KnowledgeDossiers.tsx",
     "src/lib/server/knowledge-library/dossiers.ts",
   ];
   for (const file of consumers) {
@@ -752,7 +752,7 @@ test("the case-state rule for documents is one function that every screen asks",
     assert.match(source, /caseDocumentsAwaitCurator\(/u, file);
   }
   // Второй записи правила нет: ни «не active/closed», ни собственного сравнения с `pending` рядом с документами.
-  const dossier = read("src/components/v3/knowledge/KnowledgeDossiers.tsx");
+  const dossier = read("src/components/staff/knowledge/KnowledgeDossiers.tsx");
   assert.doesNotMatch(dossier, /\["active", "closed"\]\.includes\(/u);
   assert.doesNotMatch(dossier, /!record\.handoffAt/u);
   // Одна строка слов: досье не держит своих «после передачи дела».
@@ -889,10 +889,10 @@ test("the rule narrows only the documents section: the case record of a pending 
 // `caseDocumentsAwaitCurator`, своего сравнения с `pending` ни у кого из них нет. `active` и `closed` — как прежде.
 test("the preparation panel, the dossier chat attachment and the Messages thread draw no link to the missing Documents tab of a «Ждёт куратора» case", () => {
   // Подготовка по программе: признак приходит от панели вузов дела, которая знает состояние, и считается той же функцией.
-  const workspace = read("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
+  const workspace = read("src/components/staff/profile/ProfileAdmissionsWorkspace.tsx");
   assert.match(workspace, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
   assert.match(workspace, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(workspace\.caseState\)\}/u);
-  const panel = read("src/components/v3/profile/StaffPreparationPanel.tsx");
+  const panel = read("src/components/staff/profile/StaffPreparationPanel.tsx");
   assert.match(panel, /import \{ caseDocumentsWords \} from "@\/lib\/v3\/wording";/u);
   assert.match(panel, /canReview = false, documentsAwaitCurator = false \}/u, "other callers keep the link");
   assert.match(panel, /\{documentsAwaitCurator\s*\? <p [^>]*data-testid="staff-preparation-documents-await">Документы \{caseDocumentsWords\.awaitCurator\}\.<\/p>\s*: <a href=\{docsHref\} className=\{btnGhostCls\}>Все документы дела<\/a>\}/u);
@@ -900,16 +900,16 @@ test("the preparation panel, the dossier chat attachment and the Messages thread
   assert.doesNotMatch(panel, /caseState|state === "pending"|"pending"/u);
 
   // Досье «Клиентской базы»: вложение-документ — метка и строка, ссылка только у дела с рабочим местом документов.
-  const dossier = read("src/components/v3/knowledge/KnowledgeDossiers.tsx");
+  const dossier = read("src/components/staff/knowledge/KnowledgeDossiers.tsx");
   assert.match(dossier, /const documentsAwait = record !== null && caseDocumentsAwaitCurator\(record\.state\);/u);
-  assert.match(dossier, /message\.attachmentKind === "document" && documentsAwait\s*\? <p [^>]*data-testid="knowledge-chat-attachment-await">[\s\S]*?Документы \{caseDocumentsWords\.awaitCurator\}\.<\/span><\/p>\s*: <Link href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=\$\{message\.attachmentKind === "document" \? "documents" : "overview"\}`\}/u);
+  assert.match(dossier, /message\.attachmentKind === "document" && documentsAwait\s*\? <p [^>]*data-testid="knowledge-chat-attachment-await">[\s\S]*?Документы \{caseDocumentsWords\.awaitCurator\}\.<\/span><\/p>\s*: <Link href=\{`\/profile\?case=\$\{caseId\}&tab=\$\{message\.attachmentKind === "document" \? "documents" : "overview"\}`\}/u);
   assert.doesNotMatch(dossier, /state === "pending"|"pending"/u);
 
   // «Переписка» (кабинет студента): страница считает признак тем же правилом по состоянию дела, карточка вложения получает его пропсом.
-  const page = read("src/app/(v3)/v3/messages/page.tsx");
+  const page = read("src/app/(staff)/messages/page.tsx");
   assert.match(page, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
   assert.match(page, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(caseState\)\}/u);
-  const thread = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  const thread = read("src/components/staff/case-chat/CaseChatThread.tsx");
   assert.match(thread, /caseFacts = null, snippets = null, documentsAwaitCurator = false,/u, "the other screens that render the workspace keep the link");
   const cardStart = thread.indexOf("function AttachmentCard(");
   const cardEnd = thread.indexOf("function MessageRow(");
@@ -923,13 +923,13 @@ test("the preparation panel, the dossier chat attachment and the Messages thread
   assert.match(branch, /Документы \{caseDocumentsWords\.awaitCurator\}\./u);
   assert.doesNotMatch(branch, /<Link|href=/u, "no link in the branch for a case without a curator");
   // Для `active` и `closed` прежняя ссылка на вкладку «Документы» и на задачу остаётся.
-  assert.match(card.slice(hrefAt), /`\/v3\/profile\?case=\$\{caseId\}&tab=documents`\s*: `\/v3\/tasks\?task=\$\{message\.attachmentId\}&kind=case&case=\$\{caseId\}`/u);
+  assert.match(card.slice(hrefAt), /`\/profile\?case=\$\{caseId\}&tab=documents`\s*: `\/tasks\?task=\$\{message\.attachmentId\}&kind=case&case=\$\{caseId\}`/u);
   assert.doesNotMatch(thread, /state === "pending"|"pending"/u);
 });
 
 // Axe `select-name` (17.10.2026): у выбора валюты бюджета в форме «Условия» карточки лида не было подписи.
 test("every select of the lead-card forms has an accessible name, and the budget currency one a visible «Валюта» label", () => {
-  for (const file of ["src/components/v3/profile/LeadCardFieldsForm.tsx", "src/components/v3/profile/LeadSaleConditions.tsx"]) {
+  for (const file of ["src/components/staff/profile/LeadCardFieldsForm.tsx", "src/components/staff/profile/LeadSaleConditions.tsx"]) {
     const source = read(file);
     const selects = [...source.matchAll(/<select\b/gu)];
     assert.ok(selects.length > 0, file);
@@ -940,14 +940,14 @@ test("every select of the lead-card forms has an accessible name, and the budget
       assert.ok(insideLabel || named, `${file}: a select at offset ${select.index} has neither a wrapping label nor aria-label`);
     }
   }
-  const card = read("src/components/v3/profile/LeadCardFieldsForm.tsx");
+  const card = read("src/components/staff/profile/LeadCardFieldsForm.tsx");
   // Подпись — видимое слово, как у соседнего «Период» и у валют сделки; сырых ключей нет.
   assert.match(card, /<label>\s*<span className=\{fieldLabelCls\}>Валюта<\/span>\s*<select\s+value=\{budgetCurrency\}/u);
   assert.match(card, /<option value="">Не указана<\/option>\s*\{SALE_CONDITION_CURRENCIES\.map/u);
 });
 
 test("Student 360 «Данные продажи» keeps the lead's linked WhatsApp conversation, gated by messaging.read", () => {
-  const tabs = read("src/components/v3/profile/tabs.tsx");
+  const tabs = read("src/components/staff/profile/tabs.tsx");
   assert.match(tabs, /staffPresentationCan\(actor, "messaging\.read"\)/u);
   assert.match(tabs, /data-testid="v3-sales-groups">\s*<LinkedConversationLinks sales=\{sales\} actor=\{actor\}/u);
   assert.match(tabs, /<LinkedConversationLinks sales=\{sales\} actor=\{actor\} className="flex flex-col gap-1 border-t/u);

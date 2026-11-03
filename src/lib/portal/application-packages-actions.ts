@@ -53,7 +53,7 @@ async function refresh(target: ApplicationPackageTarget) {
   try {
     revalidatePath("/portal"); revalidatePath("/portal/notifications");
     revalidatePath(`/portal/preparations/${target.applicationId}`);
-    revalidatePath("/v3/profile"); revalidatePath("/v3/admissions-pipeline");
+    revalidatePath("/profile"); revalidatePath("/admissions-pipeline");
   } catch { /* Cache refresh cannot change a validated command receipt. */ }
 }
 

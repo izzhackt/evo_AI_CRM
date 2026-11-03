@@ -17,9 +17,9 @@ for (const scenario of ["sales", "admissions"]) {
   test(`${scenario} browser baseline agrees with its permission-based home and dashboard`, async () => {
     const actor = { systemRole: "staff", presentationRole: null, permissionKeys: baselinePermissions[scenario] };
     assert.equal(staffHomeRoute(actor), STAFF_BASELINE_HOME[scenario]);
-    assert.equal(staffCanAccessRoute(actor, "/v3/calendar"), true);
-    assert.equal(staffCanAccessRoute(actor, "/v3/pipeline"), true);
-    assert.equal(staffCanAccessRoute(actor, "/v3/settings"), false);
+    assert.equal(staffCanAccessRoute(actor, "/calendar"), true);
+    assert.equal(staffCanAccessRoute(actor, "/pipeline"), true);
+    assert.equal(staffCanAccessRoute(actor, "/settings"), false);
     const calls = [];
     const reader = (key) => async (receivedActor) => {
       assert.equal(receivedActor, actor);
@@ -43,10 +43,10 @@ for (const scenario of ["sales", "admissions"]) {
 
 test("fixed-role Admin preview remains distinct from the dynamic staff fixture", () => {
   const admin = { systemRole: "admin", presentationRole: "sales", permissionKeys: [] };
-  assert.equal(staffCanAccessRoute(admin, "/v3/calendar"), false);
-  assert.equal(staffHomeRoute(admin), "/v3/main");
+  assert.equal(staffCanAccessRoute(admin, "/calendar"), false);
+  assert.equal(staffHomeRoute(admin), "/main");
   const admissionsPreview = { ...admin, presentationRole: "admissions" };
-  assert.equal(staffCanAccessRoute(admissionsPreview, "/v3/main"), true);
-  assert.equal(staffCanAccessRoute(admissionsPreview, "/v3/pipeline"), false);
-  assert.equal(staffHomeRoute(admissionsPreview), "/v3/main");
+  assert.equal(staffCanAccessRoute(admissionsPreview, "/main"), true);
+  assert.equal(staffCanAccessRoute(admissionsPreview, "/pipeline"), false);
+  assert.equal(staffHomeRoute(admissionsPreview), "/main");
 });

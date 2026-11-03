@@ -175,7 +175,7 @@ function successState(
   versionValue: string,
   archivedAt: string | null,
 ): PlatformReplySnippetActionState {
-  revalidatePath("/v3/inbox");
+  revalidatePath("/inbox");
   return Object.freeze({
     status: "saved",
     requestId: randomUUID(),

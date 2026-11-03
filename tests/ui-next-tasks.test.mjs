@@ -1,7 +1,7 @@
 // «Новый вид», экран «Задачи» (решение владельца 27.10.2026): таблица задач и панель задачи из набора виджетов.
 // Данные — синтетические. Вёрстку, адаптив, фокус, «Отменить», панель и доступность на деле меряет
 // tests/e2e/tasks-next-static-render.cjs (Chromium); здесь — правила, которые не зависят от браузера: чистые модели строк,
-// меню фильтров, данные панели, СТРАНИЦА `/v3/tasks` целиком (настоящий файл, границы сервера подменены) в четырёх режимах
+// меню фильтров, данные панели, СТРАНИЦА `/tasks` целиком (настоящий файл, границы сервера подменены) в четырёх режимах
 // переключателя и границы файлов. Прежний вид проверяют tests/v3-tasks-queue.test.mjs и tests/v3-tasks-unified.test.mjs
 // (разметка списка и панели байт в байт) и сравнение страницы с её прежним файлом (см. отчёт).
 import assert from "node:assert/strict";
@@ -14,14 +14,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 import { buildTaskQueue, parseTaskQueueFilters } from "../src/lib/v3/task-queue.ts";
-import { isRendered } from "../src/components/v3/queue/queue-navigation.ts";
-import { caseSheetData, staffSheetData } from "../src/components/v3/tasks/next/task-sheet-data.ts";
-import { taskFilterBar } from "../src/components/v3/tasks/next/task-filter-menus.ts";
-import { exceptionWord, sameTaskRows, taskRows } from "../src/components/v3/tasks/next/task-table-model.ts";
+import { isRendered } from "../src/components/staff/queue/queue-navigation.ts";
+import { caseSheetData, staffSheetData } from "../src/components/staff/tasks/next/task-sheet-data.ts";
+import { taskFilterBar } from "../src/components/staff/tasks/next/task-filter-menus.ts";
+import { exceptionWord, sameTaskRows, taskRows } from "../src/components/staff/tasks/next/task-table-model.ts";
 
 const require = createRequire(import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const NEXT_DIR = "src/components/v3/tasks/next";
+const NEXT_DIR = "src/components/staff/tasks/next";
 
 /** Границы сервера и браузера подменяются по ИМЕНИ ФАЙЛА (а не по тому, как его назвали при импорте); остальное — настоящий код. */
 function loader(stubs = {}) {
@@ -56,7 +56,7 @@ const link = { __esModule: true, default: ({ href, children, ...props }) => {
   return createElement("a", { href, ...props }, children);
 } };
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
-const navigation = { useRouter: () => router, usePathname: () => "/v3/tasks", useSearchParams: () => new URLSearchParams(), notFound: () => { throw new Error("NEXT_NOT_FOUND"); } };
+const navigation = { useRouter: () => router, usePathname: () => "/tasks", useSearchParams: () => new URLSearchParams(), notFound: () => { throw new Error("NEXT_NOT_FOUND"); } };
 const serverActions = new Proxy({}, { get: (_target, name) => (name === "__esModule" ? false : async () => ({ status: "unavailable" })) });
 // `next/dynamic` вне сборки Next — версия для pages router (рисует пустоту); сборка подставляет версию для App Router, её и берём.
 const browserStubs = { "next/link": link, "next/navigation": navigation, "next/image": { __esModule: true, default: () => null }, "next/dynamic": require("next/dist/shared/lib/app-dynamic") };
@@ -111,7 +111,7 @@ const queueFor = (search, { complete = true } = {}) => {
 test("строки таблицы: те же задачи и порядок, что у очереди; срок для сортировки; поиск по названию, студенту, клиенту и исполнителю", () => {
   const { queue } = queueFor("view=all");
   const bands = queue.bands.map((band) => ({ key: band.bucket, label: band.bucket, count: band.rows.length, danger: band.bucket === "overdue", rows: band.rows }));
-  const lead = { leadId: "ffffffff-7777-4777-8777-000000000001", name: "Айдар Условный", href: "/v3/profile?id=x" };
+  const lead = { leadId: "ffffffff-7777-4777-8777-000000000001", name: "Айдар Условный", href: "/profile?id=x" };
   const rows = taskRows(bands, { [`staff:${sid(2)}`]: lead });
   assert.deepEqual(rows.map((row) => row.key), queue.bands.flatMap((band) => band.rows.map((task) => task.key)), "порядок очереди не меняется");
   assert.equal(rows.length, queue.rows.length);
@@ -146,7 +146,7 @@ test("слово-исключение строки: заблокирована �
   assert.equal(exceptionWord({ status: "in_progress" }, true), null);
 });
 
-const href = (search) => `/v3/tasks${search ? `?${search}` : ""}`;
+const href = (search) => `/tasks${search ? `?${search}` : ""}`;
 const filtersOf = (search) => queueFor(search).filters;
 
 test("меню фильтров: те же «Срок», «Тип», «Состояние» и те же адреса, что у прежней строки инструментов; вид и поиск сохраняются", () => {
@@ -192,10 +192,10 @@ test("данные панели задачи: ключ как у прежней 
   assert.equal(plain.kind, "staff");
   assert.deepEqual(plain.extra, { leadHref: null, lead: null, sourceHref: null, sourceUnavailable: false, outcomes: [], outcomesUnavailable: false });
 
-  const linked = staffSheetData({ ...base, leadId: "ffffffff-7777-4777-8777-000000000001", lead: { leadId: "ffffffff-7777-4777-8777-000000000001", name: "Айдар", href: "/v3/profile?id=x", mapped: true },
-    sourceHref: "/v3/team-chat?channel=sales&message=m", outcomes: [{ requestId: "r", note: "готово", author: "Эрмек", createdAt: "2026-09-22T09:15:00.000Z" }] });
-  assert.equal(linked.extra.leadHref, "/v3/tasks?lead=ffffffff-7777-4777-8777-000000000001");
-  assert.equal(linked.extra.sourceHref, "/v3/team-chat?channel=sales&message=m");
+  const linked = staffSheetData({ ...base, leadId: "ffffffff-7777-4777-8777-000000000001", lead: { leadId: "ffffffff-7777-4777-8777-000000000001", name: "Айдар", href: "/profile?id=x", mapped: true },
+    sourceHref: "/team-chat?channel=sales&message=m", outcomes: [{ requestId: "r", note: "готово", author: "Эрмек", createdAt: "2026-09-22T09:15:00.000Z" }] });
+  assert.equal(linked.extra.leadHref, "/tasks?lead=ffffffff-7777-4777-8777-000000000001");
+  assert.equal(linked.extra.sourceHref, "/team-chat?channel=sales&message=m");
   assert.equal(linked.extra.outcomes.length, 1);
 
   const failed = staffSheetData({ ...base, outcomes: null });
@@ -204,7 +204,7 @@ test("данные панели задачи: ключ как у прежней 
   // «Обсуждение недоступно» — только у задачи из чата, у которой не удалось прочитать ссылку.
   assert.equal(staffSheetData({ ...base, sourceUnavailable: true }).extra.sourceUnavailable, true, "задача из чата без ссылки");
   assert.equal(staffSheetData({ ...base, task: STAFF[1], sourceUnavailable: true }).extra.sourceUnavailable, false, "задача не из чата");
-  assert.equal(staffSheetData({ ...base, sourceHref: "/v3/team-chat?x=1", sourceUnavailable: true }).extra.sourceUnavailable, false, "ссылка есть");
+  assert.equal(staffSheetData({ ...base, sourceHref: "/team-chat?x=1", sourceUnavailable: true }).extra.sourceUnavailable, false, "ссылка есть");
 
   const row = CASES[0];
   const caseTask = { kind: "case", key: `case:${row.caseTaskId}`, id: row.caseTaskId, studentCaseId: row.studentCaseId, taskType: "follow_up", title: row.title, details: null, dueOn: row.dueOn, dueAt: null,
@@ -230,12 +230,12 @@ function nextProps(search, over = {}) {
   return {
     filters, queue, cutOff: [], day: DAY, nowIso: NOW.toISOString(), canReadStaffTasks: true, canReadCaseTasks: true, teamView: true, createdExcludesCases: false,
     composer, composerKey: "standalone", canCreate: true, urlIntent: null, permissions: PERMISSIONS, taskLeads: null, dial: null, count: null,
-    sheet: null, closeHref: "/v3/tasks", moveOpen: false, sourceMessage: null, sourceLead: null, leadTasks: null, ...over,
+    sheet: null, closeHref: "/tasks", moveOpen: false, sourceMessage: null, sourceLead: null, leadTasks: null, ...over,
   };
 }
 const renderNext = (props) => {
   const { TasksNext } = loader({ ...browserStubs, "src/lib/platform-staff-task-actions.ts": serverActions, "src/lib/platform-admissions-task-actions.ts": serverActions,
-    "src/lib/v3/task-case-actions.ts": serverActions, "src/lib/v3/task-composer-actions.ts": serverActions })("src/components/v3/tasks/next/TasksNext.tsx");
+    "src/lib/v3/task-case-actions.ts": serverActions, "src/lib/v3/task-composer-actions.ts": serverActions })("src/components/staff/tasks/next/TasksNext.tsx");
   return renderToStaticMarkup(createElement(TasksNext, props));
 };
 
@@ -246,9 +246,9 @@ test("список: заголовок «Задачи» с «?» и красно
   assert.match(html, /aria-label="Пояснение: Задачи"/);
   assert.match(html, /<button[^>]*aria-haspopup="dialog"[^>]*>Новая задача<\/button>/);
   assert.match(html, /aria-label="Чьи задачи"/);
-  assert.match(html, /<a[^>]*href="\/v3\/tasks\?view=all"[^>]*aria-current="page"[^>]*>Вся команда/);
-  assert.match(html, /href="\/v3\/tasks"[^>]*>Мои/);
-  assert.match(html, /href="\/v3\/tasks\?view=created"[^>]*>Поставил я/);
+  assert.match(html, /<a[^>]*href="\/tasks\?view=all"[^>]*aria-current="page"[^>]*>Вся команда/);
+  assert.match(html, /href="\/tasks"[^>]*>Мои/);
+  assert.match(html, /href="\/tasks\?view=created"[^>]*>Поставил я/);
   assert.match(html, /role="region" aria-label="Задачи"/);
   for (const header of ["Задача", "Срок", "Исполнитель"]) assert.match(html, new RegExp(`>${header}<`));
   // строки — в порядке очереди: просроченные, сегодняшние, дальше
@@ -265,7 +265,7 @@ test("список: заголовок «Задачи» с «?» и красно
   assert.match(html, /заблокирована/);
   assert.match(html, /дело закрыто/);
   assert.match(html, /из чата/);
-  assert.match(html, /<a href="\/v3\/profile\?case=/, "имя студента — ссылка на дело");
+  assert.match(html, /<a href="\/profile\?case=/, "имя студента — ссылка на дело");
   // пояснения прежнего экрана уехали за «?»: на экране их нет
   for (const gone of ["Здесь только рабочие задачи", "Рабочие задачи и задачи по студентам — одним списком", "Новая задача…"]) assert.ok(!html.includes(gone), gone);
 });
@@ -296,7 +296,7 @@ test("неполное чтение: страницы таблицы без об
 });
 
 test("выбор для массовых действий: «все на странице» и выбор считают только строки, которые таблица показывает; «Выбрать» остаётся, пока есть что выбирать", () => {
-  const { useTaskBulk } = loader(browserStubs)("src/components/v3/tasks/next/useTaskBulk.ts");
+  const { useTaskBulk } = loader(browserStubs)("src/components/staff/tasks/next/useTaskBulk.ts");
   const tasks = queueFor("view=all").queue.rows;
   const probe = (visible) => {
     let seen;
@@ -316,9 +316,9 @@ test("выбор для массовых действий: «все на стр�
 test("клавиши очереди и фокус работают с видимой копией строки: скрытая (display: none) не считается", () => {
   assert.equal(isRendered({ getClientRects: () => [] }), false);
   assert.equal(isRendered({ getClientRects: () => [{}] }), true);
-  const keyboard = read("src/components/v3/queue/useQueueKeyboard.ts");
+  const keyboard = read("src/components/staff/queue/useQueueKeyboard.ts");
   assert.match(keyboard, /\.filter\(isRendered\)/, "j/k идут только по видимым ссылкам");
-  assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /find\(isRendered\)\?\.focus\(\)/, "после «Отменить» фокус — на круг видимой копии");
+  assert.match(read("src/components/staff/tasks/useRecentCompletions.ts"), /find\(isRendered\)\?\.focus\(\)/, "после «Отменить» фокус — на круг видимой копии");
 });
 
 test("срок: дата и слово в одной строке, подпись «срок» после даты не повторяется; подтверждение в панели — тёмная нейтральная кнопка", () => {
@@ -335,7 +335,7 @@ test("пустота и права: пустой список называет, 
   const { filters } = queueFor("due=today&type=staff");
   const empty = renderNext(nextProps("due=today&type=staff", { queue: buildTaskQueue({ staff: [], cases: [], filters, actorMembershipId: ME, now: NOW, complete: true }) }));
   assert.match(empty, /На сегодня задач нет/);
-  assert.match(empty, /<a[^>]*href="\/v3\/tasks\?type=staff"[^>]*>Показать все открытые/);
+  assert.match(empty, /<a[^>]*href="\/tasks\?type=staff"[^>]*>Показать все открытые/);
   assert.match(empty, /Сбросить/, "выбран срок и тип — есть «Сбросить»");
   const none = renderNext(nextProps("", { canReadStaffTasks: false, canReadCaseTasks: false, teamView: false }));
   assert.match(none, /В вашей роли нет права на просмотр задач\./);
@@ -343,11 +343,11 @@ test("пустота и права: пустой список называет, 
   assert.doesNotMatch(none, /role="region" aria-label="Задачи"|aria-label="Чьи задачи"/, "таблицы и вкладок нет");
   const noCreate = renderNext(nextProps("", { canReadStaffTasks: false, canReadCaseTasks: false, teamView: false, canCreate: false }));
   assert.doesNotMatch(noCreate, /Новая задача<|Новую задачу можно/);
-  const { TasksNextFailure } = loader(browserStubs)("src/components/v3/tasks/next/TasksNextFailure.tsx");
-  const failure = renderToStaticMarkup(createElement(TasksNextFailure, { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/v3/tasks?view=all" }));
+  const { TasksNextFailure } = loader(browserStubs)("src/components/staff/tasks/next/TasksNextFailure.tsx");
+  const failure = renderToStaticMarkup(createElement(TasksNextFailure, { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/tasks?view=all" }));
   assert.match(failure, /role="alert"[^>]*data-testid="queue-error"/);
   assert.match(failure, /text-danger[^>]*>Не удалось загрузить задачи/);
-  assert.match(failure, /<a[^>]*href="\/v3\/tasks\?view=all"[^>]*>Повторить/);
+  assert.match(failure, /<a[^>]*href="\/tasks\?view=all"[^>]*>Повторить/);
 });
 
 test("«Задачи по лиду» и «Задача из сообщения»: те же данные, что у прежних блоков; кнопка «Новая задача по лиду» — только если диалог может открыться", () => {
@@ -357,11 +357,11 @@ test("«Задачи по лиду» и «Задача из сообщения»
   assert.match(html, /<h2[^>]*>Айдар Условный<\/h2>/);
   assert.match(html, /Следующее действие воронки[\s\S]*Не назначено/);
   assert.match(html, /2026-09-28/);
-  assert.match(html, /href="\/v3\/pipeline\?q=%D0%90%D0%B9%D0%B4%D0%B0%D1%80[^"]*"[^>]*>Открыть в воронке/);
+  assert.match(html, /href="\/pipeline\?q=%D0%90%D0%B9%D0%B4%D0%B0%D1%80[^"]*"[^>]*>Открыть в воронке/);
   assert.match(html, /<h2[^>]*>Связанные рабочие задачи<\/h2>/);
-  assert.match(html, /href="\/v3\/tasks\?task=bbbbbbbb-5555-4555-8555-000000000021"/);
+  assert.match(html, /href="\/tasks\?task=bbbbbbbb-5555-4555-8555-000000000021"/);
   assert.match(html, /Показаны последние 50\./);
-  assert.match(html, /href="\/v3\/tasks"[^>]*>Все мои задачи/);
+  assert.match(html, /href="\/tasks"[^>]*>Все мои задачи/);
   assert.match(html, />Новая задача по лиду<\/button>/);
   assert.doesNotMatch(html, /role="region" aria-label="Задачи"/, "на странице лида списка нет");
   const unknown = renderNext(nextProps("lead=x", { sourceLead: { ...lead, clientDisplayName: "Имя клиента не указано", canOpenPipeline: false }, leadTasks: { rows: [], truncated: false } }));
@@ -375,7 +375,7 @@ test("«Задачи по лиду» и «Задача из сообщения»
   const message = renderNext(nextProps("", { sourceMessage: { id: "11111111-2222-4222-8222-000000000001", channelKey: "sales", authorName: "Эрмек Токтосунов", body: "Нужно собрать копии аттестата." } }));
   assert.match(message, /<h2[^>]*>Задача из сообщения · Эрмек Токтосунов<\/h2>/);
   assert.match(message, /Нужно собрать копии аттестата\./);
-  assert.match(message, /href="\/v3\/team-chat\?channel=sales&amp;message=11111111-2222-4222-8222-000000000001"[^>]*>Вернуться к сообщению/);
+  assert.match(message, /href="\/team-chat\?channel=sales&amp;message=11111111-2222-4222-8222-000000000001"[^>]*>Вернуться к сообщению/);
   assert.ok(!message.includes("Доступ к каналу не меняется"), "пояснение — за «?»");
 });
 
@@ -401,7 +401,7 @@ const page = (cookie, who, params = {}, overrides = {}) => {
     "src/lib/v3/task-case-actions.ts": serverActions, "src/lib/v3/task-composer-actions.ts": serverActions, ...overrides,
   };
   const load = loader(stubs);
-  const element = () => load("src/app/(v3)/v3/tasks/page.tsx").default({ searchParams: Promise.resolve(params) });
+  const element = () => load("src/app/(staff)/tasks/page.tsx").default({ searchParams: Promise.resolve(params) });
   // Новый вид страница подгружает лениво (`TasksNextLazy`): рисуем, пока разметка не устоится.
   const run = async () => renderSettled(await element());
   return { run, seen, element };
@@ -432,7 +432,7 @@ test("страница: данные читаются одним путём (м�
   for (const cookie of ["next", undefined]) {
     const run = page(cookie, ADMIN);
     await run.run();
-    assert.deepEqual(run.seen.guards, ["/v3/tasks"], `cookie=${cookie}: тот же маршрут`);
+    assert.deepEqual(run.seen.guards, ["/tasks"], `cookie=${cookie}: тот же маршрут`);
     assert.equal(run.seen.reads, 1, `cookie=${cookie}: одно чтение очереди`);
   }
   for (const cookie of ["next", undefined]) {
@@ -440,7 +440,7 @@ test("страница: данные читаются одним путём (м�
     const html = await broken.run();
     assert.match(html, /data-testid="queue-error"/, `cookie=${cookie}`);
     assert.match(html, /Не удалось загрузить задачи и доступных сотрудников\./);
-    assert.match(html, /href="\/v3\/tasks"[^>]*>Повторить/);
+    assert.match(html, /href="\/tasks"[^>]*>Повторить/);
     assert.match(html, /v3-tasks-next/, `cookie=${cookie}: рамка ошибки — нового вида`);
   }
 });
@@ -480,7 +480,7 @@ test("файлы нового вида «Задач»: каждый до 150 с�
 });
 
 test("в странице прежнего вида нет (#1327); чтения, права и данные нового вида те же", () => {
-  const source = read("src/app/(v3)/v3/tasks/page.tsx");
+  const source = read("src/app/(staff)/tasks/page.tsx");
   assert.doesNotMatch(source, /isNextUi|<TasksWorkspace|<TaskDetailPanel|<PartShell/);
   assert.match(source, /readCalendarTaskTarget\(actor, selectedCaseId, taskId\)/);
   // новый вид получает те же данные: те же права строки и то же число в заголовке
@@ -488,9 +488,9 @@ test("в странице прежнего вида нет (#1327); чтения
   assert.match(source, /count=\{headerCount\}/);
   assert.match(source, /staffAllowed = !preview && staffHasPermission\(actor, "staff\.task\.create"\) && !sourceLeadId;/);
   // Новый вид — ленивый вход: в первую загрузку страницы у остальных сотрудников его таблица, панель и Radix не входят.
-  assert.match(source, /import \{ TasksNextFailureLazy, TasksNextLazy \} from "@\/components\/v3\/tasks\/next\/TasksNextLazy";/);
+  assert.match(source, /import \{ TasksNextFailureLazy, TasksNextLazy \} from "@\/components\/staff\/tasks\/next\/TasksNextLazy";/);
   assert.match(source, /return <TasksNextLazy\s/);
-  assert.doesNotMatch(source, /from "@\/components\/v3\/tasks\/next\/TasksNext(Failure)?"/, "новый вид не импортируется статически");
+  assert.doesNotMatch(source, /from "@\/components\/staff\/tasks\/next\/TasksNext(Failure)?"/, "новый вид не импортируется статически");
   assert.doesNotMatch(source, /from "@\/components\/kit/, "и набор виджетов тоже");
   const lazy = read(`${NEXT_DIR}/TasksNextLazy.tsx`);
   assert.match(lazy, /^"use client";/);

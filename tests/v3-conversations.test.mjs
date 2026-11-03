@@ -2,8 +2,8 @@
 // очереди с числами из того же чтения 234, видимый переключатель состояния
 // (прежняя команда set_await), шаблоны ответа в поле ответа без отправки и
 // следующая переписка в пустой правой части. Решение владельца 27.09.2026
-// заменило один пункт «Переписки» с каналами: WhatsApp (`/v3/inbox`) — пункт
-// «Продаж», «Переписка» (`/v3/messages`; до решения владельца 28.09.2026 —
+// заменило один пункт «Переписки» с каналами: WhatsApp (`/inbox`) — пункт
+// «Продаж», «Переписка» (`/messages`; до решения владельца 28.09.2026 —
 // «Переписка со студентами») — пункт «Поступления», у каждой страницы свой
 // h1. Логика — чистые модули; разметка — из настоящих страниц через
 // tests/e2e/conversations-static-render.cjs --json с синтетическими
@@ -14,10 +14,10 @@ import test from "node:test";
 
 import {
   caseChatNextLine, caseChatWaitingWord, composeCaseChatQueue, oldestFirst, readCaseChatQueueWith,
-} from "../src/components/v3/case-chat/case-chat-queue.ts";
+} from "../src/components/staff/case-chat/case-chat-queue.ts";
 import {
   insertReplySnippetWithinCodePointLimit, REPLY_MESSAGE_MAX_CODE_POINTS,
-} from "../src/components/v3/reply-snippets/insert-reply-snippet.ts";
+} from "../src/components/staff/reply-snippets/insert-reply-snippet.ts";
 import {
   CASE_CHAT_BODY_LIMIT, CASE_CHAT_QUEUE_ORDER, caseChatHref, parseCaseChatQueue,
 } from "../src/lib/platform-case-chat-contract.ts";
@@ -127,9 +127,9 @@ test("the empty pane: next thread with its wait, no wait on one's own last messa
 test("the list opens on «Нужен ответ»; «Все» is an explicit ?queue=all and older links keep working", () => {
   assert.equal(parseCaseChatQueue(undefined), "needs_reply");
   assert.deepEqual(CASE_CHAT_QUEUE_ORDER, ["needs_reply", "awaiting_student", "all"]);
-  assert.equal(caseChatHref("", "needs_reply"), "/v3/messages");
-  assert.equal(caseChatHref("", "all"), "/v3/messages?queue=all");
-  assert.equal(caseChatHref("", "awaiting_student", caseId(1)), `/v3/messages?case=${caseId(1)}&queue=awaiting_student`);
+  assert.equal(caseChatHref("", "needs_reply"), "/messages");
+  assert.equal(caseChatHref("", "all"), "/messages?queue=all");
+  assert.equal(caseChatHref("", "awaiting_student", caseId(1)), `/messages?case=${caseId(1)}&queue=awaiting_student`);
   for (const value of ["needs_reply", "awaiting_student", "all"]) assert.equal(parseCaseChatQueue(value), value);
   assert.equal(parseCaseChatQueue("none"), null);
 });
@@ -138,7 +138,7 @@ test("the list opens on «Нужен ответ»; «Все» is an explicit ?qu
 
 const preview = (role) => ({ systemRole: "admin", presentationRole: role, platformAccessVersion: 1, assignments: [], permissionKeys: [] });
 const staff = (keys) => ({ systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: keys });
-const menuOf = (actor, href = "/v3/main") => {
+const menuOf = (actor, href = "/main") => {
   const url = new URL(href, "https://conversations.test");
   const model = buildV3Navigation(actor, url.pathname, url.searchParams);
   const every = [...(model.home ? [model.home] : []), ...model.groups.flatMap((group) => group.links), ...model.common, ...(model.settings ? [model.settings] : [])];
@@ -170,24 +170,24 @@ test("menu per role: WhatsApp in «Продажи» for every WhatsApp reader (0
     assert.equal(place("inbox"), whatsapp, `${label}: WhatsApp`);
     assert.equal(place("messages"), students, `${label}: «Переписка»`);
     // Пункт есть — его страница открыта той же проверкой маршрута (`requireV3PageActor`).
-    if (whatsapp) assert.ok(staffCanAccessRoute(actor, "/v3/inbox"), `${label}: /v3/inbox`);
-    if (students) assert.ok(staffCanAccessRoute(actor, "/v3/messages"), `${label}: /v3/messages`);
+    if (whatsapp) assert.ok(staffCanAccessRoute(actor, "/inbox"), `${label}: /inbox`);
+    if (students) assert.ok(staffCanAccessRoute(actor, "/messages"), `${label}: /messages`);
     const inbox = every.find((link) => link.id === "inbox");
     const messages = every.find((link) => link.id === "messages");
-    if (inbox) assert.deepEqual([inbox.label, inbox.href], ["WhatsApp", "/v3/inbox"], label);
-    if (messages) assert.deepEqual([messages.label, messages.href], ["Переписка", "/v3/messages"], label);
+    if (inbox) assert.deepEqual([inbox.label, inbox.href], ["WhatsApp", "/inbox"], label);
+    if (messages) assert.deepEqual([messages.label, messages.href], ["Переписка", "/messages"], label);
     assert.equal(every.some((link) => ["Переписки", "Сообщения"].includes(link.label)), false, `${label}: no retired items`);
   }
-  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/v3/inbox"), true, "the route itself is unchanged");
+  assert.equal(staffCanAccessRoute(staff(["communication.read.full"]), "/inbox"), true, "the route itself is unchanged");
 });
 
 test("each page highlights its own item and names its own tab; old addresses and links land on their page", () => {
   for (const [href, id, title] of [
-    ["/v3/messages", "messages", "Переписка"],
-    ["/v3/messages?queue=all&case=x", "messages", "Переписка"],
-    ["/v3/inbox", "inbox", "WhatsApp"],
-    ["/v3/inbox?waiting=1", "inbox", "WhatsApp"],
-    ["/v3/inbox?sort=unanswered", "inbox", "WhatsApp"],
+    ["/messages", "messages", "Переписка"],
+    ["/messages?queue=all&case=x", "messages", "Переписка"],
+    ["/inbox", "inbox", "WhatsApp"],
+    ["/inbox?waiting=1", "inbox", "WhatsApp"],
+    ["/inbox?sort=unanswered", "inbox", "WhatsApp"],
   ]) {
     const { model } = menuOf(preview(null), href);
     assert.equal(model.activeId, id, href);
@@ -195,24 +195,24 @@ test("each page highlights its own item and names its own tab; old addresses and
     assert.equal(v3SectionTitle(new URL(href, "https://x").pathname), title, href);
   }
   // Э5 своих адресов не добавлял: перенаправлять нечего.
-  assert.equal(existsSync(new URL("../src/app/(v3)/v3/conversations", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../src/app/(staff)/conversations", import.meta.url)), false);
   assert.equal(v3SectionTitle("/v3/conversations"), undefined);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const allowed = new Set\(\[\s*"q",\s*"waiting",\s*"sort",\s*"conversation",/u, "no ?channel= on WhatsApp");
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /const allowed = new Set\(\[\s*"q",\s*"waiting",\s*"sort",\s*"conversation",/u, "no ?channel= on WhatsApp");
   // «Сегодня» («Ждут вас») и уведомления о сообщении по делу — на «Переписку».
   const [chat] = todayChatItems([{ studentCaseId: caseId(1), studentDisplayName: "Студент (синтетика)", lastMessageSnippet: "текст",
     lastMessageAt: "2026-09-27T05:00:00.000Z", lastMessageAuthorMembershipId: STUDENT, awaitState: "needs_reply", unread: true }]);
   assert.equal(chat.band, "waiting");
-  assert.equal(chat.openHref, `/v3/messages?case=${caseId(1)}&queue=needs_reply`);
-  assert.match(read("src/lib/v3/today-queue.ts"), /all: \{ label: "Нужен ответ", href: "\/v3\/messages\?queue=needs_reply" \}/u);
+  assert.equal(chat.openHref, `/messages?case=${caseId(1)}&queue=needs_reply`);
+  assert.match(read("src/lib/v3/today-queue.ts"), /all: \{ label: "Нужен ответ", href: "\/messages\?queue=needs_reply" \}/u);
   const notification = decodeStaffNotifications({ unread_count: "1", items: [{
     id: caseId(7), kind: "case_message", created_at: "2026-09-27T05:00:00.000Z", read_at: null, student_case_id: caseId(1),
     actor_display_name: null, subject_title: null, student_display_name: null, subject_due_on: null, subject_due_at: null,
   }] });
-  assert.equal(notification.items[0].href, `/v3/messages?case=${caseId(1)}`);
+  assert.equal(notification.items[0].href, `/messages?case=${caseId(1)}`);
   // «Нет доступа» называет разделы словами пунктов.
-  const access = read("src/app/(v3)/access-denied/page.tsx");
-  assert.match(access, /"\/v3\/inbox": "WhatsApp",/u);
-  assert.match(access, /"\/v3\/messages": "Переписка",/u);
+  const access = read("src/app/(staff)/access-denied/page.tsx");
+  assert.match(access, /"\/inbox": "WhatsApp",/u);
+  assert.match(access, /"\/messages": "Переписка",/u);
 });
 
 test("phone tabs: admissions roles keep «Переписка» (the menu item's own name since 28.09.2026); the sales WhatsApp lives in «Ещё»", () => {
@@ -222,21 +222,21 @@ test("phone tabs: admissions roles keep «Переписка» (the menu item's 
     assert.deepEqual(tabs.links.map((link) => link.label), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
     assert.deepEqual(tabs.links.map((link) => shellTabLabel(link).text), ["Сегодня", "Студенты", "Задачи", "Переписка"]);
     assert.equal(shellTabLabel(tabs.links[3]).name, undefined, "the visible label is the accessible name");
-    assert.equal(shellTabs(menuOf(actor, "/v3/messages").model).currentInMore, false);
+    assert.equal(shellTabs(menuOf(actor, "/messages").model).currentInMore, false);
   }
   for (const actor of [preview("sales"), staff([...staffRoleKeys("sales-manager")])]) {
     const tabs = shellTabs(menuOf(actor).model);
     assert.equal(tabs.kind, "sales");
     assert.ok(tabs.links.length <= 4, "four slots plus «Ещё»");
     assert.equal(tabs.links.some((link) => link.id === "inbox"), false, "WhatsApp is not a slot");
-    assert.equal(shellTabs(menuOf(actor, "/v3/inbox").model).currentInMore, true, "«Ещё» lights up on WhatsApp");
+    assert.equal(shellTabs(menuOf(actor, "/inbox").model).currentInMore, true, "«Ещё» lights up on WhatsApp");
   }
 });
 
 // --- переключатель состояния и шаблоны: прежние команда и данные ---------------
 
 test("the header state control is visible and calls the existing set_await command, never a «⋯» menu", () => {
-  const component = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  const component = read("src/components/staff/case-chat/CaseChatThread.tsx");
   assert.match(component, /const AWAIT_CONTROL_ORDER = \["needs_reply", "awaiting_student", "none"\] as const/u);
   assert.match(component, /role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"/u);
   assert.match(component, /aria-pressed=\{awaitState === value\} disabled=\{awaitPending\}\s*onClick=\{\(\) => \{ if \(value !== awaitState\) onSetAwait\(value\); \}\}/u);
@@ -268,7 +268,7 @@ test("a template is inserted into the text without sending: the same picker, rea
   const inserted = insertReplySnippetWithinCodePointLimit("Здравствуйте! ", "Документы получили.", 14, 14, CASE_CHAT_BODY_LIMIT);
   assert.deepEqual(inserted, { accepted: true, value: "Здравствуйте! Документы получили.", selectionStart: 33, selectionEnd: 33 });
 
-  const component = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  const component = read("src/components/staff/case-chat/CaseChatThread.tsx");
   const picker = component.slice(component.indexOf("<ReplySnippetPicker"), component.indexOf("/>", component.indexOf("<ReplySnippetPicker")));
   assert.match(picker, /maxCodePoints=\{CASE_CHAT_BODY_LIMIT\}/u);
   assert.match(picker, /onMessageTextChange=\{\(value\) => \{\s*persist\(\{ \.\.\.draft, body: value \}\);\s*document\.getElementById\(picker\.popoverId\)\?\.hidePopover\(\);\s*\}\}/u);
@@ -281,7 +281,7 @@ test("a template is inserted into the text without sending: the same picker, rea
   // отправляют, Shift+Enter — строка, на сенсорном экране Enter — строка, IME (isComposing, 229) не отправляет.
   const keys = (source) => source.slice(source.indexOf("onKeyDown={(event) => {"), source.indexOf("/>", source.indexOf("onKeyDown={(event) => {")));
   const caseKeys = keys(component);
-  const inboxKeys = keys(read("src/components/v3/inbox/InboxComposer.tsx"));
+  const inboxKeys = keys(read("src/components/staff/inbox/InboxComposer.tsx"));
   for (const part of [
     /if \(event\.nativeEvent\.isComposing \|\| composing\.current \|\| event\.keyCode === 229\) return;/u,
     /if \(event\.key !== "Enter" \|\| event\.shiftKey \|\| event\.altKey\) return;/u,
@@ -294,17 +294,17 @@ test("a template is inserted into the text without sending: the same picker, rea
   assert.doesNotMatch(caseKeys, /\(!event\.ctrlKey && !event\.metaKey\) \|\| event\.altKey/u, "a plain Enter is no longer a newline on a mouse and keyboard");
   assert.match(caseKeys, /canSend && !uncertain\) event\.currentTarget\.form\?\.requestSubmit\(\)/u, "a frozen retry is still sent only by «Повторить»");
   assert.doesNotMatch(component, /(?:placeholder|title|aria-label|aria-description)=(?:"[^"]*|\{`[^`]*)(?:Enter|Ctrl|⌘)|>[^<>{}\n=]*(?:Enter|Ctrl|⌘)[^<>{}\n]*</u, "no keyboard hint in the interface");
-  const page = read("src/app/(v3)/v3/messages/page.tsx");
+  const page = read("src/app/(staff)/messages/page.tsx");
   assert.match(page, /staffCan\(actor, "snippets\.read"\)\s*\? readV3ReplySnippets\(actor\)/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /readV3ReplySnippets\(actor\)/u);
-  const shared = read("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /readV3ReplySnippets\(actor\)/u);
+  const shared = read("src/components/staff/reply-snippets/ReplySnippetPicker.tsx");
   assert.match(shared, /maxCodePoints = REPLY_MESSAGE_MAX_CODE_POINTS,/u);
   assert.doesNotMatch(shared, /type="submit"/u);
 });
 
 test("each page has its own title: «Переписка» and «WhatsApp» are separate routes, no channel tabs component", () => {
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /export const metadata = \{ title: "Переписка" \};/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /export const metadata = \{ title: "WhatsApp" \};/u);
-  assert.doesNotMatch(read("src/app/(v3)/v3/inbox/page.tsx"), /ConversationsMain|conversationChannels/u);
-  assert.equal(existsSync(new URL("../src/components/v3/ConversationChannels.tsx", import.meta.url)), false);
+  assert.match(read("src/app/(staff)/messages/page.tsx"), /export const metadata = \{ title: "Переписка" \};/u);
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /export const metadata = \{ title: "WhatsApp" \};/u);
+  assert.doesNotMatch(read("src/app/(staff)/inbox/page.tsx"), /ConversationsMain|conversationChannels/u);
+  assert.equal(existsSync(new URL("../src/components/staff/ConversationChannels.tsx", import.meta.url)), false);
 });

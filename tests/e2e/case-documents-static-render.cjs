@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Вкладка «Документы» дела (Э8.1, `/v3/profile?case=…&tab=documents`).
+ * Вкладка «Документы» дела (Э8.1, `/profile?case=…&tab=documents`).
  *
  * Страница — НАСТОЯЩАЯ сборка дела (`caseWorkParts`, `Profile` с вкладками,
  * `PartShell`, `AppShell`) с СИНТЕТИЧЕСКИМИ данными: имена, файлы и числа
@@ -19,7 +19,7 @@
  *     → stdout: JSON [{ name, html }] — разметка вкладки по сценариям (для
  *       tests/v3-case-documents.test.mjs).
  *   node tests/e2e/case-documents-static-render.cjs --screenshots [outDir]
- *     → страница с оболочкой, CSS из globals.css + v3.css (Tailwind v4, как в
+ *     → страница с оболочкой, CSS из globals.css + staff.css (Tailwind v4, как в
  *       сборке); вкладку поверх статической страницы рисует настоящий React
  *       (бандл esbuild): серверные действия и ответы загрузки — заглушки в
  *       браузере, по сценарию пункта. Снимки Playwright Chromium 1440×900,
@@ -84,12 +84,12 @@ const { ImageConfigContext } = require("next/dist/shared/lib/image-config-contex
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
 // Вкладка страницы — async server component; здесь её место занимает тот же синхронный вид.
-const documentsModule = require(join(ROOT, "src/components/v3/profile/Documents.tsx"));
-const { documentsView } = require(join(ROOT, "src/components/v3/profile/DocumentsView.tsx"));
-const { caseWorkParts } = require(join(ROOT, "src/components/v3/profile/CaseWorkParts.tsx"));
-const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
-const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
-const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
+const documentsModule = require(join(ROOT, "src/components/staff/profile/Documents.tsx"));
+const { documentsView } = require(join(ROOT, "src/components/staff/profile/DocumentsView.tsx"));
+const { caseWorkParts } = require(join(ROOT, "src/components/staff/profile/CaseWorkParts.tsx"));
+const { Profile } = require(join(ROOT, "src/components/staff/profile/Profile.tsx"));
+const { buildV3ProfileHref } = require(join(ROOT, "src/components/staff/profile/types.ts"));
+const queueView = require(join(ROOT, "src/components/staff/students/students-queue-view.ts"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сегодня» — 28.09.2026 по Бишкеку.
@@ -99,7 +99,7 @@ const ORG = "eeeeeeee-4444-4444-8444-000000000000";
 const ME = "aaaaaaaa-1111-4111-8111-000000000001";
 const CASE_ID = "cccccccc-2222-4222-8222-000000000001";
 const NAME = "Тестовый Студент";
-const RETURN_TO = "/v3/profile?section=docs&view=review";
+const RETURN_TO = "/profile?section=docs&view=review";
 const uuid = (prefix, n) => `${prefix}-5555-4555-8555-${String(n).padStart(12, "0")}`;
 
 const CURATOR = {
@@ -297,7 +297,7 @@ function buildPage(name) {
 const routerStub = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
 function withContexts(node, search) {
   return createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
+    createElement(PathnameContext.Provider, { value: "/profile" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
@@ -310,8 +310,8 @@ function renderTab(name) {
 }
 
 function renderPage(name) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const back = createElement("a", { href: RETURN_TO, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "EVO Docs");
@@ -331,7 +331,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 // --- вкладка на настоящем React в браузере --------------------------------------
@@ -346,7 +346,7 @@ const React = require("react");
 const { createRoot } = require("react-dom/client");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
-const { documentsView } = require("@/components/v3/profile/DocumentsView");
+const { documentsView } = require("@/components/staff/profile/DocumentsView");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById("docs-fixture").textContent);
 window.__docs = { uploads: [], reviews: [], refreshes: 0, reviewPlan: {}, applyDecisions: false };
@@ -387,7 +387,7 @@ const root = createRoot(document.getElementById("${TAB_ROOT}"));
 function render() {
   root.render(
     h(AppRouterContext.Provider, { value: router },
-      h(PathnameContext.Provider, { value: "/v3/profile" },
+      h(PathnameContext.Provider, { value: "/profile" },
         h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, documentsView(input)))));
 }
 render();

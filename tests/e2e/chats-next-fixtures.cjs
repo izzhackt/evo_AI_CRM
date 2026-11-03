@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Синтетические данные для «Нового вида» чатов («WhatsApp» `/v3/inbox` и «Переписка» `/v3/messages`):
+ * Синтетические данные для «Нового вида» чатов («WhatsApp» `/inbox` и «Переписка» `/messages`):
  * tests/e2e/chats-next-static-render.cjs и tests/ui-next-chats.test.mjs. Люди, номера, дела и сообщения ВЫДУМАНЫ для
  * проверки вёрстки и не являются записями EVO; настоящих номеров, ключей и сессий здесь нет.
  */
@@ -88,7 +88,7 @@ const WA_READ_AT = "2026-10-06T08:00:00.000Z";
 const waId = (n) => `ffffffff-6666-4666-8666-${String(n).padStart(12, "0")}`;
 const WA_CONVERSATION = waId(1);
 const waRow = (n, person, phone, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
-  id: waId(n), person, phone, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor, href: `/v3/inbox?conversation=${waId(n)}`,
+  id: waId(n), person, phone, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor, href: `/inbox?conversation=${waId(n)}`,
 });
 const WA_ROWS = [
   waRow(1, "Аружан Примерова", "+996 ••• 31 07 15", "06.10 13:40", "06.10 13:40", "20 мин"),
@@ -126,8 +126,8 @@ function waView({ selected = true, chat = {}, row: index = 0, channelState = "re
       canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null, ...context },
       chat: waChat(chat),
     } : null,
-    queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
-    searchQuery: null, sort, sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState, listPulse: "0000000000000002",
+    queueCurrentHref: "/inbox", queueNewestHref: null, queueOlderHref: "/inbox?before_at=x&before_id=y",
+    searchQuery: null, sort, sortHrefs: { newest: "/inbox", unanswered: "/inbox?sort=unanswered" }, channelState, listPulse: "0000000000000002",
     ...extra,
   };
 }
@@ -143,14 +143,14 @@ const WA_ANSWERED_ROWS = WA_ROWS.map((item) => ({ ...item, waitingSince: null, a
 const INBOX_SCENARIOS = {
   chat: { search: { conversation: WA_CONVERSATION }, inbox: waView({ chat: { replyAccess: "allowed" } }) },
   "chat-long-name": { search: { conversation: waId(6) }, inbox: waView({ row: 5 }) },
-  // Диалог привязан к делу студента, но не к лиду: ссылка шапки — «Открыть дело» (адрес `/v3/profile?case=`).
+  // Диалог привязан к делу студента, но не к лиду: ссылка шапки — «Открыть дело» (адрес `/profile?case=`).
   "chat-case-only": { search: { conversation: WA_CONVERSATION }, inbox: waView({ context: { leadId: null, studentCaseId: caseId(1) } }) },
   list: { search: {}, inbox: waView({ selected: false }) },
   "list-answered": { search: {}, inbox: waView({ selected: false, rows: WA_ANSWERED_ROWS, extra: { queueOlderHref: null } }) },
   "list-unanswered": { search: { sort: "unanswered" }, inbox: waView({ selected: false, sort: "unanswered" }) },
   empty: { search: {}, inbox: waView({ selected: false, rows: [], extra: { queueOlderHref: null } }) },
   "empty-filtered": { search: { q: "Нет такого" }, inbox: waView({ selected: false, rows: [], extra: { searchQuery: "Нет такого", queueOlderHref: null } }) },
-  "empty-paged": { search: { before_at: "2026-10-01T00:00:00.000Z", before_id: waId(1) }, inbox: waView({ selected: false, rows: [], extra: { queueOlderHref: null, queueNewestHref: "/v3/inbox" } }) },
+  "empty-paged": { search: { before_at: "2026-10-01T00:00:00.000Z", before_id: waId(1) }, inbox: waView({ selected: false, rows: [], extra: { queueOlderHref: null, queueNewestHref: "/inbox" } }) },
   "not-connected": { search: {}, inbox: waView({ selected: false, rows: [], channelState: "not_connected", extra: { queueOlderHref: null } }) },
   "list-attention": { search: {}, inbox: waView({ selected: false, channelState: "attention" }) },
   "chat-attention": { search: { conversation: WA_CONVERSATION }, inbox: waView({ channelState: "attention", chat: { replyAccess: "attention" } }) },

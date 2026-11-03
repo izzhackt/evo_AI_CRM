@@ -299,8 +299,8 @@ test("case-link action validates exact target receipt before reporting saved", (
 test("only verified successes invalidate the two retained V3 checklist views", () => {
   assert.doesNotMatch(actionSource, /revalidatePath\("\/documents"\)/);
   assert.doesNotMatch(actionSource, /revalidatePath\(`\/clients\//);
-  assert.match(actionSource, /revalidatePath\("\/v3\/profile"\)/);
-  assert.match(actionSource, /revalidatePath\("\/v3\/knowledge"\)/);
+  assert.match(actionSource, /revalidatePath\("\/profile"\)/);
+  assert.match(actionSource, /revalidatePath\("\/knowledge"\)/);
   assert.equal(actionSource.match(/revalidateChecklist\(\);/g)?.length, 5);
   assert.equal(
     actionSource.match(/status: "saved" as const,[\s\S]*?requestId: randomUUID\(\)/g)

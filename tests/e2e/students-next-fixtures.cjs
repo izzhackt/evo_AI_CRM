@@ -115,10 +115,10 @@ function catalogue() {
 
 function universities() {
   const view = src("lib/v3/university-view.ts");
-  const list = src("components/v3/universities-next/university-list-model.tsx");
-  const detail = src("components/v3/universities-next/university-detail-model.ts");
-  const manage = src("components/v3/universities-next/manage-index-model.ts");
-  const { universityCountry } = src("components/v3/universities/UniversityCatalogue.tsx");
+  const list = src("components/staff/universities-next/university-list-model.tsx");
+  const detail = src("components/staff/universities-next/university-detail-model.ts");
+  const manage = src("components/staff/universities-next/manage-index-model.ts");
+  const { universityCountry } = src("components/staff/universities/UniversityCatalogue.tsx");
   const all = catalogue();
   const published = all.map(({ id, version, publishedAt, content }) => ({ id, version, publishedAt, content }));
   const today = "2026-09-27";
@@ -133,7 +133,7 @@ function universities() {
     id: item.id, name: item.content.name, place: detail.universityPlaceText(item.content, universityCountry(item.content.country)),
     programs: detail.universityPrograms(item.content, NOW), overview: item.content.overview, websiteUrl: item.content.websiteUrl, sourceUrl: item.content.sourceUrl,
     verified: detail.universityVerified(item.content, NOW), canManage,
-    manage: canManage ? { formsHref: `/v3/universities/${item.id}/forms`, editHref: `/v3/universities/manage?edit=${item.id}` } : null,
+    manage: canManage ? { formsHref: `/universities/${item.id}/forms`, editHref: `/universities/manage?edit=${item.id}` } : null,
   });
   const drafts = published.slice(0, 3).map((item, index) => ({ id: uuid("dddddddd-7777-4777-8777", index + 1), baseVersion: index + 1, content: item.content }));
   return {

@@ -22,7 +22,7 @@ async function login(page: Page, kind = "STUDENT") {
   await page.locator("#staff-email").fill(required(`EVO_STUDENT_PORTAL_${kind}_EMAIL`));
   await page.locator("#staff-password").fill(required(`EVO_STUDENT_PORTAL_${kind}_PASSWORD`));
   await page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click();
-  await expect(page).toHaveURL(kind === "ADMIN" ? /\/v3\/main$/ : /\/portal$/);
+  await expect(page).toHaveURL(kind === "ADMIN" ? /\/main$/ : /\/portal$/);
 }
 
 // 03.11.2026: the top bar has no account menu; «Выйти» lives on «Профиль».

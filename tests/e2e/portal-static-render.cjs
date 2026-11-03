@@ -70,7 +70,8 @@ const { OverviewView } = require(join(ROOT, "src/components/portal/admission/Ove
 const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/DocumentsView.tsx"));
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/professions/ProfessionsGrid.tsx"));
-const { LanguageForm } = require(join(ROOT, "src/components/portal/profile/LanguageForm.tsx"));
+const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
+const { ProfileContacts } = require(join(ROOT, "src/components/portal/profile/ProfileContacts.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
 const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
 const { AccountDeletionPanel } = require(join(ROOT, "src/components/account-deletion/AccountDeletionPanel.tsx"));
@@ -751,10 +752,7 @@ const surfaces = [
           createElement(
             "section",
             { "aria-label": profileStrings.languageHeading, className: "pt-card" },
-            createElement(LanguageForm, {
-              initialLanguage: "ru",
-              strings: profileStrings,
-            }),
+            createElement(LanguageSwitch, { locale: "ru" }),
             createElement(ConsultationRequest, {
               initialOpenRequest: null,
               strings: consultationStrings,
@@ -847,8 +845,6 @@ const surfaces = [
           // Карточка студента (03.11.2026): круг с инициалами, имя, почта, «Выйти», ссылка.
           createElement(ProfileHero, {
             displayName: "Айбек Токтогулов",
-            email: "student@example.invalid",
-            emailLabel: profileStrings.emailLabel,
             chips: ["Малайзия", `${admission.stageTerm}: ${admission["stage.applications"]}`],
             action: createElement(
               "form",
@@ -866,6 +862,8 @@ const surfaces = [
           createElement(
             "div",
             { className: "pt-profile-sections" },
+            // «Контакты и доступ»: строки почты, телефона, языка и часового пояса.
+            createElement(ProfileContacts, { email: "student@example.invalid", phone: "+996 555 000 000", locale: "ru" }),
             ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
               createElement(
                 "section",

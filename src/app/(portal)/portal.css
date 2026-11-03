@@ -609,11 +609,6 @@
   .pt-nav-list > li[data-rail-hidden] {
     display: none;
   }
-
-  /* Язык на широком экране — переключатель внизу рейла; карточка «Профиля» не нужна. */
-  .pt-profile-card.pt-profile-card-phone {
-    display: none;
-  }
 }
 
 .pt-lang-switch {
@@ -1472,56 +1467,84 @@
   max-width: 60ch;
 }
 
-/* Язык: подсказка сверху, выбор и «Сохранить» — одной строкой. */
+/*
+ * «Контакты и доступ»: строки «подпись — значение» во всю ширину карточки,
+ * волосяная линия между строками; на телефоне подпись над значением.
+ */
+.pt-profile-rows {
+  margin: -12px -24px 0;
+}
+
+.pt-profile-row {
+  display: grid;
+  gap: 4px;
+  padding: 14px 24px;
+}
+
+.pt-profile-row + .pt-profile-row {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-profile-row dt {
+  color: var(--pt-text-2);
+}
+
+.pt-profile-row dd {
+  margin: 0;
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.pt-profile-row dd[data-empty] {
+  color: var(--pt-text-2);
+  font-weight: 400;
+}
+
+.pt-profile-row-hint {
+  display: block;
+  font-size: var(--pt-size-caption);
+}
+
+/* Язык: на телефоне переключатель (низа рейла там нет), шире — значение. */
+.pt-profile-lang-value {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .pt-profile-lang-value {
+    display: inline;
+  }
+
+  .pt-profile-lang-control {
+    display: none;
+  }
+}
+
+/* Кто видит данные: тихая плашка под строками, как у ориентира. */
+.pt-profile-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-profile-note .pt-profile-icon {
+  margin-top: 1px;
+  color: var(--pt-text-2);
+}
+
 @media (min-width: 640px) {
-  .pt-profile-card .pt-profile-language {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+  .pt-profile-row {
+    grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
     align-items: center;
-    gap: 8px 16px;
+    gap: 16px;
   }
-
-  .pt-profile-card .pt-profile-language > .pt-profile-hint {
-    grid-column: 1 / -1;
-  }
-}
-
-.pt-profile-language {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.pt-profile-language-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-}
-
-.pt-profile-language-option {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 44px;
-  cursor: pointer;
-}
-
-.pt-profile-language-option input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--pt-accent);
-}
-
-.pt-profile-language-submit {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  align-items: center;
-}
-
-.pt-profile-status {
-  color: var(--pt-ok);
-  font-size: var(--pt-size-secondary);
 }
 
 .pt-profile-deletion {
@@ -4858,7 +4881,6 @@ main.pt-page > .pt-card {
 
 .pt-btn:disabled,
 .pt-btn-ghost:disabled,
-.pt-profile-language-submit .pt-btn[aria-disabled="true"],
 .pt-lesson-actions .pt-btn[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.55;

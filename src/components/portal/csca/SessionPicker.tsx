@@ -108,7 +108,9 @@ export function SessionPicker({
 
   return (
     <section id="cs-sessions" className="cs-panel cs-sessions-panel" aria-labelledby="cs-sessions-title">
-      <h3 id="cs-sessions-title" className="cs-panel-title">{strings.sessionsHeading}</h3>
+      <h2 id="cs-sessions-title" className="cs-panel-title">
+        {strings.sessionsHeading} <span className="cs-count">{ordered.length}</span>
+      </h2>
       <p className="cs-panel-lead">
         {formatPortalString(strings.sessionsLead, { date: verifiedLabel })}
       </p>

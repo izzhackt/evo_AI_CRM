@@ -10,18 +10,11 @@ import {
   CSCA_OVERVIEW_FORBIDDEN,
   CSCA_OVERVIEW_PHOTOS,
   cscaGroupFacts,
-  cscaHasStarted,
   cscaMinutesLabel,
   cscaScoreRangeLabel,
   parseCscaOverview,
   parseCscaOverviewPhotos,
 } from "../src/lib/portal/csca-overview.ts";
-import {
-  CSCA_OVERVIEW_COOKIE,
-  CSCA_OVERVIEW_COOKIE_PATH,
-  cscaOverviewOpen,
-  parseCscaOverviewChoice,
-} from "../src/lib/portal/csca-overview-choice.ts";
 import { cscaTopicNextLessons, cscaWeakTopicLesson, parseCscaHome } from "../src/lib/portal/csca.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { closesInLabel, sessionLabels, sessionRegistration } from "../src/components/portal/csca/session-labels.ts";
@@ -191,44 +184,23 @@ test("photo files match the manifest, stay under 600 KB and are bundled by stati
   assert.doesNotMatch(overview, /<figcaption/u);
 });
 
-test("returning students get the compact overview, new students the full one", () => {
-  const home = parseCscaHome(fixture("track-home"));
-  assert.equal(cscaHasStarted(home), true);
-  const fresh = {
-    ...home,
-    topics: home.topics.map((topic) => ({ ...topic, windowAnswers: 0, windowCorrect: 0, lessonCompleted: false, state: "not_started" })),
-    lessons: home.lessons.map((lesson) => ({ ...lesson, completed: false, draftAttemptId: null, lastResult: null })),
-    tests: home.tests.map((entry) => ({ ...entry, draft: null, lastResult: null })),
-    review: { dueCount: 0, activeCount: 0, nextDueOn: null },
-  };
-  assert.equal(cscaHasStarted(fresh), false);
-  assert.equal(cscaHasStarted({ ...fresh, review: { dueCount: 0, activeCount: 1, nextDueOn: "2026-10-18" } }), true);
-  const sheet = read("src/components/portal/csca/OverviewSheet.tsx");
-  assert.match(sheet, /aria-expanded=\{open\}/u);
+test("the CSCA page is two link tabs: the exam overview first and by default, lessons on ?view=lessons", () => {
+  // 03.11.2026: the collapsible overview and its cookie are gone; «Об экзамене» is its own tab.
   const page = read("src/app/(portal)/portal/csca/page.tsx");
-  assert.ok(page.indexOf("<CscaOverview") < page.indexOf("<NextStep"), "the overview comes before the module");
-  assert.match(page, /started=\{home !== null && cscaHasStarted\(home\)\}/u);
-});
-
-test("the viewer's open or collapsed choice is a cookie the server reads, so nothing jumps after hydration", () => {
-  assert.equal(CSCA_OVERVIEW_COOKIE, "csca_overview");
-  assert.equal(CSCA_OVERVIEW_COOKIE_PATH, "/portal");
-  assert.deepEqual(["open", "closed", "", "OPEN", "1", undefined, null].map(parseCscaOverviewChoice), ["open", "closed", null, null, null, null, null]);
-  // No choice: new students see it open, returning ones collapsed; a choice always wins.
-  assert.deepEqual([[null, false], [null, true], ["open", true], ["closed", false]].map(([choice, started]) => cscaOverviewOpen(choice, started)),
-    [true, false, true, false]);
-  const page = read("src/app/(portal)/portal/csca/page.tsx");
-  assert.match(page, /choice=\{parseCscaOverviewChoice\(cookieStore\.get\(CSCA_OVERVIEW_COOKIE\)\?\.value\)\}/u);
-  const sheet = read("src/components/portal/csca/OverviewSheet.tsx");
-  // The hydration snapshot is the server's cookie value, the client reads the same cookie: one render, no shift.
-  assert.match(sheet, /useSyncExternalStore\(subscribeChoice, readChoice, \(\) => initialChoice \?\? ""\)/u);
-  assert.match(sheet, /path=\$\{CSCA_OVERVIEW_COOKIE_PATH\}; max-age=\$\{CSCA_OVERVIEW_COOKIE_MAX_AGE\}; samesite=lax/u);
-  assert.doesNotMatch(sheet, /localStorage/u);
+  assert.match(page, /const view = params\.view === "lessons" \? "lessons" : "about";/u);
+  assert.match(page, /href="\/portal\/csca" aria-current=\{view === "about" \? "page" : undefined\}/u);
+  assert.match(page, /href="\/portal\/csca\?view=lessons" aria-current=\{view === "lessons" \? "page" : undefined\}/u);
+  assert.ok(page.indexOf('strings["tab.about"]') < page.indexOf('strings["tab.lessons"]'), "the overview tab comes first");
+  assert.ok(page.indexOf("<h1") < page.indexOf("<nav"), "one page title above the tabs");
+  assert.doesNotMatch(page, /csca_overview|cookies\(\)/u);
   const overview = read("src/components/portal/csca/Overview.tsx");
-  // The image of the first paint loads first: the hero when open, the thumbnail when collapsed.
-  assert.match(overview, /const openAtLoad = cscaOverviewOpen\(choice, started\);/u);
-  assert.match(overview, /eager=\{openAtLoad\}/u);
-  assert.match(overview, /<Thumb photo=\{hero\} eager=\{!openAtLoad\} \/>/u);
+  assert.doesNotMatch(overview, /OverviewSheet|<h1/u);
+  // The sessions calendar sits in the overview tab, the FAQ answer about dates links to it.
+  assert.match(overview, /\{sessions\}/u);
+  assert.match(page, /<SessionPicker/u);
+  const lessons = read("src/components/portal/csca/LessonsView.tsx");
+  assert.ok(lessons.indexOf("<NextStep") < lessons.indexOf("<Program"), "the next step comes before the program");
+  assert.match(lessons, /<details key=\{section\.section\} className="cs-mod" open=\{index === openIndex\}>/u);
 });
 
 test("narrow screens show a group's shared facts once, subjects keep only what differs", () => {

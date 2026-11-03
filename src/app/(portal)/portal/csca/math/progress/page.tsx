@@ -32,7 +32,7 @@ export default async function CscaProgressPage() {
   const header = (
     <header className="cs-lesson-header">
       <p className="cs-back-row">
-        <Link className="cs-back" href="/portal/csca">
+        <Link className="cs-back" href="/portal/csca?view=lessons">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M10 3.5 5.5 8 10 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

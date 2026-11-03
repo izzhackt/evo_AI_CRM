@@ -10,15 +10,11 @@ import {
   type BoardSegment,
 } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect, type NavigateOption } from "@/components/v3/board/BoardToolbar";
-import { Pipeline } from "@/components/v3/Pipeline";
 import { PipelineClosedNextLazy, PipelineNextLazy } from "@/components/v3/pipeline-next/PipelineNextLazy";
 import { ClosedLeadsList } from "@/components/v3/closure/ClosedLeadsList";
-import { Icon } from "@/components/icons";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
-import { PartShell } from "@/components/v3/PartShell";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isStaffPreview } from "@/lib/platform-access";
-import { isNextUi } from "@/lib/ui-next";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { parseClosedLeadsCursor, readClosedLeads, type ClosedLeadsPage } from "@/lib/platform-closure";
 import { closureWords } from "@/lib/v3/wording";
@@ -240,67 +236,27 @@ export default async function PipelinePart({
   ) : null;
 
   // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — вкладки этапов, колонки-карточки и панель лида.
-  if (await isNextUi(actor)) {
-    return (
-      <ManualLeadDisclosure>
-        <PipelineNextLazy
-          count={workingCount}
-          actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
-          form={canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
-            owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : undefined}
-          toolbar={toolbar}
-          notes={<>{ownersNote}{truncatedNote}</>}
-          stages={stages}
-          leads={leads}
-          filteredStage={query.stage}
-          ownerOptions={ownerRows}
-          ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
-          actor={actor}
-          actorMembershipId={actor.membershipId}
-          requestIds={requestIds}
-          handedExpanded={query.handed === "all"}
-          showOwner={query.assignment !== "mine"}
-          today={dayInOrganizationTimezone(new Date())}
-        />
-      </ManualLeadDisclosure>
-    );
-  }
-
   return (
     <ManualLeadDisclosure>
-      <PartShell
-        width="board"
-        title="Воронка продаж"
+      <PipelineNextLazy
         count={workingCount}
-        action={canCreateLead ? <ManualLeadTrigger /> : undefined}
-      >
-      {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
-        owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
-
-      {toolbar}
-
-      {ownersNote}
-
-      {truncatedNote}
-
-      {/* Доска занимает оставшуюся высоту: на широком экране прокручиваются
-          колонки, на узком (список этапов) — эта область. */}
-      <div className="mt-3 flex min-w-0 flex-col md:min-h-[320px] md:flex-1 md:overflow-y-auto @6xl:overflow-visible">
-        <Pipeline
-          stages={stages}
-          leads={leads}
-          filteredStage={query.stage}
-          ownerOptions={ownerRows}
-          ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
-          actor={actor}
-          actorMembershipId={actor.membershipId}
-          requestIds={requestIds}
-          handedExpanded={query.handed === "all"}
-          showOwner={query.assignment !== "mine"}
-          today={dayInOrganizationTimezone(new Date())}
-        />
-      </div>
-      </PartShell>
+        actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
+        form={canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
+          owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : undefined}
+        toolbar={toolbar}
+        notes={<>{ownersNote}{truncatedNote}</>}
+        stages={stages}
+        leads={leads}
+        filteredStage={query.stage}
+        ownerOptions={ownerRows}
+        ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
+        actor={actor}
+        actorMembershipId={actor.membershipId}
+        requestIds={requestIds}
+        handedExpanded={query.handed === "all"}
+        showOwner={query.assignment !== "mine"}
+        today={dayInOrganizationTimezone(new Date())}
+      />
     </ManualLeadDisclosure>
   );
 }
@@ -338,24 +294,7 @@ async function closedLeadsPart(actor: ActivePlatformActor, params: SearchParams)
   );
   const closedCount = page && cursor === null && page.nextCursor === null ? page.rows.length : null;
   // «Новый вид» (переключатель администратора): тот же список, рамка нового вида с возвратом к доске.
-  if (await isNextUi(actor)) {
-    return <PipelineClosedNextLazy title={closureWords.lead.closedListTitle} count={closedCount} backLabel={closureWords.lead.backToBoard}>{list}</PipelineClosedNextLazy>;
-  }
-  return (
-    <PartShell
-      title={closureWords.lead.closedListTitle}
-      count={closedCount}
-      back={
-        <Link href="/v3/pipeline" className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
-          <Icon name="arrow-left" size={16} />
-          {closureWords.lead.backToBoard}
-        </Link>
-      }
-      dense
-    >
-      {list}
-    </PartShell>
-  );
+  return <PipelineClosedNextLazy title={closureWords.lead.closedListTitle} count={closedCount} backLabel={closureWords.lead.backToBoard}>{list}</PipelineClosedNextLazy>;
 }
 
 function allChoice(active: boolean, href: string): FilterChoice {

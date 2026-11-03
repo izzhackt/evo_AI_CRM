@@ -59,12 +59,8 @@ function chatPage(runtimeEnv, authorize = async () => ({
   const { default: page } = loadSource("src/app/(v3)/v3/team-chat/page.tsx", {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "next/navigation": { notFound() { throw new Error("not_found"); } },
-    "@/components/ui": { Card: "Card" },
-    "@/components/v3/PartShell": { PartShell: "PartShell" },
-    "@/components/v3/team-chat/TeamChat": { TeamChat: "TeamChat" },
-    // «Новый вид»: страница спрашивает переключатель; у этого теста он выключен — рисуется прежний `TeamChat`.
+    // «Новый вид» — единственный вид (#1327): страница отдаёт чат ленивому входу вместе с публичной конфигурацией.
     "@/components/v3/team-chat/next/TeamChatNextLazy": { TeamChatNextLazy: "TeamChatNextLazy", TeamChatNextFailureLazy: "TeamChatNextFailureLazy" },
-    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/platform-guards": { requireV3PageActor: authorize },
     "@/lib/platform-team-chat": loadSource("src/lib/platform-team-chat.ts"),
     "@/lib/server/platform-team-chat-repository": { TeamChatReadError: class extends Error {} },
@@ -81,9 +77,9 @@ test("authenticated chat receives only validated runtime public config without b
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_test",
     EVO_PLATFORM_SUPABASE_SECRET_KEY: "sb_secret_never_serialize",
   })();
-  assert.equal(page.props.children.type, "TeamChat");
-  assert.ok(page.props.children.props.realtimeConfig, "The authenticated server page must supply runtime public config");
-  assert.deepEqual(JSON.parse(JSON.stringify(page.props.children.props.realtimeConfig)), {
+  assert.equal(page.type, "TeamChatNextLazy");
+  assert.ok(page.props.realtimeConfig, "The authenticated server page must supply runtime public config");
+  assert.deepEqual(JSON.parse(JSON.stringify(page.props.realtimeConfig)), {
     url: "https://evo-test.supabase.co", publishableKey: "sb_publishable_runtime_test",
   });
   assert.doesNotMatch(JSON.stringify(page), /sb_secret_|EVO_PLATFORM_SUPABASE_SECRET_KEY/u);

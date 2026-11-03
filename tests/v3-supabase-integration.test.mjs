@@ -229,7 +229,7 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   // student-documents list must say so, never pretend to be complete — is
   // still enforced here by the same studentDocuments.complete flag and a
   // role="alert" notice with the same warning text.
-  assert.match(knowledgePage, /<KnowledgeDocuments actor=\{actor\} embedded \/>/);
+  assert.match(knowledgePage, /<KnowledgeDocuments actor=\{actor\} embedded next \/>/);
   assert.match(
     knowledgeDocuments,
     /\{!studentDocuments\.complete && <p role="alert" className="[^"]*">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране\.<\/p>\}/,

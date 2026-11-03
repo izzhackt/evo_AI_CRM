@@ -15,9 +15,10 @@ test("«Сегодня» is the one start page of every role and replaces the op
   // Э3 (26.09.2026): /v3/main is «Сегодня» for every role — Admissions is no
   // longer redirected to its board — and the release smoke finds the page
   // root by the same test id. The queue reads only existing sources.
-  assert.match(main, /testId="v3-operational-dashboard"/u);
+  // С #1327 корень страницы с этим test id рисует «Новый вид» («Сегодня»), страница отдаёт ему очередь.
+  assert.match(source("src/components/v3/today-next/TodayNextPage.tsx"), /testId="v3-operational-dashboard"/u);
   assert.match(main, /readTodayQueue\(actor, \{ now, callsTab: /u);
-  assert.match(main, /<TodayScreen\b/u);
+  assert.match(main, /<TodayNextLazy\b/u);
   assert.doesNotMatch(main, /redirect\("\/v3\/admissions-pipeline"\)/u);
   assert.doesNotMatch(main, /OperationsOverview|readV3OperationalDashboard|readCurrentSalesFunnel|TrendChart|MetricCard/u);
   // Charts, period and funnel live in the report's «Динамика по дням».

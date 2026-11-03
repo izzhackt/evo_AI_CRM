@@ -1,9 +1,8 @@
-// «Новый вид» (решение владельца 27.10.2026), фундамент F: правило переключателя, cookie, layout, права страницы
-// набора виджетов, виджеты набора и граница «новый вид только администратору». Данные — синтетические. Живые
-// снимки, фокус и доступность виджетов меряет tests/e2e/ui-kit-static-render.cjs; разметку прежней оболочки —
-// tests/v3-shell.test.mjs (оболочка без переключателя байт в байт та же, что до этого изменения).
+// «Новый вид» (решение владельца 27.10.2026), фундамент F: layout, права страницы набора виджетов, виджеты набора.
+// С 03.11.2026 (#1327) переключателя нет: новый вид — единственный вид каждой роли, корень всегда `data-ui="next"`.
+// Данные — синтетические. Живые снимки, фокус и доступность виджетов меряет tests/e2e/ui-kit-static-render.cjs.
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -15,9 +14,6 @@ import { FIXED_ROLE_ROUTES, fixedRoleCanAccessRoute } from "../src/lib/fixed-rol
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
 import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 import { v3SectionTitle } from "../src/lib/v3/navigation.ts";
-import {
-  canUseNextUi, isNextUiFor, nextUiReturnPath, NEXT_UI_COOKIE, NEXT_UI_COOKIE_MAX_AGE_SECONDS, NEXT_UI_COOKIE_VALUE,
-} from "../src/lib/ui-next-contract.ts";
 
 const require = createRequire(import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -52,137 +48,46 @@ const ADMIN = actor();
 const STAFF = actor({ systemRole: "staff", permissionKeys: ["lead.read"] });
 const PREVIEW = actor({ presentationRole: "sales" });
 
-/* ---------------------------------------------------------------- правило переключателя */
+/* ---------------------------------------------------------------- переключателя больше нет (#1327) */
 
-test("«Новый вид» видит только настоящий администратор вне просмотра роли, и только с cookie evo_ui=next", () => {
-  assert.equal(NEXT_UI_COOKIE, "evo_ui");
-  assert.equal(NEXT_UI_COOKIE_VALUE, "next");
-  assert.equal(canUseNextUi(ADMIN), true);
-  assert.equal(canUseNextUi(PREVIEW), false, "просмотр роли — не настоящий администратор");
-  assert.equal(canUseNextUi(STAFF), false);
-  assert.equal(isNextUiFor(ADMIN, "next"), true);
-  for (const value of [undefined, null, "", "on", "NEXT", "next ", "1", "legacy"]) assert.equal(isNextUiFor(ADMIN, value), false, String(value));
-  for (const cookie of ["next", undefined]) {
-    assert.equal(isNextUiFor(PREVIEW, cookie), false, `preview ${cookie}`);
-    assert.equal(isNextUiFor(STAFF, cookie), false, `staff ${cookie}`);
+test("переключателя «Новый вид» нет: файлы удалены, ни в одном исходнике нет cookie evo_ui, isNextUi и NextUiToggle", () => {
+  for (const gone of ["src/lib/ui-next.ts", "src/lib/ui-next-contract.ts", "src/lib/ui-next-actions.ts", "src/components/v3/NextUiToggle.tsx"]) {
+    assert.ok(!existsSync(new URL(`../${gone}`, import.meta.url)), gone);
   }
-  for (const presentationRole of ["sales", "admissions"]) assert.equal(isNextUiFor(actor({ presentationRole }), "next"), false, presentationRole);
-  assert.ok(NEXT_UI_COOKIE_MAX_AGE_SECONDS > 0 && NEXT_UI_COOKIE_MAX_AGE_SECONDS <= 60 * 60 * 24 * 365);
+  const walk = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) => (
+    entry.isDirectory() ? walk(`${dir}/${entry.name}`) : /\.(?:ts|tsx)$/.test(entry.name) ? [`${dir}/${entry.name}`] : []));
+  for (const file of walk("src")) assert.doesNotMatch(read(file), /\bisNextUi\b|\bcanUseNextUi\b|NextUiToggle|setNextUiAction|["']evo_ui["']|next-ui-toggle/u, file);
 });
 
-test("адрес возврата после переключения — только внутри /v3, иначе «Сегодня»", () => {
-  for (const ok of ["/v3/main", "/v3/tasks?view=mine&page=2", "/v3/profile?id=20000000-0000-4000-8000-000000000001", "/v3", "/v3/ui-kit?tab=history"]) assert.equal(nextUiReturnPath(ok), ok);
-  for (const bad of ["https://evil.example/v3/main", "//evil.example", "/v3//evil", "/v3/../login", "/login", "v3/main", "/v3/main\nSet-Cookie: x=1", "javascript:alert(1)", "", null, undefined, 5, "/v3/" + "a".repeat(700)]) assert.equal(nextUiReturnPath(bad), "/v3/main", String(bad).slice(0, 30));
-});
+/* ---------------------------------------------------------------- layout: один вид у всех */
 
-test("isNextUi читает cookie запроса и повторяет правило (настоящая функция, граница next/headers подменена)", async () => {
-  const run = (cookie) => loader({ "next/headers": { cookies: async () => ({ get: (name) => (name === NEXT_UI_COOKIE && cookie !== undefined ? { name, value: cookie } : undefined) }) } })("src/lib/ui-next.ts").isNextUi;
-  assert.equal(await run("next")(ADMIN), true);
-  assert.equal(await run(undefined)(ADMIN), false);
-  assert.equal(await run("other")(ADMIN), false);
-  assert.equal(await run("next")(PREVIEW), false, "в просмотре роли cookie не работает");
-  assert.equal(await run("next")(STAFF), false, "сотрудник с чужой cookie не получает новый вид");
-});
-
-/* ---------------------------------------------------------------- действие переключателя */
-
-function actionHarness(result) {
-  const cookiesSet = [];
-  const cookiesDeleted = [];
-  const store = { set: (...args) => cookiesSet.push(args), delete: (name) => cookiesDeleted.push(name) };
-  const redirects = [];
-  const actions = loader({
-    "next/headers": { cookies: async () => store },
-    "next/navigation": { redirect: (destination) => { redirects.push(destination); throw Object.assign(new Error("NEXT_REDIRECT"), { destination }); } },
-    "./platform-auth": { resolvePlatformActor: async () => result },
-  })("src/lib/ui-next-actions.ts");
-  const call = async (...args) => { try { await actions.setNextUiAction(...args); } catch (error) { if (error.message !== "NEXT_REDIRECT") throw error; } };
-  return { call, cookiesSet, cookiesDeleted, redirects };
-}
-
-test("действие переключателя пишет cookie только настоящему администратору и возвращает на ту же страницу", async () => {
-  const on = actionHarness({ status: "authenticated", actor: ADMIN });
-  await on.call(true, "/v3/tasks?view=mine");
-  assert.equal(on.cookiesSet.length, 1);
-  const [name, value, options] = on.cookiesSet[0];
-  assert.deepEqual([name, value], ["evo_ui", "next"]);
-  assert.deepEqual(options, { httpOnly: true, sameSite: "lax", secure: false, path: "/", maxAge: NEXT_UI_COOKIE_MAX_AGE_SECONDS });
-  assert.deepEqual(on.redirects, ["/v3/tasks?view=mine"]);
-
-  const off = actionHarness({ status: "authenticated", actor: ADMIN });
-  await off.call(false, "/v3/main");
-  assert.deepEqual(off.cookiesDeleted, ["evo_ui"]);
-  assert.equal(off.cookiesSet.length, 0);
-  assert.deepEqual(off.redirects, ["/v3/main"]);
-
-  const odd = actionHarness({ status: "authenticated", actor: ADMIN });
-  await odd.call("true", "https://evil.example/");
-  assert.equal(odd.cookiesSet.length, 0, "только настоящее true включает");
-  assert.deepEqual(odd.cookiesDeleted, ["evo_ui"]);
-  assert.deepEqual(odd.redirects, ["/v3/main"], "внешний адрес возврата заменён");
-
-  for (const [label, result, destination] of [
-    ["staff", { status: "authenticated", actor: STAFF }, "/access-denied?from=%2Fv3%2Fui-kit"],
-    ["admin preview", { status: "authenticated", actor: PREVIEW }, "/access-denied?from=%2Fv3%2Fui-kit"],
-    ["anonymous", { status: "anonymous", actor: null }, "/login"],
-    ["invalid session", { status: "invalid", actor: null, reason: "supabase_session_invalid" }, "/login"],
-  ]) {
-    const denied = actionHarness(result);
-    await denied.call(true, "/v3/main");
-    assert.equal(denied.cookiesSet.length + denied.cookiesDeleted.length, 0, `${label}: cookie не тронута`);
-    assert.deepEqual(denied.redirects, [destination], label);
-  }
-});
-
-/* ---------------------------------------------------------------- layout: режим и переключатель */
-
-function renderLayout(who, cookie) {
-  const seen = { nextUi: "unset" };
+function renderLayout(who) {
+  const seen = { props: null };
   const load = loader({
-    "next/headers": { cookies: async () => ({ get: (name) => (name === NEXT_UI_COOKIE && cookie !== undefined ? { name, value: cookie } : undefined) }) },
     "@/lib/platform-guards": { requirePlatformStaffActor: async () => who },
     "@/lib/release-metadata": { readReleaseMetadata: () => ({ status: "unavailable" }) },
     "@/lib/v3/account-deletion-source": { readOpenAccountDeletionCount: async () => null },
     "@/lib/v3/staff-notification-source": { readStaffNotificationsForActor: async () => null },
+    "@/lib/v3/report-links-source": { readFinanceSectionAccess: async () => false },
     "@/components/ServerReleaseMark": { ServerReleaseMark: () => null },
-    "@/components/v3/AppShell": { AppShell: (props) => { seen.nextUi = props.nextUi; return createElement("div", { "data-shell": "" }, props.children); } },
+    "@/components/v3/AppShell": { AppShell: (props) => { seen.props = props; return createElement("div", { "data-shell": "" }, props.children); } },
   });
   return load("src/app/(v3)/layout.tsx").default({ children: createElement("main", null, "страница") }).then((tree) => ({ html: renderToStaticMarkup(tree), seen }));
 }
 
-test("layout ставит data-ui=next и отдаёт переключатель только настоящему администратору; всем остальным разметка прежняя", async () => {
-  const legacyRoot = '<div class="v3-world" data-surface="staff"><div data-shell="">';
-  const adminOn = await renderLayout(ADMIN, "next");
-  assert.match(adminOn.html, /^<div class="v3-world" data-surface="staff" data-ui="next">/);
-  assert.deepEqual(adminOn.seen.nextUi, { enabled: true });
-
-  const adminOff = await renderLayout(ADMIN, undefined);
-  assert.ok(adminOff.html.startsWith(legacyRoot), "выключено: корень без data-ui");
-  assert.deepEqual(adminOff.seen.nextUi, { enabled: false }, "переключатель виден, чтобы включить");
-
-  for (const [label, who] of [["staff", STAFF], ["admin preview", PREVIEW]]) {
-    for (const cookie of ["next", undefined]) {
-      const rendered = await renderLayout(who, cookie);
-      assert.ok(rendered.html.startsWith(legacyRoot), `${label} cookie=${cookie}: корень прежний`);
-      assert.equal(rendered.seen.nextUi, null, `${label} cookie=${cookie}: переключателя нет`);
-    }
+test("layout ставит data-ui=next каждому сотруднику (администратор, роль, просмотр роли), оболочка не получает свойства переключателя", async () => {
+  for (const [label, who] of [["admin", ADMIN], ["staff", STAFF], ["admin preview", PREVIEW]]) {
+    const rendered = await renderLayout(who);
+    assert.match(rendered.html, /^<div class="v3-world" data-surface="staff" data-ui="next">/, label);
+    assert.ok(!("nextUi" in rendered.seen.props), `${label}: свойства nextUi нет`);
   }
 });
 
-test("оболочка рисует строку переключателя только по `nextUi`, а в исходниках нет других путей к нему", () => {
+test("оболочка не рисует переключатель; ссылка «Набор виджетов» — только настоящему администратору вне просмотра роли", () => {
   const shell = read("src/components/v3/AppShell.tsx");
-  assert.match(shell, /\{nextUi \? \(/);
-  assert.match(shell, /<NextUiToggle enabled=\{nextUi\.enabled\}/);
-  assert.match(shell, /nextUi = null,/, "по умолчанию строки нет");
-  const toggle = read("src/components/v3/NextUiToggle.tsx");
-  assert.match(toggle, /role="switch"/);
-  assert.match(toggle, /aria-checked=\{enabled\}/);
-  assert.match(toggle, /setNextUiAction\(!enabled, returnTo\)/);
-  assert.doesNotMatch(toggle, /@\/components\/ui\/(?:switch|button)/, "строка в оболочке не зависит от токенов нового вида");
-  const action = read("src/lib/ui-next-actions.ts");
-  assert.match(action, /resolvePlatformActor\(\)/);
-  assert.match(action, /canUseNextUi\(result\.actor\)/);
-  assert.match(read("src/lib/ui-next.ts"), /isNextUiFor\(actor, \(await cookies\(\)\)\.get\(NEXT_UI_COOKIE\)\?\.value\)/);
+  assert.doesNotMatch(shell, /nextUi|NextUiToggle/);
+  assert.match(shell, /actor\.systemRole === "admin" && !previewing \? \(/);
+  assert.match(shell, /href="\/v3\/ui-kit"/);
 });
 
 /* ---------------------------------------------------------------- страница набора виджетов */
@@ -202,23 +107,17 @@ test("«/v3/ui-kit» — маршрут политики ролей только
   assert.equal(v3SectionTitle("/v3/ui-kit"), "Набор виджетов", "вкладка браузера называет страницу, пункта меню у неё нет");
 });
 
-test("страница набора: гвард маршрута, при выключенном переключателе — строка, при включённом — набор", async () => {
+test("страница набора: гвард маршрута и сам набор без переключателя", async () => {
   const guards = [];
-  const render = async (cookie, who = ADMIN) => {
-    const load = loader({
-      "next/headers": { cookies: async () => ({ get: (name) => (name === NEXT_UI_COOKIE && cookie !== undefined ? { name, value: cookie } : undefined) }) },
-      "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return who; } },
-    });
-    const page = load("src/app/(v3)/v3/ui-kit/page.tsx").default;
-    return renderToStaticMarkup(await page({ searchParams: Promise.resolve({ tab: "history" }) }));
-  };
-  const off = await render(undefined);
-  assert.match(off, /data-testid="v3-ui-kit-off"/);
-  assert.doesNotMatch(off, /data-testid="v3-ui-kit"/);
-  const on = await render("next");
-  assert.match(on, /data-testid="v3-ui-kit"/);
-  assert.match(on, /aria-current="page"[^>]*>История/, "?tab=history выбирает вкладку-ссылку");
-  assert.deepEqual(guards, ["/v3/ui-kit", "/v3/ui-kit"]);
+  const load = loader({
+    "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return ADMIN; } },
+  });
+  const page = load("src/app/(v3)/v3/ui-kit/page.tsx").default;
+  const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ tab: "history" }) }));
+  assert.match(html, /data-testid="v3-ui-kit"/);
+  assert.doesNotMatch(html, /v3-ui-kit-off/);
+  assert.match(html, /aria-current="page"[^>]*>История/, "?tab=history выбирает вкладку-ссылку");
+  assert.deepEqual(guards, ["/v3/ui-kit"]);
   assert.match(read("src/app/(v3)/v3/ui-kit/page.tsx"), /requireV3PageActor\("\/v3\/ui-kit"\)/);
 });
 
@@ -554,5 +453,5 @@ test("DESIGN.md: карточка лида не называет очередь 
   assert.match(design, /Очередь «Студенты» и EVO Docs — раздел «Новый вид: «Студенты»,\nEVO Docs и «Университеты»» ниже; остальные вкладки и закрытый лид — его подраздел «Остальные вкладки карточки»\./u);
   assert.match(design, /^## Новый вид: «Студенты», EVO Docs и «Университеты»/mu, "раздел, на который ссылается карточка, есть");
   assert.match(design, /^### Остальные вкладки карточки/mu, "подраздел, на который ссылается карточка, есть");
-  assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /if \(nextUi && queueInput\) return <StudentsNextLazy /u, "и страница правда рисует очередь новым видом");
+  assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /if \(queueInput\) return <StudentsNextLazy /u, "и страница правда рисует очередь новым видом");
 });

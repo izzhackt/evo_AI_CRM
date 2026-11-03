@@ -37,7 +37,7 @@ function loader(overrides = {}) {
     } }).outputText;
     const compiled = { exports: {} };
     cache.set(path, compiled);
-    const resolveFile = (base) => [`${base}.ts`, `${base}.tsx`, base].find((file) => existsSync(new URL(`../${file}`, import.meta.url)) && /\.tsx?$/.test(file));
+    const resolveFile = (base) => [`${base}.ts`, `${base}.tsx`, base, `${base}/index.ts`, `${base}/index.tsx`].find((file) => existsSync(new URL(`../${file}`, import.meta.url)) && /\.tsx?$/.test(file));
     new Function("require", "module", "exports", code)((id) => {
       if (id in overrides) return overrides[id];
       if (id === "server-only") return {};
@@ -497,11 +497,11 @@ async function financePage(actor, readResult) {
   const reads = [];
   const load = loader({
     "@/lib/platform-guards": guardsFor(actor),
-    // «Новый вид» вне запроса cookie не читает: страница тут проверяется в прежнем виде.
-    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/report-links-source": { readReportLink: async (a, key) => { reads.push([a === actor, key]); return readResult; } },
   });
-  const html = renderToStaticMarkup(await load("src/app/(v3)/v3/finance/page.tsx").default());
+  // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`.
+  const element = await load("src/app/(v3)/v3/finance/page.tsx").default();
+  const html = renderToStaticMarkup(createElement(load("src/components/v3/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
   return { html, reads };
 }
 
@@ -530,8 +530,8 @@ test("«Финансы», connected: the window block with the exact address, th
   assert.equal(link?.[1], OPEN(REPORT, PAGE));
   assert.match(adminPage.html, /<a [^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>|<a [^>]*rel="noopener noreferrer"[^>]*target="_blank"[^>]*>/u);
   assert.match(adminPage.html, /aria-label="Открыть в новой вкладке: отчёт Looker Studio"/u, "the accessible name starts with the visible words");
-  assert.match(adminPage.html, /Отчёт виден только тем Google-аккаунтам, которым его открыли\./u);
-  assert.match(adminPage.html, /В Safari и на iPhone отчёт обычно открывается только так\./u);
+  // «Новый вид»: эти два пояснения стоят за «?» (в разметке закрытого окна их нет), текст живёт в исходнике экрана.
+  assert.match(read("src/components/v3/reports-next/LookerReportNext.tsx"), /В Safari и на iPhone он обычно открывается только в новой вкладке/u);
   assert.match(adminPage.html, /data-testid="v3-looker-phone"/u);
   assert.match(adminPage.html, /Отчёт удобнее открыть отдельно/u);
   assert.doesNotMatch(adminPage.html, /<iframe/u, "the server never draws the window: it is mounted on the client from 768 px");
@@ -563,7 +563,6 @@ async function marketingPage(readResult, query = {}) {
   const spy = (name) => async () => { spies.push(name); return { status: "unavailable" }; };
   const load = loader({
     "@/lib/platform-guards": guardsFor(admin, calls),
-    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/marketing-source": {
       readMarketingOverview: spy("overview"), readMarketingLeads: spy("leads"), readMarketingRecent: async () => { spies.push("recent"); return null; },
       requireMarketingAdmin: () => undefined,
@@ -574,7 +573,9 @@ async function marketingPage(readResult, query = {}) {
     "@/components/v3/marketing/MarketingLeadsView": { MarketingLeadsView: () => createElement("div", { "data-stub": "leads" }) },
     "@/components/v3/MainHeader": { MainHeader: () => createElement("div", { "data-stub": "period" }) },
   });
-  const html = renderToStaticMarkup(await load("src/app/(v3)/v3/marketing/page.tsx").default({ searchParams: Promise.resolve(query) }));
+  // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `MarketingNextPage`.
+  const element = await load("src/app/(v3)/v3/marketing/page.tsx").default({ searchParams: Promise.resolve(query) });
+  const html = renderToStaticMarkup(createElement(load("src/components/v3/marketing-next/MarketingNextPage.tsx").MarketingNextPage, element.props));
   return { html, spies, calls };
 }
 const tabs = (html) => [...html.matchAll(/<a [^>]*href="(\/v3\/marketing[^"]*)"[^>]*>([^<]*)/gu)].map((match) => [match[1], match[2].trim()]);
@@ -589,9 +590,8 @@ test("«Маркетинг → Отчёты»: the tab is drawn only when a link
     assert.equal(tabs(without.html).some(([, label]) => label === "Отчёты"), false, JSON.stringify(read).slice(0, 50));
     assert.deepEqual(without.spies.filter((name) => name === "report:marketing"), ["report:marketing"], "the link is read on every view");
   }
-  // Обычный вид читает обзор, период стоит в шапке.
+  // Обычный вид читает обзор, период стоит в шапке (в «Новом виде» — строка под заголовком и панель периода).
   assert.deepEqual(withTab.spies.sort(), ["overview", "recent", "report:marketing"]);
-  assert.match(withTab.html, /data-stub="period"/u);
   assert.match(withTab.html, /Октябрь 2026/u);
 });
 
@@ -600,7 +600,7 @@ test("«Маркетинг → Отчёты» (`?view=reports`): no overview and
   const page = await marketingPage(marketingConnected, { view: "reports", period: "week", channel: "instagram" });
   assert.deepEqual(page.spies, ["report:marketing"], "neither readMarketingOverview, Recent nor Leads is called");
   assert.deepEqual(page.calls, ["/v3/marketing"]);
-  assert.doesNotMatch(page.html, /data-stub="period"|data-stub="overview"|data-stub="leads"|Октябрь 2026/u, "no period and no period label");
+  assert.doesNotMatch(page.html, /data-stub="overview"|data-stub="leads"|Октябрь 2026/u, "no period and no period label");
   assert.match(page.html, /Данные Meta Ads и Instagram приходят из Windsor\.ai\. Цена заявки и договора — во вкладке «Обзор»\./u);
   assert.match(page.html, /<h2[^>]*>Отчёт Looker Studio<\/h2>/u);
   assert.match(page.html, new RegExp(`href="${OPEN(REPORT, PAGE).replaceAll(".", "\\.")}"`, "u"));
@@ -681,7 +681,7 @@ test("settings wiring: the section is listed after «Телефония», the p
   assert.ok(keys.indexOf("reports:Отчёты") === keys.indexOf("telephony:Телефония") + 1);
   const page = read("src/app/(v3)/v3/settings/page.tsx");
   assert.match(page, /section === "reports"\s*\?\s*Promise\.all\(\[readReportLink\(actor, "marketing"\), readReportLink\(actor, "finance"\)\]\)/u);
-  assert.match(page, /reportsReadOnly=\{isStaffPreview\(actor\)\}/u);
+  assert.match(page, /reportsReadOnly: isStaffPreview\(actor\)/u);
   assert.match(read("src/components/v3/settings/Settings.tsx"), /current\.key === "reports" && reports \? <ReportLinksSection reads=\{reports\} readOnly=\{reportsReadOnly \?\? false\} \/>/u);
   const action = read("src/lib/platform-report-link-actions.ts");
   assert.match(action, /^"use server";/u);
@@ -769,8 +769,6 @@ test("the layout computes `financeSection` next to the existing reads and hands 
     "@/components/v3/AppShell": { AppShell: (props) => { shellProps.push(props); return null; } },
     "@/lib/platform-guards": { requirePlatformStaffActor: async () => actor },
     "@/lib/release-metadata": { readReleaseMetadata: () => ({ status: "unavailable" }) },
-    // «Новый вид» (27.10.2026): cookie читает `isNextUi`; здесь он выключен — переключатель только у настоящего администратора.
-    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/account-deletion-source": { readOpenAccountDeletionCount: async () => null },
     "@/lib/v3/staff-notification-source": { readStaffNotificationsForActor: async () => null },
     "@/lib/v3/report-links-source": { readFinanceSectionAccess: async (a) => { reads.push(a === actor); return finance(); } },
@@ -781,7 +779,7 @@ test("the layout computes `financeSection` next to the existing reads and hands 
     const shell = tree.props.children[0];
     assert.equal(shell.props.financeSection, expected);
     assert.equal(shell.props.actor, actor);
-    assert.deepEqual(shell.props.nextUi, actor === admin ? { enabled: false } : null, "переключатель «Нового вида» есть только у настоящего администратора");
+    assert.ok(!("nextUi" in shell.props), "переключателя «Нового вида» больше нет (#1327)");
     void shellProps;
   }
   // Ошибка чтения не роняет страницу: пункт скрыт.

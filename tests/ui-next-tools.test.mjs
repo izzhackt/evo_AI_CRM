@@ -21,7 +21,6 @@ const count = (value, pattern) => [...value.matchAll(pattern)].length;
 const text = (value) => value.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").replace(/&amp;/gu, "&").replace(/\s+/gu, " ").trim();
 const all = (value, pattern) => [...value.matchAll(pattern)].map((match) => match[1]);
 const MODES = ["admin-cookie", "admin-no-cookie", "preview-cookie", "staff-cookie"];
-const LEGACY_MODES = MODES.slice(1);
 
 const sourcesIn = (directory) => readdirSync(root(directory), { recursive: true }).filter((file) => /\.(tsx?|ts)$/u.test(String(file))).map((file) => `${directory}/${file}`);
 const NEW_DIRS = [
@@ -31,52 +30,47 @@ const NEW_FILES = NEW_DIRS.flatMap(sourcesIn);
 
 /* ---------------------------------------------------------------- выбор вида: переключатель и только администратор */
 
-test("«Календарь»: новый вид только у администратора с cookie; без cookie, в просмотре роли и у сотрудника — прежняя разметка", () => {
-  const next = html("calendar:admin-cookie");
-  assert.match(next, /data-testid="v3-calendar-next"/u);
-  assert.match(next, /aria-label="Вид календаря"/u, "вкладки вида — ряд ссылок");
-  assert.equal(count(next, /<h1[ >]/gu), 1);
-  for (const mode of LEGACY_MODES) {
-    const legacy = html(`calendar:${mode}`);
-    assert.match(legacy, /data-calendar-sheet=""/u, `${mode}: прежний белый лист`);
-    assert.doesNotMatch(legacy, /v3-calendar-next|data-slot="card"/u, `${mode}: виджетов нового вида нет`);
+test("«Календарь»: новый вид у каждой роли (#1327): администратор с cookie и без, просмотр роли, сотрудник", () => {
+  for (const mode of MODES) {
+    const next = html(`calendar:${mode}`);
+    assert.match(next, /data-testid="v3-calendar-next"/u, `${mode}: новый вид`);
+    assert.match(next, /aria-label="Вид календаря"/u, `${mode}: вкладки вида — ряд ссылок`);
+    assert.equal(count(next, /<h1[ >]/gu), 1, mode);
+    assert.doesNotMatch(next, /data-calendar-sheet=""/u, `${mode}: прежнего белого листа нет`);
   }
-  // Cookie сотруднику и просмотру роли ничего не даёт: прежние сетки, вкладки и панель на месте.
-  for (const mode of ["preview-cookie", "staff-cookie"]) assert.match(html(`calendar:${mode}`), /data-calendar-root=""/u, mode);
 });
 
-test("«База знаний»: новый вид только у администратора с cookie; сотрудник и просмотр роли получают тот же отказ, что раньше; прежние страницы документов и шаблонов администратора перенаправляют", () => {
+test("«База знаний»: новый вид единственный, раздел только администратору; «Документы» и «Шаблоны ответов» остальных ролей — тоже новым видом (#1327)", () => {
   for (const name of ["knowledge-library", "knowledge-documents", "knowledge-snippets"]) {
-    assert.match(html(`${name}:admin-cookie`), /data-testid="v3-knowledge-next"/u, `${name}: новый вид`);
-    assert.doesNotMatch(html(`${name}:admin-no-cookie`), /v3-knowledge-next|data-slot="data-table"/u, `${name}: без cookie прежний вид`);
+    for (const mode of ["admin-cookie", "admin-no-cookie"]) assert.match(html(`${name}:${mode}`), /data-testid="v3-knowledge-next"/u, `${name}:${mode}: новый вид`);
     for (const mode of ["preview-cookie", "staff-cookie"]) assert.equal(pages.get(`${name}:${mode}`).rejected, "knowledge_forbidden", `${name}:${mode}: раздел только для администратора`);
   }
-  // `/v3/documents` и `/v3/reply-snippets`: администратор уходит в разделы базы знаний независимо от cookie, поэтому нового вида у отдельных страниц нет.
+  // `/v3/documents` и `/v3/reply-snippets`: администратор уходит в разделы базы знаний, поэтому отдельных страниц ему не нужно;
+  // сотрудники без «Базы знаний» открывают их в новом виде (раньше у них был прежний).
   for (const mode of ["admin-cookie", "admin-no-cookie"]) {
     assert.equal(pages.get(`documents-page:${mode}`).redirect, "/v3/knowledge?section=documents");
     assert.equal(pages.get(`reply-snippets-page:${mode}`).redirect, "/v3/knowledge?section=snippets");
   }
   for (const mode of ["preview-cookie", "staff-cookie"]) {
-    assert.doesNotMatch(html(`documents-page:${mode}`), /data-slot="data-table"|v3-documents-next/u, `${mode}: документы прежние`);
-    assert.doesNotMatch(html(`reply-snippets-page:${mode}`), /data-slot="data-table"|v3-knowledge-reply-snippets-next/u, `${mode}: шаблоны прежние`);
+    assert.match(html(`documents-page:${mode}`), /data-testid="v3-documents-next"/u, `${mode}: документы — новый вид`);
+    assert.equal(count(html(`documents-page:${mode}`), /<h1[ >]/gu), 1, `${mode}: один h1`);
+    assert.match(html(`reply-snippets-page:${mode}`), /data-testid="v3-reply-snippets-next"/u, `${mode}: шаблоны — новый вид`);
+    assert.match(html(`reply-snippets-page:${mode}`), /data-slot="data-table"/u, `${mode}: таблица набора`);    // Выгрузка в базу знаний — только у Admin на странице «Базы знаний» (сервер другим отказывает): на отдельной странице её нет.
+    assert.doesNotMatch(html(`documents-page:${mode}`), /Выгрузить|Выбрать документы/u, `${mode}: выгрузки нет`);
   }
+  assert.match(html("knowledge-documents:admin-cookie"), /Выгрузить/u, "у Admin в «Базе знаний» выгрузка есть");
+  assert.match(read("src/components/v3/knowledge/KnowledgeDocuments.tsx"), /allowExport=\{embedded\}/u);
 });
 
-test("«Командный чат»: новая рамка только у администратора с cookie; один h1 — шапка страницы; движок и прежний вид без cookie те же", () => {
-  const next = html("team-chat:admin-cookie");
-  assert.match(next, /data-testid="v3-team-chat-next"/u);
-  assert.match(next, /data-frame="card"/u, "чат знает, что рамку рисует страница");
-  assert.equal(count(next, /<h1[ >]/gu), 1, "заголовок страницы один, не дважды");
-  assert.doesNotMatch(next, /<nav[^>]*aria-label="Каналы команды"[^>]*>\s*<h1/u, "в списке каналов своего h1 больше нет");
-  for (const mode of LEGACY_MODES) {
-    const legacy = html(`team-chat:${mode}`);
-    assert.match(legacy, /<nav[^>]*aria-label="Каналы команды"[^>]*>\s*<h1/u, `${mode}: заголовок прежнего вида в списке каналов`);
-    assert.doesNotMatch(legacy, /v3-team-chat-next|data-frame=/u);
+test("«Командный чат»: новая рамка у каждой роли (#1327); один h1 — шапка страницы; движок чата тот же", () => {
+  for (const mode of MODES) {
+    const next = html(`team-chat:${mode}`);
+    assert.match(next, /data-testid="v3-team-chat-next"/u, mode);
+    assert.match(next, /data-frame="card"/u, `${mode}: чат знает, что рамку рисует страница`);
+    assert.equal(count(next, /<h1[ >]/gu), 1, `${mode}: заголовок страницы один, не дважды`);
+    assert.doesNotMatch(next, /<nav[^>]*aria-label="Каналы команды"[^>]*>\s*<h1/u, `${mode}: в списке каналов своего h1 больше нет`);
   }
-  // Каналы, сообщения и состояние чтения — те же данные в обоих видах.
-  const channels = (value) => all(value, /href="\/v3\/team-chat\?channel=(\w+)"/gu);
-  assert.deepEqual(channels(next), channels(html("team-chat:admin-no-cookie")));
-  assert.deepEqual(all(next, /data-chat-row="([^"]+)"/gu), all(html("team-chat:admin-no-cookie"), /data-chat-row="([^"]+)"/gu), "те же сообщения в том же порядке");
+  assert.ok(all(html("team-chat:admin-cookie"), /data-chat-row="([^"]+)"/gu).length > 0, "сообщения в ленте");
 });
 
 test("«Командный чат»: ошибка чтения остаётся на виду в обоих видах, со ссылкой «Обновить канал»", () => {
@@ -94,13 +88,10 @@ test("«Командный чат»: ошибка чтения остаётся 
 
 test("«Шаблоны ответов»: те же шаблоны, права и слова аудитории, что у прежнего вида; «Новый шаблон» — для того, кто управляет", () => {
   const next = html("knowledge-snippets:admin-cookie");
-  const legacy = html("knowledge-snippets:admin-no-cookie");
   const titles = (value) => all(value, /(?:<h3 class="t-item text-fg">|<span class="block font-medium text-fg \[overflow-wrap:anywhere\]">)([^<]+)</gu).sort();
-  assert.deepEqual(titles(next).filter((title, index, list) => list.indexOf(title) === index), titles(legacy), "те же названия");
-  assert.equal(titles(legacy).length, 4);
+  assert.equal(titles(next).filter((title, index, list) => list.indexOf(title) === index).length, 4, "четыре шаблона");
   for (const word of ["Продажи", "Поступление", "Все роли"]) assert.match(text(next), new RegExp(word, "u"), word);
   assert.match(text(next), /Новый шаблон/u);
-  assert.match(text(legacy), /Новый шаблон/u);
   assert.match(next, /placeholder="Найти шаблон"/u, "поиск таблицы называет, что ищет");
 });
 
@@ -216,25 +207,33 @@ test("«Выбрать» на телефоне стоит в заголовке 
 
 /* ------------------------------------------------------------------------ выбор вида в страницах, первая загрузка */
 
-test("страницы спрашивают isNextUi после тех же чтений и проверок; прежняя ветка осталась; новый вид в первую загрузку не входит", () => {
+test("страницы всегда рисуют новый вид (#1327) после тех же чтений и проверок; в первую загрузку он не входит", () => {
   const calendar = read("src/app/(v3)/v3/calendar/page.tsx");
-  assert.match(calendar, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
-  assert.match(calendar, /if \(await isNextUi\(actor\)\) \{\s*return \(\s*<CalendarNextLazy/u);
-  assert.match(calendar, /<PartShell title="Календарь">\s*<Calendar/u, "прежний вид на месте");
-  assert.ok(calendar.indexOf("isNextUi(actor)") > calendar.indexOf("readCalendarWorkspace(actor") && calendar.indexOf("isNextUi(actor)") < calendar.indexOf("<PartShell"), "после чтений, до прежней разметки");
+  assert.doesNotMatch(calendar, /isNextUi/u);
+  assert.match(calendar, /return \(\s*<CalendarNextLazy/u);
+  assert.doesNotMatch(calendar, /<PartShell|<Calendar\b/u, "прежнего вида нет");
+  assert.ok(calendar.indexOf("<CalendarNextLazy") > calendar.indexOf("readCalendarWorkspace(actor"), "после чтений");
   const knowledge = read("src/app/(v3)/v3/knowledge/page.tsx");
+  assert.doesNotMatch(knowledge, /isNextUi/u);
   assert.match(knowledge, /requireKnowledgeAdmin\(actor\);/u, "граница администратора та же");
-  assert.ok(knowledge.indexOf("requireKnowledgeAdmin(actor)") < knowledge.indexOf("isNextUi(actor)"), "сначала проверка прав");
   assert.match(knowledge, /<KnowledgeNextLazy commandScope=\{`\$\{actor\.organizationId\}:\$\{actor\.membershipId\}`\} section=\{section\}>/u);
   assert.match(knowledge, /<KnowledgeDocuments actor=\{actor\} embedded next \/>/u);
   assert.match(knowledge, /<KnowledgeSnippets actor=\{actor\} next \/>/u);
-  assert.match(knowledge, /<PartShell title="База знаний"><Suspense fallback=\{<KnowledgeLibrarySkeleton \/>\}>/u, "прежняя ветка на месте");
+  assert.doesNotMatch(knowledge, /<KnowledgeLibrary\b/u, "прежней библиотеки нет");
   const chat = read("src/app/(v3)/v3/team-chat/page.tsx");
-  assert.match(chat, /const next = await isNextUi\(actor\);/u);
-  assert.match(chat, /if \(next\) return <TeamChatNextFailureLazy/u);
-  assert.match(chat, /if \(next\) \{\s*return <TeamChatNextLazy/u);
-  assert.match(chat, /<main className="flex h-\[calc\(100dvh-150px\)\] min-h-0 flex-col md:h-\[calc\(100dvh-64px\)\]" aria-label="Командный чат">/u, "прежняя рамка");
-  for (const page of [calendar, knowledge, chat]) assert.doesNotMatch(page, /from "@\/components\/kit"|next\/(?:CalendarNextPage|KnowledgeNextPage|TeamChatNextPage|FilesNext|SnippetsNext)"/u, "виджеты нового вида в первую загрузку страницы не входят");
+  assert.doesNotMatch(chat, /isNextUi/u);
+  assert.match(chat, /return <TeamChatNextFailureLazy/u);
+  assert.match(chat, /return <TeamChatNextLazy/u);
+  assert.doesNotMatch(chat, /<TeamChat\b/u, "прежней рамки нет");
+  // Отдельные страницы для сотрудников без «Базы знаний»: рамка набора и режим `next` тех же серверных частей.
+  const documents = read("src/app/(v3)/v3/documents/page.tsx");
+  const snippets = read("src/app/(v3)/v3/reply-snippets/page.tsx");
+  assert.match(documents, /<KnowledgeDocuments actor=\{actor\} next \/>/u);
+  assert.match(snippets, /<KnowledgeSnippets actor=\{actor\} next \/>/u);
+  assert.match(documents, /redirect\("\/v3\/knowledge\?section=documents"\)/u, "администратор по-прежнему уходит в базу знаний");
+  assert.match(snippets, /redirect\("\/v3\/knowledge\?section=snippets"\)/u);
+  for (const page of [calendar, knowledge, chat, documents, snippets]) assert.doesNotMatch(page, /next\/(?:CalendarNextPage|KnowledgeNextPage|TeamChatNextPage|FilesNext|SnippetsNext)"/u, "виджеты нового вида в первую загрузку страницы не входят");
+  for (const page of [calendar, knowledge, chat]) assert.doesNotMatch(page, /from "@\/components\/kit"/u);
   for (const server of ["KnowledgeDocuments", "KnowledgeSnippets"]) assert.doesNotMatch(read(`src/components/v3/knowledge/${server}.tsx`), /from "@\/components\/kit"|next\/(?:FilesNext|SnippetsNext)"/u, `${server}: только ленивый вход`);
 });
 

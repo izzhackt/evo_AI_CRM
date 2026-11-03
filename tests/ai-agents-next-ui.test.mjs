@@ -17,7 +17,6 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 import { AI_AGENT_CATALOG } from "../src/lib/ai-agents/contract.ts";
-import { canUseNextUi, isNextUiFor } from "../src/lib/ui-next-contract.ts";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
@@ -148,31 +147,25 @@ const strip = (markup) => markup.replace(/<!-- -->/gu, "");
 
 /* ------------------------------------------------------------------ переключатель: прежний вид — всем, кроме администратора с cookie */
 
-test("хаб: новый вид только настоящему администратору с cookie, остальные — прежний вид, один и тот же", async () => {
+test("хаб: новый вид у каждой роли — администратор с cookie и без, сотрудник, просмотр роли (#1327)", async () => {
   const { hubPage, hubElement } = await views();
   const on = strip(await hubPage(world(ADMIN, "next")));
   // Свойства, которые страница отдаёт ленивому входу, проходят границу сервер → клиент: данные, не функции и не объекты классов.
   assertFlightProps((await hubElement(world(ADMIN, "next"))).props, "NextAgentsViewLazy");
-  const legacy = [
-    strip(await hubPage(world(ADMIN, undefined))),
-    strip(await hubPage(world(ADMIN, "legacy"))),
-    strip(await hubPage(world(STAFF, "next"))),
-    strip(await hubPage(world(PREVIEW, "next"))),
-  ];
   assert.match(on, /data-slot="stat-tile"/u, "новый вид — плитки набора");
   assert.match(on, /data-testid="v3-aia-hub"/u);
-  for (const [index, markup] of legacy.entries()) {
-    assert.doesNotMatch(markup, /data-slot="(?:card|stat-tile)"/u, `прежний вид без виджетов набора (${index})`);
+  for (const [index, markup] of [
+    strip(await hubPage(world(ADMIN, undefined))),
+    strip(await hubPage(world(STAFF, "next"))),
+    strip(await hubPage(world(STAFF, undefined))),
+    strip(await hubPage(world(PREVIEW, "next"))),
+  ].entries()) {
+    assert.match(markup, /data-slot="stat-tile"/u, `плитки набора у каждой роли (${index})`);
     assert.match(markup, /data-testid="v3-aia-hub"/u);
-    assert.match(markup, /Запуски, 14 дней/u, "прежняя карточка со спарклайном");
   }
-  assert.equal(legacy[2], legacy[0], "сотруднику cookie ничего не даёт: разметка та же, что у администратора без cookie");
-  assert.equal(legacy[1], legacy[0], "чужое значение cookie не включает новый вид");
-  assert.equal(canUseNextUi(ADMIN) && isNextUiFor(ADMIN, "next"), true);
-  assert.equal(isNextUiFor(PREVIEW, "next"), false, "просмотр роли — не администратор");
 });
 
-test("страница агента: на каждой вкладке новый вид только у администратора с cookie; чтения и права те же", async () => {
+test("страница агента: на каждой вкладке новый вид у каждой роли (#1327); менять может только администратор, остальные — только просмотр", async () => {
   const { agentPage, agentElement } = await views();
   for (const [search, marker] of [
     [{ tab: "overview" }, "v3-aia-overview"], [{ tab: "runs" }, "v3-aia-runs"], [{ tab: "drafts" }, "v3-aia-drafts"],
@@ -180,15 +173,17 @@ test("страница агента: на каждой вкладке новый
   ]) {
     const on = strip(await agentPage(world(ADMIN, "next"), "director", search));
     assertFlightProps((await agentElement(world(ADMIN, "next"), "director", search)).props, `NextAgentPageLazy ${JSON.stringify(search)}`);
-    const off = strip(await agentPage(world(ADMIN, undefined), "director", search));
-    const staff = strip(await agentPage(world(STAFF, "next"), "director", search));
-    const preview = strip(await agentPage(world(PREVIEW, "next"), "director", search));
     assert.match(on, new RegExp(`data-testid="${marker}`, "u"), `${JSON.stringify(search)}: вкладка на месте`);
     assert.match(on, /data-slot="(?:card|switch|button)"/u, `${JSON.stringify(search)}: виджеты набора`);
-    assert.doesNotMatch(off, /data-slot="(?:card|stat-tile|switch)"/u, `${JSON.stringify(search)}: прежний вид без виджетов набора`);
-    assert.match(off, new RegExp(`data-testid="${marker}`, "u"));
-    assert.doesNotMatch(staff, /data-slot="(?:card|stat-tile|switch)"/u, `${JSON.stringify(search)}: сотрудник`);
-    assert.doesNotMatch(preview, /data-slot="(?:card|stat-tile|switch)"/u, `${JSON.stringify(search)}: просмотр роли`);
+    assert.match(on, /data-testid="v3-aia-switch-enabled"/u, `${JSON.stringify(search)}: администратор — настоящий переключатель`);
+    for (const [label, world_] of [["сотрудник", world(STAFF, "next")], ["сотрудник без cookie", world(STAFF, undefined)], ["просмотр роли", world(PREVIEW, "next")]]) {
+      const other = strip(await agentPage(world_, "director", search));
+      assert.match(other, new RegExp(`data-testid="${marker}`, "u"), `${JSON.stringify(search)}: ${label}: вкладка на месте`);
+      assert.match(other, /data-slot="(?:card|switch|button)"/u, `${JSON.stringify(search)}: ${label}: новый вид`);
+      // Переключатели «Включён» и «Авто» меняет только настоящий администратор: остальные видят их только для чтения.
+      assert.match(other, /data-testid="v3-aia-switch-enabled-readonly"/u, `${JSON.stringify(search)}: ${label}: «Включён» — только просмотр`);
+      assert.doesNotMatch(other, /data-testid="v3-aia-switch-enabled"/u, `${JSON.stringify(search)}: ${label}: переключателя нет`);
+    }
   }
   // Запуск целиком: адрес `?run=` тот же, содержимое — карточки набора.
   const run = strip(await agentPage(world(ADMIN, "next"), "director", { tab: "runs", run: "11111111-1111-4111-8111-000000000001" }));
@@ -689,10 +684,7 @@ test("исходники: каждый файл нового вида ≤150 с�
   for (const entry of readdirSync(root("src/components/v3/ai-agents"), { withFileTypes: true })) assert.equal(entry.isFile(), true, entry.name);
   const hubPage = read("src/app/(v3)/v3/ai-agents/page.tsx");
   const agentPage = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
-  for (const page of [hubPage, agentPage]) {
-    assert.match(page, /isNextUi\(actor\)/u, "вид выбирает настоящий `isNextUi`");
-    assert.match(page, /@\/lib\/ui-next"/u);
-  }
+  for (const page of [hubPage, agentPage]) assert.doesNotMatch(page, /isNextUi|@\/lib\/ui-next"/u, "выбора вида нет: новый вид единственный");
   assert.match(agentPage, /<NextAgentPageLazy \{\.\.\.bodyProps\} defaults=\{nextAgentDefaults\(key, tab\)\} \/>/u, "новый вид получает те же свойства, что `AgentBody`, и тексты вкладки");
   // Новый вид — ленивый вход: в первую загрузку страниц у остальных сотрудников его таблицы, панели и Radix не входят.
   assert.match(hubPage, /import \{ NextAgentsViewLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);
@@ -701,6 +693,6 @@ test("исходники: каждый файл нового вида ≤150 с�
   const lazy = read(`${dir}/NextAgentsLazy.tsx`);
   assert.match(lazy, /^"use client";/u);
   for (const name of ["NextAgentsView", "NextAgentPage", "NextAgentUnavailable"]) assert.match(lazy, new RegExp(`import\\("\\./${name}"\\)\\.then\\(\\(module\\) => module\\.${name}\\)`, "u"));
-  assert.match(agentPage, /<AgentBody \{\.\.\.bodyProps\} \/>/u);
-  assert.match(agentPage, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u, "прежняя рамка чата на месте");
+  assert.doesNotMatch(agentPage, /<AgentBody|<AgentChatShell|<AgentSwitches/u, "прежней разметки в странице нет");
+  assert.match(agentPage, /const canEdit = actor\.systemRole === "admin" && !preview;/u, "менять может только настоящий администратор вне просмотра роли");
 });

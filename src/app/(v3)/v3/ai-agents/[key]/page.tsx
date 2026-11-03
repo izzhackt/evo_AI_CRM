@@ -1,34 +1,21 @@
 import "../../../ai-agents.css";
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AI_AGENT_DEFAULTS } from "@/content/ai-agents";
-import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
-import { AgentChatShell } from "@/components/v3/ai-agents/AgentChatShell";
-import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
-import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
 import { NextAgentPageLazy, NextAgentUnavailableLazy } from "@/components/v3/ai-agents-next/NextAgentsLazy";
-import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
-import { Icon } from "@/components/icons";
-import { PartShell } from "@/components/v3/PartShell";
 import { taskComposerAccess } from "@/components/v3/tasks/task-composer-access";
 import { AI_AGENT_CATALOG, isAiAgentKey } from "@/lib/ai-agents/contract";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
 import { nextAgentDefaults } from "@/lib/server/ai-agents/next-defaults";
 import { aiAgentsRuntimeAvailability, aiAgentsWhatsappDailyCapCents, readAiAgentWhatsappCap, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
-  aiAgentHref,
   aiAgentNeedsSync,
-  aiAgentRoleLine,
   AI_AGENT_CONVERSATIONS_MAX,
   AI_AGENT_CONVERSATIONS_READ,
-  AI_AGENTS_HUB_HREF,
   ownCommandRuns,
   toConversationRow,
   type AiAgentConversationRow,
@@ -66,8 +53,8 @@ const TWELVE_HOURS = 12 * 60 * 60 * 1000;
  * считает сервер. Неизвестный ключ или вкладка — 404. «Поручить» — чат на
  * всю рабочую область (`AgentChatShell`: тонкая шапка в одну строку, без
  * потолка 1240 px, высота окна) и получает собственные разговоры сотрудника.
- * «Новый вид» (27.10.2026): те же чтения и те же свойства, другой вид — только настоящему администратору с включённым
- * переключателем (`isNextUi`); остальные видят прежний вид без изменений.
+ * «Новый вид» — единственный вид (#1327). Менять переключатели, правила, расписание и синхронизацию может только настоящий
+ * администратор вне просмотра роли (`canEdit`); остальные сотрудники и просмотр роли видят те же вкладки только для чтения.
  */
 export default async function AiAgentPage({
   params,
@@ -86,25 +73,10 @@ export default async function AiAgentPage({
 
   const read = await readAiAgent(actor, key);
   if (read.status === "missing") notFound();
-  const nextUi = await isNextUi(actor);
-  if (nextUi && read.status !== "available") return <NextAgentUnavailableLazy agentKey={key} status={read.status} />;
-  const back = (
-    <Link href={AI_AGENTS_HUB_HREF} className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2 hover:text-fg">
-      <Icon name="arrow-left" size={16} /> Все ИИ-агенты
-    </Link>
-  );
-  if (read.status !== "available") {
-    return (
-      <PartShell title="ИИ-агенты" testId="v3-ai-agent-page" back={back}>
-        {read.status === "not_ready" ? <NotReady /> : <Unavailable what="агента" retryHref={aiAgentHref(key)} denied={read.status === "denied"} />}
-      </PartShell>
-    );
-  }
+  if (read.status !== "available") return <NextAgentUnavailableLazy agentKey={key} status={read.status} />;
   const detail = read.data;
   const canEdit = actor.systemRole === "admin" && !preview;
   const canManage = staffHasPermission(actor, "ai.agent.manage");
-  const hasInstructions = detail.hasInstructionsOverride || AI_AGENT_DEFAULTS[key].hasInstructions;
-
   // «Нужна синхронизация»: хеш настроек, который ушёл в Claude, против текущего. Не смог посчитать — не гадаем.
   let needsSync = false;
   try {
@@ -172,37 +144,5 @@ export default async function AiAgentPage({
     whatsappCapState,
   };
   // Тексты по умолчанию — только то, что нужно вкладке (как у `AgentBody`): каталог в файлы для браузера не попадает.
-  if (nextUi) return <NextAgentPageLazy {...bodyProps} defaults={nextAgentDefaults(key, tab)} />;
-
-  const switches = (
-    <AgentSwitches
-      agentKey={key}
-      enabled={detail.enabled}
-      autoSend={detail.autoSend}
-      configVersion={detail.configVersion}
-      hasInstructions={hasInstructions}
-      canEdit={canEdit}
-    />
-  );
-  const content = <AgentBody {...bodyProps} />;
-
-  // «Поручить» — чат на всю рабочую область (оболочка отдаёт колонку высотой в окно по `isFillRoute`).
-  if (tab === "command") {
-    return (
-      <AgentChatShell
-        testId="v3-ai-agent-page"
-        title={detail.title}
-        roleLine={aiAgentRoleLine(detail.roleLine)}
-        tabs={<AgentTabs bare agentKey={key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />}
-        switches={switches}
-      >
-        {content}
-      </AgentChatShell>
-    );
-  }
-  return (
-    <PartShell title={detail.title} testId="v3-ai-agent-page" back={back} meta={aiAgentRoleLine(detail.roleLine)} action={switches}>
-      {content}
-    </PartShell>
-  );
+  return <NextAgentPageLazy {...bodyProps} defaults={nextAgentDefaults(key, tab)} />;
 }

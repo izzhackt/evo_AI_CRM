@@ -36,7 +36,7 @@ test("the staff look: tokens, neutral selection, no pink, no red checkboxes, no 
     assert.doesNotMatch(text, /Загрузка…|Загрузка базы знаний|>Поиск…</u, `${name} shows a loading text instead of skeleton rows`);
   }
   assert.doesNotMatch(read("src/app/(v3)/v3/knowledge/page.tsx"), /Загрузка/u);
-  assert.match(read("src/app/(v3)/v3/knowledge/page.tsx"), /<Suspense fallback=\{<KnowledgeLibrarySkeleton \/>\}>/u);
+  assert.match(read("src/app/(v3)/v3/knowledge/page.tsx"), /<Suspense fallback=\{<PartShell title="База знаний"><KnowledgeLibrarySkeleton \/><\/PartShell>\}>/u);
   // Выбор — общий нейтральный `.v3-choice` по aria-current / aria-pressed.
   assert.match(tree, /v3-choice/u);
   assert.match(tree, /aria-current=\{current \? "page" : undefined\}/u);

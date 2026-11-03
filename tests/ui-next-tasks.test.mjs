@@ -411,7 +411,7 @@ const ADMIN = actorOf();
 const STAFF_ACTOR = actorOf({ systemRole: "staff", permissionKeys: ["staff.task.read", "staff.task.create"] });
 const PREVIEW_ACTOR = actorOf({ presentationRole: "sales" });
 
-test("страница «Задачи»: «Новый вид» только настоящему администратору с переключателем; всем остальным — прежний вид и прежняя разметка", async () => {
+test("страница «Задачи»: «Новый вид» — единственный вид любой роли (#1327): администратор, сотрудник, просмотр роли", async () => {
   const on = await page("next", ADMIN).run();
   assert.match(on, /data-testid="v3-tasks-next"/);
   assert.match(on, /data-slot="data-table"/);
@@ -419,22 +419,16 @@ test("страница «Задачи»: «Новый вид» только на
   assertFlightProps((await page("next", ADMIN).element()).props, "TasksNextLazy");
   assert.doesNotMatch(on, /data-testid="task-queue"/, "прежней очереди нет");
 
-  const off = await page(undefined, ADMIN).run();
-  assert.match(off, /data-testid="task-queue"/, "переключатель выключен — прежний вид");
-  assert.doesNotMatch(off, /v3-tasks-next|data-slot="data-table"/);
-  assert.match(off, /<h1 class="t-page-title[^>]*>Задачи/);
-  assert.match(off, /data-queue-row=/);
-
-  for (const [label, who] of [["сотрудник", STAFF_ACTOR], ["администратор в просмотре роли", PREVIEW_ACTOR]]) {
+  for (const [label, who] of [["администратор", ADMIN], ["сотрудник", STAFF_ACTOR], ["администратор в просмотре роли", PREVIEW_ACTOR]]) {
     for (const cookie of ["next", undefined]) {
       const html = await page(cookie, who).run();
-      assert.match(html, /data-testid="task-queue"/, `${label}, cookie=${cookie}: прежний вид`);
-      assert.doesNotMatch(html, /v3-tasks-next|data-slot="data-table"/, `${label}, cookie=${cookie}: нового вида нет`);
+      assert.match(html, /data-testid="v3-tasks-next"/, `${label}, cookie=${cookie}: новый вид`);
+      assert.doesNotMatch(html, /data-testid="task-queue"/, `${label}, cookie=${cookie}: прежней очереди нет`);
     }
   }
 });
 
-test("страница: данные читаются одним и тем же путём в обоих видах (маршрут, чтение очереди), а ошибка чтения называется в обоих", async () => {
+test("страница: данные читаются одним путём (маршрут, чтение очереди), а ошибка чтения называется", async () => {
   for (const cookie of ["next", undefined]) {
     const run = page(cookie, ADMIN);
     await run.run();
@@ -447,11 +441,11 @@ test("страница: данные читаются одним и тем же 
     assert.match(html, /data-testid="queue-error"/, `cookie=${cookie}`);
     assert.match(html, /Не удалось загрузить задачи и доступных сотрудников\./);
     assert.match(html, /href="\/v3\/tasks"[^>]*>Повторить/);
-    assert.equal(cookie === "next", /v3-tasks-next/.test(html), `cookie=${cookie}: рамка ошибки — своего вида`);
+    assert.match(html, /v3-tasks-next/, `cookie=${cookie}: рамка ошибки — нового вида`);
   }
 });
 
-test("страница: панель выбранной задачи читается теми же чтениями и попадает в новый вид; в прежнем — в прежнюю панель", async () => {
+test("страница: панель выбранной задачи читается теми же чтениями и попадает в новый вид", async () => {
   const task = STAFF[1];
   const workspace = { canReadStaffTasks: true, canReadCaseTasks: true, canReadCases: true, createdExcludesCases: false, assignees: [{ membershipId: ME, displayName: NAMES[ME], role: "admissions" }], caseAssignees: [],
     selectedTask: task, selectedCase: null, queue: { staff: STAFF, cases: CASES, cutOff: [], complete: true } };
@@ -464,10 +458,6 @@ test("страница: панель выбранной задачи читае�
   };
   const on = await page("next", ADMIN, { task: task.id }, overrides).run();
   assert.match(on, /data-testid="v3-tasks-next"/);
-  const off = await page(undefined, ADMIN, { task: task.id }, overrides).run();
-  assert.match(off, /data-testid="v3-task-detail-panel"/, "прежняя панель");
-  assert.match(off, /Готов черновик/);
-  assert.doesNotMatch(off, /data-slot="sheet/);
 });
 
 /* ---------------------------------------------------------------- границы файлов */
@@ -489,15 +479,11 @@ test("файлы нового вида «Задач»: каждый до 150 с�
   for (const file of ["tests/e2e/tasks-next-static-render.cjs"]) assert.ok(existsSync(new URL(`../${file}`, import.meta.url)));
 });
 
-test("в странице прежний вид остаётся прежним текстом: чтения, права и разметка, на которые опираются остальные тесты, не тронуты", () => {
+test("в странице прежнего вида нет (#1327); чтения, права и данные нового вида те же", () => {
   const source = read("src/app/(v3)/v3/tasks/page.tsx");
-  assert.match(source, /const nextUi = await isNextUi\(actor\);/);
-  assert.match(source, /if \(nextUi\) \{/);
-  assert.match(source, /<TasksWorkspace\s/);
-  assert.match(source, /<TaskDetailPanel key=\{`staff:\$\{selected\.id\}`\}/);
+  assert.doesNotMatch(source, /isNextUi|<TasksWorkspace|<TaskDetailPanel|<PartShell/);
   assert.match(source, /readCalendarTaskTarget\(actor, selectedCaseId, taskId\)/);
-  assert.match(source, /<h2 className="t-section">\{callerDisplayName\(sourceLead\.clientDisplayName \?\? "Имя клиента не указано"\)\}<\/h2>/);
-  // новый вид получает те же данные, что прежний: те же права строки и то же число в заголовке
+  // новый вид получает те же данные: те же права строки и то же число в заголовке
   assert.match(source, /permissions=\{permissions\}/);
   assert.match(source, /count=\{headerCount\}/);
   assert.match(source, /staffAllowed = !preview && staffHasPermission\(actor, "staff\.task\.create"\) && !sourceLeadId;/);

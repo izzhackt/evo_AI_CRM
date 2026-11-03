@@ -26,6 +26,9 @@ import {
 import { isClosedLeadsReturn, parsePipelineReturnTo } from "../src/lib/v3/pipeline-return.ts";
 import { caseCloseOpenTasks, caseCloseOutcome, closureOutcome, closureWords, leadCloseReason } from "../src/lib/v3/wording.ts";
 
+/** Прежний вид убран со страниц (#1327): разметка, которую снимали эти проверки, больше не рисуется; их и прежние компоненты удаляет #1328. */
+const LEGACY_VIEW_REMOVED = "old view is not rendered since #1327; removed with the old components in #1328";
+
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/246_platform_lead_case_closure.sql");
 const suite = read("supabase/tests/platform_lead_case_closure.sql");
@@ -239,7 +242,7 @@ test("wording: every reason, outcome and outcome message has Russian words", () 
   assert.equal(caseCloseOpenTasks(0), null, "no open tasks — nothing to say");
 });
 
-test("board: «⋯» in the lead panel, a handed-off lead says why, «Закрытые» is a quiet link and a list", () => {
+test("board: «⋯» in the lead panel, a handed-off lead says why, «Закрытые» is a quiet link and a list", { skip: LEGACY_VIEW_REMOVED }, () => {
   const surfaces = harness("boards");
   const panel = surfaces.get("sales-panel");
   const lead = panel.slice(panel.indexOf('data-testid="v3-pipeline-lead-panel"'));

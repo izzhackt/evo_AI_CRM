@@ -1,11 +1,7 @@
-import { PartShell } from "@/components/v3/PartShell";
-import { Settings } from "@/components/v3/settings/Settings";
-import { SettingsNextLazy } from "@/components/v3/settings-next/SettingsNextLazy";
-import { TelephonySection } from "@/components/v3/settings/TelephonySection";
+import { SettingsNextLazy, TelephonyManagerNextLazy } from "@/components/v3/settings-next/SettingsNextLazy";
 import { isSectionKey, staffViewOf, type SectionKey, type StaffView } from "@/components/v3/settings/types";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { settingsNextProps } from "@/lib/v3/settings-next-props";
 import { readTelephonyAdmin, telephonyIntegrationFactsFrom } from "@/lib/server/platform-telephony-admin";
 import { readReportLink } from "@/lib/v3/report-links-source";
@@ -63,12 +59,7 @@ export default async function SettingsPart({
   // телефонии): страница открыта ему ради одного раздела. Остальные разделы,
   // их чтения и действия — только Admin, поэтому дальше этот сотрудник не идёт.
   if (actor.systemRole !== "admin") {
-    return (
-      <PartShell title="Настройки">
-        <h2 className="t-section mb-3 text-fg">Телефония</h2>
-        <TelephonySection read={await readTelephonyAdmin(actor)} readOnly={false} now={new Date()} />
-      </PartShell>
-    );
+    return <TelephonyManagerNextLazy read={await readTelephonyAdmin(actor)} nowIso={new Date().toISOString()} />;
   }
   // «Телефония» и строка «Телефония» таблицы «Интеграции» читают одно и то же.
   const telephonyRead = section === "telephony" || section === "integrations" ? readTelephonyAdmin(actor) : Promise.resolve(null);
@@ -123,103 +114,40 @@ export default async function SettingsPart({
     return tail ? `/v3/settings?${tail}` : "/v3/settings";
   };
 
-  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — ряд разделов, таблицы и панели набора.
-  if (await isNextUi(actor)) {
-    return (
-      <SettingsNextLazy
-        {...settingsNextProps({
-          section,
-          staffView,
-          hrefFor: (next: SectionKey, view: StaffView | null) => query({ section: next, view: view ?? undefined }),
-          integrations,
-          whatsappConnect: whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin, wazzup: whatsappConnection.wazzup } : undefined,
-          staff,
-          staffRoles,
-          staffOrganizationId: actor.organizationId,
-          selectedStaffMemberId: params.member,
-          selectedStaffRoleId: params.role,
-          telephony,
-          telephonyReadOnly: isStaffPreview(actor),
-          reports,
-          reportsReadOnly: isStaffPreview(actor),
-          journal,
-          journalStatus: journalRead.status,
-          auditExportEnabled: readAuditExportEnabled(),
-          journalFacets,
-          journalFilters,
-          journalHrefFor: (next) => query({ section: "journal", object: next.objectType, snapshot: next.snapshotAt, snapshotId: next.snapshotId, cursor: next.cursorAt, cursorId: next.cursorId }),
-          deletionQueue,
-          deletionDetail,
-          deletionHrefFor: (requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined }),
-          deletionOpen,
-          gates,
-          platform,
-          salesImportHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined,
-          salesManagersHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? salesManagersHref() : undefined,
-          now: new Date(),
-        })}
-      />
-    );
-  }
-
+  // «Новый вид»: ряд разделов, таблицы и панели набора.
   return (
-    <PartShell
-      title="Настройки"
-    >
-      <Settings
-        section={section}
-        staffView={staffView}
-        // Authority grants access; presentation role controls the exact
-        // interface while an admin previews Sales or Admissions.
-        isAdmin={isAdmin}
-        hrefFor={(next: SectionKey, view: StaffView | null) => query({ section: next, view: view ?? undefined })}
-        integrations={integrations}
-        journal={journal}
-        journalStatus={journalRead.status}
-        auditExportEnabled={readAuditExportEnabled()}
-        journalFacets={journalFacets}
-        journalFilters={journalFilters}
-        // Параметр типизирован шире, чем требует Settings: сюда же приходит
-        // курсор страницы журнала, а смена фильтра его не несёт — и тем
-        // самым честно возвращает на первую страницу.
-        journalHrefFor={(next: Readonly<{
-          objectType?: string;
-          snapshotAt?: string;
-          snapshotId?: string;
-          cursorAt?: string;
-          cursorId?: string;
-        }>) =>
-          query({
-            section: "journal",
-            object: next.objectType,
-            snapshot: next.snapshotAt,
-            snapshotId: next.snapshotId,
-            cursor: next.cursorAt,
-            cursorId: next.cursorId,
-          })
-        }
-        gates={gates}
-        platform={platform}
-        salesImportHref={salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined}
-        salesManagersHref={salesManagement?.status === "ready" && salesManagement.data.canImport ? salesManagersHref() : undefined}
-        staff={staff}
-        staffRoles={staffRoles}
-        staffOrganizationId={actor.organizationId}
-        selectedStaffRoleId={params.role}
-        selectedStaffMemberId={params.member}
-        deletionQueue={deletionQueue}
-        deletionDetail={deletionDetail}
-        deletionHrefFor={(requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined })}
-        deletionOpen={deletionOpen}
-        telephony={telephony}
-        // Просмотр роли виден, но не меняет настройки телефонии.
-        telephonyReadOnly={isStaffPreview(actor)}
-        reports={reports}
-        // Просмотр роли виден, но ссылок не меняет (действие отказывает само, до обращения к базе).
-        reportsReadOnly={isStaffPreview(actor)}
-        // Просмотр роли блок видит, но подключить не может; сервер проверяет это ещё раз.
-        whatsappConnect={whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin, wazzup: whatsappConnection.wazzup } : undefined}
-      />
-    </PartShell>
+    <SettingsNextLazy
+      {...settingsNextProps({
+        section,
+        staffView,
+        hrefFor: (next: SectionKey, view: StaffView | null) => query({ section: next, view: view ?? undefined }),
+        integrations,
+        whatsappConnect: whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin, wazzup: whatsappConnection.wazzup } : undefined,
+        staff,
+        staffRoles,
+        staffOrganizationId: actor.organizationId,
+        selectedStaffMemberId: params.member,
+        selectedStaffRoleId: params.role,
+        telephony,
+        telephonyReadOnly: isStaffPreview(actor),
+        reports,
+        reportsReadOnly: isStaffPreview(actor),
+        journal,
+        journalStatus: journalRead.status,
+        auditExportEnabled: readAuditExportEnabled(),
+        journalFacets,
+        journalFilters,
+        journalHrefFor: (next) => query({ section: "journal", object: next.objectType, snapshot: next.snapshotAt, snapshotId: next.snapshotId, cursor: next.cursorAt, cursorId: next.cursorId }),
+        deletionQueue,
+        deletionDetail,
+        deletionHrefFor: (requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined }),
+        deletionOpen,
+        gates,
+        platform,
+        salesImportHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined,
+        salesManagersHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? salesManagersHref() : undefined,
+        now: new Date(),
+      })}
+    />
   );
 }

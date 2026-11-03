@@ -411,9 +411,10 @@ test("the page keeps the Admin sections as they were and gives a non-Admin holde
     assert.ok(page.indexOf(read) > early, `${read} comes only after the non-Admin early return`);
   }
   const earlyBlock = page.slice(early, page.indexOf("const telephonyRead"));
-  assert.match(earlyBlock, /<TelephonySection read=\{await readTelephonyAdmin\(actor\)\} readOnly=\{false\}/u);
-  assert.doesNotMatch(earlyBlock, /<Settings\b|readIntegrations|salesImportHref/u);
-  assert.match(page, /telephonyReadOnly=\{isStaffPreview\(actor\)\}/u);
+  // «Новый вид» (#1327): держатель права видит раздел «Телефония» в рамке нового вида (`TelephonyNext`), не прежний `TelephonySection`.
+  assert.match(earlyBlock, /<TelephonyManagerNextLazy read=\{await readTelephonyAdmin\(actor\)\} nowIso=/u);
+  assert.doesNotMatch(earlyBlock, /<Settings\b|<TelephonySection|readIntegrations|salesImportHref/u);
+  assert.match(page, /telephonyReadOnly: isStaffPreview\(actor\)/u);
   assert.match(page, /section === "telephony" \|\| section === "integrations" \? readTelephonyAdmin\(actor\)/u, "the read happens only for the two sections that show it");
 });
 

@@ -510,7 +510,8 @@ test("empty, restricted and «Поставил я» states are honest", () => {
 test("the calendar loses only «Сводка на Главной» and its second red button", () => {
   const page = read("src/app/(v3)/v3/calendar/page.tsx");
   assert.doesNotMatch(page, /Сводка на Главной|href="\/v3\/main"|from "@\/components\/ui"|from "next\/link"/u);
-  assert.match(page, /<PartShell title="Календарь">\s*<Calendar/u);
+  assert.doesNotMatch(page, /<PartShell|<Calendar\b/u, "прежней рамки нет (#1327): календарь рисует «Новый вид»");
+  assert.match(page, /<CalendarNextLazy/u);
   assert.doesNotMatch(read("src/app/(v3)/v3/calendar/loading.tsx"), /h-16/u);
   const calendar = read("src/components/v3/calendar/Calendar.tsx");
   // Э7: одна кнопка на экран — «Создать задачу» оболочки открывает тот же диалог с днём календаря;

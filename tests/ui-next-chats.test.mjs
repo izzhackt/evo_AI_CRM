@@ -35,33 +35,20 @@ const MESSAGES_SCENARIOS = ["thread", "cabinet", "answered", "failure"];
 
 /* ---------------------------------------------------------------- выбор вида: переключатель и только администратор */
 
-test("«WhatsApp»: настоящая страница рисует новый вид только администратору с cookie; у остальных и без cookie — прежняя разметка", () => {
+test("«WhatsApp»: настоящая страница рисует новый вид каждой роли (администратор, продажи, просмотр роли), cookie больше нет (#1327)", () => {
   for (const scenario of INBOX_SCENARIOS) {
-    assert.ok(page("inbox", scenario, "admin-cookie").includes(WHATSAPP_NEW), scenario);
-    for (const mode of LEGACY_MODES) assert.ok(!page("inbox", scenario, mode).includes(WHATSAPP_NEW), `${scenario}/${mode}: нового вида нет`);
-    // Cookie сотруднику и просмотру роли ничего не даёт: разметка та же, что без неё.
-    assert.equal(page("inbox", scenario, "sales-cookie"), page("inbox", scenario, "sales-no-cookie"), `${scenario}: сотрудник с cookie`);
-    assert.equal(page("inbox", scenario, "preview-cookie"), page("inbox", scenario, "preview-no-cookie"), `${scenario}: просмотр роли с cookie`);
+    for (const mode of ["admin-cookie", ...LEGACY_MODES]) assert.ok(page("inbox", scenario, mode).includes(WHATSAPP_NEW), `${scenario}/${mode}: новый вид`);
   }
-  const legacy = page("inbox", "chat", "admin-no-cookie");
-  assert.match(legacy, /data-testid="v3-inbox"/u);
-  assert.match(legacy, /<a [^>]*data-testid="v3-inbox-profile-link"/u, "прежняя ссылка «Карточка лида»");
-  assert.doesNotMatch(legacy, /data-slot="(input|button)"/u, "прежний вид без кнопок и полей набора");
   const next = page("inbox", "chat", "admin-cookie");
   assert.match(next, /data-slot="input"/u);
   assert.match(next, /data-slot="button"/u);
   assert.equal((next.match(/<h1[ >]/gu) ?? []).length, 1);
 });
 
-test("«Переписка»: новый вид только администратору с cookie; у остальных и без cookie — прежняя разметка", () => {
+test("«Переписка»: новый вид у каждой роли, cookie больше нет (#1327)", () => {
   for (const scenario of MESSAGES_SCENARIOS) {
-    assert.ok(page("messages", scenario, "admin-cookie").includes(MESSAGES_NEW), scenario);
-    for (const mode of LEGACY_MODES) assert.ok(!page("messages", scenario, mode).includes(MESSAGES_NEW), `${scenario}/${mode}`);
-    assert.equal(page("messages", scenario, "sales-cookie"), page("messages", scenario, "sales-no-cookie"), `${scenario}: сотрудник с cookie`);
-    assert.equal(page("messages", scenario, "preview-cookie"), page("messages", scenario, "preview-no-cookie"), `${scenario}: просмотр роли с cookie`);
+    for (const mode of ["admin-cookie", ...LEGACY_MODES]) assert.ok(page("messages", scenario, mode).includes(MESSAGES_NEW), `${scenario}/${mode}`);
   }
-  assert.match(page("messages", "thread", "admin-no-cookie"), /data-conversations-main=""/u, "прежняя рамка ConversationsMain");
-  assert.doesNotMatch(page("messages", "thread", "admin-no-cookie"), /data-slot="button"/u);
 });
 
 /* ---------------------------------------------------------------- те же данные, ссылки и движок */
@@ -155,13 +142,9 @@ test("скрытая шапка: «?» уходит из порядка табу
   assert.match(thread, /class="[^"]*@max-2xl:hidden/u, "переписка открыта: «?» скрыт вместе с шапкой");
   assert.match(page("messages", "thread", "admin-cookie"), /<div data-slot="page-header" class="[^"]*@max-2xl:sr-only/u, "а заголовок остаётся для читалки");
   for (const scenario of ["cabinet", "answered"]) assert.doesNotMatch(helpButton(page("messages", scenario, "admin-cookie")), /hidden/u, `${scenario}: список — шапка видна`);
-  // Прежний вид: шапка без «?» вовсе, как на базе.
-  for (const html of [page("inbox", "chat", "admin-no-cookie"), page("messages", "thread", "admin-no-cookie")]) assert.equal(helpButton(html), null);
 });
 
 test("«Переписка»: пустой список после поиска или смены очереди стоит в области role=\"status\", как у прежнего вида", () => {
-  const legacy = page("messages", "answered", "admin-no-cookie");
-  assert.match(legacy, /<p role="status"[^>]*>Нет переписок, ждущих ответа\.<\/p>/u, "прежний вид: строка в role=status");
   const next = page("messages", "answered", "admin-cookie");
   assert.match(next, /<div role="status"><div data-slot="empty-state"[^>]*><p[^>]*>Нет переписок, ждущих ответа\.<\/p><\/div><\/div>/u, "новый вид: то же слово в области status");
   // Область стоит в списке и тогда, когда строки есть: то, что вставлено в готовую область, читалка озвучивает надёжнее.
@@ -237,9 +220,7 @@ test("Wazzup: рамка нового вида не добавляет отпр�
 /* ---------------------------------------------------------------- текст: на экране заголовки, данные и кнопки; пояснения за «?» */
 
 test("текст: пояснение «WhatsApp» ушло за «?», пустой список — одна строка с кнопкой; беды канала и «не подключён» остаются на виду", () => {
-  const legacyEmpty = text(page("inbox", "empty", "admin-no-cookie"));
   const nextEmpty = text(page("inbox", "empty", "admin-cookie"));
-  assert.match(legacyEmpty, /Здесь отображаются диалоги, к которым у вас есть доступ\./u, "а у прежнего вида стояло");
   assert.match(nextEmpty, /Пока нет доступных диалогов/u);
   assert.doesNotMatch(nextEmpty, /Здесь отображаются/u, "пояснения на экране нет");
   const filtered = text(page("inbox", "empty-filtered", "admin-cookie"));
@@ -262,23 +243,20 @@ test("текст: пояснение «WhatsApp» ушло за «?», пуст�
 
 /* ---------------------------------------------------------------- устройство: страницы, ленивые входы, виджеты набора, короткие файлы */
 
-test("страницы спрашивают isNextUi, читают и проверяют права как прежде; новый вид — ленивый вход, прежняя ветка осталась", () => {
+test("страницы всегда рисуют новый вид (#1327), читают и проверяют права как прежде; новый вид — ленивый вход", () => {
   const inbox = read("src/app/(v3)/v3/inbox/page.tsx");
-  assert.match(inbox, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
+  assert.doesNotMatch(inbox, /isNextUi/u);
   assert.match(inbox, /import \{ InboxNextLazy \} from "@\/components\/v3\/inbox-next\/InboxNextLazy";/u);
   assert.doesNotMatch(inbox, /from "@\/components\/v3\/inbox-next\/(?!InboxNextLazy)|from "@\/components\/kit/u, "новый вид и набор в первую загрузку страницы не входят");
-  assert.match(inbox, /if \(await isNextUi\(actor\)\) \{\s*return \(\s*<InboxNextLazy/u);
-  assert.match(inbox, /<PartShell title="WhatsApp" count=\{notConnected \|\| paged \? null : view\.conversations\.length\} fill>/u, "прежний вид на месте");
-  assert.ok(inbox.indexOf("await readInbox(actor") < inbox.indexOf("isNextUi(actor)"), "чтение страницы — до выбора вида");
-  assert.ok(inbox.indexOf("isNextUi(actor)") < inbox.indexOf("<PartShell"), "выбор вида до прежней разметки");
+  assert.match(inbox, /return \(\s*<InboxNextLazy/u);
+  assert.doesNotMatch(inbox, /<PartShell|<Inbox\b/u, "прежней разметки нет");
   const messages = read("src/app/(v3)/v3/messages/page.tsx");
-  assert.match(messages, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
+  assert.doesNotMatch(messages, /isNextUi/u);
   assert.match(messages, /import \{ CaseChatNextFailureLazy, CaseChatNextLazy \} from "@\/components\/v3\/case-chat-next\/CaseChatNextLazy";/u);
   assert.doesNotMatch(messages, /from "@\/components\/v3\/case-chat-next\/(?!CaseChatNextLazy)|from "@\/components\/kit/u);
-  assert.match(messages, /const nextUi = await isNextUi\(actor\);/u);
-  assert.match(messages, /if \(nextUi\) return <CaseChatNextFailureLazy forbidden=\{threadsFailure === "forbidden"\}/u);
-  assert.match(messages, /if \(nextUi\) \{\s*return \(\s*<CaseChatNextLazy/u);
-  assert.match(messages, /<ConversationsMain title=\{TITLE\} threadOpen=\{rawCase !== null\}>/u, "прежний вид на месте");
+  assert.match(messages, /return <CaseChatNextFailureLazy forbidden=\{threadsFailure === "forbidden"\}/u);
+  assert.match(messages, /return \(\s*<CaseChatNextLazy/u);
+  assert.doesNotMatch(messages, /<ConversationsMain|<CaseChatWorkspace/u, "прежней разметки нет");
   assert.match(messages, /readCaseChatPage\(actor, rawCase, "latest"\)/u, "чтения прежние");
   assert.match(messages, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(caseState\)\}/u);
 });

@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import { notFound } from "next/navigation";
 
-import { PartShell } from "@/components/v3/PartShell";
-import { Calendar } from "@/components/v3/calendar/Calendar";
 import { CalendarNextLazy } from "@/components/v3/calendar/next/CalendarNextLazy";
 import {
   calendarUndatedContinuationHref,
@@ -12,7 +10,6 @@ import {
   resolveView,
 } from "@/components/v3/calendar/types";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { parsePlatformAdmissionsUuid } from "@/lib/platform-admissions";
 import { parsePersonalCalendarCursor, PersonalCalendarReadError } from "@/lib/v3/personal-calendar-contract";
 import { readPersonalCalendarTaskTarget, readCalendarWorkspace, readNowMinutes, readToday } from "@/lib/v3/calendar-source";
@@ -109,74 +106,37 @@ export default async function CalendarPart({
     ]),
   );
 
-  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — вкладки вида, карточки и панель задачи.
-  if (await isNextUi(actor)) {
-    return (
-      <CalendarNextLazy
-        key={JSON.stringify([actor.organizationId, actor.authUserId, actor.membershipId, actor.platformAccessVersion, actor.presentationRole])}
-        initialTaskKey={target?.task.key ?? null}
-        unavailableTarget={unavailableTarget}
-        taskCapabilities={target?.capabilities ?? null}
-        view={view}
-        day={day}
-        today={today}
-        nowMinutes={nowMinutes}
-        days={days}
-        tasks={workspace.tasks}
-        readAccess={workspace.access}
-        undatedContinuationPage={workspace.access.tasks && undatedCursor !== null}
-        undatedNextHref={workspace.undatedNextCursor
-          ? calendarUndatedContinuationHref(
-              "/v3/calendar",
-              view,
-              day,
-              workspace.undatedNextCursor,
-            )
-          : null}
-        undatedCursor={undatedCursor}
-        cases={workspace.cases}
-        casesHaveMore={workspace.casesHaveMore}
-        assignees={workspace.assignees}
-        actorMembershipId={actor.membershipId}
-        actor={actor}
-        taskRequestIds={taskRequestIds}
-        basePath="/v3/calendar"
-      />
-    );
-  }
-
+  // «Новый вид» (единственный вид, #1327): те же чтения и права, другая расстановка — вкладки вида, карточки и панель задачи.
   return (
-    <PartShell title="Календарь">
-      <Calendar
-        key={JSON.stringify([actor.organizationId, actor.authUserId, actor.membershipId, actor.platformAccessVersion, actor.presentationRole])}
-        initialTaskKey={target?.task.key ?? null}
-        unavailableTarget={unavailableTarget}
-        taskCapabilities={target?.capabilities ?? null}
-        view={view}
-        day={day}
-        today={today}
-        nowMinutes={nowMinutes}
-        days={days}
-        tasks={workspace.tasks}
-        readAccess={workspace.access}
-        undatedContinuationPage={workspace.access.tasks && undatedCursor !== null}
-        undatedNextHref={workspace.undatedNextCursor
-          ? calendarUndatedContinuationHref(
-              "/v3/calendar",
-              view,
-              day,
-              workspace.undatedNextCursor,
-            )
-          : null}
-        undatedCursor={undatedCursor}
-        cases={workspace.cases}
-        casesHaveMore={workspace.casesHaveMore}
-        assignees={workspace.assignees}
-        actorMembershipId={actor.membershipId}
-        actor={actor}
-        taskRequestIds={taskRequestIds}
-        basePath="/v3/calendar"
-      />
-    </PartShell>
+    <CalendarNextLazy
+      key={JSON.stringify([actor.organizationId, actor.authUserId, actor.membershipId, actor.platformAccessVersion, actor.presentationRole])}
+      initialTaskKey={target?.task.key ?? null}
+      unavailableTarget={unavailableTarget}
+      taskCapabilities={target?.capabilities ?? null}
+      view={view}
+      day={day}
+      today={today}
+      nowMinutes={nowMinutes}
+      days={days}
+      tasks={workspace.tasks}
+      readAccess={workspace.access}
+      undatedContinuationPage={workspace.access.tasks && undatedCursor !== null}
+      undatedNextHref={workspace.undatedNextCursor
+        ? calendarUndatedContinuationHref(
+            "/v3/calendar",
+            view,
+            day,
+            workspace.undatedNextCursor,
+          )
+        : null}
+      undatedCursor={undatedCursor}
+      cases={workspace.cases}
+      casesHaveMore={workspace.casesHaveMore}
+      assignees={workspace.assignees}
+      actorMembershipId={actor.membershipId}
+      actor={actor}
+      taskRequestIds={taskRequestIds}
+      basePath="/v3/calendar"
+    />
   );
 }

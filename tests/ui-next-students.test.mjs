@@ -214,7 +214,7 @@ const sceneOf = (group, key) => { const entry = group[key]; return { search: ent
 const paramsOf = (search) => Object.fromEntries(new URLSearchParams(search));
 const NEXT_MARKS = /data-testid="v3-students-next"|data-slot="data-table"/u;
 
-test("страница «Студенты»: «Новый вид» только настоящему администратору с переключателем; всем остальным — прежняя очередь и прежняя разметка", async () => {
+test("страница «Студенты»: «Новый вид» — единственный вид любой роли (#1327): администратор, сотрудник, просмотр роли", async () => {
   const { search, input } = sceneOf(fixtures.students, "queue");
   const on = await profilePage("next", ADMIN, paramsOf(search), input).run();
   assert.match(on, /data-testid="v3-students-next"/);
@@ -226,17 +226,16 @@ test("страница «Студенты»: «Новый вид» только 
   // Свойства, которые страница отдаёт ленивому входу, проходят границу сервер → клиент: данные, не функции и не объекты классов.
   assertFlightProps((await profilePage("next", ADMIN, paramsOf(search), input).element()).props, "StudentsNextLazy");
 
-  const off = await profilePage(undefined, ADMIN, paramsOf(search), input).run();
-  assert.match(off, /data-testid="v3-student-case-table"/, "переключатель выключен — прежний вид");
-  assert.doesNotMatch(off, NEXT_MARKS);
-  assert.match(off, /<h1 class="t-page-title[^>]*>Студенты/u);
+  const noCookie = await profilePage(undefined, ADMIN, paramsOf(search), input).run();
+  assert.match(noCookie, /data-testid="v3-students-next"/, "cookie больше нет — тот же новый вид");
+  assert.doesNotMatch(noCookie, /data-testid="v3-student-case-table"/);
 
   const STAFF_SEARCH = "";
   for (const [label, who] of [["сотрудник", STAFF], ["администратор в просмотре роли", PREVIEW]]) {
     for (const cookie of ["next", undefined]) {
       const html = await profilePage(cookie, who, paramsOf(STAFF_SEARCH), sceneOf(fixtures.students, "mine").input).run();
-      assert.match(html, /data-testid="v3-student-case-(table|directory)"/u, `${label}, cookie=${cookie}: прежний вид`);
-      assert.doesNotMatch(html, NEXT_MARKS, `${label}, cookie=${cookie}: нового вида нет`);
+      assert.match(html, NEXT_MARKS, `${label}, cookie=${cookie}: новый вид`);
+      assert.doesNotMatch(html, /data-testid="v3-student-case-table"/u, `${label}, cookie=${cookie}: прежней таблицы нет`);
     }
   }
 });
@@ -286,9 +285,9 @@ test("страница EVO Docs: те же вкладки и очереди в �
   const tabs = on.match(/<nav aria-label="Виды списка студентов"[\s\S]*?<\/nav>/u)[0];
   assert.deepEqual([...tabs.matchAll(/<a [^>]*>([^<]+)<span[^>]*>(\d+)<\/span>/gu)].map((match) => `${match[1].trim()} ${match[2]}`),
     ["Документы дела 16", "Документы программ 3", "Комплекты 2", "Исправить 4", "Не хватает 18", "Все 20"]);
-  const off = await profilePage(undefined, ADMIN, paramsOf(docs.search), docs.input).run();
-  assert.match(off, /data-testid="v3-student-case-table"/u);
-  assert.doesNotMatch(off, NEXT_MARKS);
+  const noCookie = await profilePage(undefined, ADMIN, paramsOf(docs.search), docs.input).run();
+  assert.match(noCookie, /data-testid="v3-students-next"/u);
+  assert.doesNotMatch(noCookie, /data-testid="v3-student-case-table"/u);
   for (const view of ["program", "packages"]) {
     const scene = sceneOf(fixtures.students.docs, view);
     const html = await profilePage("next", ADMIN, paramsOf(scene.search), scene.input).run();
@@ -339,10 +338,11 @@ const universityPage = (path, cookie, who, params = {}, extra = {}) => {
   const element = () => load(`src/app/(v3)/v3/universities/${path}`).default({ searchParams: Promise.resolve(params), params: Promise.resolve({ id: params.__id }) });
   return { element, run: async () => renderSettled(await element()) };
 };
-const MODES = [["администратор с переключателем", "next", ADMIN, true], ["администратор без переключателя", undefined, ADMIN, false],
-  ["сотрудник с cookie", "next", MANAGER, false], ["администратор в просмотре роли с cookie", "next", PREVIEW, false]];
+// Переключателя нет (#1327): новый вид у всех четырёх режимов; cookie и роль меняют только права, не вид.
+const MODES = [["администратор с cookie", "next", ADMIN, true], ["администратор без cookie", undefined, ADMIN, true],
+  ["сотрудник с cookie", "next", MANAGER, true], ["администратор в просмотре роли с cookie", "next", PREVIEW, true]];
 
-test("«Университеты»: каталог в новом виде — только настоящему администратору с переключателем; во всех остальных режимах прежняя таблица", async () => {
+test("«Университеты»: каталог в новом виде у каждой роли (#1327); управление каталогом — только тому, у кого есть право", async () => {
   for (const [label, cookie, who, isNext] of MODES) {
     const run = universityPage("page.tsx", cookie, who);
     const html = await run.run();
@@ -353,7 +353,8 @@ test("«Университеты»: каталог в новом виде — т
       assertFlightProps((await run.element()).props, "UniversitiesListNextLazy");
       assert.match(html, /<a [^>]*href="\/v3\/universities\/57ce9b97-43fb-4563-9c61-\d{12}"[^>]*>/u, "название — ссылка на карточку");
       assert.match(html, /aria-label="Поиск университетов"/u);
-      assert.match(html, /<a [^>]*href="\/v3\/universities\/manage"[^>]*>[\s\S]*Управлять каталогом/u, "управление каталогом — тому, у кого есть право");
+      if (who === PREVIEW) assert.doesNotMatch(html, /Управлять каталогом/u, `${label}: просмотр роли управлять не может`);
+      else assert.match(html, /<a [^>]*href="\/v3\/universities\/manage"[^>]*>[\s\S]*Управлять каталогом/u, `${label}: управление каталогом — тому, у кого есть право`);
       const ids = new Set([...html.matchAll(/data-university-row="([^"]+)"/gu)].map((match) => match[1]));
       assert.ok(ids.size > 0 && ids.size <= 30, "не больше страницы сервера");
     }
@@ -379,8 +380,10 @@ test("«Университеты»: карточка вуза — програм
       assert.equal([...html.matchAll(/<h1 /gu)].length, 1);
       assert.match(html, /<section[^>]*data-program=/u, "программа — раздел со своей таблицей наборов");
       assert.match(html, /aria-label="Наборы: /u);
-      assert.match(html, /data-testid="geography-panel"/u, "панель города и стоимости — прежняя, под карточкой");
-      assert.match(html, /Бланки университета/u);
+      if (who === ADMIN) {
+        assert.match(html, /data-testid="geography-panel"/u, "панель города и стоимости — прежняя, под карточкой");
+        assert.match(html, /Бланки университета/u);
+      } else assert.doesNotMatch(html, /data-testid="geography-panel"/u, `${label}: панель города — только редактору`);
       assert.doesNotMatch(html, /<a [^>]*target="_blank"(?![^>]*rel="noopener noreferrer")/u, "внешние ссылки — в новой вкладке и безопасно");
     }
   }
@@ -394,7 +397,7 @@ test("«Управление каталогом» и вложенные стра
     const html = await universityPage("manage/page.tsx", cookie, who).run();
     assert.equal(/data-testid="manage-template-groups"/u.test(html), true, label);
     assert.equal(/data-testid="v3-universities-next"/u.test(html), isNext, label);
-    assert.equal(/id="manage-pending-heading"/u.test(html), !isNext, `${label}: прежний индекс — секции с заголовком`);
+    assert.doesNotMatch(html, /id="manage-pending-heading"/u, `${label}: прежнего индекса нет`);
     if (isNext) assert.match(html, /На проверке[\s\S]*Проверить[\s\S]*Подготовленные сведения из открытых источников/u);
   }
   const draft = await universityPage("manage/page.tsx", "next", ADMIN, { draft: "dddddddd-7777-4777-8777-000000000001" }, {
@@ -405,11 +408,11 @@ test("«Управление каталогом» и вложенные стра
   assert.match(draft, /Проверка: /u);
   const rates = await universityPage("rates/page.tsx", "next", ADMIN).run();
   assert.match(rates, /data-testid="v3-universities-next"[\s\S]*data-testid="fx-rates"/u, "курсы валют — прежняя форма в новой рамке");
-  assert.doesNotMatch(await universityPage("rates/page.tsx", undefined, ADMIN).run(), /v3-universities-next/u);
-  // Права страницы управления не зависят от переключателя: сотрудник с правом и cookie видит прежний индекс, просмотр роли отказан.
+  assert.match(await universityPage("rates/page.tsx", undefined, ADMIN).run(), /v3-universities-next/u, "cookie больше нет");
+  // Права страницы управления не зависят от вида: сотрудник с правом видит новый индекс, просмотр роли отказан.
   const manager = await universityPage("manage/page.tsx", "next", MANAGER).run();
-  assert.match(manager, /id="manage-pending-heading"/u);
-  assert.doesNotMatch(manager, /v3-universities-next/u);
+  assert.match(manager, /data-testid="v3-universities-next"/u);
+  assert.doesNotMatch(manager, /id="manage-pending-heading"/u);
   await assert.rejects(universityPage("manage/page.tsx", "next", PREVIEW).run(), /NEXT_REDIRECT \/access-denied/u);
   await assert.rejects(universityPage("manage/page.tsx", "next", STAFF).run(), /NEXT_REDIRECT \/access-denied/u);
 });
@@ -507,8 +510,8 @@ test("файлы нового вида: каждый до 150 строк, без
 test("первая загрузка: страницы не импортируют новый вид статически, входы — ленивые `next/dynamic` с `onScreenLoadFailed`", () => {
   const profile = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(profile, /import \{ StudentsNextLazy \} from "@\/components\/v3\/students-next\/StudentsNextLazy";/u);
-  assert.match(profile, /if \(nextUi && queueInput\) return <StudentsNextLazy input=\{queueInput\} manageUniversities=\{manageUniversities\} \/>;/u);
-  assert.match(profile, /const queuePage = queueInput \? buildStudentsQueueScreen\(queueInput\) : null;/u, "прежний вид строит экран из тех же данных");
+  assert.match(profile, /if \(queueInput\) return <StudentsNextLazy input=\{queueInput\} manageUniversities=\{manageUniversities\} \/>;/u);
+  assert.doesNotMatch(profile, /buildStudentsQueueScreen/u, "прежний вид очереди из страницы убран");
   const lazy = read("src/components/v3/students-next/StudentsNextLazy.tsx");
   assert.match(lazy, /^"use client";/u);
   assert.match(lazy, /dynamic\(\(\) => import\("\.\/StudentsNextPage"\)\.then\(\(module\) => module\.StudentsNextPage\)\.catch\(onScreenLoadFailed\)\)/u);
@@ -519,10 +522,10 @@ test("первая загрузка: страницы не импортирую�
     const source = read(`src/app/(v3)/v3/universities/${page}`);
     assert.doesNotMatch(source, /from "@\/components\/kit/u, `${page}: набор виджетов статически не подключается`);
     assert.doesNotMatch(source, /from "@\/components\/v3\/universities-next\/(UniversitiesListNext|UniversityDetailNext|UniversityFrame|ManageIndexNext)"/u, `${page}: вход — только ленивый`);
-    assert.match(source, /isNextUi/u, `${page}: выбор вида — по isNextUi`);
+    assert.doesNotMatch(source, /isNextUi/u, `${page}: выбора вида нет`);
   }
   const shell = read("src/components/v3/universities-next/UniversityShell.tsx");
-  assert.match(shell, /if \(!nextUi\) return <PartShell \{\.\.\.props\} \/>;/u, "без переключателя — прежняя рамка с теми же свойствами");
+  assert.doesNotMatch(shell, /nextUi/u, "рамка всегда новая");
   assert.doesNotMatch(read("src/components/v3/students-next/StudentsNextLazy.tsx") + shell, /@\/components\/kit"/u);
 });
 

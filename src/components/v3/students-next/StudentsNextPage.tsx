@@ -14,9 +14,9 @@ import { StudentsQueueNext } from "./StudentsQueueNext";
 const HELP_QUEUE = "Очередь дел по сроку «Следующего шага»: сверху просроченные. Строка открывает панель дела, стрелка справа — дело целиком. Поиск идёт по всей очереди, а не только по этой странице.";
 const HELP_DOCS = "Один центр проверки документов: документы дел, документы программ и комплекты. Строка ведёт к документам дела. Поиск идёт по всем делам вкладки.";
 
-function Alert({ title, description, action }: Readonly<{ title: string; description?: string; action?: React.ReactNode }>) {
+function Alert({ title, description, action, testId }: Readonly<{ title: string; description?: string; action?: React.ReactNode; testId?: string }>) {
   return (
-    <div role="alert" className="rounded-card border border-border bg-surface">
+    <div role="alert" className="rounded-card border border-border bg-surface" data-testid={testId}>
       <EmptyState tone="danger" title={title} description={description} action={action} />
     </div>
   );
@@ -42,7 +42,7 @@ export function StudentsNextPage({ input, manageUniversities }: Readonly<{ input
     );
   } else if (read.forbidden) {
     const coverage = !docs && input.actor.coverage;
-    body = <Alert title={docs ? "Очередь EVO Docs для вашей учётной записи недоступна." : "Список студентов для вашей учётной записи недоступен."}
+    body = <Alert testId="queue-forbidden" title={docs ? "Очередь EVO Docs для вашей учётной записи недоступна." : "Список студентов для вашей учётной записи недоступен."}
       description="Обратитесь к администратору: повторная попытка не поможет."
       action={coverage ? <Button variant="outline" asChild><Link href={studentsListHref(params, { view: "curators" })}>Открыть «Нагрузку кураторов»</Link></Button> : undefined} />;
   } else if (docs) {
@@ -65,7 +65,8 @@ export function StudentsNextPage({ input, manageUniversities }: Readonly<{ input
       help={docs ? HELP_DOCS : HELP_QUEUE}
       actions={docs && manageUniversities ? <Button variant="outline" asChild><Link href="/v3/universities">Университеты и бланки</Link></Button> : undefined}
     >
-      {body}
+      {/* Контейнер очереди для проверки выпуска (`scripts/release/evo-production-browser-smoke.mjs`): стоит в любом состоянии — очередь, EVO Docs, отказ, ошибка. */}
+      <div className="grid min-w-0 gap-4" data-testid="v3-student-case-directory">{body}</div>
     </PageShell>
   );
 }

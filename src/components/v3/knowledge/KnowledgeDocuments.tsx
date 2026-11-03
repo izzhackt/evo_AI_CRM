@@ -119,7 +119,7 @@ export async function KnowledgeDocuments({ actor, embedded = false, next = false
     return <>
       {!studentDocuments.complete && <p role="alert" className="mb-3 t-body-compact text-warn">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране.</p>}
       <FilesNextLazy folders={folders} files={files} canManage={surface.canManageCompanyFiles} canUpload={surface.canUploadCompanyFiles}
-        createFolderRequestId={randomUUID()} createFileRequestId={randomUUID()} />
+        createFolderRequestId={randomUUID()} createFileRequestId={randomUUID()} allowExport={embedded} />
     </>;
   }
 

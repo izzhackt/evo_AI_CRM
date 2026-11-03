@@ -66,7 +66,7 @@ test("Э8.11: the journal read tells a disabled audit from a failed read, and th
   assert.match(source, /cursorHonored: true,\s*status: "ready",/u);
   assert.match(source, /return \{ entries, cursorHonored: page\.cursorHonored, status: page\.status \};/u);
   const page = read("src/app/(v3)/v3/settings/page.tsx");
-  assert.match(page, /journalStatus=\{journalRead\.status\}/u);
+  assert.match(page, /journalStatus: journalRead\.status/u);
   const sections = read("src/components/v3/settings/sections.tsx");
   // Число «События» — только у прочитанного журнала.
   assert.match(sections, /aside=\{status === "ready" \? <Pill>\{nextPage \? `\$\{events\.length\}\+` : events\.length\}<\/Pill> : undefined\}/u);

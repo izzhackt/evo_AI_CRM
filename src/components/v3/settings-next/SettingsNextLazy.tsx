@@ -9,3 +9,8 @@ import { NextScreenLoading } from "@/components/v3/admin-next/NextScreenLoading"
 export const SettingsNextLazy = dynamic(() => import("./SettingsNextPage").then((module) => module.SettingsNextPage).catch(onScreenLoadFailed), {
   loading: () => <NextScreenLoading label="Загружаем настройки…" />,
 });
+
+/** «Настройки» держателя `telephony.manage` без прав Admin: одна «Телефония» в рамке нового вида (тот же ленивый вход, та же заглушка). */
+export const TelephonyManagerNextLazy = dynamic(() => import("./TelephonyManagerNextPage").then((module) => module.TelephonyManagerNextPage).catch(onScreenLoadFailed), {
+  loading: () => <NextScreenLoading label="Загружаем настройки…" />,
+});

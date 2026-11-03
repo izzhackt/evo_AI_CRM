@@ -1020,8 +1020,8 @@ test("исходники «Поручить»: ключ чата — у рабо
   assert.match(pageSource, /run: mine \}/u);
   assert.match(pageSource, /!route\.runId && !route\.fresh/u, "?new=1 пропускает автоподхват");
   assert.match(pageSource, /ownCommandRuns\(conversationsRead\.data\.runs, actor\.displayName/u);
-  // «Поручить» — своя рамка на всю рабочую область (решение владельца 26.10.2026), а не `PartShell` в колонке 1240 px.
-  assert.match(pageSource, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u);
+  // «Поручить» — рамка на всю рабочую область (решение владельца 26.10.2026); с #1327 её рисует «Новый вид» (`NextChatShell`), страница прежних рамок не несёт.
+  assert.doesNotMatch(pageSource, /<AgentChatShell|<PartShell/u);
   assert.doesNotMatch(pageSource, /fill=\{tab === "command"\}/u);
   const consoleSource = read("src/components/v3/ai-agents/Console.tsx");
   assert.match(consoleSource, /useLayoutEffect\(\(\) => \{\s*const typed = input\.current\?\.value/u, "текст из поля, набранный до гидратации, попадает в состояние");

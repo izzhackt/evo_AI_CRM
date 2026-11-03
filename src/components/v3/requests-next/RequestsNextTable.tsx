@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { DataTable, DetailSheet, type DataTableColumn } from "@/components/kit";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,7 +93,8 @@ export function RequestsNextTable({
         description={shown?.description}
         footer={shown?.footer}
       >
-        {shown ? shown.body : (
+        {/* Ключ — запись (`requestOpenKey`, как у прежней панели, PR 1084): черновик, конфликт и ошибка «Взять себе» не переезжают в другую запись. */}
+        {shown ? <Fragment key={shown.key}>{shown.body}</Fragment> : (
           <div className="space-y-3" aria-busy="true">
             <p role="status" className="sr-only">Открываем заявку…</p>
             <Skeleton className="h-5 w-2/3" />

@@ -22,7 +22,7 @@ import { PhoneSelectAll } from "./PhoneSelectAll";
  * Подпапка открывается нажатием на строку, файл — панелью с управлением (заменить, переименовать, переместить, удалить) и «Скачать».
  * Данные, права, действия и request_id приходят с сервера теми же, что у `FileManager`; выгрузка — прежнее окно `KnowledgeExport`.
  */
-export function FilesNext({ folders, files, canManage, canUpload, createFolderRequestId, createFileRequestId, rootLabel = "Документы" }: Readonly<{
+export function FilesNext({ folders, files, canManage, canUpload, createFolderRequestId, createFileRequestId, rootLabel = "Документы", allowExport = false }: Readonly<{
   folders: readonly KnowledgeFolder[];
   files: readonly KnowledgeFile[];
   canManage: boolean;
@@ -30,6 +30,8 @@ export function FilesNext({ folders, files, canManage, canUpload, createFolderRe
   createFolderRequestId: string;
   createFileRequestId: string;
   rootLabel?: string;
+  /** Выгрузка в базу знаний — только там, где её разрешает сервер (страница «Базы знаний» администратора), как `allowKnowledgeExport` прежнего `FileManager`. */
+  allowExport?: boolean;
 }>) {
   const params = useSearchParams();
   const [currentId, setCurrentId] = useState<string | null>(() => {
@@ -42,7 +44,7 @@ export function FilesNext({ folders, files, canManage, canUpload, createFolderRe
   const [exporting, setExporting] = useState<"folder" | "selected" | null>(null);
   const model = useMemo(() => filesModel(folders, files, currentId, query), [folders, files, currentId, query]);
   const openFile = files.find((file) => file.id === openFileId) ?? null;
-  const exportable = useMemo(() => model.exportable.map((file) => file.currentVersionId!), [model.exportable]);
+  const exportable = useMemo(() => (allowExport ? model.exportable.map((file) => file.currentVersionId!) : []), [allowExport, model.exportable]);
   const frame = useRef<HTMLDivElement>(null);
   const currentCrumb = useRef<HTMLSpanElement>(null);
   const refocus = useRef(false);
@@ -78,7 +80,7 @@ export function FilesNext({ folders, files, canManage, canUpload, createFolderRe
         columnMenu={false}
         toolbar={(
           <FilesToolbar
-            query={query} onQuery={setQuery} exportLabel={model.current ? "Выгрузить папку" : "Выгрузить все документы"} onExport={() => setExporting("folder")}
+            query={query} onQuery={setQuery} exportLabel={model.current ? "Выгрузить папку" : "Выгрузить все документы"} onExport={allowExport ? () => setExporting("folder") : undefined}
             selectedCount={selected.size} onExportSelected={() => setExporting("selected")} onClearSelection={() => setSelected(new Set())}
             canManage={canManage} current={model.current} destinations={model.destinations} hasChildren={model.current ? model.count(model.current.id) > 0 : false}
             createFolderRequestId={createFolderRequestId} createFileRequestId={createFileRequestId}
@@ -96,8 +98,10 @@ export function FilesNext({ folders, files, canManage, canUpload, createFolderRe
       >
         {openFile ? <FileSheetBody key={`${openFile.id}:${openFile.version ?? "unversioned"}`} file={openFile} destinations={model.companyDestinations} canManage={canManage} canUpload={canUpload} /> : null}
       </DetailSheet>
+      {allowExport ? <>
       <KnowledgeExport open={exporting === "folder"} onOpenChange={(next) => { if (!next) setExporting(null); }} canonical={folderExportOf(model.current)} label={model.current ? "Выгрузить папку" : "Выгрузить все документы"} />
       <KnowledgeExport open={exporting === "selected"} onOpenChange={(next) => { if (!next) setExporting(null); }} canonical={selectedExportOf(files, selected)} label="Выгрузить выбранные документы" />
+      </> : null}
     </div>
   );
 }

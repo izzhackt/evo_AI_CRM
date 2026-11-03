@@ -138,19 +138,16 @@ test("«Интересует»: значение, сбой словами, и н
   for (const name of ["widget-interest-value", "widget-interest-error", "widget-interest-none"]) assert.match(text(page(name)), /Сведения/u);
 });
 
-test("«Новый вид» страницы включается только через isNextUi, данные и права не меняются", () => {
+test("«Новый вид» страницы единственный (#1327), данные и права не меняются", () => {
   const source = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(source, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
-  assert.match(source, /const nextUi = await isNextUi\(actor\);/u);
+  assert.doesNotMatch(source, /isNextUi/u);
   // Части прежнего вида строятся одним и тем же вызовом, признак в них не передаётся.
   assert.match(source, /caseWorkParts\(\{\s*actor,/u);
   assert.doesNotMatch(source, /nextUi[^;\n]*caseWorkParts|caseWorkParts\([^)]*nextUi/u);
-  // «Новый вид» — только то, что вернул `isNextUi`: без cookie и для не-администратора `nextParts` пуст.
-  assert.match(source, /const nextParts = nextUi\s*\? caseParts\?\.next \? caseNextParts\(caseParts\.next, caseParts\.actions\) : leadParts \? leadNextParts\(leadParts\.next\) : null\s*: null;/u);
+  assert.match(source, /const nextParts = caseParts\?\.next \? caseNextParts\(caseParts\.next, caseParts\.actions\) : leadParts \? leadNextParts\(leadParts\.next\) : null;/u);
   assert.match(source, /nextUi=\{nextParts !== null\}/u);
-  // Прежняя рамка остаётся единственной при выключенном виде.
-  // «Новый вид» рисует рамку и у закрытого лида и «не найден» (поток «card-tabs»); без переключателя `nextCard` пуст и рамка прежняя.
-  assert.match(source, /const nextCard = nextParts !== null \|\| \(nextUi && \(closedLead !== null \|\| invalidIdentityShape \|\| missing\)\);/u);
+  // «Новый вид» рисует рамку и у закрытого лида и «не найден» (поток «card-tabs»).
+  assert.match(source, /const nextCard = nextParts !== null \|\| closedLead !== null \|\| invalidIdentityShape \|\| missing;/u);
   assert.match(source, /return nextCard \? \(\s*<ProfileNextShell[^>]*>\{content\}<\/ProfileNextShell>\s*\) : \(\s*<PartShell title=\{title\}/u);
   assert.match(source, /caseHeader=\{nextParts\?\.header \?\? caseParts\?\.header \?\? leadParts\?\.header \?\? undefined\}/u);
   // Данные страницы читаются теми же вызовами: в странице не добавилось ни одного чтения.
@@ -187,7 +184,8 @@ test("«Обращения студента»: общий с кабинетом 
   assert.match(read("src/components/v3/profile/CaseHelpWorkspace.tsx"), /readCaseHelp\(actor, caseId\)\.catch\(\(\) => null\)/u);
   assert.match(read("src/components/v3/profile/next/CaseHelpCardImpl.tsx"), /loadCaseHelpAction\(page\.caseId, page\.nextCursor, false\)/u, "то же действие «Более ранние обращения», как у сотрудника в CaseHelpPanel");
   const page = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(page, /\{nextUi\s*\? <CaseHelpCardWorkspace actor=\{actor\} caseId=\{caseTarget\.studentCaseId\} \/>\s*: <CaseHelpWorkspace actor=\{actor\} caseId=\{caseTarget\.studentCaseId\} \/>\}/u);
+  assert.match(page, /<CaseHelpCardWorkspace actor=\{actor\} caseId=\{caseTarget\.studentCaseId\} \/>/u);
+  assert.doesNotMatch(page, /<CaseHelpWorkspace/u);
   const card = read("src/components/v3/profile/next/CaseHelpCard.tsx");
   assert.match(card, /lazy\(\(\) => import\("\.\/CaseHelpCardImpl"\)/u, "карточка подгружается лениво: её склейка классов и Radix не идут в первую загрузку профиля");
   assert.doesNotMatch(card, /NamedCard|@\/lib\/utils/u);

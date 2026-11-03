@@ -19,7 +19,8 @@ export function FilesToolbar({
   query: string;
   onQuery: (value: string) => void;
   exportLabel: string;
-  onExport: () => void;
+  /** Нет — выгрузки нет (страница не разрешает её серверу). */
+  onExport?: () => void;
   selectedCount: number;
   onExportSelected: () => void;
   onClearSelection: () => void;
@@ -37,7 +38,7 @@ export function FilesToolbar({
         <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />
         <Input type="search" data-company-file-search value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Поиск документов" aria-label="Поиск документов" className="pl-9" />
       </div>
-      <Button variant="outline" onClick={onExport} aria-haspopup="dialog"><DownloadIcon aria-hidden="true" /><span className="sr-only md:not-sr-only">{exportLabel}</span></Button>
+      {onExport ? <Button variant="outline" onClick={onExport} aria-haspopup="dialog"><DownloadIcon aria-hidden="true" /><span className="sr-only md:not-sr-only">{exportLabel}</span></Button> : null}
       {selectedCount > 0 ? (
         <>
           <span className="t-label text-fg-2" role="status">Выбрано: {selectedCount}</span>

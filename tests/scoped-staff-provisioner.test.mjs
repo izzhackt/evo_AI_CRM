@@ -275,8 +275,9 @@ function invitationUiBoundary() {
           permissionKeys: roles.find((role) => role.roleId === row.roleId).permissionKeys })) });
     },
   });
-  const page = { ...locator(), setDefaultTimeout() {}, on() {}, getByTestId: () => locator("shell"),
-    async goto(url) { navigations.push(url); }, async screenshot() { assert.fail("No invitation artifacts"); } };
+  // «Новый вид» (#1327): форма приглашения — в раскрывающемся блоке `v3-staff-new-invite`, а не под заголовком внутри формы.
+  const page = { ...locator(), setDefaultTimeout() {}, on() {}, getByTestId: (id) => locator(id === "v3-staff-new-invite" ? "invite" : "shell"),
+    async waitForLoadState() {}, async goto(url) { navigations.push(url); }, async screenshot() { assert.fail("No invitation artifacts"); } };
   const browser = { async newContext(options) {
     assert.equal(options.serviceWorkers, "block"); assert.equal(options.acceptDownloads, false);
     return { async route() {}, async newPage() { return page; }, async close() { closed += 1; } };

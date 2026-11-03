@@ -1555,6 +1555,36 @@
   }
 }
 
+/* «Моя анкета» (03.11.2026): ответы /apply сеткой «подпись над значением». */
+.pt-profile-application {
+  grid-column: 1 / -1;
+}
+
+.pt-profile-answers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 0 28px;
+  margin: 8px 0 0;
+}
+
+.pt-profile-answers > div {
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-profile-answers dt {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-profile-answers dd {
+  margin: 4px 0 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
 .pt-profile-card {
   display: flex;
   flex-direction: column;

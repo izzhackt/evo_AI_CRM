@@ -397,6 +397,8 @@ const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
 const profileRu = {
   title: "Профиль",
   unavailable: "Не удалось загрузить профиль. Обновите страницу.",
+  // «Моя анкета» (03.11.2026): ответы /apply только для чтения.
+  applicationUnavailable: "Не удалось загрузить анкету. Обновите страницу.",
   testsLink: "Личные результаты тестов",
   languageHeading: "Язык портала",
   languageRu: "Русский",
@@ -410,6 +412,7 @@ type ProfileKey = keyof typeof profileRu;
 const profileKy: Readonly<Record<ProfileKey, string>> = {
   title: "Профиль",
   unavailable: "Профиль жүктөлгөн жок. Баракты жаңыртыңыз.",
+  applicationUnavailable: "Анкета жүктөлгөн жок. Баракты жаңыртыңыз.",
   testsLink: "Жеке тест жыйынтыктары",
   languageHeading: "Порталдын тили",
   languageRu: "Орусча",

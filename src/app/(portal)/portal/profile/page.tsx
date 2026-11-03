@@ -24,6 +24,8 @@ import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
+import { localizedApplicationAnswers } from "@/lib/student-application-answers";
+import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 function consultationDate(value: string, locale: Locale): string {
@@ -106,6 +108,7 @@ export default async function ProfilePage() {
   const consultationStrings = getPortalStrings("consultation", locale);
   const deletionStrings = getPortalStrings("accountDeletion", locale);
   const aiConsentStrings = getPortalStrings("aiConsent", locale);
+  const applyStrings = getPortalStrings("apply", locale);
 
   // Четыре независимых чтения — одним заходом (план A, 16.10.2026).
   // Запрос консультации (PORT-5b): история и открытый запрос читаются
@@ -117,12 +120,15 @@ export default async function ProfilePage() {
   // (accessTier approved) строки нет, а база не читается.
   // Метки карточки студента (03.11.2026): страна поступления (чтение 284) и
   // этап дела (обзор, только у клиента на сопровождении); сбой — без метки.
-  const [profile, deletion, consultationHistory, countryChoice, overview, aiConsent] = await Promise.all([
+  // Своя анкета (/apply, 03.11.2026): только чтение; у студента без анкеты
+  // (приглашённого или заведённого вручную) блока нет, сбой — честная строка.
+  const [profile, deletion, consultationHistory, countryChoice, overview, application, aiConsent] = await Promise.all([
     readOwnPortalProfile().catch((): PortalProfile | null => null),
     readOwnAccountDeletion(),
     readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
     readStudentCountryChoice().catch((): null => null),
     actor.accessTier === "assisted" ? readStudentPortalOverview().catch((): null => null) : null,
+    readOwnStudentApplication().catch((): undefined => undefined),
     readOwnAiConsent(actor.accessTier),
   ]);
   const admissionStrings = getPortalStrings("admission", locale);
@@ -164,6 +170,27 @@ export default async function ProfilePage() {
           />
 
           <div className="pt-profile-sections">
+            {application === null ? null : (
+              <section aria-labelledby="portal-profile-application" className="pt-profile-card pt-profile-application">
+                <h2 id="portal-profile-application" className="pt-section-title">
+                  <ProfileIcon name="application" />
+                  {applyStrings.answersHeading}
+                </h2>
+                {application === undefined ? (
+                  <p role="alert" className="pt-alert">{strings.applicationUnavailable}</p>
+                ) : (
+                  <dl className="pt-profile-answers">
+                    {localizedApplicationAnswers(application.questionnaire, applyStrings, locale).map((item) => (
+                      <div key={item.label}>
+                        <dt>{item.label}</dt>
+                        <dd>{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </section>
+            )}
+
             <section aria-labelledby="portal-profile-consultation" className="pt-profile-card">
               <h2 id="portal-profile-consultation" className="pt-section-title">
                 <ProfileIcon name="consultation" />

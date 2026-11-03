@@ -3,43 +3,11 @@
 import { useActionState, useEffect } from "react";
 import Link from "next/link";
 import type { Locale } from "@/lib/i18n-data";
-import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 import { refreshStudentApplicationAction } from "@/lib/student-signup-actions";
-import { localizedCountryLabel } from "@/lib/student-application-presentation";
-import type { StudentApplication, StudentApplicationDraft } from "@/lib/student-application-contract";
+import { localizedApplicationAnswers } from "@/lib/student-application-answers";
+import type { StudentApplication } from "@/lib/student-application-contract";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
-
-type ApplyStrings = PortalStrings<"apply">;
-
-/**
- * PORT-8c: локализованная сборка ответов анкеты. RU-значения словаря apply
- * зеркалят APPLICATION_LABELS байт-в-байт (закреплено contract-тестом),
- * поэтому RU-вывод совпадает со staff-функцией
- * formatStudentApplicationAnswers; направления показываются подписью
- * field.*, значение анкеты остаётся каноническим RU-текстом.
- */
-function localizedAnswers(draft: StudentApplicationDraft, strings: ApplyStrings, locale: Locale): { label: string; value: string }[] {
-  const dictionary = strings as Record<string, string>;
-  const opt = (key: string) => dictionary[`opt.${key}`] ?? key;
-  const fieldLabel = (value: string) => dictionary[`field.${value}`] ?? value;
-  const english = draft.english.mode === "exam"
-    ? formatPortalString(strings.englishExamAnswer, { exam: opt(draft.english.exam), score: String(draft.english.score) })
-    : formatPortalString(strings.englishSelfAnswer, { level: opt(draft.english.level) });
-  return [
-    { label: strings["answer.name"], value: `${draft.firstName} ${draft.lastName}` },
-    { label: strings["answer.phone"], value: draft.phone },
-    { label: strings["answer.countries"], value: draft.destinationCountries.map((code) => localizedCountryLabel(code, locale)).join(", ") },
-    { label: strings["answer.intake"], value: `${opt(draft.intakeSeason)} ${draft.intakeYear}` },
-    { label: strings["answer.education"], value: opt(draft.educationLevel) },
-    { label: strings["answer.grade"], value: formatPortalString(strings.gradeOf, { grade: String(draft.averageGrade), scale: draft.gradeScale }) },
-    { label: strings["answer.fields"], value: draft.studyFields.map(fieldLabel).join(", ") },
-    { label: strings["answer.levels"], value: draft.studyLevels.map(opt).join(", ") },
-    { label: strings["answer.nationality"], value: localizedCountryLabel(draft.nationality, locale) },
-    { label: strings["answer.english"], value: english },
-    { label: strings["answer.budget"], value: opt(draft.tuitionBudget) },
-    { label: strings["answer.funding"], value: opt(draft.fundingSource) },
-  ];
-}
 
 export function ApplicationStatus({ application, draftOwnerId, locale = "ru" }: { application: StudentApplication; draftOwnerId: string; locale?: Locale }) {
   const strings = getPortalStrings("apply", locale);
@@ -70,7 +38,7 @@ export function ApplicationStatus({ application, draftOwnerId, locale = "ru" }: 
     <section className="pt-8" aria-labelledby="application-answers">
       <h2 id="application-answers" className="text-xl font-semibold text-fg">{strings.answersHeading}</h2>
       <p className="mt-2 text-sm text-fg-2">{application.email}</p>
-      <dl className="mt-5 grid gap-x-10 sm:grid-cols-2">{localizedAnswers(application.questionnaire, strings, locale).map((item) => <div key={item.label} className="min-w-0 border-b border-border py-4"><dt className="text-sm text-fg-2">{item.label}</dt><dd className="mt-1.5 break-words text-base font-medium text-fg">{item.value}</dd></div>)}</dl>
+      <dl className="mt-5 grid gap-x-10 sm:grid-cols-2">{localizedApplicationAnswers(application.questionnaire, strings, locale).map((item) => <div key={item.label} className="min-w-0 border-b border-border py-4"><dt className="text-sm text-fg-2">{item.label}</dt><dd className="mt-1.5 break-words text-base font-medium text-fg">{item.value}</dd></div>)}</dl>
     </section>
   </>;
 }

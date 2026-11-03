@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import type { Locale } from "@/lib/i18n-data";
 import { getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
@@ -83,7 +84,13 @@ function ActionRow({ action, strings }: { action: StudentPortalAction; strings: 
  * pending-кабинета (бывший portalPendingCabinet из wording.ts) живёт здесь
  * же ключами pending* с теми же русскими значениями.
  */
-export function OverviewView({ overview, pending = false, locale }: { overview: StudentPortalOverview | null; pending?: boolean; locale: Locale }) {
+export function OverviewView({ overview, pending = false, locale, documents = null }: {
+  overview: StudentPortalOverview | null;
+  pending?: boolean;
+  locale: Locale;
+  /** Карточка «Документы» для правой колонки (страница читает её сама); null — без неё. */
+  documents?: ReactNode;
+}) {
   const strings = getPortalStrings("admission", locale);
   const primary = overview?.studentAction ?? null;
   const remaining = overview?.studentActions.slice(1) ?? [];
@@ -162,9 +169,12 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
           ) : null}
 
           <nav aria-label={strings.footerNavAria} className="pt-adm-footer-links">
-            <Link href="/portal/documents" className="pt-link">
-              {strings.allDocuments} <span aria-hidden="true">→</span>
-            </Link>
+            {/* «Все документы» — в карточке «Документы» справа, когда она есть. */}
+            {documents ? null : (
+              <Link href="/portal/documents" className="pt-link">
+                {strings.allDocuments} <span aria-hidden="true">→</span>
+              </Link>
+            )}
             <Link href="/portal/payments" className="pt-link">
               {strings.allPayments} <span aria-hidden="true">→</span>
             </Link>
@@ -202,6 +212,8 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
             <span className="pt-adm-aside-muted">{strings.curatorEmpty}</span>
           )}
         </div>
+
+        {documents}
 
         {pending ? (
           <div className="pt-adm-aside-card">

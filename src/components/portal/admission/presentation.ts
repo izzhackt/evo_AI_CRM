@@ -86,6 +86,28 @@ export function documentProgress(documents: readonly Pick<StudentPortalDocument,
   };
 }
 
+/**
+ * Мини-чеклист «Документы» на «Поступлении» (03.11.2026): сначала то, что ждёт
+ * студента (исправить, добавить), потом проверка, принятые — в конце; знак
+ * строки рядом со словом статуса (смысл несёт слово).
+ */
+const DOCUMENT_CHECKLIST: Readonly<Record<string, Readonly<{ order: number; mark: string }>>> = {
+  correction_required: { order: 0, mark: "!" },
+  rejected: { order: 0, mark: "!" },
+  required: { order: 1, mark: "○" },
+  submitted: { order: 2, mark: "◷" },
+  approved: { order: 3, mark: "✓" },
+};
+
+export function documentChecklistOrder(documents: readonly StudentPortalDocument[]): StudentPortalDocument[] {
+  const order = (document: StudentPortalDocument) => DOCUMENT_CHECKLIST[document.status]?.order ?? 1;
+  return [...documents].sort((a, b) => order(a) - order(b));
+}
+
+export function documentChecklistMark(document: Pick<StudentPortalDocument, "status">): string {
+  return DOCUMENT_CHECKLIST[document.status]?.mark ?? "○";
+}
+
 export function studentActionDueLabel(
   action: Pick<StudentPortalDocumentAction, "dueAt">,
 ): string | null {

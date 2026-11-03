@@ -31,7 +31,7 @@
  *       с «Закрыть» на месте «Ещё», уведомления в верхнем слое, поле ответа и
  *       подписи вкладок при крупном корневом шрифте, рейка при просмотре
  *       роли, одна высота заголовка у всех страниц). «Сегодня» — настоящая
- *       страница `v3/main/page.tsx` с синтетическими читателями очереди
+ *       страница `main/page.tsx` с синтетическими читателями очереди
  *       (стартовая у каждой роли, без перенаправлений). Проверки
  *       печатаются JSON-строками; при нарушении — код выхода 1. По умолчанию
  *       outDir — .impeccable/review (не коммитится).
@@ -190,13 +190,13 @@ const NOTIFICATIONS = {
   unreadCount: "3",
   nextCursor: null,
   items: [
-    { id: notificationId(1), kind: "task_assigned", createdAt: "2026-09-26T05:10:00.000Z", readAt: null, href: "/v3/tasks",
+    { id: notificationId(1), kind: "task_assigned", createdAt: "2026-09-26T05:10:00.000Z", readAt: null, href: "/tasks",
       actorDisplayName: "Коллега (синтетический)", subjectTitle: "Проверить анкету (синтетика)", studentDisplayName: null, subjectDueOn: null, subjectDueAt: null },
-    { id: notificationId(2), kind: "chat_mention", createdAt: "2026-09-26T04:40:00.000Z", readAt: null, href: "/v3/team-chat",
+    { id: notificationId(2), kind: "chat_mention", createdAt: "2026-09-26T04:40:00.000Z", readAt: null, href: "/team-chat",
       actorDisplayName: "Коллега (синтетический)", subjectTitle: null, studentDisplayName: null, subjectDueOn: null, subjectDueAt: null },
-    { id: notificationId(3), kind: "case_message", createdAt: "2026-09-25T12:00:00.000Z", readAt: null, href: "/v3/messages",
+    { id: notificationId(3), kind: "case_message", createdAt: "2026-09-25T12:00:00.000Z", readAt: null, href: "/messages",
       actorDisplayName: "Студент (синтетический)", subjectTitle: null, studentDisplayName: "Студент (синтетический)", subjectDueOn: null, subjectDueAt: null },
-    { id: notificationId(4), kind: "task_updated", createdAt: "2026-09-24T09:00:00.000Z", readAt: "2026-09-24T10:00:00.000Z", href: "/v3/tasks",
+    { id: notificationId(4), kind: "task_updated", createdAt: "2026-09-24T09:00:00.000Z", readAt: "2026-09-24T10:00:00.000Z", href: "/tasks",
       actorDisplayName: "Коллега (синтетический)", subjectTitle: "Созвон с семьёй (синтетика)", studentDisplayName: null, subjectDueOn: null, subjectDueAt: null },
   ],
 };
@@ -205,14 +205,14 @@ const NOTIFICATIONS = {
 const SLOT = '<div data-harness-slot=""></div>';
 
 function partShell(props, innerHtml) {
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const markup = renderToStaticMarkup(h(PartShell, props, h("div", { "data-harness-slot": "" })));
   return markup.replace(SLOT, innerHtml);
 }
 
 /**
  * Стартовая страница — «Сегодня» (Э3), настоящая страница
- * `src/app/(v3)/v3/main/page.tsx`: актёр страницы подменён, очередь собирает
+ * `src/app/(staff)/main/page.tsx`: актёр страницы подменён, очередь собирает
  * настоящий `readTodayQueue` (права роли, независимые чтения) с
  * синтетическими читателями — по паре задач, дел, лидов и переписок, сроки
  * от сегодняшнего дня. Разметку строит сама страница. Перенаправлений у неё
@@ -220,7 +220,7 @@ function partShell(props, innerHtml) {
  */
 function homeReaders(actor) {
   const { dayInOrganizationTimezone } = require(join(ROOT, "src/lib/platform-task-deadline.ts"));
-  const { shiftDay } = require(join(ROOT, "src/components/v3/calendar/types.ts"));
+  const { shiftDay } = require(join(ROOT, "src/components/staff/calendar/types.ts"));
   const today = dayInOrganizationTimezone(new Date());
   const day = (offset) => shiftDay(today, offset);
   const me = actor.membershipId;
@@ -240,7 +240,7 @@ function homeReaders(actor) {
   const lead = (n, name, action, due, owner) => ({
     id: id("ffffffff-3333-4333-8333", n), name, stageKey: due ? "contacting" : "new", source: "website", nextAction: action,
     nextActionAt: due ? `${due.slice(8)}.${due.slice(5, 7)}` : null, due: due === null ? "none" : due < today ? "overdue" : due === today ? "today" : "later",
-    stageAgeDays: 1, latestNote: null, href: `/v3/profile?id=${id("ffffffff-3333-4333-8333", n)}`,
+    stageAgeDays: 1, latestNote: null, href: `/profile?id=${id("ffffffff-3333-4333-8333", n)}`,
     workflow: {
       leadId: id("ffffffff-3333-4333-8333", n), currentOwnerMembershipId: owner, currentOwnerDisplayName: owner ? actor.displayName : null,
       stageKey: due ? "contacting" : "new", nextActionText: action, nextActionDueDate: due, workflowVersion: "1",
@@ -282,9 +282,9 @@ async function homeFixture(role) {
   guards.requireV3PageActor = async () => actor;
   const read = today.readTodayQueue.harnessOriginal ?? today.readTodayQueue;
   today.readTodayQueue = Object.assign((who, options) => read(who, { ...options, readers: homeReaders(actor) }), { harnessOriginal: read });
-  const { default: MainPart } = require(join(ROOT, "src/app/(v3)/v3/main/page.tsx"));
+  const { default: MainPart } = require(join(ROOT, "src/app/(staff)/main/page.tsx"));
   const element = await MainPart({ searchParams: Promise.resolve({}) });
-  return { pathname: "/v3/main", search: "", body: renderToStaticMarkup(withContexts(element, "/v3/main", "")) };
+  return { pathname: "/main", search: "", body: renderToStaticMarkup(withContexts(element, "/main", "")) };
 }
 
 function spawnJson(script) {
@@ -307,7 +307,7 @@ function mainOf(html) {
  * меряется после гидратации.
  */
 function messagesFixture() {
-  const { composeCaseChatQueue } = require(join(ROOT, "src/components/v3/case-chat/case-chat-queue.ts"));
+  const { composeCaseChatQueue } = require(join(ROOT, "src/components/staff/case-chat/case-chat-queue.ts"));
   const caseId = (n) => `dddddddd-2222-4222-8222-${String(n).padStart(12, "0")}`;
   const names = ["Студент А (синтетика)", "Студент Б (синтетика)", "Студент В (синтетика)", "Студент Г (синтетика)", "Студент Д (синтетика)", "Студент Е (синтетика)"];
   const rows = names.map((name, index) => ({
@@ -328,7 +328,7 @@ function messagesFixture() {
     };
   });
   return {
-    pathname: "/v3/messages", search: `case=${caseId(1)}`, body: null,
+    pathname: "/messages", search: `case=${caseId(1)}`, body: null,
     messages: {
       main: { title: "Переписка", threadOpen: true },
       props: {
@@ -345,16 +345,16 @@ function messagesFixture() {
 
 /** WhatsApp (у продаж нет «Переписки» поступления): настоящий loading.tsx — страница `fill` на высоту окна. */
 function whatsappBody() {
-  const { default: InboxLoading } = require(join(ROOT, "src/app/(v3)/v3/inbox/loading.tsx"));
-  return renderToStaticMarkup(withContexts(h(InboxLoading), "/v3/inbox", ""));
+  const { default: InboxLoading } = require(join(ROOT, "src/app/(staff)/inbox/loading.tsx"));
+  return renderToStaticMarkup(withContexts(h(InboxLoading), "/inbox", ""));
 }
 
 // --- оболочка -----------------------------------------------------------------
 function shellTree({ actor, notifications, pathname, search, body, messages = null }) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const content = messages
-    ? h(require(join(ROOT, "src/components/v3/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...messages.main },
-      h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, messages.props))
+    ? h(require(join(ROOT, "src/components/staff/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...messages.main },
+      h(require(join(ROOT, "src/components/staff/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, messages.props))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
     h("div", { className: "v3-world", "data-surface": "staff" },
@@ -368,11 +368,11 @@ const notificationsFor = (actor) => (actor.presentationRole === null ? NOTIFICAT
 function jsonScenarios() {
   const out = [];
   const paths = [
-    ["home", "/v3/main", ""],
-    ["students", "/v3/profile", ""],
-    ["calendar", "/v3/calendar", ""],
-    ["board", "/v3/pipeline", ""],
-    ["admissions-board", "/v3/admissions-pipeline", ""],
+    ["home", "/main", ""],
+    ["students", "/profile", ""],
+    ["calendar", "/calendar", ""],
+    ["board", "/pipeline", ""],
+    ["admissions-board", "/admissions-pipeline", ""],
   ];
   for (const role of Object.keys(ACTORS)) {
     for (const [page, pathname, search] of paths) {
@@ -395,7 +395,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 // --- браузерная сборка оболочки ----------------------------------------------
@@ -435,9 +435,9 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { ChatPageShell } = require("@/components/v3/chats-next/ChatPageShell");
-const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
+const { AppShell } = require("@/components/staff/AppShell");
+const { ChatPageShell } = require("@/components/staff/chats-next/ChatPageShell");
+const { CaseChatWorkspace } = require("@/components/staff/case-chat/CaseChatThread");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
 window.__harness = { pushes: [], recoverable: [], errors: [] };
@@ -567,9 +567,9 @@ function shellMetrics() {
   };
   // Подписи пунктов меню, видимые глазу (в рейке подпись — sr-only, 1 px).
   const menuLabels = menu && visible(menu)
-    ? [...menu.querySelectorAll('[data-shell-menu-body] a[href^="/v3/"] > svg + span')].filter((span) => visible(span) && span.getBoundingClientRect().width > 1)
+    ? [...menu.querySelectorAll('[data-shell-menu-body] a[href^="/"] > svg + span')].filter((span) => visible(span) && span.getBoundingClientRect().width > 1)
     : [];
-  const messagesLabel = menuLabels.find((span) => span.parentElement.getAttribute("href") === "/v3/messages");
+  const messagesLabel = menuLabels.find((span) => span.parentElement.getAttribute("href") === "/messages");
   // Состав меню по разметке (раскрыт отдел или нет; на телефоне — лист «Ещё»).
   const menuList = menu?.querySelector('ul[aria-label="Навигация по разделам"]');
   const menuGroups = menuList ? [...menuList.querySelectorAll(":scope > li > button[aria-expanded]")].map((button) => ({
@@ -654,18 +654,18 @@ async function pageFixtures() {
   const fixtures = {
     home: (role) => homes[role],
     students: (role) => ({
-      pathname: "/v3/profile", search: "",
+      pathname: "/profile", search: "",
       body: partShell({ title: "Студенты", dense: role !== "sales" }, students.get(studentsFor[role])),
     }),
     // Доска роли: продажи и Admin — «Воронка продаж», поступление — «Воронка поступления».
     board: (role) => role === "admissions" || role === "admissions-staff"
-      ? { pathname: "/v3/admissions-pipeline", search: "", body: mainOf(boards.get("admissions")) }
-      : { pathname: "/v3/pipeline", search: "", body: mainOf(boards.get("sales")) },
+      ? { pathname: "/admissions-pipeline", search: "", body: mainOf(boards.get("admissions")) }
+      : { pathname: "/pipeline", search: "", body: mainOf(boards.get("sales")) },
     // Переписка роли: у продаж нет «Переписки» поступления — их переписка — страница WhatsApp на высоту окна.
     messages: (role) => role === "sales"
-      ? { pathname: "/v3/inbox", search: "", body: whatsapp }
+      ? { pathname: "/inbox", search: "", body: whatsapp }
       : messages,
-    tasks: () => ({ pathname: "/v3/tasks", search: "", body: partShell({ title: "Задачи" }, tasks.get("mine-default")) }),
+    tasks: () => ({ pathname: "/tasks", search: "", body: partShell({ title: "Задачи" }, tasks.get("mine-default")) }),
   };
   // «Сегодня» — настоящая страница, без перенаправлений: стартовая у каждой роли.
   const homes = {};

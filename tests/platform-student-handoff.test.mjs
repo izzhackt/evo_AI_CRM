@@ -508,12 +508,12 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   assert.match(source, /exactActionStringFields\(form, GATE_FORM_FIELDS\)/);
   assert.doesNotMatch(source, /HANDOFF_FORM_FIELDS/);
   assert.equal(
-    source.match(/const actor = await requirePlatformMutationCapability\("sales\.read", "\/v3\/pipeline"\);/g)?.length,
+    source.match(/const actor = await requirePlatformMutationCapability\("sales\.read", "\/pipeline"\);/g)?.length,
     1,
   );
   assert.match(
     source,
-    /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+    /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/pipeline"\);[\s\S]*revalidatePath\(`\/profile\?id=\$\{receipt\.leadId\}`\)/,
   );
   assert.doesNotMatch(source, /handoffPlatformLeadToAdmissions\(/);
   assert.doesNotMatch(source, /handoffFailureState/);
@@ -523,7 +523,7 @@ test("server actions enforce exact fields, staff guard and success-only revalida
     source,
     /revalidatePath\(`\/sales\/\$\{receipt\.leadId\}`\)/,
   );
-  assert.doesNotMatch(source, /revalidatePath\("\/v3\/profile"\)/);
+  assert.doesNotMatch(source, /revalidatePath\("\/profile"\)/);
   assert.match(
     source,
     /return status === "request_conflict"[\s\S]*\? randomUUID\(\)[\s\S]*: verifiedRequestId \?\? randomUUID\(\);/,
@@ -553,7 +553,7 @@ test("server actions enforce exact fields, staff guard and success-only revalida
 test("V3 profile exposes the gate through the reviewed server-action contract; the card-side handoff form is retired", () => {
   const source = readFileSync(
     new URL(
-      "../src/components/v3/profile/ProfileSalesTransition.tsx",
+      "../src/components/staff/profile/ProfileSalesTransition.tsx",
       import.meta.url,
     ),
     "utf8",
@@ -611,7 +611,7 @@ test("V3 profile exposes the gate through the reviewed server-action contract; t
   assert.doesNotMatch(source, /data-testid="v3-sales-handoff-completed"/);
   assert.doesNotMatch(
     source,
-    /href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=overview`\}/,
+    /href=\{`\/profile\?case=\$\{caseId\}&tab=overview`\}/,
   );
   assert.doesNotMatch(source, /href=\{`\/clients\/\$\{caseId\}`\}/);
   assert.doesNotMatch(

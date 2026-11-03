@@ -1,4 +1,4 @@
-// «Новый вид» (решение владельца 27.10.2026), поток «chats»: «WhatsApp» (`/v3/inbox`), «Переписка» (`/v3/messages`) и рамка
+// «Новый вид» (решение владельца 27.10.2026), поток «chats»: «WhatsApp» (`/inbox`), «Переписка» (`/messages`) и рамка
 // переписки по делу. Проверяется то, что обещано: новый вид выбирает переключатель и только настоящий администратор, у остальных —
 // прежняя разметка байт в байт; данные, ссылки и правила те же; движок чата не менялся (его разметка в новом виде совпадает с
 // прежней побайтно); правила Wazzup («только чтение», подпись ответа продавца, нет поля и «Отправить») живут в новом виде; новый
@@ -69,7 +69,7 @@ test("«WhatsApp»: те же диалоги, адреса, номера и сл
   }
   // Поиск — та же форма GET, «Сортировка» — те же два пункта-ссылки.
   const next = page("inbox", "list", "admin-cookie");
-  assert.match(next, /<form role="search" action="\/v3\/inbox" method="get">/u);
+  assert.match(next, /<form role="search" action="\/inbox" method="get">/u);
   assert.match(next, /aria-label="Найти"/u);
   assert.match(next, /placeholder="Имя, телефон или тема"/u);
   assert.match(next, /Сортировка: <span class="text-fg">сначала новые<\/span>/u);
@@ -112,13 +112,13 @@ test("«Переписка»: те же очереди с числами, стр
   for (const html of [legacy, next]) {
     assert.match(html, /data-testid="case-chat-await-control"/u);
     assert.match(text(html), /Китай · Документы|Китай Документы/u);
-    assert.match(html, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001"/u, "«Открыть дело»");
+    assert.match(html, /href="\/profile\?case=dddddddd-2222-4222-8222-000000000001"/u, "«Открыть дело»");
   }
   assert.deepEqual(all(next, /<button [^>]*aria-pressed="(true|false)"[^>]*data-tone="([^"]+)"/gu), all(legacy, /<button [^>]*aria-pressed="(true|false)"[^>]*data-tone="([^"]+)"/gu), "то же нажатое состояние и тон");
   for (const html of [page("messages", "failure", "admin-no-cookie"), page("messages", "failure", "admin-cookie")]) {
     assert.match(html, /role="alert"/u);
     assert.match(text(html), /Не удалось загрузить переписки\. Обновите страницу\./u);
-    assert.match(html, /<a [^>]*href="\/v3\/messages"[^>]*>Обновить страницу</u);
+    assert.match(html, /<a [^>]*href="\/messages"[^>]*>Обновить страницу</u);
   }
 });
 
@@ -128,7 +128,7 @@ test("«Переписка»: те же очереди с числами, стр
 const helpButton = (html) => html.match(/<button[^>]*aria-label="Пояснение: [^"]*"[^>]*>/u)?.[0] ?? null;
 
 test("скрытая шапка: «?» уходит из порядка табуляции там, где шапку прячет узкий экран (открытый чат), и остаётся там, где шапка видна", () => {
-  // «WhatsApp»: v3.css прячет шапку страницы только до 768 px при открытом диалоге (`main:has([data-inbox-open])`) — значит, и «?» до 768 px.
+  // «WhatsApp»: staff.css прячет шапку страницы только до 768 px при открытом диалоге (`main:has([data-inbox-open])`) — значит, и «?» до 768 px.
   for (const scenario of ["chat", "chat-long-name", "chat-case-only", "wazzup-read-only"]) {
     const button = helpButton(page("inbox", scenario, "admin-cookie"));
     assert.ok(button, `${scenario}: «?» есть`);
@@ -161,7 +161,7 @@ test("«WhatsApp»: имя клиента в шапке диалога не об
   assert.ok(next, "имя в шапке найдено");
   assert.match(next, /\bbreak-words\b/u, "длинное имя переносится");
   assert.doesNotMatch(next, /line-clamp/u, "без обрезки по строкам");
-  assert.doesNotMatch(read("src/components/v3/inbox-next/InboxNextThread.tsx"), /line-clamp/u);
+  assert.doesNotMatch(read("src/components/staff/inbox-next/InboxNextThread.tsx"), /line-clamp/u);
 });
 
 test("«Открыть дело» — одно действие, один значок: папка в «WhatsApp» (диалог привязан к делу) и в «Переписке»; «Карточка лида» — человек", () => {
@@ -172,13 +172,13 @@ test("«Открыть дело» — одно действие, один зна
     return { href: match[0].match(/ href="([^"]*)"/u)?.[1] ?? null, icon: match[1] ?? null };
   };
   const caseOnly = link(page("inbox", "chat-case-only", "admin-cookie"), "Открыть дело");
-  assert.equal(caseOnly.href, "/v3/profile?case=dddddddd-2222-4222-8222-000000000001", "ссылка — на дело");
+  assert.equal(caseOnly.href, "/profile?case=dddddddd-2222-4222-8222-000000000001", "ссылка — на дело");
   assert.match(caseOnly.icon, /lucide-folder-open/u, "«WhatsApp»: папка");
   const cabinet = link(page("messages", "thread", "admin-cookie"), "Открыть дело");
   assert.match(cabinet.icon, /lucide-folder-open/u, "«Переписка»: та же папка");
   assert.equal(caseOnly.icon.match(/lucide-[a-z-]+/u)[0], cabinet.icon.match(/lucide-[a-z-]+/u)[0], "на двух страницах одно действие — один значок");
   const lead = link(page("inbox", "chat", "admin-cookie"), "Карточка лида");
-  assert.match(lead.href, /^\/v3\/profile\?id=/u);
+  assert.match(lead.href, /^\/profile\?id=/u);
   assert.match(lead.icon, /lucide-user-round/u, "«Карточка лида»: человек");
 });
 
@@ -203,7 +203,7 @@ test("Wazzup: в новом виде чат «только чтение» — о
 });
 
 test("Wazzup: рамка нового вида не добавляет отправку и не знает путей WAHA, Wazzup и подключения; ни одного серверного действия в ней нет", () => {
-  const dirs = ["inbox-next", "case-chat-next", "chats-next"].map((dir) => `src/components/v3/${dir}`);
+  const dirs = ["inbox-next", "case-chat-next", "chats-next"].map((dir) => `src/components/staff/${dir}`);
   const files = dirs.flatMap((dir) => readdirSync(new URL(`../${dir}`, import.meta.url)).map((name) => `${dir}/${name}`));
   assert.ok(files.length >= 18);
   for (const file of files) {
@@ -213,8 +213,8 @@ test("Wazzup: рамка нового вида не добавляет отпр�
     assert.doesNotMatch(source, /["']use server["']|fetch\(|sendPlatformWhatsApp|reconcilePlatformWhatsApp|postCaseChatMessageAction|<textarea/u, `${file}: рамка ничего не отправляет`);
   }
   // Ответ только через прежний движок: в рамке стоят `InboxChat` и `CaseChatWorkspace`, больше полей нет.
-  assert.match(read("src/components/v3/inbox-next/InboxNextThread.tsx"), /import \{ InboxChat \} from "@\/components\/v3\/inbox\/InboxChat";/u);
-  assert.match(read("src/components/v3/case-chat-next/CaseChatNextPage.tsx"), /import \{ CaseChatWorkspace \} from "@\/components\/v3\/case-chat\/CaseChatThread";/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextThread.tsx"), /import \{ InboxChat \} from "@\/components\/staff\/inbox\/InboxChat";/u);
+  assert.match(read("src/components/staff/case-chat-next/CaseChatNextPage.tsx"), /import \{ CaseChatWorkspace \} from "@\/components\/staff\/case-chat\/CaseChatThread";/u);
 });
 
 /* ---------------------------------------------------------------- текст: на экране заголовки, данные и кнопки; пояснения за «?» */
@@ -228,32 +228,32 @@ test("текст: пояснение «WhatsApp» ушло за «?», пуст�
   assert.match(filtered, /Сбросить фильтры/u);
   assert.doesNotMatch(filtered, /Попробуйте другой запрос/u);
   assert.match(page("inbox", "chat", "admin-cookie"), /aria-label="Пояснение: WhatsApp"/u);
-  assert.match(read("src/components/v3/inbox-next/InboxNextPage.tsx"), /const HELP = "Чаты WhatsApp продаж: слева диалоги, справа переписка\. «Неотвеченные» ставят выше клиентов, которые написали последними\. Здесь отображаются диалоги, к которым у вас есть доступ\."/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextPage.tsx"), /const HELP = "Чаты WhatsApp продаж: слева диалоги, справа переписка\. «Неотвеченные» ставят выше клиентов, которые написали последними\. Здесь отображаются диалоги, к которым у вас есть доступ\."/u);
   assert.match(page("messages", "cabinet", "admin-cookie"), /aria-label="Пояснение: Переписка"/u);
   // «Не подключён»: честное состояние, ссылка на настройки — только у администратора вне просмотра роли (её даёт страница).
   const notConnected = page("inbox", "not-connected", "admin-cookie");
   assert.match(text(notConnected), /WhatsApp не подключён к CRM — подключает Администратор/u);
-  assert.match(notConnected, /href="\/v3\/settings\?section=integrations"[^>]*>Открыть настройки</u);
+  assert.match(notConnected, /href="\/settings\?section=integrations"[^>]*>Открыть настройки</u);
   assert.doesNotMatch(notConnected, /<h1[^>]*>WhatsApp\s*<span[^>]*>\d/u, "числа у заголовка нет");
-  const attention = read("src/components/v3/inbox-next/InboxNextList.tsx");
+  const attention = read("src/components/staff/inbox-next/InboxNextList.tsx");
   assert.match(attention, /role="status" data-testid="v3-inbox-channel-status"/u);
   assert.match(attention, /bg-warn-weak/u);
-  assert.match(read("src/components/v3/inbox-next/InboxNextThread.tsx"), /role="status" data-testid="v3-inbox-thread-channel"/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextThread.tsx"), /role="status" data-testid="v3-inbox-thread-channel"/u);
 });
 
 /* ---------------------------------------------------------------- устройство: страницы, ленивые входы, виджеты набора, короткие файлы */
 
 test("страницы всегда рисуют новый вид (#1327), читают и проверяют права как прежде; новый вид — ленивый вход", () => {
-  const inbox = read("src/app/(v3)/v3/inbox/page.tsx");
+  const inbox = read("src/app/(staff)/inbox/page.tsx");
   assert.doesNotMatch(inbox, /isNextUi/u);
-  assert.match(inbox, /import \{ InboxNextLazy \} from "@\/components\/v3\/inbox-next\/InboxNextLazy";/u);
-  assert.doesNotMatch(inbox, /from "@\/components\/v3\/inbox-next\/(?!InboxNextLazy)|from "@\/components\/kit/u, "новый вид и набор в первую загрузку страницы не входят");
+  assert.match(inbox, /import \{ InboxNextLazy \} from "@\/components\/staff\/inbox-next\/InboxNextLazy";/u);
+  assert.doesNotMatch(inbox, /from "@\/components\/staff\/inbox-next\/(?!InboxNextLazy)|from "@\/components\/kit/u, "новый вид и набор в первую загрузку страницы не входят");
   assert.match(inbox, /return \(\s*<InboxNextLazy/u);
   assert.doesNotMatch(inbox, /<PartShell|<Inbox\b/u, "прежней разметки нет");
-  const messages = read("src/app/(v3)/v3/messages/page.tsx");
+  const messages = read("src/app/(staff)/messages/page.tsx");
   assert.doesNotMatch(messages, /isNextUi/u);
-  assert.match(messages, /import \{ CaseChatNextFailureLazy, CaseChatNextLazy \} from "@\/components\/v3\/case-chat-next\/CaseChatNextLazy";/u);
-  assert.doesNotMatch(messages, /from "@\/components\/v3\/case-chat-next\/(?!CaseChatNextLazy)|from "@\/components\/kit/u);
+  assert.match(messages, /import \{ CaseChatNextFailureLazy, CaseChatNextLazy \} from "@\/components\/staff\/case-chat-next\/CaseChatNextLazy";/u);
+  assert.doesNotMatch(messages, /from "@\/components\/staff\/case-chat-next\/(?!CaseChatNextLazy)|from "@\/components\/kit/u);
   assert.match(messages, /return <CaseChatNextFailureLazy forbidden=\{threadsFailure === "forbidden"\}/u);
   assert.match(messages, /return \(\s*<CaseChatNextLazy/u);
   assert.doesNotMatch(messages, /<ConversationsMain|<CaseChatWorkspace/u, "прежней разметки нет");
@@ -262,24 +262,24 @@ test("страницы всегда рисуют новый вид (#1327), чи
 });
 
 test("ленивые входы: «use client» и подгрузка настоящего вида; движок «Переписки» получает рамку, прежний вид — прежнюю", () => {
-  const inbox = read("src/components/v3/inbox-next/InboxNextLazy.tsx");
+  const inbox = read("src/components/staff/inbox-next/InboxNextLazy.tsx");
   assert.match(inbox, /^"use client";/u);
   assert.match(inbox, /dynamic\(\(\) => import\("\.\/InboxNextPage"\)\.then\(\(module\) => module\.InboxNextPage\)\.catch\(onScreenLoadFailed\)\)/u);
-  const messages = read("src/components/v3/case-chat-next/CaseChatNextLazy.tsx");
+  const messages = read("src/components/staff/case-chat-next/CaseChatNextLazy.tsx");
   assert.match(messages, /^"use client";/u);
   assert.match(messages, /import\("\.\/CaseChatNextPage"\)\.then\(\(module\) => module\.CaseChatNextPage\)\.catch\(onScreenLoadFailed\)/u);
   assert.match(messages, /import\("\.\/CaseChatNextFailure"\)\.then\(\(module\) => module\.CaseChatNextFailure\)\.catch\(onScreenLoadFailed\)/u);
-  const engine = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  const engine = read("src/components/staff/case-chat/CaseChatThread.tsx");
   assert.match(engine, /const LEGACY_FRAME: CaseChatFrame = \{ List: CaseChatList, Header: ThreadHeader, Idle: NextThreadPane \};/u);
   assert.match(engine, /initialPageFailure, caseFacts = null, snippets = null, documentsAwaitCurator = false, frame = LEGACY_FRAME,/u);
   assert.match(engine, /<frame\.List threads=\{threads\}/u);
   assert.match(engine, /<frame\.Idle read=\{queueRead\}/u);
   assert.match(engine, /<CaseChatThreadView Header=\{frame\.Header\} caseId=\{selectedCaseId\}/u);
-  const next = read("src/components/v3/case-chat-next/CaseChatNextPage.tsx");
+  const next = read("src/components/staff/case-chat-next/CaseChatNextPage.tsx");
   assert.match(next, /<CaseChatWorkspace key=\{`\$\{membershipId\}:\$\{selectedCaseId \?\? "list"\}`\} \{\.\.\.workspace\} frame=\{CASE_CHAT_NEXT_FRAME\} \/>/u, "ключ — как у прежней страницы: переписка перемонтируется при смене дела");
 });
 
-const NEW_FILES = ["inbox-next", "case-chat-next", "chats-next"].flatMap((dir) => readdirSync(new URL(`../src/components/v3/${dir}`, import.meta.url)).map((name) => `src/components/v3/${dir}/${name}`));
+const NEW_FILES = ["inbox-next", "case-chat-next", "chats-next"].flatMap((dir) => readdirSync(new URL(`../src/components/staff/${dir}`, import.meta.url)).map((name) => `src/components/staff/${dir}/${name}`));
 
 test("новые файлы короче 150 строк, собраны из набора и не вводят своих цветов, теней и тёмной темы", () => {
   assert.ok(NEW_FILES.length >= 18, `${NEW_FILES.length} файлов`);
@@ -291,24 +291,24 @@ test("новые файлы короче 150 строк, собраны из н�
     assert.doesNotMatch(source, /text-fg\/\d|bg-[a-z-]+\/\d|opacity-|shadow-\[/u, `${file}: без прозрачности и своих теней`);
     assert.doesNotMatch(source, /dark:/u, `${file}: CRM только светлая`);
   }
-  assert.match(read("src/components/v3/inbox-next/InboxNextRow.tsx"), /StatusBadge/u);
-  assert.match(read("src/components/v3/inbox-next/InboxNextSearch.tsx"), /import \{ Input \} from "@\/components\/ui\/input";/u);
-  assert.match(read("src/components/v3/inbox-next/InboxNextList.tsx"), /EmptyState/u);
-  assert.match(read("src/components/v3/inbox-next/InboxNextPage.tsx"), /EmptyState/u);
-  assert.match(read("src/components/v3/chats-next/ChatPageShell.tsx"), /import \{ PageHeader \} from "@\/components\/kit\/PageHeader";/u);
-  assert.match(read("src/components/v3/chats-next/ChatLinkMenu.tsx"), /DropdownMenu/u);
-  assert.match(read("src/components/v3/case-chat-next/CaseChatNextList.tsx"), /import \{ Input \} from "@\/components\/ui\/input";/u);
-  assert.match(read("src/components/v3/case-chat-next/CaseChatNextFailure.tsx"), /EmptyState/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextRow.tsx"), /StatusBadge/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextSearch.tsx"), /import \{ Input \} from "@\/components\/ui\/input";/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextList.tsx"), /EmptyState/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextPage.tsx"), /EmptyState/u);
+  assert.match(read("src/components/staff/chats-next/ChatPageShell.tsx"), /import \{ PageHeader \} from "@\/components\/kit\/PageHeader";/u);
+  assert.match(read("src/components/staff/chats-next/ChatLinkMenu.tsx"), /DropdownMenu/u);
+  assert.match(read("src/components/staff/case-chat-next/CaseChatNextList.tsx"), /import \{ Input \} from "@\/components\/ui\/input";/u);
+  assert.match(read("src/components/staff/case-chat-next/CaseChatNextFailure.tsx"), /EmptyState/u);
 });
 
 test("красных кнопок нет: в рамке чатов сплошной красный — только у движка («Отправить»); цели 44 px у всех кнопок набора", () => {
   for (const file of NEW_FILES) assert.doesNotMatch(read(file), /variant="default"|bg-primary|bg-accent(?!-)/u, file);
-  const shell = read("src/components/v3/chats-next/ChatPageShell.tsx");
+  const shell = read("src/components/staff/chats-next/ChatPageShell.tsx");
   assert.match(shell, /h-\[calc\(100dvh-150px\)\] min-h-0 pb-4 pt-6 md:h-\[calc\(100dvh-64px\)\]/u, "рамка «Переписки» на высоту окна, как ConversationsMain");
   assert.match(shell, /data-conversations-main=\{messages \? "" : undefined\}/u);
   assert.match(shell, /md:min-h-0 md:flex-1/u, "рамка WhatsApp — как PartShell fill");
-  assert.match(read("src/components/v3/inbox-next/InboxNextView.tsx"), /v3-inbox grid/u, "зацепка телефонных правил оболочки");
-  assert.match(read("src/components/v3/inbox-next/InboxNextView.tsx"), /data-inbox-open=\{open \? "" : undefined\}/u);
+  assert.match(read("src/components/staff/inbox-next/InboxNextView.tsx"), /v3-inbox grid/u, "зацепка телефонных правил оболочки");
+  assert.match(read("src/components/staff/inbox-next/InboxNextView.tsx"), /data-inbox-open=\{open \? "" : undefined\}/u);
 });
 
 test("стенд и данные на месте: страницы, Chromium-проверки, синтетические данные", () => {

@@ -38,7 +38,7 @@ export function caseChatHref(query: string, queue: CaseChatQueue, caseId: string
   // An attachment belongs to its selected case, never to the list itself.
   if (caseId && attachment) params.set("attach", `${attachment.kind}:${attachment.id}`);
   const search = params.toString();
-  return search ? `/v3/messages?${search}` : "/v3/messages";
+  return search ? `/messages?${search}` : "/messages";
 }
 
 export const CASE_CHAT_ATTACHMENT_KINDS = ["document", "case_task"] as const;

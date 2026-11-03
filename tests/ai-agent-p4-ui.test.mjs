@@ -174,10 +174,10 @@ test("settings checks mirror 275: phrases one line, no digits or links, exactly 
   assert.equal(aiAutosendOvernight({ from: "21:00", to: "21:00" }), "→ 21:00 след. дня", "a full day is overnight too");
   assert.equal(aiAutosendOvernight({ from: "13:00", to: "15:00" }), null);
   // Ссылка на чат «Продажи → WhatsApp» или сам id → id диалога.
-  assert.equal(aiAutosendConversationFromLink(`https://crm.evoadmissions.com/v3/inbox?conversation=${ID(5).toUpperCase()}`), ID(5));
-  assert.equal(aiAutosendConversationFromLink(`/v3/inbox?conversation=${ID(5)}&q=x`), ID(5));
+  assert.equal(aiAutosendConversationFromLink(`https://crm.evoadmissions.com/inbox?conversation=${ID(5).toUpperCase()}`), ID(5));
+  assert.equal(aiAutosendConversationFromLink(`/inbox?conversation=${ID(5)}&q=x`), ID(5));
   assert.equal(aiAutosendConversationFromLink(ID(6)), ID(6));
-  for (const bad of ["", "чат Айгерим", `/v3/messages?conversation=${ID(5)}`, "/v3/inbox?conversation=x"]) assert.equal(aiAutosendConversationFromLink(bad), null, bad);
+  for (const bad of ["", "чат Айгерим", `/messages?conversation=${ID(5)}`, "/inbox?conversation=x"]) assert.equal(aiAutosendConversationFromLink(bad), null, bad);
 });
 
 test("save: only the changed keys go to 277 — the live-test list only when it changed; phrases are written trimmed", () => {
@@ -209,7 +209,7 @@ test("save: only the changed keys go to 277 — the live-test list only when it 
   assert.match(action, /exactActionStringFields\(form, \["request_id", "expected_version", "settings", "baseline"\]\)/u);
   assert.match(action, /settings = aiAutosendTrimmed\(normalizeAiAutosendSettings\(JSON\.parse\(raw\)\)\);/u);
   assert.match(action, /const patch = aiAutosendSettingsPatch\(baseline, settings\);/u);
-  const form = read("src/components/v3/ai-agent/AiAutosendSettingsForm.tsx");
+  const form = read("src/components/staff/ai-agent/AiAutosendSettingsForm.tsx");
   assert.match(form, /name="settings" value=\{JSON\.stringify\(aiAutosendTrimmed\(draft\)\)\}/u);
   assert.match(form, /name="baseline" value=\{JSON\.stringify\(initial\)\}/u);
   // Отказы списка живого теста — своим текстом, не «Нет права менять настройки».
@@ -232,12 +232,12 @@ test("live test before three shadow nights: the link field is not offered, the r
   assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 9 })), null);
   assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 0, shadowNightsRequired: 1 })), "Чаты живого теста можно добавить после 1 ночи проверки без отправки.");
   assert.equal(aiAutosendLiveTestLock(state({}, { shadowNights: 1, shadowNightsRequired: 21 })), "Чаты живого теста можно добавить после 21 ночи проверки без отправки — нужно ещё 20 ночей.");
-  const form = read("src/components/v3/ai-agent/AiAutosendSettingsForm.tsx");
+  const form = read("src/components/staff/ai-agent/AiAutosendSettingsForm.tsx");
   // Поле ссылки и «Добавить» — только без замка; уже добавленные чаты убираются и под замком.
   assert.match(form, /length >= AI_AUTOSEND_MAX_LIVE_TEST \? null : liveTestLock \? \(/u);
   assert.match(form, /data-testid="v3-ai-autosend-live-test-lock"/u);
   assert.match(form, /state\.status === "shadow_nights_required" && liveTestLock \? `\$\{liveTestLock\} Уберите чаты из списка — остальное сохранится\.`/u);
-  assert.match(read("src/components/v3/ai-agent-next/AiAutosendNext.tsx"), /liveTestLock=\{aiAutosendLiveTestLock\(state\)\}/u);
+  assert.match(read("src/components/staff/ai-agent-next/AiAutosendNext.tsx"), /liveTestLock=\{aiAutosendLiveTestLock\(state\)\}/u);
 });
 
 test("RPC names the CRM calls exist in the P4 schema (275–277): the chat read is ai_agent_autosend_conversation_v1", (t) => {
@@ -417,8 +417,8 @@ test("route: «Автоответчик» is the sixth sub-page; view, status an
     { section: "autosend", document: ID(1) }, { section: "spend", view: "journal" },
   ]) assert.equal(parseAiAgentRoute(query), null, JSON.stringify(query));
   assert.equal(Object.hasOwn(parseAiAgentRoute({ section: "spend" }), "autosend"), false, "other sections keep their exact shape");
-  assert.equal(aiAgentHref("autosend"), "/v3/ai-agent?section=autosend");
-  assert.equal(aiAgentHref("autosend", { view: "journal", status: "failed" }), "/v3/ai-agent?section=autosend&view=journal&status=failed");
+  assert.equal(aiAgentHref("autosend"), "/ai-agent?section=autosend");
+  assert.equal(aiAgentHref("autosend", { view: "journal", status: "failed" }), "/ai-agent?section=autosend&view=journal&status=failed");
 });
 
 // ------------------------------------------------------------ chat route
@@ -628,7 +628,7 @@ test("chat state: only an autoresponder attempt carries kind (276); manual attem
   assert.equal(bubble.resend, null);
   const source = read("src/lib/v3/inbox-source.ts");
   assert.match(source, /authorIsViewer: !autoreply && attempt\.authorizedByMembershipId === viewerMembershipId\.toLowerCase\(\),/u);
-  const chatView = read("src/components/v3/inbox/InboxChat.tsx");
+  const chatView = read("src/components/staff/inbox/InboxChat.tsx");
   assert.match(chatView, /const returnAction = canAct && !bubble\.autoreply/u);
   assert.match(chatView, /Не ушло: автоответ не отправлен/u);
 });
@@ -673,9 +673,9 @@ test("env: EVO_AI_AGENT_AUTOSEND is '', 0 or 1; 1 needs the agent secret and its
 // ------------------------------------------------------------ UI source
 
 test("UI copy: the spec's Russian words, one red action, switch semantics, AI-window strip under the memory block", () => {
-  const view = read("src/components/v3/ai-agent-next/AiAutosendHeader.tsx") + read("src/components/v3/ai-agent-next/AiPauseBanner.tsx") + read("src/components/v3/ai-agent-next/AiAutosendNext.tsx");
-  const form = read("src/components/v3/ai-agent/AiAutosendSettingsForm.tsx");
-  const mode = read("src/components/v3/ai-agent/AiAutosendModeSwitch.tsx");
+  const view = read("src/components/staff/ai-agent-next/AiAutosendHeader.tsx") + read("src/components/staff/ai-agent-next/AiPauseBanner.tsx") + read("src/components/staff/ai-agent-next/AiAutosendNext.tsx");
+  const form = read("src/components/staff/ai-agent/AiAutosendSettingsForm.tsx");
+  const mode = read("src/components/staff/ai-agent/AiAutosendModeSwitch.tsx");
   const contract = read("src/lib/v3/ai-agent-autosend.ts");
   for (const phrase of ["Проверка без отправки", "Отвечает", "Нужно ещё ${nightsWord(left)} проверки", "след. дня", "Включён весь день",
     "Выключен", "нужна проверка", "Проверено", "Настройки изменились — обновите страницу", "Автоответчик на паузе", "Снять паузу",
@@ -694,27 +694,27 @@ test("UI copy: the spec's Russian words, one red action, switch semantics, AI-wi
   assert.match(mode, /data-testid="v3-ai-autosend-live-confirm"/u);
   assert.match(mode, /submit\("live"\);/u);
   assert.equal((mode.match(/submit\("live"\)/gu) ?? []).length, 1, "the only live write is the confirm button");
-  const toggle = read("src/components/v3/inbox/InboxAiAutosend.tsx");
+  const toggle = read("src/components/staff/inbox/InboxAiAutosend.tsx");
   assert.match(toggle, /role="switch"/u);
   assert.match(toggle, /aria-checked=\{on\}/u);
   // 320: the strip gets the student's refusal from the window and says so; the window derives it from the blocked consent code.
   assert.match(toggle, /aiAutosendChatLine\(chat, serverOn, studentAiAllowed\)/u);
   assert.match(toggle, /if \(load\.kind === "hidden" \|\| load\.kind === "loading"\) return null;/u, "an org without the autoresponder shows nothing");
-  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  const assistant = read("src/components/staff/inbox/InboxAiAssistant.tsx");
   const body = assistant.slice(assistant.indexOf('<div className="v3-ai-body">'));
   assert.match(assistant, /const studentAiAllowed = !\(phase\.kind === "blocked" && phase\.code === AI_CONSENT_MISSING_CODE\);/u);
   // Окно «как в SoodaCloser» (08.10): автоответчик — полоса под памятью, внизу карточки, после ответа.
   assert.ok(body.indexOf("<InboxAiMemory conversationId={conversationId} />") < body.indexOf("<InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />"));
   assert.ok(body.indexOf('phase.kind === "loading"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />"));
   assert.ok(body.indexOf('data-testid="v3-ai-sources"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />"));
-  const inbox = read("src/components/v3/Inbox.tsx");
+  const inbox = read("src/components/staff/Inbox.tsx");
   assert.match(inbox, /open\.chat\.autoreplyAtNight \? \(/u);
-  const page = read("src/app/(v3)/v3/ai-agent/page.tsx");
+  const page = read("src/app/(staff)/ai-agent/page.tsx");
   assert.match(page, /readAiAutosend\(actor\),/u, "the pause line is read on every sub-page");
   assert.match(page, /compactHref: aiAgentHref\("autosend"\)/u);
   // Ни один экран не обращается к WAHA или маршруту отправки из браузера.
-  for (const file of ["src/components/v3/ai-agent-next/AiAutosendNext.tsx", "src/components/v3/ai-agent-next/AiAutosendHeader.tsx", "src/components/v3/ai-agent/AiAutosendSettingsForm.tsx",
-    "src/components/v3/inbox/InboxAiAutosend.tsx"]) {
+  for (const file of ["src/components/staff/ai-agent-next/AiAutosendNext.tsx", "src/components/staff/ai-agent-next/AiAutosendHeader.tsx", "src/components/staff/ai-agent/AiAutosendSettingsForm.tsx",
+    "src/components/staff/inbox/InboxAiAutosend.tsx"]) {
     assert.doesNotMatch(read(file), /api\/internal|sendText|waha/iu, file);
   }
   assert.equal(AI_AUTOSEND_COPY.chatToggle, "Автоответчик в этом чате");

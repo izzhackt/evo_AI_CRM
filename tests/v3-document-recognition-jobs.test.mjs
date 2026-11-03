@@ -8,12 +8,12 @@ import ts from "typescript";
 import * as wording from "../src/lib/v3/wording.ts";
 import * as client from "../src/lib/document-recognition-client.ts";
 import * as deadline from "../src/lib/platform-task-deadline.ts";
-import * as caseWorkView from "../src/components/v3/profile/case-work-view.ts";
+import * as caseWorkView from "../src/components/staff/profile/case-work-view.ts";
 import { DOCUMENT_RECOGNITION_STATES, DOCUMENT_RECOGNITION_CLEANUP_STATES, DOCUMENT_RECOGNITION_REQUEST_ERROR_CODES } from "../src/lib/document-recognition.ts";
 
 const require = createRequire(import.meta.url);
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const source = read("src/components/v3/profile/DocumentRecognitionJobs.tsx");
+const source = read("src/components/staff/profile/DocumentRecognitionJobs.tsx");
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const compiled = { exports: {} };
 new Function("require", "module", "exports", code)(id => id === "@/lib/v3/wording" ? wording
@@ -24,7 +24,7 @@ new Function("require", "module", "exports", code)(id => id === "@/lib/v3/wordin
 const { DocumentRecognitionJobs, DocumentRecognitionJobList } = compiled.exports;
 const CASE = "10000000-0000-4000-8000-000000000001";
 const SOURCE = "10000000-0000-4000-8000-000000000002";
-const access = { studentCaseId: CASE, profileRevision: 7, canEnqueue: true, reviewHref: `/v3/profile?case=${CASE}&tab=anketa` };
+const access = { studentCaseId: CASE, profileRevision: 7, canEnqueue: true, reviewHref: `/profile?case=${CASE}&tab=anketa` };
 const job = { job_id: CASE, source_version_id: SOURCE, state: "generation_unknown", cleanup_state: "unknown",
   proposal_count: 0, failure_code: "generation_unknown", updated_at: "2026-09-13T12:00:00Z" };
 const renderList = (jobs, canRetry = false) => renderToStaticMarkup(createElement(DocumentRecognitionJobList,
@@ -106,11 +106,11 @@ test("all canonical states have shared human wording; internal keys have no fall
 });
 
 test("existing document UI uses current authority hints, both histories and same-command recovery", () => {
-  const profile = read("src/components/v3/profile/Profile.tsx");
+  const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /!isStaffPreview\(actor\)/); assert.match(profile, /"document\.extract"/);
   assert.match(profile, /draft\.profileFields\?\.profile\?\.revision/);
-  const documents = read("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  const row = read("src/components/v3/profile/DocumentRow.tsx");
+  const documents = read("src/components/staff/profile/ProfileDocumentsClient.tsx");
+  const row = read("src/components/staff/profile/DocumentRow.tsx");
   assert.match(documents, /sourceVersionId=\{null\}/); assert.match(row, /sourceVersionId=\{current\.currentVersionId\}/);
   // Э8.1: the row's «⋯» → «Распознавание» shows the version's recognition already open.
   assert.match(row, /<DocumentRecognitionJobs key=\{current\.currentVersionId\} access=\{recognition\} initiallyOpen/);

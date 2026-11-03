@@ -14,13 +14,13 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { CalendarNextPage } = require("@/components/v3/calendar/next/CalendarNextPage");
-const { gridDays, resolveDay, resolveView } = require("@/components/v3/calendar/types");
-const { SnippetsNext } = require("@/components/v3/reply-snippets/next/SnippetsNext");
-const { FilesNext } = require("@/components/v3/knowledge/next/FilesNext");
-const { KnowledgeNextPage } = require("@/components/v3/knowledge/next/KnowledgeNextPage");
-const { TeamChatNextPage, TeamChatNextFailure } = require("@/components/v3/team-chat/next/TeamChatNextPage");
+const { AppShell } = require("@/components/staff/AppShell");
+const { CalendarNextPage } = require("@/components/staff/calendar/next/CalendarNextPage");
+const { gridDays, resolveDay, resolveView } = require("@/components/staff/calendar/types");
+const { SnippetsNext } = require("@/components/staff/reply-snippets/next/SnippetsNext");
+const { FilesNext } = require("@/components/staff/knowledge/next/FilesNext");
+const { KnowledgeNextPage } = require("@/components/staff/knowledge/next/KnowledgeNextPage");
+const { TeamChatNextPage, TeamChatNextFailure } = require("@/components/staff/team-chat/next/TeamChatNextPage");
 const h = React.createElement;
 const fx = JSON.parse(document.getElementById("fixture").textContent);
 window.__harness = { pushes: [], calls: [], history: [fx.search], requests: [], errors: [], actions: [], deleted: [], delay: 60, token: 0 };
@@ -30,7 +30,7 @@ function serveCalendar(search) {
   const params = new URLSearchParams(search);
   const view = resolveView(params.get("view") ?? undefined);
   const target = params.get("task") ? fx.calendar.tasks.find((task) => task.id === params.get("task")) ?? null : null;
-  const unavailable = params.get("task") && !target ? { key: (params.get("kind") ?? "case") + ":" + params.get("task"), returnHref: "/v3/calendar?view=" + view + "&date=" + fx.today } : null;
+  const unavailable = params.get("task") && !target ? { key: (params.get("kind") ?? "case") + ":" + params.get("task"), returnHref: "/calendar?view=" + view + "&date=" + fx.today } : null;
   const day = params.get("date") ? resolveDay(params.get("date"), fx.today) : target?.day ?? fx.today;
   const requestIds = Object.fromEntries(fx.calendar.tasks.map((task, index) => [task.key, { change: "e0000000-1111-4111-8111-00000000" + String(index).padStart(4, "0"), complete: "e1000000-1111-4111-8111-00000000" + String(index).padStart(4, "0"), cancel: "e2000000-1111-4111-8111-00000000" + String(index).padStart(4, "0") }]));
   const tasks = fx.calendar.tasks;
@@ -40,7 +40,7 @@ function serveCalendar(search) {
     view, day, today: fx.today, nowMinutes: 600, days: gridDays(view, day), tasks, readAccess: fx.calendar.readAccess,
     undatedContinuationPage: false, undatedNextHref: null, undatedCursor: null, cases: fx.calendar.cases, casesHaveMore: false,
     assignees: fx.participants.map((p) => ({ membershipId: p.membershipId, displayName: p.displayName })),
-    actorMembershipId: fx.me, actor: fx.actor, taskRequestIds: requestIds, basePath: "/v3/calendar",
+    actorMembershipId: fx.me, actor: fx.actor, taskRequestIds: requestIds, basePath: "/calendar",
   };
 }
 

@@ -399,7 +399,7 @@ test('screens wire the one tap for students who may submit and keep staff two-st
   assert.match(controls, /outcome\.reason === "busy" \? strings\.savedSendBusy/u);
   assert.match(controls, /tone: "success"/u);
   assert.doesNotMatch(controls, /persistApplicationDocumentPending|withApplicationDocumentLock/u, 'components reuse the shared commands instead of forking them');
-  const staff = read('src/components/v3/profile/StaffPreparationPanel.tsx');
+  const staff = read('src/components/staff/profile/StaffPreparationPanel.tsx');
   assert.doesNotMatch(staff, /sendAfterSave/u);
   const recovery = read('src/components/portal/admissionPreparations/ProgramDocumentRecovery.tsx');
   assert.doesNotMatch(recovery, /sendAfterSave/u);

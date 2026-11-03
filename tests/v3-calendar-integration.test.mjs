@@ -7,7 +7,7 @@ import {
   taskDeadlineInputDefaults,
   calendarCapabilitiesForTask,
   calendarUndatedContinuationHref,
-} from "../src/components/v3/calendar/types.ts";
+} from "../src/components/staff/calendar/types.ts";
 
 import { comparePersonalCalendarCursor, parsePersonalCalendarCursor, parsePersonalCalendarPage, personalCalendarPageArgs, personalCalendarTargetArgs, PersonalCalendarReadError } from "../src/lib/v3/personal-calendar-contract.ts";
 
@@ -15,14 +15,14 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const page = source("src/app/(v3)/v3/calendar/page.tsx");
-const calendar = source("src/components/v3/calendar/Calendar.tsx");
-const controls = source("src/components/v3/calendar/TaskControls.tsx");
+const page = source("src/app/(staff)/calendar/page.tsx");
+const calendar = source("src/components/staff/calendar/Calendar.tsx");
+const controls = source("src/components/staff/calendar/TaskControls.tsx");
 // Э7 «Один способ создать задачу»: календарь создаёт задачу тем же диалогом,
 // что и остальные входы; прежняя форма календаря удалена.
-const composer = source("src/components/v3/tasks/TaskComposerDialog.tsx");
-const grids = source("src/components/v3/calendar/grids.tsx");
-const types = source("src/components/v3/calendar/types.ts");
+const composer = source("src/components/staff/tasks/TaskComposerDialog.tsx");
+const grids = source("src/components/staff/calendar/grids.tsx");
+const types = source("src/components/staff/calendar/types.ts");
 const adapter = source("src/lib/v3/calendar-source.ts");
 const personal = source("src/lib/v3/personal-calendar-contract.ts");
 
@@ -61,7 +61,7 @@ test("deadline day deltas stay date-only across month and year boundaries", () =
 });
 
 test("V3 calendar exhausts selected ranges and bounds undated history", () => {
-  assert.match(page, /requireV3PageActor\("\/v3\/calendar"\)/);
+  assert.match(page, /requireV3PageActor\("\/calendar"\)/);
   assert.match(page, /readCalendarWorkspace/);
   assert.match(adapter, /readPersonalCalendarPage/);
   assert.match(adapter, /listPlatformStudentCases/);
@@ -80,7 +80,7 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(page, /undatedContinuationPage=\{workspace\.access\.tasks && undatedCursor !== null\}/u);
   assert.match(calendar, /initialCases=\{cases\} casesHaveMore=\{casesHaveMore\}/);
   assert.match(composer, /<TaskCasePicker initialCases=\{initialCases\} initialHasMore=\{casesHaveMore\}/);
-  assert.match(source("src/components/v3/tasks/TaskCasePicker.tsx"), /searchTaskCasesAction/);
+  assert.match(source("src/components/staff/tasks/TaskCasePicker.tsx"), /searchTaskCasesAction/);
   assert.match(source("src/lib/v3/task-case-actions.ts"), /cursor/);
   assert.equal(
     [...adapter.matchAll(/await getPlatformAdmissionsTaskTarget\(/g)].length,
@@ -107,13 +107,13 @@ test("personal calendar gates each permitted task branch and keeps creation sepa
   assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess, view\)/);
   assert.match(calendar, /<TaskComposerDialog/);
   assert.doesNotMatch(calendar + controls, /CalendarCreateTaskForm/);
-  assert.equal(existsSync(new URL("../src/components/v3/calendar/create-lifecycle.ts", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../src/components/staff/calendar/create-lifecycle.ts", import.meta.url)), false);
   assert.match(calendar, /const canCreate = staffPresentationCan\(actor, "admissions\.read"\) &&\s*!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.create"\)/);
   assert.match(adapter, /task\.key !== target\.task\.key/);
 });
 
 test("case task candidates follow exact selection and block submission until checked", () => {
-  const picker = source("src/components/v3/tasks/TaskCasePicker.tsx");
+  const picker = source("src/components/staff/tasks/TaskCasePicker.tsx");
   const action = source("src/lib/v3/task-case-actions.ts");
   assert.match(picker, /onCaseChange\?\.\(nextCaseId\)/);
   assert.match(picker, /onCaseChange\?\.\(event\.target\.value\)/);
@@ -199,7 +199,7 @@ test("calendar targets enforce personal scope while shared Tasks retains its rea
   assert.match(adapter, /getPlatformAdmissionsTaskTarget\(actor, studentCaseId, taskId\)/);
   const sharedTarget = adapter.slice(adapter.indexOf("export async function readCalendarTaskTarget"), adapter.indexOf("export type CalendarTaskTarget"));
   assert.doesNotMatch(sharedTarget, /readPersonalCalendarTarget|catch|return null/);
-  assert.match(source("src/app/(v3)/v3/tasks/page.tsx"), /readCalendarTaskTarget/);
+  assert.match(source("src/app/(staff)/tasks/page.tsx"), /readCalendarTaskTarget/);
   assert.match(page, /taskCapabilities=\{target\?\.capabilities \?\? null\}/);
   assert.match(adapter, /task\.key !== target\.task\.key/);
   assert.match(calendar, /tasks\.find\(\(task\) => task\.key === initialTaskKey\)/);
@@ -229,7 +229,7 @@ test("selected task controls and case navigation use only matching scoped target
 test("V3 calendar resolves the page actor before reading Admissions data", () => {
   assert.match(
     page,
-    /requireV3PageActor\("\/v3\/calendar"\)[\s\S]*readCalendarWorkspace/,
+    /requireV3PageActor\("\/calendar"\)[\s\S]*readCalendarWorkspace/,
   );
   assert.doesNotMatch(
     page,
@@ -255,7 +255,7 @@ test("V3 calendar writes use live permission hints and remain keyboard-operable"
   assert.match(grids, /<button[\s\S]*id=\{`\$\{idPrefix\}-\$\{task\.key\}`\}/);
   assert.match(grids, /idPrefix = "task",/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
-  assert.match(calendar, /\/v3\/profile\?case=/);
+  assert.match(calendar, /\/profile\?case=/);
 });
 
 test("V3 calendar preserves canonical task states and undated tasks", () => {
@@ -274,7 +274,7 @@ test("V3 calendar keeps exactly one active task-control component", () => {
   assert.equal(
     existsSync(
       new URL(
-        "../src/components/v3/calendar/TaskActions.tsx",
+        "../src/components/staff/calendar/TaskActions.tsx",
         import.meta.url,
       ),
     ),
@@ -328,7 +328,7 @@ test("equal UUIDs in separate task domains have distinct stable cursor positions
 test("mixed-domain continuation round trips its full tuple and keeps period", () => {
   for (const kind of ["case", "staff"]) {
     const cursor = { sortAt: sentinel, kind, taskId };
-    const url = new URL(calendarUndatedContinuationHref("/v3/calendar", "week", "2026-09-21", cursor), "http://localhost");
+    const url = new URL(calendarUndatedContinuationHref("/calendar", "week", "2026-09-21", cursor), "http://localhost");
     assert.equal(url.searchParams.get("view"), "week");
     assert.equal(url.searchParams.get("date"), "2026-09-21");
     assert.deepEqual(parsePersonalCalendarCursor(url.searchParams.get("undated_after_sort_at"), url.searchParams.get("undated_after_kind"), url.searchParams.get("undated_after_task_id"), true), cursor);
@@ -337,7 +337,7 @@ test("mixed-domain continuation round trips its full tuple and keeps period", ()
 });
 
 test("legacy case-only continuation remains readable without guessing a staff domain", () => {
-  const url = new URL(calendarUndatedContinuationHref("/v3/calendar", "month", "2026-09-21", { sortAt: sentinel, caseTaskId: taskId }), "http://localhost");
+  const url = new URL(calendarUndatedContinuationHref("/calendar", "month", "2026-09-21", { sortAt: sentinel, caseTaskId: taskId }), "http://localhost");
   assert.deepEqual(parsePersonalCalendarCursor(url.searchParams.get("undated_after_sort_at"), "case", url.searchParams.get("undated_after_case_task_id"), true), { sortAt: sentinel, kind: "case", taskId });
 });
 

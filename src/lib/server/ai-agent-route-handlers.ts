@@ -150,7 +150,7 @@ async function defaultAuthorize(): Promise<Authorization> {
   if (result.status === "anonymous") return { status: "anonymous", actor: null };
   if (result.status === "invalid") return { status: "unavailable", actor: null };
   if (isStaffPreview(result.actor)) return { status: "preview", actor: null };
-  if (!staffHasPermission(result.actor, "ai.agent.use") || !staffCanAccessRoute(result.actor, "/v3/inbox")) {
+  if (!staffHasPermission(result.actor, "ai.agent.use") || !staffCanAccessRoute(result.actor, "/inbox")) {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };

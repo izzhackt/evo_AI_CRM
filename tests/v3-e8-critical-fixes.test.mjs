@@ -17,7 +17,7 @@ import { MANUAL_LEAD_SOURCE_REQUIRED, MANUAL_LEAD_SOURCES } from "../src/lib/pla
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("«Студенты»: the student column is at least 14rem, the name wraps to two lines, stage and curator grow from a fixed minimum", () => {
-  const table = read("src/components/v3/students/StudentsQueueTable.tsx");
+  const table = read("src/components/staff/students/StudentsQueueTable.tsx");
   // Каждая строка — своя сетка: у каждой колонки постоянный минимум и доля
   // (fit-content развёл бы колонки строк). Этап и куратор растут с таблицей:
   // от 1366 «ждёт принятия» помещается под именем куратора одной строкой.
@@ -50,11 +50,11 @@ test("phone admissions board opens on the ?stage= stage, else the first stage wi
 });
 
 test("phone admissions board: the page passes ?stage= and the picker (or a followed card) writes it back without a server round trip", () => {
-  const page = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+  const page = read("src/app/(staff)/admissions-pipeline/page.tsx");
   assert.match(page, /stage\?: string \| string\[\];/u);
   assert.match(page, /requestedStage=\{singleValue\(params\.stage\) \?\? null\}/u);
   // Этап телефона ведёт движок доски (`useAdmissionsBoard`), общий у доски «Нового вида»; выбор «Этап» рисует сама доска.
-  const board = [read("src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx"), read("src/components/v3/admissions-board/useAdmissionsBoard.ts")].join("\n");
+  const board = [read("src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx"), read("src/components/staff/admissions-board/useAdmissionsBoard.ts")].join("\n");
   assert.match(board, /useState<AdmissionsPipelineStage>\(\(\) => admissionsNarrowStage\(tab, rows, requestedStage\)\)/u);
   assert.match(board, /setPreviousTab\(tab\);\s*setNarrowStage\(admissionsNarrowStage\(tab, rows, requestedStage\)\);/u);
   assert.match(board, /onChange=\{\(event\) => board\.chooseNarrowStage\(event\.target\.value as AdmissionsPipelineStage\)\}/u);
@@ -74,7 +74,7 @@ test("«Добавить лида»: the source opens on «Не выбрано»
   assert.equal(MANUAL_LEAD_SOURCES.whatsapp_manual, "WhatsApp (вручную)");
   assert.equal(Object.hasOwn(MANUAL_LEAD_SOURCES, "whatsapp"), false);
   assert.equal(MANUAL_LEAD_SOURCE_REQUIRED, "Выберите источник");
-  const form = read("src/components/v3/ManualLeadForm.tsx");
+  const form = read("src/components/staff/ManualLeadForm.tsx");
   assert.match(form, /<select name="source" required defaultValue=""/u);
   assert.match(form, /<option value="">Не выбрано<\/option>\{Object\.entries\(MANUAL_LEAD_SOURCES\)\.map/u);
   assert.match(form, /event\.currentTarget\.setCustomValidity\(MANUAL_LEAD_SOURCE_REQUIRED\);/u);

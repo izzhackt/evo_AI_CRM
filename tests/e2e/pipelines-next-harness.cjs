@@ -116,7 +116,7 @@ async function renderRequest(pathname, search, { actor, rows }) {
     setActor(actor);
     selectSalesRows(rows);
     try {
-      const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+      const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
       const content = await resolveServer(await require(join(ROOT, PAGES[pathname])).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) }));
       const params = new URLSearchParams(search);
       return createElement(AppRouterContext.Provider, { value: { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} } },
@@ -161,7 +161,7 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
+const { AppShell } = require("@/components/staff/AppShell");
 const PAGES = {
 ${Object.entries(PAGES).map(([path, file]) => `  ${JSON.stringify(path)}: () => require(${JSON.stringify("@/" + file.replace(/^src\//u, "").replace(/\.tsx$/u, ""))}).default,`).join("\n")}
 };
@@ -263,14 +263,14 @@ async function bundleHydration() {
   return result.outputFiles[0].text;
 }
 
-/** CSS сборки (Tailwind v4 как в сборке) + v3.css; шрифты — с того же сервера. */
+/** CSS сборки (Tailwind v4 как в сборке) + staff.css; шрифты — с того же сервера. */
 async function compileCss() {
   const postcss = require("postcss");
   const tailwind = require("@tailwindcss/postcss");
   const globalsPath = join(ROOT, "src/app/globals.css");
   const result = await postcss([tailwind({ base: ROOT, optimize: false })]).process(readFileSync(globalsPath, "utf8"), { from: globalsPath });
   const fonts = ["golos-text", "jetbrains-mono"].map((font) => readFileSync(join(ROOT, "node_modules/@fontsource-variable", font, "wght.css"), "utf8").replaceAll("url(./files/", `url(/__fonts/${font}/files/`));
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 const cookieOf = (request, name) => (request.headers.cookie ?? "").split("; ").find((one) => one.startsWith(`${name}=`))?.slice(name.length + 1) ?? null;

@@ -33,7 +33,7 @@ export async function decideStudentApplicationAction(_previous: StudentApplicati
     || reason.length < 1 || reason.length > 1000 || CONTROL_CHAR_PATTERN.test(reason)) return { status: "invalid", requestId: responseRequestId };
   try {
     await decideStudentApplication({ applicationId, requestId, expectedRevision, decision: decision as "approve" | "reject", reason });
-    revalidatePath("/v3/requests"); revalidatePath("/v3/admissions-requests"); revalidatePath("/v3/profile");
+    revalidatePath("/requests"); revalidatePath("/admissions-requests"); revalidatePath("/profile");
     revalidatePath("/apply/status"); revalidatePath("/auth/account-pending");
     return { status: "saved", requestId };
   } catch (error) { return failure(error, responseRequestId); }

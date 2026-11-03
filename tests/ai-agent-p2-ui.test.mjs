@@ -133,8 +133,8 @@ test("route: sections are real links; document, page, chunk, replace and review 
     { section: "review", page: "1" }, { section: "spend", replace: ID(1) }, { section: ["lab", "rules"] }, { extra: "1" },
     { document: ID(1), chunk: "-1" },
   ]) assert.equal(parseAiAgentRoute(query), null, JSON.stringify(query));
-  assert.equal(aiAgentHref("documents", { document: ID(1), page: 2, chunk: null }), `/v3/ai-agent?document=${ID(1)}&page=2`);
-  assert.equal(aiAgentHref("review", { status: "resolved" }), "/v3/ai-agent?section=review&status=resolved");
+  assert.equal(aiAgentHref("documents", { document: ID(1), page: 2, chunk: null }), `/ai-agent?document=${ID(1)}&page=2`);
+  assert.equal(aiAgentHref("review", { status: "resolved" }), "/ai-agent?section=review&status=resolved");
 });
 
 test("statuses: queued, processing with stage and percent, review count, ready, Russian error, personal document", () => {
@@ -995,10 +995,10 @@ test("env: the broker secret is optional, well-formed and distinct from the agen
 // ------------------------------------------------------------ UI source
 
 test("UI: five tabs with the review count, the upload copy, viewer, review sheet and lab; no Storage path in client code", () => {
-  const views = read("src/components/v3/ai-agent-next/AiDocumentSheet.tsx");
+  const views = read("src/components/staff/ai-agent-next/AiDocumentSheet.tsx");
   assert.match(views, /Новая версия обрабатывается — пока ищется прежняя\./u);
   assert.match(views, /Это материал компании — продолжить/u);
-  const upload = read("src/components/v3/ai-agent/AiDocumentUpload.tsx");
+  const upload = read("src/components/staff/ai-agent/AiDocumentUpload.tsx");
   assert.match(upload, /Перетащите файл или/u);
   assert.match(upload, /Это материал компании, не документ клиента/u);
   assert.match(upload, /xhr\.open\("POST", "\/api\/v3\/ai-agent\/documents"\)/u);
@@ -1006,13 +1006,13 @@ test("UI: five tabs with the review count, the upload copy, viewer, review sheet
   // Адреса картинок совпадают с подключёнными маршрутами (урок 06.10).
   assert.equal(isConnectedPlatformApi(aiPageImageHref(ID(1), 2)), true);
   assert.equal(isConnectedPlatformApi(aiCropHref(ID(1), ID(30))), true);
-  const viewer = read("src/components/v3/ai-agent/AiDocumentViewer.tsx");
+  const viewer = read("src/components/staff/ai-agent/AiDocumentViewer.tsx");
   assert.match(viewer, /aiPageImageHref\(document\.id, page\.pageNo\)/u);
-  const review = read("src/components/v3/ai-agent-next/AiReviewItemSheet.tsx") + read("src/components/v3/ai-agent-next/AiReviewNext.tsx") + read("src/components/v3/ai-agent/AiReviewItemActions.tsx");
+  const review = read("src/components/staff/ai-agent-next/AiReviewItemSheet.tsx") + read("src/components/staff/ai-agent-next/AiReviewNext.tsx") + read("src/components/staff/ai-agent/AiReviewItemActions.tsx");
   for (const word of ["Первое чтение", "Второе чтение", "Проверка фрагмента", "Предложено", "Подтвердить", "Исправить", "Оставить как есть", "Открыть снова", "Исправление применяется…", "Всё сверено"]) {
     assert.ok(review.includes(word), word);
   }
-  const lab = read("src/components/v3/ai-agent/AiLaboratory.tsx");
+  const lab = read("src/components/staff/ai-agent/AiLaboratory.tsx");
   for (const word of ["Спросите как клиент", "Почему такой ответ", "Что не так?", "Предложить правку", "Было", "Стало", "Эталонный ответ", "Применить", "Не менять"]) {
     assert.ok(lab.includes(word), word);
   }
@@ -1021,10 +1021,10 @@ test("UI: five tabs with the review count, the upload copy, viewer, review sheet
   assert.match(lab, /ИИ-агент не подключён к CRM — применить правку сейчас нельзя\./u);
   assert.match(read("src/lib/v3/ai-agent-knowledge.ts"), /lab_changed: "Знания или предложение изменились\. Спросите заново\."/u);
   for (const file of ["AiDocumentUpload.tsx", "AiDocumentViewer.tsx", "AiReviewItemActions.tsx", "AiLaboratory.tsx"]) {
-    const source = read(`src/components/v3/ai-agent/${file}`);
+    const source = read(`src/components/staff/ai-agent/${file}`);
     assert.match(source, /^"use client";/u, file);
     assert.doesNotMatch(source, /imagePath|cropPath|platform-ai-agent-knowledge|supabase/u, `${file}: no Storage path or client`);
   }
-  const page = read("src/app/(v3)/v3/ai-agent/page.tsx");
+  const page = read("src/app/(staff)/ai-agent/page.tsx");
   assert.match(page, /const route = parseAiAgentRoute\(await searchParams\);\n  if \(!route\) notFound\(\);/u);
 });

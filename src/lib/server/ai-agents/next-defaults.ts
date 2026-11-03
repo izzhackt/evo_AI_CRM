@@ -1,7 +1,7 @@
 import "server-only";
 
 import { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } from "@/content/ai-agents";
-import type { NextAgentDefaults, NextAgentsHasDefault } from "@/components/v3/ai-agents-next/agent-defaults";
+import type { NextAgentDefaults, NextAgentsHasDefault } from "@/components/staff/ai-agents-next/agent-defaults";
 import { AI_AGENT_KEYS, type AiAgentKey } from "@/lib/ai-agents/contract";
 import type { AiAgentTab } from "@/lib/v3/ai-agents-view";
 

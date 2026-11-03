@@ -1,5 +1,5 @@
 import { SectionTabsInPlace } from "@/components/kit/SectionTabsInPlace";
-import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
+import { QueueViewTabs } from "@/components/staff/queue/QueueViewTabs";
 import { cn } from "@/lib/utils";
 
 export type SectionTab = Readonly<{

@@ -59,12 +59,12 @@ test("task context SQL binds provenance and outcome to canonical authority and r
 
 test("linked lead context uses canonical authority without requiring Sales-only access", () => {
   const sql = readFileSync(new URL("../supabase/migrations/147_platform_staff_task_leads_results.sql", import.meta.url), "utf8");
-  const page = readFileSync(new URL("../src/app/(v3)/v3/tasks/page.tsx", import.meta.url), "utf8");
-  const pipeline = readFileSync(new URL("../src/components/v3/Pipeline.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../src/app/(staff)/tasks/page.tsx", import.meta.url), "utf8");
+  const pipeline = readFileSync(new URL("../src/components/staff/Pipeline.tsx", import.meta.url), "utf8");
   assert.match(sql, /CREATE FUNCTION platform\.staff_task_lead_context/);
   assert.match(sql, /LEFT JOIN platform\.clients/);
   assert.match(page, /readStaffTaskLeadContext\(actor, sourceLeadId\)/);
   assert.doesNotMatch(page, /getPlatformSalesLead/);
-  assert.match(readFileSync(new URL("../src/components/v3/tasks/next/TaskSourceCards.tsx", import.meta.url), "utf8"), /canOpenPipeline/);
+  assert.match(readFileSync(new URL("../src/components/staff/tasks/next/TaskSourceCards.tsx", import.meta.url), "utf8"), /canOpenPipeline/);
   assert.match(pipeline, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/);
 });

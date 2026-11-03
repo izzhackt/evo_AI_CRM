@@ -7,7 +7,7 @@ import {
   type CaseChatFailure, type CaseChatMessage, type CaseChatPage, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "../platform-case-chat-contract.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
-import { readCaseChatQueueWith, type CaseChatQueueRead } from "../../components/v3/case-chat/case-chat-queue.ts";
+import { readCaseChatQueueWith, type CaseChatQueueRead } from "../../components/staff/case-chat/case-chat-queue.ts";
 
 export class CaseChatReadError extends Error {
   constructor(readonly status: CaseChatFailure) { super(status); }

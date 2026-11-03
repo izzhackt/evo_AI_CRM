@@ -5,7 +5,7 @@
  * снаружи (`command-palette-actions.ts` — настоящие, тест — синтетические).
  * Правило одно: в результатах только то, что роль может открыть той же
  * страницей. Студенты — роли с `admissions.read` и только дела с полным
- * доступом; лиды — роли с `sales.read`; обе ведут в `/v3/profile`, чей
+ * доступом; лиды — роли с `sales.read`; обе ведут в `/profile`, чей
  * маршрут тоже должен быть открыт. Просмотр роли — по правам роли
  * (`staffPresentationCan`), как у страниц.
  */
@@ -51,7 +51,7 @@ export type PaletteReaders = Readonly<{
 }>;
 
 export function paletteSearchAccess(actor: ActivePlatformActor): Readonly<{ students: boolean; leads: boolean }> {
-  const profile = staffCanAccessRoute(actor, "/v3/profile");
+  const profile = staffCanAccessRoute(actor, "/profile");
   return {
     students: profile && staffPresentationCan(actor, "admissions.read"),
     leads: profile && staffPresentationCan(actor, "sales.read"),
@@ -79,7 +79,7 @@ export function paletteStudentRow(row: PaletteStudentCase): PaletteRow {
     id: row.studentCaseId,
     label: row.studentDisplayName,
     meta: meta || null,
-    href: `/v3/profile?case=${encodeURIComponent(row.studentCaseId)}`,
+    href: `/profile?case=${encodeURIComponent(row.studentCaseId)}`,
   };
 }
 
@@ -89,7 +89,7 @@ export function paletteLeadRow(row: PaletteLead): PaletteRow {
     id: row.leadId,
     label: row.clientDisplayName ?? "Лид без имени",
     meta: null,
-    href: `/v3/profile?id=${encodeURIComponent(row.leadId)}`,
+    href: `/profile?id=${encodeURIComponent(row.leadId)}`,
   };
 }
 

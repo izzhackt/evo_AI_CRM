@@ -252,27 +252,27 @@ test("the save receipt carries the status and the replay flag on top of the read
 
 /* ------------------------------------------------------------------ права и меню */
 
-test("`/v3/finance` opens for the real Admin and a holder of finance.read.full; role preview and everyone else are refused; «Маркетинг» is unchanged", () => {
-  assert.equal(staffCanAccessRoute(admin, "/v3/finance"), true);
-  assert.equal(staffCanAccessRoute(accountant, "/v3/finance"), true, "«systemRole: staff» is the only real non-admin value");
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: [] }, "/v3/finance"), false);
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: sellerKeys }, "/v3/finance"), false, "finance.read.summary / finance.manage are not enough");
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: ["finance.read.summary"] }, "/v3/finance"), false);
+test("`/finance` opens for the real Admin and a holder of finance.read.full; role preview and everyone else are refused; «Маркетинг» is unchanged", () => {
+  assert.equal(staffCanAccessRoute(admin, "/finance"), true);
+  assert.equal(staffCanAccessRoute(accountant, "/finance"), true, "«systemRole: staff» is the only real non-admin value");
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: [] }, "/finance"), false);
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: sellerKeys }, "/finance"), false, "finance.read.summary / finance.manage are not enough");
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: ["finance.read.summary"] }, "/finance"), false);
   for (const presentationRole of ["admin", "sales", "admissions"]) {
     const preview = { ...admin, presentationRole };
     assert.equal(isStaffPreview(preview), true);
-    assert.equal(staffCanAccessRoute(preview, "/v3/finance"), false, `preview ${presentationRole}`);
-    assert.equal(staffCanAccessRoute({ ...preview, permissionKeys: ["finance.read.full"] }, "/v3/finance"), false, `preview ${presentationRole} with the right`);
-    assert.equal(staffCanAccessRoute(preview, "/v3/marketing"), false);
+    assert.equal(staffCanAccessRoute(preview, "/finance"), false, `preview ${presentationRole}`);
+    assert.equal(staffCanAccessRoute({ ...preview, permissionKeys: ["finance.read.full"] }, "/finance"), false, `preview ${presentationRole} with the right`);
+    assert.equal(staffCanAccessRoute(preview, "/marketing"), false);
   }
   // «Маркетинг» — по-прежнему только настоящий Admin, и право на финансы его не открывает.
-  assert.equal(staffCanAccessRoute(admin, "/v3/marketing"), true);
-  assert.equal(staffCanAccessRoute(accountant, "/v3/marketing"), false);
-  assert.equal(staffCanAccessRoute(accountant, "/v3/knowledge"), false);
+  assert.equal(staffCanAccessRoute(admin, "/marketing"), true);
+  assert.equal(staffCanAccessRoute(accountant, "/marketing"), false);
+  assert.equal(staffCanAccessRoute(accountant, "/knowledge"), false);
 });
 
 function menuIds(actor, options) {
-  const url = new URL("/v3/main", "https://menu.test");
+  const url = new URL("/main", "https://menu.test");
   const model = options === undefined ? buildV3Navigation(actor, url.pathname, url.searchParams) : buildV3Navigation(actor, url.pathname, url.searchParams, options);
   const links = [model.home, ...model.groups.flatMap((group) => group.links), ...model.sections, ...model.common, model.settings].filter(Boolean);
   return { ids: links.map((link) => link.id), model };
@@ -289,7 +289,7 @@ test("the «Финансы» menu item is the exact check: it follows `financeSe
   assert.deepEqual(menuIds(accountant, { financeSection: true }).model.sections.map((link) => link.id), ["finance"], "no «Маркетинг» for the accountant");
   // Палитра команд берёт тот же объект `navigation`: пункт исчезает и там.
   const sections = (actor, options) => menuIds(actor, options).model.sections.map((link) => link.href);
-  assert.deepEqual(sections(admin), ["/v3/marketing", "/v3/finance"]);
+  assert.deepEqual(sections(admin), ["/marketing", "/finance"]);
   assert.deepEqual(sections(accountant, { financeSection: false }), []);
   // Admin с явным false и сотрудник без права, но с true — права маршрута всё равно решают.
   assert.equal(menuIds(admin, { financeSection: false }).ids.includes("finance"), false);
@@ -301,9 +301,9 @@ test("the «Финансы» menu item is the exact check: it follows `financeSe
     }
   }
   // Страница по прямому адресу подсвечивает пункт, только если он есть.
-  const model = buildV3Navigation(accountant, "/v3/finance", new URLSearchParams(), { financeSection: true });
+  const model = buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: true });
   assert.equal(model.activeId, "finance");
-  assert.equal(buildV3Navigation(accountant, "/v3/finance", new URLSearchParams(), { financeSection: false }).activeId, null);
+  assert.equal(buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: false }).activeId, null);
 });
 
 /* ------------------------------------------------------------------ граница базы */
@@ -414,7 +414,7 @@ test("saving: the pasted code becomes identifiers, one RPC with the version the 
   const a = actions(answer(savedJson()));
   assert.deepEqual(await a.saveReportLinkAction(idle, form(base)), { status: "saved", requestId: REQ });
   assert.deepEqual(a.rpcs, [["organization_report_link_save_v1", { p_organization_id: ORG, p_report_key: "finance", p_expected_version: 2, p_report_id: REPORT, p_page_id: PAGE, p_request_id: REQ }]]);
-  assert.deepEqual(a.revalidated, ["/v3/settings", "/v3/marketing", "/v3/finance"]);
+  assert.deepEqual(a.revalidated, ["/settings", "/marketing", "/finance"]);
   assert.equal(a.guarded.length, 1);
   const unchanged = actions(answer(savedJson({ status: "unchanged" })));
   assert.deepEqual(await unchanged.saveReportLinkAction(idle, form(base)), { status: "unchanged", requestId: REQ });
@@ -478,7 +478,7 @@ test("removing: no code is read, report and page go as NULL, the state is «remo
   const a = actions(answer(savedJson({ configured: false, reportId: null, pageId: null, version: 4 })));
   assert.deepEqual(await a.removeReportLinkAction(idle, form({ request_id: REQ, report_key: "finance", expected_version: "3" })), { status: "removed", requestId: REQ });
   assert.deepEqual(a.rpcs, [["organization_report_link_save_v1", { p_organization_id: ORG, p_report_key: "finance", p_expected_version: 3, p_report_id: null, p_page_id: null, p_request_id: REQ }]]);
-  assert.deepEqual(a.revalidated, ["/v3/settings", "/v3/marketing", "/v3/finance"]);
+  assert.deepEqual(a.revalidated, ["/settings", "/marketing", "/finance"]);
   const gone = actions(answer(savedJson({ status: "unchanged", reportKey: "marketing", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null })));
   assert.equal((await gone.removeReportLinkAction(idle, form({ request_id: REQ, report_key: "marketing", expected_version: "0" }))).status, "unchanged");
   // Поле `embed` у «Убрать» лишнее: форма точная.
@@ -500,8 +500,8 @@ async function financePage(actor, readResult) {
     "@/lib/v3/report-links-source": { readReportLink: async (a, key) => { reads.push([a === actor, key]); return readResult; } },
   });
   // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`.
-  const element = await load("src/app/(v3)/v3/finance/page.tsx").default();
-  const html = renderToStaticMarkup(createElement(load("src/components/v3/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
+  const element = await load("src/app/(staff)/finance/page.tsx").default();
+  const html = renderToStaticMarkup(createElement(load("src/components/staff/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
   return { html, reads };
 }
 
@@ -510,12 +510,12 @@ test("«Финансы», not connected: an honest empty state, different words 
   assert.deepEqual(adminPage.reads, [[true, "finance"]]);
   assert.match(adminPage.html, /<h1 class="t-page-title[^>]*>Финансы<\/h1>/u);
   assert.match(adminPage.html, /Отчёт ещё не подключён\./u);
-  assert.match(adminPage.html, /<a [^>]*href="\/v3\/settings\?section=reports"[^>]*>Добавить ссылку<\/a>/u);
+  assert.match(adminPage.html, /<a [^>]*href="\/settings\?section=reports"[^>]*>Добавить ссылку<\/a>/u);
   assert.match(adminPage.html, /Цифры — из Google Таблицы финансиста, а не из CRM\./u, "the source is named");
   const accountantPage = await financePage(accountant, notConnected);
   assert.match(accountantPage.html, /Отчёт ещё не подключён\./u);
   assert.match(accountantPage.html, /Ссылку добавляет администратор\./u);
-  assert.doesNotMatch(accountantPage.html, /Добавить ссылку|\/v3\/settings/u);
+  assert.doesNotMatch(accountantPage.html, /Добавить ссылку|\/settings/u);
   for (const { html } of [adminPage, accountantPage]) {
     assert.doesNotMatch(text(html), /\d/u, "no numbers: CRM invents no figures");
     assert.doesNotMatch(html, /<(?:iframe|form|input|select|table|canvas)\b/u);
@@ -531,7 +531,7 @@ test("«Финансы», connected: the window block with the exact address, th
   assert.match(adminPage.html, /<a [^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>|<a [^>]*rel="noopener noreferrer"[^>]*target="_blank"[^>]*>/u);
   assert.match(adminPage.html, /aria-label="Открыть в новой вкладке: отчёт Looker Studio"/u, "the accessible name starts with the visible words");
   // «Новый вид»: эти два пояснения стоят за «?» (в разметке закрытого окна их нет), текст живёт в исходнике экрана.
-  assert.match(read("src/components/v3/reports-next/LookerReportNext.tsx"), /В Safari и на iPhone он обычно открывается только в новой вкладке/u);
+  assert.match(read("src/components/staff/reports-next/LookerReportNext.tsx"), /В Safari и на iPhone он обычно открывается только в новой вкладке/u);
   assert.match(adminPage.html, /data-testid="v3-looker-phone"/u);
   assert.match(adminPage.html, /Отчёт удобнее открыть отдельно/u);
   assert.doesNotMatch(adminPage.html, /<iframe/u, "the server never draws the window: it is mounted on the client from 768 px");
@@ -539,7 +539,7 @@ test("«Финансы», connected: the window block with the exact address, th
   const accountantPage = await financePage(accountant, configured);
   assert.match(accountantPage.html, /Отчёт Looker Studio/u);
   assert.doesNotMatch(accountantPage.html, /Снятие роли в CRM|Поделиться/u, "the accountant does not hand out access: no reminder");
-  assert.doesNotMatch(accountantPage.html, /\/v3\/settings/u);
+  assert.doesNotMatch(accountantPage.html, /\/settings/u);
 });
 
 test("«Финансы»: a refusal of the database shows «Нет доступа» with no window and no address; a failed read says so and offers «Обновить»", async () => {
@@ -548,13 +548,13 @@ test("«Финансы»: a refusal of the database shows «Нет доступ�
   assert.doesNotMatch(denied.html, /lookerstudio|google\.com|<iframe|Открыть в новой вкладке|Отчёт Looker Studio/u);
   const failed = await financePage(admin, { status: "unavailable" });
   assert.match(failed.html, /Не удалось прочитать настройку отчёта\./u);
-  assert.match(failed.html, /<a [^>]*href="\/v3\/finance"[^>]*>(?:(?!<\/a>).)*Обновить<\/a>/u);
+  assert.match(failed.html, /<a [^>]*href="\/finance"[^>]*>(?:(?!<\/a>).)*Обновить<\/a>/u);
   assert.doesNotMatch(failed.html, /lookerstudio|<iframe|Открыть в новой вкладке|Добавить ссылку/u);
   // Идентификатор, который не годится для адреса, окна не даёт (даже если бы строка базы такое хранила).
   const bad = await financePage(admin, { status: "available", link: { ...configured.link, reportId: 'abcdefgh"><script>' } });
   assert.doesNotMatch(bad.html, /lookerstudio|<script|<iframe|Открыть в новой вкладке/u);
   assert.match(bad.html, /Не удалось прочитать настройку отчёта\./u);
-  assert.match(read("src/app/(v3)/v3/finance/page.tsx"), /await requireV3PageActor\("\/v3\/finance"\);/u);
+  assert.match(read("src/app/(staff)/finance/page.tsx"), /await requireV3PageActor\("\/finance"\);/u);
 });
 
 const PERIOD = { key: "month", from: "2026-10-01", to: "2026-10-31", today: "2026-10-27", title: "Октябрь" };
@@ -569,20 +569,20 @@ async function marketingPage(readResult, query = {}) {
     },
     "@/lib/v3/report-links-source": { readReportLink: async (_actor, key) => { spies.push(`report:${key}`); return readResult; } },
     "@/lib/v3/funnel-source": { PERIODS: [{ key: "month", title: "Месяц" }, { key: "custom", title: "Свой" }], resolvePeriod: () => PERIOD, periodLabel: () => "Октябрь 2026" },
-    "@/components/v3/MainHeader": { MainHeader: () => createElement("div", { "data-stub": "period" }) },
+    "@/components/staff/MainHeader": { MainHeader: () => createElement("div", { "data-stub": "period" }) },
   });
   // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `MarketingNextPage`.
-  const element = await load("src/app/(v3)/v3/marketing/page.tsx").default({ searchParams: Promise.resolve(query) });
-  const html = renderToStaticMarkup(createElement(load("src/components/v3/marketing-next/MarketingNextPage.tsx").MarketingNextPage, element.props));
+  const element = await load("src/app/(staff)/marketing/page.tsx").default({ searchParams: Promise.resolve(query) });
+  const html = renderToStaticMarkup(createElement(load("src/components/staff/marketing-next/MarketingNextPage.tsx").MarketingNextPage, element.props));
   return { html, spies, calls };
 }
-const tabs = (html) => [...html.matchAll(/<a [^>]*href="(\/v3\/marketing[^"]*)"[^>]*>([^<]*)/gu)].map((match) => [match[1], match[2].trim()]);
+const tabs = (html) => [...html.matchAll(/<a [^>]*href="(\/marketing[^"]*)"[^>]*>([^<]*)/gu)].map((match) => [match[1], match[2].trim()]);
 
 test("«Маркетинг → Отчёты»: the tab is drawn only when a link is connected; an unconnected or unreadable link draws no tab", async () => {
   const marketingConnected = { status: "available", link: { ...configured.link, reportKey: "marketing" } };
   const withTab = await marketingPage(marketingConnected);
   assert.deepEqual(tabs(withTab.html).map((tab) => tab[1]).filter((label) => ["Обзор", "Заявки", "Отчёты"].includes(label)), ["Обзор", "Заявки", "Отчёты"]);
-  assert.ok(tabs(withTab.html).some(([href, label]) => label === "Отчёты" && href === "/v3/marketing?view=reports"));
+  assert.ok(tabs(withTab.html).some(([href, label]) => label === "Отчёты" && href === "/marketing?view=reports"));
   for (const read of [{ status: "available", link: { ...notConnected.link, reportKey: "marketing" } }, { status: "unavailable" }, { status: "denied" }]) {
     const without = await marketingPage(read);
     assert.equal(tabs(without.html).some(([, label]) => label === "Отчёты"), false, JSON.stringify(read).slice(0, 50));
@@ -597,7 +597,7 @@ test("«Маркетинг → Отчёты» (`?view=reports`): no overview and
   const marketingConnected = { status: "available", link: { ...configured.link, reportKey: "marketing" } };
   const page = await marketingPage(marketingConnected, { view: "reports", period: "week", channel: "instagram" });
   assert.deepEqual(page.spies, ["report:marketing"], "neither readMarketingOverview, Recent nor Leads is called");
-  assert.deepEqual(page.calls, ["/v3/marketing"]);
+  assert.deepEqual(page.calls, ["/marketing"]);
   assert.doesNotMatch(page.html, /data-stub="overview"|data-stub="leads"|Октябрь 2026/u, "no period and no period label");
   assert.match(page.html, /Данные Meta Ads и Instagram приходят из Windsor\.ai\. Цена заявки и договора — во вкладке «Обзор»\./u);
   assert.match(page.html, /<h2[^>]*>Отчёт Looker Studio<\/h2>/u);
@@ -605,13 +605,13 @@ test("«Маркетинг → Отчёты» (`?view=reports`): no overview and
   assert.doesNotMatch(page.html, /Снятие роли в CRM/u, "the reminder lives in the settings and on «Финансы», not here");
   const direct = await marketingPage({ status: "available", link: { ...notConnected.link, reportKey: "marketing" } }, { view: "reports" });
   assert.match(direct.html, /Отчёт ещё не подключён\./u);
-  assert.match(direct.html, /<a [^>]*href="\/v3\/settings\?section=reports"[^>]*>Добавить ссылку<\/a>/u);
+  assert.match(direct.html, /<a [^>]*href="\/settings\?section=reports"[^>]*>Добавить ссылку<\/a>/u);
   assert.equal(tabs(direct.html).some(([, label]) => label === "Отчёты"), false);
   assert.deepEqual(direct.spies, ["report:marketing"]);
   const broken = await marketingPage({ status: "unavailable" }, { view: "reports" });
   assert.match(broken.html, /Не удалось прочитать настройку отчёта\./u);
-  assert.match(broken.html, /href="\/v3\/marketing\?view=reports"/u);
-  assert.match(read("src/app/(v3)/v3/marketing/page.tsx"), /requireV3PageActor\("\/v3\/marketing"\);\s*requireMarketingAdmin\(actor\);/u, "the access rule did not move");
+  assert.match(broken.html, /href="\/marketing\?view=reports"/u);
+  assert.match(read("src/app/(staff)/marketing/page.tsx"), /requireV3PageActor\("\/marketing"\);\s*requireMarketingAdmin\(actor\);/u, "the access rule did not move");
 });
 
 test("the marketing address and tabs: the new view is `reports`, it writes neither period nor filters, the others are as before", () => {
@@ -620,10 +620,10 @@ test("the marketing address and tabs: the new view is `reports`, it writes neith
   assert.equal(parseMarketingView("unknown"), "overview");
   assert.equal(parseMarketingView(undefined), "overview");
   assert.deepEqual(MARKETING_VIEWS.map((tab) => [tab.key, tab.title]), [["overview", "Обзор"], ["leads", "Заявки"], ["reports", "Отчёты"]]);
-  assert.equal(marketingHref({ view: "reports", period: { key: "week" }, filters: undefined }), "/v3/marketing?view=reports");
-  assert.equal(marketingHref({ view: "reports", period: { key: "custom", from: "2026-10-01", to: "2026-10-05" } }), "/v3/marketing?view=reports");
-  assert.equal(marketingHref({ view: "overview", period: { key: "month" } }), "/v3/marketing");
-  assert.equal(marketingHref({ view: "leads", period: { key: "week" }, filters: undefined }), "/v3/marketing?view=leads&period=week");
+  assert.equal(marketingHref({ view: "reports", period: { key: "week" }, filters: undefined }), "/marketing?view=reports");
+  assert.equal(marketingHref({ view: "reports", period: { key: "custom", from: "2026-10-01", to: "2026-10-05" } }), "/marketing?view=reports");
+  assert.equal(marketingHref({ view: "overview", period: { key: "month" } }), "/marketing");
+  assert.equal(marketingHref({ view: "leads", period: { key: "week" }, filters: undefined }), "/marketing?view=leads&period=week");
 });
 
 /* ------------------------------------------------------------------ «Настройки → Отчёты» */
@@ -631,7 +631,7 @@ test("the marketing address and tabs: the new view is `reports`, it writes neith
 function settingsSection(reads, readOnly) {
   const load = loader({ "@/lib/platform-report-link-actions": { saveReportLinkAction: async () => idle, removeReportLinkAction: async () => idle } });
   const ids = { marketing: { save: "70000000-0000-4000-8000-000000000001", remove: "70000000-0000-4000-8000-000000000002" }, finance: { save: "70000000-0000-4000-8000-000000000003", remove: "70000000-0000-4000-8000-000000000004" } };
-  return renderToStaticMarkup(createElement(load("src/components/v3/settings-next/ReportsNext.tsx").ReportsNext, { reads, readOnly, ids }));
+  return renderToStaticMarkup(createElement(load("src/components/staff/settings-next/ReportsNext.tsx").ReportsNext, { reads, readOnly, ids }));
 }
 const settingsReads = {
   marketing: { status: "available", link: { ...configured.link, reportKey: "marketing", version: 2 } },
@@ -644,8 +644,8 @@ test("«Настройки → Отчёты»: two cards with the state word; th
   assert.match(html, /data-testid="v3-report-card-finance"/u);
   assert.match(html, /Подключён · изменён 27\.10, 15:32/u, "Asia/Bishkek time of the change");
   assert.match(html, /Не подключён/u);
-  assert.match(html, /<a [^>]*href="\/v3\/marketing\?view=reports"[^>]*>Открыть раздел<\/a>/u);
-  assert.doesNotMatch(html, /href="\/v3\/finance"/u, "an unconnected report has no «Открыть раздел»");
+  assert.match(html, /<a [^>]*href="\/marketing\?view=reports"[^>]*>Открыть раздел<\/a>/u);
+  assert.doesNotMatch(html, /href="\/finance"/u, "an unconnected report has no «Открыть раздел»");
   assert.equal([...html.matchAll(/<textarea/gu)].length, 2);
   assert.equal([...html.matchAll(/Код или ссылка для встраивания из Looker Studio/gu)].length, 2);
   assert.equal([...html.matchAll(/Looker Studio → Файл → Встроить отчёт → Включить встраивание → скопировать код\./gu)].length, 2);
@@ -675,20 +675,20 @@ test("«Настройки → Отчёты»: a failed read says so and offers 
 });
 
 test("settings wiring: the section is listed after «Телефония», the page reads both links only in its own section and passes the preview flag; the actions never trust the form", () => {
-  const types = read("src/components/v3/settings/types.ts");
+  const types = read("src/components/staff/settings/types.ts");
   const keys = [...types.matchAll(/\{ key: "([a-z]+)", view: (?:"[a-z]+"|null), title: "([^"]+)" \}/gu)].map((match) => `${match[1]}:${match[2]}`);
   assert.ok(keys.indexOf("reports:Отчёты") === keys.indexOf("telephony:Телефония") + 1);
-  const page = read("src/app/(v3)/v3/settings/page.tsx");
+  const page = read("src/app/(staff)/settings/page.tsx");
   assert.match(page, /section === "reports"\s*\?\s*Promise\.all\(\[readReportLink\(actor, "marketing"\), readReportLink\(actor, "finance"\)\]\)/u);
   assert.match(page, /reportsReadOnly: isStaffPreview\(actor\)/u);
-  assert.match(read("src/components/v3/settings-next/SettingsSection.tsx"), /section === "reports" && props\.reports\) return <ReportsNext \{\.\.\.props\.reports\} \/>/u);
+  assert.match(read("src/components/staff/settings-next/SettingsSection.tsx"), /section === "reports" && props\.reports\) return <ReportsNext \{\.\.\.props\.reports\} \/>/u);
   const action = read("src/lib/platform-report-link-actions.ts");
   assert.match(action, /^"use server";/u);
   assert.ok(action.indexOf("isStaffPreview(actor)") < action.indexOf("parseLookerEmbedInput("), "preview is refused before the code is even parsed");
   assert.match(action, /actor\.systemRole !== "admin"/u);
   assert.match(action, /export async function saveReportLinkAction/u);
   assert.match(action, /export async function removeReportLinkAction/u);
-  const form = read("src/components/v3/settings/ReportLinkForm.tsx");
+  const form = read("src/components/staff/settings/ReportLinkForm.tsx");
   assert.match(form, /startTransition\(\(\) => action\(form\)\)/u, "the field stays in the form: React 19 would reset a plain <form action>");
   assert.match(form, /name="embed"/u);
   assert.doesNotMatch(form, /innerHTML|dangerouslySetInnerHTML|<iframe/u);
@@ -701,7 +701,7 @@ test("the window: the server never draws the iframe; on a wide screen the client
   const frameWith = (matches) => {
     globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) };
     try {
-      const { LookerFrameNext: LookerFrame } = loader({ react: stub })("src/components/v3/reports-next/LookerFrameNext.tsx");
+      const { LookerFrameNext: LookerFrame } = loader({ react: stub })("src/components/staff/reports-next/LookerFrameNext.tsx");
       return renderToStaticMarkup(createElement(LookerFrame, { src: EMBED(REPORT, PAGE), title: "Отчёт Looker Studio: Финансы", openUrl: OPEN(REPORT, PAGE) }));
     } finally { delete globalThis.window; }
   };
@@ -721,7 +721,7 @@ test("the window: the server never draws the iframe; on a wide screen the client
   assert.match(narrow, /Отчёт удобнее открыть отдельно/u);
   assert.match(narrow, /target="_blank"/u);
   assert.match(narrow, /rel="noopener noreferrer"/u);
-  assert.match(read("src/components/v3/reports-next/LookerFrameNext.tsx"), /sandbox=\{LOOKER_FRAME_SANDBOX\}/u);
+  assert.match(read("src/components/staff/reports-next/LookerFrameNext.tsx"), /sandbox=\{LOOKER_FRAME_SANDBOX\}/u);
 });
 
 test("the window: «Отчёт загружается…» shows under a transparent frame and goes away on the frame's load", () => {
@@ -737,7 +737,7 @@ test("the window: «Отчёт загружается…» shows under a transpa
     const stub = { ...require("react"), useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(), useState: () => [loaded, setLoaded] };
     globalThis.window = { matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) };
     try {
-      const { LookerFrameNext: LookerFrame } = loader({ react: stub, "react/jsx-runtime": runtime })("src/components/v3/reports-next/LookerFrameNext.tsx");
+      const { LookerFrameNext: LookerFrame } = loader({ react: stub, "react/jsx-runtime": runtime })("src/components/staff/reports-next/LookerFrameNext.tsx");
       return renderToStaticMarkup(createElement(LookerFrame, { src: EMBED(REPORT, PAGE), title: "Отчёт Looker Studio: Финансы", openUrl: OPEN(REPORT, PAGE) }));
     } finally { delete globalThis.window; }
   };
@@ -763,15 +763,15 @@ test("the layout computes `financeSection` next to the existing reads and hands 
   const shellProps = [];
   const reads = [];
   const make = (actor, finance) => loader({
-    "./v3.css": {}, "./ai-agent.css": {},
+    "./staff.css": {}, "./ai-agent.css": {},
     "@/components/ServerReleaseMark": { ServerReleaseMark: () => null },
-    "@/components/v3/AppShell": { AppShell: (props) => { shellProps.push(props); return null; } },
+    "@/components/staff/AppShell": { AppShell: (props) => { shellProps.push(props); return null; } },
     "@/lib/platform-guards": { requirePlatformStaffActor: async () => actor },
     "@/lib/release-metadata": { readReleaseMetadata: () => ({ status: "unavailable" }) },
     "@/lib/v3/account-deletion-source": { readOpenAccountDeletionCount: async () => null },
     "@/lib/v3/staff-notification-source": { readStaffNotificationsForActor: async () => null },
     "@/lib/v3/report-links-source": { readFinanceSectionAccess: async (a) => { reads.push(a === actor); return finance(); } },
-  })("src/app/(v3)/layout.tsx").default;
+  })("src/app/(staff)/layout.tsx").default;
   for (const [actor, result, expected] of [[admin, () => true, true], [accountant, () => true, true], [accountant, () => false, false]]) {
     shellProps.length = 0;
     const tree = await make(actor, result)({ children: null });
@@ -785,10 +785,10 @@ test("the layout computes `financeSection` next to the existing reads and hands 
   const failing = await make(accountant, () => { throw new Error("rpc down"); })({ children: null });
   assert.equal(failing.props.children[0].props.financeSection, false);
   assert.ok(reads.length >= 4);
-  const layout = read("src/app/(v3)/layout.tsx");
+  const layout = read("src/app/(staff)/layout.tsx");
   assert.match(layout, /const \[notifications, deletionRequests, financeSection\] = await Promise\.all\(\[/u, "one parallel batch with the existing reads");
   assert.match(layout, /financeSection=\{financeSection\}/u);
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.match(shell, /buildV3Navigation\(actor, pathname, query, \{ financeSection \}\)/u);
   assert.match(shell, /financeSection\?: boolean;/u);
 });
@@ -811,8 +811,8 @@ test("the repository is public: no real-looking report identifier or Google addr
   const allowed = new Set([GOOGLE_REPORT, GOOGLE_PAGE, REPORT, PAGE, UUID_REPORT, "p_synthetic1", "p_page_2", "short", "abcdefgh", "REPORT", "{id}", "{reportId}", "{отчёт}", "{страница}", "{page}"]);
   const files = [
     "src/lib/looker-report-link.ts", "src/lib/report-link-contract.ts", "src/lib/v3/report-links-source.ts", "src/lib/platform-report-link-actions.ts",
-    "src/components/v3/reports-next/LookerReportNext.tsx", "src/components/v3/reports-next/LookerFrameNext.tsx",
-    "src/components/v3/settings/ReportLinkForm.tsx", "src/components/v3/settings-next/ReportsNext.tsx",
+    "src/components/staff/reports-next/LookerReportNext.tsx", "src/components/staff/reports-next/LookerFrameNext.tsx",
+    "src/components/staff/settings/ReportLinkForm.tsx", "src/components/staff/settings-next/ReportsNext.tsx",
     "supabase/migrations/323_platform_report_links.sql", "supabase/tests/platform_report_links.sql", "tests/looker-reports.test.mjs",
     "docs/runbooks/infrastructure-map.md", "docs/runbooks/team-workspace-activation.md",
   ];

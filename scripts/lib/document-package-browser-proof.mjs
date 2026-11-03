@@ -87,7 +87,7 @@ export async function provePersistedPackage({ browser, page, client, storage, sq
   const initial = await workspace();
   check(initial.packets.length === 0 && initial.generatedExports.some(file => file.id === finalReceipt.id && file.mode === "final")
     && !initial.generatedExports.some(file => file.id === draftReceipt.id), "PACKAGE_SELECTION_BASELINE_INVALID");
-  const packetUrl = `${config.appOrigin}/v3/profile?case=${caseId}&tab=route`;
+  const packetUrl = `${config.appOrigin}/profile?case=${caseId}&tab=route`;
   const exportUrl = `${config.appOrigin}/api/v3/student-cases/${caseId}/document-exports`;
   onStage("PACKAGE_UI_PREPARATION");
   const documentResponse = await page.goto(packetUrl, { waitUntil: "domcontentloaded" });

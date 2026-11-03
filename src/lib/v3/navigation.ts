@@ -47,10 +47,10 @@ type NavigationQuery = Pick<URLSearchParams, "getAll" | "has" | "toString">;
 // «Сегодня» (Э3, 26.09.2026): стартовая страница каждой роли — очередь того,
 // что пора сделать; id и адрес прежние.
 const HOME: V3NavigationLink = {
-  id: "home", href: "/v3/main", route: "/v3/main", label: "Сегодня",
+  id: "home", href: "/main", route: "/main", label: "Сегодня",
 };
 const SETTINGS: V3NavigationLink = {
-  id: "settings", href: "/v3/settings", route: "/v3/settings", label: "Настройки",
+  id: "settings", href: "/settings", route: "/settings", label: "Настройки",
 };
 // «Заявки» — первый пункт «Продаж» (решение владельца 28.09.2026; до него —
 // «Общее», Э6): входящие обращения разбирают здесь раньше, чем лид встаёт на
@@ -59,7 +59,7 @@ const SETTINGS: V3NavigationLink = {
 // (`lead.read`, 197), поэтому правило D ниже этот пункт не скрывает: его видит
 // каждый, кому открыт маршрут, и у ролей поступления тоже.
 const REQUESTS: V3NavigationLink = {
-  id: "requests", href: "/v3/requests", route: "/v3/requests", label: "Заявки",
+  id: "requests", href: "/requests", route: "/requests", label: "Заявки",
 };
 const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
   {
@@ -77,9 +77,9 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     // 2026-09-24).
     links: [
       REQUESTS,
-      { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка продаж" },
-      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "WhatsApp" },
-      { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
+      { id: "pipeline", href: "/pipeline", route: "/pipeline", label: "Воронка продаж" },
+      { id: "inbox", href: "/inbox", route: "/inbox", label: "WhatsApp" },
+      { id: "sales-report", href: "/main?view=sales", route: "/main", label: "Отчёт продаж" },
     ],
   },
   {
@@ -94,19 +94,19 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       // it from Sales. Named «Воронка поступления» so an Admin, who sees both
       // groups, never meets two identical «Воронка» items (UX quick win 2,
       // 2026-09-24); the sales board is «Воронка продаж».
-      { id: "admissions-pipeline", href: "/v3/admissions-pipeline", route: "/v3/admissions-pipeline", label: "Воронка поступления" },
+      { id: "admissions-pipeline", href: "/admissions-pipeline", route: "/admissions-pipeline", label: "Воронка поступления" },
       // «Переписка» по делу через кабинет студента — с теми, кто уже студент
       // или клиент (решение владельца 27.09.2026), сразу после доски, как
       // «Сообщения» OTH-5. Маршрут — `admissions.read`: у продаж его нет.
       // Короткое имя — решение владельца 28.09.2026: «Переписка со
       // студентами» вставала в меню 260 px в две строки.
-      { id: "messages", href: "/v3/messages", route: "/v3/messages", label: "Переписка" },
+      { id: "messages", href: "/messages", route: "/messages", label: "Переписка" },
       // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
-      { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
-      { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
-      { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
+      { id: "admissions-worklist", href: "/profile", route: "/profile", label: "Студенты" },
+      { id: "evo-docs", href: "/profile?section=docs", route: "/profile", label: "EVO Docs", capability: "admissions.read" },
+      { id: "universities", href: "/universities", route: "/universities", label: "Университеты" },
       // «Сводка по направлениям» removed 2026-09-24: its counts are the facets
-      // of «Студенты» now; `/v3/profile?section=summary` resolves to that page.
+      // of «Студенты» now; `/profile?section=summary` resolves to that page.
     ],
   },
 ];
@@ -116,17 +116,17 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
 // в «Поступлении» (решение владельца 27.09.2026 вместо одного пункта
 // «Переписки» Э5).
 const COMMON: readonly V3NavigationLink[] = [
-  { id: "tasks", href: "/v3/tasks", route: "/v3/tasks", label: "Задачи" },
-  { id: "team-chat", href: "/v3/team-chat", route: "/v3/team-chat", label: "Командный чат" },
-  { id: "calendar", href: "/v3/calendar", route: "/v3/calendar", label: "Календарь" },
-  { id: "documents", href: "/v3/documents", route: "/v3/documents", label: "Документы" },
-  { id: "reply-snippets", href: "/v3/reply-snippets", route: "/v3/reply-snippets", label: "Шаблоны ответов" },
-  { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
+  { id: "tasks", href: "/tasks", route: "/tasks", label: "Задачи" },
+  { id: "team-chat", href: "/team-chat", route: "/team-chat", label: "Командный чат" },
+  { id: "calendar", href: "/calendar", route: "/calendar", label: "Календарь" },
+  { id: "documents", href: "/documents", route: "/documents", label: "Документы" },
+  { id: "reply-snippets", href: "/reply-snippets", route: "/reply-snippets", label: "Шаблоны ответов" },
+  { id: "knowledge", href: "/knowledge", route: "/knowledge", label: "База знаний" },
   // «ИИ-агенты» (решение владельца 22.10.2026): отдел агентов Claude, хаб с
   // карточками по группам; Gemini-помощник «ИИ-агент» (план ИИ-агента §12.2)
   // стал его карточкой, а не отдельным пунктом. Все сотрудники (Q9), маршрут —
   // ai.agent.use.
-  { id: "ai-agents", href: "/v3/ai-agents", route: "/v3/ai-agents", label: "ИИ-агенты" },
+  { id: "ai-agents", href: "/ai-agents", route: "/ai-agents", label: "ИИ-агенты" },
 ];
 // Разделы верхнего уровня (решение владельца 26.10.2026): стоят после «Продаж»
 // и «Поступления» на том же уровне, что их заголовки, но это одно место
@@ -139,8 +139,8 @@ const COMMON: readonly V3NavigationLink[] = [
 // читает его через `readFinanceSectionAccess`); без аргумента пункт, как раньше,
 // только у настоящего администратора (закрыто по умолчанию).
 const SECTIONS: readonly V3NavigationLink[] = [
-  { id: "marketing", href: "/v3/marketing", route: "/v3/marketing", label: "Маркетинг" },
-  { id: "finance", href: "/v3/finance", route: "/v3/finance", label: "Финансы" },
+  { id: "marketing", href: "/marketing", route: "/marketing", label: "Маркетинг" },
+  { id: "finance", href: "/finance", route: "/finance", label: "Финансы" },
 ];
 
 function isSingleValue(query: NavigationQuery, name: string, value: string) {
@@ -149,7 +149,7 @@ function isSingleValue(query: NavigationQuery, name: string, value: string) {
 }
 
 /**
- * Карточка лида (`/v3/profile?id=…` без дела): лид живёт на «Воронке
+ * Карточка лида (`/profile?id=…` без дела): лид живёт на «Воронке
  * продаж», а не в «Студентах» (аудит 26.09). Дело (`?case=`) и EVO Docs
  * остаются своими разделами.
  */
@@ -162,10 +162,10 @@ const ALL_LINKS: readonly V3NavigationLink[] = [HOME, ...GROUPS.flatMap((group) 
 
 /**
  * Раздел для вкладки браузера у страниц, чей пункт меню зависит от адреса
- * (`/v3/main`, `/v3/profile`): подпись пункта, который `buildV3Navigation`
+ * (`/main`, `/profile`): подпись пункта, который `buildV3Navigation`
  * подсвечивает по тем же правилам. Права не читаются — вкладка только
  * называет раздел, доступ решает страница. Шаблон «<Раздел> — EVO CRM» задан
- * в `(v3)/layout.tsx`. Исключение — карточка лида: вкладка называет саму
+ * в `(staff)/layout.tsx`. Исключение — карточка лида: вкладка называет саму
  * запись, «Лид», а в меню подсвечена «Воронка продаж».
  */
 export function v3SectionTitle(
@@ -176,19 +176,19 @@ export function v3SectionTitle(
   for (const [name, value] of Object.entries(searchParams)) {
     for (const one of typeof value === "string" ? [value] : value ?? []) query.append(name, one);
   }
-  if (pathname === "/v3/profile" && !isSingleValue(query, "section", "docs") && isLeadProfile(query)) return "Лид";
+  if (pathname === "/profile" && !isSingleValue(query, "section", "docs") && isLeadProfile(query)) return "Лид";
   // Gemini-помощник — дочерняя страница хаба «ИИ-агенты»: пункт меню подсвечен
   // тот же, а вкладка называет саму страницу, как карточка лида.
-  if (pathname === "/v3/ai-agent") return "ИИ-агент";
+  if (pathname === "/ai-agent") return "ИИ-агент";
   // «Набор виджетов» «Нового вида» (27.10.2026) — страница владельца без пункта меню: вкладка называет её сама.
-  if (pathname === "/v3/ui-kit") return "Набор виджетов";
-  const id: V3NavigationLinkId | undefined = pathname === "/v3/main"
+  if (pathname === "/ui-kit") return "Набор виджетов";
+  const id: V3NavigationLinkId | undefined = pathname === "/main"
     ? isSingleValue(query, "view", "sales") ? "sales-report" : "home"
-    : pathname === "/v3/profile"
+    : pathname === "/profile"
       ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
-      : pathname.startsWith("/v3/universities/")
+      : pathname.startsWith("/universities/")
         ? "universities"
-        : pathname.startsWith("/v3/ai-agents/")
+        : pathname.startsWith("/ai-agents/")
           ? "ai-agents"
           : ALL_LINKS.find((link) => link.route === pathname)?.id;
   return ALL_LINKS.find((link) => link.id === id)?.label;
@@ -253,7 +253,7 @@ export function buildV3Navigation(
   // «Документы» и «Шаблоны ответов» у того, кому открыта «База знаний», —
   // внутри неё: пункт скрыт, а не задвоен.
   const common = COMMON.filter((link) => allowed(link)
-    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets")));
+    && (!staffCanAccessRoute(actor, "/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets")));
   const links = [
     ...(home ? [home] : []),
     ...visibleGroups.flatMap((group) => group.links),
@@ -263,9 +263,9 @@ export function buildV3Navigation(
   ];
 
   let candidate: V3NavigationLinkId | undefined;
-  if (pathname === "/v3/main") {
+  if (pathname === "/main") {
     candidate = isSingleValue(query, "view", "sales") ? "sales-report" : "home";
-  } else if (pathname === "/v3/profile") {
+  } else if (pathname === "/profile") {
     // The former summary address (`?section=summary`) is the same «Студенты»
     // page since 2026-09-24; only EVO Docs is a separate destination here.
     candidate = isSingleValue(query, "section", "docs") && links.some(link => link.id === "evo-docs")
@@ -273,9 +273,9 @@ export function buildV3Navigation(
       : isLeadProfile(query) && links.some(link => link.id === "pipeline")
         ? "pipeline"
         : "admissions-worklist";
-  } else if (pathname.startsWith("/v3/universities/")) {
+  } else if (pathname.startsWith("/universities/")) {
     candidate = "universities";
-  } else if (pathname.startsWith("/v3/ai-agents/") || pathname === "/v3/ai-agent") {
+  } else if (pathname.startsWith("/ai-agents/") || pathname === "/ai-agent") {
     // Страница агента и Gemini-помощник — дочерние страницы хаба «ИИ-агенты».
     candidate = "ai-agents";
   } else {

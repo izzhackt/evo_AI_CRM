@@ -56,14 +56,14 @@ test("zero-assignment staff is authenticated but has no implicit business sectio
   assert.ok(staff);
   assert.equal(staffCan(staff, "sales.read"), false);
   assert.equal(staffHomeRoute(staff), "/access-denied");
-  assert.equal(staffCanAccessRoute(staff, "/v3/settings"), false);
+  assert.equal(staffCanAccessRoute(staff, "/settings"), false);
   assert.equal(staffHasPermission({ ...staff, assignments: snapshot().assignments }, "document.upload"), false);
 });
 test("live permissions select sections and fixed choices are only protected Admin preview", () => {
   const staff = actor(["company.file.read", "team.chat.admissions"]);
-  assert.equal(staffCanAccessRoute(staff, "/v3/knowledge"), false);
-  assert.equal(staffCanAccessRoute(staff, "/v3/documents"), true);
-  assert.equal(staffCanAccessRoute(staff, "/v3/team-chat"), true);
+  assert.equal(staffCanAccessRoute(staff, "/knowledge"), false);
+  assert.equal(staffCanAccessRoute(staff, "/documents"), true);
+  assert.equal(staffCanAccessRoute(staff, "/team-chat"), true);
   assert.equal(staffCan(staff, "documents.read"), false);
   assert.equal(staffCan(staff, "admissions.write"), false);
   assert.equal(canAdminSelectEffectiveRole("staff", "admin"), false);
@@ -74,35 +74,35 @@ test("live permissions select sections and fixed choices are only protected Admi
   const preview = { ...admin, presentationRole: "sales" };
   assert.equal(isStaffPreview(preview), true);
   assert.equal(staffPresentationCan(preview, "admissions.read"), false);
-  assert.equal(staffCanAccessRoute(preview, "/v3/settings"), false);
+  assert.equal(staffCanAccessRoute(preview, "/settings"), false);
 });
 test("report-only and snippet-only roles do not inherit lead, case or communication sections", () => {
   const reporting = actor(["sales.register.read"]);
-  assert.equal(staffHomeRoute(reporting), "/v3/main");
+  assert.equal(staffHomeRoute(reporting), "/main");
   assert.equal(staffCan(reporting, "sales.report.read"), true);
   assert.equal(staffCan(reporting, "sales.read"), false);
-  assert.equal(staffCanAccessRoute(reporting, "/v3/pipeline"), false);
-  assert.equal(staffCanAccessRoute(reporting, "/v3/profile"), false);
+  assert.equal(staffCanAccessRoute(reporting, "/pipeline"), false);
+  assert.equal(staffCanAccessRoute(reporting, "/profile"), false);
   const snippets = actor(["reply.snippet.sales", "reply.snippet.manage"]);
-  assert.equal(staffHomeRoute(snippets), "/v3/reply-snippets");
+  assert.equal(staffHomeRoute(snippets), "/reply-snippets");
   assert.equal(staffCan(snippets, "snippets.write"), true);
   assert.equal(staffCan(snippets, "messaging.read"), false);
-  assert.equal(staffCanAccessRoute(snippets, "/v3/inbox"), false);
+  assert.equal(staffCanAccessRoute(snippets, "/inbox"), false);
   assert.equal(staffCan(snippets, "documents.write"), false);
   const caseTasks = actor(["case.read.full", "task.create"]);
-  assert.equal(staffCanAccessRoute(caseTasks, "/v3/tasks"), true);
+  assert.equal(staffCanAccessRoute(caseTasks, "/tasks"), true);
   assert.equal(staffHasPermission(caseTasks, "staff.task.read"), false);
-  assert.equal(staffCanAccessRoute(actor(["task.create"]), "/v3/tasks"), false);
+  assert.equal(staffCanAccessRoute(actor(["task.create"]), "/tasks"), false);
 });
 test("document-only staff retain their home while the library stays Admin-only", () => {
   for (const permission of ["company.file.read", "document.read.full"]) {
     const staff = actor([permission]);
-    assert.equal(staffHomeRoute(staff), "/v3/documents");
-    assert.equal(staffCanAccessRoute(staff, "/v3/knowledge"), false);
+    assert.equal(staffHomeRoute(staff), "/documents");
+    assert.equal(staffCanAccessRoute(staff, "/knowledge"), false);
   }
   const admin = actor([], { systemRole: "admin" });
-  assert.equal(staffCanAccessRoute(admin, "/v3/knowledge"), true);
-  assert.equal(staffCanAccessRoute({ ...admin, presentationRole: "admissions" }, "/v3/knowledge"), false);
+  assert.equal(staffCanAccessRoute(admin, "/knowledge"), true);
+  assert.equal(staffCanAccessRoute({ ...admin, presentationRole: "admissions" }, "/knowledge"), false);
 });
 test("case modules are independent strict object-bound read capabilities", () => {
   const value = { organizationId, studentCaseId: uuid(80), documents: false, finance: true,
@@ -116,25 +116,25 @@ test("case modules are independent strict object-bound read capabilities", () =>
 test("Sales read and task queue route hints use independent live permissions", () => {
   for (const keys of [["pipeline.read"], ["lead.sales.workflow.manage"], ["lead.sales.owner.assign"]]) {
     assert.equal(staffCan(actor(keys), "sales.read"), false);
-    assert.equal(staffCanAccessRoute(actor(keys), "/v3/pipeline"), false);
+    assert.equal(staffCanAccessRoute(actor(keys), "/pipeline"), false);
   }
-  assert.equal(staffCanAccessRoute(actor(["lead.read"]), "/v3/pipeline"), true);
-  assert.equal(staffCanAccessRoute(actor(["task.manage"]), "/v3/calendar"), true);
-  assert.equal(staffCanAccessRoute(actor(["task.create"]), "/v3/calendar"), false);
+  assert.equal(staffCanAccessRoute(actor(["lead.read"]), "/pipeline"), true);
+  assert.equal(staffCanAccessRoute(actor(["task.manage"]), "/calendar"), true);
+  assert.equal(staffCanAccessRoute(actor(["task.create"]), "/calendar"), false);
   assert.equal(staffCan(actor(["lead.read"]), "sales.write"), false);
   assert.equal(staffCan(actor(["lead.manual.create"]), "sales.write"), false);
   for (const keys of [["task.manage"], ["staff.task.read"], ["staff.task.create"], ["case.read.full", "task.create"]]) {
-    assert.equal(staffCanAccessRoute(actor(keys), "/v3/tasks"), true);
+    assert.equal(staffCanAccessRoute(actor(keys), "/tasks"), true);
   }
   for (const keys of [[], ["task.create"], ["case.read.full"]]) {
-    assert.equal(staffCanAccessRoute(actor(keys), "/v3/tasks"), false);
+    assert.equal(staffCanAccessRoute(actor(keys), "/tasks"), false);
   }
 });
 test("runtime verifies claims and reads a live snapshot without JWT business fallback", async () => {
   const read = async file => readFile(new URL(`../${file}`, import.meta.url), "utf8");
   const [authority, guards, server, proxy, actions, shell] = await Promise.all([
     read("src/lib/supabase/platform-authority.ts"), read("src/lib/platform-guards.ts"), read("src/lib/supabase/server.ts"),
-    read("src/proxy.ts"), read("src/lib/staff-auth-actions.ts"), read("src/components/v3/AppShell.tsx")]);
+    read("src/proxy.ts"), read("src/lib/staff-auth-actions.ts"), read("src/components/staff/AppShell.tsx")]);
   assert.match(authority, /rpc\("staff_access_snapshot"\)/);
   assert.doesNotMatch(authority, /current_actor_authority|claims\.platform_(role|bundle|access)/);
   assert.match(guards, /staffCanAccessRoute\(actor, route\)/);

@@ -1,6 +1,6 @@
 // «Новый вид» (решение владельца 27.10.2026), поток «ИИ-агенты»: хаб и страница агента из набора виджетов.
-// Данные синтетические (tests/e2e/ai-agents-next-fixtures.cjs). Проверяется: настоящие страницы `/v3/ai-agents` и
-// `/v3/ai-agents/[key]` (границы данных и прав подменены) рисуют новый вид каждой роли — переключателя вида нет (#1327);
+// Данные синтетические (tests/e2e/ai-agents-next-fixtures.cjs). Проверяется: настоящие страницы `/ai-agents` и
+// `/ai-agents/[key]` (границы данных и прав подменены) рисуют новый вид каждой роли — переключателя вида нет (#1327);
 // новый вид строится из набора и не теряет предупреждений;
 // пояснения ушли за «?»; условия запуска те же, что у прежнего `AgentBody`. Живую вёрстку, фокус и доступность
 // меряет tests/e2e/ai-agents-next-static-render.cjs.
@@ -57,17 +57,17 @@ export const readAiAgentDrafts = async () => F.available(F.DRAFTS);`,
 
 const ENTRY = `
 import { renderToStaticMarkup } from "react-dom/server";
-import HubPage from "@/app/(v3)/v3/ai-agents/page";
-import AgentPage from "@/app/(v3)/v3/ai-agents/[key]/page";
-import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
-import { NextAgentPage } from "@/components/v3/ai-agents-next/NextAgentPage";
-import { NextAgentsView } from "@/components/v3/ai-agents-next/NextAgentsView";
-import { NextAgentSwitches } from "@/components/v3/ai-agents-next/NextAgentSwitches";
-import { NextOverview } from "@/components/v3/ai-agents-next/NextOverview";
-import { NextSettings } from "@/components/v3/ai-agents-next/NextSettings";
-import { NextRunSheetBody } from "@/components/v3/ai-agents-next/NextRunSheet";
-import { DraftCard } from "@/components/v3/ai-agents/DraftCard";
-import { agentGate as realAgentGate } from "@/components/v3/ai-agents-next/agent-gate";
+import HubPage from "@/app/(staff)/ai-agents/page";
+import AgentPage from "@/app/(staff)/ai-agents/[key]/page";
+import { AgentBody } from "@/components/staff/ai-agents/AgentBody";
+import { NextAgentPage } from "@/components/staff/ai-agents-next/NextAgentPage";
+import { NextAgentsView } from "@/components/staff/ai-agents-next/NextAgentsView";
+import { NextAgentSwitches } from "@/components/staff/ai-agents-next/NextAgentSwitches";
+import { NextOverview } from "@/components/staff/ai-agents-next/NextOverview";
+import { NextSettings } from "@/components/staff/ai-agents-next/NextSettings";
+import { NextRunSheetBody } from "@/components/staff/ai-agents-next/NextRunSheet";
+import { DraftCard } from "@/components/staff/ai-agents/DraftCard";
+import { agentGate as realAgentGate } from "@/components/staff/ai-agents-next/agent-gate";
 import { nextAgentDefaults, nextAgentsHasDefault } from "@/lib/server/ai-agents/next-defaults";
 // Новый вид страницы подгружают лениво (\`NextAgentsViewLazy\`, \`NextAgentPageLazy\`): модуль приходит асинхронно, поэтому рисуем, пока
 // разметка не устоится (две отдачи подряд совпали); у прежнего вида это те же две отдачи.
@@ -200,8 +200,8 @@ test("хаб, новый вид: плитки, три группы, карточ
   for (const label of ["Включено агентов", "Запусков за 7 дней", "Расход за 7 дней", "Ждут решения"]) assert.match(next, new RegExp(label, "u"));
   for (const group of ["sales", "analytics", "curators"]) assert.match(next, new RegExp(`data-testid="v3-aia-group-${group}"`, "u"));
   for (const key of ["director", "sales", "curator-cn", "curator-my", "curator-eu", "curator-ae", "curator-tr"]) assert.match(next, new RegExp(`data-testid="v3-aia-card-${key}"`, "u"), key);
-  assert.match(next, /href="\/v3\/ai-agents\/director\?tab=drafts"/u, "очередь черновиков — ссылкой с карточки");
-  assert.match(next, /href="\/v3\/ai-agents\/sales"/u);
+  assert.match(next, /href="\/ai-agents\/director\?tab=drafts"/u, "очередь черновиков — ссылкой с карточки");
+  assert.match(next, /href="\/ai-agents\/sales"/u);
   assert.match(next, /Не настроены:/u);
   assert.match(next, /aria-label="Пояснение: Директор \/ Аналитик"/u, "роль агента — за «?»");
   // Режем: пояснения и украшения не на экране.
@@ -269,12 +269,12 @@ test("шапка страницы агента: «?» с ролью, «Вклю�
   assert.match(page, /data-testid="v3-aia-switch-enabled"/u);
   assert.match(page, /data-testid="v3-aia-switch-auto"/u);
   for (const [label, tab] of [["Чат", null], ["Обзор", "overview"], ["История работы", "runs"], ["На одобрение", "drafts"], ["Правила агента", "instructions"], ["Настройки", "settings"]]) {
-    const href = tab ? `/v3/ai-agents/director?tab=${tab}` : "/v3/ai-agents/director";
+    const href = tab ? `/ai-agents/director?tab=${tab}` : "/ai-agents/director";
     assert.match(page, new RegExp(`<a[^>]*href="${href.replace(/[?]/gu, "\\?")}"[^>]*>${label}`, "u"), label);
   }
   assert.match(page, /aria-current="page"[^>]*>Обзор/u);
   assert.match(page, /На одобрение<span[^>]*>3<\/span>/u);
-  assert.match(page, /href="\/v3\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты/u, "возврат к списку");
+  assert.match(page, /href="\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты/u, "возврат к списку");
   // Не администратор видит состояние словом, а не переключатели.
   const staff = strip(nextPage(F.bodyProps("overview", { canEdit: false })));
   assert.equal((staff.match(/role="switch"/gu) ?? []).length, 0);
@@ -316,13 +316,13 @@ test("«Обзор»: плитки, последний отчёт, график�
   assert.doesNotMatch(page, /data-testid="v3-aia-tool-bars"/u, "столбики инструментов — в панели, не на экране");
   assert.doesNotMatch(page, /Неделя 5–11 октября/u, "прошлые отчёты — в панели");
   assert.doesNotMatch(page, /<details[^>]*data-testid="v3-aia-tools-panel"/u, "инструменты — не раскрывающаяся строка: второстепенное — в панели");
-  assert.match(page, /href="\/v3\/ai-agents\/director\?tab=drafts"/u, "плитка «Ждут решения» ведёт в очередь");
+  assert.match(page, /href="\/ai-agents\/director\?tab=drafts"/u, "плитка «Ждут решения» ведёт в очередь");
   const never = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { stats: F.stats({ lastRunAt: null, lastRunStatus: null, runs7d: 0 }), lastDigest: null }) })));
   assert.match(never, /Запусков ещё не было/u);
   assert.match(never, /Поручить первую задачу/u);
   assert.equal((never.match(/data-slot="stat-tile"/gu) ?? []).length, 0, "у не работавшего агента нет четырёх нулевых плиток");
   assert.doesNotMatch(page, /Что делает агент\s*<span/u, "на кнопке нет числа без единицы: вызовы за 30 дней названы в панели");
-  assert.match(read("src/components/v3/ai-agents-next/NextOverviewSheets.tsx"), /Вызовы инструментов за 30 дней: \$\{total\}/u, "единица и период — в описании панели, а не на кнопке");
+  assert.match(read("src/components/staff/ai-agents-next/NextOverviewSheets.tsx"), /Вызовы инструментов за 30 дней: \$\{total\}/u, "единица и период — в описании панели, а не на кнопке");
 });
 
 test("«Работа агента»: выключенный агент — одно предупреждение, а не по одному под каждым фактом; один факт занимает всю ширину", async () => {
@@ -348,7 +348,7 @@ test("«История работы»: таблица запусков, стро
   assert.match(page, /Подготовь недельный отчёт за прошлую неделю/u);
   assert.match(page, /Остановлен по лимиту/u);
   assert.match(page, /Дневной лимит на WhatsApp исчерпан/u, "причина остановки — словами, а не пустой итог");
-  assert.match(page, /href="\/v3\/ai-agents\/director\?tab=runs&amp;limit=60"/u, "тот же шаг чтения, что раньше");
+  assert.match(page, /href="\/ai-agents\/director\?tab=runs&amp;limit=60"/u, "тот же шаг чтения, что раньше");
   assert.match(page, /data-slot="data-table-cards"/u, "карточки для телефона рядом с таблицей");
   // Сервер отдал «последние 30 и есть ещё»: один листатель, без «1–25 из 30», поиск назван поиском среди показанных.
   assert.equal((page.match(/<tbody[\s\S]*?<\/tbody>/u)[0].match(/<tr/gu) ?? []).length, 30, "все загруженные запуски — без страниц таблицы");
@@ -363,7 +363,7 @@ test("«История работы»: таблица запусков, стро
   assert.match(capped, /Показаны последние 30 запусков/u, "а оговорка остаётся: показано не всё");
   const empty = strip(nextPage(F.bodyProps("runs", { runs: F.available({ runs: [], hasMore: false }) })));
   assert.match(empty, /Запусков ещё не было/u);
-  assert.match(empty, /href="\/v3\/ai-agents\/director"[^>]*>Поручить/u);
+  assert.match(empty, /href="\/ai-agents\/director"[^>]*>Поручить/u);
 });
 
 test("запуск целиком: карточка, действия таблицей (ошибка первой), черновики запуска, переписка по кнопке; нет такого запуска — слова", async () => {
@@ -473,7 +473,7 @@ test("карточка черновика в панели: без рамки и 
   assert.match(legacy, /<h3 id="aia-draft-dr-2"[^>]*>WhatsApp · <a[^>]*>Клиент Синтетический 2<\/a><\/h3>/u);
   assert.doesNotMatch(bare, /<article class=|<h3|Клиент Синтетический 2<\/a>/u, "ни рамки, ни заголовка с адресатом: он в заголовке панели");
   assert.match(bare, /Ждёт решения/u, "слово состояния остаётся");
-  assert.match(bare, new RegExp(`href="/v3/inbox\\?conversation=${CONVERSATION}"[^>]*>Открыть чат`, "u"), "переписка по-прежнему в один шаг");
+  assert.match(bare, new RegExp(`href="/inbox\\?conversation=${CONVERSATION}"[^>]*>Открыть чат`, "u"), "переписка по-прежнему в один шаг");
   assert.match(bare, /Остаётся в очереди: WhatsApp сейчас не подключён/u, "причина — до того, как одобрять");
   assert.match(bare, /Подключите WhatsApp/u);
   assert.match(strip(draftCard({ ...props, bare: true, draft: F.DRAFTS_ALL.drafts[2] })), /действует до /u, "близкий срок остаётся в панели");
@@ -527,10 +527,10 @@ test("Wazzup (только чтение): черновик с `receive_only` в 
 test("рамка страницы агента — `PageShell` набора со слотом `back`; ключевые утилиты переключателя запертого вида в наборе", async () => {
   const { nextPage } = await views();
   const page = strip(nextPage(F.bodyProps("overview")));
-  assert.match(page, /<main data-testid="v3-ai-agent-page" class="mx-auto w-full px-4 py-8 sm:px-6 max-w-\[1240px\]"><a[^>]*href="\/v3\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты<\/a><div data-slot="page-header"/u, "возврат стоит над шапкой в той же рамке, что хаб");
-  assert.match(read("src/components/v3/ai-agents-next/NextAgentPage.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
-  assert.match(read("src/components/v3/ai-agents-next/NextAgentUnavailable.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
-  assert.doesNotMatch(read("src/components/v3/ai-agents-next/NextAgentPage.tsx") + read("src/components/v3/ai-agents-next/NextAgentUnavailable.tsx"), /<main\b/u, "своей рамки <main> у страниц нет");
+  assert.match(page, /<main data-testid="v3-ai-agent-page" class="mx-auto w-full px-4 py-8 sm:px-6 max-w-\[1240px\]"><a[^>]*href="\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты<\/a><div data-slot="page-header"/u, "возврат стоит над шапкой в той же рамке, что хаб");
+  assert.match(read("src/components/staff/ai-agents-next/NextAgentPage.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
+  assert.match(read("src/components/staff/ai-agents-next/NextAgentUnavailable.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
+  assert.doesNotMatch(read("src/components/staff/ai-agents-next/NextAgentPage.tsx") + read("src/components/staff/ai-agents-next/NextAgentUnavailable.tsx"), /<main\b/u, "своей рамки <main> у страниц нет");
   const sw = read("src/components/ui/switch.tsx");
   for (const cls of ["aria-disabled:cursor-not-allowed", "aria-disabled:border-border", "aria-disabled:bg-surface-2", "aria-disabled:data-checked:bg-fg-3"]) assert.ok(sw.includes(cls), `переключатель с aria-disabled выглядит запертым: ${cls}`);
 });
@@ -541,7 +541,7 @@ test("«Чат»: прежний `CommandWorkspace` без изменений в
   assert.match(chat, /data-aia-workspace=""/u);
   assert.match(chat, /data-testid="v3-aia-chat-header"/u);
   assert.match(chat, /aria-label="Все ИИ-агенты"/u);
-  assert.match(chat, /data-aia-chat=""/u, "обёртка, на которую опираются правила v3.css");
+  assert.match(chat, /data-aia-chat=""/u, "обёртка, на которую опираются правила staff.css");
   assert.equal((chat.match(/<h1/gu) ?? []).length, 1);
   assert.match(chat, /data-testid="v3-aia-conversations"/u);
   assert.match(chat, /data-testid="v3-aia-send"/u);
@@ -553,7 +553,7 @@ test("«Включён» и «Авто»: заперты без правил, в
   const { switches } = await views();
   const locked = strip(switches({ agentKey: "curator-eu", enabled: false, autoSend: false, configVersion: 3, hasInstructions: false, canEdit: true }));
   assert.match(locked, /data-testid="v3-aia-switch-needs-instructions"[^>]*>Сначала напишите правила/u);
-  assert.match(locked, /href="\/v3\/ai-agents\/curator-eu\?tab=instructions"/u);
+  assert.match(locked, /href="\/ai-agents\/curator-eu\?tab=instructions"/u);
   const free = strip(switches({ agentKey: "director", enabled: true, autoSend: true, configVersion: 3, hasInstructions: true, canEdit: true }));
   assert.doesNotMatch(free, /v3-aia-switch-needs-instructions/u);
   assert.match(free, /<button[^>]*id="aia-sw-auto-director"[^>]*>/u);
@@ -593,8 +593,8 @@ function clientGraph(entry) {
 }
 
 test("клиентский граф нового вида «ИИ-агентов» не содержит каталог текстов агентов (он остаётся на сервере)", () => {
-  const graph = clientGraph("src/components/v3/ai-agents-next/NextAgentsLazy.tsx");
-  for (const file of ["NextAgentsHub.tsx", "NextAgentTab.tsx", "NextRules.tsx", "NextSettings.tsx", "agent-gate.ts"]) assert.ok(graph.has(`src/components/v3/ai-agents-next/${file}`), `обход графа дошёл до ${file}`);
+  const graph = clientGraph("src/components/staff/ai-agents-next/NextAgentsLazy.tsx");
+  for (const file of ["NextAgentsHub.tsx", "NextAgentTab.tsx", "NextRules.tsx", "NextSettings.tsx", "agent-gate.ts"]) assert.ok(graph.has(`src/components/staff/ai-agents-next/${file}`), `обход графа дошёл до ${file}`);
   assert.ok(graph.size > 40, `граф разобран (${graph.size} файлов)`);
   const leaked = [...graph].filter((file) => file.startsWith("src/content/ai-agents/") || file.includes("next-defaults"));
   assert.deepEqual(leaked, [], "каталог текстов (30 КБ gzip) уходил бы в публичный /_next/static: страница отдаёт новому виду только нужное вкладке");
@@ -663,7 +663,7 @@ test("проверка сборки: файл для браузера с тек�
 /* ------------------------------------------------------------------ исходники */
 
 test("исходники: каждый файл нового вида ≤150 строк, без обходов (сырой HTML, service-клиент), прежний каталог не тронут", () => {
-  const dir = "src/components/v3/ai-agents-next";
+  const dir = "src/components/staff/ai-agents-next";
   const files = readdirSync(root(dir));
   assert.ok(files.length >= 15, "виджеты разбиты по файлам");
   for (const file of files) {
@@ -676,15 +676,15 @@ test("исходники: каждый файл нового вида ≤150 с�
     assert.doesNotMatch(text, /<button\b|<input\b|<select\b|<textarea\b/u, `${file}: формы и кнопки — примитивы набора, не сырые теги`);
   }
   // Прежний каталог содержит только файлы (его читает прежний тест на сырой HTML) — новые виджеты лежат рядом.
-  for (const entry of readdirSync(root("src/components/v3/ai-agents"), { withFileTypes: true })) assert.equal(entry.isFile(), true, entry.name);
-  const hubPage = read("src/app/(v3)/v3/ai-agents/page.tsx");
-  const agentPage = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
+  for (const entry of readdirSync(root("src/components/staff/ai-agents"), { withFileTypes: true })) assert.equal(entry.isFile(), true, entry.name);
+  const hubPage = read("src/app/(staff)/ai-agents/page.tsx");
+  const agentPage = read("src/app/(staff)/ai-agents/[key]/page.tsx");
   for (const page of [hubPage, agentPage]) assert.doesNotMatch(page, /isNextUi|@\/lib\/ui-next"/u, "выбора вида нет: новый вид единственный");
   assert.match(agentPage, /<NextAgentPageLazy \{\.\.\.bodyProps\} defaults=\{nextAgentDefaults\(key, tab\)\} \/>/u, "новый вид получает те же свойства, что `AgentBody`, и тексты вкладки");
   // Новый вид — ленивый вход: в первую загрузку страниц у остальных сотрудников его таблицы, панели и Radix не входят.
-  assert.match(hubPage, /import \{ NextAgentsViewLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);
-  assert.match(agentPage, /import \{ NextAgentPageLazy, NextAgentUnavailableLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);
-  for (const page of [hubPage, agentPage]) assert.doesNotMatch(page, /from "@\/components\/v3\/ai-agents-next\/Next(AgentsView|AgentPage|AgentUnavailable)"/u, "новый вид не импортируется статически");
+  assert.match(hubPage, /import \{ NextAgentsViewLazy \} from "@\/components\/staff\/ai-agents-next\/NextAgentsLazy";/u);
+  assert.match(agentPage, /import \{ NextAgentPageLazy, NextAgentUnavailableLazy \} from "@\/components\/staff\/ai-agents-next\/NextAgentsLazy";/u);
+  for (const page of [hubPage, agentPage]) assert.doesNotMatch(page, /from "@\/components\/staff\/ai-agents-next\/Next(AgentsView|AgentPage|AgentUnavailable)"/u, "новый вид не импортируется статически");
   const lazy = read(`${dir}/NextAgentsLazy.tsx`);
   assert.match(lazy, /^"use client";/u);
   for (const name of ["NextAgentsView", "NextAgentPage", "NextAgentUnavailable"]) assert.match(lazy, new RegExp(`import\\("\\./${name}"\\)\\.then\\(\\(module\\) => module\\.${name}\\)`, "u"));

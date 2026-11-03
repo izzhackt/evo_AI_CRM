@@ -111,14 +111,14 @@ async function main() {
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-system-role", "admin");
     stage = "ACTUAL_ROLE";
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-presentation-role", "actual");
-    stage = "CATALOGUE_UI"; await page.goto(`${config.appOrigin}/v3/universities`, { waitUntil: "domcontentloaded" });
-    await page.locator(`a[href="/v3/universities/${catalogId}"]`).first().click();
-    await page.locator(`a[href="/v3/universities/${catalogId}/forms"]`).click();
+    stage = "CATALOGUE_UI"; await page.goto(`${config.appOrigin}/universities`, { waitUntil: "domcontentloaded" });
+    await page.locator(`a[href="/universities/${catalogId}"]`).first().click();
+    await page.locator(`a[href="/universities/${catalogId}/forms"]`).click();
     stage = "CREATE_UI"; await page.getByRole("link", { name: "Добавить бланк", exact: true }).click();
     await page.getByLabel("Название бланка", { exact: true }).fill("Synthetic PDF blank");
     await page.getByRole("button", { name: "Создать бланк", exact: true }).click();
     await page.getByRole("link", { name: "Загрузить файл", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/v3/universities/${catalogId}/forms\\?template=`));
+    await expect(page).toHaveURL(new RegExp(`/universities/${catalogId}/forms\\?template=`));
     const templateId = new URL(page.url()).searchParams.get("template"); requireProof(UUID.test(templateId), "TEMPLATE_UI_ID_INVALID");
     stage = "UPLOAD_UI";
     await page.getByLabel("Файл университета", { exact: true }).setInputFiles({ name: "synthetic-template.pdf", mimeType: "application/pdf", buffer: bytes });
@@ -151,7 +151,7 @@ async function main() {
     requireProof(replay.status() === 200, "EXACT_UPLOAD_REPLAY_FAILED");
     const replayed = normalizeUniversityTemplateIngressReceipt(await replay.json(), templateId, versionId);
     assertExactTemplateReplay(replayed, status);
-    stage = "COLD_RESUME"; await page.goto(`${config.appOrigin}/v3/universities/${catalogId}/forms`, { waitUntil: "domcontentloaded" });
+    stage = "COLD_RESUME"; await page.goto(`${config.appOrigin}/universities/${catalogId}/forms`, { waitUntil: "domcontentloaded" });
     await page.getByRole("link", { name: /Synthetic PDF blank/u }).click();
     await expect(page.getByRole("link", { name: "Открыть исходный файл", exact: true })).toBeVisible();
     await expect(page.getByRole("img", { name: "Страница 1", exact: true })).toBeVisible();

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import * as caseSections from "../src/lib/v3/case-access-contract.ts";
 import { getPlatformCaseFinanceControl, PlatformFinanceControlRepositoryError } from "../src/lib/platform-finance-control.ts";
-import { tabsFor } from "../src/components/v3/profile/types.ts";
+import { tabsFor } from "../src/components/staff/profile/types.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/156_platform_scoped_staff_consumers.sql");

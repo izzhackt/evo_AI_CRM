@@ -5,7 +5,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «WhatsApp» (`/v3/inbox`), «Переписка» (`/v3/messages`) и рамка переписки по делу в «Новом виде» (решение владельца
+ * «WhatsApp» (`/inbox`), «Переписка» (`/messages`) и рамка переписки по делу в «Новом виде» (решение владельца
  * 27.10.2026, поток «chats»). Страницы строят НАСТОЯЩИЕ `inbox/page.tsx` и `messages/page.tsx`: подменены только границы
  * (актёр, чтения); движок чатов (`InboxChat`, `CaseChatWorkspace`) настоящий. Люди, номера, дела и
  * сообщения выдуманы (tests/e2e/chats-next-fixtures.cjs). Живой Supabase, WAHA, Wazzup и права сервера этот стенд не
@@ -82,7 +82,7 @@ function stubInbox(actor, scenario) {
 }
 function stubMessages(actor, scenario) {
   stubShared(actor);
-  const { readCaseChatQueueWith } = require(join(ROOT, "src/components/v3/case-chat/case-chat-queue.ts"));
+  const { readCaseChatQueueWith } = require(join(ROOT, "src/components/staff/case-chat/case-chat-queue.ts"));
   const chat = require(join(ROOT, "src/lib/v3/case-chat-source.ts"));
   chat.readStaffCaseChatQueue = async (_actor, query, queue) => {
     if (scenario.failure) throw new chat.CaseChatReadError(scenario.failure);
@@ -99,8 +99,8 @@ function stubMessages(actor, scenario) {
   });
 }
 const PAGES = {
-  inbox: { file: "src/app/(v3)/v3/inbox/page.tsx", pathname: "/v3/inbox", scenarios: fx.INBOX_SCENARIOS, stub: stubInbox },
-  messages: { file: "src/app/(v3)/v3/messages/page.tsx", pathname: "/v3/messages", scenarios: fx.MESSAGES_SCENARIOS, stub: stubMessages },
+  inbox: { file: "src/app/(staff)/inbox/page.tsx", pathname: "/inbox", scenarios: fx.INBOX_SCENARIOS, stub: stubInbox },
+  messages: { file: "src/app/(staff)/messages/page.tsx", pathname: "/messages", scenarios: fx.MESSAGES_SCENARIOS, stub: stubMessages },
 };
 async function buildPage(kind, name, actor) {
   const page = PAGES[kind];
@@ -158,10 +158,10 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { InboxNextPage } = require("@/components/v3/inbox-next/InboxNextPage");
-const { CaseChatNextPage } = require("@/components/v3/case-chat-next/CaseChatNextPage");
-const { CaseChatNextFailure } = require("@/components/v3/case-chat-next/CaseChatNextFailure");
+const { AppShell } = require("@/components/staff/AppShell");
+const { InboxNextPage } = require("@/components/staff/inbox-next/InboxNextPage");
+const { CaseChatNextPage } = require("@/components/staff/case-chat-next/CaseChatNextPage");
+const { CaseChatNextFailure } = require("@/components/staff/case-chat-next/CaseChatNextFailure");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
 window.__harness = { pushes: [], actions: [], errors: [], refreshes: 0, urls: [] };
@@ -212,14 +212,14 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), readFileSync(join(ROOT, "src/app/(v3)/ai-agent.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), readFileSync(join(ROOT, "src/app/(staff)/ai-agent.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 async function buildBundle(outFile) {
   const esbuild = require("esbuild");
   // Серверные действия чатов отвечают синтетикой этой вкладки: ничего не отправляется и не пишется.
   const caseChatStub = `
-import { composeCaseChatQueue } from "@/components/v3/case-chat/case-chat-queue";
+import { composeCaseChatQueue } from "@/components/staff/case-chat/case-chat-queue";
 const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
 let store = null;
 const rows = () => (store ??= fixture().rows.map((item) => ({ ...item })));
@@ -283,12 +283,12 @@ async function pageFixtures() {
   const out = {};
   for (const name of Object.keys(fx.INBOX_SCENARIOS)) {
     const { element, scenario, search } = await buildPage("inbox", name, fx.ACTORS.admin);
-    out[`inbox-${name}`] = { kind: "inbox", title: "WhatsApp", pathname: "/v3/inbox", search, props: element.props, rows: [], readAt: fx.READ_AT, scenario };
+    out[`inbox-${name}`] = { kind: "inbox", title: "WhatsApp", pathname: "/inbox", search, props: element.props, rows: [], readAt: fx.READ_AT, scenario };
   }
   for (const name of Object.keys(fx.MESSAGES_SCENARIOS)) {
     const { element, scenario, search } = await buildPage("messages", name, fx.ACTORS.admin);
     const failed = Boolean(scenario.failure);
-    out[`messages-${name}`] = { kind: failed ? "messages-failure" : "messages", title: "Переписка", pathname: "/v3/messages", search, props: element.props, rows: scenario.rows, readAt: fx.READ_AT, scenario };
+    out[`messages-${name}`] = { kind: failed ? "messages-failure" : "messages", title: "Переписка", pathname: "/messages", search, props: element.props, rows: scenario.rows, readAt: fx.READ_AT, scenario };
   }
   return out;
 }

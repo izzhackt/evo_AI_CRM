@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PipelineLead } from "../../components/v3/Pipeline.tsx";
+import type { PipelineLead } from "../../components/staff/Pipeline.tsx";
 import { dayInOrganizationTimezone } from "../platform-task-deadline.ts";
 import { isStaffPreview, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
@@ -8,7 +8,7 @@ import type { PlatformAdmissionsTaskQueueCursor, PlatformAdmissionsTaskQueueRow 
 import type { CaseChatThreadRow } from "../platform-case-chat-contract.ts";
 import type { StaffTask, StaffTaskCursor } from "../platform-staff-task-contract.ts";
 import type { StudentCaseQueuePage, StudentCaseQueueRequest } from "../platform-student-case-queue-contract.ts";
-import { shiftDay } from "../../components/v3/calendar/types.ts";
+import { shiftDay } from "../../components/staff/calendar/types.ts";
 import { CASE_QUEUE_PAGE_SIZE, TASK_QUEUE_READ_PAGES, taskQueueAccess } from "./staff-task-source.ts";
 import {
   TODAY_HORIZON_DAYS,
@@ -141,11 +141,11 @@ export type TodayLinks = Readonly<{
  * бокового меню: в шапке «Сегодня» их нет (решение владельца 30.10.2026).
  */
 export function todayLinks(actor: ActivePlatformActor, access: TodayAccess, options: Readonly<{ canReadReport: boolean }>): TodayLinks {
-  const sales = access.sources.includes("leads") && staffCanAccessRoute(actor, "/v3/pipeline");
-  const mainAction: TodayLink | null = sales ? { label: "Открыть воронку продаж", href: "/v3/pipeline" }
-    : access.sources.includes("students") ? { label: "Открыть студентов", href: "/v3/profile" }
-    : access.sources.includes("tasks") ? { label: "Все задачи", href: "/v3/tasks" }
-    : options.canReadReport ? { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" }
+  const sales = access.sources.includes("leads") && staffCanAccessRoute(actor, "/pipeline");
+  const mainAction: TodayLink | null = sales ? { label: "Открыть воронку продаж", href: "/pipeline" }
+    : access.sources.includes("students") ? { label: "Открыть студентов", href: "/profile" }
+    : access.sources.includes("tasks") ? { label: "Все задачи", href: "/tasks" }
+    : options.canReadReport ? { label: "Открыть отчёт продаж", href: "/main?view=sales" }
     : null;
   return Object.freeze({ mainAction });
 }

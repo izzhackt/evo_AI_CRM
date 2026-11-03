@@ -217,7 +217,7 @@ async function refusalStatus(
 export async function sendPlatformWhatsAppMessageAction(
   input: unknown,
 ): Promise<WhatsAppChatSendResult> {
-  const actor = await requirePlatformMutationCapability("messaging.send", "/v3/inbox");
+  const actor = await requirePlatformMutationCapability("messaging.send", "/inbox");
   const parsed = parsePlatformWhatsAppChatSendInput(input);
   if (parsed === null) return result("invalid");
 
@@ -285,7 +285,7 @@ export async function sendPlatformWhatsAppMessageAction(
 export async function reconcilePlatformWhatsAppSendAction(
   input: unknown,
 ): Promise<Readonly<{ status: WhatsAppChatReconcileStatus }>> {
-  const actor = await requirePlatformMutationCapability("messaging.send", "/v3/inbox");
+  const actor = await requirePlatformMutationCapability("messaging.send", "/inbox");
   const parsed = parsePlatformWhatsAppChatReconcileInput(input);
   if (parsed === null) return Object.freeze({ status: "invalid" });
 

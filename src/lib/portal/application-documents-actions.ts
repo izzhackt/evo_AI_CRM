@@ -36,7 +36,7 @@ async function scopedRead(scope: ApplicationDocumentScope, target: ApplicationDo
   return staffScope(scope, "document.read.full");
 }
 async function refresh(target?: ApplicationDocumentTarget) {
-  try { revalidatePath("/portal"); revalidatePath("/portal/documents"); revalidatePath("/v3/profile");
+  try { revalidatePath("/portal"); revalidatePath("/portal/documents"); revalidatePath("/profile");
     if (target) revalidatePath(`/portal/preparations/${target.applicationId}`);
   } catch { /* A valid command receipt remains known success. */ }
 }

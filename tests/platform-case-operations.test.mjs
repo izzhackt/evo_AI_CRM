@@ -61,7 +61,7 @@ test("normalizes exact case-scoped visa rows", () => {
 
 test("V3 Admissions operations client imports only client-safe contracts", () => {
   const panelSource = source(
-    "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
+    "src/components/staff/profile/ProfileAdmissionsWorkspace.tsx",
   );
   const applicationContract = source("src/lib/platform-application-contract.ts");
   const caseOperationsContract = source(
@@ -226,7 +226,7 @@ test("P4 stop-factor assertions are permission-scoped and exact-case bound", () 
   assert.doesNotMatch(resolveSource, /activeStopFactors\.some/);
   assert.match(createSource, /revalidateCaseOperations\(studentCaseId\)/);
   assert.match(resolveSource, /revalidateCaseOperations\(studentCaseId\)/);
-  assert.match(actionSource, /revalidatePath\("\/v3\/profile"\)/);
+  assert.match(actionSource, /revalidatePath\("\/profile"\)/);
   assert.doesNotMatch(createSource + resolveSource, /redirect\(/);
   assert.doesNotMatch(actionSource, /amoCRM|WhatsApp|WAHA/);
 });

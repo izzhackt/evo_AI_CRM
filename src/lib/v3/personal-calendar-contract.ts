@@ -1,4 +1,4 @@
-import type { CalendarTask } from "../../components/v3/calendar/types.ts";
+import type { CalendarTask } from "../../components/staff/calendar/types.ts";
 import { isStaffPreview, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { PLATFORM_CASE_TASK_PRIORITIES, PLATFORM_CASE_TASK_STATUSES } from "../platform-admissions-task-contract.ts";

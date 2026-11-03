@@ -4,7 +4,7 @@
 
 /**
  * «Воронка продаж» и «Воронка поступления» в «Новом виде» (решение владельца 27.10.2026) в Chromium: НАСТОЯЩИЕ страницы
- * `/v3/pipeline` и `/v3/admissions-pipeline` в настоящей оболочке на СИНТЕТИЧЕСКИХ данных (`boards-fixtures.cjs`: имена и дела
+ * `/pipeline` и `/admissions-pipeline` в настоящей оболочке на СИНТЕТИЧЕСКИХ данных (`boards-fixtures.cjs`: имена и дела
  * выдуманы). Сервер стенда рисует разметку, браузер гидратирует её
  * теми же страницами. Серверные действия подменены; Supabase, права и маршрутизатор Next.js стенд не проверяет — проверяются
  * вёрстка, токены, адаптив, клавиатура, доступность и пути «карточка → панель → действие», «перетаскивание → Отменить».
@@ -18,8 +18,8 @@ const { mkdirSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 globalThis.__harnessConfig = {
   fixtures: join(__dirname, "boards-fixtures.cjs"),
-  pages: { "/v3/pipeline": "src/app/(v3)/v3/pipeline/page.tsx", "/v3/admissions-pipeline": "src/app/(v3)/v3/admissions-pipeline/page.tsx" },
-  titles: { "/v3/pipeline": "Воронка продаж", "/v3/admissions-pipeline": "Воронка поступления" },
+  pages: { "/pipeline": "src/app/(staff)/pipeline/page.tsx", "/admissions-pipeline": "src/app/(staff)/admissions-pipeline/page.tsx" },
+  titles: { "/pipeline": "Воронка продаж", "/admissions-pipeline": "Воронка поступления" },
 };
 const { bundleHydration, compileCss, fixtures, startServer } = require("./pipelines-next-harness.cjs");
 const { leadId } = fixtures;
@@ -94,7 +94,7 @@ async function main() {
     // ===================================================================================================== ПРОДАЖИ
     // 1. Страница на трёх ширинах: гидратация без расхождений, консоль, нет боковой прокрутки, цели ≥ 44 px, axe, одна красная кнопка.
     for (const key of ["d1440", "d1280", "m390"]) {
-      const { context, page, errors } = await open("/v3/pipeline", key);
+      const { context, page, errors } = await open("/pipeline", key);
       const name = `sales ${key}`;
       await shot(page, `pipeline-${key}`, { fullPage: true });
       report(`${name}: new view (data-ui=next, kit cards)`, await page.evaluate(() => Boolean(document.querySelector('.v3-world[data-ui="next"] [data-testid="v3-pipeline"] [data-slot="card"]'))), null);
@@ -120,7 +120,7 @@ async function main() {
 
     // 2. Панель лида: карточка → панель (адрес `?lead=`, фокус на названии, внутри корня нового вида) → Esc → фокус на карточке.
     for (const key of ["d1440", "m390"]) {
-      const { context, page, errors } = await open("/v3/pipeline", key);
+      const { context, page, errors } = await open("/pipeline", key);
       const name = `sales sheet ${key}`;
       const link = page.locator(`[data-testid="v3-pipeline-card"][data-lead-id="${leadId(5)}"] a[data-lead-link]`);
       await link.click();
@@ -181,7 +181,7 @@ async function main() {
 
     // 3. «Закрыть лид»: «⋯» в подвале панели → окно → строка над доской → «Вернуть в работу» → «Скрыть».
     {
-      const { context, page, errors } = await open("/v3/pipeline", "d1440");
+      const { context, page, errors } = await open("/pipeline", "d1440");
       await page.locator(`[data-testid="v3-pipeline-card"][data-lead-id="${leadId(6)}"] a[data-lead-link]`).click();
       const dialog = page.getByRole("dialog");
       await dialog.waitFor();
@@ -205,7 +205,7 @@ async function main() {
       await page.getByTestId("v3-pipeline-closed-notice-dismiss").click();
       report("sales close: «Скрыть» removes the notice, focus goes to a card", await page.evaluate(() => !document.querySelector('[data-testid="v3-pipeline-closed-notice"]') && Boolean(document.activeElement?.closest('[data-testid="v3-pipeline-card"]'))), await focusInfo(page));
       // Переданный лид — продажа: закрыть нельзя, причина названа; формы решения нет.
-      await page.goto(`${origin}/v3/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
+      await page.goto(`${origin}/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
       await page.waitForSelector("html[data-hydrated=true]");
       await page.getByRole("dialog").waitFor();
       await page.getByRole("dialog").getByRole("button", { name: "Ещё действия" }).click();
@@ -218,7 +218,7 @@ async function main() {
 
     // 4. Вкладки этапов: фокус на этапе → одна колонка сеткой; «Переданы»; «Все этапы».
     {
-      const { context, page, errors } = await open("/v3/pipeline", "d1440");
+      const { context, page, errors } = await open("/pipeline", "d1440");
       const tab = (label) => page.locator('nav[aria-label="Этапы воронки"]').getByRole("link", { name: label });
       await tab(/^Квалифицирован/u).click();
       await page.waitForFunction(() => document.querySelector('[data-testid="v3-pipeline-board"]')?.getAttribute("data-focus") === "qualified");
@@ -237,15 +237,15 @@ async function main() {
 
     // 5. Большая колонка и закрытые лиды.
     {
-      const { context, page } = await open("/v3/pipeline", "d1440", { rows: "volume" });
+      const { context, page } = await open("/pipeline", "d1440", { rows: "volume" });
       await shot(page, "pipeline-volume-d1440", { fullPage: true });
       report("sales volume: 34 cards in a column, no horizontal scroll", await page.evaluate(() => document.querySelectorAll('[data-testid="v3-pipeline-column"][data-stage="new"] [data-testid="v3-pipeline-card"]').length === 34 && document.documentElement.scrollWidth <= window.innerWidth + 1), null);
       await context.close();
     }
     for (const key of ["d1440", "m390"]) {
-      const { context, page, errors } = await open("/v3/pipeline?view=closed", key);
+      const { context, page, errors } = await open("/pipeline?view=closed", key);
       const closedPage = await page.evaluate(() => ({ h1: document.querySelector("main h1")?.textContent?.trim(), rows: document.querySelectorAll('[data-testid="v3-closed-leads"] li').length,
-        back: Boolean(document.querySelector('main a[href="/v3/pipeline"]')), kit: Boolean(document.querySelector('.v3-world[data-ui="next"] [data-testid="v3-pipeline-closed"]')) }));
+        back: Boolean(document.querySelector('main a[href="/pipeline"]')), kit: Boolean(document.querySelector('.v3-world[data-ui="next"] [data-testid="v3-pipeline-closed"]')) }));
       report(`sales closed ${key}: new frame, list rows, back link`, closedPage.kit && closedPage.rows === 3 && closedPage.back && /^Закрытые/u.test(closedPage.h1), closedPage);
       report(`sales closed ${key}: axe`, (await axeOf(page, "[data-testid=v3-pipeline-closed]")).length === 0, await axeOf(page, "[data-testid=v3-pipeline-closed]"));
       report(`sales closed ${key}: targets >= 44px`, (await smallTargets(page, "[data-testid=v3-pipeline-closed]")).length === 0, await smallTargets(page, "[data-testid=v3-pipeline-closed]"));
@@ -256,7 +256,7 @@ async function main() {
 
     // 6. Другие миры: сотрудник и просмотр роли видят тот же новый вид (корень с data-ui, карточки набора).
     for (const [label, options] of [["staff", { actor: "staff" }], ["preview", { actor: "preview" }]]) {
-      for (const path of ["/v3/pipeline", "/v3/admissions-pipeline"]) {
+      for (const path of ["/pipeline", "/admissions-pipeline"]) {
         const { context, page } = await open(path, "d1440", options);
         const world = await page.evaluate(() => ({ nextRoot: Boolean(document.querySelector('.v3-world[data-ui="next"]')), nextCards: document.querySelectorAll("[data-slot=card]").length }));
         report(`${label} ${path}: new view root and kit cards`, world.nextRoot && world.nextCards > 0, world);
@@ -267,7 +267,7 @@ async function main() {
     // ================================================================================================= ПОСТУПЛЕНИЕ
     // 7. Страница на трёх ширинах.
     for (const key of ["d1440", "d1280", "m390"]) {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", key);
+      const { context, page, errors } = await open("/admissions-pipeline", key);
       const name = `admissions ${key}`;
       await shot(page, `admissions-${key}`, { fullPage: true });
       report(`${name}: new view (data-ui=next, kit cards)`, await page.evaluate(() => Boolean(document.querySelector('.v3-world[data-ui="next"] [data-testid="v3-admissions-pipeline"] [data-slot="card"]'))), null);
@@ -294,7 +294,7 @@ async function main() {
 
     // 8. Перетаскивание (мышь, `@dnd-kit/core`) → перемещение → «Отменить» строкой в верхнем слое → итог отмены.
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440");
+      const { context, page, errors } = await open("/admissions-pipeline", "d1440");
       const cardOf = (n) => page.locator(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${caseOf(n)}"]`);
       const stageOf = (n) => page.evaluate((id) => document.querySelector(`[data-student-case-id="${id}"]`)?.closest('[data-testid="v3-admissions-pipeline-column"]')?.getAttribute("data-stage") ?? null, caseOf(n));
       const calls = () => page.evaluate(() => globalThis.__boardsFixture.pipelineCalls.length);
@@ -319,7 +319,7 @@ async function main() {
       report("admissions drag: «Отменить» returns the case and says so", /Перемещение отменено/u.test(await page.locator('[data-testid="v3-admissions-pipeline-board"]').textContent()), null);
       // Нажатие по имени не начинает перетаскивание: ссылка ведёт в дело.
       const href = await cardOf(2).locator("a").first().getAttribute("href");
-      report("admissions drag: the name link still opens the case (click is not a drag)", href === `/v3/profile?case=${caseOf(2)}&tab=route`, href);
+      report("admissions drag: the name link still opens the case (click is not a drag)", href === `/profile?case=${caseOf(2)}&tab=route`, href);
       report("admissions drag: console clean", errors.length === 0, errors);
       await context.close();
     }
@@ -327,7 +327,7 @@ async function main() {
     // 8b. Нажатие на пункт меню «⋯ → Переместить в…» с лёгким сдвигом указателя (щелчок по трекпаду, 9 px при пороге 6 px) — выбор пункта, а не
     // перетаскивание дела: меню лежит внутри перетаскиваемой карточки.
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440");
+      const { context, page, errors } = await open("/admissions-pipeline", "d1440");
       const trigger = page.locator(`[data-student-case-id="${caseOf(2)}"] button[popovertarget]`);
       await trigger.click();
       await page.waitForSelector('[data-testid="v3-admissions-pipeline-move"]:popover-open');
@@ -350,7 +350,7 @@ async function main() {
 
     // 8c. Дело отпущено мимо колонок: никуда не двигается, читалке сказано «Перемещение отменено.» (а не оставлено «взято» или «Над этапом …»).
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440");
+      const { context, page, errors } = await open("/admissions-pipeline", "d1440");
       const from = await page.locator(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${caseOf(1)}"]`).boundingBox();
       await page.mouse.move(from.x + 40, from.y + 20);
       await page.mouse.down();
@@ -370,7 +370,7 @@ async function main() {
     // 8d. Палец. Широкий экран с касанием: удержание 250 мс и перенос на колонку двигают дело тем же серверным действием. Телефон: быстрый жест по карточке —
     // прокрутка страницы, дело не берётся (карточка не тускнеет, читалка молчит).
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440t");
+      const { context, page, errors } = await open("/admissions-pipeline", "d1440t");
       const cdp = await context.newCDPSession(page);
       const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
       const from = await page.locator(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${caseOf(1)}"]`).boundingBox();
@@ -388,7 +388,7 @@ async function main() {
       await context.close();
     }
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "m390");
+      const { context, page, errors } = await open("/admissions-pipeline", "m390");
       const cdp = await context.newCDPSession(page);
       const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
       await page.evaluate(() => {
@@ -411,7 +411,7 @@ async function main() {
 
     // 8e. Чип-ссылка «нужен ответ» подчёркнут (ведёт в переписку), «просрочено» рядом — такой же по виду, но не ссылка — нет.
     {
-      const { context, page } = await open("/v3/admissions-pipeline", "d1440");
+      const { context, page } = await open("/admissions-pipeline", "d1440");
       const chips = await page.evaluate((id) => [...document.querySelectorAll(`[data-student-case-id="${id}"] [data-slot="badge"]`)].map((chip) => ({ text: chip.textContent.trim(), line: getComputedStyle(chip).textDecorationLine, link: Boolean(chip.closest("a")) })), caseOf(6));
       const reply = chips.find((chip) => chip.text === "нужен ответ");
       const overdue = chips.find((chip) => chip.text === "просрочено");
@@ -422,7 +422,7 @@ async function main() {
 
     // 9. Клавиатура: «⋯» → «Переместить в…» → фокус на «Отменить» → Enter → фокус на вернувшейся карточке; «Убрать из воронки» → «Вернуть».
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440");
+      const { context, page, errors } = await open("/admissions-pipeline", "d1440");
       const trigger = page.locator(`[data-student-case-id="${caseOf(2)}"] button[popovertarget]`);
       await trigger.focus();
       await page.keyboard.press("Enter");
@@ -457,7 +457,7 @@ async function main() {
 
     // 10. Телефон: этап выбирается списком (адрес `?stage=`), перемещение — через «⋯», карточка уходит из видимого этапа.
     {
-      const { context, page, errors } = await open("/v3/admissions-pipeline", "m390");
+      const { context, page, errors } = await open("/admissions-pipeline", "m390");
       const select = page.locator("label", { hasText: /^Этап/u }).locator("select");
       const options = await select.locator("option").allTextContents();
       await select.selectOption({ label: options[2] });

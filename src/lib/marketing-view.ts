@@ -149,7 +149,7 @@ export function marketingHref(input: Readonly<{
   filters?: MarketingLeadFilters;
 }>): string {
   // Вид «Отчёты» — окно Looker Studio: ни периода, ни фильтров (даты выбираются внутри отчёта).
-  if (input.view === "reports") return "/v3/marketing?view=reports";
+  if (input.view === "reports") return "/marketing?view=reports";
   const query = new URLSearchParams();
   if (input.view === "leads") query.set("view", "leads");
   if (input.period.key !== "month") query.set("period", input.period.key);
@@ -159,7 +159,7 @@ export function marketingHref(input: Readonly<{
   }
   if (input.view === "leads" && input.filters) for (const [key, value] of Object.entries(marketingLeadFilterParams(input.filters))) query.set(key, value);
   const text = query.toString();
-  return text ? `/v3/marketing?${text}` : "/v3/marketing";
+  return text ? `/marketing?${text}` : "/marketing";
 }
 
 /** Ввод суммы расхода («1200», «1 200,50») → минорные единицы; 1..10^12, не больше двух знаков после запятой. */

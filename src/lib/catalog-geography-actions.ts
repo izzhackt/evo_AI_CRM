@@ -147,7 +147,7 @@ export async function mutateCatalogGeographyAction(previous: GeographyActionStat
   // Подтверждённая запись: перечитать CRM и кабинет; индекс студента без
   // устаревшей копии (следующее чтение ждёт свежую выдачу), только если
   // запись его меняет.
-  revalidatePath("/v3/universities", "layout");
+  revalidatePath("/universities", "layout");
   revalidatePath("/portal/universities", "layout");
   if (call.index(receipt)) revalidateTag(STUDENT_UNIVERSITY_INDEX_TAG, { expire: 0 });
   return result("saved");

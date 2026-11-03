@@ -44,47 +44,47 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
   // «Финансы» (решение владельца 26.10.2026 «Админы + бухгалтер»): настоящий Admin без просмотра роли или держатель
   // finance.read.full. Это подсказка раздела: область «вся организация» проверяет база (RPC отчёта) и сборка меню
   // (`readFinanceSectionAccess` в layout). Просмотр роли отказан первой же строкой, как у «Маркетинга».
-  if (route === "/v3/finance") return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
-  if (route === "/v3/knowledge" || route === "/v3/marketing" || route === "/v3/ui-kit") return actor.systemRole === "admin" && !isStaffPreview(actor);
+  if (route === "/finance") return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
+  if (route === "/knowledge" || route === "/marketing" || route === "/ui-kit") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
-  if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
+  if (route === "/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
   // «ИИ-агент» (план ИИ-агента §12.2, §13): право ai.agent.use — у всех
   // сотрудников через роли «… — общие разделы» (268); решает каждый RPC раздела.
-  if (route === "/v3/ai-agent" || route === "/v3/ai-agents") return staffHasPermission(actor, "ai.agent.use");
+  if (route === "/ai-agent" || route === "/ai-agents") return staffHasPermission(actor, "ai.agent.use");
   // «Настройки → Телефония» (план телефонии §11, §12; срез T4b): администратор,
   // как и раньше, и держатель telephony.manage («Телефония — руководитель»). Этому
   // сотруднику страница показывает один раздел — «Телефония»; остальные разделы
   // настроек, их чтения и действия по-прежнему только у администратора.
-  if (route === "/v3/settings") return staffCan(actor, "admin.preview") || staffHasPermission(actor, "telephony.manage");
-  if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage") || staffHasPermission(actor, "staff.task.read");
-  if (route === "/v3/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")
+  if (route === "/settings") return staffCan(actor, "admin.preview") || staffHasPermission(actor, "telephony.manage");
+  if (route === "/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage") || staffHasPermission(actor, "staff.task.read");
+  if (route === "/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")
     || staffHasPermission(actor, "task.manage")
     || (staffCan(actor, "admissions.read") && staffHasPermission(actor, "task.create"));
   const routeCapabilities: Record<FixedRoleRoute, readonly StaffCapability[]> = {
-    "/v3/main": ["sales.read", "sales.report.read", "finance.read", "admissions.read"],
-    "/v3/requests": ["sales.read"],
-    "/v3/pipeline": ["sales.read"],
-    "/v3/admissions-pipeline": ["admissions.read"],
-    "/v3/inbox": ["messaging.read"],
-    "/v3/profile": ["dashboard.read"],
-    "/v3/calendar": ["admissions.read"],
-    "/v3/tasks": ["tasks.read"],
-    "/v3/team-chat": ["chat.read"],
-    "/v3/messages": ["admissions.read"],
-    "/v3/universities": ["catalog.read"],
-    "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
-    "/v3/marketing": ["admin.preview"],
-    "/v3/finance": ["admin.preview"],
-    "/v3/ui-kit": ["admin.preview"],
-    "/v3/ai-agent": ["admin.preview"],
-    "/v3/ai-agents": ["admin.preview"],
-    "/v3/documents": ["documents.read"],
-    "/v3/reply-snippets": ["snippets.read"],
-    "/v3/settings": ["admin.preview"],
+    "/main": ["sales.read", "sales.report.read", "finance.read", "admissions.read"],
+    "/requests": ["sales.read"],
+    "/pipeline": ["sales.read"],
+    "/admissions-pipeline": ["admissions.read"],
+    "/inbox": ["messaging.read"],
+    "/profile": ["dashboard.read"],
+    "/calendar": ["admissions.read"],
+    "/tasks": ["tasks.read"],
+    "/team-chat": ["chat.read"],
+    "/messages": ["admissions.read"],
+    "/universities": ["catalog.read"],
+    "/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
+    "/marketing": ["admin.preview"],
+    "/finance": ["admin.preview"],
+    "/ui-kit": ["admin.preview"],
+    "/ai-agent": ["admin.preview"],
+    "/ai-agents": ["admin.preview"],
+    "/documents": ["documents.read"],
+    "/reply-snippets": ["snippets.read"],
+    "/settings": ["admin.preview"],
   };
   return routeCapabilities[route].some((capability) => staffCan(actor, capability));
 }
 export function staffHomeRoute(actor: ActivePlatformActor): FixedRoleRoute | "/access-denied" {
-  const routes: readonly FixedRoleRoute[] = ["/v3/main", "/v3/calendar", "/v3/tasks", "/v3/team-chat", "/v3/inbox", "/v3/profile", "/v3/universities", "/v3/documents", "/v3/reply-snippets", "/v3/knowledge"];
+  const routes: readonly FixedRoleRoute[] = ["/main", "/calendar", "/tasks", "/team-chat", "/inbox", "/profile", "/universities", "/documents", "/reply-snippets", "/knowledge"];
   return routes.find((route) => staffCanAccessRoute(actor, route)) ?? "/access-denied";
 }

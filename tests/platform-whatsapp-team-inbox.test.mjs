@@ -24,7 +24,7 @@ const staff = (keys) => ({
 const preview = (role) => ({
   systemRole: "admin", presentationRole: role, platformAccessVersion: 1, assignments: [], permissionKeys: [],
 });
-const menu = (actor, href = "/v3/main") => {
+const menu = (actor, href = "/main") => {
   const url = new URL(href, "https://team-inbox.test");
   const model = buildV3Navigation(actor, url.pathname, url.searchParams);
   const every = [...(model.home ? [model.home] : []), ...model.groups.flatMap((group) => group.links), ...model.sections, ...model.common];
@@ -45,13 +45,13 @@ for (const role of ["admissions", "admissions-manager", "sales", "sales-manager"
     const { every, place } = menu(staff(keys));
     assert.equal(place("inbox"), "sales", role);
     assert.deepEqual(every.find((link) => link.id === "inbox"), {
-      id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "WhatsApp",
+      id: "inbox", href: "/inbox", route: "/inbox", label: "WhatsApp",
     });
     assert.equal(every.filter((link) => link.id === "inbox").length, 1, "stands once");
-    assert.equal(staffCanAccessRoute(staff(keys), "/v3/inbox"), true);
+    assert.equal(staffCanAccessRoute(staff(keys), "/inbox"), true);
     assert.equal(staffCan(staff(keys), "messaging.send"), true, "the send action's capability hint");
     // The page highlights its own item.
-    assert.equal(menu(staff(keys), "/v3/inbox?waiting=1").model.activeId, "inbox");
+    assert.equal(menu(staff(keys), "/inbox?waiting=1").model.activeId, "inbox");
   });
 }
 
@@ -80,7 +80,7 @@ test("the menu still follows the permission: no communication.read.full, no What
   for (const [label, keys] of without) {
     const { every } = menu(staff(keys));
     assert.equal(every.some((link) => link.id === "inbox"), false, label);
-    assert.equal(staffCanAccessRoute(staff(keys), "/v3/inbox"), false, `${label}: /v3/inbox`);
+    assert.equal(staffCanAccessRoute(staff(keys), "/inbox"), false, `${label}: /inbox`);
   }
 });
 
@@ -89,7 +89,7 @@ test("Student-private surfaces are not opened by the WhatsApp rule: «Переп
   const { every } = menu(whatsappOnly);
   assert.equal(every.some((link) => link.id === "inbox"), true);
   assert.equal(every.some((link) => link.id === "messages"), false, "no «Переписка» without case.read.full");
-  assert.equal(staffCanAccessRoute(whatsappOnly, "/v3/messages"), false);
+  assert.equal(staffCanAccessRoute(whatsappOnly, "/messages"), false);
   assert.equal(staffCan(whatsappOnly, "admissions.read"), false);
   // The reverse stays too: the student chat reader gets no WhatsApp without the key.
   const caseReader = staff(["case.read.full", "profile.read.full"]);

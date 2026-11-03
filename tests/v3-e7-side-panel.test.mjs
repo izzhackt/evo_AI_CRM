@@ -20,8 +20,8 @@ import {
   sidePanelFocusReturn,
   sidePanelReturnTarget,
   sidePanelSplit,
-} from "../src/components/v3/panel/side-panel.ts";
-import { BOARD_PANEL_PX } from "../src/components/v3/board/board-tracks.ts";
+} from "../src/components/staff/panel/side-panel.ts";
+import { BOARD_PANEL_PX } from "../src/components/staff/board/board-tracks.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const harness = (script, ...args) => new Map(JSON.parse(execFileSync(
@@ -40,11 +40,11 @@ const unescape = (value) => value?.replaceAll("&amp;", "&") ?? null;
 
 /** Каждый экран с панелью записи и то, чем он её открывает. */
 const HOSTS = [
-  ["src/components/v3/students/StudentQuickView.tsx", "«Быстрый просмотр» «Студентов»"],
-  ["src/components/v3/students/CuratorWorkloadView.tsx", "«Нагрузка кураторов»"],
-  ["src/components/v3/requests/RequestsQueueView.tsx", "«Заявки»"],
-  ["src/components/v3/SalesRegisterView.tsx", "«Отчёт продаж»"],
-  ["src/components/v3/Pipeline.tsx", "панель лида «Воронки продаж»"],
+  ["src/components/staff/students/StudentQuickView.tsx", "«Быстрый просмотр» «Студентов»"],
+  ["src/components/staff/students/CuratorWorkloadView.tsx", "«Нагрузка кураторов»"],
+  ["src/components/staff/requests/RequestsQueueView.tsx", "«Заявки»"],
+  ["src/components/staff/SalesRegisterView.tsx", "«Отчёт продаж»"],
+  ["src/components/staff/Pipeline.tsx", "панель лида «Воронки продаж»"],
 ];
 
 const students = harness("students-static-render.cjs", "--json");
@@ -53,15 +53,15 @@ const numbers = harness("numbers-static-render.cjs", "--json-e4");
 test("one panel: every record panel host renders SidePanel and no dialog of its own", () => {
   for (const [path, name] of HOSTS) {
     const source = read(path);
-    assert.match(source, /import \{ SidePanel \} from "(?:\.\.\/panel|\.\/panel|@\/components\/v3\/panel)\/SidePanel";/u, `${name}: imports the shared panel`);
+    assert.match(source, /import \{ SidePanel \} from "(?:\.\.\/panel|\.\/panel|@\/components\/staff\/panel)\/SidePanel";/u, `${name}: imports the shared panel`);
     assert.match(source, /<SidePanel\b/u, `${name}: renders it`);
     assert.doesNotMatch(source, /<dialog\b/u, `${name}: no dialog of its own`);
     assert.doesNotMatch(source, /\b26rem\]|w-\[400px\]/u, `${name}: no width of its own — the token`);
   }
-  assert.equal(existsSync(new URL("../src/components/v3/queue/QueueDetailPanel.tsx", import.meta.url)), false, "the old queue panel is gone");
+  assert.equal(existsSync(new URL("../src/components/staff/queue/QueueDetailPanel.tsx", import.meta.url)), false, "the old queue panel is gone");
   // Во всём коде CRM разметку панели записи (`data-side-panel`) рисует только SidePanel.
   const owners = [];
-  for (const root of ["src/app/(v3)", "src/components/v3"]) {
+  for (const root of ["src/app/(staff)", "src/components/staff"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
       const path = `${root}/${String(entry).split("\\").join("/")}`;
       if (!/\.tsx?$/u.test(path)) continue;
@@ -70,21 +70,21 @@ test("one panel: every record panel host renders SidePanel and no dialog of its 
       if (/data-side-panel=""/u.test(source)) owners.push(path);
     }
   }
-  assert.deepEqual(owners, ["src/components/v3/panel/SidePanel.tsx"]);
+  assert.deepEqual(owners, ["src/components/staff/panel/SidePanel.tsx"]);
   // Список и панель — одна сетка у всех экранов-очередей.
-  for (const path of ["src/components/v3/students/StudentsQueueBody.tsx",
-    "src/components/v3/students/CuratorWorkloadView.tsx", "src/components/v3/requests/RequestsQueueView.tsx", "src/components/v3/SalesRegisterView.tsx"]) {
+  for (const path of ["src/components/staff/students/StudentsQueueBody.tsx",
+    "src/components/staff/students/CuratorWorkloadView.tsx", "src/components/staff/requests/RequestsQueueView.tsx", "src/components/staff/SalesRegisterView.tsx"]) {
     assert.match(read(path), /sidePanelSplit\(/u, path);
   }
 });
 
 test("one width token and one breakpoint for the grid, the sheet and the board", () => {
   assert.equal(SIDE_PANEL_WIDTH_REM, 26);
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   assert.match(css, /\.v3-world \{\s*--side-panel-width: 26rem;\s*\}/u);
   assert.equal(BOARD_PANEL_PX, SIDE_PANEL_WIDTH_REM * 16, "the board reserves the same 416px");
   // Лист шага лида в карточке лида — той же ширины: токен, а не своё число.
-  const drawer = read("src/components/v3/profile/LeadStepDrawer.tsx");
+  const drawer = read("src/components/staff/profile/LeadStepDrawer.tsx");
   assert.match(drawer, /\bmax-w-\[var\(--side-panel-width\)\]/u);
   assert.doesNotMatch(drawer, /26rem\]/u);
   // `xl` Tailwind — 80rem: запрос в JS тот же, что в CSS, и при крупном шрифте браузера.
@@ -103,9 +103,9 @@ test("one width token and one breakpoint for the grid, the sheet and the board",
 
 test("URL-addressable: each page keeps its own parameter, and closing drops only it", () => {
   const cases = [
-    ["«Студенты»", panelOf(students.get("admin-panel")), "/v3/profile?view=active", "К студентам"],
-    ["«Нагрузка кураторов»", panelOf(students.get("curators")), "/v3/profile?view=curators", "К нагрузке"],
-    ["«Отчёт продаж»", panelOf(numbers.get("report-panel")), "/v3/main?view=sales&year=2026&month=9", "К отчёту"],
+    ["«Студенты»", panelOf(students.get("admin-panel")), "/profile?view=active", "К студентам"],
+    ["«Нагрузка кураторов»", panelOf(students.get("curators")), "/profile?view=curators", "К нагрузке"],
+    ["«Отчёт продаж»", panelOf(numbers.get("report-panel")), "/main?view=sales&year=2026&month=9", "К отчёту"],
   ];
   for (const [name, panel, closeHref, back] of cases) {
     assert.ok(panel, `${name}: the address opens the panel on the server`);
@@ -117,18 +117,18 @@ test("URL-addressable: each page keeps its own parameter, and closing drops only
     assert.match(panel, new RegExp(`<span class="md:hidden">${back}</span><span class="hidden md:block md:sr-only">Закрыть</span>`, "u"), `${name}: «← ${back}» on a phone, the corner «Закрыть» from 768px`);
   }
   // Открытые адреса — прежние параметры страниц.
-  assert.match(students.get("admin-panel"), /href="\/v3\/profile\?view=active&amp;open=cccccccc-2222-4222-8222-000000000003"/u);
-  assert.match(students.get("curators"), /href="\/v3\/profile\?view=curators&amp;coverage_curator=[^"]+#curator-coverage"/u);
+  assert.match(students.get("admin-panel"), /href="\/profile\?view=active&amp;open=cccccccc-2222-4222-8222-000000000003"/u);
+  assert.match(students.get("curators"), /href="\/profile\?view=curators&amp;coverage_curator=[^"]+#curator-coverage"/u);
   // «Отчёт продаж»: строка открывает запись просмотром (Э8.6), правка — `&edit=true` из «Исправить запись».
-  assert.match(numbers.get("report-panel"), /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001"/u);
-  assert.match(numbers.get("report-panel"), /data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true"/u);
-  assert.match(read("src/components/v3/Pipeline.tsx"), /window\.history\.pushState\(null, "", href\)/u, "the board keeps ?lead= client-side");
+  assert.match(numbers.get("report-panel"), /href="\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001"/u);
+  assert.match(numbers.get("report-panel"), /data-testid="sales-record-edit" href="\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true"/u);
+  assert.match(read("src/components/staff/Pipeline.tsx"), /window\.history\.pushState\(null, "", href\)/u, "the board keeps ?lead= client-side");
   // Переход из «Сегодня» — те же адреса панелей.
   const today = read("src/lib/v3/today-queue.ts");
-  assert.match(today, /queueHref\("\/v3\/profile", \{ view: "mine", open: row\.studentCaseId \}\)/u);
-  assert.match(today, /queueHref\("\/v3\/pipeline", \{ lead: lead\.id \}\)/u);
+  assert.match(today, /queueHref\("\/profile", \{ view: "mine", open: row\.studentCaseId \}\)/u);
+  assert.match(today, /queueHref\("\/pipeline", \{ lead: lead\.id \}\)/u);
   assert.match(today, /queueHref\(TODAY_REQUESTS_PATH, \{ source: lead\.source, open: `lead:\$\{lead\.id\}` \}\)/u);
-  assert.match(today, /queueHref\("\/v3\/tasks", \{\}, \{ task: task\.id \}\)/u);
+  assert.match(today, /queueHref\("\/tasks", \{\}, \{ task: task\.id \}\)/u);
 });
 
 test("one header: record title, context line, «Открыть …», actions and close", () => {
@@ -165,7 +165,7 @@ test("selected row: aria-current and the hover-free surface-2 on every list", ()
   };
   assert.match(rowOf(students.get("admin-panel"), 'data-queue-row="cccccccc-2222-4222-8222-000000000003"'), /\bbg-surface-2\b/u);
   assert.match(numbers.get("report-panel"), /data-selected="" class="[^"]*\bbg-surface-2\b/u);
-  assert.doesNotMatch(read("src/components/v3/Pipeline.tsx"), /v3-choice/u);
+  assert.doesNotMatch(read("src/components/staff/Pipeline.tsx"), /v3-choice/u);
   for (const [name, html] of [["students", students.get("admin-panel")], ["report", numbers.get("report-panel")]]) {
     assert.equal(html.match(/aria-current="true"/gu)?.filter(Boolean).length >= 1, true, name);
   }
@@ -198,22 +198,22 @@ test("focus returns to the row that was open, and only when focus had nowhere to
   assert.equal(sidePanelFocusReturn({ isConnected: false }, body), true);
   assert.equal(sidePanelFocusReturn({ isConnected: true }, body), false);
 
-  const panel = read("src/components/v3/panel/SidePanel.tsx");
+  const panel = read("src/components/staff/panel/SidePanel.tsx");
   assert.match(panel, /useEffect\(\(\) => \(\) => \{\s*if \(sidePanelFocusReturn\(document\.activeElement, document\.body\)\) sidePanelReturnTarget\(document, returnRef\.current\)\?\.focus\(\);\s*\}, \[\]\);/u,
     "on close (unmount) the panel focuses the row it was opened from");
   assert.match(panel, /document\.getElementById\(headingId\)\?\.focus\(\{ preventScroll: true \}\);/u, "on open — the record heading");
   // Каждый экран называет свою строку.
-  assert.match(read("src/components/v3/students/StudentQuickView.tsx"), /returnTo=\{queueRowReturn\(row\.studentCaseId\)\}/u);
-  assert.match(read("src/components/v3/students/CuratorWorkloadView.tsx"), /returnTo=\{queueRowReturn\(selectedId\)\}/u);
-  assert.match(read("src/components/v3/requests/RequestsQueueView.tsx"), /returnTo=\{queueRowReturn\(requestOpenKey\(row\)\)\}/u);
-  assert.match(read("src/components/v3/SalesRegisterView.tsx"), /returnTo=\{query\.record \? attributeReturn\("id", `sale-\$\{query\.record\}`, "a"\) : undefined\}/u);
-  assert.match(read("src/components/v3/Pipeline.tsx"), /\[attributeReturn\("data-lead-link", selected\.id\), attributeReturn\("data-stage-rail", selected\.stageKey\)\]/u);
+  assert.match(read("src/components/staff/students/StudentQuickView.tsx"), /returnTo=\{queueRowReturn\(row\.studentCaseId\)\}/u);
+  assert.match(read("src/components/staff/students/CuratorWorkloadView.tsx"), /returnTo=\{queueRowReturn\(selectedId\)\}/u);
+  assert.match(read("src/components/staff/requests/RequestsQueueView.tsx"), /returnTo=\{queueRowReturn\(requestOpenKey\(row\)\)\}/u);
+  assert.match(read("src/components/staff/SalesRegisterView.tsx"), /returnTo=\{query\.record \? attributeReturn\("id", `sale-\$\{query\.record\}`, "a"\) : undefined\}/u);
+  assert.match(read("src/components/staff/Pipeline.tsx"), /\[attributeReturn\("data-lead-link", selected\.id\), attributeReturn\("data-stage-rail", selected\.stageKey\)\]/u);
   // Прежний возврат очереди ушёл в панель: одна логика, не две.
-  assert.doesNotMatch(read("src/components/v3/queue/useQueueKeyboard.ts"), /previousOpenKey|row\.focus\(\)/u);
+  assert.doesNotMatch(read("src/components/staff/queue/useQueueKeyboard.ts"), /previousOpenKey|row\.focus\(\)/u);
 });
 
 test("phone and narrow windows: the same dialog becomes a modal sheet; Esc and close follow one rule", () => {
-  const panel = read("src/components/v3/panel/SidePanel.tsx");
+  const panel = read("src/components/staff/panel/SidePanel.tsx");
   // Esc — одно правило на любой ширине: в поле панели первая Esc выводит из поля, вторая закрывает.
   assert.equal(sidePanelEscape(false, false), "close");
   assert.equal(sidePanelEscape(false, true), "close");
@@ -269,7 +269,7 @@ test("one vertical start: tabs and toolbars span the page above the list | panel
   const studentPage = students.get("admin-panel");
   assert.ok(gridAt(studentPage) > studentPage.indexOf('data-testid="queue-toolbar"'));
   // «Нагрузка кураторов»: форма замещения в панели 26rem — поля в одну колонку.
-  const form = read("src/components/v3/profile/CuratorCoverageForm.tsx");
+  const form = read("src/components/staff/profile/CuratorCoverageForm.tsx");
   assert.doesNotMatch(form, /sm:grid-cols-2/u);
   assert.match(panelOf(students.get("curators")), /<div class="grid gap-4"><label><span class="[^"]*">Заместитель<\/span>/u);
 });

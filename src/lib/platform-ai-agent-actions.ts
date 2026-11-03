@@ -38,11 +38,11 @@ const VERSION = /^(?:0|[1-9]\d{0,14})$/u;
 
 async function actorFor() {
   const actor = await requirePlatformStaffActor();
-  return staffCanAccessRoute(actor, "/v3/ai-agent") ? actor : null;
+  return staffCanAccessRoute(actor, "/ai-agent") ? actor : null;
 }
 
 function done(status: AiWriteStatus, requestId: string): AiActionState {
-  if (status === "saved") revalidatePath("/v3/ai-agent");
+  if (status === "saved") revalidatePath("/ai-agent");
   return { status, requestId };
 }
 

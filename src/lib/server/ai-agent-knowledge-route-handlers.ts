@@ -121,7 +121,7 @@ async function defaultAuthorize(access: AiKnowledgeAccess): Promise<AiKnowledgeA
   if (result.status === "anonymous") return { status: "anonymous", actor: null };
   if (result.status === "invalid") return { status: "unavailable", actor: null };
   const actor = result.actor;
-  if (!staffCanAccessRoute(actor, "/v3/ai-agent")) return { status: "forbidden", actor: null };
+  if (!staffCanAccessRoute(actor, "/ai-agent")) return { status: "forbidden", actor: null };
   // Просмотр роли видит то же, что роль, но не пишет и агента не вызывает.
   if (access !== "read" && isStaffPreview(actor)) return { status: "preview", actor: null };
   if (access === "write" && !staffHasPermission(actor, "ai.agent.manage")) return { status: "forbidden", actor: null };

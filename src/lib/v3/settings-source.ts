@@ -383,7 +383,7 @@ export async function readJournal(
       reason: row.reasonCode,
       profileHref:
         row.resourceType === "student_case"
-          ? `/v3/profile?case=${row.resourceId}`
+          ? `/profile?case=${row.resourceId}`
           : null,
       ...(row.caseDirection ? { directionChange: row.caseDirection } : {}),
     }));

@@ -11,10 +11,10 @@ function source(path) {
 
 // Unified workflow S1: the combined queue+decision StudentApplications/
 // StudentApplicationsNav components are retired (the queue moved to
-// /v3/requests under Продажи, and the case directory dropped its now
+// /requests under Продажи, and the case directory dropped its now
 // cross-role «Заявки» tab). StudentApplicationAnswers and the simplified,
 // direction/curator-free ApplicationDecision are the two pieces that
-// survive — reused by both /v3/requests and the lead-card «Доступ к
+// survive — reused by both /requests and the lead-card «Доступ к
 // платформе» block — so this SSR probe now renders exactly those two.
 test("the public Student анкета answers and the access-only decision form render without direction/curator fields", async () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
@@ -22,7 +22,7 @@ test("the public Student анкета answers and the access-only decision form 
     stdin: { contents: `
       import { createElement } from "react";
       import { renderToStaticMarkup } from "react-dom/server";
-      import { StudentApplicationAnswers, ApplicationDecision } from "./src/components/v3/admissions/StudentApplications";
+      import { StudentApplicationAnswers, ApplicationDecision } from "./src/components/staff/admissions/StudentApplications";
       const application = {
         id: "11111111-1111-4111-8111-111111111111", revision: 3, status: "pending", email: "student@example.test",
         submittedAt: "2026-09-18T09:00:00Z", decidedAt: null, decisionReason: null, studentCaseId: null,
@@ -65,7 +65,7 @@ test("the public Student анкета answers and the access-only decision form 
   // The direction/curator pickers are gone entirely (plan §4: access alone,
   // never an Admissions assignment) — no leftover select, option or label.
   // (The approved-status "Открыть дело" link now lives on the caller —
-  // tabs.tsx's PlatformAccessCard and the /v3/requests row — not on this
+  // tabs.tsx's PlatformAccessCard and the /requests row — not on this
   // form, which no longer branches on application.status at all.)
   assert.doesNotMatch(output.decision, /Направление|Куратор|admissions_direction|curator_membership_id/);
   assert.doesNotMatch(output.decision, /<select/);
@@ -77,7 +77,7 @@ test("application catalogue selector renders actual React with deliberate choice
     stdin: { contents: `
       import { createElement } from "react";
       import { renderToStaticMarkup } from "react-dom/server";
-      import { ApplicationUniversitySelector } from "./src/components/v3/profile/ApplicationUniversitySelector";
+      import { ApplicationUniversitySelector } from "./src/components/staff/profile/ApplicationUniversitySelector";
       process.stdout.write(renderToStaticMarkup(createElement(ApplicationUniversitySelector)));
     `, resolveDir: root, sourcefile: "application-selector-ssr.tsx", loader: "tsx" },
     bundle: true, write: false, platform: "node", format: "cjs", target: "node22",
@@ -106,7 +106,7 @@ test("application catalogue selector renders actual React with deliberate choice
 });
 
 test("application selector owns stale reads and search Enter without changing application retry or programme", () => {
-  const selector = source("src/components/v3/profile/ApplicationUniversitySelector.tsx");
+  const selector = source("src/components/staff/profile/ApplicationUniversitySelector.tsx");
   assert.match(selector, /const request = \+\+epoch\.current/u);
   assert.match(selector, /if \(request !== epoch\.current\) return;/u);
   assert.match(selector, /useEffect\(\(\) => \(\) => \{ epoch\.current \+= 1;/u);
@@ -125,7 +125,7 @@ test("application selector owns stale reads and search Enter without changing ap
   // (docs/archive/plans/2026-09-19-other-fable-plan.md §«Uni & knowledge base») --
   // deliberate pin move, not a drop. Program is optional here (plan: "программу
   // указать сразу либо позже"), so the old `required` pin is gone too.
-  const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
+  const createDialog = source("src/components/staff/profile/ApplicationCreateDialog.tsx");
   // Э8.2: the dialog is opened by «Вуза нет в каталоге? Добавить вручную» — manual entry is preselected.
   assert.match(createDialog, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} defaultManual \/>/u);
   assert.match(selector, /const \[manual, setManual\] = useState\(defaultManual\);/u);
@@ -136,13 +136,13 @@ test("application selector owns stale reads and search Enter without changing ap
 });
 
 test("V3 profile keeps lead and Admissions case route identities separate", () => {
-  const page = source("src/app/(v3)/v3/profile/page.tsx");
-  const types = source("src/components/v3/profile/types.ts");
+  const page = source("src/app/(staff)/profile/page.tsx");
+  const types = source("src/components/staff/profile/types.ts");
   const adapter = source("src/lib/v3/profile-source.ts");
   const sections = source("src/lib/v3/case-access-contract.ts");
-  const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
+  const workspace = source("src/components/staff/profile/ProfileAdmissionsWorkspace.tsx");
 
-  assert.match(page, /requireV3PageActor\("\/v3\/profile"\)/u);
+  assert.match(page, /requireV3PageActor\("\/profile"\)/u);
   assert.match(page, /ProfileSearchParams/u);
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
   assert.match(
@@ -202,9 +202,9 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
 });
 
 test("V3 profile actions use canonical versioned server commands and honest outcomes", () => {
-  const controls = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
+  const controls = source("src/components/staff/profile/ProfileAdmissionsWorkspace.tsx");
 
-  const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
+  const createDialog = source("src/components/staff/profile/ApplicationCreateDialog.tsx");
   for (const action of [
     "changePlatformUniversityApplicationAction",
     "updatePlatformUniversityApplicationDetailsAction",
@@ -273,12 +273,12 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   // словом `StatusChip` текущего шага (слова — `applicationPathWord` в
   // wording.ts, строки — `universityRows`); сырой ключ не показывается.
   assert.match(controls, /<StatusChip label=\{row\.word\} tone=\{row\.tone\} \/>/u);
-  assert.match(source("src/components/v3/profile/university-programs-view.ts"), /word: applicationPathWord\(status\)/u);
+  assert.match(source("src/components/staff/profile/university-programs-view.ts"), /word: applicationPathWord\(status\)/u);
   assert.doesNotMatch(controls, /PLATFORM_APPLICATION_STATUSES/u);
   assert.doesNotMatch(controls, /PLATFORM_VISA_STATUSES/u);
   assert.doesNotMatch(controls, /createSupabase|supabase\.from|localStorage|sessionStorage/u);
   assert.equal(
-    existsSync(new URL("../src/components/v3/profile/ProfileAdmissionsActions.ts", import.meta.url)),
+    existsSync(new URL("../src/components/staff/profile/ProfileAdmissionsActions.ts", import.meta.url)),
     false,
   );
 
@@ -333,7 +333,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   // Wording: the dialog says «Добавить вуз» (plan §«Uni & knowledge base»),
   // not the retired «Новая заявка»/«Добавить заявку». Э8.2: its launcher is
   // the quiet «Добавить вручную» next to «+ Вуз из каталога» on the tab.
-  assert.match(source("src/components/v3/profile/UniversityProgramsTab.tsx"), /<ApplicationCreateDialog workspace=\{admissions\}\s*\/>/u);
+  assert.match(source("src/components/staff/profile/UniversityProgramsTab.tsx"), /<ApplicationCreateDialog workspace=\{admissions\}\s*\/>/u);
   assert.doesNotMatch(controls, /Новая заявка|Добавить заявку/u);
   assert.match(createDialog, />\s*Добавить вуз\s*</u);
   assert.match(createDialog, /"Добавить"/u);
@@ -346,7 +346,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(controls, /needsNote = nextStatus === "rejected" \|\| nextStatus === "withdrawn"/u);
   // Author attribution (plan: «Показывать автора добавления, когда он
   // известен»): quiet metadata line, only rendered when known.
-  assert.match(source("src/components/v3/profile/university-programs-view.ts"), /addedBy: application\?\.createdByDisplayName \?\? null/u);
+  assert.match(source("src/components/staff/profile/university-programs-view.ts"), /addedBy: application\?\.createdByDisplayName \?\? null/u);
   assert.match(controls, /row\.addedBy \? `Добавил: \$\{row\.addedBy\}` : null/u);
   assert.match(controls, /platformApplicationCountryEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /platformApplicationDegreeEditOptions\(defaultValue \|\| null\)/u);
@@ -356,7 +356,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.doesNotMatch(controls, /Сохранено ранее[^<\n]*\$\{/u);
   assert.doesNotMatch(controls, />\s*(?:CN|MY|AE|TR|IT|CZ|foundation|language|bachelor|master|phd)\s*</u);
 
-  const tabs = source("src/components/v3/profile/tabs.tsx");
+  const tabs = source("src/components/staff/profile/tabs.tsx");
   assert.match(tabs, /find\(\(candidate\) => candidate\.isPrimary\)/u);
   assert.doesNotMatch(tabs, /profile\.applications\[0\]/u);
   assert.match(tabs, /Основной вариант ещё не выбран/u);
@@ -364,7 +364,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
 
 test("V3 profile adapter carries application priority and all-day deadline without inference", () => {
   const adapter = source("src/lib/v3/profile-source.ts");
-  const types = source("src/components/v3/profile/types.ts");
+  const types = source("src/components/staff/profile/types.ts");
 
   assert.match(types, /isPrimary: boolean/u);
   assert.match(types, /universityDeadlineOn: string \| null/u);
@@ -376,7 +376,7 @@ test("V3 profile adapter carries application priority and all-day deadline witho
 });
 
 test("finance stop controls submit canonical keys and never render them raw", () => {
-  const controls = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
+  const controls = source("src/components/staff/profile/ProfileAdmissionsWorkspace.tsx");
   const wording = source("src/lib/v3/wording.ts");
 
   assert.match(controls, /<select[\s\S]*name="blocked_action"/u);

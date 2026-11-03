@@ -6,7 +6,7 @@ import { journalEvent } from "../src/lib/v3/wording.ts";
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/132_platform_case_activity_timeline.sql");
 const source = read("src/lib/v3/profile-activity-source.ts");
-const page = read("src/app/(v3)/v3/profile/page.tsx");
+const page = read("src/app/(staff)/profile/page.tsx");
 
 // Source contracts supplement, never replace, actual DB/Auth/browser acceptance.
 test("every action emitted by the real activity projection has user-facing wording", () => {
@@ -76,17 +76,17 @@ test("the history reads the direction change as codes only, requires it on its e
   assert.match(source, /\.\.\.\(directionChange \? \{ directionChange \} : \{\}\)/u);
   // Ни один экран не переводит направление по месту: слова даёт journalEventText.
   for (const file of [
-    "src/components/v3/profile/tabs.tsx",
-    "src/components/v3/profile/case-work-view.ts",
-    "src/components/v3/knowledge/KnowledgeDossiers.tsx",
+    "src/components/staff/profile/tabs.tsx",
+    "src/components/staff/profile/case-work-view.ts",
+    "src/components/staff/knowledge/KnowledgeDossiers.tsx",
     "src/lib/v3/settings-next-journal.ts",
   ]) {
     const text = read(file);
     assert.match(text, /journalEventText\(/u, file);
     assert.doesNotMatch(text, /Направление: |DIRECTION_LABELS/u, file);
   }
-  assert.match(read("src/components/v3/profile/tabs.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
-  assert.match(read("src/components/v3/profile/case-work-view.ts"), /journalEventText\(event\.transition, event\.directionChange\)/u);
+  assert.match(read("src/components/staff/profile/tabs.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
+  assert.match(read("src/components/staff/profile/case-work-view.ts"), /journalEventText\(event\.transition, event\.directionChange\)/u);
   assert.match(read("src/lib/v3/settings-next-journal.ts"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
 });
 

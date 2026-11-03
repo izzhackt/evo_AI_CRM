@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
-const source = readFileSync(new URL("../src/components/v3/settings/StaffDisclosure.tsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/components/staff/settings/StaffDisclosure.tsx", import.meta.url), "utf8");
 const code = ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText;

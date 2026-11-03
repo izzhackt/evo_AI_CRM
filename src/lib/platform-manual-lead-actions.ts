@@ -33,7 +33,7 @@ export async function createManualLeadAction(previous: ManualLeadState, form: Fo
   try {
     const state = await createManualLead(actor, { requestId, name, phone, email, source, ownerId, direction, nextAction, dueDate } as ManualLeadInput);
     // «Заявки» (Э3) открывают ту же форму: лид с сайта сразу встаёт в очередь.
-    if (state.status === "saved") { revalidatePath("/v3/pipeline"); revalidatePath("/v3/requests"); }
+    if (state.status === "saved") { revalidatePath("/pipeline"); revalidatePath("/requests"); }
     // Отдельный вызов после создания: payload `create_manual_sales_lead` не меняется, повтор старой формы
     // не конфликтует. Касание ставится и на существующего лида при `duplicate`, если сервер его вернул.
     if ((state.status === "saved" || state.status === "duplicate") && state.leadId) {

@@ -100,7 +100,7 @@ test("Sales summary accepts only current decision/prose/date, never response his
 });
 
 test("form keeps controlled input on errors and uses real authority not role preview", () => {
-  const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  const form = read("src/components/staff/profile/ProfileSalesTransition.tsx");
   const repository = read("src/lib/platform-handoff-acknowledgement.ts");
   const actions = read("src/lib/platform-handoff-acknowledgement-actions.ts");
   assert.match(form, /value=\{clarification\}/);
@@ -116,7 +116,7 @@ test("form keeps controlled input on errors and uses real authority not role pre
 });
 
 test("S3: «Отклонить» reuses the same form/action, with a required reason and a quiet confirm line", () => {
-  const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  const form = read("src/components/staff/profile/ProfileSalesTransition.tsx");
   const body = form.slice(form.indexOf("export function ProfileHandoffAcknowledgement"));
   assert.match(body, /setDecision\("declined"\); setOpen\(true\); \}\}>\s*\n\s*Отклонить/);
   assert.match(body, /Отклоняется назначение, а не студент: продажа и данные сохранятся\./);

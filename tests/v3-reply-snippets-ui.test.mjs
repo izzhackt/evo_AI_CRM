@@ -6,11 +6,11 @@ import {
   insertReplySnippet,
   insertReplySnippetWithinCodePointLimit,
   isReplyMessageWithinCodePointLimit,
-} from "../src/components/v3/reply-snippets/insert-reply-snippet.ts";
+} from "../src/components/staff/reply-snippets/insert-reply-snippet.ts";
 import {
   createReplySnippetFormKey,
   replySnippetRowFormKey,
-} from "../src/components/v3/reply-snippets/reply-snippet-form-keys.ts";
+} from "../src/components/staff/reply-snippets/reply-snippet-form-keys.ts";
 import { loadV3KnowledgeSurface } from "../src/lib/v3/knowledge-surface.ts";
 import {
   readV3ReplySnippets,
@@ -116,7 +116,7 @@ test("manual composer validation uses Unicode code points instead of UTF-16 unit
 
   // 06.10.2026: the WhatsApp chat composer counts code points (chatTextLength)
   // and refuses over 3000 with a visible reason; the field itself is not capped.
-  const composer = source("src/components/v3/inbox/InboxComposer.tsx");
+  const composer = source("src/components/staff/inbox/InboxComposer.tsx");
   assert.match(composer, /chatTextLength\(value\)/u);
   assert.match(composer, /tooLong = length > WHATSAPP_CHAT_TEXT_LIMIT/u);
   assert.match(composer, /role=\{tooLong \? "alert" : undefined\}/u);
@@ -232,10 +232,10 @@ test("Admissions presentation composes document and snippet readers", async () =
 });
 
 test("picker and CRUD components keep insertion separate from sending", () => {
-  const picker = source("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
-  const section = source("src/components/v3/reply-snippets/KnowledgeReplySnippetSection.tsx");
-  const page = source("src/app/(v3)/v3/knowledge/page.tsx");
-  const snippets = source("src/components/v3/knowledge/KnowledgeSnippets.tsx");
+  const picker = source("src/components/staff/reply-snippets/ReplySnippetPicker.tsx");
+  const section = source("src/components/staff/reply-snippets/KnowledgeReplySnippetSection.tsx");
+  const page = source("src/app/(staff)/knowledge/page.tsx");
+  const snippets = source("src/components/staff/knowledge/KnowledgeSnippets.tsx");
 
   assert.match(picker, /type="button"/u);
   assert.match(picker, /insertReplySnippetWithinCodePointLimit/u);
@@ -269,7 +269,7 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   assert.doesNotMatch(page, /Promise\.all\(\[\s*readCompanyKnowledge/u);
 
   // Мёртвые вкладки «Документы | Шаблоны ответов» (`?tab=snippets` уже перенаправляет на раздел) удалены.
-  assert.equal(existsSync(new URL("../src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../src/components/staff/reply-snippets/KnowledgeWorkspaceTabs.tsx", import.meta.url)), false);
 });
 
 test("fresh request IDs rotate the React form remount keys after refresh", () => {
@@ -288,7 +288,7 @@ test("fresh request IDs rotate the React form remount keys after refresh", () =>
     replySnippetRowFormKey("snippet-1", "update-before", "archive-after"),
   );
 
-  const section = source("src/components/v3/reply-snippets/KnowledgeReplySnippetSection.tsx");
+  const section = source("src/components/staff/reply-snippets/KnowledgeReplySnippetSection.tsx");
   assert.match(section, /key=\{createReplySnippetFormKey\(createRequestId\)\}/u);
   assert.match(section, /key=\{replySnippetRowFormKey\(/u);
 });

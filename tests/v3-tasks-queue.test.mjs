@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { DUE_BUCKETS, dueBandLabel, dueBucket, dueFilterDays, nextFriday, queueDue, weekEnd } from "../src/components/v3/queue/due-bucket.ts";
-import { nextQueueIndex, queueFocusAfterRemoval, rowNeedsReveal } from "../src/components/v3/queue/queue-navigation.ts";
-import { shortPersonName } from "../src/components/v3/queue/person-name.ts";
-import { activeFilterCount, queueHref } from "../src/components/v3/queue/queue-url.ts";
-import { caseChangeForm, currentDeadline, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "../src/components/v3/tasks/task-commands.ts";
+import { DUE_BUCKETS, dueBandLabel, dueBucket, dueFilterDays, nextFriday, queueDue, weekEnd } from "../src/components/staff/queue/due-bucket.ts";
+import { nextQueueIndex, queueFocusAfterRemoval, rowNeedsReveal } from "../src/components/staff/queue/queue-navigation.ts";
+import { shortPersonName } from "../src/components/staff/queue/person-name.ts";
+import { activeFilterCount, queueHref } from "../src/components/staff/queue/queue-url.ts";
+import { caseChangeForm, currentDeadline, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "../src/components/staff/tasks/task-commands.ts";
 import { parsePlatformCaseTaskDeadline } from "../src/lib/platform-admissions-task-contract.ts";
 import { STAFF_TASK_FORM_FIELDS, parseStaffTaskCommand } from "../src/lib/platform-staff-task-contract.ts";
 import { buildTaskQueue, parseTaskQueueFilters, taskQueueNarrowing, taskQueueParams } from "../src/lib/v3/task-queue.ts";
@@ -193,9 +193,9 @@ test("filters live in the URL; old addresses keep working and «Вся кома�
   assert.deepEqual(taskQueueParams(filters()), { view: null, type: null, status: null, due: null, q: null, window: null });
   assert.deepEqual(taskQueueParams(filters({ view: "all", state: "done", query: "визa", window: 2 })),
     { view: "all", type: null, status: "done", due: null, q: "визa", window: "2" });
-  assert.equal(queueHref("/v3/tasks", { view: "all", type: null, q: "" }), "/v3/tasks?view=all");
-  assert.equal(queueHref("/v3/tasks", { view: "all", type: "case" }, { type: null, task: "t1" }), "/v3/tasks?view=all&task=t1");
-  assert.equal(queueHref("/v3/tasks", {}), "/v3/tasks");
+  assert.equal(queueHref("/tasks", { view: "all", type: null, q: "" }), "/tasks?view=all");
+  assert.equal(queueHref("/tasks", { view: "all", type: "case" }, { type: null, task: "t1" }), "/tasks?view=all&task=t1");
+  assert.equal(queueHref("/tasks", {}), "/tasks");
   assert.equal(activeFilterCount(["case", null, "", undefined, "done"]), 2);
 });
 
@@ -216,29 +216,29 @@ test("focus leaving with a completed row moves to the next remaining row, else t
   assert.equal(queueFocusAfterRemoval(keys, "b", new Set(keys)), null);
   assert.equal(queueFocusAfterRemoval(keys, "x", new Set(["x"])), null);
   // The in-place completion lifecycle is shared by «Задачи» and «Сегодня» (useRecentCompletions).
-  const list = read("src/components/v3/tasks/useRecentCompletions.ts");
-  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /useRecentCompletions\(bands\)/u);
+  const list = read("src/components/staff/tasks/useRecentCompletions.ts");
+  assert.match(read("src/components/staff/tasks/TaskQueueList.tsx"), /useRecentCompletions\(bands\)/u);
   // Each completion keeps its own deadline: a refresh or another completion does not extend it.
   assert.match(list, /const expiresAt = Date\.now\(\) \+ TASK_UNDO_MS;/u);
   assert.match(list, /Math\.max\(0, Math\.min\(\.\.\.live\.map\(\(entry\) => entry\.expiresAt\)\) - Date\.now\(\)\)/u);
   assert.match(list, /keepFocusInList\(new Set\(Object\.keys\(recent\)\)/u);
   // «Отменить» — строка в верхнем слое (UndoToast, Э1.3; единственный вид с Э1.5): она называет свою строку.
-  assert.match(read("src/components/v3/blocks/UndoToast.tsx"), /data-queue-undo=""\s*data-undo-row=\{item\.key\}/u);
+  assert.match(read("src/components/staff/blocks/UndoToast.tsx"), /data-queue-undo=""\s*data-undo-row=\{item\.key\}/u);
 });
 
 test("menus close on a choice, popovers carry a role, and a fast double press sends one command", () => {
-  const menu = read("src/components/v3/queue/FilterMenu.tsx");
+  const menu = read("src/components/staff/queue/FilterMenu.tsx");
   assert.match(menu, /onClick=\{\(\) => document\.getElementById\(popoverId\)\?\.hidePopover\(\)\}/u);
   assert.match(menu, /popover="auto"\s+style=\{popoverStyle\}\s+role="group"/u);
-  assert.match(read("src/components/v3/queue/QueueKeyboardHelp.tsx"), /popover="auto"\s+style=\{popoverStyle\}\s+role="dialog"/u);
-  const row = read("src/components/v3/tasks/TaskQueueRow.tsx");
+  assert.match(read("src/components/staff/queue/QueueKeyboardHelp.tsx"), /popover="auto"\s+style=\{popoverStyle\}\s+role="dialog"/u);
+  const row = read("src/components/staff/tasks/TaskQueueRow.tsx");
   assert.match(row, /popover="auto" style=\{menu\.popoverStyle\} role="group"/u);
   assert.match(row, /<Link href=\{moveHref\} scroll=\{false\} onClick=\{\(\) => document\.getElementById\(menu\.popoverId\)\?\.hidePopover\(\)\}/u);
   // `pending` changes only after a render; the lock is synchronous.
   assert.equal(row.match(/if \(busy\.current\) return;\s+busy\.current = true;/gu)?.length, 2, "complete and postpone");
   // Undo (UndoToast): a second press while the reverse command runs sends nothing.
-  assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /onUndo: \(\) => \{\s*if \(state\?\.pending\) return;/u);
-  assert.match(read("src/components/v3/queue/QueueFieldPopover.tsx"), /if \(busy\.current\) return;[\s\S]*busy\.current = true;[\s\S]*await onSubmit\(value\)/u);
+  assert.match(read("src/components/staff/tasks/useRecentCompletions.ts"), /onUndo: \(\) => \{\s*if \(state\?\.pending\) return;/u);
+  assert.match(read("src/components/staff/queue/QueueFieldPopover.tsx"), /if \(busy\.current\) return;[\s\S]*busy\.current = true;[\s\S]*await onSubmit\(value\)/u);
 });
 
 test("a deep-linked selected row is scrolled into view only when it is hidden", () => {
@@ -248,7 +248,7 @@ test("a deep-linked selected row is scrolled into view only when it is hidden", 
   // Fully visible: a click on the row never moves the list.
   assert.equal(rowNeedsReveal({ top: 460, bottom: 513 }, 900), false);
   assert.equal(rowNeedsReveal({ top: 48, bottom: 900 }, 900), false);
-  const hook = read("src/components/v3/queue/useQueueKeyboard.ts");
+  const hook = read("src/components/staff/queue/useQueueKeyboard.ts");
   assert.match(hook, /if \(openKey !== null\) revealQueueRow\(openKey\);/u);
   assert.match(hook, /rowNeedsReveal\(row\.getBoundingClientRect\(\), window\.innerHeight\)[\s\S]*row\.scrollIntoView\(\{ block: "center" \}\)/u);
 });
@@ -299,27 +299,27 @@ test("«Перенести на завтра» keeps the task's own time and is 
 test("view tabs are real links with aria-current and numbers only where the read has them", () => {
   const mine = surfaces.get("mine-default");
   const tabs = mine.slice(mine.indexOf('data-testid="queue-view-tabs"'), mine.indexOf('data-testid="queue-toolbar"'));
-  assert.match(tabs, /aria-current="page"[^>]*href="\/v3\/tasks">Мои<span class="tabular-nums text-fg-3">12<\/span>/u);
-  assert.match(tabs, /href="\/v3\/tasks\?view=created">Поставил я<\/a>/u, "no read of «Поставил я» — no number");
-  assert.match(tabs, /href="\/v3\/tasks\?view=all">Вся команда<\/a>/u);
+  assert.match(tabs, /aria-current="page"[^>]*href="\/tasks">Мои<span class="tabular-nums text-fg-3">12<\/span>/u);
+  assert.match(tabs, /href="\/tasks\?view=created">Поставил я<\/a>/u, "no read of «Поставил я» — no number");
+  assert.match(tabs, /href="\/tasks\?view=all">Вся команда<\/a>/u);
   const team = surfaces.get("team-view");
-  assert.match(team, /aria-current="page"[^>]*href="\/v3\/tasks\?view=all">Вся команда<span class="tabular-nums text-fg-3">16<\/span>/u);
+  assert.match(team, /aria-current="page"[^>]*href="\/tasks\?view=all">Вся команда<span class="tabular-nums text-fg-3">16<\/span>/u);
   assert.match(team, />Поставил я<span class="tabular-nums text-fg-3">7<\/span>/u);
   // An incomplete read shows neither tab nor band numbers, and says so.
   const partial = surfaces.get("incomplete");
   assert.doesNotMatch(partial, /tabular-nums text-fg-3">\d/u);
   assert.doesNotMatch(partial, /· \d+<\/span><\/h2>/u);
   assert.match(partial, /Показаны не все задачи/u);
-  assert.match(partial, /href="\/v3\/tasks\?window=2">Показать больше задач/u);
+  assert.match(partial, /href="\/tasks\?window=2">Показать больше задач/u);
 });
 
 test("a partial read never says there are no tasks: only the read part is empty", () => {
   // Review 25.09: the case queue arrives by due date without a state filter, so
   // past and closed tasks can fill the limit before today's are read.
   for (const [name, more] of [
-    ["incomplete-empty", "/v3/tasks?window=2"],
-    ["incomplete-empty-today", "/v3/tasks?due=today&amp;window=2"],
-    ["incomplete-empty-search", "/v3/tasks?q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=2"],
+    ["incomplete-empty", "/tasks?window=2"],
+    ["incomplete-empty-today", "/tasks?due=today&amp;window=2"],
+    ["incomplete-empty-search", "/tasks?q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=2"],
   ]) {
     const html = surfaces.get(name);
     assert.match(html, new RegExp(`data-testid="queue-empty"><p class="t-item text-fg">В прочитанной части списка ничего не найдено</p><a[^>]*href="${more.replaceAll("?", "\\?")}"[^>]*>Показать больше задач</a>`, "u"), name);
@@ -328,12 +328,12 @@ test("a partial read never says there are no tasks: only the read part is empty"
     assert.doesNotMatch(html, /tabular-nums text-fg-3">\d/u, `${name}: no numbers`);
   }
   // At the limit: only a lever that shrinks the cut-off server read, or nothing.
-  assert.match(surfaces.get("incomplete-limit"), /Показаны не все задачи[^<]*<a[^>]*href="\/v3\/tasks\?due=today&amp;window=4">Показать мои задачи на сегодня<\/a>/u);
+  assert.match(surfaces.get("incomplete-limit"), /Показаны не все задачи[^<]*<a[^>]*href="\/tasks\?due=today&amp;window=4">Показать мои задачи на сегодня<\/a>/u);
   const mineLimit = surfaces.get("incomplete-limit-mine");
   assert.match(mineLimit, /Показаны не все задачи, числа скрыты\.<\/p>/u);
   assert.doesNotMatch(mineLimit, /Сузьте|Показать больше задач/u);
   assert.match(surfaces.get("incomplete-limit-empty"),
-    /В прочитанной части списка ничего не найдено<\/p><a[^>]*href="\/v3\/tasks\?due=today&amp;q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=4"[^>]*>Показать задачи на сегодня<\/a>/u);
+    /В прочитанной части списка ничего не найдено<\/p><a[^>]*href="\/tasks\?due=today&amp;q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=4"[^>]*>Показать задачи на сегодня<\/a>/u);
   // A complete read keeps its exact empty words.
   assert.match(surfaces.get("empty-today"), />На сегодня задач нет</u);
 });
@@ -341,13 +341,13 @@ test("a partial read never says there are no tasks: only the read part is empty"
 test("filters keep the rest of the URL, show the value inside and escape overflow via the popover API", () => {
   const html = surfaces.get("team-case-filter");
   assert.match(html, /Тип: <span class="text-fg">По студентам<\/span>/u);
-  assert.match(html, /aria-label="Убрать фильтр: Тип: По студентам"[^>]*href="\/v3\/tasks\?view=all&amp;due=overdue"/u);
-  assert.match(html, /aria-current="true"[^>]*href="\/v3\/tasks\?view=all&amp;type=case&amp;due=overdue"><span[^>]*>По студентам/u);
+  assert.match(html, /aria-label="Убрать фильтр: Тип: По студентам"[^>]*href="\/tasks\?view=all&amp;due=overdue"/u);
+  assert.match(html, /aria-current="true"[^>]*href="\/tasks\?view=all&amp;type=case&amp;due=overdue"><span[^>]*>По студентам/u);
   assert.match(html, /popover="auto"[^>]*class="v3-anchored/u);
   assert.match(html, /<input type="hidden" name="view" value="all"\/><input type="hidden" name="type" value="case"\/><input type="hidden" name="due" value="overdue"\/>/u);
   assert.match(html, />Сбросить<\/a>/u);
   assert.doesNotMatch(surfaces.get("mine-default"), />Сбросить<\/a>/u, "nothing selected — no reset");
-  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \.v3-anchored \{[^}]*position-area: block-end span-inline-end;/u);
+  assert.match(read("src/app/(staff)/staff.css"), /\.v3-world \.v3-anchored \{[^}]*position-area: block-end span-inline-end;/u);
 });
 
 test("the body groups rows under due bands and completes in the row", () => {
@@ -431,7 +431,7 @@ test("the assignee is marked wherever it has no column of its own", () => {
 test("the student name links to the case only for a mouse on a wide screen", () => {
   const row = surfaces.get("mine-default");
   const caseRow = row.slice(row.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
-  assert.match(caseRow, /<a title="Тимур Абдылдаев" class="relative z-10 hidden h-6 min-w-0 items-center [^"]*md:pointer-fine:flex" href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001">/u);
+  assert.match(caseRow, /<a title="Тимур Абдылдаев" class="relative z-10 hidden h-6 min-w-0 items-center [^"]*md:pointer-fine:flex" href="\/profile\?case=dddddddd-2222-4222-8222-000000000001">/u);
   assert.match(caseRow, /<span class="min-w-0 truncate md:pointer-fine:hidden">Тимур Абдылдаев<\/span>/u);
   // Everywhere else the whole row opens the task; the panel header carries «Открыть дело».
 });
@@ -457,27 +457,27 @@ test("the composer's optional sections use the drawn chevron, not the browser ma
 });
 
 test("the loading skeleton keeps the date column before the title", () => {
-  const skeleton = read("src/components/v3/queue/QueueStates.tsx");
+  const skeleton = read("src/components/staff/queue/QueueStates.tsx");
   assert.match(skeleton, /<span className="hidden w-28 shrink-0 sm:block"><SkeletonBlock className="h-3\.5 w-12 rounded-nav" \/><\/span>\s*<div className="min-w-0 flex-1 space-y-1\.5">/u);
 });
 
 test("empty, restricted and «Поставил я» states are honest", () => {
   const empty = surfaces.get("empty-today");
-  assert.match(empty, /role="status"[^>]*data-testid="queue-empty"><p class="t-item text-fg">На сегодня задач нет<\/p><a[^>]*href="\/v3\/tasks"[^>]*>Показать все открытые<\/a>/u);
+  assert.match(empty, /role="status"[^>]*data-testid="queue-empty"><p class="t-item text-fg">На сегодня задач нет<\/p><a[^>]*href="\/tasks"[^>]*>Показать все открытые<\/a>/u);
   assert.match(surfaces.get("no-queue-access"), /В вашей роли нет права на просмотр задач\. Новую задачу можно создать строкой выше\./u);
   assert.match(surfaces.get("created-view"), /Здесь только рабочие задачи/u);
   assert.match(surfaces.get("done-view"), />Завершённые и отменённые</u);
   assert.match(surfaces.get("done-view"), /<span class="sr-only">выполнена<\/span>/u, "the check mark is announced, not only drawn");
-  assert.match(read("src/app/(v3)/v3/tasks/loading.tsx"), /<QueueSkeleton \/>/u);
+  assert.match(read("src/app/(staff)/tasks/loading.tsx"), /<QueueSkeleton \/>/u);
 });
 
 test("the calendar loses only «Сводка на Главной» and its second red button", () => {
-  const page = read("src/app/(v3)/v3/calendar/page.tsx");
-  assert.doesNotMatch(page, /Сводка на Главной|href="\/v3\/main"|from "@\/components\/ui"|from "next\/link"/u);
+  const page = read("src/app/(staff)/calendar/page.tsx");
+  assert.doesNotMatch(page, /Сводка на Главной|href="\/main"|from "@\/components\/ui"|from "next\/link"/u);
   assert.doesNotMatch(page, /<PartShell|<Calendar\b/u, "прежней рамки нет (#1327): календарь рисует «Новый вид»");
   assert.match(page, /<CalendarNextLazy/u);
-  assert.doesNotMatch(read("src/app/(v3)/v3/calendar/loading.tsx"), /h-16/u);
-  const calendar = read("src/components/v3/calendar/Calendar.tsx");
+  assert.doesNotMatch(read("src/app/(staff)/calendar/loading.tsx"), /h-16/u);
+  const calendar = read("src/components/staff/calendar/Calendar.tsx");
   // Э7: одна кнопка на экран — «Создать задачу» оболочки открывает тот же диалог с днём календаря;
   // своя тихая кнопка календаря с тем же именем — только у того, у кого кнопки оболочки нет.
   const button = calendar.slice(calendar.indexOf("<TaskComposerDialog"), calendar.indexOf("Создать задачу</>}"));

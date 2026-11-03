@@ -28,7 +28,7 @@ import type {
 } from "../platform-private-documents.ts";
 import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 // Смена направления в «Журнале» и «Истории» (блок рядом с `journalActor`): названия направлений - тот же словарь, что у очереди, доски и дела.
-import { DIRECTION_LABELS } from "../../components/v3/profile/admissions-view.ts";
+import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view.ts";
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
 import { studyCountryOptions } from "../study-countries.ts";
 

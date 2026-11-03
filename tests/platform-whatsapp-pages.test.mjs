@@ -11,12 +11,12 @@ function source(relativePath) {
 }
 
 test("V3 Inbox owns the canonical queue, the selected chat and its composer", () => {
-  const page = source("src/app/(v3)/v3/inbox/page.tsx");
+  const page = source("src/app/(staff)/inbox/page.tsx");
   const inboxSource = source("src/lib/v3/inbox-source.ts");
-  const inbox = source("src/components/v3/Inbox.tsx");
-  const chat = source("src/components/v3/inbox/InboxChat.tsx");
+  const inbox = source("src/components/staff/Inbox.tsx");
+  const chat = source("src/components/staff/inbox/InboxChat.tsx");
 
-  assert.match(page, /requireV3PageActor\("\/v3\/inbox"\)/);
+  assert.match(page, /requireV3PageActor\("\/inbox"\)/);
   assert.match(page, /readInbox\(actor/);
   assert.match(
     page,
@@ -38,13 +38,13 @@ test("V3 Inbox owns the canonical queue, the selected chat and its composer", ()
 });
 
 test("the «Ответ и отправка» block and the amoCRM panel are physically gone from the sales chat (06.10.2026)", () => {
-  assert.equal(existsSync(path("src/components/v3/InboxProviderWorkflowControls.tsx")), false);
+  assert.equal(existsSync(path("src/components/staff/InboxProviderWorkflowControls.tsx")), false);
   const surfaces = [
-    "src/app/(v3)/v3/inbox/page.tsx",
+    "src/app/(staff)/inbox/page.tsx",
     "src/lib/v3/inbox-source.ts",
-    "src/components/v3/Inbox.tsx",
-    "src/components/v3/inbox/InboxChat.tsx",
-    "src/components/v3/inbox/InboxComposer.tsx",
+    "src/components/staff/Inbox.tsx",
+    "src/components/staff/inbox/InboxChat.tsx",
+    "src/components/staff/inbox/InboxComposer.tsx",
   ].map((file) => source(file)).join("\n");
   for (const gone of [
     /CanonicalAmoCrmCommandPanel/u,
@@ -74,6 +74,6 @@ test("the superseded V2 Inbox routes and controls are physically removed", () =>
 });
 
 test("amoCRM commands stay where they belong: the profile and the settings, not the chat", () => {
-  assert.match(source("src/components/v3/profile/ProfileAmoCrmCommandSection.tsx"), /CanonicalAmoCrmCommandPanel/u);
+  assert.match(source("src/components/staff/profile/ProfileAmoCrmCommandSection.tsx"), /CanonicalAmoCrmCommandPanel/u);
   assert.equal(existsSync(path("src/components/platform/amocrm/CanonicalAmoCrmCommandPanel.tsx")), true);
 });

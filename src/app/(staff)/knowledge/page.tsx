@@ -1,0 +1,21 @@
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { PageShell } from "@/components/kit";
+import { KnowledgeDocuments } from "@/components/staff/knowledge/KnowledgeDocuments";
+import { KnowledgeSnippets } from "@/components/staff/knowledge/KnowledgeSnippets";
+import { KnowledgeLibrarySkeleton } from "@/components/staff/knowledge/KnowledgeSkeleton";
+import { KnowledgeNextLazy } from "@/components/staff/knowledge/next/KnowledgeNextLazy";
+import { requireV3PageActor } from "@/lib/platform-guards";
+import { requireKnowledgeAdmin } from "@/lib/v3/knowledge-library-source";
+export const dynamic = "force-dynamic";
+export const metadata = { title: "База знаний" };
+export default async function KnowledgePart({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const actor = await requireV3PageActor("/knowledge"); requireKnowledgeAdmin(actor);
+  const query = await searchParams;
+  if (query.tab === "snippets") redirect("/knowledge?section=snippets");
+  const section = query.section === "documents" || query.section === "snippets" ? query.section : null;
+  // «Новый вид» (единственный вид, #1327): вкладки разделов, таблицы и панели.
+  return <Suspense fallback={<PageShell title="База знаний"><KnowledgeLibrarySkeleton /></PageShell>}><KnowledgeNextLazy commandScope={`${actor.organizationId}:${actor.membershipId}`} section={section}>
+    {section === "documents" ? <KnowledgeDocuments actor={actor} embedded next /> : section === "snippets" ? <KnowledgeSnippets actor={actor} next /> : null}
+  </KnowledgeNextLazy></Suspense>;
+}

@@ -21,7 +21,7 @@
  *     → stdout: JSON [{ name, html }] — серверная разметка сценариев без
  *       оболочки (для tests/v3-tasks-queue.test.mjs).
  *   node tests/e2e/tasks-static-render.cjs --screenshots [outDir]
- *     → страницы с AppShell, CSS из globals.css + v3.css (Tailwind v4 через
+ *     → страницы с AppShell, CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке) и снимки Playwright Chromium
  *       1440×900, 1280×800 и 390×844; по умолчанию outDir — .impeccable/review
  *       (не коммитится). Тело «Задач» в браузере отрисовывает сам React —
@@ -96,7 +96,7 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-const { TasksWorkspace } = require(join(ROOT, "src/components/v3/tasks/TasksWorkspace.tsx"));
+const { TasksWorkspace } = require(join(ROOT, "src/components/staff/tasks/TasksWorkspace.tsx"));
 const { buildTaskQueue, parseTaskQueueFilters } = require(join(ROOT, "src/lib/v3/task-queue.ts"));
 
 // --- синтетические данные ---------------------------------------------------
@@ -167,8 +167,8 @@ const CALLBACKS = [
   staff(22, { title: "Перезвонить клиенту: недозвон", dueAt: "2026-09-24T09:30:00.000Z" }),
 ];
 const CALLBACK_LEADS = {
-  [`staff:${staffId(21)}`]: { leadId: "ffffffff-7777-4777-8777-000000000021", name: "Айдар Условный", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000021" },
-  [`staff:${staffId(22)}`]: { leadId: "ffffffff-7777-4777-8777-000000000022", name: "Номер ••••4521", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000022" },
+  [`staff:${staffId(21)}`]: { leadId: "ffffffff-7777-4777-8777-000000000021", name: "Айдар Условный", href: "/profile?id=ffffffff-7777-4777-8777-000000000021" },
+  [`staff:${staffId(22)}`]: { leadId: "ffffffff-7777-4777-8777-000000000022", name: "Номер ••••4521", href: "/profile?id=ffffffff-7777-4777-8777-000000000022" },
 };
 
 // Три прошедшие закрытые задачи по студентам: так выглядит начало очереди,
@@ -278,7 +278,7 @@ function withContexts(node, pathname, search) {
 
 function renderWorkspace(name) {
   const { props, search } = SCENARIOS[name];
-  return renderToStaticMarkup(withContexts(createElement(TasksWorkspace, props), "/v3/tasks", search));
+  return renderToStaticMarkup(withContexts(createElement(TasksWorkspace, props), "/tasks", search));
 }
 
 async function compileCss() {
@@ -290,11 +290,11 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), ...cssModules].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), ...cssModules].join("\n");
 }
 
 function appShell(content, pathname, search) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const page = createElement(
     "div",
     { className: "v3-world", "data-surface": "staff" },
@@ -304,8 +304,8 @@ function appShell(content, pathname, search) {
 }
 
 function shell(title, count, body, search) {
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-  return appShell(createElement(PartShell, { title, count }, body), title === "Календарь" ? "/v3/calendar" : "/v3/tasks", search);
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
+  return appShell(createElement(PartShell, { title, count }, body), title === "Календарь" ? "/calendar" : "/tasks", search);
 }
 
 /** Контейнер тела «Задач»: браузерная сборка отрисовывает в нём TasksWorkspace заново. */
@@ -326,19 +326,19 @@ function clientFixture(name) {
 
 /** Загрузка — настоящий `loading.tsx` страницы внутри AppShell. */
 function renderTasksLoadingPage() {
-  const { default: TasksLoading } = require(join(ROOT, "src/app/(v3)/v3/tasks/loading.tsx"));
-  return appShell(createElement(TasksLoading), "/v3/tasks", "");
+  const { default: TasksLoading } = require(join(ROOT, "src/app/(staff)/tasks/loading.tsx"));
+  return appShell(createElement(TasksLoading), "/tasks", "");
 }
 
 /** Ошибка чтения — тот же QueueError и текст, что у page.tsx при сбое чтения задач. */
 function renderTasksErrorPage() {
-  const { QueueError } = require(join(ROOT, "src/components/v3/queue/QueueStates.tsx"));
-  return shell("Задачи", undefined, createElement(QueueError, { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/v3/tasks" }), "");
+  const { QueueError } = require(join(ROOT, "src/components/staff/queue/QueueStates.tsx"));
+  return shell("Задачи", undefined, createElement(QueueError, { text: "Не удалось загрузить задачи и доступных сотрудников.", retryHref: "/tasks" }), "");
 }
 
 function renderCalendarPage() {
-  const { Calendar } = require(join(ROOT, "src/components/v3/calendar/Calendar.tsx"));
-  const { gridDays } = require(join(ROOT, "src/components/v3/calendar/types.ts"));
+  const { Calendar } = require(join(ROOT, "src/components/staff/calendar/Calendar.tsx"));
+  const { gridDays } = require(join(ROOT, "src/components/staff/calendar/types.ts"));
   const days = gridDays("week", TODAY);
   const task = (n, fields) => ({
     kind: "case", key: `case:${caseTaskId(40 + n)}`, id: caseTaskId(40 + n), studentCaseId: caseId(40 + n), taskType: "follow_up",
@@ -357,7 +357,7 @@ function renderCalendarPage() {
     undatedCursor: null, cases: [], casesHaveMore: false, assignees: [], actorMembershipId: ME, actor: ACTOR,
     createRequestId: "99999999-6666-4666-8666-000000000001", taskRequestIds: Object.fromEntries(tasks.map((item) => [item.key, {
       change: "99999999-6666-4666-8666-000000000002", complete: "99999999-6666-4666-8666-000000000003", cancel: "99999999-6666-4666-8666-000000000004",
-    }])), basePath: "/v3/calendar",
+    }])), basePath: "/calendar",
   });
   return shell("Календарь", undefined, body, "view=week");
 }
@@ -371,14 +371,14 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import { TasksWorkspace } from "../../src/components/v3/tasks/TasksWorkspace";
+import { TasksWorkspace } from "../../src/components/staff/tasks/TasksWorkspace";
 
 const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
 // push записывается: Esc панели — это router.push(closeHref); проверка клавиш под «Отменить» его читает.
 const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push(href) { (globalThis.__staticPushes ||= []).push(String(href)); }, replace() {}, prefetch() {} };
 createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
   createElement(AppRouterContext.Provider, { value: router },
-    createElement(PathnameContext.Provider, { value: "/v3/tasks" },
+    createElement(PathnameContext.Provider, { value: "/tasks" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
         createElement(TasksWorkspace, { ...fixture.props, panel: null })))),
 );
@@ -609,7 +609,7 @@ async function screenshots() {
           // «Дата…» раскрывает день и время «по Бишкеку» — подсказка часового пояса живёт только здесь.
           await page.click('[data-testid="v3-task-composer-dialog"] button:has-text("Дата…")');
         }
-        // Цвета состояний меняются с переходом 150 мс (v3.css): снимок — после него.
+        // Цвета состояний меняются с переходом 150 мс (staff.css): снимок — после него.
         if (step) await page.waitForTimeout(400);
         if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
         const metrics = await page.evaluate(() => {

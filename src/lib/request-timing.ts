@@ -13,7 +13,7 @@ import { readReleaseMetadata } from "./release-metadata.ts";
  * `server/request-timing-node.ts` (его ставит `src/instrumentation.ts`).
  *
  * В строку попадают только числа, перечисления и шаблон маршрута Next
- * (`/v3/profile/[caseId]`), никогда сырой путь, query, заголовки, cookie, IP,
+ * (`/profile/[caseId]`), никогда сырой путь, query, заголовки, cookie, IP,
  * id пользователя, дела, лида или клиента.
  */
 

@@ -76,24 +76,24 @@ export function decodeStaffNotifications(value: unknown): StaffNotificationPage 
         || (row.parent_message_id !== null && !isStaffNotificationId(row.parent_message_id))) return fail();
       const query = new URLSearchParams({ channel: String(row.channel_key), message: row.message_id });
       if (typeof row.parent_message_id === "string") query.set("thread", row.parent_message_id);
-      href = `/v3/team-chat?${query}`;
+      href = `/team-chat?${query}`;
     } else if (row.kind === "task_assigned" || row.kind === "task_updated") {
       if (!isStaffNotificationId(row.staff_task_id)) return fail();
-      href = `/v3/tasks?task=${row.staff_task_id}`;
+      href = `/tasks?task=${row.staff_task_id}`;
     } else if (row.kind === "case_help") {
       if (!isStaffNotificationId(row.student_case_id) || !isStaffNotificationId(row.help_request_id)) return fail();
-      href = `/v3/profile?case=${row.student_case_id}&tab=route#case-help`;
+      href = `/profile?case=${row.student_case_id}&tab=route#case-help`;
     } else if (row.kind === "case_task_assigned") {
       if (!isStaffNotificationId(row.case_task_id) || !isStaffNotificationId(row.student_case_id)) return fail();
-      href = `/v3/tasks?task=${row.case_task_id}&kind=case&case=${row.student_case_id}`;
+      href = `/tasks?task=${row.case_task_id}&kind=case&case=${row.student_case_id}`;
     } else if (row.kind === "task_due") {
-      if (isStaffNotificationId(row.staff_task_id)) href = `/v3/tasks?task=${row.staff_task_id}`;
+      if (isStaffNotificationId(row.staff_task_id)) href = `/tasks?task=${row.staff_task_id}`;
       else if (isStaffNotificationId(row.case_task_id) && isStaffNotificationId(row.student_case_id)) {
-        href = `/v3/tasks?task=${row.case_task_id}&kind=case&case=${row.student_case_id}`;
+        href = `/tasks?task=${row.case_task_id}&kind=case&case=${row.student_case_id}`;
       } else return fail();
     } else if (row.kind === "case_message") {
       if (!isStaffNotificationId(row.student_case_id)) return fail();
-      href = `/v3/messages?case=${row.student_case_id}`;
+      href = `/messages?case=${row.student_case_id}`;
     } else return fail();
     return {
       id: row.id, kind: row.kind, createdAt: row.created_at, readAt: row.read_at, href,

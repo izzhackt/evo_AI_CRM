@@ -133,7 +133,7 @@ aiHandlers.readAiAgentStatus = async () => ({ state: "ready", keyAccepted: true,
 aiSend.aiAutosendServerState = () => (scenario.autosendOn ? "on" : "off");
 aiAuth.aiAgentFeatureOn = () => true;
 
-const page = (path) => require(join(ROOT, "src/app", "(v3)", "v3", path, "page.tsx")).default;
+const page = (path) => require(join(ROOT, "src/app", "(staff)", path, "page.tsx")).default;
 const MEMBER = fx.settings.MEMBERS[2].membershipId;
 const PAUSE = { code: "provider_down", byKind: "service", at: "2026-10-27T08:00:00Z", reasonRu: "Сессия WhatsApp не в работе" };
 /** [имя, маршрут, параметры адреса, сценарий]. */
@@ -171,7 +171,7 @@ const SCREENS = [
   ["ai-documents-paused", "ai-agent", {}, { pause: PAUSE }],
 ];
 const DEFAULTS = { providers: "production", wazzup: false, reports: true, finance: "configured", pause: null, autosendOn: true, journal: "named" };
-const pathOf = (route) => `/v3/${route}`;
+const pathOf = (route) => `/${route}`;
 
 async function renderAll(modes) {
   const out = [];

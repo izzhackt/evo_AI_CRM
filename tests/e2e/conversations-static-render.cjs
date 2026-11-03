@@ -6,15 +6,15 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Переписки: «Переписка» (`/v3/messages`, пункт «Поступления»; до решения
- * владельца 28.09.2026 — «Переписка со студентами») и WhatsApp (`/v3/inbox`,
+ * Переписки: «Переписка» (`/messages`, пункт «Поступления»; до решения
+ * владельца 28.09.2026 — «Переписка со студентами») и WhatsApp (`/inbox`,
  * пункт «Продаж») — две отдельные страницы по решению владельца 27.09.2026
  * вместо одного пункта «Переписки» с каналами (Э5). «Переписка» сохраняет
  * всё Э5: очереди с числами, шапку переписки с видимым переключателем
  * состояния, шаблоны ответа в поле ответа и следующую переписку в пустой
  * правой части; WhatsApp — честное «не подключён».
  *
- * Страницы строят НАСТОЯЩИЕ `v3/messages/page.tsx` и `v3/inbox/page.tsx`:
+ * Страницы строят НАСТОЯЩИЕ `messages/page.tsx` и `inbox/page.tsx`:
  * их чтения подменены синтетическими (актёр, чтение очередей 234 — через
  * настоящий `readCaseChatQueueWith`, страница переписки, строка очереди 241,
  * шаблоны, WhatsApp «не подключён»). Оболочка (`AppShell`) и рабочая часть
@@ -41,7 +41,7 @@
  *       JSON-строками; при нарушении — код выхода 1.
  *   node tests/e2e/conversations-static-render.cjs --whatsapp-chat [outDir]
  *     → «Продажи → WhatsApp» как чат (решение владельца 06.10.2026, миграция
- *       266): настоящая страница `v3/inbox/page.tsx` с синтетическим чтением,
+ *       266): настоящая страница `inbox/page.tsx` с синтетическим чтением,
  *       гидратированная клиентским чатом. Снимки 1440×900 и 390×844: лента со
  *       всеми происхождениями (клиент, из CRM, с телефона, история), разделители
  *       дней, состояния отправок (неизвестен — «Проверить»; не найдено после
@@ -255,15 +255,15 @@ const QUEUE_ROW = {
 
 // --- настоящие страницы с подменёнными чтениями -------------------------------------
 const NOT_CONNECTED_VIEW = Object.freeze({
-  conversations: [], selected: null, queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: null,
-  searchQuery: null, sort: "newest", sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState: "not_connected",
+  conversations: [], selected: null, queueCurrentHref: "/inbox", queueNewestHref: null, queueOlderHref: null,
+  searchQuery: null, sort: "newest", sortHrefs: { newest: "/inbox", unanswered: "/inbox?sort=unanswered" }, channelState: "not_connected",
   listPulse: null,
 });
 
 function stubReads({ actor, rows, inbox = NOT_CONNECTED_VIEW }) {
   const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
   guards.requireV3PageActor = async () => actor;
-  const { readCaseChatQueueWith } = require(join(ROOT, "src/components/v3/case-chat/case-chat-queue.ts"));
+  const { readCaseChatQueueWith } = require(join(ROOT, "src/components/staff/case-chat/case-chat-queue.ts"));
   const chat = require(join(ROOT, "src/lib/v3/case-chat-source.ts"));
   chat.readStaffCaseChatQueue = async (_actor, query, queue) => readCaseChatQueueWith(async (filter) => {
     const needle = (query ?? "").trim().toLocaleLowerCase("ru");
@@ -299,7 +299,7 @@ const SCENARIOS = {
 };
 const TITLES = { messages: "Переписка", inbox: "WhatsApp" };
 
-const pathnameOf = (scenario) => (scenario.page === "messages" ? "/v3/messages" : "/v3/inbox");
+const pathnameOf = (scenario) => (scenario.page === "messages" ? "/messages" : "/inbox");
 const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
 
 /** Дерево страницы: для «Кабинета студента» — разметка и пропсы для гидратации. */
@@ -307,7 +307,7 @@ async function buildPage(name) {
   const scenario = SCENARIOS[name];
   const actor = ACTORS[scenario.actor];
   stubReads({ actor, rows: scenario.rows });
-  const file = scenario.page === "messages" ? "src/app/(v3)/v3/messages/page.tsx" : "src/app/(v3)/v3/inbox/page.tsx";
+  const file = scenario.page === "messages" ? "src/app/(staff)/messages/page.tsx" : "src/app/(staff)/inbox/page.tsx";
   const { default: Page } = require(join(ROOT, file));
   const element = await Page({ searchParams: Promise.resolve(scenario.search) });
   if (scenario.page === "messages") {
@@ -319,13 +319,13 @@ async function buildPage(name) {
 
 // --- оболочка -------------------------------------------------------------------
 function shellTree({ actor, pathname, search, body, cabinet, chatApp = null }) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const content = chatApp
-    ? h(require(join(ROOT, "src/components/v3/PartShell.tsx")).PartShell, chatApp.main,
-      h(require(join(ROOT, "src/components/v3/Inbox.tsx")).Inbox, chatApp.inbox))
+    ? h(require(join(ROOT, "src/components/staff/PartShell.tsx")).PartShell, chatApp.main,
+      h(require(join(ROOT, "src/components/staff/Inbox.tsx")).Inbox, chatApp.inbox))
     : cabinet
-    ? h(require(join(ROOT, "src/components/v3/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...cabinet.main },
-      h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, cabinet.workspace))
+    ? h(require(join(ROOT, "src/components/staff/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...cabinet.main },
+      h(require(join(ROOT, "src/components/staff/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, cabinet.workspace))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
     h("div", { className: "v3-world", "data-surface": "staff" },
@@ -342,7 +342,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), readFileSync(join(ROOT, "src/app/(v3)/ai-agent.css"), "utf8"), ...cssModules.values()].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), readFileSync(join(ROOT, "src/app/(staff)/ai-agent.css"), "utf8"), ...cssModules.values()].join("\n");
 }
 
 // --- браузерная сборка ----------------------------------------------------------
@@ -377,11 +377,11 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { ChatPageShell } = require("@/components/v3/chats-next/ChatPageShell");
-const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
-const { PartShell } = require("@/components/v3/PartShell");
-const { Inbox } = require("@/components/v3/Inbox");
+const { AppShell } = require("@/components/staff/AppShell");
+const { ChatPageShell } = require("@/components/staff/chats-next/ChatPageShell");
+const { CaseChatWorkspace } = require("@/components/staff/case-chat/CaseChatThread");
+const { PartShell } = require("@/components/staff/PartShell");
+const { Inbox } = require("@/components/staff/Inbox");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
 window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], autosend: [], refreshes: 0, polls: 0 };
@@ -503,7 +503,7 @@ async function buildClientBundle(outFile, entry = CLIENT_ENTRY) {
   // видит новое состояние, и снимок показывает, что переключатель зовёт
   // прежнюю команду, а список перечитывается через onListChanged → refreshList.
   const caseChatStub = `
-import { composeCaseChatQueue } from "@/components/v3/case-chat/case-chat-queue";
+import { composeCaseChatQueue } from "@/components/staff/case-chat/case-chat-queue";
 const fixture = () => JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
 let store = null;
 const rows = () => (store ??= fixture().rows.map((item) => ({ ...item })));
@@ -775,7 +775,7 @@ async function screenshots() {
           check(metrics.solidRed === 0, `${file}: ${metrics.solidRed} solid red controls with an empty field`);
         }
         // У продаж «Переписки» поступления нет: ни пункта, ни ссылки.
-        if (name === "whatsapp-sales") check(!metrics.menu.some((item) => item.includes("=/v3/messages")), `${file}: student chat in the sales menu`);
+        if (name === "whatsapp-sales") check(!metrics.menu.some((item) => item.includes("=/messages")), `${file}: student chat in the sales menu`);
       }
     }
 
@@ -914,7 +914,7 @@ const WA_CONVERSATION = waId(1);
 // одинаковыми четырьмя цифрами — их различают две следующие цифры.
 const waRow = (n, person, phone, updatedAt, waitingSince = null, awaitingReplyFor = null) => ({
   id: waId(n), person, phone, queue: "sales", status: "open", updatedAt, waitingSince, awaitingReplyFor,
-  href: `/v3/inbox?conversation=${waId(n)}`,
+  href: `/inbox?conversation=${waId(n)}`,
 });
 const WA_ROWS = [
   waRow(1, "Аружан Примерова", "+996 ••• 31 07 15", "06.10 13:40", "06.10 13:40", "20 мин"),
@@ -987,8 +987,8 @@ function waView({ selected = true, chat = {}, row = 0, channelState = "ready", s
       canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
       chat: waChat(chat),
     } : null,
-    queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
-    searchQuery: null, sort, sortHrefs: { newest: "/v3/inbox", unanswered: "/v3/inbox?sort=unanswered" }, channelState,
+    queueCurrentHref: "/inbox", queueNewestHref: null, queueOlderHref: "/inbox?before_at=x&before_id=y",
+    searchQuery: null, sort, sortHrefs: { newest: "/inbox", unanswered: "/inbox?sort=unanswered" }, channelState,
     listPulse: "0000000000000002",
   };
 }
@@ -1029,7 +1029,7 @@ async function buildWhatsAppPage(name) {
   const scenario = WA_SCENARIOS[name];
   const actor = ACTORS[scenario.actor];
   stubReads({ actor, rows: ALL_ROWS, inbox: scenario.inbox });
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/inbox/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/inbox/page.tsx"));
   const element = await Page({ searchParams: Promise.resolve(scenario.search) });
   const { children: inbox, ...main } = element.props;
   return { actor, scenario, chatApp: { main, inbox: inbox.props } };
@@ -1100,7 +1100,7 @@ async function whatsappScreenshots() {
   const htmlFor = {};
   for (const name of Object.keys(WA_SCENARIOS)) {
     const { actor, scenario, chatApp } = await buildWhatsAppPage(name);
-    const pathname = "/v3/inbox";
+    const pathname = "/inbox";
     const search = searchOf(scenario);
     const markup = renderToString(shellTree({ actor, pathname, search, body: null, cabinet: null, chatApp }));
     const data = JSON.stringify({
@@ -1300,7 +1300,7 @@ async function whatsappScreenshots() {
 // вёрстки; вузы и цены условные. Окно гидратируется настоящим клиентским
 // компонентом; поток агента, сохранённый ответ и вставку отвечает синтетика
 // вкладки (fixture.ai), ничего не отправляется. Раздел — настоящая страница
-// `v3/ai-agent/page.tsx` с подменёнными чтениями, разметка сервера.
+// `ai-agent/page.tsx` с подменёнными чтениями, разметка сервера.
 const AI_SECRET = "synthetic-harness-ai-agent-secret-000000000000";
 const AI_ACTOR = { ...ACTORS.sales, permissionKeys: [...ACTORS.sales.permissionKeys, "ai.agent.use", "ai.agent.manage"] };
 const AI_ADMIN = { ...ACTORS.admin };
@@ -1422,7 +1422,7 @@ async function buildAiChatPage(name, scenario = AI_SCENARIOS[name]) {
   if (scenario.featureOff) delete process.env.EVO_AI_AGENT_INTERNAL_SECRET;
   else process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
   stubReads({ actor: AI_ACTOR, rows: ALL_ROWS, inbox: waView() });
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/inbox/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/inbox/page.tsx"));
   const element = await Page({ searchParams: Promise.resolve({ conversation: WA_CONVERSATION }) });
   const { children: inbox, ...main } = element.props;
   return { actor: AI_ACTOR, chatApp: { main, inbox: inbox.props } };
@@ -1512,10 +1512,10 @@ async function buildAiSectionMarkup(name, scenario = AI_SECTION_SCENARIOS[name])
   source.readAiSpend = async () => available(normalizeAiSpend, AI_SPEND);
   require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => (
     scenario.featureOff ? { state: "off" } : { state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/ai-agent/page.tsx"));
   const search = scenario.section === "documents" ? {} : { section: scenario.section };
   const element = await Page({ searchParams: Promise.resolve(search) });
-  return { actor: scenario.actor, search: new URLSearchParams(search).toString(), body: renderToStaticMarkup(withContexts(element, "/v3/ai-agent", new URLSearchParams(search).toString())) };
+  return { actor: scenario.actor, search: new URLSearchParams(search).toString(), body: renderToStaticMarkup(withContexts(element, "/ai-agent", new URLSearchParams(search).toString())) };
 }
 
 function aiMetrics() {
@@ -1630,17 +1630,17 @@ async function aiScreenshots(mode) {
     for (const name of Object.keys(AI_SCENARIOS)) {
       const { actor, chatApp } = await buildAiChatPage(name);
       const search = `conversation=${WA_CONVERSATION}`;
-      const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+      const markup = renderToString(shellTree({ actor, pathname: "/inbox", search, body: null, cabinet: null, chatApp }));
       htmlFor[name] = page(`chat-${name}`, "WhatsApp", markup, {
-        actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+        actor, pathname: "/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
         pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: AI_SCENARIOS[name].ai,
       });
     }
   } else {
     for (const name of Object.keys(AI_SECTION_SCENARIOS)) {
       const { actor, search, body } = await buildAiSectionMarkup(name);
-      const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
-      htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+      const markup = renderToString(shellTree({ actor, pathname: "/ai-agent", search, body, cabinet: null }));
+      htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
     }
   }
 
@@ -1727,7 +1727,7 @@ async function aiScreenshots(mode) {
     // поднятая капсула (data-lifted, как при showJump) стоит над кнопкой. Кнопка — с настоящими
     // классами из InboxChat.tsx; появление её по прокрутке и новому сообщению здесь не проверяется.
     {
-      const jumpClass = readFileSync(join(ROOT, "src/components/v3/inbox/InboxChat.tsx"), "utf8")
+      const jumpClass = readFileSync(join(ROOT, "src/components/staff/inbox/InboxChat.tsx"), "utf8")
         .match(/onClick=\{jumpToNewest\}\s+className="([^"]+)"/u)?.[1];
       check(!!jumpClass, "lift: the jump button classes were not found in InboxChat.tsx");
       // Подъём — с переходом bottom 200 мс: сначала поставить кнопку и data-lifted, замер — через 320 мс.
@@ -2069,7 +2069,7 @@ const AI_P3_SECTION = {
 const TOGGLE_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
-const { AiMemoryToggle } = require("@/components/v3/ai-agent/AiMemoryToggle");
+const { AiMemoryToggle } = require("@/components/staff/ai-agent/AiMemoryToggle");
 const { btnGhostCls } = require("@/components/ui");
 const h = React.createElement;
 window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], refreshes: 0, polls: 0 };
@@ -2106,7 +2106,7 @@ function memoryMetrics() {
     hintVisible: (() => { const hint = block?.querySelector('[data-testid="v3-ai-memory-hint"]'); return hint ? getComputedStyle(hint).display !== "none" : null; })(),
     paused: text('[data-testid="v3-ai-memory-paused"]'),
     retry: [...(block?.querySelectorAll("button") ?? [])].some((button) => button.textContent.trim() === "Повторить"),
-    enableLink: !!block?.querySelector('a[href="/v3/ai-agent?section=spend#ai-memory"]'),
+    enableLink: !!block?.querySelector('a[href="/ai-agent?section=spend#ai-memory"]'),
     interest: text('[data-testid="v3-ai-memory-interest"]'),
     summaryClamped: summary ? summary.hasAttribute("data-clamped") : null,
     summaryOverflows: summary ? summary.scrollHeight > summary.clientHeight + 1 : null,
@@ -2157,16 +2157,16 @@ async function aiP3Screenshots() {
   for (const [name, scenario] of Object.entries(AI_P3_CHAT)) {
     const { actor, chatApp } = await buildAiChatPage(name, scenario);
     const search = `conversation=${WA_CONVERSATION}`;
-    const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+    const markup = renderToString(shellTree({ actor, pathname: "/inbox", search, body: null, cabinet: null, chatApp }));
     htmlFor[name] = page(`chat-${name}`, "WhatsApp", markup, {
-      actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+      actor, pathname: "/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
       pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: scenario.ai,
     });
   }
   for (const [name, scenario] of Object.entries(AI_P3_SECTION)) {
     const { actor, search, body } = await buildAiSectionMarkup(name, scenario);
-    const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
-    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+    const markup = renderToString(shellTree({ actor, pathname: "/ai-agent", search, body, cabinet: null }));
+    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
   }
 
   const { chromium } = require("playwright");
@@ -2401,7 +2401,7 @@ async function aiP3Screenshots() {
 // --- «ИИ-агент» P4: «Автоответчик» — раздел, окно ИИ, подпись в ленте ------------------
 // Настройки, журнал, сводка, чаты и тексты ВЫДУМАНЫ (тот же синтетический чат
 // «Аружан Примерова»); формы чтений — как у 277 (ветка P4 SQL). Раздел —
-// настоящая страница `v3/ai-agent/page.tsx` с подменёнными чтениями (разметка
+// настоящая страница `ai-agent/page.tsx` с подменёнными чтениями (разметка
 // сервера); окно ИИ — настоящий клиентский компонент; «Автоответчик в этом
 // чате» отвечает синтетика вкладки (fixture.ai.autosend). Ни базы, ни агента,
 // ни WhatsApp: ничего не отправляется.
@@ -2541,11 +2541,11 @@ async function buildAutosendSectionMarkup(name, scenario = AI_P4_SECTION[name]) 
     })) } } : read };
   };
   require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => ({ state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/ai-agent/page.tsx"));
   const search = scenario.section === "documents" ? {} : { section: "autosend", ...scenario.search };
   const element = await Page({ searchParams: Promise.resolve(search) });
   const query = new URLSearchParams(search).toString();
-  return { actor: AI_ACTOR, search: query, body: renderToStaticMarkup(withContexts(element, "/v3/ai-agent", query)) };
+  return { actor: AI_ACTOR, search: query, body: renderToStaticMarkup(withContexts(element, "/ai-agent", query)) };
 }
 
 // Ночной диалог: клиент пишет после 20:00, отвечает «Автоответчик» от имени ответственного.
@@ -2583,7 +2583,7 @@ async function buildAutosendChatPage(name, scenario = AI_P4_CHAT[name]) {
   process.env.EVO_AI_AGENT_INTERNAL_SECRET = AI_SECRET;
   stubReads({ actor: AI_ACTOR, rows: ALL_ROWS, inbox: waView({ chat: { messages: AUTOREPLY_MESSAGES, attempts: [], autoreplyAtNight: scenario.chip,
     latestInboundMessageId: waId(115), hasOlder: true } }) });
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/inbox/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/inbox/page.tsx"));
   const element = await Page({ searchParams: Promise.resolve({ conversation: WA_CONVERSATION }) });
   const { children: inbox, ...main } = element.props;
   return { actor: AI_ACTOR, chatApp: { main, inbox: inbox.props } };
@@ -2593,7 +2593,7 @@ async function buildAutosendChatPage(name, scenario = AI_P4_CHAT[name]) {
 const SETTINGS_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
-const { AiAutosendSettingsForm } = require("@/components/v3/ai-agent/AiAutosendSettingsForm");
+const { AiAutosendSettingsForm } = require("@/components/staff/ai-agent/AiAutosendSettingsForm");
 const { normalizeAiAutosendSettings } = require("@/lib/v3/ai-agent-autosend");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
@@ -2616,7 +2616,7 @@ createRoot(document.getElementById("root")).render(
 const MODE_ENTRY = `
 const React = require("react");
 const { createRoot } = require("react-dom/client");
-const { AiAutosendModeSwitch } = require("@/components/v3/ai-agent/AiAutosendModeSwitch");
+const { AiAutosendModeSwitch } = require("@/components/staff/ai-agent/AiAutosendModeSwitch");
 const h = React.createElement;
 window.__harness = { pushes: [], recoverable: [], errors: [], actions: [], aiRefs: [], memory: [], autosend: [], refreshes: 0, polls: 0 };
 const action = async (_previous, form) => {
@@ -2710,16 +2710,16 @@ async function aiP4Screenshots() {
   for (const [name, scenario] of Object.entries(AI_P4_CHAT)) {
     const { actor, chatApp } = await buildAutosendChatPage(name, scenario);
     const search = `conversation=${WA_CONVERSATION}`;
-    const markup = renderToString(shellTree({ actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp }));
+    const markup = renderToString(shellTree({ actor, pathname: "/inbox", search, body: null, cabinet: null, chatApp }));
     htmlFor[name] = page(name, "WhatsApp", markup, {
-      actor, pathname: "/v3/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
+      actor, pathname: "/inbox", search, body: null, cabinet: null, chatApp, rows: [], readAt: WA_READ_AT,
       pulse: { list: "0000000000000002", chat: "0000000000000001" }, older: { messages: [], hasOlder: false }, ai: scenario.ai,
     });
   }
   for (const [name, scenario] of Object.entries(AI_P4_SECTION)) {
     const { actor, search, body } = await buildAutosendSectionMarkup(name, scenario);
-    const markup = renderToString(shellTree({ actor, pathname: "/v3/ai-agent", search, body, cabinet: null }));
-    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/v3/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
+    const markup = renderToString(shellTree({ actor, pathname: "/ai-agent", search, body, cabinet: null }));
+    htmlFor[name] = page(name, "ИИ-агент", markup, { actor, pathname: "/ai-agent", search, body, cabinet: null, rows: [], readAt: WA_READ_AT });
   }
   htmlFor["settings-live"] = page("settings-live", "Автоответчик", "", { settings: AUTOSEND_SETTINGS }, "ai-agent-p4-settings.js");
   htmlFor["mode-live"] = page("mode-live", "Автоответчик", "", {}, "ai-agent-p4-mode.js");

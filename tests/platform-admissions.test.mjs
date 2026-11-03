@@ -221,7 +221,7 @@ test("Student 360 application summary preserves the partial-page signal and lowe
     preview: {
       visibleCount: 5,
       hasMore: true,
-      fullListHref: `/v3/profile?case=${CASE_ID}`,
+      fullListHref: `/profile?case=${CASE_ID}`,
     },
   });
   assert.throws(
@@ -436,13 +436,13 @@ function applicationRow(overrides = {}) {
 
 test("Platform route contract admits only the retained V3 product pages", () => {
   for (const path of [
-    "/v3/main",
-    "/v3/pipeline",
-    "/v3/inbox",
-    "/v3/profile",
-    "/v3/calendar",
-    "/v3/knowledge",
-    "/v3/settings",
+    "/main",
+    "/pipeline",
+    "/inbox",
+    "/profile",
+    "/calendar",
+    "/knowledge",
+    "/settings",
   ]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
@@ -460,7 +460,6 @@ test("Platform route contract admits only the retained V3 product pages", () => 
     `/applications/${APPLICATION_ID}/history`,
     "/visa",
     `/visa/${APPLICATION_ID}`,
-    "/finance",
     `/finance/${APPLICATION_ID}`,
     "/whatsapp",
     `/whatsapp/${CASE_ID}`,
@@ -1060,10 +1059,10 @@ test("connected Platform runtime modules do not statically import SQLite or lega
   const files = [
     "src/lib/platform-admissions.ts",
     "src/lib/platform-admissions-actions.ts",
-    "src/app/(v3)/v3/calendar/page.tsx",
-    "src/app/(v3)/v3/profile/page.tsx",
-    "src/components/v3/calendar/TaskControls.tsx",
-    "src/components/v3/profile/ProfileAdmissionsWorkspace.tsx",
+    "src/app/(staff)/calendar/page.tsx",
+    "src/app/(staff)/profile/page.tsx",
+    "src/components/staff/calendar/TaskControls.tsx",
+    "src/components/staff/profile/ProfileAdmissionsWorkspace.tsx",
   ];
   for (const file of files) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");

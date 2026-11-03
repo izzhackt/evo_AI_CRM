@@ -9,8 +9,8 @@
  * Рендер досок «Воронка продаж» и «Воронка поступления» (решение владельца
  * 25.09.2026: на всю ширину, без прокрутки вбок).
  *
- * Рендерит НАСТОЯЩИЕ страницы `src/app/(v3)/v3/pipeline/page.tsx` и
- * `src/app/(v3)/v3/admissions-pipeline/page.tsx` внутри настоящих AppShell и
+ * Рендерит НАСТОЯЩИЕ страницы `src/app/(staff)/pipeline/page.tsx` и
+ * `src/app/(staff)/admissions-pipeline/page.tsx` внутри настоящих AppShell и
  * PartShell. Подменены только границы данных и прав (чтения Supabase,
  * серверные действия, проверка сотрудника): вместо них — СИНТЕТИЧЕСКИЕ
  * данные из tests/e2e/boards-fixtures.cjs. Живой Supabase, права, серверные
@@ -20,7 +20,7 @@
  *     → stdout: JSON [{ name, html }] — страницы в оболочке (для
  *       tests/v3-boards.test.mjs).
  *   node tests/e2e/boards-static-render.cjs --screenshots [outDir]
- *     → статическая разметка с CSS из globals.css + v3.css (Tailwind v4 через
+ *     → статическая разметка с CSS из globals.css + staff.css (Tailwind v4 через
  *       @tailwindcss/postcss, как в сборке), снимки Playwright Chromium
  *       1280×800, 1440×900, 1536×864, 1920×1080, 390×844 и 360×800 плюс измерения в
  *       stdout (JSON-строки). Без гидратации: открытое меню открывается
@@ -165,12 +165,12 @@ function withContexts(node, pathname, search) {
 
 const PAGES = {
   sales: {
-    pathname: "/v3/pipeline", module: "src/app/(v3)/v3/pipeline/page.tsx",
-    loading: "src/app/(v3)/v3/pipeline/loading.tsx", title: "Воронка продаж",
+    pathname: "/pipeline", module: "src/app/(staff)/pipeline/page.tsx",
+    loading: "src/app/(staff)/pipeline/loading.tsx", title: "Воронка продаж",
   },
   admissions: {
-    pathname: "/v3/admissions-pipeline", module: "src/app/(v3)/v3/admissions-pipeline/page.tsx",
-    loading: "src/app/(v3)/v3/admissions-pipeline/loading.tsx", title: "Воронка поступления",
+    pathname: "/admissions-pipeline", module: "src/app/(staff)/admissions-pipeline/page.tsx",
+    loading: "src/app/(staff)/admissions-pipeline/loading.tsx", title: "Воронка поступления",
   },
 };
 
@@ -233,7 +233,7 @@ Object.assign(SCENARIOS, NEXT_SCENARIOS);
  */
 async function renderPageTree(pageKey, search, { loading = false, rows = "default", actor = "admin" } = {}) {
   const { pathname, module, loading: loadingModule } = PAGES[pageKey];
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   selectSalesRows(rows);
   setActor(actor);
   const originalUuid = nodeCrypto.randomUUID;
@@ -242,7 +242,7 @@ async function renderPageTree(pageKey, search, { loading = false, rows = "defaul
     const content = loading
       ? createElement(require(join(ROOT, loadingModule)).default)
       : await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
-    // `data-ui="next"` ставит layout `(v3)` у всех ролей.
+    // `data-ui="next"` ставит layout `(staff)` у всех ролей.
     const tree = createElement(
       "div",
       { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
@@ -269,8 +269,8 @@ async function renderScenario(name) {
  */
 async function nextProps() {
   const { assertFlightPropsExpanded } = require("./flight-props-expand.cjs");
-  const { PipelineClosedNextLazy, PipelineNextLazy } = require(join(ROOT, "src/components/v3/pipeline-next/PipelineNextLazy.tsx"));
-  const { AdmissionsPipelineNextLazy } = require(join(ROOT, "src/components/v3/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx"));
+  const { PipelineClosedNextLazy, PipelineNextLazy } = require(join(ROOT, "src/components/staff/pipeline-next/PipelineNextLazy.tsx"));
+  const { AdmissionsPipelineNextLazy } = require(join(ROOT, "src/components/staff/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx"));
   const findElement = (node, predicate) => {
     if (!node || typeof node !== "object") return null;
     if (Array.isArray(node)) { for (const item of node) { const found = findElement(item, predicate); if (found) return found; } return null; }
@@ -342,12 +342,12 @@ async function compileCss(fontBase = null) {
     const base = fontBase ? `${fontBase}/${font}/files` : pathToFileURL(join(dir, "files")).href;
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${base}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 /** Та же функция размещения меню, что в TopLayerMenu, для страницы без гидратации. */
 function placeMenuSource() {
-  const code = ts.transpileModule(readFileSync(join(ROOT, "src/components/v3/board/menu-position.ts"), "utf8"), {
+  const code = ts.transpileModule(readFileSync(join(ROOT, "src/components/staff/board/menu-position.ts"), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   return `(() => { const exports = {}; ${code}; window.__placeMenu = exports.placeMenu; })();`;
@@ -549,10 +549,10 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
+const { AppShell } = require("@/components/staff/AppShell");
 const PAGES = {
-  "/v3/pipeline": () => require("@/app/(v3)/v3/pipeline/page").default,
-  "/v3/admissions-pipeline": () => require("@/app/(v3)/v3/admissions-pipeline/page").default,
+  "/pipeline": () => require("@/app/(staff)/pipeline/page").default,
+  "/admissions-pipeline": () => require("@/app/(staff)/admissions-pipeline/page").default,
 };
 const h = React.createElement;
 const IMAGE = { ...imageConfigDefault, unoptimized: true };
@@ -749,7 +749,7 @@ async function hydrate() {
   try {
     // 1. Продажи, 1440: панель встаёт в ряд с доской, Escape, возврат фокуса.
     {
-      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/v3/pipeline");
+      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/pipeline");
       await cardLink(page, 11).click();
       await panel(page).waitFor();
       const opened = { url: page.url().replace(origin, ""), focus: await focusState(page), metrics: await page.evaluate(measure) };
@@ -786,7 +786,7 @@ async function hydrate() {
 
     // 2. Продажи, 1920: шести колонкам рядом с панелью хватает места.
     {
-      const { context, page, console_ } = await open({ width: 1920, height: 1080 }, "/v3/pipeline");
+      const { context, page, console_ } = await open({ width: 1920, height: 1080 }, "/pipeline");
       await cardLink(page, 11).click();
       await panel(page).waitFor();
       report({ journey: "sales-panel-1920", metrics: await page.evaluate(measure), console: console_ });
@@ -796,7 +796,7 @@ async function hydrate() {
 
     // 3. Телефон: модальный лист, страница за ним инертна, Escape без фокуса в листе.
     {
-      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/v3/pipeline", true);
+      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/pipeline", true);
       await cardLink(page, 1).click();
       await panel(page).waitFor();
       const sheet = await page.evaluate(() => {
@@ -813,7 +813,7 @@ async function hydrate() {
       await panel(page).waitFor({ state: "detached" });
       const closed = { url: page.url().replace(origin, ""), focus: await focusState(page) };
       // Обновление страницы с ?lead=: серверный <dialog open> становится модальным.
-      await page.goto(`${origin}/v3/pipeline?lead=${leadId(5)}`, { waitUntil: "load" });
+      await page.goto(`${origin}/pipeline?lead=${leadId(5)}`, { waitUntil: "load" });
       await page.waitForSelector("html[data-hydrated=true]");
       await page.waitForTimeout(200);
       const reloaded = await page.evaluate(() => {
@@ -827,7 +827,7 @@ async function hydrate() {
 
     // 4. Рейка меню, 1280: подпись при фокусе клавиатуры.
     {
-      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/v3/pipeline");
+      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/pipeline");
       let hint = null;
       const reached = [];
       for (let step = 0; step < 12 && !hint; step += 1) {
@@ -852,7 +852,7 @@ async function hydrate() {
     // пункта. Считаем мутации DOM в меню за 1 с наведения: подпись не должна
     // перерисовывать меню по кругу. Затем курсор уходит на доску: подпись
     // должна исчезнуть.
-    for (const path of ["/v3/pipeline", "/v3/admissions-pipeline"]) {
+    for (const path of ["/pipeline", "/admissions-pipeline"]) {
       const { context, page, console_ } = await open({ width: 1280, height: 800 }, path);
       const tipText = () => page.evaluate(() => {
         const tip = [...document.querySelectorAll('nav[aria-label="Разделы"] span[aria-hidden="true"].fixed')]
@@ -931,7 +931,7 @@ async function hydrate() {
 
     // 5. Поступление, 1440: меню дела щелчком (размещение самого компонента) и перетаскивание.
     {
-      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/v3/admissions-pipeline");
+      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/admissions-pipeline");
       const trigger = page.locator('[data-testid="v3-admissions-pipeline-card"]').nth(3).getByRole("button", { name: "Действия с делом" });
       await trigger.click();
       await page.waitForSelector("[popover]:popover-open");
@@ -975,7 +975,7 @@ async function hydrate() {
     // раскрыт «Переданы», рабочие этапы свёрнуты в рейки, имена не обрезаны.
     // Затем закрытие крестиком и обновление того же адреса на 1536 px.
     {
-      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/v3/pipeline");
+      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/pipeline");
       await page.locator('[data-testid="v3-pipeline-rail"][href$="stage=handed_off"]').click();
       await page.waitForURL(/stage=handed_off/u);
       await cardLink(page, 13).first().click();
@@ -990,7 +990,7 @@ async function hydrate() {
       await panel(page).waitFor({ state: "detached" });
       const closed = { url: page.url().replace(origin, ""), focus: await focusState(page), metrics: await page.evaluate(measure) };
       await page.setViewportSize({ width: 1536, height: 864 });
-      await page.goto(`${origin}/v3/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
+      await page.goto(`${origin}/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
       await page.waitForSelector("html[data-hydrated=true]");
       await page.waitForTimeout(200);
       const reloaded1536 = { url: page.url().replace(origin, ""), metrics: await page.evaluate(measure) };
@@ -1004,7 +1004,7 @@ async function hydrate() {
     // этап с делами; выбор этапа пишется в адрес без запроса к серверу, и
     // обновление страницы открывает тот же этап.
     {
-      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/v3/admissions-pipeline?country=AE", true);
+      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/admissions-pipeline?country=AE", true);
       const shown = () => page.evaluate(() => ({
         select: document.querySelector('[data-testid="v3-admissions-pipeline-board"] select')?.value ?? null,
         column: [...document.querySelectorAll('[data-testid="v3-admissions-pipeline-column"]')]
@@ -1068,7 +1068,7 @@ async function f1() {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-      await page.goto(`${origin}/v3/pipeline?lead=${lead}`, { waitUntil: "load" });
+      await page.goto(`${origin}/pipeline?lead=${lead}`, { waitUntil: "load" });
       await page.waitForSelector("html[data-hydrated=true]", { timeout: 15_000 });
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(400);
@@ -1145,7 +1145,7 @@ async function hydrateClose() {
   try {
     // 1. 1440: панель → «⋯» → окно → «Другое» с текстом → закрыт → возврат.
     {
-      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/v3/pipeline");
+      const { context, page, console_ } = await open({ width: 1440, height: 900 }, "/pipeline");
       await cardLink(page, 6).click();
       await panel(page).waitFor();
       await panel(page).getByRole("button", { name: "Ещё действия" }).click();
@@ -1192,7 +1192,7 @@ async function hydrateClose() {
         focusOnCard: await page.evaluate(() => Boolean(document.activeElement?.closest('[data-testid="v3-pipeline-card"]'))),
       };
       // Переданный лид — продажа: пункт недоступен и называет причину.
-      await page.goto(`${origin}/v3/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
+      await page.goto(`${origin}/pipeline?lead=${leadId(13)}`, { waitUntil: "load" });
       await page.waitForSelector("html[data-hydrated=true]");
       await panel(page).getByRole("button", { name: "Ещё действия" }).click();
       await page.waitForSelector('[data-testid="v3-lead-actions-menu"]:popover-open');
@@ -1205,7 +1205,7 @@ async function hydrateClose() {
     }
     // 2. Телефон 390: окно поверх модального листа панели.
     {
-      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/v3/pipeline", true);
+      const { context, page, console_ } = await open({ width: 390, height: 844 }, "/pipeline", true);
       await cardLink(page, 1).click();
       await panel(page).waitFor();
       await panel(page).getByRole("button", { name: "Ещё действия" }).click();
@@ -1241,7 +1241,7 @@ async function hydrateClose() {
     }
     // 3. «Закрытые лиды»: список с причиной и датой, на ноутбуке и телефоне.
     for (const [size, viewport, mobile] of [["1440", { width: 1440, height: 900 }, false], ["390", { width: 390, height: 844 }, true]]) {
-      const { context, page, console_ } = await open(viewport, "/v3/pipeline?view=closed", mobile);
+      const { context, page, console_ } = await open(viewport, "/pipeline?view=closed", mobile);
       const list = await page.evaluate(() => ({
         rows: [...document.querySelectorAll('[data-testid="v3-closed-leads"] li')].map((row) => row.textContent.replace(/\s+/gu, " ").trim()),
         h1: document.querySelector("main h1")?.textContent?.trim(),
@@ -1279,7 +1279,7 @@ async function hydrateUndo() {
   // Подсказка Next.js в режиме разработки о логотипе оболочки (LCP) к доске не относится.
   const pageErrors = (messages) => messages.filter((text) => !/Largest Contentful Paint/u.test(text));
   const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
-  // Снимок после появления строки (160 мс, v3.css): видно итоговое состояние, а не середину перехода.
+  // Снимок после появления строки (160 мс, staff.css): видно итоговое состояние, а не середину перехода.
   const shot = async (page, name, width) => {
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(outDir, `f2-${name}-${width}.png`) });
@@ -1290,7 +1290,7 @@ async function hydrateUndo() {
     const console_ = [];
     page.on("console", (message) => { if (message.type() === "error" || message.type() === "warning") console_.push(message.text()); });
     page.on("pageerror", (error) => console_.push(`pageerror: ${error.message}`));
-    await page.goto(`${origin}/v3/admissions-pipeline`, { waitUntil: "load" });
+    await page.goto(`${origin}/admissions-pipeline`, { waitUntil: "load" });
     await page.waitForSelector("html[data-hydrated=true]", { timeout: 15_000 });
     await page.evaluate(() => document.fonts.ready);
     return { context, page, console_ };

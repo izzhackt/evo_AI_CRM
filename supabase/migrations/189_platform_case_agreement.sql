@@ -67,7 +67,7 @@
 --     (src/lib/v3/portal-source.ts) was strict on both fields -> this is the
 --     ONE allowed portal exception the plan pre-authorizes: WIDENED to accept
 --     null, plus the one display call site
---     (src/components/v3/portal/PaymentsView.tsx `<time dateTime=…>`) that
+--     (src/components/staff/portal/PaymentsView.tsx `<time dateTime=…>`) that
 --     needed a null-safe prop. No portal UX/behaviour otherwise touched. This
 --     function ALSO returns its own `overdue BOOLEAN` column, computed with
 --     the exact same NULL-unsafe `due_at < transaction_timestamp()` shape as

@@ -58,7 +58,7 @@ test("company-file actions use exact forms, live permission authorization and fa
     source,
     /BigInt\(nextVersion\) !== BigInt\(expected\.previousVersion\) \+ BigInt\(1\)/g,
   );
-  assert.match(source, /revalidatePath\("\/v3\/knowledge"\)/);
+  assert.match(source, /revalidatePath\("\/knowledge"\)/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|fallback/i);
 });
 

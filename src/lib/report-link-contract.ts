@@ -12,7 +12,7 @@ export const isReportKey = (value: unknown): value is ReportKey => value === "ma
 
 export const REPORT_TITLE: Readonly<Record<ReportKey, string>> = { marketing: "Маркетинг", finance: "Финансы" };
 /** Куда ведёт «Открыть раздел» после сохранения. */
-export const REPORT_SECTION_HREF: Readonly<Record<ReportKey, string>> = { marketing: "/v3/marketing?view=reports", finance: "/v3/finance" };
+export const REPORT_SECTION_HREF: Readonly<Record<ReportKey, string>> = { marketing: "/marketing?view=reports", finance: "/finance" };
 
 export type ReportLink = Readonly<{
   reportKey: ReportKey;

@@ -17,11 +17,11 @@ import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, 
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
-import { caseSaleBlocks } from "@/components/v3/profile/case-work-view";
+import { caseSaleBlocks } from "@/components/staff/profile/case-work-view";
 import type {
   DocumentCaseLinkTarget,
   DocumentGroup,
-} from "@/components/v3/profile/document-types";
+} from "@/components/staff/profile/document-types";
 import type {
   PersonProfile,
   ProfileAdmissionsWorkspace,
@@ -29,11 +29,11 @@ import type {
   ProfileDraft,
   ProfileRouteTarget,
   ProfileSalesSnapshot,
-} from "@/components/v3/profile/types";
+} from "@/components/staff/profile/types";
 import {
   profileFieldSourceVersions,
   profileSalesHandoffSnapshot,
-} from "@/components/v3/profile/types";
+} from "@/components/staff/profile/types";
 import {
   getPlatformStudentCaseView,
   listPlatformApplicationsForStudentCase,
@@ -1198,7 +1198,7 @@ export async function readProfileTarget(
       params.set("activity_before_at", cursor.at);
       params.set("activity_before_id", cursor.id);
     }
-    return `/v3/profile?${params}`;
+    return `/profile?${params}`;
   };
   return Object.freeze({
     ...core,

@@ -123,19 +123,19 @@ test("the form action checks the permission and the preview before it writes, an
   assert.ok(actions.indexOf("isStaffPreview(actor)") < actions.indexOf("setStudentCaseDirection("), "the preview never writes");
   assert.ok(actions.indexOf('staffHasPermission(actor, "case.curator.assign")') < actions.indexOf("setStudentCaseDirection("), "the permission comes first");
   assert.ok(!/case\.route\.manage/u.test(actions), "the ordinary curator permission is not enough");
-  assert.ok(actions.includes('revalidatePath("/v3/profile")'));
+  assert.ok(actions.includes('revalidatePath("/profile")'));
   assert.ok(lines.filter((line) => line.includes('status: receipt.changed ? "saved" : "unchanged"')).length === 1, "saved only from the receipt");
   // При отказе идентификатор запроса остаётся тем же (повтор не запишет дважды), кроме конфликта.
   assert.ok(actions.includes('status === "request_conflict" || requestId === null ? randomUUID() : requestId'));
 });
 
 test("the case page offers the action only to who assigns curators and reads the case, on a case not closed, with a real version", () => {
-  const parts = source("src/components/v3/profile/CaseWorkParts.tsx");
+  const parts = source("src/components/staff/profile/CaseWorkParts.tsx");
   const gate = parts.slice(parts.indexOf("const directionAction ="), parts.indexOf("const acceptContext"));
   for (const part of ['!preview', '!assignOnly', 'staffHasPermission(actor, "case.curator.assign")', "input.requestIds.direction", "work.row !== null", 'admissions.caseState !== "closed"', "work.row.admissionsVersion"]) {
     assert.ok(gate.includes(part), `the gate keeps ${part}`);
   }
-  assert.ok(source('src/app/(v3)/v3/profile/page.tsx').includes("direction: randomUUID()"), "the page gives the form its own request id");
+  assert.ok(source('src/app/(staff)/profile/page.tsx').includes("direction: randomUUID()"), "the page gives the form its own request id");
 });
 
 test("«Сведения»: Admin and the head see «Задать направление» / «Сменить»; the curator, the preview, the closed case and the needs-curator reader see the plain value", () => {

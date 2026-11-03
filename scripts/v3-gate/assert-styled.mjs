@@ -4,7 +4,7 @@ import { expect } from "@playwright/test";
 /**
  * The ground of each V3 surface, proved as computed `.v3-world` background. The
  * staff CRM (`data-surface="staff"`) lives on the warm gray desk `--bg: #f3f1ec`
- * (CLAUDE.md, v3.css `.v3-world[data-surface="staff"]`); the base `.v3-world`
+ * (CLAUDE.md, staff.css `.v3-world[data-surface="staff"]`); the base `.v3-world`
  * (student cabinet) keeps `#f3f3f3`.
  */
 const WORLD_BACKGROUND = Object.freeze({ staff: "rgb(243, 241, 236)", base: "rgb(243, 243, 243)" });
@@ -57,7 +57,7 @@ export async function assertStyled(page, base, { v3 = false, surface = "base" } 
   assert.equal(applied.accent, "#d70217", "EVO accent did not apply");
   assert.ok(applied.font.includes("Golos Text Variable"), "EVO body font did not apply");
   assert.equal(applied.fontLoaded, true, "EVO font did not load");
-  if (v3) {
+  if (staff) {
     assert.ok(applied.world, "V3 theme is absent");
     assert.equal(applied.world.surface ?? "base", surface, "V3 surface is not the one under test");
     assert.equal(applied.world.background, WORLD_BACKGROUND[surface], "V3 background did not apply");

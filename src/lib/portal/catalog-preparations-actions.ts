@@ -31,7 +31,7 @@ async function selectPreparation(
     const receipt = parseCatalogPreparationReceipt(response.data, intent);
     if (!receipt) return { ok: false, reason: "unavailable" };
     revalidatePath("/portal");
-    revalidatePath("/v3/profile");
+    revalidatePath("/profile");
     return { ok: true, receipt };
   } catch {
     // Do not replace the request ID or invent a successful selection after a lost response.

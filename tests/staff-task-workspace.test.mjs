@@ -143,8 +143,8 @@ test("Admin actual and admissions preview retain case queue; Sales preview does 
 });
 
 test("tasks page wires explicit queue availability separately from the case composer", () => {
-  const page = readFileSync(new URL("../src/app/(v3)/v3/tasks/page.tsx", import.meta.url), "utf8");
-  const workspace = readFileSync(new URL("../src/components/v3/tasks/TasksWorkspace.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../src/app/(staff)/tasks/page.tsx", import.meta.url), "utf8");
+  const workspace = readFileSync(new URL("../src/components/staff/tasks/TasksWorkspace.tsx", import.meta.url), "utf8");
   // One queue (25.09.2026): either readable kind opens it; no read, no list.
   assert.match(workspace, /const canReadTaskQueue = canReadStaffTasks \|\| canReadCaseTasks;/);
   assert.match(workspace, /!canReadTaskQueue \? <p role="status"/);
@@ -281,7 +281,7 @@ test("only the read that hit its limit is reported as cut off", async () => {
 });
 
 test("the tasks page sends «Срок» and today's Bishkek day to the read and passes the cut-off to the screen", () => {
-  const page = readFileSync(new URL("../src/app/(v3)/v3/tasks/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../src/app/(staff)/tasks/page.tsx", import.meta.url), "utf8");
   assert.match(page, /type: filters\.type, due: filters\.due, today: day, window: filters\.window,/u);
   assert.match(page, /const day = dayInOrganizationTimezone\(now\);/u);
   assert.match(page, /cutOff=\{workspace\.queue\.cutOff\}/u);

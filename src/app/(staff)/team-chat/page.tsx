@@ -1,0 +1,37 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { notFound } from "next/navigation";
+import { TeamChatNextFailureLazy, TeamChatNextLazy } from "@/components/staff/team-chat/next/TeamChatNextLazy";
+import { requireV3PageActor } from "@/lib/platform-guards";
+import { TEAM_CHAT_FAILURE_COPY, isTeamChatChannel, teamChatUuid } from "@/lib/platform-team-chat";
+import { TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
+import { readV3TeamChatFeed } from "@/lib/v3/team-chat-source";
+import { TeamChatV2Error } from "@/lib/server/platform-team-chat-v2-repository";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Командный чат" };
+
+export default async function TeamChatPage({ searchParams }: {
+  searchParams: Promise<{ channel?: string | string[]; message?: string | string[] }>;
+}) {
+  const actor = await requireV3PageActor("/team-chat");
+  const params = await searchParams;
+  const channel = params.channel ?? "general";
+  const requestedMessage = params.message ?? null;
+  if (!isTeamChatChannel(channel) || (requestedMessage !== null && !teamChatUuid(requestedMessage))) notFound();
+  const messageId = requestedMessage?.toLowerCase() ?? null;
+  let initial;
+  let failure: keyof typeof TEAM_CHAT_FAILURE_COPY = "unavailable";
+  try { initial = await readV3TeamChatFeed(actor, messageId ? { channel, mode: "context", messageId } : { channel, mode: "latest" }); }
+  catch (error) { failure = error instanceof TeamChatReadError || error instanceof TeamChatV2Error ? error.status : "unavailable"; }
+  if (!initial) {
+    return <TeamChatNextFailureLazy text={TEAM_CHAT_FAILURE_COPY[failure]} retryHref={`/team-chat?channel=${channel}`} />;
+  }
+  // The promoted image has no build-time Supabase config. Serialize only the
+  // validated public fields from this authenticated runtime request.
+  const realtimeConfig = getSupabasePublicConfig();
+  return <TeamChatNextLazy key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
+    initial={initial} channel={channel} organizationId={actor.organizationId} membershipId={actor.membershipId}
+    realtimeConfig={realtimeConfig}
+    canModerate={!isStaffPreview(actor) && staffHasPermission(actor, "team.chat.moderate")} initialMessageId={messageId} showChannelsInitially={params.channel === undefined} />;
+}

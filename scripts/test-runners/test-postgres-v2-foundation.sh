@@ -770,7 +770,7 @@ try { log = readFileSync(process.argv[2], "utf8"); } catch { process.exit(0); }
 const errorClasses = ["PlatformSalesRepositoryError", "PlatformSalesStageEntryError",
   "PlatformAdmissionsWorkspaceRepositoryError", "TypeError", "ReferenceError", "SyntaxError", "RangeError"]
   .filter((name) => log.includes(name));
-const mainRequests = [...log.matchAll(/\bGET \/v3\/main (\d{3}) in ([\d.]+)(ms|s)\b/g)]
+const mainRequests = [...log.matchAll(/\bGET \/main (\d{3}) in ([\d.]+)(ms|s)\b/g)]
   .map((match) => ({ status: Number(match[1]), durationMs: Number(match[2]) * (match[3] === "s" ? 1000 : 1) }));
 console.error(`LOCAL_SUPABASE_APP_DIAGNOSTIC:${JSON.stringify({ errorClasses, mainRequests })}`);
 NODE

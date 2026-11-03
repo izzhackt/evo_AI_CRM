@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Новый вид»: набор виджетов (`/v3/ui-kit`) и переключатель в оболочке — клиентская сборка настоящих
+ * «Новый вид»: набор виджетов (`/ui-kit`) и переключатель в оболочке — клиентская сборка настоящих
  * компонентов на СИНТЕТИЧЕСКИХ данных (имена, заявки и сотрудник выдуманы). Серверные действия подменены
  * записью вызова, Supabase и маршрутизатор Next.js не проверяются: проверяется вёрстка, токены, адаптив,
  * клавиатура и доступность виджетов.
@@ -13,7 +13,7 @@
  *       меню; выбор; пустой поиск; загрузка; переключатель выкл/вкл) и проверки (JSON-строки, при нарушении
  *       код 1): нет ошибок консоли, нет горизонтальной прокрутки, нажимаемые ≥ 44 px, axe без нарушений;
  *       фокус возвращается на строку/карточку после панели; ссылка и кнопка в ячейке карточки не открывают запись;
- *       рейка досок (/v3/pipeline, 1280): «Набор виджетов» не в порядке Tab невидимым; шапка стоит на глубине h1 прежней.
+ *       рейка досок (/pipeline, 1280): «Набор виджетов» не в порядке Tab невидимым; шапка стоит на глубине h1 прежней.
  *       По умолчанию outDir — .impeccable/review (не коммитится).
  */
 
@@ -61,8 +61,8 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
-const { AppShell } = require("@/components/v3/AppShell");
-const { UiKit } = require("@/components/v3/ui-kit/UiKit");
+const { AppShell } = require("@/components/staff/AppShell");
+const { UiKit } = require("@/components/staff/ui-kit/UiKit");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById("fixture").textContent);
 window.__harness = { pushes: [] };
@@ -94,7 +94,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 async function buildBundle(outFile) {
@@ -141,9 +141,9 @@ async function main() {
   await buildBundle(join(outDir, "ui-kit-bundle.js"));
   const css = await compileCss();
   const pages = {
-    kit: writePage(outDir, "ui-kit", css, { actor: ADMIN, pathname: "/v3/ui-kit", search: "tab=overview", kit: true }),
-    rail: writePage(outDir, "ui-kit-shell-rail", css, { actor: ADMIN, pathname: "/v3/pipeline", search: "", kit: false }),
-    staff: writePage(outDir, "ui-kit-shell-staff", css, { actor: { ...ADMIN, systemRole: "staff", displayName: "Сотрудник Синтетический" }, pathname: "/v3/main", search: "", kit: false }),
+    kit: writePage(outDir, "ui-kit", css, { actor: ADMIN, pathname: "/ui-kit", search: "tab=overview", kit: true }),
+    rail: writePage(outDir, "ui-kit-shell-rail", css, { actor: ADMIN, pathname: "/pipeline", search: "", kit: false }),
+    staff: writePage(outDir, "ui-kit-shell-staff", css, { actor: { ...ADMIN, systemRole: "staff", displayName: "Сотрудник Синтетический" }, pathname: "/main", search: "", kit: false }),
   };
   const { chromium } = require("playwright");
   const AxeBuilder = require("@axe-core/playwright").default;
@@ -198,7 +198,7 @@ async function main() {
     const axe = await new AxeBuilder({ page }).include("[data-testid=v3-ui-kit]").analyze();
     report(`${key}: axe (kit page)`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
     report(`${key}: console clean`, errors.length === 0, errors);
-    // Шапка нового вида стоит на глубине прежней (корень > div > h1): правила оболочки в v3.css находят её и дают тот же верхний отступ.
+    // Шапка нового вида стоит на глубине прежней (корень > div > h1): правила оболочки в staff.css находят её и дают тот же верхний отступ.
     const top = await page.evaluate(() => {
       const main = document.querySelector("[data-testid=v3-ui-kit]");
       const probe = document.createElement("div");
@@ -377,7 +377,7 @@ async function main() {
     await context.close();
   }
 
-  // Рейка досок (/v3/pipeline, 768–1535 px): «Набор виджетов» не остаётся невидимой ссылкой в порядке Tab.
+  // Рейка досок (/pipeline, 768–1535 px): «Набор виджетов» не остаётся невидимой ссылкой в порядке Tab.
   {
     const { context, page } = await open(pages.rail, "d1280");
     const rail = await page.evaluate(() => {

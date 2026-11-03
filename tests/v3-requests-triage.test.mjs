@@ -50,14 +50,14 @@ const LEAD_1 = "dddddddd-3333-4333-8333-000000000001";
 const NOW = new Date("2026-09-27T06:00:00.000Z");
 
 test("«Взять себе» is the existing owner command: the board's form action, its exact fields, the same permission", () => {
-  const take = read("src/components/v3/requests/TakeLead.tsx");
+  const take = read("src/components/staff/requests/TakeLead.tsx");
   const actions = read("src/lib/platform-sales-actions.ts");
   // Та же серверная функция, что у формы решения доски, — новой нет.
   const importLine = /import \{ updatePlatformSalesWorkflowAction, type PlatformSalesWorkflowActionState \} from "@\/lib\/platform-sales-actions";/u;
   assert.match(take, importLine);
-  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /updatePlatformSalesWorkflowAction,/u);
+  assert.match(read("src/components/staff/PipelineDecisionForm.tsx"), /updatePlatformSalesWorkflowAction,/u);
   assert.match(take, /useActionState\(updatePlatformSalesWorkflowAction,/u);
-  for (const path of ["src/components/v3/requests/TakeLead.tsx", "src/components/v3/requests/RequestsQueueView.tsx", "src/lib/requests-queue-contract.ts", "src/lib/v3/requests-view.ts"]) {
+  for (const path of ["src/components/staff/requests/TakeLead.tsx", "src/components/staff/requests/RequestsQueueView.tsx", "src/lib/requests-queue-contract.ts", "src/lib/v3/requests-view.ts"]) {
     assert.doesNotMatch(read(path), /^"use server"/mu, `${path} adds no server action`);
     assert.doesNotMatch(read(path), /\.rpc\(|createSupabase|from "@\/lib\/platform-sales"/u, `${path} calls no command of its own`);
   }
@@ -66,7 +66,7 @@ test("«Взять себе» is the existing owner command: the board's form ac
   const posted = [...take.matchAll(/<input type="hidden" name="([a-z_]+)"/gu)].map((m) => m[1]).sort();
   assert.deepEqual(posted, expected);
   // Право — то же: действие требует sales.write, команда — mutate_sales_lead_workflow.
-  assert.match(actions, /export async function updatePlatformSalesWorkflowAction[\s\S]*?requirePlatformMutationCapability\("sales\.write", "\/v3\/pipeline"\)[\s\S]*?mutatePlatformSalesLeadWorkflow\(actor, input\)/u);
+  assert.match(actions, /export async function updatePlatformSalesWorkflowAction[\s\S]*?requirePlatformMutationCapability\("sales\.write", "\/pipeline"\)[\s\S]*?mutatePlatformSalesLeadWorkflow\(actor, input\)/u);
   assert.match(read("src/lib/platform-sales.ts"), /"mutate_sales_lead_workflow",/u);
   // «Можно взять» в чтении 250 — ровно проверки смены ответственного команды (086 в редакции 156).
   const migration = read("supabase/migrations/250_platform_requests_queue_triage.sql");
@@ -141,9 +141,9 @@ test("counts come only from the read: tabs show the read's numbers, hide a kind 
 test("rows: name to Lead 360 with the way back, source, when it came without SLA colour, triage, one «Открыть»", () => {
   const html = main(surfaces.get("populated"));
   assert.equal(tableRows(html), 9);
-  assert.match(html, new RegExp(`href="/v3/profile\\?id=${LEAD_1}&amp;returnTo=%2Fv3%2Frequests%3Fstatus%3Dall"`, "u"));
+  assert.match(html, new RegExp(`href="/profile\\?id=${LEAD_1}&amp;returnTo=%2Frequests%3Fstatus%3Dall"`, "u"));
   // Строка открывается нажатием (`onRowClick` → `openHref`), поэтому адрес «Открыть» лежит в данных строки, а не в разметке.
-  assert.match(read("src/components/v3/requests-next/requests-next-rows.tsx"), /openHref: requestsHref\(props\.selection, key\),/u, "one open address per row, with the tab kept");
+  assert.match(read("src/components/staff/requests-next/requests-next-rows.tsx"), /openHref: requestsHref\(props\.selection, key\),/u, "one open address per row, with the tab kept");
   assert.match(html, /<time dateTime="2026-09-27T03:12:00.000000Z" class="font-mono tabular-nums text-fg">27\.09 09:12<\/time>/u);
   assert.doesNotMatch(html, /Больше 2 ч|text-danger/u, "no SLA group and no overdue colour on requests");
   for (const word of ["ждёт решения", "Бекболот Примеров", "открыта", "Вы", "Передан в поступление", "отклонена", "обработана"]) {
@@ -162,7 +162,7 @@ test("one solid red: «Добавить лида» in the header; the empty queu
   const empty = main(surfaces.get("empty"));
   assert.match(empty, /Новых заявок нет/u);
   // «Что сюда приходит» ушло за «?» шапки: страница отдаёт его в `help` (чистая функция `requestEmptyWhat` проверена ниже).
-  assert.match(read("src/app/(v3)/v3/requests/page.tsx"), /requestEmptyWhat\(read\.queue, selection\.source\)/u);
+  assert.match(read("src/app/(staff)/requests/page.tsx"), /requestEmptyWhat\(read\.queue, selection\.source\)/u);
   assert.match(empty, /Последняя пришла вчера в 19:05\./u);
   assert.equal(count(empty, /aria-controls="manual-lead-panel"/gu), 1, "one entry to the manual-lead form");
   assert.equal(requestLatestLine(null, NOW), null);
@@ -199,7 +199,7 @@ test("a role that cannot read every kind: «Все» names the closed kinds and 
   assert.equal(requestClosedLine(queue("ready", "forbidden", "forbidden")),
     "Анкеты и консультации из кабинета вашей роли недоступны: список и числа ниже — без них.");
   // Закрытая вкладка своего вида — пустота «… вашей роли недоступны», без обещаний (экран нового вида).
-  assert.match(read("src/components/v3/requests-next/RequestsNextEmpty.tsx"), /вашей роли недоступны/u);
+  assert.match(read("src/components/staff/requests-next/RequestsNextEmpty.tsx"), /вашей роли недоступны/u);
 });
 
 test("the manual-lead form tells an owner-read failure apart from «no available owner»", () => {
@@ -212,13 +212,13 @@ test("the manual-lead form tells an owner-read failure apart from «no available
   ));
   assert.equal(owners.read.length, 2);
   assert.equal(owners.failed, null, "a failed read reaches the form as null, not as an empty list");
-  assert.match(read("src/components/v3/ManualLeadForm.tsx"),
+  assert.match(read("src/components/staff/ManualLeadForm.tsx"),
     /props\.owners === null\s*\? <p role="status"[^>]*>Список ответственных не загрузился, поэтому добавить лида сейчас нельзя\. Обновите страницу\.<\/p>\s*: props\.owners\.length \? <ManualLeadEditor/u);
 });
 
 test("the record panel holds the full questionnaire and the existing decision, quiet and flat; a role preview gets no decision and no «Взять себе»", () => {
   // «Новый вид» (#1327): панель открывается нажатием и собирается на клиенте из `requestSheetContent`, поэтому её содержимое проверяется по исходнику.
-  const sheet = read("src/components/v3/requests-next/RequestSheetBody.tsx");
+  const sheet = read("src/components/staff/requests-next/RequestSheetBody.tsx");
   assert.match(sheet, /Заполнено поступающим/u);
   assert.match(sheet, /<ApplicationDecision application=\{row\.application\} requestId=\{props\.decisionRequestId\} quiet flat \/>/u, "the existing decision form, quiet and flat");
   assert.match(sheet, /props\.readOnly\s*\? <p className="t-body-compact text-fg-2">В режиме просмотра решения недоступны\.<\/p>/u, "role preview: no decision");
@@ -232,12 +232,12 @@ test("switching records gives the panel a new instance: no draft, conflict or ta
   // Ревью PR #1084: без ключа панель при «Открыть» другой записи оставалась тем же экземпляром, и причина отказа анкеты A уходила с
   // application_id анкеты B, конфликт B запирал A, ошибка «Взять себе» лида X с его request_id — у лида Y. React пересоздаёт панель и её формы,
   // только когда меняется ключ элемента; в «Новом виде» (#1327) ключ — `requestOpenKey` записи, на которую смотрит панель.
-  const content = read("src/components/v3/requests-next/RequestSheetBody.tsx");
+  const content = read("src/components/staff/requests-next/RequestSheetBody.tsx");
   assert.match(content, /key: requestOpenKey\(row\),/u, "each panel content carries its record's key");
-  const table = read("src/components/v3/requests-next/RequestsNextTable.tsx");
+  const table = read("src/components/staff/requests-next/RequestsNextTable.tsx");
   assert.match(table, /<Fragment key=\{shown\.key\}>\{shown\.body\}<\/Fragment>/u, "the panel body is keyed by that record");
   // Доступное имя «Взять себе» начинается с видимой надписи и в «Берём…», и во «Взято».
-  const take = read("src/components/v3/requests/TakeLead.tsx");
+  const take = read("src/components/staff/requests/TakeLead.tsx");
   assert.match(take, /const label = pending \? "Берём…" : saved \? "Взято" : "Взять себе";/u);
   assert.match(take, /aria-label=\{inPanel \? undefined : `\$\{label\}: \$\{personName\}`\}[^>]*>\s*\{label\}\s*<\/button>/u);
 });
@@ -251,16 +251,16 @@ test("«Сегодня»: website and WhatsApp requests open «Заявки», a
   });
   const items = todayRequestItems([lead(1, "website"), lead(2, "whatsapp"), lead(3, "phone_call")]);
   assert.deepEqual(items.map((item) => item.openHref), [
-    `/v3/requests?source=website&open=lead%3A${lead(1).id}`, `/v3/requests?source=whatsapp&open=lead%3A${lead(2).id}`, `/v3/pipeline?lead=${lead(3).id}`,
+    `/requests?source=website&open=lead%3A${lead(1).id}`, `/requests?source=whatsapp&open=lead%3A${lead(2).id}`, `/pipeline?lead=${lead(3).id}`,
   ]);
   // Телефония включена для сотрудников: звонок с неизвестного номера открывает вкладку «Звонки», где его берут себе.
   assert.deepEqual(todayRequestItems([lead(3, "phone_call")], { callsTab: true }).map((item) => item.openHref),
-    [`/v3/requests?source=phone_call&open=lead%3A${lead(3).id}`]);
-  assert.deepEqual(todayRequestItems([lead(3, "phone_call")], { callsTab: false }).map((item) => item.openHref), [`/v3/pipeline?lead=${lead(3).id}`]);
+    [`/requests?source=phone_call&open=lead%3A${lead(3).id}`]);
+  assert.deepEqual(todayRequestItems([lead(3, "phone_call")], { callsTab: false }).map((item) => item.openHref), [`/pipeline?lead=${lead(3).id}`]);
   // Тот же адрес, что у «Открыть» строки «Заявок»: панель этого лида.
   assert.equal(items[0].openHref, requestsHref(parseRequestSelection({ source: "website" }), `lead:${lead(1).id}`));
   const queue = buildTodayQueue([{ source: "requests", state: "partial", items }], NOW);
-  assert.deepEqual(queue.notices.find((notice) => notice.source === "requests").link, { label: "Все заявки", href: "/v3/requests" });
+  assert.deepEqual(queue.notices.find((notice) => notice.source === "requests").link, { label: "Все заявки", href: "/requests" });
 });
 
 test("migration 250 is forward-only, definer with an empty search path, and keeps v1 for the previous release", () => {
@@ -317,14 +317,14 @@ test("«Звонки»: the tab, its number and its rows exist only when the rea
   // «Взять себе» speaks the same name (its accessible name, and the receipt line after taking, come from one prop).
   assert.match(waiting, /aria-label="Взять себе: Номер ••••4521"/u);
   assert.doesNotMatch(waiting, /aria-label="Взять себе: Звонок/u);
-  const nextSources = ["requests-next-rows.tsx", "RequestSheetBody.tsx"].map((file) => read(`src/components/v3/requests-next/${file}`)).join("\n");
+  const nextSources = ["requests-next-rows.tsx", "RequestSheetBody.tsx"].map((file) => read(`src/components/staff/requests-next/${file}`)).join("\n");
   assert.match(nextSources, /personName=\{requestDisplayName\(row\)\}/u, "the row button");
   assert.match(nextSources, /const name = requestDisplayName\(row\)/u, "the panel button speaks the same name");
   assert.doesNotMatch(nextSources, /personName=\{row\.personName\}/u);
   // The page reads the dial options together with the queue, not as a second wait on every visit.
-  assert.match(read("src/app/(v3)/v3/requests/page.tsx"), /const \[read, owners, dial\] = await Promise\.all\(\[[\s\S]*?readDialOptions\(actor\),\s*\]\);/u);
-  assert.doesNotMatch(read("src/app/(v3)/v3/requests/page.tsx"), /const dial = await readDialOptions/u);
-  assert.equal(requestsHref(parseRequestSelection({ source: "phone_call" }), "lead:ffffffff-2222-4222-8222-000000000001"), "/v3/requests?source=phone_call&open=lead%3Affffffff-2222-4222-8222-000000000001", "«Открыть» keeps the tab in the address");
+  assert.match(read("src/app/(staff)/requests/page.tsx"), /const \[read, owners, dial\] = await Promise\.all\(\[[\s\S]*?readDialOptions\(actor\),\s*\]\);/u);
+  assert.doesNotMatch(read("src/app/(staff)/requests/page.tsx"), /const dial = await readDialOptions/u);
+  assert.equal(requestsHref(parseRequestSelection({ source: "phone_call" }), "lead:ffffffff-2222-4222-8222-000000000001"), "/requests?source=phone_call&open=lead%3Affffffff-2222-4222-8222-000000000001", "«Открыть» keeps the tab in the address");
   assert.equal(count(waiting, />Звонок</gu) >= 2, true, "the source column says «Звонок»");
   const all = main(surfaces.get("calls"));
   assert.equal(tableRows(all), 12);

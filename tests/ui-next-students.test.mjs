@@ -1,7 +1,7 @@
 // «Новый вид» (решение владельца 27.10.2026), поток «students»: «Студенты», «EVO Docs» и «Университеты» из набора виджетов.
 // Данные — синтетические (tests/e2e/students-next-fixtures.cjs, отдельный node-процесс: те же сценарии, что у прежнего вида и у стенда
 // Chromium). Вёрстку, адаптив, фокус, 44 px, панели и доступность на деле меряет tests/e2e/students-next-static-render.cjs; здесь —
-// правила, которые не зависят от браузера: чистые модели, СТРАНИЦЫ `/v3/profile` (очередь и EVO Docs), `/v3/universities`, карточка вуза
+// правила, которые не зависят от браузера: чистые модели, СТРАНИЦЫ `/profile` (очередь и EVO Docs), `/universities`, карточка вуза
 // и «Управление каталогом» целиком (настоящие файлы, границы сервера подменены) в четырёх режимах переключателя и границы файлов.
 // Прежний вид проверяют прежние тесты и сравнение страниц с их прежними файлами (см. отчёт).
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import ts from "typescript";
 
-import { searchHref } from "../src/components/v3/list-next/link-filters-model.ts";
+import { searchHref } from "../src/components/staff/list-next/link-filters-model.ts";
 
 const require = createRequire(import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -53,7 +53,7 @@ const link = { __esModule: true, default: ({ href, children, ...props }) => {
   return createElement("a", { href, ...props }, children);
 } };
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
-const navigation = { useRouter: () => router, usePathname: () => "/v3/profile", useSearchParams: () => new URLSearchParams(),
+const navigation = { useRouter: () => router, usePathname: () => "/profile", useSearchParams: () => new URLSearchParams(),
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); }, redirect: (href) => { throw new Error(`NEXT_REDIRECT ${href}`); }, unstable_rethrow: (error) => { throw error; } };
 const serverActions = new Proxy({}, { get: (_target, name) => (name === "__esModule" ? false : async () => ({ status: "unavailable" })) });
 // `next/dynamic` вне сборки Next — версия для pages router (рисует пустоту); сборка подставляет версию для App Router, её и берём.
@@ -79,18 +79,18 @@ const cookiesOf = (value) => ({ cookies: async () => ({ get: (name) => (name ===
 /* ---------------------------------------------------------------- общие правила списков */
 
 test("поиск и фильтры: адрес поиска хранит вид и фильтры, пустое не пишет, страницу и открытую запись сбрасывает", () => {
-  assert.equal(searchHref("/v3/profile", "q", "Айд", { view: "active", direction: "CN", curator: null, stage: "" }), "/v3/profile?view=active&direction=CN&q=%D0%90%D0%B9%D0%B4");
-  assert.equal(searchHref("/v3/universities", "q", "  ", { country: null, level: null }), "/v3/universities", "пустой поиск и пустые поля — адрес без параметров");
-  assert.equal(searchHref("/v3/universities/manage", "q", "Fudan", {}), "/v3/universities/manage?q=Fudan");
+  assert.equal(searchHref("/profile", "q", "Айд", { view: "active", direction: "CN", curator: null, stage: "" }), "/profile?view=active&direction=CN&q=%D0%90%D0%B9%D0%B4");
+  assert.equal(searchHref("/universities", "q", "  ", { country: null, level: null }), "/universities", "пустой поиск и пустые поля — адрес без параметров");
+  assert.equal(searchHref("/universities/manage", "q", "Fudan", {}), "/universities/manage?q=Fudan");
 });
 
 /* ---------------------------------------------------------------- модели «Студентов» */
 
 const queueFix = fixtures.students.queue.inputs["view=active"];
 const load = loader(browserStubs);
-const model = load("src/components/v3/students-next/students-next-model.ts");
-const docsModel = load("src/components/v3/students-next/docs-next-model.ts");
-const view = load("src/components/v3/students/students-queue-view.ts");
+const model = load("src/components/staff/students-next/students-next-model.ts");
+const docsModel = load("src/components/staff/students-next/docs-next-model.ts");
+const view = load("src/components/staff/students/students-queue-view.ts");
 
 test("строки таблицы «Студентов»: те же дела и порядок, что у чтения; сортировка по сроку: с датой, потом без даты, потом без шага", () => {
   const rows = model.studentRows(queueFix.read.page.rows);
@@ -124,11 +124,11 @@ test("меню фильтров: «Направление», «Куратор»,
   assert.deepEqual(bar.menus.map((menu) => menu.key), ["direction", "curator", "stage", "sort"]);
   const direction = bar.menus[0];
   assert.equal(direction.valueLabel, "Китай");
-  assert.equal(direction.options[0].href, "/v3/profile?view=active", "«Все направления» снимает фильтр и остаётся в виде");
-  assert.equal(direction.options.find((option) => option.key === "MY").href, "/v3/profile?view=active&direction=MY");
+  assert.equal(direction.options[0].href, "/profile?view=active", "«Все направления» снимает фильтр и остаётся в виде");
+  assert.equal(direction.options.find((option) => option.key === "MY").href, "/profile?view=active&direction=MY");
   assert.ok(direction.options.slice(1).every((option) => typeof option.count === "number"), "числа — из чтения чисел");
-  assert.equal(bar.resetHref, "/v3/profile?view=active", "«Сбросить» убирает фильтры, вид остаётся");
-  assert.equal(bar.menus[3].options.find((option) => option.key === "updated").href, "/v3/profile?view=active&direction=CN&sort=updated");
+  assert.equal(bar.resetHref, "/profile?view=active", "«Сбросить» убирает фильтры, вид остаётся");
+  assert.equal(bar.menus[3].options.find((option) => option.key === "updated").href, "/profile?view=active&direction=CN&sort=updated");
   const noCounts = model.studentsFilterBar(params, null, [], false);
   assert.deepEqual(noCounts.menus.map((menu) => menu.key), ["direction", "stage", "sort"], "«Куратор» — только с правом назначать");
   assert.ok(noCounts.menus[0].options.every((option) => option.count === null || option.count === undefined), "нет чтения чисел — нет чисел");
@@ -169,7 +169,7 @@ test("EVO Docs: первая непустая вкладка открывает�
 
 /* ---------------------------------------------------------------- страница «Студентов» и EVO Docs: переключатель */
 
-/** Страница `/v3/profile` с чтениями из сценария (`input`); границы сервера подменены, `isNextUi` и права — настоящие. */
+/** Страница `/profile` с чтениями из сценария (`input`); границы сервера подменены, `isNextUi` и права — настоящие. */
 const profilePage = (cookie, who, params, input, overrides = {}) => {
   const seen = { guards: [], queue: [], tasks: [], coverage: 0 };
   const stubs = {
@@ -196,16 +196,16 @@ const profilePage = (cookie, who, params, input, overrides = {}) => {
     "src/lib/v3/telephony-dial-source.ts": { readDialOptions: async () => ({ status: "off" }) },
     "src/lib/server/platform-staff-task-repository.ts": { readLeadTaskLinks: async () => ({ rows: [] }) },
     "src/lib/server/student-portal-command-ids.ts": { studentPortalProvisioningRequestId: () => "00000000-0000-4000-8000-000000000000" },
-    "src/components/v3/profile/next/CaseHelpCardWorkspace.tsx": { CaseHelpCardWorkspace: () => null },
-    "src/components/v3/profile/CaseHelpWorkspace.tsx": { CaseHelpWorkspace: () => null },
-    "src/components/v3/profile/LeadChannelFact.tsx": { LeadChannelFact: () => null },
-    "src/components/v3/profile/LeadInterestFact.tsx": { LeadInterestFact: () => null },
-    "src/components/v3/profile/WebsiteLeadSubmissions.tsx": { WebsiteLeadSubmissions: () => null },
-    "src/components/v3/profile/ParentPhoneLookalikes.tsx": { ParentPhoneLookalikes: () => null },
+    "src/components/staff/profile/next/CaseHelpCardWorkspace.tsx": { CaseHelpCardWorkspace: () => null },
+    "src/components/staff/profile/CaseHelpWorkspace.tsx": { CaseHelpWorkspace: () => null },
+    "src/components/staff/profile/LeadChannelFact.tsx": { LeadChannelFact: () => null },
+    "src/components/staff/profile/LeadInterestFact.tsx": { LeadInterestFact: () => null },
+    "src/components/staff/profile/WebsiteLeadSubmissions.tsx": { WebsiteLeadSubmissions: () => null },
+    "src/components/staff/profile/ParentPhoneLookalikes.tsx": { ParentPhoneLookalikes: () => null },
     ...overrides,
   };
   const loadPage = loader(stubs);
-  const element = () => loadPage("src/app/(v3)/v3/profile/page.tsx").default({ searchParams: Promise.resolve(params) });
+  const element = () => loadPage("src/app/(staff)/profile/page.tsx").default({ searchParams: Promise.resolve(params) });
   // Новый вид страница подгружает лениво (`StudentsNextLazy`): рисуем, пока разметка не устоится.
   const run = async () => renderSettled(await element());
   return { run, seen, element };
@@ -249,7 +249,7 @@ test("страница «Студенты»: чтения те же в обои�
     const run = profilePage(cookie, ADMIN, paramsOf(withTasks), openInput);
     await run.run();
     seenBy[cookie ?? "off"] = run.seen;
-    assert.deepEqual(run.seen.guards, ["/v3/profile"], `cookie=${cookie}: тот же маршрут`);
+    assert.deepEqual(run.seen.guards, ["/profile"], `cookie=${cookie}: тот же маршрут`);
     assert.equal(run.seen.queue.length, 1, `cookie=${cookie}: одно чтение очереди`);
     assert.deepEqual(run.seen.tasks, ["cccccccc-2222-4222-8222-000000000001"], `cookie=${cookie}: задачи открытого дела читаются`);
   }
@@ -280,7 +280,7 @@ test("страница EVO Docs: те же вкладки и очереди в �
   const on = await profilePage("next", ADMIN, paramsOf(docs.search), docs.input).run();
   assert.match(on, /<h1 [^>]*>EVO Docs/u);
   assert.match(on, /data-testid="v3-students-next"/u);
-  assert.match(on, /<a [^>]*href="\/v3\/universities"[^>]*>Университеты и бланки/u, "право на каталог — кнопка в шапке");
+  assert.match(on, /<a [^>]*href="\/universities"[^>]*>Университеты и бланки/u, "право на каталог — кнопка в шапке");
   assertFlightProps((await profilePage("next", ADMIN, paramsOf(docs.search), docs.input).element()).props, "StudentsNextLazy");
   const tabs = on.match(/<nav aria-label="Виды списка студентов"[\s\S]*?<\/nav>/u)[0];
   assert.deepEqual([...tabs.matchAll(/<a [^>]*>([^<]+)<span[^>]*>(\d+)<\/span>/gu)].map((match) => `${match[1].trim()} ${match[2]}`),
@@ -326,8 +326,8 @@ const universityStubs = (cookie, who, overrides = {}) => ({
     canManageCatalogGeography: (actor) => actor.systemRole === "admin" && actor.presentationRole === null, canConfirmAgencyCosts: () => true,
     readStaffCatalogGeography: async () => ({ cities: [], countries: [], rates: [] }), geographyPhotoBase: () => null,
   },
-  "src/components/v3/universities/geography/UniversityGeographyPanel.tsx": { UniversityGeographyPanel: () => createElement("section", { "data-testid": "geography-panel" }, "Город и стоимость") },
-  "src/components/v3/universities/geography/FxRates.tsx": { FxRates: () => createElement("section", { "data-testid": "fx-rates" }, "Курсы") },
+  "src/components/staff/universities/geography/UniversityGeographyPanel.tsx": { UniversityGeographyPanel: () => createElement("section", { "data-testid": "geography-panel" }, "Город и стоимость") },
+  "src/components/staff/universities/geography/FxRates.tsx": { FxRates: () => createElement("section", { "data-testid": "fx-rates" }, "Курсы") },
   "src/lib/server/university-catalog-batch.ts": { universityBatchRows: () => [] },
   "src/lib/platform-university-form-actions.ts": serverActions, "src/lib/platform-university-form-management-actions.ts": serverActions,
   "src/lib/platform-university-catalog-actions.ts": serverActions, "src/lib/platform-catalog-geography-actions.ts": serverActions,
@@ -335,7 +335,7 @@ const universityStubs = (cookie, who, overrides = {}) => ({
 });
 const universityPage = (path, cookie, who, params = {}, extra = {}) => {
   const load = loader(universityStubs(cookie, who, extra));
-  const element = () => load(`src/app/(v3)/v3/universities/${path}`).default({ searchParams: Promise.resolve(params), params: Promise.resolve({ id: params.__id }) });
+  const element = () => load(`src/app/(staff)/universities/${path}`).default({ searchParams: Promise.resolve(params), params: Promise.resolve({ id: params.__id }) });
   return { element, run: async () => renderSettled(await element()) };
 };
 // Переключателя нет (#1327): новый вид у всех четырёх режимов; cookie и роль меняют только права, не вид.
@@ -351,10 +351,10 @@ test("«Университеты»: каталог в новом виде у к�
     assert.equal(/data-slot="data-table"/u.test(html), isNext);
     if (isNext) {
       assertFlightProps((await run.element()).props, "UniversitiesListNextLazy");
-      assert.match(html, /<a [^>]*href="\/v3\/universities\/57ce9b97-43fb-4563-9c61-\d{12}"[^>]*>/u, "название — ссылка на карточку");
+      assert.match(html, /<a [^>]*href="\/universities\/57ce9b97-43fb-4563-9c61-\d{12}"[^>]*>/u, "название — ссылка на карточку");
       assert.match(html, /aria-label="Поиск университетов"/u);
       if (who === PREVIEW) assert.doesNotMatch(html, /Управлять каталогом/u, `${label}: просмотр роли управлять не может`);
-      else assert.match(html, /<a [^>]*href="\/v3\/universities\/manage"[^>]*>[\s\S]*Управлять каталогом/u, `${label}: управление каталогом — тому, у кого есть право`);
+      else assert.match(html, /<a [^>]*href="\/universities\/manage"[^>]*>[\s\S]*Управлять каталогом/u, `${label}: управление каталогом — тому, у кого есть право`);
       const ids = new Set([...html.matchAll(/data-university-row="([^"]+)"/gu)].map((match) => match[1]));
       assert.ok(ids.size > 0 && ids.size <= 30, "не больше страницы сервера");
     }
@@ -364,7 +364,7 @@ test("«Университеты»: каталог в новом виде у к�
   assert.match(filtered, /Уровень: Бакалавриат/u);
   assert.match(filtered, /Сбросить/u);
   const failing = universityStubs("next", ADMIN, { "src/lib/v3/university-source.ts": { readStaffUniversityCatalogue: async () => { throw new Error("db"); }, readStaffUniversityCountries: async () => ({ countries: [] }) } });
-  const broken = text(await renderSettled(await loader(failing)("src/app/(v3)/v3/universities/page.tsx").default({ searchParams: Promise.resolve({}) })));
+  const broken = text(await renderSettled(await loader(failing)("src/app/(staff)/universities/page.tsx").default({ searchParams: Promise.resolve({}) })));
   assert.match(broken, /Не удалось загрузить каталог\. Обновите страницу\. Это не означает, что опубликованных университетов нет\./u, "ошибка чтения — на виду и в новом виде");
 });
 
@@ -420,7 +420,7 @@ test("«Управление каталогом» и вложенные стра
 /* ---------------------------------------------------------------- исправления после независимой проверки потока (27.10.2026) */
 
 test("Esc в панели-листе: окно или всплывающее окно поверх закрываются первыми, поле панели — выход из поля, иначе закрывается панель", () => {
-  const { sheetEscapeStep } = load("src/components/v3/panel/sheet-escape.ts");
+  const { sheetEscapeStep } = load("src/components/staff/panel/sheet-escape.ts");
   const step = (state) => sheetEscapeStep({ modal: false, popover: false, typing: false, inSheet: true, ...state });
   assert.equal(step({}), "close", "Esc вне поля закрывает панель");
   assert.equal(step({ typing: true }), "leave-field", "в поле панели первая Esc выводит из поля, введённое остаётся");
@@ -428,13 +428,13 @@ test("Esc в панели-листе: окно или всплывающее о�
   assert.equal(step({ modal: true, typing: true }), "modal", "поле в окне поверх панели — тоже закрывается окно, а не панель");
   assert.equal(step({ popover: true, typing: true }), "popover");
   for (const file of ["StudentSheetHost", "CuratorsNext", "ProgramDocSheet"]) {
-    assert.match(read(`src/components/v3/students-next/${file}.tsx`), /onEscapeKeyDown=\{sheetEscape\}/u, `${file}: панель отдаёт Esc правилам боковой панели`);
+    assert.match(read(`src/components/staff/students-next/${file}.tsx`), /onEscapeKeyDown=\{sheetEscape\}/u, `${file}: панель отдаёт Esc правилам боковой панели`);
   }
   assert.match(read("src/components/kit/DetailSheet.tsx"), /onEscapeKeyDown=\{onEscapeKeyDown\}/u, "набор виджетов отдаёт Esc странице");
 });
 
 test("«+ Задача» в панели: диалог оболочки открывают, только пока он есть; сама панель его не открывает поверх себя", () => {
-  const context = load("src/components/v3/tasks/task-composer-context.tsx");
+  const context = load("src/components/staff/tasks/task-composer-context.tsx");
   assert.equal(context.taskComposerAvailable(), false, "диалога оболочки нет — ссылка ведёт на создание в «Задачах»");
   const calls = [];
   const unregister = context.registerTaskComposerOpener((value) => calls.push(value));
@@ -443,14 +443,14 @@ test("«+ Задача» в панели: диалог оболочки откр
   assert.deepEqual(calls, [{ title: "x" }]);
   unregister();
   assert.equal(context.taskComposerAvailable(), false);
-  assert.doesNotMatch(read("src/components/v3/students-next/StudentSheetSections.tsx"), /openTaskComposer/u, "панель не зовёт диалог оболочки сама: поверх модальной панели он не принимает касаний");
-  const host = read("src/components/v3/students-next/StudentSheetHost.tsx");
+  assert.doesNotMatch(read("src/components/staff/students-next/StudentSheetSections.tsx"), /openTaskComposer/u, "панель не зовёт диалог оболочки сама: поверх модальной панели он не принимает касаний");
+  const host = read("src/components/staff/students-next/StudentSheetHost.tsx");
   assert.match(host, /taskComposerAvailable\(\)/u);
   assert.match(host, /onCloseAutoFocus=\{afterClose\}/u, "диалог открывается, когда панель ушла");
 });
 
 test("телефон: «Сигналы» остаются среди трёх полей карточки в любом виде очереди, «Этап» на карточке не нужен (он в панели)", () => {
-  const { studentColumns } = load("src/components/v3/students-next/student-columns.tsx");
+  const { studentColumns } = load("src/components/staff/students-next/student-columns.tsx");
   for (const curatorColumn of [true, false]) {
     const shown = studentColumns(curatorColumn).filter((column) => column.meta?.mobile !== "hide");
     const title = shown.find((column) => column.meta?.mobile === "title");
@@ -461,17 +461,17 @@ test("телефон: «Сигналы» остаются среди трёх п
 });
 
 test("списки «Нового вида» с клавишами очереди: «Студенты», EVO Docs (дела, «Документы программ», «Комплекты») и «Нагрузка кураторов» стоят в `data-queue-list`", async () => {
-  assert.match(read("src/components/v3/students-next/StudentsTable.tsx"), /data-testid="v3-student-case-directory-next" data-queue-list=""/u);
+  assert.match(read("src/components/staff/students-next/StudentsTable.tsx"), /data-testid="v3-student-case-directory-next" data-queue-list=""/u);
   for (const [group, key, rows] of [["docs", "review", true], ["docs", "program", true], ["docs", "packages", true], ["curators", null, true]]) {
     const scene = key ? sceneOf(fixtures.students[group], key) : sceneOf({ c: fixtures.students.curators }, "c");
     const html = await profilePage("next", ADMIN, paramsOf(scene.search), scene.input).run();
     assert.match(html, /data-queue-list=""/u, `${group}${key ? `/${key}` : ""}: список помечен`);
     assert.equal(/data-queue-row="[^"]+"/u.test(html) && /data-queue-open=""/u.test(html), rows, `${group}${key ? `/${key}` : ""}: у строк есть ссылка или кнопка открытия для j/k`);
   }
-  const curators = read("src/components/v3/students-next/CuratorsNext.tsx");
+  const curators = read("src/components/staff/students-next/CuratorsNext.tsx");
   assert.doesNotMatch(curators, /columns\(today, selectedId\)|\[today, selectedId\]/u, "колонки не зависят от выбора: иначе ячейки пересоздаются, и фокус не возвращается на ссылку");
   assert.match(curators, /<QueueList keys=\{!selectedId \|\| sheet\.closed\}>/u, "клавиши списка молчат, пока открыта панель куратора");
-  assert.match(read("src/components/v3/students-next/DocsProgramTable.tsx"), /<QueueList keys=\{!open\}>/u);
+  assert.match(read("src/components/staff/students-next/DocsProgramTable.tsx"), /<QueueList keys=\{!open\}>/u);
 });
 
 test("«Университеты»: у давно не проверявшейся карточки машинная дата `<time>` — ISO, на экране — день и месяц", async () => {
@@ -490,7 +490,7 @@ test("«Университеты»: у давно не проверявшейс�
 
 /* ---------------------------------------------------------------- границы файлов */
 
-const NEXT_DIRS = ["src/components/v3/students-next", "src/components/v3/universities-next", "src/components/v3/list-next"];
+const NEXT_DIRS = ["src/components/staff/students-next", "src/components/staff/universities-next", "src/components/staff/list-next"];
 const nextFiles = () => NEXT_DIRS.flatMap((dir) => readdirSync(new URL(`../${dir}`, import.meta.url)).map((name) => `${dir}/${name}`));
 
 test("файлы нового вида: каждый до 150 строк, без собственных серверных действий, тёмной темы и импорта действий; набор виджетов — не больше 150", () => {
@@ -508,46 +508,46 @@ test("файлы нового вида: каждый до 150 строк, без
 });
 
 test("первая загрузка: страницы не импортируют новый вид статически, входы — ленивые `next/dynamic` с `onScreenLoadFailed`", () => {
-  const profile = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(profile, /import \{ StudentsNextLazy \} from "@\/components\/v3\/students-next\/StudentsNextLazy";/u);
+  const profile = read("src/app/(staff)/profile/page.tsx");
+  assert.match(profile, /import \{ StudentsNextLazy \} from "@\/components\/staff\/students-next\/StudentsNextLazy";/u);
   assert.match(profile, /if \(queueInput\) return <StudentsNextLazy input=\{queueInput\} manageUniversities=\{manageUniversities\} \/>;/u);
   assert.doesNotMatch(profile, /buildStudentsQueueScreen/u, "прежний вид очереди из страницы убран");
-  const lazy = read("src/components/v3/students-next/StudentsNextLazy.tsx");
+  const lazy = read("src/components/staff/students-next/StudentsNextLazy.tsx");
   assert.match(lazy, /^"use client";/u);
   assert.match(lazy, /dynamic\(\(\) => import\("\.\/StudentsNextPage"\)\.then\(\(module\) => module\.StudentsNextPage\)\.catch\(onScreenLoadFailed\)\)/u);
-  const lazies = read("src/components/v3/universities-next/UniversitiesNextLazy.tsx");
+  const lazies = read("src/components/staff/universities-next/UniversitiesNextLazy.tsx");
   assert.match(lazies, /^"use client";/u);
   assert.equal([...lazies.matchAll(/\.catch\(onScreenLoadFailed\)/gu)].length, 4, "четыре входа: список, карточка, рамка, индекс управления");
   for (const page of ["page.tsx", "[id]/page.tsx", "manage/page.tsx", "rates/page.tsx", "cities/page.tsx", "[id]/forms/page.tsx"]) {
-    const source = read(`src/app/(v3)/v3/universities/${page}`);
+    const source = read(`src/app/(staff)/universities/${page}`);
     assert.doesNotMatch(source, /from "@\/components\/kit/u, `${page}: набор виджетов статически не подключается`);
-    assert.doesNotMatch(source, /from "@\/components\/v3\/universities-next\/(UniversitiesListNext|UniversityDetailNext|UniversityFrame|ManageIndexNext)"/u, `${page}: вход — только ленивый`);
+    assert.doesNotMatch(source, /from "@\/components\/staff\/universities-next\/(UniversitiesListNext|UniversityDetailNext|UniversityFrame|ManageIndexNext)"/u, `${page}: вход — только ленивый`);
     assert.doesNotMatch(source, /isNextUi/u, `${page}: выбора вида нет`);
   }
-  const shell = read("src/components/v3/universities-next/UniversityShell.tsx");
+  const shell = read("src/components/staff/universities-next/UniversityShell.tsx");
   assert.doesNotMatch(shell, /nextUi/u, "рамка всегда новая");
-  assert.doesNotMatch(read("src/components/v3/students-next/StudentsNextLazy.tsx") + shell, /@\/components\/kit"/u);
+  assert.doesNotMatch(read("src/components/staff/students-next/StudentsNextLazy.tsx") + shell, /@\/components\/kit"/u);
 });
 
 test("отказ ленивого куска: у обоих маршрутов есть `loading.tsx` (граница Suspense), как у экранов первой волны", () => {
-  assert.ok(existsSync(new URL("../src/app/(v3)/v3/profile/loading.tsx", import.meta.url)));
-  assert.ok(existsSync(new URL("../src/app/(v3)/v3/universities/loading.tsx", import.meta.url)));
+  assert.ok(existsSync(new URL("../src/app/(staff)/profile/loading.tsx", import.meta.url)));
+  assert.ok(existsSync(new URL("../src/app/(staff)/universities/loading.tsx", import.meta.url)));
   for (const file of ["StudentsNextLazy", "UniversitiesNextLazy"]) {
-    const source = read(`src/components/v3/${file.startsWith("Students") ? "students-next" : "universities-next"}/${file}.tsx`);
+    const source = read(`src/components/staff/${file.startsWith("Students") ? "students-next" : "universities-next"}/${file}.tsx`);
     assert.match(source, /import \{ onScreenLoadFailed \} from "@\/components\/kit\/LoadFailed";/u, `${file}: отказ загрузки куска — «Обновить страницу», а не молчаливая пустота`);
   }
 });
 
 test("«?» и текст: пояснения за «?», предупреждения о чтении и рисках остаются на виду; новый текст не повторяет прежние абзацы", () => {
-  const page = read("src/components/v3/students-next/StudentsNextPage.tsx");
+  const page = read("src/components/staff/students-next/StudentsNextPage.tsx");
   assert.match(page, /help=\{docs \? HELP_DOCS : HELP_QUEUE\}/u, "пояснение страницы — в «?» шапки");
   assert.match(page, /Обратитесь к администратору: повторная попытка не поможет\./u);
   assert.match(page, /Не удалось применить фильтры\./u);
-  assert.match(read("src/components/v3/students-next/StudentsQueueNext.tsx"), /Счётчики недоступны, список работает\./u);
-  assert.match(read("src/components/v3/students-next/DocsQueues.tsx"), /Не удалось загрузить документы программ на проверку\./u);
-  assert.match(read("src/components/v3/students-next/DocsQueues.tsx"), /Очередь комплектов вашей учётной записи недоступна/u);
-  assert.match(read("src/components/v3/students-next/CuratorsNext.tsx"), /Нагрузка сейчас недоступна\. Это не означает, что дел или задач нет\./u);
-  assert.match(read("src/components/v3/universities-next/ManageIndexNext.tsx"), /Не удалось загрузить черновики\./u);
-  assert.match(read("src/components/v3/universities-next/ManageIndexNext.tsx"), /help="Исходные материалы для проверки, не опубликованные записи;/u, "пояснение о подготовленных сведениях — за «?»");
-  assert.match(read("src/components/v3/universities-next/UniversitiesListNext.tsx"), /Каталог длиннее предела полного чтения: порядок — по названию/u);
+  assert.match(read("src/components/staff/students-next/StudentsQueueNext.tsx"), /Счётчики недоступны, список работает\./u);
+  assert.match(read("src/components/staff/students-next/DocsQueues.tsx"), /Не удалось загрузить документы программ на проверку\./u);
+  assert.match(read("src/components/staff/students-next/DocsQueues.tsx"), /Очередь комплектов вашей учётной записи недоступна/u);
+  assert.match(read("src/components/staff/students-next/CuratorsNext.tsx"), /Нагрузка сейчас недоступна\. Это не означает, что дел или задач нет\./u);
+  assert.match(read("src/components/staff/universities-next/ManageIndexNext.tsx"), /Не удалось загрузить черновики\./u);
+  assert.match(read("src/components/staff/universities-next/ManageIndexNext.tsx"), /help="Исходные материалы для проверки, не опубликованные записи;/u, "пояснение о подготовленных сведениях — за «?»");
+  assert.match(read("src/components/staff/universities-next/UniversitiesListNext.tsx"), /Каталог длиннее предела полного чтения: порядок — по названию/u);
 });

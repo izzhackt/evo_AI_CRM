@@ -20,9 +20,9 @@ const real = (name, mode) => realPages.get(`${name}:${mode}`) ?? assert.fail(`н
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").replace(/\s+/gu, " ").trim();
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
 
-const NEW_DIR = "src/components/v3/profile/next/tabs";
+const NEW_DIR = "src/components/staff/profile/next/tabs";
 const NEW_FILES = [...readdirSync(new URL(`../${NEW_DIR}`, import.meta.url)).map((name) => `${NEW_DIR}/${name}`),
-  "src/components/v3/profile/next/MoreSheet.tsx", "src/components/v3/profile/next/MoreSheetImpl.tsx", "src/components/kit/card-classes.ts", "src/components/v3/profile/money-panels.ts"];
+  "src/components/staff/profile/next/MoreSheet.tsx", "src/components/staff/profile/next/MoreSheetImpl.tsx", "src/components/kit/card-classes.ts", "src/components/staff/profile/money-panels.ts"];
 const CASE_TABS = ["docs-all", "docs-review", "docs-empty", "docs-preview", "money-same", "money-cross", "money-empty", "route-four", "route-empty", "anketa-full", "anketa-simple", "history-long", "history-short", "history-forbidden"];
 
 test("сценарии собираются: четырнадцать вкладок дела, две вкладки лида и закрытый лид; каждый — в новом виде", () => {
@@ -207,7 +207,7 @@ test("«Договор и оплата»: заголовок открытой п
 test("«Файлы анкеты»: заголовок карточки того же размера, что у соседних карточек (16/24, 600); прежний вид — прежний `h4`", () => {
   assert.match(next("anketa-full"), /<h3 class="text-base font-semibold leading-6 text-fg">Файлы анкеты<\/h3>/u);
   // Размер «t-section» из таблицы стилей: 16/24/600 — ровно то, что дают `text-base leading-6 font-semibold`.
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   assert.match(css, /--type-section: 16px;/u);
   assert.match(css, /--type-section-leading: 24px;/u);
 });
@@ -240,7 +240,7 @@ const NEW_ONLY = {
   "anketa-full": /data-testid="v3-anketa-answers"/u, "history-long": /data-testid="v3-history-events"/u, "lead-closed": /data-testid="v3-lead-closed-card"/u,
 };
 
-test("страница `/v3/profile`: новый вид вкладок — у каждой роли (администратор, сотрудник, просмотр роли), cookie больше нет (#1327)", () => {
+test("страница `/profile`: новый вид вкладок — у каждой роли (администратор, сотрудник, просмотр роли), cookie больше нет (#1327)", () => {
   const names = [...new Set([...realPages.keys()].map((key) => key.split(":")[0]))];
   assert.equal(names.length, 15, "четырнадцать вкладок дела и закрытый лид");
   for (const name of Object.keys(MARKERS)) {
@@ -259,7 +259,7 @@ test("страница `/v3/profile`: новый вид вкладок — у к
 /* ---------------------------------------------------------------- исходники */
 
 test("«Новый вид» страницы единственный (#1327); закрытый лид и «не найден» всегда берут новую рамку", () => {
-  const source = read("src/app/(v3)/v3/profile/page.tsx");
+  const source = read("src/app/(staff)/profile/page.tsx");
   assert.doesNotMatch(source, /isNextUi/u);
   assert.match(source, /const nextCard = nextParts !== null \|\| closedLead !== null \|\| invalidIdentityShape \|\| missing;/u);
   assert.match(source, /<ClosedLeadNext row=\{closedLead\} readOnly=\{isStaffPreview\(actor\)\} \/>/u);
@@ -269,7 +269,7 @@ test("«Новый вид» страницы единственный (#1327); �
   // Чтения те же: в странице не добавилось ни одного `read*`.
   const reads = [...source.matchAll(/\b(read[A-Z]\w+)\(/gu)].map((match) => match[1]);
   assert.ok(!reads.some((name) => /Next|Tab/u.test(name)), "чтений нового вида в странице нет");
-  const profile = read("src/components/v3/profile/Profile.tsx");
+  const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /nextUi=\{nextUi\}/u);
   assert.match(profile, /<Anketa profile=\{profile\} draft=\{draft\} nextUi=\{nextUi\}/u);
   assert.match(profile, /<Money profile=\{profile\} draft=\{draft\} actor=\{actor\} salesCaseId=\{sales\?\.handoff\.caseId\} nextUi=\{nextUi\}/u);
@@ -293,29 +293,29 @@ test("файлы нового вида: каждый до 150 строк, без
   // «Договор и оплата» читает сводку 189 тем же читателем, что `CaseAgreementBlock`; «Анкета» — «Интересует» тем же, что «Сведения» лида.
   assert.deepEqual([...reads].sort(), ["AnketaOtherFacts.tsx:../../LeadInterestFact", "MoneyAgreementNext.tsx:@/lib/v3/case-agreement-source"]);
   assert.match(read(`${NEW_DIR}/MoneyAgreementNext.tsx`), /await readCaseAgreement\(actor, studentCaseId\)/u);
-  assert.match(read("src/components/v3/profile/CaseAgreementBlock.tsx"), /await readCaseAgreement\(actor, studentCaseId\)/u);
+  assert.match(read("src/components/staff/profile/CaseAgreementBlock.tsx"), /await readCaseAgreement\(actor, studentCaseId\)/u);
   assert.match(read(`${NEW_DIR}/AnketaOtherFacts.tsx`), /await readLeadInterestState\(profile\.leadId\)/u);
 });
 
 test("права и условия вкладки «Договор и оплата» одни на оба вида: `moneyPanelPlan` читают `Money` и `MoneyNext`", () => {
-  assert.match(read("src/components/v3/profile/tabs.tsx"), /= moneyPanelPlan\(\{\s*draft, actor, salesCaseId, financeVisible, contractWorkspace: Boolean\(contractWorkspace\),/u);
+  assert.match(read("src/components/staff/profile/tabs.tsx"), /= moneyPanelPlan\(\{\s*draft, actor, salesCaseId, financeVisible, contractWorkspace: Boolean\(contractWorkspace\),/u);
   assert.match(read(`${NEW_DIR}/MoneyNext.tsx`), /= moneyPanelPlan\(\{\s*draft, actor, salesCaseId, financeVisible, contractWorkspace: Boolean\(contractWorkspace\),/u);
-  const plan = read("src/components/v3/profile/money-panels.ts");
+  const plan = read("src/components/staff/profile/money-panels.ts");
   for (const rule of [/finance\.event\.confirm/u, /staffPresentationCan\(actor, "admissions\.read"\)/u, /actor\.presentationRole !== "sales"/u, /isStaffPreview\(actor\)/u]) assert.match(plan, rule);
 });
 
 test("первая загрузка: «Ещё N» панели — лёгкая заглушка с ленивой настоящей; клиентские куски прежних экранов не тянут `ui/*`, `cn` и Radix", () => {
-  const facade = read("src/components/v3/profile/next/MoreSheet.tsx");
+  const facade = read("src/components/staff/profile/next/MoreSheet.tsx");
   assert.match(facade, /lazy\(\(\) => import\("\.\/MoreSheetImpl"\)/u);
   assert.match(facade, /\.catch\(onLazyFailed\(\{ default: MoreSheetStatic \}\)\)/u);
   assert.match(facade, /className=\{OUTLINE_BUTTON\}/u, "заглушка — те же классы, что у `Button variant=outline w-fit`");
   assert.doesNotMatch(facade, /DetailSheet|ui\/button|@\/lib\/utils/u, "панель и Radix Dialog не импортируются статически");
   // Прежние клиентские файлы (общие с прежним видом) не знают про `ui/*`: классы карточки приходят свойством или строкой.
   for (const file of ["ProfileDocumentsClient", "StudentProfileFields", "StudentProfileExportHistory", "CaseMoney", "ProfileAdmissionsWorkspace"]) {
-    const source = read(`src/components/v3/profile/${file}.tsx`);
+    const source = read(`src/components/staff/profile/${file}.tsx`);
     assert.doesNotMatch(source, /from "@\/components\/ui\/|from "@\/lib\/utils"|from "radix-ui"/u, `${file}: без ui/*, cn и Radix`);
   }
-  assert.match(read("src/components/v3/profile/StudentProfileFields.tsx"), /cardClass\?: string;/u);
+  assert.match(read("src/components/staff/profile/StudentProfileFields.tsx"), /cardClass\?: string;/u);
   assert.match(read(`${NEW_DIR}/AnketaNext.tsx`), /cardClass=\{CARD_FRAME\}/u);
   // «Документы»: единственный новый импорт клиентского файла — раскладка без `ui/*` и Radix (HelpTip — лёгкая заглушка).
   const layout = read(`${NEW_DIR}/DocumentsNextLayout.tsx`);
@@ -335,18 +335,18 @@ test("`card-classes.ts` — те же классы, что у `Card`, `CardTitle
 });
 
 test("прежний вид не тронут признаком: классы и разметка прежних вкладок на своих местах, у прежних клиентских файлов признак по умолчанию выключен", () => {
-  const client = read("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const client = read("src/components/staff/profile/ProfileDocumentsClient.tsx");
   assert.match(client, /nextUi = false,/u);
   assert.match(client, /<section aria-labelledby="case-documents-title" className="min-w-0 space-y-3" data-testid="v3-case-documents">/u);
   assert.match(client, /ruled=\{groups\.length === 0\}/u);
-  assert.match(read("src/components/v3/profile/CaseMoney.tsx"), /className="@container min-w-0 rounded-card border border-border bg-surface"/u);
-  assert.match(read("src/components/v3/profile/CaseMoney.tsx"), /nextUi = false,/u);
-  assert.match(read("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx"), /bare = false,/u);
-  assert.match(read("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx"), /className=\{bare \? "divide-y divide-border" : "mt-3 divide-y divide-border border-y border-border"\}/u);
-  assert.match(read("src/components/v3/profile/PartnerPacketsPanel.tsx"), /: "group scroll-mt-4 border-b border-border"/u);
-  assert.match(read("src/components/v3/profile/StudentProfileFields.tsx"), /"space-y-3 rounded-card border border-border bg-surface p-4"/u);
+  assert.match(read("src/components/staff/profile/CaseMoney.tsx"), /className="@container min-w-0 rounded-card border border-border bg-surface"/u);
+  assert.match(read("src/components/staff/profile/CaseMoney.tsx"), /nextUi = false,/u);
+  assert.match(read("src/components/staff/profile/ProfileAdmissionsWorkspace.tsx"), /bare = false,/u);
+  assert.match(read("src/components/staff/profile/ProfileAdmissionsWorkspace.tsx"), /className=\{bare \? "divide-y divide-border" : "mt-3 divide-y divide-border border-y border-border"\}/u);
+  assert.match(read("src/components/staff/profile/PartnerPacketsPanel.tsx"), /: "group scroll-mt-4 border-b border-border"/u);
+  assert.match(read("src/components/staff/profile/StudentProfileFields.tsx"), /"space-y-3 rounded-card border border-border bg-surface p-4"/u);
   // Портальный общий файл остаётся на своих классах (роли `t-*` в нём запрещены тестом общих файлов).
-  assert.doesNotMatch(read("src/components/v3/profile/StudentProfileExportHistory.tsx"), /\bt-(item|section|body)/u);
+  assert.doesNotMatch(read("src/components/staff/profile/StudentProfileExportHistory.tsx"), /\bt-(item|section|body)/u);
 });
 
 test("есть стенды и снимки: Chromium-стенд вкладок и клиентские проверки панелей лежат рядом", () => {

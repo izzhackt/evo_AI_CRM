@@ -53,9 +53,9 @@ export async function mutateStaffTaskAction(previous: StaffTaskActionState, form
     const version = staffTaskVersion(data?.version);
     if (!taskId || !version || data?.request_id !== requestId || !staffTaskTimestamp(data?.changed_at)
       || (command.p_staff_task_id !== null && command.p_staff_task_id !== taskId)) return failed("unavailable");
-    revalidatePath("/v3/tasks");
-    revalidatePath("/v3/pipeline");
-    if (sourceMessageId) revalidatePath("/v3/team-chat");
+    revalidatePath("/tasks");
+    revalidatePath("/pipeline");
+    if (sourceMessageId) revalidatePath("/team-chat");
     return { status: "saved", requestId, taskId, version };
   } catch {
     return failed("unavailable");

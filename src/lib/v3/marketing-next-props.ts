@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { MarketingNextProps } from "@/components/v3/marketing-next/marketing-next-types";
+import type { MarketingNextProps } from "@/components/staff/marketing-next/marketing-next-types";
 import { marketingLeadFilterParams, NO_MARKETING_FILTERS, type MarketingLeadFilters, type SpendRow } from "@/lib/marketing-contract";
 import { marketingHref, MARKETING_VIEWS, RECENT_DAYS_FOR_SIGNAL, shiftIsoDate, type MarketingView } from "@/lib/marketing-view";
 import type { ActivePlatformActor } from "@/lib/platform-auth";

@@ -18,14 +18,14 @@ const serverModule = source("src/lib/platform-admissions-pipeline.ts");
 // The board is the component plus the engine and the card menu that «Новый вид» shares (27.10.2026: `useAdmissionsBoard`,
 // `AdmissionsCardMenu`, `board-model`, moved out of the component without changes): the source pins read all four.
 const board = [
-  "src/components/v3/admissions-board/useAdmissionsBoard.ts",
-  "src/components/v3/admissions-board/AdmissionsCardMenu.tsx", "src/components/v3/admissions-board/board-model.ts",
-  "src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/v3/admissions-pipeline-next/AdmissionsCardNext.tsx",
-  "src/components/v3/admissions-pipeline-next/AdmissionsColumnNext.tsx", "src/components/v3/admissions-pipeline-next/AdmissionsNotices.tsx",
+  "src/components/staff/admissions-board/useAdmissionsBoard.ts",
+  "src/components/staff/admissions-board/AdmissionsCardMenu.tsx", "src/components/staff/admissions-board/board-model.ts",
+  "src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/staff/admissions-pipeline-next/AdmissionsCardNext.tsx",
+  "src/components/staff/admissions-pipeline-next/AdmissionsColumnNext.tsx", "src/components/staff/admissions-pipeline-next/AdmissionsNotices.tsx",
 ].map(source).join("\n");
-const boardPrimitive = source("src/components/v3/board/Board.tsx");
+const boardPrimitive = source("src/components/staff/board/Board.tsx");
 const actions = source("src/lib/platform-admissions-pipeline-actions.ts");
-const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+const page = source("src/app/(staff)/admissions-pipeline/page.tsx");
 const migration = source("supabase/migrations/187_platform_admissions_pipeline_board.sql");
 const fixedRolePolicy = source("src/lib/fixed-role-policy.ts");
 const navigation = source("src/lib/v3/navigation.ts");
@@ -102,12 +102,12 @@ test("moving to the other tab offers a same-card inline link to switch tabs", ()
 });
 
 test("the route is registered as admissions.read-gated in fixed-role-policy", () => {
-  assert.match(fixedRolePolicy, /"\/v3\/admissions-pipeline",/u);
+  assert.match(fixedRolePolicy, /"\/admissions-pipeline",/u);
   const anyOf = fixedRolePolicy.slice(
     fixedRolePolicy.indexOf("const ROUTE_CAPABILITY_ANY_OF"),
     fixedRolePolicy.indexOf("} as const satisfies Record<FixedRoleRoute", fixedRolePolicy.indexOf("const ROUTE_CAPABILITY_ANY_OF")),
   );
-  assert.match(anyOf, /"\/v3\/admissions-pipeline":\s*\["admissions\.read"\]/u);
+  assert.match(anyOf, /"\/admissions-pipeline":\s*\["admissions\.read"\]/u);
 });
 
 test("the navigation entry is the first item of the Поступление group", () => {
@@ -117,7 +117,7 @@ test("the navigation entry is the first item of the Поступление group
   const firstLinkEnd = navigation.indexOf("},", linksStart);
   const firstLink = navigation.slice(linksStart, firstLinkEnd);
   assert.match(firstLink, /id: "admissions-pipeline"/u);
-  assert.match(firstLink, /href: "\/v3\/admissions-pipeline"/u);
+  assert.match(firstLink, /href: "\/admissions-pipeline"/u);
   assert.match(firstLink, /label: "Воронка поступления"/u);
   void group;
 });
@@ -247,7 +247,7 @@ const accessMigration = source("supabase/migrations/244_platform_access_by_permi
 test("the undo rules: the card goes where the server says, else where the confirmed move left it", () => {
   const require = createRequire(import.meta.url);
   void require;
-  const code = ts.transpileModule(source("src/components/v3/board/board-undo.ts"), { compilerOptions: {
+  const code = ts.transpileModule(source("src/components/staff/board/board-undo.ts"), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const mod = { exports: {} };
   new Function("module", "exports", code)(mod, mod.exports);
@@ -288,7 +288,7 @@ test("the board writes only through v2 (251); the action checks the version and 
   assert.match(serverModule, /\.rpc\("move_case_pipeline_v2", \{[\s\S]*p_expected_version: expectedVersion,/u);
   assert.doesNotMatch(serverModule, /move_case_pipeline_v1"/u);
   assert.match(actions, /Number\.isSafeInteger\(input\.expectedVersion\) \|\| input\.expectedVersion < 1/u);
-  assert.match(actions, /if \(error\.status === "moved"\) \{\s*\/\/[^\n]*\n\s*revalidatePath\("\/v3\/admissions-pipeline"\);/u);
+  assert.match(actions, /if \(error\.status === "moved"\) \{\s*\/\/[^\n]*\n\s*revalidatePath\("\/admissions-pipeline"\);/u);
   assert.match(board, /moveCasePipelineAction\(\{ studentCaseId, requestId, stage: fromStage, expectedVersion: offer\.version \}\)/u);
   assert.match(board, /if \(!undo \|\| undo\.pending \|\| held\) return;/u);
   assert.match(board, /focus: via === "menu"/u, "a menu move puts focus on «Отменить», a drag does not");

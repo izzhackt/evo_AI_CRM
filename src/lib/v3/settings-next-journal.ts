@@ -1,5 +1,5 @@
-import type { JournalNextRow, JournalNextType, SettingsJournalProps } from "@/components/v3/settings-next/settings-next-types";
-import type { JournalEntry } from "@/components/v3/settings/types";
+import type { JournalNextRow, JournalNextType, SettingsJournalProps } from "@/components/staff/settings-next/settings-next-types";
+import type { JournalEntry } from "@/components/staff/settings/types";
 import { journalNotice, type JournalStatus } from "@/lib/v3/settings-journal-contract";
 import { journalActor, journalEvent, journalEventText, journalObject } from "@/lib/v3/wording";
 

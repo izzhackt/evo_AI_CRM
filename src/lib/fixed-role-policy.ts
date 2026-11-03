@@ -22,28 +22,28 @@ export type FixedRoleCapability = (typeof FIXED_ROLE_CAPABILITIES)[number];
 export type FixedRole = StaffRole;
 
 export const FIXED_ROLE_ROUTES = [
-  "/v3/main",
-  "/v3/requests",
-  "/v3/pipeline",
-  "/v3/admissions-pipeline",
-  "/v3/inbox",
-  "/v3/profile",
-  "/v3/calendar",
-  "/v3/tasks",
-  "/v3/team-chat",
-  "/v3/messages",
-  "/v3/universities",
-  "/v3/knowledge",
-  "/v3/marketing",
+  "/main",
+  "/requests",
+  "/pipeline",
+  "/admissions-pipeline",
+  "/inbox",
+  "/profile",
+  "/calendar",
+  "/tasks",
+  "/team-chat",
+  "/messages",
+  "/universities",
+  "/knowledge",
+  "/marketing",
   // «Финансы» (решение владельца 26.10.2026): раздел верхнего уровня рядом с «Маркетингом»; пока заготовка под доходы, расходы и расчёты.
-  "/v3/finance",
+  "/finance",
   // Набор виджетов «Нового вида» (27.10.2026): страница для владельца, только настоящий Admin.
-  "/v3/ui-kit",
-  "/v3/ai-agent",
-  "/v3/ai-agents",
-  "/v3/reply-snippets",
-  "/v3/documents",
-  "/v3/settings",
+  "/ui-kit",
+  "/ai-agent",
+  "/ai-agents",
+  "/reply-snippets",
+  "/documents",
+  "/settings",
 ] as const;
 
 export type FixedRoleRoute = (typeof FIXED_ROLE_ROUTES)[number];
@@ -76,28 +76,28 @@ type RouteCapabilityRequirement = readonly [
 ];
 
 const ROUTE_CAPABILITY_ANY_OF = {
-  "/v3/main": ["sales.read", "admissions.read"],
-  "/v3/requests": ["sales.read"],
-  "/v3/pipeline": ["sales.read"],
-  "/v3/admissions-pipeline": ["admissions.read"],
-  "/v3/inbox": ["messaging.read"],
-  "/v3/profile": ["dashboard.read"],
-  "/v3/calendar": ["admissions.read"],
-  "/v3/tasks": ["team.read"],
-  "/v3/team-chat": ["team.read"],
-  "/v3/messages": ["admissions.read"],
-  "/v3/universities": ["sales.read", "admissions.read"],
-  "/v3/knowledge": ["admin.preview"],
-  "/v3/marketing": ["admin.preview"],
-  "/v3/finance": ["admin.preview"],
-  "/v3/ui-kit": ["admin.preview"],
+  "/main": ["sales.read", "admissions.read"],
+  "/requests": ["sales.read"],
+  "/pipeline": ["sales.read"],
+  "/admissions-pipeline": ["admissions.read"],
+  "/inbox": ["messaging.read"],
+  "/profile": ["dashboard.read"],
+  "/calendar": ["admissions.read"],
+  "/tasks": ["team.read"],
+  "/team-chat": ["team.read"],
+  "/messages": ["admissions.read"],
+  "/universities": ["sales.read", "admissions.read"],
+  "/knowledge": ["admin.preview"],
+  "/marketing": ["admin.preview"],
+  "/finance": ["admin.preview"],
+  "/ui-kit": ["admin.preview"],
   // «ИИ-агент» — все сотрудники (решение владельца Q9, «нет, все могут»).
-  "/v3/ai-agent": ["dashboard.read"],
+  "/ai-agent": ["dashboard.read"],
   // «ИИ-агенты» (отдел агентов Claude, 22.10.2026) — те же сотрудники.
-  "/v3/ai-agents": ["dashboard.read"],
-  "/v3/documents": ["documents.read"],
-  "/v3/reply-snippets": ["sales.read", "admissions.read"],
-  "/v3/settings": ["admin.preview"],
+  "/ai-agents": ["dashboard.read"],
+  "/documents": ["documents.read"],
+  "/reply-snippets": ["sales.read", "admissions.read"],
+  "/settings": ["admin.preview"],
 } as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;
 
 export function isFixedRoleRoute(value: unknown): value is FixedRoleRoute {
@@ -132,11 +132,11 @@ export function fixedRoleCanAccessRoute(
 
 export function fixedRoleHomeRoute(
   role: FixedRole,
-): "/v3/main" | "/v3/calendar" {
-  // Every fixed role starts on /v3/main — «Сегодня», one queue of what is
+): "/main" | "/calendar" {
+  // Every fixed role starts on /main — «Сегодня», one queue of what is
   // due (Э3, 26.09.2026) — matching real-staff routeCapabilities.
   void role;
-  return "/v3/main";
+  return "/main";
 }
 
 export function canAdminSelectEffectiveRole(

@@ -1,4 +1,4 @@
-import { salesHeadlinePeriod } from "@/components/v3/SalesPeriodHeadline";
+import { salesHeadlinePeriod } from "@/components/staff/SalesPeriodHeadline";
 import { staffHasPermission, isStaffPreview, staffPresentationCan } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { getPlatformSalesLead } from "@/lib/platform-sales";

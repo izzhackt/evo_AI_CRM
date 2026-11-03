@@ -255,14 +255,14 @@ export async function mutatePlatformLeadAdmissionsGateAction(
 ): Promise<PlatformLeadAdmissionsGateActionState> {
   // This is only the workspace entry hint; the RPC independently checks the
   // selected gate command's exact permission/scope. Preview remains read-only.
-  const actor = await requirePlatformMutationCapability("sales.read", "/v3/pipeline");
+  const actor = await requirePlatformMutationCapability("sales.read", "/pipeline");
   const input = parseGateInput(form);
   if (!input) return gateFailureState(form, "invalid");
 
   try {
     const receipt = await mutatePlatformLeadAdmissionsGate(actor, input);
-    revalidatePath("/v3/pipeline");
-    revalidatePath(`/v3/profile?id=${receipt.leadId}`);
+    revalidatePath("/pipeline");
+    revalidatePath(`/profile?id=${receipt.leadId}`);
     return Object.freeze({
       status: "saved" as const,
       requestId: randomUUID(),

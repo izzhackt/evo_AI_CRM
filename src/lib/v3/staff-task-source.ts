@@ -7,7 +7,7 @@ import type { getPlatformAdmissionsTaskWorkspace, listPlatformAdmissionsTaskQueu
 import type { listPlatformStudentCases } from "../platform-admissions";
 import type { listStaffParticipants, listStaffTaskAssignees, listStaffTasks } from "../server/platform-staff-task-repository";
 import type { StaffTask, StaffTaskCursor } from "../platform-staff-task-contract";
-import { dueFilterDays, type DueFilter } from "../../components/v3/queue/due-bucket.ts";
+import { dueFilterDays, type DueFilter } from "../../components/staff/queue/due-bucket.ts";
 import type { TaskQueueKind, TaskQueueState, TaskQueueView, TaskQueueWindow } from "./task-queue.ts";
 
 type StaffTaskWorkspaceReaders = Readonly<{

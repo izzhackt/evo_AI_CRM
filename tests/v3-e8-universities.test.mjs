@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { partnerPacketHref, universityRows } from "../src/components/v3/profile/university-programs-view.ts";
+import { partnerPacketHref, universityRows } from "../src/components/staff/profile/university-programs-view.ts";
 import { APPLICATION_PATH_STEPS, applicationPathStep, applicationPathWord } from "../src/lib/v3/wording.ts";
 
 /**
@@ -128,8 +128,8 @@ test("the deadline: Bishkek day, own deadline first, a word only before submissi
 test("tones: offer and enrolment are ok, a university rejection is the only red word", () => {
   const rows = universityRows(["offer", "enrolled", "rejected", "withdrawn", "submitted"].map((status, n) => application(n + 1, { status })), [], NOW);
   assert.deepEqual(rows.map((row) => row.tone), ["ok", "ok", "danger", "neutral", "neutral"]);
-  assert.equal(partnerPacketHref("/v3/profile?case=c&tab=route&returnTo=%2Fv3", id(1)),
-    `/v3/profile?case=c&tab=route&returnTo=%2Fv3&panel=packets&packet_application=${id(1)}#partner-packets`);
+  assert.equal(partnerPacketHref("/profile?case=c&tab=route&returnTo=%2F", id(1)),
+    `/profile?case=c&tab=route&returnTo=%2F&panel=packets&packet_application=${id(1)}#partner-packets`);
 });
 
 // --- разметка вкладки ----------------------------------------------------------
@@ -210,10 +210,10 @@ test("disclosures: one chevron style, 44 px, no red summaries; anchors and proof
 });
 
 test("the page wires the tab address and a validated packet preselection; reads stay separate", () => {
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /<UniversityProgramsTab actor=\{actor\} draft=\{view\.details\} routeHref=\{hrefFor\("route"\)\}/u);
   assert.match(page, /packetApplicationId=\{singleSearchParam\(params\.packet_application\) \?\? null\}/u);
-  const tab = read("src/components/v3/profile/UniversityProgramsTab.tsx");
+  const tab = read("src/components/staff/profile/UniversityProgramsTab.tsx");
   assert.match(tab, /readApplicationPartnerDetails\(actor, caseId\)\.catch\(\(\) => \[\]\)/u);
   assert.match(tab, /readStaffPreparationsAction\(caseId\)\.catch\(/u);
   assert.match(tab, /readPartnerPackets\(actor, caseId\)\.catch\(\(\) => null\)/u);
@@ -223,24 +223,24 @@ test("the page wires the tab address and a validated packet preselection; reads 
   assert.match(tab, /const canWriteApplications = !preview && active && staffHasPermission\(actor, "application\.manage"\);/u);
   assert.match(tab, /const canSelect = canWriteApplications && staffHasPermission\(actor, "catalog\.read"\);/u);
   // Сохранённые запросы без результата: выбор — у кнопки и в окне, подготовка документов — в строке.
-  const picker = read("src/components/v3/profile/StaffCatalogPreparationPicker.tsx");
+  const picker = read("src/components/staff/profile/StaffCatalogPreparationPicker.tsx");
   assert.match(picker, /const \{ intent: retained, blocked \} = useStaffPending\(picker\.scope, "selection"\);/u);
   assert.match(picker, /Повторить сохранённый запрос/u);
-  const panel = read("src/components/v3/profile/StaffPreparationPanel.tsx");
+  const panel = read("src/components/staff/profile/StaffPreparationPanel.tsx");
   assert.match(panel, /useStaffPending\(scope, "requirements", preparation\.applicationId\)/u);
   assert.match(panel, /const anchorOpen = hash === `#\$\{id\}`;/u);
   assert.match(panel, /className=\{QUEUE_CONFIRM\} onClick=\{\(\) => void initialize\(\)\}/u, "the recovery confirm is dark, not a second red");
   // Строка у кнопки: неподтверждённый выбор и нечитаемое хранилище браузера названы по-разному.
   assert.match(picker, /\{retained \? "Выбор из каталога не подтверждён\." : "Не удалось прочитать сохранённый запрос\."\}/u);
   // Редактор списка документов открывается в строке вуза: его подтверждения — тёмные, не второй красный.
-  const editor = read("src/components/v3/profile/StaffRequirementsEditor.tsx");
+  const editor = read("src/components/staff/profile/StaffRequirementsEditor.tsx");
   assert.doesNotMatch(editor, /\bbtnCls\b/u);
   assert.match(editor, /className=\{QUEUE_CONFIRM\} disabled=\{sending \|\| retained\.blocked\} onClick=\{\(\) => void save\(true\)\}/u);
   assert.match(editor, /<button type="submit" className=\{QUEUE_CONFIRM\} disabled=\{locked \|\| loading\}>/u);
 });
 
 test("the packet form is not recreated by «⋯ → Пакет партнёру»: an uncertain prepare keeps its retry", () => {
-  const forms = read("src/components/v3/profile/CaseOperationsForms.tsx");
+  const forms = read("src/components/staff/profile/CaseOperationsForms.tsx");
   // Одна тёмная кнопка очереди, без копии.
   assert.doesNotMatch(forms, /const CONFIRM =/u);
   // Пакет, «Сохранить черновик ZIP», «Проверить исходную попытку» и ответ студенту в «Обращениях» (поручение 24.10: не красная).

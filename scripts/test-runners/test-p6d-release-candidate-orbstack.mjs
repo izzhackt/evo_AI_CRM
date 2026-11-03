@@ -373,7 +373,7 @@ async function proveBrowserAndReadiness(baseUrl, observabilitySecret) {
       { cause: error },
     );
   }
-  assert.equal(new URL(page.url()).pathname, "/v3/main");
+  assert.equal(new URL(page.url()).pathname, "/main");
   const activeRole = page.getByTestId("active-role");
   assert.equal(await activeRole.getAttribute("data-role"), "admin");
   assert.equal(await activeRole.getAttribute("data-system-role"), "admin");

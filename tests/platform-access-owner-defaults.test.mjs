@@ -183,9 +183,9 @@ test("B: assign, the case header and both curator filters follow case.curator.as
   const action = source("src/lib/platform-case-curator-assignment-actions.ts");
   assert.match(action, /if \(isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "case\.curator\.assign"\)\) \{\s+return outcome\("forbidden", previous\.requestId\);/u);
   assert.doesNotMatch(action, /systemRole !== "admin"/u);
-  const pipeline = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+  const pipeline = source("src/app/(staff)/admissions-pipeline/page.tsx");
   assert.match(pipeline, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "case\.curator\.assign"\)\s+\? listStudentPortalActiveCurators\(actor\)/u);
-  const parts = source("src/components/v3/profile/CaseWorkParts.tsx");
+  const parts = source("src/components/staff/profile/CaseWorkParts.tsx");
   assert.match(parts, /coverage(?:=\{|: )!preview && staffHasPermission\(actor, "case\.curator\.assign"\)/u);
   const work = source("src/lib/v3/case-work-source.ts");
   assert.match(work, /: !isStaffPreview\(actor\) && staffHasPermission\(actor, "case\.curator\.assign"\)\s+\? \(await readCaseAttentionFlags/u);
@@ -195,23 +195,23 @@ test("C: the lead card offers the cabinet invite to Sales with the lead permissi
   const profileSource = source("src/lib/v3/profile-source.ts");
   assert.match(profileSource, /const cabinetInvite = leadCabinetCase\?\.state === "pending" && !isStaffPreview\(actor\) && staffCan\(actor, "sales\.write"\)\s+\? await readStudentCaseCabinetOrigin\(actor, leadCabinetCase\.studentCaseId\)\s+: false;/u);
   assert.match(profileSource, /leadCabinetCase: leadCabinetCase \? \{ \.\.\.leadCabinetCase, cabinetInvite \} : null,/u);
-  const profile = source("src/components/v3/profile/Profile.tsx");
+  const profile = source("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /: !isStaffPreview\(actor\) && !draft\.admissions && draft\.leadCabinetCase\?\.cabinetInvite \? \([\s\S]*?<StudentPortalAccessControls[\s\S]*?studentCaseId=\{draft\.leadCabinetCase\.studentCaseId\}[\s\S]*?caseState="pending"\s+isCabinetCase[\s\S]*?\/>/u);
   // «Открыть дело» only for those who open cases: without admissions.read the
   // link led to an empty page.
   assert.match(profile, /caseLink=\{staffPresentationCan\(actor, "admissions\.read"\)\}/u);
-  const tabs = source("src/components/v3/profile/tabs.tsx");
-  assert.match(tabs, /\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/v3\/profile\?case=\$\{encodeURIComponent\(leadCabinetCase\.studentCaseId\)\}&tab=anketa`\}>/u);
+  const tabs = source("src/components/staff/profile/tabs.tsx");
+  assert.match(tabs, /\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/profile\?case=\$\{encodeURIComponent\(leadCabinetCase\.studentCaseId\)\}&tab=anketa`\}>/u);
   assert.match(tabs, /<PrepareLeadCabinetAction leadId=\{leadId\} requestId=\{prepareRequestId\} caseLink=\{caseLink\} quiet \/>/u);
   // Lead 360 (Э4): то же приглашение — в группе «Доступ к порталу», по тому же условию.
-  const leadParts = source("src/components/v3/profile/LeadWorkParts.tsx");
+  const leadParts = source("src/components/staff/profile/LeadWorkParts.tsx");
   assert.match(leadParts, /: !preview && !draft\.admissions && draft\.leadCabinetCase\?\.cabinetInvite \? \([\s\S]*?<StudentPortalAccessControls[\s\S]*?studentCaseId=\{draft\.leadCabinetCase\.studentCaseId\}[\s\S]*?caseState="pending"\s+isCabinetCase[\s\S]*?\/>/u);
   assert.match(leadParts, /caseLink=\{staffPresentationCan\(actor, "admissions\.read"\)\}/u);
-  const prepare = source("src/components/v3/profile/PrepareLeadCabinetAction.tsx");
+  const prepare = source("src/components/staff/profile/PrepareLeadCabinetAction.tsx");
   assert.doesNotMatch(prepare, /Приглашение отправляет администратор/u);
   // Right after «Подготовить кабинет» the same rule: no «Открыть дело» for
   // Sales without admissions.read, not even until the refresh.
-  assert.match(prepare, /Кабинет подготовлен\.\s*\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/v3\/profile\?case=\$\{encodeURIComponent\(state\.studentCaseId\)\}&tab=anketa`\}>/u);
+  assert.match(prepare, /Кабинет подготовлен\.\s*\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/profile\?case=\$\{encodeURIComponent\(state\.studentCaseId\)\}&tab=anketa`\}>/u);
 });
 
 // ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ const bundles = Object.fromEntries([...fixture.matchAll(/\(pg_temp\.n244_id\(\d+
 const SALES_ONLY_MANAGER_KEYS = ["contract.evidence.confirm", "finance.event.confirm", "finance.first.payment.confirm", "lead.sales.owner.assign"];
 bundles.Sales = bundles["Sales Manager"].filter((key) => !SALES_ONLY_MANAGER_KEYS.includes(key));
 
-function navigationFor(keys, href = "/v3/main", systemRole = "staff") {
+function navigationFor(keys, href = "/main", systemRole = "staff") {
   const url = new URL(href, "https://navigation.test");
   return buildV3Navigation({ ...staffActor(keys), systemRole }, url.pathname, url.searchParams);
 }
@@ -272,20 +272,20 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     // 27.09.2026: the student chat (case.read.full) is an admissions item and
     // stays so; WhatsApp is the separate sales page next to «Заявки».
     assert.equal(model.groups[1].links.find((link) => link.id === "messages")?.label, "Переписка");
-    assert.equal(staffCanAccessRoute(staffActor(keys), "/v3/inbox"), true);
+    assert.equal(staffCanAccessRoute(staffActor(keys), "/inbox"), true);
     const everyLink = [...model.groups.flatMap((group) => group.links), ...model.common];
     assert.equal(everyLink.filter((link) => link.id === "inbox").length, 1, "WhatsApp stands once");
     assert.deepEqual(model.groups[0].links.find((link) => link.id === "inbox"), {
-      id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "WhatsApp",
+      id: "inbox", href: "/inbox", route: "/inbox", label: "WhatsApp",
     });
     assert.equal(everyLink.some((link) => link.id === "pipeline"), false, "pipeline");
     assert.equal(everyLink.filter((link) => link.id === "requests").length, 1, "«Заявки» stands once");
-    const requests = navigationFor(keys, "/v3/requests");
+    const requests = navigationFor(keys, "/requests");
     assert.equal(requests.activeId, "requests");
     assert.deepEqual(requests.groups.filter((group) => group.active).map((group) => group.id), ["sales"], "their page opens «Продажи»");
-    assert.equal(navigationFor(keys, "/v3/main?view=sales").activeId, "sales-report");
+    assert.equal(navigationFor(keys, "/main?view=sales").activeId, "sales-report");
     // A lead card opened from a case highlights «Студенты», not a hidden board.
-    assert.equal(navigationFor(keys, "/v3/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
+    assert.equal(navigationFor(keys, "/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
     // The capability behind the case page's lead data is unchanged: lead.read
     // still opens the linked lead of the curator's own case.
     assert.equal(staffCan(staffActor(keys), "sales.read"), true);
@@ -301,16 +301,16 @@ for (const label of ["Sales Manager", "Sales"]) {
     assert.equal(ids(model).common[0], "tasks");
     // No case.read.full / profile.read.full: the student chat stays closed and
     // hidden; WhatsApp (communication.read.full) is their conversation page.
-    assert.equal(staffCanAccessRoute(staffActor(keys), "/v3/messages"), false);
+    assert.equal(staffCanAccessRoute(staffActor(keys), "/messages"), false);
     const everyLink = [...model.groups.flatMap((group) => group.links), ...model.common];
     assert.equal(everyLink.some((link) => link.id === "messages"), false, "student chat");
     assert.equal(everyLink.filter((link) => link.id === "inbox").length, 1);
-    assert.equal(model.groups[0].links.find((link) => link.id === "inbox")?.href, "/v3/inbox");
+    assert.equal(model.groups[0].links.find((link) => link.id === "inbox")?.href, "/inbox");
   });
 }
 
 test("D: the Admin keeps both groups with both conversation pages; «Заявки» lead «Продажи» as for every role; common roles without lead work see neither", () => {
-  const admin = navigationFor([], "/v3/main", "admin");
+  const admin = navigationFor([], "/main", "admin");
   assert.deepEqual(ids(admin).groups, [
     ["sales", ["requests", "pipeline", "inbox", "sales-report"]],
     ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
@@ -324,7 +324,7 @@ test("D: the Admin keeps both groups with both conversation pages; «Заявк�
   }
 });
 
-test("28.09: moving «Заявки» to «Продажи» changes no rights — the item is shown exactly when /v3/requests is open, first in «Продажи»", () => {
+test("28.09: moving «Заявки» to «Продажи» changes no rights — the item is shown exactly when /requests is open, first in «Продажи»", () => {
   const actors = [
     ["Admin", staffActor([]), "admin"],
     ...Object.keys(bundles).map((label) => [label, staffActor(bundles[label]), "staff"]),
@@ -336,9 +336,9 @@ test("28.09: moving «Заявки» to «Продажи» changes no rights —
   ];
   for (const [label, actor, systemRole] of actors) {
     const who = { ...actor, systemRole };
-    const model = buildV3Navigation(who, "/v3/main", new URLSearchParams());
+    const model = buildV3Navigation(who, "/main", new URLSearchParams());
     const sales = model.groups.find((group) => group.id === "sales")?.links.map((link) => link.id) ?? [];
-    const open = staffCanAccessRoute(who, "/v3/requests");
+    const open = staffCanAccessRoute(who, "/requests");
     assert.equal(sales.includes("requests"), open, `${label}: «Заявки» in «Продажи» iff the route is open`);
     if (open) assert.equal(sales[0], "requests", `${label}: «Заявки» first`);
     assert.equal(model.common.some((link) => link.id === "requests"), false, `${label}: never in «Общее»`);
@@ -351,7 +351,7 @@ test("Э6: with the production bundles a destination stands in the same place fo
   const place = (model, id) => model.groups.find((group) => group.links.some((link) => link.id === id))?.id
     ?? (model.common.some((link) => link.id === id) ? "common" : null);
   const models = [
-    navigationFor([], "/v3/main", "admin"),
+    navigationFor([], "/main", "admin"),
     ...["Admissions", "Admissions Manager"].map((label) => navigationFor([...bundles[label], ...bundles["Admissions common"]])),
     ...["Sales Manager", "Sales"].map((label) => navigationFor([...bundles[label], ...bundles["Sales common"]])),
   ];

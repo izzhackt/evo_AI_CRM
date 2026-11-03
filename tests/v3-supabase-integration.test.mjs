@@ -207,21 +207,21 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
 });
 
 test("V3 has Supabase staff auth and no sample business-data path", () => {
-  const layout = source("src/app/(v3)/layout.tsx");
-  const profilePage = source("src/app/(v3)/v3/profile/page.tsx");
-  const knowledgePage = source("src/app/(v3)/v3/knowledge/page.tsx");
-  // #906 (2e72d5ad0, 20.09.2026) rebuilt "/v3/knowledge" around the Admin
+  const layout = source("src/app/(staff)/layout.tsx");
+  const profilePage = source("src/app/(staff)/profile/page.tsx");
+  const knowledgePage = source("src/app/(staff)/knowledge/page.tsx");
+  // #906 (2e72d5ad0, 20.09.2026) rebuilt "/knowledge" around the Admin
   // library and removed the FileManager-based student documents view from
   // page.tsx; #915 (1635d01ef) brought it back as KnowledgeDocuments.tsx
   // (extracted from the documents page), truncation notice included.
-  const knowledgeDocuments = source("src/components/v3/knowledge/KnowledgeDocuments.tsx");
+  const knowledgeDocuments = source("src/components/staff/knowledge/KnowledgeDocuments.tsx");
 
   assert.match(layout, /requirePlatformStaffActor/);
   assert.doesNotMatch(profilePage, /PROFILE_SAMPLE|\.\/sample/);
   assert.doesNotMatch(knowledgePage, /COMPANY_FILES|Требования к нострификации/);
   assert.match(
     knowledgePage,
-    /requireV3PageActor\("\/v3\/knowledge"\)/,
+    /requireV3PageActor\("\/knowledge"\)/,
   );
   // The notice's own data-testid ("v3-knowledge-student-documents-limited")
   // was dropped in that move and is not referenced by any other test or e2e
@@ -235,7 +235,7 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
     /\{!studentDocuments\.complete && <p role="alert" className="[^"]*">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране\.<\/p>\}/,
   );
   assert.equal(
-    existsSync(new URL("../src/app/(v3)/v3/profile/sample.ts", import.meta.url)),
+    existsSync(new URL("../src/app/(staff)/profile/sample.ts", import.meta.url)),
     false,
   );
   assert.equal(
@@ -245,18 +245,18 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
 });
 
 test("V3 owns the only Sales decision, gate and handoff interface", () => {
-  const pipelinePage = source("src/app/(v3)/v3/pipeline/page.tsx");
-  const pipeline = source("src/components/v3/Pipeline.tsx");
-  const decision = source("src/components/v3/PipelineDecisionForm.tsx");
-  const profilePage = source("src/app/(v3)/v3/profile/page.tsx");
-  const profile = source("src/components/v3/profile/Profile.tsx");
-  const tabs = source("src/components/v3/profile/tabs.tsx");
+  const pipelinePage = source("src/app/(staff)/pipeline/page.tsx");
+  const pipeline = source("src/components/staff/Pipeline.tsx");
+  const decision = source("src/components/staff/PipelineDecisionForm.tsx");
+  const profilePage = source("src/app/(staff)/profile/page.tsx");
+  const profile = source("src/components/staff/profile/Profile.tsx");
+  const tabs = source("src/components/staff/profile/tabs.tsx");
   const transition = source(
-    "src/components/v3/profile/ProfileSalesTransition.tsx",
+    "src/components/staff/profile/ProfileSalesTransition.tsx",
   );
   const profileSource = source("src/lib/v3/profile-source.ts");
 
-  assert.match(pipelinePage, /requireV3PageActor\("\/v3\/pipeline"\)/);
+  assert.match(pipelinePage, /requireV3PageActor\("\/pipeline"\)/);
   assert.match(pipeline, /<PipelineDecisionForm/);
   assert.match(
     pipeline,
@@ -309,13 +309,13 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   assert.doesNotMatch(transition, /data-testid="v3-sales-handoff"/);
   assert.doesNotMatch(
     transition,
-    /href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=overview`\}/,
+    /href=\{`\/profile\?case=\$\{caseId\}&tab=overview`\}/,
   );
   assert.doesNotMatch(transition, /href=\{`\/clients\/\$\{caseId\}`\}/);
   assert.match(profileSource, /readLeadSaleConditions/);
   assert.match(tabs, /<LeadSaleConditions/);
   assert.match(
-    source("src/components/v3/profile/LeadSaleConditions.tsx"),
+    source("src/components/staff/profile/LeadSaleConditions.tsx"),
     /saveLeadSaleConditionsGroupAction/,
   );
 
@@ -337,10 +337,10 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
 });
 
 test("V3 mutations use server-backed authorities rather than browser-only state", () => {
-  const pipeline = source("src/components/v3/Pipeline.tsx");
-  const calendar = source("src/components/v3/calendar/Calendar.tsx");
-  const fileManager = source("src/components/v3/FileManager.tsx");
-  const documents = source("src/components/v3/profile/Documents.tsx");
+  const pipeline = source("src/components/staff/Pipeline.tsx");
+  const calendar = source("src/components/staff/calendar/Calendar.tsx");
+  const fileManager = source("src/components/staff/FileManager.tsx");
+  const documents = source("src/components/staff/profile/Documents.tsx");
 
   assert.doesNotMatch(pipeline, /setMoved|\bmoved\b/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
@@ -391,8 +391,8 @@ test("V3 document dates use the organization timezone", () => {
 });
 
 test("V3 pipeline links and document table remain keyboard-operable", () => {
-  const pipeline = source("src/components/v3/Pipeline.tsx");
-  const fileManager = source("src/components/v3/FileManager.tsx");
+  const pipeline = source("src/components/staff/Pipeline.tsx");
+  const fileManager = source("src/components/staff/FileManager.tsx");
 
   assert.match(pipeline, /className="flex min-h-11 items-center/);
   assert.match(fileManager, /aria-label="Таблица документов"/);
@@ -427,7 +427,7 @@ test("V3 style proof checks served and applied current-page CSS in dev and produ
   assert.match(styles, /assert\.ok\(size > 0/u);
   assert.match(styles, /link\.sheet\.cssRules\.length > 0/u);
   assert.match(styles, /assert\.equal\(applied\.margin, "0px"/u);
-  // Земля - по поверхности: staff CRM на тёплом сером столе #f3f1ec (v3.css, CLAUDE.md), базовый мир - #f3f3f3.
+  // Земля - по поверхности: staff CRM на тёплом сером столе #f3f1ec (staff.css, CLAUDE.md), базовый мир - #f3f3f3.
   assert.match(styles, /staff: "rgb\(243, 241, 236\)", base: "rgb\(243, 243, 243\)"/u);
   assert.match(styles, /applied\.world\.background, WORLD_BACKGROUND\[surface\]/u);
   assert.match(styles, /applied\.world\.colorScheme, "light"/u);

@@ -12,8 +12,8 @@ const SYSTEM_ROLE_PATTERN = /^(admin|staff)$/u;
 type TestRole = "admin" | "sales";
 
 const ROLE_HOME = {
-  admin: "/v3/main",
-  sales: "/v3/main",
+  admin: "/main",
+  sales: "/main",
 } as const satisfies Readonly<Record<TestRole, string>>;
 
 type Snapshot = Readonly<{
@@ -575,9 +575,9 @@ async function captureSalesWhatsAppPage(
   page: Page,
   conversationId: string,
 ): Promise<PageProof> {
-  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await page.goto(`/inbox?conversation=${conversationId}`);
   await expect(page).toHaveURL(
-    new RegExp(`/v3/inbox\\?conversation=${conversationId}$`, "u"),
+    new RegExp(`/inbox\\?conversation=${conversationId}$`, "u"),
   );
   await expect(page.getByTestId("v3-inbox")).toBeVisible();
   await expect(page.getByTestId("v3-inbox-thread")).toBeVisible();
@@ -596,7 +596,7 @@ async function captureSalesWhatsAppPage(
     .then((value) => value > 0);
 
   return Object.freeze({
-    route: "/v3/inbox?conversation=:conversationId",
+    route: "/inbox?conversation=:conversationId",
     systemRole,
     checks: Object.freeze({
       pageVisible: true,
@@ -643,8 +643,8 @@ async function captureAdminAmoCrmPage(
   return Object.freeze({
     route:
       scope === "sales"
-        ? "/v3/inbox?conversation=:conversationId"
-        : "/v3/profile?case=:studentCaseId&tab=contract",
+        ? "/inbox?conversation=:conversationId"
+        : "/profile?case=:studentCaseId&tab=contract",
     systemRole,
     checks: Object.freeze({
       workspaceVisible: true,
@@ -697,7 +697,7 @@ test("read-only browser inventory preserves exact provider and event counts", as
   await signInAs(page, "admin");
   const salesAmoCrmPage = await captureAdminAmoCrmPage(
     page,
-    `/v3/inbox?conversation=${conversationId}`,
+    `/inbox?conversation=${conversationId}`,
     "sales",
     "v3-inbox",
   );
@@ -705,7 +705,7 @@ test("read-only browser inventory preserves exact provider and event counts", as
     page,
     // Э8.3: команда amoCRM — в панели «Служебные сведения» («⋯» листа); якорь открывает её.
     // Метка маршрута в доказательстве остаётся прежней (её сверяет валидатор инвентаризации).
-    `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
+    `/profile?case=${studentCaseId}&tab=contract#money-service`,
     "admissions",
     "v3-profile",
   );

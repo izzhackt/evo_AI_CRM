@@ -5,7 +5,7 @@
  * принимается по адресу (оболочка рендерится на сервере с тем же `pathname`)
  * и медиазапросом CSS, поэтому вид не мигает при загрузке.
  */
-export const BOARD_ROUTES = ["/v3/pipeline", "/v3/admissions-pipeline"] as const;
+export const BOARD_ROUTES = ["/pipeline", "/admissions-pipeline"] as const;
 
 export function isBoardRoute(pathname: string | null | undefined): boolean {
   return BOARD_ROUTES.some((route) => pathname === route);
@@ -18,11 +18,11 @@ export function isBoardRoute(pathname: string | null | undefined): boolean {
  * страница забирает её целиком (`PartShell` с `fill` или `width="board"`,
  * у «Поручить» — `AgentChatShell`), прокручиваются её списки и лента, а не
  * страница. Ниже 768 px страница идёт обычным потоком (чат «Поручить» —
- * между строкой логотипа и вкладками, см. v3.css).
+ * между строкой логотипа и вкладками, см. staff.css).
  */
-export const FILL_ROUTES = [...BOARD_ROUTES, "/v3/inbox"] as const;
+export const FILL_ROUTES = [...BOARD_ROUTES, "/inbox"] as const;
 
-const AI_AGENT_PAGE = /^\/v3\/ai-agents\/[a-z0-9-]+$/u;
+const AI_AGENT_PAGE = /^\/ai-agents\/[a-z0-9-]+$/u;
 
 /**
  * Вкладка страницы агента без `?tab=` — «Чат» (`AI_AGENT_DEFAULT_TAB` в `ai-agents-view.ts`,

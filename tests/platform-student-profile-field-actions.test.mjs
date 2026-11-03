@@ -102,5 +102,5 @@ test("server actions are wired to the session-bound start and review RPCs", () =
   assert.ok(source.includes('.rpc("start_student_profile",'));
   assert.ok(source.includes('.rpc("review_student_profile_field",'));
   assert.equal((source.match(/p_organization_id: actor\.organizationId/g) ?? []).length, 2);
-  assert.ok(source.includes('revalidatePath("/v3/profile")'));
+  assert.ok(source.includes('revalidatePath("/profile")'));
 });

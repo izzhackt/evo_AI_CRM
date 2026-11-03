@@ -429,7 +429,7 @@ test("reply-snippet actions use exact forms, live permissions and fail-closed ou
     actionsSource,
     /BigInt\(nextVersion\) !== BigInt\(expected\.previousVersion\) \+ BigInt\(1\)/,
   );
-  assert.match(actionsSource, /revalidatePath\("\/v3\/inbox"\)/);
+  assert.match(actionsSource, /revalidatePath\("\/inbox"\)/);
   assert.doesNotMatch(
     actionsSource,
     /localStorage|sessionStorage|indexedDB|fallback/i,
@@ -498,7 +498,7 @@ test("reply-snippet mutation verifies the lossless echoed expected version", asy
 
   assert.equal(accepted.status, "saved");
   assert.equal(accepted.version, "9007199254740994");
-  assert.deepEqual(actionHarness.revalidated, ["/v3/inbox"]);
+  assert.deepEqual(actionHarness.revalidated, ["/inbox"]);
 
   actionHarness.rpcCalls.length = 0;
   actionHarness.revalidated.length = 0;

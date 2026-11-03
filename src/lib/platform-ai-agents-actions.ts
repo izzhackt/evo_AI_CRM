@@ -49,7 +49,7 @@ import { readAiAgent } from "./v3/ai-agents-source.ts";
  * квитанцией (как `postCaseChatMessageAction`).
  */
 
-const SECTION = "/v3/ai-agents";
+const SECTION = "/ai-agents";
 const NUL = /\u0000/u;
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
 const CLAUDE_AGENT_ID = /^agent_[A-Za-z0-9]{8,64}$/u;

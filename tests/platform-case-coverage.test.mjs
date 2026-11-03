@@ -140,8 +140,8 @@ test("coverage mutations are permission guarded and never grant provider or serv
 });
 
 test("UI preserves drafts on stale reads and navigates only after a confirmed receipt", () => {
-  const form = read("src/components/v3/profile/CuratorCoverageForm.tsx");
-  const panel = read("src/components/v3/profile/CuratorCoveragePanel.tsx");
+  const form = read("src/components/staff/profile/CuratorCoverageForm.tsx");
+  const panel = read("src/components/staff/profile/CuratorCoveragePanel.tsx");
   assert.match(form, /\[reason, setReason\] = useState\(""\)/);
   assert.match(form, /name="reason" value=\{reason\}/);
   assert.match(form, /if \(status === "saved"\)/);

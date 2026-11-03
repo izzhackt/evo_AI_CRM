@@ -192,7 +192,7 @@ export const btnDangerGhostCls =
 export const labelCls = "mb-1 block text-xs font-medium text-fg-2";
 
 /**
- * Подпись поля в staff CRM: роль `t-label` (14 px, 500) из `(v3)/v3.css`.
+ * Подпись поля в staff CRM: роль `t-label` (14 px, 500) из `(staff)/staff.css`.
  * `labelCls` остаётся для страниц входа и Student, где этих ролей нет.
  */
 export const fieldLabelCls = "mb-1 block t-label text-fg-2";

@@ -11,7 +11,7 @@ const actionSource = readFileSync(
   "utf8",
 );
 const shellSource = readFileSync(
-  new URL("../src/components/v3/AppShell.tsx", import.meta.url),
+  new URL("../src/components/staff/AppShell.tsx", import.meta.url),
   "utf8",
 );
 const guardSource = readFileSync(
@@ -19,18 +19,18 @@ const guardSource = readFileSync(
   "utf8",
 );
 const v3SettingsPageSource = readFileSync(
-  new URL("../src/app/(v3)/v3/settings/page.tsx", import.meta.url),
+  new URL("../src/app/(staff)/settings/page.tsx", import.meta.url),
   "utf8",
 );
 const v3SettingsSectionsSource = readFileSync(
-  new URL("../src/components/v3/settings-next/JournalNext.tsx", import.meta.url),
+  new URL("../src/components/staff/settings-next/JournalNext.tsx", import.meta.url),
   "utf8",
 ) + readFileSync(
   new URL("../src/lib/v3/settings-next-journal.ts", import.meta.url),
   "utf8",
 );
 const v3SettingsTypesSource = readFileSync(
-  new URL("../src/components/v3/settings/types.ts", import.meta.url),
+  new URL("../src/components/staff/settings/types.ts", import.meta.url),
   "utf8",
 );
 const v3SettingsSource = readFileSync(
@@ -49,7 +49,7 @@ const foundationHarnessSource = readFileSync(
 test("V3 settings uses live staff authority and denies non-Admin routes", () => {
   assert.match(
     v3SettingsPageSource,
-    /requireV3PageActor\("\/v3\/settings"\)/,
+    /requireV3PageActor\("\/settings"\)/,
   );
   assert.match(
     guardSource,
@@ -83,7 +83,7 @@ test("the V3 shell renders assigned permissions and a protected Admin preview", 
   ];
   for (const example of examples) {
     const actor = { ...example, platformAccessVersion: 1 };
-    const navigation = buildV3Navigation(actor, "/v3/profile", new URLSearchParams());
+    const navigation = buildV3Navigation(actor, "/profile", new URLSearchParams());
     const links = [navigation.home, ...navigation.groups.flatMap((group) => group.links), ...navigation.sections, ...navigation.common, navigation.settings].filter(Boolean);
     for (const link of links) assert.ok(staffCanAccessRoute(actor, link.route), `${actor.systemRole}: ${link.href}`);
     assert.equal(Boolean(navigation.settings), example.settings);
@@ -92,11 +92,11 @@ test("the V3 shell renders assigned permissions and a protected Admin preview", 
     assert.equal(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-summary")), false);
     if (example.summary) assert.ok(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-worklist")));
     if (actor.systemRole === "staff" && actor.permissionKeys.length === 0) assert.deepEqual(links, []);
-    if (actor.permissionKeys[0] === "catalog.read") assert.deepEqual(links.map((link) => link.route), ["/v3/universities"]);
+    if (actor.permissionKeys[0] === "catalog.read") assert.deepEqual(links.map((link) => link.route), ["/universities"]);
   }
   assert.match(shellSource, /systemRole === "admin"/);
   assert.doesNotMatch(shellSource, /data-testid="staff-role-preview"/);
-  const roleSettingsSource = readFileSync(new URL("../src/components/v3/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
+  const roleSettingsSource = readFileSync(new URL("../src/components/staff/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
   assert.match(roleSettingsSource, /data-testid="staff-role-preview"/);
   assert.match(roleSettingsSource, /Посмотреть интерфейс роли/);
   assert.match(roleSettingsSource, /action=\{selectStaffRolePreviewAction\}/);
@@ -132,8 +132,8 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
     v3SettingsTypesSource,
     /\{ key: "journal", view: null, title: "Журнал действий" \}/,
   );
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/settings"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/settings"), false);
   assert.match(v3SettingsSectionsSource, /data-testid="v3-audit-export"/);
   assert.match(v3SettingsPageSource, /normalizeJournalFilters\(\{/);
   assert.doesNotMatch(

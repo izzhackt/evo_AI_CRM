@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { leadCallMoment, leadCallRow, leadFeed, leadLastContact } from "../src/components/v3/profile/lead-work-view.ts";
+import { leadCallMoment, leadCallRow, leadFeed, leadLastContact } from "../src/components/staff/profile/lead-work-view.ts";
 import { isConnectedPlatformApi } from "../src/lib/platform-route-contract.ts";
 import {
   createTelephonyResultHandler,
@@ -511,9 +511,9 @@ test("wiring: the route file, the source, the page and the migration agree", () 
   const source = read("src/lib/v3/telephony-lead-calls-source.ts");
   const handlers = read("src/lib/server/telephony-result-route-handlers.ts");
   const route = read("src/app/api/v3/telephony/calls/[callId]/result/route.ts");
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
-  const parts = read("src/components/v3/profile/LeadWorkParts.tsx");
-  const control = read("src/components/v3/profile/LeadCallResult.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
+  const parts = read("src/components/staff/profile/LeadWorkParts.tsx");
+  const control = read("src/components/staff/profile/LeadCallResult.tsx");
   // The route: one POST, node runtime, no cache.
   assert.match(route, /export const POST = createTelephonyResultHandler\(\);/u);
   assert.match(route, /export const runtime = "nodejs";/u);
@@ -535,7 +535,7 @@ test("wiring: the route file, the source, the page and the migration agree", () 
   assert.match(control, /credentials: "same-origin"/u);
   // Nothing new knows a recording link or a full client number.
   for (const [name, file] of Object.entries({ source, handlers, route, parts, control, contract: read("src/lib/v3/telephony-lead-calls.ts"),
-    view: read("src/components/v3/profile/lead-work-view.ts"), row: read("src/components/v3/profile/FeedRow.tsx") })) {
+    view: read("src/components/staff/profile/lead-work-view.ts"), row: read("src/components/staff/profile/FeedRow.tsx") })) {
     assert.doesNotMatch(file, /recording_link|client_phone|recordingLink|clientPhone/u, name);
   }
   // «Перезвонить» promises no reminder: the task comes with slice T8.
@@ -548,7 +548,7 @@ test("wiring: the route file, the source, the page and the migration agree", () 
   assert.equal((control.match(/ref=\{summaryAction\}/gu) ?? []).length, 1, "one summary button for «изменить» and «Отметить итог»");
   // The button repeats in every row: its name starts with the visible word and says which call it belongs to.
   assert.match(control, /aria-label=\{`\$\{marked \? "изменить итог" : "Отметить итог"\}: \$\{callName\}`\}/u);
-  assert.match(read("src/components/v3/profile/LeadWorkParts.tsx"), /callName=\{`\$\{row\.title\}, \$\{moment\.exact\}`\}/u);
+  assert.match(read("src/components/staff/profile/LeadWorkParts.tsx"), /callName=\{`\$\{row\.title\}, \$\{moment\.exact\}`\}/u);
   // The chip group and «Свернуть» repeat in every row too: both names start with the visible words and say which call.
   assert.match(control, /role="group" aria-label=\{`Итог звонка: \$\{callName\}`\}/u);
   assert.match(control, /aria-label=\{`Свернуть итог: \$\{callName\}`\}/u);
@@ -629,7 +629,7 @@ test("rendered lead: an unreadable answer says so and leaves the notes alone; a 
   assert.match(unavailable, /<button [^>]*data-testid="v3-calls-retry"[^>]*>Повторить<\/button>/u);
   assert.doesNotMatch(unavailable, /<a [^>]*data-testid="v3-calls-retry"/u);
   assert.match(unavailable, /<p class="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2"><svg[^>]*>[\s\S]*?<\/svg><span>Звонки не загрузились\.<\/span><\/p>/u);
-  const retry = read("src/components/v3/profile/LeadCallsRetry.tsx");
+  const retry = read("src/components/staff/profile/LeadCallsRetry.tsx");
   assert.match(retry, /^"use client";/u);
   assert.match(retry, /onClick=\{\(\) => \{ if \(!pending\) start\(\(\) => router\.refresh\(\)\); \}\}/u, "the page is re-read, once at a time");
   assert.match(retry, /aria-disabled=\{pending \|\| undefined\}/u, "focusable while reading: a disabled button would drop its focus");

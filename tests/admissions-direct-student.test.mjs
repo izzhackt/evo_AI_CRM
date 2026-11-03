@@ -29,8 +29,8 @@ const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "u
 const migration = source("supabase/migrations/281_platform_admissions_direct_student.sql");
 const suite = source("supabase/tests/platform_admissions_direct_student.sql");
 const script = source("scripts/test-runners/test-postgres-authorization.sh");
-const drawer = source("src/components/v3/admissions/AddStudentDrawer.tsx");
-const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+const drawer = source("src/components/staff/admissions/AddStudentDrawer.tsx");
+const page = source("src/app/(staff)/admissions-pipeline/page.tsx");
 const directSource = source("src/lib/v3/admissions-direct-student-source.ts");
 
 const draft = (overrides = {}) => ({ ...EMPTY_ADMISSIONS_DIRECT_DRAFT, firstName: "Айдай", country: "MY", ...overrides });
@@ -172,7 +172,7 @@ test("error wording: no codes, no long dashes, every server key maps to a field"
   // The way out of the refusal: a link to the lead, only when RLS shows this lead to this person: otherwise the card says «не найден».
   assert.match(directSource, /error\.code === "PT409" && message === "admissions_direct_lead_exists"\) \{[\s\S]*?from\("leads"\)\.select\("id"\)[\s\S]*?return \{ status: "lead_exists", leadId: visible && !visible\.error && visible\.data \? detail : null \}/u);
   assert.match(drawer, /result\.status === "lead_exists" && result\.leadId \?/u);
-  assert.match(drawer, /\/v3\/profile\?id=\$\{encodeURIComponent\(result\.leadId\)\}/u);
+  assert.match(drawer, /\/profile\?id=\$\{encodeURIComponent\(result\.leadId\)\}/u);
   const copy = drawer.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
   assert.doesNotMatch(copy, /[–—]/u, "the drawer copy (outside code comments) has no long dashes");
 });
@@ -241,8 +241,8 @@ test("the board offers «Добавить студента» only to permitted r
   assert.match(page, /kind: "self", membershipId: actor\.membershipId/u);
   assert.match(drawer, /data-testid="v3-admissions-add-student"/u);
   assert.match(drawer, /router\.push\(admissionsDirectCaseHref\(answer\)\)/u, "success opens the new case");
-  assert.equal(admissionsDirectCaseHref({ studentCaseId: "c1", state: "active" }), "/v3/profile?case=c1");
-  assert.equal(admissionsDirectCaseHref({ studentCaseId: "c2", state: "pending" }), "/v3/profile?view=needs_curator&open=c2",
+  assert.equal(admissionsDirectCaseHref({ studentCaseId: "c1", state: "active" }), "/profile?case=c1");
+  assert.equal(admissionsDirectCaseHref({ studentCaseId: "c2", state: "pending" }), "/profile?view=needs_curator&open=c2",
     "a case without a curator opens where it gets one");
 });
 
@@ -311,7 +311,7 @@ test("delta review #1194 (2): a «Ждут куратора» reader is not offe
   // The page knows the reader from the 42501 snapshot and does not read what the reader may not see.
   const profileSource = source("src/lib/v3/profile-source.ts");
   const workSource = source("src/lib/v3/case-work-source.ts");
-  const profilePage = source("src/app/(v3)/v3/profile/page.tsx");
+  const profilePage = source("src/app/(staff)/profile/page.tsx");
   assert.match(profileSource, /assignOnly: data\.assignOnly,/u);
   assert.match(workSource, /assignOnly \? FORBIDDEN : options\.overview \? readCaseTasks\(actor, target\) : NOT_READ/u);
   assert.match(workSource, /assignOnly \? FORBIDDEN : options\.overview && options\.feed \? readCaseActivity\(actor, target\) : ACTIVITY_NOT_READ/u);
@@ -319,7 +319,7 @@ test("delta review #1194 (2): a «Ждут куратора» reader is not offe
   // «История» for that reader: no journal read (it answers this reader with an error), an honest line instead.
   assert.match(profileSource, /activity && caseId && !assignOnly && staffPresentationCan\(actor, "admissions\.read"\)/u);
   assert.match(profileSource, /assignOnly \? Object\.freeze\(\{ \.\.\.core\.profile, timeline: \[\], timelineForbidden: true \}\)/u);
-  assert.match(source("src/components/v3/profile/tabs.tsx"),
+  assert.match(source("src/components/staff/profile/tabs.tsx"),
     /profile\.timelineForbidden \? \(\s*<li[^>]*data-testid="v3-history-forbidden">Нет доступа к журналу этого дела\.<\/li>/u);
 });
 

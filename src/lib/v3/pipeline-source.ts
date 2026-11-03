@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PipelineLead, PipelineStage } from "@/components/v3/Pipeline";
+import type { PipelineLead, PipelineStage } from "@/components/staff/Pipeline";
 import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import {
   listPlatformSalesOwnerOptions,
@@ -257,7 +257,7 @@ export async function readPipelineLeads(
         ? null
         : stageAgeDays(row.stageEnteredAt, today),
       latestNote: row.latestNote,
-      href: `/v3/profile?id=${row.leadId}`,
+      href: `/profile?id=${row.leadId}`,
       workflow: Object.freeze({
         leadId: row.leadId,
         currentOwnerMembershipId: row.currentOwnerMembershipId,

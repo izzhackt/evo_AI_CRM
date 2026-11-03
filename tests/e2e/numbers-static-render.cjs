@@ -11,7 +11,7 @@
  * числа и записи выдуманы для проверки вёрстки и не являются записями EVO.
  * Живой Supabase и права проверяет supabase/tests/platform_sales_one_truth.sql.
  *
- *  - Lead 360 (`/v3/profile?id=…`): `Profile` с полосой «Передача» —
+ *  - Lead 360 (`/profile?id=…`): `Profile` с полосой «Передача» —
  *    переданный лид как в production (передан 18.09, запись о продаже в
  *    архиве: предупреждение словами и «Открыть запись»), лид, проданный в
  *    уже открытое дело (208: дата по квитанции; договор и оплата — по записи
@@ -555,8 +555,8 @@ function withContexts(node, pathname, search) {
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
 function shell(actor, title, body) {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   return createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor, initialNotifications: null },
       title === null ? body : createElement(PartShell, { title, count: null }, body)));
@@ -571,8 +571,8 @@ function leadBuild(name, extra = {}) {
   const base = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
   // `next`/`due` — лид без шага воронки; `openTasks` — задачи по лиду, которые читает страница (`lead_staff_task_links`).
   const scenario = "next" in extra ? { ...base, next: extra.next, due: extra.due ?? null } : base;
-  const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
-  const { leadWorkParts } = require(join(ROOT, "src/components/v3/profile/LeadWorkParts.tsx"));
+  const { buildV3ProfileHref } = require(join(ROOT, "src/components/staff/profile/types.ts"));
+  const { leadWorkParts } = require(join(ROOT, "src/components/staff/profile/LeadWorkParts.tsx"));
   const wording = require(join(ROOT, "src/lib/v3/wording.ts"));
   const hrefFor = (tab) => buildV3ProfileHref({ leadId: LEAD_ID, studentCaseId: null }, tab);
   const profile = {
@@ -610,8 +610,8 @@ function leadBuild(name, extra = {}) {
 }
 
 function leadPage(name, tab = "overview", extra = {}) {
-  const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { Profile } = require(join(ROOT, "src/components/staff/profile/Profile.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const { profile, draft, sales, notes, requestIds, hrefFor, parts } = leadBuild(name, extra);
   const body = createElement(Profile, {
@@ -619,19 +619,19 @@ function leadPage(name, tab = "overview", extra = {}) {
     requestIds, noteRequestId: uuid("13131313", 20), notes, notesOlderHref: null, notesLatestHref: null, tab, hrefFor,
     caseHeader: parts.header, caseOverview: parts.overview,
   });
-  const back = createElement("a", { href: "/v3/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
+  const back = createElement("a", { href: "/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     createElement(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
   const page = createElement(PartShell, { title: profile.person, count: null, action: parts.actions, dense: true, back },
     createElement("div", { className: "space-y-6" }, body));
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page), "/v3/profile", `id=${LEAD_ID}&tab=${tab}`));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, page), "/profile", `id=${LEAD_ID}&tab=${tab}`));
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
 async function reportPage(extra = {}, actor = ADMIN) {
-  const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
+  const { SalesRegisterView } = require(join(ROOT, "src/components/staff/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
   const element = await SalesRegisterView({ actor, query });
-  return renderToStaticMarkup(withContexts(shell(actor, null, element), "/v3/main", new URLSearchParams(query).toString()));
+  return renderToStaticMarkup(withContexts(shell(actor, null, element), "/main", new URLSearchParams(query).toString()));
 }
 
 // --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
@@ -641,7 +641,7 @@ async function reportPage(extra = {}, actor = ADMIN) {
 // продажи (лид 2) — не передача.
 async function funnelPage() {
   const { readSalesDynamics } = require(join(ROOT, "src/lib/v3/sales-dynamics-source.ts"));
-  const { SalesDynamics } = require(join(ROOT, "src/components/v3/SalesDynamics.tsx"));
+  const { SalesDynamics } = require(join(ROOT, "src/components/staff/SalesDynamics.tsx"));
   const { salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
   const period = { key: "custom", from: "2026-09-01", to: "2026-09-26", today: "2026-09-26" };
   const query = { view: "sales", period: "custom", from: period.from, to: period.to };
@@ -651,9 +651,9 @@ async function funnelPage() {
     id: "sales-dynamics", open: true,
     choices: periods.map(([key, title]) => ({ key, title, href: salesDynamicsHref(query, key === "custom" ? period : { key }), active: key === "custom" })),
     range: { from: period.from, to: period.to, max: period.today }, periodText: "1 сен — 26 сен",
-    formAction: "/v3/main#sales-dynamics", carry: salesDynamicsCarry(query), retryHref: salesDynamicsHref(query, period), read,
+    formAction: "/main#sales-dynamics", carry: salesDynamicsCarry(query), retryHref: salesDynamicsHref(query, period), read,
   });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, "Отчёт продаж", body), "/v3/main", "view=sales&period=custom"));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, "Отчёт продаж", body), "/main", "view=sales&period=custom"));
 }
 
 async function renderAll() {
@@ -676,7 +676,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 async function screenshots() {
@@ -1133,7 +1133,7 @@ const F1_ENTRY = `
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { SidePanel } from "../../src/components/v3/panel/SidePanel";
+import { SidePanel } from "../../src/components/staff/panel/SidePanel";
 
 const fixture = JSON.parse(document.getElementById("${F1_FIXTURE_ID}").textContent);
 // Шапка и тело — из серверной разметки открытой записи.
@@ -1303,10 +1303,10 @@ const RECORDINGS_READ = Object.freeze({
 });
 // «Телефония» T7: «Позвонить». Строка «Сегодня» лида и заявки — как её собирает `todayLeadItems`; задача — без лида в строке.
 function todayDialRows(dial) {
-  const { TodayRow } = require(join(ROOT, "src/components/v3/today/TodayRow.tsx"));
+  const { TodayRow } = require(join(ROOT, "src/components/staff/today/TodayRow.tsx"));
   const row = (key, source, title) => ({
-    key, source, band: "today", title, who: { name: "Алина Тестовая", href: `/v3/profile?id=${LEAD_ID}` }, reason: "действие на сегодня",
-    due: { dueOn: "2026-09-27", dueAt: null }, since: null, waitingDays: null, openHref: `/v3/pipeline?lead=${LEAD_ID}`, task: null,
+    key, source, band: "today", title, who: { name: "Алина Тестовая", href: `/profile?id=${LEAD_ID}` }, reason: "действие на сегодня",
+    due: { dueOn: "2026-09-27", dueAt: null }, since: null, waitingDays: null, openHref: `/pipeline?lead=${LEAD_ID}`, task: null,
   });
   const items = [
     row(`lead:${LEAD_ID}`, "leads", "Назначить следующее действие"),
@@ -1315,7 +1315,7 @@ function todayDialRows(dial) {
     row(`staff:${uuid("aaaaaaaa", 9)}`, "tasks", "Рабочая задача"),
   ];
   const list = createElement("ul", null, items.map((item) => createElement(TodayRow, { key: item.key, item, nowIso: "2026-09-27T06:00:00.000Z", dial })));
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, list), "/v3/main", ""));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, list), "/main", ""));
 }
 async function telephonyPages() {
   useE4Report();
@@ -1380,7 +1380,7 @@ const REPORT_UNASSIGNED = {
 };
 const reportMissed = (n, startedAt, phone, leadId, ownerName) => ({ callId: uuid("94949494", 20 + n), startedAt, phone, leadId, ownerName });
 async function telephonyReportPages() {
-  const { SalesCallsReport } = require(join(ROOT, "src/components/v3/SalesCallsReport.tsx"));
+  const { SalesCallsReport } = require(join(ROOT, "src/components/staff/SalesCallsReport.tsx"));
   const { telephonyReportState } = require(join(ROOT, "src/lib/v3/telephony-report.ts"));
   const { SALES_CALLS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
   const period = { key: "custom", from: "2026-09-01", to: "2026-09-26", today: "2026-09-26" };
@@ -1394,8 +1394,8 @@ async function telephonyReportPages() {
     id: SALES_CALLS_ANCHOR, open,
     choices: periods.map(([key, title]) => ({ key, title, href: salesDynamicsHref(query, key === "custom" ? period : { key }, SALES_CALLS_ANCHOR), active: key === "custom" })),
     range: { from: period.from, to: period.to, max: period.today }, periodText: "1 сен — 26 сен",
-    formAction: `/v3/main#${SALES_CALLS_ANCHOR}`, carry: salesDynamicsCarry(query), retryHref: salesDynamicsHref(query, period, SALES_CALLS_ANCHOR), state,
-  })), "/v3/main", "view=sales&period=custom"));
+    formAction: `/main#${SALES_CALLS_ANCHOR}`, carry: salesDynamicsCarry(query), retryHref: salesDynamicsHref(query, period, SALES_CALLS_ANCHOR), state,
+  })), "/main", "view=sales&period=custom"));
   const ready = (value) => {
     const state = telephonyReportState(value, period);
     if (state.status !== "ready") throw new Error(`the synthetic report must pass the real parser: ${JSON.stringify(state)}`);

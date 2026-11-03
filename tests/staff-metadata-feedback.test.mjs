@@ -23,11 +23,11 @@ function compile(path, boundary) {
   return compiled.exports;
 }
 function component(react) {
-  return compile("../src/components/v3/settings/StaffMemberDetails.tsx", (id) => {
+  return compile("../src/components/staff/settings/StaffMemberDetails.tsx", (id) => {
     if (id === "react") return react;
     if (id === "next/link") return { default: ({ children, ...props }) => createElement("a", props, children) };
     if (id === "@/components/ui") return { btnCls: "button", btnGhostCls: "button", inputCls: "input" };
-    if (id === "@/components/v3/profile/admissions-view") return { DIRECTION_LABELS: { CN: "Китай", MY: "Малайзия" } };
+    if (id === "@/components/staff/profile/admissions-view") return { DIRECTION_LABELS: { CN: "Китай", MY: "Малайзия" } };
     if (id === "@/lib/platform-admissions-playbook-contract") return { ADMISSIONS_DIRECTIONS: ["CN", "MY"] };
     if (id === "@/lib/staff-workspace-actions") return { staffOrganizationalDetailsAction: async () => saved };
     if (id === "@/lib/v3/staff-workspace-contract") return { STAFF_WORKSPACE_INITIAL_STATE: initial };
@@ -146,5 +146,5 @@ test("confirmed metadata action returns neutral feedback and preserves the submi
   });
   const form = new FormData(); form.set("expected_version", "7"); form.set("department_id", "admissions");
   assert.deepEqual(await actions.staffOrganizationalDetailsAction(initial, form), saved);
-  assert.equal(calls.length, 1); assert.equal(calls[0], form); assert.deepEqual(paths, ["/v3/settings"]);
+  assert.equal(calls.length, 1); assert.equal(calls[0], form); assert.deepEqual(paths, ["/settings"]);
 });

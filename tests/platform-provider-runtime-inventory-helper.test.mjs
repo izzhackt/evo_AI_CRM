@@ -85,7 +85,7 @@ function validBrowserEvidence() {
     completedAt: OBSERVED_AT,
     routes: {
       salesWhatsApp: {
-        route: "/v3/inbox?conversation=:conversationId",
+        route: "/inbox?conversation=:conversationId",
         systemRole: "staff",
         checks: {
           pageVisible: true,
@@ -97,7 +97,7 @@ function validBrowserEvidence() {
         statuses: { sendDisabled: "true" },
       },
       adminSales: {
-        route: "/v3/inbox?conversation=:conversationId",
+        route: "/inbox?conversation=:conversationId",
         systemRole: "admin",
         checks: {
           workspaceVisible: true,
@@ -112,7 +112,7 @@ function validBrowserEvidence() {
         },
       },
       adminAdmissions: {
-        route: "/v3/profile?case=:studentCaseId&tab=contract",
+        route: "/profile?case=:studentCaseId&tab=contract",
         systemRole: "admin",
         checks: {
           workspaceVisible: true,

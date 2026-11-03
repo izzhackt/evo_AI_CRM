@@ -77,7 +77,7 @@ const WAZZUP_TRANSPORT = {
 };
 const JOURNAL_EVENTS = [
   { kind: "event", id: id("77777777", 11), transition: "task.create", objectType: "case_task", objectId: id("88888888", 1), role: "Staff", at: "27.10 14:15", reason: null, profileHref: null },
-  { kind: "event", id: id("77777777", 12), transition: "task.change", objectType: "case_task", objectId: id("88888888", 1), role: "Staff", at: "27.10 13:40", reason: null, profileHref: `/v3/profile?case=${id("dddddddd", 41)}` },
+  { kind: "event", id: id("77777777", 12), transition: "task.change", objectType: "case_task", objectId: id("88888888", 1), role: "Staff", at: "27.10 13:40", reason: null, profileHref: `/profile?case=${id("dddddddd", 41)}` },
   { kind: "page", snapshotCreatedAt: "2026-10-27T09:00:00.000Z", snapshotId: id("77777777", 90), cursorCreatedAt: "2026-10-27T08:00:00.000Z", cursorId: id("77777777", 12) },
 ];
 /** Страница журнала, где у каждого события действие, которого код ещё не знает (база пишет их раньше, чем приложение их называет): названных строк нет, курсор есть. */

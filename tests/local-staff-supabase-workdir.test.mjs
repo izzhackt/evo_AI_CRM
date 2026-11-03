@@ -119,9 +119,9 @@ test("failure diagnostics emit only literal error categories and query-free main
     writeFileSync(logPath, [
       "PlatformSyntheticPrivateValueError: secret-token hidden@example.invalid",
       "PlatformAdmissionsWorkspaceRepositoryError: secret-token hidden@example.invalid",
-      "GET /v3/main 200 in 363ms",
-      "GET /v3/main?token=secret-token 200 in 1s",
-      "GET /v3/main 200 in 1.2s",
+      "GET /main 200 in 363ms",
+      "GET /main?token=secret-token 200 in 1s",
+      "GET /main 200 in 1.2s",
     ].join("\n"), { mode: 0o600 });
     const result = spawnSync(process.execPath, ["-", logPath], { input: diagnostic, encoding: "utf8" });
     assert.equal(result.status, 0);

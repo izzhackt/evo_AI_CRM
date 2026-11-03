@@ -523,22 +523,22 @@ function exactAdminRolePreviewProof() {
       sales: {
         role: "sales",
         systemRole: "admin",
-        landingRoute: "/v3/main",
-        allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/knowledge"],
-        deniedRoutes: ["/v3/calendar", "/v3/settings"],
+        landingRoute: "/main",
+        allowedRoutes: ["/main", "/pipeline", "/inbox", "/profile", "/knowledge"],
+        deniedRoutes: ["/calendar", "/settings"],
       },
       admissions: {
         role: "admissions",
         systemRole: "admin",
-        landingRoute: "/v3/calendar",
-        allowedRoutes: ["/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge"],
-        deniedRoutes: ["/v3/main", "/v3/pipeline", "/v3/settings"],
+        landingRoute: "/calendar",
+        allowedRoutes: ["/inbox", "/profile", "/calendar", "/knowledge"],
+        deniedRoutes: ["/main", "/pipeline", "/settings"],
       },
       admin: {
         role: "admin",
         systemRole: "admin",
-        landingRoute: "/v3/main",
-        allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge", "/v3/settings"],
+        landingRoute: "/main",
+        allowedRoutes: ["/main", "/pipeline", "/inbox", "/profile", "/calendar", "/knowledge", "/settings"],
         deniedRoutes: [],
       },
     },
@@ -2502,12 +2502,12 @@ test("Admin role preview proves the rendered Knowledge capability composition", 
   assert.match(knowledgeProof, /v3-knowledge-folder-link/u);
   assert.match(knowledgeProof, /documents_exposed/u);
   assert.match(knowledgeProof, /getByRole\("link", \{ name: "Шаблоны ответов", exact: true \}\)/u);
-  assert.match(knowledgeProof, /\/v3\/knowledge\?tab=snippets/u);
+  assert.match(knowledgeProof, /\/knowledge\?tab=snippets/u);
 
   const routeStart = source.indexOf("async function proveBrowserRouteAllowed");
   const routeEnd = source.indexOf("async function proveBrowserRouteDenied", routeStart);
   const routeProof = source.slice(routeStart, routeEnd);
-  assert.match(routeProof, /path === "\/v3\/knowledge"/u);
+  assert.match(routeProof, /path === "\/knowledge"/u);
   assert.match(routeProof, /proveBrowserKnowledgeSurface/u);
 });
 
@@ -2618,20 +2618,20 @@ test("company-file browser evaluator keeps an abort during response parsing clas
 test("browser proof requires a 2xx response, exact final route and loaded module marker", () => {
   const valid = {
     appOrigin: "http://127.0.0.1:43123",
-    requestedRoute: "/v3/calendar",
+    requestedRoute: "/calendar",
     responseStatus: 200,
-    finalUrl: "http://127.0.0.1:43123/v3/calendar",
+    finalUrl: "http://127.0.0.1:43123/calendar",
     moduleMarker: "calendar_heading",
     markerVisible: true,
   };
   assert.deepEqual(validateBrowserRouteProof(valid), {
-    route: "/v3/calendar",
+    route: "/calendar",
     moduleMarker: "calendar_heading",
     responseStatus: 200,
   });
   expectCode(() => validateBrowserRouteProof({ ...valid, responseStatus: 500 }), "browser_route_response_failed");
   expectCode(() => validateBrowserRouteProof({ ...valid, finalUrl: "http://127.0.0.1:43123/login" }), "browser_final_route_mismatch");
-  expectCode(() => validateBrowserRouteProof({ ...valid, finalUrl: "http://127.0.0.1:43124/v3/calendar" }), "browser_final_route_mismatch");
+  expectCode(() => validateBrowserRouteProof({ ...valid, finalUrl: "http://127.0.0.1:43124/calendar" }), "browser_final_route_mismatch");
   expectCode(() => validateBrowserRouteProof({ ...valid, markerVisible: false }), "browser_module_marker_missing");
 });
 
@@ -2647,7 +2647,7 @@ test("browser diagnostics retain only a bounded category and hashes", () => {
 
 test("browser network policy allows only the exact loopback app origin and fails on any denied attempt", () => {
   const appOrigin = "http://127.0.0.1:43123";
-  assert.equal(browserRequestAllowed(`${appOrigin}/v3/main`, appOrigin), true);
+  assert.equal(browserRequestAllowed(`${appOrigin}/main`, appOrigin), true);
   assert.equal(browserRequestAllowed("http://127.0.0.1:54321/rest/v1/students", appOrigin), false);
   assert.equal(browserRequestAllowed("https://example.com/tracker", appOrigin), false);
   assert.equal(browserRequestAllowed("data:text/plain,ok", appOrigin), false);

@@ -5,7 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
-const componentPath = new URL("../src/components/v3/settings/StaffRoleAssignments.tsx", import.meta.url);
+const componentPath = new URL("../src/components/staff/settings/StaffRoleAssignments.tsx", import.meta.url);
 const code = ts.transpileModule(readFileSync(componentPath, "utf8"), { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText;
@@ -28,7 +28,7 @@ function editorHarness() {
     if (id === "./StaffRoleForms") return { StaffRoleCommandForm: "command-form" };
     if (id === "@/components/ui") return { btnGhostCls: "button", inputCls: "input" };
     if (id === "@/lib/platform-admissions-playbook-contract") return { ADMISSIONS_DIRECTIONS: ["CN", "MY"] };
-    if (id === "@/components/v3/profile/admissions-view") return { DIRECTION_LABELS: { CN: "Китай", MY: "Малайзия" } };
+    if (id === "@/components/staff/profile/admissions-view") return { DIRECTION_LABELS: { CN: "Китай", MY: "Малайзия" } };
     if (id === "@/lib/v3/wording") return { staffScopeLabel: (kind) => ({ own: "Свои записи", organization: "Вся организация",
       department: "Отдел", direction: "Направление", record: "Отдельная запись" })[kind] ?? null };
     if (id === "@/lib/v3/staff-roles-contract") return { STAFF_SCOPE_KINDS: ["own", "organization", "department", "direction", "record"] };
@@ -150,7 +150,7 @@ test("switching unsent editor mode preserves draft assignments and never exposes
 });
 
 test("existing command hook keeps the original request payload after an unknown result", async () => {
-  const source = readFileSync(new URL("../src/components/v3/settings/StaffRoleForms.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/components/staff/settings/StaffRoleForms.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } }).outputText;
@@ -223,7 +223,7 @@ test("a saved assignment command shows the server readback, never its reset draf
 });
 
 test("the reset guard is opt-in and only cancels the form's own reset", () => {
-  const source = readFileSync(new URL("../src/components/v3/settings/StaffRoleForms.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/components/staff/settings/StaffRoleForms.tsx", import.meta.url), "utf8");
   assert.match(source, /keepDraftOnReset = false/u);
   assert.match(source, /if \(!keepDraftOnReset \|\| !form\) return;/u);
   assert.match(source, /form\.addEventListener\("reset", preserveDraft\)/u);
@@ -270,7 +270,7 @@ function staffSectionHarness() {
     "./staff-sheet-lock": { useStaffSheetLock: () => undefined },
     "@/lib/v3/staff-invitation-access": { staffReconcileAllowsPreparation: () => true },
   };
-  const sectionCode = ts.transpileModule(readFileSync(new URL("../src/components/v3/settings/StaffSection.tsx", import.meta.url), "utf8"), {
+  const sectionCode = ts.transpileModule(readFileSync(new URL("../src/components/staff/settings/StaffSection.tsx", import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const compiled = { exports: {} };
   new Function("require", "module", "exports", sectionCode)((id) => boundary[id] ?? require(id), compiled, compiled.exports);

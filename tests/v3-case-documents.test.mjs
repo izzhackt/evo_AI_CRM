@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 
-import { caseChecklistCounts } from "../src/components/v3/profile/case-work-view.ts";
-import * as view from "../src/components/v3/profile/documents-view.ts";
+import { caseChecklistCounts } from "../src/components/staff/profile/case-work-view.ts";
+import * as view from "../src/components/staff/profile/documents-view.ts";
 
 // Вкладка «Документы» дела (Э8.1). Разметка — настоящие компоненты вкладки,
 // отрисованные статическим рендером с синтетическими данными
@@ -12,7 +12,7 @@ const rendered = new Map(JSON.parse(execFileSync(process.execPath,
   [new URL("./e2e/case-documents-static-render.cjs", import.meta.url).pathname, "--json"],
   { encoding: "utf8", maxBuffer: 1 << 26 })).map(({ name, html }) => [name, html]));
 
-const TAB = "/v3/profile?case=c1&tab=documents&section=docs&returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs";
+const TAB = "/profile?case=c1&tab=documents&section=docs&returnTo=%2Fprofile%3Fsection%3Ddocs";
 const item = (status) => ({ status });
 const group = (statuses) => ({ kind: "active", title: "Документы", items: statuses.map(item) });
 
@@ -36,7 +36,7 @@ test("the filter lives in the address and keeps the EVO Docs section and the way
   assert.equal(review.searchParams.get("doc_state"), "review");
   assert.equal(review.searchParams.get("section"), "docs");
   assert.equal(review.searchParams.get("tab"), "documents");
-  assert.equal(review.searchParams.get("returnTo"), "/v3/profile?section=docs");
+  assert.equal(review.searchParams.get("returnTo"), "/profile?section=docs");
   assert.equal(new URL(view.documentStateHref(`${TAB}&doc_state=fix`, "all"), "https://evo.invalid").searchParams.has("doc_state"), false);
   assert.equal(view.parseDocumentStateFilter("fix"), "fix");
   assert.equal(view.parseDocumentStateFilter("approved"), "all", "a foreign word opens «Все», not an error");
@@ -58,7 +58,7 @@ test("the tab shows «N из M принято», the filter with counts and one 
   for (const [label, count] of [["Все", 9], ["На проверке", 2], ["Исправить", 2], ["Не загружено", 3], ["Принято", 2]]) {
     assert.match(html, new RegExp(`>${label}<span class="tabular-nums text-fg-3">${count}</span>`, "u"), label);
   }
-  assert.match(html, /href="\/v3\/profile\?case=[^"]+&amp;tab=documents&amp;section=docs&amp;returnTo=[^"]+&amp;doc_state=review"/u);
+  assert.match(html, /href="\/profile\?case=[^"]+&amp;tab=documents&amp;section=docs&amp;returnTo=[^"]+&amp;doc_state=review"/u);
   const rows = html.split('data-testid="v3-document-item"').slice(1);
   assert.equal(rows.length, 9);
   for (const row of rows) {
@@ -157,7 +157,7 @@ test("one empty state: an empty checklist, and a filter without rows says which 
   assert.match(empty, /Применить базовый чек-лист/u);
   const filtered = rendered.get("filter-empty");
   assert.match(filtered, /Документов в состоянии «Принято» нет\./u);
-  assert.match(filtered, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/profile\?case=[^"]+&amp;returnTo=[^"]+">Показать все<\/a>/u);
+  assert.match(filtered, /<a class="inline-flex min-h-11[^"]*" href="\/profile\?case=[^"]+&amp;returnTo=[^"]+">Показать все<\/a>/u);
   for (const html of rendered.values()) {
     assert.ok((html.match(/data-testid="v3-document-empty"/gu) ?? []).length <= 1);
     assert.doesNotMatch(html, /Требований нет|ещё не назначены/u);

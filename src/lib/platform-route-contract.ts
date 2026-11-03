@@ -9,38 +9,37 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/auth/staff",
   "/access-denied",
   "/platform-pending",
-  "/v3",
-  "/v3/main",
-  "/v3/pipeline",
-  "/v3/admissions-pipeline",
-  "/v3/inbox",
-  "/v3/profile",
-  "/v3/requests",
-  // Retired route (unified workflow S1, replaced by /v3/requests, gated by
+  "/main",
+  "/pipeline",
+  "/admissions-pipeline",
+  "/inbox",
+  "/profile",
+  "/requests",
+  // Retired route (unified workflow S1, replaced by /requests, gated by
   // sales.read not admissions.read): kept connected so old bookmarks/links
   // still resolve. The page itself is an unconditional redirect.
-  "/v3/admissions-requests",
-  "/v3/settings",
-  "/v3/knowledge",
-  "/v3/marketing",
-  "/v3/finance",
+  "/admissions-requests",
+  "/settings",
+  "/knowledge",
+  "/marketing",
+  "/finance",
   // Набор виджетов «Нового вида» (27.10.2026): страница владельца, права — как у «Финансов».
-  "/v3/ui-kit",
+  "/ui-kit",
   // «ИИ-агент» (план ИИ-агента §12.2): подразделы — `?section=`.
-  "/v3/ai-agent",
+  "/ai-agent",
   // «ИИ-агенты» (решение владельца 22.10.2026): хаб; страница агента — ниже по ключу каталога.
-  "/v3/ai-agents",
-  "/v3/reply-snippets",
-  "/v3/documents",
-  "/v3/calendar",
-  "/v3/tasks",
-  "/v3/team-chat",
-  "/v3/messages",
-  "/v3/universities",
-  "/v3/universities/manage",
+  "/ai-agents",
+  "/reply-snippets",
+  "/documents",
+  "/calendar",
+  "/tasks",
+  "/team-chat",
+  "/messages",
+  "/universities",
+  "/universities/manage",
   // Университеты v2 (план 7.5): справочник городов с карточкой и курсы валют.
-  "/v3/universities/cities",
-  "/v3/universities/rates",
+  "/universities/cities",
+  "/universities/rates",
 ]);
 
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
@@ -51,7 +50,7 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/documents",
   // Retired screen (unified workflow S5): kept connected only so old
   // bookmarks/notification links still resolve. The page itself is an
-  // unconditional redirect to /portal, same pattern as /v3/admissions-requests.
+  // unconditional redirect to /portal, same pattern as /admissions-requests.
   "/portal/applications",
   "/portal/universities",
   "/portal/payments",
@@ -86,10 +85,10 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/apply/status",
 ]);
 
-const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STAFF_UNIVERSITY_DETAIL_PATH = /^\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // «ИИ-агенты»: страница агента — только семь ключей каталога (contract.ts); вкладки — `?tab=`.
-const STAFF_AI_AGENT_PAGE_PATH = /^\/v3\/ai-agents\/(?:director|sales|curator-cn|curator-my|curator-eu|curator-ae|curator-tr)$/;
-const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
+const STAFF_AI_AGENT_PAGE_PATH = /^\/ai-agents\/(?:director|sales|curator-cn|curator-my|curator-eu|curator-ae|curator-tr)$/;
+const STAFF_UNIVERSITY_FORMS_PATH = /^\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Университеты v2 (S3): страна и город каталога. Код страны — две строчные
 // латинские буквы, город — slug карточки города (2..64); существует ли такая
@@ -196,11 +195,7 @@ const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/sales",
   "/clients",
   "/applications",
-  "/documents",
   "/visa",
-  "/finance",
-  "/tasks",
-  "/settings",
   "/portal/legacy",
   "/preview/student",
   "/calls",
@@ -211,6 +206,10 @@ const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/api/database/status",
   "/api/webhooks/telephony",
 ] as const;
+
+// Old v2 roots whose name a staff page now uses (`/documents`, `/finance`, `/tasks`, `/settings`, #1328):
+// the exact path is the live page, everything below it stays a hidden 404.
+const REUSED_PLATFORM_ROUTE_ROOTS = ["/documents", "/finance", "/tasks", "/settings"] as const;
 
 export function platformHomeRoute(
   actor: ActivePlatformActor,
@@ -223,8 +222,9 @@ export function platformHomeRoute(
  * redirect. They do not route to a handler and cannot reactivate old runtime.
  */
 export function isRetiredPlatformRoute(path: string): boolean {
-  return RETIRED_PLATFORM_ROUTE_ROOTS.some(
-    (root) => path === root || path.startsWith(`${root}/`),
+  return (
+    RETIRED_PLATFORM_ROUTE_ROOTS.some((root) => path === root || path.startsWith(`${root}/`)) ||
+    REUSED_PLATFORM_ROUTE_ROOTS.some((root) => path.startsWith(`${root}/`))
   );
 }
 
@@ -344,7 +344,7 @@ const TELEPHONY_RECORDING_PATH =
 const TELEPHONY_DIAL_PATH = "/api/v3/telephony/dial";
 // «Продажи → WhatsApp» chat (#1157): the read-only auto-refresh pulse and the
 // «Показать ранее» older page. Both handlers repeat staff Auth, messaging.read
-// and /v3/inbox access; the database readers decide conversation scope.
+// and /inbox access; the database readers decide conversation scope.
 const INBOX_PULSE_PATH = "/api/v3/inbox/pulse";
 const INBOX_OLDER_MESSAGES_PATH = /^\/api\/v3\/inbox\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/messages$/i;
 // Chat media (GET): handler requires staff messaging.read; the authenticated

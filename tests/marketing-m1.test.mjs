@@ -128,34 +128,34 @@ const admin = { organizationId: ORG, systemRole: "admin", presentationRole: null
 /* ---------------------------------------------------------------- маршрут и права */
 
 test("«Маркетинг» is a fixed-role route open to Admin authority only, like «База знаний»", () => {
-  assert.ok(FIXED_ROLE_ROUTES.includes("/v3/marketing"));
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/marketing"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/marketing"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/marketing"), false);
-  assert.equal(isConnectedPlatformPage("/v3/marketing"), true, "the staff proxy lets the page through");
-  assert.equal(isConnectedPlatformPage("/v3/marketing/extra"), false);
+  assert.ok(FIXED_ROLE_ROUTES.includes("/marketing"));
+  assert.equal(fixedRoleCanAccessRoute("admin", "/marketing"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/marketing"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/marketing"), false);
+  assert.equal(isConnectedPlatformPage("/marketing"), true, "the staff proxy lets the page through");
+  assert.equal(isConnectedPlatformPage("/marketing/extra"), false);
 });
 
 test("the section opens only for the real Admin: role preview, sales, admissions and invited staff are refused", () => {
-  assert.equal(staffCanAccessRoute(admin, "/v3/marketing"), true);
+  assert.equal(staffCanAccessRoute(admin, "/marketing"), true);
   assert.equal(canUseMarketing(admin), true);
   assert.doesNotThrow(() => requireMarketingAdmin(admin));
   for (const presentationRole of ["admin", "sales", "admissions"]) {
     const preview = { ...admin, presentationRole };
     assert.equal(isStaffPreview(preview), true);
-    assert.equal(staffCanAccessRoute(preview, "/v3/marketing"), false, presentationRole);
+    assert.equal(staffCanAccessRoute(preview, "/marketing"), false, presentationRole);
     assert.throws(() => requireMarketingAdmin(preview), MarketingForbiddenError, presentationRole);
   }
   const keys = ["lead.read", "lead.sales.workflow.manage", "sales.register.read", "knowledge.read.approved", "admin.preview", "marketing.read"];
   for (const systemRole of ["sales", "admissions", null]) {
     const staff = { ...admin, systemRole, permissionKeys: keys };
-    assert.equal(staffCanAccessRoute(staff, "/v3/marketing"), false, String(systemRole));
+    assert.equal(staffCanAccessRoute(staff, "/marketing"), false, String(systemRole));
     assert.equal(canUseMarketing(staff), false);
   }
-  const page = read("src/app/(v3)/v3/marketing/page.tsx");
-  assert.match(page, /requireV3PageActor\("\/v3\/marketing"\);\s*requireMarketingAdmin\(actor\);/u);
+  const page = read("src/app/(staff)/marketing/page.tsx");
+  assert.match(page, /requireV3PageActor\("\/marketing"\);\s*requireMarketingAdmin\(actor\);/u);
   // Ни выгрузки, ни имён в адресе: таблица заявок нового вида без выгрузки.
-  assert.doesNotMatch(read("src/components/v3/marketing-next/LeadsNext.tsx"), /csv|download|Экспорт|Скачать/iu);
+  assert.doesNotMatch(read("src/components/staff/marketing-next/LeadsNext.tsx"), /csv|download|Экспорт|Скачать/iu);
 });
 
 // «Финансы» (26.10.2026) → отчёт Looker Studio (решение владельца «Админы + бухгалтер», миграция 323): раздел верхнего уровня
@@ -163,35 +163,35 @@ test("the section opens only for the real Admin: role preview, sales, admissions
 // организация» проверяет база и сборка меню, см. tests/looker-reports.test.mjs). Единственное настоящее значение не-admin —
 // `systemRole: "staff"` (platform-authority.ts); прежние "sales"/"admissions"/null в production не встречаются.
 test("«Финансы» opens for the real Admin and a holder of finance.read.full; role preview and everyone else are refused; the page invents no figures", async () => {
-  assert.ok(FIXED_ROLE_ROUTES.includes("/v3/finance"));
-  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/finance"), true);
-  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/finance"), false);
-  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/finance"), false);
-  assert.equal(isConnectedPlatformPage("/v3/finance"), true, "the staff proxy lets the page through");
-  assert.equal(isConnectedPlatformPage("/v3/finance/extra"), false);
-  assert.equal(staffCanAccessRoute(admin, "/v3/finance"), true);
+  assert.ok(FIXED_ROLE_ROUTES.includes("/finance"));
+  assert.equal(fixedRoleCanAccessRoute("admin", "/finance"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/finance"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/finance"), false);
+  assert.equal(isConnectedPlatformPage("/finance"), true, "the staff proxy lets the page through");
+  assert.equal(isConnectedPlatformPage("/finance/extra"), false);
+  assert.equal(staffCanAccessRoute(admin, "/finance"), true);
   for (const presentationRole of ["admin", "sales", "admissions"]) {
-    assert.equal(staffCanAccessRoute({ ...admin, presentationRole }, "/v3/finance"), false, `preview ${presentationRole}`);
-    assert.equal(staffCanAccessRoute({ ...admin, presentationRole, permissionKeys: ["finance.read.full"] }, "/v3/finance"), false, `preview ${presentationRole} with the right`);
+    assert.equal(staffCanAccessRoute({ ...admin, presentationRole }, "/finance"), false, `preview ${presentationRole}`);
+    assert.equal(staffCanAccessRoute({ ...admin, presentationRole, permissionKeys: ["finance.read.full"] }, "/finance"), false, `preview ${presentationRole} with the right`);
   }
   const withoutRight = ["lead.read", "lead.sales.workflow.manage", "sales.register.read", "finance.read.summary", "finance.manage", "admin.preview"];
   const accountantKeys = [...withoutRight, "finance.read.full"];
   const accountant = { ...admin, systemRole: "staff", permissionKeys: accountantKeys };
-  assert.equal(staffCanAccessRoute(accountant, "/v3/finance"), true, "the accountant: finance.read.full is the section hint");
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: withoutRight }, "/v3/finance"), false);
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: [] }, "/v3/finance"), false);
-  assert.equal(staffCanAccessRoute(accountant, "/v3/marketing"), false, "the finance right opens no «Маркетинг»");
-  const source = read("src/app/(v3)/v3/finance/page.tsx");
-  assert.match(source, /await requireV3PageActor\("\/v3\/finance"\);/u, "the same guard as «Маркетинг»: everyone else goes to «Нет доступа»");
+  assert.equal(staffCanAccessRoute(accountant, "/finance"), true, "the accountant: finance.read.full is the section hint");
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: withoutRight }, "/finance"), false);
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: [] }, "/finance"), false);
+  assert.equal(staffCanAccessRoute(accountant, "/marketing"), false, "the finance right opens no «Маркетинг»");
+  const source = read("src/app/(staff)/finance/page.tsx");
+  assert.match(source, /await requireV3PageActor\("\/finance"\);/u, "the same guard as «Маркетинг»: everyone else goes to «Нет доступа»");
   const guards = [];
   const load = loader({
     "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return accountant; } },
     "@/lib/v3/report-links-source": { readReportLink: async () => ({ status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } }) },
   });
   // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`.
-  const element = await load("src/app/(v3)/v3/finance/page.tsx").default();
-  const html = renderToStaticMarkup(createElement(load("src/components/v3/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
-  assert.deepEqual(guards, ["/v3/finance"]);
+  const element = await load("src/app/(staff)/finance/page.tsx").default();
+  const html = renderToStaticMarkup(createElement(load("src/components/staff/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
+  assert.deepEqual(guards, ["/finance"]);
   assert.match(html, /<h1 class="t-page-title[^>]*>Финансы<\/h1>/u);
   assert.match(html, /Отчёт ещё не подключён\./u);
   assert.match(html, /Ссылку добавляет администратор\./u, "the accountant does not add the link");
@@ -486,12 +486,12 @@ test("cabinet applications sit in «Не известно» but do not count as 
 });
 
 test("addresses carry period and filter keys only: no names, phones or cursor", () => {
-  assert.equal(marketingHref({ view: "overview", period: { key: "month" } }), "/v3/marketing");
-  assert.equal(marketingHref({ view: "leads", period: { key: "week" } }), "/v3/marketing?view=leads&period=week");
+  assert.equal(marketingHref({ view: "overview", period: { key: "month" } }), "/marketing");
+  assert.equal(marketingHref({ view: "leads", period: { key: "week" } }), "/marketing?view=leads&period=week");
   const filters = parseMarketingLeadFilters({ channel: "unknown", stage: "closed", campaign: "Лето", contract: "yes", unknown: "1", no_owner: "1" });
   assert.deepEqual(marketingLeadFilterParams(filters), { channel: "unknown", campaign: "Лето", stage: "closed", contract: "yes", unknown: "1", no_owner: "1" });
   const href = marketingHref({ view: "leads", period: { key: "custom", from: FROM, to: TO }, filters });
-  assert.match(href, /^\/v3\/marketing\?view=leads&period=custom&from=2026-09-01&to=2026-09-30&/u);
+  assert.match(href, /^\/marketing\?view=leads&period=custom&from=2026-09-01&to=2026-09-30&/u);
   assert.doesNotMatch(href, /cursor|name|phone|lead_id|%2B|\+996/u);
   // Неизвестное значение фильтра — «нет фильтра», а не расширение запроса.
   assert.deepEqual(parseMarketingLeadFilters({ channel: "facebook", stage: "won", campaign: "x".repeat(101), contract: "maybe" }),
@@ -510,7 +510,7 @@ test("«Откуда узнал» in Lead 360: label and basis from the read, a 
   const load = loader({
     "@/lib/platform-lead-channel-actions": { correctLeadChannelAction: async () => ({ status: "unavailable" }) },
   });
-  const { LeadChannelCorrection } = load("src/components/v3/profile/LeadChannelCorrection.tsx");
+  const { LeadChannelCorrection } = load("src/components/staff/profile/LeadChannelCorrection.tsx");
   const html = renderToStaticMarkup(createElement(LeadChannelCorrection, { leadId: LEAD, requestId: "70000000-0000-4000-8000-000000000001", current: "unknown" }));
   const options = [...html.matchAll(/<option value="([a-z_]+)"[^>]*>([^<]+)<\/option>/gu)].map((m) => [m[1], m[2]]);
   assert.deepEqual(options, Object.entries(LEAD_CHANNELS));
@@ -518,9 +518,9 @@ test("«Откуда узнал» in Lead 360: label and basis from the read, a 
   assert.match(html, /name="lead_id" value="30000000-0000-4000-8000-000000000001"/u);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить<\/button>/u, "saving waits for a different choice");
   assert.doesNotMatch(html, RED_ACTION, "no red button in the lead card");
-  const lead = read("src/components/v3/profile/LeadWorkParts.tsx");
+  const lead = read("src/components/staff/profile/LeadWorkParts.tsx");
   assert.match(lead, /<Fact term="Откуда узнал">\{input\.channel\}<\/Fact>/u);
-  const fact = read("src/components/v3/profile/LeadChannelFact.tsx");
+  const fact = read("src/components/staff/profile/LeadChannelFact.tsx");
   assert.match(fact, /readLeadChannel\(actor, leadId\)/u);
   assert.match(fact, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/u);
 });
@@ -551,7 +551,7 @@ test("the staff_manual touch id is bound to the form request and the lead: a ret
 
 // Браузерное доказательство (React 19 в Chromium): node tests/e2e/requests-static-render.cjs --channel-spend-forms <dir>.
 test("the correction form is not a React form action, so no automatic form reset can swap the chosen channel", () => {
-  const source = read("src/components/v3/profile/LeadChannelCorrection.tsx");
+  const source = read("src/components/staff/profile/LeadChannelCorrection.tsx");
   assert.doesNotMatch(source, /<form action=/u);
   assert.match(source, /event\.preventDefault\(\);\s*const form = new FormData\(event\.currentTarget\);\s*startTransition\(\(\) => action\(form\)\);/u);
   assert.match(source, /<select name="channel" value=\{choice\}/u);

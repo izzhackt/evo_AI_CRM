@@ -9,7 +9,7 @@ import ts from "typescript";
 import * as registry from "../src/lib/student-profile-fields.ts";
 import * as wording from "../src/lib/v3/wording.ts";
 import * as exportClient from "../src/lib/document-export-client.ts";
-import { profileFieldSourceVersions } from "../src/components/v3/profile/types.ts";
+import { profileFieldSourceVersions } from "../src/components/staff/profile/types.ts";
 
 const require = createRequire(import.meta.url);
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime.js");
@@ -23,18 +23,18 @@ function compile(path, resolve = require) {
   return compiledModule.exports;
 }
 
-const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+const disclosure = compile("src/components/staff/settings/StaffDisclosure.tsx");
 // Кнопки очереди (`QUEUE_CONFIRM`, `QUEUE_SECONDARY`), значок и чип состояния — как в сборке.
-const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
+const queueButtons = compile("src/components/staff/queue/queue-buttons.ts");
 const icons = compile("src/components/icons.tsx");
-const statusChip = compile("src/components/v3/blocks/StatusChip.tsx");
-const universityFormExport = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", id => {
+const statusChip = compile("src/components/staff/blocks/StatusChip.tsx");
+const universityFormExport = compile("src/components/staff/profile/UniversityFormExportPanel.tsx", id => {
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return exportClient;
   if (id === "@/lib/v3/wording") return wording;
   return require(id);
 });
-const exportHistory = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
+const exportHistory = compile("src/components/staff/profile/StudentProfileExportHistory.tsx", id => {
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return exportClient;
   if (id === "@/lib/v3/wording") return wording;
@@ -45,7 +45,7 @@ const exportHistory = compile("src/components/v3/profile/StudentProfileExportHis
 const unavailableCommand = async () => { throw new Error("Component-only check never executes a server command"); };
 // Render the real component/React/disclosure. Network-bound action and preview
 // references are inert and throw if invoked: these are not persistence tests.
-const component = compile("src/components/v3/profile/StudentProfileFields.tsx", id => {
+const component = compile("src/components/staff/profile/StudentProfileFields.tsx", id => {
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/components/icons") return icons;
   if (id === "../blocks/StatusChip") return statusChip;
@@ -139,7 +139,7 @@ test("manual source selection is optional and a proposal uses its database-owned
   const clear = component.profileFieldCommandValues({ ...common, decision: "clear" });
   assert.equal(clear.value, "");
   assert.equal(clear.proposal_id, "");
-  const source = read("src/components/v3/profile/StudentProfileFields.tsx");
+  const source = read("src/components/staff/profile/StudentProfileFields.tsx");
   assert.match(source, /selectedSourceVersionId: "", selectedSourcePage: ""/);
   assert.match(source, /name="source_version_id"/);
   assert.match(source, /name="source_page"/);
@@ -191,11 +191,11 @@ test("source wiring keeps canonical absence separate from an unrequested section
   assert.match(adapter, /profileFields: null/);
   const loader = adapter.slice(adapter.indexOf("async function loadFullCase("), adapter.indexOf("function financeStopText("));
   assert.doesNotMatch(loader, /\.catch\(/);
-  const profile = read("src/components/v3/profile/Profile.tsx");
+  const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /current === "anketa"/);
   assert.match(profile, /fieldsReadOnly=\{isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "profile\.manage"\)\}/);
   assert.match(adapter, /access\.studentProfile && staffHasPermission\(actor, "profile\.read\.full"\)\s*\? loadStudentApplicationForCase\(studentCaseId\)\s*: null/);
-  const tabs = read("src/components/v3/profile/tabs.tsx");
+  const tabs = read("src/components/staff/profile/tabs.tsx");
   assert.match(tabs, /draft\.studentApplication \? <StudentApplicationAnswers application=\{draft\.studentApplication\}/);
   assert.match(tabs, /if \(!draft\.profileFields\) return <div[^>]*>\{studentAnswers\}\{caseFacts\}<\/div>/);
 });
@@ -205,7 +205,7 @@ test("safe outcome wording offers explicit recovery and never returns unknown do
   assert.match(wording.studentProfileFieldActionMessage("stale"), /Ваши правки сохранены на экране/);
   assert.equal(wording.studentProfileFieldState("unrecognized"), null);
   assert.equal(wording.studentProfileProposalState("unrecognized"), null);
-  const source = read("src/components/v3/profile/StudentProfileFields.tsx");
+  const source = read("src/components/staff/profile/StudentProfileFields.tsx");
   assert.match(source, /result\.status === "saved" && decision !== "reject_proposal"/);
   assert.match(source, /addEventListener\("reset", preserveDraft, true\)/);
   assert.match(source, /removeEventListener\("reset", preserveDraft, true\)/);

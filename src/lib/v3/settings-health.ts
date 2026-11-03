@@ -116,9 +116,9 @@ const WHATSAPP_WITHOUT = "Входящие WhatsApp не приходят в CRM
 /** Сессия может работать, а приём выключен: сказано прямо, живым не выглядит. */
 const INTAKE_OFF = "Приём сообщений выключен на сервере.";
 /** Страница WhatsApp: там видно то же состояние, что у сотрудников. */
-const OPEN_WHATSAPP = { label: "Открыть WhatsApp", href: "/v3/inbox" } as const;
+const OPEN_WHATSAPP = { label: "Открыть WhatsApp", href: "/inbox" } as const;
 /** Блок «Подключение WhatsApp» под таблицей: QR и код по номеру, только Администратор (20.10.2026). */
-const CONNECT_WHATSAPP = { label: "Подключить WhatsApp", href: `/v3/settings?section=integrations#${WHATSAPP_CONNECT_ANCHOR}` } as const;
+const CONNECT_WHATSAPP = { label: "Подключить WhatsApp", href: `/settings?section=integrations#${WHATSAPP_CONNECT_ANCHOR}` } as const;
 /** Работа на сервере — у технического специалиста. */
 const handoff = (work: string): IntegrationAction => ({ handoff: `Передать техническому специалисту: ${work}`, link: null });
 const FIX_PARAMETERS = handoff("исправить параметры на сервере");

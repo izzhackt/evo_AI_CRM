@@ -9,15 +9,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const composer = source("src/components/v3/tasks/TaskComposerDialog.tsx");
-const panelPage = source("src/app/(v3)/v3/tasks/page.tsx");
-const taskList = source("src/components/v3/tasks/TaskQueueList.tsx");
-const taskRow = source("src/components/v3/tasks/TaskQueueRow.tsx");
-const quickAdd = source("src/components/v3/tasks/TaskQuickAdd.tsx");
-const caseTasksPanel = source("src/components/v3/profile/CaseTasksPanel.tsx");
+const composer = source("src/components/staff/tasks/TaskComposerDialog.tsx");
+const panelPage = source("src/app/(staff)/tasks/page.tsx");
+const taskList = source("src/components/staff/tasks/TaskQueueList.tsx");
+const taskRow = source("src/components/staff/tasks/TaskQueueRow.tsx");
+const quickAdd = source("src/components/staff/tasks/TaskQuickAdd.tsx");
+const caseTasksPanel = source("src/components/staff/profile/CaseTasksPanel.tsx");
 const admissionsTaskActions = source("src/lib/platform-admissions-task-actions.ts");
 const notificationsContract = source("src/lib/platform-staff-notifications-contract.ts");
-const notificationsUi = source("src/components/v3/StaffNotifications.tsx");
+const notificationsUi = source("src/components/staff/StaffNotifications.tsx");
 const notificationsActions = source("src/lib/v3/staff-notification-actions.ts");
 const notificationsSource = source("src/lib/v3/staff-notification-source.ts");
 const sql = source("supabase/migrations/188_platform_staff_notifications_v2.sql");
@@ -74,7 +74,7 @@ test("the unified composer is reachable from both the task list and a case (Case
   // С #1327 страницу «Задач» рисует «Новый вид»: диалог создания приходит свойствами `composer` (`composerProps`) тем же `TaskComposerDialog`.
   assert.match(panelPage, /composer=\{composerProps\}/u);
   assert.doesNotMatch(panelPage, /<PartShell[^>]*\baction=/u);
-  assert.match(caseTasksPanel, /import \{ TaskComposerDialog \} from "@\/components\/v3\/tasks\/TaskComposerDialog"/u);
+  assert.match(caseTasksPanel, /import \{ TaskComposerDialog \} from "@\/components\/staff\/tasks\/TaskComposerDialog"/u);
   assert.match(caseTasksPanel, /initialCase=\{\{ id: caseId, name: caseName \}\}/u);
 });
 
@@ -86,22 +86,22 @@ test("the task-list page renders a right-side/full-screen panel instead of navig
 
 test("closing the panel returns to the same list URL with its filters and scroll position preserved", () => {
   // The close/list href is built from the SAME view/type/state/due/search
-  // params the list itself renders with, not a bare /v3/tasks.
+  // params the list itself renders with, not a bare /tasks.
   assert.match(panelPage, /const listParams = taskQueueParams\(filters\);/u);
-  assert.match(panelPage, /const listHref = \(overrides: Record<string, string \| null> = \{\}\) => queueHref\("\/v3\/tasks", listParams, overrides\);/u);
+  assert.match(panelPage, /const listHref = \(overrides: Record<string, string \| null> = \{\}\) => queueHref\("\/tasks", listParams, overrides\);/u);
   assert.match(panelPage, /const closeHref = listHref\(\);/u);
   assert.match(taskList, /export function taskPanelHref\(listParams: QueueParams, task: QueueTask, move = false\): string \{/u);
   // scroll={false} on the row links: opening/closing the panel must not
   // reset the list's scroll position via Next.js's default scroll-to-top.
   assert.match(taskRow, /<Link\s+href=\{href\}\s+scroll=\{false\}\s+data-queue-open=""/u);
   // Э7: the shared side panel (every host) closes to the same list URL.
-  const panel = source("src/components/v3/panel/SidePanel.tsx");
+  const panel = source("src/components/staff/panel/SidePanel.tsx");
   assert.match(panel, /<Link\s+href=\{closeHref\}\s+scroll=\{false\}/u);
   assert.match(panel, /router\.push\(closeHref, \{ scroll: false \}\)/u);
 });
 
-test("case tasks open in the same /v3/tasks panel, never a redirect to /v3/calendar", () => {
-  assert.doesNotMatch(panelPage, /v3\/calendar\?case=/u);
+test("case tasks open in the same /tasks panel, never a redirect to /calendar", () => {
+  assert.doesNotMatch(panelPage, /\/calendar\?case=/u);
   assert.match(taskList, /\{ task: task\.id, kind: "case", case: task\.studentCaseId \}/u);
 });
 

@@ -131,7 +131,7 @@ test("source contract: receipt follows real case and isolated Student journeys",
 test("team chat checks the real read-only page before issuing the receipt", () => {
   const chatCheck = smokeSource.split('checkpoint("team_chat");')[1]?.split("    } finally {")[0];
   assert.ok(chatCheck);
-  assert.ok(chatCheck.includes('await visit(page, `${configuration.baseUrl}/v3/team-chat`);'));
+  assert.ok(chatCheck.includes('await visit(page, `${configuration.baseUrl}/team-chat`);'));
   for (const label of ["Каналы команды", "История сообщений", "Сообщение в канал"]) {
     assert.ok(chatCheck.includes(label));
   }
@@ -177,8 +177,8 @@ test("«Студенты» and EVO Docs smoke checks the real queue without depe
   assert.match(verify, /getByRole\("navigation", \{ name: "Виды списка студентов", exact: true \}\)/u);
   assert.match(verify, /views\.getByRole\("link", \{ name: tab \}\)\.first\(\)\.waitFor\(\{ state: "visible", timeout: 30_000 \}\)/u);
   for (const [name, route, prefix, tab] of [
-    ["students_queue", "/v3/profile`", "students_queue", "Все в работе"],
-    ["evo_docs", "/v3/profile?section=docs`", "evo_docs_queue", "Документы дела"],
+    ["students_queue", "/profile`", "students_queue", "Все в работе"],
+    ["evo_docs", "/profile?section=docs`", "evo_docs_queue", "Документы дела"],
   ]) {
     const check = smokeSource.split(`checkpoint("${name}");`)[1]?.split("checkpoint(")[0] ?? "";
     assert.ok(check.includes(`\${configuration.baseUrl}${route}`), `${name} visits ${route}`);
@@ -186,7 +186,7 @@ test("«Студенты» and EVO Docs smoke checks the real queue without depe
     assert.match(check, /if \(runtimeError\) throw new Error\("staff_runtime_error"\)/u);
   }
   // The selectors are the real components' — renaming one there breaks this test, not the release.
-  const component = (path) => readFileSync(new URL(`../src/components/v3/${path}`, import.meta.url), "utf8");
+  const component = (path) => readFileSync(new URL(`../src/components/staff/${path}`, import.meta.url), "utf8");
   // С #1327 очередь и EVO Docs рисует «Новый вид»: контейнер и состояния — у `StudentsNextPage`, вкладки и ошибки — у его видов.
   const page = component("students-next/StudentsNextPage.tsx");
   assert.match(page, /<Alert testId="queue-forbidden"/u);

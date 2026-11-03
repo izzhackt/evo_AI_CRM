@@ -151,7 +151,7 @@ test("a newer saved version never lets a save overwrite it silently (review CRM 
   assert.equal(costDraftNotes({ ...saved, amountMin: "26000", period: "semester", costKind: "accommodation" }, row, "CN", today), "Что: Общежитие\nПериод: за семестр\nСумма или «от»: 26000");
 
   // Both editors send the version their draft started from, not the version of the latest props.
-  const read = (file) => readFileSync(new URL(`../src/components/v3/universities/geography/${file}`, import.meta.url), "utf8");
+  const read = (file) => readFileSync(new URL(`../src/components/staff/universities/geography/${file}`, import.meta.url), "utf8");
   for (const file of ["CityEditor.tsx", "UniversityCosts.tsx"]) {
     const text = read(file);
     assert.match(text, /baseVersion: versioned\.baseVersion/u, file);
@@ -234,7 +234,7 @@ test("refusals: only known 283 names become reasons, and words follow the operat
 
 test("CRM editor never prints the curator phrase and shares the student index cache tag", () => {
   assert.equal(STUDENT_UNIVERSITY_INDEX_TAG, "portal-student-university-index");
-  const files = ["src/lib/catalog-geography.ts", "src/lib/catalog-geography-actions.ts", "src/components/v3/universities/geography/UniversityCosts.tsx", "src/components/v3/universities/geography/FxRates.tsx", "src/components/v3/universities/geography/CityEditor.tsx", "src/components/v3/universities/geography/UniversityCityPicker.tsx", "src/components/v3/universities/geography/CityList.tsx", "src/components/v3/universities/geography/FxRateForm.tsx", "src/components/v3/universities/geography/command.tsx"];
+  const files = ["src/lib/catalog-geography.ts", "src/lib/catalog-geography-actions.ts", "src/components/staff/universities/geography/UniversityCosts.tsx", "src/components/staff/universities/geography/FxRates.tsx", "src/components/staff/universities/geography/CityEditor.tsx", "src/components/staff/universities/geography/UniversityCityPicker.tsx", "src/components/staff/universities/geography/CityList.tsx", "src/components/staff/universities/geography/FxRateForm.tsx", "src/components/staff/universities/geography/command.tsx"];
   for (const file of files) {
     const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(text, /Стоимость уточняет куратор/u, file);
@@ -244,10 +244,10 @@ test("CRM editor never prints the curator phrase and shares the student index ca
   const action = readFileSync(new URL("../src/lib/catalog-geography-actions.ts", import.meta.url), "utf8");
   assert.match(action, /revalidateTag\(STUDENT_UNIVERSITY_INDEX_TAG, \{ expire: 0 \}\)/u);
   // No internal jargon on the staff screens (review CRM R7).
-  const picker = readFileSync(new URL("../src/components/v3/universities/geography/UniversityCityPicker.tsx", import.meta.url), "utf8");
+  const picker = readFileSync(new URL("../src/components/staff/universities/geography/UniversityCityPicker.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(picker, /из сида|сид 283/u);
   // The city select gets only key, country, name and status; full city texts stay on the server (review CRM R3).
-  const panel = readFileSync(new URL("../src/components/v3/universities/geography/UniversityGeographyPanel.tsx", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../src/components/staff/universities/geography/UniversityGeographyPanel.tsx", import.meta.url), "utf8");
   assert.match(panel, /map\(\(\{ key, country, nameRu, status \}\) => \(\{ key, country, nameRu, status \}\)\)/u);
   assert.doesNotMatch(panel, /cities=\{geography\.cities\}/u);
 });

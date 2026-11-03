@@ -379,7 +379,7 @@ test("the server action authorizes, never writes in role preview and keeps the r
   assert.match(actions, /if \(!staffCan\(actor, "admissions\.write"\)\) return outcome\("forbidden", requestId\);/u);
   assert.match(actions, /exactActionStringFields\(form, CASE_NEXT_ACTION_FIELDS\)/u);
   assert.match(actions, /status === "request_conflict" \|\| requestId === null \? randomUUID\(\) : requestId/u);
-  assert.match(actions, /revalidatePath\("\/v3\/profile"\)/u);
+  assert.match(actions, /revalidatePath\("\/profile"\)/u);
   assert.match(serverModule, /\.rpc\("staff_student_case_queue_v1", args, \{ get: true \}\)/u);
   assert.match(serverModule, /\.rpc\("staff_student_case_queue_counts_v1", args, \{ get: true \}\)/u);
   assert.match(serverModule, /\.rpc\("set_case_next_action_v1", \{/u);

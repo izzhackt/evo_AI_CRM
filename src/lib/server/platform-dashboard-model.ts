@@ -178,7 +178,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "sales",
-      href: "/v3/pipeline",
+      href: "/pipeline",
       loadedCount: salesPage.rows.length,
       hasMore: salesHasMore,
       overdueCount: salesHasMore ? null : overdueOnPage,
@@ -187,7 +187,7 @@ export async function readPlatformDashboardSnapshot<
     if (overdueOnPage > 0) {
       attentionItems.push({
         key: "sales_overdue",
-        href: "/v3/pipeline?due=overdue",
+        href: "/pipeline?due=overdue",
         value: salesHasMore ? null : overdueOnPage,
         tone: "danger",
       });
@@ -195,7 +195,7 @@ export async function readPlatformDashboardSnapshot<
     if (unassignedOnPage > 0) {
       attentionItems.push({
         key: "sales_unassigned",
-        href: "/v3/pipeline?assignment=unassigned",
+        href: "/pipeline?assignment=unassigned",
         value: salesHasMore ? null : unassignedOnPage,
         tone: "warn",
       });
@@ -213,7 +213,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "clients",
-      href: "/v3/profile",
+      href: "/profile",
       loadedCount: casesPage.rows.length,
       hasMore: casesHasMore,
       attentionCount: casesHasMore ? null : attentionOnPage,
@@ -221,7 +221,7 @@ export async function readPlatformDashboardSnapshot<
     if (attentionOnPage > 0) {
       attentionItems.push({
         key: "student_attention",
-        href: "/v3/profile",
+        href: "/profile",
         value: casesHasMore ? null : attentionOnPage,
         tone: "warn",
       });
@@ -236,7 +236,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "tasks",
-      href: "/v3/calendar",
+      href: "/calendar",
       loadedCount: taskQueue.rows.length,
       hasMore: tasksHasMore,
       overdueCount: tasksHasMore ? null : overdueOnPage,
@@ -244,7 +244,7 @@ export async function readPlatformDashboardSnapshot<
     if (overdueOnPage > 0) {
       attentionItems.push({
         key: "admissions_overdue",
-        href: "/v3/calendar",
+        href: "/calendar",
         value: tasksHasMore ? null : overdueOnPage,
         tone: "danger",
       });
@@ -258,7 +258,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "finance",
-      href: "/v3/profile",
+      href: "/profile",
       loadedCount: financeQueue.rows.length,
       hasMore: financeHasMore,
       blockedCount: financeHasMore ? null : blockedOnPage,
@@ -266,7 +266,7 @@ export async function readPlatformDashboardSnapshot<
     if (blockedOnPage > 0) {
       attentionItems.push({
         key: "finance_stops",
-        href: "/v3/profile",
+        href: "/profile",
         value: financeHasMore ? null : blockedOnPage,
         tone: "warn",
       });
@@ -280,7 +280,7 @@ export async function readPlatformDashboardSnapshot<
     ).length;
     cards.push({
       key: "whatsapp",
-      href: "/v3/inbox",
+      href: "/inbox",
       loadedCount: conversations.rows.length,
       hasMore: conversationsHasMore,
       salesCount: conversationsHasMore ? null : salesCount,
@@ -291,7 +291,7 @@ export async function readPlatformDashboardSnapshot<
     if (conversations.rows.length > 0) {
       attentionItems.push({
         key: "whatsapp_open",
-        href: "/v3/inbox",
+        href: "/inbox",
         value: conversationsHasMore ? null : conversations.rows.length,
         tone: "info",
       });

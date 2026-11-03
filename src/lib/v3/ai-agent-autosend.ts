@@ -519,7 +519,7 @@ export function aiAutosendConversationFromLink(value: string): string | null {
   if (UUID.test(trimmed)) return trimmed.toLowerCase();
   try {
     const url = new URL(trimmed, "https://internal.invalid");
-    if (url.pathname !== "/v3/inbox") return null;
+    if (url.pathname !== "/inbox") return null;
     const id = url.searchParams.get("conversation");
     return id && UUID.test(id) ? id.toLowerCase() : null;
   } catch {

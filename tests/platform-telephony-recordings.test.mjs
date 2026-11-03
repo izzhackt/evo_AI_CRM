@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { leadCallRow } from "../src/components/v3/profile/lead-work-view.ts";
+import { leadCallRow } from "../src/components/staff/profile/lead-work-view.ts";
 import { isConnectedPlatformApi } from "../src/lib/platform-route-contract.ts";
 import {
   RECORDING_MAX_BYTES,
@@ -788,10 +788,10 @@ test("wiring: the route, the handler, the source and the migration agree; the li
   const handlers = read("src/lib/server/telephony-recording-route-handlers.ts");
   const stream = read("src/lib/server/platform-telephony-recording-stream.ts");
   const source = read("src/lib/v3/telephony-lead-calls-source.ts");
-  const parts = read("src/components/v3/profile/LeadWorkParts.tsx");
-  const player = read("src/components/v3/profile/LeadCallRecording.tsx");
+  const parts = read("src/components/staff/profile/LeadWorkParts.tsx");
+  const player = read("src/components/staff/profile/LeadCallRecording.tsx");
   const contract = read("src/lib/v3/telephony-lead-calls.ts");
-  const view = read("src/components/v3/profile/lead-work-view.ts");
+  const view = read("src/components/staff/profile/lead-work-view.ts");
   const script = read("scripts/test-runners/test-postgres-authorization.sh");
   // The RPC parameter names in TypeScript are the SQL parameter names, in both directions.
   const params = (name) => [...migration.match(new RegExp(`FUNCTION platform\\.${name}\\(([^)]*)\\)`, "u"))[1].matchAll(/\bp_[a-z_]+/gu)].map((match) => match[0]).sort();

@@ -69,7 +69,7 @@ export async function readStaffTaskChatSource(actor: ActivePlatformActor, taskId
     throw new Error("Task source is unavailable.");
   }
   if (!staffCanAccessChatChannel(actor, data.channel_key)) return null;
-  return `/v3/team-chat?${new URLSearchParams({ channel: data.channel_key, message: data.message_id })}`;
+  return `/team-chat?${new URLSearchParams({ channel: data.channel_key, message: data.message_id })}`;
 }
 export async function listStaffParticipants(actor: PlatformActor) {
   assertStaff(actor);

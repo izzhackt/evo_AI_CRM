@@ -9,8 +9,8 @@ function source(path) {
 }
 
 test("V3 profile exposes Student Portal provisioning to Admin always, and to Sales only for a cabinet_pending case (S8)", () => {
-  const profile = source("src/components/v3/profile/Profile.tsx");
-  const page = source("src/app/(v3)/v3/profile/page.tsx");
+  const profile = source("src/components/staff/profile/Profile.tsx");
+  const page = source("src/app/(staff)/profile/page.tsx");
   // The render gate is no longer a bare "admin only" check (S8: plan §4 —
   // Sales must be able to dispatch a cabinet case's own invite) — it is
   // "not preview" AND ("is admin" OR "is a cabinet case AND holds
@@ -101,7 +101,7 @@ test("React action envelope decodes one exact portal operation", () => {
 });
 
 test("card makes resend and reconciliation boundaries explicit", () => {
-  const card = source("src/components/v3/profile/StudentPortalAccessCard.tsx");
+  const card = source("src/components/staff/profile/StudentPortalAccessCard.tsx");
   assert.match(card, /Повторная отправка запрещена/u);
   assert.match(card, /только проверка провайдера/u);
   assert.match(card, /Отправить новое приглашение/u);
@@ -170,7 +170,7 @@ test("S8: reissue authorization carries case_shape end to end (form fields, acti
   const form = source("src/lib/server/student-portal-provisioning-form.ts");
   assert.match(form, /reissue: \[\s*"organization_id", "receipt_id", "receipt_version",\s*"invite_generation", "reason", "case_shape", "operation",\s*\]/u);
 
-  const card = source("src/components/v3/profile/StudentPortalAccessCard.tsx");
+  const card = source("src/components/staff/profile/StudentPortalAccessCard.tsx");
   assert.match(
     card,
     /<input type="hidden" name="operation" value="reissue" \/>\s*<input type="hidden" name="organization_id" value=\{organizationId\} \/>\s*<input type="hidden" name="case_shape" value=\{caseShape\} \/>/u,
@@ -178,7 +178,7 @@ test("S8: reissue authorization carries case_shape end to end (form fields, acti
 });
 
 test("S8: the card's caseShape is source_key-derived (isCabinetCase), never caseState alone — the exact bug the task flags", () => {
-  const card = source("src/components/v3/profile/StudentPortalAccessCard.tsx");
+  const card = source("src/components/staff/profile/StudentPortalAccessCard.tsx");
   assert.match(card, /isCabinetCase: boolean;/u);
   assert.match(
     card,
@@ -191,7 +191,7 @@ test("S8: the card's caseShape is source_key-derived (isCabinetCase), never case
 });
 
 test("S8: Profile passes isCabinetCase through and the admissions workspace/type carry it, source_key-derived", () => {
-  const types = source("src/components/v3/profile/types.ts");
+  const types = source("src/components/staff/profile/types.ts");
   assert.match(types, /isCabinetCase: boolean;/u);
   const profileSource = source("src/lib/v3/profile-source.ts");
   assert.match(profileSource, /readStudentCaseCabinetOrigin/u);

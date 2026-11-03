@@ -696,7 +696,7 @@ test("keeps redirects and retry metadata bounded and replay-safe", () => {
   );
   assert.equal(
     retry,
-    `/v3/profile?case=${STUDENT_CASE_ID}&tab=money&bw6_result=unavailable&bw6_retry_request_id=${REQUEST_ID}&bw6_retry_operation=review_draft&bw6_subject_id=${DRAFT_ID}#contract-workflow`,
+    `/profile?case=${STUDENT_CASE_ID}&tab=money&bw6_result=unavailable&bw6_retry_request_id=${REQUEST_ID}&bw6_retry_operation=review_draft&bw6_subject_id=${DRAFT_ID}#contract-workflow`,
   );
 
   const badRequest = buildPlatformContractRedirectTarget(
@@ -727,7 +727,7 @@ test("all contract outcomes return to the unified workspace with bounded retry i
       const url = new URL(buildPlatformContractRedirectTarget(STUDENT_CASE_ID, outcome, {
         requestId: REQUEST_ID, operation, subjectId: DRAFT_ID,
       }), "https://evo.example");
-      assert.equal(url.pathname, "/v3/profile");
+      assert.equal(url.pathname, "/profile");
       assert.equal(url.searchParams.get("case"), STUDENT_CASE_ID);
       assert.equal(url.searchParams.get("tab"), "money");
       assert.equal(url.hash, "#contract-workflow");
@@ -766,10 +766,10 @@ test("actions use live guards and RPC-only persistence without legacy/provider i
   assert.match(actions, /requirePlatformContractActor\(\)/);
   assert.match(
     actions,
-    /requirePlatformMutationCapability\("admissions\.read", "\/v3\/profile"\)/,
+    /requirePlatformMutationCapability\("admissions\.read", "\/profile"\)/,
   );
   assert.match(actions, /getPlatformCaseContractWorkspace/);
-  assert.match(actions, /revalidatePath\("\/v3\/profile"\)/);
+  assert.match(actions, /revalidatePath\("\/profile"\)/);
   assert.doesNotMatch(actions, /\/clients\//u);
   assert.doesNotMatch(actions, /\.from\s*\(/);
   assert.doesNotMatch(actions, /console\.(?:log|warn|error)/);

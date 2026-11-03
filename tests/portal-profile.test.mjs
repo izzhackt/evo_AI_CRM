@@ -89,7 +89,7 @@ test("profile screen wiring stays in place", () => {
   assert.match(deletion, /strings\.confirmQuestion/u, "an irreversible request asks for a second step");
 
   // Дело студента 26.09: шапка рисует пилюлю, а чтение запроса — в общем чтении дела.
-  const header = source("src/components/v3/profile/CaseHeader.tsx");
+  const header = source("src/components/staff/profile/CaseHeader.tsx");
   assert.match(header, /запросил удаление аккаунта/u);
   assert.match(source("src/lib/v3/case-work-source.ts"), /hasOpenAccountDeletionRequestForCase\(actor, target\.studentCaseId\)/u);
 });

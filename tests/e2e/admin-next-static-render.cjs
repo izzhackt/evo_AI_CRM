@@ -62,7 +62,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8"), readFileSync(join(ROOT, "src/app/(v3)/ai-agent.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8"), readFileSync(join(ROOT, "src/app/(staff)/ai-agent.css"), "utf8")].join("\n");
 }
 
 async function buildBundle(outFile) {
@@ -112,7 +112,7 @@ async function buildBundle(outFile) {
 /* --------------------------------------------------------------- страницы стенда */
 
 const SCREEN_OF = { settings: "settings", marketing: "marketing", finance: "finance", "ai-agent": "ai" };
-const PATH_OF = (route) => `/v3/${route}`;
+const PATH_OF = (route) => `/${route}`;
 
 /** Страницы: имя → данные для браузера. */
 async function buildPages() {
@@ -125,12 +125,12 @@ async function buildPages() {
   const deletionList = next.get("settings-deletion");
   // Ручной запрос с отключённым входом (кнопка «Отметить выполненным» доступна): та же страница, детали подменены синтетикой стенда.
   const manualRow = fx.settings.DELETION_ROWS[1];
-  const manualHref = `/v3/settings?section=deletion&request=${manualRow.id}`;
+  const manualHref = `/settings?section=deletion&request=${manualRow.id}`;
   const deletionManual = { ...deletionOpen, search: `section=deletion&request=${manualRow.id}`, props: { ...deletionOpen.props, deletion: { ...deletionOpen.props.deletion, detail: { status: "ready", detail: fx.settings.DELETION_DETAIL_MANUAL_OFF } } } };
   const routes = {
-    "settings-deletion": { [`/v3/settings?section=deletion&request=${fx.settings.DELETION_ROWS[0].id}`]: deletionOpen, [manualHref]: deletionManual, "/v3/settings?section=deletion": deletionList },
+    "settings-deletion": { [`/settings?section=deletion&request=${fx.settings.DELETION_ROWS[0].id}`]: deletionOpen, [manualHref]: deletionManual, "/settings?section=deletion": deletionList },
     // «Открыть роль» после создания: ссылка ведёт на `?role=`, и страница приходит с выбранной ролью (как мягкий переход в приложении).
-    "settings-roles-list": { [`/v3/settings?section=staff&view=roles&role=${fx.settings.ROLES[1].id}`]: next.get("settings-roles") },
+    "settings-roles-list": { [`/settings?section=staff&view=roles&role=${fx.settings.ROLES[1].id}`]: next.get("settings-roles") },
   };
   for (const [name, route] of SCREENS.map((entry) => [entry[0], entry[1]])) {
     const entry = next.get(name);

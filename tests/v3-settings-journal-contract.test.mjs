@@ -65,10 +65,10 @@ test("Э8.11: the journal read tells a disabled audit from a failed read, and th
   assert.match(source, /return \{ \.\.\.EMPTY_AUDIT_PAGE, status: isPlatformP7AAuditEnabled\(\) \? "unavailable" : "disabled" \};/u);
   assert.match(source, /cursorHonored: true,\s*status: "ready",/u);
   assert.match(source, /return \{ entries, cursorHonored: page\.cursorHonored, status: page\.status \};/u);
-  const page = read("src/app/(v3)/v3/settings/page.tsx");
+  const page = read("src/app/(staff)/settings/page.tsx");
   assert.match(page, /journalStatus: journalRead\.status/u);
   const props = read("src/lib/v3/settings-next-journal.ts");
-  const view = read("src/components/v3/settings-next/JournalNext.tsx");
+  const view = read("src/components/staff/settings-next/JournalNext.tsx");
   // Слова вместо строк списка (прочитанное число событий в новом виде не показывается ни для отключённого, ни для недоступного журнала).
   assert.match(props, /notice: journalNotice\(input\.status, active, events\.length\),/u);
   assert.match(view, /\{notice \? \(\s*<div data-testid="v3-journal-notice"/u);

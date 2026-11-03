@@ -25,13 +25,13 @@ import {
   studentsRowSignals,
   studentsStepView,
   studentsUpdatedDay,
-} from "../src/components/v3/students/students-queue-view.ts";
-import { coverageDue, coverageHref, formatDueOn } from "../src/components/v3/profile/students-coverage-view.ts";
-import { dueBucket, weekEnd } from "../src/components/v3/queue/due-bucket.ts";
-import { shiftDay } from "../src/components/v3/calendar/types.ts";
+} from "../src/components/staff/students/students-queue-view.ts";
+import { coverageDue, coverageHref, formatDueOn } from "../src/components/staff/profile/students-coverage-view.ts";
+import { dueBucket, weekEnd } from "../src/components/staff/queue/due-bucket.ts";
+import { shiftDay } from "../src/components/staff/calendar/types.ts";
 import { parseCaseNextActionInput } from "../src/lib/platform-student-case-queue-contract.ts";
 import { resolveStudentsCoverage } from "../src/lib/v3/students-coverage.ts";
-import * as editor from "../src/components/v3/students/next-step-input.ts";
+import * as editor from "../src/components/staff/students/next-step-input.ts";
 import { caseDocumentsWords } from "../src/lib/v3/wording.ts";
 
 /**
@@ -67,9 +67,9 @@ test("the default view follows the role: «Мои» for Admissions, «Требу
   assert.equal(ok({}, CURATOR).view, "mine");
   assert.equal(ok({ section: "docs" }, ADMIN, "docs").view, "review");
   // Default views are not written into the address.
-  assert.equal(studentsQueueHref(ok({})), "/v3/profile");
-  assert.equal(studentsQueueHref(ok({}, CURATOR)), "/v3/profile");
-  assert.equal(studentsQueueHref(ok({}, ADMIN), { view: "mine" }), "/v3/profile?view=mine");
+  assert.equal(studentsQueueHref(ok({})), "/profile");
+  assert.equal(studentsQueueHref(ok({}, CURATOR)), "/profile");
+  assert.equal(studentsQueueHref(ok({}, ADMIN), { view: "mine" }), "/profile?view=mine");
 });
 
 test("old facet and summary addresses map onto the new views and redirect", () => {
@@ -79,27 +79,27 @@ test("old facet and summary addresses map onto the new views and redirect", () =
     return result.href;
   };
   // The former summary is this page; #admissions-summary lands on the view tabs.
-  assert.equal(redirect({ section: "summary" }), "/v3/profile");
-  assert.equal(redirect({ section: "summary", period: "month" }, CURATOR), "/v3/profile");
+  assert.equal(redirect({ section: "summary" }), "/profile");
+  assert.equal(redirect({ section: "summary", period: "month" }, CURATOR), "/profile");
   // case_q → q, case_status → view, direction/curator keep their names.
-  assert.equal(redirect({ case_q: "Ким", case_status: "closed", direction: "CN" }), "/v3/profile?view=closed&q=%D0%9A%D0%B8%D0%BC&direction=CN");
-  assert.equal(redirect({ case_status: "active", curator: MEMBER }), `/v3/profile?view=active&curator=${MEMBER}`);
-  assert.equal(redirect({ case_status: "pending" }, CURATOR), "/v3/profile?view=pending");
+  assert.equal(redirect({ case_q: "Ким", case_status: "closed", direction: "CN" }), "/profile?view=closed&q=%D0%9A%D0%B8%D0%BC&direction=CN");
+  assert.equal(redirect({ case_status: "active", curator: MEMBER }), `/profile?view=active&curator=${MEMBER}`);
+  assert.equal(redirect({ case_status: "pending" }, CURATOR), "/profile?view=pending");
   // Attention wins over status; «Ждут куратора» is an Admin view.
-  assert.equal(redirect({ attention: "overdue", case_status: "closed" }), "/v3/profile");
-  assert.equal(redirect({ attention: "awaiting_ack" }, CURATOR), "/v3/profile?view=needs_action");
-  assert.equal(redirect({ attention: "needs_curator" }), "/v3/profile?view=needs_curator");
-  assert.equal(redirect({ attention: "needs_curator" }, CURATOR), "/v3/profile?view=needs_action");
+  assert.equal(redirect({ attention: "overdue", case_status: "closed" }), "/profile");
+  assert.equal(redirect({ attention: "awaiting_ack" }, CURATOR), "/profile?view=needs_action");
+  assert.equal(redirect({ attention: "needs_curator" }), "/profile?view=needs_curator");
+  assert.equal(redirect({ attention: "needs_curator" }, CURATOR), "/profile?view=needs_action");
   // Legacy attention values without a 241 view open their superset.
-  assert.equal(redirect({ attention: "visas" }), "/v3/profile?view=active");
+  assert.equal(redirect({ attention: "visas" }), "/profile?view=active");
   // An old 078 cursor does not fit the new order: the list starts over.
-  assert.equal(redirect({ case_before_at: "2026-09-18T00:00:00Z", case_before_id: CASE, case_status: "active" }), "/v3/profile?view=active");
+  assert.equal(redirect({ case_before_at: "2026-09-18T00:00:00Z", case_before_id: CASE, case_status: "active" }), "/profile?view=active");
   // EVO Docs shows no work statuses: they are dropped.
-  assert.equal(redirect({ section: "docs", attention: "overdue", case_q: "Ким" }, ADMIN, "docs"), "/v3/profile?section=docs&q=%D0%9A%D0%B8%D0%BC");
+  assert.equal(redirect({ section: "docs", attention: "overdue", case_q: "Ким" }, ADMIN, "docs"), "/profile?section=docs&q=%D0%9A%D0%B8%D0%BC");
   // A case number is a case: 241 search does not match ids, so it opens the case overview.
-  assert.equal(redirect({ q: CASE.toUpperCase() }), `/v3/profile?case=${CASE}&tab=overview`);
-  assert.equal(redirect({ case_q: CASE }, CURATOR), `/v3/profile?case=${CASE}&tab=overview`);
-  assert.equal(redirect({ q: CASE }, ADMIN, "docs"), `/v3/profile?case=${CASE}&tab=documents&section=docs`);
+  assert.equal(redirect({ q: CASE.toUpperCase() }), `/profile?case=${CASE}&tab=overview`);
+  assert.equal(redirect({ case_q: CASE }, CURATOR), `/profile?case=${CASE}&tab=overview`);
+  assert.equal(redirect({ q: CASE }, ADMIN, "docs"), `/profile?case=${CASE}&tab=documents&section=docs`);
 });
 
 test("coverage links open «Нагрузка кураторов» for Admin; the facet curator sync is dropped", () => {
@@ -107,12 +107,12 @@ test("coverage links open «Нагрузка кураторов» for Admin; the
   assert.equal(params.view, "curators");
   assert.equal(params.curator, null);
   assert.deepEqual(params.coverage, { coverage_curator: MEMBER, coverage_case: CASE });
-  assert.equal(studentsQueueHref(params), `/v3/profile?view=curators&coverage_curator=${MEMBER}&coverage_case=${CASE}`);
-  assert.equal(coverageHref(MEMBER, CASE), `/v3/profile?view=curators&coverage_curator=${MEMBER}&coverage_case=${CASE}#curator-coverage`);
+  assert.equal(studentsQueueHref(params), `/profile?view=curators&coverage_curator=${MEMBER}&coverage_case=${CASE}`);
+  assert.equal(coverageHref(MEMBER, CASE), `/profile?view=curators&coverage_curator=${MEMBER}&coverage_case=${CASE}#curator-coverage`);
   // Not Admin: coverage parameters are ignored, the queue opens as usual.
   assert.equal(ok({ coverage_curator: MEMBER }, CURATOR).view, "mine");
   // The coverage form keeps landing on this view after a confirmed receipt.
-  assert.match(read("src/components/v3/profile/CuratorCoverageForm.tsx"), /new URLSearchParams\(\{ view: "curators", coverage_curator: destination, coverage_case: reviewed\.id \}\)/u);
+  assert.match(read("src/components/staff/profile/CuratorCoverageForm.tsx"), /new URLSearchParams\(\{ view: "curators", coverage_curator: destination, coverage_case: reviewed\.id \}\)/u);
 });
 
 test("unparseable addresses are refused honestly, never guessed", () => {
@@ -137,23 +137,23 @@ test("unparseable addresses are refused honestly, never guessed", () => {
 test("the address keeps view, filters, page and the open row; returnTo accepts only queue keys", () => {
   const params = ok({ view: "active", q: "Ким", direction: "MY", curator: MEMBER, stage: "documents", sort: "updated", open: CASE });
   const href = studentsQueueHref(params);
-  assert.equal(href, `/v3/profile?view=active&q=%D0%9A%D0%B8%D0%BC&direction=MY&curator=${MEMBER}&stage=documents&sort=updated&open=${CASE}`);
+  assert.equal(href, `/profile?view=active&q=%D0%9A%D0%B8%D0%BC&direction=MY&curator=${MEMBER}&stage=documents&sort=updated&open=${CASE}`);
   const again = ok(Object.fromEntries(new URL(href, "https://x.invalid").searchParams));
   assert.deepEqual(again, params);
   // Tabs and filters start the list over and close the row.
-  assert.equal(studentsListHref(params, { view: "closed" }), `/v3/profile?view=closed&q=%D0%9A%D0%B8%D0%BC&direction=MY&curator=${MEMBER}&stage=documents&sort=updated`);
+  assert.equal(studentsListHref(params, { view: "closed" }), `/profile?view=closed&q=%D0%9A%D0%B8%D0%BC&direction=MY&curator=${MEMBER}&stage=documents&sort=updated`);
   assert.equal(parseStudentsReturnTo(href), href);
-  assert.equal(parseStudentsReturnTo("/v3/profile?section=docs&view=fix"), "/v3/profile?section=docs&view=fix");
-  for (const bad of ["/v3/profile?evil=1", "/v3/requests?source=all", "https://evil.example/v3/profile", "/v3/profile?view=active#x",
-    "/v3/profile?view=active&view=closed", "/v3/profile?section=summary", "/v3/profile?stage=nope", 42]) {
+  assert.equal(parseStudentsReturnTo("/profile?section=docs&view=fix"), "/profile?section=docs&view=fix");
+  for (const bad of ["/profile?evil=1", "/requests?source=all", "https://evil.example/profile", "/profile?view=active#x",
+    "/profile?view=active&view=closed", "/profile?section=summary", "/profile?stage=nope", 42]) {
     assert.equal(parseStudentsReturnTo(bad), null, String(bad));
   }
   // Entry links open «Обзор» (EVO Docs — «Документы»), never «Вузы и программы».
-  assert.equal(studentsCaseHref(CASE, { returnTo: href }), `/v3/profile?case=${CASE}&tab=overview&returnTo=${encodeURIComponent(href)}`);
-  assert.equal(studentsCaseHref(CASE, { docs: true }), `/v3/profile?case=${CASE}&tab=documents&section=docs`);
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.equal(studentsCaseHref(CASE, { returnTo: href }), `/profile?case=${CASE}&tab=overview&returnTo=${encodeURIComponent(href)}`);
+  assert.equal(studentsCaseHref(CASE, { docs: true }), `/profile?case=${CASE}&tab=documents&section=docs`);
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /const studentsReturnTo = requestsReturnTo \? null : parseStudentsReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);
-  assert.match(page, /const directoryHref = studentsReturnTo \?\? withDocsSection\("\/v3\/profile", docsMode\);/u);
+  assert.match(page, /const directoryHref = studentsReturnTo \?\? withDocsSection\("\/profile", docsMode\);/u);
   assert.match(page, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);
 });
 
@@ -213,7 +213,7 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
   ]);
   assert.deepEqual(studentsQueueTabs(params, null, CURATOR).map((tab) => tab.key), ["mine", "needs_action", "active", "pending", "closed"]);
   const html = surfaces.get("counts-unavailable");
-  assert.match(html, /Счётчики недоступны, список работает\. <a[^>]*href="\/v3\/profile\?view=active"[^>]*>Повторить<\/a>/u);
+  assert.match(html, /Счётчики недоступны, список работает\. <a[^>]*href="\/profile\?view=active"[^>]*>Повторить<\/a>/u);
   const nav = html.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
   assert.doesNotMatch(nav, /tabular-nums/u, "no number on any tab");
   assert.doesNotMatch(html, /<span class="font-normal tabular-nums text-fg-3">·/u, "no number on any band");
@@ -266,8 +266,8 @@ test("the queue is one semantic table: caption, column headers, a row header per
   for (const [, id, body] of rows) {
     assert.match(body, /^<th role="rowheader" scope="row"/u, id);
     // The whole row opens «Быстрый просмотр»; the second link opens the case overview.
-    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/v3/profile\\?view=active&amp;open=${id}"`, "u"), id);
-    assert.match(body, new RegExp(`<a data-queue-full=""[^>]*href="/v3/profile\\?case=${id}&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive%26open%3D${id}"`, "u"), id);
+    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/profile\\?view=active&amp;open=${id}"`, "u"), id);
+    assert.match(body, new RegExp(`<a data-queue-full=""[^>]*href="/profile\\?case=${id}&amp;tab=overview&amp;returnTo=%2Fprofile%3Fview%3Dactive%26open%3D${id}"`, "u"), id);
     assert.doesNotMatch(body, /tab=route/u, id);
   }
   // Stage uses the words of «Воронка поступления»; dates are mono with a due word (Э1.3).
@@ -295,7 +295,7 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.equal((html.match(/>нужен ответ</gu) ?? []).length, 1);
   assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?data-tone="warn">нужен ответ<[\s\S]*?<\/tr>/u);
   // Signals are never cut: no clamp or ellipsis on the signals cell; each signal is a whole chip.
-  const source = read("src/components/v3/students/StudentsQueueTable.tsx");
+  const source = read("src/components/staff/students/StudentsQueueTable.tsx");
   const signalsCell = source.match(/function SignalsCell[\s\S]*?\n\}\n/u)?.[0] ?? "";
   assert.ok(signalsCell, "SignalsCell");
   assert.doesNotMatch(signalsCell, /line-clamp|truncate|text-ellipsis/u);
@@ -386,7 +386,7 @@ test("the next-step editor is shown only where the RPC may allow it; others read
 });
 
 test("the editor validates like the SQL and submits exactly the action's fields", () => {
-  const source = read("src/components/v3/students/NextStepEditor.tsx");
+  const source = read("src/components/staff/students/NextStepEditor.tsx");
   const action = read("src/lib/platform-case-next-action-actions.ts");
   const actionFields = action.match(/const CASE_NEXT_ACTION_FIELDS = \[([\s\S]*?)\] as const;/u)?.[1].match(/"([a-z_]+)"/gu).map((field) => field.slice(1, -1));
   assert.deepEqual([...editor.NEXT_STEP_FORM_FIELDS], actionFields);
@@ -449,9 +449,9 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   assert.match(row, /aria-current="true"/u);
   const panel = html.slice(html.indexOf("<dialog"));
   assert.match(panel, /^<dialog open="" aria-labelledby="([^"]+)" data-testid="queue-detail-panel"/u);
-  assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/v3\/profile\?view=active"/u);
+  assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/profile\?view=active"/u);
   assert.match(panel, /<h2 id="[^"]+" tabindex="-1" data-queue-heading="" class="t-record-title[^"]*">Нурсултан Бекмурзаевич Джумабаев-Осмоналиев<\/h2>/u);
-  assert.match(panel, new RegExp(`data-side-panel-open="" href="/v3/profile\\?case=${CASE}&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive%26open%3D${CASE}">Открыть дело<svg`, "u"));
+  assert.match(panel, new RegExp(`data-side-panel-open="" href="/profile\\?case=${CASE}&amp;tab=overview&amp;returnTo=%2Fprofile%3Fview%3Dactive%26open%3D${CASE}">Открыть дело<svg`, "u"));
   // Этап — дорожка этапа со словом доски и фазой (Э1.4).
   assert.match(panel, /<dt class="t-caption text-fg-2">Этап<\/dt><dd[^>]*><div class="v3-track" data-track="admissions">[\s\S]*?<p class="v3-track-caption" aria-hidden="true"><span class="t-body-compact text-fg">Подбор вузов<\/span><span class="t-meta text-fg-2">Поступление<\/span><\/p>/u);
   // Quick due choices: «Пт 25.09» appears because Friday is not tomorrow.
@@ -460,15 +460,15 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   ]);
   assert.match(panel, /<button type="submit" disabled="" class="[^"]*\bbg-fg\b[^"]*">Сохранить<\/button>/u, "nothing to save yet; confirm is dark neutral");
   assert.doesNotMatch(panel, /\bbg-accent\b/u, "no second solid red in the panel");
-  assert.match(panel, /href="\/v3\/tasks\?create=case&amp;case=cccccccc-2222-4222-8222-000000000003"[^>]*>\+ Задача<\/a>/u);
-  assert.match(panel, /href="\/v3\/tasks\?task=ffffffff-5555-4555-8555-000000000001&amp;kind=case&amp;case=cccccccc-2222-4222-8222-000000000003"/u);
+  assert.match(panel, /href="\/tasks\?create=case&amp;case=cccccccc-2222-4222-8222-000000000003"[^>]*>\+ Задача<\/a>/u);
+  assert.match(panel, /href="\/tasks\?task=ffffffff-5555-4555-8555-000000000001&amp;kind=case&amp;case=cccccccc-2222-4222-8222-000000000003"/u);
   assert.match(panel, /<span class="text-warn"> · заблокирована<\/span>/u);
   assert.match(panel, /Документы<\/h3><div class="space-y-2"><span class="v3-progress" data-progress="6\/10"><span class="t-body-compact text-fg">6 из 10 принято<\/span>/u);
   // A row that is not on this page is said plainly, with the case link.
   const missing = surfaces.get("panel-missing").slice(surfaces.get("panel-missing").indexOf("<dialog"));
   assert.match(missing, /Дела нет в этом списке/u);
   assert.match(missing, /Оно в другом виде, на другой странице или недоступно вам\./u);
-  assert.match(missing, /data-side-panel-open="" href="\/v3\/profile\?case=cccccccc-2222-4222-8222-000000000099&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive">Открыть дело<svg/u);
+  assert.match(missing, /data-side-panel-open="" href="\/profile\?case=cccccccc-2222-4222-8222-000000000099&amp;tab=overview&amp;returnTo=%2Fprofile%3Fview%3Dactive">Открыть дело<svg/u);
 });
 
 test("toolbar: search «/», filters with counts inside menus, sort visible, «Сбросить» only when set", () => {
@@ -490,34 +490,34 @@ test("toolbar: search «/», filters with counts inside menus, sort visible, «�
   assert.match(filtered, /Куратор: <span class="text-fg">Я<\/span>/u);
   assert.match(filtered, /Этап: <span class="text-fg">Документы<\/span>/u);
   assert.match(filtered, /aria-label="Убрать фильтр: Направление: Китай"/u);
-  assert.match(filtered, /href="\/v3\/profile\?view=active"[^>]*>\s*Сбросить/u);
+  assert.match(filtered, /href="\/profile\?view=active"[^>]*>\s*Сбросить/u);
   // One row: search shrinks to 12rem before filters wrap; «?» sits at the end of the first line, never alone.
-  const toolbarSource = read("src/components/v3/queue/QueueToolbar.tsx");
+  const toolbarSource = read("src/components/staff/queue/QueueToolbar.tsx");
   assert.match(toolbarSource, /<div role="group" aria-label="Поиск и фильтры" className="flex items-start gap-2" data-testid="queue-toolbar">\s+<div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">/u);
   assert.match(toolbarSource, /className="min-w-48 flex-1 basis-48 md:max-w-sm"/u);
   assert.match(toolbarSource, /<\/QueueFilterDisclosure>\s+<\/div>\s+<QueueKeyboardHelp extra=\{keys\} \/>/u);
   // The view tabs never wrap: they scroll inside their own row, the current tab is brought into view, edges fade.
-  const tabs = read("src/components/v3/queue/QueueViewTabs.tsx");
+  const tabs = read("src/components/staff/queue/QueueViewTabs.tsx");
   assert.match(tabs, /className=\{bare \? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"\}/u);
   assert.doesNotMatch(tabs, /flex-wrap/u);
-  const strip = read("src/components/v3/queue/QueueTabStrip.tsx");
+  const strip = read("src/components/staff/queue/QueueTabStrip.tsx");
   assert.match(strip, /querySelector<HTMLElement>\('\[aria-current="page"\]'\)/u);
   assert.match(strip, /data-fade-end=\{edges\.end \? "" : undefined\}/u);
-  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \.v3-tab-strip\[data-fade-end\] \{\s+mask-image:/u);
+  assert.match(read("src/app/(staff)/staff.css"), /\.v3-world \.v3-tab-strip\[data-fade-end\] \{\s+mask-image:/u);
   // The page-specific key lives in «?», not as permanent text.
   assert.match(html, /<kbd[^>]*>Shift<\/kbd><kbd[^>]*>Enter<\/kbd><\/dt><dd class="t-body-compact text-fg-2">открыть дело<\/dd>/u);
-  assert.match(read("src/components/v3/queue/useQueueKeyboard.ts"), /if \(event\.key === "Enter" && event\.shiftKey\) \{[\s\S]*querySelector<HTMLElement>\(QUEUE_FULL_SELECTOR\)[\s\S]*full\.click\(\);/u);
+  assert.match(read("src/components/staff/queue/useQueueKeyboard.ts"), /if \(event\.key === "Enter" && event\.shiftKey\) \{[\s\S]*querySelector<HTMLElement>\(QUEUE_FULL_SELECTOR\)[\s\S]*full\.click\(\);/u);
 });
 
 test("empty, error and loading states are honest", () => {
   const empty = surfaces.get("empty-mine");
-  assert.match(empty, /data-testid="queue-empty"><p class="t-item text-fg">Активных дел у вас нет<\/p><a[^>]*href="\/v3\/profile\?view=active"[^>]*>Все в работе · 20<\/a>/u);
+  assert.match(empty, /data-testid="queue-empty"><p class="t-item text-fg">Активных дел у вас нет<\/p><a[^>]*href="\/profile\?view=active"[^>]*>Все в работе · 20<\/a>/u);
   const error = surfaces.get("page-error");
-  assert.match(error, /data-testid="queue-error"><p class="t-item text-danger">Не удалось загрузить список студентов\.<\/p><a[^>]*href="\/v3\/profile\?view=active"[^>]*>Повторить<\/a>/u);
+  assert.match(error, /data-testid="queue-error"><p class="t-item text-danger">Не удалось загрузить список студентов\.<\/p><a[^>]*href="\/profile\?view=active"[^>]*>Повторить<\/a>/u);
   // The tabs keep their counts when only the list read failed.
   assert.match(error, />Все в работе<span class="tabular-nums text-fg-3">20<\/span>/u);
   assert.match(surfaces.get("curators-unavailable"), /Нагрузка сейчас недоступна\. Это не означает, что дел или задач нет\./u);
-  const loading = read("src/app/(v3)/v3/profile/loading.tsx");
+  const loading = read("src/app/(staff)/profile/loading.tsx");
   assert.match(loading, /<QueueSkeleton label="Загружаем список студентов…" leading=\{false\} \/>/u);
 });
 
@@ -534,12 +534,12 @@ test("EVO Docs is a document review queue without work statuses", () => {
     // One row action; its hit area is the row. The former actions stay in «⋯».
     assert.equal([...body.matchAll(/data-queue-open=""/gu)].length, 1, id);
     // The case returns to the tab that was open (Э8.5: every EVO Docs address names its view).
-    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/v3/profile\\?case=${id}&amp;tab=documents&amp;section=docs&amp;returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs%26view%3Dreview">Открыть документы`, "u"), id);
+    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/profile\\?case=${id}&amp;tab=documents&amp;section=docs&amp;returnTo=%2Fprofile%3Fsection%3Ddocs%26view%3Dreview">Открыть документы`, "u"), id);
     assert.match(body, /aria-label="Ещё по документам: [^"]+"/u, id);
     assert.match(body, /на проверке/u, id);
   }
   // The docs menu keeps «Анкета и формы» and «Пакет ZIP» at their former destinations.
-  const menu = read("src/components/v3/students/StudentsDocsTable.tsx");
+  const menu = read("src/components/staff/students/StudentsDocsTable.tsx");
   assert.match(menu, /anketaHref=\{studentsCaseHref\(row\.studentCaseId, \{ docs: true, tab: "anketa", returnTo \}\)\}/u);
   assert.match(menu, /packetHref=\{`\$\{studentsCaseHref\(row\.studentCaseId, \{ docs: true, tab: "route", returnTo \}\)\}&panel=packets#partner-packets`\}/u);
   assert.match(surfaces.get("docs-all"), /Нет доступа к документам/u);
@@ -564,16 +564,16 @@ test("«Нагрузка кураторов» keeps the coverage read, form and 
   const html = surfaces.get("curators");
   const headers = [...html.matchAll(/<th role="columnheader" scope="col"[^>]*>([^<]+)<\/th>/gu)].map((match) => match[1]);
   assert.deepEqual(headers, ["Куратор", "Активных дел", "Открытых задач", "Ближайший срок"]);
-  assert.match(html, /<a data-queue-open="" aria-current="true"[^>]*href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000002#curator-coverage">Эрмек Токтосунов<\/a>/u);
+  assert.match(html, /<a data-queue-open="" aria-current="true"[^>]*href="\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000002#curator-coverage">Эрмек Токтосунов<\/a>/u);
   assert.match(html, /недоступен для нового назначения/u);
   const panel = html.slice(html.indexOf("<dialog"));
   assert.match(panel, /aria-labelledby="curator-coverage-title" data-testid="queue-detail-panel"/u);
-  assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/v3\/profile\?view=curators"/u);
+  assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/profile\?view=curators"/u);
   assert.match(panel, /<h2 id="curator-coverage-title" tabindex="-1" data-queue-heading=""/u);
   assert.match(panel, /data-testid="v3-curator-coverage-form"/u);
   assert.match(panel, /<input type="hidden" name="view" value="curators"\/>/u);
   // «Отмена» stays on this view, on the case owner.
-  assert.match(panel, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000002#curator-coverage">Отмена<\/a>/u);
+  assert.match(panel, /href="\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000002#curator-coverage">Отмена<\/a>/u);
   // No solid red: confirmation is dark neutral; disabled is explicit, not dimmed.
   const confirm = panel.match(/<button type="submit" disabled="" class="([^"]+)">Подтвердить замещение<\/button>/u);
   assert.ok(confirm);
@@ -626,7 +626,7 @@ test("Sales keeps the 078 list with the limited handoff summary", () => {
   assert.ok([...sales.matchAll(/data-access="sales_summary"/gu)].length >= 1);
   assert.doesNotMatch(sales, /data-access="full"/u);
   assert.doesNotMatch(sales, /href="[^"]*case=/u);
-  assert.match(sales, /href="\/v3\/profile\?id=dddddddd-3333-4333-8333-000000000001"/u);
+  assert.match(sales, /href="\/profile\?id=dddddddd-3333-4333-8333-000000000001"/u);
   assert.match(sales, /передан в поступление/u);
   assert.doesNotMatch(sales, /итог передачи/u, "no internal jargon for Sales");
   assert.match(sales, /name="case_q"/u);
@@ -634,16 +634,16 @@ test("Sales keeps the 078 list with the limited handoff summary", () => {
 
 test("the facet rail is gone and the page reads no summary for it", () => {
   for (const path of ["StudentsWorkspace.tsx", "StudentsFacetDisclosure.tsx", "StudentCaseTable.tsx", "students-facets.ts"]) {
-    assert.equal(existsSync(new URL(`../src/components/v3/profile/${path}`, import.meta.url)), false, path);
+    assert.equal(existsSync(new URL(`../src/components/staff/profile/${path}`, import.meta.url)), false, path);
   }
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.doesNotMatch(page, /readAdmissionsSummary|StudentsWorkspace|students-facets/u);
   for (const name of ["admin-active", "curator-mine", "docs-review"]) {
     assert.doesNotMatch(surfaces.get(name), /aria-label="Фильтры студентов"|students-facet-/u, name);
   }
   // The queue has no main action of its own: nothing here is solid red.
   for (const file of ["StudentsQueueTable.tsx", "StudentsQueueHead.tsx", "StudentQuickView.tsx", "NextStepEditor.tsx", "StudentsDocsTable.tsx", "CuratorWorkloadView.tsx", "StudentsDirectoryFallback.tsx", "StudentsQueueScreen.tsx"]) {
-    assert.doesNotMatch(read(`src/components/v3/students/${file}`), /\bbg-accent\b|\bopacity-/u, file);
+    assert.doesNotMatch(read(`src/components/staff/students/${file}`), /\bbg-accent\b|\bopacity-/u, file);
   }
 });
 
@@ -666,12 +666,12 @@ test("curator assignment views follow case.curator.assign, not the Admin role", 
   const manager = surfaces.get("manager-default");
   assert.match(manager, /aria-label="Куратор[^"]*"/u, "«Куратор ▾» for a manager");
   assert.match(surfaces.get("manager-curators"), /data-testid="v3-curator-workload/u);
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /coverage: !preview && staffHasPermission\(actor, "case\.curator\.assign"\)/u);
 });
 
 test("Enter never saves an unchanged or locked step, and a due without text is not a change", () => {
-  const source = read("src/components/v3/students/NextStepEditor.tsx");
+  const source = read("src/components/staff/students/NextStepEditor.tsx");
   const submit = source.slice(source.indexOf("function submit("), source.indexOf("function refresh("));
   assert.match(submit, /if \(!dirty \|\| locked\) return;/u, "requestSubmit() bypasses the disabled button");
   assert.equal(editor.nextStepDirty("", "2026-09-25", { text: "", due: "" }), false, "«Сегодня» on an empty field is not a change");
@@ -696,7 +696,7 @@ test("a queue read the server refuses is an honest dead end, not a retry loop", 
   // 241 refuses a frozen legacy role that «Сотрудники» cannot change — no false remedy there.
   assert.doesNotMatch(html, /Сотрудник/u);
   // The coverage read does not go through 241: whoever may assign curators keeps «Нагрузка кураторов».
-  assert.match(html, /href="\/v3\/profile\?view=curators">Открыть «Нагрузку кураторов»</u);
+  assert.match(html, /href="\/profile\?view=curators">Открыть «Нагрузку кураторов»</u);
   const docs = surfaces.get("forbidden-docs");
   assert.match(docs, /Очередь EVO Docs для вашей учётной записи недоступна\./u);
   assert.doesNotMatch(docs, /Список студентов|Нагрузку кураторов/u, "EVO Docs names itself; no coverage link without the right");
@@ -723,8 +723,8 @@ test("EVO Docs does not say «нет» from a partial read or without document a
   assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
   assert.doesNotMatch(noAccess, /Документов на проверку нет/u);
   // No readable documents: the review tabs and the header have no number, not «0».
-  assert.match(noAccess, /href="\/v3\/profile\?section=docs&amp;view=review">Документы дела<\/a>/u);
-  assert.match(noAccess, /href="\/v3\/profile\?section=docs&amp;view=fix">Исправить<\/a>/u);
+  assert.match(noAccess, /href="\/profile\?section=docs&amp;view=review">Документы дела<\/a>/u);
+  assert.match(noAccess, /href="\/profile\?section=docs&amp;view=fix">Исправить<\/a>/u);
   const blind = [{ documents: null }, { documents: null }];
   assert.deepEqual(docsTabCounts(blind, true, { views: { active: 2 } }), { review: null, program: null, packages: null, fix: null, missing: null, all: 2 });
   assert.deepEqual(docsTabCounts([], true, null), { review: 0, program: null, packages: null, fix: 0, missing: 0, all: 0 }, "no cases at all is a true zero");
@@ -757,7 +757,7 @@ test("«Закрытые» has no due groups and no add-a-step hint", () => {
 
 test("stage keys never reach the screen and the summary read is gone with its last reader", () => {
   for (const file of ["StudentsQueueTable.tsx", "StudentQuickView.tsx", "StudentsQueueHead.tsx"]) {
-    assert.doesNotMatch(read(`src/components/v3/students/${file}`), /admissionsPipelineStage\([^)]*\) \?\? /u, file);
+    assert.doesNotMatch(read(`src/components/staff/students/${file}`), /admissionsPipelineStage\([^)]*\) \?\? /u, file);
   }
   const source = read("src/lib/v3/admissions-source.ts");
   assert.doesNotMatch(source, /readAdmissionsSummary|normalizeAdmissionsSummary|admissions_direction_summary_v1/u);
@@ -770,7 +770,7 @@ test("«Ожидает начала» is a queue view: pending cases, no due gro
   assert.equal(parse({ view: "pending" }, CURATOR).kind, "ok");
   const legacy = parse({ case_status: "pending" }, ADMIN);
   assert.equal(legacy.kind, "redirect");
-  assert.equal(legacy.href, "/v3/profile?view=pending");
+  assert.equal(legacy.href, "/profile?view=pending");
   assert.equal(studentsStepView("pending"), false, "the step is set only on a case in work");
   const html = surfaces.get("pending");
   assert.ok([...html.matchAll(/data-queue-row=/gu)].length >= 1, "pending rows are rendered");
@@ -817,29 +817,29 @@ test("the quick view of a case in work keeps its documents line and the link to 
   assert.match(closed, /tab=documents/u);
   assert.doesNotMatch(closed, /появятся, когда у дела будет куратор/u);
   // Без права читать документы дела в работе - прежнее «нет доступа» и ссылка: причина здесь права, не состояние.
-  const view = read("src/components/v3/students/StudentQuickView.tsx");
+  const view = read("src/components/staff/students/StudentQuickView.tsx");
   assert.match(view, /documentsAwaitCurator \? \(\s*<p[^>]*data-testid="v3-students-panel-documents-await">\{caseDocumentsWords\.awaitCurator\}<\/p>\s*\) : documents \? \(/u);
   assert.match(view, /<p className="t-body-compact text-fg-3">Нет доступа к документам этого дела\.<\/p>/u);
 });
 
 test("the quick view asks the one case-state rule and does not spell it again", () => {
-  const view = read("src/components/v3/students/StudentQuickView.tsx");
+  const view = read("src/components/staff/students/StudentQuickView.tsx");
   assert.match(view, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
   assert.match(view, /const documentsAwaitCurator = caseDocumentsAwaitCurator\(row\.state\);/u);
   assert.doesNotMatch(view, /state === "pending"[^\n]*(documents|Документ)/u);
   // Ссылка строится в очереди как и раньше; панель просто не рисует её у дела без куратора.
-  assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /documents: studentsCaseHref\(openRow\.studentCaseId, \{ tab: "documents"/u);
+  assert.match(read("src/components/staff/students/StudentsQueueBody.tsx"), /documents: studentsCaseHref\(openRow\.studentCaseId, \{ tab: "documents"/u);
 });
 
 // «EVO Docs» для ролей без очереди (17.10.2026, хвост ссылок после #1228): имя дела ведёт на вкладку «Документы» только у дела,
 // у которого она есть. У `pending` имя ведёт в «Обзор», строка остаётся в списке, а причина названа теми же словами.
 test("«EVO Docs» of a role without the queue leads a «Ждёт куратора» case to the overview, not to the missing Documents tab", () => {
-  const fallback = read("src/components/v3/students/StudentsDirectoryFallback.tsx");
+  const fallback = read("src/components/staff/students/StudentsDirectoryFallback.tsx");
   assert.match(fallback, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
   assert.match(fallback, /import \{ caseDocumentsWords \} from "@\/lib\/v3\/wording";/u);
   // Вкладка выбирается одним правилом, а не сравнением с `pending`; для дела в работе и закрытого — «documents», как раньше.
   assert.match(fallback, /const tab = docsMode && !caseDocumentsAwaitCurator\(row\.state\) \? "documents" : "overview";/u);
-  assert.match(fallback, /withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\)/u);
+  assert.match(fallback, /withDocsSection\(`\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\)/u);
   assert.doesNotMatch(fallback, /tab=\$\{docsMode \? "documents" : "overview"\}/u, "the old unconditional documents tab is gone");
   assert.doesNotMatch(fallback, /state === "pending"/u);
   // Дело не пропадает из списка и из счёта: под строкой та же строка слов, что в «Сведениях», панели и досье.
@@ -869,9 +869,9 @@ test("«Принять дело» in the panel reuses the case card, only for th
   assert.match(clarification, /data-testid="v3-students-panel-handoff"[\s\S]*>Принять дело</u);
   // After «Принять дело» the re-read snapshot no longer waits for an answer and the block goes:
   // the panel names the saved result and moves focus off the vanished button.
-  const card = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  const card = read("src/components/staff/profile/ProfileSalesTransition.tsx");
   assert.match(card, /const next = await respondToHandoffAction\(previous, formData\);\s*if \(next\.status === "saved"\) onSaved\?\.\(formData\.get\("decision"\) as HandoffDecision\);/u);
-  const panel = read("src/components/v3/students/StudentQuickView.tsx");
+  const panel = read("src/components/staff/students/StudentQuickView.tsx");
   assert.match(panel, /onSaved=\{\(decision\) => setAnswered\(decision === "clarification_requested" \? null : decision\)\}/u);
   assert.match(panel, /\) : answered \? \(\s*<p role="status"[\s\S]*?\{answered === "accepted" \? "Дело принято\." : "Назначение отклонено\. Дело снова ждёт куратора\."\}/u,
     "said only after the server's receipt; a decline returns the case to pending without a curator (182)");
@@ -879,7 +879,7 @@ test("«Принять дело» in the panel reuses the case card, only for th
   assert.match(panel, /const awaiting = !answered && row\.attentionFlags\.includes\("awaiting_ack"\);/u);
   assert.match(panel, /\{answered === "declined" \? <span className="font-medium text-danger">нужен куратор<\/span>/u, "the same words as the list row");
   assert.match(panel, /if \(!answered \|\| handoff\) return;[\s\S]*active === document\.body\) headingRef\.current\?\.focus\(\);/u);
-  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /params\.open && !isStaffPreview\(actor\) \? readStudentsHandoff\(actor, params\.open\)/u, "one read per open panel, never in role preview");
 });
 
@@ -929,17 +929,17 @@ test("«Ожидает начала» and «Ждут куратора» appear o
 });
 
 test("the heading carries no count: the open tab already shows it", () => {
-  const source = read("src/components/v3/students/StudentsQueueScreen.tsx");
+  const source = read("src/components/staff/students/StudentsQueueScreen.tsx");
   assert.doesNotMatch(source, /count: read\.counts\?\.total/u);
   assert.equal(source.match(/count: null,/gu)?.length >= 4, true, "every branch of the queue screen returns no heading count");
 });
 
 test("the quick view puts the rare action last and keeps the ordinary ones first", () => {
-  const source = read("src/components/v3/students/StudentQuickView.tsx");
+  const source = read("src/components/staff/students/StudentQuickView.tsx");
   assert.ok(source.indexOf("<CloseRecordButton") > source.indexOf('aria-label="Документы дела"'), "«Завершить дело…» after the documents block");
   const panel = surfaces.get("panel-close");
   assert.ok(panel.indexOf('data-testid="v3-close-case"') > panel.indexOf("Документы дела"), "rendered after the documents link");
   assert.ok(panel.indexOf('data-testid="v3-close-case"') > panel.indexOf("Следующий шаг"));
   // The next-step field is named by its heading; the visible «Шаг» label was a repeat.
-  assert.match(read("src/components/v3/students/NextStepEditor.tsx"), /<label htmlFor=\{fieldId\} className="sr-only">Шаг<\/label>/u);
+  assert.match(read("src/components/staff/students/NextStepEditor.tsx"), /<label htmlFor=\{fieldId\} className="sr-only">Шаг<\/label>/u);
 });

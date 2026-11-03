@@ -17,10 +17,10 @@
  * группу (`todayBandsDependingOn`). Неполное чтение и ошибка называются
  * словами, а не превращаются в ноль.
  */
-import type { PipelineLead } from "../../components/v3/Pipeline.tsx";
-import { dayDelta, shiftDay } from "../../components/v3/calendar/types.ts";
-import { dueBandLabel, dueBucket, formatQueueDay, queueDayWithWeekday, queueDue } from "../../components/v3/queue/due-bucket.ts";
-import { queueHref } from "../../components/v3/queue/queue-url.ts";
+import type { PipelineLead } from "../../components/staff/Pipeline.tsx";
+import { dayDelta, shiftDay } from "../../components/staff/calendar/types.ts";
+import { dueBandLabel, dueBucket, formatQueueDay, queueDayWithWeekday, queueDue } from "../../components/staff/queue/due-bucket.ts";
+import { queueHref } from "../../components/staff/queue/queue-url.ts";
 import type { PlatformAdmissionsTaskQueueRow } from "../platform-admissions-task-contract.ts";
 import type { CaseChatThreadRow } from "../platform-case-chat-contract.ts";
 import type { StaffTask } from "../platform-staff-task-contract.ts";
@@ -198,9 +198,9 @@ export type TodayQueue = Readonly<{
   nearest: Readonly<{ day: string; weekday: string; date: string }> | null;
 }>;
 
-const TODAY_PATH = "/v3/main";
+const TODAY_PATH = "/main";
 /** «Заявки» (Э3): очередь разбора, по умолчанию «Ждут разбора». */
-const TODAY_REQUESTS_PATH = "/v3/requests";
+const TODAY_REQUESTS_PATH = "/requests";
 
 /**
  * Источники, чьи строки есть, а число — нет, даже при полном чтении. Переписки:
@@ -222,28 +222,28 @@ const SOURCE_COPY: Readonly<Record<TodaySource, SourceCopy>> = {
     partial: "Показаны не все задачи — числа скрыты.",
     denied: "Задачи недоступны вашей роли.",
     preview: "При просмотре роли задачи не показываются.",
-    all: { label: "Все задачи", href: "/v3/tasks" },
+    all: { label: "Все задачи", href: "/tasks" },
   },
   students: {
     error: "Студенты не загрузились.",
     partial: "Показаны не все студенты — числа скрыты.",
     denied: "Очередь студентов недоступна вашей роли.",
     preview: "При просмотре роли студенты не показываются.",
-    all: { label: "Мои студенты", href: "/v3/profile?view=mine" },
+    all: { label: "Мои студенты", href: "/profile?view=mine" },
   },
   handoffs: {
     error: "Дела, ждущие принятия, не загрузились.",
     partial: "Показаны не все дела — числа скрыты.",
     denied: "Очередь студентов недоступна вашей роли.",
     preview: "При просмотре роли дела не показываются.",
-    all: { label: "Требуют действия", href: "/v3/profile?view=needs_action" },
+    all: { label: "Требуют действия", href: "/profile?view=needs_action" },
   },
   leads: {
     error: "Лиды не загрузились.",
     partial: "Показаны не все лиды — числа скрыты.",
     denied: "Лиды недоступны вашей роли.",
     preview: "При просмотре роли лиды и заявки не показываются.",
-    all: { label: "Мои лиды", href: "/v3/pipeline?assignment=mine" },
+    all: { label: "Мои лиды", href: "/pipeline?assignment=mine" },
   },
   requests: {
     error: "Заявки без ответственного не загрузились.",
@@ -257,7 +257,7 @@ const SOURCE_COPY: Readonly<Record<TodaySource, SourceCopy>> = {
     partial: "Показаны не все переписки — числа скрыты.",
     denied: "Сообщения недоступны вашей роли.",
     preview: "При просмотре роли переписки не показываются.",
-    all: { label: "Нужен ответ", href: "/v3/messages?queue=needs_reply" },
+    all: { label: "Нужен ответ", href: "/messages?queue=needs_reply" },
   },
 };
 
@@ -268,7 +268,7 @@ function horizonDay(today: string): string {
 }
 
 function studentHref(studentCaseId: string): string {
-  return queueHref("/v3/profile", { case: studentCaseId, tab: "overview" });
+  return queueHref("/profile", { case: studentCaseId, tab: "overview" });
 }
 
 // --- Источники -----------------------------------------------------------
@@ -313,8 +313,8 @@ export function todayTaskItems(input: Readonly<{
       since: null,
       waitingDays: null,
       openHref: task.kind === "staff"
-        ? queueHref("/v3/tasks", {}, { task: task.id })
-        : queueHref("/v3/tasks", {}, { task: task.id, kind: "case", case: task.studentCaseId }),
+        ? queueHref("/tasks", {}, { task: task.id })
+        : queueHref("/tasks", {}, { task: task.id, kind: "case", case: task.studentCaseId }),
       task,
     }));
   }
@@ -358,7 +358,7 @@ export function todayStudentItems(rows: readonly StudentCaseQueueRow[], today: s
       due: found[0].step && row.nextActionDueOn ? { dueOn: row.nextActionDueOn, dueAt: null } : null,
       since: null,
       waitingDays: null,
-      openHref: queueHref("/v3/profile", { view: "mine", open: row.studentCaseId }),
+      openHref: queueHref("/profile", { view: "mine", open: row.studentCaseId }),
       task: null,
     }));
   }
@@ -378,13 +378,13 @@ export function todayHandoffItems(rows: readonly StudentCaseQueueRow[], options:
       items.push(Object.freeze({
         key: `student:${row.studentCaseId}`, source: "handoffs", band: "waiting", title: "Принять дело", who,
         reason: "ждёт принятия", due: null, since: null, waitingDays: null, task: null,
-        openHref: queueHref("/v3/profile", { view: "needs_action", open: row.studentCaseId }),
+        openHref: queueHref("/profile", { view: "needs_action", open: row.studentCaseId }),
       }));
     } else if (row.attentionFlags.includes("needs_curator") && options.coverage) {
       items.push(Object.freeze({
         key: `student:${row.studentCaseId}`, source: "handoffs", band: "waiting", title: "Назначить куратора", who,
         reason: "нужен куратор", due: null, since: null, waitingDays: null, task: null,
-        openHref: queueHref("/v3/profile", { view: "needs_curator", open: row.studentCaseId }),
+        openHref: queueHref("/profile", { view: "needs_curator", open: row.studentCaseId }),
       }));
     }
   }
@@ -413,7 +413,7 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
       source: "leads",
       band,
       title: lead.nextAction ?? "Назначить следующее действие",
-      who: { name: leadDisplayName(lead.source, lead.name), href: queueHref("/v3/profile", { id: lead.id }) },
+      who: { name: leadDisplayName(lead.source, lead.name), href: queueHref("/profile", { id: lead.id }) },
       reason: band === "overdue" ? "действие просрочено"
         : band === "today" ? "действие на сегодня"
         : band === "no_step" ? lead.nextAction ? "срок не назначен" : "действие не назначено"
@@ -421,7 +421,7 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
       due: dueOn ? { dueOn, dueAt: null } : null,
       since: null,
       waitingDays: null,
-      openHref: queueHref("/v3/pipeline", { lead: lead.id }),
+      openHref: queueHref("/pipeline", { lead: lead.id }),
       task: null,
     }));
   }
@@ -454,14 +454,14 @@ export function todayRequestItems(leads: readonly PipelineLead[], options: Reado
       source: "requests",
       band: "waiting",
       title: lead.stageKey === "new" ? "Новая заявка" : "Лид без ответственного",
-      who: { name, href: queueHref("/v3/profile", { id: lead.id }) },
+      who: { name, href: queueHref("/profile", { id: lead.id }) },
       reason: from ? `нет ответственного · ${from}` : "нет ответственного",
       due: null,
       since: null,
       waitingDays: lead.stageKey === "new" ? lead.stageAgeDays : null,
       openHref: lead.source === "website" || lead.source === "whatsapp" || (lead.source === "phone_call" && options.callsTab === true)
         ? queueHref(TODAY_REQUESTS_PATH, { source: lead.source, open: `lead:${lead.id}` })
-        : queueHref("/v3/pipeline", { lead: lead.id }),
+        : queueHref("/pipeline", { lead: lead.id }),
       task: null,
     }));
   }
@@ -484,7 +484,7 @@ export function todayChatItems(rows: readonly CaseChatThreadRow[]): readonly Tod
     due: null,
     since: row.lastMessageAt,
     waitingDays: null,
-    openHref: queueHref("/v3/messages", { case: row.studentCaseId, queue: "needs_reply" }),
+    openHref: queueHref("/messages", { case: row.studentCaseId, queue: "needs_reply" }),
     task: null,
   })));
 }

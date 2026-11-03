@@ -6734,7 +6734,7 @@ setTimeout(() => process.exit(98), 3000).unref();`;
 
 export function validateBrowserRouteProof(value) {
   exactKeys(value, ["appOrigin", "requestedRoute", "responseStatus", "finalUrl", "moduleMarker", "markerVisible"], "browser_route_proof_invalid", "browser_proof");
-  if (!new Set(["/v3/main", "/v3/calendar"]).has(value.requestedRoute)) fail("browser_route_proof_invalid", "browser_proof");
+  if (!new Set(["/main", "/calendar"]).has(value.requestedRoute)) fail("browser_route_proof_invalid", "browser_proof");
   if (!Number.isSafeInteger(value.responseStatus) || value.responseStatus < 200 || value.responseStatus >= 300) {
     fail("browser_route_response_failed", "browser_proof");
   }
@@ -7094,7 +7094,7 @@ async function proveBrowserDocumentDownload(page, appUrl, status, document, allo
 
 async function proveBrowserSalesReadback(page, appUrl, salesProof, role, browserStep) {
   // Boards 25.09: the decision form lives in the lead panel, opened by ?lead=.
-  await browserStep(async () => await page.goto(`${appUrl}/v3/pipeline?lead=${salesProof.leadId}`, { waitUntil: "domcontentloaded" }));
+  await browserStep(async () => await page.goto(`${appUrl}/pipeline?lead=${salesProof.leadId}`, { waitUntil: "domcontentloaded" }));
   await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
   const panel = await browserStep(async () => page.locator(
     `[data-testid="v3-pipeline-decision"][data-lead-id="${salesProof.leadId}"]`,
@@ -7111,7 +7111,7 @@ async function proveBrowserSalesReadback(page, appUrl, salesProof, role, browser
 
 async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, role, browserStep) {
   await browserStep(async () => await page.goto(
-    `${appUrl}/v3/calendar?view=day&date=${admissionsProof.browserDay}`,
+    `${appUrl}/calendar?view=day&date=${admissionsProof.browserDay}`,
     { waitUntil: "domcontentloaded" },
   ));
   await browserStep(async () => await page.getByTestId("v3-shell").waitFor({ state: "visible", timeout: 45_000 }));
@@ -7249,7 +7249,7 @@ async function proveBrowserKnowledgeSurface(
   }
   await browserStep(
     async () => await Promise.all([
-      page.waitForURL(`${appUrl}/v3/knowledge?tab=snippets`, {
+      page.waitForURL(`${appUrl}/knowledge?tab=snippets`, {
         waitUntil: "domcontentloaded",
         timeout: 45_000,
       }),
@@ -7297,7 +7297,7 @@ async function proveBrowserRouteAllowed(
   assertBrowserUrlPath(page.url(), appUrl, path, `${operationPrefix}_destination_mismatch`);
   if (expectedPresentationRole && expectedAuthorityRole) {
     await assertBrowserActiveRole(page, expectedPresentationRole, expectedAuthorityRole, browserStep, `${operationPrefix}_role`);
-    if (path === "/v3/knowledge") {
+    if (path === "/knowledge") {
       await proveBrowserKnowledgeSurface(
         page,
         appUrl,
@@ -7372,22 +7372,22 @@ async function selectAdminPreviewRole(page, appUrl, role, expectedPath, browserS
 
 async function proveAdminRolePreview(page, appUrl, browserStep) {
   await assertBrowserActiveRole(page, "admin", "admin", browserStep, "browser_admin_preview_initial_admin");
-  await selectAdminPreviewRole(page, appUrl, "sales", "/v3/main", browserStep);
-  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.sales.allowedRoutes.filter((route) => route !== "/v3/main")) {
+  await selectAdminPreviewRole(page, appUrl, "sales", "/main", browserStep);
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.sales.allowedRoutes.filter((route) => route !== "/main")) {
     await proveBrowserRouteAllowed(page, appUrl, path, browserStep, `browser_admin_preview_sales_${path.slice(4)}_allowed`, "sales", "admin");
   }
   for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.sales.deniedRoutes) {
     await proveBrowserRouteDenied(page, appUrl, path, browserStep, `browser_admin_preview_sales_${path.slice(4)}_denied`, "sales", "admin");
   }
-  await selectAdminPreviewRole(page, appUrl, "admissions", "/v3/calendar", browserStep);
-  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admissions.allowedRoutes.filter((route) => route !== "/v3/calendar")) {
+  await selectAdminPreviewRole(page, appUrl, "admissions", "/calendar", browserStep);
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admissions.allowedRoutes.filter((route) => route !== "/calendar")) {
     await proveBrowserRouteAllowed(page, appUrl, path, browserStep, `browser_admin_preview_admissions_${path.slice(4)}_allowed`, "admissions", "admin");
   }
   for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admissions.deniedRoutes) {
     await proveBrowserRouteDenied(page, appUrl, path, browserStep, `browser_admin_preview_admissions_${path.slice(4)}_denied`, "admissions", "admin");
   }
-  await selectAdminPreviewRole(page, appUrl, "admin", "/v3/main", browserStep);
-  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admin.allowedRoutes.filter((route) => route !== "/v3/main")) {
+  await selectAdminPreviewRole(page, appUrl, "admin", "/main", browserStep);
+  for (const path of ADMIN_ROLE_PREVIEW_PRESENTATIONS.admin.allowedRoutes.filter((route) => route !== "/main")) {
     await proveBrowserRouteAllowed(page, appUrl, path, browserStep, `browser_admin_preview_admin_${path.slice(4)}_allowed`, "admin", "admin");
   }
   await assertBrowserActiveRole(page, "admin", "admin", browserStep, "browser_admin_preview_restored_admin");
@@ -7450,9 +7450,9 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
       { operationCode: "browser_cdp_connect_failed" },
     );
     const routes = Object.freeze({
-      admin: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
-      sales: Object.freeze({ path: "/v3/main", marker: "main_heading", heading: "EVO Admissions" }),
-      admissions: Object.freeze({ path: "/v3/calendar", marker: "calendar_heading", heading: "Календарь" }),
+      admin: Object.freeze({ path: "/main", marker: "main_heading", heading: "EVO Admissions" }),
+      sales: Object.freeze({ path: "/main", marker: "main_heading", heading: "EVO Admissions" }),
+      admissions: Object.freeze({ path: "/calendar", marker: "calendar_heading", heading: "Календарь" }),
     });
     const routeProofs = {};
     const roleReadbacks = {};
@@ -8760,22 +8760,22 @@ const ADMIN_ROLE_PREVIEW_PRESENTATIONS = Object.freeze({
   sales: Object.freeze({
     role: "sales",
     systemRole: "admin",
-    landingRoute: "/v3/main",
-    allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/knowledge"]),
-    deniedRoutes: Object.freeze(["/v3/calendar", "/v3/settings"]),
+    landingRoute: "/main",
+    allowedRoutes: Object.freeze(["/main", "/pipeline", "/inbox", "/profile", "/knowledge"]),
+    deniedRoutes: Object.freeze(["/calendar", "/settings"]),
   }),
   admissions: Object.freeze({
     role: "admissions",
     systemRole: "admin",
-    landingRoute: "/v3/calendar",
-    allowedRoutes: Object.freeze(["/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge"]),
-    deniedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/settings"]),
+    landingRoute: "/calendar",
+    allowedRoutes: Object.freeze(["/inbox", "/profile", "/calendar", "/knowledge"]),
+    deniedRoutes: Object.freeze(["/main", "/pipeline", "/settings"]),
   }),
   admin: Object.freeze({
     role: "admin",
     systemRole: "admin",
-    landingRoute: "/v3/main",
-    allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge", "/v3/settings"]),
+    landingRoute: "/main",
+    allowedRoutes: Object.freeze(["/main", "/pipeline", "/inbox", "/profile", "/calendar", "/knowledge", "/settings"]),
     deniedRoutes: Object.freeze([]),
   }),
 });

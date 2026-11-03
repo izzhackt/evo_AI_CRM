@@ -43,7 +43,7 @@ export function salesManagersHref(query: Readonly<Record<string, unknown>> = {})
     const value = query[key];
     if (typeof value === "string" && /^(\d{1,4}|all)$/.test(value)) params.set(key, value);
   }
-  return `/v3/main?${params.toString()}`;
+  return `/main?${params.toString()}`;
 }
 
 /** The caller supplies the current organization period; navigation never chooses another clock. */
@@ -66,7 +66,7 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
   const saleSlice = valid ? parseSalesSaleSlice(query.sale) : null;
 
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
-  const clearFiltersHref = `/v3/main?${params.toString()}`;
+  const clearFiltersHref = `/main?${params.toString()}`;
   if (searchQuery) params.set("q", searchQuery);
   if (query.archived === "true") params.set("archived", "true");
   for (const key of ["manager", "direction", "review"] as const) {
@@ -86,13 +86,13 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
   const href = (extra: Readonly<Record<string, string>> = {}) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
-    return `/v3/main?${next.toString()}`;
+    return `/main?${next.toString()}`;
   };
   // Ссылка из заголовка на записи среза: тот же период, без других фильтров —
   // ровно те записи, что названы рядом с «Продажами».
   const saleSliceHref = (slice: SalesSaleSlice) => {
     const next = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all", sale: slice });
-    return `/v3/main?${next.toString()}`;
+    return `/main?${next.toString()}`;
   };
   return {
     valid, year, month, offset, searchQuery, saleSlice, saleSliceHref, params, href, clearFiltersHref,
@@ -122,7 +122,7 @@ export function salesDynamicsCarry(query: Readonly<Record<string, unknown>>): Re
 }
 
 /**
- * Ссылка периода раздела: `/v3/main?view=sales&…&period=week#sales-dynamics`. Период общий у
+ * Ссылка периода раздела: `/main?view=sales&…&period=week#sales-dynamics`. Период общий у
  * «Динамики по дням» и блока «Звонки»; якорь говорит, к какому из двух разделов вернуться.
  */
 export function salesDynamicsHref(
@@ -136,5 +136,5 @@ export function salesDynamicsHref(
     params.set("from", period.from);
     params.set("to", period.to);
   }
-  return `/v3/main?${params.toString()}#${anchor}`;
+  return `/main?${params.toString()}#${anchor}`;
 }

@@ -35,9 +35,9 @@ async function save(previous: ReportLinkFormState, form: FormData, remove: boole
   }
   const result = await saveReportLink(actor, { reportKey: reportKey as ReportKey, expectedVersion: version, reportId, pageId, requestId });
   if (result.status !== "saved" && result.status !== "unchanged") return fail(result.status);
-  revalidatePath("/v3/settings");
-  revalidatePath("/v3/marketing");
-  revalidatePath("/v3/finance");
+  revalidatePath("/settings");
+  revalidatePath("/marketing");
+  revalidatePath("/finance");
   return { status: result.status === "unchanged" ? "unchanged" : remove ? "removed" : "saved", requestId };
 }
 

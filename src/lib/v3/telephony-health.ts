@@ -336,7 +336,7 @@ export type TelephonyIntegrationFacts = Readonly<{
   overview: TelephonyOverview | null;
 }>;
 
-const SETTINGS_LINK = { label: "Открыть «Телефония»", href: "/v3/settings?section=telephony" } as const;
+const SETTINGS_LINK = { label: "Открыть «Телефония»", href: "/settings?section=telephony" } as const;
 
 /**
  * Строка «Телефония» таблицы «Интеграции» (ключ `telephony`). Состояние — самое

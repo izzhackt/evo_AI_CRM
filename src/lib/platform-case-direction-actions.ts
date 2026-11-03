@@ -62,7 +62,7 @@ export async function setCaseDirectionAction(
   }
   try {
     const receipt = await setStudentCaseDirection(actor, { studentCaseId, direction, expectedVersion, requestId });
-    revalidatePath("/v3/profile");
+    revalidatePath("/profile");
     return {
       status: receipt.changed ? "saved" : "unchanged",
       requestId: randomUUID(),

@@ -466,10 +466,10 @@ test("case note action is staff-bound and revalidates only verified success", ()
     actionSource,
     /const receipt = await createCaseNote\(actor, input\);/,
   );
-  assert.match(actionSource, /revalidatePath\("\/v3\/pipeline"\)/);
+  assert.match(actionSource, /revalidatePath\("\/pipeline"\)/);
   assert.match(
     actionSource,
-    /revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
+    /revalidatePath\(`\/profile\?id=\$\{receipt\.leadId\}`\)/,
   );
   assert.match(actionSource, /error instanceof PlatformCaseNoteMutationError/);
   assert.match(

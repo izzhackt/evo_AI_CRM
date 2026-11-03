@@ -41,7 +41,7 @@ export async function saveFinanceEntryAction(previous: FinanceEntryState, form: 
         p_occurred_at: at, p_source_key: text("source"), p_evidence_ref: text("evidence") });
     }
     const result = await saveFinanceEntry(actor, operation as "obligation" | "payment" | "refund", caseId, requestId, args);
-    if (result.status === "saved") { revalidatePath("/v3/profile"); revalidatePath("/v3/main"); revalidatePath("/portal"); revalidatePath("/portal/payments"); }
+    if (result.status === "saved") { revalidatePath("/profile"); revalidatePath("/main"); revalidatePath("/portal"); revalidatePath("/portal/payments"); }
     return result;
   } catch { return fail("unavailable"); }
 }

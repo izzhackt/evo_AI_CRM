@@ -20,7 +20,7 @@ export function pdfPointerDragCoordinates(box, viewport) {
 }
 
 export async function proveUniversityPdfMapping({ page, context, client, config, catalogId, templateId, versionId, status, sourceBytes, stage }) {
-  const base = `${config.appOrigin}/v3/universities/${catalogId}/forms?template=${templateId}&version=${versionId}`;
+  const base = `${config.appOrigin}/universities/${catalogId}/forms?template=${templateId}&version=${versionId}`;
   const source = `${config.appOrigin}/api/v3/university-forms/${templateId}/versions/${versionId}/source`;
   stage("PDF_PAGE_HTTP");
   const response = await context.request.get(`${source}/page?page=1`), headers = response.headers();

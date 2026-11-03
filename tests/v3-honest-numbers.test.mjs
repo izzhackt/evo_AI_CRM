@@ -15,7 +15,7 @@ import { parseLeadHandoffStrip, parseSalesCount } from "../src/lib/sales-numbers
 import { isWorkingSalesStage, resolveSalesStage, SALES_BOARD_STAGES } from "../src/lib/v3/sales-stage.ts";
 import * as access from "../src/lib/platform-access.ts";
 import * as wording from "../src/lib/v3/wording.ts";
-import * as stripView from "../src/components/v3/profile/handoff-strip-view.ts";
+import * as stripView from "../src/components/staff/profile/handoff-strip-view.ts";
 const { handoffFootnote, handoffStripView, salesRecordHref, stripCaseMoney, stripDay, stripPlain } = stripView;
 import { parseSalesSaleSlice, salesReportContext } from "../src/lib/sales-register-navigation.ts";
 import * as salesView from "../src/lib/sales-register-view.ts";
@@ -25,7 +25,7 @@ const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.sh
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 // «Отчёт продаж»: чтения, слова сумм, строка фильтров и переключатель периода общие у прежнего и «Нового вида» и лежат в своих файлах
 // (27.10.2026, вынесены из `SalesRegisterView.tsx` без изменений): прежний вид — это все они вместе.
-const salesViewSource = () => ["src/components/v3/SalesRegisterView.tsx", "src/lib/v3/sales-register-page.ts", "src/lib/sales-register-money-view.ts", "src/components/v3/sales-report/SalesReportToolbar.tsx", "src/components/v3/sales-report/SalesPeriodStepper.tsx"].map(read).join("\n");
+const salesViewSource = () => ["src/components/staff/SalesRegisterView.tsx", "src/lib/v3/sales-register-page.ts", "src/lib/sales-register-money-view.ts", "src/components/staff/sales-report/SalesReportToolbar.tsx", "src/components/staff/sales-report/SalesPeriodStepper.tsx"].map(read).join("\n");
 function compile(path, resolve = require) {
   const code = ts.transpileModule(read(path), { fileName: path, compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
@@ -104,7 +104,7 @@ test("the board, «Сегодня» and the report funnel resolve the stage with
   assert.match(funnel, /handed: handedLeadIds\.has\(row\.leadId\)/u);
   assert.match(funnel, /handed: handedRead \? cohort\.filter\(\(row\) => row\.handed\)\.length : null/u);
   // Lead 360: этап карточки — из полосы (SQL-правило), не сырой stage_key.
-  const tabs = read("src/components/v3/profile/tabs.tsx");
+  const tabs = read("src/components/staff/profile/tabs.tsx");
   assert.doesNotMatch(tabs, /leadStage\(sales\.lead\.stageKey\)/u);
   assert.match(tabs, /handoffStripView\(sales\.strip\.strip, \{ now: new Date\(\) \}\)/u);
   assert.match(read("src/lib/v3/profile-source.ts"), /const stripRead = readLeadHandoffStrip\(actor, leadId\);/u);
@@ -165,8 +165,8 @@ test("«Продажи»: the count parser keeps the four numbers and refuses a 
 });
 
 // Э8.4: куда ведут предупреждения — у Admin есть всё; у роли без действия предупреждения нет.
-const CASE_HREF = "/v3/profile?case=10000000-0000-4000-8000-000000000801";
-const SALE_HREF = `/v3/main?view=sales&new=true&lead=${LEAD}`;
+const CASE_HREF = "/profile?case=10000000-0000-4000-8000-000000000801";
+const SALE_HREF = `/main?view=sales&new=true&lead=${LEAD}`;
 const ALL_LINKS = { caseHref: CASE_HREF, saleHref: SALE_HREF, assignCurator: true };
 
 test("Lead 360 «Передача»: after a handoff one line with dates and no warning", () => {
@@ -296,12 +296,12 @@ test("Lead 360 «Передача» (Э8.7, 254): a merely linked record is neve
   ]);
   assert.deepEqual(linked.warnings, [], "a linked record is not evidence a handoff is missing something");
   assert.deepEqual(linked.linkedRecord, {
-    text: ["Запись в отчёте — связана: ", { date: "18.09" }], href: `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`, action: "Открыть запись",
+    text: ["Запись в отчёте — связана: ", { date: "18.09" }], href: `/main?view=sales&year=2026&month=9&record=${RECORD}`, action: "Открыть запись",
   });
   // No sale date on the linked record: the line still names itself, without a date.
   assert.deepEqual(handoffStripView(parse({ ...WORKING_JSON,
     report: { status: "available", record: { ...HANDED_JSON.report.record, link: "linked", sale_date: null, has_contract_number: false } } }),
-    { now: NOW }).linkedRecord, { text: ["Запись в отчёте — связана"], href: `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`, action: "Открыть запись" });
+    { now: NOW }).linkedRecord, { text: ["Запись в отчёте — связана"], href: `/main?view=sales&year=2026&month=9&record=${RECORD}`, action: "Открыть запись" });
   // A real pipeline sale: no linkedRecord line, the strip's own report item takes it as before.
   assert.equal(handoffStripView(parse(HANDED_JSON), { now: NOW }).linkedRecord, null);
   assert.equal(handoffStripView(parse(WORKING_JSON), { now: NOW }).linkedRecord, null, "no record at all");
@@ -312,7 +312,7 @@ test("Lead 360 «Передача» (Э8.4): each warning names its action and l
   const archivedJson = { ...HANDED_JSON, report: { status: "available", record: { ...HANDED_JSON.report.record, archived: true } } };
   const archived = handoffStripView(parse(archivedJson), { now: NOW });
   assert.equal(archived.stageTitle, "Переданы", "an archived sale does not return the lead to the working board");
-  const recordHref = `/v3/main?view=sales&year=2026&month=9&record=${RECORD}`;
+  const recordHref = `/main?view=sales&year=2026&month=9&record=${RECORD}`;
   assert.deepEqual(archived.warnings, [{ text: ["Продажа в отчёте в архиве — в план месяца не считается"], href: recordHref, action: "Открыть запись" }]);
   assert.equal(salesRecordHref({ id: RECORD, reportMonth: "2026-09-01" }), recordHref);
   assert.equal(archived.items.find((item) => item.key === "report").state, "attention");
@@ -384,16 +384,16 @@ test("Lead 360 «Передача»: the footnote names only what the items do n
   assert.equal(handoffFootnote({ ...gate, contractConfirmed: false, contractEvidenceReference: null, firstPaymentEvidenceReference: null }, { now: NOW }), null);
 });
 
-const pill = compile("src/components/v3/Pill.tsx");
+const pill = compile("src/components/staff/Pill.tsx");
 const ui = compile("src/components/ui.tsx");
 const icons = compile("src/components/icons.tsx");
 const inert = () => { throw new Error("SSR check never executes a server mutation"); };
-const transition = compile("src/components/v3/profile/ProfileSalesTransition.tsx", (id) => {
+const transition = compile("src/components/staff/profile/ProfileSalesTransition.tsx", (id) => {
   if (id === "@/lib/platform-access") return access;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "@/components/ui") return ui;
   if (id === "@/components/icons") return icons;
-  if (id === "@/components/v3/Pill") return pill;
+  if (id === "@/components/staff/Pill") return pill;
   if (id === "@/lib/platform-student-handoff-actions") return { mutatePlatformLeadAdmissionsGateAction: inert };
   if (id === "@/lib/platform-handoff-acknowledgement-actions") return { respondToHandoffAction: inert };
   if (id === "./handoff-strip-view") return stripView;
@@ -453,9 +453,9 @@ test("the false red «ожидает условий» is gone: a neutral «Пе�
 });
 
 test("«Продажи» headline: one number by sale date, discrepancies named, no number without a read", () => {
-  const headline = compile("src/components/v3/SalesPeriodHeadline.tsx", (id) => {
+  const headline = compile("src/components/staff/SalesPeriodHeadline.tsx", (id) => {
     if (id === "@/lib/sales-register-view") return salesView;
-    if (id === "./blocks/progress") return compile("src/components/v3/blocks/progress.ts");
+    if (id === "./blocks/progress") return compile("src/components/staff/blocks/progress.ts");
     return require(id);
   });
   assert.deepEqual(headline.salesHeadlinePeriod(2026, 9), { from: "2026-09-01", to: "2026-09-30", label: "сентябрь 2026" });
@@ -463,7 +463,7 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   assert.deepEqual(headline.salesHeadlinePeriod(2026, undefined), { from: "2026-01-01", to: "2026-12-31", label: "2026 год" });
   const { saleSliceHref } = salesReportContext({ year: "2026", month: "9" }, { year: 2026, month: 9 });
   const render = (read, extra = {}) => renderToStaticMarkup(createElement(headline.SalesPeriodHeadline,
-    { read, label: "сентябрь 2026", retryHref: "/v3/main?view=sales", sliceHref: saleSliceHref, ...extra }));
+    { read, label: "сентябрь 2026", retryHref: "/main?view=sales", sliceHref: saleSliceHref, ...extra }));
   const september = { status: "available", count: { from: "2026-09-01", to: "2026-09-30", sales: 5, undated: 1, otherSaleDate: 1, filedElsewhere: 1 } };
   const full = render(september);
   const plain = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
@@ -471,7 +471,7 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   assert.match(plain(full), /^5 продаж по дате продажи, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись$/u);
   // Each named discrepancy opens exactly those records (same period, no other filter), with a 44 px target.
   for (const [slice, words] of [["undated", "без даты продажи — 1 запись"], ["other_sale_date", "дата продажи в другом месяце — 1 запись"], ["filed_elsewhere", "1 запись"]]) {
-    assert.match(full, new RegExp(`<a href="/v3/main\\?view=sales&amp;year=2026&amp;month=9&amp;sale=${slice}" class="inline-flex min-h-11 [^"]*" data-sale-slice="${slice}">${words}</a>`, "u"), slice);
+    assert.match(full, new RegExp(`<a href="/main\\?view=sales&amp;year=2026&amp;month=9&amp;sale=${slice}" class="inline-flex min-h-11 [^"]*" data-sale-slice="${slice}">${words}</a>`, "u"), slice);
   }
   assert.doesNotMatch(full, /без фильтров/u);
   assert.match(plain(render(september, { filtered: true })), /по дате продажи, без архива и без фильтров/u, "not to be read against the filtered rows");
@@ -508,12 +508,12 @@ test("report navigation: «sale=<slice>» is one of the three sets, never over t
   const slice = salesReportContext({ year: "2026", month: "9", sale: "undated" }, current);
   assert.equal(slice.valid, true);
   assert.equal(slice.saleSlice, "undated");
-  assert.equal(slice.href({ offset: "50" }), "/v3/main?view=sales&year=2026&month=9&sale=undated&offset=50");
-  assert.equal(slice.clearFiltersHref, "/v3/main?view=sales&year=2026&month=9");
-  assert.equal(slice.saleSliceHref("filed_elsewhere"), "/v3/main?view=sales&year=2026&month=9&sale=filed_elsewhere");
+  assert.equal(slice.href({ offset: "50" }), "/main?view=sales&year=2026&month=9&sale=undated&offset=50");
+  assert.equal(slice.clearFiltersHref, "/main?view=sales&year=2026&month=9");
+  assert.equal(slice.saleSliceHref("filed_elsewhere"), "/main?view=sales&year=2026&month=9&sale=filed_elsewhere");
   // The link from the headline drops other row filters: exactly the records it names.
   assert.equal(salesReportContext({ year: "2026", month: "all", manager: "M", q: "x" }, current).saleSliceHref("undated"),
-    "/v3/main?view=sales&year=2026&month=all&sale=undated");
+    "/main?view=sales&year=2026&month=all&sale=undated");
   assert.equal(salesReportContext({ year: "2026", month: "9", sale: "undated", archived: "true" }, current).valid, false);
   assert.equal(salesReportContext({ year: "2026", month: "9", sale: "everything" }, current).valid, false);
   assert.equal(salesReportContext({ year: "2026", month: "9", sale: "everything" }, current).saleSlice, null);
@@ -538,7 +538,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // Э8.4: предупреждение называет действие и ведёт к нему; слова «Договор» и «Оплата» — одни на полосе и в ленте.
   assert.match(text(handed), /Передача Продажа в отчёте в архиве — в план месяца не считается Открыть запись/u);
   assert.doesNotMatch(handed, /data-testid="v3-handoff-summary"/u);
-  assert.match(handed, /<a href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=12341234-5555-4555-8555-000000000001" class="-my-3 inline-flex min-h-11[^"]*">Открыть запись<\/a>/u);
+  assert.match(handed, /<a href="\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=12341234-5555-4555-8555-000000000001" class="-my-3 inline-flex min-h-11[^"]*">Открыть запись<\/a>/u);
   assert.match(text(handed), /Договор есть подтверждён вручную 17\.09 Оплата есть первый платёж 600 USD 17\.09 Запись в отчёте в архиве/u);
   assert.match(text(handed), /Договор: Договор № 0000 \(синтетический\) · Оплата: Платёж 0000 \(синтетический\)/u);
   assert.match(text(handed), /Первый платёж подтверждён вручную 17\.09 12:00 Договор подтверждён вручную 17\.09 11:00/u);
@@ -559,7 +559,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.match(working, /<span class="sr-only">Квалифицирован, текущий этап, Продажи<\/span>/u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
   assert.doesNotMatch(working, /v3-lead-group-contract|v3-gate-contract-form|Подтверждение договора и платежа/u);
-  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить договор и оплату<\/a>/u);
+  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить договор и оплату<\/a>/u);
   const money = pages.get("lead-working-money");
   const gateSection = money.slice(money.indexOf('<section id="handoff-confirm"'));
   assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтверждение вручную<\/h2>/u);
@@ -590,7 +590,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // а каждое расхождение ведёт к своим записям.
   assert.match(report, /data-testid="v3-sales-headline" data-sales="5"/u);
   assert.match(text(report), /5 продаж по дате продажи, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись/u);
-  assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;sale=undated"/u);
+  assert.match(report, /href="\/main\?view=sales&amp;year=2026&amp;month=9&amp;sale=undated"/u);
   assert.match(text(report), /Продажи: 6 записей/u);
   // По ссылке «без даты продажи»: ровно эта запись, слова среза и «без фильтров» у числа.
   const undated = pages.get("report-undated");

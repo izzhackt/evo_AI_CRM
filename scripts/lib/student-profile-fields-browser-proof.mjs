@@ -358,7 +358,7 @@ export function proofPathClass(raw, appOrigin) {
   let url;
   try { url = new URL(raw); } catch { return "UNAVAILABLE"; }
   if (url.origin !== appOrigin) return "OTHER_ORIGIN";
-  return ({ "/login": "LOGIN", "/v3/main": "MAIN", "/v3/profile": "PROFILE",
+  return ({ "/login": "LOGIN", "/main": "MAIN", "/profile": "PROFILE",
     "/platform-pending": "PENDING_ACCESS", "/auth/staff": "STAFF_CALLBACK" })[url.pathname] ?? "OTHER_APP_PATH";
 }
 
@@ -396,7 +396,7 @@ const SERVER_STATIC_MESSAGES = new Set(["Platform Student handoff data is unavai
 const SERVER_FRAME_FILES = new Set(["src/lib/platform-student-handoff.ts", "src/lib/platform-admissions.ts",
   "src/lib/platform-case-operations.ts", "src/lib/platform-student-profile.ts", "src/lib/platform-student-profile-fields.ts",
   "src/lib/platform-private-documents.ts", "src/lib/platform-contract-workflow.ts", "src/lib/platform-finance-control.ts",
-  "src/lib/platform-handoff-acknowledgement.ts", "src/lib/v3/profile-source.ts", "src/app/(v3)/v3/profile/page.tsx"]);
+  "src/lib/platform-handoff-acknowledgement.ts", "src/lib/v3/profile-source.ts", "src/app/(staff)/profile/page.tsx"]);
 const SERVER_FRAME_FUNCTIONS = new Set(["failure", "fail", "invalidShape", "oneRow", "failClosed", "requireExactRecord",
   "getPlatformStudentCaseHandoffContext", "normalizePlatformStudentCaseHandoffContext", "normalizeStarterTaskItem",
   "getPlatformCaseFinanceControl", "getPlatformStudentProfile", "getPlatformStudentProfileFields",
@@ -748,7 +748,7 @@ async function main() {
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-system-role", "admin");
     stage = "ACTUAL_ROLE";
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-presentation-role", "actual");
-    const profileUrl = `${config.appOrigin}/v3/profile?case=${caseId}&tab=anketa`;
+    const profileUrl = `${config.appOrigin}/profile?case=${caseId}&tab=anketa`;
     stage = "PROFILE_NAVIGATION";
     await page.goto(profileUrl, { waitUntil: "domcontentloaded" });
     stage = "PROFILE_URL";

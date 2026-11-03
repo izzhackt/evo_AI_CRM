@@ -20,7 +20,7 @@ const MODES = ["admin-cookie", "admin-no-cookie", "preview-cookie", "staff-cooki
 const NEXT = /data-slot="page-header"/u;
 
 const sourcesIn = (directory) => readdirSync(root(directory), { recursive: true }).filter((file) => /\.(tsx?|ts)$/u.test(String(file))).map((file) => `${directory}/${file}`);
-const NEW_DIRS = ["reports-next", "finance-next", "marketing-next", "settings-next", "ai-agent-next", "admin-next"].map((name) => `src/components/v3/${name}`);
+const NEW_DIRS = ["reports-next", "finance-next", "marketing-next", "settings-next", "ai-agent-next", "admin-next"].map((name) => `src/components/staff/${name}`);
 const NEW_FILES = NEW_DIRS.flatMap(sourcesIn);
 const names = (value) => [...new Set(all(value, /\bname="([a-z_]+)"/gu))].sort();
 const actionsIn = (value) => [...new Set(all(value, /\b([a-z][A-Za-z]+Action)\b/gu))].sort();
@@ -71,9 +71,9 @@ test("«Настройки»: те же десять разделов с тем�
   const next = html("settings-staff:admin-cookie");
   const legacy = html("settings-staff:admin-no-cookie");
   // Строки сотрудников в прежнем виде — ссылки `&member=`; в новом строка открывает панель на месте и ведёт к тому же адресу через `history`.
-  const hrefs = (value) => [...new Set(all(value, /href="(\/v3\/settings\?section=[^"]+)"/gu))].filter((href) => !href.includes("member=")).sort();
+  const hrefs = (value) => [...new Set(all(value, /href="(\/settings\?section=[^"]+)"/gu))].filter((href) => !href.includes("member=")).sort();
   assert.deepEqual(hrefs(next), hrefs(legacy), "те же адреса разделов");
-  assert.match(read("src/components/v3/settings-next/StaffNext.tsx"), /`\$\{PEOPLE_HREF\}&member=\$\{encodeURIComponent\(id\)\}`/u, "адрес выбранного сотрудника — тот же");
+  assert.match(read("src/components/staff/settings-next/StaffNext.tsx"), /`\$\{PEOPLE_HREF\}&member=\$\{encodeURIComponent\(id\)\}`/u, "адрес выбранного сотрудника — тот же");
   assert.ok(hrefs(next).length >= 9);
   assert.match(next, /aria-label="Разделы настроек"/u, "ряд разделов — ссылки");
   assert.match(next, /aria-current="page"[^>]*>(?:<span[^>]*>)?Сотрудники</u, "текущий раздел назван");
@@ -85,7 +85,7 @@ test("«Настройки»: те же десять разделов с тем�
   assert.doesNotMatch(blocked, /v3-settings-blocking/u, "на «Интеграциях» таблица сама говорит");
   assert.match(text(blocked), /amoCRM/u);
   assert.equal(banner(html("settings-integrations:admin-no-cookie")).length >= 0, true);
-  assert.match(read("src/components/v3/settings-next/BlockingNotice.tsx"), /row\.blocksWork/u, "предупреждение — только у настроенного и сломанного сервиса");
+  assert.match(read("src/components/staff/settings-next/BlockingNotice.tsx"), /row\.blocksWork/u, "предупреждение — только у настроенного и сломанного сервиса");
 });
 
 test("«Сотрудники», «Роли и доступ», «Отделы»: те же люди, роли и отделы с теми же словами; панель открывает запись", () => {
@@ -134,7 +134,7 @@ test("«Телефония»: те же слова состояния, верд�
   // Строки «Остальные» и значения кабинета ВАТС лежат в панелях (в разметке страницы их нет); остальные признаки блоков те же.
   const marks = (value) => [...new Set(all(value, /data-testid="(v3-telephony-[a-z-]+)"/gu))].filter((id) => !/rest|folded|copy-value|connection/u.test(id)).sort();
   assert.deepEqual(marks(next), marks(legacy), "те же признаки блоков");
-  for (const id of ["v3-telephony-status-rest", "v3-telephony-connection-folded"]) assert.ok(read("src/components/v3/settings-next/TelephonyStatus.tsx").includes(id) || read("src/components/v3/settings-next/TelephonyGuide.tsx").includes(id), id);
+  for (const id of ["v3-telephony-status-rest", "v3-telephony-connection-folded"]) assert.ok(read("src/components/staff/settings-next/TelephonyStatus.tsx").includes(id) || read("src/components/staff/settings-next/TelephonyGuide.tsx").includes(id), id);
   assert.match(next, /data-testid="v3-telephony-extensions"/u, "пользователи ВАТС — прежний блок");
   assert.match(next, /data-testid="v3-telephony-settings-status"/u, "форма настроек — прежняя");
   assert.match(text(next), /Подключение «Ваша CRM» в кабинете ВАТС/u);
@@ -152,14 +152,14 @@ test("«Отчёты»: те же две карточки, те же поля ф
     assert.match(text(value), /Снятие роли в CRM не закрывает отчёт в Google/u, "примечание о доступе — одно, на виду");
     assert.equal(count(value, /data-testid="v3-settings-reports-note"/gu), 1);
   }
-  assert.deepEqual(all(next, /href="(\/v3\/(?:finance|marketing\?view=reports))"/gu).sort(), all(legacy, /href="(\/v3\/(?:finance|marketing\?view=reports))"/gu).sort());
+  assert.deepEqual(all(next, /href="(\/(?:finance|marketing\?view=reports))"/gu).sort(), all(legacy, /href="(\/(?:finance|marketing\?view=reports))"/gu).sort());
 });
 
 test("«Журнал действий»: те же события и фильтры-ссылки; экспорт — та же форма с теми же полями; следующая страница — тот же адрес", () => {
   const next = html("settings-journal:admin-cookie");
   const legacy = html("settings-journal:admin-no-cookie");
   for (const word of ["Задача создана", "Журнал действий"]) assert.match(text(next), new RegExp(word.split(" ")[0], "u"));
-  const filterHrefs = (value) => [...new Set(all(value, /href="(\/v3\/settings\?section=journal[^"]*)"/gu).map((href) => href.replaceAll("&amp;", "&")))].sort();
+  const filterHrefs = (value) => [...new Set(all(value, /href="(\/settings\?section=journal[^"]*)"/gu).map((href) => href.replaceAll("&amp;", "&")))].sort();
   assert.deepEqual(filterHrefs(next), filterHrefs(legacy), "те же адреса фильтров и следующей страницы");
   const form = (value) => value.slice(value.indexOf('action="/api/platform-audit/export"'), value.indexOf("</form>", value.indexOf('action="/api/platform-audit/export"')));
   assert.deepEqual(names(form(next)), names(form(legacy)));
@@ -176,12 +176,12 @@ test("«Запросы на удаление»: та же очередь со с
     assert.match(legacy, new RegExp(word, "u"), `прежний: ${word}`);
   }
   assert.match(html("settings-deletion:admin-cookie"), /data-overdue="true"/u, "просрочка помечена");
-  const source = read("src/components/v3/settings-next/DeletionNext.tsx");
+  const source = read("src/components/staff/settings-next/DeletionNext.tsx");
   assert.match(source, /`\$\{listHref\}&request=\$\{encodeURIComponent\(row\.id\)\}`/u);
   // Предупреждения и запреты остаются на виду в панели: слова те же, что у прежнего вида.
-  const detail = read("src/components/v3/settings-next/DeletionNotices.tsx") + read("src/components/v3/settings-next/DeletionPlans.tsx");
+  const detail = read("src/components/staff/settings-next/DeletionNotices.tsx") + read("src/components/staff/settings-next/DeletionPlans.tsx");
   for (const word of ["Журнал входов не очищен", "Автоматическое удаление было начато", "Ручная обработка"]) assert.ok(detail.includes(word), word);
-  for (const component of ["AccountDeletionProcess", "AccountDeletionManualDone", "AccountDeletionEmailRetry"]) assert.ok(read("src/components/v3/settings-next/DeletionDetailBody.tsx").includes(component), `${component} — прежний движок`);
+  for (const component of ["AccountDeletionProcess", "AccountDeletionManualDone", "AccountDeletionEmailRetry"]) assert.ok(read("src/components/staff/settings-next/DeletionDetailBody.tsx").includes(component), `${component} — прежний движок`);
 });
 
 test("«Документы и передача» и «Платформа»: те же правила, числа и предупреждения эксплуатации", () => {
@@ -195,17 +195,17 @@ test("«Документы и передача» и «Платформа»: те
 test("«Маркетинг»: те же вкладки и адреса, те же числа обзора; расход — те же поля и действия; сверка с «Продажами» на виду", () => {
   const next = html("marketing-overview:admin-cookie");
   const legacy = html("marketing-overview:admin-no-cookie");
-  const tabs = (value) => [...new Set(all(value, /href="(\/v3\/marketing[^"]*)"/gu).map((href) => href.replaceAll("&amp;", "&")))].sort();
+  const tabs = (value) => [...new Set(all(value, /href="(\/marketing[^"]*)"/gu).map((href) => href.replaceAll("&amp;", "&")))].sort();
   assert.deepEqual(tabs(next), tabs(legacy), "те же адреса вкладок и периода");
-  assert.ok(tabs(next).includes("/v3/marketing?view=reports"), "вкладка «Отчёты» — при подключённой ссылке");
+  assert.ok(tabs(next).includes("/marketing?view=reports"), "вкладка «Отчёты» — при подключённой ссылке");
   for (const mode of ["admin-cookie", "admin-no-cookie"]) {
     const value = text(html(`marketing-overview:${mode}`));
     for (const word of ["1 200 USD", "18", "11 из 18", "Совпадает", "связано вручную 1", "Повторные обращения", "Откуда узнал", "Без привязки к лиду", "Расход вводился|Расход периода"]) assert.match(value, new RegExp(word, "u"), `${mode}: ${word}`);
   }
-  const sheet = read("src/components/v3/marketing-next/SpendAddSheet.tsx");
+  const sheet = read("src/components/staff/marketing-next/SpendAddSheet.tsx");
   assert.deepEqual([...new Set(actionsIn(sheet))], ["addMarketingSpendAction"], "запись расхода — одно действие");
   assert.ok(names(sheet).length > 0, "поля формы расхода на месте");
-  assert.deepEqual([...new Set(actionsIn(read("src/components/v3/marketing-next/LeadsNext.tsx")))], ["loadMoreMarketingLeadsAction"], "«Показать ещё» — одно действие");
+  assert.deepEqual([...new Set(actionsIn(read("src/components/staff/marketing-next/LeadsNext.tsx")))], ["loadMoreMarketingLeadsAction"], "«Показать ещё» — одно действие");
   assert.equal(count(next, /data-testid="marketing-reconciliation"/gu), 1);
   for (const value of [next, legacy]) assert.match(value, /data-testid="marketing-website-source"[^>]*>10</u, "источник «Сайт» — то же число");
   assert.match(next, /data-matches="true"/u);
@@ -219,10 +219,10 @@ test("«Маркетинг → Заявки»: те же лиды; фильтр�
     assert.match(text(legacy), new RegExp(word, "u"), `прежний: ${word}`);
   }
   // Фильтры нового вида стоят в панели (в разметке страницы их нет): поля и форма сверяются по файлу с прежним.
-  const sheet = read("src/components/v3/marketing-next/LeadFiltersSheet.tsx");
+  const sheet = read("src/components/staff/marketing-next/LeadFiltersSheet.tsx");
   const filters = (list) => list.filter((name) => !["period", "from", "to"].includes(name));
   assert.deepEqual(filters(names(sheet)), ["campaign", "channel", "contract", "no_owner", "stage", "unknown", "view"]);
-  assert.match(sheet, /action="\/v3\/marketing"/u);
+  assert.match(sheet, /action="\/marketing"/u);
   assert.match(sheet, /method="get"/u);
 });
 
@@ -251,7 +251,7 @@ test("«Финансы»: окно и адрес те же; нет ссылки 
   assert.match(text(next), /Снятие роли в CRM не закрывает отчёт/u, "напоминание администратору");
   const empty = text(html("finance-empty:admin-cookie"));
   assert.match(empty, /Отчёт ещё не подключён\./u);
-  assert.match(html("finance-empty:admin-cookie"), /href="\/v3\/settings\?section=reports"[^>]*>(?:<[^>]+>)*Добавить ссылку/u);
+  assert.match(html("finance-empty:admin-cookie"), /href="\/settings\?section=reports"[^>]*>(?:<[^>]+>)*Добавить ссылку/u);
   assert.doesNotMatch(empty, /\d/u, "нет данных — нет цифр");
   const denied = html("finance-denied:admin-cookie");
   assert.match(denied, /data-testid="v3-finance-denied"/u);
@@ -264,12 +264,12 @@ test("«Финансы»: окно и адрес те же; нет ссылки 
 test("«ИИ-агент»: те же подразделы-ссылки с числом листа сверки, возврат к хабу, те же материалы, предупреждения и пауза автоответчика", () => {
   const next = html("ai-documents:admin-cookie");
   const legacy = html("ai-documents:admin-no-cookie");
-  const hrefs = (value) => [...new Set(all(value, /href="(\/v3\/ai-agent[^"]*)"/gu).map((href) => href.replaceAll("&amp;", "&")))];
-  for (const href of ["/v3/ai-agent", "/v3/ai-agent?section=review", "/v3/ai-agent?section=lab", "/v3/ai-agent?section=rules", "/v3/ai-agent?section=spend", "/v3/ai-agent?section=autosend"]) {
+  const hrefs = (value) => [...new Set(all(value, /href="(\/ai-agent[^"]*)"/gu).map((href) => href.replaceAll("&amp;", "&")))];
+  for (const href of ["/ai-agent", "/ai-agent?section=review", "/ai-agent?section=lab", "/ai-agent?section=rules", "/ai-agent?section=spend", "/ai-agent?section=autosend"]) {
     assert.ok(hrefs(next).includes(href), `новый: ${href}`);
     assert.ok(hrefs(legacy).includes(href), `прежний: ${href}`);
   }
-  assert.match(next, /href="\/v3\/ai-agents"[^>]*>(?:<[^>]+>)*Все ИИ-агенты/u);
+  assert.match(next, /href="\/ai-agents"[^>]*>(?:<[^>]+>)*Все ИИ-агенты/u);
   for (const word of ["Прайс 2026 — Малайзия \\(скан\\)", "Буклет EVO 2026", "Политика возвратов", "Нужна сверка · 3", "Похоже на документ клиента"]) {
     assert.match(text(next), new RegExp(word, "u"), `новый: ${word}`);
     assert.match(text(legacy), new RegExp(word, "u"), `прежний: ${word}`);
@@ -279,7 +279,7 @@ test("«ИИ-агент»: те же подразделы-ссылки с чис
     const paused = html(`ai-documents-paused:${mode}`);
     assert.match(paused, /data-testid="v3-ai-autosend-pause-banner"/u, `${mode}: пауза видна в любом подразделе`);
     assert.match(text(paused), /Автоответчик на паузе: WhatsApp не на связи/u);
-    assert.match(paused, /href="\/v3\/ai-agent\?section=autosend"/u);
+    assert.match(paused, /href="\/ai-agent\?section=autosend"/u);
   }
   assert.doesNotMatch(html("ai-documents:admin-cookie"), /v3-ai-consent"|v3-ai-feature-off/u, "согласие записано, агент подключён: строк нет");
 });
@@ -309,7 +309,7 @@ test("«ИИ-агент → Автоответчик, Расходы, Прави
 test("команды и поля форм те же, что в прежних файлах: ни одного нового действия и ни одной новой команды", () => {
   const joined = (paths) => paths.map(read).join("\n");
   for (const [next, legacy] of [
-    [NEW_DIRS[3], ["src/components/v3/settings"]],
+    [NEW_DIRS[3], ["src/components/staff/settings"]],
   ]) {
     const nextActions = actionsIn(joined(sourcesIn(next)));
     const legacyActions = actionsIn(joined(legacy.flatMap(sourcesIn)));
@@ -330,14 +330,14 @@ test("команды и поля форм те же, что в прежних ф
 function joinedSource(directory) { return sourcesIn(directory).map(read).join("\n"); }
 
 test("правила Wazzup (только чтение) в новом виде те же: свежесть состояния, слова, запасной путь, ни одной кнопки в карточке", () => {
-  const card = read("src/components/v3/settings-next/TransportCardNext.tsx");
+  const card = read("src/components/staff/settings-next/TransportCardNext.tsx");
   assert.ok(card.split("\n").length <= 150);
   assert.match(card, /wazzupChannelWords\(transport\.channel\?\.state \?\? null, \{\s*observedAt: transport\.channel\?\.observedAt \?\? null,\s*nowMs: now\.getTime\(\),\s*\}\)/u, "слово состояния — с тем же «сейчас»");
   assert.match(card, /WAZZUP_FALLBACK_LINE/u);
   assert.match(card, /wazzupCardRows\(transport, intakeEnabled/u);
   assert.doesNotMatch(card, /"use client"|onClick|<button|<form|fetch\(|WHATSAPP_CONNECT_PATH|Button\b/u, "блок только для чтения: действий нет");
   assert.doesNotMatch(card, /Bearer|crmKey|api\.wazzup24|EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN|\+\d{6,}/u, "ни ключа, ни адреса, ни номера");
-  const table = read("src/components/v3/settings-next/IntegrationsNext.tsx");
+  const table = read("src/components/staff/settings-next/IntegrationsNext.tsx");
   assert.match(table, /whatsapp\.wazzup\s*\n?\s*\? <TransportCardNext/u, "карточка Wazzup стоит на месте блока подключения WAHA");
   assert.match(table, /: <WhatsAppConnectSection initialStatus=/u);
   assert.match(table, /WHATSAPP_CONNECT_ANCHOR/u, "ссылка на блок подключения не дублируется второй");
@@ -348,16 +348,16 @@ test("правила Wazzup (только чтение) в новом виде �
 test("входы нового вида ленивые, с заглушкой при обрыве связи; у маршрутов нет своего loading.tsx (он менял бы и прежний вид); страницы не подключают новый вид статически; loading.tsx маршрута по-прежнему нет", () => {
   const routes = { settings: "SettingsNextLazy", marketing: "MarketingNextLazy", finance: "FinanceNextLazy", "ai-agent": "AiAgentNextLazy" };
   for (const [route, name] of Object.entries(routes)) {
-    const dir = `src/app/(v3)/v3/${route}`;
+    const dir = `src/app/(staff)/${route}`;
     assert.equal(existsSync(root(`${dir}/loading.tsx`)), false, `${route}: loading.tsx нет: граница Suspense маршрута стала бы и у сотрудников с прежним видом (скелет, ответ 200 вместо 307/404)`);
     const page = read(`${dir}/page.tsx`);
     assert.match(page, new RegExp(`<${name}\\b`, "u"), `${route}: страница рисует ${name}`);
     assert.doesNotMatch(page, /isNextUi/u, `${route}: выбора вида нет — новый вид единственный`);
-    const imports = [...page.matchAll(/^import .* from "(@\/components\/v3\/[^"]+)";$/gmu)].map((match) => match[1]);
+    const imports = [...page.matchAll(/^import .* from "(@\/components\/staff\/[^"]+)";$/gmu)].map((match) => match[1]);
     for (const path of imports.filter((value) => /-next\//u.test(value))) assert.match(path, /Lazy$|-types$/u, `${route}: ${path} — только ленивый вход и типы`);
   }
   for (const file of ["settings-next/SettingsNextLazy", "marketing-next/MarketingNextLazy", "finance-next/FinanceNextLazy", "ai-agent-next/AiAgentNextLazy"]) {
-    const entry = read(`src/components/v3/${file}.tsx`);
+    const entry = read(`src/components/staff/${file}.tsx`);
     assert.match(entry, /^"use client";/u, file);
     assert.match(entry, /\.catch\(onScreenLoadFailed\)/u, `${file}: при обрыве связи — «Обновить страницу»`);
     assert.match(entry, /from "next\/dynamic"/u);
@@ -366,7 +366,7 @@ test("входы нового вида ленивые, с заглушкой п�
     assert.match(entry, /NextScreenLoading/u, file);
   }
   // Скелет входа лежит в первой загрузке маршрута: ни одного импорта (`cn` тянул бы `tailwind-merge` ≈ 8 КБ gzip, виджеты набора — свой код).
-  assert.doesNotMatch(read("src/components/v3/admin-next/NextScreenLoading.tsx"), /^import /mu, "NextScreenLoading без импортов");
+  assert.doesNotMatch(read("src/components/staff/admin-next/NextScreenLoading.tsx"), /^import /mu, "NextScreenLoading без импортов");
 });
 
 test("серверные тексты агентов и ключи не попадают в клиентский граф нового вида; видимые свойства — данные", () => {
@@ -397,52 +397,52 @@ test("«Создать аккаунт» и «Пригласить сотрудн
     const from = next.indexOf(`data-testid="${id}"`);
     assert.ok(next.indexOf(`name="operation" value="${operation}"`, from) > from, `${id}: форма «${operation}» внутри`);
   }
-  const source = read("src/components/v3/settings-next/StaffNewAccess.tsx");
+  const source = read("src/components/staff/settings-next/StaffNewAccess.tsx");
   assert.doesNotMatch(source, /panel \? \(/u, "форма не выбрасывается условием");
   assert.match(source, /hidden=\{panel !== /u);
   assert.match(source, /\.focus\(\)/u, "«Закрыть» возвращает фокус на кнопку, что открыла форму");
 });
 
 test("панели «Журнала доступа», сотрудника, роли, отдела, расхода и запроса на удаление не закрываются, пока запрос не завершён или итог неизвестен, и спрашивают при несохранённой правке", () => {
-  const guard = read("src/components/v3/admin-next/SheetGuard.tsx");
+  const guard = read("src/components/staff/admin-next/SheetGuard.tsx");
   assert.match(guard, /Есть несохранённые изменения\. Закрыть без сохранения\?/u, "тот же вопрос, что у первой волны");
   assert.match(guard, /window\.confirm/u);
   assert.match(guard, /isConnected/u, "правка в уже закрытой форме не считается");
   for (const file of ["StaffAccessLog", "StaffNext", "RolesNext", "DepartmentsNext", "DeletionNext"]) {
-    assert.match(read(`src/components/v3/settings-next/${file}.tsx`), /useSheetGuard\(\)/u, file);
-    assert.match(read(`src/components/v3/settings-next/${file}.tsx`), /allowClose\(/u, `${file}: закрытие идёт через охрану`);
+    assert.match(read(`src/components/staff/settings-next/${file}.tsx`), /useSheetGuard\(\)/u, file);
+    assert.match(read(`src/components/staff/settings-next/${file}.tsx`), /allowClose\(/u, `${file}: закрытие идёт через охрану`);
   }
   // Независимая проверка сборки 2B: заметка «Что сделано» и слово подтверждения стоят на странице у прежнего вида, а в панели Esc и щелчок мимо
   // закрывали их без вопроса. Тело панели лежит под охраной, а закрытие идёт только через неё (не напрямую в `go(null, listHref)`).
-  const deletion = read("src/components/v3/settings-next/DeletionNext.tsx");
+  const deletion = read("src/components/staff/settings-next/DeletionNext.tsx");
   assert.match(deletion, /<GuardedBody guard=\{guard\}>[\s\S]*<DeletionDetailBody[\s\S]*<\/GuardedBody>/u, "запрос в панели лежит под охраной");
   assert.match(deletion, /onOpenChange=\{\(next\) => \{ if \(!next && guard\.allowClose\(\)\) go\(null, listHref\); \}\}/u, "закрытие панели идёт через allowClose");
   assert.doesNotMatch(deletion, /onOpenChange=\{\(next\) => \{ if \(!next\) go\(/u, "закрытия без охраны нет");
-  assert.match(read("src/components/v3/marketing-next/SpendAddSheet.tsx"), /allowClose\(/u);
+  assert.match(read("src/components/staff/marketing-next/SpendAddSheet.tsx"), /allowClose\(/u);
   // Формы прежнего вида сообщают панели о незавершённом запросе через необязательный контекст (без него — ничего не делают, разметка та же).
   for (const file of ["useStaffCommandForm.tsx", "StaffRoleForms.tsx", "StaffMemberDetails.tsx", "StaffSection.tsx"]) {
-    assert.match(read(`src/components/v3/settings/${file}`), /useStaffSheetLock\(/u, file);
+    assert.match(read(`src/components/staff/settings/${file}`), /useStaffSheetLock\(/u, file);
   }
-  const lock = read("src/components/v3/settings/staff-sheet-lock.ts");
+  const lock = read("src/components/staff/settings/staff-sheet-lock.ts");
   assert.match(lock, /createContext<[^>]*\| null>\(null\)/u, "по умолчанию контекста нет");
   assert.match(lock, /if \(!report\) return/u, "без панели хук ничего не делает");
 });
 
 test("«Открыть роль» и ссылка `?member=` после мягкого перехода открывают запись: выбор из адреса подхватывается и при смене свойства, а не только при первом показе", () => {
   for (const [file, key] of [["RolesNext", "selectedRoleId"], ["StaffNext", "selectedMemberId"]]) {
-    const source = read(`src/components/v3/settings-next/${file}.tsx`);
+    const source = read(`src/components/staff/settings-next/${file}.tsx`);
     assert.match(source, new RegExp(`if \\(synced !== ${key}\\)`, "u"), `${file}: свойство ${key} переносится в состояние при смене`);
   }
   // Копия роли — в той же панели (две панели подряд оставляли фокус на строке за ними).
-  assert.doesNotMatch(read("src/components/v3/settings-next/RoleSheetBody.tsx"), /onCopy/u);
-  assert.match(read("src/components/v3/settings-next/RoleSheetBody.tsx"), /Скопировать роль/u);
+  assert.doesNotMatch(read("src/components/staff/settings-next/RoleSheetBody.tsx"), /onCopy/u);
+  assert.match(read("src/components/staff/settings-next/RoleSheetBody.tsx"), /Скопировать роль/u);
 });
 
 test("загрузка материала: форма стоит на странице всегда (свёрнутая скрыта), поэтому сворачивание не обрывает передачу", () => {
   const next = html("ai-documents:admin-cookie");
   assert.match(region(next, "v3-ai-upload-region"), /\shidden=""/u, "свёрнута, но в разметке");
   assert.ok(next.indexOf('data-testid="v3-ai-upload"', next.indexOf('data-testid="v3-ai-upload-region"')) > 0, "форма загрузки внутри");
-  assert.doesNotMatch(read("src/components/v3/ai-agent-next/AiUploadPanel.tsx"), /\{open \? \(/u);
+  assert.doesNotMatch(read("src/components/staff/ai-agent-next/AiUploadPanel.tsx"), /\{open \? \(/u);
 });
 
 test("«Журнал действий»: ссылка «Следующие события» есть и тогда, когда ни у одного события страницы нет названия; слова события, актора и объекта считает сервер", () => {
@@ -455,7 +455,7 @@ test("«Журнал действий»: ссылка «Следующие со�
   const hrefOf = (value) => value.match(/href="([^"]*snapshot=[^"]*)"[^>]*>(?:<[^>]+>)*Следующие события/u)?.[1];
   assert.equal(hrefOf(next)?.replaceAll("&amp;", "&"), hrefOf(legacy)?.replaceAll("&amp;", "&"), "тот же адрес курсора");
   assert.doesNotMatch(text(next), /future\.action|case_task/u, "сырые коды не показываются");
-  const journal = read("src/components/v3/settings-next/JournalNext.tsx");
+  const journal = read("src/components/staff/settings-next/JournalNext.tsx");
   assert.doesNotMatch(journal, /^import (?!type )[^\n]*from "@\/lib\/v3\/(?:wording|settings-journal-contract)"/mu, "слова журнала не едут в клиентский кусок: они в общей первой загрузке всех маршрутов");
   assert.match(read("src/lib/v3/settings-next-props.ts"), /journalNextProps/u);
   const ready = html("settings-journal:admin-cookie");
@@ -491,12 +491,12 @@ test("«Интеграции»: «Что не работает» стоит в �
   const headers = all(leads, /<th[^>]*>([\s\S]*?)<\/th>/gu).map((cell) => text(cell)).filter(Boolean);
   assert.ok(headers.length <= 5, `колонок в таблице: ${headers.join(", ")}`);
   for (const word of ["Телефон", "Канал связи", "Кампания"]) assert.ok(!headers.includes(word), `${word} — в панели записи`);
-  const sheet = read("src/components/v3/marketing-next/LeadSheetBody.tsx");
+  const sheet = read("src/components/staff/marketing-next/LeadSheetBody.tsx");
   for (const word of ["Телефон", "Канал связи", "Кампания"]) assert.ok(sheet.includes(word), `${word}: есть в панели`);
 });
 
 test("«Настройки» на узком окне: одна колонка с явной шириной, ряд разделов не раздувает её (иначе содержимое шире экрана и обрезано)", () => {
-  const page = read("src/components/v3/settings-next/SettingsNextPage.tsx");
+  const page = read("src/components/staff/settings-next/SettingsNextPage.tsx");
   assert.match(page, /grid-cols-1[^"]*@4xl:grid-cols-\[/u, "до 56rem — одна колонка minmax(0, 1fr)");
   const nav = html("settings-staff:admin-cookie");
   assert.match(region(nav, "v3-settings-nav-compact"), /class="[^"]*\bmin-w-0\b/u, "ряд вкладок может сжиматься до колонки");
@@ -520,11 +520,11 @@ test("панели с полями у «Настроек», «Маркетинг
     "settings-next/StaffAccessLog", "settings-next/StaffNext",
   ];
   for (const name of WITH_FIELDS) {
-    const source = read(`src/components/v3/${name}.tsx`);
+    const source = read(`src/components/staff/${name}.tsx`);
     const sheets = count(source, /<DetailSheet\b/gu);
     assert.ok(sheets >= 1, `${name}: есть панель`);
     assert.equal(count(source, /onEscapeKeyDown=\{sheetEscape\}/gu), sheets, `${name}: у каждой панели sheetEscape`);
-    assert.match(source, /from "@\/components\/v3\/panel\/sheet-escape"/u, `${name}: тот же помощник, что у панелей волны 2A`);
+    assert.match(source, /from "@\/components\/staff\/panel\/sheet-escape"/u, `${name}: тот же помощник, что у панелей волны 2A`);
   }
 });
 
@@ -560,5 +560,5 @@ test("полоса фокуса итоговой таблицы рисуется
       for (const utility of RING) assert.ok(classes.split(" ").includes(utility), `${name}: у карточки ${utility}`);
     }
   }
-  assert.doesNotMatch(read("src/components/v3/admin-next/ReportTable.tsx"), /role="region"[^>]*className=\{cn\("[^"]*focus-visible/u, "полосу не прячут внутрь области: её закрыл бы прилипший столбец");
+  assert.doesNotMatch(read("src/components/staff/admin-next/ReportTable.tsx"), /role="region"[^>]*className=\{cn\("[^"]*focus-visible/u, "полосу не прячут внутрь области: её закрыл бы прилипший столбец");
 });

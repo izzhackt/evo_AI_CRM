@@ -2,14 +2,14 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { DocsPackagesRead, DocsProgramRead, StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/v3/students/students-queue-view";
+import type { DocsPackagesRead, DocsProgramRead, StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/staff/students/students-queue-view";
 import {
   readDocsPackagePages,
   readDocsProgramPages,
   studentsCountsView,
   studentsHandoffPending,
   studentsQueueRequest,
-} from "@/components/v3/students/students-queue-view";
+} from "@/components/staff/students/students-queue-view";
 
 import { isStaffPreview, staffHasPermission } from "../platform-access";
 import { getPlatformAdmissionsTaskWorkspace } from "../platform-admissions-workspace";

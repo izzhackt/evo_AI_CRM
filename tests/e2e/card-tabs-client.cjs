@@ -39,17 +39,17 @@ function mount(node) {
 
 const ENTRIES = {
   history: `${WRAP}
-const { HistoryNext } = require("@/components/v3/profile/next/tabs/HistoryNext");
+const { HistoryNext } = require("@/components/staff/profile/next/tabs/HistoryNext");
 const events = Array.from({ length: 13 }, (_, index) => ({ id: "e" + index, transition: index % 2 ? "task.create" : "case.next.action.change", role: "", at: null,
-  href: index === 2 ? "#case-source" : "/v3/profile?case=x&tab=overview", changedFields: [], targetKind: "overview", occurredAt: "2026-09-" + String(22 - index).padStart(2, "0") + "T05:10:00.000Z" }));
+  href: index === 2 ? "#case-source" : "/profile?case=x&tab=overview", changedFields: [], targetKind: "overview", occurredAt: "2026-09-" + String(22 - index).padStart(2, "0") + "T05:10:00.000Z" }));
 mount(h("div", null, h("section", { id: "case-source" }, "Источник (цель ссылки)"),
   h(HistoryNext, { profile: { leadId: null, person: "X", email: null, phone: null, student: true, stage: null, caseStatus: "active", source: "website", qualification: null,
     arrived: "01.09.2026", nextAction: null, nextActionAt: null, handoff: null, applications: [], visa: [], financeStop: null, timeline: events,
-    timelineOlderHref: "/v3/profile?case=x&tab=history&activity_before_at=a&activity_before_id=b", timelineLatestHref: null } })));
+    timelineOlderHref: "/profile?case=x&tab=history&activity_before_at=a&activity_before_id=b", timelineLatestHref: null } })));
 `,
   money: `${WRAP}
-const { CaseMoneySection, CaseMoneyPanel, CaseMoneyOpen } = require("@/components/v3/profile/CaseMoney");
-const { MoneyCard } = require("@/components/v3/profile/next/tabs/MoneyCard");
+const { CaseMoneySection, CaseMoneyPanel, CaseMoneyOpen } = require("@/components/staff/profile/CaseMoney");
+const { MoneyCard } = require("@/components/staff/profile/next/tabs/MoneyCard");
 const panels = [{ id: "money-contract", label: "Подготовка договора по шаблону" }, { id: "money-stops", label: "Стопы" }, { id: "money-obligations", label: "Обязательства" }];
 mount(h(CaseMoneySection, { nextUi: true, panels, contractCaseId: "case-1" },
   h(MoneyCard, null, h("p", null, "Сводка"), h(CaseMoneyOpen, { panel: "money-stops" }, "Стопы")),
@@ -58,8 +58,8 @@ mount(h(CaseMoneySection, { nextUi: true, panels, contractCaseId: "case-1" },
   h(CaseMoneyPanel, { id: "money-stops", label: "Стопы" }, h("p", { id: "stops-body" }, "Форма стопов"))));
 `,
   documents: `${WRAP}
-const { ProfileDocumentsClient } = require("@/components/v3/profile/ProfileDocumentsClient");
-const { ProgressBar } = require("@/components/v3/blocks/ProgressBar");
+const { ProfileDocumentsClient } = require("@/components/staff/profile/ProfileDocumentsClient");
+const { ProgressBar } = require("@/components/staff/blocks/ProgressBar");
 const groups = window.__DOCS;
 mount(h(ProfileDocumentsClient, { nextUi: true, groups: groups.filter((g) => g.kind === "active"), historyGroups: groups.filter((g) => g.kind === "removed"),
   uploadAccess: "allowed", studentCaseId: "case-1", createRequestId: "33333333-3333-4333-8333-333333333333", today: "2026-09-23",

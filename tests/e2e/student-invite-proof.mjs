@@ -24,8 +24,8 @@ export async function runStudentInviteProof({ origin, apiUrl, mailpitOrigin, dbU
     await page.waitForURL(`${origin}${path}`);
   };
   try {
-    await login(fixture.adminEmail, fixture.adminPassword, "/v3/main");
-    await page.goto(`${origin}/v3/profile?id=${fixture.leadId}`);
+    await login(fixture.adminEmail, fixture.adminPassword, "/main");
+    await page.goto(`${origin}/profile?id=${fixture.leadId}`);
     await page.getByRole("button", { name: "Проверить и подготовить доступ", exact: true }).click();
     let message;
     for (let attempt = 0; attempt < 120 && !message; attempt++) {
@@ -86,7 +86,7 @@ export async function runStudentInviteProof({ origin, apiUrl, mailpitOrigin, dbU
     // A new context must authenticate using only the student's newly set password.
     await context.clearCookies();
     await login(fixture.studentEmail, fixture.studentPassword, "/portal");
-    await page.goto(`${origin}/v3/main`);
+    await page.goto(`${origin}/main`);
     await page.waitForURL(`${origin}/portal`);
     await context.clearCookies();
     await page.goto(inviteUrl.href);

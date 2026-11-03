@@ -74,7 +74,7 @@ module.exports = function register({ flow: addFlow, sheet }) {
     await page.mouse.click(20, 450);
     await page.waitForTimeout(300);
     asked.accept = false;
-    env.report("deletion d1280: «да» closes the panel and returns to the queue address", (await sheet(page).count()) === 0 && (await pushes(page)).at(-1) === "/v3/settings?section=deletion", await pushes(page));
+    env.report("deletion d1280: «да» closes the panel and returns to the queue address", (await sheet(page).count()) === 0 && (await pushes(page)).at(-1) === "/settings?section=deletion", await pushes(page));
     await context.close();
   });
   flow("click-outside-deletion-automatic d1280", async (env) => {

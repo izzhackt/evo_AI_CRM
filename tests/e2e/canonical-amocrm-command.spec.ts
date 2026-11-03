@@ -196,7 +196,7 @@ test("Admissions amoCRM commands stay visibly disabled when the selected server 
   await signInAs(page, "admissions");
   await expectBlockedPanel(page, {
     // Э8.3: передача и команда amoCRM — панель «Служебные сведения» («⋯» листа); якорь открывает её.
-    route: `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
+    route: `/profile?case=${studentCaseId}&tab=contract#money-service`,
     scope: "admissions",
     targetField: "student_case_id",
     targetId: studentCaseId,
@@ -222,7 +222,7 @@ test("Sales and Admin see the canonical Sales amoCRM command in the selected V3 
       role === "admin" ? "admin" : "staff",
     );
     await expectBlockedPanel(page, {
-      route: `/v3/inbox?conversation=${conversationId}`,
+      route: `/inbox?conversation=${conversationId}`,
       scope: "sales",
       targetField: "lead_id",
       targetId: leadId,
@@ -248,7 +248,7 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
     );
     await expectBlockedPanel(page, {
       // Э8.3: передача и команда amoCRM — панель «Служебные сведения» («⋯» листа); якорь открывает её.
-      route: `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
+      route: `/profile?case=${studentCaseId}&tab=contract#money-service`,
       scope: "admissions",
       targetField: "student_case_id",
       targetId: studentCaseId,
@@ -273,7 +273,7 @@ test("wrong fixed roles cannot render either owning command surface", async ({
 
   await signInAs(page, "admissions");
   const response = await page.goto(
-    `/v3/inbox?conversation=${conversationId}`,
+    `/inbox?conversation=${conversationId}`,
   );
   expect(response?.status()).toBe(404);
   await expect(page.getByTestId("v3-inbox")).toHaveCount(0);
@@ -282,7 +282,7 @@ test("wrong fixed roles cannot render either owning command surface", async ({
   );
 
   await signInAs(page, "sales");
-  await page.goto(`/v3/profile?case=${studentCaseId}&tab=contract`);
+  await page.goto(`/profile?case=${studentCaseId}&tab=contract`);
   await expect(
     page.getByTestId("v3-profile"),
   ).toHaveCount(0);
@@ -304,7 +304,7 @@ test("a prior Sales unknown survives Admin override handoff into active Admissio
   await signInAs(page, "admissions");
   const panel = await expectBlockedPanel(page, {
     // Э8.3: передача и команда amoCRM — панель «Служебные сведения» («⋯» листа); якорь открывает её.
-    route: `/v3/profile?case=${studentCaseId}&tab=contract#money-service`,
+    route: `/profile?case=${studentCaseId}&tab=contract#money-service`,
     scope: "admissions",
     targetField: "student_case_id",
     targetId: studentCaseId,

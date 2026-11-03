@@ -18,7 +18,7 @@ test("chat actions parse the exact staff intent and act for the actor's organiza
   assert.match(source, /parsePlatformWhatsAppChatSendInput\(input\)/u);
   assert.match(source, /parsePlatformWhatsAppChatReconcileInput\(input\)/u);
   assert.equal(
-    source.match(/requirePlatformMutationCapability\("messaging\.send", "\/v3\/inbox"\)/gu)?.length,
+    source.match(/requirePlatformMutationCapability\("messaging\.send", "\/inbox"\)/gu)?.length,
     2,
     "both actions: send capability, never in a role preview",
   );
@@ -86,6 +86,6 @@ test("reconciliation is send-free and names the exact attempt; neither action re
   assert.match(source, /attemptId: parsed\.attemptId/u);
   assert.doesNotMatch(source, /sendText|broadcast|autonomous/iu);
   assert.doesNotMatch(source, /revalidatePath/u);
-  const chat = readFileSync(new URL("../src/components/v3/inbox/InboxChat.tsx", import.meta.url), "utf8");
+  const chat = readFileSync(new URL("../src/components/staff/inbox/InboxChat.tsx", import.meta.url), "utf8");
   assert.match(chat, /startTransition\(\(\) => router\.refresh\(\)\)/u);
 });

@@ -148,7 +148,7 @@ async function submitLogin(page: Page, kind: "admin" | "student") {
     .locator('form[aria-labelledby="login-title"] button[type="submit"]')
     .click();
   await expect(page).toHaveURL(
-    kind === "student" ? /\/portal$/ : /\/v3\/main$/,
+    kind === "student" ? /\/portal$/ : /\/main$/,
   );
   await expect(
     page.getByTestId(
@@ -423,7 +423,7 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
   await expect(page.getByTestId("student-portal-shell")).toHaveCount(0);
 
   await submitLogin(page, "student");
-  await page.goto("/v3/main");
+  await page.goto("/main");
   await expect(page).toHaveURL(/\/portal$/);
   await expect(page.getByTestId("v3-shell")).toHaveCount(0);
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
@@ -438,7 +438,7 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
 
   await submitLogin(page, "admin");
   await page.goto("/portal");
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
   await expect(page.getByTestId("student-portal-shell")).toHaveCount(0);
   await expect(page.getByTestId("v3-shell")).toBeVisible();
 
@@ -817,7 +817,7 @@ test("mobile document review and curator replies persist through real Auth and d
     await page.goto("/portal/documents");
 
     await submitLogin(adminPage, "admin");
-    const profileResponse = await adminPage.goto(`/v3/profile?case=${caseId}&tab=documents`);
+    const profileResponse = await adminPage.goto(`/profile?case=${caseId}&tab=documents`);
     expect(profileResponse?.status(), "The synthetic active case (handoff_at set, no Sales handoff row) must render the real staff document route").toBe(200);
     const item = adminPage.getByTestId("v3-document-item").filter({ hasText: label });
     await expect(item).toBeVisible();

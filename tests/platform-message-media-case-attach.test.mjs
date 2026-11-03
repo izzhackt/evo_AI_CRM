@@ -709,7 +709,7 @@ test("the Server Action exact case and canonical writable slot reach reserve RPC
     actor: actionHarness.actor,
     input: INPUT,
   });
-  assert.deepEqual(actionHarness.revalidated, ["/v3/inbox", "/v3/profile"]);
+  assert.deepEqual(actionHarness.revalidated, ["/inbox", "/profile"]);
 });
 
 test("the exported orchestration completes the exact clean standard-upload chain", async () => {

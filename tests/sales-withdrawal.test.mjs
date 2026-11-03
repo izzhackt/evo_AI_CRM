@@ -22,7 +22,7 @@ import { salesWithdrawalChoice, salesWithdrawalMessage, salesWithdrawalSaved, sa
  * «Убрать» продажу с отметкой отказа (слова владельца 18.10, миграция 307). Чистая логика и
  * разбор ответов проверяются напрямую, разметка — статическим рендером
  * `tests/e2e/numbers-static-render.cjs --json-307` на синтетических данных, контраст — расчётом
- * по токенам `v3.css`. Это не живая проверка прав и данных: их проверяют SQL-набор
+ * по токенам `staff.css`. Это не живая проверка прав и данных: их проверяют SQL-набор
  * `supabase/tests/platform_sales_report_withdrawal.sql` и сквозной прогон на локальном Supabase.
  */
 
@@ -157,7 +157,7 @@ test("the read, the command and the actions use cookie authority and the migrati
   assert.match(action, /p_expected_version: version/u);
   assert.match(action, /parseSalesWithdrawalReceipt\(data/u);
   assert.match(action, /error\.code === "PT409"\) return outcome\("stale"\)/u);
-  assert.match(action, /revalidatePath\("\/v3\/main"\)/u);
+  assert.match(action, /revalidatePath\("\/main"\)/u);
   assert.doesNotMatch(source + action, /createSupabaseAdmin|SERVICE_ROLE|SECRET_KEY|\.from\(/u);
   // Service-only functions are not reachable from the application at all.
   for (const name of ["mark_sales_report_row_withdrawn_v1", "archive_sales_report_row_v1", "create_sales_report_student_case_v1"]) {
@@ -166,7 +166,7 @@ test("the read, the command and the actions use cookie authority and the migrati
 });
 
 test("the control is a form with a real action: radios, a note up to 500, the return is one press", () => {
-  const control = read("src/components/v3/SalesWithdrawal.tsx");
+  const control = read("src/components/staff/SalesWithdrawal.tsx");
   assert.match(control, /useActionState<SalesWithdrawalActionState, FormData>\(setSalesRegisterWithdrawalAction/u);
   assert.match(control, /name="expected_version" value=\{record\.version\}/u);
   assert.match(control, /name="request_id" value=\{state\.requestId\}/u);
@@ -188,7 +188,7 @@ test("the control is a form with a real action: radios, a note up to 500, the re
 
 // -------------------------------------------------------------------------- токены: контраст
 
-const css = read("src/app/(v3)/v3.css");
+const css = read("src/app/(staff)/staff.css");
 const token = (name) => {
   const match = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`, "u").exec(css);
   assert.ok(match, `${name} is defined`);

@@ -413,7 +413,7 @@ export function aiAgentHref(section: AiAgentSection, params: Readonly<Record<str
   if (section !== "documents") query.set("section", section);
   for (const [key, value] of Object.entries(params)) if (value !== null && value !== undefined && value !== "") query.set(key, String(value));
   const search = query.toString();
-  return search ? `/v3/ai-agent?${search}` : "/v3/ai-agent";
+  return search ? `/ai-agent?${search}` : "/ai-agent";
 }
 
 /** «Открытые» — открытые и применяемые (`pending` в 272), «Решённые», «Оставлены как есть». */

@@ -60,7 +60,7 @@ test("a packet fixes approved verified private versions and requires write autho
   assert.doesNotMatch(prepare, /UPDATE platform\.(university_applications|document_versions)|packageSentOn|universitySubmittedOn/u);
   assert.match(sql, /BEFORE UPDATE OR DELETE ON platform_private\.partner_packets/u);
   assert.match(sql, /BEFORE TRUNCATE ON platform_private\.partner_packets/u);
-  assert.match(source("src/components/v3/profile/CaseOperationsForms.tsx"), /\/api\/v2\/document-versions\/\$\{file\.versionId\}\/download/u);
+  assert.match(source("src/components/staff/profile/CaseOperationsForms.tsx"), /\/api\/v2\/document-versions\/\$\{file\.versionId\}\/download/u);
 });
 
 test("Student help binds the exact accessible portal case and preserves private assessments", () => {
@@ -84,7 +84,7 @@ test("case-help notifications contain identifiers only and check current case ac
 });
 
 test("uncertain command retries preserve the original payload and do not silently reset", () => {
-  const form = source("src/components/v3/profile/CaseOperationsForms.tsx");
+  const form = source("src/components/staff/profile/CaseOperationsForms.tsx");
   assert.match(form, /const payload = frozen\.current \?\? input; frozen\.current = payload/u);
   assert.match(form, /response\.code !== "unavailable"/u);
   assert.match(form, /visible\.code === "unavailable"\) return/u);
@@ -95,11 +95,11 @@ test("uncertain command retries preserve the original payload and do not silentl
 });
 
 test("case navigation remounts scoped drafts without resetting same-case retries", () => {
-  const page = source("src/app/(v3)/v3/profile/page.tsx");
+  const page = source("src/app/(staff)/profile/page.tsx");
   const key = page.slice(page.indexOf("<Profile\n"), page.indexOf("profile={view.profile}"));
   for (const identity of ["actor.organizationId", "actor.authUserId", "actor.systemRole", "actor.presentationRole", "routeTarget.studentCaseId", "routeTarget.leadId"]) assert.ok(key.includes(identity));
   assert.doesNotMatch(key, /randomUUID|requestId/u);
-  assert.match(source("src/components/v3/profile/CaseHelpWorkspace.tsx"), /<CaseHelpPanel key=/u);
+  assert.match(source("src/components/staff/profile/CaseHelpWorkspace.tsx"), /<CaseHelpPanel key=/u);
 });
 
 test("Student next action reuses canonical finance without adding payment writes", () => {
@@ -124,9 +124,9 @@ function compile(path, resolve = require) {
   new Function("require", "module", "exports", code)(resolve, compiledModule, compiledModule.exports);
   return compiledModule.exports;
 }
-const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+const disclosure = compile("src/components/staff/settings/StaffDisclosure.tsx");
 // Э8.2: подтверждения пакетов партнёру и кнопки анкеты — общие кнопки очереди `QUEUE_CONFIRM` и `QUEUE_SECONDARY`.
-const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
+const queueButtons = compile("src/components/staff/queue/queue-buttons.ts");
 const common = id => {
   if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/v3/wording") return wording;
@@ -134,13 +134,13 @@ const common = id => {
   if (id === "next/navigation") return { useRouter: () => ({ refresh: noCommand }) };
   return require(id);
 };
-const universityPanel = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", common);
-const historyUI = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
+const universityPanel = compile("src/components/staff/profile/UniversityFormExportPanel.tsx", common);
+const historyUI = compile("src/components/staff/profile/StudentProfileExportHistory.tsx", id => {
   if (id === "../settings/StaffDisclosure") return disclosure;
   if (id === "./UniversityFormExportPanel") return universityPanel;
   return common(id);
 });
-const ui = compile("src/components/v3/profile/CaseOperationsForms.tsx", id => id === "./StudentProfileExportHistory" ? historyUI : common(id));
+const ui = compile("src/components/staff/profile/CaseOperationsForms.tsx", id => id === "./StudentProfileExportHistory" ? historyUI : common(id));
 const words = wording.partnerPacketExport;
 const CASE = "64016900-0000-4000-8000-000000000001";
 const APP = "64016900-0000-4000-8000-000000000002";
@@ -161,7 +161,7 @@ test("packet UI preserves one existing surface, clear 50 MiB cap and legacy read
   assert.match(html, /href="\/api\/v2\/document-versions\/original-1\/download"/u);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить финальный ZIP/u);
   assert.doesNotMatch(html, /260|localStorage|profile_revision|expected_workspace_revision|Зафиксированный состав/u);
-  assert.match(source("src/components/v3/profile/PartnerPacketsPanel.tsx"), /<PartnerPacketWorkspace key=\{caseId\}/u);
+  assert.match(source("src/components/staff/profile/PartnerPacketsPanel.tsx"), /<PartnerPacketWorkspace key=\{caseId\}/u);
 });
 
 test("original-only and generated-only preparation render without a profile or a second editor", () => {
@@ -256,7 +256,7 @@ test("actual common history renders original-only ZIP receipt with null profile 
 });
 
 test("package commands retain exact intent, serialize busy work and ignore superseded reads", () => {
-  const form = source("src/components/v3/profile/CaseOperationsForms.tsx");
+  const form = source("src/components/staff/profile/CaseOperationsForms.tsx");
   for (const boundary of ["versionIds, exportIds, expectedRevision: workspace.workspaceRevision", "expected_workspace_revision: packet.revision",
     "setUnresolved({ caseId, command })", "execute(unresolved.command)", "unresolved.caseId === caseId", "if (!result.uncertain) setUnresolved(null)",
     "controller.signal.aborted || epoch !== readEpoch.current || !mounted.current", "result.workspace?.student_case_id === caseId",
@@ -269,7 +269,7 @@ test("package commands retain exact intent, serialize busy work and ignore super
 }
 
 test("packets: the ZIP history refresh appears after a failed read and when a reply asks to refresh the data", () => {
-  const form = readFileSync(new URL("../src/components/v3/profile/CaseOperationsForms.tsx", import.meta.url), "utf8");
+  const form = readFileSync(new URL("../src/components/staff/profile/CaseOperationsForms.tsx", import.meta.url), "utf8");
   assert.match(form, /STALE_STATUSES: readonly string\[\] = \["source_changed", "package_not_ready", "invalid_request"\]/u);
   assert.match(form, /\{readFailed \|\| stale \? <button[\s\S]*?\}\}>\{readFailed \? words\.retryRead : words\.refresh\}<\/button> : null\}/u);
   for (const code of ["source_changed", "package_not_ready", "invalid_request"]) assert.match(wording.partnerPacketExport.errors[code], /[Оо]бновите/u, code);

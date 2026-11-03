@@ -1,8 +1,8 @@
 // Expectations for the isolated migration155 onboarding fixture, not product roles.
 export const STAFF_BASELINE_HOME = {
-  admin: "/v3/main",
-  sales: "/v3/main",
-  admissions: "/v3/main",
+  admin: "/main",
+  sales: "/main",
+  admissions: "/main",
 } as const;
 
 export const STAFF_BASELINE_CARDS = {

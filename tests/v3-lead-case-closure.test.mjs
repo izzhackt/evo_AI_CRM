@@ -266,39 +266,39 @@ test("Student 360 and Lead 360: the closed line, and the lead view keeps its ove
   assert.match(closed, /Что дальше Собрать апостиль на аттестат 20\.09 Дело закрыто: шаг не меняется\./u);
   assert.match(texts(surfaces.get("closed")), /Состояние Дело закрыто/u, "without the closure read the fact stays as before");
   // Закрытый лид: без красной ссылки и сырого text-sm; почему нет контактов — одной тихой строкой.
-  assert.match(read("src/components/v3/profile/next/tabs/ClosedLeadNext.tsx"), /closureWords\.lead\.detailsAfterReopen : closureWords\.lead\.detailsOpenOnly/u);
+  assert.match(read("src/components/staff/profile/next/tabs/ClosedLeadNext.tsx"), /closureWords\.lead\.detailsAfterReopen : closureWords\.lead\.detailsOpenOnly/u);
   assert.equal(closureWords.lead.detailsAfterReopen, "Контакты и история вернутся после «Вернуть в работу».");
 });
 
 test("pages wire the reads, the hints and the preview rule", () => {
-  const profile = read("src/app/(v3)/v3/profile/page.tsx");
+  const profile = read("src/app/(staff)/profile/page.tsx");
   assert.match(profile, /readCaseClosure\(actor, caseTarget\.studentCaseId\)\.catch\(\(\) => null\)/u);
   assert.match(profile, /params\.open \? readCaseClosure\(actor, params\.open\)\.catch\(\(\) => null\)/u);
   assert.match(profile, /closure && isStaffPreview\(actor\) \? \{ \.\.\.closure, canChange: false \} : closure/u);
   assert.match(profile, /staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/u);
   // «⋯» Lead 360 (Э4) — в действиях у заголовка, собранных `leadWorkParts`: то же право и та же причина.
-  const leadParts = read("src/components/v3/profile/LeadWorkParts.tsx");
+  const leadParts = read("src/components/staff/profile/LeadWorkParts.tsx");
   assert.match(leadParts, /const closable = !preview && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\);/u);
   // Переданный лид закрыть нельзя: «⋯» с одним недоступным пунктом не рисуется (этап «Переданы» уже говорит об этом).
   assert.match(leadParts, /\{closable && !sales\.handoff\.handedOffAt \? \(\s*<LeadMoreMenu/u);
   assert.match(profile, /readClosedLeads\(actor, \{ leadId: explicitTarget\.leadId, limit: 1 \}\)/u);
-  const pipeline = read("src/components/v3/Pipeline.tsx");
+  const pipeline = read("src/components/staff/Pipeline.tsx");
   assert.match(pipeline, /blockedReason=\{terminal \? closureWords\.lead\.handedOff : null\}/u);
   const actions = read("src/lib/platform-closure-actions.ts");
   assert.match(actions, /if \(isStaffPreview\(actor\)\) return refusal\("lead", closed, "preview", requestId\);/u);
   assert.match(actions, /if \(isStaffPreview\(actor\)\) return refusal\("case", closed, "preview", requestId\);/u);
-  assert.equal(parsePipelineReturnTo("/v3/pipeline?view=closed"), "/v3/pipeline?view=closed");
-  assert.equal(parsePipelineReturnTo("/v3/pipeline?view=open"), null);
+  assert.equal(parsePipelineReturnTo("/pipeline?view=closed"), "/pipeline?view=closed");
+  assert.equal(parsePipelineReturnTo("/pipeline?view=open"), null);
   // Закрытый лид: возврат над заголовком (PartShell back), «К закрытым лидам», если пришли из списка.
-  assert.equal(isClosedLeadsReturn("/v3/pipeline?view=closed"), true);
-  assert.equal(isClosedLeadsReturn("/v3/pipeline?stage=new"), false);
+  assert.equal(isClosedLeadsReturn("/pipeline?view=closed"), true);
+  assert.equal(isClosedLeadsReturn("/pipeline?stage=new"), false);
   assert.match(profile, /pipelineReturnTo && isClosedLeadsReturn\(pipelineReturnTo\) \? closureWords\.lead\.backToClosed/u);
   assert.match(profile, /back=\{caseBack \?\? leadBack \?\? closedLeadBack\}/u);
   assert.match(profile, /: closedLead \? closedLead\.name \?\? "Лид без имени"/u);
   // Окно «Завершить дело» получает число открытых задач, прочитанное «Обзором» и панелью
   // (Student 360, Э4: «⋯» дела собирает `caseWorkParts`).
-  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /openTasks=\{work\.tasks\.kind === "ready" \? work\.tasks\.tasks\.length : null\}/u);
-  assert.match(read("src/components/v3/students/StudentQuickView.tsx"), /openTasks=\{tasks\?\.kind === "ready" \? tasks\.tasks\.length : null\}/u);
+  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /openTasks=\{work\.tasks\.kind === "ready" \? work\.tasks\.tasks\.length : null\}/u);
+  assert.match(read("src/components/staff/students/StudentQuickView.tsx"), /openTasks=\{tasks\?\.kind === "ready" \? tasks\.tasks\.length : null\}/u);
   // Строка доски после закрытия скрывается настоящей кнопкой 44 px; итог возврата — её же строка.
   assert.match(pipeline, /<button type="button" onClick=\{dismissNotice\} aria-label=\{closureWords\.dismiss\}/u);
   assert.match(pipeline, /className="flex size-11 shrink-0 items-center justify-center rounded-nav/u);

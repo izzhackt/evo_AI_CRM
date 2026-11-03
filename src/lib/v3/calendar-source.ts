@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { CalendarCaseOption, CalendarCaseTask, CalendarTask, Day } from "@/components/v3/calendar/types";
+import type { CalendarCaseOption, CalendarCaseTask, CalendarTask, Day } from "@/components/staff/calendar/types";
 import { getPlatformAdmissionsTaskTarget } from "@/lib/platform-admissions-workspace";
 import { listPlatformStudentCases } from "@/lib/platform-admissions";
 import type { ActivePlatformActor } from "@/lib/platform-auth";

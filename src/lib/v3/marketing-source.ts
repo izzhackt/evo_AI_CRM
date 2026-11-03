@@ -22,7 +22,7 @@ export class MarketingForbiddenError extends Error {
  * но режим просмотра для базы неотличим от admin, поэтому его отказ — условие маршрута и действий.
  */
 export function canUseMarketing(actor: ActivePlatformActor): boolean {
-  return staffCanAccessRoute(actor, "/v3/marketing");
+  return staffCanAccessRoute(actor, "/marketing");
 }
 export function requireMarketingAdmin(actor: ActivePlatformActor): void {
   if (!canUseMarketing(actor)) throw new MarketingForbiddenError();

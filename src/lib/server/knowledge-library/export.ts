@@ -73,7 +73,7 @@ function portableMarkdown(body: string, filePath: string, paths: Map<string, str
     let url: URL;
     try { url = new URL(link, "https://crm.evoadmissions.com"); } catch { return link; }
     if (url.origin !== "https://crm.evoadmissions.com") return link;
-    const id = url.pathname.startsWith("/api/v3/knowledge/download/") ? url.pathname.split("/").at(-1)! : /^\/api\/v2\/document-versions\/[0-9a-f-]+\/download$/.test(url.pathname) ? url.pathname.split("/")[4] : url.pathname === "/v3/knowledge" ? url.searchParams.get("item") : null;
+    const id = url.pathname.startsWith("/api/v3/knowledge/download/") ? url.pathname.split("/").at(-1)! : /^\/api\/v2\/document-versions\/[0-9a-f-]+\/download$/.test(url.pathname) ? url.pathname.split("/")[4] : url.pathname === "/knowledge" ? url.searchParams.get("item") : null;
     if (!id || !included.has(id) || !paths.has(id)) return link;
     const target = url.searchParams.get("original") === "1" ? originals.get(id) : paths.get(id);
     if (!target) return link;

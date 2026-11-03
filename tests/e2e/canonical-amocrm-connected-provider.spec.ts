@@ -190,7 +190,7 @@ async function submitAdminGate(page: Page) {
     .locator("#staff-password")
     .fill(requireEnv("EVO_STAFF_AUTH_ADMIN_PASSWORD"));
   await page.getByRole("button", { name: "Войти в CRM" }).click();
-  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expect(page).toHaveURL(/\/main$/);
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
@@ -853,7 +853,7 @@ test("disabled provider authority fails clearly in the real browser before any p
   );
 
   await submitAdminGate(page);
-  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await page.goto(`/inbox?conversation=${conversationId}`);
   await expect(page.getByTestId("v3-inbox")).toBeVisible();
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
@@ -961,7 +961,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
   );
 
   await submitAdminGate(page);
-  await page.goto(`/v3/inbox?conversation=${conversationId}`);
+  await page.goto(`/inbox?conversation=${conversationId}`);
   await expect(page.getByTestId("v3-inbox")).toBeVisible();
   const panel = page.getByTestId("canonical-amocrm-command-panel");
   await expect(panel).toBeVisible();
@@ -1040,7 +1040,7 @@ test("one explicit Admin browser sync persists and reads back the real amoCRM re
     const url = new URL(response.url());
     return (
       response.request().method() === "POST" &&
-      url.pathname === "/v3/inbox" &&
+      url.pathname === "/inbox" &&
       url.searchParams.get("conversation") === conversationId
     );
   });

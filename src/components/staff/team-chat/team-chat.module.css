@@ -1,0 +1,156 @@
+.workspace { display: flex; flex: 1; min-height: 0; height: 100%; background: var(--surface); color: var(--text); }
+.workspace *, .workspace *::before, .workspace *::after { box-sizing: border-box; }
+.workspace button, .workspace a, .workspace summary, .workspace input { min-height: 44px; }
+.workspace button, .workspace a, .workspace summary { cursor: pointer; }
+.workspace button:disabled { cursor: wait; background: var(--bg); color: var(--text-3); }
+.workspace :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+/* Абсолютные подписи для читалки (`.srOnly`) остаются внутри своей прокрутки:
+   без `position` они считались от окна и растягивали страницу по высоте. */
+.channels { position: relative; flex: 0 0 288px; min-width: 0; overflow-y: auto; padding: var(--shell-page-top) 12px 22px; border-right: 1px solid var(--border); }
+/* Размер, вес и разрядку заголовка задаёт роль t-page-title из staff.css; верх
+   заголовка — на `--shell-page-top`, как у других страниц. */
+.channelTitle { margin: 0 8px 22px; }
+/* «Новый вид»: заголовок страницы стоит над рамкой чата, поэтому список каналов начинается без отступа под него. */
+.workspace[data-frame="card"] .channels { padding-top: 12px; }
+.channelFeedback { display: none; }
+/* Выбранный канал — общий вид «выбрано» (`v3-choice` + aria-current). */
+.channel { display: flex; align-items: center; gap: 12px; min-height: 78px; border-radius: 10px; padding: 12px; margin: 4px 0; color: var(--text); text-decoration: none; }
+.channel:hover { background: var(--bg); }
+/* Знак канала и инициалы автора — нейтральные круги (знаки отделов меню, без цвета). */
+.channelAvatar, .authorAvatar { display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; background: var(--surface-2); color: var(--text-2); }
+.channelCopy { flex: 1; min-width: 0; }
+.channelHeading { display: flex; align-items: baseline; gap: 8px; }
+.channelName { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-item); line-height: var(--type-item-leading); font-weight: 600; }
+.channelTime { flex-shrink: 0; white-space: nowrap; font-size: var(--type-meta); line-height: var(--type-meta-leading); font-weight: 400; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.channelSummary { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.channelPreview { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-meta); line-height: var(--type-meta-leading); font-weight: 400; color: var(--text-3); }
+.conversation { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.conversationHeader { display: flex; flex-shrink: 0; align-items: center; gap: 14px; min-height: 78px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
+.conversationHeader h2 { font-size: var(--type-section); line-height: var(--type-section-leading); margin: 0; font-weight: 600; }
+.conversationHeader > :last-child { margin-left: auto; }
+.iconButton { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; border: none; border-radius: 8px; background: transparent; color: var(--text-2); }
+.iconButton:hover { background: var(--bg); }
+.transport { display: flex; align-items: center; flex-wrap: wrap; padding: 0 20px; gap: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); color: var(--text-3); }
+.search { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 20px 12px; border-bottom: 1px solid var(--border); }
+.search input { flex: 1 1 140px; min-width: 0; }
+/* Поля — 16 px (t-body): на iPhone поле мельче 16 px увеличивает страницу при фокусе. */
+.workspace input:not([type=checkbox]):not([type=hidden]), .workspace textarea { border: 1px solid var(--control-edge); border-radius: 8px; padding: 10px 12px; color: var(--text); background: var(--surface); font: inherit; font-size: var(--type-body); line-height: var(--type-body-leading); }
+.history { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; overflow-anchor: none; padding: 18px 28px; scrollbar-gutter: stable; background: var(--bg); }
+.dateDivider { display: flex; justify-content: center; margin: 4px 0 18px; }
+.dateDivider span { padding: 5px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); color: var(--text-3); font-size: var(--type-meta); line-height: var(--type-meta-leading); }
+.message { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0 12px; scroll-margin: 16px; }
+.continuation { padding-top: 2px; padding-bottom: 6px; }
+.continuationAvatar { visibility: hidden; }
+.continuation .bubble { margin-top: 2px; padding-block: 8px; }
+.messageContent { min-width: 0; max-width: min(680px, 85%); }
+/* Инициалы — роль t-caption (12 px) в нейтральном круге. */
+.authorAvatar { flex-basis: 32px; width: 32px; height: 32px; }
+.ownMessage { justify-content: flex-end; }
+.ownMessage .messageHeader, .ownMessage .messageActions { justify-content: flex-end; }
+/* Пузырь — как в «Переписке»: скругление контрола, текст t-body-compact, автор и
+   время — t-meta. Чужое — белый лист с волосяной рамкой на столе ленты, своё —
+   нейтральное «выбрано» (`--accent-weak`), без красного. */
+.bubble { margin-top: 4px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.ownMessage .bubble { border-color: transparent; background: var(--accent-weak); }
+.compactDeleted { padding-block: 4px; }
+.compactDeleted .bubble { margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.compactDeleted .bubble > p { margin: 0; }
+/* Подсветка сообщения по ссылке и из поиска — кольцо фокуса, не красный; кольцо
+   не заходит на строку автора (t-meta): отступ 2 px не больше отступа пузыря 4 px. */
+.highlighted .bubble { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; color: var(--text-2); }
+.messageHeader strong { font-weight: 600; }
+.messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); }
+.messageMetadata time { white-space: nowrap; }
+.messageFooter > button, .messageFooter > .messageMenu { flex-shrink: 0; }
+/* Время и действия — строкой внутри пузыря: время слева, «Ответить» и «⋯» справа. Цели остаются 44 px, а
+   строка от них не растёт (отрицательный отступ), поэтому сообщение занимает на ~35 px меньше. Мышью
+   действия проявляются при наведении и фокусе, на сенсорном экране видны всегда. */
+.bubble .messageFooter { justify-content: flex-end; gap: 0 8px; margin-top: 2px; }
+.bubble .messageMetadata { margin-inline-end: auto; }
+.bubble .messageFooter > button, .bubble .messageFooter .messageMenu summary { margin-block: -14px; }
+.bubble .messageFooter > .messageMenu[open] summary { margin-block: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .bubble .messageFooter > button, .bubble .messageFooter > .messageMenu { opacity: 0; }
+  .message:hover .messageFooter > button, .message:hover .messageFooter > .messageMenu,
+  .message:focus-within .messageFooter > button, .message:focus-within .messageFooter > .messageMenu,
+  .messageFooter > .messageMenu[open] { opacity: 1; }
+}
+.body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.messageActions, .readActions { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.readActions { padding: 0 20px; background: var(--bg); }
+.readActions:empty { display: none; }
+.textButton { border: none; background: transparent; color: var(--text-2); display: inline-flex; gap: 6px; align-items: center; justify-content: center; text-align: left; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); padding: 8px 4px; text-decoration: none; border-radius: 6px; }
+.textButton:hover { color: var(--accent-text); background: var(--bg); }
+.messageMenu summary { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; border-radius: 6px; color: var(--text-3); list-style: none; }
+.messageMenu summary::-webkit-details-marker { display: none; }
+.messageMenu summary:hover { background: var(--surface); }
+.messageMenu[open] { flex-basis: 100%; }
+.menuItems { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; border-radius: 8px; background: var(--surface); }
+.secondary { display: inline-flex; justify-content: center; align-items: center; border-radius: 8px; padding: 10px 14px; font-size: var(--type-label); line-height: var(--type-label-leading); text-decoration: none; text-align: center; background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.secondary:hover { background: var(--bg); }
+.composer { flex-shrink: 0; padding: 12px 24px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+/* Цитата — кнопка «Перейти к сообщению»: свой белый лист и край контрола
+   (≥3:1) и в чужом, и в своём пузыре. */
+.quote { display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--control-edge); border-radius: 8px; background: var(--surface); color: var(--text-2); font: inherit; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); text-align: left; overflow-wrap: anywhere; }
+.quote:hover { border-color: var(--accent-text); }
+.quote span, .composerQuote p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.composerQuote { display: flex; align-items: flex-start; gap: 8px; padding-bottom: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); color: var(--text-2); }
+.composerQuote > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.composerQuote p { margin: 4px 0 0; }
+.drafts { margin-bottom: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); }
+.drafts summary { display: flex; align-items: center; color: var(--text-2); }
+.drafts[open] { max-height: 180px; overflow-y: auto; }
+.drafts button { overflow-wrap: anywhere; max-width: 100%; }
+.draftPreview { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow-y: auto; color: var(--text-2); }
+.searchResult { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.searchResult > strong { display: block; margin-bottom: 6px; font-size: var(--type-item); line-height: var(--type-item-leading); font-weight: 600; }
+/* Найденное — нейтральная подложка «выбрано», не красная. */
+.searchResult mark { background: var(--accent-weak); color: var(--text); }
+.composer [aria-live]:empty { display: none; }
+.composerInput { display: flex; gap: 8px; align-items: center; min-height: 66px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; }
+.workspace .composer textarea { display: block; flex: 1; order: 2; width: 100%; min-width: 0; min-height: 44px; max-height: 160px; padding: 10px 4px; border: none; resize: none; overflow-y: auto; line-height: 1.5; background: transparent; }
+/* «Отправить» — единственная сплошная красная кнопка страницы. */
+.sendButton { order: 3; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.sendButton:hover:not(:disabled) { background: var(--accent-text); }
+.composer > [aria-live]:empty { display: none; }
+.label { display: block; margin-bottom: 8px; font-size: var(--type-label); line-height: var(--type-label-leading); font-weight: 500; color: var(--text-2); }
+.label input { display: block; width: 100%; margin-top: 6px; }
+/* Уведомления, вопросы и пояснения к восстановлению — не мельче 14 px;
+   внутри строки метаданных пометка «изменено» остаётся её размера. */
+.muted { color: var(--text-3); font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); }
+.messageMetadata .muted { font-size: inherit; line-height: inherit; }
+.mentions { position: relative; order: 1; flex: 0 0 44px; }
+.mentions summary { display: flex; align-items: center; justify-content: center; height: 44px; width: 44px; font-size: 27px; list-style: none; color: var(--text-2); border-radius: 8px; }
+.mentions summary::-webkit-details-marker { display: none; }
+.mentions summary:hover { background: var(--bg); }
+.mentions summary small { font-size: var(--type-meta); color: var(--accent-text); }
+.mentionOptions { position: absolute; z-index: 10; bottom: calc(100% + 12px); left: 0; width: min(280px, calc(100vw - 64px)); max-height: min(240px, 40dvh); overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 24px #00000012; }
+.mentionOptions label { display: flex; gap: 8px; align-items: center; min-height: 44px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); }
+.mentionOptions input { width: 18px; height: 18px; min-height: 18px; accent-color: var(--text); }
+.mentionNames { font-size: var(--type-meta); line-height: var(--type-meta-leading); color: var(--accent-text); margin: 8px 0 0; }
+.error { color: var(--danger); font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); padding: 8px 12px; overflow-wrap: anywhere; }
+.empty { color: var(--text-3); font-size: var(--type-body); line-height: var(--type-body-leading); padding: 32px 8px; }
+.confirmation { background: var(--bg); padding: 12px; border-radius: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); }
+.mobileBack { display: none; margin-inline-start: -8px; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 800px) {
+  .workspace { height: 100%; min-height: 0; }
+  .workspace[data-panel=channels] .conversation, .workspace[data-panel=messages] .channels { display: none; }
+  .channels { flex: 1; border: none; }
+  .channelFeedback { display: block; margin-bottom: 12px; }
+  .mobileBack { display: inline-flex; }
+  .conversationHeader, .composer { padding: 12px; }
+  .conversationHeader { min-height: 68px; gap: 8px; }
+  .conversationHeader .channelAvatar { display: none; }
+  .message { gap: 8px; }
+  .messageContent { max-width: 90%; }
+  .authorAvatar { flex-basis: 30px; width: 30px; height: 30px; }
+  .composerInput { gap: 4px; padding: 4px; }
+  .search { padding: 8px 12px; }
+  .history { padding: 12px; }
+  .transport, .readActions { padding: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace *, .workspace *::before, .workspace *::after { scroll-behavior: auto; transition: none; animation: none; }
+}

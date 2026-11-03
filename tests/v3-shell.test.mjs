@@ -46,7 +46,7 @@ const ACTORS = {
   "team-only": actor({ permissionKeys: ["staff.task.read", "staff.task.create", "team.chat.general"] }),
   "no-rights": actor({}),
 };
-const nav = (who, href = "/v3/main") => {
+const nav = (who, href = "/main") => {
   const url = new URL(href, "https://shell.test");
   return buildV3Navigation(ACTORS[who], url.pathname, url.searchParams);
 };
@@ -76,17 +76,17 @@ test("tab slots per role follow the owner's order: admissions and Admin — Ст
   // taken, so WhatsApp lives in «Ещё», which lights up on its page.
   assert.equal(shellTabs(nav("sales-staff")).kind, "sales");
   for (const who of ["sales-staff", "admin-preview-sales", "admin"]) {
-    const onWhatsApp = shellTabs(nav(who, "/v3/inbox"));
-    assert.equal(nav(who, "/v3/inbox").activeId, "inbox", who);
+    const onWhatsApp = shellTabs(nav(who, "/inbox"));
+    assert.equal(nav(who, "/inbox").activeId, "inbox", who);
     assert.equal(onWhatsApp.currentInMore, true, `${who}: WhatsApp is in «Ещё»`);
   }
   // The student chat highlights its own tab.
-  assert.equal(shellTabs(nav("admissions-staff", "/v3/messages?queue=all")).currentInMore, false);
+  assert.equal(shellTabs(nav("admissions-staff", "/messages?queue=all")).currentInMore, false);
 });
 
 test("tabs come only from the role's visible navigation: never an item it cannot open, never more than four plus «Ещё»", () => {
   for (const who of Object.keys(ACTORS)) {
-    for (const href of ["/v3/main", "/v3/tasks", "/v3/calendar", "/v3/profile?section=docs", "/v3/pipeline"]) {
+    for (const href of ["/main", "/tasks", "/calendar", "/profile?section=docs", "/pipeline"]) {
       const model = nav(who, href);
       const visible = visibleNavigationLinks(model);
       const tabs = shellTabs(model);
@@ -102,13 +102,13 @@ test("tabs come only from the role's visible navigation: never an item it cannot
     }
   }
   // Роль без набора — первые видимые разделы по порядку меню.
-  const team = shellTabs(nav("team-only", "/v3/tasks"));
+  const team = shellTabs(nav("team-only", "/tasks"));
   assert.equal(team.kind, "other");
-  assert.deepEqual(ids(team.links), ids(visibleNavigationLinks(nav("team-only", "/v3/tasks"))).filter((id) => id !== "settings").slice(0, 4));
+  assert.deepEqual(ids(team.links), ids(visibleNavigationLinks(nav("team-only", "/tasks"))).filter((id) => id !== "settings").slice(0, 4));
   assert.deepEqual(ids(shellTabs(nav("no-rights")).links), []);
   // Открытый раздел вне вкладок подсвечивает «Ещё».
-  assert.equal(shellTabs(nav("admin", "/v3/calendar")).currentInMore, true);
-  assert.equal(shellTabs(nav("admin", "/v3/tasks")).currentInMore, false);
+  assert.equal(shellTabs(nav("admin", "/calendar")).currentInMore, true);
+  assert.equal(shellTabs(nav("admin", "/tasks")).currentInMore, false);
 });
 
 test("every menu item has an icon from the existing set", () => {
@@ -122,8 +122,8 @@ test("every menu item has an icon from the existing set", () => {
   }
   // «Сегодня» (Э3) — «солнце»; меню, вкладки и Ctrl+K берут знаки из одной таблицы.
   assert.equal(LINK_ICONS.home, "sun");
-  assert.match(read("src/components/v3/AppShell.tsx"), /<Icon name=\{LINK_ICONS\[link\.id\]\} size=\{20\}/u);
-  assert.match(read("src/components/v3/palette/CommandPalette.tsx"), /icon: LINK_ICONS\[destination\.id as V3NavigationLinkId\]/u);
+  assert.match(read("src/components/staff/AppShell.tsx"), /<Icon name=\{LINK_ICONS\[link\.id\]\} size=\{20\}/u);
+  assert.match(read("src/components/staff/palette/CommandPalette.tsx"), /icon: LINK_ICONS\[destination\.id as V3NavigationLinkId\]/u);
 });
 
 test("icons tell the rail items apart: one glyph per meaning, three conversation items with three glyphs", () => {
@@ -177,7 +177,7 @@ test("menu groups open one at a time, except the group that holds the current pa
   assert.deepEqual(toggleMenuGroup(["admissions"], "sales", ["admissions"]), ["admissions", "sales"], "the current page's group stays open");
   assert.deepEqual(toggleMenuGroup(["admissions", "sales"], "sales", ["admissions"]), ["admissions"], "a second press closes it");
   assert.deepEqual(toggleMenuGroup(["admissions"], "admissions", ["admissions"]), [], "the current group can be closed by hand");
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.match(shell, /useState<readonly V3NavigationGroup\["id"\]\[\]>\(activeGroups\)/u, "starts with the current page's group open");
   assert.match(shell, /onToggle=\{\(\) => setOpenGroups\(\(previous\) => toggleMenuGroup\(previous, group\.id, activeGroups\)\)\}/u);
 });
@@ -251,8 +251,8 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
     const current = [...bar.matchAll(/<a [^>]*aria-current="page"[^>]*data-shell-tab="([^"]+)"/gu)].map((match) => match[1]);
     const inMore = /data-shell-tab="more" data-current-inside=""/u.test(bar);
     assert.ok(current.length + Number(inMore) <= 1, `${name}: one current place`);
-    if (pathname === "/v3/main") assert.deepEqual(current, ["home"], name);
-    if (pathname === "/v3/calendar" && role !== "sales") assert.ok(inMore, `${name}: «Календарь» lives in «Ещё»`);
+    if (pathname === "/main") assert.deepEqual(current, ["home"], name);
+    if (pathname === "/calendar" && role !== "sales") assert.ok(inMore, `${name}: «Календарь» lives in «Ещё»`);
     if (role === "admissions") {
       assert.match(html, /data-testid="preview-active"[\s\S]*Приёмная[\s\S]*data-testid="preview-role-admin"[\s\S]*Выйти из просмотра/u, `${name}: preview exit in the menu`);
       assert.match(html, /Просмотр: Приёмная/u, `${name}: phone top row names the previewed role`);
@@ -261,8 +261,8 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
       assert.doesNotMatch(html, /data-testid="preview-active"/u, name);
       assert.match(html, /aria-label="Уведомления: 3 непрочитанных"/u, `${name}: bell with count`);
       assert.match(html, /aria-label="Ещё: меню, непрочитанных уведомлений — 3"/u, `${name}: count reaches «Ещё»`);
-      assert.match(html, /<a class="v3-raised [^"]*text-fg-2[^"]*" href="\/v3\/tasks\?create=staff">/u, `${name}: neutral «Создать задачу»`);
-      assert.doesNotMatch(html, /<a class="[^"]*bg-accent[^"]*" href="\/v3\/tasks\?create=staff">/u, `${name}: never red`);
+      assert.match(html, /<a class="v3-raised [^"]*text-fg-2[^"]*" href="\/tasks\?create=staff">/u, `${name}: neutral «Создать задачу»`);
+      assert.doesNotMatch(html, /<a class="[^"]*bg-accent[^"]*" href="\/tasks\?create=staff">/u, `${name}: never red`);
     }
   }
   // Рейка на досках до 1536 px (решение владельца 25.09).
@@ -278,17 +278,17 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
 const MENU_BY_ROLE = {
   // «ИИ-агент» (план ИИ-агента §12.2): после «Базы знаний» у всех, кому открыт маршрут (ai.agent.use).
   // «Маркетинг» и «Финансы» (решение владельца 26.10.2026) — разделы верхнего уровня после «Поступления», а не пункты «Общего».
-  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], sections: ["/v3/marketing", "/v3/finance"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/ai-agents"] },
+  admin: { sales: ["/requests", "/pipeline", "/inbox", "/main?view=sales"], sections: ["/marketing", "/finance"], common: ["/tasks", "/team-chat", "/calendar", "/knowledge", "/ai-agents"] },
   // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни доски, ни «Заявок», как и раньше;
   // WhatsApp у неё с 06.10.2026 («нет, все могут»): единственный пункт «Продаж».
-  admissions: { sales: ["/v3/inbox"], sections: [], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets", "/v3/ai-agents"] },
+  admissions: { sales: ["/inbox"], sections: [], common: ["/tasks", "/team-chat", "/calendar", "/documents", "/reply-snippets", "/ai-agents"] },
   // Куратор с lead.read: правило D скрывает доску, «Заявки» и «Отчёт продаж» остаются, а WhatsApp с 06.10.2026 виден (communication.read.full).
-  "admissions-staff": { sales: ["/v3/requests", "/v3/inbox", "/v3/main?view=sales"], sections: [], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
-  sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], sections: [], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },
+  "admissions-staff": { sales: ["/requests", "/inbox", "/main?view=sales"], sections: [], common: ["/tasks", "/team-chat", "/calendar", "/documents", "/reply-snippets"] },
+  sales: { sales: ["/requests", "/pipeline", "/inbox", "/main?view=sales"], sections: [], common: ["/tasks", "/team-chat", "/calendar", "/reply-snippets"] },
 };
 function menuOf(html) {
   const list = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf('<section aria-label="Общее"'));
-  const hrefs = (part) => [...part.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+  const hrefs = (part) => [...part.matchAll(/href="(\/[^"]*)"/gu)].map((match) => match[1]);
   // Раскрывающийся список отдела; в рейке досок те же пункты ещё и в списке верхнего слоя.
   const group = (label) => {
     const start = list.indexOf(`<span class="min-w-0 flex-1">${label}</span>`);
@@ -299,7 +299,7 @@ function menuOf(html) {
     return hrefs(items);
   };
   // Разделы верхнего уровня — ссылки с подписью заголовка отдела (`t-label`), не раскрытия.
-  const sections = [...list.matchAll(/<a class="v3-choice[^"]*\bt-label\b[^"]*" href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
+  const sections = [...list.matchAll(/<a class="v3-choice[^"]*\bt-label\b[^"]*" href="(\/[^"]*)"/gu)].map((match) => match[1]);
   const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? "";
   return { sales: group("Продажи"), sections, common: hrefs(common), rail: /role="group" aria-label="Продажи"/u.test(list) };
 }
@@ -310,7 +310,7 @@ test("menu per role: «Заявки» lead «Продажи» wherever the role 
     assert.deepEqual(menu, MENU_BY_ROLE[role], name);
     const everyMenuLink = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf("</section>", html.indexOf('<section aria-label="Общее"')));
     const lists = rail ? 2 : 1;
-    assert.equal(count(everyMenuLink, /href="\/v3\/requests"/gu), menu.sales?.includes("/v3/requests") ? lists : 0, `${name}: «Заявки» stand once in the menu`);
+    assert.equal(count(everyMenuLink, /href="\/requests"/gu), menu.sales?.includes("/requests") ? lists : 0, `${name}: «Заявки» stand once in the menu`);
   }
   // Рейка досок ниже 1536 px показывает те же пункты отдела в верхнем слое.
   assert.ok(menuOf(surface("board-admin")).rail, "board surfaces render the rail list");
@@ -323,8 +323,8 @@ test("«Маркетинг» and «Финансы» are one-link sections at the
   const list = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf('<section aria-label="Общее"'));
   const headings = [...list.matchAll(/<button type="button" aria-expanded="[^"]+" aria-controls="[^"]+" class="flex min-h-11 w-full items-center gap-3 rounded-nav px-3 py-2 [^"]*"><svg[\s\S]*?<span class="min-w-0 flex-1">([^<]+)<\/span>/gu)].map((match) => match[1]);
   assert.deepEqual(headings, ["Продажи", "Поступление"], "only the two departments are disclosures");
-  const anchors = [...list.matchAll(/<a class="(v3-choice[^"]*\bt-label\b[^"]*)" href="(\/v3\/[^"]*)">([\s\S]*?)<\/a>/gu)];
-  assert.deepEqual(anchors.map((match) => match[2]), ["/v3/marketing", "/v3/finance"]);
+  const anchors = [...list.matchAll(/<a class="(v3-choice[^"]*\bt-label\b[^"]*)" href="(\/[^"]*)">([\s\S]*?)<\/a>/gu)];
+  assert.deepEqual(anchors.map((match) => match[2]), ["/marketing", "/finance"]);
   const lastDepartment = list.lastIndexOf("Университеты");
   for (const [, classes, , body] of anchors) {
     // Строка как у заголовка отдела: тот же отступ и 44 px, подпись `t-label`; значок один, стрелки нет.
@@ -335,17 +335,17 @@ test("«Маркетинг» and «Финансы» are one-link sections at the
   assert.doesNotMatch(anchors.map((match) => match[0]).join(""), /aria-expanded|aria-controls|<ul\b|\shidden[=>]/u, "no disclosure, no sub-list");
   // Лист «Ещё» (`flat`): подписей отделов над строками раздела нет, поэтому первая строка раздела отделена
   // той же волосяной линией, что «Общее», — иначе «Маркетинг» читался бы продолжением «Поступления».
-  assert.match(read("src/components/v3/AppShell.tsx"), /navigation\.sections\.map\(\(link, index\) => \(\s*<li key=\{link\.id\} className=\{cn\(flat && index === 0 && "mt-2 border-t border-border pt-2"\)\}>\s*<MenuLink link=\{link\} activeId=\{navigation\.activeId\} section rail=\{rail\}/u);
+  assert.match(read("src/components/staff/AppShell.tsx"), /navigation\.sections\.map\(\(link, index\) => \(\s*<li key=\{link\.id\} className=\{cn\(flat && index === 0 && "mt-2 border-t border-border pt-2"\)\}>\s*<MenuLink link=\{link\} activeId=\{navigation\.activeId\} section rail=\{rail\}/u);
   // Тот же пункт — и в рейке досок: значок с подписью-подсказкой, как «Сегодня».
   const rail = surface("board-admin");
-  assert.match(rail, /href="\/v3\/marketing"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Маркетинг<\/span>/u);
-  assert.match(rail, /href="\/v3\/finance"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Финансы<\/span>/u);
+  assert.match(rail, /href="\/marketing"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Маркетинг<\/span>/u);
+  assert.match(rail, /href="\/finance"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Финансы<\/span>/u);
   // Роли без прав их не получают, а «Общее» не теряет и не приобретает пункты.
-  for (const name of ["home-admissions", "home-sales", "home-admissions-staff"]) assert.doesNotMatch(surface(name), /href="\/v3\/(?:marketing|finance)"/u, name);
+  for (const name of ["home-admissions", "home-sales", "home-admissions-staff"]) assert.doesNotMatch(surface(name), /href="\/(?:marketing|finance)"/u, name);
 });
 
 test("the sheet is a modal dialog while open: inert page, Escape and «Закрыть» return focus to «Ещё», focus trapped", () => {
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.match(shell, /role=\{sheetOpen \? "dialog" : undefined\}\s*aria-modal=\{sheetOpen \? true : undefined\}\s*aria-labelledby=\{sheetOpen \? headingId : undefined\}/u);
   assert.equal(count(shell, /inert=\{sheetOpen\}/gu), 4, "skip link, phone top row, content and tab bar are inert under the sheet");
   assert.match(shell, /if \(event\.key === "Escape"\) \{\s*event\.preventDefault\(\);\s*closeSheet\(true\);/u);
@@ -360,21 +360,21 @@ test("the sheet is a modal dialog while open: inert page, Escape and «Закр�
 });
 
 test("phone chrome and window-height pages share rem units, so the composer stays above the tab bar", () => {
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   assert.match(css, /@media \(width < 48rem\) \{\s*\.v3-world\[data-surface="staff"\] \{\s*--shell-top: 3\.5rem;\s*--shell-tabbar: 3\.5rem;\s*--shell-safe-bottom: env\(safe-area-inset-bottom, 0px\);/u);
   assert.match(css, /\.v3-world\[data-surface="staff"\] \[data-shell-content\] main:is\(\.h-dvh, \[class\*="100dvh"\]\) \{\s*height: calc\(100dvh - var\(--shell-top\) - var\(--shell-tabbar\) - var\(--shell-safe-bottom\)\);/u);
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.match(shell, /flex h-\[var\(--shell-top\)\] shrink-0/u, "top row height is the variable");
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
   // «Переписка» и «Командный чат» — страницы «на окно» под правилом.
   // С #1327 обе страницы рисуют «Новый вид» (его рамки сами держат высоту окна под `isFillRoute`), прежних рамок в страницах нет.
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<CaseChatNextLazy/u);
-  assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<TeamChatNextLazy/u);
+  assert.match(read("src/app/(staff)/messages/page.tsx"), /<CaseChatNextLazy/u);
+  assert.match(read("src/app/(staff)/team-chat/page.tsx"), /<TeamChatNextLazy/u);
   // WhatsApp (PartShell `fill`, отдельная страница «Продаж») своей высоты не
   // задаёт: от 768 px её даёт колонка оболочки по `isFillRoute`.
-  assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<InboxNextLazy/u);
+  assert.match(read("src/components/staff/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
+  assert.match(read("src/app/(staff)/inbox/page.tsx"), /<InboxNextLazy/u);
   assert.match(shell, /const fill = isFillRoute\(pathname, query\.get\("tab"\)\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
@@ -384,7 +384,7 @@ test("phone chrome and window-height pages share rem units, so the composer stay
 });
 
 test("without a top bar every page title starts at one height, level with the logo row", () => {
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   assert.match(css, /\.v3-world\[data-surface="staff"\] \{[^}]*--shell-page-top: 1\.5rem;/u);
   assert.match(css, /@media \(width < 48rem\) \{\s*\.v3-world\[data-surface="staff"\] \{[^}]*--shell-page-top: 1\.25rem;/u);
   // PageHeader страниц (PartShell, доски, «Переписка»): Э5 вынес
@@ -393,19 +393,19 @@ test("without a top bar every page title starts at one height, level with the lo
   assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
   assert.doesNotMatch(css, /main\[aria-label="Сообщения"\]/u);
   assert.match(read("src/components/ui.tsx"), /<div className=\{cn\("flex flex-wrap items-start justify-between gap-4", className\)\}>\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
-  assert.doesNotMatch(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<h1\b/u);
+  assert.doesNotMatch(read("src/components/staff/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
-  assert.match(read("src/components/v3/AppShell.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);
+  assert.match(read("src/components/staff/AppShell.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);
 });
 
 test("a menu list longer than the window shows a cue at the clipped edge", () => {
-  const css = read("src/app/(v3)/v3.css");
+  const css = read("src/app/(staff)/staff.css");
   // Э6 (27.09.2026): below — the last visible items fade into the menu and the
   // account row carries a shadow; above — the inset shadow as before.
   assert.match(css, /\.v3-world \[data-shell-scroll\]\[data-more-below\]::after \{[^}]*position: sticky;[^}]*bottom: 0;[^}]*background: linear-gradient\(to bottom, transparent, color-mix\(in srgb, var\(--surface\) 75%, transparent\)\);[^}]*pointer-events: none;/u);
   assert.match(css, /\[data-shell-scroll\]\[data-more-below\] \+ \[data-shell-account\] \{[^}]*box-shadow: 0 -6px 10px -6px/u);
   assert.match(css, /\[data-shell-scroll\]\[data-more-above\] \{\s*box-shadow: inset 0 8px 8px -6px/u);
-  const shell = read("src/components/v3/AppShell.tsx");
+  const shell = read("src/components/staff/AppShell.tsx");
   assert.match(shell, /data-more-above=\{edges\.above \? "" : undefined\}\s*data-more-below=\{edges\.below \? "" : undefined\}/u);
   assert.match(shell, /const below = scroller\.scrollTop \+ scroller\.clientHeight < scroller\.scrollHeight - 1;/u);
   assert.match(shell, /observer\.observe\(scroller\);\s*observer\.observe\(content\);/u, "recomputed when a group opens or the window changes");
@@ -413,18 +413,18 @@ test("a menu list longer than the window shows a cue at the clipped edge", () =>
 });
 
 test("one shell for every staff member: the layout has no look switch, the old shell and the bar bell are gone", () => {
-  const layout = read("src/app/(v3)/layout.tsx");
+  const layout = read("src/app/(staff)/layout.tsx");
   // Счётчик запросов на удаление аккаунта (миграция 315, UI-F6) приходит от сервера вместе с уведомлениями; пункт «Финансы»
   // (миграция 323) — точная проверка права на всю организацию, её тоже считает layout.
   // «Новый вид» (#1327): `data-ui="next"` у всех, переключателя нет (tests/ui-next-foundation.test.mjs).
   assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui="next">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\}>/u);
   assert.doesNotMatch(layout, /look/iu, "no look is read or passed");
-  assert.equal(existsSync(new URL("../src/components/v3/AppShellNext.tsx", import.meta.url)), false, "one shell file");
-  const appShell = read("src/components/v3/AppShell.tsx");
+  assert.equal(existsSync(new URL("../src/components/staff/AppShellNext.tsx", import.meta.url)), false, "one shell file");
+  const appShell = read("src/components/staff/AppShell.tsx");
   assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*\}/u);
   assert.doesNotMatch(appShell, /CurrentAppShell|AppShellNext|look|md:min-h-16|Открыть навигацию/u, "no second shell and no top bar");
   // Колокольчик — один вид: кнопка меню с панелью в верхнем слое.
-  const notifications = read("src/components/v3/StaffNotifications.tsx");
+  const notifications = read("src/components/staff/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /variant|"bar"/u);
   assert.match(notifications, /ref=\{panelRef\} popover="manual"/u);
 });

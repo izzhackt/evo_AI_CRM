@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Новый вид», поток «card-tabs»: вкладки карточки лида и дела (`/v3/profile?case=…&tab=…`, `?id=…&tab=…`) кроме «Обзора»:
+ * «Новый вид», поток «card-tabs»: вкладки карточки лида и дела (`/profile?case=…&tab=…`, `?id=…&tab=…`) кроме «Обзора»:
  * «Документы», «Договор и оплата», «Вузы и программы», «Анкета», «История» и закрытый лид. НАСТОЯЩАЯ сборка страницы
  * (`Profile` с `nextUi`, `ProfileNextShell`, `AppShell` с переключателем) на СИНТЕТИЧЕСКИХ данных (`card-tabs-fixtures.cjs`):
  * имена и суммы выдуманы для проверки вёрстки. Живой Supabase и права не проверяются; чтения страницы здесь заменены данными
@@ -38,8 +38,8 @@ const PREVIEW = { ...ADMIN, presentationRole: "admissions", permissionKeys: [] }
 
 // --- замена асинхронных чтений синхронным видом того же экрана ------------------------------
 let current = null;
-const documentsModule = src("components/v3/profile/Documents.tsx");
-const { documentsView } = src("components/v3/profile/DocumentsView.tsx");
+const documentsModule = src("components/staff/profile/Documents.tsx");
+const { documentsView } = src("components/staff/profile/DocumentsView.tsx");
 documentsModule.Documents = (props) => documentsView({
   groups: props.groups, uploadAccess: props.uploadAccess, studentCaseId: props.studentCaseId, recognition: props.recognition, filter: props.filter ?? "all",
   tabHref: props.tabHref, today: TODAY, createRequestId: props.uploadAccess === "allowed" ? uuid("17000000", 1) : null,
@@ -47,22 +47,22 @@ documentsModule.Documents = (props) => documentsView({
   baselineOptionsUnavailable: false, baselineTemplatesAbsent: props.uploadAccess === "allowed" && current.baseline === "absent",
   baselineChecklistRequestId: props.uploadAccess === "allowed" && current.baseline === "options" ? uuid("19000000", 1) : null, nextUi: props.nextUi,
 });
-const agreementModule = src("components/v3/profile/CaseAgreementBlock.tsx");
+const agreementModule = src("components/staff/profile/CaseAgreementBlock.tsx");
 agreementModule.CaseAgreementBlock = (props) => h(agreementModule.CaseAgreementView, { agreement: current.agreement, canWrite: true, today: TODAY,
   saleConditionsHref: props.saleConditionsHref, financeStop: props.financeStop, stopsPanel: props.stopsPanel });
-const nextAgreement = optional("components/v3/profile/next/tabs/MoneyAgreementNext.tsx");
+const nextAgreement = optional("components/staff/profile/next/tabs/MoneyAgreementNext.tsx");
 if (nextAgreement) {
   nextAgreement.CaseAgreementNext = (props) => h(nextAgreement.AgreementNextView, { agreement: current.agreement, canWrite: true, today: TODAY,
     saleConditionsHref: props.saleConditionsHref, financeStop: props.financeStop, stopsPanel: props.stopsPanel });
 }
 const note = (text) => () => h("p", { className: "py-2 t-body-compact text-fg-2" }, text);
-src("components/v3/profile/FinanceEntryWorkspace.tsx").FinanceEntryWorkspace = note("Формы операций — отдельное чтение; в статическом рендере не читаются.");
-src("components/v3/profile/ProfileAmoCrmCommandSection.tsx").ProfileAmoCrmCommandSection = note("Команда amoCRM — отдельное чтение; в статическом рендере не читается.");
-src("components/v3/profile/LeadInterestSummary.tsx").LeadInterestSummary = () => h("p", { className: "px-4 py-3 text-sm text-fg-2" }, "Интересующее направление: ", h("span", { className: "text-fg" }, "Малайзия"));
-const otherFacts = optional("components/v3/profile/next/tabs/AnketaOtherFacts.tsx");
+src("components/staff/profile/FinanceEntryWorkspace.tsx").FinanceEntryWorkspace = note("Формы операций — отдельное чтение; в статическом рендере не читаются.");
+src("components/staff/profile/ProfileAmoCrmCommandSection.tsx").ProfileAmoCrmCommandSection = note("Команда amoCRM — отдельное чтение; в статическом рендере не читается.");
+src("components/staff/profile/LeadInterestSummary.tsx").LeadInterestSummary = () => h("p", { className: "px-4 py-3 text-sm text-fg-2" }, "Интересующее направление: ", h("span", { className: "text-fg" }, "Малайзия"));
+const otherFacts = optional("components/staff/profile/next/tabs/AnketaOtherFacts.tsx");
 if (otherFacts) otherFacts.AnketaOtherFactsLoader = (props) => h(otherFacts.AnketaOtherFacts, { ...props, interest: { status: "value", direction: "Малайзия" } });
 // Вкладка «Вузы и программы» страницы - async; здесь тот же синхронный вид с данными сценария.
-const programsModule = src("components/v3/profile/UniversityProgramsTab.tsx");
+const programsModule = src("components/staff/profile/UniversityProgramsTab.tsx");
 programsModule.UniversityProgramsTab = (props) => h(programsModule.UniversityProgramsView, { ...props, partnerDetails: current.applications ? [] : fx.ROUTE.partner,
   preparations: { status: "ready", value: current.applications ? [] : fx.ROUTE.preparations }, packets: fx.ROUTE.packets, nowIso: new Date(`${TODAY}T08:00:00.000Z`).toISOString() });
 
@@ -93,7 +93,7 @@ const TABS = {
   history: (state) => ({
     profile: { ...state.profile, source: "website", arrived: "01.09.2026", handoff: { at: "30.08 06:00", contract: true, payment: true, override: false },
       timeline: state.timeline ?? fx.TIMELINE, timelineForbidden: Boolean(state.forbidden),
-      timelineOlderHref: state.timeline === undefined && !state.forbidden ? `/v3/profile?case=${CASE_ID}&tab=history&activity_before_at=2026-08-28T09%3A00%3A00.000Z&activity_before_id=x` : null },
+      timelineOlderHref: state.timeline === undefined && !state.forbidden ? `/profile?case=${CASE_ID}&tab=history&activity_before_at=2026-08-28T09%3A00%3A00.000Z&activity_before_id=x` : null },
   }),
 };
 
@@ -121,24 +121,24 @@ function caseScenario(def) {
   // Шапка карточки считается из тех же данных вкладки (числа документов и оплаты в сводке сходятся с вкладкой).
   fx.SCENARIOS[`tab-${def.name}`] = { ...admin, actor, profile: patch.profile ?? admin.profile, draft: patch.draft ?? admin.draft };
   const { item, parts, hrefFor } = fx.buildParts(`tab-${def.name}`);
-  const { caseNextParts } = src("components/v3/profile/next/CaseNext.tsx");
+  const { caseNextParts } = src("components/staff/profile/next/CaseNext.tsx");
   const profile = item.profile;
   const draft = item.draft;
   const props = { profile, draft, sales: item.sales, actor, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true, requestIds: EMPTY_IDS,
     noteRequestId: uuid("12121212", 15), notes: item.notes ?? fx.NOTES, notesOlderHref: null, notesLatestHref: null, tab: def.tab, hrefFor, documentsFilter: def.filter ?? "all" };
-  const routeTab = (nextUi) => def.tab === "route" ? { universityProgramsTab: h(src("components/v3/profile/UniversityProgramsTab.tsx").UniversityProgramsView, {
+  const routeTab = (nextUi) => def.tab === "route" ? { universityProgramsTab: h(src("components/staff/profile/UniversityProgramsTab.tsx").UniversityProgramsView, {
     actor, draft, routeHref: hrefFor("route"), partnerDetails: def.applications ? [] : fx.ROUTE.partner, preparations: { status: "ready", value: def.applications ? [] : fx.ROUTE.preparations },
     packets: fx.ROUTE.packets, nowIso: new Date(`${TODAY}T08:00:00.000Z`).toISOString(), nextUi }) } : {};
-  return { name: def.name, def: { ...def, agreement: def.agreement ?? null }, actor, title: fx.NAME, back: ["/v3/profile?view=mine", "Студенты"],
+  return { name: def.name, def: { ...def, agreement: def.agreement ?? null }, actor, title: fx.NAME, back: ["/profile?view=mine", "Студенты"],
     search: `case=${CASE_ID}&tab=${def.tab}${def.filter ? `&doc_state=${def.filter}` : ""}`, next: caseNextParts(parts.next, parts.actions), legacy: parts,
     nextProps: () => ({ ...props, ...routeTab(true), nextUi: true }), legacyProps: () => ({ ...props, ...routeTab(false) }) };
 }
 
 function leadScenario(name, built, tab, title) {
-  const { leadNextParts } = src("components/v3/profile/next/LeadNext.tsx");
+  const { leadNextParts } = src("components/staff/profile/next/LeadNext.tsx");
   const props = { profile: built.profile, draft: built.draft, sales: built.sales, actor: leads.ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
     requestIds: built.requestIds, noteRequestId: uuid("13131313", 20), notes: built.notes, notesOlderHref: null, notesLatestHref: null, tab, hrefFor: built.hrefFor };
-  return { name, def: { tab, lead: true, agreement: null }, actor: leads.ADMIN, title, back: ["/v3/pipeline", "Воронка продаж"], search: `id=${LEAD_ID}&tab=${tab}`,
+  return { name, def: { tab, lead: true, agreement: null }, actor: leads.ADMIN, title, back: ["/pipeline", "Воронка продаж"], search: `id=${LEAD_ID}&tab=${tab}`,
     next: leadNextParts(built.parts.next), legacy: built.parts, nextProps: () => ({ ...props, nextUi: true }), legacyProps: () => props };
 }
 
@@ -157,9 +157,9 @@ const inContexts = (node, pathname, search) => leads.withContexts(node, pathname
 
 function body(scenario, legacy = false) {
   current = scenario.def;
-  const { Profile } = src("components/v3/profile/Profile.tsx");
-  const { ProfileNextShell } = src("components/v3/profile/next/ProfileNextShell.tsx");
-  const { PartShell } = src("components/v3/PartShell.tsx");
+  const { Profile } = src("components/staff/profile/Profile.tsx");
+  const { ProfileNextShell } = src("components/staff/profile/next/ProfileNextShell.tsx");
+  const { PartShell } = src("components/staff/PartShell.tsx");
   const { Icon } = src("components/icons.tsx");
   const back = h("a", { href: scenario.back[0], className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
     h(Icon, { name: "arrow-left", size: 16 }), scenario.back[1]);
@@ -172,17 +172,17 @@ function body(scenario, legacy = false) {
 }
 
 function closedScenario() {
-  const { ProfileNextShell } = src("components/v3/profile/next/ProfileNextShell.tsx");
+  const { ProfileNextShell } = src("components/staff/profile/next/ProfileNextShell.tsx");
   const { Icon } = src("components/icons.tsx");
-  const { ClosedLeadNext } = optional("components/v3/profile/next/tabs/ClosedLeadNext.tsx") ?? {};
-  const back = h("a", { href: "/v3/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2" }, h(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
+  const { ClosedLeadNext } = optional("components/staff/profile/next/tabs/ClosedLeadNext.tsx") ?? {};
+  const back = h("a", { href: "/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2" }, h(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
   const row = fx.CLOSED_LEAD;
   return { name: "lead-closed", actor: leads.ADMIN, title: row.name, search: `id=${LEAD_ID}`, def: { tab: "closed", agreement: null }, closed: row,
     html: () => h(ProfileNextShell, { title: row.name, back }, h("div", { className: "space-y-4" }, h(ClosedLeadNext, { row, readOnly: false }))) };
 }
 
 function worldPage(scenario, legacy = false) {
-  const { AppShell } = src("components/v3/AppShell.tsx");
+  const { AppShell } = src("components/staff/AppShell.tsx");
   const node = scenario.html ? scenario.html() : body(scenario, legacy);
   if (legacy) return h("div", { className: "v3-world", "data-surface": "staff" }, h(AppShell, { actor: scenario.actor, initialNotifications: null }, node));
   return h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" }, h(AppShell, { actor: scenario.actor, initialNotifications: null }, node));
@@ -193,14 +193,14 @@ const all = () => [...scenarios(), closedScenario()];
 if (process.argv.includes("--json-legacy")) {
   // Только прежний вид тех же сценариев (без `nextUi`): байт в байт сравнивается с базовым коммитом.
   process.stdout.write(JSON.stringify(all().filter((scenario) => !scenario.html).map((scenario) => ({ name: scenario.name,
-    html: renderToStaticMarkup(inContexts(body(scenario, true), "/v3/profile", scenario.search)) }))));
+    html: renderToStaticMarkup(inContexts(body(scenario, true), "/profile", scenario.search)) }))));
 } else if (process.argv.includes("--page-json")) {
   require("./card-tabs-page.cjs").pageHtml({ fx, leads, scenarios: all(), prepare: (scenario) => { current = scenario.def; } })
     .then((pages) => process.stdout.write(JSON.stringify(pages)))
     .catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--json")) {
   process.stdout.write(JSON.stringify(all().map((scenario) => {
-    const pathname = "/v3/profile";
+    const pathname = "/profile";
     const render = (legacy) => {
       try {
         if (legacy && scenario.html) return null; // у закрытого лида прежнего вида больше нет

@@ -11,11 +11,11 @@ const CASE_ID = "20000000-0000-4000-8000-000000000002";
 test("Inbox profile links follow the exact presented role surface", () => {
   const context = { leadId: LEAD_ID, studentCaseId: CASE_ID };
 
-  assert.equal(v3InboxProfileHref(preview("admin"), context), `/v3/profile?id=${LEAD_ID}`);
-  assert.equal(v3InboxProfileHref(preview("sales"), context), `/v3/profile?id=${LEAD_ID}`);
+  assert.equal(v3InboxProfileHref(preview("admin"), context), `/profile?id=${LEAD_ID}`);
+  assert.equal(v3InboxProfileHref(preview("sales"), context), `/profile?id=${LEAD_ID}`);
   assert.equal(
     v3InboxProfileHref(preview("admissions"), context),
-    `/v3/profile?case=${CASE_ID}`,
+    `/profile?case=${CASE_ID}`,
   );
 });
 

@@ -36,18 +36,18 @@ const NARROW = {
   m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 const SCENES = [
-  { name: "hub", path: "/v3/ai-agents", search: "" },
-  { name: "chat", path: "/v3/ai-agents/director", search: "" },
-  { name: "overview", path: "/v3/ai-agents/director", search: "tab=overview" },
-  { name: "runs", path: "/v3/ai-agents/director", search: "tab=runs" },
-  { name: "runs-more", path: "/v3/ai-agents/director", search: "tab=runs" },
-  { name: "run", path: "/v3/ai-agents/director", search: "tab=runs&run=11111111-1111-4111-8111-000000000001" },
-  { name: "drafts", path: "/v3/ai-agents/director", search: "tab=drafts" },
-  { name: "drafts-all", path: "/v3/ai-agents/director", search: "tab=drafts&show=all" },
+  { name: "hub", path: "/ai-agents", search: "" },
+  { name: "chat", path: "/ai-agents/director", search: "" },
+  { name: "overview", path: "/ai-agents/director", search: "tab=overview" },
+  { name: "runs", path: "/ai-agents/director", search: "tab=runs" },
+  { name: "runs-more", path: "/ai-agents/director", search: "tab=runs" },
+  { name: "run", path: "/ai-agents/director", search: "tab=runs&run=11111111-1111-4111-8111-000000000001" },
+  { name: "drafts", path: "/ai-agents/director", search: "tab=drafts" },
+  { name: "drafts-all", path: "/ai-agents/director", search: "tab=drafts&show=all" },
   // Wazzup (WhatsApp только на чтение): черновики с кодом receive_only - строка говорит «Только чтение…», панель даёт «Скопировать текст».
-  { name: "drafts-wazzup", path: "/v3/ai-agents/director", search: "tab=drafts" },
-  { name: "instructions", path: "/v3/ai-agents/director", search: "tab=instructions" },
-  { name: "settings", path: "/v3/ai-agents/director", search: "tab=settings" },
+  { name: "drafts-wazzup", path: "/ai-agents/director", search: "tab=drafts" },
+  { name: "instructions", path: "/ai-agents/director", search: "tab=instructions" },
+  { name: "settings", path: "/ai-agents/director", search: "tab=settings" },
 ];
 
 const LINK_SHIM = `
@@ -107,9 +107,9 @@ import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { ImageConfigContext } from "next/dist/shared/lib/image-config-context.shared-runtime";
 import { imageConfigDefault } from "next/dist/shared/lib/image-config";
-import { AppShell } from "@/components/v3/AppShell";
-import { NextAgentsView } from "@/components/v3/ai-agents-next/NextAgentsView";
-import { NextAgentPage } from "@/components/v3/ai-agents-next/NextAgentPage";
+import { AppShell } from "@/components/staff/AppShell";
+import { NextAgentsView } from "@/components/staff/ai-agents-next/NextAgentsView";
+import { NextAgentPage } from "@/components/staff/ai-agents-next/NextAgentPage";
 import { AI_AGENT_CATALOG } from "@/lib/ai-agents/contract";
 import { nextAgentDefaults, nextAgentsHasDefault } from "@/lib/server/ai-agents/next-defaults";
 const { makeFixtures } = require(${JSON.stringify(join(ROOT, "tests/e2e/ai-agents-next-fixtures.cjs"))});
@@ -146,7 +146,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  const own = ["src/app/(v3)/v3.css", "src/app/(v3)/ai-agents.css", "src/app/(v3)/ai-agent.css"].map((file) => readFileSync(join(ROOT, file), "utf8"));
+  const own = ["src/app/(staff)/staff.css", "src/app/(staff)/ai-agents.css", "src/app/(staff)/ai-agent.css"].map((file) => readFileSync(join(ROOT, file), "utf8"));
   return [...fonts, result.css, ...own].join("\n");
 }
 
@@ -274,7 +274,7 @@ async function main() {
   for (const key of ["d1280", "m390"]) {
     const { context, page, errors } = await open("hub", key);
     report(`${key}/hub: four stat tiles`, (await page.locator("[data-slot=stat-tile]").count()) === 4, null);
-    report(`${key}/hub: card title links to the agent page`, (await page.locator("[data-testid=v3-aia-card-director] h3 a").getAttribute("href")) === "/v3/ai-agents/director", null);
+    report(`${key}/hub: card title links to the agent page`, (await page.locator("[data-testid=v3-aia-card-director] h3 a").getAttribute("href")) === "/ai-agents/director", null);
     report(`${key}/hub: role line is not on the card`, (await page.locator("[data-testid=v3-aia-card-director]").innerText()).includes("Считает продажи") === false, null);
     await page.getByRole("button", { name: "Пояснение: Директор / Аналитик" }).click();
     const help = page.getByRole("dialog", { name: "Пояснение: Директор / Аналитик" });
@@ -282,7 +282,7 @@ async function main() {
     report(`${key}/hub: role line sits behind the help button`, (await help.innerText()).includes("Считает продажи"), null);
     await expectOverlay(page, `${key}/hub: help popover`, "[data-slot=popover-content]");
     await page.keyboard.press("Escape");
-    report(`${key}/hub: «Поручить» and drafts links on the card`, (await page.locator("[data-testid=v3-aia-ask-director]").getAttribute("href")) === "/v3/ai-agents/director" && (await page.locator("[data-testid=v3-aia-drafts-director]").getAttribute("href")) === "/v3/ai-agents/director?tab=drafts", null);
+    report(`${key}/hub: «Поручить» and drafts links on the card`, (await page.locator("[data-testid=v3-aia-ask-director]").getAttribute("href")) === "/ai-agents/director" && (await page.locator("[data-testid=v3-aia-drafts-director]").getAttribute("href")) === "/ai-agents/director?tab=drafts", null);
     report(`${key}/hub: console clean`, errors.length === 0, errors);
     await context.close();
   }
@@ -303,7 +303,7 @@ async function main() {
     await dialog.waitFor();
     await expectOverlay(page, `${key}/runs: run sheet`, "[data-slot=sheet-content]");
     await shot(page, `agents-runsheet-${key}`);
-    report(`${key}/runs: sheet links to the full run`, (await dialog.getByRole("link", { name: "Хроника и действия агента" }).getAttribute("href")) === "/v3/ai-agents/director?tab=runs&run=11111111-1111-4111-8111-000000000001", null);
+    report(`${key}/runs: sheet links to the full run`, (await dialog.getByRole("link", { name: "Хроника и действия агента" }).getAttribute("href")) === "/ai-agents/director?tab=runs&run=11111111-1111-4111-8111-000000000001", null);
     report(`${key}/runs: own command can be reopened in chat and copied`, (await dialog.getByRole("link", { name: "Открыть в чате" }).count()) === 1 && (await dialog.getByRole("button", { name: "Скопировать итог" }).count()) === 1, null);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
@@ -378,7 +378,7 @@ async function main() {
     const rows = await page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li").count();
     report(`${key}/runs-more: all 30 loaded runs are listed, no second pager`, rows === 30 && (await page.locator("[data-slot=data-table-pagination]").count()) === 0 && !/\d+–\d+ из \d+/u.test(await page.locator("[data-testid=v3-aia-runs]").innerText()), rows);
     const more = page.locator("[data-testid=v3-aia-runs-more]");
-    report(`${key}/runs-more: «Показать ещё» and the honest «последние 30»`, (await more.getByRole("link", { name: "Показать ещё" }).getAttribute("href")) === "/v3/ai-agents/director?tab=runs&limit=60" && /Показаны последние 30 запусков/u.test(await more.innerText()), await more.innerText());
+    report(`${key}/runs-more: «Показать ещё» and the honest «последние 30»`, (await more.getByRole("link", { name: "Показать ещё" }).getAttribute("href")) === "/ai-agents/director?tab=runs&limit=60" && /Показаны последние 30 запусков/u.test(await more.innerText()), await more.innerText());
     report(`${key}/runs-more: search says it covers the shown runs only`, (await page.getByPlaceholder("Поиск среди показанных").count()) === 1 && (await page.getByPlaceholder("Поиск по поручениям").count()) === 0, null);
     report(`${key}/runs-more: console clean`, errors.length === 0, errors);
     await context.close();
@@ -612,7 +612,7 @@ async function main() {
     report(`${key}/chat: one h1 with the agent name`, (await page.locator("h1").count()) === 1 && (await page.locator("h1").innerText()) === "Директор / Аналитик", null);
     report(`${key}/chat: resumed conversation shows the answer`, (await page.getByText("Готово: ").count()) >= 1 && (await page.locator("[data-testid=v3-aia-timeline]").count()) === 1, null);
     if (key === "d1440") {
-      report("d1440/chat: tabs are links in the header", (await page.locator("[data-testid=v3-aia-chat-header] a", { hasText: "История работы" }).getAttribute("href")) === "/v3/ai-agents/director?tab=runs", null);
+      report("d1440/chat: tabs are links in the header", (await page.locator("[data-testid=v3-aia-chat-header] a", { hasText: "История работы" }).getAttribute("href")) === "/ai-agents/director?tab=runs", null);
       report("d1440/chat: header is one line of the new-view widgets", (await page.locator("[data-testid=v3-aia-chat-header] [role=switch]").count()) === 2 && (await page.getByRole("button", { name: "На весь экран" }).count()) === 1, null);
     } else {
       await page.getByTestId("v3-aia-conversations-open").click();

@@ -1,0 +1,61 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect } from "react";
+
+import { isStaleDeploymentError, markStaleDeployment, reloadForNewDeployment } from "@/lib/stale-deployment";
+import { useInlineStalePrompt } from "@/lib/use-stale-deployment";
+import { chromeWords } from "@/lib/v3/wording";
+
+/**
+ * Граница ошибок V3: Next.js вкладывает её внутрь `(staff)/layout.tsx` того же
+ * сегмента, поэтому `AppShell` с боковой навигацией остаётся на экране, а
+ * этот блок заменяет только упавшее содержимое страницы.
+ *
+ * Ссылка ведёт на `/` (не на конкретный раздел): клиентский компонент не
+ * может безопасно узнать домашний раздел актёра, а корень `/` уже делает
+ * ровно это на сервере через `staffHomeRoute`.
+ *
+ * Вкладка пережила выпуск (action прошлой сборки сервер не знает): `reset()`
+ * повторил бы тот же мёртвый запрос, поэтому кнопка перезагружает страницу,
+ * опросы оболочки останавливаются, а её строка молчит — подсказка здесь.
+ */
+export default function V3Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  const words = chromeWords.error;
+  const stale = isStaleDeploymentError(error);
+  useEffect(() => { if (stale) markStaleDeployment(); }, [stale]);
+  useInlineStalePrompt(stale);
+
+  return (
+    <main
+      className="mx-auto flex min-h-[70dvh] w-full max-w-[640px] items-center px-4 py-10 sm:px-6"
+      data-testid="v3-error"
+    >
+      <section role="alert" className="w-full border-y border-border py-10 sm:py-14">
+        <h1 className="t-page-title text-fg">{stale ? words.staleTitle : words.staffTitle}</h1>
+        <p className="mt-3 max-w-2xl t-body-compact text-fg-2">{stale ? words.staleText : words.staffText}</p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={stale ? reloadForNewDeployment : reset}
+            className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 t-item text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            {stale ? words.staleAction : words.retry}
+          </button>
+          <Link
+            href="/"
+            className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 t-label text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            {words.staffAction}
+          </Link>
+        </div>
+      </section>
+    </main>
+  );
+}

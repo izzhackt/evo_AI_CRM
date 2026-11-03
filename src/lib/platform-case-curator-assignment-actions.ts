@@ -115,7 +115,7 @@ export async function assignCaseCuratorAction(
     ) {
       return outcome("unavailable", previous.requestId);
     }
-    revalidatePath("/v3/profile");
+    revalidatePath("/profile");
     return outcome("saved", previous.requestId);
   } catch {
     return outcome("unavailable", previous.requestId);

@@ -273,38 +273,38 @@ const idOf = (key) => CATALOGUE.find((item) => item.key === key)?.id ?? CATALOGU
 
 /** Страницы: [имя, роль, путь, поиск, сценарий сервисов]. */
 const PAGES = [
-  ["universities-list", "admin", "/v3/universities", "", "production"],
-  ["universities-list-filtered", "admin", "/v3/universities", "country=MY&level=bachelor", "production"],
+  ["universities-list", "admin", "/universities", "", "production"],
+  ["universities-list-filtered", "admin", "/universities", "country=MY&level=bachelor", "production"],
   // Только для проверки чтения (без снимков): Admin публикует карточку посреди полного чтения.
-  ["universities-list-changed", "admin", "/v3/universities", "", "catalogue-changed"],
-  ["universities-detail", "admin", () => `/v3/universities/${idOf("utm")}`, "", "production"],
-  ["universities-detail-unconfirmed", "admin", () => `/v3/universities/${idOf("apu")}`, "", "production"],
-  ["settings-staff", "admin", "/v3/settings", "", "production"],
-  ["settings-roles", "admin", "/v3/settings", "section=staff&view=roles", "production"],
-  ["settings-departments", "admin", "/v3/settings", "section=staff&view=departments", "production"],
-  ["settings-integrations", "admin", "/v3/settings", "section=integrations", "production"],
-  ["settings-integrations-blocked", "admin", "/v3/settings", "section=integrations", "blocked"],
-  ["settings-journal", "admin", "/v3/settings", "section=journal", "production"],
-  ["settings-journal-disabled", "admin", "/v3/settings", "section=journal", "production"],
-  ["settings-journal-unavailable", "admin", "/v3/settings", "section=journal", "production"],
-  ["settings-journal-empty", "admin", "/v3/settings", "section=journal", "production"],
-  ["settings-journal-filtered", "admin", "/v3/settings", "section=journal&object=case_task", "production"],
-  ["menu-admin", "admin", "/v3/universities", "", "production"],
-  ["menu-admissions", "admissions", "/v3/universities", "", "production"],
-  ["menu-sales", "sales", "/v3/universities", "", "production"],
+  ["universities-list-changed", "admin", "/universities", "", "catalogue-changed"],
+  ["universities-detail", "admin", () => `/universities/${idOf("utm")}`, "", "production"],
+  ["universities-detail-unconfirmed", "admin", () => `/universities/${idOf("apu")}`, "", "production"],
+  ["settings-staff", "admin", "/settings", "", "production"],
+  ["settings-roles", "admin", "/settings", "section=staff&view=roles", "production"],
+  ["settings-departments", "admin", "/settings", "section=staff&view=departments", "production"],
+  ["settings-integrations", "admin", "/settings", "section=integrations", "production"],
+  ["settings-integrations-blocked", "admin", "/settings", "section=integrations", "blocked"],
+  ["settings-journal", "admin", "/settings", "section=journal", "production"],
+  ["settings-journal-disabled", "admin", "/settings", "section=journal", "production"],
+  ["settings-journal-unavailable", "admin", "/settings", "section=journal", "production"],
+  ["settings-journal-empty", "admin", "/settings", "section=journal", "production"],
+  ["settings-journal-filtered", "admin", "/settings", "section=journal&object=case_task", "production"],
+  ["menu-admin", "admin", "/universities", "", "production"],
+  ["menu-admissions", "admissions", "/universities", "", "production"],
+  ["menu-sales", "sales", "/universities", "", "production"],
 ];
 
 async function pageNode(pathname, search) {
   const params = Object.fromEntries(new URLSearchParams(search));
-  if (pathname === "/v3/universities") {
-    const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/universities/page.tsx"));
+  if (pathname === "/universities") {
+    const { default: Page } = require(join(ROOT, "src/app/(staff)/universities/page.tsx"));
     return Page({ searchParams: Promise.resolve(params) });
   }
-  if (pathname.startsWith("/v3/universities/")) {
-    const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/universities/[id]/page.tsx"));
+  if (pathname.startsWith("/universities/")) {
+    const { default: Page } = require(join(ROOT, "src/app/(staff)/universities/[id]/page.tsx"));
     return Page({ params: Promise.resolve({ id: pathname.split("/").at(-1) }) });
   }
-  const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/settings/page.tsx"));
+  const { default: Page } = require(join(ROOT, "src/app/(staff)/settings/page.tsx"));
   return Page({ searchParams: Promise.resolve(params) });
 }
 
@@ -315,7 +315,7 @@ async function renderPage([name, role, path, search, providers]) {
   catalogueOffsets = [];
   catalogueShiftOnce = providers === "catalogue-changed";
   const pathname = typeof path === "function" ? path() : path;
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const node = await pageNode(pathname, search);
   const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: who, initialNotifications: null }, node));
@@ -344,7 +344,7 @@ async function compileCss() {
     const dir = join(ROOT, "node_modules/@fontsource-variable", font);
     return readFileSync(join(dir, "wght.css"), "utf8").replaceAll("url(./files/", `url(${pathToFileURL(join(dir, "files")).href}/`);
   });
-  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(v3)/v3.css"), "utf8")].join("\n");
+  return [...fonts, result.css, readFileSync(join(ROOT, "src/app/(staff)/staff.css"), "utf8")].join("\n");
 }
 
 /** Меню ролей: все отделы раскрыты; на телефоне — лист «Ещё». */

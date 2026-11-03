@@ -114,6 +114,27 @@
   --pt-rail-mark: #ece7df;
   /* Знак EVO в свёрнутом рейле: фирменный красный в обеих темах. */
   --pt-brand-red: #d70217;
+  /* Форма знака EVO (logobook, стр. 9) для фоновых знаков рейла и шапки. */
+  --pt-evo-mark-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M 50.00 49.74 L 32.58 39.65 L 70.19 17.19 C 70.29 17.14 70.35 17.03 70.35 16.91 L 70.35 12.99 C 70.35 11.97 69.24 11.34 68.37 11.87 L 27.19 36.54 L 12.39 27.99 L 49.99 5.57 C 50.09 5.51 50.15 5.40 50.15 5.29 L 50.15 1.64 C 50.15 0.63 49.06 0.00 48.18 0.50 L 8.92 23.16 C 7.29 24.10 6.29 25.83 6.29 27.71 L 6.29 73.22 C 6.29 74.39 6.92 75.47 7.93 76.05 L 48.36 99.41 C 49.38 100.00 50.62 100.00 51.64 99.41 L 92.24 75.96 C 93.15 75.43 93.71 74.46 93.71 73.41 L 93.71 26.75 C 93.71 25.74 92.62 25.11 91.74 25.62 Z'/%3E%3C/svg%3E");
+
+  /*
+   * Тёмная шапка «Главной» (03.11.2026, по образцу кабинета пользователя, с
+   * красными градиентами по его просьбе) — одинакова в обеих темах. Белый на
+   * фоне 17:1, приглушённый 10:1, подписи шагов 6.4:1; в самой красной точке
+   * градиента (#5e1217 при 38 %) белый 13.8:1, приглушённый 7.7:1, подписи
+   * 5.1:1. Кольцо шага 4.8:1 (граница графики ≥3:1). Знак — белый 5 %, только
+   * декор, без текста.
+   */
+  --pt-hero-bg: #1c1a17;
+  --pt-hero-ink: #ffffff;
+  --pt-hero-muted: #cfc8be;
+  --pt-hero-faint: #a39d94;
+  --pt-hero-line: #3a3631;
+  --pt-hero-ring: #8a8379;
+  --pt-hero-mark: rgb(255 255 255 / 0.05);
+  --pt-hero-wash:
+    radial-gradient(55% 150% at 100% 0%, rgb(215 2 23 / 0.38), transparent 70%),
+    radial-gradient(45% 120% at 0% 100%, rgb(215 2 23 / 0.16), transparent 72%);
 }
 
 /* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
@@ -434,7 +455,6 @@
     overflow: hidden;
     border-inline-end: 1px solid var(--pt-line);
     background: var(--pt-surface);
-    --pt-rail-mark-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M 50.00 49.74 L 32.58 39.65 L 70.19 17.19 C 70.29 17.14 70.35 17.03 70.35 16.91 L 70.35 12.99 C 70.35 11.97 69.24 11.34 68.37 11.87 L 27.19 36.54 L 12.39 27.99 L 49.99 5.57 C 50.09 5.51 50.15 5.40 50.15 5.29 L 50.15 1.64 C 50.15 0.63 49.06 0.00 48.18 0.50 L 8.92 23.16 C 7.29 24.10 6.29 25.83 6.29 27.71 L 6.29 73.22 C 6.29 74.39 6.92 75.47 7.93 76.05 L 48.36 99.41 C 49.38 100.00 50.62 100.00 51.64 99.41 L 92.24 75.96 C 93.15 75.43 93.71 74.46 93.71 73.41 L 93.71 26.75 C 93.71 25.74 92.62 25.11 91.74 25.62 Z'/%3E%3C/svg%3E");
   }
 
   .pt-rail > * {
@@ -452,8 +472,8 @@
     width: 180px;
     height: 180px;
     background: var(--pt-rail-mark);
-    -webkit-mask: var(--pt-rail-mark-shape) no-repeat center / contain;
-    mask: var(--pt-rail-mark-shape) no-repeat center / contain;
+    -webkit-mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+    mask: var(--pt-evo-mark-shape) no-repeat center / contain;
     pointer-events: none;
   }
 
@@ -5836,20 +5856,49 @@ main.pt-page > .pt-card {
 }
 
 /*
- * Шапка (03.11.2026, по образцу кабинета пользователя): приветствие, страна и
- * этап, дорожка этапов дела — пройденные тёмные, открытый красный с кольцом.
+ * Шапка (03.11.2026, по образцу кабинета пользователя): тёмная плашка с
+ * тонкой красной кромкой сверху, красными градиентами и знаком EVO справа;
+ * приветствие, страна и дорожка этапов дела с подписью под каждым шагом —
+ * пройденные светлые, открытый белым кольцом с красной точкой.
  */
 .pt-home-hero {
-  display: grid;
-  gap: 6px;
-  padding: 26px 28px;
+  container: pt-hero / inline-size;
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid var(--pt-brand-red);
   border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
+  background: var(--pt-hero-wash), var(--pt-hero-bg);
   box-shadow: var(--pt-shadow-card);
+  color: var(--pt-hero-ink);
+}
+
+.pt-home-hero::after {
+  content: "";
+  position: absolute;
+  top: -36px;
+  right: -40px;
+  width: 300px;
+  height: 300px;
+  background: var(--pt-hero-mark);
+  -webkit-mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+  mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+  pointer-events: none;
+}
+
+.pt-home-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pt-home-hero-head {
+  display: grid;
+  gap: 8px;
+  padding: 28px 32px 24px;
 }
 
 .pt-home-hero-title {
   margin: 0;
+  color: var(--pt-hero-ink);
   font-size: var(--pt-size-display);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -5859,21 +5908,19 @@ main.pt-page > .pt-card {
 
 .pt-home-hero-sub {
   margin: 0;
-  color: var(--pt-text-2);
+  color: var(--pt-hero-muted);
   font-size: var(--pt-size-secondary);
+  font-weight: 500;
 }
 
 .pt-home-stages {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 18px;
-  border-top: 1px solid var(--pt-line);
+  padding: 20px 24px 22px;
+  border-top: 1px solid var(--pt-hero-line);
 }
 
 .pt-home-stage-track {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   margin: 0;
   padding: 0;
   list-style: none;
@@ -5881,58 +5928,112 @@ main.pt-page > .pt-card {
 
 .pt-home-stage-track > li {
   position: relative;
-  flex: 1;
-  height: 14px;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-align: center;
 }
 
-.pt-home-stage-track > li::before {
+/* Линия от предыдущего шага к этому, под точкой. */
+.pt-home-stage-track > li + li::before {
   content: "";
   position: absolute;
-  inset-inline-start: 0;
-  top: 3px;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-surface);
-  box-shadow: inset 0 0 0 1.5px var(--pt-control-edge);
-}
-
-.pt-home-stage-track > li:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  inset-inline: 12px 4px;
-  top: 6px;
+  top: 8px;
+  right: 50%;
+  width: 100%;
   height: 2px;
+  background: var(--pt-hero-line);
+}
+
+.pt-home-stage-track > li[data-state="done"]::before,
+.pt-home-stage-track > li[data-state="current"]::before {
+  background: var(--pt-hero-muted);
+}
+
+.pt-home-stage-dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
   border-radius: var(--pt-radius-chip);
-  background: var(--pt-line);
+  background: var(--pt-hero-bg);
+  box-shadow: inset 0 0 0 1.5px var(--pt-hero-ring);
 }
 
-.pt-home-stage-track > li:last-child {
-  flex: 0 0 14px;
-}
-
-.pt-home-stage-track > li[data-state="done"]::before {
-  background: var(--pt-text);
+.pt-home-stage-track > li[data-state="done"] .pt-home-stage-dot {
+  background: var(--pt-hero-muted);
   box-shadow: none;
 }
 
-.pt-home-stage-track > li[data-state="done"]::after {
-  background: var(--pt-text);
+.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot {
+  box-shadow: inset 0 0 0 2px var(--pt-hero-ink);
 }
 
-.pt-home-stage-track > li[data-state="current"]::before {
-  top: 0;
-  width: 14px;
-  height: 14px;
-  margin-inline-start: -3px;
-  background: var(--pt-accent);
-  box-shadow: 0 0 0 4px var(--pt-bg);
+.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-brand-red);
 }
 
+.pt-home-stage-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--pt-hero-faint);
+  font-size: var(--pt-size-caption);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-home-stage-track > li[data-state="done"] .pt-home-stage-name {
+  color: var(--pt-hero-muted);
+}
+
+.pt-home-stage-track > li[data-state="current"] .pt-home-stage-name {
+  color: var(--pt-hero-ink);
+  font-weight: 700;
+}
+
+/* Строка «Этап N из M» — только на узкой шапке, где подписи шагов не влезают. */
 .pt-home-stage-caption {
-  margin: 0;
+  display: none;
+  margin: 14px 0 0;
+  color: var(--pt-hero-ink);
   font-size: var(--pt-size-secondary);
   font-weight: 600;
+}
+
+@container pt-hero (max-width: 760px) {
+  .pt-home-hero-head {
+    padding: 22px 20px 18px;
+  }
+
+  .pt-home-stages {
+    padding: 16px 16px 18px;
+  }
+
+  .pt-home-stage-track > li {
+    gap: 0;
+  }
+
+  .pt-home-stage-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .pt-home-stage-caption {
+    display: block;
+  }
 }
 
 /* Две колонки, когда области содержимого хватает; иначе одна за другой. */

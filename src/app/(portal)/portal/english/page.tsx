@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { LessonIllustration } from "@/components/portal/english/LessonIllustration";
+import { LessonCover } from "@/components/portal/english/LessonCover";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { LearningModule } from "@/lib/portal/learning";
@@ -87,7 +87,7 @@ export default async function EnglishPage() {
               </div>
             </div>
 
-            {/* Уроки плитками: номер на обложке, название и число заданий; плитка — ссылка на урок. */}
+            {/* Уроки плитками: обложка с фото темы, название и число заданий; плитка — ссылка на урок. */}
             <ol className="pt-lesson-grid">
               {module.lessons.map((lesson) => {
                 const state = lesson.completed ? "done" : lesson.draftAttemptId ? "draft" : "new";
@@ -98,10 +98,7 @@ export default async function EnglishPage() {
                       data-state={state}
                       href={`/portal/english/lesson/${lesson.lessonId}`}
                     >
-                      <span className="pt-lesson-cover" aria-hidden="true">
-                        <span className="pt-lesson-num">{String(lesson.orderIndex).padStart(2, "0")}</span>
-                        <LessonIllustration lessonKey={lesson.lessonKey} />
-                      </span>
+                      <LessonCover lessonKey={lesson.lessonKey} orderIndex={lesson.orderIndex} />
                       <span className="pt-lesson-tile-body">
                         <span className="pt-lesson-tile-title">
                           {locale === "ky" ? lesson.metadata.title_ky : lesson.metadata.title_ru}

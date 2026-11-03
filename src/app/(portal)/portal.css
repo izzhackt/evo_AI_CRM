@@ -3896,6 +3896,67 @@
   color: var(--pt-ok);
 }
 
+/* Обложка с фото (по образцу test-english.com): фото на всю обложку, номер
+   белым чипом слева сверху, английская тема белой плашкой справа снизу. */
+.pt-lesson-cover-photo {
+  position: relative;
+  align-items: flex-start;
+  overflow: hidden;
+  padding: 12px;
+  background: var(--pt-line);
+}
+
+.pt-lesson-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--pt-motion-fast) var(--pt-ease-out);
+}
+
+.pt-lesson-tile:hover .pt-lesson-photo {
+  transform: scale(1.03);
+}
+
+.pt-lesson-cover-photo .pt-lesson-num {
+  position: relative;
+  padding: 4px 10px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font-size: var(--pt-size-caption);
+  letter-spacing: 0;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-lesson-label {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 24px);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-lesson-photo {
+    transition: none;
+  }
+
+  .pt-lesson-tile:hover .pt-lesson-photo {
+    transform: none;
+  }
+}
+
 .pt-lesson-tile-body {
   display: grid;
   align-content: start;

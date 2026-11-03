@@ -118,7 +118,10 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
   // 02.10: Shell получает тему запроса для кнопки «солнце/луна».
-  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s*>/u);
+  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s+studyCountry=\{studyCountry\}\s*>/u);
+  // 03.11.2026: страна поступления для карточки внизу рейла — то же чтение 284,
+  // сбой не роняет кабинет.
+  assert.match(layout, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
   assert.match(shell, /logoutStudentPortalAction/u);
   assert.doesNotMatch(

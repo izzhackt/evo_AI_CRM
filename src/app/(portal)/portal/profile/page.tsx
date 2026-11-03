@@ -168,12 +168,15 @@ export default async function ProfilePage() {
               )}
             </section>
 
-            <section aria-labelledby="portal-profile-language" className="pt-profile-card">
+            {/* Широкий экран: язык меняется внизу рейла, карточка — только на телефоне. */}
+            <section aria-labelledby="portal-profile-language" className="pt-profile-card pt-profile-card-phone">
               <h2 id="portal-profile-language" className="pt-section-title">
                 <ProfileIcon name="language" />
                 {strings.languageHeading}
               </h2>
+              {/* key: язык, сменённый внизу рейла, сбрасывает выбор формы. */}
               <LanguageForm
+                key={profile.portalLanguage}
                 initialLanguage={profile.portalLanguage}
                 strings={{
                   languageHeading: strings.languageHeading,

@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 
 import { Shell } from "@/components/portal/Shell";
 import { getLocale } from "@/lib/i18n";
+import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { readReleaseMetadata } from "@/lib/release-metadata";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
+import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import { readRequestTheme } from "@/lib/theme-server";
 
 import "../(v3)/v3.css";
@@ -21,11 +23,17 @@ export default async function StudentPortalLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const [actor, locale, theme] = await Promise.all([
+  const [actor, locale, theme, countryChoice] = await Promise.all([
     requireStudentPortalActor(),
     getLocale(),
     readRequestTheme(),
+    // Страна поступления для подписи в карточке внизу рейла («Малайзия ·
+    // Студент»); то же чтение 284, что у «Пути поступления». Сбой или «Пока не
+    // решил» — без страны.
+    readStudentCountryChoice().catch((): null => null),
   ]);
+  const country = countryChoice?.country ?? null;
+  const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
 
   const metadata = readReleaseMetadata();
   return (
@@ -35,6 +43,7 @@ export default async function StudentPortalLayout({
       locale={locale}
       theme={theme}
       release={metadata.status === "available" ? metadata.revision : null}
+      studyCountry={studyCountry}
     >
       {children}
     </Shell>

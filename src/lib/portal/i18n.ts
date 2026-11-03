@@ -27,6 +27,8 @@ const shellRu = {
   staleVersion: "Вышла новая версия — обновите страницу.",
   staleVersionReload: "Обновить страницу",
   account: "Ваш аккаунт",
+  // Подпись под именем в карточке внизу рейла.
+  accountRole: "Студент",
   logout: "Выйти",
   // Кнопка «солнце/луна»: имя постоянное, состояние — aria-pressed.
   "theme.dark": "Тёмная тема",
@@ -60,6 +62,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   staleVersion: "Жаңы версия чыкты — баракты жаңыртыңыз.",
   staleVersionReload: "Баракты жаңыртуу",
   account: "Сиздин аккаунт",
+  accountRole: "Студент",
   logout: "Чыгуу",
   // KY: носитель языка вычитывает в PR.
   "theme.dark": "Караңгы тема",

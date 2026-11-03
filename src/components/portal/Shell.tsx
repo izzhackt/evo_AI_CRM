@@ -16,6 +16,7 @@ import {
 import { accountInitials } from "./initials";
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 import { PortalStaleDeploymentNotice } from "./PortalStaleDeploymentNotice";
+import { RailFooter } from "./RailFooter";
 
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -98,6 +99,9 @@ const SECTIONS = [
  */
 const PHONE_TAB_COUNT = 3;
 
+/** Раздел, который на широком экране ведёт карточка студента внизу рейла. */
+const RAIL_ACCOUNT_HREF = "/portal/profile";
+
 /**
  * Индикатор активной вкладки. Один элемент `.pt-nav-indicator` переезжает между
  * пунктами нижней панели телефона (по горизонтали) и рейла (по вертикали)
@@ -121,7 +125,7 @@ function useActiveTabIndicator(navRef: RefObject<HTMLElement | null>, pathname: 
       // принадлежат. Широкий экран: рейл — все ссылки подряд.
       const target = nav.querySelector<HTMLElement>(
         wide
-          ? '.pt-nav-link[aria-current="page"]'
+          ? 'li:not([data-rail-hidden]) > .pt-nav-link[aria-current="page"]'
           : '.pt-nav-bar .pt-nav-link[aria-current="page"], .pt-nav-more-toggle[data-current-inside]',
       );
       const instant = snap || nav.getAttribute("data-indicator") !== "ready";
@@ -237,6 +241,7 @@ export function Shell({
   locale,
   theme,
   release = null,
+  studyCountry = null,
 }: {
   children: React.ReactNode;
   displayName: string;
@@ -245,6 +250,8 @@ export function Shell({
   theme: Theme;
   /** Ревизия сервера при отрисовке: по ней опрос узнаёт устаревшую сборку. */
   release?: string | null;
+  /** Страна поступления для подписи в карточке внизу рейла; `null` — без неё. */
+  studyCountry?: string | null;
 }) {
   const pathname = usePathname();
   const strings = getPortalStrings("shell", locale);
@@ -301,7 +308,9 @@ export function Shell({
     const label = strings[section.key];
     const active = isActive(section);
     return (
-      <li key={section.href}>
+      // «Профиль» на широком экране открывает карточка студента внизу рейла
+      // (RailFooter), поэтому пункт виден только в листе «Ещё» на телефоне.
+      <li key={section.href} data-rail-hidden={section.href === RAIL_ACCOUNT_HREF ? "" : undefined}>
         <IntentPrefetchLink
           href={section.href}
           aria-current={active ? "page" : undefined}
@@ -401,6 +410,13 @@ export function Shell({
             </ul>
           ) : null}
           <span aria-hidden="true" className="pt-nav-indicator" />
+          {/* Широкий экран: язык и карточка студента внизу рейла; на телефоне их нет. */}
+          <RailFooter
+            displayName={displayName}
+            studyCountry={studyCountry}
+            locale={locale}
+            current={pathname === RAIL_ACCOUNT_HREF}
+          />
         </nav>
 
         {/*

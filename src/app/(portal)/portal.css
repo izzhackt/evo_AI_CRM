@@ -572,6 +572,158 @@
 }
 
 /*
+ * Низ рейла (03.11.2026, по образцу кабинета, присланного пользователем):
+ * переключатель языка RU | KY и карточка студента со ссылкой на «Профиль».
+ * Только широкий экран: на телефоне рейл — нижняя панель, язык меняется в
+ * «Профиле», а имя — в меню аккаунта сверху. Цвета — прежние токены.
+ */
+.pt-nav-footer {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  /* Колонка вместо сетки: низ прижимается к краю рейла. */
+  .pt-nav {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pt-nav-footer {
+    display: grid;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--pt-line);
+  }
+
+  /* «Профиль» в рейле заменяет карточка студента; на телефоне пункт в «Ещё». */
+  .pt-nav-list > li[data-rail-hidden] {
+    display: none;
+  }
+
+  /* Язык на широком экране — переключатель внизу рейла; карточка «Профиля» не нужна. */
+  .pt-profile-card.pt-profile-card-phone {
+    display: none;
+  }
+}
+
+.pt-lang-switch {
+  display: inline-flex;
+  width: fit-content;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-bg);
+}
+
+.pt-lang-option {
+  min-width: 44px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--pt-radius-control) - 3px);
+  background: transparent;
+  color: var(--pt-text-2);
+  font: inherit;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.pt-lang-option[aria-pressed="true"] {
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  box-shadow: var(--pt-shadow-card);
+  cursor: default;
+}
+
+.pt-lang-option[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.pt-lang-option:focus-visible,
+.pt-nav-account:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-lang-error {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-nav-account {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  color: var(--pt-text);
+  text-decoration: none;
+}
+
+/* Открыт «Профиль»: та же планка у кромки рейла, что у активного пункта. */
+.pt-nav-account[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent);
+}
+
+.pt-nav-account:hover .pt-nav-account-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-nav-account-initials {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pt-nav-account-text {
+  display: grid;
+  min-width: 0;
+}
+
+/* Имя — главное в карточке: целиком, длинное — в две строки. */
+.pt-nav-account-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pt-nav-account-role {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.3;
+}
+
+/*
  * Телефон (#1113): в панели первые разделы и «Ещё»; остальные разделы — плитками
  * на листе над панелью. Раньше все 12 разделов шли одной фиксированной строкой
  * и 7–8 уходили за край экрана без прокрутки.

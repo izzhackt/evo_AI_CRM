@@ -81,11 +81,11 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
     <>
       {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} favoritesCount={favorites?.length ?? null} programsCount={preparations?.length ?? null} />}
       <nav className="pt-pill-tabs" aria-label={strings.tabsLabel}>
-        <Link className="pt-pill-tab" href="/portal" aria-current={view === "universities" ? "page" : undefined}>
+        <Link className="pt-pill-tab" href="/portal" aria-current={view === "universities" ? "true" : undefined}>
           {strings["tab.universities"]}
           {favorites !== null ? <span className="pt-pill-count">{favorites.length}</span> : null}
         </Link>
-        <Link className="pt-pill-tab" href="/portal?view=programs" aria-current={view === "programs" ? "page" : undefined}>
+        <Link className="pt-pill-tab" href="/portal?view=programs" aria-current={view === "programs" ? "true" : undefined}>
           {strings["tab.programs"]}
           {preparations !== null ? <span className="pt-pill-count">{preparations.length}</span> : null}
         </Link>

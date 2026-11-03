@@ -323,7 +323,7 @@
   color: var(--pt-text);
 }
 
-.cs-tab[aria-current="page"] {
+.cs-tab[aria-current="true"] {
   background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
   color: var(--pt-text);

@@ -4651,7 +4651,7 @@
   color: var(--pt-text);
 }
 
-.pt-pill-tab[aria-current="page"] {
+.pt-pill-tab[aria-current="true"] {
   background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
   color: var(--pt-text);
@@ -5024,17 +5024,197 @@ main.pt-page > .pt-card {
 }
 
 /* Строка о данных: тихая плашка со щитом под полосой прогресса. */
+/* Строка о данных — мелко под списком (образец кабинета пользователя, 03.11.2026). */
 .pt-doc-privacy {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  border-radius: var(--pt-radius-item);
-  background: var(--pt-bg);
+  margin: 16px 0 0;
+  padding: 0 4px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   line-height: var(--pt-leading);
+}
+
+/*
+ * «Документы» (03.11.2026, по образцу кабинета пользователя): шапка с кнопкой
+ * «Загрузить документ», карточка «Чеклист» со счётчиком, вкладки, список и
+ * окно загрузки (нативный <dialog>: фокус и Escape — у браузера).
+ */
+.pt-docs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 24px;
+  max-width: none;
+}
+
+.pt-docs-head-main {
+  min-width: 0;
+  max-width: 64ch;
+}
+
+.pt-docs-upload-open {
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.pt-docs-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0 0;
+  padding: 18px 22px;
+}
+
+/* Ровный шаг: карточка, вкладки, список. */
+.pt-docs-status + .pt-pill-tabs {
+  margin: 24px 0 16px;
+}
+
+/* Знак карточки — скруглённый квадрат тона бумаги, как у образца. */
+.pt-docs-status-mark {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+}
+
+.pt-docs-status-mark[data-icon="check"] {
+  color: var(--pt-ok);
+}
+
+.pt-docs-status-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pt-docs-status-title {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.pt-docs-status-line {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-docs-list {
+  overflow: hidden;
+}
+
+/* Список сразу под вкладками: общий отступ карточек страницы здесь не нужен. */
+main.pt-page > .pt-pill-tabs + .pt-docs-list {
+  margin-top: 0;
+}
+
+.pt-docs-dialog {
+  /* Сброс полей страницы не должен сдвигать модальное окно из центра. */
+  inset: 0;
+  margin: auto;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-raised);
+  color: var(--pt-text);
+}
+
+.pt-docs-dialog::backdrop {
+  background: rgb(20 19 17 / 0.45);
+}
+
+.pt-docs-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-docs-dialog-title {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.pt-docs-dialog-close {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -12px -10px 0;
+  border: 0;
+  border-radius: var(--pt-radius-control);
+  background: transparent;
+  color: var(--pt-text-2);
+  cursor: pointer;
+}
+
+.pt-docs-dialog-close:hover {
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+
+.pt-docs-dialog-close:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-docs-dialog-body {
+  display: grid;
+  gap: 10px;
+  padding: 20px 22px;
+}
+
+.pt-docs-dialog-label {
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-docs-dialog-select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-docs-dialog-select:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-docs-dialog-note {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-docs-dialog-body .pt-doc-controls {
+  justify-items: start;
+}
+
+.pt-docs-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--pt-line);
 }
 
 .pt-doc-privacy svg {

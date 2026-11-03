@@ -188,8 +188,8 @@ test("the CSCA page is two link tabs: the exam overview first and by default, le
   // 03.11.2026: the collapsible overview and its cookie are gone; «Об экзамене» is its own tab.
   const page = read("src/app/(portal)/portal/csca/page.tsx");
   assert.match(page, /const view = params\.view === "lessons" \? "lessons" : "about";/u);
-  assert.match(page, /href="\/portal\/csca" aria-current=\{view === "about" \? "page" : undefined\}/u);
-  assert.match(page, /href="\/portal\/csca\?view=lessons" aria-current=\{view === "lessons" \? "page" : undefined\}/u);
+  assert.match(page, /href="\/portal\/csca" aria-current=\{view === "about" \? "true" : undefined\}/u);
+  assert.match(page, /href="\/portal\/csca\?view=lessons" aria-current=\{view === "lessons" \? "true" : undefined\}/u);
   assert.ok(page.indexOf('strings["tab.about"]') < page.indexOf('strings["tab.lessons"]'), "the overview tab comes first");
   assert.ok(page.indexOf("<h1") < page.indexOf("<nav"), "one page title above the tabs");
   assert.doesNotMatch(page, /csca_overview|cookies\(\)/u);

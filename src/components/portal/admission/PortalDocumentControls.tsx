@@ -57,12 +57,15 @@ export function PortalDocumentControls({
   originalFilename,
   allowUpload,
   locale,
+  idScope = "",
 }: {
   documentSlotId: string;
   documentVersionId: string | null;
   originalFilename: string | null;
   allowUpload: boolean;
   locale: Locale;
+  /** Приставка id полей: второй экземпляр (окно «Загрузить документ») не дублирует id строки. */
+  idScope?: string;
 }) {
   // PORT-6a: все подписи и сообщения — из неймспейса admission
   // (RU байт-в-байт прежние, KY полный); локаль приходит из server-родителя
@@ -76,6 +79,7 @@ export function PortalDocumentControls({
   const [chosen, setChosen] = useState<string | null>(null);
   const [refreshing, startRefresh] = useTransition();
   const pending = state.status === "uploading" || state.status === "confirming" || refreshing;
+  const fieldId = `portal-document-${idScope}${documentSlotId}`;
   // Процент остаётся только визуальным: живая область с ним объявляла бы
   // каждый тик прогресса.
   const feedback = state.status === "uploading"
@@ -155,7 +159,7 @@ export function PortalDocumentControls({
           {/* «Загрузить» — подпись к скрытому полю файла: выбранный файл сразу
               уходит тем же XHR-путём; после сбоя рядом кнопка «Повторить». */}
           <label
-            htmlFor={`portal-document-${documentSlotId}`}
+            htmlFor={fieldId}
             className="pt-btn-ghost pt-doc-pick"
             data-pending={pending ? "" : undefined}
           >
@@ -169,13 +173,13 @@ export function PortalDocumentControls({
                 : refreshing ? strings.refreshingButton : documentVersionId ? strings.replaceButton : strings.uploadButton}
             <span className="pt-sr-only">: {strings.uploadLabel}</span>
             <input
-              id={`portal-document-${documentSlotId}`}
+              id={fieldId}
               name="file"
               type="file"
               required
               accept="application/pdf,image/jpeg,image/png"
               disabled={pending}
-              aria-describedby={`portal-document-hint-${documentSlotId} portal-document-feedback-${documentSlotId}`}
+              aria-describedby={`${fieldId}-hint ${fieldId}-feedback`}
               onChange={(event) => {
                 uploadIdempotencyKeyRef.current = null;
                 setState({ status: "idle" });
@@ -203,7 +207,7 @@ export function PortalDocumentControls({
               className="pt-progress pt-doc-progress"
             />
           ) : null}
-          <p id={`portal-document-hint-${documentSlotId}`} className="pt-sr-only">{strings.uploadHint}</p>
+          <p id={`${fieldId}-hint`} className="pt-sr-only">{strings.uploadHint}</p>
         </form>
       ) : (
         <p className="pt-doc-locked">{strings.uploadLocked}</p>
@@ -220,7 +224,7 @@ export function PortalDocumentControls({
       ) : null}
 
       <p
-        id={`portal-document-feedback-${documentSlotId}`}
+        id={`${fieldId}-feedback`}
         role={state.status === "error" ? "alert" : "status"}
         aria-live="polite"
         aria-atomic="true"

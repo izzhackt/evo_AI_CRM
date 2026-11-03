@@ -49,10 +49,10 @@ export default async function CscaHomePage({
       </header>
 
       <nav className="cs-tabs" aria-label={strings.tabsLabel}>
-        <Link className="cs-tab" href="/portal/csca" aria-current={view === "about" ? "page" : undefined}>
+        <Link className="cs-tab" href="/portal/csca" aria-current={view === "about" ? "true" : undefined}>
           {strings["tab.about"]}
         </Link>
-        <Link className="cs-tab" href="/portal/csca?view=lessons" aria-current={view === "lessons" ? "page" : undefined}>
+        <Link className="cs-tab" href="/portal/csca?view=lessons" aria-current={view === "lessons" ? "true" : undefined}>
           {strings["tab.lessons"]}
         </Link>
       </nav>

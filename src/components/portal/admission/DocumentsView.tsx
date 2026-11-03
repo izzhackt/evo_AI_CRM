@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { AI_CONSENT_PRIVACY_URL } from "@/lib/portal/ai-consent";
@@ -18,67 +20,68 @@ import {
  * «Документы» в Атласе (PORT-5d): чек-лист со счётчиком принятых, честными
  * статусами и прежним XHR-путём загрузки/скачивания. С 03.11.2026 — один
  * список строк: знак, что за документ и что прислать, справа статус и
- * «Загрузить» (выбранный файл сразу уходит тем же XHR-путём). PORT-6a: строки — из
+ * «Загрузить» (выбранный файл сразу уходит тем же XHR-путём); над списком —
+ * карточка «Чеклист» со счётчиком принятых, под ним — строка о данных
+ * (образец кабинета пользователя, 03.11.2026). PORT-6a: строки — из
  * неймспейса admission (RU+KY); смоук-якоря сохранены байт-в-байт в
  * RU-словаре: заголовки «Чеклист» и «Список документов пока пуст».
  */
 export function DocumentsView({
   documents,
   locale,
+  tabs = null,
+  children = null,
 }: {
   documents: readonly StudentPortalDocument[];
   locale: Locale;
+  /** Вкладки страницы — между карточкой «Чеклист» и содержимым (как у образца). */
+  tabs?: ReactNode;
+  /** Другая вкладка («Пакеты по вузам») вместо списка документов. */
+  children?: ReactNode;
 }) {
   const strings = getPortalStrings("admission", locale);
 
   if (documents.length === 0) {
     return (
-      <section className="pt-adm-empty">
-        <h2 className="pt-section-title">{strings.documentsEmptyTitle}</h2>
-        <p className="pt-adm-empty-body">{strings.documentsEmptyBody}</p>
-      </section>
+      <>
+        {tabs}
+        {children ?? (
+          <section className="pt-adm-empty">
+            <h2 className="pt-section-title">{strings.documentsEmptyTitle}</h2>
+            <p className="pt-adm-empty-body">{strings.documentsEmptyBody}</p>
+          </section>
+        )}
+      </>
     );
   }
 
   const { approved } = documentProgress(documents);
 
   return (
-    <section className="pt-card">
-      <header className="pt-card-header">
-        <div className="pt-card-header-main">
-          <h2 className="pt-card-title">{strings.checklistHeading}</h2>
-        </div>
-      </header>
-      <div className="pt-doc-summary">
-        <div className="pt-doc-summary-row">
-          <p id="document-progress-label" className="pt-doc-summary-count">
-            {strings.acceptedLabel}{" "}
-            <strong>
-              {formatPortalString(strings.acceptedShare, {
-                approved: String(approved),
-                total: String(documents.length),
-              })}
-            </strong>
-          </p>
-          <p className="pt-doc-hint">{strings.uploadHint}</p>
-        </div>
-        <progress
-          className="pt-progress"
-          value={approved}
-          max={documents.length}
-          aria-labelledby="document-progress-label"
+    <>
+      {/* Карточка «Чеклист» (как у образца): квадратный знак, заголовок и одна строка — сколько принято и какие файлы подходят. */}
+      <section className="pt-card pt-docs-status" aria-labelledby="documents-checklist">
+        <DocumentStatusIcon
+          icon={approved === documents.length ? "check" : "file"}
+          className="pt-docs-status-mark"
         />
-        {/* Кто видит файлы и как они хранятся — одной строкой, со ссылкой на политику. */}
-        <p className="pt-doc-privacy">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 2.5 4 5v4.5c0 3.6 2.5 6.6 6 8 3.5-1.4 6-4.4 6-8V5zM7.6 9.8l1.7 1.7 3.2-3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>
-            {strings.documentsPrivacyNote}{" "}
-            <a className="pt-link" href={AI_CONSENT_PRIVACY_URL}>{strings.documentsPrivacyLink}</a>
-          </span>
-        </p>
-      </div>
+        <div className="pt-docs-status-main">
+          <h2 id="documents-checklist" className="pt-docs-status-title">{strings.checklistHeading}</h2>
+          <p className="pt-docs-status-line">
+            {strings.acceptedLabel}{" "}
+            {formatPortalString(strings.acceptedShare, {
+              approved: String(approved),
+              total: String(documents.length),
+            })}
+            {" · "}
+            {strings.uploadHint}
+          </p>
+        </div>
+      </section>
+      {tabs}
+      {children ?? (
+      <>
+      <section className="pt-card pt-docs-list" aria-labelledby="documents-checklist">
       <ul className="pt-doc-rows">
         {documents.map((document) => {
           const status = documentStatus(document, strings);
@@ -155,6 +158,19 @@ export function DocumentsView({
           );
         })}
       </ul>
-    </section>
+      </section>
+      {/* Кто видит файлы и как они хранятся — одной строкой под списком, со ссылкой на политику. */}
+      <p className="pt-doc-privacy">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 2.5 4 5v4.5c0 3.6 2.5 6.6 6 8 3.5-1.4 6-4.4 6-8V5zM7.6 9.8l1.7 1.7 3.2-3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>
+          {strings.documentsPrivacyNote}{" "}
+          <a className="pt-link" href={AI_CONSENT_PRIVACY_URL}>{strings.documentsPrivacyLink}</a>
+        </span>
+      </p>
+      </>
+      )}
+    </>
   );
 }

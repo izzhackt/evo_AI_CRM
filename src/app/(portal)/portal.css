@@ -4652,6 +4652,12 @@
   font-weight: 500;
 }
 
+/* Ссылка на «Незавершённые отправки» над вкладками (#1341). Пока ссылки нет,
+   обёртка пуста и не добавляет отступ. */
+.pt-pending-packages:not(:empty) {
+  margin: 8px 0 4px;
+}
+
 .pt-pill-tabs {
   display: inline-flex;
   flex-wrap: wrap;

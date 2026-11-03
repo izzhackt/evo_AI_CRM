@@ -934,3 +934,21 @@ test("330: the shown chat clears the notification and its text follows the stude
   assert.ok(migration.includes("m.sequence_id > p_up_to_sequence_id AND m.author_membership_id <> actor.membership_id"), "a newer staff message keeps it unread");
   assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /read the chat without the bell: the next message notifies again/u);
 });
+
+// #1341: the interrupted-upload link is a cue for the whole overview, not for
+// one tab. PendingPackagesLink is client-only (it reads this device's
+// localStorage and renders null until hydrated), so a server render cannot show
+// it; the contract is pinned on where the overview places it.
+test("the overview shows the pending-packages link above the tabs on every view", () => {
+  const page = source("src/app/(portal)/portal/page.tsx");
+  const overview = page.slice(page.indexOf("async function AdmissionOverview"));
+  assert.equal(overview.match(/<PendingPackagesLink\b/gu)?.length, 1, "exactly one link in the overview");
+  const link = overview.indexOf("<PendingPackagesLink");
+  const tabs = overview.indexOf('<nav className="pt-pill-tabs"');
+  const viewBranch = overview.indexOf('view === "universities" ?');
+  assert.ok(link > 0 && tabs > link, "the link renders above the tabs");
+  assert.ok(viewBranch > tabs, "the link is outside the view branch, so the default tab shows it");
+  assert.match(overview, /label=\{packageStrings\(locale\)\.pendingTitle\}/u);
+  assert.match(source("src/components/portal/applicationPackages/PendingPackagesLink.tsx"), /href="\/portal\/package-recovery"/u);
+  assert.match(source("src/app/(portal)/portal.css"), /\.pt-pending-packages:not\(:empty\)/u);
+});

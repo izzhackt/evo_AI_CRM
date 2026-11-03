@@ -75,7 +75,7 @@ const SECTIONS = [
   // и ссылка «Все начисления» на «Поступлении».
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
   // 03.11.2026: рейл по группам, как в кабинете-образце пользователя: «Выбор»
-  // (вузы, профессии, избранное) и «Подготовка» (английский, CSCA, тесты).
+  // (вузы, профессии, избранное) и «Учёба» (английский, CSCA, тесты).
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"], group: "nav.groupChoice" },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
   { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },

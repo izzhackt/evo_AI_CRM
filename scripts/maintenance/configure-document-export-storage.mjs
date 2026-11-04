@@ -1,9 +1,8 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { jwtRefAcceptable, matchSupabaseTarget } from "../lib/evo-supabase-target.mjs";
+import { jwtRefAcceptable, matchSupabaseTarget, SELFHOSTED_SUPABASE_ORIGIN } from "../lib/evo-supabase-target.mjs";
 
-export const DOCUMENT_EXPORT_STORAGE_PROJECT = "iosckaqtovbbnssqcpde";
-export const DOCUMENT_EXPORT_STORAGE_ORIGIN = `https://${DOCUMENT_EXPORT_STORAGE_PROJECT}.supabase.co`;
+export const DOCUMENT_EXPORT_STORAGE_ORIGIN = SELFHOSTED_SUPABASE_ORIGIN;
 export const DOCUMENT_EXPORT_BUCKET = Object.freeze({
   id: "platform-document-exports",
   name: "platform-document-exports",
@@ -46,9 +45,9 @@ export function parseDocumentExportStorageArgs(argv) {
 
 function configuration(environment) {
   const rawUrl = environment.NEXT_PUBLIC_SUPABASE_URL;
-  // No configurable host/path/bucket, redirects or credential-valued arguments: the cloud project
-  // or exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md).
-  const target = matchSupabaseTarget(rawUrl, DOCUMENT_EXPORT_STORAGE_PROJECT);
+  // No configurable host/path/bucket, redirects or credential-valued arguments: exactly the
+  // self-hosted stack.
+  const target = matchSupabaseTarget(rawUrl);
   if (target === null) fail("project_mismatch");
   const key = environment.EVO_PLATFORM_SUPABASE_SECRET_KEY;
   if (typeof key !== "string" || key.length > 4096) fail("credential_invalid");
@@ -58,7 +57,7 @@ function configuration(environment) {
     if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(key)) fail("credential_invalid");
     const payload = JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8"));
     // Self-hosted keys carry no `ref` claim: the check is skipped there (see jwtRefAcceptable).
-    if (payload?.role !== "service_role" || !jwtRefAcceptable(payload.ref, target, DOCUMENT_EXPORT_STORAGE_PROJECT)) fail("credential_invalid");
+    if (payload?.role !== "service_role" || !jwtRefAcceptable(payload.ref)) fail("credential_invalid");
   } catch { fail("credential_invalid"); }
   // Shape/project checks are not JWT signature verification; the server verifies it.
   headers.Authorization = `Bearer ${key}`;
@@ -134,7 +133,7 @@ async function readBucket(origin, headers, fetchImpl) {
 export async function configureDocumentExportStorage({ apply = false, universityForms = false, packages = false, environment = process.env, fetchImpl = globalThis.fetch } = {}) {
   const report = {
     schema: "evo-document-export-storage/v1", mode: apply === true ? "apply" : "check",
-    projectRef: DOCUMENT_EXPORT_STORAGE_PROJECT, bucket: DOCUMENT_EXPORT_BUCKET.id,
+    projectRef: "selfhosted", bucket: DOCUMENT_EXPORT_BUCKET.id,
     status: "not_checked", before: null, after: null, mutationAttempted: false,
     readbackVerified: false, globalLimitVerified: false, artifactAcceptance: false,
   };
@@ -143,8 +142,7 @@ export async function configureDocumentExportStorage({ apply = false, university
     if (typeof apply !== "boolean" || typeof universityForms !== "boolean" || typeof packages !== "boolean"
       || (universityForms && packages) || !isRecord(environment) || typeof fetchImpl !== "function") fail("arguments_invalid");
     const expected = packages ? DOCUMENT_PACKAGE_EXPORT_BUCKET : universityForms ? UNIVERSITY_FORM_EXPORT_BUCKET : DOCUMENT_EXPORT_BUCKET;
-    const { headers, origin, kind } = configuration(environment);
-    if (kind === "selfhosted") report.projectRef = "selfhosted";
+    const { headers, origin } = configuration(environment);
     stage = "before_read";
     report.before = await readBucket(origin, headers, fetchImpl);
     if (report.before !== null) {

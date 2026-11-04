@@ -17,7 +17,7 @@
  * объект с другими байтами по тому же пути это конфликт, перезаписи нет.
  *
  * Адрес и ключ только из окружения, в вывод не попадают:
- *   NEXT_PUBLIC_SUPABASE_URL          https://<ref>.supabase.co или
+ *   NEXT_PUBLIC_SUPABASE_URL          https://supabase.evoadmissions.com (self-hosted) или
  *                                     http://127.0.0.1:<порт> (локальный стек);
  *   EVO_PLATFORM_SUPABASE_SECRET_KEY  sb_secret_* или JWT service_role (только --apply).
  * Папка сида: --seed-dir или EVO_GEOGRAPHY_SEED_DIR.
@@ -33,16 +33,14 @@ const TIMEOUT_MS = 60_000;
 class UploadError extends Error { constructor(code) { super(code); this.code = code; } }
 const fail = (code) => { throw new UploadError(code); };
 
-/** Только проект Supabase или локальный стек; возвращает origin и вид цели без адреса. */
+/** Только self-hosted Supabase или локальный стек; возвращает origin и вид цели без адреса. */
 export function readTarget(environment) {
   const raw = environment.NEXT_PUBLIC_SUPABASE_URL;
   if (!raw) fail("missing_supabase_url");
   let url;
   try { url = new URL(raw); } catch { fail("invalid_supabase_url"); }
   if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) fail("invalid_supabase_url");
-  const project = /^([a-z0-9]{20})\.supabase\.co$/u.exec(url.hostname);
-  if (url.protocol === "https:" && project && !url.port) return { origin: url.origin, kind: `supabase-project ${project[1]}` };
-  // Exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md); the cloud branch above goes after the cutover (#1271).
+  // Exactly the self-hosted stack.
   if (url.origin === SELFHOSTED_SUPABASE_ORIGIN) return { origin: url.origin, kind: "supabase-selfhosted" };
   if (url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname) && url.port) return { origin: url.origin, kind: "local-stack" };
   fail("unsupported_supabase_url");

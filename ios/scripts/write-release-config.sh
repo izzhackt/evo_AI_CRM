@@ -2,14 +2,13 @@
 # Пишет ios/Release.xcconfig для конфигурации Release (архив для App Store)
 # из переменных окружения. Файл в .gitignore и не попадает в Git.
 #
-#   SUPABASE_URL=https://iosckaqtovbbnssqcpde.supabase.co \
+#   SUPABASE_URL=https://supabase.evoadmissions.com \
 #   SUPABASE_PUBLISHABLE_KEY=... \
 #   DEVELOPMENT_TEAM=... \
 #   ios/scripts/write-release-config.sh
 #
-# После переключения на self-hosted Supabase (docs/runbooks/selfhosted-cutover.md)
-# меняются только SUPABASE_URL=https://supabase.evoadmissions.com и ключ; скрипт
-# принимает любой https:// адрес.
+# Рабочий адрес проекта: https://supabase.evoadmissions.com (self-hosted Supabase).
+# Скрипт принимает любой https:// адрес.
 #
 # SUPABASE_URL              обязательно, только https://, без пути.
 # SUPABASE_PUBLISHABLE_KEY  обязательно, публичный клиентский ключ (publishable

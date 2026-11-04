@@ -69,7 +69,8 @@ const evidenceRoot = join(harnessRoot, "evidence");
 const imageContext = join(harnessRoot, "image");
 const toolRoot = join(harnessRoot, "tools");
 const appEnvironmentValidator = join(repositoryRoot, "scripts/release/evo-app-env-contract.mjs");
-const supabaseProjectRef = "aaaaaaaaaaaaaaaaaaaa";
+const supabaseProjectRef = "selfhosted";
+const supabaseOrigin = "https://supabase.evoadmissions.com";
 const supabasePublishableKey = "sb_publishable_rollback_proof";
 const supabaseSecretKey = "sb_secret_rollback_proof_only_1234567890";
 const composeFile = join(releaseRoot, "docker-compose.yml");
@@ -297,7 +298,7 @@ function controllerEnvironment(overrides = {}) {
     EVO_RELEASE_MIN_FREE_KB: "1048576",
     EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: "4194304",
     EVO_RELEASE_ROLLBACK_SEED: rollbackSeed,
-    EVO_SUPABASE_PROJECT_REF: supabaseProjectRef,
+    EVO_SUPABASE_IDENTITY: supabaseProjectRef,
     EVO_CRM_APP_ENV_FILE: appEnvironmentFile,
     EVO_CRM_WAHA_ENV_FILE: wahaEnvironmentFile,
     EVO_TEST_HOST_PORT: String(hostPort),
@@ -324,8 +325,8 @@ function prepareClosedSupabaseKeyProbe() {
   writePrivateFile(
     fetchShim,
     `const expected = new Map(${JSON.stringify([
-      [`https://${supabaseProjectRef}.supabase.co/auth/v1/settings`, supabasePublishableKey],
-      [`https://${supabaseProjectRef}.supabase.co/auth/v1/admin/users?page=1&per_page=1`, supabaseSecretKey],
+      [`${supabaseOrigin}/auth/v1/settings`, supabasePublishableKey],
+      [`${supabaseOrigin}/auth/v1/admin/users?page=1&per_page=1`, supabaseSecretKey],
     ])});
 globalThis.fetch = async (input, init = {}) => {
   const url = typeof input === "string" ? input : input?.url;
@@ -640,7 +641,7 @@ function writeHarnessFiles() {
 
   const environment = `EVO_CRM_DOMAIN=crm.evoadmissions.com
 EVO_CADDY_NETWORK=${networkName}
-NEXT_PUBLIC_SUPABASE_URL=https://${supabaseProjectRef}.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=${supabaseOrigin}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabasePublishableKey}
 EVO_PLATFORM_SUPABASE_SECRET_KEY=${supabaseSecretKey}
 EVO_PLATFORM_ORGANIZATION_ID=11111111-1111-4111-8111-111111111111

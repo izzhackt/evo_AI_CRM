@@ -25,10 +25,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const PLACEHOLDER = /(?:replace-with-|change-me|changeme|placeholder)/iu;
 const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,}$/u;
-const SUPABASE_PROJECT_REF = /^[a-z0-9]{20}$/u;
-// Self-hosted Supabase (docs/runbooks/selfhosted-cutover.md): the "project" is the word
-// `selfhosted` and the only accepted origin is exactly this one, with no patterns.
-// The cloud branch (`<ref>.supabase.co`) is removed after the cutover (#1271).
+// Self-hosted Supabase is the only backend: the "project" is the word `selfhosted`
+// and the only accepted origin is exactly this one, with no patterns.
 const SELFHOSTED_SUPABASE_IDENTITY = "selfhosted";
 const SELFHOSTED_SUPABASE_ORIGIN = "https://supabase.evoadmissions.com";
 const SUPABASE_KEY_VERIFICATION_TIMEOUT_MS = 10_000;
@@ -231,13 +229,7 @@ function expectedSupabaseOrigin(expectedSupabaseProjectRef) {
   if (expectedSupabaseProjectRef === SELFHOSTED_SUPABASE_IDENTITY) {
     return SELFHOSTED_SUPABASE_ORIGIN;
   }
-  if (
-    typeof expectedSupabaseProjectRef !== "string" ||
-    !SUPABASE_PROJECT_REF.test(expectedSupabaseProjectRef)
-  ) {
-    fail("expected_supabase_project_invalid");
-  }
-  return `https://${expectedSupabaseProjectRef}.supabase.co`;
+  fail("expected_supabase_project_invalid");
 }
 
 function validatePublicSupabase(entries, expectedSupabaseProjectRef) {

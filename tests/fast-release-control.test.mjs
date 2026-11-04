@@ -24,8 +24,6 @@ import {
 } from "../scripts/release/fast-release-ci-gate.mjs";
 import {
   expectedMigrationVersions,
-  resolveSupabaseTarget,
-  verifyProductionMigrationLedger,
   verifySelfHostedMigrationLedger,
 } from "../scripts/release/fast-release-ledger-gate.mjs";
 import { sealCandidateEnvironmentSnapshot } from "../scripts/release/evo-app-env-contract.mjs";
@@ -323,7 +321,7 @@ exec ${JSON.stringify(process.execPath)} "$@"
     EVO_RELEASE_VERSION: targetVersion,
     EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
     EVO_RELEASE_WORKFLOW_RUN_ID: "1",
-    EVO_SUPABASE_PROJECT_REF: "a".repeat(20),
+    EVO_SUPABASE_IDENTITY: "selfhosted",
     EVO_WAHA_IMAGE_DIGEST: wahaDigest,
     FAKE_KILL_POINT: killPoint,
     FAKE_RUNTIME_STATE: statePath,
@@ -373,8 +371,8 @@ function rollbackFixture({ appPresent, appHealth, previousIdentity = false }) {
   const wahaImage = `devlikeapro/waha@${wahaDigest}`;
   const candidateCompose = JSON.stringify({ candidate: true });
   const previousCompose = JSON.stringify({ previous: true });
-  const candidateEnv = `NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co\nEVO_RUNTIME_IMAGE_ID=${targetImage}\n`;
-  const previousEnv = `NEXT_PUBLIC_SUPABASE_URL=https://previous.supabase.co\n${previousIdentity ? `EVO_RUNTIME_IMAGE_ID=${previousImage}\n` : ""}`;
+  const candidateEnv = `NEXT_PUBLIC_SUPABASE_URL=https://supabase.evoadmissions.com\nEVO_RUNTIME_IMAGE_ID=${targetImage}\n`;
+  const previousEnv = `NEXT_PUBLIC_SUPABASE_URL=https://previous.supabase.evoadmissions.com\n${previousIdentity ? `EVO_RUNTIME_IMAGE_ID=${previousImage}\n` : ""}`;
   const candidateComposePath = join(evidenceDir, "docker-compose.candidate.yml");
   const previousComposePath = join(evidenceDir, "docker-compose.previous.yml");
   const candidateEnvPath = join(evidenceDir, "candidate-app.env");
@@ -621,7 +619,7 @@ fi
     EVO_RELEASE_COMPOSE_FILE: candidateComposePath,
     EVO_RELEASE_APP_ENV_FILE: liveEnv,
     EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://crm.evoadmissions.com/api/health",
-    EVO_SUPABASE_PROJECT_REF: "abcdefghijklmnopqrst",
+    EVO_SUPABASE_IDENTITY: "selfhosted",
     EVO_WAHA_IMAGE_DIGEST: wahaDigest,
     EVO_RELEASE_ROLLBACK_STATE: statePath,
     EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID: releaseId,
@@ -782,48 +780,20 @@ test("CI gate requires only the exact root CRM check from GitHub Actions", async
   assert.match(requestUrl, /filter=latest/u);
 });
 
-test("migration gate requires an exact contiguous source and production ledger", async () => {
+test("migration gate requires an exact contiguous source tree", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-ledger-"));
   try {
     writeFileSync(join(root, "001_one.sql"), "select 1;\n");
     writeFileSync(join(root, "002_two.sql"), "select 2;\n");
     assert.deepEqual(expectedMigrationVersions(root), ["001", "002"]);
-    const result = await verifyProductionMigrationLedger({
-      projectRef: "abcdefghijklmnopqrst",
-      accessToken: ["process", "only", "fixture"].join("-"),
-      migrationDirectory: root,
-      fetchImpl: async () => Response.json([
-        { version: "001", name: "one" },
-        { version: "002", name: "two" },
-      ]),
-    });
-    assert.deepEqual(result, { ok: true, count: 2, range: "001-002" });
-
-    await assert.rejects(
-      verifyProductionMigrationLedger({
-        projectRef: "abcdefghijklmnopqrst",
-        accessToken: ["process", "only", "fixture"].join("-"),
-        migrationDirectory: root,
-        fetchImpl: async () => Response.json([{ version: "001", name: "one" }]),
-      }),
-      /does not match/u,
-    );
+    writeFileSync(join(root, "004_four.sql"), "select 4;\n");
+    assert.throws(() => expectedMigrationVersions(root), /not contiguous/u);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("target selection is cloud by default, selfhosted by name and nothing else", () => {
-  assert.equal(resolveSupabaseTarget(undefined), "cloud");
-  assert.equal(resolveSupabaseTarget(""), "cloud");
-  assert.equal(resolveSupabaseTarget("cloud"), "cloud");
-  assert.equal(resolveSupabaseTarget("selfhosted"), "selfhosted");
-  for (const value of ["self-hosted", "Selfhosted", "SELFHOSTED", " cloud", "cloud ", "local", "0", "true"]) {
-    assert.throws(() => resolveSupabaseTarget(value), /invalid migration gate configuration/u, value);
-  }
-});
-
-test("self-hosted migration gate compares the database ledger with the same exactness and never calls the Management API", async () => {
+test("self-hosted migration gate compares the database ledger with the same exactness and never calls any HTTP API", async () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-ledger-selfhosted-"));
   try {
     writeFileSync(join(root, "001_one.sql"), "select 1;\n");
@@ -833,12 +803,11 @@ test("self-hosted migration gate compares the database ledger with the same exac
       await verifySelfHostedMigrationLedger({ migrationDirectory: root, readRemoteRows: rows("001", "002") }),
       { ok: true, count: 2, range: "001-002" },
     );
-    // the result has exactly the cloud shape: the workflow reads only `.ok`
-    const cloud = await verifyProductionMigrationLedger({
-      projectRef: "abcdefghijklmnopqrst", accessToken: "fixture", migrationDirectory: root,
-      fetchImpl: async () => Response.json([{ version: "001" }, { version: "002" }]),
-    });
-    assert.deepEqual(Object.keys(cloud), Object.keys(await verifySelfHostedMigrationLedger({ migrationDirectory: root, readRemoteRows: rows("001", "002") })));
+    // the workflow reads only `.ok`
+    assert.deepEqual(
+      Object.keys(await verifySelfHostedMigrationLedger({ migrationDirectory: root, readRemoteRows: rows("001", "002") })),
+      ["ok", "count", "range"],
+    );
     for (const [label, remote] of [
       ["behind the tree", rows("001")],
       ["ahead of the tree", rows("001", "002", "003")],
@@ -863,7 +832,7 @@ test("self-hosted migration gate compares the database ledger with the same exac
   }
 });
 
-test("the gate CLI: cloud by default, selfhosted over ssh with a fixed command, unknown target refused before any I/O", () => {
+test("the gate CLI reads the ledger only over ssh with a fixed command; leftover cloud variables change nothing and an unreachable database stops it", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-ledger-cli-"));
   try {
     const migrations = join(root, "supabase", "migrations");
@@ -882,7 +851,7 @@ test("the gate CLI: cloud by default, selfhosted over ssh with a fixed command, 
       timeout: 30_000,
     });
 
-    const selfhosted = run({ EVO_SUPABASE_TARGET: "selfhosted" });
+    const selfhosted = run({});
     assert.equal(selfhosted.status, 0, selfhosted.stderr);
     assert.deepEqual(JSON.parse(selfhosted.stdout), { ok: true, count: 2, range: "001-002" });
     const argv = readFileSync(record, "utf8").trimEnd().split("\n");
@@ -893,22 +862,16 @@ test("the gate CLI: cloud by default, selfhosted over ssh with a fixed command, 
     );
     assert.doesNotMatch(argv.join("\n"), /-L|-R|-D|:5432|:25432|:25433|PGPASSWORD|password/u, "no tunnel, no database port, no credential");
 
+    // leftover cloud variables are ignored: there is no cloud branch to select
     rmSync(record);
-    const unknown = run({ EVO_SUPABASE_TARGET: "self-hosted", EVO_SUPABASE_PROJECT_REF: "a".repeat(20), SUPABASE_ACCESS_TOKEN: "fixture" });
-    assert.equal(unknown.status, 2);
-    assert.equal(unknown.stdout, "");
-    assert.equal(existsSync(record), false, "an unknown target must not even start ssh");
-
-    // unset target = cloud: it needs the project and token exactly as before and never starts ssh
-    const cloud = run({});
-    assert.equal(cloud.status, 2);
-    assert.equal(cloud.stdout, "");
-    assert.equal(existsSync(record), false);
-    assert.match(cloud.stderr, /production migration ledger gate failed/u);
+    const leftover = run({ EVO_SUPABASE_TARGET: "cloud", EVO_SUPABASE_PROJECT_REF: "a".repeat(20), SUPABASE_ACCESS_TOKEN: "fixture" });
+    assert.equal(leftover.status, 0, leftover.stderr);
+    assert.deepEqual(JSON.parse(leftover.stdout), { ok: true, count: 2, range: "001-002" });
+    assert.equal(existsSync(record), true, "the ledger is read over ssh, never over HTTP");
 
     // a failing remote fails the gate generically, without echoing remote output
     writeExecutable(join(bin, "ssh"), "#!/bin/sh\necho 'secret remote detail' >&2\nexit 255\n");
-    const failed = run({ EVO_SUPABASE_TARGET: "selfhosted" });
+    const failed = run({ EVO_SUPABASE_TARGET: "cloud", SUPABASE_ACCESS_TOKEN: "fixture" });
     assert.equal(failed.status, 2);
     assert.equal(failed.stdout, "");
     assert.equal(failed.stderr, "production migration ledger gate failed\n");
@@ -978,13 +941,13 @@ test("release health accepts only the canonical staff host and existing loopback
   }
 });
 
-test("controller accepts a 20-character cloud project ref or the word selfhosted and nothing else", () => {
+test("controller accepts the word selfhosted as the Supabase identity and nothing else", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const declaration = controller.match(/^readonly SUPABASE_PROJECT_REF_RE=.*$/mu)?.[0];
   assert.ok(declaration, "actual project identity declaration must exist");
   for (const [value, accepted] of [
-    ["abcdefghijklmnopqrst", true], ["a1b2c3d4e5f6g7h8i9j0", true], ["selfhosted", true],
-    ["abcdefghijklmnopqrs", false], ["abcdefghijklmnopqrstu", false], ["ABCDEFGHIJKLMNOPQRST", false],
+    ["selfhosted", true],
+    ["abcdefghijklmnopqrst", false], ["a1b2c3d4e5f6g7h8i9j0", false], ["ABCDEFGHIJKLMNOPQRST", false],
     ["Selfhosted", false], ["self-hosted", false], ["selfhosted ", false], [" selfhosted", false], ["selfhosted\n", false],
     ["selfhostedx", false], ["xselfhosted", false], ["supabase.evoadmissions.com", false], ["", false],
   ]) {
@@ -995,8 +958,8 @@ test("controller accepts a 20-character cloud project ref or the word selfhosted
     assert.equal(result.status, accepted ? 0 : 1, JSON.stringify(value));
   }
   // the identity travels unchanged to the env validator and into the rollback wrapper
-  assert.match(controller, /--supabase-project-ref "\$EVO_SUPABASE_PROJECT_REF"/u);
-  assert.match(controller, /printf 'export EVO_SUPABASE_PROJECT_REF=%q\\n' "\$EVO_SUPABASE_PROJECT_REF"/u);
+  assert.match(controller, /--supabase-project-ref "\$EVO_SUPABASE_IDENTITY"/u);
+  assert.match(controller, /printf 'export EVO_SUPABASE_IDENTITY=%q\\n' "\$EVO_SUPABASE_IDENTITY"/u);
 });
 
 test("release controller is app-only, wait-gated, and avoids destructive shortcuts", () => {
@@ -1775,7 +1738,7 @@ test("release runbooks install the controller before sealing and provide complet
       preparation.indexOf("`seal-rollback-seed`"),
   );
   for (const runbook of [fastRelease, productionRelease]) {
-    assert.match(runbook, /export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'/u);
+    assert.match(runbook, /export EVO_SUPABASE_IDENTITY='selfhosted'/u);
     assert.match(runbook, /evo-fast-release\.sh rollback/u);
   }
 });
@@ -2266,7 +2229,7 @@ exec ${JSON.stringify(process.execPath)} "$@"
     EVO_RELEASE_VERSION: targetVersion,
     EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
     EVO_RELEASE_WORKFLOW_RUN_ID: "1",
-    EVO_SUPABASE_PROJECT_REF: "a".repeat(20),
+    EVO_SUPABASE_IDENTITY: "selfhosted",
     EVO_WAHA_IMAGE_DIGEST: `sha256:${"e".repeat(64)}`,
     EVO_AI_AGENT_ENABLED: enabled ? "true" : "",
     EVO_AI_AGENT_IMAGE_DIGEST: enabled ? TARGET_AGENT_DIGEST : "",

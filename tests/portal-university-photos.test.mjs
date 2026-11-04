@@ -9,7 +9,7 @@ import {
 } from "../src/lib/university-photo-url.ts";
 
 // The managed address follows NEXT_PUBLIC_SUPABASE_URL (docs/runbooks/selfhosted-cutover.md).
-process.env.NEXT_PUBLIC_SUPABASE_URL = "https://iosckaqtovbbnssqcpde.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.evoadmissions.com";
 const UNIVERSITY_PHOTO_PUBLIC_BASE_URL = universityPhotoPublicBaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 /**

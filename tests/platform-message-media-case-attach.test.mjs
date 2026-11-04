@@ -69,9 +69,9 @@ const NOW_MS = Date.parse("2026-09-06T10:00:00.000Z");
 const FUTURE_EXPIRY = "2026-09-06T11:00:00.000Z";
 const PAST_EXPIRY = "2026-09-06T09:59:59.999Z";
 const SCANNED_AT = "2026-09-06T10:00:01.000Z";
-const SUPABASE_URL = "https://project-ref.supabase.co";
+const SUPABASE_URL = "https://supabase.evoadmissions.com";
 const STORAGE_TUS_ENDPOINT =
-  "https://project-ref.storage.supabase.co/storage/v1/upload/resumable";
+  "https://supabase.evoadmissions.com/storage/v1/upload/resumable";
 const TUS_UPLOAD_URL = `${STORAGE_TUS_ENDPOINT}/upload-1`;
 const SUPABASE_SECRET_KEY = "sb_secret_abcdefghijklmnop";
 

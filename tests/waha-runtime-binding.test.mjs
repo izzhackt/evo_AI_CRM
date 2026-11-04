@@ -24,7 +24,7 @@ import {
 // provider is contacted: Supabase and WAHA are mocked with injected fetch
 // functions or a loopback HTTP server.
 const SCRIPT_URL = new URL("../scripts/maintenance/waha-runtime-binding.mjs", import.meta.url);
-const SUPABASE_ORIGIN = "https://abcdefghijklmnopqrst.supabase.co";
+const SUPABASE_ORIGIN = "https://supabase.evoadmissions.com";
 const SUPABASE_SECRET_KEY = "sb_secret_abcdefghijklmnopqrstuvwxyz0123456789";
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const REQUEST_ID = "22222222-2222-4222-8222-222222222222";
@@ -755,13 +755,13 @@ test("environment must hold the exact Supabase origin, a server key and a non-ni
   const bad = [
     {},
     environment({ NEXT_PUBLIC_SUPABASE_URL: undefined }),
-    environment({ NEXT_PUBLIC_SUPABASE_URL: "http://abcdefghijklmnopqrst.supabase.co" }),
-    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co/" }),
-    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co/rest/v1" }),
-    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://user:pass@abcdefghijklmnopqrst.supabase.co" }),
-    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co:444" }),
+    environment({ NEXT_PUBLIC_SUPABASE_URL: "http://supabase.evoadmissions.com" }),
+    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://supabase.evoadmissions.com/" }),
+    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://supabase.evoadmissions.com/rest/v1" }),
+    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://user:pass@supabase.evoadmissions.com" }),
+    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://supabase.evoadmissions.com:444" }),
     environment({ NEXT_PUBLIC_SUPABASE_URL: "https://attacker.example.test" }),
-    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://short.supabase.co" }),
+    environment({ NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" }), // a cloud project address is refused
     environment({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" }),
     environment({ EVO_PLATFORM_SUPABASE_SECRET_KEY: undefined }),
     environment({ EVO_PLATFORM_SUPABASE_SECRET_KEY: "sb_publishable_abcdefghijklmnopqrstuv" }),

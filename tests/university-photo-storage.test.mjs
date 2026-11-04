@@ -15,7 +15,6 @@ import {
   REDISTRIBUTABLE_LICENSES,
   UNIVERSITY_PHOTO_BUCKET,
   UNIVERSITY_PHOTO_MANIFEST_SCHEMA,
-  UNIVERSITY_PHOTO_PROJECT,
   universityPhotoPublicUrl,
   universityPhotoRights,
 } from "../scripts/portal/migrate-university-photos.mjs";
@@ -37,13 +36,13 @@ import {
   universityPhotoUrl,
 } from "../src/lib/university-photo-url.ts";
 
-// Photo base URLs derive from NEXT_PUBLIC_SUPABASE_URL (cloud now, self-hosted after
-// docs/runbooks/selfhosted-cutover.md): no project ref is pinned in src/.
-const CLOUD_SUPABASE_URL = `https://${UNIVERSITY_PHOTO_PROJECT}.supabase.co`;
+// Photo base URLs derive from NEXT_PUBLIC_SUPABASE_URL (self-hosted): no project ref is pinned in src/.
+// A former cloud project ref: keys that carry it are refused (no cloud path remains).
+const CLOUD_REF = "abcdefghijklmnopqrst";
 const SELFHOSTED_SUPABASE_URL = "https://supabase.evoadmissions.com";
-process.env.NEXT_PUBLIC_SUPABASE_URL = CLOUD_SUPABASE_URL;
-const UNIVERSITY_PHOTO_PUBLIC_BASE_URL = universityPhotoPublicBaseUrl(CLOUD_SUPABASE_URL);
-const UNIVERSITY_PHOTO_RENDER_BASE_URL = universityPhotoRenderBaseUrl(CLOUD_SUPABASE_URL);
+process.env.NEXT_PUBLIC_SUPABASE_URL = SELFHOSTED_SUPABASE_URL;
+const UNIVERSITY_PHOTO_PUBLIC_BASE_URL = universityPhotoPublicBaseUrl(SELFHOSTED_SUPABASE_URL);
+const UNIVERSITY_PHOTO_RENDER_BASE_URL = universityPhotoRenderBaseUrl(SELFHOSTED_SUPABASE_URL);
 
 // PORT-9d (docs/PLAN_CHANGES.md): managed-хранение фото вузов. Манифест
 // закоммичен после реального --check; migrated=true появляется только после
@@ -121,7 +120,7 @@ test("the student resolver returns only the managed copy, never a hotlink (пл�
 test("staff screens fall back to the library address until migrated; the student resolver never does", () => {
   assert.equal(
     UNIVERSITY_PHOTO_PUBLIC_BASE_URL,
-    `https://${UNIVERSITY_PHOTO_PROJECT}.supabase.co/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET.id}`,
+    `${SELFHOSTED_SUPABASE_URL}/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET.id}`,
   );
   assert.equal(universityPhotoPublicUrl("x.jpg"), `${UNIVERSITY_PHOTO_PUBLIC_BASE_URL}/x.jpg`);
   for (const [key, record] of Object.entries(library)) {
@@ -146,9 +145,9 @@ test("photo URLs follow NEXT_PUBLIC_SUPABASE_URL: the cloud project today, the s
     // cloud: the address is byte-for-byte what it was when it was pinned
     assert.equal(
       universityPhotoUrl(key),
-      `https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos/${entry.objectPath}`,
+      `${SELFHOSTED_SUPABASE_URL}/storage/v1/object/public/portal-university-photos/${entry.objectPath}`,
     );
-    assert.match(universityPhotoSrcSet(key, [480]), /^https:\/\/iosckaqtovbbnssqcpde\.supabase\.co\/storage\/v1\/render\/image\/public\/portal-university-photos\//u);
+    assert.match(universityPhotoSrcSet(key, [480]), /^https:\/\/supabase\.evoadmissions\.com\/storage\/v1\/render\/image\/public\/portal-university-photos\//u);
     for (const url of [SELFHOSTED_SUPABASE_URL, `${SELFHOSTED_SUPABASE_URL}/`]) {
       process.env.NEXT_PUBLIC_SUPABASE_URL = url;
       assert.equal(universityPhotoUrl(key), `${SELFHOSTED_SUPABASE_URL}/storage/v1/object/public/portal-university-photos/${entry.objectPath}`);
@@ -173,7 +172,7 @@ test("photo URLs follow NEXT_PUBLIC_SUPABASE_URL: the cloud project today, the s
 
 test("committed manifest schema is complete, honest and attribution-preserving", () => {
   assert.equal(manifest.schema, UNIVERSITY_PHOTO_MANIFEST_SCHEMA);
-  assert.equal(manifest.projectRef, UNIVERSITY_PHOTO_PROJECT);
+  assert.equal(manifest.projectRef, "selfhosted");
   assert.equal(manifest.bucket, UNIVERSITY_PHOTO_BUCKET.id);
   assert.equal(manifest.source, "src/lib/university-photo-library.json");
   assert.ok(!Number.isNaN(Date.parse(manifest.generatedAt)));
@@ -379,14 +378,14 @@ test("re-check preserves migrated only while sha256 and objectPath are unchanged
 });
 
 const APPLY_MANIFEST = Object.freeze({ schema: UNIVERSITY_PHOTO_MANIFEST_SCHEMA, generatedAt: "2026-09-20T00:00:00.000Z",
-  projectRef: UNIVERSITY_PHOTO_PROJECT, bucket: UNIVERSITY_PHOTO_BUCKET.id, source: "src/lib/university-photo-library.json",
+  projectRef: "selfhosted", bucket: UNIVERSITY_PHOTO_BUCKET.id, source: "src/lib/university-photo-library.json",
   totals: { entries: 1, verified: 1, ineligible: 0, failed: 0, migrated: 0 },
   entries: { ok: { sourceUrl: CHECK_LIBRARY.ok.path, finalUrl: null, pageUrl: CHECK_LIBRARY.ok.sourceUrl,
     license: CHECK_LIBRARY.ok.license, licenseUrl: CHECK_LIBRARY.ok.licenseUrl, attribution: CHECK_LIBRARY.ok.author,
     sha256: sha256(OK_BYTES), bytes: OK_BYTES.byteLength, contentType: "image/jpeg", objectPath: "ok.jpg",
     status: "verified", reason: null, migrated: false } } });
 const transportKey = "sb_secret_synthetic_transport_only_123";
-const applyEnvironment = Object.freeze({ NEXT_PUBLIC_SUPABASE_URL: `https://${UNIVERSITY_PHOTO_PROJECT}.supabase.co`,
+const applyEnvironment = Object.freeze({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_SUPABASE_URL,
   EVO_PLATFORM_SUPABASE_SECRET_KEY: transportKey });
 
 test("apply refuses to start without environment credentials and before any network", async () => {
@@ -472,17 +471,13 @@ test("apply targets exactly the self-hosted origin when NEXT_PUBLIC_SUPABASE_URL
   const jwt = payload => `${Buffer.from("{}").toString("base64url")}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
   const never = () => assert.fail("a rejected key must not reach the network");
   const cloudKeyToSelfHosted = await applyUniversityPhotoMigration({ manifest: APPLY_MANIFEST, fetchImpl: never,
-    environment: { ...selfHosted, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role", ref: UNIVERSITY_PHOTO_PROJECT }) } });
+    environment: { ...selfHosted, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role", ref: CLOUD_REF }) } });
   assert.equal(cloudKeyToSelfHosted.report.status, "credential_invalid");
   const noRefKey = await applyUniversityPhotoMigration({ manifest: APPLY_MANIFEST,
     environment: { ...selfHosted, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role" }) }, fetchImpl });
   assert.equal(noRefKey.report.status, "applied");
-  // the cloud project still requires its own ref
-  const wrongRef = await applyUniversityPhotoMigration({ manifest: APPLY_MANIFEST, fetchImpl: never,
-    environment: { ...applyEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role" }) } });
-  assert.equal(wrongRef.report.status, "credential_invalid");
   // neighbours of the exact origin never match
-  for (const url of ["https://supabase.evoadmissions.com.attacker.invalid", "https://evoadmissions.com", "https://supabase.evoadmissions.com:8443", "http://supabase.evoadmissions.com"]) {
+  for (const url of ["https://supabase.evoadmissions.com.attacker.invalid", "https://evoadmissions.com", "https://supabase.evoadmissions.com:8443", "http://supabase.evoadmissions.com", `https://${CLOUD_REF}.supabase.co`]) {
     const refused = await applyUniversityPhotoMigration({ manifest: APPLY_MANIFEST, fetchImpl: never,
       environment: { ...selfHosted, NEXT_PUBLIC_SUPABASE_URL: url } });
     assert.match(refused.report.status, /^(project_mismatch|configuration_invalid)$/u, url);

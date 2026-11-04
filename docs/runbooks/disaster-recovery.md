@@ -1,6 +1,6 @@
 # EVO production-successor recovery contract
 
-Status: active V3 recovery boundary for one managed Supabase authority, one
+Status: active V3 recovery boundary for one self-hosted Supabase authority, one
 Next.js application, and one private WAHA transport. This document does not
 authorize a production restore, provider mutation, customer-data change, WAHA
 logout/relink, or traffic cutover. The superseded SQLite/companion proposal is
@@ -59,8 +59,8 @@ retained only at
 
 | Store | Successor authority | Recovery boundary |
 | --- | --- | --- |
-| CRM data, role mappings and audit events | managed Supabase Postgres/Auth/RLS | one identified provider backup or approved logical backup, retained with identity, timestamp, size and checksum and restored only into the loopback OrbStack destination; verify root migration compatibility and server-enforced access |
-| Private documents and WhatsApp media | managed Supabase Storage | one separate authenticated bucket/object inventory; if the source inventory is non-empty, an object-byte export with bucket/count/size/checksum manifest and isolated private-bucket restore is mandatory; if the signed source inventory proves zero objects, record exact empty-source evidence instead of claiming source-byte recovery; database backup metadata alone is insufficient |
+| CRM data, role mappings and audit events | self-hosted Supabase Postgres/Auth/RLS | one identified provider backup or approved logical backup, retained with identity, timestamp, size and checksum and restored only into the loopback OrbStack destination; verify root migration compatibility and server-enforced access |
+| Private documents and WhatsApp media | self-hosted Supabase Storage | one separate authenticated bucket/object inventory; if the source inventory is non-empty, an object-byte export with bucket/count/size/checksum manifest and isolated private-bucket restore is mandatory; if the signed source inventory proves zero objects, record exact empty-source evidence instead of claiming source-byte recovery; database backup metadata alone is insufficient |
 | WAHA session `crm_primary` | protected `evo_crm_waha_sessions` volume | preserve in place for app releases; use only a WAHA-supported, separately approved backup/relink procedure for disaster recovery |
 | Runtime secrets and encrypted provider settings | protected server/provider secret stores | independently retained configuration restored without printing values, then verified through the real server-side reader |
 | App generated output | `evo_crm_output` | non-authoritative; regenerate when possible and restore only if a named workflow requires it |
@@ -91,7 +91,7 @@ the canonical Supabase boundary and are unrelated to deployment staging.
 Before #552 changes production, #551 must identify and verify both of these
 recoverable paths without creating credentials or changing provider state:
 
-1. **Database/Auth metadata:** the exact managed backup identity or an approved
+1. **Database/Auth metadata:** the exact backup identity or an approved
    logical export, its creation time, Postgres image/version compatibility,
    encrypted protected location, byte count and SHA-256 checksum.
 2. **Storage objects:** a separate authenticated S3/Storage inventory for every
@@ -133,7 +133,7 @@ cannot substitute for the corresponding recoverable artifact.
    approved rehearsal; never copy or mount the live session volume.
 7. Verify Supabase Auth/session, the V3 shell, canonical CRM reads and writes,
    private document access, event-log continuity, health and fail-closed behavior
-   in a real browser and database. With the current Admin-only managed source,
+   in a real browser and database. With the current Admin-only source,
    live proof is Admin authority plus Admin presentation preview of Sales and
    Admissions; missing live Sales and Admissions are not fabricated and their
    RLS/business outcomes remain isolated-local proof, explicitly not live staff
@@ -146,287 +146,13 @@ cannot substitute for the corresponding recoverable artifact.
    resources under the explicit cleanup plan; retain the protected pre-change
    artifacts according to their recovery retention policy.
 
-## Trusted managed-Supabase source export
+## Removed cloud export and recovery tools
 
-The #551 restore accepts only artifacts produced by the reviewed
-export command. The command verifies the exact project through the Management
-API, requires a fresh completed provider backup, verifies both runtime API keys
-against that same project, allowlists its existing session-pooler identity, and
-then captures database/Auth and Storage as two separate sources. It does not
-link or modify project configuration. Default password mode performs provider
-reads only; the explicitly selected temporary-access mode below additionally
-creates and revokes one verified read-only login lease.
-
-Prerequisites:
-
-- OrbStack reports `Running` and `docker context show` is exactly `orbstack`;
-- the repository-pinned Supabase CLI is installed from the lockfile. Its
-  Supabase filter contract is retained, but its PostgreSQL 17.6 dump image is
-  rejected because it predates the client fixes in PostgreSQL 17.11;
-- a trusted `pg_dump` and `pg_dumpall` pair passes the published security floor
-  (18.6, 17.11, 16.15, 15.19 or 14.24, or a later minor in the same supported
-  branch). The exporter records their exact accepted version and refuses an
-  unpatched or mismatched pair before any managed-Supabase read;
-- the reviewed public Supabase Root 2021 CA at
-  `scripts/support/supabase-prod-ca-2021.crt` remains byte-identical to its
-  pinned SHA-256 and X.509 fingerprint and is inside its validity period. The
-  exporter records both identifiers in the signed receipt and uses this exact
-  file for `verify-full`; it never relies on an ambient user CA file;
-- `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` (password mode only),
-  `EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY` and
-  `EVO_PLATFORM_SUPABASE_SECRET_KEY` are injected into the exporter process,
-  never written to arguments, output or Git. The Management token is available
-  only to the exporter process, the publishable/secret keys are sent only to
-  their allowlisted HTTPS project origin, and only the patched PostgreSQL dump
-  process tree receives the database password through its environment;
-- an existing absolute mode-`0700` output directory outside the repository;
-- an age recipient, an existing mode-`0600` SSH signing key, and an
-  operator-held trusted public key stored outside both the repository and the
-  backup output.
-
-Run from an exact clean reviewed commit:
-
-```bash
-npm run backup:v3:managed -- \
-  --project-ref '<exact-20-character-project-ref>' \
-  --output-root '<absolute-private-output-root>' \
-  --age-recipient '<age-recipient>' \
-  --signing-key '<absolute-private-ssh-key>' \
-  --trusted-public-key '<absolute-operator-held-public-key>'
-```
-
-The command produces individually age-encrypted roles, schema, data and exact
-`supabase_migrations` dumps, plus an encrypted Storage manifest/archive. It
-uses the reviewed Supabase CLI 2.116.0 schema/data/role filtering
-transformations except for the obsolete step that comments out PostgreSQL
-restricted-mode guards. The patched local PostgreSQL clients' active
-`\restrict`/`\unrestrict` pair remains in every SQL artifact. The project's
-allowlisted session pooler is used over verified TLS; the command does not
-substitute a second schema authority.
-Every external command runs in its own process group, and cleanup begins only
-after that complete process tree has drained.
-The signing public key and fingerprint are pinned during local preflight; a
-later coordinated replacement of both key paths cannot change the receipt's
-trust root.
-After the clean-commit check, the CA and all three dump-filter scripts are
-compared byte-for-byte with their blobs at the recorded Git HEAD, copied into
-the private runtime directory, and executed only from that snapshot. Their
-SHA-256 values are bound into the signed receipt, so later worktree edits cannot
-change an in-progress export.
-The stability digest validates the exact active-guard envelope for roles,
-schema, data, history-schema and history-data, normalizes only each paired
-63-byte random guard token, and hashes every other byte.
-The command double-inventories Storage and hashes every downloaded payload.
-`receipt.json`
-contains only aggregate counts, timestamps, tool/repository bindings,
-ciphertext hashes and the authenticated provider-backup receipt; its detached
-SSH signature is verified before the partial directory is atomically renamed.
-The public key is not copied into the bundle; later verification must use the
-same independently retained trusted key and compare its fingerprint with the
-signed receipt.
-Customer rows, staff email/phone values, Storage paths and keys remain only in
-encrypted artifacts. After an error or `SIGINT`/`SIGTERM`, cleanup is attempted
-only after the complete child process tree drains. If draining or safe cleanup
-cannot be proved, the command fails clearly and retains the marked private
-directory for exact-target retry or quarantine instead of risking an unsafe
-deletion; non-exiting child tools are forcibly killed after a bounded grace
-period.
-
-This export is a restore input, not recovery-readiness evidence by itself. The
-existing application-facing recovery result remains `u11-recovery-result`; it
-may become ready only after a separate isolated restore proves database/Auth,
-applicable real-role RLS/browser behavior, exact Storage evidence and malware
-scanning: source-byte restore when the signed source inventory is non-empty, or
-a signed empty-source inventory when it is zero. The Admin-only source recorded
-by the earlier rehearsal cannot prove the newer Sales/Admissions data: a fresh
-source requires fresh role/data evidence and its own documented limits.
-
-### Explicit short-lived read-only transport
-
-The [local transport proof](../design/v3/backup-lease-local-proof.md) records its
-tested candidate, replay commands and limits; it is not a managed export receipt.
-
-Use this mode only during an approved exclusive operator window for the EVO
-project `iosckaqtovbbnssqcpde`, when no other operator or automation will run
-Supabase CLI login/link/database commands. The flag is an explicit operator
-acknowledgement of that window, not a distributed provider lock. Do not enable
-JIT/SSL, reboot the project, retry a rejected database password, reset a password,
-or use linked CLI commands as a fallback. This mode needs the existing Management
-token's `database_write` permission to create/revoke the temporary role, although
-the returned database session is used only for read-only capture.
-
-With the same process-only Management/runtime API-key injection and the same
-private output/signing inputs, append these flags to either the preflight or
-run command:
-
-```bash
---database-auth temporary-cli-readonly \
---exclusive-project-ref iosckaqtovbbnssqcpde
-```
-
-`EVO_RUN_V3_MANAGED_SUPABASE_EXPORT=1 node scripts/release/export-v3-managed-supabase-backup.mjs preflight <inputs-and-flags>`
-remains side-effect free: no lease is created and no password is required or attempted. It validates
-the existing tools, API keys, project, fresh provider backup, endpoint and source
-migration versions against a contiguous known repository prefix. The actual
-`npm run backup:v3:managed -- <inputs-and-flags>` repeats that preflight before
-making a single `POST /v1/projects/{ref}/cli/login-role` with
-`{"read_only":true}`. The returned password stays in process memory and in
-the isolated PostgreSQL child environment, never in arguments, receipts,
-persistent `.env` files, dumps or logs. The role name is also kept out of public
-receipts/logs; the private encrypted role dump can contain commented provider-role
-metadata, with passwords excluded by `--no-role-passwords`.
-
-Before creation, the exact project's read-only metadata query must prove no
-`cli_login_` roles exist. After a successful response, another query must prove
-that the returned role is the only such role; its name/OID/expiry bind ownership.
-The effective role must be `supabase_read_only_user`, non-superuser with
-`BYPASSRLS`, while the login cannot set `postgres`. The login/effective role must
-not reach any role with superuser, create-role, create-database or replication
-attributes, or any other role beyond that exact login, `supabase_read_only_user`
-and `pg_read_all_data` via SET/USAGE membership. A real read-only SQL probe checks
-schema/table/sequence access. The expected included table inventory must
-match the actual data/history COPY sections exactly, including `auth.users`,
-Storage metadata and the exact migration ledger; missing tables are not counted
-as empty. Existing Supabase exclusions are not narrowed to make access pass.
-All five SQL artifacts still use two matching rounds under one exported
-repeatable-read/read-only snapshot, and Storage bytes retain their separate
-inventory/hash/encryption gates.
-
-The database phase has a local deadline of the lesser of 15 minutes or the
-provider's returned TTL minus 30 seconds (accepted TTL: 60–86,400 seconds).
-There is no lease retry/reissue. Every child process group must drain before
-cleanup. Cleanup has its own bounded signal independent of an interrupted or
-expired capture. Immediately before the provider's **collective** DELETE,
-fresh metadata must still equal the exact owned singleton (name, OID and expiry).
-Any foreign/concurrent role prevents DELETE. A successful DELETE must be followed
-by an empty inventory; an already-empty inventory is recorded explicitly.
-
-An ambiguous creation response is not ownership proof: no blind DELETE, retry,
-or bundle publication follows it. Ownership ambiguity, foreign role detection,
-expiry, missing coverage or cleanup failure is a failed export, not a recovery
-input. Stop competing CLI activity and reconcile the exact project's role
-inventory with an authorized operator before a separate attempt. Provider TTL
-alone is not revocation proof, because password expiry does not terminate an
-already-open database session. The shared-role DELETE has no documented
-compare-and-swap operation; the exclusive operator window is therefore required
-in addition to the before/after inventory checks.
-
-Only after successful capture, process drain and verified role cleanup does
-execution proceed to Storage capture, encryption, signing and atomic publication.
-Temporary mode emits strict `evo-v3-managed-supabase-export-receipt/v2` with a
-signed `source_access` record: requested read-only mode, fixed effective role,
-ownership hash (not the role name), TTL, issue/cleanup timestamps and verified
-cleanup outcome. It binds the same eight encrypted artifacts and external signing
-trust root. The isolated recovery consumer validates that record after verifying
-the signature; unchanged v1 password-mode receipts remain accepted. A valid
-export, including v2, still requires the separate isolated restore and candidate
-migration rehearsal before release.
-
-Implementation references (checked 2026-09-09):
-
-- [Create temporary CLI login role](https://supabase.com/docs/reference/api/v1-create-login-role)
-  and [collective login-role deletion](https://supabase.com/docs/reference/api/v1-delete-login-roles).
-- [Read-only Management SQL](https://supabase.com/docs/reference/api/v1-read-only-query)
-  and [applied migration versions](https://supabase.com/docs/reference/api/v1-list-migration-history).
-- [Supabase initial role definitions](https://github.com/supabase/postgres/blob/develop/migrations/db/init-scripts/00000000000000-initial-schema.sql)
-  and [PostgreSQL predefined roles](https://www.postgresql.org/docs/17/predefined-roles.html).
-- [pg_dumpall and `--no-role-passwords`](https://www.postgresql.org/docs/17/app-pg-dumpall.html).
-
-## Isolated managed-Supabase recovery consumer
-
-The consumer accepts exactly one completed, signed exporter directory. It
-does not accept loose dumps, a replacement manifest, a database URL or an
-unsigned migration ledger, and it never contacts the managed project. Before
-decrypting anything it verifies the detached signature with the separately
-retained public key, validates every ciphertext digest and binds the source
-project, Supabase organization, platform organization, physical provider
-backup, export commit, source migration tree and integrated main-equivalent
-commit. The target is independently bound to the exact clean checkout, target
-migration tree, immutable Git archive and locally built `linux/amd64`
-production image.
-
-Use the repository scripts from an exact clean reviewed commit. Supply every
-identifier through the child process or literal operator input without
-printing it or saving it in Git. Sales and Admissions IDs are optional because
-the current managed source has only one confirmed Admin. Their absence must be
-reported honestly: it does not authorize live Sales/Admissions acceptance, and
-it must not be filled with synthetic staff identities.
-
-```bash
-npm run recovery:v3:managed:contract
-
-npm run recovery:v3:managed:preflight -- \
-  --backup-dir '<absolute-completed-export-directory>' \
-  --trusted-public-key '<absolute-operator-held-public-key>' \
-  --age-identity '<absolute-mode-0600-age-identity>' \
-  --project-ref '<signed-project-ref>' \
-  --supabase-organization-id '<signed-supabase-organization-id>' \
-  --platform-organization-id '<restored-platform-organization-uuid>' \
-  --source-repository-commit '<signed-export-commit>' \
-  --source-migration-tree '<signed-source-migration-tree>' \
-  --source-main-equivalent-commit '<integrated-equivalent-main-commit>' \
-  --target-repository-commit '<exact-clean-target-commit>' \
-  --target-migration-tree '<exact-target-migration-tree>' \
-  --admin-user-id '<restored-admin-auth-user-uuid>' \
-  --sales-user-id '<restored-sales-auth-user-uuid>' \
-  --admissions-user-id '<restored-admissions-auth-user-uuid>' \
-  --evidence-out '<absolute-private-preflight-evidence-path>'
-
-npm run recovery:v3:managed:run -- \
-  --backup-dir '<same-completed-export-directory>' \
-  --trusted-public-key '<same-operator-held-public-key>' \
-  --age-identity '<same-mode-0600-age-identity>' \
-  --project-ref '<same-signed-project-ref>' \
-  --supabase-organization-id '<same-signed-supabase-organization-id>' \
-  --platform-organization-id '<same-restored-platform-organization-uuid>' \
-  --source-repository-commit '<same-signed-export-commit>' \
-  --source-migration-tree '<same-signed-source-migration-tree>' \
-  --source-main-equivalent-commit '<same-integrated-equivalent-main-commit>' \
-  --target-repository-commit '<exact-clean-target-commit>' \
-  --target-migration-tree '<exact-target-migration-tree>' \
-  --admin-user-id '<same-restored-admin-auth-user-uuid>' \
-  --sales-user-id '<same-restored-sales-auth-user-uuid>' \
-  --admissions-user-id '<same-restored-admissions-auth-user-uuid>' \
-  --evidence-out '<absolute-private-run-evidence-path>'
-```
-
-The full run restores only into a disposable OrbStack Supabase contour with one
-owned, egress-blocked, non-internal bridge and loopback-only app publication.
-It applies only the
-authenticated pending migration suffix, verifies exact source Storage bytes when
-the signed source inventory is non-empty, or verifies the exact signed empty
-source when the inventory has zero objects. It runs the exact production image
-through local TLS, blocks browser HTTP and WebSocket egress, proves Admin Auth/
-session and V3-shell behavior for the current managed source, records Admin
-presentation preview of Sales/Admissions without changing live authority,
-exercises the real Company Files scanner path for clean, EICAR, unavailable and
-recovered outcomes, and verifies fail-closed provider readiness without
-contacting a provider. This result is only one half of the #551 scanner gate.
-The same exact
-target commit must also pass `test:database:local`, which starts the pinned real
-ClamAV image and drives both active Student 360 `/api/v2/document-slots/*` and
-Company Files `/api/v3/company-files/*` ingress paths, plus `test:u7`, whose
-focused scanner/client/route contracts cover timeout, malformed, duplicate,
-missing, unknown and uncorrelated request IDs, scanner identity drift, and
-zero persistence/download on failure. Record the matching exact-head CI run
-with the result-v2 evidence; neither half alone closes #551.
-
-Cleanup must drain every owned process and container before the private
-runtime directory is removed; uncertainty is quarantined rather than deleted.
-Only mode-`0600` redacted result-v2 evidence is retained outside the runtime
-directory.
-
-For the current #551 source, `status=passed` may be honest with one confirmed
-Admin and a signed zero-object private-Storage source only when evidence states
-both limits explicitly: source-byte recovery is not applicable because no source
-objects exist, and live Sales/Admissions staff acceptance is not claimed. The
-Admin proof must use normal Supabase Auth/session and the V3 shell, and may show
-only Admin presentation preview of Sales/Admissions while authority remains
-Admin. Sales/Admissions RLS and business outcomes remain isolated-local proof.
-If the source inventory has any objects, the full non-empty disaster-recovery
-contract is strict again and `status=passed` requires exact source object-byte
-restore and verification. Synthetic staff, records, objects or provider calls
-can never convert a missing real source into acceptance.
+The exporter of the former cloud Supabase project, its read-only lease and the
+isolated recovery consumer built around them were removed together with the
+cloud path (#1271, [ADR 0037](../adr/0037-use-only-self-hosted-supabase.md)).
+They remain in Git history. The sections above describe the boundaries any
+future recovery work must keep.
 
 ## WAHA boundary
 
@@ -440,7 +166,7 @@ prove recovery.
 ## Recovery objectives
 
 RPO and RTO are operational/business decisions and remain unset until the
-managed Supabase plan, Storage export mechanism, WAHA recovery support, staff
+Supabase plan, Storage export mechanism, WAHA recovery support, staff
 ownership and rehearsal timings are approved. Repository capability alone does
 not establish a production recovery objective.
 

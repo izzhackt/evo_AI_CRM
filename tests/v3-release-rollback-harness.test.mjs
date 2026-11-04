@@ -216,10 +216,10 @@ test("rollback proof checks the outgoing app log copy on both real releases", ()
 });
 
 test("rollback harness cannot call real Supabase or provider mutation paths", () => {
-  assert.match(source, /const supabaseProjectRef = "aaaaaaaaaaaaaaaaaaaa"/u);
+  assert.match(source, /const supabaseProjectRef = "selfhosted"/u);
   assert.match(source, /EVO_PLATFORM_WAHA_INGRESS_ENABLED=0/u);
   assert.match(source, /EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED=0/u);
-  assert.match(source, /EVO_SUPABASE_PROJECT_REF: supabaseProjectRef/u);
+  assert.match(source, /EVO_SUPABASE_IDENTITY: supabaseProjectRef/u);
   assert.match(source, /providersCalled: false/u);
   const validatedDomainLiteral = "EVO_CRM_DOMAIN=crm.evoadmissions.com";
   assert.ok(source.includes(validatedDomainLiteral));

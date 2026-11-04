@@ -20,7 +20,7 @@ const { join } = require("node:path");
 const legacy = require("./students-static-render.cjs");
 const { ROOT, TODAY, SCENARIOS, scenario, TASKS, caseId } = legacy;
 // Читатель университетов определяет адрес фото по адресу проекта; синтетическому рендеру нужен только допустимый.
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://iosckaqtovbbnssqcpde.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://supabase.evoadmissions.com";
 const src = (path) => require(join(ROOT, "src", path));
 
 const ORG = "eeeeeeee-4444-4444-8444-000000000000";

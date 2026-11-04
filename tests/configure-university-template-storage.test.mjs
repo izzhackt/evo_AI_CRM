@@ -10,7 +10,7 @@ test("template bucket configuration defaults to credential-free no-mutation plan
 });
 
 const key = "sb_secret_synthetic_transport_only_123";
-const environment = { NEXT_PUBLIC_SUPABASE_URL: "https://iosckaqtovbbnssqcpde.supabase.co", EVO_PLATFORM_SUPABASE_SECRET_KEY: key };
+const environment = { NEXT_PUBLIC_SUPABASE_URL: "https://supabase.evoadmissions.com", EVO_PLATFORM_SUPABASE_SECRET_KEY: key };
 const response = (value, status = 200) => Response.json(value, { status });
 // Exact non-sensitive response observed from managed Storage on 2026-09-15.
 const legacyMissing = { statusCode: "404", error: "Bucket not found", message: "Bucket not found", code: "NoSuchBucket" };
@@ -78,7 +78,7 @@ test("default check absence and ambiguous apply do not retry or overwrite", asyn
   assert.equal(calls, 2); assert.equal(apply.report.status, "create_outcome_unknown"); assert.equal(JSON.stringify(apply).includes(key), false);
 });
 test("wrong project, absent configuration and malformed CLI options stop before network", async () => {
-  for (const env of [{}, { ...environment, NEXT_PUBLIC_SUPABASE_URL: "https://other.supabase.co" }]) {
+  for (const env of [{}, { ...environment, NEXT_PUBLIC_SUPABASE_URL: "https://other.supabase.co" }, { ...environment, NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" }]) {
     const result = await configureUniversityTemplateStorage({ mode: "check", environment: env, fetchImpl() { assert.fail("invalid target"); } });
     assert.equal(result.exitCode, 1); assert.equal(result.report.mutationAttempted, false);
   }
@@ -87,7 +87,7 @@ test("wrong project, absent configuration and malformed CLI options stop before 
   assert.equal(written.includes(key), false);
 });
 
-test("the self-hosted stack is accepted by its exact origin only; every request goes there and a missing ref claim is not an error (cutover)", async () => {
+test("the self-hosted stack is accepted by its exact origin only; every request goes there and a missing ref claim is not an error", async () => {
   const selfhosted = "https://supabase.evoadmissions.com";
   const selfEnvironment = { ...environment, NEXT_PUBLIC_SUPABASE_URL: selfhosted };
   const jwt = (payload) => [Buffer.from('{"alg":"HS256"}').toString("base64url"),
@@ -110,12 +110,8 @@ test("the self-hosted stack is accepted by its exact origin only; every request 
   } });
   assert.equal(headers[0].Authorization, `Bearer ${legacy}`);
   const foreignKey = await configureUniversityTemplateStorage({ mode: "check", fetchImpl() { assert.fail("a cloud key must not reach the self-hosted stack"); },
-    environment: { ...selfEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role", ref: "iosckaqtovbbnssqcpde" }) } });
+    environment: { ...selfEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role", ref: "abcdefghijklmnopqrst" }) } });
   assert.equal(foreignKey.report.status, "credential_invalid");
-  // the cloud project still requires its own ref
-  const cloudNoRef = await configureUniversityTemplateStorage({ mode: "check", fetchImpl() { assert.fail("no ref, no request"); },
-    environment: { ...environment, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role" }) } });
-  assert.equal(cloudNoRef.report.status, "credential_invalid");
   for (const url of [`${selfhosted}.attacker.invalid`, "http://supabase.evoadmissions.com", "https://supabase.evoadmissions.com:8443", "https://evoadmissions.com", "https://x.supabase.evoadmissions.com"]) {
     const refused = await configureUniversityTemplateStorage({ mode: "check", environment: { ...selfEnvironment, NEXT_PUBLIC_SUPABASE_URL: url }, fetchImpl() { assert.fail(url); } });
     assert.match(refused.report.status, /^(project_mismatch|configuration_invalid)$/u, url);

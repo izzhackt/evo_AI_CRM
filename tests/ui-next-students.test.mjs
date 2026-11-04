@@ -309,7 +309,7 @@ const CATALOGUE = ["malaysia", "china", "turkey"]
   .map((entry, index) => ({ id: `57ce9b97-43fb-4563-9c61-${String(index + 1).padStart(12, "0")}`, version: 1, publishedAt: "2026-09-10T00:00:00+00:00", content: entry.content, key: entry.key }));
 const published = CATALOGUE.map(({ id, version, publishedAt, content }) => ({ id, version, publishedAt, content }));
 const MANAGER = actorOf({ systemRole: "staff", assignments: [{ label: "Сотрудник поступления", scope: { kind: "own", key: null, resourceKind: null } }], permissionKeys: ["catalog.read", "catalog.import.manage", "case.read.full", "admissions.read"] });
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://iosckaqtovbbnssqcpde.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://supabase.evoadmissions.com";
 
 const universityStubs = (cookie, who, overrides = {}) => ({
   ...browserStubs,

@@ -3,7 +3,7 @@
 // NOTE: xcconfig treats `//` as a comment ANYWHERE in a line — write URLs
 // with the empty-substitution guard, e.g. `https:/$()/host`, or the value
 // silently truncates to `https:`.
-SUPABASE_URL = https:/$()/your-project.supabase.co
+SUPABASE_URL = https:/$()/supabase.evoadmissions.com
 SUPABASE_PUBLISHABLE_KEY = your-publishable-key
 
 // Base URL of the web cabinet for the bearer document upload/download

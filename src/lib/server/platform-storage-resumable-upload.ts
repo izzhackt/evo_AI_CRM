@@ -23,17 +23,6 @@ export type PlatformStorageTusTarget = Readonly<{
 
 function tusEndpoint(supabaseUrl: string): URL {
   const base = new URL(supabaseUrl);
-  const managedSuffix = ".supabase.co";
-  if (
-    base.protocol === "https:"
-    && base.hostname.endsWith(managedSuffix)
-    && base.hostname.length > managedSuffix.length
-  ) {
-    const projectRef = base.hostname.slice(0, -managedSuffix.length);
-    return new URL(
-      `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`,
-    );
-  }
   return new URL("/storage/v1/upload/resumable", base);
 }
 

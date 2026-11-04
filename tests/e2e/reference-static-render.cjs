@@ -40,7 +40,7 @@ const ROOT = resolve(__dirname, "../..");
 
 // The university reader resolves managed photo addresses from NEXT_PUBLIC_SUPABASE_URL
 // (docs/runbooks/selfhosted-cutover.md); a synthetic render only needs a valid project origin.
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://iosckaqtovbbnssqcpde.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://supabase.evoadmissions.com";
 
 // --- require-hook: .ts/.tsx компилируются TypeScript'ом в CJS ---------------
 const compile = (source) =>

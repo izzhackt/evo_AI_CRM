@@ -5,8 +5,6 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readSelfHostedLedgerRows } from "../lib/selfhosted-database.mjs";
 
-const PROJECT_REF = /^[a-z0-9]{20}$/u;
-
 export function expectedMigrationVersions(directory) {
   const versions = readdirSync(directory)
     .filter((name) => /^\d{3}_.+\.sql$/u.test(name))
@@ -62,31 +60,8 @@ function compareLedger(expected, actual) {
   };
 }
 
-export async function verifyProductionMigrationLedger({
-  projectRef,
-  accessToken,
-  migrationDirectory,
-  fetchImpl = fetch,
-}) {
-  if (!PROJECT_REF.test(projectRef) || typeof accessToken !== "string" || accessToken.length < 1) {
-    throw new Error("invalid migration gate configuration");
-  }
-  const expected = expectedMigrationVersions(migrationDirectory);
-  const response = await fetchImpl(
-    `https://api.supabase.com/v1/projects/${projectRef}/database/migrations`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      redirect: "error",
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  if (!response.ok) throw new Error("production migration ledger lookup failed");
-  const actual = normalizeRemoteMigrationVersions(await response.json());
-  return compareLedger(expected, actual);
-}
-
-// Режим selfhosted (docs/runbooks/selfhosted-cutover.md): леджер читается из базы
-// self-hosted Supabase по SSH, без Management API. Сравнение то же самое.
+// Леджер читается из базы self-hosted Supabase по SSH. Недоступная база останавливает
+// выпуск: другого источника леджера нет.
 export async function verifySelfHostedMigrationLedger({
   migrationDirectory,
   readRemoteRows = readSelfHostedLedgerRows,
@@ -96,25 +71,9 @@ export async function verifySelfHostedMigrationLedger({
   return compareLedger(expected, actual);
 }
 
-// Не задана или пуста = cloud (как раньше). Любое иное значение, кроме двух, — отказ.
-export function resolveSupabaseTarget(value) {
-  const target = value === undefined || value === "" ? "cloud" : value;
-  if (target !== "cloud" && target !== "selfhosted") {
-    throw new Error("invalid migration gate configuration");
-  }
-  return target;
-}
-
 async function main() {
   const migrationDirectory = resolve(process.env.EVO_RELEASE_REPO ?? ".", "supabase/migrations");
-  const target = resolveSupabaseTarget(process.env.EVO_SUPABASE_TARGET);
-  const result = target === "selfhosted"
-    ? await verifySelfHostedMigrationLedger({ migrationDirectory })
-    : await verifyProductionMigrationLedger({
-      projectRef: process.env.EVO_SUPABASE_PROJECT_REF ?? "",
-      accessToken: process.env.SUPABASE_ACCESS_TOKEN ?? "",
-      migrationDirectory,
-    });
+  const result = await verifySelfHostedMigrationLedger({ migrationDirectory });
   process.stdout.write(JSON.stringify(result) + "\n");
 }
 

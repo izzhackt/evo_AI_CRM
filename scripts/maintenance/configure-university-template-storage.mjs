@@ -4,7 +4,6 @@ import { getPlatformSupabaseBackendConfig } from "../../src/lib/server/platform-
 import { awaitUniversityTemplateOperation, readUniversityTemplateStream } from "../../src/lib/server/university-template-source-storage.ts";
 import { jwtRefAcceptable, matchSupabaseTarget } from "../lib/evo-supabase-target.mjs";
 
-const PROJECT = "iosckaqtovbbnssqcpde";
 export const UNIVERSITY_TEMPLATE_BUCKET = Object.freeze({ id: "platform-document-templates", name: "platform-document-templates",
   public: false, file_size_limit: 20 * 1024 * 1024,
   allowed_mime_types: Object.freeze(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]) });
@@ -33,21 +32,20 @@ async function request(origin, method, path, headers, fetchImpl) {
 }
 
 export async function configureUniversityTemplateStorage({ mode = "plan", environment = process.env, fetchImpl = fetch } = {}) {
-  const report = { schema: "evo-university-template-storage/v1", mode: ["plan", "check", "apply"].includes(mode) ? mode : "invalid", projectRef: PROJECT, bucket: UNIVERSITY_TEMPLATE_BUCKET,
+  const report = { schema: "evo-university-template-storage/v1", mode: ["plan", "check", "apply"].includes(mode) ? mode : "invalid", projectRef: "selfhosted", bucket: UNIVERSITY_TEMPLATE_BUCKET,
     status: "planned", mutationAttempted: false, readbackVerified: false, globalLimitVerified: false, ingressAcceptance: false };
   let stage = "configuration";
   try {
     if (!["plan", "check", "apply"].includes(mode)) fail("arguments_invalid");
     if (mode === "plan") return { exitCode: 0, report };
     let config; try { config = getPlatformSupabaseBackendConfig(environment); } catch { fail("configuration_invalid"); }
-    // The cloud project or exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md).
-    const target = matchSupabaseTarget(config.supabaseUrl, PROJECT);
+    // Exactly the self-hosted stack.
+    const target = matchSupabaseTarget(config.supabaseUrl);
     if (target === null) fail("project_mismatch");
-    if (target.kind === "selfhosted") report.projectRef = "selfhosted";
     const key = config.supabaseSecretKey, headers = { apikey: key, "content-type": "application/json", accept: "application/json" };
     if (!key.startsWith("sb_secret_")) {
       // Self-hosted keys carry no `ref` claim: the check is skipped there (see jwtRefAcceptable).
-      try { if (!jwtRefAcceptable(JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref, target, PROJECT)) fail("credential_invalid"); }
+      try { if (!jwtRefAcceptable(JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref)) fail("credential_invalid"); }
       catch { fail("credential_invalid"); }
       headers.Authorization = `Bearer ${key}`;
     }

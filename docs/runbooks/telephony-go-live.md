@@ -92,7 +92,7 @@ envfacts() {       # что видит запущенный контейнер: 
 }
 envcheck() {       # контракт env: файлы контракта и примера положены локально командой из шага 1
   node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env "$ENVF" --supabase-project-ref "$REF"
-}   # ожидается {"ok":true,"code":"valid"}; REF — «gh variable get EVO_SUPABASE_PROJECT_REF» (не секрет)
+}   # ожидается {"ok":true,"code":"valid"}; REF=selfhosted
 ```
 
 ## 3. Предусловия (все обязательны; иначе не начинать)
@@ -182,12 +182,12 @@ openssl rand -hex 32 | tr -d '\n' | pbcopy
 SHA=<полный SHA выпущенного main>
 git show "$SHA:scripts/release/evo-app-env-contract.mjs" | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show "$SHA:deploy/env.production.example"    | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
-gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM   # не секрет; это значение — REF на VPS
+# идентичность базы всегда слово selfhosted (REF=selfhosted)
 # после вставки ключа на VPS и в SOPS очистить буфер: printf '' | pbcopy
 ```
 ```bash
 # на VPS (помощники из раздела 2):
-REF=<значение, напечатанное локально>
+REF=selfhosted
 backup
 read -rs -p 'Ключ приёма (вставить): ' T; echo
 [[ $T =~ ^[A-Za-z0-9-]{32,64}$ ]] || echo 'СТОП: формат ключа'

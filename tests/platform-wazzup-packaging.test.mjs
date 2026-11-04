@@ -351,7 +351,7 @@ test("the runbook carries the rules an operator needs: the key on stdin only, co
     // the contract and the example env come from the release SHA (envcheck against a stale pre-Wazzup contract passes a conflicting env)
     "git show \"$SHA:scripts/release/evo-app-env-contract.mjs\"",
     "git show \"$SHA:deploy/env.production.example\"",
-    "EVO_SUPABASE_PROJECT_REF",
+    "REF=selfhosted",
     "app_env_snapshot_seal_failed",
     // the guarded edge procedure and its rollback
     "wz_check",

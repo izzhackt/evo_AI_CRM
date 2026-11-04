@@ -20,7 +20,7 @@
  * знаков после запятой, чем у валюты) или amountMinMinor / amountMaxMinor.
  *
  * Доступ только из окружения, ключи не печатаются (--apply):
- *   NEXT_PUBLIC_SUPABASE_URL              https://<ref>.supabase.co, ровно https://supabase.evoadmissions.com
+ *   NEXT_PUBLIC_SUPABASE_URL              ровно https://supabase.evoadmissions.com
  *                                         (self-hosted) или http://127.0.0.1:<порт>;
  *   EVO_PLATFORM_ORGANIZATION_ID          организация (если нет в файле);
  *   --auth staff:   EVO_CATALOG_STAFF_ACCESS_TOKEN (сессия сотрудника с правом
@@ -268,12 +268,11 @@ export function readAccess(environment, auth) {
   const raw = environment.NEXT_PUBLIC_SUPABASE_URL;
   let url;
   try { url = new URL(raw); } catch { fail("invalid_supabase_url"); }
-  const project = /^([a-z0-9]{20})\.supabase\.co$/u.exec(url.hostname);
   const local = url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname) && url.port;
-  // Exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md); the cloud branch goes after the cutover (#1271).
+  // Exactly the self-hosted stack, or a local stack.
   const selfhosted = url.origin === SELFHOSTED_SUPABASE_ORIGIN && !url.username && !url.password && !url.hash;
-  if (url.pathname !== "/" || url.search || !((url.protocol === "https:" && project) || selfhosted || local)) fail("unsupported_supabase_url");
-  const target = project ? `supabase-project ${project[1]}` : selfhosted ? "supabase-selfhosted" : "local-stack";
+  if (url.pathname !== "/" || url.search || !(selfhosted || local)) fail("unsupported_supabase_url");
+  const target = selfhosted ? "supabase-selfhosted" : "local-stack";
   if (auth === "staff") {
     const token = environment.EVO_CATALOG_STAFF_ACCESS_TOKEN, key = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (!token || !key || /\s/u.test(token + key)) fail("missing_staff_session");

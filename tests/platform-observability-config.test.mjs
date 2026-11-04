@@ -62,7 +62,7 @@ test("enabled P7B config accepts only the frozen loopback and production Supabas
     );
   }
 
-  const productionUrl = "https://abcdefghijklmnopqrst.supabase.co";
+  const productionUrl = "https://supabase.evoadmissions.com";
   assert.equal(
     loadPlatformObservabilityConfig(
       enabledEnvironment({
@@ -117,10 +117,10 @@ test("enabled P7B config rejects unsafe origins before a secret-bearing request 
   }
 
   for (const supabaseUrl of [
-    "https://ABCDEFGHIJKLMNOPQRST.supabase.co",
-    "https://abcdefghijklmnopqrs.supabase.co",
-    "https://abcdefghijklmnopqrst.supabase.co:443",
-    "https://abcdefghijklmnopqrst.supabase.co/rest/v1",
+    "https://abcdefghijklmnopqrst.supabase.co", // a cloud project address is refused
+    "https://SUPABASE.evoadmissions.com.",
+    "https://supabase.evoadmissions.com:443",
+    "https://supabase.evoadmissions.com/rest/v1",
     "https://custom.example.com",
   ]) {
     assert.throws(

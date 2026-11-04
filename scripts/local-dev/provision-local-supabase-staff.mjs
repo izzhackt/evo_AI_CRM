@@ -314,6 +314,8 @@ async function main() {
   const organizationId = adminAuthority.organizationId;
   const appOrigin = firstConfigured(["EVO_STAFF_AUTH_APP_ORIGIN"], "APP_ORIGIN_REQUIRED");
   const mailpitOrigin = firstConfigured(["EVO_STAFF_AUTH_MAILPIT_ORIGIN"], "MAILPIT_ORIGIN_REQUIRED");
+  // The disposable CLI project; only the reviewed Sales Manager binder uses it.
+  const supabaseWorkdir = firstConfigured(["EVO_LOCAL_SUPABASE_WORKDIR"], "SUPABASE_WORKDIR_REQUIRED");
   const browser = await chromium.launch({ headless: true });
   let accepted;
   try {
@@ -335,7 +337,7 @@ async function main() {
       appOrigin, organizationId, identity: identities.admin, accepted });
     process.stdout.write("LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED\n");
     await verifyScopedStaffBusinessScopes({ browser, adminClient: adminSession.client, apiUrl: url,
-      appOrigin, organizationId, identities, publishableKey, accepted });
+      appOrigin, organizationId, identities, publishableKey, accepted, supabaseWorkdir });
     process.stdout.write("LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED\n");
   } finally { await browser.close(); }
   if (phase === "onboarding-proof") {
@@ -379,26 +381,8 @@ async function main() {
     }
   }
 
-  await grantPermission(
-    salesMembershipId,
-    "contract.evidence.confirm",
-    "SALES_CONTRACT_PERMISSION",
-  );
-  await grantPermission(
-    salesMembershipId,
-    "finance.first.payment.confirm",
-    "SALES_PAYMENT_PERMISSION",
-  );
-  await grantPermission(
-    adminAuthority.membershipId,
-    "contract.evidence.confirm",
-    "ADMIN_CONTRACT_PERMISSION",
-  );
-  await grantPermission(
-    adminAuthority.membershipId,
-    "finance.first.payment.confirm",
-    "ADMIN_PAYMENT_PERMISSION",
-  );
+  // Since 173 a personal grant is only the protected handoff override. Sales holds
+  // contract and first-payment confirmation through its role; the checks below prove it.
   await grantPermission(
     adminAuthority.membershipId,
     "admissions.handoff.gate.override",

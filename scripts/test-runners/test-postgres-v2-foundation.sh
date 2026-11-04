@@ -758,7 +758,7 @@ if ! EVO_LOCAL_STAFF_PHASE="$staff_phase" \
   if grep -Fx "LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED" "$staff_provision_log" >/dev/null; then
     echo "LOCAL_SUPABASE_STAFF_COMPLETED_STAGE:onboarding" >&2
   fi
-  role_editor_diagnostic="$(grep -m 1 -E '^LOCAL_ROLE_EDITOR_UI_STATE:\{"stage":"[A-Z_]{1,48}","roleEditors":[0-9]+,"createButtons":[0-9]+,"archiveForms":[0-9]+,"restoreForms":[0-9]+,"emptyDetails":[0-9]+,"createClickHandlerBefore":(true|false|null),"createClickHandlerAtFailure":(true|false|null),"mainFrameNavigationsSinceCreateAttempt":([0-9]+|null),"clientError":(true|false)\}$' "$staff_provision_log" || true)"
+  role_editor_diagnostic="$(grep -m 1 -E '^LOCAL_ROLE_EDITOR_UI_STATE:\{"stage":"[A-Z_]{1,48}","roleEditors":[0-9]+,"createButtons":[0-9]+,"archiveForms":[0-9]+,"restoreForms":[0-9]+,"openSheets":[0-9]+,"createClickHandlerBefore":(true|false|null),"createClickHandlerAtFailure":(true|false|null),"mainFrameNavigationsSinceCreateAttempt":([0-9]+|null),"clientError":(true|false)\}$' "$staff_provision_log" || true)"
   [[ -z "$role_editor_diagnostic" ]] || echo "$role_editor_diagnostic" >&2
   callback_readiness_diagnostic="$(grep -E '^\{"stage":"LOCAL_STAFF_CALLBACK_READINESS","cachedClean":(true|false),"locationClean":(true|false),"documentComplete":(true|false),"cachedCleanAfterBrowserRead":(true|false),"emailConfirmed":(true|false)\}$' "$staff_provision_log" | tail -n 1 || true)"
   [[ -z "$callback_readiness_diagnostic" ]] || echo "$callback_readiness_diagnostic" >&2

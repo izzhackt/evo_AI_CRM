@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink, localBrowserErrorCategory,
   prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor,
-  verifyScopedStaffBusinessScopes } from "../scripts/lib/scoped-staff-provisioner.mjs";
+  verifyScopedStaffBusinessScopes, isDevChunkStub404 } from "../scripts/lib/scoped-staff-provisioner.mjs";
 
 const org = "51000000-0000-4000-8000-000000000001";
 const request = "51000000-0000-4000-8000-000000000002";
@@ -50,7 +50,7 @@ test("foundation failure output forwards only the exact role-editor machine obse
   const pattern = harness.match(/role_editor_diagnostic="\$\(grep -m 1 -E '([^']+)' "\$staff_provision_log" \|\| true\)"/)?.[1];
   assert.ok(pattern, "The harness must retain the bounded role-editor observation before cleanup");
   assert.match(harness, /\[\[ -z "\$role_editor_diagnostic" \]\] \|\| echo "\$role_editor_diagnostic" >&2/);
-  const line = 'LOCAL_ROLE_EDITOR_UI_STATE:{"stage":"CREATE_ID","roleEditors":0,"createButtons":1,"archiveForms":0,"restoreForms":0,"emptyDetails":1,"createClickHandlerBefore":false,"createClickHandlerAtFailure":true,"mainFrameNavigationsSinceCreateAttempt":0,"clientError":false}';
+  const line = 'LOCAL_ROLE_EDITOR_UI_STATE:{"stage":"CREATE_ID","roleEditors":0,"createButtons":1,"archiveForms":0,"restoreForms":0,"openSheets":1,"createClickHandlerBefore":false,"createClickHandlerAtFailure":true,"mainFrameNavigationsSinceCreateAttempt":0,"clientError":false}';
   const select = (input) => spawnSync("grep", ["-m", "1", "-E", pattern], { input, encoding: "utf8" }).stdout.trim();
   assert.equal(select(`private log before\n${line}\nprivate log after\n`), line);
   const unavailable = line.replace('"createClickHandlerBefore":false', '"createClickHandlerBefore":null')
@@ -461,7 +461,9 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     bundleVersion: null, permissionKeys: [], draftPermissionKeys: [], memberCount: 0 });
   // The path keeps the role chain, so a renamed container or heading level
   // breaks the sequence instead of passing on the leaf name alone.
+  const stateWord = (role) => role.status === "archived" ? "В архиве" : role.bundleId ? "Опубликована" : "Черновик";
   const locator = (name = "", path = "") => ({
+    name,
     // Кнопка публикации называется «Опубликовать» (нет опубликованной версии) или «Опубликовать изменения»: прогон ищет её по /^Опубликовать/.
     getByRole: (role, { name: given = "", level } = {}) => {
       const roleName = given instanceof RegExp ? (selected?.bundleId ? "Опубликовать изменения" : "Опубликовать") : given;
@@ -470,7 +472,9 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     getByLabel: (label) => locator(label),
     getByText: (text) => locator(text), locator: (selector) => locator(selector),
-    filter: ({ hasText }) => locator(`select:${hasText}`),
+    getByTestId: (id) => locator(id, `${path}/testid:${id}`),
+    // «Новый вид» (#1327): роль в таблице выбирается строкой, что содержит кнопку «Открыть: <название>»; факты роли — блоки, что содержат подпись.
+    filter: ({ hasText, has }) => locator(hasText ? `select:${hasText}` : name === "dl > div" ? `fact:${has.name}` : `select:${has.name.replace(/^Открыть: /, "")}`, path),
     async fill(value) {
       act(`fill:${name}`);
       if (name === "Название роли") draft.label = value;
@@ -529,11 +533,14 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
       // The roles view has exactly one heading with this title, the h2 of
       // StaffRolesSection, so the wait carries no level (a level 3 never matches).
       if (name === "Роли и доступ") assert.equal(path, "/heading:Роли и доступ");
+      // The facts of the role in the open panel say what the model holds: state word and the number of staff.
+      if (["Черновик", "Опубликована", "В архиве"].includes(name)) assert.equal(name, stateWord(selected));
+      if (name === "0") assert.equal(selected.memberCount, 0);
     },
     async getAttribute(attribute) { return attribute === "data-system-role" ? "admin" : "actual"; },
     async count() { if (observationFailure === "fixed-counts") throw privateError; return 0; },
   });
-  const page = { ...locator(), setDefaultTimeout() {},
+  const page = { ...locator(), setDefaultTimeout() {}, async waitForLoadState() {},
     on(event, listener) {
       if (event === "framenavigated" && observationFailure === "navigation-listener") throw privateError;
       listeners.set(event, listener);
@@ -614,7 +621,7 @@ test("role editor failure emits only native handler observations and main-frame 
   await assert.rejects(verifyScopedStaffRoleEditor(fixture.input), { code: "LOCAL_ROLE_EDITOR_CREATE_ID_FAILED" });
   assert.equal(output.length, 1);
   assert.deepEqual(JSON.parse(output[0].slice("LOCAL_ROLE_EDITOR_UI_STATE:".length)), {
-    stage: "CREATE_ID", roleEditors: 0, createButtons: 0, archiveForms: 0, restoreForms: 0, emptyDetails: 0,
+    stage: "CREATE_ID", roleEditors: 0, createButtons: 0, archiveForms: 0, restoreForms: 0, openSheets: 0,
     createClickHandlerBefore: false, createClickHandlerAtFailure: true, mainFrameNavigationsSinceCreateAttempt: 2, clientError: true,
   });
   const click = fixture.actions.indexOf("click:Создать роль");
@@ -671,27 +678,71 @@ test("role editor marker stays distinct and follows successful onboarding before
   assert.doesNotMatch(editor, /inviteUserByEmail|signInWithPassword|staff_role_command|staff_role_publish|staff_role_assignments_save|storageState|addCookies/);
 });
 
-test("role editor drives only role-screen copy and buttons that the roles UI still renders", () => {
+test("role editor drives only role-screen copy and buttons that the «Новый вид» roles UI still renders", () => {
   // Браузерный путь редактора ролей (Playwright) нельзя прогнать без локального Supabase, а тесты выше — на заглушках:
-  // слова, на которые он ждёт и нажимает, сверяются с самим экраном «Роли и доступ».
+  // слова, на которые он ждёт и нажимает, сверяются с самими экранами «Роли и доступ» (таблица и панель) и их формами.
   const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
-  const ui = readFileSync(new URL("../src/components/staff/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
+  const forms = readFileSync(new URL("../src/components/staff/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
+  const table = readFileSync(new URL("../src/components/staff/settings-next/RolesNext.tsx", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../src/components/staff/settings-next/RoleSheetBody.tsx", import.meta.url), "utf8");
+  const rows = readFileSync(new URL("../src/components/kit/DataTableParts.tsx", import.meta.url), "utf8");
   const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"), helper.indexOf("export async function verifyScopedStaffMemberEditor"));
-  // Пустая правая часть — одно слово «Выберите роль.»: ждёт и по нему, и в счётчике состояния.
-  const empty = [...editor.matchAll(/getByText\("(Выберите роль[^"]*)", \{ exact: true \}\)/g)].map((match) => match[1]);
-  assert.deepEqual([...new Set(empty)], ["Выберите роль."]);
-  assert.ok(ui.includes(': "Выберите роль."}'), "the empty detail pane says exactly that");
+  // Старые экраны (область «Выбранная роль», пустая подсказка «Выберите роль.», ссылки списка) в прогоне не осталось.
+  for (const old of ["Выбранная роль", "Выберите роль", 'getByRole("link").filter']) assert.ok(!editor.includes(old), `the editor no longer drives ${old}`);
+  // Список: таблица «Список ролей», «Показать архивные» и строка, что открывает роль кнопкой «Открыть: …» (мышью строка, не сама кнопка).
+  assert.ok(table.includes('label="Список ролей"') && table.includes("Показать архивные") && table.includes("Создать роль"));
+  assert.match(rows, /Открыть: \$\{label\}/);
+  assert.match(rows, /data-row-open=""[\s\S]*?pointer-events-none/);
+  assert.match(editor, /getByRole\("row"\)\.filter\(\{ has: page\.getByRole\("button", \{ name: `Открыть: \$\{label\}`, exact: true \}\) \}\)\.click\(\)/);
+  assert.match(editor, /getByRole\("checkbox", \{ name: "Показать архивные", exact: true \}\)\.check\(\)/);
+  // Роль и бланк новой роли — панели-диалоги с названием роли и «Новая роль»; состояние и число сотрудников — факты роли.
+  assert.ok(table.includes('title={open?.label ?? "Роль"}') && table.includes('title="Новая роль"'));
+  assert.match(editor, /const sheet = \(name\) => page\.getByRole\("dialog", \{ name, exact: true \}\)/);
+  assert.ok(panel.includes('data-testid="v3-staff-role"') && panel.includes('label: "Состояние"') && panel.includes('label: "Сотрудников"'));
+  assert.match(editor, /getByTestId\("v3-staff-role"\)\.locator\("dl > div"\)/);
+  for (const state of ["Черновик", "Опубликована", "В архиве"]) {
+    assert.ok(panel.includes(`"${state}"`), `the panel still says ${state}`);
+    assert.ok(editor.includes(`"${state}"`), `the editor still waits for ${state}`);
+  }
   // «Публикация» стала «Опубликовать» / «Опубликовать изменения» и есть, только когда есть что публиковать (черновик ≠ опубликованному).
   assert.match(editor, /details\(\)\.getByRole\("button", \{ name: \/\^Опубликовать\/ \}\)\.click\(\)/);
   assert.doesNotMatch(editor, /name: "Публикация"/);
-  assert.match(ui, /role\.status === "active" && unpublished \? <button[\s\S]*?>\{role\.bundleId \? "Опубликовать изменения" : "Опубликовать"\}<\/button>/);
-  // В этот момент у роли есть черновик без публикации — кнопка на месте; формы публикации называются, как прежде.
-  assert.match(ui, /const unpublished = !role\.bundleId \|\|/);
-  assert.ok(ui.includes('label="Опубликовать роль"') && ui.includes("Проверить и опубликовать"));
+  assert.match(panel, /role\.status === "active" && unpublished \? <Button[\s\S]*?>\{role\.bundleId \? "Опубликовать изменения" : "Опубликовать"\}<\/Button>/);
+  assert.match(panel, /const unpublished = !role\.bundleId \|\|/);
+  // Бланки, их поля и подтверждения — прежние формы, их называет `StaffRolesSection`.
+  assert.ok(forms.includes('label="Опубликовать роль"') && forms.includes("Проверить и опубликовать"));
+  for (const form of ["Редактор роли", "Проверить публикацию роли", "Проверить архивирование", "Архивировать роль", "Восстановить роль"]) {
+    assert.ok(editor.includes(`name: "${form}"`), `the editor still drives the form «${form}»`);
+    assert.ok(forms.includes(`"${form}"`) || forms.includes(`label="${form}"`), `the role forms still name «${form}»`);
+  }
   // Остальные кнопки роли, которых касается прогон, не переименованы.
   for (const label of ["Создать роль", "Изменить", "Скопировать", "Архивировать", "Восстановить"]) {
     assert.ok(editor.includes(`name: "${label}"`), `the editor still drives «${label}»`);
-    assert.ok(ui.includes(`>${label}<`) || ui.includes(`"${label}"`), `the roles screen still renders «${label}»`);
+    assert.ok(`${table}${panel}`.includes(`>${label}<`) || `${table}${panel}`.includes(`"${label}"`), `the roles screen still renders «${label}»`);
+  }
+});
+
+test("member and scope editors open the «Новый вид» member card as a panel and the role as a panel", () => {
+  const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
+  const sheet = readFileSync(new URL("../src/components/staff/settings-next/StaffMemberSheet.tsx", import.meta.url), "utf8");
+  const people = readFileSync(new URL("../src/components/staff/settings-next/StaffNext.tsx", import.meta.url), "utf8");
+  const members = helper.slice(helper.indexOf("export async function verifyScopedStaffMemberEditor"));
+  assert.ok(people.includes("title={open?.displayName"), "the card panel is titled with the member's name");
+  assert.ok(sheet.includes('data-testid="v3-staff-member"') && sheet.includes('<StaffDisclosure label="Доступ"'));
+  assert.equal(members.split('page.getByRole("dialog", { name: original.displayName, exact: true }).getByTestId("v3-staff-member")').length - 1, 2);
+  assert.match(members, /page\.getByRole\("dialog", \{ name: archiveRole\.label, exact: true \}\)/);
+  assert.doesNotMatch(helper, /Выбранная роль|getByRole\("article"|Сотрудник: \$\{/);
+});
+
+test("a development chunk-stub 404 is the only console error the browser proofs ignore", () => {
+  const message = (text, url, type = "error") => ({ type: () => type, text: () => text, location: () => ({ url }) });
+  const text = "Failed to load resource: the server responded with a status of 404 (Not Found)";
+  const chunk = `${appOrigin}/_next/static/chunks/src_components_kit_0kngh58b8hbz7._.js`;
+  assert.equal(isDevChunkStub404(message(text, chunk), appOrigin), true);
+  for (const other of [message(text, `${appOrigin}/api/v3/notifications/state`), message(text, `${appOrigin}/_next/static/chunks/a.js.map`),
+    message(text, "https://external.example/_next/static/chunks/a._.js"), message(text.replace("404", "500"), chunk),
+    message("Uncaught TypeError", chunk), message(text, chunk, "warning"), message(text, "not a url"), {}]) {
+    assert.equal(isDevChunkStub404(other, appOrigin), false);
   }
 });
 
@@ -719,6 +770,8 @@ function memberEditorBoundary() {
   const locator = (name = "", index, parent = "") => ({
     getByRole: (_role, options = {}) => locator(options.name ?? "", /^Назначение [12]$/.test(options.name ?? "") ? Number(options.name.slice(-1)) - 1 : index),
     getByText: (text) => locator(text, index), locator: (selector) => locator(selector, index, name),
+    // «Новый вид» (#1327): карточка — блок `v3-staff-member` в панели с именем сотрудника.
+    getByTestId: (id) => locator(id, index),
     async fill() {}, async waitFor() {},
     async getAttribute(attribute) { return attribute === "data-system-role" ? "admin" : "actual"; },
     async inputValue() {

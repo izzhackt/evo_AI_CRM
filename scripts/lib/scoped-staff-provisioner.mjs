@@ -37,6 +37,16 @@ export function localBrowserErrorCategory(text) {
   if (/unique ["']key["']|same key/i.test(text)) return "REACT_LIST_KEY";
   return "OTHER";
 }
+/** `next dev` (Turbopack) lists the tiny async-loader stub of a lazy screen under a hash it never emits, so that one script answers 404 on
+ * every «Новый вид» page (`next build` emits all of them). Only that exact event is not a browser error; any other console error still fails. */
+export function isDevChunkStub404(message, appOrigin) {
+  try {
+    if (message.type() !== "error") return false;
+    const target = new URL(message.location().url);
+    return /^Failed to load resource: the server responded with a status of 404(?:\s|$)/.test(message.text())
+      && target.origin === appOrigin && /^\/_next\/static\/chunks\/[\w.-]+\._\.js$/.test(target.pathname);
+  } catch { return false; }
+}
 function strictParse(parser, code = "LOCAL_STAFF_CONTRACT_INVALID") {
   try { return parser(); } catch { throw new ScopedStaffProvisioningError(code); }
 }
@@ -212,7 +222,7 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
     page.on("pageerror", (error) => { clientError = true; browserError = `PAGE_${localBrowserErrorCategory(error?.message)}`; });
-    page.on("console", (message) => { if (message.type() === "error") {
+    page.on("console", (message) => { if (message.type() === "error" && !isDevChunkStub404(message, appOrigin)) {
       clientError = true; browserError = `CONSOLE_${localBrowserErrorCategory(message.text())}`;
     } });
     await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
@@ -547,7 +557,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     page = await context.newPage();
     page.setDefaultTimeout(30_000);
     page.on("pageerror", () => { clientError = true; });
-    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    page.on("console", (message) => { if (message.type() === "error" && !isDevChunkStub404(message, appOrigin)) clientError = true; });
     stage = "LOGIN";
     await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("#staff-email").fill(identity.email);
@@ -558,6 +568,8 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_ROLE_EDITOR_ADMIN_UI_REQUIRED");
     stage = "SETTINGS";
     await page.goto(`${appOrigin}/settings?section=staff`, { waitUntil: "domcontentloaded" });
+    // «Новый вид» (#1327) подгружает экран лениво: щелчок до гидратации ничего не раскрыл бы, поэтому ждём, пока страница затихнет.
+    await page.waitForLoadState("networkidle");
     // «Роли и доступ» — пункт списка разделов настроек (Э6, #1079): отдельного
     // ряда вкладок «Управление командой» больше нет.
     const rolesTab = () => page.getByRole("navigation", { name: "Разделы настроек", exact: true })
@@ -565,8 +577,18 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     await rolesTab().click();
     await page.waitForURL(`${appOrigin}/settings?section=staff&view=roles`);
     await page.getByRole("heading", { name: "Роли и доступ", exact: true }).waitFor();
-    const details = () => page.getByRole("region", { name: "Выбранная роль", exact: true });
+    await page.waitForLoadState("networkidle");
+    // «Новый вид» (#1327): роль и бланк новой роли открываются в панели (диалог с названием роли или «Новая роль»), а не в области справа от списка.
+    // Панель одна за раз: роль, «Изменить» и «Скопировать» меняют содержимое одной и той же панели.
+    const sheet = (name) => page.getByRole("dialog", { name, exact: true });
+    const details = () => page.getByRole("dialog");
     const editor = () => page.getByRole("form", { name: "Редактор роли", exact: true });
+    // Состояние и число сотрудников — факты роли («Состояние» и «Сотрудников»), а не одна строка «Черновик · сотрудников: 0».
+    const roleFacts = async (label, state, members) => {
+      const facts = sheet(label).getByTestId("v3-staff-role").locator("dl > div");
+      await facts.filter({ has: page.getByText("Состояние", { exact: true }) }).getByText(state, { exact: true }).waitFor();
+      await facts.filter({ has: page.getByText("Сотрудников", { exact: true }) }).getByText(String(members), { exact: true }).waitFor();
+    };
     const savedDraft = "Черновик роли сохранён. Для изменения доступа опубликуйте его.";
     const savedAccess = "Изменение доступа сохранено.";
     const reason = "Isolated local unused role editor verification";
@@ -590,18 +612,19 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     };
     const openSavedRole = async (label) => {
       await editor().getByRole("link", { name: "Открыть роль", exact: true }).click();
-      await details().getByRole("heading", { name: label, exact: true }).waitFor();
+      await sheet(label).getByRole("heading", { name: label, exact: true }).waitFor();
     };
     const reopenRole = async (label, archived = false) => {
-      // Ordinary navigation resets the completed command form for the next command.
-      await rolesTab().click();
-      // The list remains visible beside a selected role on desktop. Wait for
-      // the destination's empty detail state before selecting the role again.
-      await details().getByText("Выберите роль.", { exact: true }).waitFor();
+      // Closing the panel unmounts the completed command form, so the next command starts from a fresh one,
+      // as the ordinary navigation did in the old view. The table stays under the panel.
+      await details().getByRole("button", { name: "Закрыть", exact: true }).click();
+      await details().waitFor({ state: "detached" });
+      await page.getByRole("heading", { name: "Роли и доступ", exact: true }).waitFor();
       const list = page.getByRole("region", { name: "Список ролей", exact: true });
-      if (archived) await list.getByRole("checkbox", { name: "Показать архивные", exact: true }).check();
-      await list.getByRole("link").filter({ hasText: label }).click();
-      await details().getByRole("heading", { name: label, exact: true }).waitFor();
+      if (archived) await page.getByRole("checkbox", { name: "Показать архивные", exact: true }).check();
+      // Кнопка «Открыть: …» прозрачна для мыши (`pointer-events-none`): мышью роль открывает сама строка, её и нажимаем.
+      await list.getByRole("row").filter({ has: page.getByRole("button", { name: `Открыть: ${label}`, exact: true }) }).click();
+      await sheet(label).getByRole("heading", { name: label, exact: true }).waitFor();
     };
     stage = "CREATE";
     try {
@@ -629,7 +652,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     await readback(roleId, { label: draftLabel, description: "Isolated role editor draft", version: 1, status: "active",
       bundleId: null, bundleVersion: null, permissionKeys: [], draftPermissionKeys: [choices[0].key] });
     await openSavedRole(draftLabel);
-    await details().getByText("Черновик · сотрудников: 0", { exact: true }).waitFor();
+    await roleFacts(draftLabel, "Черновик", 0);
     stage = "EDIT_OPEN";
     await details().getByRole("button", { name: "Изменить", exact: true }).click();
     stage = "EDIT_PERMISSION";
@@ -663,7 +686,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     const published = await readback(roleId, { version: 3, status: "active", permissionKeys: keys, draftPermissionKeys: keys });
     uuid(published.bundleId); requireValue(published.bundleVersion === 1, "LOCAL_ROLE_EDITOR_PUBLISHED_BUNDLE_MISMATCH");
     await reopenRole(editedLabel);
-    await details().getByText("Опубликована · сотрудников: 0", { exact: true }).waitFor();
+    await roleFacts(editedLabel, "Опубликована", 0);
     for (const choice of choices) await details().getByText(choice.label, { exact: true }).waitFor();
     stage = "COPY";
     await details().getByRole("button", { name: "Скопировать", exact: true }).click();
@@ -695,7 +718,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     stage = "ARCHIVE_READBACK";
     await readback(copyId, { version: 2, status: "archived", permissionKeys: [], draftPermissionKeys: keys });
     await reopenRole(copyLabel, true);
-    await details().getByText("В архиве · сотрудников: 0", { exact: true }).waitFor();
+    await roleFacts(copyLabel, "В архиве", 0);
     stage = "RESTORE_OPEN";
     await details().getByRole("button", { name: "Восстановить", exact: true }).click();
     const restore = page.getByRole("form", { name: "Восстановить роль", exact: true });
@@ -708,7 +731,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     stage = "RESTORE_READBACK";
     await readback(copyId, { version: 3, status: "active", bundleId: null, bundleVersion: null, permissionKeys: [], draftPermissionKeys: keys });
     await reopenRole(copyLabel);
-    await details().getByText("Черновик · сотрудников: 0", { exact: true }).waitFor();
+    await roleFacts(copyLabel, "Черновик", 0);
     stage = "CLEAN_SETTINGS";
     const cleanSettings = async () => {
       const current = new URL(page.url());
@@ -716,7 +739,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
         && current.searchParams.get("view") === "roles" && [...current.searchParams.keys()].every((key) => ["section", "view", "role"].includes(key))
         && !current.hash && !clientError && await page.locator('input[type="password"]').count() === 0
         && await page.locator("[data-nextjs-dialog-overlay]").count() === 0, "LOCAL_ROLE_EDITOR_SETTINGS_NOT_CLEAN");
-      await details().getByRole("heading", { name: copyLabel, exact: true }).waitFor();
+      await sheet(copyLabel).getByRole("heading", { name: copyLabel, exact: true }).waitFor();
     };
     await cleanSettings();
     const screenshots = [];
@@ -737,14 +760,13 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     // Fixed counters only: never print DOM text, URLs, inputs or raw errors.
     if (page) {
       try {
-        const details = page.getByRole("region", { name: "Выбранная роль", exact: true });
         process.stderr.write(`LOCAL_ROLE_EDITOR_UI_STATE:${JSON.stringify({
           stage,
           roleEditors: await page.getByRole("form", { name: "Редактор роли", exact: true }).count(),
           createButtons: await page.getByRole("button", { name: "Создать роль", exact: true }).count(),
           archiveForms: await page.getByRole("form", { name: "Архивировать роль", exact: true }).count(),
           restoreForms: await page.getByRole("form", { name: "Восстановить роль", exact: true }).count(),
-          emptyDetails: await details.getByText("Выберите роль.", { exact: true }).count(),
+          openSheets: await page.getByRole("dialog").count(),
           createClickHandlerBefore,
           createClickHandlerAtFailure: await observeCreateClickHandler(),
           mainFrameNavigationsSinceCreateAttempt,
@@ -809,7 +831,7 @@ export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiU
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
     page.on("pageerror", () => { clientError = true; });
-    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    page.on("console", (message) => { if (message.type() === "error" && !isDevChunkStub404(message, appOrigin)) clientError = true; });
     await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("#staff-email").fill(identity.email);
     await page.locator("#staff-password").fill(identity.password);
@@ -820,7 +842,9 @@ export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiU
     stage = "CARD";
     const memberUrl = `${appOrigin}/settings?section=staff&view=people&member=${original.membershipId}`;
     await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
-    const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
+    // «Новый вид» (#1327): карточка сотрудника — панель (диалог с именем) с блоком `v3-staff-member`, а не статья «Сотрудник: …» на странице.
+    // Панель открывается сама по `?member=`; «Доступ» раскрывает прежние формы назначений.
+    const card = page.getByRole("dialog", { name: original.displayName, exact: true }).getByTestId("v3-staff-member");
     await card.getByRole("button", { name: "Доступ", exact: true }).click();
     const form = () => card.getByRole("form", { name: `Назначения: ${original.displayName}`, exact: true });
     const row = (index) => form().getByRole("group", { name: `Назначение ${index + 1}`, exact: true });
@@ -1111,7 +1135,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     await context.route("**/*", (route) => [appOrigin, apiUrl].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
     const page = await context.newPage(); page.setDefaultTimeout(30_000);
     page.on("pageerror", (error) => { clientError = true; browserError = `PAGE_${localBrowserErrorCategory(error?.message)}`; });
-    page.on("console", (message) => { if (message.type() === "error") {
+    page.on("console", (message) => { if (message.type() === "error" && !isDevChunkStub404(message, appOrigin)) {
       clientError = true; browserError = `CONSOLE_${localBrowserErrorCategory(message.text())}`;
     } });
     await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
@@ -1124,7 +1148,9 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     stage = "CARD";
     const memberUrl = `${appOrigin}/settings?section=staff&view=people&member=${original.membershipId}`;
     await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
-    const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
+    // «Новый вид» (#1327): карточка сотрудника — панель (диалог с именем) с блоком `v3-staff-member`, а не статья «Сотрудник: …» на странице.
+    // Панель открывается сама по `?member=`; «Доступ» раскрывает прежние формы назначений.
+    const card = page.getByRole("dialog", { name: original.displayName, exact: true }).getByTestId("v3-staff-member");
     await card.getByRole("button", { name: "Доступ", exact: true }).click();
     const form = () => card.getByRole("form", { name: `Назначения: ${original.displayName}`, exact: true });
     const row = (index) => form().getByRole("group", { name: `Назначение ${index + 1}`, exact: true });
@@ -1218,7 +1244,8 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     await freshSales(assignedMember.accessVersion, assignedMember.assignments, true);
     stage = "ASSIGNED_ARCHIVE_PREVIEW";
     await page.goto(`${appOrigin}/settings?section=staff&view=roles&role=${archiveRole.id}`, { waitUntil: "domcontentloaded" });
-    const roleDetails = page.getByRole("region", { name: "Выбранная роль", exact: true });
+    // «Новый вид» (#1327): роль открывается в панели (диалог с названием роли) по `?role=`.
+    const roleDetails = page.getByRole("dialog", { name: archiveRole.label, exact: true });
     await roleDetails.getByRole("heading", { name: archiveRole.label, exact: true }).waitFor();
     await roleDetails.getByRole("button", { name: "Архивировать", exact: true }).click();
     const preview = roleDetails.getByRole("form", { name: "Проверить архивирование", exact: true });

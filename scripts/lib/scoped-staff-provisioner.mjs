@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { lstatSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
@@ -14,6 +15,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const PERMISSION = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/;
 const SCENARIOS = ["sales", "admissions"];
 const REASON = "Isolated local scoped staff invitation verification";
+// Migration 208: no command exposes workflow_key; the reviewed local binder sets it.
+const SALES_MANAGER_BINDER = fileURLToPath(new URL("../local-dev/bind-local-sales-manager.mjs", import.meta.url));
 
 export class ScopedStaffProvisioningError extends Error {
   constructor(code, requestId) {
@@ -118,6 +121,8 @@ export function buildScopedStaffBaselines({ permissions, baseline }) {
         if (old.has("lead.read") && (scenario === "sales" || old.has("case.read.full"))) add("amocrm.command.manage");
         if (scenario === "admissions" && old.has("case.read.full") && old.has("finance.read.summary")) add("finance.stop.create");
         if (scenario === "sales") add("sales.register.read", "sales.register.manage");
+        // 173: contract and first-payment confirmation come from the Sales Manager role, not personal grants.
+        if (scenario === "sales") add("contract.evidence.confirm", "finance.first.payment.confirm");
       }
       for (const key of keys) {
         const definition = catalogue.get(key);
@@ -900,7 +905,7 @@ export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiU
 
 /** One ordinary local handoff, then independent department/direction full reads. */
 export async function verifyScopedStaffBusinessScopes({ browser, adminClient, apiUrl, appOrigin,
-  organizationId, identities, publishableKey, accepted }) {
+  organizationId, identities, publishableKey, accepted, supabaseWorkdir }) {
   let context, initial, originalDetails, originalPersonal, admin, sales, admissions, departmentId;
   let stage = "SETUP", failure = null, clientError = false;
   let browserError = "OTHER";
@@ -944,6 +949,16 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
       && result.permission_key === key && result.granted === granted);
     await refreshAdmin();
   };
+  const saveAssignments = async (membershipId, assignments) => {
+    const current = await workspace(), target = current.members.find((entry) => entry.membershipId === membershipId);
+    const receipt = await command("staff_role_assignments_save", { p_organization_id: organizationId,
+      p_membership_id: membershipId, p_expected_access_version: target.accessVersion,
+      p_assignments: inputs(assignments), p_expected_role_bindings: bindings(current.roles, assignments), p_reason: reason });
+    check(receipt?.membershipId === membershipId && receipt.accessVersion === target.accessVersion + 1);
+    if (membershipId === admin.membershipId) await refreshAdmin();
+    check(sameSet((await workspace()).members.find((entry) => entry.membershipId === membershipId).assignments.map(pair),
+      assignments.map(pair)));
+  };
   const saveDetails = async (department, expectedVersion) => {
     const receipt = await command("staff_organizational_details_save", { p_organization_id: organizationId,
       p_membership_id: admissions.membershipId, p_department_id: department, p_job_title: originalDetails.job_title,
@@ -959,6 +974,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     localClient(adminClient, apiUrl); uuid(organizationId);
     ["admin", ...SCENARIOS].forEach((scenario) => localIdentity(identities?.[scenario], true));
     check(typeof publishableKey === "string" && publishableKey.length >= 16
+      && typeof supabaseWorkdir === "string" && isAbsolute(supabaseWorkdir)
       && accepted?.schemaVersion === 1 && accepted.organizationId === organizationId
       && ["localMail", "actualCallback", "passwordSet", "freshPasswordLogin"].every((key) => accepted.proof?.[key] === true));
     admin = await staffSnapshot(adminClient);
@@ -1042,6 +1058,29 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     gate = await readGate();
     check(gate.gate_version === contractGate.gate_version + 1 && gate.gate_state === "satisfied" && gate.normal_handoff_allowed === true
       && gate.first_payment_received_date === day && gate.first_payment_confirmed_by_membership_id === admin.membershipId);
+    stage = "SALE_CONDITIONS";
+    // A completed handoff opens the lead's sales record from its saved sale conditions (208).
+    const conditions = await command("save_lead_sale_conditions_v1", { p_organization_id: organizationId,
+      p_lead_id: leadId, p_expected_revision: 0, p_fields: { service_label: "Fictional local service",
+        signing_date: day, service_cost_minor: "100", service_cost_currency: "USD" } });
+    check(conditions?.lead_id === leadId && conditions.organization_id === organizationId && conditions.revision === "1"
+      && conditions.signing_date === day && Number(conditions.service_cost_minor) === 100 && conditions.service_cost_currency === "USD");
+    stage = "SALES_MANAGER";
+    // The handoff records the sale only for a Sales Manager (208): bind the local Sales own role,
+    // which carries sales.register.manage, then let the acting Admin hold it for this one handoff.
+    const managerRoles = initial.roles.filter((role) => role.status === "active" && role.permissionKeys.includes("sales.register.manage")
+      && sales.assignments.some((entry) => entry.roleId === role.id && entry.scope.kind === "own"));
+    check(managerRoles.length === 1);
+    const managerRoleId = managerRoles[0].id;
+    const binding = spawnSync(process.execPath, [SALES_MANAGER_BINDER, supabaseWorkdir, organizationId, managerRoleId],
+      { encoding: "utf8", timeout: 60_000, maxBuffer: 64 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+    let bound = null;
+    try { bound = JSON.parse(binding.stdout); } catch { bound = null; }
+    check(!binding.error && binding.status === 0 && bound?.code === "local_sales_manager_bound" && bound.changedRows === 1);
+    const adminOriginal = initial.members.find((entry) => entry.membershipId === admin.membershipId);
+    check(adminOriginal?.systemRole === "admin" && !adminOriginal.assignments.some((entry) => entry.roleId === managerRoleId));
+    await saveAssignments(admin.membershipId, [...adminOriginal.assignments,
+      { roleId: managerRoleId, scope: { kind: "own", key: null, resourceKind: null } }]);
     stage = "HANDOFF";
     const handoffReady = await rpc(adminClient, "staff_lead_admissions_handoff", { p_lead_id: leadId });
     check(handoffReady?.length === 1 && handoffReady[0].organization_id === organizationId
@@ -1055,6 +1094,8 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     check(handoff.case_state === "active" && handoff.admissions_owner_membership_id === admissions.membershipId
       && handoffRead?.length === 1 && handoffRead[0].case_id === caseId && handoffRead[0].case_state === "active"
       && handoffRead[0].handoff_mode === "normal" && handoffRead[0].admissions_owner_membership_id === admissions.membershipId);
+    stage = "SALES_MANAGER_RELEASE";
+    await saveAssignments(admin.membershipId, adminOriginal.assignments);
     stage = "DIRECTION";
     const catalogue = await rpc(adminClient, "admissions_playbook_catalog_v1", {});
     const playbook = catalogue?.playbooks?.find((entry) => entry.direction === "CN" && entry.publishedAt);
@@ -1307,6 +1348,11 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
           current = await workspace();
           check(sameSet(current.members.find((entry) => entry.membershipId === sales.membershipId).assignments.map(pair), original.assignments.map(pair)));
         }
+      });
+      await restore(async () => {
+        const original = initial.members.find((entry) => entry.membershipId === admin.membershipId);
+        const target = (await workspace()).members.find((entry) => entry.membershipId === admin.membershipId);
+        if (!sameSet(target.assignments.map(pair), original.assignments.map(pair))) await saveAssignments(admin.membershipId, original.assignments);
       });
       for (const grant of changedPermissions) {
         await restore(async () => {

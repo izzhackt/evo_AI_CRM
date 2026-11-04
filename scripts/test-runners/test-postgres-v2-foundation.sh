@@ -738,6 +738,7 @@ local staff_phase="${1:-onboard}"
 if ! EVO_LOCAL_STAFF_PHASE="$staff_phase" \
   EVO_STAFF_AUTH_APP_ORIGIN="http://127.0.0.1:$app_port" \
   EVO_STAFF_AUTH_MAILPIT_ORIGIN="$staff_mailpit_origin" \
+  EVO_LOCAL_SUPABASE_WORKDIR="$supabase_workdir" \
   NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \

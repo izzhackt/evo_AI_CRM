@@ -37,10 +37,12 @@ const ownKeys = ["staff.task.read", "staff.task.edit", "staff.task.complete", "l
   "amocrm.command.manage", "finance.stop.create", "sales.register.read", "sales.register.manage"];
 const permissions = [...orgKeys.map((key) => ({ key, allowedScopes: ["organization"] })),
   ...ownKeys.map((key) => ({ key, allowedScopes: ["own", "organization", "record"] })),
-  { key: "contract.evidence.confirm", allowedScopes: ["organization"], sensitive: true },
+  // 173: contract and first-payment confirmation are ordinary role permissions; the override stays sensitive.
+  ...["contract.evidence.confirm", "finance.first.payment.confirm"].map((key) => ({ key, allowedScopes: ["own", "organization", "department", "record"] })),
+  { key: "admissions.handoff.gate.override", allowedScopes: ["organization"], sensitive: true },
   { key: "membership.provision", allowedScopes: ["organization"], systemOnly: true }]
   .map((entry) => ({ label: entry.key, group: "test", resourceKinds: ["organization"], sensitive: false, systemOnly: false, ...entry }));
-const baseline = { sales: ["lead.read", "case.read.full", "profile.read.full", "finance.read.summary", "task.manage", "workflow.contract.read", "communication.manual.send", "contract.evidence.confirm", "membership.provision"],
+const baseline = { sales: ["lead.read", "case.read.full", "profile.read.full", "finance.read.summary", "task.manage", "workflow.contract.read", "communication.manual.send", "contract.evidence.confirm", "admissions.handoff.gate.override", "membership.provision"],
   admissions: ["lead.read", "case.read.full", "task.manage", "workflow.contract.read", "document.download", "document.upload", "communication.manual.send", "finance.read.summary"] };
 const adminSnapshot = { schemaVersion: 1, authUserId: userId, profileId, membershipId: member, organizationId: org,
   displayName: "Local Admin", systemRole: "admin", accessVersion: 1, assignments: [], permissions: ["membership.provision"] };
@@ -141,7 +143,12 @@ test("fixture roles reproduce155 own/organization split without sensitive or cro
   const admissionsOrg = rows.find((row) => row.scenario === "admissions" && row.kind === "organization").permissionKeys;
   assert.ok(admissionsOrg.includes("company.file.download") && !admissionsOrg.includes("document.download"));
   assert.ok(!admissionsOrg.includes("case.read.full"));
-  for (const row of rows) assert.ok(!row.permissionKeys.includes("contract.evidence.confirm") && !row.permissionKeys.includes("membership.provision"));
+  for (const row of rows) assert.ok(!row.permissionKeys.includes("admissions.handoff.gate.override") && !row.permissionKeys.includes("membership.provision"));
+  // Only the Sales own role confirms contracts and first payments, as the product Sales Manager role does.
+  for (const row of rows) {
+    const confirms = row.scenario === "sales" && row.kind === "own";
+    for (const key of ["contract.evidence.confirm", "finance.first.payment.confirm"]) assert.equal(row.permissionKeys.includes(key), confirms);
+  }
 });
 
 test("baseline catalogue drift fails rather than silently changing scope", () => {
@@ -858,7 +865,8 @@ const businessHelper = () => readFileSync(new URL("../scripts/lib/scoped-staff-p
 test("ordinary business proof orders canonical setup before the four same-card scope edits", () => {
   const source = businessHelper();
   const order = ['stage = "DEPARTMENT"', 'stage = "PERSONAL_PERMISSIONS"', 'stage = "LEAD"', 'stage = "QUALIFY"', 'stage = "CONTRACT"',
-    'stage = "PAYMENT"', 'stage = "HANDOFF"', 'stage = "DIRECTION"', 'stage = "ROLES"', 'stage = "BASELINE"', 'stage = "CARD"'];
+    'stage = "PAYMENT"', 'stage = "SALE_CONDITIONS"', 'stage = "SALES_MANAGER"', 'stage = "HANDOFF"', 'stage = "SALES_MANAGER_RELEASE"',
+    'stage = "DIRECTION"', 'stage = "ROLES"', 'stage = "BASELINE"', 'stage = "CARD"'];
   assert.ok(order.every((needle, index) => source.indexOf(needle) >= 0 && (index === 0 || source.indexOf(needle) > source.indexOf(order[index - 1]))));
   assert.match(source, /const states = \[\[additions\[0\]\], \[additions\[1\]\], additions, \[\]\]/);
   const edits = source.slice(source.indexOf('stage = "CARD"'), source.indexOf('stage = "ASSIGNED_ARCHIVE_SETUP"'));
@@ -901,6 +909,38 @@ test("ordinary handoff qualifies manual intake using fresh workflow state before
   assert.match(qualification, /qualified.workflow_version === intake.workflow_version \+ 1/);
   assert.match(qualification, /qualified.stage_key === "qualified"/);
   assert.match(source, /handoffReady\[0\].can_submit_normal === true/);
+});
+
+test("handoff actor holds the Sales Manager role only through the reviewed binder, around the one handoff", () => {
+  const source = businessHelper();
+  const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
+  assert.match(helper, /new URL\("\.\.\/local-dev\/bind-local-sales-manager\.mjs", import\.meta\.url\)/);
+  const setup = source.slice(source.indexOf('stage = "SALE_CONDITIONS"'), source.indexOf('stage = "HANDOFF"'));
+  assert.match(setup, /save_lead_sale_conditions_v1[\s\S]*p_expected_revision: 0/);
+  assert.match(setup, /spawnSync\(process.execPath, \[SALES_MANAGER_BINDER, supabaseWorkdir, organizationId, managerRoleId\]/);
+  assert.match(setup, /bound\?\.code === "local_sales_manager_bound" && bound.changedRows === 1/);
+  assert.match(setup, /permissionKeys.includes\("sales.register.manage"\)[\s\S]*entry.scope.kind === "own"[\s\S]*managerRoles.length === 1/);
+  assert.match(setup, /saveAssignments\(admin.membershipId, \[\.\.\.adminOriginal.assignments,/);
+  assert.doesNotMatch(setup, /DISABLE TRIGGER|workflow_key|psql/);
+  const release = source.slice(source.indexOf('stage = "SALES_MANAGER_RELEASE"'), source.indexOf('stage = "DIRECTION"'));
+  assert.match(release, /saveAssignments\(admin.membershipId, adminOriginal.assignments\)/);
+  const cleanup = source.slice(source.indexOf("// Teardown uses ordinary commands"));
+  assert.match(cleanup, /entry.membershipId === admin.membershipId[\s\S]*saveAssignments\(admin.membershipId, original.assignments\)/);
+  const wrapper = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  assert.match(wrapper, /firstConfigured\(\["EVO_LOCAL_SUPABASE_WORKDIR"\], "SUPABASE_WORKDIR_REQUIRED"\)/);
+  assert.match(wrapper, /verifyScopedStaffBusinessScopes\(\{[\s\S]*?supabaseWorkdir \}\)/);
+  const shell = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  assert.match(shell, /EVO_LOCAL_SUPABASE_WORKDIR="\$supabase_workdir" \\/);
+});
+
+test("final authority proof grants only the protected override and still proves Sales holds both confirmations", () => {
+  const wrapper = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const grants = [...wrapper.matchAll(/await grantPermission\(\s*([^,]+),\s*"([a-z.]+)"/g)].map((match) => [match[1].trim(), match[2]]);
+  assert.deepEqual(grants, [["adminAuthority.membershipId", "admissions.handoff.gate.override"]]);
+  for (const key of ["contract.evidence.confirm", "finance.first.payment.confirm"]) {
+    assert.match(wrapper, new RegExp(`refreshedSalesSession.client,\\s*organizationId,\\s*"${key.replaceAll(".", "\\.")}"`));
+  }
+  assert.match(wrapper, /assertSensitivePermissionDenied\(\s*admissionsSession.client,\s*organizationId,\s*"contract.evidence.confirm"/);
 });
 
 test("business read diagnostics distinguish fixed private substages without exporting runtime data", () => {
@@ -949,7 +989,7 @@ test("assigned archive is a separate positive UI step after all four scope edits
 
 test("business proof rejects incomplete inputs with a fixed private stage before any write", async () => {
   await assert.rejects(verifyScopedStaffBusinessScopes({ apiUrl, appOrigin, organizationId: org,
-    adminClient: { supabaseUrl: apiUrl }, identities: {} }), (error) => {
+    adminClient: { supabaseUrl: apiUrl }, identities: {}, supabaseWorkdir: "relative/local-supabase" }), (error) => {
     assert.equal(error.code, "LOCAL_BUSINESS_SCOPES_SETUP_FAILED");
     assert.deepEqual(Object.keys(error), ["code"]);
     assert.equal(error.message, error.code); return true;

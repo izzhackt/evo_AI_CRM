@@ -136,27 +136,26 @@ instructions to run a full heavy suite for every change or release candidate.
   work without a new backup for now and expose the same server through a local
   SSH tunnel. See the narrow owner waiver in `docs/EVO_LAUNCH_PLAN.md` and the
   latest `docs/PLAN_CHANGES.md`; no backup/restore success may be fabricated, and
-  all other release controls remain. At that time the existing Supabase project
-  `iosckaqtovbbnssqcpde` was the single persistent product source; it is now the
-  historical cloud project and rollback source (see the 2026-10-20 bullet
-  below), and it is still never reset, replaced or deleted without a new
-  explicit owner instruction. No disposable local preview database is
+  all other release controls remain. At that time a cloud Supabase project was
+  the single persistent product source; production has run on the self-hosted
+  Supabase since 2026-10-20 (see the bullet below), and that cloud project is
+  never touched by agents (only the owner may delete it). No disposable local preview database is
   requested. Resolve the exact single-account target
   and dependencies before consolidation; no permanent one-user product limit,
   Auth bypass or removal of Student-private authority is authorized.
 - Since 2026-10-20 00:47 UTC the production database is the self-hosted
   Supabase on hermes-vps (`/opt/evo-supabase`, public address
-  `https://supabase.evoadmissions.com`). The GitHub variable
-  `EVO_SUPABASE_TARGET=selfhosted` selects it for release, schema ledger and
-  the env contract (default `cloud`, kept for rollback). The cloud project
-  `iosckaqtovbbnssqcpde` is kept untouched as the rollback source and treated
-  as read-only: the owner said never to delete it, and no migration, write or
-  reset happens there without an explicit owner instruction. Removing the
-  cloud code path is tracked in #1271. There are no backups of the self-hosted
-  database yet, by owner decision; the owner will say when. ADR 0034
-  supersedes ADR 0024 on where the database lives; order, facts and rollback
-  are in `docs/runbooks/selfhosted-cutover.md` and
-  `docs/runbooks/infrastructure-map.md`.
+  `https://supabase.evoadmissions.com`), and since 2026-11-04 it is the only
+  database path: the cloud branch was removed from the release workflow, the
+  schema ledger, the env contract, operator scripts and the application
+  (#1271, ADR 0037). Do not add a cloud or second-database path, a target
+  selector or a fallback: an unreachable self-hosted Supabase stops the release.
+  The owner cancelled the cloud plan on 2026-11-04 and decided not to return;
+  only the owner may delete the old cloud project. There are no backups of the
+  self-hosted database yet, by owner decision; the owner will say when.
+  ADR 0034 records the cutover and ADR 0037 supersedes ADR 0024; the order of
+  the cutover is in `docs/runbooks/selfhosted-cutover.md` (history) and the
+  current facts in `docs/runbooks/infrastructure-map.md`.
 - The current September 9 owner-authorized run is
   `docs/design/v3/student-admissions-run-plan.md`: extend the existing Student
   Portal with native English/career-interest tests and implement China/Malaysia

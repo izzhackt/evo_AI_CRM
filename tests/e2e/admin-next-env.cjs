@@ -14,7 +14,7 @@ const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
 
 const ROOT = resolve(__dirname, "../..");
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://iosckaqtovbbnssqcpde.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://supabase.evoadmissions.com";
 
 const compile = (source) => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true },

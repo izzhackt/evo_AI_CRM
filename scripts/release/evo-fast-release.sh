@@ -14,7 +14,7 @@ readonly POSITIVE_INT_RE='^[1-9][0-9]*$'
 readonly PROJECT_NAME_RE='^[a-z0-9][a-z0-9_-]{0,99}$'
 # A 20-character cloud project ref, or the word `selfhosted` for https://supabase.evoadmissions.com
 # (docs/runbooks/selfhosted-cutover.md). The cloud alternative is removed after the cutover (#1271).
-readonly SUPABASE_PROJECT_REF_RE='^([a-z0-9]{20}|selfhosted)$'
+readonly SUPABASE_PROJECT_REF_RE='^selfhosted$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://crm\.evoadmissions\.com|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'
@@ -211,7 +211,7 @@ load_configuration() {
     EVO_RELEASE_COMPOSE_FILE \
     EVO_RELEASE_APP_ENV_FILE \
     EVO_RELEASE_EXTERNAL_HEALTH_URL \
-    EVO_SUPABASE_PROJECT_REF \
+    EVO_SUPABASE_IDENTITY \
     EVO_WAHA_IMAGE_DIGEST; do
     require_variable "$variable"
   done
@@ -223,7 +223,7 @@ load_configuration() {
   require_absolute_path "$EVO_RELEASE_COMPOSE_FILE" "compose_path_invalid"
   require_absolute_path "$EVO_RELEASE_APP_ENV_FILE" "app_env_path_invalid"
   require_match "$EVO_RELEASE_EXTERNAL_HEALTH_URL" "$HEALTH_URL_RE" "health_url_invalid"
-  require_match "$EVO_SUPABASE_PROJECT_REF" "$SUPABASE_PROJECT_REF_RE" "supabase_project_ref_invalid"
+  require_match "$EVO_SUPABASE_IDENTITY" "$SUPABASE_PROJECT_REF_RE" "supabase_project_ref_invalid"
   require_match "$EVO_WAHA_IMAGE_DIGEST" "$SHA256_RE" "waha_digest_invalid"
 
   EVO_RELEASE_ACTIVE_COMPOSE_FILE=${EVO_RELEASE_ACTIVE_COMPOSE_FILE:-$EVO_RELEASE_COMPOSE_FILE}
@@ -405,7 +405,7 @@ verify_env_contract() {
   node "$validator" \
     --example "$example_file" \
     --env "$candidate_app_env_snapshot" \
-    --supabase-project-ref "$EVO_SUPABASE_PROJECT_REF" \
+    --supabase-project-ref "$EVO_SUPABASE_IDENTITY" \
     --verify-supabase-keys \
     >/dev/null || fail "app_env_contract_invalid"
 }
@@ -1646,7 +1646,7 @@ create_rollback_wrapper() {
     printf 'export EVO_RELEASE_APP_ENV_FILE=%q\n' "$candidate_app_env_snapshot"
     printf 'export EVO_CRM_WAHA_ENV_FILE=%q\n' "$EVO_CRM_WAHA_ENV_FILE"
     printf 'export EVO_RELEASE_EXTERNAL_HEALTH_URL=%q\n' "$EVO_RELEASE_EXTERNAL_HEALTH_URL"
-    printf 'export EVO_SUPABASE_PROJECT_REF=%q\n' "$EVO_SUPABASE_PROJECT_REF"
+    printf 'export EVO_SUPABASE_IDENTITY=%q\n' "$EVO_SUPABASE_IDENTITY"
     printf 'export EVO_WAHA_IMAGE_DIGEST=%q\n' "$EVO_WAHA_IMAGE_DIGEST"
     if [[ $ai_agent_enabled == true ]]; then
       printf 'export EVO_AI_AGENT_ENABLED=true\n'

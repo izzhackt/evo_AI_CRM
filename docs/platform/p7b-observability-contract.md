@@ -67,9 +67,9 @@ existing `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `EVO_INBOX_WAHA_BASE_URL` and `EVO_INBOX_WAHA_API_KEY`.
 
 Every P7B Supabase URL is an origin-only absolute URL: no userinfo, non-root
-path, query or fragment. Production admits only exact
-`https://<project-ref>.supabase.co` with no explicit port, where `project-ref`
-is exactly 20 lowercase ASCII alphanumeric characters. Non-production admits
+path, query or fragment. Production admits only the exact
+`https://supabase.evoadmissions.com` (optionally one trailing slash) with no
+explicit port. Non-production admits
 only HTTP on `localhost`, any `127.0.0.0/8` address or `[::1]` with one explicit
 port from `1` through `65535`. Custom domains, arbitrary HTTPS hosts, private
 network names and every other origin are rejected. Both the CRM RPC transport

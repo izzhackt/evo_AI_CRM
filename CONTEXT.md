@@ -23,7 +23,7 @@ secrets retain their existing separate storage boundaries.
 
 The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
 together with
-[`ADR 0024`](docs/adr/0024-use-managed-supabase-for-the-evo-production-successor.md),
+[`ADR 0037`](docs/adr/0037-use-only-self-hosted-supabase.md) (supersedes ADR 0024),
 [`ADR 0027`](docs/adr/0027-promote-v3-to-the-single-product-surface-on-managed-supabase.md),
 parent issue `#543`, completed integration sequence `#594` through `#600`, active
 sequence `#551` through `#553`, and the latest append-only entry in

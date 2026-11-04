@@ -6,7 +6,7 @@
 
 ## Область действия
 
-- Единственный проект: `iosckaqtovbbnssqcpde`.
+- Единственная база: self-hosted Supabase `https://supabase.evoadmissions.com`.
 - Bucket: `platform-document-exports`, private, только
   `application/vnd.openxmlformats-officedocument.wordprocessingml.document`,
   максимум `5242880` байт (5 MiB).
@@ -18,7 +18,7 @@
 ## Запуск после разрешения на managed-настройку
 
 Нужен Node 22. В процессе должны уже находиться `NEXT_PUBLIC_SUPABASE_URL`
-со значением `https://iosckaqtovbbnssqcpde.supabase.co` и серверный
+со значением `https://supabase.evoadmissions.com` и серверный
 `EVO_PLATFORM_SUPABASE_SECRET_KEY` из существующего защищённого окружения.
 Не вставляйте ключ в команду, историю shell, тикет или чат. Скрипт сам не читает
 файлы `.env` и не получает новые credentials. Publishable/anon ключ не подходит.

@@ -56,8 +56,8 @@ Trigger: `supabase_unavailable`, or CRM/Inbox component `supabase` is
 1. Confirm process liveness separately. Preserve the signed readiness response,
    fixed component state, request ID, release SHA, and UTC time; do not retain
    the upstream body or credential-bearing headers.
-2. Confirm that the configured URL is the intended managed
-   `https://<20-character-project-ref>.supabase.co` origin in production. Do not
+2. Confirm that the configured URL is the exact self-hosted
+   `https://supabase.evoadmissions.com` origin in production. Do not
    substitute a custom, private-network, redirected, or arbitrary HTTPS host.
 3. From an authorized private server context, distinguish DNS/TLS/network
    failure, Auth-health failure, and CRM RPC failure. Inspect only bounded

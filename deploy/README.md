@@ -11,7 +11,7 @@ The successor has one runtime topology:
 | EVO staff application | root Next.js application | Compose service `app` |
 | Document malware scanner | pinned ClamAV image | Compose service `clamav`, private network only |
 | WhatsApp transport | existing private WAHA session `crm_primary` | Compose service `waha`, private network only |
-| Business data and authorization | one managed Supabase project | external Postgres, Auth, RLS, and private Storage |
+| Business data and authorization | one self-hosted Supabase (`https://supabase.evoadmissions.com`) | Postgres, Auth, RLS, and private Storage |
 
 There is no active SQLite or Drizzle business store, companion Inbox
 application, Lead Agent service, manual-send worker, local staff bootstrap, or
@@ -78,7 +78,7 @@ The release controller also requires an exact 40-character
 `EVO_RELEASE_REVISION`, an immutable `EVO_RELEASE_VERSION`, and an immutable
 `EVO_WAHA_IMAGE_DIGEST`. Never use a moving app or WAHA tag as release proof.
 
-The application environment must contain the managed Supabase URL, publishable
+The application environment must contain the self-hosted Supabase URL, publishable
 key, server-only secret key, and canonical organization identifier. Missing or
 invalid Supabase configuration must stop the application path clearly; it must
 never select SQLite, a local repository, fixtures, or a frozen worker instead.

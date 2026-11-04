@@ -77,9 +77,8 @@ const WAHA_ENGINES = new Set(["WEBJS", "WPP", "NOWEB", "GOWS"]);
 
 const CANONICAL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-// The cloud project origin, or exactly the self-hosted one (docs/runbooks/selfhosted-cutover.md);
-// the cloud alternative is removed after the cutover (#1271).
-const SUPABASE_ORIGIN = /^https:\/\/(?:[a-z0-9]{20}\.supabase\.co|supabase\.evoadmissions\.com)$/;
+// Exactly the self-hosted origin.
+const SUPABASE_ORIGIN = /^https:\/\/supabase\.evoadmissions\.com$/;
 const LOCAL_SUPABASE_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost):[1-9][0-9]{0,4}$/;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,512}$/;
 const LOWER_SHA256 = /^[0-9a-f]{64}$/;

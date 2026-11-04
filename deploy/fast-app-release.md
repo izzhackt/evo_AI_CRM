@@ -34,8 +34,8 @@ requested and report the missing fresh recovery proof honestly. See the
 and [decision log](../docs/PLAN_CHANGES.md#2026-09-09--owner-directed-release-without-a-new-backup-one-persistent-source).
 This exception applies only to the current release prerequisite, preserves
 existing backups/data and accepted-image rollback, and changes no workflow or
-controller check. Keep `iosckaqtovbbnssqcpde` as the sole permanent
-database/Auth/Storage source; no clone/reset/replacement/deletion or separate
+controller check. The sole permanent database/Auth/Storage source is the
+self-hosted Supabase (`https://supabase.evoadmissions.com`); no clone/reset/replacement/deletion or separate
 preview database. Show the same production through an SSH localhost tunnel.
 Account consolidation remains separate; no new synthetic production users/cases
 or Admin access to Student-private assessments is authorized. Every exact-head
@@ -65,7 +65,7 @@ access.
 The `build` job runs on a fresh GitHub-hosted runner with explicit
 `permissions: { contents: read }`, no `environment`, no job/container/service
 credentials, no production secret references, no SSH material, no
-`SUPABASE_ACCESS_TOKEN`, and no repository or dependency cache. Before checkout
+Supabase credential, and no repository or dependency cache. Before checkout
 or build, its secretless admission step requires all of the following:
 
 1. `github.event.workflow_run.conclusion == 'success'`;
@@ -133,24 +133,24 @@ migration-ledger query; it occurs before any SSH connection (the pinned-trust
 step before it only writes the local SSH files from their secrets). No secret
 is placed in a job-level environment, artifact, output or evidence.
 
-**Supabase target.** The repository variable `EVO_SUPABASE_TARGET` (unset or empty
-means `cloud`, today's behaviour) selects the database behind the release; any
-other value except `selfhosted` stops both jobs before a secret or Docker is
-used. In `selfhosted` mode (`docs/runbooks/selfhosted-cutover.md`) the three
-migration-ledger reads go over the release's own pinned SSH access, inside the
-database container, with no Management API and no database port; the first read
-therefore follows the pinned-trust step (no connection is opened before it), and
-the manifest, the controller and the environment contract carry the word
-`selfhosted` in place of a 20-character project ref, with the exact origin
+**Supabase identity.** The database behind the release is always the self-hosted
+Supabase (`docs/adr/0037-use-only-self-hosted-supabase.md`). Both jobs pin the
+literal identity `selfhosted` in the job environment; no repository variable or
+secret selects it, and any other value stops both jobs before a secret or Docker
+is used. The three migration-ledger reads go over the release's own pinned SSH
+access, inside the database container, with no Management API and no database
+port; the first read therefore follows the pinned-trust step (no connection is
+opened before it), and the manifest (`supabaseProjectRef`), the controller and the
+environment contract carry the word `selfhosted`, with the exact origin
 `https://supabase.evoadmissions.com`. An unreachable self-hosted database stops
-the release; there is no fallback to the cloud project.
+the release; there is no fallback to any other database.
 
 On the host and still before image load or application mutation, the controller
-uses the candidate-sealed project ref and one protected application-environment
+uses the candidate-sealed Supabase identity and one protected application-environment
 snapshot for bounded read-only credential probes. The publishable key must reach
-that exact project's Auth settings endpoint and the server key must be accepted
+that exact origin's Auth settings endpoint and the server key must be accepted
 by its Auth Admin read endpoint. Response bodies are discarded. A wrong key,
-different project, arbitrary HTTPS origin, redirect, timeout or unavailable
+different origin, arbitrary HTTPS origin, redirect, timeout or unavailable
 verification stops. Manual rollback verifies the sealed snapshot digest but
 does not repeat the online probes, so a Supabase outage cannot prevent exact app
 restoration.
@@ -235,8 +235,6 @@ Required secrets when #552 configures the lane:
 
 - `EVO_DEPLOY_SSH_PRIVATE_KEY` — dedicated restricted deploy key;
 - `EVO_DEPLOY_KNOWN_HOSTS` — pre-verified Hermes host-key line;
-- `SUPABASE_ACCESS_TOKEN` — least-privilege read-only migration-ledger lookup
-  (`cloud` mode only);
 - `EVO_GITHUB_VARIABLES_READ_TOKEN` — one-repository control-plane credential
   limited to `Variables: read`, exposed only to the two fresh guards; and
 - `EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` and
@@ -262,11 +260,9 @@ Required non-secret variables:
 - `EVO_RELEASE_EXTERNAL_HEALTH_URL` — exactly
   `https://crm.evoadmissions.com/api/health` for the accepted domain contract;
 - `EVO_RELEASE_MIN_FREE_KB` — at least `1048576`;
-- `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
-- `EVO_SUPABASE_PROJECT_REF` (the cloud project; kept in `selfhosted` mode for
-  rollback).
+- `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest.
 
-Optional `EVO_SUPABASE_TARGET`: `cloud` (default) or `selfhosted`.
+The Supabase identity is not a variable: the workflow pins `selfhosted`.
 
 Optional «ИИ-агент» variables: `EVO_AI_AGENT_ENABLED` (unset, empty or `false`
 keeps today's release exactly; `true` adds the `ai-agent` compose profile) and
@@ -326,7 +322,7 @@ For the one guarded exact current-main SHA, the workflow:
 1. the secretless job builds one fresh `linux/amd64` image, validates its exact
    revision/version labels and seals the immutable artifact/manifest identities;
 2. the fresh deploy job repeats admission, verifies the exact same-run artifact
-   without executing artifact-supplied code, and checks the managed Supabase
+   without executing artifact-supplied code, and checks the self-hosted Supabase
    migration ledger read-only;
 3. after the pre-mutation guard, it transfers only the sealed image and exact
    checked-in release inputs over pinned SSH into the private transient
@@ -518,10 +514,10 @@ sudo -- /opt/evo-crm/release-evidence/<release-id>/rollback-command.sh
 
 The generated line replaces `<release-id>` with the exact release directory.
 Inside that protected wrapper, not in the operator's shell, the generator seals
-the exact non-secret project ref and calls the release-owned controller shape:
+the exact non-secret Supabase identity and calls the release-owned controller shape:
 
 ```bash
-export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
+export EVO_SUPABASE_IDENTITY='selfhosted'
 /opt/evo-crm/release-evidence/<release-id>/controller/evo-fast-release.sh rollback
 ```
 
@@ -575,6 +571,5 @@ environment snapshots: it stays root-only on the host and is never part of the
 reviewable evidence.
 
 Docker Compose `--no-deps` does not start dependencies and `--wait` waits for
-running/healthy state. Supabase exposes migration history through a read-only
-Management API. See [Docker Compose up](https://docs.docker.com/reference/cli/docker/compose/up/)
-and [Supabase list migration history](https://supabase.com/docs/reference/api/v1-list-migration-history).
+running/healthy state. the release reads the self-hosted migration ledger over SSH. See
+[Docker Compose up](https://docs.docker.com/reference/cli/docker/compose/up/).

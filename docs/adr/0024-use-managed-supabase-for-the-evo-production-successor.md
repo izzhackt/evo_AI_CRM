@@ -1,6 +1,6 @@
 # ADR 0024: Use managed Supabase for the EVO production successor
 
-- Status: accepted
+- Status: superseded by [ADR 0037](0037-use-only-self-hosted-supabase.md) (see also ADR 0034)
 - Decision date: 2026-09-02 (Asia/Dubai)
 - Decision owner: EVO product owner
 - Execution parent: GitHub issue #543

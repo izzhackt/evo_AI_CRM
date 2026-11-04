@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET, DOCUMENT_PACKAGE_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN, DOCUMENT_EXPORT_STORAGE_PROJECT,
+  DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET, DOCUMENT_PACKAGE_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN,
   configureDocumentExportStorage, parseDocumentExportStorageArgs, runDocumentExportStorageCli,
 } from "../scripts/maintenance/configure-document-export-storage.mjs";
 
+// A former cloud project ref: keys that carry it are refused (no cloud path remains).
+const CLOUD_REF = "abcdefghijklmnopqrst";
 const syntheticKey = `sb_secret_${"synthetic_unit_only_".repeat(2)}`;
 const environment = { NEXT_PUBLIC_SUPABASE_URL: DOCUMENT_EXPORT_STORAGE_ORIGIN, EVO_PLATFORM_SUPABASE_SECRET_KEY: syntheticKey };
 const bucket = () => ({ ...DOCUMENT_EXPORT_BUCKET, allowed_mime_types: [...DOCUMENT_EXPORT_BUCKET.allowed_mime_types],
@@ -141,7 +143,7 @@ test("university form mode never upgrades drift or retries an ambiguous update",
 });
 
 test("wrong or absent project fails before sending any credential or request", async () => {
-  for (const url of [undefined, "http://iosckaqtovbbnssqcpde.supabase.co", "https://other.supabase.co",
+  for (const url of [undefined, "http://supabase.evoadmissions.com", "https://other.supabase.co",
     `${DOCUMENT_EXPORT_STORAGE_ORIGIN}/storage/v1`, `${DOCUMENT_EXPORT_STORAGE_ORIGIN}?key=${syntheticKey}`]) {
     const fake = fakeHttp([]);
     const result = await configureDocumentExportStorage({ apply: true, environment: { ...environment, NEXT_PUBLIC_SUPABASE_URL: url }, fetchImpl: fake.fetchImpl });
@@ -151,22 +153,22 @@ test("wrong or absent project fails before sending any credential or request", a
   }
 });
 
-test("publishable or wrong-project credentials stop locally; legacy service JWT uses both headers", async () => {
+test("publishable or ref-carrying credentials stop locally; legacy service JWT without ref uses both headers", async () => {
   const jwt = (role, ref) => [Buffer.from('{"alg":"HS256"}').toString("base64url"),
     Buffer.from(JSON.stringify({ role, ref })).toString("base64url"), "syntheticSignature"].join(".");
-  for (const key of [undefined, "sb_publishable_synthetic", jwt("anon", DOCUMENT_EXPORT_STORAGE_PROJECT), jwt("service_role", "other")]) {
+  for (const key of [undefined, "sb_publishable_synthetic", jwt("anon", undefined), jwt("service_role", "other"), jwt("service_role", CLOUD_REF)]) {
     const fake = fakeHttp([]);
     const result = await configureDocumentExportStorage({ environment: { ...environment, EVO_PLATFORM_SUPABASE_SECRET_KEY: key }, fetchImpl: fake.fetchImpl });
     assert.equal(result.report.status, "credential_invalid"); assert.equal(fake.calls.length, 0);
   }
-  const key = jwt("service_role", DOCUMENT_EXPORT_STORAGE_PROJECT);
+  const key = jwt("service_role", undefined);
   const fake = fakeHttp([json(bucket())]);
   assert.equal((await configureDocumentExportStorage({ environment: { ...environment, EVO_PLATFORM_SUPABASE_SECRET_KEY: key }, fetchImpl: fake.fetchImpl })).exitCode, 0);
   assert.equal(fake.calls[0].headers.Authorization, `Bearer ${key}`);
   assert.equal(fake.calls[0].headers.apikey, key);
 });
 
-test("the self-hosted stack is accepted by its exact origin only: every request goes there and a missing ref claim is not an error (cutover)", async () => {
+test("the self-hosted stack is accepted by its exact origin only: every request goes there and a missing ref claim is not an error ", async () => {
   const selfhosted = "https://supabase.evoadmissions.com";
   const jwt = (payload) => [Buffer.from('{"alg":"HS256"}').toString("base64url"),
     Buffer.from(JSON.stringify(payload)).toString("base64url"), "syntheticSignature"].join(".");
@@ -194,17 +196,14 @@ test("the self-hosted stack is accepted by its exact origin only: every request 
   assert.equal((await configureDocumentExportStorage({ environment: { ...selfEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: key }, fetchImpl: legacy.fetchImpl })).exitCode, 0);
   assert.equal(legacy.calls[0].headers.Authorization, `Bearer ${key}`);
   // a key from the cloud project, a non-service role and a malformed key never reach the self-hosted stack
-  for (const rejected of [jwt({ role: "service_role", ref: DOCUMENT_EXPORT_STORAGE_PROJECT }), jwt({ role: "anon" }), "not-a-key"]) {
+  for (const rejected of [jwt({ role: "service_role", ref: CLOUD_REF }), jwt({ role: "anon" }), "not-a-key"]) {
     const fake = fakeHttp([]);
     const result = await configureDocumentExportStorage({ environment: { ...selfEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: rejected }, fetchImpl: fake.fetchImpl });
     assert.equal(result.report.status, "credential_invalid"); assert.equal(fake.calls.length, 0);
   }
-  // the cloud project still requires its own ref in a JWT
-  const cloudMissingRef = fakeHttp([]);
-  assert.equal((await configureDocumentExportStorage({ environment: { ...environment, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role" }) }, fetchImpl: cloudMissingRef.fetchImpl })).report.status, "credential_invalid");
   // neighbours of the exact origin never match
   for (const url of [`${selfhosted}.attacker.invalid`, "http://supabase.evoadmissions.com", "https://supabase.evoadmissions.com:8443",
-    "https://evoadmissions.com", "https://supabase.evoadmissions.com/storage/v1", "https://x.supabase.evoadmissions.com", "https://other.supabase.co"]) {
+    "https://evoadmissions.com", "https://supabase.evoadmissions.com/storage/v1", "https://x.supabase.evoadmissions.com", "https://other.supabase.co", `https://${CLOUD_REF}.supabase.co`]) {
     const fake = fakeHttp([]);
     const result = await configureDocumentExportStorage({ environment: { ...selfEnvironment, NEXT_PUBLIC_SUPABASE_URL: url }, fetchImpl: fake.fetchImpl });
     assert.equal(result.report.status, "project_mismatch", url); assert.equal(fake.calls.length, 0);

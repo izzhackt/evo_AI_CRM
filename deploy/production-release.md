@@ -16,8 +16,8 @@ recovery receipt. The [current plan](../docs/design/v3/student-admissions-run-pl
 and [decision log](../docs/PLAN_CHANGES.md#2026-09-09--owner-directed-release-without-a-new-backup-one-persistent-source)
 supersede only that prerequisite for this release. Retain existing backups,
 data and accepted-image rollback evidence; app rollback does not reverse schema
-or data changes. The sole permanent database/Auth/Storage source remains
-`iosckaqtovbbnssqcpde`: no clone, reset, replacement or deletion. Localhost is an
+or data changes. The sole permanent database/Auth/Storage source is the self-hosted
+Supabase (`https://supabase.evoadmissions.com`): no clone, reset, replacement or deletion. Localhost is an
 SSH tunnel to the same deployed app. Account consolidation is separate and
 does not gate deployment. No new synthetic production users/cases or Admin
 access to private Student assessments is authorized. Exact-head review, schema,
@@ -41,7 +41,7 @@ One release candidate contains:
   `clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9`;
 - one immutable WAHA image digest;
 - exactly three Compose services, `app`, private `clamav` and private `waha`;
-- one previously approved managed Supabase project whose migration ledger
+- one previously approved Supabase project (self-hosted) whose migration ledger
   matches root `supabase/`.
 
 The accepted domain contract uses `https://crm.evoadmissions.com`
@@ -194,7 +194,7 @@ Before the first successor release, install the exact reviewed #551 controller
 while the frozen previous Compose and `.env.production` remain unchanged. If
 the approved frozen-V1 rollback source requires the controller's
 `seal-rollback-seed` operation, invoke it only after that installation with the
-exact `EVO_SUPABASE_PROJECT_REF` and other documented non-secret values, then
+exact `EVO_SUPABASE_IDENTITY` (`selfhosted`) and other documented non-secret values, then
 verify its mode-`0600` state and retained-file hashes without rendering the
 environment. Install the exact V3 Compose only after the seed succeeds. Routine
 releases use their own credentials-disabled exact-main checkout and transferred
@@ -216,7 +216,7 @@ In Bash, set literal reviewed values; do not derive them from a dirty checkout:
 export EVO_RELEASE_REVISION='<full-40-character-main-sha>'
 export EVO_RELEASE_VERSION='<immutable-release-name>'
 export EVO_WAHA_IMAGE_DIGEST='sha256:<64-lowercase-hex>'
-export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
+export EVO_SUPABASE_IDENTITY='selfhosted'
 export EVO_CRM_APP_ENV_FILE='/opt/evo-crm/.env.production'
 export EVO_CRM_WAHA_ENV_FILE='/opt/evo-crm/.env.waha'
 [[ "$EVO_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]
@@ -476,10 +476,10 @@ sudo -- /opt/evo-crm/release-evidence/<release-id>/rollback-command.sh
 
 The generated command contains the exact release directory, not the placeholder.
 Inside the protected wrapper, rather than in the operator's shell, the generator
-seals the project ref and invokes its release-owned controller with this shape:
+seals the Supabase identity and invokes its release-owned controller with this shape:
 
 ```bash
-export EVO_SUPABASE_PROJECT_REF='<20-character-project-ref>'
+export EVO_SUPABASE_IDENTITY='selfhosted'
 /opt/evo-crm/release-evidence/<release-id>/controller/evo-fast-release.sh rollback
 ```
 

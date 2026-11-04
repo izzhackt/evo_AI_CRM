@@ -88,11 +88,11 @@ source of truth for structural changes.
    на сайте говорят то же. Правило 5.1.1(v) требует удаления аккаунта
    внутри приложения.
 3. Записать `Release.xcconfig`. Значения: адрес проекта, publishable ключ
-   (Supabase Dashboard, Project Settings, API Keys) и Team ID
+   (self-hosted стека Supabase) и Team ID
    (developer.apple.com/account, «Membership details»). Скрипт принимает только
    `https://`, проверяет формат и не печатает ключ:
    ```
-   SUPABASE_URL=https://iosckaqtovbbnssqcpde.supabase.co \
+   SUPABASE_URL=https://supabase.evoadmissions.com \
    SUPABASE_PUBLISHABLE_KEY=<publishable key> \
    DEVELOPMENT_TEAM=<Team ID> \
    ios/scripts/write-release-config.sh
@@ -100,13 +100,9 @@ source of truth for structural changes.
    `PORTAL_WEB_BASE_URL` необязателен, по умолчанию
    `https://app.evoadmissions.com`.
 
-   Переключение на self-hosted Supabase (`docs/runbooks/selfhosted-cutover.md`) —
-   одна замена в этой команде: `SUPABASE_URL=https://supabase.evoadmissions.com`
-   и publishable-ключ того стека. Скрипты принимают любой `https://` адрес,
-   код приложения от адреса не зависит. Сборка с новым адресом выпускается
-   только после переключения рабочей CRM; сессии прежнего проекта в приложении
-   станут недействительными (вход заново). До переключения адрес остаётся
-   облачным.
+   Адрес проекта: `https://supabase.evoadmissions.com` (self-hosted Supabase),
+   ключ берётся у того же стека. Скрипты принимают любой `https://` адрес,
+   код приложения от адреса не зависит.
 4. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
    менялся `project.yml`: `cd ios && xcodegen generate`, затем проверить, что
    в `Generated/Info.plist` нет `NSAppTransportSecurity`.

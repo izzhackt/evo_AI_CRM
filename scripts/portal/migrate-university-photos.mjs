@@ -21,9 +21,8 @@
  *                              после readback ставит migrated=true.
  *
  * Креды — ТОЛЬКО из окружения и только для --apply:
- *   NEXT_PUBLIC_SUPABASE_URL            ровно https://iosckaqtovbbnssqcpde.supabase.co
- *                                       или ровно https://supabase.evoadmissions.com
- *                                       (self-hosted, docs/runbooks/selfhosted-cutover.md)
+ *   NEXT_PUBLIC_SUPABASE_URL            ровно https://supabase.evoadmissions.com
+ *                                       (self-hosted)
  *   EVO_PLATFORM_SUPABASE_SECRET_KEY    sb_secret_* или service-role JWT
  * (контракт getPlatformSupabaseBackendConfig). Отсутствие/чужой проект —
  * отказ до какой-либо сети; plan и check работают без кредов вовсе.
@@ -33,7 +32,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPlatformSupabaseBackendConfig } from "../../src/lib/server/platform-supabase-backend-config.ts";
-import { jwtRefAcceptable, matchSupabaseTarget } from "../lib/evo-supabase-target.mjs";
+import { jwtRefAcceptable, matchSupabaseTarget, SELFHOSTED_SUPABASE_ORIGIN } from "../lib/evo-supabase-target.mjs";
 import {
   isOfficialMediaLicense,
   onOfficialSite,
@@ -41,8 +40,7 @@ import {
   PHOTO_RIGHTS_OPEN_LICENSE,
 } from "../../src/lib/university-photo-rights.ts";
 
-export const UNIVERSITY_PHOTO_PROJECT = "iosckaqtovbbnssqcpde";
-const ORIGIN = `https://${UNIVERSITY_PHOTO_PROJECT}.supabase.co`;
+const ORIGIN = SELFHOSTED_SUPABASE_ORIGIN;
 export const UNIVERSITY_PHOTO_BUCKET = Object.freeze({
   id: "portal-university-photos", name: "portal-university-photos",
   public: true, file_size_limit: 20 * 1024 * 1024,
@@ -128,7 +126,7 @@ export function planUniversityPhotoMigration(library, sites = readStudentCatalog
     (rights === null ? ineligible : eligible).push(key);
     if (rights === PHOTO_RIGHTS_OFFICIAL_MEDIA) officialMedia.push(key);
   }
-  return { schema: "evo-university-photos-plan/v1", bucket: UNIVERSITY_PHOTO_BUCKET.id, projectRef: UNIVERSITY_PHOTO_PROJECT,
+  return { schema: "evo-university-photos-plan/v1", bucket: UNIVERSITY_PHOTO_BUCKET.id, projectRef: "selfhosted",
     totals: { entries: keys.length, eligible: eligible.length, officialMedia: officialMedia.length, ineligible: ineligible.length, invalid: invalid.length },
     eligible, officialMedia, ineligible: ineligible.map(key => ({ key, license: library[key].license })), invalid };
 }
@@ -226,7 +224,7 @@ export async function checkUniversityPhotoMigration({ library, sites, fetchImpl 
   await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, queue.length)) }, worker));
   const sorted = Object.fromEntries(Object.keys(entries).sort().map(key => [key, entries[key]]));
   const manifest = { schema: UNIVERSITY_PHOTO_MANIFEST_SCHEMA, generatedAt: new Date().toISOString(),
-    projectRef: UNIVERSITY_PHOTO_PROJECT, bucket: UNIVERSITY_PHOTO_BUCKET.id, source: "src/lib/university-photo-library.json",
+    projectRef: "selfhosted", bucket: UNIVERSITY_PHOTO_BUCKET.id, source: "src/lib/university-photo-library.json",
     totals: manifestTotals(sorted), entries: sorted };
   return { exitCode: 0, report: { schema: "evo-university-photos-check/v1", status: "manifest_written", manifestFile: UNIVERSITY_PHOTO_MANIFEST_FILE, totals: manifest.totals,
     failed: Object.entries(sorted).filter(([, entry]) => entry.status === "failed").map(([key, entry]) => ({ key, reason: entry.reason })) }, manifest };
@@ -306,13 +304,13 @@ export async function applyUniversityPhotoMigration({ environment = process.env,
   }
   try {
     let config; try { config = getPlatformSupabaseBackendConfig(environment); } catch { fail("configuration_invalid"); }
-    // The cloud project or exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md).
-    const target = matchSupabaseTarget(config.supabaseUrl, UNIVERSITY_PHOTO_PROJECT);
+    // Exactly the self-hosted stack.
+    const target = matchSupabaseTarget(config.supabaseUrl);
     if (target === null) fail("project_mismatch");
     const key = config.supabaseSecretKey, headers = { apikey: key, accept: "application/json" };
     if (!key.startsWith("sb_secret_")) {
       // Self-hosted keys carry no `ref` claim: the check is skipped there (see jwtRefAcceptable).
-      try { if (!jwtRefAcceptable(JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref, target, UNIVERSITY_PHOTO_PROJECT)) fail("credential_invalid"); }
+      try { if (!jwtRefAcceptable(JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref)) fail("credential_invalid"); }
       catch (error) { fail(error instanceof MigrationError ? error.code : "credential_invalid"); }
       headers.Authorization = `Bearer ${key}`;
     }

@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { runInNewContext } from "node:vm";
 import {
   verifyLocalGatewayImageReference,
   verifyLocalGatewayRuntimeIdentity,
@@ -53,110 +52,8 @@ const schemaWorkflow = readFileSync(
   new URL("../.github/workflows/evo-schema-ledger.yml", import.meta.url), "utf8",
 );
 
-function storageCapacityStep() {
-  const marker = "      - name: Check project Storage capacity (read-only)";
-  const start = schemaWorkflow.indexOf(marker);
-  assert.notEqual(start, -1, "the explicit capacity check must exist");
-  return schemaWorkflow.slice(start, schemaWorkflow.indexOf("\n      - name:", start + marker.length));
-}
-
-async function runStorageCapacity({ body = '{"fileSizeLimit":52428800}', status = 200,
-  projectRef = "iosckaqtovbbnssqcpde", networkFailure = false, timeout = false } = {}) {
-  const step = storageCapacityStep();
-  const source = step.match(/node <<'NODE'\n([\s\S]*?)\n          NODE/u)?.[1].replace(/^          /gmu, "");
-  assert.ok(source, "execute the actual workflow Node body");
-  const token = randomUUID();
-  const calls = [], output = [], errors = [], timers = [];
-  const processState = { env: { SUPABASE_ACCESS_TOKEN: token, EVO_SUPABASE_PROJECT_REF: projectRef }, exitCode: 0 };
-  let deadline;
-  await runInNewContext(source, {
-    Buffer, AbortController, process: processState,
-    setTimeout: (callback, milliseconds) => { deadline = callback; timers.push(milliseconds); return 1; },
-    clearTimeout: () => {},
-    console: { log: value => output.push(value), error: value => errors.push(value) },
-    fetch: async (url, options) => {
-      calls.push({ url, options });
-      if (timeout) {
-        deadline();
-        options.signal.throwIfAborted();
-      }
-      if (networkFailure) throw new Error(token);
-      return new Response(body, { status });
-    },
-  });
-  assert.ok(![...output, ...errors].join("\n").includes(token), "never disclose credentials");
-  return { calls, output, errors, timers, token, exitCode: processState.exitCode };
-}
-
-test("schema Storage capacity accepts the exact50MiB ZIP limit through one bounded read-only GET", async () => {
-  const result = await runStorageCapacity();
-  assert.equal(result.exitCode, 0);
-  assert.deepEqual(result.output.map(value => JSON.parse(value)), [
-    { fileSizeLimit: 52428800, minimumBytes: 52428800, eligible: true },
-  ]);
-  assert.deepEqual(result.errors, []);
-  assert.deepEqual(result.timers, [30000]);
-  assert.equal(result.calls.length, 1);
-  assert.equal(result.calls[0].url, "https://api.supabase.com/v1/projects/iosckaqtovbbnssqcpde/config/storage");
-  assert.equal(result.calls[0].options.method, "GET");
-  assert.equal(result.calls[0].options.redirect, "error");
-  assert.equal(result.calls[0].options.headers.Authorization, "Bearer " + result.token);
-});
-
-test("schema Storage capacity stays default-off, step-scoped and before ledger/apply", () => {
-  assert.match(schemaWorkflow, /check_storage_capacity:\n\s+description: .+\n\s+required: false\n\s+default: false\n\s+type: boolean/u);
-  const step = storageCapacityStep();
-  assert.match(step, /if: \$\{\{ inputs\.check_storage_capacity == true \}\}/u);
-  assert.match(step, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/u);
-  assert.match(step, /EVO_SUPABASE_PROJECT_REF: \$\{\{ vars\.EVO_SUPABASE_PROJECT_REF \}\}/u);
-  assert.doesNotMatch(step, /continue-on-error|POST|PATCH|PUT|DELETE/u);
-  assert.ok(schemaWorkflow.indexOf(step) < schemaWorkflow.indexOf("      - name: Read remote migration ledger"));
-  assert.ok(schemaWorkflow.indexOf(step) < schemaWorkflow.indexOf("      - name: Apply missing migrations"));
-  assert.doesNotMatch(schemaWorkflow, /^ {0,8}SUPABASE_ACCESS_TOKEN:/mu);
-});
-
-test("schema Storage capacity reports only numeric eligibility and fails insufficient limits", async () => {
-  for (const limit of [0, 5242880, 20971520, 52428799, 52428800]) {
-    const result = await runStorageCapacity({ body: JSON.stringify({ fileSizeLimit: limit, privateConfig: "must-not-be-logged" }) });
-    const eligible = limit >= 52428800;
-    assert.equal(result.exitCode, eligible ? 0 : 1);
-    assert.deepEqual(result.output.map(value => JSON.parse(value)), [
-      { fileSizeLimit: limit, minimumBytes: 52428800, eligible },
-    ]);
-    assert.deepEqual(result.errors, []);
-    assert.equal(result.calls.length, 1);
-  }
-});
-
-test("schema Storage capacity rejects malformed, oversized and non-integer configuration", async () => {
-  for (const body of ["not-json", "null", "[]", "{}", '{"fileSizeLimit":"20971520"}',
-    '{"fileSizeLimit":-1}', '{"fileSizeLimit":20971520.5}', '{"fileSizeLimit":9007199254740992}',
-    JSON.stringify({ fileSizeLimit: 20971520, padding: "界".repeat(23000) })]) {
-    const result = await runStorageCapacity({ body });
-    assert.equal(result.exitCode, 1);
-    assert.deepEqual(result.output, []);
-    assert.deepEqual(result.errors, ["storage_capacity_unavailable"]);
-    assert.equal(result.calls.length, 1);
-  }
-});
-
-test("schema Storage capacity fails HTTP/network/deadline errors without response or credential disclosure", async () => {
-  for (const scenario of [...[301, 401, 403, 429, 500].map(status => ({ status, body: "private response" })),
-    { networkFailure: true }, { timeout: true }]) {
-    const result = await runStorageCapacity(scenario);
-    assert.equal(result.exitCode, 1);
-    assert.deepEqual(result.output, []);
-    assert.deepEqual(result.errors, ["storage_capacity_unavailable"]);
-    assert.equal(result.calls.length, 1);
-  }
-});
-
-test("schema Storage capacity refuses another project before sending any credential", async () => {
-  const result = await runStorageCapacity({ projectRef: "anotherprojectabcdef" });
-  assert.equal(result.exitCode, 1);
-  assert.deepEqual(result.calls, []);
-  assert.deepEqual(result.output, []);
-  assert.deepEqual(result.errors, ["storage_capacity_unavailable"]);
+test("the schema-ledger workflow has no Storage capacity check and reads no cloud credential", () => {
+  assert.doesNotMatch(schemaWorkflow, /check_storage_capacity|api\.supabase\.com|SUPABASE_ACCESS_TOKEN|EVO_SUPABASE_TARGET|EVO_SUPABASE_PROJECT_REF/u);
 });
 
 function job(name, nextName) {
@@ -359,7 +256,7 @@ const deployArgumentNames = [
   "transfer_dir", "EVO_RELEASE_TRANSFER_ROOT", "EVO_RELEASE_ROOT",
   "EVO_RELEASE_PROJECT_NAME", "EVO_RELEASE_EVIDENCE_ROOT",
   "EVO_RELEASE_ROLLBACK_SEED", "EVO_RELEASE_EXTERNAL_HEALTH_URL",
-  "EVO_RELEASE_MIN_FREE_KB", "EVO_WAHA_IMAGE_DIGEST", "EVO_SUPABASE_PROJECT_REF",
+  "EVO_RELEASE_MIN_FREE_KB", "EVO_WAHA_IMAGE_DIGEST", "EVO_SUPABASE_IDENTITY",
   "EVO_RELEASE_ID", "EVO_RELEASE_REPOSITORY", "EVO_RELEASE_REVISION",
   "EVO_RELEASE_VERSION", "release_run_id", "EVO_RELEASE_WORKFLOW_RUN_ID",
   "EVO_RELEASE_WORKFLOW_RUN_ATTEMPT", "EVO_RELEASE_UPSTREAM_CI_RUN_ID",
@@ -616,7 +513,7 @@ test("control-token and Supabase guards are isolated and immediately precede mut
   }
   for (const name of ["Final Supabase ledger mutation guard", "Final Supabase ledger acceptance guard"]) {
     const step = namedStep(name);
-    assert.match(step, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/u);
+    assert.doesNotMatch(step, /SUPABASE_ACCESS_TOKEN|EVO_SUPABASE_PROJECT_REF/u);
     assert.match(step, /fast-release-ledger-gate\.mjs/u);
     assert.doesNotMatch(step, /EVO_GITHUB_VARIABLES_READ_TOKEN|\bssh\b|\bscp\b/u);
   }
@@ -708,9 +605,8 @@ test("guard failures rollback pending state while unknown acceptance state is pr
   assert.match(cleanup, /evo-production-release-transfer-owned/u);
 });
 
-// docs/runbooks/selfhosted-cutover.md: EVO_SUPABASE_TARGET (cloud by default) chooses the database behind the
-// release. The cloud half must behave exactly as before the variable existed; the self-hosted half reads the
-// ledger over the release's own SSH access and carries the word `selfhosted` as the project identity.
+// docs/adr/0037-use-only-self-hosted-supabase.md: the database behind the release is always self-hosted; the ledger is
+// read over the release's own SSH access and the project identity is the constant word `selfhosted`.
 function stepScript(step) {
   const body = step.slice(step.indexOf("        run: |\n") + "        run: |\n".length);
   // GitHub's bash exits on a failed standalone `[[ ]]` under `set -e`; macOS bash 3.2 does not.
@@ -724,56 +620,42 @@ function runStep(step, env) {
   });
 }
 
-test("both jobs derive the Supabase target and identity from the variables, cloud when the variable is unset", () => {
-  const target = "EVO_SUPABASE_TARGET: ${{ vars.EVO_SUPABASE_TARGET || 'cloud' }}";
-  const identity = "EVO_SUPABASE_IDENTITY: ${{ (vars.EVO_SUPABASE_TARGET || 'cloud') == 'selfhosted' && 'selfhosted' || vars.EVO_SUPABASE_PROJECT_REF }}";
+test("both jobs pin the Supabase identity to the constant selfhosted and read no repository variable for it", () => {
   for (const releaseJob of [build, deploy]) {
-    assert.ok(releaseJob.includes(`\n      ${target}\n      ${identity}\n`));
-    assert.match(releaseJob, /\n    env:\n(?: {6}#.*\n)*      EVO_SUPABASE_TARGET: /u);
+    assert.match(releaseJob, /\n    env:\n(?: {6}#.*\n)*      EVO_SUPABASE_IDENTITY: selfhosted\n/u);
   }
-  // identity steps read the derived value; ledger steps keep the cloud project reference they always had
-  const identitySteps = [
-    "Build and inspect immutable linux-amd64 image", "Validate closed candidate artifact",
-    "Validate non-secret production contract", "Deploy exact candidate as pending", "Accept exact V3 candidate",
-  ];
-  for (const name of identitySteps) {
-    assert.match(namedStep(name), /EVO_SUPABASE_PROJECT_REF: \$\{\{ env\.EVO_SUPABASE_IDENTITY \}\}/u, name);
-  }
-  for (const name of ["Read exact Supabase migration ledger", "Final Supabase ledger mutation guard", "Final Supabase ledger acceptance guard"]) {
-    assert.match(namedStep(name), /EVO_SUPABASE_PROJECT_REF: \$\{\{ vars\.EVO_SUPABASE_PROJECT_REF \}\}/u, name);
-  }
-  assert.equal((workflow.match(/vars\.EVO_SUPABASE_PROJECT_REF/gu) ?? []).length, 2 + 3, "two identity expressions and three ledger steps");
-  assert.equal((workflow.match(/env\.EVO_SUPABASE_IDENTITY/gu) ?? []).length, 5);
+  assert.equal((workflow.match(/^ {6}EVO_SUPABASE_IDENTITY: selfhosted$/gmu) ?? []).length, 2);
+  assert.doesNotMatch(workflow, /vars\.EVO_SUPABASE|EVO_SUPABASE_TARGET|EVO_SUPABASE_PROJECT_REF|SUPABASE_ACCESS_TOKEN|api\.supabase\.com/u);
+  // a leftover cloud ref can never reach a step: the identity is a literal, not an expression
+  assert.doesNotMatch(workflow, /EVO_SUPABASE_IDENTITY: \$\{\{/u);
 });
 
-test("an unknown or half-configured Supabase target stops the job before any secret or Docker use", () => {
-  for (const [name, releaseJob] of [["Validate Supabase target for build", build], ["Validate Supabase target for deploy", deploy]]) {
+test("a wrong Supabase identity stops the job before any secret or Docker use", () => {
+  for (const [name, releaseJob] of [["Validate Supabase identity for build", build], ["Validate Supabase identity for deploy", deploy]]) {
     const step = namedStep(name);
     assert.doesNotMatch(step, /secrets\./u);
     const names = jobStepNames(releaseJob);
     assert.equal(names.indexOf(name), 1, "right after the secretless admission");
-    for (const [target, identity, accepted] of [
-      ["cloud", "a".repeat(20), true], ["cloud", "selfhosted", false], ["cloud", "", false], ["cloud", "short", false],
-      ["selfhosted", "selfhosted", true], ["selfhosted", "a".repeat(20), false], ["selfhosted", "", false],
-      ["self-hosted", "a".repeat(20), false], ["Selfhosted", "selfhosted", false], ["", "a".repeat(20), false], ["local", "selfhosted", false],
+    for (const [identity, accepted] of [
+      ["selfhosted", true], ["a".repeat(20), false], ["", false], ["self-hosted", false], ["Selfhosted", false], ["short", false],
     ]) {
-      const result = runStep(step, { EVO_SUPABASE_TARGET: target, EVO_SUPABASE_IDENTITY: identity });
-      assert.equal(result.status === 0, accepted, `${name}: ${target}/${identity}`);
+      const result = runStep(step, { EVO_SUPABASE_IDENTITY: identity });
+      assert.equal(result.status === 0, accepted, `${name}: ${identity}`);
     }
   }
 });
 
-test("the contract step, the image manifest and the artifact check accept a cloud ref or the word selfhosted only", () => {
+test("the contract step, the image manifest and the artifact check accept the word selfhosted only", () => {
   const contract = stepScript(namedStep("Validate non-secret production contract"));
-  const check = contract.match(/^\[\[ "\$EVO_SUPABASE_PROJECT_REF" =~ .*$/mu)?.[0];
+  const check = contract.match(/^\[\[ "\$EVO_SUPABASE_IDENTITY" == selfhosted \]\].*$/mu)?.[0];
   assert.ok(check, "the contract step checks the identity");
-  for (const [value, accepted] of [["a".repeat(20), true], ["selfhosted", true], ["selfhosted ", false], ["SELFHOSTED", false],
-    ["a".repeat(19), false], ["a".repeat(21), false], ["", false], ["self-hosted", false], ["supabase.evoadmissions.com", false]]) {
-    const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${check}`], { env: { PATH: "/usr/bin:/bin", EVO_SUPABASE_PROJECT_REF: value }, encoding: "utf8" });
+  for (const [value, accepted] of [["selfhosted", true], ["selfhosted ", false], ["SELFHOSTED", false],
+    ["a".repeat(20), false], ["", false], ["self-hosted", false], ["supabase.evoadmissions.com", false]]) {
+    const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${check}`], { env: { PATH: "/usr/bin:/bin", EVO_SUPABASE_IDENTITY: value }, encoding: "utf8" });
     assert.equal(result.status === 0, accepted, JSON.stringify(value));
   }
-  assert.match(namedStep("Build and inspect immutable linux-amd64 image"), /\[\[ "\$EVO_SUPABASE_PROJECT_REF" =~ \^\(\[a-z0-9\]\{20\}\|selfhosted\)\$ \]\]/u);
-  assert.match(namedStep("Validate closed candidate artifact"), /test\("\^\(\[a-z0-9\]\{20\}\|selfhosted\)\$"\)/u);
+  assert.match(namedStep("Build and inspect immutable linux-amd64 image"), /\[\[ "\$EVO_SUPABASE_IDENTITY" == selfhosted \]\]/u);
+  assert.match(namedStep("Validate closed candidate artifact"), /test\("\^selfhosted\$"\)/u);
 });
 
 test("the initial ledger read waits for the pinned SSH trust and still precedes every mutation", () => {
@@ -789,15 +671,13 @@ test("the initial ledger read waits for the pinned SSH trust and still precedes 
   assert.doesNotMatch(step, /EVO_DEPLOY_SSH_PRIVATE_KEY|EVO_DEPLOY_KNOWN_HOSTS/u);
 });
 
-test("the schema-ledger workflow selects the database by the same variable and never opens a database port", () => {
-  assert.match(schemaWorkflow, /\n    env:\n      EVO_SUPABASE_TARGET: \$\{\{ vars\.EVO_SUPABASE_TARGET \|\| 'cloud' \}\}\n/u);
+test("the schema-ledger workflow reaches only the self-hosted database over ssh and never opens a database port", () => {
+  assert.doesNotMatch(schemaWorkflow, /\n    env:\n/u, "no repository variable selects a target");
   const names = [...schemaWorkflow.matchAll(/^      - name: (.+)$/gmu)].map((match) => match[1]);
   assert.deepEqual(names, [
-    "Check out repository", "Set up Node", "Validate Supabase target", "Refuse the Storage capacity check outside cloud mode",
-    "Check project Storage capacity (read-only)", "Require main for self-hosted database access",
-    "Configure pinned SSH trust (self-hosted)", "Read remote migration ledger (read-only)",
-    "Read self-hosted migration ledger (read-only)", "Install pinned Supabase CLI",
-    "Apply missing migrations (linked flow, dry-run first)", "Apply missing migrations to self-hosted (dry-run first)",
+    "Check out repository", "Set up Node", "Require main for self-hosted database access",
+    "Configure pinned SSH trust", "Read self-hosted migration ledger (read-only)",
+    "Apply missing migrations to self-hosted (dry-run first)",
   ]);
   const schemaStep = (name) => {
     const marker = `      - name: ${name}`;
@@ -806,25 +686,14 @@ test("the schema-ledger workflow selects the database by the same variable and n
     const end = schemaWorkflow.indexOf("\n      - name:", start + marker.length);
     return schemaWorkflow.slice(start, end === -1 ? schemaWorkflow.length : end);
   };
-  // every cloud step is skipped in selfhosted mode, every self-hosted step in cloud mode
-  for (const name of ["Read remote migration ledger (read-only)"]) {
-    assert.match(schemaStep(name), /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'cloud' \}\}/u);
-  }
-  assert.match(schemaStep("Install pinned Supabase CLI"), /if: \$\{\{ inputs\.mode == 'apply' && env\.EVO_SUPABASE_TARGET == 'cloud' \}\}/u);
-  assert.match(schemaStep("Apply missing migrations (linked flow, dry-run first)"), /if: \$\{\{ inputs\.mode == 'apply' && env\.EVO_SUPABASE_TARGET == 'cloud' \}\}/u);
-  for (const name of ["Configure pinned SSH trust (self-hosted)", "Read self-hosted migration ledger (read-only)"]) {
-    assert.match(schemaStep(name), /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'selfhosted' \}\}/u);
-  }
-  assert.match(schemaStep("Apply missing migrations to self-hosted (dry-run first)"), /if: \$\{\{ inputs\.mode == 'apply' && env\.EVO_SUPABASE_TARGET == 'selfhosted' \}\}/u);
+  assert.match(schemaStep("Apply missing migrations to self-hosted (dry-run first)"), /if: \$\{\{ inputs\.mode == 'apply' \}\}/u);
   assert.match(schemaStep("Read self-hosted migration ledger (read-only)"), /node scripts\/release\/selfhosted-schema-ledger\.mjs check/u);
   assert.match(schemaStep("Apply missing migrations to self-hosted (dry-run first)"), /node scripts\/release\/selfhosted-schema-ledger\.mjs apply/u);
-  // the self-hosted steps carry no Supabase cloud credential and no port forwarding
-  for (const name of ["Configure pinned SSH trust (self-hosted)", "Read self-hosted migration ledger (read-only)", "Apply missing migrations to self-hosted (dry-run first)"]) {
-    assert.doesNotMatch(schemaStep(name), /SUPABASE_ACCESS_TOKEN|EVO_SUPABASE_PROJECT_REF|api\.supabase\.com/u, name);
-  }
+  // no Supabase cloud credential, no Management API, no port forwarding
+  assert.doesNotMatch(schemaWorkflow, /SUPABASE_ACCESS_TOKEN|EVO_SUPABASE_PROJECT_REF|EVO_SUPABASE_TARGET|api\.supabase\.com|supabase link|db push/u);
   assert.doesNotMatch(schemaWorkflow, /ssh\s+-[LRD]|LocalForward|RemoteForward|DynamicForward|-p\s+54\d\d|:25432|:25433|:5432/u, "no tunnel and no database port");
   // the SSH trust is the release's own: same secrets, same variables, same pinned trust
-  const trust = schemaStep("Configure pinned SSH trust (self-hosted)");
+  const trust = schemaStep("Configure pinned SSH trust");
   for (const reference of ["secrets.EVO_DEPLOY_SSH_PRIVATE_KEY", "secrets.EVO_DEPLOY_KNOWN_HOSTS", "vars.EVO_DEPLOY_HOST", "vars.EVO_DEPLOY_PORT", "vars.EVO_DEPLOY_USER"]) {
     assert.ok(trust.includes(reference), reference);
   }
@@ -835,24 +704,15 @@ test("the schema-ledger workflow selects the database by the same variable and n
   // not a barrier against someone who can edit the workflow itself; the comparison is made in bash
   // because GitHub expression string comparison ignores case.
   const mainOnly = schemaStep("Require main for self-hosted database access");
-  assert.match(mainOnly, /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'selfhosted' \}\}/u);
+  assert.doesNotMatch(mainOnly, /^\s+if:/mu, "the main-only guard is unconditional");
   assert.match(mainOnly, /EVO_REF: \$\{\{ github\.ref \}\}/u);
   for (const [ref, accepted] of [["refs/heads/main", true], ["refs/heads/Main", false], ["refs/heads/MAIN", false],
     ["refs/heads/main2", false], ["refs/heads/claude/cutover-prep", false], ["refs/tags/main", false], ["", false]]) {
     assert.equal(runStep(mainOnly, { EVO_REF: ref }).status === 0, accepted, ref);
   }
   assert.ok(schemaWorkflow.indexOf("      - name: Require main for self-hosted database access") <
-    schemaWorkflow.indexOf("      - name: Configure pinned SSH trust (self-hosted)"));
+    schemaWorkflow.indexOf("      - name: Configure pinned SSH trust"));
   assert.doesNotMatch(mainOnly, /secrets\./u);
-  // a Storage capacity request outside the cloud mode is refused loudly, not skipped
-  const refusal = schemaStep("Refuse the Storage capacity check outside cloud mode");
-  assert.match(refusal, /if: \$\{\{ inputs\.check_storage_capacity == true && env\.EVO_SUPABASE_TARGET != 'cloud' \}\}/u);
-  assert.match(refusal, /exit 1/u);
-  // the target is validated before anything else runs
-  const validate = schemaStep("Validate Supabase target");
-  for (const [target, accepted] of [["cloud", true], ["selfhosted", true], ["self-hosted", false], ["", false], ["Cloud", false]]) {
-    assert.equal(runStep(validate, { EVO_SUPABASE_TARGET: target }).status === 0, accepted, target);
-  }
 });
 
 test("the AI agent joins a release only for exactly true with a pinned digest", () => {

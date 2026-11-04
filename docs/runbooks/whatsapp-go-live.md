@@ -395,8 +395,8 @@ stat -c '%a %U:%G' "$f"                                          # права/в
 # локально:
 git show origin/main:scripts/release/evo-app-env-contract.mjs | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show origin/main:deploy/env.production.example   | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
-gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM        # 20 символов, не секрет
-# на VPS: REF=<это значение> (без --verify-supabase-keys: сеть и ключи не трогаются; пути абсолютные):
+# идентичность базы всегда слово selfhosted
+# на VPS: REF=selfhosted (без --verify-supabase-keys: сеть и ключи не трогаются; пути абсолютные):
 node /root/evo-golive/evo-app-env-contract.mjs --example /root/evo-golive/env.production.example --env /opt/evo-crm/.env.production --supabase-project-ref "$REF"
 ```
 

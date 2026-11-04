@@ -28,7 +28,10 @@ import {
 const TEST_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const TEST_SALES_MEMBERSHIP_ID = "22222222-2222-4222-8222-222222222222";
 const TEST_SECRET_KEY = "sb_secret_ssssssssssssssssssssssss";
+// A leftover cloud-style project ref: it is never accepted as the Supabase identity.
 const TEST_SUPABASE_PROJECT_REF = "aaaaaaaaaaaaaaaaaaaa";
+const SELFHOSTED_IDENTITY = "selfhosted";
+const SELFHOSTED_ORIGIN = "https://supabase.evoadmissions.com";
 
 const example = `
 EVO_CRM_DOMAIN=crm.evoadmissions.com
@@ -49,7 +52,7 @@ function valid(overrides = {}) {
   const values = {
     EVO_CRM_DOMAIN: "crm.evoadmissions.com",
     EVO_CADDY_NETWORK: "evo_public_web",
-    NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
     EVO_PLATFORM_ORGANIZATION_ID: TEST_ORGANIZATION_ID,
     EVO_PLATFORM_SUPABASE_SECRET_KEY: TEST_SECRET_KEY,
@@ -74,7 +77,7 @@ function expectInvalid(actual, code) {
     () => validateAppEnvironmentContract({
       exampleText: example,
       actualText: actual,
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     (error) => error instanceof AppEnvironmentContractError && error.code === code,
   );
@@ -85,7 +88,7 @@ test("accepts the Supabase successor runtime while allowing disabled optional in
     validateAppEnvironmentContract({
       exampleText: example,
       actualText: valid(),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     { ok: true, code: "valid" },
   );
@@ -95,7 +98,7 @@ test("binds both runtime keys to the exact Supabase project without reading resp
   const requests = [];
   const result = await verifySupabaseProjectCredentials({
     actualText: valid(),
-    expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     fetchImpl: async (url, init) => {
       requests.push({ url: String(url), init });
       return new Response("private-response-must-not-be-read", { status: 200 });
@@ -106,8 +109,8 @@ test("binds both runtime keys to the exact Supabase project without reading resp
   assert.deepEqual(
     requests.map(({ url }) => url),
     [
-      `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co/auth/v1/settings`,
-      `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co/auth/v1/admin/users?page=1&per_page=1`,
+      `${SELFHOSTED_ORIGIN}/auth/v1/settings`,
+      `${SELFHOSTED_ORIGIN}/auth/v1/admin/users?page=1&per_page=1`,
     ],
   );
   assert.equal(requests[0].init.headers.apikey, "sb_publishable_runtime_safe");
@@ -122,7 +125,7 @@ test("fails closed when either key is rejected by the exact Supabase project", a
   await assert.rejects(
     verifySupabaseProjectCredentials({
       actualText: valid(),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
       fetchImpl: async (url) => new Response("", {
         status: String(url).endsWith("/auth/v1/settings") ? 401 : 200,
       }),
@@ -134,7 +137,7 @@ test("fails closed when either key is rejected by the exact Supabase project", a
   await assert.rejects(
     verifySupabaseProjectCredentials({
       actualText: valid(),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
       fetchImpl: async (url) => new Response("", {
         status: String(url).includes("/admin/users") ? 403 : 200,
       }),
@@ -148,7 +151,7 @@ test("fails closed without leaking keys when Supabase verification is unavailabl
   await assert.rejects(
     verifySupabaseProjectCredentials({
       actualText: valid(),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
       fetchImpl: async () => {
         throw new Error("network down");
       },
@@ -259,7 +262,7 @@ test("rejects unsafe production flags and malformed public Supabase configuratio
     validateAppEnvironmentContract({
       exampleText: example,
       actualText: valid({ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: jwt("anon") }),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     { ok: true, code: "valid" },
   );
@@ -267,8 +270,6 @@ test("rejects unsafe production flags and malformed public Supabase configuratio
 
 // docs/runbooks/selfhosted-cutover.md: the "project" of the self-hosted stack is the word `selfhosted`,
 // and its only accepted origin is exactly https://supabase.evoadmissions.com.
-const SELFHOSTED_IDENTITY = "selfhosted";
-const SELFHOSTED_ORIGIN = "https://supabase.evoadmissions.com";
 
 test("self-hosted: accepts exactly the self-hosted origin and refuses the cloud origin, and the other way round", () => {
   assert.deepEqual(
@@ -290,7 +291,7 @@ test("self-hosted: accepts exactly the self-hosted origin and refuses the cloud 
   );
   // the mode and the env must agree: a leftover cloud address never passes as self-hosted
   refused(`https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`, SELFHOSTED_IDENTITY, "public_supabase_project_mismatch");
-  refused(SELFHOSTED_ORIGIN, TEST_SUPABASE_PROJECT_REF, "public_supabase_project_mismatch");
+  refused(SELFHOSTED_ORIGIN, TEST_SUPABASE_PROJECT_REF, "expected_supabase_project_invalid");
   // exact origin, no patterns: neighbours of the one allowed host never pass
   for (const url of [
     `${SELFHOSTED_ORIGIN}/`, `${SELFHOSTED_ORIGIN}.attacker.invalid`, "https://evoadmissions.com",
@@ -421,7 +422,7 @@ test("enabled observability and WAHA ingress require complete server-only config
   );
 
   const platform = {
-    NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN,
   };
   assert.deepEqual(
     validateAppEnvironmentContract({
@@ -434,7 +435,7 @@ test("enabled observability and WAHA ingress require complete server-only config
         EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
         EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
       }),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     { ok: true, code: "valid" },
   );
@@ -448,7 +449,7 @@ test("enabled observability and WAHA ingress require complete server-only config
         EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "o".repeat(32),
         EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt("service_role"),
       }),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     { ok: true, code: "valid" },
   );
@@ -480,7 +481,7 @@ test("enabled WAHA ingress requires the intake Sales membership UUID, and the ex
         ...ingress,
         EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
       }),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     { ok: true, code: "valid" },
   );
@@ -495,7 +496,7 @@ test("enabled WAHA ingress requires the intake Sales membership UUID, and the ex
         EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32),
         EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: TEST_SALES_MEMBERSHIP_ID,
       }),
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     }),
     { ok: true, code: "valid" },
   );
@@ -529,7 +530,7 @@ test("closed CLI validates private files without printing their values", () => {
         "--env",
         actualPath,
         "--supabase-project-ref",
-        TEST_SUPABASE_PROJECT_REF,
+        SELFHOSTED_IDENTITY,
       ],
       { encoding: "utf8" },
     );
@@ -553,7 +554,7 @@ test("closed CLI validates private files without printing their values", () => {
         "--env",
         actualPath,
         "--supabase-project-ref",
-        TEST_SUPABASE_PROJECT_REF,
+        SELFHOSTED_IDENTITY,
       ],
       { encoding: "utf8" },
     );
@@ -837,7 +838,7 @@ function telephonyHarness() {
   const base = {
     EVO_CRM_DOMAIN: "crm.evoadmissions.com",
     EVO_CADDY_NETWORK: "evo_public_web",
-    NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
     EVO_PLATFORM_SUPABASE_SECRET_KEY: TEST_SECRET_KEY,
     EVO_PLATFORM_ORGANIZATION_ID: TEST_ORGANIZATION_ID,
@@ -861,7 +862,7 @@ function telephonyHarness() {
     validateAppEnvironmentContract({
       exampleText: shipped,
       actualText,
-      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
     });
   return { shipped, text, check };
 }

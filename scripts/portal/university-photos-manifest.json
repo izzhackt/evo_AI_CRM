@@ -1,7 +1,7 @@
 {
   "schema": "evo-university-photos-manifest/v1",
   "generatedAt": "2026-10-16T21:44:50.166Z",
-  "projectRef": "iosckaqtovbbnssqcpde",
+  "projectRef": "selfhosted",
   "bucket": "portal-university-photos",
   "source": "src/lib/university-photo-library.json",
   "totals": {

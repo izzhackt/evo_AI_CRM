@@ -640,12 +640,12 @@ test("env: EVO_AI_AGENT_AUTOSEND is '', 0 or 1; 1 needs the agent secret and its
   assert.match(exampleText, /^EVO_AI_AGENT_AUTOSEND=0$/mu);
   assert.match(exampleText, /^EVO_AI_AGENT_SEND_SECRET=$/mu);
   assert.match(read(".env.example"), /^EVO_AI_AGENT_AUTOSEND=0$/mu);
-  const ref = "aaaaaaaaaaaaaaaaaaaa";
+  const ref = "selfhosted";
   const internal = "s".repeat(24) + "-synthetic-ai-agent-secret";
   const sendSecret = "a".repeat(24) + "-synthetic-autosend-send-secret";
   const base = {
     EVO_CRM_DOMAIN: "crm.evoadmissions.com", EVO_CADDY_NETWORK: "evo_public_web",
-    NEXT_PUBLIC_SUPABASE_URL: `https://${ref}.supabase.co`, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
+    NEXT_PUBLIC_SUPABASE_URL: "https://supabase.evoadmissions.com", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
     EVO_PLATFORM_SUPABASE_SECRET_KEY: "sb_secret_ssssssssssssssssssssssss", EVO_PLATFORM_ORGANIZATION_ID: "11111111-1111-4111-8111-111111111111",
     EVO_STAFF_ADMIN_LOGIN_EMAIL: "", EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0", EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
     EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: "", EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0", EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "",

@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
 // Ledger и миграции self-hosted Supabase без Management API и без открытого порта базы
-// (docs/runbooks/selfhosted-cutover.md). Вызывается из evo-schema-ledger.yml в режиме
-// EVO_SUPABASE_TARGET=selfhosted. Режимы:
-//   check — только прочитать леджер и напечатать расхождение (как облачный шаг чтения);
+// (docs/adr/0037-use-only-self-hosted-supabase.md). Вызывается из evo-schema-ledger.yml. Режимы:
+//   check — только прочитать леджер и напечатать расхождение;
 //   apply — сухой прогон, затем недостающие файлы по порядку, затем повторное чтение.
 // Применение повторяет `supabase db push`: файл миграции и запись о нём в
 // supabase_migrations.schema_migrations выполняются одним вызовом psql внутри

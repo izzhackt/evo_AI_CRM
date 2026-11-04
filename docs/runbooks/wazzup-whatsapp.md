@@ -86,7 +86,7 @@ SHA=<полный SHA main>
 git show "$SHA:scripts/release/evo-app-env-contract.mjs" | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show "$SHA:deploy/env.production.example"    | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
 git show "$SHA:scripts/release/evo-app-env-contract.mjs" | shasum -a 256      # сверить с sha256sum на VPS (ниже)
-gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM   # не секрет; это значение - REF на VPS
+# идентичность базы всегда слово selfhosted (REF=selfhosted)
 ```
 
 `envcheck` засчитывается, только когда контракт на VPS — из SHA выпуска. Дальше на VPS, в одной ssh-сессии с помощниками из

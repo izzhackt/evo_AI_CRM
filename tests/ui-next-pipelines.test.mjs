@@ -53,7 +53,10 @@ test("доски: новый вид рисуется каждой роли (ад
   for (const name of ["sales", "sales-closed", "admissions"]) {
     for (const who of ["admin-no-cookie", "staff-cookie", "preview-cookie", "staff-no-cookie", "preview-no-cookie"]) {
       const html = nextBoards.get(`${who}-${name}`);
-      assert.match(html, name === "sales-closed" ? /data-testid="v3-pipeline-closed"/u : /data-slot="card"/u, `${who} ${name}: новый вид`);
+      // Просмотр роли: доски продаж нет (проекция передач ему отказывает), вместо экрана ошибки — тихая строка.
+      const salesPreview = name === "sales" && who.startsWith("preview-");
+      assert.match(html, name === "sales-closed" ? /data-testid="v3-pipeline-closed"/u
+        : salesPreview ? /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u : /data-slot="card"/u, `${who} ${name}: новый вид`);
     }
   }
   for (const name of ["sales", "sales-focus", "sales-handed", "sales-mine", "sales-search", "sales-volume", "sales-closed", "admissions", "admissions-visa", "admissions-curator", "admissions-first-empty", "admissions-stage"]) {
@@ -291,7 +294,7 @@ test("страницы всегда рисуют новый вид (#1327) — �
 
 test("ленивые входы: «use client», `next/dynamic` и `.catch(onScreenLoadFailed)`; у маршрутов есть `loading.tsx` (граница Suspense над входом)", () => {
   const entries = {
-    "src/components/staff/pipeline-next/PipelineNextLazy.tsx": ["PipelineNextPage", "PipelineClosedNextPage"],
+    "src/components/staff/pipeline-next/PipelineNextLazy.tsx": ["PipelineNextPage", "PipelineClosedNextPage", "PipelinePreviewNextPage"],
     "src/components/staff/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx": ["AdmissionsPipelineNextPage"],
     "src/components/staff/sales-next/SalesNextLazy.tsx": ["SalesReportNextPage", "SalesFrameNextPage"],
   };
@@ -407,4 +410,16 @@ test("«Суммы» и «Поступления и возвраты»: от 34r
   assert.match(money, /data-stack-key="USD&gt;KGS"/u, "пара валют — отдельный блок, остатка у неё нет");
   assert.match(text(money.slice(money.indexOf('data-stack-key="USD&gt;KGS"'))), /остаток не считается/u);
   assert.match(read("DESIGN.md"), /SalesCurrencyStack/u, "каталог назвал стопку");
+});
+
+test("role preview of «Воронка продаж» answers with a quiet state instead of the error screen", () => {
+  // Проекция передач отказывает просмотру роли (sales-handoff-source.ts); доска не читает её в просмотре.
+  const page = read("src/app/(staff)/pipeline/page.tsx");
+  const guard = page.indexOf("if (isStaffPreview(actor)) return previewPart();");
+  assert.ok(guard > 0, "preview returns before the board reads");
+  assert.ok(guard < page.indexOf("await readPipelineWorkspace(actor, filters)"), "no handoff read in preview");
+  assert.ok(page.indexOf('return closedLeadsPart(actor, params)') < guard, "closed leads stay available in preview");
+  assert.match(page, /return <PipelinePreviewNextLazy closedHref=\{CLOSED_VIEW_PATH\}/u);
+  assert.match(read("src/components/staff/pipeline-next/PipelineNextPage.tsx"),
+    /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });

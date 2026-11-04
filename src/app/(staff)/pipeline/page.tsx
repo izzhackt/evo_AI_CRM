@@ -10,7 +10,7 @@ import {
   type BoardSegment,
 } from "@/components/staff/board/Board";
 import { BoardFilters, NavigateSelect, type NavigateOption } from "@/components/staff/board/BoardToolbar";
-import { PipelineClosedNextLazy, PipelineNextLazy } from "@/components/staff/pipeline-next/PipelineNextLazy";
+import { PipelineClosedNextLazy, PipelineNextLazy, PipelinePreviewNextLazy } from "@/components/staff/pipeline-next/PipelineNextLazy";
 import { ClosedLeadsList } from "@/components/staff/closure/ClosedLeadsList";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/staff/ManualLeadForm";
 import { requireV3PageActor } from "@/lib/platform-guards";
@@ -74,6 +74,9 @@ export default async function PipelinePart({
     requireV3PageActor("/pipeline"),
   ]);
   if (params.view !== undefined) return closedLeadsPart(actor, params);
+  // Проекция передач (`readCompletedSalesHandoffs`) отказывает просмотру роли, а без неё доска положила бы
+  // переданных лидов в рабочие колонки. Как «Динамика» и «Сегодня»: при просмотре доски нет, это не сбой.
+  if (isStaffPreview(actor)) return previewPart();
   const query = parseBoardQuery(params);
 
   const stages = readPipelineStages();
@@ -262,6 +265,10 @@ export default async function PipelinePart({
 }
 
 const CLOSED_VIEW_PATH = "/pipeline?view=closed";
+
+function previewPart() {
+  return <PipelinePreviewNextLazy closedHref={CLOSED_VIEW_PATH} closedLabel={closureWords.lead.closedList} />;
+}
 
 /**
  * «Закрытые лиды»: отдельная страница-список поверх той же навигации «Воронки

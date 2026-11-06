@@ -1163,6 +1163,30 @@
   color: var(--pt-text-2);
 }
 
+/* «Профиль → Пароль» (06.11.2026): три поля в столбик, кнопка и ответ в одну строку. */
+.pt-password-form {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+}
+
+.pt-password-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.pt-password-note {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-password-actions p:empty {
+  display: none;
+}
+
 .pt-input {
   min-height: 44px;
   width: 100%;

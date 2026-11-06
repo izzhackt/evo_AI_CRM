@@ -59,7 +59,7 @@ export function TodayRow({ item, nowIso, dial = null, hideReason = false, stacke
   const when = todayWhen(item, new Date(nowIso));
   const dialLeadId = dial?.status === "ready" ? todayDialLeadId(item) : null;
   // Документы на проверке — строка студента с «file-check»: иначе её не отличить от дела.
-  const icon = item.source === "tasks" ? "check-square" : item.key.startsWith("docs:") ? "file-check" : SOURCE_ICON[item.source];
+  const icon = item.source === "tasks" ? "check-square" : item.kind === "documents" ? "file-check" : SOURCE_ICON[item.source];
   // На узкой строке слово срока остаётся только у «Ближайших» и там, где даты
   // нет: «прошёл» и «сегодня» повторили бы заголовок группы.
   const phoneWord = when?.word && (item.band === "upcoming" || when.text === null) ? when.word : null;

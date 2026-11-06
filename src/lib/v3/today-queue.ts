@@ -140,6 +140,8 @@ export type TodayItem = Readonly<{
    * панель лида доски с полем «Ответственный». У остальных строк его нет.
    */
   assignHref?: string;
+  /** Особый вид строки; сейчас один — документы на проверке (знак «file-check»). */
+  kind?: "documents";
   /** Задача рисуется настоящей строкой «Задач» (круг завершения, «Отменить»); иначе null. */
   task: QueueTask | null;
 }>;
@@ -392,6 +394,7 @@ function todayDocumentItem(row: StudentCaseQueueRow): TodayItem | null {
   if (!Number.isSafeInteger(submitted) || submitted <= 0) return null;
   return Object.freeze({
     key: `docs:${row.studentCaseId}`,
+    kind: "documents" as const,
     source: "students" as const,
     band: "waiting" as const,
     title: "Проверить документы",

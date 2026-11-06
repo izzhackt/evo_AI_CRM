@@ -31,9 +31,18 @@ const leads = require("./numbers-static-render.cjs");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 
+const fx = require("./card-tabs-fixtures.cjs");
+
 const ROOT = cases.ROOT;
 const { ORG, uuid } = cases;
 const src = (path) => require(join(ROOT, "src", path));
+
+// «Анкета» - раздел «Обзора» дела (06.11.2026): её «Интересует» читает async-компонент, а статический рендер ждать не умеет -
+// подставляем его результат (так же делает tests/e2e/card-tabs-next-static-render.cjs).
+{
+  const otherFacts = src("components/staff/profile/next/tabs/AnketaOtherFacts.tsx");
+  otherFacts.AnketaOtherFactsLoader = (props) => createElement(otherFacts.AnketaOtherFacts, { ...props, interest: { status: "value", direction: "Малайзия" } });
+}
 
 // Дело «admin» с настоящей панелью «Обращения студента» (в сценариях прежнего вида её чтение пусто): одно ждёт ответа, одно закрыто.
 const CASE_SCENARIOS = ["admin", "admin-help", "curator-accept", "needs-curator", "closed-outcome", "assign-only", "direct-case", "unread", "fresh"];
@@ -95,8 +104,16 @@ function caseScenario(name) {
     parts.next = { ...parts.next, overview: { ...parts.next.overview, help: createElement(CaseHelpCardImpl, { initialPage: HELP_PAGE }) } };
   }
   const next = caseNextParts(parts.next, parts.actions);
+  // Сценарии прежнего вида несут анкету с пустым `questionnaire` и краткие поля; «Анкета» в «Обзоре» читает их целиком, поэтому здесь - полные (синтетические).
+  // Поля анкеты («direct-case») - тоже полные из стенда вкладок: у прежнего вида хватало краткой выжимки.
+  const draft = {
+    ...item.draft,
+    studentApplication: item.draft.studentApplication
+      ? { ...item.draft.studentApplication, questionnaire: fx.STUDENT_APPLICATION.questionnaire } : item.draft.studentApplication,
+    profileFields: item.draft.profileFields ? fx.profileFields() : item.draft.profileFields,
+  };
   return { name: `case-${name}`, actor: item.actor, pathname: "/profile", search: `case=${cases.CASE_ID}&tab=overview`, title: cases.NAME,
-    body: pageBody({ title: cases.NAME, backHref: cases.RETURN_TO, backLabel: "Студенты", next, profile: item.profile, draft: item.draft,
+    body: pageBody({ title: cases.NAME, backHref: cases.RETURN_TO, backLabel: "Студенты", next, profile: item.profile, draft,
       sales: item.sales, actor: item.actor, notes: item.notes ?? cases.NOTES, hrefFor }),
     before: () => legacyBody({ title: cases.NAME, backHref: cases.RETURN_TO, backLabel: "Студенты", parts, profile: item.profile, draft: item.draft,
       sales: item.sales, actor: item.actor, notes: item.notes ?? cases.NOTES, hrefFor }) };

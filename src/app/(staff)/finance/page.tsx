@@ -34,7 +34,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const tabs = current ? <FinanceTabs tabs={keys} current={current} /> : null;
   if (current === "sales") return <SalesTabView actor={actor} query={query} tabs={tabs} />;
   const isAdmin = actor.systemRole === "admin";
-  const source = "Цифры — из Google Таблицы финансиста, а не из CRM. Они могут не совпадать с «Отчётом продаж» и вкладкой «Договор и оплата».";
+  const source = "Цифры — из Google Таблицы финансиста, а не из CRM. Они могут не совпадать с «Отчётом продаж» и вкладкой «Деньги».";
   const adminNote = "Отчёт открывает Google, а не CRM. Снятие роли в CRM не закрывает отчёт: когда человек уходит, уберите его в «Поделиться» отчёта и таблицы.";
   // «Новый вид» (единственный вид, #1327): отчёт в карточке набора; право на чтение решает база, «Нет доступа» рисует сам экран.
   return (

@@ -11,6 +11,7 @@ import { Icon } from "@/components/icons";
 import { Pill } from "../Pill";
 import { formatQueueDay } from "../queue/due-bucket";
 import { studentsDocumentsLine, studentsHandoffPending } from "../students/students-queue-view";
+import { aiConsentLine } from "@/lib/ai-agents/consent";
 import { Initials } from "../blocks/Initials";
 import { ProgressBar } from "../blocks/ProgressBar";
 import { StatusChip } from "../blocks/StatusChip";
@@ -355,6 +356,11 @@ export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ lin
       </>
     ) : null,
     portal: input.portal && !input.portal.settings ? input.portal.text : null,
+    // Согласие студента на ИИ-помощников (320): слова вместо чипа «ИИ: не спрашивали»; не прочитано - строки нет.
+    aiConsent: input.work.aiConsent ? (() => {
+      const line = aiConsentLine(input.work.aiConsent);
+      return <span data-testid="v3-case-ai-consent-fact">{line.words}<span className="block t-meta text-fg-2">{line.hint}</span></span>;
+    })() : null,
   };
 }
 
@@ -380,6 +386,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
         <ApplicationsFact input={input} />
         <Fact term="Переписка" testId="v3-case-chat">{values.chat}</Fact>
         {values.payment ? <Fact term="Оплата" testId="v3-case-payment">{values.payment}</Fact> : null}
+        {values.aiConsent ? <Fact term="ИИ-помощники">{values.aiConsent}</Fact> : null}
         {values.portal ? <Fact term="Портал" testId="v3-case-portal">{values.portal}</Fact> : null}
       </dl>
     </aside>

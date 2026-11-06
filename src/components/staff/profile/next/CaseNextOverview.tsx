@@ -1,14 +1,12 @@
 import type { ReactNode } from "react";
 
-import { StatusBadge, type StatusTone } from "@/components/kit/StatusBadge";
 import { KeyFacts, type KeyFact } from "@/components/kit/KeyFacts";
-import { applicationStatus } from "@/lib/v3/wording";
 
-import { formatQueueDay } from "../../queue/due-bucket";
 import { CaseTaskList } from "../CaseTaskList";
 import { CaseHelpNoAccess, FeedItem, Groups, caseFactValues, type CaseOverviewInput } from "../CaseOverview";
 import { CASE_FACTS_ID, type CaseFeedItem } from "../case-work-view";
 import { FeedCard, FeedPager } from "./FeedCard";
+import { ApplicationsValue } from "./CaseApplications";
 import { NamedCard } from "./NamedCard";
 
 type Values = ReturnType<typeof caseFactValues>;
@@ -64,37 +62,24 @@ function CaseFeedCard({ input }: Readonly<{ input: CaseOverviewInput }>) {
   );
 }
 
-const APPLICATION_TONE: Readonly<Record<string, StatusTone>> = { ready: "ok", submitted: "info", accepted: "ok", rejected: "danger" };
-
-/** Заявки дела: вуз и программа, состояние словом, срок подачи. Пусто - «пока нет». */
-function ApplicationsValue({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  if (input.applications.length === 0) return <span className="text-fg-2">пока нет</span>;
-  return (
-    <ul className="divide-y divide-border" data-testid="v3-case-applications">
-      {input.applications.map((application) => (
-        <li key={application.id} className="grid gap-1 py-2 first:pt-0 last:pb-0">
-          <span className="break-words font-medium text-fg">{application.title}{application.primary ? " · основной" : ""}</span>
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <StatusBadge label={applicationStatus(application.status) ?? "статус не указан"} tone={APPLICATION_TONE[application.status] ?? "neutral"} />
-            {application.deadlineOn ? (
-              <span className="t-meta text-fg-2">срок <time dateTime={application.deadlineOn} className="font-mono tabular-nums">{formatQueueDay(application.deadlineOn, input.work.today)}</time></span>
-            ) : null}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** «Сведения» справа: контакты, кто передал, продажа, приём дела, заявки, переписка, портал. Куратор, документы и оплата - в сводке. */
+/**
+ * «Сведения» справа: куратор и направление (со сменой - прежние действия), документы и оплата подробно, контакты, кто передал,
+ * продажа, приём дела, заявки, переписка, ИИ-помощники, портал. В шапке дела (06.11.2026) остались этап, «Что дальше» и одна
+ * строка «Документы 0/21 · Оплата 50%».
+ */
 function FactsCard({ input, values }: Props) {
   const facts: KeyFact[] = [
+    { label: "Куратор", value: values.curator },
+    { label: "Направление", value: values.direction },
+    { label: "Документы", value: values.documents },
+    { label: "Оплата", value: values.payment },
     { label: "Контакты", value: values.contacts },
     { label: "Передал", value: values.handedOff },
     { label: "Менеджер продаж", value: values.sales },
     { label: "Приём дела", value: values.reception },
     { label: "Заявки", value: <ApplicationsValue input={input} /> },
     { label: "Переписка", value: values.chat },
+    { label: "ИИ-помощники", value: values.aiConsent },
     { label: "Портал", value: values.portal },
   ];
   return (

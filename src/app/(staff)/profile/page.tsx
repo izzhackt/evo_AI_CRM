@@ -55,6 +55,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { PIPELINE_PATH, isClosedLeadsReturn, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
+import { parseAdmissionsBoardReturnTo } from "@/lib/v3/admissions-board-return";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { readLeadCalls } from "@/lib/v3/telephony-lead-calls-source";
 import { readLeadTaskLinks } from "@/lib/server/platform-staff-task-repository";
@@ -265,7 +266,9 @@ export default async function ProfilePart({
   const studentsReturnTo = requestsReturnTo ? null : parseStudentsReturnTo(singleSearchParam(params.returnTo));
   // Карточка лида из панели доски возвращает на доску в то же состояние.
   const pipelineReturnTo = requestsReturnTo || studentsReturnTo ? null : parsePipelineReturnTo(singleSearchParam(params.returnTo));
-  const listReturnTo = requestsReturnTo ?? studentsReturnTo ?? pipelineReturnTo;
+  // Дело с «Воронки поступления» (06.11.2026): «Назад» возвращает на доску с её фильтрами.
+  const boardReturnTo = requestsReturnTo || studentsReturnTo || pipelineReturnTo ? null : parseAdmissionsBoardReturnTo(singleSearchParam(params.returnTo));
+  const listReturnTo = requestsReturnTo ?? studentsReturnTo ?? pipelineReturnTo ?? boardReturnTo;
   const directoryHref = studentsReturnTo ?? withDocsSection("/profile", docsMode);
   const withRequestsReturn = (href: string) => listReturnTo
     ? `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(listReturnTo)}` : href;
@@ -347,15 +350,21 @@ export default async function ProfilePart({
     financeConfirm: !isStaffPreview(actor) && !!view.sales?.handoff.caseId && staffHasPermission(actor, "finance.event.confirm"),
     gateForms: Boolean(view.sales && view.details.routeTarget.leadId && hasHandoffGateForms(view.sales.gate, isStaffPreview(actor))),
   }) : { documents: false, finance: false, studentProfile: false, contract: false };
-  const tab = resolveTab(
+  const requestedTab = resolveTab(
     singleSearchParam(params.tab),
     Boolean(view?.profile.student),
     tabAccess,
     Boolean(view?.details.admissions),
     view ? leadAnketaHasContent(view.profile, view.details) : true,
   );
+  // Дело студента (06.11.2026): «Анкета» - раздел «Обзора». Прежний адрес `?tab=anketa` (уведомления, ссылки проверки
+  // документов) читает «Обзор»; раскрытие раздела решает `Profile` по тому же адресу. Права те же, что у бывшей
+  // вкладки: `resolveTab` их уже проверил.
+  const tab = requestedTab === "anketa" && Boolean(view?.details.routeTarget.studentCaseId && view.details.admissions)
+    ? "overview" : requestedTab;
+  const anketaSection = Boolean(view?.details.routeTarget.studentCaseId && view.details.admissions);
   const hrefFor = (next: string) => view
-    ? withRequestsReturn(withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode))
+    ? `${withRequestsReturn(withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode))}${next === "anketa" && anketaSection ? "#case-anketa" : ""}`
     : directoryHref;
   const requestIds = {
     contract: randomUUID(),
@@ -536,9 +545,9 @@ export default async function ProfilePart({
 
   // Возврат из дела — тот же вид списка (`returnTo` #1059): «Студенты», EVO Docs или «Заявки».
   const caseBack = caseParts ? (
-    <Link href={requestsReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+    <Link href={requestsReturnTo ?? boardReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
       <Icon name="arrow-left" size={16} />
-      {requestsReturnTo ? "Заявки" : docsMode ? "EVO Docs" : "Студенты"}
+      {requestsReturnTo ? "Заявки" : boardReturnTo ? "Воронка поступления" : docsMode ? "EVO Docs" : "Студенты"}
     </Link>
   ) : undefined;
   // Закрытый лид: тот же возврат над заголовком, что у дела (не красная ссылка
@@ -605,7 +614,7 @@ export default async function ProfilePart({
             notesLatestHref={notesLatestHref}
             contractResult={contractResult}
             contractRetry={contractRetry}
-            tab={tab}
+            tab={requestedTab}
             hrefFor={hrefFor}
             documentsFilter={parseDocumentStateFilter(singleSearchParam(params[DOCUMENT_STATE_PARAM]))}
           />
@@ -616,8 +625,8 @@ export default async function ProfilePart({
         <EmptyState
           tone="danger"
           title={invalidIdentityShape ? "Ссылка на профиль некорректна." : "Профиль не найден или недоступен вам."}
-          action={<Link href={requestsReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
-            {requestsReturnTo ? "К списку заявок" : "К списку"}
+          action={<Link href={requestsReturnTo ?? boardReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+            {requestsReturnTo ? "К списку заявок" : boardReturnTo ? "К воронке поступления" : "К списку"}
           </Link>}
         />
       ) : null}

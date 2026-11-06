@@ -60,8 +60,10 @@ export function CaseHeader(input: CaseHeaderInput) {
   const stage = row ? admissionsPipelineStage(row.pipelineStage) : null;
   const awaiting = (row?.attentionFlags.includes("awaiting_ack") ?? false) && input.acceptShown !== true;
   const closed = input.state === "closed" && input.closure?.state === "closed" ? input.closure : null;
-  // Согласие студента на ИИ-помощников (миграция 320): тихий чип; предупреждение только у «не разрешено».
-  const consent = work.aiConsent ? aiConsentChip(work.aiConsent) : null;
+  // Согласие студента на ИИ-помощников (миграция 320): в шапке только предупреждение «не разрешено»; «разрешено» и
+  // «не спрашивали» шапку не занимают - те же слова стоят в «Сведениях» («ИИ-помощники»), 06.11.2026.
+  const chip = work.aiConsent ? aiConsentChip(work.aiConsent) : null;
+  const consent = chip && chip.tone === "warn" ? chip : null;
   const stateWords = [
     input.state === "closed" && !closed ? "Дело закрыто" : null,
     input.state === "pending" ? "Ожидает начала" : null,

@@ -7,11 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
  * открывают карточку. Факты без значения не рисуются, и линия вместе с ними.
  */
 export function SummaryCard({
-  facts,
+  facts = [],
+  summary,
   testId,
   children,
 }: Readonly<{
-  facts: readonly KeyFact[];
+  facts?: readonly KeyFact[];
+  /** Одна строка вместо ряда ключевых данных (дело студента, 06.11.2026: «Документы 0/21 · Оплата 50%»); `facts` тогда не нужны. */
+  summary?: React.ReactNode;
   testId?: string;
   children: React.ReactNode;
 }>) {
@@ -19,7 +22,9 @@ export function SummaryCard({
   return (
     <Card data-testid={testId} className="gap-0 py-0">
       <CardContent className="py-4">{children}</CardContent>
-      {hasFacts ? (
+      {summary ? (
+        <CardContent className="border-t border-border py-3">{summary}</CardContent>
+      ) : hasFacts ? (
         <CardContent className="border-t border-border py-4">
           <KeyFacts facts={facts} columns={4} />
         </CardContent>

@@ -567,7 +567,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.match(gateSection, /<details class="group\/override py-1"><summary[^>]*>Исключение Admin<svg[^>]*group-open\/override:rotate-180[^>]*>.*?<\/summary>/u);
   // У лида без дела пустого «Все обязательства по делу» нет; сплошной красный — только главное действие.
   assert.doesNotMatch(money, /Все обязательства по делу|Обязательств пока нет/u);
-  assert.match(money, /aria-current="page" class="v3-choice inline-flex min-h-11 [^"]*" href="[^"]*tab=money">Договор и оплата<\/a>/u);
+  assert.match(money, /aria-current="page" class="v3-choice inline-flex min-h-11 [^"]*" href="[^"]*tab=money">Деньги<\/a>/u);
   // Сплошной красный на странице один — главное действие; в «Передаче» и группах правки его нет.
   const solidRed = (html) => html.match(/(?<![\w:-])bg-accent(?![\w-])/gu)?.length ?? 0;
   assert.equal(solidRed(working), 1);

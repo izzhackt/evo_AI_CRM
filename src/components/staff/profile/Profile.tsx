@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 
+import { Icon } from "@/components/icons";
 import { NamedCard } from "./next/NamedCard";
 import { SectionTabs } from "@/components/kit/SectionTabs";
 import { Pill } from "@/components/staff/Pill";
@@ -133,10 +134,17 @@ export function Profile({
     financeConfirm: !isStaffPreview(actor) && !!sales?.handoff.caseId && staffHasPermission(actor, "finance.event.confirm"),
     gateForms: leadGate !== null,
   });
-  const tabs = tabsFor(profile.student, tabAccess, draft.admissions !== null, leadAnketaHasContent(profile, draft));
+  const allTabs = tabsFor(profile.student, tabAccess, draft.admissions !== null, leadAnketaHasContent(profile, draft));
+  // Дело студента (06.11.2026): «Анкета» - раздел «Обзора», а не вкладка. Раздел виден тому же, кому была вкладка
+  // (`access.studentProfile`); «История» остаётся вкладкой (постраничный журнал и «Источник», отдельное чтение и право).
+  // Тот же признак, что у адреса на странице (`page.tsx`: `?tab=anketa` у дела читает «Обзор»): здесь он ещё требует права на раздел
+  // (`allTabs` уже учитывает `access.studentProfile`) и новый вид; страница права не смотрит - их проверил `resolveTab`.
+  const anketaInOverview = nextUi && profile.student && caseOverview !== undefined && allTabs.some((entry) => entry.key === "anketa");
+  const tabs = anketaInOverview ? allTabs.filter((entry) => entry.key !== "anketa") : allTabs;
   // Лид без дела: договора и платежей дела нет — пустой блок «Все обязательства по делу» не рисуется.
   const leadWithoutCase = draft.routeTarget.leadId !== null && !profile.student;
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
+  const anketaOpen = anketaInOverview && tab === "anketa";
   if (current === "money" && draft.access.contract && draft.contract === null) {
     throw new Error("V3 contract section has no canonical contract workspace.");
   }
@@ -215,6 +223,21 @@ export function Profile({
 
       {current === "route" ? universityProgramsTab : null}
       {current === "overview" && caseOverview ? caseOverview : null}
+      {current === "overview" && caseOverview && anketaInOverview ? (
+        <details id="case-anketa" open={anketaOpen} data-testid="v3-case-anketa-section" className="group scroll-mt-4 rounded-card border border-border bg-card">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-card px-4 py-1.5 t-section text-fg [&::-webkit-details-marker]:hidden">
+            Анкета и сведения дела
+            <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+          </summary>
+          <div className="px-4 pb-4 pt-1">
+            <Anketa profile={profile} draft={draft} nextUi={nextUi}
+              fieldsRequestId={randomUUID()}
+              fieldsReadOnly={isStaffPreview(actor) || !staffHasPermission(actor, "profile.manage")}
+              documentsHref={draft.access.documents ? hrefFor("documents") : null}
+              routeHref={tabs.some((entry) => entry.key === "route") ? hrefFor("route") : null} />
+          </div>
+        </details>
+      ) : null}
       {current === "overview" && !caseOverview ? (
         <div className="space-y-4">
           {sales || draft.admissions || draft.studentApplication ? (

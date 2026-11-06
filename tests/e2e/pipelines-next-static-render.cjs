@@ -319,7 +319,11 @@ async function main() {
       report("admissions drag: «Отменить» returns the case and says so", /Перемещение отменено/u.test(await page.locator('[data-testid="v3-admissions-pipeline-board"]').textContent()), null);
       // Нажатие по имени не начинает перетаскивание: ссылка ведёт в дело.
       const href = await cardOf(2).locator("a").first().getAttribute("href");
-      report("admissions drag: the name link still opens the case (click is not a drag)", href === `/profile?case=${caseOf(2)}&tab=route`, href);
+      // 06.11.2026: дело открывается на вкладке своего этапа и помнит доску (`returnTo`), а не всегда на «Вузах».
+      const stage = await stageOf(2);
+      const tabOfStage = stage === "documents" ? "documents" : stage === "new" || stage === "shortlist" ? "route" : "overview";
+      report("admissions drag: the name link still opens the case on the stage's tab, with the way back (click is not a drag)",
+        new RegExp(`^/profile\\?case=${caseOf(2)}&tab=${tabOfStage}&returnTo=%2Fadmissions-pipeline`, "u").test(href ?? ""), { href, stage });
       report("admissions drag: console clean", errors.length === 0, errors);
       await context.close();
     }

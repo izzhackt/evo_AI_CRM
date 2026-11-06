@@ -4,11 +4,13 @@ import type { SyntheticEvent } from "react";
 
 import { StatusBadge } from "@/components/kit";
 import { AdmissionsCardMenu } from "@/components/staff/admissions-board/AdmissionsCardMenu";
-import { caseHref, type MoveTarget } from "@/components/staff/admissions-board/board-model";
+import type { MoveTarget } from "@/components/staff/admissions-board/board-model";
 import { Initials } from "@/components/staff/blocks/Initials";
 import { BOARD_CARD_CLASS } from "@/components/staff/board/Board";
+import { shortPersonName } from "@/components/staff/queue/person-name";
 import { cn } from "@/lib/utils";
 import type { AdmissionsPipelineRow, AdmissionsPipelineTab } from "@/lib/platform-admissions-pipeline-contract";
+import { admissionsBoardCaseHref } from "@/lib/v3/admissions-board-return";
 import { caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
 
 /**
@@ -22,9 +24,10 @@ const keepPressInMenu = (event: SyntheticEvent) => {
 /**
  * Содержимое карточки дела: имя ведёт в дело (ссылка растянута на всю карточку), вторая строка — страна · университет и круг куратора (когда кураторов несколько),
  * третья — состояния словом (просрочено, нужен ответ — ссылка на переписку, ждёт принятия). Одно и то же в доске и в «поднятой»
- * карточке перетаскивания.
+ * карточке перетаскивания. Куратор — коротким именем («Умут М.»), круг с буквами только украшает; дело открывается на вкладке этапа
+ * (`admissionsBoardCaseHref`) с возвратом на доску в то же состояние (`returnTo`).
  */
-export function AdmissionsCardBody({ row, showCurator }: Readonly<{ row: AdmissionsPipelineRow; showCurator: boolean }>) {
+export function AdmissionsCardBody({ row, showCurator, returnTo }: Readonly<{ row: AdmissionsPipelineRow; showCurator: boolean; returnTo: string }>) {
   const secondLine = [countryLabel(row.targetCountry), row.primaryInstitutionName].filter((value): value is string => Boolean(value)).join(" · ");
   const curator = showCurator ? row.currentCuratorDisplayName : null;
   const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
@@ -40,15 +43,18 @@ export function AdmissionsCardBody({ row, showCurator }: Readonly<{ row: Admissi
   return (
     <>
       <p className="flex min-w-0 pe-10">
-        <Link href={caseHref(row.studentCaseId)} prefetch={false} draggable={false} title={row.studentDisplayName}
+        <Link href={admissionsBoardCaseHref(row, returnTo)} prefetch={false} draggable={false} title={row.studentDisplayName}
           className="t-item line-clamp-2 block min-w-0 break-words text-fg after:absolute after:inset-0 after:rounded-ctl hover:underline hover:underline-offset-4">
           {row.studentDisplayName}
         </Link>
       </p>
-      {secondLine || curator ? (
-        <p className="t-meta flex min-w-0 items-baseline gap-2 pe-8 text-fg-3">
-          <span className="min-w-0 flex-1 truncate text-fg-2" title={secondLine || undefined}>{secondLine}</span>
-          {curator ? <Initials name={curator} size="sm" /> : null}
+      {secondLine ? (
+        <p className="t-meta min-w-0 truncate pe-8 text-fg-2" title={secondLine}>{secondLine}</p>
+      ) : null}
+      {curator ? (
+        <p className="t-meta flex min-w-0 items-center gap-1.5 text-fg-2" title={curator} data-testid="v3-admissions-card-curator">
+          <Initials name={curator} size="sm" decorative />
+          <span className="min-w-0 truncate">{shortPersonName(curator)}</span>
         </p>
       ) : null}
       {marks.length > 0 ? <p className="flex flex-wrap gap-1 py-px">{marks}</p> : null}
@@ -58,20 +64,22 @@ export function AdmissionsCardBody({ row, showCurator }: Readonly<{ row: Admissi
 
 /**
  * Карточка дела на доске поступления нового вида. Двигается перетаскиванием мышью и пальцем (`@dnd-kit/core`, без перестановки
- * внутри колонки: порядок задаёт сервер) и всегда — меню «⋯ → Переместить в…» (клавиатура и телефон, как у прежней доски).
+ * внутри колонки: порядок задаёт сервер) и всегда — меню «⋯ → Переместить в…» (клавиатура и телефон, как у прежней доски). На мыши «⋯» видно
+ * при наведении на карточку и при фокусе внутри неё (`.v3-card-menu`, staff.css), на экране касания — всегда.
  */
-export function AdmissionsCardNext({ row, tab, showCurator, onMove }: Readonly<{
+export function AdmissionsCardNext({ row, tab, showCurator, returnTo, onMove }: Readonly<{
   row: AdmissionsPipelineRow;
   tab: AdmissionsPipelineTab;
   showCurator: boolean;
+  returnTo: string;
   onMove: (target: MoveTarget) => void;
 }>) {
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: row.studentCaseId, data: { name: row.studentDisplayName } });
   return (
     <article ref={setNodeRef} {...listeners} data-testid="v3-admissions-pipeline-card" data-student-case-id={row.studentCaseId}
       className={cn(BOARD_CARD_CLASS, "cursor-grab touch-manipulation active:cursor-grabbing", isDragging && "opacity-40")}>
-      <AdmissionsCardBody row={row} showCurator={showCurator} />
-      <div className="absolute end-0.5 top-0.5" onMouseDown={keepPressInMenu} onTouchStart={keepPressInMenu}>
+      <AdmissionsCardBody row={row} showCurator={showCurator} returnTo={returnTo} />
+      <div className="v3-card-menu absolute end-0.5 top-0.5" onMouseDown={keepPressInMenu} onTouchStart={keepPressInMenu}>
         <AdmissionsCardMenu row={row} tab={tab} onMove={onMove} />
       </div>
     </article>

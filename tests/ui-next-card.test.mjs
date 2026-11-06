@@ -51,10 +51,28 @@ test("каждая карточка — рамка нового вида, сво
   }
 });
 
-test("сводка несёт не больше четырёх данных, чем нет в данных — того нет на экране", () => {
-  for (const name of [...CASES, ...LEADS]) assert.ok(summaryFacts(page(name)) <= 4, `${name}: ≤ 4 данных в строке`);
-  // Дело без доступа к финансам: «Оплаты» в сводке нет (а не «0%» и не прочерк).
-  assert.doesNotMatch(text(page("case-direct-case")), /Оплата/u);
+test("сводка: у лида не больше четырёх данных, у дела одна строка «Документы · Оплата»; чего нет в данных — того нет на экране", () => {
+  for (const name of LEADS) assert.ok(summaryFacts(page(name)) <= 4, `${name}: ≤ 4 данных в строке`);
+  // Дело (06.11.2026): этап, «Что дальше» и ОДНА строка под ними; ряда ключевых данных в сводке нет, куратор и направление — в «Сведениях».
+  const summaryOf = (name) => {
+    const html = page(name);
+    const start = html.indexOf('data-testid="v3-case-summary"');
+    assert.ok(start > 0, `${name}: сводка есть`);
+    return html.slice(start, html.indexOf('data-testid="v3-case-overview"', start));
+  };
+  for (const name of CASES) {
+    const summary = summaryOf(name);
+    assert.doesNotMatch(summary, /data-slot="key-facts"/u, `${name}: в сводке дела нет ряда ключевых данных`);
+    assert.equal([...summary.matchAll(/data-testid="v3-case-summary-line"/gu)].length <= 1, true, `${name}: одна строка`);
+    const facts = page(name);
+    const sved = facts.slice(facts.indexOf('data-testid="v3-case-facts"'));
+    assert.match(text(sved.slice(0, 1500)), /Куратор/u, `${name}: куратор — в «Сведениях»`);
+    assert.match(text(sved.slice(0, 2500)), /Направление/u, `${name}: направление — в «Сведениях»`);
+  }
+  const line = (name) => text(page(name).match(/data-testid="v3-case-summary-line"[^>]*>([\s\S]*?)<\/p>/u)?.[1] ?? "").trim();
+  assert.match(line("case-admin"), /^Документы \d+\/\d+ · Оплата 40%$/u);
+  // Дело без доступа к финансам: «Оплаты» в строке нет (а не «0%» и не прочерк).
+  assert.doesNotMatch(line("case-direct-case"), /Оплата/u);
   assert.match(text(page("case-admin")), /Оплата 40% оплачено/u);
   // Лид без телефона и почты: ни одной выдуманной строки (фикстура лида даёт телефон и почту — они есть).
   assert.match(page("lead-potential"), /href="tel:\+996000000002"/u);

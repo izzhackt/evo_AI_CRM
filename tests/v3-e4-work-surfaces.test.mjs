@@ -433,7 +433,7 @@ test("Lead 360 and Student 360 tabs (Э8.4): 44 px, the queue tab strip without 
   assert.match(strip, /^<nav aria-label="Разделы профиля" tabindex="0" data-tab-strip="" class="v3-tab-strip -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="v3-profile-tabs"><ul class="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
   const links = [...strip.matchAll(/<a [^>]*class="([^"]+)"[^>]*>([^<]+)<\/a>/gu)];
   // Лид без дела: «Анкета» и «История» не рисуются пустыми — события лида в «Ленте», направление в «Сведениях».
-  assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Договор и оплата"]);
+  assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Деньги"]);
   assert.ok(links.every((match) => /(^| )min-h-11( |$)/u.test(match[1]) && /(^| )t-label( |$)/u.test(match[1])), "44 px, one type role");
   const profile = read("src/components/staff/profile/Profile.tsx");
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);

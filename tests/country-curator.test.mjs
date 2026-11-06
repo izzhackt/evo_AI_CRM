@@ -66,7 +66,10 @@ test("the form prefills the country from the анкета and the curator from t
   const form = read("src/components/staff/SalesRegisterForms.tsx");
   assert.match(form, /if \(recordId \|\| \(curatorId && !curatorAuto\)\) return;/u, "a manual choice stays");
   assert.match(form, /salesCountryCurator\(intakeOptions\?\.countryCurators \?\? \{\}, salesCountryDirection\(country\)\)/u);
-  assert.match(form, /isStudyCountryCode\(applicationCountry\)\) update\("country", studyCountryName\(applicationCountry, "ru"\)/u);
+  assert.match(form, /isStudyCountryCode\(applicationCountry\) \? studyCountryName\(applicationCountry, "ru"\)/u);
+  assert.match(form, /else if \(!draft\.country\.trim\(\) \|\| countryAuto\) setAutoCountry\(applicationCountryName\);/u,
+    "another lead replaces a country the form filled, a typed one stays");
+  assert.match(form, /if \(key === "country"\) \{ setCountryAuto\(false\); autoCurator\(value\); \}/u, "typing makes the country manual");
   assert.match(form, /onChange=\{e => \{ setCuratorId\(e\.target\.value\); setCuratorAuto\(false\); \}\}/u);
   const source = read("src/lib/v3/sales-register-source.ts");
   assert.match(source, /rpc\("sales_register_intake_options_v2", args\)/u);

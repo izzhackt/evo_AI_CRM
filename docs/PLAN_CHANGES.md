@@ -62790,6 +62790,7 @@ Reviewer notes: pending independent review on the exact PR head.
 - **Проверки.** `supabase/tests/platform_sales_intake_country_curator.sql` (в `test-postgres-authorization.sh`), `tests/country-curator.test.mjs`, `tests/platform-audit.test.mjs` (действие в allowlist и подпись), `npm run typecheck`.
 - **Не проверено:** production. После выката администратор один раз выбирает кураторов в «Настройки → Кураторы стран», иначе форма остаётся ручной.
 - Reviewer notes: pending independent review on the exact PR head.
+- Reviewer notes 335 (06.11, независимый review): форма не отличала страну из анкеты от набранной руками — при смене лида оставались страна и куратор прежнего лида. Добавлен признак `countryAuto`: другой лид заменяет подставленную страну и куратора, набранную руками страну форма не трогает. Права, идемпотентность, аудит и откат на 174 — без замечаний.
 
 ## 2026-11-06 · ИИ-агент видит анкету студента (ветка `feat/agent-anketa`, миграция 336)
 - **Решение владельца (03.11.2026, «ок» на список):** «ИИ-агент пока не видит анкету студента — открыть ему».

@@ -130,6 +130,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const [curatorId, setCuratorId] = useState("");
   // Куратор страны подставлен формой (335): его можно сменить, ручной выбор форма больше не трогает.
   const [curatorAuto, setCuratorAuto] = useState(false);
+  // Страна подставлена из анкеты лида: при выборе другого лида её можно заменить, набранную руками — нет.
+  const [countryAuto, setCountryAuto] = useState(false);
   const [studentQuery, setStudentQuery] = useState("");
   const [studentResults, setStudentResults] = useState<SalesRegisterIntakeOptions["leads"]>([]);
   const [searchStatus, setSearchStatus] = useState<"idle" | "ready" | "invalid" | "unavailable">("idle");
@@ -174,14 +176,20 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   }
   const update = (key: string, value: string) => {
     setDraft(previous => ({ ...previous, [key]: value }));
-    if (key === "country") autoCurator(value);
+    if (key === "country") { setCountryAuto(false); autoCurator(value); }
+  };
+  const setAutoCountry = (value: string) => {
+    setDraft(previous => ({ ...previous, country: value }));
+    setCountryAuto(Boolean(value)); autoCurator(value);
   };
   function chooseLead(lead: SalesRegisterIntakeOptions["leads"][number] | null) {
     const generation = ++selectionGeneration.current;
     setLeadId(lead?.id ?? ""); setSelectedLead(lead); setConditionsPreview(null);
     // Страна из анкеты лида: в пустое поле «Страна» и куратор этой страны.
     const applicationCountry = lead?.applicationCountry ?? null;
-    if (!draft.country.trim() && applicationCountry && isStudyCountryCode(applicationCountry)) update("country", studyCountryName(applicationCountry, "ru") ?? "");
+    const applicationCountryName = applicationCountry && isStudyCountryCode(applicationCountry) ? studyCountryName(applicationCountry, "ru") ?? "" : "";
+    if (recordId) autoCurator(draft.country);
+    else if (!draft.country.trim() || countryAuto) setAutoCountry(applicationCountryName);
     else autoCurator(draft.country);
     if (lead) startPreview(async () => {
       const result = await readSalesReportConditionsPreviewAction(lead.id).catch(() => ({ status: "unavailable" as const }));

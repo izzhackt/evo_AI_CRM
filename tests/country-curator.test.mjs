@@ -60,6 +60,11 @@ test("the sales form read accepts the 174 and the v2 shape; a country curator ou
   assert.equal(v2.leads[0].applicationCountry, "MY");
   assert.throws(() => parseSalesRegisterIntakeOptions({ ...base, country_curators: { CN: CURATOR_MY, MY: null } }, ORG), "not in the curator list");
   assert.throws(() => parseSalesRegisterIntakeOptions({ ...base, country_curators: { CN: null } }, ORG), "both countries are present");
+  // 339: a lead without an owner is found; the seller who saves the sale becomes its owner.
+  const ownerless = parseSalesRegisterIntakeOptions({ ...base, leads: [{ ...base.leads[0], owner_id: null }] }, ORG);
+  assert.equal(ownerless.leads[0].ownerId, null);
+  assert.equal(old.leads[0].ownerId, CURATOR_CN);
+  assert.throws(() => parseSalesRegisterIntakeOptions({ ...base, leads: [{ ...base.leads[0], owner_id: "not-a-uuid" }] }, ORG), "a broken owner is refused");
 });
 
 test("the form prefills the country from the анкета and the curator from the setting, never over a manual choice", () => {

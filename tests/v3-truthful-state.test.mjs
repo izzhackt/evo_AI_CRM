@@ -425,7 +425,10 @@ test("lead card from the board panel returns to the same board state", () => {
   assert.match(pipeline, /returnTo=\{pipelineReturnHref\(search\)\}/u);
   const profile = source("src/app/(staff)/profile/page.tsx");
   assert.match(profile, /const pipelineReturnTo = requestsReturnTo \|\| studentsReturnTo \? null : parsePipelineReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);
-  assert.match(profile, /const listReturnTo = requestsReturnTo \?\? studentsReturnTo \?\? pipelineReturnTo;/u);
+  // Дело с «Воронки поступления» (06.11.2026, #1377): строгий адрес доски стоит последним в цепочке и берётся, только когда ни один из трёх других не принят.
+  assert.match(profile, /const boardReturnTo = requestsReturnTo \|\| studentsReturnTo \|\| pipelineReturnTo \? null : parseAdmissionsBoardReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);
+  assert.match(profile, /const listReturnTo = requestsReturnTo \?\? studentsReturnTo \?\? pipelineReturnTo \?\? boardReturnTo;/u);
+  assert.match(profile, /<Link href=\{requestsReturnTo \?\? boardReturnTo \?\? directoryHref\}/u);
   // A lead opened without a return address goes back to the board it lives on.
   assert.match(profile, /listReturnTo === null && leadParam && !hasCaseParam && !docsMode && staffCanAccessRoute\(actor, PIPELINE_PATH\)/u);
   assert.match(profile, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);

@@ -20,7 +20,12 @@ const compile = (source) => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true },
 }).outputText;
 for (const extension of [".ts", ".tsx"]) {
-  Module._extensions[extension] = (module, filename) => { module._compile(compile(readFileSync(filename, "utf8")), filename); };
+  Module._extensions[extension] = (module, filename) => {
+    const source = readFileSync(filename, "utf8");
+    module._compile(compile(source), filename);
+    // Клиентские модули (`"use client"`) помечены: `flight-props-expand.cjs` не выполняет их как серверные.
+    if (/^\s*["']use client["']/u.test(source)) for (const value of Object.values(module.exports)) if (typeof value === "function") value.__useClient = true;
+  };
 }
 Module._extensions[".png"] = (module, filename) => { module.exports = { src: pathToFileURL(filename).href, width: 1843, height: 842 }; };
 Module._extensions[".css"] = (module) => {

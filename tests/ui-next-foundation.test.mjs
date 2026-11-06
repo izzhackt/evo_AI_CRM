@@ -278,10 +278,10 @@ test("DataTable: строка не остановка клавиатуры; за
   const unnamed = renderToStaticMarkup(createElement(DataTable, { label: "Заявки", data: rows, columns: base, getRowId: (row) => row.id, onRowClick: () => {} }));
   assert.match(unnamed, /aria-label="Открыть: Эльмира Формова"/);
   assert.match(unnamed, /<button type="button" data-card-open="" aria-label="Открыть: Эльмира Формова" class="absolute inset-0/, "кнопка карточки телефона названа так же");
-  // Колонка второго плана рисуется только от 64rem блока таблицы; у корня таблицы — контейнер для этого.
+  // Колонка второго плана рисуется только от 60rem блока таблицы; у корня таблицы — контейнер для этого.
   assert.match(html, /<div class="@container flex min-w-0 flex-col gap-3" data-slot="data-table">/);
-  assert.match(html, /<th[^>]*hidden @5xl:table-cell"[^>]*>[\s\S]*?Кто/, "заголовок колонки wide");
-  assert.equal((body.match(/hidden @5xl:table-cell/g) ?? []).length, 2, "и её ячейки");
+  assert.match(html, /<th[^>]*hidden @\[60rem\]:table-cell"[^>]*>[\s\S]*?Кто/, "заголовок колонки wide");
+  assert.equal((body.match(/hidden @\[60rem\]:table-cell/g) ?? []).length, 2, "и её ячейки");
   // Своя ссылка в ячейке-заголовке (`Задачи`): второй кнопки таблица не добавляет.
   const own = renderToStaticMarkup(createElement(DataTable, {
     label: "Задачи", data: rows, getRowId: (row) => row.id, onRowClick: () => {}, getRowLabel: (row) => row.name,
@@ -339,7 +339,7 @@ test("DetailSheet: Shift+Tab с названия панели идёт на по
 
 test("меню «Колонки»: колонки `meta.wide` не перечисляются, пока блок таблицы уже 64rem (их на экране нет); настоящую ширину меряет ui-kit/ai-agents стенд", () => {
   const hook = read("src/components/kit/useColumnMenu.ts");
-  assert.match(hook, /const WIDE_REM = 64;/, "порог — `@5xl` контейнера Tailwind");
+  assert.match(hook, /const WIDE_REM = 60;/, "порог — `@[60rem]` контейнера: колонка видна при окне 1280 с меню 260 px");
   assert.match(hook, /new ResizeObserver\(/);
   assert.match(hook, /columns\.filter\(\(column\) => wideFits !== false \|\| !column\.columnDef\.meta\?\.wide\)/, "пока ширина неизвестна, список полный; в узком блоке wide-колонок нет");
   const table = read("src/components/kit/DataTable.tsx");

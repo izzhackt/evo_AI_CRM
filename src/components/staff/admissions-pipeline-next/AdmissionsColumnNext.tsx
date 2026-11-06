@@ -25,8 +25,8 @@ export function AdmissionsColumnNext({ stage, rows, tab, showCurator, visibleNar
   const { setNodeRef, isOver } = useDroppable({ id: stage, data: { title } });
   return (
     <section ref={setNodeRef} aria-label={title} data-testid="v3-admissions-pipeline-column" data-stage={stage}
-      className={cn("min-w-0 rounded-card", visibleNarrow ? "block" : "hidden @5xl:block", isOver && "outline-2 -outline-offset-2 outline-dashed outline-control-edge")}>
-      <BoardColumnCard title={title} count={rows.length} className={cn(isOver && "bg-surface-2")} headerClassName="@max-5xl:hidden">
+      className={cn("min-w-0 rounded-card", visibleNarrow ? "block" : "hidden @[43.75rem]:block", isOver && "outline-2 -outline-offset-2 outline-dashed outline-control-edge")}>
+      <BoardColumnCard title={title} count={rows.length} className={cn(isOver && "bg-surface-2")} headerClassName="@max-[43.75rem]:hidden">
         <ul className="flex flex-col gap-1.5">
           {rows.map((row) => (
             <li key={row.studentCaseId}>

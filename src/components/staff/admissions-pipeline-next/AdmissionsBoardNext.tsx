@@ -72,7 +72,7 @@ export function AdmissionsBoardNext(props: AdmissionsBoardProps & Readonly<{ tru
         <div className="rounded-card border border-border bg-card"><EmptyState title={empty} /></div>
       ) : (
         <>
-          <label className="t-label mb-3 flex items-center gap-2 text-fg-2 @5xl:hidden">
+          <label className="t-label mb-3 flex items-center gap-2 text-fg-2 @[43.75rem]:hidden">
             Этап
             <select value={board.narrowStage} onChange={(event) => board.chooseNarrowStage(event.target.value as AdmissionsPipelineStage)}
               className="h-11 min-w-0 flex-1 rounded-ctl border border-input bg-surface px-2.5 text-base font-normal text-fg">
@@ -83,7 +83,7 @@ export function AdmissionsBoardNext(props: AdmissionsBoardProps & Readonly<{ tru
           </label>
           <DndContext sensors={sensors} collisionDetection={pointerWithin} accessibility={{ announcements: ANNOUNCEMENTS }}
             onDragStart={({ active: item }) => setDragging(String(item.id))} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
-            <div role="group" aria-label="Воронка поступления" className="grid min-w-0 gap-3 @5xl:[grid-template-columns:repeat(var(--board-cols),minmax(0,1fr))]"
+            <div role="group" aria-label="Воронка поступления" className="grid min-w-0 gap-3 @[43.75rem]:overflow-x-auto @[43.75rem]:[grid-template-columns:repeat(var(--board-cols),minmax(168px,1fr))]"
               style={{ "--board-cols": board.tabStages.length } as React.CSSProperties}>
               {board.tabStages.map((stage) => (
                 <AdmissionsColumnNext key={stage} stage={stage} tab={tab} showCurator={board.showCurator} visibleNarrow={stage === board.narrowStage} returnTo={returnTo}

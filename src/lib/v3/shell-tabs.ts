@@ -161,7 +161,7 @@ export const MENU_COLLAPSED_COOKIE = "evo-menu";
 /** Запоминает выбор сотрудника на год; cookie недоступна — выбор действует до перезагрузки. */
 export function rememberMenuCollapsed(collapsed: boolean): void {
   try {
-    document.cookie = `${MENU_COLLAPSED_COOKIE}=${collapsed ? "rail" : "full"}; path=/; max-age=31536000; samesite=lax`;
+    document.cookie = `${MENU_COLLAPSED_COOKIE}=${collapsed ? "rail" : "full"}; path=/; max-age=31536000; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
   } catch {
     // без cookie
   }

@@ -272,11 +272,11 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
     assert.match(surface(name), /md:w-\[260px\]/u, `${name}: menu 260 px`);
     assert.doesNotMatch(surface(name), /md:w-16/u, `${name}: no automatic rail`);
     assert.doesNotMatch(surface(name), /<span class="min-w-0 md:sr-only">/u, `${name}: labels visible`);
-    assert.match(surface(name), /data-testid="menu-collapse"[^>]*aria-expanded="true"[^>]*aria-label="Свернуть меню"/u, `${name}: collapse button`);
+    assert.match(surface(name), /data-testid="menu-collapse"[^>]*aria-expanded="true"[^>]*aria-label="Меню"/u, `${name}: collapse button`);
   }
   assert.match(surface("rail-admin"), /md:w-16/u);
   assert.doesNotMatch(surface("rail-admin"), /md:w-\[260px\]/u);
-  assert.match(surface("rail-admin"), /data-testid="menu-collapse"[^>]*aria-expanded="false"[^>]*aria-label="Развернуть меню"/u);
+  assert.match(surface("rail-admin"), /data-testid="menu-collapse"[^>]*aria-expanded="false"[^>]*aria-label="Меню"/u);
 });
 
 // Решение владельца 28.09.2026: «Заявки» — первыми в «Продажах», а не в
@@ -448,9 +448,32 @@ test("collapse is the employee's choice and survives reloads: one cookie name, w
   const tabs = read("src/lib/v3/shell-tabs.ts");
   assert.match(tabs, /export const MENU_COLLAPSED_COOKIE = "evo-menu";/u);
   const shell = read("src/components/staff/AppShell.tsx");
-  assert.match(tabs, /document\.cookie = `\$\{MENU_COLLAPSED_COOKIE\}=\$\{collapsed \? "rail" : "full"\}; path=\/; max-age=31536000; samesite=lax`/u);
+  assert.match(tabs, /document\.cookie = `\$\{MENU_COLLAPSED_COOKIE\}=\$\{collapsed \? "rail" : "full"\}; path=\/; max-age=31536000; samesite=lax\$\{location\.protocol === "https:" \? "; secure" : ""\}`/u);
   assert.match(shell, /rememberMenuCollapsed\(next\)/u);
   assert.match(read("src/app/(staff)/layout.tsx"), /\(await cookies\(\)\)\.get\(MENU_COLLAPSED_COOKIE\)\?\.value === "rail"/u);
   // Клик по пункту отвечает сразу: пока страница читается на сервере, пункт пульсирует (без движения при reduced-motion).
   assert.match(shell, /pending && "animate-pulse motion-reduce:animate-none"/u);
+});
+
+// Ревью #1378: `loading.tsx` — граница Suspense маршрута, и ответ 307/404 страницы становится 200.
+test("routes that redirect or answer 404 from the page have no route-level loading boundary", () => {
+  for (const route of ["documents", "reply-snippets", "messages"]) {
+    assert.equal(existsSync(new URL(`../src/app/(staff)/${route}/loading.tsx`, import.meta.url)), false, `${route}: loading.tsx нет: страница отвечает редиректом или notFound()`);
+    assert.match(read(`src/app/(staff)/${route}/page.tsx`), /redirect\(|notFound\(/u, `${route}: страница сама решает статус`);
+  }
+  assert.equal(existsSync(new URL("../src/app/(staff)/loading.tsx", import.meta.url)), false, "общего loading.tsx у группы нет");
+});
+
+test("boards stay side by side from a 700 px container on every laptop width with the 260 px menu; they scroll sideways instead of stacking", () => {
+  for (const file of [
+    "src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx",
+    "src/components/staff/admissions-pipeline-next/AdmissionsColumnNext.tsx",
+    "src/components/staff/pipeline-next/PipelineBoardNext.tsx",
+    "src/components/staff/pipeline-next/PipelineColumn.tsx",
+    "src/app/(staff)/admissions-pipeline/loading.tsx",
+    "src/app/(staff)/pipeline/loading.tsx",
+  ]) assert.doesNotMatch(read(file), /@(?:max-)?[56]xl/u, `${file}: порог доски не @5xl/@6xl (контейнер 1020 px при окне 1280)`);
+  assert.match(read("src/components/staff/admissions-pipeline-next/AdmissionsBoardNext.tsx"), /@\[43\.75rem\]:overflow-x-auto @\[43\.75rem\]:\[grid-template-columns:repeat\(var\(--board-cols\),minmax\(168px,1fr\)\)\]/u);
+  assert.match(read("src/components/staff/pipeline-next/PipelineBoardNext.tsx"), /@\[43\.75rem\]:overflow-x-auto @\[43\.75rem\]:\[grid-template-columns:repeat\(var\(--board-cols\),minmax\(150px,1fr\)\)\]/u);
+  assert.match(read("src/components/kit/DataTableParts.tsx"), /hidden @\[60rem\]:table-cell/u);
 });

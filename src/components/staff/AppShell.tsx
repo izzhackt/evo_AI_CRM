@@ -673,10 +673,10 @@ export function AppShell({
               type="button"
               data-testid="menu-collapse"
               aria-expanded={!collapsed}
-              aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+              aria-label="Меню"
               onClick={toggleCollapsed}
               className={cn(QUIET_BUTTON, "size-11 shrink-0 justify-center px-0")}
-              {...hint(collapsed ? "Развернуть меню" : "Свернуть меню")}
+              {...hint("Меню")}
             >
               <Icon name="panel-left" size={18} className="shrink-0" />
             </button>

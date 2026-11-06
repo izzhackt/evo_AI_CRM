@@ -12,11 +12,11 @@ export default function PipelineLoading() {
           <SkeletonBlock className="hidden h-11 w-56 @2xl:block" />
           <SkeletonBlock className="hidden h-11 w-80 @2xl:block" />
         </div>
-        <div className="grid min-h-[320px] flex-1 gap-2 @6xl:grid-cols-[repeat(6,minmax(0,1fr))_44px]">
+        <div className="grid min-h-[320px] flex-1 gap-2 @[43.75rem]:grid-cols-[repeat(6,minmax(150px,1fr))_44px]">
           {Array.from({ length: 6 }, (_, index) => (
-            <SkeletonBlock key={index} className={index === 0 ? "h-full min-h-40" : "hidden h-full @6xl:block"} />
+            <SkeletonBlock key={index} className={index === 0 ? "h-full min-h-40" : "hidden h-full @[43.75rem]:block"} />
           ))}
-          <SkeletonBlock className="hidden h-full @6xl:block" />
+          <SkeletonBlock className="hidden h-full @[43.75rem]:block" />
         </div>
       </div>
     </PageShell>

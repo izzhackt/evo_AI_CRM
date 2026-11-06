@@ -226,12 +226,15 @@ const NEXT_SCENARIOS = {
   ])),
 };
 Object.assign(SCENARIOS, NEXT_SCENARIOS);
+// Меню свёрнуто выбором сотрудника (cookie `evo-menu=rail`, 06.11.2026): рейка и её подписи-подсказки.
+SCENARIOS["sales-rail"] = { ...SCENARIOS.sales, menuCollapsed: true };
+SCENARIOS["admissions-rail"] = { ...SCENARIOS.admissions, menuCollapsed: true };
 
 /**
  * Одна страница в оболочке. `randomUUID()` страницы на время рендера
  * предсказуем (та же последовательность, что в браузере при гидратации).
  */
-async function renderPageTree(pageKey, search, { loading = false, rows = "default", actor = "admin" } = {}) {
+async function renderPageTree(pageKey, search, { loading = false, rows = "default", actor = "admin", menuCollapsed = false } = {}) {
   const { pathname, module, loading: loadingModule } = PAGES[pageKey];
   const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   selectSalesRows(rows);
@@ -246,7 +249,7 @@ async function renderPageTree(pageKey, search, { loading = false, rows = "defaul
     const tree = createElement(
       "div",
       { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-      createElement(AppShell, { actor: ACTORS[actor], initialNotifications: null }, content),
+      createElement(AppShell, { actor: ACTORS[actor], initialNotifications: null, menuCollapsed }, content),
     );
     return withContexts(tree, pathname, search);
   } finally {
@@ -417,6 +420,7 @@ async function screenshots() {
   const css = await compileCss();
   const VIEWPORTS = {
     "1280": { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 },
+    "1366": { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
     "1440": { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
     "1536": { viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1 },
     "1920": { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
@@ -424,7 +428,9 @@ async function screenshots() {
     "360": { viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   };
   const shots = [
-    ["sales", ["1280", "1440", "1920", "390"]],
+    ["sales", ["1280", "1366", "1440", "1920", "390"]],
+    ["sales-rail", ["1280", "1366", "1440"]],
+    ["admissions-rail", ["1280", "1366", "1440"]],
     ["sales-panel", ["1280", "1440", "1920", "390"]],
     ["sales-panel-right", ["1440"]],
     ["sales-panel-handed", ["1280", "1440", "1536", "1920"]],
@@ -435,7 +441,7 @@ async function screenshots() {
     ["sales-panel-lopsided", ["1280", "1440", "1920"]],
     ["sales-loading", ["1440"]],
     ["sales-closed", ["1440", "390"]],
-    ["admissions", ["1280", "1440", "1920", "390", "360"]],
+    ["admissions", ["1280", "1366", "1440", "1920", "390", "360"]],
     ["admissions-visa", ["1920"]],
     ["admissions-menu", ["1440", "1280"]],
     ["admissions-loading", ["1440"]],
@@ -447,7 +453,7 @@ async function screenshots() {
   const browser = await chromium.launch();
   try {
     for (const [shot, sizes] of shots) {
-      const scenario = shot === "admissions-menu" ? "admissions" : shot === "rail-flyout" ? "sales" : shot;
+      const scenario = shot === "admissions-menu" ? "admissions" : shot === "rail-flyout" ? "sales-rail" : shot;
       const { page: pageKey } = SCENARIOS[scenario];
       const prefix = "boards";
       const htmlPath = join(outDir, `${prefix}-${scenario}.html`);
@@ -593,7 +599,7 @@ function Harness({ initial }) {
       h(SearchParamsContext.Provider, { value: searchParams },
         h(ImageConfigContext.Provider, { value: IMAGE },
           h("div", { className: "v3-world", "data-surface": "staff" },
-            h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null }, view.content))))));
+            h(AppShell, { actor: fixtures.ACTOR, initialNotifications: null, menuCollapsed: /(?:^|;\s*)evo-menu=rail(?:;|$)/u.test(document.cookie) }, view.content))))));
 }
 (async () => {
   window.__harness = { pushes: [], refreshes: [], recoverable: [] };
@@ -698,7 +704,7 @@ async function startServer(css, bundle) {
         response.end();
         return;
       }
-      const markup = renderToString(await renderPageTree(pageKey, url.search.slice(1)));
+      const markup = renderToString(await renderPageTree(pageKey, url.search.slice(1), { menuCollapsed: /(?:^|;\s*)evo-menu=rail(?:;|$)/u.test(request.headers.cookie ?? "") }));
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end([
         "<!DOCTYPE html>",
@@ -723,8 +729,9 @@ async function hydrate() {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   const report = (entry) => process.stdout.write(`${JSON.stringify(entry)}\n`);
-  const open = async (viewport, path, mobile = false) => {
+  const open = async (viewport, path, mobile = false, rail = false) => {
     const context = await browser.newContext({ viewport, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
+    if (rail) await context.addCookies([{ name: "evo-menu", value: "rail", url: origin }]);
     const page = await context.newPage();
     const console_ = [];
     page.on("console", (message) => { if (message.type() === "error" || message.type() === "warning") console_.push(message.text()); });
@@ -827,7 +834,7 @@ async function hydrate() {
 
     // 4. Рейка меню, 1280: подпись при фокусе клавиатуры.
     {
-      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/pipeline");
+      const { context, page, console_ } = await open({ width: 1280, height: 800 }, "/pipeline", false, true);
       let hint = null;
       const reached = [];
       for (let step = 0; step < 12 && !hint; step += 1) {
@@ -853,7 +860,7 @@ async function hydrate() {
     // перерисовывать меню по кругу. Затем курсор уходит на доску: подпись
     // должна исчезнуть.
     for (const path of ["/pipeline", "/admissions-pipeline"]) {
-      const { context, page, console_ } = await open({ width: 1280, height: 800 }, path);
+      const { context, page, console_ } = await open({ width: 1280, height: 800 }, path, false, true);
       const tipText = () => page.evaluate(() => {
         const tip = [...document.querySelectorAll('nav[aria-label="Разделы"] span[aria-hidden="true"].fixed')]
           .find((element) => getComputedStyle(element).display !== "none");

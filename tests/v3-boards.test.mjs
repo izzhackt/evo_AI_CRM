@@ -58,7 +58,8 @@ test("drag is neutral: hover grip and dashed drop highlight, never red", () => {
 test("rail mode has no top bar: the logo row hides in the 64px rail, the menu keeps its items", () => {
   const shell = read("src/components/staff/AppShell.tsx");
   // A full logo does not read in 64px (Э1.2); the rail keeps icons with hints and the account.
-  assert.match(shell, /cn\("hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex", rail && "md:max-2xl:hidden"\)/u);
+  assert.match(shell, /rail && "md:flex-col md:px-2 md:pb-2 md:pt-3"/u);
+  assert.match(shell, /cn\(`inline-flex rounded-nav \$\{FOCUS\} focus-visible:outline-offset-4`, rail && "md:hidden"\)/u);
   assert.doesNotMatch(shell, /md:min-h-16|EvoLogo width=\{100\}/u, "no top bar");
 });
 

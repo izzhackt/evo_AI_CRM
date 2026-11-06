@@ -98,7 +98,7 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
         onReopened={() => { setClosed((notice) => (notice ? { ...notice, reopened: true } : notice)); router.refresh(); }} /> : null}
       <SectionTabs label="Этапы воронки" tabs={tabs} value={filteredStage} />
       <div role="group" aria-label="Воронка продаж" data-testid="v3-pipeline-board" data-focus={filteredStage} style={style}
-        className={filteredStage === "all" ? "grid min-w-0 gap-3 @6xl:[grid-template-columns:repeat(var(--board-cols),minmax(0,1fr))]" : "grid min-w-0 gap-3"}>
+        className={filteredStage === "all" ? "grid min-w-0 gap-3 @[43.75rem]:overflow-x-auto @[43.75rem]:[grid-template-columns:repeat(var(--board-cols),minmax(150px,1fr))]" : "grid min-w-0 gap-3"}>
         {columns.map((column) => (
           <PipelineColumn key={column.stage.key} column={column} spread={filteredStage !== "all"} selectedId={selectedId} showOwner={showOwner} today={today}
             hrefFor={(lead) => href({ lead: lead.id })} openLead={openLead} handedExpanded={handedExpanded}

@@ -383,7 +383,7 @@ export function AiAutosendSettingsForm({
         </Row>
 
         <Row title="Финальная фраза" hint={<>После неё автоответчик в этом чате молчит до утра. {AI_AUTOSEND_DAY_TOKEN} — «В понедельник», «Сегодня» или дата</>} testId="v3-ai-autosend-phrases">
-          <div className="grid gap-x-6 gap-y-6 @5xl:grid-cols-3">
+          <div className="grid gap-x-6 gap-y-6 @[60rem]:grid-cols-3">
             {AI_AUTOSEND_LANGUAGES.map((language) => (
               <div key={language} className="space-y-3" lang={language} data-language={language}>
                 <h4 className="t-label text-fg">{AI_AUTOSEND_LANGUAGE_LABEL[language]}</h4>
@@ -405,7 +405,7 @@ export function AiAutosendSettingsForm({
             Писать строку о помощнике
           </label>
           {draft.disclosureEnabled ? (
-            <div className="mt-3 grid gap-x-6 gap-y-6 @5xl:grid-cols-3">
+            <div className="mt-3 grid gap-x-6 gap-y-6 @[60rem]:grid-cols-3">
               {AI_AUTOSEND_LANGUAGES.map((language) => (
                 <div key={language} lang={language}>
                   <PhraseField label={AI_AUTOSEND_LANGUAGE_LABEL[language]} phrase={draft.disclosure[language]} limit={AI_AUTOSEND_DISCLOSURE_LIMIT}

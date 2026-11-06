@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 
 import type { DataTableColumnMeta } from "@/components/kit/data-table-core";
 
-/** Порог `@5xl` контейнера Tailwind: 64rem (колонка `meta.wide` рисуется, только когда блок таблицы не уже). */
-const WIDE_REM = 64;
+/** Порог `@[60rem]` контейнера: 60rem (колонка `meta.wide` рисуется, только когда блок таблицы не уже). */
+const WIDE_REM = 60;
 
 /**
  * Колонки для меню «Колонки» и ссылка-функция `watchBlock` для блока таблицы (`@container`). Колонка `meta.wide` в блоке уже 64rem скрыта стилем, а

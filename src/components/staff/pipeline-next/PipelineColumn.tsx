@@ -36,7 +36,7 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
         count={inStage.length}
         marker={stage.gate ? <span title="Есть условия" className="inline-flex items-center"><Icon name="lock" size={14} /><span className="sr-only">Есть условия</span></span> : null}
       >
-        <ul className={`flex flex-col gap-1.5 ${spread ? "@6xl:grid @6xl:grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] @6xl:content-start" : ""}`}>
+        <ul className={`flex flex-col gap-1.5 ${spread ? "@[43.75rem]:grid @[43.75rem]:grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] @[43.75rem]:content-start" : ""}`}>
           {visible.map((lead) => (
             <li key={lead.id}>
               <LeadCardNext lead={lead} terminal={stage.terminal} selected={lead.id === selectedId} showOwner={showOwner}

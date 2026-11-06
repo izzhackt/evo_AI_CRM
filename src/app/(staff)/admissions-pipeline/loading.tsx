@@ -12,9 +12,9 @@ export default function AdmissionsPipelineLoading() {
           <SkeletonBlock className="h-11 w-full max-w-[30rem]" />
           <SkeletonBlock className="hidden h-11 w-48 @2xl:block" />
         </div>
-        <div className="grid min-h-[320px] flex-1 justify-start gap-2 @5xl:grid-cols-[repeat(5,minmax(168px,360px))]">
+        <div className="grid min-h-[320px] flex-1 justify-start gap-2 @[43.75rem]:grid-cols-[repeat(5,minmax(168px,1fr))]">
           {Array.from({ length: 5 }, (_, index) => (
-            <SkeletonBlock key={index} className={index === 0 ? "h-full min-h-40" : "hidden h-full @5xl:block"} />
+            <SkeletonBlock key={index} className={index === 0 ? "h-full min-h-40" : "hidden h-full @[43.75rem]:block"} />
           ))}
         </div>
       </div>

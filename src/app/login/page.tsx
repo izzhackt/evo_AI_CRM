@@ -2,16 +2,15 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { LoginForm } from "@/components/AuthForms";
-import { EvoLogo } from "@/components/platform/brand/EvoLogo";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { EvoIsometricField } from "@/components/platform/brand/EvoIsometricField";
 import { LangSwitcher } from "@/components/LangSwitcher";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale } from "@/lib/i18n";
 import { getPasswordRecoveryStrings } from "@/lib/portal/password-recovery-i18n";
 import { STUDENT_PASSWORD_FORGOT_PATH } from "@/lib/student-password-recovery-contract";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
 import { ACCOUNT_DELETED_NOTICE } from "@/lib/account-deletion-contract";
-import { readRequestTheme } from "@/lib/theme-server";
 import {
   platformAudienceForHost,
   PRODUCTION_STAFF_ORIGIN,
@@ -31,6 +30,11 @@ const COPY: Record<
     password: string;
     signIn: string;
     title: string;
+    panelTitle: string;
+    panelText: string;
+    panelNote: string | null;
+    rememberDevice: string;
+    rememberDeviceHint: string;
   }>
 > = {
   ru: {
@@ -38,53 +42,77 @@ const COPY: Record<
     accountDeleted: "Аккаунт удалён.",
     authUnavailable: "Сервис входа временно недоступен.",
     staffAccessDenied: "Аккаунт не имеет активного доступа к продукту EVO.",
-    email: "Email или логин",
+    email: "Логин",
     intro:
       "Для сотрудников и студентов EVO.",
     password: "Пароль",
     signIn: "Войти в CRM",
     title: "Вход в EVO",
+    panelTitle: "EVO Admissions",
+    panelText: "Поступление за рубеж: вузы, документы и связь с куратором в одном месте.",
+    panelNote: "Китай · Малайзия · ОАЭ · Турция · Европа",
+    rememberDevice: "Это моё устройство: не выходить каждый раз.",
+    rememberDeviceHint: "На чужом или общем устройстве снимите галочку.",
   },
   ky: {
     accessDenied: "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
     accountDeleted: "Аккаунт өчүрүлдү.",
     authUnavailable: "Кирүү кызматы убактылуу жеткиликсиз.",
     staffAccessDenied: "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
-    email: "Email же логин",
+    email: "Логин",
     intro:
       "EVO кызматкерлери жана студенттери үчүн.",
     password: "Сырсөз",
     signIn: "CRMге кирүү",
     title: "EVO'го кирүү",
+    panelTitle: "EVO Admissions",
+    panelText: "Чет өлкөдө окууга тапшыруу: университеттер, документтер жана куратор менен байланыш бир жерде.",
+    panelNote: "Кытай · Малайзия · БАЭ · Түркия · Европа",
+    rememberDevice: "Бул менин түзмөгүм: ар жолу чыгып кетпейт.",
+    rememberDeviceHint: "Бөтөн же жалпы түзмөктө белгини алып салыңыз.",
   },
   en: {
     accessDenied: "Access was not granted. Check both values.",
     accountDeleted: "Account deleted.",
     authUnavailable: "The sign-in service is temporarily unavailable.",
     staffAccessDenied: "This account has no active access to EVO.",
-    email: "Email or login",
+    email: "Login",
     intro:
       "For EVO staff and students.",
     password: "Password",
     signIn: "Sign in to CRM",
     title: "Sign in to EVO",
+    panelTitle: "EVO Admissions",
+    panelText: "Study abroad admissions: universities, documents and your curator in one place.",
+    panelNote: "China · Malaysia · UAE · Türkiye · Europe",
+    rememberDevice: "This is my device: keep me signed in.",
+    rememberDeviceHint: "On a shared or someone else's device, untick it.",
   },
 };
 
 const AUDIENCE_COPY: Record<Locale, Record<PlatformAudience, Readonly<{
-  title: string; intro: string; signIn: string; otherSignIn: string;
+  title: string; intro: string; signIn: string; otherSignIn: string; panelTitle: string; panelText: string; panelNote: string | null;
 }>>> = {
   ru: {
-    staff: { title: "Вход для сотрудников", intro: "Рабочее пространство EVO.", signIn: "Войти в CRM", otherSignIn: "Кабинет студента" },
-    student: { title: "Кабинет студента", intro: "Ваше поступление и документы в EVO.", signIn: "Войти в кабинет", otherSignIn: "Вход для сотрудников" },
+    staff: { title: "Вход для сотрудников", intro: "Рабочее пространство EVO.", signIn: "Войти в CRM", otherSignIn: "Кабинет студента",
+      panelTitle: "EVO Admissions CRM", panelText: "Студенты, продажи, документы и переписка в одном месте.", panelNote: null },
+    student: { title: "Кабинет студента", intro: "Ваше поступление и документы в EVO.", signIn: "Войти в кабинет", otherSignIn: "Вход для сотрудников",
+      panelTitle: "Поступление за рубеж", panelText: "Вузы, документы, оплата и чат с куратором в одном кабинете.",
+      panelNote: "Китай · Малайзия · ОАЭ · Турция · Европа" },
   },
   ky: {
-    staff: { title: "Кызматкерлер үчүн кирүү", intro: "EVO иш мейкиндиги.", signIn: "CRMге кирүү", otherSignIn: "Студенттин кабинети" },
-    student: { title: "Студенттин кабинети", intro: "EVO'догу окууга тапшырууңуз жана документтериңиз.", signIn: "Кабинетке кирүү", otherSignIn: "Кызматкерлер үчүн кирүү" },
+    staff: { title: "Кызматкерлер үчүн кирүү", intro: "EVO иш мейкиндиги.", signIn: "CRMге кирүү", otherSignIn: "Студенттин кабинети",
+      panelTitle: "EVO Admissions CRM", panelText: "Студенттер, сатуулар, документтер жана кат алышуу бир жерде.", panelNote: null },
+    student: { title: "Студенттин кабинети", intro: "EVO'догу окууга тапшырууңуз жана документтериңиз.", signIn: "Кабинетке кирүү", otherSignIn: "Кызматкерлер үчүн кирүү",
+      panelTitle: "Чет өлкөдө окуу", panelText: "Университеттер, документтер, төлөм жана куратор менен чат бир кабинетте.",
+      panelNote: "Кытай · Малайзия · БАЭ · Түркия · Европа" },
   },
   en: {
-    staff: { title: "Staff sign-in", intro: "Your EVO workspace.", signIn: "Sign in to CRM", otherSignIn: "Student portal" },
-    student: { title: "Student portal", intro: "Your EVO admissions and documents.", signIn: "Sign in to portal", otherSignIn: "Staff sign-in" },
+    staff: { title: "Staff sign-in", intro: "Your EVO workspace.", signIn: "Sign in to CRM", otherSignIn: "Student portal",
+      panelTitle: "EVO Admissions CRM", panelText: "Students, sales, documents and conversations in one place.", panelNote: null },
+    student: { title: "Student portal", intro: "Your EVO admissions and documents.", signIn: "Sign in to portal", otherSignIn: "Staff sign-in",
+      panelTitle: "Study abroad", panelText: "Universities, documents, payments and your curator chat in one portal.",
+      panelNote: "China · Malaysia · UAE · Türkiye · Europe" },
   },
 };
 
@@ -111,9 +139,10 @@ export default async function LoginPage({
   searchParams,
 }: Readonly<{ searchParams: LoginPageSearchParams }>) {
   const locale = await getLocale();
-  const theme = await readRequestTheme();
   const audience = platformAudienceForHost((await headers()).get("host"));
-  const audienceCopy = audience ? AUDIENCE_COPY[locale][audience] : null;
+  // 06.11.2026 (пользователь): форма как у студента — «Кабинет студента», «Войти в кабинет», внизу
+  // «Вход для сотрудников». На неизвестном хосте (локально, предпросмотр) тоже студенческая, не общая.
+  const audienceCopy = AUDIENCE_COPY[locale][audience ?? "student"];
   const copy = { ...COPY[locale], ...audienceCopy };
   const query = await searchParams;
   const error = firstQueryValue(query.error);
@@ -130,19 +159,42 @@ export default async function LoginPage({
           : null;
 
   return (
-    <main className="flex min-h-dvh flex-col bg-bg px-4 py-6 sm:px-6">
-      <div className="flex min-h-11 items-center justify-end gap-3">
-        <LangSwitcher current={locale} />
-        {/* Хост сотрудников только светлый — кнопки темы там нет. */}
-        {audience !== "staff" && <ThemeToggle locale={locale} initialTheme={theme} />}
+    // 06.11.2026 (пользователь): на входе одна светлая тема без переключателя и два языка, RU и KY.
+    <main data-theme="light" className="grid min-h-dvh bg-bg [color-scheme:light] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* Тёмная панель бренда, как у образца (akylman.org.kg/login) и тёмной шапки «Главной» кабинета.
+          На тёмном — только белый знак (вариант «inverted» из logobook). */}
+      <div className="login-panel relative flex min-h-[400px] flex-col justify-between gap-10 overflow-hidden px-6 pb-10 pt-8 sm:px-10 lg:min-h-0 lg:px-12 lg:py-10">
+        {/* Язык — тихо, в углу тёмной панели (просьба пользователя 06.11 «замаскируй»), только RU и KY. */}
+        <div className="relative z-10 flex items-start justify-between gap-4">
+          <EvoMark size={56} tone="inverted" />
+          <div className="login-prefs flex items-center gap-1">
+            <LangSwitcher current={locale} locales={["ru", "ky"]} />
+          </div>
+        </div>
+        <div className="relative max-w-md">
+          <p className="login-panel-title text-[36px] font-semibold leading-[1.08] tracking-[-0.02em] lg:text-[44px]">
+            {copy.panelTitle}
+          </p>
+          <p className="login-panel-text mt-4 text-[15px] leading-6 lg:text-base">{copy.panelText}</p>
+          {copy.panelNote ? (
+            <p className="login-panel-text mt-8 flex items-center gap-3 text-sm leading-5">
+              <span aria-hidden="true" className="login-panel-dash" />
+              {copy.panelNote}
+            </p>
+          ) : null}
+        </div>
+        {/* Крупный бледный знак справа, как буква у образца и знак в шапке «Главной» кабинета. */}
+        <span aria-hidden="true" className="login-panel-watermark">
+          <EvoMark size={340} tone="inverted" />
+        </span>
       </div>
 
-      <div className="flex flex-1 items-center justify-center py-8 sm:py-12">
-        <div className="w-full max-w-[420px] rounded-card border border-border bg-surface p-6 sm:p-8">
-          <div data-theme="light" className="mb-6 w-fit rounded-ctl bg-surface p-4">
-            <EvoLogo width={156} />
-          </div>
-          <h1 id="login-title" className="text-2xl font-semibold leading-tight tracking-[-0.02em] text-fg">
+      <div className="relative flex flex-col overflow-hidden px-4 py-6 sm:px-6 lg:px-12">
+        {/* Узор logobook (Pattern No. 1) в правом нижнем углу: для страницы входа он и сделан; под карточкой с текстом его не видно. */}
+        <EvoIsometricField opacity={0.1} />
+        <div className="flex flex-1 items-center justify-center py-8 sm:py-12">
+        <div className="relative z-10 w-full max-w-[440px] rounded-card border border-border bg-surface p-6 sm:p-9">
+          <h1 id="login-title" className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-fg sm:text-[32px]">
             {copy.title}
           </h1>
           <p className="mt-2 text-sm leading-6 text-fg-2">{copy.intro}</p>
@@ -162,14 +214,13 @@ export default async function LoginPage({
             />
           </div>
           {audience !== "staff" && <a href="/apply" className="mt-5 flex min-h-11 items-center justify-center rounded-ctl border border-control-edge px-4 text-sm font-semibold text-fg">{locale === "en" ? "Create a student account" : locale === "ky" ? "Студенттик аккаунт түзүү" : "Создать аккаунт студента"}</a>}
-          {audienceCopy && (
-            <a
-              href={`${audience === "staff" ? PRODUCTION_STUDENT_ORIGIN : PRODUCTION_STAFF_ORIGIN}/login`}
-              className="mt-4 inline-flex min-h-11 items-center text-sm text-fg-2 underline underline-offset-4"
-            >
-              {audienceCopy.otherSignIn}
-            </a>
-          )}
+          <a
+            href={`${audience === "staff" ? PRODUCTION_STUDENT_ORIGIN : PRODUCTION_STAFF_ORIGIN}/login`}
+            className="mt-4 inline-flex min-h-11 items-center text-sm text-fg-2 underline-offset-4 hover:text-fg hover:underline focus-visible:underline"
+          >
+            {audienceCopy.otherSignIn}
+          </a>
+        </div>
         </div>
       </div>
     </main>

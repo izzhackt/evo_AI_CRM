@@ -3,12 +3,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import { getSupabasePublicConfig } from "./config.ts";
+import { SESSION_ONLY_COOKIE, sessionAwareCookieOptions } from "../session-cookie.ts";
 
 export type SupabaseServerContext = Readonly<{
   client: SupabaseClient;
 }>;
 
-export async function createSupabaseServerClient(): Promise<SupabaseClient> {
+/** sessionOnly: вход «Это моё устройство» без галочки; без параметра решает cookie SESSION_ONLY_COOKIE. */
+export async function createSupabaseServerClient(
+  settings: Readonly<{ sessionOnly?: boolean }> = {},
+): Promise<SupabaseClient> {
   const config = getSupabasePublicConfig();
   const cookieStore = await cookies();
 
@@ -24,9 +28,10 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
           options: CookieOptions;
         }>,
       ) {
+        const sessionOnly = settings.sessionOnly ?? cookieStore.get(SESSION_ONLY_COOKIE)?.value === "1";
         try {
           for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options);
+            cookieStore.set(name, value, sessionAwareCookieOptions(value, options, sessionOnly));
           }
         } catch {
           // Server Components cannot write cookies. The root proxy refreshes

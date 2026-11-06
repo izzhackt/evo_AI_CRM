@@ -1,14 +1,21 @@
 import { setLocaleAction } from "@/lib/locale-actions";
 import { LOCALES, type Locale, LOCALE_NAMES } from "@/lib/i18n-data";
 
-export function LangSwitcher({ current }: { current: Locale }) {
+/** locales: какие языки предлагать; по умолчанию все три (RU, KY, EN). */
+export function LangSwitcher({
+  current,
+  locales = LOCALES,
+}: {
+  current: Locale;
+  locales?: readonly Locale[];
+}) {
   return (
     <form
       action={setLocaleAction}
       aria-label="Language"
       className="inline-flex rounded-ctl bg-surface-2 p-0.5"
     >
-      {LOCALES.map((l) => (
+      {locales.map((l) => (
         <button
           key={l}
           type="submit"

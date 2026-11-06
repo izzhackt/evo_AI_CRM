@@ -342,6 +342,100 @@ table th,
 }
 
 /*
+ * Панель бренда на странице входа (06.11.2026, образец akylman.org.kg/login,
+ * в духе тёмной шапки «Главной» кабинета): почти чёрная с красным свечением,
+ * в обеих темах, текст сплошными цветами. Расчёт контраста на основе панели:
+ * заголовок #ffffff — 17.9:1, текст #c9cbd1 — 11.0:1; там, где лежит текст
+ * (низ слева), свечение слабое: текст на нём не ниже 10:1. Соседняя подложка
+ * тёмной темы --bg #0c0d10 отличается от панели в 1.09 раза.
+ */
+:root {
+  --login-panel: #16171c;
+  --login-panel-wash:
+    radial-gradient(75% 60% at 100% 0%, rgb(215 2 23 / 0.42), transparent 70%),
+    radial-gradient(60% 45% at 0% 100%, rgb(215 2 23 / 0.16), transparent 72%);
+  --login-panel-title: #ffffff;
+  --login-panel-text: #c9cbd1;
+  --login-panel-line: #8b8e98;
+}
+
+.login-panel {
+  border-top: 3px solid var(--accent);
+  background: var(--login-panel-wash), var(--login-panel);
+}
+
+.login-panel-title {
+  color: var(--login-panel-title);
+}
+
+.login-panel-text {
+  color: var(--login-panel-text);
+}
+
+/*
+ * Язык на тёмной панели входа: без подложек и рамок, светлым текстом
+ * (#c9cbd1 — 11.0:1, на красном свечении 7.8:1), выбранный язык белым с рамкой
+ * #8b8e98 (5.5:1 к панели, 3.9:1 к свечению).
+ */
+.login-prefs form {
+  padding: 0;
+  background: transparent;
+}
+
+.login-prefs form button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--login-panel-text);
+}
+
+.login-prefs form button:hover {
+  color: var(--login-panel-title);
+}
+
+.login-prefs form button[aria-pressed="true"] {
+  border-color: var(--login-panel-line);
+  background: transparent;
+  color: var(--login-panel-title);
+}
+
+.login-prefs :focus-visible {
+  outline: 2px solid var(--login-panel-title);
+  outline-offset: 2px;
+}
+
+/* «Это моё устройство»: отметка нейтральная, как любое «выбрано» в EVO, не красная и не системная синяя (06.11). */
+.login-remember {
+  accent-color: var(--text);
+}
+
+.login-panel-dash {
+  display: inline-block;
+  width: 32px;
+  height: 1px;
+  flex: none;
+  background: var(--login-panel-text);
+}
+
+/* Знак-водяной знак: белый 6 %, как знак шапки «Главной» кабинета (--pt-hero-mark). Под текстом его нет. */
+.login-panel-watermark {
+  position: absolute;
+  top: 34px;
+  right: -110px;
+  opacity: 0.06;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (width >= 1024px) {
+  .login-panel-watermark {
+    top: auto;
+    right: -90px;
+    bottom: 22%;
+  }
+}
+
+
+/*
  * Кнопка темы «солнце/луна» студента (решение владельца 02.10). Одна
  * кнопка на кабинет, анкету, вход и ожидание: внутри кабинета берёт
  * портальные токены --pt-*, снаружи — глобальные. Значок — текущая тема,

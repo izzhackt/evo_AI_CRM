@@ -10,6 +10,7 @@ import {
   resolvePlatformActor,
 } from "./platform-auth";
 import { createSupabaseServerClient } from "./supabase/server";
+import { SESSION_ONLY_COOKIE } from "./session-cookie";
 import { readVerifiedPlatformAuthority } from "./supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
 import { createTrustedStudentInviteReceiptStore } from "./server/student-invite-session-runtime";
@@ -55,6 +56,8 @@ export async function loginStaffAction(
     ? (process.env.EVO_STAFF_ADMIN_LOGIN_EMAIL ?? "").trim().toLowerCase()
     : login;
   const password = submittedValue(form, "password");
+  // «Это моё устройство»: без галочки вход живёт до закрытия браузера.
+  const rememberDevice = submittedValue(form, "remember_device") === "1";
   if (
     email.length === 0 ||
     email.length > 320 ||
@@ -66,7 +69,7 @@ export async function loginStaffAction(
 
   let redirectTarget: "/" | "/portal" | "/auth/account-pending" | "/apply" | "/apply/status" | null = null;
   try {
-    const client = await createSupabaseServerClient();
+    const client = await createSupabaseServerClient({ sessionOnly: !rememberDevice });
     const { error: signInError } = await client.auth.signInWithPassword({
       email,
       password,
@@ -74,6 +77,17 @@ export async function loginStaffAction(
     if (signInError) {
       logStaffAuthFailure("credentials", signInError);
       return "accessDenied";
+    }
+    const cookieStore = await cookies();
+    if (rememberDevice) {
+      cookieStore.delete(SESSION_ONLY_COOKIE);
+    } else {
+      cookieStore.set(SESSION_ONLY_COOKIE, "1", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
     }
 
     const { data: claimsData, error: claimsError } = await client.auth.getClaims();
@@ -151,6 +165,7 @@ export async function logoutStaffAction(): Promise<void> {
     await client.auth.signOut({ scope: "local" });
   } finally {
     await clearAdminPreview();
+    (await cookies()).delete(SESSION_ONLY_COOKIE);
   }
   redirect("/login");
 }

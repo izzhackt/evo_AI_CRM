@@ -14,6 +14,7 @@ import {
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
+import { SESSION_ONLY_COOKIE, sessionAwareCookieOptions } from "@/lib/session-cookie";
 import { markProxied } from "@/lib/request-timing";
 import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 import {
@@ -225,8 +226,10 @@ async function liveSessionState(
           }
           requestHeaders.set("cookie", request.cookies.toString());
           response = nextResponse(requestHeaders);
+          // «Это моё устройство» снята: обновлённый вход тоже живёт до закрытия браузера.
+          const sessionOnly = request.cookies.get(SESSION_ONLY_COOKIE)?.value === "1";
           for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, sessionAwareCookieOptions(value, options, sessionOnly));
           }
         },
       },

@@ -16,6 +16,8 @@ type StaffLoginLabels = Readonly<{
   email: string;
   password: string;
   signIn: string;
+  rememberDevice: string;
+  rememberDeviceHint: string;
 }>;
 
 export function LoginForm({
@@ -90,13 +92,28 @@ export function LoginForm({
           <div className="mt-1 flex justify-end">
             <Link
               href={recovery.href}
-              className="inline-flex min-h-11 items-center text-sm text-fg-2 underline underline-offset-4 hover:text-fg"
+              className="inline-flex min-h-11 items-center text-sm text-fg-2 underline-offset-4 hover:text-fg hover:underline focus-visible:underline"
             >
               {recovery.label}
             </Link>
           </div>
         ) : null}
       </div>
+
+      {/* «Это моё устройство», как у образца akylman.org.kg/login: без галочки вход до закрытия браузера. */}
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm leading-5 text-fg-2">
+        <input
+          type="checkbox"
+          name="remember_device"
+          value="1"
+          defaultChecked
+          className="login-remember mt-0.5 size-5 shrink-0 cursor-pointer"
+        />
+        <span>
+          <span className="text-fg">{labels.rememberDevice}</span>
+          <span className="block">{labels.rememberDeviceHint}</span>
+        </span>
+      </label>
 
       <button type="submit" disabled={pending} className={`${btnCls} w-full`}>
         {labels.signIn}

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { readCaseDocumentSuggestions } from "@/lib/v3/document-suggestions-source";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import {
   listCaseBaselineChecklistOptions,
@@ -17,6 +18,9 @@ import type {
 } from "./document-types";
 import type { DocumentStateFilter } from "./documents-view";
 import { documentsView } from "./DocumentsView";
+import { AmoDocumentSorting } from "./AmoDocumentSorting";
+import { canSortDocuments } from "./amo-sorting-access";
+import { amoSortingFiles, sortingMode, sortingRows } from "./amo-sorting-view";
 
 function baselineChecklistOptionLabel(
   option: PlatformCaseBaselineChecklistOption,
@@ -95,7 +99,24 @@ export async function Documents({
       ? randomUUID()
       : null;
 
+  // Файлы из amoCRM без разбора (миграция 333): подсказки читает база с учётом согласия студента; без чтения - ручной выбор.
+  const sortingFiles = amoSortingFiles(activeGroups);
+  let sorting = null;
+  if (sortingFiles.length > 0 && studentCaseId) {
+    const suggestions = isStaffPreview(actor) ? null : await readCaseDocumentSuggestions(actor, studentCaseId);
+    sorting = (
+      <AmoDocumentSorting
+        key={studentCaseId}
+        studentCaseId={studentCaseId}
+        rows={sortingRows(sortingFiles, suggestions)}
+        mode={sortingMode(suggestions)}
+        canAct={canSortDocuments(actor, uploadAccess === "allowed")}
+      />
+    );
+  }
+
   return documentsView({
+    sorting,
     groups,
     uploadAccess,
     studentCaseId,

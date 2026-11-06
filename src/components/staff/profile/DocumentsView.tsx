@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { ProgressBar } from "@/components/staff/blocks/ProgressBar";
 import { QueueViewTabs } from "@/components/staff/queue/QueueViewTabs";
@@ -40,6 +40,8 @@ export type DocumentsViewInput = Readonly<{
   baselineChecklistRequestId: string | null;
   /** «Новый вид»: карточки набора вместо прежней раскладки (`DocumentsNextLayout`); те же данные и команды. */
   nextUi?: boolean;
+  /** Разбор файлов из amoCRM (`AmoDocumentSorting`); null - разбирать нечего. */
+  sorting?: ReactNode;
 }>;
 
 /**
@@ -93,6 +95,7 @@ export function documentsView(input: DocumentsViewInput): ReactElement {
       checklistEmpty={checklistEmpty}
       emptyText={emptyText}
       nextUi={input.nextUi}
+      sorting={input.sorting ?? null}
     />
   );
 }

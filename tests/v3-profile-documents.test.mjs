@@ -368,6 +368,11 @@ function documentsWrapper(read) {
   const { Documents } = compile("src/components/staff/profile/Documents.tsx", (id) => {
     if (id === "@/lib/platform-task-deadline") return { dayInOrganizationTimezone: () => "2026-09-28" };
     // The synchronous tab view receives exactly what the wrapper read and issued.
+    // Разбор файлов из amoCRM (333) проверяется в tests/amo-document-sorting.test.mjs; здесь он молчит.
+    if (id === "@/lib/v3/document-suggestions-source") return { readCaseDocumentSuggestions: async () => null };
+    if (id === "./AmoDocumentSorting") return { AmoDocumentSorting: () => null };
+    if (id === "./amo-sorting-access") return { canSortDocuments: () => false };
+    if (id === "./amo-sorting-view") return { amoSortingFiles: () => [], sortingRows: () => [], sortingMode: () => "unavailable" };
     if (id === "./DocumentsView") return { documentsView: (input) => ({ type: DocumentsClientMarker, props: input }) };
     if (id === "@/lib/platform-access") {
       return {

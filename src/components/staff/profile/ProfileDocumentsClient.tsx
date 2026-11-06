@@ -343,7 +343,10 @@ export function ProfileDocumentsClient({
   checklistEmpty = false,
   emptyText = null,
   nextUi = false,
+  sorting = null,
 }: Readonly<{
+  /** Разбор файлов из amoCRM: рисуется над чек-листом. */
+  sorting?: ReactNode;
   /** «Новый вид»: тот же список и те же команды в карточках набора (`DocumentsNextLayout`); без признака разметка прежняя. */
   nextUi?: boolean;
   /** Пункты, которые показывает выбранный фильтр (без фильтра — все). */
@@ -527,6 +530,7 @@ export function ProfileDocumentsClient({
         uploadHint={hasUploadHint ? `Загрузка: ${DOCUMENT_UPLOAD_HINT}` : null}
         accessNote={accessNote}
         addRegion={addRegion}
+        sorting={sorting}
         filter={filter}
         movedNote={movedNote}
         empty={groups.length === 0 ? emptyNote : null}
@@ -556,6 +560,8 @@ export function ProfileDocumentsClient({
       ) : null}
 
       {accessNote}
+
+      {sorting}
 
       {addRegion}
 

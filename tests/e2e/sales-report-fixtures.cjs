@@ -125,6 +125,9 @@ const MANAGER_LABELS = { labels: [
 
 const STUBS = {
   "@/lib/platform-guards": { requireV3PageActor: async () => currentActor, requirePlatformStaffActor: async () => currentActor },
+  // «Финансы» (06.11.2026): страница-хозяин вкладки читает ссылку отчёта (чтобы знать, есть ли финансовые вкладки) — стенд отвечает «не подключён».
+  "@/lib/v3/report-links-source": { readReportLink: async () => ({ status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } }) },
+  "@/lib/v3/student-debts-source": { readStudentDebts: async () => ({ status: "available", debts: { rows: [], totals: [], caseRowCount: 0, truncated: false } }) },
   "@/lib/v3/sales-register-source": {
     readSalesRegisterWorkspace: async (_actor, selection) => readReport(selection),
     readSalesRegisterIntakeOptions: async () => null,

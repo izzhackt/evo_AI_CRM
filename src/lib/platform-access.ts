@@ -40,11 +40,25 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
   return isStaffPreview(actor) && actor.presentationRole !== null
     ? fixedRoleCan(actor.presentationRole, capability) : staffCan(actor, capability);
 }
+/**
+ * Вкладки страницы «Финансы» (решения владельца 06.11.2026). «Финансовый отчёт» и «Долги студентов» — подсказка права
+ * `finance.read.full` (область «вся организация» проверяет база при чтении); «Отчёт продаж» — тем, кто читает записи отчёта
+ * (`sales.register.read`) и админу. Просмотр роли не видит ни одной: страница отвечает «Нет доступа». Это подсказки
+ * показа; что именно прочитать и записать, решает база.
+ */
+export function staffCanFinanceTabHint(actor: ActivePlatformActor): boolean {
+  return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
+}
+export function staffCanSalesTab(actor: ActivePlatformActor): boolean {
+  // Та же проверка, что у `SalesTabView` (`sales.report.read`, админ проходит): вкладка без чтения записей была бы тупиком. Не `lead.read`
+  // и не `finance.read.full`: бухгалтер без права на записи видит только финансовые вкладки, поступление «Финансы» не получает (решение владельца 06.11.2026).
+  return !isStaffPreview(actor) && staffCan(actor, "sales.report.read");
+}
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
   // «Финансы» (решение владельца 26.10.2026 «Админы + бухгалтер»): настоящий Admin без просмотра роли или держатель
   // finance.read.full. Это подсказка раздела: область «вся организация» проверяет база (RPC отчёта) и сборка меню
   // (`readFinanceSectionAccess` в layout). Просмотр роли отказан первой же строкой, как у «Маркетинга».
-  if (route === "/finance") return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
+  if (route === "/finance") return staffCanFinanceTabHint(actor) || staffCanSalesTab(actor);
   if (route === "/knowledge" || route === "/marketing" || route === "/ui-kit") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");

@@ -144,7 +144,7 @@ export default async function SettingsPart({
         deletionOpen,
         gates,
         platform,
-        salesImportHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? "/main?view=sales&mode=import" : undefined,
+        salesImportHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? "/finance?tab=sales&mode=import" : undefined,
         salesManagersHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? salesManagersHref() : undefined,
         now: new Date(),
       })}

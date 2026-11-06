@@ -1356,7 +1356,7 @@ test("Sales and Admin mutate one canonical workflow while anonymous and Admissio
   // <dl>: «Из них квалифицированы» names the cohort; the trend legend and the
   // board funnel («Квалифицирован») are separate elements.
   await page.goto(
-    `/main?view=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
+    `/finance?tab=sales&period=custom&from=${cohortDate}&to=${cohortDate}`,
   );
   const periodFigures = page.locator("#sales-dynamics dl[data-period-figures]");
   await expect(periodFigures).toBeVisible();

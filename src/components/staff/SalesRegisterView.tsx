@@ -426,7 +426,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       if (value === null) next.delete(key);
       else next.set(key, value);
     }
-    return `/main?${next.toString()}`;
+    return `/finance?${next.toString()}`;
   };
   const periodHref = (nextYear: number, nextMonth: number | undefined) => filterHref({ year: String(nextYear), month: nextMonth ? String(nextMonth) : "all" });
   const rowHref = (row: SalesRegisterRow) => href({ record: row.id });
@@ -485,7 +485,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       </section> : null}
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 t-body-compact text-fg-2">
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
-        <Link href="/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
+        <Link href="/finance?tab=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
       </div> : <div className={sidePanelSplit(panelOpen, "mt-4")}>
         {/* Э8.6: суммы, строка инструментов и записи — одной колонкой рядом с панелью: открытая
             запись начинается вровень со сводкой и держится рядом при прокрутке. */}

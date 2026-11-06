@@ -59,12 +59,12 @@ test("rule D still hides the sales board from admissions roles; only WhatsApp jo
   for (const role of ["admissions", "admissions-manager"]) {
     const { model, every } = menu(staff(staffRoleKeys(role)));
     assert.deepEqual(model.groups.find((group) => group.id === "sales")?.links.map((link) => link.id),
-      ["requests", "inbox", "sales-report"], role);
+      ["requests", "inbox", "sales-dynamics"], role);
     assert.equal(every.some((link) => link.id === "pipeline"), false, `${role}: no sales board`);
   }
   for (const role of ["sales", "sales-manager"]) {
     assert.deepEqual(menu(staff(staffRoleKeys(role))).model.groups[0].links.map((link) => link.id),
-      ["requests", "pipeline", "inbox", "sales-report"], role);
+      ["requests", "pipeline", "inbox"], role);
   }
 });
 

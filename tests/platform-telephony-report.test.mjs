@@ -378,21 +378,23 @@ test("read: switched off, refused by the database, failed, foreign shape, wrong 
 // ------------------------------------------------------------ the page's wiring
 
 test("wiring: the block sits under «Динамика по дням», shares its period, and is closed without a right", () => {
-  const page = read("src/app/(staff)/main/page.tsx");
+  // С 06.11.2026 блок живёт во вкладке «Отчёт продаж» «Финансов» и под «Сегодня» (`SalesTabView`, `home="today"` для роли без записей отчёта).
+  const page = read("src/components/staff/sales-next/SalesTabView.tsx");
   assert.match(page, /canReadTelephonyReport\(actor\) \?/u, "the block exists only for a holder of a report right");
   assert.match(page, /readTelephonyReport\(actor, \{ from: period\.from, to: period\.to \}\)/u, "the same period as the dynamics section");
   assert.match(page, /const section = <>\{dynamicsSection\}\{callsSection\}<\/>;/u);
   assert.match(page, /<Suspense fallback=\{null\}>\s*<StreamedSalesCalls/u, "nothing flashes while it loads for a person whose telephony is off");
-  assert.match(page, /if \(!canReadReport\) return next \? <SalesDynamicsNextView dynamics=\{section\} \/> : <SalesDynamicsReport dynamics=\{section\} \/>;/u, "a manager without the register still sees the block");
-  assert.match(page, /return next \? <SalesRegisterNextView actor=\{actor\} query=\{query\} dynamics=\{section\} \/> : <SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>;/u);
-  assert.match(page, /formAction=\{`\/main#\$\{SALES_CALLS_ANCHOR\}`\}/u);
+  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} tabs=\{tabs\} \/>;/u, "a manager without the register still sees the block");
+  assert.match(page, /return <SalesRegisterNextView actor=\{actor\} query=\{query\} dynamics=\{section\} tabs=\{tabs\} \/>;/u);
+  assert.match(page, /formAction=\{`\$\{FORM_ADDRESS\(home\)\}#\$\{SALES_CALLS_ANCHOR\}`\}/u, "the period form returns to this block at the address the block lives at");
+  assert.match(page, /const FORM_ADDRESS = \(home: SalesDynamicsHome\) => \(home === "today" \? "\/main\?view=sales" : "\/finance\?tab=sales"\);/u);
   assert.equal(SALES_CALLS_ANCHOR, "sales-calls");
   assert.notEqual(SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR);
-  const query = { view: "sales", year: "2026", month: "9" };
-  assert.equal(salesDynamicsHref(query, { key: "week" }), `/main?view=sales&year=2026&month=9&period=week#${SALES_DYNAMICS_ANCHOR}`, "the dynamics link is unchanged");
-  assert.equal(salesDynamicsHref(query, { key: "week" }, SALES_CALLS_ANCHOR), "/main?view=sales&year=2026&month=9&period=week#sales-calls");
+  const query = { tab: "sales", year: "2026", month: "9" };
+  assert.equal(salesDynamicsHref(query, { key: "week" }), `/finance?tab=sales&year=2026&month=9&period=week#${SALES_DYNAMICS_ANCHOR}`, "the dynamics link is unchanged");
+  assert.equal(salesDynamicsHref(query, { key: "week" }, SALES_CALLS_ANCHOR), "/finance?tab=sales&year=2026&month=9&period=week#sales-calls");
   assert.equal(salesDynamicsHref(query, { key: "custom", from: "2026-09-01", to: "2026-09-26" }, SALES_CALLS_ANCHOR),
-    "/main?view=sales&year=2026&month=9&period=custom&from=2026-09-01&to=2026-09-26#sales-calls");
+    "/finance?tab=sales&year=2026&month=9&period=custom&from=2026-09-01&to=2026-09-26#sales-calls");
   const source = read("src/lib/v3/telephony-report-source.ts");
   assert.match(source, /rpc\("telephony_report_v1"/u);
   assert.doesNotMatch(source, /recording|phone/iu, "the reader names neither a recording nor a number");
@@ -485,7 +487,7 @@ test("rendered: an empty period, a long list, calls still within their time, a f
   const failed = block(pages.get("report-unavailable"));
   assert.match(failed, /role="alert"/u);
   assert.match(text(failed), /Не удалось загрузить звонки за выбранный период\. Повторить$/u);
-  assert.match(failed, /href="\/main\?view=sales&amp;period=custom&amp;from=2026-09-01&amp;to=2026-09-26#sales-calls"/u, "retry returns to this block with the same period");
+  assert.match(failed, /href="\/finance\?tab=sales&amp;period=custom&amp;from=2026-09-01&amp;to=2026-09-26#sales-calls"/u, "retry returns to this block with the same period");
   // Метка периода «30 дней» сама содержит «0»: ноль считается нулём, только если он не часть числа.
   assert.doesNotMatch(text(failed), /Вся команда|(?<!\d)0(?!\d)/u, "no zeros are drawn for a failed read");
 });
@@ -495,10 +497,10 @@ test("rendered: the block is closed until a period is chosen, shares the period 
   assert.match(block(pages.get("report-all")).slice(0, 80), /open=""/u);
   const html = block(pages.get("report-all"));
   assert.match(html, /<form [^>]*action="\/main#sales-calls" method="get"/u);
-  assert.match(html, /<input type="hidden" name="view" value="sales"\/>/u);
+  assert.match(html, /<input type="hidden" name="tab" value="sales"\/>/u);
   assert.match(html, /<input type="hidden" name="period" value="custom"\/>/u);
   assert.match(html, /<nav aria-label="Период"[^>]*>/u);
-  assert.match(html, /href="\/main\?view=sales&amp;period=week#sales-calls"/u, "the period links lead back to this block, not to the dynamics section");
+  assert.match(html, /href="\/finance\?tab=sales&amp;period=week#sales-calls"/u, "the period links lead back to this block, not to the dynamics section");
   for (const name of ["report-all", "report-own", "report-empty", "report-more", "report-pending", "report-unavailable"]) {
     assert.equal(solidRed(block(pages.get(name))), 0, `${name}: no solid red in the block`);
   }

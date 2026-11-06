@@ -42,7 +42,7 @@ function reportMonthLabel(reportMonth: string): string {
 }
 function reportHref(reportMonth: string, recordId: string): string {
   const [year, month] = reportMonth.split("-");
-  return `/main?view=sales&year=${year}&month=${Number(month)}&record=${recordId}`;
+  return `/finance?tab=sales&year=${year}&month=${Number(month)}&record=${recordId}`;
 }
 
 type Draft = Readonly<{

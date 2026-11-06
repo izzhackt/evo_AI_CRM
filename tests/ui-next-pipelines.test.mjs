@@ -1,5 +1,5 @@
 // «Новый вид» (решение владельца 27.10.2026), поток «pipelines»: «Воронка продаж» (`/pipeline`), «Воронка поступления»
-// (`/admissions-pipeline`) и «Отчёт продаж» (`/main?view=sales`). Проверяется то, что обещано: новый вид выбирает переключатель и
+// (`/admissions-pipeline`) и «Отчёт продаж» (`/finance?tab=sales`). Проверяется то, что обещано: новый вид выбирает переключатель и
 // только настоящий администратор; у сотрудника, в просмотре роли и у администратора без cookie — прежняя разметка байт в байт; чтения,
 // права, адреса, request_id и команды те же; числа и слова нового вида совпадают с прежним видом; перетаскивание — `@dnd-kit/core` с
 // теми же серверными действиями и тем же клавиатурным путём (меню «⋯»); экраны собраны из набора виджетов короткими файлами; первая
@@ -73,11 +73,28 @@ test("«Отчёт продаж»: новый вид у каждой роли, c
   assert.match(admin, /data-testid="v3-sales-report"/u);
   assert.match(admin, /data-slot="data-table"/u);
   assert.match(admin, /data-slot="stat-tile"/u);
-  for (const name of ["admin-no-cookie", "staff-cookie", "preview-cookie"]) {
+  for (const name of ["admin-no-cookie", "staff-cookie"]) {
     const html = report.get(name);
     assert.match(html, /data-slot="data-table"/u, `${name}: таблица набора`);
     assert.match(html, /data-testid="sales-report-toolbar"/u, `${name}: строка фильтров`);
   }
+  // Отчёт — вкладка «Финансов» (06.11.2026): страница «Финансы», ряд вкладок, продажник видит только «Отчёт продаж».
+  assert.match(admin, /<h1[^>]*>Финансы<\/h1>/u);
+  assert.match(admin, /aria-label="Разделы «Финансов»"/u);
+  for (const label of ["Отчёт продаж", "Финансовый отчёт", "Долги студентов"]) assert.match(admin, new RegExp(`>${label}<`, "u"), `администратор: вкладка «${label}»`);
+  const staff = report.get("staff-cookie");
+  assert.match(staff, />Отчёт продаж</u);
+  assert.doesNotMatch(staff, /Финансовый отчёт|Долги студентов|tab=finance|tab=debts/u, "продажник не видит ни финансовых вкладок, ни их адресов");
+  // Просмотр роли — «Нет доступа» (решение владельца 06.11.2026).
+  const preview = report.get("preview-cookie");
+  assert.match(preview, /data-testid="v3-finance-denied"/u);
+  assert.doesNotMatch(preview, /data-slot="data-table"|data-testid="sales-report-toolbar"/u);
+  // Колонки таблицы владельца и сводка по менеджерам за месяц.
+  for (const header of ["ФИО студента", "Страна", "Стоимость", "Дата подписания", "Оплачено", "Долг", "Университет", "Программа", "Интейк", "Статус", "Менеджер"]) {
+    assert.match(admin, new RegExp(`>${header}<`, "u"), `колонка «${header}»`);
+  }
+  assert.match(admin, /data-testid="sales-manager-summary"/u);
+  assert.match(admin, /data-summary-row="total"/u);
 });
 
 test("свойства ленивых входов — данные: страницы отдают их через границу сервер → клиент без функций и экземпляров классов", () => {
@@ -86,7 +103,7 @@ test("свойства ленивых входов — данные: стран�
   // Те же чтения, что у прежней страницы: доска получает данные и права, а не готовый вид; панель записи и форма плана — серверные части.
   for (const key of ["stages", "leads", "ownerOptions", "actor", "requestIds", "filteredStage", "today", "toolbar"]) assert.ok(boardProps["next-sales"].includes(key), `доска продаж: ${key}`);
   for (const key of ["rows", "tab", "query", "boardUnavailable", "truncated", "tabs", "toolbar"]) assert.ok(boardProps["next-admissions"].includes(key), `доска поступления: ${key}`);
-  for (const key of ["headline", "money", "table", "cash", "plan", "toolbar", "period", "dynamics"]) assert.ok(reportProps.report.includes(key), `отчёт: ${key}`);
+  for (const key of ["headline", "money", "table", "cash", "plan", "toolbar", "period", "dynamics", "tabs", "managers"]) assert.ok(reportProps.report.includes(key), `отчёт: ${key}`);
 });
 
 /* ---------------------------------------------------------------- «Воронка продаж»: те же лиды, срезы, фильтры и действия */
@@ -279,7 +296,9 @@ test("страницы всегда рисуют новый вид (#1327) — �
   const pipeline = read("src/app/(staff)/pipeline/page.tsx");
   const admissions = read("src/app/(staff)/admissions-pipeline/page.tsx");
   const main = read("src/app/(staff)/main/page.tsx");
-  for (const page of [pipeline, admissions, main]) {
+  const finance = read("src/app/(staff)/finance/page.tsx");
+  const salesTab = read("src/components/staff/sales-next/SalesTabView.tsx");
+  for (const page of [pipeline, admissions, main, finance]) {
     assert.doesNotMatch(page, /isNextUi/u);
     assert.doesNotMatch(page, /from "@\/components\/kit"|from "@\/components\/ui\/|from "@dnd-kit/u, "виджеты нового вида в первую загрузку страницы не входят");
   }
@@ -288,8 +307,9 @@ test("страницы всегда рисуют новый вид (#1327) — �
   assert.doesNotMatch(pipeline, /<PartShell/u, "прежнего вида на месте нет");
   assert.match(admissions, /return \(\s*<AdmissionsPipelineNextLazy/u);
   assert.doesNotMatch(admissions, /<PartShell/u);
-  for (const name of ["SalesImportNextView", "SalesManagersNextView", "SalesRegisterNextView", "SalesDynamicsNextView"]) assert.match(main, new RegExp(`<${name}`, "u"), name);
-  for (const name of ["SalesRegisterImportView", "SalesManagerLabelsView", "SalesRegisterView", "SalesDynamicsReport"]) assert.doesNotMatch(main, new RegExp(`<${name}`, "u"), `${name}: прежней ветки нет`);
+  for (const name of ["SalesImportNextView", "SalesManagersNextView", "SalesRegisterNextView", "SalesDynamicsNextView"]) assert.match(salesTab, new RegExp(`<${name}`, "u"), name);
+  assert.match(finance, /<SalesTabView /u, "«Отчёт продаж» — вкладка «Финансов»");
+  for (const name of ["SalesRegisterImportView", "SalesManagerLabelsView", "SalesRegisterView", "SalesDynamicsReport"]) assert.doesNotMatch(salesTab, new RegExp(`<${name}`, "u"), `${name}: прежней ветки нет`);
 });
 
 test("ленивые входы: «use client», `next/dynamic` и `.catch(onScreenLoadFailed)`; у маршрутов есть `loading.tsx` (граница Suspense над входом)", () => {

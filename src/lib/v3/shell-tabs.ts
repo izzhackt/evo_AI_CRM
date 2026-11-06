@@ -23,7 +23,7 @@ export const LINK_ICONS = {
   home: "sun",
   requests: "file-check",
   pipeline: "funnel",
-  "sales-report": "bar-chart",
+  "sales-dynamics": "bar-chart",
   "admissions-pipeline": "funnel",
   "admissions-worklist": "users",
   "evo-docs": "folder",
@@ -60,7 +60,7 @@ export const SHELL_TAB_SLOTS = 4;
 const SHORT_TAB_LABELS: Partial<Record<V3NavigationLinkId, string>> = {
   pipeline: "Воронка",
   "admissions-pipeline": "Воронка",
-  "sales-report": "Отчёт",
+  "sales-dynamics": "Динамика",
   "team-chat": "Чат",
   "reply-snippets": "Шаблоны",
 };

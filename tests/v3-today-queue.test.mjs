@@ -425,23 +425,33 @@ test("the empty-day action follows the role's sources, not lead.read alone; the 
   // Настоящая Admissions (lead.read по 173): «Открыть студентов», без воронки продаж.
   assert.deepEqual(linksOf({ permissionKeys: ADMISSIONS }), { mainAction: { label: "Открыть студентов", href: "/profile" } });
   assert.deepEqual(linksOf({ permissionKeys: SALES }, true), { mainAction: { label: "Открыть воронку продаж", href: "/pipeline" } });
-  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { mainAction: { label: "Открыть отчёт продаж", href: "/main?view=sales" } });
+  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { mainAction: { label: "Открыть отчёт продаж", href: "/finance?tab=sales" } });
   assert.deepEqual(linksOf({ permissionKeys: ["lead.read"] }), { mainAction: null });
 });
 
-test("«Отчёт продаж» stays reachable for lead readers without the report: menu item and a report of the section", () => {
-  const menu = (permissionKeys) => buildV3Navigation(actor({ permissionKeys }), "/main", new URLSearchParams("view=sales"));
-  const ids = (model) => model.groups.flatMap((group) => group.links.map((link) => link.id));
-  // До «Сегодня» Admissions (lead.read без sales.register.read) видела графики и воронку на Главной.
+test("a lead reader without report records gets no «Финансы»; her «Динамика по дням» stays under «Сегодня» (06.11.2026)", () => {
+  const menu = (permissionKeys, href = "/main", query = "view=sales") => buildV3Navigation(actor({ permissionKeys }), href, new URLSearchParams(query));
+  const sections = (model) => model.sections.map((link) => link.id);
+  const sales = (model) => model.groups.flatMap((group) => group.links.map((link) => link.id));
+  // До переезда Admissions (lead.read без sales.register.read) видела графики и воронку в «Отчёте продаж»; «Финансы» ей не открыты.
   const admissions = menu(ADMISSIONS);
-  assert.ok(ids(admissions).includes("sales-report"));
-  assert.equal(admissions.activeId, "sales-report");
-  assert.ok(ids(menu(["sales.register.read"])).includes("sales-report"), "report-only role keeps its item");
-  assert.ok(!ids(menu(["case.read.full", "profile.read.full"])).includes("sales-report"), "no lead and no report read — no item");
-  const page = readFileSync(new URL("../src/app/(staff)/main/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /if \(!canReadReport && !canReadSales\) redirect\("\/access-denied\?from=%2Fmain"\);/u);
-  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} \/>;/u);
-  assert.match(page, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
+  assert.deepEqual(sections(admissions), []);
+  assert.ok(sales(admissions).includes("sales-dynamics"));
+  assert.equal(admissions.activeId, "sales-dynamics");
+  // Читатель записей отчёта идёт во «Финансы» (вкладка «Отчёт продаж») и своего пункта «Динамика продаж» не имеет.
+  const reader = menu(["sales.register.read"], "/finance", "tab=sales");
+  assert.deepEqual(sections(reader), ["finance"]);
+  assert.ok(!sales(reader).includes("sales-dynamics"));
+  assert.ok(!sales(menu(["case.read.full", "profile.read.full"])).includes("sales-dynamics"), "no lead and no report read — no item");
+  assert.deepEqual(sections(menu(["case.read.full", "profile.read.full"])), []);
+  const view = readFileSync(new URL("../src/components/staff/sales-next/SalesTabView.tsx", import.meta.url), "utf8");
+  assert.match(view, /if \(!canReadReport && !canReadSales\) return <SalesDynamicsNextView dynamics=\{null\} tabs=\{tabs\} noAccess \/>;/u);
+  assert.match(view, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} tabs=\{tabs\} \/>;/u);
+  assert.match(view, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
+  assert.match(view, /home === "today" \? false/u, "under «Сегодня» the register is never drawn");
+  const main = readFileSync(new URL("../src/app/(staff)/main/page.tsx", import.meta.url), "utf8");
+  assert.match(main, /if \(query\.view === "sales" && staffCanSalesTab\(actor\)\) redirect\(salesReportRedirectHref\(query\)\);/u, "report readers are redirected");
+  assert.match(main, /if \(query\.view === "sales" && canReadSales\) return <SalesTabView actor=\{actor\} query=\{query\} home="today" \/>;/u, "the others keep the dynamics here");
 });
 
 function fakeReaders(overrides = {}) {
@@ -514,14 +524,14 @@ test("the report funnel uses the board definition: a handed-off lead is «Пер
 });
 
 test("«Динамика по дням» links keep the report period and filters and return to the section", () => {
-  const query = { view: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co", record: "x", returnTo: "https://untrusted.invalid/" };
-  assert.deepEqual(salesDynamicsCarry(query), { view: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co" });
+  const query = { tab: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co", record: "x", returnTo: "https://untrusted.invalid/" };
+  assert.deepEqual(salesDynamicsCarry(query), { tab: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co" });
   const week = new URL(salesDynamicsHref(query, { key: "week" }), "https://crm.test");
-  assert.equal(week.pathname, "/main");
+  assert.equal(week.pathname, "/finance");
   assert.equal(week.hash, "#sales-dynamics");
-  assert.deepEqual(Object.fromEntries(week.searchParams), { view: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co", period: "week" });
+  assert.deepEqual(Object.fromEntries(week.searchParams), { tab: "sales", year: "2026", month: "9", q: "Анна", manager: "Иван & Co", period: "week" });
   const custom = new URL(salesDynamicsHref({}, { key: "custom", from: "2026-09-01", to: "2026-09-10" }), "https://crm.test");
-  assert.deepEqual(Object.fromEntries(custom.searchParams), { view: "sales", period: "custom", from: "2026-09-01", to: "2026-09-10" });
+  assert.deepEqual(Object.fromEntries(custom.searchParams), { tab: "sales", period: "custom", from: "2026-09-01", to: "2026-09-10" });
 });
 
 test("the page date names the Bishkek day in words", () => {

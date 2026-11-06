@@ -140,11 +140,11 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   }), { status: "idle", requestId, recordId, leadId: null, submittedVersion: base.version } as SalesRegisterActionState & { submittedVersion: number });
   useEffect(() => {
     if (!recordId && state.status === "saved" && state.recordId && state.reportMonth) {
-      const params = new URLSearchParams({ view: "sales", year: state.reportMonth.slice(0, 4),
+      const params = new URLSearchParams({ tab: "sales", year: state.reportMonth.slice(0, 4),
         month: String(Number(state.reportMonth.slice(5, 7))), saved: state.recordId });
       // Дело студента открыла сама продажа: отчёт ведёт в него, а не только в карточку лида.
       if (state.studentCaseId) params.set("case", state.studentCaseId);
-      router.push(`/main?${params.toString()}#saved-sale`);
+      router.push(`/finance?${params.toString()}#saved-sale`);
     }
   }, [recordId, router, state.status, state.recordId, state.reportMonth, state.studentCaseId]);
   const status = state.submittedVersion === base.version ? state.status : "idle";

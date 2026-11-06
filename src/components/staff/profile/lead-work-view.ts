@@ -23,7 +23,7 @@ export const LEAD_GATE_ANCHOR = "handoff-confirm";
 
 /** Адрес формы «Добавить продажу» отчёта с уже выбранным лидом. */
 export function leadSaleHref(leadId: string): string {
-  return `/main?${new URLSearchParams({ view: "sales", new: "true", lead: leadId }).toString()}`;
+  return `/finance?${new URLSearchParams({ tab: "sales", new: "true", lead: leadId }).toString()}`;
 }
 
 export type LeadPrimaryAction =

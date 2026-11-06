@@ -264,7 +264,7 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     // without report records opens «Динамику по дням» there, the charts of the
     // former Главная.
     assert.deepEqual(ids(model).groups, [
-      ["sales", ["requests", "inbox", "sales-report"]],
+      ["sales", ["requests", "inbox", "sales-dynamics"]],
       ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
     ]);
     assert.equal(ids(model).common.includes("requests"), false, "«Заявки» left «Общее»");
@@ -283,7 +283,11 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     const requests = navigationFor(keys, "/requests");
     assert.equal(requests.activeId, "requests");
     assert.deepEqual(requests.groups.filter((group) => group.active).map((group) => group.id), ["sales"], "their page opens «Продажи»");
-    assert.equal(navigationFor(keys, "/main?view=sales").activeId, "sales-report");
+    // 06.11.2026: «Отчёт продаж» is a tab of «Финансы»; a lead reader without report records gets NO «Финансы» (owner rule) and keeps
+    // her «Динамика по дням» under «Сегодня» (`/main?view=sales`, item «Динамика продаж»).
+    assert.equal(navigationFor(keys, "/main?view=sales").activeId, "sales-dynamics");
+    assert.equal(model.sections.some((link) => link.id === "finance"), false, "no «Финансы» for a lead reader");
+    assert.equal(staffCanAccessRoute(staffActor(keys), "/finance"), false);
     // A lead card opened from a case highlights «Студенты», not a hidden board.
     assert.equal(navigationFor(keys, "/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
     // The capability behind the case page's lead data is unchanged: lead.read
@@ -296,7 +300,7 @@ for (const label of ["Sales Manager", "Sales"]) {
   test(`D: ${label} keeps «Заявки», the sales board, WhatsApp and report in «Продажи»`, () => {
     const keys = [...bundles[label], ...bundles["Sales common"]];
     const model = navigationFor(keys);
-    assert.deepEqual(ids(model).groups[0], ["sales", ["requests", "pipeline", "inbox", "sales-report"]]);
+    assert.deepEqual(ids(model).groups[0], ["sales", ["requests", "pipeline", "inbox"]]);
     assert.equal(ids(model).common.includes("requests"), false, "«Заявки» left «Общее»");
     assert.equal(ids(model).common[0], "tasks");
     // No case.read.full / profile.read.full: the student chat stays closed and
@@ -306,13 +310,16 @@ for (const label of ["Sales Manager", "Sales"]) {
     assert.equal(everyLink.some((link) => link.id === "messages"), false, "student chat");
     assert.equal(everyLink.filter((link) => link.id === "inbox").length, 1);
     assert.equal(model.groups[0].links.find((link) => link.id === "inbox")?.href, "/inbox");
+    // 06.11.2026: the sales report is a tab of «Финансы»; the salesperson gets the section (the finance tabs stay closed to them).
+    assert.deepEqual(model.sections.map((link) => link.id), ["finance"], `${label}: «Финансы» for the report tab`);
+    assert.equal(staffCanAccessRoute(staffActor(keys), "/finance"), true);
   });
 }
 
 test("D: the Admin keeps both groups with both conversation pages; «Заявки» lead «Продажи» as for every role; common roles without lead work see neither", () => {
   const admin = navigationFor([], "/main", "admin");
   assert.deepEqual(ids(admin).groups, [
-    ["sales", ["requests", "pipeline", "inbox", "sales-report"]],
+    ["sales", ["requests", "pipeline", "inbox"]],
     ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
   ]);
   assert.equal(ids(admin).common[0], "tasks");

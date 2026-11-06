@@ -145,7 +145,7 @@ export function todayLinks(actor: ActivePlatformActor, access: TodayAccess, opti
   const mainAction: TodayLink | null = sales ? { label: "Открыть воронку продаж", href: "/pipeline" }
     : access.sources.includes("students") ? { label: "Открыть студентов", href: "/profile" }
     : access.sources.includes("tasks") ? { label: "Все задачи", href: "/tasks" }
-    : options.canReadReport ? { label: "Открыть отчёт продаж", href: "/main?view=sales" }
+    : options.canReadReport ? { label: "Открыть отчёт продаж", href: "/finance?tab=sales" }
     : null;
   return Object.freeze({ mainAction });
 }

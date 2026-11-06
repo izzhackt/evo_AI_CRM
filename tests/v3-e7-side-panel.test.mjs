@@ -105,7 +105,7 @@ test("URL-addressable: each page keeps its own parameter, and closing drops only
   const cases = [
     ["«Студенты»", panelOf(students.get("admin-panel")), "/profile?view=active", "К студентам"],
     ["«Нагрузка кураторов»", panelOf(students.get("curators")), "/profile?view=curators", "К нагрузке"],
-    ["«Отчёт продаж»", panelOf(numbers.get("report-panel")), "/main?view=sales&year=2026&month=9", "К отчёту"],
+    ["«Отчёт продаж»", panelOf(numbers.get("report-panel")), "/finance?tab=sales&year=2026&month=9", "К отчёту"],
   ];
   for (const [name, panel, closeHref, back] of cases) {
     assert.ok(panel, `${name}: the address opens the panel on the server`);
@@ -120,8 +120,8 @@ test("URL-addressable: each page keeps its own parameter, and closing drops only
   assert.match(students.get("admin-panel"), /href="\/profile\?view=active&amp;open=cccccccc-2222-4222-8222-000000000003"/u);
   assert.match(students.get("curators"), /href="\/profile\?view=curators&amp;coverage_curator=[^"]+#curator-coverage"/u);
   // «Отчёт продаж»: строка открывает запись просмотром (Э8.6), правка — `&edit=true` из «Исправить запись».
-  assert.match(numbers.get("report-panel"), /href="\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001"/u);
-  assert.match(numbers.get("report-panel"), /data-testid="sales-record-edit" href="\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true"/u);
+  assert.match(numbers.get("report-panel"), /href="\/finance\?tab=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000001"/u);
+  assert.match(numbers.get("report-panel"), /data-testid="sales-record-edit" href="\/finance\?tab=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true"/u);
   assert.match(read("src/components/staff/Pipeline.tsx"), /window\.history\.pushState\(null, "", href\)/u, "the board keeps ?lead= client-side");
   // Переход из «Сегодня» — те же адреса панелей.
   const today = read("src/lib/v3/today-queue.ts");

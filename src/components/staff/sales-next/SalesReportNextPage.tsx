@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 
 import { SalesCashCard } from "./SalesCashCard";
 import { SalesHeadlineTiles } from "./SalesHeadlineTiles";
+import { SalesManagerSummaryCard } from "./SalesManagerSummaryCard";
 import { SalesMoneyCard } from "./SalesMoneyCard";
 import { SalesPlanCard } from "./SalesPlanCard";
 import { SalesRecordsTable, type SalesSheetContent } from "./SalesRecordsTable";
-import type { SalesCashData, SalesHeadlineData, SalesMoneyData, SalesRowData, SalesSavedData } from "./sales-next-types";
+import type { SalesCashData, SalesHeadlineData, SalesManagerSummaryData, SalesMoneyData, SalesRowData, SalesSavedData } from "./sales-next-types";
 
 type Link_ = Readonly<{ href: string; label: string }>;
 
@@ -32,6 +33,10 @@ export type SalesReportNextProps = Readonly<{
   cash: SalesCashData | null;
   plan: Readonly<{ target: number | null; read: boolean; form: React.ReactNode | null; importHref: string | null; unavailable: boolean }> | null;
   dynamics: React.ReactNode;
+  /** Ряд вкладок «Финансов»: отчёт живёт вкладкой страницы, и её заголовок — «Финансы». */
+  tabs?: React.ReactNode;
+  /** «Продажи по менеджерам» за выбранный месяц; null — сводки нет (год целиком, архив, слишком много записей). */
+  managers?: Readonly<{ data: SalesManagerSummaryData | null; caption: string; note: string | null }> | null;
 }>;
 
 /**
@@ -39,11 +44,12 @@ export type SalesReportNextProps = Readonly<{
  * суммы по валютам, таблица записей с панелью, поступления за месяц, «Динамика по дням» и «Звонки» (прежние серверные части) и план месяца.
  * Показывается через `SalesReportNextLazy`; чтения, права, адреса и команды — те же, что у прежнего вида.
  */
-export function SalesReportNextPage({ period, addHref, alerts, headline, saved, failure, money, archive, toolbar, variantNote, slice, table, pagination, cash, plan, dynamics }: SalesReportNextProps) {
+export function SalesReportNextPage({ period, addHref, alerts, headline, saved, failure, money, archive, toolbar, variantNote, slice, table, pagination, cash, plan, dynamics, tabs, managers }: SalesReportNextProps) {
   return (
     <PageShell
-      title="Отчёт продаж"
+      title={tabs ? "Финансы" : "Отчёт продаж"}
       testId="v3-sales-report"
+      tabs={tabs}
       actions={<>{period}{addHref ? <Button asChild><Link href={addHref}>Добавить продажу</Link></Button> : null}</>}
     >
       {alerts.map((alert) => <p key={alert.text} role={alert.role} className="t-body-compact text-fg-2">{alert.text}</p>)}
@@ -59,6 +65,8 @@ export function SalesReportNextPage({ period, addHref, alerts, headline, saved, 
           <EmptyState tone="danger" title={failure.text} action={<Button variant="outline" asChild><Link href={failure.link.href}>{failure.link.label}</Link></Button>} />
         </div>
       ) : null}
+      {managers ? <SalesManagerSummaryCard data={managers.data} caption={managers.caption} /> : null}
+      {managers?.note ? <p className="t-meta text-fg-2" data-testid="sales-manager-summary-note">{managers.note}</p> : null}
       <SalesMoneyCard data={money} archive={archive} />
       {variantNote ? <p className="t-meta text-fg-2" data-testid="sales-variant-note">Фильтр направления точный: показаны записи с выбранным написанием. Другие написания — в том же меню; сведение к списку направлений — отдельный шаг.</p> : null}
       {slice ? (
@@ -87,12 +95,13 @@ export function SalesReportNextPage({ period, addHref, alerts, headline, saved, 
 }
 
 /** Рамка вложенных страниц отчёта («Перенос данных», «Менеджеры в отчёте», отчёт роли без записей): возврат к отчёту и прежнее содержимое. */
-export function SalesFrameNextPage({ title, back, help, children }: Readonly<{ title: string; back: Link_ | null; help?: React.ReactNode; children: React.ReactNode }>) {
+export function SalesFrameNextPage({ title, back, help, tabs, children }: Readonly<{ title: string; back: Link_ | null; help?: React.ReactNode; tabs?: React.ReactNode; children: React.ReactNode }>) {
   return (
     <PageShell
       title={title}
       testId="v3-sales-frame"
       help={help}
+      tabs={tabs}
       actions={back ? <Button variant="outline" asChild><Link href={back.href}>{back.label}</Link></Button> : undefined}
     >
       {children}

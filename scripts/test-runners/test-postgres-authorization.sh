@@ -5016,6 +5016,34 @@ SQL
       exit 1
     fi
   fi
+  # «Анкета приглашённого студента видна в деле» (migration 334, решение владельца 03.11.2026). Matched by name, not number.
+  # Anchored replace of one read: right after it a second apply refuses (a334_already_applied), then the suite, insisting on
+  # its marker. The suite proves: the invite case (no public_application_id) returns the invited Student's анкета pending and
+  # after approval into that case; the ordinary public_application_id path is unchanged; no анкета is NULL; a Student and an
+  # unknown case are refused 42501; the posture (STABLE, SECURITY DEFINER, search_path '', authenticated only) is unchanged.
+  if [[ "$(basename "$migration")" == *_platform_invited_case_application_read.sql ]]; then
+    t334_again_log="$(mktemp -t evo-t334-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t334_again_log" 2>&1; then
+      echo "migration 334 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a334_already_applied" "$t334_again_log"; then
+      echo "a second apply of migration 334 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t334_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t334_again_log"
+    invited_case_application_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_invited_case_application_read.sql </dev/null)"
+    printf '%s\n' "$invited_case_application_log"
+    if ! grep -q 'A334_INVITED_CASE_APPLICATION_READ_SUITE_PASSED' <<<"$invited_case_application_log"; then
+      echo "platform_invited_case_application_read.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

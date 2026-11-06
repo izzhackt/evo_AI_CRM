@@ -5041,6 +5041,9 @@ SQL
     printf '%s\n' "$invited_case_application_log"
     if ! grep -q 'A334_INVITED_CASE_APPLICATION_READ_SUITE_PASSED' <<<"$invited_case_application_log"; then
       echo "platform_invited_case_application_read.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Куратор страны подставляется в продаже сам» (migration 335, решение владельца 06.11.2026). Matched by name, not number.
   # Additive: a closed table, three functions, the journal action country.curator.change (rename-and-union). Right after it:
   # a second apply refuses (a335_already_applied), then the suite, insisting on its marker. The suite proves: why the setting is
@@ -5060,8 +5063,7 @@ SQL
     fi
     rm -f "$t335_again_log"
     country_curator_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_sales_intake_country_curator.sql </dev/null)"
-    printf '%s
-' "$country_curator_log"
+    printf '%s\n' "$country_curator_log"
     if ! grep -q 'A335_SALES_INTAKE_COUNTRY_CURATOR_SUITE_PASSED' <<<"$country_curator_log"; then
       echo "platform_sales_intake_country_curator.sql did not reach its PASSED marker" >&2
       exit 1

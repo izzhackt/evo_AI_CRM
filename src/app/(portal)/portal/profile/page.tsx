@@ -6,6 +6,7 @@ import { ConsultationRequest } from "@/components/portal/consultation/Consultati
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { LanguageSwitch } from "@/components/portal/LanguageSwitch";
 import { ProfileHero } from "@/components/portal/profile/ProfileHero";
+import { PasswordChangeForm } from "@/components/portal/profile/PasswordChangeForm";
 import { ProfileIcon } from "@/components/portal/profile/ProfileIcon";
 import { stageLabel } from "@/components/portal/admission/OverviewView";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
@@ -226,6 +227,14 @@ export default async function ProfilePage() {
                 )}
               </section>
             )}
+
+            <section aria-labelledby="portal-profile-password" className="pt-profile-card">
+              <h2 id="portal-profile-password" className="pt-section-title">
+                <ProfileIcon name="security" />
+                {strings.passwordHeading}
+              </h2>
+              <PasswordChangeForm strings={strings} />
+            </section>
 
             <section aria-labelledby="portal-profile-deletion" className="pt-profile-card">
               <h2 id="portal-profile-deletion" className="pt-section-title">

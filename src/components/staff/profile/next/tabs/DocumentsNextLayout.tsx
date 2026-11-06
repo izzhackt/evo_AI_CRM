@@ -24,7 +24,10 @@ export function DocumentsNextLayout({
   groups,
   recognition,
   history,
+  sorting = null,
 }: Readonly<{
+  /** Разбор файлов из amoCRM: карточка над чек-листом. */
+  sorting?: ReactNode;
   progress: ReactNode;
   addToggle: ReactNode;
   uploadHint: string | null;
@@ -40,6 +43,7 @@ export function DocumentsNextLayout({
   return (
     <section aria-labelledby="case-documents-title" className="grid min-w-0 grid-cols-1 gap-4" data-testid="v3-case-documents">
       <h2 id="case-documents-title" className="sr-only">Документы дела</h2>
+      {sorting ? <div className={`${CARD_FRAME} px-5`} data-testid="v3-documents-sorting">{sorting}</div> : null}
       <div className={CARD_FRAME} data-testid="v3-documents-checklist">
         <div className={CARD_HEADER}>
           <div className="flex min-w-0 items-center gap-1.5">

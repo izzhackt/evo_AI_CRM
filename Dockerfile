@@ -127,6 +127,9 @@ COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/scripts/import/waha-
 # Dependency-free (node: built-ins only), so it is copied as is, not bundled.
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/scripts/maintenance/waha-runtime-binding.mjs ./scripts/waha-runtime-binding.mjs
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/document-recognition-worker.mjs ./document-recognition-worker.mjs
+# Operator batch (migration 333): sorts amoCRM-imported files into checklist kinds; run by hand as
+# `docker exec evo-crm-app-1 node /app/document-classification-batch.mjs --organization-id <uuid> [--dry-run]`.
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/document-classification-batch.mjs ./document-classification-batch.mjs
 COPY --from=document-source-runtime --chown=0:0 /opt/evo-document-runtime/ /opt/evo-document-runtime/
 COPY --from=university-template-runtime --chown=0:0 /opt/evo-university-template-runtime/ /opt/evo-university-template-runtime/
 

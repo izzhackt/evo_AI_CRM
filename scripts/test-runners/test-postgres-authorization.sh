@@ -4986,6 +4986,36 @@ SQL
       exit 1
     fi
   fi
+  # «ИИ раскладывает файлы из amoCRM по чек-листу» (migration 333, решение владельца 06.11.2026). Matched by name, not number.
+  # Additive migration: two closed tables, four service functions, two staff functions, nothing replaced. Right after it: a
+  # second apply refuses (a333_already_applied), then the suite, insisting on its marker. The suite proves: the posture; the dry-run
+  # plan by the 320 consent rule (no portal / allowed take the AI path, declined / undecided the manual path, the strict flag);
+  # the candidate set and its limits; consent re-checked at write time; idempotent record (a repeat never overwrites a result,
+  # failures retried up to three times); the staff read hidden without consent; the curator decision stored apart from the
+  # suggestion (accepted / corrected / chosen without a suggestion), replay and conflict; append-only guards; the shared budget.
+  if [[ "$(basename "$migration")" == *_platform_document_classification.sql ]]; then
+    t333_again_log="$(mktemp -t evo-t333-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t333_again_log" 2>&1; then
+      echo "migration 333 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a333_already_applied" "$t333_again_log"; then
+      echo "a second apply of migration 333 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t333_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t333_again_log"
+    document_classification_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_document_classification.sql </dev/null)"
+    printf '%s\n' "$document_classification_log"
+    if ! grep -q 'A333_DOCUMENT_CLASSIFICATION_SUITE_PASSED' <<<"$document_classification_log"; then
+      echo "platform_document_classification.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

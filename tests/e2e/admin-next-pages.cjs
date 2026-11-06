@@ -9,12 +9,12 @@
  *
  *   node tests/e2e/admin-next-pages.cjs --json
  *     → stdout: JSON [{ name, html | rejected }] — разметка страницы без оболочки (для tests/ui-next-admin.test.mjs).
- *       Свойства ленивых входов нового вида проверяются на сериализацию (`assertFlightProps`): не сериализуются — бросает.
+ *       Свойства ленивых входов нового вида проверяются на сериализацию (`assertFlightPropsExpanded`: серверные компоненты внутри свойств раскрываются, границу пересекает их результат): не сериализуются — бросает.
  */
 const env = require("./admin-next-env.cjs");
 require("./next-dynamic-alias.cjs");
 const { renderToStaticMarkup } = require("react-dom/server");
-const { assertFlightProps } = require("./flight-props.cjs");
+const { assertFlightPropsExpanded } = require("./flight-props-expand.cjs");
 const fx = require("./admin-next-fixtures.cjs");
 const aiFx = require("./admin-next-ai-fixtures.cjs");
 const { ROOT, join } = env;
@@ -156,9 +156,10 @@ const SCREENS = [
   ["marketing-overview", "marketing", {}, {}],
   ["marketing-leads", "marketing", { view: "leads" }, {}],
   ["marketing-reports", "marketing", { view: "reports" }, {}],
-  ["finance", "finance", {}, { finance: "configured" }],
-  ["finance-empty", "finance", {}, { finance: "empty" }],
-  ["finance-denied", "finance", {}, { finance: "denied" }],
+  // С 06.11.2026 первая вкладка «Финансов» — «Отчёт продаж»: финансовый отчёт открывает `?tab=finance`.
+  ["finance", "finance", { tab: "finance" }, { finance: "configured" }],
+  ["finance-empty", "finance", { tab: "finance" }, { finance: "empty" }],
+  ["finance-denied", "finance", { tab: "finance" }, { finance: "denied" }],
   ["ai-documents", "ai-agent", {}, {}],
   ["ai-viewer", "ai-agent", { document: aiFx.SCAN, page: "2" }, {}],
   ["ai-review", "ai-agent", { section: "review" }, {}],
@@ -186,7 +187,7 @@ async function renderAll(modes) {
           try {
             const element = await page(route)({ searchParams: Promise.resolve(query) });
             const resolved = await resolveServer(element);
-            if (actor.systemRole === "admin" && !actor.presentationRole) assertFlightProps(resolved.props, `${label}: ленивый вход`);
+            if (actor.systemRole === "admin" && !actor.presentationRole) await assertFlightPropsExpanded(resolved.props, `${label}: ленивый вход`);
             out.push({ name: label, html: await settle(withContexts(resolved, pathOf(route), new URLSearchParams(query).toString())) });
           } catch (error) {
             const text = String(error?.digest ?? error?.message ?? error);
@@ -214,7 +215,7 @@ async function capture() {
       uuidCounter = 0;
       const element = await page(route)({ searchParams: Promise.resolve(query) });
       const resolved = await resolveServer(element);
-      assertFlightProps(resolved.props, `${name}: ленивый вход`);
+      await assertFlightPropsExpanded(resolved.props, `${name}: ленивый вход`);
       next.set(name, { route, props: JSON.parse(JSON.stringify(resolved.props)), search: new URLSearchParams(query).toString() });
     }
   });

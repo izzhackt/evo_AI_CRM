@@ -254,9 +254,11 @@ test("«Финансы»: окно и адрес те же; нет ссылки 
   assert.match(html("finance-empty:admin-cookie"), /href="\/settings\?section=reports"[^>]*>(?:<[^>]+>)*Добавить ссылку/u);
   assert.doesNotMatch(empty, /\d/u, "нет данных — нет цифр");
   const denied = html("finance-denied:admin-cookie");
-  assert.match(denied, /data-testid="v3-finance-denied"/u);
+  // База отказала администратору в финансах (06.11.2026): финансовых вкладок нет, `?tab=finance` открывает «Отчёт продаж»; экран
+  // «Нет доступа к отчёту «Финансы»» остаётся тому, у кого нет ни одной вкладки (`tests/finance-tabs.test.mjs`).
   assert.doesNotMatch(denied, /iframe|lookerstudio/u, "без окна и адреса");
-  assert.match(text(denied), /Нет доступа к отчёту «Финансы»/u);
+  assert.doesNotMatch(text(denied), /Финансовый отчёт|Долги студентов/u, "ни вкладки, ни ссылки на закрытый отчёт");
+  assert.doesNotMatch(denied, /tab=finance|tab=debts/u);
 });
 
 /* ------------------------------------------------------------------------------------------ «ИИ-агент» */
@@ -354,7 +356,17 @@ test("входы нового вида ленивые, с заглушкой п�
     assert.match(page, new RegExp(`<${name}\\b`, "u"), `${route}: страница рисует ${name}`);
     assert.doesNotMatch(page, /isNextUi/u, `${route}: выбора вида нет — новый вид единственный`);
     const imports = [...page.matchAll(/^import .* from "(@\/components\/staff\/[^"]+)";$/gmu)].map((match) => match[1]);
-    for (const path of imports.filter((value) => /-next\//u.test(value))) assert.match(path, /Lazy$|-types$/u, `${route}: ${path} — только ленивый вход и типы`);
+    // Исключение (06.11.2026, «Финансы» с вкладками): серверные части страницы — ряд вкладок и вкладка «Отчёт продаж». Они не входят в клиентскую
+    // сборку: у них нет `"use client"`, а тяжёлый кусок они отдают тем же ленивым входам (`SalesNextLazy`). Любой другой модуль нового вида — только ленивый вход и типы.
+    const SERVER_PARTS = new Set(["@/components/staff/finance-next/FinanceTabs", "@/components/staff/sales-next/SalesTabView"]);
+    for (const path of imports.filter((value) => /-next\//u.test(value))) {
+      if (SERVER_PARTS.has(path)) {
+        assert.equal(route, "finance", `${route}: серверные части вкладок только у «Финансов»`);
+        assert.doesNotMatch(read(`${path.replace("@/", "src/")}.tsx`), /^["']use client["']/mu, `${path}: серверная часть, не клиентская`);
+        continue;
+      }
+      assert.match(path, /Lazy$|-types$/u, `${route}: ${path} — только ленивый вход и типы`);
+    }
   }
   for (const file of ["settings-next/SettingsNextLazy", "marketing-next/MarketingNextLazy", "finance-next/FinanceNextLazy", "ai-agent-next/AiAgentNextLazy"]) {
     const entry = read(`src/components/staff/${file}.tsx`);

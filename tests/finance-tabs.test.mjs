@@ -53,7 +53,9 @@ const CASE_A = "32000000-0000-4000-8000-00000000000a";
 const CASE_B = "32000000-0000-4000-8000-00000000000b";
 const base = { organizationId: ORG, presentationRole: null, platformAccessVersion: 1, assignments: [] };
 const admin = { ...base, systemRole: "admin", permissionKeys: [] };
+// Бухгалтер только с finance.read.full: финансовые вкладки есть, «Отчёта продаж» нет (права на записи нет). Бухгалтер с чтением записей — оба.
 const accountant = { ...base, systemRole: "staff", permissionKeys: ["finance.read.full"] };
+const accountantWithRegister = { ...base, systemRole: "staff", permissionKeys: ["finance.read.full", "sales.register.read"] };
 const salesperson = { ...base, systemRole: "staff", permissionKeys: ["lead.read", "lead.sales.workflow.manage", "sales.register.read", "sales.register.manage", "finance.read.summary"] };
 const admissionsLead = { ...base, systemRole: "staff", permissionKeys: ["lead.read", "case.read.full", "knowledge.read.approved"] };
 const nobody = { ...base, systemRole: "staff", permissionKeys: ["knowledge.read.approved"] };
@@ -87,8 +89,8 @@ test("a salesperson sees only «Отчёт продаж»: no finance tab, no fi
   }
 });
 
-test("the accountant and the Admin see all three tabs, the default is the first («Отчёт продаж»), the others open on their address", async () => {
-  for (const actor of [accountant, admin]) {
+test("the Admin and an accountant who reads the register see all three tabs, the default is the first («Отчёт продаж»), the others open on their address", async () => {
+  for (const actor of [accountantWithRegister, admin]) {
     const first = await financePage(actor, null);
     assert.equal(first.sales, true);
     assert.deepEqual(labels(first.tabs), ["Отчёт продаж", "Финансовый отчёт", "Долги студентов"]);
@@ -103,9 +105,26 @@ test("the accountant and the Admin see all three tabs, the default is the first 
   }
 });
 
-test("a holder of finance.read.full whose scope the database refuses (own, direction, ...) keeps only «Отчёт продаж»", async () => {
+test("an accountant with only finance.read.full sees only the finance tabs and lands on «Финансовый отчёт», never on a dead end", async () => {
+  for (const tab of [null, "sales", "unknown"]) {
+    const page = await financePage(accountant, tab);
+    assert.equal(page.sales, false, `tab=${tab}: no sales tab, no «Нет доступа к отчёту продаж»`);
+    assert.deepEqual(labels(page.tabs), ["Финансовый отчёт", "Долги студентов"], `tab=${tab}`);
+    assert.match(page.html, /aria-current="page"[^>]*>Финансовый отчёт</u, `tab=${tab}: the default is the first usable tab`);
+    assert.match(page.html, /Отчёт ещё не подключён\./u, `tab=${tab}`);
+    assert.doesNotMatch(page.tabs, /tab=sales|Отчёт продаж/u);
+  }
+  const debts = await financePage(accountant, "debts", { debts: { status: "available", debts: { rows: [], totals: [], caseRowCount: 0, truncated: false } } });
+  assert.match(debts.html, /Долгов нет\./u);
+});
+
+test("a holder of finance.read.full whose scope the database refuses (own, direction, ...) keeps only «Отчёт продаж» if she reads the register, otherwise nothing: no menu item, «Нет доступа»", async () => {
+  const noTabs = await financePage(accountant, null, { financeRead: { status: "denied" } });
+  assert.equal(noTabs.sales, false);
+  assert.match(noTabs.html, /data-testid="v3-finance-denied"/u);
+  assert.equal(noTabs.element.props.tabs, null);
   for (const tab of ["finance", "debts"]) {
-    const page = await financePage(accountant, tab, { financeRead: { status: "denied" } });
+    const page = await financePage(accountantWithRegister, tab, { financeRead: { status: "denied" } });
     assert.equal(page.sales, true);
     assert.deepEqual(labels(page.tabs), ["Отчёт продаж"]);
     assert.deepEqual(page.debtReads, []);
@@ -124,7 +143,8 @@ test("role preview and roles without sales or finance rights get «Нет дос
   assert.equal(staffCanFinanceTabHint(salesperson), false, "finance.read.summary / finance.manage do not open the finance tabs");
   assert.equal(staffCanSalesTab(salesperson), true);
   assert.equal(staffCanFinanceTabHint(accountant), true);
-  assert.equal(staffCanSalesTab(accountant), true, "the accountant also reads the sales report");
+  assert.equal(staffCanSalesTab(accountant), false, "finance.read.full alone does not open the sales report tab (it would be a dead end)");
+  assert.equal(staffCanSalesTab(accountantWithRegister), true);
   assert.match(read("src/lib/platform-guards.ts"), /redirect\(`\/access-denied\?from=\$\{encodeURIComponent\(route\)\}`\)/u);
   // Старый адрес: тот же отчёт во вкладке «Финансов», параметры (период, фильтры, запись, форма) сохраняются, `view` заменяется на `tab`.
   assert.equal(salesReportRedirectHref({ view: "sales" }), "/finance?tab=sales");
@@ -134,7 +154,7 @@ test("role preview and roles without sales or finance rights get «Нет дос
 });
 
 test("the debts answer is parsed strictly: exact keys, debt = cost - paid > 0, totals per currency, no unknown shapes", () => {
-  const row = (extra = {}) => ({ case_id: CASE_A, student_name: "Тестовый Студент А", country: "Китай", direction: "Инженерия", curator: "Куратор Т.", currency: "USD", cost_minor: 500000, paid_minor: 200000, debt_minor: 300000, ...extra });
+  const row = (extra = {}) => ({ case_id: CASE_A, student_name: "Тестовый Студент А", country: "Китай", direction: "Инженерия", curator: "Куратор Т.", currency: "USD", cost_minor: 500000, paid_minor: 200000, debt_minor: 300000, has_other_currency_payments: false, ...extra });
   const answer = (extra = {}) => ({ schema_version: 1, organization_id: ORG, rows: [row(), row({ case_id: CASE_B, currency: "KGS", cost_minor: 100, paid_minor: 40, debt_minor: 60, curator: null, direction: null })],
     totals: [{ currency: "KGS", cost_minor: 100, paid_minor: 40, debt_minor: 60, case_count: 1 }, { currency: "USD", cost_minor: 500000, paid_minor: 200000, debt_minor: 300000, case_count: 1 }], case_row_count: 2, truncated: false, ...extra });
   const parsed = parseStudentDebts(answer(), ORG);
@@ -142,7 +162,7 @@ test("the debts answer is parsed strictly: exact keys, debt = cost - paid > 0, t
   assert.equal(parsed.rows[1].curator, null);
   assert.deepEqual(parsed.totals.map((total) => total.currency), ["KGS", "USD"], "per currency, never summed together");
   for (const bad of [answer({ organization_id: "10000000-0000-4000-8000-0000000000ff" }), answer({ schema_version: 2 }), answer({ extra: 1 }), answer({ rows: [row({ debt_minor: 0, paid_minor: 500000 })] }),
-    answer({ rows: [row({ debt_minor: 1 })] }), answer({ rows: [row({ currency: "usd" })] }), answer({ rows: [row({ case_id: "nope" })] }), answer({ truncated: true }),
+    answer({ rows: [row({ debt_minor: 1 })] }), answer({ rows: [row({ currency: "usd" })] }), answer({ rows: [row({ has_other_currency_payments: "no" })] }), answer({ rows: [{ ...row(), has_other_currency_payments: undefined }] }), answer({ rows: [row({ case_id: "nope" })] }), answer({ truncated: true }),
     answer({ totals: [{ currency: "USD", cost_minor: 1, paid_minor: 0, debt_minor: 1, case_count: 1 }, { currency: "USD", cost_minor: 1, paid_minor: 0, debt_minor: 1, case_count: 1 }] }), null, [], "x"]) {
     assert.throws(() => parseStudentDebts(bad, ORG));
   }
@@ -176,12 +196,15 @@ test("«Долги студентов»: rows with the link to the case, totals 
   const load = loader({});
   const { StudentDebtsNext } = load("src/components/staff/finance-next/StudentDebtsNext.tsx");
   const debts = { rows: [
-    { caseId: CASE_A, studentName: "Тестовый Студент А", country: "Китай", direction: "Инженерия", curator: "Куратор Т.", currency: "USD", costMinor: 500000, paidMinor: 200000, debtMinor: 300000 },
-    { caseId: CASE_B, studentName: "Тестовый Студент Б", country: "Малайзия", direction: null, curator: null, currency: "KGS", costMinor: 100000, paidMinor: 40000, debtMinor: 60000 }],
+    { caseId: CASE_A, studentName: "Тестовый Студент А", country: "Китай", direction: "Инженерия", curator: "Куратор Т.", currency: "USD", costMinor: 500000, paidMinor: 200000, debtMinor: 300000, hasOtherCurrencyPayments: true },
+    { caseId: CASE_B, studentName: "Тестовый Студент Б", country: "Малайзия", direction: null, curator: null, currency: "KGS", costMinor: 100000, paidMinor: 40000, debtMinor: 60000, hasOtherCurrencyPayments: false }],
   totals: [{ currency: "KGS", costMinor: 100000, paidMinor: 40000, debtMinor: 60000, caseCount: 1 }, { currency: "USD", costMinor: 500000, paidMinor: 200000, debtMinor: 300000, caseCount: 1 }], caseRowCount: 2, truncated: false };
   const html = renderToStaticMarkup(createElement(StudentDebtsNext, { read: { status: "available", debts } }));
   assert.match(html, new RegExp(`href="/profile\\?case=${CASE_A}"`, "u"));
   assert.match(html, /data-testid="student-debts-totals"/u);
+  assert.equal([...html.matchAll(/data-debt-other-currency=""/gu)].length, 2, "only the flagged row carries the hint (once in the table, once in its phone card)");
+  assert.match(html, /есть оплаты в другой валюте/u);
+  assert.match(html, /data-testid="student-debts-rule"[^>]*>Долг = стоимость договора минус оплачено\. Считаются только договорные взносы EVO/u, "the rule in plain Russian");
   assert.match(html, /3\s?000 USD/u);
   assert.match(html, /600 KGS/u);
   assert.doesNotMatch(html, /<th[^>]*>\s*Итого\b/u);
@@ -232,7 +255,7 @@ test("admissions staff with only lead.read never get «Финансы»; their �
   assert.equal(staffCanAccessRoute(admissionsLead, "/finance"), false, "the route says «Нет доступа»");
   assert.equal(staffCanAccessRoute(admissionsLead, "/main"), true);
   assert.equal(staffCanSalesTab(admin), true);
-  assert.equal(staffCanSalesTab(accountant), true);
+  assert.equal(staffCanSalesTab(accountantWithRegister), true);
   assert.equal(staffCanSalesTab(salesperson), true);
   assert.deepEqual(salesDynamicsCarry({ year: "2026" }, "today"), { view: "sales", year: "2026" });
   assert.equal(salesDynamicsHref({}, { key: "week" }, "sales-dynamics", "today"), "/main?view=sales&period=week#sales-dynamics");

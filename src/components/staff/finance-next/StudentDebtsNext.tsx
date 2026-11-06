@@ -19,7 +19,12 @@ function buildColumns(): DataTableColumn<StudentDebtRow>[] {
   return [
     {
       id: "student", header: "Студент", accessorFn: (row) => row.studentName, meta: { mobile: "title", opensRow: true }, enableHiding: false,
-      cell: ({ row }) => <Link href={caseHref(row.original.caseId)} className="block max-w-56 truncate underline-offset-4 hover:underline" title={row.original.studentName}>{row.original.studentName}</Link>,
+      cell: ({ row }) => (
+        <span className="grid min-w-0 max-w-56 gap-0.5">
+          <Link href={caseHref(row.original.caseId)} className="block truncate underline-offset-4 hover:underline" title={row.original.studentName}>{row.original.studentName}</Link>
+          {row.original.hasOtherCurrencyPayments ? <span className="block truncate t-meta text-fg-2" data-debt-other-currency="" title="Эти оплаты в долг этой строки не вычитаются">есть оплаты в другой валюте</span> : null}
+        </span>
+      ),
     },
     money("debt", "Долг", (row) => row.debtMinor, true),
     money("cost", "Стоимость договора", (row) => row.costMinor),
@@ -36,6 +41,9 @@ function buildColumns(): DataTableColumn<StudentDebtRow>[] {
 }
 
 const COLUMNS = buildColumns();
+
+/** Как считается долг, простыми словами: то же правило, что у блока «Оплата … остаток» в карточке студента. */
+export const DEBT_RULE = "Долг = стоимость договора минус оплачено. Считаются только договорные взносы EVO (сторонние расходы и убранные из договора взносы не входят); оплачено — платежи минус возвраты. Как в блоке «Оплата … остаток» в карточке студента. Валюты не пересчитываются: итоги отдельно по каждой валюте. Оплаты в другой валюте в долг не вычитаются, строка про них говорит.";
 
 /**
  * «Долги студентов»: дела, где стоимость договора больше оплаченного (платежи минус возвраты), по убыванию долга. Итоги — по каждой
@@ -60,7 +68,7 @@ export function StudentDebtsNext({ read }: Readonly<{ read: StudentDebtsRead }>)
         <div className="rounded-card border border-border bg-card"><EmptyState title="Долгов нет." description="По всем делам оплачено не меньше стоимости договора." /></div>
       ) : (
         <>
-          <WidgetCard title="Итого долг" help="Сумма долгов по делам, отдельно по каждой валюте. Валюты не пересчитываются.">
+          <WidgetCard title="Итого долг" help={DEBT_RULE}>
             <ul className="flex flex-wrap gap-x-8 gap-y-2" data-testid="student-debts-totals">
               {totals.map((total) => (
                 <li key={total.currency} className="grid">
@@ -71,6 +79,7 @@ export function StudentDebtsNext({ read }: Readonly<{ read: StudentDebtsRead }>)
               ))}
             </ul>
           </WidgetCard>
+          <p className="t-meta text-fg-2" data-testid="student-debts-rule">{DEBT_RULE}</p>
           <DataTable label={`Долги студентов: ${caseRowCount}`} data={rows} columns={COLUMNS} getRowId={(row) => `${row.caseId}:${row.currency}`}
             searchPlaceholder="Поиск по студенту" paginate={false} columnMenu={false} empty={<EmptyState title="Ничего не найдено." />} />
           {truncated ? <p className="t-meta text-fg-2" role="status">Показаны {rows.length.toLocaleString("ru-RU")} дел с самым большим долгом из {caseRowCount.toLocaleString("ru-RU")}; итоги выше — по всем.</p> : null}

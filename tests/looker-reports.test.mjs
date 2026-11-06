@@ -284,17 +284,19 @@ function menuIds(actor, options) {
 test("the «Финансы» menu item is the exact check: it follows `financeSection`, closed by default, never in role preview", () => {
   // Без аргумента — как было: только настоящий Admin.
   assert.equal(menuIds(admin).ids.includes("finance"), true);
-  // 06.11.2026: a finance.read.full holder always has the «Отчёт продаж» tab, so «Финансы» is in the menu for them; the exact check
-  // (`financeSection`) decides only whether the finance tabs exist, which the page checks again with the database.
-  assert.equal(menuIds(accountant).ids.includes("finance"), true, "a snapshot holder opens the sales report tab");
+  // 06.11.2026: «Финансы» is shown only when a tab is usable. A holder of finance.read.full alone has no sales report tab, so without the
+  // exact check (the database says the right is organization-wide) there is no item.
+  assert.equal(menuIds(accountant).ids.includes("finance"), false, "a snapshot holder does not get the item without the exact check");
+  assert.equal(menuIds(accountant, {}).ids.includes("finance"), false);
   // Точная проверка: держатель права на всю организацию — есть, только на «свои» и т.п. (layout дал false) — нет.
   assert.equal(menuIds(accountant, { financeSection: true }).ids.includes("finance"), true);
-  assert.equal(menuIds(accountant, { financeSection: false }).ids.includes("finance"), true, "still the sales report tab; the page then shows no finance tab");
+  assert.equal(menuIds(accountant, { financeSection: false }).ids.includes("finance"), false, "own / department scope: no usable tab, no item");
+  assert.equal(menuIds({ ...accountant, permissionKeys: ["finance.read.full", "sales.register.read"] }, { financeSection: false }).ids.includes("finance"), true, "with the register right the sales report tab is usable");
   assert.deepEqual(menuIds(accountant, { financeSection: true }).model.sections.map((link) => link.id), ["finance"], "no «Маркетинг» for the accountant");
   // Палитра команд берёт тот же объект `navigation`: пункт исчезает и там.
   const sections = (actor, options) => menuIds(actor, options).model.sections.map((link) => link.href);
   assert.deepEqual(sections(admin), ["/marketing", "/finance"]);
-  assert.deepEqual(sections(accountant, { financeSection: false }), ["/finance"], "the sales report tab keeps the section");
+  assert.deepEqual(sections(accountant, { financeSection: false }), []);
   // Сотрудник без права, но с true — права маршрута всё равно решают; продажник с true получает раздел ради «Отчёта продаж».
   assert.equal(menuIds(admin, { financeSection: false }).ids.includes("finance"), true, "the Admin always reads the sales report");
   assert.equal(menuIds({ ...accountant, permissionKeys: [] }, { financeSection: true }).ids.includes("finance"), false);
@@ -307,7 +309,7 @@ test("the «Финансы» menu item is the exact check: it follows `financeSe
   // Страница по прямому адресу подсвечивает пункт, только если он есть.
   const model = buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: true });
   assert.equal(model.activeId, "finance");
-  assert.equal(buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: false }).activeId, "finance", "the sales report tab is still there");
+  assert.equal(buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: false }).activeId, null);
   assert.equal(buildV3Navigation({ ...accountant, permissionKeys: ["finance.read.summary"] }, "/finance", new URLSearchParams(), { financeSection: false }).activeId, null);
 });
 
@@ -555,7 +557,7 @@ test("«Финансы», connected: the window block with the exact address, th
 test("«Финансы»: a refusal of the database leaves no finance tab, no window and no address; a failed read says so and offers «Обновить»", async () => {
   // Держатель права только на «свои» дела: база отказала — финансовых вкладок нет, остаётся «Отчёт продаж»; ?tab=finance его туда и ведёт.
   for (const tab of ["finance", "debts", null]) {
-    const denied = await financePage(accountant, { status: "denied" }, tab);
+    const denied = await financePage({ ...accountant, permissionKeys: ["finance.read.full", "sales.register.read"] }, { status: "denied" }, tab);
     assert.equal(denied.sales, true, `denied finance read, tab=${tab}: only the sales tab opens`);
     assert.deepEqual(denied.element.props.tabs.props.tabs, ["sales"]);
   }

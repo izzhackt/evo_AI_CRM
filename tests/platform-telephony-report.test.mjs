@@ -378,14 +378,16 @@ test("read: switched off, refused by the database, failed, foreign shape, wrong 
 // ------------------------------------------------------------ the page's wiring
 
 test("wiring: the block sits under «Динамика по дням», shares its period, and is closed without a right", () => {
-  const page = read("src/app/(staff)/main/page.tsx");
+  // С 06.11.2026 блок живёт во вкладке «Отчёт продаж» «Финансов» и под «Сегодня» (`SalesTabView`, `home="today"` для роли без записей отчёта).
+  const page = read("src/components/staff/sales-next/SalesTabView.tsx");
   assert.match(page, /canReadTelephonyReport\(actor\) \?/u, "the block exists only for a holder of a report right");
   assert.match(page, /readTelephonyReport\(actor, \{ from: period\.from, to: period\.to \}\)/u, "the same period as the dynamics section");
   assert.match(page, /const section = <>\{dynamicsSection\}\{callsSection\}<\/>;/u);
   assert.match(page, /<Suspense fallback=\{null\}>\s*<StreamedSalesCalls/u, "nothing flashes while it loads for a person whose telephony is off");
-  assert.match(page, /if \(!canReadReport\) return next \? <SalesDynamicsNextView dynamics=\{section\} \/> : <SalesDynamicsReport dynamics=\{section\} \/>;/u, "a manager without the register still sees the block");
-  assert.match(page, /return next \? <SalesRegisterNextView actor=\{actor\} query=\{query\} dynamics=\{section\} \/> : <SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>;/u);
-  assert.match(page, /formAction=\{`\/main#\$\{SALES_CALLS_ANCHOR\}`\}/u);
+  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} tabs=\{tabs\} \/>;/u, "a manager without the register still sees the block");
+  assert.match(page, /return <SalesRegisterNextView actor=\{actor\} query=\{query\} dynamics=\{section\} tabs=\{tabs\} \/>;/u);
+  assert.match(page, /formAction=\{`\$\{FORM_ADDRESS\(home\)\}#\$\{SALES_CALLS_ANCHOR\}`\}/u, "the period form returns to this block at the address the block lives at");
+  assert.match(page, /const FORM_ADDRESS = \(home: SalesDynamicsHome\) => \(home === "today" \? "\/main\?view=sales" : "\/finance\?tab=sales"\);/u);
   assert.equal(SALES_CALLS_ANCHOR, "sales-calls");
   assert.notEqual(SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR);
   const query = { tab: "sales", year: "2026", month: "9" };

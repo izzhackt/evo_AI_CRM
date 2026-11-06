@@ -8,6 +8,8 @@ import { parseSalesUuid } from "./platform-sales-register-contract.ts";
 export type StudentDebtRow = Readonly<{
   caseId: string; studentName: string; country: string; direction: string | null; curator: string | null;
   currency: string; costMinor: number; paidMinor: number; debtMinor: number;
+  /** У дела есть оплаты в другой валюте, которых эта строка не видит (в долг они не вычитаются). */
+  hasOtherCurrencyPayments: boolean;
 }>;
 export type StudentDebtTotal = Readonly<{ currency: string; costMinor: number; paidMinor: number; debtMinor: number; caseCount: number }>;
 export type StudentDebts = Readonly<{ rows: readonly StudentDebtRow[]; totals: readonly StudentDebtTotal[]; caseRowCount: number; truncated: boolean }>;
@@ -33,12 +35,13 @@ export function parseStudentDebts(raw: unknown, organizationId: string): Student
   if (r.schema_version !== 1 || r.organization_id !== organizationId || typeof r.truncated !== "boolean") fail();
   if (!Array.isArray(r.rows) || r.rows.length > 500 || !Array.isArray(r.totals) || r.totals.length > 20) fail();
   const rows = r.rows.map((item) => {
-    const row = exact(item, ["case_id", "student_name", "country", "direction", "curator", "currency", "cost_minor", "paid_minor", "debt_minor"]);
+    const row = exact(item, ["case_id", "student_name", "country", "direction", "curator", "currency", "cost_minor", "paid_minor", "debt_minor", "has_other_currency_payments"]);
+    if (typeof row.has_other_currency_payments !== "boolean") fail();
     const caseId = parseSalesUuid(row.case_id) ?? fail();
     const costMinor = money(row.cost_minor); const paidMinor = money(row.paid_minor); const debtMinor = money(row.debt_minor);
     if (debtMinor <= 0 || costMinor - paidMinor !== debtMinor) fail();
     return Object.freeze({ caseId, studentName: text(row.student_name), country: text(row.country), direction: optional(row.direction), curator: optional(row.curator),
-      currency: currency(row.currency), costMinor, paidMinor, debtMinor });
+      currency: currency(row.currency), costMinor, paidMinor, debtMinor, hasOtherCurrencyPayments: row.has_other_currency_payments });
   });
   const totals = r.totals.map((item) => {
     const total = exact(item, ["currency", "cost_minor", "paid_minor", "debt_minor", "case_count"]);

@@ -14,7 +14,7 @@
 --  3. the numbers: cost = sum of payment_obligations.amount_minor per case and currency, paid = payments - refunds from
 --     payment_events, debt = cost - paid; only debt > 0; a fully paid case and a refund-adjusted case are right; a case with
 --     debts in two currencies gives two rows and the currencies are never added; a case with no payments owes its whole cost;
---     rows go by debt descending; the curator is the display name (NULL without a curator); another organization's debts never
+--     rows go by debt descending; the curator is the display name (NULL without a curator), cost = contract fees only (evo_service_fee, not archived) as the student card's «остаток» block; another organization's debts never
 --     appear; totals per currency count every case;
 --  4. read only: no row in the three tables changes and the function is STABLE;
 --  5. the limit: 500 rows at most, `truncated` true with the true case count, totals over all cases.
@@ -191,6 +191,10 @@ SELECT pg_temp.t332_case(3, 1, 'T332 Student Three', 'CN', NULL, 6);
 SELECT pg_temp.t332_case(4, 1, 'T332 Student Four', 'CN', 'Law', 6);
 SELECT pg_temp.t332_case(5, 1, 'T332 Student Five', 'KG', 'Arts', NULL);
 SELECT pg_temp.t332_case(6, 2, 'T332 Other Org Student', 'CN', 'Law', NULL);
+SELECT pg_temp.t332_case(7, 1, 'T332 Student Seven', 'CN', 'Law', 6);
+SELECT pg_temp.t332_case(8, 1, 'T332 Student Eight', 'CN', 'Law', 6);
+SELECT pg_temp.t332_case(9, 1, 'T332 Student Nine', 'CN', 'Law', 6);
+SELECT pg_temp.t332_case(10, 1, 'T332 Student Ten', 'CN', 'Law', 6);
 SELECT pg_temp.t332_obligation(1, 1, 1, 500000, 'USD', 200000, 0);
 SELECT pg_temp.t332_event(1, 1, 1, 1, 'payment', 200000, 'USD');
 SELECT pg_temp.t332_obligation(2, 2, 1, 100000, 'USD', 100000, 0);
@@ -204,6 +208,18 @@ SELECT pg_temp.t332_obligation(5, 4, 1, 50000, 'USD', 50000, 0);
 SELECT pg_temp.t332_event(6, 5, 4, 1, 'payment', 50000, 'USD');
 SELECT pg_temp.t332_obligation(6, 5, 1, 100000, 'USD', 0, 0);
 SELECT pg_temp.t332_obligation(7, 6, 2, 999900, 'USD', 0, 0);
+-- C7: only a third-party cost (not a contract fee) - never a debt; C8: an archived fee - never a debt;
+-- C9: owes 1000.00 USD and paid 1000.00 in KGS (a currency the fee is not in) - the row stays and says so.
+SELECT pg_temp.t332_obligation(8, 7, 1, 700000, 'USD', 0, 0);
+UPDATE platform.payment_obligations SET category = 'third_party_cost' WHERE id = pg_temp.t332_id(600008);
+SELECT pg_temp.t332_obligation(9, 8, 1, 800000, 'USD', 0, 0);
+UPDATE platform.payment_obligations SET archived_at = TIMESTAMPTZ '2026-09-14 10:00+06' WHERE id = pg_temp.t332_id(600009);
+SELECT pg_temp.t332_obligation(10, 9, 1, 100000, 'USD', 0, 0);
+SELECT pg_temp.t332_event(7, 10, 9, 1, 'payment', 100000, 'KGS');
+-- C10: fees in USD (1000.00) and KGS (500.00); the payment of 500.00 sits on the USD fee but is recorded in KGS - the USD row keeps its debt and says so.
+SELECT pg_temp.t332_obligation(11, 10, 1, 100000, 'USD', 0, 0);
+SELECT pg_temp.t332_obligation(12, 10, 1, 50000, 'KGS', 0, 0);
+SELECT pg_temp.t332_event(8, 11, 10, 1, 'payment', 50000, 'KGS');
 SET LOCAL session_replication_role = origin;
 
 -- ---------------------------------------------------------------------------
@@ -248,13 +264,13 @@ CREATE TEMP TABLE t332_before AS SELECT
   (SELECT count(*) FROM platform.payment_events) events, (SELECT coalesce(sum(total_paid_minor), 0) FROM platform.payment_obligations) paid;
 SELECT pg_temp.t332_read(2)::TEXT AS t332_debts \gset
 SELECT pg_temp.t332_assert((:'t332_debts'::JSONB ->> 'schema_version') = '1' AND (:'t332_debts'::JSONB ->> 'organization_id') = pg_temp.t332_id(1)::TEXT
-  AND (:'t332_debts'::JSONB ->> 'truncated') = 'false' AND (:'t332_debts'::JSONB ->> 'case_row_count') = '4'
+  AND (:'t332_debts'::JSONB ->> 'truncated') = 'false' AND (:'t332_debts'::JSONB ->> 'case_row_count') = '6'
   AND (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(:'t332_debts'::JSONB) k) = ARRAY['case_row_count', 'organization_id', 'rows', 'schema_version', 'totals', 'truncated'],
-  'the answer has exactly the six documented keys and four debt rows (C1 USD, C2 KGS, C3 USD, C5 USD)');
+  'the answer has exactly the six documented keys and six debt rows (C1 USD, C2 KGS, C3 USD, C5 USD, C9 USD, C10 USD)');
 SELECT pg_temp.t332_assert((SELECT jsonb_agg(jsonb_build_array(r ->> 'student_name', r ->> 'currency', (r ->> 'debt_minor')::BIGINT) ORDER BY ord)
     FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') WITH ORDINALITY x(r, ord))
-  = '[["T332 Student One", "USD", 300000], ["T332 Student Five", "USD", 100000], ["T332 Student Two", "KGS", 60000], ["T332 Student Three", "USD", 20000]]'::JSONB,
-  'rows go by debt descending; a fully paid case (C4) and the USD part of C2 are not there; the refund of C3 brings 200.00 back; C5 owes its whole cost; the other organization is absent');
+  = '[["T332 Student One", "USD", 300000], ["T332 Student Five", "USD", 100000], ["T332 Student Nine", "USD", 100000], ["T332 Student Ten", "USD", 100000], ["T332 Student Two", "KGS", 60000], ["T332 Student Three", "USD", 20000]]'::JSONB,
+  'rows go by debt descending; a fully paid case (C4) and the USD part of C2 are not there; the refund of C3 brings 200.00 back; C5 owes its whole cost; the other organization is absent; a third-party cost (C7) and an archived fee (C8) are not debts');
 SELECT pg_temp.t332_assert((SELECT r ->> 'curator' FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r WHERE r ->> 'student_name' = 'T332 Student One') = 'T332 Actor 6'
   AND (SELECT r -> 'curator' FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r WHERE r ->> 'student_name' = 'T332 Student Five') = 'null'::JSONB
   AND (SELECT r -> 'direction' FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r WHERE r ->> 'student_name' = 'T332 Student Three') = 'null'::JSONB
@@ -263,12 +279,17 @@ SELECT pg_temp.t332_assert((SELECT r ->> 'curator' FROM jsonb_array_elements(:'t
   'the curator is the display name (null without one), direction may be null, country and the case id are carried');
 SELECT pg_temp.t332_assert((SELECT jsonb_agg(jsonb_build_array(r ->> 'currency', (r ->> 'cost_minor')::BIGINT, (r ->> 'paid_minor')::BIGINT, (r ->> 'debt_minor')::BIGINT) ORDER BY r ->> 'student_name', r ->> 'currency')
     FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r)
-  = '[["USD", 100000, 0, 100000], ["USD", 500000, 200000, 300000], ["USD", 100000, 80000, 20000], ["KGS", 90000, 30000, 60000]]'::JSONB
+  = '[["USD", 100000, 0, 100000], ["USD", 100000, 0, 100000], ["USD", 500000, 200000, 300000], ["USD", 100000, 0, 100000], ["USD", 100000, 80000, 20000], ["KGS", 90000, 30000, 60000]]'::JSONB
   AND (SELECT bool_and((r ->> 'cost_minor')::BIGINT - (r ->> 'paid_minor')::BIGINT = (r ->> 'debt_minor')::BIGINT AND (r ->> 'debt_minor')::BIGINT > 0) FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r),
   'cost - paid = debt > 0 on every row; paid is payments minus refunds');
 SELECT pg_temp.t332_assert(:'t332_debts'::JSONB -> 'totals'
-  = '[{"currency":"KGS","cost_minor":90000,"paid_minor":30000,"debt_minor":60000,"case_count":1},{"currency":"USD","cost_minor":700000,"paid_minor":280000,"debt_minor":420000,"case_count":3}]'::JSONB,
+  = '[{"currency":"KGS","cost_minor":90000,"paid_minor":30000,"debt_minor":60000,"case_count":1},{"currency":"USD","cost_minor":900000,"paid_minor":280000,"debt_minor":620000,"case_count":5}]'::JSONB,
   'totals per currency, never added across currencies, over every case with a debt');
+SELECT pg_temp.t332_assert((SELECT jsonb_agg(r ->> 'student_name' ORDER BY r ->> 'student_name') FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r
+      WHERE (r ->> 'has_other_currency_payments')::BOOLEAN) = '["T332 Student Nine", "T332 Student Ten"]'::JSONB
+  AND (SELECT bool_and(jsonb_typeof(r -> 'has_other_currency_payments') = 'boolean') FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r)
+  AND (SELECT (r ->> 'paid_minor')::BIGINT FROM jsonb_array_elements(:'t332_debts'::JSONB -> 'rows') r WHERE r ->> 'student_name' = 'T332 Student Nine') = 0,
+  'only the cases with a payment in another currency are flagged (C9: a currency without a fee; C10: a payment recorded in another currency than its own fee); their foreign payments are not subtracted; a case with a payment in its own other fee currency (C2) is not');
 SELECT pg_temp.t332_assert(:'t332_debts'::TEXT = pg_temp.t332_read(1)::TEXT, 'the Admin and the accountant see the same answer');
 
 -- ---------------------------------------------------------------------------
@@ -296,13 +317,13 @@ INSERT INTO platform.payment_obligations(id, organization_id, student_case_id, l
   FROM generate_series(1, 505) g;
 SET LOCAL session_replication_role = origin;
 SELECT pg_temp.t332_read(1)::TEXT AS t332_big \gset
-SELECT pg_temp.t332_assert(jsonb_array_length(:'t332_big'::JSONB -> 'rows') = 500 AND (:'t332_big'::JSONB ->> 'truncated') = 'true' AND (:'t332_big'::JSONB ->> 'case_row_count') = '509'
+SELECT pg_temp.t332_assert(jsonb_array_length(:'t332_big'::JSONB -> 'rows') = 500 AND (:'t332_big'::JSONB ->> 'truncated') = 'true' AND (:'t332_big'::JSONB ->> 'case_row_count') = '511'
   AND (SELECT (t ->> 'case_count')::INTEGER = 505 AND (t ->> 'debt_minor')::BIGINT = (SELECT sum(1000 + g) FROM generate_series(1, 505) g)
       FROM jsonb_array_elements(:'t332_big'::JSONB -> 'totals') t WHERE t ->> 'currency' = 'EUR')
   AND (:'t332_big'::JSONB -> 'rows' -> 0 ->> 'student_name') = 'T332 Student One'
   AND (SELECT bool_and((x.r ->> 'debt_minor')::BIGINT >= (y.r ->> 'debt_minor')::BIGINT)
       FROM jsonb_array_elements(:'t332_big'::JSONB -> 'rows') WITH ORDINALITY x(r, i) JOIN jsonb_array_elements(:'t332_big'::JSONB -> 'rows') WITH ORDINALITY y(r, i) ON y.i = x.i + 1),
-  'at most 500 rows, truncated true, the true case count 509 (4 + 505), totals count every case, still ordered by debt');
+  'at most 500 rows, truncated true, the true case count 511 (6 + 505), totals count every case, still ordered by debt');
 
 \echo A332_STUDENT_DEBTS_SUITE_PASSED
 ROLLBACK;

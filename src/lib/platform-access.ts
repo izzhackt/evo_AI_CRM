@@ -43,15 +43,16 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
 /**
  * Вкладки страницы «Финансы» (решения владельца 06.11.2026). «Финансовый отчёт» и «Долги студентов» — подсказка права
  * `finance.read.full` (область «вся организация» проверяет база при чтении); «Отчёт продаж» — тем, кто читает записи отчёта
- * или лиды, и держателям финансов. Просмотр роли не видит ни одной: страница отвечает «Нет доступа». Это подсказки
+ * (`sales.register.read`) и админу. Просмотр роли не видит ни одной: страница отвечает «Нет доступа». Это подсказки
  * показа; что именно прочитать и записать, решает база.
  */
 export function staffCanFinanceTabHint(actor: ActivePlatformActor): boolean {
   return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
 }
 export function staffCanSalesTab(actor: ActivePlatformActor): boolean {
-  // Не `lead.read`/`sales.read`: поступление, читающее лиды, «Финансы» не получает (решение владельца 06.11.2026).
-  return !isStaffPreview(actor) && (staffCan(actor, "sales.report.read") || staffHasPermission(actor, "finance.read.full"));
+  // Та же проверка, что у `SalesTabView` (`sales.report.read`, админ проходит): вкладка без чтения записей была бы тупиком. Не `lead.read`
+  // и не `finance.read.full`: бухгалтер без права на записи видит только финансовые вкладки, поступление «Финансы» не получает (решение владельца 06.11.2026).
+  return !isStaffPreview(actor) && staffCan(actor, "sales.report.read");
 }
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
   // «Финансы» (решение владельца 26.10.2026 «Админы + бухгалтер»): настоящий Admin без просмотра роли или держатель

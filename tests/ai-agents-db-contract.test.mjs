@@ -54,13 +54,18 @@ const SOURCE_320 = readFileSync(new URL("../supabase/migrations/320_platform_stu
 const SUITE_320 = readFileSync(new URL("../supabase/tests/platform_student_ai_consent.sql", import.meta.url), "utf8");
 // Migration 322 (written as 321, renumbered at merge; daily spend of an agent for the WhatsApp limit, 26.10.2026) adds one read-only runtime function and replaces nothing.
 const SOURCE_322 = readFileSync(new URL("../supabase/migrations/322_platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
+// 336 updates the get_case row (section «questionnaire»): the registry is 317's seed with that row replaced.
+const SOURCE_336 = readFileSync(new URL("../supabase/migrations/336_platform_ai_agent_case_questionnaire.sql", import.meta.url), "utf8");
+const SCHEMA_UPDATES = new Map([...SOURCE_336.matchAll(/UPDATE platform_private\.ai_agent_tool_schemas SET input_schema = \$j\$(.*?)\$j\$::jsonb\s*WHERE tool = '([a-z_]+)';/gsu)]
+  .map(([, schema, name]) => [name, JSON.parse(schema)]));
 const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
 const TEST_SCRIPT = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
   const rows = [...SOURCE.matchAll(/\('([a-z_]+)', '(read|write)', '(none|read|write)', \$j\$(.*?)\$j\$::jsonb\)/gsu)].map(
-    ([, name, kind, audit, schema]) => ({ name, kind, audit, schema: JSON.parse(schema) }),
+    ([, name, kind, audit, schema]) => ({ name, kind, audit, schema: SCHEMA_UPDATES.get(name) ?? JSON.parse(schema) }),
   );
+  assert.deepEqual([...SCHEMA_UPDATES.keys()], ["get_case"], "336 updates exactly the get_case row");
   assert.equal(rows.length, AI_AGENT_TOOLS.length);
   assert.equal(rows.length, 24);
   for (const tool of AI_AGENT_TOOLS) {

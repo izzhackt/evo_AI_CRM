@@ -62790,3 +62790,12 @@ Reviewer notes: pending independent review on the exact PR head.
 - **Проверки.** `supabase/tests/platform_sales_intake_country_curator.sql` (в `test-postgres-authorization.sh`), `tests/country-curator.test.mjs`, `tests/platform-audit.test.mjs` (действие в allowlist и подпись), `npm run typecheck`.
 - **Не проверено:** production. После выката администратор один раз выбирает кураторов в «Настройки → Кураторы стран», иначе форма остаётся ручной.
 - Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-11-06 · ИИ-агент видит анкету студента (ветка `feat/agent-anketa`, миграция 336)
+- **Решение владельца (03.11.2026, «ок» на список):** «ИИ-агент пока не видит анкету студента — открыть ему».
+- **Что было.** Инструмент `get_case` отдавал дело, документы, заявки, оплаты, задачи, заметки и профиль, но не анкету с сайта (`student_applications`); ни одна функция агента её не читала.
+- **Что сделано.** Миграция 336 (приём 282/329, фрагмент ровно один раз): в `ai_agent_tool_get_case_v1` раздел `questionnaire` — статус, дата отправки, `self_reported: true` и ответы без телефона и служебных полей; анкета дела ищется как у карточки (334): обычное одобрение, приглашение или одобрение в это дело. Строка схемы `get_case` в `ai_agent_tool_schemas` и `contract.ts`: раздел в списке, `maxItems` 7. Раздел, как профиль, не зависит от согласия на ИИ (правило 320 закрывает документы и переписку). Строка в общей инструкции агентов: ответы студента не проверены EVO, называть «по анкете студента» и сверять с документами; `prompts.generated.ts` пересобран.
+- **Порядок выката:** сначала миграция, потом приложение; после выката агентов пересинхронизировать (изменились инструкции).
+- **Проверки.** `supabase/tests/platform_ai_agent_case_questionnaire.sql` (в `test-postgres-authorization.sh`), `tests/ai-agents-db-contract.test.mjs` (реестр = 317 + строка 336), все `tests/ai-agent*.test.mjs` (падают те же 9, что и без правки, — окружение Windows и сборки), `build-ai-agent-prompts.mjs --check`.
+- **Не проверено:** production, живой вызов агента (Claude Managed Agents).
+- Reviewer notes: pending independent review on the exact PR head.

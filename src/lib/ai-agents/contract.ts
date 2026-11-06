@@ -409,11 +409,12 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
   },
   {
     name: "get_case", title: "Дело студента", kind: "read", audit: "read", rpc: toolRpc("get_case"),
-    description: "One student case: route, curator, document slots with statuses and deadlines, university applications, payment obligations (no bank details), tasks, notes. Дело студента целиком.",
+    description: "One student case: route, curator, document slots with statuses and deadlines, university applications, payment obligations (no bank details), tasks, notes, profile, and on request the student's own website questionnaire (self-reported). Дело студента целиком.",
     inputSchema: objectArg({
       case_id: uuidArg("Student case id."),
-      include: { type: "array", items: { type: "string", enum: ["documents", "applications", "payments", "tasks", "notes", "profile"] }, minItems: 1, maxItems: 6,
-        description: "Sections to include (default documents, applications, payments, tasks)." },
+      // 336: «questionnaire» — анкета студента с сайта; та же строка схемы в ai_agent_tool_schemas.
+      include: { type: "array", items: { type: "string", enum: ["documents", "applications", "payments", "tasks", "notes", "profile", "questionnaire"] }, minItems: 1, maxItems: 7,
+        description: "Sections to include (default documents, applications, payments, tasks). questionnaire: the student's own website answers, self-reported." },
     }, ["case_id"]),
   },
   {

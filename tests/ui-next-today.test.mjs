@@ -28,6 +28,13 @@ const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").r
 
 /** Плитки и карточки виджетов нового вида (у прежнего вида тот же `id="today-band-…"` стоит на заголовке группы). */
 const WIDGETS = /data-slot="stat-tile"|data-slot="card"[^>]*id="today-band-/u;
+/** Плитки раздела по его атрибуту: у Admin два раздела, у роли с одним — один без заголовка. */
+const sectionOf = (html, name) => {
+  const start = html.indexOf(`data-today-section="${name}"`);
+  const next = html.indexOf("data-today-section=", start + 10);
+  return start < 0 ? "" : html.slice(start, next < 0 ? undefined : next);
+};
+const tilesOf = (html) => [...html.matchAll(/<li class="[^"]*"><a [^>]*data-slot="stat-tile"[^>]*>([\s\S]*?)<\/a><\/li>/gu)].map((match) => text(match[1]));
 const NEW_FILES = [
   "src/components/staff/today-next/TodayNext.tsx", "src/components/staff/today-next/TodayDashboard.tsx", "src/components/staff/today-next/TodayBandWidget.tsx",
   "src/components/staff/today-next/TodayTiles.tsx",
@@ -44,7 +51,8 @@ test("«Сегодня»: настоящая страница рисует но�
   const admin = pageToday.get("admin-cookie");
   assert.match(admin, /data-testid="v3-operational-dashboard"/u);
   assert.match(admin, /data-slot="stat-tile"/u, "плитки набора");
-  assert.match(admin, /data-slot="card"[^>]*id="today-band-overdue"/u, "виджет группы");
+  assert.match(admin, /data-slot="card"[^>]*id="today-band-sales-overdue"/u, "виджет группы продаж");
+  assert.match(admin, /data-slot="card"[^>]*id="today-band-admissions-overdue"/u, "виджет группы поступления");
   assert.doesNotMatch(admin, /data-testid="queue-skeleton"/u);
   for (const name of ["admin-no-cookie", "preview-cookie", "preview-no-cookie", "sales-cookie", "sales-no-cookie"]) {
     assert.match(pageToday.get(name), WIDGETS, `${name}: новый вид`);
@@ -118,10 +126,11 @@ test("«Заявки»: звонки — исход последнего зво�
 
 test("«Сегодня»: плитка на каждую группу, числа из чтения, «—» там, где числа нет; красное — только просроченное", () => {
   const admin = nextToday.get("next-admin");
-  const tiles = [...admin.matchAll(/<li class="[^"]*"><a [^>]*data-slot="stat-tile"[^>]*>([\s\S]*?)<\/a><\/li>/gu)].map((match) => text(match[1]));
-  assert.deepEqual(tiles, ["Просрочено 5", "Сегодня 4", "Ждут вас — нет данных", "Без следующего шага 2", "Ближайшие 14 дней 4"]);
-  assert.match(admin, /text-danger[^"]*">5</u, "красное число просроченного");
-  assert.equal(count(admin, /text-danger[^"]*t-figure|t-figure[^"]*text-danger/gu), 1, "красное число одно");
+  // Admin: продажи и поступление — два раздела, у каждого свои плитки; слово «Ждут вас» без числа — из-за переписок.
+  assert.deepEqual(tilesOf(sectionOf(admin, "sales")), ["Просрочено 1", "Сегодня 1", "Ждут вас 2", "Без следующего шага 1", "Ближайшие 14 дней 1"]);
+  assert.deepEqual(tilesOf(sectionOf(admin, "admissions")), ["Просрочено 3", "Сегодня 2", "Ждут вас — нет данных", "Без следующего шага 1", "Ближайшие 14 дней 2"]);
+  const tiles = tilesOf(admin);
+  assert.equal(count(admin, /text-danger[^"]*t-figure|t-figure[^"]*text-danger/gu), 3, "красное число просроченного — по одному на раздел с просрочкой");
   // Группа «Ждут вас» без честного числа: плитка «—», а предупреждение «числа нет» остаётся на виду в виджете.
   assert.match(text(admin), /Числа нет: часть переписок могла получить ответ\./u);
   // Название группы без даты: число дня стоит под заголовком страницы, а не в каждой плитке.
@@ -141,7 +150,7 @@ test("«Сегодня»: строки в виджетах: задача — н�
   assert.ok(count(admin, /data-kind="staff"/gu) >= 1, "рабочая задача рисуется строкой «Задач» с кругом завершения");
   assert.match(admin, /aria-label="Завершить: /u);
   assert.match(admin, /шаг просрочен/u, "причина строки та же");
-  assert.equal(count(admin, /data-slot="card" data-size="default"/gu) >= 5, true, "виджеты — карточки набора");
+  assert.equal(count(admin, /data-slot="card" data-size="default"/gu) >= 10, true, "виджеты — карточки набора, по группам каждого раздела");
 });
 
 test("«Сегодня»: пустой день говорит прежними словами; доски роли — кнопки шапки", () => {
@@ -179,10 +188,11 @@ test("страницы всегда рисуют новый вид (#1327), чи
   const main = read("src/app/(staff)/main/page.tsx");
   assert.doesNotMatch(main, /isNextUi/u);
   // Новый вид подгружается лениво и не импортируется статически.
-  assert.match(main, /return <TodayNextLazy queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
+  assert.match(main, /return <TodayNextLazy queue=\{queue\} sections=\{sections\} headed=\{headed\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
   assert.doesNotMatch(main, /from "@\/components\/staff\/today-next\/Today(Next|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
   assert.doesNotMatch(main, /<PartShell|<TodayScreen/u, "прежнего вида нет");
-  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "чтения прежние");
+  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, \{ bands: sections\.flatMap\(\(section\) => section\.queue\.bands\) \}\) : null;/u, "чтения прежние");
+  assert.match(main, /buildTodaySections\(reads, now, access\.role\)/u, "разделы по роли");
   const requests = read("src/app/(staff)/requests/page.tsx");
   assert.doesNotMatch(requests, /isNextUi/u);
   assert.match(requests, /return \(\s*<ManualLeadDisclosure>\s*<RequestsNextLazy/u);
@@ -244,16 +254,53 @@ test("«Заявки»: в пустой очереди одно вторично
 test("«Сегодня»: клавиатура очереди ↑/↓ — по всей сетке виджетов (с «Показать ещё»), строки виджета двухстрочные, плитки — по числу групп", () => {
   const admin = nextToday.get("next-admin");
   const region = admin.slice(admin.indexOf('data-today-queue=""'));
-  assert.equal(count(admin, /data-queue-list=/gu), 1, "область очереди одна");
-  assert.ok(region.indexOf("data-queue-list") < region.indexOf('id="today-band-'), "область объемлет все виджеты");
+  assert.equal(count(admin, /data-queue-list=/gu), 3, "область очереди — сетка каждого раздела (продажи, поступление, рабочие задачи)");
+  assert.ok(region.indexOf("data-queue-list") < region.indexOf('id="today-band-'), "область объемлет виджеты раздела");
   assert.doesNotMatch(region.slice(region.indexOf("<ul")), /<ul[^>]*data-queue-list/u, "не на списке строк: кнопка «Показать ещё» стоит вне него");
   // Строки виджета — без широкой раскладки от 32rem.
   assert.equal(count(region, /@min-\[32rem\]/gu), 0, "в виджетах нет широкой сетки строки");
   // Плитки: на каждую группу при нескольких группах; у единственной группы и у пустого дня с названным сроком — нет.
-  assert.equal(count(admin, /data-slot="stat-tile"/gu), 5);
+  assert.equal(tilesOf(admin).length >= 10, true, "у каждого раздела свои плитки");
   assert.match(admin, /data-testid="today-tiles"/u);
   assert.match(admin, /md:grid-cols-\[repeat\(auto-fit,minmax\(11rem,1fr\)\)\]/u);
   for (const name of ["next-empty", "next-empty-admissions"]) assert.doesNotMatch(nextToday.get(name), /data-testid="today-tiles"/u, `${name}: плиток нет`);
   assert.match(text(nextToday.get("next-empty")), /Ближайший срок — чт 01\.10/u, "срок назван один раз, в панели");
   assert.match(read("src/components/staff/today-next/TodayBandWidget.tsx"), /stacked/u);
+});
+
+/* ---------------------------------------------------------------- «Сегодня» по роли (06.11.2026) */
+
+test("«Сегодня» куратора: его студенты, документы на проверке и задачи; перезвонов и заявок продаж нет", () => {
+  const curator = nextToday.get("next-curator");
+  assert.equal(count(curator, /data-today-section="/gu), 1, "один раздел — без заголовка");
+  assert.doesNotMatch(curator, /<h2 id="today-section-/u);
+  assert.match(text(curator), /Проверить документы/u);
+  assert.match(text(curator), /на проверке: 3 документа/u);
+  assert.match(text(curator), /на проверке: 1 документ/u);
+  assert.match(curator, /href="\/profile\?case=dddddddd-2222-4222-8222-000000000021&amp;tab=documents"/u, "строка ведёт на вкладку «Документы» студента");
+  assert.doesNotMatch(text(curator), /Перезвонить клиенту|Нет ответственного|Новая заявка/u);
+  assert.equal(count(curator, /data-today-source="(leads|requests)"/gu), 0);
+  assert.equal(count(curator, /data-today-assign/gu), 0);
+});
+
+test("«Сегодня» администратора: продажи и «Студенты и документы» раздельно, у заявок без ответственного — «Назначить»", () => {
+  const both = nextToday.get("next-both");
+  assert.deepEqual([...both.matchAll(/<h2 id="today-section-(\w+)"[^>]*>([^<]+)</gu)].map((match) => [match[1], match[2]]),
+    [["sales", "Продажи"], ["admissions", "Студенты и документы"], ["work", "Рабочие задачи"]]);
+  const sales = sectionOf(both, "sales");
+  assert.match(text(sales), /Перезвонить клиенту/u, "перезвон — в продажах");
+  assert.doesNotMatch(text(sectionOf(both, "admissions")), /Перезвонить клиенту|Новая заявка/u);
+  assert.match(text(sectionOf(both, "admissions")), /Проверить документы/u);
+  assert.equal(count(sales, /data-today-assign/gu), 2, "«Назначить» у каждой из двух заявок без ответственного");
+  assert.match(sales, /aria-label="Назначить ответственного: Эльмира Формова"/u);
+  const assignTag = [...sales.matchAll(/<a [^>]*data-today-assign[^>]*>/gu)].map((match) => match[0]).find((tag) => tag.includes("Эльмира Формова"));
+  assert.match(assignTag, /href="\/pipeline\?lead=ffffffff-3333-4333-8333-000000000006"/u);
+  // Идентификаторы виджетов разных разделов не совпадают, плитки ведут к своему разделу.
+  const ids = [...both.matchAll(/id="(today-band-[\w-]+)"/gu)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.match(both, /aria-label="Числа: Продажи"/u);
+});
+
+test("«Сегодня» просмотра роли: «Поступление» — как у куратора, без продаж", () => {
+  assert.match(read("src/lib/v3/today-source.ts"), /role: Object\.freeze\(\{ sales, admissions: students \}\)/u);
 });

@@ -49,7 +49,7 @@ export async function readTaskLeadRef(actor: ActivePlatformActor, taskId: string
  */
 export const TODAY_TASK_LEAD_CAP = 15;
 
-export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: TodayQueue): Promise<Readonly<Record<string, TaskLeadRef>>> {
+export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: Pick<TodayQueue, "bands">): Promise<Readonly<Record<string, TaskLeadRef>>> {
   const tasks = queue.bands
     .flatMap((band) => band.items.slice(0, todayVisibleCount(band.items.length, false)))
     .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title))

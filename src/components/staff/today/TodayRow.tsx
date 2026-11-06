@@ -58,7 +58,8 @@ export function TodayRow({ item, nowIso, dial = null, hideReason = false, stacke
   const wide = (classes: string) => (stacked ? "" : classes);
   const when = todayWhen(item, new Date(nowIso));
   const dialLeadId = dial?.status === "ready" ? todayDialLeadId(item) : null;
-  const icon = item.source === "tasks" ? "check-square" : SOURCE_ICON[item.source];
+  // Документы на проверке — строка студента с «file-check»: иначе её не отличить от дела.
+  const icon = item.source === "tasks" ? "check-square" : item.key.startsWith("docs:") ? "file-check" : SOURCE_ICON[item.source];
   // На узкой строке слово срока остаётся только у «Ближайших» и там, где даты
   // нет: «прошёл» и «сегодня» повторили бы заголовок группы.
   const phoneWord = when?.word && (item.band === "upcoming" || when.text === null) ? when.word : null;
@@ -67,7 +68,7 @@ export function TodayRow({ item, nowIso, dial = null, hideReason = false, stacke
     <li
       data-queue-row={item.key}
       data-today-source={item.source}
-      className={joinClasses("v3-queue-row relative grid", dialLeadId ? "grid-cols-[2.75rem_minmax(0,1fr)_5.5rem]" : "grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]", "items-center gap-x-2 border-b border-border hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface", wide("@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_auto]"))}
+      className={joinClasses("v3-queue-row relative grid", item.assignHref ? "grid-cols-[2.75rem_minmax(0,1fr)_auto]" : dialLeadId ? "grid-cols-[2.75rem_minmax(0,1fr)_5.5rem]" : "grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]", "items-center gap-x-2 border-b border-border hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface", wide("@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_auto]"))}
     >
       <span aria-hidden="true" className="grid size-11 place-items-center text-fg-3">
         <Icon name={icon} size={20} />
@@ -111,7 +112,18 @@ export function TodayRow({ item, nowIso, dial = null, hideReason = false, stacke
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end">
+        {/* «Назначить» (06.11.2026): заявка без ответственного — тем, кто назначает, явное действие рядом с «Открыть»; панель лида доски с полем «Ответственный». */}
+        {item.assignHref ? (
+          <IntentPrefetchLink
+            href={item.assignHref}
+            aria-label={`Назначить ответственного: ${item.who?.name ?? item.title}`}
+            data-today-assign=""
+            className="relative z-10 inline-flex min-h-11 items-center rounded-nav px-3 t-label text-fg underline underline-offset-4 hover:text-fg-2"
+          >
+            Назначить
+          </IntentPrefetchLink>
+        ) : null}
         {dialLeadId && dial?.status === "ready" ? (
           <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={item.who?.name ?? item.title} sharedHint />
         ) : null}

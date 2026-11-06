@@ -27,6 +27,7 @@ import type { StaffTask } from "../platform-staff-task-contract.ts";
 import type { StudentCaseQueueRow } from "../platform-student-case-queue-contract.ts";
 import { dayInOrganizationTimezone, platformTaskDeadlineSortTime, projectPlatformTaskDeadline } from "../platform-task-deadline.ts";
 import { queueTaskFromCase, queueTaskFromStaff, taskIsOpen, type QueueTask } from "./task-queue.ts";
+import { isCallbackTaskTitle } from "./telephony-dial.ts";
 import { leadDisplayName, source as sourceWord } from "./wording.ts";
 
 /** Группы очереди в порядке показа: от срочного к ближайшему. */
@@ -62,7 +63,8 @@ export function todayVisibleCount(total: number, expanded: boolean): number {
 /** В какие группы пишет каждый источник: по ним решается, есть ли у группы число. */
 export const TODAY_SOURCE_BANDS: Readonly<Record<TodaySource, readonly TodayBand[]>> = {
   tasks: ["overdue", "today", "upcoming"],
-  students: ["overdue", "today", "no_step", "upcoming"],
+  // «Ждут вас» у студентов — документы на проверке куратора (`todayDocumentItem`).
+  students: ["overdue", "today", "waiting", "no_step", "upcoming"],
   handoffs: ["waiting"],
   leads: ["overdue", "today", "no_step", "upcoming"],
   requests: ["waiting"],
@@ -133,6 +135,11 @@ export type TodayItem = Readonly<{
   waitingDays: number | null;
   /** Существующая панель или страница записи. */
   openHref: string;
+  /**
+   * Явное «Назначить» ответственного (заявка без ответственного, только тем, кто назначает: `lead.sales.owner.assign`):
+   * панель лида доски с полем «Ответственный». У остальных строк его нет.
+   */
+  assignHref?: string;
   /** Задача рисуется настоящей строкой «Задач» (круг завершения, «Отменить»); иначе null. */
   task: QueueTask | null;
 }>;
@@ -333,6 +340,8 @@ export function todayStudentItems(rows: readonly StudentCaseQueueRow[], today: s
   const items: TodayItem[] = [];
   for (const row of rows) {
     if (row.state !== "active" || !row.isMine) continue;
+    const documents = todayDocumentItem(row);
+    if (documents) items.push(documents);
     // `step` — причина со сроком шага: только у неё колонка «Когда» показывает дату шага.
     const found: { band: TodayBand; reason: string; step: boolean }[] = [];
     if (row.dueBand === "overdue") found.push({ band: "overdue", reason: "шаг просрочен", step: true });
@@ -363,6 +372,37 @@ export function todayStudentItems(rows: readonly StudentCaseQueueRow[], today: s
     }));
   }
   return Object.freeze(items);
+}
+
+/** «1 документ», «2 документа», «5 документов». */
+function documentsWord(count: number): string {
+  const tail = count % 100;
+  const last = count % 10;
+  const word = tail >= 11 && tail <= 14 ? "документов" : last === 1 ? "документ" : last >= 2 && last <= 4 ? "документа" : "документов";
+  return `${count} ${word}`;
+}
+
+/**
+ * Документы моего студента на проверке: пункты чек-листа в статусе «отправлено» (`documents.submitted` чтения 241/252
+ * — число из базы, нет чтения документов — нет строки). Одна строка на студента с числом; ссылка ведёт на вкладку
+ * «Документы» его дела. Ждут давно — первыми: срок ожидания — загрузка самого старого из ожидающих (`oldestSubmittedAt`).
+ */
+function todayDocumentItem(row: StudentCaseQueueRow): TodayItem | null {
+  const submitted = row.documents?.submitted ?? 0;
+  if (!Number.isSafeInteger(submitted) || submitted <= 0) return null;
+  return Object.freeze({
+    key: `docs:${row.studentCaseId}`,
+    source: "students" as const,
+    band: "waiting" as const,
+    title: "Проверить документы",
+    who: { name: row.studentDisplayName, href: studentHref(row.studentCaseId) },
+    reason: `на проверке: ${documentsWord(submitted)}`,
+    due: null,
+    since: row.documents?.oldestSubmittedAt ?? null,
+    waitingDays: null,
+    openHref: queueHref("/profile", { case: row.studentCaseId, tab: "documents" }),
+    task: null,
+  });
 }
 
 /**
@@ -441,7 +481,7 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
  * звонок открывается, как раньше, в панели доски. Лид из других источников в
  * «Заявки» не входит и тоже открывается в панели доски.
  */
-export function todayRequestItems(leads: readonly PipelineLead[], options: Readonly<{ callsTab?: boolean }> = {}): readonly TodayItem[] {
+export function todayRequestItems(leads: readonly PipelineLead[], options: Readonly<{ callsTab?: boolean; assign?: boolean }> = {}): readonly TodayItem[] {
   const items: TodayItem[] = [];
   for (const lead of leads) {
     if (lead.stageKey === "handed_off" || lead.workflow.currentOwnerMembershipId !== null) continue;
@@ -462,6 +502,7 @@ export function todayRequestItems(leads: readonly PipelineLead[], options: Reado
       openHref: lead.source === "website" || lead.source === "whatsapp" || (lead.source === "phone_call" && options.callsTab === true)
         ? queueHref(TODAY_REQUESTS_PATH, { source: lead.source, open: `lead:${lead.id}` })
         : queueHref("/pipeline", { lead: lead.id }),
+      ...(options.assign ? { assignHref: queueHref("/pipeline", { lead: lead.id }) } : {}),
       task: null,
     }));
   }
@@ -627,6 +668,97 @@ export function buildTodayQueue(reads: readonly TodaySourceRead[], now: Date): T
       date: formatQueueDay(nearestDay, today),
     } : null,
   });
+}
+
+// --- Разделы по роли (06.11.2026) -----------------------------------------
+
+/**
+ * Разделы «Сегодня»: продажи, сопровождение студентов и рабочие задачи без отдела. Раздел строки решает она сама:
+ * лиды, заявки и задачи-перезвоны телефонии — продажи; студенты, дела, переписки и задачи по студентам — сопровождение;
+ * остальные рабочие задачи — `work`.
+ */
+export const TODAY_SECTIONS = ["sales", "admissions", "work"] as const;
+export type TodaySection = (typeof TODAY_SECTIONS)[number];
+
+export const TODAY_SECTION_TITLES: Readonly<Record<TodaySection, string>> = {
+  sales: "Продажи",
+  admissions: "Студенты и документы",
+  work: "Рабочие задачи",
+};
+
+/** Какие источники могут писать в раздел: от них зависят его числа и предупреждения. */
+const SECTION_SOURCES: Readonly<Record<TodaySection, readonly TodaySource[]>> = {
+  sales: ["leads", "requests", "tasks"],
+  admissions: ["students", "handoffs", "chats", "tasks"],
+  work: ["tasks"],
+};
+
+/** Раздел строки без учёта роли смотрящего (задача — по своему виду и названию). */
+export function todaySectionOf(item: Pick<TodayItem, "source" | "task">): TodaySection {
+  switch (item.source) {
+    case "leads":
+    case "requests":
+      return "sales";
+    case "students":
+    case "handoffs":
+    case "chats":
+      return "admissions";
+    case "tasks":
+      return item.task?.kind === "case" ? "admissions" : item.task && isCallbackTaskTitle(item.task.title) ? "sales" : "work";
+  }
+}
+
+export type TodayRoleSections = Readonly<{ sales: boolean; admissions: boolean }>;
+
+/**
+ * Задача-перезвон телефонии — работа продаж. Куратору без продаж («только поступление») она «Сегодня» не нужна:
+ * она остаётся в «Задачах», а не засоряет его день.
+ */
+export function todayShowsItem(item: Pick<TodayItem, "source" | "task">, role: TodayRoleSections): boolean {
+  return !(role.admissions && !role.sales && todaySectionOf(item) === "sales" && item.source === "tasks");
+}
+
+/** Раздел с учётом роли: у человека одного отдела рабочие задачи стоят в его разделе, без третьего заголовка. */
+function placeItem(item: Pick<TodayItem, "source" | "task">, role: TodayRoleSections): TodaySection {
+  const section = todaySectionOf(item);
+  if (section !== "work") return section;
+  return role.sales && !role.admissions ? "sales" : role.admissions && !role.sales ? "admissions" : "work";
+}
+
+export type TodaySectionView = Readonly<{
+  section: TodaySection;
+  title: string;
+  queue: TodayQueue;
+}>;
+
+export type TodaySections = Readonly<{
+  /** Вся очередь: предупреждения источников, пустой день, «роль без очереди». */
+  queue: TodayQueue;
+  /** Непустые разделы по порядку; один раздел — без заголовка (`headed` ложь). */
+  sections: readonly TodaySectionView[];
+  headed: boolean;
+}>;
+
+/**
+ * Очередь по разделам. Каждый раздел собирается тем же `buildTodayQueue` из своих строк, поэтому числа групп честны
+ * по тем же правилам: неполное или упавшее чтение источника гасит числа тех разделов, куда он пишет. Строки и права
+ * не меняются — меняется только расстановка; у роли с одним разделом страница выглядит как раньше.
+ */
+export function buildTodaySections(reads: readonly TodaySourceRead[], now: Date, role: TodayRoleSections): TodaySections {
+  const visible = reads.map((read): TodaySourceRead => read.state === "complete" || read.state === "partial"
+    ? { ...read, items: read.items.filter((item) => todayShowsItem(item, role)) }
+    : read);
+  const queue = buildTodayQueue(visible, now);
+  const sections = TODAY_SECTIONS.flatMap((section): TodaySectionView[] => {
+    const own = visible
+      .filter((read) => SECTION_SOURCES[section].includes(read.source))
+      .map((read): TodaySourceRead => read.state === "complete" || read.state === "partial"
+        ? { ...read, items: read.items.filter((item) => placeItem(item, role) === section) }
+        : read);
+    const sectionQueue = buildTodayQueue(own, now);
+    return sectionQueue.bands.length ? [{ section, title: TODAY_SECTION_TITLES[section], queue: sectionQueue }] : [];
+  });
+  return Object.freeze({ queue, sections: Object.freeze(sections), headed: sections.length > 1 });
 }
 
 // --- Слова строки и шапки ------------------------------------------------

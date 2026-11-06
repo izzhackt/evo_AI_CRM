@@ -13,16 +13,16 @@ export const todayBandTitle = (label: string) => label.split(" · ")[0];
  * Телефон: один ряд, который листается вбок (три ряда плиток уводили бы строки ниже первого экрана); от `md` —
  * сетка по числу групп (`auto-fit`): у дня с двумя группами нет пустых пятых долей.
  */
-export function TodayTiles({ bands }: Readonly<{ bands: readonly TodayBandView[] }>) {
+export function TodayTiles({ bands, idPrefix = "", label = "Числа по группам" }: Readonly<{ bands: readonly TodayBandView[]; idPrefix?: string; label?: string }>) {
   return (
     <ul
       className="-mx-4 flex snap-x gap-3 scroll-px-4 overflow-x-auto px-4 py-1 sm:-mx-6 sm:scroll-px-6 sm:px-6 md:mx-0 md:grid md:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] md:overflow-visible md:px-0 md:py-0"
-      aria-label="Числа по группам"
+      aria-label={label}
       data-testid="today-tiles"
     >
       {bands.map((band) => (
         <li key={band.band} className="w-36 shrink-0 snap-start md:w-auto md:min-w-0 md:shrink">
-          <StatTile label={todayBandTitle(band.label)} value={band.count} tone={band.danger && (band.count ?? 0) > 0 ? "danger" : "neutral"} href={`#${todayWidgetId(band.band)}`} />
+          <StatTile label={todayBandTitle(band.label)} value={band.count} tone={band.danger && (band.count ?? 0) > 0 ? "danger" : "neutral"} href={`#${todayWidgetId(`${idPrefix}${band.band}`)}`} />
         </li>
       ))}
     </ul>

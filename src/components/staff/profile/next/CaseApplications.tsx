@@ -25,4 +25,3 @@ export function ApplicationsValue({ input }: Readonly<{ input: CaseOverviewInput
     </ul>
   );
 }
-

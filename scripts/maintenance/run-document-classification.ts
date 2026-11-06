@@ -51,6 +51,7 @@ export async function runDocumentClassificationCli(args: readonly string[], over
     if (error instanceof DocumentClassificationBatchError && (error.code === "provider_not_configured" || error.code === "backend_not_configured")) {
       runtime.write(failure(error.code)); return 78;
     }
+    if (error instanceof DocumentClassificationBatchError && error.code === "run_in_progress") { runtime.write(failure("run_in_progress")); return 75; }
     if (error instanceof PlatformSupabaseBackendConfigurationError) { runtime.write(failure("backend_not_configured")); return 78; }
     runtime.write(failure("unavailable")); return 69;
   } finally {

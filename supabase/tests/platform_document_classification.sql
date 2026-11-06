@@ -68,13 +68,14 @@ CREATE FUNCTION pg_temp.a333_msg(p_result JSONB) RETURNS TEXT LANGUAGE SQL IMMUT
 
 -- ---------------------------------------------------------------------------
 -- Fixture. Actors: 1 org 1 Admin, 2 org 1 student with a portal (allowed), 3 org 1 student with a portal (undecided),
--- 4 org 1 student with a portal (declined), 5 org 2 Admin.
+-- 4 org 1 student with a portal (declined), 5 org 2 Admin, 6 org 1 Sales member (no document.manage, no case access), 7 org 1 curator
+-- with no role assignment and no scope on the cases. Both are refused; the Admin (actor 1) is the positive control throughout.
 -- Cases (org 1, active unless noted): 701 no portal, 702 portal allowed, 703 portal undecided, 704 portal declined,
 -- 705 no portal but NOT active. Each has one amoCRM-group file; case 701 also has a file in an ordinary group.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE a333_actors(n INTEGER PRIMARY KEY, org INTEGER, coarse platform.business_role, sysadmin BOOLEAN);
 INSERT INTO a333_actors VALUES (1, 1, 'admin', TRUE), (2, 1, 'student', FALSE), (3, 1, 'student', FALSE), (4, 1, 'student', FALSE),
-  (5, 2, 'admin', TRUE);
+  (5, 2, 'admin', TRUE), (6, 1, 'sales', FALSE), (7, 1, 'curator', FALSE);
 INSERT INTO platform.organizations(id, name, status) VALUES
   (pg_temp.a333_id(1), 'A333 Fictional organization', 'active'), (pg_temp.a333_id(2), 'A333 Other fictional organization', 'active');
 INSERT INTO auth.users(id, email, raw_user_meta_data)
@@ -100,7 +101,7 @@ CREATE FUNCTION pg_temp.a333_claims_for(p_n INTEGER) RETURNS TEXT LANGUAGE SQL V
     'claims', jsonb_build_object('sub', pg_temp.a333_id(100 + p_n), 'role', 'authenticated'))) -> 'claims')::TEXT
 $$;
 INSERT INTO a333_claims(actor, claims) SELECT a.n, pg_temp.a333_claims_for(a.n) FROM a333_actors a;
-SELECT pg_temp.a333_assert((SELECT count(*) = 5 AND bool_and(claims IS NOT NULL) FROM a333_claims), 'every fixture actor got claims from the real hook');
+SELECT pg_temp.a333_assert((SELECT count(*) = 7 AND bool_and(claims IS NOT NULL) FROM a333_claims), 'every fixture actor got claims from the real hook');
 
 SET LOCAL session_replication_role = replica;
 INSERT INTO platform.student_cases (id, organization_id, student_membership_id, responsible_sales_membership_id, current_curator_membership_id,
@@ -167,6 +168,11 @@ VALUES (pg_temp.a333_id(1),
     "inputMicrosPerMillionTokens":100000,"outputMicrosPerMillionTokens":200000}',
   'evo-profile-61-v1', 'synthetic-prompt-v1', TRUE);
 
+-- The run lease (one run per organization) is expired by the owner between the scenarios that use different run ids.
+CREATE FUNCTION pg_temp.a333_free() RETURNS VOID LANGUAGE SQL AS $$
+  UPDATE platform_private.document_classification_leases SET lease_until = statement_timestamp() - INTERVAL '1 second'
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 1. Posture.
 -- ---------------------------------------------------------------------------
@@ -178,11 +184,13 @@ SELECT pg_temp.a333_assert(
   AND NOT has_table_privilege('service_role', 'platform_private.document_classification_suggestions', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'platform_private.document_classification_resolutions', 'SELECT')
   AND NOT has_table_privilege('service_role', 'platform_private.document_classification_resolutions', 'INSERT')
-  AND NOT has_table_privilege('anon', 'platform_private.document_classification_resolutions', 'SELECT'),
+  AND NOT has_table_privilege('anon', 'platform_private.document_classification_resolutions', 'SELECT')
+  AND NOT has_table_privilege('service_role', 'platform_private.document_classification_leases', 'SELECT')
+  AND (SELECT c.relrowsecurity AND c.relforcerowsecurity FROM pg_class c WHERE c.oid = 'platform_private.document_classification_leases'::REGCLASS),
   'posture: both tables closed to every API role with row security forced');
 SELECT pg_temp.a333_assert(
-  (SELECT count(*) = 4 FROM pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE
-    AND p.proname IN ('document_classification_plan_v1', 'document_classification_context_v1', 'document_classification_candidates_v1', 'document_classification_record_v1')
+  (SELECT count(*) = 5 FROM pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE
+    AND p.proname IN ('document_classification_plan_v1', 'document_classification_context_v1', 'document_classification_candidates_v1', 'document_classification_record_v1', 'document_classification_recheck_v1')
     AND p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
     AND has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
     AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('supabase_auth_admin', p.oid, 'EXECUTE')
@@ -192,12 +200,12 @@ SELECT pg_temp.a333_assert(
     AND p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
     AND has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
     AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('evo_ai_agent', p.oid, 'EXECUTE'))
-  AND (SELECT count(*) = 4 FROM pg_proc p WHERE p.pronamespace = 'platform_private'::REGNAMESPACE
-    AND p.proname IN ('doc_class_unsorted', 'doc_class_consent_band', 'doc_class_done', 'document_classification_suggestion_guard')
+  AND (SELECT count(*) = 5 FROM pg_proc p WHERE p.pronamespace = 'platform_private'::REGNAMESPACE
+    AND p.proname IN ('doc_class_unsorted', 'doc_class_consent_band', 'doc_class_done', 'document_classification_suggestion_guard', 'doc_class_lease')
     AND p.proconfig = ARRAY['search_path=""']::TEXT[]
     AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
-    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')),
-  'posture: four service functions, two staff functions, four closed helpers; definers with an empty search_path');
+    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('evo_ai_agent', p.oid, 'EXECUTE')),
+  'posture: five service functions, two staff functions, five closed helpers (closed to evo_ai_agent too); definers with an empty search_path');
 -- The consent rule is called, not copied: the three places use the one 320 function.
 SELECT pg_temp.a333_assert(
   strpos((SELECT prosrc FROM pg_proc WHERE oid = 'platform_private.doc_class_unsorted(uuid,uuid)'::REGPROCEDURE), 'ai_agent_student_ai_allowed(') > 0
@@ -247,12 +255,48 @@ SELECT pg_temp.a333_assert(
   AND pg_temp.a333_err(pg_temp.a333_as(1, format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-1'))) = '42501'
   AND pg_temp.a333_err(pg_temp.a333_anon(format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-1'))) = '42501',
   'candidates: limit bounds, the strict flag, a bad run id, and refusal to staff / anon');
+-- The caller's own «already seen in this run» list (a temporary failure leaves no row) keeps a chunk from sticking to the same files.
+SELECT pg_temp.a333_assert(
+  (SELECT array_agg(e ->> 'document_version_id') = ARRAY[:'a333_v2'::TEXT] FROM jsonb_array_elements(pg_temp.a333_svc(format(
+    'SELECT platform.document_classification_candidates_v1(%L, 50, FALSE, %L, ARRAY[%L]::UUID[])', pg_temp.a333_id(1), 'run-1', :'a333_v1'::UUID))) e),
+  'candidates: the exclusion list removes the files this run has already seen');
 -- A scan that is not clean makes the file not eligible: it is not offered to the provider.
 UPDATE platform.document_versions SET malware_status = 'infected' WHERE id = :'a333_v2'::UUID;
 SELECT pg_temp.a333_assert(jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 50, FALSE, %L)', pg_temp.a333_id(1), 'run-1'))) = 1
   AND (pg_temp.a333_svc(format('SELECT platform.document_classification_plan_v1(%L, FALSE)', pg_temp.a333_id(1)))) ->> 'not_readable_files' = '1',
   'candidates: a file without a clean scan proof is not offered (and the plan counts it as not readable)');
 UPDATE platform.document_versions SET malware_status = 'clean' WHERE id = :'a333_v2'::UUID;
+
+-- One run per organization: a live lease of another run refuses (run_in_progress, 55P03) both the candidates and the recheck;
+-- the same run renews it; an expired lease can be taken over.
+SELECT pg_temp.a333_free();
+SELECT pg_temp.a333_assert(
+  jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-L1'))) = 2
+  AND pg_temp.a333_err(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-L2'))) = '55P03'
+  AND pg_temp.a333_msg(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-L2'))) = 'run_in_progress'
+  AND pg_temp.a333_err(pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v1'::UUID, 'run-L2'))) = '55P03'
+  AND jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-L1'))) = 2
+  AND (SELECT pg_temp.a333_free()) IS NULL
+  AND jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 5, FALSE, %L)', pg_temp.a333_id(1), 'run-L2'))) = 2
+  AND (SELECT count(*) = 1 FROM platform_private.document_classification_leases),
+  'lease: a second run is refused while the first holds the organization; the same run renews; an expired lease is taken over');
+SELECT pg_temp.a333_free();
+
+-- Recheck before EVERY provider call: the same rule as the candidate set, so a consent that changed after the chunk was chosen
+-- stops that one file.
+SELECT pg_temp.a333_assert(
+  pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v1'::UUID, 'run-1')) = 'true'::JSONB
+  AND pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v3'::UUID, 'run-1')) = 'false'::JSONB
+  AND pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v4'::UUID, 'run-1')) = 'false'::JSONB
+  AND pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, TRUE, %L))', pg_temp.a333_id(1), :'a333_v1'::UUID, 'run-1')) = 'false'::JSONB
+  AND pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, TRUE, %L))', pg_temp.a333_id(1), :'a333_v2'::UUID, 'run-1')) = 'true'::JSONB
+  AND pg_temp.a333_err(pg_temp.a333_as(1, format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v1'::UUID, 'run-1'))) = '42501'
+  AND pg_temp.a333_err(pg_temp.a333_anon(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v1'::UUID, 'run-1'))) = '42501',
+  'recheck: allowed and eligible files pass; declined / undecided do not; the strict flag wants explicit consent; staff and anon are refused');
+UPDATE platform_private.student_ai_consents SET status = 'declined' WHERE auth_user_id = pg_temp.a333_id(102);
+SELECT pg_temp.a333_assert(pg_temp.a333_svc(format('SELECT to_jsonb(platform.document_classification_recheck_v1(%L, %L, FALSE, %L))', pg_temp.a333_id(1), :'a333_v2'::UUID, 'run-1')) = 'false'::JSONB,
+  'recheck: a student who declines after the chunk was chosen stops that file');
+UPDATE platform_private.student_ai_consents SET status = 'granted' WHERE auth_user_id = pg_temp.a333_id(102);
 
 -- ---------------------------------------------------------------------------
 -- 4. Context and record.
@@ -287,12 +331,18 @@ SELECT pg_temp.a333_assert((:'a333_r1'::JSONB) ->> 'reason' = 'new' AND (:'a333_
     FROM platform_private.document_classification_suggestions WHERE document_version_id = :'a333_v1'::UUID),
   'record: a repeat is idempotent - one row, the first result stays (never overwritten): ' || :'a333_r1' || :'a333_r1b');
 -- Failed rows are retried (attempts + 1) and a successful retry replaces the failure; three failures end the file.
-SELECT pg_temp.a333_record(:'a333_v2'::UUID, 'failed', NULL, NULL, 0, 'provider_unavailable', 'run-1') AS a333_f1 \gset
+SELECT pg_temp.a333_record(:'a333_v2'::UUID, 'failed', NULL, NULL, 0, 'invalid_result', 'run-1') AS a333_f1 \gset
 SELECT pg_temp.a333_assert((:'a333_f1'::JSONB) ->> 'reason' = 'new'
   AND jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 50, FALSE, %L)', pg_temp.a333_id(1), 'run-1'))) = 0
+  AND (SELECT pg_temp.a333_free()) IS NULL
   AND jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 50, FALSE, %L)', pg_temp.a333_id(1), 'run-2'))) = 1,
   'a failed file is not offered again in the same run, but is offered by the next one');
-SELECT pg_temp.a333_record(:'a333_v2'::UUID, 'failed', NULL, NULL, 0, 'provider_unavailable', 'run-2') AS a333_f2 \gset
+-- Transient provider failures are not a stored outcome at all: the code is not in the closed list, no row, no attempt spent.
+SELECT pg_temp.a333_assert(pg_temp.a333_err(pg_temp.a333_record(:'a333_v2'::UUID, 'failed', NULL, NULL, 0, 'provider_unavailable', 'run-2')) IS NOT NULL
+  AND pg_temp.a333_err(pg_temp.a333_record(:'a333_v2'::UUID, 'failed', NULL, NULL, 0, 'budget_exhausted', 'run-2')) IS NOT NULL
+  AND (SELECT attempts = 1 FROM platform_private.document_classification_suggestions WHERE document_version_id = :'a333_v2'::UUID),
+  'a transient provider failure (provider_unavailable) cannot be stored and spends no attempt');
+SELECT pg_temp.a333_record(:'a333_v2'::UUID, 'failed', NULL, NULL, 0, 'invalid_result', 'run-2') AS a333_f2 \gset
 SELECT pg_temp.a333_record(:'a333_v2'::UUID, 'suggested', 'transcript', 0.5, 40, NULL, 'run-3') AS a333_f3 \gset
 SELECT pg_temp.a333_assert((:'a333_f2'::JSONB) ->> 'reason' = 'retried' AND (:'a333_f3'::JSONB) ->> 'reason' = 'retried'
   AND (SELECT status = 'suggested' AND attempts = 3 AND cost_micros = 40 AND kind_key = 'transcript'
@@ -323,6 +373,7 @@ SELECT pg_temp.a333_assert(
   (SELECT cost_micros = 140 FROM (SELECT sum(cost_micros) AS cost_micros FROM platform_private.document_classification_suggestions) s)
   AND (pg_temp.a333_svc(format('SELECT platform.document_classification_context_v1(%L)', pg_temp.a333_id(1)))) ->> 'budget_left_micros' = '99860',
   'budget: remaining = daily ceiling - suggestion cost today (100 + 40)');
+SELECT pg_temp.a333_free();
 SELECT pg_temp.a333_assert(jsonb_array_length(pg_temp.a333_svc(format('SELECT platform.document_classification_candidates_v1(%L, 50, FALSE, %L)', pg_temp.a333_id(1), 'run-9'))) = 0
   AND (pg_temp.a333_svc(format('SELECT platform.document_classification_plan_v1(%L, FALSE)', pg_temp.a333_id(1)))) ->> 'already_classified_files' = '2'
   AND (pg_temp.a333_svc(format('SELECT platform.document_classification_plan_v1(%L, FALSE)', pg_temp.a333_id(1)))) ->> 'to_classify_files' = '0',
@@ -352,6 +403,16 @@ SELECT pg_temp.a333_assert(
   AND pg_temp.a333_err(pg_temp.a333_as(1, format('SELECT platform.staff_document_suggestions_v1(%L, %L)', pg_temp.a333_id(1), gen_random_uuid()))) = '42501',
   'staff read: refused to a student, another organization''s Admin, anon, service_role; an unknown case is refused too');
 
+-- A same-org member without document.manage / case access (Sales), and a curator WITHOUT a scope on the case, are refused on the read and
+-- on the resolve (the Admin reads and resolves throughout: the positive control).
+SELECT pg_temp.a333_as(6, format('SELECT platform.staff_document_suggestions_v1(%L, %L)', pg_temp.a333_id(1), pg_temp.a333_id(701))) AS a333_d6 \gset
+SELECT pg_temp.a333_as(7, format('SELECT platform.staff_document_suggestions_v1(%L, %L)', pg_temp.a333_id(1), pg_temp.a333_id(701))) AS a333_d7 \gset
+SELECT pg_temp.a333_as(6, format('SELECT platform.staff_resolve_document_suggestion_v1(%L, %L, %L, ''passport'', %L)', pg_temp.a333_id(1), pg_temp.a333_id(701), :'a333_v1'::UUID, pg_temp.a333_id(9101))) AS a333_r6 \gset
+SELECT pg_temp.a333_as(7, format('SELECT platform.staff_resolve_document_suggestion_v1(%L, %L, %L, ''passport'', %L)', pg_temp.a333_id(1), pg_temp.a333_id(701), :'a333_v1'::UUID, pg_temp.a333_id(9102))) AS a333_r7 \gset
+SELECT pg_temp.a333_assert(pg_temp.a333_err(:'a333_d6'::JSONB) = '42501' AND pg_temp.a333_err(:'a333_r6'::JSONB) = '42501',
+  'deny: Sales (no document.manage, no case access) is refused on read and resolve: ' || :'a333_d6' || :'a333_r6');
+SELECT pg_temp.a333_assert(pg_temp.a333_err(:'a333_d7'::JSONB) = '42501' AND pg_temp.a333_err(:'a333_r7'::JSONB) = '42501',
+  'deny: a curator without a scope on the case is refused on read and resolve: ' || :'a333_d7' || :'a333_r7');
 -- ---------------------------------------------------------------------------
 -- 6. The curator decision, separate from the suggestion.
 -- ---------------------------------------------------------------------------
@@ -392,6 +453,17 @@ SELECT pg_temp.a333_assert(
   AND pg_temp.a333_msg(pg_temp.a333_resolve(1, 703, :'a333_v1'::UUID, 'passport', 9010)) = 'document_not_found'
   AND (SELECT count(*) = 3 FROM platform_private.document_classification_resolutions),
   'decision: refused to a student, a foreign Admin, anon; "other" is not a checklist item; a version of another case is not found');
+-- A closed case takes no decision: the resolve is refused and the file is no longer offered to the provider.
+SET LOCAL session_replication_role = replica;
+UPDATE platform.student_cases SET state = 'closed', closed_at = statement_timestamp() WHERE id = pg_temp.a333_id(703);
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a333_assert(pg_temp.a333_err(pg_temp.a333_resolve(1, 703, :'a333_v3'::UUID, 'passport', 9011)) = '42501'
+  AND (SELECT count(*) = 3 FROM platform_private.document_classification_resolutions)
+  AND (pg_temp.a333_as(1, format('SELECT platform.staff_document_suggestions_v1(%L, %L)', pg_temp.a333_id(1), pg_temp.a333_id(703)))) ->> 'ai_allowed' = 'false',
+  'closed case: the decision is refused (42501) and nothing is written');
+SET LOCAL session_replication_role = replica;
+UPDATE platform.student_cases SET state = 'active', closed_at = NULL WHERE id = pg_temp.a333_id(703);
+SET LOCAL session_replication_role = origin;
 -- Resolved files leave the unsorted set: the plan shrinks and the candidates never return them.
 SELECT pg_temp.a333_svc(format('SELECT platform.document_classification_plan_v1(%L, FALSE)', pg_temp.a333_id(1))) AS a333_plan2 \gset
 SELECT pg_temp.a333_assert((:'a333_plan2'::JSONB) ->> 'unsorted_files' = '1' AND (:'a333_plan2'::JSONB) ->> 'to_classify_files' = '0',

@@ -12,11 +12,13 @@
 --   2) platform_private.document_classification_resolutions: решение куратора отдельно от подсказки. Одна строка на версию.
 --   3) Согласие и обработка данных (критично): ничего не уходит ИИ, если platform_private.ai_agent_student_ai_allowed(...)
 --      (миграция 320) говорит false: студент отказал, либо у него есть кабинет и он не решил на действующей версии политики.
---      Проверка стоит в ТРЁХ местах: выбор кандидатов, запись результата (повторно, перед записью) и чтение подсказок
+--      Проверка стоит в ЧЕТЫРЁХ местах: выбор кандидатов, перепроверка перед каждым вызовом провайдера, запись результата (повторно, перед записью) и чтение подсказок
 --      куратором. Правило одно на все ИИ-пути, свой список «разрешённых» здесь не заводится.
 --   4) Команды (service_role): document_classification_plan_v1 (счётчики, пробный прогон, файлов не читает),
 --      document_classification_context_v1 (настройка провайдера и остаток дневного бюджета),
---      document_classification_candidates_v1 (порция кандидатов), document_classification_record_v1 (запись результата).
+--      document_classification_candidates_v1 (порция кандидатов), document_classification_recheck_v1 (перепроверка согласия
+--      перед КАЖДЫМ вызовом провайдера), document_classification_record_v1 (запись результата). Один прогон на организацию:
+--      аренда на 10 минут (run_in_progress, 55P03); временные сбои провайдера строк не пишут и попыток не тратят.
 --   5) Команды сотрудника (authenticated): staff_document_suggestions_v1 (чтение подсказок по делу; право case.read.full и
 --      document.read.full на дело; чтение не шире, чем у вкладки «Документы») и staff_resolve_document_suggestion_v1
 --      (запись решения; право document.manage на дело, как у переименования пункта).
@@ -74,8 +76,8 @@ CREATE TABLE platform_private.document_classification_suggestions (
   input_tokens INTEGER CHECK (input_tokens IS NULL OR input_tokens >= 0),
   output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
   cost_micros BIGINT NOT NULL DEFAULT 0 CHECK (cost_micros >= 0),
-  failure_code TEXT CHECK (failure_code IS NULL OR failure_code IN ('provider_rejected', 'provider_unavailable', 'invalid_result',
-    'source_unavailable', 'document_not_eligible', 'too_large', 'budget_exhausted')),
+  -- Только окончательные отказы расходуют попытку. Временные сбои провайдера (429, 5xx, таймаут) строки не пишут и попытки не тратят.
+  failure_code TEXT CHECK (failure_code IS NULL OR failure_code IN ('provider_rejected', 'invalid_result', 'source_unavailable', 'too_large')),
   attempts INTEGER NOT NULL DEFAULT 1 CHECK (attempts BETWEEN 1 AND 3),
   run_id TEXT NOT NULL CHECK (run_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
@@ -141,11 +143,18 @@ CREATE TRIGGER document_classification_resolutions_no_delete BEFORE DELETE ON pl
 CREATE TRIGGER document_classification_resolutions_no_truncate BEFORE TRUNCATE ON platform_private.document_classification_resolutions
   FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
 
+-- Один прогон на организацию: аренда на 10 минут, продлевается каждым обращением прогона (кандидаты, перепроверка).
+CREATE TABLE platform_private.document_classification_leases (
+  organization_id UUID PRIMARY KEY REFERENCES platform.organizations(id) ON DELETE RESTRICT,
+  run_id TEXT NOT NULL CHECK (run_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'),
+  lease_until TIMESTAMPTZ NOT NULL
+);
+
 DO $a333_tables$
 DECLARE t REGCLASS;
 BEGIN
   FOREACH t IN ARRAY ARRAY['platform_private.document_classification_suggestions'::REGCLASS,
-    'platform_private.document_classification_resolutions'::REGCLASS] LOOP
+    'platform_private.document_classification_resolutions'::REGCLASS, 'platform_private.document_classification_leases'::REGCLASS] LOOP
     EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('REVOKE ALL ON TABLE %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', t);
@@ -196,12 +205,29 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       AND (g.status IN ('suggested', 'unsure') OR g.attempts >= 3))
 $$;
 
+-- Аренда прогона: чужой живой прогон - отказ run_in_progress (55P03); свой или просроченный - продление. Замок транзакции сериализует захват.
+CREATE FUNCTION platform_private.doc_class_lease(p_organization_id UUID, p_run_id TEXT)
+RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE l platform_private.document_classification_leases%ROWTYPE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('evo:doc-class:' || p_organization_id::TEXT, 0));
+  SELECT * INTO l FROM platform_private.document_classification_leases WHERE organization_id = p_organization_id;
+  IF FOUND AND l.run_id <> p_run_id AND l.lease_until > statement_timestamp() THEN
+    RAISE EXCEPTION 'run_in_progress' USING ERRCODE = '55P03';
+  END IF;
+  INSERT INTO platform_private.document_classification_leases (organization_id, run_id, lease_until)
+  VALUES (p_organization_id, p_run_id, statement_timestamp() + INTERVAL '10 minutes')
+  ON CONFLICT (organization_id) DO UPDATE SET run_id = EXCLUDED.run_id, lease_until = EXCLUDED.lease_until;
+END
+$$;
+
 DO $a333_helpers$
 DECLARE f TEXT;
 BEGIN
   FOREACH f IN ARRAY ARRAY['platform_private.doc_class_unsorted(uuid,uuid)', 'platform_private.doc_class_consent_band(uuid,uuid)',
-    'platform_private.doc_class_done(uuid,uuid,text)', 'platform_private.document_classification_suggestion_guard()'] LOOP
-    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin', f);
+    'platform_private.doc_class_done(uuid,uuid,text)', 'platform_private.document_classification_suggestion_guard()',
+    'platform_private.doc_class_lease(uuid,text)'] LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
 $a333_helpers$;
@@ -267,15 +293,16 @@ $$;
 
 -- Порция кандидатов: согласие проверяется здесь (первое из трёх мест), уже обработанное и решённое не возвращается.
 CREATE FUNCTION platform.document_classification_candidates_v1(p_organization_id UUID, p_limit INTEGER, p_only_explicit_consent BOOLEAN,
-  p_run_id TEXT)
+  p_run_id TEXT, p_exclude UUID[] DEFAULT '{}')
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE r JSONB;
 BEGIN
   PERFORM platform_private.require_p2g_service();
   IF p_organization_id IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50 OR p_only_explicit_consent IS NULL
-    OR p_run_id IS NULL OR p_run_id !~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' THEN
+    OR p_run_id IS NULL OR p_run_id !~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' OR p_exclude IS NULL OR cardinality(p_exclude) > 2000 THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
+  PERFORM platform_private.doc_class_lease(p_organization_id, p_run_id);
   SELECT COALESCE(jsonb_agg(jsonb_build_object('student_case_id', t.student_case_id, 'document_slot_id', t.document_slot_id,
     'document_version_id', t.document_version_id, 'sha256', t.sha256_hex, 'bytes', t.byte_size, 'mime', t.mime_type,
     'bucket_id', t.bucket_id, 'object_name', t.object_name,
@@ -288,12 +315,33 @@ BEGIN
     WHERE x.eligible AND x.ai_allowed AND x.bucket_id = 'platform-documents' AND x.object_name IS NOT NULL
       AND (NOT p_only_explicit_consent OR platform_private.doc_class_consent_band(p_organization_id, x.student_case_id) = 'granted')
       AND NOT platform_private.doc_class_done(p_organization_id, x.document_version_id, 'doc-kind-v1')
+      -- Уже виденное этим прогоном (в том числе временный сбой без строки) не возвращается: порция не застревает на одних и тех же файлах.
+      AND x.document_version_id <> ALL (p_exclude)
       -- Неудача этого же прогона не возвращается в нём снова: повтор - следующим запуском (до трёх попыток всего).
       AND NOT EXISTS (SELECT 1 FROM platform_private.document_classification_suggestions f WHERE f.organization_id = p_organization_id
         AND f.document_version_id = x.document_version_id AND f.policy_version = 'doc-kind-v1' AND f.run_id = p_run_id)
     ORDER BY x.student_case_id, x.document_version_id LIMIT p_limit
   ) t;
   RETURN r;
+END
+$$;
+
+-- Перепроверка ПЕРЕД КАЖДЫМ вызовом провайдера: согласие могло смениться за секунды или минуты после выбора порции.
+-- Тот же предикат, что у выбора кандидатов (doc_class_unsorted: разобран ли файл, читаем ли, разрешено ли ИИ), и продление аренды.
+CREATE FUNCTION platform.document_classification_recheck_v1(p_organization_id UUID, p_document_version_id UUID, p_only_explicit_consent BOOLEAN,
+  p_run_id TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM platform_private.require_p2g_service();
+  IF p_organization_id IS NULL OR p_document_version_id IS NULL OR p_only_explicit_consent IS NULL
+    OR p_run_id IS NULL OR p_run_id !~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  PERFORM platform_private.doc_class_lease(p_organization_id, p_run_id);
+  RETURN EXISTS (SELECT 1 FROM platform_private.doc_class_unsorted(p_organization_id) x
+    WHERE x.document_version_id = p_document_version_id AND x.eligible AND x.ai_allowed
+      AND (NOT p_only_explicit_consent OR platform_private.doc_class_consent_band(p_organization_id, x.student_case_id) = 'granted')
+      AND NOT platform_private.doc_class_done(p_organization_id, x.document_version_id, 'doc-kind-v1'));
 END
 $$;
 
@@ -309,6 +357,7 @@ BEGIN
     OR p_run_id IS NULL OR p_cost_micros IS NULL OR p_cost_micros < 0 THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('evo:doc-class:v:' || p_document_version_id::TEXT, 0));
   SELECT * INTO u FROM platform_private.doc_class_unsorted(p_organization_id) x WHERE x.document_version_id = p_document_version_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'not_candidate' USING ERRCODE = '22023'; END IF;
   IF NOT u.ai_allowed THEN RAISE EXCEPTION 'ai_consent_missing' USING ERRCODE = '42501'; END IF;
@@ -324,11 +373,16 @@ BEGIN
       run_id = p_run_id, updated_at = statement_timestamp() WHERE id = g.id;
     RETURN jsonb_build_object('recorded', TRUE, 'reason', 'retried');
   END IF;
-  INSERT INTO platform_private.document_classification_suggestions (organization_id, student_case_id, document_slot_id, document_version_id,
-    policy_version, status, kind_key, confidence, model, provider_project_id, config_version, input_tokens, output_tokens, cost_micros,
-    failure_code, run_id)
-  VALUES (p_organization_id, u.student_case_id, u.document_slot_id, u.document_version_id, 'doc-kind-v1', p_status, p_kind_key,
-    p_confidence, p_model, p_provider_project_id, p_config_version, p_input_tokens, p_output_tokens, p_cost_micros, p_failure_code, p_run_id);
+  BEGIN
+    INSERT INTO platform_private.document_classification_suggestions (organization_id, student_case_id, document_slot_id, document_version_id,
+      policy_version, status, kind_key, confidence, model, provider_project_id, config_version, input_tokens, output_tokens, cost_micros,
+      failure_code, run_id)
+    VALUES (p_organization_id, u.student_case_id, u.document_slot_id, u.document_version_id, 'doc-kind-v1', p_status, p_kind_key,
+      p_confidence, p_model, p_provider_project_id, p_config_version, p_input_tokens, p_output_tokens, p_cost_micros, p_failure_code, p_run_id);
+  EXCEPTION WHEN unique_violation THEN
+    -- Параллельная запись того же файла: это «уже есть», а не ошибка прогона.
+    RETURN jsonb_build_object('recorded', FALSE, 'reason', 'exists');
+  END;
   RETURN jsonb_build_object('recorded', TRUE, 'reason', 'new');
 END
 $$;
@@ -379,6 +433,10 @@ BEGIN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
   SELECT * INTO op FROM platform_private.require_case_operator(p_organization_id, p_student_case_id, 'document.manage');
+  -- Закрытое (и ещё не активное) дело не меняется: решение по файлу туда не пишется.
+  IF NOT EXISTS (SELECT 1 FROM platform.student_cases c WHERE c.organization_id = p_organization_id AND c.id = p_student_case_id AND c.state = 'active') THEN
+    RAISE EXCEPTION 'Student case is unavailable' USING ERRCODE = '42501';
+  END IF;
   SELECT * INTO rr FROM platform_private.document_classification_resolutions WHERE request_id = p_request_id;
   IF FOUND THEN
     IF rr.organization_id <> p_organization_id OR rr.document_version_id <> p_document_version_id OR rr.chosen_kind_key <> p_kind_key THEN
@@ -412,7 +470,7 @@ DO $a333_grants$
 DECLARE f TEXT;
 BEGIN
   FOREACH f IN ARRAY ARRAY['platform.document_classification_plan_v1(uuid,boolean)', 'platform.document_classification_context_v1(uuid)',
-    'platform.document_classification_candidates_v1(uuid,integer,boolean,text)',
+    'platform.document_classification_candidates_v1(uuid,integer,boolean,text,uuid[])', 'platform.document_classification_recheck_v1(uuid,uuid,boolean,text)',
     'platform.document_classification_record_v1(uuid,uuid,text,text,numeric,text,text,text,integer,integer,bigint,text,text)'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', f);

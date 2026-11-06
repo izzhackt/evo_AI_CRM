@@ -26,7 +26,7 @@ const PROMPT = "Classify what kind of document this scan or photo is, choosing o
 export type ClassificationBinding = Readonly<{ bytes: Uint8Array; mime: "application/pdf" | "image/jpeg" | "image/png" }>;
 export type ClassificationOutcome = Readonly<
   | { outcome: "classified"; result: DocumentClassificationResult; inputTokens: number; outputTokens: number; costMicros: number }
-  | { outcome: "failed"; failure: Extract<DocumentClassificationFailure, "provider_rejected" | "provider_unavailable" | "invalid_result" | "too_large"> }
+  | { outcome: "failed"; failure: Exclude<DocumentClassificationFailure, "source_unavailable"> | "provider_unavailable" }
 >;
 
 function record(value: unknown): Record<string, unknown> | null {

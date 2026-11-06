@@ -38,7 +38,7 @@ export type ClassificationCandidate = Readonly<{
 export type ClassificationSummary = Readonly<{
   schema: "evo-document-classification/v1"; mode: "dry-run" | "run"; run_id: string; policy: string;
   plan: Record<string, unknown> | null; estimate: Readonly<{ provider_calls: number; chunks: number; worst_case_cost_micros: number | null; budget_left_micros: number | null }> | null;
-  processed: number; suggested: number; unsure: number; failed: number; skipped_no_consent: number; skipped_not_candidate: number; provider_calls: number;
+  processed: number; suggested: number; unsure: number; failed: number; transient_failures: number; skipped_no_consent: number; skipped_not_candidate: number; provider_calls: number;
   spent_micros: number; stopped: "completed" | "max_files" | "budget_exhausted" | "provider_unavailable" | "interrupted" | "no_candidates" | null;
 }>;
 export type ClassificationDependencies = Readonly<{
@@ -50,7 +50,7 @@ export type ClassificationDependencies = Readonly<{
 }>;
 
 export class DocumentClassificationBatchError extends Error {
-  readonly code: "invalid_arguments" | "provider_not_configured" | "backend_not_configured" | "unavailable";
+  readonly code: "invalid_arguments" | "provider_not_configured" | "backend_not_configured" | "run_in_progress" | "unavailable";
   constructor(code: DocumentClassificationBatchError["code"]) { super("Document classification batch unavailable"); this.name = "DocumentClassificationBatchError"; this.code = code; }
 }
 
@@ -103,7 +103,7 @@ function parseCandidates(value: unknown): ClassificationCandidate[] {
 
 function emptySummary(options: ClassificationOptions): ClassificationSummary {
   return { schema: "evo-document-classification/v1", mode: options.dryRun ? "dry-run" : "run", run_id: options.runId,
-    policy: DOCUMENT_CLASSIFICATION_POLICY, plan: null, estimate: null, processed: 0, suggested: 0, unsure: 0, failed: 0,
+    policy: DOCUMENT_CLASSIFICATION_POLICY, plan: null, estimate: null, processed: 0, suggested: 0, unsure: 0, failed: 0, transient_failures: 0,
     skipped_no_consent: 0, skipped_not_candidate: 0, provider_calls: 0, spent_micros: 0, stopped: null };
 }
 
@@ -174,7 +174,7 @@ export async function runDocumentClassification(options: ClassificationOptions, 
     signal.throwIfAborted();
     const limit = Math.min(options.chunkSize, options.maxFiles - summary.processed);
     const batch = parseCandidates(await deps.rpc("document_classification_candidates_v1", {
-      p_organization_id: options.organizationId, p_limit: limit, p_only_explicit_consent: options.onlyExplicitConsent, p_run_id: options.runId }, signal))
+      p_organization_id: options.organizationId, p_limit: limit, p_only_explicit_consent: options.onlyExplicitConsent, p_run_id: options.runId, p_exclude: [...seen] }, signal))
       .filter((candidate) => !seen.has(candidate.document_version_id));
     for (const candidate of batch) seen.add(candidate.document_version_id);
     if (batch.length === 0) { summary.stopped = summary.processed === 0 ? "no_candidates" : "completed"; return summary; }
@@ -196,12 +196,24 @@ export async function runDocumentClassification(options: ClassificationOptions, 
         await record_(candidate, "failed", null, null, { input: null, output: null, cost: 0 }, "too_large");
         continue;
       }
+      // Согласие могло смениться за секунды или минуты после выбора порции: перед КАЖДЫМ вызовом провайдера база решает ещё раз
+      // тем же правилом, что при выборе кандидатов (и продлевает аренду прогона). Нет - файл не уходит.
+      const stillAllowed = await deps.rpc("document_classification_recheck_v1", {
+        p_organization_id: options.organizationId, p_document_version_id: candidate.document_version_id,
+        p_only_explicit_consent: options.onlyExplicitConsent, p_run_id: options.runId }, signal);
+      if (stillAllowed !== true) { summary.skipped_no_consent++; continue; }
       summary.provider_calls++;
       const outcome: ClassificationOutcome = await classifier.classify(source, signal);
       if (outcome.outcome === "failed") {
-        summary.failed++;
-        if (outcome.failure === "provider_unavailable" || outcome.failure === "provider_rejected") consecutiveProviderFailures++;
-        await record_(candidate, "failed", null, null, { input: null, output: null, cost: 0 }, outcome.failure);
+        if (outcome.failure === "provider_unavailable") {
+          // Временный сбой (429, 5xx, таймаут): строку не пишем и попытку не тратим, файл останется кандидатом для следующего запуска.
+          summary.transient_failures++;
+          consecutiveProviderFailures++;
+        } else {
+          summary.failed++;
+          if (outcome.failure === "provider_rejected") consecutiveProviderFailures++;
+          await record_(candidate, "failed", null, null, { input: null, output: null, cost: 0 }, outcome.failure);
+        }
         if (consecutiveProviderFailures >= DOCUMENT_CLASSIFICATION_LIMITS.abortAfterConsecutiveProviderFailures) { summary.stopped = "provider_unavailable"; return summary; }
       } else {
         consecutiveProviderFailures = 0;
@@ -234,6 +246,7 @@ export function createDocumentClassificationDependencies(env: NodeJS.ProcessEnv 
         if (code === "55000" && message === "provider_not_configured") throw new DocumentClassificationBatchError("provider_not_configured");
         if (code === "42501") throw new Error(message === "ai_consent_missing" ? "ai_consent_missing" : "forbidden");
         if (code === "22023" && message === "not_candidate") throw new Error("not_candidate");
+        if (code === "55P03" && message === "run_in_progress") throw new DocumentClassificationBatchError("run_in_progress");
         throw new DocumentClassificationBatchError("unavailable");
       }
       return response.data;

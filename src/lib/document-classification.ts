@@ -55,8 +55,9 @@ export function classificationStatus(kind: DocumentClassificationKey, confidence
   return confidenceBand(kind, confidence) === "unknown" ? "unsure" : "suggested";
 }
 
+/** Только окончательные отказы пишутся строкой и тратят попытку; временный сбой провайдера (429, 5xx, таймаут) - нет. */
 export const DOCUMENT_CLASSIFICATION_FAILURES = Object.freeze([
-  "provider_rejected", "provider_unavailable", "invalid_result", "source_unavailable", "document_not_eligible", "too_large", "budget_exhausted",
+  "provider_rejected", "invalid_result", "source_unavailable", "too_large",
 ] as const);
 export type DocumentClassificationFailure = (typeof DOCUMENT_CLASSIFICATION_FAILURES)[number];
 

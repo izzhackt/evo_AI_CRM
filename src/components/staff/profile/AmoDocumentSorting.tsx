@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/staff/queue/queue-buttons";
 import { DOCUMENT_KINDS, acceptLabel, documentKindLabel, type DocumentKindKey } from "@/lib/document-classification";
+import { MAX_BULK_ACCEPT } from "@/lib/document-sorting-ids";
 import {
   acceptConfidentDocumentKindsAction, acceptDocumentKindAction, type DocumentSortingOutcome,
 } from "@/lib/platform-document-sorting-actions";
@@ -13,17 +14,18 @@ import { bulkConfirmText, confidentRows, type SortingMode, type SortingRow } fro
 import { DocumentPreviewButton } from "./DocumentPreviewButton";
 
 const OUTCOME_TEXT: Record<Exclude<DocumentSortingOutcome, "saved">, string> = {
+  decision_not_recorded: "Файл принят, но отметка о решении не записалась. Обновите страницу.",
   invalid: "Не удалось отправить выбор. Обновите страницу и повторите.",
   forbidden: "Недостаточно прав, чтобы принять документ.",
   stale: "Файл уже изменили. Обновите страницу.",
-  target_exists: "В чек-листе уже есть пустой пункт с таким названием. Загрузите файл в него вручную.",
+  target_exists: "В чек-листе уже есть пункт с таким названием. Откройте его и решите, какой файл оставить: второй такой пункт не создаётся.",
   file_unavailable: "Файл не прошёл проверку безопасности, принять его нельзя.",
   partly_saved: "Файл перенесён в пункт, но не принят. Примите его в списке ниже.",
   unavailable: "Сервер не ответил. Повторите попытку.",
 };
 const MODE_NOTE: Record<SortingMode, string> = {
   ai: "ИИ только подсказывает. Файл попадает в чек-лист, когда вы нажмёте «Принять».",
-  manual: "У студента нет согласия на ИИ: файлы не отправлялись. Выберите, что это за документ, вручную.",
+  manual: "Сейчас ИИ для этого студента отключён: файлы не отправлялись. Выберите, что это за документ, вручную.",
   unavailable: "Подсказки сейчас недоступны. Выберите, что это за документ, вручную.",
 };
 
@@ -81,6 +83,7 @@ function SortingCard({ row, studentCaseId, canAct, onDone }: Readonly<{ row: Sor
     try {
       const result = await acceptDocumentKindAction(form);
       if (result.outcome === "saved") { onDone(); return; }
+      if (result.outcome === "decision_not_recorded") onDone();
       setMessage(OUTCOME_TEXT[result.outcome]);
       if (result.outcome === "partly_saved") onDone();
     } catch { setMessage(OUTCOME_TEXT.unavailable); }
@@ -144,17 +147,25 @@ export function AmoDocumentSorting({ studentCaseId, rows, mode, canAct }: Readon
   async function acceptAll() {
     if (bulkPending) return;
     setBulkPending(true); setBulkMessage(null);
-    const form = new FormData();
-    form.set("student_case_id", studentCaseId);
-    form.set("version_ids", confident.map((row) => row.file.versionId).join(","));
+    const ids = confident.map((row) => row.file.versionId);
+    let accepted = 0; let failed = 0; let skipped = 0; let unrecorded = 0; let stopped: string | null = null;
     try {
-      const result = await acceptConfidentDocumentKindsAction(form);
-      if (result.outcome !== "done") setBulkMessage(OUTCOME_TEXT[result.outcome === "invalid" ? "invalid" : result.outcome === "forbidden" ? "forbidden" : "unavailable"]);
-      else setBulkMessage(`Принято: ${result.accepted}.${result.failed > 0 ? ` Не удалось: ${result.failed}.` : ""}${result.skipped > 0 ? ` Пропущено: ${result.skipped}.` : ""}`);
-      setConfirming(false);
-      refresh();
-    } catch { setBulkMessage(OUTCOME_TEXT.unavailable); }
-    finally { setBulkPending(false); }
+      // Порциями: один вызов сервера не больше MAX_BULK_ACCEPT файлов, после каждой порции виден ход.
+      for (let start = 0; start < ids.length && stopped === null; start += MAX_BULK_ACCEPT) {
+        const form = new FormData();
+        form.set("student_case_id", studentCaseId);
+        form.set("version_ids", ids.slice(start, start + MAX_BULK_ACCEPT).join(","));
+        const result = await acceptConfidentDocumentKindsAction(form);
+        if (result.outcome !== "done") { stopped = OUTCOME_TEXT[result.outcome === "invalid" ? "invalid" : result.outcome === "forbidden" ? "forbidden" : "unavailable"]; break; }
+        accepted += result.accepted; failed += result.failed; skipped += result.skipped; unrecorded += result.unrecorded;
+        setBulkMessage(`Принято ${accepted} из ${ids.length}…`);
+      }
+    } catch { stopped = OUTCOME_TEXT.unavailable; }
+    // Сбой посередине не прячет уже принятое: панель перечитывается в любом случае.
+    setBulkMessage(`Принято: ${accepted} из ${ids.length}.${failed > 0 ? ` Не удалось: ${failed}.` : ""}${skipped > 0 ? ` Пропущено: ${skipped}.` : ""}${unrecorded > 0 ? ` Без отметки о решении: ${unrecorded}.` : ""}${stopped ? ` ${stopped}` : ""}`);
+    setConfirming(false);
+    setBulkPending(false);
+    refresh();
   }
 
   return (

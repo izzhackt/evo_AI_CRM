@@ -23,6 +23,13 @@ const CONFIG = { enabled: true, projectId: "synthetic-project", model: "gemini-3
   perJobBudgetMicros: 10000, dailyOrgBudgetMicros: 100000, inputTokenCeiling: 10000, outputTokenCeiling: 6000,
   inputMicrosPerMillionTokens: 100000, outputMicrosPerMillionTokens: 200000 };
 
+test("failure codes: only terminal refusals are stored, and they match the SQL check", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/333_platform_document_classification.sql", import.meta.url), "utf8");
+  const listed = [...sql.match(/failure_code IS NULL OR failure_code IN \(([^)]*)\)/)[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+  assert.deepEqual(listed, [...kinds.DOCUMENT_CLASSIFICATION_FAILURES]);
+  assert.equal(listed.includes("provider_unavailable"), false);
+});
+
 test("kinds: the closed list matches the SQL check, labels are Russian, other is never a checklist item", () => {
   const sql = readFileSync(new URL("../supabase/migrations/333_platform_document_classification.sql", import.meta.url), "utf8");
   const listed = (pattern) => [...pattern.exec(sql)[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
@@ -112,7 +119,7 @@ test("classifier maps provider failures and oversize files to codes without call
 });
 
 // --- batch with synthetic dependencies --------------------------------------------------------
-function fakeWorld({ files = 5, budget = 100000, classify, consentRevokedFor = new Set(), plan = {} } = {}) {
+function fakeWorld({ files = 5, budget = 100000, classify, consentRevokedFor = new Set(), plan = {}, revokeAfterChunk = new Set() } = {}) {
   const store = new Map();
   const calls = { rpc: [], load: 0, classify: 0, sleep: [] };
   const candidates = Array.from({ length: files }, (_v, index) => ({ student_case_id: uuid(100 + index), document_slot_id: uuid(200 + index),
@@ -124,10 +131,17 @@ function fakeWorld({ files = 5, budget = 100000, classify, consentRevokedFor = n
       if (name === "document_classification_plan_v1") return { to_classify_files: files, ...plan };
       if (name === "document_classification_context_v1") return { config: CONFIG, budget_left_micros: budget };
       if (name === "document_classification_candidates_v1") {
-        const open = candidates.filter((candidate) => !store.has(candidate.document_version_id)
-          || (store.get(candidate.document_version_id).status === "failed" && store.get(candidate.document_version_id).run !== parameters.p_run_id
-            && store.get(candidate.document_version_id).attempts < 3));
+        const open = candidates.filter((candidate) => {
+          if ((parameters.p_exclude ?? []).includes(candidate.document_version_id)) return false;
+          const row = store.get(candidate.document_version_id);
+          return !row || (row.status === "failed" && row.run !== parameters.p_run_id && row.attempts < 3);
+        });
         return open.slice(0, parameters.p_limit);
+      }
+      if (name === "document_classification_recheck_v1") {
+        const id = parameters.p_document_version_id;
+        // The consent changed after the chunk was chosen: the database answers false for exactly this file.
+        return !(consentRevokedFor.has(id) || revokeAfterChunk.has(id)) && !store.has(id);
       }
       if (name === "document_classification_record_v1") {
         const id = parameters.p_document_version_id;
@@ -186,12 +200,47 @@ test("re-run is idempotent: nothing is sent again and nothing stored is overwrit
   assert.equal(JSON.stringify([...world.store]), snapshot);
 });
 
-test("consent withdrawn or file sorted meanwhile: the result is dropped, nothing stored, counted", async () => {
-  const world = fakeWorld({ files: 3, consentRevokedFor: new Set([uuid(301)]) });
+test("consent is rechecked before EACH provider call: a file whose student declined after the chunk was chosen is never sent", async () => {
+  const world = fakeWorld({ files: 3, revokeAfterChunk: new Set([uuid(301)]) });
+  const order = [];
+  const original = world.deps.rpc;
+  world.deps.rpc = async (name, parameters, abort) => { order.push(name === "document_classification_recheck_v1" ? `recheck:${parameters.p_document_version_id}` : name); return original(name, parameters, abort); };
+  const classifyOriginal = world.deps.createClassifier;
+  world.deps.createClassifier = (config) => { const classifier = classifyOriginal(config); const inner = classifier.classify; classifier.classify = async (...args) => { order.push("classify"); return inner(...args); }; return classifier; };
   const summary = await runDocumentClassification(options({ chunkSize: 10 }), world.deps, signal());
   assert.equal(summary.skipped_no_consent, 1);
   assert.equal(summary.suggested, 2);
+  assert.equal(world.calls.classify, 2, "the revoked file is not sent");
   assert.equal(world.store.has(uuid(301)), false);
+  // Every classify is directly preceded by the recheck of a file (never a classify without it).
+  order.forEach((entry, index) => { if (entry === "classify") assert.match(order[index - 1], /^recheck:/); });
+  assert.equal(order.filter((entry) => entry.startsWith("recheck:")).length, 3);
+});
+
+test("a write refused for consent or a file sorted meanwhile is dropped and counted, and the file is not retried in the run", async () => {
+  const world = fakeWorld({ files: 3 });
+  world.deps.rpc = ((original) => async (name, parameters, abort) => {
+    if (name === "document_classification_record_v1" && parameters.p_document_version_id === uuid(301)) throw new Error("ai_consent_missing");
+    return original(name, parameters, abort);
+  })(world.deps.rpc);
+  const summary = await runDocumentClassification(options({ chunkSize: 10 }), world.deps, signal());
+  assert.equal(summary.skipped_no_consent, 1);
+  assert.equal(summary.suggested, 2);
+  assert.equal(world.calls.classify, 3);
+});
+
+test("a run held by another run stops with run_in_progress and sends nothing", async () => {
+  const world = fakeWorld({ files: 2 });
+  const { DocumentClassificationBatchError } = await import("../src/lib/server/document-classification-batch.ts");
+  world.deps.rpc = ((original) => async (name, parameters, abort) => {
+    if (name === "document_classification_candidates_v1") throw new DocumentClassificationBatchError("run_in_progress");
+    return original(name, parameters, abort);
+  })(world.deps.rpc);
+  await assert.rejects(runDocumentClassification(options(), world.deps, signal()), (error) => error.code === "run_in_progress");
+  assert.equal(world.calls.classify, 0);
+  const written = [];
+  assert.equal(await runDocumentClassificationCli(["--organization-id", ORG], { write: (value) => written.push(value), createDependencies: () => world.deps }), 75);
+  assert.equal(written[0].error, "run_in_progress");
 });
 
 test("limits: max files, daily budget, a provider outage, and failures are recorded and not retried in the same run", async () => {
@@ -202,12 +251,20 @@ test("limits: max files, daily budget, a provider outage, and failures are recor
   const budgeted = await runDocumentClassification(options({ delayMs: 0 }), poor.deps, signal());
   assert.equal(budgeted.stopped, "budget_exhausted");
   assert.equal(poor.calls.classify, 1, "stops when the remaining budget cannot cover one more call at the ceiling");
+  // 429 / 5xx / timeouts: they stop the run after three in a row, but write NO failed row and spend NO attempt.
   const down = fakeWorld({ files: 6, classify: () => ({ outcome: "failed", failure: "provider_unavailable" }) });
   const outage = await runDocumentClassification(options({ delayMs: 0 }), down.deps, signal());
   assert.equal(outage.stopped, "provider_unavailable");
   assert.equal(down.calls.classify, 3);
-  assert.equal(outage.failed, 3);
-  assert.ok([...down.store.values()].every((row) => row.status === "failed" && row.cost === 0));
+  assert.equal(outage.transient_failures, 3);
+  assert.equal(outage.failed, 0);
+  assert.equal(down.store.size, 0, "a transient failure leaves no row");
+  assert.equal(down.calls.rpc.filter((name) => name === "document_classification_record_v1").length, 0);
+  // Terminal refusals are stored once as failed.
+  const refused = fakeWorld({ files: 2, classify: () => ({ outcome: "failed", failure: "invalid_result" }) });
+  const terminal = await runDocumentClassification(options({ delayMs: 0 }), refused.deps, signal());
+  assert.equal(terminal.failed, 2);
+  assert.ok([...refused.store.values()].every((row) => row.status === "failed"));
 });
 
 test("a file the provider cannot take stays on the manual path and a vanished source is a recorded failure", async () => {
@@ -285,7 +342,7 @@ test("a student without consent: no suggestion at all (even if one leaked), manu
   for (const name of ["curator_no_consent", "curator_no_consent_leak"]) {
     const html = rendered.get(name);
     assert.match(html, /data-mode="manual"/);
-    assert.match(html, /У студента нет согласия на ИИ: файлы не отправлялись/);
+    assert.match(html, /Сейчас ИИ для этого студента отключён: файлы не отправлялись/);
     assert.equal(html.includes("Похоже на"), false, name);
     assert.equal(html.includes("Принять все уверенные"), false, name);
     assert.equal(count(html, /data-testid="amo-sorting-pick"/g), 6, name);
@@ -317,4 +374,19 @@ test("the page wiring: server action, source and batch never import the kit, and
   for (const file of ["../src/components/staff/profile/AmoDocumentSorting.tsx", "../src/components/staff/profile/Documents.tsx"]) {
     assert.equal(/@\/components\/kit/.test(read(file)), false, file);
   }
+});
+
+test("accept: a same-name item (empty or not) blocks, the decision write is retried once and reported, bulk is chunked", () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const actions = read("../src/lib/platform-document-sorting-actions.ts");
+  assert.match(actions, /item\.requirementLabel === label\)\) return "target_exists"/, "any same-label item blocks, not only an empty one");
+  assert.equal(/requirementLabel === label && item\.currentVersionId === null/.test(actions), false);
+  assert.match(actions, /attempt < 2/, "the decision write is tried twice");
+  assert.match(actions, /decision_not_recorded/);
+  assert.match(actions, /ids\.length > MAX_BULK_ACCEPT/);
+  const ui = read("../src/components/staff/profile/AmoDocumentSorting.tsx");
+  assert.match(ui, /start \+= MAX_BULK_ACCEPT/);
+  assert.match(ui, /Принято \$\{accepted\} из \$\{ids\.length\}…/, "progress is shown");
+  assert.ok(ui.indexOf("refresh();", ui.indexOf("catch { stopped = OUTCOME_TEXT.unavailable; }")) > ui.indexOf("catch { stopped = OUTCOME_TEXT.unavailable; }"), "the panel is refreshed after a failure in the middle too");
+  assert.match(ui, /Файл принят, но отметка о решении не записалась/);
 });

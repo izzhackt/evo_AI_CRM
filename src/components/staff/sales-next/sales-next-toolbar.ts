@@ -19,7 +19,7 @@ export function salesToolbarInputs(page: SalesRegisterPage, query: SalesReportQu
       if (value === null) next.delete(key);
       else next.set(key, value);
     }
-    return `/main?${next.toString()}`;
+    return `/finance?${next.toString()}`;
   };
   const selectedManager = query.manager || null;
   const selectedManagerName = workspace && workspace.managerKey !== null

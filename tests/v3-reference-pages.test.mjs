@@ -346,16 +346,15 @@ test("menu: «Заявки» lead «Продажи»; WhatsApp stands in «Пр�
     const salesItems = [...salesGroup.matchAll(/href="(\/[^"]*)"/gu)].map((match) => match[1]);
     assert.equal(salesItems[0], "/requests", `${role}: «Заявки» lead «Продажи» (${salesItems})`);
     assert.equal([...menu.matchAll(/href="\/requests"/gu)].length, 1, `${role}: «Заявки» stand once`);
-    // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
-    // «Отчётом продаж», «Переписка» — сразу после «Воронки поступления».
+    // Отдел пункта — по порядку меню: WhatsApp — после «Воронки продаж», «Переписка» — сразу после «Воронки поступления».
     // WhatsApp виден и роли поступления (решение владельца 06.10.2026 «нет, все могут»,
     // миграция 261; src/lib/v3/navigation.ts): без работы продаж скрыта только доска.
     const order = [...menu.matchAll(/href="(\/[^"]*)"/gu)].map((match) => match[1]);
     const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
-    if (role === "admissions") assert.ok(after("/inbox", "/requests") && after("/main?view=sales", "/inbox"), `${role}: D leaves «Заявки», WhatsApp and «Отчёт продаж» (${order})`);
+    if (role === "admissions") assert.ok(after("/inbox", "/requests"), `${role}: D leaves «Заявки» and WhatsApp; «Отчёт продаж» is a tab of «Финансы» (${order})`);
     else assert.ok(after("/pipeline", "/requests"), `${role}: the board follows «Заявки» (${order})`);
     if (role === "admissions") assert.equal(order.includes("/pipeline"), false, `${role}: the sales board is hidden without sales work (D)`);
-    else assert.ok(after("/inbox", "/pipeline") && after("/main?view=sales", "/inbox"), `${role}: WhatsApp in «Продажи» (${order})`);
+    else assert.ok(after("/inbox", "/pipeline"), `${role}: WhatsApp in «Продажи» (${order})`);
     if (role === "sales") assert.equal(order.includes("/messages"), false, `${role}: no student chat for sales`);
     else assert.ok(after("/messages", "/admissions-pipeline"), `${role}: «Переписка» in «Поступление» (${order})`);
   }

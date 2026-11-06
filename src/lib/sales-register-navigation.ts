@@ -1,6 +1,12 @@
 import { parseSalesRegisterDirection } from "./sales-register-directions.ts";
 import { parseSalesRegisterSearchQuery } from "./sales-register-search.ts";
 
+/**
+ * «Отчёт продаж» живёт вкладкой страницы «Финансы» (решение владельца 06.11.2026): `/finance?tab=sales`.
+ * Прежний адрес `/main?view=sales` ведёт сюда переходом (`salesReportRedirectHref`).
+ */
+export const SALES_REPORT_HREF = "/finance?tab=sales";
+
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
   manager?: string; direction?: string; review?: string; saved?: string; edit?: string; q?: string; mode?: string;
@@ -26,6 +32,19 @@ export function parseSalesSaleSlice(value: unknown): SalesSaleSlice | null {
 
 const REPORT_KEYS = ["year", "month", "offset", "q", "manager", "direction", "review", "archived", "sale"] as const;
 
+/**
+ * Куда ведёт прежний адрес `/main?view=sales&…`: тот же отчёт во вкладке «Финансов», остальные параметры отчёта
+ * (период, фильтры, запись, форма, период динамики) сохраняются. Только одиночные строки; `view` заменяется на `tab`.
+ */
+export function salesReportRedirectHref(query: Readonly<Record<string, string | readonly string[] | undefined>>): string {
+  const params = new URLSearchParams({ tab: "sales" });
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "view" || key === "tab" || typeof value !== "string") continue;
+    params.set(key, value);
+  }
+  return `/finance?${params.toString()}`;
+}
+
 /** Explicit record/editor/result destinations retain the existing report route. */
 export function isSalesImportQuery(query: Readonly<Record<string, unknown>>): boolean {
   return query.mode === "import" && ["record", "new", "edit", "saved"].every(key => query[key] === undefined);
@@ -38,12 +57,12 @@ export function isSalesManagersQuery(query: Readonly<Record<string, unknown>>): 
 
 /** Адрес экрана «Менеджеры в отчёте»; из отчёта — с его периодом, чтобы «Вернуться к отчёту» вёл туда же. */
 export function salesManagersHref(query: Readonly<Record<string, unknown>> = {}): string {
-  const params = new URLSearchParams({ view: "sales", mode: "managers" });
+  const params = new URLSearchParams({ tab: "sales", mode: "managers" });
   for (const key of ["year", "month"] as const) {
     const value = query[key];
     if (typeof value === "string" && /^(\d{1,4}|all)$/.test(value)) params.set(key, value);
   }
-  return `/main?${params.toString()}`;
+  return `/finance?${params.toString()}`;
 }
 
 /** The caller supplies the current organization period; navigation never chooses another clock. */
@@ -65,8 +84,8 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
     && (query.sale === undefined || (parseSalesSaleSlice(query.sale) !== null && query.archived !== "true"));
   const saleSlice = valid ? parseSalesSaleSlice(query.sale) : null;
 
-  const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
-  const clearFiltersHref = `/main?${params.toString()}`;
+  const params = new URLSearchParams({ tab: "sales", year: String(year), month: month ? String(month) : "all" });
+  const clearFiltersHref = `/finance?${params.toString()}`;
   if (searchQuery) params.set("q", searchQuery);
   if (query.archived === "true") params.set("archived", "true");
   for (const key of ["manager", "direction", "review"] as const) {
@@ -86,13 +105,13 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
   const href = (extra: Readonly<Record<string, string>> = {}) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
-    return `/main?${next.toString()}`;
+    return `/finance?${next.toString()}`;
   };
   // Ссылка из заголовка на записи среза: тот же период, без других фильтров —
   // ровно те записи, что названы рядом с «Продажами».
   const saleSliceHref = (slice: SalesSaleSlice) => {
-    const next = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all", sale: slice });
-    return `/main?${next.toString()}`;
+    const next = new URLSearchParams({ tab: "sales", year: String(year), month: month ? String(month) : "all", sale: slice });
+    return `/finance?${next.toString()}`;
   };
   return {
     valid, year, month, offset, searchQuery, saleSlice, saleSliceHref, params, href, clearFiltersHref,
@@ -113,7 +132,7 @@ export const SALES_CALLS_ANCHOR = "sales-calls";
  * страницу отчёта. Только одиночные строки из списка ключей отчёта.
  */
 export function salesDynamicsCarry(query: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
-  const carry: Record<string, string> = { view: "sales" };
+  const carry: Record<string, string> = { tab: "sales" };
   for (const key of REPORT_KEYS) {
     const value = query[key];
     if (typeof value === "string" && value !== "") carry[key] = value;
@@ -136,5 +155,5 @@ export function salesDynamicsHref(
     params.set("from", period.from);
     params.set("to", period.to);
   }
-  return `/main?${params.toString()}#${anchor}`;
+  return `/finance?${params.toString()}#${anchor}`;
 }

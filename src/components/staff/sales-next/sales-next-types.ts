@@ -8,8 +8,17 @@ export type SalesRowData = Readonly<{
   /** Адрес отчёта с открытой записью (`?record=`). */
   href: string;
   name: string;
-  /** «Страна · программа». */
+  /** «Страна · программа» — как раньше, для подписи записи. */
   place: string;
+  /** Колонки таблицы по таблице владельца: каждая — как записана в отчёте (пусто — «—»), ничего не придумывается. */
+  country: string;
+  university: string;
+  program: string;
+  intake: string;
+  /** Статус оплаты, как записан в отчёте. */
+  status: string;
+  /** Долг числом (стоимость − оплачено в валюте договора) для подсветки; null — долга нет в данных. */
+  debtMinor: number | null;
   manager: string;
   /** Дата продажи ISO (для сортировки) и её слова: «ДД.ММ» и год другой продажи под ней. */
   signingDate: string | null;
@@ -65,3 +74,7 @@ export type SalesSavedData = Readonly<{
   caseCreated: boolean;
   openHref: string | null;
 }>;
+
+/** «Продажи по менеджерам» за период: число продаж и суммы стоимости по валютам, как записаны (без пересчёта). */
+export type SalesManagerSummaryLine = Readonly<{ name: string; count: number; sums: readonly string[]; noCost: number }>;
+export type SalesManagerSummaryData = Readonly<{ managers: readonly SalesManagerSummaryLine[]; total: SalesManagerSummaryLine }>;

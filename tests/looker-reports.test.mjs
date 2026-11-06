@@ -18,7 +18,7 @@ import {
   lookerEmbedUrl, lookerOpenUrl, parseLookerEmbedInput,
 } from "../src/lib/looker-report-link.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
-import { isStaffPreview, staffCanAccessRoute } from "../src/lib/platform-access.ts";
+import { isStaffPreview, staffCanAccessRoute, staffCanFinanceTabHint } from "../src/lib/platform-access.ts";
 import { marketingHref, MARKETING_VIEWS, parseMarketingView } from "../src/lib/marketing-view.ts";
 import {
   REPORT_FORM_MESSAGE, REPORT_KEYS, isReportKey, parseReportLink, parseReportLinkSaved,
@@ -256,8 +256,11 @@ test("`/finance` opens for the real Admin and a holder of finance.read.full; rol
   assert.equal(staffCanAccessRoute(admin, "/finance"), true);
   assert.equal(staffCanAccessRoute(accountant, "/finance"), true, "«systemRole: staff» is the only real non-admin value");
   assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: [] }, "/finance"), false);
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: sellerKeys }, "/finance"), false, "finance.read.summary / finance.manage are not enough");
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: ["finance.read.summary"] }, "/finance"), false);
+  // 06.11.2026: «Финансы» also opens for readers of the sales report, but the finance tabs stay closed to them (the hint below).
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: sellerKeys }, "/finance"), true, "a salesperson opens the page for the «Отчёт продаж» tab");
+  assert.equal(staffCanFinanceTabHint({ ...accountant, permissionKeys: sellerKeys }), false, "finance.read.summary / finance.manage are not enough for the finance tabs");
+  assert.equal(staffCanFinanceTabHint({ ...accountant, permissionKeys: ["finance.read.summary"] }), false);
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: ["finance.read.summary"] }, "/finance"), false, "finance summary alone opens nothing");
   for (const presentationRole of ["admin", "sales", "admissions"]) {
     const preview = { ...admin, presentationRole };
     assert.equal(isStaffPreview(preview), true);
@@ -281,20 +284,21 @@ function menuIds(actor, options) {
 test("the «Финансы» menu item is the exact check: it follows `financeSection`, closed by default, never in role preview", () => {
   // Без аргумента — как было: только настоящий Admin.
   assert.equal(menuIds(admin).ids.includes("finance"), true);
-  assert.equal(menuIds(accountant).ids.includes("finance"), false, "a snapshot holder does not get the item without the exact check");
-  assert.equal(menuIds(accountant, {}).ids.includes("finance"), false);
+  // 06.11.2026: a finance.read.full holder always has the «Отчёт продаж» tab, so «Финансы» is in the menu for them; the exact check
+  // (`financeSection`) decides only whether the finance tabs exist, which the page checks again with the database.
+  assert.equal(menuIds(accountant).ids.includes("finance"), true, "a snapshot holder opens the sales report tab");
   // Точная проверка: держатель права на всю организацию — есть, только на «свои» и т.п. (layout дал false) — нет.
   assert.equal(menuIds(accountant, { financeSection: true }).ids.includes("finance"), true);
-  assert.equal(menuIds(accountant, { financeSection: false }).ids.includes("finance"), false);
+  assert.equal(menuIds(accountant, { financeSection: false }).ids.includes("finance"), true, "still the sales report tab; the page then shows no finance tab");
   assert.deepEqual(menuIds(accountant, { financeSection: true }).model.sections.map((link) => link.id), ["finance"], "no «Маркетинг» for the accountant");
   // Палитра команд берёт тот же объект `navigation`: пункт исчезает и там.
   const sections = (actor, options) => menuIds(actor, options).model.sections.map((link) => link.href);
   assert.deepEqual(sections(admin), ["/marketing", "/finance"]);
-  assert.deepEqual(sections(accountant, { financeSection: false }), []);
-  // Admin с явным false и сотрудник без права, но с true — права маршрута всё равно решают.
-  assert.equal(menuIds(admin, { financeSection: false }).ids.includes("finance"), false);
+  assert.deepEqual(sections(accountant, { financeSection: false }), ["/finance"], "the sales report tab keeps the section");
+  // Сотрудник без права, но с true — права маршрута всё равно решают; продажник с true получает раздел ради «Отчёта продаж».
+  assert.equal(menuIds(admin, { financeSection: false }).ids.includes("finance"), true, "the Admin always reads the sales report");
   assert.equal(menuIds({ ...accountant, permissionKeys: [] }, { financeSection: true }).ids.includes("finance"), false);
-  assert.equal(menuIds({ ...accountant, permissionKeys: sellerKeys }, { financeSection: true }).ids.includes("finance"), false);
+  assert.equal(menuIds({ ...accountant, permissionKeys: sellerKeys }, { financeSection: false }).ids.includes("finance"), true, "a salesperson: the sales report tab");
   for (const presentationRole of ["admin", "sales", "admissions"]) {
     for (const options of [undefined, { financeSection: true }]) {
       assert.equal(menuIds({ ...admin, presentationRole }, options).ids.includes("finance"), false, `preview ${presentationRole}`);
@@ -303,7 +307,8 @@ test("the «Финансы» menu item is the exact check: it follows `financeSe
   // Страница по прямому адресу подсвечивает пункт, только если он есть.
   const model = buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: true });
   assert.equal(model.activeId, "finance");
-  assert.equal(buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: false }).activeId, null);
+  assert.equal(buildV3Navigation(accountant, "/finance", new URLSearchParams(), { financeSection: false }).activeId, "finance", "the sales report tab is still there");
+  assert.equal(buildV3Navigation({ ...accountant, permissionKeys: ["finance.read.summary"] }, "/finance", new URLSearchParams(), { financeSection: false }).activeId, null);
 });
 
 /* ------------------------------------------------------------------ граница базы */
@@ -493,16 +498,21 @@ const configured = { status: "available", link: { reportKey: "finance", configur
 const notConnected = { status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } };
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
 
-async function financePage(actor, readResult) {
+async function financePage(actor, readResult, tab = "finance") {
   const reads = [];
+  const SalesTabView = () => null;
   const load = loader({
     "@/lib/platform-guards": guardsFor(actor),
     "@/lib/v3/report-links-source": { readReportLink: async (a, key) => { reads.push([a === actor, key]); return readResult; } },
+    "@/lib/v3/student-debts-source": { readStudentDebts: async () => ({ status: "denied" }) },
+    "@/components/staff/sales-next/SalesTabView": { SalesTabView },
   });
-  // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`.
-  const element = await load("src/app/(staff)/finance/page.tsx").default();
-  const html = renderToStaticMarkup(createElement(load("src/components/staff/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
-  return { html, reads };
+  // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`;
+  // вкладка «Отчёт продаж» (06.11.2026) — серверный `SalesTabView`, его здесь подменяет заглушка (он читает базу сам).
+  const element = await load("src/app/(staff)/finance/page.tsx").default({ searchParams: Promise.resolve(tab === null ? {} : { tab }) });
+  const sales = element.type === SalesTabView;
+  const html = sales ? "" : renderToStaticMarkup(createElement(load("src/components/staff/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
+  return { html, reads, sales, element };
 }
 
 test("«Финансы», not connected: an honest empty state, different words for the Admin (a link to the settings) and the accountant; nothing invented", async () => {
@@ -542,13 +552,16 @@ test("«Финансы», connected: the window block with the exact address, th
   assert.doesNotMatch(accountantPage.html, /\/settings/u);
 });
 
-test("«Финансы»: a refusal of the database shows «Нет доступа» with no window and no address; a failed read says so and offers «Обновить»", async () => {
-  const denied = await financePage(accountant, { status: "denied" });
-  assert.match(denied.html, /Нет доступа к отчёту «Финансы»: нужно право «Полный просмотр финансов» на всю организацию\./u);
-  assert.doesNotMatch(denied.html, /lookerstudio|google\.com|<iframe|Открыть в новой вкладке|Отчёт Looker Studio/u);
+test("«Финансы»: a refusal of the database leaves no finance tab, no window and no address; a failed read says so and offers «Обновить»", async () => {
+  // Держатель права только на «свои» дела: база отказала — финансовых вкладок нет, остаётся «Отчёт продаж»; ?tab=finance его туда и ведёт.
+  for (const tab of ["finance", "debts", null]) {
+    const denied = await financePage(accountant, { status: "denied" }, tab);
+    assert.equal(denied.sales, true, `denied finance read, tab=${tab}: only the sales tab opens`);
+    assert.deepEqual(denied.element.props.tabs.props.tabs, ["sales"]);
+  }
   const failed = await financePage(admin, { status: "unavailable" });
   assert.match(failed.html, /Не удалось прочитать настройку отчёта\./u);
-  assert.match(failed.html, /<a [^>]*href="\/finance"[^>]*>(?:(?!<\/a>).)*Обновить<\/a>/u);
+  assert.match(failed.html, /<a [^>]*href="\/finance\?tab=finance"[^>]*>(?:(?!<\/a>).)*Обновить<\/a>/u);
   assert.doesNotMatch(failed.html, /lookerstudio|<iframe|Открыть в новой вкладке|Добавить ссылку/u);
   // Идентификатор, который не годится для адреса, окна не даёт (даже если бы строка базы такое хранила).
   const bad = await financePage(admin, { status: "available", link: { ...configured.link, reportId: 'abcdefgh"><script>' } });

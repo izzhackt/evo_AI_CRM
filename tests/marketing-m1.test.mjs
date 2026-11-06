@@ -21,7 +21,7 @@ import {
 import {
   costPerLead, formatMinor, formatPerLead, marketingHref, marketingSignals, parseMarketingView, parseSpendAmount, shareText, shiftIsoDate, stageWord, unknownSource,
 } from "../src/lib/marketing-view.ts";
-import { isStaffPreview, staffCanAccessRoute } from "../src/lib/platform-access.ts";
+import { isStaffPreview, staffCanAccessRoute, staffCanFinanceTabHint } from "../src/lib/platform-access.ts";
 import { isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 
 const require = createRequire(import.meta.url);
@@ -178,7 +178,10 @@ test("«Финансы» opens for the real Admin and a holder of finance.read.f
   const accountantKeys = [...withoutRight, "finance.read.full"];
   const accountant = { ...admin, systemRole: "staff", permissionKeys: accountantKeys };
   assert.equal(staffCanAccessRoute(accountant, "/finance"), true, "the accountant: finance.read.full is the section hint");
-  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: withoutRight }, "/finance"), false);
+  // 06.11.2026: the sales report readers open the page for the «Отчёт продаж» tab, but the finance tabs need finance.read.full.
+  assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: withoutRight }, "/finance"), true);
+  assert.equal(staffCanFinanceTabHint({ ...accountant, permissionKeys: withoutRight }), false);
+  assert.equal(staffCanFinanceTabHint(accountant), true);
   assert.equal(staffCanAccessRoute({ ...accountant, permissionKeys: [] }, "/finance"), false);
   assert.equal(staffCanAccessRoute(accountant, "/marketing"), false, "the finance right opens no «Маркетинг»");
   const source = read("src/app/(staff)/finance/page.tsx");
@@ -187,9 +190,11 @@ test("«Финансы» opens for the real Admin and a holder of finance.read.f
   const load = loader({
     "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return accountant; } },
     "@/lib/v3/report-links-source": { readReportLink: async () => ({ status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } }) },
+    "@/lib/v3/student-debts-source": { readStudentDebts: async () => ({ status: "denied" }) },
+    "@/components/staff/sales-next/SalesTabView": { SalesTabView: () => null },
   });
   // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`.
-  const element = await load("src/app/(staff)/finance/page.tsx").default();
+  const element = await load("src/app/(staff)/finance/page.tsx").default({ searchParams: Promise.resolve({ tab: "finance" }) });
   const html = renderToStaticMarkup(createElement(load("src/components/staff/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
   assert.deepEqual(guards, ["/finance"]);
   assert.match(html, /<h1 class="t-page-title[^>]*>Финансы<\/h1>/u);

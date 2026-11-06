@@ -58,8 +58,8 @@ function links(model) {
 // their own (id `marketing`/`finance`, `model.sections`) right after
 // «Поступление» and before «Общее»; real Admin only, never a role preview.
 const expectedRoleLinks = {
-  admin: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "marketing", "finance", "tasks", "team-chat", "calendar", "knowledge", "ai-agents", "settings"],
-  sales: ["home", "requests", "pipeline", "inbox", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets", "ai-agents"],
+  admin: ["home", "requests", "pipeline", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "marketing", "finance", "tasks", "team-chat", "calendar", "knowledge", "ai-agents", "settings"],
+  sales: ["home", "requests", "pipeline", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets", "ai-agents"],
   admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "ai-agents"],
 };
 
@@ -105,7 +105,7 @@ test("the two disclosure groups use the approved destinations and worklist remai
   // in the label (UX quick win 2, 2026-09-24): an Admin sees both groups, and
   // two identical «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Заявки", "/requests"], ["Воронка продаж", "/pipeline"], ["WhatsApp", "/inbox"], ["Отчёт продаж", "/main?view=sales"]]],
+    ["Продажи", [["Заявки", "/requests"], ["Воронка продаж", "/pipeline"], ["WhatsApp", "/inbox"]]],
     ["Поступление", [["Воронка поступления", "/admissions-pipeline"], ["Переписка", "/messages"], ["Студенты", "/profile"], ["EVO Docs", "/profile?section=docs"], ["Университеты", "/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
@@ -141,7 +141,7 @@ test("Э6: every destination has one fixed place for all roles, and no role sees
   assert.equal(places.get("inbox"), "sales");
   assert.equal(places.get("messages"), "admissions");
   // «Продажи» and «Общее» keep one order for everyone: roles only drop items.
-  const salesOrder = ["requests", "pipeline", "inbox", "sales-report"];
+  const salesOrder = ["requests", "pipeline", "inbox"];
   const order = ["tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge", "ai-agents"];
   for (const role of ["admin", "sales", "admissions"]) {
     const model = navigation(role);
@@ -163,17 +163,17 @@ test("«Заявки» highlight themselves and open «Продажи» with the
   }
 });
 
-test("main and sales report have mutually exclusive, query-aware current links", () => {
+test("«Сегодня» and «Финансы» (with the sales report tab) are mutually exclusive, query-aware current links", () => {
   for (const role of ["admin", "sales"]) {
-    for (const href of ["/main", "/main?period=month", "/main?view=unknown", "/main?view=", "/main?view=sales&view=sales"]) {
+    // The old sales report address is gone from the menu: `/main` is «Сегодня» whatever its query says (the page redirects `?view=sales`).
+    for (const href of ["/main", "/main?period=month", "/main?view=unknown", "/main?view=", "/main?view=sales", "/main?period=month&view=sales"]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "home", href);
       assert.equal(model.groups.find((group) => group.id === "sales").active, false);
     }
-    for (const href of ["/main?view=sales", "/main?period=month&view=sales"]) {
-      const model = navigation(role, href);
-      assert.equal(model.activeId, "sales-report", href);
-      assert.equal(model.groups.find((group) => group.id === "sales").active, true);
+    // «Финансы» is for the real Admin; a role preview never shows it (06.11.2026), so only the Admin has it here.
+    for (const href of ["/finance", "/finance?tab=sales", "/finance?tab=sales&year=2026&month=9"]) {
+      assert.equal(navigation(role, href).activeId, role === "admin" ? "finance" : null, `${role} ${href}`);
     }
   }
 });
@@ -230,7 +230,7 @@ test("forbidden and unknown paths never mark an unrelated link current", () => {
   assert.equal(navigation("admissions", "/main").activeId, "home");
   // «Заявки» is sales.read-gated (unified workflow S1); admissions lacks that
   // capability entirely, so it never becomes this preview's active link.
-  for (const href of ["/main?view=sales", "/pipeline", "/settings", "/requests"]) {
+  for (const href of ["/finance?tab=sales", "/pipeline", "/settings", "/requests"]) {
     assert.equal(navigation("admissions", href).activeId, null, href);
   }
   for (const href of ["/settings", "/calendar"]) {
@@ -298,7 +298,7 @@ test("each visible destination marks exactly one link and only its own disclosur
 
 test("destination keys preserve disclosure identity through filters and client detail transitions", () => {
   const destinations = [
-    ["sales-report", ["/main?view=sales", "/main?view=sales&year=2026&month=9&q=Name&offset=30&review=true", "/main?archived=true&month=10&view=sales&year=2026"]],
+    ["finance", ["/finance", "/finance?tab=sales", "/finance?tab=sales&year=2026&month=9&q=Name&offset=30&review=true", "/finance?tab=debts"]],
     ["calendar", ["/calendar", "/calendar?view=month&date=2026-09-01", "/calendar?date=2026-10-01&view=week"]],
     ["admissions-worklist", ["/profile", "/profile?case=record&tab=route", "/profile?section=summary&case=", "/profile?section=summary&id="]],
     // The board and a lead card opened from it keep the same sidebar identity.
@@ -317,9 +317,9 @@ test("destination keys preserve disclosure identity through filters and client d
 });
 
 test("different authorized destinations reset identity and malformed queries retain existing classification", () => {
-  const destinations = ["/main", "/main?view=sales", "/profile", "/profile?section=docs", "/pipeline"];
+  const destinations = ["/main", "/finance?tab=sales", "/profile", "/profile?section=docs", "/pipeline"];
   assert.equal(new Set(destinations.map((href) => navigation("admin", href).destinationKey)).size, destinations.length);
-  for (const href of ["/main?view=unknown", "/main?view=sales&view=sales"]) {
+  for (const href of ["/main?view=unknown", "/main?view=sales"]) {
     assert.equal(navigation("admin", href).destinationKey, navigation("admin", "/main").destinationKey);
   }
   assert.equal(navigation("admin", "/profile?section=docs&section=docs").destinationKey, navigation("admin", "/profile").destinationKey);
@@ -336,10 +336,10 @@ test("unknown destinations keep pathname identity without activating an unavaila
     const url = new URL(href, "https://navigation.test");
     return buildV3Navigation(actor, url.pathname, url.searchParams);
   };
-  const report = staffNavigation("/main?view=sales");
-  assert.equal(report.activeId, "sales-report");
-  assert.equal(staffNavigation("/main?view=sales&month=9").destinationKey, report.destinationKey);
-  assert.deepEqual(links(report).map((link) => link.id), ["home", "sales-report"]);
+  const report = staffNavigation("/finance?tab=sales");
+  assert.equal(report.activeId, "finance", "the sales report is a tab of «Финансы» (06.11.2026)");
+  assert.equal(staffNavigation("/finance?tab=sales&month=9").destinationKey, report.destinationKey);
+  assert.deepEqual(links(report).map((link) => link.id), ["home", "finance"]);
   const denied = staffNavigation("/profile?section=summary");
   assert.equal(denied.activeId, null);
   assert.equal(staffNavigation("/profile?section=docs").destinationKey, denied.destinationKey);
@@ -402,8 +402,8 @@ test("the browser tab names the sidebar item that the same address highlights", 
   }
   for (const [href, title] of [
     ["/main?period=month", "Сегодня"],
-    ["/main?view=sales&view=sales", "Сегодня"],
-    ["/main?view=sales&year=2026&month=9", "Отчёт продаж"],
+    ["/main?view=sales", "Сегодня"],
+    ["/finance?tab=sales&year=2026&month=9", "Финансы"],
     ["/profile?case=record&tab=route", "Студенты"],
     ["/profile?section=docs&section=docs", "Студенты"],
     ["/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
@@ -469,7 +469,6 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["requests", `${V3}/requests/page.tsx`, true], ["requests", `${V3}/requests/loading.tsx`, true],
     ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
     ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
-    ["sales-report", "src/components/staff/SalesRegisterView.tsx", false],
     // Э8.5 (28.09): the board's review subpages are EVO Docs tabs — one heading again.
     ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, true],
     ["messages", `${V3}/messages/page.tsx`, true],
@@ -532,7 +531,9 @@ test("«Маркетинг» and «Финансы» stand as top-level sections 
       assert.deepEqual(model({ ...admin, presentationRole }).sections, [], `preview ${presentationRole}`);
     }
     for (const systemRole of ["sales", "admissions", null]) {
-      assert.equal(ids({ ...admin, systemRole, presentationRole: null, permissionKeys: ["lead.read", "sales.register.read", "knowledge.read.approved"] }).includes(id), false, `${String(systemRole)}: ${id}`);
+      // 06.11.2026: «Финансы» also opens for readers of the sales report (the «Отчёт продаж» tab); «Маркетинг» stays Admin-only.
+      assert.equal(ids({ ...admin, systemRole, presentationRole: null, permissionKeys: ["lead.read", "sales.register.read", "knowledge.read.approved"] }).includes(id), id === "finance", `${String(systemRole)}: ${id}`);
+      assert.equal(ids({ ...admin, systemRole, presentationRole: null, permissionKeys: ["knowledge.read.approved"] }).includes(id), false, `${String(systemRole)} without sales/finance rights: ${id}`);
     }
   }
   // Вкладка браузера называет раздел теми же словами.

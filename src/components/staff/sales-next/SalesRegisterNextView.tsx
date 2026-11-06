@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Card } from "@/components/ui/card";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { type SalesReportQuery } from "@/lib/sales-register-navigation";
+import { SALES_REPORT_HREF, type SalesReportQuery } from "@/lib/sales-register-navigation";
 import { SALES_PAGE_SIZE } from "@/lib/sales-register-view";
 import { readSalesRegisterPage } from "@/lib/v3/sales-register-page";
 
@@ -14,6 +14,7 @@ import { buildSalesSheet } from "./sales-next-sheet";
 import { salesRowData, salesMoney, salesTidy } from "./sales-next-rows";
 import { SALE_SLICE_TITLE } from "../SalesRegisterView";
 import { salesArchiveText, salesCashData, salesHeadlineData, salesMoneyData } from "./sales-next-summary";
+import { salesManagerSummary } from "./sales-next-manager-summary";
 import { salesToolbarInputs } from "./sales-next-toolbar";
 
 const dateLabel = (date: string | null) => (date ? date.split("-").reverse().join(".") : "Дата не указана");
@@ -24,7 +25,7 @@ const dateLabel = (date: string | null) => (date ? date.split("-").reverse().joi
  * «Звонки») и отдаёт их ленивому входу `SalesReportNextLazy`. Данные записи вне строки (телефон, заметки, источник) в клиентские
  * свойства не идут: их рисует панель на сервере.
  */
-export async function SalesRegisterNextView({ actor, query, dynamics = null }: Readonly<{ actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: React.ReactNode }>) {
+export async function SalesRegisterNextView({ actor, query, dynamics = null, tabs }: Readonly<{ actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: React.ReactNode; tabs?: React.ReactNode }>) {
   const page = await readSalesRegisterPage(actor, query);
   const { workspace, year, month, offset, searchQuery, valid, reportMonth, href, clearFiltersHref, writeAccess, canManage, creating, creatingForm, editingRecord,
     archiveView, hasFilters, rowFilters, showReportMonth, saleSlice, headlinePeriod, salesCount, target, intakeOptions, initialLead, backHref } = page;
@@ -67,7 +68,12 @@ export async function SalesRegisterNextView({ actor, query, dynamics = null }: R
       saved={savedRow ? { name: savedRow.applicantName, facts: `${dateLabel(savedRow.signingDate)} · ${salesMoney(savedRow.serviceCostMinor, savedRow.serviceCostCurrency) ?? "Не уточнено"}`,
         caseCreated: page.savedCaseId !== null, openHref: page.canOpenSavedCase && page.savedCaseId ? `/profile?case=${encodeURIComponent(page.savedCaseId)}` : savedRow.leadId ? `/profile?id=${encodeURIComponent(savedRow.leadId)}` : null } : null}
       failure={workspace ? null : { text: searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы.",
-        link: { href: "/main?view=sales", label: "Открыть текущий месяц" } }}
+        link: { href: SALES_REPORT_HREF, label: "Открыть текущий месяц" } }}
+      managers={workspace && !archiveView ? {
+        data: page.summaryRead?.rows ? salesManagerSummary(page.summaryRead.rows, managerName) : null,
+        caption: `Число продаж и сумма стоимости по каждому менеджеру: ${headlinePeriod?.label ?? "выбранный период"}, без архива и без убранных из продаж. Суммы в валюте записи, без пересчёта.${hasFilters ? " Учтены выбранные фильтры." : ""}`,
+        note: page.summaryRead && page.summaryRead.rows === null ? "Сводка по менеджерам не показана: записей слишком много или их не удалось прочитать целиком. Выберите месяц." : null,
+      } : null}
       money={workspace && !archiveView ? salesMoneyData({ workspace, summary: page.summary, basis: page.summaryBasis, reason: page.summaryRead && page.summaryRead.rows === null ? page.summaryRead.reason : null,
         filtered: filedElsewhere ? rowFilters : hasFilters, yearOnly, filedElsewhere }) : null}
       archive={workspace && archiveView ? salesArchiveText(workspace.totalCount, yearOnly, Boolean(searchQuery || query.manager || query.direction || query.review)) : null}
@@ -89,6 +95,7 @@ export async function SalesRegisterNextView({ actor, query, dynamics = null }: R
       plan={planForm || importHref || page.managementUnavailable ? { target: target?.targetCount ?? null, read: page.management.status === "ready" && Boolean(month) && !archiveView,
         form: planForm, importHref, unavailable: page.managementUnavailable } : null}
       dynamics={dynamics}
+      tabs={tabs}
     />
   );
 }

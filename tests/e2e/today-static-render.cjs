@@ -425,7 +425,7 @@ async function buildReport(report) {
     choices: periods.map(([key, label]) => ({ key, title: label, href: salesDynamicsHref(query, { key }), active: key === (open ? "week" : "month") })),
     range: null,
     periodText: "20 сен — 26 сен",
-    formAction: "/main#sales-dynamics",
+    formAction: "/finance#sales-dynamics",
     carry: salesDynamicsCarry(query),
     retryHref: salesDynamicsHref(query, { key: "week" }),
     read: {
@@ -503,7 +503,7 @@ const REPORTS = {
   "report-collapsed": { open: false, leadsOnly: false },
   "report-lead-read": { open: true, leadsOnly: true },
 };
-const reportSearch = (report) => report.open ? "view=sales&period=week" : "view=sales";
+const reportSearch = (report) => report.open ? "tab=sales&period=week" : "tab=sales";
 
 async function screenshots() {
   const outIndex = process.argv.indexOf("--screenshots") + 1;

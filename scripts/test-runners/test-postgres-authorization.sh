@@ -4956,6 +4956,36 @@ SQL
       exit 1
     fi
   fi
+  # «Долги студентов» (migration 332, вкладка «Финансы», решение владельца 06.11.2026). Matched by name, not number. Additive
+  # migration: one read-only function, nothing replaced. Right after it: a second apply refuses (a332_already_applied), then the
+  # suite, insisting on its marker. The suite proves: the function's posture (definer, STABLE, empty search_path, authenticated
+  # only); who reads (the Admin and finance.read.full over the WHOLE organization; own scope, a sales report reader, a Student, no
+  # role, a foreign or NULL organization, anon, service_role and no claims are refused); cost - paid = debt per case and currency
+  # with refunds, only debt > 0, largest first, currencies never added, the curator by name, nothing from another organization,
+  # totals per currency; that nothing is written; and the 500-row limit with the true case count.
+  if [[ "$(basename "$migration")" == *_platform_student_debts.sql ]]; then
+    t332_again_log="$(mktemp -t evo-t332-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t332_again_log" 2>&1; then
+      echo "migration 332 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a332_already_applied" "$t332_again_log"; then
+      echo "a second apply of migration 332 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t332_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t332_again_log"
+    student_debts_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_debts.sql </dev/null)"
+    printf '%s\n' "$student_debts_log"
+    if ! grep -q 'A332_STUDENT_DEBTS_SUITE_PASSED' <<<"$student_debts_log"; then
+      echo "platform_student_debts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

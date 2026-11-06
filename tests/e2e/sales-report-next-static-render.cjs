@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Отчёт продаж» в «Новом виде» (`/main?view=sales`, решение владельца 27.10.2026): НАСТОЯЩАЯ страница `main/page.tsx` в настоящей
+ * «Отчёт продаж» в «Новом виде» (`/finance?tab=sales`, решение владельца 27.10.2026): НАСТОЯЩАЯ страница `main/page.tsx` в настоящей
  * оболочке на СИНТЕТИЧЕСКИХ данных (`sales-report-fixtures.cjs`: имена и суммы выдуманы). Сервер стенда рисует разметку (async-части страницы дожидается сам), браузер гидратирует её теми же страницами.
  * Серверные действия подменены; Supabase, права и маршрутизатор Next.js стенд не проверяет — проверяются вёрстка, токены, адаптив,
  * клавиатура, доступность и пути «строка → панель записи», «Убрать» / «Вернуть», фильтры, новая продажа, вложенные страницы.
@@ -21,12 +21,12 @@ const { join, resolve } = require("node:path");
 
 globalThis.__harnessConfig = {
   fixtures: join(__dirname, "sales-report-fixtures.cjs"),
-  pages: { "/main": "src/app/(staff)/main/page.tsx" },
-  titles: { "/main": "Отчёт продаж" },
+  pages: { "/finance": "src/app/(staff)/finance/page.tsx" },
+  titles: { "/finance": "Финансы" },
 };
 const { ROOT, bundleHydration, compileCss, fixtures, renderRequest, resolveServer, startServer } = require("./pipelines-next-harness.cjs");
 
-const SEARCH = "view=sales&year=2026&month=9";
+const SEARCH = "tab=sales&year=2026&month=9";
 const SCENARIOS = {
   "admin-cookie": { actor: "admin" },
   "admin-no-cookie": { actor: "admin" },
@@ -42,7 +42,7 @@ const SCENARIOS = {
 
 async function renderJson() {
   const out = [];
-  for (const [name, options] of Object.entries(SCENARIOS)) out.push({ name, html: await renderRequest("/main", SEARCH, { rows: "default", ...options }) });
+  for (const [name, options] of Object.entries(SCENARIOS)) out.push({ name, html: await renderRequest("/finance", SEARCH, { rows: "default", ...options }) });
   process.stdout.write(JSON.stringify(out));
 }
 
@@ -66,7 +66,7 @@ async function nextProps() {
   for (const [name, query, lazy] of [["report", SEARCH, SalesReportNextLazy], ["report-record", `${SEARCH}&record=${fixtures.uuid("78787878", 2)}`, SalesReportNextLazy], ["report-edit", `${SEARCH}&record=${fixtures.uuid("78787878", 2)}&edit=true`, SalesReportNextLazy],
     ["managers", `${SEARCH}&mode=managers`, SalesFrameNextLazy], ["import", `${SEARCH}&mode=import`, SalesFrameNextLazy]]) {
     setActor("admin");
-    const content = await resolveServer(await require(join(ROOT, "src/app/(staff)/main/page.tsx")).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(query))) }));
+    const content = await resolveServer(await require(join(ROOT, "src/app/(staff)/finance/page.tsx")).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(query))) }));
     const view = findElement(content, (element) => element.type === lazy);
     if (!view) throw new Error(`${name}: the page renders no lazy entry`);
     await assertFlightPropsExpanded(view.props, `${name}: lazy entry`);

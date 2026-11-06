@@ -16,6 +16,7 @@ export function PageShell({
   testId,
   width = "wide",
   back,
+  tabs,
   children,
 }: Readonly<{
   title: string;
@@ -29,12 +30,15 @@ export function PageShell({
   width?: "wide" | "narrow";
   /** Возврат к списку над заголовком: ссылка или кнопка. */
   back?: React.ReactNode;
+  /** Ряд вкладок страницы под шапкой («Финансы»): ссылки с `aria-current`. */
+  tabs?: React.ReactNode;
   children: React.ReactNode;
 }>) {
   return (
     <main data-testid={testId} className={cn("mx-auto w-full px-4 py-8 sm:px-6", width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]")}>
       {back}
       <PageHeader title={title} count={count} meta={meta} help={help} helpLabel={helpLabel} actions={actions} />
+      {tabs ? <div className="mt-4">{tabs}</div> : null}
       <div className="mt-6 grid min-w-0 gap-4">{children}</div>
     </main>
   );

@@ -139,12 +139,12 @@ export function stripPlain(text: StripText): string {
   return text.map((part) => (typeof part === "string" ? part : part.date)).join("");
 }
 
-/** Запись отчёта в «Отчёте продаж»: `/main?view=sales&year=…&month=…&record=…`. */
+/** Запись отчёта в «Отчёте продаж»: `/finance?tab=sales&year=…&month=…&record=…`. */
 export function salesRecordHref(record: Readonly<{ id: string; reportMonth: string }>): string {
   const params = new URLSearchParams({
-    view: "sales", year: record.reportMonth.slice(0, 4), month: String(Number(record.reportMonth.slice(5, 7))), record: record.id,
+    tab: "sales", year: record.reportMonth.slice(0, 4), month: String(Number(record.reportMonth.slice(5, 7))), record: record.id,
   });
-  return `/main?${params.toString()}`;
+  return `/finance?${params.toString()}`;
 }
 
 /**

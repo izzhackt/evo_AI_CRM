@@ -3,13 +3,12 @@ import {
   type FixedRoleRoute,
 } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
-import { isStaffPreview, staffCan, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
+import { isStaffPreview, staffCanAccessRoute, staffCanSalesTab, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 
 export type V3NavigationLinkId =
   | "home"
   | "requests"
   | "pipeline"
-  | "sales-report"
   | "admissions-pipeline"
   | "admissions-worklist"
   | "evo-docs"
@@ -79,7 +78,6 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       REQUESTS,
       { id: "pipeline", href: "/pipeline", route: "/pipeline", label: "Воронка продаж" },
       { id: "inbox", href: "/inbox", route: "/inbox", label: "WhatsApp" },
-      { id: "sales-report", href: "/main?view=sales", route: "/main", label: "Отчёт продаж" },
     ],
   },
   {
@@ -183,7 +181,7 @@ export function v3SectionTitle(
   // «Набор виджетов» «Нового вида» (27.10.2026) — страница владельца без пункта меню: вкладка называет её сама.
   if (pathname === "/ui-kit") return "Набор виджетов";
   const id: V3NavigationLinkId | undefined = pathname === "/main"
-    ? isSingleValue(query, "view", "sales") ? "sales-report" : "home"
+    ? "home"
     : pathname === "/profile"
       ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
       : pathname.startsWith("/universities/")
@@ -224,9 +222,7 @@ export function buildV3Navigation(
   // сюда с прежней Главной, где она их видела. Просмотр роли — по sales.read.
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
-    && (link.id !== "finance" || financeSection)
-    && (link.id !== "sales-report"
-      || staffPresentationCan(actor, "sales.read") || (!isStaffPreview(actor) && staffCan(actor, "sales.report.read")))
+    && (link.id !== "finance" || financeSection || staffCanSalesTab(actor))
     && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
@@ -244,7 +240,7 @@ export function buildV3Navigation(
   // пункты и никогда их не переносит (Э6).
   const sales = salesWorkspace(actor);
   const inGroup = (group: (typeof GROUPS)[number], link: V3NavigationLink) =>
-    group.id !== "sales" || sales || link.id === "requests" || link.id === "inbox" || link.id === "sales-report";
+    group.id !== "sales" || sales || link.id === "requests" || link.id === "inbox";
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
     links: group.links.filter((link) => allowed(link) && inGroup(group, link)),
@@ -264,7 +260,7 @@ export function buildV3Navigation(
 
   let candidate: V3NavigationLinkId | undefined;
   if (pathname === "/main") {
-    candidate = isSingleValue(query, "view", "sales") ? "sales-report" : "home";
+    candidate = "home";
   } else if (pathname === "/profile") {
     // The former summary address (`?section=summary`) is the same «Студенты»
     // page since 2026-09-24; only EVO Docs is a separate destination here.

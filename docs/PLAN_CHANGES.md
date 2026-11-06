@@ -62799,3 +62799,11 @@ Reviewer notes: pending independent review on the exact PR head.
 - **Проверки.** `supabase/tests/platform_ai_agent_case_questionnaire.sql` (в `test-postgres-authorization.sh`), `tests/ai-agents-db-contract.test.mjs` (реестр = 317 + строка 336), все `tests/ai-agent*.test.mjs` (падают те же 9, что и без правки, — окружение Windows и сборки), `build-ai-agent-prompts.mjs --check`.
 - **Не проверено:** production, живой вызов агента (Claude Managed Agents).
 - Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-11-06 · При одобрении анкеты в карточку копируется вся анкета (ветка `feat/anketa-full-copy`, миграция 337)
+- **Решение владельца (03.11.2026, «ок» на список):** «при одобрении копируется не вся анкета — дополнить».
+- **Что было.** Одобрение заводит поля карточки студента на проверку, но из анкеты туда попадали только имя, фамилия, телефон, почта, гражданство, статус обучения и бюджет.
+- **Что сделано.** Миграция 337 (приём 282, фрагмент ровно в обеих ветках одобрения): добавлены поля «Желаемая страна обучения» (страны по-русски, без «Пока не решил»), «Направление / специальность», «Уровень программы» (по-русски), «Уровень английского» и «Желаемая дата начала обучения» (сезон и год), тоже на проверку и в пределах длины поля. Маршрут дела (`target_country`, `admissions_direction`) не трогается: направление выбирает сотрудник (план §4/§8). Уже существующий профиль приглашённого дела этими полями не переписывается.
+- **Проверки.** `supabase/tests/platform_application_approval_full_copy.sql` (в `test-postgres-authorization.sh`; настоящая отправка анкеты и одобрение), `platform-sales-register` (ряд миграций без пропусков), `student-public-application`, `platform-unified-intake-access-migration`.
+- **Не проверено:** production; на локальной Supabase набор запускается от `supabase_admin` (ему нужен владелец `auth.users`, как в стенде прогона).
+- Reviewer notes: pending independent review on the exact PR head.

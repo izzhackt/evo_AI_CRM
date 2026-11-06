@@ -5092,6 +5092,30 @@ SQL
       exit 1
     fi
   fi
+  # «При одобрении анкеты в дело копируется вся анкета» (migration 337, решение владельца 03.11.2026). Matched by name, not number.
+  # Fragment-anchored replace in both approval branches: right after it a second apply refuses (a337_already_applied), then the
+  # suite, insisting on its marker. The suite proves, by a real submit and approval: countries, study fields, levels, English and
+  # the season land in the card fields for review; «Пока не решил» gives no country; the route of the case stays NULL.
+  if [[ "$(basename "$migration")" == *_platform_application_approval_full_copy.sql ]]; then
+    t337_again_log="$(mktemp -t evo-t337-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t337_again_log" 2>&1; then
+      echo "migration 337 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a337_already_applied" "$t337_again_log"; then
+      echo "a second apply of migration 337 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t337_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t337_again_log"
+    approval_full_copy_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_application_approval_full_copy.sql </dev/null)"
+    printf '%s
+' "$approval_full_copy_log"
+    if ! grep -q 'A337_APPLICATION_APPROVAL_FULL_COPY_SUITE_PASSED' <<<"$approval_full_copy_log"; then
+      echo "platform_application_approval_full_copy.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

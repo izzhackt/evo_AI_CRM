@@ -217,7 +217,7 @@ function tabbar(html) {
 }
 
 test("one shell: no top bar; menu holds create, bell, preview exit and account; phone tab bar per role with «Ещё»", () => {
-  assert.equal(surfaces.length, 20);
+  assert.equal(surfaces.length, 24, "пять страниц × четыре роли и свёрнутое меню у каждой роли");
   for (const { name, role, pathname, html } of surfaces) {
     assert.doesNotMatch(html, /data-shell-look|data-look/u, `${name}: no look switch`);
     assert.doesNotMatch(html, /md:min-h-16|Открыть навигацию/u, `${name}: no top bar, no old mobile toggle`);
@@ -265,10 +265,18 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
       assert.doesNotMatch(html, /<a class="[^"]*bg-accent[^"]*" href="\/tasks\?create=staff">/u, `${name}: never red`);
     }
   }
-  // Рейка на досках до 1536 px (решение владельца 25.09).
+  // Меню одно на всех страницах (решение владельца 06.11.2026): доски — те же 260 px с подписями, что и остальные
+  // страницы; рейка 64 px — только когда сотрудник сам свернул меню (cookie, `menuCollapsed`).
   assert.match(surface("board-admin"), /data-shell-layout="board"/u);
-  assert.match(surface("board-admin"), /md:w-16 2xl:w-\[260px\]/u);
-  assert.match(surface("home-admin"), /md:w-\[260px\]/u);
+  for (const name of ["board-admin", "admissions-board-admin", "home-admin", "students-admin", "calendar-admin"]) {
+    assert.match(surface(name), /md:w-\[260px\]/u, `${name}: menu 260 px`);
+    assert.doesNotMatch(surface(name), /md:w-16/u, `${name}: no automatic rail`);
+    assert.doesNotMatch(surface(name), /<span class="min-w-0 md:sr-only">/u, `${name}: labels visible`);
+    assert.match(surface(name), /data-testid="menu-collapse"[^>]*aria-expanded="true"[^>]*aria-label="Свернуть меню"/u, `${name}: collapse button`);
+  }
+  assert.match(surface("rail-admin"), /md:w-16/u);
+  assert.doesNotMatch(surface("rail-admin"), /md:w-\[260px\]/u);
+  assert.match(surface("rail-admin"), /data-testid="menu-collapse"[^>]*aria-expanded="false"[^>]*aria-label="Развернуть меню"/u);
 });
 
 // Решение владельца 28.09.2026: «Заявки» — первыми в «Продажах», а не в
@@ -307,13 +315,14 @@ function menuOf(html) {
 test("menu per role: «Заявки» lead «Продажи» wherever the role may open them, «Общее» starts with «Задачи», «Маркетинг» and «Финансы» stand between", () => {
   for (const { name, role, html } of surfaces) {
     const { rail, ...menu } = menuOf(html);
+    assert.equal(rail, name.startsWith("rail-"), `${name}: rail list only when collapsed`);
     assert.deepEqual(menu, MENU_BY_ROLE[role], name);
     const everyMenuLink = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf("</section>", html.indexOf('<section aria-label="Общее"')));
     const lists = rail ? 2 : 1;
     assert.equal(count(everyMenuLink, /href="\/requests"/gu), menu.sales?.includes("/requests") ? lists : 0, `${name}: «Заявки» stand once in the menu`);
   }
-  // Рейка досок ниже 1536 px показывает те же пункты отдела в верхнем слое.
-  assert.ok(menuOf(surface("board-admin")).rail, "board surfaces render the rail list");
+  // Свёрнутое меню показывает те же пункты отдела в верхнем слое.
+  assert.ok(menuOf(surface("rail-admin")).rail, "the collapsed menu renders the rail list");
 });
 
 // Решение владельца 26.10.2026: «Маркетинг» и «Финансы» — разделы верхнего уровня на уровне заголовков
@@ -337,9 +346,9 @@ test("«Маркетинг» and «Финансы» are one-link sections at the
   // той же волосяной линией, что «Общее», — иначе «Маркетинг» читался бы продолжением «Поступления».
   assert.match(read("src/components/staff/AppShell.tsx"), /navigation\.sections\.map\(\(link, index\) => \(\s*<li key=\{link\.id\} className=\{cn\(flat && index === 0 && "mt-2 border-t border-border pt-2"\)\}>\s*<MenuLink link=\{link\} activeId=\{navigation\.activeId\} section rail=\{rail\}/u);
   // Тот же пункт — и в рейке досок: значок с подписью-подсказкой, как «Сегодня».
-  const rail = surface("board-admin");
-  assert.match(rail, /href="\/marketing"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Маркетинг<\/span>/u);
-  assert.match(rail, /href="\/finance"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Финансы<\/span>/u);
+  const rail = surface("rail-admin");
+  assert.match(rail, /href="\/marketing"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:sr-only">Маркетинг<\/span>/u);
+  assert.match(rail, /href="\/finance"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:sr-only">Финансы<\/span>/u);
   // Роли без прав их не получают, а «Общее» не теряет и не приобретает пункты.
   // С 06.11.2026 «Финансы» открыты и тем, кто читает «Отчёт продаж» (его вкладка), но «Маркетинг» — только Admin; просмотр роли «Приёмная» ничего из этого не видит.
   assert.doesNotMatch(surface("home-admissions"), /href="\/(?:marketing|finance)"/u, "home-admissions");
@@ -400,7 +409,7 @@ test("without a top bar every page title starts at one height, level with the lo
   assert.match(read("src/components/ui.tsx"), /<div className=\{cn\("flex flex-wrap items-start justify-between gap-4", className\)\}>\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
   assert.doesNotMatch(read("src/components/staff/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
-  assert.match(read("src/components/staff/AppShell.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);
+  assert.match(read("src/components/staff/AppShell.tsx"), /"hidden shrink-0 items-center justify-between gap-2 pb-4 pe-3 ps-5 pt-3\.5 md:flex"/u);
 });
 
 test("a menu list longer than the window shows a cue at the clipped edge", () => {
@@ -422,14 +431,26 @@ test("one shell for every staff member: the layout has no look switch, the old s
   // Счётчик запросов на удаление аккаунта (миграция 315, UI-F6) приходит от сервера вместе с уведомлениями; пункт «Финансы»
   // (миграция 323) — точная проверка права на всю организацию, её тоже считает layout.
   // «Новый вид» (#1327): `data-ui="next"` у всех, переключателя нет (tests/ui-next-foundation.test.mjs).
-  assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui="next">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\}>/u);
+  assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui="next">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\} menuCollapsed=\{menuCollapsed\}>/u);
   assert.doesNotMatch(layout, /look/iu, "no look is read or passed");
   assert.equal(existsSync(new URL("../src/components/staff/AppShellNext.tsx", import.meta.url)), false, "one shell file");
   const appShell = read("src/components/staff/AppShell.tsx");
-  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*\}/u);
+  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*menuCollapsed = false,\s*\}/u);
   assert.doesNotMatch(appShell, /CurrentAppShell|AppShellNext|look|md:min-h-16|Открыть навигацию/u, "no second shell and no top bar");
   // Колокольчик — один вид: кнопка меню с панелью в верхнем слое.
   const notifications = read("src/components/staff/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /variant|"bar"/u);
   assert.match(notifications, /ref=\{panelRef\} popover="manual"/u);
+});
+
+// Решение владельца 06.11.2026: меню одно на всех страницах; рейка — только выбор сотрудника, он хранится в cookie.
+test("collapse is the employee's choice and survives reloads: one cookie name, written by the button, read by the layout; links show a pending mark", () => {
+  const tabs = read("src/lib/v3/shell-tabs.ts");
+  assert.match(tabs, /export const MENU_COLLAPSED_COOKIE = "evo-menu";/u);
+  const shell = read("src/components/staff/AppShell.tsx");
+  assert.match(tabs, /document\.cookie = `\$\{MENU_COLLAPSED_COOKIE\}=\$\{collapsed \? "rail" : "full"\}; path=\/; max-age=31536000; samesite=lax`/u);
+  assert.match(shell, /rememberMenuCollapsed\(next\)/u);
+  assert.match(read("src/app/(staff)/layout.tsx"), /\(await cookies\(\)\)\.get\(MENU_COLLAPSED_COOKIE\)\?\.value === "rail"/u);
+  // Клик по пункту отвечает сразу: пока страница читается на сервере, пункт пульсирует (без движения при reduced-motion).
+  assert.match(shell, /pending && "animate-pulse motion-reduce:animate-none"/u);
 });

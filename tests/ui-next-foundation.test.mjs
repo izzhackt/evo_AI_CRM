@@ -61,9 +61,10 @@ test("переключателя «Новый вид» нет: файлы уда
 
 /* ---------------------------------------------------------------- layout: один вид у всех */
 
-function renderLayout(who) {
+function renderLayout(who, cookieValue = undefined) {
   const seen = { props: null };
   const load = loader({
+    "next/headers": { cookies: async () => ({ get: (name) => (name === "evo-menu" && cookieValue !== undefined ? { name, value: cookieValue } : undefined) }) },
     "@/lib/platform-guards": { requirePlatformStaffActor: async () => who },
     "@/lib/release-metadata": { readReleaseMetadata: () => ({ status: "unavailable" }) },
     "@/lib/v3/account-deletion-source": { readOpenAccountDeletionCount: async () => null },
@@ -80,7 +81,14 @@ test("layout ставит data-ui=next каждому сотруднику (ад
     const rendered = await renderLayout(who);
     assert.match(rendered.html, /^<div class="v3-world" data-surface="staff" data-ui="next">/, label);
     assert.ok(!("nextUi" in rendered.seen.props), `${label}: свойства nextUi нет`);
+    assert.equal(rendered.seen.props.menuCollapsed, false, `${label}: без cookie меню развёрнуто`);
   }
+});
+
+test("меню свёрнуто только выбором сотрудника: cookie evo-menu=rail читает layout, любое другое значение — развёрнутое меню", async () => {
+  assert.equal((await renderLayout(ADMIN, "rail")).seen.props.menuCollapsed, true);
+  assert.equal((await renderLayout(ADMIN, "full")).seen.props.menuCollapsed, false);
+  assert.equal((await renderLayout(ADMIN, "garbage")).seen.props.menuCollapsed, false);
 });
 
 test("оболочка не рисует переключатель; ссылка «Набор виджетов» — только настоящему администратору вне просмотра роли", () => {

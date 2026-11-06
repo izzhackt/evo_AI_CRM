@@ -37,6 +37,7 @@ import {
 import {
   GROUP_ICONS,
   LINK_ICONS,
+  rememberMenuCollapsed,
   shellTabLabel,
   shellTabs,
   toggleMenuGroup,
@@ -67,7 +68,7 @@ import { onCreateTaskClick, PaletteButton, PaletteIconButton, ShellCommands } fr
  * Адреса, права и состав меню — только из `buildV3Navigation`.
  */
 
-const RAIL_MEDIA = "(width >= 48rem) and (width < 96rem)";
+const RAIL_MEDIA = "(width >= 48rem)";
 const DESKTOP_MEDIA = "(width >= 48rem)";
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 t-body-compact text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
@@ -107,6 +108,22 @@ type ScrollEdges = Readonly<{ above: boolean; below: boolean }>;
 /** Число у пункта меню (то же начертание, что у непрочитанных уведомлений); `name` — для чтения с экрана. */
 type MenuBadge = Readonly<{ count: number; name: string }>;
 
+/**
+ * Тело пункта меню: пока переход идёт, пункт мягко пульсирует. Страницы читают данные на сервере, и без этого
+ * знака клик по пункту, который ещё не подгружен, ничего не менял бы до ответа сервера. Список пунктов
+ * пересоздаётся при смене адреса (`key` у `MenuLists`), поэтому отметка сама исчезает, когда страница открылась.
+ */
+function LinkBody({ rail, pending, children }: { rail: boolean; pending: boolean; children: ReactNode }) {
+  return (
+    <span
+      data-pending={pending ? "" : undefined}
+      className={cn("flex min-w-0 flex-1 items-center gap-3", rail && "md:justify-center", pending && "animate-pulse motion-reduce:animate-none")}
+    >
+      {children}
+    </span>
+  );
+}
+
 function MenuLink({
   link,
   activeId,
@@ -125,30 +142,42 @@ function MenuLink({
   badge?: MenuBadge | null;
   onNavigate: () => void;
 }) {
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    if (!pending) return undefined;
+    // Переход не состоялся (тот же адрес, отмена): отметка не остаётся навсегда.
+    const timer = window.setTimeout(() => setPending(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [pending]);
   return (
     <IntentPrefetchLink
       href={link.href}
       aria-current={activeId === link.id ? "page" : undefined}
       aria-label={badge ? `${link.label}: ${badge.name}` : undefined}
-      onNavigate={onNavigate}
-      className={cn(section ? SECTION_ITEM : ITEM, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
+      onNavigate={() => {
+        if (activeId !== link.id) setPending(true);
+        onNavigate();
+      }}
+      className={cn(section ? SECTION_ITEM : ITEM, rail && "md:justify-center md:px-0")}
       {...hint}
     >
-      {badge ? (
-        <span className="relative inline-flex shrink-0">
-          <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
-          <span
-            aria-hidden="true"
-            data-testid="v3-shell-badge"
-            className="t-caption absolute -end-2 -top-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface"
-          >
-            {badge.count > 99 ? "99+" : badge.count}
+      <LinkBody rail={rail} pending={pending}>
+        {badge ? (
+          <span className="relative inline-flex shrink-0">
+            <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
+            <span
+              aria-hidden="true"
+              data-testid="v3-shell-badge"
+              className="t-caption absolute -end-2 -top-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface"
+            >
+              {badge.count > 99 ? "99+" : badge.count}
+            </span>
           </span>
-        </span>
-      ) : (
-        <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
-      )}
-      <span className={cn("min-w-0", rail && "md:max-2xl:sr-only")}>{link.label}</span>
+        ) : (
+          <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
+        )}
+        <span className={cn("min-w-0", rail && "md:sr-only")}>{link.label}</span>
+      </LinkBody>
     </IntentPrefetchLink>
   );
 }
@@ -202,7 +231,7 @@ function MenuGroup({
         className={cn(
           `flex min-h-11 w-full items-center gap-3 rounded-nav px-3 py-2 text-start t-label transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`,
           group.active ? "text-fg" : "text-fg-2",
-          rail && "md:max-2xl:hidden",
+          rail && "md:hidden",
         )}
       >
         <Icon name={icon} size={20} className="shrink-0" />
@@ -216,7 +245,7 @@ function MenuGroup({
           placement="right-start"
           trigger={<Icon name={icon} size={20} className="shrink-0" />}
           triggerClassName={cn(
-            `hidden min-h-11 w-full items-center justify-center rounded-nav transition-colors md:max-2xl:flex ${FOCUS}`,
+            `hidden min-h-11 w-full items-center justify-center rounded-nav transition-colors md:flex ${FOCUS}`,
             group.active ? "bg-accent-weak text-accent-text" : "text-fg-2 hover:bg-surface-2 hover:text-fg",
           )}
           triggerProps={hint(group.label)}
@@ -243,7 +272,7 @@ function MenuGroup({
           )}
         </TopLayerMenu>
       ) : null}
-      <ul id={contentId} hidden={!open} className={cn("ms-3 border-s border-border ps-1", rail && "md:max-2xl:hidden")}>
+      <ul id={contentId} hidden={!open} className={cn("ms-3 border-s border-border ps-1", rail && "md:hidden")}>
         {group.links.map((link) => (
           <li key={link.id}>
             <MenuLink link={link} activeId={activeId} onNavigate={onNavigate} />
@@ -280,7 +309,7 @@ function MenuLists({
 
   return (
     <>
-      <ul aria-label="Навигация по разделам" className={cn("px-3 pb-2", rail && "md:max-2xl:px-2")}>
+      <ul aria-label="Навигация по разделам" className={cn("px-3 pb-2", rail && "md:px-2")}>
         {navigation.home ? (
           <li>
             <MenuLink link={navigation.home} activeId={navigation.activeId} rail={rail} hint={hint(navigation.home.label)} onNavigate={onNavigate} />
@@ -309,8 +338,8 @@ function MenuLists({
         ))}
       </ul>
       {navigation.common.length ? (
-        <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-2 pt-2", rail && "md:max-2xl:mx-2")}>
-          <p aria-hidden="true" className={cn("t-caption mb-1 px-3 pt-1 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</p>
+        <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-2 pt-2", rail && "md:mx-2")}>
+          <p aria-hidden="true" className={cn("t-caption mb-1 px-3 pt-1 text-fg-3", rail && "md:sr-only")}>Общее</p>
           <ul>
             {navigation.common.map((link) => (
               <li key={link.id}>
@@ -419,6 +448,7 @@ export function AppShell({
   initialNotifications,
   deletionRequests = null,
   financeSection,
+  menuCollapsed = false,
 }: {
   children: ReactNode;
   actor: ActivePlatformActor;
@@ -430,6 +460,8 @@ export function AppShell({
    * отчётов §6.2), её считает layout. Без значения пункт только у настоящего администратора.
    */
   financeSection?: boolean;
+  /** Меню свёрнуто в рейку выбором сотрудника (cookie `evo-menu=rail`, читает layout). */
+  menuCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -439,9 +471,16 @@ export function AppShell({
   const previewing = isStaffPreview(actor);
   const canCreateTask = !previewing && staffHasPermission(actor, "staff.task.create");
   const board = isBoardRoute(pathname);
-  const rail = board;
+  const [collapsed, setCollapsed] = useState(menuCollapsed);
+  const rail = collapsed;
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    setRailHint(null);
+    rememberMenuCollapsed(next);
+  };
   // Высота окна от 768 px: доски, переписка WhatsApp и «Поручить» ИИ-агента
-  // (`isFillRoute`, аудит 26.09); рейка — только у досок.
+  // (`isFillRoute`, аудит 26.09).
   const fill = isFillRoute(pathname, query.get("tab"));
   // «На весь экран» в чате «Поручить»: меню прячется, пока выбрано и на экране есть кнопка, которая его возвращает.
   const chatFocus = useChatFocusController(isAiAgentChatRoute(pathname, query.get("tab")));
@@ -600,7 +639,7 @@ export function AppShell({
           "z-30 flex-col bg-surface md:sticky md:top-0 md:h-dvh md:shrink-0 md:border-e md:border-border",
           // Меню остаётся в DOM (уведомления и их опрос не пропадают); «На весь экран» только скрывает его от 768 px.
           chatFocus.active ? "md:hidden" : "md:flex",
-          rail ? "md:w-16 2xl:w-[260px]" : "md:w-[260px]",
+          rail ? "md:w-16" : "md:w-[260px]",
           sheetOpen ? "flex max-md:fixed max-md:inset-0 max-md:z-50" : "hidden",
         )}
       >
@@ -621,15 +660,26 @@ export function AppShell({
 
         <nav aria-label="Разделы" data-shell-menu-body="" className="flex min-h-0 flex-1 flex-col">
           {/* Строка логотипа по центру совпадает с заголовком страницы (`--shell-page-top` в staff.css). */}
-          <div className={cn("hidden shrink-0 px-5 pb-4 pt-3.5 md:flex", rail && "md:max-2xl:hidden")}>
+          <div className={cn("hidden shrink-0 items-center justify-between gap-2 pb-4 pe-3 ps-5 pt-3.5 md:flex", rail && "md:flex-col md:px-2 md:pb-2 md:pt-3")}>
             <IntentPrefetchLink
               href={home}
               aria-label="EVO Admissions — начало работы"
               onNavigate={closeAfterNavigation}
-              className={`inline-flex rounded-nav ${FOCUS} focus-visible:outline-offset-4`}
+              className={cn(`inline-flex rounded-nav ${FOCUS} focus-visible:outline-offset-4`, rail && "md:hidden")}
             >
               <EvoLogo width={112} />
             </IntentPrefetchLink>
+            <button
+              type="button"
+              data-testid="menu-collapse"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+              onClick={toggleCollapsed}
+              className={cn(QUIET_BUTTON, "size-11 shrink-0 justify-center px-0")}
+              {...hint(collapsed ? "Развернуть меню" : "Свернуть меню")}
+            >
+              <Icon name="panel-left" size={18} className="shrink-0" />
+            </button>
           </div>
 
           {previewRole !== null ? (
@@ -638,32 +688,32 @@ export function AppShell({
               className={cn(
                 "mx-3 mb-3 mt-3 shrink-0 rounded-ctl border border-border bg-surface-2 p-3 md:mt-0",
                 // Рейка: полоса во всю ширину 64 px — подпись роли помещается целиком.
-                rail && "md:max-2xl:mx-0 md:max-2xl:mt-0 md:max-2xl:rounded-none md:max-2xl:border-x-0 md:max-2xl:border-t-0 md:max-2xl:px-0 md:max-2xl:py-2",
+                rail && "md:mx-0 md:mt-0 md:rounded-none md:border-x-0 md:border-t-0 md:px-0 md:py-2",
               )}
             >
-              <p className={cn("t-caption text-fg-3", rail && "md:max-2xl:sr-only")}>Просмотр интерфейса роли</p>
-              <p className={cn("t-item text-fg", rail && "md:max-2xl:hidden")}>{previewRole}</p>
+              <p className={cn("t-caption text-fg-3", rail && "md:sr-only")}>Просмотр интерфейса роли</p>
+              <p className={cn("t-item text-fg", rail && "md:hidden")}>{previewRole}</p>
               {/* Рейка: роль видна подписью, а не только подсказкой. */}
-              {rail ? <p aria-hidden="true" className="t-caption hidden text-center text-fg md:max-2xl:block">{previewRole}</p> : null}
-              <form action={selectStaffRolePreviewAction} className={cn("mt-2", rail && "md:max-2xl:flex md:max-2xl:justify-center")}>
+              {rail ? <p aria-hidden="true" className="t-caption hidden text-center text-fg md:block">{previewRole}</p> : null}
+              <form action={selectStaffRolePreviewAction} className={cn("mt-2", rail && "md:flex md:justify-center")}>
                 <button
                   type="submit"
                   name="role"
                   value="admin"
                   data-testid="preview-role-admin"
-                  className={cn(SHELL_BUTTON, "w-full", rail && "md:max-2xl:w-11 md:max-2xl:px-0")}
+                  className={cn(SHELL_BUTTON, "w-full", rail && "md:w-11 md:px-0")}
                   {...hint("Выйти из просмотра")}
                 >
                   {/* «×», а не «→]» выхода из аккаунта: в рейке внизу стоит «Выйти», и два одинаковых значка путали бы просмотр с выходом. */}
                   <Icon name="x" size={18} className="shrink-0" />
-                  <span className={cn("truncate", rail && "md:max-2xl:sr-only")}>Выйти из просмотра</span>
+                  <span className={cn("truncate", rail && "md:sr-only")}>Выйти из просмотра</span>
                 </button>
               </form>
             </div>
           ) : null}
 
           {canCreateTask || !previewing ? (
-            <div className={cn("flex shrink-0 items-center gap-2 px-3 pb-3 max-md:pt-3", rail && "md:max-2xl:flex-col md:max-2xl:px-2 md:max-2xl:pt-3")}>
+            <div className={cn("flex shrink-0 items-center gap-2 px-3 pb-3 max-md:pt-3", rail && "md:flex-col md:px-2 md:pt-3")}>
               {canCreateTask ? (
                 <IntentPrefetchLink
                   href="/tasks?create=staff"
@@ -672,11 +722,11 @@ export function AppShell({
                     const returnFocus = sheetOpen ? moreRef.current : null;
                     onCreateTaskClick(event, () => router.push(`/tasks?create=staff&open=${crypto.randomUUID()}`), returnFocus, () => closeSheet(false));
                   }}
-                  className={cn(SHELL_BUTTON, "flex-1", rail && "md:max-2xl:w-11 md:max-2xl:flex-none md:max-2xl:px-0")}
+                  className={cn(SHELL_BUTTON, "flex-1", rail && "md:w-11 md:flex-none md:px-0")}
                   {...hint("Создать задачу")}
                 >
                   <Icon name="plus" size={18} className="shrink-0" />
-                  <span className={cn("truncate", rail && "md:max-2xl:sr-only")}>Создать задачу</span>
+                  <span className={cn("truncate", rail && "md:sr-only")}>Создать задачу</span>
                 </IntentPrefetchLink>
               ) : null}
               {!previewing ? (
@@ -687,11 +737,11 @@ export function AppShell({
 
           {/* Ctrl+K для мыши и телефона — строкой меню (Э7): кнопки рядом с
               «Создать задачу» сжали бы её подпись. */}
-          <div className={cn("shrink-0 px-3 pb-2", rail && "md:max-2xl:px-2")}>
+          <div className={cn("shrink-0 px-3 pb-2", rail && "md:px-2")}>
             <PaletteButton
-              shortcutClassName={cn("hidden md:inline", rail && "md:max-2xl:hidden")}
-              className={cn(SEARCH_ROW, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
-              labelClassName={cn("min-w-0 flex-1 text-start", rail && "md:max-2xl:sr-only")}
+              shortcutClassName={rail ? "hidden" : "hidden md:inline"}
+              className={cn(SEARCH_ROW, rail && "md:justify-center md:px-0")}
+              labelClassName={cn("min-w-0 flex-1 text-start", rail && "md:sr-only")}
               hint={hint("Поиск")}
             />
           </div>
@@ -704,7 +754,7 @@ export function AppShell({
             data-shell-scroll=""
             data-more-above={edges.above ? "" : undefined}
             data-more-below={edges.below ? "" : undefined}
-            className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3", rail && "md:max-2xl:pt-2")}
+            className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3", rail && "md:pt-2")}
           >
             <div ref={listRef}>
               <MenuLists key={navigation.destinationKey} navigation={navigation} rail={rail} flat={sheetOpen} hint={hint} onNavigate={closeAfterNavigation} />
@@ -713,9 +763,9 @@ export function AppShell({
 
           {/* Аккаунт закреплён внизу и виден всегда: прокручивается список выше. */}
           <div data-shell-account="" className="shrink-0 border-t border-border">
-            <div className={cn("flex items-center gap-1 px-3 pt-2", rail && "md:max-2xl:flex-col md:max-2xl:px-2")}>
+            <div className={cn("flex items-center gap-1 px-3 pt-2", rail && "md:flex-col md:px-2")}>
               {navigation.settings ? (
-                <div className={cn("min-w-0 flex-1", rail && "md:max-2xl:w-full md:max-2xl:flex-none")}>
+                <div className={cn("min-w-0 flex-1", rail && "md:w-full md:flex-none")}>
                   <MenuLink link={navigation.settings} activeId={navigation.activeId} rail={rail} hint={hint(navigation.settings.label)} badge={settingsBadge} onNavigate={closeAfterNavigation} />
                 </div>
               ) : null}
@@ -723,28 +773,28 @@ export function AppShell({
                 <button
                   type="submit"
                   data-testid="staff-logout"
-                  className={cn(QUIET_BUTTON, rail && "md:max-2xl:w-11 md:max-2xl:px-0")}
+                  className={cn(QUIET_BUTTON, rail && "md:w-11 md:px-0")}
                   {...hint("Выйти")}
                 >
                   <Icon name="log-out" size={18} className="shrink-0" />
-                  <span className={cn(rail && "md:max-2xl:sr-only")}>Выйти</span>
+                  <span className={cn(rail && "md:sr-only")}>Выйти</span>
                 </button>
               </form>
             </div>
             {/* Набор виджетов «Нового вида» — страница владельца: ссылка только настоящему администратору вне просмотра роли. */}
             {actor.systemRole === "admin" && !previewing ? (
-              <div className={cn("px-3 pt-1", rail && "md:max-2xl:px-2")}>
+              <div className={cn("px-3 pt-1", rail && "md:px-2")}>
                 <IntentPrefetchLink
                   href="/ui-kit"
                   onNavigate={closeAfterNavigation}
-                  className={cn(ITEM, "py-1 t-meta", rail && "md:max-2xl:hidden")}
+                  className={cn(ITEM, "py-1 t-meta", rail && "md:hidden")}
                 >
                   Набор виджетов
                 </IntentPrefetchLink>
               </div>
             ) : null}
             {/* Имя и роль — во всю ширину строки (от края логотипа), каждая в одну строку; целиком — в подсказке. */}
-            <p className={cn("min-w-0 px-5 pb-3 pt-1", rail && "md:max-2xl:sr-only")}>
+            <p className={cn("min-w-0 px-5 pb-3 pt-1", rail && "md:sr-only")}>
               <span className="t-item block truncate text-fg" title={displayName}>{displayName}</span>
               <span
                 className="t-meta mt-0.5 block truncate text-fg-3"
@@ -781,7 +831,7 @@ export function AppShell({
         {rail && railHint ? (
           <span
             aria-hidden="true"
-            className="t-caption pointer-events-none fixed start-[4.5rem] z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-nav bg-fg px-2 py-1 text-surface shadow-evo-lg md:max-2xl:block"
+            className="t-caption pointer-events-none fixed start-[4.5rem] z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-nav bg-fg px-2 py-1 text-surface shadow-evo-lg md:block"
             style={{ top: railHint.top }}
           >
             {railHint.label}

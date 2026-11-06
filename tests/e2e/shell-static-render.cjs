@@ -350,7 +350,7 @@ function whatsappBody() {
 }
 
 // --- оболочка -----------------------------------------------------------------
-function shellTree({ actor, notifications, pathname, search, body, messages = null }) {
+function shellTree({ actor, notifications, pathname, search, body, messages = null, menuCollapsed = false }) {
   const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const content = messages
     ? h(require(join(ROOT, "src/components/staff/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...messages.main },
@@ -358,7 +358,7 @@ function shellTree({ actor, notifications, pathname, search, body, messages = nu
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
     h("div", { className: "v3-world", "data-surface": "staff" },
-      h(AppShell, { actor, initialNotifications: notifications }, content)),
+      h(AppShell, { actor, initialNotifications: notifications, menuCollapsed }, content)),
     pathname, search);
 }
 
@@ -381,6 +381,13 @@ function jsonScenarios() {
       out.push({ name: `${page}-${role}`, role, pathname,
         html: renderToStaticMarkup(shellTree({ actor, notifications: notificationsFor(actor), pathname, search, body })) });
     }
+  }
+  // Свёрнутое меню — выбор сотрудника (cookie `evo-menu=rail`, 06.11.2026): рейка на любой странице, а не только на досках.
+  for (const role of Object.keys(ACTORS)) {
+    const actor = ACTORS[role];
+    out.push({ name: `rail-${role}`, role, pathname: "/main",
+      html: renderToStaticMarkup(shellTree({ actor, notifications: notificationsFor(actor), pathname: "/main", search: "",
+        body: '<main class="px-4 py-8"><h1 class="t-page-title">rail (синтетика)</h1></main>', menuCollapsed: true })) });
   }
   return out;
 }
@@ -450,7 +457,7 @@ const tree = h(AppRouterContext.Provider, { value: router },
     h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
       h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
         h("div", { className: "v3-world", "data-surface": "staff" },
-          h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications },
+          h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications, menuCollapsed: fixture.menuCollapsed === true },
             fixture.messages
               ? h(ChatPageShell, { variant: "messages", ...fixture.messages.main }, h(CaseChatWorkspace, fixture.messages.props))
               : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } })))))));
@@ -1104,9 +1111,10 @@ async function screenshots() {
       }
     }
 
-    // 6. Доска, 1280: рейка 64 px, при просмотре роли видна подпись роли; подпись при фокусе.
+    // 6. Доска, 1280, меню свёрнуто выбором сотрудника: рейка 64 px, при просмотре роли видна подпись роли; подпись при фокусе.
     {
-      const session = await open(htmlFor["board-admissions"], "1280");
+      const railPath = writePage("board-admissions-rail", "admissions", { ...fixtures.board("admissions"), menuCollapsed: true });
+      const session = await open(railPath, "1280");
       const { page } = session;
       const rail = await page.evaluate(() => {
         const menu = document.querySelector("[data-shell-menu]");

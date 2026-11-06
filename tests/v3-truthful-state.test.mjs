@@ -374,8 +374,9 @@ test("WhatsApp fills the window from the shell column instead of its own 100dvh"
   const app = source("src/components/staff/AppShell.tsx");
   assert.match(app, /fill && "md:flex md:h-dvh md:flex-col"/u);
   assert.match(app, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
-  // Рейка 64 px — только у досок, не у WhatsApp (одна оболочка с Э1.5).
-  assert.match(app, /const rail = board;/u);
+  // Рейка 64 px — только выбор сотрудника (cookie), а не адрес и не ширина окна: меню одно на всех страницах (06.11.2026).
+  assert.match(app, /const rail = collapsed;/u);
+  assert.doesNotMatch(app, /max-2xl|const rail = board/u);
 });
 
 /* ----------------------------------------------------------- Календарь */

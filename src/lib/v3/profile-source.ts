@@ -706,11 +706,19 @@ async function readCaseProfile(
   if (!staffPresentationCan(actor, "admissions.read")) {
     return null;
   }
-  const view = await getPlatformStudentCaseView(actor, studentCaseId);
+  // Связь дела с лидом зависит только от номера дела из адреса: читается вместе со снимком дела, а не после
+  // него (одним шагом меньше в цепочке чтений; ответ без доступа к делу отбрасывается, сам RPC проверяет права).
+  const requestedCaseId = parsePlatformAdmissionsUuid(studentCaseId);
+  const viewRead = getPlatformStudentCaseView(actor, studentCaseId);
+  const earlyLinks = requestedCaseId === null ? null : listPlatformStudentCaseLeadLinks(actor, [requestedCaseId]);
+  earlyLinks?.catch(() => {});
+  const view = await viewRead;
   if (view === null || view.access !== "full") return null;
 
   const canonicalCaseId = view.studentCase.studentCaseId;
-  const links = await listPlatformStudentCaseLeadLinks(actor, [canonicalCaseId]);
+  const links = earlyLinks !== null && requestedCaseId === canonicalCaseId
+    ? await earlyLinks
+    : await listPlatformStudentCaseLeadLinks(actor, [canonicalCaseId]);
   const link = links.find((item) => item.studentCaseId === canonicalCaseId) ?? null;
 
   if (staffPresentationCan(actor, "sales.read") && link) {
@@ -726,6 +734,12 @@ async function readCaseProfile(
   // «Данные продажи» дела прямого студента (290): отдельное чтение по праву на дело, параллельно с делом.
   // Не бросает: сбой - честная строка в группе, а не недоступная страница.
   const saleRead = readCaseSaleData(actor, canonicalCaseId);
+  // Происхождение кабинета (только `pending`) и почта клиента для «Доступа к порталу» (только Admin) зависят
+  // от номера дела, а не от разделов дела: идут вместе с ними, а не тремя шагами после.
+  const cabinetRead = view.studentCase.state === "pending" ? readStudentCaseCabinetOrigin(actor, canonicalCaseId) : null;
+  cabinetRead?.catch(() => {});
+  const inviteEmailRead = portalInviteEmailFor(actor, () => readStudentCaseClientEmail(actor, canonicalCaseId));
+  inviteEmailRead.catch(() => {});
   const data = await loadFullCase(actor, view.studentCase);
   if (link && data.handoff && data.handoff.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
@@ -733,7 +747,7 @@ async function readCaseProfile(
   // S8: only a 'pending' case can ever be cabinet_pending (184's shape) —
   // skip the extra read for active/closed cases, where it can never matter.
   const isCabinetCase = data.studentCase.state === "pending"
-    ? await readStudentCaseCabinetOrigin(actor, canonicalCaseId)
+    ? await (cabinetRead ?? readStudentCaseCabinetOrigin(actor, canonicalCaseId))
     : false;
   const profile: PersonProfile = {
     leadId: link?.leadId ?? null,
@@ -743,7 +757,7 @@ async function readCaseProfile(
     // `email` остаётся null намеренно: неподтверждённое значение анкеты не включает «Доступ к порталу».
     // Блоку нужна почта клиента: её отдельно несёт `portalInviteEmail`, блок виден только Admin.
     email: null,
-    portalInviteEmail: await portalInviteEmailFor(actor, () => readStudentCaseClientEmail(actor, canonicalCaseId)),
+    portalInviteEmail: await inviteEmailRead,
     phone: null,
     student: true,
     stage: null,

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { isStaffPreview } from "@/lib/platform-access";
 
 import { ServerReleaseMark } from "@/components/ServerReleaseMark";
 import { AppShell } from "@/components/staff/AppShell";
+import { MENU_COLLAPSED_COOKIE } from "@/lib/v3/shell-tabs";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { readReleaseMetadata } from "@/lib/release-metadata";
 import { readOpenAccountDeletionCount } from "@/lib/v3/account-deletion-source";
@@ -40,6 +42,8 @@ export const metadata: Metadata = {
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
   const release = readReleaseMetadata();
+  // Свёрнутое меню — выбор сотрудника, одинаковый на всех страницах (cookie ставит кнопка «Свернуть меню»).
+  const menuCollapsed = (await cookies()).get(MENU_COLLAPSED_COOKIE)?.value === "rail";
   // Уведомления, счётчик запросов на удаление и пункт «Финансы» читаются вместе; счётчик есть только у Admin и без
   // просмотра роли (иначе `null`), любой сбой чтения — «нет счётчика», а не ошибка страницы. «Финансы» — точная
   // проверка права на всю организацию (план внешних отчётов §6.2): просмотр роли, настоящий Admin и сотрудник без
@@ -52,7 +56,7 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="v3-world" data-surface="staff" data-ui="next">
-      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests} financeSection={financeSection}>
+      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests} financeSection={financeSection} menuCollapsed={menuCollapsed}>
         {children}
       </AppShell>
       <ServerReleaseMark release={release.status === "available" ? release.revision : null} />

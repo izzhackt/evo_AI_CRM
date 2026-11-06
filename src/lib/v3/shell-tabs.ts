@@ -150,3 +150,19 @@ export function trapFocusIndex(count: number, index: number, backwards: boolean)
   if (index < 0 || index >= count) return backwards ? count - 1 : 0;
   return (index + (backwards ? count - 1 : 1)) % count;
 }
+
+/**
+ * Рейка 64 px — только выбор сотрудника («Свернуть меню»), одинаковый на всех страницах и после перезагрузки:
+ * значение хранится в cookie, layout читает её на сервере (меню не мигает при загрузке). Автоматически, по
+ * адресу или ширине окна, меню больше не меняется (решение владельца 06.11.2026: меню не прыгает между страницами).
+ */
+export const MENU_COLLAPSED_COOKIE = "evo-menu";
+
+/** Запоминает выбор сотрудника на год; cookie недоступна — выбор действует до перезагрузки. */
+export function rememberMenuCollapsed(collapsed: boolean): void {
+  try {
+    document.cookie = `${MENU_COLLAPSED_COOKIE}=${collapsed ? "rail" : "full"}; path=/; max-age=31536000; samesite=lax`;
+  } catch {
+    // без cookie
+  }
+}

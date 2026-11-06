@@ -9,6 +9,7 @@ export type V3NavigationLinkId =
   | "home"
   | "requests"
   | "pipeline"
+  | "sales-dynamics"
   | "admissions-pipeline"
   | "admissions-worklist"
   | "evo-docs"
@@ -78,6 +79,9 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       REQUESTS,
       { id: "pipeline", href: "/pipeline", route: "/pipeline", label: "Воронка продаж" },
       { id: "inbox", href: "/inbox", route: "/inbox", label: "WhatsApp" },
+      // 06.11.2026: «Отчёт продаж» переехал во «Финансы»; роль, которая читает лиды, но не записи отчёта (поступление), «Финансы» не получает —
+      // её «Динамика по дням» и «Звонки» остались под «Сегодня» (`/main?view=sales`), этот пункт ведёт туда (виден только ей).
+      { id: "sales-dynamics", href: "/main?view=sales", route: "/main", label: "Динамика продаж" },
     ],
   },
   {
@@ -181,7 +185,7 @@ export function v3SectionTitle(
   // «Набор виджетов» «Нового вида» (27.10.2026) — страница владельца без пункта меню: вкладка называет её сама.
   if (pathname === "/ui-kit") return "Набор виджетов";
   const id: V3NavigationLinkId | undefined = pathname === "/main"
-    ? "home"
+    ? isSingleValue(query, "view", "sales") ? "sales-dynamics" : "home"
     : pathname === "/profile"
       ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
       : pathname.startsWith("/universities/")
@@ -223,6 +227,7 @@ export function buildV3Navigation(
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
     && (link.id !== "finance" || financeSection || staffCanSalesTab(actor))
+    && (link.id !== "sales-dynamics" || (!staffCanSalesTab(actor) && staffPresentationCan(actor, "sales.read")))
     && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
@@ -240,7 +245,7 @@ export function buildV3Navigation(
   // пункты и никогда их не переносит (Э6).
   const sales = salesWorkspace(actor);
   const inGroup = (group: (typeof GROUPS)[number], link: V3NavigationLink) =>
-    group.id !== "sales" || sales || link.id === "requests" || link.id === "inbox";
+    group.id !== "sales" || sales || link.id === "requests" || link.id === "inbox" || link.id === "sales-dynamics";
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
     links: group.links.filter((link) => allowed(link) && inGroup(group, link)),
@@ -260,7 +265,8 @@ export function buildV3Navigation(
 
   let candidate: V3NavigationLinkId | undefined;
   if (pathname === "/main") {
-    candidate = "home";
+    // `?view=sales` подсвечивает «Динамику продаж» только у роли, которой этот пункт виден; остальных страница переводит во «Финансы».
+    candidate = isSingleValue(query, "view", "sales") && links.some((link) => link.id === "sales-dynamics") ? "sales-dynamics" : "home";
   } else if (pathname === "/profile") {
     // The former summary address (`?section=summary`) is the same «Студенты»
     // page since 2026-09-24; only EVO Docs is a separate destination here.

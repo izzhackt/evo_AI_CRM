@@ -264,7 +264,7 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     // without report records opens «Динамику по дням» there, the charts of the
     // former Главная.
     assert.deepEqual(ids(model).groups, [
-      ["sales", ["requests", "inbox"]],
+      ["sales", ["requests", "inbox", "sales-dynamics"]],
       ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
     ]);
     assert.equal(ids(model).common.includes("requests"), false, "«Заявки» left «Общее»");
@@ -283,9 +283,11 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     const requests = navigationFor(keys, "/requests");
     assert.equal(requests.activeId, "requests");
     assert.deepEqual(requests.groups.filter((group) => group.active).map((group) => group.id), ["sales"], "their page opens «Продажи»");
-    // 06.11.2026: «Отчёт продаж» is a tab of «Финансы»; the lead reader opens it there (section «Финансы», not a «Продажи» item).
-    assert.equal(navigationFor(keys, "/finance?tab=sales").activeId, "finance");
-    assert.equal(model.sections.some((link) => link.id === "finance"), true, "«Финансы» opens the report tab for a lead reader");
+    // 06.11.2026: «Отчёт продаж» is a tab of «Финансы»; a lead reader without report records gets NO «Финансы» (owner rule) and keeps
+    // her «Динамика по дням» under «Сегодня» (`/main?view=sales`, item «Динамика продаж»).
+    assert.equal(navigationFor(keys, "/main?view=sales").activeId, "sales-dynamics");
+    assert.equal(model.sections.some((link) => link.id === "finance"), false, "no «Финансы» for a lead reader");
+    assert.equal(staffCanAccessRoute(staffActor(keys), "/finance"), false);
     // A lead card opened from a case highlights «Студенты», not a hidden board.
     assert.equal(navigationFor(keys, "/profile?id=24800000-0000-4000-8000-000000000702").activeId, "admissions-worklist");
     // The capability behind the case page's lead data is unchanged: lead.read

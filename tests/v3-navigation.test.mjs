@@ -59,7 +59,7 @@ function links(model) {
 // «Поступление» and before «Общее»; real Admin only, never a role preview.
 const expectedRoleLinks = {
   admin: ["home", "requests", "pipeline", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "marketing", "finance", "tasks", "team-chat", "calendar", "knowledge", "ai-agents", "settings"],
-  sales: ["home", "requests", "pipeline", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets", "ai-agents"],
+  sales: ["home", "requests", "pipeline", "inbox", "sales-dynamics", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets", "ai-agents"],
   admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "ai-agents"],
 };
 
@@ -141,7 +141,7 @@ test("Э6: every destination has one fixed place for all roles, and no role sees
   assert.equal(places.get("inbox"), "sales");
   assert.equal(places.get("messages"), "admissions");
   // «Продажи» and «Общее» keep one order for everyone: roles only drop items.
-  const salesOrder = ["requests", "pipeline", "inbox"];
+  const salesOrder = ["requests", "pipeline", "inbox", "sales-dynamics"];
   const order = ["tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge", "ai-agents"];
   for (const role of ["admin", "sales", "admissions"]) {
     const model = navigation(role);
@@ -168,7 +168,10 @@ test("«Сегодня» and «Финансы» (with the sales report tab) are 
     // The old sales report address is gone from the menu: `/main` is «Сегодня» whatever its query says (the page redirects `?view=sales`).
     for (const href of ["/main", "/main?period=month", "/main?view=unknown", "/main?view=", "/main?view=sales", "/main?period=month&view=sales"]) {
       const model = navigation(role, href);
-      assert.equal(model.activeId, "home", href);
+      // The «Dynamics» item exists only for a role without report records (a sales preview here); the Admin is redirected to «Финансы».
+      const dynamics = role === "sales" && href.includes("view=sales");
+      assert.equal(model.activeId, dynamics ? "sales-dynamics" : "home", href);
+      if (dynamics) continue;
       assert.equal(model.groups.find((group) => group.id === "sales").active, false);
     }
     // «Финансы» is for the real Admin; a role preview never shows it (06.11.2026), so only the Admin has it here.
@@ -349,7 +352,7 @@ test("unknown destinations keep pathname identity without activating an unavaila
 
 test("presentation role and access version changes reset the same destination", () => {
   const actor = { systemRole: "admin", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: [] };
-  const query = new URLSearchParams("view=sales");
+  const query = new URLSearchParams("period=month");
   const current = buildV3Navigation(actor, "/main", query);
   for (const changed of [{ ...actor, presentationRole: "sales" }, { ...actor, platformAccessVersion: 2 }]) {
     const next = buildV3Navigation(changed, "/main", query);
@@ -402,7 +405,6 @@ test("the browser tab names the sidebar item that the same address highlights", 
   }
   for (const [href, title] of [
     ["/main?period=month", "Сегодня"],
-    ["/main?view=sales", "Сегодня"],
     ["/finance?tab=sales&year=2026&month=9", "Финансы"],
     ["/profile?case=record&tab=route", "Студенты"],
     ["/profile?section=docs&section=docs", "Студенты"],
@@ -421,6 +423,10 @@ test("the browser tab names the sidebar item that the same address highlights", 
     const model = navigation("admin", href);
     assert.equal(links(model).find((link) => link.id === model.activeId)?.label, title, href);
   }
+  // 06.11.2026: `/main?view=sales` is the «Динамика по дням» of a role without report records; for everyone else the page redirects to «Финансы».
+  assert.equal(v3SectionTitle("/main", { view: "sales" }), "Динамика продаж");
+  assert.equal(navigation("sales", "/main?view=sales").activeId, "sales-dynamics");
+  assert.equal(navigation("admin", "/main?view=sales").activeId, "home", "the Admin has no such item");
   assert.equal(v3SectionTitle("/unknown"), undefined);
 });
 
@@ -469,6 +475,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["requests", `${V3}/requests/page.tsx`, true], ["requests", `${V3}/requests/loading.tsx`, true],
     ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
     ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
+    ["sales-dynamics", "src/components/staff/sales-next/SalesFramesNext.tsx", false],
     // Э8.5 (28.09): the board's review subpages are EVO Docs tabs — one heading again.
     ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, true],
     ["messages", `${V3}/messages/page.tsx`, true],

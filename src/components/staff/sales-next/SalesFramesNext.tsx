@@ -45,10 +45,12 @@ export async function SalesManagersNextView({ actor, query }: Readonly<{ actor: 
   );
 }
 
+const TITLE = "Динамика продаж";
+
 /** «Отчёт продаж» роли, которая читает лиды, но не записи отчёта: рамка нового вида, граница роли на виду и прежний раздел «Динамика». */
 export function SalesDynamicsNextView({ dynamics, tabs, noAccess = false }: Readonly<{ dynamics: React.ReactNode; tabs?: React.ReactNode; noAccess?: boolean }>) {
   return (
-    <SalesFrameNextLazy title={tabs ? "Финансы" : "Отчёт продаж"} back={null} tabs={tabs}>
+    <SalesFrameNextLazy title={tabs ? "Финансы" : TITLE} back={null} tabs={tabs}>
       <p role={noAccess ? "status" : undefined} className="t-body-compact text-fg-2" data-testid={noAccess ? "v3-sales-no-access" : undefined}>
         {noAccess ? "Нет доступа к отчёту продаж: у вашей роли нет права читать записи продаж и лиды." : "Записи продаж вашей роли недоступны: здесь лиды за период и доска продаж."}
       </p>

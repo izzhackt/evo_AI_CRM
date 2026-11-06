@@ -429,21 +429,29 @@ test("the empty-day action follows the role's sources, not lead.read alone; the 
   assert.deepEqual(linksOf({ permissionKeys: ["lead.read"] }), { mainAction: null });
 });
 
-test("«Отчёт продаж» stays reachable for lead readers without the report: «Финансы» menu item and a report of the section (06.11.2026)", () => {
-  const menu = (permissionKeys) => buildV3Navigation(actor({ permissionKeys }), "/finance", new URLSearchParams("tab=sales"));
-  const ids = (model) => model.sections.map((link) => link.id);
-  // До «Сегодня» Admissions (lead.read без sales.register.read) видела графики и воронку на Главной; теперь — во вкладке «Отчёт продаж».
+test("a lead reader without report records gets no «Финансы»; her «Динамика по дням» stays under «Сегодня» (06.11.2026)", () => {
+  const menu = (permissionKeys, href = "/main", query = "view=sales") => buildV3Navigation(actor({ permissionKeys }), href, new URLSearchParams(query));
+  const sections = (model) => model.sections.map((link) => link.id);
+  const sales = (model) => model.groups.flatMap((group) => group.links.map((link) => link.id));
+  // До переезда Admissions (lead.read без sales.register.read) видела графики и воронку в «Отчёте продаж»; «Финансы» ей не открыты.
   const admissions = menu(ADMISSIONS);
-  assert.ok(ids(admissions).includes("finance"));
-  assert.equal(admissions.activeId, "finance");
-  assert.ok(ids(menu(["sales.register.read"])).includes("finance"), "report-only role keeps its way in");
-  assert.ok(!ids(menu(["case.read.full", "profile.read.full"])).includes("finance"), "no lead and no report read — no item");
+  assert.deepEqual(sections(admissions), []);
+  assert.ok(sales(admissions).includes("sales-dynamics"));
+  assert.equal(admissions.activeId, "sales-dynamics");
+  // Читатель записей отчёта идёт во «Финансы» (вкладка «Отчёт продаж») и своего пункта «Динамика продаж» не имеет.
+  const reader = menu(["sales.register.read"], "/finance", "tab=sales");
+  assert.deepEqual(sections(reader), ["finance"]);
+  assert.ok(!sales(reader).includes("sales-dynamics"));
+  assert.ok(!sales(menu(["case.read.full", "profile.read.full"])).includes("sales-dynamics"), "no lead and no report read — no item");
+  assert.deepEqual(sections(menu(["case.read.full", "profile.read.full"])), []);
   const view = readFileSync(new URL("../src/components/staff/sales-next/SalesTabView.tsx", import.meta.url), "utf8");
   assert.match(view, /if \(!canReadReport && !canReadSales\) return <SalesDynamicsNextView dynamics=\{null\} tabs=\{tabs\} noAccess \/>;/u);
   assert.match(view, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} tabs=\{tabs\} \/>;/u);
   assert.match(view, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
+  assert.match(view, /home === "today" \? false/u, "under «Сегодня» the register is never drawn");
   const main = readFileSync(new URL("../src/app/(staff)/main/page.tsx", import.meta.url), "utf8");
-  assert.match(main, /if \(query\.view === "sales"\) redirect\(salesReportRedirectHref\(query\)\);/u, "the old address redirects");
+  assert.match(main, /if \(query\.view === "sales" && staffCanSalesTab\(actor\)\) redirect\(salesReportRedirectHref\(query\)\);/u, "report readers are redirected");
+  assert.match(main, /if \(query\.view === "sales" && canReadSales\) return <SalesTabView actor=\{actor\} query=\{query\} home="today" \/>;/u, "the others keep the dynamics here");
 });
 
 function fakeReaders(overrides = {}) {

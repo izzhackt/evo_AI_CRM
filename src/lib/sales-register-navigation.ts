@@ -131,8 +131,14 @@ export const SALES_CALLS_ANCHOR = "sales-calls";
  * периода и форме диапазона: выбор периода не сбрасывает месяц, фильтры и
  * страницу отчёта. Только одиночные строки из списка ключей отчёта.
  */
-export function salesDynamicsCarry(query: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
-  const carry: Record<string, string> = { tab: "sales" };
+/**
+ * `home` — где живёт раздел: `finance` (вкладка «Отчёт продаж», `/finance?tab=sales`) или `today` (`/main?view=sales`: роль, которая
+ * читает лиды, но не записи отчёта, видит «Динамику по дням» и «Звонки» там, где они жили до переезда отчёта; во «Финансы» её не пускают).
+ */
+export type SalesDynamicsHome = "finance" | "today";
+
+export function salesDynamicsCarry(query: Readonly<Record<string, unknown>>, home: SalesDynamicsHome = "finance"): Readonly<Record<string, string>> {
+  const carry: Record<string, string> = home === "today" ? { view: "sales" } : { tab: "sales" };
   for (const key of REPORT_KEYS) {
     const value = query[key];
     if (typeof value === "string" && value !== "") carry[key] = value;
@@ -148,12 +154,13 @@ export function salesDynamicsHref(
   query: Readonly<Record<string, unknown>>,
   period: Readonly<{ key: string; from?: string; to?: string }>,
   anchor: typeof SALES_DYNAMICS_ANCHOR | typeof SALES_CALLS_ANCHOR = SALES_DYNAMICS_ANCHOR,
+  home: SalesDynamicsHome = "finance",
 ): string {
-  const params = new URLSearchParams(salesDynamicsCarry(query));
+  const params = new URLSearchParams(salesDynamicsCarry(query, home));
   params.set("period", period.key);
   if (period.key === "custom" && period.from && period.to) {
     params.set("from", period.from);
     params.set("to", period.to);
   }
-  return `/finance?${params.toString()}#${anchor}`;
+  return `${home === "today" ? "/main" : "/finance"}?${params.toString()}#${anchor}`;
 }

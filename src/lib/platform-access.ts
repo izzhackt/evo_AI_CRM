@@ -50,8 +50,8 @@ export function staffCanFinanceTabHint(actor: ActivePlatformActor): boolean {
   return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
 }
 export function staffCanSalesTab(actor: ActivePlatformActor): boolean {
-  return !isStaffPreview(actor)
-    && (staffCan(actor, "sales.report.read") || staffCan(actor, "sales.read") || staffHasPermission(actor, "finance.read.full"));
+  // Не `lead.read`/`sales.read`: поступление, читающее лиды, «Финансы» не получает (решение владельца 06.11.2026).
+  return !isStaffPreview(actor) && (staffCan(actor, "sales.report.read") || staffHasPermission(actor, "finance.read.full"));
 }
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
   // «Финансы» (решение владельца 26.10.2026 «Админы + бухгалтер»): настоящий Admin без просмотра роли или держатель

@@ -282,8 +282,8 @@ const MENU_BY_ROLE = {
   // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни доски, ни «Заявок», как и раньше;
   // WhatsApp у неё с 06.10.2026 («нет, все могут»): единственный пункт «Продаж».
   admissions: { sales: ["/inbox"], sections: [], common: ["/tasks", "/team-chat", "/calendar", "/documents", "/reply-snippets", "/ai-agents"] },
-  // Куратор с lead.read: правило D скрывает доску, «Заявки» остаются, а «Отчёт продаж» с 06.11.2026 — вкладка «Финансов» (раздел «Финансы»), а WhatsApp с 06.10.2026 виден (communication.read.full).
-  "admissions-staff": { sales: ["/requests", "/inbox"], sections: ["/finance"], common: ["/tasks", "/team-chat", "/calendar", "/documents", "/reply-snippets"] },
+  // Куратор с lead.read: правило D скрывает доску, «Заявки» остаются; «Финансы» ей не даются, её «Динамика продаж» осталась под «Сегодня» (06.11.2026), а WhatsApp с 06.10.2026 виден (communication.read.full).
+  "admissions-staff": { sales: ["/requests", "/inbox", "/main?view=sales"], sections: [], common: ["/tasks", "/team-chat", "/calendar", "/documents", "/reply-snippets"] },
   sales: { sales: ["/requests", "/pipeline", "/inbox"], sections: ["/finance"], common: ["/tasks", "/team-chat", "/calendar", "/reply-snippets"] },
 };
 function menuOf(html) {
@@ -343,10 +343,10 @@ test("«Маркетинг» and «Финансы» are one-link sections at the
   // Роли без прав их не получают, а «Общее» не теряет и не приобретает пункты.
   // С 06.11.2026 «Финансы» открыты и тем, кто читает «Отчёт продаж» (его вкладка), но «Маркетинг» — только Admin; просмотр роли «Приёмная» ничего из этого не видит.
   assert.doesNotMatch(surface("home-admissions"), /href="\/(?:marketing|finance)"/u, "home-admissions");
-  for (const name of ["home-sales", "home-admissions-staff"]) {
-    assert.doesNotMatch(surface(name), /href="\/marketing"/u, name);
-    assert.match(surface(name), /href="\/finance"/u, `${name}: «Финансы» for sales report readers`);
-  }
+  assert.doesNotMatch(surface("home-sales"), /href="\/marketing"/u, "home-sales");
+  assert.match(surface("home-sales"), /href="\/finance"/u, "home-sales: «Финансы» for sales report readers");
+  // A lead reader without report records (admissions staff) gets NO «Финансы» (owner, 06.11.2026): her «Динамика продаж» stays under «Сегодня».
+  assert.doesNotMatch(surface("home-admissions-staff"), /href="\/(?:marketing|finance)"/u, "home-admissions-staff");
 });
 
 test("the sheet is a modal dialog while open: inert page, Escape and «Закрыть» return focus to «Ещё», focus trapped", () => {

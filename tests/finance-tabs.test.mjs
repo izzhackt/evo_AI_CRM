@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 import { isStaffPreview, staffCanAccessRoute, staffCanFinanceTabHint, staffCanSalesTab } from "../src/lib/platform-access.ts";
-import { salesReportRedirectHref } from "../src/lib/sales-register-navigation.ts";
+import { salesDynamicsCarry, salesDynamicsHref, salesReportRedirectHref } from "../src/lib/sales-register-navigation.ts";
 import { parseStudentDebts } from "../src/lib/student-debts-contract.ts";
 
 const require = createRequire(import.meta.url);
@@ -55,6 +55,7 @@ const base = { organizationId: ORG, presentationRole: null, platformAccessVersio
 const admin = { ...base, systemRole: "admin", permissionKeys: [] };
 const accountant = { ...base, systemRole: "staff", permissionKeys: ["finance.read.full"] };
 const salesperson = { ...base, systemRole: "staff", permissionKeys: ["lead.read", "lead.sales.workflow.manage", "sales.register.read", "sales.register.manage", "finance.read.summary"] };
+const admissionsLead = { ...base, systemRole: "staff", permissionKeys: ["lead.read", "case.read.full", "knowledge.read.approved"] };
 const nobody = { ...base, systemRole: "staff", permissionKeys: ["knowledge.read.approved"] };
 const connected = { status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } };
 
@@ -129,7 +130,7 @@ test("role preview and roles without sales or finance rights get «Нет дос
   assert.equal(salesReportRedirectHref({ view: "sales" }), "/finance?tab=sales");
   assert.equal(salesReportRedirectHref({ view: "sales", year: "2026", month: "9", record: "x", new: "true", lead: "y" }), "/finance?tab=sales&year=2026&month=9&record=x&new=true&lead=y");
   assert.equal(salesReportRedirectHref({ view: "sales", tab: "finance", period: "week", extra: ["a", "b"] }), "/finance?tab=sales&period=week", "a smuggled tab never wins; lists are dropped");
-  assert.match(read("src/app/(staff)/main/page.tsx"), /if \(query\.view === "sales"\) redirect\(salesReportRedirectHref\(query\)\);/u);
+  assert.match(read("src/app/(staff)/main/page.tsx"), /if \(query\.view === "sales" && staffCanSalesTab\(actor\)\) redirect\(salesReportRedirectHref\(query\)\);/u);
 });
 
 test("the debts answer is parsed strictly: exact keys, debt = cost - paid > 0, totals per currency, no unknown shapes", () => {
@@ -223,4 +224,17 @@ test("the month summary: per salesperson the count and the sum per currency as s
   assert.deepEqual(summary.managers.map((m) => [m.name, m.count, plain(m.sums), m.noCost]), [["Тестовый Менеджер А", 3, ["3 500 USD"], 1], ["Тестовый Менеджер Б", 1, ["900 KGS"], 0]]);
   assert.deepEqual([summary.total.count, plain(summary.total.sums), summary.total.noCost], [4, ["900 KGS", "3 500 USD"], 1], "currencies stay apart");
   assert.deepEqual(salesManagerSummary([], name).managers, []);
+});
+
+test("admissions staff with only lead.read never get «Финансы»; their «Динамика по дням» stays under «Сегодня» with its own links", () => {
+  assert.equal(staffCanSalesTab(admissionsLead), false);
+  assert.equal(staffCanFinanceTabHint(admissionsLead), false);
+  assert.equal(staffCanAccessRoute(admissionsLead, "/finance"), false, "the route says «Нет доступа»");
+  assert.equal(staffCanAccessRoute(admissionsLead, "/main"), true);
+  assert.equal(staffCanSalesTab(admin), true);
+  assert.equal(staffCanSalesTab(accountant), true);
+  assert.equal(staffCanSalesTab(salesperson), true);
+  assert.deepEqual(salesDynamicsCarry({ year: "2026" }, "today"), { view: "sales", year: "2026" });
+  assert.equal(salesDynamicsHref({}, { key: "week" }, "sales-dynamics", "today"), "/main?view=sales&period=week#sales-dynamics");
+  assert.equal(salesDynamicsHref({}, { key: "week" }), "/finance?tab=sales&period=week#sales-dynamics");
 });

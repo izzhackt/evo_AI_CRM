@@ -6,7 +6,7 @@ import { SalesDynamics } from "@/components/staff/SalesDynamics";
 import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import {
-  isSalesImportQuery, isSalesManagersQuery, SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref, type SalesReportQuery,
+  isSalesImportQuery, isSalesManagersQuery, SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref, type SalesDynamicsHome, type SalesReportQuery,
 } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
@@ -26,7 +26,7 @@ async function StreamedSalesCalls({ read, ...props }: Omit<ComponentProps<typeof
   return <SalesCallsReport {...props} state={await read} />;
 }
 
-const FORM_ADDRESS = "/finance?tab=sales";
+const FORM_ADDRESS = (home: SalesDynamicsHome) => (home === "today" ? "/main?view=sales" : "/finance?tab=sales");
 
 /**
  * Вкладка «Отчёт продаж» страницы «Финансы» (решение владельца 06.11.2026; раньше — `/main?view=sales`). Чтения, права и порядок те
@@ -36,9 +36,10 @@ const FORM_ADDRESS = "/finance?tab=sales";
  * вкладки, а не пустой отчёт. `tabs` — ряд вкладок страницы: под ним идёт содержимое; вложенные экраны («Перенос данных»,
  * «Менеджеры в отчёте», форма продажи) рисуются как отдельные страницы со своим возвратом.
  */
-export async function SalesTabView({ actor, query, tabs }: Readonly<{ actor: ActivePlatformActor; query: SalesReportQuery & Readonly<{ period?: string; from?: string; to?: string }>; tabs: React.ReactNode }>) {
+export async function SalesTabView({ actor, query, tabs, home = "finance" }: Readonly<{ actor: ActivePlatformActor; query: SalesReportQuery & Readonly<{ period?: string; from?: string; to?: string }>; tabs?: React.ReactNode; home?: SalesDynamicsHome }>) {
   const canReadSales = staffPresentationCan(actor, "sales.read");
-  const canReadReport = isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
+  // `home="today"` — только «Динамика по дням» и «Звонки» для роли без записей отчёта (они остались под «Сегодня»), записей там нет никогда.
+  const canReadReport = home === "today" ? false : isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
   if (!canReadReport && !canReadSales) return <SalesDynamicsNextView dynamics={null} tabs={tabs} noAccess />;
 
   // «Новый вид» (единственный вид): плитки, таблица записей с панелью, карточки.
@@ -47,12 +48,12 @@ export async function SalesTabView({ actor, query, tabs }: Readonly<{ actor: Act
   if (canReadReport && isSalesManagersQuery(query)) return <SalesManagersNextView actor={actor} query={query} />;
   if (!canReadSales) return <SalesRegisterNextView actor={actor} query={query} tabs={tabs} />;
   const period = resolvePeriod(query);
-  const carry = salesDynamicsCarry(query);
+  const carry = salesDynamicsCarry(query, home);
   // «Период», когда он уже выбран, несёт разобранные даты: в адресе — тот диапазон, который посчитан, а не набранный руками.
   const choices: PeriodChoice[] = PERIODS.map((one) => ({
     key: one.key,
     title: one.title,
-    href: salesDynamicsHref(query, one.key === "custom" && period.key === "custom" ? period : { key: one.key }),
+    href: salesDynamicsHref(query, one.key === "custom" && period.key === "custom" ? period : { key: one.key }, SALES_DYNAMICS_ANCHOR, home),
     active: one.key === period.key,
   }));
   // Чтения раздела идут параллельно с отчётом, а раздел приходит потоком: записи отчёта не ждут когорту и доску. Без записей
@@ -66,9 +67,9 @@ export async function SalesTabView({ actor, query, tabs }: Readonly<{ actor: Act
         choices={choices}
         range={period.key === "custom" ? { from: period.from, to: period.to, max: period.today } : null}
         periodText={periodLabel(period)}
-        formAction={`${FORM_ADDRESS}#${SALES_DYNAMICS_ANCHOR}`}
+        formAction={`${FORM_ADDRESS(home)}#${SALES_DYNAMICS_ANCHOR}`}
         carry={carry}
-        retryHref={salesDynamicsHref(query, period)}
+        retryHref={salesDynamicsHref(query, period, SALES_DYNAMICS_ANCHOR, home)}
         read={dynamics}
       />
     </Suspense>
@@ -82,13 +83,13 @@ export async function SalesTabView({ actor, query, tabs }: Readonly<{ actor: Act
         open={typeof query.period === "string"}
         choices={choices.map((one) => ({
           ...one,
-          href: salesDynamicsHref(query, one.key === "custom" && period.key === "custom" ? period : { key: one.key }, SALES_CALLS_ANCHOR),
+          href: salesDynamicsHref(query, one.key === "custom" && period.key === "custom" ? period : { key: one.key }, SALES_CALLS_ANCHOR, home),
         }))}
         range={period.key === "custom" ? { from: period.from, to: period.to, max: period.today } : null}
         periodText={periodLabel(period)}
-        formAction={`${FORM_ADDRESS}#${SALES_CALLS_ANCHOR}`}
+        formAction={`${FORM_ADDRESS(home)}#${SALES_CALLS_ANCHOR}`}
         carry={carry}
-        retryHref={salesDynamicsHref(query, period, SALES_CALLS_ANCHOR)}
+        retryHref={salesDynamicsHref(query, period, SALES_CALLS_ANCHOR, home)}
         read={readTelephonyReport(actor, { from: period.from, to: period.to })}
       />
     </Suspense>

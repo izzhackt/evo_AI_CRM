@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { SalesTabView } from "@/components/staff/sales-next/SalesTabView";
 import { TodayNextLazy } from "@/components/staff/today-next/TodayNextLazy";
-import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { isStaffPreview, staffCan, staffCanSalesTab, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { salesReportRedirectHref } from "@/lib/sales-register-navigation";
 import { v3SectionTitle } from "@/lib/v3/navigation";
@@ -27,7 +28,7 @@ type MainQuery = Readonly<Record<string, string | undefined>>;
 /**
  * `/main` — «Сегодня» (Э3, 26.09.2026): стартовая страница каждой роли с
  * одной очередью того, что пора сделать. Графики, период и воронка — в
- * разделе «Динамика по дням» «Отчёта продаж» (`/finance?tab=sales`; прежний `?view=sales` ведёт туда переходом). Роль, которая
+ * разделе «Динамика по дням» «Отчёта продаж» (`/finance?tab=sales` для читателей записей, у роли без записей — `/main?view=sales`). Роль, которая
  * читает лиды, но не записи отчёта (Admissions по миграции 173: `lead.read`
  * без `sales.register.read`), видела их на прежней Главной — у неё «Отчёт
  * продаж» состоит из одного этого раздела.
@@ -43,7 +44,9 @@ export default async function MainPart({
   const canReadReport = isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
 
   // «Отчёт продаж» переехал во вкладку «Финансов» (решение владельца 06.11.2026): прежний адрес ведёт туда с теми же параметрами.
-  if (query.view === "sales") redirect(salesReportRedirectHref(query));
+  // Роль без права на записи отчёта (поступление с `lead.read`) во «Финансы» не идёт: её «Динамика по дням» и «Звонки» остались здесь.
+  if (query.view === "sales" && staffCanSalesTab(actor)) redirect(salesReportRedirectHref(query));
+  if (query.view === "sales" && canReadSales) return <SalesTabView actor={actor} query={query} home="today" />;
 
   const now = new Date();
   // «Позвонить» (Телефония, T7) читается рядом с очередью: сбой или выключенный набор — просто без кнопок.

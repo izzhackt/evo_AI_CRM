@@ -62807,3 +62807,4 @@ Reviewer notes: pending independent review on the exact PR head.
 - **Проверки.** `supabase/tests/platform_application_approval_full_copy.sql` (в `test-postgres-authorization.sh`; настоящая отправка анкеты и одобрение), `platform-sales-register` (ряд миграций без пропусков), `student-public-application`, `platform-unified-intake-access-migration`.
 - **Не проверено:** production; на локальной Supabase набор запускается от `supabase_admin` (ему нужен владелец `auth.users`, как в стенде прогона).
 - Reviewer notes: pending independent review on the exact PR head.
+- Reviewer notes (06.11, независимый review): `desired_start_date` — поле-дата (160 `normalize_student_profile_field_value` принимает только дату), а сезон анкеты — текст; «Осень 2027» ломало бы подтверждение поля. Поле убрано из 337, тест проверяет, что оно не пишется. Сезон остаётся в `student_cases.intake`, как в 281/307. Остальные четыре поля без замечаний.

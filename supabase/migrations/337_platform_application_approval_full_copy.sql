@@ -8,8 +8,9 @@
 --   desired_country_of_study — страны анкеты по-русски через запятую (без «Пока не решил»),
 --   field_major              — направления анкеты через запятую,
 --   program_level            — ступени анкеты по-русски через запятую,
---   english_level            — английский словами (тот же текст, что в language_summary),
---   desired_start_date       — сезон и год начала;
+--   english_level            — английский словами (тот же текст, что в language_summary);
+-- desired_start_date не пишется: поле карточки — дата (160 normalize_student_profile_field_value), а сезон анкеты — текст
+-- (как в 281/307: сезон живёт в student_cases.intake).
 -- тоже на проверку, обрезанные до длины поля. Маршрут дела (target_country, admissions_direction) по-прежнему не трогается: его
 -- выбирает сотрудник (план §4/§8). Профиль, который уже был у приглашённого дела, по-прежнему не переписывается этими полями.
 -- Новых функций, таблиц и прав нет. Forward-only: повтор отказывает a337_already_applied, чужое тело — a337_replace_drift.
@@ -50,9 +51,7 @@ SELECT pg_temp.a337_replace('platform.decide_student_application_v1(uuid,bigint,
      ('program_level',NULLIF(btrim(left((SELECT string_agg(CASE l.v WHEN 'foundation' THEN 'Подготовительная программа' WHEN 'bachelor' THEN 'Бакалавриат'
        WHEN 'master' THEN 'Магистратура' WHEN 'phd' THEN 'Докторантура' WHEN 'diploma' THEN 'Колледж / диплом' WHEN 'language' THEN 'Языковая программа' END,
        ', ' ORDER BY l.o) FROM jsonb_array_elements_text(q->'studyLevels') WITH ORDINALITY AS l(v,o)),60)),'')),
-     ('english_level',NULLIF(btrim(left(btrim(language_label),60)),'')),
-     ('desired_start_date',NULLIF(btrim(left(CASE q->>'intakeSeason' WHEN 'spring' THEN 'Весна' WHEN 'summer' THEN 'Лето' WHEN 'autumn' THEN 'Осень'
-       WHEN 'winter' THEN 'Зима' ELSE 'Сезон не определён' END||' '||(q->>'intakeYear'),30)),''))$new$,
+     ('english_level',NULLIF(btrim(left(btrim(language_label),60)),''))$new$,
   2);
 
 NOTIFY pgrst, 'reload schema';

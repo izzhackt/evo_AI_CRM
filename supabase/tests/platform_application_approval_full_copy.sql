@@ -106,7 +106,7 @@ SELECT pg_temp.a337_assert(pg_temp.a337_field(:'a337_case_two', 'desired_country
 SELECT pg_temp.a337_assert(pg_temp.a337_field(:'a337_case_two', 'field_major') = 'Инженерия, Информационные технологии', 'study fields');
 SELECT pg_temp.a337_assert(pg_temp.a337_field(:'a337_case_two', 'program_level') = 'Бакалавриат, Магистратура', 'levels in Russian');
 SELECT pg_temp.a337_assert(pg_temp.a337_field(:'a337_case_two', 'english_level') = 'Указано студентом: начальный английский', 'English in words');
-SELECT pg_temp.a337_assert(pg_temp.a337_field(:'a337_case_two', 'desired_start_date') = 'Осень 2027', 'season and year');
+SELECT pg_temp.a337_assert(pg_temp.a337_field(:'a337_case_two', 'desired_start_date') IS NULL, 'season stays out of the date field');
 SELECT pg_temp.a337_assert((SELECT bool_and(f.review_state = 'needs_review') FROM platform.student_profile_fields f
     WHERE f.student_case_id = :'a337_case_two'), 'every copied field waits for review');
 

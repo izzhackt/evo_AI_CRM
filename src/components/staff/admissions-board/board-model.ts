@@ -74,7 +74,6 @@ export function removalMessage({ row, phase }: RemovalNotice): string {
   }
 }
 
-
 export function boardHref(basePath: string, params: Readonly<Record<string, string | null>>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {

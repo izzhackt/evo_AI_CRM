@@ -137,6 +137,8 @@ export function Profile({
   const allTabs = tabsFor(profile.student, tabAccess, draft.admissions !== null, leadAnketaHasContent(profile, draft));
   // Дело студента (06.11.2026): «Анкета» - раздел «Обзора», а не вкладка. Раздел виден тому же, кому была вкладка
   // (`access.studentProfile`); «История» остаётся вкладкой (постраничный журнал и «Источник», отдельное чтение и право).
+  // Тот же признак, что у адреса на странице (`page.tsx`: `?tab=anketa` у дела читает «Обзор»): здесь он ещё требует права на раздел
+  // (`allTabs` уже учитывает `access.studentProfile`) и новый вид; страница права не смотрит - их проверил `resolveTab`.
   const anketaInOverview = nextUi && profile.student && caseOverview !== undefined && allTabs.some((entry) => entry.key === "anketa");
   const tabs = anketaInOverview ? allTabs.filter((entry) => entry.key !== "anketa") : allTabs;
   // Лид без дела: договора и платежей дела нет — пустой блок «Все обязательства по делу» не рисуется.
@@ -224,7 +226,7 @@ export function Profile({
       {current === "overview" && caseOverview && anketaInOverview ? (
         <details id="case-anketa" open={anketaOpen} data-testid="v3-case-anketa-section" className="group scroll-mt-4 rounded-card border border-border bg-card">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-card px-4 py-1.5 t-section text-fg [&::-webkit-details-marker]:hidden">
-            Анкета
+            Анкета и сведения дела
             <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
           </summary>
           <div className="px-4 pb-4 pt-1">

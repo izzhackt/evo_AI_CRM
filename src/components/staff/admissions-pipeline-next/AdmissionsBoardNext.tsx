@@ -12,7 +12,7 @@ import { AdmissionsNotices } from "@/components/staff/admissions-pipeline-next/A
 import { useAdmissionsBoard, type AdmissionsBoardProps } from "@/components/staff/admissions-board/useAdmissionsBoard";
 import { UndoToast } from "@/components/staff/blocks/UndoToast";
 import { BOARD_CARD_CLASS } from "@/components/staff/board/Board";
-import type { AdmissionsPipelineStage } from "@/lib/platform-admissions-pipeline-contract";
+import { admissionsNarrowStage, type AdmissionsPipelineStage } from "@/lib/platform-admissions-pipeline-contract";
 import { admissionsBoardReturnHref } from "@/lib/v3/admissions-board-return";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
@@ -47,9 +47,11 @@ export function AdmissionsBoardNext(props: AdmissionsBoardProps & Readonly<{ tru
     setDragging(null);
     if (over) board.moveCard(String(active.id), { stage: over.id as AdmissionsPipelineStage }, "drag");
   };
-  // «Назад» из дела возвращает сюда же: раздел, поиск, страна, куратор и этап, открытый на телефоне.
+  // «Назад» из дела возвращает сюда же: раздел, поиск, страна, куратор; этап телефона - только если его выбрали сами
+  // (в адресе уже был `?stage=` или он не тот, что открывается по умолчанию).
+  const stagePicked = props.requestedStage != null || board.narrowStage !== admissionsNarrowStage(tab, props.rows, null);
   const returnTo = admissionsBoardReturnHref({
-    tab: tab === "admission" ? null : tab, q: query.q, country: query.country, curator: query.curator, stage: board.narrowStage,
+    tab: tab === "admission" ? null : tab, q: query.q, country: query.country, curator: query.curator, stage: stagePicked ? board.narrowStage : null,
   });
   const active = board.cards.find((row) => row.studentCaseId === dragging) ?? null;
   const empty = query.q !== null || query.country !== null || query.curator !== null ? "Ничего не найдено." : "Дел в работе нет.";

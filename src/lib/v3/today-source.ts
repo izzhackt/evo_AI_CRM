@@ -19,6 +19,7 @@ import {
   todayStudentItems,
   todayTaskItems,
   type TodayLink,
+  type TodayRoleSections,
   type TodaySource,
   type TodaySourceRead,
 } from "./today-queue.ts";
@@ -93,6 +94,13 @@ export type TodayAccess = Readonly<{
   coverage: boolean;
   /** Просмотр роли: лиды не читаются (их проекция отказывает просмотру). */
   preview: boolean;
+  /**
+   * Какие отделы ведёт смотрящий: продажи (лиды и заявки) и сопровождение студентов. По ним «Сегодня» собирается по
+   * роли: куратор без продаж не видит продаж; оба раздела отдельно видит только Admin (в том числе владелец): у Admissions Manager без прав продаж один раздел.
+   */
+  role: TodayRoleSections;
+  /** Может назначать ответственных (`lead.sales.owner.assign`): у заявок без ответственного есть «Назначить». */
+  assign: boolean;
 }>;
 
 /**
@@ -128,6 +136,8 @@ export function todayAccess(actor: ActivePlatformActor): TodayAccess {
     sources: Object.freeze(sources),
     coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
     preview,
+    role: Object.freeze({ sales, admissions: students }),
+    assign: !preview && sales && staffHasPermission(actor, "lead.sales.owner.assign"),
   });
 }
 
@@ -242,7 +252,7 @@ export async function readTodayQueue(
         ]);
         return {
           source, state: board.truncated ? "partial" : "complete",
-          items: source === "leads" ? todayLeadItems(board.leads, today) : todayRequestItems(board.leads, { callsTab }),
+          items: source === "leads" ? todayLeadItems(board.leads, today) : todayRequestItems(board.leads, { callsTab, assign: access.assign }),
         };
       }
       case "chats": {

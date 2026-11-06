@@ -2,12 +2,11 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import type { DialOptions } from "@/lib/v3/telephony-dial";
-import type { TodayLink, TodayNotice, TodayQueue } from "@/lib/v3/today-queue";
+import type { TodayLink, TodayNotice, TodayQueue, TodaySectionView } from "@/lib/v3/today-queue";
 
 import { QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { TodayDashboard } from "./TodayDashboard";
-import { TodayTiles } from "./TodayTiles";
 
 /**
  * Сбой и неполное чтение источника остаются на виду над виджетами: что не так и одна ссылка («Повторить» или
@@ -60,13 +59,19 @@ function showTiles(queue: TodayQueue): boolean {
  */
 export function TodayNext({
   queue,
+  sections,
+  headed,
   nowIso,
   permissions,
   mainAction,
   dial = null,
   taskLeads = null,
 }: Readonly<{
+  /** Вся очередь: предупреждения источников и пустой день. */
   queue: TodayQueue;
+  /** Разделы по роли (`buildTodaySections`): продажи и сопровождение студентов отдельно. */
+  sections: readonly TodaySectionView[];
+  headed: boolean;
   nowIso: string;
   permissions: TaskRowPermissions;
   /** Главное действие роли для пустого дня; null — у роли его нет. */
@@ -78,11 +83,8 @@ export function TodayNext({
     <>
       {queue.notices.length ? <Notices notices={queue.notices} /> : null}
       <Empty queue={queue} mainAction={mainAction} />
-      {queue.bands.length ? (
-        <>
-          {showTiles(queue) ? <TodayTiles bands={queue.bands} /> : null}
-          <TodayDashboard bands={queue.bands} nowIso={nowIso} permissions={permissions} dial={dial} taskLeads={taskLeads} />
-        </>
+      {sections.length ? (
+        <TodayDashboard sections={sections} headed={headed} tiles={(section) => showTiles(section.queue)} nowIso={nowIso} permissions={permissions} dial={dial} taskLeads={taskLeads} />
       ) : null}
     </>
   );

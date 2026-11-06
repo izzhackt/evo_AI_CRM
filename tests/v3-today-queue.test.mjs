@@ -15,6 +15,8 @@ import {
   TODAY_SOURCES,
   TODAY_UNCOUNTED,
   buildTodayQueue,
+  buildTodaySections,
+  todaySectionOf,
   todayBandsDependingOn,
   todayChatItems,
   todayDateLabel,
@@ -396,15 +398,18 @@ test("role scoping: each role reads only its own sources, on the real 173 role t
   assert.ok(ADMISSIONS.includes("lead.read") && !ADMISSIONS.includes("lead.sales.workflow.manage") && !ADMISSIONS.includes("sales.register.read"));
   assert.deepEqual(todayAccess(actor({ systemRole: "admin" })), {
     sources: ["tasks", "students", "handoffs", "leads", "requests", "chats"], coverage: true, preview: false,
+    role: { sales: true, admissions: true }, assign: true,
   });
   assert.deepEqual(todayAccess(actor({ permissionKeys: ADMISSIONS })), {
     sources: ["tasks", "students", "handoffs", "chats"], coverage: false, preview: false,
+    role: { sales: false, admissions: true }, assign: false,
   });
   assert.deepEqual(todayAccess(actor({ permissionKeys: ADMISSIONS_MANAGER })), {
     sources: ["tasks", "students", "handoffs", "chats"], coverage: true, preview: false,
+    role: { sales: false, admissions: true }, assign: false,
   });
-  assert.deepEqual(todayAccess(actor({ permissionKeys: SALES })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false });
-  assert.deepEqual(todayAccess(actor({ permissionKeys: SALES_MANAGER })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false });
+  assert.deepEqual(todayAccess(actor({ permissionKeys: SALES })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false, role: { sales: true, admissions: false }, assign: SALES.includes("lead.sales.owner.assign") });
+  assert.deepEqual(todayAccess(actor({ permissionKeys: SALES_MANAGER })), { sources: ["tasks", "leads", "requests"], coverage: false, preview: false, role: { sales: true, admissions: false }, assign: SALES_MANAGER.includes("lead.sales.owner.assign") });
   // Одно lead.read — чтение, не работа продаж; назначение ответственных — работа продаж.
   assert.deepEqual(todayAccess(actor({ permissionKeys: ["lead.read"] })).sources, []);
   assert.deepEqual(todayAccess(actor({ permissionKeys: ["lead.read", "lead.sales.owner.assign"] })).sources, ["leads", "requests"]);
@@ -412,7 +417,7 @@ test("role scoping: each role reads only its own sources, on the real 173 role t
   assert.deepEqual(todayAccess(actor({ permissionKeys: ["sales.register.read"] })).sources, [], "report-only role has no queue");
   // Просмотр роли «Продажи» у Admin: права роли, а не Admin; назначение кураторов не показывается.
   assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "sales" })), {
-    sources: ["tasks", "leads", "requests"], coverage: false, preview: true,
+    sources: ["tasks", "leads", "requests"], coverage: false, preview: true, role: { sales: true, admissions: false }, assign: false,
   });
   assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "admissions" })).sources, ["tasks", "students", "handoffs", "chats"]);
 });
@@ -618,4 +623,89 @@ test("the one reason of a whole «Ждут вас» group stands once under the 
   assert.match(list, /band\.band !== "waiting" \|\| band\.note !== null \|\| band\.items\.length < SHARED_REASON_ROWS/u, "only «Ждут вас» without its own note");
   assert.match(list, /band\.items\.some\(\(item\) => item\.task \|\| item\.reason !== reason\)/u, "every row must share it, and none is a task");
   assert.match(sourceText("src/components/staff/today/TodayRow.tsx"), /\(hideReason \? \[\] : item\.reason\.split\(" · "\)\)/u);
+});
+
+/* ---------------------------------------------------------------- «Сегодня» по роли (06.11.2026) */
+
+const withDocs = (row, submitted, oldest = "2026-09-20T05:00:00.000Z") => ({
+  ...row, documents: { total: 8, submitted, correctionRequired: 0, rejected: 0, approved: 1, missing: 7 - submitted, oldestSubmittedAt: oldest },
+});
+const complete = (source, items) => ({ source, state: "complete", items });
+
+test("documents on review: one row per own active student with the count and a link to the «Документы» tab", () => {
+  const rows = [
+    withDocs(caseRow(1, { band: "no_step", name: "Студент А" }), 3),
+    withDocs(caseRow(2, { band: "no_step", name: "Студент Б" }), 1),
+    withDocs(caseRow(3, { band: "no_step", name: "Студент В", curator: OTHER }), 4),
+    withDocs(caseRow(4, { band: "no_step", name: "Студент Г", state: "closed" }), 2),
+    withDocs(caseRow(5, { band: "no_step", name: "Студент Д" }), 0),
+  ];
+  const docs = todayStudentItems(rows, TODAY).filter((item) => item.key.startsWith("docs:"));
+  assert.deepEqual(docs.map((item) => [item.who.name, item.reason, item.band]), [
+    ["Студент А", "на проверке: 3 документа", "waiting"],
+    ["Студент Б", "на проверке: 1 документ", "waiting"],
+  ]);
+  assert.equal(docs[0].openHref, `/profile?case=${uuid("dddddddd", 1)}&tab=documents`);
+  assert.equal(docs[0].since, "2026-09-20T05:00:00.000Z");
+  // Без права читать документы дела (documents: null) строки нет, числа не выдумываются.
+  assert.equal(todayStudentItems([caseRow(6, { band: "no_step" })], TODAY).filter((item) => item.key.startsWith("docs:")).length, 0);
+  // «Ждут вас» зависит от чтения «Моих»: неполное чтение гасит число.
+  const queue = buildTodayQueue([{ source: "students", state: "partial", items: todayStudentItems(rows, TODAY) }], NOW);
+  assert.equal(queue.bands.find((band) => band.band === "waiting").count, null);
+});
+
+test("sections: a curator sees students, documents and case tasks, no sales callbacks; sales keep their blocks", () => {
+  const callback = staffTask(1, { title: "Перезвонить клиенту", dueOn: "2026-08-01" });
+  const work = staffTask(2, { title: "Подготовить планёрку", dueOn: TODAY });
+  const tasks = todayTaskItems({ staff: [callback, work], cases: [caseTask(1, { dueOn: TODAY })], actorMembershipId: ME, now: NOW });
+  const reads = [
+    complete("tasks", tasks),
+    complete("students", todayStudentItems([withDocs(caseRow(1, { band: "no_step" }), 2)], TODAY)),
+    complete("handoffs", []),
+    complete("chats", []),
+  ];
+  const curator = buildTodaySections(reads, NOW, { sales: false, admissions: true });
+  assert.equal(curator.headed, false);
+  assert.deepEqual(curator.sections.map((section) => section.section), ["admissions"], "рабочая задача стоит в разделе куратора");
+  const titles = curator.sections[0].queue.bands.flatMap((band) => band.items.map((item) => item.title));
+  assert.ok(titles.includes("Проверить документы") && titles.includes("Подготовить планёрку") && titles.includes("По студенту 1"));
+  assert.ok(!titles.includes("Перезвонить клиенту"), "перезвон продаж куратору не показывается");
+  // Продажи: перезвон остаётся, задачи по студентам нет.
+  const salesTasks = todayTaskItems({ staff: [callback, work], cases: [], actorMembershipId: ME, now: NOW });
+  const sales = buildTodaySections([complete("tasks", salesTasks), complete("leads", []), complete("requests", [])], NOW, { sales: true, admissions: false });
+  assert.deepEqual(sales.sections.map((section) => section.section), ["sales"]);
+  const salesTitles = sales.sections[0].queue.bands.flatMap((band) => band.items.map((item) => item.title));
+  assert.ok(salesTitles.includes("Перезвонить клиенту") && salesTitles.includes("Подготовить планёрку"));
+});
+
+test("sections: admin gets sales and admissions separately with headings; a failed source marks only the sections it feeds", () => {
+  const callback = staffTask(1, { title: "Перезвонить клиенту", dueOn: "2026-08-01" });
+  const tasks = todayTaskItems({ staff: [callback], cases: [caseTask(1, { dueOn: TODAY })], actorMembershipId: ME, now: NOW });
+  const both = { sales: true, admissions: true };
+  const reads = [
+    complete("tasks", tasks),
+    complete("students", todayStudentItems([withDocs(caseRow(1, { band: "no_step" }), 2)], TODAY)),
+    complete("leads", todayLeadItems([lead(1, { action: "Позвонить", due: "overdue", dueDate: "2026-09-20" })], TODAY)),
+    complete("requests", todayRequestItems([lead(2, { owner: null, stage: "new" })], { assign: true })),
+  ];
+  const result = buildTodaySections(reads, NOW, both);
+  assert.equal(result.headed, true);
+  assert.deepEqual(result.sections.map((section) => section.title), ["Продажи", "Студенты и документы"]);
+  const assignRows = result.sections[0].queue.bands.flatMap((band) => band.items).filter((item) => item.assignHref);
+  assert.equal(assignRows.length, 1);
+  assert.equal(assignRows[0].assignHref, `/pipeline?lead=${uuid("ffffffff", 2)}`);
+  assert.equal(todayRequestItems([lead(2, { owner: null, stage: "new" })])[0].assignHref, undefined, "без права назначать кнопки нет");
+  const failed = buildTodaySections(reads.map((read) => read.source === "leads" ? { source: "leads", state: "error" } : read), NOW, both);
+  const salesCounts = failed.sections[0].queue.bands.map((band) => band.count);
+  assert.ok(salesCounts.includes(null), "числа продаж погашены сбоем лидов");
+  assert.ok(failed.sections[1].queue.bands.every((band) => band.count !== null), "числа студентов не затронуты");
+  assert.equal(failed.queue.notices.length, 1);
+});
+
+test("section of an item follows its kind: callbacks are sales, case tasks are admissions, other work tasks are work", () => {
+  const [staffCallback, staffWork] = todayTaskItems({
+    staff: [staffTask(1, { title: "Перезвонить клиенту: недозвон", dueOn: TODAY }), staffTask(2, { title: "Другое", dueOn: TODAY })], cases: [], actorMembershipId: ME, now: NOW,
+  });
+  const [caseItem] = todayTaskItems({ staff: [], cases: [caseTask(1, { dueOn: TODAY })], actorMembershipId: ME, now: NOW });
+  assert.deepEqual([staffCallback, staffWork, caseItem].map(todaySectionOf), ["sales", "work", "admissions"]);
 });

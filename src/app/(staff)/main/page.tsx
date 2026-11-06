@@ -7,7 +7,7 @@ import { isStaffPreview, staffCan, staffCanSalesTab, staffHasPermission, staffPr
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { salesReportRedirectHref } from "@/lib/sales-register-navigation";
 import { v3SectionTitle } from "@/lib/v3/navigation";
-import { buildTodayQueue } from "@/lib/v3/today-queue";
+import { buildTodaySections } from "@/lib/v3/today-queue";
 import { readDialOptions } from "@/lib/v3/telephony-dial-source";
 import { readTodayTaskLeads } from "@/lib/v3/telephony-task-leads-source";
 import { readTodayQueue, todayLinks } from "@/lib/v3/today-source";
@@ -58,9 +58,10 @@ export default async function MainPart({
     readTodayQueue(actor, { now, callsTab: dialRead.then((options) => options.status === "ready") }),
     dialRead,
   ]);
-  const queue = buildTodayQueue(reads, now);
+  // «Сегодня» по роли (06.11.2026): продажи и сопровождение студентов — отдельные разделы; куратор без продаж видит своих студентов.
+  const { queue, sections, headed } = buildTodaySections(reads, now, access.role);
   // Задача «Перезвонить клиенту» несёт лид: строка называет клиента, пока набор открыт этому сотруднику (иначе — как раньше).
-  const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, queue) : null;
+  const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, { bands: sections.flatMap((section) => section.queue.bands) }) : null;
   const preview = isStaffPreview(actor);
   const { mainAction } = todayLinks(actor, access, { canReadReport });
   const permissions = {
@@ -74,5 +75,5 @@ export default async function MainPart({
   };
 
   // «Новый вид» (единственный вид, #1327): виджеты вместо ленты.
-  return <TodayNextLazy queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
+  return <TodayNextLazy queue={queue} sections={sections} headed={headed} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
 }

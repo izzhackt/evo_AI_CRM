@@ -163,6 +163,9 @@ async function main() {
   const waiting = longToday.queue.bands.find((band) => band.band === "waiting");
   const extra = Array.from({ length: 4 }, (_, index) => ({ ...waiting.items[index % waiting.items.length], key: `${waiting.items[index % waiting.items.length].key}:copy${index}`, title: `Копия ${index + 1}: ${waiting.items[index % waiting.items.length].title}` }));
   waiting.items = [...waiting.items, ...extra];
+  // Клиентская проверка гоняет один раздел со всеми группами (вид без заголовков): очередь целиком — единственный раздел.
+  longToday.sections = [{ section: "sales", title: "Продажи", queue: longToday.queue }];
+  longToday.headed = false;
 
   // Страница сервера в 30 строк со ссылкой «Следующая страница»: 9 строк стенда и 21 копия лида с другими id и именами.
   const longRequests = structuredClone(requests["next-populated"]);

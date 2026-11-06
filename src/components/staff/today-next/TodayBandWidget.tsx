@@ -25,6 +25,8 @@ export function widgetVisibleCount(total: number, expanded: boolean): number {
  */
 export function TodayBandWidget({
   band,
+  bandName,
+  headingLevel = 2,
   note,
   hoisted,
   expanded,
@@ -38,6 +40,9 @@ export function TodayBandWidget({
   onCompleted,
 }: Readonly<{
   band: CompletionBand<TodayItem>;
+  /** Имя группы без раздела («today»): ключ `band.key` у разделённой очереди несёт и раздел. */
+  bandName: string;
+  headingLevel?: 2 | 3;
   note: string | null;
   hoisted: boolean;
   expanded: boolean;
@@ -56,6 +61,7 @@ export function TodayBandWidget({
     <WidgetCard
       id={todayWidgetId(band.key)}
       title={todayBandTitle(band.label)}
+      headingLevel={headingLevel}
       bodyClassName="px-0"
     >
       {/* Строки виджета всегда двухстрочные (`stacked`): в половине страницы широкая сетка со сроком в колонке обрезала бы названия. */}
@@ -76,7 +82,7 @@ export function TodayBandWidget({
               recent={recent[item.key] ?? null}
               leadRef={taskLeads?.[item.key] ?? null}
               dial={dial}
-              hideTodayWord={band.key === "today"}
+              hideTodayWord={bandName === "today"}
               stacked
               announce={announce}
               onCompleted={(completion) => onCompleted(item, index, completion)}

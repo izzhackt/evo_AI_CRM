@@ -964,7 +964,7 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(source, /name: callerDisplayName\(lead\.clientDisplayName\)/u, "a lead made from an unknown number is named as in «Заявки» and «Сегодня»");
   assert.match(source, /catch \{\s*return null;/u, "a failed read leaves the row as it was");
   const main = read("src/app/(staff)/main/page.tsx");
-  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "no extra reads while dial is closed to this employee");
+  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, \{ bands: sections\.flatMap\(\(section\) => section\.queue\.bands\) \}\) : null;/u, "no extra reads while dial is closed to this employee");
   assert.match(main, /taskLeads=\{taskLeads\}/u);
   const row = read("src/components/staff/tasks/TaskQueueRow.tsx");
   assert.match(row, /leadRef \? <>/u);

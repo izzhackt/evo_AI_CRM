@@ -88,7 +88,7 @@ const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { readTodayQueue, todayLinks, TodaySourceDenied } = require(join(ROOT, "src/lib/v3/today-source.ts"));
 const { staffCan } = require(join(ROOT, "src/lib/platform-access.ts"));
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
-const { buildTodayQueue } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
+const { buildTodaySections } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
 const { TodayNextPage } = require(join(ROOT, "src/components/staff/today-next/TodayNextPage.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
@@ -147,7 +147,8 @@ function caseRow(n, fields) {
     pipelineStage: fields.stage ?? "documents", pipelineHidden: false, nextAction: step, nextActionDueOn: due, dueBand: band,
     admissionsVersion: "4", currentCuratorMembershipId: curator, currentCuratorDisplayName: curator ? NAMES[curator] : null,
     isMine: curator === ME, attentionFlags: fields.flags ?? [], overdueTaskCount: fields.overdueTasks ?? 0,
-    documents: null, updatedAt: "2026-09-24T05:00:00.000000Z", cursor: `due|${rank}|${due ?? "infinity"}|${caseId(n)}`,
+    documents: fields.docs ? { total: 8, submitted: fields.docs, correctionRequired: 0, rejected: 0, approved: 2, missing: 8 - fields.docs - 2, oldestSubmittedAt: fields.docsSince ?? null } : null,
+    updatedAt: "2026-09-24T05:00:00.000000Z", cursor: `due|${rank}|${due ?? "infinity"}|${caseId(n)}`,
   };
 }
 
@@ -200,6 +201,11 @@ const MINE_ROWS = [
   caseRow(8, { name: "Софья Эскизова", step: "Уточнить у семьи список документов" }),
   caseRow(9, { name: "Арсен Шаблонов", step: "Встретить в аэропорту", due: "2026-10-20", stage: "predeparture" }),
   caseRow(10, { name: "Мадина Пробная", step: "Дождаться решения по заявке", due: "2026-09-30", flags: ["overdue"], stage: "awaiting_decision" }),
+];
+const DOC_ROWS = [
+  ...MINE_ROWS,
+  caseRow(21, { name: "Жибек Документова", stage: "documents", docs: 3, docsSince: "2026-09-20T05:00:00.000Z" }),
+  caseRow(22, { name: "Тилек Проверяев", step: "Сверить паспорт", due: TODAY, docs: 1, docsSince: "2026-09-25T05:00:00.000Z" }),
 ];
 const ATTENTION_ROWS = [
   caseRow(11, { name: "Ильяс Новиков", state: "pending", stage: "new", flags: ["awaiting_ack"] }),
@@ -283,6 +289,10 @@ const SCENARIOS = {
   // строками «Требуют действия», поэтому неполное чтение гасит и «Без следующего шага» с «Ближайшими»;
   // «Просрочено» и «Сегодня» число сохраняют.
   partial: { actor: "admissions", data: { staff: STAFF_TASKS, cases: CASE_TASKS, mine: MINE_ROWS, attention: ATTENTION_ROWS, attentionPartial: true, chats: CHATS, fail: ["chats"] } },
+  // Куратор (06.11.2026): свои студенты, документы на проверке (синтетические), перезвон продаж ему не показывается.
+  curator: { actor: "admissions", data: { staff: [...STAFF_TASKS.slice(1, 3), staffTask(20, { title: "Перезвонить клиенту", dueOn: "2026-08-01" })], cases: CASE_TASKS, mine: DOC_ROWS, attention: ATTENTION_ROWS, chats: CHATS } },
+  // Admin видит оба раздела отдельно, заявки без ответственного — с «Назначить».
+  both: { actor: "admin", data: { staff: [...STAFF_TASKS, staffTask(21, { title: "Перезвонить клиенту", dueOn: "2026-08-01" })], cases: CASE_TASKS, mine: DOC_ROWS, attention: ATTENTION_ROWS, leads: MY_LEADS, unassigned: UNASSIGNED, chats: CHATS } },
   // Пустой день продаж: всё прочитано, пора делать нечего, ближайший срок — лид на чт 01.10.
   empty: { actor: "sales", data: { staff: [staffTask(9, { title: "Подготовить вопросы к планёрке" })], leads: [MY_LEADS[3]], unassigned: [] } },
   // Пустой день поступления: главное действие роли под «На сегодня всё».
@@ -318,7 +328,7 @@ async function buildNextPage(name) {
   const scenario = SCENARIOS[name];
   const who = ACTORS[scenario.actor];
   const { access, reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
-  const queue = buildTodayQueue(reads, NOW);
+  const { queue, sections, headed } = buildTodaySections(reads, NOW, access.role);
   const { mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
   const admin = who.systemRole === "admin";
   const has = (key) => admin || who.permissionKeys.includes(key);
@@ -326,7 +336,7 @@ async function buildNextPage(name) {
     actorMembershipId: ME, admin, preview: false, staffComplete: has("staff.task.complete"), staffEdit: has("staff.task.edit"),
     caseManage: has("task.manage"), caseAssign: has("task.assign"),
   };
-  const props = { queue, nowIso: NOW.toISOString(), permissions, mainAction };
+  const props = { queue, sections, headed, nowIso: NOW.toISOString(), permissions, mainAction };
   // `TodayNextPage` — то, что страница подгружает лениво (`TodayNextLazy`): рамка и виджеты одним куском.
   const node = createElement(TodayNextPage, props);
   return { who, node, props };

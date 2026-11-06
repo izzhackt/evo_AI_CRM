@@ -1,3 +1,4 @@
+import { CountryCuratorsNext } from "./CountryCuratorsNext";
 import { DeletionNext } from "./DeletionNext";
 import { DepartmentsNext } from "./DepartmentsNext";
 import { DocumentsNext } from "./DocumentsNext";
@@ -25,6 +26,7 @@ function SectionBody(props: SettingsNextProps) {
   if (section === "integrations") return <IntegrationsNext rows={props.integrations} whatsapp={props.whatsapp} nowIso={props.nowIso} />;
   if (section === "telephony" && props.telephony) return <TelephonyNext {...props.telephony} nowIso={props.nowIso} />;
   if (section === "reports" && props.reports) return <ReportsNext {...props.reports} />;
+  if (section === "curators" && props.countryCurators) return <CountryCuratorsNext {...props.countryCurators} />;
   if (section === "journal" && props.journal) return <JournalNext {...props.journal} />;
   if (section === "deletion" && props.deletion) return <DeletionNext {...props.deletion} nowIso={props.nowIso} />;
   if (section === "documents" && props.gates) return <DocumentsNext gates={props.gates} />;

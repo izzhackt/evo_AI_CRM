@@ -5041,6 +5041,29 @@ SQL
     printf '%s\n' "$invited_case_application_log"
     if ! grep -q 'A334_INVITED_CASE_APPLICATION_READ_SUITE_PASSED' <<<"$invited_case_application_log"; then
       echo "platform_invited_case_application_read.sql did not reach its PASSED marker" >&2
+  # «Куратор страны подставляется в продаже сам» (migration 335, решение владельца 06.11.2026). Matched by name, not number.
+  # Additive: a closed table, three functions, the journal action country.curator.change (rename-and-union). Right after it:
+  # a second apply refuses (a335_already_applied), then the suite, insisting on its marker. The suite proves: why the setting is
+  # explicit (a curator scoped to one direction is not in the 174 list); read and save by the system Admin only (replay, request
+  # conflict, stale version, unchanged input, curators that may not be chosen); the sales form read keeps 174 and adds the
+  # country curator and the анкета country of a lead; the posture.
+  if [[ "$(basename "$migration")" == *_platform_sales_intake_country_curator.sql ]]; then
+    t335_again_log="$(mktemp -t evo-t335-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t335_again_log" 2>&1; then
+      echo "migration 335 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a335_already_applied" "$t335_again_log"; then
+      echo "a second apply of migration 335 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t335_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t335_again_log"
+    country_curator_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_sales_intake_country_curator.sql </dev/null)"
+    printf '%s
+' "$country_curator_log"
+    if ! grep -q 'A335_SALES_INTAKE_COUNTRY_CURATOR_SUITE_PASSED' <<<"$country_curator_log"; then
+      echo "platform_sales_intake_country_curator.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

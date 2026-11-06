@@ -49,9 +49,13 @@ export async function readSalesRegisterIntakeOptions(actor: ActivePlatformActor,
   if (!staffHasPermission(actor, "sales.register.manage") || !staffHasPermission(actor, "lead.sales.workflow.manage")
     || query.length > 200 || /[\u0000-\u001f\u007f]/.test(query)) throw new Error("Sales intake unavailable.");
   if (await readSalesRegisterWriteAccess(actor) !== "allowed") throw new Error("Sales intake unavailable.");
-  const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("sales_register_intake_options", {
-    p_organization_id: actor.organizationId, p_query: query.trim(),
-  });
+  const client = await createSupabaseServerClient();
+  const args = { p_organization_id: actor.organizationId, p_query: query.trim() };
+  // v2 (335) добавляет направления кураторов и страну анкеты лида; база без 335 — прежнее чтение 174, порядок выката любой.
+  let { data, error } = await client.schema("platform").rpc("sales_register_intake_options_v2", args);
+  if (error && (error.code === "PGRST202" || error.code === "42883")) {
+    ({ data, error } = await client.schema("platform").rpc("sales_register_intake_options", args));
+  }
   if (error) throw new Error("Sales intake unavailable.");
   return parseSalesRegisterIntakeOptions(data, actor.organizationId);
 }

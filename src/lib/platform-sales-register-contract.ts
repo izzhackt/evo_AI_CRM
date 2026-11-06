@@ -49,21 +49,49 @@ export type SalesRegisterWorkspace = Readonly<{
 }>;
 export type SalesRegisterIntakeOptions = Readonly<{
   curators: readonly Readonly<{ id: string; label: string }>[];
-  leads: readonly Readonly<{ id: string; label: string; phone: string; ownerId: string }>[];
+  /** `applicationCountry` — первая страна анкеты лида, код («CN»); null — анкеты нет или ответ 174. */
+  leads: readonly Readonly<{ id: string; label: string; phone: string; ownerId: string; applicationCountry: string | null }>[];
+  /** Куратор страны (v2, 335): только тот, кто есть в `curators`; у ответа 174 пусто. */
+  countryCurators: Readonly<Partial<Record<"CN" | "MY", string>>>;
 }>;
 
+const APPLICATION_COUNTRY = /^[A-Z]{2}$|^[a-z_]{1,40}$/;
+
+/**
+ * Разбирает ответ 174 и v2 (335). v2 добавляет ровно `country_curators` {CN, MY} (id или null) и у лида `application_country`;
+ * куратор страны, которого нет в списке кураторов, считается ошибкой формы ответа.
+ */
 export function parseSalesRegisterIntakeOptions(raw: unknown, organizationId: string): SalesRegisterIntakeOptions {
-  const r = exact(raw, ["organization_id", "curators", "leads"]);
+  const withCountry = record(raw).country_curators !== undefined;
+  const r = exact(raw, withCountry ? ["organization_id", "curators", "leads", "country_curators"] : ["organization_id", "curators", "leads"]);
   if (r.organization_id !== organizationId) fail();
+  const curators = array(r.curators, 1000).map(value => {
+    const row = exact(value, ["id", "label"]);
+    return { id: uuid(row.id), label: str(row.label, 300) };
+  });
+  const countryCurators: Partial<Record<"CN" | "MY", string>> = {};
+  if (withCountry) {
+    const map = exact(r.country_curators, ["CN", "MY"]);
+    for (const code of ["CN", "MY"] as const) {
+      if (map[code] === null) continue;
+      const id = uuid(map[code]);
+      if (!curators.some(curator => curator.id === id)) fail();
+      countryCurators[code] = id;
+    }
+  }
   return {
-    curators: array(r.curators, 1000).map(value => {
-      const row = exact(value, ["id", "label"]);
-      return { id: uuid(row.id), label: str(row.label, 300) };
-    }),
+    curators,
     leads: array(r.leads, 30).map(value => {
-      const row = exact(value, ["id", "label", "phone", "owner_id"]);
-      return { id: uuid(row.id), label: str(row.label, 1000), phone: str(row.phone, 100), ownerId: uuid(row.owner_id) };
+      const hasCountry = record(value).application_country !== undefined;
+      const row = exact(value, hasCountry ? ["id", "label", "phone", "owner_id", "application_country"] : ["id", "label", "phone", "owner_id"]);
+      const country = row.application_country;
+      return {
+        id: uuid(row.id), label: str(row.label, 1000), phone: str(row.phone, 100), ownerId: uuid(row.owner_id),
+        applicationCountry: country === undefined || country === null ? null
+          : typeof country === "string" && APPLICATION_COUNTRY.test(country) ? country : fail(),
+      };
     }),
+    countryCurators,
   };
 }
 

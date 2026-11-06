@@ -1,5 +1,6 @@
 import type { PlatformWhatsAppTransport } from "@/lib/platform-whatsapp-transport";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
+import type { CountryCuratorDirection, CountryCuratorsRead } from "@/lib/country-curator-contract";
 import type { ReportKey, ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
@@ -67,6 +68,8 @@ export type SettingsNextProps = Readonly<{
   }>;
   telephony?: Readonly<{ read: TelephonyAdminRead | null; readOnly: boolean }>;
   reports?: Readonly<{ reads: Readonly<Record<ReportKey, ReportLinkRead>>; readOnly: boolean; ids: Readonly<Record<ReportKey, Readonly<{ save: string; remove: string }>>> }>;
+  /** «Кураторы стран» (миграция 335): чтение настройки и id запроса на каждую страну. */
+  countryCurators?: Readonly<{ read: CountryCuratorsRead; readOnly: boolean; ids: Readonly<Record<CountryCuratorDirection, string>> }>;
   journal?: SettingsJournalProps;
   deletion?: Readonly<{ queue: AccountDeletionQueueRead | undefined; detail: AccountDeletionDetailRead | null; listHref: string }>;
   gates?: GateFacts;

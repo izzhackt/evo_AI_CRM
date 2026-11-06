@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { SettingsNextProps } from "@/components/staff/settings-next/settings-next-types";
 import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "@/components/staff/settings/types";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
+import { COUNTRY_CURATOR_DIRECTIONS, type CountryCuratorDirection, type CountryCuratorsRead } from "@/lib/country-curator-contract";
 import { REPORT_KEYS, type ReportKey, type ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
@@ -33,6 +34,7 @@ export function settingsNextProps(input: Readonly<{
   telephonyReadOnly: boolean;
   reports?: Readonly<Record<ReportKey, ReportLinkRead>>;
   reportsReadOnly: boolean;
+  countryCurators?: CountryCuratorsRead;
   journal: readonly JournalEntry[];
   journalStatus: JournalStatus;
   auditExportEnabled: boolean;
@@ -63,6 +65,10 @@ export function settingsNextProps(input: Readonly<{
       ? { data: input.staff, roles: input.staffRoles, organizationId: input.staffOrganizationId, selectedMemberId: input.selectedStaffMemberId, selectedRoleId: input.selectedStaffRoleId }
       : undefined,
     telephony: section === "telephony" ? { read: input.telephony ?? null, readOnly: input.telephonyReadOnly } : undefined,
+    countryCurators: section === "curators" && input.countryCurators
+      ? { read: input.countryCurators, readOnly: input.reportsReadOnly,
+        ids: Object.fromEntries(COUNTRY_CURATOR_DIRECTIONS.map((key) => [key, randomUUID()])) as Record<CountryCuratorDirection, string> }
+      : undefined,
     reports: section === "reports" && input.reports
       ? { reads: input.reports, readOnly: input.reportsReadOnly, ids: Object.fromEntries(REPORT_KEYS.map((key) => [key, { save: randomUUID(), remove: randomUUID() }])) as NonNullable<SettingsNextProps["reports"]>["ids"] }
       : undefined,

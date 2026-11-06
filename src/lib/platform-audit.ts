@@ -91,6 +91,10 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // identifiers (the object is the consent row; the Auth id is in the actor principal, which the safe row never
 // shows): no text, no name. They fall through to the `action.startsWith("ai.")` branch of
 // `expectedChangedFieldCodes` (`["ai_status"]`), exactly like the server's `ai.%` branch.
+// Migration 335 («Кураторы стран», docs/PLAN_CHANGES.md «2026-11-06 · Куратор страны в продаже») adds one action,
+// `country.curator.change` (written by `platform.country_curator_save_v1`: one row per real change of the curator of China
+// or Malaysia), by the same rename-and-union wrapper (`..._pre_country_curators`). Its object is the existing
+// `organization` type; it falls through to the `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
 // (миграция 323)») adds one action, `report.link.change` (written by
 // `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),
@@ -207,6 +211,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "contract.template.version.approve",
   "contract.template.version.create",
   "contract.template.version.retire",
+  "country.curator.change",
   "country.requirement.apply",
   "country.requirement.source.link",
   "country.requirement.version.approve",

@@ -12,6 +12,8 @@ import {
 } from "@/lib/platform-sales-register-actions";
 import { SALES_CURRENCIES, type SalesRegisterRow, type SalesRegisterTarget, type SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
 import { salesManualReview, salesRowContractPaid } from "@/lib/sales-register-view";
+import { salesCountryCurator, salesCountryDirection } from "@/lib/sales-country-curator";
+import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import type { LeadSaleConditions } from "@/lib/lead-sale-conditions-contract";
 
 const MESSAGES: Record<Exclude<SalesRegisterActionState["status"], "idle">, string> = {
@@ -126,6 +128,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const [reason, setReason] = useState("");
   const [leadId, setLeadId] = useState("");
   const [curatorId, setCuratorId] = useState("");
+  // Куратор страны подставлен формой (335): его можно сменить, ручной выбор форма больше не трогает.
+  const [curatorAuto, setCuratorAuto] = useState(false);
   const [studentQuery, setStudentQuery] = useState("");
   const [studentResults, setStudentResults] = useState<SalesRegisterIntakeOptions["leads"]>([]);
   const [searchStatus, setSearchStatus] = useState<"idle" | "ready" | "invalid" | "unavailable">("idle");
@@ -163,10 +167,22 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const conditionsReady = !recordId ? conditionsPreview?.status === "ready" && conditionsPreview.conditions.serviceCostMinor !== null && Boolean(conditionsPreview.reportMonth) && conditionsPreview.conditions.leadId === leadId : true;
   const canSubmit = !locked && !readUnavailable && !changed && status !== "stale" && !record?.archived
     && (Boolean(recordId) || (Boolean(intakeOptions) && Boolean(curatorId) && Boolean(leadId) && conditionsReady));
-  const update = (key: string, value: string) => setDraft(previous => ({ ...previous, [key]: value }));
+  function autoCurator(country: string) {
+    if (recordId || (curatorId && !curatorAuto)) return;
+    const id = salesCountryCurator(intakeOptions?.countryCurators ?? {}, salesCountryDirection(country));
+    setCuratorId(id ?? ""); setCuratorAuto(Boolean(id));
+  }
+  const update = (key: string, value: string) => {
+    setDraft(previous => ({ ...previous, [key]: value }));
+    if (key === "country") autoCurator(value);
+  };
   function chooseLead(lead: SalesRegisterIntakeOptions["leads"][number] | null) {
     const generation = ++selectionGeneration.current;
     setLeadId(lead?.id ?? ""); setSelectedLead(lead); setConditionsPreview(null);
+    // Страна из анкеты лида: в пустое поле «Страна» и куратор этой страны.
+    const applicationCountry = lead?.applicationCountry ?? null;
+    if (!draft.country.trim() && applicationCountry && isStudyCountryCode(applicationCountry)) update("country", studyCountryName(applicationCountry, "ru") ?? "");
+    else autoCurator(draft.country);
     if (lead) startPreview(async () => {
       const result = await readSalesReportConditionsPreviewAction(lead.id).catch(() => ({ status: "unavailable" as const }));
       if (generation === selectionGeneration.current) setConditionsPreview(result);
@@ -257,9 +273,10 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
             <p className="t-body-compact"><span className={fieldLabelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
             <p className="t-body-compact"><span className={fieldLabelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
           </div> : null}
-          <label className="block max-w-md"><span className={fieldLabelCls}>Куратор</span><select value={curatorId} required onChange={e => setCuratorId(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+          <label className="block max-w-md"><span className={fieldLabelCls}>Куратор</span><select value={curatorId} required onChange={e => { setCuratorId(e.target.value); setCuratorAuto(false); }} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Выберите куратора</option>{intakeOptions?.curators.map(curator => <option value={curator.id} key={curator.id}>{curator.label}</option>)}
           </select></label>
+          {curatorAuto && curatorId ? <p className="t-meta text-fg-2">Подставлен куратор страны. Можно выбрать другого.</p> : null}
           <p className="t-meta text-fg-2">После сохранения продажа попадёт в отчёт, а дело студента откроется у выбранного куратора.</p>
           {intakeOptions && intakeOptions.curators.length === 0 ? <p role="alert" className="t-body-compact text-fg-2">Нет доступного куратора. Администратор может назначить роль сотруднику в настройках команды.</p> : null}
           {!intakeOptions ? <p role="alert" className="t-body-compact text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}

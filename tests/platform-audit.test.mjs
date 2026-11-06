@@ -95,6 +95,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["320_platform_student_ai_consent.sql", "student_ai_consent"],
   // «Отчёты Looker Studio»: одно действие report.link.change, объект organization (нового типа нет).
   ["323_platform_report_links.sql", "report_links"],
+  // «Кураторы стран»: одно действие country.curator.change, объект organization (нового типа нет).
+  ["335_platform_sales_intake_country_curator.sql", "country_curators"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -257,6 +259,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "company.file.folder.rename",
     "company.file.upload.finalize",
     "company.file.upload.reserve",
+    "country.curator.change",
     "docs.student.create",
     "document.checklist.baseline.seed",
     "document.export.begun",

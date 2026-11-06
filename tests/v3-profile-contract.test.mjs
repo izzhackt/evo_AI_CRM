@@ -15,7 +15,7 @@ test("V3 Student 360 owns the complete canonical BW6 workspace", () => {
   const bridge = source("src/components/staff/profile/ProfileContractWorkspace.tsx");
   const workspace = source("src/components/staff/profile/ContractDraftReportWorkspace.tsx");
 
-  assert.match(types, /\{ key: "money", title: "Договор и оплата" \}/u);
+  assert.match(types, /\{ key: "money", title: "Деньги" \}/u);
   assert.match(profile, /contractWorkspace=\{draft\.access\.contract && draft\.contract/u);
   assert.match(profile, /<ProfileContractWorkspace/u);
   assert.match(page, /PLATFORM_CONTRACT_MUTATION_OUTCOMES/u);

@@ -12,12 +12,13 @@ import { admissionsPipelineStage } from "@/lib/v3/wording";
  * Колонка этапа: карточка набора (`BoardColumnCard`), в которую можно бросить дело (`useDroppable`). На телефоне виден один этап, названный выбором
  * «Этап» над списком, — заголовок колонки там повторял бы его и скрыт.
  */
-export function AdmissionsColumnNext({ stage, rows, tab, showCurator, visibleNarrow, onMove }: Readonly<{
+export function AdmissionsColumnNext({ stage, rows, tab, showCurator, visibleNarrow, returnTo, onMove }: Readonly<{
   stage: AdmissionsPipelineStage;
   rows: readonly AdmissionsPipelineRow[];
   tab: AdmissionsPipelineTab;
   showCurator: boolean;
   visibleNarrow: boolean;
+  returnTo: string;
   onMove: (studentCaseId: string, target: MoveTarget) => void;
 }>) {
   const title = admissionsPipelineStage(stage) ?? stage;
@@ -29,7 +30,7 @@ export function AdmissionsColumnNext({ stage, rows, tab, showCurator, visibleNar
         <ul className="flex flex-col gap-1.5">
           {rows.map((row) => (
             <li key={row.studentCaseId}>
-              <AdmissionsCardNext row={row} tab={tab} showCurator={showCurator} onMove={(target) => onMove(row.studentCaseId, target)} />
+              <AdmissionsCardNext row={row} tab={tab} showCurator={showCurator} returnTo={returnTo} onMove={(target) => onMove(row.studentCaseId, target)} />
             </li>
           ))}
           {rows.length === 0 ? <li className="t-meta px-1.5 py-1 text-fg-3">{BOARD_EMPTY.cases}</li> : null}

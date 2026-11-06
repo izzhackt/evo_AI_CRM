@@ -13,6 +13,7 @@ import { useAdmissionsBoard, type AdmissionsBoardProps } from "@/components/staf
 import { UndoToast } from "@/components/staff/blocks/UndoToast";
 import { BOARD_CARD_CLASS } from "@/components/staff/board/Board";
 import type { AdmissionsPipelineStage } from "@/lib/platform-admissions-pipeline-contract";
+import { admissionsBoardReturnHref } from "@/lib/v3/admissions-board-return";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 /**
@@ -46,6 +47,10 @@ export function AdmissionsBoardNext(props: AdmissionsBoardProps & Readonly<{ tru
     setDragging(null);
     if (over) board.moveCard(String(active.id), { stage: over.id as AdmissionsPipelineStage }, "drag");
   };
+  // «Назад» из дела возвращает сюда же: раздел, поиск, страна, куратор и этап, открытый на телефоне.
+  const returnTo = admissionsBoardReturnHref({
+    tab: tab === "admission" ? null : tab, q: query.q, country: query.country, curator: query.curator, stage: board.narrowStage,
+  });
   const active = board.cards.find((row) => row.studentCaseId === dragging) ?? null;
   const empty = query.q !== null || query.country !== null || query.curator !== null ? "Ничего не найдено." : "Дел в работе нет.";
   return (
@@ -79,12 +84,12 @@ export function AdmissionsBoardNext(props: AdmissionsBoardProps & Readonly<{ tru
             <div role="group" aria-label="Воронка поступления" className="grid min-w-0 gap-3 @5xl:[grid-template-columns:repeat(var(--board-cols),minmax(0,1fr))]"
               style={{ "--board-cols": board.tabStages.length } as React.CSSProperties}>
               {board.tabStages.map((stage) => (
-                <AdmissionsColumnNext key={stage} stage={stage} tab={tab} showCurator={board.showCurator} visibleNarrow={stage === board.narrowStage}
+                <AdmissionsColumnNext key={stage} stage={stage} tab={tab} showCurator={board.showCurator} visibleNarrow={stage === board.narrowStage} returnTo={returnTo}
                   rows={board.cards.filter((row) => row.pipelineStage === stage)} onMove={(studentCaseId, target) => board.moveCard(studentCaseId, target, "menu")} />
               ))}
             </div>
             <DragOverlay dropAnimation={null}>
-              {active ? <article className={`${BOARD_CARD_CLASS} cursor-grabbing shadow-evo-lg`}><AdmissionsCardBody row={active} showCurator={board.showCurator} /></article> : null}
+              {active ? <article className={`${BOARD_CARD_CLASS} cursor-grabbing shadow-evo-lg`}><AdmissionsCardBody row={active} showCurator={board.showCurator} returnTo={returnTo} /></article> : null}
             </DragOverlay>
           </DndContext>
         </>

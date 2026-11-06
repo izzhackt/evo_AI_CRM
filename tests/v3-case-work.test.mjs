@@ -190,32 +190,41 @@ test("after acceptance the answer moves to «Сведения»; nothing on the 
   assert.match(texts(html), /Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Изменить ответ/u);
 });
 
-test("Student 360 header: the AI consent chip (320) says one of three words, quietly; only «не разрешено» warns; no chip when nothing was read", () => {
+test("AI consent (320): the header chip is only the «не разрешено» warning; the three other states are plain words in «Сведения» («ИИ-помощники»), never «не спрашивали»", () => {
   const chip = (name) => {
     const html = surfaces.get(name);
     assert.ok(html, name);
     const found = [...html.matchAll(/<span class="v3-chip t-caption shrink-0" data-tone="([a-z]+)"><span title="([^"]*)" data-testid="v3-case-ai-consent">([^<]*)<\/span><\/span>/gu)];
     return found.length === 0 ? null : { count: found.length, tone: found[0][1], title: found[0][2], label: found[0][3] };
   };
-  assert.deepEqual([chip("ai-consent-granted").label, chip("ai-consent-declined").label, chip("ai-consent-none").label, chip("ai-consent-none-no-portal").label],
-    ["ИИ: разрешено", "ИИ: не разрешено", "ИИ: не спрашивали", "ИИ: не спрашивали"]);
-  assert.deepEqual([chip("ai-consent-granted").tone, chip("ai-consent-declined").tone, chip("ai-consent-none").tone, chip("ai-consent-none-no-portal").tone],
-    ["neutral", "warn", "neutral", "neutral"]);
-  // One chip per page, with its hint in words (no raw code, no number).
-  for (const name of ["ai-consent-granted", "ai-consent-declined", "ai-consent-none", "ai-consent-none-no-portal"]) {
-    assert.equal(chip(name).count, 1, name);
-    assert.match(chip(name).title, /[А-Яа-я]/u, name);
-    assert.doesNotMatch(chip(name).title + chip(name).label, /ai_consent|granted|declined|\d/u, name);
-  }
-  assert.match(chip("ai-consent-none").title, /пока он не разрешит/u);
-  assert.match(chip("ai-consent-none-no-portal").title, /нет кабинета/u);
-  // The chip sits in the header section, next to the other quiet state words, not in a red block.
+  // Шапка: чип рисует только предупреждение; «разрешено» и «не спрашивали» шапку не занимают (06.11.2026).
+  assert.equal(chip("ai-consent-declined").label, "ИИ: не разрешено");
+  assert.equal(chip("ai-consent-declined").tone, "warn");
+  assert.equal(chip("ai-consent-declined").count, 1);
+  assert.match(chip("ai-consent-declined").title, /не читают/u);
+  for (const name of ["ai-consent-granted", "ai-consent-none", "ai-consent-none-no-portal"]) assert.equal(chip(name), null, `${name}: no header chip`);
   const header = surfaces.get("ai-consent-declined").match(/<section id="case-header"[\s\S]*?<\/section>/u)?.[0] ?? "";
-  assert.ok(header.includes('data-testid="v3-case-ai-consent"'), "the chip is inside the case header");
+  assert.ok(header.includes('data-testid="v3-case-ai-consent"'), "the warning is inside the case header");
   assert.doesNotMatch(header, /data-tone="danger"/u, "a declined consent is never a red pill");
-  // Every other scenario (consent not read, no right, preview) draws no chip at all.
+  // «Сведения»: то же состояние словами и следствие для помощников.
+  const fact = (name) => {
+    const html = surfaces.get(name);
+    const match = html.match(/ИИ-помощники<\/dt><dd[^>]*><span data-testid="v3-case-ai-consent-fact">([^<]*)<span class="block t-meta text-fg-2">([^<]*)<\/span>/u);
+    return match ? { words: match[1], hint: match[2] } : null;
+  };
+  assert.equal(fact("ai-consent-granted").words, "Студент разрешил");
+  assert.equal(fact("ai-consent-declined").words, "Студент не разрешил");
+  assert.equal(fact("ai-consent-none").words, "Студент ещё не решил");
+  assert.equal(fact("ai-consent-none-no-portal").words, "У студента нет кабинета");
+  assert.match(fact("ai-consent-none").hint, /пока он не разрешит/u);
+  assert.match(fact("ai-consent-none-no-portal").hint, /нет кабинета/u);
+  for (const name of ["ai-consent-granted", "ai-consent-declined", "ai-consent-none", "ai-consent-none-no-portal"]) {
+    assert.doesNotMatch(texts(surfaces.get(name)), /не спрашивали/u, `${name}: the empty chip wording is gone`);
+  }
+  // Every other scenario (consent not read, no right, preview) draws neither the chip nor the row.
   for (const name of ["curator", "admin", "unread", "assign-only", "closed", "preview-awaiting", "direct-case"]) {
     assert.equal(chip(name), null, `${name}: no chip without a read`);
+    assert.equal(fact(name), null, `${name}: no row without a read`);
   }
 });
 
@@ -303,7 +312,8 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // Даже запасная страница (роль без чтения продаж) называется по имени, а не «Профиль»: имя — единственный h1.
   assert.match(page, /const title = view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode \? "EVO Docs"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты";/u);
   assert.match(page, /<PartShell title=\{title\}/u);
-  assert.match(page, /<Link href=\{requestsReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : docsMode \? "EVO Docs" : "Студенты"\}/u);
+  // «Назад» возвращает туда, откуда пришли: «Заявки», «Воронка поступления» (с её фильтрами), EVO Docs или «Студенты» (06.11.2026).
+  assert.match(page, /<Link href=\{requestsReturnTo \?\? boardReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : boardReturnTo \? "Воронка поступления" : docsMode \? "EVO Docs" : "Студенты"\}/u);
   assert.match(page, /const caseTarget = view\?\.details\.routeTarget\.studentCaseId && view\.details\.admissions/u);
   assert.match(page, /caseOverview=\{nextParts\?\.overview \?\? caseParts\?\.overview \?\? leadParts\?\.overview \?\? undefined\}/u);
   // Права редактора шага — одни для «Быстрого просмотра» и дела.

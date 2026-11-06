@@ -74,9 +74,6 @@ export function removalMessage({ row, phase }: RemovalNotice): string {
   }
 }
 
-export function caseHref(studentCaseId: string): string {
-  return `/profile?case=${studentCaseId}&tab=route`;
-}
 
 export function boardHref(basePath: string, params: Readonly<Record<string, string | null>>): string {
   const search = new URLSearchParams();

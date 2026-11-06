@@ -919,6 +919,30 @@
   margin-block: -2px;
 }
 
+/*
+ * «⋯» на карточке доски поступления: на мыши виден при наведении на карточку и при фокусе внутри неё (клавиатура), пока меню
+ * открыто — тоже; на экране касания (нет наведения) — всегда. Невидимая кнопка остаётся в порядке Tab, поэтому доходит до неё
+ * клавиатура, и на ней сразу появляется кнопка.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .v3-world[data-surface="staff"] .v3-card-menu {
+    opacity: 0;
+  }
+  .v3-world[data-surface="staff"] .group:hover .v3-card-menu,
+  .v3-world[data-surface="staff"] .group:focus-within .v3-card-menu,
+  .v3-world[data-surface="staff"] .v3-card-menu:focus-within,
+  .v3-world[data-surface="staff"] .v3-card-menu:has([aria-expanded="true"]) {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @media (hover: hover) and (pointer: fine) {
+    .v3-world[data-surface="staff"] .v3-card-menu {
+      transition: opacity 120ms ease-out;
+    }
+  }
+}
+
 .v3-world[data-surface="staff"] .v3-progress {
   display: flex;
   min-width: 0;

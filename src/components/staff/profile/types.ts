@@ -386,12 +386,14 @@ export type ProfileDraft = Readonly<{
 
 export const TABS = [
   { key: "overview", title: "Обзор" },
-  // The URL contract (?tab=route) is pinned by tests/v3-operational-parity.test.mjs
-  // and CuratorDay's link — only the visible title changes (plan §8/§13).
-  { key: "route", title: "Вузы и программы" },
-  { key: "anketa", title: "Анкета" },
   { key: "documents", title: "Документы" },
-  { key: "money", title: "Договор и оплата" },
+  // The URL contract (?tab=route) is pinned by tests/v3-operational-parity.test.mjs
+  // and CuratorDay's link — only the visible title changes (plan §8/§13; «Вузы», 06.11.2026).
+  { key: "route", title: "Вузы" },
+  // У дела студента «Анкета» - раздел «Обзора» (06.11.2026), вкладки в ряду нет; адрес `?tab=anketa` открывает «Обзор» с раскрытой «Анкетой».
+  { key: "anketa", title: "Анкета" },
+  // Адрес `?tab=money` не меняется; название - «Деньги» (06.11.2026).
+  { key: "money", title: "Деньги" },
   { key: "history", title: "История" },
 ] as const;
 

@@ -44,7 +44,7 @@ export function CountryCuratorForm({ row, curators, requestId }: Readonly<{
       <input type="hidden" name="direction" value={row.direction} />
       <input type="hidden" name="expected_version" value={row.version} />
       <div className="max-w-md">
-        <label htmlFor={`${id}-curator`} className="block t-label text-fg-2">Куратор: {COUNTRY_CURATOR_TITLE[row.direction]}</label>
+        <label htmlFor={`${id}-curator`} className="block t-label text-fg-2">Куратор<span className="sr-only">: {COUNTRY_CURATOR_TITLE[row.direction]}</span></label>
         <select id={`${id}-curator`} name="curator_membership_id" value={choice} onChange={(event) => setChoice(event.target.value)} className={SELECT}>
           <option value="">Не задан</option>
           {curators.map((curator) => <option key={curator.id} value={curator.id}>{curator.label}</option>)}

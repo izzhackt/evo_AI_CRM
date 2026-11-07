@@ -59,6 +59,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "pipeline-return.ts", // #1064 (26.09.2026)
     "pipeline-source.ts",
     "portal-source.ts",
+    "possible-duplicates.ts", // предупреждение о дубле студента (07.11.2026)
     "profile-activity-source.ts",
     "profile-route-load.ts",
     "profile-source.ts",
@@ -90,6 +91,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "stages.ts", // #1070 (27.09.2026)
     "student-application-source.ts",
     "student-assessment-source.ts",
+    "student-search-readers.ts", // чтения Ctrl+K и предупреждения о дубле (07.11.2026)
     "students-coverage-source.ts", // #1050 (24.09.2026)
     "students-coverage.ts", // #1050 (24.09.2026)
     "students-queue-source.ts",

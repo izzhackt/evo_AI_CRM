@@ -2,6 +2,7 @@
  * Кабинеты студентов, которые создаёт администратор (342, решение 07.11.2026). Чистые правила без сервера: их видят и
  * форма, и действие, и тесты.
  */
+import type { PossibleDuplicate } from "./v3/possible-duplicates";
 
 /** Пометка в app_metadata пользователя Auth: вход с временным паролем, сначала свой пароль. Ставит только сервер. */
 export const TEMPORARY_PASSWORD_FLAG = "evo_temporary_password";
@@ -29,7 +30,9 @@ export type StudentAccountActionState =
   // Повтор уже выполненного запроса (ответ потерялся): кабинет есть, пароль показывался один раз.
   | Readonly<{ status: "already_created"; requestId: string; login: string }>
   // «unconfirmed»: ответ базы на завершение не пришёл — кабинет мог создаться, аккаунт поэтому не удаляется.
-  | Readonly<{ status: "invalid" | "forbidden" | "email_taken" | "unavailable" | "unconfirmed"; requestId: string }>;
+  | Readonly<{ status: "invalid" | "forbidden" | "email_taken" | "unavailable" | "unconfirmed"; requestId: string }>
+  // Похожий студент уже есть (07.11.2026): кабинет не создан, тот же запрос ждёт «Всё равно создать».
+  | Readonly<{ status: "possible_duplicate"; requestId: string; matches: readonly PossibleDuplicate[] }>;
 
 /** Отказы базы для кабинета по делу (343): у дела уже есть студент, дело закрыто, ушло приглашение, дело без продавца. */
 export type StudentCaseAccountRefusal = "case_has_cabinet" | "case_closed" | "case_invite_exists" | "case_unsupported";

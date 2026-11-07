@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { WidgetCard } from "@/components/kit";
+import { PossibleDuplicatesNotice } from "@/components/staff/blocks/PossibleDuplicatesNotice";
 import { Button } from "@/components/ui/button";
 import { cn, fieldLabelCls, inputCls } from "@/components/ui";
 import { createStudentAccountAction } from "@/lib/student-account-actions";
@@ -44,6 +45,14 @@ async function createAndCollect(previous: View, form: FormData): Promise<View> {
 export function StudentAccountsNext({ requestId, portalOrigin }: Readonly<{ requestId: string; portalOrigin: string }>) {
   const [{ state, created, draft }, action, pending] = useActionState(createAndCollect, { state: { status: "idle", requestId }, created: [], draft: EMPTY });
   const [copied, setCopied] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+
+  // «Всё равно создать»: тот же запрос с отметкой; после отправки форма сбрасывает отметку сама.
+  function createAnyway() {
+    if (confirmRef.current) confirmRef.current.value = "1";
+    formRef.current?.requestSubmit();
+  }
 
   async function copy(key: string, text: string) {
     try {
@@ -67,8 +76,9 @@ export function StudentAccountsNext({ requestId, portalOrigin }: Readonly<{ requ
   return (
     <div className="grid min-w-0 gap-4" data-testid="v3-settings-student-accounts">
       <WidgetCard headingLevel={3} title="Создать кабинет" bodyClassName="grid gap-3">
-        <form action={action} className="grid gap-3 @2xl:grid-cols-3">
+        <form ref={formRef} action={action} className="grid gap-3 @2xl:grid-cols-3">
           <input type="hidden" name="request_id" value={state.requestId} />
+          <input ref={confirmRef} type="hidden" name="confirm_duplicate" defaultValue="" />
           <label className="block min-w-0">
             <span className={fieldLabelCls}>Имя</span>
             <input name="first_name" defaultValue={draft.firstName} required maxLength={60} autoComplete="off" className={cn(inputCls, "min-h-11 w-full")} />
@@ -85,7 +95,10 @@ export function StudentAccountsNext({ requestId, portalOrigin }: Readonly<{ requ
             <Button type="submit" disabled={pending}>{pending ? "Создаём…" : "Создать кабинет"}</Button>
           </div>
         </form>
-        {state.status === "already_created"
+        {state.status === "possible_duplicate"
+          ? <PossibleDuplicatesNotice matches={state.matches} pending={pending} onConfirm={createAnyway} confirmLabel="Всё равно создать"
+            hint="Если это он, откройте его дело: «Доступ к порталу» → «Кабинет с временным паролем». Кабинет отсюда сделает его вторым лидом и вторым делом." />
+          : state.status === "already_created"
           ? <p role="alert" className="t-body-compact text-danger">Этот кабинет уже создан: логин {state.login}. Пароль показывался один раз.</p>
           : state.status !== "idle" && state.status !== "created"
             ? <p role="alert" className="t-body-compact text-danger">{MESSAGES[state.status]}</p> : null}

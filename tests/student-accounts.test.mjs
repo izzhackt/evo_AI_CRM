@@ -135,8 +135,9 @@ test("refusals: not an admin, a replay of a finished request, a taken email, a f
 });
 
 function action({ actor = { organizationId: ORG, systemRole: "admin" }, preview = false,
-  outcome = { status: "created", account: { ...NAME, login: "aidai.chynarova", password: "abcd-efgh-jkmn" } } } = {}) {
+  outcome = { status: "created", account: { ...NAME, login: "aidai.chynarova", password: "abcd-efgh-jkmn" } }, duplicates = [] } = {}) {
   const calls = [];
+  const checks = [];
   const subject = compile("src/lib/student-account-actions.ts", {
     "node:crypto": crypto,
     "./platform-access": { isStaffPreview: () => preview },
@@ -146,6 +147,8 @@ function action({ actor = { organizationId: ORG, systemRole: "admin" }, preview 
     "./server/student-account-provisioning": { provisionStudentAccount: async (...args) => { calls.push(args.slice(1)); return outcome; } },
     "./student-account-contract": contract,
     "./supabase/server": { createSupabaseServerClient: async () => ({}) },
+    "./v3/possible-duplicates": { findPossibleDuplicates: async (_actor, person) => { checks.push(person); return duplicates; } },
+    "./v3/student-search-readers": { STUDENT_SEARCH_READERS: {} },
   });
   const form = (fields) => {
     const data = new FormData();
@@ -154,7 +157,9 @@ function action({ actor = { organizationId: ORG, systemRole: "admin" }, preview 
   };
   return {
     calls,
-    submit: (fields = {}) => subject.createStudentAccountAction({ status: "idle", requestId: REQUEST }, form(fields)),
+    checks,
+    submit: (fields = {}) => subject.createStudentAccountAction({ status: "idle", requestId: REQUEST },
+      form({ confirm_duplicate: "", ...fields })),
     submitCase: (fields = {}) => subject.createStudentCaseAccountAction({ status: "idle", requestId: REQUEST },
       form({ student_case_id: CASE, ...fields })),
   };
@@ -223,6 +228,26 @@ test("the case action: the exact case field, the case reaches the database, refu
   assert.notEqual(refused.requestId, REQUEST);
   assert.equal((await action({ outcome: { status: "case_closed" } }).submit()).status, "unavailable",
     "the settings form never shows a case refusal");
+});
+
+test("a student who already exists: the settings form stops before the database, «anyway» passes, the case form never asks", async () => {
+  const match = { kind: "case", id: CASE, label: "Айдай Чынарова", meta: "MY", href: `/profile?case=${CASE}` };
+  const run = action({ duplicates: [match] });
+  assert.deepEqual(await run.submit(), { status: "possible_duplicate", requestId: REQUEST, matches: [match] });
+  assert.equal(run.calls.length, 0, "nothing reaches the database, the request is not spent");
+  assert.deepEqual(run.checks, [{ ...NAME, email: null }]);
+  assert.equal((await run.submit({ confirm_duplicate: "1" })).status, "created");
+  assert.deepEqual(run.calls, [[ORG, REQUEST, { ...NAME, email: null }, null]], "«anyway» sends the same request");
+  assert.equal(run.checks.length, 1, "«anyway» does not ask again");
+  const inCase = action({ duplicates: [match] });
+  assert.equal((await inCase.submitCase()).status, "created");
+  assert.equal(inCase.checks.length, 0, "the cabinet inside the case is the right place and never asks");
+  const staff = action({ actor: { organizationId: ORG, systemRole: "staff" }, duplicates: [match] });
+  assert.equal((await staff.submit()).status, "forbidden");
+  assert.equal(staff.checks.length, 0, "only an administrator gets the list");
+  const none = action();
+  assert.equal((await none.submit()).status, "created");
+  assert.equal(none.checks.length, 1);
 });
 
 test("the name for a case cabinet: the questionnaire when it has both names, else the case name", () => {

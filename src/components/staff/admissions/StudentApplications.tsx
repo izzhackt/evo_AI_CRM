@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { PossibleDuplicatesNotice } from "@/components/staff/blocks/PossibleDuplicatesNotice";
 import { decideStudentApplicationAction } from "@/lib/student-application-actions";
 import {
   type StudentApplication,
@@ -45,6 +46,13 @@ export function ApplicationDecision({ application, requestId, quiet = false, fla
   const [draft, setDraft] = useState({ decision: "approve", reason: "", requestId });
   const currentResult = state.requestId === draft.requestId ? state.status : "idle";
   const locked = pending || currentResult === "saved" || currentResult === "conflict";
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  // «Всё равно одобрить»: тот же запрос с отметкой; после отправки форма сбрасывает отметку сама.
+  function approveAnyway() {
+    if (confirmRef.current) confirmRef.current.value = "1";
+    formRef.current?.requestSubmit();
+  }
   function change(values: Partial<typeof draft>) {
     setDraft((previous) => ({ ...previous, ...values, requestId: crypto.randomUUID() }));
   }
@@ -58,7 +66,8 @@ export function ApplicationDecision({ application, requestId, quiet = false, fla
     : currentResult === "conflict" ? "Заявка уже изменилась или связана с существующим аккаунтом. Обновите данные перед решением."
     : currentResult === "unavailable" ? "Не удалось подтвердить сохранение. Повторите отправку с теми же данными."
     : "";
-  return <form action={action} className={flat ? "space-y-4 border-t border-border pt-4" : "space-y-4 rounded-[10px] border border-border bg-surface p-4"} aria-label="Решение по заявке" aria-busy={pending}>
+  return <form ref={formRef} action={action} className={flat ? "space-y-4 border-t border-border pt-4" : "space-y-4 rounded-[10px] border border-border bg-surface p-4"} aria-label="Решение по заявке" aria-busy={pending}>
+    <input ref={confirmRef} type="hidden" name="confirm_duplicate" defaultValue="" />
     <input type="hidden" name="application_id" value={application.id} />
     <input type="hidden" name="expected_revision" value={application.revision} />
     <input type="hidden" name="request_id" value={draft.requestId} />
@@ -81,6 +90,9 @@ export function ApplicationDecision({ application, requestId, quiet = false, fla
         {pending ? "Сохраняем…" : draft.decision === "approve" ? "Одобрить и открыть кабинет" : "Отклонить заявку"}
       </button>
     </fieldset>
+    {currentResult === "possible_duplicate" && state.matches ? <PossibleDuplicatesNotice matches={state.matches} pending={pending}
+      onConfirm={approveAnyway} confirmLabel="Всё равно одобрить"
+      hint="Если это он, не одобряйте: появятся второй лид и второе дело. Откройте его дело: «Доступ к порталу» → «Кабинет с временным паролем»." /> : null}
     <div role="status" aria-live="polite" aria-atomic="true" className="text-sm text-fg-2">{message}</div>
     {currentResult === "conflict" ? <button type="button" className="min-h-11 text-sm font-semibold text-accent hover:underline" onClick={() => router.refresh()}>Обновить заявку</button> : null}
   </form>;

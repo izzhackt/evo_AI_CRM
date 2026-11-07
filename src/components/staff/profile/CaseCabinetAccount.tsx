@@ -67,7 +67,7 @@ export function CaseCabinetAccount({ studentCaseId, requestId, firstName, lastNa
     return (
       <div className="space-y-2 text-sm text-fg-2" data-testid="case-cabinet-created">
         <p role="alert" className="t-body-compact text-danger">Пароль виден только сейчас: отправьте его студенту.</p>
-        <p>Логин: <span className="font-mono text-fg">{account.login}</span></p>
+        <p>Логин: <span className="break-all font-mono text-fg">{account.login}</span></p>
         <p>Временный пароль: <span className="font-mono text-fg">{account.password}</span></p>
         <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={copy}>Скопировать сообщение для WhatsApp</button>
         <p role="status" aria-live="polite" className="t-meta">{copied ? "Сообщение скопировано." : ""}</p>
@@ -97,7 +97,7 @@ export function CaseCabinetAccount({ studentCaseId, requestId, firstName, lastNa
         <input name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254}
           autoComplete="off" className={cn(inputCls, "min-h-11 w-full")} />
       </label>
-      <p className="t-meta md:col-span-2">Логин: <span className="font-mono text-fg">{studentLoginBase(first, last)}</span></p>
+      <p className="t-meta md:col-span-2">Логин: <span className="break-all font-mono text-fg">{studentLoginBase(first, last)}</span></p>
       <div className="md:col-span-2">
         <button type="submit" disabled={pending} className={cn(btnGhostCls, "min-h-11")}>{pending ? "Создаём…" : "Создать кабинет"}</button>
       </div>

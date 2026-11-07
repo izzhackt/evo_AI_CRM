@@ -1,23 +1,24 @@
 "use client";
 
-import { useActionState, useId, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import { btnGhostCls, cn } from "@/components/ui";
 import { studentPasswordResetMessage, type StudentPasswordResetActionState } from "@/lib/student-account-contract";
 import { resetStudentPasswordAction } from "@/lib/student-password-reset-actions";
 
 const MESSAGES: Readonly<Record<Exclude<StudentPasswordResetActionState["status"], "idle" | "reset">, string>> = {
-  already_reset: "Этот сброс уже выполнен, но пароль не дошёл. Сбросьте ещё раз.",
+  already_reset: "Этот сброс уже выполнен. Чтобы выдать новый пароль, сбросьте ещё раз.",
   invalid: "Пароль не сброшен. Обновите страницу.",
   forbidden: "Пароли сбрасывает только администратор.",
   no_cabinet: "У студента этого дела нет кабинета.",
-  unavailable: "Новый пароль не выдан. Повторите сброс.",
+  // Auth мог принять новый пароль до того, как ответ не пришёл: старый тогда уже не работает.
+  unavailable: "Новый пароль не выдан, а старый мог перестать работать. Сбросьте ещё раз.",
 };
 
 /**
  * «Кабинет открыт», чем студент входит, и «Сбросить пароль» (344, 07.11.2026). Старый пароль перестаёт работать,
  * поэтому сначала подтверждение. Новый временный пароль виден один раз — CRM его не хранит; блок стоит на одном месте,
- * и при обновлении карточки показанный пароль не пропадает.
+ * и обычное обновление карточки показанный пароль не стирает (если при обновлении не сорвётся чтение кабинета).
  */
 export function CaseCabinetReset({ studentCaseId, requestId, login, email, portalOrigin }: Readonly<{
   studentCaseId: string;
@@ -32,11 +33,17 @@ export function CaseCabinetReset({ studentCaseId, requestId, login, email, porta
   const [copied, setCopied] = useState(false);
   const openRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const doneRef = useRef<HTMLDivElement>(null);
+  const done = state.status === "reset";
+  // The confirm button that had focus is gone: focus goes to the new password, which the admin dictates or copies.
+  useEffect(() => {
+    if (done) doneRef.current?.focus();
+  }, [done]);
   const signIn = login
-    ? <p>Логин: <span className="font-mono text-fg">{login}</span></p>
+    ? <p>Логин: <span className="break-all font-mono text-fg">{login}</span></p>
     : email ? <p>Почта: <span className="break-all font-mono text-fg">{email}</span></p> : null;
 
-  if (state.status === "reset") {
+  if (done) {
     const { password } = state;
     const copy = async () => {
       try {
@@ -47,8 +54,9 @@ export function CaseCabinetReset({ studentCaseId, requestId, login, email, porta
       }
     };
     return (
-      <div className="space-y-2 text-sm text-fg-2" data-testid="case-cabinet-reset-done">
-        <p role="alert" className="t-body-compact text-danger">Пароль виден только сейчас: отправьте его студенту.</p>
+      <div key="done" ref={doneRef} tabIndex={-1} aria-labelledby={`${id}-done`} className="space-y-2 text-sm text-fg-2"
+        data-testid="case-cabinet-reset-done">
+        <p id={`${id}-done`} role="alert" className="t-body-compact text-danger">Пароль виден только сейчас: отправьте его студенту.</p>
         {signIn}
         <p>Временный пароль: <span className="font-mono text-fg">{password}</span></p>
         <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={copy}>Скопировать сообщение для WhatsApp</button>

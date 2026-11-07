@@ -11,6 +11,7 @@ import {
 import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 
+import { hasTemporaryPassword, TEMPORARY_PASSWORD_FLAG } from "../student-account-contract.ts";
 import { getSupabasePublicConfig } from "../supabase/config.ts";
 import { readVerifiedPlatformAuthority } from "../supabase/platform-authority.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
@@ -414,6 +415,15 @@ export async function completeStudentPasswordRecovery(
         return "expired";
       }
       return status !== null && status >= 400 && status < 500 ? "rejected" : "unavailable";
+    }
+    // 342/344: the admin's temporary password left «сначала свой пароль» in app_metadata. The password from the e-mail
+    // is the student's own, so the flag goes before the sign-in below; otherwise the cabinet asks for a password again.
+    if (hasTemporaryPassword(identity.user.app_metadata)) {
+      const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+      const cleared = await service.auth.admin.updateUserById(identity.user.id, {
+        app_metadata: { ...identity.user.app_metadata, [TEMPORARY_PASSWORD_FLAG]: false },
+      });
+      if (cleared.error) logStudentRecoveryFailure("clear_temporary_flag", cleared.error);
     }
   } catch (error) {
     logStudentRecoveryFailure("complete", error);

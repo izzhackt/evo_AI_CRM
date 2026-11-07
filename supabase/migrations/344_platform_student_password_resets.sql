@@ -8,7 +8,8 @@
 --   1. authorize_student_password_reset_v1 — System Admin с правом membership.provision получает разрешение на один
 --      сброс для дела своей организации, к которому привязан студент (активное членство «student», активный профиль).
 --      Пользователь Auth берётся из привязки дела, не из формы: сотрудника этим путём не сбросить. Повтор того же запроса
---      тем же админом — та же строка.
+--      тем же админом — та же строка; разрешение, которое завершение всё равно отклонит, повтор закрывает до Auth.
+--      Занятый в журнале request_id отклоняется сразу.
 --   2. Сервер ставит пользователю Auth новый временный пароль и пометку «сначала свой пароль» (342); пароль нигде не
 --      хранится и показывается админу один раз.
 --   3. complete_student_password_reset_v1 — только сервер, в течение 10 минут, админ всё ещё админ с той же версией
@@ -107,7 +108,23 @@ BEGIN
       OR row.student_case_id IS DISTINCT FROM p_student_case_id THEN
       RAISE EXCEPTION 'student_password_reset_request_conflict' USING ERRCODE = '23505';
     END IF;
+    -- Ревью 07.11: сервер меняет пароль сразу после «authorized». Разрешение, которое завершение всё равно отклонит
+    -- (прошло 10 минут, у админа другая версия доступа, дело привязано не к этому студенту), закрывается здесь, до Auth.
+    IF row.state = 'authorized' AND (
+      row.created_at < statement_timestamp() - INTERVAL '10 minutes'
+      OR row.requested_by_access_version IS DISTINCT FROM actor_access_version
+      OR platform_private.student_case_bound_auth_user(p_organization_id, row.student_case_id) IS DISTINCT FROM row.auth_user_id
+    ) THEN
+      UPDATE platform_private.student_password_resets AS target
+      SET state = 'failed', finished_at = statement_timestamp()
+      WHERE target.id = row.id
+      RETURNING * INTO row;
+    END IF;
     RETURN jsonb_build_object('reset_id', row.id, 'state', row.state, 'auth_user_id', row.auth_user_id);
+  END IF;
+  -- Журнал пишет запись с этим же request_id, а он уникален во всём журнале: занятый номер отклоняется до Auth.
+  IF EXISTS (SELECT 1 FROM platform.audit_events AS event WHERE event.request_id = p_request_id) THEN
+    RAISE EXCEPTION 'student_password_reset_request_conflict' USING ERRCODE = '23505';
   END IF;
 
   IF NOT EXISTS (

@@ -7,7 +7,9 @@
 --  2. only a System Admin gets a reset permission, only for a case bound to a live Student; a case without a cabinet or
 --     bound to a staff membership is refused; the Auth user comes from the binding; a replay returns the same row;
 --  3. only the server completes it, within 10 minutes and while the admin keeps the same access: one journal row
---     student.password.reset in the admin's name; a replay writes nothing; failed and expired permissions stop;
+--     student.password.reset in the admin's name; a replay writes nothing; failed and expired permissions stop; a
+--     replayed permission that completion would refuse is closed by authorize before Auth; a taken journal id is
+--     refused; a student who is no longer active or blocked is not reset;
 --  4. catalog: SECURITY DEFINER, empty search_path, grants, the closed table and the journal allowlist.
 BEGIN;
 
@@ -180,6 +182,53 @@ SELECT pg_temp.a344_assert(pg_temp.a344_complete('service_role', (:'a344_failing
     AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.organization_id = pg_temp.a344_id(1)
       AND e.action = 'student.password.reset'),
   'failed, expired and changed-admin resets do not complete and write nothing; only the server fails');
+
+-- ---------------------------------------------------------------------------
+-- 3b. Replays (review 07.11): the server changes the password right after «authorized», so a permission that completion
+--     would refuse is closed by authorize itself; a finished reset replays as finished; the journal id is never taken.
+-- ---------------------------------------------------------------------------
+-- Each call runs in its own statement: a table read in the same SELECT would see the rows as they were before the call.
+SELECT pg_temp.a344_authorize(101, 901, 401) AS a344_replay_done \gset
+SELECT pg_temp.a344_as('service_role', format('platform.fail_student_password_reset_v1(%L::UUID)',
+  :'a344_first'::JSONB #>> '{ok,reset_id}')) AS a344_late_fail \gset
+SELECT pg_temp.a344_assert(:'a344_replay_done'::JSONB -> 'ok' = jsonb_build_object('reset_id',
+      :'a344_first'::JSONB #>> '{ok,reset_id}', 'state', 'completed', 'auth_user_id', pg_temp.a344_id(111))
+    AND :'a344_late_fail'::JSONB ? 'ok'
+    AND (SELECT state = 'completed' FROM platform_private.student_password_resets
+      WHERE id = (:'a344_first'::JSONB #>> '{ok,reset_id}')::UUID)
+    AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.organization_id = pg_temp.a344_id(1)
+      AND e.action = 'student.password.reset'),
+  'a finished reset replays as finished, and a late fail() never undoes it');
+SELECT pg_temp.a344_authorize(101, 904, 401) AS a344_replay_old \gset
+SELECT pg_temp.a344_authorize(101, 905, 401) AS a344_replay_changed \gset
+SELECT pg_temp.a344_assert(:'a344_replay_old'::JSONB #>> '{ok,state}' = 'failed'
+    AND :'a344_replay_changed'::JSONB #>> '{ok,state}' = 'failed'
+    AND (SELECT bool_and(state = 'failed' AND finished_at IS NOT NULL) FROM platform_private.student_password_resets
+      WHERE request_id IN (pg_temp.a344_id(904), pg_temp.a344_id(905))),
+  'replaying an aged permission or one from before the admin''s access changed closes it before Auth');
+SELECT pg_temp.a344_authorize(101, 890, 401) AS a344_taken \gset
+SELECT pg_temp.a344_assert(:'a344_taken'::JSONB ->> 'error' = '23505'
+    AND NOT EXISTS (SELECT 1 FROM platform_private.student_password_resets WHERE request_id = pg_temp.a344_id(890)),
+  'a request id the journal already holds (the cabinet''s own) is refused before anything is written');
+SELECT pg_temp.a344_authorize(101, 906, 401) AS a344_unbound \gset
+SET LOCAL session_replication_role = replica;
+UPDATE platform.organization_memberships SET status = 'inactive'
+  WHERE id = (SELECT student_membership_id FROM platform.student_cases WHERE id = pg_temp.a344_id(401));
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a344_assert(pg_temp.a344_complete('service_role', (:'a344_unbound'::JSONB #>> '{ok,reset_id}')::UUID) ->> 'message'
+      = 'student_case_no_cabinet'
+    AND pg_temp.a344_authorize(101, 906, 401) #>> '{ok,state}' = 'failed'
+    AND pg_temp.a344_authorize(101, 907, 401) ->> 'message' = 'student_case_no_cabinet',
+  'a student who is no longer active is not reset: completion refuses, the replay closes, a new permission is refused');
+SET LOCAL session_replication_role = replica;
+UPDATE platform.organization_memberships SET status = 'active'
+  WHERE id = (SELECT student_membership_id FROM platform.student_cases WHERE id = pg_temp.a344_id(401));
+UPDATE platform.profiles SET status = 'blocked'
+  WHERE id = (SELECT profile_id FROM platform.organization_memberships
+    WHERE id = (SELECT student_membership_id FROM platform.student_cases WHERE id = pg_temp.a344_id(401)));
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a344_assert(pg_temp.a344_authorize(101, 908, 401) ->> 'message' = 'student_case_no_cabinet',
+  'a blocked student profile is not reset');
 
 -- ---------------------------------------------------------------------------
 -- 4. Catalog.

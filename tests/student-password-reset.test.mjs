@@ -185,3 +185,26 @@ test("the open cabinet in the card: its own reset request, the reset block in th
     /if \(view === "open"\) return <CaseCabinetReset studentCaseId=\{studentCaseId\} portalOrigin=\{portalOrigin\} \{\.\.\.reset\} \/>;/u);
   assert.match(read("src/components/staff/profile/CaseCabinetReset.tsx"), /useActionState\(resetStudentPasswordAction,/u);
 });
+
+test("the reset form: the only submit sits in the confirmation, its fields are exactly the action's (review 07.11)", () => {
+  const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const ui = read("src/components/staff/profile/CaseCabinetReset.tsx");
+  const confirm = ui.indexOf('data-testid="case-cabinet-reset-confirm"');
+  const submits = [...ui.matchAll(/type="submit"/gu)].map((match) => match.index);
+  assert.equal(submits.length, 1, "one submit button");
+  assert.ok(confirm > 0 && submits[0] > confirm && submits[0] < ui.indexOf("Отмена", confirm),
+    "«Сбросить пароль» only opens the confirmation; the reset is sent from inside it");
+  const hidden = [...ui.matchAll(/<input type="hidden" name="([a-z_]+)"/gu)].map((match) => match[1]);
+  const action = read("src/lib/student-password-reset-actions.ts").match(/exactActionStringFields\(form, \[([^\]]+)\]\)/u)[1];
+  assert.deepEqual(hidden, action.split(",").map((field) => field.trim().replace(/"/gu, "")),
+    "the form posts exactly the fields the action accepts");
+});
+
+test("e-mail recovery clears the admin's temporary-password flag before the student signs in (review 07.11)", () => {
+  const server = readFileSync(new URL("../src/lib/server/student-password-recovery.ts", import.meta.url), "utf8");
+  const update = server.indexOf("client.auth.updateUser({ password })");
+  const clear = server.indexOf("[TEMPORARY_PASSWORD_FLAG]: false");
+  const signIn = server.indexOf("signInWithPassword");
+  assert.ok(update > 0 && clear > update && clear < signIn, "the flag goes after the new password and before the sign-in");
+  assert.match(server, /if \(hasTemporaryPassword\(identity\.user\.app_metadata\)\) \{/u, "only a flagged account is touched");
+});

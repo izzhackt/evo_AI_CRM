@@ -80,6 +80,9 @@ import { readPipelineOwnerOptions, readPipelineStages } from "@/lib/v3/pipeline-
 import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
 import { closureWords, leadDisplayName } from "@/lib/v3/wording";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
+import { studentPortalOrigin } from "@/lib/server/student-registration-link";
+import { caseAccountNamePrefill } from "@/lib/student-account-contract";
+import { readStudentCaseCabinet } from "@/lib/v3/lead-cabinet-source";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 import { readDocsPackages, readDocsProgramDocuments, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
@@ -423,7 +426,7 @@ export default async function ProfilePart({
   const leadTasksRead = leadSales && view && view.details.routeTarget.leadId && !leadSales.lead.nextActionText
     && !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read")
     ? readLeadTaskLinks(actor, view.details.routeTarget.leadId).then((links) => links.rows, () => null) : null;
-  const [curatorOptions, queueInput, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([
+  const [curatorOptions, queueInput, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks, caseCabinet] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueueInput(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
@@ -440,6 +443,9 @@ export default async function ProfilePart({
     leadCallsRead,
     leadDialRead,
     leadTasksRead,
+    // «Доступ к порталу» (343): есть ли у дела кабинет — только Admin вне просмотра роли создаёт его; сбой — без кнопки.
+    caseTarget && tab === "overview" && actor.systemRole === "admin" && !isStaffPreview(actor)
+      ? readStudentCaseCabinet(actor, caseTarget.studentCaseId).catch(() => null) : null,
   ]);
   const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
@@ -475,6 +481,10 @@ export default async function ProfilePart({
       notesLatestHref,
       curators: studentPortalCurators,
       curatorsAvailable: studentPortalCuratorsAvailable,
+      cabinet: caseCabinet ? {
+        ...caseCabinet, requestId: randomUUID(), portalOrigin: studentPortalOrigin(),
+        ...caseAccountNamePrefill(view.profile.person, view.details.profileFields?.fields),
+      } : null,
       closure: caseClosure,
       hrefFor,
       salesDataOpen: singleSearchParam(params.panel) === "sales",

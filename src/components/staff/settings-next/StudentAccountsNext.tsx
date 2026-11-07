@@ -13,11 +13,12 @@ import {
   type StudentAccountResult,
 } from "@/lib/student-account-contract";
 
-const MESSAGES: Readonly<Record<"invalid" | "forbidden" | "email_taken" | "unavailable", string>> = {
+const MESSAGES: Readonly<Record<"invalid" | "forbidden" | "email_taken" | "unavailable" | "unconfirmed", string>> = {
   invalid: "Проверьте имя, фамилию и почту.",
   forbidden: "Кабинеты создаёт только администратор.",
   email_taken: "Аккаунт с этой почтой уже есть. Оставьте почту пустой или укажите другую.",
   unavailable: "Кабинет не создан. Повторите.",
+  unconfirmed: "Ответ не пришёл: кабинет мог создаться. Не создавайте его заново с той же почтой, пока не проверите.",
 };
 
 type Draft = Readonly<{ firstName: string; lastName: string; email: string }>;

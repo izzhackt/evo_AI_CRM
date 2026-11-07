@@ -5242,6 +5242,32 @@ SQL
       exit 1
     fi
   fi
+  # «Кабинет студенту, у которого уже есть дело» (migration 343, решение 07.11.2026). Matched by name, not number. The
+  # migration adds the closed provisioning table, four functions and a second branch of the 215 case trigger: right after
+  # it a second apply refuses (a343_already_applied), then the suite, insisting on its marker. The suite proves: only a
+  # System Admin gets a permission, for an open case without a student or an invite; the server binds the case through a
+  # Student membership and both scopes, opens the portal and the new student sees exactly that case; failed, expired and
+  # changed-admin permissions stop; the trigger passes only a row marked in the same transaction and keeps its old branches.
+  if [[ "$(basename "$migration")" == *_platform_student_case_accounts.sql ]]; then
+    t343_again_log="$(mktemp -t evo-t343-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t343_again_log" 2>&1; then
+      echo "migration 343 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a343_already_applied" "$t343_again_log"; then
+      echo "a second apply of migration 343 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t343_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t343_again_log"
+    student_case_accounts_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_student_case_accounts.sql </dev/null)"
+    printf '%s
+' "$student_case_accounts_log"
+    if ! grep -q 'A343_STUDENT_CASE_ACCOUNTS_SUITE_PASSED' <<<"$student_case_accounts_log"; then
+      echo "platform_student_case_accounts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

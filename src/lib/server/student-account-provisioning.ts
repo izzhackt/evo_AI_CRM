@@ -9,6 +9,8 @@ import {
   TEMPORARY_PASSWORD_FLAG,
   type StudentAccountInput,
   type StudentAccountResult,
+  studentCaseRefusal,
+  type StudentCaseAccountRefusal,
 } from "../student-account-contract";
 import { studentLoginBase } from "../student-login";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config";
@@ -20,6 +22,8 @@ import { createPlatformSupabaseServiceClient } from "./platform-supabase-service
  *   2. пользователь Auth с временным паролем и пометкой «сначала свой пароль» (app_metadata, её ставит только сервер);
  *   3. complete_student_account_v1: логин имя.фамилия и журнал. Не вышло — пользователь удаляется, разрешение закрыто.
  * Пароль нигде не хранится: он уходит админу один раз в ответе действия.
+ * Кабинет по делу (343) идёт тем же порядком через *_student_case_account_v1: завершение ещё создаёт студента, выдаёт
+ * доступ к делу, привязывает дело и открывает кабинет — в одной транзакции базы.
  */
 
 /** 14 знаков: три группы по 4 без похожих символов, crypto.randomInt. */
@@ -33,7 +37,7 @@ export function technicalStudentEmail(): string {
   return `student-${randomUUID()}@${TECHNICAL_STUDENT_EMAIL_DOMAIN}`;
 }
 
-type RpcResult = PromiseLike<Readonly<{ data: unknown; error: { code?: string } | null }>>;
+type RpcResult = PromiseLike<Readonly<{ data: unknown; error: { code?: string; message?: string } | null }>>;
 type RpcClient = Readonly<{
   schema: (schema: "platform") => Readonly<{
     rpc: (name: string, args: Readonly<Record<string, unknown>>) => { abortSignal: (signal: AbortSignal) => RpcResult };
@@ -43,7 +47,11 @@ type RpcClient = Readonly<{
 export type StudentAccountProvisioning =
   | Readonly<{ status: "created"; account: StudentAccountResult }>
   | Readonly<{ status: "already_created"; login: string }>
-  | Readonly<{ status: "forbidden" | "invalid" | "email_taken" | "unavailable" }>;
+  | Readonly<{ status: "forbidden" | "invalid" | "email_taken" | "unavailable" | "unconfirmed" | StudentCaseAccountRefusal }>;
+
+function caseRefusal(error: Readonly<{ code?: string; message?: string }> | null): StudentCaseAccountRefusal | null {
+  return error?.code === "PT409" ? studentCaseRefusal(error.message) : null;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -56,11 +64,17 @@ export async function provisionStudentAccount(
   organizationId: string,
   requestId: string,
   input: StudentAccountInput,
+  studentCaseId: string | null = null,
 ): Promise<StudentAccountProvisioning> {
+  const kind = studentCaseId === null ? "student_account" : "student_case_account";
   const authorized = await adminClient.schema("platform")
-    .rpc("authorize_student_account_v1", { p_organization_id: organizationId, p_request_id: requestId })
+    .rpc(`authorize_${kind}_v1`, studentCaseId === null
+      ? { p_organization_id: organizationId, p_request_id: requestId }
+      : { p_organization_id: organizationId, p_request_id: requestId, p_student_case_id: studentCaseId })
     .abortSignal(timeout());
   if (authorized.error) {
+    const refusal = caseRefusal(authorized.error);
+    if (refusal) return { status: refusal };
     if (authorized.error.code === "42501") return { status: "forbidden" };
     return { status: authorized.error.code === "22023" || authorized.error.code === "23505" ? "invalid" : "unavailable" };
   }
@@ -73,7 +87,7 @@ export async function provisionStudentAccount(
 
   const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
   const fail = async () => {
-    await service.schema("platform").rpc("fail_student_account_v1", { p_provisioning_id: provisioningId })
+    await service.schema("platform").rpc(`fail_${kind}_v1`, { p_provisioning_id: provisioningId })
       .abortSignal(timeout()).then(() => undefined, () => undefined);
   };
   const password = newTemporaryPassword();
@@ -91,17 +105,26 @@ export async function provisionStudentAccount(
   }
   const authUserId = created.data.user.id;
 
-  const completed = await service.schema("platform")
-    .rpc("complete_student_account_v1", {
+  const complete = () => service.schema("platform")
+    .rpc(`complete_${kind}_v1`, {
       p_provisioning_id: provisioningId, p_auth_user_id: authUserId, p_login_base: studentLoginBase(input.firstName, input.lastName),
     })
     .abortSignal(timeout());
+  let completed = await complete();
+  // No database code (network, timeout, a broken answer): the commit may have happened. The command is idempotent for the
+  // same account, so ask once more; it then returns the login and the password still in memory can be shown.
+  if (completed.error && !completed.error.code) completed = await complete();
   const login = record(completed.data)?.login;
-  if (completed.error || typeof login !== "string") {
-    // No login, no journal row: the account is removed again and the permission closed.
-    await service.auth.admin.deleteUser(authUserId).then(() => undefined, () => undefined);
-    await fail();
-    return { status: "unavailable" };
+  if (!completed.error && typeof login === "string") {
+    return { status: "created", account: { firstName: input.firstName, lastName: input.lastName, login, password } };
   }
-  return { status: "created", account: { firstName: input.firstName, lastName: input.lastName, login, password } };
+  if (!completed.error?.code) {
+    // Still no definite answer: the account may already hold a login and a case, so it is neither removed nor reported as
+    // not created; the card shows the truth after a reload.
+    return { status: "unconfirmed" };
+  }
+  // A definite refusal of the database: its transaction wrote nothing, so the account is removed again.
+  await service.auth.admin.deleteUser(authUserId).then(() => undefined, () => undefined);
+  await fail();
+  return { status: caseRefusal(completed.error) ?? "unavailable" };
 }

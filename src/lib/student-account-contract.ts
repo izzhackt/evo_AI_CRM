@@ -28,7 +28,46 @@ export type StudentAccountActionState =
   | Readonly<{ status: "created"; requestId: string; account: StudentAccountResult }>
   // Повтор уже выполненного запроса (ответ потерялся): кабинет есть, пароль показывался один раз.
   | Readonly<{ status: "already_created"; requestId: string; login: string }>
-  | Readonly<{ status: "invalid" | "forbidden" | "email_taken" | "unavailable"; requestId: string }>;
+  // «unconfirmed»: ответ базы на завершение не пришёл — кабинет мог создаться, аккаунт поэтому не удаляется.
+  | Readonly<{ status: "invalid" | "forbidden" | "email_taken" | "unavailable" | "unconfirmed"; requestId: string }>;
+
+/** Отказы базы для кабинета по делу (343): у дела уже есть студент, дело закрыто, ушло приглашение, дело без продавца. */
+export type StudentCaseAccountRefusal = "case_has_cabinet" | "case_closed" | "case_invite_exists" | "case_unsupported";
+
+export type StudentCaseAccountActionState =
+  | Readonly<{ status: "idle"; requestId: string }>
+  | Readonly<{ status: "created"; requestId: string; account: StudentAccountResult }>
+  | Readonly<{ status: "already_created"; requestId: string; login: string }>
+  | Readonly<{
+    status: "invalid" | "forbidden" | "email_taken" | "unavailable" | "unconfirmed" | StudentCaseAccountRefusal; requestId: string;
+  }>;
+
+const CASE_REFUSAL_WORDS: Readonly<Record<string, StudentCaseAccountRefusal>> = {
+  student_case_has_cabinet: "case_has_cabinet",
+  student_case_closed: "case_closed",
+  student_case_invite_exists: "case_invite_exists",
+  student_case_unsupported: "case_unsupported",
+};
+
+/** Слово отказа базы (343) — в отказ приложения; чужое слово — null. */
+export function studentCaseRefusal(word: unknown): StudentCaseAccountRefusal | null {
+  return typeof word === "string" && Object.hasOwn(CASE_REFUSAL_WORDS, word) ? CASE_REFUSAL_WORDS[word] : null;
+}
+
+export type StudentCaseCabinet = Readonly<{ state: "open" | "bound" | "none"; refusal: StudentCaseAccountRefusal | null }>;
+export type CaseCabinetView = "form" | "open" | StudentCaseAccountRefusal;
+
+/**
+ * Что показать Admin в «Доступ к порталу» (343): форму, «Кабинет открыт» или причину, по которой кабинет здесь не
+ * открыть. null — ничего: состояние не прочитано, студент привязан приглашением и ждёт анкету, или дело закрыто (об этом
+ * уже говорит блок приглашения).
+ */
+export function caseCabinetView(cabinet: StudentCaseCabinet | null | undefined, caseState: string): CaseCabinetView | null {
+  if (!cabinet || cabinet.state === "bound") return null;
+  if (cabinet.state === "open") return "open";
+  if (caseState === "closed") return null;
+  return cabinet.refusal ?? "form";
+}
 
 const NAME_MAX = 60;
 
@@ -56,6 +95,22 @@ export function accountNamePrefill(userMetadata: unknown): Readonly<{ firstName:
   if (typeof firstName !== "string" || typeof lastName !== "string") return null;
   const parsed = parseStudentAccountInput(firstName, lastName, "");
   return parsed ? { firstName: parsed.firstName, lastName: parsed.lastName } : null;
+}
+
+/**
+ * Имя и фамилия для кабинета по делу (343): из анкеты, если в ней есть оба поля, иначе из имени дела — первое слово
+ * имя, остальное фамилия. Порядок в CRM бывает и «Фамилия Имя», поэтому форма показывает логин и админ правит.
+ */
+export function caseAccountNamePrefill(
+  displayName: string,
+  fields: readonly Readonly<{ key: string; value: string | null }>[] | null | undefined,
+): Readonly<{ firstName: string; lastName: string }> {
+  const field = (key: string) => fields?.find((item) => item.key === key)?.value?.trim() ?? "";
+  const first = field("student_first_name");
+  const last = field("student_last_name");
+  if (first && last) return { firstName: first, lastName: last };
+  const words = displayName.trim().split(/\s+/u).filter(Boolean);
+  return { firstName: words[0] ?? "", lastName: words.slice(1).join(" ") };
 }
 
 /** Есть ли у пользователя Auth пометка временного пароля (app_metadata из сессии или токена). */

@@ -105,6 +105,8 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // row per student account an administrator creates), by the same rename-and-union wrapper (`..._pre_student_accounts`).
 // Its object is the existing `organization` type; the row keeps only the new Auth user, never the password. It falls
 // through to the `["record_status"]` default of `expectedChangedFieldCodes`.
+// Migration 343 («Кабинет студенту, у которого уже есть дело») adds no action: `platform.complete_student_case_account_v1`
+// writes the same `student.account.create` and, like the invite finalize, `student.portal.authority.activate` on the case.
 // Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
 // (миграция 323)») adds one action, `report.link.change` (written by
 // `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),

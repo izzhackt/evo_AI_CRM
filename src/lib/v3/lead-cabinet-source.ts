@@ -2,6 +2,7 @@ import "server-only";
 import { staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
+import { studentCaseRefusal, type StudentCaseCabinet } from "../student-account-contract";
 import { readCaseClientEmail } from "./portal-invite-email";
 
 /**
@@ -84,4 +85,20 @@ export async function readStudentCaseClientEmail(
   studentCaseId: string,
 ): Promise<string | null> {
   return readCaseClientEmail(await createSupabaseServerClient(), actor.organizationId, studentCaseId);
+}
+
+/**
+ * Кабинет у дела (343) для Admin: «open» — студент привязан и кабинет открыт (то же правило, что у 328/329/338),
+ * «bound» — привязан приглашением и ждёт анкету, «none» — студента нет; refusal — почему кабинет здесь не открыть.
+ * Права проверяет база (только System Admin); null — не прочитано, тогда в карточке ничего нового не показываем.
+ */
+export async function readStudentCaseCabinet(actor: ActivePlatformActor, studentCaseId: string): Promise<StudentCaseCabinet | null> {
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_student_case_cabinet_v1", {
+    p_organization_id: actor.organizationId, p_student_case_id: studentCaseId,
+  });
+  if (error || typeof data !== "object" || data === null || Array.isArray(data)) return null;
+  const { state, refusal } = data as Record<string, unknown>;
+  if (state !== "open" && state !== "bound" && state !== "none") return null;
+  return { state, refusal: studentCaseRefusal(refusal) };
 }

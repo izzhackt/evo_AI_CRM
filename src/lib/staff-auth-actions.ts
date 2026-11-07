@@ -16,6 +16,7 @@ import { readVerifiedPlatformAuthority } from "./supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
 import { createTrustedStudentInviteReceiptStore } from "./server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "./server/student-invite-session";
+import { hasTemporaryPassword, NEW_PASSWORD_PATH } from "./student-account-contract";
 
 export type StaffLoginActionState =
   | "accessDenied"
@@ -75,7 +76,7 @@ export async function loginStaffAction(
     return "accessDenied";
   }
 
-  let redirectTarget: "/" | "/portal" | "/auth/account-pending" | "/apply" | "/apply/status" | null = null;
+  let redirectTarget: "/" | "/portal" | "/auth/account-pending" | "/apply" | "/apply/status" | typeof NEW_PASSWORD_PATH | null = null;
   try {
     const client = await createSupabaseServerClient({ sessionOnly: !rememberDevice });
     const { error: signInError } = await client.auth.signInWithPassword({
@@ -152,6 +153,8 @@ export async function loginStaffAction(
         }
       }
     }
+    // 342: студент с временным паролем от администратора сначала придумывает свой.
+    if (redirectTarget !== "/" && hasTemporaryPassword(claimsData.claims.app_metadata)) redirectTarget = NEW_PASSWORD_PATH;
     await clearAdminPreview();
   } catch (error) {
     console.error(

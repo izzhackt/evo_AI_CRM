@@ -99,6 +99,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["335_platform_sales_intake_country_curator.sql", "country_curators"],
   // «Регистрация по ссылке»: одно действие lead.registration.link.create, объект lead (нового типа нет).
   ["341_platform_student_registration_links.sql", "registration_links"],
+  // «Кабинеты студентов от администратора»: одно действие student.account.create, объект organization (нового типа нет).
+  ["342_platform_student_accounts.sql", "student_accounts"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -319,6 +321,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "staff.task.create",
     "staff.task.edit",
     "staff.task.status",
+    "student.account.create",
     "student.portal.authority.activate",
     "student.profile.export.attempted",
     "student.profile.export.failed",

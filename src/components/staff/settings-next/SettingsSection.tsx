@@ -9,6 +9,7 @@ import { ReportsNext } from "./ReportsNext";
 import { RolesNext } from "./RolesNext";
 import { StaffNext } from "./StaffNext";
 import { StaffUnavailable } from "./StaffUnavailable";
+import { StudentAccountsNext } from "./StudentAccountsNext";
 import { TelephonyNext } from "./TelephonyNext";
 import type { SettingsNextProps } from "./settings-next-types";
 
@@ -27,6 +28,11 @@ function SectionBody(props: SettingsNextProps) {
   if (section === "telephony" && props.telephony) return <TelephonyNext {...props.telephony} nowIso={props.nowIso} />;
   if (section === "reports" && props.reports) return <ReportsNext {...props.reports} />;
   if (section === "curators" && props.countryCurators) return <CountryCuratorsNext {...props.countryCurators} />;
+  if (section === "students") {
+    return props.studentAccounts
+      ? <StudentAccountsNext {...props.studentAccounts} />
+      : <p className="t-body-compact text-fg-2">В режиме просмотра роли кабинеты не создаются.</p>;
+  }
   if (section === "journal" && props.journal) return <JournalNext {...props.journal} />;
   if (section === "deletion" && props.deletion) return <DeletionNext {...props.deletion} nowIso={props.nowIso} />;
   if (section === "documents" && props.gates) return <DocumentsNext gates={props.gates} />;

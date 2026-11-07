@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Shell } from "@/components/portal/Shell";
@@ -7,8 +8,10 @@ import { getLocale } from "@/lib/i18n";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { PORTAL_RAIL_COOKIE, portalRailCollapsed } from "@/lib/portal/rail-choice";
 import { readReleaseMetadata } from "@/lib/release-metadata";
+import { hasTemporaryPassword, NEW_PASSWORD_PATH } from "@/lib/student-account-contract";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readRequestTheme } from "@/lib/theme-server";
 
 import "../(staff)/staff.css";
@@ -25,7 +28,7 @@ export default async function StudentPortalLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const [actor, locale, theme, countryChoice, cookieStore] = await Promise.all([
+  const [actor, locale, theme, countryChoice, cookieStore, claims] = await Promise.all([
     requireStudentPortalActor(),
     getLocale(),
     readRequestTheme(),
@@ -34,7 +37,10 @@ export default async function StudentPortalLayout({
     // решил» — без страны.
     readStudentCountryChoice().catch((): null => null),
     cookies(),
+    createSupabaseServerClient().then((client) => client.auth.getClaims()).catch(() => null),
   ]);
+  // 342: вход с временным паролем от администратора — сначала свой пароль.
+  if (hasTemporaryPassword(claims?.data?.claims?.app_metadata)) redirect(NEW_PASSWORD_PATH);
   const country = countryChoice?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
 

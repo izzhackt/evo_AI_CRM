@@ -19,6 +19,7 @@ import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-dele
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { RegistrationInviteRequired } from "@/components/student-application/RegistrationInviteRequired";
 import { checkRegistrationLink } from "@/lib/server/student-registration-link";
+import { accountNamePrefill, hasTemporaryPassword, NEW_PASSWORD_PATH } from "@/lib/student-account-contract";
 
 /**
  * PORT-1b: prefill only what the invited person already sees as their own —
@@ -49,6 +50,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   // 280 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
   if (isDeletedAuthUserError(error)) redirect(ACCOUNT_DELETED_PATH);
   if (error && error.name !== "AuthSessionMissingError") throw new Error("Student registration is unavailable.");
+  // 342: вход с временным паролем от администратора — сначала свой пароль.
+  if (data.user && hasTemporaryPassword(data.user.app_metadata)) redirect(NEW_PASSWORD_PATH);
   let draft = null;
   let email = null;
   let revision = 0;
@@ -75,6 +78,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
           namePrefill = invitedNamePrefill(invite.receipt.displayName);
         }
       } catch { /* prefill is a convenience, not authority */ }
+      // 342: кабинет от администратора — имя и фамилия, которые он ввёл.
+      namePrefill ??= accountNamePrefill(data.user.user_metadata);
     }
   }
   if (!data.user?.email_confirmed_at) {

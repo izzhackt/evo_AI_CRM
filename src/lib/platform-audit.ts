@@ -100,6 +100,11 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // member makes for a lead), by the same rename-and-union wrapper (`..._pre_registration_links`). Its object is the
 // existing `lead` type; the row keeps the lead and the expiry, never the link. It falls through to the
 // `["record_status"]` default of `expectedChangedFieldCodes`.
+// Migration 342 («Кабинеты студентов от администратора», docs/PLAN_CHANGES.md «2026-11-07 · Кабинеты студентов от
+// администратора») adds one action, `student.account.create` (written by `platform.complete_student_account_v1`: one
+// row per student account an administrator creates), by the same rename-and-union wrapper (`..._pre_student_accounts`).
+// Its object is the existing `organization` type; the row keeps only the new Auth user, never the password. It falls
+// through to the `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
 // (миграция 323)») adds one action, `report.link.change` (written by
 // `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),
@@ -326,6 +331,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "staff.task.create",
   "staff.task.edit",
   "staff.task.status",
+  "student.account.create",
   "student.portal.authority.activate",
   "student.profile.export.attempted",
   "student.profile.export.failed",

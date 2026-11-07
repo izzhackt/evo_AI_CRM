@@ -308,6 +308,9 @@ test("«ИИ-агент → Автоответчик, Расходы, Прави
 
 /* ------------------------------------------------- те же команды, поля форм и request_id в новом виде */
 
+// Новые функции «Настроек» после переноса, со своим действием и записью в docs/PLAN_CHANGES.md: «Кабинеты студентов» (342).
+const NEW_SETTINGS_FEATURE_ACTIONS = { createStudentAccountAction: "src/lib/student-account-actions.ts" };
+
 test("команды и поля форм те же, что в прежних файлах: ни одного нового действия и ни одной новой команды", () => {
   const joined = (paths) => paths.map(read).join("\n");
   for (const [next, legacy] of [
@@ -316,7 +319,11 @@ test("команды и поля форм те же, что в прежних ф
     const nextActions = actionsIn(joined(sourcesIn(next)));
     const legacyActions = actionsIn(joined(legacy.flatMap(sourcesIn)));
     const extra = nextActions.filter((action) => !legacyActions.includes(action) && !/^set[A-Z]|^use[A-Z]|^toggle[A-Z]/u.test(action));
-    assert.deepEqual(extra.filter((action) => !["onAction", "refreshAction"].includes(action)), [], `${next}: новых серверных действий нет`);
+    assert.deepEqual(extra.filter((action) => !["onAction", "refreshAction"].includes(action) && !Object.hasOwn(NEW_SETTINGS_FEATURE_ACTIONS, action)),
+      [], `${next}: новых серверных действий нет`);
+  }
+  for (const [action, module] of Object.entries(NEW_SETTINGS_FEATURE_ACTIONS)) {
+    assert.match(read(module), new RegExp(`^"use server";[\\s\\S]*export async function ${action}\\b`, "u"), `${action} — серверное действие своей функции`);
   }
   // «ИИ-агент»: страницы прежнего вида удалены (#1328) — каждое действие нового вида обязано быть в серверных модулях действий.
   const aiModules = joined(["src/lib/platform-ai-agent-actions.ts", "src/lib/platform-ai-agent-autosend-actions.ts"]);

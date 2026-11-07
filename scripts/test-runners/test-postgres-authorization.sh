@@ -5216,6 +5216,32 @@ SQL
       exit 1
     fi
   fi
+  # «Кабинеты студентов от администратора» (migration 342, решение 07.11.2026). Matched by name, not number. The migration
+  # adds the closed provisioning table, three functions and the audit allowlist entry: right after it a second apply
+  # refuses (a342_already_applied), then the suite, insisting on its marker. The suite proves: only an admin gets a
+  # permission, a replay returns the same row and another admin cannot reuse it; only the server completes it within an
+  # hour, claiming the name.surname login and writing one journal row; a failed permission cannot be completed; browser
+  # roles can neither complete nor fail one.
+  if [[ "$(basename "$migration")" == *_platform_student_accounts.sql ]]; then
+    t342_again_log="$(mktemp -t evo-t342-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t342_again_log" 2>&1; then
+      echo "migration 342 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a342_already_applied" "$t342_again_log"; then
+      echo "a second apply of migration 342 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t342_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t342_again_log"
+    student_accounts_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_student_accounts.sql </dev/null)"
+    printf '%s
+' "$student_accounts_log"
+    if ! grep -q 'A342_STUDENT_ACCOUNTS_SUITE_PASSED' <<<"$student_accounts_log"; then
+      echo "platform_student_accounts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

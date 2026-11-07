@@ -6,6 +6,7 @@ import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import { COUNTRY_CURATOR_DIRECTIONS, type CountryCuratorDirection, type CountryCuratorsRead } from "@/lib/country-curator-contract";
 import { REPORT_KEYS, type ReportKey, type ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
+import { studentPortalOrigin } from "@/lib/server/student-registration-link";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 import type { JournalStatus } from "@/lib/v3/settings-journal-contract";
 import { journalNextProps } from "@/lib/v3/settings-next-journal";
@@ -68,6 +69,10 @@ export function settingsNextProps(input: Readonly<{
     countryCurators: section === "curators" && input.countryCurators
       ? { read: input.countryCurators, readOnly: input.reportsReadOnly,
         ids: Object.fromEntries(COUNTRY_CURATOR_DIRECTIONS.map((key) => [key, randomUUID()])) as Record<CountryCuratorDirection, string> }
+      : undefined,
+    // 342: кабинеты студентов создаёт только администратор вне просмотра роли.
+    studentAccounts: section === "students" && !input.reportsReadOnly
+      ? { requestId: randomUUID(), portalOrigin: studentPortalOrigin() }
       : undefined,
     reports: section === "reports" && input.reports
       ? { reads: input.reports, readOnly: input.reportsReadOnly, ids: Object.fromEntries(REPORT_KEYS.map((key) => [key, { save: randomUUID(), remove: randomUUID() }])) as NonNullable<SettingsNextProps["reports"]>["ids"] }

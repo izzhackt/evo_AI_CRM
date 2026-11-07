@@ -10,6 +10,7 @@ import { readRequestTheme } from "@/lib/theme-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { readOwnStudentLogin } from "@/lib/portal/student-login-source";
+import { hasTemporaryPassword, NEW_PASSWORD_PATH } from "@/lib/student-account-contract";
 import { studentApplicationEntryRedirect } from "@/lib/server/student-signup-runtime";
 import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
@@ -28,6 +29,8 @@ export default async function ApplicationStatusPage() {
   // 280 (ревью п. 4): аккаунт удалён, в браузере осталась его сессия.
   if (isDeletedAuthUserError(error)) redirect(ACCOUNT_DELETED_PATH);
   if (error || !data.user?.email_confirmed_at) redirect("/login");
+  // 342: вход с временным паролем от администратора — сначала свой пароль.
+  if (hasTemporaryPassword(data.user.app_metadata)) redirect(NEW_PASSWORD_PATH);
   const destination = await studentApplicationEntryRedirect(client, data.user);
   if (destination === "/portal") {
     // Unified workflow (S5): a pending, curator-less cabinet (S1's «кабинет

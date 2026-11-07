@@ -25,10 +25,14 @@ export function registrationTokenHash(token: string): string | null {
   return TOKEN_PATTERN.test(token) ? createHash("sha256").update(token, "utf8").digest("hex") : null;
 }
 
-/** Адрес страницы регистрации по ссылке: на боевом — кабинет студента, локально — разрешённый локальный адрес. */
+/** Адрес кабинета студента: на боевом — app.evoadmissions.com, локально — разрешённый локальный адрес. */
+export function studentPortalOrigin(): string {
+  return new URL(studentInviteCallbackUrl(process.env.NODE_ENV, process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN)).origin;
+}
+
+/** Адрес страницы регистрации по ссылке. */
 export function registrationLinkUrl(token: string): string {
-  const origin = new URL(studentInviteCallbackUrl(process.env.NODE_ENV, process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN)).origin;
-  return `${origin}/apply?invite=${encodeURIComponent(token)}`;
+  return `${studentPortalOrigin()}/apply?invite=${encodeURIComponent(token)}`;
 }
 
 function service() {

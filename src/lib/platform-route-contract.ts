@@ -82,6 +82,8 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   // that reads only its own path-scoped recovery session (src/proxy.ts).
   "/auth/forgot-password",
   "/auth/reset-password",
+  // 342: первый вход с временным паролем от администратора — сначала свой пароль.
+  "/auth/new-password",
   "/apply/status",
 ]);
 

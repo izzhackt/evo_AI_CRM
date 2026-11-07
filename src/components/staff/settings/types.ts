@@ -27,6 +27,7 @@ export const SECTIONS = [
   { key: "telephony", view: null, title: "Телефония" },
   { key: "reports", view: null, title: "Отчёты" },
   { key: "curators", view: null, title: "Кураторы стран" },
+  { key: "students", view: null, title: "Кабинеты студентов" },
   { key: "journal", view: null, title: "Журнал действий" },
   { key: "deletion", view: null, title: "Запросы на удаление" },
   { key: "documents", view: null, title: "Документы и передача" },

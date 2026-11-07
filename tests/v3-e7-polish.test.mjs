@@ -502,8 +502,10 @@ test("the task panel's deadline editor sends an unchanged deadline exactly as st
   assert.equal(hidden(timed, "deadline_kind"), "timed");
   assert.equal(hidden(timed, "due_at"), stored, "the stored timestamp is sent unchanged");
   assert.equal(hidden(timed, "due_on"), "");
-  // Отметки нет (создание или сводка без неё) — прежний вид «день T часы:минуты».
-  assert.equal(hidden(field({ day: shown.day, minutes: shown.minutes }), "due_at"), `${shown.day}T18:45`);
+  // Отметки нет (создание или сводка без неё): срок — только день, время не собирается.
+  const noStamp = field({ day: shown.day, minutes: shown.minutes });
+  assert.deepEqual([hidden(noStamp, "deadline_kind"), hidden(noStamp, "due_on"), hidden(noStamp, "due_at")], ["all_day", shown.day, ""]);
+  assert.doesNotMatch(timed, /type="time"|Время/u, "no time input");
   // Срок на весь день и «без срока» — как были.
   const allDay = field({ day: "2099-09-12", minutes: null, dueAt: null });
   assert.deepEqual([hidden(allDay, "deadline_kind"), hidden(allDay, "due_on"), hidden(allDay, "due_at")], ["all_day", "2099-09-12", ""]);
@@ -511,7 +513,7 @@ test("the task panel's deadline editor sends an unchanged deadline exactly as st
   assert.deepEqual([hidden(none, "deadline_kind"), hidden(none, "due_on"), hidden(none, "due_at")], ["none", "", ""]);
   // Панель передаёт редактору именно `dueAt` задачи.
   assert.match(read("src/components/staff/tasks/next/TaskSheetForms.tsx"), /<ComposerDeadlineField day=\{data\.day\} current=\{\{ day: projection\.day, minutes: projection\.minutes, dueAt: data\.task\.dueAt \}\}/u);
-  assert.match(read("src/components/staff/tasks/ComposerDeadlineField.tsx"), /unchanged && current\?\.dueAt \? current\.dueAt : `\$\{date\}T\$\{time\}`/u, "recomputed only after an explicit change");
+  assert.match(read("src/components/staff/tasks/ComposerDeadlineField.tsx"), /const dueAt = kind === "timed" \? current\?\.dueAt \?\? "" : "";/u, "a legacy timestamp is only passed through, never rebuilt from a time input");
 });
 
 test("«Назначить куратора» and «Изменить срок шага» use the single-case commands with their own checks", async () => {

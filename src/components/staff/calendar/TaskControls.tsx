@@ -104,34 +104,49 @@ export function DeadlineFields({
   defaultKind?: PlatformCaseTaskDeadlineKind;
 }>) {
   const [kind, setKind] = useState<PlatformCaseTaskDeadlineKind>(
-    task ? taskDeadlineKind(task) : defaultKind,
+    // Срок — только день. Старая задача со временем показывается датой, а её отметка уходит как есть,
+    // пока дату не изменят (тогда срок станет днём без времени).
+    task ? taskDeadlineKind(task) : defaultKind === "timed" ? "all_day" : defaultKind,
   );
   const defaults = taskDeadlineInputDefaults(task, day);
   const [dueOn, setDueOn] = useState(defaults.dueOn);
-  const [displayDueAt, setDisplayDueAt] = useState(defaults.dueAt);
-  const [submittedDueAt, setSubmittedDueAt] = useState(
-    task?.dueAt ?? defaults.dueAt,
-  );
   return (
     <>
       <label className="t-label text-fg-2">
-        Тип срока
+        Срок
         <select
           name="deadline_kind"
-          value={kind}
+          value={kind === "timed" ? "all_day" : kind}
           onChange={(event) =>
             setKind(event.target.value as PlatformCaseTaskDeadlineKind)}
           className={CONTROL}
         >
           <option value="none">Без срока</option>
-          <option value="all_day">Весь день</option>
-          <option value="timed">Точное время</option>
+          <option value="all_day">Дата</option>
         </select>
       </label>
-      {kind === "all_day" ? (
+      {kind === "timed" ? (
         <>
           <label className="t-label text-fg-2">
-            Дата · Бишкек
+            Дата
+            <input
+              type="date"
+              value={dueOn}
+              onChange={(event) => {
+                setDueOn(event.target.value);
+                setKind("all_day");
+              }}
+              required
+              className={CONTROL}
+            />
+          </label>
+          <input type="hidden" name="due_on" value="" />
+          <input type="hidden" name="due_at" value={task?.dueAt ?? ""} />
+        </>
+      ) : kind === "all_day" ? (
+        <>
+          <label className="t-label text-fg-2">
+            Дата
             <input
               name="due_on"
               type="date"
@@ -142,25 +157,6 @@ export function DeadlineFields({
             />
           </label>
           <input type="hidden" name="due_at" value="" />
-        </>
-      ) : kind === "timed" ? (
-        <>
-          <input type="hidden" name="due_on" value="" />
-          <label className="t-label text-fg-2">
-            Дата и время · Бишкек
-            <input
-              type="datetime-local"
-              value={displayDueAt}
-              data-testid="v3-calendar-timed-deadline-input"
-              onChange={(event) => {
-                setDisplayDueAt(event.target.value);
-                setSubmittedDueAt(event.target.value);
-              }}
-              required
-              className={CONTROL}
-            />
-            <input type="hidden" name="due_at" value={submittedDueAt} />
-          </label>
         </>
       ) : (
         <>

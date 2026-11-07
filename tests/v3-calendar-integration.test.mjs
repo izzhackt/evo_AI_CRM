@@ -51,7 +51,7 @@ test("deadline-kind conversion preserves the task day instead of the period anch
   assert.match(controls, /taskDeadlineInputDefaults\(task, day\)/);
   assert.match(controls, /useState\(defaults\.dueOn\)/);
   assert.match(controls, /value=\{dueOn\}/);
-  assert.match(controls, /value=\{displayDueAt\}/);
+  assert.doesNotMatch(controls, /displayDueAt/, "task deadlines are date-only");
 });
 
 test("deadline day deltas stay date-only across month and year boundaries", () => {
@@ -178,8 +178,8 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(composer, /<select name="student_visible"/);
   assert.match(controls, /<select[\s\S]*name="deadline_kind"/);
   assert.match(controls, /<option value="none">Без срока<\/option>/);
-  assert.match(controls, /<option value="all_day">Весь день<\/option>/);
-  assert.match(controls, /<option value="timed">Точное время<\/option>/);
+  assert.match(controls, /<option value="all_day">Дата<\/option>/);
+  assert.doesNotMatch(controls, /<option value="timed">/);
   assert.match(types, /version: string/);
   assert.match(types, /change: string/);
   assert.match(types, /complete: string/);

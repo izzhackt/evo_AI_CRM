@@ -13,6 +13,7 @@ import {
   documentReviewLabel,
   documentProgress,
   documentStatus,
+  formatPortalDeadline,
   formatPortalTimestamp,
 } from "./presentation";
 
@@ -91,7 +92,7 @@ export function DocumentsView({
             && decisionLabel.toLocaleLowerCase() === status.label.toLocaleLowerCase()
             ? null
             : decisionLabel;
-          const deadlineLabel = formatPortalTimestamp(document.deadline);
+          const deadlineLabel = formatPortalDeadline(document.deadline);
           const submittedLabel = formatPortalTimestamp(document.submittedAt);
 
           return (

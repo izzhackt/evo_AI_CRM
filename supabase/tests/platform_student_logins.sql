@@ -11,6 +11,16 @@ BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
 
+-- The harness has no auth.role() (managed Supabase Auth owns it); add it transaction-locally where missing.
+DO $a340_auth_role$
+BEGIN
+  IF to_regprocedure('auth.role()') IS NULL THEN
+    EXECUTE $fn$CREATE FUNCTION auth.role() RETURNS TEXT LANGUAGE SQL STABLE SET search_path = '' AS
+      'SELECT NULLIF(current_setting(''request.jwt.claims'', TRUE), '''')::JSONB ->> ''role'''$fn$;
+  END IF;
+END
+$a340_auth_role$;
+
 \echo A340_STUDENT_LOGINS_SUITE_START
 
 CREATE FUNCTION pg_temp.a340_id(n INTEGER) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$

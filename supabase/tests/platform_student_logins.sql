@@ -39,6 +39,11 @@ BEGIN
 END
 $$;
 
+-- The lightweight Auth bootstrap of the harness (126/185/193/280 convention): managed Supabase Auth owns these
+-- columns; add them transaction-locally where missing, ROLLBACK discards the DDL.
+ALTER TABLE auth.users
+  ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 INSERT INTO auth.users (id, email, raw_user_meta_data)
 SELECT pg_temp.a340_id(100 + n), 'a340-' || n || '@example.invalid', '{}'::JSONB FROM generate_series(1, 4) n;
 UPDATE auth.users SET deleted_at = clock_timestamp() WHERE id = pg_temp.a340_id(103);

@@ -61,7 +61,7 @@ export function parseUniversityContent(value: unknown): UniversityContent | null
     || !(row.city === null || text(row.city, 200)) || !text(row.overview, 1200)
     || !universityPublicUrl(row.websiteUrl) || !universityPublicUrl(row.sourceUrl) || !universityDate(row.verifiedOn)
     || !text(row.notes, 1500, true) || !(row.photoKey === null || (typeof row.photoKey === "string" && Object.hasOwn(UNIVERSITY_PHOTOS, row.photoKey)))
-    || !Array.isArray(row.programs) || row.programs.length < 1 || row.programs.length > 30) return null;
+    || !Array.isArray(row.programs) || row.programs.length < 1 || row.programs.length > 300) return null;
   const programs: UniversityProgram[] = [];
   const intakeIds = new Set<string>();
   for (const entry of row.programs) {

@@ -15,12 +15,17 @@ const clone = () => structuredClone(current.find((entry) => entry.key === "apu")
 const id = "59948000-0000-4000-8000-000000000001";
 const currentBundles = readdirSync(new URL("../src/lib/server/", import.meta.url)).filter((name) => /^university-catalog-reviewed-(?!content\.json$).+\.json$/.test(name));
 const current = currentBundles.flatMap((name) => JSON.parse(readFileSync(new URL(`../src/lib/server/${name}`, import.meta.url), "utf8")));
+// Malaysia 2026-11 (migration 352 slice): these cards were added from official sites without a licensed campus photo
+// (the photo library and its Storage upload are a separate step, docs/design/v3/university-photo-refresh-run-plan.md).
+// Every other card keeps the rule «a real campus photo with provenance»; a card leaves this set when its photo lands.
+const AWAITING_PHOTO = new Set(["um", "iium", "alfa", "inti-subang", "inti-penang", "inti-sabah", "taylors-college", "sunway-college"]);
 test("the complete real research package parses, has campus photos, and retains existing identities", () => {
   assert.ok(current.length >= 140);
   const rows = universityBatchRows(current, []);
   assert.equal(rows.length, current.length);
   for (const entry of current) {
     assert.deepEqual(parseUniversityContent(entry.content), entry.content, entry.key);
+    if (AWAITING_PHOTO.has(entry.key)) { assert.equal(entry.content.photoKey, null, entry.key); continue; }
     assert.ok(entry.content.photoKey, entry.key);
     const photo = UNIVERSITY_PHOTOS[entry.content.photoKey];
     assert.ok(photo?.caption && photo.author && photo.title && photo.license, entry.key);
@@ -249,11 +254,14 @@ test("real catalogue content renders known facts without missing-field or uncert
     assert.ok(html.includes(`href="${escape(content.websiteUrl)}"`), `${key}: official website`);
     assert.ok(html.includes(`href="${escape(content.sourceUrl)}"`), `${key}: institutional source`);
     // PORT-9d: the photo comes from our managed bucket once the manifest says migrated, otherwise from the library's hotlink.
+    if (content.photoKey === null) assert.ok(AWAITING_PHOTO.has(key), `${key}: only cards awaiting a photo may have none`);
+    else {
     assert.ok(html.includes(`src="${escape(universityPhotoUrl(content.photoKey) ?? UNIVERSITY_PHOTOS[content.photoKey].path)}"`), `${key}: real photo markup`);
     assert.ok(html.includes(`href="${escape(UNIVERSITY_PHOTOS[content.photoKey].licenseUrl)}"`), `${key}: photo attribution`);
     // Э6: one short Russian credit line — author, licence, «кадрировано»; no English licence notes.
     assert.match(html, /data-photo-credit="">Фото: <a\b[^>]*>[^<]+<span class="sr-only">[^<]*<\/span><\/a> · <a\b[^>]*>[^<]+<span class="sr-only">[^<]*<\/span><\/a> · кадрировано</u, `${key}: credit line`);
     assert.doesNotMatch(html, /embedding|no reuse license|All rights reserved|Public domain/u, `${key}: licence note translated`);
+    }
     const articles = [...html.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/g)].map((match) => match[1]);
     assert.equal(articles.length, content.programs.length, `${key}: authored programmes retained`);
     for (const [index, program] of content.programs.entries()) {

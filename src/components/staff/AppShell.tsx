@@ -781,18 +781,7 @@ export function AppShell({
                 </button>
               </form>
             </div>
-            {/* Набор виджетов «Нового вида» — страница владельца: ссылка только настоящему администратору вне просмотра роли. */}
-            {actor.systemRole === "admin" && !previewing ? (
-              <div className={cn("px-3 pt-1", rail && "md:px-2")}>
-                <IntentPrefetchLink
-                  href="/ui-kit"
-                  onNavigate={closeAfterNavigation}
-                  className={cn(ITEM, "py-1 t-meta", rail && "md:hidden")}
-                >
-                  Набор виджетов
-                </IntentPrefetchLink>
-              </div>
-            ) : null}
+            {/* «Набор виджетов» (/ui-kit) в меню не показывается (решение пользователя 07.11.2026): страница открывается по адресу, только администратору. */}
             {/* Имя и роль — во всю ширину строки (от края логотипа), каждая в одну строку; целиком — в подсказке. */}
             <p className={cn("min-w-0 px-5 pb-3 pt-1", rail && "md:sr-only")}>
               <span className="t-item block truncate text-fg" title={displayName}>{displayName}</span>

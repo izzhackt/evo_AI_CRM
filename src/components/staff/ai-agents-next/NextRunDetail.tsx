@@ -9,7 +9,7 @@ import {
   type AiAgentKey,
   type AiAgentRunGetResult,
 } from "@/lib/ai-agents/contract";
-import { aiAgentHref, draftStatusWords, draftTargetHref, durationWords, formatDateTimeRu, formatUsdCents, pluralRu, runOriginLabel, runStatusTone } from "@/lib/v3/ai-agents-view";
+import { aiAgentHref, draftStatusWords, draftTargetHref, durationWords, formatDateTimeRu, formatUsdCents, pluralRu, runIsSystemEvent, runOriginLabel, runStatusTone, runTextForPeople } from "@/lib/v3/ai-agents-view";
 
 import { Markdown } from "@/components/staff/ai-agents/Markdown";
 import { RunActions } from "@/components/staff/ai-agents/RunActions";
@@ -57,7 +57,7 @@ export function NextRunDetail({
             </p>
           ) : null}
           <RunProblem run={run} />
-          {run.promptPreview ? (
+          {run.promptPreview && !runIsSystemEvent(run) ? (
             <section>
               {run.triggerKind === "command" ? null : <h3 className="t-caption text-fg-3">Поручение</h3>}
               <p className="whitespace-pre-wrap break-words t-body-compact text-fg">{run.promptPreview}</p>
@@ -66,7 +66,7 @@ export function NextRunDetail({
           {run.summary ? (
             <section>
               <h3 className="mb-1 t-caption text-fg-3">Итог агента</h3>
-              <Markdown source={run.summary} />
+              <Markdown source={runTextForPeople(run.summary)} />
             </section>
           ) : null}
           <RunActions agentKey={agentKey} run={run} ownCommand={run.triggerKind === "command" && origin === "Вы"} canAct={canAct} canStopAny={canStopAny} canRun={canRun} />

@@ -281,6 +281,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
             <p className="t-body-compact"><span className={fieldLabelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
             <p className="t-body-compact"><span className={fieldLabelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
           </div> : null}
+          {/* 339: у лида без ответственного им становится тот, кто сохраняет продажу. */}
+          {selectedLead && selectedLead.ownerId === null ? <p className="t-meta text-fg-2">Ответственного у лида нет: после сохранения им станете вы.</p> : null}
           <label className="block max-w-md"><span className={fieldLabelCls}>Куратор</span><select value={curatorId} required onChange={e => { setCuratorId(e.target.value); setCuratorAuto(false); }} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Выберите куратора</option>{intakeOptions?.curators.map(curator => <option value={curator.id} key={curator.id}>{curator.label}</option>)}
           </select></label>

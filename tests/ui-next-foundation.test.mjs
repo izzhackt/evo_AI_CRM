@@ -91,11 +91,11 @@ test("меню свёрнуто только выбором сотрудника
   assert.equal((await renderLayout(ADMIN, "garbage")).seen.props.menuCollapsed, false);
 });
 
-test("оболочка не рисует переключатель; ссылка «Набор виджетов» — только настоящему администратору вне просмотра роли", () => {
+test("оболочка не рисует переключатель; «Набор виджетов» в меню не показывается (07.11.2026), страница — по адресу", () => {
   const shell = read("src/components/staff/AppShell.tsx");
   assert.doesNotMatch(shell, /nextUi|NextUiToggle/);
-  assert.match(shell, /actor\.systemRole === "admin" && !previewing \? \(/);
-  assert.match(shell, /href="\/ui-kit"/);
+  assert.doesNotMatch(shell, /href="\/ui-kit"/);
+  assert.doesNotMatch(shell, />\s*Набор виджетов\s*</);
 });
 
 /* ---------------------------------------------------------------- страница набора виджетов */

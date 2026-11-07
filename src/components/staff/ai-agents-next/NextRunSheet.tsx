@@ -4,7 +4,7 @@ import { KeyFacts, StatusBadge } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { AI_AGENT_RUN_STATUS_LABELS, AI_AGENT_TRIGGER_LABELS, type AiAgentKey, type AiAgentRunRow } from "@/lib/ai-agents/contract";
 import { AI_AGENT_DAILY_BUDGET_REACHED_CODE } from "@/lib/ai-agents/daily-cap";
-import { aiAgentHref, durationWords, formatUsdCents, runErrorWords, runOriginLabel, runStatusTone } from "@/lib/v3/ai-agents-view";
+import { aiAgentHref, durationWords, formatUsdCents, runErrorWords, runIsSystemEvent, runOriginLabel, runStatusTone, runTextForPeople } from "@/lib/v3/ai-agents-view";
 
 import { Markdown } from "@/components/staff/ai-agents/Markdown";
 import { RunActions } from "@/components/staff/ai-agents/RunActions";
@@ -45,7 +45,7 @@ export function NextRunSheetBody({
         { label: "Действий агента", value: run.actionsCount },
         { label: "Черновиков", value: run.draftsCount > 0 ? run.draftsCount : null },
       ]} />
-      {run.promptPreview ? (
+      {run.promptPreview && !runIsSystemEvent(run) ? (
         <section>
           {run.triggerKind === "command" ? null : <h3 className="t-caption text-fg-3">Поручение</h3>}
           <p className="whitespace-pre-wrap break-words t-body text-fg">{run.promptPreview}</p>
@@ -54,7 +54,7 @@ export function NextRunSheetBody({
       {run.summary ? (
         <section>
           <h3 className="mb-1 t-caption text-fg-3">Итог агента</h3>
-          <Markdown source={run.summary} />
+          <Markdown source={runTextForPeople(run.summary)} />
         </section>
       ) : null}
       <RunActions agentKey={agentKey} run={run} ownCommand={ownCommand} canAct={canAct} canStopAny={canStopAny} canRun={canRun} />

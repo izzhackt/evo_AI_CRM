@@ -25,7 +25,8 @@ export function StudentAuthShell({
   return (
     <main className="flex min-h-dvh flex-col bg-bg px-4 py-6 sm:px-6">
       <div className="flex min-h-11 items-center justify-end gap-3">
-        <LangSwitcher current={locale} />
+        {/* Как на /login (06.11.2026, пользователь): только RU и KY. */}
+        <LangSwitcher current={locale} locales={["ru", "ky"]} />
         <ThemeToggle locale={locale} initialTheme={theme} />
       </div>
 

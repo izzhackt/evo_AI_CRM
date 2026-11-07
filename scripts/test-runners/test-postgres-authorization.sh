@@ -5341,6 +5341,29 @@ SQL
       exit 1
     fi
   fi
+  # «Две мелочи с боевого» (migration 347, 07.11.2026). Matched by name, not number. The migration names the task after
+  # a handoff in Russian and shows the login of an Admin-made cabinet in the deletion queue instead of its service
+  # address: right after it a second apply refuses (a347_already_applied), then the suite, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_wording_fixes.sql ]]; then
+    t347_again_log="$(mktemp -t evo-t347-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t347_again_log" 2>&1; then
+      echo "migration 347 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a347_already_applied" "$t347_again_log"; then
+      echo "a second apply of migration 347 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t347_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t347_again_log"
+    wording_fixes_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_wording_fixes.sql </dev/null)"
+    printf '%s
+' "$wording_fixes_log"
+    if ! grep -q 'A347_WORDING_FIXES_SUITE_PASSED' <<<"$wording_fixes_log"; then
+      echo "platform_wording_fixes.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

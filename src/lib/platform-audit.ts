@@ -95,6 +95,11 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // `country.curator.change` (written by `platform.country_curator_save_v1`: one row per real change of the curator of China
 // or Malaysia), by the same rename-and-union wrapper (`..._pre_country_curators`). Its object is the existing
 // `organization` type; it falls through to the `["record_status"]` default of `expectedChangedFieldCodes`.
+// Migration 341 («Регистрация по ссылке», docs/PLAN_CHANGES.md «2026-11-07 · Регистрация по ссылке») adds one action,
+// `lead.registration.link.create` (written by `platform.create_student_registration_link_v1`: one row per link a staff
+// member makes for a lead), by the same rename-and-union wrapper (`..._pre_registration_links`). Its object is the
+// existing `lead` type; the row keeps the lead and the expiry, never the link. It falls through to the
+// `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
 // (миграция 323)») adds one action, `report.link.change` (written by
 // `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),
@@ -263,6 +268,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "lead.cabinet.prepare",
   "lead.lifecycle.change",
   "lead.manual.create",
+  "lead.registration.link.create",
   "lead.sale.conditions.save",
   "lead.sales.workflow.changed",
   "lead.website.receive",

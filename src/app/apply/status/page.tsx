@@ -9,6 +9,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { readRequestTheme } from "@/lib/theme-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
+import { readOwnStudentLogin } from "@/lib/portal/student-login-source";
 import { studentApplicationEntryRedirect } from "@/lib/server/student-signup-runtime";
 import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
@@ -43,8 +44,8 @@ export default async function ApplicationStatusPage() {
   } else if (destination) {
     redirect(destination);
   }
-  const [application, locale, theme, deletion] = await Promise.all([
-    readOwnStudentApplication(client), getLocale(), readRequestTheme(), readOwnAccountDeletion(),
+  const [application, locale, theme, deletion, login] = await Promise.all([
+    readOwnStudentApplication(client), getLocale(), readRequestTheme(), readOwnAccountDeletion(), readOwnStudentLogin(),
   ]);
   if (!application) redirect("/apply");
   const strings = getPortalStrings("apply", locale);
@@ -57,7 +58,11 @@ export default async function ApplicationStatusPage() {
         <ThemeToggle locale={locale} initialTheme={theme} />
       </div>
     </header>
-    <div className="mx-auto max-w-4xl rounded-card border border-border bg-surface px-5 py-8 sm:p-10"><ApplicationStatus application={application} draftOwnerId={data.user.id} locale={locale} /></div>
+    <div className="mx-auto max-w-4xl rounded-card border border-border bg-surface px-5 py-8 sm:p-10">
+      <ApplicationStatus application={application} draftOwnerId={data.user.id} locale={locale} />
+      {/* 340: логин для следующего входа; нет логина — строки нет. */}
+      {login ? <p className="mt-6 border-t border-border pt-4 text-fg-2" data-testid="apply-status-login">{strings.loginLabel}: <span className="font-mono text-fg">{login}</span></p> : null}
+    </div>
     {/* Удаление аккаунта (280): анкета без одобрения тоже может удалить аккаунт. */}
     <section id="account-deletion" aria-labelledby="account-deletion-heading" className="mx-auto mt-6 max-w-4xl rounded-card border border-border bg-surface px-5 py-6 sm:px-10">
       <h2 id="account-deletion-heading" className="mb-3 text-xl font-semibold text-fg">{deletionStrings.heading}</h2>

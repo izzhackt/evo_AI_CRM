@@ -23,6 +23,7 @@ import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
 import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
+import { readOwnStudentLogin } from "@/lib/portal/student-login-source";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import { localizedApplicationAnswers } from "@/lib/student-application-answers";
@@ -123,13 +124,14 @@ export default async function ProfilePage() {
   // этап дела (обзор, только у клиента на сопровождении); сбой — без метки.
   // Своя анкета (/apply, 03.11.2026): только чтение; у студента без анкеты
   // (приглашённого или заведённого вручную) блока нет, сбой — честная строка.
-  const [profile, deletion, consultationHistory, countryChoice, overview, application, aiConsent] = await Promise.all([
+  const [profile, deletion, consultationHistory, countryChoice, overview, application, ownLogin, aiConsent] = await Promise.all([
     readOwnPortalProfile().catch((): PortalProfile | null => null),
     readOwnAccountDeletion(),
     readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
     readStudentCountryChoice().catch((): null => null),
     actor.accessTier === "assisted" ? readStudentPortalOverview().catch((): null => null) : null,
     readOwnStudentApplication().catch((): undefined => undefined),
+    readOwnStudentLogin(),
     readOwnAiConsent(actor.accessTier),
   ]);
   const admissionStrings = getPortalStrings("admission", locale);
@@ -233,6 +235,11 @@ export default async function ProfilePage() {
                 <ProfileIcon name="security" />
                 {strings.passwordHeading}
               </h2>
+              {ownLogin ? (
+                <p className="pt-profile-login">
+                  {strings.loginLabel}: <strong translate="no">{ownLogin}</strong>
+                </p>
+              ) : null}
               <PasswordChangeForm strings={strings} />
             </section>
 

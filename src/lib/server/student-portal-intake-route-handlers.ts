@@ -54,9 +54,10 @@ const defaultCreateAccount: CreateAccount = async (email, password, draft) => {
   const { beginStudentSignup } = await import("./student-signup-confirmation-runtime.ts");
   return beginStudentSignup(email, password, draft);
 };
+// `invite` (341, the website's registration link) never comes from the app, which sends no link yet.
 const REGISTRATION_HTTP_STATUS: Readonly<Record<RegistrationStatus, number>> = {
   invalid: 400, password: 400, password_too_long: 400, conflict: 409,
-  rate_limit: 429, unavailable: 503, create_unknown: 503,
+  rate_limit: 429, unavailable: 503, create_unknown: 503, invite: 403,
 };
 function pendingResponse(pending: NativeSignupPending): Response {
   // Explicit projection: never expose internal identity, session or creation receipt fields.

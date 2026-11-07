@@ -1,16 +1,26 @@
 import "server-only";
 
+import { studentLoginBase } from "../student-login";
 import { isStudentApplicationUuid, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft, type StudentApplicationDraft } from "../student-application-contract";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client";
 import { isPasswordProvisionedStaff, logStudentSignupFailure } from "./student-signup-runtime";
 import { getStudentSignupConfirmationRuntimeConfig } from "./student-signup-confirmation-config.ts";
+import { checkRegistrationLink, consumeRegistrationLink } from "./student-registration-link";
 
 type StudentAccountCreation = { status: "created"; authUserId: string }
-  | { status: "invalid" | "password" | "password_too_long" | "rate_limit" | "conflict" | "unavailable" | "create_unknown" };
+  | { status: "invalid" | "password" | "password_too_long" | "rate_limit" | "conflict" | "unavailable" | "create_unknown" | "invite" };
 
-/** Creates only a new identity. Existing accounts, including invitations, are never changed. */
-export async function createPublicStudentAccount(email: string, password: string, draft: StudentApplicationDraft): Promise<StudentAccountCreation> {
+/**
+ * Creates only a new identity. Existing accounts, including invitations, are never changed.
+ * 341 (07.11.2026): the website registers only through a personal registration link (`invite`). The link is checked
+ * before anything is written and used right after the identity exists; if it cannot be used, that fresh identity is
+ * removed again. `invite` null is the iPhone app, which has no link field yet: unchanged until the app gets one.
+ * The student's login (name.surname, 340) is claimed last; without it the student still signs in by e-mail.
+ */
+export async function createPublicStudentAccount(
+  email: string, password: string, draft: StudentApplicationDraft, invite: string | null,
+): Promise<StudentAccountCreation> {
   if (email !== email.trim().toLowerCase() || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     || !validateStudentApplicationDraft(draft)) return { status: "invalid" };
   if (password.length < 12) return { status: "password" };
@@ -21,6 +31,12 @@ export async function createPublicStudentAccount(email: string, password: string
   try {
     // Missing/unspecified OTP configuration must fail before any quota or Auth write.
     getStudentSignupConfirmationRuntimeConfig();
+    if (invite !== null) {
+      stage = "check_invite";
+      const link = await checkRegistrationLink(invite);
+      if (link.status === "unavailable") return { status: "unavailable" };
+      if (link.status !== "valid") return { status: "invite" };
+    }
     const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     stage = "reserve_attempt";
     const reserved = await service.schema("platform").rpc("reserve_student_signup_attempt_v1", { p_email: email })
@@ -49,7 +65,26 @@ export async function createPublicStudentAccount(email: string, password: string
       logStudentSignupFailure("created_identity");
       return { status: "create_unknown" };
     }
-    return { status: "created", authUserId: data.user.id };
+    const authUserId = data.user.id;
+    stage = "consume_invite";
+    const used = invite === null ? "consumed" : await consumeRegistrationLink(invite, authUserId);
+    if (used !== "consumed") {
+      // Another registration took the link in the meantime, or it could not be marked: no account without it.
+      logStudentSignupFailure(stage);
+      const removed = await service.auth.admin.deleteUser(authUserId);
+      if (removed.error) logStudentSignupFailure("remove_identity", removed.error);
+      return { status: used === "unavailable" ? "unavailable" : "invite" };
+    }
+    // The account and the used link stand from here on: a missing login never undoes them.
+    try {
+      const login = await service.schema("platform")
+        .rpc("claim_student_login_v1", { p_auth_user_id: authUserId, p_base: studentLoginBase(draft.firstName, draft.lastName) })
+        .abortSignal(AbortSignal.timeout(10000));
+      if (login.error) logStudentSignupFailure("claim_login", login.error);
+    } catch (error) {
+      logStudentSignupFailure("claim_login", error);
+    }
+    return { status: "created", authUserId };
   } catch (error) {
     logStudentSignupFailure(stage, error);
     return { status: stage === "create_account" ? "create_unknown" : "unavailable" };

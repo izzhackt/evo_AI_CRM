@@ -35,8 +35,9 @@ function form(values) {
   for (const [key, value] of Object.entries(values)) result.set(key, value);
   return result;
 }
+// The wizard always posts `invite` (341): the personal registration link, empty for a signed-in applicant.
 function registration(overrides = {}) {
-  return form({ questionnaire: JSON.stringify(draft()), email: EMAIL, password: PASSWORD, expected_revision: "0", ...overrides });
+  return form({ questionnaire: JSON.stringify(draft()), email: EMAIL, password: PASSWORD, expected_revision: "0", invite: "", ...overrides });
 }
 function identity(overrides = {}) {
   return { id: USER, email: EMAIL, email_confirmed_at: "2026-09-18T10:00:00Z", user_metadata: { [contract.STUDENT_APPLICATION_METADATA_KEY]: draft() }, ...overrides };
@@ -105,10 +106,16 @@ function harness(options = {}) {
   });
   const publicRegistration = compile("src/lib/server/student-public-registration.ts", {
     "../student-application-contract": contract,
+    "../student-login": compile("src/lib/student-login.ts"),
     "./platform-supabase-backend-config": backendConfig,
     "./platform-supabase-service-client": backendClient,
     "./student-signup-runtime": runtime,
     "./student-signup-confirmation-config.ts": signupConfig,
+    // 341: the registration link (server reads); this harness checks the account steps, not the link itself.
+    "./student-registration-link": options.registrationLink ?? {
+      checkRegistrationLink: async () => ({ status: "valid", displayName: null }),
+      consumeRegistrationLink: async () => "consumed",
+    },
   });
   const confirmationRuntime = compile("src/lib/server/student-signup-confirmation-runtime.ts", {
     "node:crypto": { randomUUID }, "@supabase/supabase-js": { createClient },
@@ -250,6 +257,12 @@ test("account helper rejects a short password before service access; action stop
   const broken = harness({ identities: [{ data: { user: null }, error: new Error("Auth unavailable") }] });
   assert.deepEqual(await broken.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
   assert.deepEqual(callNames(broken), ["client", "getUser"]);
+});
+
+test("341: the website makes no new account without the personal registration link", async () => {
+  const run = harness();
+  assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "invite" });
+  assert.equal(callNames(run).some((name) => name === "submit" || name === "updateUser"), false);
 });
 
 test("resume requires live Auth eligibility before any RPC and routes authenticated orphans to a real draft", async () => {

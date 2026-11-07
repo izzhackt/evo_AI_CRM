@@ -1163,6 +1163,18 @@
   color: var(--pt-text-2);
 }
 
+/* «Профиль → Пароль» (07.11.2026): логин для входа строкой над полями пароля. */
+.pt-profile-login {
+  margin: 0 0 12px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-body, 15px);
+}
+
+.pt-profile-login strong {
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
 /* «Профиль → Пароль» (06.11.2026): три поля в столбик, кнопка и ответ в одну строку. */
 .pt-password-form {
   display: grid;

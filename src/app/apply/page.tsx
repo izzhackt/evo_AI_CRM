@@ -17,6 +17,8 @@ import { AccountDeletionPanel } from "@/components/account-deletion/AccountDelet
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
 import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { RegistrationInviteRequired } from "@/components/student-application/RegistrationInviteRequired";
+import { checkRegistrationLink } from "@/lib/server/student-registration-link";
 
 /**
  * PORT-1b: prefill only what the invited person already sees as their own —
@@ -79,7 +81,17 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
     const pending = await readPendingStudentSignup();
     if (pending) return <SignupConfirmationFrame><SignupConfirmationPending initial={pending} locale={locale} restored /></SignupConfirmationFrame>;
   }
-  const wizard = <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} theme={theme} accountDeletionHref={email ? "#account-deletion" : null} />;
+  // 341 (07.11.2026): новый аккаунт — только по личной ссылке менеджера (`?invite=`). Вошедший с подтверждённой
+  // почтой продолжает свою анкету без ссылки.
+  let inviteToken = "";
+  if (!email) {
+    const token = typeof query.invite === "string" ? query.invite : "";
+    const link = await checkRegistrationLink(token);
+    if (link.status !== "valid") return <RegistrationInviteRequired status={link.status} locale={locale} />;
+    inviteToken = token;
+    namePrefill = invitedNamePrefill(link.displayName);
+  }
+  const wizard = <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} theme={theme} accountDeletionHref={email ? "#account-deletion" : null} inviteToken={inviteToken} />;
   if (!email) return wizard;
   // Удаление аккаунта (280): вошедший аккаунт без анкеты тоже может удалить
   // аккаунт; ссылка «Удалить аккаунт» в шапке анкеты ведёт сюда.

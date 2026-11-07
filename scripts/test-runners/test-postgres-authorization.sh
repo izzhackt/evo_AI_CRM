@@ -5167,6 +5167,55 @@ SQL
       exit 1
     fi
   fi
+  # «Вход студента по логину» (migration 340, решение 07.11.2026). Matched by name, not number. A closed login table and
+  # three functions: right after it a second apply refuses (a340_already_applied), then the suite, insisting on its marker.
+  # The suite proves: logins base, base2, ... and a kept login; the email is found only by the service, in any case, never
+  # for a deleted or banned user; a user reads only the own login; browser roles can neither claim nor resolve.
+  if [[ "$(basename "$migration")" == *_platform_student_logins.sql ]]; then
+    t340_again_log="$(mktemp -t evo-t340-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t340_again_log" 2>&1; then
+      echo "migration 340 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a340_already_applied" "$t340_again_log"; then
+      echo "a second apply of migration 340 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t340_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t340_again_log"
+    student_logins_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_student_logins.sql </dev/null)"
+    printf '%s
+' "$student_logins_log"
+    if ! grep -q 'A340_STUDENT_LOGINS_SUITE_PASSED' <<<"$student_logins_log"; then
+      echo "platform_student_logins.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Регистрация по ссылке» (migration 341, решение 07.11.2026). Matched by name, not number. A closed link table, three
+  # functions and one fragment of the анкета submit: right after it a second apply refuses (a341_already_applied), then the
+  # suite, insisting on its marker. The suite proves: staff makes a 7-day link that keeps only its hash; the server checks
+  # and uses it once; the анкета of that account belongs to the link's lead and its approval opens the case there; a
+  # person with a case gets no new link; browser roles can neither check nor use a link.
+  if [[ "$(basename "$migration")" == *_platform_student_registration_links.sql ]]; then
+    t341_again_log="$(mktemp -t evo-t341-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t341_again_log" 2>&1; then
+      echo "migration 341 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a341_already_applied" "$t341_again_log"; then
+      echo "a second apply of migration 341 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t341_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t341_again_log"
+    registration_links_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_student_registration_links.sql </dev/null)"
+    printf '%s
+' "$registration_links_log"
+    if ! grep -q 'A341_STUDENT_REGISTRATION_LINKS_SUITE_PASSED' <<<"$registration_links_log"; then
+      echo "platform_student_registration_links.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

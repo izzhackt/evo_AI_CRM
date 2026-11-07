@@ -10,7 +10,7 @@ export type SignupPending = Readonly<{
 /** Returned only by the cookie-free native API; web keeps this in HttpOnly storage. */
 export type NativeSignupPending = SignupPending & Readonly<{ resendCapability: string }>;
 export type SignupFailure = Readonly<{
-  status: "invalid" | "password" | "password_too_long" | "unavailable" | "rate_limit" | "conflict" | "create_unknown";
+  status: "invalid" | "password" | "password_too_long" | "unavailable" | "rate_limit" | "conflict" | "create_unknown" | "invite";
 }>;
 export type SignupResendResult = SignupPending | Readonly<{
   status: "confirmed" | "expired" | "rate_limit" | "account_conflict" | "unavailable";

@@ -30,7 +30,7 @@ async function validStudentOrigin(): Promise<boolean> {
 
 export async function registerStudentAction(_previous: StudentSignupState, form: FormData): Promise<StudentSignupState> {
   if (!await validStudentOrigin()) return { status: "invalid" };
-  const fields = exactActionStringFields(form, ["questionnaire", "email", "password", "expected_revision"]);
+  const fields = exactActionStringFields(form, ["questionnaire", "email", "password", "expected_revision", "invite"]);
   if (!fields || (fields.get("questionnaire")?.length ?? 0) > 12000) return { status: "invalid" };
   let draft;
   try { draft = validateStudentApplicationDraft(JSON.parse(fields.get("questionnaire")!)); } catch { return { status: "invalid" }; }
@@ -68,7 +68,10 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
       const pending = await readPendingStudentSignup();
       if (pending) return pending.status === "pending_confirmation" ? pending : { status: "create_unknown" };
       stage = "create_confirmation";
-      const created = await beginStudentSignup(email, password, draft);
+      // 341: новый аккаунт — только по личной ссылке; без неё регистрации нет.
+      const invite = fields.get("invite") ?? "";
+      if (invite.length === 0) return { status: "invite" };
+      const created = await beginStudentSignup(email, password, draft, invite);
       return created.status === "pending_confirmation" ? await rememberStudentSignup(created) : created;
     }
   } catch (error) { logStudentSignupFailure(stage, error); return { status: stage === "create_confirmation" ? "create_unknown" : "unavailable" }; }

@@ -791,6 +791,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "lead.admissions.gate.firstpayment.confirmed": "Подтверждён первый платёж для передачи",
   "lead.admissions.gate.overridden": "Передача разрешена в обход условий",
   "lead.cabinet.prepare": "Кабинет лида подготовлен",
+  "lead.registration.link.create": "Создана ссылка для регистрации",
   "membership.permission.change": "Права сотрудника изменены",
   "membership.provision": "Сотрудник заведён",
   "membership.role.change": "Роль сотрудника изменена",

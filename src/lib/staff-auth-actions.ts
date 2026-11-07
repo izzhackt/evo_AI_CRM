@@ -11,6 +11,7 @@ import {
 } from "./platform-auth";
 import { createSupabaseServerClient } from "./supabase/server";
 import { SESSION_ONLY_COOKIE } from "./session-cookie";
+import { resolveStudentLoginEmail } from "./server/student-login";
 import { readVerifiedPlatformAuthority } from "./supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
 import { createTrustedStudentInviteReceiptStore } from "./server/student-invite-session-runtime";
@@ -52,9 +53,16 @@ export async function loginStaffAction(
 ): Promise<StaffLoginActionState> {
   const login = submittedValue(form, "email").trim();
   const usesAdminAlias = login.toLowerCase() === "admin";
-  const email = usesAdminAlias
+  let email = usesAdminAlias
     ? (process.env.EVO_STAFF_ADMIN_LOGIN_EMAIL ?? "").trim().toLowerCase()
     : login;
+  // 07.11.2026: студент входит по логину вида имя.фамилия (340). Почта находится на сервере и в браузер не уходит;
+  // неизвестный логин отвечает так же, как неверный пароль.
+  if (!usesAdminAlias && !login.includes("@")) {
+    const resolved = await resolveStudentLoginEmail(login);
+    if (resolved.status === "unavailable") return "authUnavailable";
+    email = resolved.status === "found" ? resolved.email : "";
+  }
   const password = submittedValue(form, "password");
   // «Это моё устройство»: без галочки вход живёт до закрытия браузера.
   const rememberDevice = submittedValue(form, "remember_device") === "1";

@@ -97,6 +97,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["323_platform_report_links.sql", "report_links"],
   // «Кураторы стран»: одно действие country.curator.change, объект organization (нового типа нет).
   ["335_platform_sales_intake_country_curator.sql", "country_curators"],
+  // «Регистрация по ссылке»: одно действие lead.registration.link.create, объект lead (нового типа нет).
+  ["341_platform_student_registration_links.sql", "registration_links"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -280,6 +282,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "lead.cabinet.prepare",
     "lead.lifecycle.change",
     "lead.manual.create",
+    "lead.registration.link.create",
     "lead.sale.conditions.save",
     "lead.sales.workflow.changed",
     "lead.website.receive",

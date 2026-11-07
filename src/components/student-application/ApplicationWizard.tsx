@@ -91,8 +91,10 @@ function Choice({ selected, children, onClick }: { selected: boolean; children: 
   </button>;
 }
 
-export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru", theme = "light", accountDeletionHref = null }: {
+export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru", theme = "light", accountDeletionHref = null, inviteToken = "" }: {
   requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number; locale?: Locale; theme?: Theme;
+  /** 341: личная ссылка для регистрации (без неё новый аккаунт не создаётся); у вошедшего — пусто. */
+  inviteToken?: string;
   /** 280: вошедший аккаунт видит «Удалить аккаунт» в шапке анкеты. */
   accountDeletionHref?: string | null;
 }) {
@@ -222,6 +224,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       : result.status === "rate_limit" ? strings["server.rate_limit"]
       : result.status === "conflict" ? strings["server.conflict"]
         : result.status === "invalid" ? strings["server.invalid"]
+          : result.status === "invite" ? strings["server.invite"]
           : result.status === "unavailable" ? strings["server.unavailable"] : "";
   // Содержимое шага рисует одна функция: живой шаг и «призрак» уходящего
   // (анимация шага, см. ApplicationWizard.module.css) — один и тот же JSX.
@@ -257,6 +260,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       <form ref={form} action={action} onSubmit={submit} onReset={preserveAnswers} className="rounded-card border border-border bg-surface px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-10">
         <input name="questionnaire" type="hidden" value={JSON.stringify(questionnaire(values))} />
         <input name="expected_revision" type="hidden" value={expectedRevision} />
+        <input name="invite" type="hidden" value={inviteToken} />
         {step !== 8 && <><input name="email" type="hidden" value={signedInEmail ?? ""} /><input name="password" type="hidden" value="" /></>}
         <div className={styles.stage}>
           <div key={step} className={`min-h-[340px] ${travel === "forward" ? styles.enterForward : travel === "back" ? styles.enterBack : styles.enterInitial}`}>

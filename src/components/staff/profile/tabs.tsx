@@ -45,6 +45,7 @@ import { leadGroupSummaries } from "./lead-work-view";
 import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { PrepareLeadCabinetAction } from "./PrepareLeadCabinetAction";
+import { RegistrationLinkAction } from "./RegistrationLinkAction";
 import { handoffStripView } from "./handoff-strip-view";
 import type {
   Fact,
@@ -112,7 +113,11 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
         ) : application === null ? (readOnly || leadId === null ? (
           <p className="text-sm text-fg-2">Заявка на доступ не заполнена. Подготовка кабинета недоступна в этом режиме.</p>
         ) : (
-          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} caseLink={caseLink} quiet />
+          <div className="space-y-3">
+            {/* 07.11.2026: регистрация только по личной ссылке (341); прежняя подготовка кабинета остаётся. */}
+            <RegistrationLinkAction leadId={leadId} />
+            <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} caseLink={caseLink} quiet />
+          </div>
         )) : application.status === "approved" ? (
           <p className="text-sm text-fg-2">
             Заявка на доступ одобрена.{" "}

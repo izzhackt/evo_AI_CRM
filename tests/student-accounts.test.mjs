@@ -14,6 +14,7 @@ const ORG = "10000000-0000-4000-8000-000000000001";
 const REQUEST = "10000000-0000-4000-8000-000000000002";
 const PERMISSION = "10000000-0000-4000-8000-000000000003";
 const USER = "10000000-0000-4000-8000-000000000004";
+const CASE = "10000000-0000-4000-8000-000000000005";
 const PORTAL = "https://app.example.test";
 const NAME = { firstName: "Айдай", lastName: "Чынарова" };
 const STRONG = "a-long-enough-password";
@@ -77,7 +78,7 @@ function provisioning({ authorize = { data: { provisioning_id: PERMISSION, state
   const rpc = (result) => (name, args) => ({ abortSignal: async () => { calls.push(["rpc", name, args]); return result(name); } });
   const admin = { schema: (schema) => { assert.equal(schema, "platform"); return { rpc: rpc(() => authorize) }; } };
   const service = {
-    schema: () => ({ rpc: rpc((name) => (name === "complete_student_account_v1" ? complete : { data: null, error: null })) }),
+    schema: () => ({ rpc: rpc((name) => (name.startsWith("complete_") ? (typeof complete === "function" ? complete() : complete) : { data: null, error: null })) }),
     auth: { admin: {
       async createUser(input) {
         calls.push(["createUser", input]);
@@ -93,7 +94,7 @@ function provisioning({ authorize = { data: { provisioning_id: PERMISSION, state
     "./platform-supabase-backend-config": { getPlatformSupabaseBackendConfig: () => ({}) },
     "./platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => service },
   });
-  return { calls, run: (input = { ...NAME, email: null }) => subject.provisionStudentAccount(admin, ORG, REQUEST, input) };
+  return { calls, run: (input = { ...NAME, email: null }, caseId) => subject.provisionStudentAccount(admin, ORG, REQUEST, input, caseId) };
 }
 
 test("a created account: the admin's permission, then Auth with the flag, then the login and the journal", async () => {
@@ -151,7 +152,12 @@ function action({ actor = { organizationId: ORG, systemRole: "admin" }, preview 
     for (const [key, value] of Object.entries({ request_id: REQUEST, first_name: "Айдай", last_name: "Чынарова", email: "", ...fields })) data.set(key, value);
     return data;
   };
-  return { calls, submit: (fields = {}) => subject.createStudentAccountAction({ status: "idle", requestId: REQUEST }, form(fields)) };
+  return {
+    calls,
+    submit: (fields = {}) => subject.createStudentAccountAction({ status: "idle", requestId: REQUEST }, form(fields)),
+    submitCase: (fields = {}) => subject.createStudentCaseAccountAction({ status: "idle", requestId: REQUEST },
+      form({ student_case_id: CASE, ...fields })),
+  };
 }
 
 test("only an administrator outside role preview creates; the database gets the form's request", async () => {
@@ -164,7 +170,7 @@ test("only an administrator outside role preview creates; the database gets the 
   assert.equal(bad.calls.length, 0);
   const ok = action();
   const created = await ok.submit({ email: "Student@Example.test" });
-  assert.deepEqual(ok.calls, [[ORG, REQUEST, { ...NAME, email: "student@example.test" }]]);
+  assert.deepEqual(ok.calls, [[ORG, REQUEST, { ...NAME, email: "student@example.test" }, null]]);
   assert.equal(created.status, "created");
   assert.notEqual(created.requestId, REQUEST, "the next account is a new request");
 });
@@ -177,6 +183,54 @@ test("after any answer of the database the next attempt is a new request; a lost
   }
   const replay = await action({ outcome: { status: "already_created", login: "aidai.chynarova" } }).submit();
   assert.deepEqual({ ...replay, requestId: undefined }, { status: "already_created", requestId: undefined, login: "aidai.chynarova" });
+});
+
+test("a cabinet for a case: the same order through the 343 commands, the case goes to the permission", async () => {
+  const run = provisioning();
+  const result = await run.run({ ...NAME, email: null }, CASE);
+  assert.deepEqual(steps(run.calls), ["authorize_student_case_account_v1", "createUser", "complete_student_case_account_v1"]);
+  assert.deepEqual(run.calls[0][2], { p_organization_id: ORG, p_request_id: REQUEST, p_student_case_id: CASE });
+  assert.deepEqual(run.calls[2][2], { p_provisioning_id: PERMISSION, p_auth_user_id: USER, p_login_base: "aidai.chynarova" });
+  assert.equal(result.status, "created");
+});
+
+test("case refusals come back as words; a refusal at completion removes the account again", async () => {
+  for (const [message, status] of [["student_case_has_cabinet", "case_has_cabinet"], ["student_case_closed", "case_closed"],
+    ["student_case_invite_exists", "case_invite_exists"], ["student_case_unsupported", "case_unsupported"]]) {
+    const run = provisioning({ authorize: { data: null, error: { code: "PT409", message } } });
+    assert.deepEqual(await run.run({ ...NAME, email: null }, CASE), { status }, message);
+    assert.equal(run.calls.length, 1, `${message}: no account is made`);
+  }
+  assert.deepEqual(await provisioning({ authorize: { data: null, error: { code: "PT409", message: "other" } } }).run({ ...NAME, email: null }, CASE),
+    { status: "unavailable" });
+  const late = provisioning({ complete: { data: null, error: { code: "PT409", message: "student_case_has_cabinet" } } });
+  assert.deepEqual(await late.run({ ...NAME, email: null }, CASE), { status: "case_has_cabinet" });
+  assert.deepEqual(steps(late.calls),
+    ["authorize_student_case_account_v1", "createUser", "complete_student_case_account_v1", "deleteUser", "fail_student_case_account_v1"]);
+});
+
+test("the case action: the exact case field, the case reaches the database, refusals keep their words", async () => {
+  const ok = action();
+  assert.equal((await ok.submitCase({ email: "" })).status, "created");
+  assert.deepEqual(ok.calls, [[ORG, REQUEST, { ...NAME, email: null }, CASE]]);
+  const bad = action();
+  assert.deepEqual(await bad.submitCase({ student_case_id: "not-a-case" }), { status: "invalid", requestId: REQUEST });
+  assert.deepEqual(await bad.submit({ student_case_id: CASE }), { status: "invalid", requestId: REQUEST }, "the settings form takes no case");
+  assert.equal(bad.calls.length, 0);
+  assert.deepEqual(await action({ actor: { organizationId: ORG, systemRole: "staff" } }).submitCase(), { status: "forbidden", requestId: REQUEST });
+  const refused = await action({ outcome: { status: "case_invite_exists" } }).submitCase();
+  assert.equal(refused.status, "case_invite_exists");
+  assert.notEqual(refused.requestId, REQUEST);
+  assert.equal((await action({ outcome: { status: "case_closed" } }).submit()).status, "unavailable",
+    "the settings form never shows a case refusal");
+});
+
+test("the name for a case cabinet: the questionnaire when it has both names, else the case name", () => {
+  assert.deepEqual(contract.caseAccountNamePrefill("Любое Имя", [{ key: "student_first_name", value: " Айдай " },
+    { key: "student_last_name", value: "Чынарова" }]), NAME);
+  assert.deepEqual(contract.caseAccountNamePrefill("  Айдай   Чынарова Кызы ", [{ key: "student_first_name", value: "Айдай" }]),
+    { firstName: "Айдай", lastName: "Чынарова Кызы" });
+  assert.deepEqual(contract.caseAccountNamePrefill("Айдай", null), { firstName: "Айдай", lastName: "" });
 });
 
 function newPassword({ flagged = true, updateError = null, origin = true, signInError = null } = {}) {
@@ -243,4 +297,27 @@ test("every student entrance sends a flagged account to «Придумайте �
   }
   assert.equal(contract.NEW_PASSWORD_PATH, "/auth/new-password");
   assert.ok(readFileSync(new URL("../src/lib/platform-route-contract.ts", import.meta.url), "utf8").includes('"/auth/new-password"'));
+});
+
+test("a lost completion answer is asked again; still no answer keeps the account and says so (review 07.11)", async () => {
+  let asked = 0;
+  const recovered = provisioning({ complete: () => (++asked === 1 ? { data: null, error: { code: "" } }
+    : { data: { provisioning_id: PERMISSION, login: "aidai.chynarova" }, error: null }) });
+  assert.equal((await recovered.run({ ...NAME, email: null }, CASE)).status, "created");
+  assert.deepEqual(steps(recovered.calls),
+    ["authorize_student_case_account_v1", "createUser", "complete_student_case_account_v1", "complete_student_case_account_v1"]);
+  const silent = provisioning({ complete: { data: null, error: { code: "" } } });
+  assert.deepEqual(await silent.run({ ...NAME, email: null }, CASE), { status: "unconfirmed" });
+  assert.ok(!steps(silent.calls).includes("deleteUser"), "a possibly bound account is never removed");
+});
+
+test("the card shows the form, «open» or the reason in one place (review 07.11)", () => {
+  assert.equal(contract.caseCabinetView(null, "active"), null);
+  assert.equal(contract.caseCabinetView({ state: "bound", refusal: "case_has_cabinet" }, "active"), null);
+  assert.equal(contract.caseCabinetView({ state: "open", refusal: "case_has_cabinet" }, "active"), "open");
+  assert.equal(contract.caseCabinetView({ state: "none", refusal: null }, "closed"), null);
+  assert.equal(contract.caseCabinetView({ state: "none", refusal: "case_invite_exists" }, "active"), "case_invite_exists");
+  assert.equal(contract.caseCabinetView({ state: "none", refusal: null }, "pending"), "form");
+  assert.equal(contract.studentCaseRefusal("student_case_unsupported"), "case_unsupported");
+  assert.equal(contract.studentCaseRefusal("other"), null);
 });

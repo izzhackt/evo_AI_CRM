@@ -5,6 +5,7 @@ import { Icon } from "@/components/icons";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CaseClosure } from "@/lib/platform-closure-contract";
+import { caseCabinetView, type StudentCaseCabinet } from "@/lib/student-account-contract";
 import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 
 import { ApplicationDecision } from "../admissions/StudentApplications";
@@ -13,6 +14,7 @@ import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark } from "../tasks/task-composer-context";
 import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseAcceptDrawer } from "./CaseAcceptDrawer";
+import { CaseCabinetAccount } from "./CaseCabinetAccount";
 import { CaseHeader, type CaseHeaderInput } from "./CaseHeader";
 import { CaseMoreMenu } from "./CaseMoreMenu";
 import { CaseHelpNoAccess, CaseOverview, type CaseOverviewInput } from "./CaseOverview";
@@ -40,6 +42,8 @@ import { tabsFor, type PersonProfile, type ProfileDraft, type ProfileNotesSnapsh
 const ACTION_LINK = "inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 /** Вторичное действие у заголовка: на телефоне — значок 44 px (имя остаётся для чтения с экрана), от `sm` — со словом. */
 const ICON_ACTION = `${ACTION_LINK} min-w-11 justify-center`;
+/** Сводка группы «Доступ к порталу», когда кабинет у дела уже открыт (343): анкета тогда вторична. */
+const CABINET_OPEN = { text: "кабинет открыт", tone: "ok" } as const;
 
 export type CaseWorkPartsInput = Readonly<{
   actor: ActivePlatformActor;
@@ -54,6 +58,8 @@ export type CaseWorkPartsInput = Readonly<{
   notesLatestHref: string | null;
   curators: readonly Readonly<{ membershipId: string; displayName: string }>[];
   curatorsAvailable: boolean;
+  /** «Доступ к порталу» (343): кабинет у дела и данные формы; только для Admin вне просмотра роли, null — не прочитано. */
+  cabinet?: (StudentCaseCabinet & Readonly<{ requestId: string; firstName: string; lastName: string; portalOrigin: string }>) | null;
   /** Закрытие дела (246) для шапки и «⋯»; null — не прочитано. */
   closure?: CaseClosure | null;
   hrefFor: (tab: string) => string;
@@ -108,6 +114,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
 
   const portalControls = !preview && (actor.systemRole === "admin" || (admissions.isCabinetCase && staffCan(actor, "sales.write")));
   const application = draft.studentApplication;
+  const cabinetView = admin ? caseCabinetView(input.cabinet, admissions.caseState) : null;
   const portalSettings = portalControls || application?.status === "pending" || (application?.status === "rejected" && application.decisionReason) ? (
     <div className="space-y-3">
       {application?.status === "pending" && !preview && sales !== null ? (
@@ -116,7 +123,13 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       {application?.status === "rejected" && application.decisionReason ? (
         <p className="whitespace-pre-wrap break-words t-body-compact text-fg-2">{application.decisionReason}</p>
       ) : null}
-      {portalControls ? (
+      {/* Одно место для формы, «Кабинет открыт» и отказа (343): после обновления карточки показанный пароль остаётся. */}
+      {admin && input.cabinet && cabinetView ? (
+        <CaseCabinetAccount studentCaseId={caseId} requestId={input.cabinet.requestId} firstName={input.cabinet.firstName}
+          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView} />
+      ) : null}
+      {/* Кабинет уже открыт (343): приглашение по почте ему не нужно, база его и не примет. */}
+      {portalControls && !(admin && input.cabinet?.state === "open") ? (
         <StudentPortalAccessControls
           organizationId={actor.organizationId}
           studentCaseId={caseId}
@@ -133,7 +146,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       ) : null}
     </div>
   ) : null;
-  const portal = application !== null || portalControls ? { ...casePortalStatus(application), settings: portalSettings } : null;
+  const portalStatus = admin && input.cabinet?.state === "open" ? CABINET_OPEN : casePortalStatus(application);
+  const portal = application !== null || portalControls ? { ...portalStatus, settings: portalSettings } : null;
 
   // --- Действия у заголовка ------------------------------------------------
   const handoff = draft.handoffAcknowledgement;

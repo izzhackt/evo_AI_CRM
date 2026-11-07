@@ -72,7 +72,10 @@ import {
   plainPreview,
   relativeTimeRu,
   runErrorWords,
+  runIsSystemEvent,
   runOriginLabel,
+  runTextForPeople,
+  runTextPreview,
   runningToolWord,
   stepsSummary,
   successShare,
@@ -1744,4 +1747,32 @@ test("исходники: нет сырого HTML и service-клиента в 
   assert.match(agentPage, /isAiAgentKey\(key\)\) notFound\(\)/u);
   assert.match(agentPage, /parseAiAgentRoute\(await searchParams\);\s*if \(!route\) notFound\(\)/u);
   assert.match(agentPage, /requireV3PageActor\("\/ai-agents"\)/u);
+});
+
+/* ------------------------------------------- история запусков без служебного (07.11.2026) */
+
+test("история запусков: команду системы по событию не рисуем, id записи и имена инструментов — словами", () => {
+  assert.equal(runIsSystemEvent({ triggerKind: "website_lead" }), true);
+  assert.equal(runIsSystemEvent({ triggerKind: "whatsapp_inbound" }), true);
+  assert.equal(runIsSystemEvent({ triggerKind: "command" }), false, "поручение сотрудника — его слова");
+  assert.equal(runIsSystemEvent({ triggerKind: "schedule" }), false, "поручение по расписанию пишет сотрудник в настройках");
+  assert.equal(
+    runTextPreview("Недельный отчёт «Неделя 26.10–01.11.2026» опубликован в CRM (weekly, id b7240a47-5eb7-478e-b3e9-d8047b478b3d). Клиентам не писал."),
+    "Недельный отчёт «Неделя 26.10–01.11.2026» опубликован в CRM. Клиентам не писал.",
+    "скобки с id уходят целиком",
+  );
+  assert.equal(runTextPreview("По данным `funnel_stats` и list_leads заявок меньше."), "По данным «Воронка» и «Список лидов» заявок меньше.");
+  assert.equal(runTextPreview("В деле cd77cb47-33c9-453f-b7e9-840eed108a7c открой файлы"), "В деле … открой файлы");
+  assert.equal(runTextPreview("слова через_подчёркивание и not_a_tool остаются"), "слова через_подчёркивание и not_a_tool остаются");
+  assert.equal(runTextPreview(null), "");
+  assert.equal(runTextForPeople("**Итог.** `get_case`: ок"), "**Итог.** «Дело студента»: ок", "разметка остаётся для Markdown");
+
+  const table = read("src/components/staff/ai-agents-next/NextRuns.tsx");
+  assert.match(table, /runIsSystemEvent\(run\) \? "" : runTextPreview\(run\.promptPreview, 160\)/u);
+  assert.match(table, /runTextPreview\(run\.summary, 220\)/u);
+  for (const file of ["NextRunSheet.tsx", "NextRunDetail.tsx"]) {
+    const source = read(`src/components/staff/ai-agents-next/${file}`);
+    assert.match(source, /\{run\.promptPreview && !runIsSystemEvent\(run\) \? \(/u, file);
+    assert.match(source, /<Markdown source=\{runTextForPeople\(run\.summary\)\} \/>/u, file);
+  }
 });

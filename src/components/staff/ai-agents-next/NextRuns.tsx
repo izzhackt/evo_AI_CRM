@@ -8,14 +8,17 @@ import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn }
 import { Button } from "@/components/ui/button";
 import { AI_AGENT_RUN_STATUS_LABELS, type AiAgentKey, type AiAgentRunRow } from "@/lib/ai-agents/contract";
 import { AI_AGENT_DAILY_BUDGET_REACHED_CODE } from "@/lib/ai-agents/daily-cap";
-import { AI_AGENT_RUNS_MAX, AI_AGENT_RUNS_STEP, aiAgentHref, durationWords, formatDateTimeRu, formatUsdCents, plainPreview, pluralRu, runErrorWords, runOriginLabel, runStatusTone } from "@/lib/v3/ai-agents-view";
+import { AI_AGENT_RUNS_MAX, AI_AGENT_RUNS_STEP, aiAgentHref, durationWords, formatDateTimeRu, formatUsdCents, pluralRu, runErrorWords, runIsSystemEvent, runOriginLabel, runStatusTone, runTextPreview } from "@/lib/v3/ai-agents-view";
 
 import { NextRunSheetBody, runSheetTitle } from "./NextRunSheet";
 
-/** Главная строка записи: что поручили; итог — второй строкой. Дневной лимит и ошибка говорят причину словами, а не пустым итогом. */
+/**
+ * Главная строка записи: что поручили; итог — второй строкой. Дневной лимит и ошибка говорят причину словами, а не пустым итогом.
+ * Поручение запуска по событию пишет система — его строка не рисует, событие названо в «Кто запустил» (07.11.2026).
+ */
 function words(run: AiAgentRunRow): { primary: string; secondary: string } {
-  const prompt = plainPreview(run.promptPreview, 160);
-  const outcome = run.status === "failed" || run.errorCode === AI_AGENT_DAILY_BUDGET_REACHED_CODE ? runErrorWords(run.errorCode, run.errorMessage) : plainPreview(run.summary, 220);
+  const prompt = runIsSystemEvent(run) ? "" : runTextPreview(run.promptPreview, 160);
+  const outcome = run.status === "failed" || run.errorCode === AI_AGENT_DAILY_BUDGET_REACHED_CODE ? runErrorWords(run.errorCode, run.errorMessage) : runTextPreview(run.summary, 220);
   return { primary: prompt || outcome, secondary: prompt ? outcome : "" };
 }
 

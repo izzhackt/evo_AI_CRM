@@ -965,6 +965,35 @@ export function runOriginLabel(run: Pick<AiAgentRunRow, "triggerKind" | "started
   return viewerName && run.startedByName === viewerName ? "Вы" : run.startedByName;
 }
 
+/**
+ * Запуск по событию сайта или WhatsApp: его поручение пишет система (id заявки, имена инструментов), а не человек.
+ * На экране его нет — событие уже названо в «Кто запустил»; текст остаётся в модели (решение пользователя 07.11.2026).
+ */
+export function runIsSystemEvent(run: Pick<AiAgentRunRow, "triggerKind">): boolean {
+  return run.triggerKind === "website_lead" || run.triggerKind === "whatsapp_inbound";
+}
+
+const RECORD_ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/giu;
+
+/**
+ * Итог агента для людей: скобки с id записи уходят целиком («(weekly, id …)»), одиночный id — «…»,
+ * имя инструмента — его названием («funnel_stats» → «Воронка»). Их пишет и сам агент.
+ */
+export function runTextForPeople(markdown: string): string {
+  return markdown
+    .replace(/\s*\([^()]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[^()]*\)/giu, "")
+    .replace(RECORD_ID, "…")
+    .replace(/`?\b([a-z]+(?:_[a-z]+)+)\b`?/gu, (match, name: string) => {
+      const title = AI_AGENT_TOOL_LABELS[name];
+      return title ? `«${title}»` : match;
+    });
+}
+
+/** Однострочный текст истории запусков: `plainPreview` после `runTextForPeople`. */
+export function runTextPreview(markdown: string | null | undefined, max = 200): string {
+  return markdown ? plainPreview(runTextForPeople(markdown), max) : "";
+}
+
 /** Время в ряду действий запуска: в тот же день, что и начало, — только «12:35», иначе дата и время. */
 export function formatClockRu(iso: string | null, referenceIso: string): string {
   const at = iso ? zoned(iso) : null;

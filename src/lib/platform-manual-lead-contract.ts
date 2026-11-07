@@ -20,6 +20,8 @@ export type ManualLeadInput = Readonly<{
 }>;
 export type ManualLeadState = Readonly<{
   status: "idle" | "saved" | "duplicate" | "invalid" | "source_required" | "channel_required" | "forbidden" | "request_conflict" | "unavailable";
+  /** 07.11.2026: «Следующее действие» пишется отдельной командой «Воронки» после создания; failed — лид без шага. */
+  step?: "failed";
   requestId: string; leadId: string | null;
   /**
    * «Откуда узнал» пишется отдельным вызовом после создания лида (миграция 264):

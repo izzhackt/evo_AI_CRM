@@ -174,7 +174,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
       <button className={QUEUE_CONFIRM} disabled={locked}>{pending ? "Сохраняем…" : "Сохранить лида"}</button>
       <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={onClose}>{state.status === "saved" ? "Закрыть" : "Отмена"}</button>
     </div>
-    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="t-body-compact text-fg-2">{messages[state.status]}{touchNote(state)}</p> : null}
+    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="t-body-compact text-fg-2">{messages[state.status]}{state.step === "failed" ? " Следующее действие не записано — задайте его в карточке лида." : ""}{touchNote(state)}</p> : null}
     {state.leadId ? <Link className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4" href={`/profile?id=${state.leadId}`}>Открыть лида</Link> : null}
     {state.status === "unavailable" ? <button type="submit" className={QUEUE_CONFIRM} disabled={pending}>Повторить тот же запрос</button> : null}
     {state.status === "saved" ? <button type="button" className="t-label inline-flex min-h-11 items-center underline underline-offset-4" onClick={onAnother}>Добавить ещё одного</button> : null}

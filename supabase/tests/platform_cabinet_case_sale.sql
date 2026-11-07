@@ -6,13 +6,14 @@
 -- scoped role assignments with the production permission keys, and the Sales Manager role is the 208 workflow role.
 -- Proves (real submit by the account, real approval by the system Admin, real sale by the Sales Manager):
 --  1. the approval writes the case's client: the client of its lead; the lead has no owner;
---  2. the sale form search finds the lead without an owner (owner_id null);
+--  2. the sale form search finds the lead without an owner (owner_id null), but not for a seller who may not assign owners;
 --  3. a Sales Manager who may not assign owners is refused as before (42501) and nothing changes;
 --  4. the sale into the approved cabinet goes through: the seller saving it becomes the lead's owner through the workflow
 --     command (one lead.sales.workflow.changed with the derived request id), stage and next step unchanged; the case is
 --     active with the curator and the seller; one report record and one 088 handoff;
 --  5. the replay returns the same receipt and changes nothing;
---  6. a lead with an owner keeps the owner, and the sale is credited to that owner;
+--  6. a lead with an owner keeps the owner, and the sale is credited to that owner; a lead without an owner and without a
+--     cabinet, with a next step, gets the seller as owner, keeps the next step and is handed off by the ordinary 088 branch;
 --  7. the one-time fill (the migration's own statement) restores the client of a pending and an active case only;
 --  8. catalog: the three functions keep SECURITY DEFINER, empty search_path, owner postgres and EXECUTE for authenticated.
 BEGIN;
@@ -211,7 +212,7 @@ SELECT pg_temp.a339_assert((SELECT bool_and(c.state = 'pending' AND c.canonical_
   'the approval writes the client of the lead into the pending case; the lead and the case have no seller yet');
 
 -- ---------------------------------------------------------------------------
--- 2. The sale form search finds the lead without an owner.
+-- 2. The sale form search finds the lead without an owner, but only for a seller who can become its owner.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.a339_call(102, format('platform.sales_register_intake_options(%L::UUID, %L)', pg_temp.a339_id(1), 'A339'))
   AS a339_search \gset
@@ -219,6 +220,11 @@ SELECT pg_temp.a339_assert(EXISTS (SELECT 1 FROM jsonb_array_elements(:'a339_sea
     WHERE lead ->> 'id' = :'a339_lead_1' AND lead -> 'owner_id' = 'null'::JSONB)
   AND jsonb_array_length(:'a339_search'::JSONB #> '{ok,leads}') = 3,
   'the search finds all three leads, owner_id null: ' || :'a339_search');
+SELECT pg_temp.a339_call(103, format('platform.sales_register_intake_options(%L::UUID, %L)', pg_temp.a339_id(1), 'A339'))
+  AS a339_search_103 \gset
+SELECT pg_temp.a339_assert(:'a339_search_103'::JSONB ? 'ok'
+  AND jsonb_array_length(:'a339_search_103'::JSONB #> '{ok,leads}') = 0,
+  'a seller who may not assign owners is not offered a lead without an owner: ' || :'a339_search_103');
 
 -- ---------------------------------------------------------------------------
 -- 3. A Sales Manager who may not assign owners is refused as before, and nothing changes.
@@ -294,7 +300,37 @@ SELECT pg_temp.a339_assert(:'a339_sale_2'::JSONB ? 'ok'
   'the owner is kept and credited; the sale changes no owner: ' || :'a339_sale_2');
 
 -- ---------------------------------------------------------------------------
--- 7. The one-time fill: the migration's own statement restores the client of a pending and an active case only.
+-- 6b. A lead without an owner and without a cabinet, with a next step: the owner block, then the ordinary 088 branch.
+-- ---------------------------------------------------------------------------
+INSERT INTO platform.clients(id, organization_id, display_name, normalized_name, lifecycle_state)
+  VALUES (pg_temp.a339_id(604), pg_temp.a339_id(1), 'A339 Четвёртый', platform_private.normalize_person_name('A339 Четвёртый'), 'active');
+INSERT INTO platform.leads(id, organization_id, client_id, current_owner_membership_id, stage_key, source_key, lifecycle_state,
+  next_action_text, next_action_due_date)
+  VALUES (pg_temp.a339_id(624), pg_temp.a339_id(1), pg_temp.a339_id(604), NULL, 'potential', 'other', 'open',
+    'A339 позвонить', DATE '2026-11-10');
+INSERT INTO platform_private.lead_sale_conditions(organization_id, lead_id, fields, revision, updated_by_membership_id)
+  VALUES (pg_temp.a339_id(1), pg_temp.a339_id(624), jsonb_build_object('signing_date', '2026-11-07', 'service_cost_minor', 100000,
+    'service_cost_currency', 'USD', 'service_cost_raw', '1000 USD', 'paid_minor', 20000, 'paid_currency', 'USD', 'paid_raw', '200 USD',
+    'service_label', 'A339 synthetic service', 'payment_note', 'A339 synthetic payment'), 1, pg_temp.a339_id(302));
+SELECT workflow_version AS a339_lead_4_version FROM platform.leads WHERE id = pg_temp.a339_id(624) \gset
+SELECT pg_temp.a339_sale(102, 3004, pg_temp.a339_id(624)) AS a339_sale_4 \gset
+SELECT pg_temp.a339_assert(:'a339_sale_4'::JSONB ? 'ok'
+  AND (SELECT l.current_owner_membership_id = pg_temp.a339_id(302) AND l.workflow_version = :a339_lead_4_version + 1
+    AND l.stage_key = 'potential' AND l.next_action_text = 'A339 позвонить' AND l.next_action_due_date = DATE '2026-11-10'
+    FROM platform.leads l WHERE l.id = pg_temp.a339_id(624))
+  AND (SELECT count(*) = 1 FROM platform.audit_events e WHERE e.resource_id = pg_temp.a339_id(624)
+    AND e.action = 'lead.sales.workflow.changed'
+    AND e.request_id = public.uuid_generate_v5(pg_temp.a339_id(3004), 'sales-report:lead-owner'))
+  AND (SELECT c.current_curator_membership_id = pg_temp.a339_id(304) AND c.canonical_client_id = pg_temp.a339_id(604)
+    AND c.responsible_sales_membership_id = pg_temp.a339_id(302)
+    FROM platform.student_cases c WHERE c.id = (:'a339_sale_4'::JSONB #>> '{ok,student_case_id}')::UUID)
+  AND (SELECT count(*) = 1 AND bool_and(h.handoff_mode = 'sales_report')
+    FROM platform.sales_admissions_handoffs h WHERE h.lead_id = pg_temp.a339_id(624)),
+  'without a cabinet: the seller becomes the owner, the next step stays, the 088 branch opens the case: ' || :'a339_sale_4');
+
+-- ---------------------------------------------------------------------------
+-- 7. The one-time fill: the statement of the migration's step 2 (copied here; keep both the same) restores the client
+--    of a pending and an active case only.
 -- ---------------------------------------------------------------------------
 SELECT updated_at AS a339_case_2_updated FROM platform.student_cases WHERE id = :'a339_case_2' \gset
 SET LOCAL session_replication_role = replica;

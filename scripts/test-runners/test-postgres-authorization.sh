@@ -5317,6 +5317,30 @@ SQL
       exit 1
     fi
   fi
+  # «Удаление аккаунта знает таблицы входа по логину» (migration 346, 07.11.2026). Matched by name, not number. The
+  # migration adds the login, cabinet and password-reset tables to the own list of the deletion closure: right after it a
+  # second apply refuses (a346_already_applied), then the suite, insisting on its marker. The suite proves: a cabinet the
+  # Admin made without a case is a simple account again, its login and creation record go with it, links stay outside.
+  if [[ "$(basename "$migration")" == *_platform_account_deletion_login_tables.sql ]]; then
+    t346_again_log="$(mktemp -t evo-t346-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t346_again_log" 2>&1; then
+      echo "migration 346 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a346_already_applied" "$t346_again_log"; then
+      echo "a second apply of migration 346 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t346_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t346_again_log"
+    deletion_login_tables_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_account_deletion_login_tables.sql </dev/null)"
+    printf '%s
+' "$deletion_login_tables_log"
+    if ! grep -q 'A346_ACCOUNT_DELETION_LOGIN_TABLES_SUITE_PASSED' <<<"$deletion_login_tables_log"; then
+      echo "platform_account_deletion_login_tables.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

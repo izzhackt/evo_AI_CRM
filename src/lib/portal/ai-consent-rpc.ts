@@ -4,6 +4,7 @@ import {
   AI_CONSENT_POLICY_VERSION,
   AI_CONSENT_SOURCE,
   aiConsentApplies,
+  aiConsentInProfile,
   isAiConsentRequestId,
   isAiConsentStatus,
   parseAiConsent,
@@ -61,7 +62,19 @@ export async function readAiConsentForTier(
   accessTier: unknown,
   openClient: () => Promise<SupabaseClient>,
 ): Promise<AiConsentRead> {
-  if (!aiConsentApplies(accessTier)) return { status: "not_applicable" };
+  return readGated(aiConsentApplies(accessTier), openClient);
+}
+
+/** То же чтение для строки «Профиля» (345): у любого студента кабинета, см. `aiConsentInProfile`. */
+export async function readAiConsentForProfile(
+  accessTier: unknown,
+  openClient: () => Promise<SupabaseClient>,
+): Promise<AiConsentRead> {
+  return readGated(aiConsentInProfile(accessTier), openClient);
+}
+
+async function readGated(applies: boolean, openClient: () => Promise<SupabaseClient>): Promise<AiConsentRead> {
+  if (!applies) return { status: "not_applicable" };
   try {
     const consent = await readAiConsentWith(await openClient());
     return consent === null ? { status: "unavailable" } : { status: "ready", consent };
@@ -71,9 +84,9 @@ export async function readAiConsentForTier(
 }
 
 /**
- * Запись выбора с тем же условием: у самостоятельного студента решения нет и
- * записать его нельзя, даже прямым вызовом действия в обход экрана (база не
- * трогается). Сбой записи — отказ без выдуманного успеха.
+ * Запись выбора из «Главной» и «Профиля»: у любого студента кабинета (345, `aiConsentInProfile`); у вошедшего без
+ * кабинета записать её этим действием нельзя, даже прямым вызовом в обход экрана (база не трогается). Сбой записи —
+ * отказ без выдуманного успеха.
  */
 export async function writeAiConsentForTier(
   accessTier: unknown,
@@ -81,7 +94,7 @@ export async function writeAiConsentForTier(
   status: unknown,
   requestId: unknown,
 ): Promise<AiConsentActionResult> {
-  if (!aiConsentApplies(accessTier)) return { ok: false };
+  if (!aiConsentInProfile(accessTier)) return { ok: false };
   try {
     return await writeAiConsentWith(await openClient(), status, requestId);
   } catch {

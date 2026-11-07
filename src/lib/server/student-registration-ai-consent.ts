@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import { AI_CONSENT_POLICY_VERSION, isAiConsentRequestId } from "../portal/ai-consent";
-import { writeAiConsentWith } from "../portal/ai-consent-rpc";
+import { readAiConsentWith, writeAiConsentWith } from "../portal/ai-consent-rpc";
 import { STUDENT_AI_CONSENT_METADATA_KEY } from "../student-application-contract";
 
 /**
@@ -34,6 +34,24 @@ export function pendingRegistrationAiConsent(user: Pick<User, "user_metadata">):
   const { status, policyVersion, requestId } = value as Record<string, unknown>;
   if (status !== "granted" || policyVersion !== AI_CONSENT_POLICY_VERSION || !isAiConsentRequestId(requestId)) return null;
   return { status, policyVersion, requestId };
+}
+
+/**
+ * Отложенная запись при входе (ревью 07.11): только пока у студента нет своего решения. Если ключ пережил сбой, а
+ * студент тем временем решил в кабинете, его решение остаётся, ключ просто стирается. Не бросает.
+ */
+export async function replayRegistrationAiConsent(
+  client: SupabaseClient,
+  choice: RegistrationAiConsentChoice,
+): Promise<"written" | "decided" | "failed"> {
+  try {
+    const current = await readAiConsentWith(client);
+    if (current === null) return "failed";
+    if (current.status !== null) return "decided";
+    return (await writeAiConsentWith(client, choice.status, choice.requestId)).ok ? "written" : "failed";
+  } catch {
+    return "failed";
+  }
 }
 
 /** Запись от имени вошедшего студента; true — только когда база подтвердила именно это решение. Не бросает. */

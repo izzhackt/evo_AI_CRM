@@ -101,6 +101,12 @@ function harness(options = {}) {
   const aiConsent = compile("src/lib/server/student-registration-ai-consent.ts", {
     "node:crypto": crypto, "../portal/ai-consent": aiConsentContract, "../student-application-contract": contract,
     "../portal/ai-consent-rpc": {
+      readAiConsentWith: async (received) => {
+        assert.equal(received, client); calls.push(["aiConsentRead"]);
+        return options.aiConsentRead === undefined
+          ? { status: null, policyVersion: null, decidedAt: null, currentPolicyVersion: aiConsentContract.AI_CONSENT_POLICY_VERSION }
+          : options.aiConsentRead;
+      },
       writeAiConsentWith: async (received, status, requestId) => {
         assert.equal(received, client); calls.push(["aiConsent", status, requestId]);
         return options.aiConsentWrite ?? { ok: true };
@@ -404,12 +410,23 @@ test("345: a signed-in applicant's AI consent is written as the student right af
 test("345: the confirmed sign-in writes the saved AI choice once and clears only its key", async () => {
   const fresh = harness({ identities: [verified(identity({ user_metadata: { [contract.STUDENT_APPLICATION_METADATA_KEY]: draft(), [AI_KEY]: aiChoice() } }))] });
   assert.equal(await fresh.resume(), "saved");
-  assert.deepEqual(callNames(fresh), ["getUser", "readOwn", "submit", "updateUser", "aiConsent", "updateUser"]);
+  assert.deepEqual(callNames(fresh), ["getUser", "readOwn", "submit", "updateUser", "aiConsentRead", "aiConsent", "updateUser"]);
   assert.deepEqual(fresh.calls.at(-2), ["aiConsent", "granted", aiChoice().requestId]);
   assert.deepEqual(fresh.calls.at(-1), ["updateUser", { data: { [AI_KEY]: null } }]);
   const existing = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: aiChoice() } }))], existing: { id: REQUEST, status: "pending" } });
   assert.equal(await existing.resume(), "saved");
-  assert.deepEqual(callNames(existing), ["getUser", "readOwn", "aiConsent", "updateUser"], "a lost answer after submit still records the choice");
+  assert.deepEqual(callNames(existing), ["getUser", "readOwn", "aiConsentRead", "aiConsent", "updateUser"], "a lost answer after submit still records the choice");
+  // Review 07.11: a choice that outlived a failure never overwrites the student's own decision; only the key goes.
+  const decided = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: aiChoice() } }))], existing: { id: REQUEST, status: "approved" },
+    aiConsentRead: { status: "declined", policyVersion: aiConsentContract.AI_CONSENT_POLICY_VERSION, decidedAt: "2026-11-08T10:00:00Z",
+      currentPolicyVersion: aiConsentContract.AI_CONSENT_POLICY_VERSION } });
+  assert.equal(await decided.resume(), "saved");
+  assert.deepEqual(callNames(decided), ["getUser", "readOwn", "aiConsentRead", "updateUser"]);
+  assert.deepEqual(decided.calls.at(-1), ["updateUser", { data: { [AI_KEY]: null } }]);
+  const unread = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: aiChoice() } }))], existing: { id: REQUEST, status: "pending" },
+    aiConsentRead: null });
+  assert.equal(await unread.resume(), "saved");
+  assert.deepEqual(callNames(unread), ["getUser", "readOwn", "aiConsentRead"], "no read, no write, the key stays");
   for (const stale of [aiChoice({ policyVersion: "2026-01-01" }), aiChoice({ status: "declined" }), aiChoice({ requestId: "x" })]) {
     const run = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: stale } }))], existing: { id: REQUEST, status: "pending" } });
     assert.equal(await run.resume(), "saved");
@@ -418,7 +435,23 @@ test("345: the confirmed sign-in writes the saved AI choice once and clears only
   const failed = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: aiChoice() } }))], existing: { id: REQUEST, status: "pending" },
     aiConsentWrite: { ok: false } });
   assert.equal(await failed.resume(), "saved");
-  assert.deepEqual(callNames(failed), ["getUser", "readOwn", "aiConsent"], "the key stays until the database confirms");
+  assert.deepEqual(callNames(failed), ["getUser", "readOwn", "aiConsentRead", "aiConsent"], "the key stays until the database confirms");
+});
+
+test("345: the wizard posts both required boxes and the new account carries the AI choice (review 07.11)", () => {
+  const wizard = readFileSync(new URL("../src/components/student-application/ApplicationWizard.tsx", import.meta.url), "utf8");
+  const start = wizard.indexOf("{s === 8 && <div");
+  const account = wizard.slice(start, wizard.indexOf("\n", start));
+  assert.equal((account.match(/<input type="checkbox" required /gu) ?? []).length, 2, "both boxes on the last step are required");
+  assert.match(account, /checked=\{aiConsent\} onChange=\{\(e\) => \{ setAiConsent\(e\.target\.checked\);/u);
+  assert.match(wizard, /<input name="ai_consent" type="hidden" value=\{aiConsent \? "granted" : ""\} \/>/u);
+  assert.match(wizard, /values\.destinationCountries = currentDestinations\(values\.destinationCountries\);\n\s*\/\/ 345:[^\n]*\n\s*values\.consent = false;/u,
+    "a tick restored from the tab draft was given to the old text");
+  assert.match(wizard, /<a href=\{AI_CONSENT_PRIVACY_URL\} target="_blank" rel="noopener noreferrer"/u);
+  const actions = readFileSync(new URL("../src/lib/student-signup-actions.ts", import.meta.url), "utf8");
+  assert.match(actions, /beginStudentSignup\(email, password, draft, invite, true\)/u, "the website account always carries the AI box");
+  const begin = readFileSync(new URL("../src/lib/server/student-signup-confirmation-runtime.ts", import.meta.url), "utf8");
+  assert.match(begin, /createPublicStudentAccount\(email, password, draft, invite, aiConsent\)/u);
 });
 
 test("actual proxy admits anonymous application entry and canonicalizes staff-host GET without forwarding POST", async () => {

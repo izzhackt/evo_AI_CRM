@@ -5,7 +5,7 @@ import { readVerifiedPlatformAuthority } from "../supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "../supabase/student-portal-authority";
 import { STUDENT_AI_CONSENT_METADATA_KEY, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "../student-application-contract";
 import { readOwnStudentApplication, submitStudentApplication } from "../v3/student-application-source";
-import { pendingRegistrationAiConsent, recordRegistrationAiConsent } from "./student-registration-ai-consent";
+import { pendingRegistrationAiConsent, replayRegistrationAiConsent } from "./student-registration-ai-consent";
 
 /** The staff provisioner writes this protected marker; users cannot set it. */
 export function isPasswordProvisionedStaff(user: Pick<User, "app_metadata">): boolean {
@@ -67,13 +67,13 @@ export async function resumeStudentApplication(client: SupabaseClient, expectedA
 
 /**
  * 345: the required AI-assistants box of the registration, saved with the new account, is written as the student once
- * a session exists; the key is cleared only after the database confirmed it. A failure is logged and never undoes the
- * анкета: the cabinet card then asks again.
+ * a session exists, unless the student has decided in the cabinet since; the key is cleared only after the database
+ * confirmed the write or showed the student's own decision. A failure is logged and never undoes the анкета.
  */
 async function applyRegistrationAiConsent(client: SupabaseClient, user: User): Promise<void> {
   const choice = pendingRegistrationAiConsent(user);
   if (!choice) return;
-  if (!await recordRegistrationAiConsent(client, choice)) {
+  if (await replayRegistrationAiConsent(client, choice) === "failed") {
     logStudentSignupFailure("ai_consent");
     return;
   }

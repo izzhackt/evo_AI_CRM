@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "../supabase/server";
-import { readAiConsentForTier } from "./ai-consent-rpc.ts";
+import { readAiConsentForProfile, readAiConsentForTier } from "./ai-consent-rpc.ts";
 import type { AiConsentAccessTier, AiConsentRead } from "./ai-consent.ts";
 
 export type { AiConsentRead } from "./ai-consent.ts";
@@ -18,4 +18,12 @@ export type { AiConsentRead } from "./ai-consent.ts";
  */
 export function readOwnAiConsent(accessTier: AiConsentAccessTier): Promise<AiConsentRead> {
   return readAiConsentForTier(accessTier, createSupabaseServerClient);
+}
+
+/**
+ * Строка «ИИ-помощники» в «Профиле» (345, ревью 07.11.2026): у любого студента кабинета — согласие из регистрации
+ * самостоятельный студент тоже видит и может отозвать.
+ */
+export function readOwnAiConsentForProfile(accessTier: AiConsentAccessTier): Promise<AiConsentRead> {
+  return readAiConsentForProfile(accessTier, createSupabaseServerClient);
 }

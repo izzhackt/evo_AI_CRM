@@ -16,6 +16,7 @@ import {
   parseAiConsent,
 } from "../src/lib/portal/ai-consent.ts";
 import {
+  readAiConsentForProfile,
   readAiConsentForTier,
   readAiConsentWith,
   writeAiConsentForTier,
@@ -296,8 +297,9 @@ test("the post-login screen /portal asks too: a sibling slot above the overview,
 test("the settings row sits in the profile, with its own honest line when the read fails", () => {
   const page = read("src/app/(portal)/portal/profile/page.tsx");
   assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[\s*requireStudentPortalActor\(\),/u);
-  assert.match(page, /readOwnAiConsent\(actor\.accessTier\),\n\s*\]\);/u);
-  // Самостоятельный студент: ни раздела, ни заголовка, ни строки.
+  // 345 (07.11.2026): строка «Профиля» у любого студента кабинета — согласие из регистрации можно отозвать сразу.
+  assert.match(page, /readOwnAiConsentForProfile\(actor\.accessTier\),\n\s*\]\);/u);
+  // Не студент кабинета: ни раздела, ни заголовка, ни строки.
   assert.match(page, /\{aiConsent\.status === "not_applicable" \? null : \(\s*<section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">/u);
   assert.match(page, /\{aiConsentStrings\.rowHeading\}/u);
   assert.match(page, /<AiConsentSettingsRow initialConsent=\{aiConsent\.consent\} strings=\{aiConsentStrings\} \/>/u);
@@ -394,19 +396,22 @@ test("a self-service student is never asked: no client, no RPC, nothing to rende
   assert.deepEqual(client.calls, []);
 });
 
-test("the decision can be recorded for a client with a case only; the action cannot be used to bypass the screen", async () => {
+test("the decision can be recorded by any cabinet student (345); the action cannot be used to bypass the screen", async () => {
   const client = fakeClient((_fn, args) => ({ data: { ...GRANTED, status: args.p_status }, error: null }));
   let opened = 0;
   const open = () => { opened += 1; return Promise.resolve(client); };
   assert.deepEqual(await writeAiConsentForTier("assisted", open, "granted", REQUEST_ID), { ok: true, consent: GRANTED });
   assert.equal(client.calls.length, 1);
   assert.equal(client.calls[0].fn, "portal_ai_consent_set_v1");
+  // 345: a self-service student (approved tier) gave the consent at registration and may withdraw it.
+  assert.deepEqual(await writeAiConsentForTier("approved", open, "declined", REQUEST_ID), { ok: true, consent: { ...GRANTED, status: "declined" } });
+  assert.equal(client.calls.length, 2);
   opened = 0;
-  for (const tier of ["approved", undefined, "pending"]) {
+  for (const tier of [undefined, "pending", "", null]) {
     assert.deepEqual(await writeAiConsentForTier(tier, open, "granted", REQUEST_ID), { ok: false }, String(tier));
   }
   assert.equal(opened, 0);
-  assert.equal(client.calls.length, 1, "no write reaches the database for a self-service student");
+  assert.equal(client.calls.length, 2, "no write reaches the database without a cabinet tier");
   // Сбой открытия клиента — отказ, а не исключение.
   assert.deepEqual(
     await writeAiConsentForTier("assisted", () => Promise.reject(new Error("no session")), "granted", REQUEST_ID),
@@ -435,4 +440,15 @@ test("rendered: the client's home and the post-login screen carry the consent ca
   assert.equal(approved.includes(CARD), false, "self-service home");
   assert.equal(approved.includes("ИИ-помощники EVO"), false);
   assert.equal(approved.includes('id="home-dates"'), true, "the rest of the home is intact");
+});
+
+test("345: the Profile row reads for every cabinet student, the Home card only for a client with a case", async () => {
+  const client = fakeClient(() => ({ data: GRANTED, error: null }));
+  const open = () => Promise.resolve(client);
+  assert.deepEqual(await readAiConsentForProfile("approved", open), { status: "ready", consent: GRANTED });
+  assert.deepEqual(await readAiConsentForProfile("assisted", open), { status: "ready", consent: GRANTED });
+  assert.deepEqual(await readAiConsentForTier("approved", open), { status: "not_applicable" }, "the Home card does not ask");
+  for (const tier of [undefined, null, "pending", ""]) {
+    assert.deepEqual(await readAiConsentForProfile(tier, open), { status: "not_applicable" }, String(tier));
+  }
 });

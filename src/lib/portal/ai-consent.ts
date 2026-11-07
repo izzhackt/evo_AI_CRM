@@ -68,6 +68,16 @@ export function aiConsentApplies(accessTier: unknown): accessTier is "assisted" 
   return accessTier === "assisted";
 }
 
+/**
+ * Строка «ИИ-помощники» в «Профиле» и запись выбора (345, ревью 07.11.2026): у любого студента кабинета. С 345
+ * согласие даётся при регистрации, а после одобрения анкеты дело уже есть (уровень `approved`), и ИИ-помощники
+ * могут читать связанную переписку продаж; поэтому отозвать согласие можно сразу. Карточка на «Главной» по-прежнему
+ * спрашивает только клиента с делом на сопровождении (`aiConsentApplies`).
+ */
+export function aiConsentInProfile(accessTier: unknown): accessTier is AiConsentAccessTier {
+  return accessTier === "approved" || accessTier === "assisted";
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T/u;
 const VERSION = /^[0-9A-Za-z._-]{1,32}$/u;

@@ -21,7 +21,7 @@ import {
 import { readOwnConsultationRequests } from "@/lib/portal/consultation-source";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
-import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
+import { readOwnAiConsentForProfile } from "@/lib/portal/ai-consent-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import { readOwnStudentLogin } from "@/lib/portal/student-login-source";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
@@ -118,8 +118,8 @@ export default async function ProfilePage() {
   // Удаление аккаунта (280): статус своего запроса читается отдельно от
   // профиля 196, который не знает «в обработке». Согласие на ИИ-помощников
   // (320, 25.10.2026) — тоже отдельное чтение со своей честной строкой сбоя,
-  // и только у клиента с делом на сопровождении: самостоятельному студенту
-  // (accessTier approved) строки нет, а база не читается.
+  // у любого студента кабинета (345, 07.11.2026): согласие даётся при регистрации,
+  // поэтому и самостоятельный студент (accessTier approved) видит его и может отозвать.
   // Метки карточки студента (03.11.2026): страна поступления (чтение 284) и
   // этап дела (обзор, только у клиента на сопровождении); сбой — без метки.
   // Своя анкета (/apply, 03.11.2026): только чтение; у студента без анкеты
@@ -132,7 +132,7 @@ export default async function ProfilePage() {
     actor.accessTier === "assisted" ? readStudentPortalOverview().catch((): null => null) : null,
     readOwnStudentApplication().catch((): undefined => undefined),
     readOwnStudentLogin(),
-    readOwnAiConsent(actor.accessTier),
+    readOwnAiConsentForProfile(actor.accessTier),
   ]);
   const admissionStrings = getPortalStrings("admission", locale);
   const country = countryChoice?.country ?? null;

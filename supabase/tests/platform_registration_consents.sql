@@ -133,6 +133,11 @@ SELECT pg_temp.a345_assert((SELECT bool_and(p.prosecdef AND p.proconfig = ARRAY[
     AND strpos(pg_get_functiondef('platform_private.student_application_questionnaire_valid(jsonb)'::regprocedure),
       '''2026-09-18'', ''2026-11-07''') > 0,
   'the functions keep their security settings; the evidence follows the анкета, the CHECK knows both versions');
+-- Review 07.11: the patched CHECK helper itself keeps IMMUTABLE, the empty search_path and stays closed to API roles.
+SELECT pg_temp.a345_assert((SELECT p.provolatile = 'i' AND p.proconfig = ARRAY['search_path=""']
+      AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+    FROM pg_proc p WHERE p.oid = 'platform_private.student_application_questionnaire_valid(jsonb)'::regprocedure),
+  'the CHECK helper stays IMMUTABLE with an empty search_path and closed to API roles');
 
 \echo A345_REGISTRATION_CONSENTS_SUITE_PASSED
 

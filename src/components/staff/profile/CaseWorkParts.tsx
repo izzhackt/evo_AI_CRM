@@ -59,7 +59,9 @@ export type CaseWorkPartsInput = Readonly<{
   curators: readonly Readonly<{ membershipId: string; displayName: string }>[];
   curatorsAvailable: boolean;
   /** «Доступ к порталу» (343): кабинет у дела и данные формы; только для Admin вне просмотра роли, null — не прочитано. */
-  cabinet?: (StudentCaseCabinet & Readonly<{ requestId: string; firstName: string; lastName: string; portalOrigin: string }>) | null;
+  cabinet?: (StudentCaseCabinet & Readonly<{
+    requestId: string; resetRequestId: string; firstName: string; lastName: string; portalOrigin: string;
+  }>) | null;
   /** Закрытие дела (246) для шапки и «⋯»; null — не прочитано. */
   closure?: CaseClosure | null;
   hrefFor: (tab: string) => string;
@@ -126,7 +128,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       {/* Одно место для формы, «Кабинет открыт» и отказа (343): после обновления карточки показанный пароль остаётся. */}
       {admin && input.cabinet && cabinetView ? (
         <CaseCabinetAccount studentCaseId={caseId} requestId={input.cabinet.requestId} firstName={input.cabinet.firstName}
-          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView} />
+          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView}
+          reset={{ requestId: input.cabinet.resetRequestId, login: input.cabinet.login, email: input.cabinet.email }} />
       ) : null}
       {/* Кабинет уже открыт (343): приглашение по почте ему не нужно, база его и не примет. */}
       {portalControls && !(admin && input.cabinet?.state === "open") ? (

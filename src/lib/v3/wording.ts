@@ -822,6 +822,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "snippet.create": "Шаблон ответа создан",
   "snippet.update": "Шаблон ответа изменён",
   "student.account.create": "Администратор создал кабинет студента",
+  "student.password.reset": "Администратор сбросил пароль студента",
   "student.portal.authority.activate": "Доступ студента в кабинет активирован",
   "student.profile.upsert": "Анкета студента обновлена",
   "task.change": "Задача изменена",

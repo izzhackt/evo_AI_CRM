@@ -482,7 +482,7 @@ export default async function ProfilePart({
       curators: studentPortalCurators,
       curatorsAvailable: studentPortalCuratorsAvailable,
       cabinet: caseCabinet ? {
-        ...caseCabinet, requestId: randomUUID(), portalOrigin: studentPortalOrigin(),
+        ...caseCabinet, requestId: randomUUID(), resetRequestId: randomUUID(), portalOrigin: studentPortalOrigin(),
         ...caseAccountNamePrefill(view.profile.person, view.details.profileFields?.fields),
       } : null,
       closure: caseClosure,

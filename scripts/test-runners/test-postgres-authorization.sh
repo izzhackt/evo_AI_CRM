@@ -5268,6 +5268,31 @@ SQL
       exit 1
     fi
   fi
+  # «Сброс пароля студента администратором» (migration 344, решение 07.11.2026). Matched by name, not number. The
+  # migration adds the closed reset table and three functions and teaches the cabinet read the student's login: right
+  # after it a second apply refuses (a344_already_applied), then the suite, insisting on its marker. The suite proves: only
+  # a System Admin gets a permission, only for a case bound to a live Student; only the server completes it, once, within
+  # ten minutes and while the admin keeps the same access, with one journal row and no password kept anywhere.
+  if [[ "$(basename "$migration")" == *_platform_student_password_resets.sql ]]; then
+    t344_again_log="$(mktemp -t evo-t344-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t344_again_log" 2>&1; then
+      echo "migration 344 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a344_already_applied" "$t344_again_log"; then
+      echo "a second apply of migration 344 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t344_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t344_again_log"
+    student_password_resets_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_student_password_resets.sql </dev/null)"
+    printf '%s
+' "$student_password_resets_log"
+    if ! grep -q 'A344_STUDENT_PASSWORD_RESETS_SUITE_PASSED' <<<"$student_password_resets_log"; then
+      echo "platform_student_password_resets.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

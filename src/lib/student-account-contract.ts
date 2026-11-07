@@ -54,7 +54,13 @@ export function studentCaseRefusal(word: unknown): StudentCaseAccountRefusal | n
   return typeof word === "string" && Object.hasOwn(CASE_REFUSAL_WORDS, word) ? CASE_REFUSAL_WORDS[word] : null;
 }
 
-export type StudentCaseCabinet = Readonly<{ state: "open" | "bound" | "none"; refusal: StudentCaseAccountRefusal | null }>;
+export type StudentCaseCabinet = Readonly<{
+  state: "open" | "bound" | "none";
+  refusal: StudentCaseAccountRefusal | null;
+  /** Чем студент входит (344): логин, иначе его почта; служебная почта сюда не попадает. */
+  login: string | null;
+  email: string | null;
+}>;
 export type CaseCabinetView = "form" | "open" | StudentCaseAccountRefusal;
 
 /**
@@ -117,6 +123,29 @@ export function caseAccountNamePrefill(
 export function hasTemporaryPassword(appMetadata: unknown): boolean {
   return typeof appMetadata === "object" && appMetadata !== null
     && (appMetadata as Record<string, unknown>)[TEMPORARY_PASSWORD_FLAG] === true;
+}
+
+/** Сброс пароля студента администратором (344): новый временный пароль виден один раз и нигде не хранится. */
+export type StudentPasswordResetActionState =
+  | Readonly<{ status: "idle"; requestId: string }>
+  | Readonly<{ status: "reset"; requestId: string; password: string }>
+  // «already_reset»: этот запрос уже сбросил пароль, но ответ потерялся — пароль не показать, нужен новый сброс.
+  | Readonly<{ status: "already_reset" | "invalid" | "forbidden" | "no_cabinet" | "unavailable"; requestId: string }>;
+
+/** Сообщение для WhatsApp после сброса: чем входить (логин или почта) и новый временный пароль. */
+export function studentPasswordResetMessage(
+  signIn: Readonly<{ login: string | null; email: string | null }>,
+  password: string,
+  portalOrigin: string,
+): string {
+  const line = signIn.login ? `Логин: ${signIn.login}
+` : signIn.email ? `Почта: ${signIn.email}
+` : "";
+  return `Здравствуйте! Пароль от вашего кабинета EVO сброшен: ${portalOrigin}/login
+`
+    + `${line}Временный пароль: ${password}
+`
+    + "При входе придумайте свой пароль.";
 }
 
 /** Сообщение для WhatsApp с логином и временным паролем. */

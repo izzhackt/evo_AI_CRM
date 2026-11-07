@@ -107,6 +107,11 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // through to the `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 343 («Кабинет студенту, у которого уже есть дело») adds no action: `platform.complete_student_case_account_v1`
 // writes the same `student.account.create` and, like the invite finalize, `student.portal.authority.activate` on the case.
+// Migration 344 («Сброс пароля студента администратором») adds one action, `student.password.reset` (written by
+// `platform.complete_student_password_reset_v1`: one row per temporary password an administrator gives a student), by the
+// same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
+// row keeps only the student's Auth user, never the password. It falls through to the `["record_status"]` default of
+// `expectedChangedFieldCodes`.
 // Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
 // (миграция 323)») adds one action, `report.link.change` (written by
 // `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),
@@ -334,6 +339,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "staff.task.edit",
   "staff.task.status",
   "student.account.create",
+  "student.password.reset",
   "student.portal.authority.activate",
   "student.profile.export.attempted",
   "student.profile.export.failed",

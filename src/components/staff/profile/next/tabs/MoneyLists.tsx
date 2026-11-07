@@ -1,9 +1,11 @@
 import { StatusBadge } from "@/components/kit/StatusBadge";
 import { financeMoney, type CaseAgreement } from "@/lib/platform-case-agreement-contract";
+import type { PendingReceipt } from "@/lib/platform-pending-receipts-contract";
 
 import { CaseAgreementPaymentForm, CaseAgreementTrancheEditor } from "../../CaseAgreementForms";
 import { CasePaymentReceiptUpload } from "../../CasePaymentReceiptUpload";
 import { CASE_MONEY_ROW_ACTION, caseMoneySummary, caseTrancheState, moneyDay } from "../../case-money-view";
+import { PendingReceiptsCard } from "../../PendingReceiptsCard";
 import { NamedCard } from "../NamedCard";
 
 // Строки траншей и оплат: на узкой карточке - перенос по словам, от 56rem карточки - колонки, суммы по правому краю своей колонки.
@@ -11,7 +13,7 @@ import { NamedCard } from "../NamedCard";
 const TRANCHE_ROW = "flex flex-wrap items-center gap-x-4 py-1 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_8.5rem_5.5rem_minmax(0,15rem)_5rem]";
 const PAYMENT_ROW = "flex flex-wrap items-center gap-x-4 py-1 @4xl:grid @4xl:grid-cols-[4rem_8.5rem_minmax(0,1fr)_auto]";
 
-type Props = Readonly<{ agreement: CaseAgreement; canWrite: boolean; today: string }>;
+type Props = Readonly<{ agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[] }>;
 
 /** «Транши»: строки те же, что у прежней сводки, редактор транша - прежняя форма (`CaseAgreementTrancheEditor`). */
 export function TranchesCard({ agreement, canWrite, today }: Props) {
@@ -54,7 +56,7 @@ export function TranchesCard({ agreement, canWrite, today }: Props) {
 }
 
 /** «Оплаты и чеки»: оплата или возврат, транш и кто внёс, чек; форма «Внести оплату» - прежняя (`CaseAgreementPaymentForm`). */
-export function PaymentsCard({ agreement, canWrite, today }: Props) {
+export function PaymentsCard({ agreement, canWrite, today, pendingReceipts = [] }: Props) {
   const caseId = agreement.studentCaseId;
   const trancheLabel = new Map(agreement.tranches.map((tranche) => [tranche.id, tranche.label]));
   return (
@@ -81,6 +83,7 @@ export function PaymentsCard({ agreement, canWrite, today }: Props) {
         ))}
         {agreement.payments.length === 0 ? <li className="py-2.5 t-body-compact text-fg-3">Оплат ещё нет.</li> : null}
       </ul>
+      <PendingReceiptsCard receipts={pendingReceipts} payments={agreement.payments} canWrite={canWrite} today={today} />
       {canWrite && agreement.tranches.length > 0 ? <CaseAgreementPaymentForm studentCaseId={caseId} tranches={agreement.tranches} /> : null}
     </NamedCard>
   );

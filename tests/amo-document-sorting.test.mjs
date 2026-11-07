@@ -390,3 +390,66 @@ test("accept: a same-name item (empty or not) blocks, the decision write is retr
   assert.ok(ui.indexOf("refresh();", ui.indexOf("catch { stopped = OUTCOME_TEXT.unavailable; }")) > ui.indexOf("catch { stopped = OUTCOME_TEXT.unavailable; }"), "the panel is refreshed after a failure in the middle too");
   assert.match(ui, /Файл принят, но отметка о решении не записалась/);
 });
+
+// Виды документов дела (миграции 348-349, решение владельца 08.11.2026): «Договор», «Чек об оплате», «Не нужное», «Другое…».
+test("staff kinds: the AI list is unchanged, the manual extras are contract / other / not_needed, and the 348 check lists exactly them", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/348_platform_document_finance_kinds.sql", import.meta.url), "utf8");
+  const listed = (pattern) => [...sql.match(pattern)[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+  const expectedKinds = [...kinds.DOCUMENT_KINDS.map((kind) => kind.key), ...kinds.STAFF_EXTRA_KINDS.map((kind) => kind.key)];
+  assert.deepEqual(listed(/ADD CONSTRAINT document_classification_resolutions_chosen_kind_check CHECK \(chosen_kind_key IN \(([^)]*)\)/), [
+    ...kinds.DOCUMENT_KINDS.map((kind) => kind.key), "contract", "other", "not_needed"]);
+  assert.equal(expectedKinds.length, 16);
+  const resolveList = new Set([...sql.match(/p_kind_key NOT IN \(([^)]*)\)/)[1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]));
+  const accepted = new Set(listed(/ADD CONSTRAINT document_classification_resolutions_chosen_kind_check CHECK \(chosen_kind_key IN \(([^)]*)\)/));
+  assert.deepEqual([...resolveList].sort(), [...accepted].sort(), "the RPC accepts exactly what the table accepts");
+  for (const key of [...kinds.DOCUMENT_KINDS.map((kind) => kind.key), "contract", "other", "not_needed"]) assert.ok(accepted.has(key), key);
+  assert.equal(kinds.DOCUMENT_KINDS.length, 13, "the AI kinds did not change");
+  assert.equal(kinds.isDocumentKindKey("contract"), false, "the model never suggests contract");
+  assert.equal(kinds.DOCUMENT_CLASSIFICATION_KEYS.includes("contract"), false);
+  assert.deepEqual(kinds.STAFF_EXTRA_KINDS.map((kind) => kind.label), ["Договор", "Другое…", "Не нужное"]);
+  assert.equal(kinds.isAcceptKindKey("contract") && kinds.isAcceptKindKey("not_needed") && kinds.isAcceptKindKey("passport"), true);
+  assert.equal(kinds.isAcceptKindKey("driving"), false);
+});
+
+test("dedupe: receipts, contract and custom names are exempt; the passport and the other single documents keep the guard", () => {
+  for (const kind of ["payment_receipt", "contract", "other"]) assert.equal(kinds.dedupeAppliesTo(kind), false, kind);
+  for (const kind of kinds.DOCUMENT_KINDS.map((item) => item.key).filter((key) => key !== "payment_receipt")) assert.equal(kinds.dedupeAppliesTo(kind), true, kind);
+  assert.equal(kinds.isFinanceKind("contract") && kinds.isFinanceKind("payment_receipt"), true);
+  assert.equal(kinds.isFinanceKind("passport") || kinds.isFinanceKind("other") || kinds.isFinanceKind("not_needed"), false);
+});
+
+test("custom name: trimmed, collapsed, 1-120 characters, no control characters", () => {
+  assert.equal(kinds.normalizeCustomDocumentLabel("  Справка   из банка  "), "Справка из банка");
+  assert.equal(kinds.normalizeCustomDocumentLabel("a".repeat(120)), "a".repeat(120));
+  for (const bad of ["", "   ", "a".repeat(121), "a\nb", "a\u0000b", null, undefined, 7]) assert.equal(kinds.normalizeCustomDocumentLabel(bad), null, String(bad));
+});
+
+test("the accept action: finance gate before any change, dedupe through the exemption, removal through the existing soft command", () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const actions = read("../src/lib/platform-document-sorting-actions.ts");
+  assert.ok(actions.indexOf("finance_forbidden") < actions.indexOf("getPlatformCaseDocumentWorkspace(actor"), "the permission gate runs before any read or write of the file");
+  assert.match(actions, /isFinanceKind\(kind\) && !\(await financeWritable\(/);
+  assert.match(actions, /dedupeAppliesTo\(kind\) && workspace\.slots\.some\(\(item\) => item\.documentSlotId !== slotId && item\.requirementLabel === label\)\) return "target_exists"/);
+  assert.match(actions, /rpc\("remove_document_slot"/, "«Не нужное» uses the existing soft removal, never a delete");
+  assert.equal(/\.delete\(|DELETE FROM/i.test(actions), false);
+  assert.ok(actions.indexOf("sendDocumentToFinance(") < actions.indexOf('rpc("change_document_slot_metadata"'), "money first: a failed hand-off leaves the file in the sorting list for a safe retry");
+  const handoff = read("../src/lib/server/document-finance-handoff.ts");
+  assert.match(handoff, /\.copy\(source\.object_name, objectName\)/, "Storage copy inside the bucket, no bytes read");
+  assert.match(handoff, /versionId\.toLowerCase\(\)\}`/, "the target object name derives from the file version: a repeat cannot create a second contract");
+  assert.match(handoff, /record_case_contract_file_metadata/);
+  assert.match(handoff, /record_pending_receipt_v1/);
+  assert.match(handoff, /can_write === true/, "the same gate as the 189 upload routes");
+  assert.equal(sortingRequestId(uuid(1), "contract", "finance"), sortingRequestId(uuid(1), "contract", "finance"));
+});
+
+test("the sorting card offers the new kinds quietly: one select, a name field only for «Другое…», a confirm only for «Не нужное»", () => {
+  const ui = readFileSync(new URL("../src/components/staff/profile/AmoDocumentSorting.tsx", import.meta.url), "utf8");
+  assert.match(ui, /STAFF_EXTRA_KINDS\.map\(\(kind\) => <option/);
+  assert.match(ui, /pickedKind === "other" \?/);
+  assert.match(ui, /maxLength=\{CUSTOM_DOCUMENT_LABEL_MAX\}/);
+  assert.match(ui, /confirmRemove/);
+  assert.match(ui, /finance_forbidden:/);
+  assert.match(ui, /finance_failed:/);
+  assert.match(ui, /Станет договором дела в «Деньги»/);
+  assert.match(ui, /form\.set\("custom_label", label\)/, "the exact-field action always receives the custom_label field");
+});

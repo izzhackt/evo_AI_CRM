@@ -49,8 +49,11 @@ export type SalesRegisterWorkspace = Readonly<{
 }>;
 export type SalesRegisterIntakeOptions = Readonly<{
   curators: readonly Readonly<{ id: string; label: string }>[];
-  /** `applicationCountry` — первая страна анкеты лида, код («CN»); null — анкеты нет или ответ 174. */
-  leads: readonly Readonly<{ id: string; label: string; phone: string; ownerId: string; applicationCountry: string | null }>[];
+  /**
+   * `applicationCountry` — первая страна анкеты лида, код («CN»); null — анкеты нет или ответ 174.
+   * `ownerId` null — у лида нет ответственного: им станет тот, кто сохранит продажу (339).
+   */
+  leads: readonly Readonly<{ id: string; label: string; phone: string; ownerId: string | null; applicationCountry: string | null }>[];
   /** Куратор страны (v2, 335): только тот, кто есть в `curators`; у ответа 174 пусто. */
   countryCurators: Readonly<Partial<Record<"CN" | "MY", string>>>;
 }>;
@@ -86,7 +89,8 @@ export function parseSalesRegisterIntakeOptions(raw: unknown, organizationId: st
       const row = exact(value, hasCountry ? ["id", "label", "phone", "owner_id", "application_country"] : ["id", "label", "phone", "owner_id"]);
       const country = row.application_country;
       return {
-        id: uuid(row.id), label: str(row.label, 1000), phone: str(row.phone, 100), ownerId: uuid(row.owner_id),
+        id: uuid(row.id), label: str(row.label, 1000), phone: str(row.phone, 100),
+        ownerId: row.owner_id === null ? null : uuid(row.owner_id),
         applicationCountry: country === undefined || country === null ? null
           : typeof country === "string" && APPLICATION_COUNTRY.test(country) ? country : fail(),
       };

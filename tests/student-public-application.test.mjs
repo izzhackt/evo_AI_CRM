@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as crypto from "node:crypto";
 import { randomUUID } from "node:crypto";
 import * as signupContract from "../src/lib/student-signup-confirmation-contract.ts";
 import * as signupCapability from "../src/lib/server/student-signup-confirmation-capability.ts";
@@ -16,6 +17,7 @@ import * as requestIds from "../src/lib/request-id.ts";
 import * as sessionCookie from "../src/lib/session-cookie.ts";
 import * as requestTiming from "../src/lib/request-timing.ts";
 import * as accountDeletion from "../src/lib/account-deletion-contract.ts";
+import * as aiConsentContract from "../src/lib/portal/ai-consent.ts";
 
 const REQUEST = "10000000-0000-4000-8000-000000000001";
 const USER = "10000000-0000-4000-8000-000000000002";
@@ -35,9 +37,11 @@ function form(values) {
   for (const [key, value] of Object.entries(values)) result.set(key, value);
   return result;
 }
-// The wizard always posts `invite` (341): the personal registration link, empty for a signed-in applicant.
+// The wizard always posts `invite` (341): the personal registration link, empty for a signed-in applicant; and
+// `ai_consent` (345): «granted» once the required AI-assistants box is ticked.
 function registration(overrides = {}) {
-  return form({ questionnaire: JSON.stringify(draft()), email: EMAIL, password: PASSWORD, expected_revision: "0", invite: "", ...overrides });
+  return form({ questionnaire: JSON.stringify(draft()), email: EMAIL, password: PASSWORD, expected_revision: "0", invite: "",
+    ai_consent: "granted", ...overrides });
 }
 function identity(overrides = {}) {
   return { id: USER, email: EMAIL, email_confirmed_at: "2026-09-18T10:00:00Z", user_metadata: { [contract.STUDENT_APPLICATION_METADATA_KEY]: draft() }, ...overrides };
@@ -93,8 +97,19 @@ function harness(options = {}) {
       return options.authority ?? { status: "invalid", authority: null };
     },
   };
+  // 345: the real AI-consent helper; only the RPC write is observed.
+  const aiConsent = compile("src/lib/server/student-registration-ai-consent.ts", {
+    "node:crypto": crypto, "../portal/ai-consent": aiConsentContract, "../student-application-contract": contract,
+    "../portal/ai-consent-rpc": {
+      writeAiConsentWith: async (received, status, requestId) => {
+        assert.equal(received, client); calls.push(["aiConsent", status, requestId]);
+        return options.aiConsentWrite ?? { ok: true };
+      },
+    },
+  });
   const runtime = compile("src/lib/server/student-signup-runtime.ts", {
     "../student-application-contract": contract, "../v3/student-application-source": source,
+    "./student-registration-ai-consent": aiConsent,
     "../platform-public-origin": origins,
     "../supabase/platform-authority": {
       readVerifiedPlatformAuthority: async (received, claims) => {
@@ -110,6 +125,7 @@ function harness(options = {}) {
     "./platform-supabase-backend-config": backendConfig,
     "./platform-supabase-service-client": backendClient,
     "./student-signup-runtime": runtime,
+    "./student-registration-ai-consent": aiConsent,
     "./student-signup-confirmation-config.ts": signupConfig,
     // 341: the registration link (server reads); this harness checks the account steps, not the link itself.
     "./student-registration-link": options.registrationLink ?? {
@@ -132,6 +148,7 @@ function harness(options = {}) {
     "next/navigation": { redirect: (destination) => { throw Object.assign(new Error("redirect"), { destination }); } },
     "next/cache": { revalidatePath: (path) => calls.push(["revalidate", path]) },
     "./server/action-form-fields": fields, "./server/student-signup-runtime": runtime,
+    "./server/student-registration-ai-consent": aiConsent,
     "./server/student-signup-confirmation-runtime": confirmationRuntime,
     "./server/student-signup-confirmation-web": {
       readPendingStudentSignup: async () => null, // This retained harness has no pending browser cookie.
@@ -347,6 +364,62 @@ function proxyHarness({ claimsError = null } = {}) {
 function publicRequest(path, { host = "app.evoadmissions.com", method = "GET", cookie } = {}) {
   return new NextRequest(`https://${host}${path}`, { method, headers: { host, "x-request-id": "signup-proxy-test", ...(cookie ? { cookie } : {}) } });
 }
+
+const AI_KEY = contract.STUDENT_AI_CONSENT_METADATA_KEY;
+const aiChoice = (overrides = {}) => ({ status: "granted", policyVersion: aiConsentContract.AI_CONSENT_POLICY_VERSION,
+  requestId: "10000000-0000-4000-8000-0000000000a1", ...overrides });
+
+test("345: the last step needs both boxes — without the AI box or with the old consent text nothing reaches Auth", async () => {
+  for (const fieldsOverride of [{ ai_consent: "" }, { ai_consent: "declined" },
+    { questionnaire: JSON.stringify(draft({ consentVersion: "2026-09-18" })) }]) {
+    const run = harness({ identities: [verified()] });
+    assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration(fieldsOverride)), { status: "invalid" },
+      JSON.stringify(fieldsOverride).slice(0, 60));
+    assert.deepEqual(run.calls, [], "refused before any client is opened");
+  }
+  const missing = registration();
+  missing.delete("ai_consent");
+  const run = harness({ identities: [verified()] });
+  assert.deepEqual(await run.registerStudentAction({ status: "idle" }, missing), { status: "invalid" }, "a form without the box (old tab)");
+  assert.ok(contract.validateStudentApplicationDraft(draft({ consentVersion: "2026-09-18" })), "the server still reads stored and native анкеты");
+  assert.equal(contract.validateStudentApplicationDraft(draft({ consentVersion: "2026-01-01" })), null);
+});
+
+test("345: a signed-in applicant's AI consent is written as the student right after the анкета", async () => {
+  const run = harness({ identities: [verified()] });
+  await assert.rejects(run.registerStudentAction({ status: "idle" }, registration({ password: "" })), redirectsTo("/apply/status"));
+  const names = callNames(run);
+  assert.ok(names.indexOf("aiConsent") > names.indexOf("submit"), "after the анкета is saved");
+  const [, status, requestId] = run.calls.find(([name]) => name === "aiConsent");
+  assert.equal(status, "granted");
+  assert.ok(aiConsentContract.isAiConsentRequestId(requestId) && requestId !== REQUEST);
+  const again = harness({ identities: [verified()] });
+  await assert.rejects(again.registerStudentAction({ status: "idle" }, registration({ password: "" })), redirectsTo("/apply/status"));
+  assert.equal(again.calls.find(([name]) => name === "aiConsent")[2], requestId, "a retry repeats the same request");
+  const failed = harness({ identities: [verified()], aiConsentWrite: { ok: false } });
+  await assert.rejects(failed.registerStudentAction({ status: "idle" }, registration({ password: "" })), redirectsTo("/apply/status"),
+    "a failed AI write never undoes the анкета");
+});
+
+test("345: the confirmed sign-in writes the saved AI choice once and clears only its key", async () => {
+  const fresh = harness({ identities: [verified(identity({ user_metadata: { [contract.STUDENT_APPLICATION_METADATA_KEY]: draft(), [AI_KEY]: aiChoice() } }))] });
+  assert.equal(await fresh.resume(), "saved");
+  assert.deepEqual(callNames(fresh), ["getUser", "readOwn", "submit", "updateUser", "aiConsent", "updateUser"]);
+  assert.deepEqual(fresh.calls.at(-2), ["aiConsent", "granted", aiChoice().requestId]);
+  assert.deepEqual(fresh.calls.at(-1), ["updateUser", { data: { [AI_KEY]: null } }]);
+  const existing = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: aiChoice() } }))], existing: { id: REQUEST, status: "pending" } });
+  assert.equal(await existing.resume(), "saved");
+  assert.deepEqual(callNames(existing), ["getUser", "readOwn", "aiConsent", "updateUser"], "a lost answer after submit still records the choice");
+  for (const stale of [aiChoice({ policyVersion: "2026-01-01" }), aiChoice({ status: "declined" }), aiChoice({ requestId: "x" })]) {
+    const run = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: stale } }))], existing: { id: REQUEST, status: "pending" } });
+    assert.equal(await run.resume(), "saved");
+    assert.deepEqual(callNames(run), ["getUser", "readOwn"], "only a well-formed choice for the current text is written");
+  }
+  const failed = harness({ identities: [verified(identity({ user_metadata: { [AI_KEY]: aiChoice() } }))], existing: { id: REQUEST, status: "pending" },
+    aiConsentWrite: { ok: false } });
+  assert.equal(await failed.resume(), "saved");
+  assert.deepEqual(callNames(failed), ["getUser", "readOwn", "aiConsent"], "the key stays until the database confirms");
+});
 
 test("actual proxy admits anonymous application entry and canonicalizes staff-host GET without forwarding POST", async () => {
   const run = proxyHarness();

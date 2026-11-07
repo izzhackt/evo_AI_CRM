@@ -159,12 +159,17 @@ test("apply ru option labels mirror APPLICATION_LABELS byte-for-byte", () => {
   assert.notEqual(ky["opt.CN"], ru["opt.CN"]);
   assert.notEqual(ky["opt.autumn"], ru["opt.autumn"]);
   // Якорные строки формы: RU остаётся байт-в-байт прежним (HARD-ограничение
-  // PORT-8c — существующие RU-тексты анкеты не меняются).
+  // PORT-8c — существующие RU-тексты анкеты не меняются). Исключение по решению
+  // пользователя 07.11.2026 (345): согласие анкеты принимает ещё и Политику
+  // конфиденциальности ({policy} — ссылка), новая версия согласия.
   assert.equal(ru["question.account"], "Создайте аккаунт EVO");
   assert.equal(
     ru.consentLabel,
-    "Согласен передать анкету команде EVO для рассмотрения заявки и связи со мной по вопросам поступления.",
+    "Согласен передать анкету команде EVO для рассмотрения заявки и связи со мной по вопросам поступления и принимаю {policy}.",
   );
+  assert.equal(ru.consentPolicyLink, "Политику конфиденциальности");
+  assert.ok(ky.consentLabel.includes("{policy}") && ky.aiConsentLabel.includes("Anthropic (Claude, АКШ)"));
+  assert.ok(ru.aiConsentLabel.includes("Anthropic (Claude, США) и Google (Gemini)"), "the AI box names who processes the data");
   assert.equal(ru.stepOf, "Шаг {step} из 9");
 });
 

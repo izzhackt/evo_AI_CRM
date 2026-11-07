@@ -5293,6 +5293,30 @@ SQL
       exit 1
     fi
   fi
+  # «Согласия при регистрации» (migration 345, решение 07.11.2026). Matched by name, not number. The migration patches two
+  # function bodies by checked fragments: right after it a second apply refuses (a345_already_applied), then the suite,
+  # insisting on its marker. The suite proves: the анкета accepts the new consent version (with the Privacy Policy) and the
+  # old one, refuses any other, and the approval records the version the student actually accepted.
+  if [[ "$(basename "$migration")" == *_platform_registration_consents.sql ]]; then
+    t345_again_log="$(mktemp -t evo-t345-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t345_again_log" 2>&1; then
+      echo "migration 345 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a345_already_applied" "$t345_again_log"; then
+      echo "a second apply of migration 345 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t345_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t345_again_log"
+    registration_consents_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_registration_consents.sql </dev/null)"
+    printf '%s
+' "$registration_consents_log"
+    if ! grep -q 'A345_REGISTRATION_CONSENTS_SUITE_PASSED' <<<"$registration_consents_log"; then
+      echo "platform_registration_consents.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the

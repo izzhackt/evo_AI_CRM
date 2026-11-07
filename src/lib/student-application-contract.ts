@@ -2,7 +2,18 @@ import { STUDY_COUNTRY_CODES, STUDY_COUNTRY_UNDECIDED } from "./study-countries.
 
 export const STUDENT_APPLICATION_METADATA_KEY = "student_application_draft";
 export const STUDENT_APPLICATION_NATIONALITIES = "AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BV BR IO BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF TF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT HM VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA GS SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UM UY UZ VU VE VN VG VI WF EH YE ZM ZW".split(" ");
-export const STUDENT_APPLICATION_CONSENT_VERSION = "2026-09-18";
+/** 345 (07.11.2026): обязательное согласие анкеты принимает ещё и Политику конфиденциальности. */
+export const STUDENT_APPLICATION_CONSENT_VERSION = "2026-11-07";
+/**
+ * Прежняя версия согласия (без политики). Её шлют сохранённые анкеты, вкладка, открытая до выката, и сборки iPhone,
+ * поэтому сервер её принимает, как CHECK таблицы после 345; веб новую анкету отправляет только с текущей версией.
+ */
+export const STUDENT_APPLICATION_LEGACY_CONSENT_VERSIONS: readonly string[] = Object.freeze(["2026-09-18"]);
+/**
+ * Согласие на ИИ-помощников, данное при регистрации (345): до подтверждения почты сессии нет, поэтому выбор ждёт в
+ * user_metadata рядом с черновиком анкеты и записывается командой 320 от имени студента при первом входе.
+ */
+export const STUDENT_AI_CONSENT_METADATA_KEY = "student_ai_consent_choice";
 /**
  * Страны, которые анкета предлагает: единый список продукта
  * (study-countries.json) и «Пока не решил», который выбирается только один.
@@ -32,7 +43,7 @@ export type StudentApplicationDraft = {
   educationLevel: typeof STUDENT_APPLICATION_EDUCATION_LEVELS[number]; averageGrade: number; gradeScale: typeof STUDENT_APPLICATION_GRADE_SCALES[number];
   studyFields: string[]; studyLevels: string[]; nationality: string; english: StudentApplicationEnglish;
   tuitionBudget: typeof STUDENT_APPLICATION_TUITION_BUDGETS[number]; fundingSource: typeof STUDENT_APPLICATION_FUNDING_SOURCES[number];
-  consent: true; consentVersion: typeof STUDENT_APPLICATION_CONSENT_VERSION;
+  consent: true; consentVersion: typeof STUDENT_APPLICATION_CONSENT_VERSION | "2026-09-18";
 };
 export type StudentApplication = {
   id: string; status: "pending" | "approved" | "rejected"; revision: number; email: string;
@@ -100,7 +111,8 @@ export function validateStudentApplicationDraft(value: unknown): StudentApplicat
     || typeof value.nationality !== "string" || !STUDENT_APPLICATION_NATIONALITIES.includes(value.nationality)
     || !oneOf(STUDENT_APPLICATION_TUITION_BUDGETS, value.tuitionBudget)
     || !oneOf(STUDENT_APPLICATION_FUNDING_SOURCES, value.fundingSource)
-    || value.consent !== true || value.consentVersion !== STUDENT_APPLICATION_CONSENT_VERSION
+    || value.consent !== true || typeof value.consentVersion !== "string"
+    || ![STUDENT_APPLICATION_CONSENT_VERSION, ...STUDENT_APPLICATION_LEGACY_CONSENT_VERSIONS].includes(value.consentVersion)
     || !isStudentApplicationRecord(value.english)) return null;
   const english = value.english;
   if (english.mode === "self") {

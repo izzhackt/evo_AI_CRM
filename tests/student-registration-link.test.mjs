@@ -2,12 +2,14 @@
 // Production functions run here against observed fakes of the service client; the database side (hash, one use,
 // the анкета at the link's lead) is proven by supabase/tests/platform_student_registration_links.sql.
 import assert from "node:assert/strict";
+import * as crypto from "node:crypto";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
 import * as contract from "../src/lib/student-application-contract.ts";
+import * as aiConsentContract from "../src/lib/portal/ai-consent.ts";
 
 const EMAIL = "student@example.test";
 const PASSWORD = "a-long-enough-password";
@@ -36,6 +38,7 @@ function draft() {
 
 function harness({ check = { status: "valid", displayName: null }, consume = "consumed", claimError = null } = {}) {
   const calls = [];
+  const metadata = [];
   const rpc = (name, args) => ({
     abortSignal: async () => {
       calls.push(["rpc", name, args]);
@@ -49,6 +52,7 @@ function harness({ check = { status: "valid", displayName: null }, consume = "co
     auth: { admin: {
       async createUser(input) {
         calls.push(["createUser", input.email]);
+        metadata.push(input.user_metadata);
         return { data: { user: { id: USER, email: input.email, email_confirmed_at: null, is_anonymous: false, invited_at: null } }, error: null };
       },
       async deleteUser(id) { calls.push(["deleteUser", id]); return { data: {}, error: null }; },
@@ -61,12 +65,16 @@ function harness({ check = { status: "valid", displayName: null }, consume = "co
     "./platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => service },
     "./student-signup-runtime": { isPasswordProvisionedStaff: () => false, logStudentSignupFailure: (stage) => calls.push(["log", stage]) },
     "./student-signup-confirmation-config.ts": { getStudentSignupConfirmationRuntimeConfig: () => ({}) },
+    "./student-registration-ai-consent": compile("src/lib/server/student-registration-ai-consent.ts", {
+      "node:crypto": crypto, "../portal/ai-consent": aiConsentContract, "../student-application-contract": contract,
+      "../portal/ai-consent-rpc": { writeAiConsentWith: async () => { throw new Error("no AI write while creating the account"); } },
+    }),
     "./student-registration-link": {
       checkRegistrationLink: async (token) => { calls.push(["check", token]); return check; },
       consumeRegistrationLink: async (token, id) => { calls.push(["consume", token, id]); return consume; },
     },
   });
-  return { calls, create: (invite) => registration.createPublicStudentAccount(EMAIL, PASSWORD, draft(), invite) };
+  return { calls, metadata, create: (invite, aiConsent) => registration.createPublicStudentAccount(EMAIL, PASSWORD, draft(), invite, aiConsent) };
 }
 const names = (calls) => calls.map((call) => (call[0] === "rpc" ? `rpc:${call[1]}` : call[0]));
 
@@ -123,4 +131,21 @@ test("the link itself: 32 random base64url characters; only its sha256 leaves th
   assert.equal(link.registrationTokenHash("short"), null);
   assert.equal(link.registrationTokenHash(`${token}!`), null);
   assert.equal(link.registrationLinkUrl(token), `https://app.example.test/apply?invite=${token}`);
+});
+
+test("345: the website account keeps the required AI choice next to the анкета draft until the confirmed sign-in", async () => {
+  const web = harness();
+  assert.equal((await web.create("TOKEN", true)).status, "created");
+  const [saved] = web.metadata;
+  assert.deepEqual(Object.keys(saved).sort(), [contract.STUDENT_AI_CONSENT_METADATA_KEY, contract.STUDENT_APPLICATION_METADATA_KEY].sort());
+  const choice = saved[contract.STUDENT_AI_CONSENT_METADATA_KEY];
+  assert.equal(choice.status, "granted");
+  assert.equal(choice.policyVersion, aiConsentContract.AI_CONSENT_POLICY_VERSION, "the same text version as the cabinet card");
+  assert.ok(aiConsentContract.isAiConsentRequestId(choice.requestId) && choice.requestId !== draft().requestId);
+  const again = harness();
+  await again.create("TOKEN", true);
+  assert.equal(again.metadata[0][contract.STUDENT_AI_CONSENT_METADATA_KEY].requestId, choice.requestId, "one анкета, one consent request");
+  const phone = harness();
+  await phone.create(null);
+  assert.deepEqual(Object.keys(phone.metadata[0]), [contract.STUDENT_APPLICATION_METADATA_KEY], "the iPhone app keeps its own card");
 });

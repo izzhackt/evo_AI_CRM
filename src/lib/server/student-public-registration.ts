@@ -1,12 +1,16 @@
 import "server-only";
 
 import { studentLoginBase } from "../student-login";
-import { isStudentApplicationUuid, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft, type StudentApplicationDraft } from "../student-application-contract";
+import {
+  isStudentApplicationUuid, STUDENT_AI_CONSENT_METADATA_KEY, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft,
+  type StudentApplicationDraft,
+} from "../student-application-contract";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client";
 import { isPasswordProvisionedStaff, logStudentSignupFailure } from "./student-signup-runtime";
 import { getStudentSignupConfirmationRuntimeConfig } from "./student-signup-confirmation-config.ts";
 import { checkRegistrationLink, consumeRegistrationLink } from "./student-registration-link";
+import { registrationAiConsentChoice } from "./student-registration-ai-consent";
 
 type StudentAccountCreation = { status: "created"; authUserId: string }
   | { status: "invalid" | "password" | "password_too_long" | "rate_limit" | "conflict" | "unavailable" | "create_unknown" | "invite" };
@@ -17,9 +21,10 @@ type StudentAccountCreation = { status: "created"; authUserId: string }
  * before anything is written and used right after the identity exists; if it cannot be used, that fresh identity is
  * removed again. `invite` null is the iPhone app, which has no link field yet: unchanged until the app gets one.
  * The student's login (name.surname, 340) is claimed last; without it the student still signs in by e-mail.
+ * 345: the website's required AI-assistants consent waits in user_metadata until the confirmed student signs in.
  */
 export async function createPublicStudentAccount(
-  email: string, password: string, draft: StudentApplicationDraft, invite: string | null,
+  email: string, password: string, draft: StudentApplicationDraft, invite: string | null, aiConsent = false,
 ): Promise<StudentAccountCreation> {
   if (email !== email.trim().toLowerCase() || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     || !validateStudentApplicationDraft(draft)) return { status: "invalid" };
@@ -51,7 +56,10 @@ export async function createPublicStudentAccount(
     // every duplicate, including an unconfirmed staff or Student invitation.
     const { data, error } = await service.auth.admin.createUser({
       email, password, email_confirm: false,
-      user_metadata: { [STUDENT_APPLICATION_METADATA_KEY]: draft },
+      user_metadata: {
+        [STUDENT_APPLICATION_METADATA_KEY]: draft,
+        ...(aiConsent ? { [STUDENT_AI_CONSENT_METADATA_KEY]: registrationAiConsentChoice(draft.requestId) } : {}),
+      },
     });
     if (error) {
       logStudentSignupFailure(stage, error);

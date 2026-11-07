@@ -7,8 +7,9 @@ import { exactActionStringFields } from "./server/action-form-fields";
 import { logStudentSignupFailure, studentApplicationEntryRedirect } from "./server/student-signup-runtime";
 import { beginStudentSignup } from "./server/student-signup-confirmation-runtime";
 import { readPendingStudentSignup, rememberStudentSignup } from "./server/student-signup-confirmation-web";
+import { recordRegistrationAiConsent, registrationAiConsentChoice } from "./server/student-registration-ai-consent";
 import type { SignupFailure, SignupPending } from "./student-signup-confirmation-state";
-import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
+import { STUDENT_APPLICATION_CONSENT_VERSION, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
 import { studentInviteCallbackUrl } from "./student-invite-callback-contract";
 import { createSupabaseServerClient } from "./supabase/server";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
@@ -30,14 +31,17 @@ async function validStudentOrigin(): Promise<boolean> {
 
 export async function registerStudentAction(_previous: StudentSignupState, form: FormData): Promise<StudentSignupState> {
   if (!await validStudentOrigin()) return { status: "invalid" };
-  const fields = exactActionStringFields(form, ["questionnaire", "email", "password", "expected_revision", "invite"]);
+  const fields = exactActionStringFields(form, ["questionnaire", "email", "password", "expected_revision", "invite", "ai_consent"]);
   if (!fields || (fields.get("questionnaire")?.length ?? 0) > 12000) return { status: "invalid" };
   let draft;
   try { draft = validateStudentApplicationDraft(JSON.parse(fields.get("questionnaire")!)); } catch { return { status: "invalid" }; }
   const email = fields.get("email")!.trim().toLowerCase();
   const password = fields.get("password")!;
   const revision = Number(fields.get("expected_revision"));
-  if (!draft || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
+  // 345 (07.11.2026): both boxes of the last step are required — the Privacy Policy (the current consent version of the
+  // анкета) and the AI assistants. The server only takes the current version; old clients keep the native route.
+  if (!draft || draft.consentVersion !== STUDENT_APPLICATION_CONSENT_VERSION || fields.get("ai_consent") !== "granted"
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
     || !Number.isSafeInteger(revision) || revision < 0) return { status: "invalid" };
   let saved = false;
   let destination: string | null = null;
@@ -57,6 +61,8 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
         if (identity.user.email?.toLowerCase() !== email) return { status: "conflict" };
         stage = "submit_application";
         await submitStudentApplication(client, draft, revision);
+        // The анкета is saved either way; a failed AI write leaves the choice to the cabinet card and is logged.
+        if (!await recordRegistrationAiConsent(client, registrationAiConsentChoice(draft.requestId))) logStudentSignupFailure("ai_consent");
         try {
           const cleanup = await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
           if (cleanup.error) logStudentSignupFailure("metadata_cleanup", cleanup.error);
@@ -71,7 +77,7 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
       // 341: новый аккаунт — только по личной ссылке; без неё регистрации нет.
       const invite = fields.get("invite") ?? "";
       if (invite.length === 0) return { status: "invite" };
-      const created = await beginStudentSignup(email, password, draft, invite);
+      const created = await beginStudentSignup(email, password, draft, invite, true);
       return created.status === "pending_confirmation" ? await rememberStudentSignup(created) : created;
     }
   } catch (error) { logStudentSignupFailure(stage, error); return { status: stage === "create_confirmation" ? "create_unknown" : "unavailable" }; }

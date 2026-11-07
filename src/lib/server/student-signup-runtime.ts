@@ -3,8 +3,9 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { PRODUCTION_STAFF_ORIGIN } from "../platform-public-origin";
 import { readVerifiedPlatformAuthority } from "../supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "../supabase/student-portal-authority";
-import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "../student-application-contract";
+import { STUDENT_AI_CONSENT_METADATA_KEY, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "../student-application-contract";
 import { readOwnStudentApplication, submitStudentApplication } from "../v3/student-application-source";
+import { pendingRegistrationAiConsent, recordRegistrationAiConsent } from "./student-registration-ai-consent";
 
 /** The staff provisioner writes this protected marker; users cannot set it. */
 export function isPasswordProvisionedStaff(user: Pick<User, "app_metadata">): boolean {
@@ -47,7 +48,10 @@ export async function resumeStudentApplication(client: SupabaseClient, expectedA
   let existing;
   try { existing = await readOwnStudentApplication(client); }
   catch (readError) { logStudentSignupFailure("read_application", readError); throw readError; }
-  if (existing) return "saved";
+  if (existing) {
+    await applyRegistrationAiConsent(client, data.user);
+    return "saved";
+  }
   const draft = validateStudentApplicationDraft(data.user.user_metadata?.[STUDENT_APPLICATION_METADATA_KEY]);
   if (!draft) return "needs_draft";
   try { await submitStudentApplication(client, draft); }
@@ -57,5 +61,24 @@ export async function resumeStudentApplication(client: SupabaseClient, expectedA
     const cleanup = await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
     if (cleanup.error) logStudentSignupFailure("metadata_cleanup", cleanup.error);
   } catch (cleanupError) { logStudentSignupFailure("metadata_cleanup", cleanupError); }
+  await applyRegistrationAiConsent(client, data.user);
   return "saved";
+}
+
+/**
+ * 345: the required AI-assistants box of the registration, saved with the new account, is written as the student once
+ * a session exists; the key is cleared only after the database confirmed it. A failure is logged and never undoes the
+ * анкета: the cabinet card then asks again.
+ */
+async function applyRegistrationAiConsent(client: SupabaseClient, user: User): Promise<void> {
+  const choice = pendingRegistrationAiConsent(user);
+  if (!choice) return;
+  if (!await recordRegistrationAiConsent(client, choice)) {
+    logStudentSignupFailure("ai_consent");
+    return;
+  }
+  try {
+    const cleanup = await client.auth.updateUser({ data: { [STUDENT_AI_CONSENT_METADATA_KEY]: null } });
+    if (cleanup.error) logStudentSignupFailure("ai_consent_cleanup", cleanup.error);
+  } catch (cleanupError) { logStudentSignupFailure("ai_consent_cleanup", cleanupError); }
 }

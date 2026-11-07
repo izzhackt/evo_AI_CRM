@@ -62,12 +62,17 @@ async function dispatch(config: StudentSignupConfirmationConfig, payload: Signup
   }
 }
 
-/** `invite` — the website's personal registration link (341); null — the iPhone app, which has no link yet. */
-export async function beginStudentSignup(email: string, password: string, draft: StudentApplicationDraft, invite: string | null = null): Promise<NativeSignupPending | SignupFailure> {
+/**
+ * `invite` — the website's personal registration link (341); null — the iPhone app, which has no link yet.
+ * `aiConsent` — the website's required AI-assistants box (345); the iPhone app keeps its own card in the cabinet.
+ */
+export async function beginStudentSignup(
+  email: string, password: string, draft: StudentApplicationDraft, invite: string | null = null, aiConsent = false,
+): Promise<NativeSignupPending | SignupFailure> {
   let config: StudentSignupConfirmationConfig;
   try { config = getStudentSignupConfirmationRuntimeConfig(); }
   catch (error) { logStudentSignupFailure("confirmation_configuration", error); return { status: "unavailable" }; }
-  const result = await createPublicStudentAccount(email, password, draft, invite);
+  const result = await createPublicStudentAccount(email, password, draft, invite, aiConsent);
   if (result.status !== "created") return result;
   const issuedAt = clock();
   const payload = { attemptId: randomUUID(), authUserId: result.authUserId, email, issuedAt, expiresAt: issuedAt + SIGNUP_CAPABILITY_MAX_AGE_SECONDS };

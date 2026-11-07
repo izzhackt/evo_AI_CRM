@@ -42,7 +42,8 @@ const COPY: Record<
     accountDeleted: "Аккаунт удалён.",
     authUnavailable: "Сервис входа временно недоступен.",
     staffAccessDenied: "Аккаунт не имеет активного доступа к продукту EVO.",
-    email: "Логин",
+    // 07.11.2026: входят и логином (кабинет от администратора), и почтой (регистрация на сайте).
+    email: "Логин или почта",
     intro:
       "Для сотрудников и студентов EVO.",
     password: "Пароль",
@@ -59,7 +60,7 @@ const COPY: Record<
     accountDeleted: "Аккаунт өчүрүлдү.",
     authUnavailable: "Кирүү кызматы убактылуу жеткиликсиз.",
     staffAccessDenied: "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
-    email: "Логин",
+    email: "Логин же почта",
     intro:
       "EVO кызматкерлери жана студенттери үчүн.",
     password: "Сырсөз",
@@ -76,7 +77,7 @@ const COPY: Record<
     accountDeleted: "Account deleted.",
     authUnavailable: "The sign-in service is temporarily unavailable.",
     staffAccessDenied: "This account has no active access to EVO.",
-    email: "Login",
+    email: "Login or email",
     intro:
       "For EVO staff and students.",
     password: "Password",

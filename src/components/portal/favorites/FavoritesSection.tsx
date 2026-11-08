@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FavoritesView } from "@/components/portal/favorites/FavoritesView";
 import { UniversityCard } from "@/components/portal/universities/Catalog";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
@@ -47,9 +48,10 @@ export async function FavoritesSection({ institutionIds, locale }: Readonly<{
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : items.length === 0 ? (
         <section className="pt-empty">
+          <EmptyIcon name="universities" />
           <h2 className="pt-empty-title">{strings.emptyTitle}</h2>
           <p className="pt-empty-body">{strings.emptyBody}</p>
-          <p>
+          <p className="pt-empty-action">
             <Link href="/portal/universities" className="pt-btn">
               {strings.emptyAction}
             </Link>

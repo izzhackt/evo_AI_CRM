@@ -5,6 +5,7 @@ import { CscaLessonsView } from "@/components/portal/csca/LessonsView";
 import { CscaOverview } from "@/components/portal/csca/Overview";
 import { SessionPicker } from "@/components/portal/csca/SessionPicker";
 import { sessionLabels } from "@/components/portal/csca/session-labels";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { cscaDayLabel } from "@/lib/portal/csca";
@@ -84,6 +85,7 @@ export default async function CscaHomePage({
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : track === null ? (
         <div className="pt-empty">
+          <EmptyIcon name="csca" />
           <p className="pt-empty-title">{strings.emptyTitle}</p>
           <p className="pt-empty-body">{strings.emptyBody}</p>
         </div>

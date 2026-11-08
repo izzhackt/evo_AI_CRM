@@ -655,6 +655,8 @@ function messagesThread(runtime, shared, actions) {
     },
     "@/lib/portal/messages-actions": actions,
     "@/lib/portal/i18n": portalI18n,
+    // Значок пустого чата (08.11.2026) — только вид; опросу и черновику он не нужен.
+    "@/components/portal/home/HomeParts": { EmptyIcon: () => null },
     "./useMarkCaseChatRead": markReadHook(shared, actions),
   })[id]);
 }
@@ -841,6 +843,7 @@ test("the student's draft survives «Обновить страницу» on a st
     "@/lib/portal/messages": { PORTAL_CASE_MESSAGE_BODY_LIMIT: 2000, mergePortalCaseMessages: (existing, incoming) => [...existing, ...incoming] },
     "@/lib/portal/messages-actions": { loadPortalCaseMessagesAction: async () => ({ ok: true, page: THREAD }), sendPortalCaseMessageAction: send },
     "@/lib/portal/i18n": portalI18n,
+    "@/components/portal/home/HomeParts": { EmptyIcon: () => null },
     "./useMarkCaseChatRead": markReadHook(shared, { markPortalCaseChatReadAction: async () => ({ ok: true }) }),
   })[id], { sessionStorage: storage }).MessagesThread;
   const runtimes = [];

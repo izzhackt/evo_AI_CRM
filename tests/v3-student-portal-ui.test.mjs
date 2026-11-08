@@ -944,7 +944,7 @@ test("330: the shown chat clears the notification and its text follows the stude
   const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   const hook = fileOf("src/components/portal/messages/useMarkCaseChatRead.ts");
   assert.ok(hook.includes('document.visibilityState !== "visible"'), "a hidden tab does not read");
-  assert.ok(fileOf("src/components/portal/messages/MessagesThread.tsx").includes("useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null)"));
+  assert.ok(fileOf("src/components/portal/messages/MessagesThread.tsx").includes("useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null, rootRef)"));
   assert.ok(fileOf("src/lib/portal/messages-actions.ts").includes('.rpc("mark_own_case_chat_notifications_read_v1", { p_up_to_sequence_id: upToSequenceId })'));
   const presentation = fileOf("src/components/portal/admission/presentation.ts");
   assert.ok(presentation.includes("return { title: strings.caseChatNotificationTitle, detail: strings.caseChatNotificationDetail };"));

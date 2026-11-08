@@ -12,6 +12,7 @@ import {
   type CityCardModel,
 } from "@/components/portal/universities/Places";
 import { UniversityTileGrid } from "@/components/portal/universities/UniversityTile";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import {
@@ -142,6 +143,7 @@ export default async function CountryPage({
 
       {country.universityCount === 0 ? (
         <section className="pt-empty">
+          <EmptyIcon name="universities" />
           <h2 className="pt-empty-title">{strings.countryEmptyTitle}</h2>
           <p className="pt-empty-body">{strings.countryEmptyBody}</p>
           <p>

@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { formatPortalString } from "@/lib/portal/i18n";
 import { searchUniversities } from "@/lib/portal/university-search";
 
@@ -135,6 +136,7 @@ export function UniversitySearch({
         <UniversityTileGrid models={results} strings={strings} headingLevel={2} />
       ) : (
         <section className="pt-empty pt-uni-search-empty">
+          <EmptyIcon name="search" />
           <h2 className="pt-empty-title">{formatPortalString(strings.searchEmptyTitle, { query: trimmed })}</h2>
           <p className="pt-empty-body">{strings.searchEmptyBody}</p>
           <p>

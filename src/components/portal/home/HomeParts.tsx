@@ -1,3 +1,18 @@
+import {
+  Bell,
+  BriefcaseBusiness,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+  Landmark,
+  Languages,
+  ListChecks,
+  MessagesSquare,
+  NotebookPen,
+  Search,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 /**
@@ -5,26 +20,29 @@ import type { ReactNode } from "react";
  * пустое состояние «значок в круге, заголовок, одна строка, кнопка». Каждая карточка рисует их одинаково.
  */
 
-// Значки: один штрих 1.5 на сетке 20, те же, что у пунктов меню кабинета.
-const ICON_PATHS = {
+// Значки — тот же набор Lucide, что у пунктов меню кабинета (08.11.2026), чтобы раздел и его пустое состояние совпадали.
+const ICONS = {
   // Что сделать сейчас: планшет с отметкой.
-  todo: "M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM8 3.5V2.8h4v.7M7.7 10.2l1.6 1.6 3-3.3",
-  // Мои вузы: здание с колоннами.
-  universities: "M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 15h14",
-  // Ближайшие даты: календарь.
-  calendar: "M4 5.5h12v10.5H4zM4 8.5h12M7 3.5v3M13 3.5v3",
-  // Что нового: пузырь диалога, как у «Входящих».
-  news: "M3.5 4.5h13v8.5h-7.2L6 16v-3H3.5zM6.8 7.5h6.4M6.8 10h4.4",
-} as const;
+  todo: ClipboardCheck,
+  universities: Landmark,
+  calendar: CalendarDays,
+  // Что нового и чат: пузыри диалога, как у «Входящих».
+  news: MessagesSquare,
+  documents: FileText,
+  payments: Wallet,
+  professions: BriefcaseBusiness,
+  english: Languages,
+  csca: NotebookPen,
+  tests: ListChecks,
+  search: Search,
+  bell: Bell,
+} as const satisfies Record<string, LucideIcon>;
 
-export type HomeIconName = keyof typeof ICON_PATHS;
+export type HomeIconName = keyof typeof ICONS;
 
 export function HomeIcon({ name }: Readonly<{ name: HomeIconName }>) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
-      <path d={ICON_PATHS[name]} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  const Icon = ICONS[name];
+  return <Icon size={20} strokeWidth={1.75} aria-hidden="true" focusable="false" />;
 }
 
 /** Шапка карточки: заголовок и число, если оно больше нуля (ноль рядом с пустым состоянием ничего не сообщает). */
@@ -43,6 +61,14 @@ export function HomeCardHead({ id, title, count = null, action = null }: Readonl
       {action}
     </header>
   );
+}
+
+/**
+ * Значок пустого состояния: красноватый круг с красным значком (08.11.2026, пользователь: «давай сделаем эти значки
+ * красноватыми как в акылмане», затем «тут тоже значок поставь» и «да, везде»). Один на весь кабинет.
+ */
+export function EmptyIcon({ name }: Readonly<{ name: HomeIconName }>) {
+  return <span className="pt-home-empty-icon pt-empty-icon"><HomeIcon name={name} /></span>;
 }
 
 /** Пустое состояние карточки: что здесь будет и, если есть, что сделать. */

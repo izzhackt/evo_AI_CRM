@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProfessionsGrid } from "@/components/portal/professions/ProfessionsGrid";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import {
@@ -88,6 +89,7 @@ export default async function ProfessionsPage({
           </nav>
           {filtered.length === 0 ? (
             <div className="pt-empty">
+              <EmptyIcon name="professions" />
               <p className="pt-empty-title">{strings.emptyTitle}</p>
               <p className="pt-empty-body">{strings.emptyBody}</p>
             </div>

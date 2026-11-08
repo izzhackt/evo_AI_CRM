@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
+
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { assessmentPath, type AssessmentCatalog } from "@/lib/student-assessment-contract";
@@ -18,6 +20,7 @@ export function TestsCatalog({ catalog, locale }: { catalog: AssessmentCatalog; 
     <>
       {catalog.instruments.length === 0 ? (
         <div className="pt-empty">
+          <EmptyIcon name="tests" />
           <p className="pt-empty-title">{strings.emptyTitle}</p>
           <p className="pt-empty-body">{strings.emptyBody}</p>
         </div>

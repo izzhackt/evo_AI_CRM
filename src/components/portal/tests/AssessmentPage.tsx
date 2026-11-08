@@ -22,7 +22,7 @@ export async function AssessmentPage({ instrumentKey, searchParams }: {
   const instrument = catalog.instruments.find(i => i.instrumentKey === instrumentKey);
   if (!instrument) {
     return (
-      <main className="pt-page">
+      <main className="pt-page pt-study-page">
         <header className="pt-page-header">
           <p className="pt-page-kicker"><Link className="pt-link" href="/portal/tests">{strings.backToCatalog}</Link></p>
           <h1 className="pt-page-title">{strings.unavailableTitle}</h1>
@@ -37,7 +37,7 @@ export async function AssessmentPage({ instrumentKey, searchParams }: {
   const attempt = attemptId ? await readStudentAssessmentAttempt(attemptId) : null;
   if (attempt && attempt.instrumentKey !== instrumentKey) notFound();
   return (
-    <main className="pt-page">
+    <main className="pt-page pt-study-page">
       <header className="pt-page-header">
         <p className="pt-page-kicker"><Link className="pt-link" href="/portal/tests">{strings.backToCatalog}</Link></p>
         <h1 className="pt-page-title">{attempt?.metadata.title ?? instrument.metadata.title}</h1>

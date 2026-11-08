@@ -49,7 +49,12 @@ test("original logo bytes are preserved and statically imported outside auth rou
   assert.equal(logo.readUInt32BE(20), 842);
   const component = read("src/components/platform/brand/EvoLogo.tsx");
   assert.match(component, /import evoLogo from "\.\.\/\.\.\/\.\.\/\.\.\/public\/brand\/evo-logo\.png"/u);
-  assert.match(component, /src=\{evoLogo\}/u);
+  // 08.11.2026: тёмный рейл кабинета берёт тот же lockup с белыми буквами (пользователь: «текст сделай белым»).
+  const onDark = readFileSync(new URL("../public/brand/evo-logo-on-dark.png", import.meta.url));
+  assert.equal(onDark.readUInt32BE(16), 1843);
+  assert.equal(onDark.readUInt32BE(20), 842);
+  assert.match(component, /import evoLogoOnDark from "\.\.\/\.\.\/\.\.\/\.\.\/public\/brand\/evo-logo-on-dark\.png"/u);
+  assert.match(component, /src=\{onDark \? evoLogoOnDark : evoLogo\}/u);
   assert.match(component, /alt="EVO Admissions"/u);
   assert.match(component, /height: "auto"/u);
 });

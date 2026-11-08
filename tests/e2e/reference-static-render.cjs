@@ -156,6 +156,24 @@ function filterCatalogue(filters) {
 let catalogueOffsets = [];
 /** Сценарий «каталог изменился посреди чтения»: первое чтение смещения 30 сдвинуто на строку назад (строка 30 приходит дважды). */
 let catalogueShiftOnce = false;
+/**
+ * Справочник городов для менеджера каталога (СИНТЕТИКА, только вёрстка страниц стран): три города Китая, вузы привязаны
+ * по названию подписи. Фото-путь верен по форме, файла в бакете нет: рамка остаётся серой, как у города без файла.
+ */
+function geographyFixture() {
+  const code = ["CN", "MY", "AE", "TR", "IT", "CZ"];
+  const city = (key, nameRu, nameEn, summaryRu) => ({
+    key, country: "CN", nameRu, nameKy: nameRu, nameEn, lat: null, lng: null,
+    photo: { path: `geography/cities/${key}-0123456789ab.jpg`, width: 1600, height: 900, author: "Синтетика", authorUrl: null, sourceName: "Wikimedia Commons", sourceUrl: "https://commons.wikimedia.org/wiki/File:Example.jpg", license: "CC BY-SA 4.0", licenseUrl: null },
+    summaryRu, summaryKy: null, factRu: null, factKy: null, factSourceUrl: null, factVerifiedOn: null, kyReview: "pending", status: "published",
+    publishedAt: "2026-09-10T00:00:00+00:00", reviewedByName: null, complete: true, version: 1, updatedAt: "2026-09-10T00:00:00+00:00", institutionCount: 1,
+  });
+  return {
+    countries: code.map((value) => ({ code: value, nameRu: value, nameKy: value, nameEn: value, photo: null, summaryRu: null, summaryKy: null })),
+    cities: [city("beijing", "Пекин", "Beijing", "Столица Китая: крупнейший вузовский кластер страны."), city("guangzhou", "Гуанчжоу", "Guangzhou", null), city("hangzhou", "Ханчжоу", "Hangzhou", null)],
+    institutions: [], costs: [], fxRates: [],
+  };
+}
 const fakeSupabase = {
   schema() {
     return {
@@ -163,6 +181,7 @@ const fakeSupabase = {
         if (name === "staff_university_catalog_countries") {
           return { data: { organizationId: ORG, countries: [...new Set(CATALOGUE.map((item) => item.content.country))].sort() }, error: null };
         }
+        if (name === "staff_catalog_geography_v1") return { data: geographyFixture(), error: null };
         if (name !== "staff_university_catalog") return { data: null, error: { message: `unexpected rpc ${name}` } };
         if (args.p_institution_id) return { data: { items: CATALOGUE.filter((item) => item.id === args.p_institution_id).map(published), nextOffset: null }, error: null };
         const all = filterCatalogue({ query: args.p_query ?? "", country: args.p_country ?? "", level: args.p_level ?? "" });
@@ -279,6 +298,14 @@ const PAGES = [
   ["universities-list-changed", "admin", "/universities", "", "catalogue-changed"],
   ["universities-detail", "admin", () => `/universities/${idOf("utm")}`, "", "production"],
   ["universities-detail-unconfirmed", "admin", () => `/universities/${idOf("apu")}`, "", "production"],
+  // «Университеты» по странам (08.11.2026): страны, города, списком, город; карта в статической разметке — только рамка.
+  ["universities-country-cities", "admin", "/universities/country/CN", "", "production"],
+  ["universities-countries", "admissions", "/universities/country", "", "production"],
+  ["universities-country-cities-plain", "admissions", "/universities/country/CN", "", "production"],
+  ["universities-country-list", "admissions", "/universities/country/MY", "view=list", "production"],
+  ["universities-country-map", "admissions", "/universities/country/CN", "view=map", "production"],
+  ["universities-city", "admin", "/universities/country/CN/beijing", "", "production"],
+  ["universities-city-none", "admissions", "/universities/country/MY/~", "", "production"],
   ["settings-staff", "admin", "/settings", "", "production"],
   ["settings-roles", "admin", "/settings", "section=staff&view=roles", "production"],
   ["settings-departments", "admin", "/settings", "section=staff&view=departments", "production"],
@@ -299,6 +326,16 @@ async function pageNode(pathname, search) {
   if (pathname === "/universities") {
     const { default: Page } = require(join(ROOT, "src/app/(staff)/universities/page.tsx"));
     return Page({ searchParams: Promise.resolve(params) });
+  }
+  if (pathname === "/universities/country") {
+    const { default: Page } = require(join(ROOT, "src/app/(staff)/universities/country/page.tsx"));
+    return Page({ searchParams: Promise.resolve(params) });
+  }
+  const geo = pathname.match(/^\/universities\/country\/([^/]+)(?:\/([^/]+))?$/u);
+  if (geo) {
+    const [, code, city] = geo;
+    const { default: Page } = require(join(ROOT, city ? "src/app/(staff)/universities/country/[code]/[city]/page.tsx" : "src/app/(staff)/universities/country/[code]/page.tsx"));
+    return Page({ params: Promise.resolve(city ? { code, city: decodeURIComponent(city) } : { code }), searchParams: Promise.resolve(params) });
   }
   if (pathname.startsWith("/universities/")) {
     const { default: Page } = require(join(ROOT, "src/app/(staff)/universities/[id]/page.tsx"));
@@ -328,6 +365,10 @@ async function renderAll() {
   const pages = [];
   global.Date = FixedDate;
   try {
+    // Рамка «Университетов» подгружается лениво (`next/dynamic`): при первом показе в статической разметке она пуста.
+    // Прогрев страницей стран (результат не нужен) нужен страницам стран и городов; остальные страницы он не меняет.
+    await renderPage(["warm-up", "admissions", "/universities/country", "", "production"]);
+    await new Promise((done) => setTimeout(done, 100));
     for (const entry of PAGES) pages.push(await renderPage(entry));
   } finally {
     global.Date = RealDate;

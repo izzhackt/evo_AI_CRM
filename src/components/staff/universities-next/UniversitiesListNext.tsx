@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 
 import { LinkFilters } from "../list-next/LinkFilters";
 import { ListSearch } from "../list-next/ListSearch";
+import { UniversityGeoTabs } from "./UniversityGeoTabs";
 import { DeadlineCell, UniversityCell } from "./UniversityListCells";
 import type { UniversityListProps, UniversityListRow } from "./university-list-types";
 
@@ -30,6 +31,7 @@ export function UniversitiesListNext({ rows, page, query, searchHidden, filters,
       title="Университеты"
       count={page.total}
       testId="v3-universities-next"
+      tabs={<UniversityGeoTabs current="all" />}
       help={page.order === "name" ? "Каталог длиннее предела полного чтения: порядок — по названию, страницы ведёт сервер." : "Сначала ближайший подтверждённый срок подачи, затем по названию. Поиск и фильтры отбирает сервер по всему каталогу."}
       actions={canManage ? <>
         <Button variant="ghost" asChild><Link href="/universities/cities">Города</Link></Button>

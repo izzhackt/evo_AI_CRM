@@ -53,6 +53,20 @@ const BISHKEK_DATE_TIME = new Intl.DateTimeFormat("ru-RU", {
   minute: "2-digit",
 });
 
+const BISHKEK_DATE = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: "Asia/Bishkek",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+/** Срок для студента — только дата (по Бишкеку), без времени. */
+export function formatPortalDeadline(value: string | null): string | null {
+  if (value === null) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.valueOf()) ? BISHKEK_DATE.format(date) : null;
+}
+
 export function formatPortalTimestamp(value: string | null): string | null {
   if (value === null) return null;
   const date = new Date(value);
@@ -107,13 +121,13 @@ export function documentChecklistIcon(document: Pick<StudentPortalDocument, "sta
 export function studentActionDueLabel(
   action: Pick<StudentPortalDocumentAction, "dueAt">,
 ): string | null {
-  return formatPortalTimestamp(action.dueAt);
+  return formatPortalDeadline(action.dueAt);
 }
 
 export function evoActionDueLabel(action: StudentPortalEvoAction): string | null {
   return action.dueOn !== null
     ? allDayDate(action.dueOn)
-    : formatPortalTimestamp(action.dueAt);
+    : formatPortalDeadline(action.dueAt);
 }
 
 export function evoActionStatus(

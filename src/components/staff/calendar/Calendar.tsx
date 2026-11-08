@@ -37,7 +37,6 @@ import {
   calendarHasDatedTasks,
   calendarTaskIsOpen,
   calendarUndatedContinuationHref,
-  clockLabel,
   periodLabel,
   stepDay,
   stepLabel,
@@ -432,15 +431,13 @@ export function Calendar({
                     return display ? <Pill tone={display.tone}>{display.word}</Pill> : null;
                   })()}
                 </div>
-                {/* Срок — «ДД.ММ ЧЧ:ММ» по Бишкеку JetBrains Mono (год — только не текущий). */}
+                {/* Срок — «ДД.ММ» по Бишкеку JetBrains Mono (год — только не текущий). */}
                 <p className="mt-1 t-meta text-fg-2">
                   {open.day === null ? "Без срока" : (
                     <span className="font-mono">
                       {formatQueueDay(open.day, today)}
-                      {open.minutes === null ? "" : ` ${clockLabel(open.minutes)}`}
                     </span>
                   )}
-                  {open.day !== null && open.minutes === null ? " · весь день" : ""}
                   {open.person ? ` · ${open.person}` : ""}
                 </p>
                 <p className="mt-1 t-meta text-fg-3">

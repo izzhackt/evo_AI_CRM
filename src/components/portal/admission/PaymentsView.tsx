@@ -5,7 +5,7 @@ import type { StudentPortalPayment } from "@/lib/v3/portal-source";
 import { PortalStatus } from "./PortalStatus";
 import {
   formatPortalMoney,
-  formatPortalTimestamp,
+  formatPortalDeadline,
   paymentCategory,
   paymentStatus,
 } from "./presentation";
@@ -46,7 +46,7 @@ export function PaymentsView({
         {payments.map((payment, index) => {
           const status = paymentStatus(payment, strings);
           const category = paymentCategory(payment, strings);
-          const dueLabel = formatPortalTimestamp(payment.dueAt);
+          const dueLabel = formatPortalDeadline(payment.dueAt);
 
           return (
             <li

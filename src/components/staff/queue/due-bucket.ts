@@ -81,7 +81,7 @@ export function queueDayWithWeekday(day: string, today: string): string {
 export type QueueDue = Readonly<{
   /** Значение для `<time dateTime>`: день или точный момент срока. */
   dateTime: string;
-  /** «25.09» или «25.09 14:00» — по Бишкеку. */
+  /** «25.09» — по Бишкеку, без времени. */
   text: string;
   /** «прошёл», «сегодня», «завтра», «через 3 дн»; null — слово не нужно. */
   word: string | null;
@@ -98,8 +98,6 @@ export function queueDue(task: DueInput, now: Date, open = true): QueueDue | nul
   const deadline = projectPlatformTaskDeadline(task.dueOn, task.dueAt, now);
   if (deadline.day === null) return null;
   const today = dayInOrganizationTimezone(now);
-  const time = deadline.minutes === null ? ""
-    : ` ${String(Math.floor(deadline.minutes / 60)).padStart(2, "0")}:${String(deadline.minutes % 60).padStart(2, "0")}`;
   const overdue = open && (deadline.overdue || deadline.day < today);
   const distance = dayDelta(today, deadline.day);
   const word = !open ? null
@@ -109,7 +107,7 @@ export function queueDue(task: DueInput, now: Date, open = true): QueueDue | nul
     : `через ${distance} дн`;
   return Object.freeze({
     dateTime: task.dueAt ?? deadline.day,
-    text: `${formatQueueDay(deadline.day, today)}${time}`,
+    text: formatQueueDay(deadline.day, today),
     word,
     caption: open ? null : "срок",
     overdue,

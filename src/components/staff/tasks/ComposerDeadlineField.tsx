@@ -21,7 +21,7 @@ export function composerDeadlineChoice(day: Day, defaultDay: Day | null): Choice
 /**
  * Срок в диалоге «Новая задача»: по умолчанию сегодня, на весь день; из
  * календаря — выбранный день (Э7). Быстрые варианты — «Сегодня», «Завтра»,
- * ближайшая пятница, «Дата…» (день и, если нужно, время по Бишкеку) и «Без
+ * ближайшая пятница, «Дата…» (только день, без времени) и «Без
  * срока». Поля формы — те же, что принимают команды создания:
  * `deadline_kind`, `due_on`, `due_at`. Тот же редактор — в панели задачи
  * (`current` — срок задачи сейчас): один способ задать срок везде.
@@ -33,31 +33,28 @@ export function ComposerDeadlineField({ day, defaultDay = null, current = null, 
   defaultDay?: Day | null;
   /**
    * Срок задачи сейчас (по Бишкеку): день и минуты от полуночи; `day === null` — без срока.
-   * `dueAt` — точная отметка из базы: пока выбор не менялся, уходит как есть
-   * (секунды и доли секунды не теряются, когда в панели меняют только исполнителя).
+   * `dueAt` — старая точная отметка из базы: время не показываем, но пока выбор не менялся,
+   * она уходит как есть (срок не сдвигается, когда в панели меняют только исполнителя).
    */
   current?: Readonly<{ day: Day | null; minutes: number | null; dueAt?: string | null }> | null;
   disabled?: boolean;
 }>) {
-  const [start] = useState<Readonly<{ choice: Choice; date: Day; time: string }>>(() => ({
+  const [start] = useState<Readonly<{ choice: Choice; date: Day }>>(() => ({
     choice: current
-      ? current.day === null ? "none" : current.minutes !== null ? "date" : composerDeadlineChoice(day, current.day)
+      ? current.day === null ? "none" : composerDeadlineChoice(day, current.day)
       : composerDeadlineChoice(day, defaultDay),
     date: current?.day ?? defaultDay ?? day,
-    time: current?.day != null && current.minutes !== null
-      ? `${String(Math.floor(current.minutes / 60)).padStart(2, "0")}:${String(current.minutes % 60).padStart(2, "0")}`
-      : "",
   }));
   const [choice, setChoice] = useState<Choice>(start.choice);
   const [date, setDate] = useState<Day>(start.date);
-  const [time, setTime] = useState<string>(start.time);
-  // Выбор не менялся (или вернули как было): уходит исходная отметка срока, а не пересобранная из минут.
-  const unchanged = choice === start.choice && date === start.date && time === start.time;
+  // Выбор не менялся (или вернули как было): старый срок со временем уходит как есть.
+  const unchanged = choice === start.choice && date === start.date;
   const friday = nextFriday(day);
   const quickDay = choice === "today" ? day : choice === "tomorrow" ? shiftDay(day, 1) : choice === "friday" ? friday : null;
-  const kind = choice === "none" ? "none" : choice === "date" && time ? "timed" : "all_day";
+  const keepLegacyTimed = unchanged && choice !== "none" && current?.minutes != null && Boolean(current.dueAt);
+  const kind = choice === "none" ? "none" : keepLegacyTimed ? "timed" : "all_day";
   const dueOn = kind === "all_day" ? quickDay ?? date : "";
-  const dueAt = kind === "timed" ? (unchanged && current?.dueAt ? current.dueAt : `${date}T${time}`) : "";
+  const dueAt = kind === "timed" ? current?.dueAt ?? "" : "";
   // В четверг ближайшая пятница — это «Завтра»: второй кнопки на тот же день нет.
   const chips: readonly (readonly [Choice, string])[] = [
     ["today", "Сегодня"],
@@ -80,17 +77,10 @@ export function ComposerDeadlineField({ day, defaultDay = null, current = null, 
         ))}
       </div>
       {choice === "date" ? (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="t-label text-fg-2">
-            Дата
-            <input type="date" required value={date} onChange={(event) => setDate(event.target.value)} className={QUEUE_FIELD} />
-          </label>
-          <label className="t-label text-fg-2">
-            Время · по Бишкеку
-            <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className={QUEUE_FIELD} />
-            <span className="mt-1 block t-meta text-fg-3">Пусто — весь день</span>
-          </label>
-        </div>
+        <label className="mt-3 block t-label text-fg-2 sm:max-w-xs">
+          Дата
+          <input type="date" required value={date} onChange={(event) => setDate(event.target.value)} className={QUEUE_FIELD} />
+        </label>
       ) : null}
     </fieldset>
   );

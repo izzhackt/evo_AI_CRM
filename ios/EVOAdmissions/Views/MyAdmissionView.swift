@@ -266,7 +266,7 @@ struct MyAdmissionView: View {
         if let dueOn = action.dueOn {
             return AdmissionTimestamp.dayLabel(from: dueOn)
         }
-        return AdmissionTimestamp.label(from: action.dueAt)
+        return AdmissionTimestamp.deadlineLabel(from: action.dueAt)
     }
 }
 
@@ -291,7 +291,7 @@ struct AdmissionActionRow: View {
                 // Срок и сумма основным цветом, серым только подписи «Срок:» и
                 // «Сумма:» (аудит UX/UI 2026-10: caption серым 4,0:1).
                 VStack(alignment: .leading, spacing: 2) {
-                    if let due = AdmissionTimestamp.label(from: action.dueAt) {
+                    if let due = AdmissionTimestamp.deadlineLabel(from: action.dueAt) {
                         (Text("adm_due_term").foregroundStyle(.secondaryText)
                             + Text(verbatim: " \(due)").foregroundStyle(.primary))
                     } else {

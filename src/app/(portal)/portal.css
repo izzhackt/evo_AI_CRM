@@ -6722,6 +6722,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-journey {
   padding: 28px 32px 24px;
+  /* Колонки шагов зависят от ширины самой карточки, а не окна: на «Главной» она делит строку с боковой колонкой. */
+  container: pt-journey / inline-size;
 }
 
 .pt-journey-head {
@@ -7268,8 +7270,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-control-edge);
 }
 
-/* Широкий экран: сроки колонкой слева от линии, «Когда шаг пройден» справа от пунктов. */
-@media (min-width: 960px) {
+/* Широкая карточка: сроки колонкой слева от линии. */
+@container pt-journey (min-width: 760px) {
   .pt-journey-steps[data-timed="true"] {
     --pt-step-period: 184px;
   }
@@ -7292,7 +7294,10 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-journey-steps[data-timed="true"] .pt-step-period-icon {
     display: none;
   }
+}
 
+/* «Когда шаг пройден» справа от пунктов — только когда описанию остаётся не меньше ~440px; иначе оно ниже, на всю ширину. */
+@container pt-journey (min-width: 980px) {
   .pt-step-panel-inner {
     grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
     gap: 28px;

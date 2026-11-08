@@ -1,8 +1,10 @@
 import { isStaffPreview } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CaseAgreement } from "@/lib/platform-case-agreement-contract";
+import type { PendingReceipt } from "@/lib/platform-pending-receipts-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
+import { readPendingReceipts } from "@/lib/v3/pending-receipts-source";
 import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { MoneyCard } from "./MoneyCard";
@@ -12,12 +14,15 @@ import { MoneyStop, MoneySummary } from "./MoneySummary";
 type Shared = Readonly<{ saleConditionsHref: string | null; financeStop: string | null; stopsPanel: boolean }>;
 
 /** Сводка, транши и оплаты из уже прочитанного (чтение 189) - соседние карточки листа; статический рендер берёт этот вид с синтетикой. */
-export function AgreementNextView({ agreement, canWrite, today, ...shared }: Shared & Readonly<{ agreement: CaseAgreement; canWrite: boolean; today: string }>) {
+export function AgreementNextView({ agreement, canWrite, today, pendingReceipts, pendingUnavailable = false, ...shared }: Shared & Readonly<{
+  agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[]; pendingUnavailable?: boolean;
+}>) {
   return (
     <>
       <MoneyCard><MoneySummary agreement={agreement} canWrite={canWrite} today={today} {...shared} /></MoneyCard>
       <TranchesCard agreement={agreement} canWrite={canWrite} today={today} />
-      <PaymentsCard agreement={agreement} canWrite={canWrite} today={today} />
+      <PaymentsCard agreement={agreement} canWrite={canWrite} today={today} pendingReceipts={pendingReceipts} />
+      {pendingUnavailable ? <p role="alert" className="t-body-compact text-danger">Чеки из разбора документов не загрузились. Обновите страницу.</p> : null}
     </>
   );
 }
@@ -44,8 +49,10 @@ export async function CaseAgreementNext({ actor, studentCaseId, ...shared }: Sha
     const unavailable = result.status === "unavailable";
     return <MoneyNotice role={unavailable ? "alert" : undefined} text={unavailable ? caseMoneyWords.financeUnavailable : caseMoneyWords.financeHidden} {...shared} />;
   }
+  const pending = await readPendingReceipts(actor.organizationId, studentCaseId);
   return (
     <AgreementNextView agreement={result.agreement} canWrite={result.agreement.canWrite && !isStaffPreview(actor)}
-      today={dayInOrganizationTimezone(new Date())} {...shared} />
+      today={dayInOrganizationTimezone(new Date())} pendingReceipts={pending.status === "ok" ? pending.receipts : []}
+      pendingUnavailable={pending.status !== "ok"} {...shared} />
   );
 }

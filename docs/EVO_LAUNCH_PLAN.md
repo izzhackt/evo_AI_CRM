@@ -17226,3 +17226,7 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
 Решения владельца 26.10.2026 и контракты реализации — в `docs/PLAN_CHANGES.md` (запись 2026-10-27) и в файлах `docs/plans/2026-10-27-wazzup-whatsapp-plan.md`, `docs/plans/2026-10-27-agent-rules-onlyoffice-plan.md`, `docs/plans/2026-10-27-looker-reports-plan.md`.
 
 Wazzup, этап 1 — статус 27.10.2026: срезы W1–W3 и дополнения (миграции 324–326, приложение, интерфейс, runbook `docs/runbooks/wazzup-whatsapp.md`, [ADR 0036](adr/0036-receive-sales-whatsapp-via-wazzup-sidecar.md)) лежат в ветке `izzhackt/wazzup-app`, не слиты; на production ничего не включено, живого ключа Wazzup нет, проверки A0–A14 не проходились. Отклонения от плана и отложенное — `docs/PLAN_CHANGES.md`, запись «2026-10-27 · WhatsApp через Wazzup: отклонения срезов W1–W3 и дополнения этапа 1 (миграция 326, ADR 0036)».
+
+## 2026-11-08 — срез: виды документов дела (миграции 348–349)
+
+Контракт и решения — в `docs/PLAN_CHANGES.md` (запись 2026-11-08, ветка `feat/feedback-document-kinds`). При разборе файла в карточке дела добавлены «Договор» (становится текущим договором дела в «Деньги» командами 189), «Чек об оплате» (попадает в «Деньги» как чек, ждущий оплату; суммы не выдумываются; несколько чеков на дело), «Не нужное» (мягкое удаление пункта, `remove_document_slot`) и «Другое…» (своё название). Квитанция: PR в `izzhackt/evo_AI_CRM`, набор `supabase/tests/platform_document_finance_kinds.sql`; production не менялся.

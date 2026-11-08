@@ -208,13 +208,13 @@ test("V3 calendar is the only active task mutation surface", () => {
   assert.match(calendarSource, /\.\/TaskControls/);
   assert.match(
     controlsSource,
-    /task\?\.dueAt \?\? defaults\.dueAt/,
-    "unchanged timed edits must submit the exact canonical timestamp",
+    /name="due_at" value=\{task\?\.dueAt \?\? ""\}/,
+    "an untouched legacy timed deadline must submit its exact canonical timestamp",
   );
-  assert.match(
+  assert.doesNotMatch(
     controlsSource,
-    /value=\{displayDueAt\}[\s\S]*?data-testid="v3-calendar-timed-deadline-input"[\s\S]*?setDisplayDueAt\(event\.target\.value\)[\s\S]*?setSubmittedDueAt\(event\.target\.value\)[\s\S]*?name="due_at" value=\{submittedDueAt\}/,
-    "only an explicit deadline edit may replace the canonical timestamp",
+    /datetime-local|Точное время/,
+    "task deadlines are date-only in the UI",
   );
   // Создание — не в панели календаря, а в едином диалоге «Новая задача».
   assert.doesNotMatch(controlsSource, /createPlatformAdmissionsTaskAction/);

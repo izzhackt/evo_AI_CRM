@@ -15,6 +15,7 @@ function FinanceEntryEditor({ workspace, operation, requestId, onAnother }: Prop
   const router = useRouter();
   const frozen = useRef<FormData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
+  const [dueDay, setDueDay] = useState("");
   const [obligationId, setObligationId] = useState(workspace.obligations[0]?.id ?? "");
   const [state, action, pending] = useActionState(async (previous: FinanceEntryState, form: FormData): Promise<FinanceEntryState> => {
     const submitted = frozen.current ?? form; frozen.current = submitted;
@@ -54,7 +55,10 @@ function FinanceEntryEditor({ workspace, operation, requestId, onAnother }: Prop
             <label><span className={fieldLabelCls}>Ссылка или номер подтверждения</span><input name="evidence" required maxLength={512} className={inputCls} /></label></div>
         </>}
         <div className="grid gap-4 sm:grid-cols-2"><label><span className={fieldLabelCls}>Сумма{operation !== "obligation" && obligation ? ` (${obligation.currency})` : ""}</span><input name="amount" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" required className={inputCls} /></label>
-          <label><span className={fieldLabelCls}>{operation === "obligation" ? "Срок оплаты" : "Когда получено / возвращено"} · Бишкек</span><input name="at" type="datetime-local" required className={inputCls} /></label></div>
+          {operation === "obligation"
+            // Срок оплаты — только день: в базу уходит конец этого дня по Бишкеку, чтобы просрочка наступала после него.
+            ? <label><span className={fieldLabelCls}>Срок оплаты</span><input type="date" required value={dueDay} onChange={event => setDueDay(event.target.value)} className={inputCls} /><input type="hidden" name="at" value={dueDay ? `${dueDay}T23:59` : ""} /></label>
+            : <label><span className={fieldLabelCls}>Когда получено / возвращено · Бишкек</span><input name="at" type="datetime-local" required className={inputCls} /></label>}</div>
         <label className="block"><span className={fieldLabelCls}>Основание</span><input name="reason" required maxLength={1000} className={inputCls} /></label>
         <p className="t-meta text-fg-2">Записывайте только подтверждённый факт. Эта форма не переводит деньги и не списывает их со счёта.</p>
         <button className={QUEUE_CONFIRM} disabled={locked}>{pending ? "Сохраняем…" : title}</button>

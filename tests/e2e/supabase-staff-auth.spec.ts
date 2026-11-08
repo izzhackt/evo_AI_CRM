@@ -2000,7 +2000,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await signIn(page, "admin");
   await page.goto("/calendar?view=day&date=2099-09-12");
   const timedTask = page.locator(`#task-${timedCaseTaskId}`);
-  await expect(timedTask).toContainText("18:45");
+  await expect(timedTask).not.toContainText("18:45");
   await timedTask.click();
   const timedChangeForm = page.getByTestId("v3-calendar-task-change-form");
   await page
@@ -2008,14 +2008,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator("summary")
     .filter({ hasText: /^Изменить задачу$/ })
     .click();
-  const timedDeadlineInput = timedChangeForm.getByTestId(
-    "v3-calendar-timed-deadline-input",
-  );
-  await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:45");
-  await timedDeadlineInput.fill("2099-09-12T18:46");
-  await timedChangeForm.locator('select[name="deadline_kind"]').selectOption("none");
-  await timedChangeForm.locator('select[name="deadline_kind"]').selectOption("timed");
-  await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:46");
+  // Срок — только день: время не показывается и не редактируется.
+  const timedDeadlineInput = timedChangeForm.locator('input[type="date"]');
+  await expect(timedDeadlineInput).toHaveValue("2099-09-12");
+  await timedDeadlineInput.fill("2099-09-13");
+  await expect(timedDeadlineInput).toHaveValue("2099-09-13");
 
   // Reload discards the unsaved edit. The following unrelated priority change
   // must submit the exact canonical timestamp, including seconds/microseconds.
@@ -2026,7 +2023,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator("summary")
     .filter({ hasText: /^Изменить задачу$/ })
     .click();
-  await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:45");
+  await expect(timedDeadlineInput).toHaveValue("2099-09-12");
   await timedChangeForm.locator('select[name="priority"]').selectOption("urgent");
   await timedChangeForm
     .locator('input[name="reason"]')

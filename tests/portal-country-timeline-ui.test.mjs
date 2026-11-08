@@ -175,4 +175,3 @@ test("progress on the home path: done steps fold into one line, the step line st
   assert.ok(ky.showSteps && ky.hideSteps);
   assert.match(css, /\.pt-journey-fold \{[\s\S]*?min-height: 44px;/u);
 });
-

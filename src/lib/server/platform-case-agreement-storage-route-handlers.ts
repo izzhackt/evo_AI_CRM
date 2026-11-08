@@ -359,3 +359,51 @@ export function createPaymentReceiptFileDownloadHandler() {
     }
   };
 }
+
+const STUDENT_CASE_FILE_KINDS = new Set(["contract", "receipt", "pending_receipt"]);
+
+/**
+ * Студент скачивает СВОЙ договор или чек (миграция 352), только чтение. Как у сотрудников выше: команда базы под сессией студента
+ * проверяет, что файл его дела, и отдаёт имя объекта; служебный ключ только подписывает короткую ссылку. Чужой или несуществующий файл,
+ * не-студент и закрытый кабинет - одинаковый отказ 403, без подсказки, что именно не так.
+ */
+export function createStudentPortalCaseFileDownloadHandler() {
+  return async function GET(
+    _request: Request,
+    context: { params: Promise<{ fileKind: string; fileId: string }> },
+  ): Promise<Response> {
+    try {
+      const { resolvePlatformActor } = await import("../platform-auth.ts");
+      const actorResult = await resolvePlatformActor();
+      if (actorResult.status !== "authenticated") {
+        return errorResponse(actorResult.status === "anonymous" ? 401 : 503, "unavailable");
+      }
+      const params = await context.params;
+      const fileId = uuid(params.fileId);
+      if (!fileId || !STUDENT_CASE_FILE_KINDS.has(params.fileKind)) return errorResponse(400, "invalid_request");
+      const { createSupabaseServerClient } = await import("../supabase/server.ts");
+      const userClient = await createSupabaseServerClient();
+      const targetResponse = await userClient.schema("platform").rpc(
+        "student_portal_case_file_target_v1", { p_file_kind: params.fileKind, p_file_id: fileId },
+      );
+      if (targetResponse.error) {
+        return errorResponse(targetResponse.error.code === "42501" || targetResponse.error.code === "22023" ? 403 : 503, "case_file_unavailable");
+      }
+      const target = targetResponse.data;
+      if (typeof target !== "object" || target === null || Array.isArray(target)
+        || (target as Record<string, unknown>).file_id !== fileId
+        || (target as Record<string, unknown>).file_kind !== params.fileKind
+        || typeof (target as Record<string, unknown>).storage_object_name !== "string"
+        || (target as Record<string, string>).storage_object_name.length < 1) {
+        return errorResponse(503, "case_file_unavailable");
+      }
+      const serviceClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+      const signedResponse = await serviceClient.storage.from(BUCKET_ID)
+        .createSignedUrl((target as Record<string, string>).storage_object_name, 60, { download: true });
+      if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
+      return new Response(null, { status: 307, headers: { "Cache-Control": "no-store", Location: signedResponse.data.signedUrl } });
+    } catch {
+      return errorResponse(503, "case_file_unavailable");
+    }
+  };
+}

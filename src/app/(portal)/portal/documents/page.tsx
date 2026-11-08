@@ -8,10 +8,12 @@ import { PendingPackagesLink } from "@/components/portal/applicationPackages/Pen
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { DocumentUploadDialog } from "@/components/portal/admission/DocumentUploadDialog";
+import { CaseFilesCard } from "@/components/portal/admission/CaseFilesCard";
 import { DocumentsView } from "@/components/portal/admission/DocumentsView";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { readStudentPortalDocuments } from "@/lib/v3/portal-source";
+import { readStudentPortalCaseFiles } from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +39,10 @@ export default async function StudentPortalDocumentsPage({
 }: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
   const actor = await requireStudentPortalActor();
   const preparationsRead = readStudentCatalogPreparations(actor.studentCaseId).catch(() => null);
+  // Свои договор и чеки (352) - дополнение: сбой чтения не роняет чек-лист, блок просто не показывается.
+  const caseFilesRead = readStudentPortalCaseFiles().catch(() => []);
   const [documents, locale] = await Promise.all([readStudentPortalDocuments(), getLocale()]);
+  const caseFiles = await caseFilesRead;
   const [preparations, params] = await Promise.all([preparationsRead, searchParams]);
   const view = params.view === "packages" ? "packages" : "checklist";
   const strings = getPortalStrings("admission", locale);
@@ -87,6 +92,7 @@ export default async function StudentPortalDocumentsPage({
           </>
         ) : null}
       </DocumentsView>
+      {view === "checklist" ? <CaseFilesCard files={caseFiles} locale={locale} /> : null}
     </main>
   );
 }

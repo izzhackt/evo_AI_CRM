@@ -5572,6 +5572,28 @@ SQL
       exit 1
     fi
   fi
+  # «Виды документов: доработки» (migration 352, 08.11.2026). Matched by name, not number. A second apply refuses
+  # (a352_already_applied), then the suite, insisting on its marker: the document-only curator queues a receipt but cannot attach it,
+  # finance can; the Student reads only own contract and receipts.
+  if [[ "$(basename "$migration")" == *_platform_document_kind_followups.sql ]]; then
+    t352_again_log="$(mktemp -t evo-t352-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t352_again_log" 2>&1; then
+      echo "migration 352 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a352_already_applied" "$t352_again_log"; then
+      echo "a second apply of migration 352 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t352_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t352_again_log"
+    document_kind_followups_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_document_kind_followups.sql </dev/null)"
+    printf '%s\n' "$document_kind_followups_log"
+    if ! grep -q 'A352_DOCUMENT_KIND_FOLLOWUPS_SUITE_PASSED' <<<"$document_kind_followups_log"; then
+      echo "platform_document_kind_followups.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

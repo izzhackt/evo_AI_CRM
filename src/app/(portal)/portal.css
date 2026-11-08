@@ -95,7 +95,8 @@
   --pt-press-scale: 0.98;
 
   /* Сетка: контент 1200px max, боковой отступ 24 (моб. 16). */
-  --pt-content-max: 1200px;
+  /* Одна ширина содержимого на всех страницах: 1024 px и поля по краям, как у образца пользователя (08.11.2026). */
+  --pt-content-max: calc(1024px + 2 * var(--pt-gutter));
   --pt-gutter: 24px;
   --pt-card-min: 280px;
 
@@ -1458,10 +1459,6 @@
  * карточки 17/600 → подзаголовок в карточке 15/600 → текст 15 → подписи 13.
  * Почта — обычный текст: моно только для дат, сроков и сумм.
  */
-.pt-page.pt-profile {
-  max-width: calc(768px + 2 * var(--pt-gutter));
-}
-
 .pt-profile-hero {
   margin-top: 24px;
   border: 1px solid var(--pt-line);
@@ -7004,9 +7001,10 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /*
- * Строка шага: название, срок, цель. .pt-step-main раскладывается в сетку
- * строки (display: contents), поэтому на узком экране срок стоит под
- * названием, а на широком колонкой слева от линии.
+ * Строка шага: название, срок, цель и, у текущего шага, переход к разделу.
+ * .pt-step-main раскладывается в сетку строки (display: contents). Срок всегда
+ * серой строкой под названием (08.11.2026: длинные сроки в столбике слева
+ * ложились по 3–4 строки и выглядели неровно).
  */
 .pt-step-head {
   position: relative;
@@ -7015,7 +7013,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   grid-template-areas:
     "node title chevron"
     "node period chevron"
-    "node goal chevron";
+    "node goal chevron"
+    "node go chevron";
   column-gap: var(--pt-step-gap);
   align-items: start;
   padding: var(--pt-step-pad-y) var(--pt-step-pad-x);
@@ -7026,7 +7025,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 .pt-journey-steps[data-timed="false"] .pt-step-head {
   grid-template-areas:
     "node title chevron"
-    "node goal chevron";
+    "node goal chevron"
+    "node go chevron";
 }
 
 @media (hover: hover) {
@@ -7403,6 +7403,12 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-secondary);
 }
 
+/* Текущий шаг ведёт в раздел, где его делают (сейчас — «Документы»). */
+.pt-step-go {
+  grid-area: go;
+  margin: 2px 0 0;
+}
+
 .pt-step-period {
   grid-area: period;
   display: flex;
@@ -7610,37 +7616,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-journey-notes-list li::marker {
   color: var(--pt-control-edge);
-}
-
-/* Широкая карточка: сроки колонкой слева от линии. */
-@container pt-journey (min-width: 760px) {
-  .pt-journey-steps[data-timed="true"] {
-    --pt-step-period: 184px;
-  }
-
-  .pt-journey-steps[data-timed="true"] .pt-step-head {
-    grid-template-columns: calc(var(--pt-step-period) - var(--pt-step-gap)) var(--pt-step-node) minmax(0, 1fr) 20px;
-    grid-template-areas:
-      "period node title chevron"
-      "period node goal chevron";
-  }
-
-  .pt-journey-steps[data-timed="true"] .pt-step-done-toggle {
-    grid-template-columns: calc(var(--pt-step-period) - var(--pt-step-gap)) var(--pt-step-node) minmax(0, 1fr) 20px;
-    grid-template-areas: ". node count chevron";
-  }
-
-  .pt-journey-steps[data-timed="true"] .pt-step-period {
-    display: block;
-    margin: 0;
-    padding-top: 9px;
-    text-align: right;
-    text-wrap: balance;
-  }
-
-  .pt-journey-steps[data-timed="true"] .pt-step-period-icon {
-    display: none;
-  }
 }
 
 /* «Когда шаг пройден» справа от пунктов — только когда описанию остаётся не меньше ~440px; иначе оно ниже, на всю ширину. */

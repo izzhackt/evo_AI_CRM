@@ -85,10 +85,12 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
   const favorites = await favoritesRead;
   const strings = getPortalStrings("admission", locale);
   const preparationStrings = getPortalStrings("preparations", locale);
-  // Тот же путь и прогресс, что у карточки «Главной»; обзор дела не прочитан — путь без прогресса.
+  // Тот же путь и прогресс, что у карточки «Главной»: прогресс только у клиента с делом на сопровождении, обзор дела
+  // не прочитан — путь без прогресса.
+  const assisted = actor.accessTier === "assisted";
   const journey = selectStudentJourney({
     country: choice?.country ?? null,
-    stage: overview === undefined ? undefined : overview?.operationalStage ?? null,
+    stage: !assisted ? null : overview === undefined ? undefined : overview?.operationalStage ?? null,
     locale,
     now: new Date(),
   });
@@ -98,6 +100,7 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
       <CountryTimeline
         view={journey.view}
         progress={journey.progress}
+        documentsHref={assisted ? "/portal/documents" : null}
         source={choice?.source ?? null}
         readFailed={choice === null}
         options={timelineCountryOptions(locale)}

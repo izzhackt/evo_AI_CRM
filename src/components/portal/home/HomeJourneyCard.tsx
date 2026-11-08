@@ -9,8 +9,8 @@ import { HomeCardHead } from "./HomeParts";
 
 /**
  * Карточка «Пути поступления» на «Главной» (08.11.2026, пользователь: «не будет ли логичнее вот этот блок поставить в
- * поступление?» и образец «Главной»). Весь путь переехал на «Поступление»; здесь только где студент сейчас: «Шаг N из M»,
- * название шага и полоса шагов. Без дела вместо шага подпись набора, без страны предложение выбрать её. Сбой чтения
+ * поступление?» и образец «Главной»). Весь путь переехал на «Поступление»; здесь только где студент сейчас: «Сейчас:
+ * название шага» и полоса шагов. Без дела вместо шага подпись набора, без страны предложение выбрать её. Сбой чтения
  * выбора — честная плашка.
  */
 export function HomeJourneyCard({ view, progress, readFailed, locale }: Readonly<{
@@ -41,13 +41,15 @@ export function HomeJourneyCard({ view, progress, readFailed, locale }: Readonly
         <p className="pt-home-path-lead">{strings.pathChooseLead}</p>
       ) : current ? (
         <div className="pt-home-path-now">
+          {/* «Сейчас: название» без «Шаг N из M»: рядом в шапке «Главной» своё число этапов дела. */}
           <p className="pt-home-path-step">
-            <span className="pt-home-path-n">
-              {formatPortalString(timeline.nowStep, { n: String(current.order), total: String(view.steps.length) })}
-            </span>{" "}
+            <span className="pt-home-path-n">{timeline.nowLabel}</span>{" "}
             <span className="pt-home-path-title">{current.title}</span>
+            <span className="pt-sr-only">
+              {" "}{formatPortalString(timeline.stepOf, { n: String(current.order), total: String(view.steps.length) })}
+            </span>
           </p>
-          {/* Полоса шагов дублирует «Шаг N из M» словами, поэтому скрыта от читалки. */}
+          {/* Полоса шагов — картинка к строке «Сейчас»; читалка слышит «Шаг N из M» в самой строке. */}
           <span className="pt-journey-meter" aria-hidden="true">
             {view.steps.map((step) => (
               <span key={step.id} className="pt-journey-meter-seg" data-progress={progress?.[step.id] ?? "upcoming"} />

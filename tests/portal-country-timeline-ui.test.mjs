@@ -68,7 +68,8 @@ test("the whole path sits on «Поступление» between the tiles and th
   assert.match(card, /href=\{JOURNEY_HREF\}/u);
   // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
   assert.doesNotMatch(card, /^"use client";/u);
-  assert.match(card, /timeline\.nowStep, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
+  assert.match(card, /<span className="pt-home-path-n">\{timeline\.nowLabel\}<\/span>/u);
+  assert.match(card, /timeline\.stepOf, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
   assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
   assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
   const home = PORTAL_DICTIONARIES.home;
@@ -179,7 +180,9 @@ test("progress on the path: done steps fold into one line, the step line stays o
   // Этап — только из своего дела; студент без дела или с непрочитанным обзором видит путь без прогресса.
   assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage\) : null;/u);
   assert.match(page, /stage: overviewResult\.ok \? overviewResult\.value\?\.operationalStage \?\? null : undefined,/u);
-  assert.match(admissionPage, /stage: overview === undefined \? undefined : overview\?\.operationalStage \?\? null,/u);
+  // Как на «Главной»: прогресс только у клиента с делом на сопровождении.
+  assert.match(admissionPage, /const assisted = actor\.accessTier === "assisted";/u);
+  assert.match(admissionPage, /stage: !assisted \? null : overview === undefined \? undefined : overview\?\.operationalStage \?\? null,/u);
   assert.match(admissionPage, /progress=\{journey\.progress\}/u);
   assert.doesNotMatch(block, /timelineStepProgress\(/u, "the client gets the result, not the content files");
   assert.match(block, /hidden=\{state === "done" && !showDone\}/u);
@@ -187,12 +190,12 @@ test("progress on the path: done steps fold into one line, the step line stays o
   // Ничего не раскрывается само: длинный список шага — только по нажатию.
   assert.match(block, /const \{ open, toggle \} = useOpenSteps\(view\);/u);
   assert.match(block, /className="pt-journey-now"/u);
-  assert.match(block, /strings\.nowStep, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
+  assert.match(block, /<span className="pt-journey-now-n">\{strings\.nowLabel\}<\/span>/u);
   // Цвет всегда со словом: «Пройден» и «Сейчас» рядом с названием.
   assert.match(block, /state === "done" \? strings\.progressDone : strings\.progressCurrent/u);
   const { ru, ky } = PORTAL_DICTIONARIES.timeline;
-  assert.deepEqual([ru.progressDone, ru.progressCurrent, ru.showDone, ru.nowStep], ["Пройден", "Сейчас", "Пройдено", "Шаг {n} из {total}"]);
-  assert.ok(ky.progressDone && ky.progressCurrent && ky.showDone && ky.nowStep.includes("{n}") && ky.nowStep.includes("{total}"));
+  assert.deepEqual([ru.progressDone, ru.progressCurrent, ru.showDone, ru.nowLabel], ["Пройден", "Сейчас", "Пройдено", "Сейчас:"]);
+  assert.ok(ky.progressDone && ky.progressCurrent && ky.showDone && ky.nowLabel);
   // Свёрнутый шаг — название и срок; цель — у открытого и у текущего.
   assert.match(css, /\.pt-step\[data-open="false"\]:not\(\[data-progress="current"\]\) \.pt-step-goal \{\n {2}display: none;/u);
   // Строка не уезжает: карточка не обрезает прокрутку, строка закреплена под верхней полосой.
@@ -208,4 +211,26 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.deepEqual([ru.showSteps, ru.hideSteps], ["Все шаги", "Свернуть"]);
   assert.ok(ky.showSteps && ky.hideSteps);
   assert.match(css, /\.pt-journey-fold \{[\s\S]*?min-height: 44px;/u);
+});
+
+test("the step line names the current step, the current step opens Documents, timing stays under the title (user, 08.11.2026)", () => {
+  // «Сейчас: название» вместо «Шаг N из M»: число шагов спорило с числом этапов дела; оно осталось только читалке.
+  assert.doesNotMatch(block + card, /strings\.nowStep|timeline\.nowStep/u);
+  assert.equal(PORTAL_DICTIONARIES.timeline.ru.nowStep, undefined);
+  assert.match(block, /strings\.stepOf, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
+  // «Открыть документы» — у текущего шага этапа документов и только тому, кому «Документы» открыты.
+  assert.match(block, /state === "current" && documentsHref && step\.stageKeys\.includes\("documents"\)/u);
+  assert.match(admissionPage, /documentsHref=\{assisted \? "\/portal\/documents" : null\}/u);
+  assert.equal(PORTAL_DICTIONARIES.timeline.ru.openDocuments, "Открыть документы");
+  assert.ok(PORTAL_DICTIONARIES.timeline.ky.openDocuments);
+  // Срок шага всегда строкой под названием: столбика сроков слева больше нет.
+  assert.doesNotMatch(css, /"period node title chevron"|--pt-step-period: 184px/u);
+  assert.match(css, /grid-template-areas:\n {4}"node title chevron"\n {4}"node period chevron"\n {4}"node goal chevron"\n {4}"node go chevron";/u);
+});
+
+test("every cabinet page has the same content width as the user's sample (08.11.2026)", () => {
+  assert.match(css, /--pt-content-max: calc\(1024px \+ 2 \* var\(--pt-gutter\)\);/u);
+  assert.match(css, /\.pt-page \{[\s\S]*?max-width: var\(--pt-content-max\);/u);
+  // «Профиль» больше не уже остальных страниц.
+  assert.doesNotMatch(css, /\.pt-page\.pt-profile \{\n {2}max-width/u);
 });

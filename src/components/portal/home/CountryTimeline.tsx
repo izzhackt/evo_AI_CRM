@@ -266,6 +266,7 @@ function CountryPicker({
 export function CountryTimeline({
   view,
   progress = null,
+  documentsHref = null,
   source,
   readFailed,
   options,
@@ -275,6 +276,8 @@ export function CountryTimeline({
   view: CountryTimelineView | null;
   /** Прогресс по этапу дела (`timelineStepProgress`); `null`: без прогресса, как у студента без дела. */
   progress?: Readonly<Record<string, TimelineStepProgress>> | null;
+  /** «Документы» кабинета, если студенту они открыты; текущий шаг этапа документов ведёт туда. */
+  documentsHref?: string | null;
   /** Откуда выбор; `null`, если чтение выбора не удалось. */
   source: CountryChoiceSource | null;
   readFailed: boolean;
@@ -466,15 +469,17 @@ export function CountryTimeline({
           {currentStep ? (
             <div className="pt-journey-now" role="group" aria-label={strings.whereNow}>
               <div className="pt-journey-now-row">
+                {/* «Сейчас: название» без «Шаг N из M»: число шагов спорило с числом этапов дела в шапке «Главной». */}
                 <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
-                  <span className="pt-journey-now-n">
-                    {formatPortalString(strings.nowStep, { n: String(currentStep.order), total: String(total) })}
-                  </span>{" "}
+                  <span className="pt-journey-now-n">{strings.nowLabel}</span>{" "}
                   <span className="pt-journey-now-title">{currentStep.title}</span>
+                  <span className="pt-sr-only">
+                    {" "}{formatPortalString(strings.stepOf, { n: String(currentStep.order), total: String(total) })}
+                  </span>
                 </button>
                 {foldButton}
               </div>
-              {/* Полоса шагов дублирует «Шаг N из M» словами, поэтому скрыта от читалки. */}
+              {/* Полоса шагов — картинка к строке «Сейчас»; читалка слышит «Шаг N из M» в самой строке. */}
               <span className="pt-journey-meter" aria-hidden="true">
                 {view.steps.map((step) => (
                   <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
@@ -541,6 +546,11 @@ export function CountryTimeline({
                         ) : null}
                       </h3>
                       <p className="pt-step-goal">{step.summary}</p>
+                      {state === "current" && documentsHref && step.stageKeys.includes("documents") ? (
+                        <p className="pt-step-go">
+                          <IntentPrefetchLink className="pt-link" href={documentsHref}>{strings.openDocuments}</IntentPrefetchLink>
+                        </p>
+                      ) : null}
                     </div>
                     {step.timing ? (
                       <p id={periodId} className="pt-step-period">

@@ -6367,6 +6367,13 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   text-align: center;
 }
 
+/* На телефоне карточки идут одна за другой: воздуха меньше, чтобы путь и даты не уезжали далеко вниз. */
+@container pt-home (max-width: 979px) {
+  .pt-home-empty {
+    padding: 24px 12px 20px;
+  }
+}
+
 .pt-home-empty-icon {
   display: grid;
   place-items: center;

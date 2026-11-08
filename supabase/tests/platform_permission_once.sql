@@ -109,26 +109,36 @@ SELECT 'PW310_PERMISSION_ONCE_SUITE_START' AS pw_suite_marker;
 -- suite fails on the latest chain until the primitives, the anchors in 310's successor and these values
 -- are updated together: the nine hot reads would otherwise keep deciding by the old rule.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.pw_assert(md5(p.prosrc) = e.expected,
+-- Two phases, one file: the runner runs this suite right after migration 310 (`expected`) and again at the end of the chain
+-- with pw_sets_only (`expected_end`). Migration 351 (08.11.2026) rewrote nine of these bodies from LANGUAGE sql to
+-- plpgsql (and, in current_actor_authority, stated the token's membership and organization on the membership row itself):
+-- the decisions are the same; the end column holds the md5 of the new prosrc. The sets below are still proven equal to the
+-- live per-row answers in the pw_sets_only run, which is the check that no rule moved.
+\if :{?pw_sets_only}
+  SELECT set_config('pw.phase', 'end', FALSE);
+\else
+  SELECT set_config('pw.phase', '310', FALSE);
+\endif
+SELECT pg_temp.pw_assert(md5(p.prosrc) = CASE WHEN current_setting('pw.phase') = 'end' THEN e.expected_end ELSE e.expected END,
   'permission_once_mirror_drift: ' || e.fn || ' changed after migration 310; update platform_private.staff_visible_ids_v1 / staff_readable_case_ids_v1 and the anchors in supabase/tests/platform_permission_once.sql together')
 FROM (VALUES
-  ('platform_private.staff_context_can_access(uuid,uuid,text,text,uuid,uuid,uuid,text)', 'f354be0f66ddcc6953bc89dabe286315'),
-  ('platform_private.staff_resource_context(uuid,text,text,uuid)', '1567b2501a0762432a80d93c49be5c01'),
-  ('platform_private.staff_has_permission(uuid,uuid,text)', '2184ba936ea0fa1489cb4b182fcbd96e'),
-  ('platform_private.staff_membership_identity(uuid,uuid)', '50bcf36620d2806d48387c5896513ff1'),
-  ('platform_private.staff_access_evaluate(uuid,uuid,text,text,uuid,boolean)', '89536bd904e1631fda1b264dc053c505'),
-  ('platform_private.staff_can_access(uuid,uuid,text,text,uuid)', 'a4a97f1fc1bbc1979dd22ee287768fc7'),
-  ('platform_private.staff_can_access_for_actor(uuid,text,text,uuid)', 'b938af689a78e6e5f9fff08c0b98db65'),
-  ('platform.current_actor_authority()', 'cf589e34b195b1a9d7bc47c8f838a773'),
-  ('platform_private.student_actor_pre_scoped_roles()', '4b30f3ef64fe79ac7e5cac2b0769fe7c'),
-  ('platform_private.staff_can_take_needs_curator_case(uuid,uuid,uuid)', '8fb42c2c60235befcb8d75a18d444e49'),
-  ('platform_private.needs_curator_case_last_curator(uuid,uuid)', '4a100c80480fba92f7648ed3e922a145'),
-  ('platform_private.staff_can_take_direct_needs_curator_case(uuid,uuid,uuid)', 'd7811c9ff41583d2137b10bb4570ed16'),
-  ('platform_private.direct_needs_curator_case_author(uuid,uuid)', 'd7c0965e6db13d062b7fd379a09d7858'),
-  ('private.platform_can_read_student_case(uuid,uuid)', 'a567284eb05c0865152d913062775292'),
-  ('private.platform_can_read_communication_full(uuid,uuid)', '67d85fbcd6a07266a957f1b3bdc310a9'),
-  ('private.platform_can_read_canonical_lead(uuid,uuid)', '720b525f1c565ea8399d87b64d82efb7')
-) AS e(fn, expected) JOIN pg_proc p ON p.oid = e.fn::REGPROCEDURE;
+  ('platform_private.staff_context_can_access(uuid,uuid,text,text,uuid,uuid,uuid,text)', 'f354be0f66ddcc6953bc89dabe286315', 'aef9708564eb9912b2b18b05236139d2'),
+  ('platform_private.staff_resource_context(uuid,text,text,uuid)', '1567b2501a0762432a80d93c49be5c01', '1567b2501a0762432a80d93c49be5c01'),
+  ('platform_private.staff_has_permission(uuid,uuid,text)', '2184ba936ea0fa1489cb4b182fcbd96e', 'ca87382930d37a5dca6639312e0bf11d'),
+  ('platform_private.staff_membership_identity(uuid,uuid)', '50bcf36620d2806d48387c5896513ff1', 'a9dcf12e031142cc68d844cf3364f5b2'),
+  ('platform_private.staff_access_evaluate(uuid,uuid,text,text,uuid,boolean)', '89536bd904e1631fda1b264dc053c505', 'c1ddc1812f1a49ddc1f108381b17128a'),
+  ('platform_private.staff_can_access(uuid,uuid,text,text,uuid)', 'a4a97f1fc1bbc1979dd22ee287768fc7', '21e0ba2d0b74502c8611c5d8cf4852f8'),
+  ('platform_private.staff_can_access_for_actor(uuid,text,text,uuid)', 'b938af689a78e6e5f9fff08c0b98db65', 'ce58f1a9f6c08620c7fbf736229db319'),
+  ('platform.current_actor_authority()', 'cf589e34b195b1a9d7bc47c8f838a773', '63df306e246ed4fb3c407051bafa0395'),
+  ('platform_private.student_actor_pre_scoped_roles()', '4b30f3ef64fe79ac7e5cac2b0769fe7c', '372d7681347180ea2d242d4279935f1c'),
+  ('platform_private.staff_can_take_needs_curator_case(uuid,uuid,uuid)', '8fb42c2c60235befcb8d75a18d444e49', '8fb42c2c60235befcb8d75a18d444e49'),
+  ('platform_private.needs_curator_case_last_curator(uuid,uuid)', '4a100c80480fba92f7648ed3e922a145', '4a100c80480fba92f7648ed3e922a145'),
+  ('platform_private.staff_can_take_direct_needs_curator_case(uuid,uuid,uuid)', 'd7811c9ff41583d2137b10bb4570ed16', 'd7811c9ff41583d2137b10bb4570ed16'),
+  ('platform_private.direct_needs_curator_case_author(uuid,uuid)', 'd7c0965e6db13d062b7fd379a09d7858', 'd7c0965e6db13d062b7fd379a09d7858'),
+  ('private.platform_can_read_student_case(uuid,uuid)', 'a567284eb05c0865152d913062775292', '42a0572a97bf665b0ef3f83c0c4e6dea'),
+  ('private.platform_can_read_communication_full(uuid,uuid)', '67d85fbcd6a07266a957f1b3bdc310a9', '67d85fbcd6a07266a957f1b3bdc310a9'),
+  ('private.platform_can_read_canonical_lead(uuid,uuid)', '720b525f1c565ea8399d87b64d82efb7', '720b525f1c565ea8399d87b64d82efb7')
+) AS e(fn, expected, expected_end) JOIN pg_proc p ON p.oid = e.fn::REGPROCEDURE;
 SELECT pg_temp.pw_assert(p.prosecdef AND p.proconfig = ARRAY['search_path=""'] AND p.provolatile = 's',
   'permission_once_mirror_drift: ' || p.oid::REGPROCEDURE::TEXT || ' lost SECURITY DEFINER, the empty search_path or STABLE')
 FROM pg_proc p WHERE p.oid = ANY (ARRAY[

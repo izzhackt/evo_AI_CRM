@@ -26,6 +26,10 @@
 | Taylor’s College | Subang Jaya | 17 | 17 | https://college.taylors.edu.my/en.html | Full: the official Explore All Programmes page and Key Intakes page list 7 foundations, GCE A Level and SACE, 7 diplomas and 2 professional programmes; each programme page was fetched (duration, intakes). |
 | Sunway College | Bandar Sunway | 5 | 0 | https://sunwaycollege.edu.my | Enumerated from official sitemap.xml plus /courses/diploma, /undergraduate, /postgraduate listing pages, then each programme page fetched (title, intakes, duration, fee). |
 
+## Расшифровка «IUM»
+
+«IUM» из отзыва владельца 07.11 означает International Islamic University Malaysia (IIUM): подтверждено владельцем 08.11.2026. Карточка IIUM остаётся в каталоге; отдельная карточка International University of Malaya-Wales не добавляется. Вопрос закрыт.
+
 ## Что не включено и что не подтверждено
 
 Исключены онлайн и дистанционные программы, программы только для граждан Малайзии, краткие курсы и сертификаты, программы с переводом за рубеж. Названия, найденные только в таблицах EVO или у агрегаторов и не подтверждённые официальным сайтом, не импортированы.
@@ -63,3 +67,20 @@ Official campuses page https://newinti.edu.my/campuses/ lists exactly four degre
 - UCSI, UPM, UniKL: где официальный источник даёт два варианта (с подготовительным курсом и без; 2 или 3 года; два уровня семестровой платы), показан диапазон от и до.
 - Sunway: официальные страницы дают для иностранцев только ориентировочную сумму в USD за год (оплата в MYR по курсу), она записана в USD.
 - Во всех строках суммы без налога SST 6% и без регистрационных, визовых и страховых сборов, если источник не говорит иное.
+
+## Фото карточек (08.11.2026)
+
+Фото берутся только из Wikimedia Commons с открытой лицензией (автор, лицензия и страница файла записаны в `src/lib/university-photo-library.json` и `scripts/portal/university-photos-manifest.json`); с сайтов университетов и из поисковиков фото не берутся.
+
+| Карточка | Ключ фото | Файл на Commons | Автор | Лицензия |
+|---|---|---|---|---|
+| Universiti Malaya | `um` | Universiti_Malaya_KL_gate.jpg | *angys* | CC BY-SA 4.0 |
+| International Islamic University Malaysia | `iium` | Iiumcampus.jpg | پوویا | CC BY-SA 3.0 |
+| ALFA University College | `alfa` | Alfa_University_College_building.jpg | Alfa university | CC0 |
+| INTI International College Subang | `inti-subang` | INTI_Subang_-_Mapillary_(FrFeVDhUppVU9dh1EVMB5W).jpg | kaart_1 @ Mapillary.com | CC BY-SA 4.0 |
+| INTI International College Penang | `inti-penang` | Cmglee_Inti_College_Penang.jpg | Cmglee | CC BY-SA 4.0 |
+| Taylor’s College | `taylors` (общий с Taylor’s University) | Taylor's_Lakeside_Campus,_Subang_Jaya,_Malaysia.jpg | Md Shaifuzzaman Ayon | CC BY-SA 4.0 |
+| Sunway College | `sunway` (общий с Sunway University) | Cmglee_Sunway_University_new_building.jpg | Cmglee | CC BY-SA 4.0 |
+| INTI College Sabah | нет | свободной фотографии на Commons не найдено | | |
+
+Taylor’s College (адрес на https://college.taylors.edu.my: Block E, Taylor’s Lakeside Campus) и Sunway College (https://sunwaycollege.edu.my: No. 2, Jalan Universiti, Bandar Sunway, рядом с Sunway University) стоят на кампусах своих университетов, поэтому общее фото честно, но это фото университета, не колледжа. Фото INTI Nilai (официальное, без права повторного использования) для кампусов INTI не годится.

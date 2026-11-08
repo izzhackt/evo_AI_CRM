@@ -15,10 +15,10 @@ const clone = () => structuredClone(current.find((entry) => entry.key === "apu")
 const id = "59948000-0000-4000-8000-000000000001";
 const currentBundles = readdirSync(new URL("../src/lib/server/", import.meta.url)).filter((name) => /^university-catalog-reviewed-(?!content\.json$).+\.json$/.test(name));
 const current = currentBundles.flatMap((name) => JSON.parse(readFileSync(new URL(`../src/lib/server/${name}`, import.meta.url), "utf8")));
-// Malaysia 2026-11 (migration 350 slice): these cards were added from official sites without a licensed campus photo
-// (the photo library and its Storage upload are a separate step, docs/design/v3/university-photo-refresh-run-plan.md).
-// Every other card keeps the rule «a real campus photo with provenance»; a card leaves this set when its photo lands.
-const AWAITING_PHOTO = new Set(["um", "iium", "alfa", "inti-subang", "inti-penang", "inti-sabah", "taylors-college", "sunway-college"]);
+// Malaysia 2026-11: INTI College Sabah has no freely licensed campus photo on Wikimedia Commons (the INTI Nilai photo is
+// another campus under «no reuse licence»). Every other card keeps the rule «a real campus photo with provenance»;
+// the card leaves this set when a licensed photo of that campus is found.
+const AWAITING_PHOTO = new Set(["inti-sabah"]);
 test("the complete real research package parses, has campus photos, and retains existing identities", () => {
   assert.ok(current.length >= 140);
   const rows = universityBatchRows(current, []);
@@ -96,8 +96,12 @@ test("language courses have their own valid filter rather than masquerading as d
 });
 test("forward migration photo vocabulary matches the fixed reviewed image registry", () => {
   const sql = readFileSync(new URL("../supabase/migrations/151_platform_university_catalog_completion.sql", import.meta.url), "utf8");
-  const values = sql.match(/new_photo CONSTANT TEXT := \$new\$value->>'photoKey' IN \(([^)]+)\)/)[1].split(",").map((v) => v.slice(1, -1)).sort();
-  assert.deepEqual(values, Object.keys(UNIVERSITY_PHOTOS).sort());
+  const values = sql.match(/new_photo CONSTANT TEXT := \$new\$value->>'photoKey' IN \(([^)]+)\)/)[1].split(",").map((v) => v.slice(1, -1));
+  // Migration 353 widens the allow-list by exactly the keys of the new Malaysia photos.
+  const widening = readFileSync(new URL("../supabase/migrations/353_platform_university_photo_keys.sql", import.meta.url), "utf8");
+  const added = widening.match(/new_keys CONSTANT TEXT\[\] := ARRAY\[([^\]]+)\]/)[1].split(",").map((v) => v.trim().slice(1, -1));
+  assert.deepEqual(added, ["um", "iium", "alfa", "inti-subang", "inti-penang"]);
+  assert.deepEqual([...values, ...added].sort(), Object.keys(UNIVERSITY_PHOTOS).sort());
   assert.match(sql, /platform_private\.valid_university_content\(jsonb\)/);
   assert.match(sql, /platform_private\.university_catalog_page\(uuid,text,text,text,uuid,integer\)/);
   assert.match(sql, /'doctorate','language'/);

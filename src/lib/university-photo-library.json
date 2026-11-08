@@ -1294,5 +1294,50 @@
     "sourceUrl": "https://city.edu.my/",
     "license": "All rights reserved; official-source embedding",
     "licenseUrl": "https://city.edu.my/privacy-policy/"
+  },
+  "um": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/88/Universiti_Malaya_KL_gate.jpg/1280px-Universiti_Malaya_KL_gate.jpg",
+    "author": "*angys*",
+    "title": "Universiti Malaya KL gate",
+    "caption": "Главные ворота Universiti Malaya, Куала-Лумпур",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Universiti_Malaya_KL_gate.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "iium": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Iiumcampus.jpg/1280px-Iiumcampus.jpg",
+    "author": "پوویا",
+    "title": "Iiumcampus",
+    "caption": "Главный кампус International Islamic University Malaysia",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Iiumcampus.jpg",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/"
+  },
+  "alfa": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/eb/Alfa_University_College_building.jpg/1280px-Alfa_University_College_building.jpg",
+    "author": "Alfa university",
+    "title": "Alfa University College building",
+    "caption": "Здание ALFA University College, Субанг-Джая",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Alfa_University_College_building.jpg",
+    "license": "CC0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "inti-subang": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/INTI_Subang_-_Mapillary_%28FrFeVDhUppVU9dh1EVMB5W%29.jpg/1280px-INTI_Subang_-_Mapillary_%28FrFeVDhUppVU9dh1EVMB5W%29.jpg",
+    "author": "kaart_1 @ Mapillary.com",
+    "title": "INTI Subang - Mapillary (FrFeVDhUppVU9dh1EVMB5W)",
+    "caption": "Здание INTI International College Subang, Субанг-Джая",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:INTI_Subang_-_Mapillary_(FrFeVDhUppVU9dh1EVMB5W).jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "inti-penang": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c3/Cmglee_Inti_College_Penang.jpg/1280px-Cmglee_Inti_College_Penang.jpg",
+    "author": "Cmglee",
+    "title": "Cmglee Inti College Penang",
+    "caption": "Здание INTI International College Penang",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Cmglee_Inti_College_Penang.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/"
   }
 }

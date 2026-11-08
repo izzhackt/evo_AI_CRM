@@ -1,5 +1,5 @@
 -- ============================================================
--- 355_platform_portal_speed.sql
+-- 351_platform_portal_speed.sql
 --
 -- Скорость кабинета и CRM (отзыв владельца 07.11.2026: «app.evoadmissions.com — kinda slow & maybe sql optimization»).
 -- Хуки набора в `scripts/test-runners/test-postgres-authorization.sh` привязаны к имени файла.
@@ -28,17 +28,17 @@
 --
 -- Защита от дрейфа: у каждой переписываемой функции закреплена md5 боевого `prosrc`; расхождение прерывает миграцию,
 -- ничего не меняя. У функций с точечной правкой фрагмент обязан встретиться ровно столько раз, сколько ожидается.
--- CREATE OR REPLACE сохраняет владельца и права. Forward-only: повтор отказывает a355_already_applied.
+-- CREATE OR REPLACE сохраняет владельца и права. Forward-only: повтор отказывает a351_already_applied.
 -- ============================================================
 
 BEGIN;
 
-DO $a355_guard$
+DO $a351_guard$
 DECLARE pinned RECORD; actual TEXT;
 BEGIN
   IF (SELECT l.lanname FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
       WHERE p.oid = 'platform_private.staff_has_permission(uuid,uuid,text)'::regprocedure) = 'plpgsql' THEN
-    RAISE EXCEPTION 'a355_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a351_already_applied' USING ERRCODE = '55000';
   END IF;
   FOR pinned IN SELECT * FROM (VALUES
     ('platform.current_actor_authority', 'cf589e34b195b1a9d7bc47c8f838a773'),
@@ -63,20 +63,20 @@ BEGIN
     SELECT md5(p.prosrc) INTO actual FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname || '.' || p.proname = pinned.name;
     IF actual IS DISTINCT FROM pinned.source_md5 THEN
-      RAISE EXCEPTION 'a355_drift: % has % (expected %)', pinned.name, actual, pinned.source_md5;
+      RAISE EXCEPTION 'a351_drift: % has % (expected %)', pinned.name, actual, pinned.source_md5;
     END IF;
   END LOOP;
 END
-$a355_guard$;
+$a351_guard$;
 
-CREATE FUNCTION pg_temp.a355_replace(p_signature TEXT, p_old TEXT, p_new TEXT, p_count INTEGER)
+CREATE FUNCTION pg_temp.a351_replace(p_signature TEXT, p_old TEXT, p_new TEXT, p_count INTEGER)
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE body TEXT; matches INTEGER;
 BEGIN
   body := pg_get_functiondef(to_regprocedure(p_signature));
   matches := (length(body) - length(replace(body, p_old, ''))) / length(p_old);
   IF body IS NULL OR matches IS DISTINCT FROM p_count THEN
-    RAISE EXCEPTION 'a355_replace_drift: % expected %, found %', p_signature, p_count, matches;
+    RAISE EXCEPTION 'a351_replace_drift: % expected %, found %', p_signature, p_count, matches;
   END IF;
   EXECUTE replace(body, p_old, p_new);
 END $$;
@@ -614,10 +614,10 @@ END
 $function$;
 REVOKE ALL ON FUNCTION platform_private.staff_notification_visible_as(platform.staff_notifications, uuid) FROM PUBLIC;
 
-SELECT pg_temp.a355_replace('platform.staff_notifications_page_v2(uuid,timestamp with time zone,uuid)',
+SELECT pg_temp.a351_replace('platform.staff_notifications_page_v2(uuid,timestamp with time zone,uuid)',
   $old$AND n.read_at IS NULL AND platform_private.staff_notification_visible(n);$old$,
   $new$AND n.read_at IS NULL AND platform_private.staff_notification_visible_as(n, actor.membership_id);$new$, 1);
-SELECT pg_temp.a355_replace('platform.staff_notifications_page_v2(uuid,timestamp with time zone,uuid)',
+SELECT pg_temp.a351_replace('platform.staff_notifications_page_v2(uuid,timestamp with time zone,uuid)',
   $old$AND platform_private.staff_notification_visible(n)
       AND (p_before_at IS NULL$old$,
   $new$AND platform_private.staff_notification_visible_as(n, actor.membership_id)
@@ -625,7 +625,7 @@ SELECT pg_temp.a355_replace('platform.staff_notifications_page_v2(uuid,timestamp
 
 -- 4. staff_access_snapshot: тело staff_has_permission, вычисленное в одном запросе. Личность (identity) участника уже
 --    в `actor` (выбрана из той же staff_membership_identity), поэтому её JOIN из staff_has_permission не нужен.
-SELECT pg_temp.a355_replace('platform.staff_access_snapshot()',
+SELECT pg_temp.a351_replace('platform.staff_access_snapshot()',
   $old$FROM platform.permission_definitions d WHERE platform_private.staff_has_permission(actor.organization_id,actor.membership_id,d.permission_key);$old$,
   $new$FROM platform.permission_definitions d WHERE cardinality(d.staff_resource_kinds)>0 AND CASE
  WHEN d.staff_sensitive THEN (d.permission_key<>'admissions.handoff.gate.override' OR actor.system_role='admin')
@@ -641,7 +641,7 @@ SELECT pg_temp.a355_replace('platform.staff_access_snapshot()',
  AND r.current_bundle_id=a.bundle_id) END;$new$, 1);
 
 -- 5. student_portal_cases: дешёвые условия, которые функция проверки сама требует, идут до неё.
-SELECT pg_temp.a355_replace('platform.student_portal_cases()',
+SELECT pg_temp.a351_replace('platform.student_portal_cases()',
   $old$WHERE private.platform_can_read_student_portal_case($old$,
   $new$WHERE student_case.portal_activated_at IS NOT NULL
     AND student_case.state IN ('pending', 'active', 'closed')

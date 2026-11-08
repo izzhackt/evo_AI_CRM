@@ -110,7 +110,7 @@ SELECT 'PW310_PERMISSION_ONCE_SUITE_START' AS pw_suite_marker;
 -- are updated together: the nine hot reads would otherwise keep deciding by the old rule.
 -- ---------------------------------------------------------------------------
 -- Two phases, one file: the runner runs this suite right after migration 310 (`expected`) and again at the end of the chain
--- with pw_sets_only (`expected_end`). Migration 355 (08.11.2026) rewrote nine of these bodies from LANGUAGE sql to
+-- with pw_sets_only (`expected_end`). Migration 351 (08.11.2026) rewrote nine of these bodies from LANGUAGE sql to
 -- plpgsql (and, in current_actor_authority, stated the token's membership and organization on the membership row itself):
 -- the decisions are the same; the end column holds the md5 of the new prosrc. The sets below are still proven equal to the
 -- live per-row answers in the pw_sets_only run, which is the check that no rule moved.

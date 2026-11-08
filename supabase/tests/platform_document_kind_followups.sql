@@ -279,5 +279,36 @@ SELECT id::TEXT AS a352_old_contract FROM platform.case_contract_files WHERE org
 SELECT pg_temp.a352_as(2, format('SELECT platform.student_portal_case_file_target_v1(%L, %L)', 'contract', :'a352_old_contract')) AS a352_t_old \gset
 SELECT pg_temp.a352_assert(pg_temp.a352_err(:'a352_t_old'::JSONB) = '42501', 'a superseded contract is not downloadable by the Student (42501)');
 
+-- ---------------------------------------------------------------------------
+-- 6. A Student with two own cases downloads files of either case (not only the first one).
+-- ---------------------------------------------------------------------------
+INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version) VALUES
+  (pg_temp.a352_id(423), pg_temp.a352_id(1), 'student_case', pg_temp.a352_id(703), 1);
+INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
+  assignment_version, granted, actor_kind, reason, request_id) VALUES
+  (pg_temp.a352_id(1), pg_temp.a352_id(302), pg_temp.a352_id(423), 1, 1, TRUE, 'system', 'A352 synthetic scope', pg_temp.a352_id(606));
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.student_cases(id, organization_id, responsible_sales_membership_id, current_curator_membership_id,
+  source_key, student_display_name, target_country, target_degree, operational_stage, state, handoff_at,
+  current_scope_id, current_scope_version, pipeline_stage, student_membership_id, portal_activated_at)
+VALUES (pg_temp.a352_id(703), pg_temp.a352_id(1), pg_temp.a352_id(301), pg_temp.a352_id(304),
+  'synthetic:a352:703', 'A352 Student 703', 'MY', 'Master', 'contract_confirmed', 'active', clock_timestamp(),
+  pg_temp.a352_id(423), 1, 'new', pg_temp.a352_id(302), clock_timestamp());
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a352_svc(format('SELECT platform.record_case_contract_file_metadata(%L, %L, %L, %L, %L, 128, %L, %L, %L)',
+  pg_temp.a352_id(1), pg_temp.a352_id(703), pg_temp.a352_id(304), 'second-case-contract.png', 'image/png', repeat('d', 64),
+  format('case-contracts/%s/%s/%s', pg_temp.a352_id(1), pg_temp.a352_id(703), pg_temp.a352_id(925)), pg_temp.a352_id(9504))) AS a352_c_second \gset
+SELECT pg_temp.a352_assert(NOT (:'a352_c_second'::JSONB ? 'error'), 'fixture: a contract on the Student''s second case');
+SELECT pg_temp.a352_as(2, 'SELECT COALESCE(jsonb_agg(to_jsonb(f) ORDER BY f.file_kind, f.added_at), ''[]''::JSONB) FROM platform.student_portal_case_files_v1() f') AS a352_files_a2 \gset
+SELECT e ->> 'file_id' AS a352_f_second FROM jsonb_array_elements(:'a352_files_a2'::JSONB) e WHERE e ->> 'original_filename' = 'second-case-contract.png' \gset
+SELECT pg_temp.a352_assert(:'a352_f_second' <> '', 'the second case''s contract is listed for the Student');
+SELECT pg_temp.a352_as(2, format('SELECT platform.student_portal_case_file_target_v1(%L, %L)', 'contract', :'a352_f_second')) AS a352_t_second \gset
+SELECT pg_temp.a352_as(2, format('SELECT platform.student_portal_case_file_target_v1(%L, %L)', 'contract', :'a352_f_contract')) AS a352_t_first \gset
+SELECT pg_temp.a352_assert(NOT (:'a352_t_second'::JSONB ? 'error') AND :'a352_t_second'::JSONB::TEXT LIKE '%' || pg_temp.a352_id(703) || '%',
+  'a file of the Student''s second case resolves (not only the first case)');
+SELECT pg_temp.a352_assert(NOT (:'a352_t_first'::JSONB ? 'error'), 'a file of the first case still resolves');
+SELECT pg_temp.a352_as(3, format('SELECT platform.student_portal_case_file_target_v1(%L, %L)', 'contract', :'a352_f_second')) AS a352_t_second_b \gset
+SELECT pg_temp.a352_assert(pg_temp.a352_err(:'a352_t_second_b'::JSONB) = '42501', 'another Student cannot resolve the second case''s file (42501)');
+
 \echo A352_DOCUMENT_KIND_FOLLOWUPS_SUITE_PASSED
 ROLLBACK;

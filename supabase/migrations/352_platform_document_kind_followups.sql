@@ -172,23 +172,30 @@ $$;
 -- Имя объекта Storage для подписанной ссылки: только свой файл. Чужой, несуществующий и «чужого вида» - одинаково 42501.
 CREATE FUNCTION platform.student_portal_case_file_target_v1(p_file_kind TEXT, p_file_id UUID)
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE own RECORD; found_row RECORD;
+DECLARE found_row RECORD;
 BEGIN
   IF p_file_id IS NULL OR p_file_kind IS NULL OR p_file_kind NOT IN ('contract', 'receipt', 'pending_receipt') THEN
     RAISE EXCEPTION 'case_file_invalid' USING ERRCODE = '22023';
   END IF;
-  SELECT g.organization_id, g.student_case_id INTO own FROM platform_private.student_portal_money_case_v1() AS g LIMIT 1;
+  -- У студента может быть несколько своих дел: файл ищется во всех его делах, а не в первом попавшемся.
+  PERFORM 1 FROM platform_private.student_portal_money_case_v1();
   IF NOT FOUND THEN RAISE EXCEPTION 'case_file_forbidden' USING ERRCODE = '42501'; END IF;
   IF p_file_kind = 'contract' THEN
     SELECT f.storage_object_name AS object_name, f.original_filename AS filename INTO found_row FROM platform.case_contract_files f
-      WHERE f.organization_id = own.organization_id AND f.student_case_id = own.student_case_id AND f.id = p_file_id AND f.superseded_at IS NULL;
+      JOIN platform_private.student_portal_money_case_v1() AS own
+      ON own.organization_id = f.organization_id AND own.student_case_id = f.student_case_id
+      WHERE f.id = p_file_id AND f.superseded_at IS NULL;
   ELSIF p_file_kind = 'receipt' THEN
     SELECT f.storage_object_name AS object_name, f.original_filename AS filename INTO found_row FROM platform.payment_receipt_files f
-      WHERE f.organization_id = own.organization_id AND f.student_case_id = own.student_case_id AND f.id = p_file_id;
+      JOIN platform_private.student_portal_money_case_v1() AS own
+      ON own.organization_id = f.organization_id AND own.student_case_id = f.student_case_id
+      WHERE f.id = p_file_id;
   ELSE
     -- Чек, ставший привязанным после открытия страницы, остаётся файлом этого же студента.
     SELECT f.storage_object_name AS object_name, f.original_filename AS filename INTO found_row FROM platform.case_pending_receipts f
-      WHERE f.organization_id = own.organization_id AND f.student_case_id = own.student_case_id AND f.id = p_file_id;
+      JOIN platform_private.student_portal_money_case_v1() AS own
+      ON own.organization_id = f.organization_id AND own.student_case_id = f.student_case_id
+      WHERE f.id = p_file_id;
   END IF;
   IF NOT FOUND THEN RAISE EXCEPTION 'case_file_forbidden' USING ERRCODE = '42501'; END IF;
   RETURN jsonb_build_object('file_kind', p_file_kind, 'file_id', p_file_id, 'storage_object_name', found_row.object_name,

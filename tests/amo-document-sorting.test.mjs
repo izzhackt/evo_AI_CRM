@@ -428,7 +428,9 @@ test("the accept action: finance gate before any change, dedupe through the exem
   const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const actions = read("../src/lib/platform-document-sorting-actions.ts");
   assert.ok(actions.indexOf("finance_forbidden") < actions.indexOf("getPlatformCaseDocumentWorkspace(actor"), "the permission gate runs before any read or write of the file");
-  assert.match(actions, /isFinanceKind\(kind\) && !\(await financeWritable\(/);
+  assert.match(actions, /kind === "contract" && !\(await financeWritable\(/, "only the contract needs the money write door");
+  assert.equal(/isFinanceKind\(kind\) && !\(await financeWritable/.test(actions), false, "queueing a receipt is a document action: no money write door");
+  assert.match(actions, /matchStandardKindLabel\(requestedLabel\)/, "«Другое…» with a standard kind name is folded to that kind on the server");
   assert.match(actions, /dedupeAppliesTo\(kind\) && workspace\.slots\.some\(\(item\) => item\.documentSlotId !== slotId && item\.requirementLabel === label\)\) return "target_exists"/);
   assert.match(actions, /rpc\("remove_document_slot"/, "«Не нужное» uses the existing soft removal, never a delete");
   assert.equal(/\.delete\(|DELETE FROM/i.test(actions), false);
@@ -452,4 +454,17 @@ test("the sorting card offers the new kinds quietly: one select, a name field on
   assert.match(ui, /finance_failed:/);
   assert.match(ui, /Станет договором дела в «Деньги»/);
   assert.match(ui, /form\.set\("custom_label", label\)/, "the exact-field action always receives the custom_label field");
+});
+
+test("«Другое…» with a standard kind name folds to that kind (RU/KY/EN, case, spaces, punctuation)", () => {
+  for (const raw of ["Паспорт", "паспорт ", "  ПАСПОРТ", "Passport", "passport"]) assert.equal(kinds.matchStandardKindLabel(raw), "passport", raw);
+  assert.equal(kinds.matchStandardKindLabel("Аттестат/диплом"), "attestat");
+  assert.equal(kinds.matchStandardKindLabel("транскрипт  /  приложение к аттестату"), "transcript");
+  assert.equal(kinds.matchStandardKindLabel("Чек"), "payment_receipt");
+  assert.equal(kinds.matchStandardKindLabel("договор"), "contract");
+  assert.equal(kinds.matchStandardKindLabel("Не нужное"), "not_needed");
+  assert.equal(kinds.matchStandardKindLabel("Сүрөт"), "photo");
+  for (const kind of kinds.DOCUMENT_KINDS) assert.equal(kinds.matchStandardKindLabel(kind.label), kind.key, kind.label);
+  for (const kind of kinds.STAFF_EXTRA_KINDS) if (kind.key !== "other") assert.equal(kinds.matchStandardKindLabel(kind.label), kind.key, kind.label);
+  for (const own of ["Справка из банка", "Паспорт отца", "Другое…", "Другое", "", "   ", "Чек на такси"]) assert.equal(kinds.matchStandardKindLabel(own), null, own);
 });

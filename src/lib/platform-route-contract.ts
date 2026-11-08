@@ -109,6 +109,9 @@ const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/portal\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions$/i;
 const STUDENT_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/portal\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+// Свои договор и чеки студента (миграция 352): только GET, вид файла из закрытого списка.
+const STUDENT_CASE_FILE_DOWNLOAD_PATH =
+  /^\/api\/portal\/case-files\/(?:contract|receipt|pending_receipt)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
 // PORT-9a (ADR 0030 «Решение» п. 3): the two narrow intake routes of the
 // iPhone анкета path. Acceptance rides the PORT-8a bearer pass-through;
 // registration is a public intake whose handler owns its whole boundary.
@@ -285,6 +288,7 @@ export function isConnectedStudentPortalApi(
   return (
     (method === "POST" && STUDENT_DOCUMENT_VERSION_UPLOAD_PATH.test(path))
     || (method === "GET" && STUDENT_DOCUMENT_DOWNLOAD_PATH.test(path))
+    || (method === "GET" && STUDENT_CASE_FILE_DOWNLOAD_PATH.test(path))
     || (method === "POST" && path === "/api/portal/application-document-uploads")
     || (method === "GET" && path === "/api/portal/application-document-downloads")
     // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a

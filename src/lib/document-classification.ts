@@ -80,6 +80,41 @@ export function normalizeCustomDocumentLabel(raw: unknown): string | null {
   return label.length >= 1 && label.length <= CUSTOM_DOCUMENT_LABEL_MAX ? label : null;
 }
 
+/**
+ * «Другое…» с названием стандартного вида (follow-up к PR 1403, 08.11.2026): «Паспорт», «паспорт », «Passport», «Паспорт» на кыргызском -
+ * это тот же вид, а не второй документ под своей подписью. Сервер (`acceptOne`) сводит такое название к стандартному виду и дальше
+ * действует как при выборе из списка, включая отказ «пункт с таким названием уже есть». Сравнение без регистра, пробелов и
+ * знаков препинания («Аттестат/диплом» = «аттестат / диплом»). «Другое…» как название вида не считается (null).
+ */
+const STANDARD_KIND_ALIASES: Readonly<Record<Exclude<AcceptKindKey, "other">, readonly string[]>> = Object.freeze({
+  passport: ["Паспорт", "Passport"],
+  attestat: ["Аттестат / диплом", "Аттестат", "Диплом", "Certificate / diploma", "Diploma", "School certificate"],
+  transcript: ["Транскрипт / приложение к аттестату", "Транскрипт", "Transcript", "Academic transcript"],
+  photo: ["Фото", "Сүрөт", "Photo"],
+  medical: ["Медицинская справка", "Медициналык справка", "Medical certificate"],
+  police_certificate: ["Справка о несудимости", "Соттолбогондугу тууралуу справка", "Police certificate", "Police clearance certificate"],
+  bank_statement: ["Банковская выписка", "Банк көчүрмөсү", "Bank statement"],
+  motivation_letter: ["Мотивационное письмо", "Мотивациялык кат", "Motivation letter"],
+  language_certificate: ["Сертификат о знании языка", "Тил билүү сертификаты", "Language certificate"],
+  birth_certificate: ["Свидетельство о рождении", "Туулгандыгы тууралуу күбөлүк", "Birth certificate"],
+  recommendation_letter: ["Рекомендательное письмо", "Сунуштама кат", "Recommendation letter"],
+  application_form: ["Анкета / заявление", "Анкета", "Заявление", "Анкета / арыз", "Арыз", "Application form"],
+  payment_receipt: ["Чек об оплате", "Чек", "Төлөм чеги", "Чек (төлөм)", "Payment receipt", "Receipt"],
+  contract: ["Договор", "Келишим", "Contract", "Agreement"],
+  not_needed: ["Не нужное", "Кереги жок", "Not needed"],
+});
+function foldKindLabel(raw: string): string {
+  return raw.normalize("NFKC").toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+const STANDARD_KIND_BY_FOLDED: ReadonlyMap<string, AcceptKindKey> = new Map(
+  (Object.entries(STANDARD_KIND_ALIASES) as [AcceptKindKey, readonly string[]][])
+    .flatMap(([key, labels]) => labels.map((label): [string, AcceptKindKey] => [foldKindLabel(label), key])),
+);
+export function matchStandardKindLabel(raw: string): AcceptKindKey | null {
+  const folded = foldKindLabel(raw);
+  return folded === "" ? null : STANDARD_KIND_BY_FOLDED.get(folded) ?? null;
+}
+
 /** Порог «уверенно»: только такие файлы принимает кнопка «Принять все уверенные». Ниже порога «возможно» подсказка не показывается. */
 export const CONFIDENCE_CONFIDENT = 0.9;
 export const CONFIDENCE_POSSIBLE = 0.6;

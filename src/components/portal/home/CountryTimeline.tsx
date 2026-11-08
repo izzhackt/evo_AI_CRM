@@ -104,6 +104,15 @@ function useOpenSteps(view: CountryTimelineView | null) {
   return { open, toggle };
 }
 
+// Свёрнут ли весь путь: выбор студента помнит браузер (`1` / `0`), без выбора — по умолчанию.
+function useFolded(defaultFolded: boolean) {
+  const key = `${STORAGE_PREFIX}:folded`;
+  const raw = useSyncExternalStore(subscribeStored, () => readStored(key), () => "");
+  const folded = raw === "1" ? true : raw === "0" ? false : defaultFolded;
+  const setFolded = useCallback((value: boolean) => writeStored(key, value ? "1" : "0"), [key]);
+  return { folded, setFolded };
+}
+
 // ---------------------------------------------------------------------------
 // Значки: один штрих 1.5 на сетке 20, как в рейле кабинета.
 // ---------------------------------------------------------------------------
@@ -121,7 +130,6 @@ const ICON = {
   chevron: "M5.5 8l4.5 4.5L14.5 8",
   done: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM6.8 10.2l2.2 2.2 4.2-4.6",
   check: "M5 10.5l3.2 3.2L15 6.5",
-  down: "M10 4.5v11M5.5 11l4.5 4.5 4.5-4.5",
   external: "M11.5 4.5h4v4M15.5 4.5L9 11M13.5 11.5v4h-9v-9h4",
   info: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM10 9.2v4.3M10 6.6h.01",
 } as const;
@@ -294,14 +302,29 @@ export function CountryTimeline({
   const stepId = (id: string) => `${baseId}-step-${id}`;
 
   const { open, toggle } = useOpenSteps(view);
+  // Без выбора студента путь с текущим шагом свёрнут: на виду строка «Шаг N из M»; без дела — раскрыт, как раньше.
+  const { folded, setFolded } = useFolded(currentStep !== null);
+  const stepsId = `${baseId}-steps`;
 
-  // Строка «Шаг N из M» над шагами: раскрывает текущий шаг и прокручивает к нему.
+  // Строка «Шаг N из M» над шагами: раскрывает путь и текущий шаг и прокручивает к нему.
   function jumpToCurrent() {
     if (!currentStep) return;
+    if (folded) setFolded(false);
     if (!open.has(currentStep.id)) toggle(currentStep.id);
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    document.getElementById(stepId(currentStep.id))?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    // Шаги появляются после следующей отрисовки: прокрутка — после неё.
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      document.getElementById(stepId(currentStep.id))?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    }));
   }
+
+  const foldButton = (
+    <button type="button" className="pt-journey-fold" aria-expanded={!folded} aria-controls={stepsId}
+      onClick={() => setFolded(!folded)}>
+      {folded ? strings.showSteps : strings.hideSteps}
+      <Icon path={ICON.chevron} className="pt-journey-fold-icon" />
+    </button>
+  );
 
   const showPicker = view === null || pickerOpen;
 
@@ -434,13 +457,15 @@ export function CountryTimeline({
           {/* Текущий шаг всегда на виду при прокрутке пути (08.11.2026, владелец). */}
           {currentStep ? (
             <div className="pt-journey-now" role="group" aria-label={strings.whereNow}>
-              <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
-                <span className="pt-journey-now-n">
-                  {formatPortalString(strings.nowStep, { n: String(currentStep.order), total: String(total) })}
-                </span>
-                <span className="pt-journey-now-title">{currentStep.title}</span>
-                <Icon path={ICON.down} className="pt-journey-now-go" />
-              </button>
+              <div className="pt-journey-now-row">
+                <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
+                  <span className="pt-journey-now-n">
+                    {formatPortalString(strings.nowStep, { n: String(currentStep.order), total: String(total) })}
+                  </span>
+                  <span className="pt-journey-now-title">{currentStep.title}</span>
+                </button>
+                {foldButton}
+              </div>
               {/* Полоса шагов дублирует «Шаг N из M» словами, поэтому скрыта от читалки. */}
               <span className="pt-journey-meter" aria-hidden="true">
                 {view.steps.map((step) => (
@@ -448,7 +473,11 @@ export function CountryTimeline({
                 ))}
               </span>
             </div>
-          ) : null}
+          ) : (
+            <div className="pt-journey-fold-row">{foldButton}</div>
+          )}
+          {/* Весь путь сворачивается (08.11.2026, пользователь): шаги и «Важно знать» — по «Все шаги». */}
+          <div id={stepsId} className="pt-journey-body" hidden={folded}>
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>
             {/* Пройденные шаги свёрнуты в одну строку; раскрываются по нажатию. */}
             {doneSteps.length > 0 ? (
@@ -531,6 +560,7 @@ export function CountryTimeline({
             <ul className="pt-journey-notes-list">
               {view.disclaimers.map((text) => <li key={text}>{text}</li>)}
             </ul>
+          </div>
           </div>
         </>
       ) : null}

@@ -166,5 +166,13 @@ test("progress on the home path: done steps fold into one line, the step line st
   assert.match(css, /\.pt-journey-now \{\n {2}position: sticky;\n {2}top: calc\(var\(--pt-topbar-height\) \+ 8px\);/u);
   assert.match(css, /\.pt-step\[data-progress="done"\] \.pt-step-node,/u);
   assert.doesNotMatch(css, /pt-node-wave|pt-journey-now-count|pt-journey-now-timing/u, "no pulse and no repeated count or timing");
+  // Весь путь сворачивается: шаги и «Важно знать» за «Все шаги»; с текущим шагом путь сначала свёрнут, без дела — раскрыт.
+  assert.match(block, /useFolded\(currentStep !== null\)/u);
+  assert.match(block, /<div id=\{stepsId\} className="pt-journey-body" hidden=\{folded\}>/u);
+  assert.match(block, /aria-expanded=\{!folded\} aria-controls=\{stepsId\}/u);
+  assert.match(block, /if \(folded\) setFolded\(false\);/u, "the step line opens the folded path");
+  assert.deepEqual([ru.showSteps, ru.hideSteps], ["Все шаги", "Свернуть"]);
+  assert.ok(ky.showSteps && ky.hideSteps);
+  assert.match(css, /\.pt-journey-fold \{[\s\S]*?min-height: 44px;/u);
 });
 

@@ -122,6 +122,7 @@ const ICON = {
   chevron: "M5.5 8l4.5 4.5L14.5 8",
   done: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM6.8 10.2l2.2 2.2 4.2-4.6",
   check: "M5 10.5l3.2 3.2L15 6.5",
+  down: "M10 4.5v11M5.5 11l4.5 4.5 4.5-4.5",
   external: "M11.5 4.5h4v4M15.5 4.5L9 11M13.5 11.5v4h-9v-9h4",
   info: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM10 9.2v4.3M10 6.6h.01",
 } as const;
@@ -433,11 +434,30 @@ export function CountryTimeline({
         <>
           {/* Текущий шаг всегда на виду при прокрутке пути (08.11.2026, владелец). */}
           {currentStep ? (
-            <div className="pt-journey-now">
-              <span className="pt-journey-now-label">{strings.progressCurrent}</span>
+            <div className="pt-journey-now" role="group" aria-label={strings.whereNow}>
+              <div className="pt-journey-now-head">
+                <span className="pt-journey-now-label">{strings.progressCurrent}</span>
+                <span className="pt-journey-now-count">
+                  {formatPortalString(strings.doneOf, { done: String(doneSteps.length), total: String(total) })}
+                </span>
+              </div>
               <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
-                {formatPortalString(strings.stepOf, { n: String(currentStep.order), total: String(total) })} {currentStep.title}
+                <span className="pt-journey-now-num" aria-hidden="true">{currentStep.order}</span>
+                <span className="pt-journey-now-text">
+                  <span className="pt-sr-only">
+                    {formatPortalString(strings.stepOf, { n: String(currentStep.order), total: String(total) })}{" "}
+                  </span>
+                  <span className="pt-journey-now-title">{currentStep.title}</span>
+                  {currentStep.timing ? <span className="pt-journey-now-timing">{currentStep.timing}</span> : null}
+                </span>
+                <Icon path={ICON.down} className="pt-journey-now-go" />
               </button>
+              {/* Полоса шагов дублирует «Пройдено N из M» словами, поэтому скрыта от читалки. */}
+              <span className="pt-journey-meter" aria-hidden="true">
+                {view.steps.map((step) => (
+                  <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
+                ))}
+              </span>
             </div>
           ) : null}
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>
@@ -452,7 +472,11 @@ export function CountryTimeline({
                   onClick={() => setShowDone((shown) => !shown)}
                 >
                   <span className="pt-step-node" aria-hidden="true"><Icon path={ICON.check} className="pt-step-node-check" /></span>
-                  <span className="pt-step-done-count">{formatPortalString(strings.showDone, { n: String(doneSteps.length) })}</span>
+                  <span className="pt-step-done-text">
+                    <span className="pt-step-done-count">{formatPortalString(strings.showDone, { n: String(doneSteps.length) })}</span>
+                    {/* Что уже пройдено — видно без раскрытия. */}
+                    <span className="pt-step-done-titles">{doneSteps.map((step) => step.title).join(" · ")}</span>
+                  </span>
                   <Icon path={ICON.chevron} className="pt-step-chevron" />
                 </button>
               </li>

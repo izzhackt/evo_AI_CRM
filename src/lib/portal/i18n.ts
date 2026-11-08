@@ -2448,6 +2448,8 @@ const timelineRu = {
   progressDone: "Пройден",
   progressCurrent: "Сейчас",
   showDone: "Пройденные шаги: {n}",
+  doneOf: "Пройдено {done} из {total}",
+  whereNow: "Где вы сейчас",
   external: "откроется на другом сайте",
   notesLabel: "Важно знать",
 } as const;
@@ -2478,6 +2480,8 @@ const timelineKy: Readonly<Record<TimelineKey, string>> = {
   progressDone: "Өттү",
   progressCurrent: "Азыр",
   showDone: "Өтүлгөн кадамдар: {n}",
+  doneOf: "{total} кадамдын {done} өттү",
+  whereNow: "Сиз азыр кайдасыз",
   external: "башка сайтта ачылат",
   notesLabel: "Билүү маанилүү",
 };

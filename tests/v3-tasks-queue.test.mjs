@@ -99,8 +99,8 @@ test("at the read limit the screen offers only what shrinks the server read that
   assert.equal(taskQueueNarrowing(filters({ view: "all" }), []), null);
 });
 
-test("queue dates are ДД.ММ (+ ЧЧ:ММ) in Bishkek with the overdue word, never colour alone", () => {
-  assert.deepEqual(queueDue(due(null, "2026-09-24T09:00:00.000Z"), NOW), { dateTime: "2026-09-24T09:00:00.000Z", text: "24.09 15:00", word: "сегодня", caption: null, overdue: false });
+test("queue dates are ДД.ММ (no time) in Bishkek with the overdue word, never colour alone", () => {
+  assert.deepEqual(queueDue(due(null, "2026-09-24T09:00:00.000Z"), NOW), { dateTime: "2026-09-24T09:00:00.000Z", text: "24.09", word: "сегодня", caption: null, overdue: false });
   assert.deepEqual(queueDue(due("2026-09-20"), NOW), { dateTime: "2026-09-20", text: "20.09", word: "прошёл", caption: null, overdue: true });
   assert.equal(queueDue(due("2026-09-25"), NOW).word, "завтра");
   assert.equal(queueDue(due("2026-09-27"), NOW).word, "через 3 дн");

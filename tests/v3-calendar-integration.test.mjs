@@ -51,7 +51,7 @@ test("deadline-kind conversion preserves the task day instead of the period anch
   assert.match(controls, /taskDeadlineInputDefaults\(task, day\)/);
   assert.match(controls, /useState\(defaults\.dueOn\)/);
   assert.match(controls, /value=\{dueOn\}/);
-  assert.match(controls, /value=\{displayDueAt\}/);
+  assert.doesNotMatch(controls, /displayDueAt/, "task deadlines are date-only");
 });
 
 test("deadline day deltas stay date-only across month and year boundaries", () => {
@@ -178,8 +178,8 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(composer, /<select name="student_visible"/);
   assert.match(controls, /<select[\s\S]*name="deadline_kind"/);
   assert.match(controls, /<option value="none">Без срока<\/option>/);
-  assert.match(controls, /<option value="all_day">Весь день<\/option>/);
-  assert.match(controls, /<option value="timed">Точное время<\/option>/);
+  assert.match(controls, /<option value="all_day">Дата<\/option>/);
+  assert.doesNotMatch(controls, /<option value="timed">/);
   assert.match(types, /version: string/);
   assert.match(types, /change: string/);
   assert.match(types, /complete: string/);
@@ -376,4 +376,15 @@ test("calendar target GET omits an absent case UUID only and preserves supplied 
   assert.deepEqual(personalCalendarTargetArgs({ kind: "staff", taskId, studentCaseId: taskId }), {
     p_kind: "staff", p_task_id: taskId, p_student_case_id: taskId,
   });
+});
+
+test("unchanged legacy timed edit posts timed + due_at; edited date posts all_day + due_on", () => {
+  // Пока дату не трогали: select без имени, а в форму уходит deadline_kind=timed, пустой due_on и старый due_at.
+  assert.match(controls, /name=\{kind === "timed" \? undefined : "deadline_kind"\}/);
+  assert.match(
+    controls,
+    /<input type="hidden" name="deadline_kind" value="timed" \/>\s*<input type="hidden" name="due_on" value="" \/>\s*<input type="hidden" name="due_at" value=\{task\?\.dueAt \?\? ""\} \/>/,
+  );
+  // Изменили дату: срок становится днём без времени.
+  assert.match(controls, /setDueOn\(event\.target\.value\);\s*setKind\("all_day"\)/);
 });

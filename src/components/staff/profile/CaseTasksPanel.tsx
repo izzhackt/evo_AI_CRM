@@ -3,7 +3,7 @@ import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/
 import Link from "next/link";
 
 import { Card } from "@/components/ui";
-import { dayFullLabel, timeLabel } from "@/components/staff/calendar/types";
+import { dayFullLabel } from "@/components/staff/calendar/types";
 import { getPlatformAdmissionsTaskWorkspace } from "@/lib/platform-admissions-workspace";
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { taskStatus } from "@/lib/v3/wording";
@@ -17,7 +17,7 @@ function Deadline({ dueOn, dueAt, status, now }: Readonly<{
   return (
     <span className={overdue ? "text-danger" : "text-fg-2"}>
       {deadline.day
-        ? `${dayFullLabel(deadline.day)}${deadline.minutes === null ? " · весь день" : ` · ${timeLabel(deadline.minutes)}`}`
+        ? dayFullLabel(deadline.day)
         : "Без срока"}
       {overdue ? " · Просрочено" : ""}
     </span>

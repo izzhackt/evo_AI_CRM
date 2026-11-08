@@ -153,9 +153,7 @@ export function TaskChip({
       >
         {task.day === null
           ? <span>без срока</span>
-          : task.minutes === null
-            ? <span>весь день</span>
-            : <span className={overdue ? "font-mono text-danger" : "font-mono"}>{clockLabel(task.minutes)}</span>}
+          : null}
         {task.person ? <span className="max-w-full truncate">{task.person}</span> : null}
         {overdue ? <span className="text-danger">просрочена</span> : null}
         {pill ? <Pill tone={pill.tone}>{pill.word}</Pill> : null}

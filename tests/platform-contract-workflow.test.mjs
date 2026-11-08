@@ -281,10 +281,22 @@ test("excluded catalogue sources still require exact reviewed rows and retain du
   rejectsWorkspace(workspace({ reviewed_sources: [missing] }));
   rejectsWorkspace(workspace({ reviewed_sources: [websiteSource(), websiteSource()] }));
   rejectsWorkspace(workspace({ reviewed_sources: [source(), websiteSource({ id: SOURCE_ID })] }));
-  const websites = Array.from({ length: 251 }, (_, index) => websiteSource({
+  const websitesOf = (length) => Array.from({ length }, (_, index) => websiteSource({
     id: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`,
   }));
-  rejectsWorkspace(workspace({ reviewed_sources: websites }));
+  rejectsWorkspace(workspace({ reviewed_sources: websitesOf(2001) }));
+});
+
+test("catalogue websites beyond the old 250-row cap do not break the case workspace", () => {
+  // Регресс 08.11.2026: после загрузки каталога Малайзии в реестре стало 253 сайта вузов, общий предел 250 бросал
+  // «Platform contract workspace is unavailable», и карточка любого дела у Admin не открывалась (смоук релиза 1d25b164).
+  for (const length of [250, 251, 253, 1000, 1999]) {
+    const websites = Array.from({ length }, (_, index) => websiteSource({
+      id: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`,
+    }));
+    const parsed = normalizePlatformCaseContractWorkspace(workspace({ reviewed_sources: [source(), ...websites] }));
+    assert.deepEqual(parsed.reviewedSources, normalizePlatformCaseContractWorkspace(workspace()).reviewedSources);
+  }
 });
 
 test("normalizes the exact typed BW6 workspace without provider bodies", () => {

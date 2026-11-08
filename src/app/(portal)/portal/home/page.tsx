@@ -10,6 +10,7 @@ import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import {
   TIMELINE_UNDECIDED,
   selectCountryTimeline,
+  timelineStepProgress,
   todayForTimeline,
 } from "@/lib/portal/country-timeline";
 import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
@@ -94,6 +95,10 @@ export default async function StudentPortalHomePage() {
       modules: TIMELINE_MODULE_ROUTES,
     })
     : null;
+  // 08.11.2026 (владелец): пройденные шаги и текущий — по этапу своего дела; без дела прогресса нет.
+  const timelineProgress = timelineView && overviewResult.ok
+    ? timelineStepProgress(timelineView.steps, overviewResult.value?.operationalStage ?? null)
+    : null;
   const cscaCard = selectCscaHomeCard({
     choice,
     home: cscaHome,
@@ -124,6 +129,7 @@ export default async function StudentPortalHomePage() {
         journey={(
           <CountryTimeline
             view={timelineView}
+            progress={timelineProgress}
             source={choice?.source ?? null}
             readFailed={choice === null}
             options={countryOptions}

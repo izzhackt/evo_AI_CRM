@@ -13,6 +13,7 @@ import {
   isTimelineChoice,
   parseCountryTimelineFile,
   selectCountryTimeline,
+  timelineStepProgress,
   todayForTimeline,
 } from "../src/lib/portal/country-timeline.ts";
 import { COUNTRY_CHOICE_VALUES, parseStudentCountryChoice } from "../src/lib/portal/country-choice.ts";
@@ -379,4 +380,25 @@ test("the country choice answer parses strictly; the SQL list is the same produc
       assert.match(mapping, new RegExp(`WHEN '${name.toLowerCase().replace("ё", "е")}' THEN '${row.code}'`), `${row.code} ${name}`);
     }
   }
+});
+
+test("progress by the case stage: done before the current step, the first step of the stage is current (owner, 08.11.2026)", () => {
+  const steps = (code) => selectCountryTimeline(code, { locale: "ru", today: "2026-10-16" }).steps;
+  const states = (code, stage) => {
+    const progress = timelineStepProgress(steps(code), stage);
+    return progress === null ? null : steps(code).map((step) => progress[step.id]);
+  };
+  // Малайзия: шаги 4 и 5 одного этапа визы, сейчас первый из них; 6 и 7 — приезд.
+  assert.deepEqual(states("MY", "visa_and_predeparture"), ["done", "done", "done", "current", "upcoming", "upcoming", "upcoming"]);
+  assert.deepEqual(states("MY", "arrival_and_adaptation"), ["done", "done", "done", "done", "done", "current", "upcoming"]);
+  assert.deepEqual(states("MY", "intake"), ["current", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
+  // Китай: три шага «документов», сейчас первый; этап между шагами — следующий шаг.
+  assert.deepEqual(states("CN", "documents"), ["done", "current", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
+  assert.deepEqual(states("CN", "decisions"), ["done", "done", "done", "done", "done", "current", "upcoming", "upcoming"]);
+  assert.deepEqual(states("CN", "profile_and_route"), ["current", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
+  // Общий маршрут: по шагу на этап.
+  assert.deepEqual(states(TIMELINE_UNDECIDED, "applications"), ["done", "done", "done", "current", "upcoming", "upcoming", "upcoming"]);
+  // Без дела, дело до сценария или неизвестный этап — без прогресса.
+  for (const stage of [null, undefined, "", "admissions_handoff", "Documents", 3]) assert.equal(states("MY", stage), null, String(stage));
+  assert.equal(timelineStepProgress([], "documents"), null);
 });

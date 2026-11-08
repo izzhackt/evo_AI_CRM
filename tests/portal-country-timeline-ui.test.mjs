@@ -142,3 +142,24 @@ test("styles add no red, keep 44 px targets and honour reduced motion", () => {
   assert.match(section, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.pt-step-panel:not\(\[hidden\]\)[\s\S]*animation: none;/u);
   assert.doesNotMatch(section, /transition:[^;]*\b(height|width|top|left|margin|padding)\b/u);
 });
+
+test("progress on the home path: done steps fold into one line, the current step is open and stays on screen (owner, 08.11.2026)", () => {
+  // Этап — только из своего дела; студент без дела видит путь без прогресса.
+  assert.match(page, /timelineStepProgress\(timelineView\.steps, overviewResult\.value\?\.operationalStage \?\? null\)/u);
+  assert.match(page, /progress=\{timelineProgress\}/u);
+  assert.doesNotMatch(block, /timelineStepProgress\(/u, "the client gets the result, not the content files");
+  assert.match(block, /hidden=\{state === "done" && !showDone\}/u);
+  assert.match(block, /aria-expanded=\{showDone\}/u);
+  assert.match(block, /useOpenSteps\(view, currentStep\?\.id \?\? null\)/u);
+  assert.match(block, /raw \? parseOpen\(raw, [\s\S]*?: new Set\(currentId \? \[currentId\] : \[\]\)/u, "the current step is open until the student opens something");
+  assert.match(block, /className="pt-journey-now"/u);
+  // Цвет всегда со словом: «Пройден» и «Сейчас» рядом с названием.
+  assert.match(block, /state === "done" \? strings\.progressDone : strings\.progressCurrent/u);
+  const { ru, ky } = PORTAL_DICTIONARIES.timeline;
+  assert.deepEqual([ru.progressDone, ru.progressCurrent, ru.showDone], ["Пройден", "Сейчас", "Пройденные шаги: {n}"]);
+  assert.ok(ky.progressDone && ky.progressCurrent && ky.showDone.includes("{n}"));
+  // «Сейчас» не уезжает: карточка не обрезает прокрутку, строка закреплена под верхней полосой.
+  assert.match(css, /\.pt-card\.pt-journey \{\n {2}overflow: clip;/u);
+  assert.match(css, /\.pt-journey-now \{\n {2}position: sticky;\n {2}top: calc\(var\(--pt-topbar-height\) \+ 8px\);/u);
+  assert.match(css, /\.pt-step\[data-progress="done"\] \.pt-step-node,/u);
+});

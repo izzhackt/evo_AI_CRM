@@ -566,3 +566,26 @@ export function selectCountryTimeline(choice: unknown, options: SelectCountryTim
     kyNeedsProofreading: timeline.kyStatus !== "proofread",
   });
 }
+
+/** Где студент на пути (08.11.2026, владелец): шаг пройден, шаг сейчас или впереди. */
+export type TimelineStepProgress = "done" | "current" | "upcoming";
+
+/**
+ * Прогресс по этапу дела (`operational_stage`, порядок TIMELINE_STAGE_KEYS). Сейчас — первый шаг, чей последний этап не
+ * раньше этапа дела; до него пройдено, после — впереди. Несколько шагов одного этапа: сейчас первый из них. Этапа нет или
+ * он неизвестен (студент без дела, дело до сценария) — `null`: путь показывается без прогресса, как раньше. Этап дальше
+ * всех шагов — всё пройдено.
+ */
+export function timelineStepProgress(
+  steps: readonly Readonly<{ id: string; stageKeys: readonly TimelineStageKey[] }>[],
+  stage: unknown,
+): Readonly<Record<string, TimelineStepProgress>> | null {
+  const at = typeof stage === "string" ? (TIMELINE_STAGE_KEYS as readonly string[]).indexOf(stage) : -1;
+  if (at < 0 || steps.length === 0) return null;
+  const last = (step: (typeof steps)[number]) => Math.max(...step.stageKeys.map((key) => TIMELINE_STAGE_KEYS.indexOf(key)));
+  const current = steps.findIndex((step) => last(step) >= at);
+  return Object.freeze(Object.fromEntries(steps.map((step, index): [string, TimelineStepProgress] => [
+    step.id,
+    current < 0 || index < current ? "done" : index === current ? "current" : "upcoming",
+  ])));
+}

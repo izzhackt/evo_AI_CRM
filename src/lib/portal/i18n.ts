@@ -2444,6 +2444,10 @@ const timelineRu = {
   period: "Сроки:",
   checklist: "Что входит в шаг",
   doneWhen: "Когда шаг пройден",
+  // 08.11.2026 (владелец): прогресс по этапу дела.
+  progressDone: "Пройден",
+  progressCurrent: "Сейчас",
+  showDone: "Пройденные шаги: {n}",
   external: "откроется на другом сайте",
   notesLabel: "Важно знать",
 } as const;
@@ -2471,6 +2475,9 @@ const timelineKy: Readonly<Record<TimelineKey, string>> = {
   period: "Мөөнөттөр:",
   checklist: "Кадамга эмнелер кирет",
   doneWhen: "Кадам качан бүтөт",
+  progressDone: "Өттү",
+  progressCurrent: "Азыр",
+  showDone: "Өтүлгөн кадамдар: {n}",
   external: "башка сайтта ачылат",
   notesLabel: "Билүү маанилүү",
 };

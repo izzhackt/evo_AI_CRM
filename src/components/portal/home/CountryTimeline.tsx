@@ -15,7 +15,7 @@ import {
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import type { CountryChoiceSource } from "@/lib/portal/country-choice";
 import { setStudentCountryChoiceAction } from "@/lib/portal/country-choice-actions";
-import type { CountryTimelineView, TimelineViewStep } from "@/lib/portal/country-timeline";
+import type { CountryTimelineView, TimelineStepProgress, TimelineViewStep } from "@/lib/portal/country-timeline";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 
 /**
@@ -86,13 +86,14 @@ function parseOpen(raw: string, known: ReadonlySet<string>): ReadonlySet<string>
   }
 }
 
-function useOpenSteps(view: CountryTimelineView | null) {
+// Пока студент ничего не раскрывал, открыт текущий шаг (08.11.2026, владелец).
+function useOpenSteps(view: CountryTimelineView | null, currentId: string | null) {
   const key = view ? `${STORAGE_PREFIX}:${view.file}:${view.contentVersion}` : "";
   const raw = useSyncExternalStore(subscribeStored, () => (key ? readStored(key) : ""), () => "");
   const steps = view?.steps;
   const open = useMemo(
-    () => parseOpen(raw, new Set((steps ?? []).map((step) => step.id))),
-    [raw, steps],
+    () => (raw ? parseOpen(raw, new Set((steps ?? []).map((step) => step.id))) : new Set(currentId ? [currentId] : [])),
+    [raw, steps, currentId],
   );
   const toggle = useCallback((id: string) => {
     if (!key) return;
@@ -254,6 +255,7 @@ function CountryPicker({
 
 export function CountryTimeline({
   view,
+  progress = null,
   source,
   readFailed,
   options,
@@ -261,6 +263,8 @@ export function CountryTimeline({
 }: Readonly<{
   /** Путь выбранной страны; `null`: выбора нет, показываем «Выберите страну». */
   view: CountryTimelineView | null;
+  /** Прогресс по этапу дела (`timelineStepProgress`); `null`: без прогресса, как у студента без дела. */
+  progress?: Readonly<Record<string, TimelineStepProgress>> | null;
   /** Откуда выбор; `null`, если чтение выбора не удалось. */
   source: CountryChoiceSource | null;
   readFailed: boolean;
@@ -283,7 +287,21 @@ export function CountryTimeline({
   // Повтор после сбоя идёт с тем же requestId: RPC вернёт исходную квитанцию.
   const retry = useRef<{ country: string; requestId: string } | null>(null);
 
-  const { open, toggle } = useOpenSteps(view);
+  const progressOf = (id: string): TimelineStepProgress | null => progress?.[id] ?? null;
+  const doneSteps = view?.steps.filter((step) => progressOf(step.id) === "done") ?? [];
+  const currentStep = view?.steps.find((step) => progressOf(step.id) === "current") ?? null;
+  const [showDone, setShowDone] = useState(false);
+  const stepId = (id: string) => `${baseId}-step-${id}`;
+
+  const { open, toggle } = useOpenSteps(view, currentStep?.id ?? null);
+
+  // «Сейчас» над шагами: раскрывает текущий шаг и прокручивает к нему.
+  function jumpToCurrent() {
+    if (!currentStep) return;
+    if (!open.has(currentStep.id)) toggle(currentStep.id);
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById(stepId(currentStep.id))?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+  }
 
   const showPicker = view === null || pickerOpen;
 
@@ -413,15 +431,44 @@ export function CountryTimeline({
 
       {view ? (
         <>
+          {/* Текущий шаг всегда на виду при прокрутке пути (08.11.2026, владелец). */}
+          {currentStep ? (
+            <div className="pt-journey-now">
+              <span className="pt-journey-now-label">{strings.progressCurrent}</span>
+              <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
+                {formatPortalString(strings.stepOf, { n: String(currentStep.order), total: String(total) })} {currentStep.title}
+              </button>
+            </div>
+          ) : null}
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>
+            {/* Пройденные шаги свёрнуты в одну строку; раскрываются по нажатию. */}
+            {doneSteps.length > 0 ? (
+              <li className="pt-step-done-group">
+                <button
+                  type="button"
+                  className="pt-step-done-toggle"
+                  aria-expanded={showDone}
+                  aria-controls={doneSteps.map((step) => stepId(step.id)).join(" ")}
+                  onClick={() => setShowDone((shown) => !shown)}
+                >
+                  <span className="pt-step-node" aria-hidden="true"><Icon path={ICON.check} className="pt-step-node-check" /></span>
+                  <span className="pt-step-done-count">{formatPortalString(strings.showDone, { n: String(doneSteps.length) })}</span>
+                  <Icon path={ICON.chevron} className="pt-step-chevron" />
+                </button>
+              </li>
+            ) : null}
             {view.steps.map((step) => {
               const expanded = open.has(step.id);
               const panelId = `${baseId}-${step.id}`;
               const periodId = `${panelId}-period`;
+              const state = progressOf(step.id);
               return (
-                <li key={step.id} className="pt-step" data-open={expanded ? "true" : "false"}>
+                <li key={step.id} id={stepId(step.id)} className="pt-step" data-open={expanded ? "true" : "false"}
+                  data-progress={state ?? undefined} hidden={state === "done" && !showDone}>
                   <div className="pt-step-head">
-                    <span className="pt-step-node" aria-hidden="true">{step.order}</span>
+                    <span className="pt-step-node" aria-hidden="true">
+                      {state === "done" ? <Icon path={ICON.check} className="pt-step-node-check" /> : step.order}
+                    </span>
                     <div className="pt-step-main">
                       <h3 className="pt-step-title">
                         <button
@@ -437,6 +484,11 @@ export function CountryTimeline({
                           </span>
                           {step.title}
                         </button>
+                        {state === "done" || state === "current" ? (
+                          <span className="pt-step-state" data-progress={state}>
+                            {state === "done" ? strings.progressDone : strings.progressCurrent}
+                          </span>
+                        ) : null}
                       </h3>
                       <p className="pt-step-goal">{step.summary}</p>
                     </div>

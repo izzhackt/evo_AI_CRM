@@ -30,6 +30,11 @@ import { HomeNews } from "./HomeNews";
  * (HomeFavorites). Справа карточка «Пути поступления» (`journey`, HomeJourneyCard: весь путь переехал на
  * «Поступление»), «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента «Входящих», только assisted) и карточка
  * CSCA (`csca`, только при выбранном Китае). На узком экране колонки идут одна за другой.
+ *
+ * Правка 08.11.2026 (разбор вёрстки): без выбранной страны первым блоком под шапкой стоит выбор страны
+ * (`countryChoice`, тот же CountryTimeline с выбором, что был до #1408), карточки пути в это время нет; выбрана страна —
+ * выбор исчезает и на его месте в правой колонке встаёт карточка пути. Колонки две с 960 px; в одну колонку блоки
+ * идут по смыслу, а не по колонкам: «Что сделать сейчас», путь, «Мои вузы», даты, новости, CSCA (data-slot и order в CSS).
  */
 export function HomeView({
   tier,
@@ -41,6 +46,7 @@ export function HomeView({
   favorites,
   favoritesTotal,
   journey = null,
+  countryChoice = null,
   csca = null,
   aiConsent = null,
   locale,
@@ -60,6 +66,8 @@ export function HomeView({
   favoritesTotal: number;
   /** Карточка «Пути поступления» (HomeJourneyCard); null, если её нет. */
   journey?: ReactNode;
+  /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
+  countryChoice?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
   csca?: ReactNode;
   /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком клиента с делом на сопровождении, пока для текущей версии нет решения; самостоятельному студенту не показывается, даже если передан. */
@@ -87,12 +95,17 @@ export function HomeView({
   return (
     <div className="pt-home">
       <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
+      {countryChoice}
       {aiConsentApplies(tier) ? aiConsent : null}
       <div className="pt-home-columns">
         <div className="pt-home-main">
-          {tier === "assisted" ? <HomeCase overview={overview} failed={overviewFailed} locale={locale} /> : null}
+          {tier === "assisted" ? (
+            <div className="pt-home-slot" data-slot="case">
+              <HomeCase overview={overview} failed={overviewFailed} locale={locale} />
+            </div>
+          ) : null}
           {tier === "approved" ? (
-            <article className="pt-home-card">
+            <article className="pt-home-card pt-home-slot" data-slot="case">
               <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
               <h2 className="pt-home-card-title">{admission.pendingApplicationHeading}</h2>
               <p className="pt-home-card-action">
@@ -102,14 +115,22 @@ export function HomeView({
               </p>
             </article>
           ) : null}
-          <HomeFavorites favorites={favorites} total={favoritesTotal} locale={locale} now={now} />
+          <div className="pt-home-slot" data-slot="universities">
+            <HomeFavorites favorites={favorites} total={favoritesTotal} locale={locale} now={now} />
+          </div>
         </div>
 
         <div className="pt-home-side">
-          {journey}
-          <HomeDates items={dated} today={today} locale={locale} />
-          {tier === "assisted" ? <HomeNews notifications={news} locale={locale} /> : null}
-          {csca}
+          {journey ? <div className="pt-home-slot" data-slot="path">{journey}</div> : null}
+          <div className="pt-home-slot" data-slot="dates">
+            <HomeDates items={dated} today={today} locale={locale} />
+          </div>
+          {tier === "assisted" ? (
+            <div className="pt-home-slot" data-slot="news">
+              <HomeNews notifications={news} locale={locale} />
+            </div>
+          ) : null}
+          {csca ? <div className="pt-home-slot" data-slot="csca">{csca}</div> : null}
         </div>
       </div>
     </div>

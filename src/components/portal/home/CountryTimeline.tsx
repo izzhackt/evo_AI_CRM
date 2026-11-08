@@ -539,10 +539,12 @@ export function CountryTimeline({
                           </span>
                           {step.title}
                         </button>
-                        {state === "done" || state === "current" ? (
-                          <span className="pt-step-state" data-progress={state}>
-                            {state === "done" ? strings.progressDone : strings.progressCurrent}
-                          </span>
+                        {/* Один знак «Сейчас» на экран: у текущего шага это строка «Сейчас: …» сверху и тёмный круг,
+                            значка рядом с названием нет (08.11.2026); читалке слово остаётся. */}
+                        {state === "done" ? (
+                          <span className="pt-step-state" data-progress={state}>{strings.progressDone}</span>
+                        ) : state === "current" ? (
+                          <span className="pt-sr-only"> ({strings.progressCurrent})</span>
                         ) : null}
                       </h3>
                       <p className="pt-step-goal">{step.summary}</p>

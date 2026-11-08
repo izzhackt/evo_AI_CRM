@@ -157,21 +157,22 @@ let catalogueOffsets = [];
 /** Сценарий «каталог изменился посреди чтения»: первое чтение смещения 30 сдвинуто на строку назад (строка 30 приходит дважды). */
 let catalogueShiftOnce = false;
 /**
- * Справочник городов для менеджера каталога (СИНТЕТИКА, только вёрстка страниц стран): три города Китая, вузы привязаны
- * по названию подписи. Фото-путь верен по форме, файла в бакете нет: рамка остаётся серой, как у города без файла.
+ * Справочник городов для страниц стран (`staff_catalog_geography_read_v1`, миграция 354; СИНТЕТИКА, только вёрстка): три
+ * опубликованных города Китая, вузы связаны по названию подписи карточки. Фото-путь верен по форме, файла в бакете нет.
  */
 function geographyFixture() {
-  const code = ["CN", "MY", "AE", "TR", "IT", "CZ"];
   const city = (key, nameRu, nameEn, summaryRu) => ({
     key, country: "CN", nameRu, nameKy: nameRu, nameEn, lat: null, lng: null,
-    photo: { path: `geography/cities/${key}-0123456789ab.jpg`, width: 1600, height: 900, author: "Синтетика", authorUrl: null, sourceName: "Wikimedia Commons", sourceUrl: "https://commons.wikimedia.org/wiki/File:Example.jpg", license: "CC BY-SA 4.0", licenseUrl: null },
-    summaryRu, summaryKy: null, factRu: null, factKy: null, factSourceUrl: null, factVerifiedOn: null, kyReview: "pending", status: "published",
-    publishedAt: "2026-09-10T00:00:00+00:00", reviewedByName: null, complete: true, version: 1, updatedAt: "2026-09-10T00:00:00+00:00", institutionCount: 1,
+    photo: { path: `geography/cities/cn-${key}-0123456789ab.jpg`, width: 1600, height: 900, author: "Синтетика", authorUrl: null, sourceName: "Wikimedia Commons", sourceUrl: "https://commons.wikimedia.org/wiki/File:Example.jpg", license: "CC BY-SA 4.0", licenseUrl: null },
+    summaryRu,
   });
+  const cities = [city("beijing", "Пекин", "Beijing", "Столица Китая: крупнейший вузовский кластер страны."), city("guangzhou", "Гуанчжоу", "Guangzhou", null), city("hangzhou", "Ханчжоу", "Hangzhou", null)];
+  const names = new Map(cities.flatMap((entry) => [[entry.nameRu.toLowerCase(), entry.key], [entry.nameEn.toLowerCase(), entry.key]]));
   return {
-    countries: code.map((value) => ({ code: value, nameRu: value, nameKy: value, nameEn: value, photo: null, summaryRu: null, summaryKy: null })),
-    cities: [city("beijing", "Пекин", "Beijing", "Столица Китая: крупнейший вузовский кластер страны."), city("guangzhou", "Гуанчжоу", "Guangzhou", null), city("hangzhou", "Ханчжоу", "Hangzhou", null)],
-    institutions: [], costs: [], fxRates: [],
+    organizationId: ORG,
+    cities,
+    institutions: CATALOGUE.filter((item) => item.content.country === "CN" && names.has(String(item.content.city).toLowerCase()))
+      .map((item) => ({ id: item.id, cityKey: names.get(String(item.content.city).toLowerCase()) })),
   };
 }
 const fakeSupabase = {
@@ -181,7 +182,7 @@ const fakeSupabase = {
         if (name === "staff_university_catalog_countries") {
           return { data: { organizationId: ORG, countries: [...new Set(CATALOGUE.map((item) => item.content.country))].sort() }, error: null };
         }
-        if (name === "staff_catalog_geography_v1") return { data: geographyFixture(), error: null };
+        if (name === "staff_catalog_geography_read_v1") return { data: geographyFixture(), error: null };
         if (name !== "staff_university_catalog") return { data: null, error: { message: `unexpected rpc ${name}` } };
         if (args.p_institution_id) return { data: { items: CATALOGUE.filter((item) => item.id === args.p_institution_id).map(published), nextOffset: null }, error: null };
         const all = filterCatalogue({ query: args.p_query ?? "", country: args.p_country ?? "", level: args.p_level ?? "" });

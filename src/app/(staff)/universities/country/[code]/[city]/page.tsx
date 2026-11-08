@@ -26,7 +26,7 @@ export default async function UniversityCityPage({ params, searchParams }: {
   let geo;
   try { geo = await readStaffCountryGeo(actor, code); } catch { return <UniversityShell title={country} back={back}><UniversityUnavailable /></UniversityShell>; }
   const group = geo.groups.find((entry) => entry.key === city.key) ?? notFound();
-  const directoryCity = group.key === null ? undefined : geo.geography?.cities.find((entry) => entry.key === group.key);
+  const directoryCity = group.key === null ? undefined : geo.cities.find((entry) => entry.key === group.key);
   const edit = directoryCity && canManageCatalogGeography(actor)
     ? <Link href={`/universities/cities?city=${directoryCity.key}`} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Править город</Link>
     : undefined;

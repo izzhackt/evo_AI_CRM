@@ -4,7 +4,7 @@ import Link from "next/link";
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/kit/StatusBadge";
-import { CITY_PHOTO_PATH, type GeoCity } from "@/lib/catalog-geography";
+import { CITY_PHOTO_PATH, type BrowseCity } from "@/lib/catalog-geography";
 import { UNIVERSITY_LEVEL_LABELS, UNIVERSITY_LEVELS, type PublishedUniversity } from "@/lib/platform-university-catalog";
 import { isStudyCountryCode } from "@/lib/study-countries";
 import { cityHref, countryHref, type CityGroup } from "@/lib/university-geo-groups";
@@ -52,12 +52,12 @@ export function CountryCards({ countries }: Readonly<{ countries: readonly Count
 export function CityCards({ code, groups, cities, photoBase, canEdit }: Readonly<{
   code: string;
   groups: readonly CityGroup<PublishedUniversity>[];
-  cities: readonly GeoCity[];
+  cities: readonly BrowseCity[];
   photoBase: string | null;
   canEdit: boolean;
 }>) {
   return (
-    <ul className="grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" data-testid="university-city-cards">
+    <ul className="grid list-none grid-cols-1 items-start gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" data-testid="university-city-cards">
       {groups.map((group) => {
         const city = group.key === null ? undefined : cities.find((entry) => entry.key === group.key);
         const photo = city?.photo && photoBase && CITY_PHOTO_PATH.test(city.photo.path) ? `${photoBase}${city.photo.path}` : null;
@@ -69,7 +69,6 @@ export function CityCards({ code, groups, cities, photoBase, canEdit }: Readonly
               <IntentPrefetchLink href={cityHref(code, group.key)} className={CARD_LINK}>{group.label}</IntentPrefetchLink>
               <span className="t-meta text-fg-2">{group.items.length} {universitiesWord(group.items.length)}</span>
               {summary ? <p className="line-clamp-3 t-body-compact text-fg-2">{summary}</p> : null}
-              {city && city.status !== "published" ? <span className="mt-1"><StatusBadge label="Город не опубликован" /></span> : null}
               {canEdit && city ? (
                 // Выше растянутой ссылки карточки: отдельная цель нажатия для менеджера.
                 <Link href={`/universities/cities?city=${city.key}`} className="relative z-10 mt-1 inline-flex min-h-11 w-fit items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Править город</Link>

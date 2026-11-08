@@ -147,3 +147,33 @@ test("адреса страны и города", () => {
   // Адрес города разбирается обратно в тот же ключ.
   assert.equal(parseGeoCityParam(decodeURIComponent(cityHref("CN", "~куала лумпур").split("/").pop())).key, "~куала лумпур");
 });
+
+/* ------------------------------------------- ответ staff_catalog_geography_read_v1 (миграция 354) */
+
+import { parseBrowseGeography } from "../src/lib/catalog-geography.ts";
+
+const ORG = "35400000-0000-4000-8000-000000000001";
+const LINK = "35400000-0000-4000-8000-000000000701";
+const browseCity = (key, extra = {}) => ({
+  key, country: "CN", nameRu: "Город", nameKy: "Город", nameEn: "City", lat: 30.2, lng: 120.1, summaryRu: "Текст",
+  photo: { path: `geography/cities/cn-${key}-0123456789ab.jpg`, width: 1600, height: 900, author: "A", authorUrl: null, sourceName: "Pexels", sourceUrl: "https://www.pexels.com/photo/x-1/", license: "Pexels License", licenseUrl: null },
+  ...extra,
+});
+const browse = (extra = {}) => ({ organizationId: ORG, cities: [browseCity("alpha-city")], institutions: [{ id: LINK, cityKey: "alpha-city" }], ...extra });
+
+test("ответ чтения городов: точный набор ключей, своя организация, связи только с городами ответа", () => {
+  const ok = parseBrowseGeography(browse(), ORG);
+  assert.equal(ok.cities[0].photo.path, "geography/cities/cn-alpha-city-0123456789ab.jpg");
+  assert.deepEqual(ok.institutions, [{ id: LINK, cityKey: "alpha-city" }]);
+  assert.deepEqual(parseBrowseGeography({ ...browse(), cities: [], institutions: [] }, ORG), { cities: [], institutions: [] });
+  assert.equal(parseBrowseGeography(browse(), "35400000-0000-4000-8000-000000000002"), null, "чужая организация");
+  assert.equal(parseBrowseGeography({ ...browse(), extra: 1 }, ORG), null, "лишний ключ верхнего уровня");
+  assert.equal(parseBrowseGeography({ ...browse(), cities: [{ ...browseCity("alpha-city"), kyReview: "done" }] }, ORG), null, "поле редактора не пропускается");
+  assert.equal(parseBrowseGeography({ ...browse(), cities: [browseCity("alpha-city"), browseCity("alpha-city")] }, ORG), null, "ключ дважды");
+  assert.equal(parseBrowseGeography({ ...browse(), institutions: [{ id: LINK, cityKey: "other-city" }] }, ORG), null, "связь с городом вне ответа");
+  assert.equal(parseBrowseGeography({ ...browse(), institutions: [{ id: "not-a-uuid", cityKey: "alpha-city" }] }, ORG), null);
+  assert.equal(parseBrowseGeography({ ...browse(), cities: [browseCity("Bad Key")] }, ORG), null);
+  assert.equal(parseBrowseGeography({ ...browse(), cities: [browseCity("alpha-city", { country: "ZZ" })] }, ORG), null);
+  assert.equal(parseBrowseGeography(null, ORG), null);
+  assert.equal(parseBrowseGeography([], ORG), null);
+});

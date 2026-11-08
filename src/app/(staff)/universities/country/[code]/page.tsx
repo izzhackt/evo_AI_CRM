@@ -43,7 +43,7 @@ export default async function UniversityCountryPage({ params, searchParams }: {
   return (
     <UniversityShell title={name} back={back} tabs={tabs} meta={meta}>
       {view === "cities" ? (
-        <CityCards code={code} groups={geo.groups} cities={geo.geography?.cities.filter((city) => city.country === code) ?? []} photoBase={geographyPhotoBase()} canEdit={canManageCatalogGeography(actor)} />
+        <CityCards code={code} groups={geo.groups} cities={geo.cities} photoBase={geographyPhotoBase()} canEdit={canManageCatalogGeography(actor)} />
       ) : view === "list" ? (
         <CountryGroupedList code={code} groups={geo.groups} />
       ) : map ? (

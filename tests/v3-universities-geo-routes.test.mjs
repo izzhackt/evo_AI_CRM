@@ -29,8 +29,11 @@ test("данные только через сотрудническое чтен
   assert.doesNotMatch(all, /readStudentUniversit|student_university|university-index-source|requireStudentPortalActor/u);
   assert.match(source, /readStaffUniversityCatalogue\(actor, \{ \.\.\.EMPTY_UNIVERSITY_FILTERS, country \}\)/u);
   assert.match(source, /catalogue\.kind !== "complete"\) throw/u);
-  // Справочник городов с фото читает только менеджер каталога и его сбой не роняет страницу.
-  assert.match(source, /canManageCatalogGeography\(actor\) \? readStaffCatalogGeography\(actor\)\.catch/u);
+  // Справочник городов читают все с `catalog.read` (354), его сбой не прячется группировкой по подписям.
+  assert.match(source, /readStaffCatalogGeographyBrowse\(actor\)/u);
+  assert.doesNotMatch(source, /readStaffCatalogGeography\(|\.catch\(/u, "прежний читатель редактора не нужен, сбой справочника не глотается");
+  const reader = read("src/lib/v3/catalog-geography-source.ts");
+  assert.match(reader, /staffHasPermission\(actor, "catalog\.read"\)[\s\S]*staff_catalog_geography_read_v1/u);
 });
 
 test("карта грузится только в браузере и не тянет portal.css и тёмную тему", () => {

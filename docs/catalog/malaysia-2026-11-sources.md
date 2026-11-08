@@ -84,3 +84,19 @@ Official campuses page https://newinti.edu.my/campuses/ lists exactly four degre
 | INTI College Sabah | нет | свободной фотографии на Commons не найдено | | |
 
 Taylor’s College (адрес на https://college.taylors.edu.my: Block E, Taylor’s Lakeside Campus) и Sunway College (https://sunwaycollege.edu.my: No. 2, Jalan Universiti, Bandar Sunway, рядом с Sunway University) стоят на кампусах своих университетов, поэтому общее фото честно, но это фото университета, не колледжа. Фото INTI Nilai (официальное, без права повторного использования) для кампусов INTI не годится.
+
+## Карта и города (08.11.2026)
+
+Точки на карте (`src/lib/university-geo-library.json`, `verifiedOn` 2026-11-08):
+
+| Ключ | Точка | Источник |
+|---|---|---|
+| `um` | 3.120833, 101.656389 | Wikidata Q1142924 (Universiti Malaya) |
+| `iium` | 3.252778, 101.7375 | Wikidata Q1524992 (International Islamic University Malaysia; кампус Gombak) |
+| `alfa` | 3.07726, 101.58961 | Wikidata Q16250609 (ALFA International College) |
+| `inti-subang` | 3.074393, 101.591225 | OpenStreetMap way 191660645 (INTI International College Subang, Jalan SS 15/8); у Wikidata Q141194670 координат нет |
+| `inti-penang` | 5.341605, 100.281777 | OpenStreetMap way 261479651 (INTI College Penang, Lebuh Bukit Jambul); у Wikidata Q141193942 координат нет |
+
+INTI College Sabah: на карте точки нет (нет `photoKey`). Адрес на официальной странице https://newinti.edu.my/campuses/inti-college-sabah/: Batu 2.5, Jalan Tuaran, 88450 Kota Kinabalu.
+
+Новые карточки городов: `penang` (Пенанг; факт: историческая часть Джорджтауна входит в список ЮНЕСКО с 2008 года, https://whc.unesco.org/en/list/1223; адрес INTI Penang на официальной странице: 1-Z, Lebuh Bukit Jambul, 11900 Bayan Lepas) и `kota-kinabalu` (факт: название города и прежнее имя Джесселтон, https://en.wikipedia.org/wiki/Kota_Kinabalu). Фото и лицензии записаны в `scripts/catalog/data/malaysia-2026-11/geography-seed/photos-manifest.json`.

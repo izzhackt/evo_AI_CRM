@@ -1,12 +1,12 @@
 {
   "schema": "evo-university-photos-manifest/v1",
-  "generatedAt": "2026-10-16T21:44:50.166Z",
+  "generatedAt": "2026-11-08T07:32:54.401Z",
   "projectRef": "selfhosted",
   "bucket": "portal-university-photos",
   "source": "src/lib/university-photo-library.json",
   "totals": {
-    "entries": 144,
-    "verified": 132,
+    "entries": 149,
+    "verified": 137,
     "ineligible": 11,
     "failed": 1,
     "migrated": 132
@@ -43,6 +43,22 @@
       "status": "verified",
       "reason": null,
       "migrated": true
+    },
+    "alfa": {
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/eb/Alfa_University_College_building.jpg/1280px-Alfa_University_College_building.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:Alfa_University_College_building.jpg",
+      "license": "CC0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "attribution": "Alfa university",
+      "rights": "open_license",
+      "sha256": "6459a302cae498bc0ed06ca00a4c419ac30d74281bee8a65e6a6ab55a14db3d4",
+      "bytes": 392928,
+      "contentType": "image/jpeg",
+      "objectPath": "alfa.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
     },
     "ankara-university": {
       "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/3/37/Dil_ve_Tarih_Co%C4%9Frafya_Fak%C3%BCltesi_Binas%C4%B1%2C_Ankara.jpg",
@@ -668,6 +684,22 @@
       "reason": "license_not_redistributable",
       "migrated": false
     },
+    "iium": {
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Iiumcampus.jpg/1280px-Iiumcampus.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:Iiumcampus.jpg",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "پوویا",
+      "rights": "open_license",
+      "sha256": "0c9b5ae2957df5d2b2e56378c5764f2adb63db9e2201e3127f3ebc51b0f29ebd",
+      "bytes": 412948,
+      "contentType": "image/jpeg",
+      "objectPath": "iium.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
+    },
     "inti": {
       "sourceUrl": "https://newinti.edu.my/wp-content/uploads/2025/03/INTI-1.jpg",
       "finalUrl": null,
@@ -683,6 +715,38 @@
       "status": "verified",
       "reason": null,
       "migrated": true
+    },
+    "inti-penang": {
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c3/Cmglee_Inti_College_Penang.jpg/1280px-Cmglee_Inti_College_Penang.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:Cmglee_Inti_College_Penang.jpg",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Cmglee",
+      "rights": "open_license",
+      "sha256": "3c4e434a813c505a38c6d6e7ed824f30537cf5c1cd619479fee2fa39e32d595a",
+      "bytes": 213484,
+      "contentType": "image/jpeg",
+      "objectPath": "inti-penang.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
+    },
+    "inti-subang": {
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/INTI_Subang_-_Mapillary_%28FrFeVDhUppVU9dh1EVMB5W%29.jpg/1280px-INTI_Subang_-_Mapillary_%28FrFeVDhUppVU9dh1EVMB5W%29.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:INTI_Subang_-_Mapillary_(FrFeVDhUppVU9dh1EVMB5W).jpg",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "kaart_1 @ Mapillary.com",
+      "rights": "open_license",
+      "sha256": "b2cd28242c1f6cb4df0b26b4e833e2a396a541d2aac55d6353ba22d515b50889",
+      "bytes": 291888,
+      "contentType": "image/jpeg",
+      "objectPath": "inti-subang.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
     },
     "istanbul-ayd-n-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/%C4%B0stanbul_Ayd%C4%B1n_%C3%9Cniversitesi_Florya_Kamp%C3%BCs%C3%BC_Bah%C3%A7esi.jpg/960px-%C4%B0stanbul_Ayd%C4%B1n_%C3%9Cniversitesi_Florya_Kamp%C3%BCs%C3%BC_Bah%C3%A7esi.jpg",
@@ -1419,6 +1483,22 @@
       "status": "verified",
       "reason": null,
       "migrated": true
+    },
+    "um": {
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/88/Universiti_Malaya_KL_gate.jpg/1280px-Universiti_Malaya_KL_gate.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:Universiti_Malaya_KL_gate.jpg",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "*angys*",
+      "rights": "open_license",
+      "sha256": "bd98936ba44a1939e3478c5fc90375362b32a060b8409c9247bfddd40a0f2fea",
+      "bytes": 347850,
+      "contentType": "image/jpeg",
+      "objectPath": "um.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
     },
     "unikl": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9a/Universiti_kuala_lumpur_city_campus_front.JPG/960px-Universiti_kuala_lumpur_city_campus_front.JPG",

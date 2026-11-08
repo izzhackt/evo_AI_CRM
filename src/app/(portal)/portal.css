@@ -4608,10 +4608,11 @@
  * граница поля — --pt-control-edge (≥3:1 в обеих темах).
  */
 /* «Моё поступление» (03.11.2026, по образцу «Мой список»): плитки с числом и
-   подписью, вкладки-таблетки «Вузы» и «Программы» с числом. */
+   подписью, вкладки-таблетки «Вузы» и «Программы» с числом. 08.11.2026: две
+   плитки в один ряд и на телефоне («те 2 на один этаж поставить»). */
 .pt-stat-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   gap: 16px;
   margin: 20px 0 24px;
   padding: 0;
@@ -4626,26 +4627,6 @@
   border-radius: var(--pt-radius-card);
   background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
-}
-
-.pt-stat-tile.pt-stat-link {
-  height: 100%;
-  color: var(--pt-text);
-  text-decoration: none;
-  transition: box-shadow var(--pt-motion-fast) var(--pt-ease);
-}
-
-.pt-stat-link:hover {
-  box-shadow: var(--pt-shadow-raised);
-}
-
-.pt-stat-link:hover .pt-stat-label {
-  color: var(--pt-text);
-}
-
-.pt-stat-link:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
 }
 
 .pt-stat-tiles > li > .pt-stat-tile {

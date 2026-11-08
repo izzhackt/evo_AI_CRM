@@ -318,8 +318,10 @@ test("overview names each actor from the canonical projection and links exact it
   // PORT-5d: «Моё поступление» живёт в Атласе (portal/admission).
   const overview = source("src/components/portal/admission/OverviewView.tsx");
   const documents = source("src/components/portal/admission/DocumentsView.tsx");
+  // 08.11.2026: плитки «Требуют действия» нет; первое дело открывает «Что сделать сейчас» на «Главной».
+  const homeCase = source("src/components/portal/home/HomeCase.tsx");
 
-  assert.match(overview, /overview\?\.studentAction/u);
+  assert.match(homeCase, /overview\?\.studentAction/u);
   assert.match(overview, /overview\?\.evoAction/u);
   assert.doesNotMatch(overview, /overview\.nextAction/u);
   // PORT-6a: строки — ключи admission-словаря (проверяется по словарю, не по TSX).
@@ -329,7 +331,7 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /strings\.evoHeading/u);
   assert.equal(admissionRu.evoHeading, "Что делает EVO");
   assert.match(
-    overview,
+    homeCase,
     /\/portal\/documents#document-\$\{action\.documentSlotId\}/u,
   );
   // Overview is a flat action queue now: no nested <details> disclosure.
@@ -341,11 +343,13 @@ test("overview names each actor from the canonical projection and links exact it
   assert.doesNotMatch(overview, /evoEmpty|calmDoneLead/u);
   assert.equal(admissionRu.calmDone, "Сейчас действий от вас не требуется");
   // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
-  // 03.11.2026: карточки «Ваш следующий шаг» нет; первое дело открывает плитка
-  // «Требуют действия» на /portal (nextActionHref).
+  // 03.11.2026: карточки «Ваш следующий шаг» нет. 08.11.2026 (пользователь:
+  // «вот это можно убрать а те 2 на один этаж поставить»): плитки «Требуют
+  // действия» тоже нет, на «Поступлении» две плитки в один ряд.
   assert.match(overview, /className="pt-link"/u);
   assert.doesNotMatch(overview, /student-next-step|pt-adm-hero/u);
-  assert.match(overview, /href: primary \? actionHref\(primary\) : null/u);
+  assert.doesNotMatch(overview, /tile\.actions|studentAction\b|actionHref/u);
+  assert.equal(admissionRu["tile.actions"], undefined);
   assert.match(
     documents,
     /id=\{`document-\$\{document\.documentSlotId\}`\}/u,

@@ -115,7 +115,7 @@ export function DeadlineFields({
       <label className="t-label text-fg-2">
         Срок
         <select
-          name="deadline_kind"
+          name={kind === "timed" ? undefined : "deadline_kind"}
           value={kind === "timed" ? "all_day" : kind}
           onChange={(event) =>
             setKind(event.target.value as PlatformCaseTaskDeadlineKind)}
@@ -140,6 +140,8 @@ export function DeadlineFields({
               className={CONTROL}
             />
           </label>
+          {/* Дату не трогали: старая отметка времени уходит как есть (timed + due_at). */}
+          <input type="hidden" name="deadline_kind" value="timed" />
           <input type="hidden" name="due_on" value="" />
           <input type="hidden" name="due_at" value={task?.dueAt ?? ""} />
         </>

@@ -377,3 +377,14 @@ test("calendar target GET omits an absent case UUID only and preserves supplied 
     p_kind: "staff", p_task_id: taskId, p_student_case_id: taskId,
   });
 });
+
+test("unchanged legacy timed edit posts timed + due_at; edited date posts all_day + due_on", () => {
+  // Пока дату не трогали: select без имени, а в форму уходит deadline_kind=timed, пустой due_on и старый due_at.
+  assert.match(controls, /name=\{kind === "timed" \? undefined : "deadline_kind"\}/);
+  assert.match(
+    controls,
+    /<input type="hidden" name="deadline_kind" value="timed" \/>\s*<input type="hidden" name="due_on" value="" \/>\s*<input type="hidden" name="due_at" value=\{task\?\.dueAt \?\? ""\} \/>/,
+  );
+  // Изменили дату: срок становится днём без времени.
+  assert.match(controls, /setDueOn\(event\.target\.value\);\s*setKind\("all_day"\)/);
+});

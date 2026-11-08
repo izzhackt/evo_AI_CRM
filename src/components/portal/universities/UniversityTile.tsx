@@ -47,9 +47,9 @@ export function UniversityTile({
   strings: UniversityTileStrings;
   /** Первые карточки экрана: фото грузится сразу, не лениво. */
   priority?: boolean;
-  headingLevel?: 2 | 3;
+  headingLevel?: 2 | 3 | 4;
 }) {
-  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const Heading = headingLevel === 2 ? "h2" : headingLevel === 4 ? "h4" : "h3";
   return (
     <article className="pt-uni-card">
       <div className="pt-uni-card-media">
@@ -122,7 +122,7 @@ export function UniversityTileGrid({
   models: readonly UniversityTileModel[];
   strings: UniversityTileStrings;
   priorityCount?: number;
-  headingLevel?: 2 | 3;
+  headingLevel?: 2 | 3 | 4;
   label?: string;
 }) {
   return (

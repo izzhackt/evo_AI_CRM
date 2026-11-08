@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   acceptKindLabel, CLASSIFIED_GROUP_LABEL, confidenceBand, dedupeAppliesTo, isAcceptKindKey, isAmoUnsortedGroup, isDocumentKindKey,
-  isFinanceKind, normalizeCustomDocumentLabel, type AcceptKindKey,
+  isFinanceKind, matchStandardKindLabel, normalizeCustomDocumentLabel, type AcceptKindKey,
 } from "./document-classification";
 import { MAX_BULK_ACCEPT, sortingRequestId } from "./document-sorting-ids";
 import { isStaffPreview, staffCan, staffHasPermission } from "./platform-access.ts";
@@ -58,13 +58,21 @@ async function resolveDecision(actor: Actor, client: Client, studentCaseId: stri
 }
 
 async function acceptOne(
-  actor: Actor, client: Client, studentCaseId: string, slotId: string, versionId: string, kind: AcceptKindKey, customLabel: string | null = null,
+  actor: Actor, client: Client, studentCaseId: string, slotId: string, versionId: string, requestedKind: AcceptKindKey, requestedLabel: string | null = null,
 ): Promise<DocumentSortingOutcome> {
+  // «Другое…» с названием стандартного вида («Паспорт», «passport», «Чек»…) - это сам этот вид: те же правила, что при выборе из списка
+  // (повтор пункта с таким названием, деньги, право). Второй документ под своей подписью не заводится. Сведение делается здесь, в
+  // единственном месте приёма, а не в форме: клиент не может его обойти.
+  const standard = requestedKind === "other" && requestedLabel !== null ? matchStandardKindLabel(requestedLabel) : null;
+  const kind: AcceptKindKey = standard ?? requestedKind;
+  const customLabel = standard ? null : requestedLabel;
   const label = kind === "other" ? customLabel : acceptKindLabel(kind);
   if (kind !== "not_needed" && !label) return "invalid";
-  // Договор и чек уходят в «Деньги» с теми же правами, что у загрузки там (can_write блока 189). Нет права - приём отказывает целиком,
-  // до любых изменений: молчаливого пропуска нет.
-  if (isFinanceKind(kind) && !(await financeWritable(client, actor.organizationId, studentCaseId))) return "finance_forbidden";
+  // Договор уходит в «Деньги» с теми же правами, что у загрузки там (can_write блока 189). Нет права - приём отказывает целиком,
+  // до любых изменений: молчаливого пропуска нет. «Чек» сюда не входит: отправка чека в список «Чеки ждут оплату» - действие с
+  // документом (право разбора файлов, его держит команда базы record_pending_receipt_v1), а ПРИВЯЗКА к оплате остаётся денежным действием
+  // (allocate_pending_receipt_v1: право записи оплаты дела).
+  if (kind === "contract" && !(await financeWritable(client, actor.organizationId, studentCaseId))) return "finance_forbidden";
   const workspace = await getPlatformCaseDocumentWorkspace(actor, studentCaseId, { client });
   if (workspace.caseState !== "active") return "forbidden";
   const slot = workspace.slots.find((item) => item.documentSlotId === slotId);

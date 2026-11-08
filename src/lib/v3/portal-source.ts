@@ -105,6 +105,18 @@ export type StudentPortalDocument = Readonly<{
   reviewedAt: string | null;
 }>;
 
+export const STUDENT_PORTAL_CASE_FILE_KINDS = ["contract", "receipt", "pending_receipt"] as const;
+export type StudentPortalCaseFileKind = (typeof STUDENT_PORTAL_CASE_FILE_KINDS)[number];
+/** Собственный договор или чек студента (миграция 352): без суммы, события оплаты, сотрудника, хэша и имени объекта Storage. */
+export type StudentPortalCaseFile = Readonly<{
+  kind: StudentPortalCaseFileKind;
+  fileId: string;
+  originalFilename: string;
+  declaredMimeType: StudentPortalDocumentMimeType;
+  byteSize: number;
+  addedAt: string;
+}>;
+
 export type StudentPortalPayment = Readonly<{
   label: string;
   category: PlatformObligationCategory;
@@ -532,6 +544,18 @@ export function normalizeStudentPortalDocument(
   });
 }
 
+export function normalizeStudentPortalCaseFile(value: unknown): StudentPortalCaseFile {
+  const row = exactRecord(value, ["file_kind", "file_id", "original_filename", "declared_mime_type", "byte_size", "added_at"]);
+  return Object.freeze({
+    kind: enumValue(row.file_kind, STUDENT_PORTAL_CASE_FILE_KINDS),
+    fileId: requiredUuid(row.file_id),
+    originalFilename: requiredText(row.original_filename, 255),
+    declaredMimeType: enumValue(row.declared_mime_type, DOCUMENT_MIME_TYPES),
+    byteSize: positiveSafeInteger(row.byte_size),
+    addedAt: requiredTimestamp(row.added_at),
+  });
+}
+
 export function normalizeStudentPortalPayment(value: unknown): StudentPortalPayment {
   const row = exactRecord(value, [
     "obligation_label",
@@ -705,6 +729,23 @@ export async function readStudentPortalDocuments(
       {},
       normalizeStudentPortalDocument,
       (row) => row.documentSlotId,
+    );
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function readStudentPortalCaseFiles(
+  dependencies: StudentPortalSourceDependencies = {},
+): Promise<readonly StudentPortalCaseFile[]> {
+  try {
+    const client = await clientFor(dependencies);
+    return await readRpcRows(
+      client,
+      "student_portal_case_files_v1",
+      {},
+      normalizeStudentPortalCaseFile,
+      (row) => `${row.kind}:${row.fileId}`,
     );
   } catch (error) {
     return failClosed(error);

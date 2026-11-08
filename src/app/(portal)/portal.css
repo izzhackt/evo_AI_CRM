@@ -7158,6 +7158,17 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-surface);
 }
 
+/*
+ * Ревью 08.11.2026: когда у пути есть прогресс дела, заливка круга — только у текущего шага. Открытый будущий шаг
+ * остаётся обведённым (рамка ярче), иначе он выглядит так же, как «Сейчас». Без дела прогресса нет, и открытый шаг
+ * по-прежнему залит.
+ */
+.pt-step[data-open="true"][data-progress="upcoming"] .pt-step-node {
+  border-color: var(--pt-text);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+}
+
 /* Свёрнутый шаг — название и срок; цель шага — у открытого и у текущего. */
 .pt-step[data-open="false"]:not([data-progress="current"]) .pt-step-goal {
   display: none;

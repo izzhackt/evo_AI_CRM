@@ -21,16 +21,14 @@ export function HomeJourneyCard({ view, progress, readFailed, locale }: Readonly
 }>) {
   const strings = getPortalStrings("home", locale);
   const timeline = getPortalStrings("timeline", locale);
-  const title = view?.countryName
-    ? formatPortalString(timeline.headingCountry, { country: view.countryName })
-    : timeline.heading;
   const current = view?.steps.find((step) => progress?.[step.id] === "current") ?? null;
 
   return (
     <section aria-labelledby="home-path" className="pt-card pt-home-box pt-home-path">
+      {/* Страна уже названа в шапке «Главной», а заголовок без неё оставляет место ссылке в узкой колонке. */}
       <HomeCardHead
         id="home-path"
-        title={title}
+        title={timeline.heading}
         action={(
           <IntentPrefetchLink className="pt-link" href={JOURNEY_HREF}>
             {view ? strings.pathAll : strings.pathChoose}

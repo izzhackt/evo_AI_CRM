@@ -1,0 +1,62 @@
+{
+  "generated_on": "2026-11-08",
+  "count": 2,
+  "cities": [
+    {
+      "city_key": "penang",
+      "country_code": "MY",
+      "name_ru": "Пенанг",
+      "name_ky": "Пенанг",
+      "name_en": "Penang",
+      "lat": 5.4145,
+      "lng": 100.3292,
+      "coord_source": "wikidata",
+      "coord_source_url": "https://www.wikidata.org/wiki/Q61092",
+      "wikidata_id": "Q61092",
+      "coord_note": "Point is the centre of George Town (Wikidata Q61092). The INTI campus is in the Bayan Lepas suburb on Penang Island, about 15 km south of it (Wikipedia: Bayan Lepas).",
+      "summary_ru": "Пенанг, остров у западного побережья Малайзии, целиком относится к городу Джорджтаун, столице штата Пенанг. Кампус INTI International College Penang находится в пригороде Баян-Лепас, рядом с международным аэропортом острова.",
+      "summary_ky": "Пенанг Малайзиянын батыш жээгиндеги арал, ал бүтүндөй Пенанг штатынын борбору Джорджтаун шаарына караштуу. INTI International College Penang кампусу Баян-Лепас аймагында, арал аэропортуна жакын жайгашкан.",
+      "fact_ru": "Исторический центр Джорджтауна с 2008 года входит в список Всемирного наследия ЮНЕСКО вместе с Малаккой.",
+      "fact_ky": "Джорджтаундун тарыхый борбору 2008-жылдан бери Малакка менен бирге ЮНЕСКОнун Дүйнөлүк мурас тизмесине кирет.",
+      "fact_source_url": "https://whc.unesco.org/en/list/1223",
+      "fact_source_title": "Melaka and George Town, Historic Cities of the Straits of Malacca (UNESCO)",
+      "fact_verified_on": "2026-11-08",
+      "photo": {
+        "key": "city-penang",
+        "file": "photos/city-penang.jpg"
+      },
+      "ky_review": "pending",
+      "status": "published",
+      "gaps": [],
+      "institution_count": 1
+    },
+    {
+      "city_key": "kota-kinabalu",
+      "country_code": "MY",
+      "name_ru": "Кота-Кинабалу",
+      "name_ky": "Кота-Кинабалу",
+      "name_en": "Kota Kinabalu",
+      "lat": 5.975,
+      "lng": 116.0725,
+      "coord_source": "wikidata",
+      "coord_source_url": "https://www.wikidata.org/wiki/Q137271",
+      "wikidata_id": "Q137271",
+      "coord_note": "Point is the centre of Kota Kinabalu (Wikidata Q137271). INTI College Sabah is on Jalan Tuaran inside the city (official campus page); Wikidata and OSM still show the old Putatan site.",
+      "summary_ru": "Кота-Кинабалу, столица штата Сабах на северо-западном побережье острова Калимантан (Борнео), на берегу Южно-Китайского моря. Кампус INTI College Sabah находится на Джалан-Туаран в границах города.",
+      "summary_ky": "Кота-Кинабалу Сабах штатынын борбору, Калимантан (Борнео) аралынын түндүк-батыш жээгинде, Түштүк Кытай деңизинин жээгинде жайгашкан. INTI College Sabah кампусу шаардын чегиндеги Джалан-Туаран көчөсүндө жайгашкан.",
+      "fact_ru": "Город назван по горе Кинабалу, которая находится примерно в 50 км к востоку-северо-востоку; до 1967 года он назывался Джесселтон.",
+      "fact_ky": "Шаар Кинабалу тоосунун урматына аталган, ал шаардан болжол менен 50 км чыгыш-түндүк-чыгышта турат; 1967-жылга чейин ал Джесселтон деп аталган.",
+      "fact_source_url": "https://en.wikipedia.org/wiki/Kota_Kinabalu",
+      "fact_source_title": "Kota Kinabalu (Wikipedia)",
+      "fact_verified_on": "2026-11-08",
+      "photo": {
+        "key": "city-kota-kinabalu",
+        "file": "photos/city-kota-kinabalu.jpg"
+      },
+      "ky_review": "pending",
+      "status": "published",
+      "gaps": [],
+      "institution_count": 1
+    }
+  ]
+}

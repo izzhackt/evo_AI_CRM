@@ -641,8 +641,17 @@ export function countryCodeFromSlug(slug: string): string | null {
 
 export const UNIVERSITIES_BASE = "/portal/universities";
 
-export function countryHref(code: string, view: "cities" | "map" = "cities"): string {
-  return `${UNIVERSITIES_BASE}/country/${countrySlug(code)}${view === "map" ? "?view=map" : ""}`;
+export type CountryView = "cities" | "list" | "map";
+
+export function countryHref(code: string, view: CountryView = "cities"): string {
+  const query = view === "map" ? "?view=map" : view === "list" ? "?view=list" : "";
+  return `${UNIVERSITIES_BASE}/country/${countrySlug(code)}${query}`;
+}
+
+/** Значение `?view=` страны: только `map` и `list` (или без параметра); иное: null (404). */
+export function countryViewFromQuery(value: string | string[] | undefined): CountryView | null {
+  if (value === undefined) return "cities";
+  return value === "map" || value === "list" ? value : null;
 }
 
 export function cityHref(code: string, cityKey: string): string {
@@ -669,6 +678,41 @@ export function countryCities(index: StudentUniversityIndex, code: string, local
 /** Вузы страны без опубликованного города: блок «Другие вузы страны». */
 export function countryUniversitiesWithoutCity(index: StudentUniversityIndex, code: string): readonly IndexUniversity[] {
   return index.universities.filter((entry) => entry.country === code && entry.cityKey === null);
+}
+
+export type CountryUniversityGroup = Readonly<{
+  /** null: вузы без города («Город не указан»), группа всегда последняя. */
+  city: IndexCity | null;
+  universities: readonly IndexUniversity[];
+}>;
+
+/**
+ * Все вузы страны, сгруппированные по городу: группы по названию города А→Я,
+ * вузы внутри группы по названию (сортировка по языку кабинета); вузы без
+ * города: последней группой. Пустых групп нет.
+ */
+export function countryUniversityGroups(
+  index: StudentUniversityIndex,
+  code: string,
+  locale: Locale,
+): readonly CountryUniversityGroup[] {
+  const compare = collator(locale);
+  const byName = (a: IndexUniversity, b: IndexUniversity) => compare.compare(a.name, b.name) || a.id.localeCompare(b.id);
+  const groups: CountryUniversityGroup[] = [];
+  const cities = index.cities
+    .filter((entry) => entry.country === code)
+    .sort((a, b) => compare.compare(localizedText(a.name, locale), localizedText(b.name, locale)) || a.key.localeCompare(b.key));
+  for (const city of cities) {
+    const universities = index.universities
+      .filter((entry) => entry.country === code && entry.cityKey === city.key)
+      .sort(byName);
+    if (universities.length > 0) groups.push({ city, universities });
+  }
+  const orphans = index.universities
+    .filter((entry) => entry.country === code && (entry.cityKey === null || !cities.some((city) => city.key === entry.cityKey)))
+    .sort(byName);
+  if (orphans.length > 0) groups.push({ city: null, universities: orphans });
+  return groups;
 }
 
 export function cityUniversities(index: StudentUniversityIndex, cityKey: string): readonly IndexUniversity[] {

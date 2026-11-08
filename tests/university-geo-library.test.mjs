@@ -57,3 +57,32 @@ test("no duplicate keys or duplicate exact points", () => {
     seen.set(point, key);
   }
 });
+
+test("Malaysia cards um, iium, alfa, inti-subang, inti-penang sit on their campus city", () => {
+  // Новые точки (08.11.2026): расстояние до центра города карточки каталога
+  // (platform.catalog_cities) ограничено, чтобы пин не уехал в другой город.
+  const km = (a, b) => {
+    const rad = (value) => (value * Math.PI) / 180;
+    const x = Math.sin(rad(b[0] - a[0]) / 2) ** 2
+      + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(rad(b[1] - a[1]) / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(x));
+  };
+  const expected = {
+    um: { city: [3.1478, 101.6953], max: 10 },
+    iium: { city: [3.1478, 101.6953], max: 20 },
+    alfa: { city: [3.0644, 101.5936], max: 4 },
+    "inti-subang": { city: [3.0644, 101.5936], max: 4 },
+    // INTI Penang стоит в Баян-Лепас, примерно в 15 км к югу от центра Джорджтауна.
+    "inti-penang": { city: [5.4145, 100.3292], max: 20 },
+  };
+  for (const [key, { city, max }] of Object.entries(expected)) {
+    const entry = geo[key];
+    assert.ok(entry, `${key} has a geo entry`);
+    assert.match(
+      entry.sourceUrl,
+      /^https:\/\/(www\.wikidata\.org\/wiki\/Q\d+|www\.openstreetmap\.org\/way\/\d+)$/u,
+      key,
+    );
+    assert.ok(km([entry.lat, entry.lng], city) <= max, `${key} is within ${max} km of its city`);
+  }
+});

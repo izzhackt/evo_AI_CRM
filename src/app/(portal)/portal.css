@@ -6312,10 +6312,11 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   gap: 24px;
 }
 
+/* Левая колонка уже, правая шире: примерно 60 на 40, как в образце (08.11.2026, пользователь: «сделай узже их»). */
 @container pt-home (min-width: 980px) {
   .pt-home-columns {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     align-items: start;
   }
 }

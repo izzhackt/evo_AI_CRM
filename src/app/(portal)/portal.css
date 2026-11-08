@@ -6318,24 +6318,126 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
     grid-template-columns: minmax(0, 1fr) 360px;
     align-items: start;
   }
-
-  .pt-home-side .pt-section-title {
-    font-size: var(--pt-size-heading);
-  }
 }
 
-/* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
-.pt-home-dates {
+/*
+ * Карточки «Главной» (08.11.2026, по образцу пользователя): одна шапка «заголовок слева, переход справа» и одно
+ * пустое состояние «значок в круге, заголовок, строка, кнопка». Свои цвета у карточек не появляются: красный — только
+ * у ссылок, «сегодня» и главной кнопки, как везде в кабинете.
+ */
+.pt-home-box {
   display: grid;
+  align-content: start;
   gap: 16px;
   padding: 20px 22px;
 }
 
-.pt-home-dates-title {
+.pt-home-box > .pt-alert {
+  margin: 0;
+}
+
+.pt-home-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 16px;
+  min-height: 28px;
+}
+
+/* Ссылка шапки держит цель 44 px, но не раздвигает шапку. */
+.pt-home-head .pt-link {
+  margin-block: -8px;
+}
+
+.pt-home-heading {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pt-home-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 8px 4px;
+  text-align: center;
+}
+
+.pt-home-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+}
+
+.pt-home-empty-title {
   margin: 0;
   font-size: var(--pt-size-body);
   font-weight: 600;
 }
+
+.pt-home-empty-body {
+  max-width: 36ch;
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.45;
+}
+
+.pt-home-empty-action {
+  margin-top: 10px;
+}
+
+/* Строка внизу карточки во всю её ширину, над ней волосяная линия. */
+.pt-home-foot {
+  margin: 4px -22px -20px;
+  padding: 12px 22px 14px;
+  border-top: 1px solid var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.45;
+}
+
+/* Карточка «Пути поступления»: где студент сейчас; весь путь на «Поступлении». */
+.pt-home-path-lead {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.45;
+}
+
+.pt-home-path-now {
+  display: grid;
+  gap: 10px;
+}
+
+.pt-home-path-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+}
+
+.pt-home-path-n {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-home-path-title {
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
 
 .pt-count {
   display: inline-grid;
@@ -6402,26 +6504,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /* «Что нового»: три последних события «Входящих», непрочитанное — точкой. */
-.pt-home-news {
-  display: grid;
-  gap: 12px;
-  padding: 20px 22px;
-}
-
-.pt-home-news-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px 16px;
-}
-
-.pt-home-news-empty {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-}
-
 .pt-home-news-list {
   display: grid;
   margin: 0;
@@ -6483,12 +6565,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-caption);
 }
 
-.pt-home-dates-empty {
-  margin: 0;
-  padding: 4px 0;
-  text-align: center;
-}
-
 .pt-home-dates-list {
   display: grid;
   margin: 0;
@@ -6533,7 +6609,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-home-case-body {
-  padding: 20px;
+  min-width: 0;
 }
 
 .pt-home-case-title {
@@ -6541,10 +6617,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-heading);
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-
-.pt-home-case-calm {
-  font-weight: 500;
 }
 
 .pt-home-case-facts {
@@ -6578,25 +6650,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-home-case-more {
   font-size: var(--pt-size-caption);
-}
-
-.pt-home-case-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-home-section-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 16px;
-}
-
-.pt-home-section-head .pt-section-title {
-  margin-right: auto;
 }
 
 .pt-home-card {
@@ -6642,13 +6695,16 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   padding-top: 8px;
 }
 
+/* «Мои вузы»: строки внутри карточки, как у дат и новостей, — линия между строками, без своих рамок. */
 .pt-home-fav-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 16px 0 0;
+  display: grid;
+  margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.pt-home-fav-list > li + li {
+  border-top: 1px solid var(--pt-line);
 }
 
 .pt-home-fav-row {
@@ -6656,20 +6712,21 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px 24px;
+  gap: 4px 24px;
   min-height: 44px;
-  padding: 14px 20px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-item);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
+  padding: 12px 0;
   color: inherit;
   text-decoration: none;
-  transition: border-color var(--pt-motion) var(--pt-ease);
 }
 
-.pt-home-fav-row:hover {
-  border-color: color-mix(in srgb, var(--pt-accent) 45%, var(--pt-line));
+.pt-home-fav-row:hover .pt-home-fav-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-home-fav-row:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
 }
 
 .pt-home-fav-main {
@@ -6712,7 +6769,9 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-weight: 600;
 }
 
-/* ---------- «Путь поступления» на «Главной» (S4, план §8.4) ----------
+/* ---------- «Путь поступления» (S4, план §8.4) ----------
+ * С 08.11.2026 весь путь стоит на «Поступлении» между плитками и вкладками,
+ * на «Главной» — его карточка (.pt-home-path-*).
  * Вертикальный путь: номер шага на линии, срок, название и цель; шаг
  * раскрывается в пункты (только чтение) и «Когда шаг пройден». На широком
  * экране сроки стоят колонкой слева от линии, на узком над названием.
@@ -6720,9 +6779,14 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
  * страна тёмной рамкой и словом «Сейчас выбрано».
  */
 
+.pt-page > .pt-journey {
+  margin-bottom: 24px;
+  scroll-margin-top: calc(var(--pt-topbar-height) + 16px);
+}
+
 .pt-journey {
   padding: 28px 32px 24px;
-  /* Колонки шагов зависят от ширины самой карточки, а не окна: на «Главной» она делит строку с боковой колонкой. */
+  /* Колонки шагов зависят от ширины самой карточки, а не окна. */
   container: pt-journey / inline-size;
 }
 

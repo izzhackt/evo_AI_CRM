@@ -39,6 +39,8 @@ const surfaces: readonly Surface[] = JSON.parse(
 
 const EXPECTED_SURFACES = [
   "admission-overview",
+  // 08.11.2026: «Путь поступления» на «Поступлении»; выбор страны пути — отдельно (якорь #path один).
+  "admission-path-choose",
   "admission-documents",
   "admission-notifications",
   // PORT-8c: экраны тестов в «Атласе» — каталог, раннер и результаты.

@@ -219,10 +219,11 @@ test("every page passes the direct strict E2 result to its view", () => {
       // the honest overviewUnavailable state instead of throwing the whole page.
       assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
       // 03.11.2026: favourites are read alongside, before the same Promise.all is awaited.
-      assert.ok(page.indexOf("const favoritesRead = readStudentUniversityFavorites()") < page.indexOf("const [overview, preparations] = await Promise.all("));
+      assert.ok(page.indexOf("const favoritesRead = readStudentUniversityFavorites()") < page.indexOf("const [overview, preparations, choice] = await Promise.all("));
+      // 08.11.2026: «Путь поступления» переехал сюда — выбор страны читается в той же волне.
       assert.match(
         page,
-        /const \[overview, preparations\] = await Promise\.all\(\[\s*readStudentPortalOverview\(\)\.catch\(\(\) => undefined\),\s*readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\),\s*\]\)/u,
+        /const \[overview, preparations, choice\] = await Promise\.all\(\[\s*readStudentPortalOverview\(\)\.catch\(\(\) => undefined\),\s*readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\),\s*readStudentCountryChoice\(\)\.catch\(\(\): null => null\),\s*\]\)/u,
       );
       assert.match(page, /overview === undefined \? <p className="pt-prep-error" role="status">\{preparationStrings\.overviewUnavailable\}<\/p> : </u);
       assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
@@ -243,7 +244,10 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // PORT-9c: «Главная» — отдельный маршрут /portal/home; корень /portal
   // остаётся «Моим поступлением» (замороженные смоук-якоря production).
   const page = source("src/app/(portal)/portal/home/page.tsx");
-  const view = source("src/components/portal/home/HomeView.tsx");
+  // 08.11.2026: «Что сделать сейчас» и «Мои вузы» вынесены из HomeView в свои файлы; проверяем вид целиком.
+  const view = ["HomeView", "HomeCase", "HomeFavorites"]
+    .map((name) => source(`src/components/portal/home/${name}.tsx`))
+    .join("\n");
   const homeRu = PORTAL_DICTIONARIES.home.ru;
 
   assert.match(page, /requireStudentPortalActor\(\)/u);

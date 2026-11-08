@@ -1,28 +1,22 @@
 import type { Metadata } from "next";
 
 import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
-import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
+import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
-import {
-  TIMELINE_UNDECIDED,
-  selectCountryTimeline,
-  timelineStepProgress,
-  todayForTimeline,
-} from "@/lib/portal/country-timeline";
 import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { selectStudentJourney } from "@/lib/portal/student-journey";
 import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
 } from "@/lib/portal/university-favorites-source";
-import { TIMELINE_MODULE_ROUTES } from "@/lib/portal/timeline-module-routes";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
-import { STUDY_COUNTRY_UNDECIDED, isStudyCountryCode, studyCountryName, studyCountryOptions } from "@/lib/study-countries";
+import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import {
   readStudentPortalNotifications,
   readStudentPortalOverview,
@@ -88,17 +82,13 @@ export default async function StudentPortalHomePage() {
   ]);
   const { choice, cscaHome } = choiceRead;
   const now = new Date();
-  const timelineView = choice?.country
-    ? selectCountryTimeline(choice.country, {
-      locale,
-      today: todayForTimeline(now),
-      modules: TIMELINE_MODULE_ROUTES,
-    })
-    : null;
-  // 08.11.2026 (владелец): пройденные шаги и текущий — по этапу своего дела; без дела прогресса нет.
-  const timelineProgress = timelineView && overviewResult.ok
-    ? timelineStepProgress(timelineView.steps, overviewResult.value?.operationalStage ?? null)
-    : null;
+  // 08.11.2026 (пользователь): весь путь на «Поступлении», здесь его карточка — тот же выбор пути и прогресс.
+  const journey = selectStudentJourney({
+    country: choice?.country ?? null,
+    stage: overviewResult.ok ? overviewResult.value?.operationalStage ?? null : undefined,
+    locale,
+    now,
+  });
   const cscaCard = selectCscaHomeCard({
     choice,
     home: cscaHome,
@@ -106,10 +96,6 @@ export default async function StudentPortalHomePage() {
     cscaStrings: getPortalStrings("csca", locale),
     homeStrings: strings,
   });
-  const countryOptions = studyCountryOptions(locale, { undecided: true }).map((option) => ({
-    code: option.code === STUDY_COUNTRY_UNDECIDED ? TIMELINE_UNDECIDED : option.code,
-    label: option.label,
-  }));
 
   const country = choice?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
@@ -127,13 +113,11 @@ export default async function StudentPortalHomePage() {
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
         journey={(
-          <CountryTimeline
-            view={timelineView}
-            progress={timelineProgress}
-            source={choice?.source ?? null}
+          <HomeJourneyCard
+            view={journey.view}
+            progress={journey.progress}
             readFailed={choice === null}
-            options={countryOptions}
-            strings={getPortalStrings("timeline", locale)}
+            locale={locale}
           />
         )}
         csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}

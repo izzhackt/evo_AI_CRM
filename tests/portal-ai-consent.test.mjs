@@ -268,7 +268,7 @@ test("the home card is read in the same wave and sits first in HomeView, without
   const view = read("src/components/portal/home/HomeView.tsx");
   const card = view.indexOf("{aiConsentApplies(tier) ? aiConsent : null}");
   assert.ok(card > 0, "the view drops the card for a self-service student even if one is passed");
-  assert.ok(card < view.indexOf('{tier === "assisted" ? null : journey}'), "first block of the home");
+  assert.ok(card < view.indexOf('<div className="pt-home-columns">'), "first block of the home");
   assert.doesNotMatch(read("src/components/portal/consent/AiConsent.tsx"), /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
 });
 

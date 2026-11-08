@@ -82,8 +82,11 @@ const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/As
 const { AiConsentHomeCard, AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
-// S4: «Путь поступления» на «Главной», настоящий контент src/content/timelines.
+// S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
+// на «Главной» его карточка.
 const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
+const { HomeJourneyCard } = require(join(ROOT, "src/components/portal/home/HomeJourneyCard.tsx"));
+const { selectStudentJourney } = require(join(ROOT, "src/lib/portal/student-journey.ts"));
 const { TIMELINE_UNDECIDED, selectCountryTimeline } = require(join(ROOT, "src/lib/portal/country-timeline.ts"));
 const { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } = require(join(ROOT, "src/lib/study-countries.ts"));
 
@@ -497,6 +500,12 @@ const timelineChina = createElement(CountryTimeline, {
   view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
 });
+/** Карточки пути на «Главной»: страны нет; Китай клиента на этапе «Документы» (шаг и полоса шагов). */
+const journeyCardChoose = createElement(HomeJourneyCard, { view: null, progress: null, readFailed: false, locale: "ru" });
+const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
+const journeyCardChina = createElement(HomeJourneyCard, {
+  view: chinaJourney.view, progress: chinaJourney.progress, readFailed: false, locale: "ru",
+});
 
 const learningModulesDraftFixture = [
   {
@@ -636,8 +645,18 @@ const surfaces = [
             createElement(AiConsentHomeCard, { initialConsent: aiConsentAsked, strings: aiConsentStrings }),
           ),
           createElement(OverviewView, { overview: overviewFixture, pending: false, locale: "ru" }),
+          // 08.11.2026: весь «Путь поступления» стоит между плитками и вкладками.
+          timelineChina,
         ),
       ),
+    ),
+  },
+  // Выбор страны пути (страны ещё нет) — отдельной поверхностью: якорь #path на странице один.
+  {
+    name: "admission-path-choose",
+    html: renderSurface(
+      "Моё поступление — выбор страны пути — a11y",
+      pageShell(null, admission.overviewTitle, null, timelineChoose),
     ),
   },
   {
@@ -785,7 +804,7 @@ const surfaces = [
           overviewFailed: false,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
-          journey: timelineChoose,
+          journey: journeyCardChoose,
           // Самостоятельному студенту карточку согласия вид не показывает, даже
           // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
           aiConsent: createElement(AiConsentHomeCard, {
@@ -815,7 +834,7 @@ const surfaces = [
           news: [],
           favorites: [],
           favoritesTotal: 0,
-          journey: timelineChina,
+          journey: journeyCardChina,
           aiConsent: createElement(AiConsentHomeCard, {
             initialConsent: aiConsentOutdated,
             strings: aiConsentStrings,

@@ -6,17 +6,21 @@ import { FORBIDDEN_PROMISES, TIMELINE_APP_MODULES, selectCountryTimeline } from 
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { TIMELINE_MODULE_ROUTES } from "../src/lib/portal/timeline-module-routes.ts";
 
-// «Путь поступления» на «Главной», веб (S4, план §8.4; контракт
-// docs/portal/country-timeline-contract.md §3, §5 и §7).
+// «Путь поступления», веб (S4, план §8.4; контракт docs/portal/country-timeline-contract.md §3, §5 и §7).
+// С 08.11.2026 весь путь стоит на «Поступлении», на «Главной» — его карточка.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const page = read("src/app/(portal)/portal/home/page.tsx");
+const admissionPage = read("src/app/(portal)/portal/page.tsx");
 const view = read("src/components/portal/home/HomeView.tsx");
 const block = read("src/components/portal/home/CountryTimeline.tsx");
+const card = read("src/components/portal/home/HomeJourneyCard.tsx");
+const journey = read("src/lib/portal/student-journey.ts");
+const anchor = read("src/lib/portal/journey-anchor.ts");
 const action = read("src/lib/portal/country-choice-actions.ts");
 const source = read("src/lib/portal/country-choice-source.ts");
 const css = read("src/app/(portal)/portal.css");
 
-test("the choice is read in the same wave as the other home reads", () => {
+test("the choice is read in the same wave as the other reads on both pages", () => {
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
   const reads = wave[1];
@@ -27,22 +31,50 @@ test("the choice is read in the same wave as the other home reads", () => {
   assert.match(reads, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   // Только один Promise.all страницы после проверки студента: лишней волны нет.
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
-  assert.match(page, /selectCountryTimeline\(choice\.country, \{[\s\S]*today: todayForTimeline\(now\),[\s\S]*modules: TIMELINE_MODULE_ROUTES,/u);
-  assert.match(page, /readFailed=\{choice === null\}/u);
-  assert.match(page, /getPortalStrings\("timeline", locale\)/u);
-  assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
+  // «Поступление»: выбор читается вместе с обзором дела и подготовками, тоже без лишней волны.
+  const admissionWave = admissionPage.match(/const \[overview, preparations, choice\] = await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
+  assert.ok(admissionWave, "admission reads stay in one Promise.all");
+  assert.match(admissionWave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\),/u);
+  // Обе страницы берут путь и прогресс из одного места, поэтому карточка и путь не расходятся.
+  for (const file of [page, admissionPage]) {
+    assert.match(file, /selectStudentJourney\(\{\n\s+country: choice\?\.country \?\? null,/u);
+    assert.doesNotMatch(file, /selectCountryTimeline\(|timelineStepProgress\(|\.rpc\(|\.schema\(/u);
+    assert.match(file, /readFailed=\{choice === null\}/u);
+  }
+  assert.match(journey, /selectCountryTimeline\(country, \{[\s\S]*today: todayForTimeline\(now\),[\s\S]*modules: TIMELINE_MODULE_ROUTES,/u);
+  assert.match(admissionPage, /options=\{timelineCountryOptions\(locale\)\}/u);
+  assert.match(admissionPage, /getPortalStrings\("timeline", locale\)/u);
   // Сервер отдаёт клиенту только выбранный путь, не все файлы контента.
-  assert.doesNotMatch(block, /COUNTRY_TIMELINES|content\/timelines|selectCountryTimeline\(/u);
+  assert.doesNotMatch(block, /COUNTRY_TIMELINES|content\/timelines|selectCountryTimeline\(|student-journey/u);
 });
 
-test("the block sits after case actions for a client and first for a self-serve student", () => {
-  const first = view.indexOf('{tier === "assisted" ? null : journey}');
-  const caseSection = view.indexOf('aria-labelledby="home-case"');
-  const afterCase = view.indexOf('{tier === "assisted" ? journey : null}');
-  // 03.11.2026: две колонки — путь и дело слева, всё остальное в правой колонке.
+test("the whole path sits on «Поступление» between the tiles and the tabs, the home keeps its card (user, 08.11.2026)", () => {
+  const overviewAt = admissionPage.indexOf("<OverviewView");
+  const pathAt = admissionPage.indexOf("<CountryTimeline");
+  const tabsAt = admissionPage.indexOf('<nav className="pt-pill-tabs"');
+  assert.ok(overviewAt > 0 && pathAt > overviewAt && tabsAt > pathAt, "tiles, then the path, then the tabs");
+  assert.doesNotMatch(page, /CountryTimeline/u, "no full path on the home");
+  assert.match(page, /<HomeJourneyCard\n\s+view=\{journey\.view\}\n\s+progress=\{journey\.progress\}/u);
+  // Карточка открывает правую колонку «Главной», перед датами.
   const side = view.indexOf('<div className="pt-home-side">');
-  assert.ok(first > 0 && caseSection > first, "self-serve: journey before everything");
-  assert.ok(afterCase > caseSection && side > afterCase, "assisted: journey right after case actions");
+  const cardAt = view.indexOf("{journey}");
+  const dates = view.indexOf("<HomeDates");
+  assert.ok(side > 0 && cardAt > side && dates > cardAt, "the card opens the right column");
+  // Карточка ведёт к якорю блока, переход по ней раскрывает путь.
+  assert.match(anchor, /export const JOURNEY_ANCHOR = "path";/u);
+  assert.match(anchor, /export const JOURNEY_HREF = `\/portal#\$\{JOURNEY_ANCHOR\}`;/u);
+  assert.match(block, /id=\{JOURNEY_ANCHOR\}/u);
+  assert.match(block, /if \(window\.location\.hash === `#\$\{JOURNEY_ANCHOR\}`\) setFolded\(false\);/u);
+  assert.match(card, /href=\{JOURNEY_HREF\}/u);
+  // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
+  assert.doesNotMatch(card, /^"use client";/u);
+  assert.match(card, /timeline\.nowStep, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
+  assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
+  assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
+  const home = PORTAL_DICTIONARIES.home;
+  assert.deepEqual([home.ru.pathAll, home.ru.pathChoose], ["Весь путь", "Выбрать страну"]);
+  for (const key of ["pathAll", "pathChoose", "pathChooseLead"]) assert.ok(home.ky[key], `ky ${key}`);
+  assert.match(css, /\.pt-page > \.pt-journey \{\n {2}margin-bottom: 24px;\n {2}scroll-margin-top: calc\(var\(--pt-topbar-height\) \+ 16px\);/u);
 });
 
 test("module routes match the app routes, so the CSCA step never links to a missing page", () => {
@@ -128,7 +160,7 @@ test("timeline strings exist in RU and KY without dashes or promises", () => {
 });
 
 test("styles add no red, keep 44 px targets and honour reduced motion", () => {
-  const start = css.indexOf("/* ---------- «Путь поступления» на «Главной»");
+  const start = css.indexOf("/* ---------- «Путь поступления» (S4");
   const end = css.indexOf("/* Live notifications share the Atlas header");
   assert.ok(start > 0 && end > start);
   const section = css.slice(start, end);
@@ -143,10 +175,12 @@ test("styles add no red, keep 44 px targets and honour reduced motion", () => {
   assert.doesNotMatch(section, /transition:[^;]*\b(height|width|top|left|margin|padding)\b/u);
 });
 
-test("progress on the home path: done steps fold into one line, the step line stays on screen, nothing extra (owner, 08.11.2026)", () => {
-  // Этап — только из своего дела; студент без дела видит путь без прогресса.
-  assert.match(page, /timelineStepProgress\(timelineView\.steps, overviewResult\.value\?\.operationalStage \?\? null\)/u);
-  assert.match(page, /progress=\{timelineProgress\}/u);
+test("progress on the path: done steps fold into one line, the step line stays on screen, nothing extra (owner, 08.11.2026)", () => {
+  // Этап — только из своего дела; студент без дела или с непрочитанным обзором видит путь без прогресса.
+  assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage\) : null;/u);
+  assert.match(page, /stage: overviewResult\.ok \? overviewResult\.value\?\.operationalStage \?\? null : undefined,/u);
+  assert.match(admissionPage, /stage: overview === undefined \? undefined : overview\?\.operationalStage \?\? null,/u);
+  assert.match(admissionPage, /progress=\{journey\.progress\}/u);
   assert.doesNotMatch(block, /timelineStepProgress\(/u, "the client gets the result, not the content files");
   assert.match(block, /hidden=\{state === "done" && !showDone\}/u);
   assert.match(block, /aria-expanded=\{showDone\}/u);

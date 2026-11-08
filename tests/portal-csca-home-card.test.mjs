@@ -173,17 +173,17 @@ test("the page reads the choice and the CSCA home in its single wave, only for C
 
 test("the card sits in the right column of the home, once for both tiers", () => {
   // 03.11.2026: «Учёба и тесты» сняты с «Главной» (слово пользователя); карточка
-  // CSCA осталась — в правой колонке, после «Что нового» и перед «Моими вузами».
+  // CSCA осталась — в правой колонке. 08.11.2026 (образец пользователя): правая
+  // колонка — путь, даты, «Что нового» и CSCA последней; «Мои вузы» — в левой.
   const view = read("src/components/portal/home/HomeView.tsx");
+  const favorites = view.indexOf("<HomeFavorites");
   const side = view.indexOf('<div className="pt-home-side">');
+  const journey = view.indexOf("{journey}");
   const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
-  const favorites = view.indexOf('aria-labelledby="home-favorites"');
-  assert.ok(side > 0 && news > side && card > news && favorites > card, "dates, news, CSCA, then favourites");
+  assert.ok(favorites > 0 && side > favorites, "favourites in the left column");
+  assert.ok(journey > side && news > journey && card > news, "path card, dates, news, then CSCA");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
-  // «Путь поступления» не тронут: у самостоятельного студента первым, у клиента после дела.
-  assert.match(view, /\{tier === "assisted" \? null : journey\}/u);
-  assert.match(view, /\{tier === "assisted" \? journey : null\}/u);
 });
 
 test("the card is quiet markup: one heading, one link, no alert and no extra client code", () => {
@@ -200,7 +200,7 @@ test("the card is quiet markup: one heading, one link, no alert and no extra cli
   assert.match(component, /view\.session\.registration \? \(/u);
   // Срок выделен весом, а не цветом; своих цветов и акцентов у карточки нет.
   const css = read("src/app/(portal)/portal.css");
-  const rules = css.slice(css.indexOf(".pt-home-csca-session {"), css.indexOf("«Путь поступления» на «Главной» (S4"));
+  const rules = css.slice(css.indexOf(".pt-home-csca-session {"), css.indexOf("«Путь поступления» (S4"));
   assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgb\(|var\(--pt-accent|var\(--pt-error/iu);
   assert.match(rules, /\.pt-home-csca-soon \{\n {2}color: var\(--pt-text\);\n {2}font-weight: 600;/u);
 });

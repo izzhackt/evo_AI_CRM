@@ -17,10 +17,12 @@ import type { CountryChoiceSource } from "@/lib/portal/country-choice";
 import { setStudentCountryChoiceAction } from "@/lib/portal/country-choice-actions";
 import type { CountryTimelineView, TimelineStepProgress, TimelineViewStep } from "@/lib/portal/country-timeline";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { JOURNEY_ANCHOR } from "@/lib/portal/journey-anchor";
 
 /**
- * «Путь поступления» на «Главной» (S4, план §8.4; контракт
- * docs/portal/country-timeline-contract.md §3 и §5). Сервер уже выбрал и
+ * «Путь поступления» (S4, план §8.4; контракт docs/portal/country-timeline-contract.md
+ * §3, §5 и §7). С 08.11.2026 стоит на «Поступлении» под якорем #path, на «Главной» —
+ * его карточка (HomeJourneyCard); переход по ней раскрывает путь. Сервер уже выбрал и
  * локализовал путь (`selectCountryTimeline`): сюда приходит только он, без
  * всех файлов контента. Шаги раскрываются в пункты (только чтение, отметок
  * нет); раскрытые шаги помнит браузер, ключ с `file` и `contentVersion`.
@@ -306,6 +308,11 @@ export function CountryTimeline({
   const { folded, setFolded } = useFolded(currentStep !== null);
   const stepsId = `${baseId}-steps`;
 
+  // Переход «Весь путь» с карточки «Главной» (#path) — выбор студента увидеть весь путь: путь раскрыт и запомнен так.
+  useEffect(() => {
+    if (window.location.hash === `#${JOURNEY_ANCHOR}`) setFolded(false);
+  }, [setFolded]);
+
   // Строка «Шаг N из M» над шагами: раскрывает путь и текущий шаг и прокручивает к нему.
   function jumpToCurrent() {
     if (!currentStep) return;
@@ -393,6 +400,7 @@ export function CountryTimeline({
 
   return (
     <section
+      id={JOURNEY_ANCHOR}
       aria-labelledby={headingId}
       className="pt-card pt-journey"
       data-kind={view?.kind ?? "choose"}
@@ -461,7 +469,7 @@ export function CountryTimeline({
                 <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
                   <span className="pt-journey-now-n">
                     {formatPortalString(strings.nowStep, { n: String(currentStep.order), total: String(total) })}
-                  </span>
+                  </span>{" "}
                   <span className="pt-journey-now-title">{currentStep.title}</span>
                 </button>
                 {foldButton}

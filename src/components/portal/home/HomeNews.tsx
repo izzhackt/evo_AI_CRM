@@ -5,6 +5,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { formatPortalTimestamp, portalNotificationTarget, portalNotificationText } from "../admission/presentation";
+import { HomeCardHead, HomeEmpty } from "./HomeParts";
 
 /** Сколько последних событий видно на «Главной»; вся лента — во «Входящих». */
 const HOME_NEWS_LIMIT = 3;
@@ -14,7 +15,8 @@ const HOME_NEWS_LIMIT = 3;
  * вместо «Учёбы и тестов»): последние события ленты «Входящих» — та же
  * модель E2 и те же подписи и цели, что у NotificationsView; непрочитанное
  * отмечено точкой и словом для скринридера. Отметка «прочитано» — во
- * «Входящих». `null` — чтение не удалось (честная плашка).
+ * «Входящих». `null` — чтение не удалось (честная плашка). Пусто — значок,
+ * заголовок и строка о том, что сюда попадёт (08.11.2026, образец пользователя).
  */
 export function HomeNews({ notifications, locale }: Readonly<{
   notifications: readonly StudentPortalNotification[] | null;
@@ -29,22 +31,21 @@ export function HomeNews({ notifications, locale }: Readonly<{
   const unread = notifications?.filter((item) => item.readAt === null).length ?? 0;
 
   return (
-    <section aria-labelledby="home-news" className="pt-card pt-home-news">
-      <div className="pt-home-news-head">
-        <h2 id="home-news" className="pt-home-dates-title">
-          {messages.updatesTitle}
-          {unread > 0 ? <span className="pt-count">{unread}</span> : null}
-        </h2>
-        {latest && latest.length > 0 ? (
+    <section aria-labelledby="home-news" className="pt-card pt-home-box pt-home-news">
+      <HomeCardHead
+        id="home-news"
+        title={messages.updatesTitle}
+        count={unread}
+        action={latest && latest.length > 0 ? (
           <IntentPrefetchLink href="/portal/messages?view=updates" className="pt-link">
             {strings.newsAll}
           </IntentPrefetchLink>
         ) : null}
-      </div>
+      />
       {latest === null ? (
         <p role="alert" className="pt-alert">{messages.updatesUnavailable}</p>
       ) : latest.length === 0 ? (
-        <p className="pt-home-news-empty">{admission.notificationsEmptyTitle}</p>
+        <HomeEmpty icon="news" title={admission.notificationsEmptyTitle} body={admission.notificationsEmptyBody} />
       ) : (
         <ul className="pt-home-news-list">
           {latest.map((item) => {

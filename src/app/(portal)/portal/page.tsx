@@ -8,8 +8,11 @@ import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparation
 import { OverviewView } from "@/components/portal/admission/OverviewView";
 import { AiConsentSlot } from "@/components/portal/consent/AiConsentSlot";
 import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
+import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { getLocale } from "@/lib/i18n";
+import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { selectStudentJourney, timelineCountryOptions } from "@/lib/portal/student-journey";
 import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
@@ -38,6 +41,10 @@ type AdmissionView = "universities" | "programs";
  * с числами («Требуют действия» ведёт к первому делу), затем две вкладки-ссылки — «Вузы» (бывшее
  * «Избранное», по умолчанию) и «Программы» (выбранные программы,
  * ?view=programs).
+ *
+ * 08.11.2026 (пользователь: «не будет ли логичнее вот этот блок поставить в
+ * поступление?»): между плитками и вкладками — весь «Путь поступления» с
+ * выбором страны (якорь #path); на «Главной» осталась его карточка.
  */
 export default async function StudentPortalOverviewPage({
   searchParams,
@@ -66,20 +73,36 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
   locale: Awaited<ReturnType<typeof getLocale>>;
   view: AdmissionView;
 }>) {
-  // Избранное читается вместе с обзором и подготовками (одновременно).
+  // Избранное читается вместе с обзором, подготовками и выбором страны пути (одновременно).
   const favoritesRead = readStudentUniversityFavorites()
     .then((items) => items.map((item) => item.institutionId))
     .catch((): null => null);
-  const [overview, preparations] = await Promise.all([
+  const [overview, preparations, choice] = await Promise.all([
     readStudentPortalOverview().catch(() => undefined),
     readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
+    readStudentCountryChoice().catch((): null => null),
   ]);
   const favorites = await favoritesRead;
   const strings = getPortalStrings("admission", locale);
   const preparationStrings = getPortalStrings("preparations", locale);
+  // Тот же путь и прогресс, что у карточки «Главной»; обзор дела не прочитан — путь без прогресса.
+  const journey = selectStudentJourney({
+    country: choice?.country ?? null,
+    stage: overview === undefined ? undefined : overview?.operationalStage ?? null,
+    locale,
+    now: new Date(),
+  });
   return (
     <>
       {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} favoritesCount={favorites?.length ?? null} programsCount={preparations?.length ?? null} />}
+      <CountryTimeline
+        view={journey.view}
+        progress={journey.progress}
+        source={choice?.source ?? null}
+        readFailed={choice === null}
+        options={timelineCountryOptions(locale)}
+        strings={getPortalStrings("timeline", locale)}
+      />
       {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
       <div className="pt-pending-packages">
         <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />

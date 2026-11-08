@@ -183,6 +183,39 @@ export function parseStaffGeography(value: unknown): StaffGeography | null {
   return { countries, cities, institutions, costs, fxRates };
 }
 
+/**
+ * Справочник городов для страниц просмотра «Университеты → страны» (миграция 354, `staff_catalog_geography_read_v1`):
+ * только опубликованные города и связи «вуз → ключ города». Читают все сотрудники с `catalog.read`; полей редактора нет.
+ */
+export type BrowseCity = Readonly<{
+  key: string; country: string; nameRu: string; nameKy: string; nameEn: string;
+  lat: number | null; lng: number | null; photo: GeoPhoto | null; summaryRu: string | null;
+}>;
+export type BrowseGeography = Readonly<{
+  cities: readonly BrowseCity[];
+  institutions: readonly Readonly<{ id: string; cityKey: string }>[];
+}>;
+function browseCity(value: unknown): BrowseCity | null {
+  const row = object(value), image = row ? photo(row.photo) : undefined;
+  if (!row || Object.keys(row).sort().join() !== "country,key,lat,lng,nameEn,nameKy,nameRu,photo,summaryRu" || !str(row.key) || !CITY_KEY.test(row.key) || row.key.length > 64 || !isStudyCountryCode(row.country) || !str(row.nameRu) || !str(row.nameKy) || !str(row.nameEn)
+    || !(row.lat === null || typeof row.lat === "number") || !(row.lng === null || typeof row.lng === "number") || image === undefined || !strOrNull(row.summaryRu)) return null;
+  return { key: row.key, country: row.country, nameRu: row.nameRu, nameKy: row.nameKy, nameEn: row.nameEn, lat: row.lat as number | null, lng: row.lng as number | null, photo: image, summaryRu: row.summaryRu };
+}
+/** Ответ чтения привязан к своей организации и к точному набору ключей; неверный ответ это ошибка чтения, а не пустой справочник. */
+export function parseBrowseGeography(value: unknown, organizationId: string): BrowseGeography | null {
+  const row = object(value);
+  if (!row || Object.keys(row).sort().join() !== "cities,institutions,organizationId" || row.organizationId !== organizationId) return null;
+  const cities = list(row.cities, browseCity);
+  const institutions = list(row.institutions, (entry) => {
+    const link = object(entry);
+    return link && Object.keys(link).sort().join() === "cityKey,id" && str(link.id) && UUID.test(link.id) && str(link.cityKey) && CITY_KEY.test(link.cityKey)
+      ? { id: link.id, cityKey: link.cityKey } : null;
+  });
+  if (!cities || !institutions || new Set(cities.map((city) => city.key)).size !== cities.length) return null;
+  if (institutions.some((link) => !cities.some((city) => city.key === link.cityKey))) return null;
+  return { cities, institutions };
+}
+
 /* ------------------------------------------------------------------- деньги */
 
 const DIGITS = /^\d{1,13}(?:[.,]\d{1,3})?$/;

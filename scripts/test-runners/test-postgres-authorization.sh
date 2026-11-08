@@ -5451,6 +5451,32 @@ SQL
       exit 1
     fi
   fi
+  # «Чтение справочника городов для просмотра в CRM» (migration 354, 08.11.2026). Matched by name, not number. The migration
+  # adds the read-only `staff_catalog_geography_read_v1` (published cities and links, catalog.read): right after it a second
+  # apply refuses (a354_already_applied), then the suite, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_staff_catalog_geography_read.sql ]]; then
+    t354_again_log="$(mktemp -t evo-t354-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t354_again_log" 2>&1; then
+      echo "migration 354 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a354_already_applied" "$t354_again_log"; then
+      echo "a second apply of migration 354 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t354_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t354_again_log"
+    geography_read_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_staff_catalog_geography_read.sql </dev/null)"
+    printf '%s\n' "$geography_read_log"
+    if ! grep -q 'A354_STAFF_CATALOG_GEOGRAPHY_READ_SUITE_PASSED' <<<"$geography_read_log"; then
+      echo "platform_staff_catalog_geography_read.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Скорость кабинета и CRM» (migration 351, 08.11.2026). Matched by name, not number. The migration rewrites the access
   # chain from LANGUAGE sql to plpgsql (and two hot callers): right after it a second apply refuses (a351_already_applied),
   # then the suite, insisting on its marker, proves no access decision moved.

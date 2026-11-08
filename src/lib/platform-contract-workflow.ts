@@ -23,6 +23,11 @@ const MULTILINE_CONTROL_PATTERN =
 const HTML_DELIMITER_PATTERN = /[<>]/;
 const MAX_WORKSPACE_BYTES = 2_000_000;
 const MAX_ARRAY_ROWS = 250;
+// `reviewed_sources` (SQL057) несёт и все сайты вузов каталога (`official_website`, SQL148): их по одному на карточку, и они растут
+// вместе с каталогом (253 после Малайзии 08.11.2026 - выше прежнего общего предела 250, и каждая карточка дела у Admin упала с
+// «Не удалось открыть экран»). Сайты вузов в выбор шаблона не попадают, поэтому у этого списка свой, широкий предел; общий размер
+// по-прежнему держит MAX_WORKSPACE_BYTES.
+const MAX_REVIEWED_SOURCE_ROWS = 2_000;
 const MAX_TEMPLATE_TEXT = 20_000;
 const MAX_RENDERED_TEXT = 200_000;
 const SAFE_REPOSITORY_ERROR_MESSAGE =
@@ -467,8 +472,9 @@ function uniqueRows<T>(
   value: unknown,
   normalize: (row: unknown) => T,
   identity: (row: T) => string,
+  maxRows: number = MAX_ARRAY_ROWS,
 ): readonly T[] {
-  if (!Array.isArray(value) || value.length > MAX_ARRAY_ROWS) return invalidShape();
+  if (!Array.isArray(value) || value.length > maxRows) return invalidShape();
   const seen = new Set<string>();
   return value.map((row) => {
     const parsed = normalize(row);
@@ -1163,6 +1169,7 @@ export function normalizePlatformCaseContractWorkspace(
     value.reviewed_sources,
     normalizeReviewedSource,
     (source) => source.sourceRegistryId,
+    MAX_REVIEWED_SOURCE_ROWS,
   // SQL057 includes all reviewed registry rows. Validate identities before
   // excluding SQL148 catalogue sources from the contract-template selector.
   ).filter((source): source is PlatformContractReviewedSource => source.sourceKind !== "official_website");

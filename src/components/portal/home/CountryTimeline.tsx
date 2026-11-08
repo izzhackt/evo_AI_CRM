@@ -86,14 +86,13 @@ function parseOpen(raw: string, known: ReadonlySet<string>): ReadonlySet<string>
   }
 }
 
-// Пока студент ничего не раскрывал, открыт текущий шаг (08.11.2026, владелец).
-function useOpenSteps(view: CountryTimelineView | null, currentId: string | null) {
+function useOpenSteps(view: CountryTimelineView | null) {
   const key = view ? `${STORAGE_PREFIX}:${view.file}:${view.contentVersion}` : "";
   const raw = useSyncExternalStore(subscribeStored, () => (key ? readStored(key) : ""), () => "");
   const steps = view?.steps;
   const open = useMemo(
-    () => (raw ? parseOpen(raw, new Set((steps ?? []).map((step) => step.id))) : new Set(currentId ? [currentId] : [])),
-    [raw, steps, currentId],
+    () => parseOpen(raw, new Set((steps ?? []).map((step) => step.id))),
+    [raw, steps],
   );
   const toggle = useCallback((id: string) => {
     if (!key) return;
@@ -294,9 +293,9 @@ export function CountryTimeline({
   const [showDone, setShowDone] = useState(false);
   const stepId = (id: string) => `${baseId}-step-${id}`;
 
-  const { open, toggle } = useOpenSteps(view, currentStep?.id ?? null);
+  const { open, toggle } = useOpenSteps(view);
 
-  // «Сейчас» над шагами: раскрывает текущий шаг и прокручивает к нему.
+  // Строка «Шаг N из M» над шагами: раскрывает текущий шаг и прокручивает к нему.
   function jumpToCurrent() {
     if (!currentStep) return;
     if (!open.has(currentStep.id)) toggle(currentStep.id);
@@ -435,24 +434,14 @@ export function CountryTimeline({
           {/* Текущий шаг всегда на виду при прокрутке пути (08.11.2026, владелец). */}
           {currentStep ? (
             <div className="pt-journey-now" role="group" aria-label={strings.whereNow}>
-              <div className="pt-journey-now-head">
-                <span className="pt-journey-now-label">{strings.progressCurrent}</span>
-                <span className="pt-journey-now-count">
-                  {formatPortalString(strings.doneOf, { done: String(doneSteps.length), total: String(total) })}
-                </span>
-              </div>
               <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
-                <span className="pt-journey-now-num" aria-hidden="true">{currentStep.order}</span>
-                <span className="pt-journey-now-text">
-                  <span className="pt-sr-only">
-                    {formatPortalString(strings.stepOf, { n: String(currentStep.order), total: String(total) })}{" "}
-                  </span>
-                  <span className="pt-journey-now-title">{currentStep.title}</span>
-                  {currentStep.timing ? <span className="pt-journey-now-timing">{currentStep.timing}</span> : null}
+                <span className="pt-journey-now-n">
+                  {formatPortalString(strings.nowStep, { n: String(currentStep.order), total: String(total) })}
                 </span>
+                <span className="pt-journey-now-title">{currentStep.title}</span>
                 <Icon path={ICON.down} className="pt-journey-now-go" />
               </button>
-              {/* Полоса шагов дублирует «Пройдено N из M» словами, поэтому скрыта от читалки. */}
+              {/* Полоса шагов дублирует «Шаг N из M» словами, поэтому скрыта от читалки. */}
               <span className="pt-journey-meter" aria-hidden="true">
                 {view.steps.map((step) => (
                   <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
@@ -472,9 +461,9 @@ export function CountryTimeline({
                   onClick={() => setShowDone((shown) => !shown)}
                 >
                   <span className="pt-step-node" aria-hidden="true"><Icon path={ICON.check} className="pt-step-node-check" /></span>
+                  {/* Одна строка: «Пройдено» и что именно — без раскрытия. */}
                   <span className="pt-step-done-text">
-                    <span className="pt-step-done-count">{formatPortalString(strings.showDone, { n: String(doneSteps.length) })}</span>
-                    {/* Что уже пройдено — видно без раскрытия. */}
+                    <span className="pt-step-done-count">{strings.showDone}</span>
                     <span className="pt-step-done-titles">{doneSteps.map((step) => step.title).join(" · ")}</span>
                   </span>
                   <Icon path={ICON.chevron} className="pt-step-chevron" />

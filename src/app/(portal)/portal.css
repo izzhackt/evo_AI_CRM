@@ -7009,10 +7009,10 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /*
- * Прогресс по этапу дела (08.11.2026, владелец): путь читается как пройденная дорога. Линия пути зелёная до текущего
- * шага; пройденные шаги — зелёный круг с галочкой и слово «Пройден», свёрнуты в строку с их названиями; текущий —
- * приподнятая карточка, тёмный круг с одним мягким пульсом и слово «Сейчас». Цвет всегда со словом; красный в этом
- * блоке — только фокус. Без дела прогресса нет, путь прежний.
+ * Прогресс по этапу дела (08.11.2026, владелец): путь читается как пройденная дорога, без лишнего. Линия пути зелёная
+ * до текущего шага; пройденные шаги — зелёный круг с галочкой, свёрнуты в одну строку «Пройдено · названия»; текущий —
+ * тёмный круг и слово «Сейчас». Свёрнутый шаг — только название и срок, описание видно у открытого и у текущего.
+ * Цвет всегда со словом; красный в этом блоке — только фокус. Без дела прогресса нет.
  */
 .pt-step[data-progress="done"] .pt-step-node,
 .pt-step-done-toggle .pt-step-node {
@@ -7035,44 +7035,15 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   );
 }
 
-.pt-step[data-progress="current"] {
-  border-radius: var(--pt-radius-item);
-  background: var(--pt-surface);
-  box-shadow: 0 0 0 1px var(--pt-line), var(--pt-shadow-card);
-}
-
 .pt-step[data-progress="current"] .pt-step-node {
-  border: 2px solid var(--pt-text);
+  border-color: var(--pt-text);
+  background: var(--pt-text);
+  color: var(--pt-surface);
 }
 
-/* Один раз три мягких волны вокруг текущего круга: «вы здесь». Без движения — без волн. */
-.pt-step[data-progress="current"] .pt-step-node::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border: 2px solid var(--pt-text);
-  border-radius: 50%;
-  opacity: 0;
-  pointer-events: none;
-  animation: pt-node-wave 1.8s var(--pt-ease-out) 0.4s 3;
-}
-
-@keyframes pt-node-wave {
-  from {
-    opacity: 0.4;
-    transform: scale(0.92);
-  }
-
-  to {
-    opacity: 0;
-    transform: scale(1.3);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pt-step[data-progress="current"] .pt-step-node::after {
-    animation: none;
-  }
+/* Свёрнутый шаг — название и срок; цель шага — у открытого и у текущего. */
+.pt-step[data-open="false"]:not([data-progress="current"]) .pt-step-goal {
+  display: none;
 }
 
 .pt-step-node-check {
@@ -7084,8 +7055,9 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   display: inline-block;
   margin-left: 8px;
   padding: 1px 9px;
-  border: 1px solid currentColor;
   border-radius: var(--pt-radius-chip);
+  background: var(--pt-text);
+  color: var(--pt-surface);
   font-size: var(--pt-size-caption);
   font-weight: 600;
   letter-spacing: 0;
@@ -7094,17 +7066,14 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   white-space: nowrap;
 }
 
+/* Пройденный шаг, раскрытый из строки «Пройдено»: слово зелёным контуром. */
 .pt-step-state[data-progress="done"] {
+  border: 1px solid currentColor;
+  background: none;
   color: var(--pt-ok);
 }
 
-.pt-step-state[data-progress="current"] {
-  border-color: var(--pt-text);
-  background: var(--pt-text);
-  color: var(--pt-surface);
-}
-
-/* Строка «Пройденные шаги: N» с их названиями на месте свёрнутых шагов; линия пути идёт от её круга вниз. */
+/* Строка «Пройдено · названия» на месте свёрнутых шагов; линия пути идёт от её круга вниз. */
 .pt-step-done-group {
   position: relative;
 }
@@ -7138,20 +7107,21 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-step-done-text {
   grid-area: count;
-  display: grid;
-  gap: 2px;
   min-width: 0;
+  font-size: var(--pt-size-body);
+  line-height: 1.4;
 }
 
 .pt-step-done-count {
-  font-size: var(--pt-size-body);
   font-weight: 600;
 }
 
 .pt-step-done-titles {
   color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  line-height: 1.35;
+}
+
+.pt-step-done-titles::before {
+  content: " · ";
 }
 
 .pt-step-done-toggle .pt-step-chevron {
@@ -7174,8 +7144,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /*
- * Панель «Где вы сейчас» не уезжает при прокрутке пути: шаг, его срок и полоса шагов с «Пройдено N из M».
- * Нажатие раскрывает текущий шаг и ведёт к нему; при переходе шаги останавливаются под панелью.
+ * Тонкая строка «Шаг N из M · название» не уезжает при прокрутке пути; под ней полоса шагов. Нажатие раскрывает текущий
+ * шаг и ведёт к нему; при переходе шаги останавливаются под строкой.
  */
 .pt-card.pt-journey {
   overflow: clip;
@@ -7186,9 +7156,9 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   top: calc(var(--pt-topbar-height) + 8px);
   z-index: 4;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-top: 20px;
-  padding: 12px 14px 14px;
+  padding: 10px 14px 12px;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-item);
   background: var(--pt-surface);
@@ -7196,37 +7166,14 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-journey-now + .pt-journey-steps {
-  margin-top: 12px;
-}
-
-.pt-journey-now-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 12px;
-}
-
-.pt-journey-now-label {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.pt-journey-now-count {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  font-variant-numeric: tabular-nums;
+  margin-top: 8px;
 }
 
 .pt-journey-now-step {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 20px;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 32px;
   padding: 0;
   border: 0;
   background: none;
@@ -7236,40 +7183,26 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   cursor: pointer;
 }
 
-.pt-journey-now-num {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--pt-text);
-  color: var(--pt-surface);
-  font-weight: 600;
+.pt-journey-now-n {
+  flex-shrink: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
   font-variant-numeric: tabular-nums;
 }
 
-.pt-journey-now-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
 .pt-journey-now-title {
+  min-width: 0;
+  flex: 1;
   font-size: var(--pt-size-body);
   font-weight: 600;
   line-height: 1.3;
-  text-wrap: balance;
-}
-
-.pt-journey-now-timing {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  line-height: 1.35;
 }
 
 .pt-journey-now-go {
-  width: 20px;
-  height: 20px;
+  flex-shrink: 0;
+  align-self: center;
+  width: 18px;
+  height: 18px;
   color: var(--pt-text-2);
   transition: transform var(--pt-motion-fast) var(--pt-ease-out);
 }
@@ -7288,18 +7221,18 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 .pt-page .pt-journey-now-step:focus-visible {
   outline: 2px solid var(--pt-accent);
   outline-offset: 4px;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 /* Полоса шагов: зелёные пройдены, тёмный сейчас, светлые впереди. */
 .pt-journey-meter {
   display: flex;
-  gap: 4px;
+  gap: 3px;
 }
 
 .pt-journey-meter-seg {
   flex: 1;
-  height: 6px;
+  height: 4px;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-line);
 }
@@ -7313,7 +7246,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-journey-now ~ .pt-journey-steps .pt-step {
-  scroll-margin-top: calc(var(--pt-topbar-height) + 148px);
+  scroll-margin-top: calc(var(--pt-topbar-height) + 96px);
 }
 
 .pt-step-main {
@@ -7377,9 +7310,10 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   gap: 6px;
   min-width: 0;
   margin: 4px 0 0;
-  color: var(--pt-text);
+  /* 08.11.2026: срок тише названия, чтобы шаги не спорили с ним. */
+  color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
 }
 

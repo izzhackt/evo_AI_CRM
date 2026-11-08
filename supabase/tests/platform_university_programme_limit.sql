@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migration 352 «предел программ в карточке 30 -> 300». Runs on the real chain right after 352
+-- Boundary suite for migration 350 «предел программ в карточке 30 -> 300». Runs on the real chain right after 350
 -- inside one transaction that is rolled back. Synthetic data only.
 --
 -- Proves: a card with 1, 30, 31 and 300 programmes is accepted; 0 and 301 are refused; the rest of the validation
@@ -7,17 +7,17 @@
 -- and no grant for any client role.
 BEGIN;
 
-\echo A352_UNIVERSITY_PROGRAMME_LIMIT_SUITE_START
+\echo A350_UNIVERSITY_PROGRAMME_LIMIT_SUITE_START
 
-CREATE FUNCTION pg_temp.a352_assert(ok BOOLEAN, message TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.a350_assert(ok BOOLEAN, message TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
-  IF ok IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'A352: %', message; END IF;
+  IF ok IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'A350: %', message; END IF;
 END
 $$;
 -- A synthetic card with p_count programmes ids p1..pN.
-CREATE FUNCTION pg_temp.a352_card(p_count INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
+CREATE FUNCTION pg_temp.a350_card(p_count INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
   SELECT jsonb_build_object(
-    'name', 'A352 Synthetic University', 'country', 'MY', 'city', 'Kuala Lumpur',
+    'name', 'A350 Synthetic University', 'country', 'MY', 'city', 'Kuala Lumpur',
     'overview', 'Synthetic card for the programme limit suite.',
     'websiteUrl', 'https://example-university.edu.my', 'sourceUrl', 'https://example-university.edu.my/programmes',
     'verifiedOn', '2026-11-08', 'notes', '', 'photoKey', NULL,
@@ -30,38 +30,38 @@ CREATE FUNCTION pg_temp.a352_card(p_count INTEGER) RETURNS JSONB LANGUAGE SQL AS
           'verifiedOn', '2026-11-08'))) ORDER BY n) FROM generate_series(1, p_count) AS n), '[]'::JSONB))
 $$;
 
-SELECT pg_temp.a352_assert(platform_private.valid_university_content(pg_temp.a352_card(1)), 'one programme is accepted');
-SELECT pg_temp.a352_assert(platform_private.valid_university_content(pg_temp.a352_card(30)), '30 programmes are accepted');
-SELECT pg_temp.a352_assert(platform_private.valid_university_content(pg_temp.a352_card(31)), '31 programmes are accepted (was refused before 352)');
-SELECT pg_temp.a352_assert(platform_private.valid_university_content(pg_temp.a352_card(300)), '300 programmes are accepted');
-SELECT pg_temp.a352_assert(NOT platform_private.valid_university_content(pg_temp.a352_card(0)), 'no programme is refused');
-SELECT pg_temp.a352_assert(NOT platform_private.valid_university_content(pg_temp.a352_card(301)), '301 programmes are refused');
+SELECT pg_temp.a350_assert(platform_private.valid_university_content(pg_temp.a350_card(1)), 'one programme is accepted');
+SELECT pg_temp.a350_assert(platform_private.valid_university_content(pg_temp.a350_card(30)), '30 programmes are accepted');
+SELECT pg_temp.a350_assert(platform_private.valid_university_content(pg_temp.a350_card(31)), '31 programmes are accepted (was refused before 350)');
+SELECT pg_temp.a350_assert(platform_private.valid_university_content(pg_temp.a350_card(300)), '300 programmes are accepted');
+SELECT pg_temp.a350_assert(NOT platform_private.valid_university_content(pg_temp.a350_card(0)), 'no programme is refused');
+SELECT pg_temp.a350_assert(NOT platform_private.valid_university_content(pg_temp.a350_card(301)), '301 programmes are refused');
 
 -- The rest of the validation is unchanged.
-SELECT pg_temp.a352_assert(NOT platform_private.valid_university_content(jsonb_set(pg_temp.a352_card(40), '{programs,5,id}', '"p1"')),
+SELECT pg_temp.a350_assert(NOT platform_private.valid_university_content(jsonb_set(pg_temp.a350_card(40), '{programs,5,id}', '"p1"')),
   'a duplicate programme id is refused');
-SELECT pg_temp.a352_assert(NOT platform_private.valid_university_content(jsonb_set(pg_temp.a352_card(40), '{programs,5,level}', '"phd"')),
+SELECT pg_temp.a350_assert(NOT platform_private.valid_university_content(jsonb_set(pg_temp.a350_card(40), '{programs,5,level}', '"phd"')),
   'an unknown level is refused');
-SELECT pg_temp.a352_assert(NOT platform_private.valid_university_content(jsonb_set(pg_temp.a352_card(40), '{programs,5,sourceUrl}', '"http://example-university.edu.my/x"')),
+SELECT pg_temp.a350_assert(NOT platform_private.valid_university_content(jsonb_set(pg_temp.a350_card(40), '{programs,5,sourceUrl}', '"http://example-university.edu.my/x"')),
   'a non-https programme source is refused');
-SELECT pg_temp.a352_assert(platform_private.valid_university_content(jsonb_set(pg_temp.a352_card(40), '{programs,5,level}', '"language"')),
+SELECT pg_temp.a350_assert(platform_private.valid_university_content(jsonb_set(pg_temp.a350_card(40), '{programs,5,level}', '"language"')),
   'the language level is still accepted');
 
 -- The function keeps its shape.
-SELECT pg_temp.a352_assert(
+SELECT pg_temp.a350_assert(
   (SELECT p.provolatile = 's' AND NOT p.prosecdef AND p.proconfig = ARRAY['search_path=""']
      FROM pg_proc p WHERE p.oid = 'platform_private.valid_university_content(jsonb)'::regprocedure),
   'the validator keeps STABLE and an empty search_path');
-SELECT pg_temp.a352_assert(
+SELECT pg_temp.a350_assert(
   NOT EXISTS (SELECT 1 FROM unnest(ARRAY['anon', 'authenticated', 'service_role']) AS r(name)
     WHERE has_function_privilege(r.name, 'platform_private.valid_university_content(jsonb)'::regprocedure, 'EXECUTE')),
   'no client role may call the validator');
-SELECT pg_temp.a352_assert(
+SELECT pg_temp.a350_assert(
   (length(pg_get_functiondef('platform_private.valid_university_content(jsonb)'::regprocedure))
     - length(replace(pg_get_functiondef('platform_private.valid_university_content(jsonb)'::regprocedure), 'BETWEEN 1 AND 300', ''))) / length('BETWEEN 1 AND 300') = 1
   AND strpos(pg_get_functiondef('platform_private.valid_university_content(jsonb)'::regprocedure), 'NOT BETWEEN 1 AND 30 THEN') = 0,
   'the limit is written once');
 
-\echo A352_UNIVERSITY_PROGRAMME_LIMIT_SUITE_PASSED
+\echo A350_UNIVERSITY_PROGRAMME_LIMIT_SUITE_PASSED
 
 ROLLBACK;

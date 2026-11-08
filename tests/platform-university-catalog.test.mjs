@@ -15,7 +15,7 @@ const clone = () => structuredClone(current.find((entry) => entry.key === "apu")
 const id = "59948000-0000-4000-8000-000000000001";
 const currentBundles = readdirSync(new URL("../src/lib/server/", import.meta.url)).filter((name) => /^university-catalog-reviewed-(?!content\.json$).+\.json$/.test(name));
 const current = currentBundles.flatMap((name) => JSON.parse(readFileSync(new URL(`../src/lib/server/${name}`, import.meta.url), "utf8")));
-// Malaysia 2026-11 (migration 352 slice): these cards were added from official sites without a licensed campus photo
+// Malaysia 2026-11 (migration 350 slice): these cards were added from official sites without a licensed campus photo
 // (the photo library and its Storage upload are a separate step, docs/design/v3/university-photo-refresh-run-plan.md).
 // Every other card keeps the rule «a real campus photo with provenance»; a card leaves this set when its photo lands.
 const AWAITING_PHOTO = new Set(["um", "iium", "alfa", "inti-subang", "inti-penang", "inti-sabah", "taylors-college", "sunway-college"]);

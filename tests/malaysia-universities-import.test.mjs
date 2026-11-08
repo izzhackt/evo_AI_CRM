@@ -85,8 +85,8 @@ test("Malaysia 2026-11: the cost file passes the sanctioned importer's own valid
   assert.equal(plan.batches.length, 1);
 });
 
-test("Malaysia 2026-11: the SQL generator rolls back by default, publishes with the Admin RPCs and refuses commit with the 352 simulation", () => {
-  const dry = buildSql({ simulate352: true });
+test("Malaysia 2026-11: the SQL generator rolls back by default, publishes with the Admin RPCs and refuses commit with the 350 simulation", () => {
+  const dry = buildSql({ simulate350: true });
   assert.equal(dry.cards, 21);
   assert.equal(dry.costRows, costs.rows.length);
   assert.match(dry.sql, /\nROLLBACK;\n$/u);
@@ -97,6 +97,6 @@ test("Malaysia 2026-11: the SQL generator rolls back by default, publishes with 
   // No direct writes to the catalogue tables: everything goes through the RPCs.
   assert.doesNotMatch(dry.sql, /\b(INSERT INTO|UPDATE|DELETE FROM)\s+platform(_private)?\./u);
   assert.match(buildSql({ commit: true }).sql, /\nCOMMIT;\n$/u);
-  assert.throws(() => buildSql({ commit: true, simulate352: true }), /dry runs only/u);
+  assert.throws(() => buildSql({ commit: true, simulate350: true }), /dry runs only/u);
   assert.throws(() => buildSql({ actorMembership: "not-a-uuid" }), /UUID/u);
 });

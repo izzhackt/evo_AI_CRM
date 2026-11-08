@@ -100,7 +100,7 @@ private struct PaymentRow: View {
                     }
                     // 189: NULL due_at = «без срока» — строки срока нет.
                     if AdmissionPaymentPolicy.showsDueLine(payment),
-                       let due = AdmissionTimestamp.label(from: payment.dueAt) {
+                       let due = AdmissionTimestamp.deadlineLabel(from: payment.dueAt) {
                         (Text("adm_due_term") + Text(verbatim: " \(due)"))
                             .font(.caption)
                             .foregroundStyle(.secondaryText)

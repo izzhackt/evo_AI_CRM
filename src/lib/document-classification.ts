@@ -41,6 +41,45 @@ export function documentKindLabel(key: DocumentKindKey): string {
   return KIND_BY_KEY.get(key) ?? key;
 }
 
+/**
+ * Что сотрудник может выбрать вручную сверх 13 видов ИИ (решение владельца 08.11.2026). ИИ эти значения не подсказывает: список
+ * видов модели, схема её ответа и `kind_key` подсказок остаются прежними (`DOCUMENT_KINDS`).
+ *  - contract: принятый файл становится договором дела в «Деньги» (миграция 189);
+ *  - other: своё название пункта (`normalizeCustomDocumentLabel`);
+ *  - not_needed: пункт скрывается мягким удалением (`remove_document_slot`), файл остаётся в архиве удалённых пунктов.
+ */
+export const STAFF_EXTRA_KINDS = Object.freeze([
+  { key: "contract", label: "Договор" },
+  { key: "other", label: "Другое…" },
+  { key: "not_needed", label: "Не нужное" },
+] as const);
+export type StaffExtraKindKey = (typeof STAFF_EXTRA_KINDS)[number]["key"];
+export type AcceptKindKey = DocumentKindKey | StaffExtraKindKey;
+export const CONTRACT_KIND_LABEL = "Договор";
+const STAFF_EXTRA_KEYS: ReadonlySet<string> = new Set(STAFF_EXTRA_KINDS.map((kind) => kind.key));
+export function isAcceptKindKey(value: unknown): value is AcceptKindKey {
+  return isDocumentKindKey(value) || (typeof value === "string" && STAFF_EXTRA_KEYS.has(value));
+}
+export function acceptKindLabel(key: AcceptKindKey): string {
+  return isDocumentKindKey(key) ? documentKindLabel(key) : STAFF_EXTRA_KINDS.find((kind) => kind.key === key)?.label ?? key;
+}
+/** Виды, которых по природе несколько на дело: для них проверка «пункт с таким названием уже есть» не применяется (паспорт и прочие одиночные её сохраняют). */
+const DEDUPE_EXEMPT: ReadonlySet<string> = new Set<AcceptKindKey>(["payment_receipt", "contract", "other"]);
+export function dedupeAppliesTo(kind: AcceptKindKey): boolean {
+  return !DEDUPE_EXEMPT.has(kind);
+}
+/** Виды, которые при приёме уходят в «Деньги»: договор и чек. */
+export function isFinanceKind(kind: AcceptKindKey): kind is "contract" | "payment_receipt" {
+  return kind === "contract" || kind === "payment_receipt";
+}
+export const CUSTOM_DOCUMENT_LABEL_MAX = 120;
+/** Своё название: пробелы по краям и повторы схлопываются, 1–120 знаков, без управляющих символов; иначе null. */
+export function normalizeCustomDocumentLabel(raw: unknown): string | null {
+  if (typeof raw !== "string" || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(raw)) return null;
+  const label = raw.replace(/\s+/g, " ").trim();
+  return label.length >= 1 && label.length <= CUSTOM_DOCUMENT_LABEL_MAX ? label : null;
+}
+
 /** Порог «уверенно»: только такие файлы принимает кнопка «Принять все уверенные». Ниже порога «возможно» подсказка не показывается. */
 export const CONFIDENCE_CONFIDENT = 0.9;
 export const CONFIDENCE_POSSIBLE = 0.6;

@@ -5364,6 +5364,44 @@ SQL
       exit 1
     fi
   fi
+  # «Виды документов дела: Договор, Чек об оплате, Не нужное, Другое» (migration 348, решение владельца 08.11.2026). Matched by name,
+  # not number. 348 widens the curator decision list and adds the finance source; 349 (matched below) adds the pending receipts and the
+  # suite runs right after 349. A second apply of 348 refuses (a348_already_applied).
+  if [[ "$(basename "$migration")" == *_platform_document_finance_kinds.sql ]]; then
+    t348_again_log="$(mktemp -t evo-t348-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t348_again_log" 2>&1; then
+      echo "migration 348 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a348_already_applied" "$t348_again_log"; then
+      echo "a second apply of migration 348 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t348_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t348_again_log"
+  fi
+  # «Чек об оплате из разбора документов ждёт оплату» (migration 349). Matched by name. A second apply refuses (a349_already_applied), then the
+  # suite of 348-349, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_pending_receipts.sql ]]; then
+    t349_again_log="$(mktemp -t evo-t349-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t349_again_log" 2>&1; then
+      echo "migration 349 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a349_already_applied" "$t349_again_log"; then
+      echo "a second apply of migration 349 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t349_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t349_again_log"
+    document_finance_kinds_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_document_finance_kinds.sql </dev/null)"
+    printf '%s
+' "$document_finance_kinds_log"
+    if ! grep -q 'A348_DOCUMENT_FINANCE_KINDS_SUITE_PASSED' <<<"$document_finance_kinds_log"; then
+      echo "platform_document_finance_kinds.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Предел программ в карточке вуза 30 -> 300» (migration 350, 08.11.2026). Matched by name, not number. The migration
   # replaces one fragment of `valid_university_content`: right after it a second apply refuses (a350_already_applied),
   # then the suite, insisting on its marker.

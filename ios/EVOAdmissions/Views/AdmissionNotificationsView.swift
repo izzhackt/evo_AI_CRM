@@ -277,7 +277,7 @@ private struct NotificationRow: View {
         } else {
             parts.append(String(localized: "adm_date_unavailable"))
         }
-        if let due = AdmissionTimestamp.label(from: notification.dueAt) {
+        if let due = AdmissionTimestamp.deadlineLabel(from: notification.dueAt) {
             parts.append("\(String(localized: "adm_due_meta")) \(due)")
         }
         return Text(verbatim: parts.joined(separator: " · "))

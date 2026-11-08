@@ -14,7 +14,6 @@ import { statePill, taskStateKey } from "../grids";
 import { CalendarTaskControls } from "../TaskControls";
 import {
   calendarCapabilitiesForTask,
-  clockLabel,
   type CalendarAssigneeOption,
   type CalendarTask,
   type CalendarTaskCapabilities,
@@ -22,13 +21,12 @@ import {
   type Day,
 } from "../types";
 
-/** Срок словами: «24.09 10:00», «24.09 · весь день» или «Без срока» (год — только не текущий, как в сетке). */
+/** Срок словами: «24.09» или «Без срока» (год — только не текущий, как в сетке). */
 export function dueFactValue(task: CalendarTask, today: Day): React.ReactNode {
   if (task.day === null) return "Без срока";
   return (
     <span className="font-mono">
       {formatQueueDay(task.day, today)}
-      {task.minutes === null ? " · весь день" : ` ${clockLabel(task.minutes)}`}
     </span>
   );
 }

@@ -291,7 +291,8 @@ test("файлы нового вида: каждый до 150 строк, без
     }
   }
   // «Договор и оплата» читает сводку 189 тем же читателем, что `CaseAgreementBlock`; «Анкета» — «Интересует» тем же, что «Сведения» лида.
-  assert.deepEqual([...reads].sort(), ["AnketaOtherFacts.tsx:../../LeadInterestFact", "MoneyAgreementNext.tsx:@/lib/v3/case-agreement-source"]);
+  // Плюс одно чтение 349: чеки из разбора документов, ждущие оплату, — той же карточки «Оплаты и чеки» (одиночный читатель, своя карточка вне next/).
+  assert.deepEqual([...reads].sort(), ["AnketaOtherFacts.tsx:../../LeadInterestFact", "MoneyAgreementNext.tsx:@/lib/v3/case-agreement-source", "MoneyAgreementNext.tsx:@/lib/v3/pending-receipts-source"]);
   assert.match(read(`${NEW_DIR}/MoneyAgreementNext.tsx`), /await readCaseAgreement\(actor, studentCaseId\)/u);
   assert.match(read("src/components/staff/profile/CaseAgreementBlock.tsx"), /await readCaseAgreement\(actor, studentCaseId\)/u);
   assert.match(read(`${NEW_DIR}/AnketaOtherFacts.tsx`), /await readLeadInterestState\(profile\.leadId\)/u);

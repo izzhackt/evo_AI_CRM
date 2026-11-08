@@ -501,7 +501,7 @@ private struct DocumentSlotRow: View {
     @ViewBuilder
     private var facts: some View {
         VStack(alignment: .leading, spacing: 3) {
-            if let deadline = AdmissionTimestamp.label(from: document.deadline) {
+            if let deadline = AdmissionTimestamp.deadlineLabel(from: document.deadline) {
                 factRow(term: "adm_deadline_term", value: deadline)
             }
             if let filename = document.originalFilename {

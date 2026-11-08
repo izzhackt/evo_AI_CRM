@@ -8,7 +8,7 @@ import { PortalMarkAllReadButton } from "./PortalMarkAllReadButton";
 import { PortalNotificationReadButton } from "./PortalNotificationReadButton";
 import { PortalNotificationReadForm } from "./PortalNotificationReadForm";
 import { PortalStatus } from "./PortalStatus";
-import { formatPortalTimestamp, portalNotificationTarget, portalNotificationText } from "./presentation";
+import { formatPortalDeadline, formatPortalTimestamp, portalNotificationTarget, portalNotificationText } from "./presentation";
 
 export type MarkPortalNotificationReadAction = (
   formData: FormData,
@@ -69,7 +69,7 @@ export function NotificationsView({
         {notifications.map((notification) => {
           const unread = notification.readAt === null;
           const createdLabel = formatPortalTimestamp(notification.createdAt);
-          const dueLabel = formatPortalTimestamp(notification.dueAt);
+          const dueLabel = formatPortalDeadline(notification.dueAt);
           const target = portalNotificationTarget(notification, strings);
           const text = portalNotificationText(notification, strings);
 

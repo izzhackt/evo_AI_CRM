@@ -523,6 +523,16 @@ enum AdmissionTimestamp {
         return formatter.string(from: date)
     }
 
+    /// Срок для студента: только дата по Бишкеку, без времени.
+    static func deadlineLabel(from raw: String?) -> String? {
+        guard let raw, let date = PostgresTimestamp.date(from: raw) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.timeZone = TimeZone(identifier: "Asia/Bishkek")
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter.string(from: date)
+    }
+
     /// Срок-ДАТА (`due_on`, весь день) в том же виде `dd.MM.yyyy`, что и срок
     /// со временем выше: на одном экране не должно быть «30.09.2026, 15:00»
     /// рядом с «1 октября 2026 г.». Дата берётся как есть, без часовых поясов.

@@ -45,10 +45,10 @@
   --pt-size-tab: 12px;
   --pt-leading: 1.45;
 
-  /* Радиусы: карточка 16, элемент 12, контрол 10, чип 999. */
-  --pt-radius-card: 16px;
-  --pt-radius-item: 12px;
-  --pt-radius-control: 10px;
+  /* Радиусы: карточка 10, элемент 8, контрол 8, чип 999 (08.11.2026, пользователь: «сделай закругленности меньше»; было 16/12/10). */
+  --pt-radius-card: 10px;
+  --pt-radius-item: 8px;
+  --pt-radius-control: 8px;
   --pt-radius-chip: 999px;
 
   /*

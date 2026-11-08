@@ -6362,16 +6362,16 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   display: grid;
   justify-items: center;
   gap: 6px;
-  padding: 32px 16px 28px;
+  padding: 48px 16px 44px;
   text-align: center;
 }
 
 .pt-home-empty-icon {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 4px;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 8px;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-bg);
   color: var(--pt-text-2);

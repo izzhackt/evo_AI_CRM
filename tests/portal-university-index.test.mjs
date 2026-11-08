@@ -9,6 +9,8 @@ import {
   countryHref,
   cityHref,
   countryUniversitiesWithoutCity,
+  countryUniversityGroups,
+  countryViewFromQuery,
   nearestIndexIntake,
   parseStudentUniversityDetail,
   parseStudentUniversityIndexResponse,
@@ -225,6 +227,8 @@ test("country and city helpers keep every university visible", () => {
   }
   assert.equal(countryHref("CN"), "/portal/universities/country/cn");
   assert.equal(countryHref("CN", "map"), "/portal/universities/country/cn?view=map");
+  assert.equal(countryHref("CN", "list"), "/portal/universities/country/cn?view=list");
+  assert.equal(countryHref("CN", "cities"), "/portal/universities/country/cn");
   assert.equal(cityHref("MY", "kuala-lumpur"), "/portal/universities/country/my/kuala-lumpur");
   assert.equal(countryCodeFromSlug("cn"), "CN");
   for (const slug of ["CN", "pl", "chn", ""]) assert.equal(countryCodeFromSlug(slug), null, slug);
@@ -478,5 +482,51 @@ test("catalog screens read one cached index and the university page one RPC", ()
   }
   for (const action of ["src/lib/platform-university-catalog-actions.ts", "src/lib/platform-university-batch-actions.ts"]) {
     assert.match(read(action), /revalidateTag\(STUDENT_UNIVERSITY_INDEX_TAG, \{ expire: 0 \}\)/u, action);
+  }
+});
+
+test("the list view groups every university of a country by city, A to Z, no-city group last", () => {
+  const raw = indexFixture();
+  // Дополнительные вузы: порядок внутри города и кириллическое название города.
+  raw.universities.push(
+    university("0b9c2f8e-3f0a-4b8e-9d55-7a1d2c3e4f60", "Tongji University", "CN", "shanghai"),
+    university("0b9c2f8e-3f0a-4b8e-9d55-7a1d2c3e4f61", "East China Normal University", "CN", null),
+  );
+  const { index } = parseStudentUniversityIndexResponse(raw);
+  const groups = countryUniversityGroups(index, "CN", "ru");
+  assert.deepEqual(groups.map((group) => group.city?.key ?? null), ["hangzhou", "shanghai", null]);
+  assert.deepEqual(groups[1].universities.map((entry) => entry.name),
+    ["Fudan University", "Shanghai Jiao Tong University", "Tongji University"]);
+  assert.deepEqual(groups[2].universities.map((entry) => entry.name),
+    ["East China Normal University", "Xi’an Jiaotong-Liverpool University"]);
+  // Ни один вуз страны не пропадает и не повторяется.
+  assert.equal(groups.reduce((sum, group) => sum + group.universities.length, 0),
+    index.universities.filter((entry) => entry.country === "CN").length);
+  // Страна без вузов: пустой список, без пустых групп.
+  assert.deepEqual(countryUniversityGroups(index, "CZ", "ru"), []);
+  assert.deepEqual(countryUniversityGroups(index, "AE", "ky").map((group) => group.city), [null]);
+});
+
+test("the country view query accepts only list, map or nothing", () => {
+  assert.equal(countryViewFromQuery(undefined), "cities");
+  assert.equal(countryViewFromQuery("map"), "map");
+  assert.equal(countryViewFromQuery("list"), "list");
+  for (const bad of ["grid", "cities", "", "LIST", ["list"], ["map", "list"]]) assert.equal(countryViewFromQuery(bad), null, JSON.stringify(bad));
+  const page = read("src/app/(portal)/portal/universities/country/[code]/page.tsx");
+  assert.match(page, /countryViewFromQuery\(query\.view\)/);
+  assert.match(page, /view === null\) notFound\(\)/);
+  assert.match(page, /countryHref\(code, "list"\)/);
+  assert.match(page, /countryUniversityGroups\(index, code, locale\)/);
+  // Порядок переключателя: Города, Списком, Карта.
+  assert.ok(page.indexOf("strings.viewCities") < page.indexOf("strings.viewList") && page.indexOf("strings.viewList") < page.indexOf("strings.viewMap"));
+});
+
+test("list view strings exist in Russian and Kyrgyz", () => {
+  const ru = PORTAL_DICTIONARIES.universities.ru;
+  const ky = PORTAL_DICTIONARIES.universities.ky;
+  assert.equal(ru.viewList, "Списком");
+  assert.equal(ru.listNoCity, "Город не указан");
+  for (const key of ["viewList", "listHeading", "listNoCity"]) {
+    assert.ok(ky[key] && ky[key] !== ru[key], key);
   }
 });

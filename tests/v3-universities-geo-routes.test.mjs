@@ -56,3 +56,32 @@ test("таблица «Все вузы» остаётся и получает в
   assert.match(tabs, /href: "\/universities"/u);
   assert.match(tabs, /href: "\/universities\/country"/u);
 });
+
+test("the proxy route contract lets the staff geography pages through and nothing around them", async () => {
+  const { isConnectedPlatformPage } = await import("../src/lib/platform-route-contract.ts");
+  const { cityHref, countryHref, labelCityKey } = await import("../src/lib/university-geo-groups.ts");
+  // Регресс 08.11.2026 (ревью PR 1415): новые страницы не были в контракте маршрутов, proxy отвечал blockedPlatformRoute.
+  const allowed = [
+    "/universities/country",
+    countryHref("MY"),
+    new URL(countryHref("MY", "list"), "https://crm.example").pathname,
+    cityHref("MY", "penang"),
+    cityHref("MY", "kota-kinabalu"),
+    cityHref("MY", null),
+    new URL(cityHref("CN", labelCityKey("Гуанчжоу")), "https://crm.example").pathname,
+    new URL(cityHref("CN", labelCityKey("Ho Chi Minh City (HCMC)")), "https://crm.example").pathname,
+  ];
+  for (const path of allowed) assert.equal(isConnectedPlatformPage(path), true, path);
+  const blocked = [
+    "/universities/country/",
+    "/universities/country/my",
+    "/universities/country/MYS",
+    "/universities/country/MY/",
+    "/universities/country/MY/Penang",
+    "/universities/country/MY/penang/extra",
+    "/universities/country/MY/~a b",
+    "/universities/country/MY/~%zz",
+    "/universities/countryX",
+  ];
+  for (const path of blocked) assert.equal(isConnectedPlatformPage(path), false, path);
+});

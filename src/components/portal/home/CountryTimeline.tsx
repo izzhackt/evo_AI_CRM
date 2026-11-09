@@ -428,6 +428,8 @@ export function CountryTimeline({
         </div>
         {view ? (
           <div className="pt-journey-change">
+            {/* Без текущего шага «Все шаги» стоит в шапке рядом со сменой страны, а не одна внизу (перенесено из #1423, Айвар). */}
+            {currentStep ? null : foldButton}
             <button
               ref={changeRef}
               type="button"
@@ -486,9 +488,7 @@ export function CountryTimeline({
                 ))}
               </span>
             </div>
-          ) : (
-            <div className="pt-journey-fold-row">{foldButton}</div>
-          )}
+          ) : null}
           {/* Весь путь сворачивается (08.11.2026, пользователь): шаги и «Важно знать» — по «Все шаги». */}
           <div id={stepsId} className="pt-journey-body" hidden={folded}>
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>

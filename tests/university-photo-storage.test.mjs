@@ -553,4 +553,8 @@ test("reduced copies (srcset) exist only for verified migrated photos and keep t
   // The frame falls back to the original src once before it reports a failure.
   const frame = readFileSync(new URL("../src/components/platform/universities/UniversityPhotoFrame.tsx", import.meta.url), "utf8");
   assert.match(frame, /onError=\{\(\) => \(reduced \? setOriginalOnly\(src\) : setFailedUrl\(src\)\)\}/u);
+  // A load that failed before hydration is replayed through the same onError (no broken-image icon).
+  assert.match(frame, /useRef<HTMLImageElement \| null>/u);
+  assert.match(frame, /image\.complete && image\.naturalWidth === 0\) image\.dispatchEvent\(new Event\("error"\)\)/u);
+  assert.match(frame, /<img\s+ref=\{ref\}/u);
 });

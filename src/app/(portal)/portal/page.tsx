@@ -5,6 +5,7 @@ import { packageStrings } from "@/components/portal/applicationPackages/strings"
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { OverviewView } from "@/components/portal/admission/OverviewView";
 import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
+import { HomeFavorites } from "@/components/portal/home/HomeFavorites";
 import { HomeList, type HomeListView } from "@/components/portal/home/HomeList";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
@@ -50,9 +51,11 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function StudentPortalHomePage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ view?: string; all?: string }> }>) {
   const [actor, locale, search] = await Promise.all([requireStudentPortalActor(), getLocale(), searchParams]);
   const view: HomeListView = search.view === "programs" ? "programs" : "universities";
+  // «Всё избранное» (HomeFavorites): полный список со сравнением; по умолчанию вкладка «Вузы» — карточки с фото.
+  const allFavorites = search.all === "1";
   // PORT-1a: единственная проверяемая граница уровня доступа — серверный
   // actor.accessTier, без повторной локальной деривации из caseState.
   const tier = actor.accessTier;
@@ -145,7 +148,15 @@ export default async function StudentPortalHomePage({
               locale={locale}
             >
               {view === "universities" ? (
-                <FavoritesSection institutionIds={favoritesResult.ok ? favoritesResult.ids : null} locale={locale} />
+                allFavorites ? (
+                  <FavoritesSection institutionIds={favoritesResult.ok ? favoritesResult.ids : null} locale={locale} />
+                ) : (
+                  <HomeFavorites
+                    favorites={favoritesResult.ok ? favoritesResult.items : null}
+                    total={favoritesResult.ok ? favoritesResult.total : 0}
+                    locale={locale}
+                  />
+                )
               ) : (
                 <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
               )}

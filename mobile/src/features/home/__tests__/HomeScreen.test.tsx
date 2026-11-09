@@ -7,6 +7,7 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, universityRow, uuidN } from "@/test-fixtures/universities";
 import cscaHome from "@/test-fixtures/csca-home-fresh.json";
 
+jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
 
 const navigate = router.navigate as jest.Mock;

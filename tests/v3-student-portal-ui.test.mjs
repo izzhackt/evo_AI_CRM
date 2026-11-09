@@ -268,6 +268,7 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   assert.match(view, /nearestUniversityIntake/u);
   assert.match(view, /\/portal\/universities\/\$\{item\.id\}/u);
   assert.match(page, /<FavoritesSection institutionIds=/u);
+  assert.match(page, /<HomeFavorites/u);
 
   // Assisted: та же модель действий, что у OverviewView «Моего поступления».
   assert.match(view, /overview\?\.studentAction/u);

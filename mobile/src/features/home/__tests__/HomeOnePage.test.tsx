@@ -7,6 +7,7 @@ import { NOTIFICATION_ROW, OVERVIEW_ROW, OVERVIEW_ROW_EMPTY, PAYMENT_ROW } from 
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
 
+jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
 
 const navigate = router.navigate as jest.Mock;
@@ -244,6 +245,45 @@ describe("Главная: «Мой список»", () => {
     expect(within(row).getByText("Осень 2027")).toBeTruthy();
     expect(within(row).getByText("Сроки этого набора нужно подтвердить с куратором.")).toBeTruthy();
     expect(screen.getByText("Мои программы 1")).toBeTruthy();
+  });
+
+  it("«Мои вузы»: карточки с названием и «город · страна», фото только из бакета, без фото - подложка", async () => {
+    const withPhoto = (args?: Record<string, unknown>) => ({
+      items: ((args?.p_institution_ids as string[]) ?? []).map((id) => {
+        const n = Number(id.slice(-12));
+        const row = universityRow(n);
+        return n === 1 ? { ...row, content: { ...row.content, photoKey: "sunway" } } : row;
+      }),
+      nextOffset: null,
+    });
+    const { transport } = fakeTransport(handlers("MY", { student_university_catalog_by_ids_v1: withPhoto }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const first = await screen.findByTestId(`fav-${uuidN(1)}`);
+    const second = screen.getByTestId(`fav-${uuidN(2)}`);
+    expect(within(first).getByText("Университет 1")).toBeTruthy();
+    expect(within(first).getByText("Куала-Лумпур · Малайзия")).toBeTruthy();
+    // фото: адрес только из нашего бакета (render/image), у вуза без фото картинки нет и надписи нет
+    // у карточки с фото кроме кнопки есть картинка (та же подпись), у карточки без фото - только кнопка
+    // Фото в карточке скрыто от читалки (название читает сама карточка), поэтому ищем узел с source.
+    expect(screen.getAllByLabelText("Университет 1")).toHaveLength(1);
+    const photo = screen.getAllByTestId(/^fav-photo-/, { includeHiddenElements: true })[0];
+    const source = (photo.props as { source: { uri: string } | { uri: string }[] }).source;
+    const uri = [source].flat()[0].uri;
+    expect(uri).toMatch(/^http:\/\/localhost:46421\/storage\/v1\/render\/image\/public\/portal-university-photos\/sunway\.jpg\?/);
+    expect(screen.getAllByLabelText("Университет 2")).toHaveLength(1);
+    expect(within(second).queryByText(/Фото/)).toBeNull();
+    // две карточки - всё избранное уже видно, ссылки «Всё избранное» нет
+    expect(screen.queryByTestId("favorites-all")).toBeNull();
+  });
+
+  it("больше четырёх вузов: четыре карточки и «Всё избранное» открывает полный список", async () => {
+    const { transport } = fakeTransport(handlers("MY", { student_university_favorites_v1: favorites(6) }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId(`fav-${uuidN(1)}`);
+    expect(screen.queryByTestId(`fav-${uuidN(5)}`)).toBeNull();
+    await fireEvent.press(screen.getByTestId("favorites-all"));
+    expect(await screen.findByTestId(`fav-${uuidN(5)}`)).toBeTruthy();
+    expect(screen.queryByTestId("favorites-all")).toBeNull();
   });
 
   it("пустые состояния: нет вузов, нет программ", async () => {

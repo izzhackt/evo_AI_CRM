@@ -15,7 +15,9 @@ import { JOURNEY_HREF } from "@/lib/portal/journey-anchor";
  * внутренних этапов дела. Текущий шаг считает `timelineStepProgress` по этапу
  * дела. Названия шагов длинные, поэтому под точками их нет: они в подсказке и
  * в доступном имени, а видна строка «Шаг N из M: название» и «Весь путь».
- * Без страны или без дела дорожки нет; у самостоятельного студента дела нет.
+ * Этап дела не ложится на путь (нестандартный этап) или дела нет — точки без
+ * отметки и строка набора («Набор на сентябрь 2027 года»): шапка не пустеет.
+ * Без страны дорожки нет.
  */
 export function HomeHero({ displayName, studyCountry, journey, progress, locale }: Readonly<{
   displayName: string;
@@ -41,14 +43,14 @@ export function HomeHero({ displayName, studyCountry, journey, progress, locale 
         </h1>
         {studyCountry ? <p className="pt-home-hero-sub">{studyCountry}</p> : null}
       </div>
-      {progress && shown ? (
+      {journey && steps.length > 0 ? (
         <div className="pt-home-stages">
           <ol className="pt-home-stage-track" aria-label={strings.stagesAria} style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
             {steps.map((step) => (
               <li
                 key={step.id}
-                data-state={progress[step.id] === "done" ? "done" : progress[step.id] === "current" ? "current" : undefined}
-                aria-current={progress[step.id] === "current" ? "step" : undefined}
+                data-state={progress?.[step.id] === "done" ? "done" : progress?.[step.id] === "current" ? "current" : undefined}
+                aria-current={progress?.[step.id] === "current" ? "step" : undefined}
               >
                 <span className="pt-home-stage-visual" aria-hidden="true" title={step.title}>
                   <span className="pt-home-stage-dot" />
@@ -59,11 +61,13 @@ export function HomeHero({ displayName, studyCountry, journey, progress, locale 
           </ol>
           <p className="pt-home-stage-caption">
             <span>
-              {formatPortalString(strings.pathStep, {
-                n: String(steps.indexOf(shown) + 1),
-                total: String(steps.length),
-                title: shown.title,
-              })}
+              {shown
+                ? formatPortalString(strings.pathStep, {
+                  n: String(steps.indexOf(shown) + 1),
+                  total: String(steps.length),
+                  title: shown.title,
+                })
+                : journey.intake.label}
             </span>
             <IntentPrefetchLink className="pt-home-stage-all" href={JOURNEY_HREF}>{strings.pathAll}</IntentPrefetchLink>
           </p>

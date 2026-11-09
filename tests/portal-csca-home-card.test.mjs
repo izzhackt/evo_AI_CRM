@@ -175,7 +175,8 @@ test("the card sits in the right column of the home, once for both tiers", () =>
   // 03.11.2026: «Учёба и тесты» сняты с «Главной» (слово пользователя); карточка
   // CSCA осталась — в правой колонке. 08.11.2026 (образец пользователя): правая
   // колонка — путь, даты, «Что нового» и CSCA последней; «Мои вузы» — в левой. 09.11.2026: путь ушёл в шапку,
-  // правую колонку открывают «Документы»; куратор — в «Написать EVO» слева (#1356).
+  // правую колонку открывают «Документы»; куратор — в «Написать EVO» слева (#1356); «Ближайшие даты» — тоже
+  // слева, под «Написать EVO» (колонки кончаются ближе друг к другу).
   const view = read("src/components/portal/home/HomeView.tsx");
   // #1355: «Мои вузы» ушли в «Мой список» под колонками; в левой колонке «Что сделать сейчас».
   const favorites = view.indexOf("<HomeCase");
@@ -184,8 +185,8 @@ test("the card sits in the right column of the home, once for both tiers", () =>
   const dates = view.indexOf("<HomeDates");
   const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
-  assert.ok(favorites > 0 && side > favorites, "the case card in the left column");
-  assert.ok(documents > side && dates > documents && news > dates && card > news, "documents, dates, news, then CSCA");
+  assert.ok(favorites > 0 && dates > favorites && side > dates, "the case card and the dates in the left column");
+  assert.ok(documents > side && news > documents && card > news, "documents, news, then CSCA");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
 });
 

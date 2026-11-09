@@ -1489,10 +1489,11 @@
   text-align: right;
 }
 
+/* Карточка «Моего списка» (09.11.2026): «Сравнить» — отметка в левом верхнем углу фото, сердце — в правом. */
 .pt-favorite-entry {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   min-width: 0;
 }
 
@@ -1501,23 +1502,46 @@
 }
 
 .pt-compare-pick {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  /* Выше растянутой ссылки карточки (.pt-place-link::after, z-index 2): нажатие на отметку не открывает вуз. */
+  z-index: 3;
   display: inline-flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  min-height: 44px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  color: var(--pt-text);
   font-size: var(--pt-size-caption);
-  color: var(--pt-text-2);
+  font-weight: 600;
   cursor: pointer;
 }
 
 .pt-compare-pick input {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
   accent-color: var(--pt-accent);
 }
 
 .pt-compare {
-  margin-top: 32px;
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pt-compare > .pt-section-title {
+  margin: 0;
+}
+
+.pt-compare-hint {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
 }
 
 .pt-compare-scroll {
@@ -7051,7 +7075,11 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   gap: 16px;
 }
 
-.pt-home-list > .pt-home-head {
+.pt-home-list > .pt-home-head,
+.pt-home-list > .pt-pill-tabs,
+.pt-home-list > .pt-uni-grid {
+  /* Шаг между заголовком, вкладками и карточками — только gap списка: свои поля вкладок и сетки давали 60 px пустоты. */
+  margin-top: 0;
   margin-bottom: 0;
 }
 
@@ -7320,6 +7348,19 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 .pt-home-news-time {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+}
+
+/* «Ближайшие даты» без дат — одна строка под неделей (09.11.2026). */
+.pt-home-dates-empty {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.45;
+}
+
+.pt-home-dates-empty strong {
+  color: var(--pt-text);
+  font-weight: 600;
 }
 
 .pt-home-dates-list {
@@ -7733,11 +7774,31 @@ p.pt-home-manager-role {
   padding-left: 28px;
 }
 
+/* Действия шапки пути в один ряд: «Все шаги» (без текущего шага) и «Сменить страну»; подпись источника под ними. */
 .pt-journey-change {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 8px;
+  /* Две кнопки в ряд, подпись под ними: без предела ширина блока складывалась из всех трёх и он уходил под заголовок. */
+  max-width: 300px;
+}
+
+.pt-journey-change > .pt-journey-source {
+  flex-basis: 100%;
+  text-align: right;
+}
+
+/* Когда действия не помещаются рядом с заголовком, они идут под ним от левого края, как текст выше. */
+@container pt-journey (max-width: 760px) {
+  .pt-journey-change {
+    justify-content: flex-start;
+  }
+
+  .pt-journey-change > .pt-journey-source {
+    text-align: left;
+  }
 }
 
 .pt-journey-source {
@@ -8252,16 +8313,6 @@ p.pt-home-manager-role {
   outline-offset: 2px;
 }
 
-.pt-journey-fold-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-.pt-journey-fold-row + .pt-journey-body .pt-journey-steps {
-  margin-top: 4px;
-}
-
 .pt-step-main {
   display: contents;
 }
@@ -8550,7 +8601,11 @@ p.pt-home-manager-role {
   }
 
   .pt-journey-change {
-    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .pt-journey-change > .pt-journey-source {
+    text-align: left;
   }
 
   .pt-journey-intake + .pt-journey-intake-note {

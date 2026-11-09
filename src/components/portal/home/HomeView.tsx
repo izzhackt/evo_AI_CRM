@@ -32,9 +32,9 @@ import { HomeWriteEvo } from "./HomeWriteEvo";
  * 09.11.2026 (разбор кабинета: три разных ответа на «где я», «действий не требуется», нет дат и менеджера): шапка
  * (HomeHero) показывает шаг пути страны — тот же, что в «Профиле» и в полном пути ниже; отдельной карточки пути нет.
  * Слева «Что сделать сейчас» (HomeCase: задания менеджера, а без них задания студента из текущего шага пути) или
- * «Ваша анкета» (approved) и «Написать EVO» (#1356, один вход в чат) с именем куратора. Справа «Документы»
- * (HomeDocuments: принято из списка дела и что ждёт студента со сроком), «Ближайшие даты» (сроки дел, документов и
- * избранных вузов), «Что нового» и карточка CSCA (только при выбранном Китае).
+ * «Ваша анкета» (approved), «Написать EVO» (#1356, один вход в чат) с именем куратора и «Ближайшие даты» (сроки дел,
+ * документов и избранных вузов). Справа «Документы» (HomeDocuments: принято из списка дела и что ждёт студента со
+ * сроком), «Что нового» и карточка CSCA (только при выбранном Китае).
  */
 export function HomeView({
   tier,
@@ -140,6 +140,10 @@ export function HomeView({
               <HomeWriteEvo curatorName={overview?.curatorDisplayName ?? null} locale={locale} />
             </div>
           ) : null}
+          {/* 09.11.2026 («выглядит неаккуратно»): даты в левой колонке — колонки кончаются ближе друг к другу. */}
+          <div className="pt-home-slot" data-slot="dates">
+            <HomeDates items={dated} today={today} locale={locale} />
+          </div>
         </div>
 
         <div className="pt-home-side">
@@ -148,9 +152,6 @@ export function HomeView({
               <HomeDocuments documents={documents} locale={locale} />
             </div>
           ) : null}
-          <div className="pt-home-slot" data-slot="dates">
-            <HomeDates items={dated} today={today} locale={locale} />
-          </div>
           {tier === "assisted" ? (
             <div className="pt-home-slot" data-slot="news">
               <HomeNews notifications={news} locale={locale} />

@@ -22,7 +22,6 @@ import { SessionsPanel } from "@/features/learning/csca/SessionsPanel";
 import { useCscaHome } from "@/features/learning/queries";
 import { Chip } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
@@ -271,7 +270,7 @@ export function CscaHomeScreen() {
     AsyncStorage.setItem(storageKey(userKey), next === "about" ? "open" : "closed").catch(() => undefined);
   };
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void home.refetch()} refreshing={home.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void home.refetch()} refreshing={home.isRefetching}>
       <View style={{ gap: 16 }} testID="csca-screen">
         <View style={{ gap: 4 }}>
           <Text variant="display" accessibilityRole="header" testID="title-csca">

@@ -89,7 +89,9 @@ describe("уведомления и ссылки", () => {
     expect(linkTarget("/portal/csca")).toEqual({ kind: "route", route: "/csca" });
     expect(linkTarget("/portal")).toEqual({ kind: "route", route: "/home" });
     expect(linkTarget("/portal/home")).toEqual({ kind: "route", route: "/home" });
-    expect(linkTarget("/portal#path")).toEqual({ kind: "route", route: "/home" });
+    expect(linkTarget("/portal#path")).toEqual({ kind: "route", route: "/home?path=open" });
+    expect(linkTarget("/portal/home#path")).toEqual({ kind: "route", route: "/home?path=open" });
+    expect(linkTarget("/portal#list")).toEqual({ kind: "route", route: "/home" });
     expect(linkTarget("/portal?view=programs#list")).toEqual({ kind: "route", route: "/home?list=programs" });
     expect(linkTarget("/portal/messages?view=chat")).toEqual({ kind: "route", route: "/messages/chat" });
     expect(linkTarget("/portal/messages?view=updates")).toEqual({ kind: "route", route: "/messages/updates" });

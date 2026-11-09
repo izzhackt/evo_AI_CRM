@@ -1,0 +1,38 @@
+appId: com.evoadmissions.app
+name: Университеты, страна, вуз, избранное
+---
+- runFlow: subflows/fresh-login.yaml
+- runFlow:
+    file: subflows/open-section.yaml
+    env:
+      SECTION: universities
+- extendedWaitUntil:
+    visible:
+      id: "country-.*"
+    timeout: 30000
+- tapOn:
+    id: "country-.*"
+# Список вузов страны: плитки вузов (вид «Список» показывает их сразу).
+- tapOn:
+    id: view-list
+- extendedWaitUntil:
+    visible:
+      id: "tile-.*"
+    timeout: 20000
+- tapOn:
+    id: "tile-.*"
+- extendedWaitUntil:
+    visible:
+      id: "heart-.*"
+    timeout: 20000
+# Сердце: состояние «в избранном» меняется туда и обратно.
+- copyTextFrom:
+    id: "heart-.*"
+- tapOn:
+    id: "heart-.*"
+- waitForAnimationToEnd
+- tapOn:
+    id: "heart-.*"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "heart-.*"

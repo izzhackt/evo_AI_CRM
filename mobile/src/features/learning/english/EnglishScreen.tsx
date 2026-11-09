@@ -8,7 +8,6 @@ import { LESSON_COVERS } from "@/features/learning/english/covers";
 import { useEnglishModules } from "@/features/learning/queries-english";
 import { Chip, SegmentBar } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
@@ -24,7 +23,7 @@ export function EnglishScreen() {
   const module = modules.data?.[0] ?? null;
   const hasMistakes = module?.lessons.some((l) => l.lastResult !== null && l.lastResult.correctCount < l.lastResult.exercisesTotal) ?? false;
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void modules.refetch()} refreshing={modules.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void modules.refetch()} refreshing={modules.isRefetching}>
       <View style={{ gap: 16 }} testID="english-screen">
         <Text variant="display" accessibilityRole="header" testID="title-english">
           {e.title}

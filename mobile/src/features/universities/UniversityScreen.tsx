@@ -18,7 +18,6 @@ import { loadErrorKey } from "@/api/queries";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { rpcErrorKey } from "@/lib/rpc";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
@@ -55,7 +54,7 @@ function UniversityBody({ id }: { id: string }) {
   const strings = t("universities");
   const detail = useUniversityDetail(id);
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
       <View style={{ gap: 16 }}>
         {detail.error instanceof UniversityNotFoundError ? (
           <NotFoundBlock />

@@ -4,14 +4,14 @@ import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePortalUnread } from "@/api/PortalPoll";
+import { usePortalApi } from "@/api/PortalApi";
 import { useLang } from "@/i18n/LangProvider";
 import { SECTION_ICONS } from "@/shell/icons";
-import { PHONE_TABS, SECTIONS } from "@/shell/sections";
+import { PHONE_TABS, SECTIONS, hasTabBar } from "@/shell/sections";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "@/ui/Text";
 
-/** Высота плавающей панели вместе с отступом; контент получает такой нижний запас. */
-export const TAB_BAR_CLEARANCE = 96;
+export { TAB_BAR_CLEARANCE } from "@/shell/useTabBarClearance";
 
 /** Плавающая панель: отступ 12, радиус 20, поверхность + линия + тень, вкладка >= 52. */
 export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
@@ -20,11 +20,12 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const unread = usePortalUnread();
   const pathname = usePathname();
+  const { tier } = usePortalApi();
   // В беседе панель убрана: поле ввода и клавиатура получают весь низ экрана.
   if (pathname === "/messages/chat") return null;
-  const visible = state.routes.filter((r) => (PHONE_TABS as readonly string[]).includes(r.name));
   // Одна вкладка (approved) - не панель: остаётся шапка с ☰ (веб Shell.tsx, `tabSections.length > 1`).
-  if (visible.length < 2) return null;
+  if (!hasTabBar(tier)) return null;
+  const visible = state.routes.filter((r) => (PHONE_TABS as readonly string[]).includes(r.name));
   return (
     <View
       pointerEvents="box-none"

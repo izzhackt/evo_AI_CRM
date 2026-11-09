@@ -26,7 +26,7 @@ export const LICENSE_OVERRIDES = { "node-forge": "BSD-3-Clause" };
 /** Пакеты, у которых текста лицензии в каталоге нет и это известно. */
 export const NO_TEXT_OK = new Set([
   "@react-native/asset-utils", "@react-native/normalize-colors", "@react-native/virtualized-lists", // MIT, файла в пакете нет
-  "boolbase", "client-only", "expo-router", "mj-context-menu", "server-only", "standard-navigation", "tr46", // идентификатор SPDX в package.json есть
+  "boolbase", "client-only", "expo-router", "expo-structured-headers", "expo-updates", "mj-context-menu", "server-only", "standard-navigation", "tr46", // идентификатор SPDX в package.json есть
 ]);
 
 const LICENSE_FILE = /^(licen[sc]e|copying|notice)(\.|-|_|$)/i;

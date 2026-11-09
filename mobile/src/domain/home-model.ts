@@ -36,6 +36,19 @@ export function homeSlots(input: Readonly<{ tier: AccessTier; hasJourney: boolea
   return slots;
 }
 
+/** Параметры «Главной» из параметров старого `/overview` (`?path=open`, `?view=programs`) и метки `at`. */
+export function overviewRedirectParams(
+  input: Readonly<{ path?: string | string[]; view?: string | string[] }>,
+  at: string,
+): Record<string, string> {
+  const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const params: Record<string, string> = {};
+  if (first(input.path) === "open") params.path = "open";
+  params.at = at;
+  if (first(input.view) === "programs") params.list = "programs";
+  return params;
+}
+
 /** Вкладки «Мой список». */
 export type HomeListTab = "universities" | "programs";
 

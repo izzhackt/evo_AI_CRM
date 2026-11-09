@@ -25,6 +25,7 @@
     "expo-splash-screen": "~58.0.13",
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.7",
+    "expo-updates": "~58.0.21",
     "lucide-react-native": "^1.70.0",
     "mathjax-full": "3.2.2",
     "react": "19.3.0",
@@ -63,7 +64,9 @@
     "sync-photo-manifest": "node scripts/sync-photo-manifest.mjs",
     "guard:photos": "node scripts/sync-photo-manifest.mjs --check",
     "licenses": "node scripts/generate-licenses.mjs",
-    "guard:licenses": "node scripts/generate-licenses.mjs --check"
+    "guard:licenses": "node scripts/generate-licenses.mjs --check",
+    "e2e:ios": "node scripts/e2e.mjs ios",
+    "e2e:android": "node scripts/e2e.mjs android"
   },
   "private": true,
   "jest": {

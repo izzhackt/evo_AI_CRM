@@ -6,7 +6,6 @@ import { View } from "react-native";
 
 import { loadErrorKey } from "@/api/queries";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
 import { Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
@@ -18,7 +17,7 @@ export function CatalogFrame({ children, header }: { children: (index: StudentUn
   const strings = t("universities");
   const catalog = useUniversityIndex();
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void catalog.refresh()} refreshing={catalog.refreshing}>
+    <Screen topInset={false} tabBar onRefresh={() => void catalog.refresh()} refreshing={catalog.refreshing}>
       <View style={{ gap: 16 }}>
         {header}
         {catalog.isLoading ? (

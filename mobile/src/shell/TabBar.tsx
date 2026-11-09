@@ -23,6 +23,8 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
   // В беседе панель убрана: поле ввода и клавиатура получают весь низ экрана.
   if (pathname === "/messages/chat") return null;
   const visible = state.routes.filter((r) => (PHONE_TABS as readonly string[]).includes(r.name));
+  // Одна вкладка (approved) - не панель: остаётся шапка с ☰ (веб Shell.tsx, `tabSections.length > 1`).
+  if (visible.length < 2) return null;
   return (
     <View
       pointerEvents="box-none"

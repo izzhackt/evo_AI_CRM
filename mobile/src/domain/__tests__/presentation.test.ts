@@ -74,7 +74,7 @@ describe("уведомления и ссылки", () => {
     [{ category: "case", eventCode: "case_help_answer" }, "/messages/updates"],
     [{ category: "application", eventCode: "application_package_review" }, "/messages/updates"],
     [{ category: "application", eventCode: "application_document_review" }, "/messages/updates"],
-    [{ category: "novelty", eventCode: "new_thing" }, "/overview"],
+    [{ category: "novelty", eventCode: "new_thing" }, "/home"],
   ])("%j -> %s", (input, route) => expect(notificationRoute(input)).toBe(route));
 
   it("сообщение команды подписано на языке студента", () => {
@@ -87,7 +87,12 @@ describe("уведомления и ссылки", () => {
 
   it("ссылки контента: вкладка, браузер или никуда", () => {
     expect(linkTarget("/portal/csca")).toEqual({ kind: "route", route: "/csca" });
-    expect(linkTarget("/portal")).toEqual({ kind: "route", route: "/overview" });
+    expect(linkTarget("/portal")).toEqual({ kind: "route", route: "/home" });
+    expect(linkTarget("/portal/home")).toEqual({ kind: "route", route: "/home" });
+    expect(linkTarget("/portal#path")).toEqual({ kind: "route", route: "/home" });
+    expect(linkTarget("/portal?view=programs#list")).toEqual({ kind: "route", route: "/home?list=programs" });
+    expect(linkTarget("/portal/messages?view=chat")).toEqual({ kind: "route", route: "/messages/chat" });
+    expect(linkTarget("/portal/messages?view=updates")).toEqual({ kind: "route", route: "/messages/updates" });
     expect(linkTarget("https://www.csca.cn/")).toEqual({ kind: "external", url: "https://www.csca.cn/" });
     expect(linkTarget("http://insecure.example")).toBeNull();
     expect(linkTarget("javascript:alert(1)")).toBeNull();

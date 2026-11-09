@@ -4,7 +4,6 @@ import type { AccessTier } from "@/session/access";
 
 export type SectionId =
   | "home"
-  | "overview"
   | "documents"
   | "payments"
   | "messages"
@@ -17,7 +16,6 @@ export type SectionId =
 
 export type NavKey =
   | "nav.home"
-  | "nav.overview"
   | "nav.documents"
   | "nav.payments"
   | "nav.messages"
@@ -46,7 +44,6 @@ const ASSISTED = ["assisted"] as const;
 
 export const SECTIONS: readonly Section[] = [
   { id: "home", navKey: "nav.home", icon: "House", tiers: BOTH, group: null, milestone: "M1" },
-  { id: "overview", navKey: "nav.overview", icon: "GraduationCap", tiers: BOTH, group: null, milestone: "M1" },
   { id: "documents", navKey: "nav.documents", icon: "FileText", tiers: ASSISTED, group: null, milestone: "M2" },
   { id: "payments", navKey: "nav.payments", icon: "Wallet", tiers: ASSISTED, group: null, milestone: "M2" },
   { id: "messages", navKey: "nav.messages", icon: "MessagesSquare", tiers: ASSISTED, group: null, milestone: "M3" },
@@ -58,14 +55,17 @@ export const SECTIONS: readonly Section[] = [
   { id: "profile", navKey: "nav.profile", icon: "CircleUserRound", tiers: BOTH, group: null, milestone: "M6" },
 ];
 
-/** Четыре вкладки телефона (PHONE_TABS в Shell.tsx). */
-export const PHONE_TABS: readonly SectionId[] = ["home", "overview", "documents", "messages"];
+/** Три вкладки телефона (PHONE_TABS в Shell.tsx, #1355: «Поступления» больше нет). */
+export const PHONE_TABS: readonly SectionId[] = ["home", "documents", "messages"];
 
 export const allowedFor = (tier: AccessTier): readonly Section[] => SECTIONS.filter((s) => s.tiers.includes(tier));
 
-/** Вкладки нижней панели: approved видит только Главную и Поступление. */
+/** Вкладки нижней панели: у approved остаётся одна «Главная». */
 export const tabsFor = (tier: AccessTier): readonly Section[] =>
   allowedFor(tier).filter((s) => PHONE_TABS.includes(s.id));
+
+/** Одна вкладка — не панель (Shell.tsx: `tabSections.length > 1`): у approved панель не рисуется, остаётся ☰. */
+export const hasTabBar = (tier: AccessTier): boolean => tabsFor(tier).length > 1;
 
 export const isAllowed = (id: SectionId, tier: AccessTier): boolean =>
   SECTIONS.some((s) => s.id === id && s.tiers.includes(tier));

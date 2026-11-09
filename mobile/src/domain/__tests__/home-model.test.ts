@@ -1,22 +1,33 @@
 import { getPortalStrings } from "@web/lib/portal/i18n";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 
-import { HOME_NEWS_LIMIT, collectHomeDates, homeSlots, latestNews, showCountryChoice } from "@/domain/home-model";
+import { HOME_NEWS_LIMIT, collectHomeDates, homeParams, homeSlots, latestNews, showCountryChoice } from "@/domain/home-model";
 import { buildPortalOverview, normalizeStudentPortalNotification } from "@/domain/portal-source";
 
 import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
 
 describe("порядок блоков Главной", () => {
-  it("assisted со страной и CSCA: дело, путь, вузы, даты, новости, CSCA", () => {
-    expect(homeSlots({ tier: "assisted", hasJourney: true, hasCscaCard: true })).toEqual(["case", "path", "universities", "dates", "news", "csca"]);
+  it("assisted со страной, CSCA и задачей EVO: задача, дело, путь, написать EVO, даты, новости, CSCA, список, весь путь", () => {
+    expect(homeSlots({ tier: "assisted", hasJourney: true, hasCscaCard: true, hasEvoTask: true })).toEqual(["evo", "case", "path", "write", "dates", "news", "csca", "list", "fullPath"]);
   });
-  it("без страны пути нет, выбор страны стоит выше блоков", () => {
-    expect(homeSlots({ tier: "assisted", hasJourney: false, hasCscaCard: false })).toEqual(["case", "universities", "dates", "news"]);
+  it("без страны пути нет (ни карточки, ни полного), выбор страны стоит выше блоков; список остаётся", () => {
+    expect(homeSlots({ tier: "assisted", hasJourney: false, hasCscaCard: false, hasEvoTask: false })).toEqual(["case", "write", "dates", "news", "list"]);
     expect(showCountryChoice(false)).toBe(true);
     expect(showCountryChoice(true)).toBe(false);
   });
-  it("approved: «Ваша анкета» вместо дела, новостей нет", () => {
-    expect(homeSlots({ tier: "approved", hasJourney: true, hasCscaCard: false })).toEqual(["case", "path", "universities", "dates"]);
+  it("approved: одна «Ваша анкета» вместо дела; без «Написать EVO», новостей и задачи EVO", () => {
+    expect(homeSlots({ tier: "approved", hasJourney: true, hasCscaCard: false, hasEvoTask: false })).toEqual(["case", "path", "dates", "list", "fullPath"]);
+    expect(homeSlots({ tier: "approved", hasJourney: true, hasCscaCard: true, hasEvoTask: true })).toEqual(["case", "path", "dates", "csca", "list", "fullPath"]);
+  });
+});
+
+describe("параметры ссылок на Главную", () => {
+  it("?list=programs|universities и ?path=open; остальное игнорируется", () => {
+    expect(homeParams({ list: "programs" })).toEqual({ listTab: "programs", openPath: false, stamp: "" });
+    expect(homeParams({ list: ["universities"], path: "open" })).toEqual({ listTab: "universities", openPath: true, stamp: "" });
+    expect(homeParams({ list: "x", path: "closed" })).toEqual({ listTab: null, openPath: false, stamp: "" });
+    expect(homeParams({ list: "programs", at: "1" }).stamp).toBe("1");
+    expect(homeParams({})).toEqual({ listTab: null, openPath: false, stamp: "" });
   });
 });
 

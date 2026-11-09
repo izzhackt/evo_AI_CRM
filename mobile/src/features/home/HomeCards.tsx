@@ -1,19 +1,19 @@
-// Карточки «Главной» (HomeCase, HomeJourneyCard, HomeFavorites, HomeDates, HomeNews,
-// CscaHomeCard и карточка анкеты approved; веб #1412). Каждая карточка получает уже
+// Карточки «Главной» (HomeCase, HomeJourneyCard, HomeWriteEvo, HomeDates, HomeNews,
+// CscaHomeCard, карточка анкеты approved и задача EVO из OverviewView; веб #1412, #1355). Каждая карточка получает уже
 // прочитанные данные и своё состояние: сбой одного источника не трогает остальные.
-import { CalendarDays, ClipboardCheck, Landmark, MessagesSquare } from "lucide-react-native";
+import { CalendarDays, ClipboardCheck, MessagesSquare } from "lucide-react-native";
 import { Pressable, View } from "react-native";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import type { CountryTimelineView, TimelineStepProgress } from "@web/lib/portal/country-timeline";
 import type { CscaHomeCardView } from "@web/lib/portal/csca-home-card";
 import { homeWeek, upcomingHomeDates, type HomeDateItem } from "@web/lib/portal/home-dates";
 import { formatPortalString } from "@web/lib/portal/i18n";
-import { nearestUniversityIntake, universityCountryLabel, universityDateLabel, universityMonthLabel } from "@web/lib/portal/universities";
+import { nearestUniversityIntake, universityDateLabel, universityMonthLabel } from "@web/lib/portal/universities";
 
 import type { HomeNewsView } from "@/domain/home-model";
-import type { StudentPortalOverview } from "@/domain/portal-source";
-import { actionTarget, actionTitle, formatPortalMoney, formatPortalTimestamp, notificationRoute, portalNotificationText, studentActionDueLabel } from "@/domain/presentation";
-import { go, openLink } from "@/features/portal/navigation";
+import type { StudentPortalEvoAction, StudentPortalOverview } from "@/domain/portal-source";
+import { actionTarget, actionTitle, evoActionDueLabel, evoActionStatusLabel, evoActionTone, formatPortalMoney, formatPortalTimestamp, notificationRoute, portalNotificationText, studentActionDueLabel } from "@/domain/presentation";
+import { go, openLink, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { JourneyMeter } from "@/features/portal/JourneyMeter";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -72,7 +72,7 @@ export function CaseCard({ overview, load }: { overview: StudentPortalOverview |
             onPress={() => go(actionTarget(primary).route)}
             testID="case-open"
           />
-          {remaining > 0 ? <LinkButton label={format(home.caseMore, { count: String(remaining) })} onPress={() => go("/overview")} testID="case-more" /> : null}
+          {remaining > 0 ? <LinkButton label={format(home.caseMore, { count: String(remaining) })} onPress={() => go("/documents")} testID="case-more" /> : null}
         </View>
       ) : (
         <EmptyBlock icon={ClipboardCheck} title={overview ? admission.calmDone : admission.calmNoPlan} />
@@ -99,17 +99,66 @@ export function ApplicationCard() {
       <Text variant="heading" accessibilityRole="header">
         {admission.pendingApplicationHeading}
       </Text>
-      {/* TODO(M7): кнопка «Открыть анкету» ведёт на просмотр анкеты в приложении. */}
       <Text variant="secondary" tone="text2">
+        {admission.pendingManagerNotice}
+      </Text>
+      {/* TODO(M7): кнопка «Открыть анкету» ведёт на просмотр анкеты в приложении. */}
+      <Text variant="caption" tone="text2">
         {m("home.applicationHint")}
       </Text>
     </Card>
   );
 }
 
+/** Задача команды EVO (OverviewView, веб): под шапкой «Главной», только когда она есть. */
+export function EvoTaskCard({ action }: { action: StudentPortalEvoAction }) {
+  const { tokens } = useTheme();
+  const { t } = useLang();
+  const admission = t("admission");
+  const due = evoActionDueLabel(action);
+  const tone = evoActionTone(action);
+  return (
+    <Card>
+      <Text variant="heading" accessibilityRole="header">
+        {admission.evoHeading}
+      </Text>
+      <Text variant="body" bold testID="evo-title">
+        {action.title}
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: tokens.radiusChip, backgroundColor: tone === "warn" ? tokens.accentSoft : tokens.skeleton }}>
+          <Text variant="caption" bold tone={tone === "warn" ? "error" : "text"}>
+            {evoActionStatusLabel(action, admission)}
+          </Text>
+        </View>
+        {due ? (
+          <Text variant="secondary" tone="text2">
+            {admission.dueTerm} {due}
+          </Text>
+        ) : null}
+      </View>
+    </Card>
+  );
+}
+
+/** «Написать EVO» (HomeWriteEvo, веб #1356): один вход к команде, чат «Входящих». Только assisted. */
+export function WriteEvoCard() {
+  const { t } = useLang();
+  const home = t("home");
+  return (
+    <Card>
+      <CardHead title={home.writeHeading} />
+      <Text variant="secondary" tone="text2">
+        {home.writeBody}
+      </Text>
+      <Button label={home.writeAction} onPress={() => go(WRITE_EVO_ROUTE)} testID="write-evo" />
+    </Card>
+  );
+}
+
 // ---- Путь ------------------------------------------------------------------------
 
-export function JourneyCard({ view, progress }: { view: CountryTimelineView; progress: Readonly<Record<string, TimelineStepProgress>> | null }) {
+export function JourneyCard({ view, progress, onOpenPath }: { view: CountryTimelineView; progress: Readonly<Record<string, TimelineStepProgress>> | null; onOpenPath: () => void }) {
   const { t, format } = useLang();
   const home = t("home");
   const timeline = t("timeline");
@@ -117,7 +166,7 @@ export function JourneyCard({ view, progress }: { view: CountryTimelineView; pro
   const title = view.countryName ? format(home.pathTitle, { country: view.countryName }) : timeline.heading;
   return (
     <Card>
-      <CardHead title={title} action={<LinkButton label={home.pathAll} onPress={() => go("/overview", { path: "open" })} testID="journey-all" />} />
+      <CardHead title={title} action={<LinkButton label={home.pathAll} onPress={onOpenPath} testID="journey-all" />} />
       {current ? (
         <View style={{ gap: 8 }} accessible accessibilityLabel={`${home.pathNow} ${current.title}. ${format(timeline.stepOf, { n: String(current.order), total: String(view.steps.length) })}`}>
           <Text variant="secondary" testID="journey-current">
@@ -139,7 +188,7 @@ export function JourneyCard({ view, progress }: { view: CountryTimelineView; pro
   );
 }
 
-// ---- Мои вузы --------------------------------------------------------------------
+// ---- Ближайший набор (общий текст для «Мой список» и дат) ----------------------------
 
 export function nearestIntakeText(item: PublishedUniversity, lang: "ru" | "ky", now: Date, strings: { intakeDatesPending: string; intakeDeadlineByDate: string; intakeStartFromDate: string }): string {
   const nearest = nearestUniversityIntake(item.content, now);
@@ -148,52 +197,6 @@ export function nearestIntakeText(item: PublishedUniversity, lang: "ru" | "ky", 
   return formatPortalString(strings.intakeStartFromDate, {
     date: nearest.kind === "start" ? universityDateLabel(nearest.value, lang) : universityMonthLabel(nearest.value, lang),
   });
-}
-
-export function FavoritesCard({ items, total, load, now }: { items: readonly PublishedUniversity[]; total: number; load: Load | null; now: Date }) {
-  const { lang, t } = useLang();
-  const home = t("home");
-  const favorites = t("favorites");
-  const universities = t("universities");
-  return (
-    <Card>
-      <CardHead
-        title={home.favoritesHeading}
-        count={load ? null : total}
-        action={!load && total > 0 ? <LinkButton label={home.favoritesAll} onPress={() => go("/overview")} testID="favorites-all" /> : null}
-      />
-      {load ? (
-        <Skeletons load={load} label={home.favoritesHeading} />
-      ) : items.length === 0 ? (
-        <EmptyBlock icon={Landmark} title={favorites.emptyTitle} body={favorites.emptyBody} action={<Button variant="ghost" label={favorites.emptyAction} onPress={() => go("/universities")} testID="favorites-open-catalog" />} />
-      ) : (
-        <View accessibilityRole="list">
-          {items.map((item) => (
-            <Pressable
-              key={item.id}
-              accessibilityRole="button"
-              onPress={() => go("/universities")} // TODO(M4): карточка вуза
-              testID={`favorite-${item.id}`}
-              style={{ minHeight: MIN_TARGET, gap: 2, paddingVertical: 8 }}
-            >
-              <Text variant="body" bold>
-                {item.content.name}
-              </Text>
-              <Text variant="secondary" tone="text2">
-                {universityCountryLabel(item.content.country, lang)}
-                {item.content.city ? ` · ${item.content.city}` : ""}
-              </Text>
-              <Text variant="caption" tone="text2">
-                {universities.nearestIntake}
-                {": "}
-                <Text variant="data">{nearestIntakeText(item, lang, now, universities)}</Text>
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </Card>
-  );
 }
 
 // ---- Ближайшие даты --------------------------------------------------------------

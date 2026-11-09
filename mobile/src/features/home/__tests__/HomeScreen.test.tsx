@@ -30,12 +30,12 @@ function assistedHandlers(country = "MY", extra: Record<string, unknown> = {}) {
 beforeEach(() => navigate.mockClear());
 
 describe("Главная: assisted", () => {
-  it("порядок блоков: шапка, дело, путь, вузы, даты, новости; CSCA только для Китая", async () => {
+  it("порядок блоков: задача EVO, дело, путь, «Написать EVO», даты, новости, список, весь путь; CSCA только для Китая", async () => {
     const { transport } = fakeTransport(assistedHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("slot-news");
     const order = screen.getAllByTestId(/^slot-/).map((node) => node.props.testID);
-    expect(order).toEqual(["slot-case", "slot-path", "slot-universities", "slot-dates", "slot-news"]);
+    expect(order).toEqual(["slot-evo", "slot-case", "slot-path", "slot-write", "slot-dates", "slot-news", "slot-list", "slot-fullPath"]);
     expect(screen.queryByTestId("csca-open")).toBeNull();
     expect(screen.getByText("Здравствуйте, Тест Студентов")).toBeTruthy();
   });
@@ -62,14 +62,16 @@ describe("Главная: assisted", () => {
     expect(screen.getByText("Малайзия")).toBeTruthy();
   });
 
-  it("карточка пути: «Путь: Малайзия», «Сейчас на пути:» и «Весь путь» ведёт на Поступление с раскрытием", async () => {
+  it("карточка пути: «Путь: Малайзия», «Сейчас на пути:»; «Весь путь» раскрывает полный путь на этом же экране", async () => {
     const { transport } = fakeTransport(assistedHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Путь: Малайзия")).toBeTruthy();
     expect(await screen.findByTestId("journey-current")).toBeTruthy();
     expect(screen.getByText("Сейчас на пути:", { exact: false })).toBeTruthy();
+    expect(screen.queryByTestId("journey-body")).toBeNull();
     await fireEvent.press(screen.getByTestId("journey-all"));
-    expect(navigate).toHaveBeenCalledWith({ pathname: "/overview", params: { path: "open" } });
+    expect(await screen.findByTestId("journey-body")).toBeTruthy();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it("Китай: карточка CSCA с ближайшей сессией по часам сервера", async () => {
@@ -77,14 +79,14 @@ describe("Главная: assisted", () => {
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId("csca-open")).toBeTruthy();
     const order = screen.getAllByTestId(/^slot-/).map((node) => node.props.testID);
-    expect(order.at(-1)).toBe("slot-csca");
+    expect(order).toEqual(["slot-evo", "slot-case", "slot-path", "slot-write", "slot-dates", "slot-news", "slot-csca", "slot-list", "slot-fullPath"]);
     expect(screen.getByTestId("csca-session")).toBeTruthy();
     expect(screen.getByText(/Ближайшая сессия: 14 и 15 ноября 2026/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId("csca-open"));
     expect(navigate).toHaveBeenCalledWith("/csca");
   });
 
-  it("«Мои вузы» и «Что нового»: строки и переходы", async () => {
+  it("«Мой список» и «Что нового»: строки и переходы", async () => {
     const { transport } = fakeTransport(assistedHandlers());
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Университет 1")).toBeTruthy();
@@ -109,6 +111,7 @@ describe("Главная: assisted", () => {
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Сейчас действий от вас не требуется")).toBeTruthy();
     expect(screen.getByText("Пока ничего не сохранено")).toBeTruthy();
+    expect(screen.getByText("Вузы 0")).toBeTruthy();
     expect(screen.getByText("Новых уведомлений нет")).toBeTruthy();
     expect(screen.getByText("Дат пока нет")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("favorites-open-catalog"));
@@ -137,7 +140,7 @@ describe("Главная: выбор страны", () => {
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Выберите страну")).toBeTruthy();
     expect(screen.queryByTestId("slot-path")).toBeNull();
-    expect(screen.getAllByRole("radio")).toHaveLength(7); // шесть стран и «Пока не решил»
+    expect(screen.getAllByTestId(/^country-[A-Z]+$/)).toHaveLength(7); // шесть стран и «Пока не решил»
     await fireEvent.press(screen.getByTestId("country-MY"));
     await screen.findByTestId("slot-path");
     expect(screen.queryByText("Выберите страну")).toBeNull();
@@ -150,7 +153,7 @@ describe("Главная: выбор страны", () => {
   it("«Пока не решил» показывает общий путь с названием «Путь поступления»", async () => {
     const { transport } = fakeTransport(assistedHandlers("UNDECIDED"));
     await renderPortal(<HomeScreen />, testApi(transport));
-    expect(await screen.findByText("Путь поступления")).toBeTruthy();
+    expect((await screen.findAllByText("Путь поступления")).length).toBeGreaterThan(0); // карточка пути и полный путь
   });
 
   it("сбой сохранения: честная плашка, повтор шлёт тот же запрос", async () => {
@@ -187,8 +190,8 @@ describe("Главная: approved", () => {
     await screen.findByTestId("slot-path");
     await screen.findByText("Университет 1");
     const order = screen.getAllByTestId(/^slot-/).map((node) => node.props.testID);
-    expect(order).toEqual(["slot-case", "slot-path", "slot-universities", "slot-dates"]);
-    expect(screen.getByText("Ваша анкета")).toBeTruthy();
+    expect(order).toEqual(["slot-case", "slot-path", "slot-dates", "slot-list", "slot-fullPath"]);
+    expect(screen.getAllByText("Ваша анкета")).toHaveLength(1);
     expect(screen.queryByText("Что сделать сейчас")).toBeNull();
     expect(screen.queryByText("Что нового")).toBeNull();
     const names = calls.map((c) => c.name);
@@ -256,7 +259,8 @@ describe("Главная: кыргызский и доступность", () =>
     const { transport } = fakeTransport(assistedHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport), "ky");
     expect(await screen.findByText("Азыр эмне кылуу керек")).toBeTruthy();
-    expect(screen.getByText("Менин университеттерим")).toBeTruthy();
+    expect(screen.getByText("Менин тизмем")).toBeTruthy();
+    expect(screen.getByText("EVO'го жазуу")).toBeTruthy();
     expect(screen.getByText("Жакынкы даталар")).toBeTruthy();
   });
 

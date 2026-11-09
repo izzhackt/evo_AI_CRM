@@ -1,4 +1,4 @@
-import { X } from "lucide-react-native";
+import { LogOut, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { Animated, Easing, Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
@@ -12,10 +12,10 @@ import { menuTokensFor, useTheme } from "@/theme/ThemeProvider";
 import { EvoMark } from "@/ui/EvoMark";
 import { Text } from "@/ui/Text";
 
-type Props = { visible: boolean; tier: AccessTier; active: SectionId | null; onSelect: (id: SectionId) => void; onClose: () => void };
+type Props = { visible: boolean; tier: AccessTier; active: SectionId | null; onSelect: (id: SectionId) => void; onSignOut: () => void; onClose: () => void };
 
 /** Меню ☰: левая тёмная колонка шириной min(300, 84%), заезжает за 240 мс, подложка 45 %. */
-export function MenuSheet({ visible, tier, active, onSelect, onClose }: Props) {
+export function MenuSheet({ visible, tier, active, onSelect, onSignOut, onClose }: Props) {
   const { scheme } = useTheme();
   const t = menuTokensFor(scheme);
   const { shell, m } = useLang();
@@ -84,6 +84,20 @@ export function MenuSheet({ visible, tier, active, onSelect, onClose }: Props) {
               </View>
             ))}
           </ScrollView>
+          {/* #1360: «Выйти» доступен из меню, а не только из «Профиля» (веб Shell.tsx, .pt-nav-logout). */}
+          <View style={{ paddingHorizontal: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.railGroup }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onSignOut}
+              testID="menu-sign-out"
+              style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, borderRadius: t.radiusControl }}
+            >
+              <LogOut size={20} strokeWidth={1.75} color={t.text} />
+              <Text variant="body" style={{ color: t.text }}>
+                {shell.logout}
+              </Text>
+            </Pressable>
+          </View>
         </Animated.View>
         <Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} />
       </View>

@@ -1901,14 +1901,6 @@
   gap: 12px;
 }
 
-.pt-consent {
-  padding: 20px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
-}
-
 .pt-consent-title {
   margin: 0;
   font-size: var(--pt-size-heading);
@@ -1997,47 +1989,103 @@
   font-size: var(--pt-size-secondary);
 }
 
-/*
- * Широкий экран: карточка — полоса. Текст держит свою меру слева, действия
- * стоят справа столбцом, а не оставляют пустую половину карточки.
- */
-@media (min-width: 1100px) {
-  .pt-consent {
-    padding-bottom: 14px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 40px;
-    align-items: start;
-    justify-items: start;
-  }
+/* ---------- Экран «Конфиденциальность» при первом входе (356, 09.11.2026) ---------- */
 
-  .pt-consent > * {
-    grid-column: 1;
-  }
-
-  .pt-consent > .pt-consent-actions {
-    grid-column: 2;
-    grid-row: 1 / span 4;
-    flex-direction: column;
-    align-self: center;
-    justify-self: stretch;
-    min-width: 200px;
-  }
+/* Токены и тема - от .pt-shell; рейла и меню на экране нет, он стоит по центру. */
+.pt-gate-shell {
+  align-items: center;
+  justify-content: center;
 }
 
-@media (max-width: 480px) {
-  .pt-consent {
-    padding: 16px;
-  }
+.pt-gate {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  padding: 24px 16px;
+}
 
-  /* Узкий телефон: кнопки делят строку поровну или встают друг под друга. */
-  .pt-consent-actions {
-    align-self: stretch;
-  }
+.pt-gate-card {
+  display: flex;
+  width: 100%;
+  max-width: 520px;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
 
-  .pt-consent-actions > * {
-    flex: 1 1 auto;
-  }
+.pt-gate-title {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.pt-gate-lead,
+.pt-gate-detail {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  color: var(--pt-text-2);
+  text-wrap: pretty;
+}
+
+.pt-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Галочка с подписью: зона касания не меньше 44 px, сам флажок крупнее обычного. */
+.pt-gate-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  color: var(--pt-text);
+  font-size: var(--pt-size-body);
+}
+
+.pt-gate-check input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 1px 0 0;
+  accent-color: var(--pt-accent);
+}
+
+.pt-gate-check label {
+  cursor: pointer;
+}
+
+.pt-gate-detail {
+  margin-top: -6px;
+  padding-left: 34px;
+}
+
+.pt-gate-submit {
+  align-self: stretch;
+}
+
+.pt-gate-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pt-gate-logout {
+  margin: 0;
+}
+
+.pt-gate-logout-button {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 }
 
 /* ---------- Фото с атрибуцией ---------- */

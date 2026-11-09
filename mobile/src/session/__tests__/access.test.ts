@@ -1,3 +1,5 @@
+import { CONSENT_GATE_AI_POLICY_VERSION, PRIVACY_POLICY_VERSION, type ConsentStatus } from "@/features/consent/consent-contract";
+
 import { RpcError } from "@/lib/rpc";
 import {
   accessTier,
@@ -75,6 +77,16 @@ const identity = (over: Partial<StudentSessionIdentity> = {}): StudentSessionIde
   ...over,
 });
 
+const consentStatus = (over: Partial<ConsentStatus> = {}): ConsentStatus => ({
+  policyVersionCurrent: PRIVACY_POLICY_VERSION,
+  policyAcceptedVersion: PRIVACY_POLICY_VERSION,
+  aiStatus: "granted",
+  aiPolicyVersion: CONSENT_GATE_AI_POLICY_VERSION,
+  aiPolicyVersionCurrent: CONSENT_GATE_AI_POLICY_VERSION,
+  needsDecision: false,
+  ...over,
+});
+
 function deps(over: Partial<AccessDeps> = {}) {
   const signOutLocal = jest.fn(async () => undefined);
   const value: AccessDeps = {
@@ -82,6 +94,7 @@ function deps(over: Partial<AccessDeps> = {}) {
     studentPortalCases: async () => [portalCase("pending")],
     studentSessionIdentity: async () => identity(),
     ownStudentApplication: async () => null,
+    consentStatus: async () => consentStatus(),
     authUserIsDeleted: async () => false,
     signOutLocal,
     ...over,
@@ -145,5 +158,40 @@ describe("resolveAccess", () => {
   it("удалённый аккаунт: сбой локального выхода всё равно даёт signedOut", async () => {
     const d = deps({ currentActorAuthority: async () => authority("admin"), authUserIsDeleted: async () => true, signOutLocal: async () => { throw new Error("storage"); } });
     await expect(resolveAccess(d.value)).resolves.toEqual({ kind: "signedOut", accountDeleted: true });
+  });
+});
+
+// 356: экран «Конфиденциальность» (решение владельца 09.11.2026).
+describe("resolveAccess: согласия при входе", () => {
+  const undecided = () => consentStatus({ policyAcceptedVersion: null, aiStatus: null, aiPolicyVersion: null, needsDecision: true });
+
+  it("needsDecision -> needsConsent с тем же делом (и approved, и assisted)", async () => {
+    for (const [caseState, tier] of [["pending", "approved"], ["active", "assisted"]] as const) {
+      const state = await resolveAccess(deps({ studentPortalCases: async () => [portalCase(caseState)], consentStatus: async () => undecided() }).value);
+      expect(state).toMatchObject({ kind: "needsConsent", session: { tier } });
+    }
+  });
+  it("решение есть (в том числе отзыв ИИ позже) -> сразу active", async () => {
+    const declined = consentStatus({ aiStatus: "declined" });
+    expect(await resolveAccess(deps({ consentStatus: async () => declined }).value)).toMatchObject({ kind: "active" });
+    expect(await resolveAccess(deps().value)).toMatchObject({ kind: "active" });
+  });
+  it("fail-open: сбой чтения или чужая форма ответа кабинет не запирают", async () => {
+    expect(await resolveAccess(deps({ consentStatus: async () => { throw new RpcError("server", "XX000", 500); } }).value)).toMatchObject({ kind: "active" });
+    expect(await resolveAccess(deps({ consentStatus: async () => { throw new RpcError("transport"); } }).value)).toMatchObject({ kind: "active" });
+    expect(await resolveAccess(deps({ consentStatus: async () => null }).value)).toMatchObject({ kind: "active" });
+  });
+  it("fail-open: версии базы не равны версиям сборки (принятие было бы отвергнуто) -> active", async () => {
+    const newerPolicy = { ...undecided(), policyVersionCurrent: "2099-01-01" };
+    const newerAi = { ...undecided(), aiPolicyVersionCurrent: "2099-01-01" };
+    expect(await resolveAccess(deps({ consentStatus: async () => newerPolicy }).value)).toMatchObject({ kind: "active" });
+    expect(await resolveAccess(deps({ consentStatus: async () => newerAi }).value)).toMatchObject({ kind: "active" });
+  });
+  it("анкета, статус анкеты и сотрудник согласия не читают (как веб: экран только в кабинете)", async () => {
+    const read = jest.fn(async () => undecided());
+    await resolveAccess(deps({ studentPortalCases: async () => [], consentStatus: read }).value);
+    await resolveAccess(deps({ currentActorAuthority: async () => authority("owner"), consentStatus: read }).value);
+    await resolveAccess(deps({ ownStudentApplication: async () => ({ status: "pending" }), currentActorAuthority: async () => null, consentStatus: read }).value);
+    expect(read).not.toHaveBeenCalled();
   });
 });

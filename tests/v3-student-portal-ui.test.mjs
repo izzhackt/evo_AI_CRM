@@ -66,6 +66,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",
     "src/app/(portal)/portal/preparations/[applicationId]/page.tsx",
+    // 356 (09.11.2026): экран «Конфиденциальность» при первом входе.
+    "src/app/(portal)/portal/privacy/page.tsx",
     "src/app/(portal)/portal/professions/[cardId]/page.tsx",
     "src/app/(portal)/portal/professions/page.tsx",
     "src/app/(portal)/portal/profile/page.tsx",

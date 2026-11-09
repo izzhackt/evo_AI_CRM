@@ -103,6 +103,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["342_platform_student_accounts.sql", "student_accounts"],
   // «Сброс пароля студента администратором»: одно действие student.password.reset, объект student_case (нового типа нет).
   ["344_platform_student_password_resets.sql", "student_password_resets"],
+  // «Экран согласий при первом входе»: одно действие privacy.policy.accept и тип объекта student_privacy_consent.
+  ["356_platform_student_consent_gate.sql", "student_consent_gate"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -296,6 +298,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "pilot.cohort.member.automatic",
     "pilot.cohort.member.excluded",
     "pilot.cohort.member.included",
+    "privacy.policy.accept",
     "prompt.artifact.publish",
     "prompt.artifact.retire",
     "report.link.change",
@@ -377,6 +380,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     // 088's own extension is ["student_case"] — already in the 071 baseline,
     // so it disappears once the final list is de-duplicated by Set below.
     "student_case",
+    "student_privacy_consent",
     "team_chat_message",
     "telephony_call",
     "telephony_dial_request",

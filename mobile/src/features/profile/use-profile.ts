@@ -2,7 +2,7 @@
 // на экране обновляет их вместе с остальными, выход размонтирует кэш.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { aiConsentApplies, aiConsentInProfile, type AiConsent, type AiConsentStatus } from "@web/lib/portal/ai-consent";
+import { aiConsentInProfile, type AiConsent, type AiConsentStatus } from "@web/lib/portal/ai-consent";
 import type { OwnAccountDeletion } from "@web/lib/account-deletion-contract";
 import type { PortalLanguage } from "@web/lib/portal/portal-profile";
 
@@ -24,10 +24,10 @@ export function useOwnLogin() {
   return useQuery({ queryKey: key(userKey, "login"), queryFn: () => readOwnLogin(transport) });
 }
 
-/** `scope`: "home" — вопрос только клиенту с делом на сопровождении, "profile" — любому студенту кабинета (345). */
-export function useAiConsent(scope: "home" | "profile") {
+/** Строка «Профиля» - любому студенту кабинета (345). */
+export function useAiConsent() {
   const { transport, userKey, tier } = usePortalApi();
-  const enabled = scope === "home" ? aiConsentApplies(tier) : aiConsentInProfile(tier);
+  const enabled = aiConsentInProfile(tier);
   return useQuery({ queryKey: key(userKey, "ai-consent"), queryFn: () => readAiConsent(transport), enabled });
 }
 

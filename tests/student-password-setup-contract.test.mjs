@@ -19,7 +19,12 @@ test("password setup is an auth-only receipt-bound action with no invite token",
   assert.match(component, /useActionState\(\s*setStudentPortalPasswordAction/u);
   assert.match(component, /autoComplete="new-password"/u);
   assert.match(component, /name="password_confirm"/u);
-  assert.match(passwordAction, /exactActionStringFields\(form, \["password", "password_confirm"\]\)/u);
+  assert.match(passwordAction, /exactActionStringFields\(form, \["password", "password_confirm", "policy_consent", "ai_consent"\]\)/u);
+  // 356 (09.11.2026): обе галочки «Конфиденциальность» обязательны; принятие пишется после смены пароля.
+  assert.match(component, /<ConsentGateBoxes locale="ru" \/>/u);
+  assert.match(passwordAction, /fields\.get\("policy_consent"\) !== "granted" \|\| fields\.get\("ai_consent"\) !== "granted"\) return "consentRequired"/u);
+  assert.ok(passwordAction.indexOf("auth.updateUser") < passwordAction.indexOf("recordStudentConsentsAfterSignIn()"));
+  assert.ok(passwordAction.indexOf("recordStudentConsentsAfterSignIn()") < passwordAction.lastIndexOf("redirect(destination)"));
   assert.match(passwordAction, /auth\.updateUser\(\{ password \}\)/u);
   assert.match(passwordAction, /readVerifiedStudentPortalAuthority/u);
   assert.doesNotMatch(`${page}\n${component}\n${passwordAction}`, /token_hash|verifyOtp/u);
@@ -49,7 +54,8 @@ test("root, login and proxy dispatch each authenticated identity to one product"
 
   assert.match(login, /readVerifiedStudentPortalAuthority/u);
   assert.match(login, /readVerifiedStudentInviteSession/u);
-  assert.match(login, /redirectTarget = "\/portal"/u);
+  // 356: the student lands on the cabinet, or straight on the consent screen when there is no decision yet.
+  assert.match(login, /redirectTarget = await portalTargetAfterSignIn\(client\)/u);
   assert.match(login, /redirectTarget = "\/auth\/account-pending"/u);
 
   assert.match(proxy, /session\.state === "student"/u);

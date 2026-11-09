@@ -1,10 +1,9 @@
-// Согласие на ИИ-помощников (AiConsentHomeCard + AiConsentSettingsRow веба; Apple 5.1.2(i)). Состояние честное:
+// Согласие на ИИ-помощников (AiConsentSettingsRow веба; Apple 5.1.2(i)). Карточки на «Главной» больше нет (09.11.2026:
+// первое решение принимается на экране «Конфиденциальность», здесь остаётся просмотр и «Отозвать»). Состояние честное:
 // «сохранено» показываем только после ответа сервера, сбой оставляет прежнее состояние и ту же кнопку для повтора.
-import { useState } from "react";
 import { View } from "react-native";
 import { aiConsentDate, aiConsentOutdated, aiConsentState, type AiConsent, type AiConsentStatus } from "@web/lib/portal/ai-consent";
 
-import { go } from "@/features/portal/navigation";
 import { openExternal, PRIVACY_URL } from "@/features/profile/external";
 import { useAiConsent, useDecideAiConsent } from "@/features/profile/use-profile";
 import { useLang } from "@/i18n/LangProvider";
@@ -44,56 +43,13 @@ function DecisionButton({ decision, status, primary, label, testID }: { decision
 }
 
 /**
- * Карточка на «Главной» клиента с делом на сопровождении, пока для текущей версии текста нет решения.
- * Не окно и не преграда. После решения в этом заходе остаётся подтверждение и переход в «Профиль»,
- * при следующем открытии карточки уже нет. Сбой чтения прячет карточку и не трогает остальное.
- */
-export function AiConsentHomeCard() {
-  const { t } = useLang();
-  const strings = t("aiConsent");
-  const read = useAiConsent("home");
-  const decision = useDecideAiConsent();
-  // Карточка, показанная в этом заходе, не пропадает сразу после ответа: сначала подтверждение.
-  const [shown, setShown] = useState(false);
-  const consent = read.data;
-  const asking = consent !== undefined && aiConsentState(consent) === "undecided";
-  if (asking && !shown) setShown(true);
-  if (!consent || (!asking && !shown)) return null;
-
-  return (
-    <Card>
-      <View style={{ gap: 12 }} testID="ai-consent-card">
-        <CardHead title={strings.title} />
-        {asking ? (
-          <>
-            <Text variant="body">{strings.body}</Text>
-            {aiConsentOutdated(consent) ? (
-              <Text variant="secondary" tone="text2">
-                {strings.policyUpdated}
-              </Text>
-            ) : null}
-            <PolicyLink />
-            <View style={{ gap: 8 }}>
-              <DecisionButton decision={decision} status="granted" primary label={strings.allow} testID="ai-consent-allow" />
-              <DecisionButton decision={decision} status="declined" primary={false} label={strings.decline} testID="ai-consent-decline" />
-            </View>
-          </>
-        ) : null}
-        <Feedback decision={decision} consent={consent} />
-        {asking ? null : <LinkButton label={strings.changeInProfile} onPress={() => go("/profile")} testID="ai-consent-to-profile" />}
-      </View>
-    </Card>
-  );
-}
-
-/**
  * Строка в «Профиле»: состояние словом и датой, действия по состоянию. «Отозвать согласие» записывает отказ —
  * то же решение, что «Не разрешать» на «Главной». Сбой чтения — честная строка с повтором.
  */
 export function AiConsentRow() {
   const { t, m } = useLang();
   const strings = t("aiConsent");
-  const read = useAiConsent("profile");
+  const read = useAiConsent();
   const decision = useDecideAiConsent();
   const consent = read.data;
 

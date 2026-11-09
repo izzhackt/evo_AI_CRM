@@ -255,32 +255,22 @@ test("the action is a server action that checks the student, then writes through
   assert.match(rpc, /catch \{\s*return \{ status: "unavailable" \};/u);
 });
 
-test("the home card is read in the same wave and sits first in HomeView, without blocking anything", () => {
+test("09.11.2026: the Home card is gone, the home does not read the consent any more", () => {
   const page = read("src/app/(portal)/portal/page.tsx");
-  const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
-  assert.ok(wave, "home reads stay in one Promise.all");
-  assert.match(wave[1], /^\s*readOwnAiConsent\(tier\),?$/mu, "the tier is already known from the actor: no extra read");
+  assert.doesNotMatch(page, /readOwnAiConsent|AiConsentHomeCard|aiConsent/u);
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2, "no extra wave");
-  assert.match(page, /aiConsent=\{aiConsentRead\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{aiConsentRead\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
-  // Сбой чтения прячет карточку и не трогает остальную «Главную».
-  assert.match(page, /\) : null\}\s*locale=\{locale\}/u);
   const view = read("src/components/portal/home/HomeView.tsx");
-  const card = view.indexOf("{aiConsentApplies(tier) ? aiConsent : null}");
-  assert.ok(card > 0, "the view drops the card for a self-service student even if one is passed");
-  assert.ok(card < view.indexOf('<div className="pt-home-columns">'), "first block of the home");
-  assert.doesNotMatch(read("src/components/portal/consent/AiConsent.tsx"), /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
-});
-
-test("the post-login screen /portal is the one home: the card sits there, the old home route only redirects (#1355)", () => {
-  const page = read("src/app/(portal)/portal/page.tsx");
-  assert.match(page, /readOwnAiConsent\(tier\)/u);
-  assert.doesNotMatch(page, /AiConsentSlot/u, "the separate overview slot is gone with the overview");
-  assert.equal(existsSync(new URL("../src/components/portal/consent/AiConsentSlot.tsx", import.meta.url)), false);
-  assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
+  assert.doesNotMatch(view, /aiConsent|AiConsent/u);
+  const component = read("src/components/portal/consent/AiConsent.tsx");
+  assert.doesNotMatch(component, /AiConsentHomeCard|ai-consent-card/u);
+  assert.doesNotMatch(component, /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
+  // Отозвать по-прежнему можно в «Профиле».
+  assert.match(component, /export function AiConsentSettingsRow/u);
+  assert.match(read("src/app/(portal)/portal/profile/page.tsx"), /<AiConsentSettingsRow /u);
   const old = read("src/app/(portal)/portal/home/page.tsx");
   assert.match(old, /redirect\("\/portal"\);/u);
-  assert.doesNotMatch(old, /readOwnAiConsent/u);
+  assert.equal(existsSync(new URL("../src/components/portal/consent/AiConsentSlot.tsx", import.meta.url)), false);
   // Обновление после ответа обновляет единственную «Главную».
   assert.match(read("src/lib/portal/ai-consent-actions.ts"), /revalidatePath\("\/portal"\);/u);
 });
@@ -339,7 +329,7 @@ test("the styles use portal tokens only: no raw colours, no side stripes, target
   assert.doesNotMatch(block, /#[0-9a-f]{3,8}\b|rgba?\(|hsl/iu, "colours come from --pt-* tokens");
   assert.doesNotMatch(block, /border-(left|right|inline-start|inline-end)\s*:/u, "no coloured side stripe");
   assert.doesNotMatch(block, /@keyframes|animation:|gradient|backdrop-filter/u, "no new motion or decoration");
-  assert.match(block, /\.pt-consent \{[^}]*box-shadow: var\(--pt-shadow-card\);/u);
+  assert.match(block, /\.pt-gate-card \{[^}]*box-shadow: var\(--pt-shadow-card\);/u);
   assert.match(block, /\.pt-consent-body \{\s*color: var\(--pt-text\);/u);
   // Кнопки и ссылка — общие классы портала с высотой 44 px.
   assert.match(css, /\.pt-btn,\n\.pt-btn-ghost \{[^}]*min-height: 44px;/u);
@@ -410,7 +400,7 @@ test("the decision can be recorded by any cabinet student (345); the action cann
   );
 });
 
-test("rendered: the client's home and the post-login screen carry the consent card, the self-service home does not", () => {
+test("rendered: no home carries the consent card any more, the consent screen renders", () => {
   // Тот же статический рендер реальных компонентов, что гонит a11y-гейт портала.
   const surfaces = JSON.parse(
     execFileSync(process.execPath, [new URL("./e2e/portal-static-render.cjs", import.meta.url).pathname], {
@@ -424,13 +414,13 @@ test("rendered: the client's home and the post-login screen carry the consent ca
     return surface.html;
   };
   const CARD = 'data-testid="ai-consent-card"';
-  assert.ok(html("home-assisted").includes(CARD), "client home");
-  assert.ok(html("admission-overview").includes(CARD), "client post-login screen");
-  // Фикстура самостоятельной «Главной» намеренно получает карточку в пропсах: вид её не показывает.
-  const approved = html("home-approved");
-  assert.equal(approved.includes(CARD), false, "self-service home");
-  assert.equal(approved.includes("ИИ-помощники EVO"), false);
-  assert.equal(approved.includes('id="home-dates"'), true, "the rest of the home is intact");
+  for (const name of ["home-assisted", "home-approved", "admission-overview"]) assert.equal(html(name).includes(CARD), false, name);
+  assert.equal(html("home-approved").includes('id="home-dates"'), true, "the rest of the home is intact");
+  const gate = html("consent-gate");
+  assert.equal((gate.match(/<input [^>]*type="checkbox"/gu) ?? []).length, 2, "two checkboxes");
+  assert.equal((gate.match(/<input [^>]*type="checkbox" required/gu) ?? []).length, 2, "both required");
+  assert.ok(gate.includes("Принимаю") && gate.includes("https://evoadmissions.com/ru/privacy/"));
+  assert.ok(gate.includes("Разрешаю ИИ-помощникам EVO читать мою переписку и документы дела"));
 });
 
 test("345: the Profile row reads for every cabinet student, the Home card only for a client with a case", async () => {

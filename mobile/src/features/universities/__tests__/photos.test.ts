@@ -6,7 +6,7 @@ describe("адреса фото (бакет portal-university-photos)", () => {
   it("вуз: только копия из манифеста, ключ без копии или неизвестный - заглушка", () => {
     const urls = universityPhotoUrls("sunway", BASE, 700);
     expect(urls?.original).toBe("http://localhost:46421/storage/v1/object/public/portal-university-photos/sunway.jpg");
-    expect(urls?.sized).toBe("http://localhost:46421/storage/v1/render/image/public/portal-university-photos/sunway.jpg?width=800&quality=70");
+    expect(urls?.sized).toBe("http://localhost:46421/storage/v1/render/image/public/portal-university-photos/sunway.jpg?width=800&height=2500&resize=contain&quality=70");
     // фото есть в библиотеке, но не перенесено в бакет: hotlink запрещён
     expect(universityPhotoUrls("kozminski-university", BASE)).toBeNull();
     expect(universityPhotoUrls("нет-такого", BASE)).toBeNull();
@@ -16,7 +16,7 @@ describe("адреса фото (бакет portal-university-photos)", () => {
   it("страна и город: только путь geography/... с 12 знаками sha256", () => {
     const ok = geographyPhotoUrls({ path: "geography/cities/penang-0123456789ab.jpg" }, "https://x.supabase.example", 1000);
     expect(ok?.original).toBe("https://x.supabase.example/storage/v1/object/public/portal-university-photos/geography/cities/penang-0123456789ab.jpg");
-    expect(ok?.sized).toContain("?width=1080&quality=70");
+    expect(ok?.sized).toContain("?width=1080&height=2500&resize=contain&quality=70");
     expect(geographyPhotoUrls({ path: "geography/cities/../x.jpg" }, BASE)).toBeNull();
     expect(geographyPhotoUrls({ path: "other/penang-0123456789ab.jpg" }, BASE)).toBeNull();
     expect(geographyPhotoUrls(null, BASE)).toBeNull();

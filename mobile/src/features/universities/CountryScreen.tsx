@@ -40,7 +40,7 @@ export function CountryScreen() {
 }
 
 function CountryBody({ code, view }: { code: string; view: View_ }) {
-  const { t, lang } = useLang();
+  const { t, m, lang } = useLang();
   const strings = t("universities");
   const favorites = useFavoriteState();
   const pixels = usePhotoPixels();
@@ -100,6 +100,10 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                         <Text variant="caption" tone="text2" testID="map-summary">
                           {formatPortalString(strings.mapShown, { count: String(page.pins.length) })}
                           {page.missingPins > 0 ? `. ${formatPortalString(strings.mapWithoutPoint, { count: String(page.missingPins) })}` : ""}
+                        </Text>
+                        {/* Лицензия тайлов (OpenFreeMap, OpenMapTiles, ODbL OSM): подпись видна всегда. */}
+                        <Text variant="caption" tone="text2" testID="map-attribution">
+                          {m("uni.mapAttribution")}
                         </Text>
                       </>
                     )}

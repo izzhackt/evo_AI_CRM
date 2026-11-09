@@ -49,6 +49,8 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
         style={{ flex: 1 }}
         mapStyle={MAP_STYLES[scheme === "dark" ? "dark" : "light"]}
         logo={false}
+        attribution
+        attributionPosition={{ bottom: 8, right: 8 }}
         compass={false}
         onDidFailLoadingMap={onFail}
         onPress={() => setSelected(null)}

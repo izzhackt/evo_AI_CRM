@@ -1,6 +1,5 @@
 // Экраны «Университетов» на поддельном транспорте: страны, поиск, «Списком», карта (нативная
 // карта заменена заглушкой: настоящая проверяется на симуляторе), сердечко и его откат.
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { Alert } from "react-native";
 
@@ -24,11 +23,42 @@ jest.mock("@/features/universities/CatalogMap", () => ({
   },
 }));
 jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
-jest.mock("@react-native-async-storage/async-storage", () => jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"));
+jest.mock("expo-file-system", () => {
+  const files = new Map<string, string>();
+  class Directory {
+    exists = true;
+    create() {}
+    delete() {
+      files.clear();
+    }
+  }
+  class File {
+    uri: string;
+    constructor(...parts: unknown[]) {
+      this.uri = parts.map((part) => (typeof part === "string" ? part : "dir")).join("/");
+    }
+    get exists() {
+      return files.has(this.uri);
+    }
+    create() {
+      files.set(this.uri, "");
+    }
+    write(text: string) {
+      files.set(this.uri, text);
+    }
+    async text() {
+      return files.get(this.uri) ?? "";
+    }
+    delete() {
+      files.delete(this.uri);
+    }
+  }
+  return { Directory, File, Paths: { cache: "cache" }, __files: files };
+});
 
 beforeEach(async () => {
   mockParams.current = {};
-  await AsyncStorage.clear(); // копия каталога с диска не переходит между тестами
+  jest.requireMock("expo-file-system").__files.clear(); // копия каталога с диска не переходит между тестами
 });
 
 const favId = uuidN(1);
@@ -81,6 +111,8 @@ describe("Университеты", () => {
     await renderPortal(<CountryScreen />, testApi(t));
     expect((await screen.findByTestId("catalog-map")).props.children).toBe("pins:2");
     expect(screen.getByTestId("map-summary").props.children.join("")).toContain("На карте: 2");
+    // лицензия карты: подпись видна под картой
+    expect(screen.getByTestId("map-attribution").props.children).toBe("© OpenFreeMap · © OpenMapTiles · данные © OpenStreetMap");
   });
 
   it("неверный ?view= : «не найдено»", async () => {

@@ -10,12 +10,12 @@ import { usePortalApi } from "@/api/PortalApi";
 import type { FrozenWrite } from "@/lib/rpc";
 
 import { decodeIndexBody, loadUniversityIndex, readFavoriteIds, readUniversityDetail, selectProgram, selectProgramWrite, setFavorite, type IndexLoad } from "./api";
-import { asyncStorageDisk, type IndexDisk } from "./cache";
+import { fileDisk, type IndexDisk } from "./cache";
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
 
 /** Индекс каталога. Данные из кэша важнее свежей ошибки; `index === null` пока нечего показать. */
-export function useUniversityIndex(disk: IndexDisk = asyncStorageDisk) {
+export function useUniversityIndex(disk: IndexDisk = fileDisk) {
   const { transport, userKey } = usePortalApi();
   const client = useQueryClient();
   const queryKey = key(userKey, "university-index");
@@ -29,19 +29,20 @@ export function useUniversityIndex(disk: IndexDisk = asyncStorageDisk) {
     refetchOnWindowFocus: false,
   });
   // Копия с диска показывается сразу, не дожидаясь сети.
-  const [diskCopy, setDiskCopy] = useState<StudentUniversityIndex | null>(null);
+  const [diskCopy, setDiskCopy] = useState<{ userKey: string; index: StudentUniversityIndex } | null>(null);
   useEffect(() => {
     let live = true;
     void disk.read(userKey).then((body) => {
       if (!live || body === null) return;
       const copy = decodeIndexBody(body);
-      if (live && copy) setDiskCopy(copy);
+      if (live && copy) setDiskCopy({ userKey, index: copy });
     });
     return () => {
       live = false;
     };
   }, [disk, userKey]);
-  const index = query.data?.index ?? diskCopy;
+  // Копия прежнего пользователя не показывается новому.
+  const index = query.data?.index ?? (diskCopy?.userKey === userKey ? diskCopy.index : null);
   const refresh = useCallback(() => query.refetch(), [query]);
   return {
     index,

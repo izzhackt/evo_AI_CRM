@@ -38,7 +38,7 @@ function urls(supabaseUrl: string, objectPath: string, width: number | null): Ph
   const object = encodePath(objectPath);
   return {
     original: `${base}/storage/v1/object/public/${PHOTO_BUCKET}/${object}`,
-    sized: width === null ? null : `${base}/storage/v1/render/image/public/${PHOTO_BUCKET}/${object}?width=${photoWidthStep(width)}&quality=70`,
+    sized: width === null ? null : `${base}/storage/v1/render/image/public/${PHOTO_BUCKET}/${object}?width=${photoWidthStep(width)}&height=2500&resize=contain&quality=70`,
   };
 }
 

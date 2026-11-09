@@ -385,6 +385,9 @@ async function defaultSetPassword(
         const body = (await response.json()) as { error_code?: unknown };
         code = typeof body.error_code === "string" ? body.error_code : null;
       } catch { /* not JSON */ }
+      // A production GoTrue with "require reauthentication" would answer this; it is a
+      // server configuration fault, not a weak password.
+      if (code === "reauthentication_needed") return "unavailable";
       if (response.status === 401 || response.status === 403) return "unauthorized";
       if (code === "same_password") return "same_password";
       return response.status >= 400 && response.status < 500 && response.status !== 429 ? "rejected" : "unavailable";

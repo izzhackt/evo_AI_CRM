@@ -469,7 +469,7 @@ function serviceStub(log, { signOutError = null } = {}) {
 test("web Profile password change: the cabinet session is re-opened, then every OTHER session is revoked with its token", async () => {
   const log = [];
   const CABINET = "cabinet.session.token";
-  const module = compile("src/lib/server/student-password-change.ts", {
+  const loaded = compile("src/lib/server/student-password-change.ts", {
     "@supabase/supabase-js": { createClient: () => ({ auth: {
       async signInWithPassword(input) { log.push(["isolated-signIn", input.password]); return { error: null, data: { session: { access_token: "x.y.z" }, user: { id: USER } } }; },
       async updateUser(input) { log.push(["updateUser", input.password]); return { error: null }; },
@@ -483,7 +483,7 @@ test("web Profile password change: the cabinet session is re-opened, then every 
     "./platform-supabase-backend-config.ts": { getPlatformSupabaseBackendConfig: () => ({}) },
     "./platform-supabase-service-client.ts": { createPlatformSupabaseServiceClient: () => serviceStub(log) },
   });
-  const status = await module.changeStudentPassword({ authUserId: USER, email: "a@example.test", currentPassword: "old-password-value", newPassword: GOOD_PASSWORD });
+  const status = await loaded.changeStudentPassword({ authUserId: USER, email: "a@example.test", currentPassword: "old-password-value", newPassword: GOOD_PASSWORD });
   assert.equal(status, "done");
   const names = log.map((entry) => entry[0]);
   assert.ok(names.indexOf("cabinet-signIn") > names.indexOf("updateUser"));
@@ -515,7 +515,7 @@ test("web new-password action: after the re-sign-in the other sessions are revok
   const log = [];
   const REDIRECT = Symbol("redirect");
   const user = { id: USER, email: "a@example.test", app_metadata: { evo_temporary_password: true } };
-  const module = compile("src/lib/student-new-password-actions.ts", {
+  const loaded = compile("src/lib/student-new-password-actions.ts", {
     "next/headers": { headers: async () => new Headers() },
     "next/navigation": { redirect: (path) => { log.push(["redirect", path]); throw REDIRECT; } },
     "./server/action-form-fields.ts": { exactActionStringFields: (form) => new Map([...form.entries()]) },
@@ -532,7 +532,7 @@ test("web new-password action: after the re-sign-in the other sessions are revok
   const form = new FormData();
   form.set("password", GOOD_PASSWORD);
   form.set("password_confirm", GOOD_PASSWORD);
-  await assert.rejects(() => module.setOwnStudentPasswordAction({ status: "idle" }, form), (error) => error === REDIRECT);
+  await assert.rejects(() => loaded.setOwnStudentPasswordAction({ status: "idle" }, form), (error) => error === REDIRECT);
   const names = log.map((entry) => entry[0]);
   assert.deepEqual(names, ["updateUserById", "signIn", "signOut", "redirect"]);
   assert.deepEqual(log[2], ["signOut", "fresh.session.token", "others"]);

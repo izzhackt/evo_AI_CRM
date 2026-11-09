@@ -102,7 +102,8 @@ export async function runPortalMobileRoutesProof({ origin, apiUrl, publishableKe
       const email = `noinv-${randomUUID()}@mobile.local.test`;
       const empty = await call("/api/portal/registration", { body: registrationBody(email, { invite: "" }), headers: FLOW });
       const unknown = await call("/api/portal/registration", { body: registrationBody(email, { invite: "A".repeat(32) }), headers: FLOW });
-      const omitted = await call("/api/portal/registration", { body: (({ invite, ...rest }) => rest)(registrationBody(email)), headers: FLOW });
+      const withoutInvite = { ...registrationBody(email) }; delete withoutInvite.invite;
+      const omitted = await call("/api/portal/registration", { body: withoutInvite, headers: FLOW });
       const noConsent = await call("/api/portal/registration", { body: registrationBody(email, { aiConsent: false }), headers: FLOW });
       const oldConsent = await call("/api/portal/registration", { body: registrationBody(email, { questionnaire: draft(randomUUID(), { consentVersion: "2026-09-18" }) }), headers: FLOW });
       assert.equal(empty.status, 403); assert.equal(empty.json.status, "invite");

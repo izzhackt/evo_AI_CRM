@@ -23,10 +23,16 @@ export type SetPasswordResult =
   | { ok: true }
   | { ok: false; reason: "weak_password" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network" };
 
+/** Смена пароля из «Профиля» (S4 с `current_password`). */
+export type ChangePasswordResult =
+  | { ok: true }
+  | { ok: false; reason: "wrong_current" | "weak_password" | "same_password" | "invalid_request" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network" };
+
 export type PortalAuthApi = Readonly<{
   signIn(login: string, password: string): Promise<SignInResult>;
   requestPasswordRecovery(email: string): Promise<RecoveryResult>;
   setOwnPassword(accessToken: string, password: string): Promise<SetPasswordResult>;
+  changeOwnPassword(accessToken: string, currentPassword: string, newPassword: string): Promise<ChangePasswordResult>;
 }>;
 
 const TIMEOUT_MS = 20_000;
@@ -101,6 +107,24 @@ export function createPortalAuthApi(options: { baseUrl: string; fetch?: FetchLik
       if (raw.status === 503 && isRecord(raw.json) && raw.json.error === "revoke_failed" && raw.json.password_changed === true) return { ok: true };
       if (raw.status === 400) return { ok: false, reason: "weak_password" };
       if (raw.status === 403) return { ok: false, reason: "staff_account" };
+      if (raw.status === 401) return { ok: false, reason: "unauthorized" };
+      if (raw.status === 429) return { ok: false, reason: "rate_limited" };
+      return { ok: false, reason: "unavailable" };
+    },
+
+    async changeOwnPassword(accessToken, currentPassword, newPassword) {
+      const raw = await post("/api/portal/mobile/password", { password: newPassword, current_password: currentPassword }, accessToken);
+      if ("network" in raw) return { ok: false, reason: "network" };
+      if (raw.status === 200 && isRecord(raw.json) && raw.json.ok === true) return { ok: true };
+      // 503 revoke_failed: пароль уже сменён, отзыв остальных сессий не удался; для студента это успех.
+      if (raw.status === 503 && isRecord(raw.json) && raw.json.error === "revoke_failed" && raw.json.password_changed === true) return { ok: true };
+      const code = isRecord(raw.json) && typeof raw.json.error === "string" ? raw.json.error : null;
+      if (raw.status === 400) {
+        if (code === "same_password") return { ok: false, reason: "same_password" };
+        if (code === "weak_password") return { ok: false, reason: "weak_password" };
+        return { ok: false, reason: "invalid_request" };
+      }
+      if (raw.status === 403) return { ok: false, reason: code === "invalid_current_password" ? "wrong_current" : "staff_account" };
       if (raw.status === 401) return { ok: false, reason: "unauthorized" };
       if (raw.status === 429) return { ok: false, reason: "rate_limited" };
       return { ok: false, reason: "unavailable" };

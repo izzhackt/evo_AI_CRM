@@ -1,0 +1,37 @@
+appId: com.evoadmissions.app
+name: Вход студента
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 120000
+# Неверный пароль: экран остаётся, показывается ошибка.
+- tapOn:
+    id: login-input
+- inputText: ${MAESTRO_E2E_LOGIN}
+- tapOn:
+    id: password-input
+- inputText: not-the-password
+- pressKey: Enter
+- assertVisible:
+    id: sign-in-error
+# Верный пароль: кабинет.
+- tapOn:
+    id: password-input
+- eraseText: 40
+- inputText: ${MAESTRO_E2E_PASSWORD}
+- pressKey: Enter
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+- extendedWaitUntil:
+    visible:
+      id: home-screen
+    timeout: 30000

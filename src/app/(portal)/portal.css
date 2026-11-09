@@ -302,9 +302,25 @@
   background: var(--pt-logo-plate);
 }
 
-/* Lockup с белыми буквами нужен только тёмному рейлу широкого экрана. */
-.pt-logo-on-dark {
+/* Lockup с белыми буквами нужен тёмному рейлу широкого экрана и полосе телефона в тёмной теме. */
+.pt-logo-on-dark,
+.pt-logo-phone-dark {
   display: none;
+}
+
+/* Тёмная тема на телефоне: белые буквы прямо на графите, без белой плашки (разбор #1412). */
+@media (max-width: 767px) {
+  :root[data-theme="dark"] .pt-topbar-logo {
+    --pt-logo-plate: transparent;
+  }
+
+  :root[data-theme="dark"] .pt-topbar-logo .pt-logo-original {
+    display: none;
+  }
+
+  :root[data-theme="dark"] .pt-topbar-logo .pt-logo-phone-dark {
+    display: block;
+  }
 }
 
 .pt-topbar-actions {
@@ -3776,7 +3792,7 @@
 }
 
 .pt-study-page .pt-page-kicker .pt-link {
-  min-height: 32px;
+  min-height: 44px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
   font-weight: 500;
@@ -3816,7 +3832,7 @@
 }
 
 .pt-lesson-back .pt-link {
-  min-height: 32px;
+  min-height: 44px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
   font-weight: 500;
@@ -5769,7 +5785,8 @@ main.pt-page > .pt-card {
   grid-column: 2;
 }
 
-@media (min-width: 720px) {
+/* Справа — только когда хватает места: на 720–1179 px статус и «Скачать» сжимали название до 90 px (разбор #1412). */
+@media (min-width: 1180px) {
   .pt-doc-row {
     grid-template-columns: 32px minmax(0, 1fr) auto;
     align-items: start;
@@ -5837,7 +5854,7 @@ main.pt-page > .pt-card {
 }
 
 .pt-doc-row .pt-doc-download {
-  min-height: 32px;
+  min-height: 44px;
   font-size: var(--pt-size-caption);
 }
 

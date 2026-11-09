@@ -11,6 +11,12 @@
     "sourceUrl": "https://www.wikidata.org/wiki/Q414245",
     "verifiedOn": "2026-09-19"
   },
+  "alfa": {
+    "lat": 3.07726,
+    "lng": 101.58961,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q16250609",
+    "verifiedOn": "2026-11-08"
+  },
   "ankara-university": {
     "lat": 39.936667,
     "lng": 32.830278,
@@ -167,11 +173,29 @@
     "sourceUrl": "https://www.wikidata.org/wiki/Q15928983",
     "verifiedOn": "2026-09-19"
   },
+  "iium": {
+    "lat": 3.252778,
+    "lng": 101.7375,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1524992",
+    "verifiedOn": "2026-11-08"
+  },
   "inti": {
     "lat": 2.811944,
     "lng": 101.758333,
     "sourceUrl": "https://www.wikidata.org/wiki/Q5972777",
     "verifiedOn": "2026-09-19"
+  },
+  "inti-penang": {
+    "lat": 5.341605,
+    "lng": 100.281777,
+    "sourceUrl": "https://www.openstreetmap.org/way/261479651",
+    "verifiedOn": "2026-11-08"
+  },
+  "inti-subang": {
+    "lat": 3.074393,
+    "lng": 101.591225,
+    "sourceUrl": "https://www.openstreetmap.org/way/191660645",
+    "verifiedOn": "2026-11-08"
   },
   "istanbul-ayd-n-university": {
     "lat": 40.99061,
@@ -424,6 +448,12 @@
     "lng": 101.733274,
     "sourceUrl": "https://www.wikidata.org/wiki/Q7864125",
     "verifiedOn": "2026-09-19"
+  },
+  "um": {
+    "lat": 3.120833,
+    "lng": 101.656389,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1142924",
+    "verifiedOn": "2026-11-08"
   },
   "unikl": {
     "lat": 3.15944,

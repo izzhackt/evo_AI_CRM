@@ -53,8 +53,13 @@ test("the whole path sits on «Поступление» between the tiles and th
   const pathAt = admissionPage.indexOf("<CountryTimeline");
   const tabsAt = admissionPage.indexOf('<nav className="pt-pill-tabs"');
   assert.ok(overviewAt > 0 && pathAt > overviewAt && tabsAt > pathAt, "tiles, then the path, then the tabs");
-  assert.doesNotMatch(page, /CountryTimeline/u, "no full path on the home");
-  assert.match(page, /<HomeJourneyCard\n\s+view=\{journey\.view\}\n\s+progress=\{journey\.progress\}/u);
+  // На «Главной» от CountryTimeline только выбор страны, пока страны нет (view={null}); путь целиком не рисуется.
+  assert.equal(page.match(/<CountryTimeline/gu)?.length, 1);
+  assert.match(page, /countryChoice=\{journey\.view \? null : \(\s+<CountryTimeline\s+view=\{null\}/u);
+  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>\s+\) : null\}/u);
+  // Выбор страны первым блоком под шапкой, до согласия и колонок.
+  const hv = read("src/components/portal/home/HomeView.tsx");
+  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{aiConsentApplies(tier)"), "country choice first under the header");
   // Карточка открывает правую колонку «Главной», перед датами.
   const side = view.indexOf('<div className="pt-home-side">');
   const cardAt = view.indexOf("{journey}");
@@ -68,13 +73,16 @@ test("the whole path sits on «Поступление» between the tiles and th
   assert.match(card, /href=\{JOURNEY_HREF\}/u);
   // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
   assert.doesNotMatch(card, /^"use client";/u);
-  assert.match(card, /<span className="pt-home-path-n">\{timeline\.nowLabel\}<\/span>/u);
+  assert.match(card, /<span className="pt-home-path-n">\{strings\.pathNow\}<\/span>/u);
   assert.match(card, /timeline\.stepOf, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
   assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
   assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
+  // Без страны карточки нет (выбор стоит первым блоком «Главной»); заголовок называет страну пути.
+  assert.match(card, /if \(view === null\) return null;/u);
+  assert.match(card, /strings\.pathTitle, \{ country: view\.countryName \}/u);
   const home = PORTAL_DICTIONARIES.home;
-  assert.deepEqual([home.ru.pathAll, home.ru.pathChoose], ["Весь путь", "Выбрать страну"]);
-  for (const key of ["pathAll", "pathChoose", "pathChooseLead"]) assert.ok(home.ky[key], `ky ${key}`);
+  assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.pathNow], ["Весь путь", "Путь: {country}", "Сейчас на пути:"]);
+  for (const key of ["pathAll", "pathTitle", "pathNow"]) assert.ok(home.ky[key], `ky ${key}`);
   assert.match(css, /\.pt-page > \.pt-journey \{\n {2}margin-bottom: 24px;\n {2}scroll-margin-top: calc\(var\(--pt-topbar-height\) \+ 16px\);/u);
 });
 
@@ -192,7 +200,8 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(block, /className="pt-journey-now"/u);
   assert.match(block, /<span className="pt-journey-now-n">\{strings\.nowLabel\}<\/span>/u);
   // Цвет всегда со словом: «Пройден» и «Сейчас» рядом с названием.
-  assert.match(block, /state === "done" \? strings\.progressDone : strings\.progressCurrent/u);
+  // «Сейчас» один раз на экран: у текущего шага значка рядом с названием нет, слово осталось для читалки.
+  assert.match(block, /state === "done" \? \(\s+<span className="pt-step-state" data-progress=\{state\}>\{strings\.progressDone\}<\/span>\s+\) : state === "current" \? \(\s+<span className="pt-sr-only"> \(\{strings\.progressCurrent\}\)<\/span>/u);
   const { ru, ky } = PORTAL_DICTIONARIES.timeline;
   assert.deepEqual([ru.progressDone, ru.progressCurrent, ru.showDone, ru.nowLabel], ["Пройден", "Сейчас", "Пройдено", "Сейчас:"]);
   assert.ok(ky.progressDone && ky.progressCurrent && ky.showDone && ky.nowLabel);

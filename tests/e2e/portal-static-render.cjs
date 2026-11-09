@@ -500,8 +500,7 @@ const timelineChina = createElement(CountryTimeline, {
   view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
 });
-/** Карточки пути на «Главной»: страны нет; Китай клиента на этапе «Документы» (шаг и полоса шагов). */
-const journeyCardChoose = createElement(HomeJourneyCard, { view: null, progress: null, readFailed: false, locale: "ru" });
+/** Карточка пути на «Главной»: Китай клиента на этапе «Документы» (шаг и полоса шагов). */
 const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
 const journeyCardChina = createElement(HomeJourneyCard, {
   view: chinaJourney.view, progress: chinaJourney.progress, readFailed: false, locale: "ru",
@@ -804,7 +803,9 @@ const surfaces = [
           overviewFailed: false,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
-          journey: journeyCardChoose,
+          // Страны нет: выбор страны первым блоком под шапкой, карточки пути нет.
+          journey: null,
+          countryChoice: timelineChoose,
           // Самостоятельному студенту карточку согласия вид не показывает, даже
           // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
           aiConsent: createElement(AiConsentHomeCard, {

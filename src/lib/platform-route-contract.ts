@@ -90,6 +90,12 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // «ИИ-агенты»: страница агента — только семь ключей каталога (contract.ts); вкладки — `?tab=`.
 const STAFF_AI_AGENT_PAGE_PATH = /^\/ai-agents\/(?:director|sales|curator-cn|curator-my|curator-eu|curator-ae|curator-tr)$/;
+// «Университеты» по странам (08.11.2026): /universities/country, страна (две заглавные латинские буквы, как в
+// parseGeoCountryCode) и город. Город: ключ справочника, «~» (вузы без города) или «~подпись» для города без
+// карточки; подпись приходит закодированной (pathname хранит %XX), поэтому разрешены только символы pchar и %XX.
+// Существует ли такая страна или город, решает страница (404).
+const STAFF_UNIVERSITY_GEO_PATH =
+  /^\/universities\/country(?:\/[A-Z]{2}(?:\/(?:[a-z0-9]+(?:-[a-z0-9]+)*|~(?:[A-Za-z0-9\-._~!$&'()*+,;=:@]|%[0-9A-Fa-f]{2}){0,1080}))?)?$/;
 const STAFF_UNIVERSITY_FORMS_PATH = /^\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Университеты v2 (S3): страна и город каталога. Код страны — две строчные
@@ -243,6 +249,7 @@ export function isConnectedPlatformPage(path: string): boolean {
     PLATFORM_STAFF_PAGE_ALLOWLIST.has(path) ||
     STAFF_UNIVERSITY_DETAIL_PATH.test(path) ||
     STAFF_UNIVERSITY_FORMS_PATH.test(path) ||
+    STAFF_UNIVERSITY_GEO_PATH.test(path) ||
     STAFF_AI_AGENT_PAGE_PATH.test(path) ||
     isConnectedStudentPortalPage(path) ||
     isConnectedStudentAuthPage(path)

@@ -2,7 +2,7 @@ import "server-only";
 
 import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
-import { parseStaffGeography, type StaffGeography } from "../catalog-geography.ts";
+import { parseBrowseGeography, parseStaffGeography, type BrowseGeography, type StaffGeography } from "../catalog-geography.ts";
 import { getSupabasePublicConfig } from "../supabase/config";
 import { createSupabaseServerClient } from "../supabase/server";
 
@@ -25,6 +25,19 @@ export async function readStaffCatalogGeography(actor: ActivePlatformActor): Pro
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("staff_catalog_geography_v1", { p_organization_id: actor.organizationId });
   const geography = !error && parseStaffGeography(data);
+  if (!geography) throw new Error("Geography unavailable");
+  return geography;
+}
+
+/**
+ * Опубликованные города и связи вузов с городами для страниц просмотра «Университеты → страны» (миграция 354): право
+ * `catalog.read`, как у каталога; черновых городов и полей редактора нет. Сбой или неверный ответ это ошибка чтения.
+ */
+export async function readStaffCatalogGeographyBrowse(actor: ActivePlatformActor): Promise<BrowseGeography> {
+  if (!staffHasPermission(actor, "catalog.read")) throw new Error("Geography unavailable");
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_catalog_geography_read_v1", { p_organization_id: actor.organizationId });
+  const geography = !error && parseBrowseGeography(data, actor.organizationId);
   if (!geography) throw new Error("Geography unavailable");
   return geography;
 }

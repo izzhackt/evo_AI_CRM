@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
+import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
 import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
@@ -10,7 +11,7 @@ import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
-import { selectStudentJourney } from "@/lib/portal/student-journey";
+import { selectStudentJourney, timelineCountryOptions } from "@/lib/portal/student-journey";
 import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
@@ -112,12 +113,16 @@ export default async function StudentPortalHomePage() {
         news={news}
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
-        journey={(
-          <HomeJourneyCard
-            view={journey.view}
-            progress={journey.progress}
+        journey={journey.view ? (
+          <HomeJourneyCard view={journey.view} progress={journey.progress} locale={locale} />
+        ) : null}
+        countryChoice={journey.view ? null : (
+          <CountryTimeline
+            view={null}
+            source={choice?.source ?? null}
             readFailed={choice === null}
-            locale={locale}
+            options={timelineCountryOptions(locale)}
+            strings={getPortalStrings("timeline", locale)}
           />
         )}
         csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}

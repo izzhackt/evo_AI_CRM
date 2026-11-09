@@ -20,6 +20,8 @@ import {
   countForm,
   countryCities,
   countryCodeFromSlug,
+  countryUniversityGroups,
+  countryViewFromQuery,
   countryHref,
   countryUniversitiesWithoutCity,
   localizedText,
@@ -43,11 +45,13 @@ import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 export const dynamic = "force-dynamic";
 
 /**
- * Страна (S3, план 7.3): шапка с фото и текстом, «Города / Карта», карточки
+ * Страна (S3, план 7.3): шапка с фото и текстом, «Города / Списком / Карта», карточки
  * городов (больше вузов выше, затем по названию) и «Другие вузы страны» для
  * вузов без опубликованного города: ни один вуз страны не пропадает
  * (приёмка 7.6.2). Карта страны (`?view=map`): те же точки MapLibre с
  * кластерами; вуз без проверенной координаты считается в строке под картой.
+ * «Списком» (`?view=list`): все вузы страны на одной странице по городам
+ * (города А→Я, вузы внутри А→Я), без города: последней группой.
  */
 export default async function CountryPage({
   params,
@@ -64,8 +68,8 @@ export default async function CountryPage({
   ]);
   const code = countryCodeFromSlug(route.code) ?? notFound();
   const keys = Object.keys(query).filter((key) => query[key] !== undefined);
-  if (keys.some((key) => key !== "view") || (query.view !== undefined && query.view !== "map")) notFound();
-  const view = query.view === "map" ? "map" : "cities";
+  const view = countryViewFromQuery(query.view);
+  if (keys.some((key) => key !== "view") || view === null) notFound();
   const strings = getPortalStrings("universities", locale);
   const now = new Date();
 
@@ -136,7 +140,7 @@ export default async function CountryPage({
           : strings.countryNoUniversities}
         photo={placePhoto(country.photo, PLACE_HERO_WIDTHS)}
         strings={strings}
-        compact={view === "map"}
+        compact={view !== "cities"}
       >
         {country.summary && view === "cities" ? <p className="pt-place-summary">{localizedText(country.summary, locale)}</p> : null}
       </PlaceHero>
@@ -161,6 +165,13 @@ export default async function CountryPage({
               {strings.viewCities}
             </IntentPrefetchLink>
             <IntentPrefetchLink
+              href={countryHref(code, "list")}
+              aria-current={view === "list" ? "page" : undefined}
+              className="pt-view-toggle-link"
+            >
+              {strings.viewList}
+            </IntentPrefetchLink>
+            <IntentPrefetchLink
               href={countryHref(code, "map")}
               aria-current={view === "map" ? "page" : undefined}
               className="pt-view-toggle-link"
@@ -179,6 +190,32 @@ export default async function CountryPage({
               />
               <UniversitiesMapSummary shown={map.pins.length} missing={map.missing} strings={strings} />
             </>
+          ) : view === "list" ? (
+            <div className="pt-list-groups">
+              <h2 className="pt-sr-only">{strings.listHeading}</h2>
+              {countryUniversityGroups(index, code, locale).map((group, position) => {
+                const title = group.city === null ? strings.listNoCity : localizedText(group.city.name, locale);
+                const headingId = `portal-list-${group.city?.key ?? "no-city"}`;
+                // Страница города без фото даёт 404: такой заголовок остаётся текстом.
+                const linked = group.city !== null && !hiddenCities.has(group.city.key);
+                return (
+                  <section key={headingId} aria-labelledby={headingId} className="pt-place-section pt-list-group">
+                    <h3 id={headingId} className="pt-section-title pt-list-group-title">
+                      {linked && group.city !== null ? (
+                        <IntentPrefetchLink href={cityHref(code, group.city.key)} className="pt-list-city-link">{title}</IntentPrefetchLink>
+                      ) : title}
+                      <span className="pt-list-group-count">{placeCountsLabel(strings, group.universities.length, null, countForm)}</span>
+                    </h3>
+                    <UniversityTileGrid
+                      models={group.universities.map((item) => indexTileModel(index, item, { strings, locale, now, favoriteIds, showPlace: false }))}
+                      strings={tileStrings(strings)}
+                      priorityCount={position === 0 ? 3 : 0}
+                      headingLevel={4}
+                    />
+                  </section>
+                );
+              })}
+            </div>
           ) : (
             <>
               {cityCards.length > 0 ? (

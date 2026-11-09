@@ -1206,7 +1206,7 @@
   background: var(--pt-bg);
 }
 
-/* ---------- Переключатель «Города / Карта» и поля ---------- */
+/* ---------- Переключатель «Города · Списком · Карта» и поля ---------- */
 
 .pt-view-toggle {
   display: inline-flex;
@@ -2963,12 +2963,47 @@
   margin-top: 28px;
 }
 
+.pt-place-toggle .pt-view-toggle-link {
+  min-height: 44px;
+}
+
 .pt-place-section {
   margin-top: 32px;
 }
 
 .pt-place-section > .pt-section-title + .pt-uni-grid {
   margin-top: 16px;
+}
+
+.pt-list-groups {
+  display: grid;
+}
+
+.pt-list-group-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.pt-list-city-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.pt-list-city-link:hover {
+  color: var(--pt-accent);
+  text-decoration: underline;
+}
+
+.pt-list-group-count {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .pt-place-section-lead {
@@ -7118,23 +7153,43 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   }
 }
 
-/* Две колонки, когда области содержимого хватает; иначе одна за другой. */
-.pt-home-main,
-.pt-home-side {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  min-width: 0;
-}
-
+/*
+ * Одна колонка (уже 960 px окна): колонки растворены (display: contents), блоки идут по смыслу, а не по колонкам:
+ * «Что сделать сейчас», путь, «Мои вузы», даты, новости, CSCA (08.11.2026, разбор вёрстки: путь не должен уезжать
+ * за вузы). Пустой слот не рисуется, иначе он оставлял бы лишний промежуток.
+ */
 .pt-home-columns {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
-/* Левая колонка уже, правая шире: примерно 60 на 40, как в образце (08.11.2026, пользователь: «сделай узже их»). */
-@container pt-home (min-width: 980px) {
+.pt-home-main,
+.pt-home-side {
+  display: contents;
+}
+
+.pt-home-slot {
+  min-width: 0;
+}
+
+.pt-home-slot:empty {
+  display: none;
+}
+
+.pt-home-slot[data-slot="case"] { order: 1; }
+.pt-home-slot[data-slot="path"] { order: 2; }
+.pt-home-slot[data-slot="universities"] { order: 3; }
+.pt-home-slot[data-slot="dates"] { order: 4; }
+.pt-home-slot[data-slot="news"] { order: 5; }
+.pt-home-slot[data-slot="csca"] { order: 6; }
+
+/*
+ * Две колонки с 960 px окна (раньше от 980 px ширины самой области, то есть на 1024 px при раскрытой левой колонке
+ * колонок не было). Левая уже, правая шире: примерно 60 на 40, как в образце (08.11.2026, пользователь: «сделай узже
+ * их»). Слоты не переставляются: левая колонка «Что сделать сейчас» и «Мои вузы», правая путь и остальное.
+ */
+@media (min-width: 960px) {
   .pt-home-columns {
     display: grid;
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -7145,6 +7200,14 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-home-main > :last-child,
   .pt-home-side > :last-child {
     flex-grow: 1;
+  }
+
+  .pt-home-main,
+  .pt-home-side {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
   }
 }
 
@@ -7195,7 +7258,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /* На телефоне карточки идут одна за другой: воздуха меньше, чтобы путь и даты не уезжали далеко вниз. */
-@container pt-home (max-width: 979px) {
+@media (max-width: 959px) {
   .pt-home-empty {
     padding: 24px 12px 20px;
   }
@@ -7953,6 +8016,17 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-surface);
 }
 
+/*
+ * Ревью 08.11.2026: когда у пути есть прогресс дела, заливка круга — только у текущего шага. Открытый будущий шаг
+ * остаётся обведённым (рамка ярче), иначе он выглядит так же, как «Сейчас». Без дела прогресса нет, и открытый шаг
+ * по-прежнему залит.
+ */
+.pt-step[data-open="true"][data-progress="upcoming"] .pt-step-node {
+  border-color: var(--pt-text);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+}
+
 /* Свёрнутый шаг — название и срок; цель шага — у открытого и у текущего. */
 .pt-step[data-open="false"]:not([data-progress="current"]) .pt-step-goal {
   display: none;
@@ -8093,7 +8167,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  min-height: 32px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: none;
@@ -8224,7 +8298,11 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-step-toggle {
-  padding: 0;
+  /* Область нажатия не ниже 44 px без сдвига вёрстки: отступ внутрь, такой же минус наружу (вся строка шага и так
+     нажимается через ::after, это для кнопки как цели). */
+  display: inline-block;
+  padding: 11px 0;
+  margin: -11px 0;
   border: 0;
   background: none;
   color: inherit;

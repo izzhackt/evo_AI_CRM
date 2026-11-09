@@ -23,12 +23,10 @@ export class AiConsentDecodeError extends Error {
 export type AiConsentSource = "ios" | "android" | "portal_web";
 
 /**
- * Миграция 320 допускает только `portal_web` и `ios` (CHECK student_ai_consents_source_check), поэтому
- * Android пока пишет `portal_web`. Отдельная серверная миграция 355 добавляет `android`: когда она
- * выкачена на прод, достаточно сменить эту константу на true.
- * TODO(migration 355): включить после выката.
+ * Миграция 355 (на production с 09.11.2026, d53a1f0e) добавила источник `android`
+ * к `portal_web` и `ios` (CHECK student_ai_consents_source_check и проверка в RPC).
  */
-export const ANDROID_CONSENT_SOURCE_READY = false;
+export const ANDROID_CONSENT_SOURCE_READY = true;
 
 /** Единственное место выбора источника (используется и профилем, и регистрацией). */
 export function aiConsentSource(os: string = Platform.OS): AiConsentSource {

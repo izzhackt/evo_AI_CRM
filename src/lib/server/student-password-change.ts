@@ -6,6 +6,8 @@ import { createRecoveryRateLimiter } from "../student-password-recovery-rate-lim
 import type { StudentPasswordChangeStatus } from "../student-password-change-contract.ts";
 import { getSupabasePublicConfig } from "../supabase/config.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
+import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
+import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 
 /**
  * Смена пароля студентом в кабинете. Текущий пароль проверяется настоящим входом на отдельном клиенте без сохранения
@@ -69,6 +71,12 @@ export async function changeStudentPassword(input: Readonly<{
     const product = await createSupabaseServerClient();
     const again = await product.auth.signInWithPassword({ email: input.email, password: input.newPassword });
     if (again.error || !again.data.session || again.data.user?.id !== input.authUserId) return "sign_in_required";
+    // F-1: остальные сессии студента (другие устройства, приложение) закрываются, эта остаётся. Пароль уже сменён,
+    // поэтому сбой закрытия не отменяет смену (как у /auth/new-password и мобильного маршрута, где он отвечает 503).
+    try {
+      const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+      await service.auth.admin.signOut(again.data.session.access_token, "others");
+    } catch { /* повтор той же смены закроет остальные сессии */ }
   } catch {
     return "sign_in_required";
   }

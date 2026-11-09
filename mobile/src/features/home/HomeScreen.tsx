@@ -22,7 +22,6 @@ import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
 import { AiConsentHomeCard } from "@/features/profile/AiConsent";
 import { loadOf } from "@/features/portal/load";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { CardSkeleton } from "@/ui/CardParts";
 import { Card, Screen, type ScrollTarget } from "@/ui/Screen";
 
@@ -55,6 +54,8 @@ export function HomeScreen() {
   const params = homeParams(useLocalSearchParams<{ list?: string; path?: string; at?: string }>());
   const [listTab, setListTab] = useState<HomeListTab>(params.listTab ?? "universities");
   const [pathOpen, setPathOpen] = useState(params.openPath);
+  // Каждый запрос «раскрыть путь» (ссылка с новой меткой `at` или кнопка) - новая метка для JourneySection.
+  const [unfoldStamp, setUnfoldStamp] = useState(params.openPath ? params.stamp : "");
   const scroller = useRef<ScrollTarget>(null);
   const offsets = useRef<Partial<Record<"list" | "fullPath", number>>>({});
   const scrollTo = useCallback((slot: "list" | "fullPath") => {
@@ -73,6 +74,7 @@ export function HomeScreen() {
       setPending("list");
     } else if (params.openPath) {
       setPathOpen(true);
+      setUnfoldStamp(params.stamp);
       setPending("fullPath");
     }
   }
@@ -96,6 +98,7 @@ export function HomeScreen() {
 
   const openPath = () => {
     setPathOpen(true);
+    setUnfoldStamp(`tap-${Date.now()}`);
     if (offsets.current.fullPath !== undefined) scrollTo("fullPath");
     else setPending("fullPath");
   };
@@ -128,13 +131,13 @@ export function HomeScreen() {
         return <HomeList tab={listTab} onTabChange={setListTab} now={now} />;
       case "fullPath":
         return journey.view ? (
-          <JourneySection view={journey.view} progress={journey.progress} source={choiceData?.source ?? null} readFailed={false} assisted={assisted} initiallyUnfolded={pathOpen} />
+          <JourneySection view={journey.view} progress={journey.progress} source={choiceData?.source ?? null} readFailed={false} assisted={assisted} initiallyUnfolded={pathOpen} unfoldStamp={unfoldStamp} />
         ) : null;
     }
   };
 
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing} scrollRef={scroller}>
+    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing} scrollRef={scroller}>
       <View style={{ gap: 16 }} testID="home-screen">
         <HomeHero displayName={displayName} studyCountry={studyCountry} stage={assisted ? (overview.data?.operationalStage ?? null) : null} />
         {assisted ? <AiConsentHomeCard /> : null}

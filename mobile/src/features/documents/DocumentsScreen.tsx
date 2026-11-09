@@ -15,7 +15,6 @@ import { DocumentRow } from "@/features/documents/DocumentRow";
 import { nativeDocumentsIo, type DocumentsIo } from "@/features/documents/io";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardHead, CardSkeleton, EmptyBlock, InlineAlert } from "@/ui/CardParts";
@@ -52,7 +51,7 @@ export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }
   const counts = list ? documentProgressCounts(list, strings) : [];
 
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing}>
+    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="documents-screen">
         <View style={{ gap: 4 }}>
           <Text variant="display" accessibilityRole="header" maxFontSizeMultiplier={1.2} testID="title-documents">

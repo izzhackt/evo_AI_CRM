@@ -13,7 +13,6 @@ import { hasHowToPay, paymentCategoryLabel, paymentStatusPresentation } from "@/
 import { formatPortalDeadline, formatPortalMoney } from "@/domain/presentation";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardHead, CardSkeleton, EmptyBlock, InlineAlert } from "@/ui/CardParts";
@@ -55,7 +54,7 @@ export function PaymentsScreen() {
   const write = <Button variant="ghost" label={m("payments.writeEvo")} accessibilityLabel={`${m("payments.writeEvo")}. ${m("payments.writeEvoHint")}`} onPress={() => go("/messages/chat")} testID="payments-write-evo" />;
 
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing}>
+    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="payments-screen">
         <View style={{ gap: 4 }}>
           <Text variant="display" accessibilityRole="header" maxFontSizeMultiplier={1.2} testID="title-payments">

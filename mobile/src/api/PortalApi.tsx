@@ -37,6 +37,11 @@ export function usePortalApi(): PortalApi {
   return value;
 }
 
+/** Для общих компонентов, которые бывают и вне кабинета (экран входа, шлюз): без провайдера `null`. */
+export function useOptionalPortalApi(): PortalApi | null {
+  return useContext(PortalApiContext);
+}
+
 /** Повторять только обрыв связи, и недолго: остальное повтор не лечит. */
 export function shouldRetry(count: number, error: unknown): boolean {
   return error instanceof RpcError && error.kind === "transport" && count < 2;

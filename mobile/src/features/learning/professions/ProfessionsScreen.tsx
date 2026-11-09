@@ -13,7 +13,6 @@ import { readProfessionCards } from "@/features/learning/professions/api";
 import { useOwnTopScales } from "@/features/learning/tests/queries";
 import { Chip } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
@@ -31,7 +30,7 @@ export function ProfessionsScreen() {
   const [scale, setScale] = useState<OrvisScaleId | null>(null);
   const list = (cards.data ?? []).filter((c) => scale === null || c.orvisScales.includes(scale));
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void cards.refetch()} refreshing={cards.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void cards.refetch()} refreshing={cards.isRefetching}>
       <View style={{ gap: 16 }} testID="professions-screen">
         <Text variant="display" accessibilityRole="header" testID="title-professions">
           {p.title}

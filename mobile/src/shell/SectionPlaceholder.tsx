@@ -1,5 +1,4 @@
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { SECTIONS, type SectionId } from "@/shell/sections";
 import { Card, Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
@@ -14,7 +13,7 @@ export function SectionPlaceholder({ id }: { id: SectionId }) {
   const section = SECTIONS.find((s) => s.id === id);
   if (!section) return null;
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE}>
+    <Screen topInset={false} tabBar>
       <Text variant="display" accessibilityRole="header" style={{ marginBottom: 16 }} testID={`title-${id}`}>
         {shell[section.navKey]}
       </Text>

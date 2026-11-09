@@ -8,7 +8,6 @@ import { LanguageSwitch } from "@/components/portal/LanguageSwitch";
 import { ProfileHero } from "@/components/portal/profile/ProfileHero";
 import { PasswordChangeForm } from "@/components/portal/profile/PasswordChangeForm";
 import { ProfileIcon } from "@/components/portal/profile/ProfileIcon";
-import { stageLabel } from "@/components/portal/admission/OverviewView";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
@@ -24,6 +23,7 @@ import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
 import { readOwnAiConsentForProfile } from "@/lib/portal/ai-consent-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import { readOwnStudentLogin } from "@/lib/portal/student-login-source";
+import { selectStudentJourney } from "@/lib/portal/student-journey";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import { localizedApplicationAnswers } from "@/lib/student-application-answers";
@@ -136,10 +136,13 @@ export default async function ProfilePage() {
   ]);
   const admissionStrings = getPortalStrings("admission", locale);
   const country = countryChoice?.country ?? null;
-  const stage = overview ? stageLabel(overview.operationalStage, admissionStrings) : null;
+  // 09.11.2026 (разбор кабинета: «один источник правды для текущего этапа во всех трёх местах»): этап — шаг пути
+  // страны по этапу дела, тот же, что в шапке «Главной» и на «Поступлении», а не внутреннее слово этапа дела.
+  const journey = selectStudentJourney({ country, stage: overview?.operationalStage ?? undefined, locale, now: new Date() });
+  const step = journey.view?.steps.find((item) => journey.progress?.[item.id] === "current") ?? null;
   const heroChips = [
     country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null,
-    stage ? `${admissionStrings.stageTerm}: ${stage}` : null,
+    step ? `${admissionStrings.stageTerm}: ${step.title}` : null,
   ].filter((chip): chip is string => chip !== null);
 
   return (

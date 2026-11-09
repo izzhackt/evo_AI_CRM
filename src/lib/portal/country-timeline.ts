@@ -567,20 +567,28 @@ export function selectCountryTimeline(choice: unknown, options: SelectCountryTim
   });
 }
 
+/** Этапы дела до сценария пути (договор, передача в приёмную): студент на первом шаге. */
+const PRE_TIMELINE_STAGES: readonly string[] = ["contract_confirmed", "admissions_handoff"];
+
 /** Где студент на пути (08.11.2026, владелец): шаг пройден, шаг сейчас или впереди. */
 export type TimelineStepProgress = "done" | "current" | "upcoming";
 
 /**
  * Прогресс по этапу дела (`operational_stage`, порядок TIMELINE_STAGE_KEYS). Сейчас — первый шаг, чей последний этап не
  * раньше этапа дела; до него пройдено, после — впереди. Несколько шагов одного этапа: сейчас первый из них. Этапа нет или
- * он неизвестен (студент без дела, дело до сценария) — `null`: путь показывается без прогресса, как раньше. Этап дальше
- * всех шагов — всё пройдено.
+ * он неизвестен (студент без дела) — `null`: путь показывается без прогресса. Этап дальше всех шагов — всё пройдено.
+ *
+ * 09.11.2026 (разбор кабинета: «один источник правды для текущего этапа во всех трёх местах»): шапка «Главной» и «Профиль»
+ * тоже говорят шагом пути, поэтому у любого этапа дела есть шаг. Договор и передача в приёмную идут до сценария —
+ * студент в начале пути (первый шаг); «поступление завершено» — весь путь пройден.
  */
 export function timelineStepProgress(
   steps: readonly Readonly<{ id: string; stageKeys: readonly TimelineStageKey[] }>[],
   stage: unknown,
 ): Readonly<Record<string, TimelineStepProgress>> | null {
-  const at = typeof stage === "string" ? (TIMELINE_STAGE_KEYS as readonly string[]).indexOf(stage) : -1;
+  const at = typeof stage === "string"
+    ? PRE_TIMELINE_STAGES.includes(stage) ? 0 : stage === "completed" ? TIMELINE_STAGE_KEYS.length : (TIMELINE_STAGE_KEYS as readonly string[]).indexOf(stage)
+    : -1;
   if (at < 0 || steps.length === 0) return null;
   const last = (step: (typeof steps)[number]) => Math.max(...step.stageKeys.map((key) => TIMELINE_STAGE_KEYS.indexOf(key)));
   const current = steps.findIndex((step) => last(step) >= at);

@@ -6,7 +6,6 @@ import { PreparationList } from "@/components/portal/admissionPreparations/Prepa
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
 import { OverviewView } from "@/components/portal/admission/OverviewView";
-import { AiConsentSlot } from "@/components/portal/consent/AiConsentSlot";
 import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { getLocale } from "@/lib/i18n";
@@ -58,7 +57,6 @@ export default async function StudentPortalOverviewPage({
       <header className="pt-page-header">
         <h1 className="pt-page-title">{strings.overviewTitle}</h1>
       </header>
-      <AiConsentSlot locale={locale} accessTier={actor.accessTier} />
       {/* Обзор с подготовками и обращения — соседние серверные компоненты:
           их чтения идут одновременно, а не одно после другого (план A). */}
       <AdmissionOverview actor={actor} locale={locale} view={view} />

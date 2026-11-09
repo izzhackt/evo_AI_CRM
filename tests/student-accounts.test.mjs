@@ -260,6 +260,7 @@ test("the name for a case cabinet: the questionnaire when it has both names, els
 
 function newPassword({ flagged = true, updateError = null, origin = true, signInError = null } = {}) {
   const calls = [];
+  const consentChoice = { status: "granted", policyVersion: "2026-10-25", requestId: "consent-request" };
   const email = `student-1@${contract.TECHNICAL_STUDENT_EMAIL_DOMAIN}`;
   const user = { id: USER, email, app_metadata: { provider: "email", [contract.TEMPORARY_PASSWORD_FLAG]: flagged } };
   const subject = compile("src/lib/student-new-password-actions.ts", {
@@ -270,7 +271,12 @@ function newPassword({ flagged = true, updateError = null, origin = true, signIn
     "./server/platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => ({ auth: { admin: {
       async updateUserById(id, attributes) { calls.push(["update", id, attributes]); return { data: {}, error: updateError }; },
     } } }) },
+    "./server/student-registration-ai-consent": {
+      registrationAiConsentChoice: (seed) => { calls.push(["choice", seed]); return consentChoice; },
+      recordRegistrationAiConsent: async (_client, choice) => { calls.push(["aiConsent", choice]); return true; },
+    },
     "./student-account-contract": contract,
+    "./student-application-contract": { STUDENT_APPLICATION_CONSENT_VERSION: "2026-11-07" },
     "./student-invite-callback-contract.ts": { isExpectedStudentOriginRequest: () => origin },
     "./student-password-recovery-contract.ts": recovery,
     "./supabase/server": { createSupabaseServerClient: async () => ({ auth: {
@@ -281,10 +287,12 @@ function newPassword({ flagged = true, updateError = null, origin = true, signIn
       },
     } }) },
   });
-  const submit = async (password, confirmation = password) => {
+  const submit = async (password, confirmation = password, { privacy = "2026-11-07", ai = "granted" } = {}) => {
     const data = new FormData();
     data.set("password", password);
     data.set("password_confirm", confirmation);
+    data.set("privacy_consent", privacy);
+    data.set("ai_consent", ai);
     try {
       return await subject.setOwnStudentPasswordAction({ status: "idle" }, data);
     } catch (error) {
@@ -298,10 +306,26 @@ function newPassword({ flagged = true, updateError = null, origin = true, signIn
 test("«Придумайте свой пароль»: the password and the cleared flag in one server call, then a fresh session", async () => {
   const run = newPassword();
   assert.deepEqual(await run.submit(STRONG), { redirect: "/apply" });
-  assert.deepEqual(run.calls, [
-    ["update", USER, { password: STRONG, app_metadata: { provider: "email", [contract.TEMPORARY_PASSWORD_FLAG]: false } }],
+  const [update, ...rest] = run.calls;
+  assert.equal(update[0], "update");
+  assert.equal(update[1], USER);
+  // 09.11.2026: принятая политика с версией и временем — в app_metadata, вместе со снятой пометкой.
+  const { [contract.PRIVACY_CONSENT_FLAG]: privacy, ...metadata } = update[2].app_metadata;
+  assert.deepEqual({ password: update[2].password, app_metadata: metadata }, { password: STRONG, app_metadata: { provider: "email", [contract.TEMPORARY_PASSWORD_FLAG]: false } });
+  assert.equal(privacy.version, "2026-11-07");
+  assert.ok(Number.isFinite(Date.parse(privacy.acceptedAt)));
+  // Согласие на ИИ — той же командой, что при регистрации, от имени студента после нового входа.
+  assert.deepEqual(rest, [
     ["signIn", { email: `student-1@${contract.TECHNICAL_STUDENT_EMAIL_DOMAIN}`, password: STRONG }],
+    ["choice", `first-login:${USER}`],
+    ["aiConsent", { status: "granted", policyVersion: "2026-10-25", requestId: "consent-request" }],
   ]);
+  // Без любой из двух галочек ничего не меняется.
+  const unticked = newPassword();
+  assert.deepEqual(await unticked.submit(STRONG, STRONG, { privacy: "" }), { status: "consent_required" });
+  assert.deepEqual(await unticked.submit(STRONG, STRONG, { ai: "" }), { status: "consent_required" });
+  assert.deepEqual(await unticked.submit(STRONG, STRONG, { privacy: "2026-09-18" }), { status: "consent_required" }, "only the current text");
+  assert.equal(unticked.calls.length, 0);
   // The change closes the student's sessions (07.11, browser): without a new session /apply would see a guest.
   assert.deepEqual(await newPassword({ signInError: { status: 400 } }).submit(STRONG), { redirect: "/login" });
   const weak = newPassword();

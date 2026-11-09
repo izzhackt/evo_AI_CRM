@@ -6,13 +6,15 @@ import { redirect } from "next/navigation";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import { getPlatformSupabaseBackendConfig } from "./server/platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./server/platform-supabase-service-client";
-import { hasTemporaryPassword, TEMPORARY_PASSWORD_FLAG } from "./student-account-contract";
+import { recordRegistrationAiConsent, registrationAiConsentChoice } from "./server/student-registration-ai-consent";
+import { hasTemporaryPassword, PRIVACY_CONSENT_FLAG, TEMPORARY_PASSWORD_FLAG } from "./student-account-contract";
+import { STUDENT_APPLICATION_CONSENT_VERSION } from "./student-application-contract";
 import { isExpectedStudentOriginRequest } from "./student-invite-callback-contract.ts";
 import { checkStudentNewPassword } from "./student-password-recovery-contract.ts";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type StudentNewPasswordState = Readonly<{
-  status: "idle" | "too_short" | "too_long" | "mismatch" | "rejected" | "unavailable";
+  status: "idle" | "too_short" | "too_long" | "mismatch" | "consent_required" | "rejected" | "unavailable";
 }>;
 
 async function studentOriginRequest(): Promise<boolean> {
@@ -32,12 +34,17 @@ async function studentOriginRequest(): Promise<boolean> {
  * пометка временного пароля — из Auth, а не из формы. Новый пароль и снятая пометка ставятся одним запросом сервера.
  * Смена пароля закрывает сессии студента, поэтому сессия открывается заново уже с новым паролем (как смена пароля в
  * кабинете, server/student-password-change.ts), дальше — обычный путь студента через /apply; не вышло — обычный вход.
+ *
+ * 09.11.2026 (пользователь: «если мы создали акк без регистрации то такой хуйни не должно быть потому что в регистрации чел
+ * дает свое согласие»): кабинет от администратора не проходит анкету, поэтому здесь те же две обязательные галочки, что в
+ * регистрации (345). Политика — отметка с версией и временем в app_metadata (её пишет только сервер), ИИ-помощники — та же
+ * команда 320 от имени студента, что при регистрации. Сбой записи ИИ не мешает входу: выбор остаётся в «Профиле».
  */
 export async function setOwnStudentPasswordAction(
   _previous: StudentNewPasswordState,
   form: FormData,
 ): Promise<StudentNewPasswordState> {
-  const fields = exactActionStringFields(form, ["password", "password_confirm"]);
+  const fields = exactActionStringFields(form, ["password", "password_confirm", "privacy_consent", "ai_consent"]);
   if (!fields || !(await studentOriginRequest())) return { status: "unavailable" };
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
@@ -46,11 +53,18 @@ export async function setOwnStudentPasswordAction(
   const password = fields.get("password")!;
   const check = checkStudentNewPassword(password, fields.get("password_confirm")!);
   if (check !== "ok") return { status: check };
+  if (fields.get("privacy_consent") !== STUDENT_APPLICATION_CONSENT_VERSION || fields.get("ai_consent") !== "granted") {
+    return { status: "consent_required" };
+  }
   try {
     const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     const updated = await service.auth.admin.updateUserById(data.user.id, {
       password,
-      app_metadata: { ...data.user.app_metadata, [TEMPORARY_PASSWORD_FLAG]: false },
+      app_metadata: {
+        ...data.user.app_metadata,
+        [TEMPORARY_PASSWORD_FLAG]: false,
+        [PRIVACY_CONSENT_FLAG]: { version: STUDENT_APPLICATION_CONSENT_VERSION, acceptedAt: new Date().toISOString() },
+      },
     });
     if (updated.error) {
       const status = typeof updated.error.status === "number" ? updated.error.status : 500;
@@ -70,5 +84,7 @@ export async function setOwnStudentPasswordAction(
       await service.auth.admin.signOut(keep, "others");
     }
   } catch { /* the regular sign-in below */ }
+  // Номер запроса выводится из id студента: повтор формы не пишет второе событие журнала согласия. Не бросает.
+  if (signedIn) await recordRegistrationAiConsent(client, registrationAiConsentChoice(`first-login:${data.user.id}`));
   redirect(signedIn ? "/apply" : "/login");
 }

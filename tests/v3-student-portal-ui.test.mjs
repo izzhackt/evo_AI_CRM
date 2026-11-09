@@ -372,11 +372,10 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   // ключи через admission.stage.* (RU байт-в-байт зеркалит staff-словарь
   // studentOperationalStage), нестандартное значение — stageCustom, без
   // overview этапа нет вовсе. Никакого нового RPC и выдуманных названий.
-  // 03.11.2026: «Моё поступление» больше не рисует этап; подпись этапа живёт
-  // в «Профиле» той же функцией stageLabel.
+  // 03.11.2026: «Моё поступление» больше не рисует этап. 09.11.2026: «Профиль» называет этап шагом пути страны
+  // (тот же, что в шапке «Главной»), а не внутренним словом этапа дела (tests/portal-country-timeline-ui.test.mjs).
   assert.match(overview, /strings\.stageCustom/u);
-  assert.match(source("src/app/(portal)/portal/profile/page.tsx"),
-    /const stage = overview \? stageLabel\(overview\.operationalStage, admissionStrings\) : null/u);
+  assert.doesNotMatch(source("src/app/(portal)/portal/profile/page.tsx"), /stageLabel\(/u);
   for (const key of [
     "contract_confirmed",
     "admissions_handoff",

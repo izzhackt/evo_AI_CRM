@@ -79,13 +79,12 @@ const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCa
 const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
 const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
 // Согласие на ИИ-помощников (25.10.2026): карточка «Главной» и строка «Профиля».
-const { AiConsentHomeCard, AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
+const { AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
 // S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
 // на «Главной» его карточка.
 const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
-const { HomeJourneyCard } = require(join(ROOT, "src/components/portal/home/HomeJourneyCard.tsx"));
 const { selectStudentJourney } = require(join(ROOT, "src/lib/portal/student-journey.ts"));
 const { TIMELINE_UNDECIDED, selectCountryTimeline } = require(join(ROOT, "src/lib/portal/country-timeline.ts"));
 const { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } = require(join(ROOT, "src/lib/study-countries.ts"));
@@ -500,11 +499,9 @@ const timelineChina = createElement(CountryTimeline, {
   view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
 });
-/** Карточка пути на «Главной»: Китай клиента на этапе «Документы» (шаг и полоса шагов). */
+/** Путь в шапке «Главной» (09.11.2026): Китай клиента на этапе «Документы»; Малайзия в начале пути (передача в приёмную). */
 const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
-const journeyCardChina = createElement(HomeJourneyCard, {
-  view: chinaJourney.view, progress: chinaJourney.progress, readFailed: false, locale: "ru",
-});
+const malaysiaJourney = selectStudentJourney({ country: "MY", stage: "admissions_handoff", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
 
 const learningModulesDraftFixture = [
   {
@@ -622,7 +619,6 @@ const aiConsentGranted = {
 };
 const aiConsentDeclined = { ...aiConsentGranted, status: "declined" };
 /** Решение по старой версии текста: для текущей это «не выбрано» с пояснением. */
-const aiConsentOutdated = { ...aiConsentGranted, policyVersion: "2026-01-01" };
 const aiConsentStrings = getPortalStrings("aiConsent", "ru");
 
 const surfaces = [
@@ -634,15 +630,9 @@ const surfaces = [
         null,
         admission.overviewTitle,
         null,
-        // Согласие на ИИ-помощников стоит над обзором (слот карточки на /portal).
         createElement(
           Fragment,
           null,
-          createElement(
-            "div",
-            { className: "pt-consent-slot" },
-            createElement(AiConsentHomeCard, { initialConsent: aiConsentAsked, strings: aiConsentStrings }),
-          ),
           createElement(OverviewView, { overview: overviewFixture, pending: false, locale: "ru" }),
           // 08.11.2026: весь «Путь поступления» стоит между плитками и вкладками.
           timelineChina,
@@ -803,15 +793,9 @@ const surfaces = [
           overviewFailed: false,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
-          // Страны нет: выбор страны первым блоком под шапкой, карточки пути нет.
-          journey: null,
+          // Страны нет: выбор страны первым блоком под шапкой, дорожки пути нет.
+          journey: { view: null, progress: null },
           countryChoice: timelineChoose,
-          // Самостоятельному студенту карточку согласия вид не показывает, даже
-          // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
-          aiConsent: createElement(AiConsentHomeCard, {
-            initialConsent: aiConsentAsked,
-            strings: aiConsentStrings,
-          }),
           locale: "ru",
           now: HOME_NOW,
         }),
@@ -835,11 +819,34 @@ const surfaces = [
           news: [],
           favorites: [],
           favoritesTotal: 0,
-          journey: journeyCardChina,
-          aiConsent: createElement(AiConsentHomeCard, {
-            initialConsent: aiConsentOutdated,
-            strings: aiConsentStrings,
-          }),
+          journey: chinaJourney,
+          documents: documentsFixture,
+          locale: "ru",
+          now: HOME_NOW,
+        }),
+      ),
+    ),
+  },
+  // 09.11.2026: заданий от менеджера нет — «Что сделать сейчас» из шага пути, куратор ещё не назначен, документов нет.
+  {
+    name: "home-assisted-step",
+    html: renderSurface(
+      "Главная — шаг пути — a11y",
+      pageShell(
+        null,
+        homeStrings.title,
+        null,
+        createElement(HomeView, {
+          tier: "assisted",
+          displayName: "Бакыт Токтосунов",
+          studyCountry: "Малайзия",
+          overview: { ...overviewFixture, operationalStage: "admissions_handoff", studentAction: null, studentActions: [], curatorDisplayName: null },
+          overviewFailed: false,
+          news: [],
+          documents: [],
+          favorites: [],
+          favoritesTotal: 0,
+          journey: malaysiaJourney,
           locale: "ru",
           now: HOME_NOW,
         }),

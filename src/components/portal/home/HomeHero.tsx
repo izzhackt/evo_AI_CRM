@@ -1,32 +1,37 @@
-import type { Locale } from "@/lib/i18n-data";
-import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
-import { ADMISSION_STAGE_PATH, stageLabel } from "../admission/OverviewView";
+import type { Locale } from "@/lib/i18n-data";
+import type { CountryTimelineView, TimelineStepProgress } from "@/lib/portal/country-timeline";
+import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
+import { JOURNEY_HREF } from "@/lib/portal/journey-anchor";
 
 /**
  * Шапка «Главной» (03.11.2026, по образцу кабинета пользователя): тёмная
  * плашка с красными градиентами и знаком EVO, приветствие по имени, страна
- * поступления и дорожка этапов дела. Этап — операционный этап из read model
- * (тот же словарь, что в «Профиле»); у каждого шага короткая подпись, полное
- * название — в подсказке и в доступном имени, открытый шаг отмечен
- * aria-current. На узкой шапке подписи шагов скрыты и вместо них строка «Этап
- * N из M». Нестандартный этап или закрытое дело — словом под именем, без
- * дорожки; у самостоятельного студента этапа нет вовсе.
+ * поступления и дорожка пути.
+ *
+ * 09.11.2026 (разбор кабинета: «три разных ответа на вопрос „где я“»): дорожка
+ * — шаги пути страны, те же, что на «Поступлении» и в «Профиле», а не десять
+ * внутренних этапов дела. Текущий шаг считает `timelineStepProgress` по этапу
+ * дела. Названия шагов длинные, поэтому под точками их нет: они в подсказке и
+ * в доступном имени, а видна строка «Шаг N из M: название» и «Весь путь».
+ * Без страны или без дела дорожки нет; у самостоятельного студента дела нет.
  */
-export function HomeHero({ displayName, studyCountry, stage, locale }: Readonly<{
+export function HomeHero({ displayName, studyCountry, journey, progress, locale }: Readonly<{
   displayName: string;
   /** Страна поступления («Малайзия»); `null` — не выбрана. */
   studyCountry: string | null;
-  /** Операционный этап дела (raw); `null` — нет дела или обзор не прочитан. */
-  stage: string | null;
+  /** Путь выбранной страны; `null` — страны нет. */
+  journey: CountryTimelineView | null;
+  /** Где студент на пути по этапу дела; `null` — дела нет или обзор не прочитан. */
+  progress: Readonly<Record<string, TimelineStepProgress>> | null;
   locale: Locale;
 }>) {
   const strings = getPortalStrings("home", locale);
-  const admission = getPortalStrings("admission", locale);
-  const label = stage ? stageLabel(stage, admission) : null;
-  const index = stage ? ADMISSION_STAGE_PATH.findIndex((key) => key === stage.trim()) : -1;
-  // Этап с дорожкой подписан на ней; без дорожки — словом в строке под именем.
-  const subline = [studyCountry, index >= 0 ? null : label].filter(Boolean).join(" · ");
+  const steps = journey?.steps ?? [];
+  const index = progress ? steps.findIndex((step) => progress[step.id] === "current") : -1;
+  const done = progress !== null && steps.length > 0 && steps.every((step) => progress[step.id] === "done");
+  const shown = index >= 0 ? steps[index] : done ? steps[steps.length - 1] : null;
 
   return (
     <section className="pt-home-hero" aria-labelledby="home-title">
@@ -34,33 +39,33 @@ export function HomeHero({ displayName, studyCountry, stage, locale }: Readonly<
         <h1 id="home-title" className="pt-home-hero-title">
           {formatPortalString(strings.greeting, { name: displayName })}
         </h1>
-        {subline ? <p className="pt-home-hero-sub">{subline}</p> : null}
+        {studyCountry ? <p className="pt-home-hero-sub">{studyCountry}</p> : null}
       </div>
-      {index >= 0 && label ? (
+      {progress && shown ? (
         <div className="pt-home-stages">
-          <ol className="pt-home-stage-track" aria-label={strings.stagesAria}>
-            {ADMISSION_STAGE_PATH.map((key, position) => (
+          <ol className="pt-home-stage-track" aria-label={strings.stagesAria} style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+            {steps.map((step) => (
               <li
-                key={key}
-                data-state={position < index ? "done" : position === index ? "current" : undefined}
-                aria-current={position === index ? "step" : undefined}
+                key={step.id}
+                data-state={progress[step.id] === "done" ? "done" : progress[step.id] === "current" ? "current" : undefined}
+                aria-current={progress[step.id] === "current" ? "step" : undefined}
               >
-                {/* Видимая часть (точка и короткая подпись) скрыта от читалки и несёт подсказку;
-                    читалка слышит полное название один раз. */}
-                <span className="pt-home-stage-visual" aria-hidden="true" title={admission[`stage.${key}`]}>
+                <span className="pt-home-stage-visual" aria-hidden="true" title={step.title}>
                   <span className="pt-home-stage-dot" />
-                  <span className="pt-home-stage-name">{admission[`stageShort.${key}`]}</span>
                 </span>
-                <span className="pt-sr-only">{admission[`stage.${key}`]}</span>
+                <span className="pt-sr-only">{step.title}</span>
               </li>
             ))}
           </ol>
-          <p className="pt-home-stage-caption" aria-hidden="true">
-            {formatPortalString(strings.stageStep, {
-              n: String(index + 1),
-              total: String(ADMISSION_STAGE_PATH.length),
-              stage: label,
-            })}
+          <p className="pt-home-stage-caption">
+            <span>
+              {formatPortalString(strings.pathStep, {
+                n: String(steps.indexOf(shown) + 1),
+                total: String(steps.length),
+                title: shown.title,
+              })}
+            </span>
+            <IntentPrefetchLink className="pt-home-stage-all" href={JOURNEY_HREF}>{strings.pathAll}</IntentPrefetchLink>
           </p>
         </div>
       ) : null}

@@ -4,37 +4,37 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
-import { aiConsentApplies } from "@/lib/portal/ai-consent";
+import type { StudentJourney } from "@/lib/portal/student-journey";
 import { todayForTimeline } from "@/lib/portal/country-timeline";
 import { bishkekDay, type HomeDateItem } from "@/lib/portal/home-dates";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { nearestUniversityIntake } from "@/lib/portal/universities";
-import type { StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/portal-source";
+import type { StudentPortalDocument, StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/portal-source";
 
 import type { PortalAccessTier } from "../Shell";
 import { HomeCase, actionHref, actionTitle } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
+import { HomeDocuments } from "./HomeDocuments";
 import { HomeFavorites } from "./HomeFavorites";
 import { HomeHero } from "./HomeHero";
+import { HomeManager } from "./HomeManager";
 import { HomeNews } from "./HomeNews";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
- * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточка согласия на ИИ-помощников
- * (`aiConsent`, 25.10.2026) стоит первой под шапкой, пока для текущей версии текста нет решения, и не блокирует ничего
- * ниже; она только у клиента с делом на сопровождении (tier assisted), самостоятельному студенту вид её не показывает,
- * даже если её передали.
+ * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточки согласия на ИИ-помощников здесь
+ * нет (09.11.2026): согласие даётся при регистрации или первом входе, меняется в «Профиле».
  *
- * 08.11.2026 (по образцу «Главной» от пользователя): сверху приветствие с этапом дела (HomeHero, без изменений), ниже
- * две колонки. Слева «Что сделать сейчас» (HomeCase, assisted) или «Ваша анкета» (approved) и «Мои вузы»
- * (HomeFavorites). Справа карточка «Пути поступления» (`journey`, HomeJourneyCard: весь путь переехал на
- * «Поступление»), «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента «Входящих», только assisted) и карточка
- * CSCA (`csca`, только при выбранном Китае). На узком экране колонки идут одна за другой.
+ * 08.11.2026 (по образцу «Главной» от пользователя): сверху приветствие, ниже две колонки; без выбранной страны первым
+ * блоком под шапкой стоит выбор страны (`countryChoice`). Колонки две с 960 px; в одну колонку блоки идут по смыслу
+ * (data-slot и order в CSS).
  *
- * Правка 08.11.2026 (разбор вёрстки): без выбранной страны первым блоком под шапкой стоит выбор страны
- * (`countryChoice`, тот же CountryTimeline с выбором, что был до #1408), карточки пути в это время нет; выбрана страна —
- * выбор исчезает и на его месте в правой колонке встаёт карточка пути. Колонки две с 960 px; в одну колонку блоки
- * идут по смыслу, а не по колонкам: «Что сделать сейчас», путь, «Мои вузы», даты, новости, CSCA (data-slot и order в CSS).
+ * 09.11.2026 (разбор кабинета: три разных ответа на «где я», «действий не требуется», нет дат и менеджера): шапка
+ * (HomeHero) показывает шаг пути страны — тот же, что в «Профиле» и на «Поступлении», отдельной карточки пути нет.
+ * Слева «Что сделать сейчас» (HomeCase: задания менеджера, а без них задания студента из текущего шага пути) или
+ * «Ваша анкета» (approved) и «Мои вузы». Справа «Ваш менеджер» (HomeManager), «Документы» (HomeDocuments: принято из
+ * списка дела и что ждёт студента со сроком), «Ближайшие даты» (сроки дел, документов и избранных вузов), «Что нового»
+ * и карточка CSCA (только при выбранном Китае).
  */
 export function HomeView({
   tier,
@@ -43,12 +43,12 @@ export function HomeView({
   overview,
   overviewFailed = false,
   news = null,
+  documents = null,
   favorites,
   favoritesTotal,
-  journey = null,
+  journey,
   countryChoice = null,
   csca = null,
-  aiConsent = null,
   locale,
   now,
 }: {
@@ -62,27 +62,38 @@ export function HomeView({
   overviewFailed?: boolean;
   /** Лента «Что нового» (только assisted); `null` — чтение не удалось. */
   news?: readonly StudentPortalNotification[] | null;
+  /** Список документов дела для карточки «Документы» (только assisted); `null` — чтение не удалось. */
+  documents?: readonly StudentPortalDocument[] | null;
   favorites: readonly PublishedUniversity[] | null;
   favoritesTotal: number;
-  /** Карточка «Пути поступления» (HomeJourneyCard); null, если её нет. */
-  journey?: ReactNode;
+  /** Путь страны и где студент на нём (`selectStudentJourney`): дорожка шапки. */
+  journey: StudentJourney;
   /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
   countryChoice?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
   csca?: ReactNode;
-  /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком клиента с делом на сопровождении, пока для текущей версии нет решения; самостоятельному студенту не показывается, даже если передан. */
-  aiConsent?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
   const strings = getPortalStrings("home", locale);
   const admission = getPortalStrings("admission", locale);
 
-  // «Ближайшие даты»: сроки дел и дедлайн или старт избранных вузов.
+  // Текущий шаг пути — тот же, что в шапке и в «Профиле» (09.11.2026).
+  const step = journey.view?.steps.find((item) => journey.progress?.[item.id] === "current") ?? null;
+
+  // «Ближайшие даты»: сроки дел, сроки документов от менеджера и дедлайн или старт избранных вузов.
   const today = todayForTimeline(now);
+  const actionSlots = new Set((overview?.studentActions ?? []).flatMap((action) => action.kind === "payment" ? [] : [action.documentSlotId]));
   const dated: HomeDateItem[] = [
     ...(overview?.studentActions ?? []).flatMap((action) => action.dueAt
       ? [{ day: bishkekDay(action.dueAt), title: actionTitle(action, admission), href: actionHref(action) }]
+      : []),
+    ...(documents ?? []).flatMap((document) => document.deadline && document.status !== "approved" && !actionSlots.has(document.documentSlotId)
+      ? [{
+        day: bishkekDay(document.deadline),
+        title: formatPortalString(strings.dateDocument, { name: document.requirementLabel }),
+        href: `/portal/documents#document-${document.documentSlotId}`,
+      }]
       : []),
     ...(favorites ?? []).flatMap((item) => {
       const nearest = nearestUniversityIntake(item.content, now);
@@ -94,14 +105,13 @@ export function HomeView({
 
   return (
     <div className="pt-home">
-      <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
+      <HomeHero displayName={displayName} studyCountry={studyCountry} journey={journey.view} progress={journey.progress} locale={locale} />
       {countryChoice}
-      {aiConsentApplies(tier) ? aiConsent : null}
       <div className="pt-home-columns">
         <div className="pt-home-main">
           {tier === "assisted" ? (
             <div className="pt-home-slot" data-slot="case">
-              <HomeCase overview={overview} failed={overviewFailed} locale={locale} />
+              <HomeCase overview={overview} failed={overviewFailed} step={step} locale={locale} />
             </div>
           ) : null}
           {tier === "approved" ? (
@@ -121,7 +131,16 @@ export function HomeView({
         </div>
 
         <div className="pt-home-side">
-          {journey ? <div className="pt-home-slot" data-slot="path">{journey}</div> : null}
+          {tier === "assisted" && overview ? (
+            <div className="pt-home-slot" data-slot="manager">
+              <HomeManager name={overview.curatorDisplayName} locale={locale} />
+            </div>
+          ) : null}
+          {tier === "assisted" ? (
+            <div className="pt-home-slot" data-slot="documents">
+              <HomeDocuments documents={documents} locale={locale} />
+            </div>
+          ) : null}
           <div className="pt-home-slot" data-slot="dates">
             <HomeDates items={dated} today={today} locale={locale} />
           </div>

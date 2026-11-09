@@ -521,7 +521,12 @@ test("web new-password action: after the re-sign-in the other sessions are revok
     "./server/action-form-fields.ts": { exactActionStringFields: (form) => new Map([...form.entries()]) },
     "./server/platform-supabase-backend-config": { getPlatformSupabaseBackendConfig: () => ({}) },
     "./server/platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => serviceStub(log) },
-    "./student-account-contract": { hasTemporaryPassword: (meta) => meta?.evo_temporary_password === true, TEMPORARY_PASSWORD_FLAG: "evo_temporary_password" },
+    "./server/student-registration-ai-consent": {
+      registrationAiConsentChoice: () => ({ status: "granted" }),
+      recordRegistrationAiConsent: async () => { log.push(["aiConsent"]); return true; },
+    },
+    "./student-account-contract": { hasTemporaryPassword: (meta) => meta?.evo_temporary_password === true, TEMPORARY_PASSWORD_FLAG: "evo_temporary_password", PRIVACY_CONSENT_FLAG: "evo_privacy_consent" },
+    "./student-application-contract": { STUDENT_APPLICATION_CONSENT_VERSION: "2026-11-07" },
     "./student-invite-callback-contract.ts": { isExpectedStudentOriginRequest: () => true },
     "./student-password-recovery-contract.ts": { checkStudentNewPassword: () => "ok" },
     "./supabase/server": { createSupabaseServerClient: async () => ({ auth: {
@@ -532,9 +537,11 @@ test("web new-password action: after the re-sign-in the other sessions are revok
   const form = new FormData();
   form.set("password", GOOD_PASSWORD);
   form.set("password_confirm", GOOD_PASSWORD);
+  form.set("privacy_consent", "2026-11-07");
+  form.set("ai_consent", "granted");
   await assert.rejects(() => loaded.setOwnStudentPasswordAction({ status: "idle" }, form), (error) => error === REDIRECT);
   const names = log.map((entry) => entry[0]);
-  assert.deepEqual(names, ["updateUserById", "signIn", "signOut", "redirect"]);
+  assert.deepEqual(names, ["updateUserById", "signIn", "signOut", "aiConsent", "redirect"]);
   assert.deepEqual(log[2], ["signOut", "fresh.session.token", "others"]);
-  assert.deepEqual(log[3], ["redirect", "/apply"]);
+  assert.deepEqual(log[4], ["redirect", "/apply"]);
 });

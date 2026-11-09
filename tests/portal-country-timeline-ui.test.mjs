@@ -7,13 +7,13 @@ import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { TIMELINE_MODULE_ROUTES } from "../src/lib/portal/timeline-module-routes.ts";
 
 // «Путь поступления», веб (S4, план §8.4; контракт docs/portal/country-timeline-contract.md §3, §5 и §7).
-// С 08.11.2026 весь путь стоит на «Поступлении», на «Главной» — его карточка.
+// С 08.11.2026 весь путь стоит на «Поступлении»; с 09.11.2026 на «Главной» — шаг пути в шапке (HomeHero).
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const page = read("src/app/(portal)/portal/home/page.tsx");
 const admissionPage = read("src/app/(portal)/portal/page.tsx");
 const view = read("src/components/portal/home/HomeView.tsx");
 const block = read("src/components/portal/home/CountryTimeline.tsx");
-const card = read("src/components/portal/home/HomeJourneyCard.tsx");
+const hero = read("src/components/portal/home/HomeHero.tsx");
 const journey = read("src/lib/portal/student-journey.ts");
 const anchor = read("src/lib/portal/journey-anchor.ts");
 const action = read("src/lib/portal/country-choice-actions.ts");
@@ -48,7 +48,7 @@ test("the choice is read in the same wave as the other reads on both pages", () 
   assert.doesNotMatch(block, /COUNTRY_TIMELINES|content\/timelines|selectCountryTimeline\(|student-journey/u);
 });
 
-test("the whole path sits on «Поступление» between the tiles and the tabs, the home keeps its card (user, 08.11.2026)", () => {
+test("the whole path sits on «Поступление»; the home header shows the same current step (09.11.2026)", () => {
   const overviewAt = admissionPage.indexOf("<OverviewView");
   const pathAt = admissionPage.indexOf("<CountryTimeline");
   const tabsAt = admissionPage.indexOf('<nav className="pt-pill-tabs"');
@@ -56,34 +56,36 @@ test("the whole path sits on «Поступление» between the tiles and th
   // На «Главной» от CountryTimeline только выбор страны, пока страны нет (view={null}); путь целиком не рисуется.
   assert.equal(page.match(/<CountryTimeline/gu)?.length, 1);
   assert.match(page, /countryChoice=\{journey\.view \? null : \(\s+<CountryTimeline\s+view=\{null\}/u);
-  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>\s+\) : null\}/u);
-  // Выбор страны первым блоком под шапкой, до согласия и колонок.
-  const hv = read("src/components/portal/home/HomeView.tsx");
-  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{aiConsentApplies(tier)"), "country choice first under the header");
-  // Карточка открывает правую колонку «Главной», перед датами.
-  const side = view.indexOf('<div className="pt-home-side">');
-  const cardAt = view.indexOf("{journey}");
-  const dates = view.indexOf("<HomeDates");
-  assert.ok(side > 0 && cardAt > side && dates > cardAt, "the card opens the right column");
-  // Карточка ведёт к якорю блока, переход по ней раскрывает путь.
+  assert.match(page, /journey=\{journey\}/u);
+  assert.doesNotMatch(page + view, /HomeJourneyCard/u, "no separate path card: the header says it");
+  assert.equal(existsSync(new URL("../src/components/portal/home/HomeJourneyCard.tsx", import.meta.url)), false);
+  // Выбор страны первым блоком под шапкой, до колонок.
+  assert.ok(view.indexOf("{countryChoice}") > view.indexOf("<HomeHero") && view.indexOf("{countryChoice}") < view.indexOf('<div className="pt-home-columns">'), "country choice first under the header");
+  assert.match(view, /<HomeHero displayName=\{displayName\} studyCountry=\{studyCountry\} journey=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>/u);
+  // Шапка ведёт к якорю блока, переход раскрывает путь.
   assert.match(anchor, /export const JOURNEY_ANCHOR = "path";/u);
   assert.match(anchor, /export const JOURNEY_HREF = `\/portal#\$\{JOURNEY_ANCHOR\}`;/u);
   assert.match(block, /id=\{JOURNEY_ANCHOR\}/u);
   assert.match(block, /if \(window\.location\.hash === `#\$\{JOURNEY_ANCHOR\}`\) setFolded\(false\);/u);
-  assert.match(card, /href=\{JOURNEY_HREF\}/u);
-  // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
-  assert.doesNotMatch(card, /^"use client";/u);
-  assert.match(card, /<span className="pt-home-path-n">\{strings\.pathNow\}<\/span>/u);
-  assert.match(card, /timeline\.stepOf, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
-  assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
-  assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
-  // Без страны карточки нет (выбор стоит первым блоком «Главной»); заголовок называет страну пути.
-  assert.match(card, /if \(view === null\) return null;/u);
-  assert.match(card, /strings\.pathTitle, \{ country: view\.countryName \}/u);
+  assert.match(hero, /href=\{JOURNEY_HREF\}>\{strings\.pathAll\}/u);
+  // Шапка — серверная разметка: точки шагов пути, строка «Шаг N из M: название» словами.
+  assert.doesNotMatch(hero, /^"use client";/u);
+  assert.doesNotMatch(hero, /ADMISSION_STAGE_PATH|stageLabel|operationalStage/u, "the header no longer speaks the case-stage vocabulary");
+  assert.match(hero, /formatPortalString\(strings\.pathStep, \{/u);
   const home = PORTAL_DICTIONARIES.home;
-  assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.pathNow], ["Весь путь", "Путь: {country}", "Сейчас на пути:"]);
-  for (const key of ["pathAll", "pathTitle", "pathNow"]) assert.ok(home.ky[key], `ky ${key}`);
+  assert.deepEqual([home.ru.pathAll, home.ru.pathStep], ["Весь путь", "Шаг {n} из {total}: {title}"]);
+  for (const key of ["pathAll", "pathStep"]) assert.ok(home.ky[key], `ky ${key}`);
+  for (const key of ["pathTitle", "pathNow", "stageStep"]) assert.equal(home.ru[key], undefined, key);
   assert.match(css, /\.pt-page > \.pt-journey \{\n {2}margin-bottom: 24px;\n {2}scroll-margin-top: calc\(var\(--pt-topbar-height\) \+ 16px\);/u);
+});
+
+test("one answer to «where am I»: the header, the profile and «Поступление» take the step from one place (09.11.2026)", () => {
+  const profile = read("src/app/(portal)/portal/profile/page.tsx");
+  for (const file of [page, profile]) assert.match(file, /selectStudentJourney\(\{/u);
+  assert.match(profile, /step \? `\$\{admissionStrings\.stageTerm\}: \$\{step\.title\}` : null/u);
+  assert.doesNotMatch(profile, /stageLabel\(/u, "the profile no longer names the internal case stage");
+  assert.match(view, /const step = journey\.view\?\.steps\.find\(\(item\) => journey\.progress\?\.\[item\.id\] === "current"\) \?\? null;/u);
+  assert.match(view, /<HomeCase overview=\{overview\} failed=\{overviewFailed\} step=\{step\} locale=\{locale\} \/>/u);
 });
 
 test("module routes match the app routes, so the CSCA step never links to a missing page", () => {
@@ -224,7 +226,7 @@ test("progress on the path: done steps fold into one line, the step line stays o
 
 test("the step line names the current step, the current step opens Documents, timing stays under the title (user, 08.11.2026)", () => {
   // «Сейчас: название» вместо «Шаг N из M»: число шагов спорило с числом этапов дела; оно осталось только читалке.
-  assert.doesNotMatch(block + card, /strings\.nowStep|timeline\.nowStep/u);
+  assert.doesNotMatch(block + hero, /strings\.nowStep|timeline\.nowStep/u);
   assert.equal(PORTAL_DICTIONARIES.timeline.ru.nowStep, undefined);
   assert.match(block, /strings\.stepOf, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
   // «Открыть документы» — у текущего шага этапа документов и только тому, кому «Документы» открыты.

@@ -1869,61 +1869,16 @@
 }
 
 /*
- * Согласие на ИИ-помощников (решение владельца 25.10.2026). Карточка на
- * «Главной» и строка в «Профиле» говорят одним текстом. Только токены --pt-*,
- * обе темы; новых анимаций нет: подтверждение рисует общая галочка
- * (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
+ * Согласие на ИИ-помощников (решение владельца 25.10.2026): строка в «Профиле».
+ * Карточки на «Главной» нет с 09.11.2026 — согласие даётся галочками при
+ * регистрации или первом входе. Только токены --pt-*, обе темы; подтверждение
+ * рисует общая галочка (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
  */
-.pt-consent,
 .pt-consent-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
-}
-
-/*
- * Слот карточки на «Моём поступлении» (/portal): отступ от шапки как у
- * соседних блоков экрана; без карточки слот пуст и не оставляет зазора.
- */
-.pt-consent-slot {
-  margin-top: 24px;
-}
-
-.pt-consent-slot:empty {
-  display: none;
-}
-
-.pt-consent {
-  padding: 20px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
-}
-
-.pt-consent-title {
-  margin: 0;
-  font-size: var(--pt-size-heading);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-
-.pt-consent-body,
-.pt-consent-note {
-  max-width: 68ch;
-  margin: 0;
-  font-size: var(--pt-size-secondary);
-  text-wrap: pretty;
-}
-
-.pt-consent-body {
-  color: var(--pt-text);
-}
-
-.pt-consent-note {
-  color: var(--pt-text-2);
 }
 
 /* Ссылка высотой 44 px: отрицательный отступ возвращает её к тексту, зона касания не меняется. */
@@ -1990,39 +1945,7 @@
   font-size: var(--pt-size-secondary);
 }
 
-/*
- * Широкий экран: карточка — полоса. Текст держит свою меру слева, действия
- * стоят справа столбцом, а не оставляют пустую половину карточки.
- */
-@media (min-width: 1100px) {
-  .pt-consent {
-    padding-bottom: 14px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 40px;
-    align-items: start;
-    justify-items: start;
-  }
-
-  .pt-consent > * {
-    grid-column: 1;
-  }
-
-  .pt-consent > .pt-consent-actions {
-    grid-column: 2;
-    grid-row: 1 / span 4;
-    flex-direction: column;
-    align-self: center;
-    justify-self: stretch;
-    min-width: 200px;
-  }
-}
-
 @media (max-width: 480px) {
-  .pt-consent {
-    padding: 16px;
-  }
-
   /* Узкий телефон: кнопки делят строку поровну или встают друг под друга. */
   .pt-consent-actions {
     align-self: stretch;
@@ -7113,33 +7036,24 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   background: var(--pt-brand-red);
 }
 
-.pt-home-stage-name {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--pt-hero-faint);
-  font-size: var(--pt-size-caption);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pt-home-stage-track > li[data-state="done"] .pt-home-stage-name {
-  color: var(--pt-hero-muted);
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-name {
-  color: var(--pt-hero-ink);
-  font-weight: 700;
-}
-
-/* Строка «Этап N из M» — только на шапке уже 940 px: там самая длинная подпись
-   полужирным («Документтер», 87 px) уже не влезает в колонку шага. */
+/* Строка «Шаг N из M: название» и «Весь путь» (09.11.2026): названия шагов пути длинные, под точками их нет. */
 .pt-home-stage-caption {
-  display: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
   margin: 14px 0 0;
   color: var(--pt-hero-ink);
   font-size: var(--pt-size-secondary);
   font-weight: 600;
+}
+
+.pt-home-stage-all {
+  color: var(--pt-hero-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 @container pt-hero (max-width: 940px) {
@@ -7151,23 +7065,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
     padding: 16px 16px 18px;
   }
 
-  .pt-home-stage-visual {
-    gap: 0;
-  }
-
-  .pt-home-stage-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .pt-home-stage-caption {
-    display: block;
-  }
 }
 
 /*
@@ -7195,11 +7092,12 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-home-slot[data-slot="case"] { order: 1; }
-.pt-home-slot[data-slot="path"] { order: 2; }
-.pt-home-slot[data-slot="universities"] { order: 3; }
-.pt-home-slot[data-slot="dates"] { order: 4; }
-.pt-home-slot[data-slot="news"] { order: 5; }
-.pt-home-slot[data-slot="csca"] { order: 6; }
+.pt-home-slot[data-slot="manager"] { order: 2; }
+.pt-home-slot[data-slot="documents"] { order: 3; }
+.pt-home-slot[data-slot="universities"] { order: 4; }
+.pt-home-slot[data-slot="dates"] { order: 5; }
+.pt-home-slot[data-slot="news"] { order: 6; }
+.pt-home-slot[data-slot="csca"] { order: 7; }
 
 /*
  * Две колонки с 960 px окна (раньше от 980 px ширины самой области, то есть на 1024 px при раскрытой левой колонке
@@ -7332,39 +7230,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   line-height: 1.45;
-}
-
-/* Карточка «Пути поступления»: где студент сейчас; весь путь на «Поступлении». */
-.pt-home-path-lead {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  line-height: 1.45;
-}
-
-.pt-home-path-now {
-  display: grid;
-  gap: 10px;
-}
-
-.pt-home-path-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-  margin: 0;
-}
-
-.pt-home-path-n {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.pt-home-path-title {
-  font-size: var(--pt-size-body);
-  font-weight: 600;
-  line-height: 1.3;
 }
 
 /* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
@@ -7582,6 +7447,133 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-caption);
 }
 
+/* «Что сделать сейчас» из шага пути (09.11.2026): задания студента списком, срок шага ниже. */
+.pt-home-case-tasks {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: var(--pt-size-secondary);
+  line-height: 1.45;
+}
+
+.pt-home-case-tasks > li {
+  text-wrap: pretty;
+}
+
+/* «Документы» (09.11.2026): принято из списка, полоса и что ждёт студента со сроком. */
+.pt-home-docs-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.pt-home-docs-count {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-home-docs-meter {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-line);
+}
+
+.pt-home-docs-bar {
+  display: block;
+  height: 100%;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-ok);
+}
+
+.pt-home-docs-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-home-docs-list > li + li {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-home-docs-item {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 0;
+  color: var(--pt-text);
+  text-decoration: none;
+}
+
+.pt-home-docs-item:hover .pt-home-docs-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-home-docs-name {
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pt-home-docs-meta,
+.pt-home-docs-done {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+/* «Ваш менеджер» (09.11.2026): инициалы вместо фото (фото сотрудников в базе нет), имя, роль и «Написать». */
+.pt-home-manager-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+}
+
+.pt-home-manager-initials {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-wash);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pt-home-manager-text {
+  display: grid;
+  flex: 1 1 140px;
+  min-width: 0;
+  margin: 0;
+}
+
+.pt-home-manager-name {
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pt-home-manager-role {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+p.pt-home-manager-role {
+  flex: 1 1 160px;
+  font-size: var(--pt-size-secondary);
+}
+
 .pt-home-card {
   display: flex;
   flex-direction: column;
@@ -7706,7 +7698,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 /* ---------- «Путь поступления» (S4, план §8.4) ----------
  * С 08.11.2026 весь путь стоит на «Поступлении» между плитками и вкладками,
- * на «Главной» — его карточка (.pt-home-path-*).
+ * на «Главной» — дорожка шагов в шапке (.pt-home-stage-*, 09.11.2026).
  * Вертикальный путь: номер шага на линии, срок, название и цель; шаг
  * раскрывается в пункты (только чтение) и «Когда шаг пройден». На широком
  * экране сроки стоят колонкой слева от линии, на узком над названием.

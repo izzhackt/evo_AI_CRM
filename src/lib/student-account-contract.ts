@@ -6,6 +6,8 @@ import type { PossibleDuplicate } from "./v3/possible-duplicates";
 
 /** Пометка в app_metadata пользователя Auth: вход с временным паролем, сначала свой пароль. Ставит только сервер. */
 export const TEMPORARY_PASSWORD_FLAG = "evo_temporary_password";
+/** Принятая при первом входе Политика конфиденциальности ({ version, acceptedAt }) в app_metadata: кабинет от администратора без анкеты. */
+export const PRIVACY_CONSENT_FLAG = "evo_privacy_consent";
 
 /** Имя и фамилия от администратора в user_metadata: анкета подставляет их сама. Только подсказка, не право. */
 export const ACCOUNT_NAME_PREFILL_KEY = "evo_name_prefill";

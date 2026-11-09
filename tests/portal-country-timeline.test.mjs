@@ -398,7 +398,10 @@ test("progress by the case stage: done before the current step, the first step o
   assert.deepEqual(states("CN", "profile_and_route"), ["current", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
   // Общий маршрут: по шагу на этап.
   assert.deepEqual(states(TIMELINE_UNDECIDED, "applications"), ["done", "done", "done", "current", "upcoming", "upcoming", "upcoming"]);
-  // Без дела, дело до сценария или неизвестный этап — без прогресса.
-  for (const stage of [null, undefined, "", "admissions_handoff", "Documents", 3]) assert.equal(states("MY", stage), null, String(stage));
+  // 09.11.2026: у любого этапа дела есть шаг пути — договор и передача стоят в начале, «завершено» проходит весь путь.
+  for (const stage of ["contract_confirmed", "admissions_handoff"]) assert.deepEqual(states("MY", stage), states("MY", "intake"), stage);
+  assert.ok(states("MY", "completed").every((state) => state === "done"));
+  // Без дела или неизвестный этап — без прогресса.
+  for (const stage of [null, undefined, "", "closed", "Documents", 3]) assert.equal(states("MY", stage), null, String(stage));
   assert.equal(timelineStepProgress([], "documents"), null);
 });

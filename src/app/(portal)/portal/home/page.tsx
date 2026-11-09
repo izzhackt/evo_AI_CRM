@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 
-import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
-import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
-import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
@@ -19,8 +16,10 @@ import {
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import {
+  readStudentPortalDocuments,
   readStudentPortalNotifications,
   readStudentPortalOverview,
+  type StudentPortalDocument,
   type StudentPortalOverview,
 } from "@/lib/v3/portal-source";
 
@@ -53,19 +52,22 @@ export default async function StudentPortalHomePage() {
   // Карточка CSCA (Q16) только для Китая: главная трека читается тут же, за
   // выбором, внутри той же волны (цепочка из двух чтений, как у избранного),
   // а студенту с другой страной лишнего чтения нет.
-  // Согласие на ИИ-помощников (25.10.2026) читается в той же волне: отдельного
-  // круга ожидания нет, а сбой чтения прячет карточку, не роняя «Главную».
-  // Только у клиента с делом на сопровождении (tier assisted, он уже известен
-  // из actor): самостоятельному студенту вопроса нет, и RPC не вызывается.
+  // 09.11.2026: карточки согласия на ИИ-помощников на «Главной» нет — согласие
+  // даётся галочками при регистрации или при первом входе с временным паролем,
+  // изменить его можно в «Профиле». Список документов дела (карточка
+  // «Документы» и сроки в «Ближайших датах») — в той же волне, только assisted.
   // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной» — их
   // чтений здесь больше нет; «Что нового» (лента «Входящих») — только assisted.
-  const [overviewResult, news, favoritesResult, choiceRead, aiConsentRead] = await Promise.all([
+  const [overviewResult, news, documents, favoritesResult, choiceRead] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
         .catch((): { ok: false } => ({ ok: false }))
       : Promise.resolve({ ok: true, value: null } as const),
     tier === "assisted" ? readStudentPortalNotifications().catch((): null => null) : Promise.resolve(null),
+    tier === "assisted"
+      ? readStudentPortalDocuments().catch((): readonly StudentPortalDocument[] | null => null)
+      : Promise.resolve(null),
     readStudentUniversityFavorites()
       .then(async (saved) => ({
         ok: true as const,
@@ -79,7 +81,6 @@ export default async function StudentPortalHomePage() {
       choice,
       cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
     })),
-    readOwnAiConsent(tier),
   ]);
   const { choice, cscaHome } = choiceRead;
   const now = new Date();
@@ -111,11 +112,10 @@ export default async function StudentPortalHomePage() {
         overview={overviewResult.ok ? overviewResult.value : null}
         overviewFailed={!overviewResult.ok}
         news={news}
+        documents={documents}
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
-        journey={journey.view ? (
-          <HomeJourneyCard view={journey.view} progress={journey.progress} locale={locale} />
-        ) : null}
+        journey={journey}
         countryChoice={journey.view ? null : (
           <CountryTimeline
             view={null}
@@ -126,12 +126,6 @@ export default async function StudentPortalHomePage() {
           />
         )}
         csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}
-        aiConsent={aiConsentRead.status === "ready" ? (
-          <AiConsentHomeCard
-            initialConsent={aiConsentRead.consent}
-            strings={getPortalStrings("aiConsent", locale)}
-          />
-        ) : null}
         locale={locale}
         now={now}
       />

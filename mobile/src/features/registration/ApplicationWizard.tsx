@@ -460,4 +460,3 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
     </KeyboardAvoidingView>
   );
 }
-

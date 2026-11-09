@@ -370,4 +370,3 @@ function AssessmentResult({ attempt, onRestart }: { attempt: AssessmentAttempt; 
     </View>
   );
 }
-

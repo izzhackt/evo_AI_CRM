@@ -4,6 +4,7 @@
 // синтетических строках (src/domain/__tests__/portal-source.test.ts).
 // Любое отклонение формы: `PortalDecodeError` без текста данных. Экран берёт строку
 // ошибки из словаря i18n, ответ сервера не показывается.
+import { ADMISSIONS_PIPELINE_STAGES } from "@web/lib/platform-admissions-pipeline-contract";
 import {
   PLATFORM_OBLIGATION_CATEGORIES,
   PLATFORM_OBLIGATION_STATUSES,
@@ -57,7 +58,16 @@ export type StudentPortalOverview = Readonly<{
   studentActions: readonly StudentPortalAction[];
   evoAction: StudentPortalEvoAction | null;
   curatorDisplayName: string | null;
+  /** Колонка доски своего дела (`student_portal_board_stage_v1`, 357): шаг пути среди шагов одного этапа; нет — `null`. */
+  boardStage?: string | null;
 }>;
+
+/** Ответ `student_portal_board_stage_v1` (357): колонка доски или `null` при любой иной форме — путь без уточнения. */
+export function decodeBoardStage(data: unknown): string | null {
+  const row: unknown = Array.isArray(data) && data.length === 1 ? data[0] : null;
+  const value = row && typeof row === "object" ? (row as Record<string, unknown>).board_stage : null;
+  return typeof value === "string" && (ADMISSIONS_PIPELINE_STAGES as readonly string[]).includes(value) ? value : null;
+}
 
 export type StudentPortalPayment = Readonly<{
   label: string;

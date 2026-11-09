@@ -1,4 +1,4 @@
-import { buildPortalOverview, decodeNotifications, decodePayments, normalizeStudentPortalNotification, normalizeStudentPortalOverview, normalizeStudentPortalPayment, PortalDecodeError } from "@/domain/portal-source";
+import { buildPortalOverview, decodeBoardStage, decodeNotifications, decodePayments, normalizeStudentPortalNotification, normalizeStudentPortalOverview, normalizeStudentPortalPayment, PortalDecodeError } from "@/domain/portal-source";
 
 import { CASE_ID, NOTIFICATION_ID, NOTIFICATION_ROW, OVERVIEW_ROW, OVERVIEW_ROW_EMPTY, PAYMENT_ROW, SLOT_ID, TASK_ID } from "@/test-fixtures/rpc-rows";
 
@@ -129,5 +129,16 @@ describe("очередь действий дела", () => {
   });
   it("сбой начислений ломает обзор целиком, как в вебе", () => {
     rejects(() => buildPortalOverview([OVERVIEW_ROW], [{ ...PAYMENT_ROW, outstanding_minor: 1 }]));
+  });
+});
+
+describe("decodeBoardStage (357)", () => {
+  it("returns the board column of the own case", () => {
+    expect(decodeBoardStage([{ board_stage: "predeparture" }])).toBe("predeparture");
+  });
+  it("returns null for any other shape instead of failing the overview", () => {
+    for (const data of [null, [], [{ board_stage: "Visa" }], [{ board_stage: 3 }], [{}], [{ board_stage: "visa" }, { board_stage: "visa" }], "visa"]) {
+      expect(decodeBoardStage(data)).toBeNull();
+    }
   });
 });

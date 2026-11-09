@@ -189,11 +189,25 @@ test("overview decoder preserves nullable facts and rejects invented or internal
 
   const mock = mockRpc((name) => {
     if (name === "student_portal_finance_v2") return ok([]);
+    if (name === "student_portal_board_stage_v1") return ok([]);
     assert.equal(name, "student_portal_overview_v2");
     return ok([OVERVIEW_ROW]);
   });
-  assert.deepEqual(await readStudentPortalOverview({ client: mock.client }), normalized);
+  assert.deepEqual(await readStudentPortalOverview({ client: mock.client }), { ...normalized, boardStage: null });
   assert.deepEqual(mock.calls[0].options, { get: true });
+
+  // Колонка доски (357) уточняет шаг пути: известная колонка проходит, чужая или пустая — null.
+  const boardStageOf = async (rows) => (await readStudentPortalOverview({
+    client: mockRpc((name) => {
+      if (name === "student_portal_finance_v2") return ok([]);
+      if (name === "student_portal_board_stage_v1") return rows;
+      return ok([OVERVIEW_ROW]);
+    }).client,
+  })).boardStage;
+  assert.equal(await boardStageOf(ok([{ board_stage: "documents" }])), "documents");
+  assert.equal(await boardStageOf(ok([{ board_stage: "not-a-stage" }])), null);
+  assert.equal(await boardStageOf(ok([{ board_stage: null }])), null);
+  assert.equal(await boardStageOf(ok([{ board_stage: "documents" }, { board_stage: "applications" }])), null);
 
   const empty = mockRpc(() => ok([]));
   assert.equal(await readStudentPortalOverview({ client: empty.client }), null);
@@ -369,13 +383,29 @@ test("mark-read seam validates action handles and calls only the existing RPC", 
 
 test("every RPC or decode failure remains one bounded portal error", async () => {
   const rpcFailure = mockRpc((name) => {
-    assert.ok(["student_portal_overview_v2", "student_portal_finance_v2"].includes(name));
+    assert.ok(["student_portal_overview_v2", "student_portal_finance_v2", "student_portal_board_stage_v1"].includes(name));
     return { data: null, error: { message: "sensitive" } };
   });
   await expectUnavailableAsync(() => readStudentPortalOverview({
     client: rpcFailure.client,
   }));
-  assert.equal(rpcFailure.calls.length, 2, "overview and canonical finance are read in parallel, without fallback");
+  assert.equal(rpcFailure.calls.length, 3, "overview, canonical finance and board stage are read in parallel, without fallback");
+
+  // Сбой только колонки доски не роняет обзор: путь без уточнения (boardStage: null), ошибка не просачивается.
+  for (const failure of [
+    () => ({ data: null, error: { message: "sensitive" } }),
+    () => { throw new Error("provider details"); },
+  ]) {
+    const boardOnly = mockRpc((name) => {
+      if (name === "student_portal_finance_v2") return ok([]);
+      if (name === "student_portal_board_stage_v1") return failure();
+      return ok([OVERVIEW_ROW]);
+    });
+    const overview = await readStudentPortalOverview({ client: boardOnly.client });
+    assert.equal(overview.boardStage, null);
+    assert.equal(overview.operationalStage, "Подготовка документов");
+    assert.equal(boardOnly.calls.length, 3);
+  }
 
   const thrownFailure = mockRpc(() => {
     throw new Error("provider details");

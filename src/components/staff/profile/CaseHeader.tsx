@@ -76,6 +76,7 @@ export function CaseHeader(input: CaseHeaderInput) {
         {stage && row ? <Fact term="Этап"><StageTrack kind="admissions" current={row.pipelineStage} closed={input.state === "closed"} /></Fact> : null}
         <Fact term="Что дальше" wide>
           <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}
+            openTasks={work.tasks.kind === "ready" ? work.tasks.tasks : []}
             today={work.today} nowIso={work.nowIso} requestId={input.stepRequestId} />
         </Fact>
         {closed ? (

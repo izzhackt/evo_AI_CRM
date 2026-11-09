@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   ABSOLUTE_DATE,
+  BOARD_TIMELINE_STAGE,
   COUNTRY_TIMELINES,
   DIGIT_GROUP_SPACE,
   COUNTRY_TIMELINE_FILE_KEYS,
@@ -13,6 +14,7 @@ import {
   isTimelineChoice,
   parseCountryTimelineFile,
   selectCountryTimeline,
+  TIMELINE_BOARD_STEPS,
   timelineStepProgress,
   todayForTimeline,
 } from "../src/lib/portal/country-timeline.ts";
@@ -401,4 +403,44 @@ test("progress by the case stage: done before the current step, the first step o
   // Без дела, дело до сценария или неизвестный этап — без прогресса.
   for (const stage of [null, undefined, "", "admissions_handoff", "Documents", 3]) assert.equal(states("MY", stage), null, String(stage));
   assert.equal(timelineStepProgress([], "documents"), null);
+});
+
+test("the board column picks the step among steps of one stage (user, 09.11.2026)", () => {
+  const steps = (code) => selectCountryTimeline(code, { locale: "ru", today: "2026-10-16" }).steps;
+  const current = (code, stage, board) => {
+    const progress = timelineStepProgress(steps(code), stage, board);
+    return steps(code).findIndex((step) => progress[step.id] === "current") + 1;
+  };
+  // Малайзия: «Виза» (4) — подтверждено и виза; «Билет, SEV, MDAC и жильё» (5) — подготовка к выезду.
+  assert.equal(current("MY", "visa_and_predeparture", "confirmed"), 4);
+  assert.equal(current("MY", "visa_and_predeparture", "visa"), 4);
+  assert.equal(current("MY", "visa_and_predeparture", "predeparture"), 5);
+  const my5 = timelineStepProgress(steps("MY"), "visa_and_predeparture", "predeparture");
+  assert.deepEqual(steps("MY").map((step) => my5[step.id]), ["done", "done", "done", "done", "current", "upcoming", "upcoming"]);
+  // Италия: DSU (5) после подтверждения; «Студенческая виза D» (7) — виза и выезд, признание (6) пройдено.
+  assert.equal(current("IT", "visa_and_predeparture", "confirmed"), 5);
+  assert.equal(current("IT", "visa_and_predeparture", "visa"), 7);
+  assert.equal(current("IT", "visa_and_predeparture", "predeparture"), 7);
+  // Колонка не закреплена за шагом, не из этого этапа или неизвестна — первый шаг этапа, как раньше.
+  assert.equal(current("CN", "documents", "documents"), 2);
+  assert.equal(current("MY", "documents", "documents"), 2);
+  assert.equal(current("MY", "arrival_and_adaptation", "predeparture"), 6);
+  for (const board of [null, undefined, "", "Visa", 3]) assert.equal(current("MY", "visa_and_predeparture", board), 4, String(board));
+  // Этап дела дальше колонки (этап не из доски) — колонка не уточняет.
+  assert.equal(current("MY", "arrival_and_adaptation", "visa"), 6);
+});
+
+test("board column → cabinet stage is the same rule in TypeScript and in migration 357", () => {
+  const sql = read("supabase/migrations/357_platform_portal_stage_follows_board.sql");
+  const path = ["intake", "profile_and_route", "documents", "applications", "decisions", "visa_and_predeparture", "arrival_and_adaptation"];
+  for (const [board, stage] of Object.entries(BOARD_TIMELINE_STAGE)) {
+    const position = path.indexOf(stage) + 1;
+    if (board === "new") assert.match(sql, /ELSE 1 END\)\]/u);
+    else assert.match(sql, new RegExp(`WHEN ''${board}'' THEN ${position}\\b`, "u"), board);
+  }
+  for (const steps of Object.values(TIMELINE_BOARD_STEPS)) for (const board of steps) assert.ok(board in BOARD_TIMELINE_STAGE);
+  // Новое чтение — только у вошедших, с теми же проверками кабинета, что у обзора.
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.student_portal_board_stage_v1\(\) TO authenticated;/u);
+  assert.match(sql, /REVOKE ALL ON FUNCTION platform\.student_portal_board_stage_v1\(\) FROM PUBLIC, anon/u);
+  assert.match(sql, /student_case\.portal_activated_at IS NOT NULL[\s\S]*platform_can_read_student_portal_case/u);
 });

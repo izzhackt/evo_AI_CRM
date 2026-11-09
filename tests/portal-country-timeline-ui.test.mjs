@@ -180,8 +180,10 @@ test("styles add no red, keep 44 px targets and honour reduced motion", () => {
 
 test("progress on the path: done steps fold into one line, the step line stays on screen, nothing extra (owner, 08.11.2026)", () => {
   // Этап — только из своего дела; студент без дела или с непрочитанным обзором видит путь без прогресса.
-  assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage\) : null;/u);
+  assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage, boardStage\) : null;/u);
   assert.match(page, /stage: overviewResult\.ok \? overviewResult\.value\?\.operationalStage \?\? null : undefined,/u);
+  // Колонка доски своего дела (357) уточняет шаг среди шагов одного этапа.
+  assert.match(page, /boardStage: overviewResult\.ok \? overviewResult\.value\?\.boardStage \?\? null : null,/u);
   // Как на «Главной»: прогресс только у клиента с делом на сопровождении.
   assert.match(page, /const assisted = tier === "assisted";/u);
   assert.match(page, /progress=\{journey\.progress\}/u);

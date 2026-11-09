@@ -22,6 +22,7 @@ import it from "../../content/timelines/it.json" with { type: "json" };
 import cz from "../../content/timelines/cz.json" with { type: "json" };
 import undecided from "../../content/timelines/undecided.json" with { type: "json" };
 import { STUDY_COUNTRY_CODES, studyCountryName } from "../study-countries.ts";
+import { ADMISSIONS_PIPELINE_STAGES, type AdmissionsPipelineStage } from "../platform-admissions-pipeline-contract.ts";
 
 /** Значение выбора «Пока не решил» в RPC выбора страны (284) и здесь. */
 export const TIMELINE_UNDECIDED = "UNDECIDED";
@@ -429,6 +430,59 @@ export const COUNTRY_TIMELINES: Readonly<Record<string, CountryTimelineFile>> = 
 );
 
 // ---------------------------------------------------------------------------
+// Колонка доски и шаг пути (09.11.2026)
+// ---------------------------------------------------------------------------
+
+/**
+ * Этап кабинета по колонке доски «Воронка поступления» — то же правило, что в `student_portal_overview_v2()`
+ * (миграция 357): кабинет показывает этап колонки, где куратор держит дело.
+ */
+export const BOARD_TIMELINE_STAGE: Readonly<Record<AdmissionsPipelineStage, TimelineStageKey>> = Object.freeze({
+  new: "intake",
+  shortlist: "profile_and_route",
+  documents: "documents",
+  ready_to_submit: "applications",
+  awaiting_decision: "decisions",
+  confirmed: "visa_and_predeparture",
+  visa: "visa_and_predeparture",
+  predeparture: "visa_and_predeparture",
+  arrived: "arrival_and_adaptation",
+});
+
+/**
+ * Шаги пути, которые делят один этап, а доска различает их колонкой (09.11.2026, пользователь: «fix that» к тому,
+ * что из шагов одного этапа текущим всегда стоял первый). Ключ — id шага файла пути: сами файлы не меняются, их же
+ * строго читает приложение iPhone. Шаг без строки здесь выбирается как раньше — первым шагом своего этапа. Где у
+ * доски одна колонка на несколько шагов (Китай: три шага «документов»; приезд), различать нечем.
+ */
+export const TIMELINE_BOARD_STEPS: Readonly<Record<string, readonly AdmissionsPipelineStage[]>> = Object.freeze({
+  // Малайзия: «Виза» — пока поступление подтверждено и идёт виза; «Билет, SEV, MDAC и жильё» — подготовка к выезду.
+  "my-4-eval": ["confirmed", "visa"],
+  "my-5-predeparture": ["predeparture"],
+  // Италия: стипендия DSU — сразу после подтверждения; «Студенческая виза D» — колонки визы и выезда.
+  "it-5-dsu": ["confirmed"],
+  "it-7-visa": ["visa", "predeparture"],
+});
+
+// Таблица проверяется при импорте, как и файлы: шаг существует, колонка ведёт в его этап, в одном пути колонка
+// встречается один раз.
+for (const [file, timeline] of Object.entries(COUNTRY_TIMELINES)) {
+  const seen = new Set<AdmissionsPipelineStage>();
+  for (const step of timeline.steps) {
+    for (const board of TIMELINE_BOARD_STEPS[step.id] ?? []) {
+      if (!ADMISSIONS_PIPELINE_STAGES.includes(board) || !step.stageKeys.includes(BOARD_TIMELINE_STAGE[board]) || seen.has(board)) {
+        throw new Error(`timeline ${file}: board column ${board} does not fit step ${step.id}`);
+      }
+      seen.add(board);
+    }
+  }
+}
+const knownStepIds = new Set(Object.values(COUNTRY_TIMELINES).flatMap((timeline) => timeline.steps.map((step) => step.id)));
+for (const id of Object.keys(TIMELINE_BOARD_STEPS)) {
+  if (!knownStepIds.has(id)) throw new Error(`timeline: board steps name unknown step ${id}`);
+}
+
+// ---------------------------------------------------------------------------
 // Выбор и локализация
 // ---------------------------------------------------------------------------
 
@@ -575,15 +629,26 @@ export type TimelineStepProgress = "done" | "current" | "upcoming";
  * раньше этапа дела; до него пройдено, после — впереди. Несколько шагов одного этапа: сейчас первый из них. Этапа нет или
  * он неизвестен (студент без дела, дело до сценария) — `null`: путь показывается без прогресса, как раньше. Этап дальше
  * всех шагов — всё пройдено.
+ *
+ * Колонка доски (`boardStage`, 09.11.2026) уточняет шаг, когда этап пришёл из неё: из шагов этого этапа сейчас тот, за
+ * которым колонка закреплена в `TIMELINE_BOARD_STEPS`. Нет колонки, она не из этого этапа или шаг за ней не закреплён —
+ * как раньше.
  */
 export function timelineStepProgress(
   steps: readonly Readonly<{ id: string; stageKeys: readonly TimelineStageKey[] }>[],
   stage: unknown,
+  boardStage?: unknown,
 ): Readonly<Record<string, TimelineStepProgress>> | null {
   const at = typeof stage === "string" ? (TIMELINE_STAGE_KEYS as readonly string[]).indexOf(stage) : -1;
   if (at < 0 || steps.length === 0) return null;
   const last = (step: (typeof steps)[number]) => Math.max(...step.stageKeys.map((key) => TIMELINE_STAGE_KEYS.indexOf(key)));
-  const current = steps.findIndex((step) => last(step) >= at);
+  let current = steps.findIndex((step) => last(step) >= at);
+  const board = typeof boardStage === "string" && (ADMISSIONS_PIPELINE_STAGES as readonly string[]).includes(boardStage)
+    ? boardStage as AdmissionsPipelineStage : null;
+  if (board && BOARD_TIMELINE_STAGE[board] === stage) {
+    const pinned = steps.findIndex((step) => step.stageKeys.includes(BOARD_TIMELINE_STAGE[board]) && (TIMELINE_BOARD_STEPS[step.id] ?? []).includes(board));
+    if (pinned >= 0) current = pinned;
+  }
   return Object.freeze(Object.fromEntries(steps.map((step, index): [string, TimelineStepProgress] => [
     step.id,
     current < 0 || index < current ? "done" : index === current ? "current" : "upcoming",

@@ -92,8 +92,9 @@ const FORBIDDEN = Object.freeze({ kind: "forbidden" } as const);
  * Всё, что вид дела читает сверх профиля, одним параллельным заходом. Каждое
  * чтение падает отдельно и называет своё «недоступно»; права проверяет
  * сервер — здесь только подсказки, какие чтения вообще имеют смысл. Шапку
- * видно на каждой вкладке; задачи, переписку и ленту показывает только
- * «Обзор», поэтому на других вкладках они не читаются. Журнал дела для ленты
+ * видно на каждой вкладке, и без шага дела она называет ближайшую открытую
+ * задачу, поэтому задачи читаются всегда; переписку и ленту показывает только
+ * «Обзор», на других вкладках они не читаются. Журнал дела для ленты
  * (`feed`) — только на первой странице заметок: на более ранних лента —
  * одни заметки. Читателю «Ждут куратора» без права на само дело
  * (`assignOnly`, 248/281) задачи, переписка и журнал не читаются: их чтения
@@ -108,7 +109,8 @@ export async function readCaseWork(
   const assignOnly = options.assignOnly === true;
   const [row, tasks, chat, activity, deletionRequested, aiConsent] = await Promise.all([
     readCaseQueueRow(actor, target),
-    assignOnly ? FORBIDDEN : options.overview ? readCaseTasks(actor, target) : NOT_READ,
+    // Задачи читаются на любой вкладке: пока шага дела нет, «Что дальше» шапки называет ближайшую открытую задачу.
+    assignOnly ? FORBIDDEN : readCaseTasks(actor, target),
     assignOnly ? FORBIDDEN : options.overview ? readCaseChat(actor, target) : NOT_READ,
     assignOnly ? FORBIDDEN : options.overview && options.feed ? readCaseActivity(actor, target) : ACTIVITY_NOT_READ,
     hasOpenAccountDeletionRequestForCase(actor, target.studentCaseId),

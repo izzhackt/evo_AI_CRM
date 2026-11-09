@@ -42,7 +42,7 @@ export function DocumentsView({
   locale: Locale;
   /** Вкладки страницы — между карточкой «Чеклист» и содержимым (как у образца). */
   tabs?: ReactNode;
-  /** Другая вкладка («Пакеты по вузам») вместо списка документов. */
+  /** Другое содержимое вместо списка документов (с 09.11.2026 страница его не передаёт). */
   children?: ReactNode;
 }) {
   const strings = getPortalStrings("admission", locale);

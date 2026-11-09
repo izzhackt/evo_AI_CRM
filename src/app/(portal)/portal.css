@@ -6061,6 +6061,17 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   margin-top: 0;
 }
 
+.pt-docs-programs-note {
+  margin: 8px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-docs-programs-note .pt-link {
+  min-height: 0;
+  font-size: inherit;
+}
+
 .pt-docs-other {
   margin: 16px 0 0;
   padding: 0 4px;

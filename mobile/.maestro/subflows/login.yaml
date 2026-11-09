@@ -1,0 +1,21 @@
+# Вход тестовым студентом. Логин и пароль приходят из переменных окружения MAESTRO_E2E_LOGIN / MAESTRO_E2E_PASSWORD
+# (их задаёт scripts/e2e.mjs из игнорируемого файла .local-stack-accounts.json), в Git их нет.
+appId: com.evoadmissions.app
+---
+- tapOn:
+    id: login-input
+- inputText: ${MAESTRO_E2E_LOGIN}
+- tapOn:
+    id: password-input
+- inputText: ${MAESTRO_E2E_PASSWORD}
+- pressKey: Enter
+# Системный запрос iOS «Сохранить пароль?» (не часть приложения) закрываем, если он появился.
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+- extendedWaitUntil:
+    visible:
+      id: home-screen
+    timeout: 30000

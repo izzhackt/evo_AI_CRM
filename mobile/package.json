@@ -64,7 +64,9 @@
     "sync-photo-manifest": "node scripts/sync-photo-manifest.mjs",
     "guard:photos": "node scripts/sync-photo-manifest.mjs --check",
     "licenses": "node scripts/generate-licenses.mjs",
-    "guard:licenses": "node scripts/generate-licenses.mjs --check"
+    "guard:licenses": "node scripts/generate-licenses.mjs --check",
+    "e2e:ios": "node scripts/e2e.mjs ios",
+    "e2e:android": "node scripts/e2e.mjs android"
   },
   "private": true,
   "jest": {

@@ -1,0 +1,10 @@
+appId: com.evoadmissions.app
+name: Главная после входа
+---
+- runFlow: subflows/fresh-login.yaml
+- assertVisible:
+    id: home-screen
+- assertVisible:
+    id: home-hero
+- assertVisible:
+    id: stage-track

@@ -1,0 +1,41 @@
+appId: com.evoadmissions.app
+name: Профиль, язык и тема
+---
+- runFlow: subflows/fresh-login.yaml
+- runFlow:
+    file: subflows/open-section.yaml
+    env:
+      SECTION: profile
+- extendedWaitUntil:
+    visible:
+      id: profile-screen
+    timeout: 20000
+# Язык: кыргызский и обратно (заголовок карточки меняет язык).
+- tapOn:
+    id: profile-lang-ky
+# Язык меняется после ответа сервера: ждём.
+- extendedWaitUntil:
+    visible: "Порталдын тили"
+    timeout: 15000
+- tapOn:
+    id: profile-lang-ru
+# Язык меняется после ответа сервера: ждём.
+- extendedWaitUntil:
+    visible: "Язык портала"
+    timeout: 15000
+# Тема: тёмная, светлая (экран остаётся на месте; состояние сегмента у iOS и Android отдаётся по-разному).
+- scrollUntilVisible:
+    element:
+      id: theme-dark
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: theme-dark
+- waitForAnimationToEnd
+- assertVisible:
+    id: profile-screen
+- tapOn:
+    id: theme-light
+- waitForAnimationToEnd
+- assertVisible:
+    id: profile-screen

@@ -1,0 +1,32 @@
+appId: com.evoadmissions.app
+name: Выход очищает локальные данные
+---
+- runFlow: subflows/fresh-login.yaml
+- runFlow:
+    file: subflows/open-section.yaml
+    env:
+      SECTION: profile
+- extendedWaitUntil:
+    visible:
+      id: profile-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: sign-out
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: sign-out
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 30000
+# После перезапуска сессии нет: снова экран входа.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 60000
+- assertNotVisible:
+    id: home-screen

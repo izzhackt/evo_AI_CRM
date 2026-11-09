@@ -35,7 +35,7 @@ export function HomeHero({ displayName, studyCountry, stage }: { displayName: st
         <EvoMark size={240} color={markColor(tokens.heroMark)} />
       </View>
       <View style={{ gap: 8, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18 }}>
-        <Text variant="title" accessibilityRole="header" style={{ color: tokens.heroInk, fontSize: 28, lineHeight: 33 }}>
+        <Text variant="title" maxFontSizeMultiplier={1.2} accessibilityRole="header" style={{ color: tokens.heroInk, fontSize: 28, lineHeight: 33 }}>
           {format(home.greeting, { name: displayName })}
         </Text>
         {subline ? (

@@ -11,7 +11,7 @@ import { selectStudentJourney } from "@web/lib/portal/student-journey";
 
 import { evoActionDueLabel, evoActionStatusLabel, evoActionTone } from "@/domain/presentation";
 import { usePortalApi } from "@/api/PortalApi";
-import { loadErrorKey, useCountryChoice, useFavorites, useOverview, usePreparations } from "@/api/queries";
+import { loadErrorKey, useCountryChoice, useFavorites, useOverview, usePreparations, useRefetchOnFocus } from "@/api/queries";
 import { JourneySection } from "@/features/admission/JourneySection";
 import { nearestIntakeText } from "@/features/home/HomeCards";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
@@ -26,7 +26,6 @@ import { Card, Screen } from "@/ui/Screen";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
 
-const FAVORITES_LIMIT = 120;
 
 type Tab = "universities" | "programs";
 
@@ -58,7 +57,7 @@ function Tile({ icon: Icon, value, label, onPress, testID }: { icon: typeof Land
         <Icon size={20} strokeWidth={1.75} color={tokens.accent} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text variant="title" style={{ fontSize: 22, lineHeight: 26 }}>
+        <Text variant="title" maxFontSizeMultiplier={1.2} style={{ fontSize: 22, lineHeight: 26 }}>
           {value}
         </Text>
         <Text variant="caption" tone="text2">
@@ -105,9 +104,10 @@ export function AdmissionScreen() {
   const { tier, userKey, canSelectPrograms } = usePortalApi();
   const client = useQueryClient();
   const assisted = tier === "assisted";
+  useRefetchOnFocus();
   const overview = useOverview();
   const choice = useCountryChoice();
-  const favorites = useFavorites(FAVORITES_LIMIT);
+  const favorites = useFavorites();
   const preparations = usePreparations();
   const [tab, setTab] = useState<Tab>("universities");
   const [refreshing, setRefreshing] = useState(false);

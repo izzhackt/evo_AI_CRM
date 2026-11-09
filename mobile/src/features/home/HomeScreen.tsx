@@ -10,7 +10,7 @@ import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
 
 import { HOME_FAVORITES_LIMIT, collectHomeDates, homeSlots, homeToday, latestNews, showCountryChoice } from "@/domain/home-model";
 import { usePortalApi } from "@/api/PortalApi";
-import { useCountryChoice, useCscaHome, useFavorites, useNotifications, useOverview } from "@/api/queries";
+import { useCountryChoice, useCscaHome, useFavorites, useNotifications, useOverview, useRefetchOnFocus } from "@/api/queries";
 import { ApplicationCard, CaseCard, CscaCard, DatesCard, FavoritesCard, JourneyCard, NewsCard } from "@/features/home/HomeCards";
 import { HomeHero } from "@/features/home/HomeHero";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
@@ -25,9 +25,11 @@ export function HomeScreen() {
   const { tier, displayName, userKey } = usePortalApi();
   const client = useQueryClient();
   const assisted = tier === "assisted";
+  useRefetchOnFocus();
   const overview = useOverview();
   const news = useNotifications();
-  const favorites = useFavorites(HOME_FAVORITES_LIMIT);
+  const favorites = useFavorites();
+  const homeItems = favorites.data?.items.slice(0, HOME_FAVORITES_LIMIT) ?? null;
   const choice = useCountryChoice();
   const choiceData = choice.data ?? null;
   const cscaVisible = cscaHomeCardVisible(choiceData);
@@ -55,7 +57,7 @@ export function HomeScreen() {
   const slots = homeSlots({ tier, hasJourney: journey.view !== null, hasCscaCard: cscaCard !== null });
   const choiceLoad = loadOf(choice, m);
 
-  const dates = collectHomeDates({ overview: overview.data ?? null, favorites: favorites.data?.items ?? null, admission, home, now });
+  const dates = collectHomeDates({ overview: overview.data ?? null, favorites: homeItems, admission, home, now });
   const newsView = news.data ? latestNews(news.data) : null;
 
   const slot = (id: (typeof slots)[number]) => {
@@ -65,7 +67,7 @@ export function HomeScreen() {
       case "path":
         return journey.view ? <JourneyCard view={journey.view} progress={journey.progress} /> : null;
       case "universities":
-        return <FavoritesCard items={favorites.data?.items ?? []} total={favorites.data?.total ?? 0} load={loadOf(favorites, m)} now={now} />;
+        return <FavoritesCard items={homeItems ?? []} total={favorites.data?.total ?? 0} load={loadOf(favorites, m)} now={now} />;
       case "dates":
         return <DatesCard items={dates} today={homeToday(now)} />;
       case "news":

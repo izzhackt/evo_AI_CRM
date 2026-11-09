@@ -7,3 +7,8 @@ jest.mock("expo-crypto", () => ({
   randomUUID: () => require("node:crypto").randomUUID(),
   getRandomBytes: (size: number) => new Uint8Array(require("node:crypto").randomBytes(size)),
 }));
+
+// Экран в тесте без навигатора: эффект фокуса срабатывает при монтировании.
+jest.mock("@/lib/focus", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => require("react").useEffect(effect, [effect]),
+}));

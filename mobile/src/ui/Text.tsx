@@ -7,7 +7,13 @@ export type TextVariant = "display" | "title" | "heading" | "body" | "secondary"
 
 type Props = TextProps & { variant?: TextVariant; tone?: "text" | "text2" | "accent" | "error" | "ok" | "onAccent"; bold?: boolean };
 
-export function Text({ variant = "body", tone = "text", bold, style, ...rest }: Props) {
+/**
+ * Динамический шрифт iOS: крупные заголовки и подписи вкладок ограничены, чтобы макет
+ * не ломался; основной текст растёт до 2x (читаемость важнее ширины строки).
+ */
+const MAX_SCALE: Record<TextVariant, number> = { display: 1.2, title: 1.3, heading: 1.4, body: 2, secondary: 2, caption: 2, tab: 1.3, data: 2 };
+
+export function Text({ variant = "body", tone = "text", bold, style, maxFontSizeMultiplier, ...rest }: Props) {
   const { tokens } = useTheme();
   const base: Record<TextVariant, TextStyle> = {
     display: { fontFamily: sansFont("bold"), fontSize: tokens.sizeDisplay, lineHeight: tokens.sizeDisplay * 1.12, letterSpacing: -0.025 * tokens.sizeDisplay },
@@ -20,5 +26,5 @@ export function Text({ variant = "body", tone = "text", bold, style, ...rest }: 
     data: { fontFamily: monoFont(), fontSize: tokens.sizeSecondary, lineHeight: tokens.sizeSecondary * tokens.leading },
   };
   const color = tone === "text" ? tokens.text : tone === "text2" ? tokens.text2 : tone === "accent" ? tokens.accent : tone === "error" ? tokens.error : tone === "ok" ? tokens.ok : tokens.onAccent;
-  return <RNText {...rest} style={[base[variant], { color }, bold ? { fontFamily: sansFont("semibold") } : null, style]} />;
+  return <RNText {...rest} maxFontSizeMultiplier={maxFontSizeMultiplier ?? MAX_SCALE[variant]} style={[base[variant], { color }, bold ? { fontFamily: sansFont("semibold") } : null, style]} />;
 }

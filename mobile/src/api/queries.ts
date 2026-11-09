@@ -3,7 +3,8 @@
 // fallback). Кэш держит последний удачный ответ, поэтому при потере связи экран
 // показывает прежние данные, а не пустоту.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+
+import { useCallback, useRef } from "react";
 import type { StudentCountryChoice } from "@web/lib/portal/country-choice";
 
 import { usePortalApi } from "@/api/PortalApi";
@@ -17,6 +18,8 @@ import {
   readPreparations,
   saveCountryChoice,
 } from "@/api/portal-reads";
+import { FAVORITES_QUERY_LIMIT } from "@/domain/home-model";
+import { useFocusEffect } from "@/lib/focus";
 import { RpcError, type FrozenWrite } from "@/lib/rpc";
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
@@ -37,10 +40,24 @@ export function useCountryChoice() {
   return useQuery({ queryKey: key(userKey, "country-choice"), queryFn: () => readCountryChoice(transport) });
 }
 
-/** Избранное: `limit` карточек для показа и общее число. */
-export function useFavorites(limit: number) {
+/** Избранное: один общий запрос (до 120 карточек и общее число) для Главной и Поступления. */
+export function useFavorites() {
   const { transport, userKey } = usePortalApi();
-  return useQuery({ queryKey: key(userKey, "favorites", limit), queryFn: () => readFavorites(transport, limit) });
+  return useQuery({ queryKey: key(userKey, "favorites"), queryFn: () => readFavorites(transport, FAVORITES_QUERY_LIMIT) });
+}
+
+/**
+ * На возврат на вкладку устаревшие чтения кабинета обновляются (кэш показывается сразу).
+ * Идущие запросы не перезапускаются; свежие (моложе staleTime) не трогаются.
+ */
+export function useRefetchOnFocus() {
+  const { userKey } = usePortalApi();
+  const client = useQueryClient();
+  useFocusEffect(
+    useCallback(() => {
+      void client.refetchQueries({ queryKey: ["portal", userKey], type: "active", stale: true }, { cancelRefetch: false });
+    }, [client, userKey]),
+  );
 }
 
 /** Карточка CSCA: читается только для Китая (`enabled` решает вызывающий). */

@@ -67,6 +67,8 @@ export const homeToday = (now: Date): string => todayForTimeline(now);
 export const HOME_NEWS_LIMIT = 3;
 /** Сколько избранных вузов видно на «Главной». */
 export const HOME_FAVORITES_LIMIT = 4;
+/** Один запрос избранного на Главную и Поступление; Главная показывает первые HOME_FAVORITES_LIMIT. */
+export const FAVORITES_QUERY_LIMIT = 120;
 
 export type HomeNewsView = Readonly<{ items: readonly StudentPortalNotification[]; unread: number }>;
 

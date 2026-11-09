@@ -8,7 +8,7 @@ import { Directory, File, Paths, UploadType } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
 
-import type { PickedFile, PickSource } from "@/domain/documents-model";
+import { progressPercent, type PickedFile, type PickSource } from "@/domain/documents-model";
 import type { DownloadDeps } from "@/features/documents/download";
 import type { UploadSend } from "@/features/documents/upload-controller";
 
@@ -92,7 +92,8 @@ export function createUploadSend(baseUrl: string, getToken: () => Promise<string
       mimeType: attempt.mimeType,
       headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": attempt.idempotencyKey, Accept: "application/json" },
       onProgress: ({ bytesSent, totalBytes }) => {
-        if (totalBytes > 0) attempt.onProgress((bytesSent / totalBytes) * 100);
+        const percent = progressPercent(bytesSent, totalBytes);
+        if (percent !== null) attempt.onProgress(percent);
       },
       signal: attempt.signal,
     });

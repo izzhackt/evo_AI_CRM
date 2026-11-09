@@ -18,7 +18,7 @@ import { Card } from "@/ui/Screen";
 import { StatusPill } from "@/ui/StatusPill";
 import { Text } from "@/ui/Text";
 
-function CaseFileRow({ file, io }: { file: StudentPortalCaseFile; io: DocumentsIo }) {
+function CaseFileRow({ file, io, first }: { file: StudentPortalCaseFile; io: DocumentsIo; first: boolean }) {
   const { m, t, format } = useLang();
   const { tokens } = useTheme();
   const api = usePortalApi();
@@ -46,7 +46,7 @@ function CaseFileRow({ file, io }: { file: StudentPortalCaseFile; io: DocumentsI
   };
 
   return (
-    <View testID={`case-file-${file.kind}-${file.fileId}`} style={{ flexDirection: "row", gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: tokens.line }}>
+    <View testID={`case-file-${file.kind}-${file.fileId}`} style={{ flexDirection: "row", gap: 12, paddingVertical: 12, borderTopWidth: first ? 0 : 1, borderTopColor: tokens.line }}>
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}>
         <FileText size={18} strokeWidth={1.75} color={tokens.accent} />
       </View>
@@ -83,8 +83,8 @@ export function CaseFilesCard({ files, io }: { files: readonly StudentPortalCase
         <Text variant="secondary" tone="text2" style={{ marginTop: 4, marginBottom: 8 }}>
           {strings.caseFilesLead}
         </Text>
-        {files.map((file) => (
-          <CaseFileRow key={`${file.kind}:${file.fileId}`} file={file} io={io} />
+        {files.map((file, index) => (
+          <CaseFileRow key={`${file.kind}:${file.fileId}`} file={file} io={io} first={index === 0} />
         ))}
       </View>
     </Card>

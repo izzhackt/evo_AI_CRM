@@ -9,7 +9,7 @@ export type DownloadTarget =
   | Readonly<{ kind: "version"; versionId: string }>
   | Readonly<{ kind: "case-file"; fileKind: CaseFileKind; fileId: string }>;
 
-export type DownloadErrorKey = "docs.errorSession" | "errorForbidden" | "docs.downloadUnavailable" | "docs.downloadFailed" | "errorNetwork";
+export type DownloadErrorKey = "docs.errorSession" | "docs.downloadForbidden" | "docs.downloadUnavailable" | "docs.downloadFailed" | "errorNetwork";
 
 export type DownloadResult = Readonly<{ ok: true; uri: string; name: string }> | Readonly<{ ok: false; error: DownloadErrorKey }>;
 
@@ -43,7 +43,7 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
     return { ok: false, error: "errorNetwork" };
   }
   if (response.status === 401) return { ok: false, error: "docs.errorSession" };
-  if (response.status === 403) return { ok: false, error: "errorForbidden" };
+  if (response.status === 403) return { ok: false, error: "docs.downloadForbidden" };
   if (!response.ok) return { ok: false, error: "docs.downloadUnavailable" };
   if (!contentTypeMatches(response.headers.get("content-type"), mimeType)) return { ok: false, error: "docs.downloadFailed" };
   let bytes: Uint8Array;

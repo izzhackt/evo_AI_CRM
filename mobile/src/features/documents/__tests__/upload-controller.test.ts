@@ -1,4 +1,4 @@
-import { checkPickedFile, resolveMimeType, safeFileName, MAX_UPLOAD_BYTES, type PickedFile } from "@/domain/documents-model";
+import { checkPickedFile, progressPercent, resolveMimeType, safeFileName, MAX_UPLOAD_BYTES, type PickedFile } from "@/domain/documents-model";
 import { failureOf, parseUploadReceipt, UploadController, type UploadAttempt, type UploadResponse, type UploadState } from "@/features/documents/upload-controller";
 
 const SLOT = "44444444-4444-4444-8444-444444444444";
@@ -56,6 +56,17 @@ describe("проверка файла до отправки", () => {
     expect(safeFileName("", "image/jpeg")).toBe("document.jpg");
     expect(safeFileName("scan.jpeg", "image/jpeg")).toBe("scan.jpeg");
     expect(safeFileName("scan.png", "application/pdf")).toBe("scan.png.pdf");
+  });
+});
+
+describe("процент загрузки", () => {
+  it("считает и для чисел, и для BigInt (iOS отдаёт Int64)", () => {
+    expect(progressPercent(50, 200)).toBe(25);
+    expect(progressPercent(BigInt(50), BigInt(200))).toBe(25);
+    expect(progressPercent(BigInt(200), BigInt(200))).toBe(100);
+    expect(progressPercent(300, 200)).toBe(100);
+    expect(progressPercent(0, 0)).toBeNull();
+    expect(progressPercent(10, Number.NaN)).toBeNull();
   });
 });
 

@@ -25,7 +25,7 @@ import { Text } from "@/ui/Text";
 const PRIVACY_URL = "https://evoadmissions.com/ru/privacy/";
 
 function counterColor(kind: string, tokens: ReturnType<typeof useTheme>["tokens"]): string {
-  return kind === "approved" ? tokens.ok : kind === "submitted" ? tokens.accent : kind === "correction" ? tokens.warn : tokens.text2;
+  return kind === "approved" ? tokens.ok : kind === "submitted" ? tokens.text : kind === "correction" ? tokens.warn : tokens.text2;
 }
 
 export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }) {
@@ -106,9 +106,7 @@ export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }
             <Card>
               <View testID="checklist">
                 {list.map((document, index) => (
-                  <View key={document.documentSlotId} style={index === 0 ? { marginTop: -1 } : undefined}>
-                    <DocumentRow document={document} io={io} />
-                  </View>
+                  <DocumentRow key={document.documentSlotId} document={document} io={io} first={index === 0} />
                 ))}
               </View>
             </Card>

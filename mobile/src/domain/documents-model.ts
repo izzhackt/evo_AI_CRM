@@ -126,3 +126,15 @@ export function documentProgressCounts(documents: readonly Pick<StudentPortalDoc
   ];
   return all.filter((item) => item.count > 0);
 }
+
+/**
+ * Процент отправленного для полосы загрузки. Нативный слой iOS отдаёт байты как BigInt
+ * (Int64), поэтому счёт идёт через Number: смешение BigInt и числа в JS бросает исключение
+ * (найдено живой загрузкой на симуляторе, 09.11.2026).
+ */
+export function progressPercent(bytesSent: number | bigint, totalBytes: number | bigint): number | null {
+  const sent = Number(bytesSent);
+  const total = Number(totalBytes);
+  if (!Number.isFinite(sent) || !Number.isFinite(total) || total <= 0) return null;
+  return Math.min(100, Math.max(0, (sent / total) * 100));
+}

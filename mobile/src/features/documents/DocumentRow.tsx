@@ -28,7 +28,7 @@ const ICONS = { file: FileText, clock: Clock, check: Check, alert: AlertTriangle
 
 type Notice = Readonly<{ kind: "camera"; canAskAgain: boolean }> | Readonly<{ kind: "pick" }> | Readonly<{ kind: "download"; error: DownloadErrorKey }> | null;
 
-export function DocumentRow({ document, io, highlighted = false }: { document: StudentPortalDocument; io: DocumentsIo; highlighted?: boolean }) {
+export function DocumentRow({ document, io, first = false, highlighted = false }: { document: StudentPortalDocument; io: DocumentsIo; first?: boolean; highlighted?: boolean }) {
   const { lang, m, t, format } = useLang();
   const { tokens } = useTheme();
   const api = usePortalApi();
@@ -115,7 +115,7 @@ export function DocumentRow({ document, io, highlighted = false }: { document: S
   return (
     <View
       testID={`document-${document.documentSlotId}`}
-      style={{ flexDirection: "row", gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: tokens.line, backgroundColor: highlighted ? tokens.accentSoft : "transparent" }}
+      style={{ flexDirection: "row", gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderTopWidth: first ? 0 : 1, borderTopColor: tokens.line, backgroundColor: highlighted ? tokens.accentSoft : "transparent" }}
     >
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}>
         <Icon size={18} strokeWidth={1.75} color={tokens.accent} />

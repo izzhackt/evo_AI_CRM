@@ -57,7 +57,7 @@ describe("скачивание", () => {
   });
   it.each([
     [401, "docs.errorSession"],
-    [403, "errorForbidden"],
+    [403, "docs.downloadForbidden"],
     [404, "docs.downloadUnavailable"],
     [503, "docs.downloadUnavailable"],
   ])("статус %i -> %s, файл не пишется", async (status, error) => {

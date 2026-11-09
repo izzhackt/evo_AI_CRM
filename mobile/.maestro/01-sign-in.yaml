@@ -31,6 +31,16 @@ name: Вход студента
       visible: "Not Now"
     commands:
       - tapOn: "Not Now"
+# 356: студенту без решения о Политике и ИИ первым открывается экран «Конфиденциальность» - проходим его.
+- extendedWaitUntil:
+    visible:
+      id: "home-screen|consent-submit"
+    timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: consent-submit
+    file: subflows/pass-consent.yaml
 - extendedWaitUntil:
     visible:
       id: home-screen

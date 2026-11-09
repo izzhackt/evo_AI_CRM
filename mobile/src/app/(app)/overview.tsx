@@ -1,6 +1,3 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { AdmissionScreen } from "@/features/admission/AdmissionScreen";
 
-// TODO(M1): Поступление: путь страны и этапы дела.
-export default function OverviewScreen() {
-  return <SectionPlaceholder id="overview" />;
-}
+export default AdmissionScreen;

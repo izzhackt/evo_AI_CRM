@@ -161,6 +161,7 @@ function harness(options = {}) {
       rememberStudentSignup: async () => { throw new Error("New account acceptance belongs to27c"); },
     },
     "./student-application-contract": contract, "./student-invite-callback-contract": callback,
+    "./portal/consent-gate-rpc": { portalTargetAfterSignIn: async () => options.portalTarget ?? "/portal" },
     "./supabase/server": { createSupabaseServerClient: async () => { calls.push(["client"]); return client; } },
     "./supabase/student-portal-authority": portalAuthority,
     "./v3/student-application-source": source,
@@ -332,6 +333,9 @@ test("approval status alone cannot enter the portal without refreshed verified S
   assert.deepEqual(callNames(denied), ["client", "readOwn", "refreshSession", "getClaims", "portalAuthority"]);
   const accepted = harness({ existing: { status: "approved" }, authority: { status: "authenticated" } });
   await assert.rejects(accepted.refreshStudentApplicationAction(), redirectsTo("/portal"));
+  // 356: an approved applicant with no privacy decision goes straight to the consent screen.
+  const undecided = harness({ existing: { status: "approved" }, authority: { status: "authenticated" }, portalTarget: "/portal/privacy" });
+  await assert.rejects(undecided.refreshStudentApplicationAction(), redirectsTo("/portal/privacy"));
 });
 
 function proxyHarness({ claimsError = null } = {}) {

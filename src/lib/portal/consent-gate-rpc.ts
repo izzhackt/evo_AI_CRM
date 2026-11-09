@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   CONSENT_GATE_AI_POLICY_VERSION,
+  CONSENT_GATE_PATH,
   CONSENT_GATE_SOURCE,
+  consentGateRequired,
   PRIVACY_POLICY_VERSION,
   isConsentRequestId,
   parseConsentStatus,
@@ -62,5 +64,20 @@ export async function acceptConsentsFrom(
     return await acceptConsentsWith(await openClient(), requestId);
   } catch {
     return { ok: false };
+  }
+}
+
+/**
+ * Куда вести студента сразу после входа или одобрения: на экран «Конфиденциальность», если решения ещё нет, иначе в
+ * кабинет. Нужно действиям с мягким переходом (`redirect` из серверного действия): слой кабинета при мягком переходе
+ * в его же дочернюю страницу перенаправляет в пустоту (клиент считает слой загруженным, а он прервался редиректом, и
+ * бесконечно перезапрашивает экран). Прямой заход по адресу слой по-прежнему перенаправляет сам. Сбой чтения - «/portal».
+ */
+export async function portalTargetAfterSignIn(client: SupabaseClient): Promise<typeof CONSENT_GATE_PATH | "/portal"> {
+  try {
+    const status = await readConsentStatusWith(client);
+    return status !== null && consentGateRequired(status) ? CONSENT_GATE_PATH : "/portal";
+  } catch {
+    return "/portal";
   }
 }

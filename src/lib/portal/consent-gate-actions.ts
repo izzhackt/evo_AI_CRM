@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { exactActionStringFields } from "../server/action-form-fields.ts";
@@ -27,5 +28,8 @@ export async function acceptOwnConsentsAction(
   if (!isConsentRequestId(requestId)) return { status: "unavailable" };
   const result = await acceptConsentsFrom(createSupabaseServerClient, requestId);
   if (!result.ok) return { status: "unavailable" };
+  // Слой кабинета на экране «Конфиденциальность» рисует облегчённую обёртку без рейла. Без сброса кэша маршрутов
+  // мягкий переход на запрошенную страницу оставил бы её: слой считался бы загруженным и не перерисовался.
+  revalidatePath("/portal", "layout");
   redirect(safeConsentReturnPath(fields.get("next")));
 }

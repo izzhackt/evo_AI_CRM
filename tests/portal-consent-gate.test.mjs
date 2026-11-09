@@ -20,7 +20,7 @@ import {
   parseConsentStatus,
   safeConsentReturnPath,
 } from "../src/lib/portal/consent-gate.ts";
-import { acceptConsentsFrom, acceptConsentsWith, readConsentStatusFrom, readConsentStatusWith } from "../src/lib/portal/consent-gate-rpc.ts";
+import { acceptConsentsFrom, acceptConsentsWith, portalTargetAfterSignIn, readConsentStatusFrom, readConsentStatusWith } from "../src/lib/portal/consent-gate-rpc.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -121,6 +121,14 @@ test("the transport sends the exact RPC arguments and trusts only a confirming a
   assert.doesNotMatch(code("src/lib/portal/consent-gate-rpc.ts"), /auth\.uid|getUser|userId|user_id/u, "the database derives the student itself");
 });
 
+test("right after sign-in the student goes straight to the screen when undecided (a soft redirect through the layout would loop)", async () => {
+  assert.equal(await portalTargetAfterSignIn(fakeClient({ data: NEW_STUDENT, error: null })), "/portal/privacy");
+  assert.equal(await portalTargetAfterSignIn(fakeClient({ data: DONE, error: null })), "/portal");
+  // A failed or odd read never locks the cabinet, and a thrown client is the same.
+  assert.equal(await portalTargetAfterSignIn(fakeClient({ data: null, error: { code: "42501" } })), "/portal");
+  assert.equal(await portalTargetAfterSignIn({ schema() { throw new Error("down"); } }), "/portal");
+});
+
 function compile(path, dependencies = {}) {
   const output = ts.transpileModule(read(path), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -139,6 +147,7 @@ function action({ rpc = { data: DONE, error: null }, authed = true } = {}) {
   const client = fakeClient(rpc);
   const subject = compile("src/lib/portal/consent-gate-actions.ts", {
     "next/navigation": { redirect: (path) => { events.push(["redirect", path]); throw Object.assign(new Error("redirect"), { path }); } },
+    "next/cache": { revalidatePath: (path, type) => { events.push(["revalidate", path, type]); } },
     "../server/action-form-fields.ts": compile("src/lib/server/action-form-fields.ts"),
     "../student-portal-guards": { requireStudentPortalActor: async () => { if (!authed) throw new Error("guard"); events.push(["guard"]); return {}; } },
     "../supabase/server": { createSupabaseServerClient: async () => client },
@@ -168,6 +177,9 @@ test("the action needs both boxes, a frozen request id and a signed-in student; 
   assert.equal(ok.client.calls.length, 1);
   assert.equal(ok.client.calls[0].args.p_request_id, REQUEST_ID);
   assert.equal(ok.events[0][0], "guard", "the guard runs first");
+  // The bare screen layout must not survive a soft navigation: the cache is dropped right before the redirect.
+  assert.deepEqual(ok.events.slice(-2).map((e) => e[0]), ["revalidate", "redirect"]);
+  assert.deepEqual(ok.events.find((e) => e[0] === "revalidate"), ["revalidate", "/portal", "layout"]);
 
   for (const fields of [{ policy_consent: "" }, { ai_consent: "" }, { policy_consent: "on" }, { ai_consent: "yes" }]) {
     const run = action();

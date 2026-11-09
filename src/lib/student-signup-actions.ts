@@ -11,6 +11,7 @@ import { recordRegistrationAiConsent, registrationAiConsentChoice } from "./serv
 import type { SignupFailure, SignupPending } from "./student-signup-confirmation-state";
 import { STUDENT_APPLICATION_CONSENT_VERSION, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
 import { studentInviteCallbackUrl } from "./student-invite-callback-contract";
+import { portalTargetAfterSignIn } from "./portal/consent-gate-rpc";
 import { createSupabaseServerClient } from "./supabase/server";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
 import { readOwnStudentApplication, submitStudentApplication } from "./v3/student-application-source";
@@ -88,7 +89,7 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
 
 export async function refreshStudentApplicationAction(): Promise<StudentSignupState> {
   if (!await validStudentOrigin()) return { status: "invalid" };
-  let approved = false;
+  let approved: "/portal" | "/portal/privacy" | null = null;
   try {
     const client = await createSupabaseServerClient();
     const application = await readOwnStudentApplication(client);
@@ -100,10 +101,10 @@ export async function refreshStudentApplicationAction(): Promise<StudentSignupSt
       if (claimError || !data?.claims) return { status: "unavailable" };
       const authority = await readVerifiedStudentPortalAuthority(client, data.claims);
       if (authority.status !== "authenticated") return { status: "unavailable" };
-      approved = true;
+      approved = await portalTargetAfterSignIn(client);
     }
   } catch { return { status: "unavailable" }; }
-  if (approved) redirect("/portal");
+  if (approved) redirect(approved);
   revalidatePath("/apply/status");
   return { status: "idle" };
 }

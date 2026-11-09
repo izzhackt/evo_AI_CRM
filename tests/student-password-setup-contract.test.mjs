@@ -54,7 +54,8 @@ test("root, login and proxy dispatch each authenticated identity to one product"
 
   assert.match(login, /readVerifiedStudentPortalAuthority/u);
   assert.match(login, /readVerifiedStudentInviteSession/u);
-  assert.match(login, /redirectTarget = "\/portal"/u);
+  // 356: the student lands on the cabinet, or straight on the consent screen when there is no decision yet.
+  assert.match(login, /redirectTarget = await portalTargetAfterSignIn\(client\)/u);
   assert.match(login, /redirectTarget = "\/auth\/account-pending"/u);
 
   assert.match(proxy, /session\.state === "student"/u);

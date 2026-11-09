@@ -20,7 +20,7 @@ import { AI_AGENT_TOOL_ERROR_WORDS, toolErrorWords } from "../src/lib/v3/ai-agen
 test("the shared constants are the owner's contract of 25.10.2026", () => {
   assert.equal(AI_CONSENT_POLICY_VERSION, "2026-10-25");
   assert.deepEqual([...AI_CONSENT_STATUSES], ["granted", "declined"]);
-  assert.deepEqual([...AI_CONSENT_SOURCES], ["portal_web", "ios"]);
+  assert.deepEqual([...AI_CONSENT_SOURCES], ["portal_web", "ios", "android"]);
   assert.equal(AI_CONSENT_MISSING_CODE, "ai_consent_missing");
   assert.equal(AI_CONSENT_MISSING_MESSAGE, "Студент не дал согласия на ИИ-помощников: его документы и переписку агент не читает.");
   assert.equal(AI_CONSENT_MISSING_CHAT_LINE, "Студент не дал согласия на ИИ-помощников — помощник не читает эту переписку.");

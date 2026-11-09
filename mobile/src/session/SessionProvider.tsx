@@ -7,6 +7,7 @@ import { clearDownloadCache } from "@/features/documents/download-cache";
 import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
+import { clearUniversityCaches } from "@/features/universities/cache";
 import { createAccessDeps } from "@/session/deps";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
@@ -93,6 +94,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           case "SIGNED_OUT":
             void clearPerUserUiState();
             void clearDownloadCache();
+            void clearUniversityCaches();
             runId.current += 1;
             forcedMustSetRef.current = false;
             setMustSetPassword(false);
@@ -138,6 +140,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut({ scope: "local" });
     await clearPerUserUiState();
     await clearDownloadCache();
+    await clearUniversityCaches(); // копия каталога на диске не переживает выход
     runId.current += 1;
     forcedMustSetRef.current = false;
     setMustSetPassword(false);

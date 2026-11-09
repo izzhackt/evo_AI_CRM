@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { PortalPoll } from "@/api/PortalPoll";
 import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
 import { getConfig } from "@/config";
+import { UniversityIndexWarmup } from "@/features/universities/IndexWarmup";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { MenuSheet } from "@/shell/MenuSheet";
 import { SECTIONS, isAllowed, type SectionId } from "@/shell/sections";
@@ -12,6 +13,7 @@ import { TopBar } from "@/shell/TopBar";
 import { useSession } from "@/session/SessionProvider";
 
 function activeSection(pathname: string): SectionId | null {
+  // Первый сегмент: у вложенных разделов («Университеты») путь длиннее одного имени.
   const name = pathname.split("/").filter(Boolean)[0] ?? "home";
   return SECTIONS.find((s) => s.id === name)?.id ?? null;
 }
@@ -55,6 +57,7 @@ export default function AppLayout() {
   return (
     <PortalApiProvider api={api}>
       <PortalPoll>
+      <UniversityIndexWarmup />
       <Tabs
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{ header: () => <TopBar onMenu={() => setMenuOpen(true)} /> }}

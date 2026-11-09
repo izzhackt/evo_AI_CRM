@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@formatjs/intl-pluralrules": "^7.0.4",
+    "@maplibre/maplibre-react-native": "^11.5.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.119.0",
     "@tanstack/react-query": "^5.107.1",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
     "@types/aes-js": "^3.1.4",
+    "@types/geojson": "^7946.0.16",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
     "eslint": "^9.39.5",
@@ -56,7 +58,9 @@
     "sync-tokens": "node scripts/sync-tokens.mjs",
     "guard:tokens": "node scripts/sync-tokens.mjs --check",
     "guard:shared": "node scripts/check-shared-imports.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test -- --ci && npm run guard:tokens && npm run guard:shared"
+    "check": "npm run typecheck && npm run lint && npm run test -- --ci && npm run guard:tokens && npm run guard:photos && npm run guard:shared",
+    "sync-photo-manifest": "node scripts/sync-photo-manifest.mjs",
+    "guard:photos": "node scripts/sync-photo-manifest.mjs --check"
   },
   "private": true,
   "jest": {

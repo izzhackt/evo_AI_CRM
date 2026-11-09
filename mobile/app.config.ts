@@ -41,6 +41,8 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     "expo-secure-store",
+    // Карта «Университетов»: MapLibre Native, тайлы OpenFreeMap как в вебе, без ключей (iOS и Android).
+    "@maplibre/maplibre-react-native",
     "./plugins/with-scene-config",
     // Тексты запросов iOS на русском (основной язык кабинета); пустой микрофон отключает RECORD_AUDIO.
     [

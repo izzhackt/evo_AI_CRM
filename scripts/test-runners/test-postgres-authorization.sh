@@ -5477,6 +5477,32 @@ SQL
       exit 1
     fi
   fi
+  # «Источник android у согласия на ИИ-помощников» (migration 355, 09.11.2026). Matched by name, not number. The migration
+  # widens the source list of the consent table's CHECK and of `portal_ai_consent_set_v1`: right after it a second apply
+  # refuses (a355_already_applied), then the suite, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_ai_consent_android_source.sql ]]; then
+    t355_again_log="$(mktemp -t evo-t355-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t355_again_log" 2>&1; then
+      echo "migration 355 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a355_already_applied" "$t355_again_log"; then
+      echo "a second apply of migration 355 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t355_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t355_again_log"
+    ai_consent_android_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_consent_android_source.sql </dev/null)"
+    printf '%s\n' "$ai_consent_android_log"
+    if ! grep -q 'A355_AI_CONSENT_ANDROID_SOURCE_SUITE_PASSED' <<<"$ai_consent_android_log"; then
+      echo "platform_ai_consent_android_source.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Скорость кабинета и CRM» (migration 351, 08.11.2026). Matched by name, not number. The migration rewrites the access
   # chain from LANGUAGE sql to plpgsql (and two hot callers): right after it a second apply refuses (a351_already_applied),
   # then the suite, insisting on its marker, proves no access decision moved.

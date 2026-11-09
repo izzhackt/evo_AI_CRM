@@ -1,0 +1,3 @@
+# Дословные тексты лицензий сторонних материалов: пробелы в конце строк оригинала сохраняются.
+mobile/assets/fonts/OFL-*.txt -whitespace
+mobile/scripts/licenses-extra/*.txt -whitespace

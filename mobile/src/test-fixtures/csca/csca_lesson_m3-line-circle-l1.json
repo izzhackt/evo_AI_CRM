@@ -1,0 +1,484 @@
+{
+  "draft": null,
+  "topic": {
+    "metadata": {
+      "section": 3,
+      "title_en": "Lines and circles",
+      "title_ky": "Түз сызык жана айлана",
+      "title_ru": "Прямая и окружность",
+      "likely_gap": false,
+      "syllabus_fit": "explicit",
+      "prerequisites": [
+        "m1-ineq-quadratic"
+      ],
+      "syllabus_point": "3.1",
+      "lessons_planned": 2,
+      "mock_items_estimate": 3
+    },
+    "topicKey": "m3-line-circle",
+    "orderIndex": 17
+  },
+  "lesson": {
+    "theory": [
+      {
+        "ky": "Түз сызыктын жантаюусу (slope) $x$ бирге чоңойгондо $y$ канчага өзгөрөрүн көрсөтөт. Эки чекит аркылуу: $k = \\frac{y_2 - y_1}{x_2 - x_1}$. Параллель түз сызыктардын жантаюулары барабар, перпендикуляр түз сызыктардын жантаюуларынын көбөйтүндүсү $-1$.",
+        "ru": "Наклон прямой (slope) показывает, на сколько меняется $y$, когда $x$ увеличивается на $1$. Через две точки: $k = \\frac{y_2 - y_1}{x_2 - x_1}$. У параллельных прямых наклоны равны, у перпендикулярных произведение наклонов равно $-1$.",
+        "kind": "idea"
+      },
+      {
+        "tex": [
+          "y - y_0 = k(x - x_0)",
+          "Ax + By + C = 0, \\quad k = -\\frac{A}{B}",
+          "\\parallel: \\quad k_1 = k_2",
+          "\\perp: \\quad k_1 k_2 = -1"
+        ],
+        "kind": "formula",
+        "note_ky": "Биринчи формула: $(x_0, y_0)$ чекити аркылуу өткөн, жантаюусу $k$ болгон түз сызык. Экинчиси: түз сызыктын жалпы түрү. Вертикалдык $x = c$ түз сызыгынын жантаюусу жок.",
+        "note_ru": "Первая формула: прямая через точку $(x_0, y_0)$ с наклоном $k$. Вторая: общий вид прямой. У вертикальной прямой $x = c$ наклона нет."
+      },
+      {
+        "ky": "Борбору $(a, b)$, радиусу $r$ болгон айлана (circle) бул борбордон $r$ аралыкта жаткан бардык чекиттер. Эгер теңдеме ачылган түрдө берилсе, толук квадраттарды бөлүп чыгарыңыз, ошондо борбор менен радиус көрүнөт.",
+        "ru": "Окружность (circle) с центром $(a, b)$ и радиусом $r$ это все точки на расстоянии $r$ от центра. Если уравнение дано в раскрытом виде, выделите полные квадраты, и центр с радиусом станут видны.",
+        "kind": "idea"
+      },
+      {
+        "tex": [
+          "(x - a)^2 + (y - b)^2 = r^2",
+          "d = \\frac{|Ax_0 + By_0 + C|}{\\sqrt{A^2 + B^2}}"
+        ],
+        "kind": "formula",
+        "note_ky": "Экинчи формула $(x_0, y_0)$ чекитинен $Ax + By + C = 0$ түз сызыгына чейинки аралыкты берет. Бул сабактын негизги куралы.",
+        "note_ru": "Вторая формула даёт расстояние от точки $(x_0, y_0)$ до прямой $Ax + By + C = 0$. Это главный инструмент урока."
+      },
+      {
+        "kind": "figure",
+        "caption_ky": "Борбордон түз сызыкка чейинки $d$ аралыгын $r$ радиусу менен салыштырыңыз. Эгер $d > r$ болсо, жалпы чекит жок. Эгер $d = r$ болсо, түз сызык айланага бир чекитте жанат. Эгер $d < r$ болсо, кесилишүү чекиттери экөө.",
+        "caption_ru": "Сравните расстояние $d$ от центра до прямой с радиусом $r$. Если $d > r$, общих точек нет. Если $d = r$, прямая касается окружности в одной точке. Если $d < r$, точек пересечения две.",
+        "figure_key": "circle-line-positions"
+      },
+      {
+        "kind": "example",
+        "steps": [
+          {
+            "ky": "Топтойбуз: $(x^2 + 2x) + (y^2 - 4y) = 4$.",
+            "ru": "Сгруппируем: $(x^2 + 2x) + (y^2 - 4y) = 4$."
+          },
+          {
+            "ky": "Квадраттарды бөлүп чыгарабыз: $(x + 1)^2 - 1 + (y - 2)^2 - 4 = 4$.",
+            "ru": "Выделим квадраты: $(x + 1)^2 - 1 + (y - 2)^2 - 4 = 4$."
+          },
+          {
+            "ky": "$(x + 1)^2 + (y - 2)^2 = 9$.",
+            "ru": "$(x + 1)^2 + (y - 2)^2 = 9$."
+          }
+        ],
+        "stem_en": "Find the center and the radius of the circle $x^2 + y^2 + 2x - 4y - 4 = 0$.",
+        "title_ky": "1-талдоо. Борбор жана радиус",
+        "title_ru": "Разбор 1. Центр и радиус",
+        "answer_ky": "борбору $(-1, 2)$, радиусу $3$",
+        "answer_ru": "центр $(-1, 2)$, радиус $3$"
+      },
+      {
+        "kind": "figure",
+        "caption_ky": "Борбордон түшүрүлгөн перпендикуляр хорданы тең экиге бөлөт. Радиус, $d$ аралыгы жана хорданын жарымы тик бурчтуу үч бурчтукту түзөт.",
+        "caption_ru": "Перпендикуляр из центра делит хорду пополам. Радиус, расстояние $d$ и половина хорды образуют прямоугольный треугольник.",
+        "figure_key": "circle-chord"
+      },
+      {
+        "tex": [
+          "|AB| = 2\\sqrt{r^2 - d^2}"
+        ],
+        "kind": "formula",
+        "note_ky": "Формула ушул үч бурчтук үчүн Пифагор теоремасынан түздөн-түз келип чыгат.",
+        "note_ru": "Формула следует прямо из теоремы Пифагора для этого треугольника."
+      },
+      {
+        "kind": "example",
+        "steps": [
+          {
+            "ky": "Борбору $(-1, 2)$, $r = 3$.",
+            "ru": "Центр $(-1, 2)$, $r = 3$."
+          },
+          {
+            "ky": "$d = \\frac{|4 \\cdot (-1) - 3 \\cdot 2 + 5|}{\\sqrt{16 + 9}} = \\frac{5}{5} = 1$.",
+            "ru": "$d = \\frac{|4 \\cdot (-1) - 3 \\cdot 2 + 5|}{\\sqrt{16 + 9}} = \\frac{5}{5} = 1$."
+          },
+          {
+            "ky": "$d < r$, түз сызык айлананы кесет. Хорданын жарымы: $\\sqrt{r^2 - d^2} = \\sqrt{9 - 1} = 2\\sqrt{2}$.",
+            "ru": "$d < r$, прямая пересекает окружность. Половина хорды: $\\sqrt{r^2 - d^2} = \\sqrt{9 - 1} = 2\\sqrt{2}$."
+          },
+          {
+            "ky": "$|AB| = 2 \\cdot 2\\sqrt{2} = 4\\sqrt{2}$.",
+            "ru": "$|AB| = 2 \\cdot 2\\sqrt{2} = 4\\sqrt{2}$."
+          }
+        ],
+        "stem_en": "The line $4x - 3y + 5 = 0$ meets the circle $(x + 1)^2 + (y - 2)^2 = 9$ at points $A$ and $B$. Find $|AB|$.",
+        "title_ky": "2-талдоо. Хорданын узундугу",
+        "title_ru": "Разбор 2. Длина хорды",
+        "answer_ky": "$|AB| = 4\\sqrt{2}$",
+        "answer_ru": "$|AB| = 4\\sqrt{2}$"
+      },
+      {
+        "kind": "pitfalls",
+        "items": [
+          {
+            "ky": "Борбордун координаталары карама-каршы белгилер менен алынат: $(x + 1)^2$ жазуусу $a = -1$ дегенди билдирет.",
+            "ru": "Координаты центра берут с противоположными знаками: запись $(x + 1)^2$ означает $a = -1$."
+          },
+          {
+            "ky": "Айлананын теңдемесинин оң жагында $r$ эмес, $r^2$ турат. Тамыр чыгарууну унутпаңыз.",
+            "ru": "Справа в уравнении окружности стоит $r^2$, а не $r$. Не забудьте извлечь корень."
+          },
+          {
+            "ky": "Аралык формуласынын алдында түз сызыкты $Ax + By + C = 0$ түрүнө келтириңиз жана $C$ санын өз белгиси менен коюңуз. Бөлүмдө $A + B$ эмес, $\\sqrt{A^2 + B^2}$ турат.",
+            "ru": "Перед формулой расстояния приведите прямую к виду $Ax + By + C = 0$ и подставляйте $C$ с его знаком. В знаменателе стоит $\\sqrt{A^2 + B^2}$, а не $A + B$."
+          },
+          {
+            "ky": "Перпендикулярдын жантаюусу $-\\frac{1}{k}$ барабар: бөлчөк тескери алынат жана белгиси өзгөрөт.",
+            "ru": "Наклон перпендикуляра равен $-\\frac{1}{k}$: дробь переворачивают и меняют знак."
+          }
+        ]
+      },
+      {
+        "ky": "Калькуляторсуз Пифагор үчтүктөрү жардам берет: $3, 4, 5$ жана $5, 12, 13$. $\\sqrt{3^2 + 4^2} = 5$ жана $\\sqrt{5^2 + 12^2} = 13$ бөлүмдөрү дароо чыгат. Жоопту тамыр менен калтырыңыз: $3\\sqrt{2}$ деп жазуу $4.24$ деп жазуудан так жана тез.",
+        "ru": "Без калькулятора помогают пифагоровы тройки $3, 4, 5$ и $5, 12, 13$: знаменатели $\\sqrt{3^2 + 4^2} = 5$ и $\\sqrt{5^2 + 12^2} = 13$ получаются сразу. Оставляйте ответ с корнем: $3\\sqrt{2}$ точнее и быстрее, чем $4.24$.",
+        "tip": "no_calculator",
+        "kind": "tip"
+      },
+      {
+        "kind": "terms",
+        "terms": [
+          {
+            "en": "slope",
+            "ky": "бурчтук коэффициент",
+            "ru": "угловой коэффициент"
+          },
+          {
+            "en": "parallel",
+            "ky": "параллель",
+            "ru": "параллельный"
+          },
+          {
+            "en": "perpendicular",
+            "ky": "перпендикуляр",
+            "ru": "перпендикулярный"
+          },
+          {
+            "en": "circle",
+            "ky": "айлана",
+            "ru": "окружность"
+          },
+          {
+            "en": "center",
+            "ky": "борбор",
+            "ru": "центр"
+          },
+          {
+            "en": "radius",
+            "ky": "радиус",
+            "ru": "радиус"
+          },
+          {
+            "en": "chord",
+            "ky": "хорда",
+            "ru": "хорда"
+          },
+          {
+            "en": "tangent line",
+            "ky": "жаныма",
+            "ru": "касательная"
+          },
+          {
+            "en": "distance from a point to a line",
+            "ky": "чекиттен түз сызыкка чейинки аралык",
+            "ru": "расстояние от точки до прямой"
+          },
+          {
+            "en": "intersect",
+            "ky": "кесилишүү",
+            "ru": "пересекаться"
+          }
+        ]
+      }
+    ],
+    "lessonId": "7f014b02-b63a-5322-8c71-d1e6ab8955db",
+    "metadata": {
+      "kind": "lesson",
+      "goal_ky": "Түз сызыктын жантаюусун жана перпендикулярдын теңдемесин табуу, айлананын теңдемесин борбору жана радиусу көрүнгөн түргө келтирүү, борбордон түз сызыкка чейинки аралык боюнча жануу жана хорда маселелерин чыгаруу.",
+      "goal_ru": "Находить наклон прямой и уравнение перпендикуляра, приводить уравнение окружности к виду с центром и радиусом, по расстоянию от центра до прямой решать задачи о касании и хордах.",
+      "title_en": "Lines and circles: distance decides",
+      "title_ky": "Түз сызык жана айлана: баарын аралык чечет",
+      "title_ru": "Прямая и окружность: всё решает расстояние",
+      "topic_key": "m3-line-circle",
+      "est_minutes": 18,
+      "syllabus_point": "3.1"
+    },
+    "exercises": [
+      {
+        "type": "item",
+        "stemEn": "Find the center and the radius of the circle $x^2 + y^2 - 4x + 6y - 3 = 0$.",
+        "itemKey": "csca-math-line-circle-001",
+        "options": [
+          {
+            "id": "a",
+            "label": "center $(2, -3)$, radius $4$"
+          },
+          {
+            "id": "b",
+            "label": "center $(-2, 3)$, radius $4$"
+          },
+          {
+            "id": "c",
+            "label": "center $(2, -3)$, radius $16$"
+          },
+          {
+            "id": "d",
+            "label": "center $(2, -3)$, radius $\\sqrt{3}$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 1,
+        "estSeconds": 45,
+        "exerciseId": "058480bc-98ba-564e-8509-5d70975d70dd",
+        "orderIndex": 1,
+        "exerciseKey": "csca-math-line-circle-001",
+        "syllabusPoint": "3.1"
+      },
+      {
+        "type": "item",
+        "stemEn": "What is the slope of the line $2x - 3y + 6 = 0$?",
+        "itemKey": "csca-math-line-circle-002",
+        "options": [
+          {
+            "id": "a",
+            "label": "$-\\frac{2}{3}$"
+          },
+          {
+            "id": "b",
+            "label": "$\\frac{3}{2}$"
+          },
+          {
+            "id": "c",
+            "label": "$\\frac{2}{3}$"
+          },
+          {
+            "id": "d",
+            "label": "$2$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 1,
+        "estSeconds": 45,
+        "exerciseId": "85803a91-bb7b-5b0a-87dd-d986eef9ec8f",
+        "orderIndex": 2,
+        "exerciseKey": "csca-math-line-circle-002",
+        "syllabusPoint": "3.1"
+      },
+      {
+        "type": "item",
+        "stemEn": "Find the distance from the point $(1, 2)$ to the line $3x + 4y - 1 = 0$.",
+        "itemKey": "csca-math-line-circle-003",
+        "options": [
+          {
+            "id": "a",
+            "label": "$10$"
+          },
+          {
+            "id": "b",
+            "label": "$2$"
+          },
+          {
+            "id": "c",
+            "label": "$\\frac{12}{5}$"
+          },
+          {
+            "id": "d",
+            "label": "$\\frac{10}{7}$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 1,
+        "estSeconds": 45,
+        "exerciseId": "abb4df41-8975-5284-8d07-f8b9b6cb7e8c",
+        "orderIndex": 3,
+        "exerciseKey": "csca-math-line-circle-003",
+        "syllabusPoint": "3.1"
+      },
+      {
+        "type": "item",
+        "stemEn": "The line $y = x + b$ is tangent to the circle $x^2 + y^2 = 2$. Find all possible values of $b$.",
+        "itemKey": "csca-math-line-circle-005",
+        "options": [
+          {
+            "id": "a",
+            "label": "$b = \\pm 2$"
+          },
+          {
+            "id": "b",
+            "label": "$b = 2$"
+          },
+          {
+            "id": "c",
+            "label": "$b = \\pm\\sqrt{2}$"
+          },
+          {
+            "id": "d",
+            "label": "$b = \\pm 2\\sqrt{2}$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 2,
+        "estSeconds": 75,
+        "exerciseId": "2d4b47d5-993c-56c6-89d1-f726131c5e2b",
+        "orderIndex": 4,
+        "exerciseKey": "csca-math-line-circle-005",
+        "syllabusPoint": "3.1"
+      }
+    ],
+    "lessonKey": "csca-math-m3-line-circle-l1",
+    "orderIndex": 5
+  },
+  "module": {
+    "track": "csca-math",
+    "version": "1.0.0",
+    "metadata": {
+      "sections": [
+        {
+          "points": [
+            {
+              "point": "1.1",
+              "label_en": "Sets",
+              "label_ky": "Көптүктөр: аныктамасы, амалдар, жазуу жолдору",
+              "label_ru": "Множества: определение, операции, способы записи"
+            },
+            {
+              "point": "1.2",
+              "label_en": "Inequalities",
+              "label_ky": "Барабарсыздыктар: касиеттери жана чыгаруу жолдору, анын ичинде квадраттык жана бөлчөк-рационалдык",
+              "label_ru": "Неравенства: свойства и способы решения, включая квадратные и дробно-рациональные"
+            }
+          ],
+          "section": 1,
+          "title_en": "Sets and Inequalities",
+          "title_ky": "Көптүктөр жана барабарсыздыктар",
+          "title_ru": "Множества и неравенства",
+          "mock_items_estimate": 7
+        },
+        {
+          "points": [
+            {
+              "point": "2.1",
+              "label_en": "Function concepts and properties",
+              "label_ky": "Функция жана анын касиеттери: аныкталуу областы, маанилер областы, монотондуулук, жуптук",
+              "label_ru": "Функция и её свойства: область определения, множество значений, монотонность, чётность"
+            },
+            {
+              "point": "2.2",
+              "label_en": "Basic elementary functions",
+              "label_ky": "Негизги элементардык функциялар: даражалуу, көрсөткүчтүү, логарифмдик, тригонометриялык",
+              "label_ru": "Основные элементарные функции: степенная, показательная, логарифмическая, тригонометрические"
+            },
+            {
+              "point": "2.3",
+              "label_en": "Sequences",
+              "label_ky": "Удаалаштыктар: арифметикалык жана геометриялык прогрессиялардын жалпы мүчөсү жана суммасы",
+              "label_ru": "Последовательности: общий член и сумма арифметической и геометрической прогрессий"
+            },
+            {
+              "point": "2.4",
+              "label_en": "Derivatives",
+              "label_ky": "Туундунун негиздери: аныктамасы, геометриялык мааниси, жөнөкөй колдонуулар",
+              "label_ru": "Основы производной: определение, геометрический смысл, простые применения"
+            }
+          ],
+          "section": 2,
+          "title_en": "Functions",
+          "title_ky": "Функциялар",
+          "title_ru": "Функции",
+          "mock_items_estimate": 19
+        },
+        {
+          "points": [
+            {
+              "point": "3.1",
+              "label_en": "Plane analytic geometry",
+              "label_ky": "Тегиздиктеги аналитикалык геометрия: түз сызык, айлана, эллипс, гипербола, парабола",
+              "label_ru": "Аналитическая геометрия на плоскости: прямая, окружность, эллипс, гипербола, парабола"
+            },
+            {
+              "point": "3.2",
+              "label_en": "Vectors and complex numbers",
+              "label_ky": "Векторлор жана комплекстүү сандар: амалдар",
+              "label_ru": "Векторы и комплексные числа: действия"
+            },
+            {
+              "point": "3.3",
+              "label_en": "Solid geometry",
+              "label_ky": "Стереометрия: мейкиндиктеги тик бурчтуу координаталар системасы, жөнөкөй телолор",
+              "label_ru": "Стереометрия: прямоугольная система координат в пространстве, простые тела"
+            }
+          ],
+          "section": 3,
+          "title_en": "Geometry and Algebra",
+          "title_ky": "Геометрия жана алгебра",
+          "title_ru": "Геометрия и алгебра",
+          "mock_items_estimate": 14
+        },
+        {
+          "points": [
+            {
+              "point": "4.1",
+              "label_en": "Classical probability",
+              "label_ky": "Классикалык ыктымалдык жана ыктымалдыктарды эсептөө",
+              "label_ru": "Классическая вероятность и вычисление вероятностей"
+            },
+            {
+              "point": "4.2",
+              "label_en": "Numerical characteristics of data",
+              "label_ky": "Маалыматтардын сандык мүнөздөмөлөрү: орточо маани, дисперсия",
+              "label_ru": "Числовые характеристики данных: среднее, дисперсия"
+            },
+            {
+              "point": "4.3",
+              "label_en": "Normal distribution",
+              "label_ky": "Нормалдуу бөлүштүрүү: негизги түшүнүктөр",
+              "label_ru": "Нормальное распределение: основные понятия"
+            }
+          ],
+          "section": 4,
+          "title_en": "Probability and Statistics",
+          "title_ky": "Ыктымалдык жана статистика",
+          "title_ru": "Вероятность и статистика",
+          "mock_items_estimate": 8
+        }
+      ],
+      "title_ky": "Математика",
+      "title_ru": "Математика",
+      "syllabus_url": "https://csca.cn/about/testprep",
+      "level_note_ky": "Тапшырмалар экзамендегидей англис тилинде. Түшүндүрмөлөр орус жана кыргыз тилдеринде, терминдер англис тилинде. Бардык тапшырмалар калькуляторсуз чыгарылат.",
+      "level_note_ru": "Задания на английском, как на экзамене. Объяснения на русском и кыргызском, термины на английском. Все задания решаются без калькулятора.",
+      "syllabus_edition": "2025"
+    },
+    "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+    "moduleKey": "csca-math"
+  },
+  "figures": {
+    "circle-chord": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 352\" width=\"400\" height=\"352\" font-family=\"Golos Text, -apple-system, Segoe UI, Roboto, Arial, sans-serif\"><title>Chord cut by the line 4x - 3y + 5 = 0 from the circle centered at (-1, 2) with radius 3</title><rect width=\"400\" height=\"352\" rx=\"12\" fill=\"#ffffff\"/><circle cx=\"191\" cy=\"178\" r=\"135\" fill=\"none\" stroke=\"#191714\" stroke-width=\"2.25\"/><path d=\"M125.8,340 L128,337 L130.2,334 L132.5,331 L134.8,328 L137,325 L139.2,322 L141.5,319 L143.8,316 L146,313 L148.2,310 L150.5,307 L152.8,304 L155,301 L157.2,298 L159.5,295 L161.8,292 L164,289 L166.2,286 L168.5,283 L170.8,280 L173,277 L175.2,274 L177.5,271 L179.8,268 L182,265 L184.2,262 L186.5,259 L188.8,256 L191,253 L193.2,250 L195.5,247 L197.8,244 L200,241 L202.2,238 L204.5,235 L206.8,232 L209,229 L211.2,226 L213.5,223 L215.7,220 L218,217 L220.2,214 L222.5,211 L224.8,208 L227,205 L229.3,202 L231.5,199 L233.8,196 L236,193 L238.2,190 L240.5,187 L242.8,184 L245,181 L247.2,178 L249.5,175 L251.8,172 L254,169 L256.2,166 L258.5,163 L260.8,160 L263,157 L265.2,154 L267.5,151 L269.8,148 L272,145 L274.2,142 L276.5,139 L278.8,136 L281,133 L283.2,130 L285.5,127 L287.8,124 L290,121 L292.2,118 L294.5,115 L296.8,112 L299,109 L301.2,106 L303.5,103 L305.8,100 L308,97 L310.2,94 L312.5,91 L314.8,88 L317,85 L319.2,82 L321.5,79 L323.8,76 L326,73 L328.2,70 L330.5,67 L332.8,64 L335,61 L337.2,58 L339.5,55 L341.8,52 L344,49 L346.2,46 L348.5,43 L350.8,40 L353,37 L355.2,34 L357.5,31 L359.8,28 L362,25 L364.2,22 L366.5,19 L368.8,16\" fill=\"none\" stroke=\"#d70217\" stroke-width=\"2.25\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><line x1=\"303.4\" y1=\"103.2\" x2=\"150.6\" y2=\"306.8\" stroke=\"#d70217\" stroke-width=\"4.5\" stroke-linecap=\"round\"/><line x1=\"191\" y1=\"178\" x2=\"227\" y2=\"205\" stroke=\"#177245\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><line x1=\"191\" y1=\"178\" x2=\"303.4\" y2=\"103.2\" stroke=\"#191714\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M216.9,197.4 L224.5,187.4 L234.6,194.9\" fill=\"none\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><circle cx=\"303.4\" cy=\"103.2\" r=\"4.5\" fill=\"#d70217\"/><text x=\"319.4\" y=\"109.2\" font-size=\"16\" fill=\"#d70217\" text-anchor=\"middle\" font-style=\"italic\">A</text><circle cx=\"150.6\" cy=\"306.8\" r=\"4.5\" fill=\"#d70217\"/><text x=\"150.6\" y=\"332.8\" font-size=\"16\" fill=\"#d70217\" text-anchor=\"middle\" font-style=\"italic\">B</text><circle cx=\"227\" cy=\"205\" r=\"4.5\" fill=\"#191714\"/><text x=\"243\" y=\"225\" font-size=\"16\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">H</text><circle cx=\"191\" cy=\"178\" r=\"4.5\" fill=\"#191714\"/><text x=\"175\" y=\"184\" font-size=\"16\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">C</text><text x=\"199\" y=\"209.5\" font-size=\"15\" fill=\"#177245\" text-anchor=\"end\"><tspan font-style=\"italic\">d</tspan> = 1</text><text x=\"237.2\" y=\"128.6\" font-size=\"15\" fill=\"#191714\" text-anchor=\"end\"><tspan font-style=\"italic\">r</tspan> = 3</text></svg>\n",
+      "altEn": "Circle with center C(-1, 2) and radius 3; the line 4x - 3y + 5 = 0 meets it at A and B. The perpendicular CH from the center has length 1; radius CA, segment CH and half-chord AH form a right triangle with the right angle at H.",
+      "altKy": "Борбору C(−1, 2), радиусу 3 болгон айлана. 4x − 3y + 5 = 0 түз сызыгы аны A жана B чекиттеринде кесет. Борбордон AB хордасына узундугу 1 болгон CH перпендикуляры түшүрүлгөн. CA радиусу, CH кесиндиси жана хорданын жарымы AH тик бурчу H чекитинде болгон тик бурчтуу үч бурчтукту түзөт.",
+      "altRu": "Окружность с центром C(−1, 2) и радиусом 3. Прямая 4x − 3y + 5 = 0 пересекает её в точках A и B. Из центра опущен перпендикуляр CH длиной 1 на хорду AB. Радиус CA, отрезок CH и половина хорды AH образуют прямоугольный треугольник с прямым углом в H.",
+      "sha256": "701991d51ccd31d9ec4e8050d356ec72c42bd4f735d0f3869db14f1e83e42c6a",
+      "viewBox": "0 0 400 352"
+    },
+    "circle-line-positions": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 450 200\" width=\"450\" height=\"200\" font-family=\"Golos Text, -apple-system, Segoe UI, Roboto, Arial, sans-serif\"><title>Three positions of a line and a circle</title><rect width=\"450\" height=\"200\" rx=\"12\" fill=\"#ffffff\"/><circle cx=\"75\" cy=\"104\" r=\"45\" fill=\"none\" stroke=\"#191714\" stroke-width=\"2.25\"/><line x1=\"9\" y1=\"34\" x2=\"141\" y2=\"34\" stroke=\"#d70217\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><circle cx=\"75\" cy=\"104\" r=\"3.5\" fill=\"#191714\"/><line x1=\"75\" y1=\"104\" x2=\"75\" y2=\"34\" stroke=\"#177245\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-dasharray=\"4 4\"/><line x1=\"75\" y1=\"104\" x2=\"115.8\" y2=\"123\" stroke=\"#6b6660\" stroke-width=\"1.75\" stroke-linecap=\"round\"/><text x=\"81\" y=\"74\" font-size=\"15\" fill=\"#177245\" text-anchor=\"start\" font-style=\"italic\">d</text><text x=\"97\" y=\"130\" font-size=\"15\" fill=\"#6b6660\" text-anchor=\"start\" font-style=\"italic\">r</text><text x=\"75\" y=\"192\" font-size=\"16\" fill=\"#191714\" text-anchor=\"middle\"><tspan font-style=\"italic\">d</tspan> &gt; <tspan font-style=\"italic\">r</tspan></text><circle cx=\"225\" cy=\"104\" r=\"45\" fill=\"none\" stroke=\"#191714\" stroke-width=\"2.25\"/><line x1=\"159\" y1=\"59\" x2=\"291\" y2=\"59\" stroke=\"#d70217\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><circle cx=\"225\" cy=\"104\" r=\"3.5\" fill=\"#191714\"/><line x1=\"225\" y1=\"104\" x2=\"225\" y2=\"59\" stroke=\"#177245\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-dasharray=\"4 4\"/><line x1=\"225\" y1=\"104\" x2=\"265.8\" y2=\"123\" stroke=\"#6b6660\" stroke-width=\"1.75\" stroke-linecap=\"round\"/><text x=\"231\" y=\"86.5\" font-size=\"15\" fill=\"#177245\" text-anchor=\"start\" font-style=\"italic\">d</text><text x=\"247\" y=\"130\" font-size=\"15\" fill=\"#6b6660\" text-anchor=\"start\" font-style=\"italic\">r</text><circle cx=\"225\" cy=\"59\" r=\"4.5\" fill=\"#d70217\"/><text x=\"225\" y=\"192\" font-size=\"16\" fill=\"#191714\" text-anchor=\"middle\"><tspan font-style=\"italic\">d</tspan> = <tspan font-style=\"italic\">r</tspan></text><circle cx=\"375\" cy=\"104\" r=\"45\" fill=\"none\" stroke=\"#191714\" stroke-width=\"2.25\"/><line x1=\"309\" y1=\"80\" x2=\"441\" y2=\"80\" stroke=\"#d70217\" stroke-width=\"2.5\" stroke-linecap=\"round\"/><circle cx=\"375\" cy=\"104\" r=\"3.5\" fill=\"#191714\"/><line x1=\"375\" y1=\"104\" x2=\"375\" y2=\"80\" stroke=\"#177245\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-dasharray=\"4 4\"/><line x1=\"375\" y1=\"104\" x2=\"415.8\" y2=\"123\" stroke=\"#6b6660\" stroke-width=\"1.75\" stroke-linecap=\"round\"/><text x=\"381\" y=\"97\" font-size=\"15\" fill=\"#177245\" text-anchor=\"start\" font-style=\"italic\">d</text><text x=\"397\" y=\"130\" font-size=\"15\" fill=\"#6b6660\" text-anchor=\"start\" font-style=\"italic\">r</text><circle cx=\"336.9\" cy=\"80\" r=\"4.5\" fill=\"#d70217\"/><circle cx=\"413.1\" cy=\"80\" r=\"4.5\" fill=\"#d70217\"/><text x=\"375\" y=\"192\" font-size=\"16\" fill=\"#191714\" text-anchor=\"middle\"><tspan font-style=\"italic\">d</tspan> &lt; <tspan font-style=\"italic\">r</tspan></text></svg>\n",
+      "altEn": "Three equal circles of radius r and three lines: left d > r with no common points, middle d = r with one point of tangency, right d < r with two intersection points.",
+      "altKy": "Радиусу r бирдей үч айлана жана үч түз сызык. Солдо борбордон түз сызыкка чейинки d аралыгы r радиусунан чоң, жалпы чекит жок. Ортодо d = r, бир жануу чекити. Оңдо d радиустан кичине, эки кесилишүү чекити.",
+      "altRu": "Три окружности одного радиуса r и три прямые. Слева расстояние d от центра до прямой больше r, общих точек нет. В центре d = r, одна точка касания. Справа d меньше r, две точки пересечения.",
+      "sha256": "dcd07840fb59cf0449c11d1ffb90cef1308fa29b7e9decc782262f08237c3cbf",
+      "viewBox": "0 0 450 200"
+    }
+  },
+  "latestCompleted": null
+}

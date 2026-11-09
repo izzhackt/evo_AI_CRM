@@ -1,0 +1,1482 @@
+{
+  "generatedBy": "scripts/portal/write-csca-overview-ios-parity.mjs",
+  "files": {
+    "overview.json": {
+      "sha256": "b491f6d6c44e4846ad8ef491dcbfe5d4e1f5084f41074b79effa45cdf039755b"
+    },
+    "photos.json": {
+      "sha256": "5a05994bdbb790c5ca8dd6e1a5b8a09c397a88a9e04a9e061d9e1b9cfc103f4e"
+    }
+  },
+  "overview": {
+    "contentVersion": 1,
+    "sha256": "0f768a958f249029f7a9ac4d1a5bc08b0e4c9e4085a4192bf5fc62d3e56bdf07"
+  },
+  "photos": {
+    "keys": [
+      "campus-sichuan",
+      "campus-xiamen"
+    ],
+    "sha256": "7b3694098a3ea2a96e2a06f90c10eef13e6706217b2fbabbb7d4e5706fd413b9"
+  },
+  "views": [
+    {
+      "case": "groups",
+      "locale": "ru",
+      "sha256": "71a89784795ea94ad168515e5ebf42ee62ab81ac7b7788ec41c27d164197ddd1"
+    },
+    {
+      "case": "mixed",
+      "locale": "ru",
+      "sha256": "e483e2d9b0088c114624b3cf4dba32335ba582a23484fd6a76f2f68d2d607b98"
+    },
+    {
+      "case": "groups",
+      "locale": "ky",
+      "sha256": "33af3510bb9e74ce1c2f26ef8fbaa3c5792d737142372818e6b62cf8a2623158"
+    },
+    {
+      "case": "mixed",
+      "locale": "ky",
+      "sha256": "04ce6da4e654696e0718de8469681376bf0ac8306bdc2ddec8132eb1b68bdcc0"
+    }
+  ],
+  "choice": {
+    "parse": [
+      [
+        "open",
+        "open"
+      ],
+      [
+        "closed",
+        "closed"
+      ],
+      [
+        "",
+        null
+      ],
+      [
+        "OPEN",
+        null
+      ],
+      [
+        "1",
+        null
+      ],
+      [
+        " open",
+        null
+      ],
+      [
+        null,
+        null
+      ]
+    ],
+    "open": [
+      [
+        null,
+        false,
+        true
+      ],
+      [
+        null,
+        true,
+        false
+      ],
+      [
+        "open",
+        true,
+        true
+      ],
+      [
+        "open",
+        false,
+        true
+      ],
+      [
+        "closed",
+        false,
+        false
+      ],
+      [
+        "closed",
+        true,
+        false
+      ]
+    ]
+  },
+  "vectors": [
+    {
+      "id": "em dash",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "CSCA \u2014 новый тест."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: em or en dash"
+    },
+    {
+      "id": "en dash in KY",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ky"
+          ],
+          "value": "CSCA \u2013 жаңы тест."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ky: em or en dash"
+    },
+    {
+      "id": "minus sign",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            1,
+            "ru"
+          ],
+          "value": "Баллы от \u22121 до 100."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[1].ru: em or en dash"
+    },
+    {
+      "id": "KY guarantee",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "audience",
+            "needed",
+            "text",
+            "ky"
+          ],
+          "value": "CSCнын 306 университети кепилдик берет."
+        }
+      ],
+      "expect": "csca overview.json: $.audience.needed.text.ky: forbidden wording /кепилд/iu"
+    },
+    {
+      "id": "100 % with a no-break space",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Тест на 100\u00a0% готовности."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: forbidden wording /100\\s*%/u"
+    },
+    {
+      "id": "partner",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "EVO партнёр CSC."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: forbidden wording /партн[её]р/iu"
+    },
+    {
+      "id": "Official Partner in KY",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            2,
+            "ky"
+          ],
+          "value": "EVO Official Partner."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[2].ky: forbidden wording /official\\s+partner/iu"
+    },
+    {
+      "id": "passing score",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Проходной балл не нужен."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: forbidden wording /проходн\\p{L}*\\s+балл/iu"
+    },
+    {
+      "id": "percentile",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Перцентиль не считается."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: forbidden wording /перцентил/iu"
+    },
+    {
+      "id": "guarantee in withoutSessions",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            1,
+            "link",
+            "withoutSessions",
+            "ru"
+          ],
+          "value": "Гарантируем места."
+        }
+      ],
+      "expect": "csca overview.json: $.faq.items[1].link.withoutSessions.ru: forbidden wording /гарант/iu"
+    },
+    {
+      "id": "year in an answer",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            1,
+            "answer",
+            0,
+            "ru"
+          ],
+          "value": "Регистрация до 14 февраля 2026."
+        }
+      ],
+      "expect": "csca overview.json: $.faq.items[1].answer[0].ru: a date in student text"
+    },
+    {
+      "id": "dotted date",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Сессия 21.12.25 прошла."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: a date in student text"
+    },
+    {
+      "id": "year in KY",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            0,
+            "answer",
+            0,
+            "ky"
+          ],
+          "value": "2027-жылы тапшырышат."
+        }
+      ],
+      "expect": "csca overview.json: $.faq.items[0].answer[0].ky: a date in student text"
+    },
+    {
+      "id": "digit groups with a plain space",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Тест для 1 200 абитуриентов."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: digit groups need U+00A0 or U+202F"
+    },
+    {
+      "id": "digit groups with U+00A0",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Тест для 1\u00a0200 абитуриентов."
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "digit groups with U+202F",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Тест для 1\u202f200 абитуриентов."
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "mixed script word",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Новый тестCSCA."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: mixed script word тестCSCA"
+    },
+    {
+      "id": "Latin word with a Kyrgyz ending",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ky"
+          ],
+          "value": "CSCAнын жаңы тести."
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "leading space",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": " Новый тест."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: empty or untrimmed text"
+    },
+    {
+      "id": "trailing U+FEFF",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Новый тест.\ufeff"
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: empty or untrimmed text"
+    },
+    {
+      "id": "vertical tab and a space",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Новый\u000b тест."
+        }
+      ],
+      "expect": "csca overview.json: $.intro[0].ru: empty or untrimmed text"
+    },
+    {
+      "id": "trailing U+0085 is not JavaScript whitespace",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "intro",
+            0,
+            "ru"
+          ],
+          "value": "Новый тест.\u0085"
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "empty KY summary",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "summary",
+            "ky"
+          ],
+          "value": ""
+        }
+      ],
+      "expect": "csca overview.json: $.summary.ky: empty or untrimmed text"
+    },
+    {
+      "id": "summary without 306",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "summary",
+            "ru"
+          ],
+          "value": "Нужен для бакалавриата. 5 предметов, взнос 450 CNY или 700 CNY."
+        }
+      ],
+      "expect": "csca overview.json: $.summary.ru: does not say 306"
+    },
+    {
+      "id": "3060 is not 306",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "summary",
+            "ru"
+          ],
+          "value": "Нужен в 3060 вузах CSC. 5 предметов, взнос 450 CNY или 700 CNY."
+        }
+      ],
+      "expect": "csca overview.json: $.summary.ru: does not say 306"
+    },
+    {
+      "id": "audience without 306",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "audience",
+            "needed",
+            "text",
+            "ru"
+          ],
+          "value": "Бакалавриат в вузах CSC."
+        }
+      ],
+      "expect": "csca overview.json: $.audience.needed.text.ru: does not say 306"
+    },
+    {
+      "id": "fee rows with a gap",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "fees",
+            "rows",
+            1,
+            "minSubjects"
+          ],
+          "value": 3
+        }
+      ],
+      "expect": "csca overview.json: $.fees.rows[1].minSubjects: rows must cover 1.. subjects without gaps"
+    },
+    {
+      "id": "last fee row closed",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "fees",
+            "rows",
+            1,
+            "maxSubjects"
+          ],
+          "value": 5
+        }
+      ],
+      "expect": "csca overview.json: $.fees.rows[1].maxSubjects: only the last row is open"
+    },
+    {
+      "id": "fee label without its count",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "fees",
+            "rows",
+            1,
+            "label",
+            "ru"
+          ],
+          "value": "два и больше"
+        }
+      ],
+      "expect": "csca overview.json: $.fees.rows[1].label: label does not name its count"
+    },
+    {
+      "id": "currency",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "fees",
+            "currency"
+          ],
+          "value": "USD"
+        }
+      ],
+      "expect": "csca overview.json: $.fees.currency: not CNY"
+    },
+    {
+      "id": "zero fee",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "fees",
+            "rows",
+            0,
+            "fee"
+          ],
+          "value": 0
+        }
+      ],
+      "expect": "csca overview.json: $.fees.rows[0].fee: not an integer 1..100000"
+    },
+    {
+      "id": "subjects total",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "exam",
+            "subjectsTotal"
+          ],
+          "value": 4
+        }
+      ],
+      "expect": "csca overview.json: $.exam.subjectsTotal: does not match the subjects table"
+    },
+    {
+      "id": "empty score range",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            1,
+            "subjects",
+            0,
+            "scoreMin"
+          ],
+          "value": 100
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[1].subjects[0]: score range is empty"
+    },
+    {
+      "id": "fractional minutes",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            0,
+            "subjects",
+            0,
+            "minutes"
+          ],
+          "value": 90.5
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[0].subjects[0].minutes: not an integer 1..600"
+    },
+    {
+      "id": "minutes as a string",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            0,
+            "subjects",
+            0,
+            "minutes"
+          ],
+          "value": "90"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[0].subjects[0].minutes: not an integer 1..600"
+    },
+    {
+      "id": "content version as a string",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "contentVersion"
+          ],
+          "value": "1"
+        }
+      ],
+      "expect": "csca overview.json: $.contentVersion: not an integer 1..10000"
+    },
+    {
+      "id": "unknown photo",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            "hero"
+          ],
+          "value": "campus-tsinghua"
+        }
+      ],
+      "expect": "csca overview.json: $.photos.hero: not a photo of the manifest"
+    },
+    {
+      "id": "question without ?",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            0,
+            "question",
+            "ru"
+          ],
+          "value": "Кто должен сдавать CSCA"
+        }
+      ],
+      "expect": "csca overview.json: $.faq.items[0].question: a question ends with ?"
+    },
+    {
+      "id": "unknown key",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            0,
+            "extra"
+          ],
+          "value": true
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[0]: unknown key extra"
+    },
+    {
+      "id": "minutes template without its slot",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "formats",
+            "minutes",
+            "ky"
+          ],
+          "value": "мүнөт"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.formats.minutes.ky: needs exactly the slots n"
+    },
+    {
+      "id": "minutes template with the slot twice",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "formats",
+            "minutes",
+            "ru"
+          ],
+          "value": "{n} мин {n}"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.formats.minutes.ru: needs exactly the slots n"
+    },
+    {
+      "id": "score template with the slots swapped",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "formats",
+            "scoreRange",
+            "ru"
+          ],
+          "value": "до {max} от {min}"
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "agency source",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "sources",
+            0,
+            "kind"
+          ],
+          "value": "agency"
+        }
+      ],
+      "expect": "csca overview.json: $.sources[0].kind: only owner-confirmed facts are in the overview"
+    },
+    {
+      "id": "source without omitted",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "delete",
+          "path": [
+            "sources",
+            0,
+            "omitted"
+          ]
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "source omitted null",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "sources",
+            0,
+            "omitted"
+          ],
+          "value": null
+        }
+      ],
+      "expect": "csca overview.json: $.sources[0].omitted: empty or untrimmed text"
+    },
+    {
+      "id": "Cyrillic English name",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            0,
+            "subjects",
+            0,
+            "nameEn"
+          ],
+          "value": "Гуманитарные"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[0].subjects[0].nameEn: not an English name"
+    },
+    {
+      "id": "unknown EVO status",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            1,
+            "subjects",
+            0,
+            "evo"
+          ],
+          "value": "soon"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[1].subjects[0].evo: not one of available, later, none"
+    },
+    {
+      "id": "subject without a local name",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            1,
+            "subjects",
+            0,
+            "name"
+          ],
+          "value": null
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "impossible date",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "confirmedOn"
+          ],
+          "value": "2026-02-30"
+        }
+      ],
+      "expect": "csca overview.json: $.confirmedOn: not a YYYY-MM-DD date"
+    },
+    {
+      "id": "schema version 2",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "schemaVersion"
+          ],
+          "value": 2
+        }
+      ],
+      "expect": "csca overview.json: $.schemaVersion: not 1"
+    },
+    {
+      "id": "unknown KY status",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "kyStatus"
+          ],
+          "value": "draft"
+        }
+      ],
+      "expect": "csca overview.json: $.kyStatus: unknown"
+    },
+    {
+      "id": "five intro paragraphs",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "copy",
+          "from": [
+            "intro",
+            0
+          ],
+          "path": [
+            "intro",
+            3
+          ]
+        },
+        {
+          "op": "copy",
+          "from": [
+            "intro",
+            0
+          ],
+          "path": [
+            "intro",
+            4
+          ]
+        }
+      ],
+      "expect": "csca overview.json: $.intro: needs 1..4 entries"
+    },
+    {
+      "id": "empty answer",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            0,
+            "answer"
+          ],
+          "value": []
+        }
+      ],
+      "expect": "csca overview.json: $.faq.items[0].answer: needs 1..4 entries"
+    },
+    {
+      "id": "link to another block",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            1,
+            "link",
+            "target"
+          ],
+          "value": "faq"
+        }
+      ],
+      "expect": "csca overview.json: $.faq.items[1].link.target: only the sessions block is a target"
+    },
+    {
+      "id": "dates answer without a link",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "faq",
+            "items",
+            1,
+            "link"
+          ],
+          "value": null
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "capital group key",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            0,
+            "key"
+          ],
+          "value": "Professional"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[0].key: not a key"
+    },
+    {
+      "id": "repeated subject key",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "subjects",
+            "groups",
+            1,
+            "subjects",
+            1,
+            "key"
+          ],
+          "value": "mathematics"
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.groups[].subjects: duplicate key"
+    },
+    {
+      "id": "missing summary",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "delete",
+          "path": [
+            "summary"
+          ]
+        }
+      ],
+      "expect": "csca overview.json: $: missing summary"
+    },
+    {
+      "id": "another exam",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "exam",
+            "short"
+          ],
+          "value": "HSK"
+        }
+      ],
+      "expect": "csca overview.json: $.exam.short: not CSCA"
+    },
+    {
+      "id": "audience as a list",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "audience"
+          ],
+          "value": []
+        }
+      ],
+      "expect": "csca overview.json: $.audience: not an object"
+    },
+    {
+      "id": "EVO status without later",
+      "file": "overview",
+      "ops": [
+        {
+          "op": "delete",
+          "path": [
+            "subjects",
+            "evoStatus",
+            "later"
+          ]
+        }
+      ],
+      "expect": "csca overview.json: $.subjects.evoStatus: missing later"
+    },
+    {
+      "id": "Unsplash source",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "sourceName"
+          ],
+          "value": "Unsplash"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].sourceName: only Pexels photos are cleared for this set"
+    },
+    {
+      "id": "no JPEG fallback",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "delete",
+          "path": [
+            "photos",
+            1,
+            "files",
+            2
+          ]
+        }
+      ],
+      "expect": "csca photos.json: $.photos[1].files: needs a JPEG fallback"
+    },
+    {
+      "id": "no WebP source",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            1,
+            "files",
+            0
+          ],
+          "value": {
+            "path": "photos/campus-xiamen-480.jpg",
+            "format": "jpeg",
+            "width": 480,
+            "height": 319,
+            "bytes": 30000,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        },
+        {
+          "op": "delete",
+          "path": [
+            "photos",
+            1,
+            "files",
+            1
+          ]
+        }
+      ],
+      "expect": "csca photos.json: $.photos[1].files: needs a WebP source"
+    },
+    {
+      "id": "file of another photo",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "files",
+            0,
+            "path"
+          ],
+          "value": "photos/campus-xiamen-240.webp"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files[0].path: not photos/<key>-<width>.<webp|jpg>"
+    },
+    {
+      "id": "width differs from the name",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "files",
+            0,
+            "width"
+          ],
+          "value": 241
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files[0].width: does not match the file name"
+    },
+    {
+      "id": "width with a leading zero in the name",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "files",
+            0,
+            "path"
+          ],
+          "value": "photos/campus-sichuan-0240.webp"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files[0].width: does not match the file name"
+    },
+    {
+      "id": "format differs from the extension",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "files",
+            0,
+            "format"
+          ],
+          "value": "jpeg"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files[0].format: does not match the extension"
+    },
+    {
+      "id": "file too large",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "files",
+            0,
+            "bytes"
+          ],
+          "value": 500000
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files[0].bytes: not an integer 1..400000"
+    },
+    {
+      "id": "upper-case hash",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "files",
+            0,
+            "sha256"
+          ],
+          "value": "87E421A3642099F95AAE46CA559A93E16032ED3AD3CB2AEAE3C84F2B51D5C102"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files[0].sha256: not a sha256"
+    },
+    {
+      "id": "object position without %",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "objectPosition"
+          ],
+          "value": "50% 55"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].objectPosition: not an x% y% position"
+    },
+    {
+      "id": "attribution as a string",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "attributionRequired"
+          ],
+          "value": "no"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].attributionRequired: not a boolean"
+    },
+    {
+      "id": "impossible upload date",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "uploadedOn"
+          ],
+          "value": "2026-13-01"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].uploadedOn: not a YYYY-MM-DD date"
+    },
+    {
+      "id": "http author page",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "authorUrl"
+          ],
+          "value": "http://www.pexels.com/@oli-liao-883836674/"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].authorUrl: not an https URL"
+    },
+    {
+      "id": "repeated photo",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "copy",
+          "from": [
+            "photos",
+            0
+          ],
+          "path": [
+            "photos",
+            2
+          ]
+        }
+      ],
+      "expect": "csca photos.json: $.photos: duplicate key"
+    },
+    {
+      "id": "repeated file",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "copy",
+          "from": [
+            "photos",
+            0,
+            "files",
+            0
+          ],
+          "path": [
+            "photos",
+            0,
+            "files",
+            1
+          ]
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].files: duplicate key"
+    },
+    {
+      "id": "small original",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "original",
+            "width"
+          ],
+          "value": 1000
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].original.width: not an integer 1600..20000"
+    },
+    {
+      "id": "unknown key",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "extra"
+          ],
+          "value": 1
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0]: unknown key extra"
+    },
+    {
+      "id": "rules with a double space",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "rules"
+          ],
+          "value": "Licence  manifest."
+        }
+      ],
+      "expect": "csca photos.json: $.rules: empty or untrimmed text"
+    },
+    {
+      "id": "alt text with an em dash",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "alt",
+            "ru"
+          ],
+          "value": "Корпус \u2014 Чэнду"
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].alt.ru: em or en dash"
+    },
+    {
+      "id": "empty people note",
+      "file": "photos",
+      "ops": [
+        {
+          "op": "set",
+          "path": [
+            "photos",
+            0,
+            "people"
+          ],
+          "value": ""
+        }
+      ],
+      "expect": "csca photos.json: $.photos[0].people: empty or untrimmed text"
+    }
+  ]
+}

@@ -51,6 +51,7 @@ const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
   ".env.example",
   ".eslintignore",
+  ".gitattributes",
   ".gitignore",
   ".nvmrc",
   "Dockerfile",
@@ -86,6 +87,14 @@ const KNOWN_CODE_PREFIXES = [
   "supabase/",
   "tests/",
 ];
+// Expo-приложение (ADR 0038) проверяет собственное задание `mobile` (`npm run check` в mobile/).
+// Его пути не требуют ни lint, ни production build веба, и не считаются неизвестными.
+const MOBILE_PREFIX = "mobile/";
+// Общая поверхность веба, которую приложение импортирует через алиас @web/* (mobile/tsconfig.json,
+// mobile/metro.config.js; допустимые импорты стережёт mobile/scripts/check-shared-imports.mjs).
+// Серверный код (src/lib/server/) приложению недоступен.
+const MOBILE_SHARED_PREFIXES = ["src/lib/", "src/content/", "src/components/portal/"];
+const MOBILE_SHARED_EXCLUDED_PREFIXES = ["src/lib/server/"];
 const BUILD_PATHS = new Set([
   "assets/fonts/NotoSans-Regular.ttf",
   "assets/fonts/OFL.txt",
@@ -162,6 +171,14 @@ function isOrdinaryProsePath(path) {
   return (isRootProse || isDocumentationAsset || isContentDraft || DOCUMENT_ASSET_PATHS.has(path)) && !isContractPath(path);
 }
 
+function isMobilePath(path) {
+  return path.startsWith(MOBILE_PREFIX);
+}
+
+function isMobileSharedPath(path) {
+  return hasPrefix(path, MOBILE_SHARED_PREFIXES) && !hasPrefix(path, MOBILE_SHARED_EXCLUDED_PREFIXES);
+}
+
 function isKnownCodePath(path) {
   return KNOWN_CODE_PATHS.has(path)
     || hasPrefix(path, KNOWN_CODE_PREFIXES);
@@ -176,7 +193,10 @@ export function classifyChangedEntries(entries) {
   const contractPaths = paths.filter(isContractPath);
   const migrationBoundaryPaths = paths.filter(isMigrationBoundaryPath);
   const ordinaryProsePaths = paths.filter(isOrdinaryProsePath);
+  const mobilePaths = paths.filter(isMobilePath);
+  const mobileSharedPaths = paths.filter(isMobileSharedPath);
   const knownLightweight = new Set([
+    ...mobilePaths,
     ...contractPaths,
     ...migrationBoundaryPaths,
     ...ordinaryProsePaths,
@@ -200,11 +220,13 @@ export function classifyChangedEntries(entries) {
     code: codeRequired,
     lint: rootCodePaths.length > 0,
     build: buildRequired,
+    mobile: mobilePaths.length > 0 || mobileSharedPaths.length > 0,
     unknown: paths.length === 0 || unknownPaths.length > 0,
     paths,
     ordinary_prose_paths: ordinaryProsePaths,
     contract_paths: contractPaths,
     migration_boundary_paths: migrationBoundaryPaths,
+    mobile_paths: mobilePaths,
     strong_paths: strongPaths,
     unknown_paths: unknownPaths,
   };

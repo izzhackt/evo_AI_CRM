@@ -1,5 +1,6 @@
 import "server-only";
 
+import { readBoundedJsonBody } from "./bounded-json-body.ts";
 import {
   normalizeStudentRecoveryEmail,
   type StudentRecoveryRequestState,
@@ -41,37 +42,6 @@ function json(status: number, body: Readonly<Record<string, unknown>>): Response
   });
 }
 
-async function readBody(request: Request): Promise<unknown> {
-  const declared = request.headers.get("content-length");
-  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) {
-    throw new Error("size");
-  }
-  if (!request.body) throw new Error("json");
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  const deadline = Date.now() + BODY_READ_DEADLINE_MS;
-  try {
-    while (true) {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const part = await Promise.race([
-        reader.read(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error("timeout")), Math.max(1, deadline - Date.now()));
-        }),
-      ]).finally(() => clearTimeout(timer));
-      if (part.done) break;
-      length += part.value.byteLength;
-      if (length > MAX_BODY_BYTES) throw new Error("size");
-      chunks.push(part.value);
-    }
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
-  } finally {
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
-  }
-}
-
 export function createStudentPortalPasswordRecoveryHandler(
   dependencies?: Partial<StudentPortalPasswordRecoveryDependencies>,
 ): (request: Request) => Promise<Response> {
@@ -84,7 +54,7 @@ export function createStudentPortalPasswordRecoveryHandler(
     }
     let body: unknown;
     try {
-      body = await readBody(request);
+      body = await readBoundedJsonBody(request, { maxBytes: MAX_BODY_BYTES, deadlineMs: BODY_READ_DEADLINE_MS });
     } catch {
       return json(400, { error: "invalid_request" });
     }

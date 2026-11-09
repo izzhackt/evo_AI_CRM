@@ -19,12 +19,12 @@ type StudentAccountCreation = { status: "created"; authUserId: string }
  * Creates only a new identity. Existing accounts, including invitations, are never changed.
  * 341 (07.11.2026): the website registers only through a personal registration link (`invite`). The link is checked
  * before anything is written and used right after the identity exists; if it cannot be used, that fresh identity is
- * removed again. `invite` null is the iPhone app, which has no link field yet: unchanged until the app gets one.
+ * removed again. `invite` is required for every client (website and app); there is no link-less registration.
  * The student's login (name.surname, 340) is claimed last; without it the student still signs in by e-mail.
  * 345: the website's required AI-assistants consent waits in user_metadata until the confirmed student signs in.
  */
 export async function createPublicStudentAccount(
-  email: string, password: string, draft: StudentApplicationDraft, invite: string | null, aiConsent = false,
+  email: string, password: string, draft: StudentApplicationDraft, invite: string, aiConsent = false,
 ): Promise<StudentAccountCreation> {
   if (email !== email.trim().toLowerCase() || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     || !validateStudentApplicationDraft(draft)) return { status: "invalid" };
@@ -36,12 +36,10 @@ export async function createPublicStudentAccount(
   try {
     // Missing/unspecified OTP configuration must fail before any quota or Auth write.
     getStudentSignupConfirmationRuntimeConfig();
-    if (invite !== null) {
-      stage = "check_invite";
-      const link = await checkRegistrationLink(invite);
-      if (link.status === "unavailable") return { status: "unavailable" };
-      if (link.status !== "valid") return { status: "invite" };
-    }
+    stage = "check_invite";
+    const link = await checkRegistrationLink(invite);
+    if (link.status === "unavailable") return { status: "unavailable" };
+    if (link.status !== "valid") return { status: "invite" };
     const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     stage = "reserve_attempt";
     const reserved = await service.schema("platform").rpc("reserve_student_signup_attempt_v1", { p_email: email })
@@ -75,7 +73,7 @@ export async function createPublicStudentAccount(
     }
     const authUserId = data.user.id;
     stage = "consume_invite";
-    const used = invite === null ? "consumed" : await consumeRegistrationLink(invite, authUserId);
+    const used = await consumeRegistrationLink(invite, authUserId);
     if (used !== "consumed") {
       // Another registration took the link in the meantime, or it could not be marked: no account without it.
       logStudentSignupFailure(stage);

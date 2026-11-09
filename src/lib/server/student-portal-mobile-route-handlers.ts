@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import type { JwtPayload, SupabaseClient } from "@supabase/supabase-js";
 
 import { hasTemporaryPassword, TEMPORARY_PASSWORD_FLAG } from "../student-account-contract.ts";
+import { normalizeStudentLogin } from "../student-login.ts";
 import { checkStudentNewPassword } from "../student-password-recovery-contract.ts";
 import {
   createRecoveryRateLimiter,
@@ -12,8 +13,10 @@ import {
   type RecoveryRateLimit,
   type RecoveryRateLimiter,
 } from "../student-password-recovery-rate-limit.ts";
+import { readBoundedJsonBody } from "./bounded-json-body.ts";
 import { studentPortalDocumentRouteTransport } from "./platform-document-storage-route-handlers.ts";
 import type { StudentLoginEmail } from "./student-login.ts";
+import { readStaffMembership } from "./student-recovery-request.ts";
 
 /**
  * Мобильное приложение студента (Expo): два серверных шага, которые нельзя сделать публичным ключом.
@@ -32,8 +35,12 @@ const MAX_PASSWORD_LENGTH = 4096;
 
 /** Неверный пароль и неизвестный логин отвечают одинаково и не раньше этого срока (без перебора логинов по времени). */
 export const MOBILE_SESSION_MIN_FAILURE_MS = 1_000;
+const BODY_READ_DEADLINE_MS = 5000;
 const IP_RULE: RecoveryRateLimit = Object.freeze({ limit: 30, windowMs: 15 * 60_000 });
-const LOGIN_RULE: RecoveryRateLimit = Object.freeze({ limit: 10, windowMs: 15 * 60_000 });
+/** Только НЕУДАЧНЫЕ проверки пароля: с одного адреса на один логин. */
+const LOGIN_IP_RULE: RecoveryRateLimit = Object.freeze({ limit: 10, windowMs: 15 * 60_000 });
+/** Потолок неудач на логин со всех адресов: больше, чем у одного адреса, чтобы несколько чужих адресов не заперли студента. */
+const LOGIN_ANY_RULE: RecoveryRateLimit = Object.freeze({ limit: 50, windowMs: 15 * 60_000 });
 const PASSWORD_RULE: RecoveryRateLimit = Object.freeze({ limit: 5, windowMs: 15 * 60_000 });
 
 const sessionLimiter = createRecoveryRateLimiter();
@@ -50,15 +57,11 @@ function errorResponse(status: number, error: string): Response {
   return jsonResponse(status, { error });
 }
 
-/** Тело — один JSON-объект до 8 КиБ; иначе null (одинаковый 400 для любой поломки). */
+/** Тело — один JSON-объект до 8 КиБ за 5 с (потоковое чтение: предел держится и без Content-Length); иначе null. */
 async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
-  const declared = request.headers.get("content-length");
-  if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > MAX_BODY_BYTES)) return null;
   if (!/^application\/json\s*(;|$)/iu.test(request.headers.get("content-type") ?? "")) return null;
   try {
-    const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) return null;
-    const value: unknown = JSON.parse(text);
+    const value = await readBoundedJsonBody(request, { maxBytes: MAX_BODY_BYTES, deadlineMs: BODY_READ_DEADLINE_MS });
     return typeof value === "object" && value !== null && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : null;
@@ -116,7 +119,14 @@ async function defaultClassifyAccount(accessToken: string): Promise<AccountKind>
     if (error || !data?.claims) return { status: "unauthorized" };
     const authority = await readVerifiedPlatformAuthority(client, data.claims);
     if (authority.status === "unavailable") return { status: "unavailable" };
-    return { status: "ok", staff: authority.status === "authenticated", claims: data.claims };
+    if (authority.status === "authenticated") return { status: "ok", staff: true, claims: data.claims };
+    // Любая строка членства сотрудника в любом статусе (314), а не только действующий доступ: заблокированный или
+    // приглашённый сотрудник тоже не студент.
+    const sub = data.claims.sub;
+    if (typeof sub !== "string" || sub.length === 0) return { status: "unauthorized" };
+    const member = await readStaffMembership(await serviceClient(), sub);
+    if (member === null) return { status: "unavailable" };
+    return { status: "ok", staff: member, claims: data.claims };
   } catch {
     return { status: "unavailable" };
   }
@@ -189,8 +199,13 @@ async function defaultSignIn(email: string, password: string): Promise<MobileSig
   }
 }
 
-function loginKey(login: string): string {
-  return `mobile-login:${createHash("sha256").update(login.toLowerCase()).digest("hex")}`;
+function hashKey(prefix: string, value: string): string {
+  return `${prefix}:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+/** Один и тот же человек под любой записью: почта в нижнем регистре или логин в той же нормализации, что у веб-входа. */
+function identityKeys(identity: string, ipKey: string): string[] {
+  return [hashKey("mobile-login-ip", `${identity}|${ipKey}`), hashKey("mobile-login", identity)];
 }
 
 export function createStudentPortalMobileSessionHandler(
@@ -222,12 +237,23 @@ export function createStudentPortalMobileSessionHandler(
     }
 
     const ipKey = recoveryClientIpKey(request.headers.get("x-forwarded-for"));
-    // Оба счётчика расходуются всегда, чтобы ответ 429 не зависел от того, существует ли логин.
-    const ipAllowed = deps.limiter.consume(`mobile-ip:${ipKey}`, IP_RULE);
-    const loginAllowed = deps.limiter.consume(loginKey(login), LOGIN_RULE);
-    if (!ipAllowed || !loginAllowed) return errorResponse(429, "rate_limited");
+    // Адрес исчерпан — отказ сразу, счётчики логина не трогаем (чужой поток не запирает студента).
+    if (!deps.limiter.consume(`mobile-ip:${ipKey}`, IP_RULE)) return errorResponse(429, "rate_limited");
+
+    // Один человек — одни счётчики: почта в нижнем регистре, логин в нормализации веб-входа, а найденная по логину
+    // почта делит счётчики с формой «почта».
+    const isEmail = login.includes("@");
+    const identity = isEmail ? login.toLowerCase() : (normalizeStudentLogin(login) ?? login.toLowerCase());
+    const keys = new Set(identityKeys(identity, ipKey));
+    const blocked = () => [...keys].some((key, index) => !deps.limiter.wouldAllow(key, index % 2 === 0 ? LOGIN_IP_RULE : LOGIN_ANY_RULE));
+    // В счётчики идут только НЕУДАЧНЫЕ проверки; успешный вход ничего не тратит и ничего не сбрасывает.
+    const recordFailure = () => {
+      for (const [index, key] of [...keys].entries()) deps.limiter.consume(key, index % 2 === 0 ? LOGIN_IP_RULE : LOGIN_ANY_RULE);
+    };
+    if (blocked()) return errorResponse(429, "rate_limited");
 
     const refuseCredentials = async (): Promise<Response> => {
+      recordFailure();
       const wait = deps.minFailureMs - (deps.now() - started);
       if (wait > 0) await deps.sleep(wait);
       return errorResponse(401, "invalid_credentials");
@@ -235,11 +261,13 @@ export function createStudentPortalMobileSessionHandler(
 
     // Как веб-вход: «@» — почта как есть, иначе логин «имя.фамилия» (340) превращается в почту на сервере.
     let email = login;
-    if (!login.includes("@")) {
-      const resolved = await deps.resolveLoginEmail(login);
+    if (!isEmail) {
+      const resolved = await deps.resolveLoginEmail(identity);
       if (resolved.status === "unavailable") return errorResponse(503, "unavailable");
       if (resolved.status !== "found") return refuseCredentials();
       email = resolved.email;
+      for (const key of identityKeys(email.trim().toLowerCase(), ipKey)) keys.add(key);
+      if (blocked()) return errorResponse(429, "rate_limited");
     }
 
     const signedIn = await deps.signIn(email, password);
@@ -251,14 +279,13 @@ export function createStudentPortalMobileSessionHandler(
     const account = await deps.classifyAccount(session.access_token);
     if (account.status !== "ok") {
       await deps.revokeSession(session.access_token);
-      return account.status === "unauthorized"
-        ? errorResponse(401, "invalid_credentials")
-        : errorResponse(503, "unavailable");
+      return account.status === "unauthorized" ? refuseCredentials() : errorResponse(503, "unavailable");
     }
     if (account.staff) {
-      // Сотрудник входит в CRM, не в приложение студента: только что открытая сессия закрывается.
+      // Сотрудник входит в CRM, не в приложение студента: открытая сессия закрывается, а ответ неотличим от
+      // неверного пароля (тот же 401, тело и срок), чтобы приложение не подтверждало, что почта принадлежит сотруднику.
       await deps.revokeSession(session.access_token);
-      return errorResponse(403, "staff_account");
+      return refuseCredentials();
     }
     const mustSetPassword = hasTemporaryPassword(account.claims.app_metadata);
     return jsonResponse(200, mustSetPassword ? { ...session, must_set_password: true } : session);
@@ -399,8 +426,10 @@ export function createStudentPortalMobilePasswordHandler(
     if (updated !== "ok") return errorResponse(503, "unavailable");
 
     // F-1: остальные сессии студента закрываются, вызвавшая остаётся. Не вышло — пароль уже сменён, поэтому 503;
-    // повтор уже идёт как обычная смена (current_password = новый пароль) и закрытие повторится.
-    if (!(await deps.revokeOtherSessions(accessToken))) return errorResponse(503, "unavailable");
+    // ответ говорит клиенту, что пароль сменён; повтор идёт как обычная смена (current_password = новый пароль) и закрытие повторится.
+    if (!(await deps.revokeOtherSessions(accessToken))) {
+      return jsonResponse(503, { error: "revoke_failed", password_changed: true });
+    }
     return jsonResponse(200, { ok: true });
   };
 }

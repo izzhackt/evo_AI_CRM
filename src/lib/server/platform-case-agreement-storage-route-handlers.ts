@@ -387,7 +387,7 @@ export function createStudentPortalCaseFileDownloadHandler(
       // Приложение (Expo): заголовок Authorization всегда выбирает Bearer, куки тогда не читаются (как PORT-8a).
       const { studentPortalDocumentRouteTransport } = await import("./platform-document-storage-route-handlers.ts");
       const transport = studentPortalDocumentRouteTransport(request);
-      if (transport.transport === "invalid_bearer") return errorResponse(401, "unavailable");
+      if (transport.transport === "invalid_bearer") return errorResponse(401, "unauthorized");
       let userClient: SupabaseClient;
       if (transport.transport === "bearer") {
         const resolveBearerActor: StudentPortalCaseFileDownloadDependencies["resolveBearerActor"] = overrides?.resolveBearerActor ?? (async (token: string) => {
@@ -397,7 +397,7 @@ export function createStudentPortalCaseFileDownloadHandler(
         const bearerActor = await resolveBearerActor(transport.accessToken);
         if (bearerActor.status !== "authenticated") {
           if (bearerActor.reason === "student_authority_unavailable") return errorResponse(503, "unavailable");
-          return errorResponse(bearerActor.reason === "student_authority_invalid" ? 403 : 401, "unavailable");
+          return bearerActor.reason === "student_authority_invalid" ? errorResponse(403, "unavailable") : errorResponse(401, "unauthorized");
         }
       } else {
         const { resolvePlatformActor } = await import("../platform-auth.ts");

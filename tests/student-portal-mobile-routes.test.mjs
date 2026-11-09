@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 import { isConnectedStudentPortalApi, isPublicStudentRegistrationApi } from "../src/lib/platform-route-contract.ts";
 import { createStudentPortalCaseFileDownloadHandler } from "../src/lib/server/platform-case-agreement-storage-route-handlers.ts";
@@ -79,12 +80,17 @@ test("session: wrong password and unknown login answer identically and not befor
   assert.deepEqual(unknown.calls.signIn, [], "an unknown login never reaches Auth");
 });
 
-test("session: a staff account is refused with 403 and its new session is revoked", async () => {
-  const { handler, calls } = sessionHarness({ async classifyAccount() { return { status: "ok", staff: true, claims: { app_metadata: {} } }; } });
-  const response = await handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }));
-  assert.equal(response.status, 403);
-  assert.deepEqual(await response.json(), { error: "staff_account" });
-  assert.deepEqual(calls.revoke, [TOKEN]);
+test("session: a staff account gets the wrong-password answer (401, same body, same minimum) and its session is revoked", async () => {
+  const staff = sessionHarness({ async classifyAccount() { return { status: "ok", staff: true, claims: { app_metadata: {} } }; } });
+  const wrong = sessionHarness();
+  const a = await staff.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }));
+  const b = await wrong.handler(login({ login: "aidai.chynarova", password: "nope" }));
+  assert.equal(a.status, 401);
+  assert.equal(b.status, 401);
+  assert.deepEqual(await a.json(), await b.json());
+  assert.deepEqual(staff.calls.sleeps, wrong.calls.sleeps, "same minimum wait");
+  assert.deepEqual(staff.calls.revoke, [TOKEN]);
+  assert.equal(a.headers.get("set-cookie"), null);
 });
 
 test("session: an unreadable account state revokes the session and answers 503", async () => {
@@ -116,18 +122,93 @@ test("session: unknown keys, wrong types, oversize and non-JSON bodies are inval
   assert.deepEqual(calls.signIn, []);
 });
 
-test("session: the per-login and per-IP limits answer 429 before any sign-in", async () => {
-  const perLogin = sessionHarness();
-  for (let i = 0; i < 10; i += 1) await perLogin.handler(login({ login: "aidai.chynarova", password: "nope" }, { "x-forwarded-for": `198.51.100.${i + 1}` }));
-  const blocked = await perLogin.handler(login({ login: "AIDAI.chynarova", password: GOOD_PASSWORD }, { "x-forwarded-for": "198.51.100.200" }));
+const ipHeader = (n) => ({ "x-forwarded-for": `198.51.100.${n}` });
+
+test("session: only FAILED checks spend the per-login bucket (10 per address); the 11th is 429 before any sign-in", async () => {
+  const h = sessionHarness();
+  for (let i = 0; i < 10; i += 1) assert.equal((await h.handler(login({ login: "aidai.chynarova", password: "nope" }, ipHeader(7)))).status, 401);
+  const blocked = await h.handler(login({ login: "AIDAI.chynarova", password: GOOD_PASSWORD }, ipHeader(7)));
   assert.equal(blocked.status, 429);
   assert.deepEqual(await blocked.json(), { error: "rate_limited" });
-  assert.equal(perLogin.calls.signIn.length, 10);
+  assert.equal(h.calls.signIn.length, 10);
 
-  const perIp = sessionHarness();
-  for (let i = 0; i < 30; i += 1) await perIp.handler(login({ login: `user${i}.test`, password: "nope" }, { "x-forwarded-for": "203.0.113.9" }));
-  const ipBlocked = await perIp.handler(login({ login: "fresh.login", password: GOOD_PASSWORD }, { "x-forwarded-for": "203.0.113.9" }));
-  assert.equal(ipBlocked.status, 429);
+  const ok = sessionHarness();
+  for (let i = 0; i < 25; i += 1) assert.equal((await ok.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(8)))).status, 200, "successes spend no login bucket");
+});
+
+test("session: attackers on other addresses cannot lock the victim out of their own address", async () => {
+  const h = sessionHarness();
+  for (let i = 0; i < 30; i += 1) await h.handler(login({ login: "aidai.chynarova", password: "nope" }, ipHeader(10 + i)));
+  const victim = await h.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(200)));
+  assert.equal(victim.status, 200, "30 foreign failures stay under the larger per-login cap of 50");
+});
+
+test("session: the larger per-login cap (50 failures from many addresses) still stops a distributed guess", async () => {
+  const h = sessionHarness();
+  for (let i = 0; i < 50; i += 1) await h.handler(login({ login: "aidai.chynarova", password: "nope" }, ipHeader(i + 1)));
+  const next = await h.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(201)));
+  assert.equal(next.status, 429);
+});
+
+test("session: an address already refused by the IP limit does not spend the victim's login buckets", async () => {
+  const h = sessionHarness();
+  for (let i = 0; i < 30; i += 1) await h.handler(login({ login: `user${i}.test`, password: "nope" }, ipHeader(99)));
+  for (let i = 0; i < 20; i += 1) assert.equal((await h.handler(login({ login: "aidai.chynarova", password: "nope" }, ipHeader(99)))).status, 429);
+  assert.equal((await h.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(100)))).status, 200);
+  assert.equal((await h.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(99)))).status, 429);
+});
+
+test("session: the e-mail form and the имя.фамилия form of one person share their buckets; case and spaces do not split them", async () => {
+  const h = sessionHarness();
+  for (let i = 0; i < 6; i += 1) await h.handler(login({ login: " Aidai.Chynarova ", password: "nope" }, ipHeader(60)));
+  for (let i = 0; i < 4; i += 1) await h.handler(login({ login: "AIDAI@example.test", password: "nope" }, ipHeader(60)));
+  assert.equal((await h.handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(60)))).status, 429, "10 failures across both forms");
+  assert.equal((await h.handler(login({ login: "aidai@EXAMPLE.test", password: GOOD_PASSWORD }, ipHeader(60)))).status, 429);
+});
+
+test("session: never sets cookies and ignores Origin and Cookie headers", async () => {
+  const { handler } = sessionHarness();
+  const plain = await handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, ipHeader(70)));
+  const foreign = await handler(login({ login: "aidai.chynarova", password: GOOD_PASSWORD }, { ...ipHeader(71), origin: "https://evil.example", cookie: "sb-session=forged", referer: "https://evil.example/" }));
+  assert.equal(plain.status, 200);
+  assert.equal(foreign.status, 200);
+  assert.equal(foreign.headers.get("set-cookie"), null);
+  assert.deepEqual(await foreign.json(), await plain.json());
+  const source = readFileSync(new URL("../src/lib/server/student-portal-mobile-route-handlers.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /next\/headers|cookies\(\)|isExpectedStudentOriginRequest|headers\.get\("origin"\)/u);
+});
+
+function chunked(chunks, { endless = false } = {}) {
+  let i = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (i < chunks.length) controller.enqueue(chunks[i++]);
+      else if (!endless) controller.close();
+      else return new Promise(() => {});
+    },
+  });
+  return new Request("https://app.evoadmissions.com/api/portal/mobile/session", {
+    method: "POST", headers: { "content-type": "application/json" }, body, duplex: "half",
+  });
+}
+
+test("session: a chunked body without Content-Length is bounded (8 KiB) and a stalled sender is cut at the deadline", async () => {
+  const { handler, calls } = sessionHarness();
+  const big = new TextEncoder().encode(JSON.stringify({ login: "a.b", password: "x".repeat(2000) }));
+  const request = chunked([big, big, big, big, big]);
+  assert.equal(request.headers.get("content-length"), null);
+  const response = await handler(request);
+  assert.equal(response.status, 400);
+  assert.deepEqual(calls.signIn, []);
+
+  const started = Date.now();
+  const stalled = await handler(chunked([new TextEncoder().encode('{"login":"a.b"')], { endless: true }));
+  assert.equal(stalled.status, 400);
+  assert.ok(Date.now() - started >= 4900 && Date.now() - started < 8000, "cut at about 5 s");
+  assert.deepEqual(calls.signIn, []);
+
+  const fine = await handler(chunked([new TextEncoder().encode('{"login":"aidai.chynarova",'), new TextEncoder().encode(`"password":"${GOOD_PASSWORD}"}`)]));
+  assert.equal(fine.status, 200, "an honest chunked body still works");
 });
 
 test("session: an Auth rate limit or outage is mapped, not leaked", async () => {
@@ -203,6 +284,29 @@ test("password: a missing current password is invalid_request outside the tempor
   assert.deepEqual(calls.verify, []);
 });
 
+test("password: after a failed revoke the retry with the new password as current_password works and revokes", async () => {
+  let stored = "old-password-value";
+  let revokeWorks = false;
+  const calls = { revoke: 0 };
+  const handler = createStudentPortalMobilePasswordHandler({
+    async authorize() { return { status: "ok", userId: USER, email: "aidai@example.test", staff: false }; },
+    async readTemporaryFlag() { return { status: "ok", temporary: false, appMetadata: {} }; },
+    async verifyCurrentPassword(_u, _e, given) { return given === stored ? "ok" : "wrong"; },
+    async setPassword(_u, next) { stored = next; return "ok"; },
+    async revokeOtherSessions() { calls.revoke += 1; return revokeWorks; },
+    limiter: createRecoveryRateLimiter(),
+  });
+  const first = await handler(change({ password: GOOD_PASSWORD, current_password: "old-password-value" }));
+  assert.equal(first.status, 503);
+  assert.deepEqual(await first.json(), { error: "revoke_failed", password_changed: true });
+  assert.equal(stored, GOOD_PASSWORD, "the password did change");
+  revokeWorks = true;
+  const retry = await handler(change({ password: ["another", "long", "phrase"].join("-"), current_password: GOOD_PASSWORD }));
+  assert.equal(retry.status, 200);
+  assert.equal(calls.revoke, 2);
+  assert.equal((await handler(change({ password: ["x", "another", "long", "phrase"].join("-"), current_password: "old-password-value" }))).status, 403, "the old password no longer works");
+});
+
 test("password: the temporary flow needs no current password, clears the flag in the same update and revokes the others", async () => {
   const meta = { provider: "email", evo_temporary_password: true };
   const { handler, calls } = passwordHarness({ async readTemporaryFlag() { return { status: "ok", temporary: true, appMetadata: meta }; } });
@@ -232,7 +336,9 @@ test("password: an Auth-side rejection is weak_password; a failed revoke is 503 
   assert.equal(a.status, 400);
   assert.deepEqual(await a.json(), { error: "weak_password" });
   const revokeFails = passwordHarness({ async revokeOtherSessions() { return false; } });
-  assert.equal((await revokeFails.handler(change({ password: GOOD_PASSWORD, current_password: "old-password-value" }))).status, 503);
+  const failed = await revokeFails.handler(change({ password: GOOD_PASSWORD, current_password: "old-password-value" }));
+  assert.equal(failed.status, 503);
+  assert.deepEqual(await failed.json(), { error: "revoke_failed", password_changed: true });
 });
 
 test("password: attempts to guess the current password are rate limited per student", async () => {
@@ -280,10 +386,14 @@ test("case file: a Bearer student gets the 60 s signed-URL redirect after the ta
 
 test("case file: a rejected Bearer fails closed and never signs", async () => {
   const malformed = caseFileHarness();
-  assert.equal((await malformed.get("contract", { authorization: "Bearer nope" })).status, 401);
+  const malformedResponse = await malformed.get("contract", { authorization: "Bearer nope" });
+  assert.equal(malformedResponse.status, 401);
+  assert.deepEqual(await malformedResponse.json(), { error: "unauthorized" });
   assert.deepEqual(malformed.calls.actor, []);
   const expired = caseFileHarness({ actor: { status: "invalid", reason: "supabase_session_invalid" } });
-  assert.equal((await expired.get()).status, 401);
+  const expiredResponse = await expired.get();
+  assert.equal(expiredResponse.status, 401);
+  assert.deepEqual(await expiredResponse.json(), { error: "unauthorized" });
   const notStudent = caseFileHarness({ actor: { status: "invalid", reason: "student_authority_invalid" } });
   assert.equal((await notStudent.get()).status, 403);
   const down = caseFileHarness({ actor: { status: "invalid", reason: "student_authority_unavailable" } });
@@ -327,7 +437,97 @@ test("route files delegate to the shared handlers on the node runtime", () => {
   assert.equal(proxy.split("isPublicStudentRegistrationApi(path, request.method)").length, 2);
 });
 
-test("the web new-password action also revokes the other sessions after the re-sign-in", () => {
-  const source = readFileSync(new URL("../src/lib/student-new-password-actions.ts", import.meta.url), "utf8");
-  assert.ok(source.indexOf("signInWithPassword") < source.indexOf('admin.signOut(keep, "others")'));
+// --- F-1 on the web: behaviour against stub Supabase clients ---
+
+function compile(path, dependencies = {}) {
+  const output = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const compiledModule = { exports: {} };
+  new Function("require", "module", "exports", output)((name) => {
+    if (name === "server-only") return {};
+    if (!Object.hasOwn(dependencies, name)) throw new Error(`Unexpected dependency: ${name}`);
+    return dependencies[name];
+  }, compiledModule, compiledModule.exports);
+  return compiledModule.exports;
+}
+
+function serviceStub(log, { signOutError = null } = {}) {
+  return { auth: { admin: {
+    async updateUserById(id, attributes) { log.push(["updateUserById", id, attributes]); return { error: null }; },
+    async signOut(token, scope) { log.push(["signOut", token, scope]); return { error: signOutError }; },
+  } } };
+}
+
+test("web Profile password change: the cabinet session is re-opened, then every OTHER session is revoked with its token", async () => {
+  const log = [];
+  const CABINET = "cabinet.session.token";
+  const module = compile("src/lib/server/student-password-change.ts", {
+    "@supabase/supabase-js": { createClient: () => ({ auth: {
+      async signInWithPassword(input) { log.push(["isolated-signIn", input.password]); return { error: null, data: { session: { access_token: "x.y.z" }, user: { id: USER } } }; },
+      async updateUser(input) { log.push(["updateUser", input.password]); return { error: null }; },
+      async signOut(options) { log.push(["isolated-signOut", options.scope]); return { error: null }; },
+    } }) },
+    "../student-password-recovery-rate-limit.ts": { createRecoveryRateLimiter },
+    "../supabase/config.ts": { getSupabasePublicConfig: () => ({ url: "http://127.0.0.1:1", publishableKey: "k" }) },
+    "../supabase/server.ts": { createSupabaseServerClient: async () => ({ auth: {
+      async signInWithPassword(input) { log.push(["cabinet-signIn", input.password]); return { error: null, data: { session: { access_token: CABINET }, user: { id: USER } } }; },
+    } }) },
+    "./platform-supabase-backend-config.ts": { getPlatformSupabaseBackendConfig: () => ({}) },
+    "./platform-supabase-service-client.ts": { createPlatformSupabaseServiceClient: () => serviceStub(log) },
+  });
+  const status = await module.changeStudentPassword({ authUserId: USER, email: "a@example.test", currentPassword: "old-password-value", newPassword: GOOD_PASSWORD });
+  assert.equal(status, "done");
+  const names = log.map((entry) => entry[0]);
+  assert.ok(names.indexOf("cabinet-signIn") > names.indexOf("updateUser"));
+  assert.deepEqual(log.at(-1), ["signOut", CABINET, "others"], "last step: others revoked, keeping the cabinet session's token");
+  assert.ok(!log.some((entry) => entry[0] === "signOut" && entry[2] === "global"));
+});
+
+test("web Profile password change: a revoke failure does not undo the change; a wrong current password revokes nothing", async () => {
+  const build = (log, { signInError = null, serviceThrows = false } = {}) => compile("src/lib/server/student-password-change.ts", {
+    "@supabase/supabase-js": { createClient: () => ({ auth: {
+      async signInWithPassword() { return signInError ? { error: signInError, data: {} } : { error: null, data: { session: { access_token: "x.y.z" }, user: { id: USER } } }; },
+      async updateUser() { return { error: null }; },
+      async signOut() { return { error: null }; },
+    } }) },
+    "../student-password-recovery-rate-limit.ts": { createRecoveryRateLimiter },
+    "../supabase/config.ts": { getSupabasePublicConfig: () => ({ url: "http://127.0.0.1:1", publishableKey: "k" }) },
+    "../supabase/server.ts": { createSupabaseServerClient: async () => ({ auth: { async signInWithPassword() { return { error: null, data: { session: { access_token: "c.c.c" }, user: { id: USER } } }; } } }) },
+    "./platform-supabase-backend-config.ts": { getPlatformSupabaseBackendConfig: () => ({}) },
+    "./platform-supabase-service-client.ts": { createPlatformSupabaseServiceClient: () => { if (serviceThrows) throw new Error("down"); return serviceStub(log); } },
+  });
+  const input = { authUserId: USER, email: "a@example.test", currentPassword: "old-password-value", newPassword: GOOD_PASSWORD };
+  assert.equal(await build([], { serviceThrows: true }).changeStudentPassword(input), "done");
+  const log = [];
+  assert.equal(await build(log, { signInError: { code: "invalid_credentials", status: 400 } }).changeStudentPassword(input), "wrong_current");
+  assert.deepEqual(log, []);
+});
+
+test("web new-password action: after the re-sign-in the other sessions are revoked with the fresh token", async () => {
+  const log = [];
+  const REDIRECT = Symbol("redirect");
+  const user = { id: USER, email: "a@example.test", app_metadata: { evo_temporary_password: true } };
+  const module = compile("src/lib/student-new-password-actions.ts", {
+    "next/headers": { headers: async () => new Headers() },
+    "next/navigation": { redirect: (path) => { log.push(["redirect", path]); throw REDIRECT; } },
+    "./server/action-form-fields.ts": { exactActionStringFields: (form) => new Map([...form.entries()]) },
+    "./server/platform-supabase-backend-config": { getPlatformSupabaseBackendConfig: () => ({}) },
+    "./server/platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => serviceStub(log) },
+    "./student-account-contract": { hasTemporaryPassword: (meta) => meta?.evo_temporary_password === true, TEMPORARY_PASSWORD_FLAG: "evo_temporary_password" },
+    "./student-invite-callback-contract.ts": { isExpectedStudentOriginRequest: () => true },
+    "./student-password-recovery-contract.ts": { checkStudentNewPassword: () => "ok" },
+    "./supabase/server": { createSupabaseServerClient: async () => ({ auth: {
+      async getUser() { return { error: null, data: { user } }; },
+      async signInWithPassword() { log.push(["signIn"]); return { error: null, data: { user: { id: USER }, session: { access_token: "fresh.session.token" } } }; },
+    } }) },
+  });
+  const form = new FormData();
+  form.set("password", GOOD_PASSWORD);
+  form.set("password_confirm", GOOD_PASSWORD);
+  await assert.rejects(() => module.setOwnStudentPasswordAction({ status: "idle" }, form), (error) => error === REDIRECT);
+  const names = log.map((entry) => entry[0]);
+  assert.deepEqual(names, ["updateUserById", "signIn", "signOut", "redirect"]);
+  assert.deepEqual(log[2], ["signOut", "fresh.session.token", "others"]);
+  assert.deepEqual(log[3], ["redirect", "/apply"]);
 });

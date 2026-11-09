@@ -34,7 +34,7 @@ export type StudentRecoveryRecipient =
 type ServiceClient = Pick<SupabaseClient, "schema">;
 
 /** `true` / `false`, or `null` when the database did not give a clear boolean. */
-async function readStaffMembership(
+export async function readStaffMembership(
   service: ServiceClient,
   authUserId: string,
 ): Promise<boolean | null> {

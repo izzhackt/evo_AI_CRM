@@ -9,6 +9,8 @@ export type RecoveryRateLimit = Readonly<{ limit: number; windowMs: number }>;
 export type RecoveryRateLimiter = Readonly<{
   /** Records one hit and answers whether it is within the limit. */
   consume(key: string, rule: RecoveryRateLimit, now?: number): boolean;
+  /** Whether one more hit would be within the limit; records nothing (for counting only failures). */
+  wouldAllow(key: string, rule: RecoveryRateLimit, now?: number): boolean;
   size(): number;
 }>;
 
@@ -43,6 +45,11 @@ export function createRecoveryRateLimiter(maxKeys = DEFAULT_MAX_KEYS): RecoveryR
       }
       hits.set(key, { windowMs: rule.windowMs, times });
       return true;
+    },
+    wouldAllow(key: string, rule: RecoveryRateLimit, now = Date.now()): boolean {
+      const entry = hits.get(key);
+      if (!entry) return true;
+      return entry.times.filter((at) => now - at < rule.windowMs).length < rule.limit;
     },
     size: () => hits.size,
   });

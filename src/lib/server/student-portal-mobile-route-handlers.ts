@@ -135,8 +135,11 @@ async function defaultClassifyAccount(accessToken: string): Promise<AccountKind>
 async function defaultRevokeSession(accessToken: string, scope: "local" | "others"): Promise<boolean> {
   try {
     const { error } = await (await serviceClient()).auth.admin.signOut(accessToken, scope);
+    // Только код и статус, ни токена, ни адреса.
+    if (error) console.warn(JSON.stringify({ event: "mobile_session_revoke_failed", scope, ...authErrorFields(error), service: "evo-crm" }));
     return !error;
   } catch {
+    console.warn(JSON.stringify({ event: "mobile_session_revoke_failed", scope, code: "exception", status: null, service: "evo-crm" }));
     return false;
   }
 }
@@ -310,8 +313,8 @@ export type StudentPortalMobilePasswordDependencies = Readonly<{
     userId: string, email: string, password: string,
   ) => Promise<"ok" | "wrong" | "rate_limited" | "unavailable">;
   setPassword: (
-    userId: string, password: string, appMetadata: Record<string, unknown> | null,
-  ) => Promise<"ok" | "rejected" | "unavailable">;
+    accessToken: string, userId: string, password: string, appMetadata: Record<string, unknown> | null,
+  ) => Promise<"ok" | "rejected" | "same_password" | "unauthorized" | "unavailable">;
   revokeOtherSessions: (accessToken: string) => Promise<boolean>;
   limiter: RecoveryRateLimiter;
 }>;
@@ -358,17 +361,41 @@ async function defaultVerifyCurrentPassword(
   }
 }
 
+/**
+ * Пароль ставится СЕССИЕЙ САМОГО СТУДЕНТА (PUT /auth/v1/user), а не через admin.updateUserById: админская смена пароля
+ * в GoTrue закрывает ВСЕ сессии пользователя, включая вызвавшую, и «остальные сессии закрываются, эта остаётся» становится
+ * невозможным (проверено на живом GoTrue 2.19x). Пометка временного пароля — отдельный админский запрос только к
+ * app_metadata; он сессии не трогает.
+ */
 async function defaultSetPassword(
-  userId: string, password: string, appMetadata: Record<string, unknown> | null,
-): Promise<"ok" | "rejected" | "unavailable"> {
+  accessToken: string, userId: string, password: string, appMetadata: Record<string, unknown> | null,
+): Promise<"ok" | "rejected" | "same_password" | "unauthorized" | "unavailable"> {
   try {
-    const updated = await (await serviceClient()).auth.admin.updateUserById(userId, {
-      password,
-      ...(appMetadata ? { app_metadata: { ...appMetadata, [TEMPORARY_PASSWORD_FLAG]: false } } : {}),
+    const { getSupabasePublicConfig } = await import("../supabase/config.ts");
+    const config = getSupabasePublicConfig();
+    const response = await fetch(`${config.url}/auth/v1/user`, {
+      method: "PUT",
+      headers: { apikey: config.publishableKey, authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+      signal: AbortSignal.timeout(10_000),
     });
-    if (!updated.error) return "ok";
-    const status = typeof updated.error.status === "number" ? updated.error.status : 500;
-    return status >= 400 && status < 500 ? "rejected" : "unavailable";
+    if (!response.ok) {
+      let code: string | null = null;
+      try {
+        const body = (await response.json()) as { error_code?: unknown };
+        code = typeof body.error_code === "string" ? body.error_code : null;
+      } catch { /* not JSON */ }
+      if (response.status === 401 || response.status === 403) return "unauthorized";
+      if (code === "same_password") return "same_password";
+      return response.status >= 400 && response.status < 500 && response.status !== 429 ? "rejected" : "unavailable";
+    }
+    if (appMetadata) {
+      const cleared = await (await serviceClient()).auth.admin.updateUserById(userId, {
+        app_metadata: { ...appMetadata, [TEMPORARY_PASSWORD_FLAG]: false },
+      });
+      if (cleared.error) return "unavailable";
+    }
+    return "ok";
   } catch {
     return "unavailable";
   }
@@ -421,8 +448,10 @@ export function createStudentPortalMobilePasswordHandler(
       if (verified !== "ok") return errorResponse(503, "unavailable");
     }
 
-    const updated = await deps.setPassword(account.userId, body.password, flag.temporary ? flag.appMetadata : null);
+    const updated = await deps.setPassword(accessToken, account.userId, body.password, flag.temporary ? flag.appMetadata : null);
     if (updated === "rejected") return errorResponse(400, "weak_password");
+    if (updated === "same_password") return errorResponse(400, "same_password");
+    if (updated === "unauthorized") return errorResponse(401, "unauthorized");
     if (updated !== "ok") return errorResponse(503, "unavailable");
 
     // F-1: остальные сессии студента закрываются, вызвавшая остаётся. Не вышло — пароль уже сменён, поэтому 503;

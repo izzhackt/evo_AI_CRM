@@ -263,7 +263,7 @@ test("password: a change verifies the current password, sets the new one and rev
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.deepEqual(calls.verify, [[USER, "aidai@example.test", "old-password-value"]]);
-  assert.deepEqual(calls.set, [[USER, GOOD_PASSWORD, null]], "the flag metadata is touched only for a temporary password");
+  assert.deepEqual(calls.set, [[TOKEN, USER, GOOD_PASSWORD, null]], "the flag metadata is touched only for a temporary password");
   assert.deepEqual(calls.revoke, [TOKEN]);
 });
 
@@ -292,7 +292,7 @@ test("password: after a failed revoke the retry with the new password as current
     async authorize() { return { status: "ok", userId: USER, email: "aidai@example.test", staff: false }; },
     async readTemporaryFlag() { return { status: "ok", temporary: false, appMetadata: {} }; },
     async verifyCurrentPassword(_u, _e, given) { return given === stored ? "ok" : "wrong"; },
-    async setPassword(_u, next) { stored = next; return "ok"; },
+    async setPassword(_t, _u, next) { stored = next; return "ok"; },
     async revokeOtherSessions() { calls.revoke += 1; return revokeWorks; },
     limiter: createRecoveryRateLimiter(),
   });
@@ -313,7 +313,7 @@ test("password: the temporary flow needs no current password, clears the flag in
   const response = await handler(change({ password: GOOD_PASSWORD }));
   assert.equal(response.status, 200);
   assert.deepEqual(calls.verify, []);
-  assert.deepEqual(calls.set, [[USER, GOOD_PASSWORD, meta]]);
+  assert.deepEqual(calls.set, [[TOKEN, USER, GOOD_PASSWORD, meta]]);
   assert.deepEqual(calls.revoke, [TOKEN]);
 });
 
@@ -331,6 +331,13 @@ test("password: the web policy applies (12+ characters, at most 72 bytes) and un
 });
 
 test("password: an Auth-side rejection is weak_password; a failed revoke is 503 after the change", async () => {
+  const same = passwordHarness({ async setPassword() { return "same_password"; } });
+  const sameResponse = await same.handler(change({ password: GOOD_PASSWORD, current_password: "old-password-value" }));
+  assert.equal(sameResponse.status, 400);
+  assert.deepEqual(await sameResponse.json(), { error: "same_password" });
+  const gone = passwordHarness({ async setPassword() { return "unauthorized"; } });
+  assert.equal((await gone.handler(change({ password: GOOD_PASSWORD, current_password: "old-password-value" }))).status, 401);
+  assert.deepEqual(gone.calls.revoke, [], "nothing is revoked when the password was not set");
   const rejected = passwordHarness({ async setPassword() { return "rejected"; } });
   const a = await rejected.handler(change({ password: GOOD_PASSWORD, current_password: "old-password-value" }));
   assert.equal(a.status, 400);

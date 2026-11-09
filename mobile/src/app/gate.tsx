@@ -1,5 +1,7 @@
 import { ActivityIndicator, View } from "react-native";
 
+import { ApplicationStatusScreen } from "@/features/registration/ApplicationStatus";
+import { NeedsApplicationScreen } from "@/features/registration/SignedInApplication";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -14,7 +16,7 @@ import { Text } from "@/ui/Text";
 export default function GateScreen() {
   const { tokens } = useTheme();
   const { m, profile } = useLang();
-  const { state, retry, refreshAccess, signOut } = useSession();
+  const { state, retry, signOut } = useSession();
 
   if (state.kind === "resolvingAccess") {
     return (
@@ -47,43 +49,11 @@ export default function GateScreen() {
   }
 
   if (state.kind === "needsApplication") {
-    // TODO(M7): мастер анкеты по личной ссылке (submit_student_application_v1, S1). Пока только честная заглушка.
-    return (
-      <Screen>
-        <Card>
-          <Text variant="title" accessibilityRole="header">
-            {m("gate.applicationTitle")}
-          </Text>
-          <Text variant="body">{m("gate.applicationSoon")}</Text>
-          <Text variant="secondary" tone="text2">
-            {m("gate.applicationSoonHint")}
-          </Text>
-          <Button label={m("gate.refresh")} onPress={() => void refreshAccess()} />
-          {logout}
-        </Card>
-      </Screen>
-    );
+    return <NeedsApplicationScreen email={state.entry.signedInEmail} resume={state.entry.resume} />;
   }
 
   if (state.kind === "applicationStatus") {
-    // TODO(M7): статус и ответы анкеты, исправление отклонённой (docs/mobile/PLAN.md, M7).
-    return (
-      <Screen>
-        <Card>
-          <Text variant="title" accessibilityRole="header">
-            {m("gate.statusTitle")}
-          </Text>
-          <Text variant="body" bold>
-            {m(`gate.status.${state.application.status}`)}
-          </Text>
-          <Text variant="secondary" tone="text2">
-            {m("gate.applicationSoon")}
-          </Text>
-          <Button label={m("gate.refresh")} onPress={() => void refreshAccess()} testID="gate-refresh" />
-          {logout}
-        </Card>
-      </Screen>
-    );
+    return <ApplicationStatusScreen application={state.application} />;
   }
 
   // accessPending (и страховка для остальных видов)

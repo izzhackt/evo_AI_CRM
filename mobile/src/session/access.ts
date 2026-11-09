@@ -34,7 +34,7 @@ export type StudentSessionIdentity = Readonly<{
   emailConfirmed: boolean;
   /** `app_metadata.evo_staff_password_request_id`, если есть. */
   staffProvisionMarker: string | null;
-  /** Есть ли в `user_metadata.student_application_draft` непустой объект. TODO(M7): строгий валидатор. */
+  /** `user_metadata.student_application_draft` проходит validateStudentApplicationDraft веба. */
   metadataDraftPresent: boolean;
 }>;
 
@@ -139,7 +139,7 @@ async function resolveApplicationFlow(deps: AccessDeps): Promise<SessionState> {
       case "status":
         return application ? { kind: "applicationStatus", application } : routeAccessPending(deps);
       case "resumeSubmit":
-        // TODO(M7): отправить черновик из user_metadata (submit_student_application_v1). В M0 только честный экран-заглушка.
+        // Черновик из user_metadata отправляет NeedsApplicationScreen (features/registration), expected_revision 0.
         return { kind: "needsApplication", entry: { signedInEmail: identity.email, resume: true } };
       case "wizard":
         return { kind: "needsApplication", entry: { signedInEmail: identity.email, resume: false } };

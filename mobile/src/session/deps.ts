@@ -1,6 +1,7 @@
 // Реальные зависимости маршрутизатора: RPC платформы и сессия Supabase.
 import type { AppSupabase } from "@/lib/supabase";
 import { RpcError, rpcRead, type RpcTransport } from "@/lib/rpc";
+import { validateStudentApplicationDraft } from "@/features/registration/application-contract";
 import {
   isDeletedUserCode,
   type AccessDeps,
@@ -83,7 +84,8 @@ export function createAccessDeps(supabase: AppSupabase, transport: RpcTransport)
         email: user.email ?? null,
         emailConfirmed: Boolean(user.email_confirmed_at),
         staffProvisionMarker: typeof marker === "string" ? marker : null,
-        metadataDraftPresent: isRow(draft),
+        // Строгий валидатор веба: чужая форма в метаданных не считается черновиком.
+        metadataDraftPresent: validateStudentApplicationDraft(draft) !== null,
       };
     },
     async ownStudentApplication() {

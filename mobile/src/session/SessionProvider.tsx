@@ -20,7 +20,7 @@ type SessionContextValue = Readonly<{
   signIn: (login: string, password: string) => Promise<SignInOutcome>;
   signOut: () => Promise<void>;
   retry: () => Promise<void>;
-  /** TODO(M7) заменит «обновить статус анкеты»: refreshSession + повторный маршрут. */
+  /** «Обновить статус»: refreshSession + повторный маршрут (после отправки анкеты, одобрения, исправления). */
   refreshAccess: () => Promise<void>;
   portalAuth: PortalAuthApi;
   setOwnPassword: (password: string) => Promise<"ok" | "weak_password" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network">;

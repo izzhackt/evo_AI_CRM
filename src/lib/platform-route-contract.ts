@@ -61,6 +61,8 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/tests/career",
   "/portal/favorites",
   "/portal/profile",
+  // 356: экран «Конфиденциальность» при первом входе (две обязательные галочки), без оболочки кабинета.
+  "/portal/privacy",
   // PORT-4c: обучение и профессии (движок 198, сид 199).
   "/portal/english",
   "/portal/english/review",

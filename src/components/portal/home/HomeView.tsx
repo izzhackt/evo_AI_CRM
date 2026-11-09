@@ -4,7 +4,6 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
-import { aiConsentApplies } from "@/lib/portal/ai-consent";
 import { todayForTimeline } from "@/lib/portal/country-timeline";
 import { bishkekDay, type HomeDateItem } from "@/lib/portal/home-dates";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
@@ -20,10 +19,8 @@ import { HomeWriteEvo } from "./HomeWriteEvo";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
- * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточка согласия на ИИ-помощников
- * (`aiConsent`, 25.10.2026) стоит первой под шапкой, пока для текущей версии текста нет решения, и не блокирует ничего
- * ниже; она только у клиента с делом на сопровождении (tier assisted), самостоятельному студенту вид её не показывает,
- * даже если её передали.
+ * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточки согласия на ИИ-помощников здесь больше нет (09.11.2026): выбор
+ * спрашивает экран «Конфиденциальность» при первом входе, отозвать можно в «Профиле».
  *
  * 08.11.2026 (по образцу «Главной» от пользователя): сверху приветствие с этапом дела (HomeHero, без изменений), ниже
  * две колонки. Слева «Что сделать сейчас» (HomeCase, assisted) или «Ваша анкета» (approved) и «Мои вузы»
@@ -55,7 +52,6 @@ export function HomeView({
   journey = null,
   countryChoice = null,
   csca = null,
-  aiConsent = null,
   locale,
   now,
 }: {
@@ -83,8 +79,6 @@ export function HomeView({
   countryChoice?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
   csca?: ReactNode;
-  /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком клиента с делом на сопровождении, пока для текущей версии нет решения; самостоятельному студенту не показывается, даже если передан. */
-  aiConsent?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
@@ -109,7 +103,6 @@ export function HomeView({
     <div className="pt-home">
       <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
       {countryChoice}
-      {aiConsentApplies(tier) ? aiConsent : null}
       {info}
       <div className="pt-home-columns">
         <div className="pt-home-main">

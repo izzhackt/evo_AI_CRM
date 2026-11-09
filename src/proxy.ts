@@ -277,6 +277,10 @@ export async function proxy(request: NextRequest) {
   const id = requestId(request.headers.get("x-request-id"));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", id);
+  // 356: слой кабинета (CONSENT_GATE_PATH_HEADER в lib/portal/consent-gate.ts, имя дублируется строкой: прокси не тянет
+  // лишних модулей) узнаёт запрошенную страницу, чтобы после экрана «Конфиденциальность» вернуть на неё. Заголовок
+  // всегда перезаписывается здесь, пришедшее от клиента значение не доверяется.
+  requestHeaders.set("x-evo-pathname", `${request.nextUrl.pathname}${request.nextUrl.search}`.slice(0, 600));
   // Only this proxy mints the access handoff, never the client.
   requestHeaders.delete(ACCESS_HANDOFF_HEADER);
   const path = request.nextUrl.pathname;

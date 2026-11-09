@@ -3004,6 +3004,45 @@ const aiConsentKy: Readonly<Record<AiConsentKey, string>> = {
   policyUpdated: "Шарттар жаңыланды. Тандооңузду кайра ырастаңыз.",
 };
 
+/**
+ * Экран «Конфиденциальность» при первом входе (решение владельца 09.11.2026, миграция 356). Обе галочки обязательны:
+ * владелец выбрал это осознанно, зная о риске пункта 5.1.1 App Store (docs/PLAN_CHANGES.md). Тексты галочек - слова
+ * владельца; тело второй - то же согласие, что `aiConsent` (версия `AI_CONSENT_POLICY_VERSION`), без фразы об отказе:
+ * отказаться на этом экране нельзя, отозвать можно в «Профиле». Политика одна (русская) для обеих локалей.
+ */
+const consentGateRu = {
+  title: "Конфиденциальность",
+  lead: "Перед началом работы подтвердите два пункта. Без них кабинет не откроется.",
+  policyLabel: "Принимаю {policy}",
+  policyLink: "политику конфиденциальности",
+  aiLabel: "Разрешаю ИИ-помощникам EVO читать мою переписку и документы дела",
+  aiDetail: "ИИ-помощники готовят ответы и следят за сроками. Данные обрабатывают Anthropic (Claude, США) и Google (Gemini). Решения по делу принимают сотрудники EVO. Разрешение можно отозвать в «Профиле».",
+  required: "Обязательно",
+  submit: "Продолжить",
+  saving: "Сохраняем…",
+  needBoth: "Отметьте оба пункта, чтобы продолжить.",
+  error: "Не удалось сохранить. Проверьте соединение и повторите.",
+  logout: "Выйти",
+} as const;
+
+type ConsentGateKey = keyof typeof consentGateRu;
+
+// KY: черновик в тоне русского текста; вычитка носителем владельца ожидается.
+const consentGateKy: Readonly<Record<ConsentGateKey, string>> = {
+  title: "Купуялуулук",
+  lead: "Баштоодон мурун эки пунктту ырастаңыз. Аларсыз кабинет ачылбайт.",
+  policyLabel: "Мен {policy} кабыл алам",
+  policyLink: "купуялык саясатын",
+  aiLabel: "EVO ЖИ-жардамчыларына менин кат алышуумду жана ишимдин документтерин окууга уруксат берем",
+  aiDetail: "ЖИ-жардамчылар жооп даярдап, мөөнөттөрдү көзөмөлдөйт. Маалыматты Anthropic (Claude, АКШ) жана Google (Gemini) иштетет. Иш боюнча чечимдерди EVO кызматкерлери кабыл алат. Уруксатты «Профилден» кайтарып алса болот.",
+  required: "Милдеттүү",
+  submit: "Улантуу",
+  saving: "Сакталууда…",
+  needBoth: "Улантуу үчүн эки пунктту тең белгилеңиз.",
+  error: "Сакталган жок. Байланышты текшерип, кайра аракет кылыңыз.",
+  logout: "Чыгуу",
+};
+
 export const PORTAL_DICTIONARIES = {
   programDocuments: { ru: programDocumentsRu, ky: programDocumentsKy },
   preparations: { ru: preparationsRu, ky: preparationsKy },
@@ -3023,6 +3062,7 @@ export const PORTAL_DICTIONARIES = {
   apply: { ru: applyRu, ky: applyKy },
   accountDeletion: { ru: accountDeletionRu, ky: accountDeletionKy },
   aiConsent: { ru: aiConsentRu, ky: aiConsentKy },
+  consentGate: { ru: consentGateRu, ky: consentGateKy },
 } as const;
 
 export type PortalNamespace = keyof typeof PORTAL_DICTIONARIES;

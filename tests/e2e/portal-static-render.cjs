@@ -79,7 +79,8 @@ const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCa
 const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
 const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
 // Согласие на ИИ-помощников (25.10.2026): карточка «Главной» и строка «Профиля».
-const { AiConsentHomeCard, AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
+const { AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
+const { ConsentGateForm } = require(join(ROOT, "src/components/portal/consent/ConsentGateForm.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
 // S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
@@ -621,9 +622,8 @@ const aiConsentGranted = {
   currentPolicyVersion: "2026-10-25",
 };
 const aiConsentDeclined = { ...aiConsentGranted, status: "declined" };
-/** Решение по старой версии текста: для текущей это «не выбрано» с пояснением. */
-const aiConsentOutdated = { ...aiConsentGranted, policyVersion: "2026-01-01" };
 const aiConsentStrings = getPortalStrings("aiConsent", "ru");
+const consentGateStrings = getPortalStrings("consentGate", "ru");
 
 const surfaces = [
   {
@@ -634,15 +634,9 @@ const surfaces = [
         null,
         admission.overviewTitle,
         null,
-        // Согласие на ИИ-помощников стоит над обзором (слот карточки на /portal).
         createElement(
           Fragment,
           null,
-          createElement(
-            "div",
-            { className: "pt-consent-slot" },
-            createElement(AiConsentHomeCard, { initialConsent: aiConsentAsked, strings: aiConsentStrings }),
-          ),
           createElement(OverviewView, { overview: overviewFixture, pending: false, locale: "ru" }),
           // 08.11.2026: весь «Путь поступления» стоит между плитками и вкладками.
           timelineChina,
@@ -806,12 +800,6 @@ const surfaces = [
           // Страны нет: выбор страны первым блоком под шапкой, карточки пути нет.
           journey: null,
           countryChoice: timelineChoose,
-          // Самостоятельному студенту карточку согласия вид не показывает, даже
-          // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
-          aiConsent: createElement(AiConsentHomeCard, {
-            initialConsent: aiConsentAsked,
-            strings: aiConsentStrings,
-          }),
           locale: "ru",
           now: HOME_NOW,
         }),
@@ -836,13 +824,31 @@ const surfaces = [
           favorites: [],
           favoritesTotal: 0,
           journey: journeyCardChina,
-          aiConsent: createElement(AiConsentHomeCard, {
-            initialConsent: aiConsentOutdated,
-            strings: aiConsentStrings,
-          }),
           locale: "ru",
           now: HOME_NOW,
         }),
+      ),
+    ),
+  },
+  // 356: экран «Конфиденциальность» при первом входе (две обязательные галочки), без оболочки кабинета.
+  {
+    name: "consent-gate",
+    html: renderSurface(
+      "Конфиденциальность — a11y",
+      createElement(
+        "main",
+        { className: "pt-gate" },
+        createElement(
+          "section",
+          { "aria-labelledby": "consent-gate-title", className: "pt-gate-card" },
+          createElement("h1", { id: "consent-gate-title", className: "pt-gate-title" }, consentGateStrings.title),
+          createElement("p", { className: "pt-gate-lead" }, consentGateStrings.lead),
+          createElement(ConsentGateForm, {
+            strings: consentGateStrings,
+            requestId: "0b9b3a4e-5c1d-4f6e-8a2b-7d3c9e1f2a4b",
+            next: "/portal",
+          }),
+        ),
       ),
     ),
   },

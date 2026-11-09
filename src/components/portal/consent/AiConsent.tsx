@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
-import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { CheckMark } from "@/components/portal/CheckMark";
 import {
   AI_CONSENT_PRIVACY_URL,
@@ -121,48 +120,6 @@ function DecisionButton({
     >
       {children}
     </button>
-  );
-}
-
-/**
- * Карточка на «Главной», пока для текущей версии текста нет решения (решение
- * владельца 25.10.2026). Не окно и не преграда: кабинет работает без ответа,
- * выбор в любой момент меняется в «Профиле». После решения карточка в этом
- * заходе остаётся с подтверждением и ссылкой на «Профиль», при следующем
- * открытии «Главной» её уже нет.
- */
-export function AiConsentHomeCard({
-  initialConsent,
-  strings,
-}: Readonly<{ initialConsent: AiConsent; strings: AiConsentStrings }>) {
-  const decision = useAiConsentDecision(initialConsent);
-  const titleId = useId();
-  const asking = aiConsentState(decision.consent) === "undecided";
-  if (!asking && !decision.fresh) return null;
-
-  return (
-    <section aria-labelledby={titleId} className="pt-consent" data-testid="ai-consent-card">
-      <h2 id={titleId} className="pt-consent-title">{strings.title}</h2>
-      {asking ? (
-        <>
-          <p className="pt-consent-body">{strings.body}</p>
-          {aiConsentOutdated(decision.consent) ? (
-            <p className="pt-consent-note">{strings.policyUpdated}</p>
-          ) : null}
-          <PolicyLink strings={strings} />
-          <div className="pt-consent-actions">
-            <DecisionButton decision={decision} status="granted" primary>{strings.allow}</DecisionButton>
-            <DecisionButton decision={decision} status="declined" primary={false}>{strings.decline}</DecisionButton>
-          </div>
-        </>
-      ) : null}
-      <DecisionFeedback decision={decision} strings={strings} />
-      {asking ? null : (
-        <p className="pt-consent-policy">
-          <IntentPrefetchLink className="pt-link" href="/portal/profile">{strings.changeInProfile}</IntentPrefetchLink>
-        </p>
-      )}
-    </section>
   );
 }
 

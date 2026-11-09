@@ -7,7 +7,6 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { PendingPackagesLink } from "@/components/portal/applicationPackages/PendingPackagesLink";
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
-import { DocumentUploadDialog } from "@/components/portal/admission/DocumentUploadDialog";
 import { CaseFilesCard } from "@/components/portal/admission/CaseFilesCard";
 import { DocumentsView } from "@/components/portal/admission/DocumentsView";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
@@ -28,8 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * пуст») — байт-в-байт (PORT-6a: RU-значения живут в неймспейсе admission,
  * смоук-аккаунт — language=ru).
  *
- * 03.11.2026 (по образцу кабинета пользователя): в шапке кнопка «Загрузить
- * документ» (окно выбора строки чек-листа), ниже вкладки-таблетки «Мои
+ * 03.11.2026 (по образцу кабинета пользователя): ниже вкладки-таблетки «Мои
  * документы» (чек-лист, по умолчанию) и «Пакеты по вузам» (?view=packages —
  * пакеты выбранных программ, тот же список, что на «Моём поступлении»).
  * Пакеты читаются вместе с документами; их сбой не роняет чек-лист.
@@ -46,15 +44,6 @@ export default async function StudentPortalDocumentsPage({
   const [preparations, params] = await Promise.all([preparationsRead, searchParams]);
   const view = params.view === "packages" ? "packages" : "checklist";
   const strings = getPortalStrings("admission", locale);
-  const uploadable = documents
-    .filter((document) => document.status !== "approved")
-    .map((document) => ({
-      documentSlotId: document.documentSlotId,
-      label: document.requirementLabel,
-      instructions: document.instructions,
-      documentVersionId: document.documentVersionId,
-      originalFilename: document.originalFilename,
-    }));
 
   return (
     <main className="pt-page">
@@ -63,7 +52,6 @@ export default async function StudentPortalDocumentsPage({
           <h1 className="pt-page-title">{strings.documentsTitle}</h1>
           <p className="pt-page-lead">{strings.documentsLead}</p>
         </div>
-        {view === "checklist" ? <DocumentUploadDialog documents={uploadable} locale={locale} /> : null}
       </header>
       <DocumentsView
         documents={documents}

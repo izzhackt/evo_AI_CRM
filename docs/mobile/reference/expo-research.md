@@ -59,3 +59,58 @@ Method: WebFetch of official docs plus a few web searches. Fetch tool summarises
 - Account deletion (https://support.google.com/googleplay/android-developer/answer/13327111): in-app deletion path AND a web resource for deletion requests, URL entered in Play Console Data safety / App content; disclose retention; also delete at service providers. Need a public web page on evoadmissions.com.
 - Data safety form mandatory for all apps (page for it not fetched: UNVERIFIED details).
 - Closed testing: personal accounts created after 2023-11-13 need **12 testers opted in continuously for 14 days** before applying for production (https://support.google.com/googleplay/android-developer/answer/14151465). Organisation accounts are not subject (implied by "personal"; not stated on fetched page - UNVERIFIED).
+
+## 9. Hermes runtime checks (verified on the iPhone 17 Pro simulator, iOS 26.5, 2026-11-09)
+- Hermes on iPhone has **no `Intl.PluralRules`** (`new Intl.PluralRules(...)` throws "undefined cannot be used as a constructor") and no `Intl.DisplayNames`. Shared web code uses PluralRules (`components/portal/csca/session-labels.ts`, "closes in N days"); the app loads `@formatjs/intl-pluralrules` with RU and KY data first (`mobile/src/polyfills.ts`, imported at the top of the root layout). Jest runs on Node, so unit tests cannot show this: any new shared web module that uses an `Intl.*` class must be checked on a simulator.
+- Present and correct in Hermes iOS: `Intl.DateTimeFormat` with `timeZone` (Asia/Bishkek, UTC), `ru` and `ky` locales (KY dates come out as "2026-ж., 14-ноябрь", the CLDR pattern, same as Chrome), `Intl.NumberFormat` currency. `Intl.DisplayNames` is only used inside try/catch in `universityCountryLabel`.
+- Regex features used by the shared web parsers (`\p{L}`, lookbehind, `/u`) compile in Hermes (`expo export --platform ios` runs hermesc) and the web content (timelines, CSCA overview) parses at app start.
+- `@formatjs/*` packages ship ESM and a strict `exports` map: import `polyfill.js` and `locale-data/<lang>.js` with the extension, and keep `@formatjs/.*` in Jest `transformIgnorePatterns`.
+- **Date paths checked on Hermes (iPhone 17 Pro simulator, iOS 26.5, 2026-11-09, probe in the running app, then removed):** `Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Bishkek", year/month/day:"numeric|2-digit|2-digit"}).format()` returns `YYYY-MM-DD` (2026-11-09T20:30Z gives `2026-11-10`; 17:59Z gives `2026-11-09`, so the Bishkek day boundary is right). `formatToParts` with `en-CA`, `hourCycle:"h23"` returns typed parts `year, month, day, hour, minute` with 2-digit values and `00` for the hour just after midnight (no `24`). So `todayForTimeline` (country-timeline.ts), `bishkekDay` (session-labels.ts) and `universityIntakeLabel` (platform-university-catalog.ts) work unchanged; no polyfill or web edit was needed. Jest runs on Node, so this stays a manual check: repeat it after an SDK or Hermes upgrade.
+- **Документы, живая проверка на локальном стенде (iPhone 17 Pro, 2026-11-09, test.assisted):** вход, чек-лист (10 пунктов), «Договор и чеки», Оплата читаются живыми RPC. Скачивание договора и чека: bearer GET `/api/portal/case-files/{вид}/{id}/download` -> 307 на подписанный URL, `fetch` идёт по перенаправлению сам, файл пишется в кэш и открывается Quick Look (`File.preview`). Скачивание своего документа (`/document-versions/{id}/download`) в стенде даёт 403 `download_not_authorized`: у посеянной версии нет байтов и результата проверки; приложение показывает «нельзя скачать». Загрузка: multipart с Bearer и `Idempotency-Key` доходит до маршрута, фото из галереи (системный выбор без разрешения) отправляется; сервер отвечает 503 `malware_scanner_unavailable` (в стенде нет ClamAV), приложение показывает «Загрузка сейчас недоступна» и «Повторить загрузку». Успешная загрузка до квитанции 201 на стенде не проверена. Найдено живьём: события прогресса `expo-file-system` на iOS приходят как BigInt, `(bytesSent / totalBytes) * 100` бросает «Cannot convert 100 to BigInt»; исправлено через `Number()` (`progressPercent`).
+
+
+## 10. Скачивание документов в два шага: Bearer не уходит на подписанный адрес хранилища (проверка 2026-11-09)
+
+Решение (ревью M2, MAJOR 2): портал отвечает `307` с `Location` на подписанный URL хранилища. Встроенный `fetch` React Native
+всегда идёт по перенаправлению сам и унёс бы заголовок `Authorization` на хранилище. Поэтому приложение использует
+`fetch` из `expo/fetch` (WinterCG, `redirect` разбирается нативно на iOS и Android: `ios/Expo/Fetch/NativeRequestRedirect.swift`,
+`android/.../expo/modules/fetch/NativeRequest.kt`): шаг 1, портал с Bearer и `redirect: "manual"`, из ответа читается `Location`;
+приложение проверяет, что это абсолютный http(s) адрес ДРУГОГО происхождения, чем портал; шаг 2, хранилище без каких-либо
+заголовков доступа. Любое перенаправление на шаге 2 это ошибка. Код: `mobile/src/features/documents/download.ts`.
+
+Как проверено вживую: записывающий прокси (вне репозитория) между приложением и локальным стендом. Портал за прокси на `:46441`,
+прокси переписывает `Location` с `127.0.0.1:46421` на второй прокси `:46442` перед хранилищем. Прокси пишет только имена заголовков
+и ПРИСУТСТВИЕ `Authorization`, значения не пишет. Лог хранилища Supabase для этого не годится: он не пишет `authorization` вообще
+(проверено: запрос `curl` с `Authorization` в журнале хранилища заголовка не показывает), поэтому доказательство снято на проводе.
+
+iPhone 17 Pro, симулятор, iOS 26.5, `test.assisted`, «Договор» → «Скачать» (договор открылся в Quick Look):
+
+```
+portal  GET /api/portal/case-files/contract/<id>/download  authorization=PRESENT
+portal  -> 307 location-host=127.0.0.1:46442
+storage GET /storage/v1/object/sign/platform-documents/case-contracts/<ids>  authorization=absent apikey=absent
+storage -> 200
+```
+
+Android-эмулятор `Medium_Phone_API_37.0` (Android 17, arm64, `-gpu host`), `test.assisted`, «Договор» → «Скачать» (договор открылся в системном просмотре PDF);
+`adb reverse` для 46421, 46441, 46442, тот же прокси:
+
+```
+portal  GET /api/portal/case-files/contract/<id>/download  authorization=PRESENT
+portal  -> 307 location-host=127.0.0.1:46442
+storage GET /storage/v1/object/sign/platform-documents/case-contracts/<ids>  authorization=absent apikey=absent
+storage -> 200
+```
+
+## 11. Первый запуск на Android (2026-11-09): что выяснилось
+
+- Эмулятор API 37 с `-gpu swiftshader_indirect` и `swangle_indirect` на этой машине не загрузил систему (system_server падает по watchdog,
+  `pm` недоступен); `-gpu host` грузится за секунды. Использовать только `-gpu host`.
+- Отладочная сборка RN просит у Android 17 `ACCESS_LOCAL_NETWORK` (окно «Nearby devices»): разрешение из debug-манифеста
+  `react-native`, в релиз не попадает. Для прогонов: `adb shell pm grant com.evoadmissions.app android.permission.ACCESS_LOCAL_NETWORK`.
+- Приложение без `expo-dev-client` ходит за бандлом на `10.0.2.2:8081`, то есть на порт 8081 Mac (там не Metro). Свой Metro: `adb reverse tcp:8097 tcp:8097`
+  и запись `debug_http_host=localhost:8097` в `shared_prefs/com.evoadmissions.app_preferences.xml` (`run-as`).
+- Сквозной режим (edge-to-edge): `KeyboardAvoidingView` и `adjustResize` не поднимают поле ввода чата над клавиатурой; исправлено событиями клавиатуры
+  (`features/inbox/useKeyboardInset.ts`), высота события не включает панель навигации.
+- Системная «назад»: из чата в список «Входящих» (вложенный стек), из списка на предыдущую вкладку.
+- Шрифты Inter и Roboto Mono, строка состояния, светлая и тёмная тема, RU и KY на Android совпадают с iPhone. Значки строки состояния над тёмным меню были тёмными: исправлено.

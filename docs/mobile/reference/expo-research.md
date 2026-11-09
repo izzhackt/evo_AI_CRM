@@ -91,3 +91,26 @@ portal  -> 307 location-host=127.0.0.1:46442
 storage GET /storage/v1/object/sign/platform-documents/case-contracts/<ids>  authorization=absent apikey=absent
 storage -> 200
 ```
+
+Android-эмулятор `Medium_Phone_API_37.0` (Android 17, arm64, `-gpu host`), `test.assisted`, «Договор» → «Скачать» (договор открылся в системном просмотре PDF);
+`adb reverse` для 46421, 46441, 46442, тот же прокси:
+
+```
+portal  GET /api/portal/case-files/contract/<id>/download  authorization=PRESENT
+portal  -> 307 location-host=127.0.0.1:46442
+storage GET /storage/v1/object/sign/platform-documents/case-contracts/<ids>  authorization=absent apikey=absent
+storage -> 200
+```
+
+## 11. Первый запуск на Android (2026-11-09): что выяснилось
+
+- Эмулятор API 37 с `-gpu swiftshader_indirect` и `swangle_indirect` на этой машине не загрузил систему (system_server падает по watchdog,
+  `pm` недоступен); `-gpu host` грузится за секунды. Использовать только `-gpu host`.
+- Отладочная сборка RN просит у Android 17 `ACCESS_LOCAL_NETWORK` (окно «Nearby devices»): разрешение из debug-манифеста
+  `react-native`, в релиз не попадает. Для прогонов: `adb shell pm grant com.evoadmissions.app android.permission.ACCESS_LOCAL_NETWORK`.
+- Приложение без `expo-dev-client` ходит за бандлом на `10.0.2.2:8081`, то есть на порт 8081 Mac (там не Metro). Свой Metro: `adb reverse tcp:8097 tcp:8097`
+  и запись `debug_http_host=localhost:8097` в `shared_prefs/com.evoadmissions.app_preferences.xml` (`run-as`).
+- Сквозной режим (edge-to-edge): `KeyboardAvoidingView` и `adjustResize` не поднимают поле ввода чата над клавиатурой; исправлено событиями клавиатуры
+  (`features/inbox/useKeyboardInset.ts`), высота события не включает панель навигации.
+- Системная «назад»: из чата в список «Входящих» (вложенный стек), из списка на предыдущую вкладку.
+- Шрифты Inter и Roboto Mono, строка состояния, светлая и тёмная тема, RU и KY на Android совпадают с iPhone. Значки строки состояния над тёмным меню были тёмными: исправлено.

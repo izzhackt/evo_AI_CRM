@@ -84,6 +84,8 @@ export type TimelineStep = Readonly<{
   note?: TimelineText;
   doneWhen: TimelineText;
   links?: readonly TimelineLink[];
+  /** «По желанию» (09.11.2026, владелец): шаг не входит в прогресс — никогда не «сейчас» и не «пройден». */
+  optional?: boolean;
   sources: readonly string[];
 }>;
 export type TimelineSource = Readonly<{
@@ -345,8 +347,9 @@ export function parseCountryTimelineFile(value: unknown, key: string): CountryTi
   const steps = (root.steps as unknown[]).map((raw, index): TimelineStep => {
     const path = `$.steps[${index}]`;
     const row = record(ctx, raw, path, ["id", "order", "stageKeys", "title", "summary", "timing", "checklist", "doneWhen", "sources"],
-      ["note", "links"]);
+      ["note", "links", "optional"]);
     const order = index + 1;
+    if ("optional" in row && typeof row.optional !== "boolean") ctx.fail(`${path}.optional`, "not a boolean");
     if (row.order !== order) ctx.fail(`${path}.order`, `not ${order}`);
     if (typeof row.id !== "string" || !new RegExp(`^${key}-${order}-[a-z0-9]+(?:-[a-z0-9]+)*$`, "u").test(row.id)) ctx.fail(`${path}.id`, "not <file>-<order>-<slug>");
     if (!Array.isArray(row.stageKeys) || row.stageKeys.length === 0 || new Set(row.stageKeys).size !== row.stageKeys.length) {
@@ -410,6 +413,7 @@ export function parseCountryTimelineFile(value: unknown, key: string): CountryTi
       ...("note" in row ? { note: text(ctx, row.note, `${path}.note`, true) } : {}),
       doneWhen: text(ctx, row.doneWhen, `${path}.doneWhen`, false),
       ...(links ? { links } : {}),
+      ...(row.optional === true ? { optional: true } : {}),
       sources: sourceRefs(ctx, row.sources, `${path}.sources`, knownSources, usedSources),
     });
   });
@@ -465,11 +469,12 @@ export const TIMELINE_BOARD_STEPS: Readonly<Record<string, readonly AdmissionsPi
 });
 
 // Таблица проверяется при импорте, как и файлы: шаг существует, колонка ведёт в его этап, в одном пути колонка
-// встречается один раз.
+// встречается один раз; шаг «по желанию» не закрепляется.
 for (const [file, timeline] of Object.entries(COUNTRY_TIMELINES)) {
   const seen = new Set<AdmissionsPipelineStage>();
   for (const step of timeline.steps) {
     for (const board of TIMELINE_BOARD_STEPS[step.id] ?? []) {
+      if (step.optional === true) throw new Error(`timeline ${file}: optional step ${step.id} cannot be pinned to a board column`);
       if (!ADMISSIONS_PIPELINE_STAGES.includes(board) || !step.stageKeys.includes(BOARD_TIMELINE_STAGE[board]) || seen.has(board)) {
         throw new Error(`timeline ${file}: board column ${board} does not fit step ${step.id}`);
       }
@@ -519,6 +524,8 @@ export type TimelineViewStep = Readonly<{
   timing: string | null;
   note: string | null;
   doneWhen: string;
+  /** Шаг «по желанию»: вне прогресса (`timelineStepProgress` → `optional`). */
+  optional: boolean;
   items: readonly TimelineViewItem[];
   links: readonly TimelineViewLink[];
 }>;
@@ -591,6 +598,7 @@ export function selectCountryTimeline(choice: unknown, options: SelectCountryTim
     timing: step.timing ? required(step.timing.label) : null,
     note: optional(step.note),
     doneWhen: required(step.doneWhen),
+    optional: step.optional === true,
     items: step.checklist
       .filter((item) => item.status === "confirmed" && show(item.text) !== undefined)
       .map((item) => ({
@@ -621,8 +629,8 @@ export function selectCountryTimeline(choice: unknown, options: SelectCountryTim
   });
 }
 
-/** Где студент на пути (08.11.2026, владелец): шаг пройден, шаг сейчас или впереди. */
-export type TimelineStepProgress = "done" | "current" | "upcoming";
+/** Где студент на пути (08.11.2026, владелец): шаг пройден, шаг сейчас или впереди; `optional` — шаг «по желанию», вне прогресса. */
+export type TimelineStepProgress = "done" | "current" | "upcoming" | "optional";
 
 /**
  * Прогресс по этапу дела (`operational_stage`, порядок TIMELINE_STAGE_KEYS). Сейчас — первый шаг, чей последний этап не
@@ -630,27 +638,33 @@ export type TimelineStepProgress = "done" | "current" | "upcoming";
  * он неизвестен (студент без дела, дело до сценария) — `null`: путь показывается без прогресса, как раньше. Этап дальше
  * всех шагов — всё пройдено.
  *
+ * Шаги «по желанию» (`optional`, 09.11.2026) в расчёте не участвуют: они никогда не «сейчас» и не «пройдены», всегда
+ * получают `optional`, а остальные шаги считаются так, будто их нет. Закрепить за колонкой такой шаг нельзя.
+ *
  * Колонка доски (`boardStage`, 09.11.2026) уточняет шаг, когда этап пришёл из неё: из шагов этого этапа сейчас тот, за
  * которым колонка закреплена в `TIMELINE_BOARD_STEPS`. Нет колонки, она не из этого этапа или шаг за ней не закреплён —
  * как раньше.
  */
 export function timelineStepProgress(
-  steps: readonly Readonly<{ id: string; stageKeys: readonly TimelineStageKey[] }>[],
+  steps: readonly Readonly<{ id: string; stageKeys: readonly TimelineStageKey[]; optional?: boolean }>[],
   stage: unknown,
   boardStage?: unknown,
 ): Readonly<Record<string, TimelineStepProgress>> | null {
   const at = typeof stage === "string" ? (TIMELINE_STAGE_KEYS as readonly string[]).indexOf(stage) : -1;
   if (at < 0 || steps.length === 0) return null;
   const last = (step: (typeof steps)[number]) => Math.max(...step.stageKeys.map((key) => TIMELINE_STAGE_KEYS.indexOf(key)));
-  let current = steps.findIndex((step) => last(step) >= at);
+  const regular = steps.filter((step) => step.optional !== true);
+  let current = regular.findIndex((step) => last(step) >= at);
   const board = typeof boardStage === "string" && (ADMISSIONS_PIPELINE_STAGES as readonly string[]).includes(boardStage)
     ? boardStage as AdmissionsPipelineStage : null;
   if (board && BOARD_TIMELINE_STAGE[board] === stage) {
-    const pinned = steps.findIndex((step) => step.stageKeys.includes(BOARD_TIMELINE_STAGE[board]) && (TIMELINE_BOARD_STEPS[step.id] ?? []).includes(board));
+    const pinned = regular.findIndex((step) => step.stageKeys.includes(BOARD_TIMELINE_STAGE[board]) && (TIMELINE_BOARD_STEPS[step.id] ?? []).includes(board));
     if (pinned >= 0) current = pinned;
   }
-  return Object.freeze(Object.fromEntries(steps.map((step, index): [string, TimelineStepProgress] => [
-    step.id,
-    current < 0 || index < current ? "done" : index === current ? "current" : "upcoming",
-  ])));
+  const rank = new Map(regular.map((step, index) => [step.id, index]));
+  return Object.freeze(Object.fromEntries(steps.map((step): [string, TimelineStepProgress] => {
+    const index = rank.get(step.id);
+    if (index === undefined) return [step.id, "optional"];
+    return [step.id, current < 0 || index < current ? "done" : index === current ? "current" : "upcoming"];
+  })));
 }

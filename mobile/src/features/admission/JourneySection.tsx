@@ -287,7 +287,7 @@ export function JourneySection({
                     <Pressable
                       accessibilityRole="button"
                       accessibilityState={{ expanded }}
-                      accessibilityLabel={`${stepLabel} ${step.title}${state === "current" ? `. ${timeline.progressCurrent}` : state === "done" ? `. ${timeline.progressDone}` : ""}${step.timing ? `. ${timeline.period} ${step.timing}` : ""}`}
+                      accessibilityLabel={`${stepLabel} ${step.title}${state === "current" ? `. ${timeline.progressCurrent}` : state === "done" ? `. ${timeline.progressDone}` : state === "optional" ? `. ${timeline.progressOptional}` : ""}${step.timing ? `. ${timeline.period} ${step.timing}` : ""}`}
                       accessibilityHint={m("timeline.pathExpandedHint")}
                       onPress={() => toggle(step.id)}
                       testID={`step-toggle-${step.id}`}
@@ -300,6 +300,10 @@ export function JourneySection({
                         {state === "done" ? (
                           <Text variant="caption" tone="ok" bold>
                             {timeline.progressDone}
+                          </Text>
+                        ) : state === "optional" ? (
+                          <Text variant="caption" tone="text2" bold testID={`step-optional-${step.id}`}>
+                            {timeline.progressOptional}
                           </Text>
                         ) : null}
                         <ChevronDown size={18} strokeWidth={1.75} color={tokens.text2} style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }} />

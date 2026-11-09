@@ -1,6 +1,7 @@
 // CSCA: главная раздела «Учёба». Две вкладки как на вебе: «Занятия» (следующий шаг, тесты на
 // время, ошибки, темы с уроками, сессии) и «Об экзамене» (статичный обзор, виден и без сети).
 // Один чтение-запрос `learning_track_home_v1` на экран (общий с карточкой на «Главной»).
+import { cscaOverviewKey } from "@/features/learning/csca/ui-state";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -30,7 +31,7 @@ import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
 
 /** Выбор вкладки хранится на устройстве отдельно для каждого студента (общий ключ показал бы выбор прошлого). */
-const storageKey = (userKey: string) => `csca_overview:${userKey}`;
+const storageKey = cscaOverviewKey;
 const STATE_TONE: Record<CscaTopicState, "neutral" | "warn" | "bad" | "ok"> = { not_started: "neutral", few_data: "neutral", gap: "bad", shaky: "warn", confident: "ok" };
 
 /** Занимался ли студент: решает, какая вкладка открыта сразу (правило §19, общее с iPhone). */

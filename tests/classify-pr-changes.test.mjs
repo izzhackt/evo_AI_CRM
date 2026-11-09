@@ -396,3 +396,9 @@ test("web-only server code does not trigger the mobile lane", () => {
     assert.equal(classifyNameStatus(nul("M", path)).mobile, false, path);
   }
 });
+
+test("root .gitattributes is known configuration, not unknown", () => {
+  const result = classifyNameStatus(nul("A", ".gitattributes"));
+  assert.equal(result.unknown, false);
+  assert.equal(result.build, false);
+});

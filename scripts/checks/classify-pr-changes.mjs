@@ -51,6 +51,7 @@ const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
   ".env.example",
   ".eslintignore",
+  ".gitattributes",
   ".gitignore",
   ".nvmrc",
   "Dockerfile",

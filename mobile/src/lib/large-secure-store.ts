@@ -22,6 +22,12 @@ export type LargeSecureStoreDeps = Readonly<{
   randomBytes: (length: number) => Uint8Array;
 }>;
 
+/**
+ * Метка перед открытым текстом: AES-CTR не проверяет целостность, и чужой ключ даёт «мусор»,
+ * который иногда ещё и валидный UTF-8. Без метки в начале расшифровка отвергается.
+ */
+export const PLAINTEXT_MAGIC = "EVO1:";
+
 export class LargeSecureStore {
   private readonly deps: LargeSecureStoreDeps;
 
@@ -32,7 +38,7 @@ export class LargeSecureStore {
   private encrypt(value: string): { keyHex: string; cipherHex: string } {
     const encryptionKey = this.deps.randomBytes(256 / 8);
     const cipher = new aesjs.ModeOfOperation.ctr(encryptionKey, new aesjs.Counter(1));
-    const encryptedBytes = cipher.encrypt(aesjs.utils.utf8.toBytes(value));
+    const encryptedBytes = cipher.encrypt(aesjs.utils.utf8.toBytes(PLAINTEXT_MAGIC + value));
     return { keyHex: aesjs.utils.hex.fromBytes(encryptionKey), cipherHex: aesjs.utils.hex.fromBytes(encryptedBytes) };
   }
 
@@ -40,7 +46,8 @@ export class LargeSecureStore {
   private decrypt(keyHex: string, value: string): string | null {
     try {
       const cipher = new aesjs.ModeOfOperation.ctr(aesjs.utils.hex.toBytes(keyHex), new aesjs.Counter(1));
-      return aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(value)));
+      const plain = aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(value)));
+      return plain.startsWith(PLAINTEXT_MAGIC) ? plain.slice(PLAINTEXT_MAGIC.length) : null;
     } catch {
       return null;
     }

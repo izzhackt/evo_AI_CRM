@@ -66,4 +66,24 @@ describe("LargeSecureStore", () => {
     await expect(failing.setItem("k", "new")).rejects.toThrow();
     expect(secrets.data.get("k")).toBe(oldKey);
   });
+
+  it("чужой ключ или подменённый шифротекст: null (метка не совпала), запись очищена", async () => {
+    const { store, secrets, bulk } = make();
+    await store.setItem("k", "session-json");
+    // ключ другой записи: расшифровка даёт мусор без метки
+    secrets.data.set("k", "ab".repeat(32));
+    await expect(store.getItem("k")).resolves.toBeNull();
+    expect(bulk.data.size + secrets.data.size).toBe(0);
+  });
+
+  it("шифротекст без метки (старый формат или подделка) не принимается", async () => {
+    const { store, secrets, bulk } = make();
+    await store.setItem("k", "v");
+    const key = secrets.data.get("k")!;
+    // тот же ключ, но шифротекст сделан от открытого текста без метки
+    const aes = jest.requireActual("aes-js");
+    const cipher = new aes.ModeOfOperation.ctr(aes.utils.hex.toBytes(key), new aes.Counter(1));
+    bulk.data.set("k", aes.utils.hex.fromBytes(cipher.encrypt(aes.utils.utf8.toBytes("plain-without-magic"))));
+    await expect(store.getItem("k")).resolves.toBeNull();
+  });
 });

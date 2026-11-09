@@ -1818,7 +1818,7 @@ test("active platform CI executes only the root successor product", () => {
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
   assert.match(fastPr, /node scripts\/checks\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
-  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
+  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "mobile", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
   assert.doesNotMatch(fastPr, /^  classification_guard:/mu);
@@ -1833,10 +1833,14 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /^  build:\n    name: Build$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.build == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run build/u);
+  assert.match(fastPr, /^  mobile:\n    name: Mobile app$/mu);
+  assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.mobile == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
+  assert.match(fastPr, /working-directory: mobile\n        run: npm ci/u);
+  assert.match(fastPr, /working-directory: mobile\n        run: npm run check/u);
   assert.match(fastPr, /^  migration_boundary:\n    name: Migration boundary$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
-  assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
+  assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
   assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
@@ -1854,13 +1858,13 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
   const env = {
     PATH: process.env.PATH,
     RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false",
-    CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped",
+    CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped", MOBILE_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
   assert.equal(run({}), 0);
-  assert.equal(run({ CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
-  for (const name of ["CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
+  assert.equal(run({ CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
+  for (const name of ["CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
     for (const result of ["failure", "cancelled", "", "unknown"]) {
       assert.notEqual(run({ [name]: result }), 0, `${name}=${result}`);
     }

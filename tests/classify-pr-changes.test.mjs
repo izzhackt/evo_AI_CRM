@@ -348,3 +348,51 @@ test("accepts moving retired root configs and folders out, but not editing them 
   assert.equal(classifyNameStatus(nul("M", "playwright.accessibility.config.ts")).unknown, true);
   assert.equal(classifyNameStatus(nul("A", "presentations/new.md")).unknown, true);
 });
+
+test("mobile-only changes request only the mobile lane and stay known", () => {
+  const result = classifyNameStatus(nul(
+    "M", "mobile/src/features/learning/csca/ItemCard.tsx",
+    "A", "mobile/package-lock.json",
+    "M", "mobile/AGENTS.md",
+    "D", "mobile/assets/fonts/OFL-GolosText.txt",
+  ));
+  assert.equal(result.mobile, true);
+  assert.equal(result.unknown, false);
+  assert.equal(result.has_changes, true);
+  assert.equal(result.ordinary_docs, false);
+  assert.equal(result.code, false);
+  assert.equal(result.lint, false);
+  assert.equal(result.build, false);
+  assert.equal(result.contracts, false);
+  assert.deepEqual(result.unknown_paths, []);
+});
+
+test("docs/mobile stays ordinary documentation without the mobile lane", () => {
+  const result = classifyNameStatus(nul("A", "docs/mobile/overview.md", "M", "docs/mobile/screenshots/home.png"));
+  assert.equal(result.ordinary_docs, true);
+  assert.equal(result.mobile, false);
+  assert.equal(result.unknown, false);
+  assert.equal(result.code, false);
+});
+
+test("shared web surface used by the app runs web checks and the mobile lane", () => {
+  for (const path of ["src/lib/portal/i18n.ts", "src/lib/study-countries.ts", "src/content/portal/lessons.json",
+    "src/components/portal/profession-illustration.tsx"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.mobile, true, path);
+    assert.equal(result.code, true, path);
+    assert.equal(result.lint, true, path);
+    assert.equal(result.build, true, path);
+    assert.equal(result.unknown, false, path);
+  }
+  const withMobile = classifyNameStatus(nul("M", "src/lib/portal/i18n.ts", "M", "mobile/src/app/index.tsx"));
+  assert.equal(withMobile.mobile, true);
+  assert.equal(withMobile.lint, true);
+  assert.equal(withMobile.unknown, false);
+});
+
+test("web-only server code does not trigger the mobile lane", () => {
+  for (const path of ["src/lib/server/university-template-preflight.ts", "src/app/page.tsx", "package.json", "docs/note.md"]) {
+    assert.equal(classifyNameStatus(nul("M", path)).mobile, false, path);
+  }
+});

@@ -1,11 +1,11 @@
 import "server-only";
 
-import { SIGNUP_CONFIRMATION_FLOW_HEADER, SIGNUP_CONFIRMATION_FLOW_VERSION, type NativeSignupPending, type NativeSignupResendResult, type SignupFailure } from "../student-signup-confirmation-state.ts";
+import { SIGNUP_CONFIRMATION_FLOW_HEADER, type NativeSignupPending, type NativeSignupResendResult, type SignupFailure } from "../student-signup-confirmation-state.ts";
 import { isStudentSignupConfirmationEnvelope } from "../student-signup-confirmation-contract.ts";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { validateStudentApplicationDraft, type StudentApplicationDraft } from "../student-application-contract.ts";
+import { STUDENT_APPLICATION_CONSENT_VERSION, validateStudentApplicationDraft, type StudentApplicationDraft } from "../student-application-contract.ts";
 import {
   normalizeStudentInviteIdentity,
   resolveStudentInviteReceiptIdentity,
@@ -45,16 +45,19 @@ import { studentPortalDocumentRouteTransport } from "./platform-document-storage
 // 16 KiB as a generous whole-body ceiling for the JSON envelope.
 const MAX_REGISTRATION_BODY_BYTES = 16384;
 const MAX_QUESTIONNAIRE_JSON_CHARS = 12000;
-const REGISTRATION_KEYS = "email,password,questionnaire";
+const REGISTRATION_KEYS = "aiConsent,email,invite,password,questionnaire";
 const BODY_READ_DEADLINE_MS = 5000;
+// v1 (`email-confirmation-v1`, anonymous, no invite) is RETIRED (SEC-1): it answers 426 and creates nothing.
+// v2 requires the personal link and the current consents; the resend route speaks v2 as well.
+const NATIVE_SIGNUP_FLOW_V2 = "email-confirmation-v2";
 
 type RegistrationStatus = SignupFailure["status"];
-type CreateAccount = (email: string, password: string, draft: StudentApplicationDraft) => Promise<NativeSignupPending | SignupFailure>;
-const defaultCreateAccount: CreateAccount = async (email, password, draft) => {
+type CreateAccount = (email: string, password: string, draft: StudentApplicationDraft, invite: string, aiConsent: true) => Promise<NativeSignupPending | SignupFailure>;
+const defaultCreateAccount: CreateAccount = async (email, password, draft, invite, aiConsent) => {
   const { beginStudentSignup } = await import("./student-signup-confirmation-runtime.ts");
-  return beginStudentSignup(email, password, draft);
+  return beginStudentSignup(email, password, draft, invite, aiConsent);
 };
-// `invite` (341, the website's registration link) never comes from the app, which sends no link yet.
+// `invite` (341, the personal registration link) is required, as in the web action: an empty one answers 403 `invite`.
 const REGISTRATION_HTTP_STATUS: Readonly<Record<RegistrationStatus, number>> = {
   invalid: 400, password: 400, password_too_long: 400, conflict: 409,
   rate_limit: 429, unavailable: 503, create_unknown: 503, invite: 403,
@@ -135,7 +138,7 @@ export function createStudentPortalRegistrationHandler(
 ): (request: Request) => Promise<Response> {
   const createAccount = dependencies?.createAccount ?? defaultCreateAccount;
   return async (request: Request): Promise<Response> => {
-    if (request.headers.get(SIGNUP_CONFIRMATION_FLOW_HEADER) !== SIGNUP_CONFIRMATION_FLOW_VERSION) {
+    if (request.headers.get(SIGNUP_CONFIRMATION_FLOW_HEADER) !== NATIVE_SIGNUP_FLOW_V2) {
       return statusResponse(426, "upgrade_required");
     }
     const contentType = request.headers.get("content-type") ?? "";
@@ -159,9 +162,12 @@ export function createStudentPortalRegistrationHandler(
     ) {
       return statusResponse(400, "invalid");
     }
-    const { questionnaire, email, password } = body as Record<string, unknown>;
+    const { questionnaire, email, password, invite, aiConsent } = body as Record<string, unknown>;
     if (
       typeof email !== "string" ||
+      typeof invite !== "string" ||
+      invite.length > 256 ||
+      aiConsent !== true ||
       typeof password !== "string" ||
       typeof questionnaire !== "object" ||
       questionnaire === null ||
@@ -174,12 +180,20 @@ export function createStudentPortalRegistrationHandler(
     // email/password bounds, signup rate limit, duplicate rejection) runs
     // INSIDE the shared registration runtime.
     const draft = validateStudentApplicationDraft(questionnaire);
-    if (!draft) return statusResponse(400, "invalid");
-    const created = await createAccount(
-      email.trim().toLowerCase(),
-      password,
-      draft,
-    );
+    const normalizedEmail = email.trim().toLowerCase();
+    // Same checks as registerStudentAction (345): the current consent version
+    // (policy folded in) and the separate AI consent are both required.
+    if (
+      !draft ||
+      draft.consentVersion !== STUDENT_APPLICATION_CONSENT_VERSION ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
+      normalizedEmail.length > 254
+    ) {
+      return statusResponse(400, "invalid");
+    }
+    // 341: a new account only by personal link; without one there is no registration.
+    if (invite.length === 0) return statusResponse(403, "invite");
+    const created = await createAccount(normalizedEmail, password, draft, invite, true);
     return created.status === "pending_confirmation" ? pendingResponse(created)
       : statusResponse(REGISTRATION_HTTP_STATUS[created.status], created.status);
   };
@@ -196,7 +210,7 @@ export function createStudentPortalRegistrationResendHandler(
     return resendStudentSignup(cap);
   });
   return async (request) => {
-    if (request.headers.get(SIGNUP_CONFIRMATION_FLOW_HEADER) !== SIGNUP_CONFIRMATION_FLOW_VERSION) return statusResponse(426, "upgrade_required");
+    if (request.headers.get(SIGNUP_CONFIRMATION_FLOW_HEADER) !== NATIVE_SIGNUP_FLOW_V2) return statusResponse(426, "upgrade_required");
     if (!/^application\/json\s*(;|$)/i.test(request.headers.get("content-type") ?? "")) return statusResponse(415, "invalid");
     let body: unknown;
     try { body = await readBoundedJsonBody(request, true); }

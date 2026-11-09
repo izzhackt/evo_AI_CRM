@@ -612,6 +612,15 @@ test("PORT-9a intake routes admit only their exact path and method", () => {
   // connected student API (no bearer precedence, no cookie session branch).
   assert.equal(isPublicStudentRegistrationApi("/api/portal/registration", "POST"), true);
   assert.equal(isConnectedStudentPortalApi("/api/portal/registration", "POST"), false);
+  assert.equal(isPublicStudentRegistrationApi("/api/portal/password-recovery", "POST"), true);
+  assert.equal(isConnectedStudentPortalApi("/api/portal/password-recovery", "POST"), false);
+  for (const [path, method] of [
+    ["/api/portal/password-recovery", "GET"],
+    ["/api/portal/password-recovery/", "POST"],
+    ["/api/portal/password-recovery/child", "POST"],
+  ]) {
+    assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
+  }
   for (const [path, method] of [
     ["/api/portal/registration", "GET"],
     ["/api/portal/registration/", "POST"],

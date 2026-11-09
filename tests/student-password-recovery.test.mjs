@@ -289,7 +289,7 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   const login = source("src/app/login/page.tsx");
 
   // redirectTo only from the frozen Student callback URL, never request input.
-  assert.match(actions, /redirectTo = studentInviteCallbackUrl\(\s*process\.env\.NODE_ENV,\s*process\.env\.EVO_STUDENT_INVITE_LOCAL_ORIGIN,?\s*\)/u);
+  assert.match(server, /redirectTo = studentInviteCallbackUrl\(\s*process\.env\.NODE_ENV,\s*process\.env\.EVO_STUDENT_INVITE_LOCAL_ORIGIN,?\s*\)/u);
   assert.doesNotMatch(actions, /fields\.get\("redirect|form\.get\("redirect|next=/u);
   assert.match(actions, /exactActionStringFields\(form, \["email"\]\)/u);
   assert.match(actions, /exactActionStringFields\(form, \["csrf_token", "token_hash", "type"\]\)/u);
@@ -297,17 +297,20 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   assert.match(actions, /validateStudentRecoveryCallbackPost/u);
   assert.equal((actions.match(/studentOriginRequest\(\)\)/gu) ?? []).length, 2);
   // Own limit first, then the staff lookup, then Auth; one fixed answer time.
-  assert.match(actions, /admitStudentRecoveryRequest\(\(await headers\(\)\)\.get\("x-forwarded-for"\), email\)/u);
-  assert.match(actions, /admission === "address_limited" \? Promise\.resolve\("sent"\)/u);
-  assert.match(actions, /answerAtFixedDeadline<RequestStatus>\(\{[^}]*deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,[^}]*pending: "sent",/u);
+  // The web action and the native route share one core: answerStudentRecoveryRequest.
+  assert.match(actions, /answerStudentRecoveryRequest\(\{\s*email,\s*forwardedFor: \(await headers\(\)\)\.get\("x-forwarded-for"\),\s*startedAt,/u);
+  assert.match(server, /admitStudentRecoveryRequest\(input\.forwardedFor, input\.email\)/u);
+  assert.match(server, /admission === "address_limited" \? Promise\.resolve\("sent"\)/u);
+  assert.match(server, /answerAtFixedDeadline<StudentRecoveryRequestState\["status"\]>\(\{[^}]*deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,[^}]*pending: "sent",/u);
   assert.doesNotMatch(actions, /MIN_RESPONSE_MS|setTimeout/u);
   // Only address-independent answers leave before the deadline; the account
   // dependent work is never awaited outside the deadline helper.
-  const answer = actions.indexOf("answerAtFixedDeadline<RequestStatus>({");
-  assert.ok(actions.indexOf('return { status: "invalid_email" }') < answer);
-  assert.ok(actions.indexOf('return { status: "rate_limited" }') < answer);
-  assert.doesNotMatch(actions, /await requestStatus\(/u);
-  assert.equal((actions.match(/requestStudentPasswordRecovery\(email, redirectTo\)/gu) ?? []).length, 1);
+  const answer = server.indexOf("answerAtFixedDeadline<StudentRecoveryRequestState");
+  assert.ok(actions.indexOf('return { status: "invalid_email" }') < actions.indexOf("answerStudentRecoveryRequest({"));
+  assert.ok(server.indexOf('return "rate_limited"') < answer);
+  assert.doesNotMatch(server, /await requestStatus\(/u);
+  assert.equal((server.match(/requestStudentPasswordRecovery\(email, redirectTo\)/gu) ?? []).length, 1);
+  assert.equal((actions.match(/requestStudentPasswordRecovery\(/gu) ?? []).length, 0);
   // The staff verdict (point lookup, marker, then the database membership question of migration 314)
   // is decided before Auth; the behaviour is exercised in tests/student-recovery-request.test.mjs.
   const request = source("src/lib/server/student-recovery-request.ts");

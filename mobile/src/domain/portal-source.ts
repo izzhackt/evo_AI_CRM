@@ -73,6 +73,48 @@ export type StudentPortalPayment = Readonly<{
   nextAction: string | null;
 }>;
 
+// ---- документы и файлы дела (M2) -------------------------------------------------
+
+/** Зеркало PLATFORM_DOCUMENT_SLOT_STATUSES / _REVIEW_DECISIONS веба (паритет: тест). */
+export const DOCUMENT_SLOT_STATUSES = ["required", "submitted", "approved", "correction_required", "rejected"] as const;
+export const DOCUMENT_REVIEW_DECISIONS = ["approved", "correction_required", "rejected"] as const;
+export type DocumentSlotStatus = (typeof DOCUMENT_SLOT_STATUSES)[number];
+export type DocumentReviewDecision = (typeof DOCUMENT_REVIEW_DECISIONS)[number];
+export const DOCUMENT_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
+export type DocumentMimeType = (typeof DOCUMENT_MIME_TYPES)[number];
+const REQUIREMENT_KEY_PATTERN = /^[a-z][a-z0-9_.-]*$/;
+
+export type StudentPortalDocument = Readonly<{
+  caseId: string;
+  documentSlotId: string;
+  requirementKey: string | null;
+  requirementLabel: string;
+  instructions: string | null;
+  status: DocumentSlotStatus;
+  deadline: string | null;
+  nextAction: string | null;
+  documentVersionId: string | null;
+  versionNo: string | null;
+  originalFilename: string | null;
+  declaredMimeType: DocumentMimeType | null;
+  byteSize: number | null;
+  submittedAt: string | null;
+  reviewDecision: DocumentReviewDecision | null;
+  reworkReason: string | null;
+  reviewedAt: string | null;
+}>;
+
+export const CASE_FILE_KINDS = ["contract", "receipt", "pending_receipt"] as const;
+export type CaseFileKind = (typeof CASE_FILE_KINDS)[number];
+export type StudentPortalCaseFile = Readonly<{
+  kind: CaseFileKind;
+  fileId: string;
+  originalFilename: string;
+  declaredMimeType: DocumentMimeType;
+  byteSize: number;
+  addedAt: string;
+}>;
+
 export type StudentPortalNotification = Readonly<{
   notificationId: string;
   category: string;
@@ -263,6 +305,98 @@ export function normalizeStudentPortalOverview(value: unknown): StudentPortalOve
     evoAction,
     curatorDisplayName: optionalText(row.curator_display_name, 200),
   });
+}
+
+function positiveSafeInteger(value: unknown): number {
+  const numeric = nonNegativeSafeInteger(value);
+  return numeric > 0 ? numeric : invalidShape();
+}
+
+function positiveBigintText(value: unknown): string {
+  if (typeof value === "number") return String(positiveSafeInteger(value));
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return invalidShape();
+  return BigInt(value) <= MAX_POSTGRES_BIGINT ? value : invalidShape();
+}
+
+/** Одна строка `student_portal_documents()`; те же проверки согласованности, что в вебе. */
+export function normalizeStudentPortalDocument(value: unknown): StudentPortalDocument {
+  const row = exactRecord(value, [
+    "case_id",
+    "document_slot_id",
+    "requirement_key",
+    "requirement_label",
+    "instructions",
+    "slot_status",
+    "deadline",
+    "next_action",
+    "document_version_id",
+    "version_no",
+    "original_filename",
+    "declared_mime_type",
+    "byte_size",
+    "submitted_at",
+    "review_decision",
+    "rework_reason",
+    "reviewed_at",
+  ]);
+  const requirementKey = row.requirement_key === null ? null : requiredText(row.requirement_key, 160);
+  if (requirementKey !== null && !REQUIREMENT_KEY_PATTERN.test(requirementKey)) return invalidShape();
+  const documentVersionId = row.document_version_id === null ? null : requiredUuid(row.document_version_id);
+  const reviewDecision = row.review_decision === null ? null : enumValue(row.review_decision, DOCUMENT_REVIEW_DECISIONS);
+  const versionFields = [row.version_no, row.original_filename, row.declared_mime_type, row.byte_size, row.submitted_at];
+  if ((documentVersionId === null && versionFields.some((field) => field !== null)) || (documentVersionId !== null && versionFields.some((field) => field === null))) {
+    return invalidShape();
+  }
+  if (documentVersionId === null && (reviewDecision !== null || row.rework_reason !== null || row.reviewed_at !== null)) return invalidShape();
+  if ((reviewDecision === null && (row.rework_reason !== null || row.reviewed_at !== null)) || (reviewDecision !== null && row.reviewed_at === null)) {
+    return invalidShape();
+  }
+  if (
+    (reviewDecision === "approved" && row.rework_reason !== null) ||
+    ((reviewDecision === "correction_required" || reviewDecision === "rejected") && row.rework_reason === null)
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({
+    caseId: requiredUuid(row.case_id),
+    documentSlotId: requiredUuid(row.document_slot_id),
+    requirementKey,
+    requirementLabel: requiredText(row.requirement_label, 300),
+    instructions: optionalText(row.instructions, 5000),
+    status: enumValue(row.slot_status, DOCUMENT_SLOT_STATUSES),
+    deadline: optionalTimestamp(row.deadline),
+    nextAction: optionalText(row.next_action, 1000),
+    documentVersionId,
+    versionNo: documentVersionId === null ? null : positiveBigintText(row.version_no),
+    originalFilename: documentVersionId === null ? null : requiredText(row.original_filename, 255),
+    declaredMimeType: documentVersionId === null ? null : enumValue(row.declared_mime_type, DOCUMENT_MIME_TYPES),
+    byteSize: documentVersionId === null ? null : positiveSafeInteger(row.byte_size),
+    submittedAt: documentVersionId === null ? null : requiredTimestamp(row.submitted_at),
+    reviewDecision,
+    reworkReason: optionalText(row.rework_reason, 2000),
+    reviewedAt: optionalTimestamp(row.reviewed_at),
+  });
+}
+
+/** Одна строка `student_portal_case_files_v1()`. */
+export function normalizeStudentPortalCaseFile(value: unknown): StudentPortalCaseFile {
+  const row = exactRecord(value, ["file_kind", "file_id", "original_filename", "declared_mime_type", "byte_size", "added_at"]);
+  return Object.freeze({
+    kind: enumValue(row.file_kind, CASE_FILE_KINDS),
+    fileId: requiredUuid(row.file_id),
+    originalFilename: requiredText(row.original_filename, 255),
+    declaredMimeType: enumValue(row.declared_mime_type, DOCUMENT_MIME_TYPES),
+    byteSize: positiveSafeInteger(row.byte_size),
+    addedAt: requiredTimestamp(row.added_at),
+  });
+}
+
+export function decodeDocuments(data: unknown): readonly StudentPortalDocument[] {
+  return rows(data, normalizeStudentPortalDocument, (row) => row.documentSlotId);
+}
+
+export function decodeCaseFiles(data: unknown): readonly StudentPortalCaseFile[] {
+  return rows(data, normalizeStudentPortalCaseFile, (row) => `${row.kind}:${row.fileId}`);
 }
 
 /** Одна строка `student_portal_finance_v2()`. */

@@ -12,16 +12,18 @@ type Props = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  accessibilityLabel?: string;
 };
 
 /** `.pt-btn` / `.pt-btn-ghost`: высота 44, радиус 8, вес 600. */
-export function Button({ label, onPress, variant = "primary", busy = false, disabled = false, style, testID }: Props) {
+export function Button({ label, onPress, variant = "primary", busy = false, disabled = false, style, testID, accessibilityLabel }: Props) {
   const { tokens } = useTheme();
   const primary = variant === "primary";
   const inactive = disabled || busy;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: inactive, busy }}
       disabled={inactive}
       onPress={onPress}

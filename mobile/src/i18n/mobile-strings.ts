@@ -3,6 +3,8 @@
 // Тексты входа повторяют логин-страницу веба (src/app/login/page.tsx, COPY).
 // KY: needs native proofreading, как и в вебе.
 
+import { DOCS_KY, DOCS_RU } from "@/i18n/strings-documents";
+
 const ru = {
   "auth.title": "Кабинет студента",
   "auth.intro": "Ваше поступление и документы в EVO.",
@@ -60,6 +62,7 @@ const ru = {
   "timeline.openLink": "Открыть: {label}",
   "admission.countLabel": "{label}: {count}",
   "config.errorTitle": "Приложение не настроено",
+  ...DOCS_RU,
 } as const;
 
 export type MobileStringKey = keyof typeof ru;
@@ -121,6 +124,7 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "timeline.openLink": "Ачуу: {label}",
   "admission.countLabel": "{label}: {count}",
   "config.errorTitle": "Колдонмо ыңгайлаштырылган эмес",
+  ...DOCS_KY,
 };
 
 export const MOBILE_STRINGS = { ru, ky } as const;

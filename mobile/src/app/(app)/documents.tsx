@@ -1,6 +1,3 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { DocumentsScreen } from "@/features/documents/DocumentsScreen";
 
-// TODO(M2): Документы: чек-лист, загрузка с Idempotency-Key, договор и чеки.
-export default function DocumentsScreen() {
-  return <SectionPlaceholder id="documents" />;
-}
+export default DocumentsScreen;

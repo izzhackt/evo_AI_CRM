@@ -18,6 +18,10 @@ export type PortalApi = Readonly<{
   canSelectPrograms: boolean;
   /** Кому принадлежат данные в кэше (auth user id). */
   userKey: string;
+  /** Адрес портала: bearer-маршруты загрузки и скачивания документов (не RPC). */
+  portalBaseUrl: string;
+  /** Актуальный access token сессии (supabase-js обновляет его сам) или null без сессии. */
+  getAccessToken: () => Promise<string | null>;
 }>;
 
 const PortalApiContext = createContext<PortalApi | null>(null);

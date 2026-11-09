@@ -10,7 +10,10 @@ import type { StudentCountryChoice } from "@web/lib/portal/country-choice";
 import { usePortalApi } from "@/api/PortalApi";
 import {
   countryChoiceWrite,
+  readCaseFiles,
   readCountryChoice,
+  readDocuments,
+  readPayments,
   readCscaHome,
   readFavorites,
   readNotifications,
@@ -33,6 +36,32 @@ export function useOverview() {
 export function useNotifications() {
   const { transport, tier, userKey } = usePortalApi();
   return useQuery({ queryKey: key(userKey, "notifications"), queryFn: () => readNotifications(transport), enabled: tier === "assisted" });
+}
+
+export function useDocuments() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "documents"), queryFn: () => readDocuments(transport), enabled: tier === "assisted" });
+}
+
+export function useCaseFiles() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "case-files"), queryFn: () => readCaseFiles(transport), enabled: tier === "assisted" });
+}
+
+export function usePayments() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "payments"), queryFn: () => readPayments(transport), enabled: tier === "assisted" });
+}
+
+/** После загрузки файла: чек-лист и «Что сделать сейчас» читаются заново. */
+export function useInvalidateAfterUpload() {
+  const { userKey } = usePortalApi();
+  const client = useQueryClient();
+  return useCallback(() => {
+    void client.invalidateQueries({ queryKey: key(userKey, "documents") });
+    void client.invalidateQueries({ queryKey: key(userKey, "overview") });
+    void client.invalidateQueries({ queryKey: key(userKey, "notifications") });
+  }, [client, userKey]);
 }
 
 export function useCountryChoice() {

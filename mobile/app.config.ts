@@ -26,12 +26,31 @@ const config: ExpoConfig = {
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    // Только CAMERA (снимок документа). Выбор фото идёт через системный Photo Picker без
+    // доступа ко всей галерее, микрофон не нужен: лишние разрешения закрыты.
+    blockedPermissions: [
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.READ_MEDIA_IMAGES",
+      "android.permission.READ_MEDIA_VIDEO",
+      "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+      "android.permission.RECORD_AUDIO",
+    ],
   },
   web: { output: "single", favicon: "./assets/images/favicon.png" },
   plugins: [
     "expo-router",
     "expo-secure-store",
     "./plugins/with-scene-config",
+    // Тексты запросов iOS на русском (основной язык кабинета); пустой микрофон отключает RECORD_AUDIO.
+    [
+      "expo-image-picker",
+      {
+        photosPermission: "EVO использует выбранные вами фото, чтобы загрузить документы для поступления.",
+        cameraPermission: "EVO использует камеру, чтобы вы могли сфотографировать документ и загрузить его.",
+        microphonePermission: false,
+      },
+    ],
     [
       "expo-splash-screen",
       {

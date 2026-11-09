@@ -11,9 +11,15 @@ import { parseUniversityPage, type PublishedUniversity } from "@web/lib/platform
 
 import {
   buildPortalOverview,
+  decodeCaseFiles,
+  decodeDocuments,
   decodeNotifications,
+  decodePayments,
   PortalDecodeError,
+  type StudentPortalCaseFile,
+  type StudentPortalDocument,
   type StudentPortalNotification,
+  type StudentPortalPayment,
   type StudentPortalOverview,
 } from "@/domain/portal-source";
 import { createWrite, RpcError, rpcRead, rpcWrite, type FrozenWrite, type RpcTransport } from "@/lib/rpc";
@@ -93,4 +99,19 @@ export async function readPreparations(transport: RpcTransport, studentCaseId: s
   const items = parseCatalogPreparations(await rpcRead(transport, "student_catalog_preparations_v1", { p_student_case_id: studentCaseId }), studentCaseId);
   if (!items) throw new PortalDecodeError();
   return items;
+}
+
+/** Чек-лист документов (`student_portal_documents`, STABLE: GET). */
+export async function readDocuments(transport: RpcTransport): Promise<readonly StudentPortalDocument[]> {
+  return decodeDocuments(await rpcRead(transport, "student_portal_documents", {}, { get: true }));
+}
+
+/** Договор и чеки (`student_portal_case_files_v1`): дополнение, сбой не роняет чек-лист. */
+export async function readCaseFiles(transport: RpcTransport): Promise<readonly StudentPortalCaseFile[]> {
+  return decodeCaseFiles(await rpcRead(transport, "student_portal_case_files_v1", {}, { get: true }));
+}
+
+/** Начисления (`student_portal_finance_v2`). */
+export async function readPayments(transport: RpcTransport): Promise<readonly StudentPortalPayment[]> {
+  return decodePayments(await rpcRead(transport, "student_portal_finance_v2", {}, { get: true }));
 }

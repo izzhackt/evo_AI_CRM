@@ -1,6 +1,3 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { PaymentsScreen } from "@/features/payments/PaymentsScreen";
 
-// TODO(M2): Оплата: понятное «как платить» и кнопка «Написать».
-export default function PaymentsScreen() {
-  return <SectionPlaceholder id="payments" />;
-}
+export default PaymentsScreen;

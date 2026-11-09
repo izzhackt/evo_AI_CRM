@@ -2,6 +2,7 @@ import { router, Tabs, usePathname, type Href } from "expo-router";
 import { useMemo, useState } from "react";
 
 import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
+import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { MenuSheet } from "@/shell/MenuSheet";
 import { SECTIONS, isAllowed, type SectionId } from "@/shell/sections";
@@ -35,6 +36,8 @@ export default function AppLayout() {
             tier: session.tier,
             canSelectPrograms: session.portalCase.caseState === "active" && session.portalCase.portalActivatedAt !== null,
             userKey: session.authority.authUserId,
+            portalBaseUrl: getConfig().portalBaseUrl,
+            getAccessToken: async () => (await getSupabase().auth.getSession()).data.session?.access_token ?? null,
           }
         : null,
     [session],

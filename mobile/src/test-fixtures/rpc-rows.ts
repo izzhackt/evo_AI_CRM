@@ -56,3 +56,53 @@ export const NOTIFICATION_ROW = Object.freeze({
   created_at: "2026-09-07T08:00:00+00:00",
   read_at: null,
 });
+
+export const VERSION_ID = "55555555-5555-4555-8555-555555555555";
+export const FILE_ID = "77777777-7777-4777-8777-777777777777";
+
+/** Слот без файла. */
+export const DOCUMENT_ROW_EMPTY = Object.freeze({
+  case_id: CASE_ID,
+  document_slot_id: SLOT_ID,
+  requirement_key: "passport",
+  requirement_label: "Загранпаспорт",
+  instructions: null,
+  slot_status: "required",
+  deadline: null,
+  next_action: null,
+  document_version_id: null,
+  version_no: null,
+  original_filename: null,
+  declared_mime_type: null,
+  byte_size: null,
+  submitted_at: null,
+  review_decision: null,
+  rework_reason: null,
+  reviewed_at: null,
+});
+
+/** Слот с файлом, который нужно исправить. */
+export const DOCUMENT_ROW_CORRECTION = Object.freeze({
+  ...DOCUMENT_ROW_EMPTY,
+  slot_status: "correction_required",
+  instructions: "Разворот с фото",
+  deadline: "2026-09-20T03:00:00+00:00",
+  document_version_id: VERSION_ID,
+  version_no: "2",
+  original_filename: "passport.pdf",
+  declared_mime_type: "application/pdf",
+  byte_size: "123456",
+  submitted_at: "2026-09-05T08:00:00+00:00",
+  review_decision: "correction_required",
+  rework_reason: "Фото не видно",
+  reviewed_at: "2026-09-06T08:00:00+00:00",
+});
+
+export const CASE_FILE_ROW = Object.freeze({
+  file_kind: "contract",
+  file_id: FILE_ID,
+  original_filename: "contract.pdf",
+  declared_mime_type: "application/pdf",
+  byte_size: 2048,
+  added_at: "2026-09-01T08:00:00+00:00",
+});

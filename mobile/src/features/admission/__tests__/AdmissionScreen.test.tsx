@@ -222,7 +222,7 @@ describe("Поступление: вкладки", () => {
     expect(within(row).getByText("Информатика")).toBeTruthy();
     expect(within(row).getByText("Осень 2027")).toBeTruthy();
     expect(within(row).getByText("Сроки этого набора нужно подтвердить с куратором.")).toBeTruthy();
-    expect(screen.getByText("Выбранные программы")).toBeTruthy();
+    expect(screen.getAllByText("Мои программы").length).toBeGreaterThan(0);
   });
 
   it("пустые состояния: нет вузов, нет программ", async () => {
@@ -230,7 +230,7 @@ describe("Поступление: вкладки", () => {
     await renderPortal(<AdmissionScreen />, testApi(transport));
     expect(await screen.findByText("Пока ничего не сохранено")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("tab-programs"));
-    expect(await screen.findByText("Вы пока не выбрали программу. Откройте университет и выберите подходящий набор.")).toBeTruthy();
+    expect(await screen.findByText("Вы пока не добавили программу. Откройте университет и добавьте подходящий набор в «Мои программы».")).toBeTruthy();
   });
 
   it("выбор программ закрыт для дела: подсказка про каталог", async () => {

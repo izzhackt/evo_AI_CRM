@@ -149,10 +149,11 @@ export function FavoritesView({
   // сравнения не должен держать исчезнувшие карточки.
   const selected = items.filter((item) => selectedIds.includes(item.id));
 
-  // 09.11.2026 («выглядит неаккуратно»): число сохранённых уже во вкладке «Вузы N»; «Сравнить» — отметка на фото
-  // карточки, а не строка над каждой; блок сравнения появляется, когда что-то отмечено.
   return (
     <>
+      <p className="pt-uni-meta">
+        {formatPortalString(strings.savedCount, { count: String(items.length) })}
+      </p>
       <ul className="pt-uni-grid">
         {items.map((item) => (
           <li key={item.id} className="pt-favorite-entry">
@@ -166,8 +167,7 @@ export function FavoritesView({
                     : previous.filter((id) => id !== item.id));
                 }}
               />
-              <span aria-hidden="true">{strings.compareShort}</span>
-              <span className="pt-sr-only">
+              <span>
                 {formatPortalString(strings.compareSelect, { name: item.content.name })}
               </span>
             </label>
@@ -175,7 +175,6 @@ export function FavoritesView({
           </li>
         ))}
       </ul>
-      {selected.length === 0 ? null : (
       <section aria-labelledby="portal-favorites-compare" className="pt-compare">
         <h2 id="portal-favorites-compare" className="pt-section-title">
           {strings.compareHeading}
@@ -189,10 +188,9 @@ export function FavoritesView({
             now={now}
           />
         ) : (
-          <p className="pt-compare-hint">{strings.compareHint}</p>
+          <p className="pt-empty-body">{strings.compareHint}</p>
         )}
       </section>
-      )}
     </>
   );
 }

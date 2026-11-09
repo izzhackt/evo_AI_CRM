@@ -5,7 +5,7 @@ import { homeWeek, upcomingHomeDates, type HomeDateItem } from "@/lib/portal/hom
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { universityDateLabel } from "@/lib/portal/universities";
 
-import { HomeCardHead } from "./HomeParts";
+import { HomeCardHead, HomeEmpty } from "./HomeParts";
 
 function weekday(day: string, locale: Locale): string {
   return new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", { weekday: "short", timeZone: "UTC" })
@@ -40,8 +40,7 @@ export function HomeDates({ items, today, locale }: Readonly<{
         ))}
       </ol>
       {upcoming.length === 0 ? (
-        // Без дат — одна строка, а не большая заглушка (09.11.2026, «выглядит неаккуратно»).
-        <p className="pt-home-dates-empty"><strong>{strings.datesEmptyTitle}.</strong> {strings.datesEmptyBody}</p>
+        <HomeEmpty icon="calendar" title={strings.datesEmptyTitle} body={strings.datesEmptyBody} />
       ) : (
         <ul className="pt-home-dates-list">
           {upcoming.map((item) => (

@@ -1,19 +1,11 @@
 import type { Metadata } from "next";
 
-import { PendingPackagesLink } from "@/components/portal/applicationPackages/PendingPackagesLink";
-import { packageStrings } from "@/components/portal/applicationPackages/strings";
-import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { OverviewView } from "@/components/portal/admission/OverviewView";
-import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
-import { HomeList, type HomeListView } from "@/components/portal/home/HomeList";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
-import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
+import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
-import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
-import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
-import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { selectStudentJourney, timelineCountryOptions } from "@/lib/portal/student-journey";
 import {
@@ -23,16 +15,14 @@ import {
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import {
-  readStudentPortalDocuments,
   readStudentPortalNotifications,
   readStudentPortalOverview,
-  type StudentPortalDocument,
   type StudentPortalOverview,
 } from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
-/** Для «Ближайших дат» «Главной» читаются первые записи избранного; полный список — вкладка «Вузы» в «Моём списке». */
+/** «Мои вузы» на «Главной» — первые записи избранного; полный список — «Моё поступление» (/portal/admission#list). */
 const HOME_FAVORITES_LIMIT = 4;
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -42,83 +32,52 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * «Главная» кабинета: единственная домашняя страница студента, /portal (#1355, 09.11.2026). После логина студент
- * видит «Что сделать сейчас» первым блоком; ниже «Мой список» (вкладки «Вузы» и «Мои программы», бывшее
- * «Поступление») и весь «Путь поступления». Прежний /portal/home перенаправляется сюда. Смоук-якоря production
+ * видит «Что сделать сейчас» первым блоком. Прежний /portal/home перенаправляется сюда. Смоук-якоря production
  * (scripts/release/evo-production-browser-smoke.mjs): ровно одна видимая ссылка a[href="/portal"] в навигации
  * «Разделы кабинета» и заголовок «Что сделать сейчас». Только существующие RPC-чтения; каждый источник падает в свой
- * честный fallback, не роняя весь экран. Разовый вопрос куратору с «Поступления» снят (#1356): вход один, «Написать
- * EVO» ведёт в чат «Входящих».
+ * честный fallback, не роняя весь экран.
+ *
+ * 09.11.2026 (пользователь): вид прежней «Главной» без дорожки этапов, карточек ИИ-помощников, CSCA и «Написать EVO».
+ * Весь путь, выбранные вузы и программы с числом — страница «Моё поступление» (/portal/admission).
  */
-export default async function StudentPortalHomePage({
-  searchParams,
-}: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
-  const [actor, locale, search] = await Promise.all([requireStudentPortalActor(), getLocale(), searchParams]);
-  const view: HomeListView = search.view === "programs" ? "programs" : "universities";
+export default async function StudentPortalHomePage() {
+  const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
   // PORT-1a: единственная проверяемая граница уровня доступа — серверный
   // actor.accessTier, без повторной локальной деривации из caseState.
   const tier = actor.accessTier;
-  const strings = getPortalStrings("home", locale);
 
-  // Выбор страны «Пути поступления» (284) читается в той же волне, что и
-  // остальные чтения «Главной» (план A): лишней последовательной волны нет.
-  // Карточка CSCA (Q16) только для Китая: главная трека читается тут же, за
-  // выбором, внутри той же волны (цепочка из двух чтений, как у избранного),
-  // а студенту с другой страной лишнего чтения нет.
-  // 09.11.2026: карточки согласия на ИИ-помощников на «Главной» нет — согласие
-  // даётся галочками при регистрации или при первом входе с временным паролем,
-  // изменить его можно в «Профиле». Список документов дела (карточка
-  // «Документы» и сроки в «Ближайших датах») — в той же волне, только assisted.
-  // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной» — их
-  // чтений здесь больше нет; «Что нового» (лента «Входящих») — только assisted.
-  // «Мой список» (#1355): выбранные программы читаются в той же волне.
-  const [overviewResult, news, documents, favoritesResult, choiceRead, preparations] = await Promise.all([
+  // Выбор страны «Пути поступления» (284) читается в той же волне, что и остальные чтения «Главной» (план A):
+  // лишней последовательной волны нет. «Что нового» (лента «Входящих») — только assisted.
+  const [overviewResult, news, favoritesResult, choice] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
         .catch((): { ok: false } => ({ ok: false }))
       : Promise.resolve({ ok: true, value: null } as const),
     tier === "assisted" ? readStudentPortalNotifications().catch((): null => null) : Promise.resolve(null),
-    tier === "assisted"
-      ? readStudentPortalDocuments().catch((): readonly StudentPortalDocument[] | null => null)
-      : Promise.resolve(null),
     readStudentUniversityFavorites()
       .then(async (saved) => ({
         ok: true as const,
         total: saved.length,
-        ids: saved.map((favorite) => favorite.institutionId),
         items: await readStudentUniversitiesByIds(
           saved.slice(0, HOME_FAVORITES_LIMIT).map((favorite) => favorite.institutionId),
         ),
       }))
       .catch(() => ({ ok: false as const })),
-    readStudentCountryChoice().catch((): null => null).then(async (choice) => ({
-      choice,
-      cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
-    })),
-    readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
+    readStudentCountryChoice().catch((): null => null),
   ]);
-  const { choice, cscaHome } = choiceRead;
   const now = new Date();
-  // Путь и прогресс из одного места: шапка (шаг пути), «Что сделать сейчас» и полный путь ниже не расходятся.
+  // 08.11.2026 (пользователь): карточка пути — тот же выбор пути и прогресс, что и весь путь на «Моём поступлении».
   const journey = selectStudentJourney({
     country: choice?.country ?? null,
     stage: overviewResult.ok ? overviewResult.value?.operationalStage ?? null : undefined,
     locale,
     now,
   });
-  const cscaCard = selectCscaHomeCard({
-    choice,
-    home: cscaHome,
-    locale,
-    cscaStrings: getPortalStrings("csca", locale),
-    homeStrings: strings,
-  });
 
   const country = choice?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
-
-  const preparationStrings = getPortalStrings("preparations", locale);
-  const assisted = tier === "assisted";
+  const timelineStrings = getPortalStrings("timeline", locale);
 
   // Заголовок страницы — приветствие в шапке HomeView (HomeHero).
   return (
@@ -130,55 +89,24 @@ export default async function StudentPortalHomePage({
         overview={overviewResult.ok ? overviewResult.value : null}
         overviewFailed={!overviewResult.ok}
         news={news}
-        documents={documents}
         favorites={favoritesResult.ok ? favoritesResult.items : null}
+        favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
         info={overviewResult.ok ? (
           // Заявка на рассмотрении — одна, карточка «Ваша анкета» в HomeView (tier approved): здесь только задача EVO.
           <OverviewView overview={overviewResult.value} locale={locale} />
         ) : null}
-        list={(
-          <>
-            {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
-            <div className="pt-pending-packages">
-              <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
-            </div>
-            <HomeList
-              view={view}
-              favoritesCount={favoritesResult.ok ? favoritesResult.total : null}
-              programsCount={preparations?.length ?? null}
-              locale={locale}
-            >
-              {view === "universities" ? (
-                <FavoritesSection institutionIds={favoritesResult.ok ? favoritesResult.ids : null} locale={locale} />
-              ) : (
-                <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
-              )}
-            </HomeList>
-          </>
-        )}
-        fullPath={journey.view ? (
-          // Якорь #path ставит сам CountryTimeline (JOURNEY_ANCHOR): к нему ведёт карточка пути выше.
-          <CountryTimeline
-            view={journey.view}
-            progress={journey.progress}
-            documentsHref={assisted ? "/portal/documents" : null}
-            source={choice?.source ?? null}
-            readFailed={choice === null}
-            options={timelineCountryOptions(locale)}
-            strings={getPortalStrings("timeline", locale)}
-          />
+        journey={journey.view ? (
+          <HomeJourneyCard view={journey.view} progress={journey.progress} locale={locale} />
         ) : null}
-        journey={journey}
         countryChoice={journey.view ? null : (
           <CountryTimeline
             view={null}
             source={choice?.source ?? null}
             readFailed={choice === null}
             options={timelineCountryOptions(locale)}
-            strings={getPortalStrings("timeline", locale)}
+            strings={timelineStrings}
           />
         )}
-        csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}
         locale={locale}
         now={now}
       />

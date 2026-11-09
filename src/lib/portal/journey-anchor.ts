@@ -3,4 +3,4 @@
  * «Главной». Отдельный модуль без контента путей: его берут и серверная карточка, и клиентский блок.
  */
 export const JOURNEY_ANCHOR = "path";
-export const JOURNEY_HREF = `/portal#${JOURNEY_ANCHOR}`;
+export const JOURNEY_HREF = `/portal/admission#${JOURNEY_ANCHOR}`;

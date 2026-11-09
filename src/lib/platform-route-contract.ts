@@ -47,6 +47,8 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   // PORT-9c: «Главная» кабинета (урок hotfix'а release-3: экран без
   // allowlist невидим за прокси).
   "/portal/home",
+  // 09.11.2026: «Моё поступление» — путь страны, выбранные вузы и программы (не «Главная»).
+  "/portal/admission",
   "/portal/documents",
   // Retired screen (unified workflow S5): kept connected only so old
   // bookmarks/notification links still resolve. The page itself is an

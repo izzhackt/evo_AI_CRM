@@ -5,36 +5,29 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
 import { todayForTimeline } from "@/lib/portal/country-timeline";
-import { bishkekDay, type HomeDateItem } from "@/lib/portal/home-dates";
-import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import type { StudentJourney } from "@/lib/portal/student-journey";
-import { nearestUniversityIntake } from "@/lib/portal/universities";
-import type { StudentPortalDocument, StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/portal-source";
+import { getPortalStrings } from "@/lib/portal/i18n";
+import type { StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/portal-source";
 
 import type { PortalAccessTier } from "../Shell";
-import { HomeCase, actionHref, actionTitle } from "./HomeCase";
+import { studentDateItems } from "./date-items";
+import { HomeCase } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
-import { HomeDocuments } from "./HomeDocuments";
+import { HomeFavorites } from "./HomeFavorites";
 import { HomeHero } from "./HomeHero";
 import { HomeNews } from "./HomeNews";
-import { HomeWriteEvo } from "./HomeWriteEvo";
 
 /**
- * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
- * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточки согласия на ИИ-помощников здесь
- * нет (09.11.2026): согласие даётся при регистрации или первом входе, меняется в «Профиле».
+ * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1), единственная домашняя страница
+ * (/portal, #1355). Серверные read model приходят пропсами, каждый источник несёт свой честный сбой (null) и честную
+ * пустоту.
  *
- * #1355 (09.11.2026): это единственная домашняя страница кабинета (/portal; прежний /portal/home перенаправляется
- * сюда). Под шапкой — выбор страны (`countryChoice`, пока страны нет), заявка на рассмотрении и задача EVO (`info`);
- * ниже две колонки, под ними «Мой список» (`list`: вкладки «Вузы» и «Мои программы») и весь «Путь поступления»
- * (`fullPath`, якорь #path). Колонки две с 960 px; в одну колонку блоки идут по смыслу (data-slot и order в CSS).
- *
- * 09.11.2026 (разбор кабинета: три разных ответа на «где я», «действий не требуется», нет дат и менеджера): шапка
- * (HomeHero) показывает шаг пути страны — тот же, что в «Профиле» и в полном пути ниже; отдельной карточки пути нет.
- * Слева «Что сделать сейчас» (HomeCase: задания менеджера, а без них задания студента из текущего шага пути) или
- * «Ваша анкета» (approved), «Написать EVO» (#1356, один вход в чат) с именем куратора и «Ближайшие даты» (сроки дел,
- * документов и избранных вузов). Справа «Документы» (HomeDocuments: принято из списка дела и что ждёт студента со
- * сроком), «Что нового» и карточка CSCA (только при выбранном Китае).
+ * 09.11.2026 (пользователь, по скриншоту прежней «Главной»): вид 08.11 без лишнего. Шапка — приветствие и страна, без
+ * дорожки этапов (шаги — на странице «Моё поступление»). Карточки согласия на ИИ-помощников нет (согласие даётся при
+ * регистрации), CSCA и «Написать EVO» (чат есть в меню) на «Главной» нет. Слева «Что сделать сейчас» (HomeCase,
+ * assisted) или «Ваша анкета» (approved) и «Мои вузы» карточками с фото. Справа «Путь» (`journey`), «Ближайшие даты»
+ * и «Что нового» (как у Акылмана). Весь «Путь поступления», выбранные вузы и программы — на странице «Моё поступление»
+ * (/portal/admission), туда ведёт «Весь путь». Без выбранной страны под шапкой выбор страны (`countryChoice`),
+ * карточки пути нет. Колонки две с 960 px; в одну колонку блоки идут по смыслу (data-slot и order в CSS).
  */
 export function HomeView({
   tier,
@@ -43,14 +36,11 @@ export function HomeView({
   overview,
   overviewFailed = false,
   news = null,
-  documents = null,
   favorites,
+  favoritesTotal,
   info = null,
-  list = null,
-  fullPath = null,
-  journey,
+  journey = null,
   countryChoice = null,
-  csca = null,
   locale,
   now,
 }: {
@@ -64,63 +54,33 @@ export function HomeView({
   overviewFailed?: boolean;
   /** Лента «Что нового» (только assisted); `null` — чтение не удалось. */
   news?: readonly StudentPortalNotification[] | null;
-  /** Список документов дела для карточки «Документы» (только assisted); `null` — чтение не удалось. */
-  documents?: readonly StudentPortalDocument[] | null;
-  /** Первые избранные вузы: из них берутся даты «Ближайших дат»; `null` — чтение не удалось. */
+  /** Первые избранные вузы: карточки «Моих вузов» и даты «Ближайших дат»; `null` — чтение не удалось. */
   favorites: readonly PublishedUniversity[] | null;
+  /** Сколько вузов в избранном всего. */
+  favoritesTotal: number;
   /** Заявка на рассмотрении и задача EVO (OverviewView): под шапкой; null, если нечего показать. */
   info?: ReactNode;
-  /** «Мой список»: вкладки «Вузы» и «Мои программы» (полные списки) под колонками. */
-  list?: ReactNode;
-  /** Весь «Путь поступления» (CountryTimeline с путём) под списком; null, пока страна не выбрана. */
-  fullPath?: ReactNode;
-  /** Путь страны и где студент на нём (`selectStudentJourney`): дорожка шапки. */
-  journey: StudentJourney;
+  /** Карточка «Пути поступления» (HomeJourneyCard); null, если её нет. */
+  journey?: ReactNode;
   /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
   countryChoice?: ReactNode;
-  /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
-  csca?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
   const strings = getPortalStrings("home", locale);
   const admission = getPortalStrings("admission", locale);
-
-  // Текущий шаг пути — тот же, что в шапке и в «Профиле» (09.11.2026).
-  const step = journey.view?.steps.find((item) => journey.progress?.[item.id] === "current") ?? null;
-
-  // «Ближайшие даты»: сроки дел, сроки документов от менеджера и дедлайн или старт избранных вузов.
-  const today = todayForTimeline(now);
-  const actionSlots = new Set((overview?.studentActions ?? []).flatMap((action) => action.kind === "payment" ? [] : [action.documentSlotId]));
-  const dated: HomeDateItem[] = [
-    ...(overview?.studentActions ?? []).flatMap((action) => action.dueAt
-      ? [{ day: bishkekDay(action.dueAt), title: actionTitle(action, admission), href: actionHref(action) }]
-      : []),
-    ...(documents ?? []).flatMap((document) => document.deadline && document.status !== "approved" && !actionSlots.has(document.documentSlotId)
-      ? [{
-        day: bishkekDay(document.deadline),
-        title: formatPortalString(strings.dateDocument, { name: document.requirementLabel }),
-        href: `/portal/documents#document-${document.documentSlotId}`,
-      }]
-      : []),
-    ...(favorites ?? []).flatMap((item) => {
-      const nearest = nearestUniversityIntake(item.content, now);
-      if (nearest === null || nearest.kind === "startMonth") return [];
-      const template = nearest.kind === "deadline" ? strings.dateDeadline : strings.dateStart;
-      return [{ day: nearest.value, title: formatPortalString(template, { name: item.content.name }), href: `/portal/universities/${item.id}` }];
-    }),
-  ];
+  const dated = studentDateItems({ overview, favorites, locale, now });
 
   return (
     <div className="pt-home">
-      <HomeHero displayName={displayName} studyCountry={studyCountry} journey={journey.view} progress={journey.progress} locale={locale} />
+      <HomeHero displayName={displayName} studyCountry={studyCountry} locale={locale} />
       {countryChoice}
       {info}
       <div className="pt-home-columns">
         <div className="pt-home-main">
           {tier === "assisted" ? (
             <div className="pt-home-slot" data-slot="case">
-              <HomeCase overview={overview} failed={overviewFailed} step={step} locale={locale} />
+              <HomeCase overview={overview} failed={overviewFailed} locale={locale} />
             </div>
           ) : null}
           {tier === "approved" ? (
@@ -135,33 +95,23 @@ export function HomeView({
               </p>
             </article>
           ) : null}
-          {tier === "assisted" ? (
-            <div className="pt-home-slot" data-slot="write">
-              <HomeWriteEvo curatorName={overview?.curatorDisplayName ?? null} locale={locale} />
-            </div>
-          ) : null}
-          {/* 09.11.2026 («выглядит неаккуратно»): даты в левой колонке — колонки кончаются ближе друг к другу. */}
-          <div className="pt-home-slot" data-slot="dates">
-            <HomeDates items={dated} today={today} locale={locale} />
+          <div className="pt-home-slot" data-slot="universities">
+            <HomeFavorites favorites={favorites} total={favoritesTotal} locale={locale} />
           </div>
         </div>
 
         <div className="pt-home-side">
-          {tier === "assisted" ? (
-            <div className="pt-home-slot" data-slot="documents">
-              <HomeDocuments documents={documents} locale={locale} />
-            </div>
-          ) : null}
+          {journey ? <div className="pt-home-slot" data-slot="path">{journey}</div> : null}
+          <div className="pt-home-slot" data-slot="dates">
+            <HomeDates items={dated} today={todayForTimeline(now)} locale={locale} />
+          </div>
           {tier === "assisted" ? (
             <div className="pt-home-slot" data-slot="news">
               <HomeNews notifications={news} locale={locale} />
             </div>
           ) : null}
-          {csca ? <div className="pt-home-slot" data-slot="csca">{csca}</div> : null}
         </div>
       </div>
-      {list}
-      {fullPath}
     </div>
   );
 }

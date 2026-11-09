@@ -29,7 +29,7 @@ export async function setUniversityFavoriteAction(
     const result = parseFavoriteReceipt(data);
     if (result.ok) {
       revalidatePath("/portal");
-      revalidatePath("/portal/favorites");
+      revalidatePath("/portal/admission");
     }
     return result;
   } catch {

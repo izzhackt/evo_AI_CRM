@@ -157,56 +157,15 @@ test("the nearest session skips finished ones and the card survives having none"
   assert.equal(empty.action, "К подготовке");
 });
 
-test("the page reads the choice and the CSCA home in its single wave, only for China", () => {
+test("09.11.2026 (owner): the web home shows no CSCA card and reads no CSCA data", () => {
+  // Владелец про карточку CSCA на «Главной»: «нужно убрать». Выбор карточки (selectCscaHomeCard) и строки остаются:
+  // их берёт мобильное приложение (mobile/src/features/home).
   const page = read("src/app/(portal)/portal/page.tsx");
-  const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
-  assert.ok(wave, "home reads stay in one Promise.all");
-  assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \(\{/u);
-  assert.match(wave[1], /cscaHome: cscaHomeCardVisible\(choice\) \? await readCscaHome\(\)\.catch\(\(\): null => null\) : null,/u);
-  // Волна одна: после проверки студента только один Promise.all, ожидание не добавлено.
-  assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
-  assert.equal(page.match(/readCscaHome\(/gu)?.length, 1);
-  assert.match(page, /selectCscaHomeCard\(\{\n\s+choice,\n\s+home: cscaHome,/u);
-  assert.match(page, /csca=\{cscaCard \? <CscaHomeCard view=\{cscaCard\} \/> : null\}/u);
-  assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
-});
-
-test("the card sits in the right column of the home, once for both tiers", () => {
-  // 03.11.2026: «Учёба и тесты» сняты с «Главной» (слово пользователя); карточка
-  // CSCA осталась — в правой колонке. 08.11.2026 (образец пользователя): правая
-  // колонка — путь, даты, «Что нового» и CSCA последней; «Мои вузы» — в левой. 09.11.2026: путь ушёл в шапку,
-  // правую колонку открывают «Документы»; куратор — в «Написать EVO» слева (#1356); «Ближайшие даты» — тоже
-  // слева, под «Написать EVO» (колонки кончаются ближе друг к другу).
   const view = read("src/components/portal/home/HomeView.tsx");
-  // #1355: «Мои вузы» ушли в «Мой список» под колонками; в левой колонке «Что сделать сейчас».
-  const favorites = view.indexOf("<HomeCase");
-  const side = view.indexOf('<div className="pt-home-side">');
-  const documents = view.indexOf("<HomeDocuments");
-  const dates = view.indexOf("<HomeDates");
-  const news = view.indexOf("<HomeNews");
-  const card = view.indexOf("{csca}");
-  assert.ok(favorites > 0 && dates > favorites && side > dates, "the case card and the dates in the left column");
-  assert.ok(documents > side && news > documents && card > news, "documents, news, then CSCA");
-  assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
-});
-
-test("the card is quiet markup: one heading, one link, no alert and no extra client code", () => {
-  const component = read("src/components/portal/home/CscaHomeCard.tsx");
-  assert.doesNotMatch(component, /^"use client";/u);
-  assert.doesNotMatch(component, /role="alert"|pt-alert|aria-live|useEffect|useState/u);
-  assert.match(component, /<article className="pt-home-card pt-home-csca">/u);
-  assert.equal(component.match(/<h3 /gu)?.length, 1);
-  assert.equal(component.match(/<IntentPrefetchLink/gu)?.length, 1);
-  assert.match(component, /<h3 id="home-csca" className="pt-home-card-title">\{view\.title\}<\/h3>/u);
-  assert.match(component, /aria-describedby="home-csca"/u);
-  assert.match(component, /className="pt-btn-ghost"/u);
-  assert.match(component, /view\.session \? \(/u);
-  assert.match(component, /view\.session\.registration \? \(/u);
-  // Срок выделен весом, а не цветом; своих цветов и акцентов у карточки нет.
-  const css = read("src/app/(portal)/portal.css");
-  const rules = css.slice(css.indexOf(".pt-home-csca-session {"), css.indexOf("«Путь поступления» (S4"));
-  assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgb\(|var\(--pt-accent|var\(--pt-error/iu);
-  assert.match(rules, /\.pt-home-csca-soon \{\n {2}color: var\(--pt-text\);\n {2}font-weight: 600;/u);
+  assert.doesNotMatch(page + view, /readCscaHome|CscaHomeCard|selectCscaHomeCard|cscaHomeCardVisible|csca=\{|\{csca\}/u);
+  assert.equal(existsSync(new URL("../src/components/portal/home/CscaHomeCard.tsx", import.meta.url)), false);
+  assert.doesNotMatch(read("src/app/(portal)/portal.css"), /\.pt-home-csca/u);
+  assert.match(read("mobile/src/features/home/HomeScreen.tsx"), /selectCscaHomeCard/u);
 });
 
 test("home strings exist in RU and KY, without dashes", () => {

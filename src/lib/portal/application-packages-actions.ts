@@ -51,7 +51,7 @@ async function scopedRead(scope: ApplicationDocumentScope, target: ApplicationPa
 }
 async function refresh(target: ApplicationPackageTarget) {
   try {
-    revalidatePath("/portal"); revalidatePath("/portal/notifications");
+    revalidatePath("/portal"); revalidatePath("/portal/admission"); revalidatePath("/portal/notifications");
     revalidatePath(`/portal/preparations/${target.applicationId}`);
     revalidatePath("/profile"); revalidatePath("/admissions-pipeline");
   } catch { /* Cache refresh cannot change a validated command receipt. */ }

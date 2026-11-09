@@ -30,6 +30,7 @@ async function initializeRequirements(
     const receipt = parseApplicationRequirementsReceipt(response.data, intent);
     if (!receipt) return { ok: false, reason: "unavailable", intent };
     revalidatePath("/portal");
+    revalidatePath("/portal/admission");
     revalidatePath("/profile");
     revalidatePath("/documents");
     return { ok: true, receipt };

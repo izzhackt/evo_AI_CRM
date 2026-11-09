@@ -7,6 +7,7 @@ import {
   BriefcaseBusiness,
   CircleUserRound,
   FileText,
+  GraduationCap,
   House,
   Landmark,
   LogOut,
@@ -89,6 +90,8 @@ const SECTIONS = [
   // список» (вузы и программы) ниже. Прежний /portal/home перенаправляется сюда, пункта «Поступление» нет. Смоук-якорь
   // a[href="/portal"] в этом nav остаётся единственным (с #1412 вторая такая же — в нижней панели телефона).
   { href: "/portal", key: "nav.home", tiers: ["approved", "assisted"] },
+  // 09.11.2026 (пользователь): «Поступление» снова пункт меню — путь, выбранные вузы и программы с числом.
+  { href: "/portal/admission", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
   // 03.11.2026: «Оплата» снова пункт меню (слово пользователя): ссылки на
   // начисления на «Поступлении» больше нет.
@@ -203,6 +206,8 @@ function NavigationLabel({ label, opening }: { label: string; opening: string })
  */
 const SECTION_ICONS: Record<(typeof SECTIONS)[number]["key"], LucideIcon> = {
   "nav.home": House,
+  // Поступление: академическая шапочка.
+  "nav.overview": GraduationCap,
   "nav.documents": FileText,
   "nav.payments": Wallet,
   "nav.messages": MessagesSquare,

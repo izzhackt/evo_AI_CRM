@@ -24,7 +24,7 @@ export default async function StudentPreparationPage({ params }: { params: Promi
   const universityStrings = getPortalStrings("universities", locale);
   // A foreign/absent application is not exposed by another reader or Finance.
   const preparations = await readStudentCatalogPreparations(actor.studentCaseId).catch(() => null);
-  if (preparations === null) return <main className="pt-page"><Link className="pt-link" href="/portal?view=programs#list">{strings.back}</Link>
+  if (preparations === null) return <main className="pt-page"><Link className="pt-link" href="/portal/admission?view=programs#list">{strings.back}</Link>
     <h1 className="pt-page-title">{strings.requirements}</h1><p className="pt-prep-error" role="status">{strings.listUnavailable}</p>
     <Link className="pt-btn-ghost" href={`/portal/preparations/${applicationId}`}>{strings.refresh}</Link>
   </main>;
@@ -33,7 +33,7 @@ export default async function StudentPreparationPage({ params }: { params: Promi
   const intake = program?.intakes.find((item) => item.id === saved.intakeId);
   const documents = await readStudentApplicationPackageReadiness(actor.studentCaseId, applicationId).catch(() => null);
   return <main className="pt-page pt-prep-detail">
-    <Link className="pt-link" href="/portal?view=programs#list">{strings.back}</Link>
+    <Link className="pt-link" href="/portal/admission?view=programs#list">{strings.back}</Link>
     <header className="pt-page-header">
       <p className="pt-prep-university">{saved.content.name}</p>
       <h1 className="pt-page-title">{program?.title ?? saved.content.name}</h1>

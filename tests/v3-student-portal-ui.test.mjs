@@ -41,6 +41,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
   // and its file is now an unconditional redirect to /portal, not a page
   // with its own reader/view — see the "direct strict E2 result" test below.
   assert.deepEqual(pageFiles, [
+    // 09.11.2026: «Моё поступление» — весь путь страны, выбранные вузы и программы (не «Главная»).
+    "src/app/(portal)/portal/admission/page.tsx",
     "src/app/(portal)/portal/applications/page.tsx",
     // S5.1 (миграции 285, 286): CSCA, предмет в пути оставляет место физике и химии.
     "src/app/(portal)/portal/csca/math/lesson/[lessonId]/page.tsx",
@@ -89,8 +91,10 @@ test("the Student workspace preserves four portal pages, private tests and publi
     [...shell.matchAll(/href: "([^"]+)"/gu)].map((match) => match[1]),
     [
       // #1355: «Главная» (/portal) — первый и единственный домашний пункт обоих tier'ов;
-      // /portal/home перенаправляется на неё, пункта «Поступление» нет.
+      // /portal/home перенаправляется на неё.
       "/portal",
+      // 09.11.2026 (пользователь): «Поступление» — путь, выбранные вузы и программы с числом.
+      "/portal/admission",
       "/portal/documents",
       // 03.11.2026: «Оплата» снова пункт меню.
       "/portal/payments",
@@ -225,10 +229,12 @@ test("every page passes the direct strict E2 result to its view", () => {
 test("the home screen continues real work, keeps the smoke root and omits invented recency", () => {
   // #1355: «Главная» — единственная домашняя страница /portal; /portal/home только перенаправляет на неё.
   const page = source("src/app/(portal)/portal/page.tsx");
-  // 08.11.2026: «Что сделать сейчас» и «Мои вузы» вынесены из HomeView в свои файлы; проверяем вид целиком.
-  const view = ["HomeView", "HomeCase"]
-    .map((name) => source(`src/components/portal/home/${name}.tsx`))
+  // 08.11.2026: «Что сделать сейчас» и «Мои вузы» вынесены из HomeView в свои файлы; проверяем вид целиком
+  // (09.11.2026: датированные пункты — в date-items.ts, общем для «Ближайших дат»).
+  const view = ["HomeView.tsx", "HomeCase.tsx", "HomeFavorites.tsx", "date-items.ts"]
+    .map((name) => source(`src/components/portal/home/${name}`))
     .join("\n");
+  const admissionPage = source("src/app/(portal)/portal/admission/page.tsx");
   const homeRu = PORTAL_DICTIONARIES.home.ru;
 
   assert.match(page, /requireStudentPortalActor\(\)/u);
@@ -243,9 +249,11 @@ test("the home screen continues real work, keeps the smoke root and omits invent
     "readStudentPortalOverview",
     "readStudentUniversityFavorites",
     "readStudentUniversitiesByIds",
-    "readStudentCatalogPreparations",
     "readStudentPortalNotifications",
   ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
+  // 09.11.2026: выбранные программы и весь «Мой список» — на «Моём поступлении», «Главная» их не читает.
+  assert.doesNotMatch(page, /readStudentCatalogPreparations/u);
+  assert.match(admissionPage, /\breadStudentCatalogPreparations\b/u);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   assert.doesNotMatch(view, /\.rpc\(|\.schema\(|createClient|supabase|useEffect|fixture|demo/iu);
 
@@ -261,11 +269,12 @@ test("the home screen continues real work, keeps the smoke root and omits invent
 
   assert.doesNotMatch(view, /готовност|processed|percent/iu);
 
-  // Избранное — даты ближайшего набора в «Ближайших датах» (только open/announced внутри helper'а); сами вузы —
-  // в «Моём списке» под колонками.
+  // Избранное — даты ближайшего набора в «Ближайших датах» (только open/announced внутри helper'а) и карточки «Мои
+  // вузы» с фото; весь список — в «Моём списке» на «Моём поступлении».
   assert.match(view, /nearestUniversityIntake/u);
   assert.match(view, /\/portal\/universities\/\$\{item\.id\}/u);
-  assert.match(page, /<FavoritesSection institutionIds=/u);
+  assert.doesNotMatch(page, /<FavoritesSection/u);
+  assert.match(admissionPage, /<FavoritesSection institutionIds=/u);
 
   // Assisted: та же модель действий, что у OverviewView «Моего поступления».
   assert.match(view, /overview\?\.studentAction/u);
@@ -284,9 +293,10 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   assert.equal(PORTAL_DICTIONARIES.home.ru.title, "Главная");
   assert.match(source("src/app/(portal)/portal/home/page.tsx"), /redirect\("\/portal"\);/u);
 
-  // «Главная» подключена за прокси (урок hotfix'а release-3).
+  // «Главная» и «Моё поступление» подключены за прокси (урок hotfix'а release-3).
   const routeContract = source("src/lib/platform-route-contract.ts");
   assert.match(routeContract, /"\/portal\/home",/u);
+  assert.match(routeContract, /"\/portal\/admission",/u);
 });
 
 test("the retired applications route is an unconditional redirect, not a view", () => {
@@ -957,9 +967,10 @@ test("330: the shown chat clears the notification and its text follows the stude
 // one tab. PendingPackagesLink is client-only (it reads this device's
 // localStorage and renders null until hydrated), so a server render cannot show
 // it; the contract is pinned on where the overview places it.
-test("the home shows the pending-packages link above the tabs on every view", () => {
-  const page = source("src/app/(portal)/portal/page.tsx");
-  assert.equal(page.match(/<PendingPackagesLink\b/gu)?.length, 1, "exactly one link on the home");
+test("«Моё поступление» shows the pending-packages link above the tabs on every view", () => {
+  // 09.11.2026: «Мой список» с вкладками ушёл с «Главной» на «Моё поступление» вместе со ссылкой.
+  const page = source("src/app/(portal)/portal/admission/page.tsx");
+  assert.equal(page.match(/<PendingPackagesLink\b/gu)?.length, 1, "exactly one link on the page");
   const link = page.indexOf("<PendingPackagesLink");
   const tabs = page.indexOf("<HomeList");
   const viewBranch = page.indexOf('view === "universities" ?');

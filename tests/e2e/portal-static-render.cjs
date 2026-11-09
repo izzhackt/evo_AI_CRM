@@ -85,6 +85,7 @@ const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx
 // S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
 // на «Главной» его карточка.
 const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
+const { HomeJourneyCard } = require(join(ROOT, "src/components/portal/home/HomeJourneyCard.tsx"));
 const { selectStudentJourney } = require(join(ROOT, "src/lib/portal/student-journey.ts"));
 const { TIMELINE_UNDECIDED, selectCountryTimeline } = require(join(ROOT, "src/lib/portal/country-timeline.ts"));
 const { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } = require(join(ROOT, "src/lib/study-countries.ts"));
@@ -499,9 +500,15 @@ const timelineChina = createElement(CountryTimeline, {
   view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
 });
-/** Путь в шапке «Главной» (09.11.2026): Китай клиента на этапе «Документы»; Малайзия в начале пути (передача в приёмную). */
+/** Карточка пути на «Главной»: Китай клиента на этапе «Документы»; Малайзия в начале пути (передача в приёмную). */
 const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
+const journeyCardChina = createElement(HomeJourneyCard, {
+  view: chinaJourney.view, progress: chinaJourney.progress, readFailed: false, locale: "ru",
+});
 const malaysiaJourney = selectStudentJourney({ country: "MY", stage: "admissions_handoff", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
+const journeyCardMalaysia = createElement(HomeJourneyCard, {
+  view: malaysiaJourney.view, progress: malaysiaJourney.progress, readFailed: false, locale: "ru",
+});
 
 const learningModulesDraftFixture = [
   {
@@ -793,8 +800,8 @@ const surfaces = [
           overviewFailed: false,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
-          // Страны нет: выбор страны первым блоком под шапкой, дорожки пути нет.
-          journey: { view: null, progress: null },
+          // Страны нет: выбор страны первым блоком под шапкой, карточки пути нет.
+          journey: null,
           countryChoice: timelineChoose,
           locale: "ru",
           now: HOME_NOW,
@@ -819,15 +826,14 @@ const surfaces = [
           news: [],
           favorites: [],
           favoritesTotal: 0,
-          journey: chinaJourney,
-          documents: documentsFixture,
+          journey: journeyCardChina,
           locale: "ru",
           now: HOME_NOW,
         }),
       ),
     ),
   },
-  // 09.11.2026: заданий от менеджера нет — «Что сделать сейчас» из шага пути, куратор ещё не назначен, документов нет.
+  // 09.11.2026: заданий от менеджера нет — «Сейчас действий от вас не требуется», путь в начале (передача в приёмную).
   {
     name: "home-assisted-step",
     html: renderSurface(
@@ -843,10 +849,9 @@ const surfaces = [
           overview: { ...overviewFixture, operationalStage: "admissions_handoff", studentAction: null, studentActions: [], curatorDisplayName: null },
           overviewFailed: false,
           news: [],
-          documents: [],
           favorites: [],
           favoritesTotal: 0,
-          journey: malaysiaJourney,
+          journey: journeyCardMalaysia,
           locale: "ru",
           now: HOME_NOW,
         }),

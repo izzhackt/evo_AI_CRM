@@ -1489,11 +1489,10 @@
   text-align: right;
 }
 
-/* Карточка «Моего списка» (09.11.2026): «Сравнить» — отметка в левом верхнем углу фото, сердце — в правом. */
 .pt-favorite-entry {
-  position: relative;
   display: flex;
   flex-direction: column;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -1502,46 +1501,23 @@
 }
 
 .pt-compare-pick {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  /* Выше растянутой ссылки карточки (.pt-place-link::after, z-index 2): нажатие на отметку не открывает вуз. */
-  z-index: 3;
   display: inline-flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  min-height: 36px;
-  padding: 0 12px 0 10px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
-  color: var(--pt-text);
+  min-height: 44px;
   font-size: var(--pt-size-caption);
-  font-weight: 600;
+  color: var(--pt-text-2);
   cursor: pointer;
 }
 
 .pt-compare-pick input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
+  width: 18px;
+  height: 18px;
   accent-color: var(--pt-accent);
 }
 
 .pt-compare {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.pt-compare > .pt-section-title {
-  margin: 0;
-}
-
-.pt-compare-hint {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
+  margin-top: 32px;
 }
 
 .pt-compare-scroll {
@@ -6931,115 +6907,10 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-weight: 500;
 }
 
-.pt-home-stages {
-  padding: 20px 24px 22px;
-  border-top: 1px solid var(--pt-hero-line);
-}
-
-.pt-home-stage-track {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pt-home-stage-track > li {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  min-width: 0;
-  text-align: center;
-}
-
-/* Линия от предыдущего шага к этому, под точкой. */
-.pt-home-stage-track > li + li::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  right: 50%;
-  width: 100%;
-  height: 2px;
-  background: var(--pt-hero-line);
-}
-
-.pt-home-stage-track > li[data-state="done"]::before,
-.pt-home-stage-track > li[data-state="current"]::before {
-  background: var(--pt-hero-muted);
-}
-
-.pt-home-stage-visual {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  max-width: 100%;
-}
-
-.pt-home-stage-dot {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-hero-bg);
-  box-shadow: inset 0 0 0 1.5px var(--pt-hero-ring);
-}
-
-.pt-home-stage-track > li[data-state="done"] .pt-home-stage-dot {
-  background: var(--pt-hero-muted);
-  box-shadow: none;
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot {
-  box-shadow: inset 0 0 0 2px var(--pt-hero-ink);
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-brand-red);
-}
-
-/* Строка «Шаг N из M: название» и «Весь путь» (09.11.2026): названия шагов пути длинные, под точками их нет. */
-.pt-home-stage-caption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 16px;
-  margin: 14px 0 0;
-  color: var(--pt-hero-ink);
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-}
-
-.pt-home-stage-all {
-  color: var(--pt-hero-ink);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-@container pt-hero (max-width: 940px) {
-  .pt-home-hero-head {
-    padding: 22px 20px 18px;
-  }
-
-  .pt-home-stages {
-    padding: 16px 16px 18px;
-  }
-
-}
-
 /*
  * Одна колонка (уже 960 px окна): колонки растворены (display: contents), блоки идут по смыслу, а не по колонкам:
- * «Что сделать сейчас», путь, «Мои вузы», даты, новости, CSCA (08.11.2026, разбор вёрстки: путь не должен уезжать
- * за вузы). Пустой слот не рисуется, иначе он оставлял бы лишний промежуток.
+ * «Что сделать сейчас», путь, «Мои вузы», даты, новости (08.11.2026, разбор вёрстки: путь не должен уезжать за вузы).
+ * Пустой слот не рисуется, иначе он оставлял бы лишний промежуток.
  */
 .pt-home-columns {
   display: flex;
@@ -7061,22 +6932,25 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-home-slot[data-slot="case"] { order: 1; }
-.pt-home-slot[data-slot="write"] { order: 2; }
-.pt-home-slot[data-slot="documents"] { order: 3; }
+.pt-home-slot[data-slot="path"] { order: 2; }
+.pt-home-slot[data-slot="universities"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
-.pt-home-slot[data-slot="csca"] { order: 6; }
 
-/* «Мой список» и весь путь под колонками «Главной» (#1355): во всю ширину, с тем же шагом, что между блоками. */
-.pt-home-list,
-.pt-home-path-full {
+/*
+ * «Мой список» на «Моём поступлении» (09.11.2026, под путём страны): заголовок, вкладки и содержимое с тем же шагом,
+ * что между блоками. К нему ведут «Всё избранное» и «Мои программы» (#list) — якорь не уходит под верхнюю полосу.
+ */
+.pt-home-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scroll-margin-top: calc(var(--pt-topbar-height) + 16px);
 }
 
 .pt-home-list > .pt-home-head,
 .pt-home-list > .pt-pill-tabs,
+.pt-home-list > .pt-uni-meta,
 .pt-home-list > .pt-uni-grid {
   /* Шаг между заголовком, вкладками и карточками — только gap списка: свои поля вкладок и сетки давали 60 px пустоты. */
   margin-top: 0;
@@ -7109,12 +6983,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-home-main > .pt-home-slot:last-child > *,
   .pt-home-side > .pt-home-slot:last-child > * {
     flex-grow: 1;
-  }
-
-  /* Короткая карточка «Написать EVO» не растягивается до низа колонки (#1356): пустая плашка ничего не говорит. */
-  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child,
-  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child > * {
-    flex-grow: 0;
   }
 
   .pt-home-main,
@@ -7220,6 +7088,39 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   line-height: 1.45;
+}
+
+/* Карточка «Пути поступления»: где студент сейчас; весь путь на «Поступлении». */
+.pt-home-path-lead {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.45;
+}
+
+.pt-home-path-now {
+  display: grid;
+  gap: 10px;
+}
+
+.pt-home-path-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+}
+
+.pt-home-path-n {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-home-path-title {
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 /* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
@@ -7350,19 +7251,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-caption);
 }
 
-/* «Ближайшие даты» без дат — одна строка под неделей (09.11.2026). */
-.pt-home-dates-empty {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  line-height: 1.45;
-}
-
-.pt-home-dates-empty strong {
-  color: var(--pt-text);
-  font-weight: 600;
-}
-
 .pt-home-dates-list {
   display: grid;
   margin: 0;
@@ -7450,133 +7338,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-caption);
 }
 
-/* «Что сделать сейчас» из шага пути (09.11.2026): задания студента списком, срок шага ниже. */
-.pt-home-case-tasks {
-  display: grid;
-  gap: 8px;
-  margin: 12px 0 0;
-  padding-left: 20px;
-  font-size: var(--pt-size-secondary);
-  line-height: 1.45;
-}
-
-.pt-home-case-tasks > li {
-  text-wrap: pretty;
-}
-
-/* «Документы» (09.11.2026): принято из списка, полоса и что ждёт студента со сроком. */
-.pt-home-docs-progress {
-  display: grid;
-  gap: 8px;
-}
-
-.pt-home-docs-count {
-  margin: 0;
-  font-size: var(--pt-size-body);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.pt-home-docs-meter {
-  display: block;
-  height: 6px;
-  overflow: hidden;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-line);
-}
-
-.pt-home-docs-bar {
-  display: block;
-  height: 100%;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-ok);
-}
-
-.pt-home-docs-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pt-home-docs-list > li + li {
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-home-docs-item {
-  display: grid;
-  gap: 2px;
-  min-height: 44px;
-  padding: 8px 0;
-  color: var(--pt-text);
-  text-decoration: none;
-}
-
-.pt-home-docs-item:hover .pt-home-docs-name {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.pt-home-docs-name {
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.pt-home-docs-meta,
-.pt-home-docs-done {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-/* «Ваш менеджер» (09.11.2026): инициалы вместо фото (фото сотрудников в базе нет), имя, роль и «Написать». */
-.pt-home-manager-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 14px;
-}
-
-.pt-home-manager-initials {
-  display: grid;
-  flex-shrink: 0;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-wash);
-  box-shadow: inset 0 0 0 1px var(--pt-line);
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.pt-home-manager-text {
-  display: grid;
-  flex: 1 1 140px;
-  min-width: 0;
-  margin: 0;
-}
-
-.pt-home-manager-name {
-  font-size: var(--pt-size-body);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.pt-home-manager-role {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-p.pt-home-manager-role {
-  flex: 1 1 160px;
-  font-size: var(--pt-size-secondary);
-}
-
 .pt-home-card {
   display: flex;
   flex-direction: column;
@@ -7620,88 +7381,70 @@ p.pt-home-manager-role {
   padding-top: 8px;
 }
 
-/* «Мои вузы»: строки внутри карточки, как у дат и новостей, — линия между строками, без своих рамок. */
-.pt-home-fav-list {
+/* «Мои вузы» (09.11.2026, пользователь): карточки с фото кампуса и названием по две в ряд; вся карточка — ссылка. */
+.pt-home-fav-grid {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pt-home-fav-list > li + li {
-  border-top: 1px solid var(--pt-line);
-}
-
-/* Ближайший набор — третьей строкой под городом у каждого вуза, а не справа: длинное название не сбивает строку (08.11.2026). */
-.pt-home-fav-row {
+.pt-home-fav-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-height: 44px;
-  padding: 12px 0;
+  gap: 4px;
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.pt-home-fav-row:hover .pt-home-fav-name {
+.pt-home-fav-card:hover .pt-home-fav-name {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.pt-home-fav-row:focus-visible {
+.pt-home-fav-card:focus-visible {
   outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
+  outline-offset: 4px;
+  border-radius: var(--pt-radius-card);
 }
 
-.pt-home-fav-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+/* Фото одной высоты при любой ширине колонки; нет фото или оно не загрузилось — та же серая подложка без надписи. */
+.pt-home-fav-photo {
+  display: block;
+  margin: 0 0 8px;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-bg);
+}
+
+.pt-home-fav-photo.pt-photo-empty {
+  height: auto;
+  padding: 0;
+  border: 1px solid var(--pt-line);
+}
+
+.pt-home-fav-photo .pt-photo-img {
+  height: 100%;
 }
 
 .pt-home-fav-name {
   font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .pt-home-fav-place {
   color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-}
-
-.pt-home-fav-intake {
-  color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
-}
-
-/* ---------- Карточка CSCA в «Продолжить» (Q16, 18.10.2026) ----------
- * Обычная карточка сетки (.pt-home-card): название, строка обзора, сессия и
- * одно действие. Свои только две строки: сессия и срок идут друг под другом, а
- * «закрывается через N дней» выделено весом, не цветом (как .cs-session-soon
- * в блоке сессий раздела).
- */
-
-/* Заголовок «CSCA» того же размера, что у соседних карточек колонки (08.11.2026). */
-.pt-home-csca .pt-home-card-title {
-  font-size: var(--pt-size-body);
-  line-height: 1.3;
-}
-
-.pt-home-csca-session {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: var(--pt-size-secondary);
-}
-
-.pt-home-csca-soon {
-  color: var(--pt-text);
-  font-weight: 600;
 }
 
 /* ---------- «Путь поступления» (S4, план §8.4) ----------
  * С 08.11.2026 весь путь стоит на «Поступлении» между плитками и вкладками,
- * на «Главной» — дорожка шагов в шапке (.pt-home-stage-*, 09.11.2026).
+ * на «Главной» — его карточка (.pt-home-path-*).
  * Вертикальный путь: номер шага на линии, срок, название и цель; шаг
  * раскрывается в пункты (только чтение) и «Когда шаг пройден». На широком
  * экране сроки стоят колонкой слева от линии, на узком над названием.
@@ -8887,7 +8630,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8900,7 +8643,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8913,7 +8656,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8926,7 +8669,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8939,7 +8682,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8952,7 +8695,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -9115,7 +8858,7 @@ p.pt-home-manager-role {
   .pt-place-grid,
     .pt-prof-grid,
     .pt-tests-grid,
-    .pt-home-fav-list,
+    .pt-home-fav-grid,
     .pt-adm-grid,
     .pt-adm-list,
     .pt-lesson-list

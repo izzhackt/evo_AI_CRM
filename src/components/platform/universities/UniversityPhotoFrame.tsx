@@ -1,13 +1,15 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Reviewed fixed campus images; no arbitrary image proxy. */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * Only image failure is interactive; the server supplies the photo and
  * attribution. `srcSet`/`sizes` are reduced copies of a managed photo (план A):
  * if they fail, the frame retries once with the original `src` before it
- * shows the failure text.
+ * shows the failure text. A load that already failed before hydration is
+ * replayed through the same onError (as in PlaceImage), otherwise the page
+ * kept the browser's broken-image icon.
  */
 export function UniversityPhotoFrame({
   src,
@@ -35,12 +37,18 @@ export function UniversityPhotoFrame({
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [originalOnly, setOriginalOnly] = useState<string | null>(null);
+  const ref = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    const image = ref.current;
+    if (image && image.complete && image.naturalWidth === 0) image.dispatchEvent(new Event("error"));
+  }, []);
   if (failedUrl === src) return <div className={emptyClassName}>{failedText}</div>;
   const reduced = srcSet && originalOnly !== src ? srcSet : undefined;
 
   return (
     <figure className={className}>
       <img
+        ref={ref}
         src={src}
         srcSet={reduced}
         sizes={reduced ? sizes : undefined}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
@@ -286,11 +286,12 @@ test("readPortalCaseMessages(\"11\") forwards the numeric cursor as a GET query 
   assert.deepEqual(page.messages.map((entry) => entry.sequenceId), ["2", "1"]);
 });
 
-test("one entry «Написать EVO» opens the chat: home card, university card for assisted, consultation only without a chat (#1356)", () => {
+test("one entry «Написать EVO» opens the chat: university card for assisted, consultation only without a chat (#1356)", () => {
   assert.equal(source("src/lib/portal/write-evo.ts").includes('"/portal/messages?view=chat"'), true);
-  const card = source("src/components/portal/home/HomeWriteEvo.tsx");
-  assert.match(card, /href=\{WRITE_EVO_HREF\}/u);
-  assert.match(source("src/components/portal/home/HomeView.tsx"), /tier === "assisted" \? \(\s*<div className="pt-home-slot" data-slot="write">/u);
+  // 09.11.2026 (владелец): «кому написать объективно не нужно потому что там есть чат» — карточки на «Главной» нет,
+  // чат открывается из меню («Входящие»).
+  assert.equal(existsSync(new URL("../src/components/portal/home/HomeWriteEvo.tsx", import.meta.url)), false);
+  assert.doesNotMatch(source("src/components/portal/home/HomeView.tsx"), /HomeWriteEvo|data-slot="write"/u);
   const university = source("src/app/(portal)/portal/universities/[id]/page.tsx");
   assert.match(university, /consultation=\{actor\.accessTier === "assisted" \? null : \{/u);
   assert.match(university, /writeEvo=\{actor\.accessTier === "assisted"/u);

@@ -97,6 +97,11 @@ export default function SignInScreen() {
             {recovery.forgotLink}
           </Text>
         </Link>
+        <Link href="/apply" style={{ alignSelf: "center", minHeight: 44, paddingVertical: 12 }} testID="apply-link">
+          <Text variant="secondary" tone="accent" bold>
+            {m("apply.signInLink")}
+          </Text>
+        </Link>
       </Card>
     </Screen>
   );

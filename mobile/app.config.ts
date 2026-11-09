@@ -16,6 +16,10 @@ const config: ExpoConfig = {
     supportsTablet: false,
     icon: "./assets/expo.icon",
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
+    // Universal links: личная ссылка регистрации https://app.evoadmissions.com/apply?invite=…
+    // открывает приложение. Файл /.well-known/apple-app-site-association на сервере появится
+    // позже (нужен Team ID): см. docs/mobile/APP_LINKS.md. До тех пор работает схема evoadmissions://.
+    associatedDomains: ["applinks:app.evoadmissions.com"],
   },
   android: {
     package: "com.evoadmissions.app",
@@ -26,6 +30,16 @@ const config: ExpoConfig = {
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    // App Links (autoVerify): проверка идёт по https://app.evoadmissions.com/.well-known/assetlinks.json
+    // (нужен SHA-256 подписи, см. docs/mobile/APP_LINKS.md). Открываются только пути /apply.
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [{ scheme: "https", host: "app.evoadmissions.com", pathPrefix: "/apply" }],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
     // Только CAMERA (снимок документа). Выбор фото идёт через системный Photo Picker без
     // доступа ко всей галерее, микрофон не нужен: лишние разрешения закрыты.
     blockedPermissions: [

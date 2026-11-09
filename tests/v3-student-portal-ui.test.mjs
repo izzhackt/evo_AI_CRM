@@ -126,8 +126,9 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
   // сбой не роняет кабинет.
   assert.match(layout, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
-  // 03.11.2026: меню аккаунта в шапке убрано, «Выйти» — на «Профиле».
-  assert.doesNotMatch(shell, /logoutStudentPortalAction/u);
+  // 03.11.2026: меню аккаунта в шапке убрано, «Выйти» — на «Профиле» (и с #1360 в меню телефона).
+  // #1360 (09.11.2026): «Выйти» есть и внизу меню телефона, не только на «Профиле».
+  assert.match(shell, /<form action=\{logoutStudentPortalAction\} className="pt-nav-logout">/u);
   assert.match(source("src/app/(portal)/portal/profile/page.tsx"), /logoutStudentPortalAction/u);
   assert.doesNotMatch(
     `${layout}\n${shell}`,

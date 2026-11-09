@@ -380,6 +380,23 @@
   transform: scale(var(--pt-press-scale));
 }
 
+/* «Выйти» в меню телефона (#1360): кнопка выглядит как пункт меню; на широком экране выход — в «Профиле». */
+.pt-nav-logout {
+  display: none;
+  margin: 0;
+}
+
+.pt-nav-logout-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
 .pt-nav-link:hover {
   background: var(--pt-bg);
   color: var(--pt-text);
@@ -1056,6 +1073,13 @@
     font-weight: 600;
   }
 
+  .pt-nav-menu .pt-nav-logout {
+    display: block;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--pt-line);
+  }
+
   .pt-nav-menu .pt-nav-group {
     padding: 16px 12px 4px;
     color: var(--pt-rail-group);
@@ -1269,16 +1293,11 @@
   color: var(--pt-text-2);
 }
 
-/* «Профиль → Пароль» (07.11.2026): логин для входа строкой над полями пароля. */
-.pt-profile-login {
-  margin: 0 0 12px;
+/* «Профиль → Мои данные» (#1360): пояснение под данными, кто меняет телефон и имя. */
+.pt-profile-note {
+  margin: 0;
   color: var(--pt-text-2);
-  font-size: var(--pt-size-body, 15px);
-}
-
-.pt-profile-login strong {
-  color: var(--pt-text);
-  font-weight: 600;
+  font-size: var(--pt-size-secondary);
 }
 
 /* «Профиль → Пароль» (06.11.2026): три поля в столбик, кнопка и ответ в одну строку. */

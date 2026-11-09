@@ -9,6 +9,7 @@ import {
   FileText,
   House,
   Landmark,
+  LogOut,
   Languages,
   ListChecks,
   Menu,
@@ -41,12 +42,13 @@ import {
   type PortalStrings,
 } from "@/lib/portal/i18n";
 import { writePortalRailChoice } from "@/lib/portal/rail-choice";
+import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import type { Theme } from "@/lib/theme";
 
 /**
  * Портальный shell (PORT-2, дизайн-контракт
  * docs/design/portal/design-contract.md): слева рейл на всю высоту —
- * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле»);
+ * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле» и внизу меню телефона);
  * на узком экране — полоса сверху (логотип, колокольчик, тема) и нижняя
  * панель вкладок. Стили — только pt-классы из src/app/(portal)/portal.css.
  *
@@ -415,6 +417,13 @@ export function Shell({
               <ul className="pt-nav-list pt-nav-full">
                 {sections.map(renderSection)}
               </ul>
+              {/* #1360: «Выйти» доступен из меню телефона, а не только из «Профиля» (на широком экране форма скрыта). */}
+              <form action={logoutStudentPortalAction} className="pt-nav-logout">
+                <button type="submit" className="pt-nav-link pt-nav-logout-button">
+                  <LogOut className="pt-nav-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="pt-nav-label">{strings.logout}</span>
+                </button>
+              </form>
             </div>
             {/* Телефон: парящая панель из четырёх вкладок; на широком экране скрыта. */}
             {tabSections.length > 1 ? (

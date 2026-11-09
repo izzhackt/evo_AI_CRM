@@ -1305,6 +1305,49 @@
   display: none;
 }
 
+/* «Профиль → Имя и фамилия» (09.11.2026, «минималистичнее»): строка «Имя Фамилия · Изменить»; правка — два поля в ряд. */
+.pt-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pt-name-value {
+  margin: 0;
+  color: var(--pt-text);
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pt-name-missing {
+  color: var(--pt-text-2);
+  font-weight: 400;
+}
+
+.pt-name-saved {
+  flex-basis: 100%;
+}
+
+.pt-name-form {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.pt-name-fields {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 560px) {
+  .pt-name-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .pt-input {
   min-height: 44px;
   width: 100%;

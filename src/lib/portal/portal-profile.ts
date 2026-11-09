@@ -55,3 +55,30 @@ export function parsePortalProfile(value: unknown): PortalProfile | null {
     deletionRequestedAt: row.deletionRequestedAt,
   };
 }
+
+/**
+ * «Имя и фамилия» в «Профиле» (355, 09.11.2026): студент правит их сам, логин для входа не меняется. Те же правила, что
+ * у команды базы: обрезка, пробелы внутри — один, 1–60 знаков, хотя бы одна буква, без управляющих символов.
+ */
+export const PORTAL_NAME_MAX = 60;
+
+export type PortalNameState = Readonly<{
+  status: "idle" | "done" | "invalid" | "unavailable";
+  /** Новое имя в кабинете после записи (`done`). */
+  displayName?: string;
+}>;
+
+export function normalizePortalNamePart(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const value = raw.trim().replace(/\s+/gu, " ");
+  if (value.length < 1 || value.length > PORTAL_NAME_MAX) return null;
+  if (!/\p{L}/u.test(value) || /\p{Cc}/u.test(value)) return null;
+  return value;
+}
+
+/** Подстановка в форму: первое слово — имя, остальное — фамилия. «Student» — заглушка кабинета без фамилии. */
+export function splitPortalDisplayName(displayName: string): Readonly<{ firstName: string; lastName: string }> {
+  const [first = "", ...rest] = displayName.trim().split(/\s+/u);
+  const last = rest.join(" ");
+  return { firstName: first, lastName: last.toLowerCase() === "student" ? "" : last };
+}

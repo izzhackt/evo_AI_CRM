@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import ts from "typescript";
+
 import {
   isPortalLanguage,
+  normalizePortalNamePart,
   parsePortalProfile,
+  splitPortalDisplayName,
 } from "../src/lib/portal/portal-profile.ts";
+import * as profileContract from "../src/lib/portal/portal-profile.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -110,4 +115,72 @@ test("deletion strings name the 30-day deadline and the kept records", async () 
     }
   }
   assert.equal(Object.hasOwn(PORTAL_DICTIONARIES.profile.ru, "deleteDescription"), false);
+});
+
+// 355 (09.11.2026): «Имя и фамилия» в «Профиле» — студент правит их сам, логин для входа не меняется.
+test("a student name part: trimmed, one space inside, 1–60 characters, a letter, no control characters", () => {
+  assert.equal(normalizePortalNamePart("  Айдай  "), "Айдай");
+  assert.equal(normalizePortalNamePart("Чынарова   кызы"), "Чынарова кызы");
+  assert.equal(normalizePortalNamePart("Жумабаев-Тест"), "Жумабаев-Тест");
+  for (const bad of ["", "   ", "123", "a".repeat(61), "Ай\u0007дай", null, 7]) {
+    assert.equal(normalizePortalNamePart(bad), null, String(bad));
+  }
+  assert.deepEqual(splitPortalDisplayName("Айдай Чынарова"), { firstName: "Айдай", lastName: "Чынарова" });
+  // Кабинет без фамилии создан с заглушкой «Student»: в форме фамилия пустая, студент впишет свою.
+  assert.deepEqual(splitPortalDisplayName("Aibala Student"), { firstName: "Aibala", lastName: "" });
+  assert.deepEqual(splitPortalDisplayName("Умар"), { firstName: "Умар", lastName: "" });
+});
+
+function nameAction(response) {
+  const calls = [];
+  const output = ts.transpileModule(source("src/lib/portal/portal-profile-actions.ts"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const loaded = { exports: {} };
+  const deps = {
+    "next/cache": { revalidatePath: () => calls.push(["revalidate"]) },
+    "next/headers": { cookies: async () => ({ set() {} }) },
+    "../platform-admissions": { parsePlatformAdmissionsUuid: (value) => (/^[0-9a-f-]{36}$/u.test(value) ? value : null) },
+    "../server/action-form-fields.ts": { exactActionStringFields: (form, names) => new Map(names.map((name) => [name, form.get(name)])) },
+    "../student-portal-guards": { requireStudentPortalActor: async () => ({}) },
+    "../supabase/server": { createSupabaseServerClient: async () => ({ schema: () => ({ rpc: async (name, args) => {
+      calls.push([name, args]);
+      return response;
+    } }) }) },
+    "./portal-profile": profileContract,
+  };
+  new Function("require", "module", "exports", output)((name) => {
+    if (!Object.hasOwn(deps, name)) throw new Error(`Unexpected dependency: ${name}`);
+    return deps[name];
+  }, loaded, loaded.exports);
+  const submit = (first, last, requestId = "11111111-1111-4111-8111-111111111111") => {
+    const form = new FormData();
+    form.set("first_name", first);
+    form.set("last_name", last);
+    form.set("request_id", requestId);
+    return loaded.exports.setPortalNameAction({ status: "idle" }, form);
+  };
+  return { calls, submit };
+}
+
+test("the name action sends the cleaned name once and trusts only the confirmed answer; the login is not touched", async () => {
+  const ok = nameAction({ data: { displayName: "Айдай Чынарова" }, error: null });
+  assert.deepEqual(await ok.submit(" Айдай ", "Чынарова"), { status: "done", displayName: "Айдай Чынарова" });
+  assert.deepEqual(ok.calls[0], ["set_own_portal_name_v1", {
+    p_first_name: "Айдай", p_last_name: "Чынарова", p_request_id: "11111111-1111-4111-8111-111111111111",
+  }]);
+  const blank = nameAction({ data: null, error: null });
+  assert.deepEqual(await blank.submit("Айдай", "  "), { status: "invalid" });
+  assert.equal(blank.calls.length, 0, "nothing is sent without a last name");
+  assert.deepEqual(await nameAction({ data: null, error: { code: "22023" } }).submit("Айдай", "Ч"), { status: "invalid" });
+  assert.deepEqual(await nameAction({ data: null, error: { code: "42501" } }).submit("Айдай", "Ч"), { status: "unavailable" });
+  assert.deepEqual(await nameAction({ data: { displayName: "Другое Имя" }, error: null }).submit("Айдай", "Ч"), { status: "unavailable" });
+  // Логин для входа не меняется: ни действие, ни команда базы не трогают таблицу логинов.
+  assert.doesNotMatch(source("src/lib/portal/portal-profile-actions.ts"), /student_login|claim_student_login/u);
+  const sql = source("supabase/migrations/355_platform_student_own_name.sql");
+  assert.doesNotMatch(sql.replace(/--.*$/gmu, ""), /student_logins/u);
+  assert.match(sql, /'student\.name\.change', 'student_case', own_case_id, '\{\}'::JSONB/u, "the journal keeps no name");
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.set_own_portal_name_v1\(TEXT, TEXT, UUID\) TO authenticated;/u);
+  const page = source("src/app/(portal)/portal/profile/page.tsx");
+  assert.ok(page.indexOf("portal-profile-name") > 0 && page.indexOf("portal-profile-name") < page.indexOf("portal-profile-password"));
 });

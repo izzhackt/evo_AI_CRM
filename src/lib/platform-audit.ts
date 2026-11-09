@@ -112,6 +112,10 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
 // row keeps only the student's Auth user, never the password. It falls through to the `["record_status"]` default of
 // `expectedChangedFieldCodes`.
+// Migration 355 («Студент сам меняет имя и фамилию») adds one action, `student.name.change` (written by
+// `platform.set_own_portal_name_v1`: one row per real change the student makes in «Профиль»), by the same
+// rename-and-union wrapper (`..._pre_student_own_name`). Its object is the existing `student_case` type; the row keeps no
+// name, before or after. It falls through to the `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
 // (миграция 323)») adds one action, `report.link.change` (written by
 // `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),
@@ -339,6 +343,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "staff.task.edit",
   "staff.task.status",
   "student.account.create",
+  "student.name.change",
   "student.password.reset",
   "student.portal.authority.activate",
   "student.profile.export.attempted",

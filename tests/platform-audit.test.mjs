@@ -103,6 +103,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["342_platform_student_accounts.sql", "student_accounts"],
   // «Сброс пароля студента администратором»: одно действие student.password.reset, объект student_case (нового типа нет).
   ["344_platform_student_password_resets.sql", "student_password_resets"],
+  // «Студент сам меняет имя и фамилию»: одно действие student.name.change, объект student_case (нового типа нет).
+  ["355_platform_student_own_name.sql", "student_own_name"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -324,6 +326,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "staff.task.edit",
     "staff.task.status",
     "student.account.create",
+    "student.name.change",
     "student.password.reset",
     "student.portal.authority.activate",
     "student.profile.export.attempted",

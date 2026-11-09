@@ -6,6 +6,7 @@ import { ConsultationRequest } from "@/components/portal/consultation/Consultati
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { LanguageSwitch } from "@/components/portal/LanguageSwitch";
 import { ProfileHero } from "@/components/portal/profile/ProfileHero";
+import { NameChangeForm } from "@/components/portal/profile/NameChangeForm";
 import { PasswordChangeForm } from "@/components/portal/profile/PasswordChangeForm";
 import { ProfileIcon } from "@/components/portal/profile/ProfileIcon";
 import { stageLabel } from "@/components/portal/admission/OverviewView";
@@ -229,6 +230,15 @@ export default async function ProfilePage() {
                 )}
               </section>
             )}
+
+            {/* 09.11.2026 (355): имя и фамилия — сам студент; логин для входа не меняется. */}
+            <section aria-labelledby="portal-profile-name" className="pt-profile-card">
+              <h2 id="portal-profile-name" className="pt-section-title">
+                <ProfileIcon name="person" />
+                {strings.nameHeading}
+              </h2>
+              <NameChangeForm displayName={profile.displayName} strings={strings} />
+            </section>
 
             <section aria-labelledby="portal-profile-password" className="pt-profile-card">
               <h2 id="portal-profile-password" className="pt-section-title">

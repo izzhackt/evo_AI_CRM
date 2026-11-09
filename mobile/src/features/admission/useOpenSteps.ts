@@ -74,25 +74,26 @@ export function useOpenSteps(
 /** Свёрнут ли весь путь: выбор студента помнится (`1`/`0`), без выбора по умолчанию. */
 export function useFolded(defaultFolded: boolean, userKey: string) {
   const foldedKey = scoped(userKey, "folded");
-  // Пока читается ключ нового студента, выбор прежнего не должен просочиться.
-  const [stored, setStored] = useState<boolean | null>(null);
+  // Значение помнит, чьему ключу принадлежит: ответ или выбор прежнего студента не просочится к новому.
+  const [stored, setStored] = useState<{ key: string; value: boolean } | null>(null);
   useEffect(() => {
-    setStored(null);
     let cancelled = false;
     AsyncStorage.getItem(foldedKey)
-      // Выбор, сделанный на экране до ответа хранилища, важнее сохранённого.
       .then((raw) => {
-        if (!cancelled) setStored((current) => current ?? (raw === "1" ? true : raw === "0" ? false : null));
+        if (cancelled) return;
+        const value = raw === "1" ? true : raw === "0" ? false : null;
+        // Выбор, сделанный на экране до ответа хранилища, важнее сохранённого.
+        if (value !== null) setStored((current) => (current?.key === foldedKey ? current : { key: foldedKey, value }));
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [foldedKey]);
-  const folded = stored ?? defaultFolded;
+  const folded = stored?.key === foldedKey ? stored.value : defaultFolded;
   const setFolded = useCallback(
     (value: boolean) => {
-      setStored(value);
+      setStored({ key: foldedKey, value });
       AsyncStorage.setItem(foldedKey, value ? "1" : "0").catch(() => undefined);
     },
     [foldedKey],

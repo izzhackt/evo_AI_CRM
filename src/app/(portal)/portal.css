@@ -7196,9 +7196,19 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
     align-items: stretch;
   }
 
-  /* Колонки кончаются на одной линии: последняя карточка короткой колонки дотягивается вниз (08.11.2026, как у образца). */
+  /*
+   * Колонки кончаются на одной линии: последняя карточка короткой колонки дотягивается вниз (08.11.2026, как у
+   * образца). Карточка лежит в слоте (#1416), поэтому тянется и слот, и карточка в нём.
+   */
   .pt-home-main > :last-child,
   .pt-home-side > :last-child {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+
+  .pt-home-main > .pt-home-slot:last-child > *,
+  .pt-home-side > .pt-home-slot:last-child > * {
     flex-grow: 1;
   }
 

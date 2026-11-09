@@ -23,7 +23,10 @@ exact migration ledger, and uses its Mailpit catcher. It never binds owner ports
 3000/3100, resets another project, invites an external recipient, or releases
 captured mail through a relay. Cleanup targets only the exact generated project.
 Failed owned scratch data is retained privately for diagnosis; the stack is still
-stopped. Credentials, invitation links, cookies and provider keys are not evidence.
+stopped. The project id is short (`evo-invite-<8 hex>`): the Supabase CLI cuts
+longer ids in container names, and then `supabase stop` found nothing and left
+whole stacks running. After `supabase stop` the harness removes any container,
+volume or network that still ends with its own project id. Credentials, invitation links, cookies and provider keys are not evidence.
 
 ## Runtime change
 
@@ -42,25 +45,38 @@ only in the generated disposable config. The repository default is unchanged.
 
 1. Create actual local Auth **staff** users and synthetic pre-handoff business
    facts. No Student Auth user, membership, activation or receipt is seeded.
+   Staff rights follow the scoped roles of migrations 155/173: Sales and
+   Admissions templates on the own scope, the Admin is the organization's live
+   system Admin and holds the Sales Manager role (208), and the lead carries
+   saved sale conditions, because a completed handoff writes the sales register.
 2. Sign in the Admin through Supabase Auth and execute the existing normal
    `handoff_lead_to_admissions` command. Assert the case has no Student binding.
-3. Sign in the Admin in Chromium and click the existing profile access action.
-   The real coordinator calls `inviteUserByEmail`, records provider issuance and
-   performs normal domain finalization. Capture the resulting Mailpit message.
+3. Sign in the Admin in Chromium, open the «Доступ к порталу» group on the lead
+   profile and click the existing access action. The real coordinator calls
+   `inviteUserByEmail`, records provider issuance and binds the Student membership
+   to the case. Capture the resulting Mailpit message.
 4. Assert provider invitation metadata, an unconfirmed identity, exact recipient,
-   exact callback origin, and the receipt/case binding. GET must not consume OTP.
+   exact callback origin, the receipt/case binding, the `anketa_v1` intake flow and
+   that the portal is **not** activated (migration 193). GET must not consume OTP.
 5. Click the CSRF-bound callback form, verify the accepted receipt, set a password
-   using the existing action, and reach `/portal`.
-6. Clear cookies and sign in with that password. Confirm Student access and denial
-   of the staff route. Reuse the invitation anonymously: reject the consumed OTP.
+   using the existing action, and reach the анкета `/apply`; the portal stays
+   inactive until staff approve the анкета.
+6. Clear cookies and sign in with that password. Confirm that login, the staff
+   route and `/portal` all lead to `/apply`. Reuse the invitation anonymously:
+   reject the consumed OTP.
 
 The browser blocks non-approved origins. Traces and videos are not recorded;
-only a portal screenshot after token consumption and a boolean proof summary are
+only an анкета screenshot after token consumption (and a failure screenshot) and a boolean proof summary are
 retained in the printed private evidence directory. No `generateLink`, forged JWT,
 Auth bypass, direct Student `createUser`, forced confirmation, trigger suppression,
 or service-written Student activation is used.
 
 ## Validation status
+
+2026-11-09: the harness was stale against current migrations (live-Admin
+constraint, scoped staff roles, sales-register handoff, анкета-first invites) and
+leaked its stacks on cleanup. Fixture, proof and cleanup were updated; one full
+local run passed and left no containers, volumes or networks behind.
 
 The first real local run passed on 2026-09-09: normal handoff created three starter
 tasks; invitation, callback, password setup, fresh Student login, staff denial and

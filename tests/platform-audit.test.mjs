@@ -104,7 +104,7 @@ const P7A_WRAPPER_MIGRATIONS = [
   // «Сброс пароля студента администратором»: одно действие student.password.reset, объект student_case (нового типа нет).
   ["344_platform_student_password_resets.sql", "student_password_resets"],
   // «Студент сам меняет имя и фамилию»: одно действие student.name.change, объект student_case (нового типа нет).
-  ["355_platform_student_own_name.sql", "student_own_name"],
+  ["356_platform_student_own_name.sql", "student_own_name"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),

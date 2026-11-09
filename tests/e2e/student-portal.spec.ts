@@ -19,7 +19,8 @@ const PORTAL_ROUTES = [
   { path: "/portal/documents", expectedText: "Паспорт" },
   { path: "/portal/payments", expectedText: "Сервисный сбор EVO" },
   {
-    path: "/portal/notifications",
+    // #1358: лента одна — «Что нового» во «Входящих»; /portal/notifications только переходит сюда.
+    path: "/portal/messages?view=updates",
     expectedText: "Загрузите более чёткую копию паспорта.",
   },
 ] as const;
@@ -342,12 +343,13 @@ test("all four Student Portal routes pass the real authenticated quality gate", 
     const errorCountBeforeNavigation = browserErrors.length;
     const response = await page.goto(route.path, { waitUntil: "networkidle" });
     expect(response?.status(), route.path).toBe(200);
-    expect(new URL(page.url()).pathname, route.path).toBe(route.path);
+    expect(new URL(page.url()).pathname, route.path).toBe(route.path.split("?")[0]);
     await expect(page.getByTestId("student-portal-shell")).toBeVisible();
     await expect(page.locator("main")).toContainText(route.expectedText);
+    // #1412/#1355: the rail (desktop) or the phone menu and tab bar carry the link; at least one marks the page.
     await expect(
-      page.locator(`nav a[href="${route.path}"][aria-current="page"]`),
-    ).toHaveCount(1);
+      page.locator(`nav a[href="${route.path.split("?")[0]}"][aria-current="page"]`).first(),
+    ).toBeAttached();
 
     const context = `${testInfo.project.name} ${route.path}`;
     await expectStylesLoaded(page, context);
@@ -449,8 +451,8 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
   await expect(page.getByTestId("v3-shell")).toHaveCount(0);
 });
 
-// PORT-2 (#867) replaced the compact «Меню» disclosure with the phone tab bar:
-// the same `nav[aria-label="Разделы кабинета"]`, fixed to the bottom edge.
+// #1412/#1355: the phone has three bottom tabs (Главная, Документы, Входящие) and a left drawer opened by the
+// ☰ button in the top bar with every section and «Выйти».
 test("the mobile Portal tab bar supports keyboard navigation", async ({
   page,
 }, testInfo) => {
@@ -458,17 +460,20 @@ test("the mobile Portal tab bar supports keyboard navigation", async ({
 
   await submitLogin(page, "student");
   const navigation = page.getByRole("navigation", { name: "Разделы кабинета" });
-  for (const link of await navigation.getByRole("link").all()) {
+  const bar = navigation.locator(".pt-nav-bar");
+  const tabs = bar.getByRole("link");
+  await expect(tabs).toHaveCount(3);
+  for (const link of await tabs.all()) {
     expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   }
-  // Page content follows the bar in DOM order; start from its first section
-  // and reach one that is on screen at both phone widths (see the next test).
-  await navigation.locator('a[href="/portal/home"]').focus();
-  const documents = navigation.locator('a[href="/portal/documents"]');
-  for (let press = 0; press < 4; press += 1) {
-    await page.keyboard.press("Tab");
-    if (await documents.evaluate((element) => element === document.activeElement)) break;
-  }
+  // One home: «Главная» is the first tab and is the only link to /portal that is visible in the nav.
+  const home = bar.locator('a[href="/portal"]');
+  await expect(home).toHaveAttribute("aria-current", "page");
+  await expect(navigation.locator('a[href="/portal"]:visible')).toHaveCount(1);
+  await expect(navigation.locator('a[href="/portal/home"]')).toHaveCount(0);
+  await home.focus();
+  const documents = bar.locator('a[href="/portal/documents"]');
+  await page.keyboard.press("Tab");
   await expect(documents).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/portal\/documents$/);
@@ -481,7 +486,6 @@ test("the mobile Portal tab bar supports keyboard navigation", async ({
 
 // Every section of the assisted Student's navigation, in rail order (#1113).
 const ASSISTED_SECTION_PATHS = [
-  "/portal/home",
   "/portal",
   "/portal/documents",
   // 03.11.2026: «Оплата» снова пункт меню.
@@ -489,35 +493,36 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/messages",
   "/portal/universities",
   "/portal/professions",
-  // 03.11.2026: «Избранное» is the «Вузы» tab of /portal, no menu item.
+  // «Избранное» is the «Вузы» tab of «Мой список» on /portal, no menu item.
   "/portal/english",
   "/portal/csca",
   // 03.11.2026: «Уведомления» — лента «Что нового» во «Входящих»
-  // (/portal/messages); страница /portal/notifications осталась без пункта меню.
+  // (/portal/messages); /portal/notifications — только переход на неё (#1358).
   "/portal/tests",
   "/portal/profile",
 ] as const;
 
-test("every mobile Portal section is reachable on screen from the tab bar and «Ещё»", async ({
+test("every mobile Portal section is reachable on screen from the drawer, which also logs out", async ({
   page,
 }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "mobile profiles only");
 
   await submitLogin(page, "student");
   const navigation = page.getByRole("navigation", { name: "Разделы кабинета" });
-  const more = navigation.getByRole("button", { name: "Ещё", exact: true });
-  await expect(more).toHaveAttribute("aria-expanded", "false");
+  const menu = page.getByRole("button", { name: "Меню", exact: true });
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
 
-  // The bar shows the first sections and «Ещё»; the rest open in a sheet. A
-  // section counts as reachable when its 44 px target is fully inside the screen.
+  // A section counts as reachable when its 44 px target is fully inside the screen once the drawer is open
+  // (the list scrolls inside the drawer, so each link is scrolled into view first).
   const unreachable: string[] = [];
+  const drawer = navigation.locator(".pt-nav-menu");
   for (const path of ASSISTED_SECTION_PATHS) {
-    const link = navigation.locator(`a[href="${path}"]`);
-    await expect(link, `${path}: one link per section`).toHaveCount(1);
-    if (!(await link.isVisible())) {
-      if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
-      await expect(link, `${path}: visible after opening «Ещё»`).toBeVisible();
-    }
+    const link = drawer.locator(`a[href="${path}"]`);
+    await expect(link, `${path}: one drawer link per section`).toHaveCount(1);
+    await link.scrollIntoViewIfNeeded();
+    await expect(link, `${path}: visible in the open drawer`).toBeVisible();
     const box = await link.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return {
@@ -539,52 +544,60 @@ test("every mobile Portal section is reachable on screen from the tab bar and «
     }
   }
   expect(unreachable, `${testInfo.project.name}: sections outside the screen`).toEqual([]);
+  // #1360: «Выйти» is in the drawer, not only in the profile.
+  const logout = drawer.getByRole("button", { name: "Выйти", exact: true });
+  await logout.scrollIntoViewIfNeeded();
+  await expect(logout).toBeVisible();
 
-  // Escape closes the sheet and returns focus to «Ещё».
+  // Escape closes the drawer and returns focus to the ☰ button.
   await page.keyboard.press("Escape");
-  await expect(more).toHaveAttribute("aria-expanded", "false");
-  await expect(more).toBeFocused();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeFocused();
 
-  // A tap on a section inside «Ещё» navigates, closes the sheet and marks «Ещё» current.
-  await more.click();
-  await navigation.locator('a[href="/portal/tests"]').click();
+  // A tap on a section in the drawer navigates and closes it.
+  await menu.click();
+  await drawer.locator('a[href="/portal/tests"]').click();
   await expect(page).toHaveURL(/\/portal\/tests$/);
   // The shell and URL can update before the streamed page arrives.
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(navigation.locator('a[href="/portal/tests"]')).toBeHidden();
-  await expect(more).toHaveAttribute("aria-expanded", "false");
-  await expect(more).toHaveAttribute("data-current-inside", "");
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
   await expectPortalGeometry(page, `${testInfo.project.name} /portal/tests`);
 
-  // The sheet belongs to the page where it was opened: coming back to that page
-  // never reopens it by itself. The shell lives in the shared layout, so its
-  // state survives navigation (regression: a stale "opened at /portal/home").
-  const home = navigation.locator('a[href="/portal/home"]');
+  // The drawer belongs to the page where it was opened: coming back to that page never reopens it by itself.
+  // The shell lives in the shared layout, so its state survives navigation (regression: a stale "opened at /portal").
+  const home = navigation.locator(".pt-nav-bar").locator('a[href="/portal"]');
   await home.click();
-  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(page).toHaveURL(/\/portal$/);
   await expect(home).toHaveAttribute("aria-current", "page");
-  await expect(more).toHaveAttribute("aria-expanded", "false");
-  await more.click();
-  await expect(more).toHaveAttribute("aria-expanded", "true");
-  await navigation.locator('a[href="/portal/tests"]').click();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await drawer.locator('a[href="/portal/tests"]').click();
   await expect(page).toHaveURL(/\/portal\/tests$/);
-  await expect(more).toHaveAttribute("data-current-inside", "");
-  await expect(more).toHaveAttribute("aria-expanded", "false");
-  // Back to the page where the sheet was opened, by the bar tab ...
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
   await home.click();
-  await expect(page).toHaveURL(/\/portal\/home$/);
-  await expect(home).toHaveAttribute("aria-current", "page");
-  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(page).toHaveURL(/\/portal$/);
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
   // ... and by browser history, in both directions.
-  await more.click();
-  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
   await page.goBack();
   await expect(page).toHaveURL(/\/portal\/tests$/);
-  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
   await page.goForward();
-  await expect(page).toHaveURL(/\/portal\/home$/);
+  await expect(page).toHaveURL(/\/portal$/);
   await expect(home).toHaveAttribute("aria-current", "page");
-  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+});
+
+test("/portal/home is the retired duplicate: it redirects to the one home", async ({ page }) => {
+  await submitLogin(page, "student");
+  const response = await page.goto("/portal/home");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/\/portal$/);
+  await expect(page.getByRole("heading", { name: "Что сделать сейчас", exact: true })).toBeVisible();
+  // #1356: one entry to the team, the chat.
+  await expect(page.getByRole("link", { name: "Написать EVO", exact: true })).toHaveAttribute("href", "/portal/messages?view=chat");
 });
 
 test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
@@ -594,19 +607,14 @@ test("the portal top bar fits a 320 px screen", async ({ page }, testInfo) => {
   await page.goto("/portal/documents", { waitUntil: "networkidle" });
   const proof = await page.evaluate(async () => {
     await document.fonts.ready;
-    const summary = document.querySelector(".pt-user-summary")?.getBoundingClientRect();
-    return {
-      clientWidth: document.documentElement.clientWidth,
-      summaryRight: summary ? summary.right : null,
-    };
+    const bar = document.querySelector(".pt-topbar");
+    const rights = Array.from(bar?.querySelectorAll("a, button") ?? [], (element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0)
+      .map((rect) => rect.right);
+    return { clientWidth: document.documentElement.clientWidth, farthest: Math.max(0, ...rights) };
   });
-  expect(proof.summaryRight).not.toBeNull();
-  expect(proof.summaryRight!, "the account summary crosses the right edge")
-    .toBeLessThanOrEqual(proof.clientWidth + 1);
-  // Узкий телефон: инициалы вместо обрезанного имени, полное имя — доступное имя плашки.
-  const summary = page.locator(".pt-user-summary");
-  await expect(summary.locator(".pt-user-initials")).toBeVisible();
-  await expect(summary).toHaveAccessibleName(/E4 Browser Student/);
+  expect(proof.farthest, "a top bar control crosses the right edge").toBeLessThanOrEqual(proof.clientWidth + 1);
+  await expect(page.getByRole("button", { name: "Меню", exact: true })).toBeVisible();
 });
 
 test("the theme is light by default, ignores the OS and the sun/moon button remembers the choice", async ({
@@ -669,7 +677,7 @@ test("the Student can persist one own notification read through the UI", async (
 
   const notificationId = requiredEnvironment("EVO_STUDENT_PORTAL_NOTIFICATION_ID");
   await submitLogin(page, "student");
-  await page.goto("/portal/notifications", { waitUntil: "networkidle" });
+  await page.goto("/portal/messages?view=updates", { waitUntil: "networkidle" });
   const notification = page.locator("li", {
     hasText: "Загрузите более чёткую копию паспорта.",
   });
@@ -804,11 +812,18 @@ test("mobile document review and curator replies persist through real Auth and d
   };
   try {
     await submitLogin(page, "student");
-    await page.getByText("Нужна помощь", { exact: true }).click();
-    await page.getByRole("textbox", { name: "Тема", exact: true }).fill(subject);
-    await page.getByRole("textbox", { name: "Что нужно уточнить", exact: true }).fill(question);
-    await page.getByRole("button", { name: "Передать вопрос команде", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Новое обращение", exact: true })).toBeVisible();
+    // #1356: the cabinet no longer has a «Вопрос куратору» form (one entry «Написать EVO» opens the chat), but the
+    // curator-reply pipeline for requests created earlier still works. The request is created with the Student's own
+    // session through the same RPC the retired form called.
+    const config = localSupabaseApiConfig();
+    const studentClient = createClient(config.url, config.publishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${await browserSupabaseAccessToken(page)}` } },
+    });
+    const created = await studentClient.schema("platform").rpc("create_case_help_request_v1", {
+      p_subject: subject, p_body: question, p_request_id: randomUUID(),
+    });
+    expect(created.error).toBeNull();
     const [help] = await sql<{ id: string; version: string }[]>`
       SELECT id::TEXT, version::TEXT FROM platform.case_help_requests
       WHERE student_case_id = ${caseId}::UUID AND subject = ${subject}
@@ -861,11 +876,9 @@ test("mobile document review and curator replies persist through real Auth and d
     await expect(page.getByText(canonicalReason, { exact: true })).toBeVisible({ timeout: 45_000 });
     await expectPortalGeometry(page, `${width}px reviewed Student document`);
 
-    await page.goto("/portal");
-    await page.getByText("Нужна помощь", { exact: true }).click();
-    await page.getByRole("textbox", { name: "Тема", exact: true }).fill("Несохранённый черновик");
-    await page.getByRole("textbox", { name: "Что нужно уточнить", exact: true }).fill("Этот ввод должен сохраниться при обновлении ответа.");
-    const config = localSupabaseApiConfig();
+    await page.goto("/portal/messages?view=chat");
+    // The home has one entry to the team and no one-off question form.
+    await expect(page.getByRole("textbox", { name: "Тема", exact: true })).toHaveCount(0);
     const staffClient = createClient(config.url, config.publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${await browserSupabaseAccessToken(adminPage)}` } },
@@ -877,13 +890,12 @@ test("mobile document review and curator replies persist through real Auth and d
     const replay = await staffClient.schema("platform").rpc("answer_case_help_request_v1", command);
     expect(replay.error).toBeNull();
     expect(replay.data).toEqual(response.data);
-    // The help panel by its region name (the `#case-help` anchor itself is
-    // unique since #1115, which expectPortalGeometry also enforces).
-    await expect(page.getByRole("region", { name: "Помощь по поступлению", exact: true }))
+    // Earlier requests with answers stay readable (read-only) under the chat list.
+    await page.reload();
+    await page.getByText("Прежние вопросы куратору и ответы", { exact: true }).click();
+    await expect(page.getByRole("region", { name: "Прежние вопросы куратору", exact: true }))
       .toContainText(answer, { timeout: 45_000 });
-    await expect(page.getByRole("textbox", { name: "Тема", exact: true })).toHaveValue("Несохранённый черновик");
-    await expect(page.getByRole("textbox", { name: "Что нужно уточнить", exact: true })).toHaveValue("Этот ввод должен сохраниться при обновлении ответа.");
-    await expectPortalGeometry(page, `${width}px help reply preserves draft`);
+    await expectPortalGeometry(page, `${width}px earlier help reply`);
 
     const notificationRows = await sql<{ id: string }[]>`
       SELECT id::TEXT FROM platform.notifications WHERE category = 'case_help.answer'
@@ -891,7 +903,7 @@ test("mobile document review and curator replies persist through real Auth and d
     `;
     expect(notificationRows).toHaveLength(1);
     const notificationId = notificationRows[0].id;
-    await page.goto("/portal/notifications");
+    await page.goto("/portal/messages?view=updates");
     const detailHref = `/portal/notifications/${notificationId}`;
     await page.locator(`a[href="${detailHref}"]`).click();
     await expect(page).toHaveURL(new RegExp(`${detailHref}$`));

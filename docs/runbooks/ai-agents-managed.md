@@ -339,7 +339,7 @@ sudo systemctl disable --now evo-ai-agents-maintenance.timer
 ## 10. Согласие студента на ИИ-помощников (миграция 320, решение владельца 25.10.2026)
 
 Правило Apple 5.1.2(i): личные данные уходят стороннему ИИ только с явного разрешения в приложении.
-Решение студента (`granted` | `declined`, версия текста политики, источник `portal_web` | `ios`) хранится
+Решение студента (`granted` | `declined`, версия текста политики, источник `portal_web` | `ios` | `android`; `android` добавлен миграцией 355) хранится
 одной строкой на студента в `platform_private.student_ai_consents`; каждое изменение — событие журнала
 платформы `ai.consent.grant` / `ai.consent.decline` (в CRM: «Журнал действий»). Кабинет и iPhone зовут
 `platform.portal_ai_consent_get_v1()` и `platform.portal_ai_consent_set_v1(...)`, сотрудник видит чип «ИИ: ...»

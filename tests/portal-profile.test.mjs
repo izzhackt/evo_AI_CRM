@@ -117,7 +117,7 @@ test("deletion strings name the 30-day deadline and the kept records", async () 
   assert.equal(Object.hasOwn(PORTAL_DICTIONARIES.profile.ru, "deleteDescription"), false);
 });
 
-// 355 (09.11.2026): «Имя и фамилия» в «Профиле» — студент правит их сам, логин для входа не меняется.
+// 356 (09.11.2026): «Имя и фамилия» в «Профиле» — студент правит их сам, логин для входа не меняется.
 test("a student name part: trimmed, one space inside, 1–60 characters, a letter, no control characters", () => {
   assert.equal(normalizePortalNamePart("  Айдай  "), "Айдай");
   assert.equal(normalizePortalNamePart("Чынарова   кызы"), "Чынарова кызы");
@@ -177,10 +177,33 @@ test("the name action sends the cleaned name once and trusts only the confirmed 
   assert.deepEqual(await nameAction({ data: { displayName: "Другое Имя" }, error: null }).submit("Айдай", "Ч"), { status: "unavailable" });
   // Логин для входа не меняется: ни действие, ни команда базы не трогают таблицу логинов.
   assert.doesNotMatch(source("src/lib/portal/portal-profile-actions.ts"), /student_login|claim_student_login/u);
-  const sql = source("supabase/migrations/355_platform_student_own_name.sql");
+  const sql = source("supabase/migrations/356_platform_student_own_name.sql");
   assert.doesNotMatch(sql.replace(/--.*$/gmu, ""), /student_logins/u);
   assert.match(sql, /'student\.name\.change', 'student_case', own_case_id, '\{\}'::JSONB/u, "the journal keeps no name");
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.set_own_portal_name_v1\(TEXT, TEXT, UUID\) TO authenticated;/u);
+  // Имя правится прямо в «Моих данных» (#1360): та же строка, что была только для чтения.
   const page = source("src/app/(portal)/portal/profile/page.tsx");
-  assert.ok(page.indexOf("portal-profile-name") > 0 && page.indexOf("portal-profile-name") < page.indexOf("portal-profile-password"));
+  assert.match(page, /<dt>\{strings\.nameLabel\}<\/dt>\s*<dd><NameChangeForm displayName=\{profile\.displayName\} strings=\{strings\} \/><\/dd>/u);
+  assert.doesNotMatch(page, /portal-profile-name/u, "no second card for the name");
+});
+
+// #1360 (09.11.2026): «Мои данные» в профиле. Телефон в кабинете не правится: RPC для этого нет, поэтому страница
+// честно говорит, кто его меняет; пароль меняется формой кабинета, «Выйти» есть и в меню телефона.
+test("my data block shows name, email and login read-only; phone is not invented; logout is in the phone menu", async () => {
+  const { PORTAL_DICTIONARIES } = await import("../src/lib/portal/i18n.ts");
+  const page = source("src/app/(portal)/portal/profile/page.tsx");
+  assert.match(page, /<h2 id="portal-profile-mydata" className="pt-section-title">/u);
+  // 356: имя студент правит сам — строка «Имя» несёт форму смены имени (логин не меняется).
+  assert.match(page, /<dd><NameChangeForm displayName=\{profile\.displayName\} strings=\{strings\} \/><\/dd>/u);
+  assert.match(page, /<dd translate="no">\{profile\.email\}<\/dd>/u);
+  assert.match(page, /<dd translate="no">\{ownLogin\}<\/dd>/u);
+  assert.doesNotMatch(page, /<input|type="tel"|set_own_.*phone|update_.*phone/iu, "no phone edit without a server write path");
+  assert.match(page, /<PasswordChangeForm strings=\{strings\} \/>/u);
+  assert.match(source("src/lib/student-password-change-actions.ts"), /changeStudentPassword/u);
+  assert.match(source("src/components/portal/Shell.tsx"), /<form action=\{logoutStudentPortalAction\} className="pt-nav-logout">/u);
+  for (const locale of ["ru", "ky"]) {
+    for (const key of ["dataHeading", "nameLabel", "emailLabel", "dataNote", "dataNoteApproved", "dataWrite"]) {
+      assert.ok(PORTAL_DICTIONARIES.profile[locale][key], `${locale} ${key}`);
+    }
+  }
 });

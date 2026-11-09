@@ -53,7 +53,7 @@ export async function setPortalLanguageAction(
 }
 
 /**
- * «Имя и фамилия» (355, 09.11.2026): студент правит их сам; команда базы пишет их в профиль кабинета и в имя дела в
+ * «Имя и фамилия» (356, 09.11.2026): студент правит их сам; команда базы пишет их в профиль кабинета и в имя дела в
  * CRM, логин для входа не трогает. request_id стабилен на попытку: повтор после обрыва сети второе событие не пишет.
  */
 export async function setPortalNameAction(_previous: PortalNameState, form: FormData): Promise<PortalNameState> {

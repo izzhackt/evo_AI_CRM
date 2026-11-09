@@ -3,10 +3,11 @@ import { useState, useTransition } from "react";
 import { Icon } from "@/components/icons";
 import { loadCaseHelpAction } from "@/lib/platform-admissions-support-actions";
 import type { CaseHelpPage } from "@/lib/platform-admissions-support-contract";
-import { AnswerCaseHelpForm, CreateCaseHelpForm } from "./CaseOperationsForms";
+import { AnswerCaseHelpForm } from "./CaseOperationsForms";
 
 /**
- * Обращения дела. Студент (`student`, кабинет — свой облик) видит «Мои обращения и ответы» в рамке;
+ * Обращения дела. Студент (`student`, кабинет — свой облик) видит прежние обращения и ответы в рамке; новых обращений
+ * из кабинета больше нет (#1356: вопрос команде EVO задаётся в чате «Входящих»), без прежних обращений блок не рисуется;
  * сотрудник — «Обращения студента» строкой-раскрытием, как остальные группы «Обзора»: со счётом в строке,
  * без своей рамки на плоской странице. Файл общий с кабинетом, поэтому роли `t-*` здесь не используются.
  */
@@ -42,9 +43,9 @@ export function CaseHelpPanel({ initialPage, student }: { initialPage: CaseHelpP
       </details>
     </section>;
   }
-  return <section className="space-y-4" id="case-help" aria-label="Помощь по поступлению">
-    <CreateCaseHelpForm onSaved={() => setOlder(null)} />
-    <details className="rounded-card border border-border bg-surface p-4 sm:p-5" open={openCount > 0}><summary className="min-h-11 cursor-pointer font-semibold text-fg">Мои обращения и ответы</summary>
+  if (!page.items.length && !page.nextCursor) return null;
+  return <section className="space-y-4" id="case-help" aria-label="Прежние вопросы куратору">
+    <details className="rounded-card border border-border bg-surface p-4 sm:p-5" open={openCount > 0}><summary className="min-h-11 cursor-pointer font-semibold text-fg">Прежние вопросы куратору и ответы</summary>
       {items}{more}
     </details>
   </section>;

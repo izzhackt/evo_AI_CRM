@@ -27,7 +27,7 @@ export default async function ProgramDocumentNotificationPage({ params }: {
   const result = await readStudentApplicationDocumentNotification(notificationId).catch(() => null);
   if (result && result.studentCaseId !== actor.studentCaseId) notFound();
   return <main className="pt-page">
-    <Link className="pt-link" href="/portal/notifications">{admission.replyAllNotifications}</Link>
+    <Link className="pt-link" href="/portal/messages?view=updates">{admission.replyAllNotifications}</Link>
     <header className="pt-page-header"><h1 className="pt-page-title">{admission.targetProgramDocument}</h1></header>
     {!result ? <><p className="pt-prep-error" role="alert">{strings.readUnavailable}</p>
       <Link className="pt-btn-ghost" href={`/portal/document-notifications/${notificationId}`}>{strings.refresh}</Link></> : <div className={`${styles.root} ${styles.portal}`}>

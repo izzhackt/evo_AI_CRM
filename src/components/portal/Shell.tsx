@@ -7,9 +7,9 @@ import {
   BriefcaseBusiness,
   CircleUserRound,
   FileText,
-  GraduationCap,
   House,
   Landmark,
+  LogOut,
   Languages,
   ListChecks,
   Menu,
@@ -42,12 +42,13 @@ import {
   type PortalStrings,
 } from "@/lib/portal/i18n";
 import { writePortalRailChoice } from "@/lib/portal/rail-choice";
+import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import type { Theme } from "@/lib/theme";
 
 /**
  * Портальный shell (PORT-2, дизайн-контракт
  * docs/design/portal/design-contract.md): слева рейл на всю высоту —
- * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле»);
+ * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле» и внизу меню телефона);
  * на узком экране — полоса сверху (логотип, колокольчик, тема) и нижняя
  * панель вкладок. Стили — только pt-классы из src/app/(portal)/portal.css.
  *
@@ -84,11 +85,10 @@ export type PortalAccessTier = "approved" | "assisted";
  * оба tier'а по дизайн-контракту).
  */
 const SECTIONS = [
-  // PORT-9c: «Главная» — отдельный маршрут; /portal остаётся «Моим
-  // поступлением» (замороженные смоук-якоря: вход после логина, заголовок и
-  // ссылка a[href="/portal"] в этом nav).
-  { href: "/portal/home", key: "nav.home", tiers: ["approved", "assisted"] },
-  { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
+  // #1355 (09.11.2026): одна «Главная» на /portal — вход после логина, «Что сделать сейчас» первым блоком и «Мой
+  // список» (вузы и программы) ниже. Прежний /portal/home перенаправляется сюда, пункта «Поступление» нет. Смоук-якорь
+  // a[href="/portal"] в этом nav остаётся единственным (с #1412 вторая такая же — в нижней панели телефона).
+  { href: "/portal", key: "nav.home", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
   // 03.11.2026: «Оплата» снова пункт меню (слово пользователя): ссылки на
   // начисления на «Поступлении» больше нет.
@@ -114,10 +114,11 @@ const SECTIONS = [
 }[];
 
 /**
- * Вкладки парящей нижней панели телефона (08.11.2026, по образцу кабинета Акылмана): четыре главных раздела; все
- * разделы — в тёмном меню, которое выезжает слева по кнопке в шапке. Прежний лист «Ещё» больше не нужен.
+ * Вкладки парящей нижней панели телефона (08.11.2026, по образцу кабинета Акылмана; #1355 — без «Поступления»): три
+ * главных раздела — «Главная», «Документы», «Входящие»; все разделы (в том числе «Оплата») — в тёмном меню, которое
+ * выезжает слева по кнопке в шапке и работает как «Ещё». У студента без сопровождения вкладка одна — панель не рисуется.
  */
-const PHONE_TABS: readonly string[] = ["/portal/home", "/portal", "/portal/documents", "/portal/messages"];
+const PHONE_TABS: readonly string[] = ["/portal", "/portal/documents", "/portal/messages"];
 
 /** Раздел, который на широком экране ведёт карточка студента внизу рейла. */
 const RAIL_ACCOUNT_HREF = "/portal/profile";
@@ -202,8 +203,6 @@ function NavigationLabel({ label, opening }: { label: string; opening: string })
  */
 const SECTION_ICONS: Record<(typeof SECTIONS)[number]["key"], LucideIcon> = {
   "nav.home": House,
-  // Поступление: шапочка выпускника — цель всего пути.
-  "nav.overview": GraduationCap,
   "nav.documents": FileText,
   "nav.payments": Wallet,
   "nav.messages": MessagesSquare,
@@ -418,14 +417,23 @@ export function Shell({
               <ul className="pt-nav-list pt-nav-full">
                 {sections.map(renderSection)}
               </ul>
+              {/* #1360: «Выйти» доступен из меню телефона, а не только из «Профиля» (на широком экране форма скрыта). */}
+              <form action={logoutStudentPortalAction} className="pt-nav-logout">
+                <button type="submit" className="pt-nav-link pt-nav-logout-button">
+                  <LogOut className="pt-nav-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <span className="pt-nav-label">{strings.logout}</span>
+                </button>
+              </form>
             </div>
             {/* Телефон: парящая панель из четырёх вкладок; на широком экране скрыта. */}
-            <ul
-              className="pt-nav-list pt-nav-bar"
-              style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
-            >
-              {tabSections.map(renderSection)}
-            </ul>
+            {tabSections.length > 1 ? (
+              <ul
+                className="pt-nav-list pt-nav-bar"
+                style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
+              >
+                {tabSections.map(renderSection)}
+              </ul>
+            ) : null}
             <span aria-hidden="true" className="pt-nav-indicator" />
           </nav>
           {/* Широкий экран: язык и карточка студента внизу рейла; на телефоне их нет. */}

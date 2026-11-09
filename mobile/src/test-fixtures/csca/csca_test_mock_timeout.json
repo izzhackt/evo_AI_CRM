@@ -1,0 +1,631 @@
+{
+  "kind": "mock",
+  "flags": [
+    "csca-math-exp-log-008"
+  ],
+  "items": [
+    {
+      "stemEn": "The figure shows the graph of $y = a^x + b$ ($a > 0$, $a \\ne 1$) together with its horizontal asymptote. Find $a + b$.",
+      "itemKey": "csca-math-exp-log-006",
+      "options": [
+        {
+          "id": "a",
+          "label": "$2$"
+        },
+        {
+          "id": "b",
+          "label": "$1$"
+        },
+        {
+          "id": "c",
+          "label": "$3$"
+        },
+        {
+          "id": "d",
+          "label": "$\\sqrt{3} - 1$"
+        }
+      ],
+      "topicKey": "m2-exp-log",
+      "figureKey": "item-exp-graph",
+      "difficulty": 2,
+      "estSeconds": 75,
+      "syllabusPoint": "2.2"
+    },
+    {
+      "stemEn": "The figure shows the graph of the derivative $y = f'(x)$ of a function $f(x)$. At which value of $x$ does $f(x)$ have a local maximum?",
+      "itemKey": "csca-math-derivative-005",
+      "options": [
+        {
+          "id": "a",
+          "label": "$x = 2$"
+        },
+        {
+          "id": "b",
+          "label": "$x = \\frac{1}{2}$"
+        },
+        {
+          "id": "c",
+          "label": "$x = -1$"
+        },
+        {
+          "id": "d",
+          "label": "$f(x)$ has no local maximum."
+        }
+      ],
+      "topicKey": "m2-derivative",
+      "figureKey": "item-derivative-graph",
+      "difficulty": 2,
+      "estSeconds": 75,
+      "syllabusPoint": "2.4"
+    },
+    {
+      "stemEn": "Solve the inequality $\\log_{1/2} (x - 1) > -2$.",
+      "itemKey": "csca-math-exp-log-008",
+      "options": [
+        {
+          "id": "a",
+          "label": "$x > 5$"
+        },
+        {
+          "id": "b",
+          "label": "$x < 5$"
+        },
+        {
+          "id": "c",
+          "label": "$1 < x < 5$"
+        },
+        {
+          "id": "d",
+          "label": "$1 < x < \\frac{5}{4}$"
+        }
+      ],
+      "topicKey": "m2-exp-log",
+      "difficulty": 3,
+      "estSeconds": 105,
+      "syllabusPoint": "2.2"
+    },
+    {
+      "stemEn": "The line $y = kx$ is tangent to the curve $y = \\ln x$. Find $k$.",
+      "itemKey": "csca-math-derivative-010",
+      "options": [
+        {
+          "id": "a",
+          "label": "$e$"
+        },
+        {
+          "id": "b",
+          "label": "$1$"
+        },
+        {
+          "id": "c",
+          "label": "$\\frac{1}{10}$"
+        },
+        {
+          "id": "d",
+          "label": "$\\frac{1}{e}$"
+        }
+      ],
+      "topicKey": "m2-derivative",
+      "difficulty": 3,
+      "estSeconds": 105,
+      "syllabusPoint": "2.4"
+    },
+    {
+      "stemEn": "In the figure, the circle has center $C(3, 4)$ and passes through the origin $O$. Find the equation of the tangent line to the circle at $O$.",
+      "itemKey": "csca-math-line-circle-006",
+      "options": [
+        {
+          "id": "a",
+          "label": "$4x - 3y = 0$"
+        },
+        {
+          "id": "b",
+          "label": "$3x - 4y = 0$"
+        },
+        {
+          "id": "c",
+          "label": "$3x + 4y = 0$"
+        },
+        {
+          "id": "d",
+          "label": "$4x + 3y = 0$"
+        }
+      ],
+      "topicKey": "m3-line-circle",
+      "figureKey": "item-circle-tangent",
+      "difficulty": 2,
+      "estSeconds": 75,
+      "syllabusPoint": "3.1"
+    },
+    {
+      "stemEn": "A circle has its center on the $x$-axis and passes through the points $A(1, 3)$ and $B(5, 1)$. Find its equation.",
+      "itemKey": "csca-math-line-circle-009",
+      "options": [
+        {
+          "id": "a",
+          "label": "$(x - 2)^2 + y^2 = 10$"
+        },
+        {
+          "id": "b",
+          "label": "$(x + 2)^2 + y^2 = 10$"
+        },
+        {
+          "id": "c",
+          "label": "$(x - 3)^2 + (y - 2)^2 = 5$"
+        },
+        {
+          "id": "d",
+          "label": "$(x - 2)^2 + y^2 = 4$"
+        }
+      ],
+      "topicKey": "m3-line-circle",
+      "difficulty": 3,
+      "estSeconds": 105,
+      "syllabusPoint": "3.1"
+    }
+  ],
+  "track": "csca-math",
+  "formId": "7b2be4a6-09b7-535e-860f-b7c9237ef813",
+  "result": {
+    "pace": {
+      "avgSeconds": 75,
+      "budgetSeconds": 75,
+      "answeredWithTime": 2
+    },
+    "byTopic": [
+      {
+        "total": 2,
+        "correct": 1,
+        "answered": 1,
+        "topicKey": "m2-exp-log"
+      },
+      {
+        "total": 2,
+        "correct": 1,
+        "answered": 1,
+        "topicKey": "m2-derivative"
+      },
+      {
+        "total": 2,
+        "correct": 0,
+        "answered": 0,
+        "topicKey": "m3-line-circle"
+      }
+    ],
+    "perItem": {
+      "csca-math-exp-log-006": {
+        "correct": true,
+        "selected": "b"
+      },
+      "csca-math-exp-log-008": {
+        "correct": false,
+        "selected": null
+      },
+      "csca-math-derivative-005": {
+        "correct": true,
+        "selected": "c"
+      },
+      "csca-math-derivative-010": {
+        "correct": false,
+        "selected": null
+      },
+      "csca-math-line-circle-006": {
+        "correct": false,
+        "selected": null
+      },
+      "csca-math-line-circle-009": {
+        "correct": false,
+        "selected": null
+      }
+    },
+    "bySection": [
+      {
+        "total": 4,
+        "correct": 2,
+        "section": 2,
+        "answered": 2
+      },
+      {
+        "total": 2,
+        "correct": 0,
+        "section": 3,
+        "answered": 0
+      }
+    ],
+    "completion": "timeout",
+    "itemsTotal": 6,
+    "completedAt": "2026-10-16T11:06:07.012637+00:00",
+    "correctCount": 2,
+    "correctShare": 0.3333,
+    "answeredCount": 2,
+    "wrongItemKeys": [],
+    "unansweredCount": 4,
+    "unansweredItemKeys": [
+      "csca-math-exp-log-008",
+      "csca-math-derivative-010",
+      "csca-math-line-circle-006",
+      "csca-math-line-circle-009"
+    ]
+  },
+  "review": [
+    {
+      "correct": true,
+      "explain": {
+        "terms": [
+          {
+            "en": "horizontal asymptote",
+            "ky": "горизонталдык асимптота",
+            "ru": "горизонтальная асимптота"
+          },
+          {
+            "en": "the graph passes through a point",
+            "ky": "график чекит аркылуу өтөт",
+            "ru": "график проходит через точку"
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "explainKy": "Туура эмес: бул $a$ санынын мааниси. $a + b$ суммасы керек, ал эми $b = -1$, анткени асимптота $y = -1$.",
+            "explainRu": "Неверно: это значение $a$. Нужна сумма $a + b$, а $b = -1$, потому что асимптота $y = -1$."
+          },
+          {
+            "id": "b",
+            "explainKy": "Туура: $y = -1$ асимптотасы $b = -1$ берет. $(1, 1)$ чекитинен: $a - 1 = 1$, демек $a = 2$ жана $a + b = 1$.",
+            "explainRu": "Верно: асимптота $y = -1$ даёт $b = -1$. Из точки $(1, 1)$: $a - 1 = 1$, значит $a = 2$ и $a + b = 1$."
+          },
+          {
+            "id": "c",
+            "explainKy": "Туура эмес: асимптотанын белгисинде ката. График $y = -1$ түз сызыгына жакындайт, демек $b = 1$ эмес, $b = -1$.",
+            "explainRu": "Неверно: ошибка в знаке асимптоты. График приближается к прямой $y = -1$, значит $b = -1$, а не $1$."
+          },
+          {
+            "id": "d",
+            "explainKy": "Туура эмес: $(2, 3)$ чекити боюнча $a^2 = 3$ деп жазылып, $b$ унутулган. $b = -1$ эске алынса, $a^2 - 1 = 3$, башкача айтканда $a = 2$.",
+            "explainRu": "Неверно: по точке $(2, 3)$ записали $a^2 = 3$ и забыли про $b$. С учётом $b = -1$ будет $a^2 - 1 = 3$, то есть $a = 2$."
+          }
+        ],
+        "solutionKy": [
+          "$x \\to -\\infty$ болгондо $a^x$ кошулуучусу нөлгө умтулат (бул жерде $a > 1$, график өсөт), ошондуктан асимптота $y = b$. Сүрөт боюнча $b = -1$.",
+          "$(1, 1)$ чекити: $a^1 + b = 1 \\Rightarrow a = 2$.",
+          "$(2, 3)$ чекити менен текшерүү: $2^2 - 1 = 3$.",
+          "$a + b = 2 + (-1) = 1$."
+        ],
+        "solutionRu": [
+          "Если $x \\to -\\infty$, слагаемое $a^x$ стремится к нулю (здесь $a > 1$, график растёт), поэтому асимптота $y = b$. По рисунку $b = -1$.",
+          "Точка $(1, 1)$: $a^1 + b = 1 \\Rightarrow a = 2$.",
+          "Проверка точкой $(2, 3)$: $2^2 - 1 = 3$.",
+          "$a + b = 2 + (-1) = 1$."
+        ],
+        "correctOptionId": "b"
+      },
+      "flagged": false,
+      "itemKey": "csca-math-exp-log-006",
+      "seconds": 70,
+      "selected": "b"
+    },
+    {
+      "correct": true,
+      "explain": {
+        "terms": [
+          {
+            "en": "local maximum",
+            "ky": "локалдык максимум",
+            "ru": "локальный максимум"
+          },
+          {
+            "en": "sign change",
+            "ky": "белгинин өзгөрүшү",
+            "ru": "смена знака"
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "explainKy": "Туура эмес: $x = 2$ болгондо туунду белгисин минустан плюска өзгөртөт. Бул локалдык минимум чекити.",
+            "explainRu": "Неверно: при $x = 2$ производная меняет знак с минуса на плюс. Это точка локального минимума."
+          },
+          {
+            "id": "b",
+            "explainKy": "Туура эмес: бул жерде туунду графигинин эң төмөнкү чекити, бирок $f'\\left(\\frac{1}{2}\\right) \\ne 0$. $f$ экстремуму $f'$ нөлгө барабар болуп, белгисин өзгөрткөн жерден изделет.",
+            "explainRu": "Неверно: здесь самая нижняя точка графика производной, но $f'\\left(\\frac{1}{2}\\right) \\ne 0$. Экстремум $f$ ищут там, где $f'$ равна нулю и меняет знак."
+          },
+          {
+            "id": "c",
+            "explainKy": "Туура: $x = -1$ болгондо туунду нөлгө барабар жана белгисин плюстан минуска өзгөртөт. Функция адегенде өсөт, анан кемийт: бул локалдык максимум.",
+            "explainRu": "Верно: при $x = -1$ производная равна нулю и меняет знак с плюса на минус. Функция сначала растёт, потом убывает: это локальный максимум."
+          },
+          {
+            "id": "d",
+            "explainKy": "Туура эмес: сүрөттө $f$ эмес, $f'$ графиги. $f'$ параболасынын тармактары өйдө карайт, бирок андан $f$ функциясынын максимуму жок деген жыйынтык чыкпайт.",
+            "explainRu": "Неверно: на рисунке график $f'$, а не $f$. Парабола $f'$ открыта вверх, но из этого не следует, что у $f$ нет максимума."
+          }
+        ],
+        "solutionKy": [
+          "График боюнча $x = -1$ жана $x = 2$ болгондо $f'(x) = 0$.",
+          "$-1$ден солдо график октон жогору, $f' > 0$, $f$ өсөт. $-1$ менен $2$ ортосунда октон төмөн, $f' < 0$, $f$ кемийт. $2$ден оңдо кайра $f' > 0$.",
+          "Белги $x = -1$ чекитинде плюстан минуска өзгөрөт: ал жерде локалдык максимум."
+        ],
+        "solutionRu": [
+          "По графику $f'(x) = 0$ при $x = -1$ и $x = 2$.",
+          "Левее $-1$ график выше оси, $f' > 0$, и $f$ растёт. Между $-1$ и $2$ ниже оси, $f' < 0$, и $f$ убывает. Правее $2$ снова $f' > 0$.",
+          "Знак меняется с плюса на минус в точке $x = -1$: там локальный максимум."
+        ],
+        "correctOptionId": "c"
+      },
+      "flagged": false,
+      "itemKey": "csca-math-derivative-005",
+      "seconds": 80,
+      "selected": "c"
+    },
+    {
+      "correct": false,
+      "explain": {
+        "terms": [
+          {
+            "en": "inequality",
+            "ky": "барабарсыздык",
+            "ru": "неравенство"
+          },
+          {
+            "en": "decreasing function",
+            "ky": "кемүүчү функция",
+            "ru": "убывающая функция"
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "explainKy": "Туура эмес: негизи $\\frac{1}{2} < 1$, функция кемийт, ошондуктан аргументтерге өткөндө барабарсыздыктын белгиси өзгөрөт: $x - 1 < 4$.",
+            "explainRu": "Неверно: основание $\\frac{1}{2} < 1$, функция убывает, поэтому при переходе к аргументам знак неравенства меняется: $x - 1 < 4$."
+          },
+          {
+            "id": "b",
+            "explainKy": "Туура эмес: аныкталуу областы унутулган. Аргумент оң болушу керек: $x - 1 > 0$, башкача айтканда $x > 1$.",
+            "explainRu": "Неверно: забыта область определения. Аргумент должен быть положительным: $x - 1 > 0$, то есть $x > 1$."
+          },
+          {
+            "id": "c",
+            "explainKy": "Туура: $-2 = \\log_{1/2} 4$. Функция кемийт, ошондуктан $x - 1 < 4$, ал эми $x - 1 > 0$ шарты менен бирге $1 < x < 5$ чыгат.",
+            "explainRu": "Верно: $-2 = \\log_{1/2} 4$. Функция убывает, поэтому $x - 1 < 4$, а вместе с условием $x - 1 > 0$ получаем $1 < x < 5$."
+          },
+          {
+            "id": "d",
+            "explainKy": "Туура эмес: даражада ката. $\\left(\\frac{1}{2}\\right)^{-2} = 4$, $\\frac{1}{4}$ эмес.",
+            "explainRu": "Неверно: ошибка в степени. $\\left(\\frac{1}{2}\\right)^{-2} = 4$, а не $\\frac{1}{4}$."
+          }
+        ],
+        "solutionKy": [
+          "Аныкталуу областы: $x - 1 > 0$, башкача айтканда $x > 1$.",
+          "Оң жагын логарифм түрүндө жазабыз: $-2 = \\log_{1/2}\\left(\\left(\\frac{1}{2}\\right)^{-2}\\right) = \\log_{1/2} 4$.",
+          "Негизи бирден кичине, функция кемийт: $\\log_{1/2} (x - 1) > \\log_{1/2} 4 \\Leftrightarrow x - 1 < 4$.",
+          "Аныкталуу областы менен бирге: $1 < x < 5$."
+        ],
+        "solutionRu": [
+          "Область определения: $x - 1 > 0$, то есть $x > 1$.",
+          "Запишем правую часть как логарифм: $-2 = \\log_{1/2}\\left(\\left(\\frac{1}{2}\\right)^{-2}\\right) = \\log_{1/2} 4$.",
+          "Основание меньше $1$, функция убывает: $\\log_{1/2} (x - 1) > \\log_{1/2} 4 \\Leftrightarrow x - 1 < 4$.",
+          "Вместе с областью определения: $1 < x < 5$."
+        ],
+        "correctOptionId": "c"
+      },
+      "flagged": true,
+      "itemKey": "csca-math-exp-log-008",
+      "seconds": null,
+      "selected": null
+    },
+    {
+      "correct": false,
+      "explain": {
+        "terms": [
+          {
+            "en": "natural logarithm",
+            "ky": "натуралдык логарифм",
+            "ru": "натуральный логарифм"
+          },
+          {
+            "en": "tangent line through the origin",
+            "ky": "координаталар башталышы аркылуу өткөн жаныма",
+            "ru": "касательная через начало координат"
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "explainKy": "Туура эмес: $e$ бул жануу чекитинин абсциссасы. Андагы жантаюу $\\frac{1}{e}$ болот.",
+            "explainRu": "Неверно: $e$ это абсцисса точки касания. Наклон в ней равен $\\frac{1}{e}$."
+          },
+          {
+            "id": "b",
+            "explainKy": "Туура эмес: бул $x = 1$ чекитиндеги жаныманын жантаюусу. Бирок ал жердеги $y = x - 1$ жанымасы координаталар башталышы аркылуу өтпөйт.",
+            "explainRu": "Неверно: это наклон касательной в точке $x = 1$. Но там касательная $y = x - 1$ не проходит через начало координат."
+          },
+          {
+            "id": "c",
+            "explainKy": "Туура эмес: $\\ln$ ондук логарифм менен чаташтырылып, $\\ln t = 1$ теңдемесинен $t = 10$ алынган. Натуралдык логарифм үчүн $t = e$.",
+            "explainRu": "Неверно: $\\ln$ спутали с десятичным логарифмом и из $\\ln t = 1$ получили $t = 10$. Для натурального логарифма $t = e$."
+          },
+          {
+            "id": "d",
+            "explainKy": "Туура: $(t, \\ln t)$ жануу чекитинде жантаюу $\\frac{1}{t}$ барабар. Түз сызык координаталар башталышы аркылуу өтөт: $\\ln t = \\frac{1}{t} \\cdot t = 1$, демек $t = e$ жана $k = \\frac{1}{e}$.",
+            "explainRu": "Верно: в точке касания $(t, \\ln t)$ наклон равен $\\frac{1}{t}$. Прямая проходит через начало координат: $\\ln t = \\frac{1}{t} \\cdot t = 1$, значит $t = e$ и $k = \\frac{1}{e}$."
+          }
+        ],
+        "solutionKy": [
+          "Жануу чекити $(t, \\ln t)$, $t > 0$ болсун. $(\\ln x)' = \\frac{1}{x}$ болгондуктан жантаюу $k = \\frac{1}{t}$.",
+          "Чекит $y = kx$ түз сызыгында жатат: $\\ln t = \\frac{1}{t} \\cdot t = 1$.",
+          "$t = e$, ошондуктан $k = \\frac{1}{e}$."
+        ],
+        "solutionRu": [
+          "Пусть точка касания $(t, \\ln t)$, $t > 0$. Так как $(\\ln x)' = \\frac{1}{x}$, наклон $k = \\frac{1}{t}$.",
+          "Точка лежит на прямой $y = kx$: $\\ln t = \\frac{1}{t} \\cdot t = 1$.",
+          "$t = e$, поэтому $k = \\frac{1}{e}$."
+        ],
+        "correctOptionId": "d"
+      },
+      "flagged": false,
+      "itemKey": "csca-math-derivative-010",
+      "seconds": null,
+      "selected": null
+    },
+    {
+      "correct": false,
+      "explain": {
+        "terms": [
+          {
+            "en": "the radius is perpendicular to the tangent",
+            "ky": "радиус жанымага перпендикуляр",
+            "ru": "радиус перпендикулярен касательной"
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "explainKy": "Туура эмес: бул $OC$ түз сызыгы, радиус ушул сызыкта жатат. Жаныма радиуска перпендикуляр.",
+            "explainRu": "Неверно: это прямая $OC$, на ней лежит радиус. Касательная перпендикулярна радиусу."
+          },
+          {
+            "id": "b",
+            "explainKy": "Туура эмес: радиустун $\\frac{4}{3}$ жантаюусу тескери алынган, бирок белгиси өзгөртүлгөн жок. $-\\frac{3}{4}$ жантаюусу керек.",
+            "explainRu": "Неверно: наклон радиуса $\\frac{4}{3}$ перевернули, но не сменили знак. Нужен наклон $-\\frac{3}{4}$."
+          },
+          {
+            "id": "c",
+            "explainKy": "Туура: $OC$ жантаюусу $\\frac{4}{3}$, жаныманыкы $-\\frac{3}{4}$. $O$ аркылуу өткөн түз сызык: $y = -\\frac{3}{4}x$, башкача айтканда $3x + 4y = 0$.",
+            "explainRu": "Верно: наклон $OC$ равен $\\frac{4}{3}$, у касательной $-\\frac{3}{4}$. Прямая через $O$: $y = -\\frac{3}{4}x$, то есть $3x + 4y = 0$."
+          },
+          {
+            "id": "d",
+            "explainKy": "Туура эмес: белгиси өзгөртүлгөн, бирок бөлчөк тескери алынган жок, жантаюу $-\\frac{4}{3}$ болуп калды. Жантаюулардын көбөйтүндүсү $-1$ болушу керек.",
+            "explainRu": "Неверно: сменили знак, но не перевернули дробь, получился наклон $-\\frac{4}{3}$. Произведение наклонов должно быть $-1$."
+          }
+        ],
+        "solutionKy": [
+          "Айлананын чекитиндеги жаныма ошол чекитке жүргүзүлгөн радиуска перпендикуляр.",
+          "$OC$ жантаюусу: $\\frac{4 - 0}{3 - 0} = \\frac{4}{3}$, жаныманын жантаюусу $-\\frac{3}{4}$.",
+          "$O(0, 0)$ аркылуу өткөн түз сызык: $y = -\\frac{3}{4}x$, башкача айтканда $3x + 4y = 0$."
+        ],
+        "solutionRu": [
+          "Касательная в точке окружности перпендикулярна радиусу, проведённому в эту точку.",
+          "Наклон $OC$: $\\frac{4 - 0}{3 - 0} = \\frac{4}{3}$, наклон касательной $-\\frac{3}{4}$.",
+          "Прямая через $O(0, 0)$: $y = -\\frac{3}{4}x$, то есть $3x + 4y = 0$."
+        ],
+        "correctOptionId": "c"
+      },
+      "flagged": false,
+      "itemKey": "csca-math-line-circle-006",
+      "seconds": null,
+      "selected": null
+    },
+    {
+      "correct": false,
+      "explain": {
+        "terms": [
+          {
+            "en": "equidistant",
+            "ky": "бирдей алыстыкта",
+            "ru": "равноудалённый"
+          },
+          {
+            "en": "equation of a circle",
+            "ky": "айлананын теңдемеси",
+            "ru": "уравнение окружности"
+          }
+        ],
+        "options": [
+          {
+            "id": "a",
+            "explainKy": "Туура: $(a, 0)$ борбору $A$ жана $B$ чекиттеринен бирдей алыстыкта: $(1 - a)^2 + 9 = (5 - a)^2 + 1$, мындан $a = 2$ жана $r^2 = 1 + 9 = 10$.",
+            "explainRu": "Верно: центр $(a, 0)$ равноудалён от $A$ и $B$: $(1 - a)^2 + 9 = (5 - a)^2 + 1$, откуда $a = 2$ и $r^2 = 1 + 9 = 10$."
+          },
+          {
+            "id": "b",
+            "explainKy": "Туура эмес: $(2, 0)$ борбору туура эмес белги менен жазылган. $(a, 0)$ борборуна $(x - a)^2$ туура келет.",
+            "explainRu": "Неверно: центр $(2, 0)$ записан с неправильным знаком. Центру $(a, 0)$ соответствует $(x - a)^2$."
+          },
+          {
+            "id": "c",
+            "explainKy": "Туура эмес: бул жерде $AB$ диаметр деп эсептелип, борбор анын ортосунда, $(3, 2)$ чекитинде алынган. Бирок борбор $x$ огунда жатышы керек.",
+            "explainRu": "Неверно: здесь $AB$ считают диаметром и берут центр в середине $(3, 2)$. Но центр должен лежать на оси $x$."
+          },
+          {
+            "id": "d",
+            "explainKy": "Туура эмес: $r^2$ эсептегенде $3$ квадратка көтөрүлгөн жок: $(1 - 2)^2 + 3^2 = 10$, $4$ эмес.",
+            "explainRu": "Неверно: при подсчёте $r^2$ забыли возвести $3$ в квадрат: $(1 - 2)^2 + 3^2 = 10$, а не $4$."
+          }
+        ],
+        "solutionKy": [
+          "Борбор $C(a, 0)$ болсун. Анда $|CA| = |CB|$.",
+          "$(1 - a)^2 + 3^2 = (5 - a)^2 + 1^2$.",
+          "$a^2 - 2a + 10 = a^2 - 10a + 26 \\Rightarrow 8a = 16 \\Rightarrow a = 2$.",
+          "$r^2 = (1 - 2)^2 + 3^2 = 10$. $B$ чекити менен текшерүү: $3^2 + 1^2 = 10$."
+        ],
+        "solutionRu": [
+          "Пусть центр $C(a, 0)$. Тогда $|CA| = |CB|$.",
+          "$(1 - a)^2 + 3^2 = (5 - a)^2 + 1^2$.",
+          "$a^2 - 2a + 10 = a^2 - 10a + 26 \\Rightarrow 8a = 16 \\Rightarrow a = 2$.",
+          "$r^2 = (1 - 2)^2 + 3^2 = 10$. Проверка точкой $B$: $3^2 + 1^2 = 10$."
+        ],
+        "correctOptionId": "a"
+      },
+      "flagged": false,
+      "itemKey": "csca-math-line-circle-009",
+      "seconds": null,
+      "selected": null
+    }
+  ],
+  "status": "completed",
+  "answers": {
+    "csca-math-exp-log-006": "b",
+    "csca-math-derivative-005": "c"
+  },
+  "figures": {
+    "item-exp-graph": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 360 300\" width=\"360\" height=\"300\" font-family=\"Golos Text, -apple-system, Segoe UI, Roboto, Arial, sans-serif\"><title>Graph of y = a^x + b with its horizontal asymptote</title><rect width=\"360\" height=\"300\" rx=\"12\" fill=\"#ffffff\"/><line x1=\"47.3\" y1=\"22\" x2=\"47.3\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"93.9\" y1=\"22\" x2=\"93.9\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"140.4\" y1=\"22\" x2=\"140.4\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"187\" y1=\"22\" x2=\"187\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"233.6\" y1=\"22\" x2=\"233.6\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"280.1\" y1=\"22\" x2=\"280.1\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"326.7\" y1=\"22\" x2=\"326.7\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"278\" x2=\"336\" y2=\"278\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"239.2\" x2=\"336\" y2=\"239.2\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"200.4\" x2=\"336\" y2=\"200.4\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"161.6\" x2=\"336\" y2=\"161.6\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"122.8\" x2=\"336\" y2=\"122.8\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"84.1\" x2=\"336\" y2=\"84.1\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"45.3\" x2=\"336\" y2=\"45.3\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"24\" y1=\"200.4\" x2=\"336\" y2=\"200.4\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><polygon points=\"344,200.4 334,195.4 334,205.4\" fill=\"#191714\"/><line x1=\"187\" y1=\"278\" x2=\"187\" y2=\"22\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><polygon points=\"187,14 182,24 192,24\" fill=\"#191714\"/><text x=\"340\" y=\"220.4\" font-size=\"15\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">x</text><text x=\"175\" y=\"20\" font-size=\"15\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">y</text><line x1=\"93.9\" y1=\"196.4\" x2=\"93.9\" y2=\"204.4\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"93.9\" y=\"218.4\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">−2</text><line x1=\"140.4\" y1=\"196.4\" x2=\"140.4\" y2=\"204.4\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"140.4\" y=\"218.4\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">−1</text><line x1=\"233.6\" y1=\"196.4\" x2=\"233.6\" y2=\"204.4\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"233.6\" y=\"218.4\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">1</text><line x1=\"280.1\" y1=\"196.4\" x2=\"280.1\" y2=\"204.4\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"280.1\" y=\"218.4\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">2</text><line x1=\"326.7\" y1=\"196.4\" x2=\"326.7\" y2=\"204.4\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"326.7\" y=\"218.4\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">3</text><line x1=\"183\" y1=\"161.6\" x2=\"191\" y2=\"161.6\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"179\" y=\"166.1\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">1</text><line x1=\"183\" y1=\"122.8\" x2=\"191\" y2=\"122.8\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"179\" y=\"127.3\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">2</text><line x1=\"183\" y1=\"84.1\" x2=\"191\" y2=\"84.1\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"179\" y=\"88.6\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">3</text><line x1=\"183\" y1=\"45.3\" x2=\"191\" y2=\"45.3\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"179\" y=\"49.8\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">4</text><path d=\"M24,239.2 L26,239.2 L27.9,239.2 L29.8,239.2 L31.8,239.2 L33.8,239.2 L35.7,239.2 L37.6,239.2 L39.6,239.2 L41.6,239.2 L43.5,239.2 L45.4,239.2 L47.4,239.2 L49.4,239.2 L51.3,239.2 L53.2,239.2 L55.2,239.2 L57.1,239.2 L59.1,239.2 L61.1,239.2 L63,239.2 L65,239.2 L66.9,239.2 L68.8,239.2 L70.8,239.2 L72.8,239.2 L74.7,239.2 L76.7,239.2 L78.6,239.2 L80.5,239.2 L82.5,239.2 L84.5,239.2 L86.4,239.2 L88.3,239.2 L90.3,239.2 L92.3,239.2 L94.2,239.2 L96.1,239.2 L98.1,239.2 L100.1,239.2 L102,239.2 L103.9,239.2 L105.9,239.2 L107.8,239.2 L109.8,239.2 L111.8,239.2 L113.7,239.2 L115.7,239.2 L117.6,239.2 L119.5,239.2 L121.5,239.2 L123.5,239.2 L125.4,239.2 L127.4,239.2 L129.3,239.2 L131.2,239.2 L133.2,239.2 L135.2,239.2 L137.1,239.2 L139.1,239.2 L141,239.2 L142.9,239.2 L144.9,239.2 L146.8,239.2 L148.8,239.2 L150.8,239.2 L152.7,239.2 L154.7,239.2 L156.6,239.2 L158.6,239.2 L160.5,239.2 L162.4,239.2 L164.4,239.2 L166.4,239.2 L168.3,239.2 L170.2,239.2 L172.2,239.2 L174.1,239.2 L176.1,239.2 L178.1,239.2 L180,239.2 L181.9,239.2 L183.9,239.2 L185.8,239.2 L187.8,239.2 L189.8,239.2 L191.7,239.2 L193.6,239.2 L195.6,239.2 L197.6,239.2 L199.5,239.2 L201.5,239.2 L203.4,239.2 L205.4,239.2 L207.3,239.2 L209.2,239.2 L211.2,239.2 L213.1,239.2 L215.1,239.2 L217.1,239.2 L219,239.2 L220.9,239.2 L222.9,239.2 L224.9,239.2 L226.8,239.2 L228.7,239.2 L230.7,239.2 L232.6,239.2 L234.6,239.2 L236.6,239.2 L238.5,239.2 L240.4,239.2 L242.4,239.2 L244.4,239.2 L246.3,239.2 L248.2,239.2 L250.2,239.2 L252.1,239.2 L254.1,239.2 L256.1,239.2 L258,239.2 L260,239.2 L261.9,239.2 L263.8,239.2 L265.8,239.2 L267.8,239.2 L269.7,239.2 L271.6,239.2 L273.6,239.2 L275.6,239.2 L277.5,239.2 L279.5,239.2 L281.4,239.2 L283.3,239.2 L285.3,239.2 L287.2,239.2 L289.2,239.2 L291.1,239.2 L293.1,239.2 L295.1,239.2 L297,239.2 L298.9,239.2 L300.9,239.2 L302.9,239.2 L304.8,239.2 L306.8,239.2 L308.7,239.2 L310.6,239.2 L312.6,239.2 L314.6,239.2 L316.5,239.2 L318.4,239.2 L320.4,239.2 L322.4,239.2 L324.3,239.2 L326.2,239.2 L328.2,239.2 L330.2,239.2 L332.1,239.2 L334.1,239.2 L336,239.2\" fill=\"none\" stroke=\"#6b6660\" stroke-width=\"1.75\" stroke-linejoin=\"round\" stroke-linecap=\"round\" stroke-dasharray=\"7 5\"/><path d=\"M24,235.8 L26,235.7 L27.9,235.6 L29.8,235.5 L31.8,235.4 L33.8,235.2 L35.7,235.1 L37.6,235 L39.6,234.9 L41.6,234.8 L43.5,234.6 L45.4,234.5 L47.4,234.4 L49.4,234.2 L51.3,234.1 L53.2,233.9 L55.2,233.8 L57.1,233.6 L59.1,233.4 L61.1,233.3 L63,233.1 L65,232.9 L66.9,232.7 L68.8,232.5 L70.8,232.3 L72.8,232.1 L74.7,231.9 L76.7,231.7 L78.6,231.5 L80.5,231.3 L82.5,231 L84.5,230.8 L86.4,230.5 L88.3,230.3 L90.3,230 L92.3,229.7 L94.2,229.5 L96.1,229.2 L98.1,228.9 L100.1,228.6 L102,228.3 L103.9,227.9 L105.9,227.6 L107.8,227.3 L109.8,226.9 L111.8,226.6 L113.7,226.2 L115.7,225.8 L117.6,225.4 L119.5,225 L121.5,224.6 L123.5,224.1 L125.4,223.7 L127.4,223.2 L129.3,222.8 L131.2,222.3 L133.2,221.8 L135.2,221.3 L137.1,220.8 L139.1,220.2 L141,219.6 L142.9,219.1 L144.9,218.5 L146.8,217.9 L148.8,217.2 L150.8,216.6 L152.7,215.9 L154.7,215.2 L156.6,214.5 L158.6,213.8 L160.5,213.1 L162.4,212.3 L164.4,211.5 L166.4,210.7 L168.3,209.8 L170.2,209 L172.2,208.1 L174.1,207.2 L176.1,206.2 L178.1,205.3 L180,204.3 L181.9,203.2 L183.9,202.2 L185.8,201.1 L187.8,200 L189.8,198.8 L191.7,197.6 L193.6,196.4 L195.6,195.1 L197.6,193.8 L199.5,192.5 L201.5,191.1 L203.4,189.7 L205.4,188.2 L207.3,186.7 L209.2,185.2 L211.2,183.6 L213.1,182 L215.1,180.3 L217.1,178.5 L219,176.7 L220.9,174.9 L222.9,173 L224.9,171.1 L226.8,169.1 L228.7,167 L230.7,164.9 L232.6,162.7 L234.6,160.4 L236.6,158.1 L238.5,155.7 L240.4,153.2 L242.4,150.7 L244.4,148.1 L246.3,145.4 L248.2,142.7 L250.2,139.8 L252.1,136.9 L254.1,133.9 L256.1,130.8 L258,127.6 L260,124.3 L261.9,120.9 L263.8,117.4 L265.8,113.8 L267.8,110.2 L269.7,106.4 L271.6,102.4 L273.6,98.4 L275.6,94.3 L277.5,90 L279.5,85.6 L281.4,81.1 L283.3,76.4 L285.3,71.6 L287.2,66.7 L289.2,61.6 L291.1,56.4 L293.1,51 L295.1,45.4 L297,39.7 L298.9,33.9 L300.9,27.8\" fill=\"none\" stroke=\"#d70217\" stroke-width=\"3\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><circle cx=\"233.6\" cy=\"161.6\" r=\"5\" fill=\"#191714\"/><circle cx=\"280.1\" cy=\"84.1\" r=\"5\" fill=\"#191714\"/><text x=\"243.6\" y=\"177.6\" font-size=\"13\" fill=\"#191714\" text-anchor=\"start\">(1, 1)</text><text x=\"290.1\" y=\"98.1\" font-size=\"13\" fill=\"#191714\" text-anchor=\"start\">(2, 3)</text><text x=\"247.5\" y=\"259.2\" font-size=\"14\" fill=\"#6b6660\" text-anchor=\"start\"><tspan font-style=\"italic\">y</tspan> = −1</text></svg>\n",
+      "altEn": "Increasing curve y = a^x + b approaching the dashed horizontal line y = -1 on the left, passing through the origin and the marked points (1, 1) and (2, 3).",
+      "altKy": "Өсүүчү y = a^x + b ийри сызыгынын графиги. Солдо ийри сызык пунктир горизонталдык y = −1 түз сызыгына жакындайт. Ийри сызык координаталар башталышы жана белгиленген (1, 1), (2, 3) чекиттери аркылуу өтөт.",
+      "altRu": "График возрастающей кривой y = a^x + b. Слева кривая приближается к пунктирной горизонтальной прямой y = −1. Кривая проходит через начало координат и через отмеченные точки (1, 1) и (2, 3).",
+      "sha256": "74010850dc33fc3a7c617bd70b9d2dfd124a7d68354d72aeb9bc81d4aec91c0d",
+      "viewBox": "0 0 360 300"
+    },
+    "item-circle-tangent": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 360 348\" width=\"360\" height=\"348\" font-family=\"Golos Text, -apple-system, Segoe UI, Roboto, Arial, sans-serif\"><title>Circle with center C(3, 4) through the origin and its tangent at O</title><rect width=\"360\" height=\"348\" rx=\"12\" fill=\"#ffffff\"/><line x1=\"18\" y1=\"246\" x2=\"342\" y2=\"246\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><polygon points=\"350,246 340,241 340,251\" fill=\"#191714\"/><line x1=\"126\" y1=\"330\" x2=\"126\" y2=\"18\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><polygon points=\"126,10 121,20 131,20\" fill=\"#191714\"/><text x=\"346\" y=\"266\" font-size=\"15\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">x</text><text x=\"114\" y=\"16\" font-size=\"15\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">y</text><line x1=\"198\" y1=\"242\" x2=\"198\" y2=\"250\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"198\" y=\"264\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">3</text><line x1=\"270\" y1=\"242\" x2=\"270\" y2=\"250\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"270\" y=\"264\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">6</text><line x1=\"122\" y1=\"150\" x2=\"130\" y2=\"150\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"118\" y=\"154.5\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">4</text><line x1=\"122\" y1=\"54\" x2=\"130\" y2=\"54\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"118\" y=\"58.5\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">8</text><circle cx=\"198\" cy=\"150\" r=\"120\" fill=\"none\" stroke=\"#191714\" stroke-width=\"2.25\"/><path d=\"M18,165 L19.4,166 L20.7,167 L22.1,168.1 L23.5,169.1 L24.8,170.1 L26.2,171.1 L27.6,172.2 L28.9,173.2 L30.3,174.2 L31.7,175.2 L33,176.3 L34.4,177.3 L35.7,178.3 L37.1,179.3 L38.5,180.4 L39.8,181.4 L41.2,182.4 L42.6,183.4 L43.9,184.5 L45.3,185.5 L46.7,186.5 L48,187.5 L49.4,188.5 L50.8,189.6 L52.1,190.6 L53.5,191.6 L54.9,192.6 L56.2,193.7 L57.6,194.7 L58.9,195.7 L60.3,196.7 L61.7,197.8 L63,198.8 L64.4,199.8 L65.8,200.8 L67.1,201.9 L68.5,202.9 L69.9,203.9 L71.2,204.9 L72.6,205.9 L74,207 L75.3,208 L76.7,209 L78.1,210 L79.4,211.1 L80.8,212.1 L82.2,213.1 L83.5,214.1 L84.9,215.2 L86.2,216.2 L87.6,217.2 L89,218.2 L90.3,219.3 L91.7,220.3 L93.1,221.3 L94.4,222.3 L95.8,223.4 L97.2,224.4 L98.5,225.4 L99.9,226.4 L101.3,227.4 L102.6,228.5 L104,229.5 L105.4,230.5 L106.7,231.5 L108.1,232.6 L109.5,233.6 L110.8,234.6 L112.2,235.6 L113.5,236.7 L114.9,237.7 L116.3,238.7 L117.6,239.7 L119,240.8 L120.4,241.8 L121.7,242.8 L123.1,243.8 L124.5,244.9 L125.8,245.9 L127.2,246.9 L128.6,247.9 L129.9,248.9 L131.3,250 L132.7,251 L134,252 L135.4,253 L136.8,254.1 L138.1,255.1 L139.5,256.1 L140.9,257.1 L142.2,258.2 L143.6,259.2 L144.9,260.2 L146.3,261.2 L147.7,262.3 L149,263.3 L150.4,264.3 L151.8,265.3 L153.1,266.4 L154.5,267.4 L155.9,268.4 L157.2,269.4 L158.6,270.4 L160,271.5 L161.3,272.5 L162.7,273.5 L164.1,274.5 L165.4,275.6 L166.8,276.6 L168.2,277.6 L169.5,278.6 L170.9,279.7 L172.2,280.7 L173.6,281.7 L175,282.7 L176.3,283.8 L177.7,284.8 L179.1,285.8 L180.4,286.8 L181.8,287.9 L183.2,288.9 L184.5,289.9 L185.9,290.9 L187.3,291.9 L188.6,293 L190,294 L191.4,295 L192.7,296 L194.1,297.1 L195.4,298.1 L196.8,299.1 L198.2,300.1 L199.5,301.2 L200.9,302.2 L202.3,303.2 L203.6,304.2 L205,305.3 L206.4,306.3 L207.7,307.3 L209.1,308.3 L210.5,309.3 L211.8,310.4 L213.2,311.4 L214.6,312.4 L215.9,313.4 L217.3,314.5 L218.7,315.5 L220,316.5 L221.4,317.5 L222.8,318.6 L224.1,319.6 L225.5,320.6 L226.8,321.6 L228.2,322.7 L229.6,323.7 L230.9,324.7 L232.3,325.7 L233.7,326.8 L235,327.8 L236.4,328.8\" fill=\"none\" stroke=\"#d70217\" stroke-width=\"2.75\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><line x1=\"126\" y1=\"246\" x2=\"198\" y2=\"150\" stroke=\"#191714\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M136.8,231.6 L151.2,242.4 L140.4,256.8\" fill=\"none\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><circle cx=\"198\" cy=\"150\" r=\"5\" fill=\"#191714\"/><circle cx=\"126\" cy=\"246\" r=\"5\" fill=\"#d70217\"/><text x=\"208\" y=\"142\" font-size=\"14\" fill=\"#191714\" text-anchor=\"start\">C(3, 4)</text><text x=\"116\" y=\"268\" font-size=\"15\" fill=\"#191714\" text-anchor=\"end\" font-style=\"italic\">O</text></svg>\n",
+      "altEn": "Circle with center C(3, 4) passing through the origin O; the radius OC and the red tangent line at O, which meet at a right angle.",
+      "altKy": "Борбору C(3, 4) болгон жана координаталар башталышы O аркылуу өткөн айлана. OC радиусу жана O чекитиндеги кызыл жаныма жүргүзүлгөн. Радиус менен жаныманын ортосундагы бурч тик.",
+      "altRu": "Окружность с центром C(3, 4), проходящая через начало координат O. Проведён радиус OC и красная касательная к окружности в точке O. Угол между радиусом и касательной прямой.",
+      "sha256": "6211049c50d3976b0cc679866e422be3cc484550bf2e11c323e7a9be43d6f30e",
+      "viewBox": "0 0 360 348"
+    },
+    "item-derivative-graph": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 360 300\" width=\"360\" height=\"300\" font-family=\"Golos Text, -apple-system, Segoe UI, Roboto, Arial, sans-serif\"><title>Graph of the derivative y = f'(x)</title><rect width=\"360\" height=\"300\" rx=\"12\" fill=\"#ffffff\"/><line x1=\"56\" y1=\"22\" x2=\"56\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"106\" y1=\"22\" x2=\"106\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"156\" y1=\"22\" x2=\"156\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"206\" y1=\"22\" x2=\"206\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"256\" y1=\"22\" x2=\"256\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"306\" y1=\"22\" x2=\"306\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"280\" x2=\"336\" y2=\"280\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"245.6\" x2=\"336\" y2=\"245.6\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"211.2\" x2=\"336\" y2=\"211.2\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"176.8\" x2=\"336\" y2=\"176.8\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"142.4\" x2=\"336\" y2=\"142.4\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"108\" x2=\"336\" y2=\"108\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"73.6\" x2=\"336\" y2=\"73.6\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"39.2\" x2=\"336\" y2=\"39.2\" stroke=\"#e4dfd7\" stroke-width=\"1\" stroke-linecap=\"round\"/><line x1=\"26\" y1=\"176.8\" x2=\"336\" y2=\"176.8\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><polygon points=\"344,176.8 334,171.8 334,181.8\" fill=\"#191714\"/><line x1=\"156\" y1=\"280\" x2=\"156\" y2=\"22\" stroke=\"#191714\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><polygon points=\"156,14 151,24 161,24\" fill=\"#191714\"/><text x=\"340\" y=\"196.8\" font-size=\"15\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">x</text><text x=\"144\" y=\"20\" font-size=\"15\" fill=\"#191714\" text-anchor=\"middle\" font-style=\"italic\">y</text><line x1=\"56\" y1=\"172.8\" x2=\"56\" y2=\"180.8\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"56\" y=\"194.8\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">−2</text><line x1=\"206\" y1=\"172.8\" x2=\"206\" y2=\"180.8\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"206\" y=\"194.8\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">1</text><line x1=\"306\" y1=\"172.8\" x2=\"306\" y2=\"180.8\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"306\" y=\"194.8\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"middle\">3</text><line x1=\"152\" y1=\"245.6\" x2=\"160\" y2=\"245.6\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"148\" y=\"250.1\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">−2</text><line x1=\"152\" y1=\"108\" x2=\"160\" y2=\"108\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"148\" y=\"112.5\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">2</text><line x1=\"152\" y1=\"39.2\" x2=\"160\" y2=\"39.2\" stroke=\"#191714\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><text x=\"148\" y=\"43.7\" font-size=\"13\" fill=\"#6b6660\" text-anchor=\"end\">4</text><path d=\"M51.2,22.3 L53.1,29.2 L55.1,36 L57,42.6 L58.9,49.2 L60.9,55.6 L62.8,62 L64.8,68.2 L66.7,74.4 L68.6,80.4 L70.6,86.4 L72.5,92.2 L74.4,97.9 L76.4,103.6 L78.3,109.1 L80.2,114.5 L82.2,119.8 L84.1,125.1 L86.1,130.2 L88,135.2 L89.9,140.1 L91.9,144.9 L93.8,149.6 L95.8,154.2 L97.7,158.7 L99.6,163.1 L101.6,167.4 L103.5,171.6 L105.4,175.6 L107.4,179.6 L109.3,183.5 L111.2,187.3 L113.2,190.9 L115.1,194.5 L117.1,197.9 L119,201.3 L120.9,204.6 L122.9,207.7 L124.8,210.8 L126.8,213.7 L128.7,216.5 L130.6,219.3 L132.6,221.9 L134.5,224.4 L136.4,226.9 L138.4,229.2 L140.3,231.4 L142.2,233.5 L144.2,235.6 L146.1,237.5 L148.1,239.3 L150,241 L151.9,242.6 L153.9,244.1 L155.8,245.5 L157.8,246.8 L159.7,247.9 L161.6,249 L163.6,250 L165.5,250.9 L167.4,251.7 L169.4,252.3 L171.3,252.9 L173.2,253.4 L175.2,253.7 L177.1,254 L179.1,254.1 L181,254.2 L182.9,254.1 L184.9,254 L186.8,253.7 L188.8,253.4 L190.7,252.9 L192.6,252.3 L194.6,251.7 L196.5,250.9 L198.4,250 L200.4,249 L202.3,247.9 L204.2,246.8 L206.2,245.5 L208.1,244.1 L210.1,242.6 L212,241 L213.9,239.3 L215.9,237.5 L217.8,235.6 L219.8,233.5 L221.7,231.4 L223.6,229.2 L225.6,226.9 L227.5,224.4 L229.4,221.9 L231.4,219.3 L233.3,216.5 L235.2,213.7 L237.2,210.8 L239.1,207.7 L241.1,204.6 L243,201.3 L244.9,197.9 L246.9,194.5 L248.8,190.9 L250.8,187.3 L252.7,183.5 L254.6,179.6 L256.6,175.6 L258.5,171.6 L260.4,167.4 L262.4,163.1 L264.3,158.7 L266.2,154.2 L268.2,149.6 L270.1,144.9 L272.1,140.1 L274,135.2 L275.9,130.2 L277.9,125.1 L279.8,119.8 L281.8,114.5 L283.7,109.1 L285.6,103.6 L287.6,97.9 L289.5,92.2 L291.4,86.4 L293.4,80.4 L295.3,74.4 L297.2,68.2 L299.2,62 L301.1,55.6 L303.1,49.2 L305,42.6 L306.9,36 L308.9,29.2 L310.8,22.3\" fill=\"none\" stroke=\"#d70217\" stroke-width=\"3\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><circle cx=\"106\" cy=\"176.8\" r=\"5\" fill=\"#191714\"/><circle cx=\"256\" cy=\"176.8\" r=\"5\" fill=\"#191714\"/><text x=\"97\" y=\"197.8\" font-size=\"14\" fill=\"#191714\" text-anchor=\"end\" font-weight=\"600\">−1</text><text x=\"265\" y=\"197.8\" font-size=\"14\" fill=\"#191714\" text-anchor=\"start\" font-weight=\"600\">2</text><text x=\"287\" y=\"53\" font-size=\"15\" fill=\"#d70217\" text-anchor=\"end\"><tspan font-style=\"italic\">y</tspan> = <tspan font-style=\"italic\">f</tspan>′(<tspan font-style=\"italic\">x</tspan>)</text></svg>\n",
+      "altEn": "Graph of y = f'(x): an upward parabola crossing the x-axis at x = -1 and x = 2, above the axis outside that interval and below it between them.",
+      "altKy": "y = f′(x) туундусунун графиги. Бул тармактары өйдө караган парабола, ал x огун x = −1 жана x = 2 чекиттеринде кесет. −1ден солдо жана 2ден оңдо график x огунан жогору, алардын ортосунда төмөн.",
+      "altRu": "График производной y = f′(x). Это парабола ветвями вверх, она пересекает ось x в точках x = −1 и x = 2. Левее −1 и правее 2 график выше оси x, между ними ниже.",
+      "sha256": "aec95750981a0a6676542b637894e8722cb7232d2cb97a95a2e091f87d74336e",
+      "viewBox": "0 0 360 300"
+    }
+  },
+  "formKey": "csca-math-mock-1",
+  "metadata": {
+    "intro_ky": "6 тапшырма, 7 мүнөт 30 секунд: экзамендегидей ар бир тапшырмага 75 секунд. Эрте бүтүрүүгө болбойт: убакыт бүткөндө жооптор өзү жөнөтүлөт.",
+    "intro_ru": "6 заданий, 7 минут 30 секунд: 75 секунд на задание, как на экзамене. Завершить раньше нельзя: когда время выйдет, ответы отправятся сами.",
+    "title_ky": "Сынамык тест",
+    "title_ru": "Пробный тест"
+  },
+  "revision": 3,
+  "attemptId": "71b33fd0-e89b-4102-8374-182354aa8882",
+  "serverNow": "2026-10-16T11:06:07.016158+00:00",
+  "startedAt": "2026-10-16T10:58:16.843734+00:00",
+  "completion": "timeout",
+  "deadlineAt": "2026-10-16T11:05:46.843734+00:00",
+  "itemsTotal": 6,
+  "completedAt": "2026-10-16T11:06:07.012637+00:00",
+  "itemSeconds": {
+    "csca-math-exp-log-006": 70,
+    "csca-math-derivative-005": 80
+  },
+  "graceSeconds": 15,
+  "answeredCount": 2,
+  "durationSeconds": 450,
+  "allowEarlyFinish": false
+}

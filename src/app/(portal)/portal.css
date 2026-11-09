@@ -380,6 +380,23 @@
   transform: scale(var(--pt-press-scale));
 }
 
+/* «Выйти» в меню телефона (#1360): кнопка выглядит как пункт меню; на широком экране выход — в «Профиле». */
+.pt-nav-logout {
+  display: none;
+  margin: 0;
+}
+
+.pt-nav-logout-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
 .pt-nav-link:hover {
   background: var(--pt-bg);
   color: var(--pt-text);
@@ -1056,6 +1073,13 @@
     font-weight: 600;
   }
 
+  .pt-nav-menu .pt-nav-logout {
+    display: block;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--pt-line);
+  }
+
   .pt-nav-menu .pt-nav-group {
     padding: 16px 12px 4px;
     color: var(--pt-rail-group);
@@ -1269,16 +1293,11 @@
   color: var(--pt-text-2);
 }
 
-/* «Профиль → Пароль» (07.11.2026): логин для входа строкой над полями пароля. */
-.pt-profile-login {
-  margin: 0 0 12px;
+/* «Профиль → Мои данные» (#1360): пояснение под данными, кто меняет телефон и имя. */
+.pt-profile-note {
+  margin: 0;
   color: var(--pt-text-2);
-  font-size: var(--pt-size-body, 15px);
-}
-
-.pt-profile-login strong {
-  color: var(--pt-text);
-  font-weight: 600;
+  font-size: var(--pt-size-secondary);
 }
 
 /* «Профиль → Пароль» (06.11.2026): три поля в столбик, кнопка и ответ в одну строку. */
@@ -1923,18 +1942,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
-}
-
-/*
- * Слот карточки на «Моём поступлении» (/portal): отступ от шапки как у
- * соседних блоков экрана; без карточки слот пуст и не оставляет зазора.
- */
-.pt-consent-slot {
-  margin-top: 24px;
-}
-
-.pt-consent-slot:empty {
-  display: none;
 }
 
 .pt-consent {
@@ -4768,6 +4775,10 @@
   border-top: 1px solid var(--pt-line);
 }
 
+.pt-inbox-side-foot:empty {
+  display: none;
+}
+
 .pt-inbox-side-foot {
   margin: 0;
   padding: 10px 16px;
@@ -5598,6 +5609,10 @@
   margin: 0;
 }
 
+.pt-adm-empty-action {
+  margin-top: 20px;
+}
+
 .pt-adm-empty-body {
   margin: 8px auto 0;
   max-width: 560px;
@@ -5924,8 +5939,8 @@ main.pt-page > .pt-card {
 
 /*
  * «Документы» (03.11.2026, по образцу кабинета пользователя): шапка с кнопкой
- * «Загрузить документ», карточка «Чеклист» со счётчиком, вкладки, список и
- * окно загрузки (нативный <dialog>: фокус и Escape — у браузера).
+ * карточка «Чеклист» со счётчиком, вкладки и список; файл загружается кнопкой
+ * в строке (одно окно загрузки убрано, #1361).
  */
 .pt-docs-head {
   display: flex;
@@ -5939,11 +5954,6 @@ main.pt-page > .pt-card {
 .pt-docs-head-main {
   min-width: 0;
   max-width: 64ch;
-}
-
-.pt-docs-upload-open {
-  flex-shrink: 0;
-  gap: 8px;
 }
 
 .pt-docs-status {
@@ -6105,105 +6115,28 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   margin-top: 0;
 }
 
-.pt-docs-dialog {
-  /* Сброс полей страницы не должен сдвигать модальное окно из центра. */
-  inset: 0;
-  margin: auto;
-  width: min(520px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  padding: 0;
-  border: 0;
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-raised);
-  color: var(--pt-text);
-}
-
-.pt-docs-dialog::backdrop {
-  background: rgb(20 19 17 / 0.45);
-}
-
-.pt-docs-dialog-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 22px;
-  border-bottom: 1px solid var(--pt-line);
-}
-
-.pt-docs-dialog-title {
-  margin: 0;
-  font-size: var(--pt-size-body);
-  font-weight: 600;
-}
-
-.pt-docs-dialog-close {
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin: -10px -12px -10px 0;
-  border: 0;
-  border-radius: var(--pt-radius-control);
-  background: transparent;
+.pt-docs-programs-note {
+  margin: 8px 0 0;
   color: var(--pt-text-2);
-  cursor: pointer;
-}
-
-.pt-docs-dialog-close:hover {
-  background: var(--pt-bg);
-  color: var(--pt-text);
-}
-
-.pt-docs-dialog-close:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
-}
-
-.pt-docs-dialog-body {
-  display: grid;
-  gap: 10px;
-  padding: 20px 22px;
-}
-
-.pt-docs-dialog-label {
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-}
-
-.pt-docs-dialog-select {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--pt-control-edge);
-  border-radius: var(--pt-radius-control);
-  background: var(--pt-surface);
-  color: var(--pt-text);
-  font: inherit;
   font-size: var(--pt-size-secondary);
 }
 
-.pt-docs-dialog-select:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
+.pt-docs-programs-note .pt-link {
+  min-height: 0;
+  font-size: inherit;
 }
 
-.pt-docs-dialog-note {
-  margin: 0;
+.pt-docs-other {
+  margin: 16px 0 0;
+  padding: 0 4px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+  line-height: var(--pt-leading);
 }
 
-.pt-docs-dialog-body .pt-doc-controls {
-  justify-items: start;
-}
-
-.pt-docs-dialog-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 22px 18px;
-  border-top: 1px solid var(--pt-line);
+.pt-docs-other .pt-link {
+  min-height: 0;
+  font-size: inherit;
 }
 
 .pt-doc-privacy svg {
@@ -7239,10 +7172,22 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-home-slot[data-slot="case"] { order: 1; }
 .pt-home-slot[data-slot="path"] { order: 2; }
-.pt-home-slot[data-slot="universities"] { order: 3; }
+.pt-home-slot[data-slot="write"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
 .pt-home-slot[data-slot="csca"] { order: 6; }
+
+/* «Мой список» и весь путь под колонками «Главной» (#1355): во всю ширину, с тем же шагом, что между блоками. */
+.pt-home-list,
+.pt-home-path-full {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pt-home-list > .pt-home-head {
+  margin-bottom: 0;
+}
 
 /*
  * Две колонки с 960 px окна (раньше от 980 px ширины самой области, то есть на 1024 px при раскрытой левой колонке
@@ -7270,6 +7215,12 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-home-main > .pt-home-slot:last-child > *,
   .pt-home-side > .pt-home-slot:last-child > * {
     flex-grow: 1;
+  }
+
+  /* Короткая карточка «Написать EVO» не растягивается до низа колонки (#1356): пустая плашка ничего не говорит. */
+  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child,
+  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child > * {
+    flex-grow: 0;
   }
 
   .pt-home-main,

@@ -158,7 +158,7 @@ test("the nearest session skips finished ones and the card survives having none"
 });
 
 test("the page reads the choice and the CSCA home in its single wave, only for China", () => {
-  const page = read("src/app/(portal)/portal/home/page.tsx");
+  const page = read("src/app/(portal)/portal/page.tsx");
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
   assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \(\{/u);
@@ -176,12 +176,13 @@ test("the card sits in the right column of the home, once for both tiers", () =>
   // CSCA осталась — в правой колонке. 08.11.2026 (образец пользователя): правая
   // колонка — путь, даты, «Что нового» и CSCA последней; «Мои вузы» — в левой.
   const view = read("src/components/portal/home/HomeView.tsx");
-  const favorites = view.indexOf("<HomeFavorites");
+  // #1355: «Мои вузы» ушли в «Мой список» под колонками; в левой колонке «Что сделать сейчас».
+  const favorites = view.indexOf("<HomeCase");
   const side = view.indexOf('<div className="pt-home-side">');
   const journey = view.indexOf("{journey}");
   const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
-  assert.ok(favorites > 0 && side > favorites, "favourites in the left column");
+  assert.ok(favorites > 0 && side > favorites, "the case card in the left column");
   assert.ok(journey > side && news > journey && card > news, "path card, dates, news, then CSCA");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
 });

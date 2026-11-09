@@ -50,6 +50,7 @@ const SUITE_319 = readFileSync(new URL("../supabase/tests/platform_ai_agents_har
 // six closed helpers.
 const SOURCE_280 = readFileSync(new URL("../supabase/migrations/280_platform_account_deletion.sql", import.meta.url), "utf8");
 const SOURCE_315 = readFileSync(new URL("../supabase/migrations/315_platform_account_deletion_p3.sql", import.meta.url), "utf8");
+const SOURCE_355 = readFileSync(new URL("../supabase/migrations/355_platform_ai_consent_android_source.sql", import.meta.url), "utf8");
 const SOURCE_320 = readFileSync(new URL("../supabase/migrations/320_platform_student_ai_consent.sql", import.meta.url), "utf8");
 const SUITE_320 = readFileSync(new URL("../supabase/tests/platform_student_ai_consent.sql", import.meta.url), "utf8");
 // Migration 322 (written as 321, renumbered at merge; daily spend of an agent for the WhatsApp limit, 26.10.2026) adds one read-only runtime function and replaces nothing.
@@ -524,7 +525,8 @@ test("320 carries the shared consent contract: version, statuses, sources, the t
   assert.equal(AI_CONSENT_POLICY_VERSION, "2026-10-25");
   const table = SOURCE_320.slice(SOURCE_320.indexOf("CREATE TABLE platform_private.student_ai_consents"), SOURCE_320.indexOf("COMMENT ON TABLE"));
   for (const status of AI_CONSENT_STATUSES) assert.match(table, new RegExp(`'${status}'`, "u"), status);
-  for (const source of AI_CONSENT_SOURCES) assert.match(table, new RegExp(`'${source}'`, "u"), source);
+  // 320 allowed the first two sources; `android` came with migration 355 (its own contract test below).
+  for (const source of AI_CONSENT_SOURCES.filter((s) => s !== "android")) assert.match(table, new RegExp(`'${source}'`, "u"), source);
   assert.match(table, /UNIQUE \(organization_id, auth_user_id\)/u, "one current row per organization and Auth user");
   assert.match(table, /auth_user_id UUID NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/u);
   assert.match(SOURCE_320, /FORCE ROW LEVEL SECURITY/u);
@@ -714,4 +716,17 @@ test("322 and its suite hold no secret, no address and no real person; the suite
   // The suite and the hook sit after 320's and inside the migration loop.
   assert.ok(TEST_SCRIPT.indexOf("*_platform_ai_agents_daily_spend.sql") > TEST_SCRIPT.indexOf("A320_STUDENT_AI_CONSENT_SUITE_PASSED"));
   assert.ok(TEST_SCRIPT.indexOf("*_platform_ai_agents_daily_spend.sql") < TEST_SCRIPT.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+});
+
+test("355 widens the consent source list to the app's sources, drift-safe, and the shared constant matches it", () => {
+  const sources = [...AI_CONSENT_SOURCES];
+  assert.deepEqual(sources, ["portal_web", "ios", "android"]);
+  const list = sources.map((x) => `'${x}'`).join(", ");
+  assert.ok(SOURCE_355.includes(`CHECK (source IN (${list}))`), "the constraint lists exactly the shared sources");
+  assert.ok(SOURCE_355.includes(`p_source NOT IN (${list.replaceAll("'", "''")})`), "the RPC guard (a quoted fragment) lists exactly the shared sources");
+  assert.match(SOURCE_355, /a355_already_applied/u);
+  assert.match(SOURCE_355, /a355_replace_drift/u);
+  // The replaced fragment is the one 320 wrote; 320 itself is not edited.
+  assert.ok(SOURCE_320.includes("p_source NOT IN ('portal_web', 'ios')"));
+  assert.doesNotMatch(SOURCE_355, /\bGRANT\b|\bREVOKE\b|CREATE FUNCTION/u, "grants, owner and search_path come from CREATE OR REPLACE");
 });

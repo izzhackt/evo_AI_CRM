@@ -112,7 +112,7 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
 // row keeps only the student's Auth user, never the password. It falls through to the `["record_status"]` default of
 // `expectedChangedFieldCodes`.
-// Migration 355 («Студент сам меняет имя и фамилию») adds one action, `student.name.change` (written by
+// Migration 356 («Студент сам меняет имя и фамилию») adds one action, `student.name.change` (written by
 // `platform.set_own_portal_name_v1`: one row per real change the student makes in «Профиль»), by the same
 // rename-and-union wrapper (`..._pre_student_own_name`). Its object is the existing `student_case` type; the row keeps no
 // name, before or after. It falls through to the `["record_status"]` default of `expectedChangedFieldCodes`.

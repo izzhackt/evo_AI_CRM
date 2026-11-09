@@ -7,6 +7,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { refreshStudentApplicationAction } from "@/lib/student-signup-actions";
 import { localizedApplicationAnswers } from "@/lib/student-application-answers";
 import type { StudentApplication } from "@/lib/student-application-contract";
+import { LEGACY_APPLICATION_DRAFT_KEY, clearObsoleteApplicationDrafts } from "@/lib/student-application-draft-storage";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 
 export function ApplicationStatus({ application, draftOwnerId, locale = "ru" }: { application: StudentApplication; draftOwnerId: string; locale?: Locale }) {
@@ -14,10 +15,9 @@ export function ApplicationStatus({ application, draftOwnerId, locale = "ru" }: 
   const [state, action, pending] = useActionState(refreshStudentApplicationAction, { status: "idle" } as const);
   useEffect(() => {
     try {
-      const prefix = `evo-application-draft-v1:${draftOwnerId}:`;
-      const obsolete = Object.keys(sessionStorage).filter((key) => key.startsWith(prefix) && Number(key.slice(prefix.length)) < application.revision);
-      for (const key of obsolete) sessionStorage.removeItem(key);
-      sessionStorage.removeItem("evo-application-draft-v1");
+      // #1362: черновик лежит в localStorage; принятая сервером анкета делает прежние черновики ненужными.
+      clearObsoleteApplicationDrafts(localStorage, draftOwnerId, application.revision);
+      sessionStorage.removeItem(LEGACY_APPLICATION_DRAFT_KEY);
     } catch { /* Storage is optional; the application is persisted on the server. */ }
   }, [draftOwnerId, application.revision]);
   const approved = application.status === "approved";

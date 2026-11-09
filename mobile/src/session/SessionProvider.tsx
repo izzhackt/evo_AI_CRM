@@ -2,12 +2,12 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { createPortalAuthApi, type PortalAuthApi, type SignInFailure } from "@/api/portal-auth";
-import { clearPerUserUiState } from "@/features/admission/useOpenSteps";
 import { clearDownloadCache } from "@/features/documents/download-cache";
 import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
 import { createAccessDeps } from "@/session/deps";
+import { clearAllLocalData } from "@/session/local-data";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
 
@@ -91,8 +91,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             void resolve(event === "TOKEN_REFRESHED" && stateRef.current.kind === "active");
             return;
           case "SIGNED_OUT":
-            void clearPerUserUiState();
-            void clearDownloadCache();
+            void clearAllLocalData();
             runId.current += 1;
             forcedMustSetRef.current = false;
             setMustSetPassword(false);
@@ -136,8 +135,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut({ scope: "local" });
-    await clearPerUserUiState();
-    await clearDownloadCache();
+    await clearAllLocalData();
     runId.current += 1;
     forcedMustSetRef.current = false;
     setMustSetPassword(false);

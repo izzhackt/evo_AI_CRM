@@ -18,7 +18,7 @@ import type { Locale } from "../i18n-data.ts";
 const shellRu = {
   skipToContent: "Перейти к содержимому",
   home: "EVO Admissions — кабинет студента",
-  notifications: "Уведомления",
+  notifications: "Что нового",
   notificationsUnread: "Новых уведомлений: {count}",
   notificationsNone: "Новых уведомлений нет",
   notificationsFailed: "Не удалось обновить уведомления.",
@@ -44,7 +44,7 @@ const shellRu = {
   "nav.csca": "CSCA",
   "nav.favorites": "Избранное",
   "nav.payments": "Оплата",
-  "nav.notifications": "Уведомления",
+  "nav.notifications": "Что нового",
   "nav.tests": "Тесты",
   "nav.profile": "Профиль",
   // Подписи групп рейла (03.11.2026): над «Университетами» и над «Английским»;
@@ -61,7 +61,7 @@ type ShellKey = keyof typeof shellRu;
 const shellKy: Readonly<Record<ShellKey, string>> = {
   skipToContent: "Мазмунга өтүү",
   home: "EVO Admissions — студенттин кабинети",
-  notifications: "Билдирмелер",
+  notifications: "Эмне жаңы",
   notificationsUnread: "Жаңы билдирмелер: {count}",
   notificationsNone: "Жаңы билдирмелер жок",
   notificationsFailed: "Билдирмелер жаңыртылган жок.",
@@ -85,7 +85,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.csca": "CSCA",
   "nav.favorites": "Тандалмалар",
   "nav.payments": "Төлөм",
-  "nav.notifications": "Билдирмелер",
+  "nav.notifications": "Эмне жаңы",
   "nav.tests": "Тесттер",
   "nav.profile": "Профиль",
   "nav.groupChoice": "Тандоо",
@@ -1594,9 +1594,9 @@ const admissionRu = {
   caseFileReceiptAttached: "Учтён в оплате",
   caseFileReceiptPending: "Получен, ещё не учтён",
   paymentsTitle: "Оплата",
-  notificationsTitle: "Уведомления",
+  notificationsTitle: "Что нового",
   replyTitle: "Ответ куратора",
-  replyAllNotifications: "Все уведомления",
+  replyAllNotifications: "Что нового",
   replyYourQuestion: "Ваш вопрос",
   replyAnswer: "Ответ EVO",
 
@@ -1698,7 +1698,7 @@ const admissionRu = {
 
   notificationsEmptyTitle: "Новых уведомлений нет",
   notificationsEmptyBody: "Здесь появятся важные изменения и сроки по вашему поступлению.",
-  notificationsHeading: "Все уведомления",
+  notificationsHeading: "Что нового",
   notificationsTimeNote: "Время и сроки указаны по времени Бишкека.",
   statusNew: "Новое",
   dateUnavailable: "Дата недоступна",
@@ -1796,9 +1796,9 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   caseFileReceiptAttached: "Төлөмдө эсепке алынган",
   caseFileReceiptPending: "Алынды, азырынча эсепке алына элек",
   paymentsTitle: "Төлөм",
-  notificationsTitle: "Билдирмелер",
+  notificationsTitle: "Эмне жаңы",
   replyTitle: "Куратордун жообу",
-  replyAllNotifications: "Бардык билдирмелер",
+  replyAllNotifications: "Эмне жаңы",
   replyYourQuestion: "Сиздин суроо",
   replyAnswer: "EVO жообу",
 
@@ -1896,7 +1896,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
 
   notificationsEmptyTitle: "Жаңы билдирмелер жок",
   notificationsEmptyBody: "Тапшырууңуз боюнча маанилүү өзгөрүүлөр жана мөөнөттөр ушул жерде чыгат.",
-  notificationsHeading: "Бардык билдирмелер",
+  notificationsHeading: "Эмне жаңы",
   notificationsTimeNote: "Убакыт жана мөөнөттөр Бишкек убактысы боюнча көрсөтүлгөн.",
   statusNew: "Жаңы",
   dateUnavailable: "Дата жеткиликсиз",

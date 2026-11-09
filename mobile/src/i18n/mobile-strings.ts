@@ -6,6 +6,7 @@
 import { INBOX_KY, INBOX_RU } from "@/i18n/strings-inbox";
 import { LEARN_KY, LEARN_RU } from "@/i18n/strings-learning";
 import { DOCS_KY, DOCS_RU } from "@/i18n/strings-documents";
+import { PROFILE_KY, PROFILE_RU } from "@/i18n/strings-profile";
 
 const ru = {
   "auth.title": "Кабинет студента",
@@ -90,6 +91,7 @@ const ru = {
   ...DOCS_RU,
   ...INBOX_RU,
   ...LEARN_RU,
+  ...PROFILE_RU,
 } as const;
 
 export type MobileStringKey = keyof typeof ru;
@@ -177,6 +179,7 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   ...DOCS_KY,
   ...INBOX_KY,
   ...LEARN_KY,
+  ...PROFILE_KY,
 };
 
 export const MOBILE_STRINGS = { ru, ky } as const;

@@ -7,7 +7,7 @@ import { Text } from "@/ui/Text";
 type Props = {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "ghost";
+  variant?: "primary" | "ghost" | "danger" | "dangerSolid";
   busy?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -19,6 +19,8 @@ type Props = {
 export function Button({ label, onPress, variant = "primary", busy = false, disabled = false, style, testID, accessibilityLabel }: Props) {
   const { tokens } = useTheme();
   const primary = variant === "primary";
+  const solid = primary || variant === "dangerSolid";
+  const danger = variant === "danger" || variant === "dangerSolid";
   const inactive = disabled || busy;
   return (
     <Pressable
@@ -32,8 +34,8 @@ export function Button({ label, onPress, variant = "primary", busy = false, disa
         styles.base,
         {
           borderRadius: tokens.radiusControl,
-          backgroundColor: primary ? tokens.accent : tokens.surface,
-          borderColor: primary ? tokens.accent : tokens.line,
+          backgroundColor: primary ? tokens.accent : variant === "dangerSolid" ? tokens.error : tokens.surface,
+          borderColor: primary ? tokens.accent : danger ? tokens.error : tokens.line,
           opacity: inactive ? 0.6 : 1,
           transform: [{ scale: pressed ? tokens.pressScale : 1 }],
         },
@@ -41,9 +43,9 @@ export function Button({ label, onPress, variant = "primary", busy = false, disa
       ]}
     >
       {busy ? (
-        <ActivityIndicator color={primary ? tokens.onAccent : tokens.text} />
+        <ActivityIndicator color={solid ? tokens.onAccent : tokens.text} />
       ) : (
-        <Text variant="body" tone={primary ? "onAccent" : "text"} style={{ fontFamily: sansFont("semibold") }}>
+        <Text variant="body" tone={solid ? "onAccent" : variant === "danger" ? "error" : "text"} style={{ fontFamily: sansFont("semibold") }}>
           {label}
         </Text>
       )}

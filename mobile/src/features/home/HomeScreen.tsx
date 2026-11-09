@@ -14,6 +14,7 @@ import { useCountryChoice, useCscaHome, useFavorites, useNotifications, useOverv
 import { ApplicationCard, CaseCard, CscaCard, DatesCard, FavoritesCard, JourneyCard, NewsCard } from "@/features/home/HomeCards";
 import { HomeHero } from "@/features/home/HomeHero";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
+import { AiConsentHomeCard } from "@/features/profile/AiConsent";
 import { loadOf } from "@/features/portal/load";
 import { useLang } from "@/i18n/LangProvider";
 import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
@@ -81,6 +82,7 @@ export function HomeScreen() {
     <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="home-screen">
         <HomeHero displayName={displayName} studyCountry={studyCountry} stage={assisted ? (overview.data?.operationalStage ?? null) : null} />
+        {assisted ? <AiConsentHomeCard /> : null}
         {showCountryChoice(journey.view !== null) ? (
           choiceLoad?.state === "loading" ? (
             <Card>

@@ -7634,6 +7634,13 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   list-style: none;
 }
 
+/* Широкий экран: все четыре карточки в один ряд (размер картинки в HomeFavorites рассчитан на ~260px). */
+@media (min-width: 960px) {
+  .pt-home-fav-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .pt-home-fav-card {
   display: flex;
   flex-direction: column;

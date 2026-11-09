@@ -1,6 +1,6 @@
 # EVO student web cabinet: specification for the Expo (React Native) app
 
-Worktree: `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO/.worktrees/mobile-expo`
+Worktree: рабочая копия `mobile-expo`
 HEAD: `2218479ee` (includes #1412 "вид кабинета по образцу Акылмана", #1417, #1418).
 Paths are relative to the worktree root. `lib/...` means `src/lib/...`.
 
@@ -19,7 +19,7 @@ Paths are relative to the worktree root. `lib/...` means `src/lib/...`.
 
 ### 1.1 Sessions
 - Supabase Auth, email + password. Web: `@supabase/ssr` cookies (`lib/supabase/server.ts`), client created with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (validated in `lib/supabase/config.ts`). Mobile uses `@supabase/supabase-js` with the same two values and persists the session in secure storage.
-- "Session-only cookie": at login, checkbox `remember_device` (default checked). Unchecked sets httpOnly cookie `evo_session_only=1` (`lib/session-cookie.ts:11`, `lib/staff-auth-actions.ts:~96-108`), and the Supabase auth cookies are then written without `maxAge`, so the session dies on browser close. Mobile equivalent: a local preference; if unchecked, do not persist the session (or clear on app exit). Label copy is in the login page `COPY` (section 1.2).
+- "Session-only cookie": at login, checkbox `remember_device` (default checked). Unchecked sets httpOnly cookie `evo_session_only=1` (`lib/session-cookie.ts:8`, `lib/staff-auth-actions.ts:~96-108`), and the Supabase auth cookies are then written without `maxAge`, so the session dies on browser close. Mobile equivalent: a local preference; if unchecked, do not persist the session (or clear on app exit). Label copy is in the login page `COPY` (section 1.2).
 - Locale cookie `locale` (ru|ky|en, default ru), theme cookie `theme`, rail cookie `portal_rail` are request-time defaults only (`lib/i18n.ts`, `lib/theme.ts:10`, `lib/portal/rail-choice.ts`). Persistent language is DB: `platform.set_own_portal_language_v1`.
 - Logout: `logoutStudentPortalAction` (`lib/student-portal-auth-actions.ts:~218`) is `client.auth.signOut({scope:"local"})` then redirect `/login`. Mobile: `supabase.auth.signOut({scope:'local'})`.
 - Hosts: students `https://app.evoadmissions.com`, staff `https://crm.evoadmissions.com` (`lib/platform-public-origin.ts:9-10`). Hosts are routing hints only; authority is in the DB.

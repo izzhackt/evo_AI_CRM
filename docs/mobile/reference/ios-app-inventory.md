@@ -1,8 +1,8 @@
 # EVO admissions iOS v1.1 - behavioral inventory (reference for the Expo rewrite)
 
-Worktree: `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO/.worktrees/mobile-expo/ios` (branch `izzhackt/mobile-expo`).
+Worktree: `рабочая копия mobile-expo/ios` (branch `izzhackt/mobile-expo`).
 All paths below are relative to `ios/` unless they start with `src/`, `docs/`, `supabase/`, `scripts/`, `tests/`.
-Line refs are from the working tree as read on 2026-11-09. Swift = ~44.8k lines total (app + tests); 416 `func test*` in 49 test files.
+Line refs are from the working tree as read on 2026-11-09. Swift = ~44.8k lines total (app + tests); 419 `func test*` in 49 test files.
 (`ios/README.md` still says "171/172 unit tests" - stale.)
 
 Contents: 0 Facts at a glance - 1 Screens - 2 Backend calls - 3 Local logic to port - 4 Bundled resources - 5 Config - 6 What tests assert - 7 Gaps vs current web - 8 Port risks / decisions for the RN team.
@@ -319,7 +319,7 @@ Test fixtures (`EVOAdmissionsTests/Fixtures/`, real/hand-built server responses;
 
 ## 6. What the tests assert (acceptance criteria by area)
 
-`EVOAdmissionsTests/` = hostless XCTest (no UI, no network); 416 test funcs / 49 files. Fixtures are real or hand-written server payloads. Grouped:
+`EVOAdmissionsTests/` = hostless XCTest (no UI, no network); 419 test funcs / 49 files. Fixtures are real or hand-written server payloads. Grouped:
 
 **Auth & session**
 - `AuthMessagePolicyTests`: sign-in error keys come from the catalog (invalid_credentials, email_not_confirmed, rate limits, legacy 400 without code, transport); recovery **never reveals whether the account exists** (all 4xx, user_not_found, banned, per-address limit => `.sent`); recovery link = `<origin>/auth/callback` ignoring base path; email shape check.

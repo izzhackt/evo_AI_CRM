@@ -137,7 +137,7 @@ export async function seedMobileDevStack({ apiUrl, serviceKey, publishableKey, d
     const curator = await ensureUser({ key: "staff", role: "curator", systemAdmin: true, email: `test.staff@${DOMAIN}`, displayName: "Тест Куратор", note: "персонал (куратор): куратор дела test.assisted; для проверки отказа в мобильном входе" });
     const approved = await ensureUser({ key: "approved", role: "student", email: `test.approved@${DOMAIN}`, displayName: "Тест Одобренный", loginBase: "test.approved", note: "уровень «одобрен»: дело pending, кабинет активирован, без документов и чата" });
     const assisted = await ensureUser({ key: "assisted", role: "student", email: `test.assisted@${DOMAIN}`, displayName: "Тест Сопровождаемый", loginBase: "test.assisted", note: "уровень «сопровождение»: активное дело, страна Китай, чек-лист, договор+чек, чат, уведомления, избранное" });
-    const temporary = await ensureUser({ key: "temporary", role: "student", email: `test.temporary@${DOMAIN}`, displayName: "Тест Временный", loginBase: "test.temporary", temporary: true, note: "временный пароль: вход отдаёт must_set_password=true (экран «задайте свой пароль»)" });
+    await ensureUser({ key: "temporary", role: "student", email: `test.temporary@${DOMAIN}`, displayName: "Тест Временный", loginBase: "test.temporary", temporary: true, note: "временный пароль: вход отдаёт must_set_password=true (экран «задайте свой пароль»)" });
 
     // ---- дела ----
     const ensureCase = async ({ sourceKey, student, state, displayName, stage, nextAction }) => {

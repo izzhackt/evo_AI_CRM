@@ -1,7 +1,7 @@
 # Локальный стенд для мобильного приложения
 
 Постоянный локальный стенд: настоящие Auth + Postgres + Storage (Supabase CLI, Docker/OrbStack) и настоящие
-маршруты Next.js-портала. Только синтетические данные (`@example.test`); продакшн не затрагивается.
+маршруты Next.js-портала. По умолчанию портал доступен только с этой машины. Только синтетические данные (`@example.test`); продакшн не затрагивается.
 Проект Docker называется `evo-mobile-dev`, порты фиксированы.
 
 ```
@@ -14,12 +14,19 @@ npm run mobile:stack:down     # остановить и удалить ТОЛЬ�
 Состояние (конфиг, лог портала) лежит вне репозитория: `~/.evo-mobile-dev-stack/` (переменная `EVO_MOBILE_STACK_HOME`).
 Нужен запущенный Docker (OrbStack); чужие стенды скрипт не трогает.
 
+## Сетевая безопасность
+
+Портал по умолчанию на 127.0.0.1. Порты Supabase (46421-46427: API, Studio, Mailpit, SMTP, Postgres) Docker/OrbStack
+публикует на ВСЕХ интерфейсах: Supabase CLI не позволяет привязать их к loopback. Данные синтетические, ключи
+локальные, но пока стенд запущен, в недоверенной Wi-Fi сети эти порты доступны соседям. Не держите стенд поднятым
+в публичных сетях (`down`). Android: `adb reverse` с loopback (ниже) вместо `10.0.2.2`.
+
 ## Адреса и порты
 
 | Что | iOS-симулятор | Android-эмулятор | Телефон по Wi-Fi |
 |---|---|---|---|
 | Supabase API (Auth/REST/Storage) | `http://localhost:46421` | `http://10.0.2.2:46421` | `http://<IP Mac>:46421` |
-| Портал (Next.js, `next dev`, слушает 0.0.0.0) | `http://localhost:46430` | `http://10.0.2.2:46430` | `http://<IP Mac>:46430` |
+| Портал (Next.js, `next dev` из чистой копии кода без `.env*` чекаута, слушает только 127.0.0.1) | `http://localhost:46430` | `http://10.0.2.2:46430` (или `adb reverse`) | только с `up --lan`: `http://<IP Mac>:46430` |
 
 Остальное: Studio `:46423`, Mailpit/Inbucket `:46424` (письма регистрации/восстановления), Postgres `:46422`.
 
@@ -27,13 +34,13 @@ npm run mobile:stack:down     # остановить и удалить ТОЛЬ�
 
 - `mobile/.env.local-stack` — iOS-симулятор (`localhost`);
 - `mobile/.env.local-stack.android` — Android-эмулятор (`10.0.2.2`);
-- `mobile/.env.local-stack.lan` — реальный телефон в той же сети (IP Mac на момент `up`);
+- `mobile/.env.local-stack.lan` — реальный телефон в той же сети (IP Mac). Создаётся ТОЛЬКО по явному согласию: `npm run mobile:stack:up -- --lan` (или `EVO_MOBILE_STACK_LAN=1`); тогда портал слушает 0.0.0.0. Без флага файла нет;
 - `mobile/.local-stack-accounts.json` — логины, пароли, ссылка регистрации для тестировщиков.
 
 В каждом env-файле три переменные из `mobile/src/config.ts`: `EXPO_PUBLIC_SUPABASE_URL`,
 `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (публичный ключ Supabase CLI), `EXPO_PUBLIC_PORTAL_BASE_URL`.
-Если `mobile/.gitignore` приложения не игнорирует эти файлы, добавьте `.env.local-stack*` и `.local-stack-accounts.json`
-(шаблон `.env*.local` их не покрывает). Использовать: `cp mobile/.env.local-stack mobile/.env` (iOS) или `cp mobile/.env.local-stack.android mobile/.env`
+Корневой `.gitignore` репозитория уже игнорирует `mobile/.env.local-stack*` и `mobile/.local-stack-accounts.json`.
+Использовать: `cp mobile/.env.local-stack mobile/.env` (iOS) или `cp mobile/.env.local-stack.android mobile/.env`
 (Android) и перезапустить Metro с очисткой кеша (`expo start -c`): Metro вшивает значения при сборке.
 http разрешён в приложении только в `__DEV__`.
 
@@ -69,6 +76,14 @@ Storage вида `http://127.0.0.1:46421/...`, а `127.0.0.1` внутри эм�
 Ссылка регистрации пересоздаётся, если использована или скоро истекает. Полный сброс: `down`, затем `up`.
 
 ## Чего нет и почему
+
+Что записано прямым SQL (а не командами приложения/CRM): строка дела `student_cases` (миграция 126 разрешает рантайму
+создавать только pending-дела, а «сопровождение» — это уже передача), версии документов `document_versions` и их статусы,
+отзыв `document_reviews`, уведомление о нём и `student_portal_notification_projection_v1`, заявка в вуз и виза,
+обязательство, платёж и записи файлов договора/чека (`payment_obligations`, `payment_events`, `payment_receipt_files`,
+`case_contract_files`; сами PDF загружены в Storage), каталог вузов (`catalog_institutions` и публикации), клиент и лид
+для ссылки регистрации. Через настоящие команды идут: чек-лист (`seed_default_document_checklist`), логины,
+выбор страны, избранное, чат куратора и студента, ссылка регистрации.
 
 - Загруженная версия документа в чек-листе — строка в БД без байтов в Storage: скачать «свой документ» нельзя
   (настоящий путь загрузки требует антивирусной проверки ClamAV, её в локальном стенде нет). Договор и чек

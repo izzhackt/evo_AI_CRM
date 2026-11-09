@@ -9,7 +9,7 @@
 // Подробнее: docs/mobile/LOCAL_STACK.md
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { createServer } from "node:net";
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -25,6 +25,7 @@ const STATE_DIR = process.env.EVO_MOBILE_STACK_HOME || join(homedir(), ".evo-mob
 const PROJECT_DIR = join(STATE_DIR, "project");
 const STATE_FILE = join(STATE_DIR, "state.json");
 const APP_LOG = join(STATE_DIR, "portal.log");
+const APP_DIR = join(STATE_DIR, "app");
 const ACCOUNTS_FILE = join(STATE_DIR, "accounts.json");
 const MOBILE_DIR = process.env.EVO_MOBILE_DIR || join(repo, "mobile");
 
@@ -33,7 +34,11 @@ const BASE = 46420;
 const PORTS = { shadow: BASE, api: BASE + 1, db: BASE + 2, studio: BASE + 3, mail: BASE + 4, smtp: BASE + 5, pop3: BASE + 6,
   analytics: BASE + 7, inspector: BASE + 8, pooler: BASE + 9, portal: BASE + 10 };
 
+// Только разрешённые переменные; DOCKER_HOST передаётся лишь если задан (и обязан быть unix://).
 const env = Object.fromEntries(["PATH", "HOME", "TMPDIR", "DOCKER_HOST", "DOCKER_CONFIG"].filter((n) => process.env[n]).map((n) => [n, process.env[n]]));
+assert.ok(!env.DOCKER_HOST || env.DOCKER_HOST.startsWith("unix://"), "REMOTE_DOCKER_FORBIDDEN: стенд работает только с локальным Docker (unix://)");
+// LAN-доступ только по явному согласию: `up --lan` или EVO_MOBILE_STACK_LAN=1.
+const LAN = process.argv.includes("--lan") || process.env.EVO_MOBILE_STACK_LAN === "1";
 const npx = join(dirname(process.execPath), "npx");
 
 function run(binary, args, options = {}) {
@@ -66,10 +71,12 @@ const portFree = (port, host) => new Promise((ok) => {
   server.once("error", () => ok(false));
   server.listen(port, host, () => server.close(() => ok(true)));
 });
+// Только ресурсы с меткой Supabase CLI этого проекта И с точным суффиксом имени.
 const dockerNames = (kind) => {
-  const format = kind === "containers" ? ["ps", "-a", "--format", "{{.Names}}"]
-    : kind === "volumes" ? ["volume", "ls", "-q"] : ["network", "ls", "--format", "{{.Name}}"];
-  return run("docker", format).split("\n").map((s) => s.trim()).filter((n) => n.endsWith(`_${PROJECT_ID}`));
+  const label = `label=com.supabase.cli.project=${PROJECT_ID}`;
+  const list = kind === "containers" ? ["ps", "-a", "--filter", label, "--format", "{{.Names}}"]
+    : kind === "volumes" ? ["volume", "ls", "--filter", label, "-q"] : ["network", "ls", "--filter", label, "--format", "{{.Name}}"];
+  return run("docker", list).split("\n").map((n) => n.trim()).filter((n) => n.endsWith(`_${PROJECT_ID}`));
 };
 
 function writeProjectConfig() {
@@ -91,11 +98,17 @@ function writeProjectConfig() {
     config = config.replace(before, after);
   }
   assert.doesNotMatch(config, /\[auth\.email\.smtp\]/, "EXTERNAL_SMTP_FORBIDDEN");
-  writeFileSync(join(PROJECT_DIR, "supabase/config.toml"), config);
-  // Копии (не симлинки): стенд не ломается, если рабочее дерево с кодом переедет.
+  const configPath = join(PROJECT_DIR, "supabase/config.toml");
+  if (!existsSync(configPath) || readFileSync(configPath, "utf8") !== config) writeFileSync(configPath, config);
+  // Копии (не симлинки): стенд не ломается, если рабочее дерево переедет. Копируются только новые/изменённые файлы.
   for (const dir of ["migrations", "templates"]) {
-    rmSync(join(PROJECT_DIR, "supabase", dir), { recursive: true, force: true });
-    cpSync(join(repo, "supabase", dir), join(PROJECT_DIR, "supabase", dir), { recursive: true });
+    const from = join(repo, "supabase", dir);
+    const to = join(PROJECT_DIR, "supabase", dir);
+    mkdirSync(to, { recursive: true });
+    for (const name of readdirSync(from)) {
+      const target = join(to, name);
+      if (!existsSync(target) || !readFileSync(target).equals(readFileSync(join(from, name)))) copyFileSync(join(from, name), target);
+    }
   }
 }
 
@@ -143,24 +156,57 @@ function applyMigrations() {
   }
 }
 
+/** Чистая копия кода для Next: без файлов .env чекаута (никаких чужих ключей), только нужные каталоги. */
+function syncApp() {
+  mkdirSync(APP_DIR, { recursive: true });
+  for (const dir of ["src", "public"]) run("rsync", ["-a", "--delete", `${join(repo, dir)}/`, `${join(APP_DIR, dir)}/`]);
+  for (const file of ["package.json", "package-lock.json", "tsconfig.json", "next.config.ts", "postcss.config.mjs"]) copyFileSync(join(repo, file), join(APP_DIR, file));
+  const stamp = join(APP_DIR, ".lock-stamp");
+  const lock = readFileSync(join(repo, "package-lock.json"), "utf8");
+  if (!existsSync(join(APP_DIR, "node_modules")) || !existsSync(stamp) || readFileSync(stamp, "utf8") !== lock) {
+    log("копирую node_modules в чистую копию портала (clone, один раз)...");
+    rmSync(join(APP_DIR, "node_modules"), { recursive: true, force: true });
+    run("cp", ["-Rc", join(repo, "node_modules"), join(APP_DIR, "node_modules")]);
+    writeFileSync(stamp, lock);
+  }
+  for (const f of readdirSync(APP_DIR)) assert.ok(!/^\.env/.test(f), `ENV_FILE_IN_APP_COPY ${f}`);
+}
+
+/** Pid процесса портала считается нашим, только если слушатель порта входит в его группу процессов. */
+function portalOwnedBy(pid) {
+  const listeners = spawnSync("lsof", ["-nP", `-iTCP:${PORTS.portal}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8", env }).stdout.split("\n").filter(Boolean);
+  const command = spawnSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8", env }).stdout;
+  if (!/next/.test(command)) return false;
+  return listeners.every((l) => spawnSync("ps", ["-p", l, "-o", "pgid="], { encoding: "utf8", env }).stdout.trim() === String(pid));
+}
+async function stopPortal() {
+  const pid = portalPid();
+  if (!pid) return;
+  if (!portalOwnedBy(pid)) throw new Error(`PORTAL_PID_NOT_OURS: процесс ${pid} или владелец порта ${PORTS.portal} не совпадает с запущенным нами; ничего не убиваю.`);
+  try { process.kill(-pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGTERM"); } catch { /* уже нет */ } }
+  await delay(1500);
+  if (pidAlive(pid)) { try { process.kill(-pid, "SIGKILL"); } catch { /* ignore */ } }
+  log(`Портал остановлен (pid ${pid}).`);
+}
+
 async function startPortal(statusEnv) {
-  if (portalPid() && await portalHealthy()) { log(`Портал уже работает на :${PORTS.portal}.`); return portalPid(); }
-  const old = portalPid();
-  if (old) { try { process.kill(old, "SIGTERM"); } catch { /* уже нет */ } await delay(1500); }
-  assert.ok(await portFree(PORTS.portal, "0.0.0.0"), `PORT_BUSY portal:${PORTS.portal}`);
+  const mode = LAN ? "lan" : "loopback";
+  if (portalPid() && await portalHealthy() && readState()?.portalMode === mode) { syncApp(); log(`Портал уже работает на :${PORTS.portal} (${mode}).`); return portalPid(); }
+  await stopPortal();
+  syncApp();
+  assert.ok(await portFree(PORTS.portal, LAN ? "0.0.0.0" : "127.0.0.1"), `PORT_BUSY portal:${PORTS.portal}`);
   const out = openSync(APP_LOG, "a", 0o600);
   const local = `http://127.0.0.1:${PORTS.portal}`;
-  const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "0.0.0.0", "--port", String(PORTS.portal)], {
-    cwd: repo, detached: true, stdio: ["ignore", out, out],
+  const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", LAN ? "0.0.0.0" : "127.0.0.1", "--port", String(PORTS.portal)], {
+    cwd: APP_DIR, detached: true, stdio: ["ignore", out, out],
     env: { ...env, NODE_ENV: "development", NEXT_TELEMETRY_DISABLED: "1",
       NEXT_PUBLIC_SUPABASE_URL: statusEnv.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: statusEnv.PUBLISHABLE_KEY,
       EVO_PLATFORM_SUPABASE_SECRET_KEY: statusEnv.SERVICE_ROLE_KEY, EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS: "3600",
       EVO_STUDENT_SIGNUP_OTP_LENGTH: "6", EVO_STUDENT_INVITE_LOCAL_ORIGIN: local },
   });
   child.unref();
-  const state = readState() ?? {};
-  writeJson(STATE_FILE, { ...state, portalPid: child.pid });
-  log(`Портал (next dev) запущен, pid ${child.pid}; лог ${APP_LOG}. Жду готовности (первая сборка до пары минут)...`);
+  writeJson(STATE_FILE, { ...(readState() ?? {}), portalPid: child.pid, portalMode: mode });
+  log(`Портал (next dev, ${mode}) запущен из чистой копии, pid ${child.pid}; лог ${APP_LOG}. Жду готовности...`);
   for (let attempt = 0; attempt < 240; attempt++) {
     if (!pidAlive(child.pid)) throw new Error(`PORTAL_EXITED, см. ${APP_LOG}`);
     if (await portalHealthy()) return child.pid;
@@ -175,7 +221,7 @@ function hostsFor(statusEnv) {
     EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: statusEnv.PUBLISHABLE_KEY,
     EXPO_PUBLIC_PORTAL_BASE_URL: `http://${host}:${PORTS.portal}`,
   });
-  return { ios: mk("localhost"), android: mk("10.0.2.2"), lan: lanAddress() ? mk(lanAddress()) : null };
+  return { ios: mk("localhost"), android: mk("10.0.2.2"), lan: LAN && lanAddress() ? mk(lanAddress()) : null };
 }
 const envText = (title, values) => `# ${title}\n# Сгенерировано npm run mobile:stack:up. Только локальный стенд, синтетические данные. Не коммитить.\n${Object.entries(values).map(([k, v]) => `${k}=${v}`).join("\n")}\n`;
 
@@ -184,8 +230,9 @@ function writeMobileFiles(statusEnv, accounts) {
   const hosts = hostsFor(statusEnv);
   // Основной файл: iOS-симулятор (хост = localhost). Для Android-эмулятора и телефона — отдельные варианты.
   writeFileSync(join(MOBILE_DIR, ".env.local-stack"), envText("iOS-симулятор (localhost)", hosts.ios), { mode: 0o600 });
-  writeFileSync(join(MOBILE_DIR, ".env.local-stack.android"), envText("Android-эмулятор (10.0.2.2 = хост-машина)", hosts.android), { mode: 0o600 });
-  if (hosts.lan) writeFileSync(join(MOBILE_DIR, ".env.local-stack.lan"), envText(`Физический телефон в одной Wi-Fi сети (${lanAddress()})`, hosts.lan), { mode: 0o600 });
+  writeFileSync(join(MOBILE_DIR, ".env.local-stack.android"), envText("Android-эмулятор (10.0.2.2 = хост-машина; лучше adb reverse и файл iOS, см. docs/mobile/LOCAL_STACK.md)", hosts.android), { mode: 0o600 });
+  if (hosts.lan) writeFileSync(join(MOBILE_DIR, ".env.local-stack.lan"), envText(`Физический телефон в одной Wi-Fi сети (${lanAddress()}); включено явно: up --lan`, hosts.lan), { mode: 0o600 });
+  else rmSync(join(MOBILE_DIR, ".env.local-stack.lan"), { force: true });
   writeJson(join(MOBILE_DIR, ".local-stack-accounts.json"), accounts);
   writeJson(ACCOUNTS_FILE, accounts);
 }
@@ -222,13 +269,14 @@ async function print(statusEnv, accounts) {
   const hosts = hostsFor(statusEnv);
   console.log("\n== EVO mobile dev stack ==");
   console.log(`Supabase API : http://127.0.0.1:${PORTS.api}  (Auth/REST/Storage)`);
-  console.log(`Портал       : http://127.0.0.1:${PORTS.portal}  (слушает 0.0.0.0)`);
+  console.log(`Портал       : http://127.0.0.1:${PORTS.portal}  (${LAN ? "слушает 0.0.0.0, режим --lan" : "только 127.0.0.1"})`);
   console.log(`Studio       : http://127.0.0.1:${PORTS.studio}   Inbucket/Mailpit: http://127.0.0.1:${PORTS.mail}`);
   console.log(`Postgres     : порт ${PORTS.db} (127.0.0.1)`);
   console.log(`iOS-симулятор: ${hosts.ios.EXPO_PUBLIC_SUPABASE_URL} + ${hosts.ios.EXPO_PUBLIC_PORTAL_BASE_URL}`);
   console.log(`Android      : ${hosts.android.EXPO_PUBLIC_SUPABASE_URL} + ${hosts.android.EXPO_PUBLIC_PORTAL_BASE_URL}`);
   if (hosts.lan) console.log(`Телефон (LAN): ${hosts.lan.EXPO_PUBLIC_SUPABASE_URL} + ${hosts.lan.EXPO_PUBLIC_PORTAL_BASE_URL}`);
-  console.log(`Файлы        : ${join(MOBILE_DIR, ".env.local-stack")} (+ .android, .lan) и .local-stack-accounts.json`);
+  console.log(`Файлы        : ${join(MOBILE_DIR, ".env.local-stack")} (+ .android${hosts.lan ? ", .lan" : ""}) и .local-stack-accounts.json`);
+  console.log("ВНИМАНИЕ: порты Supabase (46421-46427) Docker публикует на всех интерфейсах, CLI это не настраивает; синтетические данные, но в недоверенных сетях стенд лучше не держать.");
   console.log("Аккаунты (пароли только в .local-stack-accounts.json):");
   for (const a of accounts.accounts ?? []) console.log(`  ${a.role.padEnd(10)} ${a.login ?? a.email}  — ${a.note}`);
   if (accounts.registrationInvite) console.log(`  invite     ссылка регистрации: ${accounts.registrationInvite.url} (токен в accounts.json)`);
@@ -260,14 +308,7 @@ async function status() {
 }
 
 async function down() {
-  const pid = portalPid();
-  if (pid) {
-    // Убиваем только процесс, который мы сами запустили (группа detached).
-    try { process.kill(-pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGTERM"); } catch { /* уже нет */ } }
-    await delay(1500);
-    if (pidAlive(pid)) { try { process.kill(-pid, "SIGKILL"); } catch { /* ignore */ } }
-    log(`Портал остановлен (pid ${pid}).`);
-  }
+  await stopPortal();
   if (existsSync(join(PROJECT_DIR, "supabase/config.toml"))) {
     try { supabase("stop", "--project-id", PROJECT_ID, "--no-backup"); } catch (error) { log(`supabase stop: ${String(error.message).split("\n")[0]}`); }
   }

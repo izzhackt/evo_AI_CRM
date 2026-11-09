@@ -122,6 +122,7 @@ export function HomeView({
             <article className="pt-home-card pt-home-slot" data-slot="case">
               <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
               <h2 className="pt-home-card-title">{admission.pendingApplicationHeading}</h2>
+              <p className="pt-home-foot">{admission.pendingManagerNotice}</p>
               <p className="pt-home-card-action">
                 <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
                   {admission.pendingApplicationLink}

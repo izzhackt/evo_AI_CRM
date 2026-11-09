@@ -131,7 +131,8 @@ export default async function StudentPortalHomePage({
         news={news}
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         info={overviewResult.ok ? (
-          <OverviewView overview={overviewResult.value} pending={actor.caseState === "pending"} locale={locale} />
+          // Заявка на рассмотрении — одна, карточка «Ваша анкета» в HomeView (tier approved): здесь только задача EVO.
+          <OverviewView overview={overviewResult.value} locale={locale} />
         ) : null}
         list={(
           <>

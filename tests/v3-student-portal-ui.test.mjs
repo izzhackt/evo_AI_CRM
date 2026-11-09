@@ -324,14 +324,14 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
   // Без задачи команды блока «Что делает EVO» нет вовсе — пустую строку-заглушку
   // студент не читает; спокойное состояние — один заголовок без пояснения.
-  assert.match(overview, /\{evoAction && evoStatus \? \(\s*<div id=\{`evo-task-\$\{evoAction\.taskId\}`\} className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-title">\{strings\.evoHeading\}<\/h2>/u);
+  assert.match(overview, /if \(!\(evoAction && evoStatus\)\) return null;/u);
+  assert.match(overview, /<div id=\{`evo-task-\$\{evoAction\.taskId\}`\} className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-title">\{strings\.evoHeading\}<\/h2>/u);
   assert.doesNotMatch(overview, /evoEmpty|calmDoneLead/u);
   assert.equal(admissionRu.calmDone, "Сейчас действий от вас не требуется");
   // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
   // 03.11.2026: карточки «Ваш следующий шаг» нет. 08.11.2026 (пользователь:
   // «вот это можно убрать а те 2 на один этаж поставить»): плитки «Требуют
   // действия» тоже нет, на «Поступлении» две плитки в один ряд.
-  assert.match(overview, /className="pt-link"/u);
   assert.doesNotMatch(overview, /student-next-step|pt-adm-hero/u);
   assert.doesNotMatch(overview, /tile\.actions|studentAction\b|actionHref/u);
   assert.equal(admissionRu["tile.actions"], undefined);
@@ -384,11 +384,15 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   // PORT-6a: словарь pending-кабинета переехал из wording.portalPendingCabinet
   // в admission.pending* (RU байт-в-байт тот же — проверено ниже по значениям),
   // потому что этим экранам нужен KY, а staff-словарь не локализуется.
-  assert.match(overview, /pending\??: boolean/u);
+  // Заявка на рассмотрении — ровно одна карточка «Ваша анкета», в HomeView (tier approved); в OverviewView её нет,
+  // иначе на /portal два заголовка «Ваша анкета» (смоук строг).
+  const homeView = source("src/components/portal/home/HomeView.tsx");
+  assert.doesNotMatch(overview, /pendingApplication|pendingManager|pending\??: boolean|\bpending = /u);
+  assert.equal(homeView.match(/admission\.pendingApplicationHeading/gu)?.length, 1);
+  assert.match(homeView, /admission\.pendingManagerNotice/u);
+  assert.match(homeView, /href="\/apply\/status"/u);
   // 03.11.2026: без карточки куратора pending-кабинет получает одну карточку
   // «Ваша анкета» с тем же честным текстом и ссылкой на статус.
-  assert.match(overview, /\{pending \? \(\s*<div className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-card-title">\{strings\.pendingApplicationHeading\}<\/h2>/u);
-  assert.match(overview, /strings\.pendingManagerNotice/u);
   // Пояснение под «Ваша анкета» на экране не рисуется: заголовок и ссылка говорят сами.
   assert.doesNotMatch(overview, /strings\.pendingApplicationHint/u);
   assert.equal(admissionRu.pendingHeading, "Сопровождение");
@@ -397,9 +401,8 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   assert.equal(admissionRu.pendingApplicationHint, "Анкета, которую вы отправили и одобрила команда EVO.");
   assert.equal(admissionRu.pendingApplicationLink, "Открыть анкету");
   assert.equal(admissionRu.curatorHeading, "Ваш куратор");
-  assert.match(overview, /href="\/apply\/status"/u);
   assert.match(wording, /export const portalPendingCabinet = \{/u);
-  assert.match(portalPage, /pending=\{actor\.caseState === "pending"\}/u);
+  assert.doesNotMatch(portalPage, /pending=\{/u, "the page does not pass the pending flag to the overview any more");
 
   // /apply/status stays reachable for a pending cabinet instead of bouncing
   // straight back to /portal (the only place the submitted анкета can be

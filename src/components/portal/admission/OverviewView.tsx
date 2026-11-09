@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import type { Locale } from "@/lib/i18n-data";
 import { getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
@@ -45,12 +44,11 @@ export function stageLabel(stage: string, strings: AdmissionStrings): string | n
  * Заявка на рассмотрении и задача команды EVO на «Главной» (бывший обзор «Моего поступления», PORT-5d; разгрузка
  * 03.11.2026 по слову пользователя: карточка «Ваш следующий шаг», этап, куратор и ссылки на документы и начисления
  * сняты). Плитки с числом вузов и программ ушли в #1355: число стоит во вкладках «Мой список». Остаются только
- * заявка на рассмотрении (pending) и задача команды EVO, если она есть; без них блок не рисуется. E2 DTO из
+ * задача команды EVO, если она есть; без неё блок не рисуется. Заявка на рассмотрении (pending) — одна карточка «Ваша анкета» в HomeView, здесь её нет (иначе два заголовка). E2 DTO из
  * portal-source и null-семантика 189 прежние.
  */
-export function OverviewView({ overview, pending = false, locale }: {
+export function OverviewView({ overview, locale }: {
   overview: StudentPortalOverview | null;
-  pending?: boolean;
   locale: Locale;
 }) {
   const strings = getPortalStrings("admission", locale);
@@ -58,28 +56,17 @@ export function OverviewView({ overview, pending = false, locale }: {
   const evoDue = evoAction ? evoActionDueLabel(evoAction) : null;
   const evoStatus = evoAction ? evoActionStatus(evoAction, strings) : null;
 
-  if (!pending && !(evoAction && evoStatus)) return null;
+  if (!(evoAction && evoStatus)) return null;
   return (
     <section aria-label={strings.asideAria} className="pt-adm-info">
-      {pending ? (
-        <div className="pt-adm-info-card">
-          <h2 className="pt-adm-aside-card-title">{strings.pendingApplicationHeading}</h2>
-          <p className="pt-adm-aside-muted">{strings.pendingManagerNotice}</p>
-          <Link href="/apply/status" className="pt-link">
-            {strings.pendingApplicationLink} <span aria-hidden="true">→</span>
-          </Link>
+      <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-info-card">
+        <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
+        <p className="pt-adm-evo-title">{evoAction.title}</p>
+        <div className="pt-adm-evo-meta">
+          <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
+          {evoDue ? <span className="pt-adm-evo-due">{strings.dueTerm} {evoDue}</span> : null}
         </div>
-      ) : null}
-      {evoAction && evoStatus ? (
-        <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-info-card">
-          <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
-          <p className="pt-adm-evo-title">{evoAction.title}</p>
-          <div className="pt-adm-evo-meta">
-            <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
-            {evoDue ? <span className="pt-adm-evo-due">{strings.dueTerm} {evoDue}</span> : null}
-          </div>
-        </div>
-      ) : null}
+      </div>
     </section>
   );
 }

@@ -310,8 +310,8 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       await signIn(page, configuration.studentBaseUrl, configuration.studentEmail, configuration.studentPassword, "/portal");
       checkpoint("student_overview");
       await page.getByTestId("student-portal-shell").waitFor({ state: "visible", timeout: 30_000 });
-      // #1355: после входа открывается единственная «Главная»; её якорь — карточка «Что сделать сейчас» (у студента без сопровождения — «Ваша анкета»).
-      await page.getByRole("heading", { name: /^(Что сделать сейчас|Ваша анкета)$/u }).waitFor({ state: "visible", timeout: 30_000 });
+      // #1355: после входа открывается единственная «Главная»; её якорь — карточка «Что сделать сейчас» (у студента без сопровождения — «Ваша анкета»); «Моё поступление» — заголовок прежней сборки, чтобы ручной прогон по ней тоже проходил. Заголовок один на экране, Playwright строг: дубль уронит прогон.
+      await page.getByRole("heading", { name: /^(Что сделать сейчас|Ваша анкета|Моё поступление)$/u }).waitFor({ state: "visible", timeout: 30_000 });
       checkpoint("student_documents");
       await visit(page, `${configuration.studentBaseUrl}/portal/documents`);
       await page.getByRole("heading", { name: "Документы", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
@@ -322,7 +322,7 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
         // #1412: в навигации две ссылки «Главная» (рейл/меню и нижняя панель телефона) — кликаем видимую.
         page.getByRole("navigation", { name: "Разделы кабинета", exact: true }).locator('a[href="/portal"]:visible').click(),
       ]);
-      await page.getByRole("heading", { name: /^(Что сделать сейчас|Ваша анкета)$/u }).waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("heading", { name: /^(Что сделать сейчас|Ваша анкета|Моё поступление)$/u }).waitFor({ state: "visible", timeout: 30_000 });
       if (page.url() !== `${configuration.studentBaseUrl}/portal` || runtimeError) {
         throw new Error("student_navigation_failed");
       }

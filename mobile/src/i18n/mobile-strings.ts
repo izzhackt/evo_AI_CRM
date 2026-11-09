@@ -52,6 +52,13 @@ const ru = {
   "error.conflict": "Данные изменились. Обновите экран и повторите.",
   "error.rateLimited": "Слишком много запросов. Подождите немного.",
   "error.generic": "Не удалось выполнить действие. Повторите.",
+  "error.load": "Не удалось загрузить. Потяните вниз, чтобы обновить.",
+  "state.loading": "Загрузка",
+  "home.applicationHint": "Анкету можно посмотреть в одном из следующих обновлений.",
+  "timeline.stageTrackLabel": "Этап дела {n} из {total}: {stage}",
+  "timeline.pathExpandedHint": "Нажмите, чтобы свернуть или раскрыть шаг",
+  "timeline.openLink": "Открыть: {label}",
+  "admission.countLabel": "{label}: {count}",
   "config.errorTitle": "Приложение не настроено",
 } as const;
 
@@ -106,6 +113,13 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "error.conflict": "Маалыматтар өзгөрдү. Экранды жаңыртып, кайталаңыз.",
   "error.rateLimited": "Өтө көп суроо. Бир аз күтүңүз.",
   "error.generic": "Аракет аткарылган жок. Кайталаңыз.",
+  "error.load": "Жүктөлгөн жок. Жаңыртуу үчүн төмөн тартыңыз.",
+  "state.loading": "Жүктөлүүдө",
+  "home.applicationHint": "Анкетаны кийинки жаңыртуулардын биринде көрүүгө болот.",
+  "timeline.stageTrackLabel": "Иштин этабы: {total} этаптын {n}-этабы, {stage}",
+  "timeline.pathExpandedHint": "Кадамды жыйноо же ачуу үчүн басыңыз",
+  "timeline.openLink": "Ачуу: {label}",
+  "admission.countLabel": "{label}: {count}",
   "config.errorTitle": "Колдонмо ыңгайлаштырылган эмес",
 };
 

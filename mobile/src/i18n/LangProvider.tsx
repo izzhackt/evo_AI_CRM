@@ -4,12 +4,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import {
   DEFAULT_LANG,
   fillRecoveryString,
+  formatPortalString,
   getPasswordRecoveryStrings,
   getPortalStrings,
   isLang,
   mobileString,
   type Lang,
   type MobileStringKey,
+  type PortalNamespace,
+  type PortalStrings,
 } from "@/i18n";
 
 const STORAGE_KEY = "evo.lang";
@@ -19,6 +22,10 @@ type LangContextValue = Readonly<{
   setLang: (lang: Lang) => void;
   /** Строка приложения. */
   m: (key: MobileStringKey) => string;
+  /** Подстановка `{name}` в строку приложения или веба. */
+  format: typeof formatPortalString;
+  /** Словарь любого пространства имён веба (`home`, `admission`, `timeline`...). */
+  t: <N extends PortalNamespace>(namespace: N) => PortalStrings<N>;
   shell: ReturnType<typeof getPortalStrings<"shell">>;
   profile: ReturnType<typeof getPortalStrings<"profile">>;
   recovery: ReturnType<typeof getPasswordRecoveryStrings>;
@@ -48,6 +55,8 @@ export function LangProvider({ children, initial = DEFAULT_LANG }: { children: R
       lang,
       setLang,
       m: (key) => mobileString(lang, key),
+      format: formatPortalString,
+      t: (namespace) => getPortalStrings(namespace, lang),
       shell: getPortalStrings("shell", lang),
       profile: getPortalStrings("profile", lang),
       recovery: getPasswordRecoveryStrings(lang),

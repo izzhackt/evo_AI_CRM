@@ -1,6 +1,3 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { HomeScreen } from "@/features/home/HomeScreen";
 
-// TODO(M1): Главная: «Что сделать сейчас», выбор страны, путь, даты, новости.
-export default function HomeScreen() {
-  return <SectionPlaceholder id="home" />;
-}
+export default HomeScreen;

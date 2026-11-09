@@ -1,5 +1,6 @@
 import { X } from "lucide-react-native";
 import { useEffect, useState } from "react";
+import { StatusBar } from "expo-status-bar";
 import { Animated, Easing, Modal, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -31,6 +32,8 @@ export function MenuSheet({ visible, tier, active, onSelect, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      {/* Меню тёмное в любой теме: значки строки состояния на нём светлые (Android: окно Modal отдельное). */}
+      <StatusBar style="light" />
       <View style={{ flex: 1, flexDirection: "row" }}>
         <Animated.View
           style={{

@@ -11,6 +11,7 @@ import { loadErrorKey } from "@/api/queries";
 import { PORTAL_CASE_MESSAGE_BODY_LIMIT, type OutboxItem, type PortalCaseMessage } from "@/domain/inbox-model";
 import { dayKey, dayLabel, timeLabel } from "@/features/inbox/format";
 import { useChatThread } from "@/features/inbox/useChatThread";
+import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import { useLang } from "@/i18n/LangProvider";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -73,6 +74,7 @@ export function ChatScreen() {
   const router = useRouter();
   const strings = t("messages");
   const thread = useChatThread();
+  const keyboard = useKeyboardInset();
   const [draft, setDraft] = useState("");
   const entries = useMemo(
     () => buildEntries(thread.messages, thread.outbox, lang, strings.dayToday).reverse(),
@@ -89,9 +91,9 @@ export function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
-      style={{ flex: 1, backgroundColor: tokens.bg }}
+      style={{ flex: 1, backgroundColor: tokens.bg, paddingBottom: keyboard > 0 ? keyboard + insets.bottom : 0 }}
       testID="chat-screen"
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.line }}>
@@ -239,7 +241,7 @@ export function ChatScreen() {
           gap: 8,
           paddingHorizontal: 12,
           paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 8),
+          paddingBottom: keyboard > 0 ? 8 : Math.max(insets.bottom, 8),
           borderTopWidth: 1,
           borderTopColor: tokens.line,
           backgroundColor: tokens.bg,

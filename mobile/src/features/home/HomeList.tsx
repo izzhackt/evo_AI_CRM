@@ -70,7 +70,7 @@ function FavoriteCard({ item, pixels }: { item: PublishedUniversity; pixels: num
       testID={`fav-${item.id}`}
       style={{ flexGrow: 1, flexBasis: "40%", maxWidth: "50%", minWidth: 0, minHeight: MIN_TARGET, gap: 4 }}
     >
-      <RemotePhoto urls={universityUrls(item.content.photoKey, pixels)} height={FAV_PHOTO_HEIGHT} label={item.content.name} strings={universities} quiet />
+      <RemotePhoto urls={universityUrls(item.content.photoKey, pixels)} height={FAV_PHOTO_HEIGHT} label={item.content.name} strings={universities} quiet testID={`fav-photo-${item.id}`} />
       <Text variant="body" bold style={{ marginTop: 4 }}>
         {item.content.name}
       </Text>

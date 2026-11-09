@@ -264,9 +264,10 @@ describe("Главная: «Мой список»", () => {
     expect(within(first).getByText("Куала-Лумпур · Малайзия")).toBeTruthy();
     // фото: адрес только из нашего бакета (render/image), у вуза без фото картинки нет и надписи нет
     // у карточки с фото кроме кнопки есть картинка (та же подпись), у карточки без фото - только кнопка
-    const labelled = screen.getAllByLabelText("Университет 1");
-    expect(labelled).toHaveLength(2);
-    const source = (labelled.find((node) => (node.props as { source?: unknown }).source !== undefined)?.props as { source: { uri: string } | { uri: string }[] }).source;
+    // Фото в карточке скрыто от читалки (название читает сама карточка), поэтому ищем узел с source.
+    expect(screen.getAllByLabelText("Университет 1")).toHaveLength(1);
+    const photo = screen.getAllByTestId(/^fav-photo-/, { includeHiddenElements: true })[0];
+    const source = (photo.props as { source: { uri: string } | { uri: string }[] }).source;
     const uri = [source].flat()[0].uri;
     expect(uri).toMatch(/^http:\/\/localhost:46421\/storage\/v1\/render\/image\/public\/portal-university-photos\/sunway\.jpg\?/);
     expect(screen.getAllByLabelText("Университет 2")).toHaveLength(1);

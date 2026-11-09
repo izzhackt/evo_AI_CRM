@@ -30,7 +30,7 @@ function supabaseUrl(): string {
 }
 
 /** Фото: копия нужной ширины, при отказе оригинал, при отказе обоих - заглушка (`quiet` - без значка и надписи). */
-export function RemotePhoto({ urls, height, label, strings, rounded = true, quiet = false }: { urls: PhotoUrls | null; height: number; label: string; strings: UniversityStrings; rounded?: boolean; quiet?: boolean }) {
+export function RemotePhoto({ urls, height, label, strings, rounded = true, quiet = false, testID }: { urls: PhotoUrls | null; height: number; label: string; strings: UniversityStrings; rounded?: boolean; quiet?: boolean; testID?: string }) {
   const { tokens } = useTheme();
   const [stage, setStage] = useState<"sized" | "original" | "failed">("sized");
   const uri = urls === null ? null : stage === "sized" ? (urls.sized ?? urls.original) : stage === "original" ? urls.original : null;
@@ -60,6 +60,7 @@ export function RemotePhoto({ urls, height, label, strings, rounded = true, quie
       accessibilityLabel={quiet ? undefined : label}
       accessibilityElementsHidden={quiet}
       importantForAccessibility={quiet ? "no-hide-descendants" : "auto"}
+      testID={testID}
       contentFit="cover"
       transition={150}
       onError={() => setStage((s) => (s === "sized" && urls?.sized ? "original" : "failed"))}

@@ -14,15 +14,13 @@ name: Скриншоты для магазинов
     timeout: 30000
 - takeScreenshot: 2-documents
 - tapOn:
-    id: tab-messages
-- tapOn:
-    id: inbox-chat
+    id: tab-overview
 - extendedWaitUntil:
     visible:
-      id: chat-input
-    timeout: 20000
+      id: title-overview
+    timeout: 30000
 - waitForAnimationToEnd
-- takeScreenshot: 3-chat
+- takeScreenshot: 3-overview
 - runFlow:
     file: ../subflows/open-section.yaml
     env:

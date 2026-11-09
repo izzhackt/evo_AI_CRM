@@ -1,5 +1,5 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { EnglishScreen } from "@/features/learning/english/EnglishScreen";
 
-export default function englishScreen() {
-  return <SectionPlaceholder id="english" />;
+export default function EnglishRoute() {
+  return <EnglishScreen />;
 }

@@ -7174,6 +7174,12 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
     flex-grow: 1;
   }
 
+  /* Короткая карточка «Написать EVO» не растягивается до низа колонки (#1356): пустая плашка ничего не говорит. */
+  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child,
+  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child > * {
+    flex-grow: 0;
+  }
+
   .pt-home-main,
   .pt-home-side {
     display: flex;

@@ -29,12 +29,16 @@ function supabaseUrl(): string {
   return getConfig().supabaseUrl;
 }
 
-/** Фото: копия нужной ширины, при отказе оригинал, при отказе обоих - заглушка. */
-export function RemotePhoto({ urls, height, label, strings, rounded = true }: { urls: PhotoUrls | null; height: number; label: string; strings: UniversityStrings; rounded?: boolean }) {
+/** Фото: копия нужной ширины, при отказе оригинал, при отказе обоих - заглушка (`quiet` - без значка и надписи). */
+export function RemotePhoto({ urls, height, label, strings, rounded = true, quiet = false }: { urls: PhotoUrls | null; height: number; label: string; strings: UniversityStrings; rounded?: boolean; quiet?: boolean }) {
   const { tokens } = useTheme();
   const [stage, setStage] = useState<"sized" | "original" | "failed">("sized");
   const uri = urls === null ? null : stage === "sized" ? (urls.sized ?? urls.original) : stage === "original" ? urls.original : null;
   const radius = rounded ? tokens.radiusItem : 0;
+  if (uri === null && quiet) {
+    // Маленькая карточка («Мои вузы» на Главной): серая подложка без надписи, название стоит под ней (как на вебе).
+    return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ height, borderRadius: radius, backgroundColor: tokens.skeleton }} />;
+  }
   if (uri === null) {
     return (
       <View

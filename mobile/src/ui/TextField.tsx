@@ -38,6 +38,7 @@ export function TextField({ label, secure = false, showLabel = "", hideLabel = "
         <TextInput
           {...input}
           accessibilityLabel={label}
+          accessibilityHint={hint}
           secureTextEntry={secure && !visible}
           onFocus={(e) => {
             setFocused(true);

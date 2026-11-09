@@ -29,30 +29,46 @@ export class LargeSecureStore {
     this.deps = deps;
   }
 
-  private async encrypt(key: string, value: string): Promise<string> {
+  private encrypt(value: string): { keyHex: string; cipherHex: string } {
     const encryptionKey = this.deps.randomBytes(256 / 8);
     const cipher = new aesjs.ModeOfOperation.ctr(encryptionKey, new aesjs.Counter(1));
     const encryptedBytes = cipher.encrypt(aesjs.utils.utf8.toBytes(value));
-    await this.deps.secrets.setItemAsync(key, aesjs.utils.hex.fromBytes(encryptionKey));
-    return aesjs.utils.hex.fromBytes(encryptedBytes);
+    return { keyHex: aesjs.utils.hex.fromBytes(encryptionKey), cipherHex: aesjs.utils.hex.fromBytes(encryptedBytes) };
   }
 
-  private async decrypt(key: string, value: string): Promise<string | null> {
-    const encryptionKeyHex = await this.deps.secrets.getItemAsync(key);
-    if (!encryptionKeyHex) return null;
-    const cipher = new aesjs.ModeOfOperation.ctr(aesjs.utils.hex.toBytes(encryptionKeyHex), new aesjs.Counter(1));
-    return aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(value)));
+  /** Повреждённые данные или несовпадение ключа -> null (сессия просто считается пустой). */
+  private decrypt(keyHex: string, value: string): string | null {
+    try {
+      const cipher = new aesjs.ModeOfOperation.ctr(aesjs.utils.hex.toBytes(keyHex), new aesjs.Counter(1));
+      return aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(value)));
+    } catch {
+      return null;
+    }
   }
 
   async getItem(key: string): Promise<string | null> {
     const encrypted = await this.deps.bulk.getItem(key);
     if (!encrypted) return null;
-    return this.decrypt(key, encrypted);
+    const keyHex = await this.deps.secrets.getItemAsync(key);
+    const plain = keyHex ? this.decrypt(keyHex, encrypted) : null;
+    if (plain === null) {
+      // Шифротекст без ключа или повреждённый: убираем, чтобы не застрять на нём.
+      await this.removeItem(key).catch(() => undefined);
+      return null;
+    }
+    return plain;
   }
 
+  /**
+   * Порядок записи: сначала шифротекст в AsyncStorage, потом ключ в SecureStore.
+   * Если оборвётся между шагами, в хранилище лежит шифротекст под старым ключом:
+   * getItem увидит несовпадение, очистит запись, а сессия запросится заново.
+   * Старый ключ не теряется до успеха обеих записей.
+   */
   async setItem(key: string, value: string): Promise<void> {
-    const encrypted = await this.encrypt(key, value);
-    await this.deps.bulk.setItem(key, encrypted);
+    const { keyHex, cipherHex } = this.encrypt(value);
+    await this.deps.bulk.setItem(key, cipherHex);
+    await this.deps.secrets.setItemAsync(key, keyHex);
   }
 
   async removeItem(key: string): Promise<void> {

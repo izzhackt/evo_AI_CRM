@@ -112,7 +112,11 @@ function networkErrorKey(error: unknown): NetworkErrorKey | null {
 
 async function routeAccessPending(deps: AccessDeps): Promise<SessionState> {
   if (await deps.authUserIsDeleted()) {
-    await deps.signOutLocal();
+    try {
+      await deps.signOutLocal();
+    } catch {
+      // Локальный выход не удался: всё равно показываем вход с пометкой, а не «ждём доступ».
+    }
     return { kind: "signedOut", accountDeleted: true };
   }
   return { kind: "accessPending" };

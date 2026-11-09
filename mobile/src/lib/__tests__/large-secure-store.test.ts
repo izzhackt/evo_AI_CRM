@@ -45,4 +45,25 @@ describe("LargeSecureStore", () => {
     secrets.data.clear();
     await expect(store.getItem("k")).resolves.toBeNull();
   });
+
+  it("повреждённый шифротекст: null и запись очищена", async () => {
+    const { store, secrets, bulk } = make();
+    await store.setItem("k", "v");
+    bulk.data.set("k", "zz-not-hex");
+    await expect(store.getItem("k")).resolves.toBeNull();
+    expect(bulk.data.size + secrets.data.size).toBe(0);
+  });
+
+  it("шифротекст пишется раньше ключа: сбой записи ключа не оставляет нового ключа без шифротекста", async () => {
+    const { store, secrets, bulk } = make();
+    await store.setItem("k", "old");
+    const oldKey = secrets.data.get("k");
+    const failing = new LargeSecureStore({
+      secrets: { ...secrets, setItemAsync: async () => { throw new Error("boom"); } },
+      bulk,
+      randomBytes: (len) => new Uint8Array(len).fill(7),
+    });
+    await expect(failing.setItem("k", "new")).rejects.toThrow();
+    expect(secrets.data.get("k")).toBe(oldKey);
+  });
 });

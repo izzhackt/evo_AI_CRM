@@ -142,4 +142,8 @@ describe("resolveAccess", () => {
     expect(state).toEqual({ kind: "signedOut", accountDeleted: true });
     expect(d.signOutLocal).toHaveBeenCalledTimes(1);
   });
+  it("удалённый аккаунт: сбой локального выхода всё равно даёт signedOut", async () => {
+    const d = deps({ currentActorAuthority: async () => authority("admin"), authUserIsDeleted: async () => true, signOutLocal: async () => { throw new Error("storage"); } });
+    await expect(resolveAccess(d.value)).resolves.toEqual({ kind: "signedOut", accountDeleted: true });
+  });
 });

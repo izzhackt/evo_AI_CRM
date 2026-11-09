@@ -5,7 +5,10 @@
 //   - импортирует next, next/*, server-only, react-dom, react-dom/*;
 //   - подключает пакет, которого нет в mobile/package.json;
 //   - тянет CSS или файл вне <repo>/src;
-//   - содержит директиву "use server" или обращается к DOM (document, window, localStorage...).
+//   - содержит директиву "use server" или обращается к DOM (document, window, localStorage,
+//     globalThis/self/global...);
+//   - вызывает import()/require() не со строковым литералом (в т.ч. шаблонной строкой):
+//     такую ссылку нельзя проверить статически.
 // Импорты `import type` / `export type` стираются при сборке и не обходятся.
 //   node scripts/check-shared-imports.mjs [--root <repo>]
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -15,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"];
 const FORBIDDEN_PACKAGES = [/^next($|\/)/, /^server-only$/, /^react-dom($|\/)/];
-const DOM_PATTERN = /(^|[^\w.$])(document|window|localStorage|sessionStorage|navigator|HTMLElement)\b(?!\s*:)/;
+const DOM_PATTERN = /(^|[^\w.$])(document|window|localStorage|sessionStorage|navigator|HTMLElement|globalThis|self|global)\b(?!\s*:)/;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootArg = process.argv.indexOf("--root");
@@ -47,6 +50,12 @@ export function moduleSpecifiers(code) {
   }
   for (const m of text.matchAll(/\b(?:require|import)\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g)) found.push(m[2]);
   return found;
+}
+
+/** import(...)/require(...), где аргумент не простой строковый литерал. */
+export function hasNonLiteralLoad(code) {
+  const text = code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  return /(?<![\w$.])(?:require|import)\s*\(\s*(?!(['"])[^'"\n]+\1\s*\))/.test(text);
 }
 
 function listFiles(dir) {
@@ -113,6 +122,9 @@ function checkWebFile(file, chain) {
   }
   if (DOM_PATTERN.test(stripNoise(code))) {
     problems.push(`${at}\n    обращение к DOM (document/window/localStorage/navigator)`);
+  }
+  if (hasNonLiteralLoad(code)) {
+    problems.push(`${at}\n    import()/require() не со строковым литералом: ссылку нельзя проверить статически`);
   }
   for (const spec of moduleSpecifiers(code)) visitSpec(file, spec, [...chain, rel(file)]);
 }

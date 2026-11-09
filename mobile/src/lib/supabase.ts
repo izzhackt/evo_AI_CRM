@@ -8,6 +8,27 @@ import { getConfig } from "@/config";
 import { LargeSecureStore } from "@/lib/large-secure-store";
 import type { RpcTransport } from "@/lib/rpc";
 
+/** Транспорту нужен предел ожидания: зависший запрос должен стать ошибкой обрыва, а не вечной загрузкой. */
+export const TRANSPORT_TIMEOUT_MS = 20_000;
+
+export function fetchWithTimeout(baseFetch: typeof fetch = fetch, timeoutMs: number = TRANSPORT_TIMEOUT_MS): typeof fetch {
+  // AbortSignal.timeout/any в Hermes нет, поэтому вручную через AbortController.
+  return async (input, init) => {
+    const controller = new AbortController();
+    const outer = init?.signal;
+    const onOuterAbort = () => controller.abort();
+    if (outer?.aborted) controller.abort();
+    else outer?.addEventListener("abort", onOuterAbort);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await baseFetch(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+      outer?.removeEventListener("abort", onOuterAbort);
+    }
+  };
+}
+
 export type AppSupabase = SupabaseClient<any, "platform", "platform">;
 
 let client: AppSupabase | undefined;
@@ -25,6 +46,7 @@ export function getSupabase(): AppSupabase {
         detectSessionInUrl: false,
       },
       db: { schema: "platform" },
+      global: { fetch: fetchWithTimeout() },
     });
   }
   return client;

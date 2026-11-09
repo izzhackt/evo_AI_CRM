@@ -143,9 +143,14 @@ export function createWrite(
   return new FrozenWrite(name, args, id);
 }
 
+/** Повтор безопасен: запись идемпотентна по p_request_id. Обрыв и шлюзовые 502/503/504. */
+function isRetryable(error: RpcError): boolean {
+  return error.kind === "transport" || (error.kind === "server" && (error.status === 502 || error.status === 503 || error.status === 504));
+}
+
 /**
  * Отправить запись; при обрыве повторить ровно тот же замороженный запрос
- * (до `retries` раз). Конфликт, отказ и прочее не повторяются.
+ * (до `retries` раз). Повторяются обрыв и 502/503/504; конфликт, отказ, 500 и прочее нет.
  */
 export async function rpcWrite<T = unknown>(
   transport: RpcTransport,
@@ -157,7 +162,7 @@ export async function rpcWrite<T = unknown>(
     try {
       return await write.send<T>(transport);
     } catch (error) {
-      if (!(error instanceof RpcError) || error.kind !== "transport" || attempt >= retries) throw error;
+      if (!(error instanceof RpcError) || !isRetryable(error) || attempt >= retries) throw error;
       await options.wait?.(attempt);
     }
   }

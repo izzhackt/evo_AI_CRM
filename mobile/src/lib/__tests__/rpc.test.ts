@@ -57,6 +57,24 @@ describe("повтор после обрыва", () => {
     expect(calls).toBe(2);
   });
 
+  it.each([502, 503, 504])("повторяет шлюзовую ошибку %i тем же запросом, а 500 не повторяет", async (status) => {
+    const write = createWrite("w", {}, { newId: () => "id" });
+    let calls = 0;
+    const gateway: RpcTransport = () => {
+      calls += 1;
+      return calls === 1 ? Promise.resolve({ data: null, error: { code: "" }, status }) : ok(1);
+    };
+    await expect(rpcWrite(gateway, write)).resolves.toBe(1);
+    expect(calls).toBe(2);
+    let n = 0;
+    const internal: RpcTransport = () => {
+      n += 1;
+      return Promise.resolve({ data: null, error: { code: "" }, status: 500 });
+    };
+    await expect(rpcWrite(internal, write)).rejects.toMatchObject({ kind: "server" });
+    expect(n).toBe(1);
+  });
+
   it("не повторяет конфликт и отказ", async () => {
     const write = createWrite("w", {}, { newId: () => "id" });
     let calls = 0;

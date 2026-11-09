@@ -38,6 +38,12 @@ describe("страж общих импортов", () => {
     ["react-dom", 'import { createPortal } from "react-dom";\nexport const x = createPortal;'],
     ["DOM", "export const w = window.innerWidth;"],
     ["use server", '"use server";\nexport async function a() {}'],
+    ["globalThis", "export const w = globalThis.localStorage;"],
+    ["self", "export const w = self.location;"],
+    ["global", "export const w = global.process;"],
+    ["require с переменной", "const n = 'next/headers';\nexport const x = require(n);"],
+    ["import() с шаблонной строкой", "const n = 'a';\nexport const x = () => import(`./${n}`);"],
+    ["import() с выражением", "export const x = (n: string) => import(n);"],
   ])("падает на %s", (_name, body) => {
     const root = fixture({ "src/lib/bad.ts": body, "mobile/src/a.ts": 'import { x } from "@web/lib/bad";\nexport default x;' });
     try {
@@ -59,6 +65,21 @@ describe("страж общих импортов", () => {
       const result = run("check-shared-imports.mjs", "--root", root);
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/ok\.ts -> src\/lib\/deep\.ts/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("не путает свойства и литералы с динамической загрузкой", () => {
+    const root = fixture({
+      "src/lib/pure.ts": 'export const a = obj.import(x);\nexport const b = () => import("./other");\nexport const c = "self"; // global\nexport const d = this.self2;',
+      "src/lib/other.ts": "export const o = 1;",
+      "mobile/src/a.ts": 'import { a } from "@web/lib/pure";\nexport default a;',
+    });
+    try {
+      const result = run("check-shared-imports.mjs", "--root", root);
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

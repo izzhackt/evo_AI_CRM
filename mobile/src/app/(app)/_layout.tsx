@@ -41,6 +41,10 @@ export default function AppLayout() {
             organizationId: session.authority.organizationId,
             portalBaseUrl: getConfig().portalBaseUrl,
             getAccessToken: async () => (await getSupabase().auth.getSession()).data.session?.access_token ?? null,
+            refreshAccessToken: async () => {
+              const { data, error } = await getSupabase().auth.refreshSession();
+              return error ? null : (data.session?.access_token ?? null);
+            },
           }
         : null,
     [session],

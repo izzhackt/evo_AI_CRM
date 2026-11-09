@@ -19,13 +19,38 @@ export function downloadPath(target: DownloadTarget): string {
     : `/api/portal/case-files/${target.fileKind}/${encodeURIComponent(target.fileId)}/download`;
 }
 
+type FetchInit = { method: "GET"; headers: Record<string, string>; redirect: "manual"; signal?: AbortSignal };
+type FetchResult = Pick<Response, "status" | "ok" | "headers" | "arrayBuffer">;
+
 export type DownloadDeps = Readonly<{
   baseUrl: string;
   getToken: () => Promise<string | null>;
-  fetchImpl: (input: string, init: { method: "GET"; headers: Record<string, string>; signal?: AbortSignal }) => Promise<Pick<Response, "status" | "ok" | "headers" | "arrayBuffer">>;
+  /** Обновить сессию (один раз при 401) и вернуть новый токен; `null`: обновить не удалось. */
+  refreshToken?: () => Promise<string | null>;
+  /** Запрос без автоматического перехода по перенаправлениям (`redirect: "manual"`). */
+  fetchImpl: (input: string, init: FetchInit) => Promise<FetchResult>;
   /** Записать байты в кэш приложения и вернуть file:// URI. */
   writeFile: (name: string, bytes: Uint8Array) => Promise<string>;
 }>;
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+function originOf(url: string): string | null {
+  const match = /^(https?):\/\/([^/?#]+)/i.exec(url);
+  return match ? `${match[1]!.toLowerCase()}://${match[2]!.toLowerCase()}` : null;
+}
+
+/**
+ * Куда ведёт перенаправление портала: абсолютный http(s) адрес ДРУГОГО происхождения, чем портал.
+ * Подписанный адрес хранилища несёт доступ в самом адресе; Bearer на него уходить не должен.
+ */
+export function storageTarget(location: string | null, portalBase: string): string | null {
+  if (!location) return null;
+  const target = originOf(location);
+  const portal = originOf(portalBase);
+  if (!target || !portal || target === portal) return null;
+  return location;
+}
 
 function contentTypeMatches(contentType: string | null, mimeType: string): boolean {
   const type = (contentType ?? "").toLowerCase().split(";")[0]?.trim() ?? "";
@@ -33,17 +58,40 @@ function contentTypeMatches(contentType: string | null, mimeType: string): boole
   return type === mimeType.toLowerCase() || type === "application/octet-stream" || type === "binary/octet-stream";
 }
 
+/**
+ * Два шага. 1) Портал с Bearer и `redirect: "manual"`: ответ 307 с `Location` на подписанный адрес
+ * хранилища (прочитать адрес можно, только не идя по нему сами). 2) Хранилище БЕЗ Authorization.
+ * Bearer уходит только на портал; на 401 сессия обновляется один раз.
+ */
 export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, fileName: string, mimeType: string, signal?: AbortSignal): Promise<DownloadResult> {
-  const token = await deps.getToken();
+  let token = await deps.getToken();
   if (!token) return { ok: false, error: "docs.errorSession" };
-  let response: Awaited<ReturnType<DownloadDeps["fetchImpl"]>>;
+  const portalUrl = `${deps.baseUrl}${downloadPath(target)}`;
+  const hop = (bearer: string) => deps.fetchImpl(portalUrl, { method: "GET", headers: { Authorization: `Bearer ${bearer}`, Accept: "*/*" }, redirect: "manual", signal });
+  let response: FetchResult;
   try {
-    response = await deps.fetchImpl(`${deps.baseUrl}${downloadPath(target)}`, { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "*/*" }, signal });
+    response = await hop(token);
+    if (response.status === 401 && deps.refreshToken) {
+      token = await deps.refreshToken();
+      if (!token) return { ok: false, error: "docs.errorSession" };
+      response = await hop(token);
+    }
   } catch {
     return { ok: false, error: "errorNetwork" };
   }
   if (response.status === 401) return { ok: false, error: "docs.errorSession" };
   if (response.status === 403) return { ok: false, error: "docs.downloadForbidden" };
+  if (REDIRECT_STATUSES.has(response.status)) {
+    const storageUrl = storageTarget(response.headers.get("location"), deps.baseUrl);
+    if (!storageUrl) return { ok: false, error: "docs.downloadFailed" };
+    try {
+      // Второй шаг: подписанный адрес, никаких заголовков доступа.
+      response = await deps.fetchImpl(storageUrl, { method: "GET", headers: { Accept: "*/*" }, redirect: "manual", signal });
+    } catch {
+      return { ok: false, error: "errorNetwork" };
+    }
+    if (REDIRECT_STATUSES.has(response.status)) return { ok: false, error: "docs.downloadFailed" };
+  }
   if (!response.ok) return { ok: false, error: "docs.downloadUnavailable" };
   if (!contentTypeMatches(response.headers.get("content-type"), mimeType)) return { ok: false, error: "docs.downloadFailed" };
   let bytes: Uint8Array;

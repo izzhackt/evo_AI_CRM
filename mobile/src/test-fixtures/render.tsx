@@ -29,6 +29,7 @@ export function testApi(transport: RpcTransport, overrides: Partial<PortalApi> =
     organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     portalBaseUrl: "https://portal.example.test",
     getAccessToken: async () => "synthetic-token",
+    refreshAccessToken: async () => null,
     ...overrides,
   };
 }

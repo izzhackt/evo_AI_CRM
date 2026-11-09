@@ -32,7 +32,7 @@ function CaseFileRow({ file, io, first }: { file: StudentPortalCaseFile; io: Doc
     if (busy) return;
     setBusy(true);
     setError(null);
-    const result = await downloadFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken), { kind: "case-file", fileKind: file.kind, fileId: file.fileId }, file.originalFilename, file.declaredMimeType);
+    const result = await downloadFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), { kind: "case-file", fileKind: file.kind, fileId: file.fileId }, file.originalFilename, file.declaredMimeType);
     if (result.ok) {
       try {
         await io.openLocalFile(result.uri, file.declaredMimeType);

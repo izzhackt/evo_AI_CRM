@@ -25,6 +25,8 @@ export type PortalApi = Readonly<{
   portalBaseUrl: string;
   /** Актуальный access token сессии (supabase-js обновляет его сам) или null без сессии. */
   getAccessToken: () => Promise<string | null>;
+  /** Обновить сессию один раз (на 401 загрузки и скачивания) и вернуть новый токен; `null`: не вышло. */
+  refreshAccessToken: () => Promise<string | null>;
 }>;
 
 const PortalApiContext = createContext<PortalApi | null>(null);

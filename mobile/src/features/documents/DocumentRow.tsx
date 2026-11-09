@@ -34,7 +34,7 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
   const api = usePortalApi();
   const invalidate = useInvalidateAfterUpload();
   const strings = t("admission");
-  const [controller] = useState(() => new UploadController(document.documentSlotId, io.createUploadSend(api.portalBaseUrl, api.getAccessToken), randomUUID, invalidate));
+  const [controller] = useState(() => new UploadController(document.documentSlotId, io.createUploadSend(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), randomUUID, invalidate));
   const upload = useSyncExternalStore(controller.subscribe, controller.getState);
   const [sheet, setSheet] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -78,7 +78,7 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
     setDownloading(true);
     setNotice(null);
     const mime = document.declaredMimeType ?? "application/pdf";
-    const result = await downloadFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken), { kind: "version", versionId: document.documentVersionId }, document.originalFilename ?? "document", mime);
+    const result = await downloadFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), { kind: "version", versionId: document.documentVersionId }, document.originalFilename ?? "document", mime);
     if (result.ok) {
       try {
         await io.openLocalFile(result.uri, mime);

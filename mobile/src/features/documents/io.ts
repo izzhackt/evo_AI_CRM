@@ -8,8 +8,8 @@ import type { UploadSend } from "@/features/documents/upload-controller";
 
 export type DocumentsIo = Readonly<{
   pick: (source: PickSource) => Promise<PickOutcome>;
-  createUploadSend: (baseUrl: string, getToken: () => Promise<string | null>) => UploadSend;
-  createDownloadDeps: (baseUrl: string, getToken: () => Promise<string | null>) => DownloadDeps;
+  createUploadSend: (baseUrl: string, getToken: () => Promise<string | null>, refreshToken?: () => Promise<string | null>) => UploadSend;
+  createDownloadDeps: (baseUrl: string, getToken: () => Promise<string | null>, refreshToken?: () => Promise<string | null>) => DownloadDeps;
   openLocalFile: (uri: string, mimeType: string) => Promise<void>;
 }>;
 

@@ -85,3 +85,93 @@ describe("скачивание", () => {
     await expect(downloadFile(d.value, { kind: "version", versionId: VERSION }, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
   });
 });
+
+describe("два шага: Bearer не попадает на подписанный адрес хранилища", () => {
+  const SIGNED = "https://storage.example.test/object/sign/docs/a.pdf?token=synthetic-signed";
+  type Hop = { url: string; headers: Record<string, string>; redirect: string };
+  function hops(script: (url: string, call: number) => Partial<Awaited<ReturnType<DownloadDeps["fetchImpl"]>>> & { status: number }, over: Partial<DownloadDeps> = {}) {
+    const seen: Hop[] = [];
+    const written: string[] = [];
+    const value: DownloadDeps = {
+      baseUrl: BASE,
+      getToken: async () => "synthetic-token",
+      fetchImpl: async (url, init) => {
+        seen.push({ url, headers: init.headers, redirect: init.redirect });
+        const r = script(url, seen.length);
+        return { ok: r.status >= 200 && r.status < 300, headers: new Headers({ "content-type": "application/pdf" }), arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer, ...r };
+      },
+      writeFile: async (name) => {
+        written.push(name);
+        return `file:///cache/${name}`;
+      },
+      ...over,
+    };
+    return { value, seen, written };
+  }
+  const redirectTo = (location: string | null) => ({ status: 307, headers: new Headers(location ? { location } : {}) });
+  const target = { kind: "version", versionId: VERSION } as const;
+
+  it("портал: Bearer и redirect manual; хранилище: без Authorization", async () => {
+    const h = hops((url) => (url.startsWith(BASE) ? redirectTo(SIGNED) : { status: 200 }));
+    await expect(downloadFile(h.value, target, "a.pdf", "application/pdf")).resolves.toMatchObject({ ok: true });
+    expect(h.seen).toHaveLength(2);
+    expect(h.seen[0]).toMatchObject({ url: `${BASE}/api/portal/document-versions/${VERSION}/download`, redirect: "manual" });
+    expect(h.seen[0]!.headers.Authorization).toBe("Bearer synthetic-token");
+    expect(h.seen[1]!.url).toBe(SIGNED);
+    expect(Object.keys(h.seen[1]!.headers).map((k) => k.toLowerCase())).not.toContain("authorization");
+    // нигде, кроме портала, токена нет
+    expect(JSON.stringify(h.seen.slice(1))).not.toContain("synthetic-token");
+  });
+
+  it("Location на сам портал (в том числе другой путь) не принимается, хранилище не вызывается", async () => {
+    const h = hops(() => redirectTo(`${BASE}/somewhere`));
+    await expect(downloadFile(h.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    expect(h.seen).toHaveLength(1);
+  });
+
+  it.each([[null], ["/relative/path"], ["ftp://storage.example.test/x"]])("Location %s не годится", async (location) => {
+    const h = hops(() => redirectTo(location));
+    await expect(downloadFile(h.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    expect(h.seen).toHaveLength(1);
+  });
+
+  it("второй шаг сам перенаправляет: это ошибка, дальше не идём", async () => {
+    const h = hops((url) => (url.startsWith(BASE) ? redirectTo(SIGNED) : redirectTo("https://evil.example.test/x")));
+    await expect(downloadFile(h.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    expect(h.seen).toHaveLength(2);
+  });
+
+  it("хранилище отказывает: «файл недоступен», запись не пишется", async () => {
+    const h = hops((url) => (url.startsWith(BASE) ? redirectTo(SIGNED) : { status: 403 }));
+    await expect(downloadFile(h.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadUnavailable" });
+    expect(h.written).toHaveLength(0);
+  });
+
+  it("401: сессия обновляется один раз, повтор с новым токеном", async () => {
+    let first = true;
+    const refreshToken = jest.fn(async () => "renewed-token");
+    const h = hops((url) => {
+      if (!url.startsWith(BASE)) return { status: 200 };
+      if (first) {
+        first = false;
+        return { status: 401 };
+      }
+      return redirectTo(SIGNED);
+    }, { refreshToken });
+    await expect(downloadFile(h.value, target, "a.pdf", "application/pdf")).resolves.toMatchObject({ ok: true });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    expect(h.seen[0]!.headers.Authorization).toBe("Bearer synthetic-token");
+    expect(h.seen[1]!.headers.Authorization).toBe("Bearer renewed-token");
+    expect(Object.keys(h.seen[2]!.headers).map((k) => k.toLowerCase())).not.toContain("authorization");
+  });
+
+  it("401 дважды: ошибка сессии, без третьей попытки; обновить не вышло: ошибка сессии", async () => {
+    const refreshToken = jest.fn(async () => "renewed-token");
+    const twice = hops(() => ({ status: 401 }), { refreshToken });
+    await expect(downloadFile(twice.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.errorSession" });
+    expect(twice.seen).toHaveLength(2);
+    const none = hops(() => ({ status: 401 }), { refreshToken: async () => null });
+    await expect(downloadFile(none.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.errorSession" });
+    expect(none.seen).toHaveLength(1);
+  });
+});

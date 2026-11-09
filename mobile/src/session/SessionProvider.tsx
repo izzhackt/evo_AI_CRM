@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { createPortalAuthApi, type PortalAuthApi, type SignInFailure } from "@/api/portal-auth";
 import { clearPerUserUiState } from "@/features/admission/useOpenSteps";
+import { clearDownloadCache } from "@/features/documents/download-cache";
 import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
@@ -40,6 +41,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [mustSetPassword, setMustSetPassword] = useState(false);
   const [ready, setReady] = useState(false);
   const stateRef = useRef(state);
+  // Запуск приложения: файлы документов прошлой сессии в кэше не нужны.
+  useEffect(() => {
+    void clearDownloadCache();
+  }, []);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -87,6 +92,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             return;
           case "SIGNED_OUT":
             void clearPerUserUiState();
+            void clearDownloadCache();
             runId.current += 1;
             forcedMustSetRef.current = false;
             setMustSetPassword(false);
@@ -131,6 +137,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await supabase.auth.signOut({ scope: "local" });
     await clearPerUserUiState();
+    await clearDownloadCache();
     runId.current += 1;
     forcedMustSetRef.current = false;
     setMustSetPassword(false);

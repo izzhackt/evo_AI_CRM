@@ -17,7 +17,6 @@ import { useOwnLogin, useOwnProfile, useSaveLanguage } from "@/features/profile/
 import { useLang } from "@/i18n/LangProvider";
 import type { Lang } from "@/i18n";
 import { useSession } from "@/session/SessionProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme, type ThemeChoice } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardHead, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
@@ -86,7 +85,7 @@ export function ProfileScreen() {
   };
 
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing}>
+    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing}>
       <Text variant="display" accessibilityRole="header" style={{ marginBottom: 16 }}>
         {web.title}
       </Text>

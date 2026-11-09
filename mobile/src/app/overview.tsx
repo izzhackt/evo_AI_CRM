@@ -5,12 +5,10 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 
+import { overviewRedirectParams } from "@/domain/home-model";
+
 export default function OverviewRedirect() {
   const { path, view } = useLocalSearchParams<{ path?: string; view?: string }>();
   const [at] = useState(() => String(Date.now()));
-  const params: Record<string, string> = {};
-  if (path === "open") params.path = "open";
-  params.at = at;
-  if (view === "programs") params.list = "programs";
-  return <Redirect href={{ pathname: "/home", params }} />;
+  return <Redirect href={{ pathname: "/home", params: overviewRedirectParams({ path, view }, at) }} />;
 }

@@ -13,7 +13,7 @@ import { nearestUniversityIntake, universityDateLabel, universityMonthLabel } fr
 import type { HomeNewsView } from "@/domain/home-model";
 import type { StudentPortalEvoAction, StudentPortalOverview } from "@/domain/portal-source";
 import { actionTarget, actionTitle, evoActionDueLabel, evoActionStatusLabel, evoActionTone, formatPortalMoney, formatPortalTimestamp, notificationRoute, portalNotificationText, studentActionDueLabel } from "@/domain/presentation";
-import { go, openLink, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
+import { APPLICATION_ROUTE, go, openLink, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { JourneyMeter } from "@/features/portal/JourneyMeter";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -88,7 +88,7 @@ export function CaseCard({ overview, load }: { overview: StudentPortalOverview |
 
 /** approved: вместо «Что сделать сейчас» карточка «Ваша анкета» (веб: ссылка на /apply/status). */
 export function ApplicationCard() {
-  const { t, m } = useLang();
+  const { t } = useLang();
   const home = t("home");
   const admission = t("admission");
   return (
@@ -102,10 +102,7 @@ export function ApplicationCard() {
       <Text variant="secondary" tone="text2">
         {admission.pendingManagerNotice}
       </Text>
-      {/* TODO(M7): кнопка «Открыть анкету» ведёт на просмотр анкеты в приложении. */}
-      <Text variant="caption" tone="text2">
-        {m("home.applicationHint")}
-      </Text>
+      <Button label={admission.pendingApplicationLink} variant="ghost" onPress={() => go(APPLICATION_ROUTE)} testID="application-open" />
     </Card>
   );
 }

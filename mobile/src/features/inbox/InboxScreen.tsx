@@ -12,7 +12,6 @@ import { portalNotificationText } from "@/domain/presentation";
 import { dayKey, timeLabel } from "@/features/inbox/format";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
 import { InlineAlert, MIN_TARGET } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
@@ -97,7 +96,7 @@ export function InboxScreen() {
   const failed = notifications.status === "error" && notifications.data === undefined ? notifications.error : chat.status === "error" && chat.data === undefined ? chat.error : null;
 
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing}>
+    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="inbox-screen">
         <Text variant="display" accessibilityRole="header" maxFontSizeMultiplier={1.2} testID="title-messages">
           {messages.title}

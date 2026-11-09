@@ -21,7 +21,7 @@ import { Text } from "@/ui/Text";
 const TONE = { pending: "warn", approved: "ok", rejected: "danger" } as const;
 
 /** Своя анкета читается через react-query: у экрана статуса отдельный кэш, он живёт, пока экран открыт. */
-export function ApplicationStatusScreen({ application }: { application: OwnApplication }) {
+export function ApplicationStatusScreen({ application, readOnly = false }: { application: OwnApplication; readOnly?: boolean }) {
   const [client] = useState(() => createPortalQueryClient());
   // Кэш живёт, пока открыт экран; его таймеры не должны пережить выход.
   // Отложенно: наблюдатели запроса отписываются позже родительской очистки и заново ставят таймер сборки.
@@ -33,12 +33,12 @@ export function ApplicationStatusScreen({ application }: { application: OwnAppli
   );
   return (
     <QueryClientProvider client={client}>
-      <ApplicationStatusBody application={application} />
+      <ApplicationStatusBody application={application} readOnly={readOnly} />
     </QueryClientProvider>
   );
 }
 
-function ApplicationStatusBody({ application }: { application: OwnApplication }) {
+function ApplicationStatusBody({ application, readOnly }: { application: OwnApplication; readOnly: boolean }) {
   const { lang, m, profile, t, format } = useLang();
   const strings = t("apply") as unknown as Readonly<Record<string, string>>;
   const { refreshAccess, signOut } = useSession();
@@ -83,7 +83,7 @@ function ApplicationStatusBody({ application }: { application: OwnApplication })
   const lead = status === "approved" ? strings.statusApprovedLead : status === "rejected" ? strings.statusRejectedLead : strings.statusPendingLead;
 
   return (
-    <Screen onRefresh={() => void refresh()} refreshing={refreshing}>
+    <Screen onRefresh={() => void (readOnly ? query.refetch() : refresh())} refreshing={refreshing || (readOnly && query.isRefetching)} topInset={!readOnly} tabBar={readOnly}>
       <View style={{ gap: 16 }}>
         <Card>
           <Text variant="caption" tone="text2">
@@ -102,7 +102,7 @@ function ApplicationStatusBody({ application }: { application: OwnApplication })
               <Text variant="body">{full.decisionReason}</Text>
             </View>
           ) : null}
-          {status === "rejected" && full ? (
+          {status === "rejected" && full && !readOnly ? (
             <>
               <Text variant="secondary" tone="text2">
                 {m("status.resubmitHint")}
@@ -110,14 +110,18 @@ function ApplicationStatusBody({ application }: { application: OwnApplication })
               <Button label={strings.fixApplication} onPress={() => setFixing(true)} testID="application-fix" />
             </>
           ) : null}
-          <Button
-            label={status === "approved" ? strings.openCabinet : refreshing ? m("status.refreshing") : m("gate.refresh")}
-            variant={status === "rejected" ? "ghost" : "primary"}
-            onPress={() => void refresh()}
-            busy={refreshing}
-            testID="gate-refresh"
-          />
-          <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} />
+          {readOnly ? null : (
+            <>
+              <Button
+                label={status === "approved" ? strings.openCabinet : refreshing ? m("status.refreshing") : m("gate.refresh")}
+                variant={status === "rejected" ? "ghost" : "primary"}
+                onPress={() => void refresh()}
+                busy={refreshing}
+                testID="gate-refresh"
+              />
+              <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} />
+            </>
+          )}
         </Card>
 
         {loadFailed ? <InlineAlert message={`${m("status.loadFailed")} ${loadFailed}`} retryLabel={m("gate.retry")} onRetry={load} /> : null}

@@ -107,6 +107,9 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // through to the `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 343 («Кабинет студенту, у которого уже есть дело») adds no action: `platform.complete_student_case_account_v1`
 // writes the same `student.account.create` and, like the invite finalize, `student.portal.authority.activate` on the case.
+// Migration 356 («Экран согласий при первом входе») adds the action `privacy.policy.accept` and the resource type
+// `student_privacy_consent` (written by `platform.portal_consents_accept_v1`), by the same rename-and-union wrappers
+// (`..._pre_student_consent_gate`); the row names only the policy version and the source.
 // Migration 344 («Сброс пароля студента администратором») adds one action, `student.password.reset` (written by
 // `platform.complete_student_password_reset_v1`: one row per temporary password an administrator gives a student), by the
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
@@ -305,6 +308,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "post.contract.items.seed",
   "post.contract.report.generate",
   "post.contract.report.review",
+  "privacy.policy.accept",
   "prompt.artifact.publish",
   "prompt.artifact.retire",
   "rbac.bundle.upgrade",
@@ -445,6 +449,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "student_case",
   "student_case_contract_draft",
   "student_case_update",
+  "student_privacy_consent",
   "student_profile",
   "team_chat_message",
   "telephony_call",

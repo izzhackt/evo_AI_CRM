@@ -964,6 +964,8 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   // Согласие студента на ИИ-помощников (миграция 320). В записи только состояние и версия текста, без имени.
   "ai.consent.grant": "Студент разрешил ИИ-помощников",
   "ai.consent.decline": "Студент не разрешил ИИ-помощников",
+  // Принятие Политики конфиденциальности (миграция 356). В записи только версия и источник.
+  "privacy.policy.accept": "Студент принял политику конфиденциальности",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
@@ -1060,6 +1062,8 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
 
   // Согласие студента на ИИ-помощников (миграция 320).
   student_ai_consent: "Согласие на ИИ-помощников",
+  // Принятие Политики конфиденциальности (миграция 356).
+  student_privacy_consent: "Принятие политики конфиденциальности",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 
 /**

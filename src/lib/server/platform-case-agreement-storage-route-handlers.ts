@@ -1,6 +1,8 @@
 import { decodeReceiptUploadTarget, decodeReceiptDownloadTarget, decodeContractDownloadTarget, receiptTargetErrorStatus } from "../payment-receipt-target.ts";
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -367,22 +369,55 @@ const STUDENT_CASE_FILE_KINDS = new Set(["contract", "receipt", "pending_receipt
  * проверяет, что файл его дела, и отдаёт имя объекта; служебный ключ только подписывает короткую ссылку. Чужой или несуществующий файл,
  * не-студент и закрытый кабинет - одинаковый отказ 403, без подсказки, что именно не так.
  */
-export function createStudentPortalCaseFileDownloadHandler() {
+export type StudentPortalCaseFileDownloadDependencies = Readonly<{
+  /** Bearer: те же проверка токена и права студента, что у маршрутов скачивания документов (PORT-8a). */
+  resolveBearerActor: (accessToken: string) => Promise<{ status: string; reason?: string }>;
+  createBearerClient: (accessToken: string) => Promise<SupabaseClient> | SupabaseClient;
+  createServiceClient: () => SupabaseClient;
+}>;
+
+export function createStudentPortalCaseFileDownloadHandler(
+  overrides?: Partial<StudentPortalCaseFileDownloadDependencies>,
+) {
   return async function GET(
-    _request: Request,
+    request: Request,
     context: { params: Promise<{ fileKind: string; fileId: string }> },
   ): Promise<Response> {
     try {
-      const { resolvePlatformActor } = await import("../platform-auth.ts");
-      const actorResult = await resolvePlatformActor();
-      if (actorResult.status !== "authenticated") {
-        return errorResponse(actorResult.status === "anonymous" ? 401 : 503, "unavailable");
+      // Приложение (Expo): заголовок Authorization всегда выбирает Bearer, куки тогда не читаются (как PORT-8a).
+      const { studentPortalDocumentRouteTransport } = await import("./platform-document-storage-route-handlers.ts");
+      const transport = studentPortalDocumentRouteTransport(request);
+      if (transport.transport === "invalid_bearer") return errorResponse(401, "unavailable");
+      let userClient: SupabaseClient;
+      if (transport.transport === "bearer") {
+        const resolveBearerActor: StudentPortalCaseFileDownloadDependencies["resolveBearerActor"] = overrides?.resolveBearerActor ?? (async (token: string) => {
+          const { resolveStudentPortalBearerActor } = await import("../student-portal-auth.ts");
+          return resolveStudentPortalBearerActor(token);
+        });
+        const bearerActor = await resolveBearerActor(transport.accessToken);
+        if (bearerActor.status !== "authenticated") {
+          if (bearerActor.reason === "student_authority_unavailable") return errorResponse(503, "unavailable");
+          return errorResponse(bearerActor.reason === "student_authority_invalid" ? 403 : 401, "unavailable");
+        }
+      } else {
+        const { resolvePlatformActor } = await import("../platform-auth.ts");
+        const actorResult = await resolvePlatformActor();
+        if (actorResult.status !== "authenticated") {
+          return errorResponse(actorResult.status === "anonymous" ? 401 : 503, "unavailable");
+        }
       }
       const params = await context.params;
       const fileId = uuid(params.fileId);
       if (!fileId || !STUDENT_CASE_FILE_KINDS.has(params.fileKind)) return errorResponse(400, "invalid_request");
-      const { createSupabaseServerClient } = await import("../supabase/server.ts");
-      const userClient = await createSupabaseServerClient();
+      if (transport.transport === "bearer") {
+        userClient = await (overrides?.createBearerClient ?? (async (token: string) => {
+          const { createSupabaseBearerServerClient } = await import("../supabase/server.ts");
+          return createSupabaseBearerServerClient(token);
+        }))(transport.accessToken);
+      } else {
+        const { createSupabaseServerClient } = await import("../supabase/server.ts");
+        userClient = await createSupabaseServerClient();
+      }
       const targetResponse = await userClient.schema("platform").rpc(
         "student_portal_case_file_target_v1", { p_file_kind: params.fileKind, p_file_id: fileId },
       );
@@ -397,7 +432,7 @@ export function createStudentPortalCaseFileDownloadHandler() {
         || (target as Record<string, string>).storage_object_name.length < 1) {
         return errorResponse(503, "case_file_unavailable");
       }
-      const serviceClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+      const serviceClient = (overrides?.createServiceClient ?? (() => createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig())))();
       const signedResponse = await serviceClient.storage.from(BUCKET_ID)
         .createSignedUrl((target as Record<string, string>).storage_object_name, 60, { download: true });
       if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");

@@ -244,3 +244,11 @@ test("every cabinet page has the same content width as the user's sample (08.11.
   // «Профиль» больше не уже остальных страниц.
   assert.doesNotMatch(css, /\.pt-page\.pt-profile \{\n {2}max-width/u);
 });
+
+// Перенесено из #1423 (Айвар): без текущего шага «Все шаги» стоит в шапке рядом с «Сменить страну», а не одна строка внизу.
+test("without a current step the fold button sits next to «Сменить страну» in the header", () => {
+  assert.match(block, /<div className="pt-journey-change">\s*\{\/\*[^]*?\*\/\}\s*\{currentStep \? null : foldButton\}\s*<button\s+ref=\{changeRef\}/u);
+  assert.doesNotMatch(block, /pt-journey-fold-row/u);
+  assert.doesNotMatch(css, /pt-journey-fold-row/u);
+  assert.match(css, /\.pt-journey-change \{\n {2}display: flex;\n {2}flex-wrap: wrap;/u);
+});

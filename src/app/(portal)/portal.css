@@ -7789,11 +7789,20 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   padding-left: 28px;
 }
 
+/* Действия шапки пути в один ряд: «Все шаги» (без текущего шага) и «Сменить страну»; подпись источника под ними. */
 .pt-journey-change {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 8px;
+  /* Две кнопки в ряд, подпись под ними: без предела ширина блока складывалась из всех трёх и он уходил под заголовок. */
+  max-width: 300px;
+}
+
+.pt-journey-change > .pt-journey-source {
+  flex-basis: 100%;
+  text-align: right;
 }
 
 .pt-journey-source {
@@ -8315,16 +8324,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   outline-offset: 2px;
 }
 
-.pt-journey-fold-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-.pt-journey-fold-row + .pt-journey-body .pt-journey-steps {
-  margin-top: 4px;
-}
-
 .pt-step-main {
   display: contents;
 }
@@ -8613,7 +8612,11 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   }
 
   .pt-journey-change {
-    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .pt-journey-change > .pt-journey-source {
+    text-align: left;
   }
 
   .pt-journey-intake + .pt-journey-intake-note {

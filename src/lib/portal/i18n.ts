@@ -1512,8 +1512,6 @@ const messagesRu = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "В ответ на: {preview}",
   newMessageNotice: "Новое сообщение от {name}.",
-  differenceNote: "Разовый вопрос куратору — на странице «Поступление».",
-  differenceLink: "Задать вопрос",
 } as const;
 
 type MessagesKey = keyof typeof messagesRu;
@@ -1549,8 +1547,6 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "Жооп катары: {preview}",
   newMessageNotice: "{name} жаңы билдирүү жазды.",
-  differenceNote: "Кураторго бир жолку суроо — «Тапшыруу» барагында.",
-  differenceLink: "Суроо берүү",
 };
 
 /**
@@ -2400,6 +2396,10 @@ const homeRu = {
   cscaAction: "К подготовке",
   // #1355 (09.11.2026): одна «Главная» — «Мой список» (вузы и программы) под колонками.
   listHeading: "Мой список",
+  // #1356: один вход «Написать EVO» — чат «Входящих».
+  writeHeading: "Есть вопрос?",
+  writeBody: "Напишите команде EVO: ответ придёт в этот же чат.",
+  writeAction: "Написать EVO",
 } as const;
 
 type HomeKey = keyof typeof homeRu;
@@ -2445,6 +2445,9 @@ const homeKy: Readonly<Record<HomeKey, string>> = {
   cscaRegistration: "Каттоо {closes}",
   cscaAction: "Даярдыкка",
   listHeading: "Менин тизмем",
+  writeHeading: "Суроо барбы?",
+  writeBody: "EVO командасына жазыңыз: жооп ушул эле чатка келет.",
+  writeAction: "EVO'го жазуу",
 };
 
 /**

@@ -16,6 +16,7 @@ import { HomeCase, actionHref, actionTitle } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
 import { HomeHero } from "./HomeHero";
 import { HomeNews } from "./HomeNews";
+import { HomeWriteEvo } from "./HomeWriteEvo";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
@@ -33,7 +34,7 @@ import { HomeNews } from "./HomeNews";
  * #1355 (09.11.2026): это единственная домашняя страница кабинета (/portal; прежний /portal/home перенаправляется
  * сюда). Первым идёт «Что сделать сейчас». Под шапкой — заявка на рассмотрении и задача EVO (`info`), вместо
  * карточки «Мои вузы» под колонками стоит «Мой список» (`list`: вкладки «Вузы» и «Мои программы»), а под ним весь
- * «Путь поступления» (`fullPath`, якорь #path).
+ * «Путь поступления» (`fullPath`, якорь #path). Карточка «Написать EVO» (assisted) — один вход в чат «Входящих» (#1356).
  *
  * Правка 08.11.2026 (разбор вёрстки): без выбранной страны первым блоком под шапкой стоит выбор страны
  * (`countryChoice`, тот же CountryTimeline с выбором, что был до #1408), карточки пути в это время нет; выбрана страна —
@@ -127,6 +128,11 @@ export function HomeView({
                 </IntentPrefetchLink>
               </p>
             </article>
+          ) : null}
+          {tier === "assisted" ? (
+            <div className="pt-home-slot" data-slot="write">
+              <HomeWriteEvo locale={locale} />
+            </div>
           ) : null}
         </div>
 

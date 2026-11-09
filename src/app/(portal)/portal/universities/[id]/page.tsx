@@ -5,6 +5,7 @@ import { UniversityDetailView } from "@/components/portal/universities/Detail";
 import { getLocale } from "@/lib/i18n";
 import { universityUuid } from "@/lib/platform-university-catalog";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 import {
   cityHref,
   countryHref,
@@ -72,10 +73,15 @@ export default async function UniversityPage({
           bindings: preparations?.map(({ applicationId, institutionId, programId, intakeId }) => ({ applicationId, institutionId, programId, intakeId })) ?? null,
           strings: getPortalStrings("preparations", locale),
         }}
-        consultation={{
+        // #1356: у клиента с сопровождением один вход к команде — чат; запрос консультации остаётся
+        // студенту без сопровождения (у него чата нет) и в «Профиле».
+        consultation={actor.accessTier === "assisted" ? null : {
           initialOpenRequest: detail.openConsultation,
           strings: getPortalStrings("consultation", locale),
         }}
+        writeEvo={actor.accessTier === "assisted"
+          ? { href: WRITE_EVO_HREF, label: getPortalStrings("home", locale).writeAction }
+          : null}
       />
     </main>
   );

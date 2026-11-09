@@ -4713,6 +4713,10 @@
   border-top: 1px solid var(--pt-line);
 }
 
+.pt-inbox-side-foot:empty {
+  display: none;
+}
+
 .pt-inbox-side-foot {
   margin: 0;
   padding: 10px 16px;

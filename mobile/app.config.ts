@@ -36,7 +36,7 @@ const config: ExpoConfig = {
       {
         action: "VIEW",
         autoVerify: true,
-        data: [{ scheme: "https", host: "app.evoadmissions.com", pathPrefix: "/apply" }],
+        data: [{ scheme: "https", host: "app.evoadmissions.com", path: "/apply" }],
         category: ["BROWSABLE", "DEFAULT"],
       },
     ],

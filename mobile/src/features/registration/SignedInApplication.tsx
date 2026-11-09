@@ -2,6 +2,7 @@
 // черновик отправляется сразу (resume, expected_revision 0), либо мастер в режиме signedIn.
 // Порт ApplicationIntake iPhone: приглашение (invite-acceptance) только предзаполняет имя и
 // никогда не блокирует; конфликт ревизии ведёт на статус уже существующей анкеты.
+import { userDraftScope } from "@/features/registration/draft-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 
@@ -94,7 +95,7 @@ export function SignedInWizard({
   return (
     <ApplicationWizard
       signedInEmail={email}
-      scope={`user:${email.toLowerCase()}:${expectedRevision}`}
+      scope={userDraftScope(email, expectedRevision)}
       initialDraft={initialDraft}
       namePrefill={namePrefill}
       onSubmit={onSubmit}

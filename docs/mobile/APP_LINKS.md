@@ -10,7 +10,7 @@
 | Что | Где |
 |---|---|
 | iOS: `associatedDomains: ["applinks:app.evoadmissions.com"]` | `mobile/app.config.ts`, `ios` |
-| Android: `intentFilters` с `autoVerify: true`, `https`, хост `app.evoadmissions.com`, `pathPrefix: "/apply"` | `mobile/app.config.ts`, `android` |
+| Android: `intentFilters` с `autoVerify: true`, `https`, хост `app.evoadmissions.com`, `path: "/apply"` (точное совпадение: `/apply/status` не открывается в приложении) | `mobile/app.config.ts`, `android` |
 | Своя схема для проверки без сервера: `evoadmissions://apply?invite=…` | `scheme` в `mobile/app.config.ts` |
 | Маршрут `/apply` (параметр `invite`) | `mobile/src/app/(auth)/apply.tsx` |
 | Ввод вручную («Вставьте ссылку из письма/WhatsApp») | `mobile/src/features/registration/ApplyScreen.tsx` |
@@ -105,6 +105,6 @@ Play Console (Setup, App signing), а для проверки сборкой и�
 
 - Открывается только `/apply`. Ссылки подтверждения почты (`/auth/callback`, `/auth/signup-confirmation`)
   остаются в браузере: это решение M7 (письмо подтверждения открывается в вебе, затем студент входит в приложении).
-  Если позже подтверждение нужно проводить в приложении, путь добавляется в `pathPrefix` и в файл Apple.
+  Если позже подтверждение нужно проводить в приложении, путь добавляется отдельным `path` и в файл Apple.
 - Токен приглашения одноразовый и привязан к человеку. В журнал, аналитику и адрес перенаправления он
   не попадает; в приложении он хранится в защищённом хранилище (SecureStore) только до принятия регистрации.

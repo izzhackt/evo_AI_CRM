@@ -177,7 +177,6 @@ describe("регистрация и «Проверьте почту»", () => {
   });
 
   it.each([
-    ["invite", "Ссылка для регистрации больше не действует"],
     ["conflict", "Не удалось создать аккаунт с этим email"],
     ["rate_limit", "Слишком много попыток"],
     ["password", "не менее 12 символов"],
@@ -190,6 +189,18 @@ describe("регистрация и «Проверьте почту»", () => {
     await next();
     expect(await screen.findByTestId("wizard-error")).toHaveTextContent(new RegExp(text));
     expect(screen.getByTestId("first-name").props.value).toBe("Тест");
+  });
+
+  it("отказ invite: ссылка и черновик стираются, возврат к вводу ссылки с пояснением", async () => {
+    const { api } = fakeApi({ register: async () => ({ ok: false, reason: "invite" }) });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    await screen.findByTestId("wizard-next");
+    await fillAllSteps();
+    await next();
+    expect(await screen.findByTestId("invite-notice")).toHaveTextContent(/Ссылка для регистрации больше не действует/);
+    expect(screen.getByTestId("invite-input")).toBeTruthy();
+    expect(mockSecure.size).toBe(0);
+    expect(await AsyncStorage.getItem("evo.application-draft.v1:anonymous")).toBeNull();
   });
 
   it("без галочек и с коротким паролем отправка не уходит", async () => {

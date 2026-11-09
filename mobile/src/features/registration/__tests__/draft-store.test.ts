@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { clearDraft, clearInviteToken, loadDraft, loadInviteToken, saveDraft, saveInviteToken, serializeDraft } from "@/features/registration/draft-store";
+import { DRAFT_MAX_AGE_MS, clearRegistrationLocalData, userDraftScope, clearDraft, clearInviteToken, loadDraft, loadInviteToken, saveDraft, saveInviteToken, serializeDraft } from "@/features/registration/draft-store";
 import { initialValues } from "@/features/registration/wizard-model";
 import { filledValues, INVITE, REQUEST_ID } from "@/test-fixtures/registration";
 
@@ -21,7 +21,7 @@ describe("черновик на устройстве", () => {
     const values = filledValues({ consent: true });
     await saveDraft("anonymous", values, 4);
     const raw = (await AsyncStorage.getItem("evo.application-draft.v1:anonymous")) ?? "";
-    expect(raw).toBe(serializeDraft(values, 4));
+    expect(raw).toBe(serializeDraft(values, 4, JSON.parse(raw).createdAt));
     expect(raw.toLowerCase()).not.toContain("password");
     expect(raw).not.toContain("consent");
     expect(raw).not.toContain("aiConsent");
@@ -55,6 +55,31 @@ describe("личная ссылка в защищённом хранилище",
     expect(await loadInviteToken()).toBe(INVITE);
     expect(await AsyncStorage.getAllKeys()).toEqual([]);
     await clearInviteToken();
+    expect(await loadInviteToken()).toBeNull();
+  });
+
+  it("черновик старше 30 дней удаляется при чтении", async () => {
+    await AsyncStorage.setItem(
+      "evo.application-draft.v1:anonymous",
+      serializeDraft(filledValues(), 2, Date.now() - DRAFT_MAX_AGE_MS - 1000),
+    );
+    expect(await loadDraft("anonymous", initialValues(REQUEST_ID))).toBeNull();
+    expect(await AsyncStorage.getItem("evo.application-draft.v1:anonymous")).toBeNull();
+  });
+
+  it("область студента не содержит почту", () => {
+    const scope = userDraftScope("Me@Example.test", 3);
+    expect(scope).not.toContain("example");
+    expect(scope).toBe(userDraftScope("me@example.test", 3));
+    expect(scope).not.toBe(userDraftScope("other@example.test", 3));
+  });
+
+  it("очистка стирает все черновики и личную ссылку", async () => {
+    await saveDraft("anonymous", filledValues(), 1);
+    await saveDraft(userDraftScope("me@example.test", 0), filledValues(), 1);
+    await saveInviteToken(INVITE);
+    await clearRegistrationLocalData();
+    expect(await AsyncStorage.getAllKeys()).toEqual([]);
     expect(await loadInviteToken()).toBeNull();
   });
 });

@@ -66,6 +66,8 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
   const [pasted, setPasted] = useState("");
   const [pasteError, setPasteError] = useState(false);
+  // Сообщение на экране ввода ссылки: например, «ссылка недействительна» после отказа сервера.
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Токен из ссылки приложения важнее сохранённого; без обоих — ввод вручную.
   useEffect(() => {
@@ -91,12 +93,14 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
       return;
     }
     setPasteError(false);
+    setNotice(null);
     await saveInviteToken(token);
     setPhase({ kind: "wizard", invite: token });
   };
 
   const changeLink = async () => {
     await clearInviteToken();
+    await clearDraft("anonymous");
     setPasted("");
     setPhase({ kind: "entry" });
   };
@@ -114,6 +118,14 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
         await clearInviteToken();
         await clearDraft("anonymous");
         setPhase({ kind: "pending", pending: result.pending });
+        return null;
+      }
+      if (result.reason === "invite") {
+        // Чужая или просроченная ссылка: стереть её и вернуться к вводу ссылки («Другая ссылка»).
+        await clearInviteToken();
+        await clearDraft("anonymous");
+        setNotice(failureMessage("invite"));
+        setPhase({ kind: "entry" });
         return null;
       }
       return failureMessage(result.reason);
@@ -169,6 +181,11 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
             onSubmitEditing={() => void submitPasted()}
             testID="invite-input"
           />
+          {notice ? (
+            <Text variant="secondary" tone="error" accessibilityRole="alert" testID="invite-notice">
+              {notice}
+            </Text>
+          ) : null}
           {pasteError ? (
             <Text variant="secondary" tone="error" accessibilityRole="alert" testID="invite-error">
               {m("apply.pasteInvalid")}

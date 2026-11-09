@@ -56,7 +56,10 @@ export function RemotePhoto({ urls, height, label, strings, rounded = true, quie
   return (
     <Image
       source={{ uri }}
-      accessibilityLabel={label}
+      // В тихом режиме фото внутри карточки-ссылки: название уже читает сама карточка, не дублируем.
+      accessibilityLabel={quiet ? undefined : label}
+      accessibilityElementsHidden={quiet}
+      importantForAccessibility={quiet ? "no-hide-descendants" : "auto"}
       contentFit="cover"
       transition={150}
       onError={() => setStage((s) => (s === "sized" && urls?.sized ? "original" : "failed"))}

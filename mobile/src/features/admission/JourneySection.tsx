@@ -99,6 +99,7 @@ export function JourneySection({
   readFailed,
   assisted,
   initiallyUnfolded = false,
+  unfoldStamp = "",
 }: {
   view: CountryTimelineView;
   progress: Readonly<Record<string, TimelineStepProgress>> | null;
@@ -107,6 +108,8 @@ export function JourneySection({
   assisted: boolean;
   /** Переход «Весь путь» с «Главной»: путь раскрыт. */
   initiallyUnfolded?: boolean;
+  /** Метка запроса «раскрыть» (`at` ссылки): новая метка раскрывает путь снова, даже если студент его свернул. */
+  unfoldStamp?: string;
 }) {
   const { t, m, format } = useLang();
   const { userKey } = usePortalApi();
@@ -124,7 +127,7 @@ export function JourneySection({
   const { folded, setFolded } = useFolded(currentStep !== null, userKey);
   useEffect(() => {
     if (initiallyUnfolded) setFolded(false);
-  }, [initiallyUnfolded, setFolded]);
+  }, [initiallyUnfolded, unfoldStamp, setFolded]);
 
   const title = view.countryName ? format(timeline.headingCountry, { country: view.countryName }) : timeline.heading;
   const sourceNote = source === "application" ? timeline.sourceApplication : source === "case" ? timeline.sourceCase : null;

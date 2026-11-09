@@ -10,7 +10,6 @@ import { useAssessmentCatalog } from "@/features/learning/tests/queries";
 import { cscaDayLabelSafe } from "@/features/learning/csca/format";
 import { Chip } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
-import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
@@ -27,7 +26,7 @@ export function TestsScreen() {
   const catalog = useAssessmentCatalog();
   const data = catalog.data;
   return (
-    <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void catalog.refetch()} refreshing={catalog.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void catalog.refetch()} refreshing={catalog.isRefetching}>
       <View style={{ gap: 16 }} testID="tests-screen">
         <Text variant="display" accessibilityRole="header" testID="title-tests">
           {s.title}

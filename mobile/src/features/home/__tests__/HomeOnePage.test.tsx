@@ -131,6 +131,26 @@ describe("Главная: весь «Путь поступления»", () => {
     expect(await screen.findByTestId("journey-body")).toBeTruthy();
   });
 
+  it("повторная ссылка ?path=open с новой меткой раскрывает путь, который студент свернул", async () => {
+    params.mockReturnValue({ path: "open", at: "1" });
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport, { tier: "approved" }));
+    expect(await screen.findByTestId("journey-body")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    params.mockReturnValue({ path: "open", at: "2" });
+    // любое нажатие на экране перерисовывает его уже с новыми параметрами ссылки
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    expect(await screen.findByTestId("journey-body")).toBeTruthy();
+  });
+
+  it("approved: «Открыть анкету» ведёт на экран анкеты", async () => {
+    const { transport } = fakeTransport(handlers());
+    await renderPortal(<HomeScreen />, testApi(transport, { tier: "approved" }));
+    await fireEvent.press(screen.getByTestId("application-open"));
+    expect(navigate).toHaveBeenCalledWith("/application");
+  });
+
   it("текущий шаг документов ведёт в Документы; ссылка на CSCA ведёт во вкладку", async () => {
     const { transport } = fakeTransport(handlers("CN"));
     await renderPortal(<HomeScreen />, testApi(transport));

@@ -188,7 +188,11 @@ export type LinkTarget = Readonly<{ kind: "route"; route: string }> | Readonly<{
 export function linkTarget(href: string): LinkTarget | null {
   if (/^https:\/\//i.test(href)) return { kind: "external", url: href };
   const home = /^\/portal(?:\/home)?(?:\?view=(programs|universities))?(?:#[a-z-]*)?$/.exec(href);
-  if (home) return { kind: "route", route: home[1] === "programs" ? "/home?list=programs" : "/home" };
+  if (home) {
+    if (home[1] === "programs") return { kind: "route", route: "/home?list=programs" };
+    // `/portal#path` - «Весь путь»: «Главная» с раскрытым путём.
+    return { kind: "route", route: /#path$/.test(href) ? "/home?path=open" : "/home" };
+  }
   const inbox = /^\/portal\/messages\?view=(chat|updates)$/.exec(href);
   if (inbox) return { kind: "route", route: `/messages/${inbox[1]}` };
   const match = /^\/portal\/([a-z-]+)(?:[/?#].*)?$/.exec(href);

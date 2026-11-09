@@ -1,7 +1,7 @@
 import { getPortalStrings } from "@web/lib/portal/i18n";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 
-import { HOME_NEWS_LIMIT, collectHomeDates, homeParams, homeSlots, latestNews, showCountryChoice } from "@/domain/home-model";
+import { HOME_NEWS_LIMIT, collectHomeDates, homeParams, homeSlots, latestNews, overviewRedirectParams, showCountryChoice } from "@/domain/home-model";
 import { buildPortalOverview, normalizeStudentPortalNotification } from "@/domain/portal-source";
 
 import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
@@ -81,5 +81,18 @@ describe("ближайшие даты", () => {
   });
   it("без данных дат нет", () => {
     expect(collectHomeDates({ overview: null, favorites: null, admission, home, now: new Date() })).toEqual([]);
+  });
+});
+
+describe("старый /overview -> параметры «Главной»", () => {
+  it("path=open раскрывает путь, view=programs открывает «Мои программы», метка всегда", () => {
+    expect(overviewRedirectParams({ path: "open" }, "7")).toEqual({ path: "open", at: "7" });
+    expect(overviewRedirectParams({ view: "programs" }, "7")).toEqual({ at: "7", list: "programs" });
+    expect(overviewRedirectParams({ path: "open", view: "programs" }, "7")).toEqual({ path: "open", at: "7", list: "programs" });
+    expect(overviewRedirectParams({ path: ["open"], view: ["programs"] }, "7")).toEqual({ path: "open", at: "7", list: "programs" });
+  });
+  it("прочие значения не попадают в параметры", () => {
+    expect(overviewRedirectParams({ path: "closed", view: "universities" }, "7")).toEqual({ at: "7" });
+    expect(overviewRedirectParams({}, "7")).toEqual({ at: "7" });
   });
 });

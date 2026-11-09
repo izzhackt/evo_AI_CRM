@@ -79,8 +79,12 @@ INSERT INTO platform.organization_memberships(id, organization_id, profile_id, s
   SELECT pg_temp.a356_id(300 + n), pg_temp.a356_id(1), pg_temp.a356_id(200 + n), 'active', 'student',
     (SELECT id FROM platform.role_bundle_versions WHERE role = 'student' AND status = 'published' ORDER BY version DESC LIMIT 1),
     TIMESTAMPTZ '2026-01-01 00:00:00+00' + n * INTERVAL '1 day'
-  FROM generate_series(1, 5) n;
-UPDATE platform.organization_memberships SET is_system_admin = TRUE WHERE id = pg_temp.a356_id(305);
+  FROM generate_series(1, 4) n;
+-- 5 is staff: a system Admin (a student membership cannot be a system admin).
+INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id, is_system_admin, created_at)
+  VALUES (pg_temp.a356_id(305), pg_temp.a356_id(1), pg_temp.a356_id(205), 'active', 'admin',
+    (SELECT id FROM platform.role_bundle_versions WHERE role = 'admin' AND status = 'published' ORDER BY version DESC LIMIT 1),
+    TRUE, TIMESTAMPTZ '2026-01-01 00:00:00+00' + INTERVAL '5 days');
 INSERT INTO a356_claims
   SELECT n, (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.a356_id(100 + n),
     'claims', jsonb_build_object('sub', pg_temp.a356_id(100 + n), 'role', 'authenticated'))) -> 'claims')::TEXT

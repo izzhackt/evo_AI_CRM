@@ -17,9 +17,9 @@
       "sha256": "8036fd961b8cd1778e09f0048156c54b048af8187783e3a49a3f21789f9bf746"
     },
     "tr": {
-      "contentVersion": 4,
+      "contentVersion": 5,
       "validUntil": "2027-10-31",
-      "sha256": "a40d24f98e1eb58675f3197b67dafa22e9625d5ede852396736b478290a0e192"
+      "sha256": "38a923655b9a2aef6466439854e5dbd77b085b58f304e3917c8783a13ec0515c"
     },
     "it": {
       "contentVersion": 5,
@@ -264,7 +264,7 @@
       "datesHidden": false,
       "steps": 6,
       "items": 25,
-      "sha256": "65a6c9c2418de6bd980df1e42e77bf10d677000b61b17e53726133d281d4027f"
+      "sha256": "302a82682659c8f6e05b5472e47d63e4603de3d0fce4a912c37a9feade468425"
     },
     {
       "choice": "TR",
@@ -276,7 +276,7 @@
       "datesHidden": false,
       "steps": 6,
       "items": 25,
-      "sha256": "65a6c9c2418de6bd980df1e42e77bf10d677000b61b17e53726133d281d4027f"
+      "sha256": "302a82682659c8f6e05b5472e47d63e4603de3d0fce4a912c37a9feade468425"
     },
     {
       "choice": "TR",
@@ -288,7 +288,7 @@
       "datesHidden": true,
       "steps": 6,
       "items": 25,
-      "sha256": "01ee6e25cb086484a12cc8b426cb86129c4494b4d11e211ead01f151afe729ea"
+      "sha256": "6498eff9d05e8fc1e63164c88aef299a8b92c588817aea396eb27b005a230427"
     },
     {
       "choice": "TR",
@@ -300,7 +300,7 @@
       "datesHidden": false,
       "steps": 6,
       "items": 25,
-      "sha256": "5c1a98bfa33d56505ac2bf5025684e40a79a73340fb2aa003f451888b39c73c7"
+      "sha256": "d7d728315f8cdc000eca9ed69b69fd22e636fd9cd683bbd323eea1be7f33f15d"
     },
     {
       "choice": "TR",
@@ -312,7 +312,7 @@
       "datesHidden": false,
       "steps": 6,
       "items": 25,
-      "sha256": "5c1a98bfa33d56505ac2bf5025684e40a79a73340fb2aa003f451888b39c73c7"
+      "sha256": "d7d728315f8cdc000eca9ed69b69fd22e636fd9cd683bbd323eea1be7f33f15d"
     },
     {
       "choice": "TR",
@@ -324,7 +324,7 @@
       "datesHidden": true,
       "steps": 6,
       "items": 25,
-      "sha256": "cd7f04b6b58f687ee857a0173a5e75b97df1b6aaa60a669aa0c05214474cf87f"
+      "sha256": "b5b18c124551f1985a4e2a719c47b88e68b08cdbbde12b44a3093137529930aa"
     },
     {
       "choice": "IT",

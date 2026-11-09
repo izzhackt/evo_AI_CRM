@@ -8085,6 +8085,13 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-ok);
 }
 
+/* Шаг «по желанию» (09.11.2026, владелец): вне прогресса, нейтральный круг и контурное слово; линия обычная. */
+.pt-step-state[data-progress="optional"] {
+  border: 1px solid currentColor;
+  background: none;
+  color: var(--pt-text-2);
+}
+
 /* Строка «Пройдено · названия» на месте свёрнутых шагов; линия пути идёт от её круга вниз. */
 .pt-step-done-group {
   position: relative;

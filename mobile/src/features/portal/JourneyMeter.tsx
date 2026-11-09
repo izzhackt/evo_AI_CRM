@@ -8,7 +8,7 @@ export function JourneyMeter({ steps, progress }: { steps: readonly { id: string
   const { tokens } = useTheme();
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ flexDirection: "row", gap: 3 }}>
-      {steps.map((step) => {
+      {steps.filter((step) => progress?.[step.id] !== "optional").map((step) => {
         const state = progress?.[step.id] ?? "upcoming";
         return (
           <View

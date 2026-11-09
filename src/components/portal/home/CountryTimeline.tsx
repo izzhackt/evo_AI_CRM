@@ -481,7 +481,7 @@ export function CountryTimeline({
               </div>
               {/* Полоса шагов — картинка к строке «Сейчас»; читалка слышит «Шаг N из M» в самой строке. */}
               <span className="pt-journey-meter" aria-hidden="true">
-                {view.steps.map((step) => (
+                {view.steps.filter((step) => progressOf(step.id) !== "optional").map((step) => (
                   <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
                 ))}
               </span>
@@ -545,6 +545,8 @@ export function CountryTimeline({
                           <span className="pt-step-state" data-progress={state}>{strings.progressDone}</span>
                         ) : state === "current" ? (
                           <span className="pt-sr-only"> ({strings.progressCurrent})</span>
+                        ) : state === "optional" ? (
+                          <span className="pt-step-state" data-progress={state}>{strings.progressOptional}</span>
                         ) : null}
                       </h3>
                       <p className="pt-step-goal">{step.summary}</p>

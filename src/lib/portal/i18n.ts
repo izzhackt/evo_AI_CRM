@@ -2504,6 +2504,8 @@ const timelineRu = {
   // 08.11.2026 (владелец): прогресс по этапу дела.
   progressDone: "Пройден",
   progressCurrent: "Сейчас",
+  // 09.11.2026 (владелец): шаг «по желанию» вне прогресса.
+  progressOptional: "по желанию",
   showDone: "Пройдено",
   // 08.11.2026: «Сейчас: название» вместо «Шаг N из M» (число шагов спорило с числом этапов дела).
   nowLabel: "Сейчас:",
@@ -2540,6 +2542,8 @@ const timelineKy: Readonly<Record<TimelineKey, string>> = {
   doneWhen: "Кадам качан бүтөт",
   progressDone: "Өттү",
   progressCurrent: "Азыр",
+  // KY на проверку носителю.
+  progressOptional: "каалоо боюнча",
   showDone: "Өтүлгөн",
   nowLabel: "Азыр:",
   openDocuments: "Документтерди ачуу",

@@ -200,6 +200,12 @@ test("progress on the path: done steps fold into one line, the step line stays o
   const { ru, ky } = PORTAL_DICTIONARIES.timeline;
   assert.deepEqual([ru.progressDone, ru.progressCurrent, ru.showDone, ru.nowLabel], ["Пройден", "Сейчас", "Пройдено", "Сейчас:"]);
   assert.ok(ky.progressDone && ky.progressCurrent && ky.showDone && ky.nowLabel);
+  // «по желанию» (09.11.2026): значок рядом с названием, в полосе шагов такого шага нет, KY на проверку носителю.
+  assert.equal(ru.progressOptional, "по желанию");
+  assert.equal(ky.progressOptional, "каалоо боюнча");
+  assert.match(block, /state === "optional" \? \(\s+<span className="pt-step-state" data-progress=\{state\}>\{strings\.progressOptional\}<\/span>/u);
+  assert.match(block, /view\.steps\.filter\(\(step\) => progressOf\(step\.id\) !== "optional"\)\.map/u);
+  assert.match(css, /\.pt-step-state\[data-progress="optional"\] \{/u);
   // Свёрнутый шаг — название и срок; цель — у открытого и у текущего.
   assert.match(css, /\.pt-step\[data-open="false"\]:not\(\[data-progress="current"\]\) \.pt-step-goal \{\n {2}display: none;/u);
   // Строка не уезжает: карточка не обрезает прокрутку, строка закреплена под верхней полосой.

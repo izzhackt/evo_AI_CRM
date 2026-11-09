@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentVersion": 4,
+  "contentVersion": 5,
   "country": "TR",
   "name": {
     "ru": "Турция",
@@ -149,6 +149,7 @@
     {
       "id": "tr-2-scholarship",
       "order": 2,
+      "optional": true,
       "stageKeys": [
         "applications"
       ],

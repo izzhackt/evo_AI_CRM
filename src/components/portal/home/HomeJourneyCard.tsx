@@ -55,7 +55,7 @@ export function HomeJourneyCard({ view, progress, readFailed, locale }: Readonly
           </p>
           {/* Полоса шагов — картинка к строке «Сейчас на пути»; читалка слышит «Шаг N из M» в самой строке. */}
           <span className="pt-journey-meter" aria-hidden="true">
-            {view.steps.map((step) => (
+            {view.steps.filter((step) => progress?.[step.id] !== "optional").map((step) => (
               <span key={step.id} className="pt-journey-meter-seg" data-progress={progress?.[step.id] ?? "upcoming"} />
             ))}
           </span>

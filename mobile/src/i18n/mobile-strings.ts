@@ -19,6 +19,7 @@ const ru = {
   "auth.showPassword": "Показать пароль",
   "auth.hidePassword": "Скрыть пароль",
   "auth.accountDeleted": "Аккаунт удалён.",
+  "auth.sessionExpired": "Сессия закончилась. Войдите снова.",
   "auth.err.invalid_credentials": "Не удалось войти. Проверьте оба значения.",
   "auth.err.staff_account": "Аккаунт не имеет активного доступа к продукту EVO.",
   "auth.err.rate_limited": "Слишком много попыток. Подождите несколько минут.",
@@ -108,6 +109,7 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "auth.showPassword": "Сырсөздү көрсөтүү",
   "auth.hidePassword": "Сырсөздү жашыруу",
   "auth.accountDeleted": "Аккаунт өчүрүлдү.",
+  "auth.sessionExpired": "Сессия аяктады. Кайра кириңиз.", // KY: needs native proofreading
   "auth.err.invalid_credentials": "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
   "auth.err.staff_account": "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
   "auth.err.rate_limited": "Өтө көп аракет. Бир нече мүнөт күтүңүз.",

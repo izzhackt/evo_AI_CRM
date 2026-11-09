@@ -1,5 +1,6 @@
 // «Профиль → Пароль» (веб: PasswordChangeForm): текущий пароль и новый дважды. Поля очищаются после смены,
 // ответ сервера словом под кнопкой. Пароль уходит только на {portal}/api/portal/mobile/password.
+import { setSignInNotice } from "@/session/sign-in-notice";
 import { useState } from "react";
 import { View } from "react-native";
 
@@ -45,7 +46,18 @@ export function PasswordCard() {
       setConfirm("");
     }
     // Сессия не продлилась (двойной 401): вход заново, как и сказано в строке.
-    if (result === "sign_in_required") void signOut();
+    if (result === "sign_in_required") {
+      setSignInNotice("session_expired");
+      void signOut();
+    }
+  };
+
+  const cancel = () => {
+    setCurrent("");
+    setNext("");
+    setConfirm("");
+    setStatus("idle");
+    setOpen(false);
   };
 
   const key = webMessageKey(status);
@@ -70,8 +82,13 @@ export function PasswordCard() {
               {message}
             </Text>
           ) : null}
+          {status === "wrong_current" ? (
+            <Text variant="caption" tone="text2" testID="password-wrong-current-hint">
+              {m("profile.passwordWrongCurrentHint")}
+            </Text>
+          ) : null}
           <Button label={busy ? profile.passwordSaving : profile.passwordSubmit} busy={busy} onPress={() => void submit()} testID="password-submit" />
-          <Button label={m("profile.passwordCancel")} variant="ghost" disabled={busy} onPress={() => setOpen(false)} />
+          <Button label={m("profile.passwordCancel")} variant="ghost" disabled={busy} onPress={cancel} testID="password-cancel" />
         </View>
       ) : (
         <>

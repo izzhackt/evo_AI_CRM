@@ -2,12 +2,31 @@
 // Читает package.json и файлы LICENSE пакетов из node_modules на этапе сборки; в приложении файловой
 // системы нет, оно показывает готовый JSON. Состав: продакшен-зависимости приложения и всё, что они тянут
 // (dependencies/optionalDependencies, как их разрешает Node), плюс записи вне npm (шрифты, карта, данные).
-// Список намеренно с запасом: в него попадают и зависимости инструментов сборки, которые тянет expo
-// (лишняя строка безвредна, пропущенная лицензия поставляемого пакета нет).
+// Инструменты сборки (Babel, Metro, CLI, типы, линтеры, тесты) в приложение не попадают и не перечисляются:
+// их отсекает явный список BUILD_ONLY. Пакет из списка не обходится вместе с его зависимостями, поэтому
+// общие с рантаймом пакеты остаются через рантайм-цепочку. Пакет рантайма без лицензии или без текста
+// ломает генератор, кроме явных исключений NO_TEXT_OK.
 // Вывод детерминирован (сортировка, без дат), поэтому diff показывает реальные изменения состава.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+
+/** Пакеты и области имён, нужные только для сборки/проверок и не поставляемые в приложении. */
+export const BUILD_ONLY = [
+  /^@babel\//, /^babel-/, /^metro($|-)/, /^@react-native\/(codegen|community-cli-plugin|dev-middleware|debugger-.*|gradle-plugin|js-polyfills|babel-plugin-codegen|babel-preset|metro-.*)$/,
+  /^hermes-(compiler|parser|estree|eslint)$/, /^flow-/, /^fb-dotslash$/, /^react-devtools-core$/, /^@types\//,
+  /^eslint($|-)/, /^@eslint\//, /^jest($|-)/, /^@jest\//, /^@expo\/(cli|config|config-plugins|metro-config|prebuild-config|devcert|fingerprint|image-utils|json-file|osascript|plist|spawn-async|package-manager|schema-utils|env|xcpretty|sdk-runtime-versions|require-utils|router-server|log-box|mcp-.*)$/,
+  /^expo-(modules-autolinking|doctor|atlas)$/, /^@expo\/metro-runtime$/, /^@expo\/metro$/, /^typescript$/, /^prettier($|-)/, /^ts-/, /^@typescript-eslint\//, /^@react-native-community\/cli/, /^react-test-renderer$/, /^@testing-library\//,
+];
+const isBuildOnly = (name) => BUILD_ONLY.some((re) => re.test(name));
+
+/** Лицензия, которую поле package.json описывает двойной строкой; фиксируется явно (решение владельца M6). */
+export const LICENSE_OVERRIDES = { "node-forge": "BSD-3-Clause" };
+/** Пакеты, у которых текста лицензии в каталоге нет и это известно. */
+export const NO_TEXT_OK = new Set([
+  "@react-native/asset-utils", "@react-native/normalize-colors", "@react-native/virtualized-lists", // MIT, файла в пакете нет
+  "boolbase", "client-only", "expo-router", "mj-context-menu", "server-only", "standard-navigation", "tr46", // идентификатор SPDX в package.json есть
+]);
 
 const LICENSE_FILE = /^(licen[sc]e|copying|notice)(\.|-|_|$)/i;
 const MAX_TEXT = 200_000;
@@ -71,6 +90,7 @@ export function collectPackages(root) {
   const queue = [];
   const enqueue = (names, from, optional) => {
     for (const name of Object.keys(names ?? {})) {
+      if (isBuildOnly(name)) continue;
       const dir = resolvePackageDir(name, from, root);
       if (!dir) {
         if (!optional) queue.push({ missing: name });
@@ -116,6 +136,7 @@ export function buildLicenses({ root, extras = [], extrasDir = root }) {
     }
     packages.push({ ...entry, text: id });
   };
+  const problems = [];
   const own = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).name;
   const listed = new Set();
   for (const { dir, pkg } of list) {
@@ -124,16 +145,17 @@ export function buildLicenses({ root, extras = [], extrasDir = root }) {
     const id = `${pkg.name}@${pkg.version}`;
     if (listed.has(id)) continue;
     listed.add(id);
-    put(
-      { name: pkg.name, version: String(pkg.version ?? ""), license: licenseId(pkg), url: repositoryUrl(pkg), kind: "npm" },
-      readLicenseText(dir),
-    );
+    const license = LICENSE_OVERRIDES[pkg.name] ?? licenseId(pkg);
+    const text = readLicenseText(dir);
+    if (license === "UNKNOWN") problems.push(`${id}: лицензия не указана`);
+    if (!text && !NO_TEXT_OK.has(pkg.name)) problems.push(`${id}: нет текста лицензии`);
+    put({ name: pkg.name, version: String(pkg.version ?? ""), license, url: repositoryUrl(pkg), kind: "npm" }, text);
   }
   for (const extra of extras) {
     const text = extra.text ?? (extra.textFile ? readFileSync(path.join(extrasDir, extra.textFile), "utf8").replace(/\r\n/g, "\n").trim() : null);
     put({ name: extra.name, version: extra.version ?? "", license: extra.license, url: extra.url ?? "", kind: "asset" }, text);
   }
-  return { missing, data: { packages, texts: Object.fromEntries(Object.entries(texts).sort(([a], [b]) => a.localeCompare(b))) } };
+  return { missing, problems, data: { packages, texts: Object.fromEntries(Object.entries(texts).sort(([a], [b]) => a.localeCompare(b))) } };
 }
 
 /** Записи вне npm, которые приложение показывает по решению плана (PLAN.md M6). */

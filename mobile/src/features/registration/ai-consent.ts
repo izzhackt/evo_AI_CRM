@@ -3,8 +3,8 @@
 // записывается командой portal_ai_consent_set_v1 от имени студента, как это делает веб
 // (src/lib/server/student-registration-ai-consent.ts). Версии и ключи берутся у веба.
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
-import { Platform } from "react-native";
 
+import { aiConsentSource } from "@/features/profile/ai-consent";
 import { createWrite, rpcRead, rpcWrite, type RpcTransport } from "@/lib/rpc";
 import { AI_CONSENT_POLICY_VERSION } from "@web/lib/portal/ai-consent";
 import { STUDENT_AI_CONSENT_METADATA_KEY } from "@/features/registration/application-contract";
@@ -32,11 +32,6 @@ export function pendingAiConsentFromMetadata(metadata: unknown): AiConsentChoice
   if (status !== "granted" || policyVersion !== AI_CONSENT_POLICY_VERSION) return null;
   if (typeof requestId !== "string" || !UUID.test(requestId)) return null;
   return { status, policyVersion, requestId };
-}
-
-/** Источник решения в журнале. База (миграция 320) знает `portal_web` и `ios`; для Android нужна своя метка на сервере. */
-export function aiConsentSource(): "ios" | "portal_web" {
-  return Platform.OS === "ios" ? "ios" : "portal_web";
 }
 
 /**

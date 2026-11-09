@@ -48,7 +48,7 @@ describe("запись согласия: идемпотентность", () => 
 
   it("источник: ios на iPhone, portal_web пока Android не разрешён миграцией 320", () => {
     expect(aiConsentSource("ios")).toBe("ios");
-    expect(aiConsentSource("android")).toBe("portal_web");
+    expect(aiConsentSource("android")).toBe("portal_web"); // ANDROID_CONSENT_SOURCE_READY=false до миграции 355
   });
 });
 

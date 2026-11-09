@@ -6,6 +6,7 @@ import type { SignInFailure } from "@/api/portal-auth";
 import { useLang } from "@/i18n/LangProvider";
 import type { MobileStringKey } from "@/i18n";
 import { useSession } from "@/session/SessionProvider";
+import { takeSignInNotice } from "@/session/sign-in-notice";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { EvoMark } from "@/ui/EvoMark";
@@ -20,6 +21,7 @@ export default function SignInScreen() {
   const { state, signIn } = useSession();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [notice] = useState(() => takeSignInNotice());
   const [failure, setFailure] = useState<SignInFailure | null>(null);
   const busy = state.kind === "authenticating";
   const accountDeleted = state.kind === "signedOut" && state.accountDeleted && failure === null;
@@ -50,6 +52,11 @@ export default function SignInScreen() {
         </Text>
       </View>
       <Card>
+        {notice === "session_expired" && !accountDeleted ? (
+          <Text variant="secondary" tone="text2" accessibilityRole="alert" testID="signin-session-expired">
+            {m("auth.sessionExpired")}
+          </Text>
+        ) : null}
         {accountDeleted ? (
           <Text variant="secondary" tone="text2" accessibilityRole="alert">
             {m("auth.accountDeleted")}

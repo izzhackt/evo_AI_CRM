@@ -10,6 +10,7 @@ export const PROFILE_RU = {
   "profile.passwordOthers": "После смены пароля вы выйдете из аккаунта на других устройствах. Здесь вход сохранится.",
   "profile.passwordOpen": "Сменить пароль",
   "profile.passwordCancel": "Свернуть",
+  "profile.passwordWrongCurrentHint": "Если вы только что сменили пароль, введите новый.",
   "profile.aboutHeading": "О приложении",
   "profile.privacy": "Политика конфиденциальности",
   "profile.support": "Поддержка EVO",
@@ -39,6 +40,7 @@ export const PROFILE_KY: Readonly<Record<ProfileStringKey, string>> = {
   "profile.passwordOthers": "Сырсөздү өзгөрткөндөн кийин башка түзмөктөрдөгү аккаунтуңуздан чыгасыз. Бул жерде кирип турасыз.",
   "profile.passwordOpen": "Сырсөздү өзгөртүү",
   "profile.passwordCancel": "Жыйноо",
+  "profile.passwordWrongCurrentHint": "Эгер сырсөздү жаңы эле өзгөрткөн болсоңуз, жаңысын киргизиңиз.", // KY: needs native proofreading
   "profile.aboutHeading": "Колдонмо жөнүндө",
   "profile.privacy": "Купуялык саясаты",
   "profile.support": "EVO колдоо кызматы",

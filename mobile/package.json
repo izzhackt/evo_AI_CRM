@@ -59,10 +59,11 @@
     "sync-tokens": "node scripts/sync-tokens.mjs",
     "guard:tokens": "node scripts/sync-tokens.mjs --check",
     "guard:shared": "node scripts/check-shared-imports.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test -- --ci && npm run guard:tokens && npm run guard:photos && npm run guard:shared",
+    "check": "npm run typecheck && npm run lint && npm run test -- --ci && npm run guard:tokens && npm run guard:photos && npm run guard:licenses && npm run guard:shared",
     "sync-photo-manifest": "node scripts/sync-photo-manifest.mjs",
     "guard:photos": "node scripts/sync-photo-manifest.mjs --check",
-    "licenses": "node scripts/generate-licenses.mjs"
+    "licenses": "node scripts/generate-licenses.mjs",
+    "guard:licenses": "node scripts/generate-licenses.mjs --check"
   },
   "private": true,
   "jest": {

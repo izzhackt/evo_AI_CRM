@@ -20,12 +20,21 @@ export class AiConsentDecodeError extends Error {
   }
 }
 
+export type AiConsentSource = "ios" | "android" | "portal_web";
+
 /**
- * Источник решения в журнале. Миграция 320 допускает только `portal_web` и `ios`
- * (CHECK student_ai_consents_source_check): Android до отдельной миграции пишет `portal_web`.
+ * Миграция 320 допускает только `portal_web` и `ios` (CHECK student_ai_consents_source_check), поэтому
+ * Android пока пишет `portal_web`. Отдельная серверная миграция 355 добавляет `android`: когда она
+ * выкачена на прод, достаточно сменить эту константу на true.
+ * TODO(migration 355): включить после выката.
  */
-export function aiConsentSource(os: string = Platform.OS): "ios" | "portal_web" {
-  return os === "ios" ? "ios" : "portal_web";
+export const ANDROID_CONSENT_SOURCE_READY = false;
+
+/** Единственное место выбора источника (используется и профилем, и регистрацией). */
+export function aiConsentSource(os: string = Platform.OS): AiConsentSource {
+  if (os === "ios") return "ios";
+  if (os === "android" && ANDROID_CONSENT_SOURCE_READY) return "android";
+  return "portal_web";
 }
 
 export async function readAiConsent(transport: RpcTransport): Promise<AiConsent> {
@@ -34,7 +43,7 @@ export async function readAiConsent(transport: RpcTransport): Promise<AiConsent>
   return consent;
 }
 
-export function aiConsentWrite(status: AiConsentStatus, source: "ios" | "portal_web" = aiConsentSource()): FrozenWrite {
+export function aiConsentWrite(status: AiConsentStatus, source: AiConsentSource = aiConsentSource()): FrozenWrite {
   if (!isAiConsentStatus(status)) throw new Error("ai-consent:status");
   return createWrite("portal_ai_consent_set_v1", { p_status: status, p_policy_version: AI_CONSENT_POLICY_VERSION, p_source: source });
 }

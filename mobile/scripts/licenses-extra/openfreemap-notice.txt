@@ -1,0 +1,6 @@
+Векторные тайлы предоставляет OpenFreeMap: https://openfreemap.org
+Код сервиса: https://github.com/hyperknot/openfreemap (лицензия MIT).
+
+Схема тайлов — OpenMapTiles (см. отдельную запись), данные — © участники OpenStreetMap (ODbL).
+Использование тайлов не требует ключа; указание авторства OpenFreeMap, OpenMapTiles и OpenStreetMap
+показывается на карте и здесь.

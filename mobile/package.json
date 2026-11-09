@@ -56,7 +56,8 @@
     "sync-tokens": "node scripts/sync-tokens.mjs",
     "guard:tokens": "node scripts/sync-tokens.mjs --check",
     "guard:shared": "node scripts/check-shared-imports.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test -- --ci && npm run guard:tokens && npm run guard:shared"
+    "check": "npm run typecheck && npm run lint && npm run test -- --ci && npm run guard:tokens && npm run guard:shared",
+    "licenses": "node scripts/generate-licenses.mjs"
   },
   "private": true,
   "jest": {

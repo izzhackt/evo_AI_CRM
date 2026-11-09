@@ -62,8 +62,6 @@ export default function AppLayout() {
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{ header: () => <TopBar onMenu={() => setMenuOpen(true)} /> }}
       >
-        {/* Прежнее «Поступление»: только перенаправление на «Главную», в панели и меню его нет. */}
-        <Tabs.Screen name="overview" options={{ href: null }} />
         {SECTIONS.map((section) => (
           <Tabs.Protected key={section.id} guard={isAllowed(section.id, tier)}>
             <Tabs.Screen name={section.id} options={{ title: section.id }} />

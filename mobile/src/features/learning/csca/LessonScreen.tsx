@@ -10,6 +10,7 @@ import { formatPortalString } from "@web/lib/portal/i18n";
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { useWarmMath } from "@/features/learning/math/useWarmMath";
 import { LessonSession } from "@/features/learning/csca/lesson-session";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
 import { TheoryBlocks } from "@/features/learning/csca/TheoryBlocks";
@@ -140,6 +141,7 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
 }
 
 export function LessonScreen({ lessonId }: { lessonId: string }) {
+  useWarmMath();
   const { lang, m, t, format } = useLang();
   const back = useBack("/csca");
   const c = t("csca");

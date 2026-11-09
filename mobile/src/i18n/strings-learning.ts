@@ -45,6 +45,8 @@ export const LEARN_RU = {
   "learn.timeLeft": "Осталось {time}",
   "learn.ariaFlagOn": "Отмечено «Вернуться позже»",
   "learn.ruleClock": "Таймер идёт, даже если закрыть приложение.",
+  "learn.figureOpen": "Открыть крупнее",
+  "learn.figureClose": "Закрыть",
 } as const;
 
 export type LearnStringKey = keyof typeof LEARN_RU;
@@ -93,4 +95,6 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.timeLeft": "Калды {time}",
   "learn.ariaFlagOn": "«Кийин кайтуу» деп белгиленген",
   "learn.ruleClock": "Таймер колдонмону жапсаңыз да иштей берет.",
+  "learn.figureOpen": "Чоңойтуп ачуу",
+  "learn.figureClose": "Жабуу",
 };

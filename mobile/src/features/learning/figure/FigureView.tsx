@@ -11,6 +11,7 @@ import { CSCA_FIGURE_DARK_PALETTE, figureMinWidth, type CscaFigure } from "@web/
 import { parseSvgProfile, type SvgNode } from "@/features/learning/figure/svg-profile";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
+import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
 const CAMEL: Readonly<Record<string, string>> = {
@@ -58,7 +59,7 @@ function Drawing({ root, width, height, pixelWidth, dark }: { root: SvgNode; wid
 }
 
 function FigureViewBase({ figure, testID }: { figure: CscaFigure; testID?: string }) {
-  const { lang } = useLang();
+  const { lang, m } = useLang();
   const { tokens, scheme } = useTheme();
   const [available, setAvailable] = useState(0);
   const [zoomed, setZoomed] = useState(false);
@@ -78,13 +79,13 @@ function FigureViewBase({ figure, testID }: { figure: CscaFigure; testID?: strin
   const pixelWidth = Math.max(available, minWidth);
   return (
     <View testID={testID} onLayout={(e) => setAvailable(Math.floor(e.nativeEvent.layout.width))}>
-      <Pressable accessibilityRole="imagebutton" accessibilityLabel={alt} accessibilityHint={lang === "ky" ? "Чоңойтуу" : "Открыть крупнее"} onPress={() => setZoomed(true)}>
+      <Pressable accessibilityRole="imagebutton" accessibilityLabel={alt} accessibilityHint={m("learn.figureOpen")} onPress={() => setZoomed(true)} style={{ minHeight: MIN_TARGET }}>
         <ScrollView horizontal scrollEnabled={available > 0 && minWidth > available} showsHorizontalScrollIndicator={false} style={{ borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: tokens.line, overflow: "hidden", backgroundColor: dark ? CSCA_FIGURE_DARK_PALETTE["#ffffff"] : "#ffffff" }}>
           {available > 0 ? <Drawing root={parsed.root} width={parsed.width} height={parsed.height} pixelWidth={pixelWidth} dark={dark} /> : null}
         </ScrollView>
       </Pressable>
       <Modal visible={zoomed} animationType="fade" onRequestClose={() => setZoomed(false)} transparent>
-        <Pressable accessibilityRole="button" accessibilityLabel={lang === "ky" ? "Жабуу" : "Закрыть"} onPress={() => setZoomed(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center" }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={m("learn.figureClose")} onPress={() => setZoomed(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", minHeight: MIN_TARGET }}>
           <ScrollView horizontal contentContainerStyle={{ alignItems: "center" }}>
             <View style={{ backgroundColor: dark ? CSCA_FIGURE_DARK_PALETTE["#ffffff"] : "#ffffff", marginHorizontal: 8 }}>
               <Drawing root={parsed.root} width={parsed.width} height={parsed.height} pixelWidth={Math.max(parsed.width * 1.8, minWidth)} dark={dark} />

@@ -13,6 +13,7 @@ import {
 } from "@web/lib/portal/csca-overview-choice";
 import type { CscaHome, CscaLessonSummary, CscaNextStep, CscaTopic, CscaTopicState } from "@web/lib/portal/csca";
 
+import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
 import { cscaOnLabelSafe } from "@/features/learning/csca/format";
 import { OverviewSection } from "@/features/learning/csca/OverviewSection";
@@ -28,7 +29,8 @@ import { Card, Screen } from "@/ui/Screen";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
 
-const STORAGE_KEY = "csca_overview";
+/** Выбор вкладки хранится на устройстве отдельно для каждого студента (общий ключ показал бы выбор прошлого). */
+const storageKey = (userKey: string) => `csca_overview:${userKey}`;
 const STATE_TONE: Record<CscaTopicState, "neutral" | "warn" | "bad" | "ok"> = { not_started: "neutral", few_data: "neutral", gap: "bad", shaky: "warn", confident: "ok" };
 
 /** Занимался ли студент: решает, какая вкладка открыта сразу (правило §19, общее с iPhone). */
@@ -252,19 +254,20 @@ export function CscaHomeScreen() {
   const c = t("csca");
   useRefetchOnFocus();
   const home = useCscaHome(true);
+  const { userKey } = usePortalApi();
   const [tab, setTab] = useState<"lessons" | "about" | null>(null);
   const [choice, setChoice] = useState<CscaOverviewChoice | null | undefined>(undefined);
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(storageKey(userKey))
       .then((v) => setChoice(parseCscaOverviewChoice(v)))
       .catch(() => setChoice(null));
-  }, []);
+  }, [userKey]);
   const data = home.data;
   // Вкладка: свой выбор, иначе новичок видит обзор, занимающийся занятия.
   const effective = tab ?? (choice === undefined ? null : data || home.status === "error" ? (cscaOverviewOpen(choice, data ? hasStarted(data) : true) ? "about" : "lessons") : null);
   const pick = (next: "lessons" | "about") => {
     setTab(next);
-    AsyncStorage.setItem(STORAGE_KEY, next === "about" ? "open" : "closed").catch(() => undefined);
+    AsyncStorage.setItem(storageKey(userKey), next === "about" ? "open" : "closed").catch(() => undefined);
   };
   return (
     <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void home.refetch()} refreshing={home.isRefetching}>

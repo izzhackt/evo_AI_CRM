@@ -86,3 +86,11 @@ export function typesetTex(tex: string, display = false): TexMetrics | null {
 export function colorizeSvg(svg: string, color: string): string {
   return svg.replaceAll("currentColor", color);
 }
+
+let warmed = false;
+/** Прогрев: движок и первая формула создаются один раз после первой отрисовки экрана, а не в ней. */
+export function warmMath(): void {
+  if (warmed) return;
+  warmed = true;
+  typesetTex("\\frac{a}{b}+x^2", false);
+}

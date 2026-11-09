@@ -53,6 +53,9 @@ describe("профиль SVG рисунков (контракт §15)", () => {
     ["вложенный svg", ok.replace("<rect", "<svg/><rect")],
     ["tspan вне text", ok.replace("<rect", "<tspan/><rect")],
     ["не закрыт", ok.replace("</svg>", "")],
+    ["слишком длинное значение обычного атрибута", ok.replace('font-size="14"', `font-size="${"1".repeat(65)}"`)],
+    ["слишком длинный font-family", ok.replace('<svg ', `<svg font-family="${"a".repeat(97)}" `)],
+    ["слишком длинный transform", ok.replace("<rect ", `<rect transform="${"translate(1 1)".repeat(12)}" `)],
   ])("отклоняет: %s", (_name, svg) => {
     expect(parseSvgProfile(svg)).toBeNull();
   });

@@ -1,6 +1,6 @@
 // Тест на время CSCA: вступление, прохождение, итог и разбор. Вся логика (часы по серверному
 // времени, пачки сохранения, замороженные запросы, завершение) живёт в CscaTestSession.
-import { router } from "expo-router";
+import { router, useNavigation, usePreventRemove } from "expo-router";
 import { Flag } from "lucide-react-native";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Alert, AppState, Modal, Pressable, View } from "react-native";
@@ -11,6 +11,7 @@ import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { cscaDayLabelSafe } from "@/features/learning/csca/format";
 import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { useWarmMath } from "@/features/learning/math/useWarmMath";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
 import { useCscaHome, useCscaTestResult, useInvalidateCsca } from "@/features/learning/queries";
 import { CscaTestSession, defaultEnv, type TestUiState } from "@/features/learning/test-runner/session";
@@ -64,6 +65,7 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
   const c = t("csca");
   const back = useBack("/csca");
 
+  useWarmMath();
   useEffect(() => () => session.dispose(), [session]);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (status) => (status === "active" ? session.onForeground() : session.onBackground()));
@@ -76,10 +78,21 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
 
   const title = state.attempt ? (lang === "ky" ? state.attempt.metadata.title_ky : state.attempt.metadata.title_ru) : form ? (lang === "ky" ? form.metadata.title_ky : form.metadata.title_ru) : c.testTitle;
   const running = phase === "running" || phase === "finishing";
+  // Свайп назад и системная «назад» не должны терять неотправленные ответы: пока идёт тест,
+  // уход перехватывается и спрашивает подтверждение; жест закрыт, и экран закрывается через flush.
+  const navigation = useNavigation();
+  const [leaving, setLeaving] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
+  usePreventRemove(running && leaving === null, ({ data }) => confirmLeave(session, () => setLeaving(data.action), m));
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !running });
+  }, [navigation, running]);
+  useEffect(() => {
+    if (leaving) navigation.dispatch(leaving);
+  }, [leaving, navigation]);
 
   return (
     <StackPage
-      header={<SubHeader title={title} onBack={running ? () => confirmLeave(session, back, m) : back} backLabel={c.backToHome} testID="test-title" right={running && state.remaining !== null ? <Clock state={state} /> : undefined} />}
+      header={<SubHeader title={title} onBack={back} backLabel={c.backToHome} testID="test-title" right={running && state.remaining !== null ? <Clock state={state} /> : undefined} />}
       testID="test-screen"
       bottomPad={32}
     >

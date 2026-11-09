@@ -32,8 +32,8 @@ const ENUM: Readonly<Record<string, ReadonlySet<string>>> = {
   "text-anchor": new Set(["start", "middle", "end"]),
   "dominant-baseline": new Set(["auto", "middle", "central", "hanging", "alphabetic"]),
 };
-const ELEMENT_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[a-zA-Z][a-zA-Z0-9-]*="[^"<>]*")*)\s*(\/?)>/y;
-const ATTR_RE = /\s+([a-zA-Z][a-zA-Z0-9-]*)="([^"<>]*)"/gy;
+const ELEMENT_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[a-zA-Z][a-zA-Z0-9-]*="[^"<>]{0,4096}")*)\s*(\/?)>/y;
+const ATTR_RE = /\s+([a-zA-Z][a-zA-Z0-9-]*)="([^"<>]{0,4096})"/gy;
 const ENTITY_RE = /&(#[0-9]{1,6}|#x[0-9a-fA-F]{1,5}|amp|lt|gt|quot|apos);/gu;
 
 function decodeEntities(text: string): string | null {
@@ -49,7 +49,12 @@ function decodeEntities(text: string): string | null {
   });
 }
 
+/** Длина значения проверяется до любого регулярного выражения: обычные атрибуты короткие, длинные только у геометрии. */
+const MAX_VALUE: Readonly<Record<string, number>> = { d: 4096, points: 2048, transform: 128, "font-family": 96, "stroke-dasharray": 64 };
+const DEFAULT_MAX_VALUE = 64;
+
 function validValue(name: string, value: string): boolean {
+  if (value.length > (MAX_VALUE[name] ?? DEFAULT_MAX_VALUE)) return false;
   switch (name) {
     case "xmlns": return value === "http://www.w3.org/2000/svg";
     case "viewBox": return /^0 0 \d{3} \d{3}$/u.test(value);

@@ -280,6 +280,79 @@ describe("сессия: пачки сохранения", () => {
   });
 });
 
+describe("сессия: закрытие экрана и возврат из сна", () => {
+  async function running(extra: Record<string, Reply[]> = {}) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    const session = new CscaTestSession(h.env, FORM, null);
+    await session.start();
+    return { h, session, keys: attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[] };
+  }
+
+  it("закрытие экрана досылает несохранённое «по возможности»", async () => {
+    const { h, session, keys } = await running({ save_learning_test_v1: [saveReceipt(2)] });
+    session.select(keys[0], "a");
+    session.dispose(); // свайп назад до срабатывания таймера 1,5 с
+    await flushMicrotasks();
+    const sent = saves(h.calls);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].args.p_answers).toEqual({ [keys[0]]: "a" });
+  });
+
+  it("возврат из сна: отсчёт сверяется с сервером по свежему serverNow", async () => {
+    const { h, session } = await running({
+      learning_test_attempt_v1: [draftAttempt({ serverNow: "2026-10-16T10:40:09.712211+00:00", revision: 1 })],
+    });
+    await h.advance(10_000); // монотонные часы прошли 10 с, а устройство спало почти 4 минуты
+    expect(session.getState().remaining).toBe(230);
+    session.onForeground();
+    await flushMicrotasks();
+    expect(session.getState().remaining).toBe(40);
+    session.dispose();
+  });
+
+  it("возврат из сна: попытка завершена другим путём, виден итог", async () => {
+    const done = fx("csca_test_complete_diagnostic");
+    const { session } = await running({ learning_test_attempt_v1: [done] });
+    session.onForeground();
+    await flushMicrotasks();
+    expect(session.getState().phase).toBe("result");
+    session.dispose();
+  });
+
+  it("возврат из сна без связи: прежний отсчёт, ответы не тронуты", async () => {
+    const { h, session, keys } = await running({ learning_test_attempt_v1: [NETWORK] });
+    session.select(keys[0], "b");
+    session.onForeground();
+    await flushMicrotasks();
+    expect(session.getState().phase).toBe("running");
+    expect(session.getState().answers[keys[0]]).toBe("b");
+    expect(h.calls.some((c) => c.name === "learning_test_attempt_v1")).toBe(true);
+    session.dispose();
+  });
+
+  it("конфликт: выборы, сделанные здесь, накладываются поверх сохранённого сервером и уходят следом", async () => {
+    const keysOf = draftAttempt().items.map((i: { itemKey: string }) => i.itemKey) as string[];
+    const fresh = draftAttempt({ revision: 7, answers: { [keysOf[1]]: "c" }, answeredCount: 1 });
+    const { h, session, keys } = await running({
+      save_learning_test_v1: [err("40001", "Learning attempt changed"), saveReceipt(8)],
+      learning_test_attempt_v1: [fresh],
+    });
+    session.select(keys[0], "a");
+    session.toggleFlag(keys[2]);
+    await h.advance(SAVE_ON_CHOICE_MS + 10); // первая отправка: конфликт
+    // Выборы поверх сохранённого сервером (не затёрты) и уже уходят следующим запросом.
+    expect(session.getState().answers).toEqual({ [keys[1]]: "c", [keys[0]]: "a" });
+    expect(session.getState().flags).toEqual([keys[2]]);
+    const sent = saves(h.calls);
+    expect(sent).toHaveLength(2);
+    expect(sent[1].args.p_expected_revision).toBe(7);
+    expect(sent[1].args.p_answers).toEqual({ [keys[1]]: "c", [keys[0]]: "a" });
+    expect(sent[1].args.p_flags).toEqual([keys[2]]);
+    session.dispose();
+  });
+});
+
 describe("сессия: завершение", () => {
   it("досрочное завершение диагностики сначала досылает несохранённое, потом завершает", async () => {
     const done = fx("csca_test_complete_diagnostic");

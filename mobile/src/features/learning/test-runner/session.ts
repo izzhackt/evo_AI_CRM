@@ -74,7 +74,7 @@ export function defaultEnv(transport: RpcTransport): SessionEnv {
   };
 }
 
-type SaveRequest = { write: FrozenWrite; expectedRevision: number; itemSeconds: Record<string, number> };
+type SaveRequest = { write: FrozenWrite; expectedRevision: number; itemSeconds: Record<string, number>; sentAnswers: Record<string, CscaOptionId>; flagsVersion: number };
 
 export class CscaTestSession {
   private state: TestUiState;
@@ -98,6 +98,10 @@ export class CscaTestSession {
   private startWrite: FrozenWrite | null = null;
   private disposed = false;
   private visible = true;
+  /** Выборы и флажки, ещё не подтверждённые сервером (для повторного наложения после конфликта). */
+  private touched = new Set<string>();
+  private flagsTouched = false;
+  private flagsVersion = 0;
 
   constructor(
     private readonly env: SessionEnv,
@@ -135,7 +139,12 @@ export class CscaTestSession {
   /** Подробности для тестов: текущая ревизия и поправка часов. */
   debug = () => ({ revision: this.revision, offset: this.offset, dirty: this.dirty, retry: this.retry?.write.requestId ?? null });
 
+  /**
+   * Экран закрыт (свайп назад, системная «назад», выход): несохранённые ответы и время на задании
+   * уходят «по возможности» (запрос идёт и после закрытия), затем таймеры останавливаются.
+   */
   dispose(): void {
+    if (this.attempt?.status === "draft" && this.state.phase === "running") void this.flush({ settle: true }).catch(() => undefined);
     this.disposed = true;
     if (this.batchTimer) this.env.clearTimer(this.batchTimer);
     if (this.tickTimer) this.env.clearTimer(this.tickTimer);
@@ -155,6 +164,8 @@ export class CscaTestSession {
     this.sentSeconds = { ...next.itemSeconds };
     this.dirty = false;
     this.retry = null;
+    this.touched.clear();
+    this.flagsTouched = false;
     this.patch({ attempt: next, answers: { ...this.answers }, flags: [...this.flags] });
   }
 
@@ -263,6 +274,7 @@ export class CscaTestSession {
   select(itemKey: string, option: CscaOptionId): void {
     if (this.state.phase !== "running") return;
     this.answers = { ...this.answers, [itemKey]: option };
+    this.touched.add(itemKey);
     this.patch({ answers: { ...this.answers } });
     this.scheduleSave();
   }
@@ -270,6 +282,8 @@ export class CscaTestSession {
   toggleFlag(itemKey: string): void {
     if (this.state.phase !== "running") return;
     this.flags = this.flags.includes(itemKey) ? this.flags.filter((k) => k !== itemKey) : [...this.flags, itemKey];
+    this.flagsTouched = true;
+    this.flagsVersion += 1;
     this.patch({ flags: [...this.flags] });
     this.scheduleSave();
   }
@@ -302,7 +316,30 @@ export class CscaTestSession {
     if (this.state.phase === "running") {
       this.enteredAt = this.env.now();
       this.tick();
+      // После сна устройства монотонные часы могли встать: сверяем отсчёт с сервером (§7.2).
+      void this.resyncClock();
     }
+  }
+
+  /**
+   * Свежий serverNow по чтению попытки. Ответы и флажки на экране не трогаются (там могут быть
+   * ещё не отправленные выборы); отсчёт назад не переводится; завершённая другим путём попытка
+   * показывает итог.
+   */
+  async resyncClock(): Promise<void> {
+    const current = this.attempt;
+    if (!current || current.status !== "draft") return;
+    let fresh: CscaTestAttempt;
+    try {
+      fresh = await readCscaTestAttemptV1(this.env.transport, current.attemptId);
+    } catch {
+      return; // нет связи: остаётся прежняя оценка, она не хуже
+    }
+    const receivedAt = this.env.now();
+    if (this.disposed || this.attempt?.attemptId !== current.attemptId) return;
+    if (fresh.status === "completed") return this.showResult(fresh);
+    this.offset = laterClockOffset(this.offset, clockOffsetMs(fresh.serverNow, receivedAt));
+    this.tick();
   }
 
   // ---- сохранение ------------------------------------------------------------------------
@@ -350,6 +387,8 @@ export class CscaTestSession {
       request = {
         expectedRevision: this.revision,
         itemSeconds: payload.itemSeconds,
+        sentAnswers: payload.answers,
+        flagsVersion: this.flagsVersion,
         // Запрос замораживается здесь: id, ревизия и тело дальше не меняются.
         write: saveTestWrite({ attemptId: current.attemptId, expectedRevision: this.revision, ...payload }, this.env.newId()),
       };
@@ -372,8 +411,27 @@ export class CscaTestSession {
       }
       this.retry = null;
       if (code === "conflict") {
+        // Попытка изменилась (другое устройство): сервер главнее для сохранённого, но выборы,
+        // сделанные здесь и не подтверждённые, накладываются поверх и уходят следующим запросом.
+        const localAnswers = { ...this.answers };
+        const localFlags = [...this.flags];
+        const keys = [...this.touched];
+        const flagsTouched = this.flagsTouched;
         this.patch({ notice: "conflict" });
         await this.reloadAttempt();
+        if (this.attempt?.status === "draft" && this.state.phase === "running" && (keys.length > 0 || flagsTouched)) {
+          for (const key of keys) {
+            this.answers[key] = localAnswers[key];
+            this.touched.add(key);
+          }
+          if (flagsTouched) {
+            this.flags = localFlags;
+            this.flagsTouched = true;
+          }
+          this.patch({ answers: { ...this.answers }, flags: [...this.flags] });
+          this.scheduleSave();
+          return;
+        }
         this.patch({ saveStatus: "saved" });
         return;
       }
@@ -394,6 +452,9 @@ export class CscaTestSession {
     const receivedAt = this.env.now();
     this.lastSaveAt = receivedAt;
     this.retry = null;
+    // Подтверждено только то, что ушло и не менялось за время запроса.
+    for (const [key, sent] of Object.entries(request.sentAnswers)) if (this.answers[key] === sent) this.touched.delete(key);
+    if (this.flagsVersion === request.flagsVersion) this.flagsTouched = false;
     this.revision = receipt.revision;
     // По квитанции отсчёт назад не переводится (§7.2).
     this.offset = laterClockOffset(this.offset, clockOffsetMs(receipt.serverNow, receivedAt));

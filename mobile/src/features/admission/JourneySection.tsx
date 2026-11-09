@@ -8,6 +8,7 @@ import { Pressable, View } from "react-native";
 import type { CountryChoiceSource } from "@web/lib/portal/country-choice";
 import type { CountryTimelineView, TimelineStepProgress, TimelineViewStep } from "@web/lib/portal/country-timeline";
 
+import { usePortalApi } from "@/api/PortalApi";
 import { useFolded, useOpenSteps } from "@/features/admission/useOpenSteps";
 import { CountryPicker } from "@/features/portal/CountryChoiceCard";
 import { JourneyMeter } from "@/features/portal/JourneyMeter";
@@ -108,6 +109,7 @@ export function JourneySection({
   initiallyUnfolded?: boolean;
 }) {
   const { t, m, format } = useLang();
+  const { userKey } = usePortalApi();
   const { tokens } = useTheme();
   const timeline = t("timeline");
   const total = view.steps.length;
@@ -117,9 +119,9 @@ export function JourneySection({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const { open, toggle } = useOpenSteps(view);
+  const { open, toggle } = useOpenSteps(view, userKey);
   // Без выбора студента путь с текущим шагом свёрнут: на виду строка «Сейчас: …»; без дела раскрыт.
-  const { folded, setFolded } = useFolded(currentStep !== null);
+  const { folded, setFolded } = useFolded(currentStep !== null, userKey);
   useEffect(() => {
     if (initiallyUnfolded) setFolded(false);
   }, [initiallyUnfolded, setFolded]);

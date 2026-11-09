@@ -4,7 +4,23 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const PREFIX = "evo.portal.timeline.open.v1";
+/** Общий префикс ключей: при выходе удаляются все ключи с ним (clearPerUserUiState). */
+export const OPEN_STEPS_PREFIX = "evo.portal.timeline.open.v1";
+const PREFIX = OPEN_STEPS_PREFIX;
+
+/** Ключ принадлежит студенту (auth user id): на общем телефоне чужое состояние не наследуется. */
+const scoped = (userKey: string, rest: string) => `${PREFIX}:${userKey}:${rest}`;
+
+/** Удалить всё состояние интерфейса, привязанное к студенту (при выходе). */
+export async function clearPerUserUiState(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const mine = keys.filter((key) => key.startsWith(PREFIX));
+    if (mine.length > 0) await AsyncStorage.multiRemove(mine);
+  } catch {
+    // Хранилище недоступно: нечего чистить.
+  }
+}
 
 export function parseOpenSteps(raw: string | null, known: ReadonlySet<string>): ReadonlySet<string> {
   if (!raw) return new Set();
@@ -17,8 +33,11 @@ export function parseOpenSteps(raw: string | null, known: ReadonlySet<string>): 
   }
 }
 
-export function useOpenSteps(view: Readonly<{ file: string; contentVersion: number; steps: readonly { id: string }[] }> | null) {
-  const storageKey = view ? `${PREFIX}:${view.file}:${view.contentVersion}` : null;
+export function useOpenSteps(
+  view: Readonly<{ file: string; contentVersion: number; steps: readonly { id: string }[] }> | null,
+  userKey: string,
+) {
+  const storageKey = view ? scoped(userKey, `${view.file}:${view.contentVersion}`) : null;
   // Путь пересобирается на каждый рендер экрана: зависим от значений, а не от объекта.
   const stepsKey = (view?.steps ?? []).map((step) => step.id).join("|");
   const known = useMemo(() => new Set(stepsKey === "" ? [] : stepsKey.split("|")), [stepsKey]);
@@ -52,21 +71,31 @@ export function useOpenSteps(view: Readonly<{ file: string; contentVersion: numb
   return { open, toggle };
 }
 
-const FOLDED_KEY = `${PREFIX}:folded`;
-
 /** Свёрнут ли весь путь: выбор студента помнится (`1`/`0`), без выбора по умолчанию. */
-export function useFolded(defaultFolded: boolean) {
+export function useFolded(defaultFolded: boolean, userKey: string) {
+  const foldedKey = scoped(userKey, "folded");
+  // Пока читается ключ нового студента, выбор прежнего не должен просочиться.
   const [stored, setStored] = useState<boolean | null>(null);
   useEffect(() => {
-    AsyncStorage.getItem(FOLDED_KEY)
+    setStored(null);
+    let cancelled = false;
+    AsyncStorage.getItem(foldedKey)
       // Выбор, сделанный на экране до ответа хранилища, важнее сохранённого.
-      .then((raw) => setStored((current) => current ?? (raw === "1" ? true : raw === "0" ? false : null)))
+      .then((raw) => {
+        if (!cancelled) setStored((current) => current ?? (raw === "1" ? true : raw === "0" ? false : null));
+      })
       .catch(() => undefined);
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [foldedKey]);
   const folded = stored ?? defaultFolded;
-  const setFolded = useCallback((value: boolean) => {
-    setStored(value);
-    AsyncStorage.setItem(FOLDED_KEY, value ? "1" : "0").catch(() => undefined);
-  }, []);
+  const setFolded = useCallback(
+    (value: boolean) => {
+      setStored(value);
+      AsyncStorage.setItem(foldedKey, value ? "1" : "0").catch(() => undefined);
+    },
+    [foldedKey],
+  );
   return { folded, setFolded };
 }

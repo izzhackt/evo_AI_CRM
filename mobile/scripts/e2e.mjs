@@ -27,6 +27,7 @@ if (!student?.login || !student?.password) {
 const args = ["test"];
 if (platform) args.push("--platform", platform);
 if (process.env.EVO_E2E_DEVICE) args.push("--device", process.env.EVO_E2E_DEVICE);
+if (process.env.EVO_E2E_OUT) args.push("--test-output-dir", process.env.EVO_E2E_OUT);
 args.push(...(flows.length > 0 ? flows : [".maestro"]));
 const result = spawnSync("maestro", args, {
   cwd: root,

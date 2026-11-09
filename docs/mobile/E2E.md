@@ -32,6 +32,23 @@
    скопируйте из рабочей копии стенда). Путь можно задать `EVO_E2E_ACCOUNTS`, аккаунт `EVO_E2E_ACCOUNT` (по умолчанию `assisted`).
    Скрипт передаёт их потокам через окружение процесса (`MAESTRO_E2E_LOGIN`, `MAESTRO_E2E_PASSWORD`), в Git их нет.
 
+### Особенности платформ (отладочная сборка)
+
+- **Android.** Сборка читает Metro на `10.0.2.2:8081`: поднимите Metro на своём порту и пробросьте
+  `adb reverse tcp:8081 tcp:<порт Metro>` (плюс 46421, 46430). В debug-манифесте есть `ACCESS_LOCAL_NETWORK` (Android 17
+  спрашивает его при обращении к Metro); потоки запускают приложение с `permissions: all: allow`. Если на общем AVD остался
+  чужой `debug_http_host`, выполните `adb shell pm clear com.evoadmissions.app`. Холодный старт debug-сборки на
+  нагруженном Mac занимает до 2 минут, поэтому ожидания входа длинные (120 с).
+- **iOS.** Системные окна «Save Password?» и «Open in EVO admissions?» не часть приложения: потоки их закрывают.
+- Проверка release-манифеста Android (без `ACCESS_LOCAL_NETWORK`, без cleartext): `npx expo prebuild --platform android`,
+  затем `./gradlew :app:processReleaseMainManifest` и просмотр `app/build/intermediates/merged_manifest/release/`.
+
+## Скриншоты для магазинов
+
+`EVO_E2E_OUT=<каталог> npm run e2e:ios -- .maestro/store/screenshots.yaml` (то же для `e2e:android`): Maestro сохраняет PNG
+в `<каталог>/<дата>/Скриншоты для магазинов/` (Maestro разрешает `takeScreenshot` только внутри каталога запуска). Готовые файлы
+лежат в `docs/mobile/store-screenshots/`.
+
 ## Запуск
 
 ```

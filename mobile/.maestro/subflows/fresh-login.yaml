@@ -4,8 +4,10 @@ appId: com.evoadmissions.app
 - launchApp:
     clearState: true
     clearKeychain: true
+    permissions:
+      all: allow
 - extendedWaitUntil:
     visible:
       id: login-input
-    timeout: 60000
+    timeout: 120000
 - runFlow: login.yaml

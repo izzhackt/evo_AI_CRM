@@ -27,6 +27,6 @@ name: Выход очищает локальные данные
 - extendedWaitUntil:
     visible:
       id: login-input
-    timeout: 60000
+    timeout: 120000
 - assertNotVisible:
     id: home-screen

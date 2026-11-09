@@ -10,11 +10,6 @@ name: Документы, скачивание договора
     timeout: 20000
 - scrollUntilVisible:
     element:
-      id: case-files
-    direction: DOWN
-    timeout: 20000
-- scrollUntilVisible:
-    element:
       id: "case-file-download-contract-.*"
     direction: DOWN
     timeout: 20000

@@ -1,0 +1,53 @@
+# Скриншоты для магазинов (docs/mobile/STORE_LISTING.md, раздел 9): светлая тема, русский, синтетический студент.
+# Запуск: npm run e2e:ios -- .maestro/store/screenshots.yaml, файлы PNG пишутся в каталог EVO_E2E_OUT (--test-output-dir).
+appId: com.evoadmissions.app
+name: Скриншоты для магазинов
+---
+- runFlow: ../subflows/fresh-login.yaml
+- waitForAnimationToEnd
+- takeScreenshot: 1-home
+- tapOn:
+    id: tab-documents
+- extendedWaitUntil:
+    visible:
+      id: title-documents
+    timeout: 30000
+- takeScreenshot: 2-documents
+- tapOn:
+    id: tab-messages
+- tapOn:
+    id: inbox-chat
+- extendedWaitUntil:
+    visible:
+      id: chat-input
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 3-chat
+- runFlow:
+    file: ../subflows/open-section.yaml
+    env:
+      SECTION: universities
+- extendedWaitUntil:
+    visible:
+      id: "country-.*"
+    timeout: 30000
+- takeScreenshot: 4-universities
+- runFlow:
+    file: ../subflows/open-section.yaml
+    env:
+      SECTION: csca
+- extendedWaitUntil:
+    visible:
+      id: csca-screen
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: 5-csca
+- runFlow:
+    file: ../subflows/open-section.yaml
+    env:
+      SECTION: profile
+- extendedWaitUntil:
+    visible:
+      id: profile-screen
+    timeout: 20000
+- takeScreenshot: 6-profile

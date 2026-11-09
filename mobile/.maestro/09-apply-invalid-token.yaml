@@ -4,10 +4,12 @@ name: Ссылка регистрации с неверным токеном
 - launchApp:
     clearState: true
     clearKeychain: true
+    permissions:
+      all: allow
 - extendedWaitUntil:
     visible:
       id: login-input
-    timeout: 60000
+    timeout: 120000
 - openLink: evoadmissions://apply?invite=not-a-real-token
 # iOS спрашивает «Open in EVO admissions?» для своей схемы; на Android вопроса нет.
 - runFlow:

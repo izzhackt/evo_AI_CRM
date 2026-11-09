@@ -6,14 +6,12 @@ import { PreparationList } from "@/components/portal/admissionPreparations/Prepa
 import { OverviewView } from "@/components/portal/admission/OverviewView";
 import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
 import { HomeList, type HomeListView } from "@/components/portal/home/HomeList";
-import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
 import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
-import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
@@ -72,7 +70,7 @@ export default async function StudentPortalHomePage({
   // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной» — их
   // чтений здесь больше нет; «Что нового» (лента «Входящих») — только assisted.
   // «Мой список» (#1355): выбранные программы читаются в той же волне.
-  const [overviewResult, news, favoritesResult, choiceRead, aiConsentRead, preparations] = await Promise.all([
+  const [overviewResult, news, favoritesResult, choiceRead, preparations] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
@@ -93,7 +91,6 @@ export default async function StudentPortalHomePage({
       choice,
       cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
     })),
-    readOwnAiConsent(tier),
     readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
   ]);
   const { choice, cscaHome } = choiceRead;
@@ -180,12 +177,6 @@ export default async function StudentPortalHomePage({
           />
         )}
         csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}
-        aiConsent={aiConsentRead.status === "ready" ? (
-          <AiConsentHomeCard
-            initialConsent={aiConsentRead.consent}
-            strings={getPortalStrings("aiConsent", locale)}
-          />
-        ) : null}
         locale={locale}
         now={now}
       />

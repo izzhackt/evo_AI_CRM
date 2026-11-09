@@ -1,6 +1,6 @@
 // Главная: единственный домашний экран (#1355, веб HomeView.tsx на /portal; отдельного
 // «Поступления» больше нет). Порядок на телефоне: шапка с этапом дела, выбор страны (пока страны нет),
-// согласие на ИИ (assisted), затем блоки из domain/home-model.ts: задача EVO, «Что сделать сейчас»
+// затем блоки из domain/home-model.ts: задача EVO, «Что сделать сейчас»
 // (у approved одна «Ваша анкета»), путь страны, «Написать EVO» (assisted), даты, «Что нового»
 // (assisted), CSCA (Китай), «Мой список» (вкладки «Вузы» и «Мои программы») и весь «Путь поступления».
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,6 @@ import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, JourneyCar
 import { HomeHero } from "@/features/home/HomeHero";
 import { HomeList } from "@/features/home/HomeList";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
-import { AiConsentHomeCard } from "@/features/profile/AiConsent";
 import { loadOf } from "@/features/portal/load";
 import { useLang } from "@/i18n/LangProvider";
 import { CardSkeleton } from "@/ui/CardParts";
@@ -142,7 +141,6 @@ export function HomeScreen() {
     <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing} scrollRef={scroller}>
       <View style={{ gap: 16 }} testID="home-screen">
         <HomeHero displayName={displayName} studyCountry={studyCountry} stage={assisted ? (overview.data?.operationalStage ?? null) : null} />
-        {assisted ? <AiConsentHomeCard /> : null}
         {showCountryChoice(journey.view !== null) ? (
           choiceLoad?.state === "loading" ? (
             <Card>

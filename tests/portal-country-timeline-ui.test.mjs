@@ -51,9 +51,9 @@ test("one home: the card sits in the right column, the whole path closes the pag
   assert.match(page, /fullPath=\{journey\.view \? \(\s+(?:\/\/[^\n]*\n\s+)?<CountryTimeline\s+view=\{journey\.view\}/u);
   assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>\s+\) : null\}/u);
   assert.ok(view.indexOf("{list}") > view.indexOf('<div className="pt-home-columns">') && view.indexOf("{fullPath}") > view.indexOf("{list}"), "columns, then the list, then the whole path");
-  // Выбор страны первым блоком под шапкой, до согласия и колонок.
+  // Выбор страны первым блоком под шапкой, до колонок (карточки согласия на «Главной» больше нет, 09.11.2026).
   const hv = view;
-  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{aiConsentApplies(tier)"), "country choice first under the header");
+  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{info}"), "country choice first under the header");
   // Карточка открывает правую колонку «Главной», перед датами.
   const side = view.indexOf('<div className="pt-home-side">');
   const cardAt = view.indexOf("{journey}");

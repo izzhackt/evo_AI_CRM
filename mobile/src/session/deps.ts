@@ -1,4 +1,6 @@
 // Реальные зависимости маршрутизатора: RPC платформы и сессия Supabase.
+import { parseConsentStatus } from "@/features/consent/consent-contract";
+
 import type { AppSupabase } from "@/lib/supabase";
 import { RpcError, rpcRead, type RpcTransport } from "@/lib/rpc";
 import { validateStudentApplicationDraft } from "@/features/registration/application-contract";
@@ -90,6 +92,9 @@ export function createAccessDeps(supabase: AppSupabase, transport: RpcTransport)
     },
     async ownStudentApplication() {
       return decodeOwnApplication(await rpcRead(transport, "own_student_application_v1"));
+    },
+    async consentStatus() {
+      return parseConsentStatus(await rpcRead(transport, "portal_consent_status_v1"));
     },
     async authUserIsDeleted() {
       try {

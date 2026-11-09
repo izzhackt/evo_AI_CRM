@@ -9,6 +9,7 @@ import {
   ADMIN_ROLE_PREVIEW_COOKIE,
   resolvePlatformActor,
 } from "./platform-auth";
+import { portalTargetAfterSignIn } from "./portal/consent-gate-rpc";
 import { createSupabaseServerClient } from "./supabase/server";
 import { SESSION_ONLY_COOKIE } from "./session-cookie";
 import { resolveStudentLoginEmail } from "./server/student-login";
@@ -76,7 +77,7 @@ export async function loginStaffAction(
     return "accessDenied";
   }
 
-  let redirectTarget: "/" | "/portal" | "/auth/account-pending" | "/apply" | "/apply/status" | typeof NEW_PASSWORD_PATH | null = null;
+  let redirectTarget: "/" | "/portal" | "/portal/privacy" | "/auth/account-pending" | "/apply" | "/apply/status" | typeof NEW_PASSWORD_PATH | null = null;
   try {
     const client = await createSupabaseServerClient({ sessionOnly: !rememberDevice });
     const { error: signInError } = await client.auth.signInWithPassword({
@@ -128,7 +129,8 @@ export async function loginStaffAction(
         claimsData.claims,
       );
       if (studentAuthority.status === "authenticated") {
-        redirectTarget = "/portal";
+        // 356: без решения о Политике и ИИ сразу на экран «Конфиденциальность» (см. portalTargetAfterSignIn).
+        redirectTarget = await portalTargetAfterSignIn(client);
       } else if (studentAuthority.status === "unavailable") {
         return "authUnavailable";
       } else {

@@ -7,6 +7,7 @@ import { ADMIN_ROLE_PREVIEW_COOKIE } from "./platform-auth.ts";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import { createStudentInviteCallbackRuntime } from "./server/student-invite-callback-runtime.ts";
 import { verifyStudentInviteCallback } from "./server/student-invite-callback-verification.ts";
+import { recordStudentConsentsAfterSignIn } from "./server/student-consent-gate-record.ts";
 import { createStudentInviteSessionRuntime } from "./server/student-invite-session-runtime.ts";
 import { readVerifiedStudentInviteSession } from "./server/student-invite-session.ts";
 import { createStudentPortalInviteStore } from "./server/student-portal-invite-store.ts";
@@ -28,6 +29,7 @@ export type StudentInviteVerificationActionState =
 
 export type StudentPasswordActionState =
   | "invalidRequest"
+  | "consentRequired"
   | "passwordMismatch"
   | "passwordRejected"
   | "invalidIdentity"
@@ -104,8 +106,10 @@ export async function setStudentPortalPasswordAction(
   _previousState: StudentPasswordActionState,
   form: FormData,
 ): Promise<StudentPasswordActionState> {
-  const fields = exactActionStringFields(form, ["password", "password_confirm"]);
+  const fields = exactActionStringFields(form, ["password", "password_confirm", "policy_consent", "ai_consent"]);
   if (!fields) return "invalidRequest";
+  // 356 (решение владельца 09.11.2026): обе галочки «Конфиденциальность» обязательны и здесь.
+  if (fields.get("policy_consent") !== "granted" || fields.get("ai_consent") !== "granted") return "consentRequired";
   const password = fields.get("password") ?? "";
   const passwordConfirm = fields.get("password_confirm") ?? "";
   if (password !== passwordConfirm) return "passwordMismatch";
@@ -175,6 +179,8 @@ export async function setStudentPortalPasswordAction(
   }
 
   if (!destination) return "authUnavailable";
+  // Принятие пишется от имени вошедшего; сбой входу не мешает - экран кабинета спросит снова.
+  await recordStudentConsentsAfterSignIn();
   redirect(destination);
 }
 

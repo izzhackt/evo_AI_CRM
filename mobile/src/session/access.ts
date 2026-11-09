@@ -1,6 +1,8 @@
 // Маршрутизатор сессии: порт iPhone `SessionRouter.resolveAccess` и
 // `ApplicationAccessPolicy` (ios/EVOAdmissions/Services/SessionRouter.swift,
 // ApplicationIntakePolicy.swift). Чистая логика без React и Supabase SDK.
+import { consentGateRequired, type ConsentStatus } from "@/features/consent/consent-contract";
+
 import { RpcError } from "@/lib/rpc";
 
 export type AccessTier = "approved" | "assisted";
@@ -49,6 +51,8 @@ export type SessionState =
   | { kind: "authenticating" }
   | { kind: "resolvingAccess" }
   | { kind: "active"; session: PortalSession }
+  /** Дело открыто, но нет решения о Политике и ИИ-помощниках (миграция 356): сначала экран «Конфиденциальность». */
+  | { kind: "needsConsent"; session: PortalSession }
   | { kind: "needsApplication"; entry: { signedInEmail: string | null; resume: boolean } }
   | { kind: "applicationStatus"; application: OwnApplication }
   | { kind: "accessPending" }
@@ -96,6 +100,8 @@ export type AccessDeps = Readonly<{
   studentPortalCases(): Promise<readonly StudentPortalCase[]>;
   studentSessionIdentity(): Promise<StudentSessionIdentity>;
   ownStudentApplication(): Promise<OwnApplication | null>;
+  /** `portal_consent_status_v1`; `null` - форма ответа чужая. Сбой RPC бросает (маршрутизатор открывает кабинет). */
+  consentStatus(): Promise<ConsentStatus | null>;
   /** `auth.getUser()` вернул `user_not_found`. */
   authUserIsDeleted(): Promise<boolean>;
   /** Локальный выход (scope local), чтобы показать вход с пометкой «Аккаунт удалён». */
@@ -150,6 +156,22 @@ async function resolveApplicationFlow(deps: AccessDeps): Promise<SessionState> {
   }
 }
 
+/**
+ * Миграция 356, решение владельца 09.11.2026: экран «Конфиденциальность» показывается, когда база говорит
+ * `needsDecision` И версии базы равны версиям сборки (иначе принятие отвергнуто, а экран нельзя закрыть).
+ * Как в вебе (`(portal)/layout.tsx`), сбой чтения или чужая форма ответа кабинет НЕ запирают: доступ ИИ к данным
+ * без согласия закрывает база (320). Экран только у студента кабинета; анкета и статус анкеты его не ставят
+ * (политику заявитель принимает галочкой анкеты, а сам веб эти шаги тоже не закрывает).
+ */
+async function consentNeeded(deps: AccessDeps): Promise<boolean> {
+  try {
+    const status = await deps.consentStatus();
+    return status !== null && consentGateRequired(status);
+  } catch {
+    return false;
+  }
+}
+
 /** SessionRouter.resolveAccess: current_actor_authority -> student_portal_cases -> маршрут. */
 export async function resolveAccess(deps: AccessDeps): Promise<SessionState> {
   try {
@@ -160,7 +182,8 @@ export async function resolveAccess(deps: AccessDeps): Promise<SessionState> {
       case "active": {
         const portalCase = cases[0];
         if (!authority || cases.length !== 1 || !portalCase) return routeAccessPending(deps);
-        return { kind: "active", session: { authority, portalCase, tier: accessTier(portalCase.caseState) } };
+        const session: PortalSession = { authority, portalCase, tier: accessTier(portalCase.caseState) };
+        return (await consentNeeded(deps)) ? { kind: "needsConsent", session } : { kind: "active", session };
       }
       case "accessPending":
         return routeAccessPending(deps);

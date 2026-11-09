@@ -85,7 +85,8 @@ function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
   const signedOut = state.kind === "signedOut" || state.kind === "authenticating";
   const setPassword = !signedOut && mustSetPassword;
   const active = !signedOut && !mustSetPassword && state.kind === "active";
-  const gate = !signedOut && !mustSetPassword && state.kind !== "active";
+  const consent = !signedOut && !mustSetPassword && state.kind === "needsConsent";
+  const gate = !signedOut && !mustSetPassword && state.kind !== "active" && state.kind !== "needsConsent";
 
   return (
     <>
@@ -97,6 +98,9 @@ function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
         </Stack.Protected>
         <Stack.Protected guard={setPassword}>
           <Stack.Screen name="set-password" />
+        </Stack.Protected>
+        <Stack.Protected guard={consent}>
+          <Stack.Screen name="consent" />
         </Stack.Protected>
         <Stack.Protected guard={gate}>
           <Stack.Screen name="gate" />

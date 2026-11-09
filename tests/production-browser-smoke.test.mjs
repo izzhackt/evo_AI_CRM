@@ -113,7 +113,14 @@ test("source contract: receipt follows real case and isolated Student journeys",
   assert.match(smokeSource, /getByTestId\("v3-universities-programs"\)/u);
   assert.match(smokeSource, /tab=contract/u);
   assert.match(smokeSource, /getAttribute\("data-student-case-id"\) !== configuration\.caseId/u);
-  assert.match(smokeSource, /signIn\(page, configuration\.studentBaseUrl, configuration\.studentEmail, configuration\.studentPassword, "\/portal"\)/u);
+  assert.match(smokeSource, /signIn\(page, configuration\.studentBaseUrl, configuration\.studentEmail, configuration\.studentPassword, "\/portal", \{ consentGate: true \}\)/u);
+  // 356 (09.11.2026): the Student sign-in may meet the consent screen; it is passed deterministically (both boxes,
+  // «Продолжить», back to the requested page) and only for the Student, never for the staff sign-in.
+  assert.match(smokeSource, /async function passConsentGate\(page, baseUrl, destination\)/u);
+  assert.match(smokeSource, /getByTestId\("consent-gate"\)/u);
+  assert.match(smokeSource, /getByTestId\("consent-gate-submit"\)\.click\(\)/u);
+  assert.match(smokeSource, /if \(consentGate\) await passConsentGate\(page, baseUrl, destination\);/u);
+  assert.equal((smokeSource.match(/consentGate: true/gu) ?? []).length, 1, "only the Student sign-in opts in");
   assert.match(smokeSource, /getByTestId\("student-portal-shell"\)/u);
   assert.match(smokeSource, /\/portal\/documents/u);
   assert.match(smokeSource, /Разделы кабинета/u);
@@ -149,7 +156,8 @@ test("team chat checks the real read-only page before issuing the receipt", () =
 });
 
 test("smoke has no business interaction or sensitive browser evidence path", () => {
-  assert.equal((smokeSource.match(/\.click\(\)/gu) ?? []).length, 2);
+  // Sign-in submit, the navigation link and (356) the consent screen's «Продолжить» for the isolated smoke Student.
+  assert.equal((smokeSource.match(/\.click\(\)/gu) ?? []).length, 3);
   assert.match(smokeSource, /form\[aria-labelledby="login-title"\] button\[type="submit"\]/u);
   assert.doesNotMatch(smokeSource, /\.screenshot\(|tracing\.|storageState|\.cookies\(/u);
   assert.doesNotMatch(smokeSource, /waha|whatsapp|gemini|amocrm/iu);

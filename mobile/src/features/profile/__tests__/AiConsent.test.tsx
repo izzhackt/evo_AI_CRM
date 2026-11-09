@@ -1,7 +1,7 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, screen } from "@testing-library/react-native";
 
 import { aiConsentSource, aiConsentWrite, saveAiConsent } from "@/features/profile/ai-consent";
-import { AiConsentHomeCard, AiConsentRow } from "@/features/profile/AiConsent";
+import { AiConsentRow } from "@/features/profile/AiConsent";
 import { createAiConsentAttempts } from "@/features/profile/use-profile";
 import { RpcError } from "@/lib/rpc";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -10,7 +10,6 @@ import { fakeTransport, failure } from "@/test-fixtures/universities";
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() } }));
 
 const VERSION = "2026-10-25";
-const none = { status: null, policyVersion: null, decidedAt: null, currentPolicyVersion: VERSION };
 const decided = (status: "granted" | "declined") => ({ status, policyVersion: VERSION, decidedAt: "2026-11-02T10:00:00+00:00", currentPolicyVersion: VERSION });
 const outdated = { status: "granted", policyVersion: "2026-01-01", decidedAt: "2026-02-02T10:00:00+00:00", currentPolicyVersion: VERSION };
 
@@ -50,66 +49,6 @@ describe("запись согласия: идемпотентность", () => 
     expect(aiConsentSource("ios")).toBe("ios");
     expect(aiConsentSource("android")).toBe("android");
     expect(aiConsentSource("web")).toBe("portal_web");
-  });
-});
-
-describe("карточка на Главной", () => {
-  it("assisted без решения: карточка с текстом веба; «Разрешить» пишет решение один раз и показывает подтверждение", async () => {
-    const { transport, calls } = fakeTransport({ portal_ai_consent_get_v1: none, portal_ai_consent_set_v1: decided("granted") });
-    await renderPortal(<AiConsentHomeCard />, testApi(transport));
-    expect(await screen.findByText("ИИ-помощники EVO")).toBeTruthy();
-    expect(screen.getByText(/Данные обрабатывают Anthropic \(Claude, США\) и Google \(Gemini\)/)).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("ai-consent-allow"));
-    expect(await screen.findByText("Разрешение сохранено.")).toBeTruthy();
-    expect(calls.filter((c) => c.name === "portal_ai_consent_set_v1")).toHaveLength(1);
-    expect(screen.getByTestId("ai-consent-to-profile")).toBeTruthy();
-    expect(screen.queryByTestId("ai-consent-allow")).toBeNull();
-  });
-
-  it("повтор после сбоя шлёт тот же p_request_id; второе нажатие во время отправки игнорируется", async () => {
-    let release: (() => void) | undefined;
-    const { transport, calls } = fakeTransport({
-      portal_ai_consent_get_v1: none,
-      portal_ai_consent_set_v1: (_a: unknown, n: number) => (n === 1 ? failure("XX000", 500) : decided("granted")),
-    });
-    const gated: typeof transport = (name, args, options) =>
-      name === "portal_ai_consent_set_v1" && release === undefined ? new Promise((resolve) => { release = () => resolve(transport(name, args, options)); }) : transport(name, args, options);
-    await renderPortal(<AiConsentHomeCard />, testApi(gated));
-    await screen.findByTestId("ai-consent-allow");
-    await fireEvent.press(screen.getByTestId("ai-consent-allow"));
-    await fireEvent.press(screen.getByTestId("ai-consent-allow")); // во время отправки
-    await act(async () => release?.());
-    expect(await screen.findByTestId("ai-consent-error")).toBeTruthy();
-    expect(calls.filter((c) => c.name === "portal_ai_consent_set_v1")).toHaveLength(1);
-    await fireEvent.press(screen.getByTestId("ai-consent-allow"));
-    await screen.findByText("Разрешение сохранено.");
-    const writes = calls.filter((c) => c.name === "portal_ai_consent_set_v1");
-    expect(writes).toHaveLength(2);
-    expect(writes[1]?.args?.p_request_id).toBe(writes[0]?.args?.p_request_id);
-  });
-
-  it("решение по текущей версии уже есть: карточки нет; сбой чтения тоже прячет её", async () => {
-    const a = fakeTransport({ portal_ai_consent_get_v1: decided("declined") });
-    await renderPortal(<AiConsentHomeCard />, testApi(a.transport));
-    await waitFor(() => expect(a.calls.some((c) => c.name === "portal_ai_consent_get_v1")).toBe(true));
-    expect(screen.queryByTestId("ai-consent-card")).toBeNull();
-    const b = fakeTransport({ portal_ai_consent_get_v1: failure("XX000", 500) });
-    await renderPortal(<AiConsentHomeCard />, testApi(b.transport));
-    await waitFor(() => expect(b.calls.length).toBeGreaterThan(0));
-    expect(screen.queryByTestId("ai-consent-card")).toBeNull();
-  });
-
-  it("решение по старой версии текста — снова вопрос с пометкой «Условия обновились»", async () => {
-    const { transport } = fakeTransport({ portal_ai_consent_get_v1: outdated });
-    await renderPortal(<AiConsentHomeCard />, testApi(transport));
-    expect(await screen.findByText("Условия обновились. Подтвердите свой выбор ещё раз.")).toBeTruthy();
-  });
-
-  it("самостоятельный студент (approved): карточка не спрашивается и RPC не вызывается", async () => {
-    const { transport, calls } = fakeTransport({ portal_ai_consent_get_v1: none });
-    await renderPortal(<AiConsentHomeCard />, testApi(transport, { tier: "approved" }));
-    expect(screen.queryByTestId("ai-consent-card")).toBeNull();
-    expect(calls).toHaveLength(0);
   });
 });
 

@@ -48,3 +48,7 @@ example
 
 # local env (values are public client config, still per-machine)
 .env
+
+# local dev stack (synthetic, per-machine; never commit)
+.env.local-stack*
+.local-stack-accounts.json

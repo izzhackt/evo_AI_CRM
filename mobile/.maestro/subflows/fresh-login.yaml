@@ -1,0 +1,13 @@
+# Чистое состояние (локальные данные стёрты) и вход.
+appId: com.evoadmissions.app
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 120000
+- runFlow: login.yaml

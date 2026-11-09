@@ -1,0 +1,3 @@
+# Maestro: порядок и набор потоков. Запуск: npm run e2e:ios | npm run e2e:android (scripts/e2e.mjs).
+flows:
+  - "[0-9][0-9]-*.yaml"

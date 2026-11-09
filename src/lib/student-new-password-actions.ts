@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import { getPlatformSupabaseBackendConfig } from "./server/platform-supabase-backend-config";
+import { recordStudentConsentsAfterSignIn } from "./server/student-consent-gate-record.ts";
 import { createPlatformSupabaseServiceClient } from "./server/platform-supabase-service-client";
 import { hasTemporaryPassword, TEMPORARY_PASSWORD_FLAG } from "./student-account-contract";
 import { isExpectedStudentOriginRequest } from "./student-invite-callback-contract.ts";
@@ -12,7 +13,7 @@ import { checkStudentNewPassword } from "./student-password-recovery-contract.ts
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type StudentNewPasswordState = Readonly<{
-  status: "idle" | "too_short" | "too_long" | "mismatch" | "rejected" | "unavailable";
+  status: "idle" | "consent_required" | "too_short" | "too_long" | "mismatch" | "rejected" | "unavailable";
 }>;
 
 async function studentOriginRequest(): Promise<boolean> {
@@ -37,8 +38,10 @@ export async function setOwnStudentPasswordAction(
   _previous: StudentNewPasswordState,
   form: FormData,
 ): Promise<StudentNewPasswordState> {
-  const fields = exactActionStringFields(form, ["password", "password_confirm"]);
+  const fields = exactActionStringFields(form, ["password", "password_confirm", "policy_consent", "ai_consent"]);
   if (!fields || !(await studentOriginRequest())) return { status: "unavailable" };
+  // 356 (решение владельца 09.11.2026): обе галочки «Конфиденциальность» обязательны и здесь.
+  if (fields.get("policy_consent") !== "granted" || fields.get("ai_consent") !== "granted") return { status: "consent_required" };
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login");
@@ -70,5 +73,7 @@ export async function setOwnStudentPasswordAction(
       await service.auth.admin.signOut(keep, "others");
     }
   } catch { /* the regular sign-in below */ }
+  // Принятие пишется уже с новой сессией; не вышло - экран кабинета спросит снова.
+  if (signedIn) await recordStudentConsentsAfterSignIn();
   redirect(signedIn ? "/apply" : "/login");
 }

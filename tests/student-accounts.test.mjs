@@ -267,6 +267,7 @@ function newPassword({ flagged = true, updateError = null, origin = true, signIn
     "next/navigation": { redirect: (path) => { throw Object.assign(new Error("redirect"), { path }); } },
     "./server/action-form-fields.ts": compile("src/lib/server/action-form-fields.ts"),
     "./server/platform-supabase-backend-config": { getPlatformSupabaseBackendConfig: () => ({}) },
+    "./server/student-consent-gate-record.ts": { recordStudentConsentsAfterSignIn: async () => { calls.push(["consents"]); return true; } },
     "./server/platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => ({ auth: { admin: {
       async updateUserById(id, attributes) { calls.push(["update", id, attributes]); return { data: {}, error: updateError }; },
     } } }) },
@@ -281,10 +282,12 @@ function newPassword({ flagged = true, updateError = null, origin = true, signIn
       },
     } }) },
   });
-  const submit = async (password, confirmation = password) => {
+  const submit = async (password, confirmation = password, consents = ["granted", "granted"]) => {
     const data = new FormData();
     data.set("password", password);
     data.set("password_confirm", confirmation);
+    data.set("policy_consent", consents[0]);
+    data.set("ai_consent", consents[1]);
     try {
       return await subject.setOwnStudentPasswordAction({ status: "idle" }, data);
     } catch (error) {
@@ -301,7 +304,14 @@ test("«Придумайте свой пароль»: the password and the clear
   assert.deepEqual(run.calls, [
     ["update", USER, { password: STRONG, app_metadata: { provider: "email", [contract.TEMPORARY_PASSWORD_FLAG]: false } }],
     ["signIn", { email: `student-1@${contract.TECHNICAL_STUDENT_EMAIL_DOMAIN}`, password: STRONG }],
+    // 356 (09.11.2026): the two privacy boxes are recorded with the fresh session, after the password.
+    ["consents"],
   ]);
+  // Both boxes are required: nothing is changed without them, and a missing or empty one is refused.
+  const unticked = newPassword();
+  assert.deepEqual(await unticked.submit(STRONG, STRONG, ["", "granted"]), { status: "consent_required" });
+  assert.deepEqual(await unticked.submit(STRONG, STRONG, ["granted", ""]), { status: "consent_required" });
+  assert.equal(unticked.calls.length, 0, "no password change and no record without both boxes");
   // The change closes the student's sessions (07.11, browser): without a new session /apply would see a guest.
   assert.deepEqual(await newPassword({ signInError: { status: 400 } }).submit(STRONG), { redirect: "/login" });
   const weak = newPassword();

@@ -4,6 +4,12 @@ appId: com.evoadmissions.app
 name: Скриншоты для магазинов
 ---
 - runFlow: ../subflows/fresh-login.yaml
+# На Android страница после входа иногда уже прокручена вниз: возвращаем к герою дела.
+- scrollUntilVisible:
+    element:
+      id: stage-track
+    direction: UP
+    timeout: 60000
 - waitForAnimationToEnd
 - takeScreenshot: 1-home
 - tapOn:

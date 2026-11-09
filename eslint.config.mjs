@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "evo_website/**",
     "twenty-evo-admissions-app/**",
     "output/**",
+    // Separate Expo product with its own ESLint config and CI lane ("Mobile app").
+    "mobile/**",
     // Immutable Claude Design export kept as documentation, not runtime code.
     "docs/design/evo-platform/prototype/**",
   ]),

@@ -6,6 +6,7 @@
 // их отсекает явный список BUILD_ONLY. Пакет из списка не обходится вместе с его зависимостями, поэтому
 // общие с рантаймом пакеты остаются через рантайм-цепочку. Пакет рантайма без лицензии или без текста
 // ломает генератор, кроме явных исключений NO_TEXT_OK.
+// Пакеты с полями os/cpu (платформенные бинарники) в список не входят: состав не зависит от ОС сборки.
 // Вывод детерминирован (сортировка, без дат), поэтому diff показывает реальные изменения состава.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -72,6 +73,8 @@ export function readLicenseText(dir, fs = { readdirSync, readFileSync, statSync 
   return text ? text.slice(0, MAX_TEXT) : null;
 }
 
+const isPlatformSpecific = (pkg) => (Array.isArray(pkg.os) && pkg.os.length > 0) || (Array.isArray(pkg.cpu) && pkg.cpu.length > 0);
+
 /** package.json пакета `name`, как его разрешает Node из каталога `from` (поиск вверх по node_modules). */
 function resolvePackageDir(name, from, root) {
   let dir = from;
@@ -109,6 +112,9 @@ export function collectPackages(root) {
     }
     if (seen.has(item.dir)) continue;
     const pkg = JSON.parse(readFileSync(path.join(item.dir, "package.json"), "utf8"));
+    // Платформенные бинарники (os/cpu) ставятся только на своей ОС; без этого фильтра JSON зависит от
+    // машины, где запущен npm ci (macOS и Linux CI давали разный состав). Пакет-обёртка остаётся в списке.
+    if (isPlatformSpecific(pkg)) continue;
     seen.set(item.dir, pkg);
     enqueue(pkg.dependencies, item.dir, false);
     enqueue(pkg.optionalDependencies, item.dir, true);

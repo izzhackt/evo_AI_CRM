@@ -1844,7 +1844,9 @@ test("active platform CI executes only the root successor product", () => {
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
   assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
-  assert.doesNotMatch(fastPr, /inbox_|lead_agent_|working-directory:/u);
+  assert.doesNotMatch(fastPr, /inbox_|lead_agent_/u);
+  // Mobile is a separate product lane: only its two steps may leave the repository root.
+  assert.deepEqual(fastPr.match(/working-directory: .*/gu), ["working-directory: mobile", "working-directory: mobile"]);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);

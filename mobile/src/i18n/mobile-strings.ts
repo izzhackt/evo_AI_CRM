@@ -4,6 +4,7 @@
 // KY: needs native proofreading, как и в вебе.
 
 import { INBOX_KY, INBOX_RU } from "@/i18n/strings-inbox";
+import { LEARN_KY, LEARN_RU } from "@/i18n/strings-learning";
 import { DOCS_KY, DOCS_RU } from "@/i18n/strings-documents";
 
 const ru = {
@@ -88,6 +89,7 @@ const ru = {
   "config.errorTitle": "Приложение не настроено",
   ...DOCS_RU,
   ...INBOX_RU,
+  ...LEARN_RU,
 } as const;
 
 export type MobileStringKey = keyof typeof ru;
@@ -174,6 +176,7 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "config.errorTitle": "Колдонмо ыңгайлаштырылган эмес",
   ...DOCS_KY,
   ...INBOX_KY,
+  ...LEARN_KY,
 };
 
 export const MOBILE_STRINGS = { ru, ky } as const;

@@ -22,19 +22,33 @@ export class RpcError extends Error {
   readonly kind: RpcErrorKind;
   readonly code: string | null;
   readonly status: number | null;
-  constructor(kind: RpcErrorKind, code: string | null = null, status: number | null = null) {
+  /** Именованный отказ 22023 из закрытого списка (например, срок теста вышел); текст сервера не хранится. */
+  readonly named: RpcNamedFailure | null;
+  constructor(kind: RpcErrorKind, code: string | null = null, status: number | null = null, named: RpcNamedFailure | null = null) {
     super(`rpc:${kind}`); // фиксированный текст, без ответа сервера
     this.name = "RpcError";
     this.kind = kind;
     this.code = code;
     this.status = status;
+    this.named = named;
   }
 }
+
+/** Известные отказы 22023, различимые по тексту сервера (docs/portal/csca-contract.md §1.1). */
+export type RpcNamedFailure = "deadline_passed" | "test_completed" | "early_finish_forbidden" | "review_not_due" | "report_limit" | "already_answered";
+const NAMED_22023: Readonly<Record<string, RpcNamedFailure>> = {
+  learning_test_deadline_passed: "deadline_passed",
+  learning_test_completed: "test_completed",
+  learning_test_early_finish_forbidden: "early_finish_forbidden",
+  learning_review_not_due: "review_not_due",
+  learning_report_limit: "report_limit",
+  "Learning exercise is already answered": "already_answered",
+};
 
 /** Форма ответа PostgREST/supabase-js, нужная слою. */
 export type RpcTransportResult = Readonly<{
   data: unknown;
-  error: Readonly<{ code?: string | null }> | null;
+  error: Readonly<{ code?: string | null; message?: string | null }> | null;
   status?: number | null;
 }>;
 
@@ -58,7 +72,11 @@ export function classifyRpcFailure(code: string | null | undefined, status: numb
 }
 
 function toError(result: RpcTransportResult): RpcError {
-  return classifyRpcFailure(result.error?.code ?? null, result.status ?? null);
+  const base = classifyRpcFailure(result.error?.code ?? null, result.status ?? null);
+  // Из текста сервера берётся только имя из закрытого списка; сам текст дальше не идёт.
+  const message = result.error?.message;
+  const named = base.code === "22023" && typeof message === "string" && Object.hasOwn(NAMED_22023, message) ? NAMED_22023[message] ?? null : null;
+  return named ? new RpcError(base.kind, base.code, base.status, named) : base;
 }
 
 async function invoke(

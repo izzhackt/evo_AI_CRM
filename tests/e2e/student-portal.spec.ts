@@ -19,7 +19,8 @@ const PORTAL_ROUTES = [
   { path: "/portal/documents", expectedText: "Паспорт" },
   { path: "/portal/payments", expectedText: "Сервисный сбор EVO" },
   {
-    path: "/portal/notifications",
+    // #1358: лента одна — «Что нового» во «Входящих»; /portal/notifications только переходит сюда.
+    path: "/portal/messages?view=updates",
     expectedText: "Загрузите более чёткую копию паспорта.",
   },
 ] as const;
@@ -493,7 +494,7 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/english",
   "/portal/csca",
   // 03.11.2026: «Уведомления» — лента «Что нового» во «Входящих»
-  // (/portal/messages); страница /portal/notifications осталась без пункта меню.
+  // (/portal/messages); /portal/notifications — только переход на неё (#1358).
   "/portal/tests",
   "/portal/profile",
 ] as const;
@@ -669,7 +670,7 @@ test("the Student can persist one own notification read through the UI", async (
 
   const notificationId = requiredEnvironment("EVO_STUDENT_PORTAL_NOTIFICATION_ID");
   await submitLogin(page, "student");
-  await page.goto("/portal/notifications", { waitUntil: "networkidle" });
+  await page.goto("/portal/messages?view=updates", { waitUntil: "networkidle" });
   const notification = page.locator("li", {
     hasText: "Загрузите более чёткую копию паспорта.",
   });
@@ -891,7 +892,7 @@ test("mobile document review and curator replies persist through real Auth and d
     `;
     expect(notificationRows).toHaveLength(1);
     const notificationId = notificationRows[0].id;
-    await page.goto("/portal/notifications");
+    await page.goto("/portal/messages?view=updates");
     const detailHref = `/portal/notifications/${notificationId}`;
     await page.locator(`a[href="${detailHref}"]`).click();
     await expect(page).toHaveURL(new RegExp(`${detailHref}$`));

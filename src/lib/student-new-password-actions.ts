@@ -63,6 +63,12 @@ export async function setOwnStudentPasswordAction(
   try {
     const again = await client.auth.signInWithPassword({ email: data.user.email ?? "", password });
     signedIn = !again.error && again.data.user?.id === data.user.id;
+    // F-1: остальные сессии студента (другие устройства) закрываются, эта остаётся. Не вышло — вход не страдает.
+    const keep = again.data.session?.access_token;
+    if (signedIn && keep) {
+      const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+      await service.auth.admin.signOut(keep, "others");
+    }
   } catch { /* the regular sign-in below */ }
   redirect(signedIn ? "/apply" : "/login");
 }

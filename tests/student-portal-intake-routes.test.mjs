@@ -47,14 +47,19 @@ function validDraft() {
   };
 }
 
+const INVITE = "a".repeat(32);
+function regBody(overrides = {}) {
+  return { questionnaire: validDraft(), email: "user@example.com", password: PASSWORD, invite: INVITE, aiConsent: true, ...overrides };
+}
+
 function registrationRequest({
-  body = { questionnaire: validDraft(), email: "user@example.com", password: PASSWORD },
+  body = regBody(),
   contentType = "application/json",
   raw,
 } = {}) {
   return new Request("https://app.evoadmissions.com/api/portal/registration", {
     method: "POST",
-    headers: { "X-EVO-Registration-Flow": "email-confirmation-v1", ...(contentType === null ? {} : { "content-type": contentType }) },
+    headers: { "X-EVO-Registration-Flow": "email-confirmation-v2", ...(contentType === null ? {} : { "content-type": contentType }) },
     body: raw ?? JSON.stringify(body),
   });
 }
@@ -65,8 +70,8 @@ function accountStub(status = "pending_confirmation") {
   const calls = [];
   return {
     calls,
-    async createAccount(email, password, draft) {
-      calls.push({ email, password, draft });
+    async createAccount(email, password, draft, invite, aiConsent) {
+      calls.push({ email, password, draft, invite, aiConsent });
       return status === "pending_confirmation"
         ? PENDING
         : { status };
@@ -110,9 +115,13 @@ test("registration enforces the exact-key contract of the web action", async () 
   const handler = createStudentPortalRegistrationHandler(account);
   for (const body of [
     { questionnaire: validDraft(), email: "user@example.com" },
-    { questionnaire: validDraft(), email: "user@example.com", password: PASSWORD, extra: 1 },
-    { questionnaire: validDraft(), email: 5, password: PASSWORD },
-    { questionnaire: "{}", email: "user@example.com", password: PASSWORD },
+    { questionnaire: validDraft(), email: "user@example.com", password: PASSWORD, invite: INVITE },
+    regBody({ extra: 1 }),
+    regBody({ email: 5 }),
+    regBody({ questionnaire: "{}" }),
+    regBody({ invite: 5 }),
+    regBody({ aiConsent: false }),
+    regBody({ aiConsent: "granted" }),
   ]) {
     const response = await handler(registrationRequest({ body }));
     assert.equal(response.status, 400);
@@ -129,9 +138,8 @@ test("registration mirrors the 12000-character questionnaire ceiling", async () 
   oversized.firstName = "x".repeat(60);
   // Inflate above 12 000 serialized characters while staying a JSON object.
   const body = {
+    ...regBody(),
     questionnaire: { ...oversized, padding: "y".repeat(12001) },
-    email: "user@example.com",
-    password: PASSWORD,
   };
   const response = await handler(registrationRequest({ body }));
   assert.equal(response.status, 400);
@@ -156,7 +164,7 @@ test("registration revalidates the draft with the shared contract validator", as
   const noConsent = validDraft();
   noConsent.consent = false;
   const response = await handler(
-    registrationRequest({ body: { questionnaire: noConsent, email: "user@example.com", password: PASSWORD } }),
+    registrationRequest({ body: regBody({ questionnaire: noConsent }) }),
   );
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { status: "invalid" });
@@ -168,7 +176,7 @@ test("registration normalizes email exactly like the web action and passes the d
   const handler = createStudentPortalRegistrationHandler(account);
   const response = await handler(
     registrationRequest({
-      body: { questionnaire: validDraft(), email: "  User@Example.COM ", password: PASSWORD },
+      body: regBody({ email: "  User@Example.COM " }),
     }),
   );
   assert.equal(response.status, 202);
@@ -177,6 +185,31 @@ test("registration normalizes email exactly like the web action and passes the d
   assert.equal(account.calls[0].email, "user@example.com");
   assert.equal(account.calls[0].password, PASSWORD);
   assert.deepEqual(account.calls[0].draft, validDraft());
+  // The invite and the AI consent reach the shared account function (SEC-1).
+  assert.equal(account.calls[0].invite, INVITE);
+  assert.equal(account.calls[0].aiConsent, true);
+});
+
+test("registration without an invite answers 403 invite before any account work", async () => {
+  const account = accountStub();
+  const handler = createStudentPortalRegistrationHandler(account);
+  const response = await handler(registrationRequest({ body: regBody({ invite: "" }) }));
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { status: "invite" });
+  assert.equal(account.calls.length, 0);
+});
+
+test("registration requires the current consent version like the web action", async () => {
+  const account = accountStub();
+  const handler = createStudentPortalRegistrationHandler(account);
+  const old = validDraft();
+  old.consentVersion = "2026-01-01";
+  for (const body of [regBody({ questionnaire: old }), regBody({ email: "not-an-email" })]) {
+    const response = await handler(registrationRequest({ body }));
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { status: "invalid" });
+  }
+  assert.equal(account.calls.length, 0);
 });
 
 test("registration maps every account-creation status to its HTTP code", async () => {
@@ -188,6 +221,7 @@ test("registration maps every account-creation status to its HTTP code", async (
     ["rate_limit", 429],
     ["unavailable", 503],
     ["create_unknown", 503],
+    ["invite", 403],
   ]) {
     const account = accountStub(status);
     const handler = createStudentPortalRegistrationHandler(account);
@@ -385,7 +419,7 @@ test("intake route files delegate to the shared handlers on the node runtime", (
 test("old registration transport stops before reading body or creating identity", async () => {
   const account = accountStub();
   const handler = createStudentPortalRegistrationHandler(account);
-  for (const version of [null, "old", "email-confirmation-v1,old"]) {
+  for (const version of [null, "old", "email-confirmation-v1", "email-confirmation-v2,old"]) {
     const request = registrationRequest();
     if (version === null) request.headers.delete("X-EVO-Registration-Flow");
     else request.headers.set("X-EVO-Registration-Flow", version);
@@ -400,7 +434,7 @@ test("old registration transport stops before reading body or creating identity"
 test("resend accepts only exact bounded cap JSON and current transport", async () => {
   const calls=[];
   const handler=createStudentPortalRegistrationResendHandler({resend:async cap=>{calls.push(cap);return PENDING;}});
-  const request=raw=>new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v1"},body:raw});
+  const request=raw=>new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v2"},body:raw});
   const valid=JSON.stringify({cap:PENDING.resendCapability});
   for(const raw of ["null","[]","{}",JSON.stringify({cap:PENDING.resendCapability,email:"x"}),JSON.stringify({cap:1}),JSON.stringify({cap:"x"}),`{"cap":"${PENDING.resendCapability}","cap":"${PENDING.resendCapability}"}`,`{"\\u0063ap":"${PENDING.resendCapability}"}`,"x".repeat(17000)]) {
     assert.equal((await handler(request(raw))).status,400);
@@ -413,7 +447,7 @@ test("resend accepts only exact bounded cap JSON and current transport", async (
 test("resend maps terminal statuses and errors without leaking internal fields",async()=>{
   for(const [status,code] of [["confirmed",200],["expired",410],["rate_limit",429],["account_conflict",409],["unavailable",503]]) {
     const handler=createStudentPortalRegistrationResendHandler({resend:async()=>({status,privateValue:"never return"})});
-    const request=new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v1"},body:JSON.stringify({cap:PENDING.resendCapability})});
+    const request=new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v2"},body:JSON.stringify({cap:PENDING.resendCapability})});
     const response=await handler(request);assert.equal(response.status,code);assert.deepEqual(await response.json(),{status});assert.equal(response.headers.get("cache-control"),"no-store");
   }
 });

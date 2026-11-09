@@ -20,16 +20,19 @@ import {
   STUDENT_PASSWORD_RESET_PATH,
   STUDENT_RECOVERY_ADDRESS_LIMIT,
   STUDENT_RECOVERY_IP_LIMIT,
+  STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
   STUDENT_RECOVERY_SESSION_COOKIE,
   STUDENT_RECOVERY_SESSION_MAX_AGE_SECONDS,
   type StudentRecoveryPasswordState,
   type StudentRecoveryRequestState,
 } from "../student-password-recovery-contract.ts";
+import { answerAtFixedDeadline } from "../student-password-recovery-timing.ts";
 import {
   createRecoveryRateLimiter,
   recoveryClientIpKey,
 } from "../student-password-recovery-rate-limit.ts";
 
+import { studentInviteCallbackUrl } from "../student-invite-callback-contract.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import {
@@ -265,6 +268,51 @@ export async function requestStudentPasswordRecovery(
     email,
     redirectTo,
   );
+}
+
+/** Never rejects: a failure is logged and answered as «unavailable». */
+async function requestStatus(
+  email: string,
+): Promise<StudentRecoveryRequestState["status"]> {
+  try {
+    let redirectTo: string;
+    try {
+      redirectTo = studentInviteCallbackUrl(
+        process.env.NODE_ENV,
+        process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
+      );
+    } catch (error) {
+      logStudentRecoveryFailure("request_configuration", error);
+      return "unavailable";
+    }
+    return await requestStudentPasswordRecovery(email, redirectTo);
+  } catch (error) {
+    logStudentRecoveryFailure("request", error);
+    return "unavailable";
+  }
+}
+
+/**
+ * The one recovery request core shared by the web form action and the native
+ * route `POST /api/portal/password-recovery`. `email` is already normalized
+ * (`normalizeStudentRecoveryEmail`). The per-IP limit answers at once; every
+ * later answer (per-address «sent», staff lookup, Auth call) leaves at the one
+ * fixed deadline measured from `startedAt`, whatever the work took. The link
+ * target is the fixed Student origin callback, never request input.
+ */
+export async function answerStudentRecoveryRequest(
+  input: Readonly<{ email: string; forwardedFor: string | null; startedAt: number }>,
+): Promise<StudentRecoveryRequestState["status"]> {
+  const admission = admitStudentRecoveryRequest(input.forwardedFor, input.email);
+  if (admission === "ip_limited") return "rate_limited";
+  const work: Promise<StudentRecoveryRequestState["status"]> =
+    admission === "address_limited" ? Promise.resolve("sent") : requestStatus(input.email);
+  return answerAtFixedDeadline<StudentRecoveryRequestState["status"]>({
+    work,
+    startedAt: input.startedAt,
+    deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
+    pending: "sent",
+  });
 }
 
 export type StudentRecoveryLinkResult =

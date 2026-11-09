@@ -6,31 +6,25 @@ import { redirect } from "next/navigation";
 import { ADMIN_ROLE_PREVIEW_COOKIE } from "./platform-auth.ts";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import {
-  admitStudentRecoveryRequest,
+  answerStudentRecoveryRequest,
   commitStudentRecoverySession,
   completeStudentPasswordRecovery,
   logStudentRecoveryFailure,
-  requestStudentPasswordRecovery,
   verifyStudentPasswordRecoveryLink,
 } from "./server/student-password-recovery.ts";
 import {
   isExpectedStudentOriginRequest,
   STUDENT_INVITE_CSRF_COOKIE,
-  studentInviteCallbackUrl,
   validateStudentRecoveryCallbackPost,
 } from "./student-invite-callback-contract.ts";
 import {
   checkStudentNewPassword,
   normalizeStudentRecoveryEmail,
   STUDENT_PASSWORD_RESET_PATH,
-  STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
   type StudentRecoveryPasswordState,
   type StudentRecoveryRequestState,
   type StudentRecoveryVerifyState,
 } from "./student-password-recovery-contract.ts";
-import { answerAtFixedDeadline } from "./student-password-recovery-timing.ts";
-
-type RequestStatus = StudentRecoveryRequestState["status"];
 
 async function studentOriginRequest(): Promise<boolean> {
   const requestHeaders = await headers();
@@ -67,38 +61,12 @@ export async function requestStudentPasswordRecoveryAction(
   const email = normalizeStudentRecoveryEmail(fields.get("email"));
   if (!email) return { status: "invalid_email" };
 
-  const admission = admitStudentRecoveryRequest((await headers()).get("x-forwarded-for"), email);
-  if (admission === "ip_limited") return { status: "rate_limited" };
-
-  const work: Promise<RequestStatus> =
-    admission === "address_limited" ? Promise.resolve("sent") : requestStatus(email);
-  const status = await answerAtFixedDeadline<RequestStatus>({
-    work,
+  const status = await answerStudentRecoveryRequest({
+    email,
+    forwardedFor: (await headers()).get("x-forwarded-for"),
     startedAt,
-    deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,
-    pending: "sent",
   });
   return { status };
-}
-
-/** Never rejects: a failure is logged and answered as «unavailable». */
-async function requestStatus(email: string): Promise<RequestStatus> {
-  try {
-    let redirectTo: string;
-    try {
-      redirectTo = studentInviteCallbackUrl(
-        process.env.NODE_ENV,
-        process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
-      );
-    } catch (error) {
-      logStudentRecoveryFailure("request_configuration", error);
-      return "unavailable";
-    }
-    return await requestStudentPasswordRecovery(email, redirectTo);
-  } catch (error) {
-    logStudentRecoveryFailure("request", error);
-    return "unavailable";
-  }
 }
 
 /** Step 2. The CSRF-bound interstitial POST on /auth/callback. */

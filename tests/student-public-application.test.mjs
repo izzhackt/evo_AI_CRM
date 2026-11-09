@@ -275,7 +275,7 @@ test("invalid origin, duplicate fields and injected identity never reach Auth", 
 
 test("account helper rejects a short password before service access; action stops on uncertain identity", async () => {
   const short = harness();
-  assert.deepEqual(await short.createPublicStudentAccount(EMAIL, "short", draft()), { status: "password" });
+  assert.deepEqual(await short.createPublicStudentAccount(EMAIL, "short", draft(), "a".repeat(32)), { status: "password" });
   assert.deepEqual(callNames(short), []);
   const broken = harness({ identities: [{ data: { user: null }, error: new Error("Auth unavailable") }] });
   assert.deepEqual(await broken.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });

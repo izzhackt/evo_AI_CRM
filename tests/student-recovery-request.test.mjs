@@ -275,9 +275,10 @@ test("wiring: the server flow uses the point lookup and the membership question 
   assert.match(provider, /rpc\("auth_user_by_exact_email_v1", \{ p_email: normalizedEmail \}\)/u);
   // No Admin API user scan is left in the recovery or invite paths.
   for (const text of [server, request, provider]) assert.doesNotMatch(text, /\.listUsers\(/u);
-  // The action still holds every account-dependent answer to the fixed deadline.
-  assert.match(actions, /answerAtFixedDeadline<RequestStatus>\(\{[^}]*deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,[^}]*pending: "sent",/u);
-  assert.doesNotMatch(actions, /await requestStatus\(/u);
+  // The shared core (web action and native route) holds every account-dependent answer to the fixed deadline.
+  assert.match(server, /answerAtFixedDeadline<StudentRecoveryRequestState\["status"\]>\(\{[^}]*deadlineMs: STUDENT_RECOVERY_RESPONSE_DEADLINE_MS,[^}]*pending: "sent",/u);
+  assert.match(actions, /answerStudentRecoveryRequest\(\{/u);
+  assert.doesNotMatch(server, /await requestStatus\(/u);
 });
 
 test("migration 314 grants both functions to service_role only", () => {

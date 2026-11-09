@@ -63,11 +63,11 @@ async function dispatch(config: StudentSignupConfirmationConfig, payload: Signup
 }
 
 /**
- * `invite` — the website's personal registration link (341); null — the iPhone app, which has no link yet.
+ * `invite` — the personal registration link (341), required for the website and the app alike.
  * `aiConsent` — the website's required AI-assistants box (345); the iPhone app keeps its own card in the cabinet.
  */
 export async function beginStudentSignup(
-  email: string, password: string, draft: StudentApplicationDraft, invite: string | null = null, aiConsent = false,
+  email: string, password: string, draft: StudentApplicationDraft, invite: string, aiConsent = false,
 ): Promise<NativeSignupPending | SignupFailure> {
   let config: StudentSignupConfirmationConfig;
   try { config = getStudentSignupConfirmationRuntimeConfig(); }

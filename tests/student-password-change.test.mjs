@@ -42,6 +42,14 @@ test("the current password is checked by a real sign-in on an isolated client; o
   assert.doesNotMatch(server, /console\.(log|info|warn|error)\([^)]*password/iu, "passwords are never logged");
 });
 
+test("after the change every other session of the Student is closed and the cabinet session stays (F-1)", () => {
+  const server = read("src/lib/server/student-password-change.ts");
+  const again = server.indexOf("product.auth.signInWithPassword");
+  const revoke = server.indexOf('auth.admin.signOut(again.data.session.access_token, "others")');
+  assert.ok(again > 0 && revoke > again, "the other sessions are closed with the fresh cabinet session's token, after its sign-in");
+  assert.doesNotMatch(server, /admin\.signOut\([^)]*"global"/u, "never the global scope, which would end the cabinet session too");
+});
+
 test("the profile shows the password card before the account deletion card", () => {
   const page = read("src/app/(portal)/portal/profile/page.tsx");
   assert.ok(page.indexOf('aria-labelledby="portal-profile-password"') > 0);

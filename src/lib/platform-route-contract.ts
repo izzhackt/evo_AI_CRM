@@ -123,6 +123,11 @@ const STUDENT_CASE_FILE_DOWNLOAD_PATH =
 // registration is a public intake whose handler owns its whole boundary.
 const STUDENT_INVITE_ACCEPTANCE_API_PATH = "/api/portal/invite-acceptance";
 const STUDENT_REGISTRATION_API_PATH = "/api/portal/registration";
+// Native password recovery (#1287): anonymous, same core as /auth/forgot-password.
+const STUDENT_PASSWORD_RECOVERY_API_PATH = "/api/portal/password-recovery";
+// Мобильное приложение (Expo): вход на сервере (аноним) и смена пароля (Bearer).
+const STUDENT_MOBILE_SESSION_API_PATH = "/api/portal/mobile/session";
+const STUDENT_MOBILE_PASSWORD_API_PATH = "/api/portal/mobile/password";
 
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
@@ -301,6 +306,8 @@ export function isConnectedStudentPortalApi(
     // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a
     // missing/rejected credential and never consults cookies.
     || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)
+    // Мобильная смена пароля: только Bearer, обработчик сам отвечает 401 без токена.
+    || (method === "POST" && path === STUDENT_MOBILE_PASSWORD_API_PATH)
   );
 }
 
@@ -315,7 +322,13 @@ export function isPublicStudentRegistrationApi(
   path: string,
   method: string,
 ): boolean {
-  return method === "POST" && (path === STUDENT_REGISTRATION_API_PATH || path === "/api/portal/registration/resend");
+  return method === "POST" && (
+    path === STUDENT_REGISTRATION_API_PATH
+    || path === "/api/portal/registration/resend"
+    || path === STUDENT_PASSWORD_RECOVERY_API_PATH
+    // Мобильный вход: аноним, обработчик сам владеет ограничением частоты и проверкой пароля.
+    || path === STUDENT_MOBILE_SESSION_API_PATH
+  );
 }
 
 /**

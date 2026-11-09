@@ -112,10 +112,12 @@ test("a login that cannot be claimed never undoes the account: the student signs
   assert.deepEqual(names(run.calls).slice(-2), ["rpc:claim_student_login_v1", "log"]);
 });
 
-test("the iPhone app (no link field yet) creates the account as before, without a link", async () => {
-  const run = harness({ check: { status: "unknown" } });
-  assert.deepEqual(await run.create(null), { status: "created", authUserId: USER });
-  assert.deepEqual(names(run.calls), ["rpc:reserve_student_signup_attempt_v1", "createUser", "rpc:claim_student_login_v1"]);
+test("no client registers without a link: an empty or unknown invite creates nothing", async () => {
+  for (const invite of ["", "short"]) {
+    const run = harness({ check: { status: "unknown" } });
+    assert.deepEqual(await run.create(invite), { status: "invite" });
+    assert.ok(!names(run.calls).includes("createUser"), "no account is created");
+  }
 });
 
 test("the link itself: 32 random base64url characters; only its sha256 leaves the server; the address is /apply?invite=", () => {
@@ -146,6 +148,6 @@ test("345: the website account keeps the required AI choice next to the анке
   await again.create("TOKEN", true);
   assert.equal(again.metadata[0][contract.STUDENT_AI_CONSENT_METADATA_KEY].requestId, choice.requestId, "one анкета, one consent request");
   const phone = harness();
-  await phone.create(null);
-  assert.deepEqual(Object.keys(phone.metadata[0]), [contract.STUDENT_APPLICATION_METADATA_KEY], "the iPhone app keeps its own card");
+  await phone.create("TOKEN");
+  assert.deepEqual(Object.keys(phone.metadata[0]), [contract.STUDENT_APPLICATION_METADATA_KEY], "without the AI box only the draft is stored");
 });

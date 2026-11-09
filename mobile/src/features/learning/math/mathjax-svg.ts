@@ -2,7 +2,7 @@
 // выходом SVG с кривыми вместо шрифта (fontCache: none) и «лёгким» адаптером. Результат
 // рисует react-native-svg. Подмножество команд задаёт контракт §14
 // (docs/portal/csca-contract.md); формулы — латиница, цифры, знаки, без кириллицы.
-// Решение и доказательства: docs/mobile/reference/m5-math-rendering.md (запись в отчёте M5).
+// Проверка: каждая формула настоящих ответов набирается (__tests__/math.test.ts), вид на симуляторе iOS проверен.
 import { mathjax } from "mathjax-full/js/mathjax.js";
 import { TeX } from "mathjax-full/js/input/tex.js";
 import { SVG } from "mathjax-full/js/output/svg.js";

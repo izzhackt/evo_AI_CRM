@@ -1,5 +1,5 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { TestsScreen } from "@/features/learning/tests/TestsScreen";
 
-export default function testsScreen() {
-  return <SectionPlaceholder id="tests" />;
+export default function TestsRoute() {
+  return <TestsScreen />;
 }

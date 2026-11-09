@@ -122,7 +122,7 @@ function Clock({ state }: { state: TestUiState }) {
 }
 
 function Intro({ form, state, onStart }: { form: Form | null; state: TestUiState; onStart: () => void }) {
-  const { lang, t, format } = useLang();
+  const { lang, m, t, format } = useLang();
   const c = t("csca");
   if (!form) return null;
   const minutes = Math.floor(form.durationSeconds / 60);
@@ -139,7 +139,7 @@ function Intro({ form, state, onStart }: { form: Form | null; state: TestUiState
         <Row label={c.testIntroEarly} value={form.allowEarlyFinish ? c.testIntroEarlyYes : c.testIntroEarlyNo} />
       </Card>
       <View style={{ gap: 4 }}>
-        {[c.testRuleChange, c.testRuleSave, c.testRuleClock, c.testRuleReview, ...(form.allowEarlyFinish ? [] : [c.testRuleMock])].map((line) => (
+        {[c.testRuleChange, c.testRuleSave, m("learn.ruleClock"), c.testRuleReview, ...(form.allowEarlyFinish ? [] : [c.testRuleMock])].map((line) => (
           <Text key={line} variant="secondary" tone="text2">
             • {line}
           </Text>

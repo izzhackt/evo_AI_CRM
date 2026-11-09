@@ -1,5 +1,5 @@
-import { SectionPlaceholder } from "@/shell/SectionPlaceholder";
+import { ProfessionsScreen } from "@/features/learning/professions/ProfessionsScreen";
 
-export default function professionsScreen() {
-  return <SectionPlaceholder id="professions" />;
+export default function ProfessionsRoute() {
+  return <ProfessionsScreen />;
 }

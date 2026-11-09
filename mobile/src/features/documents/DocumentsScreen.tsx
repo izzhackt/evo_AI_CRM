@@ -77,7 +77,7 @@ export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }
               icon={FileText}
               title={strings.documentsEmptyTitle}
               body={strings.documentsEmptyBody}
-              action={<Button variant="ghost" label={m("docs.emptyAction")} onPress={() => go("/messages")} testID="documents-empty-action" />}
+              action={<Button variant="ghost" label={m("docs.emptyAction")} onPress={() => go("/messages/chat")} testID="documents-empty-action" />}
             />
           </Card>
         ) : (

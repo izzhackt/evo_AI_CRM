@@ -70,7 +70,7 @@ describe("Документы: чек-лист", () => {
     await renderPortal(<DocumentsScreen io={makeIo().io} />, testApi(transport));
     expect(await screen.findByText("Список документов пока пуст")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("documents-empty-action"));
-    expect(navigate).toHaveBeenCalledWith("/messages");
+    expect(navigate).toHaveBeenCalledWith("/messages/chat");
   });
 
   it("сбой чтения: плашка с повтором, без текста сервера", async () => {

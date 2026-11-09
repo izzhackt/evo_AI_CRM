@@ -114,25 +114,42 @@ export function portalNotificationText(
   return { title: notification.subjectLabel, detail: notification.detail };
 }
 
-export type NotificationRoute = "/documents" | "/payments" | "/messages" | "/overview";
+export type NotificationRoute = "/documents" | "/payments" | "/messages/chat" | "/messages/updates" | "/overview";
 
 /**
- * Цель уведомления по `category` и `eventCode` (portalNotificationTarget, веб). Страницы
- * разбора ответа куратора и проверки пакета или документа вуза появятся с M2/M3, пока
- * они ведут во «Входящие», где живёт лента. Любая новая категория ведёт в «Поступление».
+ * Цель уведомления по `category` и `eventCode` (portalNotificationTarget, веб). Сообщение
+ * команды ведёт в чат. Ответ куратора и проверка пакета или документа вуза показываются
+ * в ленте «Что нового» развёрнутым текстом уведомления (отдельные страницы разбора
+ * веба в приложении пока не нужны). Любая новая категория ведёт в «Поступление».
  */
 export function notificationRoute(notification: Pick<StudentPortalNotification, "category" | "eventCode">): NotificationRoute {
+  if (notification.eventCode === "case_chat_message") return "/messages/chat";
   if (
     notification.eventCode === "application_package_review" ||
     notification.eventCode === "application_document_review" ||
-    notification.eventCode === "case_help_answer" ||
-    notification.eventCode === "case_chat_message"
+    notification.eventCode === "case_help_answer"
   ) {
-    return "/messages";
+    return "/messages/updates";
   }
   if (notification.category.startsWith("document")) return "/documents";
   if (notification.category.startsWith("payment")) return "/payments";
   return "/overview";
+}
+
+/** Подпись ссылки уведомления (portalNotificationTarget.label, веб); `null`, когда ссылки нет. */
+export function notificationTargetLabel(notification: Pick<StudentPortalNotification, "category" | "eventCode">, strings: AdmissionStrings): string | null {
+  switch (notificationRoute(notification)) {
+    case "/messages/chat":
+      return strings.targetMessages;
+    case "/messages/updates":
+      return null;
+    case "/documents":
+      return strings.targetDocuments;
+    case "/payments":
+      return strings.targetPayments;
+    default:
+      return strings.targetOverview;
+  }
 }
 
 export type EvoActionTone = "neutral" | "info" | "warn";

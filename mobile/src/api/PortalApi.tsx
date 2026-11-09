@@ -18,6 +18,9 @@ export type PortalApi = Readonly<{
   canSelectPrograms: boolean;
   /** Кому принадлежат данные в кэше (auth user id). */
   userKey: string;
+  /** Участник и организация: для детерминированного id «прочитано» (веб: notification-read:…). */
+  membershipId: string;
+  organizationId: string;
   /** Адрес портала: bearer-маршруты загрузки и скачивания документов (не RPC). */
   portalBaseUrl: string;
   /** Актуальный access token сессии (supabase-js обновляет его сам) или null без сессии. */

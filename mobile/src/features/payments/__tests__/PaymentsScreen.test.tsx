@@ -29,7 +29,7 @@ describe("Оплата", () => {
     const { transport } = fakeTransport({ student_portal_finance_v2: [PAYMENT_ROW] });
     await renderPortal(<PaymentsScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("payments-write-evo"));
-    expect(navigate).toHaveBeenCalledWith("/messages");
+    expect(navigate).toHaveBeenCalledWith("/messages/chat");
   });
 
   it("«Как оплатить» не рисуется, пока текст владельца пуст (#1359)", async () => {
@@ -53,7 +53,7 @@ describe("Оплата", () => {
     const first = await renderPortal(<PaymentsScreen />, testApi(empty.transport));
     expect(await screen.findByText("Начислений пока нет")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("payments-write-evo"));
-    expect(navigate).toHaveBeenCalledWith("/messages");
+    expect(navigate).toHaveBeenCalledWith("/messages/chat");
     first.unmount();
     const bad = fakeTransport({ student_portal_finance_v2: failure(null, 503) });
     await renderPortal(<PaymentsScreen />, testApi(bad.transport));

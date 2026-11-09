@@ -94,7 +94,7 @@ describe("Главная: assisted", () => {
     await fireEvent.press(news);
     expect(navigate).toHaveBeenCalledWith("/documents");
     await fireEvent.press(screen.getByTestId("news-all"));
-    expect(navigate).toHaveBeenCalledWith("/messages");
+    expect(navigate).toHaveBeenCalledWith("/messages/updates");
   });
 
   it("нет дел: спокойное пустое состояние; нет вузов и новостей: пустые состояния", async () => {

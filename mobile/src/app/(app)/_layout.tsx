@@ -1,6 +1,7 @@
 import { router, Tabs, usePathname, type Href } from "expo-router";
 import { useMemo, useState } from "react";
 
+import { PortalPoll } from "@/api/PortalPoll";
 import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
 import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
@@ -11,7 +12,7 @@ import { TopBar } from "@/shell/TopBar";
 import { useSession } from "@/session/SessionProvider";
 
 function activeSection(pathname: string): SectionId | null {
-  const name = pathname.split("/").filter(Boolean).pop() ?? "home";
+  const name = pathname.split("/").filter(Boolean)[0] ?? "home";
   return SECTIONS.find((s) => s.id === name)?.id ?? null;
 }
 
@@ -36,6 +37,8 @@ export default function AppLayout() {
             tier: session.tier,
             canSelectPrograms: session.portalCase.caseState === "active" && session.portalCase.portalActivatedAt !== null,
             userKey: session.authority.authUserId,
+            membershipId: session.authority.membershipId,
+            organizationId: session.authority.organizationId,
             portalBaseUrl: getConfig().portalBaseUrl,
             getAccessToken: async () => (await getSupabase().auth.getSession()).data.session?.access_token ?? null,
           }
@@ -47,6 +50,7 @@ export default function AppLayout() {
 
   return (
     <PortalApiProvider api={api}>
+      <PortalPoll>
       <Tabs
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{ header: () => <TopBar onMenu={() => setMenuOpen(true)} /> }}
@@ -57,6 +61,7 @@ export default function AppLayout() {
           </Tabs.Protected>
         ))}
       </Tabs>
+      </PortalPoll>
       <MenuSheet
         visible={menuOpen}
         tier={tier}

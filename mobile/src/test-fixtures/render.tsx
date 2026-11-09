@@ -25,6 +25,8 @@ export function testApi(transport: RpcTransport, overrides: Partial<PortalApi> =
     tier: "assisted",
     canSelectPrograms: true,
     userKey: "user-test",
+    membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     portalBaseUrl: "https://portal.example.test",
     getAccessToken: async () => "synthetic-token",
     ...overrides,

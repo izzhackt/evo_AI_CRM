@@ -1,7 +1,9 @@
+import { usePathname } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { usePortalUnread } from "@/api/PortalPoll";
 import { useLang } from "@/i18n/LangProvider";
 import { SECTION_ICONS } from "@/shell/icons";
 import { PHONE_TABS, SECTIONS } from "@/shell/sections";
@@ -16,6 +18,10 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
   const { tokens, scheme } = useTheme();
   const { shell } = useLang();
   const insets = useSafeAreaInsets();
+  const unread = usePortalUnread();
+  const pathname = usePathname();
+  // В беседе панель убрана: поле ввода и клавиатура получают весь низ экрана.
+  if (pathname === "/messages/chat") return null;
   const visible = state.routes.filter((r) => (PHONE_TABS as readonly string[]).includes(r.name));
   return (
     <View
@@ -51,7 +57,16 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
               testID={`tab-${section.id}`}
               style={{ flex: 1, minHeight: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 2, backgroundColor: focused ? tokens.accentSoft : "transparent" }}
             >
-              {Icon ? <Icon size={20} strokeWidth={1.75} color={color} /> : null}
+              <View>
+                {Icon ? <Icon size={20} strokeWidth={1.75} color={color} /> : null}
+                {section.id === "messages" && unread ? (
+                  <View testID="tab-messages-badge" accessibilityLabel={String(unread)} style={{ position: "absolute", top: -6, right: -12, minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center" }}>
+                    <Text variant="caption" tone="onAccent" bold style={{ fontSize: 11, lineHeight: 14 }}>
+                      {unread > 99 ? "99+" : unread}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <Text variant="tab" style={{ color }} numberOfLines={1}>
                 {shell[section.navKey]}
               </Text>

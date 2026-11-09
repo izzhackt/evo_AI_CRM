@@ -271,7 +271,7 @@ export function NewsCard({ news, load }: { news: HomeNewsView | null; load: Load
       <CardHead
         title={messages.updatesTitle}
         count={news?.unread ?? null}
-        action={news && news.items.length > 0 ? <LinkButton label={home.newsAll} onPress={() => go("/messages")} testID="news-all" /> : null}
+        action={news && news.items.length > 0 ? <LinkButton label={home.newsAll} onPress={() => go("/messages/updates")} testID="news-all" /> : null}
       />
       {load ? (
         <Skeletons load={load} label={messages.updatesTitle} />

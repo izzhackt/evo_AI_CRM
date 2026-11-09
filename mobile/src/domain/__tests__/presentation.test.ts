@@ -70,10 +70,10 @@ describe("уведомления и ссылки", () => {
   it.each([
     [{ category: "document", eventCode: "correction_required" }, "/documents"],
     [{ category: "payment_due", eventCode: "x" }, "/payments"],
-    [{ category: "anything", eventCode: "case_chat_message" }, "/messages"],
-    [{ category: "case", eventCode: "case_help_answer" }, "/messages"],
-    [{ category: "application", eventCode: "application_package_review" }, "/messages"],
-    [{ category: "application", eventCode: "application_document_review" }, "/messages"],
+    [{ category: "anything", eventCode: "case_chat_message" }, "/messages/chat"],
+    [{ category: "case", eventCode: "case_help_answer" }, "/messages/updates"],
+    [{ category: "application", eventCode: "application_package_review" }, "/messages/updates"],
+    [{ category: "application", eventCode: "application_document_review" }, "/messages/updates"],
     [{ category: "novelty", eventCode: "new_thing" }, "/overview"],
   ])("%j -> %s", (input, route) => expect(notificationRoute(input)).toBe(route));
 

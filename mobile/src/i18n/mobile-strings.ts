@@ -3,6 +3,7 @@
 // Тексты входа повторяют логин-страницу веба (src/app/login/page.tsx, COPY).
 // KY: needs native proofreading, как и в вебе.
 
+import { INBOX_KY, INBOX_RU } from "@/i18n/strings-inbox";
 import { DOCS_KY, DOCS_RU } from "@/i18n/strings-documents";
 
 const ru = {
@@ -63,6 +64,7 @@ const ru = {
   "admission.countLabel": "{label}: {count}",
   "config.errorTitle": "Приложение не настроено",
   ...DOCS_RU,
+  ...INBOX_RU,
 } as const;
 
 export type MobileStringKey = keyof typeof ru;
@@ -125,6 +127,7 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "admission.countLabel": "{label}: {count}",
   "config.errorTitle": "Колдонмо ыңгайлаштырылган эмес",
   ...DOCS_KY,
+  ...INBOX_KY,
 };
 
 export const MOBILE_STRINGS = { ru, ky } as const;

@@ -52,7 +52,7 @@ export function PaymentsScreen() {
     }
   }, [client, userKey]);
   const howToPay = m("payments.howBody");
-  const write = <Button variant="ghost" label={m("payments.writeEvo")} accessibilityLabel={`${m("payments.writeEvo")}. ${m("payments.writeEvoHint")}`} onPress={() => go("/messages")} testID="payments-write-evo" />;
+  const write = <Button variant="ghost" label={m("payments.writeEvo")} accessibilityLabel={`${m("payments.writeEvo")}. ${m("payments.writeEvoHint")}`} onPress={() => go("/messages/chat")} testID="payments-write-evo" />;
 
   return (
     <Screen topInset={false} bottomInset={TAB_BAR_CLEARANCE} onRefresh={() => void refresh()} refreshing={refreshing}>

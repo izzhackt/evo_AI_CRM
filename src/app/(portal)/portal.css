@@ -380,6 +380,23 @@
   transform: scale(var(--pt-press-scale));
 }
 
+/* «Выйти» в меню телефона (#1360): кнопка выглядит как пункт меню; на широком экране выход — в «Профиле». */
+.pt-nav-logout {
+  display: none;
+  margin: 0;
+}
+
+.pt-nav-logout-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
 .pt-nav-link:hover {
   background: var(--pt-bg);
   color: var(--pt-text);
@@ -1056,6 +1073,13 @@
     font-weight: 600;
   }
 
+  .pt-nav-menu .pt-nav-logout {
+    display: block;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--pt-line);
+  }
+
   .pt-nav-menu .pt-nav-group {
     padding: 16px 12px 4px;
     color: var(--pt-rail-group);
@@ -1269,16 +1293,11 @@
   color: var(--pt-text-2);
 }
 
-/* «Профиль → Пароль» (07.11.2026): логин для входа строкой над полями пароля. */
-.pt-profile-login {
-  margin: 0 0 12px;
+/* «Профиль → Мои данные» (#1360): пояснение под данными, кто меняет телефон и имя. */
+.pt-profile-note {
+  margin: 0;
   color: var(--pt-text-2);
-  font-size: var(--pt-size-body, 15px);
-}
-
-.pt-profile-login strong {
-  color: var(--pt-text);
-  font-weight: 600;
+  font-size: var(--pt-size-secondary);
 }
 
 /* «Профиль → Пароль» (06.11.2026): три поля в столбик, кнопка и ответ в одну строку. */
@@ -1880,18 +1899,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
-}
-
-/*
- * Слот карточки на «Моём поступлении» (/portal): отступ от шапки как у
- * соседних блоков экрана; без карточки слот пуст и не оставляет зазора.
- */
-.pt-consent-slot {
-  margin-top: 24px;
-}
-
-.pt-consent-slot:empty {
-  display: none;
 }
 
 .pt-consent {
@@ -4725,6 +4732,10 @@
   border-top: 1px solid var(--pt-line);
 }
 
+.pt-inbox-side-foot:empty {
+  display: none;
+}
+
 .pt-inbox-side-foot {
   margin: 0;
   padding: 10px 16px;
@@ -7118,10 +7129,22 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-home-slot[data-slot="case"] { order: 1; }
 .pt-home-slot[data-slot="path"] { order: 2; }
-.pt-home-slot[data-slot="universities"] { order: 3; }
+.pt-home-slot[data-slot="write"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
 .pt-home-slot[data-slot="csca"] { order: 6; }
+
+/* «Мой список» и весь путь под колонками «Главной» (#1355): во всю ширину, с тем же шагом, что между блоками. */
+.pt-home-list,
+.pt-home-path-full {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pt-home-list > .pt-home-head {
+  margin-bottom: 0;
+}
 
 /*
  * Две колонки с 960 px окна (раньше от 980 px ширины самой области, то есть на 1024 px при раскрытой левой колонке
@@ -7149,6 +7172,12 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-home-main > .pt-home-slot:last-child > *,
   .pt-home-side > .pt-home-slot:last-child > * {
     flex-grow: 1;
+  }
+
+  /* Короткая карточка «Написать EVO» не растягивается до низа колонки (#1356): пустая плашка ничего не говорит. */
+  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child,
+  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child > * {
+    flex-grow: 0;
   }
 
   .pt-home-main,

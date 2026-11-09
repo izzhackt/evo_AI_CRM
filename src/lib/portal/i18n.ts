@@ -431,6 +431,14 @@ const profileRu = {
   passwordSignInRequired: "Пароль изменён. Войдите заново с новым паролем.",
   passwordUnavailable: "Не удалось сменить пароль. Попробуйте ещё раз.",
   logout: "Выйти",
+  // #1360 (09.11.2026): «Мои данные». Телефон и имя меняет куратор: в кабинете для этого нет записи в базе,
+  // поэтому вместо поля стоит честная строка и вход в чат.
+  dataHeading: "Мои данные",
+  nameLabel: "Имя",
+  emailLabel: "Почта",
+  dataNote: "Телефон и имя меняет куратор: напишите ему, и он исправит.",
+  dataNoteApproved: "Телефон и имя меняет менеджер: запишитесь на консультацию ниже, и он исправит.",
+  dataWrite: "Написать EVO",
 } as const;
 
 type ProfileKey = keyof typeof profileRu;
@@ -463,6 +471,12 @@ const profileKy: Readonly<Record<ProfileKey, string>> = {
   passwordSignInRequired: "Сырсөз өзгөртүлдү. Жаңы сырсөз менен кайра кириңиз.",
   passwordUnavailable: "Сырсөздү өзгөртүү мүмкүн болгон жок. Кайра аракет кылыңыз.",
   logout: "Чыгуу",
+  dataHeading: "Менин маалыматтарым",
+  nameLabel: "Аты-жөнү",
+  emailLabel: "Почта",
+  dataNote: "Телефонду жана атыңызды куратор өзгөртөт: ага жазыңыз, ал оңдойт.",
+  dataNoteApproved: "Телефонду жана атыңызды менеджер өзгөртөт: төмөндө консультацияга жазылыңыз, ал оңдойт.",
+  dataWrite: "EVO'го жазуу",
 };
 
 /**
@@ -1512,8 +1526,6 @@ const messagesRu = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "В ответ на: {preview}",
   newMessageNotice: "Новое сообщение от {name}.",
-  differenceNote: "Разовый вопрос куратору — на странице «Поступление».",
-  differenceLink: "Задать вопрос",
 } as const;
 
 type MessagesKey = keyof typeof messagesRu;
@@ -1549,8 +1561,6 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "Жооп катары: {preview}",
   newMessageNotice: "{name} жаңы билдирүү жазды.",
-  differenceNote: "Кураторго бир жолку суроо — «Тапшыруу» барагында.",
-  differenceLink: "Суроо берүү",
 };
 
 /**
@@ -1971,7 +1981,7 @@ const applyRu = {
   pageDescription: "Расскажите о ваших планах и создайте личный аккаунт EVO.",
   loginLink: "Уже есть аккаунт? Войти",
   languageAria: "Язык анкеты",
-  stepOf: "Шаг {step} из 9",
+  stepOf: "Шаг {step} из {total}",
   progressAria: "Заполнение анкеты",
   "step.countries": "Страны",
   "step.intake": "Начало учёбы",
@@ -1982,6 +1992,12 @@ const applyRu = {
   "step.english": "Английский",
   "step.budget": "Бюджет",
   "step.account": "Аккаунт",
+  // #1362: семь шагов, слитые шаги называются как в приложении.
+  "step.educationLevels": "Образование и ступень",
+  "step.nationalityEnglish": "Гражданство и английский",
+  "question.educationLevels": "Расскажите об образовании",
+  "question.nationalityEnglish": "Гражданство и английский",
+  draftHint: "Ответы сохранены на этом устройстве. Пароль не сохраняется.",
   "question.countries": "Где вы хотите учиться?",
   "question.intake": "Когда планируете начать?",
   "question.education": "Какое у вас образование?",
@@ -2167,7 +2183,7 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
   pageDescription: "Пландарыңыз жөнүндө айтып, EVOдо жеке аккаунтуңузду түзүңүз.",
   loginLink: "Аккаунт барбы? Кирүү",
   languageAria: "Анкета тили",
-  stepOf: "9 кадамдын {step}-кадамы",
+  stepOf: "{total} кадамдын {step}-кадамы",
   progressAria: "Анкетаны толтуруу",
   "step.countries": "Өлкөлөр",
   "step.intake": "Окуунун башталышы",
@@ -2178,6 +2194,11 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
   "step.english": "Англис тили",
   "step.budget": "Бюджет",
   "step.account": "Аккаунт",
+  "step.educationLevels": "Билим жана баскыч",
+  "step.nationalityEnglish": "Жарандык жана англис тили",
+  "question.educationLevels": "Билиминиз жөнүндө айтып бериңиз",
+  "question.nationalityEnglish": "Жарандык жана англис тили",
+  draftHint: "Жооптор ушул түзмөктө сакталды. Сырсөз сакталбайт.",
   "question.countries": "Кайда окугуңуз келет?",
   "question.intake": "Качан баштоону пландап жатасыз?",
   "question.education": "Кандай билимиңиз бар?",
@@ -2398,6 +2419,12 @@ const homeRu = {
   cscaSession: "Ближайшая сессия: {dates}",
   cscaRegistration: "Регистрация {closes}",
   cscaAction: "К подготовке",
+  // #1355 (09.11.2026): одна «Главная» — «Мой список» (вузы и программы) под колонками.
+  listHeading: "Мой список",
+  // #1356: один вход «Написать EVO» — чат «Входящих».
+  writeHeading: "Есть вопрос?",
+  writeBody: "Напишите команде EVO: ответ придёт в этот же чат.",
+  writeAction: "Написать EVO",
 } as const;
 
 type HomeKey = keyof typeof homeRu;
@@ -2442,6 +2469,10 @@ const homeKy: Readonly<Record<HomeKey, string>> = {
   cscaSession: "Жакынкы сессия: {dates}",
   cscaRegistration: "Каттоо {closes}",
   cscaAction: "Даярдыкка",
+  listHeading: "Менин тизмем",
+  writeHeading: "Суроо барбы?",
+  writeBody: "EVO командасына жазыңыз: жооп ушул эле чатка келет.",
+  writeAction: "EVO'го жазуу",
 };
 
 /**

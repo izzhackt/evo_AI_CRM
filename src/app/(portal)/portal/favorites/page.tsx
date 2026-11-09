@@ -5,5 +5,5 @@ import { redirect } from "next/navigation";
 // остаётся подключённым (platform-route-contract.ts), чтобы старые закладки
 // и ссылки вели на ту же вкладку; своего чтения у него нет.
 export default function StudentPortalFavoritesRedirect() {
-  redirect("/portal?view=universities");
+  redirect("/portal?view=universities#list");
 }

@@ -1,5 +1,3 @@
-import { ChevronRight, GraduationCap, Landmark } from "lucide-react";
-import Link from "next/link";
 
 import type { Locale } from "@/lib/i18n-data";
 import { getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
@@ -43,81 +41,32 @@ export function stageLabel(stage: string, strings: AdmissionStrings): string | n
 }
 
 /**
- * Обзор «Моего поступления» (PORT-5d; разгрузка 03.11.2026 по слову
- * пользователя): плитки с числом — вузы в избранном и выбранные программы.
- * Карточка «Ваш следующий шаг», этап, куратор и ссылки на документы
- * и начисления сняты («явно лишнее»): документы и оплата — пункты меню,
- * связь — «Входящие», этап — в «Профиле». Остаются только заявка на
- * рассмотрении (pending) и задача команды EVO, если она есть. Плитка без
- * данных не рисуется. E2 DTO из portal-source и null-семантика 189 прежние.
- *
- * 08.11.2026 (пользователь: «вот это можно убрать а те 2 на один этаж
- * поставить»): плитки «Требуют действия» нет, две плитки стоят в один ряд и на
- * телефоне; первое дело открывает «Что сделать сейчас» на «Главной».
+ * Заявка на рассмотрении и задача команды EVO на «Главной» (бывший обзор «Моего поступления», PORT-5d; разгрузка
+ * 03.11.2026 по слову пользователя: карточка «Ваш следующий шаг», этап, куратор и ссылки на документы и начисления
+ * сняты). Плитки с числом вузов и программ ушли в #1355: число стоит во вкладках «Мой список». Остаются только
+ * задача команды EVO, если она есть; без неё блок не рисуется. Заявка на рассмотрении (pending) — одна карточка «Ваша анкета» в HomeView, здесь её нет (иначе два заголовка). E2 DTO из
+ * portal-source и null-семантика 189 прежние.
  */
-export function OverviewView({ overview, pending = false, locale, favoritesCount, programsCount }: {
+export function OverviewView({ overview, locale }: {
   overview: StudentPortalOverview | null;
-  pending?: boolean;
   locale: Locale;
-  /** Вузов в избранном; `null` — чтение не удалось. */
-  favoritesCount: number | null;
-  /** Выбранных программ; `null` — чтение не удалось. */
-  programsCount: number | null;
 }) {
   const strings = getPortalStrings("admission", locale);
   const evoAction = overview?.evoAction ?? null;
   const evoDue = evoAction ? evoActionDueLabel(evoAction) : null;
   const evoStatus = evoAction ? evoActionStatus(evoAction, strings) : null;
-  // 08.11.2026 («стильнее»): у плитки значок в бледно-красном круге и стрелка, вся плитка ведёт на свою вкладку ниже.
-  const tiles = [
-    { key: "favorites", value: favoritesCount, label: strings["tile.favorites"], href: "/portal", Icon: Landmark },
-    { key: "programs", value: programsCount, label: strings["tile.programs"], href: "/portal?view=programs", Icon: GraduationCap },
-  ].filter((tile) => tile.value !== null);
 
+  if (!(evoAction && evoStatus)) return null;
   return (
-    <>
-      {tiles.length > 0 ? (
-        <ul className="pt-stat-tiles" aria-label={strings.tilesLabel}>
-          {tiles.map((tile) => (
-            <li key={tile.key}>
-              <Link href={tile.href} className="pt-stat-tile pt-stat-tile-link">
-                <span className="pt-stat-icon" aria-hidden="true">
-                  <tile.Icon size={22} strokeWidth={1.75} />
-                </span>
-                <span className="pt-stat-text">
-                  <span className="pt-stat-value">{tile.value}</span>
-                  <span className="pt-stat-label">{tile.label}</span>
-                </span>
-                <ChevronRight className="pt-stat-arrow" size={20} strokeWidth={1.75} aria-hidden="true" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {pending || (evoAction && evoStatus) ? (
-        <section aria-label={strings.asideAria} className="pt-adm-info">
-          {pending ? (
-            <div className="pt-adm-info-card">
-              <h2 className="pt-adm-aside-card-title">{strings.pendingApplicationHeading}</h2>
-              <p className="pt-adm-aside-muted">{strings.pendingManagerNotice}</p>
-              <Link href="/apply/status" className="pt-link">
-                {strings.pendingApplicationLink} <span aria-hidden="true">→</span>
-              </Link>
-            </div>
-          ) : null}
-          {evoAction && evoStatus ? (
-            <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-info-card">
-              <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
-              <p className="pt-adm-evo-title">{evoAction.title}</p>
-              <div className="pt-adm-evo-meta">
-                <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
-                {evoDue ? <span className="pt-adm-evo-due">{strings.dueTerm} {evoDue}</span> : null}
-              </div>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-    </>
+    <section aria-label={strings.asideAria} className="pt-adm-info">
+      <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-info-card">
+        <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
+        <p className="pt-adm-evo-title">{evoAction.title}</p>
+        <div className="pt-adm-evo-meta">
+          <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
+          {evoDue ? <span className="pt-adm-evo-due">{strings.dueTerm} {evoDue}</span> : null}
+        </div>
+      </div>
+    </section>
   );
 }

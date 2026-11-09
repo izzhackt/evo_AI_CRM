@@ -1,7 +1,7 @@
 "use client";
 import { startTransition, useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { answerCaseHelpAction, createCaseHelpAction, preparePartnerPacketAction } from "@/lib/platform-admissions-support-actions";
+import { answerCaseHelpAction, preparePartnerPacketAction } from "@/lib/platform-admissions-support-actions";
 import type { CaseHelpRequest, CaseOperationResult, PacketGeneratedExport, PacketWorkspace, PartnerPacket } from "@/lib/platform-admissions-support-contract";
 import type { DocumentExportWorkspaceV2, DocumentPackageExportCommand, StoredDocumentExportReceipt } from "@/lib/document-export-artifact-contract";
 import { createDocumentPackageExport, downloadDocumentExport, readDocumentExportHistory, reconcileDocumentExport, updateDocumentExportHistory, type DocumentExportOutcome } from "@/lib/document-export-client";
@@ -10,7 +10,6 @@ import { StudentProfileExportList } from "./StudentProfileExportHistory";
 import { QUEUE_CONFIRM } from "../queue/queue-buttons";
 
 const INPUT = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg focus-visible:outline-2 focus-visible:outline-focus-ring";
-const BUTTON = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50";
 const SECONDARY = "inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg";
 const subscribe = () => () => {};
 const clientSnapshot = () => true;
@@ -45,19 +44,6 @@ function Result({ command }: { command: ReturnType<typeof useCaseCommand> }) {
   </div>;
 }
 
-export function CreateCaseHelpForm({ onSaved }: { onSaved?: () => void }) {
-  const command = useCaseCommand(createCaseHelpAction, onSaved); const [subject, setSubject] = useState(""); const [body, setBody] = useState("");
-  return <details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer font-semibold text-fg">Нужна помощь</summary>
-    <p className="my-3 text-sm leading-6 text-fg-2">Вопрос увидит команда, которая ведёт ваше дело. Это обращение внутри EVO, не сообщение в WhatsApp.</p>
-    <form className="space-y-3" onSubmit={event => { event.preventDefault(); command.submit({ subject, body, requestId: crypto.randomUUID() }); }}>
-      <fieldset disabled={command.blocked} className="space-y-3"><label className="grid gap-1.5 text-sm text-fg-2">Тема<input className={INPUT} required maxLength={160} value={subject} onChange={event => setSubject(event.target.value)} /></label>
-      <label className="grid gap-1.5 text-sm text-fg-2">Что нужно уточнить<textarea className={INPUT} required rows={4} maxLength={4000} value={body} onChange={event => setBody(event.target.value)} /></label></fieldset>
-      <Result command={command} />
-      {command.result?.ok ? <button type="button" className={SECONDARY} onClick={() => { setSubject(""); setBody(""); command.reset(); }}>Новое обращение</button>
-        : <button className={BUTTON} disabled={command.pending || Boolean(command.result && !command.result.ok && ["stale", "request_conflict"].includes(command.result.code))}>{command.pending ? "Сохраняем…" : command.result && !command.result.ok && command.result.code === "unavailable" ? "Проверить сохранение" : "Передать вопрос команде"}</button>}
-    </form>
-  </details>;
-}
 export function AnswerCaseHelpForm({ caseId, request, onSaved }: { caseId: string; request: CaseHelpRequest; onSaved?: () => void }) {
   const command = useCaseCommand(answerCaseHelpAction, onSaved); const [answer, setAnswer] = useState(request.answer ?? "");
   return <form className="mt-4 space-y-3" onSubmit={event => { event.preventDefault(); command.submit({ caseId, id: request.id, answer, version: request.version, requestId: crypto.randomUUID() }); }}>

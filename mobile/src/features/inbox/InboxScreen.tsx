@@ -116,9 +116,6 @@ export function InboxScreen() {
           <View style={{ height: 1, backgroundColor: tokens.line }} />
           <Row team title={messages.chatTitle} preview={chatPreview} time={chatTime} onPress={() => go("/messages/chat")} testID="inbox-chat" label={`${messages.chatTitle}. ${chatPreview}`} />
         </Card>
-        <Text variant="caption" tone="text2">
-          {messages.differenceNote}
-        </Text>
       </View>
     </Screen>
   );

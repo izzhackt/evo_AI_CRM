@@ -170,7 +170,7 @@ test("apply ru option labels mirror APPLICATION_LABELS byte-for-byte", () => {
   assert.equal(ru.consentPolicyLink, "Политику конфиденциальности");
   assert.ok(ky.consentLabel.includes("{policy}") && ky.aiConsentLabel.includes("Anthropic (Claude, АКШ)"));
   assert.ok(ru.aiConsentLabel.includes("Anthropic (Claude, США) и Google (Gemini)"), "the AI box names who processes the data");
-  assert.equal(ru.stepOf, "Шаг {step} из 9");
+  assert.equal(ru.stepOf, "Шаг {step} из {total}");
 });
 
 test("template substitution fills named values and leaves unknown markers visible", () => {

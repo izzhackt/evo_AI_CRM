@@ -106,8 +106,8 @@ test("Student next action reuses canonical finance without adding payment writes
   const portal = source("src/lib/v3/portal-source.ts");
   assert.match(portal, /readStudentPortalPayments/u);
   assert.match(portal, /outstandingMinor/u);
-  // PORT-5d: «Моё поступление» живёт в Атласе — путь обновлён вместе с переносом.
-  assert.match(source("src/components/portal/admission/OverviewView.tsx"), /\/portal\/payments/u);
+  // #1355: «Что сделать сейчас» на единственной «Главной» ведёт к оплате (раньше — обзор «Моего поступления»).
+  assert.match(source("src/components/portal/home/HomeCase.tsx"), /\/portal\/payments/u);
   assert.doesNotMatch(source("src/lib/platform-admissions-support-actions.ts"), /payment|refund|settle_finance/iu);
 });
 

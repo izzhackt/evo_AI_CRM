@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 import { Linking } from "react-native";
 
 import { ProfileScreen } from "@/features/profile/ProfileScreen";
@@ -48,6 +49,20 @@ describe("ProfileScreen", () => {
     expect(screen.getByText("Версия 2.0.0")).toBeTruthy();
     // на вебе телефона в профиле нет: поля ввода телефона тоже нет
     expect(screen.queryByLabelText(/телефон/i)).toBeNull();
+  });
+
+  it("«Мои данные» (#1360): телефон и имя меняет куратор, ссылка ведёт в чат; у approved ссылка на поддержку", async () => {
+    const { transport } = fakeTransport(handlers());
+    await renderPortal(<ProfileScreen />, testApi(transport));
+    expect(await screen.findByText("Телефон и имя меняет куратор: напишите ему, и он исправит.")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("profile-write-evo"));
+    expect(router.navigate).toHaveBeenLastCalledWith("/messages/chat");
+    const approved = fakeTransport(handlers());
+    await renderPortal(<ProfileScreen />, testApi(approved.transport, { tier: "approved" }));
+    expect(await screen.findByText("Телефон и имя меняет менеджер: напишите в поддержку EVO, и он исправит.")).toBeTruthy();
+    expect(screen.queryByTestId("profile-write-evo")).toBeNull();
+    await fireEvent.press(screen.getByTestId("profile-data-support"));
+    expect(openURL).toHaveBeenCalledWith("https://evoadmissions.com/ru/support/");
   });
 
   it("язык: сохраняется в БД (set_own_portal_language_v1), интерфейс меняется после ответа", async () => {

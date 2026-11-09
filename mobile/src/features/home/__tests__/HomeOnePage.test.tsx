@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router, useLocalSearchParams } from "expo-router";
 
-import { AdmissionScreen } from "@/features/admission/AdmissionScreen";
+import { HomeScreen } from "@/features/home/HomeScreen";
 import { NOTIFICATION_ROW, OVERVIEW_ROW, OVERVIEW_ROW_EMPTY, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
@@ -34,27 +34,27 @@ beforeEach(async () => {
   params.mockReturnValue({});
 });
 
-describe("Поступление: сводка", () => {
-  it("название, плитки с числами, задача EVO", async () => {
+describe("Главная: задача EVO и анкета (бывшая сводка «Поступления»)", () => {
+  it("нет отдельного заголовка «Моё поступление» и плиток: числа стоят во вкладках «Мой список»; задача EVO есть", async () => {
     const { transport } = fakeTransport(handlers());
-    await renderPortal(<AdmissionScreen />, testApi(transport));
-    expect(screen.getByText("Моё поступление")).toBeTruthy();
-    expect(await screen.findByTestId("tile-favorites")).toBeTruthy();
-    expect(screen.getByTestId("tile-favorites").props.accessibilityLabel).toBe("Вузов в избранном: 2");
-    expect(await screen.findByTestId("tile-programs")).toBeTruthy();
-    expect(screen.getByTestId("tile-programs").props.accessibilityLabel).toBe("Мои программы: 1");
+    await renderPortal(<HomeScreen />, testApi(transport));
+    expect(screen.queryByText("Моё поступление")).toBeNull();
+    expect(screen.queryByTestId("tile-favorites")).toBeNull();
+    expect(await screen.findByText("Вузы 2")).toBeTruthy();
+    expect(await screen.findByText("Мои программы 1")).toBeTruthy();
     expect(await screen.findByTestId("evo-title")).toHaveTextContent("Проверить анкету");
     expect(screen.getByText("в работе")).toBeTruthy();
     expect(screen.getByText("Срок: 13.09.2026")).toBeTruthy();
   });
 
-  it("approved: «Ваша анкета», без задачи EVO и без чтений дела", async () => {
+  it("approved: ровно одна карточка «Ваша анкета», без задачи EVO и без чтений дела", async () => {
     const { transport, calls } = fakeTransport(handlers());
-    await renderPortal(<AdmissionScreen />, testApi(transport, { tier: "approved" }));
-    expect(screen.getByText("Ваша анкета")).toBeTruthy();
+    await renderPortal(<HomeScreen />, testApi(transport, { tier: "approved" }));
+    expect(screen.getAllByText("Ваша анкета")).toHaveLength(1);
     expect(screen.getByText("Менеджер свяжется с вами.")).toBeTruthy();
     await screen.findByTestId("journey-fold");
     expect(screen.queryByTestId("evo-title")).toBeNull();
+    expect(screen.queryByTestId("write-evo")).toBeNull();
     expect(calls.map((c) => c.name)).not.toContain("student_portal_overview_v2");
     // без дела прогресса нет: строки «Сейчас:» нет, весь путь виден сразу
     expect(screen.queryByTestId("journey-now")).toBeNull();
@@ -62,34 +62,35 @@ describe("Поступление: сводка", () => {
     expect(screen.queryByTestId("meter-current", { hidden: true })).toBeNull();
   });
 
-  it("сбой обзора: плашка с повтором, остальное на месте", async () => {
+  it("сбой обзора: плашка с повтором в «Что сделать сейчас», остальное на месте", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_portal_overview_v2: failure(null, 503) }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
-    expect(await screen.findByTestId("overview-error")).toBeTruthy();
+    await renderPortal(<HomeScreen />, testApi(transport));
+    expect(await screen.findByTestId("card-error")).toBeTruthy();
     expect(screen.getByText("Сервис временно недоступен. Повторите позже.")).toBeTruthy();
-    expect(await screen.findByTestId("tile-favorites")).toBeTruthy();
+    expect(await screen.findByText("Вузы 2")).toBeTruthy();
     expect(screen.getByTestId("journey-fold")).toBeTruthy();
   });
 });
 
-describe("Поступление: путь страны", () => {
+describe("Главная: весь «Путь поступления»", () => {
   it("assisted: «Сейчас:» с текущим шагом, полоса с маркером, путь свёрнут", async () => {
     const { transport } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Путь поступления: Малайзия")).toBeTruthy();
     const now = await screen.findByTestId("journey-now");
     expect(now.props.accessibilityLabel).toContain("Договор и документы");
     expect(now.props.accessibilityLabel).toContain("Шаг 2 из 7");
-    expect(screen.getAllByTestId("meter-done", { hidden: true })).toHaveLength(1);
-    expect(screen.getAllByTestId("meter-current", { hidden: true })).toHaveLength(1);
-    expect(screen.getAllByTestId("meter-upcoming", { hidden: true })).toHaveLength(5);
+    // полоса есть и на карточке пути, и в полном пути (как на вебе): по одному набору на каждую
+    expect(screen.getAllByTestId("meter-done", { hidden: true })).toHaveLength(2);
+    expect(screen.getAllByTestId("meter-current", { hidden: true })).toHaveLength(2);
+    expect(screen.getAllByTestId("meter-upcoming", { hidden: true })).toHaveLength(10);
     expect(screen.queryByTestId("journey-body")).toBeNull(); // свёрнут, пока есть текущий шаг
     expect(screen.getByText("Все шаги")).toBeTruthy();
   });
 
   it("«Все шаги» раскрывает путь; пройденные в одной строке; шаг раскрывается в пункты", async () => {
     const { transport } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("journey-now");
     await fireEvent.press(screen.getByTestId("journey-fold"));
     expect(await screen.findByTestId("journey-body")).toBeTruthy();
@@ -117,22 +118,22 @@ describe("Поступление: путь страны", () => {
 
   it("строка «Сейчас» раскрывает путь и текущий шаг", async () => {
     const { transport } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("journey-now"));
     await screen.findByTestId("journey-body");
     await waitFor(() => expect(screen.getByTestId("step-toggle-my-2-documents").props.accessibilityState).toMatchObject({ expanded: true }));
   });
 
-  it("переход «Весь путь» с Главной раскрывает путь", async () => {
+  it("ссылка ?path=open (в том числе из старого /overview) раскрывает путь", async () => {
     params.mockReturnValue({ path: "open" });
     const { transport } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId("journey-body")).toBeTruthy();
   });
 
   it("текущий шаг документов ведёт в Документы; ссылка на CSCA ведёт во вкладку", async () => {
     const { transport } = fakeTransport(handlers("CN"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("journey-now"));
     await fireEvent.press(await screen.findByTestId("journey-open-documents"));
     expect(navigate).toHaveBeenCalledWith("/documents");
@@ -143,7 +144,7 @@ describe("Поступление: путь страны", () => {
 
   it("без дела на сопровождении (план не опубликован) путь без прогресса", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_portal_overview_v2: [], student_portal_finance_v2: [] }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("journey-fold");
     await waitFor(() => expect(screen.queryByTestId("journey-now")).toBeNull());
     expect(screen.getByTestId("journey-body")).toBeTruthy();
@@ -151,8 +152,8 @@ describe("Поступление: путь страны", () => {
 
   it("«Пока не решил»: общий путь без названия страны", async () => {
     const { transport } = fakeTransport(handlers("UNDECIDED"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
-    expect(await screen.findByText("Путь поступления")).toBeTruthy();
+    await renderPortal(<HomeScreen />, testApi(transport));
+    expect((await screen.findAllByText("Путь поступления")).length).toBeGreaterThan(0);
   });
 
   it("смена страны: выбор открывается, пишет запрос и обновляет путь", async () => {
@@ -163,7 +164,7 @@ describe("Поступление: путь страны", () => {
         set_student_country_choice_v1: (args: Record<string, unknown> | undefined) => (choice = saved(args?.p_country as string)),
       }),
     );
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("change-country"));
     const my = await screen.findByTestId("country-MY");
     expect(my.props.accessibilityState).toMatchObject({ selected: true });
@@ -175,7 +176,7 @@ describe("Поступление: путь страны", () => {
 
   it("повторный выбор уже сохранённой страны ничего не пишет", async () => {
     const { transport, calls } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("change-country"));
     await fireEvent.press(await screen.findByTestId("country-MY"));
     await waitFor(() => expect(screen.queryByTestId("country-MY")).toBeNull());
@@ -189,7 +190,7 @@ describe("Поступление: путь страны", () => {
         set_student_country_choice_v1: saved("MY"),
       }),
     );
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Страна из вашей анкеты.")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("change-country"));
     await fireEvent.press(await screen.findByTestId("country-MY"));
@@ -198,23 +199,23 @@ describe("Поступление: путь страны", () => {
 
   it("страны нет: вместо пути выбор страны", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_country_choice_v1: { country: null, source: "none", savedAt: null } }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Выберите страну")).toBeTruthy();
     expect(screen.queryByTestId("journey-fold")).toBeNull();
   });
 
   it("кыргызский язык: заголовок и подписи шагов", async () => {
     const { transport } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport), "ky");
-    expect(await screen.findByText("Менин тапшыруум")).toBeTruthy();
+    await renderPortal(<HomeScreen />, testApi(transport), "ky");
+    expect(await screen.findByText("Менин тизмем")).toBeTruthy();
     expect(await screen.findByText("Бардык кадамдар")).toBeTruthy();
   });
 });
 
-describe("Поступление: вкладки", () => {
+describe("Главная: «Мой список»", () => {
   it("Вузы по умолчанию; Программы показывают выбор и статус", async () => {
     const { transport } = fakeTransport(handlers("MY"));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId(`fav-${uuidN(1)}`)).toBeTruthy();
     expect(screen.getByTestId("tab-universities").props.accessibilityState).toMatchObject({ checked: true });
     await fireEvent.press(screen.getByTestId("tab-programs"));
@@ -222,12 +223,12 @@ describe("Поступление: вкладки", () => {
     expect(within(row).getByText("Информатика")).toBeTruthy();
     expect(within(row).getByText("Осень 2027")).toBeTruthy();
     expect(within(row).getByText("Сроки этого набора нужно подтвердить с куратором.")).toBeTruthy();
-    expect(screen.getAllByText("Мои программы").length).toBeGreaterThan(0);
+    expect(screen.getByText("Мои программы 1")).toBeTruthy();
   });
 
   it("пустые состояния: нет вузов, нет программ", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_university_favorites_v1: [], student_catalog_preparations_v1: [] }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Пока ничего не сохранено")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("tab-programs"));
     expect(await screen.findByText("Вы пока не добавили программу. Откройте университет и добавьте подходящий набор в «Мои программы».")).toBeTruthy();
@@ -235,7 +236,7 @@ describe("Поступление: вкладки", () => {
 
   it("выбор программ закрыт для дела: подсказка про каталог", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_catalog_preparations_v1: [] }));
-    await renderPortal(<AdmissionScreen />, testApi(transport, { canSelectPrograms: false }));
+    await renderPortal(<HomeScreen />, testApi(transport, { canSelectPrograms: false }));
     await fireEvent.press(screen.getByTestId("tab-programs"));
     expect(await screen.findByText(/Пока здесь пусто\. Программы появятся/)).toBeTruthy();
   });
@@ -243,7 +244,7 @@ describe("Поступление: вкладки", () => {
   it("сбой чтения программ: плашка и повтор, без текста сервера", async () => {
     let attempt = 0;
     const { transport } = fakeTransport(handlers("MY", { student_catalog_preparations_v1: () => (++attempt === 1 ? failure("XX000", 500) : [preparationRow(1)]) }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(screen.getByTestId("tab-programs"));
     const alert = await screen.findByTestId("programs-error");
     expect(within(alert).getByText("Сервис временно недоступен. Повторите позже.")).toBeTruthy();
@@ -253,15 +254,40 @@ describe("Поступление: вкладки", () => {
 
   it("чужая форма строки подготовки не показывается", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_catalog_preparations_v1: [{ ...preparationRow(1), studentCaseId: uuidN(9) }] }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
+    await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(screen.getByTestId("tab-programs"));
     expect(await screen.findByTestId("programs-error")).toBeTruthy();
   });
 
   it("пустой обзор без плана и без задач не ломает экран", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_portal_overview_v2: [OVERVIEW_ROW_EMPTY], student_portal_finance_v2: [] }));
-    await renderPortal(<AdmissionScreen />, testApi(transport));
-    await screen.findByTestId("tile-favorites");
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByText("Вузы 2");
     expect(screen.queryByTestId("evo-title")).toBeNull();
+  });
+});
+
+describe("Главная: переходы из старых ссылок и кнопок", () => {
+  it("?list=programs открывает вкладку «Мои программы»", async () => {
+    params.mockReturnValue({ list: "programs" });
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    expect(await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`)).toBeTruthy();
+    expect(screen.getByTestId("tab-programs").props.accessibilityState).toMatchObject({ checked: true });
+  });
+
+  it("строка избранного ведёт на карточку вуза", async () => {
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId(`fav-${uuidN(1)}`));
+    expect(navigate).toHaveBeenCalledWith(`/universities/${uuidN(1)}`);
+  });
+
+  it("«Написать EVO» ведёт в беседу «Входящих»; у approved карточки нет", async () => {
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    expect(screen.getByText("Есть вопрос?")).toBeTruthy();
+    await fireEvent.press(await screen.findByTestId("write-evo"));
+    expect(navigate).toHaveBeenCalledWith("/messages/chat");
   });
 });

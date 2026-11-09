@@ -11,20 +11,40 @@ import { actionTarget, actionTitle } from "@/domain/presentation";
 import type { StudentPortalNotification, StudentPortalOverview } from "@/domain/portal-source";
 import type { AccessTier } from "@/session/access";
 
-export type HomeSlotId = "case" | "path" | "universities" | "dates" | "news" | "csca";
+export type HomeSlotId = "evo" | "case" | "path" | "write" | "dates" | "news" | "csca" | "list" | "fullPath";
 
 /**
- * Блоки «Главной» в порядке телефона: «Что сделать сейчас» (у approved «Ваша анкета»),
- * путь страны (только когда страна выбрана), «Мои вузы», даты, «Что нового» (только
- * assisted), CSCA (только карточка для Китая). Выбор страны и шапка стоят выше этого списка.
+ * Блоки единственной «Главной» в порядке телефона (HomeView.tsx + `.pt-home-slot[data-slot]`
+ * в portal.css, веб #1355): задача команды EVO (`info`, только когда она есть), «Что сделать
+ * сейчас» (у approved одна «Ваша анкета»), карточка пути страны (когда страна выбрана), «Написать
+ * EVO» (только assisted, #1356), даты, «Что нового» (только assisted), CSCA (карточка для
+ * Китая), под ними «Мой список» (вкладки «Вузы» и «Мои программы») и весь «Путь поступления».
+ * Выбор страны и шапка стоят выше этого списка.
  */
-export function homeSlots(input: Readonly<{ tier: AccessTier; hasJourney: boolean; hasCscaCard: boolean }>): readonly HomeSlotId[] {
-  const slots: HomeSlotId[] = ["case"];
+export function homeSlots(input: Readonly<{ tier: AccessTier; hasJourney: boolean; hasCscaCard: boolean; hasEvoTask: boolean }>): readonly HomeSlotId[] {
+  const assisted = input.tier === "assisted";
+  const slots: HomeSlotId[] = [];
+  if (assisted && input.hasEvoTask) slots.push("evo");
+  slots.push("case");
   if (input.hasJourney) slots.push("path");
-  slots.push("universities", "dates");
-  if (input.tier === "assisted") slots.push("news");
+  if (assisted) slots.push("write");
+  slots.push("dates");
+  if (assisted) slots.push("news");
   if (input.hasCscaCard) slots.push("csca");
+  slots.push("list");
+  if (input.hasJourney) slots.push("fullPath");
   return slots;
+}
+
+/** Вкладки «Мой список». */
+export type HomeListTab = "universities" | "programs";
+
+/** Параметры старых и новых ссылок на «Главную» (`?list=programs`, `?path=open`) -> состояние экрана. */
+export function homeParams(params: Readonly<{ list?: string | string[]; path?: string | string[]; at?: string | string[] }>): Readonly<{ listTab: HomeListTab | null; openPath: boolean; stamp: string }> {
+  const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+  const list = one(params.list);
+  // `at` - метка перехода: повторная ссылка с теми же параметрами всё равно срабатывает.
+  return { listTab: list === "programs" || list === "universities" ? list : null, openPath: one(params.path) === "open", stamp: one(params.at) ?? "" };
 }
 
 /** Без выбранной страны первым блоком под шапкой стоит выбор страны, карточки пути нет. */

@@ -1,6 +1,7 @@
 // Экраны «Университетов» на поддельном транспорте: страны, поиск, «Списком», карта (нативная
 // карта заменена заглушкой: настоящая проверяется на симуляторе), сердечко и его откат.
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 import { Alert } from "react-native";
 
 import { CountryScreen } from "@/features/universities/CountryScreen";
@@ -179,7 +180,21 @@ describe("Страница вуза", () => {
     const call = t.calls.find((c) => c.name === "student_select_catalog_intake_v1");
     expect(call?.args).toMatchObject({ p_program_id: "cs", p_publication_version: 3 });
     expect(typeof call?.args?.p_request_id).toBe("string");
-    expect(await screen.findByTestId("program-open-mine")).toBeTruthy();
+    const mine = await screen.findByTestId("program-open-mine");
+    await fireEvent.press(mine);
+    expect(router.navigate).toHaveBeenLastCalledWith({ pathname: "/home", params: { list: "programs", at: expect.any(String) } });
+  });
+
+  it("«Написать EVO» (#1356): у assisted кнопка ведёт в беседу, у approved её нет", async () => {
+    mockParams.current = { id: uuidN(1) };
+    const t = fakeTransport({ student_university_detail_v1: detail(), student_university_favorites_v1: [] });
+    await renderPortal(<UniversityScreen />, testApi(t.transport));
+    await fireEvent.press(await screen.findByTestId("university-write-evo"));
+    expect(router.navigate).toHaveBeenLastCalledWith("/messages/chat");
+    const approved = fakeTransport({ student_university_detail_v1: detail(), student_university_favorites_v1: [] });
+    await renderPortal(<UniversityScreen />, testApi(approved.transport, { tier: "approved" }));
+    await screen.findAllByText("Программы вуза");
+    expect(screen.queryByTestId("university-write-evo")).toBeNull();
   });
 
   it("без опубликованной стоимости блока нет", async () => {

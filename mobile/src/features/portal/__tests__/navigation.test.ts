@@ -12,8 +12,8 @@ describe("переходы", () => {
   it("вкладка приложения, с параметрами и без", () => {
     go("/documents");
     expect(navigate).toHaveBeenLastCalledWith("/documents");
-    go("/overview", { path: "open" });
-    expect(navigate).toHaveBeenLastCalledWith({ pathname: "/overview", params: { path: "open" } });
+    go("/home", { list: "programs" });
+    expect(navigate).toHaveBeenLastCalledWith({ pathname: "/home", params: { list: "programs" } });
   });
 
   it("ссылка контента: страница кабинета ведёт во вкладку, внешняя в браузер, чужая никуда", () => {

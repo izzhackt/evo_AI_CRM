@@ -1,8 +1,11 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/theme/ThemeProvider";
+
+/** То, что экран просит у прокрутки (RN 0.88: тип ScrollView - компонент, не экземпляр). */
+export type ScrollTarget = { scrollTo: (options: { y: number; animated?: boolean }) => void };
 
 /** Страница: фон `--pt-bg`, боковое поле 16, прокрутка, учёт безопасных зон. */
 export function Screen({
@@ -11,6 +14,7 @@ export function Screen({
   topInset = true,
   onRefresh,
   refreshing = false,
+  scrollRef,
 }: {
   children: ReactNode;
   bottomInset?: number;
@@ -18,12 +22,15 @@ export function Screen({
   /** Потянуть вниз, чтобы обновить (если задано). */
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** Для экранов, которые сами прокручивают к блоку (переход «Весь путь» на «Главной»). */
+  scrollRef?: RefObject<ScrollTarget | null>;
 }) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: tokens.bg }}>
       <ScrollView
+        ref={scrollRef as RefObject<never> | undefined}
         testID="screen-scroll"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
         keyboardShouldPersistTaps="handled"

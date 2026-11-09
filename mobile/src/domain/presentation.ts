@@ -114,13 +114,13 @@ export function portalNotificationText(
   return { title: notification.subjectLabel, detail: notification.detail };
 }
 
-export type NotificationRoute = "/documents" | "/payments" | "/messages/chat" | "/messages/updates" | "/overview";
+export type NotificationRoute = "/documents" | "/payments" | "/messages/chat" | "/messages/updates" | "/home";
 
 /**
  * Цель уведомления по `category` и `eventCode` (portalNotificationTarget, веб). Сообщение
  * команды ведёт в чат. Ответ куратора и проверка пакета или документа вуза показываются
  * в ленте «Что нового» развёрнутым текстом уведомления (отдельные страницы разбора
- * веба в приложении пока не нужны). Любая новая категория ведёт в «Поступление».
+ * веба в приложении пока не нужны). Любая новая категория ведёт на «Главную» (#1355: «Поступления» больше нет).
  */
 export function notificationRoute(notification: Pick<StudentPortalNotification, "category" | "eventCode">): NotificationRoute {
   if (notification.eventCode === "case_chat_message") return "/messages/chat";
@@ -133,7 +133,7 @@ export function notificationRoute(notification: Pick<StudentPortalNotification, 
   }
   if (notification.category.startsWith("document")) return "/documents";
   if (notification.category.startsWith("payment")) return "/payments";
-  return "/overview";
+  return "/home";
 }
 
 /** Подпись ссылки уведомления (portalNotificationTarget.label, веб); `null`, когда ссылки нет. */
@@ -179,13 +179,18 @@ export type LinkTarget = Readonly<{ kind: "route"; route: string }> | Readonly<{
 
 /**
  * Ссылки контента ведут на страницы веба (`/portal/csca`) или на внешние сайты. В
- * приложении `/portal/<раздел>` становится вкладкой `/<раздел>`, `/portal` пустой
- * путь: «Поступление». Внешние адреса открывает браузер. Прочее (неизвестный
- * относительный адрес) в приложение не ведёт: `null`.
+ * приложении `/portal/<раздел>` становится вкладкой `/<раздел>`. `/portal` и
+ * `/portal/home` — «Главная»; `/portal?view=programs` — «Главная» с вкладкой «Мои
+ * программы»; `/portal/messages?view=chat|updates` — беседа или лента «Входящих» (#1356:
+ * «Написать EVO»). Внешние адреса открывает браузер. Прочее (неизвестный относительный
+ * адрес) в приложение не ведёт: `null`.
  */
 export function linkTarget(href: string): LinkTarget | null {
   if (/^https:\/\//i.test(href)) return { kind: "external", url: href };
-  if (href === "/portal") return { kind: "route", route: "/overview" };
+  const home = /^\/portal(?:\/home)?(?:\?view=(programs|universities))?(?:#[a-z-]*)?$/.exec(href);
+  if (home) return { kind: "route", route: home[1] === "programs" ? "/home?list=programs" : "/home" };
+  const inbox = /^\/portal\/messages\?view=(chat|updates)$/.exec(href);
+  if (inbox) return { kind: "route", route: `/messages/${inbox[1]}` };
   const match = /^\/portal\/([a-z-]+)(?:[/?#].*)?$/.exec(href);
   if (!match) return null;
   return { kind: "route", route: `/${match[1]}` };

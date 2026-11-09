@@ -19,12 +19,12 @@ function activeSection(pathname: string): SectionId | null {
 }
 
 /**
- * Оболочка кабинета (веб #1412): плавающая панель на 4 вкладки (у approved только
- * Главная и Поступление), меню ☰ со всеми разделами уровня. Разделы вне уровня
+ * Оболочка кабинета (веб #1412, #1355): плавающая панель на 3 вкладки (Главная, Документы, Входящие;
+ * у approved вкладка одна, панель не рисуется), меню ☰ со всеми разделами уровня и «Выйти». Разделы вне уровня
  * закрыты Tabs.Protected, поэтому на них нельзя попасть ни по ссылке, ни из меню.
  */
 export default function AppLayout() {
-  const { state } = useSession();
+  const { state, signOut } = useSession();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const session = state.kind === "active" ? state.session : null;
@@ -62,6 +62,8 @@ export default function AppLayout() {
         tabBar={(props) => <TabBar {...props} />}
         screenOptions={{ header: () => <TopBar onMenu={() => setMenuOpen(true)} /> }}
       >
+        {/* Прежнее «Поступление»: только перенаправление на «Главную», в панели и меню его нет. */}
+        <Tabs.Screen name="overview" options={{ href: null }} />
         {SECTIONS.map((section) => (
           <Tabs.Protected key={section.id} guard={isAllowed(section.id, tier)}>
             <Tabs.Screen name={section.id} options={{ title: section.id }} />
@@ -74,6 +76,10 @@ export default function AppLayout() {
         tier={tier}
         active={activeSection(pathname)}
         onClose={() => setMenuOpen(false)}
+        onSignOut={() => {
+          setMenuOpen(false);
+          void signOut();
+        }}
         onSelect={(id) => {
           setMenuOpen(false);
           router.navigate(`/${id}` as Href);

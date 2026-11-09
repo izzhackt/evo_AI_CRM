@@ -1,7 +1,7 @@
 // Страница вуза: путь, фото с подписью, сердечко, обзор, сайт, «Стоимость» (если есть опубликованные
 // строки), «Программы вуза» с наборами и кнопка «Добавить в мои программы».
 // Программы по #1357: описание программ вуза живёт здесь (каталог), а выбранные студентом программы -
-// ОДНО место, «Мои программы» (Поступление); это название везде одно.
+// ОДНО место, «Мои программы» (вкладка «Мой список» на Главной); это название везде одно.
 // Веб: src/app/(portal)/portal/universities/[id]/page.tsx, components/portal/universities/Detail.tsx.
 import { useLocalSearchParams } from "expo-router";
 import { Linking, View } from "react-native";
@@ -15,7 +15,7 @@ import { universityDateLabel, universityIntakeStatusKey, universityLevelKey, uni
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
-import { go } from "@/features/portal/navigation";
+import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { rpcErrorKey } from "@/lib/rpc";
 import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
@@ -72,11 +72,11 @@ function UniversityBody({ id }: { id: string }) {
 }
 
 function DetailView({ detail, strings }: { detail: StudentUniversityDetail; strings: UniversityStrings }) {
-  const { lang, m } = useLang();
+  const { lang, m, t } = useLang();
   const favorites = useFavoriteState();
   const pixels = usePhotoPixels();
   const now = useMemo(() => new Date(), []);
-  const { canSelectPrograms, studentCaseId } = usePortalApi();
+  const { canSelectPrograms, studentCaseId, tier } = usePortalApi();
   const { university, country, city, costs } = detail;
   const listKnown = detail.preparations?.studentCaseId === studentCaseId;
   const content = university.content;
@@ -101,6 +101,8 @@ function DetailView({ detail, strings }: { detail: StudentUniversityDetail; stri
       </View>
       <Text variant="body">{content.overview}</Text>
       <ExternalLink url={content.websiteUrl} label={strings.website} />
+      {/* #1356: у клиента с сопровождением один вход к команде - чат «Входящих»; студенту без сопровождения чата нет. */}
+      {tier === "assisted" ? <Button variant="ghost" label={t("home").writeAction} onPress={() => go(WRITE_EVO_ROUTE)} testID="university-write-evo" /> : null}
 
       {cost ? (
         <Card>
@@ -225,7 +227,7 @@ function IntakeBlock({ intake, program, detail, strings, now, lang }: { intake: 
 
   let action: React.ReactNode = null;
   if (existing || select.isSuccess) {
-    action = <Button variant="ghost" label={m("programs.openMine")} onPress={() => go("/overview")} testID="program-open-mine" />;
+    action = <Button variant="ghost" label={m("programs.openMine")} onPress={() => go("/home", { list: "programs", at: String(Date.now()) })} testID="program-open-mine" />;
   } else if (bindings !== null && !canSelectPrograms) {
     action = null; // одно объяснение стоит ниже, на каждом наборе оно не повторяется
   } else if (blocked) {

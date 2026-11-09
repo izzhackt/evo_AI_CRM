@@ -84,8 +84,7 @@ export type PollSection = "home" | "admission" | "documents" | "payments" | "not
 export function pollSectionFor(section: SectionId | null): PollSection {
   switch (section) {
     case "home":
-      return "home";
-    case "overview":
+      // #1355: «Главная» — единственная страница /portal, веб опрашивает её как раздел «admission».
       return "admission";
     case "documents":
       return "documents";

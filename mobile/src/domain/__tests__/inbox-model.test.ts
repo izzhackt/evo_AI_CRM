@@ -106,8 +106,7 @@ describe("непрочитанное", () => {
 
 describe("опрос", () => {
   it("раздел приложения -> раздел опроса", () => {
-    expect(pollSectionFor("home")).toBe("home");
-    expect(pollSectionFor("overview")).toBe("admission");
+    expect(pollSectionFor("home")).toBe("admission"); // единственная /portal опрашивается как раздел «admission» (веб)
     expect(pollSectionFor("messages")).toBe("messages");
     expect(pollSectionFor("profile")).toBe("notifications");
     expect(pollSectionFor(null)).toBe("notifications");

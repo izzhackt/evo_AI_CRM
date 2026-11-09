@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
+import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { openExternal, PRIVACY_URL, SUPPORT_URL } from "@/features/profile/external";
 import { AiConsentRow } from "@/features/profile/AiConsent";
 import { DeletionCard } from "@/features/profile/DeletionCard";
@@ -19,7 +20,7 @@ import { useSession } from "@/session/SessionProvider";
 import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme, type ThemeChoice } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
-import { CardHead, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
+import { CardHead, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
@@ -52,7 +53,7 @@ export function ProfileScreen() {
   const { lang, setLang, profile: web, shell, m, format } = useLang();
   const { choice, setChoice } = useTheme();
   const { state, signOut } = useSession();
-  const { userKey } = usePortalApi();
+  const { userKey, tier } = usePortalApi();
   const client = useQueryClient();
   const profile = useOwnProfile();
   const login = useOwnLogin();
@@ -98,7 +99,16 @@ export function ProfileScreen() {
           {name ? <Row label={m("profile.nameLabel")} value={name} testID="profile-name" /> : null}
           {profile.data ? <Row label={m("profile.emailLabel")} value={profile.data.email} testID="profile-email" /> : null}
           {login.data ? <Row label={web.loginLabel} value={login.data} testID="profile-login-row" /> : null}
-          <Text variant="secondary" tone="text2">
+          {/* #1360: телефон и имя в кабинете не правятся (RPC для этого нет), меняет куратор: ссылка ведёт в чат. */}
+          <Text variant="secondary" tone="text2" testID="profile-data-note">
+            {tier === "assisted" ? web.dataNote : m("profile.dataNoteApproved")}
+          </Text>
+          {tier === "assisted" ? (
+            <LinkButton label={web.dataWrite} onPress={() => go(WRITE_EVO_ROUTE)} testID="profile-write-evo" />
+          ) : (
+            <LinkButton label={m("profile.support")} onPress={() => void open(SUPPORT_URL)} testID="profile-data-support" />
+          )}
+          <Text variant="caption" tone="text2">
             {shell.accountRole}
           </Text>
         </Card>

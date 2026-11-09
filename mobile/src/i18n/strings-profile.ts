@@ -6,6 +6,7 @@ export const PROFILE_RU = {
   "profile.myData": "Мои данные",
   "profile.nameLabel": "Имя",
   "profile.emailLabel": "Почта",
+  "profile.dataNoteApproved": "Телефон и имя меняет менеджер: напишите в поддержку EVO, и он исправит.",
   "profile.languageNote": "Язык сохраняется в вашем аккаунте и на всех устройствах.",
   "profile.passwordOthers": "После смены пароля вы выйдете из аккаунта на других устройствах. Здесь вход сохранится.",
   "profile.passwordOpen": "Сменить пароль",
@@ -36,6 +37,7 @@ export const PROFILE_KY: Readonly<Record<ProfileStringKey, string>> = {
   "profile.myData": "Менин маалыматтарым",
   "profile.nameLabel": "Аты-жөнү",
   "profile.emailLabel": "Почта",
+  "profile.dataNoteApproved": "Телефонду жана атыңызды менеджер өзгөртөт: EVO колдоо кызматына жазыңыз, ал оңдойт.", // KY: needs native proofreading
   "profile.languageNote": "Тил аккаунтуңузда жана бардык түзмөктөрдө сакталат.",
   "profile.passwordOthers": "Сырсөздү өзгөрткөндөн кийин башка түзмөктөрдөгү аккаунтуңуздан чыгасыз. Бул жерде кирип турасыз.",
   "profile.passwordOpen": "Сырсөздү өзгөртүү",

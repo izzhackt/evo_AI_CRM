@@ -117,6 +117,8 @@ test("source contract: receipt follows real case and isolated Student journeys",
   assert.match(smokeSource, /getByTestId\("student-portal-shell"\)/u);
   assert.match(smokeSource, /\/portal\/documents/u);
   assert.match(smokeSource, /Разделы кабинета/u);
+  // #1412: рейл и нижняя панель телефона оба ссылаются на /portal; смоук кликает только видимую ссылку.
+  assert.match(smokeSource, /locator\('a\[href="\/portal"\]:visible'\)\.click\(\)/u);
   assert.equal((smokeSource.match(/await verifyVersion\(page, configuration\)/gu) ?? []).length, 1);
   assert.deepEqual([...smokeSource.matchAll(/checkpoint\("([a-z_]+)"\)/gu)].map((match) => match[1]), [
     // OTH-1: «Воронка поступления» checkpoint added right after case_contract,

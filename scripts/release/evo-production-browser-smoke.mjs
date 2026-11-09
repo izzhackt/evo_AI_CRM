@@ -318,7 +318,8 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       checkpoint("student_navigation");
       await Promise.all([
         page.waitForURL(`${configuration.studentBaseUrl}/portal`, { waitUntil: "domcontentloaded", timeout: 30_000 }),
-        page.getByRole("navigation", { name: "Разделы кабинета", exact: true }).locator('a[href="/portal"]').click(),
+        // #1412: в навигации два пункта «Поступление» (рейл/меню и нижняя панель телефона) — кликаем видимый.
+        page.getByRole("navigation", { name: "Разделы кабинета", exact: true }).locator('a[href="/portal"]:visible').click(),
       ]);
       await page.getByRole("heading", { name: "Моё поступление", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
       if (page.url() !== `${configuration.studentBaseUrl}/portal` || runtimeError) {

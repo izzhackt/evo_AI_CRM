@@ -66,8 +66,9 @@ import type { Theme } from "@/lib/theme";
  *
  * Смоук-якоря production-прогона (scripts/release/evo-production-browser-smoke.mjs +
  * tests/production-browser-smoke.test.mjs): data-testid="student-portal-shell"
- * на корне и ровно один <nav aria-label="Разделы кабинета"> со ссылкой
- * href="/portal". Байт-в-байт; менять — только вместе со смоук-скриптом и его
+ * на корне и ровно один <nav aria-label="Разделы кабинета"> с видимой ссылкой
+ * href="/portal" (с #1412 вторая такая же — в скрытой на широком экране нижней
+ * панели). Байт-в-байт; менять — только вместе со смоук-скриптом и его
  * контракт-тестом в одном PR (правило изоляции дизайн-контракта).
  */
 

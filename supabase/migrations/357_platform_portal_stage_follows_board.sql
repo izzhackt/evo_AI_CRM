@@ -21,6 +21,9 @@
 --       (вкладка доски «Виза и выезд»), arrived → arrival_and_adaptation;
 --   * любой другой этап дела (передача, договор, анкета, завершено, закрыто, нестандартный) — как раньше, без доски.
 --
+-- Вторая часть: новое чтение `platform.student_portal_board_stage_v1()` — колонка доски своего дела (те же проверки,
+-- что у обзора). По ней кабинет выбирает шаг пути страны, когда у одного этапа несколько шагов (см. ниже).
+--
 -- Замена одного проверенного фрагмента тела (шаблон 350, 353, 355): `student_case.operational_stage,` должен
 -- встретиться ровно один раз, иначе миграция падает, ничего не меняя. CREATE OR REPLACE сохраняет владельца,
 -- SECURITY DEFINER, пустой search_path и права. Forward-only: повтор отказывает a357_already_applied. Файл
@@ -62,5 +65,57 @@ BEGIN
   EXECUTE replace(definition, old_fragment, new_fragment);
 END
 $a357$;
+
+-- Колонка доски своего дела — отдельным чтением, а не новой колонкой обзора: веб и приложение разбирают ответ обзора
+-- строго по набору ключей, лишняя колонка сломала бы уже собранные версии. Одна колонка доски точнее этапа там, где у
+-- страны несколько шагов одного этапа (Малайзия: «Виза» и «Билет, SEV, MDAC и жильё»): кабинет выбирает шаг по ней.
+-- Те же проверки и тот же выбор дела, что у `student_portal_overview_v2()`; студент видит только колонку своего дела.
+CREATE FUNCTION platform.student_portal_board_stage_v1()
+RETURNS TABLE(board_stage TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $$
+  WITH authority AS MATERIALIZED (
+    SELECT current_authority.*
+    FROM platform.current_actor_authority() AS current_authority
+    JOIN platform.organization_memberships AS student_membership
+      ON student_membership.organization_id = current_authority.organization_id
+      AND student_membership.id = current_authority.membership_id
+      AND student_membership.status = 'active'
+      AND student_membership."current_role" = 'student'
+    JOIN platform.profiles AS student_profile
+      ON student_profile.id = student_membership.profile_id
+      AND student_profile.id = current_authority.profile_id
+      AND student_profile.auth_user_id = current_authority.auth_user_id
+      AND student_profile.auth_user_id = (SELECT auth.uid())
+      AND student_profile.status = 'active'
+    JOIN platform.organizations AS organization
+      ON organization.id = student_membership.organization_id
+      AND organization.status = 'active'
+    JOIN platform.role_bundle_versions AS bundle
+      ON bundle.id = student_membership.current_bundle_id
+      AND bundle.role = student_membership."current_role"
+      AND bundle.status = 'published'
+    WHERE current_authority.platform_role = 'student'
+      AND private.platform_has_permission(current_authority.organization_id, 'portal.read.self')
+      AND private.platform_has_scope(current_authority.organization_id, 'organization'::platform.scope_kind,
+        current_authority.organization_id)
+  )
+  SELECT student_case.pipeline_stage
+  FROM authority
+  JOIN platform.student_cases AS student_case
+    ON student_case.organization_id = authority.organization_id
+    AND student_case.student_membership_id = authority.membership_id
+  WHERE student_case.state IN ('pending', 'active', 'closed')
+    AND student_case.portal_activated_at IS NOT NULL
+    AND private.platform_can_read_student_portal_case(student_case.organization_id, student_case.id)
+    AND private.platform_has_permission(student_case.organization_id, 'portal.read.self')
+    AND private.platform_has_scope(student_case.organization_id, 'organization'::platform.scope_kind,
+      student_case.organization_id)
+    AND private.platform_has_scope(student_case.organization_id, 'student_case'::platform.scope_kind, student_case.id)
+  ORDER BY student_case.created_at, student_case.id
+$$;
+
+REVOKE ALL ON FUNCTION platform.student_portal_board_stage_v1() FROM PUBLIC, anon, service_role, supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION platform.student_portal_board_stage_v1() TO authenticated;
 
 COMMIT;

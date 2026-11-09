@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ADMISSIONS_PIPELINE_STAGES } from "../platform-admissions-pipeline-contract.ts";
 import {
   type PlatformCaseTaskStatus,
 } from "../platform-admissions-task-contract.ts";
@@ -83,6 +84,11 @@ export type StudentPortalOverview = Readonly<{
   studentActions: readonly StudentPortalAction[];
   evoAction: StudentPortalEvoAction | null;
   curatorDisplayName: string | null;
+  /**
+   * Колонка доски своего дела (`student_portal_board_stage_v1`, 357): уточняет шаг пути среди шагов одного этапа.
+   * Отдельное чтение; не прочитана или неизвестна — `null`, путь берёт первый шаг этапа, как раньше.
+   */
+  boardStage?: string | null;
 }>;
 
 export type StudentPortalDocument = Readonly<{
@@ -681,11 +687,11 @@ export async function readStudentPortalOverview(
 ): Promise<StudentPortalOverview | null> {
   try {
     const client = await clientFor(dependencies);
-    const [response, payments] = await Promise.all([client.schema("platform").rpc(
+    const [response, payments, boardStage] = await Promise.all([client.schema("platform").rpc(
       "student_portal_overview_v2",
       {},
       { get: true },
-    ), readStudentPortalPayments({ ...dependencies, client })]);
+    ), readStudentPortalPayments({ ...dependencies, client }), readStudentPortalBoardStage(client)]);
     if (
       response.error ||
       !Array.isArray(response.data) ||
@@ -712,9 +718,23 @@ export async function readStudentPortalOverview(
       return 0;
     });
     const studentActions = Object.freeze(choices);
-    return Object.freeze({ ...overview, studentAction: studentActions[0] ?? null, studentActions });
+    return Object.freeze({ ...overview, studentAction: studentActions[0] ?? null, studentActions, boardStage });
   } catch (error) {
     return failClosed(error);
+  }
+}
+
+/** Колонка доски своего дела (357). Сбой, пусто или неизвестное значение — `null`: путь без уточнения, обзор не падает. */
+async function readStudentPortalBoardStage(
+  client: StudentPortalRpcClient,
+): Promise<string | null> {
+  try {
+    const response = await client.schema("platform").rpc("student_portal_board_stage_v1", {}, { get: true });
+    const row: unknown = Array.isArray(response.data) && response.data.length === 1 ? response.data[0] : null;
+    const value = !response.error && row && typeof row === "object" ? (row as Record<string, unknown>).board_stage : null;
+    return typeof value === "string" && (ADMISSIONS_PIPELINE_STAGES as readonly string[]).includes(value) ? value : null;
+  } catch {
+    return null;
   }
 }
 

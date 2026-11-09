@@ -102,6 +102,7 @@ export default async function StudentPortalHomePage({
   const journey = selectStudentJourney({
     country: choice?.country ?? null,
     stage: overviewResult.ok ? overviewResult.value?.operationalStage ?? null : undefined,
+    boardStage: overviewResult.ok ? overviewResult.value?.boardStage ?? null : null,
     locale,
     now,
   });

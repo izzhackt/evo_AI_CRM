@@ -11,6 +11,7 @@ import { parseUniversityPage, type PublishedUniversity } from "@web/lib/platform
 
 import {
   buildPortalOverview,
+  decodeBoardStage,
   decodeCaseFiles,
   decodeDocuments,
   decodeNotifications,
@@ -24,13 +25,18 @@ import {
 } from "@/domain/portal-source";
 import { createWrite, RpcError, rpcRead, rpcWrite, type FrozenWrite, type RpcTransport } from "@/lib/rpc";
 
-/** Обзор дела и начисления в одной волне; только клиент с делом на сопровождении. */
+/**
+ * Обзор дела и начисления в одной волне; только клиент с делом на сопровождении. Колонка доски (357) — отдельным
+ * чтением в той же волне: её сбой не роняет обзор, путь тогда берёт первый шаг этапа.
+ */
 export async function readOverview(transport: RpcTransport): Promise<StudentPortalOverview | null> {
-  const [overview, payments] = await Promise.all([
+  const [overview, payments, board] = await Promise.all([
     rpcRead(transport, "student_portal_overview_v2", {}, { get: true }),
     rpcRead(transport, "student_portal_finance_v2", {}, { get: true }),
+    rpcRead(transport, "student_portal_board_stage_v1", {}, { get: true }).catch((): null => null),
   ]);
-  return buildPortalOverview(overview, payments);
+  const built = buildPortalOverview(overview, payments);
+  return built ? Object.freeze({ ...built, boardStage: decodeBoardStage(board) }) : null;
 }
 
 export async function readNotifications(transport: RpcTransport): Promise<readonly StudentPortalNotification[]> {

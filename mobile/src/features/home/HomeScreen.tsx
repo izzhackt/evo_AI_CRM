@@ -83,7 +83,9 @@ export function HomeScreen() {
 
   // Прогресс по этапу дела: только у assisted и только когда обзор прочитан.
   const stage = !assisted ? null : overview.data !== undefined ? (overview.data?.operationalStage ?? null) : undefined;
-  const journey = selectStudentJourney({ country: choiceData?.country ?? null, stage, locale: lang, now });
+  const journey = selectStudentJourney({
+    country: choiceData?.country ?? null, stage, boardStage: assisted ? (overview.data?.boardStage ?? null) : null, locale: lang, now,
+  });
   const country = choiceData?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, lang) : null;
   const cscaCard = selectCscaHomeCard({ choice: choiceData, home: csca.data ?? null, locale: lang, cscaStrings: t("csca"), homeStrings: home });

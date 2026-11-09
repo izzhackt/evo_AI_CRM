@@ -21,7 +21,7 @@ type SessionContextValue = Readonly<{
   /** TODO(M7) заменит «обновить статус анкеты»: refreshSession + повторный маршрут. */
   refreshAccess: () => Promise<void>;
   portalAuth: PortalAuthApi;
-  setOwnPassword: (password: string) => Promise<"ok" | "weak_password" | "unauthorized" | "rate_limited" | "unavailable" | "network">;
+  setOwnPassword: (password: string) => Promise<"ok" | "weak_password" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network">;
 }>;
 
 const SessionContext = createContext<SessionContextValue | null>(null);

@@ -38,9 +38,9 @@ describe("signIn", () => {
 
   it.each([
     [401, "invalid_credentials"],
-    [403, "staff_account"],
     [429, "rate_limited"],
     [400, "invalid_request"],
+    [403, "unavailable"],
     [500, "unavailable"],
     [302, "unavailable"],
   ] as const)("HTTP %i -> %s", async (status, reason) => {
@@ -78,6 +78,14 @@ describe("requestPasswordRecovery", () => {
 });
 
 describe("setOwnPassword", () => {
+  it("503 revoke_failed с password_changed:true — пароль сменён, это успех", async () => {
+    const { api: a } = api(() => json(503, { error: "revoke_failed", password_changed: true }));
+    await expect(a.setOwnPassword("t", "p")).resolves.toEqual({ ok: true });
+  });
+  it("503 без password_changed остаётся недоступностью", async () => {
+    await expect(api(() => json(503, { error: "revoke_failed" })).api.setOwnPassword("t", "p")).resolves.toEqual({ ok: false, reason: "unavailable" });
+  });
+
   it("шлёт Bearer и {password}", async () => {
     const { api: a, calls } = api(() => json(200, { ok: true }));
     const fresh = "synthetic-new-value";
@@ -90,6 +98,7 @@ describe("setOwnPassword", () => {
   it.each([
     [400, "weak_password"],
     [401, "unauthorized"],
+    [403, "staff_account"],
     [429, "rate_limited"],
     [503, "unavailable"],
   ] as const)("HTTP %i -> %s", async (status, reason) => {

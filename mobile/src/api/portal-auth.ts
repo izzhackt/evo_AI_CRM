@@ -13,14 +13,15 @@ export type PortalSessionTokens = Readonly<{
   mustSetPassword: boolean;
 }>;
 
-export type SignInFailure = "invalid_credentials" | "staff_account" | "rate_limited" | "invalid_request" | "unavailable" | "network";
+// Сотрудники получают тот же 401, что и неверный пароль (разбор безопасности): отдельного исхода нет.
+export type SignInFailure = "invalid_credentials" | "rate_limited" | "invalid_request" | "unavailable" | "network";
 export type SignInResult = { ok: true; session: PortalSessionTokens } | { ok: false; reason: SignInFailure };
 
 export type RecoveryResult = { ok: true } | { ok: false; reason: "rate_limited" | "unavailable" | "network" };
 
 export type SetPasswordResult =
   | { ok: true }
-  | { ok: false; reason: "weak_password" | "unauthorized" | "rate_limited" | "unavailable" | "network" };
+  | { ok: false; reason: "weak_password" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network" };
 
 export type PortalAuthApi = Readonly<{
   signIn(login: string, password: string): Promise<SignInResult>;
@@ -77,8 +78,6 @@ export function createPortalAuthApi(options: { baseUrl: string; fetch?: FetchLik
           return { ok: false, reason: "invalid_request" };
         case 401:
           return { ok: false, reason: "invalid_credentials" };
-        case 403:
-          return { ok: false, reason: "staff_account" };
         case 429:
           return { ok: false, reason: "rate_limited" };
         default:
@@ -98,7 +97,10 @@ export function createPortalAuthApi(options: { baseUrl: string; fetch?: FetchLik
       const raw = await post("/api/portal/mobile/password", { password }, accessToken);
       if ("network" in raw) return { ok: false, reason: "network" };
       if (raw.status === 200 && isRecord(raw.json) && raw.json.ok === true) return { ok: true };
+      // 503 revoke_failed: пароль уже сменён, отзыв остальных сессий не удался; для студента это успех.
+      if (raw.status === 503 && isRecord(raw.json) && raw.json.error === "revoke_failed" && raw.json.password_changed === true) return { ok: true };
       if (raw.status === 400) return { ok: false, reason: "weak_password" };
+      if (raw.status === 403) return { ok: false, reason: "staff_account" };
       if (raw.status === 401) return { ok: false, reason: "unauthorized" };
       if (raw.status === 429) return { ok: false, reason: "rate_limited" };
       return { ok: false, reason: "unavailable" };

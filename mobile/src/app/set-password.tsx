@@ -11,10 +11,10 @@ import { TextField } from "@/ui/TextField";
 const MIN_LENGTH = 12;
 const MAX_BYTES = 72;
 
-type Problem = "tooShort" | "tooLong" | "mismatch" | "weak" | "unauthorized" | "rateLimited" | "unavailable" | null;
+type Problem = "tooShort" | "tooLong" | "mismatch" | "weak" | "unauthorized" | "staff" | "rateLimited" | "unavailable" | null;
 
 // Правило веба (profile.passwordHint): не короче 12 символов, не длиннее 72 байт.
-export function checkNewPassword(password: string, confirm: string): Exclude<Problem, "weak" | "unauthorized" | "rateLimited" | "unavailable"> {
+export function checkNewPassword(password: string, confirm: string): Exclude<Problem, "weak" | "unauthorized" | "staff" | "rateLimited" | "unavailable"> {
   if ([...password].length < MIN_LENGTH) return "tooShort";
   if (new TextEncoder().encode(password).length > MAX_BYTES) return "tooLong";
   if (password !== confirm) return "mismatch";
@@ -41,7 +41,7 @@ export default function SetPasswordScreen() {
     setBusy(false);
     if (result === "ok") return;
     setProblem(
-      result === "weak_password" ? "weak" : result === "unauthorized" ? "unauthorized" : result === "rate_limited" ? "rateLimited" : "unavailable",
+      result === "weak_password" ? "weak" : result === "unauthorized" ? "unauthorized" : result === "staff_account" ? "staff" : result === "rate_limited" ? "rateLimited" : "unavailable",
     );
   };
 
@@ -51,6 +51,7 @@ export default function SetPasswordScreen() {
     mismatch: profile.passwordMismatch,
     weak: profile.passwordRejected,
     unauthorized: m("setPassword.unauthorized"),
+    staff: m("auth.err.staff_account"),
     rateLimited: profile.passwordRateLimited,
     unavailable: profile.passwordUnavailable,
   };

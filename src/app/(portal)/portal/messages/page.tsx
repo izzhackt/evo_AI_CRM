@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { NotificationsView } from "@/components/portal/admission/NotificationsView";
 import { portalNotificationText } from "@/components/portal/admission/presentation";
+import { CaseHelpWorkspace } from "@/components/staff/profile/CaseHelpWorkspace";
 import { InboxList, type InboxView } from "@/components/portal/messages/InboxList";
 import { MessagesThread } from "@/components/portal/messages/MessagesThread";
 import { getLocale } from "@/lib/i18n";
@@ -42,9 +44,10 @@ async function markAllInboxUpdatesReadAction(): Promise<void> {
  * открытое. Это прежний экран «Сообщения» (PORT-5c) — переписка только у
  * уровня сопровождения: approved-кейс раздела не видит (Shell), прямой переход
  * возвращает на «Поступление»; граница — в RPC миграции 200 (гейт 192).
- * Уведомления читаются тем же чтением, что и страница «Уведомления». Разовый
- * вопрос-ответ куратору остаётся блоком на «Поступлении» — строка под списком
- * слева помечает разницу предметно.
+ * Уведомления читаются тем же чтением, что и страница «Уведомления». Вопрос команде EVO
+ * один: чат этого экрана (#1356, 09.11.2026). Разовый «Вопрос куратору» с
+ * «Поступления» снят; прежние обращения с ответами остаются читаемыми под
+ * списком слева, если они были.
  */
 export default async function StudentPortalMessagesPage({
   searchParams,
@@ -93,10 +96,12 @@ export default async function StudentPortalMessagesPage({
             chatTime={chatTime}
             locale={locale}
           />
-          <p className="pt-inbox-side-foot">
-            {strings.differenceNote}{" "}
-            <Link href="/portal#case-help" className="pt-link">{strings.differenceLink}</Link>
-          </p>
+          {/* Прежние вопросы куратору с ответами (до #1356): только если они были; новый вопрос — в чате. */}
+          <div className="pt-inbox-side-foot">
+            <Suspense fallback={null}>
+              <CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student />
+            </Suspense>
+          </div>
         </div>
         <section className="pt-inbox-pane" aria-labelledby="inbox-pane-title">
           <header className="pt-inbox-pane-head">

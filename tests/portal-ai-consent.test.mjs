@@ -241,7 +241,7 @@ test("the action is a server action that checks the student, then writes through
   assert.match(action, /^"use server";/u);
   assert.match(action, /const actor = await requireStudentPortalActor\(\);/u);
   assert.match(action, /writeAiConsentForTier\(\s*actor\.accessTier,\s*createSupabaseServerClient,\s*status,\s*requestId,?\s*\)/u);
-  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/home"\);\s*revalidatePath\("\/portal\/profile"\);/u);
+  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/profile"\);/u);
   // Версию и источник выбирает серверный модуль, а не аргументы из браузера.
   assert.match(action, /status: unknown,\s*requestId: unknown,/u);
   assert.doesNotMatch(action, /policyVersion|p_policy_version|portal_web|\.rpc\(/u);
@@ -273,6 +273,10 @@ test("09.11.2026: no consent card on the home or the post-login screen — conse
   assert.match(form, /<input name="ai_consent" type="hidden" value=\{aiConsent \? "granted" : ""\} \/>/u);
   assert.match(form, /getPortalStrings\("apply", locale\)\.aiConsentLabel/u, "the same AI text as registration");
   assert.match(form, /href=\{AI_CONSENT_PRIVACY_URL\}/u);
+  // #1355: «Главная» одна — /portal; прежний адрес только перенаправляет и ничего не читает.
+  assert.match(home, /redirect\("\/portal"\);/u);
+  // Выбор в «Профиле» обновляет единственную «Главную».
+  assert.match(read("src/lib/portal/ai-consent-actions.ts"), /revalidatePath\("\/portal"\);/u);
 });
 
 test("the settings row sits in the profile, with its own honest line when the read fails", () => {

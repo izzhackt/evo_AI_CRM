@@ -22,6 +22,8 @@ import {
 } from "@/components/portal/consultation/ConsultationRequest";
 import type { ConsultationReceipt } from "@/lib/portal/consultation";
 
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
+
 import { CostTable } from "./CostTable";
 import { FavoriteToggle } from "./FavoriteToggle";
 import { PhotoFigure } from "./PhotoFigure";
@@ -184,6 +186,7 @@ export function UniversityDetailView({
   now,
   favored = null,
   consultation = null,
+  writeEvo = null,
   selection = null,
 }: {
   university: PublishedUniversity;
@@ -206,6 +209,11 @@ export function UniversityDetailView({
     initialOpenRequest: ConsultationReceipt | null;
     strings: ConsultationRequestStrings;
   }> | null;
+  /**
+   * Клиент с сопровождением (#1356): вместо запроса консультации один вход «Написать EVO» — чат «Входящих».
+   * Студенту без сопровождения чата нет, ему остаётся запрос консультации.
+   */
+  writeEvo?: Readonly<{ href: string; label: string }> | null;
 }) {
   const content = university.content;
   return (
@@ -242,6 +250,11 @@ export function UniversityDetailView({
           initialOpenRequest={consultation.initialOpenRequest}
           strings={consultation.strings}
         />
+      ) : null}
+      {writeEvo !== null ? (
+        <p className="pt-uni-write">
+          <IntentPrefetchLink className="pt-btn-ghost" href={writeEvo.href}>{writeEvo.label}</IntentPrefetchLink>
+        </p>
       ) : null}
       {costs !== null ? (
         <CostTable costs={costs} programs={content.programs} strings={strings} locale={locale} newTab={strings.newTab} />

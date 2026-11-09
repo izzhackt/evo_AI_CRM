@@ -29,6 +29,7 @@ import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import { localizedApplicationAnswers } from "@/lib/student-application-answers";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
+import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 
 function consultationDate(value: string, locale: Locale): string {
   return new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", {
@@ -97,7 +98,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * Экран «Профиль» (PORT-5a, план §6 «Профиль», §13; дизайн-контракт §6):
- * данные read-only, язык RU/KY (RPC 196 + cookie в одном действии), личные
+ * «Мои данные» (#1360: имя, почта и логин для входа, телефон и имя правит куратор; пароль меняется здесь же), язык RU/KY (RPC 196 + cookie в одном действии), личные
  * результаты тестов, согласие на ИИ-помощников (320), выход и удаление
  * аккаунта (280): запрос, срок 30 дней и его статус с сервера.
  */
@@ -197,6 +198,36 @@ export default async function ProfilePage() {
               </section>
             )}
 
+            <section aria-labelledby="portal-profile-mydata" className="pt-profile-card">
+              <h2 id="portal-profile-mydata" className="pt-section-title">
+                <ProfileIcon name="data" />
+                {strings.dataHeading}
+              </h2>
+              <dl className="pt-profile-answers">
+                <div>
+                  <dt>{strings.nameLabel}</dt>
+                  <dd>{profile.displayName}</dd>
+                </div>
+                <div>
+                  <dt>{strings.emailLabel}</dt>
+                  <dd translate="no">{profile.email}</dd>
+                </div>
+                {ownLogin ? (
+                  <div>
+                    <dt>{strings.loginLabel}</dt>
+                    <dd translate="no">{ownLogin}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {/* Телефон и имя в кабинете не правятся: записи в базе для этого нет (проверено, #1360). Меняет куратор. */}
+              <p className="pt-profile-note">
+                {actor.accessTier === "assisted" ? strings.dataNote : strings.dataNoteApproved}{" "}
+                {actor.accessTier === "assisted" ? (
+                  <Link href={WRITE_EVO_HREF} className="pt-link">{strings.dataWrite}</Link>
+                ) : null}
+              </p>
+            </section>
+
             <section aria-labelledby="portal-profile-consultation" className="pt-profile-card">
               <h2 id="portal-profile-consultation" className="pt-section-title">
                 <ProfileIcon name="consultation" />
@@ -238,11 +269,6 @@ export default async function ProfilePage() {
                 <ProfileIcon name="security" />
                 {strings.passwordHeading}
               </h2>
-              {ownLogin ? (
-                <p className="pt-profile-login">
-                  {strings.loginLabel}: <strong translate="no">{ownLogin}</strong>
-                </p>
-              ) : null}
               <PasswordChangeForm strings={strings} />
             </section>
 

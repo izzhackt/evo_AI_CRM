@@ -111,3 +111,23 @@ test("deletion strings name the 30-day deadline and the kept records", async () 
   }
   assert.equal(Object.hasOwn(PORTAL_DICTIONARIES.profile.ru, "deleteDescription"), false);
 });
+
+// #1360 (09.11.2026): «Мои данные» в профиле. Телефон в кабинете не правится: RPC для этого нет, поэтому страница
+// честно говорит, кто его меняет; пароль меняется формой кабинета, «Выйти» есть и в меню телефона.
+test("my data block shows name, email and login read-only; phone is not invented; logout is in the phone menu", async () => {
+  const { PORTAL_DICTIONARIES } = await import("../src/lib/portal/i18n.ts");
+  const page = source("src/app/(portal)/portal/profile/page.tsx");
+  assert.match(page, /<h2 id="portal-profile-mydata" className="pt-section-title">/u);
+  assert.match(page, /<dd>\{profile\.displayName\}<\/dd>/u);
+  assert.match(page, /<dd translate="no">\{profile\.email\}<\/dd>/u);
+  assert.match(page, /<dd translate="no">\{ownLogin\}<\/dd>/u);
+  assert.doesNotMatch(page, /<input|type="tel"|set_own_.*phone|update_.*phone/iu, "no phone edit without a server write path");
+  assert.match(page, /<PasswordChangeForm strings=\{strings\} \/>/u);
+  assert.match(source("src/lib/student-password-change-actions.ts"), /changeStudentPassword/u);
+  assert.match(source("src/components/portal/Shell.tsx"), /<form action=\{logoutStudentPortalAction\} className="pt-nav-logout">/u);
+  for (const locale of ["ru", "ky"]) {
+    for (const key of ["dataHeading", "nameLabel", "emailLabel", "dataNote", "dataNoteApproved", "dataWrite"]) {
+      assert.ok(PORTAL_DICTIONARIES.profile[locale][key], `${locale} ${key}`);
+    }
+  }
+});

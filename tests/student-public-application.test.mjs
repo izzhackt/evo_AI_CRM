@@ -440,7 +440,7 @@ test("345: the confirmed sign-in writes the saved AI choice once and clears only
 
 test("345: the wizard posts both required boxes and the new account carries the AI choice (review 07.11)", () => {
   const wizard = readFileSync(new URL("../src/components/student-application/ApplicationWizard.tsx", import.meta.url), "utf8");
-  const start = wizard.indexOf("{s === 8 && <div");
+  const start = wizard.indexOf("{s === LAST_STEP && <div");
   const account = wizard.slice(start, wizard.indexOf("\n", start));
   assert.equal((account.match(/<input type="checkbox" required /gu) ?? []).length, 2, "both boxes on the last step are required");
   assert.match(account, /checked=\{aiConsent\} onChange=\{\(e\) => \{ setAiConsent\(e\.target\.checked\);/u);
@@ -555,4 +555,62 @@ test("actual proxy opens Student password recovery pages without reading or refr
     assert.equal(put.status, 405);
   }
   assert.deepEqual(run.calls, []);
+});
+
+// #1362: seven steps instead of nine and a local draft that survives closing the tab.
+test("1362: the wizard has seven steps with merged education/level and nationality/English questions", () => {
+  const wizard = readFileSync(new URL("../src/components/student-application/ApplicationWizard.tsx", import.meta.url), "utf8");
+  assert.match(wizard, /const STEP_KEYS = \["countries", "intake", "educationLevels", "fields", "nationalityEnglish", "budget", "account"\] as const;/u);
+  assert.match(wizard, /const LAST_STEP = STEP_KEYS\.length - 1;/u);
+  assert.doesNotMatch(wizard, /\bstep (?:===|!==) 8\b|\bs === 8\b|Math\.min\(8,/u, "no leftover nine-step indexes");
+  // The merged education step asks education, grade, scale and the study levels; the merged language step asks nationality and English.
+  const education = wizard.slice(wizard.indexOf("{s === 2 && <div"), wizard.indexOf("{s === 3 &&"));
+  assert.match(education, /select\("educationLevel"/u);
+  assert.match(education, /STUDENT_APPLICATION_STUDY_LEVELS\.map/u);
+  assert.match(education, /toggle\("studyLevels", level\)/u);
+  const language = wizard.slice(wizard.indexOf("{s === 4 && <div"), wizard.indexOf("{s === 5 &&"));
+  assert.match(language, /nationalityLabel/u);
+  assert.match(language, /englishLegend/u);
+  // The server contract is untouched: the same questionnaire fields in the same payload, account at the end.
+  assert.match(wizard, /<input name="questionnaire" type="hidden" value=\{JSON\.stringify\(questionnaire\(values\)\)\} \/>/u);
+  assert.match(wizard, /\{s === LAST_STEP && <div/u);
+});
+
+test("1362: the draft is in localStorage without password and consents, with createdAt and a 30-day expiry, cleared after success", async () => {
+  const storage = await import("../src/lib/student-application-draft-storage.ts");
+  const stored = JSON.parse(storage.serializeApplicationDraft(
+    Object.fromEntries([["firstName", "Test"], ["consent", true], ["pass" + "word", "typed-in-form"], ["aiConsent", true], ["destinationCountries", ["CN"]]]),
+    2, "student@example.test", "student@example.test", 1_000,
+  ));
+  assert.deepEqual(Object.keys(stored.values).sort(), ["destinationCountries", "firstName"], "no consent, password or AI box");
+  assert.equal(stored.createdAt, 1_000);
+  assert.equal(stored.step, 2);
+  assert.doesNotMatch(JSON.stringify(stored), /typed-in-form|consent|password/iu);
+  assert.equal(storage.applicationDraftFresh(stored, 1_000 + storage.APPLICATION_DRAFT_MAX_AGE_MS), true);
+  assert.equal(storage.applicationDraftFresh(stored, 1_001 + storage.APPLICATION_DRAFT_MAX_AGE_MS), false, "older than 30 days is dropped");
+  assert.equal(storage.applicationDraftFresh({ step: 1 }, 1), false, "no createdAt (old format) is dropped");
+  assert.equal(storage.APPLICATION_DRAFT_MAX_AGE_MS, 30 * 24 * 60 * 60 * 1000);
+
+  const wizard = readFileSync(new URL("../src/components/student-application/ApplicationWizard.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(wizard, /sessionStorage\.(?:getItem|setItem)/u, "the draft is no longer tab-local");
+  assert.match(wizard, /localStorage\.setItem\(storageKey, serializeApplicationDraft\(/u);
+  assert.match(wizard, /sessionStorage\.removeItem\(LEGACY_SESSION_KEY\)/u, "the nine-step tab draft is not read, only removed");
+  assert.match(wizard, /if \(result\.status === "pending_confirmation"\) \{[\s\S]*?localStorage\.removeItem\(storageKey\)/u, "cleared once the server accepted the signup");
+  assert.match(wizard, /\{savedHere && <p role="status" data-testid="application-draft-hint"/u, "the hint appears only after a real write");
+
+  // The status screen (the application was accepted) removes the anonymous draft and drafts of older revisions.
+  const removed = [];
+  const keys = [`${storage.APPLICATION_DRAFT_KEY}:u1:1`, `${storage.APPLICATION_DRAFT_KEY}:u1:2`, `${storage.APPLICATION_DRAFT_KEY}:other:1`];
+  storage.clearObsoleteApplicationDrafts({ length: keys.length, key: (index) => keys[index] ?? null, removeItem: (key) => removed.push(key) }, "u1", 2);
+  assert.deepEqual(removed, [`${storage.APPLICATION_DRAFT_KEY}:u1:1`, storage.APPLICATION_DRAFT_KEY]);
+  assert.match(readFileSync(new URL("../src/components/student-application/ApplicationStatus.tsx", import.meta.url), "utf8"), /clearObsoleteApplicationDrafts\(localStorage, draftOwnerId, application\.revision\)/u);
+
+  const { PORTAL_DICTIONARIES } = await import("../src/lib/portal/i18n.ts");
+  for (const locale of ["ru", "ky"]) {
+    const apply = PORTAL_DICTIONARIES.apply[locale];
+    for (const key of ["step.educationLevels", "step.nationalityEnglish", "question.educationLevels", "question.nationalityEnglish", "draftHint"]) assert.ok(apply[key], `${locale} ${key}`);
+    assert.match(apply.stepOf, /\{step\}/u);
+    assert.match(apply.stepOf, /\{total\}/u);
+  }
+  assert.match(PORTAL_DICTIONARIES.apply.ru.draftHint, /^Ответы сохранены на этом устройстве\./u);
 });

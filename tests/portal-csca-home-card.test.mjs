@@ -158,7 +158,7 @@ test("the nearest session skips finished ones and the card survives having none"
 });
 
 test("the page reads the choice and the CSCA home in its single wave, only for China", () => {
-  const page = read("src/app/(portal)/portal/home/page.tsx");
+  const page = read("src/app/(portal)/portal/page.tsx");
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
   assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \(\{/u);
@@ -175,16 +175,17 @@ test("the card sits in the right column of the home, once for both tiers", () =>
   // 03.11.2026: «Учёба и тесты» сняты с «Главной» (слово пользователя); карточка
   // CSCA осталась — в правой колонке. 08.11.2026 (образец пользователя): правая
   // колонка — путь, даты, «Что нового» и CSCA последней; «Мои вузы» — в левой. 09.11.2026: путь ушёл в шапку,
-  // правую колонку открывают «Ваш менеджер» и «Документы».
+  // правую колонку открывают «Документы»; куратор — в «Написать EVO» слева (#1356).
   const view = read("src/components/portal/home/HomeView.tsx");
-  const favorites = view.indexOf("<HomeFavorites");
+  // #1355: «Мои вузы» ушли в «Мой список» под колонками; в левой колонке «Что сделать сейчас».
+  const favorites = view.indexOf("<HomeCase");
   const side = view.indexOf('<div className="pt-home-side">');
-  const manager = view.indexOf("<HomeManager");
+  const documents = view.indexOf("<HomeDocuments");
   const dates = view.indexOf("<HomeDates");
   const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
-  assert.ok(favorites > 0 && side > favorites, "favourites in the left column");
-  assert.ok(manager > side && dates > manager && news > dates && card > news, "manager, dates, news, then CSCA");
+  assert.ok(favorites > 0 && side > favorites, "the case card in the left column");
+  assert.ok(documents > side && dates > documents && news > dates && card > news, "documents, dates, news, then CSCA");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
 });
 

@@ -7,10 +7,10 @@ import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { TIMELINE_MODULE_ROUTES } from "../src/lib/portal/timeline-module-routes.ts";
 
 // «Путь поступления», веб (S4, план §8.4; контракт docs/portal/country-timeline-contract.md §3, §5 и §7).
-// С 08.11.2026 весь путь стоит на «Поступлении»; с 09.11.2026 на «Главной» — шаг пути в шапке (HomeHero).
+// С 08.11.2026 весь путь стоит на «Поступлении»; с 09.11.2026 (#1355) «Главная» одна: весь путь на /portal под
+// «Моим списком», а шаг пути — в шапке (HomeHero), отдельной карточки пути нет.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const page = read("src/app/(portal)/portal/home/page.tsx");
-const admissionPage = read("src/app/(portal)/portal/page.tsx");
+const page = read("src/app/(portal)/portal/page.tsx");
 const view = read("src/components/portal/home/HomeView.tsx");
 const block = read("src/components/portal/home/CountryTimeline.tsx");
 const hero = read("src/components/portal/home/HomeHero.tsx");
@@ -31,38 +31,32 @@ test("the choice is read in the same wave as the other reads on both pages", () 
   assert.match(reads, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   // Только один Promise.all страницы после проверки студента: лишней волны нет.
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
-  // «Поступление»: выбор читается вместе с обзором дела и подготовками, тоже без лишней волны.
-  const admissionWave = admissionPage.match(/const \[overview, preparations, choice\] = await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
-  assert.ok(admissionWave, "admission reads stay in one Promise.all");
-  assert.match(admissionWave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\),/u);
-  // Обе страницы берут путь и прогресс из одного места, поэтому карточка и путь не расходятся.
-  for (const file of [page, admissionPage]) {
-    assert.match(file, /selectStudentJourney\(\{\n\s+country: choice\?\.country \?\? null,/u);
-    assert.doesNotMatch(file, /selectCountryTimeline\(|timelineStepProgress\(|\.rpc\(|\.schema\(/u);
-    assert.match(file, /readFailed=\{choice === null\}/u);
-  }
+  // Выбранные программы «Моего списка» читаются в той же волне (#1355).
+  assert.match(reads, /readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\)/u);
+  // Карточка и весь путь берут путь и прогресс из одного места, поэтому они не расходятся.
+  assert.match(page, /selectStudentJourney\(\{\n\s+country: choice\?\.country \?\? null,/u);
+  assert.doesNotMatch(page, /selectCountryTimeline\(|timelineStepProgress\(|\.rpc\(|\.schema\(/u);
+  assert.match(page, /readFailed=\{choice === null\}/u);
   assert.match(journey, /selectCountryTimeline\(country, \{[\s\S]*today: todayForTimeline\(now\),[\s\S]*modules: TIMELINE_MODULE_ROUTES,/u);
-  assert.match(admissionPage, /options=\{timelineCountryOptions\(locale\)\}/u);
-  assert.match(admissionPage, /getPortalStrings\("timeline", locale\)/u);
+  assert.match(page, /options=\{timelineCountryOptions\(locale\)\}/u);
+  assert.match(page, /getPortalStrings\("timeline", locale\)/u);
   // Сервер отдаёт клиенту только выбранный путь, не все файлы контента.
   assert.doesNotMatch(block, /COUNTRY_TIMELINES|content\/timelines|selectCountryTimeline\(|student-journey/u);
 });
 
-test("the whole path sits on «Поступление»; the home header shows the same current step (09.11.2026)", () => {
-  const overviewAt = admissionPage.indexOf("<OverviewView");
-  const pathAt = admissionPage.indexOf("<CountryTimeline");
-  const tabsAt = admissionPage.indexOf('<nav className="pt-pill-tabs"');
-  assert.ok(overviewAt > 0 && pathAt > overviewAt && tabsAt > pathAt, "tiles, then the path, then the tabs");
-  // На «Главной» от CountryTimeline только выбор страны, пока страны нет (view={null}); путь целиком не рисуется.
-  assert.equal(page.match(/<CountryTimeline/gu)?.length, 1);
+test("one home: the header shows the current step, the whole path closes the page under «Мой список» (#1355, 09.11.2026)", () => {
+  // На странице два CountryTimeline: выбор страны (view={null}, пока страны нет) и весь путь, когда страна выбрана.
+  assert.equal(page.match(/<CountryTimeline/gu)?.length, 2);
   assert.match(page, /countryChoice=\{journey\.view \? null : \(\s+<CountryTimeline\s+view=\{null\}/u);
+  assert.match(page, /fullPath=\{journey\.view \? \(\s+(?:\/\/[^\n]*\n\s+)?<CountryTimeline\s+view=\{journey\.view\}/u);
   assert.match(page, /journey=\{journey\}/u);
   assert.doesNotMatch(page + view, /HomeJourneyCard/u, "no separate path card: the header says it");
   assert.equal(existsSync(new URL("../src/components/portal/home/HomeJourneyCard.tsx", import.meta.url)), false);
+  assert.ok(view.indexOf("{list}") > view.indexOf('<div className="pt-home-columns">') && view.indexOf("{fullPath}") > view.indexOf("{list}"), "columns, then the list, then the whole path");
   // Выбор страны первым блоком под шапкой, до колонок.
   assert.ok(view.indexOf("{countryChoice}") > view.indexOf("<HomeHero") && view.indexOf("{countryChoice}") < view.indexOf('<div className="pt-home-columns">'), "country choice first under the header");
   assert.match(view, /<HomeHero displayName=\{displayName\} studyCountry=\{studyCountry\} journey=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>/u);
-  // Шапка ведёт к якорю блока, переход раскрывает путь.
+  // Шапка ведёт к якорю полного пути на той же странице, переход раскрывает путь.
   assert.match(anchor, /export const JOURNEY_ANCHOR = "path";/u);
   assert.match(anchor, /export const JOURNEY_HREF = `\/portal#\$\{JOURNEY_ANCHOR\}`;/u);
   assert.match(block, /id=\{JOURNEY_ANCHOR\}/u);
@@ -191,9 +185,8 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage\) : null;/u);
   assert.match(page, /stage: overviewResult\.ok \? overviewResult\.value\?\.operationalStage \?\? null : undefined,/u);
   // Как на «Главной»: прогресс только у клиента с делом на сопровождении.
-  assert.match(admissionPage, /const assisted = actor\.accessTier === "assisted";/u);
-  assert.match(admissionPage, /stage: !assisted \? null : overview === undefined \? undefined : overview\?\.operationalStage \?\? null,/u);
-  assert.match(admissionPage, /progress=\{journey\.progress\}/u);
+  assert.match(page, /const assisted = tier === "assisted";/u);
+  assert.match(page, /progress=\{journey\.progress\}/u);
   assert.doesNotMatch(block, /timelineStepProgress\(/u, "the client gets the result, not the content files");
   assert.match(block, /hidden=\{state === "done" && !showDone\}/u);
   assert.match(block, /aria-expanded=\{showDone\}/u);
@@ -231,7 +224,7 @@ test("the step line names the current step, the current step opens Documents, ti
   assert.match(block, /strings\.stepOf, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
   // «Открыть документы» — у текущего шага этапа документов и только тому, кому «Документы» открыты.
   assert.match(block, /state === "current" && documentsHref && step\.stageKeys\.includes\("documents"\)/u);
-  assert.match(admissionPage, /documentsHref=\{assisted \? "\/portal\/documents" : null\}/u);
+  assert.match(page, /documentsHref=\{assisted \? "\/portal\/documents" : null\}/u);
   assert.equal(PORTAL_DICTIONARIES.timeline.ru.openDocuments, "Открыть документы");
   assert.ok(PORTAL_DICTIONARIES.timeline.ky.openDocuments);
   // Срок шага всегда строкой под названием: столбика сроков слева больше нет.

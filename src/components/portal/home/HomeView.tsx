@@ -4,10 +4,10 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
-import type { StudentJourney } from "@/lib/portal/student-journey";
 import { todayForTimeline } from "@/lib/portal/country-timeline";
 import { bishkekDay, type HomeDateItem } from "@/lib/portal/home-dates";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
+import type { StudentJourney } from "@/lib/portal/student-journey";
 import { nearestUniversityIntake } from "@/lib/portal/universities";
 import type { StudentPortalDocument, StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/portal-source";
 
@@ -15,26 +15,26 @@ import type { PortalAccessTier } from "../Shell";
 import { HomeCase, actionHref, actionTitle } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
 import { HomeDocuments } from "./HomeDocuments";
-import { HomeFavorites } from "./HomeFavorites";
 import { HomeHero } from "./HomeHero";
-import { HomeManager } from "./HomeManager";
 import { HomeNews } from "./HomeNews";
+import { HomeWriteEvo } from "./HomeWriteEvo";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
  * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточки согласия на ИИ-помощников здесь
  * нет (09.11.2026): согласие даётся при регистрации или первом входе, меняется в «Профиле».
  *
- * 08.11.2026 (по образцу «Главной» от пользователя): сверху приветствие, ниже две колонки; без выбранной страны первым
- * блоком под шапкой стоит выбор страны (`countryChoice`). Колонки две с 960 px; в одну колонку блоки идут по смыслу
- * (data-slot и order в CSS).
+ * #1355 (09.11.2026): это единственная домашняя страница кабинета (/portal; прежний /portal/home перенаправляется
+ * сюда). Под шапкой — выбор страны (`countryChoice`, пока страны нет), заявка на рассмотрении и задача EVO (`info`);
+ * ниже две колонки, под ними «Мой список» (`list`: вкладки «Вузы» и «Мои программы») и весь «Путь поступления»
+ * (`fullPath`, якорь #path). Колонки две с 960 px; в одну колонку блоки идут по смыслу (data-slot и order в CSS).
  *
  * 09.11.2026 (разбор кабинета: три разных ответа на «где я», «действий не требуется», нет дат и менеджера): шапка
- * (HomeHero) показывает шаг пути страны — тот же, что в «Профиле» и на «Поступлении», отдельной карточки пути нет.
+ * (HomeHero) показывает шаг пути страны — тот же, что в «Профиле» и в полном пути ниже; отдельной карточки пути нет.
  * Слева «Что сделать сейчас» (HomeCase: задания менеджера, а без них задания студента из текущего шага пути) или
- * «Ваша анкета» (approved) и «Мои вузы». Справа «Ваш менеджер» (HomeManager), «Документы» (HomeDocuments: принято из
- * списка дела и что ждёт студента со сроком), «Ближайшие даты» (сроки дел, документов и избранных вузов), «Что нового»
- * и карточка CSCA (только при выбранном Китае).
+ * «Ваша анкета» (approved) и «Написать EVO» (#1356, один вход в чат) с именем куратора. Справа «Документы»
+ * (HomeDocuments: принято из списка дела и что ждёт студента со сроком), «Ближайшие даты» (сроки дел, документов и
+ * избранных вузов), «Что нового» и карточка CSCA (только при выбранном Китае).
  */
 export function HomeView({
   tier,
@@ -45,7 +45,9 @@ export function HomeView({
   news = null,
   documents = null,
   favorites,
-  favoritesTotal,
+  info = null,
+  list = null,
+  fullPath = null,
   journey,
   countryChoice = null,
   csca = null,
@@ -64,8 +66,14 @@ export function HomeView({
   news?: readonly StudentPortalNotification[] | null;
   /** Список документов дела для карточки «Документы» (только assisted); `null` — чтение не удалось. */
   documents?: readonly StudentPortalDocument[] | null;
+  /** Первые избранные вузы: из них берутся даты «Ближайших дат»; `null` — чтение не удалось. */
   favorites: readonly PublishedUniversity[] | null;
-  favoritesTotal: number;
+  /** Заявка на рассмотрении и задача EVO (OverviewView): под шапкой; null, если нечего показать. */
+  info?: ReactNode;
+  /** «Мой список»: вкладки «Вузы» и «Мои программы» (полные списки) под колонками. */
+  list?: ReactNode;
+  /** Весь «Путь поступления» (CountryTimeline с путём) под списком; null, пока страна не выбрана. */
+  fullPath?: ReactNode;
   /** Путь страны и где студент на нём (`selectStudentJourney`): дорожка шапки. */
   journey: StudentJourney;
   /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
@@ -107,6 +115,7 @@ export function HomeView({
     <div className="pt-home">
       <HomeHero displayName={displayName} studyCountry={studyCountry} journey={journey.view} progress={journey.progress} locale={locale} />
       {countryChoice}
+      {info}
       <div className="pt-home-columns">
         <div className="pt-home-main">
           {tier === "assisted" ? (
@@ -118,6 +127,7 @@ export function HomeView({
             <article className="pt-home-card pt-home-slot" data-slot="case">
               <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
               <h2 className="pt-home-card-title">{admission.pendingApplicationHeading}</h2>
+              <p className="pt-home-foot">{admission.pendingManagerNotice}</p>
               <p className="pt-home-card-action">
                 <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
                   {admission.pendingApplicationLink}
@@ -125,17 +135,14 @@ export function HomeView({
               </p>
             </article>
           ) : null}
-          <div className="pt-home-slot" data-slot="universities">
-            <HomeFavorites favorites={favorites} total={favoritesTotal} locale={locale} now={now} />
-          </div>
+          {tier === "assisted" ? (
+            <div className="pt-home-slot" data-slot="write">
+              <HomeWriteEvo curatorName={overview?.curatorDisplayName ?? null} locale={locale} />
+            </div>
+          ) : null}
         </div>
 
         <div className="pt-home-side">
-          {tier === "assisted" && overview ? (
-            <div className="pt-home-slot" data-slot="manager">
-              <HomeManager name={overview.curatorDisplayName} locale={locale} />
-            </div>
-          ) : null}
           {tier === "assisted" ? (
             <div className="pt-home-slot" data-slot="documents">
               <HomeDocuments documents={documents} locale={locale} />
@@ -152,6 +159,8 @@ export function HomeView({
           {csca ? <div className="pt-home-slot" data-slot="csca">{csca}</div> : null}
         </div>
       </div>
+      {list}
+      {fullPath}
     </div>
   );
 }

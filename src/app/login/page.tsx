@@ -139,7 +139,8 @@ function firstQueryValue(value: string | string[] | undefined): string | null {
 export default async function LoginPage({
   searchParams,
 }: Readonly<{ searchParams: LoginPageSearchParams }>) {
-  const locale = await getLocale();
+  // #1363: на входе только RU и KY; «en» из старого cookie показывается по-русски, как в кабинете и анкете.
+  const locale: Locale = (await getLocale()) === "ky" ? "ky" : "ru";
   const audience = platformAudienceForHost((await headers()).get("host"));
   // 06.11.2026 (пользователь): форма как у студента — «Кабинет студента», «Войти в кабинет», внизу
   // «Вход для сотрудников». На неизвестном хосте (локально, предпросмотр) тоже студенческая, не общая.
@@ -214,7 +215,7 @@ export default async function LoginPage({
               }}
             />
           </div>
-          {audience !== "staff" && <a href="/apply" className="mt-5 flex min-h-11 items-center justify-center rounded-ctl border border-control-edge px-4 text-sm font-semibold text-fg">{locale === "en" ? "Create a student account" : locale === "ky" ? "Студенттик аккаунт түзүү" : "Создать аккаунт студента"}</a>}
+          {audience !== "staff" && <a href="/apply" className="mt-5 flex min-h-11 items-center justify-center rounded-ctl border border-control-edge px-4 text-sm font-semibold text-fg">{locale === "ky" ? "Студенттик аккаунт түзүү" : "Создать аккаунт студента"}</a>}
           <a
             href={`${audience === "staff" ? PRODUCTION_STUDENT_ORIGIN : PRODUCTION_STAFF_ORIGIN}/login`}
             className="mt-4 inline-flex min-h-11 items-center text-sm text-fg-2 underline-offset-4 hover:text-fg hover:underline focus-visible:underline"

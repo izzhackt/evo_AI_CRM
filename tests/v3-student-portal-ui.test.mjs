@@ -201,7 +201,6 @@ test("every page passes the direct strict E2 result to its view", () => {
     ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview", "overview", "OverviewView"],
     ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments", "documents", "DocumentsView"],
     ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments", "payments", "PaymentsView"],
-    ["src/app/(portal)/portal/notifications/page.tsx", "readStudentPortalNotifications", "notifications", "NotificationsView"],
   ];
 
   for (const [path, reader, resultName, component] of expected) {
@@ -707,7 +706,12 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
 test("notifications deep-link by category, and bulk mark-read loops the existing single action", () => {
   const presentation = source("src/components/portal/admission/presentation.ts");
   const notifications = source("src/components/portal/admission/NotificationsView.tsx");
-  const notificationsPage = source("src/app/(portal)/portal/notifications/page.tsx");
+  // #1358: лента одна — во «Входящих»; цикл прочтения живёт в messages/page.tsx,
+  // а /portal/notifications — только переход на неё.
+  const notificationsPage = source("src/app/(portal)/portal/messages/page.tsx");
+  const legacyNotificationsPage = source("src/app/(portal)/portal/notifications/page.tsx");
+  assert.match(legacyNotificationsPage, /redirect\("\/portal\/messages\?view=updates"\)/u);
+  assert.doesNotMatch(legacyNotificationsPage, /NotificationsView|readStudentPortalNotifications/u);
   const markAll = source("src/components/portal/admission/PortalMarkAllReadButton.tsx");
 
   assert.match(presentation, /export function portalNotificationTarget/u);
@@ -733,7 +737,7 @@ test("notifications deep-link by category, and bulk mark-read loops the existing
 
   assert.match(
     notificationsPage,
-    /async function markAllStudentPortalNotificationsReadAction/u,
+    /async function markAllInboxUpdatesReadAction/u,
   );
   assert.match(notificationsPage, /"use server";/u);
   assert.match(

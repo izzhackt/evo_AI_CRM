@@ -38,9 +38,9 @@ test("the handler authorizes through the Student target RPC before any signing a
   assert.match(read("../src/app/api/portal/case-files/[fileKind]/[fileId]/download/route.ts"), /createStudentPortalCaseFileDownloadHandler\(\)/);
 });
 
-test("the Student page shows the block read-only on the checklist tab and its labels exist in RU and KY", () => {
+test("the Student page shows the block read-only on the documents page and its labels exist in RU and KY", () => {
   const page = read("../src/app/(portal)/portal/documents/page.tsx");
-  assert.match(page, /view === "checklist" \? <CaseFilesCard files=\{caseFiles\} locale=\{locale\} \/> : null/);
+  assert.match(page, /<CaseFilesCard files=\{caseFiles\} locale=\{locale\} \/>/);
   assert.match(page, /readStudentPortalCaseFiles\(\)\.catch\(\(\) => \[\]\)/, "a failed read hides the block, it does not break the checklist");
   const card = read("../src/components/portal/admission/CaseFilesCard.tsx");
   assert.equal(/<form|method="post"|onClick|upload/i.test(card), false, "read-only: no form, no upload, no handler");

@@ -34,7 +34,7 @@ export default async function StudentHelpReplyPage({ params }: {
         <h1 className="pt-page-title">{strings.replyTitle}</h1>
       </header>
       <p>
-        <Link href="/portal/notifications" className="pt-link">
+        <Link href="/portal/messages?view=updates" className="pt-link">
           {strings.replyAllNotifications}
         </Link>
       </p>

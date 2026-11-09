@@ -14,7 +14,6 @@ import type { StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/
 import type { PortalAccessTier } from "../Shell";
 import { HomeCase, actionHref, actionTitle } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
-import { HomeFavorites } from "./HomeFavorites";
 import { HomeHero } from "./HomeHero";
 import { HomeNews } from "./HomeNews";
 
@@ -31,6 +30,11 @@ import { HomeNews } from "./HomeNews";
  * «Поступление»), «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента «Входящих», только assisted) и карточка
  * CSCA (`csca`, только при выбранном Китае). На узком экране колонки идут одна за другой.
  *
+ * #1355 (09.11.2026): это единственная домашняя страница кабинета (/portal; прежний /portal/home перенаправляется
+ * сюда). Первым идёт «Что сделать сейчас». Под шапкой — заявка на рассмотрении и задача EVO (`info`), вместо
+ * карточки «Мои вузы» под колонками стоит «Мой список» (`list`: вкладки «Вузы» и «Мои программы»), а под ним весь
+ * «Путь поступления» (`fullPath`, якорь #path).
+ *
  * Правка 08.11.2026 (разбор вёрстки): без выбранной страны первым блоком под шапкой стоит выбор страны
  * (`countryChoice`, тот же CountryTimeline с выбором, что был до #1408), карточки пути в это время нет; выбрана страна —
  * выбор исчезает и на его месте в правой колонке встаёт карточка пути. Колонки две с 960 px; в одну колонку блоки
@@ -44,7 +48,9 @@ export function HomeView({
   overviewFailed = false,
   news = null,
   favorites,
-  favoritesTotal,
+  info = null,
+  list = null,
+  fullPath = null,
   journey = null,
   countryChoice = null,
   csca = null,
@@ -62,8 +68,14 @@ export function HomeView({
   overviewFailed?: boolean;
   /** Лента «Что нового» (только assisted); `null` — чтение не удалось. */
   news?: readonly StudentPortalNotification[] | null;
+  /** Первые избранные вузы: из них берутся даты «Ближайших дат»; `null` — чтение не удалось. */
   favorites: readonly PublishedUniversity[] | null;
-  favoritesTotal: number;
+  /** Заявка на рассмотрении и задача EVO (OverviewView): под шапкой; null, если нечего показать. */
+  info?: ReactNode;
+  /** «Мой список»: вкладки «Вузы» и «Мои программы» (полные списки) под колонками. */
+  list?: ReactNode;
+  /** Весь «Путь поступления» (CountryTimeline с путём) под списком; null, пока страна не выбрана. */
+  fullPath?: ReactNode;
   /** Карточка «Пути поступления» (HomeJourneyCard); null, если её нет. */
   journey?: ReactNode;
   /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
@@ -97,6 +109,7 @@ export function HomeView({
       <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
       {countryChoice}
       {aiConsentApplies(tier) ? aiConsent : null}
+      {info}
       <div className="pt-home-columns">
         <div className="pt-home-main">
           {tier === "assisted" ? (
@@ -115,9 +128,6 @@ export function HomeView({
               </p>
             </article>
           ) : null}
-          <div className="pt-home-slot" data-slot="universities">
-            <HomeFavorites favorites={favorites} total={favoritesTotal} locale={locale} now={now} />
-          </div>
         </div>
 
         <div className="pt-home-side">
@@ -133,6 +143,8 @@ export function HomeView({
           {csca ? <div className="pt-home-slot" data-slot="csca">{csca}</div> : null}
         </div>
       </div>
+      {list}
+      {fullPath}
     </div>
   );
 }

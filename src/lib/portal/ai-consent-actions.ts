@@ -30,7 +30,6 @@ export async function setOwnAiConsentAction(
     );
     if (!result.ok) return result;
     revalidatePath("/portal");
-    revalidatePath("/portal/home");
     revalidatePath("/portal/profile");
     return result;
   } catch {

@@ -32,7 +32,7 @@ export default async function StudentPortalDocumentsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
   const params = await searchParams;
-  if (params.view === "packages") redirect("/portal?view=programs");
+  if (params.view === "packages") redirect("/portal?view=programs#list");
   await requireStudentPortalActor();
   // Свои договор и чеки (352) - дополнение: сбой чтения не роняет чек-лист, блок просто не показывается.
   const caseFilesRead = readStudentPortalCaseFiles().catch(() => []);
@@ -48,7 +48,7 @@ export default async function StudentPortalDocumentsPage({
           <p className="pt-page-lead">{strings.documentsLead}</p>
           <p className="pt-docs-programs-note">
             {strings.docsProgramsNote}{" "}
-            <Link className="pt-link" href="/portal?view=programs">{strings.docsProgramsLink}</Link>
+            <Link className="pt-link" href="/portal?view=programs#list">{strings.docsProgramsLink}</Link>
           </p>
         </div>
       </header>

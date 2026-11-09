@@ -88,8 +88,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
   assert.deepEqual(
     [...shell.matchAll(/href: "([^"]+)"/gu)].map((match) => match[1]),
     [
-      // PORT-9c: «Главная» — первый пункт обоих tier'ов.
-      "/portal/home",
+      // #1355: «Главная» (/portal) — первый и единственный домашний пункт обоих tier'ов;
+      // /portal/home перенаправляется на неё, пункта «Поступление» нет.
       "/portal",
       "/portal/documents",
       // 03.11.2026: «Оплата» снова пункт меню.
@@ -198,7 +198,6 @@ test("Student preview implementation and staff entry are retired without removin
 
 test("every page passes the direct strict E2 result to its view", () => {
   const expected = [
-    ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview", "overview", "OverviewView"],
     ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments", "documents", "DocumentsView"],
     ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments", "payments", "PaymentsView"],
   ];
@@ -211,25 +210,8 @@ test("every page passes the direct strict E2 result to its view", () => {
     );
     // PORT-6a: страницы дополнительно читают locale (тем же Promise.all) и
     // передают его view — RU/KY словарь admission резолвится на сервере.
-    if (resultName === "overview") {
-      // 17c60966f (#967, 2026-09-21): overview stopped being a same-Promise.all
-      // strict read — the reader now gets its own honest `.catch(() => undefined)`
-      // (paired with readStudentCatalogPreparations) so a failed E2 call shows
-      // the honest overviewUnavailable state instead of throwing the whole page.
-      assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
-      // 03.11.2026: favourites are read alongside, before the same Promise.all is awaited.
-      assert.ok(page.indexOf("const favoritesRead = readStudentUniversityFavorites()") < page.indexOf("const [overview, preparations, choice] = await Promise.all("));
-      // 08.11.2026: «Путь поступления» переехал сюда — выбор страны читается в той же волне.
-      assert.match(
-        page,
-        /const \[overview, preparations, choice\] = await Promise\.all\(\[\s*readStudentPortalOverview\(\)\.catch\(\(\) => undefined\),\s*readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\),\s*readStudentCountryChoice\(\)\.catch\(\(\): null => null\),\s*\]\)/u,
-      );
-      assert.match(page, /overview === undefined \? <p className="pt-prep-error" role="status">\{preparationStrings\.overviewUnavailable\}<\/p> : </u);
-      assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
-      assert.match(page, /pending=\{actor\.caseState === "pending"\}/u);
-    } else {
-      assert.match(page, new RegExp(`const \\[${resultName}, locale\\] = await Promise\\.all\\(\\[${reader}\\(\\), getLocale\\(\\)\\]\\)`, "u"));
-    }
+    // «Главная» (/portal, бывший обзор «Моего поступления», #1355) читает обзор сама: проверяется в тесте «Главной».
+    assert.match(page, new RegExp(`const \\[${resultName}, locale\\] = await Promise\\.all\\(\\[${reader}\\(\\), getLocale\\(\\)\\]\\)`, "u"));
     assert.match(page, new RegExp(`<${component}[\\s\\S]*locale=\\{locale\\}`, "u"));
     assert.match(
       page,
@@ -240,11 +222,10 @@ test("every page passes the direct strict E2 result to its view", () => {
 });
 
 test("the home screen continues real work, keeps the smoke root and omits invented recency", () => {
-  // PORT-9c: «Главная» — отдельный маршрут /portal/home; корень /portal
-  // остаётся «Моим поступлением» (замороженные смоук-якоря production).
-  const page = source("src/app/(portal)/portal/home/page.tsx");
+  // #1355: «Главная» — единственная домашняя страница /portal; /portal/home только перенаправляет на неё.
+  const page = source("src/app/(portal)/portal/page.tsx");
   // 08.11.2026: «Что сделать сейчас» и «Мои вузы» вынесены из HomeView в свои файлы; проверяем вид целиком.
-  const view = ["HomeView", "HomeCase", "HomeFavorites"]
+  const view = ["HomeView", "HomeCase"]
     .map((name) => source(`src/components/portal/home/${name}.tsx`))
     .join("\n");
   const homeRu = PORTAL_DICTIONARIES.home.ru;
@@ -253,13 +234,15 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // PORT-1a: граница уровня доступа — серверный accessTier authority, не
   // повторная scattered-деривация из caseState (review #907, finding A).
   assert.match(page, /const tier = actor\.accessTier;/u);
-  assert.doesNotMatch(page, /caseState === "pending"/u);
+  // Заявка на рассмотрении — только флаг для блока заявки (OverviewView), не граница доступа.
+  assert.doesNotMatch(page, /caseState !== "pending"|tier = .*caseState/u);
 
   // Серверные read model изолируют транспорт; view не обращается к БД напрямую.
   for (const reader of [
     "readStudentPortalOverview",
     "readStudentUniversityFavorites",
     "readStudentUniversitiesByIds",
+    "readStudentCatalogPreparations",
     "readStudentPortalNotifications",
   ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
@@ -277,26 +260,28 @@ test("the home screen continues real work, keeps the smoke root and omits invent
 
   assert.doesNotMatch(view, /готовност|processed|percent/iu);
 
-  // Избранное — с ближайшим интейком (только open/announced внутри helper'а).
+  // Избранное — даты ближайшего набора в «Ближайших датах» (только open/announced внутри helper'а); сами вузы —
+  // в «Моём списке» под колонками.
   assert.match(view, /nearestUniversityIntake/u);
   assert.match(view, /\/portal\/universities\/\$\{item\.id\}/u);
+  assert.match(page, /<FavoritesSection institutionIds=/u);
 
   // Assisted: та же модель действий, что у OverviewView «Моего поступления».
   assert.match(view, /overview\?\.studentAction/u);
   assert.match(view, /\/portal\/documents#document-\$\{action\.documentSlotId\}/u);
   // Ссылки на разделы, которые есть в меню, с карточки дела сняты; «Ещё
-  // действий» ведёт на «Моё поступление».
-  assert.match(view, /href="\/portal" className="pt-link pt-home-case-more"/u);
+  // действий» ведёт в «Документы» (#1355: «Моего поступления» больше нет).
+  assert.match(view, /href="\/portal\/documents" className="pt-link pt-home-case-more"/u);
   assert.doesNotMatch(view, /pt-home-case-links/u);
 
   // «Новое в каталоге» (новизна по первой публикации, 207) с «Главной» снято.
   assert.doesNotMatch(view, /item\.publishedAt|firstPublishedAt/u);
 
-  // Смоук-якоря корня не тронуты: /portal остаётся «Моим поступлением».
-  const rootPage = source("src/app/(portal)/portal/page.tsx");
-  assert.match(rootPage, /readStudentPortalOverview/u);
-  assert.match(rootPage, /strings\.overviewTitle/u);
-  assert.equal(PORTAL_DICTIONARIES.admission.ru.overviewTitle, "Моё поступление");
+  // Смоук-якоря корня (#1355): /portal — «Главная» с заголовком карточки «Что сделать сейчас».
+  assert.match(page, /<HomeView/u);
+  assert.equal(PORTAL_DICTIONARIES.home.ru.caseHeading, "Что сделать сейчас");
+  assert.equal(PORTAL_DICTIONARIES.home.ru.title, "Главная");
+  assert.match(source("src/app/(portal)/portal/home/page.tsx"), /redirect\("\/portal"\);/u);
 
   // «Главная» подключена за прокси (урок hotfix'а release-3).
   const routeContract = source("src/lib/platform-route-contract.ts");
@@ -969,16 +954,16 @@ test("330: the shown chat clears the notification and its text follows the stude
 // one tab. PendingPackagesLink is client-only (it reads this device's
 // localStorage and renders null until hydrated), so a server render cannot show
 // it; the contract is pinned on where the overview places it.
-test("the overview shows the pending-packages link above the tabs on every view", () => {
+test("the home shows the pending-packages link above the tabs on every view", () => {
   const page = source("src/app/(portal)/portal/page.tsx");
-  const overview = page.slice(page.indexOf("async function AdmissionOverview"));
-  assert.equal(overview.match(/<PendingPackagesLink\b/gu)?.length, 1, "exactly one link in the overview");
-  const link = overview.indexOf("<PendingPackagesLink");
-  const tabs = overview.indexOf('<nav className="pt-pill-tabs"');
-  const viewBranch = overview.indexOf('view === "universities" ?');
+  assert.equal(page.match(/<PendingPackagesLink\b/gu)?.length, 1, "exactly one link on the home");
+  const link = page.indexOf("<PendingPackagesLink");
+  const tabs = page.indexOf("<HomeList");
+  const viewBranch = page.indexOf('view === "universities" ?');
   assert.ok(link > 0 && tabs > link, "the link renders above the tabs");
   assert.ok(viewBranch > tabs, "the link is outside the view branch, so the default tab shows it");
-  assert.match(overview, /label=\{packageStrings\(locale\)\.pendingTitle\}/u);
+  assert.match(page, /label=\{packageStrings\(locale\)\.pendingTitle\}/u);
+  assert.match(source("src/components/portal/home/HomeList.tsx"), /<nav className="pt-pill-tabs" aria-label=\{admission\.tabsLabel\}>/u);
   assert.match(source("src/components/portal/applicationPackages/PendingPackagesLink.tsx"), /href="\/portal\/package-recovery"/u);
   assert.match(source("src/app/(portal)/portal.css"), /\.pt-pending-packages:not\(:empty\)/u);
 });

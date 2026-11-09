@@ -1,130 +1,192 @@
-import { packageStrings } from "@/components/portal/applicationPackages/strings";
-import { PendingPackagesLink } from "@/components/portal/applicationPackages/PendingPackagesLink";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
-import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
+import { PendingPackagesLink } from "@/components/portal/applicationPackages/PendingPackagesLink";
+import { packageStrings } from "@/components/portal/applicationPackages/strings";
+import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { OverviewView } from "@/components/portal/admission/OverviewView";
-import { AiConsentSlot } from "@/components/portal/consent/AiConsentSlot";
 import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
+import { HomeList, type HomeListView } from "@/components/portal/home/HomeList";
+import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
+import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
+import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
+import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
+import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
+import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
+import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
+import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { selectStudentJourney, timelineCountryOptions } from "@/lib/portal/student-journey";
-import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
-import { readStudentPortalOverview } from "@/lib/v3/portal-source";
+import {
+  readStudentUniversitiesByIds,
+  readStudentUniversityFavorites,
+} from "@/lib/portal/university-favorites-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
-import { CaseHelpWorkspace } from "@/components/staff/profile/CaseHelpWorkspace";
+import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
+import {
+  readStudentPortalNotifications,
+  readStudentPortalOverview,
+  type StudentPortalOverview,
+} from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const strings = getPortalStrings("admission", await getLocale());
-  return { title: `${strings.overviewTitle} — EVO Admissions` };
-}
+/** Для «Ближайших дат» «Главной» читаются первые записи избранного; полный список — вкладка «Вузы» в «Моём списке». */
+const HOME_FAVORITES_LIMIT = 4;
 
-type AdmissionView = "universities" | "programs";
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("home", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
- * «Моё поступление» в Атласе (PORT-5d). Смоук-якорь production: заголовок
- * «Моё поступление» — байт-в-байт (PORT-6a: RU-значение живёт ключом
- * admission.overviewTitle, смоук-аккаунт — language=ru). CaseHelpWorkspace
- * (разовый вопрос-ответ) остаётся как есть — переписка живёт в
- * /portal/messages (PORT-5c). Согласие на ИИ-помощников (25.10.2026) стоит
- * над обзором: после логина студент попадает сюда, не на «Главную»; карточка
- * сама исчезает, когда для текущей версии текста есть решение. Самостоятельному
- * студенту без дела на сопровождении (accessTier approved) её нет вовсе.
- *
- * 03.11.2026 (по образцу «Мой список» в кабинете пользователя): сверху плитки
- * с числами («Требуют действия» ведёт к первому делу), затем две вкладки-ссылки — «Вузы» (бывшее
- * «Избранное», по умолчанию) и «Программы» (выбранные программы,
- * ?view=programs).
- *
- * 08.11.2026 (пользователь: «не будет ли логичнее вот этот блок поставить в
- * поступление?»): между плитками и вкладками — весь «Путь поступления» с
- * выбором страны (якорь #path); на «Главной» осталась его карточка.
+ * «Главная» кабинета: единственная домашняя страница студента, /portal (#1355, 09.11.2026). После логина студент
+ * видит «Что сделать сейчас» первым блоком; ниже «Мой список» (вкладки «Вузы» и «Мои программы», бывшее
+ * «Поступление») и весь «Путь поступления». Прежний /portal/home перенаправляется сюда. Смоук-якоря production
+ * (scripts/release/evo-production-browser-smoke.mjs): ровно одна видимая ссылка a[href="/portal"] в навигации
+ * «Разделы кабинета» и заголовок «Что сделать сейчас». Только существующие RPC-чтения; каждый источник падает в свой
+ * честный fallback, не роняя весь экран. Разовый вопрос куратору с «Поступления» снят (#1356): вход один, «Написать
+ * EVO» ведёт в чат «Входящих».
  */
-export default async function StudentPortalOverviewPage({
+export default async function StudentPortalHomePage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
-  const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
-  const view: AdmissionView = (await searchParams).view === "programs" ? "programs" : "universities";
-  const strings = getPortalStrings("admission", locale);
+  const [actor, locale, search] = await Promise.all([requireStudentPortalActor(), getLocale(), searchParams]);
+  const view: HomeListView = search.view === "programs" ? "programs" : "universities";
+  // PORT-1a: единственная проверяемая граница уровня доступа — серверный
+  // actor.accessTier, без повторной локальной деривации из caseState.
+  const tier = actor.accessTier;
+  const strings = getPortalStrings("home", locale);
 
-  return (
-    <main className="pt-page">
-      <header className="pt-page-header">
-        <h1 className="pt-page-title">{strings.overviewTitle}</h1>
-      </header>
-      <AiConsentSlot locale={locale} accessTier={actor.accessTier} />
-      {/* Обзор с подготовками и обращения — соседние серверные компоненты:
-          их чтения идут одновременно, а не одно после другого (план A). */}
-      <AdmissionOverview actor={actor} locale={locale} view={view} />
-      {/* Якорь #case-help — у самой панели (CaseHelpPanel); на обёртке id нет (#1115). */}
-      <div className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
-    </main>
-  );
-}
-
-async function AdmissionOverview({ actor, locale, view }: Readonly<{
-  actor: Awaited<ReturnType<typeof requireStudentPortalActor>>;
-  locale: Awaited<ReturnType<typeof getLocale>>;
-  view: AdmissionView;
-}>) {
-  // Избранное читается вместе с обзором, подготовками и выбором страны пути (одновременно).
-  const favoritesRead = readStudentUniversityFavorites()
-    .then((items) => items.map((item) => item.institutionId))
-    .catch((): null => null);
-  const [overview, preparations, choice] = await Promise.all([
-    readStudentPortalOverview().catch(() => undefined),
+  // Выбор страны «Пути поступления» (284) читается в той же волне, что и
+  // остальные чтения «Главной» (план A): лишней последовательной волны нет.
+  // Карточка CSCA (Q16) только для Китая: главная трека читается тут же, за
+  // выбором, внутри той же волны (цепочка из двух чтений, как у избранного),
+  // а студенту с другой страной лишнего чтения нет.
+  // Согласие на ИИ-помощников (25.10.2026) читается в той же волне: отдельного
+  // круга ожидания нет, а сбой чтения прячет карточку, не роняя «Главную».
+  // Только у клиента с делом на сопровождении (tier assisted, он уже известен
+  // из actor): самостоятельному студенту вопроса нет, и RPC не вызывается.
+  // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной» — их
+  // чтений здесь больше нет; «Что нового» (лента «Входящих») — только assisted.
+  // «Мой список» (#1355): выбранные программы читаются в той же волне.
+  const [overviewResult, news, favoritesResult, choiceRead, aiConsentRead, preparations] = await Promise.all([
+    tier === "assisted"
+      ? readStudentPortalOverview()
+        .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
+        .catch((): { ok: false } => ({ ok: false }))
+      : Promise.resolve({ ok: true, value: null } as const),
+    tier === "assisted" ? readStudentPortalNotifications().catch((): null => null) : Promise.resolve(null),
+    readStudentUniversityFavorites()
+      .then(async (saved) => ({
+        ok: true as const,
+        total: saved.length,
+        ids: saved.map((favorite) => favorite.institutionId),
+        items: await readStudentUniversitiesByIds(
+          saved.slice(0, HOME_FAVORITES_LIMIT).map((favorite) => favorite.institutionId),
+        ),
+      }))
+      .catch(() => ({ ok: false as const })),
+    readStudentCountryChoice().catch((): null => null).then(async (choice) => ({
+      choice,
+      cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
+    })),
+    readOwnAiConsent(tier),
     readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
-    readStudentCountryChoice().catch((): null => null),
   ]);
-  const favorites = await favoritesRead;
-  const strings = getPortalStrings("admission", locale);
-  const preparationStrings = getPortalStrings("preparations", locale);
-  // Тот же путь и прогресс, что у карточки «Главной»: прогресс только у клиента с делом на сопровождении, обзор дела
-  // не прочитан — путь без прогресса.
-  const assisted = actor.accessTier === "assisted";
+  const { choice, cscaHome } = choiceRead;
+  const now = new Date();
+  // 08.11.2026 (пользователь): весь путь на «Поступлении», здесь его карточка — тот же выбор пути и прогресс.
   const journey = selectStudentJourney({
     country: choice?.country ?? null,
-    stage: !assisted ? null : overview === undefined ? undefined : overview?.operationalStage ?? null,
+    stage: overviewResult.ok ? overviewResult.value?.operationalStage ?? null : undefined,
     locale,
-    now: new Date(),
+    now,
   });
+  const cscaCard = selectCscaHomeCard({
+    choice,
+    home: cscaHome,
+    locale,
+    cscaStrings: getPortalStrings("csca", locale),
+    homeStrings: strings,
+  });
+
+  const country = choice?.country ?? null;
+  const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
+
+  const preparationStrings = getPortalStrings("preparations", locale);
+  const assisted = tier === "assisted";
+
+  // Заголовок страницы — приветствие в шапке HomeView (HomeHero).
   return (
-    <>
-      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} favoritesCount={favorites?.length ?? null} programsCount={preparations?.length ?? null} />}
-      <CountryTimeline
-        view={journey.view}
-        progress={journey.progress}
-        documentsHref={assisted ? "/portal/documents" : null}
-        source={choice?.source ?? null}
-        readFailed={choice === null}
-        options={timelineCountryOptions(locale)}
-        strings={getPortalStrings("timeline", locale)}
+    <main className="pt-page">
+      <HomeView
+        tier={tier}
+        displayName={actor.displayName}
+        studyCountry={studyCountry}
+        overview={overviewResult.ok ? overviewResult.value : null}
+        overviewFailed={!overviewResult.ok}
+        news={news}
+        favorites={favoritesResult.ok ? favoritesResult.items : null}
+        info={overviewResult.ok ? (
+          <OverviewView overview={overviewResult.value} pending={actor.caseState === "pending"} locale={locale} />
+        ) : null}
+        list={(
+          <>
+            {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
+            <div className="pt-pending-packages">
+              <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
+            </div>
+            <HomeList
+              view={view}
+              favoritesCount={favoritesResult.ok ? favoritesResult.total : null}
+              programsCount={preparations?.length ?? null}
+              locale={locale}
+            >
+              {view === "universities" ? (
+                <FavoritesSection institutionIds={favoritesResult.ok ? favoritesResult.ids : null} locale={locale} />
+              ) : (
+                <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
+              )}
+            </HomeList>
+          </>
+        )}
+        fullPath={journey.view ? (
+          // Якорь #path ставит сам CountryTimeline (JOURNEY_ANCHOR): к нему ведёт карточка пути выше.
+          <CountryTimeline
+            view={journey.view}
+            progress={journey.progress}
+            documentsHref={assisted ? "/portal/documents" : null}
+            source={choice?.source ?? null}
+            readFailed={choice === null}
+            options={timelineCountryOptions(locale)}
+            strings={getPortalStrings("timeline", locale)}
+          />
+        ) : null}
+        journey={journey.view ? (
+          <HomeJourneyCard view={journey.view} progress={journey.progress} locale={locale} />
+        ) : null}
+        countryChoice={journey.view ? null : (
+          <CountryTimeline
+            view={null}
+            source={choice?.source ?? null}
+            readFailed={choice === null}
+            options={timelineCountryOptions(locale)}
+            strings={getPortalStrings("timeline", locale)}
+          />
+        )}
+        csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}
+        aiConsent={aiConsentRead.status === "ready" ? (
+          <AiConsentHomeCard
+            initialConsent={aiConsentRead.consent}
+            strings={getPortalStrings("aiConsent", locale)}
+          />
+        ) : null}
+        locale={locale}
+        now={now}
       />
-      {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
-      <div className="pt-pending-packages">
-        <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
-      </div>
-      <nav className="pt-pill-tabs" aria-label={strings.tabsLabel}>
-        <Link className="pt-pill-tab" href="/portal" aria-current={view === "universities" ? "true" : undefined}>
-          {strings["tab.universities"]}
-          {favorites !== null ? <span className="pt-pill-count">{favorites.length}</span> : null}
-        </Link>
-        <Link className="pt-pill-tab" href="/portal?view=programs" aria-current={view === "programs" ? "true" : undefined}>
-          {strings["tab.programs"]}
-          {preparations !== null ? <span className="pt-pill-count">{preparations.length}</span> : null}
-        </Link>
-      </nav>
-      {view === "universities" ? (
-        <FavoritesSection institutionIds={favorites} locale={locale} />
-      ) : (
-        <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
-      )}
-    </>
+    </main>
   );
 }

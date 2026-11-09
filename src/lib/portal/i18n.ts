@@ -2398,6 +2398,8 @@ const homeRu = {
   cscaSession: "Ближайшая сессия: {dates}",
   cscaRegistration: "Регистрация {closes}",
   cscaAction: "К подготовке",
+  // #1355 (09.11.2026): одна «Главная» — «Мой список» (вузы и программы) под колонками.
+  listHeading: "Мой список",
 } as const;
 
 type HomeKey = keyof typeof homeRu;
@@ -2442,6 +2444,7 @@ const homeKy: Readonly<Record<HomeKey, string>> = {
   cscaSession: "Жакынкы сессия: {dates}",
   cscaRegistration: "Каттоо {closes}",
   cscaAction: "Даярдыкка",
+  listHeading: "Менин тизмем",
 };
 
 /**

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -241,7 +241,7 @@ test("the action is a server action that checks the student, then writes through
   assert.match(action, /^"use server";/u);
   assert.match(action, /const actor = await requireStudentPortalActor\(\);/u);
   assert.match(action, /writeAiConsentForTier\(\s*actor\.accessTier,\s*createSupabaseServerClient,\s*status,\s*requestId,?\s*\)/u);
-  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/home"\);\s*revalidatePath\("\/portal\/profile"\);/u);
+  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/profile"\);/u);
   // Версию и источник выбирает серверный модуль, а не аргументы из браузера.
   assert.match(action, /status: unknown,\s*requestId: unknown,/u);
   assert.doesNotMatch(action, /policyVersion|p_policy_version|portal_web|\.rpc\(/u);
@@ -256,7 +256,7 @@ test("the action is a server action that checks the student, then writes through
 });
 
 test("the home card is read in the same wave and sits first in HomeView, without blocking anything", () => {
-  const page = read("src/app/(portal)/portal/home/page.tsx");
+  const page = read("src/app/(portal)/portal/page.tsx");
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
   assert.match(wave[1], /^\s*readOwnAiConsent\(tier\),?$/mu, "the tier is already known from the actor: no extra read");
@@ -272,26 +272,17 @@ test("the home card is read in the same wave and sits first in HomeView, without
   assert.doesNotMatch(read("src/components/portal/consent/AiConsent.tsx"), /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
 });
 
-test("the post-login screen /portal asks too: a sibling slot above the overview, hidden when the read fails", () => {
+test("the post-login screen /portal is the one home: the card sits there, the old home route only redirects (#1355)", () => {
   const page = read("src/app/(portal)/portal/page.tsx");
-  assert.match(page, /import \{ AiConsentSlot \} from "@\/components\/portal\/consent\/AiConsentSlot";/u);
-  // Слот стоит после шапки и перед обзором, как сосед: его чтение идёт одновременно с остальными.
-  const header = page.indexOf("</header>");
-  const slot = page.indexOf("<AiConsentSlot locale={locale} accessTier={actor.accessTier} />");
-  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} view={view} />");
-  assert.ok(header > 0 && slot > header && overview > slot, "header, then the slot, then the overview");
-  assert.equal(page.match(/readOwnAiConsent/gu), null, "the page itself does not read; the slot does");
+  assert.match(page, /readOwnAiConsent\(tier\)/u);
+  assert.doesNotMatch(page, /AiConsentSlot/u, "the separate overview slot is gone with the overview");
+  assert.equal(existsSync(new URL("../src/components/portal/consent/AiConsentSlot.tsx", import.meta.url)), false);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
-  // Замороженные смоук-якоря production на месте.
-  assert.match(page, /<h1 className="pt-page-title">\{strings\.overviewTitle\}<\/h1>/u);
-  const slotSource = read("src/components/portal/consent/AiConsentSlot.tsx");
-  assert.doesNotMatch(slotSource, /^"use client"/mu, "the slot is a server component");
-  assert.match(slotSource, /const read = await readOwnAiConsent\(accessTier\);/u);
-  assert.match(slotSource, /read\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{read\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
-  assert.match(slotSource, /\) : null\}\s*<\/div>/u, "a failed read leaves an empty slot");
-  // Пустой слот не оставляет зазора.
-  const css = read("src/app/(portal)/portal.css");
-  assert.match(css, /\.pt-consent-slot \{\s*margin-top: 24px;\s*\}\s*\.pt-consent-slot:empty \{\s*display: none;\s*\}/u);
+  const old = read("src/app/(portal)/portal/home/page.tsx");
+  assert.match(old, /redirect\("\/portal"\);/u);
+  assert.doesNotMatch(old, /readOwnAiConsent/u);
+  // Обновление после ответа обновляет единственную «Главную».
+  assert.match(read("src/lib/portal/ai-consent-actions.ts"), /revalidatePath\("\/portal"\);/u);
 });
 
 test("the settings row sits in the profile, with its own honest line when the read fails", () => {

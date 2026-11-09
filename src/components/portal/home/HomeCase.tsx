@@ -71,7 +71,7 @@ export function HomeCase({ overview, failed, locale }: Readonly<{
               {primary.kind === "payment" ? admission.openPayment : admission.openDocument}
             </IntentPrefetchLink>
             {remaining > 0 ? (
-              <IntentPrefetchLink href="/portal" className="pt-link pt-home-case-more">
+              <IntentPrefetchLink href="/portal/documents" className="pt-link pt-home-case-more">
                 {formatPortalString(strings.caseMore, { count: String(remaining) })}
               </IntentPrefetchLink>
             ) : null}

@@ -1882,18 +1882,6 @@
   gap: 12px;
 }
 
-/*
- * Слот карточки на «Моём поступлении» (/portal): отступ от шапки как у
- * соседних блоков экрана; без карточки слот пуст и не оставляет зазора.
- */
-.pt-consent-slot {
-  margin-top: 24px;
-}
-
-.pt-consent-slot:empty {
-  display: none;
-}
-
 .pt-consent {
   padding: 20px;
   border: 1px solid var(--pt-line);
@@ -7118,10 +7106,22 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-home-slot[data-slot="case"] { order: 1; }
 .pt-home-slot[data-slot="path"] { order: 2; }
-.pt-home-slot[data-slot="universities"] { order: 3; }
+.pt-home-slot[data-slot="write"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
 .pt-home-slot[data-slot="csca"] { order: 6; }
+
+/* «Мой список» и весь путь под колонками «Главной» (#1355): во всю ширину, с тем же шагом, что между блоками. */
+.pt-home-list,
+.pt-home-path-full {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pt-home-list > .pt-home-head {
+  margin-bottom: 0;
+}
 
 /*
  * Две колонки с 960 px окна (раньше от 980 px ширины самой области, то есть на 1024 px при раскрытой левой колонке

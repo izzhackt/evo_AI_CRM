@@ -68,3 +68,26 @@ Method: WebFetch of official docs plus a few web searches. Fetch tool summarises
 - **Date paths checked on Hermes (iPhone 17 Pro simulator, iOS 26.5, 2026-11-09, probe in the running app, then removed):** `Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Bishkek", year/month/day:"numeric|2-digit|2-digit"}).format()` returns `YYYY-MM-DD` (2026-11-09T20:30Z gives `2026-11-10`; 17:59Z gives `2026-11-09`, so the Bishkek day boundary is right). `formatToParts` with `en-CA`, `hourCycle:"h23"` returns typed parts `year, month, day, hour, minute` with 2-digit values and `00` for the hour just after midnight (no `24`). So `todayForTimeline` (country-timeline.ts), `bishkekDay` (session-labels.ts) and `universityIntakeLabel` (platform-university-catalog.ts) work unchanged; no polyfill or web edit was needed. Jest runs on Node, so this stays a manual check: repeat it after an SDK or Hermes upgrade.
 - **Документы, живая проверка на локальном стенде (iPhone 17 Pro, 2026-11-09, test.assisted):** вход, чек-лист (10 пунктов), «Договор и чеки», Оплата читаются живыми RPC. Скачивание договора и чека: bearer GET `/api/portal/case-files/{вид}/{id}/download` -> 307 на подписанный URL, `fetch` идёт по перенаправлению сам, файл пишется в кэш и открывается Quick Look (`File.preview`). Скачивание своего документа (`/document-versions/{id}/download`) в стенде даёт 403 `download_not_authorized`: у посеянной версии нет байтов и результата проверки; приложение показывает «нельзя скачать». Загрузка: multipart с Bearer и `Idempotency-Key` доходит до маршрута, фото из галереи (системный выбор без разрешения) отправляется; сервер отвечает 503 `malware_scanner_unavailable` (в стенде нет ClamAV), приложение показывает «Загрузка сейчас недоступна» и «Повторить загрузку». Успешная загрузка до квитанции 201 на стенде не проверена. Найдено живьём: события прогресса `expo-file-system` на iOS приходят как BigInt, `(bytesSent / totalBytes) * 100` бросает «Cannot convert 100 to BigInt»; исправлено через `Number()` (`progressPercent`).
 
+
+## 10. Скачивание документов в два шага: Bearer не уходит на подписанный адрес хранилища (проверка 2026-11-09)
+
+Решение (ревью M2, MAJOR 2): портал отвечает `307` с `Location` на подписанный URL хранилища. Встроенный `fetch` React Native
+всегда идёт по перенаправлению сам и унёс бы заголовок `Authorization` на хранилище. Поэтому приложение использует
+`fetch` из `expo/fetch` (WinterCG, `redirect` разбирается нативно на iOS и Android: `ios/Expo/Fetch/NativeRequestRedirect.swift`,
+`android/.../expo/modules/fetch/NativeRequest.kt`): шаг 1, портал с Bearer и `redirect: "manual"`, из ответа читается `Location`;
+приложение проверяет, что это абсолютный http(s) адрес ДРУГОГО происхождения, чем портал; шаг 2, хранилище без каких-либо
+заголовков доступа. Любое перенаправление на шаге 2 это ошибка. Код: `mobile/src/features/documents/download.ts`.
+
+Как проверено вживую: записывающий прокси (вне репозитория) между приложением и локальным стендом. Портал за прокси на `:46441`,
+прокси переписывает `Location` с `127.0.0.1:46421` на второй прокси `:46442` перед хранилищем. Прокси пишет только имена заголовков
+и ПРИСУТСТВИЕ `Authorization`, значения не пишет. Лог хранилища Supabase для этого не годится: он не пишет `authorization` вообще
+(проверено: запрос `curl` с `Authorization` в журнале хранилища заголовка не показывает), поэтому доказательство снято на проводе.
+
+iPhone 17 Pro, симулятор, iOS 26.5, `test.assisted`, «Договор» → «Скачать» (договор открылся в Quick Look):
+
+```
+portal  GET /api/portal/case-files/contract/<id>/download  authorization=PRESENT
+portal  -> 307 location-host=127.0.0.1:46442
+storage GET /storage/v1/object/sign/platform-documents/case-contracts/<ids>  authorization=absent apikey=absent
+storage -> 200
+```

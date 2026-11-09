@@ -35,7 +35,7 @@ type ThemeContextValue = Readonly<{
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initial = "light" }: { children: ReactNode; initial?: ThemeChoice }) {
+export function ThemeProvider({ children, initial = "system" }: { children: ReactNode; initial?: ThemeChoice }) {
   const [choice, setChoiceState] = useState<ThemeChoice>(initial);
   const system = useColorScheme();
 

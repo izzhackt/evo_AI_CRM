@@ -89,6 +89,7 @@ function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
     <>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: tokens.bg } }}>
+        <Stack.Screen name="index" />
         <Stack.Protected guard={signedOut}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>

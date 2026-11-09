@@ -2400,6 +2400,10 @@ const homeRu = {
   // весь путь на «Поступлении».
   pathAll: "Весь путь",
   pathStep: "Шаг {n} из {total}: {title}",
+  // Веб их больше не рисует, но мобильное приложение (mobile/, общий словарь) — да: шапка и карточка пути.
+  stageStep: "Этап {n} из {total}: {stage}",
+  pathTitle: "Путь: {country}",
+  pathNow: "Сейчас на пути:",
   // «Что сделать сейчас» без заданий от менеджера: задания студента из текущего шага пути.
   caseStepNow: "Сейчас: {title}",
   caseStepTiming: "Когда",
@@ -2463,6 +2467,9 @@ const homeKy: Readonly<Record<HomeKey, string>> = {
   caseFoot: "Аракеттерди EVO командасы тапшыруу планыңызга жараша кошот.",
   pathAll: "Толук жол",
   pathStep: "{total} кадамдын {n}-кадамы: {title}",
+  stageStep: "{total} этаптын {n}-этабы: {stage}",
+  pathTitle: "Жол: {country}",
+  pathNow: "Жолдо азыр:",
   caseStepNow: "Азыр: {title}",
   caseStepTiming: "Качан",
   caseStepOpen: "Кадам тууралуу кененирээк",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ReviewRunner } from "@/components/portal/english/ReviewRunner";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import type { LearningReviewItem } from "@/lib/portal/learning";
@@ -44,6 +45,7 @@ export default async function EnglishReviewPage() {
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : items.length === 0 ? (
         <div className="pt-empty">
+          <EmptyIcon name="english" />
           <p className="pt-empty-title">{strings.reviewEmptyTitle}</p>
           <p className="pt-empty-body">{strings.reviewEmptyBody}</p>
           <p>

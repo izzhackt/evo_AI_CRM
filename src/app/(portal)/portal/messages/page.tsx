@@ -58,6 +58,9 @@ export default async function StudentPortalMessagesPage({
   const strings = getPortalStrings("messages", locale);
   const admission = getPortalStrings("admission", locale);
   const view: InboxView = search.view === "updates" ? "updates" : "chat";
+  // Телефон как Telegram (08.11.2026): без явного view — только список чатов, открытое — по нажатию на чат.
+  // На широком экране список и открытое видны всегда, как раньше.
+  const paneOpen = search.view === "chat" || search.view === "updates";
 
   const [initialPage, notifications] = await Promise.all([
     readPortalCaseMessages().catch((): PortalCaseMessagesPage | null => null),
@@ -80,7 +83,7 @@ export default async function StudentPortalMessagesPage({
       <header className="pt-page-header">
         <h1 className="pt-page-title">{strings.title}</h1>
       </header>
-      <div className="pt-inbox">
+      <div className="pt-inbox" data-open={paneOpen ? "pane" : "list"}>
         <div className="pt-inbox-side">
           <InboxList
             view={view}
@@ -97,6 +100,12 @@ export default async function StudentPortalMessagesPage({
         </div>
         <section className="pt-inbox-pane" aria-labelledby="inbox-pane-title">
           <header className="pt-inbox-pane-head">
+            {/* Стрелка к списку чатов — только на телефоне. */}
+            <Link href="/portal/messages" className="pt-inbox-back" aria-label={strings.backToList}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
             <span className={view === "chat" ? "pt-inbox-avatar pt-inbox-avatar-team" : "pt-inbox-avatar"} aria-hidden="true">
               {view === "chat" ? "EVO" : (
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -126,7 +135,8 @@ export default async function StudentPortalMessagesPage({
               initialPage === null ? (
                 <p role="alert" className="pt-alert">{strings.unavailable}</p>
               ) : (
-                <MessagesThread initialPage={initialPage} strings={strings} locale={locale} draftScope={`${actor.membershipId}:${actor.studentCaseId}`} />
+                // key: открытие чата из списка на телефоне монтирует ленту заново, и показанный чат читается.
+                <MessagesThread key={paneOpen ? "open" : "list"} initialPage={initialPage} strings={strings} locale={locale} draftScope={`${actor.membershipId}:${actor.studentCaseId}`} />
               )
             ) : notifications === null ? (
               <p role="alert" className="pt-alert">{strings.updatesUnavailable}</p>

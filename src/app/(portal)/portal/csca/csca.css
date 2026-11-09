@@ -1626,6 +1626,8 @@
   gap: 28px;
   min-width: 0;
   padding: 40px 48px 44px;
+  /* Рамка вместо прежней тёплой тени: тени кабинета стали тише (08.11.2026). */
+  border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
@@ -2091,9 +2093,15 @@ button.cs-run-seg {
   flex-direction: column;
   gap: 18px;
   padding: 24px 28px 14px;
+  border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
+}
+
+/* Тест на время — одной колонкой по центру, как урок английского и тесты (08.11.2026). */
+.cs-test-page {
+  max-width: calc(760px + 2 * var(--pt-gutter));
 }
 
 .cs-item-head {

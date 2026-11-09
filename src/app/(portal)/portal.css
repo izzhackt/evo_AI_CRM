@@ -14,20 +14,25 @@
  */
 
 .pt-shell {
-  /* Цвет, светлая: тёплая бумага. */
+  /*
+   * Цвет, светлая: чистый холодный серый вместо тёплой бумаги (08.11.2026, пользователь: «почему у нас визуал
+   * такой хуёвый, а у Акылмана прям ахуенно»; образец — кабинет Акылмана). Вторичный текст 6.2:1 на белом.
+   */
   --pt-scheme: light;
-  --pt-bg: #f7f5f2;
+  --pt-bg: #f3f4f6;
   --pt-surface: #ffffff;
-  --pt-text: #191714;
-  --pt-text-2: #6b6660;
-  /* Волосяная линия-разделитель (декор): 1.33:1 на белом. */
-  --pt-line: #e4dfd7;
-  /* Граница поля ввода/селекта — 3.73:1 на белом, 3.51:1 на бумаге (1.4.11). */
-  --pt-control-edge: #8c8378;
-  /* Скелет загрузки: тон бумаги на шаг темнее. */
-  --pt-skeleton: #ebe6df;
+  --pt-text: #17181c;
+  --pt-text-2: #5c616b;
+  /* Волосяная линия-разделитель (декор): 1.27:1 на белом. */
+  --pt-line: #e3e5e9;
+  /* Граница поля ввода/селекта — 3.5:1 на белом, 3.2:1 на фоне (1.4.11). */
+  --pt-control-edge: #868b95;
+  /* Скелет загрузки: тон фона на шаг темнее. */
+  --pt-skeleton: #e8eaee;
   --pt-accent: #d70217;
   --pt-on-accent: #ffffff;
+  /* Бледный фирменный красный: только подложка значков, не текст и не панели. */
+  --pt-accent-soft: #fdecee;
   --pt-ok: #177245;
   --pt-warn: #b45309;
   --pt-error: #b3261e;
@@ -45,29 +50,31 @@
   --pt-size-tab: 12px;
   --pt-leading: 1.45;
 
-  /* Радиусы: карточка 8, элемент 6, контрол 6, чип 999 (08.11.2026, пользователь: «сделай закругленности меньше», «как на первом» — угол образца; было 16/12/10). */
-  --pt-radius-card: 8px;
-  --pt-radius-item: 6px;
-  --pt-radius-control: 6px;
+  /*
+   * Радиусы: карточка 12, элемент 8, контрол 8, чип 999. 08.11.2026 сначала «сделай закругленности меньше» (было
+   * 16/12/10, стало 8/6/6), затем «вцелом во всем сайте края ещё чуть-чуть закруглить» — середина между ними.
+   */
+  --pt-radius-card: 12px;
+  --pt-radius-item: 8px;
+  --pt-radius-control: 8px;
   --pt-radius-chip: 999px;
 
   /*
-   * Тени светлой: тёплые (тон бумаги, не нейтральный чёрный), с отступом и
-   * мягким размытием — карточка отделяется от бумаги, всплывающее — над ней.
+   * Тени светлой: нейтральные и тише прежних тёплых (08.11.2026); карточку от
+   * фона отделяет её тонкая рамка, как у образца. Всплывающее — над ней.
    */
-  --pt-shadow-card: 0 1px 2px rgb(54 38 22 / 0.06), 0 3px 12px -4px rgb(54 38 22 / 0.1);
-  --pt-shadow-raised: 0 2px 6px rgb(54 38 22 / 0.06), 0 18px 40px -12px rgb(54 38 22 / 0.24);
+  --pt-shadow-card: 0 1px 3px rgb(16 24 40 / 0.07), 0 1px 2px rgb(16 24 40 / 0.04);
+  --pt-shadow-raised: 0 2px 6px rgb(16 24 40 / 0.05), 0 18px 40px -12px rgb(16 24 40 / 0.22);
   /* Нижняя панель телефона: тень вверх, контент уходит под панель. */
-  --pt-shadow-bar: 0 -8px 20px -14px rgb(54 38 22 / 0.28);
+  --pt-shadow-bar: 0 -8px 20px -14px rgb(16 24 40 / 0.24);
 
   /*
    * Атмосфера заголовочной зоны «Атласа»: тёплый свет сверху-слева, едва
    * тронутый фирменным красным, гаснет к ~420 px. Только фон страницы;
    * поверхности и текст его не получают.
    */
-  --pt-wash:
-    radial-gradient(70% 460px at 8% -160px, rgb(215 2 23 / 0.05), transparent 72%),
-    linear-gradient(180deg, #f0eae1 0, rgb(240 234 225 / 0) 420px);
+  /* 08.11.2026: бежевый градиент убран, фон ровный, как у образца. */
+  --pt-wash: linear-gradient(transparent, transparent);
 
   /*
    * Движение: единый словарь кабинета (анимации кабинета студента, решение
@@ -127,7 +134,8 @@
    * (измеренный минимум 5.4:1). Кольцо шага 4.6:1, красная точка 3.2:1 (графика
    * ≥3:1). Знак — белый 5 %, декор без текста. Проверка 03.11.2026.
    */
-  --pt-hero-bg: #1c1a17;
+  /* 08.11.2026: графит в тон тёмному рейлу (был тёплый #1c1a17). */
+  --pt-hero-bg: #17181c;
   --pt-hero-ink: #ffffff;
   --pt-hero-muted: #cfc8be;
   --pt-hero-faint: #a39d94;
@@ -153,6 +161,7 @@
   /* Тот же бренд, поднятая светлота для контраста на тёмном. */
   --pt-accent: #ff4a57;
   --pt-on-accent: #141311;
+  --pt-accent-soft: #3a1c20;
   --pt-ok: #4cc38a;
   --pt-warn: #e5a445;
   --pt-error: #ff8177;
@@ -293,6 +302,11 @@
   background: var(--pt-logo-plate);
 }
 
+/* Lockup с белыми буквами нужен только тёмному рейлу широкого экрана. */
+.pt-logo-on-dark {
+  display: none;
+}
+
 .pt-topbar-actions {
   display: flex;
   align-items: center;
@@ -378,46 +392,33 @@
   font-size: var(--pt-size-caption);
 }
 
-/* «Ещё» нужна только на телефоне: на широком экране рейл показывает всё. */
-.pt-nav-more-item {
-  display: none;
-}
-
-.pt-nav-more-toggle {
-  position: relative;
-  display: flex;
+/*
+ * Кнопка меню телефона (08.11.2026, по образцу кабинета Акылмана): слева в шапке, открывает тёмное меню со всеми
+ * разделами. На широком экране её нет — там рейл.
+ */
+.pt-menu-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  width: 100%;
-  min-height: 44px;
-  min-width: 0;
-  padding: 0 12px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-inline-start: -10px;
+  padding: 0;
   border: 0;
   border-radius: var(--pt-radius-control);
-  background: none;
-  color: var(--pt-text-2);
-  font: inherit;
-  font-size: var(--pt-size-secondary);
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background-color var(--pt-motion-fast) var(--pt-ease),
-    color var(--pt-motion-fast) var(--pt-ease),
-    transform var(--pt-motion-press) var(--pt-ease-out);
-}
-
-.pt-nav-more-toggle:active {
-  transform: scale(var(--pt-press-scale));
-}
-
-.pt-nav-more-toggle:hover,
-.pt-nav-more-toggle[aria-expanded="true"] {
-  background: var(--pt-bg);
+  background: transparent;
   color: var(--pt-text);
+  cursor: pointer;
 }
 
-.pt-nav-more-toggle[data-current-inside] {
-  color: var(--pt-accent);
-  font-weight: 600;
+.pt-menu-toggle:hover {
+  background: var(--pt-bg);
+}
+
+.pt-menu-toggle:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
 }
 
 /* Телефон: обёртки рейла нет — панель вкладок и лист живут как раньше. */
@@ -459,6 +460,39 @@
     background: var(--pt-surface);
   }
 
+  /*
+   * Тёмный рейл (08.11.2026, пользователь: «почему у нас визуал такой хуёвый, а у Акылмана прям ахуенно»; образец —
+   * тёмная колонка меню Акылмана). Токены переопределены только внутри рейла на широком экране, поэтому разделы,
+   * низ, язык, тема и карточка студента перекрашиваются сами; нижняя панель телефона остаётся светлой. Подписи
+   * 10.6:1 на графите, подписи групп 5.9:1, открытый раздел белым 17.5:1, красная планка 3.6:1 (графика ≥3:1).
+   * Одинаков в обеих темах.
+   */
+  .pt-rail {
+    --pt-scheme: dark;
+    --pt-surface: #17181c;
+    --pt-bg: #24262c;
+    --pt-text: #ffffff;
+    --pt-text-2: #c3c6cd;
+    --pt-line: #2b2d33;
+    --pt-control-edge: #6b707a;
+    --pt-rail-mark: #1d1e23;
+    --pt-rail-group: #8d919b;
+    /* Логотип с белыми буквами стоит прямо на графите, подложки нет. */
+    --pt-logo-plate: transparent;
+    color-scheme: dark;
+    border-inline-end-color: #17181c;
+    color: var(--pt-text);
+  }
+
+  /* В тёмном рейле — lockup с белыми буквами; оригинал остаётся полосе телефона. */
+  .pt-rail .pt-logo-original {
+    display: none;
+  }
+
+  .pt-rail .pt-logo-on-dark {
+    display: block;
+  }
+
   .pt-rail > * {
     position: relative;
     z-index: 1;
@@ -495,6 +529,17 @@
   /* Тема на широком экране — внизу рейла; в шапке кнопка «Свернуть меню». */
   .pt-topbar-theme {
     display: none;
+  }
+
+  /* Широкий экран: полный список разделов — сам рейл; вкладки, кнопка и шапка меню телефона не нужны. */
+  .pt-menu-toggle,
+  .pt-nav-list.pt-nav-bar,
+  .pt-nav-menu-head {
+    display: none;
+  }
+
+  .pt-nav-menu {
+    display: contents;
   }
 
   /* Кнопка без рамки, как у образца: значок панели, подложка только по наведению. */
@@ -602,15 +647,16 @@
     inset-inline-start: -8px;
   }
 
-  /* Открытый раздел: красное слово, планка и тихая подложка. */
+  /* Открытый раздел: белое слово, красная планка и подложка на шаг светлее графита (08.11.2026, тёмный рейл). */
   .pt-rail .pt-nav-link[aria-current="page"] {
     background: var(--pt-bg);
+    color: var(--pt-text);
   }
 
-  /* Подписи групп «Выбор» и «Учёба». */
+  /* Подписи групп «Выбор» и «Учёба»: тише разделов, как у образца. */
   .pt-nav-group {
-    padding: 14px 12px 2px;
-    color: var(--pt-text-2);
+    padding: 16px 12px 4px;
+    color: var(--pt-rail-group);
     font-size: var(--pt-size-caption);
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -640,7 +686,8 @@
     gap: 4px;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px 12px;
+    /* Разделы чуть ниже логотипа (08.11.2026, пользователь: «мне кажется, что их нужно чуть опустить»). */
+    padding: 32px 12px 16px;
   }
 
   /* Вкладки и «лист» — один рейл подряд, в порядке разделов. */
@@ -849,13 +896,13 @@
 }
 
 /*
- * Телефон (#1113): в панели первые разделы и «Ещё»; остальные разделы — плитками
- * на листе над панелью. Раньше все 12 разделов шли одной фиксированной строкой
- * и 7–8 уходили за край экрана без прокрутки.
+ * Телефон (08.11.2026, по образцу кабинета Акылмана): парящая панель из четырёх вкладок с отступом от краёв и
+ * тёмное меню слева со всеми разделами по кнопке в шапке. Прежний лист «Ещё» (#1113) убран.
  */
 @media (max-width: 767px) {
   .pt-shell {
     --pt-gutter: 16px;
+    --pt-topbar-height: 52px;
   }
 
   /* Шапка живёт в рейле (display: contents): на телефоне это полоса сверху. */
@@ -863,112 +910,146 @@
     flex-direction: column;
   }
 
-  .pt-nav-group,
+  /*
+   * Шапка телефона незаметная, как на широком экране (08.11.2026, пользователь: «нужно её незаметно, как на комп
+   * версии, и лого слишком большое»): фон страницы без белой полосы и линии, логотип 88 px, тема — значком без рамки.
+   */
+  .pt-topbar {
+    min-height: 52px;
+    padding-block: 4px;
+    border-bottom: 0;
+    background: var(--pt-bg);
+  }
+
+  .pt-topbar-logo {
+    margin-inline-end: auto;
+  }
+
+  .pt-topbar .theme-toggle {
+    border-color: transparent;
+    background: transparent;
+  }
+
   .pt-nav-badge {
     display: none;
   }
 
+  /* Панель вкладок: плавает над страницей, скругление и тень, как у образца. */
   .pt-nav {
     position: fixed;
-    inset-inline: 0;
-    bottom: 0;
+    inset-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
     z-index: 40;
+    padding: 4px;
+    border: 1px solid var(--pt-line);
+    border-radius: 20px;
     background: var(--pt-surface);
-    border-top: 1px solid var(--pt-line);
-    box-shadow: var(--pt-shadow-bar);
-    padding: 4px max(4px, env(safe-area-inset-left))
-      max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-right));
+    box-shadow: var(--pt-shadow-raised);
   }
 
-  /*
-   * Вкладки делят ширину поровну, «Ещё» уже: на 320 px вкладке остаётся
-   * ~86 px вместо 78 — «Университеты» (≈ 86 px при 12 px) и активное
-   * «Поступление» (≈ 79 px) не упираются в соседей. Число вкладок задаёт
-   * Shell через --pt-tab-count (PHONE_TAB_COUNT).
-   */
   .pt-nav-bar {
     display: grid;
-    grid-template-columns:
-      repeat(var(--pt-tab-count, 3), minmax(0, 1fr))
-      minmax(52px, 0.62fr);
+    grid-template-columns: repeat(var(--pt-tab-count, 4), minmax(0, 1fr));
   }
 
-  .pt-nav-more-item {
-    display: block;
-  }
-
-  /*
-   * Вкладка и плитка листа: значок над подписью в одну строку, цель ≥ 44 px.
-   * Тесный трекинг: «Поступление» в Golos 12 px (~79 px) помещается в колонку
-   * четырёх вкладок уже на 320 px.
-   */
-  .pt-nav-link,
-  .pt-nav-more-toggle {
+  /* Вкладка: значок над подписью в одну строку, цель ≥ 44 px; открытая — красным словом и значком, без планки. */
+  .pt-nav-bar .pt-nav-link {
     flex-direction: column;
     justify-content: center;
     gap: 3px;
     min-height: 52px;
     padding: 4px 0;
+    border-radius: 16px;
     font-size: var(--pt-size-tab);
     line-height: 1.2;
   }
 
-  .pt-nav-link .pt-nav-label,
-  .pt-nav-more-toggle .pt-nav-label {
+  .pt-nav-bar .pt-nav-link .pt-nav-label {
     max-width: 100%;
     letter-spacing: -0.01em;
   }
 
-  .pt-nav-bar .pt-nav-link[aria-current="page"]::before,
-  .pt-nav-more-toggle[data-current-inside]::before {
-    content: "";
-    position: absolute;
-    top: -4px;
-    inset-inline-start: 25%;
-    inset-inline-end: 25%;
-    height: 3px;
-    border-radius: var(--pt-radius-chip);
-    background: var(--pt-accent);
+  .pt-shell .pt-nav .pt-nav-indicator,
+  .pt-shell .pt-nav[data-indicator] .pt-nav-indicator,
+  .pt-nav-bar .pt-nav-link[aria-current="page"]::before {
+    display: none;
   }
 
   /* Троеточие загрузки некуда ставить в вертикальной вкладке. */
-  .pt-nav-link .pt-nav-pending {
+  .pt-nav-bar .pt-nav-link .pt-nav-pending {
     display: none;
   }
 
-  /* Лист «Ещё»: плавающая карточка над панелью, плитки по 2–3 в ряд. */
-  .pt-nav-sheet {
-    display: none;
-    position: absolute;
-    inset-inline: 8px;
-    bottom: calc(100% + 8px);
-    max-height: calc(100dvh - var(--pt-topbar-height) - 84px - env(safe-area-inset-bottom));
+  /*
+   * Меню: тёмная колонка слева во всю высоту, те же токены, что у рейла широкого экрана; страница под ним
+   * притемнена тенью. Закрыто — уехало влево и недоступно.
+   */
+  .pt-nav-menu {
+    --pt-surface: #17181c;
+    --pt-bg: #24262c;
+    --pt-text: #ffffff;
+    --pt-text-2: #c3c6cd;
+    --pt-line: #2b2d33;
+    --pt-rail-group: #8d919b;
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    width: min(300px, 84vw);
     overflow-y: auto;
     overscroll-behavior: contain;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 2px;
-    padding: 6px;
+    padding: max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
     background: var(--pt-surface);
-    border: 1px solid var(--pt-line);
-    border-radius: var(--pt-radius-card);
-    box-shadow: var(--pt-shadow-raised);
+    color: var(--pt-text);
+    color-scheme: dark;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform var(--pt-motion-slow) var(--pt-ease-out),
+      visibility 0s linear var(--pt-motion-slow);
   }
 
-  .pt-nav-sheet[data-open] {
+  .pt-nav-menu[data-open] {
+    transform: none;
+    visibility: visible;
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.45);
+    transition: transform var(--pt-motion-slow) var(--pt-ease-out);
+  }
+
+  .pt-nav-menu-head {
+    padding: 4px 8px 16px;
+  }
+
+  .pt-nav-menu .pt-nav-full {
     display: grid;
+    gap: 2px;
   }
 
-  .pt-nav-sheet .pt-nav-link {
-    min-height: 56px;
+  .pt-nav-menu .pt-nav-link {
+    min-height: 44px;
+    padding: 0 12px;
+    gap: 12px;
+    font-size: var(--pt-size-body);
   }
 
-  .pt-nav-sheet .pt-nav-link[aria-current="page"] {
+  .pt-nav-menu .pt-nav-link[aria-current="page"] {
     background: var(--pt-bg);
+    color: var(--pt-text);
+    font-weight: 600;
   }
 
-  /* Фиксированные вкладки не должны накрывать конец содержимого. */
+  .pt-nav-menu .pt-nav-group {
+    padding: 16px 12px 4px;
+    color: var(--pt-rail-group);
+    font-size: var(--pt-size-caption);
+    font-weight: 600;
+  }
+
+  /* Фиксированная панель не должна накрывать конец содержимого. */
   .pt-content {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 }
 
@@ -993,7 +1074,6 @@
 .pt-skip-link:focus-visible,
 .pt-topbar-logo:focus-visible,
 .pt-bell:focus-visible,
-.pt-nav-more-toggle:focus-visible,
 .pt-nav-link:focus-visible {
   outline: 2px solid var(--pt-accent);
   outline-offset: 2px;
@@ -1054,12 +1134,17 @@
   letter-spacing: -0.01em;
 }
 
-/* Данные (даты, дедлайны) — моно по дизайн-контракту. */
+/*
+ * Данные (даты, дедлайны): основной шрифт с цифрами одной ширины. Моно «печатной машинки» внутри обычной строки
+ * выглядело как ошибка (08.11.2026, разбор кабинета с пользователем по образцу Акылмана).
+ */
 .pt-data {
-  font-family: var(--pt-font-mono);
-  font-size: var(--pt-size-caption);
+  font-family: var(--pt-font-sans);
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
 }
 
+/* Ссылка-переход: красное слово без подчёркивания, линия только по наведению (08.11.2026, как у образца). */
 .pt-link {
   display: inline-flex;
   align-items: center;
@@ -1067,9 +1152,13 @@
   gap: 0.3em;
   min-height: 44px;
   color: var(--pt-accent);
-  font-weight: 500;
-  text-decoration: underline;
+  font-weight: 600;
+  text-decoration: none;
   text-underline-offset: 4px;
+}
+
+.pt-link:hover {
+  text-decoration: underline;
 }
 
 .pt-btn,
@@ -1994,6 +2083,20 @@
   max-width: 560px;
   margin: 8px auto 0;
   color: var(--pt-text-2);
+}
+
+/* Значок пустого состояния по центру над заголовком; кнопка не прилипает к строке (08.11.2026). */
+.pt-empty-icon {
+  margin: 0 auto 16px;
+}
+
+.pt-empty-action {
+  margin: 20px 0 0;
+}
+
+/* Пустые блоки CSCA выровнены влево: значок встаёт у левого края, отступ даёт их зазор. */
+.cs-empty .pt-empty-icon {
+  margin: 0;
 }
 
 .pt-alert {
@@ -3631,8 +3734,10 @@
 
 .pt-completion-share {
   margin: 0;
-  font-family: var(--pt-font-mono);
-  font-size: var(--pt-size-title);
+  font-size: var(--pt-size-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .pt-completion-list {
@@ -3642,6 +3747,304 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/*
+ * Урок английского и прохождение теста (08.11.2026, пользователь: «ещё стильнее и нужно уцентровать блок, мне не
+ * нравится», затем «CSCA и „Тесты“ в том же стиле»): одна колонка 760 px по центру, фото темы сверху (у урока),
+ * полоса заданий, крупный вопрос, варианты-плашки, разбор с отметкой и кнопка справа под линией. Только вид:
+ * механика, тексты и данные прежние.
+ */
+.pt-study-page {
+  max-width: calc(760px + 2 * var(--pt-gutter));
+}
+
+.pt-study-page .pt-page-header,
+.pt-study-page .pt-lesson-flow,
+.pt-study-page .pt-lesson-card,
+.pt-study-page .pt-run,
+.pt-study-page .pt-run-intro,
+.pt-study-page .pt-run-card {
+  max-width: none;
+}
+
+/* Ссылка «Все тесты» над заголовком — тихая серая со стрелкой, как «← Все уроки». */
+.pt-study-page .pt-page-kicker {
+  margin-bottom: 4px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pt-study-page .pt-page-kicker .pt-link {
+  min-height: 32px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+}
+
+.pt-study-page .pt-page-kicker .pt-link::before {
+  content: "←";
+}
+
+.pt-study-page .pt-page-kicker .pt-link:hover {
+  color: var(--pt-text);
+}
+
+/* Тест: карточка задания просторнее, вопрос крупнее, кнопки «Назад»/«Далее» под линией по краям. */
+.pt-study-page .pt-run-card {
+  gap: 18px;
+  padding: 28px 32px;
+}
+
+.pt-study-page .pt-run-legend {
+  font-size: var(--pt-size-heading);
+  line-height: 1.3;
+}
+
+.pt-study-page .pt-run-bar {
+  padding: 16px 20px;
+}
+
+@media (max-width: 520px) {
+  .pt-study-page .pt-run-card {
+    padding: 20px;
+  }
+}
+
+.pt-lesson-back {
+  margin: 0 0 12px;
+}
+
+.pt-lesson-back .pt-link {
+  min-height: 32px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+}
+
+.pt-lesson-back .pt-link:hover {
+  color: var(--pt-text);
+}
+
+.pt-lesson-hero {
+  position: relative;
+  overflow: hidden;
+  height: 180px;
+  margin-bottom: 20px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-skeleton);
+}
+
+.pt-lesson-hero img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pt-study-page .pt-lesson-card {
+  gap: 18px;
+  padding: 28px 32px;
+}
+
+/* Карточка объяснения и итога стоит прямо под заголовком: отступ как у полосы заданий. */
+.pt-study-page > .pt-lesson-card {
+  margin-top: 20px;
+}
+
+/* Цель урока: плашка бледного фирменного красного (подложка, не текст) с подписью над целью. */
+.pt-lesson-goal-box {
+  display: grid;
+  gap: 4px;
+  padding: 14px 18px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-accent-soft);
+}
+
+.pt-lesson-goal-label {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pt-lesson-goal-box .pt-lesson-goal {
+  color: var(--pt-text);
+  font-size: var(--pt-size-body);
+  font-weight: 500;
+}
+
+/* Фразы объяснения: английская жирно слева, перевод ровной второй колонкой, строки через линию. */
+.pt-study-page .pt-theory-examples {
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--pt-line);
+  background: var(--pt-surface);
+}
+
+.pt-study-page .pt-theory-examples li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 10px 16px;
+}
+
+.pt-study-page .pt-theory-examples li + li {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-study-page .pt-theory-examples [lang="en"] {
+  font-weight: 600;
+}
+
+.pt-study-page .pt-theory-translation {
+  font-size: inherit;
+}
+
+@media (max-width: 520px) {
+  .pt-study-page .pt-lesson-card {
+    padding: 20px;
+  }
+
+  .pt-lesson-hero {
+    height: 132px;
+  }
+
+  .pt-study-page .pt-theory-examples li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Полоса заданий: отрезок на задание. Цвета — смысл ответа; число и вердикт читаются строкой над ней. */
+.pt-ex-meter {
+  display: flex;
+  gap: 4px;
+  margin-top: -8px;
+}
+
+.pt-ex-meter > span {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-line);
+}
+
+.pt-ex-meter > span[data-state="ok"] {
+  background: var(--pt-ok);
+}
+
+.pt-ex-meter > span[data-state="bad"] {
+  background: var(--pt-error);
+}
+
+.pt-ex-meter > span[data-state="current"] {
+  background: var(--pt-text);
+}
+
+.pt-study-page .pt-lesson-flow {
+  margin-top: 20px;
+}
+
+.pt-study-page .pt-ex-prompt {
+  margin-bottom: 4px;
+  font-size: var(--pt-size-heading);
+  line-height: 1.3;
+}
+
+/* Варианты ответа: плашки с подсветкой по наведению; выбранный — красная рамка и бледно-красная подложка. */
+.pt-study-page .pt-ex-option {
+  align-items: center;
+  min-height: 52px;
+  padding: 12px 16px;
+  font-size: var(--pt-size-body);
+  font-weight: 500;
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    border-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-study-page .pt-ex-option:hover {
+  background: var(--pt-bg);
+}
+
+.pt-study-page .pt-ex-option:has(input:checked) {
+  background: var(--pt-accent-soft);
+}
+
+.pt-study-page .pt-ex-option input {
+  margin-top: 0;
+}
+
+/* Разбор: мягкая подложка без рамки, кружок с отметкой у заголовка, текст без отступа списка. */
+.pt-study-page .pt-ex-explain {
+  gap: 8px;
+  padding: 16px 18px;
+  border: 0;
+}
+
+.pt-study-page .pt-ex-explain-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--pt-size-body);
+}
+
+.pt-study-page .pt-ex-explain-heading::before {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--pt-radius-chip);
+  /* Белая отметка в светлой теме, тёмная в тёмной: на зелёном и красном обеих тем ≥4.5:1. */
+  color: var(--pt-on-accent);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pt-study-page .pt-ex-explain-ok .pt-ex-explain-heading::before {
+  content: "✓";
+  background: var(--pt-ok);
+}
+
+.pt-study-page .pt-ex-explain-bad .pt-ex-explain-heading::before {
+  content: "✕";
+  background: var(--pt-error);
+}
+
+.pt-study-page .pt-ex-explain-list {
+  padding-inline-start: 34px;
+  list-style: none;
+}
+
+.pt-study-page .pt-ex-correct-answer {
+  padding-inline-start: 34px;
+}
+
+/* Кнопка действия — справа под волосяной линией, как нижняя панель урока. */
+.pt-study-page .pt-lesson-card .pt-lesson-actions {
+  justify-content: flex-end;
+  margin: 4px -32px -28px;
+  padding: 16px 32px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-study-page .pt-lesson-card > .pt-btn {
+  align-self: flex-end;
+}
+
+@media (max-width: 520px) {
+  .pt-study-page .pt-lesson-card .pt-lesson-actions {
+    margin: 4px -20px -20px;
+    padding: 14px 20px;
+  }
+
+  .pt-study-page .pt-lesson-card .pt-lesson-actions .pt-btn {
+    flex: 1;
+  }
 }
 
 /* ---------- Профессии (PORT-4c) ---------- */
@@ -3863,16 +4266,18 @@
   justify-content: flex-end;
 }
 
+/* Пузыри как в мессенджере (08.11.2026): крупное скругление, у «хвоста» угол острее. */
 .pt-chat-bubble {
   max-width: min(85%, 560px);
   padding: 10px 14px;
   border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-item);
+  border-radius: 18px 18px 18px 6px;
   background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
 }
 
 .pt-chat-bubble-mine {
+  border-radius: 18px 18px 6px 18px;
   border-color: color-mix(in srgb, var(--pt-accent) 32%, var(--pt-line));
   background: color-mix(in srgb, var(--pt-accent) 6%, var(--pt-surface));
 }
@@ -4209,6 +4614,54 @@
   justify-self: start;
 }
 
+/*
+ * Телефон: две плитки в ряд (08.11.2026, пользователь: «давай на телефонной версии будет 2 карточки в ряду»).
+ * Обложка выше (4:3), чтобы фото читалось в узкой плитке; номер, плашка темы, название и подписи мельче.
+ */
+@media (max-width: 600px) {
+  .pt-lesson-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .pt-lesson-cover {
+    aspect-ratio: 4 / 3;
+  }
+
+  .pt-lesson-cover-photo {
+    padding: 8px;
+  }
+
+  .pt-lesson-cover-photo .pt-lesson-num {
+    padding: 2px 8px;
+    font-size: var(--pt-size-tab);
+  }
+
+  .pt-lesson-tile .pt-lesson-label {
+    right: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+    padding: 3px 6px;
+    overflow: hidden;
+    font-size: var(--pt-size-tab);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pt-lesson-tile-body {
+    gap: 4px;
+    padding: 10px 12px 12px;
+  }
+
+  .pt-lesson-tile-title {
+    font-size: var(--pt-size-secondary);
+  }
+
+  .pt-lesson-tile-state {
+    font-size: var(--pt-size-tab);
+  }
+}
+
 /* ---------- «Входящие» (03.11.2026, по образцу кабинета пользователя) ----------
  * Слева список: «Что нового» и переписка с командой EVO; справа — открытое.
  * От 1100 px — две колонки, уже — список над открытым. Цвета — прежние токены.
@@ -4408,6 +4861,162 @@
   }
 }
 
+/*
+ * Аватары «Входящих» (08.11.2026, «стильнее сделай»): команда EVO — белые буквы на фирменном красном (5.4:1),
+ * «Что нового» — красный колокольчик на бледно-красном круге. Так же в шапке открытого.
+ */
+.pt-inbox .pt-inbox-avatar.pt-inbox-avatar-team {
+  background: var(--pt-accent);
+  box-shadow: none;
+  color: var(--pt-on-accent);
+  font-weight: 700;
+}
+
+.pt-inbox .pt-inbox-avatar.pt-inbox-avatar-updates {
+  background: var(--pt-accent-soft);
+  box-shadow: none;
+  color: var(--pt-accent);
+}
+
+/* Стрелка к списку чатов есть только на телефоне. */
+.pt-inbox-back {
+  display: none;
+}
+
+/*
+ * Телефон — как мессенджер (08.11.2026, пользователь: «тут нужно сделать как в мессенджере, только для
+ * телефонного»): открытое на весь экран между шапкой и панелью вкладок, без рамок и заголовка страницы; список
+ * и открытое — по очереди, как в Telegram: «Входящие» — список чатов, нажатие открывает чат со стрелкой назад.
+ * Пустая переписка — тихая подсказка посередине, а не карточка.
+ */
+@media (max-width: 767px) {
+  .pt-inbox-page {
+    padding: 0;
+  }
+
+  /* Заголовок «Входящие» над списком чатов; у открытого чата его заменяет шапка чата. */
+  .pt-inbox-page > .pt-page-header {
+    padding: 8px var(--pt-gutter) 12px;
+  }
+
+  .pt-inbox-page > .pt-page-header .pt-page-title {
+    font-size: var(--pt-size-title);
+  }
+
+  .pt-inbox-page:has(.pt-inbox[data-open="pane"]) > .pt-page-header {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .pt-inbox {
+    display: block;
+    margin: 0;
+  }
+
+  /* Список чатов — на весь экран, как в Telegram: без рамок, строки через линию. */
+  .pt-inbox-side {
+    border: 0;
+    border-block-start: 1px solid var(--pt-line);
+    border-radius: 0;
+    background: var(--pt-surface);
+    box-shadow: none;
+  }
+
+  .pt-inbox[data-open="pane"] .pt-inbox-side,
+  .pt-inbox[data-open="list"] .pt-inbox-pane {
+    display: none;
+  }
+
+  .pt-inbox-item {
+    gap: 14px;
+    min-height: 76px;
+    padding: 12px 16px;
+  }
+
+  .pt-inbox-list > li + li {
+    border-top: 0;
+  }
+
+  /* Линия между чатами начинается после аватара, как в Telegram. */
+  .pt-inbox-list > li + li .pt-inbox-item {
+    box-shadow: inset 78px 0 0 var(--pt-surface), inset 0 1px 0 var(--pt-line);
+  }
+
+  .pt-inbox-avatar {
+    width: 50px;
+    height: 50px;
+    font-size: var(--pt-size-secondary);
+  }
+
+  .pt-inbox-item-title {
+    font-size: var(--pt-size-body);
+  }
+
+  .pt-inbox-item-preview {
+    font-size: var(--pt-size-secondary);
+  }
+
+  .pt-inbox-side-foot {
+    padding: 14px 16px;
+    border-top: 8px solid var(--pt-bg);
+  }
+
+  .pt-inbox-item[aria-current="page"] {
+    background: transparent;
+  }
+
+  .pt-inbox-back {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 44px;
+    margin-inline-start: -8px;
+    color: var(--pt-text);
+  }
+
+  .pt-inbox-pane,
+  .pt-inbox-pane:has(.pt-inbox-pane-body-chat) {
+    height: calc(100dvh - var(--pt-topbar-height) - 96px - env(safe-area-inset-bottom));
+    min-height: 360px;
+    border: 0;
+    border-block-start: 1px solid var(--pt-line);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .pt-inbox-pane-head {
+    padding: 10px 16px;
+  }
+
+  .pt-inbox-pane-body {
+    padding: 16px;
+  }
+
+  .pt-chat-scroll {
+    padding: 12px 16px;
+  }
+
+  .pt-inbox-pane-body-chat .pt-chat-empty {
+    margin: auto 0;
+    padding: 24px 8px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pt-inbox-pane-body-chat .pt-chat-empty .pt-section-title {
+    font-size: var(--pt-size-body);
+  }
+
+  .pt-inbox-pane-body-chat .pt-chat-composer {
+    padding: 8px 12px;
+  }
+}
+
 /* Переписка: лента прокручивается сама, поле ввода прижато к низу колонки. */
 .pt-inbox-pane-body-chat {
   display: flex;
@@ -4487,6 +5096,74 @@
 
 .pt-inbox-pane-body-chat .pt-chat > .pt-chat-refresh-error {
   margin: 0 20px 12px;
+}
+
+/*
+ * Переписка как в Telegram (08.11.2026, пользователь: «вот примерно как в тг сделай»), в светлых цветах кабинета:
+ * пузыри без рамки с лёгкой тенью, имя отправителя сверху красным, время мелко справа внизу пузыря, дата плашкой
+ * по центру, поле ввода — скруглённая строка с круглой кнопкой-стрелкой.
+ */
+.pt-chat-bubble {
+  padding: 6px 12px 6px;
+  border: 0;
+  box-shadow: 0 1px 1px rgb(16 24 40 / 0.08);
+}
+
+.pt-chat-bubble-mine {
+  background: var(--pt-accent-soft);
+}
+
+.pt-chat-author {
+  margin: 0 0 2px;
+  color: var(--pt-accent);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.pt-chat-body {
+  line-height: 1.4;
+}
+
+.pt-chat-meta,
+.pt-chat-item-mine .pt-chat-meta {
+  justify-content: flex-end;
+  margin: 2px 0 0;
+}
+
+.pt-chat-meta time {
+  font-family: var(--pt-font-sans);
+  font-size: var(--pt-size-tab);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-chat-day span {
+  padding: 3px 12px;
+  border: 0;
+  background: var(--pt-surface);
+  box-shadow: 0 1px 1px rgb(16 24 40 / 0.08);
+  font-weight: 600;
+}
+
+.pt-inbox-pane-body-chat .pt-chat-composer {
+  align-items: center;
+  column-gap: 8px;
+}
+
+.pt-inbox-pane-body-chat .pt-chat-input {
+  min-height: 44px;
+  max-height: 140px;
+  padding-block: 10px;
+  padding-inline: 16px;
+  border-radius: 22px;
+  resize: none;
+}
+
+.pt-chat-send {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--pt-radius-chip);
 }
 
 /* ---------- «Моё поступление» в Атласе (PORT-5d) ---------- */
@@ -4663,6 +5340,69 @@
 
 .pt-stat-tiles > li > .pt-stat-tile {
   height: 100%;
+}
+
+/* Плитка-ссылка (08.11.2026): значок в бледно-красном круге, число с подписью и стрелка; по наведению приподнята. */
+.pt-stat-tile-link {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--pt-line);
+  color: var(--pt-text);
+  text-decoration: none;
+  transition:
+    box-shadow var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-fast) var(--pt-ease-out);
+}
+
+.pt-stat-tile-link:hover {
+  box-shadow: var(--pt-shadow-raised);
+  transform: translateY(-2px);
+}
+
+.pt-stat-tile-link:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-stat-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent-soft);
+  color: var(--pt-accent);
+}
+
+.pt-stat-text {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pt-stat-arrow {
+  flex-shrink: 0;
+  color: var(--pt-text-2);
+}
+
+@media (max-width: 520px) {
+  .pt-stat-tile-link {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .pt-stat-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .pt-stat-arrow {
+    display: none;
+  }
 }
 
 /* Этап, куратор, задача EVO и связь — строка коротких карточек. */
@@ -5191,6 +5931,109 @@ main.pt-page > .pt-card {
   margin: 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+}
+
+/*
+ * Полоса «Чеклиста» и подписи под ней (08.11.2026): доля принятых, на проверке, к исправлению и не загруженных.
+ * Цвет — смысл статуса, рядом всегда слово и число.
+ */
+.pt-docs-status-main {
+  flex: 1;
+}
+
+/* Карточка «Чеклист» как у образца: крупнее, знак сверху слева, подпись мелко, состояние крупно. */
+.pt-docs-status {
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px 24px;
+}
+
+.pt-docs-status .pt-docs-status-mark {
+  width: 48px;
+  height: 48px;
+  background: var(--pt-accent-soft);
+  color: var(--pt-accent);
+}
+
+.pt-docs-status .pt-docs-status-mark[data-icon="check"] {
+  background: color-mix(in srgb, var(--pt-ok) 12%, var(--pt-surface));
+  color: var(--pt-ok);
+}
+
+.pt-docs-status .pt-docs-status-title {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pt-docs-status-share {
+  margin: 2px 0 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.pt-docs-meter {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: var(--pt-radius-chip);
+}
+
+.pt-docs-meter > span {
+  min-width: 8px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-line);
+}
+
+.pt-docs-meter > [data-kind="approved"],
+.pt-docs-counts > [data-kind="approved"]::before {
+  background: var(--pt-ok);
+}
+
+.pt-docs-meter > [data-kind="submitted"],
+.pt-docs-counts > [data-kind="submitted"]::before {
+  background: var(--pt-text);
+}
+
+.pt-docs-meter > [data-kind="correction"],
+.pt-docs-counts > [data-kind="correction"]::before {
+  background: var(--pt-warn);
+}
+
+.pt-docs-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-docs-counts > li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pt-docs-counts > li::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-line);
+}
+
+.pt-docs-counts strong {
+  color: var(--pt-text);
+  font-weight: 600;
 }
 
 .pt-docs-list {
@@ -6350,7 +7193,23 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-home-columns {
     display: grid;
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    align-items: start;
+    align-items: stretch;
+  }
+
+  /*
+   * Колонки кончаются на одной линии: последняя карточка короткой колонки дотягивается вниз (08.11.2026, как у
+   * образца). Карточка лежит в слоте (#1416), поэтому тянется и слот, и карточка в нём.
+   */
+  .pt-home-main > :last-child,
+  .pt-home-side > :last-child {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+
+  .pt-home-main > .pt-home-slot:last-child > *,
+  .pt-home-side > .pt-home-slot:last-child > * {
+    flex-grow: 1;
   }
 
   .pt-home-main,
@@ -6415,6 +7274,10 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   }
 }
 
+/*
+ * Значок пустого состояния: красный на бледно-красном круге (08.11.2026, пользователь: «давай сделаем эти значки
+ * красноватыми как в акылмане только для нас»). Значок 4.7:1 к кругу в обеих темах (графика ≥3:1).
+ */
 .pt-home-empty-icon {
   display: grid;
   place-items: center;
@@ -6422,8 +7285,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   height: 48px;
   margin-bottom: 8px;
   border-radius: var(--pt-radius-chip);
-  background: var(--pt-bg);
-  color: var(--pt-text-2);
+  background: var(--pt-accent-soft);
+  color: var(--pt-accent);
 }
 
 .pt-home-empty-title {
@@ -6757,12 +7620,11 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   border-top: 1px solid var(--pt-line);
 }
 
+/* Ближайший набор — третьей строкой под городом у каждого вуза, а не справа: длинное название не сбивает строку (08.11.2026). */
 .pt-home-fav-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 24px;
+  flex-direction: column;
+  gap: 2px;
   min-height: 44px;
   padding: 12px 0;
   color: inherit;
@@ -6806,6 +7668,12 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
  * «закрывается через N дней» выделено весом, не цветом (как .cs-session-soon
  * в блоке сессий раздела).
  */
+
+/* Заголовок «CSCA» того же размера, что у соседних карточек колонки (08.11.2026). */
+.pt-home-csca .pt-home-card-title {
+  font-size: var(--pt-size-body);
+  line-height: 1.3;
+}
 
 .pt-home-csca-session {
   display: flex;
@@ -8137,8 +9005,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   transition: none;
 }
 
-.pt-nav[data-indicator] .pt-nav-link[aria-current="page"]::before,
-.pt-nav[data-indicator] .pt-nav-more-toggle[data-current-inside]::before {
+.pt-nav[data-indicator] .pt-nav-link[aria-current="page"]::before {
   content: none;
 }
 

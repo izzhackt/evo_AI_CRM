@@ -33,7 +33,7 @@ const shellRu = {
   // Кнопка «солнце/луна»: имя постоянное, состояние — aria-pressed.
   "theme.dark": "Тёмная тема",
   openingSection: "Открываем раздел «{label}»",
-  "nav.more": "Ещё",
+  "nav.menu": "Меню",
   "nav.home": "Главная",
   "nav.overview": "Поступление",
   "nav.documents": "Документы",
@@ -74,7 +74,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   // KY: носитель языка вычитывает в PR.
   "theme.dark": "Караңгы тема",
   openingSection: "«{label}» бөлүмүн ачып жатабыз",
-  "nav.more": "Дагы",
+  "nav.menu": "Меню",
   "nav.home": "Башкы бет",
   "nav.overview": "Тапшыруу",
   "nav.documents": "Документтер",
@@ -1486,6 +1486,7 @@ const messagesRu = {
   listAria: "Переписка и новости",
   chatTitle: "Команда EVO",
   chatSubline: "Куратор и команда отвечают здесь",
+  backToList: "Все чаты",
   updatesTitle: "Что нового",
   updatesSubline: "Новости по вашему делу, отвечать не нужно",
   updatesUnavailable: "Не удалось загрузить новости. Обновите страницу.",
@@ -1522,6 +1523,7 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
   listAria: "Кат алышуу жана жаңылыктар",
   chatTitle: "EVO командасы",
   chatSubline: "Куратор жана команда ушул жерде жооп берет",
+  backToList: "Бардык маектер",
   updatesTitle: "Эмне жаңы",
   updatesSubline: "Ишиңиз боюнча жаңылыктар, жооп берүүнүн кереги жок",
   updatesUnavailable: "Жаңылыктар жүктөлгөн жок. Баракты жаңыртыңыз.",

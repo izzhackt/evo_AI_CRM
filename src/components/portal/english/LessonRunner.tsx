@@ -337,8 +337,11 @@ export function LessonRunner({
     const meta = view.lesson.metadata;
     return (
       <section className="pt-lesson-card">
-        <h2 ref={heading} tabIndex={-1} className="pt-section-title">{strings.goalHeading}</h2>
-        <p className="pt-lesson-goal">{locale === "ky" ? meta.goal_ky : meta.goal_ru}</p>
+        {/* Цель — плашкой над объяснением (08.11.2026): под заголовком страницы её больше нет. */}
+        <div className="pt-lesson-goal-box">
+          <h2 ref={heading} tabIndex={-1} className="pt-lesson-goal-label">{strings.goalHeading}</h2>
+          <p className="pt-lesson-goal">{locale === "ky" ? meta.goal_ky : meta.goal_ru}</p>
+        </div>
         <h2 className="pt-section-title">{strings.theoryHeading}</h2>
         <div className="pt-theory">
           {view.lesson.theory.map((block, blockIndex) => (
@@ -411,6 +414,14 @@ export function LessonRunner({
           {busy ? ` · ${strings.saving}` : resultAnnouncement ? ` · ${resultAnnouncement}` : ""}
         </span>
       </p>
+      {/* Полоса заданий (08.11.2026): верные зелёные, ошибки красные, текущее тёмное; число — строкой выше. */}
+      <span className="pt-ex-meter" aria-hidden="true">
+        {exercises.map((exercise, exerciseIndex) => {
+          const entry = answered[exercise.exerciseId];
+          const state = entry ? (entry.verdict.correct ? "ok" : "bad") : exerciseIndex === index ? "current" : undefined;
+          return <span key={exercise.exerciseId} data-state={state} />;
+        })}
+      </span>
       <section className="pt-lesson-card">
         <h2 ref={heading} tabIndex={-1} className="pt-sr-only">
           {formatPortalString(strings.exerciseCounter, { n: String(index + 1), total: String(total) })}

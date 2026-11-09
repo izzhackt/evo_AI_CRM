@@ -1,3 +1,4 @@
+import { ChevronRight, GraduationCap, Landmark } from "lucide-react";
 import Link from "next/link";
 
 import type { Locale } from "@/lib/i18n-data";
@@ -67,9 +68,10 @@ export function OverviewView({ overview, pending = false, locale, favoritesCount
   const evoAction = overview?.evoAction ?? null;
   const evoDue = evoAction ? evoActionDueLabel(evoAction) : null;
   const evoStatus = evoAction ? evoActionStatus(evoAction, strings) : null;
+  // 08.11.2026 («стильнее»): у плитки значок в бледно-красном круге и стрелка, вся плитка ведёт на свою вкладку ниже.
   const tiles = [
-    { key: "favorites", value: favoritesCount, label: strings["tile.favorites"] },
-    { key: "programs", value: programsCount, label: strings["tile.programs"] },
+    { key: "favorites", value: favoritesCount, label: strings["tile.favorites"], href: "/portal", Icon: Landmark },
+    { key: "programs", value: programsCount, label: strings["tile.programs"], href: "/portal?view=programs", Icon: GraduationCap },
   ].filter((tile) => tile.value !== null);
 
   return (
@@ -78,10 +80,16 @@ export function OverviewView({ overview, pending = false, locale, favoritesCount
         <ul className="pt-stat-tiles" aria-label={strings.tilesLabel}>
           {tiles.map((tile) => (
             <li key={tile.key}>
-              <div className="pt-stat-tile">
-                <span className="pt-stat-value">{tile.value}</span>
-                <span className="pt-stat-label">{tile.label}</span>
-              </div>
+              <Link href={tile.href} className="pt-stat-tile pt-stat-tile-link">
+                <span className="pt-stat-icon" aria-hidden="true">
+                  <tile.Icon size={22} strokeWidth={1.75} />
+                </span>
+                <span className="pt-stat-text">
+                  <span className="pt-stat-value">{tile.value}</span>
+                  <span className="pt-stat-label">{tile.label}</span>
+                </span>
+                <ChevronRight className="pt-stat-arrow" size={20} strokeWidth={1.75} aria-hidden="true" />
+              </Link>
             </li>
           ))}
         </ul>

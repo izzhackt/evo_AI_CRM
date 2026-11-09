@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
+
 import type { Locale } from "@/lib/i18n-data";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
@@ -38,6 +40,7 @@ export function NotificationsView({
   if (notifications.length === 0) {
     return (
       <section className="pt-adm-empty">
+        <EmptyIcon name="bell" />
         <h2 className="pt-section-title">{strings.notificationsEmptyTitle}</h2>
         <p className="pt-adm-empty-body">{strings.notificationsEmptyBody}</p>
       </section>

@@ -101,6 +101,23 @@ export function documentProgress(documents: readonly Pick<StudentPortalDocument,
 }
 
 /**
+ * Подписи полосы «Чеклиста» (08.11.2026): сколько принято, на проверке, исправить и не загружено — слово и число;
+ * ключ (`kind`) красит отрезок полосы и точку. Пустые не показываются.
+ */
+export function documentProgressCounts(
+  documents: readonly Pick<StudentPortalDocument, "status">[],
+  strings: AdmissionStrings,
+) {
+  const progress = documentProgress(documents);
+  return [
+    { kind: "approved", label: strings.acceptedLabel, count: progress.approved },
+    { kind: "submitted", label: strings["docStatus.submitted"], count: progress.inReview },
+    { kind: "correction", label: strings["docStatus.correction_required"], count: progress.corrections },
+    { kind: "required", label: strings["docStatus.required"], count: progress.missing },
+  ].filter((item) => item.count > 0);
+}
+
+/**
  * Значок строки «Документов» (03.11.2026) рядом со словом статуса — смысл
  * несёт слово.
  */

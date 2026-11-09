@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ReviewRunner } from "@/components/portal/csca/ReviewRunner";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { cscaDayLabel } from "@/lib/portal/csca";
@@ -44,6 +45,7 @@ export default async function CscaReviewPage() {
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : review.items.length === 0 ? (
         <div className="cs-empty">
+          <EmptyIcon name="csca" />
           <p className="cs-empty-title">{strings.reviewEmptyTitle}</p>
           <p className="cs-empty-body">
             {review.activeCount > 0 && review.nextDueOn

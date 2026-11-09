@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LessonCover } from "@/components/portal/english/LessonCover";
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { LearningModule } from "@/lib/portal/learning";
@@ -50,6 +51,7 @@ export default async function EnglishPage() {
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : modules.length === 0 ? (
         <div className="pt-empty">
+          <EmptyIcon name="english" />
           <p className="pt-empty-title">{strings.emptyTitle}</p>
           <p className="pt-empty-body">{strings.emptyBody}</p>
         </div>

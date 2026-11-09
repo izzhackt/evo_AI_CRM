@@ -1,3 +1,5 @@
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
+
 import type { Locale } from "@/lib/i18n-data";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import type { StudentPortalPayment } from "@/lib/v3/portal-source";
@@ -28,6 +30,7 @@ export function PaymentsView({
   if (payments.length === 0) {
     return (
       <section className="pt-adm-empty">
+        <EmptyIcon name="payments" />
         <h2 className="pt-section-title">{strings.paymentsEmptyTitle}</h2>
         <p className="pt-adm-empty-body">{strings.paymentsEmptyBody}</p>
       </section>

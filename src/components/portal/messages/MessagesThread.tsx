@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
+
 import type { Locale } from "@/lib/i18n-data";
 import {
   PORTAL_CASE_MESSAGE_BODY_LIMIT,
@@ -76,7 +78,8 @@ export function MessagesThread({
   const [justSent, setJustSent] = useState(false);
   const [sending, startSending] = useTransition();
 
-  useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null, rootRef);
 
   const refreshRef = useRef<() => void>(() => {});
   // A11y (PORT-6a): зеркало messages для поллинга (замыкание в refresh()
@@ -235,7 +238,7 @@ export function MessagesThread({
   const todayKey = dayKey.format(new Date());
 
   return (
-    <div className="pt-chat">
+    <div ref={rootRef} className="pt-chat">
       {awaitState === "awaiting_student" ? (
         <p role="status" className="pt-chat-awaiting">{strings.awaitingYou}</p>
       ) : null}
@@ -262,6 +265,7 @@ export function MessagesThread({
 
       {messages.length === 0 ? (
         <div className="pt-chat-empty">
+          <EmptyIcon name="news" />
           <h2 className="pt-section-title">{strings.emptyTitle}</h2>
           <p className="pt-chat-empty-body">{strings.emptyBody}</p>
         </div>
@@ -282,6 +286,8 @@ export function MessagesThread({
               className={message.mine ? "pt-chat-item pt-chat-item-mine" : "pt-chat-item"}
             >
               <div className={message.mine ? "pt-chat-bubble pt-chat-bubble-mine" : "pt-chat-bubble"}>
+                {/* Как в Telegram (08.11.2026): имя отправителя входящего — сверху цветом, время — внутри пузыря справа. */}
+                {message.mine ? null : <p className="pt-chat-author">{message.authorName}</p>}
                 {message.quotedBodyPreview !== null ? (
                   <p className="pt-chat-quote">
                     {formatPortalString(strings.quotedPrefix, { preview: message.quotedBodyPreview })}
@@ -302,7 +308,6 @@ export function MessagesThread({
                   </p>
                 ) : null}
                 <p className="pt-chat-meta">
-                  {message.mine ? null : <span className="pt-chat-author">{message.authorName}</span>}
                   <time dateTime={message.createdAt}>
                     {timeLabel.format(new Date(message.createdAt))}
                   </time>
@@ -340,7 +345,7 @@ export function MessagesThread({
         <textarea
           id="portal-chat-composer"
           className="pt-input pt-chat-input"
-          rows={2}
+          rows={1}
           aria-describedby="portal-chat-limit"
           maxLength={PORTAL_CASE_MESSAGE_BODY_LIMIT}
           placeholder={strings.composerPlaceholder}
@@ -356,12 +361,16 @@ export function MessagesThread({
           }}
           disabled={sending}
         />
+        {/* Круглая кнопка со стрелкой, как в Telegram; подпись остаётся доступным именем. */}
         <button
           type="submit"
           className="pt-btn pt-chat-send"
           disabled={sending || stale || draft.trim().length < 1}
         >
-          {sending ? strings.sending : strings.send}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="pt-sr-only">{sending ? strings.sending : strings.send}</span>
         </button>
         <p id="portal-chat-limit" className="pt-sr-only">{strings.limitHint}</p>
         <p role="status" className="pt-chat-send-status">

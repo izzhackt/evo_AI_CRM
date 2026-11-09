@@ -4,6 +4,21 @@ import { useLinkStatus } from "next/link";
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { usePathname } from "next/navigation";
 import {
+  BriefcaseBusiness,
+  CircleUserRound,
+  FileText,
+  GraduationCap,
+  House,
+  Landmark,
+  Languages,
+  ListChecks,
+  Menu,
+  MessagesSquare,
+  NotebookPen,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+import {
   useEffect,
   useId,
   useRef,
@@ -36,11 +51,12 @@ import type { Theme } from "@/lib/theme";
  * на узком экране — полоса сверху (логотип, колокольчик, тема) и нижняя
  * панель вкладок. Стили — только pt-классы из src/app/(portal)/portal.css.
  *
- * Телефон (#1113): в панели первые PHONE_TAB_COUNT разделов уровня доступа и
- * «Ещё»; остальные разделы открывает лист «Ещё» над панелью. Ссылки в DOM
- * одни и те же для рейла и для телефона (по одной на раздел, в порядке рейла):
- * первый список — вкладки, второй — лист; на широком экране оба рисуются
- * подряд как обычный рейл, а «Ещё» скрыта.
+ * Телефон (08.11.2026, по образцу кабинета Акылмана): парящая панель из
+ * четырёх вкладок (PHONE_TABS) и тёмное меню слева со всеми разделами по
+ * кнопке в шапке. Первым в DOM идёт полный список разделов — на широком
+ * экране это рейл, на телефоне меню; за ним список вкладок, который виден
+ * только на телефоне. Поэтому первая ссылка на раздел в nav — всегда ссылка
+ * рейла.
  *
  * Движение (анимации кабинета студента, PLAN_CHANGES 02.10): страница в
  * `#portal-content` оборачивается в `display: contents`-обёртку с key=pathname —
@@ -97,12 +113,10 @@ const SECTIONS = [
 }[];
 
 /**
- * Сколько разделов нижняя панель телефона показывает до «Ещё»: подпись 12 px
- * в Golos («Поступление» ≈ 79 px) должна помещаться в колонку при четырёх
- * колонках уже от ~360 px; с двенадцатью колонками (#1113) 7–8 разделов
- * уходили за край экрана.
+ * Вкладки парящей нижней панели телефона (08.11.2026, по образцу кабинета Акылмана): четыре главных раздела; все
+ * разделы — в тёмном меню, которое выезжает слева по кнопке в шапке. Прежний лист «Ещё» больше не нужен.
  */
-const PHONE_TAB_COUNT = 3;
+const PHONE_TABS: readonly string[] = ["/portal/home", "/portal", "/portal/documents", "/portal/messages"];
 
 /** Раздел, который на широком экране ведёт карточка студента внизу рейла. */
 const RAIL_ACCOUNT_HREF = "/portal/profile";
@@ -126,12 +140,12 @@ function useActiveTabIndicator(navRef: RefObject<HTMLElement | null>, pathname: 
     if (!nav) return;
     const place = (snap: boolean) => {
       const wide = window.matchMedia("(min-width: 768px)").matches;
-      // Телефон: вкладки панели или «Ещё»; ссылки листа скрыты и индикатору не
-      // принадлежат. Широкий экран: рейл — все ссылки подряд.
+      // Телефон: вкладки панели; ссылки меню индикатору не принадлежат.
+      // Широкий экран: рейл — полный список разделов.
       const target = nav.querySelector<HTMLElement>(
         wide
-          ? 'li:not([data-rail-hidden]) > .pt-nav-link[aria-current="page"]'
-          : '.pt-nav-bar .pt-nav-link[aria-current="page"], .pt-nav-more-toggle[data-current-inside]',
+          ? '.pt-nav-full li:not([data-rail-hidden]) > .pt-nav-link[aria-current="page"]'
+          : '.pt-nav-bar .pt-nav-link[aria-current="page"]',
       );
       const instant = snap || nav.getAttribute("data-indicator") !== "ready";
       if (instant) nav.setAttribute("data-indicator-snap", "");
@@ -181,58 +195,33 @@ function NavigationLabel({ label, opening }: { label: string; opening: string })
   );
 }
 
-function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] }) {
-  const paths: Record<(typeof SECTIONS)[number]["key"], string> = {
-    // Главная: дом.
-    "nav.home": "M3.5 9.5 10 3.5l6.5 6M5.5 8.2V16h9V8.2M8.5 16v-4h3v4",
-    // Поступление: флажок у цели маршрута.
-    "nav.overview": "M5 17V3.5M5 3.5h9.5l-2 3.5 2 3.5H5",
-    // Документы: лист с загнутым углом.
-    "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
-    // Оплата: карта.
-    "nav.payments": "M3 5.5h14v9H3zM3 8.5h14M6 12h3",
-    // Входящие (переписка и «Что нового»): пузырь диалога.
-    "nav.messages": "M3.5 4.5h13v8.5h-7.2L6 16v-3H3.5zM6.8 7.5h6.4M6.8 10h4.4",
-    // Университеты: здание с колоннами.
-    "nav.universities": "M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 15h14",
-    // Профессии: компас — исследование направлений.
-    "nav.professions": "M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM12.8 7.2l-1.6 4-4 1.6 1.6-4z",
-    // Английский: открытая книга.
-    "nav.english": "M10 5.2C8.8 4.2 7 3.7 4.6 3.7c-.6 0-1.1 0-1.6.1v11.4c.5-.1 1-.1 1.6-.1 2.4 0 4.2.5 5.4 1.5 1.2-1 3-1.5 5.4-1.5.6 0 1.1 0 1.6.1V3.8c-.5-.1-1-.1-1.6-.1-2.4 0-4.2.5-5.4 1.5zM10 5.2v11.4",
-    // CSCA: оси и кривая графика.
-    "nav.csca": "M4 3.5v12.5h12.5M6.5 13.5c1.6-.2 2.6-1.4 3.5-3.6.9-2.3 2.2-4.4 5-4.9",
-    // Тесты: планшет с отметкой.
-    "nav.tests": "M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM8 3.5V2.8h4v.7M7.7 10.2l1.6 1.6 3-3.3",
-    // Профиль: человек.
-    "nav.profile": "M10 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 16.5c.7-2.9 3-4.5 6-4.5s5.3 1.6 6 4.5",
-  };
-  return (
-    <svg
-      className="pt-nav-icon"
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path d={paths[section]} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+/*
+ * Значки разделов — готовый набор Lucide (lucide-react, уже в проекте у shadcn/ui), по смыслу названий (08.11.2026,
+ * пользователь: «мне не нравятся иконки, можешь лучше нарисовать и в тему названиям»). Один штрих 1.75 на 20 px.
+ */
+const SECTION_ICONS: Record<(typeof SECTIONS)[number]["key"], LucideIcon> = {
+  "nav.home": House,
+  // Поступление: шапочка выпускника — цель всего пути.
+  "nav.overview": GraduationCap,
+  "nav.documents": FileText,
+  "nav.payments": Wallet,
+  "nav.messages": MessagesSquare,
+  // Университеты: здание с колоннами.
+  "nav.universities": Landmark,
+  // Профессии: портфель.
+  "nav.professions": BriefcaseBusiness,
+  // Английский: значок перевода «文A».
+  "nav.english": Languages,
+  // CSCA: тетрадь с ручкой — подготовка к экзамену.
+  "nav.csca": NotebookPen,
+  // Тесты: список с отметками.
+  "nav.tests": ListChecks,
+  "nav.profile": CircleUserRound,
+};
 
-function MoreIcon() {
-  return (
-    <svg
-      className="pt-nav-icon"
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path d="M4.5 10h.01M10 10h.01M15.5 10h.01" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-    </svg>
-  );
+function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] }) {
+  const Icon = SECTION_ICONS[section];
+  return <Icon className="pt-nav-icon" size={20} strokeWidth={1.75} aria-hidden="true" />;
 }
 
 export function Shell({
@@ -261,23 +250,21 @@ export function Shell({
   const strings = getPortalStrings("shell", locale);
   const sections = SECTIONS.filter((section) =>
     (section.tiers as readonly PortalAccessTier[]).includes(accessTier));
-  const tabSections = sections.slice(0, PHONE_TAB_COUNT);
-  const moreSections = sections.slice(PHONE_TAB_COUNT);
+  const tabSections = sections.filter((section) => PHONE_TABS.includes(section.href));
 
   const isActive = (section: (typeof SECTIONS)[number]) =>
     pathname === section.href
     || (section.href !== "/portal" && pathname.startsWith(`${section.href}/`));
-  const currentInMore = moreSections.some(isActive);
 
-  // Лист «Ещё» принадлежит одному адресу: любая смена адреса — тап по разделу,
+  // Меню телефона принадлежит одному адресу: любая смена адреса — тап по разделу,
   // «Назад», «Вперёд» — закрывает его, и возврат на тот же адрес его не
   // открывает (Shell живёт в общем layout, состояние переживает навигацию).
-  // Сброс при смене адреса делается прямо в рендере, без эффекта: лист не
+  // Сброс при смене адреса делается прямо в рендере, без эффекта: меню не
   // успевает мигнуть открытым.
-  const sheetId = useId();
+  const menuId = useId();
   const [openAt, setOpenAt] = useState<string | null>(null);
   if (openAt !== null && openAt !== pathname) setOpenAt(null);
-  const moreOpen = openAt === pathname;
+  const menuOpen = openAt === pathname;
   const navRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const [unread, setUnread] = useState<number | null>(null);
@@ -288,10 +275,10 @@ export function Shell({
   };
   useActiveTabIndicator(navRef, pathname, sections.length);
 
-  // Лист не диалог: страница под ним доступна. Закрывают его Escape (фокус
-  // возвращается на «Ещё»), касание вне панели и уход фокуса с панели.
+  // Меню не диалог: страница под ним доступна. Закрывают его Escape (фокус
+  // возвращается на кнопку меню), касание вне меню и уход фокуса с него.
   useEffect(() => {
-    if (!moreOpen) return;
+    if (!menuOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setOpenAt(null);
@@ -299,6 +286,8 @@ export function Shell({
     };
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && navRef.current?.contains(event.target)) return;
+      // Кнопка меню переключает его сама: касание по ней не считается «вне».
+      if (event.target instanceof Node && toggleRef.current?.contains(event.target)) return;
       setOpenAt(null);
     };
     document.addEventListener("keydown", onKeyDown);
@@ -307,11 +296,11 @@ export function Shell({
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [moreOpen]);
+  }, [menuOpen]);
 
   const closeWhenFocusLeaves = (event: FocusEvent<HTMLElement>) => {
     const next = event.relatedTarget;
-    if (moreOpen && next instanceof Node && !event.currentTarget.contains(next)) setOpenAt(null);
+    if (menuOpen && next instanceof Node && !event.currentTarget.contains(next)) setOpenAt(null);
   };
 
   const renderSection = (section: (typeof SECTIONS)[number]) => {
@@ -321,7 +310,7 @@ export function Shell({
     const count = section.href === "/portal/messages" && unread !== null && unread > 0 ? unread : null;
     const item = (
       // «Профиль» на широком экране открывает карточка студента внизу рейла
-      // (RailFooter), поэтому пункт виден только в листе «Ещё» на телефоне.
+      // (RailFooter), поэтому пункт виден только в меню телефона.
       <li key={section.href} data-rail-hidden={section.href === RAIL_ACCOUNT_HREF ? "" : undefined}>
         <IntentPrefetchLink
           href={section.href}
@@ -368,8 +357,22 @@ export function Shell({
             нижней панелью. */}
         <div className="pt-rail">
           <header className="pt-topbar">
+            {/* Кнопка меню телефона: открывает тёмное меню со всеми разделами (на широком экране скрыта). */}
+            <button
+              ref={toggleRef}
+              type="button"
+              className="pt-menu-toggle"
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              aria-label={strings["nav.menu"]}
+              onClick={() => setOpenAt(menuOpen ? null : pathname)}
+            >
+              <Menu size={20} strokeWidth={1.75} aria-hidden="true" />
+            </button>
             <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
-              <EvoLogo width={112} className="pt-logo-full" />
+              <EvoLogo width={88} className="pt-logo-full pt-logo-original" />
+              {/* Тёмный рейл широкого экрана: тот же lockup с белыми буквами, без подложки (08.11.2026). */}
+              <EvoLogo width={112} onDark className="pt-logo-full pt-logo-on-dark" />
               <EvoMark size={32} tone="mono" className="pt-logo-mark" />
             </IntentPrefetchLink>
             <div className="pt-topbar-actions">
@@ -401,37 +404,25 @@ export function Shell({
             className="pt-nav"
             onBlur={closeWhenFocusLeaves}
           >
+            {/*
+              Все разделы по группам: на широком экране это сам рейл, на телефоне — тёмное меню слева
+              по кнопке в шапке (08.11.2026, по образцу кабинета Акылмана).
+            */}
+            <div id={menuId} className="pt-nav-menu" data-open={menuOpen ? "" : undefined}>
+              <div className="pt-nav-menu-head" aria-hidden="true">
+                <EvoLogo width={112} onDark />
+              </div>
+              <ul className="pt-nav-list pt-nav-full">
+                {sections.map(renderSection)}
+              </ul>
+            </div>
+            {/* Телефон: парящая панель из четырёх вкладок; на широком экране скрыта. */}
             <ul
               className="pt-nav-list pt-nav-bar"
               style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
             >
               {tabSections.map(renderSection)}
-              {moreSections.length > 0 ? (
-                <li className="pt-nav-more-item">
-                  <button
-                    ref={toggleRef}
-                    type="button"
-                    className="pt-nav-more-toggle"
-                    aria-expanded={moreOpen}
-                    aria-controls={sheetId}
-                    data-current-inside={currentInMore ? "" : undefined}
-                    onClick={() => setOpenAt(moreOpen ? null : pathname)}
-                  >
-                    <MoreIcon />
-                    <span className="pt-nav-label">{strings["nav.more"]}</span>
-                  </button>
-                </li>
-              ) : null}
             </ul>
-            {moreSections.length > 0 ? (
-              <ul
-                id={sheetId}
-                className="pt-nav-list pt-nav-sheet"
-                data-open={moreOpen ? "" : undefined}
-              >
-                {moreSections.map(renderSection)}
-              </ul>
-            ) : null}
             <span aria-hidden="true" className="pt-nav-indicator" />
           </nav>
           {/* Широкий экран: язык и карточка студента внизу рейла; на телефоне их нет. */}

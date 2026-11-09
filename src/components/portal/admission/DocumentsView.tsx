@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 
+import { EmptyIcon } from "@/components/portal/home/HomeParts";
+
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { AI_CONSENT_PRIVACY_URL } from "@/lib/portal/ai-consent";
+import { defaultDocumentHint } from "@/lib/portal/document-hints";
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
 import { DocumentStatusIcon } from "./DocumentStatusIcon";
@@ -12,6 +15,7 @@ import {
   documentChecklistIcon,
   documentReviewLabel,
   documentProgress,
+  documentProgressCounts,
   documentStatus,
   formatPortalDeadline,
   formatPortalTimestamp,
@@ -48,6 +52,7 @@ export function DocumentsView({
         {tabs}
         {children ?? (
           <section className="pt-adm-empty">
+            <EmptyIcon name="documents" />
             <h2 className="pt-section-title">{strings.documentsEmptyTitle}</h2>
             <p className="pt-adm-empty-body">{strings.documentsEmptyBody}</p>
           </section>
@@ -57,6 +62,8 @@ export function DocumentsView({
   }
 
   const { approved } = documentProgress(documents);
+  // Полоса и подписи «Чеклиста» (08.11.2026): сколько принято, на проверке, исправить и ещё не загружено.
+  const counts = documentProgressCounts(documents, strings);
 
   return (
     <>
@@ -67,16 +74,28 @@ export function DocumentsView({
           className="pt-docs-status-mark"
         />
         <div className="pt-docs-status-main">
+          {/* Как у Акылмана (08.11.2026): над всем — подпись «Чеклист», крупно — состояние «Принято N из M». */}
           <h2 id="documents-checklist" className="pt-docs-status-title">{strings.checklistHeading}</h2>
-          <p className="pt-docs-status-line">
+          <p className="pt-docs-status-share">
             {strings.acceptedLabel}{" "}
             {formatPortalString(strings.acceptedShare, {
               approved: String(approved),
               total: String(documents.length),
             })}
-            {" · "}
-            {strings.uploadHint}
           </p>
+          <p className="pt-docs-status-line">{strings.uploadHint}</p>
+          <span className="pt-docs-meter" aria-hidden="true">
+            {counts.map((item) => (
+              <span key={item.kind} data-kind={item.kind} style={{ flexGrow: item.count }} />
+            ))}
+          </span>
+          <ul className="pt-docs-counts">
+            {counts.map((item) => (
+              <li key={item.kind} data-kind={item.kind}>
+                {item.label}: <strong>{item.count}</strong>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
       {tabs}
@@ -105,8 +124,11 @@ export function DocumentsView({
               <DocumentStatusIcon icon={documentChecklistIcon(document)} className="pt-doc-row-mark" />
               <div className="pt-doc-row-main">
                 <h3 className="pt-doc-item-title">{document.requirementLabel}</h3>
-                {document.instructions ? (
-                  <p className="pt-doc-item-instructions">{document.instructions}</p>
+                {/* Своя инструкция куратора важнее; без неё — общая подсказка к пункту списка по умолчанию. */}
+                {document.instructions ?? defaultDocumentHint(document.requirementLabel, locale) ? (
+                  <p className="pt-doc-item-instructions">
+                    {document.instructions ?? defaultDocumentHint(document.requirementLabel, locale)}
+                  </p>
                 ) : null}
                 {deadlineLabel || document.originalFilename || reviewLabel ? (
                   <p className="pt-doc-row-facts">
@@ -145,8 +167,8 @@ export function DocumentsView({
                 ) : null}
               </div>
               <div className="pt-doc-row-side">
-                {/* «Не загружен» говорит сама кнопка «Загрузить»: плашка — только у остальных. */}
-                {document.status === "required" ? null : <PortalStatus label={status.label} tone={status.tone} />}
+                {/* Плашка статуса у каждой строки, и у «Не загружен» (08.11.2026): статус виден одним взглядом по списку. */}
+                <PortalStatus label={status.label} tone={status.tone} />
                 <PortalDocumentControls
                   documentSlotId={document.documentSlotId}
                   documentVersionId={document.documentVersionId}

@@ -149,7 +149,7 @@ export function AdmissionScreen() {
         {favoritesCount !== null || programsCount !== null ? (
           <View accessibilityRole="summary" accessibilityLabel={admission.tilesLabel} style={{ flexDirection: "row", gap: 12 }}>
             {favoritesCount !== null ? <Tile icon={Landmark} value={favoritesCount} label={admission["tile.favorites"]} onPress={() => setTab("universities")} testID="tile-favorites" /> : null}
-            {programsCount !== null ? <Tile icon={GraduationCap} value={programsCount} label={admission["tile.programs"]} onPress={() => setTab("programs")} testID="tile-programs" /> : null}
+            {programsCount !== null ? <Tile icon={GraduationCap} value={programsCount} label={m("programs.mine")} onPress={() => setTab("programs")} testID="tile-programs" /> : null}
           </View>
         ) : null}
 
@@ -218,7 +218,7 @@ export function AdmissionScreen() {
           testIDPrefix="tab"
           options={[
             { value: "universities", label: favoritesCount !== null ? `${admission["tab.universities"]} ${favoritesCount}` : admission["tab.universities"] },
-            { value: "programs", label: programsCount !== null ? `${admission["tab.programs"]} ${programsCount}` : admission["tab.programs"] },
+            { value: "programs", label: programsCount !== null ? `${m("programs.mine")} ${programsCount}` : m("programs.mine") },
           ]}
         />
 

@@ -42,7 +42,7 @@ describe("Поступление: сводка", () => {
     expect(await screen.findByTestId("tile-favorites")).toBeTruthy();
     expect(screen.getByTestId("tile-favorites").props.accessibilityLabel).toBe("Вузов в избранном: 2");
     expect(await screen.findByTestId("tile-programs")).toBeTruthy();
-    expect(screen.getByTestId("tile-programs").props.accessibilityLabel).toBe("Выбранных программ: 1");
+    expect(screen.getByTestId("tile-programs").props.accessibilityLabel).toBe("Мои программы: 1");
     expect(await screen.findByTestId("evo-title")).toHaveTextContent("Проверить анкету");
     expect(screen.getByText("в работе")).toBeTruthy();
     expect(screen.getByText("Срок: 13.09.2026")).toBeTruthy();

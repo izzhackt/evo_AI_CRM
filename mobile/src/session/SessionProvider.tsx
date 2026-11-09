@@ -5,6 +5,7 @@ import { createPortalAuthApi, type PortalAuthApi, type SignInFailure } from "@/a
 import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
+import { clearUniversityCaches } from "@/features/universities/cache";
 import { createAccessDeps } from "@/session/deps";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
@@ -85,6 +86,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             void resolve(event === "TOKEN_REFRESHED" && stateRef.current.kind === "active");
             return;
           case "SIGNED_OUT":
+            void clearUniversityCaches();
             runId.current += 1;
             forcedMustSetRef.current = false;
             setMustSetPassword(false);
@@ -128,6 +130,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut({ scope: "local" });
+    await clearUniversityCaches(); // копия каталога на диске не переживает выход
     runId.current += 1;
     forcedMustSetRef.current = false;
     setMustSetPassword(false);

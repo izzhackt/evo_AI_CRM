@@ -31,6 +31,8 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     "expo-secure-store",
+    // Карта «Университетов»: MapLibre Native, тайлы OpenFreeMap как в вебе, без ключей (iOS и Android).
+    "@maplibre/maplibre-react-native",
     "./plugins/with-scene-config",
     [
       "expo-splash-screen",

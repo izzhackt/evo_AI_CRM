@@ -48,3 +48,7 @@ example
 
 # local env (values are public client config, still per-machine)
 .env
+
+# локальный стенд (секреты и учётные записи)
+.env.local-stack*
+.local-stack-accounts.json

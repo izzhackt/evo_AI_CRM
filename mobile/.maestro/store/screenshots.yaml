@@ -13,14 +13,16 @@ name: Скриншоты для магазинов
       id: title-documents
     timeout: 30000
 - takeScreenshot: 2-documents
-- tapOn:
-    id: tab-overview
+- runFlow:
+    file: ../subflows/open-section.yaml
+    env:
+      SECTION: payments
 - extendedWaitUntil:
     visible:
-      id: title-overview
+      id: title-payments
     timeout: 30000
 - waitForAnimationToEnd
-- takeScreenshot: 3-overview
+- takeScreenshot: 3-payments
 - runFlow:
     file: ../subflows/open-section.yaml
     env:

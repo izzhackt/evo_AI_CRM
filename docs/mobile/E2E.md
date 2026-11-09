@@ -12,7 +12,7 @@
 | `05-universities-favourite.yaml` | страна, вуз, «в избранное» и обратно |
 | `06-csca-home.yaml` | раздел CSCA открывается |
 | `07-profile-theme-language.yaml` | профиль: язык RU/KY, тема светлая/тёмная |
-| `08-sign-out.yaml` | выход возвращает экран входа, после перезапуска сессии нет |
+| `08-sign-out.yaml` | «Выйти» из меню ☰ возвращает экран входа, после перезапуска сессии нет |
 | `09-apply-invalid-token.yaml` | `evoadmissions://apply?invite=…` с неверным токеном показывает ошибку |
 
 Каждый поток начинается с `clearState` (локальные данные и Keychain стёрты) и сам входит под `test.assisted`.

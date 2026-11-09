@@ -373,6 +373,8 @@ export function Shell({
               <EvoLogo width={88} className="pt-logo-full pt-logo-original" />
               {/* Тёмный рейл широкого экрана: тот же lockup с белыми буквами, без подложки (08.11.2026). */}
               <EvoLogo width={112} onDark className="pt-logo-full pt-logo-on-dark" />
+              {/* Полоса телефона в тёмной теме: белые буквы без плашки, размер как у оригинала. */}
+              <EvoLogo width={88} onDark className="pt-logo-full pt-logo-phone-dark" />
               <EvoMark size={32} tone="mono" className="pt-logo-mark" />
             </IntentPrefetchLink>
             <div className="pt-topbar-actions">

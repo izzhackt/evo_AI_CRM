@@ -2,7 +2,7 @@
 // идемпотентность, откат, права, журнал) доказывает supabase/tests/platform_student_consent_gate.sql; здесь - чистые
 // правила, транспорт RPC, действие формы против подделок клиентов, проводка слоя кабинета, прокси и словари.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
@@ -252,13 +252,21 @@ test("RU and KY carry the same keys, the owner's wording, the policy link and no
   assert.doesNotMatch(block, /проверен(?!ой)|reviewed/iu);
 });
 
-test("the password screens carry the same two required boxes and the action refuses without them", () => {
-  const boxes = read("src/components/student-application/ConsentGateBoxes.tsx");
-  assert.equal((boxes.match(/type="checkbox" required/gu) ?? []).length, 2);
-  assert.match(boxes, /name="policy_consent"/u);
-  assert.match(boxes, /name="ai_consent"/u);
-  assert.match(read("src/components/student-application/NewPasswordForm.tsx"), /<ConsentGateBoxes locale=\{locale\} \/>/u);
-  assert.match(read("src/components/StudentSetPasswordForm.tsx"), /<ConsentGateBoxes locale="ru" \/>/u);
+test("10.11.2026: the password screens carry no boxes — the анкета or the gate asks once", () => {
+  // Пользователь: «уберем с блока пароля и оставим в анкете». Галочки спрашивает анкета; кабинет без анкеты — экран
+  // «Конфиденциальность» при первом входе (миграция 356 засчитывает согласие анкеты, повторного экрана нет).
+  assert.equal(existsSync(new URL("../src/components/student-application/ConsentGateBoxes.tsx", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../src/lib/server/student-consent-gate-record.ts", import.meta.url)), false);
+  for (const file of [
+    "src/components/student-application/NewPasswordForm.tsx",
+    "src/components/StudentSetPasswordForm.tsx",
+    "src/lib/student-new-password-actions.ts",
+    "src/lib/student-portal-auth-actions.ts",
+  ]) {
+    assert.doesNotMatch(read(file), /ConsentGateBoxes|policy_consent|ai_consent|recordStudentConsentsAfterSignIn|consent_?[Rr]equired/u, file);
+  }
+  // Кабинет без решения уходит сразу на экран, минуя слой кабинета (иначе мягкая навигация Next зацикливалась).
+  assert.match(read("src/lib/server/student-signup-runtime.ts"), /portal\.status === "authenticated" \? await portalTargetAfterSignIn\(client\) : null/u);
   // The anketa already carries both required boxes for registration and for a signed-in student.
   const wizard = read("src/components/student-application/ApplicationWizard.tsx");
   assert.equal((wizard.match(/<input type="checkbox" required checked=\{(values\.consent|aiConsent)\}/gu) ?? []).length, 2);

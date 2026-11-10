@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 
-import { ConsentGateBoxes } from "@/components/student-application/ConsentGateBoxes";
 import { btnCls, cn, fieldLabelCls, inputCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n-data";
 import { setOwnStudentPasswordAction, type StudentNewPasswordState } from "@/lib/student-new-password-actions";
@@ -19,7 +18,6 @@ const STRINGS = {
     too_short: "Пароль короче 12 знаков.",
     too_long: "Пароль слишком длинный.",
     mismatch: "Пароли не совпадают.",
-    consent_required: "Отметьте оба пункта о конфиденциальности, чтобы продолжить.",
     rejected: "Этот пароль не подходит. Придумайте другой.",
     unavailable: "Не удалось сохранить пароль. Попробуйте ещё раз.",
   },
@@ -34,7 +32,6 @@ const STRINGS = {
     too_short: "Сырсөз 12 белгиден кыска.",
     too_long: "Сырсөз өтө узун.",
     mismatch: "Сырсөздөр дал келбейт.",
-    consent_required: "Улантуу үчүн купуялык боюнча эки пунктту тең белгилеңиз.",
     rejected: "Бул сырсөз туура келбейт. Башкасын ойлоп табыңыз.",
     unavailable: "Сырсөз сакталган жок. Кайра аракет кылыңыз.",
   },
@@ -61,7 +58,6 @@ export function NewPasswordForm({ locale }: Readonly<{ locale: Locale }>) {
           <input name="password_confirm" type="password" autoComplete="new-password" required minLength={12}
             className={cn(inputCls, "min-h-11 w-full")} />
         </label>
-        <ConsentGateBoxes locale={locale} />
         {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}
         <button type="submit" disabled={pending} className={cn(btnCls, "min-h-11")}>
           {pending ? strings.pending : strings.submit}

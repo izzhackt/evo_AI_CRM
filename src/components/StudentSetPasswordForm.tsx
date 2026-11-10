@@ -6,11 +6,9 @@ import {
   setStudentPortalPasswordAction,
   type StudentPasswordActionState,
 } from "@/lib/student-portal-auth-actions";
-import { ConsentGateBoxes } from "@/components/student-application/ConsentGateBoxes";
 import { btnCls, inputCls, labelCls } from "@/components/ui";
 
 const ERROR_COPY: Record<Exclude<StudentPasswordActionState, null>, string> = {
-  consentRequired: "Отметьте оба пункта о конфиденциальности, чтобы продолжить.",
   invalidRequest: "Форма недействительна. Обновите страницу и попробуйте снова.",
   passwordMismatch: "Пароли не совпадают.",
   passwordRejected:
@@ -76,8 +74,6 @@ export function StudentSetPasswordForm() {
           className={inputCls}
         />
       </div>
-
-      <ConsentGateBoxes locale="ru" />
 
       <button type="submit" disabled={pending} className={`${btnCls} w-full`}>
         {pending ? "Сохраняем…" : "Сохранить пароль"}

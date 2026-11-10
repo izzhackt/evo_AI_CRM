@@ -520,7 +520,6 @@ test("web new-password action: after the re-sign-in the other sessions are revok
     "next/navigation": { redirect: (path) => { log.push(["redirect", path]); throw REDIRECT; } },
     "./server/action-form-fields.ts": { exactActionStringFields: (form) => new Map([...form.entries()]) },
     "./server/platform-supabase-backend-config": { getPlatformSupabaseBackendConfig: () => ({}) },
-    "./server/student-consent-gate-record.ts": { recordStudentConsentsAfterSignIn: async () => { log.push(["consents"]); return true; } },
     "./server/platform-supabase-service-client": { createPlatformSupabaseServiceClient: () => serviceStub(log) },
     "./student-account-contract": { hasTemporaryPassword: (meta) => meta?.evo_temporary_password === true, TEMPORARY_PASSWORD_FLAG: "evo_temporary_password" },
     "./student-invite-callback-contract.ts": { isExpectedStudentOriginRequest: () => true },
@@ -533,11 +532,9 @@ test("web new-password action: after the re-sign-in the other sessions are revok
   const form = new FormData();
   form.set("password", GOOD_PASSWORD);
   form.set("password_confirm", GOOD_PASSWORD);
-  form.set("policy_consent", "granted");
-  form.set("ai_consent", "granted");
   await assert.rejects(() => loaded.setOwnStudentPasswordAction({ status: "idle" }, form), (error) => error === REDIRECT);
   const names = log.map((entry) => entry[0]);
-  assert.deepEqual(names, ["updateUserById", "signIn", "signOut", "consents", "redirect"]);
+  assert.deepEqual(names, ["updateUserById", "signIn", "signOut", "redirect"]);
   assert.deepEqual(log[2], ["signOut", "fresh.session.token", "others"]);
-  assert.deepEqual(log[4], ["redirect", "/apply"]);
+  assert.deepEqual(log[3], ["redirect", "/apply"]);
 });

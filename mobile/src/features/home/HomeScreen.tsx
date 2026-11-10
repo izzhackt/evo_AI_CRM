@@ -1,7 +1,7 @@
 // Главная: единственный домашний экран (#1355, веб HomeView.tsx на /portal; отдельного
-// «Поступления» больше нет). Порядок на телефоне: шапка с этапом дела, выбор страны (пока страны нет),
+// «Поступления» больше нет). Порядок на телефоне: шапка с приветствием, выбор страны (пока страны нет),
 // затем блоки из domain/home-model.ts: задача EVO, «Что сделать сейчас»
-// (у approved одна «Ваша анкета»), путь страны, «Написать EVO» (assisted), даты, «Что нового»
+// (у approved одна «Ваша анкета»), путь страны, даты, «Что нового»
 // (assisted), CSCA (Китай), «Мой список» (вкладки «Вузы» и «Мои программы») и весь «Путь поступления».
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
@@ -15,7 +15,7 @@ import { HOME_FAVORITES_LIMIT, collectHomeDates, homeParams, homeSlots, homeToda
 import { usePortalApi } from "@/api/PortalApi";
 import { useCountryChoice, useCscaHome, useFavorites, useNotifications, useOverview, useRefetchOnFocus } from "@/api/queries";
 import { JourneySection } from "@/features/admission/JourneySection";
-import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, JourneyCard, NewsCard, WriteEvoCard } from "@/features/home/HomeCards";
+import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, JourneyCard, NewsCard } from "@/features/home/HomeCards";
 import { HomeHero } from "@/features/home/HomeHero";
 import { HomeList } from "@/features/home/HomeList";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
@@ -119,9 +119,7 @@ export function HomeScreen() {
       case "case":
         return assisted ? <CaseCard overview={overview.data ?? null} load={loadOf(overview, m)} /> : <ApplicationCard />;
       case "path":
-        return journey.view ? <JourneyCard view={journey.view} progress={journey.progress} onOpenPath={openPath} /> : null;
-      case "write":
-        return <WriteEvoCard />;
+        return journey.view ? <JourneyCard view={journey.view} progress={journey.progress} stage={assisted ? (overview.data?.operationalStage ?? null) : null} onOpenPath={openPath} /> : null;
       case "dates":
         return <DatesCard items={dates} today={homeToday(now)} />;
       case "news":
@@ -140,7 +138,7 @@ export function HomeScreen() {
   return (
     <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing} scrollRef={scroller}>
       <View style={{ gap: 16 }} testID="home-screen">
-        <HomeHero displayName={displayName} studyCountry={studyCountry} stage={assisted ? (overview.data?.operationalStage ?? null) : null} />
+        <HomeHero displayName={displayName} studyCountry={studyCountry} />
         {showCountryChoice(journey.view !== null) ? (
           choiceLoad?.state === "loading" ? (
             <Card>

@@ -8,10 +8,10 @@ import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW } from "@/test-fixtures/rpc
 
 describe("порядок блоков Главной", () => {
   it("assisted со страной, CSCA и задачей EVO: задача, дело, путь, написать EVO, даты, новости, CSCA, список, весь путь", () => {
-    expect(homeSlots({ tier: "assisted", hasJourney: true, hasCscaCard: true, hasEvoTask: true })).toEqual(["evo", "case", "path", "write", "dates", "news", "csca", "list", "fullPath"]);
+    expect(homeSlots({ tier: "assisted", hasJourney: true, hasCscaCard: true, hasEvoTask: true })).toEqual(["evo", "case", "path", "dates", "news", "csca", "list", "fullPath"]);
   });
   it("без страны пути нет (ни карточки, ни полного), выбор страны стоит выше блоков; список остаётся", () => {
-    expect(homeSlots({ tier: "assisted", hasJourney: false, hasCscaCard: false, hasEvoTask: false })).toEqual(["case", "write", "dates", "news", "list"]);
+    expect(homeSlots({ tier: "assisted", hasJourney: false, hasCscaCard: false, hasEvoTask: false })).toEqual(["case", "dates", "news", "list"]);
     expect(showCountryChoice(false)).toBe(true);
     expect(showCountryChoice(true)).toBe(false);
   });

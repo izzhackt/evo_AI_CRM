@@ -55,7 +55,7 @@ describe("Главная: задача EVO и анкета (бывшая сво�
     expect(screen.getByText("Менеджер свяжется с вами.")).toBeTruthy();
     await screen.findByTestId("journey-fold");
     expect(screen.queryByTestId("evo-title")).toBeNull();
-    expect(screen.queryByTestId("write-evo")).toBeNull();
+    expect(screen.queryByTestId("chat-fab")).toBeNull();
     expect(calls.map((c) => c.name)).not.toContain("student_portal_overview_v2");
     // без дела прогресса нет: строки «Сейчас:» нет, весь путь виден сразу
     expect(screen.queryByTestId("journey-now")).toBeNull();
@@ -343,11 +343,11 @@ describe("Главная: переходы из старых ссылок и к�
     expect(navigate).toHaveBeenCalledWith(`/universities/${uuidN(1)}`);
   });
 
-  it("«Написать EVO» ведёт в беседу «Входящих»; у approved карточки нет", async () => {
+  it("карточки «Есть вопрос?» на «Главной» нет: вход в чат живёт в плавающей кнопке оболочки", async () => {
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
-    expect(screen.getByText("Есть вопрос?")).toBeTruthy();
-    await fireEvent.press(await screen.findByTestId("write-evo"));
-    expect(navigate).toHaveBeenCalledWith("/messages/chat");
+    await screen.findByTestId("journey-strip");
+    expect(screen.queryByText("Есть вопрос?")).toBeNull();
+    expect(screen.queryByTestId("write-evo")).toBeNull();
   });
 });

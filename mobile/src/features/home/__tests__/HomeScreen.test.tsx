@@ -36,7 +36,7 @@ describe("Главная: assisted", () => {
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("slot-news");
     const order = screen.getAllByTestId(/^slot-/).map((node) => node.props.testID);
-    expect(order).toEqual(["slot-evo", "slot-case", "slot-path", "slot-write", "slot-dates", "slot-news", "slot-list", "slot-fullPath"]);
+    expect(order).toEqual(["slot-evo", "slot-case", "slot-path", "slot-dates", "slot-news", "slot-list", "slot-fullPath"]);
     expect(screen.queryByTestId("csca-open")).toBeNull();
     expect(screen.getByText("Здравствуйте, Тест Студентов")).toBeTruthy();
   });
@@ -51,24 +51,23 @@ describe("Главная: assisted", () => {
     expect(navigate).toHaveBeenCalledWith("/documents");
   });
 
-  it("шапка: этап дела из обзора, дорожка из десяти шагов с текущим", async () => {
+  it("шапка: приветствие и страна; дорожки десяти этапов EVO на «Главной» больше нет", async () => {
     const { transport } = fakeTransport(assistedHandlers());
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByText("Замените документ: Паспорт");
-    const track = await screen.findByTestId("stage-track");
-    expect(track.props.accessibilityLabel).toContain("Этап дела 5 из 10");
-    expect(screen.getAllByTestId("stage-done")).toHaveLength(4);
-    expect(screen.getAllByTestId("stage-current")).toHaveLength(1);
-    expect(screen.getAllByTestId("stage-upcoming")).toHaveLength(5);
+    expect(screen.queryByTestId("stage-track")).toBeNull();
+    expect(screen.queryByText(/Этап \d+ из 10/)).toBeNull();
     expect(screen.getByText("Малайзия")).toBeTruthy();
   });
 
-  it("карточка пути: «Путь: Малайзия», «Сейчас на пути:»; «Весь путь» раскрывает полный путь на этом же экране", async () => {
+  it("карточка пути: «Путь: Малайзия», полоса «Шаг 2 из 7 · … · дальше — …»; «Весь путь» раскрывает полный путь на этом же экране", async () => {
     const { transport } = fakeTransport(assistedHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByText("Путь: Малайзия")).toBeTruthy();
     expect(await screen.findByTestId("journey-current")).toBeTruthy();
-    expect(screen.getByText("Сейчас на пути:", { exact: false })).toBeTruthy();
+    const strip = screen.getByTestId("journey-strip");
+    expect(strip.props.accessibilityLabel).toBe("Шаг 2 из 7. Договор и документы. дальше — Подача в вуз, Offer Letter и первые платежи");
+    expect(screen.getByTestId("journey-next")).toHaveTextContent("дальше — Подача в вуз, Offer Letter и первые платежи");
     expect(screen.queryByTestId("journey-body")).toBeNull();
     await fireEvent.press(screen.getByTestId("journey-all"));
     expect(await screen.findByTestId("journey-body")).toBeTruthy();
@@ -80,7 +79,7 @@ describe("Главная: assisted", () => {
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId("csca-open")).toBeTruthy();
     const order = screen.getAllByTestId(/^slot-/).map((node) => node.props.testID);
-    expect(order).toEqual(["slot-evo", "slot-case", "slot-path", "slot-write", "slot-dates", "slot-news", "slot-csca", "slot-list", "slot-fullPath"]);
+    expect(order).toEqual(["slot-evo", "slot-case", "slot-path", "slot-dates", "slot-news", "slot-csca", "slot-list", "slot-fullPath"]);
     expect(screen.getByTestId("csca-session")).toBeTruthy();
     expect(screen.getByText(/Ближайшая сессия: 14 и 15 ноября 2026/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId("csca-open"));
@@ -261,7 +260,7 @@ describe("Главная: кыргызский и доступность", () =>
     await renderPortal(<HomeScreen />, testApi(transport), "ky");
     expect(await screen.findByText("Азыр эмне кылуу керек")).toBeTruthy();
     expect(screen.getByText("Менин тизмем")).toBeTruthy();
-    expect(screen.getByText("EVO'го жазуу")).toBeTruthy();
+    expect(screen.getByText("7 кадамдын 2-кадамы", { exact: false })).toBeTruthy();
     expect(screen.getByText("Жакынкы даталар")).toBeTruthy();
   });
 

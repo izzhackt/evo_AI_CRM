@@ -11,13 +11,13 @@ import { actionTarget, actionTitle } from "@/domain/presentation";
 import type { StudentPortalNotification, StudentPortalOverview } from "@/domain/portal-source";
 import type { AccessTier } from "@/session/access";
 
-export type HomeSlotId = "evo" | "case" | "path" | "write" | "dates" | "news" | "csca" | "list" | "fullPath";
+export type HomeSlotId = "evo" | "case" | "path" | "dates" | "news" | "csca" | "list" | "fullPath";
 
 /**
  * Блоки единственной «Главной» в порядке телефона (HomeView.tsx + `.pt-home-slot[data-slot]`
  * в portal.css, веб #1355): задача команды EVO (`info`, только когда она есть), «Что сделать
  * сейчас» (у approved одна «Ваша анкета»), карточка пути страны (когда страна выбрана), «Написать
- * EVO» (только assisted, #1356), даты, «Что нового» (только assisted), CSCA (карточка для
+ * EVO» снята: плавающая кнопка, 10.11.2026), даты, «Что нового» (только assisted), CSCA (карточка для
  * Китая), под ними «Мой список» (вкладки «Вузы» и «Мои программы») и весь «Путь поступления».
  * Выбор страны и шапка стоят выше этого списка.
  */
@@ -27,7 +27,6 @@ export function homeSlots(input: Readonly<{ tier: AccessTier; hasJourney: boolea
   if (assisted && input.hasEvoTask) slots.push("evo");
   slots.push("case");
   if (input.hasJourney) slots.push("path");
-  if (assisted) slots.push("write");
   slots.push("dates");
   if (assisted) slots.push("news");
   if (input.hasCscaCard) slots.push("csca");

@@ -1,4 +1,4 @@
-// Карточки «Главной» (HomeCase, HomeJourneyCard, HomeWriteEvo, HomeDates, HomeNews,
+// Карточки «Главной» (HomeCase, HomeJourneyCard, HomeDates, HomeNews,
 // CscaHomeCard, карточка анкеты approved и задача EVO из OverviewView; веб #1412, #1355). Каждая карточка получает уже
 // прочитанные данные и своё состояние: сбой одного источника не трогает остальные.
 import { CalendarDays, ClipboardCheck, MessagesSquare } from "lucide-react-native";
@@ -8,12 +8,13 @@ import type { CountryTimelineView, TimelineStepProgress } from "@web/lib/portal/
 import type { CscaHomeCardView } from "@web/lib/portal/csca-home-card";
 import { homeWeek, upcomingHomeDates, type HomeDateItem } from "@web/lib/portal/home-dates";
 import { formatPortalString } from "@web/lib/portal/i18n";
+import { journeyStrip } from "@web/lib/portal/journey-strip";
 import { nearestUniversityIntake, universityDateLabel, universityMonthLabel } from "@web/lib/portal/universities";
 
 import type { HomeNewsView } from "@/domain/home-model";
 import type { StudentPortalEvoAction, StudentPortalOverview } from "@/domain/portal-source";
 import { actionTarget, actionTitle, evoActionDueLabel, evoActionStatusLabel, evoActionTone, formatPortalMoney, formatPortalTimestamp, notificationRoute, portalNotificationText, studentActionDueLabel } from "@/domain/presentation";
-import { APPLICATION_ROUTE, go, openLink, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
+import { APPLICATION_ROUTE, go, openLink } from "@/features/portal/navigation";
 import { JourneyMeter } from "@/features/portal/JourneyMeter";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -138,49 +139,56 @@ export function EvoTaskCard({ action }: { action: StudentPortalEvoAction }) {
   );
 }
 
-/** «Написать EVO» (HomeWriteEvo, веб #1356): один вход к команде, чат «Входящих». Только assisted. */
-export function WriteEvoCard() {
-  const { t } = useLang();
-  const home = t("home");
-  return (
-    <Card>
-      <CardHead title={home.writeHeading} />
-      <Text variant="secondary" tone="text2">
-        {home.writeBody}
-      </Text>
-      <Button label={home.writeAction} onPress={() => go(WRITE_EVO_ROUTE)} testID="write-evo" />
-    </Card>
-  );
-}
-
 // ---- Путь ------------------------------------------------------------------------
 
-export function JourneyCard({ view, progress, onOpenPath }: { view: CountryTimelineView; progress: Readonly<Record<string, TimelineStepProgress>> | null; onOpenPath: () => void }) {
+export function JourneyCard({ view, progress, stage, onOpenPath }: { view: CountryTimelineView; progress: Readonly<Record<string, TimelineStepProgress>> | null; stage?: string | null; onOpenPath: () => void }) {
   const { t, format } = useLang();
   const home = t("home");
   const timeline = t("timeline");
-  const current = view.steps.find((step) => progress?.[step.id] === "current") ?? null;
+  // Тот же расчёт, что на вебе (@web/lib/portal/journey-strip): шаг по пути страны, а не десять этапов EVO.
+  const strip = journeyStrip(view.steps, progress, stage);
   const title = view.countryName ? format(home.pathTitle, { country: view.countryName }) : timeline.heading;
+  const stepText = strip?.kind === "step" ? format(home.stripStep, { n: String(strip.n), total: String(strip.total) }) : null;
+  const meterProgress = strip?.kind === "complete" ? Object.fromEntries(view.steps.map((step) => [step.id, step.optional ? "optional" : "done"] as const)) : progress;
   return (
     <Card>
-      <CardHead title={title} action={<LinkButton label={home.pathAll} onPress={onOpenPath} testID="journey-all" />} />
-      {current ? (
-        <View style={{ gap: 8 }} accessible accessibilityLabel={`${home.pathNow} ${current.title}. ${format(timeline.stepOf, { n: String(current.order), total: String(view.steps.length) })}`}>
+      <CardHead title={title} />
+      {strip ? (
+        <View
+          style={{ gap: 8 }}
+          accessible
+          accessibilityLabel={strip.kind === "step" ? `${stepText}. ${strip.title}${strip.nextTitle ? `. ${format(home.stripNext, { title: strip.nextTitle })}` : ""}` : home.stripDone}
+          testID="journey-strip"
+        >
           <Text variant="secondary" testID="journey-current">
-            <Text variant="secondary" tone="text2">
-              {home.pathNow}{" "}
-            </Text>
-            <Text variant="secondary" bold>
-              {current.title}
-            </Text>
+            {strip.kind === "step" ? (
+              <>
+                <Text variant="secondary" tone="text2" bold>
+                  {stepText}{" "}
+                </Text>
+                <Text variant="secondary" bold>
+                  {strip.title}
+                </Text>
+              </>
+            ) : (
+              <Text variant="secondary" bold>
+                {home.stripDone}
+              </Text>
+            )}
           </Text>
-          <JourneyMeter steps={view.steps} progress={progress} />
+          {strip.kind === "step" && strip.nextTitle ? (
+            <Text variant="secondary" tone="text2" testID="journey-next">
+              {format(home.stripNext, { title: strip.nextTitle })}
+            </Text>
+          ) : null}
+          <JourneyMeter steps={view.steps} progress={meterProgress} />
         </View>
       ) : (
         <Text variant="secondary" tone="text2">
           {view.intake.label}
         </Text>
       )}
+      <LinkButton label={home.pathAll} onPress={onOpenPath} testID="journey-all" />
     </Card>
   );
 }

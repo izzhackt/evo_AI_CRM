@@ -13,6 +13,7 @@ import {
   Languages,
   ListChecks,
   Menu,
+  MessageCircle,
   MessagesSquare,
   NotebookPen,
   Wallet,
@@ -42,6 +43,7 @@ import {
   type PortalStrings,
 } from "@/lib/portal/i18n";
 import { writePortalRailChoice } from "@/lib/portal/rail-choice";
+import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import type { Theme } from "@/lib/theme";
 
@@ -250,6 +252,10 @@ export function Shell({
   const strings = getPortalStrings("shell", locale);
   const sections = SECTIONS.filter((section) =>
     (section.tiers as readonly PortalAccessTier[]).includes(accessTier));
+  // Плавающая кнопка «Написать EVO» (10.11.2026): чат есть только у клиента с сопровождением; на самих «Входящих»
+  // она лишняя. Экраны согласий, входа и анкеты живут вне оболочки, поэтому кнопки там нет по построению.
+  const chatFab = accessTier === "assisted" && pathname !== "/portal/messages" && !pathname.startsWith("/portal/messages/");
+  const chatLabel = getPortalStrings("home", locale).writeAction;
   const tabSections = sections.filter((section) => PHONE_TABS.includes(section.href));
 
   const isActive = (section: (typeof SECTIONS)[number]) =>
@@ -343,7 +349,7 @@ export function Shell({
   };
 
   return (
-    <div className="pt-shell" data-testid="student-portal-shell" data-rail={collapsed ? "collapsed" : undefined}>
+    <div className="pt-shell" data-testid="student-portal-shell" data-rail={collapsed ? "collapsed" : undefined} data-chat-fab={chatFab ? "" : undefined}>
       <a href="#portal-content" className="pt-skip-link">
         {strings.skipToContent}
       </a>
@@ -457,6 +463,12 @@ export function Shell({
           </div>
         </div>
       </div>
+      {chatFab ? (
+        // Одна кнопка к команде EVO с любого экрана кабинета: тот же чат «Входящих», что раньше открывала карточка «Главной».
+        <IntentPrefetchLink href={WRITE_EVO_HREF} className="pt-chat-fab" aria-label={chatLabel} title={chatLabel} data-testid="chat-fab">
+          <MessageCircle size={24} strokeWidth={1.75} aria-hidden="true" />
+        </IntentPrefetchLink>
+      ) : null}
       <PortalStaleDeploymentNotice strings={strings} />
     </div>
   );

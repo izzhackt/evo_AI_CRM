@@ -15,7 +15,6 @@ import { HomeCase, actionHref, actionTitle } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
 import { HomeHero } from "./HomeHero";
 import { HomeNews } from "./HomeNews";
-import { HomeWriteEvo } from "./HomeWriteEvo";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
@@ -101,7 +100,7 @@ export function HomeView({
 
   return (
     <div className="pt-home">
-      <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
+      <HomeHero displayName={displayName} studyCountry={studyCountry} locale={locale} />
       {countryChoice}
       {info}
       <div className="pt-home-columns">
@@ -122,11 +121,6 @@ export function HomeView({
                 </IntentPrefetchLink>
               </p>
             </article>
-          ) : null}
-          {tier === "assisted" ? (
-            <div className="pt-home-slot" data-slot="write">
-              <HomeWriteEvo locale={locale} />
-            </div>
           ) : null}
         </div>
 

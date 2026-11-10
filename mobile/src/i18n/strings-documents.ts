@@ -22,15 +22,10 @@ export const DOCS_RU = {
   "docs.downloadForbidden": "Этот файл сейчас нельзя скачать. Если он нужен, напишите EVO.",
   "docs.emptyAction": "Написать EVO",
   "docs.progress": "Загружено {percent}%",
-  "payments.heading": "Что нужно оплатить",
-  "payments.howTitle": "Как оплатить",
-  "payments.howBody": "", // TODO(owner #1359): текст «как оплатить» даёт владелец; пока пусто, блок не показывается
-  "payments.writeEvo": "Написать EVO",
-  "payments.writeEvoHint": "Откроется чат с командой EVO.",
 } as const;
 
-/** Ключи, которые намеренно пусты, пока не пришёл текст владельца (экран скрывает блок). */
-export const PENDING_OWNER_KEYS: readonly string[] = ["payments.howBody"];
+/** Ключи, которые намеренно пусты, пока не пришёл текст владельца (сейчас таких нет: «Как оплатить» читается с сервера). */
+export const PENDING_OWNER_KEYS: readonly string[] = [];
 
 export type DocsStringKey = keyof typeof DOCS_RU;
 
@@ -55,9 +50,4 @@ export const DOCS_KY: Readonly<Record<DocsStringKey, string>> = {
   "docs.downloadForbidden": "Бул файлды азыр жүктөп алууга болбойт. Керек болсо, EVO'го жазыңыз.",
   "docs.emptyAction": "EVO'го жазуу",
   "docs.progress": "Жүктөлдү: {percent}%",
-  "payments.heading": "Эмнени төлөө керек",
-  "payments.howTitle": "Кантип төлөө керек",
-  "payments.howBody": "", // TODO(owner #1359)
-  "payments.writeEvo": "EVO'го жазуу",
-  "payments.writeEvoHint": "EVO командасы менен чат ачылат.",
 };

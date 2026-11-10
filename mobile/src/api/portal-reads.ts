@@ -5,6 +5,7 @@
 // сервера дальше слоя не уходит.
 import { parseStudentCountryChoice, type StudentCountryChoice } from "@web/lib/portal/country-choice";
 import { parseCatalogPreparations, type CatalogPreparation } from "@web/lib/portal/catalog-preparations";
+import { parsePaymentCenter, type PaymentCenter } from "@web/lib/portal/payment-center";
 import { CSCA_TRACK, parseCscaHome, type CscaHome } from "@web/lib/portal/csca";
 import { chunkInstitutionIds, parseUniversityFavorites } from "@web/lib/portal/university-favorites";
 import { parseUniversityPage, type PublishedUniversity } from "@web/lib/platform-university-catalog";
@@ -120,4 +121,11 @@ export async function readCaseFiles(transport: RpcTransport): Promise<readonly S
 /** Начисления (`student_portal_finance_v2`). */
 export async function readPayments(transport: RpcTransport): Promise<readonly StudentPortalPayment[]> {
   return decodePayments(await rpcRead(transport, "student_portal_finance_v2", {}, { get: true }));
+}
+
+/** «Оплата» одним чтением (`student_portal_payment_center_v1`, STABLE: GET): реквизиты, платежи с историей, чеки без платежа. */
+export async function readPaymentCenter(transport: RpcTransport): Promise<PaymentCenter> {
+  const center = parsePaymentCenter(await rpcRead(transport, "student_portal_payment_center_v1", {}, { get: true }));
+  if (!center) throw new PortalDecodeError();
+  return center;
 }

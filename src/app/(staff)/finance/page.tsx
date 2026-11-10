@@ -6,6 +6,8 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import type { ReportLinkRead } from "@/lib/report-link-contract";
 import { readReportLink } from "@/lib/v3/report-links-source";
 import { readStudentDebts } from "@/lib/v3/student-debts-source";
+import { readStudentReceiptQueue } from "@/lib/v3/student-receipts-source";
+import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Финансы" };
@@ -25,20 +27,25 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const actor = await requireV3PageActor("/finance");
   const query = await searchParams;
   const finance: ReportLinkRead = staffCanFinanceTabHint(actor) ? await readReportLink(actor, "finance") : { status: "denied" };
+  // «Чеки на проверке» (миграция 358): общая очередь для администратора и держателя полного чтения финансов; что видно и что можно
+  // решить, считает база (чтение блока «Договор и оплата»). Бейдж - число чеков, ждущих решения.
+  const receipts = staffCanFinanceTabHint(actor) ? await readStudentReceiptQueue(actor) : null;
   const keys: FinanceTabKey[] = [
     ...(staffCanSalesTab(actor) ? ["sales" as const] : []),
     ...(finance.status !== "denied" ? ["finance" as const, "debts" as const] : []),
+    ...(receipts?.status === "ok" ? ["receipts" as const] : []),
   ];
   const requested = typeof query.tab === "string" ? query.tab : null;
   const current = keys.find((key) => key === requested) ?? keys[0] ?? null;
-  const tabs = current ? <FinanceTabs tabs={keys} current={current} /> : null;
+  const tabs = current ? <FinanceTabs tabs={keys} current={current} receiptsCount={receipts?.status === "ok" ? receipts.queue.total : null} /> : null;
   if (current === "sales") return <SalesTabView actor={actor} query={query} tabs={tabs} />;
   const isAdmin = actor.systemRole === "admin";
   const source = "Цифры — из Google Таблицы финансиста, а не из CRM. Они могут не совпадать с «Отчётом продаж» и вкладкой «Деньги».";
   const adminNote = "Отчёт открывает Google, а не CRM. Снятие роли в CRM не закрывает отчёт: когда человек уходит, уберите его в «Поделиться» отчёта и таблицы.";
   // «Новый вид» (единственный вид, #1327): отчёт в карточке набора; право на чтение решает база, «Нет доступа» рисует сам экран.
   return (
-    <FinanceNextLazy tabs={tabs} current={current === "finance" || current === "debts" ? current : null} finance={current === "finance" ? finance : null}
+    <FinanceNextLazy tabs={tabs} current={current === "finance" || current === "debts" || current === "receipts" ? current : null}
+      receipts={current === "receipts" && receipts?.status === "ok" ? receipts.queue : null} today={dayInOrganizationTimezone(new Date())} finance={current === "finance" ? finance : null}
       debts={current === "debts" ? await readStudentDebts(actor) : null} isAdmin={isAdmin} source={source} adminNote={isAdmin ? adminNote : null} />
   );
 }

@@ -110,6 +110,12 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // Migration 356 («Экран согласий при первом входе») adds the action `privacy.policy.accept` and the resource type
 // `student_privacy_consent` (written by `platform.portal_consents_accept_v1`), by the same rename-and-union wrappers
 // (`..._pre_student_consent_gate`); the row names only the policy version and the source.
+// Migration 358 («Чеки от студента и реквизиты для оплаты») adds four actions, `finance.receipt.submit`,
+// `finance.receipt.accept`, `finance.receipt.reject` (written by `platform.record_student_payment_receipt_v1`,
+// `accept_student_payment_receipt_v1`, `reject_student_payment_receipt_v1`) and `finance.paymentdetails.update`
+// (`platform.record_payment_details_v1`), and the resource types `student_payment_receipt` and `payment_details`, by the
+// same rename-and-union wrappers (`..._pre_student_receipts`). The rows keep ids, amounts and the reject reason, never the
+// payment details text. They fall through to the `["record_status"]` default of `expectedChangedFieldCodes`.
 // Migration 344 («Сброс пароля студента администратором») adds one action, `student.password.reset` (written by
 // `platform.complete_student_password_reset_v1`: one row per temporary password an administrator gives a student), by the
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
@@ -271,6 +277,10 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "document.version.review",
   "finance.obligation.create",
   "finance.payment.record",
+  "finance.paymentdetails.update",
+  "finance.receipt.accept",
+  "finance.receipt.reject",
+  "finance.receipt.submit",
   "finance.stop.create",
   "finance.stop.resolve",
   "knowledge.chunkset.publish",
@@ -425,6 +435,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "notification_consent",
   "organization",
   "organization_membership",
+  "payment_details",
   "payment_event",
   "payment_obligation",
   "payment_receipt_file",
@@ -449,6 +460,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "student_case",
   "student_case_contract_draft",
   "student_case_update",
+  "student_payment_receipt",
   "student_privacy_consent",
   "student_profile",
   "team_chat_message",

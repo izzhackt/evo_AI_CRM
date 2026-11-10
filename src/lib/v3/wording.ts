@@ -782,6 +782,10 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "document.version.review": "Версия документа проверена",
   "finance.obligation.create": "Платёжное обязательство создано",
   "finance.payment.record": "Платёж записан",
+  "finance.paymentdetails.update": "Реквизиты для оплаты изменены",
+  "finance.receipt.accept": "Чек студента принят",
+  "finance.receipt.reject": "Чек студента отклонён",
+  "finance.receipt.submit": "Студент приложил чек",
   "finance.stop.create": "Финансовый стоп поставлен",
   "finance.stop.resolve": "Финансовый стоп снят",
   "knowledge.chunkset.publish": "Фрагменты базы знаний опубликованы",
@@ -1005,6 +1009,7 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   notification_consent: "Согласие на уведомления",
   organization: "Организация",
   organization_membership: "Членство в организации",
+  payment_details: "Реквизиты для оплаты",
   payment_event: "Платёж",
   payment_obligation: "Платёжное обязательство",
   pilot_cohort_configuration: "Настройка пилотной когорты",
@@ -1063,6 +1068,7 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   // Согласие студента на ИИ-помощников (миграция 320).
   student_ai_consent: "Согласие на ИИ-помощников",
   // Принятие Политики конфиденциальности (миграция 356).
+  student_payment_receipt: "Чек студента",
   student_privacy_consent: "Принятие политики конфиденциальности",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 

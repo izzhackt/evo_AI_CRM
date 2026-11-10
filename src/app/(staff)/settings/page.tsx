@@ -5,6 +5,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { settingsNextProps } from "@/lib/v3/settings-next-props";
 import { readTelephonyAdmin, telephonyIntegrationFactsFrom } from "@/lib/server/platform-telephony-admin";
 import { readCountryCurators } from "@/lib/v3/country-curators-source";
+import { readPaymentDetailsAdmin } from "@/lib/v3/student-receipts-source";
 import { readReportLink } from "@/lib/v3/report-links-source";
 import { redirect } from "next/navigation";
 
@@ -71,8 +72,9 @@ export default async function SettingsPart({
     ? Promise.all([readReportLink(actor, "marketing"), readReportLink(actor, "finance")]).then(([marketing, finance]) => ({ marketing, finance }))
     : Promise.resolve(undefined);
   // «Кураторы стран» (миграция 335): читается только в своём разделе.
+  const paymentDetailsRead = section === "payment" ? readPaymentDetailsAdmin(actor) : Promise.resolve(undefined);
   const countryCuratorsRead = section === "curators" ? readCountryCurators(actor) : Promise.resolve(undefined);
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection, reports, countryCurators] = await Promise.all([
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection, reports, countryCurators, paymentDetails] = await Promise.all([
     telephonyRead.then((read) => readIntegrations(actor, new Date(), telephonyIntegrationFactsFrom(read))),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -99,6 +101,7 @@ export default async function SettingsPart({
     section === "integrations" ? readWhatsAppConnection(actor) : Promise.resolve(undefined),
     reportsRead,
     countryCuratorsRead,
+    paymentDetailsRead,
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -137,6 +140,7 @@ export default async function SettingsPart({
         reports,
         reportsReadOnly: isStaffPreview(actor),
         countryCurators,
+        paymentDetails,
         journal,
         journalStatus: journalRead.status,
         auditExportEnabled: readAuditExportEnabled(),

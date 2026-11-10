@@ -85,6 +85,12 @@ describe("уведомления и ссылки", () => {
     expect(portalNotificationText({ eventCode: "other", subjectLabel: "Паспорт", detail: null }, ru)).toEqual({ title: "Паспорт", detail: null });
   });
 
+  it("решение по чеку: слова решения на языке студента, сумма и причина как хранятся", () => {
+    expect(portalNotificationText({ eventCode: "payment_receipt_accepted", subjectLabel: "100.50 USD", detail: null }, ru)).toEqual({ title: "Чек принят: 100.50 USD", detail: null });
+    expect(portalNotificationText({ eventCode: "payment_receipt_rejected", subjectLabel: "Не видно сумму", detail: null }, ky).title).toBe(`${ky.receiptNotifRejected.replace("{value}", "Не видно сумму")}`);
+    expect(notificationRoute({ category: "payment.receipt", eventCode: "payment_receipt_accepted" })).toBe("/payments");
+  });
+
   it("ссылки контента: вкладка, браузер или никуда", () => {
     expect(linkTarget("/portal/csca")).toEqual({ kind: "route", route: "/csca" });
     expect(linkTarget("/portal")).toEqual({ kind: "route", route: "/home" });

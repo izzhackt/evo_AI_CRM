@@ -4,7 +4,7 @@ import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
 import { PaymentsView } from "@/components/portal/admission/PaymentsView";
-import { readStudentPortalPayments } from "@/lib/v3/portal-source";
+import { readPaymentCenter } from "@/lib/portal/payment-center-source";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function StudentPortalPaymentsPage() {
-  const [payments, locale] = await Promise.all([readStudentPortalPayments(), getLocale()]);
+  const [center, locale] = await Promise.all([readPaymentCenter(), getLocale()]);
   const strings = getPortalStrings("admission", locale);
 
   return (
@@ -22,7 +22,11 @@ export default async function StudentPortalPaymentsPage() {
       <header className="pt-page-header">
         <h1 className="pt-page-title">{strings.paymentsTitle}</h1>
       </header>
-      <PaymentsView payments={payments} locale={locale} />
+      {center ? (
+        <PaymentsView center={center} locale={locale} />
+      ) : (
+        <p role="alert" className="pt-card pt-adm-empty-body">{strings.paymentsLoadError}</p>
+      )}
     </main>
   );
 }

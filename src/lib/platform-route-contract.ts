@@ -119,7 +119,7 @@ const STUDENT_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/portal\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
 // Свои договор и чеки студента (миграция 352): только GET, вид файла из закрытого списка.
 const STUDENT_CASE_FILE_DOWNLOAD_PATH =
-  /^\/api\/portal\/case-files\/(?:contract|receipt|pending_receipt)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+  /^\/api\/portal\/case-files\/(?:contract|receipt|pending_receipt|student_receipt|payment_details_qr)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
 // PORT-9a (ADR 0030 «Решение» п. 3): the two narrow intake routes of the
 // iPhone анкета path. Acceptance rides the PORT-8a bearer pass-through;
 // registration is a public intake whose handler owns its whole boundary.
@@ -197,6 +197,12 @@ const TELEPHONY_ADMIN_API_PATHS: ReadonlySet<string> = new Set([
 // один точный путь, только POST (метод проверяет обработчик). Обработчик сам требует
 // сессию администратора вне просмотра роли; остальное под /api/v3/settings закрыто.
 const WHATSAPP_CONNECT_API_PATH = "/api/v3/settings/whatsapp-connect";
+const STUDENT_PAYMENT_RECEIPT_UPLOAD_API_PATH = "/api/portal/payment-receipts";
+// «Реквизиты для оплаты» (миграция 358): сохранение (POST) и QR для предпросмотра администратору (GET); оба сами проверяют сессию администратора.
+const PAYMENT_DETAILS_API_PATH = "/api/v3/settings/payment-details";
+const PAYMENT_DETAILS_QR_API_PATH = "/api/v3/settings/payment-details/qr";
+// Чек студента для сотрудника (GET, перенаправление на короткую подписанную ссылку); право читать проверяет база.
+const STUDENT_RECEIPT_DOWNLOAD_PATH = /^\/api\/v2\/student-payment-receipts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   WAZZUP_WHATSAPP_INBOUND_PATH,
@@ -305,6 +311,8 @@ export function isConnectedStudentPortalApi(
     || (method === "GET" && STUDENT_CASE_FILE_DOWNLOAD_PATH.test(path))
     || (method === "POST" && path === "/api/portal/application-document-uploads")
     || (method === "GET" && path === "/api/portal/application-document-downloads")
+    // «Чеки от студента» (миграция 358): один multipart POST; обработчик сам проверяет сессию или Bearer, студента и платёж.
+    || (method === "POST" && path === STUDENT_PAYMENT_RECEIPT_UPLOAD_API_PATH)
     // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a
     // missing/rejected credential and never consults cookies.
     || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)
@@ -418,6 +426,9 @@ export function isConnectedPlatformApi(path: string): boolean {
     AI_AGENT_LAB_PATH.test(path) ||
     TELEPHONY_ADMIN_API_PATHS.has(path) ||
     path === WHATSAPP_CONNECT_API_PATH ||
+    path === PAYMENT_DETAILS_API_PATH ||
+    path === PAYMENT_DETAILS_QR_API_PATH ||
+    STUDENT_RECEIPT_DOWNLOAD_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

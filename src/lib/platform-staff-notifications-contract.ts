@@ -5,7 +5,8 @@ export type StaffNotificationKind =
   | "case_help"
   | "case_task_assigned"
   | "task_due"
-  | "case_message";
+  | "case_message"
+  | "student_receipt";
 export type StaffNotification = Readonly<{
   id: string;
   kind: StaffNotificationKind;
@@ -94,6 +95,10 @@ export function decodeStaffNotifications(value: unknown): StaffNotificationPage 
     } else if (row.kind === "case_message") {
       if (!isStaffNotificationId(row.student_case_id)) return fail();
       href = `/messages?case=${row.student_case_id}`;
+    } else if (row.kind === "student_receipt") {
+      // Чек от студента (миграция 358): ведёт в блок «Договор и оплата» дела, где он ждёт решения.
+      if (!isStaffNotificationId(row.student_case_id)) return fail();
+      href = `/profile?case=${row.student_case_id}&tab=money#case-receipts`;
     } else return fail();
     return {
       id: row.id, kind: row.kind, createdAt: row.created_at, readAt: row.read_at, href,

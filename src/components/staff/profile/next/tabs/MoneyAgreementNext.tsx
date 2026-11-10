@@ -5,22 +5,28 @@ import type { PendingReceipt } from "@/lib/platform-pending-receipts-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
 import { readPendingReceipts } from "@/lib/v3/pending-receipts-source";
+import { readStudentReceiptQueue } from "@/lib/v3/student-receipts-source";
+import type { StudentReceipt } from "@/lib/platform-student-receipts-contract";
 import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { MoneyCard } from "./MoneyCard";
 import { PaymentsCard, TranchesCard } from "./MoneyLists";
 import { MoneyStop, MoneySummary } from "./MoneySummary";
+import { StudentReceiptsCard } from "./StudentReceiptsCard";
 
 type Shared = Readonly<{ saleConditionsHref: string | null; financeStop: string | null; stopsPanel: boolean }>;
 
 /** Сводка, транши и оплаты из уже прочитанного (чтение 189) - соседние карточки листа; статический рендер берёт этот вид с синтетикой. */
-export function AgreementNextView({ agreement, canWrite, today, pendingReceipts, pendingUnavailable = false, ...shared }: Shared & Readonly<{
+export function AgreementNextView({ agreement, canWrite, today, pendingReceipts, pendingUnavailable = false, studentReceipts = [], ...shared }: Shared & Readonly<{
   agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[]; pendingUnavailable?: boolean;
+  /** Чеки студента «на проверке» по этому делу (миграция 358). */
+  studentReceipts?: readonly StudentReceipt[];
 }>) {
   return (
     <>
       <MoneyCard><MoneySummary agreement={agreement} canWrite={canWrite} today={today} {...shared} /></MoneyCard>
       <TranchesCard agreement={agreement} canWrite={canWrite} today={today} />
+      <StudentReceiptsCard receipts={studentReceipts} today={today} />
       <PaymentsCard agreement={agreement} canWrite={canWrite} today={today} pendingReceipts={pendingReceipts} />
       {pendingUnavailable ? <p role="alert" className="t-body-compact text-danger">Чеки из разбора документов не загрузились. Обновите страницу.</p> : null}
     </>
@@ -49,10 +55,13 @@ export async function CaseAgreementNext({ actor, studentCaseId, ...shared }: Sha
     const unavailable = result.status === "unavailable";
     return <MoneyNotice role={unavailable ? "alert" : undefined} text={unavailable ? caseMoneyWords.financeUnavailable : caseMoneyWords.financeHidden} {...shared} />;
   }
-  const pending = await readPendingReceipts(actor.organizationId, studentCaseId);
+  const [pending, studentQueue] = await Promise.all([
+    readPendingReceipts(actor.organizationId, studentCaseId),
+    readStudentReceiptQueue(actor, { studentCaseId }),
+  ]);
   return (
     <AgreementNextView agreement={result.agreement} canWrite={result.agreement.canWrite && !isStaffPreview(actor)}
       today={dayInOrganizationTimezone(new Date())} pendingReceipts={pending.status === "ok" ? pending.receipts : []}
-      pendingUnavailable={pending.status !== "ok"} {...shared} />
+      pendingUnavailable={pending.status !== "ok"} studentReceipts={studentQueue.status === "ok" ? studentQueue.queue.receipts : []} {...shared} />
   );
 }

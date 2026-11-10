@@ -13,6 +13,7 @@ import {
   readCaseFiles,
   readCountryChoice,
   readDocuments,
+  readPaymentCenter,
   readPayments,
   readCscaHome,
   readFavorites,
@@ -51,6 +52,21 @@ export function useCaseFiles() {
 export function usePayments() {
   const { transport, tier, userKey } = usePortalApi();
   return useQuery({ queryKey: key(userKey, "payments"), queryFn: () => readPayments(transport), enabled: tier === "assisted" });
+}
+
+/** Экран «Оплата»: реквизиты, платежи, история чеков (миграция 358). */
+export function usePaymentCenter() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "payment-center"), queryFn: () => readPaymentCenter(transport), enabled: tier === "assisted" });
+}
+
+/** После отправки чека: экран «Оплата» читается заново (чек появляется «На проверке»). */
+export function useInvalidatePaymentCenter() {
+  const { userKey } = usePortalApi();
+  const client = useQueryClient();
+  return useCallback(() => {
+    void client.invalidateQueries({ queryKey: key(userKey, "payment-center") });
+  }, [client, userKey]);
 }
 
 /** После загрузки файла: чек-лист и «Что сделать сейчас» читаются заново. */

@@ -39,7 +39,9 @@ const scratch = await mkdtemp(join(tmpdir(), "evo-student-invite."));
 const evidence = await mkdtemp(join(tmpdir(), "evo-student-invite-evidence."));
 const project = join(scratch, "project");
 const app = join(scratch, "app");
-const projectId = `evo-invite-${randomUUID()}`;
+// Short on purpose: the Supabase CLI cuts project ids to 40 characters in container names, and then `supabase stop`
+// and the `_${projectId}` checks match nothing, leaving the whole stack running.
+const projectId = `evo-invite-${randomUUID().slice(0, 8)}`;
 const secrets = [];
 const redact = (value) => secrets.reduce((text, secret) => secret ? text.replaceAll(secret, "[REDACTED]") : text, String(value))
   .replace(/token_hash=[0-9a-f]+/g, "token_hash=[REDACTED]")
@@ -63,8 +65,18 @@ const cleanup = () => {
     if (owned) {
       try {
         await run(npx, ["--no-install", "supabase", "stop", "--workdir", project, "--project-id", projectId, "--no-backup"]);
-        const remaining = (await run("docker", ["ps", "-a", "--format", "{{.Names}}"])).split("\n").filter((name) => name.endsWith(`_${projectId}`));
+        const ownedNames = async (args) => (await run("docker", args)).split("\n").filter((name) => name.endsWith(`_${projectId}`));
+        let remaining = await ownedNames(["ps", "-a", "--format", "{{.Names}}"]);
+        if (remaining.length > 0) {
+          // Fallback limited to this run's own unique project id suffix.
+          await run("docker", ["rm", "-f", ...remaining]);
+          remaining = await ownedNames(["ps", "-a", "--format", "{{.Names}}"]);
+        }
         assert.equal(remaining.length, 0, "OWNED_CONTAINERS_REMAIN");
+        const volumes = await ownedNames(["volume", "ls", "-q"]);
+        if (volumes.length > 0) await run("docker", ["volume", "rm", ...volumes]);
+        const networks = await ownedNames(["network", "ls", "--format", "{{.Name}}"]);
+        if (networks.length > 0) await run("docker", ["network", "rm", ...networks]);
       } catch { failed = true; console.error("OWNED_STACK_CLEANUP_FAILED"); }
     }
     assert.ok(scratch.startsWith(join(tmpdir(), "evo-student-invite.")));
@@ -163,7 +175,7 @@ try {
 } catch (error) {
   failed = true;
   await writeFile(join(evidence, "failure.log"), redact(error.privateOutput ?? error.stack ?? error));
-  console.error("STUDENT_INVITE_PROOF_FAILED: inspect private redacted evidence");
+  console.error("STUDENT_INVITE_PROOF_FAILED: inspect private redacted evidence"); console.error(redact(String(error.message ?? error)).split("\n")[0]);
 } finally {
   await cleanup();
 }

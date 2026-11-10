@@ -26,6 +26,8 @@ export async function runStudentInviteProof({ origin, apiUrl, mailpitOrigin, dbU
   try {
     await login(fixture.adminEmail, fixture.adminPassword, "/main");
     await page.goto(`${origin}/profile?id=${fixture.leadId}`);
+    // The lead profile keeps portal access in the collapsed «Доступ к порталу» edit group.
+    await page.getByTestId("v3-lead-group-portal").locator(":scope > summary").click();
     await page.getByRole("button", { name: "Проверить и подготовить доступ", exact: true }).click();
     let message;
     for (let attempt = 0; attempt < 120 && !message; attempt++) {
@@ -48,25 +50,29 @@ export async function runStudentInviteProof({ origin, apiUrl, mailpitOrigin, dbU
     assert.equal(inviteUrl.searchParams.get("type"), "invite");
     assert.match(inviteUrl.searchParams.get("token_hash"), /^[0-9a-f]{56}$/);
     const read = async () => {
-      const [row] = await sql`SELECT r.provisioning_state,r.invite_delivery_status,r.auth_user_id,r.student_membership_id,
+      const [row] = await sql`SELECT r.provisioning_state,r.intake_flow,r.invite_delivery_status,r.auth_user_id,r.student_membership_id,
         u.invited_at,u.email_confirmed_at,c.portal_activated_at,c.student_membership_id AS case_membership_id
         FROM platform_private.student_portal_provisioning_receipts r
         JOIN auth.users u ON u.id=r.auth_user_id JOIN platform.student_cases c ON c.id=r.student_case_id
         WHERE r.student_case_id=${fixture.caseId}`;
       return row;
     };
+    // Migration 193 (PORT-1b): an invite binds the Student membership to the case but does NOT activate
+    // the portal; the invited student first passes the анкета and staff approval.
     let issued;
     for (let i = 0; i < 80; i++) {
       issued = await read();
-      if (issued?.provisioning_state === "authority_activated") break;
+      if (issued?.provisioning_state === "invite_succeeded" && issued.student_membership_id) break;
       await delay(250);
     }
-    assert.equal(issued?.provisioning_state, "authority_activated", "NORMAL_PROVISIONING_DID_NOT_FINALIZE");
+    assert.equal(issued?.provisioning_state, "invite_succeeded", "NORMAL_PROVISIONING_DID_NOT_FINALIZE");
+    assert.equal(issued.intake_flow, "anketa_v1", "INVITE_MUST_USE_ANKETA_FLOW");
     assert.equal(issued.invite_delivery_status, "issued");
     assert.ok(issued.invited_at, "PROVIDER_INVITE_METADATA_MISSING");
     assert.equal(issued.email_confirmed_at, null, "INVITE_PRECONFIRMED");
-    assert.ok(issued.portal_activated_at, "DOMAIN_ACTIVATION_NOT_EXECUTED");
+    assert.ok(issued.student_membership_id, "STUDENT_MEMBERSHIP_NOT_BOUND");
     assert.equal(issued.student_membership_id, issued.case_membership_id);
+    assert.equal(issued.portal_activated_at, null, "INVITE_MUST_NOT_ACTIVATE_PORTAL");
     await context.clearCookies();
     await page.goto(inviteUrl.href);
     assert.equal((await read()).email_confirmed_at, null, "GET_MUST_NOT_CONSUME_INVITE");
@@ -76,18 +82,23 @@ export async function runStudentInviteProof({ origin, apiUrl, mailpitOrigin, dbU
     await page.locator("#student-new-password").fill(fixture.studentPassword);
     await page.locator("#student-password-confirm").fill(fixture.studentPassword);
     await page.getByRole("button", { name: "Сохранить пароль", exact: true }).click();
-    await page.waitForURL(`${origin}/portal`);
-    await page.getByRole("heading", { name: "Моё поступление", exact: true }).waitFor();
+    await page.waitForURL(`${origin}/apply`);
+    await page.locator("h1").first().waitFor();
     assert.match(await page.title(), /EVO/);
     await page.waitForLoadState("networkidle");
     assert.equal(await page.locator("nextjs-portal").locator('[data-nextjs-dialog-overlay]').count(), 0);
-    await page.screenshot({ path: `${evidenceRoot}/portal-after-invite.png`, fullPage: true });
-    assert.ok((await read()).email_confirmed_at, "PROVIDER_NOT_CONFIRMED_AFTER_POST");
+    await page.screenshot({ path: `${evidenceRoot}/apply-after-invite.png`, fullPage: true });
+    const accepted = await read();
+    assert.ok(accepted.email_confirmed_at, "PROVIDER_NOT_CONFIRMED_AFTER_POST");
+    assert.equal(accepted.portal_activated_at, null, "PORTAL_ACTIVATED_BEFORE_APPROVAL");
     // A new context must authenticate using only the student's newly set password.
     await context.clearCookies();
-    await login(fixture.studentEmail, fixture.studentPassword, "/portal");
+    // Until the анкета is approved, login, staff routes and /portal all lead the invited student to /apply.
+    await login(fixture.studentEmail, fixture.studentPassword, "/apply");
     await page.goto(`${origin}/main`);
-    await page.waitForURL(`${origin}/portal`);
+    await page.waitForURL(`${origin}/apply`);
+    await page.goto(`${origin}/portal`);
+    await page.waitForURL(`${origin}/apply`);
     await context.clearCookies();
     await page.goto(inviteUrl.href);
     await page.getByRole("button", { name: "Продолжить", exact: true }).click();
@@ -96,9 +107,14 @@ export async function runStudentInviteProof({ origin, apiUrl, mailpitOrigin, dbU
     await page.waitForURL(/\/login(?:\?|$)/);
     assert.deepEqual(pageErrors, [], "UNHANDLED_BROWSER_ERROR");
     return { normalHandoff: true, providerInviteCaptured: true, getDidNotConsumeInvite: true,
-      actualCallbackPost: true, passwordSet: true, freshStudentLogin: true, staffRouteDenied: true,
-      usedInviteRejected: true, pageIdentity: true, meaningfulPortal: true, unhandledBrowserErrors: 0,
+      actualCallbackPost: true, passwordSet: true, anketaAfterPassword: true, portalNotActivatedBeforeApproval: true,
+      freshStudentLogin: true, staffRouteDenied: true, portalDeniedBeforeApproval: true,
+      usedInviteRejected: true, pageIdentity: true, unhandledBrowserErrors: 0,
       handoffTaskCount: fixture.handoffTaskCount };
+  } catch (error) {
+    // Private local evidence: where the flow stopped.
+    await page.screenshot({ path: `${evidenceRoot}/failure.png`, fullPage: true }).catch(() => {});
+    throw error;
   } finally {
     await sql.end();
     await browser.close();

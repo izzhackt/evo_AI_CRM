@@ -13,6 +13,7 @@ export function Screen({
   children,
   bottomInset = 0,
   tabBar = false,
+  chatFab = true,
   topInset = true,
   onRefresh,
   refreshing = false,
@@ -22,6 +23,8 @@ export function Screen({
   bottomInset?: number;
   /** Экран под плавающей панелью вкладок: запас снизу есть, только если панель показана. */
   tabBar?: boolean;
+  /** Запас под плавающую кнопку «Написать EVO»; `false` на экранах, где её нет («Входящие»). */
+  chatFab?: boolean;
   topInset?: boolean;
   /** Потянуть вниз, чтобы обновить (если задано). */
   onRefresh?: () => void;
@@ -41,7 +44,7 @@ export function Screen({
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: topInset ? insets.top + 16 : 16, paddingBottom: Math.max(insets.bottom, 16) + bottomInset + (tabBar ? clearance + fabClearance : 0) }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: topInset ? insets.top + 16 : 16, paddingBottom: Math.max(insets.bottom, 16) + bottomInset + (tabBar ? clearance + (chatFab ? fabClearance : 0) : 0) }}
       >
         {children}
       </ScrollView>

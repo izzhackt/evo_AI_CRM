@@ -16,7 +16,7 @@ export type JourneyStrip =
   | Readonly<{ kind: "complete"; total: number }>;
 
 /** Этапы дела, после которых поступление завершено (словарь `operational_stage`, как в OverviewView). */
-const FINISHED_STAGES: readonly string[] = ["completed", "closed"];
+const isFinishedStage = (stage: string): boolean => stage.trim() === "completed" || stage.trim() === "closed";
 
 /**
  * `null`: полосы нет (прогресса нет: дела нет, обзор не прочитан или этап до пути). Дело завершено или закрыто, либо все
@@ -28,7 +28,7 @@ export function journeyStrip(
   stage?: string | null,
 ): JourneyStrip | null {
   if (steps.length === 0) return null;
-  if (typeof stage === "string" && FINISHED_STAGES.includes(stage.trim())) return { kind: "complete", total: steps.length };
+  if (typeof stage === "string" && isFinishedStage(stage)) return { kind: "complete", total: steps.length };
   if (progress === null) return null;
   const index = steps.findIndex((step) => progress[step.id] === "current");
   if (index < 0) return { kind: "complete", total: steps.length };

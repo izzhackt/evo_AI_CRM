@@ -96,7 +96,7 @@ export function InboxScreen() {
   const failed = notifications.status === "error" && notifications.data === undefined ? notifications.error : chat.status === "error" && chat.data === undefined ? chat.error : null;
 
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing}>
+    <Screen topInset={false} tabBar chatFab={false} onRefresh={() => void refresh()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="inbox-screen">
         <Text variant="display" accessibilityRole="header" maxFontSizeMultiplier={1.2} testID="title-messages">
           {messages.title}

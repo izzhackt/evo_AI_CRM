@@ -110,10 +110,13 @@
 
 ## Что нужно от владельца
 
-1. Пройти первый запуск Android Studio (лицензии Google) — нужно для эмулятора.
-2. Перед первой облачной сборкой: `npx eas-cli login` в терминале
-   (аккаунт `izzhackts-team`).
-3. Team ID Apple (developer.apple.com → Membership details).
+1. ~~Пройти первый запуск Android Studio~~ — сделано 09.11.2026.
+2. ~~`npx eas-cli login`~~ — сделано 10.11.2026; `eas init` создал проект
+   `@izzhackts-team/evo-admissions`, его ID и `owner` записаны в
+   `mobile/app.config.ts` (ID не секрет: он виден в адресе обновлений).
+   Осталось: publishable key Supabase как переменная EAS
+   (`EXPO_PUBLIC_*`, окружения preview/production) — вводит владелец.
+3. ~~Team ID Apple~~ — получен 10.11.2026 (`4D8W292RKQ`, в `mobile/app.config.ts`).
 4. Google Play Console (25 $, личный или на компанию).
 5. Текст «как платить» для «Оплаты» (#1359).
 6. Разрешение на удаление `ios/` после замены в App Store.

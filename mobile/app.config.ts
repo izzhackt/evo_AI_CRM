@@ -1,15 +1,17 @@
 import type { ExpoConfig } from "expo/config";
 
-// Идентификатор проекта EAS (владелец создаёт проект после `eas login` / `eas init`):
-// задаётся переменной EAS_PROJECT_ID (EAS environment variable или локальный env), в Git не хранится.
-// Пока его нет, EAS Update выключен и сборка работает с вшитым бандлом.
-const easProjectId = process.env.EAS_PROJECT_ID?.trim() || undefined;
+// Идентификатор проекта EAS (@izzhackts-team/evo-admissions, создан `eas init` 10.11.2026).
+// Не секрет: он и так виден в адресе обновлений внутри приложения, а EAS CLI нужен раньше,
+// чем переменные окружения EAS (по нему CLI и находит проект). EAS_PROJECT_ID только переопределяет.
+const easProjectId = process.env.EAS_PROJECT_ID?.trim() || "21f3b073-9ba6-47dd-abef-8486a283d1be";
 
 // Конфиг сборки. Значения Supabase и портала сюда НЕ попадают: они читаются
 // только из EXPO_PUBLIC_* в src/config.ts (см. .env.example).
 const config: ExpoConfig = {
   name: "EVO admissions",
   slug: "evo-admissions",
+  // Проект EAS принадлежит команде EVO в Expo, не личному аккаунту.
+  owner: "izzhackts-team",
   version: "2.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -26,6 +28,8 @@ const config: ExpoConfig = {
   extra: easProjectId ? { eas: { projectId: easProjectId } } : {},
   ios: {
     bundleIdentifier: "com.evoadmissions.app",
+    // Team ID Apple Developer (Membership details). Не секрет: он есть в подписи каждой сборки.
+    appleTeamId: "4D8W292RKQ",
     supportsTablet: false,
     icon: {
       light: "./assets/images/icon.png",

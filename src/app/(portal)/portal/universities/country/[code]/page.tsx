@@ -12,6 +12,7 @@ import {
   type CityCardModel,
 } from "@/components/portal/universities/Places";
 import { UniversityTileGrid } from "@/components/portal/universities/UniversityTile";
+import { UniversitySearch } from "@/components/portal/universities/UniversitySearch";
 import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
@@ -23,6 +24,7 @@ import {
   countryUniversityGroups,
   countryViewFromQuery,
   countryHref,
+  citySearchText,
   countryUniversitiesWithoutCity,
   localizedText,
   UNIVERSITIES_BASE,
@@ -69,7 +71,10 @@ export default async function CountryPage({
   const code = countryCodeFromSlug(route.code) ?? notFound();
   const keys = Object.keys(query).filter((key) => query[key] !== undefined);
   const view = countryViewFromQuery(query.view);
-  if (keys.some((key) => key !== "view") || view === null) notFound();
+  // `q`: поиск по городам и вузам страны, только на экране городов.
+  const search = typeof query.q === "string" ? query.q : "";
+  if (keys.some((key) => key !== "view" && key !== "q") || view === null
+    || (keys.includes("q") && (view !== "cities" || typeof query.q !== "string" || search.length > 100 || /[\u0000-\u001f\u007f]/u.test(search)))) notFound();
   const strings = getPortalStrings("universities", locale);
   const now = new Date();
 
@@ -104,6 +109,7 @@ export default async function CountryPage({
       summary: localizedText(city.summary, locale),
       fact: locale === "ky" ? city.fact.ky : city.fact.ru,
       photo,
+      search: citySearchText(city),
     }];
   });
   const others = [
@@ -217,7 +223,26 @@ export default async function CountryPage({
               })}
             </div>
           ) : (
-            <>
+            <UniversitySearch
+              items={index.universities
+                .filter((item) => item.country === code)
+                .map((item) => indexTileModel(index, item, { strings, locale, now, favoriteIds, showPlace: true }))}
+              cities={cityCards}
+              initialQuery={search}
+              action={countryHref(code)}
+              strings={{
+                ...tileStrings(strings),
+                searchLabel: strings.searchLabel,
+                searchPlaceholder: strings.searchPlaceholder,
+                searchClear: strings.searchClear,
+                searchFound: strings.searchFound,
+                searchEmptyTitle: strings.searchEmptyTitle,
+                searchEmptyBody: strings.searchEmptyBody,
+                universitiesHeading: strings.universitiesHeading,
+                citiesHeading: strings.citiesHeading,
+                cityFactLabel: strings.cityFactLabel,
+              }}
+            >
               {cityCards.length > 0 ? (
                 <section aria-labelledby="portal-cities-heading" className="pt-place-section">
                   <h2 id="portal-cities-heading" className="pt-sr-only">{strings.citiesHeading}</h2>
@@ -235,7 +260,7 @@ export default async function CountryPage({
                   />
                 </section>
               ) : null}
-            </>
+            </UniversitySearch>
           )}
         </>
       )}

@@ -4,15 +4,18 @@ import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type Rea
 
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { EmptyIcon } from "@/components/portal/home/HomeParts";
-import { formatPortalString } from "@/lib/portal/i18n";
-import { searchUniversities } from "@/lib/portal/university-search";
+import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { matchesSearch, searchUniversities } from "@/lib/portal/university-search";
 
+import { CityCards, type CityCardModel } from "./Places";
 import { UniversityTileGrid, type UniversityTileModel, type UniversityTileStrings } from "./UniversityTile";
 
 /**
- * Поиск по названию на первом экране «Университетов» (план 7.3): идёт в
- * браузере по индексу всех шести стран, без запроса к серверу. Пустой запрос
- * показывает страны (children), непустой: карточки найденных вузов. Запрос
+ * Поиск по городу и названию вуза (план 7.3): на первом экране «Университетов»
+ * идёт по индексу всех шести стран, внутри страны: по её городам и вузам.
+ * Работает в браузере, без запроса к серверу. Пустой запрос показывает
+ * страны или города (children), непустой: карточки найденных городов и
+ * вузов (регистр, диакритика и латиница не мешают). Запрос
  * хранится в адресе (`?q=`), поэтому «Назад», обновление и ссылка сохраняют
  * его; без JavaScript форма отправляет тот же `?q=`, и сервер рисует те же
  * результаты.
@@ -25,6 +28,9 @@ export type UniversitySearchStrings = UniversityTileStrings & Readonly<{
   searchFound: string;
   searchEmptyTitle: string;
   searchEmptyBody: string;
+  universitiesHeading: string;
+  citiesHeading: string;
+  cityFactLabel: PortalStrings<"universities">["cityFactLabel"];
 }>;
 
 export function UniversitySearch({
@@ -33,14 +39,17 @@ export function UniversitySearch({
   action,
   strings,
   favorites,
+  cities = [],
   children,
 }: {
   items: readonly UniversityTileModel[];
+  /** Города страны: на экране страны поиск находит и их. */
+  cities?: readonly CityCardModel[];
   initialQuery: string;
   action: string;
   strings: UniversitySearchStrings;
-  /** Вход в «Избранное» рядом с полем поиска. */
-  favorites: Readonly<{ href: string; label: string }>;
+  /** Вход в «Избранное» рядом с полем поиска (только на первом экране). */
+  favorites?: Readonly<{ href: string; label: string }>;
   children: ReactNode;
 }) {
   const [query, setQuery] = useState(initialQuery);
@@ -49,6 +58,11 @@ export function UniversitySearch({
   const statusId = useId();
   const trimmed = deferred.trim();
   const results = useMemo(() => searchUniversities(items, trimmed), [items, trimmed]);
+  const cityResults = useMemo(
+    () => (trimmed ? cities.filter((city) => matchesSearch(`${city.name} ${city.search ?? ""}`, trimmed)) : []),
+    [cities, trimmed],
+  );
+  const total = results.length + cityResults.length;
 
   // Адрес следует за запросом без перехода и без запроса к серверу.
   useEffect(() => {
@@ -116,6 +130,7 @@ export function UniversitySearch({
             </button>
           ) : null}
         </form>
+        {favorites ? (
         <IntentPrefetchLink href={favorites.href} className="pt-btn-ghost pt-uni-favorites-link">
           <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
             <path
@@ -128,12 +143,28 @@ export function UniversitySearch({
           </svg>
           <span className="pt-uni-favorites-label">{favorites.label}</span>
         </IntentPrefetchLink>
+        ) : null}
       </div>
       <p id={statusId} className="pt-uni-search-status" role="status">
-        {trimmed ? formatPortalString(strings.searchFound, { count: String(results.length) }) : ""}
+        {trimmed ? formatPortalString(strings.searchFound, { count: String(total) }) : ""}
       </p>
-      {!trimmed ? children : results.length > 0 ? (
-        <UniversityTileGrid models={results} strings={strings} headingLevel={2} />
+      {!trimmed ? children : total > 0 ? (
+        <>
+          {cityResults.length > 0 ? (
+            <section aria-labelledby={`${statusId}-cities`} className="pt-place-section">
+              <h2 id={`${statusId}-cities`} className="pt-section-title">{strings.citiesHeading}</h2>
+              <CityCards cities={cityResults} strings={strings} label={strings.citiesHeading} />
+            </section>
+          ) : null}
+          {results.length > 0 ? (
+            <section aria-labelledby={`${statusId}-universities`} className="pt-place-section">
+              {cityResults.length > 0 ? (
+                <h2 id={`${statusId}-universities`} className="pt-section-title">{strings.universitiesHeading}</h2>
+              ) : <h2 id={`${statusId}-universities`} className="pt-sr-only">{strings.universitiesHeading}</h2>}
+              <UniversityTileGrid models={results} strings={strings} headingLevel={3} label={strings.universitiesHeading} />
+            </section>
+          ) : null}
+        </>
       ) : (
         <section className="pt-empty pt-uni-search-empty">
           <EmptyIcon name="search" />

@@ -1347,6 +1347,7 @@
 }
 
 .pt-uni-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1396,9 +1397,32 @@
   text-decoration: none;
 }
 
+.pt-uni-card:hover .pt-uni-name a,
 .pt-uni-name a:hover {
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+/* Вся карточка — одна ссылка: ссылка названия растянута на карточку; сердечко
+   и «©» (z-index 3) лежат над ней и нажимаются отдельно. */
+.pt-uni-name a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.pt-page .pt-uni-name a:focus-visible {
+  outline: none;
+}
+
+.pt-uni-card:has(.pt-uni-name a:focus-visible) {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 3px;
+}
+
+.pt-uni-card:hover .pt-uni-card-action {
+  background: var(--pt-bg);
 }
 
 .pt-chip-row {
@@ -2438,7 +2462,8 @@
   position: absolute;
   inset-inline-end: 10px;
   top: 10px;
-  z-index: 1;
+  /* Над растянутой ссылкой карточки (z-index 2). */
+  z-index: 3;
 }
 
 .pt-uni-card-fav .pt-favorite-btn {
@@ -2705,8 +2730,9 @@
   pointer-events: none;
 }
 
+/* Не `position: relative`: иначе растянутая ссылка заголовка закрывала бы
+   только подпись, а не всю карточку. z-index работает у элемента flex-колонки. */
 .pt-place-overlay {
-  position: relative;
   z-index: 1;
   display: grid;
   gap: 4px;
@@ -8927,7 +8953,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   transition: transform var(--pt-motion-press) var(--pt-ease-out);
 }
 
-.pt-uni-card:has(.pt-uni-card-action:active),
+.pt-uni-card:has(.pt-uni-name a:active),
 .pt-prof-card:has(.pt-prof-title a:active) {
   transform: scale(var(--pt-press-scale));
 }

@@ -66,6 +66,7 @@ export function indexBody(version = "v1") {
     uniRow(5, "Ёлка-университет", "CN", { cityKey: "no-photo-city" }),
     uniRow(6, "Еда и право", "CN", { cityKey: "no-photo-city" }),
     uniRow(7, "Bogaziçi Test University", "TR"),
+    uniRow(8, "Колледж Лейксайд", "MY", { cityKey: "subang-jaya" }),
   ];
   return {
     notModified: false,
@@ -76,11 +77,12 @@ export function indexBody(version = "v1") {
       photo: code === "MY" ? geoPhoto("countries", "malaysia") : null,
       summary: code === "MY" ? { ru: "Страна тестов", ky: "Сыноо өлкөсү" } : null,
       universityCount: universities.filter((u) => u.country === code).length,
-      cityCount: code === "MY" ? 2 : code === "CN" ? 1 : 0,
+      cityCount: code === "MY" ? 3 : code === "CN" ? 1 : 0,
     })),
     cities: [
       cityRow("kuala-lumpur", "MY", "Куала-Лумпур", "Куала-Лумпур", 2),
       cityRow("penang", "MY", "Пенанг", "Пенанг", 1),
+      cityRow("subang-jaya", "MY", "Субанг-Джая", "Субанг-Жая", 1),
       cityRow("no-photo-city", "CN", "Город без фото", "Фотосуз шаар", 2, false),
     ],
     universities,

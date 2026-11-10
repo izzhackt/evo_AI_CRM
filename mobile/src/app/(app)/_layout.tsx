@@ -6,6 +6,7 @@ import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
 import { getConfig } from "@/config";
 import { UniversityIndexWarmup } from "@/features/universities/IndexWarmup";
 import { getSupabase, platformTransport } from "@/lib/supabase";
+import { ChatFab } from "@/shell/ChatFab";
 import { MenuSheet } from "@/shell/MenuSheet";
 import { SECTIONS, isAllowed, type SectionId } from "@/shell/sections";
 import { TabBar } from "@/shell/TabBar";
@@ -68,6 +69,8 @@ export default function AppLayout() {
           </Tabs.Protected>
         ))}
       </Tabs>
+      {/* Одна кнопка к команде EVO с любого экрана кабинета; не рисуется на «Входящих» и в беседе. */}
+      <ChatFab />
       </PortalPoll>
       <MenuSheet
         visible={menuOpen}

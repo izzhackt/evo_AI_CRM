@@ -176,7 +176,7 @@ export default async function StudentPortalHomePage({
           />
         ) : null}
         journey={journey.view ? (
-          <HomeJourneyCard view={journey.view} progress={journey.progress} locale={locale} />
+          <HomeJourneyCard view={journey.view} progress={journey.progress} stage={overviewResult.ok ? overviewResult.value?.operationalStage ?? null : null} locale={locale} />
         ) : null}
         countryChoice={journey.view ? null : (
           <CountryTimeline

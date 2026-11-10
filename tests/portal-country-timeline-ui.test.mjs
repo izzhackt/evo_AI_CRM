@@ -49,7 +49,7 @@ test("one home: the card sits in the right column, the whole path closes the pag
   assert.equal(page.match(/<CountryTimeline/gu)?.length, 2);
   assert.match(page, /countryChoice=\{journey\.view \? null : \(\s+<CountryTimeline\s+view=\{null\}/u);
   assert.match(page, /fullPath=\{journey\.view \? \(\s+(?:\/\/[^\n]*\n\s+)?<CountryTimeline\s+view=\{journey\.view\}/u);
-  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>\s+\) : null\}/u);
+  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} stage=\{[^}]*\} locale=\{locale\} \/>\s+\) : null\}/u);
   assert.ok(view.indexOf("{list}") > view.indexOf('<div className="pt-home-columns">') && view.indexOf("{fullPath}") > view.indexOf("{list}"), "columns, then the list, then the whole path");
   // Выбор страны первым блоком под шапкой, до колонок (карточки согласия на «Главной» больше нет, 09.11.2026).
   const hv = view;
@@ -67,16 +67,19 @@ test("one home: the card sits in the right column, the whole path closes the pag
   assert.match(card, /href=\{JOURNEY_HREF\}/u);
   // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
   assert.doesNotMatch(card, /^"use client";/u);
-  assert.match(card, /<span className="pt-home-path-n">\{strings\.pathNow\}<\/span>/u);
-  assert.match(card, /timeline\.stepOf, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
+  // 10.11.2026: «Шаг N из M · название · дальше — …» считает общий journeyStrip (тот же код у iPhone).
+  assert.match(card, /journeyStrip\(view\.steps, progress, stage\)/u);
+  assert.match(card, /strings\.stripStep, \{ n: String\(strip\.n\), total: String\(strip\.total\) \}/u);
+  assert.match(card, /strings\.stripNext, \{ title: strip\.nextTitle \}/u);
+  assert.match(card, /strings\.stripDone/u);
   assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
   assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
   // Без страны карточки нет (выбор стоит первым блоком «Главной»); заголовок называет страну пути.
   assert.match(card, /if \(view === null\) return null;/u);
   assert.match(card, /strings\.pathTitle, \{ country: view\.countryName \}/u);
   const home = PORTAL_DICTIONARIES.home;
-  assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.pathNow], ["Весь путь", "Путь: {country}", "Сейчас на пути:"]);
-  for (const key of ["pathAll", "pathTitle", "pathNow"]) assert.ok(home.ky[key], `ky ${key}`);
+  assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.stripStep, home.ru.stripNext, home.ru.stripDone], ["Весь путь", "Путь: {country}", "Шаг {n} из {total}", "дальше — {title}", "Поступление завершено"]);
+  for (const key of ["pathAll", "pathTitle", "stripStep", "stripNext", "stripDone"]) assert.ok(home.ky[key], `ky ${key}`);
   assert.match(css, /\.pt-page > \.pt-journey \{\n {2}margin-bottom: 24px;\n {2}scroll-margin-top: calc\(var\(--pt-topbar-height\) \+ 16px\);/u);
 });
 

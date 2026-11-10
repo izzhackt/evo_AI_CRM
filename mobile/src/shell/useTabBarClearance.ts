@@ -9,3 +9,10 @@ export function useTabBarClearance(): number {
   const tier = useOptionalPortalApi()?.tier;
   return tier !== undefined && !hasTabBar(tier) ? 0 : TAB_BAR_CLEARANCE;
 }
+
+/** Дополнительный запас под плавающую кнопку «Написать EVO»: у клиента с сопровождением последнее действие не прячется под ней. */
+export const CHAT_FAB_CLEARANCE = 68;
+
+export function useChatFabClearance(): number {
+  return useOptionalPortalApi()?.tier === "assisted" ? CHAT_FAB_CLEARANCE : 0;
+}

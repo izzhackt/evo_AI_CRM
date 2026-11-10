@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
@@ -288,9 +288,12 @@ test("readPortalCaseMessages(\"11\") forwards the numeric cursor as a GET query 
 
 test("one entry «Написать EVO» opens the chat: home card, university card for assisted, consultation only without a chat (#1356)", () => {
   assert.equal(source("src/lib/portal/write-evo.ts").includes('"/portal/messages?view=chat"'), true);
-  const card = source("src/components/portal/home/HomeWriteEvo.tsx");
-  assert.match(card, /href=\{WRITE_EVO_HREF\}/u);
-  assert.match(source("src/components/portal/home/HomeView.tsx"), /tier === "assisted" \? \(\s*<div className="pt-home-slot" data-slot="write">/u);
+  // 10.11.2026: карточки «Есть вопрос?» на «Главной» нет, вход один: плавающая кнопка в оболочке кабинета.
+  assert.equal(existsSync(new URL("../src/components/portal/home/HomeWriteEvo.tsx", import.meta.url)), false);
+  assert.doesNotMatch(source("src/components/portal/home/HomeView.tsx"), /HomeWriteEvo|data-slot="write"/u);
+  const shell = source("src/components/portal/Shell.tsx");
+  assert.match(shell, /accessTier === "assisted" && pathname !== "\/portal\/messages" && !pathname\.startsWith\("\/portal\/messages\/"\)/u);
+  assert.match(shell, /href=\{WRITE_EVO_HREF\} className="pt-chat-fab" aria-label=\{chatLabel\}/u);
   const university = source("src/app/(portal)/portal/universities/[id]/page.tsx");
   assert.match(university, /consultation=\{actor\.accessTier === "assisted" \? null : \{/u);
   assert.match(university, /writeEvo=\{actor\.accessTier === "assisted"/u);
@@ -298,6 +301,7 @@ test("one entry «Написать EVO» opens the chat: home card, university c
   assert.doesNotMatch(source("src/app/(portal)/portal/page.tsx"), /CaseHelpWorkspace/u);
   const home = PORTAL_DICTIONARIES.home;
   assert.equal(home.ru.writeAction, "Написать EVO");
-  assert.ok(home.ky.writeAction && home.ky.writeHeading && home.ky.writeBody);
+  assert.ok(home.ky.writeAction);
+  assert.equal(home.ru.writeHeading, undefined);
   assert.equal(PORTAL_DICTIONARIES.messages.ru.differenceNote, undefined);
 });

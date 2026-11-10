@@ -7020,134 +7020,9 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-weight: 500;
 }
 
-.pt-home-stages {
-  padding: 20px 24px 22px;
-  border-top: 1px solid var(--pt-hero-line);
-}
-
-.pt-home-stage-track {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pt-home-stage-track > li {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  min-width: 0;
-  text-align: center;
-}
-
-/* Линия от предыдущего шага к этому, под точкой. */
-.pt-home-stage-track > li + li::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  right: 50%;
-  width: 100%;
-  height: 2px;
-  background: var(--pt-hero-line);
-}
-
-.pt-home-stage-track > li[data-state="done"]::before,
-.pt-home-stage-track > li[data-state="current"]::before {
-  background: var(--pt-hero-muted);
-}
-
-.pt-home-stage-visual {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  max-width: 100%;
-}
-
-.pt-home-stage-dot {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-hero-bg);
-  box-shadow: inset 0 0 0 1.5px var(--pt-hero-ring);
-}
-
-.pt-home-stage-track > li[data-state="done"] .pt-home-stage-dot {
-  background: var(--pt-hero-muted);
-  box-shadow: none;
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot {
-  box-shadow: inset 0 0 0 2px var(--pt-hero-ink);
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-brand-red);
-}
-
-.pt-home-stage-name {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--pt-hero-faint);
-  font-size: var(--pt-size-caption);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pt-home-stage-track > li[data-state="done"] .pt-home-stage-name {
-  color: var(--pt-hero-muted);
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-name {
-  color: var(--pt-hero-ink);
-  font-weight: 700;
-}
-
-/* Строка «Этап N из M» — только на шапке уже 940 px: там самая длинная подпись
-   полужирным («Документтер», 87 px) уже не влезает в колонку шага. */
-.pt-home-stage-caption {
-  display: none;
-  margin: 14px 0 0;
-  color: var(--pt-hero-ink);
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-}
-
 @container pt-hero (max-width: 940px) {
   .pt-home-hero-head {
     padding: 22px 20px 18px;
-  }
-
-  .pt-home-stages {
-    padding: 16px 16px 18px;
-  }
-
-  .pt-home-stage-visual {
-    gap: 0;
-  }
-
-  .pt-home-stage-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .pt-home-stage-caption {
-    display: block;
   }
 }
 
@@ -7177,7 +7052,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-home-slot[data-slot="case"] { order: 1; }
 .pt-home-slot[data-slot="path"] { order: 2; }
-.pt-home-slot[data-slot="write"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
 .pt-home-slot[data-slot="csca"] { order: 6; }
@@ -7220,12 +7094,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-home-main > .pt-home-slot:last-child > *,
   .pt-home-side > .pt-home-slot:last-child > * {
     flex-grow: 1;
-  }
-
-  /* Короткая карточка «Написать EVO» не растягивается до низа колонки (#1356): пустая плашка ничего не говорит. */
-  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child,
-  .pt-home-main > .pt-home-slot[data-slot="write"]:last-child > * {
-    flex-grow: 0;
   }
 
   .pt-home-main,
@@ -7364,6 +7232,21 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-body);
   font-weight: 600;
   line-height: 1.3;
+}
+
+.pt-home-path-n {
+  font-weight: 600;
+}
+
+.pt-home-path-next {
+  margin: -4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.4;
+}
+
+.pt-home-path-all {
+  margin: 0;
 }
 
 /* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
@@ -8679,6 +8562,64 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /* Live notifications share the Atlas header; no second navigation strip. */
+/*
+ * Плавающая кнопка «Написать EVO» (10.11.2026): круглая, в правом нижнем углу любого экрана кабинета с чатом.
+ * Широкий экран: 24 px от краёв. Телефон: над парящей панелью вкладок (панель ≈ 62 px + её отступ), поэтому не
+ * перекрывает вкладки; низ содержимого получает запас, чтобы последнее действие не пряталось под кнопкой.
+ */
+.pt-chat-fab {
+  position: fixed;
+  inset-inline-end: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  box-shadow: var(--pt-shadow-raised);
+  text-decoration: none;
+  transition: transform var(--pt-motion-fast, 150ms) var(--pt-ease-out, ease-out);
+}
+
+.pt-chat-fab:hover {
+  transform: translateY(-2px);
+}
+
+.pt-chat-fab:focus-visible {
+  outline: 2px solid var(--pt-text);
+  outline-offset: 3px;
+}
+
+.pt-shell[data-chat-fab] .pt-content {
+  padding-bottom: 96px;
+}
+
+@media (max-width: 767px) {
+  .pt-chat-fab {
+    inset-inline-end: max(16px, env(safe-area-inset-right));
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 62px + 12px);
+    width: 52px;
+    height: 52px;
+  }
+
+  .pt-shell[data-chat-fab] .pt-content {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-chat-fab {
+    transition: none;
+  }
+
+  .pt-chat-fab:hover {
+    transform: none;
+  }
+}
+
 .pt-notification-updates { position: relative; flex-shrink: 0; }
 .pt-notification-updates .pt-bell { position: relative; }
 .pt-notification-count {

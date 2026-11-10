@@ -51,12 +51,15 @@ test("«Документы»: карточка «Чек-лист» (прогре
   assert.equal(count(next("docs-empty"), /data-testid="v3-documents-group"/gu), 0);
 });
 
-test("«Договор и оплата»: сводка из четырёх данных с «⋯», транши и оплаты — соседние карточки, стоп и валюты на виду; прежний лист — одна рамка", () => {
+test("«Договор и оплата»: сводка с «⋯», «График платежей» — соседняя карточка, стоп и валюты на виду; прежний лист — одна рамка", () => {
   const html = next("money-cross");
   const summary = html.slice(html.indexOf('data-testid="v3-case-agreement"'), html.indexOf('data-testid="v3-case-agreement-tranches"'));
   assert.deepEqual([...summary.matchAll(/<dt class="t-caption text-fg-3">([^<]+)<\/dt>/gu)].map((match) => match[1]), ["Стоимость", "Договор", "Оплачено", "Остаток"]);
   assert.match(summary, /data-testid="v3-case-money-more"/u, "«⋯» — в шапке карточки сводки");
-  assert.match(text(summary), /30 000,00 KGS/u);
+  // 10.11.2026: суммы без нулевых копеек, договор — день и кто загрузил (имя файла — в подсказке).
+  assert.match(text(summary), /30 000 KGS/u);
+  assert.doesNotMatch(text(summary), /,00 /u);
+  assert.match(text(summary), /Договор от 18\.09/u);
   assert.match(text(summary), /по траншам, без пересчёта валют/u, "суммы разных валют не пересчитываются");
   assert.match(text(summary), /с учётом возвратов/u);
   assert.match(summary, /data-testid="v3-case-money-stop"/u, "финансовый стоп на виду");
@@ -73,7 +76,8 @@ test("«Договор и оплата»: сводка из четырёх да�
   assert.match(text(next("money-same")), /Прежние версии · 1/u);
   assert.match(next("money-same"), /data-testid="v3-case-money-history"/u);
   assert.match(text(next("money-empty")), /Договор не загружен|не загружен/u);
-  assert.match(text(next("money-empty")), /Траншей нет\./u);
+  assert.match(text(next("money-empty")), /Графика нет\./u);
+
 });
 
 test("«Вузы и программы»: список вузов — одна карточка с кнопками добавления у заголовка, «вуза нет в каталоге» за «?», пакеты партнёру — карточка-раскрытие", () => {

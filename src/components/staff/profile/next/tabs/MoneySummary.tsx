@@ -6,7 +6,7 @@ import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { CaseAgreementUploadContract } from "../../CaseAgreementForms";
 import { CaseMoneyOpen } from "../../CaseMoney";
-import { CASE_MONEY_PANEL, caseMoneySummary, moneyMomentDay } from "../../case-money-view";
+import { CASE_MONEY_PANEL, caseMoneySummary, caseScheduleRemaining, moneyMomentDay, moneyShort } from "../../case-money-view";
 import { MoreSheet } from "../MoreSheet";
 
 const MUTED = "text-fg-3";
@@ -28,8 +28,9 @@ export function MoneyStop({ reason, stopsPanel }: Readonly<{ reason: string; sto
 }
 
 /**
- * Сводка: четыре данных (стоимость, договор, оплачено, остаток), под ними действия с договором и условия продажи, затем стоп.
- * Суммы и слова - из `caseMoneySummary`, как у прежней сводки: суммы разных валют не пересчитываются.
+ * Сводка: договор, оплачено и остаток; стоимость — только если её указали (10.11.2026: вписывать сумму договора каждый раз
+ * неудобно, поэтому без неё остаток считается по графику платежей). Под ними действия с договором и условия продажи, затем
+ * стоп. Суммы - из `caseMoneySummary` без нулевых копеек: суммы разных валют не пересчитываются.
  */
 export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, financeStop, stopsPanel }: Readonly<{
   agreement: CaseAgreement;
@@ -42,17 +43,22 @@ export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, f
   const summary = caseMoneySummary(agreement);
   const current = agreement.contractCurrent;
   const caseId = agreement.studentCaseId;
+  const costKnown = summary.cost !== null || summary.costWithoutCurrency;
+  const remaining = costKnown ? summary.remaining.values.map(moneyShort) : caseScheduleRemaining(agreement);
+  const remainingNote = costKnown ? summary.remaining.note : null;
+  // Стоимость - первой, если её указали; нет - её строки нет вовсе.
   const facts: KeyFact[] = [
-    { label: caseMoneyWords.rows.cost, value: <span className="tabular-nums">{summary.cost ?? <span className={MUTED}>{summary.costWithoutCurrency ? "валюта не указана" : "не указана"}</span>}</span> },
+    ...(costKnown ? [{
+      label: caseMoneyWords.rows.cost,
+      value: <span className="tabular-nums">{summary.cost ? moneyShort(summary.cost) : <span className={MUTED}>валюта не указана</span>}</span>,
+    }] : []),
     {
       label: caseMoneyWords.rows.contract,
+      // Имя файла часто служебное (длинный хеш) — на экране день и кто загрузил, имя файла — в подсказке.
       value: current ? (
-        <span data-testid="v3-case-money-contract">
-          <span className="block break-words">{current.originalFilename}</span>
-          <span className="block t-meta text-fg-3">
-            <time dateTime={current.uploadedAt} className="font-mono tabular-nums">{moneyMomentDay(current.uploadedAt, today)}</time>
-            {current.uploadedByDisplayName ? ` · ${current.uploadedByDisplayName}` : null}
-          </span>
+        <span data-testid="v3-case-money-contract" title={current.originalFilename}>
+          от <time dateTime={current.uploadedAt} className="tabular-nums">{moneyMomentDay(current.uploadedAt, today)}</time>
+          {current.uploadedByDisplayName ? <span className="block t-meta text-fg-3">{current.uploadedByDisplayName}</span> : null}
         </span>
       ) : <span className={MUTED} data-testid="v3-case-money-contract">не загружен</span>,
     },
@@ -60,17 +66,17 @@ export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, f
       label: caseMoneyWords.rows.paid,
       value: (
         <span className="tabular-nums">
-          {summary.paid.length > 0 ? summary.paid.join(" · ") : <span className={MUTED}>оплат нет</span>}
+          {summary.paid.length > 0 ? summary.paid.map(moneyShort).join(" · ") : <span className={MUTED}>оплат нет</span>}
           {summary.refunds ? <span className="block t-meta text-fg-3">с учётом возвратов</span> : null}
         </span>
       ),
     },
     {
-      label: caseMoneyWords.rows.remaining,
+      label: costKnown ? caseMoneyWords.rows.remaining : "Осталось по графику",
       value: (
         <span className="tabular-nums">
-          {summary.remaining.values.length > 0 ? summary.remaining.values.join(" · ") : <span className={MUTED}>—</span>}
-          {summary.remaining.note ? <span className="block t-meta text-fg-3">{summary.remaining.note}</span> : null}
+          {remaining.length > 0 ? remaining.join(" · ") : <span className={MUTED}>—</span>}
+          {remainingNote ? <span className="block t-meta text-fg-3">{remainingNote}</span> : null}
         </span>
       ),
     },
@@ -79,7 +85,7 @@ export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, f
   const hasActions = current !== null || canWrite || history.length > 0 || saleConditionsHref !== null;
   return (
     <div className="grid grid-cols-1 gap-3">
-      <KeyFacts facts={facts} columns={4} />
+      <KeyFacts facts={facts} columns={facts.length === 4 ? 4 : 3} />
       {hasActions ? (
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3" data-testid="v3-case-money-actions">
           {current ? <Button asChild variant="outline"><a href={download(caseId, current.id)}>Скачать договор</a></Button> : null}

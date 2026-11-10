@@ -1,90 +1,117 @@
 import { StatusBadge } from "@/components/kit/StatusBadge";
-import { financeMoney, type CaseAgreement } from "@/lib/platform-case-agreement-contract";
+import type { CaseAgreement, CaseAgreementPayment, CaseAgreementTranche } from "@/lib/platform-case-agreement-contract";
 import type { PendingReceipt } from "@/lib/platform-pending-receipts-contract";
 
 import { CaseAgreementPaymentForm, CaseAgreementTrancheEditor } from "../../CaseAgreementForms";
 import { CasePaymentReceiptUpload } from "../../CasePaymentReceiptUpload";
-import { CASE_MONEY_ROW_ACTION, caseMoneySummary, caseTrancheState, moneyDay } from "../../case-money-view";
+import { CASE_MONEY_ROW_ACTION, caseMoneySummary, casePaymentsBySchedule, caseTrancheState, moneyAmount, moneyDay } from "../../case-money-view";
 import { PendingReceiptsCard } from "../../PendingReceiptsCard";
 import { NamedCard } from "../NamedCard";
 
-// Строки траншей и оплат: на узкой карточке - перенос по словам, от 56rem карточки - колонки, суммы по правому краю своей колонки.
-// У оплаты на узкой карточке «Транш · кто» - своей строкой под датой и суммой, чек - справа на строке суммы.
-const TRANCHE_ROW = "flex flex-wrap items-center gap-x-4 py-1 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_8.5rem_5.5rem_minmax(0,15rem)_5rem]";
-const PAYMENT_ROW = "flex flex-wrap items-center gap-x-4 py-1 @4xl:grid @4xl:grid-cols-[4rem_8.5rem_minmax(0,1fr)_auto]";
-
 type Props = Readonly<{ agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[] }>;
 
-/** «Платежи» (раньше «Транши»): строки те же, что у прежней сводки, редактор транша - прежняя форма (`CaseAgreementTrancheEditor`). */
-export function TranchesCard({ agreement, canWrite, today }: Props) {
+/**
+ * «График платежей» (10.11.2026, вместо двух карточек «Платежи» и «Оплаты и чеки»): платёж - сумма, срок и состояние словом,
+ * под ним его оплаты с чеком. Одни 600 USD больше не повторяются в двух списках, а у каждой оплаты сразу видно, есть ли чек:
+ * так проще вести отчёт. Формы - прежние (`CaseAgreementTrancheEditor`, `CaseAgreementPaymentForm`), только подписи.
+ */
+export function ScheduleCard({ agreement, canWrite, today, pendingReceipts = [] }: Props) {
   const caseId = agreement.studentCaseId;
   const against = caseMoneySummary(agreement).tranchesAgainstCost;
+  const { byTranche, other } = casePaymentsBySchedule(agreement);
   return (
     <NamedCard
-      title="Платежи"
+      title="График платежей"
       testId="v3-case-agreement-tranches"
       className="@container"
       actions={against ? <span className="t-meta text-fg-2">{against}</span> : null}
     >
       <ul className="divide-y divide-border border-t border-border">
-        {agreement.tranches.map((tranche) => {
-          const state = caseTrancheState(tranche, today);
-          return (
-            <li key={tranche.id} className={TRANCHE_ROW}>
-              <span className="flex min-h-11 min-w-0 flex-1 basis-40 items-center break-words t-body-compact text-fg">{tranche.label}</span>
-              <span className="t-body-compact tabular-nums text-fg @4xl:text-end">{financeMoney(tranche.amountMinor, tranche.currency)}</span>
-              <span className="t-meta text-fg-2">
-                {tranche.dueOn ? <>до <time dateTime={tranche.dueOn} className="font-mono tabular-nums">{moneyDay(tranche.dueOn, today)}</time></> : null}
-              </span>
-              <span className="flex min-h-11 flex-wrap items-center gap-x-2">
-                {state === "paid" ? <StatusBadge label="оплачен" tone="ok" /> : (
-                  <span className="t-meta tabular-nums text-fg-2">осталось {financeMoney(tranche.outstandingMinor, tranche.currency)}</span>
-                )}
-                {state === "overdue" ? <StatusBadge label="просрочен" tone="danger" /> : null}
-              </span>
-              {canWrite ? <CaseAgreementTrancheEditor studentCaseId={caseId} tranche={tranche} canArchive={tranche.totalPaidMinor === "0"} /> : null}
-            </li>
-          );
-        })}
-        {agreement.tranches.length === 0 ? <li className="py-2.5 t-body-compact text-fg-3">Платежей нет.</li> : null}
+        {agreement.tranches.map((tranche) => (
+          <ScheduleRow key={tranche.id} tranche={tranche} payments={byTranche.get(tranche.id) ?? []} caseId={caseId} canWrite={canWrite} today={today} />
+        ))}
+        {agreement.tranches.length === 0 ? (
+          <li className="py-2.5 t-body-compact text-fg-3">Графика нет. Добавьте платёж: сумму и срок.</li>
+        ) : null}
       </ul>
-      {canWrite ? (
-        <CaseAgreementTrancheEditor studentCaseId={caseId} tranche={null} canArchive={false} addLabel={agreement.tranches.length === 0 ? "Добавить платёж" : "Добавить платёж"} />
+      {other.length > 0 ? (
+        <div className="border-t border-border pt-2">
+          <p className="t-caption text-fg-3">Оплаты по архивным платежам</p>
+          <PaymentLines payments={other} caseId={caseId} canWrite={canWrite} today={today} />
+        </div>
       ) : null}
+      <div className="grid gap-1" data-testid="v3-case-agreement-payment">
+        <PendingReceiptsCard receipts={pendingReceipts} payments={agreement.payments} canWrite={canWrite} today={today} />
+        {canWrite && agreement.tranches.length > 0 ? <CaseAgreementPaymentForm studentCaseId={caseId} tranches={agreement.tranches} /> : null}
+        {canWrite ? <CaseAgreementTrancheEditor studentCaseId={caseId} tranche={null} canArchive={false} addLabel="Добавить платёж" /> : null}
+      </div>
     </NamedCard>
   );
 }
 
-/** «Оплаты и чеки»: оплата или возврат, транш и кто внёс, чек; форма «Внести оплату» - прежняя (`CaseAgreementPaymentForm`). */
-export function PaymentsCard({ agreement, canWrite, today, pendingReceipts = [] }: Props) {
-  const caseId = agreement.studentCaseId;
-  const trancheLabel = new Map(agreement.tranches.map((tranche) => [tranche.id, tranche.label]));
+/** Строка графика: название и срок, сумма, состояние словом, «Изменить»; под ней - оплаты этого платежа. */
+function ScheduleRow({ tranche, payments, caseId, canWrite, today }: Readonly<{
+  tranche: CaseAgreementTranche;
+  payments: readonly CaseAgreementPayment[];
+  caseId: string;
+  canWrite: boolean;
+  today: string;
+}>) {
+  const state = caseTrancheState(tranche, today);
   return (
-    <NamedCard title="Оплаты и чеки" testId="v3-case-agreement-payment" className="@container">
-      <ul className="divide-y divide-border border-t border-border">
-        {agreement.payments.map((payment) => (
-          <li key={payment.id} className={PAYMENT_ROW}>
-            <time dateTime={payment.occurredOn} className="flex min-h-11 items-center font-mono t-meta tabular-nums text-fg-2">{moneyDay(payment.occurredOn, today)}</time>
-            <span className="t-body-compact tabular-nums text-fg @4xl:text-end">
-              {payment.eventType === "refund" ? "−" : ""}
-              {financeMoney(payment.amountMinor, payment.currency)}
-            </span>
-            <span className="order-last flex min-w-0 basis-full flex-wrap items-center gap-x-2 break-words pb-1 t-meta text-fg-2 @4xl:order-none @4xl:pb-0">
-              {payment.eventType === "refund" ? <StatusBadge label="возврат" tone="warn" /> : null}
-              {[trancheLabel.get(payment.obligationId), payment.actorDisplayName].filter(Boolean).join(" · ")}
-            </span>
-            <span className="ms-auto flex items-center justify-end gap-x-4">
-              {payment.receipts.map((receipt) => (
-                <a key={receipt.id} className={CASE_MONEY_ROW_ACTION} href={`/api/v2/payment-receipt-files/${caseId}/${receipt.id}/download`}>Чек</a>
-              ))}
-              {canWrite && payment.eventType === "payment" && payment.receipts.length === 0 ? <CasePaymentReceiptUpload paymentEventId={payment.id} /> : null}
-            </span>
-          </li>
-        ))}
-        {agreement.payments.length === 0 ? <li className="py-2.5 t-body-compact text-fg-3">Оплат ещё нет.</li> : null}
-      </ul>
-      <PendingReceiptsCard receipts={pendingReceipts} payments={agreement.payments} canWrite={canWrite} today={today} />
-      {canWrite && agreement.tranches.length > 0 ? <CaseAgreementPaymentForm studentCaseId={caseId} tranches={agreement.tranches} /> : null}
-    </NamedCard>
+    <li className="py-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_8rem_minmax(0,12rem)_auto]">
+        <div className="min-w-0 flex-1 basis-40">
+          <p className="break-words t-body-compact font-medium text-fg">{tranche.label}</p>
+          {tranche.dueOn ? (
+            <p className="t-meta text-fg-2">до <time dateTime={tranche.dueOn} className="tabular-nums">{moneyDay(tranche.dueOn, today)}</time></p>
+          ) : null}
+        </div>
+        <span className="t-body-compact tabular-nums text-fg @4xl:text-end">{moneyAmount(tranche.amountMinor, tranche.currency)}</span>
+        <span className="flex min-h-11 flex-wrap items-center gap-x-2">
+          {state === "paid" ? <StatusBadge label="оплачен" tone="ok" /> : (
+            <span className="t-meta tabular-nums text-fg-2">осталось {moneyAmount(tranche.outstandingMinor, tranche.currency)}</span>
+          )}
+          {state === "overdue" ? <StatusBadge label="просрочен" tone="danger" /> : null}
+        </span>
+        {canWrite ? <CaseAgreementTrancheEditor studentCaseId={caseId} tranche={tranche} canArchive={tranche.totalPaidMinor === "0"} /> : <span />}
+      </div>
+      {payments.length > 0 ? <PaymentLines payments={payments} caseId={caseId} canWrite={canWrite} today={today} nested /> : null}
+    </li>
+  );
+}
+
+/** Оплаты: день, сумма (возврат - со знаком и словом), кто записал и чек: «Чек» скачать, «чека нет» и «Загрузить чек». */
+function PaymentLines({ payments, caseId, canWrite, today, nested = false }: Readonly<{
+  payments: readonly CaseAgreementPayment[];
+  caseId: string;
+  canWrite: boolean;
+  today: string;
+  nested?: boolean;
+}>) {
+  return (
+    <ul className={nested ? "mt-1 grid border-s-2 border-border ps-3" : "grid"}>
+      {payments.map((payment) => (
+        <li key={payment.id} className="flex min-h-11 flex-wrap items-center gap-x-3 t-meta text-fg-2">
+          <time dateTime={payment.occurredOn} className="tabular-nums">{moneyDay(payment.occurredOn, today)}</time>
+          <span className="t-body-compact tabular-nums text-fg">
+            {payment.eventType === "refund" ? "−" : ""}{moneyAmount(payment.amountMinor, payment.currency)}
+          </span>
+          {payment.eventType === "refund" ? <StatusBadge label="возврат" tone="warn" /> : null}
+          {payment.actorDisplayName ? <span className="min-w-0 break-words">{payment.actorDisplayName}</span> : null}
+          <span className="ms-auto flex items-center justify-end gap-x-3">
+            {payment.receipts.map((receipt) => (
+              <a key={receipt.id} className={CASE_MONEY_ROW_ACTION} href={`/api/v2/payment-receipt-files/${caseId}/${receipt.id}/download`}>Чек</a>
+            ))}
+            {payment.eventType === "payment" && payment.receipts.length === 0 ? (
+              <>
+                <span>чека нет</span>
+                {canWrite ? <CasePaymentReceiptUpload paymentEventId={payment.id} /> : null}
+              </>
+            ) : null}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

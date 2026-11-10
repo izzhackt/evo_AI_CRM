@@ -262,3 +262,19 @@ test("a malformed address anchor does not take the sheet down: the decode is gua
   assert.match(source, /try \{\s*id = decodeURIComponent\(window\.location\.hash\.slice\(1\)\);\s*\} catch \{\s*return;\s*\}/u);
   assert.equal((source.match(/decodeURIComponent\(/gu) ?? []).length, 1, "no unguarded decode elsewhere");
 });
+
+test("10.11.2026: schedule helpers — short sums, the remainder by the schedule without a cost, payments under their own payment", async () => {
+  const view = await import("../src/components/staff/profile/case-money-view.ts");
+  assert.equal(view.moneyShort("600,00 USD"), "600 USD");
+  assert.equal(view.moneyShort("600,50 USD"), "600,50 USD");
+  assert.equal(view.moneyShort("1\u00a0800,00 USD").replace(/\u00a0/gu, " "), "1 800 USD");
+  const noCost = { ...agreement({}), costMinor: null, costCurrency: null, remainingMinor: null, tranches: [tranche(1, "60000", "USD", "0"), tranche(2, "120000", "USD", "120000")] };
+  assert.deepEqual(view.caseScheduleRemaining(noCost).map((value) => value.replace(/[\u00a0\u202f]/gu, " ")), ["1 200 USD"]);
+  assert.deepEqual(view.caseScheduleRemaining({ ...noCost, tranches: [] }), []);
+  const grouped = view.casePaymentsBySchedule({ ...noCost, payments: [
+    payment(1, "60000", "USD"),
+    { ...payment(2, "10000", "USD"), obligationId: id(99) },
+  ] });
+  assert.equal(grouped.byTranche.get(noCost.tranches[0].id)?.length, 1);
+  assert.equal(grouped.other.length, 1, "a payment of an archived payment is not lost");
+});

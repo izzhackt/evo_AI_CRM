@@ -184,7 +184,7 @@ export function CaseAgreementTrancheEditor({
   studentCaseId,
   tranche,
   canArchive,
-  addLabel = "Добавить транш",
+  addLabel = "Добавить платёж",
 }: Readonly<{
   studentCaseId: string;
   tranche: CaseAgreementTranche | null;
@@ -264,7 +264,7 @@ function TrancheEditor({
               name="label"
               maxLength={500}
               defaultValue={tranche?.label ?? ""}
-              placeholder={tranche ? undefined : "Транш"}
+              placeholder={tranche ? undefined : "Например, первый платёж"}
               className={inputCls}
             />
           </label>
@@ -310,7 +310,7 @@ function TrancheEditor({
                 checked={archive}
                 onChange={(event) => setArchive(event.target.checked)}
               />
-              Архивировать транш
+              Архивировать платёж
             </label>
           ) : null}
           <button className={QUEUE_CONFIRM} disabled={locked}>
@@ -386,7 +386,11 @@ function PaymentForm({
   const retryInputRef = useRef<HTMLInputElement>(null);
   const [retryUploading, setRetryUploading] = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
-  const [obligationId, setObligationId] = useState(tranches[0]?.id ?? "");
+  const [obligationId, setObligationId] = useState(() => tranches.find((item) => item.outstandingMinor !== "0")?.id ?? tranches[0]?.id ?? "");
+  // День оплаты (10.11.2026, для отчётов): по умолчанию сегодня, можно поставить день, когда деньги пришли на самом деле.
+  // Действие принимает одно поле `at` (день и время по Бишкеку) - видимое поле дня без имени, `at` собирается из него.
+  const [now] = useState(nowBishkekLocalInput);
+  const [paidDay, setPaidDay] = useState(now.slice(0, 10));
   const [receiptStatus, setReceiptStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const obligation = tranches.find((item) => item.id === obligationId);
 
@@ -453,16 +457,16 @@ function PaymentForm({
   return (
     <details className="mt-2">
       <summary className={ADD_SUMMARY}>
-        Добавить оплату
+        Записать оплату
       </summary>
       <form action={action} className="mt-2 max-w-xl space-y-3 pb-2">
         <input type="hidden" name="request_id" value={currentRequestId} />
         <input type="hidden" name="student_case_id" value={studentCaseId} />
-        <input type="hidden" name="at" value={nowBishkekLocalInput()} />
+        <input type="hidden" name="at" value={`${paidDay}${now.slice(10)}`} />
         <input type="hidden" name="currency" value={obligation?.currency ?? ""} />
         <fieldset disabled={locked} className="space-y-3">
           <label className="block">
-            <span className={fieldLabelCls}>Транш</span>
+            <span className={fieldLabelCls}>Платёж</span>
             <select
               name="payment_obligation_id"
               required
@@ -489,6 +493,17 @@ function PaymentForm({
               inputMode="decimal"
               pattern="[0-9]+([.,][0-9]{1,2})?"
               required
+              className={inputCls}
+            />
+          </label>
+          <label className="block">
+            <span className={fieldLabelCls}>День оплаты</span>
+            <input
+              type="date"
+              required
+              value={paidDay}
+              max={now.slice(0, 10)}
+              onChange={(event) => setPaidDay(event.target.value)}
               className={inputCls}
             />
           </label>

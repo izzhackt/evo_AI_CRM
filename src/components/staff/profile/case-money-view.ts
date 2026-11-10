@@ -40,6 +40,19 @@ export function moneyDay(day: string, today: string): string {
   return formatQueueDay(day, today);
 }
 
+/**
+ * Сумма без нулевых копеек (10.11.2026, «стильно минималистично»): «600 USD», а «600,50 USD» — как было. Только для
+ * показа на вкладке «Деньги»; суммы в отчётах и формах не трогаются.
+ */
+export function moneyShort(text: string): string {
+  return text.replace(/,00(?= [A-Z]{3}$)/u, "");
+}
+
+/** Сумма из копеек и валюты в коротком виде (`moneyShort`). */
+export function moneyAmount(minor: string, currency: string): string {
+  return moneyShort(financeMoney(minor, currency));
+}
+
 /** День момента по Бишкеку, «ДД.ММ». */
 export function moneyMomentDay(iso: string, today: string): string {
   return formatQueueDay(dayInOrganizationTimezone(new Date(iso)), today);
@@ -139,6 +152,31 @@ export function caseMoneySummary(agreement: CaseAgreement): CaseMoneySummary {
     tranchesAgainstCost: !agreement.currencyMismatch && agreement.costMismatch && agreement.costCurrency && cost
       ? `Транши: ${financeMoney(agreement.trancheSumMinor, agreement.costCurrency)} из ${cost}` : null,
   };
+}
+
+/**
+ * Сколько осталось по графику платежей (10.11.2026): стоимость договора не обязательна — остаток считается по платежам,
+ * которые уже записаны. Платежей нет — пусто (посчитать не из чего).
+ */
+export function caseScheduleRemaining(agreement: CaseAgreement): readonly string[] {
+  if (agreement.tranches.length === 0) return [];
+  const order = [...(agreement.costCurrency ? [agreement.costCurrency] : []), ...agreement.tranches.map((tranche) => tranche.currency)];
+  return caseOutstandingByCurrency(agreement.tranches, order).map(moneyShort);
+}
+
+/** Оплаты каждого платежа графика: по id платежа, в порядке чтения. Оплата чужого (архивного) платежа — в `other`. */
+export function casePaymentsBySchedule(agreement: CaseAgreement): Readonly<{
+  byTranche: ReadonlyMap<string, readonly CaseAgreementPayment[]>;
+  other: readonly CaseAgreementPayment[];
+}> {
+  const known = new Set(agreement.tranches.map((tranche) => tranche.id));
+  const byTranche = new Map<string, CaseAgreementPayment[]>();
+  const other: CaseAgreementPayment[] = [];
+  for (const payment of agreement.payments) {
+    if (!known.has(payment.obligationId)) { other.push(payment); continue; }
+    byTranche.set(payment.obligationId, [...(byTranche.get(payment.obligationId) ?? []), payment]);
+  }
+  return { byTranche, other };
 }
 
 /** Состояние транша словом: оплачен, просрочен (срок прошёл, есть остаток), иначе — без слова. */

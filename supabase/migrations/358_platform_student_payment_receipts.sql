@@ -242,14 +242,18 @@ REVOKE ALL ON FUNCTION platform_private.notify_student_receipt(UUID, UUID, UUID,
 -- чата (330). Заголовок несёт слова решения: «Чек принят: 100.50 USD» / «Чек отклонён: причина»; клиент выводит их на языке студента.
 CREATE FUNCTION platform_private.notify_student_receipt_decision(p_org UUID, p_receipt UUID, p_accepted BOOLEAN, p_text TEXT, p_actor UUID)
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE r platform.student_payment_receipts%ROWTYPE; v_notification UUID; v_title TEXT;
+DECLARE r platform.student_payment_receipts%ROWTYPE; v_notification UUID; v_title TEXT; v_text TEXT;
 BEGIN
   SELECT * INTO r FROM platform.student_payment_receipts x WHERE x.organization_id = p_org AND x.id = p_receipt;
   IF NOT FOUND OR NOT EXISTS (SELECT 1 FROM platform.organization_memberships m JOIN platform.profiles pr ON pr.id = m.profile_id
       WHERE m.organization_id = p_org AND m.id = r.student_membership_id AND m.status = 'active' AND pr.status = 'active') THEN
     RETURN;
   END IF;
-  v_title := left((CASE WHEN p_accepted THEN 'Чек принят: ' ELSE 'Чек отклонён: ' END) || replace(replace(p_text, E'\n', ' '), E'\r', ' '), 1000);
+  -- Лента студента принимает подпись до 300 знаков без пробелов по краям: длинная причина укорачивается до 280 знаков и «…»
+  -- (полная причина остаётся в истории оплат).
+  v_text := btrim(regexp_replace(p_text, E'[\\x01-\\x1f\\x7f]+', ' ', 'g'));
+  IF char_length(v_text) > 280 THEN v_text := btrim(left(v_text, 280)) || '…'; END IF;
+  v_title := (CASE WHEN p_accepted THEN 'Чек принят: ' ELSE 'Чек отклонён: ' END) || v_text;
   INSERT INTO platform.notifications (organization_id, student_case_id, recipient_membership_id, category, title, body, dedupe_key,
     created_by_membership_id)
   VALUES (p_org, r.student_case_id, r.student_membership_id, 'payment.receipt', v_title, v_title,
@@ -538,7 +542,10 @@ BEGIN
   END IF;
   IF r.status = 'accepted' AND r.review_request_id = p_request_id THEN
     RETURN jsonb_build_object('organization_id', p_organization_id, 'receipt_id', r.id, 'status', 'accepted', 'payment_event_id', r.accepted_payment_event_id,
-      'payment_receipt_file_id', r.accepted_receipt_file_id, 'replayed', TRUE);
+      'payment_receipt_file_id', r.accepted_receipt_file_id, 'replayed', TRUE)
+      || COALESCE((SELECT jsonb_build_object('created_payment_obligation_id', e.after_state -> 'created_payment_obligation_id')
+        FROM platform.audit_events e WHERE e.request_id = platform_private.p3c_request_child_id(p_request_id, 'audit')
+          AND e.after_state ? 'created_payment_obligation_id'), '{}'::JSONB);
   END IF;
   IF r.status <> 'pending' THEN RAISE EXCEPTION 'receipt_not_pending' USING ERRCODE = '22023'; END IF;
   IF p_paid_on > (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1 OR p_paid_on < (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1100 THEN
@@ -591,7 +598,8 @@ RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS
 DECLARE actor RECORD; r platform.student_payment_receipts%ROWTYPE; why TEXT; result JSONB;
 BEGIN
   why := btrim(COALESCE(p_reason, ''));
-  IF p_organization_id IS NULL OR p_receipt_id IS NULL OR p_request_id IS NULL OR why = '' OR char_length(why) > 1000 THEN
+  IF p_organization_id IS NULL OR p_receipt_id IS NULL OR p_request_id IS NULL OR why = '' OR char_length(why) > 1000
+    OR why ~ E'[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]' THEN
     RAISE EXCEPTION 'receipt_invalid' USING ERRCODE = '22023';
   END IF;
   SELECT a.* INTO actor FROM platform.current_actor_authority() a WHERE a.organization_id = p_organization_id AND a.platform_role IS DISTINCT FROM 'student';

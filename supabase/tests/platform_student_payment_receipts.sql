@@ -446,6 +446,23 @@ SELECT pg_temp.a358_assert((SELECT char_length(original_filename) = 255 AND orig
   'the file name has no control characters and is cut to 255 characters: ' || :'a358_odd');
 
 -- ---------------------------------------------------------------------------
+-- 7e. A long reason keeps the Student feed readable: the notice is cut to 280 characters plus «…», trimmed, at most 300; the full reason stays in the history.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a358_upload(2, 701, 7011, 500, 'CNY', '3', 9115) AS a358_u_long \gset
+SELECT id AS a358_r_long FROM platform.student_payment_receipts WHERE submit_request_id = pg_temp.a358_id(9115) \gset
+SELECT pg_temp.a358_assert(pg_temp.a358_reject(5, :'a358_r_long', 'плохо' || chr(7) || 'видно', 9501) ->> 'message' = 'receipt_invalid', 'a control character in the reason is refused');
+SELECT pg_temp.a358_reject(5, :'a358_r_long', '   ' || repeat('длинная причина ', 40) || E'\nконец', 9502) AS a358_rej_long \gset
+SELECT pg_temp.a358_assert(:'a358_rej_long'::JSONB ->> 'status' = 'rejected', 'a 600+ character reason is accepted by the command');
+SELECT pg_temp.a358_as(2, 'SELECT COALESCE(jsonb_agg(to_jsonb(n)), ''[]''::JSONB) FROM platform.student_portal_notifications_v2() n WHERE n.event_code = ''payment_receipt_rejected''') AS a358_feed_long \gset
+SELECT pg_temp.a358_assert((SELECT bool_and(char_length(e ->> 'subject_label') <= 300 AND (e ->> 'subject_label') = btrim(e ->> 'subject_label') AND (e ->> 'subject_label') !~ E'[\\x01-\\x1f]')
+    AND bool_or(right(e ->> 'subject_label', 1) = '…') FROM jsonb_array_elements(:'a358_feed_long'::JSONB) e),
+  'the feed text of a long reason is at most 300 characters, trimmed, cut with «…»');
+SELECT pg_temp.a358_assert((SELECT char_length(reject_reason) > 600 FROM platform.student_payment_receipts WHERE id = :'a358_r_long'), 'the full reason is kept on the receipt');
+SELECT pg_temp.a358_accept_new(5, :'a358_r_eur', 'Сервисный сбор', 7777, 'EUR', 9403) AS a358_new_replay \gset
+SELECT pg_temp.a358_assert(:'a358_new_replay'::JSONB ->> 'created_payment_obligation_id' = :'a358_new'::JSONB ->> 'created_payment_obligation_id',
+  'a replay of a create-and-accept returns the created payment id');
+
+-- ---------------------------------------------------------------------------
 -- 8. Append-only.
 -- ---------------------------------------------------------------------------
 DO $a358_immutable$

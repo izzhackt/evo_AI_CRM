@@ -10,7 +10,8 @@ import { QUEUE_SECONDARY } from "@/components/staff/queue/queue-buttons";
 import { UniversityContentView, UniversityUnavailable, universityCountry } from "@/components/staff/universities/UniversityCatalogue";
 import { UniversityEditor, UniversityIntakeIdentityForm, UniversityReviewForm } from "@/components/staff/universities/UniversityEditor";
 import { UniversityBatchReview } from "@/components/staff/universities/UniversityBatchReview";
-import { universityBatchRows } from "@/lib/server/university-catalog-batch";
+import { UniversityIntakeIdsBatch } from "@/components/staff/universities/UniversityIntakeIdsBatch";
+import { universityBatchRows, universityMissingIntakeIds } from "@/lib/server/university-catalog-batch";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { withUniversityIntakeIds, type UniversityContent } from "@/lib/platform-university-catalog";
 import { readStaffUniversities, readUniversityDrafts, readUniversityManageDraftPage, readUniversityBatchSnapshot, reviewedUniversityTemplates } from "@/lib/v3/university-source";
@@ -44,6 +45,14 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
     return <UniversityShell title={`Проверка: ${draft.content.name}`} back={back}><p className={`mb-5 ${NOTE}`}>{draft.reviewKind === "intake_ids" ? "Технический черновик" : "Черновик"} на основе версии {draft.baseVersion}. Студенты его не видят. Причина: {draft.reason}</p><UniversityContentView content={draft.content} now={new Date()} /><div className="mt-6"><UniversityReviewForm draftId={draft.id} requestId={randomUUID()} reviewKind={draft.reviewKind} /></div></UniversityShell>;
   }
   const templates = reviewedUniversityTemplates();
+  // 10.11.2026: «Номера наборов» - одна кнопка для всех карточек без постоянных идентификаторов наборов.
+  if (mode === "intakeIds") {
+    let published;
+    try { published = await readUniversityBatchSnapshot(actor); }
+    catch { return <UniversityShell title="Номера наборов" back={back}><UniversityUnavailable /></UniversityShell>; }
+    const missing = published.map((item) => universityMissingIntakeIds(item.content)).filter((count) => count > 0);
+    return <UniversityShell title="Номера наборов" back={back}><UniversityIntakeIdsBatch universities={missing.length} intakes={missing.reduce((total, count) => total + count, 0)} /></UniversityShell>;
+  }
   if (mode === "batch") {
     let rows;
     try { rows = universityBatchRows(templates, await readUniversityBatchSnapshot(actor)); }
@@ -72,7 +81,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
   const { index } = route;
   let page: Awaited<ReturnType<typeof readUniversityManageDraftPage>> | null = null;
   try { page = await readUniversityManageDraftPage(actor, index); } catch { /* Keep navigation and templates available; never treat a failed read as an empty queue. */ }
-  return <UniversityShell title="Управление каталогом" back={<Link className={BACK} href="/universities"><Icon name="arrow-left" size={16} />Все университеты</Link>} action={<Link className={PRIMARY_LINK} href={manageEditorHref("new", "1", listContext)}>Добавить университет</Link>}>
+  return <UniversityShell title="Управление каталогом" back={<Link className={BACK} href="/universities"><Icon name="arrow-left" size={16} />Все университеты</Link>} action={<div className="flex flex-wrap gap-2"><Link className={link} href={manageEditorHref("intakeIds", "1", listContext)}>Номера наборов</Link><Link className={PRIMARY_LINK} href={manageEditorHref("new", "1", listContext)}>Добавить университет</Link></div>}>
     <ManageIndexNextLazy {...manageIndexProps({ index, page, templates, countryLabel: universityCountry })} />
   </UniversityShell>;
 }

@@ -2,7 +2,7 @@ import { parseUniversityDrafts, universityUuid } from "./platform-university-cat
 
 export type ManageIndex = { q: string; cursor: string | null };
 export type ManageCursor = { q: string; createdAt: string; id: string };
-export type ManageMode = "draft" | "edit" | "identify" | "template" | "new" | "batch";
+export type ManageMode = "draft" | "edit" | "identify" | "template" | "new" | "batch" | "intakeIds";
 export type ManageRoute = { kind: "index"; index: ManageIndex } | { kind: "editor"; mode: ManageMode; value: string; listContext: string | null };
 const path = "/universities/manage";
 const controls = /[\u0000-\u001f\u007f-\u009f]/;
@@ -61,7 +61,7 @@ export function parseManageRoute(entries: Iterable<readonly [string, unknown]>):
     if (params.has(key) || typeof value !== "string") return null;
     params.set(key, value);
   }
-  const modes: ManageMode[] = ["draft", "edit", "identify", "template", "new", "batch"];
+  const modes: ManageMode[] = ["draft", "edit", "identify", "template", "new", "batch", "intakeIds"];
   const selected = modes.filter((mode) => params.has(mode));
   if (!selected.length) {
     if ([...params.keys()].some((key) => key !== "q" && key !== "cursor")) return null;
@@ -71,7 +71,7 @@ export function parseManageRoute(entries: Iterable<readonly [string, unknown]>):
   if (selected.length !== 1) return null;
   const mode = selected[0], value = params.get(mode)!;
   if ([...params.keys()].some((key) => key !== mode && key !== "listContext")) return null;
-  if ((["draft", "edit", "identify"].includes(mode) && !universityUuid(value)) || (["new", "batch"].includes(mode) && value !== "1") || (mode === "template" && (!value || value.length > 200 || controls.test(value)))) return null;
+  if ((["draft", "edit", "identify"].includes(mode) && !universityUuid(value)) || (["new", "batch", "intakeIds"].includes(mode) && value !== "1") || (mode === "template" && (!value || value.length > 200 || controls.test(value)))) return null;
   const raw = params.get("listContext");
   const index = raw === undefined ? null : parseManageListContext(raw);
   if (raw !== undefined && !index) return null;

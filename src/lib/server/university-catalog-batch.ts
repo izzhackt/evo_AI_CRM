@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { UniversityContent, PublishedUniversity } from "../platform-university-catalog.ts";
+import { withUniversityIntakeIds, type UniversityContent, type PublishedUniversity } from "../platform-university-catalog.ts";
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -47,5 +47,24 @@ export function universityBatchRows(templates: readonly { key: string; content: 
       || (!existing.content.programs.some((program) => program.intakes.length > 0) && content.programs.some((program) => program.intakes.length > 0)));
     const state = !existing ? "new" : existing.content.name !== content.name || existing.content.city !== content.city ? "identity_conflict" : universityContentFactsHash(existing.content) === universityContentFactsHash(content) ? "current" : needsEditor ? "editor_required" : "update";
     return { key, name: content.name, country: content.country, programs: content.programs.length, hash, institutionId: existing?.id ?? null, baseVersion: existing?.version ?? 0, state };
+  });
+}
+
+/** Сколько наборов опубликованной карточки ещё без постоянного идентификатора. */
+export function universityMissingIntakeIds(content: UniversityContent): number {
+  return content.programs.reduce((total, program) => total + program.intakes.filter((intake) => intake.id === undefined).length, 0);
+}
+
+/**
+ * Постоянные идентификаторы наборам одной опубликованной версии (10.11.2026, «программа плюс интейки чтобы выбирались»):
+ * тот же `withUniversityIntakeIds`, что у ручной технической версии, но идентификатор выводится из вуза, версии и
+ * порядкового номера пустого набора. Повтор того же запроса после неясного ответа даёт ту же версию, а не вторую с
+ * другими id. Набор с идентификатором не трогается; сведения и даты не меняются.
+ */
+export function withStableUniversityIntakeIds(content: UniversityContent, institutionId: string, version: number): UniversityContent {
+  let next = 0;
+  return withUniversityIntakeIds(content, () => {
+    const hex = createHash("sha256").update(JSON.stringify(["evo-university-intake-id-v1", institutionId, version, next++])).digest("hex");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
   });
 }

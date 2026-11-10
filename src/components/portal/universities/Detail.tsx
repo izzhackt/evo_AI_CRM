@@ -5,14 +5,17 @@ import type { Locale } from "@/lib/i18n-data";
 import {
   type PublishedUniversity,
   type UniversityIntake,
+  type UniversityLevel,
   type UniversityProgram,
 } from "@/lib/platform-university-catalog";
-import type { PortalStrings } from "@/lib/portal/i18n";
+import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { PROGRAM_DURATIONS, PROGRAM_FIELDS, programFacets, type ProgramFacets } from "@/lib/portal/program-facets";
 import type { UniversityCosts } from "@/lib/portal/university-index";
 import {
   universityDateLabel,
   universityIntakeStatusKey,
   universityLevelKey,
+  universityLevels,
   universityMonthLabel,
 } from "@/lib/portal/universities";
 
@@ -27,6 +30,8 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { CostTable } from "./CostTable";
 import { FavoriteToggle } from "./FavoriteToggle";
 import { PhotoFigure } from "./PhotoFigure";
+import { ProgramList } from "./ProgramList";
+import { ProgramCard } from "./ProgramCard";
 import { Breadcrumbs, type Crumb } from "./Places";
 
 /**
@@ -129,12 +134,14 @@ function Intake({
 
 function Program({
   program,
+  facets,
   strings,
   locale,
   now,
   selection,
 }: {
   program: UniversityProgram;
+  facets: ProgramFacets;
   selection: ProgramSelection;
   strings: Strings;
   locale: Locale;
@@ -142,10 +149,18 @@ function Program({
 }) {
   // Uncertain intakes remain visible with an explicit, truthful status.
   const intakes = program.intakes;
+  // Карточка подбора (10.11.2026): длительность и наборы на карточке, всё остальное - в окне программы.
   return (
-    <article className="pt-program">
-      <p className="pt-program-level">{strings[universityLevelKey(program.level)]}</p>
-      <h3 className="pt-program-title">{program.title}</h3>
+    <ProgramCard
+      field={facets.field}
+      fieldLabel={strings[`programField.${facets.field}`]}
+      level={strings[universityLevelKey(program.level)]}
+      title={program.title}
+      duration={program.duration ?? null}
+      starts={[...new Set(intakes.map((intake) => intake.label))].join(" · ")}
+      moreLabel={strings.programMore}
+      closeLabel={strings.mapCloseCard}
+    >
       {program.duration || program.language ? (
         <dl className="pt-facts">
           {program.duration ? (
@@ -173,8 +188,31 @@ function Program({
           ))}
         </ul>
       ) : null}
-    </article>
+    </ProgramCard>
   );
+}
+
+/** Варианты полей подбора, которые есть у вуза: уровни по шкале, направления и длительности по порядку, месяцы по году. */
+function programOptions(facets: readonly ProgramFacets[], levels: readonly UniversityLevel[], strings: Strings, locale: Locale) {
+  const month = new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", { month: "long", timeZone: "UTC" });
+  const months = [...new Set(facets.flatMap((item) => item.months))].sort((a, b) => a - b);
+  return {
+    level: levels.map((level) => ({ value: level, label: strings[universityLevelKey(level)] })),
+    field: PROGRAM_FIELDS.filter((field) => facets.some((item) => item.field === field))
+      .map((field) => ({ value: field, label: strings[`programField.${field}`] })),
+    month: months.map((value) => {
+      const label = month.format(new Date(Date.UTC(2026, value - 1, 15)));
+      return { value: String(value), label: label.charAt(0).toUpperCase() + label.slice(1) };
+    }),
+    duration: PROGRAM_DURATIONS.filter((duration) => facets.some((item) => item.duration === duration))
+      .map((duration) => ({ value: duration, label: strings[`programDuration.${duration}`] })),
+  };
+}
+
+/** «1 программа», «3 программы», «64 программы» по правилам склонения словаря. */
+function programCountLabel(count: number, strings: Strings, locale: Locale): string {
+  const form = new Intl.PluralRules(locale === "ky" ? "ky" : "ru").select(count);
+  return formatPortalString(strings[`count.program.${form === "one" ? "one" : form === "few" ? "few" : "many"}`], { count: String(count) });
 }
 
 export function UniversityDetailView({
@@ -216,6 +254,7 @@ export function UniversityDetailView({
   writeEvo?: Readonly<{ href: string; label: string }> | null;
 }) {
   const content = university.content;
+  const programs = content.programs.map((program) => ({ program, facets: programFacets(program) }));
   return (
     <article className="pt-uni-detail">
       <Breadcrumbs crumbs={crumbs} label={strings.breadcrumbAria} />
@@ -266,18 +305,29 @@ export function UniversityDetailView({
         {selection && !selection.canSelect && selection.bindings !== null ? (
           <p className="pt-prep-note">{selection.strings.caseIneligible}</p>
         ) : null}
-        <div className="pt-program-list">
-          {content.programs.map((program) => (
-            <Program
-              key={program.id}
-              program={program}
-              selection={selection ? { context: selection, university } : null}
-              strings={strings}
-              locale={locale}
-              now={now}
-            />
-          ))}
-        </div>
+        <ProgramList
+          items={programs.map(({ program, facets }) => ({
+            id: program.id,
+            level: program.level,
+            field: facets.field,
+            months: facets.months,
+            duration: facets.duration,
+            search: `${program.title} ${program.summary}`,
+            node: (
+              <Program
+                program={program}
+                facets={facets}
+                selection={selection ? { context: selection, university } : null}
+                strings={strings}
+                locale={locale}
+                now={now}
+              />
+            ),
+          }))}
+          options={programOptions(programs.map(({ facets }) => facets), universityLevels(content), strings, locale)}
+          totalLabel={programCountLabel(programs.length, strings, locale)}
+          strings={strings}
+        />
       </section>
       <p>
         <ExternalLink href={content.sourceUrl} newTab={strings.newTab}>

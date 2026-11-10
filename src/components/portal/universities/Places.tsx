@@ -38,6 +38,8 @@ export type CityCardModel = Readonly<{
   summary: string;
   fact: string;
   photo: PlacePhoto;
+  /** Названия города для поиска (русское, кыргызское, латиница); в разметку не попадает. */
+  search?: string;
 }>;
 
 export function CountryCards({

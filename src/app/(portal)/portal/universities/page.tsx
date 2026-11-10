@@ -100,6 +100,9 @@ export default async function UniversitiesPage({
           searchFound: strings.searchFound,
           searchEmptyTitle: strings.searchEmptyTitle,
           searchEmptyBody: strings.searchEmptyBody,
+          universitiesHeading: strings.universitiesHeading,
+          citiesHeading: strings.citiesHeading,
+          cityFactLabel: strings.cityFactLabel,
         }}
         favorites={{ href: "/portal#list", label: strings.favoritesLink }}
       >

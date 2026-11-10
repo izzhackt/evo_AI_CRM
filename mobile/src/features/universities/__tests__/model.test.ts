@@ -1,7 +1,7 @@
 import { parseStudentUniversityIndexResponse } from "@web/lib/portal/university-index";
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { countryCards, countryPageModel, cityPageModel, placeCounts, searchIndex, tileModel, universityPlace } from "@/features/universities/model";
+import { countryCards, countryPageModel, cityPageModel, placeCounts, searchCountry, searchIndex, tileModel, universityPlace } from "@/features/universities/model";
 import { indexBody } from "@/test-fixtures/university-index";
 
 const parsed = parseStudentUniversityIndexResponse(indexBody());
@@ -14,7 +14,7 @@ describe("страны и счётчики", () => {
   it("шесть стран в порядке продукта, счётчики пересчитаны по вузам", () => {
     const cards = countryCards(index, ru, "ru");
     expect(cards.map((c) => c.code)).toEqual(["CN", "MY", "AE", "TR", "IT", "CZ"]);
-    expect(cards[1]?.counts).toBe("4 университета · 2 города");
+    expect(cards[1]?.counts).toBe("5 университетов · 3 города");
     expect(cards[2]).toMatchObject({ counts: "Пока нет университетов", empty: true });
   });
 
@@ -27,9 +27,9 @@ describe("страны и счётчики", () => {
 });
 
 describe("страница страны", () => {
-  it("города: больше вузов выше; вуз без города и вуз города без фото в «Других вузах»", () => {
+  it("города: Субанг-Джая закреплён первым, затем больше вузов выше; вуз без города и вуз города без фото в «Других вузах»", () => {
     const my = countryPageModel(index, "MY", ru, "ru");
-    expect(my?.cityCards.map((c) => c.name)).toEqual(["Куала-Лумпур", "Пенанг"]);
+    expect(my?.cityCards.map((c) => c.name)).toEqual(["Субанг-Джая", "Куала-Лумпур", "Пенанг"]);
     expect(my?.others.map((u) => u.name)).toEqual(["Институт без города"]);
     const cn = countryPageModel(index, "CN", ru, "ru");
     // город с негодным фото разбор отбрасывает (веб: приёмка 7.6.3), его вузы остаются в «Других»
@@ -39,8 +39,8 @@ describe("страница страны", () => {
 
   it("«Списком»: города А-Я, вузы А-Я, без города последней группой, ё рядом с е", () => {
     const my = countryPageModel(index, "MY", ru, "ru");
-    expect(my?.groups.map((g) => g.title)).toEqual(["Куала-Лумпур", "Пенанг", ru.listNoCity]);
-    expect(my?.groups[0]?.universities.map((u) => u.name)).toEqual(["Академия Альфа", "Университет Зета"]);
+    expect(my?.groups.map((g) => g.title)).toEqual(["Субанг-Джая", "Куала-Лумпур", "Пенанг", ru.listNoCity]);
+    expect(my?.groups[1]?.universities.map((u) => u.name)).toEqual(["Академия Альфа", "Университет Зета"]);
     const cn = countryPageModel(index, "CN", ru, "ru");
     expect(cn?.groups.map((g) => [g.title, g.cityKey])).toEqual([[ru.listNoCity, null]]);
     expect(cn?.groups[0]?.universities.map((u) => u.name)).toEqual(["Еда и право", "Ёлка-университет"]);
@@ -56,7 +56,7 @@ describe("страница страны", () => {
   it("точки карты только у вузов с проверенной координатой; остальные считаются", () => {
     const my = countryPageModel(index, "MY", ru, "ru");
     expect(my?.pins.map((p) => p.name).sort()).toEqual(["Академия Альфа", "Университет Зета"]);
-    expect(my?.missingPins).toBe(2);
+    expect(my?.missingPins).toBe(3);
     expect(my?.pins.find((p) => p.name === "Академия Альфа")).toMatchObject({ place: "Куала-Лумпур · Малайзия" });
     expect(typeof my?.pins[0]?.lat).toBe("number");
   });
@@ -88,5 +88,16 @@ describe("карточка, место и поиск", () => {
     expect(searchIndex(index, "ёлка").map((u) => u.name)).toEqual(["Ёлка-университет"]);
     expect(searchIndex(index, "университет зета")).toHaveLength(1);
     expect(searchIndex(index, "  ")).toEqual([]);
+  });
+
+  it("поиск находит вуз по городу (рус., лат. из ключа) и стране; в стране только её вузы и города", () => {
+    expect(searchIndex(index, "субанг джая").map((u) => u.name)).toEqual(["Колледж Лейксайд"]);
+    expect(searchIndex(index, "SUBANG").map((u) => u.name)).toEqual(["Колледж Лейксайд"]);
+    expect(searchIndex(index, "куала-лумпур").map((u) => u.name)).toEqual(["Университет Зета", "Академия Альфа"]);
+    expect(searchIndex(index, "малайзия")).toHaveLength(5);
+    const my = countryPageModel(index, "MY", ru, "ru")!;
+    expect(searchCountry(index, my, "kuala").cities.map((c) => c.key)).toEqual(["kuala-lumpur"]);
+    expect(searchCountry(index, my, "пенанг").universities.map((u) => u.name)).toEqual(["Колледж Пенанг"]);
+    expect(searchCountry(index, my, "bogazici")).toEqual({ cities: [], universities: [] });
   });
 });

@@ -13,12 +13,13 @@ import { Button } from "@/ui/Button";
 import { EmptyBlock } from "@/ui/CardParts";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
+import { TextField } from "@/ui/TextField";
 import { Landmark } from "lucide-react-native";
 
 import { CatalogFrame } from "./CatalogFrame";
 import { CatalogMap } from "./CatalogMap";
 import { useFavoriteState } from "./FavoritesContext";
-import { countryPageModel, placeCounts, tileModel } from "./model";
+import { countryPageModel, placeCounts, searchCountry, tileModel } from "./model";
 import { CityCardView, geographyUrls, open, PathRow, PhotoCredit, RemotePhoto, universityRoute, UniversityTileView, usePhotoPixels } from "./parts";
 import { geographyPhotoCredit } from "./photos";
 import { NotFoundBlock } from "./NotFoundBlock";
@@ -46,6 +47,7 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
   const pixels = usePhotoPixels();
   const now = useMemo(() => new Date(), []);
   const [mapFailed, setMapFailed] = useState(false);
+  const [query, setQuery] = useState("");
   return (
     <CatalogFrame>
       {(index) => {
@@ -54,6 +56,8 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
         const tile = (item: (typeof page.others)[number], showPlace: boolean) => (
           <UniversityTileView key={item.id} tile={tileModel(index, item, { strings, lang, now, showPlace })} strings={strings} favored={favorites.isFavored(item.id)} onToggle={favorites.toggle} />
         );
+        const trimmed = query.trim();
+        const found = view === "cities" && trimmed !== "" ? searchCountry(index, page, trimmed) : null;
         return (
           <View style={{ gap: 16 }}>
             <PathRow crumbs={[page.name]} strings={strings} />
@@ -124,14 +128,62 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                   </View>
                 ) : (
                   <View style={{ gap: 20 }}>
-                    {page.cityCards.length > 0 ? (
+                    <TextField
+                      label={strings.searchLabel}
+                      value={query}
+                      onChangeText={setQuery}
+                      placeholder={strings.searchPlaceholder}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="search"
+                      testID="country-search"
+                      clearLabel={strings.searchClear}
+                      onClear={() => setQuery("")}
+                    />
+                    {found !== null ? (
+                      found.cities.length + found.universities.length === 0 ? (
+                        <View style={{ gap: 4 }} testID="search-empty">
+                          <Text variant="body" bold>
+                            {formatPortalString(strings.searchEmptyTitle, { query: trimmed })}
+                          </Text>
+                          <Text variant="secondary" tone="text2">
+                            {strings.searchEmptyBody}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{ gap: 16 }}>
+                          <Text variant="secondary" tone="text2" accessibilityLiveRegion="polite">
+                            {formatPortalString(strings.searchFound, { count: String(found.cities.length + found.universities.length) })}
+                          </Text>
+                          {found.cities.length > 0 ? (
+                            <View style={{ gap: 16 }} accessibilityLabel={strings.citiesHeading}>
+                              <Text variant="heading" accessibilityRole="header">
+                                {strings.citiesHeading}
+                              </Text>
+                              {found.cities.map((card) => (
+                                <CityCardView key={card.key} card={card} code={code} strings={strings} />
+                              ))}
+                            </View>
+                          ) : null}
+                          {found.universities.length > 0 ? (
+                            <View style={{ gap: 12 }}>
+                              <Text variant="heading" accessibilityRole="header">
+                                {strings.universitiesHeading}
+                              </Text>
+                              {found.universities.map((item) => tile(item, true))}
+                            </View>
+                          ) : null}
+                        </View>
+                      )
+                    ) : null}
+                    {found !== null ? null : page.cityCards.length > 0 ? (
                       <View style={{ gap: 16 }} accessibilityLabel={strings.citiesHeading}>
                         {page.cityCards.map((card) => (
                           <CityCardView key={card.key} card={card} code={code} strings={strings} />
                         ))}
                       </View>
                     ) : null}
-                    {page.others.length > 0 ? (
+                    {found === null && page.others.length > 0 ? (
                       <View style={{ gap: 12 }}>
                         <View style={{ gap: 2 }}>
                           <Text variant="heading" accessibilityRole="header">

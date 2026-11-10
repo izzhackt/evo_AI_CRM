@@ -10,9 +10,11 @@ import {
   countryCities,
   countryUniversitiesWithoutCity,
   countryUniversityGroups,
+  citySearchText,
+  matchesSearch,
+  searchIndexUniversities,
   localizedText,
   nearestIndexIntake,
-  searchUniversities,
   type CountryUniversityGroup,
   type IndexCity,
   type IndexCountry,
@@ -95,7 +97,7 @@ export function countryCards(index: StudentUniversityIndex, strings: UniversityS
   }));
 }
 
-export type CityCard = Readonly<{ key: string; name: string; count: string; summary: string; photo: IndexCity["photo"] }>;
+export type CityCard = Readonly<{ key: string; name: string; count: string; summary: string; photo: IndexCity["photo"]; search: string }>;
 
 export type CountryPageModel = Readonly<{
   country: IndexCountry;
@@ -130,6 +132,7 @@ export function countryPageModel(index: StudentUniversityIndex, code: string, st
       count: placeCounts(strings, city.universityCount, null, lang),
       summary: localizedText(city.summary, lang),
       photo: city.photo,
+      search: citySearchText(city),
     });
   }
   const others = [
@@ -179,7 +182,19 @@ export function cityPageModel(index: StudentUniversityIndex, code: string, cityK
   };
 }
 
-/** Поиск по названию по всем странам (порядок индекса). */
+/** Поиск по названию, городу или стране по всем странам (порядок индекса). */
 export function searchIndex(index: StudentUniversityIndex, query: string): readonly IndexUniversity[] {
-  return searchUniversities(index.universities, query);
+  return searchIndexUniversities(index, query);
+}
+
+/** Поиск внутри страны: города с карточкой и вузы страны по названию или городу. */
+export function searchCountry(
+  index: StudentUniversityIndex,
+  page: CountryPageModel,
+  query: string,
+): Readonly<{ cities: readonly CityCard[]; universities: readonly IndexUniversity[] }> {
+  return {
+    cities: page.cityCards.filter((card) => matchesSearch(`${card.name} ${card.search}`, query)),
+    universities: searchIndexUniversities(index, query, page.country.code),
+  };
 }

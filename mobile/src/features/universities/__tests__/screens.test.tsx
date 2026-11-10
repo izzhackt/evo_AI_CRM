@@ -86,6 +86,34 @@ describe("Университеты", () => {
     expect(await screen.findByTestId("search-empty")).toBeTruthy();
   });
 
+  it("страна: поиск по городу и вузу, очистка возвращает города", async () => {
+    mockParams.current = { code: "my" };
+    const { transport: t } = transport();
+    await renderPortal(<CountryScreen />, testApi(t));
+    expect(await screen.findByTestId("city-kuala-lumpur")).toBeTruthy();
+    // Субанг-Джая закреплён первым среди городов Малайзии.
+    const cityIds = screen.getAllByTestId(/^city-/).map((node) => node.props.testID);
+    expect(cityIds[0]).toBe("city-subang-jaya");
+    await fireEvent.changeText(screen.getByTestId("country-search"), "kuala");
+    expect(await screen.findByTestId("city-kuala-lumpur")).toBeTruthy();
+    expect(screen.queryByTestId("city-penang")).toBeNull();
+    expect(screen.getByText("Университет Зета")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("country-search"), "zzz");
+    expect(await screen.findByTestId("search-empty")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("field-clear"));
+    expect(await screen.findByTestId("city-penang")).toBeTruthy();
+  });
+
+  it("каждая карточка страны, города и вуза нажимается целиком одним элементом-кнопкой", async () => {
+    mockParams.current = { code: "my" };
+    const { transport: t } = transport();
+    await renderPortal(<CountryScreen />, testApi(t));
+    const card = await screen.findByTestId("city-penang");
+    expect(card.props.accessibilityRole).toBe("button");
+    await fireEvent.press(card);
+    expect(router.push).toHaveBeenCalledWith("/universities/country/my/penang");
+  });
+
   it("KY: заголовки и страны на кыргызском", async () => {
     const { transport: t } = transport();
     await renderPortal(<UniversitiesScreen />, testApi(t), "ky");

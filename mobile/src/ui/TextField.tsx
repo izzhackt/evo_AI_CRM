@@ -1,3 +1,4 @@
+import { X } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, TextInput, View, type TextInputProps } from "react-native";
 
@@ -11,10 +12,13 @@ type Props = Omit<TextInputProps, "style" | "placeholderTextColor"> & {
   showLabel?: string;
   hideLabel?: string;
   hint?: string;
+  /** Крестик очистки справа, пока поле не пусто (поиск). */
+  clearLabel?: string;
+  onClear?: () => void;
 };
 
 /** Поле: граница `--pt-control-edge`, радиус 8, высота 44+. */
-export function TextField({ label, secure = false, showLabel = "", hideLabel = "", hint, ...input }: Props) {
+export function TextField({ label, secure = false, showLabel = "", hideLabel = "", hint, clearLabel = "", onClear, ...input }: Props) {
   const { tokens } = useTheme();
   const [visible, setVisible] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -51,6 +55,11 @@ export function TextField({ label, secure = false, showLabel = "", hideLabel = "
           style={{ flex: 1, minHeight: 44, fontFamily: sansFont(), fontSize: tokens.sizeBody, color: tokens.text }}
           placeholderTextColor={tokens.text2}
         />
+        {onClear && input.value ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={clearLabel} onPress={onClear} hitSlop={8} testID="field-clear" style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", marginRight: -12 }}>
+            <X size={18} strokeWidth={1.75} color={tokens.text2} />
+          </Pressable>
+        ) : null}
         {secure ? (
           <Pressable accessibilityRole="button" accessibilityLabel={visible ? hideLabel : showLabel} onPress={() => setVisible((v) => !v)} hitSlop={8} style={{ minHeight: 44, justifyContent: "center", paddingLeft: 8 }}>
             <Text variant="secondary" tone="accent" bold>

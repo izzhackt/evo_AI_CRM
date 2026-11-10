@@ -1,15 +1,12 @@
-// «Университеты»: шесть карточек стран и поиск по названию по всем странам (веб S3, 7.3).
-import { Search, X } from "lucide-react-native";
+// «Университеты»: шесть карточек стран и поиск по городу и названию вуза по всем странам (веб S3, 7.3).
 import { useMemo, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { View } from "react-native";
 
 import { formatPortalString } from "@web/lib/portal/i18n";
 
 import { useLang } from "@/i18n/LangProvider";
-import { sansFont } from "@/theme/fonts";
-import { useTheme } from "@/theme/ThemeProvider";
-import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
+import { TextField } from "@/ui/TextField";
 
 import { CatalogFrame } from "./CatalogFrame";
 import { useFavoriteState } from "./FavoritesContext";
@@ -19,7 +16,6 @@ import { CountryCardView, UniversityTileView } from "./parts";
 export function UniversitiesScreen() {
   const { t, lang } = useLang();
   const strings = t("universities");
-  const { tokens } = useTheme();
   const [query, setQuery] = useState("");
   const favorites = useFavoriteState();
   const now = useMemo(() => new Date(), []);
@@ -41,28 +37,18 @@ export function UniversitiesScreen() {
         const found = trimmed === "" ? null : searchIndex(index, trimmed);
         return (
           <View style={{ gap: 16 }}>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", minHeight: 48, paddingHorizontal: 12, gap: 8, borderWidth: 1, borderColor: tokens.controlEdge, borderRadius: tokens.radiusControl, backgroundColor: tokens.surface }}
-            >
-              <Search size={18} strokeWidth={1.75} color={tokens.text2} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                accessibilityLabel={strings.searchLabel}
-                placeholder={strings.searchPlaceholder}
-                placeholderTextColor={tokens.text2}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-                testID="university-search"
-                style={{ flex: 1, minHeight: 44, color: tokens.text, fontFamily: sansFont(), fontSize: tokens.sizeBody }}
-              />
-              {query !== "" ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={strings.searchClear} onPress={() => setQuery("")} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center", marginRight: -8 }}>
-                  <X size={18} strokeWidth={1.75} color={tokens.text2} />
-                </Pressable>
-              ) : null}
-            </View>
+            <TextField
+              label={strings.searchLabel}
+              value={query}
+              onChangeText={setQuery}
+              placeholder={strings.searchPlaceholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              testID="university-search"
+              clearLabel={strings.searchClear}
+              onClear={() => setQuery("")}
+            />
             {found === null ? (
               <View style={{ gap: 16 }} accessibilityLabel={strings.countriesHeading}>
                 {countryCards(index, strings, lang).map((card) => (

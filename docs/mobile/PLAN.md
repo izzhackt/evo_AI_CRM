@@ -116,7 +116,7 @@
    `mobile/app.config.ts` (ID не секрет: он виден в адресе обновлений).
    Осталось: publishable key Supabase как переменная EAS
    (`EXPO_PUBLIC_*`, окружения preview/production) — вводит владелец.
-3. Team ID Apple (developer.apple.com → Membership details).
+3. ~~Team ID Apple~~ — получен 10.11.2026 (`4D8W292RKQ`, в `mobile/app.config.ts`).
 4. Google Play Console (25 $, личный или на компанию).
 5. Текст «как платить» для «Оплаты» (#1359).
 6. Разрешение на удаление `ios/` после замены в App Store.

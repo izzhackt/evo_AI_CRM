@@ -28,6 +28,8 @@ const config: ExpoConfig = {
   extra: easProjectId ? { eas: { projectId: easProjectId } } : {},
   ios: {
     bundleIdentifier: "com.evoadmissions.app",
+    // Team ID Apple Developer (Membership details). Не секрет: он есть в подписи каждой сборки.
+    appleTeamId: "4D8W292RKQ",
     supportsTablet: false,
     icon: {
       light: "./assets/images/icon.png",

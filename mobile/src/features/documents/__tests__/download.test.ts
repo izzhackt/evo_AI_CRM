@@ -50,6 +50,14 @@ describe("скачивание", () => {
     const result = await downloadFile(d.value, { kind: "case-file", fileKind: "contract", fileId: FILE }, "../../etc/договор", "application/pdf");
     expect(result).toMatchObject({ ok: true, name: "_.._etc_договор.pdf" });
   });
+  it("список допустимых типов (QR, чек студента): тип берётся из ответа и задаёт расширение", async () => {
+    const d = deps({ response: { headers: new Headers({ "content-type": "image/jpeg" }) } });
+    const result = await downloadFile(d.value, { kind: "case-file", fileKind: "payment_details_qr", fileId: FILE }, "payment-qr", ["image/png", "image/jpeg"]);
+    expect(result).toMatchObject({ ok: true, name: "payment-qr.jpg" });
+    expect(d.calls[0]?.url).toBe(`${BASE}/api/portal/case-files/payment_details_qr/${FILE}/download`);
+    const wrong = deps({ response: { headers: new Headers({ "content-type": "text/html" }) } });
+    await expect(downloadFile(wrong.value, { kind: "case-file", fileKind: "student_receipt", fileId: FILE }, "r", ["image/png", "image/jpeg"])).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+  });
   it("без токена не ходит в сеть", async () => {
     const d = deps({ getToken: async () => null });
     await expect(downloadFile(d.value, { kind: "version", versionId: VERSION }, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.errorSession" });

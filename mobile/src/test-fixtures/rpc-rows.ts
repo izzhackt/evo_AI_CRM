@@ -106,3 +106,48 @@ export const CASE_FILE_ROW = Object.freeze({
   byte_size: 2048,
   added_at: "2026-09-01T08:00:00+00:00",
 });
+
+// ---- «Оплата» (student_portal_payment_center_v1): синтетические данные ----
+
+export const OBLIGATION_ID = "a1111111-1111-4111-8111-111111111111";
+export const QR_ID = "b2222222-2222-4222-8222-222222222222";
+export const RECEIPT_FILE_ID = "c3333333-3333-4333-8333-333333333333";
+
+export const paymentEntryRow = (over: Record<string, unknown> = {}) => ({
+  kind: "receipt",
+  entry_id: "d4444444-4444-4444-8444-444444444444",
+  status: "review",
+  amount_minor: 4000,
+  currency: "USD",
+  on_date: "2026-11-03",
+  reject_reason: null,
+  file_kind: "student_receipt",
+  file_id: RECEIPT_FILE_ID,
+  filename: "chek.jpg",
+  ...over,
+});
+
+export const paymentDueRow = (over: Record<string, unknown> = {}) => ({
+  obligation_id: OBLIGATION_ID,
+  label: "Услуги EVO",
+  category: "evo_service_fee",
+  amount_minor: 10000,
+  paid_minor: 4000,
+  refunded_minor: 0,
+  outstanding_minor: 6000,
+  currency: "USD",
+  due_at: "2026-12-01T08:00:00+00:00",
+  derived_status: "partially_paid",
+  overdue: false,
+  next_action: "Оплатить остаток",
+  entries: [paymentEntryRow()],
+  ...over,
+});
+
+export const paymentCenterRow = (over: Record<string, unknown> = {}) => ({
+  details: null,
+  dues: [paymentDueRow()],
+  unassigned: [],
+  can_upload: true,
+  ...over,
+});

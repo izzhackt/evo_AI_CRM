@@ -202,7 +202,6 @@ test("Student preview implementation and staff entry are retired without removin
 test("every page passes the direct strict E2 result to its view", () => {
   const expected = [
     ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments", "documents", "DocumentsView"],
-    ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments", "payments", "PaymentsView"],
   ];
 
   for (const [path, reader, resultName, component] of expected) {
@@ -222,6 +221,14 @@ test("every page passes the direct strict E2 result to its view", () => {
     );
     assert.doesNotMatch(page, /createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   }
+});
+
+test("«Оплата» reads the whole payment center once (миграция 358) and hands it to its view", () => {
+  const page = source("src/app/(portal)/portal/payments/page.tsx");
+  assert.match(page, /import \{ readPaymentCenter \} from "@\/lib\/portal\/payment-center-source"/u);
+  assert.match(page, /const \[center, locale\] = await Promise\.all\(\[readPaymentCenter\(\), getLocale\(\)\]\)/u);
+  assert.match(page, /<PaymentsView[\s\S]*center=\{center\}[\s\S]*locale=\{locale\}/u);
+  assert.doesNotMatch(page, /createClient|supabase|sqlite|drizzle|fixture|demo/iu);
 });
 
 test("the home screen continues real work, keeps the smoke root and omits invented recency", () => {
@@ -461,13 +468,13 @@ test("views consume the exact E2 DTOs without an invented wrapper", () => {
   const expectedTypes = new Map([
     ["OverviewView.tsx", "StudentPortalOverview"],
     ["DocumentsView.tsx", "StudentPortalDocument"],
-    ["PaymentsView.tsx", "StudentPortalPayment"],
+    ["PaymentsView.tsx", "PaymentCenter"],
     ["NotificationsView.tsx", "StudentPortalNotification"],
   ]);
   for (const [filename, typeName] of expectedTypes) {
     const view = source(`src/components/portal/admission/${filename}`);
     assert.match(view, new RegExp(`\\b${typeName}\\b`, "u"));
-    assert.match(view, /@\/lib\/v3\/portal-source/u);
+    assert.match(view, filename === "PaymentsView.tsx" ? /@\/lib\/portal\/payment-center/u : /@\/lib\/v3\/portal-source/u);
     assert.doesNotMatch(view, /Portal(?:Overview|Documents|Applications|Payments|Notifications)View/u);
     // Replace-don't-layer: старый v3-файл удалён, не задублирован.
     assert.equal(
@@ -482,8 +489,8 @@ test("views consume the exact E2 DTOs without an invented wrapper", () => {
     false,
   );
   const payments = source("src/components/portal/admission/PaymentsView.tsx");
-  assert.match(payments, /payment\.category/u);
-  assert.match(payments, /payment\.refundedMinor/u);
+  assert.match(payments, /paymentCategory\(due/u);
+  assert.match(payments, /due\.refundedMinor/u);
   assert.doesNotMatch(payments, /paymentObligationId/u);
 });
 

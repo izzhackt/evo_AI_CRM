@@ -1,7 +1,7 @@
 import { PortalDecodeError } from "@/domain/portal-source";
-import { countryChoiceWrite, readCountryChoice, readCscaHome, readFavorites, readNotifications, readOverview, readPreparations, saveCountryChoice } from "@/api/portal-reads";
+import { countryChoiceWrite, readCountryChoice, readCscaHome, readFavorites, readNotifications, readOverview, readPaymentCenter, readPreparations, saveCountryChoice } from "@/api/portal-reads";
 import { RpcError } from "@/lib/rpc";
-import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
+import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW, paymentCenterRow } from "@/test-fixtures/rpc-rows";
 import { STUDENT_CASE_ID, failure, fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -153,5 +153,23 @@ describe("CSCA", () => {
     const { transport, calls } = fakeTransport({ learning_track_home_v1: null });
     await readCscaHome(transport).catch(() => undefined);
     expect(calls[0].args).toEqual({ p_track: "csca-math" });
+  });
+});
+
+describe("оплата (центр платежей)", () => {
+  it("читает student_portal_payment_center_v1 в режиме GET и разбирает форму", async () => {
+    const { transport, calls } = fakeTransport({ student_portal_payment_center_v1: paymentCenterRow() });
+    const center = await readPaymentCenter(transport);
+    expect(center.canUpload).toBe(true);
+    expect(center.dues[0]?.entries[0]?.status).toBe("review");
+    expect(calls).toEqual([{ name: "student_portal_payment_center_v1", args: {}, get: true }]);
+  });
+  it("чужая форма: PortalDecodeError без данных", async () => {
+    const { transport } = fakeTransport({ student_portal_payment_center_v1: { ...paymentCenterRow(), leaked: "x" } });
+    await expect(readPaymentCenter(transport)).rejects.toBeInstanceOf(PortalDecodeError);
+  });
+  it("отказ сервера: RpcError", async () => {
+    const { transport } = fakeTransport({ student_portal_payment_center_v1: failure("42501", 403) });
+    await expect(readPaymentCenter(transport)).rejects.toBeInstanceOf(RpcError);
   });
 });

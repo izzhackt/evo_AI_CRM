@@ -44,7 +44,7 @@ import { createPlatformSupabaseServiceClient } from "./platform-supabase-service
  * short-lived, authorization-checked signed URL), less ceremony.
  */
 
-const BUCKET_ID = "platform-documents";
+export const BUCKET_ID = "platform-documents";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_MIME_TYPES = new Set([
   "application/pdf",
@@ -55,7 +55,7 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function uuid(value: unknown): string | null {
+export function uuid(value: unknown): string | null {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) return null;
   const normalized = value.toLowerCase();
   return normalized === "00000000-0000-0000-0000-000000000000"
@@ -63,7 +63,7 @@ function uuid(value: unknown): string | null {
     : normalized;
 }
 
-function errorResponse(status: number, code: string): Response {
+export function errorResponse(status: number, code: string): Response {
   return Response.json({ error: code }, { status });
 }
 
@@ -85,11 +85,12 @@ function matchesSignature(declaredMimeType: string, bytes: Uint8Array): boolean 
   return false;
 }
 
-async function readValidatedUpload(
+export async function readValidatedUpload(
   request: Request,
 ): Promise<
   | Readonly<{
       status: "ok";
+      form: FormData;
       bytes: Uint8Array;
       declaredMimeType: string;
       originalFilename: string;
@@ -133,10 +134,10 @@ async function readValidatedUpload(
   if (!SHA256_PATTERN.test(sha256Hex)) {
     return { status: "error", response: errorResponse(503, "storage_unavailable") };
   }
-  return { status: "ok", bytes, declaredMimeType, originalFilename, sha256Hex };
+  return { status: "ok", form, bytes, declaredMimeType, originalFilename, sha256Hex };
 }
 
-async function scanOrRespond(
+export async function scanOrRespond(
   bytes: Uint8Array,
   expectedSha256Hex: string,
 ): Promise<Readonly<{ status: "ok" }> | Readonly<{ status: "error"; response: Response }>> {
@@ -362,7 +363,7 @@ export function createPaymentReceiptFileDownloadHandler() {
   };
 }
 
-const STUDENT_CASE_FILE_KINDS = new Set(["contract", "receipt", "pending_receipt"]);
+const STUDENT_CASE_FILE_KINDS = new Set(["contract", "receipt", "pending_receipt", "student_receipt", "payment_details_qr"]);
 
 /**
  * Студент скачивает СВОЙ договор или чек (миграция 352), только чтение. Как у сотрудников выше: команда базы под сессией студента
@@ -400,10 +401,13 @@ export function createStudentPortalCaseFileDownloadHandler(
           return bearerActor.reason === "student_authority_invalid" ? errorResponse(403, "unavailable") : errorResponse(401, "unauthorized");
         }
       } else {
-        const { resolvePlatformActor } = await import("../platform-auth.ts");
-        const actorResult = await resolvePlatformActor();
+        // Браузер студента: сессия студента (как у маршрутов документов кабинета). Прежняя проверка входа сотрудника студенту
+        // отвечала «недоступно» (503), и «Открыть чек» в кабинете не работал; здесь проверка студента, право на файл решает база.
+        const { resolveStudentPortalActor } = await import("../student-portal-auth.ts");
+        const actorResult = await resolveStudentPortalActor();
         if (actorResult.status !== "authenticated") {
-          return errorResponse(actorResult.status === "anonymous" ? 401 : 503, "unavailable");
+          if (actorResult.status === "anonymous") return errorResponse(401, "unavailable");
+          return actorResult.reason === "student_authority_unavailable" ? errorResponse(503, "unavailable") : errorResponse(403, "unavailable");
         }
       }
       const params = await context.params;

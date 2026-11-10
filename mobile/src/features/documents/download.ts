@@ -5,9 +5,12 @@
 import { MAX_UPLOAD_BYTES, safeFileName } from "@/domain/documents-model";
 import type { CaseFileKind } from "@/domain/portal-source";
 
+/** Виды файлов маршрута case-files: договор и чеки дела, чек студента и QR реквизитов оплаты. */
+export type CaseFileDownloadKind = CaseFileKind | "student_receipt" | "payment_details_qr";
+
 export type DownloadTarget =
   | Readonly<{ kind: "version"; versionId: string }>
-  | Readonly<{ kind: "case-file"; fileKind: CaseFileKind; fileId: string }>;
+  | Readonly<{ kind: "case-file"; fileKind: CaseFileDownloadKind; fileId: string }>;
 
 export type DownloadErrorKey = "docs.errorSession" | "docs.downloadForbidden" | "docs.downloadUnavailable" | "docs.downloadFailed" | "errorNetwork";
 
@@ -52,10 +55,16 @@ export function storageTarget(location: string | null, portalBase: string): stri
   return location;
 }
 
-function contentTypeMatches(contentType: string | null, mimeType: string): boolean {
+function contentTypeMatches(contentType: string | null, mimeTypes: readonly string[]): boolean {
   const type = (contentType ?? "").toLowerCase().split(";")[0]?.trim() ?? "";
   // Хранилище иногда отдаёт octet-stream; JSON и HTML означают страницу ошибки, а не файл.
-  return type === mimeType.toLowerCase() || type === "application/octet-stream" || type === "binary/octet-stream";
+  return mimeTypes.some((mimeType) => type === mimeType.toLowerCase()) || type === "application/octet-stream" || type === "binary/octet-stream";
+}
+
+/** Тип по ответу хранилища, если он из списка допустимых; иначе первый из списка. */
+function resolvedMime(contentType: string | null, mimeTypes: readonly string[]): string {
+  const type = (contentType ?? "").toLowerCase().split(";")[0]?.trim() ?? "";
+  return mimeTypes.find((mimeType) => mimeType.toLowerCase() === type) ?? mimeTypes[0] ?? "application/octet-stream";
 }
 
 /**
@@ -63,7 +72,8 @@ function contentTypeMatches(contentType: string | null, mimeType: string): boole
  * хранилища (прочитать адрес можно, только не идя по нему сами). 2) Хранилище БЕЗ Authorization.
  * Bearer уходит только на портал; на 401 сессия обновляется один раз.
  */
-export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, fileName: string, mimeType: string, signal?: AbortSignal): Promise<DownloadResult> {
+export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, fileName: string, mimeType: string | readonly string[], signal?: AbortSignal): Promise<DownloadResult> {
+  const mimeTypes = typeof mimeType === "string" ? [mimeType] : mimeType;
   let token = await deps.getToken();
   if (!token) return { ok: false, error: "docs.errorSession" };
   const portalUrl = `${deps.baseUrl}${downloadPath(target)}`;
@@ -93,7 +103,7 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
     if (REDIRECT_STATUSES.has(response.status)) return { ok: false, error: "docs.downloadFailed" };
   }
   if (!response.ok) return { ok: false, error: "docs.downloadUnavailable" };
-  if (!contentTypeMatches(response.headers.get("content-type"), mimeType)) return { ok: false, error: "docs.downloadFailed" };
+  if (!contentTypeMatches(response.headers.get("content-type"), mimeTypes)) return { ok: false, error: "docs.downloadFailed" };
   let bytes: Uint8Array;
   try {
     bytes = new Uint8Array(await response.arrayBuffer());
@@ -101,7 +111,7 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
     return { ok: false, error: "errorNetwork" };
   }
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_UPLOAD_BYTES) return { ok: false, error: "docs.downloadFailed" };
-  const name = safeFileName(fileName, mimeType);
+  const name = safeFileName(fileName, resolvedMime(response.headers.get("content-type"), mimeTypes));
   try {
     return { ok: true, uri: await deps.writeFile(name, bytes), name };
   } catch {

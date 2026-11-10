@@ -20,8 +20,8 @@ test("the Student case file row has an exact shape and a closed set of kinds", (
   }
 });
 
-test("the download route is a connected Student API for GET only, for the three kinds only", () => {
-  for (const kind of ["contract", "receipt", "pending_receipt"]) {
+test("the download route is a connected Student API for GET only, for the five kinds only", () => {
+  for (const kind of ["contract", "receipt", "pending_receipt", "student_receipt", "payment_details_qr"]) {
     assert.equal(isConnectedStudentPortalApi(`/api/portal/case-files/${kind}/${ID}/download`, "GET"), true, kind);
     assert.equal(isConnectedStudentPortalApi(`/api/portal/case-files/${kind}/${ID}/download`, "POST"), false, kind);
   }

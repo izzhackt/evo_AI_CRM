@@ -6373,6 +6373,171 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-weight: 600;
 }
 
+/* «Оплата»: как оплатить, история оплат и чеков, форма чека (миграция 358). Без новых цветов: токены кабинета. */
+.pt-howtopay-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 28px;
+  padding: 0 20px 4px;
+}
+
+.pt-howtopay-text {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  line-height: var(--pt-leading);
+}
+
+.pt-howtopay-qr {
+  flex: none;
+  width: 192px;
+  height: 192px;
+  object-fit: contain;
+  padding: 8px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: #fff;
+}
+
+.pt-howtopay .pt-card-note {
+  padding: 12px 20px 20px;
+  margin: 0;
+}
+
+.pt-receipt-entries {
+  display: grid;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-receipt-entry {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-receipt-entry-date {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-receipt-entry-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-receipt-entry-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pt-receipt-entry-side {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+}
+
+.pt-receipt-entry-side:empty {
+  display: none;
+}
+
+.pt-receipt-reason {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--pt-text);
+  font-size: var(--pt-size-secondary);
+  overflow-wrap: anywhere;
+}
+
+.pt-receipt-reason-label {
+  color: var(--pt-text-2);
+  font-weight: 600;
+}
+
+.pt-receipt-attach {
+  margin: 16px 0 0;
+}
+
+.pt-receipt-loose .pt-receipt-entries,
+.pt-receipt-loose .pt-receipt-attach {
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.pt-receipt-loose .pt-receipt-attach {
+  padding-bottom: 20px;
+}
+
+.pt-receipt-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pt-receipt-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pt-receipt-fields {
+  display: grid;
+  gap: 12px;
+  max-width: 480px;
+  padding-top: 8px;
+}
+
+.pt-receipt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .pt-receipt-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pt-receipt-entry {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pt-receipt-entry-date {
+    grid-column: 1 / -1;
+  }
+}
+
+.pt-receipt-file {
+  padding: 8px 12px;
+}
+
+.pt-receipt-error {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-receipt-sent {
+  margin: 0;
+  color: var(--pt-ok);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
 /* Уведомления. */
 
 .pt-ntf-item {

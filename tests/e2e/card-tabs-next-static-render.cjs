@@ -41,8 +41,7 @@ let current = null;
 const documentsModule = src("components/staff/profile/Documents.tsx");
 const { documentsView } = src("components/staff/profile/DocumentsView.tsx");
 documentsModule.Documents = (props) => documentsView({
-  groups: props.groups, uploadAccess: props.uploadAccess, studentCaseId: props.studentCaseId, recognition: props.recognition, filter: props.filter ?? "all",
-  tabHref: props.tabHref, today: TODAY, createRequestId: props.uploadAccess === "allowed" ? uuid("17000000", 1) : null,
+  groups: props.groups, uploadAccess: props.uploadAccess, studentCaseId: props.studentCaseId, recognition: props.recognition, today: TODAY, createRequestId: props.uploadAccess === "allowed" ? uuid("17000000", 1) : null,
   baselineOptions: props.uploadAccess === "allowed" && current.baseline === "options" ? [{ countryRequirementVersionId: uuid("18000000", 1), label: "CN · bachelor · версия 3 — 7 документов" }] : [],
   baselineOptionsUnavailable: false, baselineTemplatesAbsent: props.uploadAccess === "allowed" && current.baseline === "absent",
   baselineChecklistRequestId: props.uploadAccess === "allowed" && current.baseline === "options" ? uuid("19000000", 1) : null, nextUi: props.nextUi,
@@ -99,7 +98,6 @@ const TABS = {
 
 const CASE_DEFS = [
   { name: "docs-all", tab: "documents", baseline: "none" },
-  { name: "docs-review", tab: "documents", filter: "review", baseline: "none" },
   { name: "docs-empty", tab: "documents", docs: [], baseline: "options" },
   { name: "docs-preview", tab: "documents", actor: PREVIEW, docs: fx.docChecklist(false) },
   { name: "money-same", tab: "money", agreement: fx.AGREEMENTS.same },
@@ -125,12 +123,12 @@ function caseScenario(def) {
   const profile = item.profile;
   const draft = item.draft;
   const props = { profile, draft, sales: item.sales, actor, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true, requestIds: EMPTY_IDS,
-    noteRequestId: uuid("12121212", 15), notes: item.notes ?? fx.NOTES, notesOlderHref: null, notesLatestHref: null, tab: def.tab, hrefFor, documentsFilter: def.filter ?? "all" };
+    noteRequestId: uuid("12121212", 15), notes: item.notes ?? fx.NOTES, notesOlderHref: null, notesLatestHref: null, tab: def.tab, hrefFor };
   const routeTab = (nextUi) => def.tab === "route" ? { universityProgramsTab: h(src("components/staff/profile/UniversityProgramsTab.tsx").UniversityProgramsView, {
     actor, draft, routeHref: hrefFor("route"), partnerDetails: def.applications ? [] : fx.ROUTE.partner, preparations: { status: "ready", value: def.applications ? [] : fx.ROUTE.preparations },
     packets: fx.ROUTE.packets, nowIso: new Date(`${TODAY}T08:00:00.000Z`).toISOString(), nextUi }) } : {};
   return { name: def.name, def: { ...def, agreement: def.agreement ?? null }, actor, title: fx.NAME, back: ["/profile?view=mine", "Студенты"],
-    search: `case=${CASE_ID}&tab=${def.tab}${def.filter ? `&doc_state=${def.filter}` : ""}`, next: caseNextParts(parts.next, parts.actions), legacy: parts,
+    search: `case=${CASE_ID}&tab=${def.tab}`, next: caseNextParts(parts.next, parts.actions), legacy: parts,
     nextProps: () => ({ ...props, ...routeTab(true), nextUi: true }), legacyProps: () => ({ ...props, ...routeTab(false) }) };
 }
 

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 
+import { PasswordInput } from "@/components/PasswordInput";
 import { btnCls, inputCls, labelCls } from "@/components/ui";
+import type { Locale } from "@/lib/i18n-data";
 import {
   fillRecoveryString,
   type PasswordRecoveryStrings,
@@ -44,9 +46,11 @@ function errorText(strings: PasswordRecoveryStrings, status: Status): string | n
 export function StudentResetPasswordForm({
   session,
   strings,
+  locale = "ru",
 }: Readonly<{
   session: Readonly<{ status: "ready"; email: string }> | Readonly<{ status: "missing" | "unavailable" }>;
   strings: PasswordRecoveryStrings;
+  locale?: Locale;
 }>) {
   const [state, action, pending] = useActionState(setStudentRecoveryPasswordAction, IDLE);
   const [password, setPassword] = useState("");
@@ -132,10 +136,10 @@ export function StudentResetPasswordForm({
         <label htmlFor="recovery-new-password" className={labelCls}>
           {strings.passwordLabel}
         </label>
-        <input
+        <PasswordInput
           id="recovery-new-password"
+          locale={locale}
           name="password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={STUDENT_PASSWORD_MIN_LENGTH}
@@ -154,10 +158,10 @@ export function StudentResetPasswordForm({
         <label htmlFor="recovery-password-confirm" className={labelCls}>
           {strings.confirmLabel}
         </label>
-        <input
+        <PasswordInput
           id="recovery-password-confirm"
+          locale={locale}
           name="password_confirm"
-          type="password"
           autoComplete="new-password"
           required
           minLength={STUDENT_PASSWORD_MIN_LENGTH}

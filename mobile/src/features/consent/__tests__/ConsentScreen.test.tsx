@@ -131,27 +131,25 @@ describe("экран «Конфиденциальность»", () => {
   });
 });
 
-describe("«Задайте свой пароль» с галочками", () => {
+describe("«Задайте свой пароль» без галочек (конфиденциальность спрашивается один раз, на /consent)", () => {
   const fill = async () => {
     await fireEvent.changeText(screen.getByTestId("new-password"), "synthetic-password-1");
     await fireEvent.changeText(screen.getByTestId("confirm-password"), "synthetic-password-1");
   };
 
-  it("без обеих галочек пароль не отправляется", async () => {
+  it("на экране пароля нет галочек конфиденциальности и требования «отметьте оба пункта»", async () => {
     await renderScreen(<SetPasswordScreen />);
-    await fill();
-    await fireEvent.press(screen.getByTestId("consent-policy"));
-    await fireEvent.press(screen.getByTestId("set-password-submit"));
-    expect(mockSetOwnPassword).not.toHaveBeenCalled();
-    expect(screen.getByText("Отметьте оба пункта, чтобы продолжить.")).toBeTruthy();
+    expect(screen.queryByTestId("consent-policy")).toBeNull();
+    expect(screen.queryByTestId("consent-ai")).toBeNull();
+    expect(screen.queryByText("Отметьте оба пункта, чтобы продолжить.")).toBeNull();
   });
 
-  it("с обеими галочками пароль уходит с признаком записи согласий", async () => {
+  it("пароль уходит без признака записи согласий и без обращения к согласиям", async () => {
     await renderScreen(<SetPasswordScreen />);
     await fill();
-    await fireEvent.press(screen.getByTestId("consent-policy"));
-    await fireEvent.press(screen.getByTestId("consent-ai"));
     await fireEvent.press(screen.getByTestId("set-password-submit"));
-    await waitFor(() => expect(mockSetOwnPassword).toHaveBeenCalledWith("synthetic-password-1", true));
+    await waitFor(() => expect(mockSetOwnPassword).toHaveBeenCalledWith("synthetic-password-1"));
+    expect(mockSetOwnPassword.mock.calls[0]).toHaveLength(1);
+    expect(mockCalls).toHaveLength(0);
   });
 });

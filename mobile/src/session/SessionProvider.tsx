@@ -7,7 +7,6 @@ import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
 import { clearInviteToken } from "@/features/registration/draft-store";
-import { recordConsentsAfterPassword } from "@/features/consent/consent-gate";
 import { createAccessDeps } from "@/session/deps";
 import { clearAllLocalData } from "@/session/local-data";
 
@@ -28,7 +27,7 @@ type SessionContextValue = Readonly<{
   completeConsent: () => void;
   portalAuth: PortalAuthApi;
   /** `recordConsents`: галочки «Конфиденциальность» на экране пароля, запись после смены пароля (веб 4b682db96). */
-  setOwnPassword: (password: string, recordConsents?: boolean) => Promise<"ok" | "weak_password" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network">;
+  setOwnPassword: (password: string) => Promise<"ok" | "weak_password" | "unauthorized" | "staff_account" | "rate_limited" | "unavailable" | "network">;
 }>;
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -167,7 +166,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setOwnPassword = useCallback<SessionContextValue["setOwnPassword"]>(
-    async (password, recordConsents = false) => {
+    async (password) => {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) return "unauthorized";
@@ -176,8 +175,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Новый токен без пометки временного пароля, затем обычный маршрут.
       forcedMustSetRef.current = false;
       await supabase.auth.refreshSession().catch(() => undefined);
-      // Обе галочки отмечены на этом экране: принятие пишется уже с новой сессией; не вышло - экран спросит снова.
-      if (recordConsents) await recordConsentsAfterPassword(platformTransport(supabase));
+      // Согласия здесь не пишутся: без решения маршрутизатор ведёт на экран «Конфиденциальность» (один раз, как на вебе).
       setMustSetPassword(false);
       await resolve(false);
       return "ok";

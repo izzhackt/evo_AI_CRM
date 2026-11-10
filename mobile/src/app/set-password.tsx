@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { View } from "react-native";
 
-import { ConsentChecks } from "@/features/consent/ConsentChecks";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
 import { Button } from "@/ui/Button";
@@ -12,32 +11,27 @@ import { TextField } from "@/ui/TextField";
 const MIN_LENGTH = 12;
 const MAX_BYTES = 72;
 
-type Problem = "consent" | "tooShort" | "tooLong" | "mismatch" | "weak" | "unauthorized" | "staff" | "rateLimited" | "unavailable" | null;
+type Problem = "tooShort" | "tooLong" | "mismatch" | "weak" | "unauthorized" | "staff" | "rateLimited" | "unavailable" | null;
 
 // Правило веба (profile.passwordHint): не короче 12 символов, не длиннее 72 байт.
-export function checkNewPassword(password: string, confirm: string): Exclude<Problem, "consent" | "weak" | "unauthorized" | "staff" | "rateLimited" | "unavailable"> {
+export function checkNewPassword(password: string, confirm: string): Exclude<Problem, "weak" | "unauthorized" | "staff" | "rateLimited" | "unavailable"> {
   if ([...password].length < MIN_LENGTH) return "tooShort";
   if (new TextEncoder().encode(password).length > MAX_BYTES) return "tooLong";
   if (password !== confirm) return "mismatch";
   return null;
 }
 
+// Конфиденциальность спрашивается один раз (веб #1436): здесь только пароль, затем недавний выбор студента решает маршрут:
+// без решения - экран «Конфиденциальность» (`/consent`), иначе кабинет.
 export default function SetPasswordScreen() {
-  const { m, profile, t } = useLang();
+  const { m, profile } = useLang();
   const { setOwnPassword, signOut } = useSession();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [problem, setProblem] = useState<Problem>(null);
   const [busy, setBusy] = useState(false);
-  // 356 (решение владельца 09.11.2026): обе галочки «Конфиденциальность» обязательны и здесь, как на вебе.
-  const [policy, setPolicy] = useState(false);
-  const [ai, setAi] = useState(false);
 
   const submit = async () => {
-    if (!policy || !ai) {
-      setProblem("consent");
-      return;
-    }
     const local = checkNewPassword(password, confirm);
     if (local) {
       setProblem(local);
@@ -45,7 +39,7 @@ export default function SetPasswordScreen() {
     }
     setBusy(true);
     setProblem(null);
-    const result = await setOwnPassword(password, true);
+    const result = await setOwnPassword(password);
     setBusy(false);
     if (result === "ok") return;
     setProblem(
@@ -54,7 +48,6 @@ export default function SetPasswordScreen() {
   };
 
   const text: Record<Exclude<Problem, null>, string> = {
-    consent: t("consentGate").needBoth,
     tooShort: profile.passwordTooShort,
     tooLong: profile.passwordTooLong,
     mismatch: profile.passwordMismatch,
@@ -78,7 +71,6 @@ export default function SetPasswordScreen() {
       <Card>
         <TextField label={profile.passwordNew} hint={profile.passwordHint} value={password} onChangeText={setPassword} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="new-password" />
         <TextField label={profile.passwordConfirm} value={confirm} onChangeText={setConfirm} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="confirm-password" />
-        <ConsentChecks policy={policy} ai={ai} onPolicy={setPolicy} onAi={setAi} editable={!busy} />
         {problem ? (
           <Text variant="secondary" tone="error" accessibilityRole="alert">
             {text[problem]}

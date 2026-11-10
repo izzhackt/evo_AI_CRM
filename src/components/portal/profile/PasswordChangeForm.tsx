@@ -6,6 +6,7 @@ import { changeStudentPasswordAction } from "@/lib/student-password-change-actio
 import {
   STUDENT_PASSWORD_CHANGE_INITIAL, STUDENT_PASSWORD_CHANGE_MESSAGE_KEY,
 } from "@/lib/student-password-change-contract";
+import { PasswordInput } from "@/components/PasswordInput";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
 /**
@@ -18,21 +19,22 @@ export function PasswordChangeForm({ strings }: Readonly<{ strings: PortalString
   useEffect(() => { if (state.status === "done") formRef.current?.reset(); }, [state]);
   const message = state.status === "idle" ? "" : strings[STUDENT_PASSWORD_CHANGE_MESSAGE_KEY[state.status]];
   const good = state.status === "done";
+  const eye = { show: strings.passwordShow, hide: strings.passwordHide };
 
   return (
     <form ref={formRef} action={action} className="pt-password-form" data-testid="portal-password-change">
-      <label className="pt-field">
-        <span className="pt-field-label">{strings.passwordCurrent}</span>
-        <input className="pt-input" type="password" name="current_password" autoComplete="current-password" required />
-      </label>
-      <label className="pt-field">
-        <span className="pt-field-label">{strings.passwordNew}</span>
-        <input className="pt-input" type="password" name="password" autoComplete="new-password" minLength={12} required aria-describedby="portal-password-hint" />
-      </label>
-      <label className="pt-field">
-        <span className="pt-field-label">{strings.passwordConfirm}</span>
-        <input className="pt-input" type="password" name="password_confirm" autoComplete="new-password" minLength={12} required />
-      </label>
+      <div className="pt-field">
+        <label htmlFor="portal-password-current" className="pt-field-label">{strings.passwordCurrent}</label>
+        <PasswordInput id="portal-password-current" className="pt-input" labels={eye} name="current_password" autoComplete="current-password" required />
+      </div>
+      <div className="pt-field">
+        <label htmlFor="portal-password-new" className="pt-field-label">{strings.passwordNew}</label>
+        <PasswordInput id="portal-password-new" className="pt-input" labels={eye} name="password" autoComplete="new-password" minLength={12} required aria-describedby="portal-password-hint" />
+      </div>
+      <div className="pt-field">
+        <label htmlFor="portal-password-confirm" className="pt-field-label">{strings.passwordConfirm}</label>
+        <PasswordInput id="portal-password-confirm" className="pt-input" labels={eye} name="password_confirm" autoComplete="new-password" minLength={12} required />
+      </div>
       <p id="portal-password-hint" className="pt-password-note">{strings.passwordHint}</p>
       <div className="pt-password-actions">
         <button type="submit" className="pt-btn" disabled={pending}>{pending ? strings.passwordSaving : strings.passwordSubmit}</button>

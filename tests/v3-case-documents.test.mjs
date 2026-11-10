@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 
-import { caseChecklistCounts } from "../src/components/staff/profile/case-work-view.ts";
 import * as view from "../src/components/staff/profile/documents-view.ts";
 
 // Вкладка «Документы» дела (Э8.1). Разметка — настоящие компоненты вкладки,
@@ -12,35 +11,13 @@ const rendered = new Map(JSON.parse(execFileSync(process.execPath,
   [new URL("./e2e/case-documents-static-render.cjs", import.meta.url).pathname, "--json"],
   { encoding: "utf8", maxBuffer: 1 << 26 })).map(({ name, html }) => [name, html]));
 
-const TAB = "/profile?case=c1&tab=documents&section=docs&returnTo=%2Fprofile%3Fsection%3Ddocs";
-const item = (status) => ({ status });
-const group = (statuses) => ({ kind: "active", title: "Документы", items: statuses.map(item) });
-
-test("the state filter counts the same checklist the same way as «Быстрый просмотр» and EVO Docs", () => {
-  const statuses = ["required", "submitted", "submitted", "correction_required", "rejected", "approved"];
-  const counts = caseChecklistCounts([group(statuses), { kind: "removed", title: "Документы", items: [] }]);
-  const tabs = view.documentStateTabs(counts, "all", TAB);
-  assert.deepEqual(tabs.map((tab) => [tab.label, tab.count]), [
-    ["Все", 6], ["На проверке", 2], ["Исправить", 2], ["Не загружено", 1], ["Принято", 1],
-  ]);
-  // Each row lands in exactly the filter that counted it.
-  for (const filter of view.DOCUMENT_STATE_FILTERS.filter((key) => key !== "all")) {
-    const rows = view.filterDocumentGroups([group(statuses)], filter).flatMap((entry) => entry.items);
-    assert.equal(rows.length, view.documentStateCount(counts, filter), filter);
+test("there is no state filter: no chips, no doc_state address, one list", () => {
+  for (const name of ["DOCUMENT_STATE_FILTERS", "documentStateTabs", "filterDocumentGroups", "parseDocumentStateFilter", "documentMovedText"]) {
+    assert.equal(name in view, false, `${name} is gone`);
   }
-  assert.deepEqual(view.filterDocumentGroups([group(["approved"])], "review"), [], "an empty group is not drawn");
-});
-
-test("the filter lives in the address and keeps the EVO Docs section and the way back", () => {
-  const review = new URL(view.documentStateHref(TAB, "review"), "https://evo.invalid");
-  assert.equal(review.searchParams.get("doc_state"), "review");
-  assert.equal(review.searchParams.get("section"), "docs");
-  assert.equal(review.searchParams.get("tab"), "documents");
-  assert.equal(review.searchParams.get("returnTo"), "/profile?section=docs");
-  assert.equal(new URL(view.documentStateHref(`${TAB}&doc_state=fix`, "all"), "https://evo.invalid").searchParams.has("doc_state"), false);
-  assert.equal(view.parseDocumentStateFilter("fix"), "fix");
-  assert.equal(view.parseDocumentStateFilter("approved"), "all", "a foreign word opens «Все», not an error");
-  assert.equal(view.parseDocumentStateFilter(undefined), "all");
+  for (const html of rendered.values()) {
+    assert.doesNotMatch(html, /Документы по состоянию|queue-view-tabs|doc_state|v3-document-moved/u);
+  }
 });
 
 test("one state word per row from the shared slot-status dictionary, never red", () => {
@@ -52,13 +29,10 @@ test("one state word per row from the shared slot-status dictionary, never red",
   assert.equal(view.documentStatusChip("draft"), null, "an unknown key is not shown raw");
 });
 
-test("the tab shows «N из M принято», the filter with counts and one chip per row", () => {
+test("the tab shows «N из M принято», no filter chips and one chip per row", () => {
   const html = rendered.get("all");
   assert.match(html, /data-progress="2\/9"><span class="t-body-compact text-fg">2 из 9 принято<\/span>/u);
-  for (const [label, count] of [["Все", 9], ["На проверке", 2], ["Исправить", 2], ["Не загружено", 3], ["Принято", 2]]) {
-    assert.match(html, new RegExp(`>${label}<span class="tabular-nums text-fg-3">${count}</span>`, "u"), label);
-  }
-  assert.match(html, /href="\/profile\?case=[^"]+&amp;tab=documents&amp;section=docs&amp;returnTo=[^"]+&amp;doc_state=review"/u);
+  assert.doesNotMatch(html, /tabular-nums text-fg-3">\d+<\/span><\/a>/u, "no filter chips with counts");
   const rows = html.split('data-testid="v3-document-item"').slice(1);
   assert.equal(rows.length, 9);
   for (const row of rows) {
@@ -98,12 +72,6 @@ test("«Принять» and «Вернуть…» keep their place while «Пр
   assert.match(rowOf(3), /<span aria-hidden="true" class="invisible hidden @min-\[52rem\]\/documents:inline-flex" data-testid="v3-document-preview-slot">/u);
   assert.doesNotMatch(rowOf(2), /v3-document-preview-slot/u, "a ready file shows the real «Просмотреть»");
   assert.doesNotMatch(rowOf(1), /v3-document-preview-slot/u, "no slot without a decision");
-});
-
-test("a row that leaves the filter after an upload or a decision is named in one quiet line", () => {
-  assert.equal(view.documentMovedText("Аттестат", "accepted"), "Документ «Аттестат» перенесён в «Принято».");
-  assert.equal(view.documentMovedText("Паспорт", "review"), "Документ «Паспорт» перенесён в «На проверке».");
-  for (const html of rendered.values()) assert.doesNotMatch(html, /v3-document-moved/u, "nothing has moved before an action");
 });
 
 test("one rule between the checklist and the case recognition history", () => {
@@ -147,7 +115,7 @@ test("rare actions sit in the row's «⋯»; «+ Документ» is quiet and
   assert.match(html, /<div id="case-documents-add" hidden="" /u, "the forms are closed while the checklist has items");
 });
 
-test("one empty state: an empty checklist, and a filter without rows says which filter", () => {
+test("one empty state: an empty checklist", () => {
   const empty = rendered.get("empty");
   assert.doesNotMatch(empty, /из \d+ принято|data-testid="queue-view-tabs"/u, "no read numbers without a checklist");
   assert.equal((empty.match(/data-testid="v3-document-empty"/gu) ?? []).length, 1);
@@ -155,20 +123,10 @@ test("one empty state: an empty checklist, and a filter without rows says which 
   assert.doesNotMatch(empty, /v3-document-add-toggle|Шаблонов чек-листа/u, "the open forms need no toggle and no second empty sentence");
   assert.match(empty, /<div id="case-documents-add" class=/u, "an empty checklist opens the forms");
   assert.match(empty, /Применить базовый чек-лист/u);
-  const filtered = rendered.get("filter-empty");
-  assert.match(filtered, /Документов в состоянии «Принято» нет\./u);
-  assert.match(filtered, /<a class="inline-flex min-h-11[^"]*" href="\/profile\?case=[^"]+&amp;returnTo=[^"]+">Показать все<\/a>/u);
   for (const html of rendered.values()) {
     assert.ok((html.match(/data-testid="v3-document-empty"/gu) ?? []).length <= 1);
     assert.doesNotMatch(html, /Требований нет|ещё не назначены/u);
   }
-});
-
-test("the review filter shows only documents waiting for staff", () => {
-  const html = rendered.get("review");
-  const rows = [...html.matchAll(/data-document-status="([a-z_]+)"/gu)].map((match) => match[1]);
-  assert.deepEqual(rows, ["submitted", "submitted"]);
-  assert.match(html, /aria-current="page"[^>]*>На проверке<span class="tabular-nums text-fg-3">2<\/span>/u);
 });
 
 test("role preview stays read-only: no upload, no decision, no checklist change", () => {

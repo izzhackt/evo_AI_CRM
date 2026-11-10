@@ -16,7 +16,6 @@ import type {
   DocumentUploadAccess,
   DocumentRecognitionAccess,
 } from "./document-types";
-import type { DocumentStateFilter } from "./documents-view";
 import { documentsView } from "./DocumentsView";
 import { AmoDocumentSorting } from "./AmoDocumentSorting";
 import { canSortDocuments } from "./amo-sorting-access";
@@ -44,8 +43,6 @@ export async function Documents({
   studentCaseId,
   actor,
   recognition = null,
-  filter = "all",
-  tabHref,
   nextUi = false,
 }: Readonly<{
   groups: readonly DocumentGroup[];
@@ -53,8 +50,6 @@ export async function Documents({
   studentCaseId: string | null;
   actor: ActivePlatformActor;
   recognition?: DocumentRecognitionAccess | null;
-  filter?: DocumentStateFilter;
-  tabHref: string;
   /** «Новый вид»: те же чтения и права, другая раскладка. */
   nextUi?: boolean;
 }>) {
@@ -121,8 +116,6 @@ export async function Documents({
     uploadAccess,
     studentCaseId,
     recognition,
-    filter,
-    tabHref,
     today: dayInOrganizationTimezone(new Date()),
     createRequestId,
     baselineOptions,

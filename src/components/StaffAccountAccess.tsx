@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useRef, useState, useSyncExternalStore } from "react";
 import { acceptStaffAccountAction, setStaffPasswordAction, type StaffAccountState } from "@/lib/staff-account-actions";
 import { logoutStaffAction } from "@/lib/staff-auth-actions";
+import { PasswordInput } from "@/components/PasswordInput";
 import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
 
 const INITIAL: StaffAccountState = { ready: false, email: "", error: "" };
@@ -18,11 +19,11 @@ function PasswordForm({ account }: { account: StaffAccountState }) {
   const [confirmation, setConfirmation] = useState("");
   return <form action={action} aria-busy={!hydrated || pending} className="mt-5 space-y-4">
     <p className="break-words text-sm leading-6">Вы меняете пароль для <strong>{account.email}</strong>. Если это не ваш адрес, выйдите и откройте своё приглашение.</p>
-    <label className="block text-sm">Новый пароль<input className={`${inputCls} mt-1 min-h-11 w-full`} type="password" name="password" required disabled={!hydrated}
-      autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+    <div className="text-sm"><label htmlFor="staff-new-password" className="block">Новый пароль</label><div className="mt-1"><PasswordInput id="staff-new-password" className={`${inputCls} min-h-11 w-full`} name="password" required disabled={!hydrated}
+      autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>
     <p className="text-xs text-fg-3">От 12 до 128 символов.</p>
-    <label className="block text-sm">Повторите пароль<input className={`${inputCls} mt-1 min-h-11 w-full`} type="password" name="confirmation" required disabled={!hydrated}
-      autoComplete="new-password" minLength={12} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
+    <div className="text-sm"><label htmlFor="staff-new-password-confirm" className="block">Повторите пароль</label><div className="mt-1"><PasswordInput id="staff-new-password-confirm" className={`${inputCls} min-h-11 w-full`} name="confirmation" required disabled={!hydrated}
+      autoComplete="new-password" minLength={12} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></div></div>
     {state.error ? <p role="alert" className="text-sm leading-6 text-danger">{state.error}</p> : null}
     <button disabled={!hydrated || pending || !state.ready} className={`${btnCls} min-h-11 w-full`}>{pending ? "Сохраняем пароль…" : "Сохранить пароль и перейти ко входу"}</button>
   </form>;

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { PasswordInput } from "@/components/PasswordInput";
 import { btnCls, cn, fieldLabelCls, inputCls } from "@/components/ui";
 import type { Locale } from "@/lib/i18n-data";
 import { setOwnStudentPasswordAction, type StudentNewPasswordState } from "@/lib/student-new-password-actions";
@@ -47,17 +48,17 @@ export function NewPasswordForm({ locale }: Readonly<{ locale: Locale }>) {
       <h1 id="new-password-title" className="mb-2 text-2xl font-semibold text-fg">{strings.title}</h1>
       <p className="mb-5 text-fg-2">{strings.text}</p>
       <form action={action} className="space-y-4">
-        <label className="block">
-          <span className={fieldLabelCls}>{strings.password}</span>
-          <input name="password" type="password" autoComplete="new-password" required minLength={12} aria-describedby="new-password-hint"
-            className={cn(inputCls, "min-h-11 w-full")} />
-        </label>
+        <div>
+          <label htmlFor="new-password-field" className={cn("block", fieldLabelCls)}>{strings.password}</label>
+          <PasswordInput id="new-password-field" name="password" autoComplete="new-password" required minLength={12} aria-describedby="new-password-hint"
+            locale={locale} className={cn(inputCls, "min-h-11 w-full")} />
+        </div>
         <p id="new-password-hint" className="text-sm text-fg-2">{strings.hint}</p>
-        <label className="block">
-          <span className={fieldLabelCls}>{strings.confirm}</span>
-          <input name="password_confirm" type="password" autoComplete="new-password" required minLength={12}
-            className={cn(inputCls, "min-h-11 w-full")} />
-        </label>
+        <div>
+          <label htmlFor="new-password-confirm" className={cn("block", fieldLabelCls)}>{strings.confirm}</label>
+          <PasswordInput id="new-password-confirm" name="password_confirm" autoComplete="new-password" required minLength={12}
+            locale={locale} className={cn(inputCls, "min-h-11 w-full")} />
+        </div>
         {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}
         <button type="submit" disabled={pending} className={cn(btnCls, "min-h-11")}>
           {pending ? strings.pending : strings.submit}

@@ -29,7 +29,6 @@ import { StudentsNextLazy } from "@/components/staff/students-next/StudentsNextL
 import { StudentsDirectoryFallback } from "@/components/staff/students/StudentsDirectoryFallback";
 import { nextStepAccess, parseStudentsQueueParams, parseStudentsReturnTo, type NextStepAccessInput } from "@/components/staff/students/students-queue-view";
 import { UniversityProgramsTab } from "@/components/staff/profile/UniversityProgramsTab";
-import { DOCUMENT_STATE_PARAM, parseDocumentStateFilter } from "@/components/staff/profile/documents-view";
 import { toProfileNotesSnapshot } from "@/components/staff/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
@@ -626,7 +625,6 @@ export default async function ProfilePart({
             contractRetry={contractRetry}
             tab={requestedTab}
             hrefFor={hrefFor}
-            documentsFilter={parseDocumentStateFilter(singleSearchParam(params[DOCUMENT_STATE_PARAM]))}
           />
         </>
       ) : closedLead ? (

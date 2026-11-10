@@ -6,6 +6,7 @@ import {
   setStudentPortalPasswordAction,
   type StudentPasswordActionState,
 } from "@/lib/student-portal-auth-actions";
+import { PasswordInput } from "@/components/PasswordInput";
 import { btnCls, inputCls, labelCls } from "@/components/ui";
 
 const ERROR_COPY: Record<Exclude<StudentPasswordActionState, null>, string> = {
@@ -42,10 +43,9 @@ export function StudentSetPasswordForm() {
         <label htmlFor="student-new-password" className={labelCls}>
           Новый пароль
         </label>
-        <input
+        <PasswordInput
           id="student-new-password"
           name="password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}
@@ -62,10 +62,9 @@ export function StudentSetPasswordForm() {
         <label htmlFor="student-password-confirm" className={labelCls}>
           Повторите пароль
         </label>
-        <input
+        <PasswordInput
           id="student-password-confirm"
           name="password_confirm"
-          type="password"
           autoComplete="new-password"
           required
           minLength={12}

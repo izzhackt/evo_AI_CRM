@@ -208,6 +208,7 @@ export default async function LoginPage({
           <div className="mt-6">
             <LoginForm
               labels={copy}
+              locale={locale}
               initialError={initialError}
               recovery={audience === "staff" ? undefined : {
                 href: STUDENT_PASSWORD_FORGOT_PATH,

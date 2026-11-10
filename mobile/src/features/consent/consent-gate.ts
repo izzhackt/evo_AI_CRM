@@ -37,16 +37,3 @@ export async function acceptConsents(transport: RpcTransport, write: FrozenWrite
   if (!isConsentAccepted(status)) throw new ConsentDecodeError();
   return status;
 }
-
-/**
- * Запись после смены временного пароля (веб 4b682db96: `recordStudentConsentsAfterSignIn`). Не бросает:
- * сбой не мешает входу, экран «Конфиденциальность» спросит снова. Возвращает, подтвердила ли база запись.
- */
-export async function recordConsentsAfterPassword(transport: RpcTransport, write: FrozenWrite = consentAcceptWrite()): Promise<boolean> {
-  try {
-    await acceptConsents(transport, write);
-    return true;
-  } catch {
-    return false;
-  }
-}

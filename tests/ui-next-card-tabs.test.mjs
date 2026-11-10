@@ -23,16 +23,16 @@ const count = (html, pattern) => [...html.matchAll(pattern)].length;
 const NEW_DIR = "src/components/staff/profile/next/tabs";
 const NEW_FILES = [...readdirSync(new URL(`../${NEW_DIR}`, import.meta.url)).map((name) => `${NEW_DIR}/${name}`),
   "src/components/staff/profile/next/MoreSheet.tsx", "src/components/staff/profile/next/MoreSheetImpl.tsx", "src/components/kit/card-classes.ts", "src/components/staff/profile/money-panels.ts"];
-const CASE_TABS = ["docs-all", "docs-review", "docs-empty", "docs-preview", "money-same", "money-cross", "money-empty", "route-four", "route-empty", "anketa-full", "anketa-simple", "history-long", "history-short", "history-forbidden"];
+const CASE_TABS = ["docs-all", "docs-empty", "docs-preview", "money-same", "money-cross", "money-empty", "route-four", "route-empty", "anketa-full", "anketa-simple", "history-long", "history-short", "history-forbidden"];
 
-test("сценарии собираются: четырнадцать вкладок дела, две вкладки лида и закрытый лид; каждый — в новом виде", () => {
+test("сценарии собираются: тринадцать вкладок дела, две вкладки лида и закрытый лид; каждый — в новом виде", () => {
   for (const name of [...CASE_TABS, "lead-money-gate", "lead-anketa", "lead-closed"]) {
     assert.ok(next(name).length > 500, name);
   }
-  assert.equal(pages.size, 17);
+  assert.equal(pages.size, 16);
 });
 
-test("«Документы»: карточка «Чек-лист» (прогресс, фильтр, «Документ», формат загрузки за «?») и по карточке на группу; прежний вид — прежний список", () => {
+test("«Документы»: карточка «Чек-лист» (прогресс, «Документ», формат загрузки за «?») и по карточке на группу; прежний вид — прежний список", () => {
   const html = next("docs-all");
   assert.match(html, /data-testid="v3-documents-checklist"/u);
   assert.equal(count(html, /data-testid="v3-documents-group"/gu), 2, "две группы — две карточки");
@@ -40,7 +40,7 @@ test("«Документы»: карточка «Чек-лист» (прогре
   assert.match(html, /aria-label="Пояснение: Чек-лист"/u);
   assert.ok(!text(html).includes("Загрузка: PDF"), "формат загрузки не на экране");
   assert.match(text(html), /2 из 9 принято/u);
-  assert.match(html, /<nav aria-label="Документы по состоянию"/u, "фильтр по состоянию — ссылки, как раньше");
+  assert.doesNotMatch(html, /Документы по состоянию/u, "фильтра по состоянию нет: один список");
   assert.match(html, /data-testid="v3-document-add-toggle"/u);
   assert.equal(count(html, /data-testid="v3-document-item"/gu), 9, "девять пунктов чек-листа, как в «9 принято»");
   assert.match(html, /data-testid="v3-removed-document-history"/u, "история удалённых пунктов есть");
@@ -49,7 +49,6 @@ test("«Документы»: карточка «Чек-лист» (прогре
   assert.match(text(next("docs-empty")), /Чек-лист пока пуст\./u);
   assert.match(text(next("docs-preview")), /В режиме этой роли документы доступны только для просмотра\./u);
   assert.equal(count(next("docs-empty"), /data-testid="v3-documents-group"/gu), 0);
-  assert.equal(count(next("docs-review"), /data-testid="v3-documents-group"/gu), 1, "фильтр «На проверке»: одна группа");
 });
 
 test("«Договор и оплата»: сводка из четырёх данных с «⋯», транши и оплаты — соседние карточки, стоп и валюты на виду; прежний лист — одна рамка", () => {
@@ -212,10 +211,8 @@ test("«Файлы анкеты»: заголовок карточки того 
   assert.match(css, /--type-section-leading: 24px;/u);
 });
 
-test("«Документы»: у фильтра в карточке «Чек-лист» нет своей нижней линии; распознавание не имеет верхнего отступа; прежний фильтр — с линией", () => {
+test("«Документы»: распознавание в карточке не имеет верхнего отступа", () => {
   const html = next("docs-all");
-  const nav = html.slice(html.indexOf('<nav aria-label="Документы по состоянию"'));
-  assert.match(nav.slice(0, nav.indexOf("</nav>")), /<ul class="flex min-w-max items-center gap-1" data-tab-ring="inset">/u);
   assert.match(html, /<div class="[^"]*\[&amp;&gt;section\]:border-t-0 \[&amp;&gt;section\]:mt-0 \[&amp;&gt;section\]:pt-0[^"]*"><section class="mt-3 pt-1" data-testid="document-recognition"/u, "раскрытие распознавания в карточке без своих линии и отступа");
 });
 
@@ -242,7 +239,7 @@ const NEW_ONLY = {
 
 test("страница `/profile`: новый вид вкладок — у каждой роли (администратор, сотрудник, просмотр роли), cookie больше нет (#1327)", () => {
   const names = [...new Set([...realPages.keys()].map((key) => key.split(":")[0]))];
-  assert.equal(names.length, 15, "четырнадцать вкладок дела и закрытый лид");
+  assert.equal(names.length, 14, "тринадцать вкладок дела и закрытый лид");
   for (const name of Object.keys(MARKERS)) {
     for (const mode of ["admin-cookie", "admin-no-cookie", "staff-cookie", "staff-no-cookie", "preview-cookie", "preview-no-cookie"]) {
       const page = real(name, mode);

@@ -71,15 +71,25 @@ beforeEach(() => {
 });
 
 describe("SessionProvider: согласия", () => {
-  it("после смены пароля с галочками: пароль -> новая сессия -> запись согласий -> маршрут -> needsConsent/active", async () => {
-    mockRpc.mockImplementation(async (name) => {
-      mockOrder.push(`rpc:${name}`);
-      return {
-        data: { policyVersionCurrent: "2026-11-07", policyAcceptedVersion: "2026-11-07", aiStatus: "granted", aiPolicyVersion: "2026-10-25", aiPolicyVersionCurrent: "2026-10-25", needsDecision: false },
-        error: null,
-        status: 200,
-      };
+  it("после смены пароля согласия не пишутся: пароль -> новая сессия -> маршрут; без решения - needsConsent (экран /consent)", async () => {
+    await render(
+      <SessionProvider>
+        <Probe />
+      </SessionProvider>,
+    );
+    await waitFor(() => expect(probe.current?.ready).toBe(true));
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await probe.current?.setOwnPassword("synthetic-password-1");
     });
+    expect(outcome).toBe("ok");
+    expect(mockOrder).toEqual(["password", "refresh", "resolve"]);
+    expect(mockOrder).not.toContain("rpc:portal_consents_accept_v1");
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(screen.getByTestId("state").props.children).toBe("needsConsent");
+  });
+
+  it("студент с уже принятыми согласиями после пароля идёт сразу в кабинет", async () => {
     await render(
       <SessionProvider>
         <Probe />
@@ -87,37 +97,10 @@ describe("SessionProvider: согласия", () => {
     );
     await waitFor(() => expect(probe.current?.ready).toBe(true));
     mockResolved = { kind: "active", session: portalSession };
-    let outcome: string | undefined;
     await act(async () => {
-      outcome = await probe.current?.setOwnPassword("synthetic-password-1", true);
+      expect(await probe.current?.setOwnPassword("synthetic-password-1")).toBe("ok");
     });
-    expect(outcome).toBe("ok");
-    expect(mockOrder).toEqual(["password", "refresh", "rpc:portal_consents_accept_v1", "resolve"]);
     expect(screen.getByTestId("state").props.children).toBe("active");
-  });
-
-  it("без галочек запись согласий не вызывается; сбой записи не мешает входу", async () => {
-    mockRpc.mockImplementation(async (name) => {
-      mockOrder.push(`rpc:${name}`);
-      return { data: null, error: { code: "XX000" }, status: 500 };
-    });
-    await render(
-      <SessionProvider>
-        <Probe />
-      </SessionProvider>,
-    );
-    await waitFor(() => expect(probe.current?.ready).toBe(true));
-    await act(async () => {
-      await probe.current?.setOwnPassword("synthetic-password-1");
-    });
-    expect(mockOrder).not.toContain("rpc:portal_consents_accept_v1");
-    expect(screen.getByTestId("state").props.children).toBe("needsConsent");
-    mockOrder.length = 0;
-    await act(async () => {
-      expect(await probe.current?.setOwnPassword("synthetic-password-1", true)).toBe("ok");
-    });
-    expect(mockOrder).toContain("rpc:portal_consents_accept_v1");
-    expect(screen.getByTestId("state").props.children).toBe("needsConsent");
   });
 
   it("completeConsent открывает кабинет только из needsConsent", async () => {

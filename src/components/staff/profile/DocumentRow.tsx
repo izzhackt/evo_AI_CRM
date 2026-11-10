@@ -27,7 +27,7 @@ import {
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
 import { reviewPlatformDocumentAction, type DocumentReviewOutcome } from "@/lib/platform-document-review-action";
-import type { PlatformDocumentReviewDecision, PlatformDocumentSlotStatus } from "@/lib/platform-private-documents";
+import type { PlatformDocumentReviewDecision } from "@/lib/platform-private-documents";
 
 import { caseMomentLabel } from "./case-work-view";
 import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
@@ -333,7 +333,6 @@ export function DocumentRow({
   today,
   upload,
   onUpload,
-  onReviewSaved,
 }: Readonly<{
   item: DocumentItem;
   studentCaseId: string | null;
@@ -344,8 +343,6 @@ export function DocumentRow({
   upload: DocumentUploadState;
   /** Загрузка идёт у списка: её итог переживает новую версию строки. */
   onUpload: (item: DocumentItem, file: File) => void;
-  /** Решение сохранено: под фильтром список назовёт, куда ушла строка. */
-  onReviewSaved: (item: DocumentItem, status: PlatformDocumentSlotStatus) => void;
 }>) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -409,7 +406,6 @@ export function DocumentRow({
       setReview({ pending: false, outcome: result, decision: attempt.decision, attempt: result === "unavailable" ? attempt : null });
       if (result === "saved") {
         setPanel(null);
-        onReviewSaved(item, attempt.decision);
         router.refresh();
       }
     } catch {

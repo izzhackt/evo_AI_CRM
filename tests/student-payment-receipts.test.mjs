@@ -56,6 +56,63 @@ test("the payment center parses a closed shape and rejects anything else", () =>
   assert.equal(rejected.dues[0].entries[0].rejectReason, "Не видно сумму");
 });
 
+test("odd text from the database never breaks a Student page: control characters are stripped, long text is cut, file names fall back", () => {
+  const odd = parsePaymentCenter(center({
+    details: { text: "IBAN\u0007 0000\nline2\tok", has_qr: false, qr_id: null, updated_at: "2026-11-10T09:00:00+00:00" },
+    dues: [due({ label: "Платёж\u001b" + "я".repeat(400), next_action: "Шаг\u0000", entries: [
+      entry({ filename: "\u0007\u0007", file_id: B }),
+      entry({ entry_id: C, status: "rejected", reject_reason: "Причина\u0001\nвторая строка", filename: "я".repeat(400) }),
+    ] })],
+  }));
+  assert.ok(odd);
+  assert.equal(odd.details.text, "IBAN 0000\nline2\tok");
+  assert.equal(Array.from(odd.dues[0].label).length, 300);
+  assert.doesNotMatch(odd.dues[0].label, /[\u0000-\u001f]/);
+  assert.equal(odd.dues[0].nextAction, "Шаг");
+  assert.equal(odd.dues[0].entries[0].filename, "file");
+  assert.equal(odd.dues[0].entries[1].rejectReason, "Причина\nвторая строка");
+  assert.equal(Array.from(odd.dues[0].entries[1].filename).length, 255);
+});
+
+test("a long student name or label in the staff queue is cut for display, not refused", () => {
+  const receipt = {
+    receipt_id: A, student_case_id: B, student_display_name: "Я".repeat(500), payment_obligation_id: null, payment_label: "п".repeat(900), amount_minor: "1", currency: "USD",
+    paid_on: "2026-11-10", original_filename: "f\u0007.png", submitted_at: "2026-11-10T09:05:39+00:00", status: "pending", reject_reason: null, reviewed_at: null,
+    can_review: true, dues: [{ payment_obligation_id: C, label: "д".repeat(900), currency: "USD", outstanding_minor: "1" }],
+  };
+  const queue = parseStudentReceiptQueue({ organization_id: C, total: 1, receipts: [receipt] }, C);
+  assert.equal(Array.from(queue.receipts[0].studentDisplayName).length, 300);
+  assert.equal(Array.from(queue.receipts[0].paymentLabel).length, 500);
+  assert.equal(queue.receipts[0].originalFilename, "f.png");
+});
+
+test("the upload and details routes clean file names and details text, and map the duplicate race", () => {
+  const source = read("../src/lib/server/student-payment-receipts-route-handlers.ts");
+  assert.match(source, /cleanReceiptFilename\(upload\.originalFilename\)/);
+  assert.match(source, /cleanPaymentDetailsText\(body\)/);
+  assert.match(source, /receipt_duplicate/);
+  const sql = read("../supabase/migrations/358_platform_student_payment_receipts.sql");
+  assert.match(sql, /EXCEPTION WHEN unique_violation/);
+  assert.match(sql, /regexp_replace\(p_original_filename/);
+  assert.match(sql, /body ~ E'\[/);
+});
+
+test("the Student is told about the decision in RU and KY, and the accept command can create the payment", () => {
+  for (const locale of ["ru", "ky"]) {
+    const strings = getPortalStrings("admission", locale);
+    assert.match(strings.receiptNotifAccepted, /\{value\}/);
+    assert.match(strings.receiptNotifRejected, /\{value\}/);
+  }
+  assert.equal(getPortalStrings("admission", "ru").receiptNotifAccepted, "Чек принят: {value}");
+  assert.equal(getPortalStrings("admission", "ru").receiptNotifRejected, "Чек отклонён: {value}");
+  const sql = read("../supabase/migrations/358_platform_student_payment_receipts.sql");
+  assert.match(sql, /p_new_due_label TEXT DEFAULT NULL/);
+  assert.match(sql, /platform\.save_case_tranche_v1\(p_organization_id, platform_private\.p3c_request_child_id\(p_request_id, 'due'\)/);
+  assert.match(sql, /own_payment_receipt_notifications/);
+  const action = read("../src/lib/platform-student-receipts-actions.ts");
+  assert.match(action, /new_due_label/);
+});
+
 test("the amount rules: two decimals, no zero, comma or point, minor units back to an input value", () => {
   assert.equal(receiptAmountToMinor("100.50"), "10050");
   assert.equal(receiptAmountToMinor("1 000,5"), "100050");

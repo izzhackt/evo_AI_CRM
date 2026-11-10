@@ -395,6 +395,57 @@ SELECT pg_temp.a358_assert(pg_temp.a358_upload(2, 701, 7011, 10000, 'CNY', '1', 
 SELECT pg_temp.a358_assert(pg_temp.a358_events('finance.receipt.reject') = 1, 'one reject event in the journal');
 
 -- ---------------------------------------------------------------------------
+-- 7b. «Создать платёж на эту сумму»: платёж и принятие чека одним шагом.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a358_upload(2, 701, NULL, 7777, 'EUR', '2', 9113) AS a358_u_eur \gset
+SELECT id AS a358_r_eur FROM platform.student_payment_receipts WHERE submit_request_id = pg_temp.a358_id(9113) \gset
+CREATE FUNCTION pg_temp.a358_accept_new(p_actor INTEGER, p_receipt UUID, p_label TEXT, p_amount BIGINT, p_cur TEXT, p_req INTEGER, p_due INTEGER DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a358_as(p_actor, format('SELECT platform.accept_student_payment_receipt_v1(%L,%L,%s,%s,%L,%L,%L,%L)', pg_temp.a358_id(1), p_receipt,
+    CASE WHEN p_due IS NULL THEN 'NULL' ELSE quote_literal(pg_temp.a358_id(p_due)) END, p_amount, p_cur, current_date, pg_temp.a358_id(p_req), p_label))
+$$;
+SELECT pg_temp.a358_assert(pg_temp.a358_accept_new(4, :'a358_r_eur', 'Сервисный сбор', 7777, 'EUR', 9401) ->> 'error' = '42501', 'a member without write access cannot create a payment (42501)');
+SELECT pg_temp.a358_assert(pg_temp.a358_accept_new(5, :'a358_r_eur', 'Сервисный сбор', 7777, 'EUR', 9402, 7011) ->> 'message' = 'receipt_invalid',
+  'a new payment label together with an existing payment is invalid');
+SELECT pg_temp.a358_assert(NOT EXISTS (SELECT 1 FROM platform.payment_obligations WHERE student_case_id = pg_temp.a358_id(701) AND currency = 'EUR')
+  AND (SELECT status = 'pending' FROM platform.student_payment_receipts WHERE id = :'a358_r_eur'), 'refusals created nothing');
+SELECT pg_temp.a358_accept_new(5, :'a358_r_eur', 'Сервисный сбор', 7777, 'EUR', 9403) AS a358_new \gset
+SELECT pg_temp.a358_assert(:'a358_new'::JSONB ->> 'status' = 'accepted' AND :'a358_new'::JSONB ? 'created_payment_obligation_id', 'accepted against a new payment: ' || :'a358_new');
+SELECT pg_temp.a358_assert((SELECT amount_minor = 7777 AND total_paid_minor = 7777 AND label = 'Сервисный сбор' AND currency = 'EUR'
+    FROM platform.payment_obligations WHERE id = (:'a358_new'::JSONB ->> 'created_payment_obligation_id')::UUID)
+  AND (SELECT accepted_payment_obligation_id = (:'a358_new'::JSONB ->> 'created_payment_obligation_id')::UUID FROM platform.student_payment_receipts WHERE id = :'a358_r_eur')
+  AND pg_temp.a358_events('case.tranche.save') >= 1, 'the new payment exists, is fully paid, is the receipt''s payment and went through the tranche journal');
+SELECT pg_temp.a358_accept_new(5, :'a358_r_eur', 'Сервисный сбор', 7777, 'EUR', 9403) AS a358_new_again \gset
+SELECT pg_temp.a358_assert((:'a358_new_again'::JSONB ->> 'replayed')::BOOLEAN IS TRUE
+  AND (SELECT count(*) = 1 FROM platform.payment_obligations WHERE student_case_id = pg_temp.a358_id(701) AND currency = 'EUR'), 'a repeat creates no second payment');
+
+-- ---------------------------------------------------------------------------
+-- 7c. The Student is told in «Что нового»: accepted (amount) and rejected (reason); only their own; readable once.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a358_as(2, 'SELECT COALESCE(jsonb_agg(to_jsonb(n) ORDER BY n.created_at), ''[]''::JSONB) FROM platform.student_portal_notifications_v2() n WHERE n.category = ''payment.receipt''') AS a358_feed \gset
+SELECT pg_temp.a358_assert(jsonb_array_length(:'a358_feed'::JSONB) = 4
+  AND (SELECT count(*) = 3 FROM jsonb_array_elements(:'a358_feed'::JSONB) e WHERE e ->> 'event_code' = 'payment_receipt_accepted')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(:'a358_feed'::JSONB) e WHERE e ->> 'event_code' = 'payment_receipt_rejected' AND e ->> 'subject_label' = 'Не видно сумму на фото')
+  AND (SELECT count(*) = 1 FROM jsonb_array_elements(:'a358_feed'::JSONB) e WHERE e ->> 'subject_label' = '399.50 CNY'), 'the Student feed shows accepted amounts and the rejection reason: ' || :'a358_feed');
+SELECT pg_temp.a358_as(3, 'SELECT count(*)::TEXT::JSONB FROM platform.student_portal_notifications_v2() n WHERE n.category = ''payment.receipt''') AS a358_feed_b \gset
+SELECT pg_temp.a358_assert((:'a358_feed_b'::JSONB)::TEXT::INTEGER = 1, 'Student B sees only the own decision');
+SELECT e ->> 'notification_id' AS a358_note FROM jsonb_array_elements(:'a358_feed'::JSONB) e LIMIT 1 \gset
+SELECT pg_temp.a358_as(2, format('SELECT platform.mark_own_student_portal_notification_read_v2(%L, %L)', :'a358_note', gen_random_uuid())) AS a358_marked \gset
+SELECT pg_temp.a358_assert(NOT (:'a358_marked'::JSONB ? 'error'), 'the Student marks a receipt notification as read: ' || :'a358_marked');
+SELECT pg_temp.a358_assert(pg_temp.a358_as(3, format('SELECT platform.mark_own_student_portal_notification_read_v2(%L, %L)', :'a358_note', gen_random_uuid())) ->> 'error' = '42501',
+  'another Student cannot mark it (42501)');
+
+-- ---------------------------------------------------------------------------
+-- 7d. Control characters never reach a Student page: details text is refused, file names are cleaned.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a358_assert(pg_temp.a358_details(1, 'IBAN' || chr(7) || '0000', 'keep', 8101) ->> 'message' = 'payment_details_invalid'
+  AND pg_temp.a358_details(1, 'Строка' || chr(10) || 'Таб' || chr(9) || 'ok', 'keep', 8102) ->> 'version_no' IS NOT NULL, 'bell is refused, new lines and tabs are kept');
+SELECT pg_temp.a358_svc(format('SELECT platform.record_student_payment_receipt_v1(%L,%L,%L,NULL,100,%L,%L,%L,%L,10,%L,%L,%L)',
+  pg_temp.a358_id(1), pg_temp.a358_id(302), pg_temp.a358_id(701), 'USD', current_date, chr(7) || repeat('я', 300) || chr(27) || '.png', 'image/png', repeat('7', 64),
+  format('payment-receipts/%s/%s/%s', pg_temp.a358_id(1), pg_temp.a358_id(701), pg_temp.a358_id(9500)), pg_temp.a358_id(9114))) AS a358_odd \gset
+SELECT pg_temp.a358_assert((SELECT char_length(original_filename) = 255 AND original_filename !~ E'[\\x01-\\x1f\\x7f]' FROM platform.student_payment_receipts WHERE submit_request_id = pg_temp.a358_id(9114)),
+  'the file name has no control characters and is cut to 255 characters: ' || :'a358_odd');
+
+-- ---------------------------------------------------------------------------
 -- 8. Append-only.
 -- ---------------------------------------------------------------------------
 DO $a358_immutable$

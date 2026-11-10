@@ -56,8 +56,11 @@ function fail(): never {
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : fail();
 }
+/** Для показа: усечение по символам без падения страницы; не строка - чужая форма. */
 function text(value: unknown, max = 1000): string {
-  return typeof value === "string" && value.length <= max ? value : fail();
+  if (typeof value !== "string") return fail();
+  const points = Array.from(value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ""));
+  return points.length > max ? points.slice(0, max).join("") : points.join("");
 }
 function optionalText(value: unknown, max = 1000): string | null {
   return value === null ? null : text(value, max);

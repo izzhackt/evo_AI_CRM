@@ -19,7 +19,7 @@ function fail(previous: StudentReceiptActionState, requestId: string | null, sta
 
 export async function acceptStudentReceiptAction(previous: StudentReceiptActionState, form: FormData): Promise<StudentReceiptActionState> {
   const actor = await requirePlatformStaffActor();
-  const fields = exactActionStringFields(form, ["request_id", "receipt_id", "payment_obligation_id", "amount", "currency", "at"]);
+  const fields = exactActionStringFields(form, ["request_id", "receipt_id", "payment_obligation_id", "amount", "currency", "at", "new_due_label"]);
   const requestId = fields && parseSalesUuid(fields.get("request_id"));
   if (!fields || !requestId) return fail(previous, null, "invalid");
   if (isStaffPreview(actor)) return fail(previous, requestId, "forbidden");
@@ -29,12 +29,14 @@ export async function acceptStudentReceiptAction(previous: StudentReceiptActionS
   const amount = decimalToMinor(text("amount"));
   const currency = text("currency").toUpperCase();
   const paidOn = financeLocalDate(`${text("at")}T00:00`);
-  if (!receiptId || (text("payment_obligation_id") && !obligationId) || !amount || !/^[A-Z]{3}$/.test(currency) || !paidOn
+  // «Создать платёж на эту сумму»: подпись нового платежа вместо выбранного; вместе они не отправляются.
+  const newDueLabel = text("new_due_label");
+  if (!receiptId || (text("payment_obligation_id") && !obligationId) || (newDueLabel && (obligationId || newDueLabel.length > 500)) || !amount || !/^[A-Z]{3}$/.test(currency) || !paidOn
     || [...fields.values()].some((value) => value.length > 200 || CONTROL.test(value))) {
     return fail(previous, requestId, "invalid");
   }
   try {
-    const state = await acceptStudentReceipt(actor, requestId, { receiptId, obligationId, amountMinor: amount, currency, paidOn });
+    const state = await acceptStudentReceipt(actor, requestId, { receiptId, obligationId, amountMinor: amount, currency, paidOn, newDueLabel: newDueLabel || null });
     if (state.status === "saved") {
       revalidatePath("/profile");
       revalidatePath("/finance");

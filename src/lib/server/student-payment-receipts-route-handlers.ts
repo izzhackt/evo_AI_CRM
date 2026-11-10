@@ -44,6 +44,17 @@ function sameOrigin(request: Request): boolean {
   }
 }
 
+/** Имя файла идёт на страницу студента и в журнал: управляющие знаки долой, длина - по символам (не по байтам), пустое - «file». */
+export function cleanReceiptFilename(name: string): string {
+  const clean = Array.from(name.replace(/[\u0000-\u001F\u007F]/g, "").trim()).slice(0, 255).join("").trim();
+  return clean === "" ? "file" : clean;
+}
+
+/** Текст реквизитов: управляющие знаки кроме перевода строки, возврата каретки и табуляции убираются (страница студента их не примет). */
+export function cleanPaymentDetailsText(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+}
+
 function today(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bishkek" });
 }
@@ -156,7 +167,7 @@ export function createStudentPaymentReceiptUploadHandler(overrides?: Partial<Stu
         p_amount_minor: amountMinor,
         p_currency: currency,
         p_paid_on: paidOn,
-        p_original_filename: upload.originalFilename,
+        p_original_filename: cleanReceiptFilename(upload.originalFilename),
         p_declared_mime_type: upload.declaredMimeType,
         p_byte_size: upload.bytes.byteLength,
         p_sha256_hex: upload.sha256Hex,
@@ -240,7 +251,8 @@ export function createPaymentDetailsSaveHandler() {
       const mode = form.get("qr_mode");
       const key = form.get("request_id");
       const requestId = typeof key === "string" ? uuid(key) : randomUUID();
-      if (typeof body !== "string" || body.length > 4000 || typeof mode !== "string" || !["keep", "replace", "remove"].includes(mode) || !requestId) {
+      const cleanBody = typeof body === "string" ? cleanPaymentDetailsText(body) : null;
+      if (cleanBody === null || cleanBody.length > 4000 || typeof mode !== "string" || !["keep", "replace", "remove"].includes(mode) || !requestId) {
         return errorResponse(400, "payment_details_invalid");
       }
       let qr: { bytes: Uint8Array; mime: string; name: string; sha: string; size: number } | null = null;
@@ -269,7 +281,7 @@ export function createPaymentDetailsSaveHandler() {
       const saved = await service.schema("platform").rpc("record_payment_details_v1", {
         p_organization_id: admin.organizationId,
         p_membership_id: admin.membershipId,
-        p_details_text: body,
+        p_details_text: cleanBody,
         p_qr_mode: mode,
         p_qr_original_filename: qr?.name ?? null,
         p_qr_mime_type: qr?.mime ?? null,

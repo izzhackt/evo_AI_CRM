@@ -1,7 +1,7 @@
 // Подписи и форматы «Главной» и «Поступления»: порт чистых частей
 // src/components/portal/admission/presentation.ts и OverviewView.tsx (веб).
 // Веб-файлы нельзя импортировать: они тянут алиас `@/` веба и React DOM.
-import type { PortalStrings } from "@web/lib/portal/i18n";
+import { formatPortalString, type PortalStrings } from "@web/lib/portal/i18n";
 
 import type { StudentPortalAction, StudentPortalEvoAction, StudentPortalNotification } from "@/domain/portal-source";
 
@@ -110,6 +110,13 @@ export function portalNotificationText(
   // Сообщение команды хранится по-русски, на экран идёт на языке студента.
   if (notification.eventCode === "case_chat_message") {
     return { title: strings.caseChatNotificationTitle, detail: strings.caseChatNotificationDetail };
+  }
+  // Решение по чеку (миграция 358): сумма или причина - в `subjectLabel`, слова решения - на языке студента.
+  if (notification.eventCode === "payment_receipt_accepted") {
+    return { title: formatPortalString(strings.receiptNotifAccepted, { value: notification.subjectLabel }), detail: null };
+  }
+  if (notification.eventCode === "payment_receipt_rejected") {
+    return { title: formatPortalString(strings.receiptNotifRejected, { value: notification.subjectLabel }), detail: null };
   }
   return { title: notification.subjectLabel, detail: notification.detail };
 }

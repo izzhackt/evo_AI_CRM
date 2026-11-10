@@ -79,7 +79,7 @@ function mapError(error: { code?: string; message?: string }, requestId: string)
 export async function acceptStudentReceipt(
   actor: PlatformActor,
   requestId: string,
-  args: Readonly<{ receiptId: string; obligationId: string | null; amountMinor: string; currency: string; paidOn: string }>,
+  args: Readonly<{ receiptId: string; obligationId: string | null; amountMinor: string; currency: string; paidOn: string; newDueLabel?: string | null }>,
 ): Promise<StudentReceiptActionState> {
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("accept_student_payment_receipt_v1", {
@@ -90,6 +90,7 @@ export async function acceptStudentReceipt(
     p_currency: args.currency,
     p_paid_on: args.paidOn,
     p_request_id: requestId,
+    p_new_due_label: args.newDueLabel ?? null,
   });
   if (error) return mapError(error, requestId);
   const row = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;

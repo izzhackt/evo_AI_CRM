@@ -238,6 +238,52 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.notify_student_receipt(UUID, UUID, UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 
+-- Уведомление студенту о решении («Что нового» / «Входящие», сайт и приложение): та же таблица platform.notifications, что у сообщений
+-- чата (330). Заголовок несёт слова решения: «Чек принят: 100.50 USD» / «Чек отклонён: причина»; клиент выводит их на языке студента.
+CREATE FUNCTION platform_private.notify_student_receipt_decision(p_org UUID, p_receipt UUID, p_accepted BOOLEAN, p_text TEXT, p_actor UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE r platform.student_payment_receipts%ROWTYPE; v_notification UUID; v_title TEXT;
+BEGIN
+  SELECT * INTO r FROM platform.student_payment_receipts x WHERE x.organization_id = p_org AND x.id = p_receipt;
+  IF NOT FOUND OR NOT EXISTS (SELECT 1 FROM platform.organization_memberships m JOIN platform.profiles pr ON pr.id = m.profile_id
+      WHERE m.organization_id = p_org AND m.id = r.student_membership_id AND m.status = 'active' AND pr.status = 'active') THEN
+    RETURN;
+  END IF;
+  v_title := left((CASE WHEN p_accepted THEN 'Чек принят: ' ELSE 'Чек отклонён: ' END) || replace(replace(p_text, E'\n', ' '), E'\r', ' '), 1000);
+  INSERT INTO platform.notifications (organization_id, student_case_id, recipient_membership_id, category, title, body, dedupe_key,
+    created_by_membership_id)
+  VALUES (p_org, r.student_case_id, r.student_membership_id, 'payment.receipt', v_title, v_title,
+    'payment_receipt:' || p_receipt::TEXT || CASE WHEN p_accepted THEN ':accepted' ELSE ':rejected' END, p_actor)
+  ON CONFLICT DO NOTHING
+  RETURNING id INTO v_notification;
+  IF v_notification IS NOT NULL THEN
+    INSERT INTO platform.notification_events (organization_id, notification_id, student_case_id, recipient_membership_id, event_type,
+      actor_membership_id, reason, request_id)
+    VALUES (p_org, v_notification, r.student_case_id, r.student_membership_id, 'created', p_actor,
+      'Student payment receipt decision', gen_random_uuid());
+  END IF;
+END
+$$;
+REVOKE ALL ON FUNCTION platform_private.notify_student_receipt_decision(UUID, UUID, BOOLEAN, TEXT, UUID)
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
+
+-- Свои уведомления о чеках для «Что нового»: форма та же, что у чата (330); subject_label - сумма или причина (текст после «: »).
+CREATE FUNCTION platform_private.own_payment_receipt_notifications()
+RETURNS TABLE (notification_id UUID, category TEXT, event_code TEXT, subject_label TEXT, detail TEXT,
+  due_at TIMESTAMPTZ, created_at TIMESTAMPTZ, read_at TIMESTAMPTZ)
+LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT n.id, n.category,
+    CASE WHEN n.dedupe_key LIKE '%:accepted' THEN 'payment_receipt_accepted' ELSE 'payment_receipt_rejected' END,
+    substr(n.title, strpos(n.title, ': ') + 2), NULL::TEXT, NULL::TIMESTAMPTZ, n.created_at, n.read_at
+  FROM platform.current_actor_authority() a
+  JOIN platform.notifications n ON n.organization_id = a.organization_id AND n.recipient_membership_id = a.membership_id
+  WHERE a.platform_role = 'student' AND n.category = 'payment.receipt'
+    AND private.platform_has_permission(a.organization_id, 'notification.read.self')
+    AND private.platform_can_read_student_portal_case(n.organization_id, n.student_case_id)
+$$;
+REVOKE ALL ON FUNCTION platform_private.own_payment_receipt_notifications()
+  FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
+
 -- ---------------------------------------------------------------------------
 -- 4) Студент: страница «Оплата» одним чтением и проверка перед загрузкой.
 -- ---------------------------------------------------------------------------
@@ -334,7 +380,7 @@ CREATE FUNCTION platform.record_student_payment_receipt_v1(
   p_sha256_hex TEXT, p_storage_object_name TEXT, p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE existing platform.student_payment_receipts%ROWTYPE; case_row platform.student_cases%ROWTYPE; obligation_row platform.payment_obligations%ROWTYPE;
-  new_id UUID := gen_random_uuid(); curr TEXT; student_name TEXT; student_profile UUID; student_user UUID; pending_count BIGINT;
+  new_id UUID := gen_random_uuid(); curr TEXT; student_profile UUID; student_user UUID; pending_count BIGINT; safe_name TEXT; v_constraint TEXT;
 BEGIN
   IF (SELECT auth.jwt() ->> 'role') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'Service role is required' USING ERRCODE = '42501';
@@ -349,6 +395,9 @@ BEGIN
     RAISE EXCEPTION 'receipt_invalid' USING ERRCODE = '22023';
   END IF;
   curr := upper(btrim(p_currency));
+  -- Имя файла идёт на страницу студента и в журнал: управляющие знаки убираются, длина - по символам (не по байтам).
+  safe_name := left(btrim(regexp_replace(p_original_filename, E'[\\x01-\\x1f\\x7f]', '', 'g')), 255);
+  IF safe_name = '' THEN safe_name := 'file'; END IF;
   PERFORM platform_private.lock_p2e_request(p_request_id);
   SELECT * INTO existing FROM platform.student_payment_receipts r WHERE r.organization_id = p_organization_id AND r.submit_request_id = p_request_id;
   IF FOUND THEN
@@ -379,12 +428,22 @@ BEGIN
       AND r.sha256_hex = lower(btrim(p_sha256_hex)) AND r.status IN ('pending', 'accepted')) THEN
     RAISE EXCEPTION 'receipt_duplicate' USING ERRCODE = '23505';
   END IF;
-  INSERT INTO platform.student_payment_receipts (id, organization_id, student_case_id, student_membership_id, payment_obligation_id,
-    declared_amount_minor, declared_currency, declared_paid_on, original_filename, declared_mime_type, byte_size, sha256_hex,
-    storage_object_name, submit_request_id)
-  VALUES (new_id, p_organization_id, p_student_case_id, p_student_membership_id, p_payment_obligation_id, p_amount_minor, curr, p_paid_on,
-    left(btrim(p_original_filename), 255), lower(btrim(p_declared_mime_type)), p_byte_size, lower(btrim(p_sha256_hex)),
-    btrim(p_storage_object_name), p_request_id);
+  BEGIN
+    INSERT INTO platform.student_payment_receipts (id, organization_id, student_case_id, student_membership_id, payment_obligation_id,
+      declared_amount_minor, declared_currency, declared_paid_on, original_filename, declared_mime_type, byte_size, sha256_hex,
+      storage_object_name, submit_request_id)
+    VALUES (new_id, p_organization_id, p_student_case_id, p_student_membership_id, p_payment_obligation_id, p_amount_minor, curr, p_paid_on,
+      safe_name, lower(btrim(p_declared_mime_type)), p_byte_size, lower(btrim(p_sha256_hex)),
+      btrim(p_storage_object_name), p_request_id);
+  EXCEPTION WHEN unique_violation THEN
+    -- Гонка двух одинаковых отправок: тот же файл - «уже отправлен» (проверка выше её не ловит), тот же запрос - повтор.
+    GET STACKED DIAGNOSTICS v_constraint = CONSTRAINT_NAME;
+    IF v_constraint = 'student_payment_receipts_submit_key' THEN
+      SELECT * INTO existing FROM platform.student_payment_receipts r WHERE r.organization_id = p_organization_id AND r.submit_request_id = p_request_id;
+      RETURN jsonb_build_object('organization_id', p_organization_id, 'receipt_id', existing.id, 'status', existing.status, 'replayed', TRUE);
+    END IF;
+    RAISE EXCEPTION 'receipt_duplicate' USING ERRCODE = '23505';
+  END;
   SELECT pr.id, pr.auth_user_id INTO student_profile, student_user FROM platform.organization_memberships m
     JOIN platform.profiles pr ON pr.id = m.profile_id WHERE m.organization_id = p_organization_id AND m.id = p_student_membership_id;
   INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_membership_id, actor_principal, action, resource_type,
@@ -392,7 +451,7 @@ BEGIN
   VALUES (p_organization_id, 'user', student_profile, p_student_membership_id, 'auth:' || student_user::TEXT, 'finance.receipt.submit',
     'student_payment_receipt', new_id, NULL,
     jsonb_build_object('receipt_id', new_id, 'student_case_id', p_student_case_id, 'payment_obligation_id', p_payment_obligation_id,
-      'amount_minor', p_amount_minor, 'currency', curr, 'paid_on', p_paid_on, 'original_filename', left(btrim(p_original_filename), 255)),
+      'amount_minor', p_amount_minor, 'currency', curr, 'paid_on', p_paid_on, 'original_filename', safe_name),
     'Student attached a payment receipt for review', platform_private.p3c_request_child_id(p_request_id, 'audit'));
   PERFORM platform_private.notify_student_receipt(p_organization_id, p_student_case_id, new_id, p_student_membership_id);
   RETURN jsonb_build_object('organization_id', p_organization_id, 'receipt_id', new_id, 'status', 'pending', 'replayed', FALSE);
@@ -459,10 +518,11 @@ END
 $$;
 
 CREATE FUNCTION platform.accept_student_payment_receipt_v1(
-  p_organization_id UUID, p_receipt_id UUID, p_payment_obligation_id UUID, p_amount_minor BIGINT, p_currency TEXT, p_paid_on DATE, p_request_id UUID)
+  p_organization_id UUID, p_receipt_id UUID, p_payment_obligation_id UUID, p_amount_minor BIGINT, p_currency TEXT, p_paid_on DATE, p_request_id UUID,
+  p_new_due_label TEXT DEFAULT NULL)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE actor RECORD; r platform.student_payment_receipts%ROWTYPE; paid JSONB; event_id UUID; file_id UUID := gen_random_uuid(); curr TEXT;
-  obligation_id UUID; result JSONB;
+  obligation_id UUID; result JSONB; new_label TEXT; created_due JSONB; created_due_id UUID;
 BEGIN
   IF p_organization_id IS NULL OR p_receipt_id IS NULL OR p_request_id IS NULL OR p_amount_minor IS NULL OR p_amount_minor <= 0
     OR p_currency IS NULL OR upper(btrim(p_currency)) !~ '^[A-Z]{3}$' OR p_paid_on IS NULL THEN
@@ -484,7 +544,18 @@ BEGIN
   IF p_paid_on > (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1 OR p_paid_on < (statement_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1100 THEN
     RAISE EXCEPTION 'receipt_invalid_date' USING ERRCODE = '22023';
   END IF;
-  obligation_id := COALESCE(p_payment_obligation_id, r.payment_obligation_id);
+  new_label := NULLIF(btrim(COALESCE(p_new_due_label, '')), '');
+  IF new_label IS NOT NULL THEN
+    -- «Создать платёж на эту сумму»: нового платежа нет в деле - он создаётся тем же путём, что и в блоке «Договор и оплата»
+    -- (save_case_tranche_v1: те же права и журнал), и чек принимается на него в этой же транзакции.
+    IF p_payment_obligation_id IS NOT NULL OR char_length(new_label) > 500 THEN RAISE EXCEPTION 'receipt_invalid' USING ERRCODE = '22023'; END IF;
+    created_due := platform.save_case_tranche_v1(p_organization_id, platform_private.p3c_request_child_id(p_request_id, 'due'), r.student_case_id,
+      NULL, p_amount_minor, curr, NULL, new_label, FALSE);
+    created_due_id := (created_due ->> 'payment_obligation_id')::UUID;
+    obligation_id := created_due_id;
+  ELSE
+    obligation_id := COALESCE(p_payment_obligation_id, r.payment_obligation_id);
+  END IF;
   IF obligation_id IS NULL THEN RAISE EXCEPTION 'receipt_obligation_required' USING ERRCODE = '22023'; END IF;
   -- Настоящая оплата тем же путём, что и ручная: права, остаток, валюта, журнал оплаты - в record_case_payment_v1.
   paid := platform.record_case_payment_v1(p_organization_id, platform_private.p3c_request_child_id(p_request_id, 'payment'), r.student_case_id,
@@ -501,6 +572,8 @@ BEGIN
     WHERE organization_id = p_organization_id AND id = r.id;
   result := jsonb_build_object('organization_id', p_organization_id, 'receipt_id', r.id, 'status', 'accepted', 'payment_event_id', event_id,
     'payment_receipt_file_id', file_id, 'replayed', FALSE);
+  IF created_due_id IS NOT NULL THEN result := result || jsonb_build_object('created_payment_obligation_id', created_due_id); END IF;
+  PERFORM platform_private.notify_student_receipt_decision(p_organization_id, r.id, TRUE, p_amount_minor / 100 || '.' || lpad((p_amount_minor % 100)::TEXT, 2, '0') || ' ' || curr, actor.membership_id);
   INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_membership_id, actor_principal, action, resource_type,
     resource_id, before_state, after_state, reason, request_id)
   VALUES (p_organization_id, 'user', actor.profile_id, actor.membership_id, 'auth:' || actor.auth_user_id::TEXT, 'finance.receipt.accept',
@@ -536,6 +609,7 @@ BEGIN
     reviewed_at = statement_timestamp(), review_request_id = p_request_id, reject_reason = why
     WHERE organization_id = p_organization_id AND id = r.id;
   result := jsonb_build_object('organization_id', p_organization_id, 'receipt_id', r.id, 'status', 'rejected', 'replayed', FALSE);
+  PERFORM platform_private.notify_student_receipt_decision(p_organization_id, r.id, FALSE, why, actor.membership_id);
   INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_membership_id, actor_principal, action, resource_type,
     resource_id, before_state, after_state, reason, request_id)
   VALUES (p_organization_id, 'user', actor.profile_id, actor.membership_id, 'auth:' || actor.auth_user_id::TEXT, 'finance.receipt.reject',
@@ -595,6 +669,7 @@ BEGIN
   END IF;
   body := btrim(COALESCE(p_details_text, ''));
   IF p_organization_id IS NULL OR p_membership_id IS NULL OR p_request_id IS NULL OR char_length(body) > 4000
+    OR body ~ E'[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]'
     OR p_qr_mode IS NULL OR p_qr_mode NOT IN ('keep', 'replace', 'remove') THEN
     RAISE EXCEPTION 'payment_details_invalid' USING ERRCODE = '22023';
   END IF;
@@ -732,6 +807,26 @@ BEGIN
 END
 $a358_visible$;
 
+-- Лента студента и «отметить прочитанным» узнают новый источник (рядом с чатом, 330): точечная замена с проверкой якорей.
+DO $a358_student_feed$
+DECLARE
+  v_def TEXT;
+  v_feed_from CONSTANT TEXT := 'FROM platform_private.own_case_chat_notifications() n';
+  v_read_from CONSTANT TEXT := E'SELECT 1 FROM platform_private.own_case_chat_notifications() chat\n        WHERE chat.notification_id = notification.id\n      )';
+BEGIN
+  v_def := pg_catalog.pg_get_functiondef('platform.student_portal_notifications_v2()'::regprocedure);
+  IF (length(v_def) - length(replace(v_def, v_feed_from, ''))) / length(v_feed_from) <> 1 THEN
+    RAISE EXCEPTION 'a358_anchor_drift: student_portal_notifications_v2 changed' USING ERRCODE = '55000';
+  END IF;
+  EXECUTE replace(v_def, v_feed_from, v_feed_from || E'\n    UNION ALL\n    SELECT n.notification_id,n.category,n.event_code,n.subject_label,n.detail,n.due_at,n.created_at,n.read_at\n    FROM platform_private.own_payment_receipt_notifications() n');
+  v_def := pg_catalog.pg_get_functiondef('platform.mark_own_student_portal_notification_read_v2(uuid,uuid)'::regprocedure);
+  IF (length(v_def) - length(replace(v_def, v_read_from, ''))) / length(v_read_from) <> 1 THEN
+    RAISE EXCEPTION 'a358_anchor_drift: mark_own_student_portal_notification_read_v2 changed' USING ERRCODE = '55000';
+  END IF;
+  EXECUTE replace(v_def, v_read_from, v_read_from || E'\n      OR EXISTS (\n        SELECT 1 FROM platform_private.own_payment_receipt_notifications() receipt\n        WHERE receipt.notification_id = notification.id\n      )');
+END
+$a358_student_feed$;
+
 -- ---------------------------------------------------------------------------
 -- 10) Журнал действий: allowlist (приём 311/356 - переименовать и объединить).
 -- ---------------------------------------------------------------------------
@@ -783,7 +878,7 @@ BEGIN
   FOREACH f IN ARRAY ARRAY[
     'platform.student_portal_payment_center_v1()', 'platform.student_payment_receipt_target_v1(uuid)',
     'platform.staff_payment_receipts_v1(uuid,text,integer)', 'platform.staff_student_receipt_download_target_v1(uuid)',
-    'platform.accept_student_payment_receipt_v1(uuid,uuid,uuid,bigint,text,date,uuid)',
+    'platform.accept_student_payment_receipt_v1(uuid,uuid,uuid,bigint,text,date,uuid,text)',
     'platform.reject_student_payment_receipt_v1(uuid,uuid,text,uuid)', 'platform.staff_payment_details_v1()',
     'platform.staff_payment_details_qr_target_v1(uuid)', 'platform.student_portal_case_file_target_v1(text,uuid)'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);

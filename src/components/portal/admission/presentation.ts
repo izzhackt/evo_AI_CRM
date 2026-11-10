@@ -14,7 +14,7 @@ import type {
   StudentPortalNotification,
   StudentPortalPayment,
 } from "@/lib/v3/portal-source";
-import type { PortalStrings } from "@/lib/portal/i18n";
+import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { allDayDate } from "@/lib/v3/wording";
 
 type AdmissionStrings = PortalStrings<"admission">;
@@ -220,6 +220,13 @@ export function portalNotificationText(
   // Сообщение команды: текст хранится по-русски, на экран он идёт на языке студента.
   if (notification.eventCode === "case_chat_message") {
     return { title: strings.caseChatNotificationTitle, detail: strings.caseChatNotificationDetail };
+  }
+  // Решение по чеку (миграция 358): сумма или причина хранятся по-русски в `subjectLabel`, слова решения - на языке студента.
+  if (notification.eventCode === "payment_receipt_accepted") {
+    return { title: formatPortalString(strings.receiptNotifAccepted, { value: notification.subjectLabel }), detail: null };
+  }
+  if (notification.eventCode === "payment_receipt_rejected") {
+    return { title: formatPortalString(strings.receiptNotifRejected, { value: notification.subjectLabel }), detail: null };
   }
   return { title: notification.subjectLabel, detail: notification.detail };
 }

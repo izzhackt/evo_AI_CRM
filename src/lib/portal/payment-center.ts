@@ -86,8 +86,17 @@ const record = (value: unknown, keys: readonly string[]): Record<string, unknown
 };
 const uuid = (value: unknown): string => (typeof value === "string" && UUID.test(value) ? value : fail());
 const optionalUuid = (value: unknown): string | null => (value === null ? null : uuid(value));
-const text = (value: unknown, max: number): string =>
-  typeof value === "string" && value.length <= max && !CONTROL.test(value) ? value : fail();
+/**
+ * Текст для показа: управляющие знаки убираются, слишком длинное усекается по символам (не по байтам). Страница студента не должна
+ * ломаться целиком из-за одного странного имени файла, подписи платежа или причины отказа; не строка - по-прежнему чужая форма.
+ */
+const CONTROL_ALL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+const text = (value: unknown, max: number): string => {
+  if (typeof value !== "string") return fail();
+  const clean = value.replace(CONTROL_ALL, "");
+  const points = Array.from(clean);
+  return points.length > max ? points.slice(0, max).join("") : clean;
+};
 const optionalText = (value: unknown, max: number): string | null => (value === null ? null : text(value, max));
 const money = (value: unknown): number => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : fail());
 const currency = (value: unknown): string => (typeof value === "string" && CURRENCY.test(value) ? value : fail());
@@ -100,10 +109,12 @@ function entry(value: unknown): PaymentEntry {
   const row = record(value, ["kind", "entry_id", "status", "amount_minor", "currency", "on_date", "reject_reason", "file_kind", "file_id", "filename"]);
   const fileId = optionalUuid(row.file_id);
   const fileKind = row.file_kind === null ? null : oneOf(FILE_KINDS, row.file_kind);
-  const filename = optionalText(row.filename, 255);
-  if ((fileId === null) !== (fileKind === null) || (fileId === null) !== (filename === null)) fail();
+  const rawFilename = optionalText(row.filename, 255);
+  if ((fileId === null) !== (fileKind === null) || (fileId === null) !== (rawFilename === null)) fail();
+  const filename = rawFilename === null ? null : rawFilename.trim() === "" ? "file" : rawFilename;
   const status = oneOf(STATUSES, row.status);
-  const rejectReason = optionalText(row.reject_reason, 1000);
+  const reasonText = optionalText(row.reject_reason, 1000);
+  const rejectReason = reasonText !== null && reasonText.trim() === "" ? "—" : reasonText;
   if ((status === "rejected") !== (rejectReason !== null)) fail();
   const amountMinor = money(row.amount_minor);
   if (amountMinor < 1) fail();

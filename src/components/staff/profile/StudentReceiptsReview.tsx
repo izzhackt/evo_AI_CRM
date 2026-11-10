@@ -31,14 +31,22 @@ function minorToInput(minor: string): string {
   return fraction === BigInt(0) ? whole.toString() : `${whole}.${fraction.toString().padStart(2, "0")}`;
 }
 
-/** «Принять»: сотрудник подтверждает или поправляет платёж, сумму и дату; оплата создаётся командой оплаты дела, итоги пересчитываются. */
+const NEW_DUE = "__new__";
+
+/**
+ * «Принять»: сотрудник подтверждает или поправляет платёж, сумму и дату; оплата создаётся командой оплаты дела, итоги пересчитываются.
+ * Подходящего платежа нет (или нет вовсе) - «Создать платёж на эту сумму»: подпись, сумма и валюта из чека (можно поправить), платёж и
+ * принятие чека - один шаг.
+ */
 function AcceptForm({ receipt, onDone }: Readonly<{ receipt: StudentReceipt; onDone: () => void }>) {
   const router = useRouter();
   const [requestId] = useState(() => crypto.randomUUID());
   const initialDue = receipt.dues.find((due) => due.id === receipt.paymentObligationId)
-    ?? receipt.dues.find((due) => due.currency === receipt.currency) ?? receipt.dues[0] ?? null;
-  const [dueId, setDueId] = useState(initialDue?.id ?? "");
+    ?? receipt.dues.find((due) => due.currency === receipt.currency) ?? null;
+  const [dueId, setDueId] = useState(initialDue?.id ?? (receipt.dues.length === 0 ? NEW_DUE : receipt.dues[0].id));
+  const creating = dueId === NEW_DUE;
   const due = receipt.dues.find((item) => item.id === dueId) ?? null;
+  const [currency, setCurrency] = useState(receipt.currency);
   const [state, action, pending] = useActionState(
     async (previous: StudentReceiptActionState, form: FormData): Promise<StudentReceiptActionState> => {
       try {
@@ -54,39 +62,52 @@ function AcceptForm({ receipt, onDone }: Readonly<{ receipt: StudentReceipt; onD
     },
     { status: "idle", requestId, message: null } as StudentReceiptActionState,
   );
-  if (receipt.dues.length === 0) {
-    return <p role="status" className="t-body-compact text-fg-2">Чтобы принять чек, добавьте платёж в карточке дела: оплата засчитывается на платёж.</p>;
-  }
   const locked = pending || state.status === "saved";
+  const shownCurrency = creating ? currency : due?.currency ?? receipt.currency;
   return (
     <form action={action} className="grid max-w-xl gap-3 pt-2" data-testid="student-receipt-accept">
       <input type="hidden" name="request_id" value={requestId} />
       <input type="hidden" name="receipt_id" value={receipt.id} />
-      <input type="hidden" name="currency" value={due?.currency ?? receipt.currency} />
+      <input type="hidden" name="payment_obligation_id" value={creating ? "" : dueId} />
+      {creating ? null : <input type="hidden" name="new_due_label" value="" />}
       <fieldset disabled={locked} className="grid gap-3">
         <label className="block">
           <span className={fieldLabelCls}>Платёж</span>
-          <select name="payment_obligation_id" required value={dueId} onChange={(event) => setDueId(event.target.value)} className={inputCls}>
+          <select required value={dueId} onChange={(event) => setDueId(event.target.value)} className={inputCls}>
             {receipt.dues.map((item) => (
               <option key={item.id} value={item.id}>{item.label} · осталось {financeMoney(item.outstandingMinor, item.currency)}</option>
             ))}
+            <option value={NEW_DUE}>Создать платёж на эту сумму</option>
           </select>
         </label>
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+        {creating ? (
           <label className="block">
-            <span className={fieldLabelCls}>Сумма{due ? ` (${due.currency})` : ""}</span>
+            <span className={fieldLabelCls}>Название нового платежа</span>
+            <input name="new_due_label" required maxLength={500} defaultValue="Сервисный сбор" className={inputCls} />
+          </label>
+        ) : null}
+        <div className={`grid gap-3 ${creating ? "grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)]" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"}`}>
+          <label className="block">
+            <span className={fieldLabelCls}>Сумма</span>
             <input name="amount" required inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" defaultValue={minorToInput(receipt.amountMinor)} className={inputCls} />
           </label>
+          {creating ? (
+            <label className="block">
+              <span className={fieldLabelCls}>Валюта</span>
+              <input name="currency" required maxLength={3} pattern="[A-Za-z]{3}" value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} className={inputCls} />
+            </label>
+          ) : <input type="hidden" name="currency" value={shownCurrency} />}
           <label className="block">
             <span className={fieldLabelCls}>Дата оплаты</span>
             <input name="at" type="date" required defaultValue={receipt.paidOn} className={inputCls} />
           </label>
         </div>
-        {due && due.currency !== receipt.currency ? (
+        {!creating && due && due.currency !== receipt.currency ? (
           <p className="t-meta text-fg-2">Студент указал {financeMoney(receipt.amountMinor, receipt.currency)}; платёж в {due.currency}: введите сумму в {due.currency}.</p>
         ) : null}
+        {creating ? <p className="t-meta text-fg-2">Будет создан платёж на эту сумму, и чек сразу засчитается на него.</p> : null}
         <div className="flex flex-wrap items-center gap-2">
-          <button className={QUEUE_CONFIRM} disabled={locked}>{pending ? "Принимаем…" : "Принять оплату"}</button>
+          <button className={QUEUE_CONFIRM} disabled={locked}>{pending ? "Принимаем…" : creating ? "Создать платёж и принять" : "Принять оплату"}</button>
           <button type="button" className={QUEUE_SECONDARY} disabled={locked} onClick={onDone}>Отмена</button>
         </div>
       </fieldset>

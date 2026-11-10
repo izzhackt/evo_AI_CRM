@@ -19,15 +19,13 @@ test("password setup is an auth-only receipt-bound action with no invite token",
   assert.match(component, /useActionState\(\s*setStudentPortalPasswordAction/u);
   assert.match(component, /autoComplete="new-password"/u);
   assert.match(component, /name="password_confirm"/u);
-  assert.match(passwordAction, /exactActionStringFields\(form, \["password", "password_confirm", "policy_consent", "ai_consent"\]\)/u);
-  // 356 (09.11.2026): обе галочки «Конфиденциальность» обязательны; принятие пишется после смены пароля.
-  assert.match(component, /<ConsentGateBoxes locale="ru" \/>/u);
-  assert.match(passwordAction, /fields\.get\("policy_consent"\) !== "granted" \|\| fields\.get\("ai_consent"\) !== "granted"\) return "consentRequired"/u);
-  assert.ok(passwordAction.indexOf("auth.updateUser") < passwordAction.indexOf("recordStudentConsentsAfterSignIn()"));
-  assert.ok(passwordAction.indexOf("recordStudentConsentsAfterSignIn()") < passwordAction.lastIndexOf("redirect(destination)"));
+  assert.match(passwordAction, /exactActionStringFields\(form, \["password", "password_confirm"\]\)/u);
   assert.match(passwordAction, /auth\.updateUser\(\{ password \}\)/u);
   assert.match(passwordAction, /readVerifiedStudentPortalAuthority/u);
   assert.doesNotMatch(`${page}\n${component}\n${passwordAction}`, /token_hash|verifyOtp/u);
+  // 10.11.2026 (пользователь): галочек «Конфиденциальность» на экране пароля нет; кабинет без решения — сразу на экран.
+  assert.doesNotMatch(`${component}\n${passwordAction}`, /ConsentGateBoxes|policy_consent|recordStudentConsentsAfterSignIn/u);
+  assert.match(passwordAction, /destination = await portalTargetAfterSignIn\(sessionClient\);/u);
 });
 
 test("pending surface exposes only bounded refresh and local sign-out", () => {

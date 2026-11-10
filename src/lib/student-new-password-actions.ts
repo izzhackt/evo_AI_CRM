@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import { getPlatformSupabaseBackendConfig } from "./server/platform-supabase-backend-config";
-import { recordStudentConsentsAfterSignIn } from "./server/student-consent-gate-record.ts";
 import { createPlatformSupabaseServiceClient } from "./server/platform-supabase-service-client";
 import { hasTemporaryPassword, TEMPORARY_PASSWORD_FLAG } from "./student-account-contract";
 import { isExpectedStudentOriginRequest } from "./student-invite-callback-contract.ts";
@@ -13,7 +12,7 @@ import { checkStudentNewPassword } from "./student-password-recovery-contract.ts
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type StudentNewPasswordState = Readonly<{
-  status: "idle" | "consent_required" | "too_short" | "too_long" | "mismatch" | "rejected" | "unavailable";
+  status: "idle" | "too_short" | "too_long" | "mismatch" | "rejected" | "unavailable";
 }>;
 
 async function studentOriginRequest(): Promise<boolean> {
@@ -33,15 +32,15 @@ async function studentOriginRequest(): Promise<boolean> {
  * пометка временного пароля — из Auth, а не из формы. Новый пароль и снятая пометка ставятся одним запросом сервера.
  * Смена пароля закрывает сессии студента, поэтому сессия открывается заново уже с новым паролем (как смена пароля в
  * кабинете, server/student-password-change.ts), дальше — обычный путь студента через /apply; не вышло — обычный вход.
+ * Галочек «Конфиденциальность» на этом экране нет (10.11.2026, пользователь: «уберем с блока пароля и оставим в
+ * анкете»): их спрашивают один раз — в анкете или, у кабинета без анкеты, на экране /portal/privacy при первом входе.
  */
 export async function setOwnStudentPasswordAction(
   _previous: StudentNewPasswordState,
   form: FormData,
 ): Promise<StudentNewPasswordState> {
-  const fields = exactActionStringFields(form, ["password", "password_confirm", "policy_consent", "ai_consent"]);
+  const fields = exactActionStringFields(form, ["password", "password_confirm"]);
   if (!fields || !(await studentOriginRequest())) return { status: "unavailable" };
-  // 356 (решение владельца 09.11.2026): обе галочки «Конфиденциальность» обязательны и здесь.
-  if (fields.get("policy_consent") !== "granted" || fields.get("ai_consent") !== "granted") return { status: "consent_required" };
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login");
@@ -73,7 +72,5 @@ export async function setOwnStudentPasswordAction(
       await service.auth.admin.signOut(keep, "others");
     }
   } catch { /* the regular sign-in below */ }
-  // Принятие пишется уже с новой сессией; не вышло - экран кабинета спросит снова.
-  if (signedIn) await recordStudentConsentsAfterSignIn();
   redirect(signedIn ? "/apply" : "/login");
 }

@@ -124,6 +124,13 @@ function harness(options = {}) {
       },
     },
     "../supabase/student-portal-authority": portalAuthority,
+    // 356: вошедший студент с кабинетом идёт на «Главную» или, без решения о Политике и ИИ, на экран «Конфиденциальность».
+    "../portal/consent-gate-rpc": {
+      portalTargetAfterSignIn: async (received) => {
+        assert.equal(received, client);
+        return options.consentTarget ?? "/portal";
+      },
+    },
   });
   const publicRegistration = compile("src/lib/server/student-public-registration.ts", {
     "../student-application-contract": contract,
@@ -220,6 +227,9 @@ test("verified existing Student access leaves application entry and stale forms 
   const entry = harness({ authority: { status: "authenticated" } });
   assert.equal(await entry.entryRedirect(), "/portal");
   assert.deepEqual(callNames(entry), ["getClaims", "staffAuthority", "portalAuthority"]);
+  // 10.11.2026: на экранах пароля галочек нет — кабинет без решения о Политике и ИИ ведёт сразу на «Конфиденциальность».
+  const undecided = harness({ authority: { status: "authenticated" }, consentTarget: "/portal/privacy" });
+  assert.equal(await undecided.entryRedirect(), "/portal/privacy");
   for (const email of [EMAIL, "stale-form@example.test"]) {
     const stale = harness({ identities: [verified()], authority: { status: "authenticated" } });
     await assert.rejects(stale.registerStudentAction({ status: "idle" }, registration({ email })), redirectsTo("/portal"));

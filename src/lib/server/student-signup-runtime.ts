@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { PRODUCTION_STAFF_ORIGIN } from "../platform-public-origin";
+import { portalTargetAfterSignIn } from "../portal/consent-gate-rpc";
 import { readVerifiedPlatformAuthority } from "../supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "../supabase/student-portal-authority";
 import { STUDENT_AI_CONSENT_METADATA_KEY, STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "../student-application-contract";
@@ -23,7 +24,8 @@ export async function studentApplicationEntryRedirect(client: SupabaseClient, us
   if (isPasswordProvisionedStaff(user)) return `${PRODUCTION_STAFF_ORIGIN}/login?error=staffAccessDenied`;
   const portal = await readVerifiedStudentPortalAuthority(client, data.claims);
   if (portal.status === "unavailable") throw new Error("Student registration is unavailable.");
-  return portal.status === "authenticated" ? "/portal" : null;
+  // 356: без решения о Политике и ИИ — сразу на экран «Конфиденциальность», не через слой кабинета (как вход).
+  return portal.status === "authenticated" ? await portalTargetAfterSignIn(client) : null;
 }
 
 export function logStudentSignupFailure(stage: string, error?: unknown): void {

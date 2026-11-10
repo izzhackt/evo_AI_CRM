@@ -100,8 +100,11 @@ export default async function UniversitiesPage({
           searchFound: strings.searchFound,
           searchEmptyTitle: strings.searchEmptyTitle,
           searchEmptyBody: strings.searchEmptyBody,
+          universitiesHeading: strings.universitiesHeading,
+          citiesHeading: strings.citiesHeading,
+          cityFactLabel: strings.cityFactLabel,
         }}
-        favorites={{ href: "/portal", label: strings.favoritesLink }}
+        favorites={{ href: "/portal#list", label: strings.favoritesLink }}
       >
         <section aria-labelledby="portal-countries-heading">
           <h2 id="portal-countries-heading" className="pt-sr-only">{strings.countriesHeading}</h2>

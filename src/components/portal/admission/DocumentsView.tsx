@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { EmptyIcon } from "@/components/portal/home/HomeParts";
@@ -41,7 +42,7 @@ export function DocumentsView({
   locale: Locale;
   /** Вкладки страницы — между карточкой «Чеклист» и содержимым (как у образца). */
   tabs?: ReactNode;
-  /** Другая вкладка («Пакеты по вузам») вместо списка документов. */
+  /** Другое содержимое вместо списка документов (с 09.11.2026 страница его не передаёт). */
   children?: ReactNode;
 }) {
   const strings = getPortalStrings("admission", locale);
@@ -55,6 +56,8 @@ export function DocumentsView({
             <EmptyIcon name="documents" />
             <h2 className="pt-section-title">{strings.documentsEmptyTitle}</h2>
             <p className="pt-adm-empty-body">{strings.documentsEmptyBody}</p>
+            {/* #1361: пустой список не тупик — прямой вход в чат с командой. */}
+            <Link href="/portal/messages?view=chat" className="pt-btn pt-adm-empty-action">{strings.documentsWriteEvo}</Link>
           </section>
         )}
       </>
@@ -182,6 +185,11 @@ export function DocumentsView({
         })}
       </ul>
       </section>
+      {/* Документа нет в списке — не отдельная загрузка, а чат: куратор скажет, в какую строку его положить. */}
+      <p className="pt-docs-other">
+        {strings.documentsOtherNote}{" "}
+        <Link className="pt-link" href="/portal/messages?view=chat">{strings.documentsWriteEvo}</Link>
+      </p>
       {/* Кто видит файлы и как они хранятся — одной строкой под списком, со ссылкой на политику. */}
       <p className="pt-doc-privacy">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">

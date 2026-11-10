@@ -16,6 +16,9 @@ import {
   parseStudentUniversityIndexResponse,
   resolveUniversitiesRoute,
   searchUniversities,
+  searchCities,
+  searchIndexUniversities,
+  universitySearchText,
 } from "../src/lib/portal/university-index.ts";
 import {
   costsShowUsd,
@@ -243,6 +246,39 @@ test("search by name works over all six countries, without case or diacritics", 
   assert.deepEqual(names("shanghai university"), ["Shanghai Jiao Tong University"]);
   assert.deepEqual(names("  "), []);
   assert.deepEqual(names("unknown"), []);
+});
+
+test("Subang Jaya is pinned first in Malaysia only; other countries keep their order", () => {
+  const body = indexFixture();
+  body.cities.push(city("subang-jaya", "MY", 1, "Субанг-Джая"), city("penang", "MY", 1, "Пенанг"));
+  body.universities.push(
+    university("0b9c2f8e-3f0a-4b8e-9d55-7a1d2c3e4f60", "Taylor Lakeside College", "MY", "subang-jaya"),
+    university("0b9c2f8e-3f0a-4b8e-9d55-7a1d2c3e4f61", "Penang Test College", "MY", "penang"),
+  );
+  const { index } = parseStudentUniversityIndexResponse(body);
+  // Куала-Лумпур (2 вуза) был бы первым по числу вузов: закреплённый город выше.
+  assert.deepEqual(countryCities(index, "MY", "ru").map((entry) => entry.key), ["subang-jaya", "kuala-lumpur", "penang"]);
+  assert.deepEqual(countryCities(index, "MY", "ky").map((entry) => entry.key)[0], "subang-jaya");
+  assert.deepEqual(countryCities(index, "CN", "ru").map((entry) => entry.key), ["shanghai", "hangzhou"]);
+  assert.equal(countryUniversityGroups(index, "MY", "ru")[0].city.key, "subang-jaya");
+});
+
+test("search finds universities by city (Russian, Latin key) and country, and cities by name", () => {
+  const body = indexFixture();
+  body.cities.push(city("subang-jaya", "MY", 1, "Субанг-Джая"));
+  body.universities.push(university("0b9c2f8e-3f0a-4b8e-9d55-7a1d2c3e4f60", "Taylor Lakeside College", "MY", "subang-jaya"));
+  const { index } = parseStudentUniversityIndexResponse(body);
+  const names = (query, country = null) => searchIndexUniversities(index, query, country).map((entry) => entry.name);
+  assert.deepEqual(names("субанг джая"), ["Taylor Lakeside College"]);
+  assert.deepEqual(names("SUBANG"), ["Taylor Lakeside College"]);
+  assert.deepEqual(names("Куала-Лумпур"), ["Sunway University", "Taylor's University"]);
+  assert.equal(names("малайзия").length, 3);
+  assert.deepEqual(names("малайзия", "CN"), []);
+  assert.deepEqual(names("shanghai", "CN"), ["Fudan University", "Shanghai Jiao Tong University"]);
+  assert.match(universitySearchText(index, index.universities[4]), /kuala lumpur/);
+  assert.deepEqual(searchCities(index.cities, "Subang Jaya").map((entry) => entry.key), ["subang-jaya"]);
+  assert.deepEqual(searchCities(index.cities, "ханчжоу").map((entry) => entry.key), ["hangzhou"]);
+  assert.deepEqual(searchCities(index.cities, "  "), []);
 });
 
 test("the nearest intake from the index follows the full-card rule", () => {
@@ -514,7 +550,10 @@ test("the country view query accepts only list, map or nothing", () => {
   for (const bad of ["grid", "cities", "", "LIST", ["list"], ["map", "list"]]) assert.equal(countryViewFromQuery(bad), null, JSON.stringify(bad));
   const page = read("src/app/(portal)/portal/universities/country/[code]/page.tsx");
   assert.match(page, /countryViewFromQuery\(query\.view\)/);
-  assert.match(page, /view === null\) notFound\(\)/);
+  // `q` (поиск) разрешён только на экране городов; иной ключ или вид: 404.
+  assert.match(page, /view === null/);
+  assert.match(page, /key !== "view" && key !== "q"/);
+  assert.match(page, /view !== "cities"/);
   assert.match(page, /countryHref\(code, "list"\)/);
   assert.match(page, /countryUniversityGroups\(index, code, locale\)/);
   // Порядок переключателя: Города, Списком, Карта.

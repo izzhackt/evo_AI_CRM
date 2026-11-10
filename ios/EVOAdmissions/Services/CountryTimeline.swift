@@ -473,7 +473,7 @@ struct CountryTimelineParser {
         for (index, raw) in rawSteps.enumerated() {
             let path = "$.steps[\(index)]"
             let row = try record(raw, path, ["id", "order", "stageKeys", "title", "summary", "timing", "checklist", "doneWhen", "sources"],
-                                 ["note", "links"])
+                                 ["note", "links", "optional"])  // optional (09.11.2026): флаг «по желанию»; прогресс на iPhone пока без него
             let order = index + 1
             guard row["order"] == .int(order) else { try fail("\(path).order", "not \(order)") }
             guard case .string(let stepId) = row["id"],

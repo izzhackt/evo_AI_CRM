@@ -15,7 +15,7 @@ export default async function PackageNotificationPage({ params }: { params: Prom
   const notificationId = universityUuid(route.notificationId) ?? notFound(), strings = packageStrings(locale);
   const result = await readStudentApplicationPackageNotification(notificationId).catch(() => null);
   if (result && result.studentCaseId !== actor.studentCaseId) notFound();
-  return <main className="pt-page"><Link className="pt-link" href="/portal/notifications">{strings.backNotifications}</Link>
+  return <main className="pt-page"><Link className="pt-link" href="/portal/messages?view=updates">{strings.backNotifications}</Link>
     <header className="pt-page-header"><h1 className="pt-page-title">{strings.notificationTitle}</h1></header>
     {!result ? <><p className="pt-prep-error" role="alert">{strings.unavailable}</p><Link className="pt-btn-ghost" href={`/portal/package-notifications/${notificationId}`}>{strings.refresh}</Link></> : <div className={`${styles.root} ${styles.portal}`}>
       <PackageDecision review={result.review} strings={strings} />

@@ -15,13 +15,13 @@ const PAYMENT_ROW = "flex flex-wrap items-center gap-x-4 py-1 @4xl:grid @4xl:gri
 
 type Props = Readonly<{ agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[] }>;
 
-/** «Транши»: строки те же, что у прежней сводки, редактор транша - прежняя форма (`CaseAgreementTrancheEditor`). */
+/** «Платежи» (раньше «Транши»): строки те же, что у прежней сводки, редактор транша - прежняя форма (`CaseAgreementTrancheEditor`). */
 export function TranchesCard({ agreement, canWrite, today }: Props) {
   const caseId = agreement.studentCaseId;
   const against = caseMoneySummary(agreement).tranchesAgainstCost;
   return (
     <NamedCard
-      title="Транши"
+      title="Платежи"
       testId="v3-case-agreement-tranches"
       className="@container"
       actions={against ? <span className="t-meta text-fg-2">{against}</span> : null}
@@ -46,10 +46,10 @@ export function TranchesCard({ agreement, canWrite, today }: Props) {
             </li>
           );
         })}
-        {agreement.tranches.length === 0 ? <li className="py-2.5 t-body-compact text-fg-3">Траншей нет.</li> : null}
+        {agreement.tranches.length === 0 ? <li className="py-2.5 t-body-compact text-fg-3">Платежей нет.</li> : null}
       </ul>
       {canWrite ? (
-        <CaseAgreementTrancheEditor studentCaseId={caseId} tranche={null} canArchive={false} addLabel={agreement.tranches.length === 0 ? "Разбить на транши" : "Добавить транш"} />
+        <CaseAgreementTrancheEditor studentCaseId={caseId} tranche={null} canArchive={false} addLabel={agreement.tranches.length === 0 ? "Добавить платёж" : "Добавить платёж"} />
       ) : null}
     </NamedCard>
   );

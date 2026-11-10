@@ -11,6 +11,7 @@ import {
   localizedText,
   nearestIndexIntake,
   universityHref,
+  universitySearchText,
   type GeographyPhoto,
   type IndexUniversity,
   type NearestIndexIntake,
@@ -90,6 +91,7 @@ export function indexTileModel(
     intakeText: intakeText(nearestIndexIntake(item.intakes, options.now), options.strings, options.locale),
     photo: universityTilePhoto(item.photoKey),
     favored: options.favoriteIds === null ? null : options.favoriteIds.includes(item.id),
+    search: universitySearchText(index, item),
   };
 }
 

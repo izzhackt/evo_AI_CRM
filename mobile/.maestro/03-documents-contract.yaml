@@ -1,0 +1,22 @@
+appId: com.evoadmissions.app
+name: Документы, скачивание договора
+---
+- runFlow: subflows/fresh-login.yaml
+- tapOn:
+    id: tab-documents
+- extendedWaitUntil:
+    visible:
+      id: documents-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "case-file-download-contract-.*"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: "case-file-download-contract-.*"
+# Файл скачан и открыт системным просмотром/«Поделиться»: ошибки скачивания нет.
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertNotVisible:
+    text: ".*(не удалось|Failed|could not).*"

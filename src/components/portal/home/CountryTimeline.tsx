@@ -428,6 +428,8 @@ export function CountryTimeline({
         </div>
         {view ? (
           <div className="pt-journey-change">
+            {/* Без текущего шага «Все шаги» стоит в шапке рядом со сменой страны, а не одна внизу (перенесено из #1423, Айвар). */}
+            {currentStep ? null : foldButton}
             <button
               ref={changeRef}
               type="button"
@@ -481,14 +483,12 @@ export function CountryTimeline({
               </div>
               {/* Полоса шагов — картинка к строке «Сейчас»; читалка слышит «Шаг N из M» в самой строке. */}
               <span className="pt-journey-meter" aria-hidden="true">
-                {view.steps.map((step) => (
+                {view.steps.filter((step) => progressOf(step.id) !== "optional").map((step) => (
                   <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
                 ))}
               </span>
             </div>
-          ) : (
-            <div className="pt-journey-fold-row">{foldButton}</div>
-          )}
+          ) : null}
           {/* Весь путь сворачивается (08.11.2026, пользователь): шаги и «Важно знать» — по «Все шаги». */}
           <div id={stepsId} className="pt-journey-body" hidden={folded}>
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>
@@ -545,6 +545,8 @@ export function CountryTimeline({
                           <span className="pt-step-state" data-progress={state}>{strings.progressDone}</span>
                         ) : state === "current" ? (
                           <span className="pt-sr-only"> ({strings.progressCurrent})</span>
+                        ) : state === "optional" ? (
+                          <span className="pt-step-state" data-progress={state}>{strings.progressOptional}</span>
                         ) : null}
                       </h3>
                       <p className="pt-step-goal">{step.summary}</p>

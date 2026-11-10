@@ -21,10 +21,12 @@ export type StudentJourney = Readonly<{
   progress: Readonly<Record<string, TimelineStepProgress>> | null;
 }>;
 
-export function selectStudentJourney({ country, stage, locale, now }: Readonly<{
+export function selectStudentJourney({ country, stage, boardStage, locale, now }: Readonly<{
   country: string | null;
   /** Этап дела (`operational_stage`); `undefined`: обзор дела не прочитан, прогресс не показываем. */
   stage: string | null | undefined;
+  /** Колонка доски своего дела (357): уточняет шаг среди шагов одного этапа; нет — первый шаг этапа. */
+  boardStage?: string | null;
   locale: string;
   now: Date;
 }>): StudentJourney {
@@ -36,7 +38,7 @@ export function selectStudentJourney({ country, stage, locale, now }: Readonly<{
     })
     : null;
   // 08.11.2026 (владелец): пройденные шаги и текущий — по этапу своего дела; без дела прогресса нет.
-  const progress = view && stage !== undefined ? timelineStepProgress(view.steps, stage) : null;
+  const progress = view && stage !== undefined ? timelineStepProgress(view.steps, stage, boardStage) : null;
   return { view, progress };
 }
 

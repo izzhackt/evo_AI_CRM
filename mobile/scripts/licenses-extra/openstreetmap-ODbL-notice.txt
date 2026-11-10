@@ -1,0 +1,7 @@
+© участники OpenStreetMap (OpenStreetMap contributors)
+
+Данные карты принадлежат участникам OpenStreetMap и доступны по лицензии Open Database License (ODbL) 1.0.
+Полный текст лицензии: https://opendatacommons.org/licenses/odbl/1-0/
+Условия использования и указание авторства: https://www.openstreetmap.org/copyright
+
+Данные OpenStreetMap используются как есть; изменения в исходные данные приложением не вносятся.

@@ -32,6 +32,7 @@ import {
 } from "../catalog-text.ts";
 import { STUDY_COUNTRY_CODES, studyCountryName } from "../study-countries.ts";
 import { parseCatalogPreparations, type CatalogPreparation } from "./catalog-preparations.ts";
+import { matchesSearch } from "./university-search.ts";
 import { parseConsultationReceipt, type ConsultationReceipt } from "./consultation.ts";
 
 export type LocalizedText = Readonly<{ ru: string; ky: string }>;
@@ -666,13 +667,32 @@ function collator(locale: Locale): Intl.Collator {
   return new Intl.Collator(locale === "ky" ? "ky" : "ru");
 }
 
-/** Города страны: больше вузов выше, затем по названию на языке интерфейса. */
+/**
+ * Города, которые владелец велел показывать первыми в своей стране (по ключу
+ * города, в этом порядке). Остальные города и страны сортируются как раньше.
+ * Один источник порядка для веба и приложения.
+ */
+export const PINNED_FIRST_CITY_KEYS: Readonly<Record<string, readonly string[]>> = {
+  MY: ["subang-jaya"],
+};
+
+/** Место города среди закреплённых своей страны; у остальных `MAX_SAFE_INTEGER`. */
+function pinnedRank(code: string, cityKey: string): number {
+  const position = (PINNED_FIRST_CITY_KEYS[code] ?? []).indexOf(cityKey);
+  return position < 0 ? Number.MAX_SAFE_INTEGER : position;
+}
+
+/** Города страны: закреплённые первыми, затем больше вузов выше, затем по названию на языке интерфейса. */
 export function countryCities(index: StudentUniversityIndex, code: string, locale: Locale): readonly IndexCity[] {
   const compare = collator(locale);
   return index.cities
     .filter((entry) => entry.country === code)
-    .sort((a, b) => b.universityCount - a.universityCount
-      || compare.compare(localizedText(a.name, locale), localizedText(b.name, locale)));
+    .sort((a, b) => {
+      const pinned = pinnedRank(code, a.key) - pinnedRank(code, b.key);
+      if (pinned !== 0) return pinned;
+      return b.universityCount - a.universityCount
+        || compare.compare(localizedText(a.name, locale), localizedText(b.name, locale));
+    });
 }
 
 /** Вузы страны без опубликованного города: блок «Другие вузы страны». */
@@ -701,7 +721,11 @@ export function countryUniversityGroups(
   const groups: CountryUniversityGroup[] = [];
   const cities = index.cities
     .filter((entry) => entry.country === code)
-    .sort((a, b) => compare.compare(localizedText(a.name, locale), localizedText(b.name, locale)) || a.key.localeCompare(b.key));
+    .sort((a, b) => {
+      const pinned = pinnedRank(code, a.key) - pinnedRank(code, b.key);
+      if (pinned !== 0) return pinned;
+      return compare.compare(localizedText(a.name, locale), localizedText(b.name, locale)) || a.key.localeCompare(b.key);
+    });
   for (const city of cities) {
     const universities = index.universities
       .filter((entry) => entry.country === code && entry.cityKey === city.key)
@@ -719,7 +743,42 @@ export function cityUniversities(index: StudentUniversityIndex, cityKey: string)
   return index.universities.filter((entry) => entry.cityKey === cityKey);
 }
 
-export { normalizeUniversitySearch, searchUniversities } from "./university-search.ts";
+export { matchesSearch, normalizeUniversitySearch, searchUniversities } from "./university-search.ts";
+
+/**
+ * Текст для поиска по вузу сверх названия: город (по-русски, по-кыргызски и
+ * латиницей из ключа города), подпись города из карточки вуза и страна.
+ * Поэтому «Субанг», «Subang» и «Малайзия» находят вузы города и страны.
+ */
+export function universitySearchText(index: StudentUniversityIndex, item: IndexUniversity): string {
+  const city = item.cityKey ? index.cities.find((entry) => entry.key === item.cityKey) : undefined;
+  const country = index.countries.find((entry) => entry.code === item.country);
+  return [
+    city ? citySearchText(city) : "",
+    item.cityLabel ?? "",
+    country ? `${country.name.ru} ${country.name.ky}` : "",
+  ].filter(Boolean).join(" ");
+}
+
+/** Названия города для поиска: русское, кыргызское и латиница из ключа («subang-jaya»). */
+export function citySearchText(city: Pick<IndexCity, "key" | "name">): string {
+  return `${city.name.ru} ${city.name.ky} ${city.key.replace(/-/g, " ")}`;
+}
+
+/** Вузы по названию, городу или стране; `country` сужает поиск до одной страны. */
+export function searchIndexUniversities(
+  index: StudentUniversityIndex,
+  query: string,
+  country: string | null = null,
+): readonly IndexUniversity[] {
+  const scope = country === null ? index.universities : index.universities.filter((item) => item.country === country);
+  return scope.filter((item) => matchesSearch(`${item.name} ${universitySearchText(index, item)}`, query));
+}
+
+/** Города страны по названию (порядок входа сохраняется). */
+export function searchCities<T extends Pick<IndexCity, "key" | "name">>(cities: readonly T[], query: string): readonly T[] {
+  return cities.filter((entry) => matchesSearch(citySearchText(entry), query));
+}
 
 export type NearestIndexIntake = Readonly<{ kind: "deadline" | "start" | "startMonth"; value: string }>;
 

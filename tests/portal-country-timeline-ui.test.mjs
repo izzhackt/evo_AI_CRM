@@ -7,10 +7,10 @@ import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { TIMELINE_MODULE_ROUTES } from "../src/lib/portal/timeline-module-routes.ts";
 
 // «Путь поступления», веб (S4, план §8.4; контракт docs/portal/country-timeline-contract.md §3, §5 и §7).
-// С 08.11.2026 весь путь стоит на «Поступлении», на «Главной» — его карточка.
+// С 08.11.2026 весь путь стоит на «Поступлении», на «Главной» — его карточка; с 09.11.2026 (#1355) «Главная» одна:
+// карточка и весь путь на /portal.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const page = read("src/app/(portal)/portal/home/page.tsx");
-const admissionPage = read("src/app/(portal)/portal/page.tsx");
+const page = read("src/app/(portal)/portal/page.tsx");
 const view = read("src/components/portal/home/HomeView.tsx");
 const block = read("src/components/portal/home/CountryTimeline.tsx");
 const card = read("src/components/portal/home/HomeJourneyCard.tsx");
@@ -31,35 +31,29 @@ test("the choice is read in the same wave as the other reads on both pages", () 
   assert.match(reads, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   // Только один Promise.all страницы после проверки студента: лишней волны нет.
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
-  // «Поступление»: выбор читается вместе с обзором дела и подготовками, тоже без лишней волны.
-  const admissionWave = admissionPage.match(/const \[overview, preparations, choice\] = await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
-  assert.ok(admissionWave, "admission reads stay in one Promise.all");
-  assert.match(admissionWave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\),/u);
-  // Обе страницы берут путь и прогресс из одного места, поэтому карточка и путь не расходятся.
-  for (const file of [page, admissionPage]) {
-    assert.match(file, /selectStudentJourney\(\{\n\s+country: choice\?\.country \?\? null,/u);
-    assert.doesNotMatch(file, /selectCountryTimeline\(|timelineStepProgress\(|\.rpc\(|\.schema\(/u);
-    assert.match(file, /readFailed=\{choice === null\}/u);
-  }
+  // Выбранные программы «Моего списка» читаются в той же волне (#1355).
+  assert.match(reads, /readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\)/u);
+  // Карточка и весь путь берут путь и прогресс из одного места, поэтому они не расходятся.
+  assert.match(page, /selectStudentJourney\(\{\n\s+country: choice\?\.country \?\? null,/u);
+  assert.doesNotMatch(page, /selectCountryTimeline\(|timelineStepProgress\(|\.rpc\(|\.schema\(/u);
+  assert.match(page, /readFailed=\{choice === null\}/u);
   assert.match(journey, /selectCountryTimeline\(country, \{[\s\S]*today: todayForTimeline\(now\),[\s\S]*modules: TIMELINE_MODULE_ROUTES,/u);
-  assert.match(admissionPage, /options=\{timelineCountryOptions\(locale\)\}/u);
-  assert.match(admissionPage, /getPortalStrings\("timeline", locale\)/u);
+  assert.match(page, /options=\{timelineCountryOptions\(locale\)\}/u);
+  assert.match(page, /getPortalStrings\("timeline", locale\)/u);
   // Сервер отдаёт клиенту только выбранный путь, не все файлы контента.
   assert.doesNotMatch(block, /COUNTRY_TIMELINES|content\/timelines|selectCountryTimeline\(|student-journey/u);
 });
 
-test("the whole path sits on «Поступление» between the tiles and the tabs, the home keeps its card (user, 08.11.2026)", () => {
-  const overviewAt = admissionPage.indexOf("<OverviewView");
-  const pathAt = admissionPage.indexOf("<CountryTimeline");
-  const tabsAt = admissionPage.indexOf('<nav className="pt-pill-tabs"');
-  assert.ok(overviewAt > 0 && pathAt > overviewAt && tabsAt > pathAt, "tiles, then the path, then the tabs");
-  // На «Главной» от CountryTimeline только выбор страны, пока страны нет (view={null}); путь целиком не рисуется.
-  assert.equal(page.match(/<CountryTimeline/gu)?.length, 1);
+test("one home: the card sits in the right column, the whole path closes the page under «Мой список» (#1355)", () => {
+  // На странице два CountryTimeline: выбор страны (view={null}, пока страны нет) и весь путь, когда страна выбрана.
+  assert.equal(page.match(/<CountryTimeline/gu)?.length, 2);
   assert.match(page, /countryChoice=\{journey\.view \? null : \(\s+<CountryTimeline\s+view=\{null\}/u);
-  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} locale=\{locale\} \/>\s+\) : null\}/u);
-  // Выбор страны первым блоком под шапкой, до согласия и колонок.
-  const hv = read("src/components/portal/home/HomeView.tsx");
-  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{aiConsentApplies(tier)"), "country choice first under the header");
+  assert.match(page, /fullPath=\{journey\.view \? \(\s+(?:\/\/[^\n]*\n\s+)?<CountryTimeline\s+view=\{journey\.view\}/u);
+  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} stage=\{[^}]*\} locale=\{locale\} \/>\s+\) : null\}/u);
+  assert.ok(view.indexOf("{list}") > view.indexOf('<div className="pt-home-columns">') && view.indexOf("{fullPath}") > view.indexOf("{list}"), "columns, then the list, then the whole path");
+  // Выбор страны первым блоком под шапкой, до колонок (карточки согласия на «Главной» больше нет, 09.11.2026).
+  const hv = view;
+  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{info}"), "country choice first under the header");
   // Карточка открывает правую колонку «Главной», перед датами.
   const side = view.indexOf('<div className="pt-home-side">');
   const cardAt = view.indexOf("{journey}");
@@ -73,16 +67,19 @@ test("the whole path sits on «Поступление» between the tiles and th
   assert.match(card, /href=\{JOURNEY_HREF\}/u);
   // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
   assert.doesNotMatch(card, /^"use client";/u);
-  assert.match(card, /<span className="pt-home-path-n">\{strings\.pathNow\}<\/span>/u);
-  assert.match(card, /timeline\.stepOf, \{ n: String\(current\.order\), total: String\(view\.steps\.length\) \}/u);
+  // 10.11.2026: «Шаг N из M · название · дальше — …» считает общий journeyStrip (тот же код у iPhone).
+  assert.match(card, /journeyStrip\(view\.steps, progress, stage\)/u);
+  assert.match(card, /strings\.stripStep, \{ n: String\(strip\.n\), total: String\(strip\.total\) \}/u);
+  assert.match(card, /strings\.stripNext, \{ title: strip\.nextTitle \}/u);
+  assert.match(card, /strings\.stripDone/u);
   assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
   assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
   // Без страны карточки нет (выбор стоит первым блоком «Главной»); заголовок называет страну пути.
   assert.match(card, /if \(view === null\) return null;/u);
   assert.match(card, /strings\.pathTitle, \{ country: view\.countryName \}/u);
   const home = PORTAL_DICTIONARIES.home;
-  assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.pathNow], ["Весь путь", "Путь: {country}", "Сейчас на пути:"]);
-  for (const key of ["pathAll", "pathTitle", "pathNow"]) assert.ok(home.ky[key], `ky ${key}`);
+  assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.stripStep, home.ru.stripNext, home.ru.stripDone], ["Весь путь", "Путь: {country}", "Шаг {n} из {total}", "дальше — {title}", "Поступление завершено"]);
+  for (const key of ["pathAll", "pathTitle", "stripStep", "stripNext", "stripDone"]) assert.ok(home.ky[key], `ky ${key}`);
   assert.match(css, /\.pt-page > \.pt-journey \{\n {2}margin-bottom: 24px;\n {2}scroll-margin-top: calc\(var\(--pt-topbar-height\) \+ 16px\);/u);
 });
 
@@ -186,12 +183,13 @@ test("styles add no red, keep 44 px targets and honour reduced motion", () => {
 
 test("progress on the path: done steps fold into one line, the step line stays on screen, nothing extra (owner, 08.11.2026)", () => {
   // Этап — только из своего дела; студент без дела или с непрочитанным обзором видит путь без прогресса.
-  assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage\) : null;/u);
+  assert.match(journey, /const progress = view && stage !== undefined \? timelineStepProgress\(view\.steps, stage, boardStage\) : null;/u);
   assert.match(page, /stage: overviewResult\.ok \? overviewResult\.value\?\.operationalStage \?\? null : undefined,/u);
+  // Колонка доски своего дела (357) уточняет шаг среди шагов одного этапа.
+  assert.match(page, /boardStage: overviewResult\.ok \? overviewResult\.value\?\.boardStage \?\? null : null,/u);
   // Как на «Главной»: прогресс только у клиента с делом на сопровождении.
-  assert.match(admissionPage, /const assisted = actor\.accessTier === "assisted";/u);
-  assert.match(admissionPage, /stage: !assisted \? null : overview === undefined \? undefined : overview\?\.operationalStage \?\? null,/u);
-  assert.match(admissionPage, /progress=\{journey\.progress\}/u);
+  assert.match(page, /const assisted = tier === "assisted";/u);
+  assert.match(page, /progress=\{journey\.progress\}/u);
   assert.doesNotMatch(block, /timelineStepProgress\(/u, "the client gets the result, not the content files");
   assert.match(block, /hidden=\{state === "done" && !showDone\}/u);
   assert.match(block, /aria-expanded=\{showDone\}/u);
@@ -205,6 +203,12 @@ test("progress on the path: done steps fold into one line, the step line stays o
   const { ru, ky } = PORTAL_DICTIONARIES.timeline;
   assert.deepEqual([ru.progressDone, ru.progressCurrent, ru.showDone, ru.nowLabel], ["Пройден", "Сейчас", "Пройдено", "Сейчас:"]);
   assert.ok(ky.progressDone && ky.progressCurrent && ky.showDone && ky.nowLabel);
+  // «по желанию» (09.11.2026): значок рядом с названием, в полосе шагов такого шага нет, KY на проверку носителю.
+  assert.equal(ru.progressOptional, "по желанию");
+  assert.equal(ky.progressOptional, "каалоо боюнча");
+  assert.match(block, /state === "optional" \? \(\s+<span className="pt-step-state" data-progress=\{state\}>\{strings\.progressOptional\}<\/span>/u);
+  assert.match(block, /view\.steps\.filter\(\(step\) => progressOf\(step\.id\) !== "optional"\)\.map/u);
+  assert.match(css, /\.pt-step-state\[data-progress="optional"\] \{/u);
   // Свёрнутый шаг — название и срок; цель — у открытого и у текущего.
   assert.match(css, /\.pt-step\[data-open="false"\]:not\(\[data-progress="current"\]\) \.pt-step-goal \{\n {2}display: none;/u);
   // Строка не уезжает: карточка не обрезает прокрутку, строка закреплена под верхней полосой.
@@ -229,7 +233,7 @@ test("the step line names the current step, the current step opens Documents, ti
   assert.match(block, /strings\.stepOf, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
   // «Открыть документы» — у текущего шага этапа документов и только тому, кому «Документы» открыты.
   assert.match(block, /state === "current" && documentsHref && step\.stageKeys\.includes\("documents"\)/u);
-  assert.match(admissionPage, /documentsHref=\{assisted \? "\/portal\/documents" : null\}/u);
+  assert.match(page, /documentsHref=\{assisted \? "\/portal\/documents" : null\}/u);
   assert.equal(PORTAL_DICTIONARIES.timeline.ru.openDocuments, "Открыть документы");
   assert.ok(PORTAL_DICTIONARIES.timeline.ky.openDocuments);
   // Срок шага всегда строкой под названием: столбика сроков слева больше нет.
@@ -242,4 +246,12 @@ test("every cabinet page has the same content width as the user's sample (08.11.
   assert.match(css, /\.pt-page \{[\s\S]*?max-width: var\(--pt-content-max\);/u);
   // «Профиль» больше не уже остальных страниц.
   assert.doesNotMatch(css, /\.pt-page\.pt-profile \{\n {2}max-width/u);
+});
+
+// Перенесено из #1423 (Айвар): без текущего шага «Все шаги» стоит в шапке рядом с «Сменить страну», а не одна строка внизу.
+test("without a current step the fold button sits next to «Сменить страну» in the header", () => {
+  assert.match(block, /<div className="pt-journey-change">\s*\{\/\*[^]*?\*\/\}\s*\{currentStep \? null : foldButton\}\s*<button\s+ref=\{changeRef\}/u);
+  assert.doesNotMatch(block, /pt-journey-fold-row/u);
+  assert.doesNotMatch(css, /pt-journey-fold-row/u);
+  assert.match(css, /\.pt-journey-change \{\n {2}display: flex;\n {2}flex-wrap: wrap;/u);
 });

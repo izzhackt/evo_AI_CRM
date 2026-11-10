@@ -80,6 +80,8 @@ function rowCopy(item: StaffNotification): string {
       return item.studentDisplayName ? `Новое обращение по делу студента · ${item.studentDisplayName}` : "Новое обращение по делу студента";
     case "case_message":
       return caseMessageNotificationCopy(item.actorDisplayName, item.studentDisplayName);
+    case "student_receipt":
+      return item.studentDisplayName ? `Студент приложил чек · ${item.studentDisplayName}` : "Студент приложил чек";
     default:
       return "Событие";
   }

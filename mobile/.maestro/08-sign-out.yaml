@@ -1,0 +1,22 @@
+appId: com.evoadmissions.app
+name: Выход очищает локальные данные
+---
+- runFlow: subflows/fresh-login.yaml
+# «Выйти» в меню ☰ (после #1428/#1429; в «Профиле» кнопка тоже есть).
+- tapOn:
+    id: menu-button
+- tapOn:
+    id: menu-sign-out
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 30000
+# После перезапуска сессии нет: снова экран входа.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 120000
+- assertNotVisible:
+    id: home-screen

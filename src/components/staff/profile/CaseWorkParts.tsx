@@ -205,7 +205,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         name={profile.person}
         expectedVersion={closable && input.closure ? input.closure.admissionsVersion : ""}
         closable={closable}
-        // Задачи «Обзор» уже прочитал; на других вкладках числа нет — окно скажет правило без числа.
+        // Задачи прочитаны на любой вкладке; сбой чтения — числа нет, окно скажет правило без числа.
         openTasks={work.tasks.kind === "ready" ? work.tasks.tasks.length : null}
         portalGroupId={portal?.settings ? CASE_PORTAL_GROUP_ID : null}
         portalHref={`${input.hrefFor("overview")}#${CASE_PORTAL_GROUP_ID}`}

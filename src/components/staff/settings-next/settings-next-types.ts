@@ -1,3 +1,4 @@
+import type { PaymentDetailsRead } from "@/lib/v3/student-receipts-source";
 import type { PlatformWhatsAppTransport } from "@/lib/platform-whatsapp-transport";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import type { CountryCuratorDirection, CountryCuratorsRead } from "@/lib/country-curator-contract";
@@ -70,6 +71,8 @@ export type SettingsNextProps = Readonly<{
   reports?: Readonly<{ reads: Readonly<Record<ReportKey, ReportLinkRead>>; readOnly: boolean; ids: Readonly<Record<ReportKey, Readonly<{ save: string; remove: string }>>> }>;
   /** «Кураторы стран» (миграция 335): чтение настройки и id запроса на каждую страну. */
   countryCurators?: Readonly<{ read: CountryCuratorsRead; readOnly: boolean; ids: Readonly<Record<CountryCuratorDirection, string>> }>;
+  /** «Реквизиты для оплаты» (миграция 358): чтение редактора, режим просмотра роли и id запроса формы. */
+  paymentDetails?: Readonly<{ read: PaymentDetailsRead; readOnly: boolean; requestId: string }>;
   /** «Кабинеты студентов» (миграция 342): id запроса формы и адрес кабинета для текста рассылки; в просмотре роли — нет. */
   studentAccounts?: Readonly<{ requestId: string; portalOrigin: string }>;
   journal?: SettingsJournalProps;

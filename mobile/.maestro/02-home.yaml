@@ -1,0 +1,12 @@
+appId: com.evoadmissions.app
+name: Главная после входа
+---
+- runFlow: subflows/fresh-login.yaml
+- assertVisible:
+    id: home-screen
+# Шапка «Главной» (home-hero; дорожки этапов в ней больше нет, полоса «Шаг N из M» ниже, в карточке пути, и есть не у всех): страница может быть прокручена (подгрузка карточек), поэтому ищем прокруткой вверх.
+- scrollUntilVisible:
+    element:
+      id: home-hero
+    direction: UP
+    timeout: 60000

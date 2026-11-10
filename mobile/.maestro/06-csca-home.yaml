@@ -1,0 +1,14 @@
+appId: com.evoadmissions.app
+name: Подготовка к CSCA
+---
+- runFlow: subflows/fresh-login.yaml
+- runFlow:
+    file: subflows/open-section.yaml
+    env:
+      SECTION: csca
+- extendedWaitUntil:
+    visible:
+      id: csca-screen
+    timeout: 30000
+- assertVisible:
+    id: title-csca

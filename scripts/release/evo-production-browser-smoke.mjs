@@ -167,7 +167,30 @@ export async function writeProductionSmokeReceipt(path, receipt) {
   }
 }
 
-async function signIn(page, baseUrl, email, password, destination) {
+/**
+ * 356 (09.11.2026): вход студента может упереться в экран «Конфиденциальность» (нет решения о Политике и об
+ * ИИ-помощниках). Проход экрана детерминирован: отметить обе галочки, нажать «Продолжить», дождаться запрошенной
+ * страницы. Запись идёт на тестового студента smoke и единоразова (дальше решение есть). Если экран не открылся -
+ * студент уже решал, шаг пропускается.
+ */
+async function passConsentGate(page, baseUrl, destination) {
+  const gateUrl = `${baseUrl}/portal/privacy`;
+  const gated = page.url() === gateUrl || page.url().startsWith(`${gateUrl}?`);
+  if (!gated) return false;
+  const gate = page.getByTestId("consent-gate");
+  await gate.waitFor({ state: "visible", timeout: 30_000 });
+  const boxes = gate.locator('input[type="checkbox"]');
+  if (await boxes.count() !== 2) throw new Error("consent_gate_shape_invalid");
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  await Promise.all([
+    page.waitForURL(`${baseUrl}${destination}`, { waitUntil: "domcontentloaded", timeout: 30_000 }),
+    gate.getByTestId("consent-gate-submit").click(),
+  ]);
+  return true;
+}
+
+async function signIn(page, baseUrl, email, password, destination, { consentGate = false } = {}) {
   const loginResponse = await page.goto(`${baseUrl}/login`, {
     waitUntil: "domcontentloaded",
     timeout: 30_000,
@@ -176,10 +199,14 @@ async function signIn(page, baseUrl, email, password, destination) {
   if (page.url() !== `${baseUrl}/login`) throw new Error("login_origin_invalid");
   await page.locator("#staff-email").fill(email);
   await page.locator("#staff-password").fill(password);
+  const landing = consentGate
+    ? (url) => url.href === `${baseUrl}${destination}` || url.href.startsWith(`${baseUrl}/portal/privacy`)
+    : `${baseUrl}${destination}`;
   await Promise.all([
-    page.waitForURL(`${baseUrl}${destination}`, { waitUntil: "domcontentloaded", timeout: 30_000 }),
+    page.waitForURL(landing, { waitUntil: "domcontentloaded", timeout: 30_000 }),
     page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click(),
   ]);
+  if (consentGate) await passConsentGate(page, baseUrl, destination);
   if (page.url() !== `${baseUrl}${destination}`) throw new Error("authenticated_route_invalid");
 }
 
@@ -307,10 +334,11 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       let runtimeError = false;
       page.on("pageerror", () => { runtimeError = true; });
       checkpoint("student_login");
-      await signIn(page, configuration.studentBaseUrl, configuration.studentEmail, configuration.studentPassword, "/portal");
+      await signIn(page, configuration.studentBaseUrl, configuration.studentEmail, configuration.studentPassword, "/portal", { consentGate: true });
       checkpoint("student_overview");
       await page.getByTestId("student-portal-shell").waitFor({ state: "visible", timeout: 30_000 });
-      await page.getByRole("heading", { name: "Моё поступление", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      // #1355: после входа открывается единственная «Главная»; её якорь — карточка «Что сделать сейчас» (у студента без сопровождения — «Ваша анкета»); «Моё поступление» — заголовок прежней сборки, чтобы ручной прогон по ней тоже проходил. Заголовок один на экране, Playwright строг: дубль уронит прогон.
+      await page.getByRole("heading", { name: /^(Что сделать сейчас|Ваша анкета|Моё поступление)$/u }).waitFor({ state: "visible", timeout: 30_000 });
       checkpoint("student_documents");
       await visit(page, `${configuration.studentBaseUrl}/portal/documents`);
       await page.getByRole("heading", { name: "Документы", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
@@ -318,10 +346,10 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       checkpoint("student_navigation");
       await Promise.all([
         page.waitForURL(`${configuration.studentBaseUrl}/portal`, { waitUntil: "domcontentloaded", timeout: 30_000 }),
-        // #1412: в навигации два пункта «Поступление» (рейл/меню и нижняя панель телефона) — кликаем видимый.
+        // #1412: в навигации две ссылки «Главная» (рейл/меню и нижняя панель телефона) — кликаем видимую.
         page.getByRole("navigation", { name: "Разделы кабинета", exact: true }).locator('a[href="/portal"]:visible').click(),
       ]);
-      await page.getByRole("heading", { name: "Моё поступление", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("heading", { name: /^(Что сделать сейчас|Ваша анкета|Моё поступление)$/u }).waitFor({ state: "visible", timeout: 30_000 });
       if (page.url() !== `${configuration.studentBaseUrl}/portal` || runtimeError) {
         throw new Error("student_navigation_failed");
       }

@@ -1,3 +1,4 @@
+import type { PaymentDetailsRead } from "@/lib/v3/student-receipts-source";
 import { randomUUID } from "node:crypto";
 
 import type { SettingsNextProps } from "@/components/staff/settings-next/settings-next-types";
@@ -36,6 +37,8 @@ export function settingsNextProps(input: Readonly<{
   reports?: Readonly<Record<ReportKey, ReportLinkRead>>;
   reportsReadOnly: boolean;
   countryCurators?: CountryCuratorsRead;
+  /** «Реквизиты для оплаты» (миграция 358): чтение редактора администратора. */
+  paymentDetails?: PaymentDetailsRead;
   journal: readonly JournalEntry[];
   journalStatus: JournalStatus;
   auditExportEnabled: boolean;
@@ -70,6 +73,7 @@ export function settingsNextProps(input: Readonly<{
       ? { read: input.countryCurators, readOnly: input.reportsReadOnly,
         ids: Object.fromEntries(COUNTRY_CURATOR_DIRECTIONS.map((key) => [key, randomUUID()])) as Record<CountryCuratorDirection, string> }
       : undefined,
+    paymentDetails: section === "payment" && input.paymentDetails ? { read: input.paymentDetails, readOnly: input.reportsReadOnly, requestId: randomUUID() } : undefined,
     // 342: кабинеты студентов создаёт только администратор вне просмотра роли.
     studentAccounts: section === "students" && !input.reportsReadOnly
       ? { requestId: randomUUID(), portalOrigin: studentPortalOrigin() }

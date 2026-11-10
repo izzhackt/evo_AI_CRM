@@ -1,3 +1,4 @@
+import { PaymentDetailsNext } from "./PaymentDetailsNext";
 import { CountryCuratorsNext } from "./CountryCuratorsNext";
 import { DeletionNext } from "./DeletionNext";
 import { DepartmentsNext } from "./DepartmentsNext";
@@ -28,6 +29,7 @@ function SectionBody(props: SettingsNextProps) {
   if (section === "telephony" && props.telephony) return <TelephonyNext {...props.telephony} nowIso={props.nowIso} />;
   if (section === "reports" && props.reports) return <ReportsNext {...props.reports} />;
   if (section === "curators" && props.countryCurators) return <CountryCuratorsNext {...props.countryCurators} />;
+  if (section === "payment" && props.paymentDetails) return <PaymentDetailsNext {...props.paymentDetails} />;
   if (section === "students") {
     return props.studentAccounts
       ? <StudentAccountsNext {...props.studentAccounts} />

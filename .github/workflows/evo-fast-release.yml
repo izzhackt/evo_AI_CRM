@@ -23,7 +23,9 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main' &&
       vars.EVO_PRODUCTION_RELEASE_ARMED == 'true'
-    runs-on: ubuntu-latest
+    # Закреплено 10.11.2026: на ubuntu-26.04 (новый ubuntu-latest) `next build` внутри docker build
+    # падает с «kill EACCES» на «Finalizing page optimization». На 24.04 сборка проходит.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       # База рабочей CRM одна: self-hosted Supabase (docs/adr/0037-use-only-self-hosted-supabase.md).

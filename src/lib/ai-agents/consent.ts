@@ -13,7 +13,7 @@ export const AI_CONSENT_POLICY_VERSION = "2026-10-25";
 export const AI_CONSENT_STATUSES = ["granted", "declined"] as const;
 export type AiConsentStatus = (typeof AI_CONSENT_STATUSES)[number];
 
-export const AI_CONSENT_SOURCES = ["portal_web", "ios"] as const;
+export const AI_CONSENT_SOURCES = ["portal_web", "ios", "android"] as const;
 export type AiConsentSource = (typeof AI_CONSENT_SOURCES)[number];
 
 /**

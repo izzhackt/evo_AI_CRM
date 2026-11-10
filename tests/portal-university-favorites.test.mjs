@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { getPortalStrings } from "../src/lib/portal/i18n.ts";
+
 import {
   FAVORITES_BY_IDS_CAP,
   chunkInstitutionIds,
@@ -99,13 +101,16 @@ test("favourite receipts resolve to an honest action result", () => {
 // подключён к карточкам каталога и карточке вуза, а действие — настоящий
 // server action со строгой валидацией входа.
 test("favorites section, toggle wiring and server action stay in place", () => {
-  // 03.11.2026: no menu item; the list is the «Вузы» tab of «Моё поступление»
-  // and the old route redirects there.
+  // 03.11.2026: no menu item; the list is the «Вузы» tab of «Мой список» on the one
+  // home (#1355, 09.11.2026) and the old route redirects there.
   const shell = source("src/components/portal/Shell.tsx");
   assert.doesNotMatch(shell, /href: "\/portal\/favorites"/u);
   const admission = source("src/app/(portal)/portal/page.tsx");
-  assert.match(admission, /<FavoritesSection institutionIds=\{favorites\} locale=\{locale\} \/>/u);
-  assert.match(source("src/app/(portal)/portal/favorites/page.tsx"), /redirect\("\/portal\?view=universities"\)/u);
+  assert.match(admission, /<FavoritesSection institutionIds=\{favoritesResult\.ok \? favoritesResult\.ids : null\} locale=\{locale\} \/>/u);
+  // «Вузы» на «Главной» — карточки с фото (первые HOME_FAVORITES_LIMIT), полный список со сравнением — по «Всё избранное».
+  assert.match(admission, /allFavorites \? \(\s*<FavoritesSection/u);
+  assert.match(admission, /<HomeFavorites\s+favorites=\{favoritesResult\.ok \? favoritesResult\.items : null\}/u);
+  assert.match(source("src/app/(portal)/portal/favorites/page.tsx"), /redirect\("\/portal\?view=universities#list"\)/u);
 
   // S3: карточка вуза одна для города, поиска и «Избранного» (UniversityTile).
   const tile = source("src/components/portal/universities/UniversityTile.tsx");
@@ -141,4 +146,24 @@ test("comparison stays factual: no ratings or admission-chance vocabulary", asyn
   for (const row of ["compareCountry", "compareLevels", "comparePrograms", "compareIntake"]) {
     assert.match(view, new RegExp(`strings\\.${row}`, "u"));
   }
+});
+
+// «Мои вузы» карточками (перенесено из #1423, Айвар): фото только из нашего бакета, без hotlink; нет фото — серая подложка;
+// «Всё избранное» остаётся на «Главной» (структура #1428), не уводит на отдельную страницу.
+test("home favourites are photo cards from the managed bucket with a link to the full list", () => {
+  const card = source("src/components/portal/home/HomeFavorites.tsx");
+  assert.match(card, /universityTilePhoto\(item\.content\.photoKey\)/u);
+  assert.match(card, /<UniversityPhotoFrame/u);
+  assert.match(card, /className="pt-home-fav-photo pt-photo-empty" aria-hidden="true"/u);
+  assert.match(card, /href=\{`\/portal\/universities\/\$\{item\.id\}`\} className="pt-home-fav-card"/u);
+  assert.match(card, /HOME_FAVORITES_ALL_HREF = "\/portal\?all=1#list"/u);
+  assert.match(card, /strings\.favoritesAll/u);
+  assert.doesNotMatch(card, /https?:\/\/|\/portal\/admission|<img/u);
+  const css = source("src/app/(portal)/portal.css");
+  for (const rule of [".pt-home-fav-grid", ".pt-home-fav-card", ".pt-home-fav-photo", ".pt-home-fav-name", ".pt-home-fav-place"]) {
+    assert.ok(css.includes(`${rule} {`) || css.includes(`${rule}:`), rule);
+  }
+  assert.doesNotMatch(css, /pt-home-fav-list|pt-home-fav-row/u);
+  assert.equal(getPortalStrings("home", "ru").favoritesAll, "Всё избранное");
+  assert.equal(getPortalStrings("home", "ky").favoritesAll, "Бардык тандалмалар");
 });

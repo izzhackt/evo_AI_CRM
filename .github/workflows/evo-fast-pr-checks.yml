@@ -24,6 +24,7 @@ jobs:
       code: ${{ steps.classify.outputs.code }}
       lint: ${{ steps.classify.outputs.lint }}
       build: ${{ steps.classify.outputs.build }}
+      mobile: ${{ steps.classify.outputs.mobile }}
       unknown: ${{ steps.classify.outputs.unknown }}
     steps:
       - name: Check out full history
@@ -57,10 +58,11 @@ jobs:
           CODE: ${{ steps.classify.outputs.code }}
           LINT: ${{ steps.classify.outputs.lint }}
           BUILD: ${{ steps.classify.outputs.build }}
+          MOBILE: ${{ steps.classify.outputs.mobile }}
           UNKNOWN: ${{ steps.classify.outputs.unknown }}
         run: |
           set -Eeuo pipefail
-          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$UNKNOWN"; do
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$MOBILE" "$UNKNOWN"; do
             case "$value" in
               true|false) ;;
               *)
@@ -135,6 +137,30 @@ jobs:
 
       - name: Build with TypeScript authority
         run: npm run build
+
+  mobile:
+    name: Mobile app
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.mobile == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Check the mobile app
+        working-directory: mobile
+        run: npm run check
 
   migration_boundary:
     name: Migration boundary
@@ -306,6 +332,7 @@ jobs:
       - contracts
       - lint
       - build
+      - mobile
       - migration_boundary
     runs-on: ubuntu-latest
     steps:
@@ -317,13 +344,14 @@ jobs:
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          MOBILE_RESULT: ${{ needs.mobile.result }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
-          for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
+          for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
             case "$result" in
               success|skipped) ;;
               *)

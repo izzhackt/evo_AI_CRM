@@ -8,7 +8,8 @@ import { PhotoRights, type PhotoCredit, type PhotoRightsStrings } from "./PhotoR
  * Карточка вуза «Атласа» (S3): одна для города, «Других вузов страны»,
  * поиска и «Избранного». Данные уже подготовлены сервером (фото нужного
  * размера, подписи уровней, ближайший набор), поэтому карточку рисует и
- * серверная страница, и клиентский поиск. Подписи лицензии под фото нет
+ * серверная страница, и клиентский поиск. Вся карточка — одна ссылка:
+ * ссылка названия растянута на карточку, сердечко и «©» лежат над ней. Подписи лицензии под фото нет
  * (приёмка 7.6.5): автор и лицензия по тихой кнопке «©» на фото.
  */
 
@@ -25,6 +26,8 @@ export type UniversityTileModel = Readonly<{
   photo: TilePhoto | null;
   /** null: состояние избранного неизвестно (сердечко не показывается). */
   favored: boolean | null;
+  /** Город и страна для поиска сверх названия (в разметку не попадает). */
+  search?: string;
 }>;
 
 export type UniversityTileStrings = FavoriteToggleStrings & PhotoRightsStrings & Readonly<{
@@ -103,10 +106,8 @@ export function UniversityTile({
           <span>{strings.nearestIntake}: </span>
           <span className="pt-data">{model.intakeText}</span>
         </p>
-        <IntentPrefetchLink className="pt-btn-ghost pt-uni-card-action" href={model.href}>
-          {strings.openCard}
-          <span className="pt-sr-only">, {model.name}</span>
-        </IntentPrefetchLink>
+        {/* Подсказка действия: нажимается вся карточка (растянутая ссылка названия), второй ссылки нет. */}
+        <span className="pt-btn-ghost pt-uni-card-action" aria-hidden="true">{strings.openCard}</span>
       </div>
     </article>
   );

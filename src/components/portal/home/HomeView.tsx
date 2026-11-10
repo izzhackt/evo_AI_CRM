@@ -4,7 +4,6 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
-import { aiConsentApplies } from "@/lib/portal/ai-consent";
 import { todayForTimeline } from "@/lib/portal/country-timeline";
 import { bishkekDay, type HomeDateItem } from "@/lib/portal/home-dates";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
@@ -14,22 +13,24 @@ import type { StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/
 import type { PortalAccessTier } from "../Shell";
 import { HomeCase, actionHref, actionTitle } from "./HomeCase";
 import { HomeDates } from "./HomeDates";
-import { HomeFavorites } from "./HomeFavorites";
 import { HomeHero } from "./HomeHero";
 import { HomeNews } from "./HomeNews";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов» п.1). Серверные read model приходят
- * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточка согласия на ИИ-помощников
- * (`aiConsent`, 25.10.2026) стоит первой под шапкой, пока для текущей версии текста нет решения, и не блокирует ничего
- * ниже; она только у клиента с делом на сопровождении (tier assisted), самостоятельному студенту вид её не показывает,
- * даже если её передали.
+ * пропсами, каждый источник несёт свой честный сбой (null) и честную пустоту. Карточки согласия на ИИ-помощников здесь больше нет (09.11.2026): выбор
+ * спрашивает экран «Конфиденциальность» при первом входе, отозвать можно в «Профиле».
  *
  * 08.11.2026 (по образцу «Главной» от пользователя): сверху приветствие с этапом дела (HomeHero, без изменений), ниже
  * две колонки. Слева «Что сделать сейчас» (HomeCase, assisted) или «Ваша анкета» (approved) и «Мои вузы»
  * (HomeFavorites). Справа карточка «Пути поступления» (`journey`, HomeJourneyCard: весь путь переехал на
  * «Поступление»), «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента «Входящих», только assisted) и карточка
  * CSCA (`csca`, только при выбранном Китае). На узком экране колонки идут одна за другой.
+ *
+ * #1355 (09.11.2026): это единственная домашняя страница кабинета (/portal; прежний /portal/home перенаправляется
+ * сюда). Первым идёт «Что сделать сейчас». Под шапкой — заявка на рассмотрении и задача EVO (`info`), вместо
+ * карточки «Мои вузы» под колонками стоит «Мой список» (`list`: вкладки «Вузы» и «Мои программы»), а под ним весь
+ * «Путь поступления» (`fullPath`, якорь #path). Карточка «Написать EVO» (assisted) — один вход в чат «Входящих» (#1356).
  *
  * Правка 08.11.2026 (разбор вёрстки): без выбранной страны первым блоком под шапкой стоит выбор страны
  * (`countryChoice`, тот же CountryTimeline с выбором, что был до #1408), карточки пути в это время нет; выбрана страна —
@@ -44,11 +45,12 @@ export function HomeView({
   overviewFailed = false,
   news = null,
   favorites,
-  favoritesTotal,
+  info = null,
+  list = null,
+  fullPath = null,
   journey = null,
   countryChoice = null,
   csca = null,
-  aiConsent = null,
   locale,
   now,
 }: {
@@ -62,16 +64,20 @@ export function HomeView({
   overviewFailed?: boolean;
   /** Лента «Что нового» (только assisted); `null` — чтение не удалось. */
   news?: readonly StudentPortalNotification[] | null;
+  /** Первые избранные вузы: из них берутся даты «Ближайших дат»; `null` — чтение не удалось. */
   favorites: readonly PublishedUniversity[] | null;
-  favoritesTotal: number;
+  /** Заявка на рассмотрении и задача EVO (OverviewView): под шапкой; null, если нечего показать. */
+  info?: ReactNode;
+  /** «Мой список»: вкладки «Вузы» и «Мои программы» (полные списки) под колонками. */
+  list?: ReactNode;
+  /** Весь «Путь поступления» (CountryTimeline с путём) под списком; null, пока страна не выбрана. */
+  fullPath?: ReactNode;
   /** Карточка «Пути поступления» (HomeJourneyCard); null, если её нет. */
   journey?: ReactNode;
   /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
   countryChoice?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
   csca?: ReactNode;
-  /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком клиента с делом на сопровождении, пока для текущей версии нет решения; самостоятельному студенту не показывается, даже если передан. */
-  aiConsent?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
@@ -94,9 +100,9 @@ export function HomeView({
 
   return (
     <div className="pt-home">
-      <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
+      <HomeHero displayName={displayName} studyCountry={studyCountry} locale={locale} />
       {countryChoice}
-      {aiConsentApplies(tier) ? aiConsent : null}
+      {info}
       <div className="pt-home-columns">
         <div className="pt-home-main">
           {tier === "assisted" ? (
@@ -108,6 +114,7 @@ export function HomeView({
             <article className="pt-home-card pt-home-slot" data-slot="case">
               <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
               <h2 className="pt-home-card-title">{admission.pendingApplicationHeading}</h2>
+              <p className="pt-home-foot">{admission.pendingManagerNotice}</p>
               <p className="pt-home-card-action">
                 <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
                   {admission.pendingApplicationLink}
@@ -115,9 +122,6 @@ export function HomeView({
               </p>
             </article>
           ) : null}
-          <div className="pt-home-slot" data-slot="universities">
-            <HomeFavorites favorites={favorites} total={favoritesTotal} locale={locale} now={now} />
-          </div>
         </div>
 
         <div className="pt-home-side">
@@ -133,6 +137,8 @@ export function HomeView({
           {csca ? <div className="pt-home-slot" data-slot="csca">{csca}</div> : null}
         </div>
       </div>
+      {list}
+      {fullPath}
     </div>
   );
 }

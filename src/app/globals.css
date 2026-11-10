@@ -514,3 +514,45 @@ table th,
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Поле пароля с «глазом» (`PasswordInput`): кнопка 44×44 у нижнего края поля, цвет от токенов поверхности (staff или кабинет). */
+.evo-pw {
+  position: relative;
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+.evo-pw > input {
+  display: block;
+}
+.evo-pw-toggle {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pt-text-2, var(--text-2));
+  cursor: pointer;
+}
+.evo-pw-toggle:hover:not(:disabled) {
+  color: var(--pt-text, var(--text));
+}
+.evo-pw-toggle:disabled {
+  cursor: not-allowed;
+  color: var(--pt-text-3, var(--text-3));
+}
+.evo-pw-toggle[aria-pressed="true"] {
+  color: var(--pt-text, var(--text));
+}
+/* Edge рисует свой «глаз» в паролях: оставляем один. */
+.evo-pw > input::-ms-reveal,
+.evo-pw > input::-ms-clear {
+  display: none;
+}

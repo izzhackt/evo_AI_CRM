@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
@@ -147,9 +147,13 @@ test("the messages screen is a connected assisted-only portal route", () => {
   const page = source("src/app/(portal)/portal/messages/page.tsx");
   assert.match(page, /if \(actor\.caseState === "pending"\) redirect\("\/portal"\)/u);
   assert.match(page, /readPortalCaseMessages\(\)/u);
-  // The screen marks the one-off Q&A difference and links the existing block.
-  assert.match(page, /strings\.differenceNote/u);
-  assert.match(page, /href="\/portal#case-help"/u);
+  // #1356: one way to write to EVO. The one-off «Вопрос куратору» form and the note about it are gone; earlier
+  // requests with answers stay readable under the list, read-only.
+  assert.doesNotMatch(page, /differenceNote|differenceLink|#case-help/u);
+  assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student \/>/u);
+  const panel = source("src/components/staff/profile/CaseHelpPanel.tsx");
+  assert.doesNotMatch(panel, /CreateCaseHelpForm/u);
+  assert.doesNotMatch(source("src/components/staff/profile/CaseOperationsForms.tsx"), /CreateCaseHelpForm|createCaseHelpAction/u);
   assert.match(page, /role="alert"/u);
   assert.doesNotMatch(page, /createClient|supabase|fixture|demo/iu);
 });
@@ -280,4 +284,24 @@ test("readPortalCaseMessages(\"11\") forwards the numeric cursor as a GET query 
   assert.equal(url.searchParams.get("p_before_sequence_id"), "11");
   assert.equal(call.headers.get("Accept-Profile"), "platform");
   assert.deepEqual(page.messages.map((entry) => entry.sequenceId), ["2", "1"]);
+});
+
+test("one entry «Написать EVO» opens the chat: home card, university card for assisted, consultation only without a chat (#1356)", () => {
+  assert.equal(source("src/lib/portal/write-evo.ts").includes('"/portal/messages?view=chat"'), true);
+  // 10.11.2026: карточки «Есть вопрос?» на «Главной» нет, вход один: плавающая кнопка в оболочке кабинета.
+  assert.equal(existsSync(new URL("../src/components/portal/home/HomeWriteEvo.tsx", import.meta.url)), false);
+  assert.doesNotMatch(source("src/components/portal/home/HomeView.tsx"), /HomeWriteEvo|data-slot="write"/u);
+  const shell = source("src/components/portal/Shell.tsx");
+  assert.match(shell, /accessTier === "assisted" && pathname !== "\/portal\/messages" && !pathname\.startsWith\("\/portal\/messages\/"\)/u);
+  assert.match(shell, /href=\{WRITE_EVO_HREF\} className="pt-chat-fab" aria-label=\{chatLabel\}/u);
+  const university = source("src/app/(portal)/portal/universities/[id]/page.tsx");
+  assert.match(university, /consultation=\{actor\.accessTier === "assisted" \? null : \{/u);
+  assert.match(university, /writeEvo=\{actor\.accessTier === "assisted"/u);
+  // The home no longer hosts the one-off question block.
+  assert.doesNotMatch(source("src/app/(portal)/portal/page.tsx"), /CaseHelpWorkspace/u);
+  const home = PORTAL_DICTIONARIES.home;
+  assert.equal(home.ru.writeAction, "Написать EVO");
+  assert.ok(home.ky.writeAction);
+  assert.equal(home.ru.writeHeading, undefined);
+  assert.equal(PORTAL_DICTIONARIES.messages.ru.differenceNote, undefined);
 });

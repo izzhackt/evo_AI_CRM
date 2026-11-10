@@ -380,6 +380,23 @@
   transform: scale(var(--pt-press-scale));
 }
 
+/* «Выйти» в меню телефона (#1360): кнопка выглядит как пункт меню; на широком экране выход — в «Профиле». */
+.pt-nav-logout {
+  display: none;
+  margin: 0;
+}
+
+.pt-nav-logout-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
 .pt-nav-link:hover {
   background: var(--pt-bg);
   color: var(--pt-text);
@@ -1056,6 +1073,13 @@
     font-weight: 600;
   }
 
+  .pt-nav-menu .pt-nav-logout {
+    display: block;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--pt-line);
+  }
+
   .pt-nav-menu .pt-nav-group {
     padding: 16px 12px 4px;
     color: var(--pt-rail-group);
@@ -1269,16 +1293,11 @@
   color: var(--pt-text-2);
 }
 
-/* «Профиль → Пароль» (07.11.2026): логин для входа строкой над полями пароля. */
-.pt-profile-login {
-  margin: 0 0 12px;
+/* «Профиль → Мои данные» (#1360): пояснение под данными, кто меняет телефон и имя. */
+.pt-profile-note {
+  margin: 0;
   color: var(--pt-text-2);
-  font-size: var(--pt-size-body, 15px);
-}
-
-.pt-profile-login strong {
-  color: var(--pt-text);
-  font-weight: 600;
+  font-size: var(--pt-size-secondary);
 }
 
 /* «Профиль → Пароль» (06.11.2026): три поля в столбик, кнопка и ответ в одну строку. */
@@ -1328,6 +1347,7 @@
 }
 
 .pt-uni-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1377,9 +1397,32 @@
   text-decoration: none;
 }
 
+.pt-uni-card:hover .pt-uni-name a,
 .pt-uni-name a:hover {
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+/* Вся карточка — одна ссылка: ссылка названия растянута на карточку; сердечко
+   и «©» (z-index 3) лежат над ней и нажимаются отдельно. */
+.pt-uni-name a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.pt-page .pt-uni-name a:focus-visible {
+  outline: none;
+}
+
+.pt-uni-card:has(.pt-uni-name a:focus-visible) {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 3px;
+}
+
+.pt-uni-card:hover .pt-uni-card-action {
+  background: var(--pt-bg);
 }
 
 .pt-chip-row {
@@ -1882,26 +1925,6 @@
   gap: 12px;
 }
 
-/*
- * Слот карточки на «Моём поступлении» (/portal): отступ от шапки как у
- * соседних блоков экрана; без карточки слот пуст и не оставляет зазора.
- */
-.pt-consent-slot {
-  margin-top: 24px;
-}
-
-.pt-consent-slot:empty {
-  display: none;
-}
-
-.pt-consent {
-  padding: 20px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
-}
-
 .pt-consent-title {
   margin: 0;
   font-size: var(--pt-size-heading);
@@ -1990,47 +2013,103 @@
   font-size: var(--pt-size-secondary);
 }
 
-/*
- * Широкий экран: карточка — полоса. Текст держит свою меру слева, действия
- * стоят справа столбцом, а не оставляют пустую половину карточки.
- */
-@media (min-width: 1100px) {
-  .pt-consent {
-    padding-bottom: 14px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 40px;
-    align-items: start;
-    justify-items: start;
-  }
+/* ---------- Экран «Конфиденциальность» при первом входе (356, 09.11.2026) ---------- */
 
-  .pt-consent > * {
-    grid-column: 1;
-  }
-
-  .pt-consent > .pt-consent-actions {
-    grid-column: 2;
-    grid-row: 1 / span 4;
-    flex-direction: column;
-    align-self: center;
-    justify-self: stretch;
-    min-width: 200px;
-  }
+/* Токены и тема - от .pt-shell; рейла и меню на экране нет, он стоит по центру. */
+.pt-gate-shell {
+  align-items: center;
+  justify-content: center;
 }
 
-@media (max-width: 480px) {
-  .pt-consent {
-    padding: 16px;
-  }
+.pt-gate {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  padding: 24px 16px;
+}
 
-  /* Узкий телефон: кнопки делят строку поровну или встают друг под друга. */
-  .pt-consent-actions {
-    align-self: stretch;
-  }
+.pt-gate-card {
+  display: flex;
+  width: 100%;
+  max-width: 520px;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
 
-  .pt-consent-actions > * {
-    flex: 1 1 auto;
-  }
+.pt-gate-title {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.pt-gate-lead,
+.pt-gate-detail {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  color: var(--pt-text-2);
+  text-wrap: pretty;
+}
+
+.pt-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Галочка с подписью: зона касания не меньше 44 px, сам флажок крупнее обычного. */
+.pt-gate-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  color: var(--pt-text);
+  font-size: var(--pt-size-body);
+}
+
+.pt-gate-check input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 1px 0 0;
+  accent-color: var(--pt-accent);
+}
+
+.pt-gate-check label {
+  cursor: pointer;
+}
+
+.pt-gate-detail {
+  margin-top: -6px;
+  padding-left: 34px;
+}
+
+.pt-gate-submit {
+  align-self: stretch;
+}
+
+.pt-gate-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pt-gate-logout {
+  margin: 0;
+}
+
+.pt-gate-logout-button {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 }
 
 /* ---------- Фото с атрибуцией ---------- */
@@ -2383,7 +2462,8 @@
   position: absolute;
   inset-inline-end: 10px;
   top: 10px;
-  z-index: 1;
+  /* Над растянутой ссылкой карточки (z-index 2). */
+  z-index: 3;
 }
 
 .pt-uni-card-fav .pt-favorite-btn {
@@ -2650,8 +2730,9 @@
   pointer-events: none;
 }
 
+/* Не `position: relative`: иначе растянутая ссылка заголовка закрывала бы
+   только подпись, а не всю карточку. z-index работает у элемента flex-колонки. */
 .pt-place-overlay {
-  position: relative;
   z-index: 1;
   display: grid;
   gap: 4px;
@@ -4725,6 +4806,10 @@
   border-top: 1px solid var(--pt-line);
 }
 
+.pt-inbox-side-foot:empty {
+  display: none;
+}
+
 .pt-inbox-side-foot {
   margin: 0;
   padding: 10px 16px;
@@ -5555,6 +5640,10 @@
   margin: 0;
 }
 
+.pt-adm-empty-action {
+  margin-top: 20px;
+}
+
 .pt-adm-empty-body {
   margin: 8px auto 0;
   max-width: 560px;
@@ -5881,8 +5970,8 @@ main.pt-page > .pt-card {
 
 /*
  * «Документы» (03.11.2026, по образцу кабинета пользователя): шапка с кнопкой
- * «Загрузить документ», карточка «Чеклист» со счётчиком, вкладки, список и
- * окно загрузки (нативный <dialog>: фокус и Escape — у браузера).
+ * карточка «Чеклист» со счётчиком, вкладки и список; файл загружается кнопкой
+ * в строке (одно окно загрузки убрано, #1361).
  */
 .pt-docs-head {
   display: flex;
@@ -5896,11 +5985,6 @@ main.pt-page > .pt-card {
 .pt-docs-head-main {
   min-width: 0;
   max-width: 64ch;
-}
-
-.pt-docs-upload-open {
-  flex-shrink: 0;
-  gap: 8px;
 }
 
 .pt-docs-status {
@@ -6062,105 +6146,28 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   margin-top: 0;
 }
 
-.pt-docs-dialog {
-  /* Сброс полей страницы не должен сдвигать модальное окно из центра. */
-  inset: 0;
-  margin: auto;
-  width: min(520px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  padding: 0;
-  border: 0;
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-raised);
-  color: var(--pt-text);
-}
-
-.pt-docs-dialog::backdrop {
-  background: rgb(20 19 17 / 0.45);
-}
-
-.pt-docs-dialog-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 22px;
-  border-bottom: 1px solid var(--pt-line);
-}
-
-.pt-docs-dialog-title {
-  margin: 0;
-  font-size: var(--pt-size-body);
-  font-weight: 600;
-}
-
-.pt-docs-dialog-close {
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin: -10px -12px -10px 0;
-  border: 0;
-  border-radius: var(--pt-radius-control);
-  background: transparent;
+.pt-docs-programs-note {
+  margin: 8px 0 0;
   color: var(--pt-text-2);
-  cursor: pointer;
-}
-
-.pt-docs-dialog-close:hover {
-  background: var(--pt-bg);
-  color: var(--pt-text);
-}
-
-.pt-docs-dialog-close:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
-}
-
-.pt-docs-dialog-body {
-  display: grid;
-  gap: 10px;
-  padding: 20px 22px;
-}
-
-.pt-docs-dialog-label {
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-}
-
-.pt-docs-dialog-select {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--pt-control-edge);
-  border-radius: var(--pt-radius-control);
-  background: var(--pt-surface);
-  color: var(--pt-text);
-  font: inherit;
   font-size: var(--pt-size-secondary);
 }
 
-.pt-docs-dialog-select:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
+.pt-docs-programs-note .pt-link {
+  min-height: 0;
+  font-size: inherit;
 }
 
-.pt-docs-dialog-note {
-  margin: 0;
+.pt-docs-other {
+  margin: 16px 0 0;
+  padding: 0 4px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+  line-height: var(--pt-leading);
 }
 
-.pt-docs-dialog-body .pt-doc-controls {
-  justify-items: start;
-}
-
-.pt-docs-dialog-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 22px 18px;
-  border-top: 1px solid var(--pt-line);
+.pt-docs-other .pt-link {
+  min-height: 0;
+  font-size: inherit;
 }
 
 .pt-doc-privacy svg {
@@ -6363,6 +6370,171 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-pay-amount dd {
   margin: 4px 0 0;
+  font-weight: 600;
+}
+
+/* «Оплата»: как оплатить, история оплат и чеков, форма чека (миграция 358). Без новых цветов: токены кабинета. */
+.pt-howtopay-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 28px;
+  padding: 0 20px 4px;
+}
+
+.pt-howtopay-text {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  line-height: var(--pt-leading);
+}
+
+.pt-howtopay-qr {
+  flex: none;
+  width: 192px;
+  height: 192px;
+  object-fit: contain;
+  padding: 8px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: #fff;
+}
+
+.pt-howtopay .pt-card-note {
+  padding: 12px 20px 20px;
+  margin: 0;
+}
+
+.pt-receipt-entries {
+  display: grid;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-receipt-entry {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-receipt-entry-date {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-receipt-entry-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-receipt-entry-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pt-receipt-entry-side {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+}
+
+.pt-receipt-entry-side:empty {
+  display: none;
+}
+
+.pt-receipt-reason {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--pt-text);
+  font-size: var(--pt-size-secondary);
+  overflow-wrap: anywhere;
+}
+
+.pt-receipt-reason-label {
+  color: var(--pt-text-2);
+  font-weight: 600;
+}
+
+.pt-receipt-attach {
+  margin: 16px 0 0;
+}
+
+.pt-receipt-loose .pt-receipt-entries,
+.pt-receipt-loose .pt-receipt-attach {
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.pt-receipt-loose .pt-receipt-attach {
+  padding-bottom: 20px;
+}
+
+.pt-receipt-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pt-receipt-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pt-receipt-fields {
+  display: grid;
+  gap: 12px;
+  max-width: 480px;
+  padding-top: 8px;
+}
+
+.pt-receipt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .pt-receipt-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pt-receipt-entry {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pt-receipt-entry-date {
+    grid-column: 1 / -1;
+  }
+}
+
+.pt-receipt-file {
+  padding: 8px 12px;
+}
+
+.pt-receipt-error {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-receipt-sent {
+  margin: 0;
+  color: var(--pt-ok);
+  font-size: var(--pt-size-secondary);
   font-weight: 600;
 }
 
@@ -7039,134 +7211,9 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-weight: 500;
 }
 
-.pt-home-stages {
-  padding: 20px 24px 22px;
-  border-top: 1px solid var(--pt-hero-line);
-}
-
-.pt-home-stage-track {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pt-home-stage-track > li {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  min-width: 0;
-  text-align: center;
-}
-
-/* Линия от предыдущего шага к этому, под точкой. */
-.pt-home-stage-track > li + li::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  right: 50%;
-  width: 100%;
-  height: 2px;
-  background: var(--pt-hero-line);
-}
-
-.pt-home-stage-track > li[data-state="done"]::before,
-.pt-home-stage-track > li[data-state="current"]::before {
-  background: var(--pt-hero-muted);
-}
-
-.pt-home-stage-visual {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  max-width: 100%;
-}
-
-.pt-home-stage-dot {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-hero-bg);
-  box-shadow: inset 0 0 0 1.5px var(--pt-hero-ring);
-}
-
-.pt-home-stage-track > li[data-state="done"] .pt-home-stage-dot {
-  background: var(--pt-hero-muted);
-  box-shadow: none;
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot {
-  box-shadow: inset 0 0 0 2px var(--pt-hero-ink);
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-dot::after {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-brand-red);
-}
-
-.pt-home-stage-name {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--pt-hero-faint);
-  font-size: var(--pt-size-caption);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pt-home-stage-track > li[data-state="done"] .pt-home-stage-name {
-  color: var(--pt-hero-muted);
-}
-
-.pt-home-stage-track > li[data-state="current"] .pt-home-stage-name {
-  color: var(--pt-hero-ink);
-  font-weight: 700;
-}
-
-/* Строка «Этап N из M» — только на шапке уже 940 px: там самая длинная подпись
-   полужирным («Документтер», 87 px) уже не влезает в колонку шага. */
-.pt-home-stage-caption {
-  display: none;
-  margin: 14px 0 0;
-  color: var(--pt-hero-ink);
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-}
-
 @container pt-hero (max-width: 940px) {
   .pt-home-hero-head {
     padding: 22px 20px 18px;
-  }
-
-  .pt-home-stages {
-    padding: 16px 16px 18px;
-  }
-
-  .pt-home-stage-visual {
-    gap: 0;
-  }
-
-  .pt-home-stage-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .pt-home-stage-caption {
-    display: block;
   }
 }
 
@@ -7196,10 +7243,21 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-home-slot[data-slot="case"] { order: 1; }
 .pt-home-slot[data-slot="path"] { order: 2; }
-.pt-home-slot[data-slot="universities"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
 .pt-home-slot[data-slot="csca"] { order: 6; }
+
+/* «Мой список» и весь путь под колонками «Главной» (#1355): во всю ширину, с тем же шагом, что между блоками. */
+.pt-home-list,
+.pt-home-path-full {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pt-home-list > .pt-home-head {
+  margin-bottom: 0;
+}
 
 /*
  * Две колонки с 960 px окна (раньше от 980 px ширины самой области, то есть на 1024 px при раскрытой левой колонке
@@ -7365,6 +7423,21 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: var(--pt-size-body);
   font-weight: 600;
   line-height: 1.3;
+}
+
+.pt-home-path-n {
+  font-weight: 600;
+}
+
+.pt-home-path-next {
+  margin: -4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.4;
+}
+
+.pt-home-path-all {
+  margin: 0;
 }
 
 /* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
@@ -7625,58 +7698,76 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   padding-top: 8px;
 }
 
-/* «Мои вузы»: строки внутри карточки, как у дат и новостей, — линия между строками, без своих рамок. */
-.pt-home-fav-list {
+/* «Мои вузы» во вкладке «Вузы» (10.11.2026, перенесено из #1423): карточки с фото кампуса и названием по две в ряд; вся карточка — ссылка. */
+.pt-home-fav-grid {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pt-home-fav-list > li + li {
-  border-top: 1px solid var(--pt-line);
+/* Широкий экран: все четыре карточки в один ряд (размер картинки в HomeFavorites рассчитан на ~260px). */
+@media (min-width: 960px) {
+  .pt-home-fav-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
-/* Ближайший набор — третьей строкой под городом у каждого вуза, а не справа: длинное название не сбивает строку (08.11.2026). */
-.pt-home-fav-row {
+.pt-home-fav-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-height: 44px;
-  padding: 12px 0;
+  gap: 4px;
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.pt-home-fav-row:hover .pt-home-fav-name {
+.pt-home-fav-card:hover .pt-home-fav-name {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.pt-home-fav-row:focus-visible {
+.pt-home-fav-card:focus-visible {
   outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
+  outline-offset: 4px;
+  border-radius: var(--pt-radius-card);
 }
 
-.pt-home-fav-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+/* Фото одной высоты при любой ширине колонки; нет фото или оно не загрузилось — серая подложка без надписи. */
+.pt-home-fav-photo {
+  display: block;
+  margin: 0 0 8px;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-bg);
+}
+
+.pt-home-fav-photo.pt-photo-empty {
+  height: auto;
+  padding: 0;
+  border: 1px solid var(--pt-line);
+}
+
+.pt-home-fav-photo .pt-photo-img {
+  height: 100%;
 }
 
 .pt-home-fav-name {
   font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .pt-home-fav-place {
   color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
+  font-size: var(--pt-size-caption);
 }
 
-.pt-home-fav-intake {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
+.pt-home-fav-more {
+  margin: 16px 0 0;
 }
 
 /* ---------- Карточка CSCA в «Продолжить» (Q16, 18.10.2026) ----------
@@ -7779,11 +7870,20 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   padding-left: 28px;
 }
 
+/* Действия шапки пути в один ряд: «Все шаги» (без текущего шага) и «Сменить страну»; подпись источника под ними. */
 .pt-journey-change {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 8px;
+  /* Две кнопки в ряд, подпись под ними: без предела ширина блока складывалась из всех трёх и он уходил под заголовок. */
+  max-width: 300px;
+}
+
+.pt-journey-change > .pt-journey-source {
+  flex-basis: 100%;
+  text-align: right;
 }
 
 .pt-journey-source {
@@ -8086,6 +8186,13 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   color: var(--pt-ok);
 }
 
+/* Шаг «по желанию» (09.11.2026, владелец): вне прогресса, нейтральный круг и контурное слово; линия обычная. */
+.pt-step-state[data-progress="optional"] {
+  border: 1px solid currentColor;
+  background: none;
+  color: var(--pt-text-2);
+}
+
 /* Строка «Пройдено · названия» на месте свёрнутых шагов; линия пути идёт от её круга вниз. */
 .pt-step-done-group {
   position: relative;
@@ -8296,16 +8403,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 .pt-page .pt-journey-fold:focus-visible {
   outline: 2px solid var(--pt-accent);
   outline-offset: 2px;
-}
-
-.pt-journey-fold-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-.pt-journey-fold-row + .pt-journey-body .pt-journey-steps {
-  margin-top: 4px;
 }
 
 .pt-step-main {
@@ -8596,7 +8693,11 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   }
 
   .pt-journey-change {
-    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .pt-journey-change > .pt-journey-source {
+    text-align: left;
   }
 
   .pt-journey-intake + .pt-journey-intake-note {
@@ -8652,6 +8753,64 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 /* Live notifications share the Atlas header; no second navigation strip. */
+/*
+ * Плавающая кнопка «Написать EVO» (10.11.2026): круглая, в правом нижнем углу любого экрана кабинета с чатом.
+ * Широкий экран: 24 px от краёв. Телефон: над парящей панелью вкладок (панель ≈ 62 px + её отступ), поэтому не
+ * перекрывает вкладки; низ содержимого получает запас, чтобы последнее действие не пряталось под кнопкой.
+ */
+.pt-chat-fab {
+  position: fixed;
+  inset-inline-end: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  box-shadow: var(--pt-shadow-raised);
+  text-decoration: none;
+  transition: transform var(--pt-motion-fast, 150ms) var(--pt-ease-out, ease-out);
+}
+
+.pt-chat-fab:hover {
+  transform: translateY(-2px);
+}
+
+.pt-chat-fab:focus-visible {
+  outline: 2px solid var(--pt-text);
+  outline-offset: 3px;
+}
+
+.pt-shell[data-chat-fab] .pt-content {
+  padding-bottom: 96px;
+}
+
+@media (max-width: 767px) {
+  .pt-chat-fab {
+    inset-inline-end: max(16px, env(safe-area-inset-right));
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 62px + 12px);
+    width: 52px;
+    height: 52px;
+  }
+
+  .pt-shell[data-chat-fab] .pt-content {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-chat-fab {
+    transition: none;
+  }
+
+  .pt-chat-fab:hover {
+    transform: none;
+  }
+}
+
 .pt-notification-updates { position: relative; flex-shrink: 0; }
 .pt-notification-updates .pt-bell { position: relative; }
 .pt-notification-count {
@@ -8878,7 +9037,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8891,7 +9050,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8904,7 +9063,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8917,7 +9076,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8930,7 +9089,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8943,7 +9102,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-fav-list,
+  .pt-home-fav-grid,
   .pt-adm-grid,
   .pt-adm-list,
   .pt-lesson-list
@@ -8959,7 +9118,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   transition: transform var(--pt-motion-press) var(--pt-ease-out);
 }
 
-.pt-uni-card:has(.pt-uni-card-action:active),
+.pt-uni-card:has(.pt-uni-name a:active),
 .pt-prof-card:has(.pt-prof-title a:active) {
   transform: scale(var(--pt-press-scale));
 }
@@ -9106,7 +9265,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   .pt-place-grid,
     .pt-prof-grid,
     .pt-tests-grid,
-    .pt-home-fav-list,
+    .pt-home-fav-grid,
     .pt-adm-grid,
     .pt-adm-list,
     .pt-lesson-list

@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
+import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { DueWord } from "../blocks/DueWord";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
@@ -23,10 +25,14 @@ const FACT_ACTION = "inline-flex min-h-11 items-center t-label text-fg-2 underli
  *
  * Без строки очереди (`row === null`) версии для записи нет: шаг показан из
  * самого дела, без срока и без редактора — «нет чтения — нет числа».
+ *
+ * Шаг не записан, но у дела есть открытая задача: называем ближайшую по сроку
+ * (порядок «Задач») со ссылкой и её сроком, а не «Шаг не задан» — как у лида.
  */
 export function CaseNextStep({
   row: initialRow,
   fallbackStep,
+  openTasks,
   access,
   today,
   nowIso,
@@ -34,6 +40,8 @@ export function CaseNextStep({
 }: Readonly<{
   row: StudentCaseQueueRow | null;
   fallbackStep: string | null;
+  /** Открытые задачи дела по сроку; пусто — нет или не прочитаны. */
+  openTasks: readonly QueueTask[];
   access: NextStepAccess;
   today: string;
   nowIso: string;
@@ -50,11 +58,13 @@ export function CaseNextStep({
     setRow(initialRow);
   }
   const step = row ? row.nextAction : fallbackStep;
-  const due = row?.nextAction && row.nextActionDueOn
-    ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, new Date(nowIso), row.state === "active")
-    : null;
+  const openTask = step ? null : openTasks[0] ?? null;
+  const active = row ? row.state === "active" : true;
+  const dueOf = row?.nextAction && row.nextActionDueOn ? { dueOn: row.nextActionDueOn, dueAt: null }
+    : openTask && (openTask.dueOn || openTask.dueAt) ? { dueOn: openTask.dueOn, dueAt: openTask.dueAt } : null;
+  const due = dueOf ? queueDue(dueOf, new Date(nowIso), active) : null;
   // Срок словом (`DueWord`, Э1.3).
-  const dueWord = due && row ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, new Date(nowIso), row.state === "active") : null;
+  const dueWord = due && dueOf ? dueWordOf(dueOf, new Date(nowIso), active) : null;
   const editable = row !== null && access.kind === "edit";
 
   // Окно открылось — фокус в поле шага; закрылось — браузер вернёт его на «Изменить».
@@ -82,7 +92,13 @@ export function CaseNextStep({
   return (
     <>
       <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 t-body-compact text-fg" data-testid="v3-case-next-step">
-        {step ? <span className="min-w-0 break-words">{step}</span> : <span className="text-fg-2">Шаг не задан</span>}
+        {step ? <span className="min-w-0 break-words">{step}</span> : openTask ? (
+          <span className="min-w-0 break-words" data-testid="v3-case-next-task">
+            <Link href={`/tasks?task=${encodeURIComponent(openTask.id)}&kind=case&case=${encodeURIComponent(openTask.studentCaseId ?? "")}`}
+              className="-my-3 inline-flex min-h-11 items-center text-fg underline underline-offset-4 hover:text-fg-2">{openTask.title}</Link>
+            <span className="text-fg-2"> · открытая задача{openTasks.length > 1 ? ` и ещё ${openTasks.length - 1}` : ""}</span>
+          </span>
+        ) : <span className="text-fg-2">Шаг не задан</span>}
         {due ? (
           <span className="text-fg-2">
             <time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>

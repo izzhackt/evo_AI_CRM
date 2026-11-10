@@ -1,0 +1,36 @@
+appId: com.evoadmissions.app
+name: Ссылка регистрации с неверным токеном
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+- extendedWaitUntil:
+    visible:
+      id: login-input
+    timeout: 120000
+- openLink: evoadmissions://apply?invite=not-a-real-token
+# iOS спрашивает «Open in EVO admissions?» для своей схемы; на Android вопроса нет.
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+# Ссылка с недопустимым токеном не открывает анкету: остаётся экран ввода ссылки.
+- extendedWaitUntil:
+    visible:
+      id: invite-input
+    timeout: 30000
+- assertNotVisible:
+    id: wizard-step-label
+# Неверная ссылка, вставленная вручную: ошибка.
+- tapOn:
+    id: invite-input
+- inputText: https://app.evoadmissions.com/apply?invite=not-a-real-token
+- tapOn:
+    id: invite-continue
+- extendedWaitUntil:
+    visible:
+      id: invite-error
+    timeout: 15000

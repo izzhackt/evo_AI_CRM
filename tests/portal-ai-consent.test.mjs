@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -241,7 +241,7 @@ test("the action is a server action that checks the student, then writes through
   assert.match(action, /^"use server";/u);
   assert.match(action, /const actor = await requireStudentPortalActor\(\);/u);
   assert.match(action, /writeAiConsentForTier\(\s*actor\.accessTier,\s*createSupabaseServerClient,\s*status,\s*requestId,?\s*\)/u);
-  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/home"\);\s*revalidatePath\("\/portal\/profile"\);/u);
+  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/profile"\);/u);
   // Версию и источник выбирает серверный модуль, а не аргументы из браузера.
   assert.match(action, /status: unknown,\s*requestId: unknown,/u);
   assert.doesNotMatch(action, /policyVersion|p_policy_version|portal_web|\.rpc\(/u);
@@ -255,43 +255,24 @@ test("the action is a server action that checks the student, then writes through
   assert.match(rpc, /catch \{\s*return \{ status: "unavailable" \};/u);
 });
 
-test("the home card is read in the same wave and sits first in HomeView, without blocking anything", () => {
-  const page = read("src/app/(portal)/portal/home/page.tsx");
-  const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
-  assert.ok(wave, "home reads stay in one Promise.all");
-  assert.match(wave[1], /^\s*readOwnAiConsent\(tier\),?$/mu, "the tier is already known from the actor: no extra read");
-  assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2, "no extra wave");
-  assert.match(page, /aiConsent=\{aiConsentRead\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{aiConsentRead\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
-  assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
-  // Сбой чтения прячет карточку и не трогает остальную «Главную».
-  assert.match(page, /\) : null\}\s*locale=\{locale\}/u);
-  const view = read("src/components/portal/home/HomeView.tsx");
-  const card = view.indexOf("{aiConsentApplies(tier) ? aiConsent : null}");
-  assert.ok(card > 0, "the view drops the card for a self-service student even if one is passed");
-  assert.ok(card < view.indexOf('<div className="pt-home-columns">'), "first block of the home");
-  assert.doesNotMatch(read("src/components/portal/consent/AiConsent.tsx"), /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
-});
-
-test("the post-login screen /portal asks too: a sibling slot above the overview, hidden when the read fails", () => {
+test("09.11.2026: the Home card is gone, the home does not read the consent any more", () => {
   const page = read("src/app/(portal)/portal/page.tsx");
-  assert.match(page, /import \{ AiConsentSlot \} from "@\/components\/portal\/consent\/AiConsentSlot";/u);
-  // Слот стоит после шапки и перед обзором, как сосед: его чтение идёт одновременно с остальными.
-  const header = page.indexOf("</header>");
-  const slot = page.indexOf("<AiConsentSlot locale={locale} accessTier={actor.accessTier} />");
-  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} view={view} />");
-  assert.ok(header > 0 && slot > header && overview > slot, "header, then the slot, then the overview");
-  assert.equal(page.match(/readOwnAiConsent/gu), null, "the page itself does not read; the slot does");
+  assert.doesNotMatch(page, /readOwnAiConsent|AiConsentHomeCard|aiConsent/u);
+  assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2, "no extra wave");
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
-  // Замороженные смоук-якоря production на месте.
-  assert.match(page, /<h1 className="pt-page-title">\{strings\.overviewTitle\}<\/h1>/u);
-  const slotSource = read("src/components/portal/consent/AiConsentSlot.tsx");
-  assert.doesNotMatch(slotSource, /^"use client"/mu, "the slot is a server component");
-  assert.match(slotSource, /const read = await readOwnAiConsent\(accessTier\);/u);
-  assert.match(slotSource, /read\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{read\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
-  assert.match(slotSource, /\) : null\}\s*<\/div>/u, "a failed read leaves an empty slot");
-  // Пустой слот не оставляет зазора.
-  const css = read("src/app/(portal)/portal.css");
-  assert.match(css, /\.pt-consent-slot \{\s*margin-top: 24px;\s*\}\s*\.pt-consent-slot:empty \{\s*display: none;\s*\}/u);
+  const view = read("src/components/portal/home/HomeView.tsx");
+  assert.doesNotMatch(view, /aiConsent|AiConsent/u);
+  const component = read("src/components/portal/consent/AiConsent.tsx");
+  assert.doesNotMatch(component, /AiConsentHomeCard|ai-consent-card/u);
+  assert.doesNotMatch(component, /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
+  // Отозвать по-прежнему можно в «Профиле».
+  assert.match(component, /export function AiConsentSettingsRow/u);
+  assert.match(read("src/app/(portal)/portal/profile/page.tsx"), /<AiConsentSettingsRow /u);
+  const old = read("src/app/(portal)/portal/home/page.tsx");
+  assert.match(old, /redirect\("\/portal"\);/u);
+  assert.equal(existsSync(new URL("../src/components/portal/consent/AiConsentSlot.tsx", import.meta.url)), false);
+  // Обновление после ответа обновляет единственную «Главную».
+  assert.match(read("src/lib/portal/ai-consent-actions.ts"), /revalidatePath\("\/portal"\);/u);
 });
 
 test("the settings row sits in the profile, with its own honest line when the read fails", () => {
@@ -348,7 +329,7 @@ test("the styles use portal tokens only: no raw colours, no side stripes, target
   assert.doesNotMatch(block, /#[0-9a-f]{3,8}\b|rgba?\(|hsl/iu, "colours come from --pt-* tokens");
   assert.doesNotMatch(block, /border-(left|right|inline-start|inline-end)\s*:/u, "no coloured side stripe");
   assert.doesNotMatch(block, /@keyframes|animation:|gradient|backdrop-filter/u, "no new motion or decoration");
-  assert.match(block, /\.pt-consent \{[^}]*box-shadow: var\(--pt-shadow-card\);/u);
+  assert.match(block, /\.pt-gate-card \{[^}]*box-shadow: var\(--pt-shadow-card\);/u);
   assert.match(block, /\.pt-consent-body \{\s*color: var\(--pt-text\);/u);
   // Кнопки и ссылка — общие классы портала с высотой 44 px.
   assert.match(css, /\.pt-btn,\n\.pt-btn-ghost \{[^}]*min-height: 44px;/u);
@@ -419,7 +400,7 @@ test("the decision can be recorded by any cabinet student (345); the action cann
   );
 });
 
-test("rendered: the client's home and the post-login screen carry the consent card, the self-service home does not", () => {
+test("rendered: no home carries the consent card any more, the consent screen renders", () => {
   // Тот же статический рендер реальных компонентов, что гонит a11y-гейт портала.
   const surfaces = JSON.parse(
     execFileSync(process.execPath, [new URL("./e2e/portal-static-render.cjs", import.meta.url).pathname], {
@@ -433,13 +414,13 @@ test("rendered: the client's home and the post-login screen carry the consent ca
     return surface.html;
   };
   const CARD = 'data-testid="ai-consent-card"';
-  assert.ok(html("home-assisted").includes(CARD), "client home");
-  assert.ok(html("admission-overview").includes(CARD), "client post-login screen");
-  // Фикстура самостоятельной «Главной» намеренно получает карточку в пропсах: вид её не показывает.
-  const approved = html("home-approved");
-  assert.equal(approved.includes(CARD), false, "self-service home");
-  assert.equal(approved.includes("ИИ-помощники EVO"), false);
-  assert.equal(approved.includes('id="home-dates"'), true, "the rest of the home is intact");
+  for (const name of ["home-assisted", "home-approved", "admission-overview"]) assert.equal(html(name).includes(CARD), false, name);
+  assert.equal(html("home-approved").includes('id="home-dates"'), true, "the rest of the home is intact");
+  const gate = html("consent-gate");
+  assert.equal((gate.match(/<input [^>]*type="checkbox"/gu) ?? []).length, 2, "two checkboxes");
+  assert.equal((gate.match(/<input [^>]*type="checkbox" required/gu) ?? []).length, 2, "both required");
+  assert.ok(gate.includes("Принимаю") && gate.includes("https://evoadmissions.com/ru/privacy/"));
+  assert.ok(gate.includes("Разрешаю ИИ-помощникам EVO читать мою переписку и документы дела"));
 });
 
 test("345: the Profile row reads for every cabinet student, the Home card only for a client with a case", async () => {

@@ -1,0 +1,7 @@
+# Открыть раздел через меню ☰ (работает для любого раздела); SECTION = id раздела (documents, csca, ...).
+appId: com.evoadmissions.app
+---
+- tapOn:
+    id: menu-button
+- tapOn:
+    id: menu-${SECTION}

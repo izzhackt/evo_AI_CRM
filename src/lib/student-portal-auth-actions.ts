@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ADMIN_ROLE_PREVIEW_COOKIE } from "./platform-auth.ts";
+import { portalTargetAfterSignIn } from "./portal/consent-gate-rpc";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import { createStudentInviteCallbackRuntime } from "./server/student-invite-callback-runtime.ts";
 import { verifyStudentInviteCallback } from "./server/student-invite-callback-verification.ts";
@@ -100,6 +101,8 @@ export async function verifyStudentInviteAction(
   return "authUnavailable";
 }
 
+// Галочек «Конфиденциальность» при пароле по ссылке-приглашению нет (10.11.2026, пользователь): их спрашивают один
+// раз — в анкете (/apply) или на экране /portal/privacy при первом входе в кабинет.
 export async function setStudentPortalPasswordAction(
   _previousState: StudentPasswordActionState,
   form: FormData,
@@ -111,7 +114,7 @@ export async function setStudentPortalPasswordAction(
   if (password !== passwordConfirm) return "passwordMismatch";
   if (password.length < 12 || password.length > 4096) return "passwordRejected";
 
-  let destination: "/portal" | "/auth/account-pending" | "/apply" | null = null;
+  let destination: "/portal" | "/portal/privacy" | "/auth/account-pending" | "/apply" | null = null;
   try {
     const { sessionClient, receiptStore } =
       await createStudentInviteSessionRuntime();
@@ -143,7 +146,8 @@ export async function setStudentPortalPasswordAction(
       claimsData.claims,
     );
     if (authority.status === "authenticated") {
-      destination = "/portal";
+      // 356: без решения о Политике и ИИ — сразу на экран «Конфиденциальность» (как вход, portalTargetAfterSignIn).
+      destination = await portalTargetAfterSignIn(sessionClient);
     } else if (authority.status === "unavailable") {
       return "authUnavailable";
     } else {

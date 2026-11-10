@@ -1,0 +1,25 @@
+appId: com.evoadmissions.app
+name: Сообщения, отправка куратору
+---
+- evalScript: ${output.msg = 'E2E ' + Date.now()}
+- runFlow: subflows/fresh-login.yaml
+- tapOn:
+    id: tab-messages
+- extendedWaitUntil:
+    visible:
+      id: inbox-chat
+    timeout: 20000
+- tapOn:
+    id: inbox-chat
+- extendedWaitUntil:
+    visible:
+      id: chat-input
+    timeout: 20000
+- tapOn:
+    id: chat-input
+- inputText: ${output.msg}
+- tapOn:
+    id: chat-send
+- extendedWaitUntil:
+    visible: ${output.msg}
+    timeout: 20000

@@ -3,17 +3,22 @@ import "server-only";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
 import { createSupabaseServerClient } from "../supabase/server";
 import { readStudentAssessmentAttempt, readStudentAssessments } from "../v3/student-assessment-source";
-import type { PublishedUniversity } from "../platform-university-catalog.ts";
 import { UniversityNotFoundError, readStudentUniversityDetail, readStudentUniversityIndex } from "./university-index-source";
-import { readStudentUniversities, reviewedUniversityNameForPhotoKey } from "../v3/university-source";
+import type { StudentUniversityDetail } from "./university-index";
 import {
+  programNextStartMonth,
+  programTuition,
+  type OrvisProfile,
+  type OrvisState,
+  type ProfessionProgramRow,
+} from "./profession-guide";
+import {
+  isOrvisScaleId,
   parseProfessionCard,
   parseProfessionCards,
-  resolveLinkedPrograms,
   type ProfessionCard,
   type ProfessionCardSummary,
   type ProfessionLinkedProgramRef,
-  type ResolvedProgramRef,
 } from "./professions";
 
 /** Серверный транспорт раздела «Профессии» (миграции 198/199). */
@@ -47,73 +52,89 @@ export async function readProfessionCard(cardId: string): Promise<ProfessionCard
   }
 }
 
-const ALL_UNIVERSITIES = { query: "", country: "", level: "", offset: 0 } as const;
-/** Потолок длины поиска `student_university_catalog` (148: length ≤ 100). */
-const CATALOGUE_QUERY_LIMIT = 100;
-
 /**
- * Связи «куда учиться» -> реальные карточки каталога (план A, 16.10.2026).
- *
- * Сначала точечно: по имени проверенного шаблона для каждого photoKey —
- * одна страница `student_university_catalog` на связь, все параллельно.
- * Совпадение решает строгое сравнение photoKey в ответе базы. Если хоть одна
- * связь не нашлась или поиск не удался, вместо пяти страниц всего каталога
- * (план 7.2) вуз ищется по photoKey в индексе шести стран (одна выдача,
- * повторный показ из кэша по версии), а его программы приходят со страницы
- * вуза одним вызовом на вуз, все параллельно. Ненайденный photoKey или
- * программа: честный текст без ссылки, а не фиктивный переход.
+ * Связи «куда учиться» -> вузы каталога с ценой, набором и избранным
+ * (разбор владельца 10.11.2026, «Вести к вузам»). photoKey ищется в индексе
+ * шести стран (одна выдача, повтор из кэша по версии), страница вуза
+ * читается одним вызовом на вуз, все параллельно: в ней программы с
+ * наборами, опубликованная стоимость и своё избранное. Ненайденный вуз или
+ * программа — честная строка без ссылки, цены и даты, а не выдумка.
  */
-export async function resolveProfessionPrograms(
+export async function readProfessionPrograms(
   actor: ActiveStudentPortalActor,
   refs: readonly ProfessionLinkedProgramRef[],
-): Promise<ResolvedProgramRef[]> {
+  now: Date,
+): Promise<ProfessionProgramRow[]> {
   if (refs.length === 0) return [];
-  const queries = new Map<string, string>();
-  for (const ref of refs) {
-    const name = reviewedUniversityNameForPhotoKey(ref.institution_photo_key);
-    if (name && name.length <= CATALOGUE_QUERY_LIMIT) queries.set(ref.institution_photo_key, name);
-  }
-  if (queries.size === new Set(refs.map((ref) => ref.institution_photo_key)).size) {
-    try {
-      const pages = await Promise.all([...queries.values()].map((query) =>
-        readStudentUniversities(actor, { ...ALL_UNIVERSITIES, query })));
-      const resolved = resolveLinkedPrograms(refs, pages.flatMap((page) => page.items));
-      if (resolved.every((entry) => entry.institutionId !== null)) return resolved;
-    } catch {
-      // Точечный поиск не удался — ниже прежнее полное чтение.
-    }
-  }
   const index = await readStudentUniversityIndex(actor);
   const wanted = new Set(refs.map((ref) => ref.institution_photo_key));
   const ids = [...new Set(index.universities
     .filter((item) => item.photoKey !== null && wanted.has(item.photoKey))
     .map((item) => item.id))];
-  const universities = await Promise.all(ids.map((id) => readStudentUniversityDetail(id).then(
-    (detail): PublishedUniversity | null => detail.university,
+  const details = (await Promise.all(ids.map((id) => readStudentUniversityDetail(id).then(
+    (detail): StudentUniversityDetail | null => detail,
     (error: unknown) => {
       // Вуз сняли с публикации между двумя чтениями: связь без ссылки.
       if (error instanceof UniversityNotFoundError) return null;
       throw error;
     },
-  )));
-  return resolveLinkedPrograms(refs, universities.filter((item): item is PublishedUniversity => item !== null));
+  )))).filter((detail): detail is StudentUniversityDetail => detail !== null);
+  return refs.map((ref) => {
+    const detail = details.find((item) => item.university.content.photoKey === ref.institution_photo_key);
+    if (!detail) {
+      return {
+        ref, institutionId: null, institutionName: null, countryName: null, programFound: false,
+        favored: false, tuition: null, nextStartMonth: null,
+      };
+    }
+    const program = detail.university.content.programs.find((item) => item.title === ref.program_hint) ?? null;
+    return {
+      ref,
+      institutionId: detail.university.id,
+      institutionName: detail.university.content.name,
+      countryName: detail.country.name,
+      programFound: program !== null,
+      favored: detail.favored,
+      tuition: programTuition(detail.costs?.rows ?? [], program),
+      nextStartMonth: program ? programNextStartMonth(program, now) : null,
+    };
+  });
 }
 
 /**
- * topScales СОБСТВЕННОГО завершённого orvis92 через СУЩЕСТВУЮЩИЙ приватный
- * student-RPC в сессии ученика. Нет завершённой попытки или чтение не
- * удалось — честный null (отметка «созвучно» просто не показывается).
+ * Состояние СОБСТВЕННОГО orvis92 через СУЩЕСТВУЮЩИЕ приватные student-RPC в
+ * сессии ученика. Инструмента нет или чтение не удалось — честный null:
+ * блок теста ведёт в раздел без прогресса, «Подходят вам» не показывается.
  */
-export async function readOwnOrvisTopScales(): Promise<string[] | null> {
+export async function readOwnOrvisState(): Promise<OrvisState | null> {
   try {
     const catalog = await readStudentAssessments();
     const orvis = catalog.instruments.find((item) => item.instrumentKey === "orvis92");
-    if (!orvis?.latestCompletedAttemptId) return null;
-    const attempt = await readStudentAssessmentAttempt(orvis.latestCompletedAttemptId);
-    const topScales = attempt.result && "orvis" in attempt.result
-      ? attempt.result.orvis?.topScales ?? null
+    if (!orvis) return null;
+    const draft = orvis.draftAttemptId
+      ? catalog.attempts.find((attempt) => attempt.attemptId === orvis.draftAttemptId) ?? null
       : null;
-    return topScales && topScales.length > 0 ? [...topScales] : null;
+    let profile: OrvisProfile | null = null;
+    if (orvis.latestCompletedAttemptId) {
+      try {
+        const attempt = await readStudentAssessmentAttempt(orvis.latestCompletedAttemptId);
+        const result = attempt.result && "orvis" in attempt.result ? attempt.result.orvis ?? null : null;
+        if (result && result.scales.length > 0) {
+          profile = {
+            means: Object.fromEntries(result.scales.map((item) => [item.scale, item.mean])),
+            topScales: result.topScales.filter(isOrvisScaleId),
+          };
+        }
+      } catch {
+        profile = null;
+      }
+    }
+    return {
+      questionCount: orvis.questionCount,
+      draftAnswered: draft ? draft.answeredCount : null,
+      completed: orvis.latestCompletedAttemptId !== null,
+      profile,
+    };
   } catch {
     return null;
   }

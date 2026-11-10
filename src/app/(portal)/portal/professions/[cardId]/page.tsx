@@ -1,15 +1,16 @@
+import { ChevronLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ProfessionDetailMore } from "@/components/portal/professions/ProfessionDetailMore";
+import { ProfessionProgramsTable } from "@/components/portal/professions/ProfessionProgramsTable";
 import { getLocale } from "@/lib/i18n";
-import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 import { isLearningUuid } from "@/lib/portal/learning";
-import type { ProfessionCard, ResolvedProgramRef } from "@/lib/portal/professions";
-import {
-  readProfessionCard,
-  resolveProfessionPrograms,
-} from "@/lib/portal/professions-source";
+import type { ProfessionProgramRow } from "@/lib/portal/profession-guide";
+import type { ProfessionCard } from "@/lib/portal/professions";
+import { readProfessionCard, readProfessionPrograms } from "@/lib/portal/professions-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Карточка профессии (PORT-4c, план §6 «Профессии»): день/среда/навыки/
- * интересное-сложное/пробное задание/куда учиться. Связи с каталогом
- * резолвятся по institution_photo_key -> content.photoKey; ненайденное
- * честно остаётся текстом без ссылки. Атрибуция O*NET обязательна
+ * Страница профессии (PORT-4c; вид по драфту владельца 10.11.2026, «Вести к
+ * вузам»): что это за работа, школьные предметы и навыки, ниже программы
+ * каталога EVO с ценой, ближайшим набором и избранным. Остальные разделы
+ * карточки — под «Подробнее о работе». Атрибуция O*NET обязательна
  * (CC BY 4.0, конвенция professions-notes).
  */
 export default async function ProfessionCardPage({
@@ -47,31 +48,29 @@ export default async function ProfessionCardPage({
   if (card === null) notFound();
   const body = card.body;
 
-  // Сбой резолвера каталога не роняет карточку: направления показываются
-  // текстом, ссылки честно отсутствуют.
-  let resolved: ResolvedProgramRef[] | null = null;
+  // Сбой каталога не роняет страницу: направления остаются текстом.
+  let rows: ProfessionProgramRow[] | null = null;
   try {
-    resolved = await resolveProfessionPrograms(actor, body.linked_program_refs);
+    rows = await readProfessionPrograms(actor, body.linked_program_refs, new Date());
   } catch {
-    resolved = null;
+    rows = null;
   }
 
   const ky = locale === "ky";
-  const lists: { heading: string; items: string[] }[] = [
+  const subjects = ky ? body.school_subjects_ky : body.school_subjects_ru;
+  const panels = [
+    ...(subjects ? [{ heading: strings.subjectsHeading, items: subjects }] : []),
     { heading: strings.skillsHeading, items: ky ? body.skills_ky : body.skills_ru },
-    { heading: strings.interestingHeading, items: ky ? body.interesting_ky : body.interesting_ru },
-    { heading: strings.hardHeading, items: ky ? body.hard_ky : body.hard_ru },
-    {
-      heading: strings.studyHeading,
-      items: ky ? body.study_directions_ky : body.study_directions_ru,
-    },
   ];
 
   return (
-    <main className="pt-page">
-      <header className="pt-page-header">
-        <p className="pt-page-kicker">
-          <Link className="pt-link" href="/portal/professions">{strings.backToGrid}</Link>
+    <main className="pt-page pt-prof-page">
+      <header className="pt-page-header pt-prof-detail-head">
+        <p className="pt-prof-back">
+          <Link className="pt-prof-back-link" href="/portal/professions">
+            <ChevronLeft size={18} aria-hidden="true" />
+            {strings.backToGrid}
+          </Link>
         </p>
         <h1 className="pt-page-title">{ky ? body.title_ky : body.title_ru}</h1>
         <p className="pt-chip-row">
@@ -79,90 +78,35 @@ export default async function ProfessionCardPage({
             <span key={scale} className="pt-chip">{strings[`scale.${scale}`]}</span>
           ))}
         </p>
+        {(ky ? body.summary_ky : body.summary_ru) ? (
+          <p className="pt-prof-lead">{ky ? body.summary_ky : body.summary_ru}</p>
+        ) : null}
+        <p className="pt-prof-day">{ky ? body.day_in_work_ky : body.day_in_work_ru}</p>
       </header>
 
-      <div className="pt-prof-sections">
-        <section className="pt-prof-section">
-          <h2 className="pt-section-title">{strings.dayHeading}</h2>
-          <p className="pt-prof-text">{ky ? body.day_in_work_ky : body.day_in_work_ru}</p>
-        </section>
-        <section className="pt-prof-section">
-          <h2 className="pt-section-title">{strings.environmentHeading}</h2>
-          <p className="pt-prof-text">{ky ? body.environment_ky : body.environment_ru}</p>
-        </section>
-        {lists.map((listSection) => (
-          <section key={listSection.heading} className="pt-prof-section">
-            <h2 className="pt-section-title">{listSection.heading}</h2>
-            <ul className="pt-prof-list">
-              {listSection.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
+      <div className="pt-prof-panels">
+        {panels.map((panel) => (
+          <section key={panel.heading} className="pt-prof-panel">
+            <h2 className="pt-prof-panel-title">{panel.heading}</h2>
+            <ul className="pt-prof-panel-list">
+              {panel.items.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </section>
         ))}
-        <section className="pt-prof-section">
-          <h2 className="pt-section-title">{strings.trialHeading}</h2>
-          <p className="pt-prof-text">{ky ? body.trial_task_ky : body.trial_task_ru}</p>
-        </section>
-
-        <section className="pt-prof-section">
-          <h2 className="pt-section-title">{strings.programsHeading}</h2>
-          <ul className="pt-prof-programs">
-            {(resolved ?? body.linked_program_refs.map((ref) => ({
-              ref,
-              institutionId: null,
-              institutionName: null,
-              programFound: false,
-            }))).map((entry) => (
-              <li key={`${entry.ref.institution_photo_key}-${entry.ref.program_hint}`}>
-                <p className="pt-prof-program-title" lang="en">
-                  {formatPortalString(strings.programLabel, { title: entry.ref.program_hint })}
-                </p>
-                {entry.institutionId ? (
-                  <p>
-                    <Link className="pt-link" href={`/portal/universities/${entry.institutionId}`}>
-                      {strings.openUniversity}
-                      {entry.institutionName ? <> · <span lang="en">{entry.institutionName}</span></> : null}
-                    </Link>
-                    {!entry.programFound ? (
-                      <span className="pt-prof-program-note"> {strings.programMissing}</span>
-                    ) : null}
-                  </p>
-                ) : (
-                  <p className="pt-prof-program-note">{strings.universityMissing}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-          <p>
-            <Link className="pt-btn-ghost" href="/portal/tests/career">{strings.testEntry}</Link>
-          </p>
-        </section>
-
-        <section className="pt-prof-section pt-prof-attribution">
-          <h2 className="pt-section-title">{strings.sourcesHeading}</h2>
-          <p className="pt-prof-text">{strings.attribution}</p>
-          <ul className="pt-prof-list">
-            {body.sources.map((source) => (
-              <li key={source}>
-                <a className="pt-link" href={source} target="_blank" rel="noreferrer">
-                  {source}
-                </a>
-              </li>
-            ))}
-            <li>
-              <a
-                className="pt-link"
-                href="https://creativecommons.org/licenses/by/4.0/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {strings.attributionLink}
-              </a>
-            </li>
-          </ul>
-        </section>
       </div>
+
+      <section className="pt-prof-block" aria-labelledby="pt-prof-study-title">
+        <h2 id="pt-prof-study-title" className="pt-prof-block-title">{strings.studyInEvoHeading}</h2>
+        {rows ? (
+          <ProfessionProgramsTable rows={rows} locale={locale} strings={strings} />
+        ) : (
+          <ul className="pt-prof-panel-list pt-prof-directions">
+            {(ky ? body.study_directions_ky : body.study_directions_ru).map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        )}
+      </section>
+
+      <ProfessionDetailMore body={body} locale={locale} strings={strings} />
     </main>
   );
 }

@@ -4144,36 +4144,241 @@
   }
 }
 
-/* ---------- Профессии (PORT-4c) ---------- */
+/* ---------- Профессии (PORT-4c; вид по драфту владельца 10.11.2026) ---------- */
+
+/* Тест интересов сверху: белый блок, слева вопрос, справа прогресс и действие. */
+.pt-prof-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  margin-top: 24px;
+  padding: 20px 24px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-prof-hero-kicker {
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pt-accent);
+}
+
+.pt-prof-hero-title {
+  margin: 6px 0 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pt-prof-hero-meta {
+  margin: 4px 0 0;
+  font-size: var(--pt-size-secondary);
+  color: var(--pt-text-2);
+}
+
+.pt-prof-hero-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  min-width: min(100%, 220px);
+}
+
+.pt-prof-hero-progress {
+  width: 100%;
+}
+
+.pt-prof-hero-progress-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+.pt-prof-hero-progress-row .pt-data {
+  font-weight: 600;
+  color: var(--pt-text);
+}
+
+.pt-prof-hero-progress .pt-progress {
+  height: 4px;
+  margin-top: 8px;
+}
+
+/* Блок страницы: заголовок слева, пояснение справа. */
+.pt-prof-block {
+  margin-top: 36px;
+}
+
+.pt-prof-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pt-prof-block-title {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* «?» с пояснением процента: нативный details, без своего скрипта. */
+.pt-prof-help {
+  position: relative;
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+.pt-prof-help summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pt-prof-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.pt-prof-help-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--pt-text-2);
+}
+
+.pt-prof-help summary:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+  border-radius: var(--pt-radius-item);
+}
+
+.pt-prof-help p {
+  position: absolute;
+  right: 0;
+  z-index: 3;
+  width: min(320px, 80vw);
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  box-shadow: var(--pt-shadow-raised);
+  color: var(--pt-text);
+  line-height: var(--pt-leading);
+}
+
+.pt-prof-match-percent {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--pt-accent);
+}
+
+.pt-prof-reasons {
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+/* Поиск, фильтр и группы. */
+.pt-prof-browser {
+  margin-top: 32px;
+}
+
+.pt-prof-search {
+  position: relative;
+}
+
+.pt-prof-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: var(--pt-text-2);
+  pointer-events: none;
+}
+
+.pt-prof-search .pt-prof-search-input {
+  padding-left: 42px;
+  border-color: var(--pt-line);
+}
+
+.pt-prof-search .pt-prof-search-input:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 1px;
+}
 
 .pt-prof-filter {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 14px;
 }
 
 .pt-prof-filter .pt-chip {
   min-height: 32px;
+  background: var(--pt-surface);
+  color: var(--pt-text);
   text-decoration: none;
 }
 
 .pt-prof-filter .pt-chip[aria-current="true"] {
   border-color: var(--pt-accent);
   color: var(--pt-accent);
+  font-weight: 600;
 }
 
-.pt-prof-resonance-hint {
-  margin: 16px 0 0;
+.pt-prof-search-empty {
+  margin: 24px 0 0;
   color: var(--pt-text-2);
+}
+
+.pt-prof-group {
+  margin-top: 28px;
+}
+
+.pt-prof-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pt-prof-group-count {
   font-size: var(--pt-size-caption);
+  font-weight: 400;
+  color: var(--pt-text-2);
 }
 
 .pt-prof-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
-  margin: 16px 0 0;
+  margin: 14px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -4191,20 +4396,10 @@
   box-shadow: var(--pt-shadow-card);
 }
 
-.pt-prof-card-resonant {
-  border-color: var(--pt-accent);
-}
-
-.pt-prof-resonance {
-  margin: 0;
-  color: var(--pt-accent);
-  font-size: var(--pt-size-caption);
-  font-weight: 600;
-}
-
 .pt-prof-title {
   margin: 0;
-  font-size: var(--pt-size-heading);
+  font-size: var(--pt-size-body);
+  font-weight: 700;
 }
 
 .pt-prof-title a {
@@ -4234,64 +4429,345 @@
   color: var(--pt-accent);
 }
 
-.pt-prof-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 720px;
-  margin-top: 24px;
+.pt-prof-summary {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  color: var(--pt-text-2);
 }
 
-.pt-prof-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px;
+.pt-prof-chips {
+  margin-top: auto;
+}
+
+/* Страница профессии. */
+.pt-prof-back {
+  margin: 0;
+}
+
+.pt-prof-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-left: -4px;
+  color: var(--pt-text-2);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.pt-prof-back-link:hover {
+  color: var(--pt-text);
+}
+
+.pt-prof-detail-head .pt-page-title {
+  margin-top: 0;
+}
+
+.pt-prof-detail-head .pt-chip-row {
+  margin-top: 12px;
+}
+
+.pt-prof-lead {
+  margin: 18px 0 0;
+  max-width: 74ch;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pt-prof-day {
+  margin: 12px 0 0;
+  max-width: 74ch;
+  color: var(--pt-text-2);
+}
+
+.pt-prof-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.pt-prof-panel {
+  padding: 20px 24px;
   background: var(--pt-surface);
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   box-shadow: var(--pt-shadow-card);
 }
 
-.pt-prof-section .pt-section-title {
+.pt-prof-panel-title {
   margin: 0;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pt-text-2);
 }
 
-.pt-prof-text {
-  margin: 0;
-}
-
-.pt-prof-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding-inline-start: 18px;
-}
-
-.pt-prof-programs {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0;
+.pt-prof-panel-list {
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.pt-prof-program-title {
-  margin: 0 0 4px;
+.pt-prof-panel-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-prof-panel-list li:last-child {
+  border-bottom: 0;
+}
+
+/* «Где учиться в EVO»: строки-карточки; на телефоне — стопкой с подписями. */
+.pt-prof-programs {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+.pt-prof-programs thead th {
+  padding: 8px 20px 0;
+  font-size: var(--pt-size-caption);
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pt-text-2);
+}
+
+.pt-prof-programs tbody :is(th, td) {
+  padding: 16px 20px;
+  background: var(--pt-surface);
+  border-block: 1px solid var(--pt-line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.pt-prof-programs tbody :is(th, td):first-child {
+  border-left: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card) 0 0 var(--pt-radius-card);
+}
+
+.pt-prof-programs tbody :is(th, td):last-child {
+  border-right: 1px solid var(--pt-line);
+  border-radius: 0 var(--pt-radius-card) var(--pt-radius-card) 0;
+}
+
+.pt-prof-program-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-prof-program-uni {
+  color: var(--pt-text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pt-prof-program-uni:hover {
+  color: var(--pt-accent);
+}
+
+.pt-prof-program-name {
+  font-size: var(--pt-size-secondary);
+  color: var(--pt-text-2);
 }
 
 .pt-prof-program-note {
-  margin: 0;
+  font-size: var(--pt-size-caption);
   color: var(--pt-text-2);
+}
+
+.pt-prof-program-action {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pt-prof-fav {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.pt-prof-fav-btn {
+  min-height: 40px;
+  padding: 0 14px;
   font-size: var(--pt-size-secondary);
 }
 
-.pt-prof-attribution .pt-prof-text {
-  color: var(--pt-text-2);
+.pt-prof-fav-btn[aria-pressed="true"] {
+  border-color: var(--pt-accent);
+  color: var(--pt-accent);
+}
+
+.pt-prof-fav-btn:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-prof-fav-btn:disabled {
+  cursor: progress;
+}
+
+.pt-prof-directions {
+  max-width: 720px;
+}
+
+@media (max-width: 640px) {
+  .pt-prof-hero-side {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .pt-prof-programs,
+  .pt-prof-programs tbody,
+  .pt-prof-programs tr {
+    display: block;
+  }
+
+  .pt-prof-programs thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .pt-prof-programs tr {
+    margin-top: 10px;
+    padding: 16px;
+    background: var(--pt-surface);
+    border: 1px solid var(--pt-line);
+    border-radius: var(--pt-radius-card);
+  }
+
+  .pt-prof-programs tbody :is(th, td),
+  .pt-prof-programs tbody :is(th, td):first-child,
+  .pt-prof-programs tbody :is(th, td):last-child {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .pt-prof-programs tbody th {
+    flex-direction: column;
+    padding-bottom: 10px;
+  }
+
+  .pt-prof-programs tbody td[data-label]::before {
+    content: attr(data-label);
+    color: var(--pt-text-2);
+    font-size: var(--pt-size-caption);
+  }
+
+  .pt-prof-program-action {
+    width: auto;
+    padding-top: 10px !important;
+  }
+
+  .pt-prof-fav,
+  .pt-prof-fav-btn {
+    width: 100%;
+  }
+}
+
+/* «Подробнее о работе» и источник. */
+.pt-prof-more {
+  margin-top: 32px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-prof-more-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 0 24px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pt-prof-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pt-prof-more-summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--pt-text-2);
+  border-bottom: 2px solid var(--pt-text-2);
+  transform: rotate(45deg);
+  transition: transform var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-prof-more[open] > .pt-prof-more-summary::after {
+  transform: rotate(-135deg);
+}
+
+.pt-prof-more-summary:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+  border-radius: var(--pt-radius-card);
+}
+
+.pt-prof-more-heading {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 700;
+}
+
+.pt-prof-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 74ch;
+  padding: 4px 24px 24px;
+}
+
+.pt-prof-more-body p,
+.pt-prof-more-body ul {
+  margin: 6px 0 0;
+}
+
+.pt-prof-more-body ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-inline-start: 18px;
+}
+
+.pt-prof-more-title {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 700;
+}
+
+.pt-prof-attribution p {
+  margin: 16px 0 0;
   font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+.pt-prof-source {
+  color: var(--pt-text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------- Сообщения по делу (PORT-5c) ---------- */

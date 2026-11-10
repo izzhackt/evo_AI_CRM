@@ -7,9 +7,9 @@
       "sha256": "015f9cec10cf89844391d1454d71a05972cce0c8c00711bd7d8b856e112ec1b2"
     },
     "my": {
-      "contentVersion": 4,
+      "contentVersion": 5,
       "validUntil": "2027-10-31",
-      "sha256": "707f66d549a5994662757bb926328e64562abfef9746dabe0d359487c88e7ea7"
+      "sha256": "acc4758e90f31bcb9ab8e5f1a1489b60750763d82b554a58304d1f7467d24f44"
     },
     "ae": {
       "contentVersion": 4,
@@ -120,7 +120,7 @@
       "datesHidden": false,
       "steps": 7,
       "items": 37,
-      "sha256": "3b77b36c6dca2ee9d31624f47e931a609dce8afbe9392e62e9ca68285b4d0583"
+      "sha256": "6b4bf68141ff44d4221a22cb0f6f2ecc43235b46278370bb4c7c41ff318e0c8e"
     },
     {
       "choice": "MY",
@@ -132,7 +132,7 @@
       "datesHidden": false,
       "steps": 7,
       "items": 37,
-      "sha256": "3b77b36c6dca2ee9d31624f47e931a609dce8afbe9392e62e9ca68285b4d0583"
+      "sha256": "6b4bf68141ff44d4221a22cb0f6f2ecc43235b46278370bb4c7c41ff318e0c8e"
     },
     {
       "choice": "MY",
@@ -144,7 +144,7 @@
       "datesHidden": true,
       "steps": 7,
       "items": 37,
-      "sha256": "bb429d89e917c20d1562aa9bc2ba4c239c60647c8624ba48d044f9addd1e7f2c"
+      "sha256": "e11084ccfd471c6dc835c070a404390b6dde89781d4c0d63febe474d6d4d8756"
     },
     {
       "choice": "MY",
@@ -156,7 +156,7 @@
       "datesHidden": false,
       "steps": 7,
       "items": 37,
-      "sha256": "541accbf08c5b030b1dcc03d397256fa9df6993a00c126e0638382a804786070"
+      "sha256": "85ade5afb7d3d770b6feeea0d7e7a058d70eae2ad35b216e21557ce0843d803d"
     },
     {
       "choice": "MY",
@@ -168,7 +168,7 @@
       "datesHidden": false,
       "steps": 7,
       "items": 37,
-      "sha256": "541accbf08c5b030b1dcc03d397256fa9df6993a00c126e0638382a804786070"
+      "sha256": "85ade5afb7d3d770b6feeea0d7e7a058d70eae2ad35b216e21557ce0843d803d"
     },
     {
       "choice": "MY",
@@ -180,7 +180,7 @@
       "datesHidden": true,
       "steps": 7,
       "items": 37,
-      "sha256": "f72587811fd49d67534f00d63cb1b6aabf44aab8bf05325be44aac3ccdc10f47"
+      "sha256": "1191140ad71d3d90691567e01ff1befbf94fb30ad241aee3b57b3b43384371b9"
     },
     {
       "choice": "AE",

@@ -57,7 +57,7 @@ test("V3 profile documents use the canonical private Storage routes", () => {
   // The async wrapper only reads baseline options; the tab is the synchronous view (Э8.1).
   assert.match(wrapper, /return documentsView\(\{/u);
   assert.match(view, /<ProfileDocumentsClient/u);
-  assert.match(view, /groups=\{visibleGroups\}/u);
+  assert.match(view, /groups=\{activeGroups\}/u);
   assert.match(view, /historyGroups=\{historyGroups\}/u);
   assert.match(view, /uploadAccess=\{input\.uploadAccess\}/u);
   assert.match(view, /studentCaseId=\{input\.studentCaseId\}/u);
@@ -120,11 +120,9 @@ test("V3 profile document decision follows the live item and names the refusal o
   assert.match(row, /const APPROVE_INVALID = "Решение не принято сервером\. Обновите страницу\.";/u);
   assert.match(row, /review\.outcome === "invalid" && review\.decision === "approved"/u);
   assert.match(row, /invalid: "Укажите причину для студента — до 2000 символов\.",/u);
-  // A saved decision or upload tells the list; under a filter it names where the row went.
-  assert.match(row, /onReviewSaved\(item, attempt\.decision\);/u);
-  assert.match(client, /onReviewSaved=\{noteMoved\}/u);
-  assert.match(client, /noteMoved\(item, "submitted"\);/u);
-  assert.match(client, /data-testid="v3-document-moved">\{movedText\}/u);
+  // No state filter any more: nothing "moves" between lists after a decision or upload.
+  assert.doesNotMatch(row, /onReviewSaved/u);
+  assert.doesNotMatch(client, /noteMoved|v3-document-moved|stateFilter/u);
   // The checklist's last rule already separates the case recognition history.
   assert.match(client, /sourceVersionId=\{null\} sourceReady=\{false\} ruled=\{groups\.length === 0\}/u);
 });

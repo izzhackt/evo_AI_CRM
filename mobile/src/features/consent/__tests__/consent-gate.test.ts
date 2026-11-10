@@ -1,6 +1,6 @@
 import { CONSENT_GATE_AI_POLICY_VERSION, PRIVACY_POLICY_VERSION } from "@/features/consent/consent-contract";
 
-import { acceptConsents, ConsentDecodeError, consentAcceptWrite, recordConsentsAfterPassword } from "@/features/consent/consent-gate";
+import { acceptConsents, ConsentDecodeError, consentAcceptWrite } from "@/features/consent/consent-gate";
 import { RpcError } from "@/lib/rpc";
 import { fakeTransport, failure } from "@/test-fixtures/universities";
 
@@ -47,12 +47,5 @@ describe("запись принятия (portal_consents_accept_v1)", () => {
       const { transport } = fakeTransport({ portal_consents_accept_v1: bad });
       await expect(acceptConsents(transport, consentAcceptWrite("ios"))).rejects.toBeInstanceOf(ConsentDecodeError);
     }
-  });
-
-  it("после смены пароля запись не бросает: сбой даёт false (экран спросит снова)", async () => {
-    const ok = fakeTransport({ portal_consents_accept_v1: accepted });
-    expect(await recordConsentsAfterPassword(ok.transport)).toBe(true);
-    const bad = fakeTransport({ portal_consents_accept_v1: failure("42501", 403) });
-    expect(await recordConsentsAfterPassword(bad.transport)).toBe(false);
   });
 });

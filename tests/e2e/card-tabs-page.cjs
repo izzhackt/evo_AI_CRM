@@ -66,7 +66,7 @@ async function pageHtml({ fx, leads, scenarios, prepare }) {
       state.who = actors[who];
       state.closed = scenario.closed ?? null;
       state.item = registered ? { ...registered, actor: actors[who] } : null;
-      const params = scenario.closed ? { id: cases.LEAD_ID } : { case: cases.CASE_ID, tab: scenario.def.tab, ...(scenario.def.filter ? { doc_state: scenario.def.filter } : {}) };
+      const params = scenario.closed ? { id: cases.LEAD_ID } : { case: cases.CASE_ID, tab: scenario.def.tab };
       const element = await page({ searchParams: Promise.resolve(params) });
       // Страница выдаёт случайные ключи запросов форм (`randomUUID`): в разметке они заменены, остальное сравнивается как есть.
       const html = renderToStaticMarkup(leads.withContexts(element, "/profile", new URLSearchParams(params).toString()));

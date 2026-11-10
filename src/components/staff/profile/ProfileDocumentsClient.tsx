@@ -12,7 +12,6 @@ import {
   type PlatformCaseBaselineChecklistActionState,
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
-import type { PlatformDocumentSlotStatus } from "@/lib/platform-private-documents";
 
 import { caseMomentLabel } from "./case-work-view";
 import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
@@ -30,7 +29,6 @@ import {
   type DocumentUploadResult,
   type DocumentUploadState,
 } from "./document-upload";
-import { documentMovedText, documentStateOf, type DocumentStateFilter } from "./documents-view";
 import { DocumentsNextLayout } from "./next/tabs/DocumentsNextLayout";
 
 import type {
@@ -49,14 +47,6 @@ const ACCESS_MESSAGE: Record<Exclude<DocumentUploadAccess, "allowed">, string> =
 
 /** id области «+ Документ»: на странице одна вкладка «Документы». */
 const ADD_REGION_ID = "case-documents-add";
-
-/** Строка, ушедшая после загрузки или решения в другое состояние, чем выбранный фильтр. */
-type MovedDocument = Readonly<{
-  id: string;
-  name: string;
-  from: DocumentStateFilter;
-  to: Exclude<DocumentStateFilter, "all">;
-}>;
 
 function RemovedDocumentHistory({
   groups,
@@ -337,11 +327,8 @@ export function ProfileDocumentsClient({
   baselineChecklistRequestId = null,
   recognition = null,
   today,
-  stateFilter = "all",
   progress = null,
-  filter = null,
   checklistEmpty = false,
-  emptyText = null,
   nextUi = false,
   sorting = null,
 }: Readonly<{
@@ -364,16 +351,10 @@ export function ProfileDocumentsClient({
   recognition?: DocumentRecognitionAccess | null;
   /** «Сегодня» по Бишкеку с сервера (даты строк). */
   today: string;
-  /** Выбранный фильтр по состоянию: строка, ушедшая из него, называет, куда. */
-  stateFilter?: DocumentStateFilter;
   /** «N из M принято» — только из прочитанного чек-листа; null — чисел нет. */
   progress?: ReactNode;
-  /** Фильтр по состоянию (ссылки с числами); null — чек-лист пуст. */
-  filter?: ReactNode;
   /** В чек-листе нет ни одного пункта: формы «+ Документ» открыты сразу. */
   checklistEmpty?: boolean;
-  /** Одно пустое состояние списка: пустой чек-лист или пустой фильтр. */
-  emptyText?: ReactNode;
 }>) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -381,17 +362,12 @@ export function ProfileDocumentsClient({
   const inFlight = useRef(new Set<string>());
   const canChangeChecklist = uploadAccess === "allowed" && studentCaseId !== null && createRequestId !== null;
   const [addOpen, setAddOpen] = useState(checklistEmpty);
-  const [moved, setMoved] = useState<MovedDocument | null>(null);
 
   function record(itemId: string, next: DocumentUploadResult | "sending", file: File | null) {
     const state: DocumentUploadState = next === "sending"
       ? { outcome: "sending", message: "Загружаем файл…", next: null, file }
       : { ...next, file: next.next === "retry" ? file : null };
     setUploads((current) => ({ ...current, [itemId]: state }));
-  }
-
-  function noteMoved(item: DocumentItem, status: PlatformDocumentSlotStatus) {
-    setMoved({ id: item.id, name: item.name, from: stateFilter, to: documentStateOf(status) });
   }
 
   async function upload(item: DocumentItem, file: File) {
@@ -427,7 +403,6 @@ export function ProfileDocumentsClient({
         return;
       }
       record(item.id, DOCUMENT_UPLOAD_SAVED, null);
-      noteMoved(item, "submitted");
       router.refresh();
     } catch {
       record(item.id, documentUploadFailure(null, null), file);
@@ -453,11 +428,6 @@ export function ProfileDocumentsClient({
         Шаблонов чек-листа нет.
       </p>
     ) : null;
-
-  // Только когда строка действительно ушла из списка (страница перечитана).
-  const movedText = moved && stateFilter !== "all" && moved.from === stateFilter && moved.to !== stateFilter
-    && !groups.some((group) => group.items.some((item) => item.id === moved.id))
-    ? documentMovedText(moved.name, moved.to) : null;
 
   const addToggle = canChangeChecklist && !checklistEmpty ? (
     <button
@@ -493,12 +463,9 @@ export function ProfileDocumentsClient({
       />
     </div>
   ) : null;
-  const movedNote = movedText ? (
-    <p className="t-body-compact text-fg-2" role="status" data-testid="v3-document-moved">{movedText}</p>
-  ) : null;
   const emptyNote = (
     <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
-      {emptyText ?? (checklistEmpty && canChangeChecklist ? emptyChecklistText(baselineOptions.length > 0, baselineTemplatesAbsent) : "В чек-листе пока нет документов.")}
+      {checklistEmpty && canChangeChecklist ? emptyChecklistText(baselineOptions.length > 0, baselineTemplatesAbsent) : "В чек-листе пока нет документов."}
     </p>
   );
   const groupRows = (group: ActiveDocumentGroup) => (
@@ -513,7 +480,6 @@ export function ProfileDocumentsClient({
           today={today}
           upload={uploads[item.id] ?? DOCUMENT_UPLOAD_IDLE}
           onUpload={(target, file) => void upload(target, file)}
-          onReviewSaved={noteMoved}
         />
       ))}
     </ul>
@@ -531,8 +497,6 @@ export function ProfileDocumentsClient({
         accessNote={accessNote}
         addRegion={addRegion}
         sorting={sorting}
-        filter={filter}
-        movedNote={movedNote}
         empty={groups.length === 0 ? emptyNote : null}
         groups={groups.map((group) => ({ title: group.title, count: group.items.length, rows: groupRows(group) }))}
         recognition={recognitionBlock}
@@ -564,10 +528,6 @@ export function ProfileDocumentsClient({
       {sorting}
 
       {addRegion}
-
-      {filter}
-
-      {movedNote}
 
       {groups.length === 0 ? emptyNote : (
         <ul className="@container/documents min-w-0">

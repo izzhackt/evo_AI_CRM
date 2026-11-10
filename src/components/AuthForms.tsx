@@ -7,6 +7,8 @@ import {
   loginStaffAction,
   type StaffLoginActionState,
 } from "@/lib/staff-auth-actions";
+import type { Locale } from "@/lib/i18n-data";
+import { PasswordInput } from "./PasswordInput";
 import { btnCls, inputCls, labelCls } from "./ui";
 
 type StaffLoginLabels = Readonly<{
@@ -24,11 +26,14 @@ export function LoginForm({
   labels,
   initialError = null,
   recovery,
+  locale = "ru",
 }: Readonly<{
     labels: StaffLoginLabels;
     initialError?: StaffLoginActionState;
     /** Student self-service recovery; staff recovery stays admin-driven. */
     recovery?: Readonly<{ href: string; label: string }>;
+    /** Язык подписи «Показать пароль». */
+    locale?: Locale;
   }>) {
   const [error, action, pending] = useActionState(
     loginStaffAction,
@@ -77,10 +82,10 @@ export function LoginForm({
         <label htmlFor="staff-password" className={labelCls}>
           {labels.password}
         </label>
-        <input
+        <PasswordInput
           id="staff-password"
+          locale={locale}
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           maxLength={4096}

@@ -92,10 +92,10 @@ function expectations(name, m, key) {
   const out = [];
   const add = (label, ok, detail) => out.push([label, ok, detail]);
   if (name.startsWith("docs-")) {
-    add("checklist card and one card per shown group", m.docs.checklist === 1 && m.docs.groups === ({ "docs-empty": 0, "docs-review": 1 }[name] ?? 2), m.docs);
+    add("checklist card and one card per shown group", m.docs.checklist === 1 && m.docs.groups === ({ "docs-empty": 0 }[name] ?? 2), m.docs);
     // Формат загрузки - за «?» рядом с названием карточки; он нужен, только пока есть что загружать (фильтр «На проверке» таких строк не показывает).
-    add("upload format is behind the help tip, not on the screen", !/Загрузка: PDF/u.test(m.text) && (["docs-preview", "docs-review", "docs-empty"].includes(name) || m.helpTips >= 1), { helpTips: m.helpTips });
-    if (name !== "docs-empty") add("progress and state filter are on the checklist card", m.docs.progress === 1 && m.docs.filter === 1, m.docs);
+    add("upload format is behind the help tip, not on the screen", !/Загрузка: PDF/u.test(m.text) && (["docs-preview", "docs-empty"].includes(name) || m.helpTips >= 1), { helpTips: m.helpTips });
+    if (name !== "docs-empty") add("progress is on the checklist card and there is no state filter", m.docs.progress === 1 && m.docs.filter === 0, m.docs);
     if (name === "docs-all") add("removed-items history is a card-styled disclosure", m.docs.history === 1, m.docs);
     if (name === "docs-preview") add("preview role says documents are read-only", /только для просмотра/u.test(m.text), null);
   }
@@ -127,7 +127,6 @@ function expectations(name, m, key) {
   }
   if (name === "money-cross") add("stop reason is not squeezed (at most three lines)", m.stopReason !== null && m.stopReason.lines <= 3, m.stopReason);
   if (name === "docs-all") {
-    add("checklist filter keeps no rule of its own above the card border", m.docsFrame.filterRule === "0px", m.docsFrame);
     add("recognition and removed-history cards pad their label evenly", m.docsFrame.gaps.length === 2 && m.docsFrame.gaps.every((gap) => Math.abs(gap.above - gap.below) <= 2), m.docsFrame.gaps);
   }
   if (name === "anketa-full") add("export card title has the card-title size of its neighbours", m.exportTitle !== null && m.exportTitle.own === m.exportTitle.other, m.exportTitle);

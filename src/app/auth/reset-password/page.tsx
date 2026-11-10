@@ -35,7 +35,7 @@ export default async function StudentResetPasswordPage() {
       title={strings.resetTitle}
       intro={session.status === "ready" ? strings.resetIntro : undefined}
     >
-      <StudentResetPasswordForm session={session} strings={strings} />
+      <StudentResetPasswordForm session={session} strings={strings} locale={locale} />
     </StudentAuthShell>
   );
 }

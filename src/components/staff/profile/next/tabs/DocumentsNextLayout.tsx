@@ -8,7 +8,7 @@ export type DocumentsNextGroup = Readonly<{ title: string; count: number; rows: 
 /**
  * Вкладка «Документы» в «Новом виде»: раскладка карточками набора из кусков, которые собирает `ProfileDocumentsClient`
  * (состояние загрузок, формы «+ Документ», строки `DocumentRow` остаются у него: те же команды, те же ключи запросов).
- * Первая карточка - «Чек-лист»: «N из M принято», фильтр по состоянию, кнопка «Документ» и формы добавления; формат загрузки -
+ * Первая карточка - «Чек-лист»: «N из M принято», кнопка «Документ» и формы добавления; формат загрузки -
  * за «?». Дальше по карточке на группу (заголовок и число пунктов), под ними распознавание и история удалённых пунктов -
  * раскрытиями в том же виде. Без этого файла у `ProfileDocumentsClient` остаётся прежняя разметка.
  */
@@ -18,8 +18,6 @@ export function DocumentsNextLayout({
   uploadHint,
   accessNote,
   addRegion,
-  filter,
-  movedNote,
   empty,
   groups,
   recognition,
@@ -33,8 +31,6 @@ export function DocumentsNextLayout({
   uploadHint: string | null;
   accessNote: ReactNode;
   addRegion: ReactNode;
-  filter: ReactNode;
-  movedNote: ReactNode;
   empty: ReactNode;
   groups: readonly DocumentsNextGroup[];
   recognition: ReactNode;
@@ -56,8 +52,6 @@ export function DocumentsNextLayout({
           {progress}
           {accessNote}
           {addRegion}
-          {filter}
-          {movedNote}
           {empty}
         </div>
       </div>

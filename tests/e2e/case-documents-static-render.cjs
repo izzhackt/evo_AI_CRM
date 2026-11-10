@@ -217,23 +217,18 @@ function work(flags) {
 }
 
 /**
- * Сценарии вкладки. `filter` — `doc_state` адреса; `baseline` — чтение базовых
+ * Сценарии вкладки. `baseline` — чтение базовых
  * чек-листов (`Documents`): `options` — есть версия для применения, `absent` —
  * чтение пустое и шаблон не применён, `none` — нечего показывать (шаблон уже
  * применён или нет права).
  */
 const SCENARIOS = {
   // Куратор, дело ждёт его ответа: единственный сплошной красный — «Принять дело» в шапке.
-  "all": { actor: CURATOR, handoff: HANDOFF_PENDING, flags: ["awaiting_ack"], documents: checklist(), filter: "all", baseline: "none" },
-  // Тот же чек-лист с фильтром «На проверке».
-  "review": { actor: CURATOR, handoff: HANDOFF_ACCEPTED, flags: [], documents: checklist(), filter: "review", baseline: "none" },
-  // Фильтр без строк: одно пустое состояние со ссылкой «Показать все».
-  "filter-empty": { actor: CURATOR, handoff: HANDOFF_ACCEPTED, flags: [], filter: "accepted", baseline: "absent",
-    documents: [{ kind: "active", title: "Документы", items: [doc(6, { name: "Медицинская справка", status: "required" })] }] },
+  "all": { actor: CURATOR, handoff: HANDOFF_PENDING, flags: ["awaiting_ack"], documents: checklist(), baseline: "none" },
   // Пустой чек-лист: без чисел, формы «+ Документ» открыты сразу, базовый чек-лист можно применить.
-  "empty": { actor: CURATOR, handoff: HANDOFF_ACCEPTED, flags: [], documents: [], filter: "all", baseline: "options" },
+  "empty": { actor: CURATOR, handoff: HANDOFF_ACCEPTED, flags: [], documents: [], baseline: "options" },
   // Просмотр роли: только чтение.
-  "preview": { actor: PREVIEW, handoff: HANDOFF_ACCEPTED, flags: [], documents: checklist(false), filter: "all", baseline: "none" },
+  "preview": { actor: PREVIEW, handoff: HANDOFF_ACCEPTED, flags: [], documents: checklist(false), baseline: "none" },
 };
 
 function hrefFor(tab) {
@@ -249,7 +244,7 @@ function tabInput(name) {
   return {
     groups: scenario.documents, uploadAccess, studentCaseId: CASE_ID,
     recognition: preview ? null : { studentCaseId: CASE_ID, profileRevision: null, canEnqueue: false, reviewHref: hrefFor("anketa") },
-    filter: scenario.filter, tabHref: hrefFor("documents"), today: TODAY,
+    today: TODAY,
     createRequestId: allowed ? uuid("17000000", 1) : null,
     baselineOptions: allowed && scenario.baseline === "options"
       ? [{ countryRequirementVersionId: uuid("18000000", 1), label: "CN · bachelor · версия 3 — 7 документов" }] : [],
@@ -288,7 +283,7 @@ function buildPage(name) {
     studentPortalCurators: [], studentPortalCuratorsAvailable: true,
     requestIds: { contract: "", firstPayment: "", override: "", handoff: "", platformAccess: "", saleConditions: "", prepareLeadCabinet: "", wishesCard: "", educationCard: "", conditionsCard: "" },
     noteRequestId: uuid("12121212", 15), notes: { subject: { leadId: null, studentCaseId: CASE_ID }, rows: [] },
-    notesOlderHref: null, notesLatestHref: null, tab: "documents", hrefFor, documentsFilter: scenario.filter,
+    notesOlderHref: null, notesLatestHref: null, tab: "documents", hrefFor,
     caseHeader: parts.header, caseOverview: parts.overview,
   });
   return { actions: parts.actions, body };
@@ -301,7 +296,7 @@ function withContexts(node, search) {
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
-const searchOf = (name) => `case=${CASE_ID}&tab=documents&section=docs${SCENARIOS[name].filter === "all" ? "" : `&doc_state=${SCENARIOS[name].filter}`}`;
+const searchOf = () => `case=${CASE_ID}&tab=documents&section=docs`;
 
 /** Разметка только вкладки (SSR, до гидратации) — для unit-теста. */
 function renderTab(name) {
@@ -553,7 +548,7 @@ async function screenshots() {
         check(errors.length === 0, `${width} all: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
         await context.close();
       }
-      for (const name of ["review", "filter-empty", "empty", "preview"]) {
+      for (const name of ["empty", "preview"]) {
         const { context, page, errors } = await open(name, width);
         const metrics = await shot(page, `docs-${name}-${width}.png`, { at: "#case-documents-title" });
         check(metrics.overflow === 0 && metrics.smallText.length === 0 && metrics.smallTargets.length === 0,
@@ -633,18 +628,6 @@ async function screenshots() {
       check(await row(page, 2).getByTestId("v3-document-approve").count() === 0 && await row(page, 2).getByText(/Решение сохранено/).count() === 0,
         "1440: after the re-read the decided row shows its new state, no decision buttons and no «сохранено»");
       check(errors.length === 0, `1440 re-read: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
-      await context.close();
-    }
-    {
-      const { context, page, errors } = await open("review", 1440);
-      await page.evaluate(() => { window.__docs.applyDecisions = true; });
-      await row(page, 2).getByTestId("v3-document-approve").click();
-      await page.getByTestId("v3-document-moved").waitFor();
-      const moved = await page.getByTestId("v3-document-moved").textContent();
-      check(moved === "Документ «Аттестат» перенесён в «Принято»." && await row(page, 2).count() === 0,
-        `1440 review: the decided row leaves the filter and one quiet line says where (${moved})`);
-      await shot(page, "docs-moved-1440.png", { at: "#case-documents-title" });
-      check(errors.length === 0, `1440 moved: no browser errors${errors.length ? `: ${errors.join("; ")}` : ""}`);
       await context.close();
     }
     {

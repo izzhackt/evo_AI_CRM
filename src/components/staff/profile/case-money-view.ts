@@ -156,12 +156,23 @@ export function caseMoneySummary(agreement: CaseAgreement): CaseMoneySummary {
 
 /**
  * Сколько осталось по графику платежей (10.11.2026): стоимость договора не обязательна — остаток считается по платежам,
- * которые уже записаны. Платежей нет — пусто (посчитать не из чего).
+ * которые уже записаны. Платежей нет — пусто (посчитать не из чего). Остаток ниже нуля — переплата, и это сказано словом:
+ * голое «−100 USD» читается как долг.
  */
-export function caseScheduleRemaining(agreement: CaseAgreement): readonly string[] {
-  if (agreement.tranches.length === 0) return [];
+export function caseScheduleRemaining(agreement: CaseAgreement): CaseMoneySummary["remaining"] {
+  if (agreement.tranches.length === 0) return { values: [], note: null };
   const order = [...(agreement.costCurrency ? [agreement.costCurrency] : []), ...agreement.tranches.map((tranche) => tranche.currency)];
-  return caseOutstandingByCurrency(agreement.tranches, order).map(moneyShort);
+  const overpaid = caseOverpaidCurrencies(agreement.tranches, order);
+  return {
+    values: caseOutstandingByCurrency(agreement.tranches, order).map(moneyShort),
+    note: overpaid.length > 0 ? `${caseMoneyWords.schedule.overpaid} ${overpaid.join(", ")}` : null,
+  };
+}
+
+/** Шапка «Графика платежей»: сумма платежей не равна стоимости (одна валюта) — «В графике: X из Y», без нулевых копеек. */
+export function caseScheduleAgainstCost(agreement: CaseAgreement): string | null {
+  if (agreement.currencyMismatch || !agreement.costMismatch || !agreement.costCurrency || agreement.costMinor === null) return null;
+  return `${caseMoneyWords.schedule.againstCost}: ${moneyAmount(agreement.trancheSumMinor, agreement.costCurrency)} из ${moneyAmount(agreement.costMinor, agreement.costCurrency)}`;
 }
 
 /** Оплаты каждого платежа графика: по id платежа, в порядке чтения. Оплата чужого (архивного) платежа — в `other`. */

@@ -1,10 +1,11 @@
 import { StatusBadge } from "@/components/kit/StatusBadge";
 import type { CaseAgreement, CaseAgreementPayment, CaseAgreementTranche } from "@/lib/platform-case-agreement-contract";
 import type { PendingReceipt } from "@/lib/platform-pending-receipts-contract";
+import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { CaseAgreementPaymentForm, CaseAgreementTrancheEditor } from "../../CaseAgreementForms";
 import { CasePaymentReceiptUpload } from "../../CasePaymentReceiptUpload";
-import { CASE_MONEY_ROW_ACTION, caseMoneySummary, casePaymentsBySchedule, caseTrancheState, moneyAmount, moneyDay } from "../../case-money-view";
+import { CASE_MONEY_ROW_ACTION, casePaymentsBySchedule, caseScheduleAgainstCost, caseTrancheState, moneyAmount, moneyDay } from "../../case-money-view";
 import { PendingReceiptsCard } from "../../PendingReceiptsCard";
 import { NamedCard } from "../NamedCard";
 
@@ -17,11 +18,11 @@ type Props = Readonly<{ agreement: CaseAgreement; canWrite: boolean; today: stri
  */
 export function ScheduleCard({ agreement, canWrite, today, pendingReceipts = [] }: Props) {
   const caseId = agreement.studentCaseId;
-  const against = caseMoneySummary(agreement).tranchesAgainstCost;
+  const against = caseScheduleAgainstCost(agreement);
   const { byTranche, other } = casePaymentsBySchedule(agreement);
   return (
     <NamedCard
-      title="График платежей"
+      title={caseMoneyWords.schedule.title}
       testId="v3-case-agreement-tranches"
       className="@container"
       actions={against ? <span className="t-meta text-fg-2">{against}</span> : null}
@@ -31,12 +32,12 @@ export function ScheduleCard({ agreement, canWrite, today, pendingReceipts = [] 
           <ScheduleRow key={tranche.id} tranche={tranche} payments={byTranche.get(tranche.id) ?? []} caseId={caseId} canWrite={canWrite} today={today} />
         ))}
         {agreement.tranches.length === 0 ? (
-          <li className="py-2.5 t-body-compact text-fg-3">Графика нет. Добавьте платёж: сумму и срок.</li>
+          <li className="py-2.5 t-body-compact text-fg-3">{caseMoneyWords.schedule.empty}</li>
         ) : null}
       </ul>
       {other.length > 0 ? (
         <div className="border-t border-border pt-2">
-          <p className="t-caption text-fg-3">Оплаты по архивным платежам</p>
+          <p className="t-caption text-fg-3">{caseMoneyWords.schedule.archivedPayments}</p>
           <PaymentLines payments={other} caseId={caseId} canWrite={canWrite} today={today} />
         </div>
       ) : null}
@@ -105,7 +106,7 @@ function PaymentLines({ payments, caseId, canWrite, today, nested = false }: Rea
             ))}
             {payment.eventType === "payment" && payment.receipts.length === 0 ? (
               <>
-                <span>чека нет</span>
+                <span>{caseMoneyWords.schedule.noReceipt}</span>
                 {canWrite ? <CasePaymentReceiptUpload paymentEventId={payment.id} /> : null}
               </>
             ) : null}

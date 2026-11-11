@@ -44,8 +44,9 @@ export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, f
   const current = agreement.contractCurrent;
   const caseId = agreement.studentCaseId;
   const costKnown = summary.cost !== null || summary.costWithoutCurrency;
-  const remaining = costKnown ? summary.remaining.values.map(moneyShort) : caseScheduleRemaining(agreement);
-  const remainingNote = costKnown ? summary.remaining.note : null;
+  const bySchedule = costKnown ? null : caseScheduleRemaining(agreement);
+  const remaining = bySchedule ? bySchedule.values : summary.remaining.values.map(moneyShort);
+  const remainingNote = bySchedule ? bySchedule.note : summary.remaining.note;
   // Стоимость - первой, если её указали; нет - её строки нет вовсе.
   const facts: KeyFact[] = [
     ...(costKnown ? [{
@@ -72,7 +73,7 @@ export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, f
       ),
     },
     {
-      label: costKnown ? caseMoneyWords.rows.remaining : "Осталось по графику",
+      label: costKnown ? caseMoneyWords.rows.remaining : caseMoneyWords.rows.remainingBySchedule,
       value: (
         <span className="tabular-nums">
           {remaining.length > 0 ? remaining.join(" · ") : <span className={MUTED}>—</span>}

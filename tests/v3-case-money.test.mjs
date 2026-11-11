@@ -269,8 +269,22 @@ test("10.11.2026: schedule helpers — short sums, the remainder by the schedule
   assert.equal(view.moneyShort("600,50 USD"), "600,50 USD");
   assert.equal(view.moneyShort("1\u00a0800,00 USD").replace(/\u00a0/gu, " "), "1 800 USD");
   const noCost = { ...agreement({}), costMinor: null, costCurrency: null, remainingMinor: null, tranches: [tranche(1, "60000", "USD", "0"), tranche(2, "120000", "USD", "120000")] };
-  assert.deepEqual(view.caseScheduleRemaining(noCost).map((value) => value.replace(/[\u00a0\u202f]/gu, " ")), ["1 200 USD"]);
-  assert.deepEqual(view.caseScheduleRemaining({ ...noCost, tranches: [] }), []);
+  const plain = (value) => value.replace(/[\u00a0\u202f]/gu, " ");
+  assert.deepEqual(view.caseScheduleRemaining(noCost).values.map(plain), ["1 200 USD"]);
+  assert.equal(view.caseScheduleRemaining(noCost).note, null);
+  assert.deepEqual(view.caseScheduleRemaining({ ...noCost, tranches: [] }), { values: [], note: null });
+  // Переплата по графику — словом, иначе «−100 USD» читается как долг.
+  const overpaid = view.caseScheduleRemaining({ ...noCost, tranches: [tranche(1, "60000", "USD", "-10000")] });
+  assert.equal(overpaid.values.length, 1);
+  assert.equal(overpaid.note, "переплата в USD");
+  // Копейки, которые есть, не теряются; нулевые — убираются.
+  assert.equal(plain(view.moneyAmount("60050", "USD")), "600,50 USD");
+  assert.equal(plain(view.moneyAmount("5", "USD")), "0,05 USD");
+  // Шапка графика: сумма платежей против стоимости — коротко и без слова «Транши».
+  const partialCost = { ...agreement({}), costMinor: "150000", costCurrency: "USD", costMismatch: true, currencyMismatch: false, trancheSumMinor: "100000" };
+  assert.equal(plain(view.caseScheduleAgainstCost(partialCost)), "В графике: 1 000 USD из 1 500 USD");
+  assert.equal(view.caseScheduleAgainstCost({ ...partialCost, costMismatch: false }), null);
+  assert.equal(view.caseScheduleAgainstCost({ ...partialCost, currencyMismatch: true }), null);
   const grouped = view.casePaymentsBySchedule({ ...noCost, payments: [
     payment(1, "60000", "USD"),
     { ...payment(2, "10000", "USD"), obligationId: id(99) },

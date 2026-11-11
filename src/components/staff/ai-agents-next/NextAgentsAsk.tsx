@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowUpRightIcon, SendHorizontalIcon } from "lucide-react";
+import { SendHorizontalIcon } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,13 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { AiAgentKey } from "@/lib/ai-agents/contract";
-import { AI_AGENT_ASK_STORAGE, AI_AGENT_STARTERS, aiAgentHref } from "@/lib/v3/ai-agents-view";
+import { AI_AGENT_ASK_STORAGE, aiAgentHref } from "@/lib/v3/ai-agents-view";
 
 export type NextAskAgent = Readonly<{ key: AiAgentKey; title: string }>;
 
 /**
- * «Спросить агента» — панель справа на главной (11.11.2026, по образцу Molar AI «Ask Molar»): выбрать агента, взять пример
- * поручения или написать своё и перейти в чат агента с готовым текстом. Отправляет сам сотрудник уже в чате: панель только
+ * «Спросить агента» — панель справа на главной (11.11.2026, по образцу Molar AI «Ask Molar»): выбрать агента, написать
+ * поручение (примеры — уже в чате агента) и перейти в чат агента с готовым текстом. Отправляет сам сотрудник уже в чате: панель только
  * переносит текст (память вкладки, не адрес). Нельзя поручать (нет ключа Claude, просмотр роли) — кнопка выключена и
  * причина словами; агентов с правилами нет — только причина.
  */
@@ -42,16 +42,6 @@ export function NextAgentsAsk({ agents, blockedNote }: Readonly<{ agents: readon
               {agents.map((agent) => <option key={agent.key} value={agent.key}>{agent.title}</option>)}
             </NativeSelect>
           </div>
-          <ul className="flex flex-col gap-1.5" aria-label="Примеры поручений">
-            {AI_AGENT_STARTERS[key].map((starter) => (
-              <li key={starter}>
-                <Button type="button" variant="outline" onClick={() => setText(starter)} className="h-auto min-h-11 w-full justify-between gap-2 whitespace-normal rounded-card py-2 text-start t-meta">
-                  <span className="min-w-0">{starter}</span>
-                  <ArrowUpRightIcon aria-hidden="true" className="size-4 shrink-0 text-fg-3" />
-                </Button>
-              </li>
-            ))}
-          </ul>
           <div className="relative">
             <Label htmlFor={`${id}-text`} className="sr-only">Поручение</Label>
             <Textarea id={`${id}-text`} value={text} onChange={(event) => setText(event.target.value)} rows={3} maxLength={4000} placeholder="Напишите поручение…" className="min-h-28 resize-none rounded-card pe-14" />

@@ -61,9 +61,7 @@
   --aia-hero-ink: #ffffff;
   --aia-hero-muted: #cfc8be;
   --aia-hero-line: rgb(255 255 255 / 0.12);
-  --aia-hero-tile: rgb(255 255 255 / 0.06);
   --aia-hero-bar: rgb(255 255 255 / 0.85);
-  --aia-hero-bar-faint: rgb(255 255 255 / 0.25);
   position: relative;
   overflow: hidden;
   color: var(--aia-hero-ink);
@@ -96,30 +94,11 @@
   color: var(--aia-hero-muted);
 }
 
-.v3-world .v3-aia-hero-tile {
-  border: 1px solid var(--aia-hero-line);
-  background: var(--aia-hero-tile);
-}
-
 .v3-world .v3-aia-hero-bar {
   background: var(--aia-hero-bar);
 }
 
-.v3-world .v3-aia-hero-bar[data-empty] {
-  background: var(--aia-hero-bar-faint);
+/* Разделитель чисел в тёмной полосе — волосяная линия вместо плиток (11.11.2026, «перегружено»). */
+.v3-world .v3-aia-hero-sep {
+  border-inline-start: 1px solid var(--aia-hero-line);
 }
-
-/* Лента «Что сделали агенты»: тонкая линия времени через центры значков (11.11.2026). Линия — волосяная рамка мира,
-   у первой строки начинается от значка, у последней на нём заканчивается. */
-.v3-world .v3-aia-feed-step::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: calc(1.25rem + 1.125rem - 0.5px);
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--border);
-}
-.v3-world .v3-aia-feed-step:first-child::before { top: 1.5rem; }
-.v3-world .v3-aia-feed-step:last-child::before { bottom: auto; height: 1.5rem; }
-.v3-world .v3-aia-feed-step:only-child::before { display: none; }

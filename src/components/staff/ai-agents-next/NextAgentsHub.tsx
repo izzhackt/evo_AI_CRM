@@ -10,12 +10,12 @@ import { aiAgentIsRunnable } from "@/lib/v3/ai-agents-view";
 import type { NextAgentsHasDefault } from "./agent-defaults";
 import { NextAgentsFeed } from "./NextAgentsFeed";
 import { NextAgentsAsk } from "./NextAgentsAsk";
-import { NextAgentsKpis, NextAgentsNow } from "./NextAgentsNow";
+import { NextAgentsNow } from "./NextAgentsNow";
 import { NextAgentsDrafts, NextAgentsRoster } from "./NextAgentsSide";
 import { NextApiKeyMissing } from "./NextNotices";
 
 /**
- * Хаб «ИИ-агенты» (11.11.2026, по образцу Molar AI с Dribbble): тёмная полоса «Сейчас» с мини-графиком, ряд итогов,
+ * Хаб «ИИ-агенты» (11.11.2026, по образцу Molar AI с Dribbble): тёмная полоса «Сейчас» с тремя числами за 7 дней,
  * лента «Что сделали агенты» и список агентов, справа «Спросить агента»; внизу помощник Gemini.
  * Данные и права те же; роль агента — по-прежнему за «?». `hasDefault` — у кого есть инструкция по умолчанию.
  */
@@ -40,7 +40,6 @@ export function NextAgentsHub({
       <div className="grid min-w-0 items-start gap-4 @6xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="grid min-w-0 gap-4">
           <NextAgentsNow list={list} />
-          <NextAgentsKpis list={list} />
           <div className="grid min-w-0 items-start gap-4 @4xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <NextAgentsFeed runs={activity?.runs ?? []} agents={list.agents} now={list.now} partial={activity?.partial ?? false} />
             <div className="grid min-w-0 gap-4">

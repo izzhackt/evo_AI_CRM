@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { BotIcon, SparklesIcon, TriangleAlertIcon, WalletIcon, ZapIcon, type LucideIcon } from "lucide-react";
 
 import type { AiAgentsListResult } from "@/lib/ai-agents/contract";
 import { aiAgentHref, formatUsdCents, pluralRu } from "@/lib/v3/ai-agents-view";
@@ -23,8 +22,8 @@ function Bars({ values, label }: Readonly<{ values: readonly number[]; label: st
 
 /**
  * «Сейчас» — тёмная полоса главной «ИИ-агентов» (11.11.2026, по образцу Molar AI «AI agent · live»): значок, «ИИ-агенты ·
- * в работе», сколько поручений выполняется прямо сейчас и кем, справа три плитки с мини-графиком запусков за 7 дней.
- * Всё из чтения списка агентов.
+ * в работе», сколько поручений выполняется прямо сейчас и кем, три плитки за 7 дней: запуски с мини-графиком, доля без
+ * ошибок, расход. Черновики — отдельной карточкой «Ждут решения», когда они есть. Всё из чтения списка агентов.
  */
 export function NextAgentsNow({ list }: Readonly<{ list: AiAgentsListResult }>) {
   const running = list.agents.filter((agent) => agent.stats.runsRunning > 0);
@@ -33,12 +32,10 @@ export function NextAgentsNow({ list }: Readonly<{ list: AiAgentsListResult }>) 
   const today = days.at(-1) ?? 0;
   const failed = list.agents.reduce((total, agent) => total + agent.stats.failed7d, 0);
   const share = list.summary.runs7d > 0 ? Math.round(((list.summary.runs7d - failed) / list.summary.runs7d) * 100) : null;
-  const withDrafts = list.agents.filter((agent) => agent.stats.draftsPending > 0);
   return (
     <section aria-labelledby="aia-now" data-testid="v3-aia-now" className="v3-aia-hero @container rounded-card p-6">
       <div className="grid gap-5 @3xl:grid-cols-[minmax(0,1fr)_26rem] @3xl:items-center">
         <div className="flex min-w-0 items-center gap-4">
-          <span aria-hidden="true" className="v3-aia-hero-tile grid size-14 shrink-0 place-items-center rounded-full"><SparklesIcon className="size-6" /></span>
           <div className="grid min-w-0 gap-1.5">
             <h2 id="aia-now" className="v3-aia-hero-tile inline-flex w-fit items-center gap-2 rounded-full px-2.5 py-0.5 t-meta font-semibold">
               <span aria-hidden="true" className={`size-2 rounded-full ${workingNow > 0 ? "animate-pulse bg-ok motion-reduce:animate-none" : "v3-aia-hero-bar"}`} />
@@ -75,47 +72,11 @@ export function NextAgentsNow({ list }: Readonly<{ list: AiAgentsListResult }>) 
             </dd>
           </div>
           <div className="v3-aia-hero-tile grid content-between gap-2 rounded-item p-3">
-            <dt className="v3-aia-hero-muted t-meta">Ждут решения</dt>
-            <dd className="t-record-title tabular-nums">
-              {withDrafts.length === 1 && list.summary.draftsPending > 0
-                ? <Link href={aiAgentHref(withDrafts[0].key, { tab: "drafts" })} className="underline underline-offset-4">{list.summary.draftsPending}</Link>
-                : list.summary.draftsPending}
-            </dd>
+            <dt className="v3-aia-hero-muted t-meta">Расход за 7 дней</dt>
+            <dd className="t-record-title tabular-nums">{formatUsdCents(list.summary.costCents7d)}</dd>
           </div>
         </dl>
       </div>
     </section>
-  );
-}
-
-/** Ряд из четырёх карточек под полосой (как у Molar AI): значок и подпись, крупное число, строка-пояснение, полоса доли там, где доля что-то значит. */
-export function NextAgentsKpis({ list }: Readonly<{ list: AiAgentsListResult }>) {
-  const total = list.agents.length;
-  const actions = list.agents.reduce((sum, agent) => sum + agent.stats.actions7d, 0);
-  const failed = list.agents.reduce((sum, agent) => sum + agent.stats.failed7d, 0);
-  const cards: readonly Readonly<{ label: string; icon: LucideIcon; value: string; note: string; share: number | null }>[] = [
-    { label: "Включено агентов", icon: BotIcon, value: String(list.summary.enabled), note: `из ${total}`, share: total > 0 ? list.summary.enabled / total : null },
-    { label: "Расход", icon: WalletIcon, value: formatUsdCents(list.summary.costCents7d), note: "за 7 дней", share: null },
-    { label: "Действий", icon: ZapIcon, value: String(actions), note: "инструментов за 7 дней", share: null },
-    { label: "Ошибок", icon: TriangleAlertIcon, value: String(failed), note: failed > 0 ? "есть в «Истории работы» агента" : "за 7 дней — нет", share: null },
-  ];
-  return (
-    <ul className="grid grid-cols-2 gap-3 @4xl:grid-cols-4" aria-label="Итоги агентов">
-      {cards.map(({ label, icon: Icon, value, note, share }) => (
-        <li key={label} className="grid content-start gap-3 rounded-card border border-border bg-surface p-4">
-          <span className="flex items-center gap-2 t-meta text-fg-2">
-            <span aria-hidden="true" className="grid size-7 place-items-center rounded-item border border-border bg-surface-2"><Icon className="size-4 text-fg-2" /></span>
-            {label}
-          </span>
-          <span className="grid gap-0.5">
-            <span className="t-page-title tabular-nums text-fg">{value}</span>
-            <span className="t-meta text-fg-3">{note}</span>
-          </span>
-          {share !== null ? (
-            <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-surface-2"><span className="block h-full rounded-full bg-fg" style={{ width: `${Math.round(share * 100)}%` }} /></span>
-          ) : null}
-        </li>
-      ))}
-    </ul>
   );
 }

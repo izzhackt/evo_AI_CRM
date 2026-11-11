@@ -19,7 +19,7 @@ const STATUS_ICON: Readonly<Record<AiAgentRunStatus, Readonly<{ icon: LucideIcon
 /**
  * «Что сделали агенты» (11.11.2026, по образцу Molar AI «AI agent activity»): последние запуски всех агентов одной
  * лентой — значок состояния, агент, итог запуска (или поручение, пока итога нет), время. Строка ведёт в запуск.
- * Значок — смысловой цвет состояния, со словом рядом. Неполное чтение говорится словом.
+ * Значок — смысловой цвет состояния, со словом рядом; значки соединены линией времени. Неполное чтение говорится словом.
  */
 export function NextAgentsFeed({ runs, agents, now, partial }: Readonly<{
   runs: readonly AiAgentRunRow[];
@@ -34,20 +34,20 @@ export function NextAgentsFeed({ runs, agents, now, partial }: Readonly<{
       {runs.length === 0 ? (
         <p className="px-5 pb-5 t-meta text-fg-2" data-testid="v3-aia-feed-empty">Запусков ещё не было.</p>
       ) : (
-        <ul className="divide-y divide-border border-t border-border" data-testid="v3-aia-feed">
+        <ul className="border-t border-border py-2" data-testid="v3-aia-feed">
           {runs.map((run) => {
             const { icon: Icon, tone } = STATUS_ICON[run.status];
             const text = run.summary ?? run.promptPreview;
             return (
-              <li key={run.id}>
+              <li key={run.id} className="v3-aia-feed-step relative">
                 <Link
                   href={aiAgentHref(run.agentKey, { tab: "runs", run: run.id })}
-                  className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2 motion-reduce:transition-none"
+                  className="group flex items-start gap-3 px-5 py-3 transition-colors hover:bg-surface-2 motion-reduce:transition-none"
                 >
-                  <span aria-hidden="true" className={`grid size-9 shrink-0 place-items-center rounded-full ${tone}`}>
+                  <span aria-hidden="true" className={`relative z-[1] grid size-9 shrink-0 place-items-center rounded-full ring-4 ring-surface transition-colors group-hover:ring-surface-2 motion-reduce:transition-none ${tone}`}>
                     <Icon className={`size-[18px] ${run.status === "running" || run.status === "starting" ? "animate-spin [animation-duration:2s] motion-reduce:animate-none" : ""}`} strokeWidth={2.2} />
                   </span>
-                  <span className="grid min-w-0 gap-0.5">
+                  <span className="grid min-w-0 gap-0.5 pt-0.5">
                     <span className="t-body-compact text-fg">
                       <span className="font-semibold">{titleOf.get(run.agentKey) ?? run.agentKey}</span>
                       {text ? <span className="text-fg-2"> — <span className="line-clamp-2 inline">{text}</span></span> : null}

@@ -200,7 +200,7 @@ test("хаб по образцу Molar AI: «Сейчас» с итогами, �
   const next = strip(nextHub(F.available(F.LIST), true, false));
   assert.doesNotMatch(next, /data-slot="stat-tile"/u, "11.11.2026: крупных плиток нет, итоги — в карточке «Сейчас»");
   assert.match(next, /data-testid="v3-aia-now"/u);
-  for (const label of ["Запусков за 7 дней", "Расход за 7 дней", "Ждут решения"]) assert.match(next, new RegExp(label, "u"));
+  for (const label of ["Запусков за 7 дней", "Без ошибок", "Ждут решения", "Включено агентов", "Расход", "Действий", "Ошибок"]) assert.match(next, new RegExp(label, "u"));
   assert.match(next, /Что сделали агенты/u);
   assert.match(next, /data-testid="v3-aia-feed-empty"[^>]*>Запусков ещё не было\./u, "без ленты — честная пустота, без «не загрузилась»");
   assert.doesNotMatch(next, /data-testid="v3-aia-feed-partial"/u);

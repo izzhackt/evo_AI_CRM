@@ -51,8 +51,8 @@ export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, can
                 const state = aiAgentStateChip({ enabled: agent.enabled, hasInstructions: rules, syncStatus: agent.sync.status, needsSync: false });
                 const runnable = rules && canAskOf(agent) && agent.enabled && aiAgentIsRunnable(agent.sync);
                 return (
-                  <li key={agent.key} data-testid={`v3-aia-card-${agent.key}`} className="flex items-center gap-2 px-4 py-2">
-                    <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOT[state.tone as keyof typeof DOT] ?? DOT.neutral}`} />
+                  <li key={agent.key} data-testid={`v3-aia-card-${agent.key}`} className="flex items-center gap-2.5 px-4 py-2.5">
+                    <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ring-2 ring-surface ${DOT[state.tone as keyof typeof DOT] ?? DOT.neutral}`} />
                     <span className="grid min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-1">
                         <Link href={aiAgentHref(agent.key)} className="truncate t-body-compact font-medium text-fg underline-offset-4 hover:underline">{agent.title}</Link>

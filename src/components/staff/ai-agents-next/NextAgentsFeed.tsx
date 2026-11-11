@@ -1,18 +1,19 @@
 import Link from "next/link";
-import { AlertTriangleIcon, CheckCircle2Icon, LoaderCircleIcon, XCircleIcon, type LucideIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckIcon, LoaderIcon, XIcon, type LucideIcon } from "lucide-react";
 
 import { WidgetCard } from "@/components/kit";
 import { AI_AGENT_RUN_STATUS_LABELS, type AiAgentListItem, type AiAgentRunRow, type AiAgentRunStatus } from "@/lib/ai-agents/contract";
 import { aiAgentHref, relativeTimeRu } from "@/lib/v3/ai-agents-view";
 
+/** Значок состояния на мягкой подложке своего смыслового цвета (как у Molar AI), всегда со словом в строке ниже. */
 const STATUS_ICON: Readonly<Record<AiAgentRunStatus, Readonly<{ icon: LucideIcon; tone: string }>>> = {
-  starting: { icon: LoaderCircleIcon, tone: "text-info" },
-  running: { icon: LoaderCircleIcon, tone: "text-info" },
-  completed: { icon: CheckCircle2Icon, tone: "text-ok" },
-  failed: { icon: XCircleIcon, tone: "text-danger" },
-  interrupted: { icon: XCircleIcon, tone: "text-danger" },
-  budget_reached: { icon: AlertTriangleIcon, tone: "text-warn" },
-  needs_attention: { icon: AlertTriangleIcon, tone: "text-warn" },
+  starting: { icon: LoaderIcon, tone: "bg-info-weak text-info" },
+  running: { icon: LoaderIcon, tone: "bg-info-weak text-info" },
+  completed: { icon: CheckIcon, tone: "bg-ok-weak text-ok" },
+  failed: { icon: XIcon, tone: "bg-danger-weak text-danger" },
+  interrupted: { icon: XIcon, tone: "bg-danger-weak text-danger" },
+  budget_reached: { icon: AlertTriangleIcon, tone: "bg-warn-weak text-warn" },
+  needs_attention: { icon: AlertTriangleIcon, tone: "bg-warn-weak text-warn" },
 };
 
 /**
@@ -41,10 +42,10 @@ export function NextAgentsFeed({ runs, agents, now, partial }: Readonly<{
               <li key={run.id}>
                 <Link
                   href={aiAgentHref(run.agentKey, { tab: "runs", run: run.id })}
-                  className="flex gap-3 px-5 py-3 transition-colors hover:bg-surface-2 motion-reduce:transition-none"
+                  className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2 motion-reduce:transition-none"
                 >
-                  <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-item border border-border bg-surface-2">
-                    <Icon className={`size-[18px] ${tone} ${run.status === "running" ? "animate-spin motion-reduce:animate-none" : ""}`} />
+                  <span aria-hidden="true" className={`grid size-9 shrink-0 place-items-center rounded-full ${tone}`}>
+                    <Icon className={`size-[18px] ${run.status === "running" || run.status === "starting" ? "animate-spin [animation-duration:2s] motion-reduce:animate-none" : ""}`} strokeWidth={2.2} />
                   </span>
                   <span className="grid min-w-0 gap-0.5">
                     <span className="t-body-compact text-fg">

@@ -51,7 +51,8 @@ export const readAiAgent = async (_actor, key) => F.available(F.detail(key));
 export const readAiAgentDigests = async () => F.available({ digests: F.DIGESTS });
 export const readAiAgentRuns = async () => F.available({ runs: F.RUNS, hasMore: false });
 export const readAiAgentRun = async () => F.available(F.RUN_DETAIL);
-export const readAiAgentDrafts = async () => F.available(F.DRAFTS);`,
+export const readAiAgentDrafts = async () => F.available(F.DRAFTS);
+export const readAiAgentsActivity = async () => ({ runs: F.RUNS, drafts: F.DRAFTS.drafts, partial: false });`,
   "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }`,
 };
 
@@ -149,7 +150,7 @@ test("хаб: новый вид у каждой роли — администр�
   const on = strip(await hubPage(world(ADMIN, "next")));
   // Свойства, которые страница отдаёт ленивому входу, проходят границу сервер → клиент: данные, не функции и не объекты классов.
   assertFlightProps((await hubElement(world(ADMIN, "next"))).props, "NextAgentsViewLazy");
-  assert.match(on, /data-slot="stat-tile"/u, "новый вид — плитки набора");
+  assert.match(on, /data-testid="v3-aia-now"/u, "11.11.2026, образец Molar AI: первая карточка — «Сейчас»");
   assert.match(on, /data-testid="v3-aia-hub"/u);
   for (const [index, markup] of [
     strip(await hubPage(world(ADMIN, undefined))),
@@ -157,7 +158,7 @@ test("хаб: новый вид у каждой роли — администр�
     strip(await hubPage(world(STAFF, undefined))),
     strip(await hubPage(world(PREVIEW, "next"))),
   ].entries()) {
-    assert.match(markup, /data-slot="stat-tile"/u, `плитки набора у каждой роли (${index})`);
+    assert.match(markup, /data-testid="v3-aia-summary"/u, `итоги за 7 дней у каждой роли (${index})`);
     assert.match(markup, /data-testid="v3-aia-hub"/u);
   }
 });
@@ -193,16 +194,20 @@ test("страница агента: на каждой вкладке новый
 
 /* ------------------------------------------------------------------ хаб */
 
-test("хаб, новый вид: плитки, три группы, карточки со ссылками и «?», ряд «Не настроены», Gemini; пояснения за «?»", async () => {
+test("хаб по образцу Molar AI: «Сейчас» с итогами, лента «Что сделали агенты», список агентов по трём группам со ссылками и «?», «Правила» у агентов без правил, Gemini; пояснения за «?»", async () => {
   const { nextHub } = await views();
   const next = strip(nextHub(F.available(F.LIST), true, false));
-  assert.equal((next.match(/data-slot="stat-tile"/gu) ?? []).length, 4);
-  for (const label of ["Включено агентов", "Запусков за 7 дней", "Расход за 7 дней", "Ждут решения"]) assert.match(next, new RegExp(label, "u"));
+  assert.doesNotMatch(next, /data-slot="stat-tile"/u, "11.11.2026: крупных плиток нет, итоги — в карточке «Сейчас»");
+  assert.match(next, /data-testid="v3-aia-now"/u);
+  for (const label of ["Запусков за 7 дней", "Расход за 7 дней", "Ждут решения"]) assert.match(next, new RegExp(label, "u"));
+  assert.match(next, /Что сделали агенты/u);
+  assert.match(next, /data-testid="v3-aia-feed-empty"[^>]*>Запусков ещё не было\./u, "без ленты — честная пустота, без «не загрузилась»");
+  assert.doesNotMatch(next, /data-testid="v3-aia-feed-partial"/u);
   for (const group of ["sales", "analytics", "curators"]) assert.match(next, new RegExp(`data-testid="v3-aia-group-${group}"`, "u"));
   for (const key of ["director", "sales", "curator-cn", "curator-my", "curator-eu", "curator-ae", "curator-tr"]) assert.match(next, new RegExp(`data-testid="v3-aia-card-${key}"`, "u"), key);
   assert.match(next, /href="\/ai-agents\/director\?tab=drafts"/u, "очередь черновиков — ссылкой с карточки");
   assert.match(next, /href="\/ai-agents\/sales"/u);
-  assert.match(next, /Не настроены:/u);
+  assert.match(next, /data-testid="v3-aia-rules-curator-eu"[^>]*>Правила</u, "агент без правил — в своей группе со ссылкой «Правила» вместо ряда «Не настроены»");
   assert.match(next, /aria-label="Пояснение: Директор \/ Аналитик"/u, "роль агента — за «?»");
   // Режем: пояснения и украшения не на экране.
   for (const gone of ["Считает продажи, воронку и поступление", "Подсказывает ответ, сам ничего не отправляет.", "Запуски, 14 дней", "data-testid=\"v3-aia-sparkline\""]) {

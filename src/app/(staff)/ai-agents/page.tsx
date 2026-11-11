@@ -6,7 +6,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { nextAgentsHasDefault } from "@/lib/server/ai-agents/next-defaults";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { aiAgentsRuntimeAvailability, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
-import { readAiAgents } from "@/lib/v3/ai-agents-source";
+import { readAiAgents, readAiAgentsActivity } from "@/lib/v3/ai-agents-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ИИ-агенты" };
@@ -29,5 +29,9 @@ export default async function AiAgentsPage() {
     try { await reconcileAiAgentRuns({ staffClient: await createSupabaseServerClient(), actor }, {}); } catch { /* сверка ленивая */ }
   }
   const list = await readAiAgents(actor);
-  return <NextAgentsViewLazy read={list} runtimeConfigured={runtime.configured} preview={preview} hasDefault={nextAgentsHasDefault()} />;
+  // 11.11.2026, образец Molar AI: лента «Что сделали агенты» и «Ждут решения» — те же чтения, что у вкладок агента.
+  const activity = list.status === "available"
+    ? await readAiAgentsActivity(actor, list.data.agents.map((agent) => agent.key), { runsPerAgent: 4, feed: 8, drafts: 4 })
+    : null;
+  return <NextAgentsViewLazy read={list} activity={activity} runtimeConfigured={runtime.configured} preview={preview} hasDefault={nextAgentsHasDefault()} />;
 }

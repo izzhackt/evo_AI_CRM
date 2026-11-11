@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ProfessionsGrid } from "@/components/portal/professions/ProfessionsGrid";
-import { EmptyIcon } from "@/components/portal/home/HomeParts";
+import { ProfessionMatches } from "@/components/portal/professions/ProfessionMatches";
+import { ProfessionsBrowser } from "@/components/portal/professions/ProfessionsBrowser";
+import { ProfessionsTestHero } from "@/components/portal/professions/ProfessionsTestHero";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
-import {
-  isOrvisScaleId,
-  ORVIS_SCALE_IDS,
-  type ProfessionCardSummary,
-} from "@/lib/portal/professions";
-import { readOwnOrvisTopScales, readProfessionCards } from "@/lib/portal/professions-source";
+import { topProfessionMatches } from "@/lib/portal/profession-guide";
+import { isOrvisScaleId, type ProfessionCardSummary } from "@/lib/portal/professions";
+import { readOwnOrvisState, readProfessionCards } from "@/lib/portal/professions-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Раздел «Профессии» (PORT-4c): сетка карточек с фильтром по шкалам ORVIS и
- * вход в тест интересов. topScales собственного orvis92 читаются существующим
- * приватным student-RPC в сессии ученика; отметка «созвучно» считается на
- * клиенте (план §6 — без серверной связки).
+ * Раздел «Профессии» (PORT-4c; вид по драфту владельца 10.11.2026): тест
+ * интересов сверху, «Подходят вам» по собственному orvis92, поиск, фильтр и
+ * группы по интересам. Результат теста читается существующими приватными
+ * student-RPC в сессии ученика; процент считается из его же шкал.
  */
 export default async function ProfessionsPage({
   searchParams,
@@ -41,66 +38,37 @@ export default async function ProfessionsPage({
   const activeScale = rawScale !== undefined && isOrvisScaleId(rawScale) ? rawScale : null;
   const strings = getPortalStrings("professions", locale);
 
-  // Карточки и собственные шкалы ORVIS не зависят друг от друга — одним
-  // заходом (план A, 16.10.2026); без карточек шкалы не показываются.
-  const [cards, ownTopScales] = await Promise.all([
+  // Карточки и собственный тест не зависят друг от друга — одним заходом.
+  const [cards, orvis] = await Promise.all([
     readProfessionCards().catch((): ProfessionCardSummary[] | null => null),
-    readOwnOrvisTopScales(),
+    readOwnOrvisState(),
   ]);
-  const topScales = cards === null ? null : ownTopScales;
-
+  const matches = cards && orvis?.profile && activeScale === null
+    ? topProfessionMatches(cards, orvis.profile)
+    : [];
   const filtered = cards?.filter(
     (card) => activeScale === null || card.orvisScales.includes(activeScale),
   ) ?? null;
 
   return (
-    <main className="pt-page">
+    <main className="pt-page pt-prof-page">
       <header className="pt-page-header">
         <h1 className="pt-page-title">{strings.title}</h1>
       </header>
 
-      <div className="pt-learn-entries">
-        <Link className="pt-btn-ghost" href="/portal/tests/career">{strings.testEntry}</Link>
-        <p className="pt-learn-note">{strings.testEntryHint}</p>
-      </div>
+      <ProfessionsTestHero state={orvis} strings={strings} />
 
       {cards === null || filtered === null ? (
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : (
         <>
-          <nav aria-label={strings.filterAria} className="pt-prof-filter">
-            <Link
-              className="pt-chip"
-              aria-current={activeScale === null ? "true" : undefined}
-              href="/portal/professions"
-            >
-              {strings.allScales}
-            </Link>
-            {ORVIS_SCALE_IDS.map((scale) => (
-              <Link
-                key={scale}
-                className="pt-chip"
-                aria-current={activeScale === scale ? "true" : undefined}
-                href={`/portal/professions?scale=${scale}`}
-              >
-                {strings[`scale.${scale}`]}
-              </Link>
-            ))}
-          </nav>
-          {filtered.length === 0 ? (
-            <div className="pt-empty">
-              <EmptyIcon name="professions" />
-              <p className="pt-empty-title">{strings.emptyTitle}</p>
-              <p className="pt-empty-body">{strings.emptyBody}</p>
-            </div>
-          ) : (
-            <ProfessionsGrid
-              cards={filtered}
-              topScales={topScales}
-              locale={locale}
-              strings={strings}
-            />
-          )}
+          <ProfessionMatches matches={matches} locale={locale} strings={strings} />
+          <ProfessionsBrowser
+            cards={filtered}
+            activeScale={activeScale}
+            locale={locale}
+            strings={strings}
+          />
         </>
       )}
     </main>

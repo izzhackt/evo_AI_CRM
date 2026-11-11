@@ -36,10 +36,15 @@ export function NextAgentCard({ agent, now, canAsk }: Readonly<{ agent: AiAgentL
           </CardAction>
         </CardHeader>
         <CardContent>
-          <KeyFacts columns={2} facts={[
-            { label: "Последний запуск", value: lastRun },
-            { label: "Расход за 7 дней", value: <span className="tabular-nums">{formatUsdCents(stats.costCents7d)}</span> },
-          ]} />
+          {/* Агент ни разу не работал: «ещё не запускался · 0,00 $» у всех карточек одинаково и ничего не сообщает — одна строка. */}
+          {stats.lastRunAt === null && stats.costCents7d === 0 ? (
+            <p className="t-meta text-fg-2" data-testid={`v3-aia-never-${agent.key}`}>Ещё не запускался</p>
+          ) : (
+            <KeyFacts columns={2} facts={[
+              { label: "Последний запуск", value: lastRun },
+              { label: "Расход за 7 дней", value: <span className="tabular-nums">{formatUsdCents(stats.costCents7d)}</span> },
+            ]} />
+          )}
         </CardContent>
         {hasLinks ? (
           <CardFooter className="flex-wrap">

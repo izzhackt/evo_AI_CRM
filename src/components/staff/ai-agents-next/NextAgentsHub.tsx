@@ -62,7 +62,10 @@ export function NextAgentsHub({
               ) : null}
               {unset.length > 0 ? (
                 <ul className={`${ready.length > 0 ? "mt-3 " : ""}flex flex-wrap items-center gap-2`} aria-label="Агенты без правил">
-                  <li className="pe-1 t-meta text-fg-3">Не настроены:</li>
+                  <li className="flex items-center gap-1 pe-1 t-meta text-fg-3">
+                    Не настроены:
+                    <HelpTip label="Пояснение: Не настроены">У этих агентов нет правил, поэтому они не работают. Откройте агента, чтобы написать правила и включить его.</HelpTip>
+                  </li>
                   {unset.map((agent) => (
                     <li key={agent.key} data-testid={`v3-aia-card-${agent.key}`}>
                       <Button variant="outline" asChild><Link href={aiAgentHref(agent.key)}>{agent.title}</Link></Button>

@@ -60,9 +60,13 @@ export function NextOverview({
     return (
       <div className="grid gap-4" data-testid="v3-aia-overview">
         {setup}
-        {canRun ? (
+        {/* Без шагов настройки (нет ключа Claude, просмотр роли) вкладка была пустой: карточка остаётся, «Поручить» — только когда можно. */}
+        {canRun || !setup ? (
           <div data-testid="v3-aia-first-run">
-            <WidgetCard title="Запусков ещё не было" actions={<Button variant="outline" asChild><Link href={aiAgentHref(detail.key, { tab: "command" })}>Поручить первую задачу</Link></Button>} />
+            <WidgetCard
+              title="Запусков ещё не было"
+              actions={canRun ? <Button variant="outline" asChild><Link href={aiAgentHref(detail.key, { tab: "command" })}>Поручить первую задачу</Link></Button> : undefined}
+            />
           </div>
         ) : null}
         {work}

@@ -65,6 +65,8 @@
    */
   --pt-shadow-card: 0 1px 3px rgb(16 24 40 / 0.07), 0 1px 2px rgb(16 24 40 / 0.04);
   --pt-shadow-raised: 0 2px 6px rgb(16 24 40 / 0.05), 0 18px 40px -12px rgb(16 24 40 / 0.22);
+  /* Затемнение под окном программы (не текст: прозрачность допустима). */
+  --pt-dialog-backdrop: rgb(16 24 40 / 0.45);
   /* Нижняя панель телефона: тень вверх, контент уходит под панель. */
   --pt-shadow-bar: 0 -8px 20px -14px rgb(16 24 40 / 0.24);
 
@@ -168,6 +170,7 @@
   /* В тёмной глубина — через светлую линию, не тень. */
   --pt-shadow-card: 0 0 0 1px var(--pt-line);
   --pt-shadow-raised: 0 0 0 1px var(--pt-line), 0 18px 40px -12px rgb(0 0 0 / 0.55);
+  --pt-dialog-backdrop: rgb(0 0 0 / 0.6);
   --pt-shadow-bar: none;
   /* Та же атмосфера на тёмном: тёплый подъём и тень бренда, без свечения. */
   --pt-wash:
@@ -2348,20 +2351,6 @@
   line-height: 1.55;
 }
 
-.pt-program-list {
-  display: grid;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.pt-program {
-  padding: 20px;
-  background: var(--pt-surface);
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  box-shadow: var(--pt-shadow-card);
-}
-
 .pt-program-level {
   margin: 0;
   font-size: var(--pt-size-caption);
@@ -2425,6 +2414,348 @@
   font-size: var(--pt-size-caption);
   font-weight: 500;
   color: var(--pt-text-2);
+}
+
+/* ---------- Подбор программ вуза (10.11.2026) ----------
+   Над выдачей поиск и четыре поля — уровень, направление, начало, длительность — с числом программ у каждого варианта
+   (ProgramList, от 4 программ). Выдача — карточки с картинкой направления (ProgramCard): без выбора первые четыре и
+   «Показать все», с фильтром — все подходящие. Вся карточка —
+   кнопка, она открывает окно программы с описанием, сроками и выбором. */
+
+.pt-program-filter {
+  container-type: inline-size;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+}
+
+.pt-program-filter .pt-uni-search {
+  max-width: none;
+}
+
+.pt-program-filter .pt-uni-search-input {
+  min-height: 44px;
+  padding-inline-start: 42px;
+  box-shadow: none;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-program-filter .pt-uni-search-icon {
+  inset-inline-start: 14px;
+}
+
+/* Поля подбора — по два в ряд, на широком блоке все четыре в один ряд (не «три и одно»). */
+.pt-program-facets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@container (min-width: 720px) {
+  .pt-program-facets {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.pt-program-select {
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pt-program-filter .pt-field-label {
+  letter-spacing: 0.02em;
+}
+
+.pt-program-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.pt-program-found {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-program-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.pt-program-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+  transition:
+    box-shadow var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-program-card:hover {
+  box-shadow: var(--pt-shadow-raised);
+  transform: translateY(-2px);
+}
+
+.pt-program-card:has(.pt-program-card-title button:focus-visible) {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 3px;
+}
+
+/* Картинка карточки — в облике шапки «Главной»: графит, красное свечение, едва видный знак EVO и белый знак
+   направления рядом с названием направления. Своих фото у программ нет; цвет общий для всех карточек, данные он не
+   раскрашивает. Контраст текста — как у шапки (белый 17.4:1, приглушённый 10.5:1). */
+.pt-program-card-media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 84px;
+  padding: 16px;
+  overflow: hidden;
+  background: var(--pt-hero-wash), var(--pt-hero-bg);
+  color: var(--pt-hero-ink);
+}
+
+.pt-program-card-media::after {
+  content: "";
+  position: absolute;
+  top: -22px;
+  right: -18px;
+  width: 112px;
+  height: 112px;
+  background: var(--pt-hero-mark);
+  -webkit-mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+  mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+  pointer-events: none;
+}
+
+.pt-program-card-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--pt-hero-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-hero-mark);
+}
+
+.pt-program-card-field {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  color: var(--pt-hero-muted);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.pt-program-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 16px 0;
+}
+
+.pt-program-card-title {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.pt-program-card-title button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* Вся карточка — одна кнопка: кнопка названия растянута на карточку. */
+.pt-program-card-title button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.pt-page .pt-program-card-title button:focus-visible {
+  outline: none;
+}
+
+.pt-program-card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.pt-program-card-facts {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--pt-size-secondary);
+  color: var(--pt-text-2);
+}
+
+.pt-program-card-facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.pt-program-card-facts svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.pt-program-card-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: auto -16px 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--pt-line);
+  color: var(--pt-accent);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-program-card-more svg {
+  transition: translate var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-program-card:hover .pt-program-card-more svg {
+  translate: 3px 0;
+}
+
+.pt-program-more {
+  margin: 16px 0 0;
+}
+
+.pt-program-more-button {
+  width: 100%;
+  min-height: 48px;
+}
+
+.pt-program-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.pt-program-empty p {
+  margin: 0;
+}
+
+.pt-program-dialog {
+  width: min(640px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  /* Общий сброс обнуляет отступы, а модальное окно центрирует именно margin: auto. */
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  box-shadow: var(--pt-shadow-raised);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.pt-program-dialog::backdrop {
+  background: var(--pt-dialog-backdrop);
+}
+
+/* Под открытым окном страница не прокручивается. */
+html:has(.pt-program-dialog[open]) {
+  overflow: hidden;
+}
+
+.pt-program-dialog-body {
+  padding: 24px;
+}
+
+.pt-program-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pt-program-dialog-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pt-radius-control);
+  background: none;
+  color: var(--pt-text-2);
+  cursor: pointer;
+}
+
+.pt-program-dialog-close:hover {
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+
+@media (max-width: 559px) {
+  .pt-program-filter {
+    padding: 12px;
+  }
+
+  /* Телефон: окно программы — лист снизу. */
+  .pt-program-facets {
+    gap: 10px;
+  }
+
+  .pt-program-dialog {
+    width: 100%;
+    max-height: 92dvh;
+    margin: auto 0 0;
+    border-radius: var(--pt-radius-card) var(--pt-radius-card) 0 0;
+  }
+
+  .pt-program-dialog-body {
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  }
 }
 
 /* ---------- Фокус в каталоге ---------- */

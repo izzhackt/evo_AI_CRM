@@ -4,8 +4,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
-import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeLabel, UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
-import { universityBatchRequestId, universityContentHash, universityBatchRows } from "../src/lib/server/university-catalog-batch.ts";
+import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeId, universityIntakeLabel, UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
+import { universityBatchRequestId, universityContentHash, universityBatchRows, universityMissingIntakeIds, withStableUniversityIntakeIds } from "../src/lib/server/university-catalog-batch.ts";
 import { universityIntakeStatusKey } from "../src/lib/portal/universities.ts";
 import { universityPhotoUrl } from "../src/lib/university-photo-url.ts";
 // The reader resolves managed photo addresses from NEXT_PUBLIC_SUPABASE_URL (docs/runbooks/selfhosted-cutover.md).
@@ -89,6 +89,26 @@ test("content hashes ignore JSON property order and exact review retries retain 
   assert.equal(universityBatchRequestId(scope, "stage"), universityBatchRequestId(scope, "stage"));
   assert.notEqual(universityBatchRequestId(scope, "stage"), universityBatchRequestId(scope, "publish"));
   assert.notEqual(universityBatchRequestId(scope, "stage"), universityBatchRequestId([...scope, "changed"], "stage"));
+});
+test("batch intake identities are stable per published version, valid, unique and change nothing else", () => {
+  const entry = current.find((row) => row.content.programs.filter((program) => program.intakes.length > 0).length >= 2);
+  const bare = { ...entry.content, programs: entry.content.programs.map((program) => ({ ...program, intakes: program.intakes.map(({ id: _id, ...intake }) => intake) })) };
+  const total = bare.programs.reduce((sum, program) => sum + program.intakes.length, 0);
+  assert.equal(universityMissingIntakeIds(bare), total);
+  const kept = "59948000-0000-4000-8000-0000000000aa";
+  const partly = { ...bare, programs: bare.programs.map((program, index) => index === 0 ? { ...program, intakes: program.intakes.map((intake, at) => at === 0 ? { ...intake, id: kept } : intake) } : program) };
+  const identified = withStableUniversityIntakeIds(partly, id, 3);
+  assert.equal(universityMissingIntakeIds(identified), 0);
+  assert.deepEqual(parseUniversityContent(identified), identified);
+  assert.deepEqual(withStableUniversityIntakeIds(partly, id, 3), identified);
+  const ids = identified.programs.flatMap((program) => program.intakes.map((intake) => intake.id));
+  assert.equal(ids[0], kept);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(ids.every(universityIntakeId));
+  const strip = (content) => content.programs.map((program) => program.intakes.map(({ id: _id, ...intake }) => intake));
+  assert.deepEqual(strip(identified), strip(partly));
+  assert.deepEqual({ ...identified, programs: null }, { ...partly, programs: null });
+  assert.notDeepEqual(withStableUniversityIntakeIds(partly, id, 4).programs, identified.programs);
 });
 test("language courses have their own valid filter rather than masquerading as degree programmes", () => {
   assert.ok(current.flatMap((row) => row.content.programs).filter((p) => p.level === "language").length >= 27);

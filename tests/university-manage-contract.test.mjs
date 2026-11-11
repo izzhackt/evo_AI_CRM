@@ -38,8 +38,9 @@ test('closed canonical listContext cannot smuggle a URL or duplicate key',()=>{
  for(const bad of ['{"q":"","q":"CN","cursor":null}','{"cursor":null,"q":""}','{"q":"","cursor":null,"href":"https://evil.test"}',JSON.stringify({q:' CN ',cursor:null}),' '.repeat(4097)]) assert.equal(parseManageListContext(bad),null);
  assert.equal(manageListContext({q:'',cursor:null}),null);
  assert.equal(manageEditorHref('new','1','{"q":"","cursor":null}'),'/universities/manage?new=1');
- for(const mode of ['draft','edit','identify','template','new','batch']) {
-  const href=manageEditorHref(mode,['new','batch'].includes(mode)?'1':mode==='template'?'apu':id(1),context);
+ assert.equal(parseManageRoute(new URLSearchParams('intakeIds=2')),null);
+ for(const mode of ['draft','edit','identify','template','new','batch','intakeIds']) {
+  const href=manageEditorHref(mode,['new','batch','intakeIds'].includes(mode)?'1':mode==='template'?'apu':id(1),context);
   const parsed=parseManageRoute(new URL(href,'https://local.test').searchParams);
   assert.equal(parsed.listContext,context);
   assert.equal(manageListHref(parseManageListContext(parsed.listContext)),manageListHref(index));
@@ -65,7 +66,7 @@ test('next cursor requires fifty rows and exact last row, no guessed totals',()=
 test('navigation lifecycle preserves a filtered page across each editor and resets only the index query',()=>{
  const index={q:'50%_大学',cursor:cursor('50%_大学')};
  const context=manageListContext(index);
- for(const [mode,value] of [['draft',id(1)],['edit',id(2)],['identify',id(2)],['template','reviewed-template'],['new','1'],['batch','1']]) {
+ for(const [mode,value] of [['draft',id(1)],['edit',id(2)],['identify',id(2)],['template','reviewed-template'],['new','1'],['batch','1'],['intakeIds','1']]) {
   const url=new URL(manageEditorHref(mode,value,context),'https://example.test');
   const parsed=parseManageRoute(url.searchParams);
   assert.equal(parsed.kind,'editor');

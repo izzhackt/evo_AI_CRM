@@ -53,7 +53,8 @@ export const readAiAgentRuns = async () => F.available({ runs: F.RUNS, hasMore: 
 export const readAiAgentRun = async () => F.available(F.RUN_DETAIL);
 export const readAiAgentDrafts = async () => F.available(F.DRAFTS);
 export const readAiAgentsActivity = async () => ({ runs: F.RUNS, drafts: F.DRAFTS.drafts, partial: false });`,
-  "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }`,
+  "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }
+export function useRouter() { return { push() {}, refresh() {}, replace() {} }; }`,
 };
 
 const ENTRY = `

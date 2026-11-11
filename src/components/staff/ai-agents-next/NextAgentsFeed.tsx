@@ -28,7 +28,7 @@ export function NextAgentsFeed({ runs, agents, now, partial }: Readonly<{
 }>) {
   const titleOf = new Map(agents.map((agent) => [agent.key, agent.title]));
   return (
-    <WidgetCard title="Что сделали агенты" bodyClassName="p-0">
+    <WidgetCard title="Что сделали агенты" bodyClassName="p-0" actions={<span className="inline-flex items-center gap-1.5 t-meta text-fg-2"><span aria-hidden="true" className="size-1.5 rounded-full bg-ok" />Последние запуски</span>}>
       {partial ? <p className="px-5 pb-2 t-meta text-warn" data-testid="v3-aia-feed-partial">Часть ленты не загрузилась — показано не всё.</p> : null}
       {runs.length === 0 ? (
         <p className="px-5 pb-5 t-meta text-fg-2" data-testid="v3-aia-feed-empty">Запусков ещё не было.</p>
@@ -43,7 +43,9 @@ export function NextAgentsFeed({ runs, agents, now, partial }: Readonly<{
                   href={aiAgentHref(run.agentKey, { tab: "runs", run: run.id })}
                   className="flex gap-3 px-5 py-3 transition-colors hover:bg-surface-2 motion-reduce:transition-none"
                 >
-                  <Icon aria-hidden="true" className={`mt-0.5 size-[18px] shrink-0 ${tone} ${run.status === "running" ? "animate-spin motion-reduce:animate-none" : ""}`} />
+                  <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-item border border-border bg-surface-2">
+                    <Icon className={`size-[18px] ${tone} ${run.status === "running" ? "animate-spin motion-reduce:animate-none" : ""}`} />
+                  </span>
                   <span className="grid min-w-0 gap-0.5">
                     <span className="t-body-compact text-fg">
                       <span className="font-semibold">{titleOf.get(run.agentKey) ?? run.agentKey}</span>

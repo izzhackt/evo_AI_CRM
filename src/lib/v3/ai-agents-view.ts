@@ -1032,6 +1032,12 @@ export function actionArgsWords(summary: string | null | undefined): string {
 }
 
 /** Готовые первые поручения во вкладке «Поручить»: подставляются в поле, отправляет сотрудник. */
+/**
+ * Вопрос агенту с главной «ИИ-агентов» (11.11.2026): текст кладётся в память вкладки под этим ключом + ключ агента,
+ * чат агента забирает его в поле ввода и стирает. Не через адрес: в поручении бывают имена студентов.
+ */
+export const AI_AGENT_ASK_STORAGE = "evo-aia-ask:";
+
 export const AI_AGENT_STARTERS: Readonly<Record<AiAgentKey, readonly string[]>> = {
   director: [
     "Подготовь недельный отчёт за прошлую неделю",

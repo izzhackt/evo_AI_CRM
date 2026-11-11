@@ -10,13 +10,16 @@ import type { StudentReceipt } from "@/lib/platform-student-receipts-contract";
 import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { MoneyCard } from "./MoneyCard";
-import { PaymentsCard, TranchesCard } from "./MoneyLists";
+import { ScheduleCard } from "./MoneyLists";
 import { MoneyStop, MoneySummary } from "./MoneySummary";
 import { StudentReceiptsCard } from "./StudentReceiptsCard";
 
 type Shared = Readonly<{ saleConditionsHref: string | null; financeStop: string | null; stopsPanel: boolean }>;
 
-/** Сводка, транши и оплаты из уже прочитанного (чтение 189) - соседние карточки листа; статический рендер берёт этот вид с синтетикой. */
+/**
+ * Сводка и «График платежей» из уже прочитанного (чтение 189) - соседние карточки листа; статический рендер берёт этот вид с
+ * синтетикой. Чеки студента на проверке - между ними: пока их не приняли, деньги не засчитаны.
+ */
 export function AgreementNextView({ agreement, canWrite, today, pendingReceipts, pendingUnavailable = false, studentReceipts = [], ...shared }: Shared & Readonly<{
   agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[]; pendingUnavailable?: boolean;
   /** Чеки студента «на проверке» по этому делу (миграция 358). */
@@ -25,9 +28,8 @@ export function AgreementNextView({ agreement, canWrite, today, pendingReceipts,
   return (
     <>
       <MoneyCard><MoneySummary agreement={agreement} canWrite={canWrite} today={today} {...shared} /></MoneyCard>
-      <TranchesCard agreement={agreement} canWrite={canWrite} today={today} />
       <StudentReceiptsCard receipts={studentReceipts} today={today} />
-      <PaymentsCard agreement={agreement} canWrite={canWrite} today={today} pendingReceipts={pendingReceipts} />
+      <ScheduleCard agreement={agreement} canWrite={canWrite} today={today} pendingReceipts={pendingReceipts} />
       {pendingUnavailable ? <p role="alert" className="t-body-compact text-danger">Чеки из разбора документов не загрузились. Обновите страницу.</p> : null}
     </>
   );

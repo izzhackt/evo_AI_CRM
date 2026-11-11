@@ -69,7 +69,9 @@ const { getPortalStrings } = require(join(ROOT, "src/lib/portal/i18n.ts"));
 const { OverviewView } = require(join(ROOT, "src/components/portal/admission/OverviewView.tsx"));
 const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/DocumentsView.tsx"));
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
-const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/professions/ProfessionsGrid.tsx"));
+const { ProfessionsBrowser } = require(join(ROOT, "src/components/portal/professions/ProfessionsBrowser.tsx"));
+const { ProfessionMatches } = require(join(ROOT, "src/components/portal/professions/ProfessionMatches.tsx"));
+const { ProfessionsTestHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsTestHero.tsx"));
 const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
 const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
@@ -481,6 +483,28 @@ const orvisResultAttemptFixture = {
 };
 
 const professionsStrings = getPortalStrings("professions", "ru");
+const professionCards = [
+  {
+    cardId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    cardKey: "software-developer",
+    version: "1.1.0",
+    titleRu: "Разработчик программного обеспечения",
+    titleKy: "Программалык камсыздоону иштеп чыгуучу",
+    orvisScales: ["analysis", "creativity"],
+    summaryRu: "Пишет программы и приложения и находит ошибки в коде.",
+    summaryKy: "Программаларды жана тиркемелерди жазып, коддогу каталарды табат.",
+  },
+  {
+    cardId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    cardKey: "nurse",
+    version: "1.0.0",
+    titleRu: "Медицинская сестра / медбрат",
+    titleKy: "Медайым",
+    orvisScales: ["altruism"],
+    summaryRu: null,
+    summaryKy: null,
+  },
+];
 const profileStrings = getPortalStrings("profile", "ru");
 const consultationStrings = getPortalStrings("consultation", "ru");
 
@@ -737,26 +761,18 @@ const surfaces = [
         createElement(
           "div",
           null,
-          createElement(ProfessionsGrid, {
-            cards: [
-              {
-                cardId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-                cardKey: "software-developer",
-                version: "1",
-                titleRu: "Разработчик программного обеспечения",
-                titleKy: "Программалык камсыздоону иштеп чыгуучу",
-                orvisScales: ["analysis", "creativity"],
-              },
-              {
-                cardId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-                cardKey: "nurse",
-                version: "1",
-                titleRu: "Медицинская сестра / медбрат",
-                titleKy: "Медайым",
-                orvisScales: ["altruism"],
-              },
-            ],
-            topScales: ["analysis"],
+          createElement(ProfessionsTestHero, {
+            state: { questionCount: 92, draftAnswered: 40, completed: false, profile: null },
+            strings: professionsStrings,
+          }),
+          createElement(ProfessionMatches, {
+            matches: [{ card: professionCards[0], percent: 87, reasons: ["analysis"] }],
+            locale: "ru",
+            strings: professionsStrings,
+          }),
+          createElement(ProfessionsBrowser, {
+            cards: professionCards,
+            activeScale: null,
             locale: "ru",
             strings: professionsStrings,
           }),

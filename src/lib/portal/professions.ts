@@ -49,6 +49,9 @@ function textList(value: unknown, max = 12): string[] {
 function uuid(value: unknown): string {
   return typeof value === "string" && UUID.test(value) ? value : fail();
 }
+function optionalText(value: unknown, max: number): string | null {
+  return value === undefined || value === null ? null : text(value, max);
+}
 function scales(value: unknown): OrvisScaleId[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 3) return fail();
   return value.map((item) => (isOrvisScaleId(item) ? item : fail()));
@@ -61,6 +64,9 @@ export type ProfessionCardSummary = {
   titleRu: string;
   titleKy: string;
   orvisScales: OrvisScaleId[];
+  /** Строка о работе (контент 1.1.0, миграция 359); у карточек 1.0.0 — null. */
+  summaryRu: string | null;
+  summaryKy: string | null;
 };
 
 export type ProfessionLinkedProgramRef = {
@@ -89,6 +95,11 @@ export type ProfessionCardBody = {
   study_directions_ky: string[];
   linked_program_refs: ProfessionLinkedProgramRef[];
   sources: string[];
+  /** Контент 1.1.0 (миграция 359); у карточек 1.0.0 — null. */
+  summary_ru: string | null;
+  summary_ky: string | null;
+  school_subjects_ru: string[] | null;
+  school_subjects_ky: string[] | null;
 };
 
 export type ProfessionCard = {
@@ -111,6 +122,8 @@ export function parseProfessionCards(value: unknown): ProfessionCardSummary[] {
       titleRu: text(card.titleRu, 300),
       titleKy: text(card.titleKy, 300),
       orvisScales: scales(card.orvisScales),
+      summaryRu: optionalText(card.summaryRu, 300),
+      summaryKy: optionalText(card.summaryKy, 300),
     };
   });
 }
@@ -154,8 +167,14 @@ export function parseProfessionCard(value: unknown): ProfessionCard {
         return source.startsWith("https://") ? source : fail();
       })
       : fail(),
+    summary_ru: optionalText(body.summary_ru, 300),
+    summary_ky: optionalText(body.summary_ky, 300),
+    school_subjects_ru: body.school_subjects_ru === undefined ? null : pairList("school_subjects_ru"),
+    school_subjects_ky: body.school_subjects_ky === undefined ? null : pairList("school_subjects_ky"),
   };
   if (parsedBody.skills_ru.length !== parsedBody.skills_ky.length) return fail();
+  if ((parsedBody.school_subjects_ru === null) !== (parsedBody.school_subjects_ky === null)
+    || (parsedBody.school_subjects_ru?.length ?? 0) !== (parsedBody.school_subjects_ky?.length ?? 0)) return fail();
   return {
     cardId: uuid(row.cardId),
     cardKey: text(row.cardKey, 120),

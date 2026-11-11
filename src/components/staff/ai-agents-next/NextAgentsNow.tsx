@@ -66,7 +66,12 @@ export function NextAgentsNow({ list }: Readonly<{ list: AiAgentsListResult }>) 
         </div>
         <div className="v3-aia-hero-tile grid content-between gap-2 rounded-item p-3">
           <dt className="v3-aia-hero-muted t-meta">Без ошибок</dt>
-          <dd className="t-record-title tabular-nums">{share === null ? "—" : `${share}%`}</dd>
+          <dd className="grid gap-2">
+            <span className="t-record-title tabular-nums">{share === null ? "—" : `${share}%`}</span>
+            <span aria-hidden="true" className="v3-aia-hero-bar h-1 overflow-hidden rounded-full" data-empty="">
+              {share !== null ? <span className="block h-full rounded-full bg-ok" style={{ width: `${share}%` }} /> : null}
+            </span>
+          </dd>
         </div>
         <div className="v3-aia-hero-tile grid content-between gap-2 rounded-item p-3">
           <dt className="v3-aia-hero-muted t-meta">Ждут решения</dt>

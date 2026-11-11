@@ -41,7 +41,7 @@ export function NextAgentsHub({
         <div className="grid min-w-0 gap-4">
           <NextAgentsNow list={list} />
           <NextAgentsKpis list={list} />
-          <div className="grid min-w-0 items-start gap-4 @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="grid min-w-0 items-start gap-4 @4xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
             <NextAgentsFeed runs={activity?.runs ?? []} agents={list.agents} now={list.now} partial={activity?.partial ?? false} />
             <div className="grid min-w-0 gap-4">
               <NextAgentsDrafts drafts={activity?.drafts ?? []} agents={list.agents} />

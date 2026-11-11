@@ -1,10 +1,26 @@
 import Link from "next/link";
+import { BarChart3Icon, GraduationCapIcon, HandshakeIcon, type LucideIcon } from "lucide-react";
 
 import { HelpTip, WidgetCard } from "@/components/kit";
-import { AI_AGENT_GROUPS, AI_AGENT_GROUP_LABELS, type AiAgentDraftRow, type AiAgentListItem } from "@/lib/ai-agents/contract";
+import { AI_AGENT_GROUPS, AI_AGENT_GROUP_LABELS, type AiAgentDraftRow, type AiAgentGroup, type AiAgentListItem } from "@/lib/ai-agents/contract";
 import { aiAgentHref, aiAgentIsRunnable, aiAgentRoleLine, aiAgentStateChip, pluralRu, relativeTimeRu } from "@/lib/v3/ai-agents-view";
 
 const DOT = { ok: "bg-ok", warn: "bg-warn", danger: "bg-danger", neutral: "bg-fg-3", info: "bg-info" } as const;
+/** Значок группы — нейтральный круг (у агента нет своего цвета), состояние — точкой на его краю. */
+const GROUP_ICON: Readonly<Record<AiAgentGroup, LucideIcon>> = { sales: HandshakeIcon, analytics: BarChart3Icon, curators: GraduationCapIcon };
+
+/** Запуски агента по дням за 14 дней — тонкие столбики; дни без запусков — бледные. */
+function Runs14({ values, title }: Readonly<{ values: readonly number[]; title: string }>) {
+  const top = Math.max(1, ...values);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return (
+    <span role="img" aria-label={`${title}: ${total} ${pluralRu(total, ["запуск", "запуска", "запусков"])} за 14 дней`} className="hidden h-6 shrink-0 items-end gap-px @3xs:flex">
+      {values.map((value, index) => (
+        <span key={index} className={`w-0.5 rounded-full ${value > 0 ? "bg-fg-2" : "bg-border"}`} style={{ height: `${Math.max(15, (value / top) * 100)}%` }} />
+      ))}
+    </span>
+  );
+}
 
 /** «Ждут решения» (по образцу Molar AI — то, что ждёт человека): черновики всех агентов, по одному тексту на строку. */
 export function NextAgentsDrafts({ drafts, agents }: Readonly<{ drafts: readonly AiAgentDraftRow[]; agents: readonly AiAgentListItem[] }>) {
@@ -38,21 +54,25 @@ export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, can
   canWriteRules: boolean;
 }>) {
   return (
-    <WidgetCard title="Агенты" size="sm" bodyClassName="p-0">
+    <WidgetCard title="Агенты" size="sm" bodyClassName="p-0 @container">
       {AI_AGENT_GROUPS.map((group) => {
         const list = agents.filter((agent) => agent.groupKey === group).sort((a, b) => a.sortOrder - b.sortOrder);
         if (list.length === 0) return null;
+        const GroupIcon = GROUP_ICON[group];
         return (
           <section key={group} aria-labelledby={`aia-group-${group}`} data-testid={`v3-aia-group-${group}`} className="border-t border-border">
-            <h3 id={`aia-group-${group}`} className="px-4 pt-2.5 t-meta font-semibold text-fg-3">{AI_AGENT_GROUP_LABELS[group]}</h3>
+            <h3 id={`aia-group-${group}`} className="px-4 pt-3 pb-0.5 t-meta font-semibold text-fg-3">{AI_AGENT_GROUP_LABELS[group]}</h3>
             <ul>
               {list.map((agent) => {
                 const rules = hasInstructionsOf(agent);
                 const state = aiAgentStateChip({ enabled: agent.enabled, hasInstructions: rules, syncStatus: agent.sync.status, needsSync: false });
                 const runnable = rules && canAskOf(agent) && agent.enabled && aiAgentIsRunnable(agent.sync);
                 return (
-                  <li key={agent.key} data-testid={`v3-aia-card-${agent.key}`} className="flex items-center gap-2.5 px-4 py-2.5">
-                    <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ring-2 ring-surface ${DOT[state.tone as keyof typeof DOT] ?? DOT.neutral}`} />
+                  <li key={agent.key} data-testid={`v3-aia-card-${agent.key}`} className="flex items-center gap-3 px-4 py-2.5">
+                    <span aria-hidden="true" className="relative grid size-9 shrink-0 place-items-center rounded-full border border-border bg-surface-2 text-fg-2">
+                      <GroupIcon className="size-4" />
+                      <span className={`absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-surface ${DOT[state.tone as keyof typeof DOT] ?? DOT.neutral}`} />
+                    </span>
                     <span className="grid min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-1">
                         <Link href={aiAgentHref(agent.key)} className="truncate t-body-compact font-medium text-fg underline-offset-4 hover:underline">{agent.title}</Link>
@@ -67,6 +87,7 @@ export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, can
                         ) : null}
                       </span>
                     </span>
+                    {rules ? <Runs14 values={agent.stats.runsPerDay14} title={agent.title} /> : null}
                     {runnable ? (
                       <Link href={aiAgentHref(agent.key, { tab: "command" })} data-testid={`v3-aia-ask-${agent.key}`} className="inline-flex min-h-11 shrink-0 items-center t-meta font-medium text-fg underline underline-offset-4">Поручить</Link>
                     ) : !rules && canWriteRules ? (

@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ArrowUpRightIcon, SendHorizontalIcon, SparklesIcon } from "lucide-react";
 import { useId, useState } from "react";
 
-import { WidgetCard } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -30,13 +30,20 @@ export function NextAgentsAsk({ agents, blockedNote }: Readonly<{ agents: readon
     router.push(aiAgentHref(key));
   };
   return (
-    <WidgetCard title="Спросить агента" size="sm">
+    <section aria-labelledby={`${id}-title`} className="grid gap-4 rounded-card border border-border bg-surface p-4" data-testid="v3-aia-askcard">
+      <header className="flex items-center gap-3">
+        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-fg text-surface"><SparklesIcon className="size-4" /></span>
+        <span className="grid min-w-0">
+          <h2 id={`${id}-title`} className="t-item text-fg">Спросить агента</h2>
+          <span className="t-meta text-fg-3">Поручение откроется в чате агента</span>
+        </span>
+      </header>
       {agents.length === 0 || !key ? (
         <p className="t-meta text-fg-2" data-testid="v3-aia-askbox-blocked">{blockedNote ?? "Сейчас нет агентов, которым можно поручить."}</p>
       ) : (
         <form className="grid gap-3" data-testid="v3-aia-askbox" onSubmit={(event) => { event.preventDefault(); ask(); }}>
           <div className="grid gap-1.5">
-            <Label htmlFor={`${id}-agent`}>Агент</Label>
+            <Label htmlFor={`${id}-agent`}>Кому</Label>
             <NativeSelect id={`${id}-agent`} value={key} onChange={(event) => setKey(event.target.value as AiAgentKey)}>
               {agents.map((agent) => <option key={agent.key} value={agent.key}>{agent.title}</option>)}
             </NativeSelect>
@@ -44,20 +51,29 @@ export function NextAgentsAsk({ agents, blockedNote }: Readonly<{ agents: readon
           <ul className="flex flex-col gap-1.5" aria-label="Примеры поручений">
             {AI_AGENT_STARTERS[key].map((starter) => (
               <li key={starter}>
-                <Button type="button" variant="outline" onClick={() => setText(starter)} className="h-auto min-h-11 w-full justify-start whitespace-normal py-2 text-start t-meta">
-                  {starter}
+                <Button type="button" variant="outline" onClick={() => setText(starter)} className="h-auto min-h-11 w-full justify-between gap-2 whitespace-normal rounded-card py-2 text-start t-meta">
+                  <span className="min-w-0">{starter}</span>
+                  <ArrowUpRightIcon aria-hidden="true" className="size-4 shrink-0 text-fg-3" />
                 </Button>
               </li>
             ))}
           </ul>
-          <div className="grid gap-1.5">
+          <div className="relative">
             <Label htmlFor={`${id}-text`} className="sr-only">Поручение</Label>
-            <Textarea id={`${id}-text`} value={text} onChange={(event) => setText(event.target.value)} rows={3} maxLength={4000} placeholder="Напишите поручение…" />
+            <Textarea id={`${id}-text`} value={text} onChange={(event) => setText(event.target.value)} rows={3} maxLength={4000} placeholder="Напишите поручение…" className="min-h-28 resize-none rounded-card pe-14" />
+            <Button
+              type="submit"
+              size="icon"
+              aria-label="Перейти в чат агента"
+              disabled={Boolean(blockedNote) || !text.trim()}
+              className="absolute end-2 bottom-2 rounded-full"
+            >
+              <SendHorizontalIcon aria-hidden="true" className="size-4" />
+            </Button>
           </div>
           {blockedNote ? <p className="t-meta text-fg-2" data-testid="v3-aia-askbox-blocked">{blockedNote}</p> : null}
-          <Button type="submit" disabled={Boolean(blockedNote) || !text.trim()}>Перейти в чат агента</Button>
         </form>
       )}
-    </WidgetCard>
+    </section>
   );
 }

@@ -442,7 +442,8 @@ test("FIX 4: CaseAgreementBlock renders a «возврат» chip and a minus-pr
 // ---------------------------------------------------------------------------
 
 test("FIX 5: PaymentForm renders a working receipt retry block outside the disabled fieldset, bound to the saved payment_event_id", () => {
-  const fieldsetEnd = formsSource.indexOf("</fieldset>", formsSource.indexOf("Добавить оплату"));
+  // 10.11.2026: «Добавить оплату» стала «Записать оплату».
+  const fieldsetEnd = formsSource.indexOf("</fieldset>", formsSource.indexOf("Записать оплату"));
   const retryBlockIndex = formsSource.indexOf("retryReceiptUpload(savedPaymentEventId)");
   assert.ok(fieldsetEnd >= 0 && retryBlockIndex >= 0);
   assert.ok(retryBlockIndex > fieldsetEnd, "the retry control must render after (outside) the disabled fieldset");

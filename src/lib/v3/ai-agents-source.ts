@@ -11,7 +11,6 @@ import {
   type AiAgentDraftsListResult,
   type AiAgentKey,
   type AiAgentRunGetResult,
-  type AiAgentRunRow,
   type AiAgentRunsListResult,
   type AiAgentsListResult,
 } from "../ai-agents/contract.ts";
@@ -98,36 +97,18 @@ export function readAiAgentDigests(
 }
 
 /** Лента главной «ИИ-агентов»: последние запуски всех агентов и черновики, ждущие решения. */
-export type AiAgentsActivity = Readonly<{
-  /** Последние запуски всех агентов, от новых к старым. */
-  runs: readonly AiAgentRunRow[];
+export type AiAgentsPending = Readonly<{
   /** Черновики, ждущие решения, всех агентов. */
   drafts: readonly AiAgentDraftRow[];
-  /** Какие-то чтения не удались: лента может быть неполной (говорим словом, не молчим). */
+  /** Чтение не удалось: список может быть неполным (говорим словом, не молчим). */
   partial: boolean;
 }>;
 
 /**
- * Главная «ИИ-агентов» (11.11.2026, по образцу Molar AI): чтения те же, что у вкладок агента, — по несколько последних
- * запусков каждого агента и общий список черновиков «ждёт решения». Сбой одного чтения не роняет страницу: лента
- * становится `partial`.
+ * «Ждут решения» на главной «ИИ-агентов» (12.11.2026, по отзыву владельца к #1449): то же чтение черновиков, что у
+ * вкладки агента, по всем агентам сразу. Сбой не роняет страницу: `partial`.
  */
-export async function readAiAgentsActivity(
-  actor: ActivePlatformActor,
-  keys: readonly AiAgentKey[],
-  options: Readonly<{ runsPerAgent: number; feed: number; drafts: number }>,
-): Promise<AiAgentsActivity> {
-  const [runReads, draftsRead] = await Promise.all([
-    Promise.all(keys.map((key) => readAiAgentRuns(actor, key, { limit: options.runsPerAgent }))),
-    readAiAgentDrafts(actor, { key: null, status: "pending", limit: options.drafts }),
-  ]);
-  const runs = runReads
-    .flatMap((read) => (read.status === "available" ? read.data.runs : []))
-    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
-    .slice(0, options.feed);
-  return {
-    runs,
-    drafts: draftsRead.status === "available" ? draftsRead.data.drafts : [],
-    partial: runReads.some((read) => read.status !== "available" && read.status !== "denied") || draftsRead.status === "unavailable",
-  };
+export async function readAiAgentsPending(actor: ActivePlatformActor, options: Readonly<{ limit: number }>): Promise<AiAgentsPending> {
+  const read = await readAiAgentDrafts(actor, { key: null, status: "pending", limit: options.limit });
+  return { drafts: read.status === "available" ? read.data.drafts : [], partial: read.status === "unavailable" };
 }

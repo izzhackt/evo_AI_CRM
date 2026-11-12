@@ -52,9 +52,8 @@ export const readAiAgentDigests = async () => F.available({ digests: F.DIGESTS }
 export const readAiAgentRuns = async () => F.available({ runs: F.RUNS, hasMore: false });
 export const readAiAgentRun = async () => F.available(F.RUN_DETAIL);
 export const readAiAgentDrafts = async () => F.available(F.DRAFTS);
-export const readAiAgentsActivity = async () => ({ runs: F.RUNS, drafts: F.DRAFTS.drafts, partial: false });`,
-  "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }
-export function useRouter() { return { push() {}, refresh() {}, replace() {} }; }`,
+export const readAiAgentsPending = async () => ({ drafts: F.DRAFTS.drafts, partial: false });`,
+  "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }`,
 };
 
 const ENTRY = `
@@ -195,16 +194,19 @@ test("страница агента: на каждой вкладке новый
 
 /* ------------------------------------------------------------------ хаб */
 
-test("хаб по образцу Molar AI: «Сейчас» с итогами, лента «Что сделали агенты», список агентов по трём группам со ссылками и «?», «Правила» у агентов без правил, Gemini; пояснения за «?»", async () => {
+test("хаб по образцу Molar AI: «Сейчас» с итогами, без ленты и «Спросить агента», список агентов по трём группам со ссылками и «?», «Правила» у агентов без правил, Gemini; пояснения за «?»", async () => {
   const { nextHub } = await views();
   const next = strip(nextHub(F.available(F.LIST), true, false));
   assert.doesNotMatch(next, /data-slot="stat-tile"/u, "11.11.2026: крупных плиток нет, итоги — в карточке «Сейчас»");
   assert.match(next, /data-testid="v3-aia-now"/u);
   for (const label of ["Запусков за 7 дней", "Без ошибок", "Расход за 7 дней"]) assert.match(next, new RegExp(label, "u"));
   for (const gone of ["Включено агентов", "Действий", "инструментов за 7 дней"]) assert.doesNotMatch(next, new RegExp(gone, "u"), `11.11.2026: «${gone}» — второй ряд чисел убран, экран был перегружен`);
-  assert.match(next, /Что сделали агенты/u);
-  assert.match(next, /data-testid="v3-aia-feed-empty"[^>]*>Запусков ещё не было\./u, "без ленты — честная пустота, без «не загрузилась»");
-  assert.doesNotMatch(next, /data-testid="v3-aia-feed-partial"/u);
+  // Отзыв владельца к #1449 (12.11.2026): ленты «Что сделали агенты» и отдельного «Спросить агента» на главной нет.
+  for (const gone of ["Что сделали агенты", "Спросить агента", "data-testid=\"v3-aia-askbox\""]) assert.doesNotMatch(next, new RegExp(gone, "u"), `12.11.2026: «${gone}» убрано`);
+  assert.doesNotMatch(next, /data-testid="v3-aia-pending-partial"/u);
+  const asks = [...next.matchAll(/<a[^>]*data-testid="v3-aia-ask-[^"]+"[^>]*>/gu)].map((match) => match[0]);
+  assert.ok(asks.length > 0, "у готового агента в строке есть «Поручить»");
+  for (const ask of asks) assert.match(ask, /href="\/ai-agents\/[a-z-]+"/u, "«Поручить» сразу ведёт в чат агента (вкладка по умолчанию)");
   for (const group of ["sales", "analytics", "curators"]) assert.match(next, new RegExp(`data-testid="v3-aia-group-${group}"`, "u"));
   for (const key of ["director", "sales", "curator-cn", "curator-my", "curator-eu", "curator-ae", "curator-tr"]) assert.match(next, new RegExp(`data-testid="v3-aia-card-${key}"`, "u"), key);
   assert.match(next, /href="\/ai-agents\/director\?tab=drafts"/u, "очередь черновиков — ссылкой с карточки");

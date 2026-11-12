@@ -26,7 +26,7 @@ export function NextAgentsDrafts({ drafts, agents }: Readonly<{ drafts: readonly
 }
 
 /**
- * «Агенты» — короткий список сбоку: точка состояния, имя (ссылка), «?» с ролью, когда работал и «Поручить».
+ * «Агенты» — список на главной: точка состояния, имя (ссылка), «?» с ролью, когда работал и «Поручить» — сразу в чат агента.
  * Агент без правил — в своей группе со словами «нет правил» и ссылкой на правила администратору.
  */
 export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, canWriteRules }: Readonly<{

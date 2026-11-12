@@ -24,7 +24,6 @@ import {
   type AiAgentsActionState,
   type ChatItem,
   AI_AGENT_AMBIGUOUS_RUN_ERRORS,
-  AI_AGENT_ASK_STORAGE,
 } from "@/lib/v3/ai-agents-view";
 
 import { AgentComposer } from "./AgentComposer";
@@ -136,17 +135,6 @@ export function Console({
   const [offline, setOffline] = useState(false);
   const [fatal, setFatal] = useState<string | null>(null);
   const [text, setText] = useState("");
-  // Вопрос с главной «ИИ-агентов» (11.11.2026): текст пришёл через память вкладки — в поле ввода, память стираем.
-  useEffect(() => {
-    const key = `${AI_AGENT_ASK_STORAGE}${agentKey}`;
-    try {
-      const pending = window.sessionStorage.getItem(key);
-      if (pending) {
-        window.sessionStorage.removeItem(key);
-        setText(pending);
-      }
-    } catch { /* память вкладки недоступна: поле остаётся пустым */ }
-  }, [agentKey]);
   const [direct, setDirect] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendState, setSendState] = useState<AiAgentsActionState>(AI_AGENTS_IDLE);

@@ -102,3 +102,17 @@
 .v3-world .v3-aia-hero-sep {
   border-inline-start: 1px solid var(--aia-hero-line);
 }
+
+/* Маскот агента в чате (12.11.2026): покачивается, пока агент работает; без движения при reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world .v3-aia-mascot[data-working] {
+    transform-origin: 50% 90%;
+    animation: v3-aia-mascot-work 1.4s ease-in-out infinite;
+  }
+  @keyframes v3-aia-mascot-work {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-3px) rotate(-6deg); }
+    50% { transform: translateY(0) rotate(0deg); }
+    75% { transform: translateY(-3px) rotate(6deg); }
+  }
+}

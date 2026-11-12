@@ -127,6 +127,8 @@ async function views() {
           b.onResolve({ filter: /^(@\/lib\/platform-guards|@\/lib\/supabase\/server|@\/lib\/server\/ai-agents\/config-hash|@\/lib\/server\/ai-agents\/runtime|@\/lib\/v3\/ai-agents-source|next\/headers|next\/navigation)$/ }, (args) => ({ path: args.path, namespace: "stub" }));
           b.onLoad({ filter: /.*/, namespace: "stub" }, (args) => ({ contents: STUBS[args.path], resolveDir: base, loader: "ts" }));
           b.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+          // Маскоты агентов — статический импорт картинок, как в сборке Next: путь, ширина, высота.
+          b.onLoad({ filter: /\.webp$/ }, (args) => ({ contents: `export default { src: ${JSON.stringify(`/_next/static/media/${args.path.split("/").pop()}`)}, width: 160, height: 160 };`, loader: "js" }));
         },
       }],
     });

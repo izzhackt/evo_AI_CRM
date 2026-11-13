@@ -12,6 +12,7 @@ import {
   paymentReceiptErrorKey,
   receiptAmountToMinor,
 } from "../src/lib/portal/payment-center.ts";
+import { buildPaymentSchedule, isGeneratedReceivedLabel, paymentGroupTitle } from "../src/lib/portal/payment-rows.ts";
 import { getPortalStrings } from "../src/lib/portal/i18n.ts";
 import { isConnectedPlatformApi, isConnectedStudentPortalApi } from "../src/lib/platform-route-contract.ts";
 import { decodeStaffNotifications } from "../src/lib/platform-staff-notifications-contract.ts";
@@ -210,6 +211,167 @@ test("the three routes are wired to their handlers", () => {
   assert.match(read("../src/app/api/v2/student-payment-receipts/[receiptId]/download/route.ts"), /createStaffStudentReceiptDownloadHandler\(\)/);
   assert.match(read("../src/app/api/v3/settings/payment-details/route.ts"), /createPaymentDetailsSaveHandler\(\)/);
   assert.match(read("../src/app/api/v3/settings/payment-details/qr/route.ts"), /createPaymentDetailsQrHandler\(\)/);
+});
+
+test("payment rows put a receipt on every tranche and keep an off-schedule receipt on the same upload", () => {
+  const due = (over = {}) => ({
+    obligationId: A,
+    label: "Получено в USD",
+    category: "evo_service_fee",
+    amountMinor: 120000,
+    paidMinor: 0,
+    refundedMinor: 0,
+    outstandingMinor: 120000,
+    currency: "USD",
+    dueAt: "2026-12-01T00:00:00.000Z",
+    status: "pending",
+    overdue: false,
+    nextAction: null,
+    entries: [],
+    ...over,
+  });
+  const payment = (over = {}) => ({
+    kind: "payment", entryId: B, status: "accepted", amountMinor: 60000, currency: "USD", onDate: "2026-10-02",
+    rejectReason: null, fileKind: "receipt", fileId: B, filename: "chek.pdf", ...over,
+  });
+  const receipt = (over = {}) => ({
+    kind: "receipt", entryId: C, status: "review", amountMinor: 30000, currency: "USD", onDate: "2026-11-01",
+    rejectReason: null, fileKind: "student_receipt", fileId: C, filename: "chek.jpg", ...over,
+  });
+
+  assert.equal(isGeneratedReceivedLabel("Получено в USD"), true);
+  assert.equal(isGeneratedReceivedLabel("Оплата по договору"), false);
+  assert.equal(paymentGroupTitle("услуги EVO", ["Получено в USD"]), "Услуги EVO");
+  assert.equal(paymentGroupTitle(null, ["Получено в USD", "Первый платёж"]), "Первый платёж");
+
+  const open = buildPaymentSchedule({ details: null, canUpload: true, unassigned: [], dues: [due()] });
+  assert.equal(open.groups.length, 1);
+  assert.equal(open.groups[0].lines.length, 1);
+  assert.equal(open.groups[0].lines[0].status, "missing");
+  assert.equal(open.groups[0].lines[0].attach, true);
+  assert.equal(open.groups[0].lines[0].amountMinor, 120000);
+  assert.equal(open.groups[0].lines[0].onDate, "2026-12-01");
+  assert.equal(open.groups[0].paidMinor, 0);
+
+  const reviewing = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({ outstandingMinor: 30000, entries: [receipt()] })],
+  });
+  assert.equal(reviewing.groups[0].lines.length, 1);
+  assert.equal(reviewing.groups[0].lines[0].status, "review");
+  assert.equal(reviewing.groups[0].lines[0].attach, false);
+  assert.equal(reviewing.groups[0].reviewMinor, 30000);
+  assert.equal(reviewing.groups[0].paidMinor, 0);
+
+  const partialReview = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({ outstandingMinor: 90000, entries: [receipt()] })],
+  });
+  assert.deepEqual(partialReview.groups[0].lines.map((line) => line.status), ["review", "missing"]);
+  assert.equal(partialReview.groups[0].lines[1].amountMinor, 60000);
+  assert.equal(partialReview.groups[0].lines[1].attach, true);
+
+  const rejectedId = "35800000-0000-4000-8000-000000000004";
+  const rejected = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({
+      outstandingMinor: 30000,
+      entries: [receipt({ entryId: rejectedId, status: "rejected", rejectReason: "не видно сумму", filename: "blur.jpg" })],
+    })],
+  });
+  assert.equal(rejected.groups[0].lines.length, 1);
+  assert.equal(rejected.groups[0].lines[0].replace, true);
+  assert.equal(rejected.groups[0].lines[0].rejectReason, "не видно сумму");
+
+  const rejectedPartial = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({
+      entries: [receipt({ entryId: rejectedId, status: "rejected", amountMinor: 30000, rejectReason: "не видно сумму", filename: "blur.jpg" })],
+    })],
+  });
+  assert.deepEqual(rejectedPartial.groups[0].lines.map((line) => line.status), ["rejected", "missing"]);
+  assert.equal(rejectedPartial.groups[0].lines[1].amountMinor, 90000);
+
+  const both = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({ entries: [
+      receipt(),
+      receipt({ entryId: rejectedId, status: "rejected", rejectReason: "не видно сумму" }),
+    ] })],
+  });
+  assert.equal(both.groups[0].lines.find((line) => line.status === "rejected").replace, false);
+
+  const settled = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({ amountMinor: 60000, paidMinor: 60000, outstandingMinor: 0, status: "paid", entries: [payment()] })],
+  });
+  assert.equal(settled.groups[0].lines.length, 1);
+  assert.equal(settled.groups[0].lines[0].status, "accepted");
+  assert.equal(settled.groups[0].lines[0].attach, false);
+  assert.equal(settled.groups[0].lines[0].filename, "chek.pdf");
+
+  const settledWithoutFile = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({
+      amountMinor: 60000, paidMinor: 60000, outstandingMinor: 0, status: "paid",
+      entries: [payment({ fileKind: null, fileId: null, filename: null })],
+    })],
+  });
+  assert.equal(settledWithoutFile.groups[0].lines[0].attach, false);
+  assert.equal(settledWithoutFile.groups[0].lines[0].filename, null);
+
+  const partial = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({
+      paidMinor: 60000, outstandingMinor: 60000, status: "partially_paid",
+      entries: [payment()],
+    })],
+  });
+  assert.deepEqual(partial.groups[0].lines.map((line) => line.status), ["accepted", "missing"]);
+  assert.equal(partial.groups[0].lines[1].attach, true);
+
+  const loose = receipt({ status: "rejected", rejectReason: "размыто", onDate: "2026-11-10" });
+  const added = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [loose],
+    dues: [due({ obligationId: A, currency: "USD" }), due({
+      obligationId: rejectedId, currency: "KGS", amountMinor: 50000, outstandingMinor: 50000, label: "Оплата по договору",
+    })],
+  });
+  assert.equal(added.groups.length, 2);
+  assert.equal(added.groups[0].currency, "USD");
+  assert.equal(added.groups[1].currency, "KGS");
+  assert.equal(added.added.length, 1);
+  assert.equal(added.added[0].obligationId, null);
+  assert.equal(added.added[0].replace, true);
+  assert.equal(added.groups.some((group) => group.lines.some((line) => line.key.startsWith("loose:"))), false);
+
+  const locked = buildPaymentSchedule({ details: null, canUpload: false, unassigned: [loose], dues: [due()] });
+  assert.equal(locked.groups[0].lines[0].attach, false);
+  assert.equal(locked.added[0].replace, false);
+
+  const refund = buildPaymentSchedule({
+    details: null, canUpload: true, unassigned: [],
+    dues: [due({
+      paidMinor: 60000, refundedMinor: 10000, outstandingMinor: 70000, status: "partially_paid",
+      entries: [
+        payment(),
+        { kind: "refund", entryId: rejectedId, status: "accepted", amountMinor: 10000, currency: "USD", onDate: "2026-10-20", rejectReason: null, fileKind: null, fileId: null, filename: null },
+      ],
+    })],
+  });
+  const refundLine = refund.groups[0].lines.find((line) => line.status === "refund");
+  assert.equal(refundLine.negative, true);
+  assert.equal(refund.groups[0].refundedMinor, 10000);
+  assert.deepEqual(refund.groups[0].lines.map((line) => line.onDate), ["2026-10-02", "2026-10-20", "2026-12-01"]);
+
+  const view = read("../src/components/portal/admission/PaymentsView.tsx");
+  const form = read("../src/components/portal/admission/PaymentReceiptForm.tsx");
+  assert.doesNotMatch(view, /receiptUnassignedHeading/);
+  assert.doesNotMatch(form, /receiptFieldPaymentNone|receiptAttachLoose/);
+  assert.match(view, /buildPaymentSchedule/);
+  assert.match(form, /receiptAddPayment/);
+  assert.match(form, /payment_obligation_id/);
+  assert.doesNotMatch(`${view}\n${form}`, /paymentObligationId/);
 });
 
 test("the Student case-file door resolves a Student session in the browser (the staff resolver refused Students)", () => {

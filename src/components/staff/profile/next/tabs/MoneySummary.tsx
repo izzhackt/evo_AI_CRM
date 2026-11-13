@@ -1,12 +1,11 @@
-import { KeyFacts, type KeyFact } from "@/components/kit/KeyFacts";
+import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/kit/StatusBadge";
-import { Button } from "@/components/ui/button";
 import type { CaseAgreement } from "@/lib/platform-case-agreement-contract";
 import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { CaseAgreementUploadContract } from "../../CaseAgreementForms";
 import { CaseMoneyOpen } from "../../CaseMoney";
-import { CASE_MONEY_PANEL, caseMoneySummary, caseScheduleRemaining, moneyMomentDay, moneyShort } from "../../case-money-view";
+import { CASE_MONEY_PANEL, caseMoneySummary, casePaidPercent, caseScheduleAgainstCost, caseScheduleRemaining, moneyMomentDay, moneyShort } from "../../case-money-view";
 import { MoreSheet } from "../MoreSheet";
 
 const MUTED = "text-fg-3";
@@ -19,7 +18,6 @@ export function MoneyStop({ reason, stopsPanel }: Readonly<{ reason: string; sto
       <p className="t-caption text-fg-3">{caseMoneyWords.rows.stop}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StatusBadge label="стоп активен" tone="danger" />
-        {/* Узкая карточка: причина - своей строкой под значком и «Стопы» (иначе она остаётся колонкой в 1-2 слова); широкая - в одну строку. */}
         <span className="order-last min-w-0 basis-full break-words t-body-compact text-fg @lg:order-none @lg:flex-1 @lg:basis-0" data-testid="v3-case-money-stop-reason">{reason}</span>
         {stopsPanel ? <CaseMoneyOpen panel={CASE_MONEY_PANEL.stops}>{caseMoneyWords.panels.stops}</CaseMoneyOpen> : null}
       </div>
@@ -28,86 +26,86 @@ export function MoneyStop({ reason, stopsPanel }: Readonly<{ reason: string; sto
 }
 
 /**
- * Сводка: договор, оплачено и остаток; стоимость — только если её указали (10.11.2026: вписывать сумму договора каждый раз
- * неудобно, поэтому без неё остаток считается по графику платежей). Под ними действия с договором и условия продажи, затем
- * стоп. Суммы - из `caseMoneySummary` без нулевых копеек: суммы разных валют не пересчитываются.
+ * Одна строка: стоимость, оплачено, остаток и тонкая полоса. Договор — следующей строкой.
+ * Суммы разных валют не пересчитываются; без стоимости полосы нет.
  */
-export function MoneySummary({ agreement, canWrite, today, saleConditionsHref, financeStop, stopsPanel }: Readonly<{
+export function MoneySummary({ agreement, canWrite, today, financeStop, stopsPanel }: Readonly<{
   agreement: CaseAgreement;
   canWrite: boolean;
   today: string;
-  saleConditionsHref: string | null;
   financeStop: string | null;
   stopsPanel: boolean;
 }>) {
+  const words = caseMoneyWords.pay;
   const summary = caseMoneySummary(agreement);
-  const current = agreement.contractCurrent;
-  const caseId = agreement.studentCaseId;
   const costKnown = summary.cost !== null || summary.costWithoutCurrency;
   const bySchedule = costKnown ? null : caseScheduleRemaining(agreement);
-  const remaining = bySchedule ? bySchedule.values : summary.remaining.values.map(moneyShort);
+  const paid = summary.paid.map(moneyShort);
+  const remaining = (bySchedule ? bySchedule.values : summary.remaining.values).map((value) => bySchedule ? value : moneyShort(value));
   const remainingNote = bySchedule ? bySchedule.note : summary.remaining.note;
-  // Стоимость - первой, если её указали; нет - её строки нет вовсе.
-  const facts: KeyFact[] = [
-    ...(costKnown ? [{
-      label: caseMoneyWords.rows.cost,
-      value: <span className="tabular-nums">{summary.cost ? moneyShort(summary.cost) : <span className={MUTED}>валюта не указана</span>}</span>,
-    }] : []),
-    {
-      label: caseMoneyWords.rows.contract,
-      // Имя файла часто служебное (длинный хеш) — на экране день и кто загрузил, имя файла — в подсказке.
-      value: current ? (
-        <span data-testid="v3-case-money-contract" title={current.originalFilename}>
-          от <time dateTime={current.uploadedAt} className="tabular-nums">{moneyMomentDay(current.uploadedAt, today)}</time>
-          {current.uploadedByDisplayName ? <span className="block t-meta text-fg-3">{current.uploadedByDisplayName}</span> : null}
-        </span>
-      ) : <span className={MUTED} data-testid="v3-case-money-contract">не загружен</span>,
-    },
-    {
-      label: caseMoneyWords.rows.paid,
-      value: (
-        <span className="tabular-nums">
-          {summary.paid.length > 0 ? summary.paid.map(moneyShort).join(" · ") : <span className={MUTED}>оплат нет</span>}
-          {summary.refunds ? <span className="block t-meta text-fg-3">с учётом возвратов</span> : null}
-        </span>
-      ),
-    },
-    {
-      label: costKnown ? caseMoneyWords.rows.remaining : caseMoneyWords.rows.remainingBySchedule,
-      value: (
-        <span className="tabular-nums">
-          {remaining.length > 0 ? remaining.join(" · ") : <span className={MUTED}>—</span>}
-          {remainingNote ? <span className="block t-meta text-fg-3">{remainingNote}</span> : null}
-        </span>
-      ),
-    },
-  ];
-  const history = agreement.contractHistory;
-  const hasActions = current !== null || canWrite || history.length > 0 || saleConditionsHref !== null;
+  const costLabel = summary.cost
+    ? words.cost
+    : summary.costWithoutCurrency
+      ? "валюта стоимости не указана"
+      : "стоимость не указана";
+  const percent = casePaidPercent(agreement);
+  const against = caseScheduleAgainstCost(agreement);
+  const current = agreement.contractCurrent;
+  const caseId = agreement.studentCaseId;
   return (
-    <div className="grid grid-cols-1 gap-3">
-      <KeyFacts facts={facts} columns={facts.length === 4 ? 4 : 3} />
-      {hasActions ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3" data-testid="v3-case-money-actions">
-          {current ? <Button asChild variant="outline"><a href={download(caseId, current.id)}>Скачать договор</a></Button> : null}
-          {canWrite ? <div className="[&>div]:items-start [&>div]:text-start"><CaseAgreementUploadContract studentCaseId={caseId} replace={current !== null} /></div> : null}
-          {history.length > 0 ? (
-            <MoreSheet label={`Прежние версии · ${history.length}`} title="Прежние версии договора" testId="v3-case-money-history">
-              <ul className="divide-y divide-border">
-                {history.map((file) => (
-                  <li key={file.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2">
-                    <span className="min-w-0 break-words t-body-compact text-fg">{file.originalFilename}</span>
-                    <time dateTime={file.uploadedAt} className="font-mono t-meta tabular-nums text-fg-3">{moneyMomentDay(file.uploadedAt, today)}</time>
-                    <Button asChild variant="ghost"><a href={download(caseId, file.id)}>Скачать</a></Button>
-                  </li>
-                ))}
-              </ul>
-            </MoreSheet>
-          ) : null}
-          {saleConditionsHref ? <Button asChild variant="ghost"><a href={saleConditionsHref}>Условия продажи</a></Button> : null}
-        </div>
-      ) : null}
+    <div className="grid gap-3">
+      <div data-testid="v3-case-money-summary">
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          {summary.cost ? <span className="t-record-title tabular-nums text-fg">{moneyShort(summary.cost)}</span> : null}
+          <span className={`t-meta ${MUTED}`}>{costLabel}</span>
+          <Sep />
+          <span className="t-body-compact text-fg">{words.paid}{" "}<b className="font-semibold tabular-nums">{paid.length > 0 ? paid.join(" · ") : "—"}</b></span>
+          {summary.refunds ? <span className="t-meta text-fg-3">с учётом возвратов</span> : null}
+          <Sep />
+          <span className="t-body-compact text-fg">{costKnown ? words.left : caseMoneyWords.rows.remainingBySchedule}{" "}
+            <b className="font-semibold tabular-nums">{remaining.length > 0 ? remaining.join(" · ") : "—"}</b>
+          </span>
+          {remaining.length > 0 && remainingNote ? <span className="t-meta text-fg-3">{remainingNote}</span> : null}
+        </p>
+        {against ? <p className="pt-1 t-meta text-fg-3">{against}</p> : null}
+        {percent !== null ? (
+          <span className="v3-progress-track mt-2.5" style={{ width: "100%" }} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)} aria-label={`${words.paid} ${Math.round(percent)}%`}>
+            <span className="v3-progress-fill" style={{ width: `${percent}%` }} />
+          </span>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-3" data-testid="v3-case-money-actions">
+        <span className="t-body-compact text-fg-3">{words.contract}</span>
+        {current ? (
+          <a className="inline-flex min-h-11 min-w-0 items-center gap-1.5 text-fg underline underline-offset-4" data-testid="v3-case-money-contract" href={download(caseId, current.id)} title={current.originalFilename}>
+            <Icon name="file-text" size={16} />
+            <span className="min-w-0 break-all">{current.originalFilename}</span>
+          </a>
+        ) : <span className={`t-body-compact ${MUTED}`} data-testid="v3-case-money-contract">не загружен</span>}
+        {current ? <Sep /> : null}
+        {current ? <time dateTime={current.uploadedAt} className="font-mono t-meta tabular-nums text-fg-3">{moneyMomentDay(current.uploadedAt, today)}</time> : null}
+        {current?.uploadedByDisplayName ? <><Sep /><span className="t-meta text-fg-3">{current.uploadedByDisplayName}</span></> : null}
+        {(canWrite || agreement.contractHistory.length > 0) ? <Sep /> : null}
+        {canWrite ? <CaseAgreementUploadContract studentCaseId={caseId} replace={current !== null} inline /> : null}
+        {agreement.contractHistory.length > 0 ? (
+          <MoreSheet label={`Прежние версии · ${agreement.contractHistory.length}`} title="Прежние версии договора" testId="v3-case-money-history">
+            <ul className="divide-y divide-border">
+              {agreement.contractHistory.map((file) => (
+                <li key={file.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2">
+                  <span className="min-w-0 break-words t-body-compact text-fg">{file.originalFilename}</span>
+                  <time dateTime={file.uploadedAt} className="font-mono t-meta tabular-nums text-fg-3">{moneyMomentDay(file.uploadedAt, today)}</time>
+                  <a className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4" href={download(caseId, file.id)}>Скачать</a>
+                </li>
+              ))}
+            </ul>
+          </MoreSheet>
+        ) : null}
+      </div>
       {financeStop ? <MoneyStop reason={financeStop} stopsPanel={stopsPanel} /> : null}
     </div>
   );
+}
+
+function Sep() {
+  return <span className="text-fg-3" aria-hidden="true">·</span>;
 }

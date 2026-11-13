@@ -55,7 +55,7 @@ function Row({ receipt, payments, canWrite, today }: Readonly<{ receipt: Pending
               {pending ? "Привязываем…" : "Привязать к оплате"}
             </button>
           </div>
-        ) : <p className="t-meta text-fg-2">Сначала внесите оплату ниже: чек привяжется к ней.</p>
+        ) : <p className="t-meta text-fg-2">Сначала внесите оплату кнопкой «+ Платёж»: чек привяжется к ней.</p>
       ) : null}
       <p className="t-meta text-danger" role="status" aria-live="polite">{message}</p>
     </li>

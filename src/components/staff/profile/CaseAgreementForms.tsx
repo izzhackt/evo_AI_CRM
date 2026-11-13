@@ -104,7 +104,8 @@ const CONTRACT_REJECTIONS: Record<string, string> = {
 export function CaseAgreementUploadContract({
   studentCaseId,
   replace = false,
-}: Readonly<{ studentCaseId: string; replace?: boolean }>) {
+  inline = false,
+}: Readonly<{ studentCaseId: string; replace?: boolean; /** Строка договора: подпись «Загрузить» / «Заменить», лимит — для читалки. */ inline?: boolean }>) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "rejected" | "unknown">("idle");
@@ -153,16 +154,18 @@ export function CaseAgreementUploadContract({
     }
   }
 
+  const inlineLabel = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
   return (
-    <div data-testid="v3-case-agreement-upload" className="flex max-w-72 flex-col items-end gap-1 text-end">
+    <div data-testid="v3-case-agreement-upload" className={inline ? "flex min-w-0 flex-col items-start gap-1" : "flex max-w-72 flex-col items-end gap-1 text-end"}>
       <FilePick
         inputRef={inputRef}
-        label={status === "uploading" ? "Загружаем…" : replace ? "Заменить" : "Загрузить договор"}
+        label={status === "uploading" ? "Загружаем…" : inline ? (replace ? "Заменить" : "Загрузить") : replace ? "Заменить" : "Загрузить договор"}
         disabled={status === "uploading" || status === "unknown"}
-        className={replace ? "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" : undefined}
+        className={inline || replace ? inlineLabel : undefined}
         onPick={upload}
       />
-      {status === "idle" && !replace ? <span className="t-meta text-fg-2">PDF, JPEG, PNG · до 25 МБ</span> : null}
+      {inline ? <span className="sr-only">PDF, JPEG, PNG · до 25 МБ</span> : null}
+      {status === "idle" && !replace && !inline ? <span className="t-meta text-fg-2">PDF, JPEG, PNG · до 25 МБ</span> : null}
       {message ? (
         <span role={status === "rejected" || status === "unknown" ? "alert" : "status"} className="t-meta text-fg-2">{message}</span>
       ) : null}
@@ -185,12 +188,17 @@ export function CaseAgreementTrancheEditor({
   tranche,
   canArchive,
   addLabel = "Добавить платёж",
+  embedded = false,
+  onClose,
 }: Readonly<{
   studentCaseId: string;
   tranche: CaseAgreementTranche | null;
   canArchive: boolean;
   /** Подпись новой записи: «Разбить на транши», пока траншей нет. */
   addLabel?: string;
+  /** Строка графика: форма без своего раскрытия. */
+  embedded?: boolean;
+  onClose?: () => void;
 }>) {
   const router = useRouter();
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -201,6 +209,8 @@ export function CaseAgreementTrancheEditor({
       tranche={tranche}
       canArchive={canArchive}
       addLabel={addLabel}
+      embedded={embedded}
+      onClose={onClose}
       requestId={requestId}
       router={router}
       onAnother={() => setRequestId(crypto.randomUUID())}
@@ -213,6 +223,8 @@ function TrancheEditor({
   tranche,
   canArchive,
   addLabel,
+  embedded = false,
+  onClose,
   requestId,
   router,
   onAnother,
@@ -221,6 +233,8 @@ function TrancheEditor({
   tranche: CaseAgreementTranche | null;
   canArchive: boolean;
   addLabel: string;
+  embedded?: boolean;
+  onClose?: () => void;
   requestId: string;
   router: ReturnType<typeof useRouter>;
   onAnother: () => void;
@@ -246,12 +260,7 @@ function TrancheEditor({
   const locked = pending || ["saved", "unavailable"].includes(state.status) ||
     (state.status === "request_conflict" && currentRequestId === state.requestId);
 
-  return (
-    <details className={tranche ? "open:basis-full @2xl:justify-self-end @2xl:open:col-span-full @2xl:open:justify-self-stretch" : "mt-2"}>
-      <summary className={tranche ? ROW_SUMMARY : ADD_SUMMARY}
-        aria-label={tranche ? `Изменить транш: ${tranche.label}` : undefined}>
-        {tranche ? "Изменить" : addLabel}
-      </summary>
+  const form = (
       <form action={action} className="mt-2 max-w-xl space-y-3 pb-2">
         <input type="hidden" name="request_id" value={currentRequestId} />
         <input type="hidden" name="student_case_id" value={studentCaseId} />
@@ -342,7 +351,17 @@ function TrancheEditor({
             Сверил историю, продолжить
           </button>
         ) : null}
+        {embedded ? <button type="button" onClick={onClose} className={QUEUE_SECONDARY}>Отмена</button> : null}
       </form>
+  );
+  if (embedded) return <div className="basis-full py-2">{form}</div>;
+  return (
+    <details className={tranche ? "open:basis-full @2xl:justify-self-end @2xl:open:col-span-full @2xl:open:justify-self-stretch" : "mt-2"}>
+      <summary className={tranche ? ROW_SUMMARY : ADD_SUMMARY}
+        aria-label={tranche ? `Изменить транш: ${tranche.label}` : undefined}>
+        {tranche ? "Изменить" : addLabel}
+      </summary>
+      {form}
     </details>
   );
 }

@@ -2,36 +2,47 @@ import { isStaffPreview } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CaseAgreement } from "@/lib/platform-case-agreement-contract";
 import type { PendingReceipt } from "@/lib/platform-pending-receipts-contract";
+import type { StudentReceipt } from "@/lib/platform-student-receipts-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
 import { readPendingReceipts } from "@/lib/v3/pending-receipts-source";
 import { readStudentReceiptQueue } from "@/lib/v3/student-receipts-source";
-import type { StudentReceipt } from "@/lib/platform-student-receipts-contract";
 import { caseMoneyWords } from "@/lib/v3/wording";
 
+import { PaymentAddButton, PaymentDesk, PaymentFormSlot } from "../../PaymentDesk";
+import { PaymentTable } from "../../PaymentTable";
+import { PendingReceiptsCard } from "../../PendingReceiptsCard";
+import { StudentReceiptsReview } from "../../StudentReceiptsReview";
 import { MoneyCard } from "./MoneyCard";
-import { ScheduleCard } from "./MoneyLists";
 import { MoneyStop, MoneySummary } from "./MoneySummary";
-import { StudentReceiptsCard } from "./StudentReceiptsCard";
 
 type Shared = Readonly<{ saleConditionsHref: string | null; financeStop: string | null; stopsPanel: boolean }>;
 
 /**
- * Сводка и «График платежей» из уже прочитанного (чтение 189) - соседние карточки листа; статический рендер берёт этот вид с
- * синтетикой. Чеки студента на проверке - между ними: пока их не приняли, деньги не засчитаны.
+ * Одна карточка «Оплата» из чтения 189. Чеки студента без оплаты и чеки из разбора документов
+ * остаются в ней: куратор видит их и привязывает к платежу.
  */
-export function AgreementNextView({ agreement, canWrite, today, pendingReceipts, pendingUnavailable = false, studentReceipts = [], ...shared }: Shared & Readonly<{
+export function AgreementNextView({ agreement, canWrite, today, pendingReceipts, pendingUnavailable = false, studentReceipts = [], financeStop, stopsPanel }: Shared & Readonly<{
   agreement: CaseAgreement; canWrite: boolean; today: string; pendingReceipts?: readonly PendingReceipt[]; pendingUnavailable?: boolean;
-  /** Чеки студента «на проверке» по этому делу (миграция 358). */
   studentReceipts?: readonly StudentReceipt[];
 }>) {
   return (
-    <>
-      <MoneyCard><MoneySummary agreement={agreement} canWrite={canWrite} today={today} {...shared} /></MoneyCard>
-      <StudentReceiptsCard receipts={studentReceipts} today={today} />
-      <ScheduleCard agreement={agreement} canWrite={canWrite} today={today} pendingReceipts={pendingReceipts} />
-      {pendingUnavailable ? <p role="alert" className="t-body-compact text-danger">Чеки из разбора документов не загрузились. Обновите страницу.</p> : null}
-    </>
+    <PaymentDesk agreement={agreement} canWrite={canWrite} today={today}>
+      <MoneyCard actions={<PaymentAddButton />}>
+        <MoneySummary agreement={agreement} canWrite={canWrite} today={today} financeStop={financeStop} stopsPanel={stopsPanel} />
+        {studentReceipts.length > 0 ? (
+          <section id="case-receipts" data-testid="v3-case-student-receipts" className="grid gap-2 border-t border-border pt-3">
+            <h3 className="t-item text-fg">{caseMoneyWords.pay.studentReceipts} <span className="font-normal tabular-nums text-fg-3">{studentReceipts.length}</span></h3>
+            <p className="t-body-compact text-fg-2">{caseMoneyWords.pay.studentReceiptsNote}</p>
+            <StudentReceiptsReview receipts={studentReceipts} showStudent={false} today={today} />
+          </section>
+        ) : null}
+        <PaymentFormSlot />
+        <PaymentTable />
+        <PendingReceiptsCard receipts={pendingReceipts ?? []} payments={agreement.payments} canWrite={canWrite} today={today} />
+        {pendingUnavailable ? <p role="alert" className="t-body-compact text-danger">Чеки из разбора документов не загрузились. Обновите страницу.</p> : null}
+      </MoneyCard>
+    </PaymentDesk>
   );
 }
 

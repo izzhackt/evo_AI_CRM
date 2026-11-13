@@ -51,33 +51,45 @@ test("«Документы»: карточка «Чек-лист» (прогре
   assert.equal(count(next("docs-empty"), /data-testid="v3-documents-group"/gu), 0);
 });
 
-test("«Договор и оплата»: сводка с «⋯», «График платежей» — соседняя карточка, стоп и валюты на виду; прежний лист — одна рамка", () => {
+test("«Оплата»: одна карточка — сводка с полосой, договор строкой, общий список оплат и графика; стоп и валюты на виду", () => {
   const html = next("money-cross");
-  const summary = html.slice(html.indexOf('data-testid="v3-case-agreement"'), html.indexOf('data-testid="v3-case-agreement-tranches"'));
-  assert.deepEqual([...summary.matchAll(/<dt class="t-caption text-fg-3">([^<]+)<\/dt>/gu)].map((match) => match[1]), ["Стоимость", "Договор", "Оплачено", "Остаток"]);
-  assert.match(summary, /data-testid="v3-case-money-more"/u, "«⋯» — в шапке карточки сводки");
-  // 10.11.2026: суммы без нулевых копеек, договор — день и кто загрузил (имя файла — в подсказке).
-  assert.match(text(summary), /30 000 KGS/u);
-  assert.doesNotMatch(text(summary), /,00 /u);
-  assert.match(text(summary), /Договор от 18\.09/u);
-  assert.match(text(summary), /по траншам, без пересчёта валют/u, "суммы разных валют не пересчитываются");
-  assert.match(text(summary), /с учётом возвратов/u);
-  assert.match(summary, /data-testid="v3-case-money-stop"/u, "финансовый стоп на виду");
-  assert.match(text(summary), /стоп активен.*Второй платёж просрочен/u);
-  assert.match(html, /data-testid="v3-case-agreement-tranches"/u);
-  assert.match(html, /data-testid="v3-case-agreement-payment"/u);
+  const card = html.slice(html.indexOf('data-testid="v3-case-agreement"'), html.indexOf('id="money-obligations"'));
+  assert.equal(count(html, /data-testid="v3-case-agreement"/gu), 1, "одна карточка оплаты");
+  assert.match(card, /<h2[^>]*>Оплата<\/h2>/u);
+  assert.match(card, /data-testid="v3-case-money-more"/u, "«⋯» — в шапке карточки");
+  assert.match(card, /data-testid="v3-case-payment-add"/u, "«+ Платёж» вместо двух кнопок");
+  assert.doesNotMatch(text(card), /Записать оплату|Добавить платёж|График платежей|Договор и оплата/u);
+  // Суммы без нулевых копеек; разные валюты не пересчитываются.
+  assert.match(text(card), /30 000 KGS/u);
+  assert.doesNotMatch(text(card), /,00 /u);
+  assert.match(text(card), /dogovor-sydykova-2026\.pdf/u);
+  assert.match(text(card), /18\.09/u);
+  assert.match(text(card), /по траншам, без пересчёта валют/u);
+  assert.match(text(card), /с учётом возвратов/u);
+  assert.doesNotMatch(card, /role="progressbar"/u, "полосы нет, пока валюты разные");
+  assert.match(card, /data-testid="v3-case-money-stop"/u, "финансовый стоп на виду");
+  assert.match(text(card), /стоп активен.*Второй платёж просрочен/u);
+  assert.match(card, /data-testid="v3-case-agreement-tranches"/u);
+  assert.match(card, /data-testid="v3-case-agreement-payment"/u);
+  assert.match(text(card), /Оплачено/u);
+  assert.match(text(card), /Возврат/u);
+  assert.match(text(card), /Ожидается|Просрочено/u);
   assert.match(html, /<section aria-label="Договор и оплата" data-case-money="" data-testid="v3-profile-contract-workspace" data-student-case-id="[^"]+" class="@container grid min-w-0 grid-cols-1 gap-4">/u);
   assert.doesNotMatch(html, /<header class="flex min-h-12 items-center justify-between gap-3 border-b border-border/u, "прежней шапки листа нет");
-  // Панели «⋯» закрыты, пока их не выбрали; открытая — карточка.
   assert.equal(count(html, /<section id="money-[a-z]+" data-money-panel="" hidden=""/gu), 5, "подготовка договора, обязательства, стопы, операции, служебные сведения");
   assert.match(html, /<section id="money-obligations" data-money-panel="" hidden="" aria-labelledby="money-obligations-title" class="scroll-mt-20 rounded-card border border-border bg-card px-5 py-3">/u);
   assert.match(html, /aria-label="Пояснение: Обязательства"/u, "пояснение панели — за «?»");
   assert.ok(!text(html).includes("Услуги EVO и другие расходы по делу"), "и не на экране");
-  assert.match(text(next("money-same")), /Прежние версии · 1/u);
-  assert.match(next("money-same"), /data-testid="v3-case-money-history"/u);
-  assert.match(text(next("money-empty")), /Договор не загружен|не загружен/u);
+  const same = next("money-same");
+  assert.match(same, /role="progressbar"/u, "одна валюта — полоса оплаченного");
+  assert.match(text(same), /Прежние версии · 1/u);
+  assert.match(same, /data-testid="v3-case-money-history"/u);
+  assert.match(text(same), /Просрочено/u);
+  assert.match(text(same), /Отметить оплату/u);
+  assert.match(text(same), /Загрузить чек/u);
+  assert.match(text(next("money-empty")), /не загружен/u);
   assert.match(text(next("money-empty")), /Графика нет\./u);
-
+  assert.match(text(next("money-empty")), /Загрузить/u);
 });
 
 test("«Вузы и программы»: список вузов — одна карточка с кнопками добавления у заголовка, «вуза нет в каталоге» за «?», пакеты партнёру — карточка-раскрытие", () => {
@@ -278,7 +290,8 @@ test("«Новый вид» страницы единственный (#1327); �
 });
 
 test("файлы нового вида: каждый до 150 строк, без серверных действий, источников чтения и тёмной темы; единственные чтения — прежние", () => {
-  assert.ok(NEW_FILES.length >= 16, `файлов: ${NEW_FILES.length}`);
+  // 13.11.2026: «График платежей» и отдельная карточка чеков студента вошли в одну «Оплату» — двух файлов больше нет.
+  assert.ok(NEW_FILES.length >= 15, `файлов: ${NEW_FILES.length}`);
   const reads = new Set();
   for (const file of NEW_FILES) {
     const source = read(file);
@@ -293,7 +306,12 @@ test("файлы нового вида: каждый до 150 строк, без
   }
   // «Договор и оплата» читает сводку 189 тем же читателем, что `CaseAgreementBlock`; «Анкета» — «Интересует» тем же, что «Сведения» лида.
   // Плюс одно чтение 349: чеки из разбора документов, ждущие оплату, — той же карточки «Оплаты и чеки» (одиночный читатель, своя карточка вне next/).
-  assert.deepEqual([...reads].sort(), ["AnketaOtherFacts.tsx:../../LeadInterestFact", "MoneyAgreementNext.tsx:@/lib/v3/case-agreement-source", "MoneyAgreementNext.tsx:@/lib/v3/pending-receipts-source"]);
+  assert.deepEqual([...reads].sort(), [
+    "AnketaOtherFacts.tsx:../../LeadInterestFact",
+    "MoneyAgreementNext.tsx:@/lib/v3/case-agreement-source",
+    "MoneyAgreementNext.tsx:@/lib/v3/pending-receipts-source",
+    "MoneyAgreementNext.tsx:@/lib/v3/student-receipts-source",
+  ]);
   assert.match(read(`${NEW_DIR}/MoneyAgreementNext.tsx`), /await readCaseAgreement\(actor, studentCaseId\)/u);
   assert.match(read("src/components/staff/profile/CaseAgreementBlock.tsx"), /await readCaseAgreement\(actor, studentCaseId\)/u);
   assert.match(read(`${NEW_DIR}/AnketaOtherFacts.tsx`), /await readLeadInterestState\(profile\.leadId\)/u);

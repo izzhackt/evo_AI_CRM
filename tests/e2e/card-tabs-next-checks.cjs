@@ -78,8 +78,9 @@ function measure() {
     facts: [...main.querySelectorAll("[data-slot=key-facts]")].map((block) => block.querySelectorAll("dt").length),
     text,
     docs: { checklist: count("[data-testid=v3-documents-checklist]"), groups: count("[data-testid=v3-documents-group]"), progress: count("[data-testid=v3-documents-checklist] .v3-progress"), filter: count('nav[aria-label="Документы по состоянию"]'), history: count("[data-testid=v3-removed-document-history]") },
-    money: { summaryFacts: [...main.querySelectorAll("[data-testid=v3-case-agreement] [data-slot=key-facts] dt")].map((element) => element.textContent.trim()),
+    money: { summary: count("[data-testid=v3-case-money-summary]"), add: count("[data-testid=v3-case-payment-add]"),
       menu: count("[data-testid=v3-case-money-more]"), tranches: count("[data-testid=v3-case-agreement-tranches]"), payments: count("[data-testid=v3-case-agreement-payment]"),
+      cards: count("[data-testid=v3-case-agreement]"),
       stop: count("[data-testid=v3-case-money-stop]"), panels: count("[data-money-panel]"), legacyHeader: count("[data-case-money] > header") },
     route: { rows: count("[data-testid=v3-profile-application]"), card: count("[data-testid=v3-profile-admissions-workspace][data-slot=card]"), packets: count("details#partner-packets") },
     history: { events: count("[data-testid=v3-history-list] > li"), overflow: count("[data-testid=v3-history-overflow]"), forbidden: count("[data-testid=v3-history-forbidden]") },
@@ -100,8 +101,8 @@ function expectations(name, m, key) {
     if (name === "docs-preview") add("preview role says documents are read-only", /только для просмотра/u.test(m.text), null);
   }
   if (name.startsWith("money-")) {
-    add("summary card: four facts, the menu in its header, no legacy header", JSON.stringify(m.money.summaryFacts) === JSON.stringify(["Стоимость", "Договор", "Оплачено", "Остаток"]) && m.money.menu === 1 && m.money.legacyHeader === 0, m.money);
-    add("tranches and payments are sibling cards", m.money.tranches === 1 && m.money.payments === 1, m.money);
+    add("one payment card: summary, add, menu, no legacy header", m.money.cards === 1 && m.money.summary === 1 && m.money.add === 1 && m.money.menu === 1 && m.money.legacyHeader === 0, m.money);
+    add("recorded payments and the schedule share one list, and the add form slot is in that card", m.money.tranches === 1 && m.money.payments === 1, m.money);
     add("closed panels exist and are hidden (opened from the menu)", m.money.panels >= 4, m.money.panels);
     if (name === "money-cross") add("financial stop stays on screen with its reason; currencies are not converted", m.money.stop === 1 && /стоп активен/u.test(m.text) && /без пересчёта валют/u.test(m.text), null);
     if (name === "money-same") add("previous contract versions are a sheet button", /Прежние версии · 1/u.test(m.text) && !/Услуги EVO и другие расходы/u.test(m.text), null);

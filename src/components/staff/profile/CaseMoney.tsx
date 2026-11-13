@@ -11,6 +11,9 @@ import { CASE_MONEY_ROW_ACTION, type CaseMoneyPanelEntry } from "./case-money-vi
 
 type Focus = "heading" | "return" | null;
 type OpenState = Readonly<{ open: string | null; focus: Focus; target: string | null }>;
+/** Ссылка в «⋯» карточки «Оплата»: условия продажи и стоимость, рядом с панелями. */
+export type CaseMoneyMenuLink = Readonly<{ href: string; label: string; testId?: string }>;
+
 type CaseMoneyApi = Readonly<{
   open: string | null;
   show: (id: string, opener: HTMLElement | null) => void;
@@ -18,6 +21,7 @@ type CaseMoneyApi = Readonly<{
   /** Меню «⋯» листа: его состояние держит лист, кнопка стоит в шапке листа или (новый вид) в шапке карточки сводки. */
   menu: AnchoredPopover;
   panels: readonly CaseMoneyPanelEntry[];
+  links: readonly CaseMoneyMenuLink[];
   /** «Новый вид»: панели - карточки набора. */
   next: boolean;
 }>;
@@ -43,11 +47,14 @@ const CLOSE = "inline-flex min-h-11 items-center gap-1.5 rounded-nav px-2 t-labe
  */
 export function CaseMoneySection({
   panels,
+  links = [],
   contractCaseId,
   children,
   nextUi = false,
 }: Readonly<{
   panels: readonly CaseMoneyPanelEntry[];
+  /** «Условия продажи» и «Изменить стоимость» в том же «⋯», что и редкие панели. */
+  links?: readonly CaseMoneyMenuLink[];
   contractCaseId: string | null;
   children: ReactNode;
   /**
@@ -67,7 +74,7 @@ export function CaseMoneySection({
     setState({ open: id, focus: "heading", target: null });
   }, []);
   const hide = useCallback(() => setState({ open: null, focus: "return", target: null }), []);
-  const api = useMemo<CaseMoneyApi>(() => ({ open: state.open, show, hide, menu, panels, next: nextUi }), [state.open, show, hide, menu, panels, nextUi]);
+  const api = useMemo<CaseMoneyApi>(() => ({ open: state.open, show, hide, menu, panels, links, next: nextUi }), [state.open, show, hide, menu, panels, links, nextUi]);
 
   // Якорь адреса внутри панели открывает её: при загрузке и при смене якоря.
   useEffect(() => {
@@ -149,8 +156,8 @@ export function CaseMoneySection({
  */
 export function CaseMoneyMenu() {
   const money = useContext(CaseMoneyContext);
-  if (money === null || money.panels.length === 0) return null;
-  const { menu, panels, show } = money;
+  if (money === null || (money.panels.length === 0 && money.links.length === 0)) return null;
+  const { menu, panels, links, show } = money;
   const closeMenu = () => document.getElementById(menu.popoverId)?.hidePopover();
   return (
     <>
@@ -173,6 +180,9 @@ export function CaseMoneyMenu() {
         aria-label={caseMoneyWords.more}
         className="v3-anchored v3-anchored-end w-80 max-w-[calc(100vw-2rem)] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
       >
+        {links.map((link) => (
+          <a key={link.label} href={link.href} data-testid={link.testId} className={MENU_ITEM}>{link.label}</a>
+        ))}
         {panels.map((panel) => (
           <button
             key={panel.id}

@@ -178,6 +178,7 @@ export function LeadSaleConditions({
               <label>
                 <span className={fieldLabelCls}>Сумма</span>
                 <input
+                  id="sale-cost"
                   inputMode="decimal"
                   pattern="[0-9]+([.,][0-9]{1,2})?"
                   value={draft.costAmount}

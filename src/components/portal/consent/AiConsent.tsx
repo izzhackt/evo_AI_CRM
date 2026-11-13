@@ -4,9 +4,6 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { CheckMark } from "@/components/portal/CheckMark";
 import {
-  AI_CONSENT_PRIVACY_URL,
-  aiConsentDate,
-  aiConsentOutdated,
   aiConsentState,
   type AiConsent,
   type AiConsentStatus,
@@ -97,14 +94,6 @@ function DecisionFeedback({ decision, strings }: Readonly<{ decision: Decision; 
   );
 }
 
-function PolicyLink({ strings }: Readonly<{ strings: AiConsentStrings }>) {
-  return (
-    <p className="pt-consent-policy">
-      <a className="pt-link" href={AI_CONSENT_PRIVACY_URL}>{strings.policyLink}</a>
-    </p>
-  );
-}
-
 function DecisionButton({
   decision,
   status,
@@ -124,48 +113,36 @@ function DecisionButton({
 }
 
 /**
- * Строка в «Профиле»: состояние словом и датой, действия по состоянию.
- * «Отозвать согласие» записывает отказ — то же решение, что кнопка «Не
- * разрешать» на «Главной», с той же версией и своим идентификатором попытки.
+ * Строка в «Профиле» (решение владельца 14.11.2026: без объяснений): подпись, состояние словом и одна кнопка.
+ * «Отозвать согласие на ИИ» записывает отказ, а при отказе или без выбора та же кнопка даёт согласие снова —
+ * то же действие и тот же идентификатор попытки, что у всех решений.
  */
 export function AiConsentSettingsRow({
   initialConsent,
   strings,
 }: Readonly<{ initialConsent: AiConsent; strings: AiConsentStrings }>) {
   const decision = useAiConsentDecision(initialConsent);
-  const { consent } = decision;
-  const state = aiConsentState(consent);
+  const state = aiConsentState(decision.consent);
   const stateWord = state === "granted"
     ? strings.stateGranted
     : state === "declined" ? strings.stateDeclined : strings.stateUndecided;
 
   return (
     <div className="pt-consent-row" data-testid="ai-consent-row" data-state={state}>
-      <p className="pt-profile-hint">{strings.body}</p>
-      <p className="pt-consent-state">
-        <strong className="pt-consent-state-word" data-state={state}>{stateWord}</strong>
-        {state !== "undecided" && consent.decidedAt !== null ? (
-          <>
-            {" · "}
-            <time className="pt-data" dateTime={consent.decidedAt}>{aiConsentDate(consent.decidedAt)}</time>
-          </>
-        ) : null}
-      </p>
-      {aiConsentOutdated(consent) ? <p className="pt-profile-hint">{strings.policyUpdated}</p> : null}
-      <div className="pt-consent-actions">
-        {state === "granted" ? (
-          <DecisionButton decision={decision} status="declined" primary={false}>{strings.revoke}</DecisionButton>
-        ) : (
-          <>
+      <div className="pt-consent-line">
+        <p className="pt-consent-label">
+          <span className="pt-consent-name">{strings.title}</span>
+          <strong className="pt-consent-state-word" data-state={state}>{stateWord}</strong>
+        </p>
+        <div className="pt-consent-actions">
+          {state === "granted" ? (
+            <DecisionButton decision={decision} status="declined" primary={false}>{strings.revoke}</DecisionButton>
+          ) : (
             <DecisionButton decision={decision} status="granted" primary>{strings.allow}</DecisionButton>
-            {state === "undecided" ? (
-              <DecisionButton decision={decision} status="declined" primary={false}>{strings.decline}</DecisionButton>
-            ) : null}
-          </>
-        )}
+          )}
+        </div>
       </div>
       <DecisionFeedback decision={decision} strings={strings} />
-      <PolicyLink strings={strings} />
     </div>
   );
 }

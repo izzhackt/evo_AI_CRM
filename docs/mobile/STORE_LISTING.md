@@ -32,8 +32,10 @@ EVO admissions — кабинет студента компании EVO Admissio
 • Подготовка: английский язык и подготовка к CSCA с таймером, разбором ошибок и прогрессом.
 • Профиль: русский и кыргызский языки, светлая и тёмная тема, смена пароля, запрос на удаление аккаунта.
 
-Данные защищены: соединение шифруется, сессия хранится в защищённом хранилище телефона, документы доступны только вам и
-вашему куратору. Приложение не показывает рекламу и не содержит сторонних трекеров.
+Данные защищены: соединение шифруется, сессия хранится в защищённом хранилище телефона, документы хранятся закрыто и
+проверяются антивирусом. Их видят сотрудники EVO, которые ведут ваше дело, и, только с вашего согласия, ИИ-помощники
+EVO (Anthropic, Google); согласие можно отозвать в профиле. Приложение не показывает рекламу и не содержит сторонних
+трекеров.
 
 Нужна помощь? https://evoadmissions.com/ru/support/
 
@@ -54,7 +56,9 @@ What you get:
 • Profile: Russian and Kyrgyz, light and dark theme, password change, account deletion request.
 
 Your data is protected: the connection is encrypted, the session is kept in the phone's secure storage, and your
-documents are visible only to you and your curator. The app shows no ads and has no third-party trackers.
+documents are stored privately and virus-scanned. They are seen by the EVO staff who handle your case and, only with
+your consent, by EVO's AI helpers (Anthropic, Google); you can withdraw the consent in your profile. The app shows no
+ads and has no third-party trackers.
 
 Need help? https://evoadmissions.com/ru/support/
 
@@ -131,17 +135,56 @@ expo-system-ui и async-storage. Доступ к камере и фото зап
 |---|---|
 | Приложение собирает или передаёт данные | Да |
 | Все данные шифруются при передаче | Да (HTTPS) |
-| Можно запросить удаление данных | Да: в приложении «Профиль → Удалить аккаунт» и по веб-ссылке (раздел 7) |
-| Personal info: Name, Email address, Phone number, User IDs | Собираются; цель: App functionality, Account management; не передаются третьим лицам; не необязательные |
-| Photos and videos | Собираются (снимки документов); App functionality; не передаются |
-| Files and docs | Собираются (файлы документов); App functionality; не передаются |
-| Messages: Other in-app messages | Собираются (чат с куратором); App functionality; не передаются |
+| Можно запросить удаление данных | Да: в приложении «Профиль → Конфиденциальность → Удалить аккаунт» и по веб-ссылке (раздел 7) |
+| Personal info: Name, Email address, Phone number, User IDs | Собираются; цель: App functionality, Account management; обязательные. Передача третьим лицам: см. 6.3 |
+| Photos and videos | Собираются (снимки документов); App functionality. Передача: см. 6.3 |
+| Files and docs | Собираются (файлы документов); App functionality. Передача: см. 6.3 |
+| Messages: Other in-app messages | Собираются (чат с куратором); App functionality. Передача: см. 6.3 |
 | Financial info, Location, Contacts, Health, Web browsing, App activity, Device IDs, Crashes/Diagnostics | Не собираются |
-| Передача третьим лицам | Нет (хостинг и почтовый сервис — обработчики по поручению компании, не «передача» по правилам Google) |
+| Передача третьим лицам | **Решение владельца, см. 6.3.** Строка «Нет» была неточной: с согласия студента его переписку и документы читают ИИ-помощники EVO (Anthropic, Google). Хостинг и почтовый сервис — поставщики услуг и «передачей» не считаются |
 
 Разрешения Android в release-манифесте (проверено сборкой `processReleaseMainManifest`): `INTERNET`, `CAMERA`,
 `VIBRATE`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`. Геолокации, биометрии, микрофона, галереи, оверлеев и
 `ACCESS_LOCAL_NETWORK` нет; незашифрованный http в release запрещён (разрешён только в debug).
+
+### 6.3. ИИ-помощники EVO (Anthropic, Google): что объявлять
+
+Что происходит. С согласия студента (обязательная галочка на экране «Конфиденциальность» при первом входе; отозвать
+можно в «Профиль → Конфиденциальность») ИИ-помощники EVO читают переписку и документы дела. Данные уходят не с телефона,
+а с сервера EVO к Anthropic (Claude, США) и Google (Gemini). Решения по делу принимают сотрудники EVO.
+
+Что говорят правила (источники проверены 14.11.2026, пересказ, не цитата):
+
+- Google Play, справка «Provide information for Google Play's Data safety section»
+  (https://support.google.com/googleplay/android-developer/answer/10787469). «Передача» (sharing) — это отправка
+  данных, собранных приложением, третьей стороне; страница прямо включает передачу с сервера на сервер. Не считается
+  передачей отправка данных «поставщику услуг» (service provider): организации, которая обрабатывает данные от имени
+  разработчика и по его указаниям и вправе обрабатывать их только по поручению разработчика. Сторонний ИИ на этой
+  странице не упомянут, поэтому отнести ИИ-помощников к поставщикам услуг или нет, решает суть договора с каждым из
+  них, а не название.
+- Google Play, политика «User Data» (https://support.google.com/googleplay/android-developer/answer/10144311):
+  ссылка на политику конфиденциальности должна стоять и в Play Console, и внутри приложения (у нас: «Профиль →
+  Конфиденциальность → Политика конфиденциальности»); требования к сторонним SDK она распространяет и на интеграции со
+  сторонним ИИ; согласие должно предваряться раскрытием внутри приложения (у нас: экран «Конфиденциальность»).
+- Apple, App Review Guidelines (https://developer.apple.com/app-store/review/guidelines/): 5.1.1(i) — ссылка на политику
+  и в метаданных App Store Connect, и внутри приложения в легкодоступном месте; 5.1.1(v) — при создании аккаунта в
+  приложении должно быть удаление аккаунта; 5.1.2(i) — ясно раскрыть, куда личные данные уходят третьим лицам, включая
+  сторонний ИИ, и получить явное разрешение до передачи (у нас: экран «Конфиденциальность»).
+
+Что объявлять в форме Data safety. Правило неоднозначно, поэтому два варианта; выбор за владельцем:
+
+| | Вариант А: ИИ-провайдеры — поставщики услуг | Вариант Б: осторожный, «передача» |
+|---|---|---|
+| Когда подходит | Договор или условия API каждого провайдера (Anthropic, Google) подтверждают: данные обрабатываются только по поручению EVO и по его указаниям, провайдер не использует их для своих целей (обучение, реклама) | Нельзя подтвердить условия хотя бы у одного провайдера, либо владелец хочет не рисковать отказом ревью |
+| «Передача третьим лицам» | Нет, с пометкой «поставщики услуг: хостинг, почта, ИИ-помощники» | Да |
+| Типы данных с передачей | Нет | Messages (Other in-app messages), Files and docs, Photos and videos; имя, почта и телефон попадают к ИИ только внутри переписки и документов, отдельной передачи Personal info нет, если это не подтвердится иначе |
+| Цель | — | App functionality |
+| Что обязательно в обоих вариантах | Политика на сайте (раздел об ИИ-помощниках) совпадает с формой; согласие студента остаётся обязательной галочкой при первом входе и отзывается в профиле | То же |
+
+Исполнитель рекомендует вариант Б, пока владелец не подтвердил условия обоих провайдеров: неверное «Нет» хуже лишнего
+«Да». Ничего в Play Console не менялось и не вносилось: это только запись для владельца. Таблица Apple (6.1) не
+меняется: данные уже объявлены как собираемые, связанные с пользователем, цель App Functionality; «трекинга нет» верно
+при условии, что провайдеры не используют данные для рекламы и профилирования (подтвердить по их условиям).
 
 ## 7. Удаление аккаунта (требование Google Play)
 
@@ -150,7 +193,8 @@ Google требует веб-ссылку на страницу удаления
 Страницу нужно создать в репозитории сайта (`evoadmissions-website`); её содержание:
 
 1. Название приложения и компании (должно совпадать с карточкой в Google Play).
-2. Как удалить аккаунт: (а) в приложении «Профиль → Удалить аккаунт» или в кабинете на https://app.evoadmissions.com;
+2. Как удалить аккаунт: (а) в приложении «Профиль → Конфиденциальность → Удалить аккаунт» или в кабинете на
+   https://app.evoadmissions.com;
    (б) если доступа нет, написать на адрес поддержки (указать реальный адрес, он уже есть на `/ru/support/`) с
    логина и email аккаунта: личность подтверждается ответом на письмо.
 3. Что удаляется (аккаунт, профиль, загруженные документы, чат) и что хранится по закону или по договору (договор,
@@ -176,8 +220,10 @@ Demo account (создаёт владелец на production, в Git не хр�
 > EVO admissions is the client portal of EVO Admissions, an education consultancy. Accounts are issued by the company
 > to its students; there is no public sign-up (registration works only through a personal invitation link
 > sent by a manager). Please sign in with the demo account above. It contains sample documents, a contract, a
-> chat with a curator and the university catalogue. No payment is taken inside the app. Account deletion is under
-> Profile > Delete account. Camera and photo access are requested only when the user attaches a document.
+> chat with a curator and the university catalogue. No payment is taken inside the app. Before the portal opens, the
+> student accepts the privacy policy and explicitly allows EVO's AI helpers (Anthropic, Google) on the "Privacy"
+> screen; the consent can be withdrawn under Profile > Privacy, where the privacy policy link, the support link and
+> Delete account are also placed. Camera and photo access are requested only when the user attaches a document.
 > Support: https://evoadmissions.com/ru/support/
 
 Что должен сделать владелец до отправки: создать на production демо-студента (уровень «сопровождение», синтетические

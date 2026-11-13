@@ -50,10 +50,13 @@ test("after the change every other session of the Student is closed and the cabi
   assert.doesNotMatch(server, /admin\.signOut\([^)]*"global"/u, "never the global scope, which would end the cabinet session too");
 });
 
-test("the profile shows the password card before the account deletion card", () => {
+test("the profile shows the password card before the privacy section that holds the account deletion", () => {
   const page = read("src/app/(portal)/portal/profile/page.tsx");
   assert.ok(page.indexOf('aria-labelledby="portal-profile-password"') > 0);
-  assert.ok(page.indexOf('aria-labelledby="portal-profile-password"') < page.indexOf('aria-labelledby="portal-profile-deletion"'));
+  // С 14.11.2026 удаление аккаунта стоит внутри секции «Конфиденциальность», отдельной карточки у него нет.
+  assert.ok(page.indexOf('aria-labelledby="portal-profile-password"') < page.indexOf('aria-labelledby="portal-profile-privacy"'));
+  assert.ok(page.indexOf('aria-labelledby="portal-profile-privacy"') < page.indexOf("<AccountDeletionPanel"));
+  assert.doesNotMatch(page, /portal-profile-deletion/u);
   const form = read("src/components/portal/profile/PasswordChangeForm.tsx");
   assert.match(form, /autoComplete="current-password"/u);
   assert.equal((form.match(/autoComplete="new-password"/gu) ?? []).length, 2);

@@ -80,7 +80,8 @@ const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consul
 const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
 const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
 const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
-// Согласие на ИИ-помощников (25.10.2026): карточка «Главной» и строка «Профиля».
+// Согласие на ИИ-помощников (25.10.2026): строка секции «Конфиденциальность» в «Профиле» (с 14.11.2026 карточек и
+// объяснений на рабочих экранах нет).
 const { AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
 const { ConsentGateForm } = require(join(ROOT, "src/components/portal/consent/ConsentGateForm.tsx"));
 // PORT-9c: «Главная» кабинета.
@@ -868,12 +869,12 @@ const surfaces = [
       ),
     ),
   },
-  // Согласие на ИИ-помощников в «Профиле»: все состояния строки подряд
-  // (разрешено, не разрешено, не выбрано).
+  // Секция «Конфиденциальность» в «Профиле» (14.11.2026): две ссылки, строка согласия на ИИ-помощников во всех
+  // состояниях подряд (разрешено, не разрешено, не выбрано) и удаление аккаунта, без объяснений о данных.
   {
     name: "profile-ai-consent",
     html: renderSurface(
-      "Профиль — ИИ-помощники — a11y",
+      "Профиль — Конфиденциальность — a11y",
       pageShell(
         null,
         profileStrings.title,
@@ -906,16 +907,53 @@ const surfaces = [
                 "section",
                 {
                   key: index,
-                  "aria-labelledby": `portal-profile-ai-consent-${index}`,
+                  "aria-labelledby": `portal-profile-privacy-${index}`,
                   className: "pt-profile-card",
                 },
                 createElement(
                   "h2",
-                  { id: `portal-profile-ai-consent-${index}`, className: "pt-section-title" },
-                  createElement(ProfileIcon, { name: "ai" }),
-                  aiConsentStrings.rowHeading,
+                  { id: `portal-profile-privacy-${index}`, className: "pt-section-title" },
+                  createElement(ProfileIcon, { name: "privacy" }),
+                  profileStrings.privacyHeading,
                 ),
-                createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
+                createElement(
+                  "ul",
+                  { className: "pt-privacy-list" },
+                  createElement(
+                    "li",
+                    { className: "pt-privacy-item" },
+                    createElement(
+                      "a",
+                      { className: "pt-privacy-link", href: "https://evoadmissions.com/ru/privacy/", target: "_blank", rel: "noopener noreferrer" },
+                      createElement("span", null, profileStrings.privacyPolicy),
+                      createElement("span", { "aria-hidden": "true" }, "↗"),
+                    ),
+                  ),
+                  createElement(
+                    "li",
+                    { className: "pt-privacy-item" },
+                    createElement(
+                      "a",
+                      { className: "pt-privacy-link", href: "https://evoadmissions.com/ru/support/", target: "_blank", rel: "noopener noreferrer" },
+                      createElement("span", null, profileStrings.supportLink),
+                      createElement("span", { "aria-hidden": "true" }, "↗"),
+                    ),
+                  ),
+                  createElement(
+                    "li",
+                    { className: "pt-privacy-item pt-privacy-item-block" },
+                    createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
+                  ),
+                  createElement(
+                    "li",
+                    { className: "pt-privacy-item pt-privacy-item-block" },
+                    createElement(AccountDeletionPanel, {
+                      initialRequest: null,
+                      strings: getPortalStrings("accountDeletion", "ru"),
+                      look: "portal",
+                    }),
+                  ),
+                ),
               )),
           ),
         ),

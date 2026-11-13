@@ -180,3 +180,41 @@ test("template substitution fills named values and leaves unknown markers visibl
   );
   assert.equal(formatPortalString("{missing}", {}), "{missing}");
 });
+
+// Решение владельца 14.11.2026: напоминаний о данных на рабочих экранах кабинета и приложений нет. Политика, согласие
+// на передачу данных и ИИ показываются только при регистрации и онбординге (анкета, экран «Конфиденциальность»), где
+// студент читает и ставит галочки. Словарь этих экранов — `apply`, `consentGate`; `accountDeletion` делит анкета и экран
+// ожидания (кабинет не рисует его пояснения, см. `LOOKS.portal.notes`). Всё остальное — рабочие экраны (кабинет и оба
+// приложения читают этот же словарь): такие фразы там запрещены, а найденные удаляются.
+const DATA_TEXT_NAMESPACES = new Set(["apply", "consentGate", "accountDeletion"]);
+// Единственные строки о конфиденциальности на рабочих экранах: заголовок секции «Профиля» и ссылка на политику.
+const ALLOWED_DATA_KEYS = new Set(["profile.privacyHeading", "profile.privacyPolicy", "profile.supportLink"]);
+const DATA_REMINDER = [
+  /видите только|видит только|только вы\b|только вам\b|только сам\b|видны только/iu,
+  /сиз гана|өзүңүз гана|гана көрөсүз|гана көрөт/iu,
+  /вирус|антивирус/iu,
+  /Anthropic|Gemini|Claude/u,
+  /не передаётся куратору|не показываются сотрудникам|без вашего имени|обезлич/iu,
+  /кураторго берилбейт|атыңызсыз|кызматкерлерине көрсөтүлбөйт|жеке маалыматтарсыз/iu,
+  /только в вашем кабинете|не назначает куратору|кабинетиңизде гана|кураторго тапшырма дайындабайт/iu,
+  /конфиденциальн|купуялык|политик\S* (?:приват|конфиден)/iu,
+  /хранятся закрыто|жабык сакталат/iu,
+];
+
+test("working screens carry no data reminders in RU or KY (owner, 14.11.2026)", () => {
+  for (const [namespace, dictionary] of Object.entries(PORTAL_DICTIONARIES)) {
+    if (DATA_TEXT_NAMESPACES.has(namespace)) continue;
+    for (const locale of ["ru", "ky"]) {
+      for (const [key, value] of Object.entries(dictionary[locale])) {
+        if (ALLOWED_DATA_KEYS.has(`${namespace}.${key}`)) continue;
+        for (const pattern of DATA_REMINDER) {
+          assert.doesNotMatch(value, pattern, `${namespace}.${key} (${locale}) is a data reminder on a working screen`);
+        }
+      }
+    }
+  }
+  // Что осталось на рабочем экране: одна секция «Профиля». Объяснений, дат решения и второй кнопки в ней нет.
+  assert.equal(PORTAL_DICTIONARIES.profile.ru.privacyHeading, "Конфиденциальность");
+  assert.equal(PORTAL_DICTIONARIES.profile.ru.privacyPolicy, "Политика конфиденциальности");
+  assert.equal(PORTAL_DICTIONARIES.aiConsent.ru.revoke, "Отозвать согласие на ИИ");
+});

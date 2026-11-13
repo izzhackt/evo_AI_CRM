@@ -5,7 +5,6 @@ import { EmptyIcon } from "@/components/portal/home/HomeParts";
 
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import { AI_CONSENT_PRIVACY_URL } from "@/lib/portal/ai-consent";
 import { defaultDocumentHint } from "@/lib/portal/document-hints";
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
@@ -27,8 +26,8 @@ import {
  * статусами и прежним XHR-путём загрузки/скачивания. С 03.11.2026 — один
  * список строк: знак, что за документ и что прислать, справа статус и
  * «Загрузить» (выбранный файл сразу уходит тем же XHR-путём); над списком —
- * карточка «Чеклист» со счётчиком принятых, под ним — строка о данных
- * (образец кабинета пользователя, 03.11.2026). PORT-6a: строки — из
+ * карточка «Чеклист» со счётчиком принятых. Строки о данных под списком нет
+ * (решение владельца 14.11.2026). PORT-6a: строки — из
  * неймспейса admission (RU+KY); смоук-якоря сохранены байт-в-байт в
  * RU-словаре: заголовки «Чеклист» и «Список документов пока пуст».
  */
@@ -189,16 +188,6 @@ export function DocumentsView({
       <p className="pt-docs-other">
         {strings.documentsOtherNote}{" "}
         <Link className="pt-link" href="/portal/messages?view=chat">{strings.documentsWriteEvo}</Link>
-      </p>
-      {/* Кто видит файлы и как они хранятся — одной строкой под списком, со ссылкой на политику. */}
-      <p className="pt-doc-privacy">
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M10 2.5 4 5v4.5c0 3.6 2.5 6.6 6 8 3.5-1.4 6-4.4 6-8V5zM7.6 9.8l1.7 1.7 3.2-3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span>
-          {strings.documentsPrivacyNote}{" "}
-          <a className="pt-link" href={AI_CONSENT_PRIVACY_URL}>{strings.documentsPrivacyLink}</a>
-        </span>
       </p>
       </>
       )}

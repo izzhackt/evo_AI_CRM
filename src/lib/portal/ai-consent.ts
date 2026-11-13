@@ -12,9 +12,10 @@
  */
 
 /**
- * Версия текста согласия, который видит студент. Меняется вместе с текстом
- * `aiConsent` в `i18n.ts`; база отвергает неверную версию, а решение, принятое
- * по старой версии, считает «не выбрано» и просит подтвердить заново.
+ * Версия текста согласия, который видит студент. Меняется вместе с текстом согласия
+ * (`consentGate.aiLabel` и `aiDetail`, `apply.aiConsentLabel` в `i18n.ts`; строка «Профиля»
+ * `aiConsent` текста согласия не содержит); база отвергает неверную версию, а решение,
+ * принятое по старой версии, считает «не выбрано» и просит подтвердить заново.
  */
 export const AI_CONSENT_POLICY_VERSION = "2026-10-25";
 
@@ -23,6 +24,9 @@ export const AI_CONSENT_SOURCE = "portal_web";
 
 /** Политика конфиденциальности сайта. Кыргызской страницы нет, обе локали ведут на русскую. */
 export const AI_CONSENT_PRIVACY_URL = "https://evoadmissions.com/ru/privacy/";
+
+/** Страница поддержки сайта (ссылка «Поддержка EVO» в «Профиле», она же в магазинах). Кыргызской страницы нет. */
+export const PORTAL_SUPPORT_URL = "https://evoadmissions.com/ru/support/";
 
 export type AiConsentStatus = "granted" | "declined";
 
@@ -128,16 +132,4 @@ export function parseAiConsent(value: unknown): AiConsent | null {
 export function aiConsentState(consent: AiConsent): AiConsentState {
   if (consent.status === null || consent.policyVersion !== consent.currentPolicyVersion) return "undecided";
   return consent.status;
-}
-
-/** Студент решал раньше, но текст политики с тех пор обновился. */
-export function aiConsentOutdated(consent: AiConsent): boolean {
-  return consent.status !== null && consent.policyVersion !== consent.currentPolicyVersion;
-}
-
-/** Дата решения для людей: «25.10.2026» по Бишкеку (организация работает по нему). */
-export function aiConsentDate(iso: string): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Bishkek",
-  }).format(new Date(iso));
 }

@@ -875,3 +875,19 @@ N программ» и стран. *10.11*
 избранным вуза. Не сделано и почему: вилка зарплаты — нет проверенного источника для стран выпускников,
 выдумывать суммы нельзя; «сердечко» у самой профессии — нужна новая таблица избранного профессий; результат
 теста в CRM у куратора — отдельная задача. *10.11*
+
+## 14.11 — Напоминаний о данных на рабочих экранах нет
+
+После сверки всех текстов о приватности и данных в продуктах владелец решил не переписывать напоминания, а убрать их
+(в чате, 14.11.2026):
+
+> «we dont need them, like when they are registering they read that and put a tick, so its okay, because with these
+> texts we are worsing the ux-ui, so i wanna choose and delete them and write this exact rule in ur claude.md, so u
+> dont use it anymore and if u have them u will delete from the app.evoadmissions and from the phone apps as well. …
+> Фраза про документы in the initial one, and once they do that in the register or onboarding, like the ticking i
+> mean, after that in the pages of actual app, dont every mention these stuff, remove all of them.»
+
+Решено: текст о политике, согласии и обработке данных живёт только в регистрации и онбординге, где студент ставит
+галочки. На рабочих экранах кабинета и приложений напоминаний нет. Первый экран «Конфиденциальность» остаётся
+обязательным, с обеими галочками; фраза про документы (хранятся закрыто, проверяются антивирусом, видят сотрудники,
+которые ведут дело) переехала на него одной строкой. Правило записано в `CLAUDE.md`, раздел «Что нельзя выводить на экран».

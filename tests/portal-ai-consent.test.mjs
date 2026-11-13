@@ -8,8 +8,6 @@ import {
   AI_CONSENT_PRIVACY_URL,
   AI_CONSENT_SOURCE,
   aiConsentApplies,
-  aiConsentDate,
-  aiConsentOutdated,
   aiConsentState,
   isAiConsentRequestId,
   isAiConsentStatus,
@@ -27,10 +25,10 @@ import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 // Согласие студента на ИИ-помощников (решение владельца 25.10.2026, Apple
 // 5.1.2(i)), веб-поток. Контракт RPC живёт в миграции 320 (поток db): здесь
 // строгий разбор ответа, транспорт с точными аргументами, текст владельца
-// слово в слово и проводка карточки «Главной» и строки «Профиля». Вопрос
-// задаётся только клиенту EVO с делом на сопровождении (accessTier assisted):
-// самостоятельный студент не видит ни карточку, ни строку, а база для него не
-// читается и не пишется.
+// слово в слово и проводка строки «Профиля» (с 14.11.2026 — одна строка секции
+// «Конфиденциальность», без объяснений о данных: решение владельца). Строка
+// есть у любого студента кабинета (345); для остальных база не читается и не
+// пишется.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 /** Исходник без комментариев: проверки «в коде нет …» не цепляют пояснения. */
 const code = (path) => read(path).replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
@@ -117,21 +115,12 @@ test("only a decision on the current policy version counts; an older one asks ag
   assert.equal(aiConsentState(ASKED), "undecided");
   assert.equal(aiConsentState(GRANTED), "granted");
   assert.equal(aiConsentState(DECLINED), "declined");
-  assert.equal(aiConsentOutdated(GRANTED), false);
-  assert.equal(aiConsentOutdated(ASKED), false);
   for (const status of ["granted", "declined"]) {
     const old = { ...GRANTED, status, policyVersion: "2026-01-01" };
     assert.equal(aiConsentState(old), "undecided", status);
-    assert.equal(aiConsentOutdated(old), true, status);
   }
   // Сервер ушёл вперёд, браузер ещё на старом тексте: решение по тексту браузера не действует.
   assert.equal(aiConsentState({ ...GRANTED, currentPolicyVersion: "2026-12-01" }), "undecided");
-});
-
-test("the decision date is read in Bishkek time, day first", () => {
-  assert.equal(aiConsentDate("2026-10-25T10:30:00.123456+00:00"), "25.10.2026");
-  // 20:00 UTC уже 02:00 следующих суток по Бишкеку (UTC+6).
-  assert.equal(aiConsentDate("2026-10-25T20:00:00+00:00"), "26.10.2026");
 });
 
 test("reading calls portal_ai_consent_get_v1 in schema platform and fails closed", async () => {
@@ -195,25 +184,26 @@ test("writing refuses an answer that does not confirm this very choice on the cu
   );
 });
 
-test("the Russian text is the owner's wording, word for word", () => {
-  const ru = PORTAL_DICTIONARIES.aiConsent.ru;
+test("the Profile row has a plain label, a state word and one button: no explanatory text (owner, 14.11.2026)", () => {
+  const { ru, ky } = PORTAL_DICTIONARIES.aiConsent;
   assert.equal(ru.title, "ИИ-помощники EVO");
-  assert.equal(
-    ru.body,
-    "Сотрудникам EVO помогают ИИ-помощники: они читают вашу переписку с EVO и документы дела, чтобы готовить ответы и следить за сроками. Данные обрабатывают Anthropic (Claude, США) и Google (Gemini). Решения по делу принимают сотрудники EVO. Если не разрешите, помощники не будут читать ваши документы и переписку — работа с делом не изменится.",
-  );
-  assert.equal(ru.allow, "Разрешить");
-  assert.equal(ru.decline, "Не разрешать");
-  assert.equal(ru.policyLink, "Политика конфиденциальности");
-  assert.equal(ru.rowHeading, "ИИ-помощники");
+  assert.equal(ru.allow, "Разрешить ИИ-помощников");
+  assert.equal(ru.revoke, "Отозвать согласие на ИИ");
   assert.equal(ru.stateGranted, "Разрешено");
   assert.equal(ru.stateDeclined, "Не разрешено");
   assert.equal(ru.stateUndecided, "Не выбрано");
-  assert.equal(ru.revoke, "Отозвать согласие");
+  // Объяснение, кто и что читает, и условие отказа живут только в регистрации и на экране «Конфиденциальность».
+  for (const removed of ["body", "decline", "policyLink", "rowHeading", "changeInProfile", "policyUpdated"]) {
+    assert.equal(Object.hasOwn(ru, removed), false, `ru.${removed}`);
+    assert.equal(Object.hasOwn(ky, removed), false, `ky.${removed}`);
+  }
+  const gate = PORTAL_DICTIONARIES.consentGate.ru;
+  assert.equal(gate.aiLabel, "Разрешаю ИИ-помощникам EVO читать мою переписку и документы дела");
+  assert.match(gate.aiDetail, /Anthropic \(Claude, США\) и Google \(Gemini\)/u);
 });
 
 test("the saved-choice lines report the fact only and promise nothing the code does not enforce", () => {
-  // Условие об отказе произносит утверждённое владельцем тело; подтверждение — только факт записи.
+  // Подтверждение — только факт записи.
   const { ru, ky } = PORTAL_DICTIONARIES.aiConsent;
   assert.equal(ru.savedGranted, "Разрешение сохранено.");
   assert.equal(ru.savedDeclined, "Отказ сохранён.");
@@ -227,8 +217,9 @@ test("the Kyrgyz draft covers every key, keeps the names of the processors and i
   const { ru, ky } = PORTAL_DICTIONARIES.aiConsent;
   assert.deepEqual(Object.keys(ky).sort(), Object.keys(ru).sort());
   for (const [key, value] of Object.entries(ky)) assert.notEqual(value.trim(), "", key);
+  // Названия обработчиков остаются там, где студент даёт согласие: на экране «Конфиденциальность».
   for (const name of ["Anthropic", "Claude", "Google", "Gemini"]) {
-    assert.ok(ky.body.includes(name), name);
+    assert.ok(PORTAL_DICTIONARIES.consentGate.ky.aiDetail.includes(name), name);
   }
   const dictionary = read("src/lib/portal/i18n.ts");
   const block = dictionary.slice(dictionary.indexOf("const aiConsentKy"), dictionary.indexOf("export const PORTAL_DICTIONARIES"));
@@ -275,22 +266,24 @@ test("09.11.2026: the Home card is gone, the home does not read the consent any 
   assert.match(read("src/lib/portal/ai-consent-actions.ts"), /revalidatePath\("\/portal"\);/u);
 });
 
-test("the settings row sits in the profile, with its own honest line when the read fails", () => {
+test("the settings row sits in the profile privacy section, with its own honest line when the read fails", () => {
   const page = read("src/app/(portal)/portal/profile/page.tsx");
   assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[\s*requireStudentPortalActor\(\),/u);
   // 345 (07.11.2026): строка «Профиля» у любого студента кабинета — согласие из регистрации можно отозвать сразу.
   assert.match(page, /readOwnAiConsentForProfile\(actor\.accessTier\),\n\s*\]\);/u);
-  // Не студент кабинета: ни раздела, ни заголовка, ни строки.
-  assert.match(page, /\{aiConsent\.status === "not_applicable" \? null : \(\s*<section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">/u);
-  assert.match(page, /\{aiConsentStrings\.rowHeading\}/u);
+  // Не студент кабинета: ни строки, ни её сбоя. Строка стоит в секции «Конфиденциальность» (14.11.2026).
+  assert.match(page, /\{aiConsent\.status === "not_applicable" \? null : \(\s*<li className="pt-privacy-item pt-privacy-item-block">/u);
   assert.match(page, /<AiConsentSettingsRow initialConsent=\{aiConsent\.consent\} strings=\{aiConsentStrings\} \/>/u);
   assert.match(page, /<p role="alert" className="pt-account-deletion-error">\{aiConsentStrings\.unavailable\}<\/p>/u);
-  // Строка стоит перед «Удалением аккаунта»; «Выйти» с 03.11.2026 — в шапке
-  // профиля над настройками, отдельной карточки «Выход» нет.
-  assert.ok(page.indexOf("portal-profile-ai-consent") < page.indexOf("portal-profile-deletion"));
+  // Отдельной карточки «ИИ-помощники» и своего заголовка у строки больше нет.
+  assert.doesNotMatch(page, /portal-profile-ai-consent|aiConsentStrings\.rowHeading|ProfileIcon name="ai"/u);
+  // Строка стоит после двух ссылок и перед «Удалить аккаунт»; «Выйти» с 03.11.2026 — в шапке профиля над настройками.
+  assert.ok(page.indexOf("href={AI_CONSENT_PRIVACY_URL}") < page.indexOf("<AiConsentSettingsRow"));
+  assert.ok(page.indexOf("href={PORTAL_SUPPORT_URL}") < page.indexOf("<AiConsentSettingsRow"));
+  assert.ok(page.indexOf("<AiConsentSettingsRow") < page.indexOf("<AccountDeletionPanel"));
   assert.doesNotMatch(page, /portal-profile-session/u);
   assert.ok(page.indexOf("<ProfileHero") < page.indexOf("logoutStudentPortalAction}>"));
-  assert.ok(page.indexOf("logoutStudentPortalAction}>") < page.indexOf("portal-profile-ai-consent"));
+  assert.ok(page.indexOf("logoutStudentPortalAction}>") < page.indexOf("portal-profile-privacy"));
 });
 
 test("the controls keep the decision honest: pending lock, stable attempt id, confirmed state, focus kept", () => {
@@ -310,19 +303,18 @@ test("the controls keep the decision honest: pending lock, stable attempt id, co
   assert.match(ui, /<p role="alert" className="pt-consent-error">\{strings\.error\}<\/p>/u);
   assert.match(ui, /<CheckMark fresh \/>/u);
   assert.match(ui, /active === null \|\| active === document\.body/u);
-  // Карточка: основная «Разрешить», вторая «Не разрешать», ссылка на политику рядом с текстом.
-  assert.match(ui, /status="granted" primary>\{strings\.allow\}/u);
-  assert.match(ui, /status="declined" primary=\{false\}>\{strings\.decline\}/u);
-  assert.match(ui, /href=\{AI_CONSENT_PRIVACY_URL\}/u);
-  // «Отозвать согласие» записывает отказ, «Разрешить» после отказа — согласие.
+  // Одна кнопка по состоянию: «Отозвать согласие на ИИ» записывает отказ, «Разрешить» после отказа — согласие.
   assert.match(ui, /status="declined" primary=\{false\}>\{strings\.revoke\}/u);
+  assert.match(ui, /status="granted" primary>\{strings\.allow\}/u);
+  // Ни второй кнопки «Не разрешать», ни ссылки на политику, ни абзаца-объяснения в строке нет (14.11.2026).
+  assert.doesNotMatch(ui, /strings\.decline|strings\.body|strings\.policyLink|AI_CONSENT_PRIVACY_URL|<a /u);
   // Текст и версия не вшиты в компонент.
   assert.doesNotMatch(ui, /2026-10-25|Anthropic|evoadmissions\.com/u);
 });
 
 test("the styles use portal tokens only: no raw colours, no side stripes, targets of 44 px", () => {
   const css = read("src/app/(portal)/portal.css");
-  const start = css.indexOf("Согласие на ИИ-помощников (решение владельца 25.10.2026)");
+  const start = css.indexOf("«Профиль → Конфиденциальность» (решение владельца 14.11.2026)");
   const end = css.indexOf("/* ---------- Фото с атрибуцией ---------- */");
   assert.ok(start > 0 && end > start);
   const block = css.slice(start, end);
@@ -330,7 +322,8 @@ test("the styles use portal tokens only: no raw colours, no side stripes, target
   assert.doesNotMatch(block, /border-(left|right|inline-start|inline-end)\s*:/u, "no coloured side stripe");
   assert.doesNotMatch(block, /@keyframes|animation:|gradient|backdrop-filter/u, "no new motion or decoration");
   assert.match(block, /\.pt-gate-card \{[^}]*box-shadow: var\(--pt-shadow-card\);/u);
-  assert.match(block, /\.pt-consent-body \{\s*color: var\(--pt-text\);/u);
+  // Ссылки секции — строки не ниже 44 px.
+  assert.match(block, /\.pt-privacy-link \{[^}]*min-height: 52px;/u);
   // Кнопки и ссылка — общие классы портала с высотой 44 px.
   assert.match(css, /\.pt-btn,\n\.pt-btn-ghost \{[^}]*min-height: 44px;/u);
   assert.match(css, /\.pt-link \{[^}]*min-height: 44px;/u);
@@ -421,6 +414,20 @@ test("rendered: no home carries the consent card any more, the consent screen re
   assert.equal((gate.match(/<input [^>]*type="checkbox" required/gu) ?? []).length, 2, "both required");
   assert.ok(gate.includes("Принимаю") && gate.includes("https://evoadmissions.com/ru/privacy/"));
   assert.ok(gate.includes("Разрешаю ИИ-помощникам EVO читать мою переписку и документы дела"));
+  // 14.11.2026: единственная строка о файлах — на этом экране, где студент ставит галочки.
+  assert.ok(gate.includes("Файлы хранятся закрыто и проверяются антивирусом; их видят сотрудники EVO, которые ведут ваше дело."));
+  // Рабочие экраны: ни объяснений о данных, ни строки о файлах под списком документов.
+  const documents = html("admission-documents");
+  for (const phrase of ["Загружая документы", "проверяются на вирусы", "видите только вы", "Политика конфиденциальности"]) {
+    assert.equal(documents.includes(phrase), false, `documents: ${phrase}`);
+  }
+  const profile = html("profile-ai-consent");
+  for (const phrase of ["Конфиденциальность", "Политика конфиденциальности", "Поддержка EVO", "Отозвать согласие на ИИ", "Разрешить ИИ-помощников", "Удалить аккаунт"]) {
+    assert.ok(profile.includes(phrase), `profile: ${phrase}`);
+  }
+  for (const phrase of ["читают вашу переписку", "Anthropic", "Не разрешать", "в течение 30 дней", "хранятся обезличенно", "Условия обновились"]) {
+    assert.equal(profile.includes(phrase), false, `profile: ${phrase}`);
+  }
 });
 
 test("345: the Profile row reads for every cabinet student, the Home card only for a client with a case", async () => {

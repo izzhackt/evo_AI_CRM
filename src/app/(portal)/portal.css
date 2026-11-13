@@ -1915,46 +1915,84 @@
 }
 
 /*
- * Согласие на ИИ-помощников (решение владельца 25.10.2026). Карточка на
- * «Главной» и строка в «Профиле» говорят одним текстом. Только токены --pt-*,
- * обе темы; новых анимаций нет: подтверждение рисует общая галочка
- * (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
+ * «Профиль → Конфиденциальность» (решение владельца 14.11.2026): две ссылки, строка согласия на ИИ-помощников и
+ * удаление аккаунта, без объяснений о данных. Только токены --pt-*, обе темы; новых анимаций нет: подтверждение
+ * рисует общая галочка (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
  */
-.pt-consent,
-.pt-consent-row {
+.pt-privacy-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-privacy-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-privacy-item:first-child {
+  border-top: 0;
+}
+
+/* Строки-блоки (согласие на ИИ, удаление аккаунта): вертикальный воздух вместо высоты ссылки. */
+.pt-privacy-item-block {
+  padding: 12px 0;
+}
+
+.pt-privacy-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-}
-
-.pt-consent-title {
-  margin: 0;
-  font-size: var(--pt-size-heading);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-
-.pt-consent-body,
-.pt-consent-note {
-  max-width: 68ch;
-  margin: 0;
-  font-size: var(--pt-size-secondary);
-  text-wrap: pretty;
-}
-
-.pt-consent-body {
+  min-height: 52px;
   color: var(--pt-text);
+  font-weight: 500;
+  text-decoration: none;
 }
 
-.pt-consent-note {
+.pt-privacy-link > span:last-child {
   color: var(--pt-text-2);
 }
 
-/* Ссылка высотой 44 px: отрицательный отступ возвращает её к тексту, зона касания не меняется. */
-.pt-consent-policy {
-  margin: -6px 0;
+.pt-privacy-link:hover > span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.pt-privacy-link:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-consent-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pt-consent-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pt-consent-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.pt-consent-name {
+  color: var(--pt-text);
+  font-weight: 500;
 }
 
 .pt-consent-actions {
@@ -1974,14 +2012,9 @@
   opacity: 0.6;
 }
 
-.pt-consent-state {
-  margin: 0;
+.pt-consent-state-word {
   color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
-}
-
-.pt-consent-state-word {
-  color: var(--pt-text);
   font-weight: 600;
 }
 
@@ -2000,7 +2033,7 @@
 }
 
 .pt-consent-live:empty {
-  margin-top: -12px;
+  margin-top: -8px;
 }
 
 .pt-consent-live[data-phase="saved"] {
@@ -2053,7 +2086,8 @@
 }
 
 .pt-gate-lead,
-.pt-gate-detail {
+.pt-gate-detail,
+.pt-gate-note {
   margin: 0;
   font-size: var(--pt-size-secondary);
   color: var(--pt-text-2);
@@ -6762,19 +6796,6 @@ main.pt-page > .pt-card {
   text-align: right;
 }
 
-/* Строка о данных: тихая плашка со щитом под полосой прогресса. */
-/* Строка о данных — мелко под списком (образец кабинета пользователя, 03.11.2026). */
-.pt-doc-privacy {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 16px 0 0;
-  padding: 0 4px;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  line-height: var(--pt-leading);
-}
-
 /*
  * «Документы» (03.11.2026, по образцу кабинета пользователя): шапка с кнопкой
  * карточка «Чеклист» со счётчиком, вкладки и список; файл загружается кнопкой
@@ -6973,16 +6994,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 }
 
 .pt-docs-other .pt-link {
-  min-height: 0;
-  font-size: inherit;
-}
-
-.pt-doc-privacy svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.pt-doc-privacy .pt-link {
   min-height: 0;
   font-size: inherit;
 }

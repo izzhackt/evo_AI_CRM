@@ -141,6 +141,38 @@ async function views() {
   }
 }
 
+/** Клиент вошедшего сотрудника для настоящего `ai-agents-source.ts`: записывает вызов RPC и отдаёт то, что положил тест (globalThis.__pendingRpc). */
+const FAKE_SUPABASE = `exports.createSupabaseServerClient = async () => ({
+  schema: (schema) => ({ rpc: async (name, args) => { globalThis.__pendingRpc.calls.push({ schema, name, args }); const next = globalThis.__pendingRpc.next; if (next instanceof Error) throw next; return next; } }),
+});`;
+let realPendingModule;
+/** НАСТОЯЩИЙ `readAiAgentsPending` из `src/lib/v3/ai-agents-source.ts`: подменены только `server-only` и клиент базы. */
+async function realPending() {
+  if (realPendingModule) return realPendingModule;
+  const dir = mkdtempSync(join(tmpdir(), "aia-pending-"));
+  try {
+    writeFileSync(join(dir, "entry.ts"), `export { readAiAgentsPending } from ${JSON.stringify(root("src/lib/v3/ai-agents-source.ts"))};`);
+    const outfile = join(dir, "out.cjs");
+    await build({
+      entryPoints: [join(dir, "entry.ts")], outfile, bundle: true, platform: "node", format: "cjs", tsconfig: root("tsconfig.json"),
+      absWorkingDir: root(""), nodePaths: [root("node_modules")], logLevel: "silent",
+      plugins: [{
+        name: "aia-pending-real",
+        setup(b) {
+          b.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
+          b.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+          b.onResolve({ filter: /supabase\/server(\.ts)?$/ }, () => ({ path: "fake-supabase", namespace: "fake-supabase" }));
+          b.onLoad({ filter: /.*/, namespace: "fake-supabase" }, () => ({ contents: FAKE_SUPABASE, loader: "js" }));
+        },
+      }],
+    });
+    realPendingModule = createRequire(root("package.json"))(outfile);
+    return realPendingModule;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const ADMIN = ACTOR;
 const STAFF = { ...ACTOR, systemRole: "staff", presentationRole: null, displayName: "Сотрудник Синтетический", permissionKeys: ["ai.agent.use", "ai.agent.manage"] };
 const PREVIEW = { ...ACTOR, presentationRole: "sales" };
@@ -332,6 +364,55 @@ test("`pendingRowsOf`: от черновика остаются id, агент, 
   assert.equal(total, 13, "всего ждёт — счётчик чтения, строк в списке три");
   assert.equal(pendingRowsOf({ drafts: [rich, plain, long], counts: { ...F.DRAFTS_ALL.counts, pending: 1 } }).total, 3, "счётчик не бывает меньше показанных");
   assert.deepEqual(pendingRowsOf({ drafts: [], counts: { ...F.DRAFTS_ALL.counts, pending: 0 } }), { drafts: [], total: 0 });
+});
+
+test("настоящий `readAiAgentsPending` с подставным клиентом: наружу уходят только agentKey, id, targetLabel и text; «всего» — счётчик, не меньше показанных; любой отказ чтения — `total: null, partial: true`", async () => {
+  const { readAiAgentsPending } = await realPending();
+  const INCOMING = "ВХОДЯЩЕЕ-сообщение-клиента";
+  const REASON = "ПРИЧИНА-агента";
+  // Сырые строки так, как их отдаёт RPC: со входящим сообщением клиента, причиной агента, кодом отказа, идентификаторами дела и разговора.
+  const raw = (count, pending) => ({
+    drafts: F.DRAFTS_ALL.drafts.slice(0, count).map((draft, index) => ({ ...draft, sourceMessage: { text: `${INCOMING}-${index}`, at: F.NOW }, reason: `${REASON}-${index}`, failureCode: "whatsapp_unavailable", studentCaseId: `case-${index}`, leadId: `lead-${index}` })),
+    counts: { ...F.DRAFTS_ALL.counts, pending },
+  });
+  const run = async (next) => {
+    globalThis.__pendingRpc = { calls: [], next };
+    const out = await readAiAgentsPending(ADMIN, { limit: 4 });
+    return { out, calls: globalThis.__pendingRpc.calls };
+  };
+  // Четыре строки из тринадцати.
+  const four = raw(4, 13);
+  assert.ok(Object.keys(four.drafts[0]).includes("sourceMessage") && Object.keys(four.drafts[0]).includes("reason"), "в сыром ответе лишние поля есть");
+  const ok = await run({ data: four, error: null });
+  assert.deepEqual(ok.calls, [{ schema: "platform", name: "ai_agents_drafts_list_v1", args: { p_organization_id: ADMIN.organizationId, p_key: null, p_status: "pending", p_limit: 4 } }], "одно чтение: все агенты, только ждущие, четыре строки, от имени сотрудника");
+  assert.deepEqual(Object.keys(ok.out).sort(), ["drafts", "partial", "total"]);
+  assert.equal(ok.out.drafts.length, 4);
+  for (const row of ok.out.drafts) assert.deepEqual(Object.keys(row).sort(), ["agentKey", "id", "targetLabel", "text"], "в строке ничего лишнего");
+  assert.deepEqual(ok.out.drafts.map((row) => row.id), four.drafts.map((draft) => draft.id));
+  assert.equal(ok.out.total, 13);
+  assert.equal(ok.out.partial, false);
+  const flat = JSON.stringify(ok.out);
+  for (const leak of [INCOMING, REASON, "sourceMessage", "reason", "failureCode", "conversationId", "studentCaseId", "leadId", "case-0", "lead-0", "editedText", "runId", "channel", "expiresAt", "createdAt", "decidedByName"]) assert.equal(flat.includes(leak), false, `наружу не уходит «${leak}»`);
+  // Правка сотрудника — вместо исходного текста; длинный текст обрезан по кодовым точкам.
+  const edited = raw(2, 2);
+  edited.drafts[0] = { ...edited.drafts[0], editedText: "Правка сотрудника" };
+  edited.drafts[1] = { ...edited.drafts[1], text: `${"я".repeat(318)}😀${"x".repeat(5)}` };
+  const trimmed = (await run({ data: edited, error: null })).out.drafts;
+  assert.equal(trimmed[0].text, "Правка сотрудника");
+  assert.equal(trimmed[1].text, `${"я".repeat(318)}😀…`);
+  // Всего: счётчик чтения, но не меньше показанных (счётчик отстал); пусто — 0 без выдуманного.
+  assert.equal((await run({ data: raw(4, 2), error: null })).out.total, 4, "max(счётчик, показано)");
+  assert.equal((await run({ data: raw(4, 4), error: null })).out.total, 4);
+  assert.deepEqual((await run({ data: raw(0, 0), error: null })).out, { drafts: [], total: 0, partial: false });
+  // Любой отказ чтения — слово о неполном списке и никакого числа: ответ с ошибкой базы, «нет доступа», «функции нет», кривая форма, исключение клиента.
+  const failed = { drafts: [], total: null, partial: true };
+  for (const [name, next] of [
+    ["ошибка базы", { data: null, error: { code: "XX000", message: "boom" } }],
+    ["нет доступа", { data: null, error: { code: "42501", message: "ai_agent_forbidden" } }],
+    ["функции нет (миграция не применена)", { data: null, error: { code: "PGRST202", message: "Could not find the function platform.ai_agents_drafts_list_v1" } }],
+    ["кривая форма ответа", { data: { drafts: "не список" }, error: null }],
+    ["клиент бросил исключение", new Error("сеть")],
+  ]) assert.deepEqual((await run(next)).out, failed, name);
 });
 
 test("хаб: «Правила» — только настоящему администратору (не сотруднику и не просмотру роли); Директору «Поручить» — только администратору; без ключа Claude «Поручить» нет ни у кого", async () => {

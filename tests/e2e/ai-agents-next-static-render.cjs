@@ -41,8 +41,9 @@ const NARROW = {
   m360: { viewport: { width: 360, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
   m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
-// Ширины рабочего стола для шапки «Чата»: помещается ли название агента целиком и сколько в шапке строк (раздел 4).
-const WIDE = Object.fromEntries([900, 1280, 1600, 1920].map((width) => [`w${width}`, { viewport: { width, height: 900 } }]));
+// Ширины рабочего стола для шапки «Чата» (раздел 10): помещается ли название агента целиком, видны ли все шесть вкладок и сколько в шапке строк.
+// 1668–1760 — вокруг порога «в одну строку» (колонка 90rem = окно 1748 px): там вкладки когда-то обрезались.
+const WIDE = Object.fromEntries([900, 1280, 1600, 1668, 1700, 1740, 1760, 1920].map((width) => [`w${width}`, { viewport: { width, height: 900 } }]));
 const AGENT_KEYS = ["director", "sales", "curator-cn", "curator-my", "curator-eu", "curator-ae", "curator-tr"];
 const SCENES = [
   { name: "hub", path: "/ai-agents", search: "" },
@@ -130,12 +131,13 @@ const router = { push: (href) => window.__harness.pushes.push(href), replace() {
 const params = new URLSearchParams(fixture.search);
 const tab = params.get("tab") ?? "command";
 const runId = params.get("run");
-// Данные одной сцены в других состояниях — параметрами адреса файла: ?agent=<ключ> (страница агента), ?hub=<состояние> (главная):
+// Данные одной сцены в других состояниях — параметрами адреса файла: ?agent=<ключ> и ?drafts=<число ждущих> (страница агента), ?hub=<состояние> (главная):
 // pending (по умолчанию: «Ждут решения» с четырьмя строками из 13), plain (черновиков нет), partial (чтение черновиков не удалось),
 // running / running-staff (идёт работа; второе — не администратор), key (ключ Claude не задан), off (ни один агент не включён),
 // preview (просмотр роли), unavailable / denied / not-ready (список агентов не прочитался, нет доступа, раздел готовится).
 const query = new URLSearchParams(location.search);
 const agent = query.get("agent");
+const drafts = query.get("drafts");
 const hubMode = query.get("hub") ?? "pending";
 // Данные сцены: запуск целиком; «последние 30 и есть ещё»; вкладка «Все» черновиков (по умолчанию — только ждущие, как отдаёт сервер).
 const over = runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : fixture.name === "drafts-wazzup" ? { drafts: F.available(F.DRAFTS_RECEIVE_ONLY) } : fixture.name === "runs-more" ? { runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) } : params.get("show") === "all" ? { draftsFilter: "all" } : {};
@@ -146,7 +148,12 @@ if (fixture.name === "hub") {
   const pending = hubMode === "plain" || ["unavailable", "denied", "not-ready"].includes(hubMode) ? null : hubMode === "partial" ? { drafts: [], total: null, partial: true } : F.PENDING;
   const failure = { unavailable: "unavailable", denied: "denied", "not-ready": "not_ready" }[hubMode];
   page = h(NextAgentsView, { read: failure ? { status: failure } : F.available(hubMode === "running-staff" ? { ...list, isAdmin: false, canManage: false } : list), pending, runtimeConfigured: hubMode !== "key", preview: hubMode === "preview", hasDefault: nextAgentsHasDefault() });
-} else { const props = F.bodyProps(tab, agent ? { ...over, detail: F.detail(agent) } : over); page = h(NextAgentPage, { ...props, defaults: nextAgentDefaults(props.detail.key, tab) }); }
+} else {
+  const base = F.detail(agent ?? "director");
+  const detail = drafts ? { ...base, stats: { ...base.stats, draftsPending: Number(drafts) } } : base;
+  const props = F.bodyProps(tab, agent || drafts ? { ...over, detail } : over);
+  page = h(NextAgentPage, { ...props, defaults: nextAgentDefaults(props.detail.key, tab) });
+}
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fixture.path },
@@ -177,6 +184,20 @@ function smallTargets(rootSelector) {
     .filter((element) => visible(element) && !element.matches("[aria-label^=Пояснение], [role=switch], [role=checkbox]") && !element.closest(".sr-only"))
     .map((element) => ({ text: (element.textContent || element.getAttribute("aria-label") || element.tagName).trim().slice(0, 30), h: Math.round(target(element).getBoundingClientRect().height) }))
     .filter((box) => box.h < 44);
+}
+
+/**
+ * Вкладки шапки «Чата»: влезают ли все шесть в свой ряд. Ряд (`nav[data-testid=queue-view-tabs]`) прокручивается, и если ему тесно, последняя
+ * вкладка («Настройки») уходит за край: `overflow` — на сколько px содержимое шире ряда, `hidden` — вкладки, правый край которых за краем ряда,
+ * `rows` — сколько строк в шапке (1 — всё в одну линию). Выполняется в странице: `page.evaluate(tabStripClip)`.
+ */
+function tabStripClip() {
+  const header = document.querySelector("[data-testid=v3-aia-chat-header]");
+  const strip = header.querySelector("nav[data-testid=queue-view-tabs]");
+  const box = strip.getBoundingClientRect();
+  const hidden = [...strip.querySelectorAll("a")].filter((link) => link.getBoundingClientRect().right > box.right + 1).map((link) => link.textContent.trim().replace(/\s+/gu, " "));
+  const rows = new Set([...header.firstElementChild.children].map((child) => Math.round(child.getBoundingClientRect().top))).size;
+  return { clientWidth: strip.clientWidth, scrollWidth: strip.scrollWidth, overflow: strip.scrollWidth - strip.clientWidth, hidden, rows };
 }
 
 async function compileCss() {
@@ -759,6 +780,7 @@ async function main() {
   }
   for (const key of Object.keys(WIDE)) {
     const bad = [];
+    const cut = [];
     const heights = {};
     for (const agent of AGENT_KEYS) {
       const { context, page } = await open("chat", key, { query: `agent=${agent}` });
@@ -768,13 +790,24 @@ async function main() {
         const help = box.querySelector("[aria-label^=Пояснение]");
         return { title: title.textContent, clipped: title.scrollWidth > title.clientWidth, helpBelow: help.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 2, height: Math.round(box.getBoundingClientRect().height) };
       });
+      const clip = await page.evaluate(tabStripClip);
       heights[agent] = header.height;
       if (header.clipped || header.helpBelow) bad.push(header);
+      // Ряд вкладок прокручивается, пока колонка уже 643 px (окно уже ~950 px): так и задумано; от 1280 px все шесть вкладок видны целиком.
+      if (WIDE[key].viewport.width >= 1280 && (clip.overflow > 1 || clip.hidden.length > 0)) cut.push({ agent, ...clip });
       await context.close();
     }
     report(`${key}/chat: the full title of all seven agents fits the header and its «?» stays beside it`, bad.length === 0, bad);
-    // От 85rem рабочей колонки (окно 1668 px и шире) шапка — одна тонкая строка, как у прежней рамки; уже — вкладки второй строкой.
-    if (key === "w1920") report("w1920/chat: the header is one thin line for every agent", Object.values(heights).every((height) => height <= 48), heights);
+    if (WIDE[key].viewport.width >= 1280) report(`${key}/chat: all six tabs fit their strip, none is cut off or scrolled`, cut.length === 0, cut);
+    // От 90rem рабочей колонки (окно 1748 px и шире) шапка — одна тонкая строка, как у прежней рамки; уже — вкладки второй строкой.
+    if (key === "w1760" || key === "w1920") report(`${key}/chat: the header is one thin line for every agent`, Object.values(heights).every((height) => height <= 48), heights);
+  }
+  // Число на «На одобрение» шире — трёхзначное: вкладкам по-прежнему хватает места и в одной строке, и во второй.
+  for (const key of ["w1668", "w1740", "w1760"]) {
+    const { context, page } = await open("chat", key, { query: "agent=director&drafts=140" });
+    const clip = await page.evaluate(tabStripClip);
+    report(`${key}/chat: six tabs with a three-digit count still fit their strip`, clip.overflow <= 1 && clip.hidden.length === 0, clip);
+    await context.close();
   }
   for (const key of Object.keys(NARROW).concat("m390")) {
     const bad = [];

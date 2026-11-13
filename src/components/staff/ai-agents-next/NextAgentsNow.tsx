@@ -1,48 +1,52 @@
 import Link from "next/link";
 
-import type { AiAgentsListResult } from "@/lib/ai-agents/contract";
-import { aiAgentHref, formatUsdCents, pluralRu } from "@/lib/v3/ai-agents-view";
-
-/** Запуски всех агентов по дням за последние 7 дней (из `runsPerDay14` каждого агента), от старого к новому. */
-function runsPerDay(list: AiAgentsListResult): number[] {
-  return Array.from({ length: 7 }, (_, index) =>
-    list.agents.reduce((total, agent) => total + (agent.stats.runsPerDay14.at(index - 7) ?? 0), 0));
-}
+import type { AiAgentListItem, AiAgentsListResult } from "@/lib/ai-agents/contract";
+import { aiAgentHref, formatUsdCents, pluralRu, successShare } from "@/lib/v3/ai-agents-view";
 
 /**
  * «Сейчас» — тёмная полоса главной «ИИ-агентов» (11.11.2026, по образцу Molar AI «AI agent · live»; упрощена по слову
- * владельца «перегружено»): «ИИ-агенты · в работе», сколько поручений выполняется прямо сейчас и кем, и три числа за
- * 7 дней без плиток и графиков: запуски, доля без ошибок, расход. Всё из чтения списка агентов.
+ * владельца «перегружено»): состояние агентов одним словом, сколько поручений выполняется прямо сейчас и кем, и три числа
+ * за 7 дней без плиток и графиков: запуски, доля без ошибок, расход. Всё из чтения списка агентов.
+ *
+ * Слово состояния правдивое (отзыв к #1449): «на связи» и «в работе» — только когда ключ Claude задан и хотя бы один агент
+ * включён; иначе полоса говорит «не подключены» или «выключены» и не называет тех, кто «работает».
+ * Название работающего агента — ссылка на его «Историю работы», кроме Директора для не администратора: ту вкладку база
+ * ему не отдаёт, и ссылка вела бы на «Нет доступа к этому разделу».
  */
-export function NextAgentsNow({ list }: Readonly<{ list: AiAgentsListResult }>) {
+export function NextAgentsNow({ list, runtimeConfigured }: Readonly<{ list: AiAgentsListResult; runtimeConfigured: boolean }>) {
   const running = list.agents.filter((agent) => agent.stats.runsRunning > 0);
   const workingNow = running.reduce((total, agent) => total + agent.stats.runsRunning, 0);
-  const today = runsPerDay(list).at(-1) ?? 0;
+  const today = list.agents.reduce((total, agent) => total + (agent.stats.runsPerDay14.at(-1) ?? 0), 0);
   const failed = list.agents.reduce((total, agent) => total + agent.stats.failed7d, 0);
-  const share = list.summary.runs7d > 0 ? Math.round(((list.summary.runs7d - failed) / list.summary.runs7d) * 100) : null;
+  const share = successShare({ runs7d: list.summary.runs7d, failed7d: failed });
+  const mode = !runtimeConfigured ? "key" : !list.agents.some((agent) => agent.enabled) ? "off" : workingNow > 0 ? "working" : "idle";
+  const state = { key: "не подключены", off: "выключены", working: "в работе", idle: "на связи" }[mode];
+  const line = mode === "key" ? "Запуски недоступны: не задан ключ Claude"
+    : mode === "off" ? "Ни один агент не включён"
+      : mode === "working" ? `Выполняют ${workingNow} ${pluralRu(workingNow, ["поручение", "поручения", "поручений"])} прямо сейчас`
+        : `Сегодня ${today} ${pluralRu(today, ["запуск", "запуска", "запусков"])}, сейчас никто не занят`;
+  const canOpenRuns = (agent: AiAgentListItem) => agent.key !== "director" || list.isAdmin;
   const stats = [
     { label: "Запусков за 7 дней", value: String(list.summary.runs7d) },
     { label: "Без ошибок", value: share === null ? "—" : `${share}%` },
     { label: "Расход за 7 дней", value: formatUsdCents(list.summary.costCents7d) },
   ];
   return (
-    <section aria-labelledby="aia-now" data-testid="v3-aia-now" className="v3-aia-hero @container rounded-card p-6">
+    <section aria-labelledby="aia-now" data-testid="v3-aia-now" data-mode={mode} className="v3-aia-hero @container rounded-card p-6">
       <div className="grid gap-5 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-end">
         <div className="grid min-w-0 gap-2">
           <h2 id="aia-now" className="v3-aia-hero-muted inline-flex items-center gap-2 t-meta font-semibold">
-            <span aria-hidden="true" className={`size-2 rounded-full ${workingNow > 0 ? "animate-pulse bg-ok motion-reduce:animate-none" : "v3-aia-hero-bar"}`} />
-            ИИ-агенты · {workingNow > 0 ? "в работе" : "на связи"}
+            <span aria-hidden="true" className={`size-2 rounded-full ${mode === "working" ? "animate-pulse bg-ok motion-reduce:animate-none" : "v3-aia-hero-bar"}`} />
+            ИИ-агенты · {state}
           </h2>
-          <p className="t-record-title text-balance" data-testid="v3-aia-now-line">
-            {workingNow > 0
-              ? `Выполняют ${workingNow} ${pluralRu(workingNow, ["поручение", "поручения", "поручений"])} прямо сейчас`
-              : `Сегодня ${today} ${pluralRu(today, ["запуск", "запуска", "запусков"])}, сейчас никто не занят`}
-          </p>
-          {running.length > 0 ? (
-            <ul className="flex flex-wrap gap-x-3 gap-y-1 t-meta" aria-label="Кто работает">
+          <p className="t-record-title text-balance" data-testid="v3-aia-now-line">{line}</p>
+          {mode === "working" ? (
+            <ul className="flex flex-wrap gap-x-3 gap-y-2 t-meta" aria-label="Кто работает">
               {running.map((agent) => (
                 <li key={agent.key}>
-                  <Link href={aiAgentHref(agent.key, { tab: "runs" })} className="underline underline-offset-4">{agent.title}</Link>
+                  {canOpenRuns(agent)
+                    ? <Link href={aiAgentHref(agent.key, { tab: "runs" })} className="underline underline-offset-4">{agent.title}</Link>
+                    : agent.title}
                 </li>
               ))}
             </ul>

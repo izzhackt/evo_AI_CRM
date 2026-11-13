@@ -4,6 +4,7 @@ import {
   AI_AGENT_DRAFT_STATUSES,
   AI_AGENT_GROUPS,
   AI_AGENT_KEYS,
+  AI_AGENT_RUN_STATUS_LABELS,
   AI_AGENT_RUN_STATUSES,
   AI_AGENT_SYNC_STATUSES,
   AI_AGENT_TOOL_LABELS,
@@ -347,6 +348,16 @@ export function runStatusTone(status: AiAgentRunRow["status"]): AiAgentChipTone 
     case "needs_attention": return "warn";
     default: return "neutral";
   }
+}
+
+/**
+ * Последний запуск агента на карточке хаба: «3 ч назад · Готово» (слово итога — то же, что на «Истории работы»),
+ * не запускался — «ещё не запускался». Итог называется словом; тон только подкрепляет его (красный — ошибка).
+ */
+export function aiAgentLastRun(stats: Pick<AiAgentStats, "lastRunAt" | "lastRunStatus">, nowIso: string): Readonly<{ when: string; result: string | null; tone: AiAgentChipTone }> {
+  if (!stats.lastRunAt) return { when: "ещё не запускался", result: null, tone: "neutral" };
+  const status = stats.lastRunStatus;
+  return { when: relativeTimeRu(stats.lastRunAt, nowIso), result: status ? AI_AGENT_RUN_STATUS_LABELS[status] : null, tone: status ? runStatusTone(status) : "neutral" };
 }
 
 export function successShare(stats: Pick<AiAgentStats, "runs7d" | "failed7d">): number | null {
@@ -1433,6 +1444,25 @@ export function parseAiAgentDrafts(raw: unknown): AiAgentDraftsListResult {
     drafts: arr(row.drafts, "drafts.drafts").map((item, index) => parseDraftRow(item, `drafts.drafts[${index}]`)),
     counts: Object.fromEntries(AI_AGENT_DRAFT_STATUSES.map((status) => [status, num(counts[status] ?? 0, `drafts.counts.${status}`)])) as Record<AiAgentDraftStatus, number>,
   };
+}
+
+/** Строка «Ждут решения» на главной: только то, что на экране, — адресат и текст. Входящее сообщение клиента и причина в браузер не уходят. */
+export type AiAgentPendingRow = Readonly<{ id: string; agentKey: AiAgentKey; text: string; targetLabel: string | null }>;
+
+/** Длина текста в строке главной (кодовых точек): две строки на самой широкой раскладке, остальное обрезает `line-clamp`. */
+export const AI_AGENT_PENDING_TEXT_MAX = 320;
+
+/**
+ * Черновики, ждущие решения, для главной: по одному тексту (правка сотрудника — вместо исходного) и адресату на строку,
+ * и сколько их всего ждёт (счётчик того же чтения `counts.pending`, а не длина урезанного списка).
+ */
+export function pendingRowsOf(result: AiAgentDraftsListResult): Readonly<{ drafts: readonly AiAgentPendingRow[]; total: number }> {
+  const drafts = result.drafts.map((draft) => {
+    const chars = Array.from(draft.editedText ?? draft.text);
+    const text = chars.length > AI_AGENT_PENDING_TEXT_MAX ? `${chars.slice(0, AI_AGENT_PENDING_TEXT_MAX - 1).join("").trimEnd()}…` : chars.join("");
+    return { id: draft.id, agentKey: draft.agentKey, text, targetLabel: draft.targetLabel };
+  });
+  return { drafts, total: Math.max(result.counts.pending, drafts.length) };
 }
 
 export function parseAiAgentDigests(raw: unknown): AiAgentDigestsListResult {

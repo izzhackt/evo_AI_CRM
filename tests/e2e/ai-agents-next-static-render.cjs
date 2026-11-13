@@ -445,9 +445,7 @@ async function main() {
     report(`${key}/runs: opening from the keyboard puts focus on the sheet title, not the scroll region`, landed.slot === "sheet-title" && landed.region !== "region", landed);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
-    // Radix возвращает фокус отложенным вызовом, и в соседних проверках здесь та же пауза. Без неё эта проверка на телефоне падала в
-    // двух из трёх полных прогонов (`activeElement` — `BODY` или чужая кнопка); с паузой проходит.
-    await page.waitForTimeout(80);
+    await page.waitForTimeout(80); // Radix возвращает фокус на следующем такте: без паузы эта проверка на телефоне падала в 2 из 3 прогонов
     report(`${key}/runs: focus returns to the ${key === "d1280" ? "open button" : "card button"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
     // Shift+Tab с названия панели запуска идёт на последний управляемый элемент панели, а не застревает на названии.
     await opener.focus();

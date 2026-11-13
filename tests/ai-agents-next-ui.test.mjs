@@ -439,6 +439,16 @@ test("карточка агента в хабе: «Авто: вкл» слово
   const hub = strip(nextHub(F.available(F.LIST), true, false));
   assert.match(cardOf(hub, "sales"), /<span class="v3-chip t-caption" data-tone="warn" data-size="sm" title="Агент сам пишет клиентам и студентам без одобрения">Авто: вкл<\/span>/u, "чип со словом и подсказкой, тон только подкрепляет");
   assert.equal((hub.match(/Авто: вкл/gu) ?? []).length, 1, "«Авто: вкл» — только у «Продаж» (autoSend); у остальных его нет, «Авто: выкл» не рисуется");
+  // Чип — только у ВКЛЮЧЁННОГО агента с «Авто»: выключенный ничего никому не пишет, даже если «Авто» когда-то включили; у второго включённого с «Авто» чип есть.
+  const offAuto = strip(nextHub(F.available(F.listVariant({ sales: { enabled: false } })), true, false));
+  assert.doesNotMatch(cardOf(offAuto, "sales"), /Авто: вкл/u, "выключенный агент с «Авто» — без чипа");
+  assert.match(cardOf(offAuto, "sales"), /Выключен/u, "состояние — словом «Выключен»");
+  assert.equal((offAuto.match(/Авто: вкл/gu) ?? []).length, 0);
+  assert.equal((strip(nextHub(F.available(F.LIST_OFF), true, false)).match(/Авто: вкл/gu) ?? []).length, 0, "все выключены — чипа нет нигде, хотя у «Продаж» «Авто» включён");
+  const twoAuto = strip(nextHub(F.available(F.listVariant({ director: { autoSend: true } })), true, false));
+  assert.match(cardOf(twoAuto, "director"), /Авто: вкл/u);
+  assert.match(cardOf(twoAuto, "sales"), /Авто: вкл/u);
+  assert.equal((strip(nextHub(F.available(F.listVariant({ sales: { autoSend: false } })), true, false)).match(/Авто: вкл/gu) ?? []).length, 0, "«Авто» выключен — чипа нет");
   assert.match(textOf(cardOf(hub, "director")), /Последний запуск: 3 ч назад · Готово/u, "время и итог словами; «Последний запуск» — для читалки");
   assert.match(cardOf(hub, "director"), /<span class="sr-only">Последний запуск: <\/span>3 ч назад/u);
   assert.match(cardOf(hub, "curator-cn"), /3 ч назад · <span class="font-medium text-danger">Ошибка<\/span>/u, "ошибка — словом, красным");

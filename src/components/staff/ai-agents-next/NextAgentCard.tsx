@@ -20,9 +20,10 @@ const RESULT_TONE = { danger: "font-medium text-danger", warn: "font-medium text
 
 /**
  * Карточка агента в списке «Агенты» (12.11.2026, по просьбе Айвара — маскоты): сверху маскот на сером столе (при наведении
- * чуть приподнимается), ниже имя (вся карточка ведёт к агенту), «?» с ролью, чипы словом — состояние и «Авто: вкл» (агент сам
- * пишет клиентам: это состояние должно быть видно на главной), когда работал и чем кончилось («3 ч назад · Готово»),
- * черновики, внизу одно действие — «Поручить» (сразу в чат) или «Правила».
+ * чуть приподнимается), ниже имя (вся карточка ведёт к агенту), «?» с ролью, чипы словом — состояние и «Авто: вкл» (только у
+ * включённого агента с включённым «Авто»: он сам пишет клиентам, и это должно быть видно на главной; выключенный не пишет
+ * никому, чипа у него нет), когда работал и чем кончилось («3 ч назад · Готово»), черновики, внизу одно действие — «Поручить»
+ * (сразу в чат) или «Правила».
  */
 export function NextAgentCard({ agent, now, rules, action }: Readonly<{
   agent: AiAgentListItem;
@@ -50,7 +51,7 @@ export function NextAgentCard({ agent, now, rules, action }: Readonly<{
         </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <StatusChip label={state.label} tone={state.tone} size="sm" />
-          {agent.autoSend ? <StatusChip label="Авто: вкл" tone="warn" size="sm" title="Агент сам пишет клиентам и студентам без одобрения" /> : null}
+          {agent.autoSend && agent.enabled ? <StatusChip label="Авто: вкл" tone="warn" size="sm" title="Агент сам пишет клиентам и студентам без одобрения" /> : null}
         </span>
         {last ? (
           <span className="t-meta text-fg-3" data-testid={`v3-aia-last-${agent.key}`}>

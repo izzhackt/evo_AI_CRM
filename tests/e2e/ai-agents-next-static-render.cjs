@@ -389,6 +389,7 @@ async function main() {
         report(`${key}/hub[${label}]: the strip says «не подключены», not «на связи», and names nobody as working`, text.includes("ИИ-агенты · не подключены") && text.includes("Запуски недоступны: не задан ключ Claude") && !/на связи|в работе/u.test(text) && names.length === 0 && (await page.locator("[data-testid=v3-aia-key-missing]").count()) === 1, { text });
       } else if (mode === "off") {
         report(`${key}/hub[${label}]: the strip says «выключены»`, text.includes("ИИ-агенты · выключены") && text.includes("Ни один агент не включён") && !/на связи|в работе/u.test(text), { text });
+        report(`${key}/hub[${label}]: a disabled agent shows no «Авто: вкл» chip even though «Авто» is on for Sales`, !(await page.locator("[data-testid=v3-ai-agents]").innerText()).includes("Авто: вкл"), null);
       } else if (mode === "partial") {
         report(`${key}/hub[${label}]: a word about the incomplete list, no «Ждут решения»`, (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 1 && (await page.locator("[data-testid=v3-aia-pending]").count()) === 0, null);
       } else if (mode === "preview") {

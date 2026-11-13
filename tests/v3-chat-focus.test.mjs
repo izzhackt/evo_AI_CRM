@@ -211,7 +211,8 @@ test("исходники: «Поручить» — рамка без потол�
   assert.match(chat, /md:min-h-0 md:flex-1/u, "колонка оболочки высотой в окно отдаёт странице всю высоту");
   assert.doesNotMatch(chat, /order-last/u, "вкладки не прыгают вверх-вниз для клавиатуры: порядок Tab идёт по строкам шапки");
   assert.match(chat, /<h1[\s\S]*\{switches\}\s*<ChatFocusToggle \/>[\s\S]*\{tabs\}/u, "в разметке вкладки последние: название, переключатели, «На весь экран», вкладки");
-  assert.match(chat, /@\[81rem\]:order-2[\s\S]*@\[81rem\]:order-1/u, "в широкой строке вкладки рисуются между названием и переключателями");
+  assert.match(chat, /@\[85rem\]:order-2[\s\S]*@\[85rem\]:order-1/u, "в широкой строке вкладки рисуются между названием и переключателями");
+  assert.match(chat, /<div className="flex min-w-0 max-w-\[25rem\] items-center gap-1">/u, "название агента с маскотом не режется: «Директор / Аналитик» с маскотом — 370 px");
 
   const tabs = read("src/components/staff/queue/QueueViewTabs.tsx");
   assert.match(tabs, /data-tab-ring=\{bare \? "inset" : undefined\}/u);

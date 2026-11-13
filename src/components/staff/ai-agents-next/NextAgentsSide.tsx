@@ -50,8 +50,15 @@ export function NextAgentsDrafts({ drafts, total, agents }: Readonly<{ drafts: r
 }
 
 /**
- * «Агенты» — галерея карточек с маскотами (12.11.2026, по просьбе Айвара): одна сетка на всех, по порядку групп; группа
- * остаётся разделом для читалки (заголовок `sr-only`), на глаз её называет имя агента. Карточка — `NextAgentCard`.
+ * Колонки карточек агентов (ширина блока): 2, от 48rem — 3, от 64rem — 5. Пять кураторов ложатся как 3 + 2 и 5, а не 3 + 3 + 1
+ * (4 колонки оставляли последнюю карточку одну в ряду на ноутбуке).
+ */
+const COLUMNS = "grid grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-5";
+
+/**
+ * «Агенты» — галерея карточек с маскотами (12.11.2026, по просьбе Айвара) по группам Продажи / Аналитика / Кураторы; заголовки
+ * групп на виду (отзыв к #1450: группа — часть задания владельца). Группа из одного агента занимает одну колонку и стоит рядом
+ * с такой же, длинная — на всю ширину; ширина карточки у всех одна (те же колонки и зазор). Карточка — `NextAgentCard`.
  */
 export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, canWriteRules }: Readonly<{
   agents: readonly AiAgentListItem[];
@@ -63,14 +70,15 @@ export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, can
   return (
     <section aria-labelledby="aia-roster" className="@container grid gap-3">
       <h2 id="aia-roster" className="t-section text-fg">Агенты</h2>
-      <div className="grid grid-cols-2 gap-3 @3xl:grid-cols-3 @5xl:grid-cols-4">
+      <div className={`${COLUMNS} gap-x-3 gap-y-6`}>
         {AI_AGENT_GROUPS.map((group) => {
           const list = agents.filter((agent) => agent.groupKey === group).sort((a, b) => a.sortOrder - b.sortOrder);
           if (list.length === 0) return null;
+          const wide = list.length > 1;
           return (
-            <section key={group} aria-labelledby={`aia-group-${group}`} data-testid={`v3-aia-group-${group}`} className="contents">
-              <h3 id={`aia-group-${group}`} className="sr-only">{AI_AGENT_GROUP_LABELS[group]}</h3>
-              <ul className="contents">
+            <section key={group} aria-labelledby={`aia-group-${group}`} data-testid={`v3-aia-group-${group}`} className={wide ? "col-span-full grid gap-2" : "grid content-start gap-2"}>
+              <h3 id={`aia-group-${group}`} className="t-item text-fg-2">{AI_AGENT_GROUP_LABELS[group]}</h3>
+              <ul className={wide ? `${COLUMNS} gap-3` : "grid"}>
                 {list.map((agent) => {
                   const rules = hasInstructionsOf(agent);
                   const runnable = rules && canAskOf(agent) && agent.enabled && aiAgentIsRunnable(agent.sync);

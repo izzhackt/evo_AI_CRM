@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
  */
 export function PageHeader({
   title,
+  leading,
   count,
   meta,
   help,
@@ -20,6 +21,8 @@ export function PageHeader({
   className,
 }: Readonly<{
   title: string;
+  /** Картинка перед заголовком (маскот агента); декоративная — заголовок говорит сам. */
+  leading?: React.ReactNode;
   /** Размер того, что показано; null/undefined — считать нечего, число не рисуется. */
   count?: number | null;
   /** Вторичная строка под заголовком (`t-meta`): например, дата. */
@@ -39,6 +42,7 @@ export function PageHeader({
   return (
     <div data-slot="page-header" className={cn("flex flex-wrap items-start justify-between gap-4", className)}>
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        {leading}
         <h1 className="t-page-title text-fg">
           {title}
           {typeof count === "number" ? <span className="ml-2.5 font-normal tabular-nums text-fg-3">{count}</span> : null}

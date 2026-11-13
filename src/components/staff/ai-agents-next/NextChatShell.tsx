@@ -15,8 +15,8 @@ import { AI_AGENTS_HUB_HREF } from "@/lib/v3/ai-agents-view";
  * разговоров и поле поручения — прежний `CommandWorkspace` без изменений.
  */
 export function NextChatShell({
-  title, roleLine, tabs, switches, testId, children,
-}: Readonly<{ title: string; roleLine: string; tabs: ReactNode; switches: ReactNode; testId: string; children: ReactNode }>) {
+  title, leading = null, roleLine, tabs, switches, testId, children,
+}: Readonly<{ title: string; leading?: ReactNode; roleLine: string; tabs: ReactNode; switches: ReactNode; testId: string; children: ReactNode }>) {
   return (
     <main
       data-testid={testId}
@@ -28,6 +28,7 @@ export function NextChatShell({
             <Button variant="ghost" size="icon" asChild className="text-fg-2">
               <Link href={AI_AGENTS_HUB_HREF} aria-label="Все ИИ-агенты" title="Все ИИ-агенты" data-testid="v3-aia-chat-back"><ArrowLeftIcon aria-hidden="true" /></Link>
             </Button>
+            {leading}
             <h1 className="t-page-title min-w-0 truncate text-fg">{title}</h1>
             <HelpTip label={`Пояснение: ${title}`}>{roleLine}</HelpTip>
           </div>

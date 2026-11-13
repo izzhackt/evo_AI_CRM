@@ -12,7 +12,7 @@ import { NextDigest } from "./NextDigest";
 import { OlderDigestsSheet, ToolsSheet } from "./NextOverviewSheets";
 
 /**
- * «Обзор» в «Новом виде»: плитки за 7 дней, последний отчёт, два графика и карточка «Работа агента» (расписание,
+ * «Обзор» в «Новом виде»: плитки за 7 дней, последний отчёт, графики (расход — когда он был) и карточка «Работа агента» (расписание,
  * события; инструменты и прошлые отчёты — в панелях). У агента, который ещё не работал, десяти пустых блоков нет:
  * либо шаги запуска (`setup`), либо «Запусков ещё не было» и кнопка. Данные и условия те же, что у прежнего «Обзора».
  */
@@ -31,6 +31,8 @@ export function NextOverview({
   const older = digests.filter((digest) => digest.id !== last?.id);
   const triggers = [detail.triggerWebsiteLead ? "новая заявка с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean);
   const hasSchedule = detail.scheduleCron !== null;
+  // Пустой график — не карточка на полэкрана (13.11.2026): без расхода за 30 дней остаётся один график на всю ширину.
+  const spent = charts.spendPerDay.some((point) => (point.costCents ?? 0) > 0);
   // Выключенный агент не запускается ни по расписанию, ни по событиям: одна строка под обоими фактами, а не по одной под каждым.
   const off = !detail.enabled && (hasSchedule || triggers.length > 0) ? <p className="t-meta text-warn" data-testid="v3-aia-off">Агент выключен — не запускается.</p> : null;
   const facts = [hasSchedule, triggers.length > 0].filter(Boolean).length;
@@ -80,7 +82,7 @@ export function NextOverview({
         <StatTile label="Запусков за 7 дней" value={stats.runs7d} hint={stats.runsRunning > 0 ? `сейчас работает: ${stats.runsRunning}` : undefined} />
         <StatTile label="Без ошибок" value={share === null ? null : `${share}%`} hint={share === null ? "нет запусков" : stats.failed7d > 0 ? `с ошибкой: ${stats.failed7d}` : undefined} />
         <StatTile label="Расход за 7 дней" value={formatUsdCents(stats.costCents7d)} />
-        <StatTile label="Ждут решения" value={stats.draftsPending} href={stats.draftsPending > 0 ? aiAgentHref(detail.key, { tab: "drafts" }) : undefined} />
+        <StatTile label="Ждут решения" value={stats.draftsPending > 0 ? stats.draftsPending : "нет"} href={stats.draftsPending > 0 ? aiAgentHref(detail.key, { tab: "drafts" }) : undefined} />
       </div>
       {last || detail.key === "director" ? (
         <WidgetCard
@@ -91,13 +93,15 @@ export function NextOverview({
           {last ? <NextDigest digest={last} now={now} showTitle /> : <p className="t-body-compact text-fg-2" data-testid="v3-aia-no-digest">Отчётов пока нет.</p>}
         </WidgetCard>
       ) : null}
-      <div className="grid gap-4 @4xl:grid-cols-2">
+      <div className={spent ? "grid gap-4 @4xl:grid-cols-2" : "grid gap-4"}>
         <WidgetCard title="Запуски по дням">
           <DayBars rows={chartBarRows(charts.runsPerDay, "count")} mode="count" caption="Запуски по дням" emptyText="За 30 дней запусков не было." tableHead={["День", "Запусков", "С ошибкой"]} />
         </WidgetCard>
-        <WidgetCard title="Расход по дням">
-          <DayBars rows={chartBarRows(charts.spendPerDay, "costCents")} mode="money" caption="Расход по дням" emptyText="Расхода за 30 дней нет." tableHead={["День", "Расход"]} />
-        </WidgetCard>
+        {spent ? (
+          <WidgetCard title="Расход по дням">
+            <DayBars rows={chartBarRows(charts.spendPerDay, "costCents")} mode="money" caption="Расход по дням" emptyText="Расхода за 30 дней нет." tableHead={["День", "Расход"]} />
+          </WidgetCard>
+        ) : null}
       </div>
       {work}
     </div>

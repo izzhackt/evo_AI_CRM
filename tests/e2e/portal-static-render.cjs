@@ -918,7 +918,7 @@ const surfaces = [
                 ),
                 createElement(
                   "ul",
-                  { className: "pt-privacy-list" },
+                  { className: "pt-privacy-list", role: "list" },
                   createElement(
                     "li",
                     { className: "pt-privacy-item" },

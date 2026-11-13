@@ -190,7 +190,8 @@ const DATA_TEXT_NAMESPACES = new Set(["apply", "consentGate", "accountDeletion"]
 // Единственные строки о конфиденциальности на рабочих экранах: заголовок секции «Профиля» и ссылка на политику.
 const ALLOWED_DATA_KEYS = new Set(["profile.privacyHeading", "profile.privacyPolicy", "profile.supportLink"]);
 const DATA_REMINDER = [
-  /видите только|видит только|только вы\b|только вам\b|только сам\b|видны только/iu,
+  // `\b` не видит границу после кириллицы, поэтому конец слова задан отрицательным просмотром вперёд.
+  /видите только|видит только|только вы(?![\p{L}\p{N}_])|только вам(?![\p{L}\p{N}_])|только сам(?![\p{L}\p{N}_])|видны только/iu,
   /сиз гана|өзүңүз гана|гана көрөсүз|гана көрөт/iu,
   /вирус|антивирус/iu,
   /Anthropic|Gemini|Claude/u,

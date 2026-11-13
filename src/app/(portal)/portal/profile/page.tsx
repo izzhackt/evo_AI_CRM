@@ -263,7 +263,7 @@ export default async function ProfilePage() {
                 <ProfileIcon name="privacy" />
                 {strings.privacyHeading}
               </h2>
-              <ul className="pt-privacy-list">
+              <ul className="pt-privacy-list" role="list">
                 <li className="pt-privacy-item">
                   <a className="pt-privacy-link" href={AI_CONSENT_PRIVACY_URL} target="_blank" rel="noopener noreferrer">
                     <span>{strings.privacyPolicy}</span>

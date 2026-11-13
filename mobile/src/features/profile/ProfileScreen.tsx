@@ -156,13 +156,13 @@ export function ProfileScreen() {
           <CardHead title={web.privacyHeading} />
           <LinkRow label={web.privacyPolicy} onPress={() => void open(PRIVACY_URL)} testID="profile-privacy" />
           <LinkRow label={web.supportLink} onPress={() => void open(SUPPORT_URL)} testID="profile-support" />
+          {linkFailed ? <InlineAlert message={m("profile.openFailed")} /> : null}
           <Divided>
             <AiConsentRow />
           </Divided>
           <Divided>
             <DeletionPanel />
           </Divided>
-          {linkFailed ? <InlineAlert message={m("profile.openFailed")} /> : null}
         </Card>
 
         <Card>

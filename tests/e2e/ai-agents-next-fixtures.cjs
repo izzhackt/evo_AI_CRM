@@ -43,6 +43,38 @@ function makeFixtures(catalog) {
     canManage: true, isAdmin: true, now: NOW,
   };
 
+  /**
+   * Тот же список агентов, но у перечисленных — свои поля: `{ "sales": { enabled: false, stats: { runsRunning: 1 } } }`. Поля `stats`
+   * сливаются с прежними. Так хаб проверяется в состояниях «идёт работа», «все выключены» и т. п.
+   */
+  const listVariant = (byKey) => ({
+    ...LIST,
+    agents: LIST.agents.map((agent) => {
+      const { stats: statsOver, ...rest } = byKey[agent.key] ?? {};
+      return { ...agent, ...rest, stats: { ...agent.stats, ...(statsOver ?? {}) } };
+    }),
+  });
+  /** У «Директора» и «Продаж» идёт по одному поручению: полоса «Сейчас» называет, кто работает. */
+  const LIST_RUNNING = listVariant({ director: { stats: { runsRunning: 1 } }, sales: { stats: { runsRunning: 1 } } });
+  /** Ни один агент не включён. */
+  const LIST_OFF = listVariant(Object.fromEntries(catalog.map((entry) => [entry.key, { enabled: false }])));
+
+  /**
+   * «Ждут решения» на хабе (`AiAgentsPending`): четыре свежих черновика из тринадцати, которые ждут по всем агентам
+   * (7 у «Продаж», по 3 у «Директора» и «Куратора Малайзии» — как в `LIST`). Строки — только текст и адресат, как отдаёт сервер.
+   */
+  const pendingRow = (n, agentKey, text) => ({ id: `dr-hub-${n}`, agentKey, text, targetLabel: `Клиент Синтетический ${n}` });
+  const PENDING = {
+    drafts: [
+      pendingRow(1, "sales", "Здравствуйте! Подтверждаю, что документы можно подать до конца ноября. Если нужно, пришлю список."),
+      pendingRow(2, "director", "Отчёт за неделю готов: заявок 48, оплат 6. Прислать подробности по странам?"),
+      pendingRow(3, "curator-my", "Добрый день! Для визы нужен паспорт со сроком действия не менее 18 месяцев, пришлите, пожалуйста, скан."),
+      pendingRow(4, "sales", "Спасибо за ответ! Записала вас на консультацию в четверг в 15:00."),
+    ],
+    total: 13,
+    partial: false,
+  };
+
   const digest = (id, title, minutes, over = {}) => ({
     id, agentKey: "director", runId: null, kind: "weekly", title, createdAt: ago(minutes), periodFrom: "2026-10-12", periodTo: "2026-10-18",
     bodyMd: "## Итоги недели\n\nЗаявок — **48**, из них оплатили **6**.\n\n- Китай: 21 заявка\n- Малайзия: 14 заявок\n\nЦифры взяты из отчёта продаж.",
@@ -139,7 +171,7 @@ function makeFixtures(catalog) {
     whatsappCapState: { spentCents: 230, reservedCents: 0 },
     ...over,
   });
-  return { NOW, ACTOR, LIST, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, DRAFTS_RECEIVE_ONLY, draftsFor, conversations, bodyProps, available, sync, stats };
+  return { NOW, ACTOR, LIST, LIST_RUNNING, LIST_OFF, listVariant, PENDING, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, DRAFTS_RECEIVE_ONLY, draftsFor, conversations, bodyProps, available, sync, stats };
 }
 
 module.exports = { makeFixtures, NOW, ACTOR };

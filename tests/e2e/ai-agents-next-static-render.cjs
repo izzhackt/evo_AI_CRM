@@ -8,12 +8,19 @@
  * подменены записью вызова в `window.__harness.calls`, Supabase, Claude и маршрутизатор Next.js не проверяются:
  * проверяются вёрстка, токены нового вида, адаптив, клавиатура, доступность и то, что кнопки зовут те же действия.
  *
- *   node tests/e2e/ai-agents-next-static-render.cjs --screenshots [outDir]
+ *   node tests/e2e/ai-agents-next-static-render.cjs --screenshots [outDir] [--build-only]
  *     → снимки Playwright Chromium 1440×900, 1280×800, 390×844 (хаб; «Чат», «Обзор», «История работы», запуск,
  *       «На одобрение», «Правила агента», «Настройки»; панели запуска и черновика) и проверки (JSON-строки, при нарушении
  *       код 1): нет ошибок консоли, нет горизонтальной прокрутки, нажимаемые ≥ 44 px, axe без нарушений, панели рисуются
  *       внутри корня нового вида, Esc закрывает, фокус возвращается на строку; «Одобрить», «Авто», «Сохранить» зовут
  *       прежние серверные действия с прежними полями. По умолчанию outDir — .impeccable/review (не коммитится).
+ *       `--build-only` — только собрать страницы и пакет (для снимков вручную), без проверок.
+ *
+ * Главная и страница агента открываются и в других состояниях — параметрами адреса страницы: `?hub=<состояние>` (pending — по
+ * умолчанию, plain, partial, running, running-staff, key, off) и `?agent=<ключ>`; `fixture.search` сцены (`tab`, `run`) остаётся прежним.
+ * Нажимаемая цель ссылки-названия карточки (`after:absolute after:inset-0`) — вся карточка, если псевдоэлемент закрывает её целиком.
+ * Известные отказы: цели меньше 44 px у ссылок «N черновиков ждут решения» на карточках хаба (за пределами правок по ревью
+ * #1449–#1451) и «Кто запустил» на 972 px в «Истории работы» (так и на main).
  */
 
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -35,6 +42,9 @@ const NARROW = {
   m360: { viewport: { width: 360, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
   m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
+// Ширины рабочего стола для шапки «Чата»: помещается ли название агента целиком и сколько в шапке строк (раздел 4).
+const WIDE = Object.fromEntries([900, 1280, 1600, 1920].map((width) => [`w${width}`, { viewport: { width, height: 900 } }]));
+const AGENT_KEYS = ["director", "sales", "curator-cn", "curator-my", "curator-eu", "curator-ae", "curator-tr"];
 const SCENES = [
   { name: "hub", path: "/ai-agents", search: "" },
   { name: "chat", path: "/ai-agents/director", search: "" },
@@ -116,17 +126,26 @@ const { makeFixtures } = require(${JSON.stringify(join(ROOT, "tests/e2e/ai-agent
 const h = React.createElement;
 const F = makeFixtures(AI_AGENT_CATALOG);
 const fixture = JSON.parse(document.getElementById("fixture").textContent);
-window.__harness = { pushes: [], calls: [] };
+window.__harness = { pushes: [], calls: [], agentKeys: AI_AGENT_CATALOG.map((entry) => entry.key) };
 const router = { push: (href) => window.__harness.pushes.push(href), replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
 const params = new URLSearchParams(fixture.search);
 const tab = params.get("tab") ?? "command";
 const runId = params.get("run");
+// Данные одной сцены в других состояниях — параметрами адреса файла: ?agent=<ключ> (страница агента), ?hub=<состояние> (главная):
+// pending (по умолчанию: «Ждут решения» с четырьмя строками из 13), plain (черновиков нет), partial (чтение черновиков не удалось),
+// running / running-staff (идёт работа; второе — не администратор), key (ключ Claude не задан), off (ни один агент не включён).
+const query = new URLSearchParams(location.search);
+const agent = query.get("agent");
+const hubMode = query.get("hub") ?? "pending";
 // Данные сцены: запуск целиком; «последние 30 и есть ещё»; вкладка «Все» черновиков (по умолчанию — только ждущие, как отдаёт сервер).
 const over = runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : fixture.name === "drafts-wazzup" ? { drafts: F.available(F.DRAFTS_RECEIVE_ONLY) } : fixture.name === "runs-more" ? { runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) } : params.get("show") === "all" ? { draftsFilter: "all" } : {};
 let page;
 // Каталог текстов читает сервер (страницы ai-agents): новому виду он приходит готовым, как и в сборке.
-if (fixture.name === "hub") page = h(NextAgentsView, { read: F.available(F.LIST), runtimeConfigured: true, preview: false, hasDefault: nextAgentsHasDefault() });
-else { const props = F.bodyProps(tab, over); page = h(NextAgentPage, { ...props, defaults: nextAgentDefaults(props.detail.key, tab) }); }
+if (fixture.name === "hub") {
+  const list = hubMode.startsWith("running") ? F.LIST_RUNNING : hubMode === "off" ? F.LIST_OFF : F.LIST;
+  const pending = hubMode === "plain" ? null : hubMode === "partial" ? { drafts: [], total: null, partial: true } : F.PENDING;
+  page = h(NextAgentsView, { read: F.available(hubMode === "running-staff" ? { ...list, isAdmin: false, canManage: false } : list), pending, runtimeConfigured: hubMode !== "key", preview: false, hasDefault: nextAgentsHasDefault() });
+} else { const props = F.bodyProps(tab, agent ? { ...over, detail: F.detail(agent) } : over); page = h(NextAgentPage, { ...props, defaults: nextAgentDefaults(props.detail.key, tab) }); }
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fixture.path },
@@ -163,6 +182,8 @@ async function buildBundle(outFile) {
       build.onLoad({ filter: /.*/, namespace: "ai-actions" }, () => ({ contents: ACTIONS_STUB, resolveDir: ROOT, loader: "js" }));
       build.onResolve({ filter: /\.png$/ }, (args) => ({ path: resolve(args.resolveDir, args.path), namespace: "png" }));
       build.onLoad({ filter: /.*/, namespace: "png" }, () => ({ contents: `module.exports = { src: ${JSON.stringify(LOGO_URL)}, width: 1843, height: 842 };`, loader: "js" }));
+      // Маскоты агентов — статический импорт картинок, как в сборке Next: настоящий файл (снимки с лицами), ширина и высота 200×200.
+      build.onLoad({ filter: /\.webp$/ }, (args) => ({ contents: `module.exports = { src: ${JSON.stringify(pathToFileURL(args.path).href)}, width: 200, height: 200 };`, loader: "js" }));
       build.onLoad({ filter: /\.module\.css$/ }, () => ({ contents: "export default new Proxy({}, { get: (_t, key) => (typeof key === 'string' ? key : undefined) });", loader: "js" }));
       build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
       // Остальные серверные действия (уведомления, переключатель) честно отказывают: раздел их не зовёт.
@@ -196,6 +217,10 @@ async function main() {
   await buildBundle(join(outDir, "ai-agents-next-bundle.js"));
   const css = await compileCss();
   const pages = Object.fromEntries(SCENES.map((scene) => [scene.name, writePage(outDir, scene, css)]));
+  if (args.includes("--build-only")) {
+    console.log(JSON.stringify({ built: Object.values(pages) }));
+    return;
+  }
   const { chromium } = require("playwright");
   const AxeBuilder = require("@axe-core/playwright").default;
   const browser = await chromium.launch();
@@ -206,13 +231,13 @@ async function main() {
   };
 
   async function open(name, key, options = {}) {
-    const context = await browser.newContext({ ...(VIEWPORTS[key] ?? NARROW[key]), reducedMotion: "reduce" });
+    const context = await browser.newContext({ ...(VIEWPORTS[key] ?? NARROW[key] ?? WIDE[key]), reducedMotion: "reduce" });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
     page.on("console", (message) => { if (message.type() === "error" && !/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     if (options.dialogs) page.on("dialog", (dialog) => options.dialogs(dialog));
-    await page.goto(pathToFileURL(pages[name]).href, { waitUntil: "load" });
+    await page.goto(pathToFileURL(pages[name]).href + (options.query ? `?${options.query}` : ""), { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
     await lazySettled(page);
     await page.evaluate(() => document.fonts.ready);
@@ -241,11 +266,15 @@ async function main() {
       report(`${label}: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]));
       const small = await page.evaluate((rootSelector) => {
         const visible = (element) => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden"; };
-        // Значок «?», флажок и переключатель увеличивают зону нажатия псевдоэлементом `after`; ссылка-название карточки — всей карточкой.
+        // Значок «?», флажок и переключатель увеличивают зону нажатия псевдоэлементом `after`. Ссылка-название карточки (`after:absolute
+        // after:inset-0`) нажимается всей карточкой — картой набора или карточкой агента галереи: целью считается ближайший
+        // позиционированный предок, но только если псевдоэлемент закрывает его целиком (иначе это обычная маленькая ссылка).
         const target = (element) => {
           const after = getComputedStyle(element, "::after");
-          const card = after.position === "absolute" && after.content !== "none" ? element.closest("[data-slot=card]") : null;
-          return card || element;
+          if (after.position !== "absolute" || after.content === "none") return element;
+          let box = element.parentElement;
+          while (box && getComputedStyle(box).position === "static") box = box.parentElement;
+          return box && parseFloat(after.width) >= box.clientWidth - 1 && parseFloat(after.height) >= box.clientHeight - 1 ? box : element;
         };
         return [...document.querySelectorAll(`${rootSelector.split(", ").map((one) => `${one} a, ${one} button, ${one} input:not([type=checkbox]), ${one} [role=combobox]`).join(", ")}`)]
           .filter((element) => visible(element) && !element.matches("[aria-label^=Пояснение], [role=switch], [role=checkbox]") && !element.closest(".sr-only"))
@@ -270,11 +299,12 @@ async function main() {
     }
   }
 
-  // 2. Хаб: плитки, ссылка-карточка, «?» с описанием роли агента.
+  // 2. Хаб: полоса «Сейчас» вместо плиток, «Ждут решения», галерея агентов (заголовки групп, чипы, «?» с описанием роли агента).
   for (const key of ["d1280", "m390"]) {
     const { context, page, errors } = await open("hub", key);
-    report(`${key}/hub: four stat tiles`, (await page.locator("[data-slot=stat-tile]").count()) === 4, null);
-    report(`${key}/hub: card title links to the agent page`, (await page.locator("[data-testid=v3-aia-card-director] h3 a").getAttribute("href")) === "/ai-agents/director", null);
+    report(`${key}/hub: no stat tiles, the three 7-day numbers sit in the «Сейчас» strip`, (await page.locator("[data-slot=stat-tile]").count()) === 0 && (await page.locator("[data-testid=v3-aia-now] [data-testid=v3-aia-summary] dt").count()) === 3, null);
+    const title = page.locator("[data-testid=v3-aia-card-director] a").first();
+    report(`${key}/hub: card title links to the agent page`, (await title.getAttribute("href")) === "/ai-agents/director" && (await title.innerText()) === "Директор / Аналитик", null);
     report(`${key}/hub: role line is not on the card`, (await page.locator("[data-testid=v3-aia-card-director]").innerText()).includes("Считает продажи") === false, null);
     await page.getByRole("button", { name: "Пояснение: Директор / Аналитик" }).click();
     const help = page.getByRole("dialog", { name: "Пояснение: Директор / Аналитик" });
@@ -283,8 +313,77 @@ async function main() {
     await expectOverlay(page, `${key}/hub: help popover`, "[data-slot=popover-content]");
     await page.keyboard.press("Escape");
     report(`${key}/hub: «Поручить» and drafts links on the card`, (await page.locator("[data-testid=v3-aia-ask-director]").getAttribute("href")) === "/ai-agents/director" && (await page.locator("[data-testid=v3-aia-drafts-director]").getAttribute("href")) === "/ai-agents/director?tab=drafts", null);
+    // Заголовки групп на виду (не `sr-only`: у такого элемента ширина и высота 1 px).
+    const groups = await page.evaluate(() => [...document.querySelectorAll("[data-testid^=v3-aia-group-] h3")].map((heading) => { const box = heading.getBoundingClientRect(); return { text: heading.textContent.trim(), w: Math.round(box.width), h: Math.round(box.height) }; }));
+    report(`${key}/hub: the three group headings are on screen`, groups.map((group) => group.text).join("|") === "Продажи|Аналитика|Кураторы" && groups.every((group) => group.w > 20 && group.h > 10), groups);
+    // «Авто: вкл» — словом на карточке того агента, который пишет сам, и больше нигде; итог последнего запуска — словом рядом со временем.
+    report(`${key}/hub: «Авто: вкл» is a chip on the card of the agent that writes by itself, and only there`, (await page.locator("[data-testid=v3-aia-card-sales]").innerText()).includes("Авто: вкл") && (await page.locator("[data-testid^=v3-aia-card-]", { hasText: "Авто: вкл" }).count()) === 1, null);
+    const lastRun = async (agent) => (await page.locator(`[data-testid=v3-aia-last-${agent}]`).innerText()).replace(/\s+/gu, " ");
+    report(`${key}/hub: cards name when the last run was and how it ended`, (await lastRun("director")).endsWith("3 ч назад · Готово") && (await lastRun("curator-cn")).endsWith("3 ч назад · Ошибка") && (await page.locator("[data-testid=v3-aia-last-curator-eu]").count()) === 0, null);
+    // «Ждут решения»: четыре строки из тринадцати, «Ещё 9» и по ссылке в очередь каждого агента, у кого остались черновики.
+    const rows = await page.locator("[data-testid=v3-aia-pending] li").count();
+    const more = page.locator("[data-testid=v3-aia-pending-more]");
+    const links = await more.locator("a").evaluateAll((anchors) => anchors.map((anchor) => [anchor.textContent.trim(), anchor.getAttribute("href")]));
+    report(`${key}/hub: «Ждут решения» shows four rows, «Ещё 9 черновиков» and a link to the queue of each agent with drafts left`, rows === 4 && (await more.innerText()).startsWith("Ещё 9 черновиков") && JSON.stringify(links) === JSON.stringify([["Продажи (Closer) · 5", "/ai-agents/sales?tab=drafts"], ["Директор / Аналитик · 2", "/ai-agents/director?tab=drafts"], ["Куратор Малайзия · 2", "/ai-agents/curator-my?tab=drafts"]]), { rows, links });
     report(`${key}/hub: console clean`, errors.length === 0, errors);
     await context.close();
+  }
+
+  // 2a. Галерея агентов: ни одна группа не кончается одинокой карточкой в последнем ряду (на 1280 было 3 + 3 + 1).
+  for (const key of ["d1280", "d1440"]) {
+    const { context, page } = await open("hub", key);
+    const rows = await page.evaluate(() => [...document.querySelectorAll("[data-testid^=v3-aia-group-]")].map((group) => {
+      const counts = {};
+      for (const card of group.querySelectorAll("[data-testid^=v3-aia-card-]")) { const top = Math.round(card.getBoundingClientRect().top); counts[top] = (counts[top] ?? 0) + 1; }
+      return { group: group.getAttribute("data-testid"), perRow: Object.values(counts) };
+    }));
+    report(`${key}/hub: no agent group ends with a single card in its last row`, rows.every((row) => row.perRow.length === 1 || row.perRow.at(-1) >= 2), rows);
+    await context.close();
+  }
+
+  // 2b. Полоса «Сейчас» говорит правду в каждом состоянии; ссылка в ней ведёт только туда, куда у зрителя есть доступ; кольцо фокуса в ней видно.
+  const stripText = async (page) => (await page.locator("[data-testid=v3-aia-now]").innerText()).replace(/\s+/gu, " ");
+  const modes = [["running", "идёт работа"], ["running-staff", "идёт работа, зритель не администратор"], ["key", "ключ Claude не задан"], ["off", "ни один агент не включён"], ["partial", "черновики не прочитались"], ["plain", "черновиков нет"]];
+  for (const key of ["d1280", "m390"]) {
+    for (const [mode, label] of modes) {
+      const { context, page, errors } = await open("hub", key, { query: `hub=${mode}` });
+      const text = await stripText(page);
+      const names = await page.locator("[data-testid=v3-aia-now] ul[aria-label='Кто работает'] li").allInnerTexts();
+      const linked = await page.locator("[data-testid=v3-aia-now] ul[aria-label='Кто работает'] a").evaluateAll((anchors) => anchors.map((anchor) => [anchor.textContent.trim(), anchor.getAttribute("href")]));
+      if (mode === "running") {
+        report(`${key}/hub[${label}]: the strip says «в работе», counts the tasks and links each running agent to its history`, text.includes("ИИ-агенты · в работе") && text.includes("Выполняют 2 поручения прямо сейчас") && JSON.stringify(linked) === JSON.stringify([["Директор / Аналитик", "/ai-agents/director?tab=runs"], ["Продажи (Closer)", "/ai-agents/sales?tab=runs"]]), { text, linked });
+      } else if (mode === "running-staff") {
+        report(`${key}/hub[${label}]: the Director is named without a link (the runs tab is denied to staff), Sales stays a link`, names.join("|") === "Директор / Аналитик|Продажи (Closer)" && JSON.stringify(linked) === JSON.stringify([["Продажи (Closer)", "/ai-agents/sales?tab=runs"]]), { names, linked });
+      } else if (mode === "key") {
+        report(`${key}/hub[${label}]: the strip says «не подключены», not «на связи», and names nobody as working`, text.includes("ИИ-агенты · не подключены") && text.includes("Запуски недоступны: не задан ключ Claude") && !/на связи|в работе/u.test(text) && names.length === 0 && (await page.locator("[data-testid=v3-aia-key-missing]").count()) === 1, { text });
+      } else if (mode === "off") {
+        report(`${key}/hub[${label}]: the strip says «выключены»`, text.includes("ИИ-агенты · выключены") && text.includes("Ни один агент не включён") && !/на связи|в работе/u.test(text), { text });
+      } else if (mode === "partial") {
+        report(`${key}/hub[${label}]: a word about the incomplete list, no «Ждут решения»`, (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 1 && (await page.locator("[data-testid=v3-aia-pending]").count()) === 0, null);
+      } else {
+        report(`${key}/hub[${label}]: no «Ждут решения» block`, (await page.locator("[data-testid=v3-aia-pending]").count()) === 0 && (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 0, null);
+      }
+      report(`${key}/hub[${label}]: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), null);
+      const axe = await new AxeBuilder({ page }).include(ROOT_SELECTOR).analyze();
+      report(`${key}/hub[${label}]: axe`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
+      report(`${key}/hub[${label}]: console clean`, errors.length === 0, errors);
+      if (mode === "running" && key === "d1280") {
+        // С клавиатуры: Tab доходит до ссылки в тёмной полосе, и её кольцо не меньше 3:1 к фону полосы (общее графитовое кольцо давало 1,09:1).
+        for (let step = 0; step < 80 && !(await page.evaluate(() => document.activeElement?.closest("[data-testid=v3-aia-now]"))); step += 1) await page.keyboard.press("Tab");
+        const ring = await page.evaluate(() => {
+          const channels = (css) => css.match(/[\d.]+/gu).slice(0, 3).map(Number);
+          const luminance = ([r, g, b]) => 0.2126 * ((r / 255 <= 0.04045 ? r / 255 / 12.92 : ((r / 255 + 0.055) / 1.055) ** 2.4)) + 0.7152 * ((g / 255 <= 0.04045 ? g / 255 / 12.92 : ((g / 255 + 0.055) / 1.055) ** 2.4)) + 0.0722 * ((b / 255 <= 0.04045 ? b / 255 / 12.92 : ((b / 255 + 0.055) / 1.055) ** 2.4));
+          const active = document.activeElement;
+          const style = getComputedStyle(active);
+          const strip = getComputedStyle(active.closest("[data-testid=v3-aia-now]"));
+          const [light, dark] = [luminance(channels(style.outlineColor)), luminance(channels(strip.backgroundColor))].sort((a, b) => b - a);
+          return { tag: active.tagName, text: active.textContent.trim().slice(0, 30), outline: `${style.outlineWidth} ${style.outlineStyle} ${style.outlineColor}`, background: strip.backgroundColor, contrast: Math.round(((light + 0.05) / (dark + 0.05)) * 100) / 100 };
+        });
+        await shot(page, "agents-hub-strip-focus-d1280", { clip: { x: 284, y: 70, width: 700, height: 130 } });
+        report(`${key}/hub[${label}]: keyboard focus on a link in the dark strip is visible (ring contrast >= 3:1)`, ring.tag === "A" && /^[2-9]px solid/u.test(ring.outline) && ring.contrast >= 3, ring);
+      }
+      await context.close();
+    }
   }
 
   // 3. «История работы»: строка → панель запуска → Esc; с клавиатуры — кнопка «Открыть: …» в строке, фокус на название панели и назад.
@@ -326,6 +425,9 @@ async function main() {
     report(`${key}/runs: opening from the keyboard puts focus on the sheet title, not the scroll region`, landed.slot === "sheet-title" && landed.region !== "region", landed);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
+    // Radix возвращает фокус отложенным вызовом, и в соседних проверках здесь та же пауза. Без неё эта проверка на телефоне падала в
+    // двух из трёх полных прогонов (`activeElement` — `BODY` или чужая кнопка); с паузой проходит.
+    await page.waitForTimeout(80);
     report(`${key}/runs: focus returns to the ${key === "d1280" ? "open button" : "card button"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
     // Shift+Tab с названия панели запуска идёт на последний управляемый элемент панели, а не застревает на названии.
     await opener.focus();
@@ -626,6 +728,56 @@ async function main() {
     const sent = (await calls(page)).find((call) => call.name === "followUp" || call.name === "start");
     report(`${key}/chat: send goes through the existing follow-up action`, sent.name === "followUp" && sent.fields.text === "Проверка связи", sent);
     report(`${key}/chat: console clean`, errors.length === 0, errors);
+    await context.close();
+  }
+
+  // 10. Маскот агента не ломает шапку: на настольных ширинах «Чата» название любого из семи агентов помещается целиком и «?» стоит
+  // рядом с ним; в одну тонкую строку шапка собирается там, где ей хватает ширины; на телефоне шапка вкладок не растёт из-за картинки,
+  // а «?» не уходит на отдельную строку. Маскоты — декоративные картинки: пустое `alt` и `aria-hidden`.
+  {
+    const { context, page } = await open("chat", "w1280");
+    report("chat: the catalog still holds the seven agents this section walks through", JSON.stringify(await page.evaluate(() => window.__harness.agentKeys)) === JSON.stringify(AGENT_KEYS), null);
+    await context.close();
+  }
+  for (const key of Object.keys(WIDE)) {
+    const bad = [];
+    const heights = {};
+    for (const agent of AGENT_KEYS) {
+      const { context, page } = await open("chat", key, { query: `agent=${agent}` });
+      const header = await page.evaluate(() => {
+        const box = document.querySelector("[data-testid=v3-aia-chat-header]");
+        const title = box.querySelector("h1");
+        const help = box.querySelector("[aria-label^=Пояснение]");
+        return { title: title.textContent, clipped: title.scrollWidth > title.clientWidth, helpBelow: help.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 2, height: Math.round(box.getBoundingClientRect().height) };
+      });
+      heights[agent] = header.height;
+      if (header.clipped || header.helpBelow) bad.push(header);
+      await context.close();
+    }
+    report(`${key}/chat: the full title of all seven agents fits the header and its «?» stays beside it`, bad.length === 0, bad);
+    // От 85rem рабочей колонки (окно 1668 px и шире) шапка — одна тонкая строка, как у прежней рамки; уже — вкладки второй строкой.
+    if (key === "w1920") report("w1920/chat: the header is one thin line for every agent", Object.values(heights).every((height) => height <= 48), heights);
+  }
+  for (const key of Object.keys(NARROW).concat("m390")) {
+    const bad = [];
+    for (const agent of ["director", "curator-my", "sales"]) {
+      const { context, page } = await open("overview", key, { query: `agent=${agent}` });
+      const header = await page.evaluate(() => {
+        const box = document.querySelector("[data-slot=page-header]");
+        const title = box.querySelector("h1");
+        const help = box.querySelector("[aria-label^=Пояснение]");
+        return { title: title.textContent, lines: Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight)), helpBelow: help.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 2, height: Math.round(box.getBoundingClientRect().height) };
+      });
+      // 390 и 360: заголовок в одну строку и «?» рядом (шапка без маскота — те же 72 px, переключатели под заголовком); 320: заголовок может перенестись на вторую строку.
+      if (header.helpBelow || header.height > (key === "m320" ? 112 : 80) || (key !== "m320" && header.lines !== 1)) bad.push(header);
+      await context.close();
+    }
+    report(`${key}/overview: the page header with a mascot stays compact, the title is whole and «?» sits beside it`, bad.length === 0, bad);
+  }
+  for (const [name, key, query] of [["hub", "d1280", ""], ["chat", "w1280", "agent=sales"], ["overview", "m390", "agent=curator-my"]]) {
+    const { context, page } = await open(name, key, { query });
+    const images = await page.evaluate(() => [...document.querySelectorAll("main img")].map((image) => ({ alt: image.getAttribute("alt"), hidden: image.getAttribute("aria-hidden") === "true" || Boolean(image.closest("[aria-hidden=true]")) })));
+    report(`${key}/${name}: mascots are decorative images (empty alt, hidden from the accessibility tree)`, images.length > 0 && images.every((image) => image.alt === "" && image.hidden), images);
     await context.close();
   }
 

@@ -243,6 +243,7 @@ test("хаб, предупреждения остаются: ключ Claude н�
 
 const textOf = (markup) => markup.replace(/<[^>]*>/gu, " ").replace(/&amp;/gu, "&").replace(/\s+/gu, " ").trim();
 const cardOf = (markup, key) => markup.match(new RegExp(`<li data-testid="v3-aia-card-${key}"[\\s\\S]*?</li>`, "u"))?.[0] ?? "";
+const anchorOf = (markup, testid) => markup.match(new RegExp(`<a\\b[^>]*data-testid="${testid}"[^>]*>`, "u"))?.[0] ?? "";
 const moreOf = (markup) => markup.match(/<div[^>]*data-testid="v3-aia-pending-more"[^>]*>([\s\S]*?)<\/div>/u)?.[1] ?? null;
 /** Остаток черновиков называть по агентам нечем: у каждого агента показаны все его ждущие черновики. */
 const NO_QUEUE_LEFT = F.listVariant({ sales: { stats: { draftsPending: 2 } }, director: { stats: { draftsPending: 1 } }, "curator-my": { stats: { draftsPending: 1 } } });
@@ -361,6 +362,11 @@ test("карточка агента в хабе: «Авто: вкл» слово
   assert.match(cardOf(hub, "director"), /<span class="sr-only">Последний запуск: <\/span>3 ч назад/u);
   assert.match(cardOf(hub, "curator-cn"), /3 ч назад · <span class="font-medium text-danger">Ошибка<\/span>/u, "ошибка — словом, красным");
   for (const key of ["curator-eu", "curator-ae", "curator-tr"]) assert.doesNotMatch(cardOf(hub, key), /v3-aia-last-|назад|не запускался/u, `${key}: правил нет — нет и «когда работал»`);
+  // Ссылки карточки — цели 44 px. «N черновиков ждут решения» берёт их в зазоре над собой и в поле под собой (отрицательные поля равны `gap-2` и `p-3`
+  // тела карточки), поэтому карточка выше на 8 px, а не на 28.
+  for (const testid of ["v3-aia-drafts-sales", "v3-aia-ask-sales", "v3-aia-rules-curator-eu"]) assert.match(anchorOf(hub, testid), /\bmin-h-11\b/u, `${testid}: цель не ниже 44 px`);
+  assert.match(anchorOf(hub, "v3-aia-drafts-sales"), /-mb-3 -mt-2 inline-flex min-h-11/u);
+  assert.match(cardOf(hub, "sales"), /<span class="grid flex-1 content-start gap-2 p-3">/u, "поля ссылки равны зазору и полю тела карточки");
   const never = strip(nextHub(F.available(F.listVariant({ "curator-my": { stats: { lastRunAt: null, lastRunStatus: null } } })), true, false));
   assert.match(textOf(cardOf(never, "curator-my")), /ещё не запускался/u);
   assert.doesNotMatch(cardOf(never, "curator-my"), /text-danger|text-warn/u);
@@ -391,6 +397,8 @@ test("полоса «Сейчас» говорит правду: «на связ
   assert.match(working, /data-mode="working"/u);
   assert.match(strip_(working), /^ИИ-агенты · в работе Выполняют 2 поручения прямо сейчас Директор \/ Аналитик Продажи \(Closer\) /u);
   assert.deepEqual([...working.match(/<ul[^>]*aria-label="Кто работает">([\s\S]*?)<\/ul>/u)[1].matchAll(/<a[^>]*href="([^"]+)"/gu)].map((link) => link[1]), ["/ai-agents/director?tab=runs", "/ai-agents/sales?tab=runs"], "администратор открывает «Историю работы» обоих");
+  for (const link of working.match(/<ul[^>]*aria-label="Кто работает">([\s\S]*?)<\/ul>/u)[1].match(/<a [^>]*>/gu)) assert.match(link, /\bmin-h-11\b/u, "ссылка в полосе — цель 44 px");
+  assert.match(working, /<ul class="-mb-3 -mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 t-meta" aria-label="Кто работает">/u, "ряд занимает зазор над собой и поле полосы под собой; имена без ссылок встают по центру ряда");
   // Не администратор: «История работы» Директора ему закрыта — имя без ссылки; остальные ссылки остаются.
   const staffWorking = strip(await hubPage(world(STAFF, "next", { list: F.available({ ...F.LIST_RUNNING, isAdmin: false, canManage: false }) })));
   const who = staffWorking.match(/<ul[^>]*aria-label="Кто работает">([\s\S]*?)<\/ul>/u)[1];

@@ -19,8 +19,7 @@
  * Главная и страница агента открываются и в других состояниях — параметрами адреса страницы: `?hub=<состояние>` (pending — по
  * умолчанию, plain, partial, running, running-staff, key, off) и `?agent=<ключ>`; `fixture.search` сцены (`tab`, `run`) остаётся прежним.
  * Нажимаемая цель ссылки-названия карточки (`after:absolute after:inset-0`) — вся карточка, если псевдоэлемент закрывает её целиком.
- * Известные отказы: цели меньше 44 px у ссылок «N черновиков ждут решения» на карточках хаба (за пределами правок по ревью
- * #1449–#1451) и «Кто запустил» на 972 px в «Истории работы» (так и на main).
+ * Известный отказ: «Кто запустил» на 972 px в «Истории работы» (так и на main); остальные проверки проходят.
  */
 
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -133,7 +132,8 @@ const tab = params.get("tab") ?? "command";
 const runId = params.get("run");
 // Данные одной сцены в других состояниях — параметрами адреса файла: ?agent=<ключ> (страница агента), ?hub=<состояние> (главная):
 // pending (по умолчанию: «Ждут решения» с четырьмя строками из 13), plain (черновиков нет), partial (чтение черновиков не удалось),
-// running / running-staff (идёт работа; второе — не администратор), key (ключ Claude не задан), off (ни один агент не включён).
+// running / running-staff (идёт работа; второе — не администратор), key (ключ Claude не задан), off (ни один агент не включён),
+// preview (просмотр роли), unavailable / denied / not-ready (список агентов не прочитался, нет доступа, раздел готовится).
 const query = new URLSearchParams(location.search);
 const agent = query.get("agent");
 const hubMode = query.get("hub") ?? "pending";
@@ -143,8 +143,9 @@ let page;
 // Каталог текстов читает сервер (страницы ai-agents): новому виду он приходит готовым, как и в сборке.
 if (fixture.name === "hub") {
   const list = hubMode.startsWith("running") ? F.LIST_RUNNING : hubMode === "off" ? F.LIST_OFF : F.LIST;
-  const pending = hubMode === "plain" ? null : hubMode === "partial" ? { drafts: [], total: null, partial: true } : F.PENDING;
-  page = h(NextAgentsView, { read: F.available(hubMode === "running-staff" ? { ...list, isAdmin: false, canManage: false } : list), pending, runtimeConfigured: hubMode !== "key", preview: false, hasDefault: nextAgentsHasDefault() });
+  const pending = hubMode === "plain" || ["unavailable", "denied", "not-ready"].includes(hubMode) ? null : hubMode === "partial" ? { drafts: [], total: null, partial: true } : F.PENDING;
+  const failure = { unavailable: "unavailable", denied: "denied", "not-ready": "not_ready" }[hubMode];
+  page = h(NextAgentsView, { read: failure ? { status: failure } : F.available(hubMode === "running-staff" ? { ...list, isAdmin: false, canManage: false } : list), pending, runtimeConfigured: hubMode !== "key", preview: hubMode === "preview", hasDefault: nextAgentsHasDefault() });
 } else { const props = F.bodyProps(tab, agent ? { ...over, detail: F.detail(agent) } : over); page = h(NextAgentPage, { ...props, defaults: nextAgentDefaults(props.detail.key, tab) }); }
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
@@ -155,6 +156,28 @@ createRoot(document.getElementById("root")).render(
             h(AppShell, { actor: F.ACTOR, initialNotifications: null }, page)))))));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
 `;
+
+/**
+ * Нажимаемые элементы корня, у которых цель ниже 44 px: ссылки, кнопки, поля. Значок «?», флажок и переключатель увеличивают зону
+ * нажатия псевдоэлементом `after` (общий вид набора, не этого раздела) и здесь не считаются. Ссылка-название карточки
+ * (`after:absolute after:inset-0`) нажимается всей карточкой — картой набора или карточкой агента галереи: целью считается ближайший
+ * позиционированный предок, но только если псевдоэлемент закрывает его целиком (иначе это обычная маленькая ссылка).
+ * Выполняется в странице: `page.evaluate(smallTargets, rootSelector)`.
+ */
+function smallTargets(rootSelector) {
+  const visible = (element) => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden"; };
+  const target = (element) => {
+    const after = getComputedStyle(element, "::after");
+    if (after.position !== "absolute" || after.content === "none") return element;
+    let box = element.parentElement;
+    while (box && getComputedStyle(box).position === "static") box = box.parentElement;
+    return box && parseFloat(after.width) >= box.clientWidth - 1 && parseFloat(after.height) >= box.clientHeight - 1 ? box : element;
+  };
+  return [...document.querySelectorAll(`${rootSelector.split(", ").map((one) => `${one} a, ${one} button, ${one} input:not([type=checkbox]), ${one} [role=combobox]`).join(", ")}`)]
+    .filter((element) => visible(element) && !element.matches("[aria-label^=Пояснение], [role=switch], [role=checkbox]") && !element.closest(".sr-only"))
+    .map((element) => ({ text: (element.textContent || element.getAttribute("aria-label") || element.tagName).trim().slice(0, 30), h: Math.round(target(element).getBoundingClientRect().height) }))
+    .filter((box) => box.h < 44);
+}
 
 async function compileCss() {
   const postcss = require("postcss");
@@ -264,23 +287,7 @@ async function main() {
       const { context, page, errors } = await open(scene.name, key);
       await shot(page, `agents-${scene.name}-${key}`, { fullPage: scene.name !== "chat" });
       report(`${label}: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]));
-      const small = await page.evaluate((rootSelector) => {
-        const visible = (element) => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden"; };
-        // Значок «?», флажок и переключатель увеличивают зону нажатия псевдоэлементом `after`. Ссылка-название карточки (`after:absolute
-        // after:inset-0`) нажимается всей карточкой — картой набора или карточкой агента галереи: целью считается ближайший
-        // позиционированный предок, но только если псевдоэлемент закрывает его целиком (иначе это обычная маленькая ссылка).
-        const target = (element) => {
-          const after = getComputedStyle(element, "::after");
-          if (after.position !== "absolute" || after.content === "none") return element;
-          let box = element.parentElement;
-          while (box && getComputedStyle(box).position === "static") box = box.parentElement;
-          return box && parseFloat(after.width) >= box.clientWidth - 1 && parseFloat(after.height) >= box.clientHeight - 1 ? box : element;
-        };
-        return [...document.querySelectorAll(`${rootSelector.split(", ").map((one) => `${one} a, ${one} button, ${one} input:not([type=checkbox]), ${one} [role=combobox]`).join(", ")}`)]
-          .filter((element) => visible(element) && !element.matches("[aria-label^=Пояснение], [role=switch], [role=checkbox]") && !element.closest(".sr-only"))
-          .map((element) => ({ text: (element.textContent || element.getAttribute("aria-label") || element.tagName).trim().slice(0, 30), h: Math.round(target(element).getBoundingClientRect().height) }))
-          .filter((box) => box.h < 44);
-      }, ROOT_SELECTOR);
+      const small = await page.evaluate(smallTargets, ROOT_SELECTOR);
       report(`${label}: targets >= 44px`, small.length === 0, small);
       const axe = await new AxeBuilder({ page }).include(ROOT_SELECTOR).analyze();
       report(`${label}: axe`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
@@ -341,13 +348,16 @@ async function main() {
     await context.close();
   }
 
-  // 2b. Полоса «Сейчас» говорит правду в каждом состоянии; ссылка в ней ведёт только туда, куда у зрителя есть доступ; кольцо фокуса в ней видно.
+  // 2b. Хаб в каждом состоянии: полоса «Сейчас» говорит правду; ссылка в ней ведёт только туда, куда у зрителя есть доступ; кольцо фокуса в ней
+  // видно; на 1440, 1280 и 390 нет горизонтальной прокрутки, нарушений axe и ссылок и кнопок с целью меньше 44 px (в том числе ссылок в полосе,
+  // «Ещё N» и «N черновиков ждут решения»).
   const stripText = async (page) => (await page.locator("[data-testid=v3-aia-now]").innerText()).replace(/\s+/gu, " ");
-  const modes = [["running", "идёт работа"], ["running-staff", "идёт работа, зритель не администратор"], ["key", "ключ Claude не задан"], ["off", "ни один агент не включён"], ["partial", "черновики не прочитались"], ["plain", "черновиков нет"]];
-  for (const key of ["d1280", "m390"]) {
+  const modes = [["running", "идёт работа"], ["running-staff", "идёт работа, зритель не администратор"], ["key", "ключ Claude не задан"], ["off", "ни один агент не включён"], ["partial", "черновики не прочитались"], ["plain", "черновиков нет"], ["preview", "просмотр роли"], ["unavailable", "список агентов не прочитался"], ["denied", "нет доступа"], ["not-ready", "раздел готовится"]];
+  for (const key of ["d1440", "d1280", "m390"]) {
     for (const [mode, label] of modes) {
       const { context, page, errors } = await open("hub", key, { query: `hub=${mode}` });
-      const text = await stripText(page);
+      const hasStrip = (await page.locator("[data-testid=v3-aia-now]").count()) === 1;
+      const text = hasStrip ? await stripText(page) : "";
       const names = await page.locator("[data-testid=v3-aia-now] ul[aria-label='Кто работает'] li").allInnerTexts();
       const linked = await page.locator("[data-testid=v3-aia-now] ul[aria-label='Кто работает'] a").evaluateAll((anchors) => anchors.map((anchor) => [anchor.textContent.trim(), anchor.getAttribute("href")]));
       if (mode === "running") {
@@ -360,10 +370,20 @@ async function main() {
         report(`${key}/hub[${label}]: the strip says «выключены»`, text.includes("ИИ-агенты · выключены") && text.includes("Ни один агент не включён") && !/на связи|в работе/u.test(text), { text });
       } else if (mode === "partial") {
         report(`${key}/hub[${label}]: a word about the incomplete list, no «Ждут решения»`, (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 1 && (await page.locator("[data-testid=v3-aia-pending]").count()) === 0, null);
+      } else if (mode === "preview") {
+        report(`${key}/hub[${label}]: the preview line is shown and no «Поручить» or «Правила» is offered`, (await page.locator("[data-testid=v3-aia-preview]").count()) === 1 && (await page.locator("[data-testid^=v3-aia-ask-], [data-testid^=v3-aia-rules-]").count()) === 0, null);
+      } else if (mode === "unavailable") {
+        const retry = page.locator("[data-testid=v3-aia-unavailable] a", { hasText: "Повторить" });
+        report(`${key}/hub[${label}]: the failure is a word and a retry link back to the hub, no strip`, !hasStrip && (await page.locator("[data-testid=v3-aia-unavailable]").innerText()).includes("Не удалось загрузить агентов.") && (await retry.getAttribute("href")) === "/ai-agents", null);
+      } else if (mode === "denied") {
+        report(`${key}/hub[${label}]: «Нет доступа к этому разделу.» without a retry`, !hasStrip && (await page.locator("[data-testid=v3-aia-unavailable]").innerText()).includes("Нет доступа к этому разделу.") && (await page.locator("[data-testid=v3-aia-unavailable] a").count()) === 0, null);
+      } else if (mode === "not-ready") {
+        report(`${key}/hub[${label}]: «Раздел готовится»`, !hasStrip && (await page.locator("[data-testid=v3-aia-not-ready]").innerText()).includes("Раздел готовится"), null);
       } else {
         report(`${key}/hub[${label}]: no «Ждут решения» block`, (await page.locator("[data-testid=v3-aia-pending]").count()) === 0 && (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 0, null);
       }
       report(`${key}/hub[${label}]: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), null);
+      report(`${key}/hub[${label}]: targets >= 44px`, (await page.evaluate(smallTargets, ROOT_SELECTOR)).length === 0, await page.evaluate(smallTargets, ROOT_SELECTOR));
       const axe = await new AxeBuilder({ page }).include(ROOT_SELECTOR).analyze();
       report(`${key}/hub[${label}]: axe`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
       report(`${key}/hub[${label}]: console clean`, errors.length === 0, errors);

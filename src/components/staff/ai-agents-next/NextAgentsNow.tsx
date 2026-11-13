@@ -11,7 +11,8 @@ import { aiAgentHref, formatUsdCents, pluralRu, successShare } from "@/lib/v3/ai
  * Слово состояния правдивое (отзыв к #1449): «на связи» и «в работе» — только когда ключ Claude задан и хотя бы один агент
  * включён; иначе полоса говорит «не подключены» или «выключены» и не называет тех, кто «работает».
  * Название работающего агента — ссылка на его «Историю работы», кроме Директора для не администратора: ту вкладку база
- * ему не отдаёт, и ссылка вела бы на «Нет доступа к этому разделу».
+ * ему не отдаёт, и ссылка вела бы на «Нет доступа к этому разделу». Ссылка — цель 44 px; она занимает зазор над рядом и поле
+ * полосы под ним (отрицательные поля `ul`), поэтому полоса выше всего на 8 px.
  */
 export function NextAgentsNow({ list, runtimeConfigured }: Readonly<{ list: AiAgentsListResult; runtimeConfigured: boolean }>) {
   const running = list.agents.filter((agent) => agent.stats.runsRunning > 0);
@@ -41,11 +42,11 @@ export function NextAgentsNow({ list, runtimeConfigured }: Readonly<{ list: AiAg
           </h2>
           <p className="t-record-title text-balance" data-testid="v3-aia-now-line">{line}</p>
           {mode === "working" ? (
-            <ul className="flex flex-wrap gap-x-3 gap-y-2 t-meta" aria-label="Кто работает">
+            <ul className="-mb-3 -mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 t-meta" aria-label="Кто работает">
               {running.map((agent) => (
                 <li key={agent.key}>
                   {canOpenRuns(agent)
-                    ? <Link href={aiAgentHref(agent.key, { tab: "runs" })} className="underline underline-offset-4">{agent.title}</Link>
+                    ? <Link href={aiAgentHref(agent.key, { tab: "runs" })} className="inline-flex min-h-11 items-center underline underline-offset-4">{agent.title}</Link>
                     : agent.title}
                 </li>
               ))}

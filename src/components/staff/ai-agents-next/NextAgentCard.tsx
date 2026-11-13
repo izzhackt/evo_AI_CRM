@@ -10,6 +10,11 @@ import { aiAgentHref, aiAgentLastRun, aiAgentRoleLine, aiAgentStateChip, pluralR
 import { AGENT_MASCOTS } from "./agent-mascots";
 
 const ACTION = "relative z-10 inline-flex min-h-11 items-center gap-1 t-meta font-medium text-fg underline underline-offset-4";
+/**
+ * «N черновиков ждут решения» — цель 44 px, как «Поручить». Она занимает зазор над собой (`gap-2`) и поле карточки под собой
+ * (`p-3`) через отрицательные поля: сама карточка при этом выше всего на 8 px, а не на 28, и цель не заходит на соседей.
+ */
+const DRAFTS = "relative z-10 -mb-3 -mt-2 inline-flex min-h-11 w-fit items-center t-meta text-fg underline underline-offset-4";
 /** Слово итога последнего запуска: красное — только ошибка, жёлтое — «нужно внимание» и лимит; остальные — обычным цветом. */
 const RESULT_TONE = { danger: "font-medium text-danger", warn: "font-medium text-warn", neutral: "", ok: "", info: "" } as const;
 
@@ -55,7 +60,7 @@ export function NextAgentCard({ agent, now, rules, action }: Readonly<{
           </span>
         ) : null}
         {agent.stats.draftsPending > 0 ? (
-          <Link href={aiAgentHref(agent.key, { tab: "drafts" })} className="relative z-10 w-fit t-meta text-fg underline underline-offset-4" data-testid={`v3-aia-drafts-${agent.key}`}>
+          <Link href={aiAgentHref(agent.key, { tab: "drafts" })} className={DRAFTS} data-testid={`v3-aia-drafts-${agent.key}`}>
             {agent.stats.draftsPending} {pluralRu(agent.stats.draftsPending, ["черновик ждёт", "черновика ждут", "черновиков ждут"])} решения
           </Link>
         ) : null}

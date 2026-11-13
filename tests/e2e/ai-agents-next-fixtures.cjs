@@ -58,6 +58,9 @@ function makeFixtures(catalog) {
   const LIST_RUNNING = listVariant({ director: { stats: { runsRunning: 1 } }, sales: { stats: { runsRunning: 1 } } });
   /** Ни один агент не включён. */
   const LIST_OFF = listVariant(Object.fromEntries(catalog.map((entry) => [entry.key, { enabled: false }])));
+  /** Агенты включены, но ни один не готов к запуску: не синхронизированы (рабочей настройки в Claude нет). */
+  const NOT_SYNCED = { sync: sync({ status: "never", claudeAgentId: null, agentVersion: null, environmentId: null, vaultId: null, configHash: null }) };
+  const LIST_UNSYNCED = listVariant(Object.fromEntries(LIST.agents.filter((agent) => agent.enabled).map((agent) => [agent.key, NOT_SYNCED])));
 
   /**
    * «Ждут решения» на хабе (`AiAgentsPending`): четыре свежих черновика из тринадцати, которые ждут по всем агентам
@@ -171,7 +174,7 @@ function makeFixtures(catalog) {
     whatsappCapState: { spentCents: 230, reservedCents: 0 },
     ...over,
   });
-  return { NOW, ACTOR, LIST, LIST_RUNNING, LIST_OFF, listVariant, PENDING, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, DRAFTS_RECEIVE_ONLY, draftsFor, conversations, bodyProps, available, sync, stats };
+  return { NOW, ACTOR, LIST, LIST_RUNNING, LIST_OFF, LIST_UNSYNCED, listVariant, PENDING, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, DRAFTS_RECEIVE_ONLY, draftsFor, conversations, bodyProps, available, sync, stats };
 }
 
 module.exports = { makeFixtures, NOW, ACTOR };

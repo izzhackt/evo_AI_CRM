@@ -134,6 +134,7 @@ const runId = params.get("run");
 // Данные одной сцены в других состояниях — параметрами адреса файла: ?agent=<ключ> и ?drafts=<число ждущих> (страница агента), ?hub=<состояние> (главная):
 // pending (по умолчанию: «Ждут решения» с четырьмя строками из 13), plain (черновиков нет), partial (чтение черновиков не удалось),
 // running / running-staff (идёт работа; второе — не администратор), key (ключ Claude не задан), off (ни один агент не включён),
+// unsynced (агенты включены, но ни один не синхронизирован),
 // preview (просмотр роли), unavailable / denied / not-ready (список агентов не прочитался, нет доступа, раздел готовится).
 const query = new URLSearchParams(location.search);
 const agent = query.get("agent");
@@ -144,7 +145,7 @@ const over = runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : fix
 let page;
 // Каталог текстов читает сервер (страницы ai-agents): новому виду он приходит готовым, как и в сборке.
 if (fixture.name === "hub") {
-  const list = hubMode.startsWith("running") ? F.LIST_RUNNING : hubMode === "off" ? F.LIST_OFF : F.LIST;
+  const list = hubMode.startsWith("running") ? F.LIST_RUNNING : hubMode === "off" ? F.LIST_OFF : hubMode === "unsynced" ? F.LIST_UNSYNCED : F.LIST;
   const pending = hubMode === "plain" || ["unavailable", "denied", "not-ready"].includes(hubMode) ? null : hubMode === "partial" ? { drafts: [], total: null, partial: true } : F.PENDING;
   const failure = { unavailable: "unavailable", denied: "denied", "not-ready": "not_ready" }[hubMode];
   page = h(NextAgentsView, { read: failure ? { status: failure } : F.available(hubMode === "running-staff" ? { ...list, isAdmin: false, canManage: false } : list), pending, runtimeConfigured: hubMode !== "key", preview: hubMode === "preview", hasDefault: nextAgentsHasDefault() });
@@ -373,7 +374,7 @@ async function main() {
   // видно; на 1440, 1280 и 390 нет горизонтальной прокрутки, нарушений axe и ссылок и кнопок с целью меньше 44 px (в том числе ссылок в полосе,
   // «Ещё N» и «N черновиков ждут решения»).
   const stripText = async (page) => (await page.locator("[data-testid=v3-aia-now]").innerText()).replace(/\s+/gu, " ");
-  const modes = [["running", "идёт работа"], ["running-staff", "идёт работа, зритель не администратор"], ["key", "ключ Claude не задан"], ["off", "ни один агент не включён"], ["partial", "черновики не прочитались"], ["plain", "черновиков нет"], ["preview", "просмотр роли"], ["unavailable", "список агентов не прочитался"], ["denied", "нет доступа"], ["not-ready", "раздел готовится"]];
+  const modes = [["running", "идёт работа"], ["running-staff", "идёт работа, зритель не администратор"], ["key", "ключ Claude не задан"], ["off", "ни один агент не включён"], ["unsynced", "включённые агенты не синхронизированы"], ["partial", "черновики не прочитались"], ["plain", "черновиков нет"], ["preview", "просмотр роли"], ["unavailable", "список агентов не прочитался"], ["denied", "нет доступа"], ["not-ready", "раздел готовится"]];
   for (const key of ["d1440", "d1280", "m390"]) {
     for (const [mode, label] of modes) {
       const { context, page, errors } = await open("hub", key, { query: `hub=${mode}` });
@@ -390,6 +391,8 @@ async function main() {
       } else if (mode === "off") {
         report(`${key}/hub[${label}]: the strip says «выключены»`, text.includes("ИИ-агенты · выключены") && text.includes("Ни один агент не включён") && !/на связи|в работе/u.test(text), { text });
         report(`${key}/hub[${label}]: a disabled agent shows no «Авто: вкл» chip even though «Авто» is on for Sales`, !(await page.locator("[data-testid=v3-ai-agents]").innerText()).includes("Авто: вкл"), null);
+      } else if (mode === "unsynced") {
+        report(`${key}/hub[${label}]: the strip says «ждут настройки», not «на связи», and names nobody as working`, text.includes("ИИ-агенты · ждут настройки") && text.includes("Включённые агенты не готовы: нужна синхронизация с Claude") && !/на связи|в работе/u.test(text) && names.length === 0, { text });
       } else if (mode === "partial") {
         report(`${key}/hub[${label}]: a word about the incomplete list, no «Ждут решения»`, (await page.locator("[data-testid=v3-aia-pending-partial]").count()) === 1 && (await page.locator("[data-testid=v3-aia-pending]").count()) === 0, null);
       } else if (mode === "preview") {

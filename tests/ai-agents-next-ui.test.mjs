@@ -476,7 +476,7 @@ test("`aiAgentLastRun`: время и слово итога из тех же п�
   assert.deepEqual(aiAgentLastRun({ lastRunAt: null, lastRunStatus: null }, NOW), { when: "ещё не запускался", result: null, tone: "neutral" });
 });
 
-test("полоса «Сейчас» говорит правду: «на связи» и «в работе» — при ключе Claude и включённом агенте; иначе «не подключены» или «выключены»; Директор без ссылки не администратору", async () => {
+test("полоса «Сейчас» говорит правду: «на связи» — при ключе Claude и готовом к запуску включённом агенте, «в работе» — пока идёт запуск; иначе «не подключены», «выключены» или «ждут настройки»; Директор без ссылки не администратору", async () => {
   const { nextHub, hubPage } = await views();
   const hub = (list, configured = true) => strip(nextHub(F.available(list), configured, false));
   const strip_ = (markup) => textOf(markup.match(/<section[^>]*data-testid="v3-aia-now"[\s\S]*?<\/section>/u)[0]);
@@ -508,6 +508,24 @@ test("полоса «Сейчас» говорит правду: «на связ
   assert.match(off, /data-mode="off"/u);
   assert.match(strip_(off), /^ИИ-агенты · выключены Ни один агент не включён /u);
   assert.doesNotMatch(strip_(off), /на связи|в работе/u);
+  // Включённые агенты есть, но ни один не готов к запуску: не синхронизирован, либо синхронизация не удалась и рабочей настройки нет — не «на связи».
+  const ENABLED = ["director", "sales", "curator-cn", "curator-my"];
+  const NOT_SYNCED = { sync: F.sync({ status: "never", claudeAgentId: null, agentVersion: null, environmentId: null, vaultId: null, configHash: null }) };
+  const unsynced = hub(F.LIST_UNSYNCED);
+  assert.match(unsynced, /data-mode="setup"/u);
+  assert.match(strip_(unsynced), /^ИИ-агенты · ждут настройки Включённые агенты не готовы: нужна синхронизация с Claude /u);
+  assert.doesNotMatch(strip_(unsynced), /на связи|в работе/u);
+  assert.doesNotMatch(unsynced, /aria-label="Кто работает"/u);
+  const failedNoSetup = F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, { sync: F.sync({ status: "error", error: "сбой сети", claudeAgentId: null, agentVersion: null, environmentId: null, vaultId: null }) }])));
+  assert.match(hub(failedNoSetup), /data-mode="setup"/u, "синхронизация не удалась и рабочей настройки нет — не готов");
+  // Хоть один включённый готов — «на связи»; ошибка синхронизации при сохранённой рабочей настройке — тоже готов (как `aiAgentIsRunnable`).
+  const oneReady = hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, key === "curator-my" ? {} : NOT_SYNCED]))));
+  assert.match(oneReady, /data-mode="idle"/u);
+  assert.match(strip_(oneReady), /^ИИ-агенты · на связи /u);
+  assert.match(hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, { sync: F.sync({ status: "error", error: "сбой сети" }) }])))), /data-mode="idle"/u, "ошибка синхронизации при рабочей прежней настройке — готов");
+  // Готов только включённый: синхронизированный, но выключенный агент не в счёт. Идущий запуск — «в работе», даже когда новых принять некому.
+  assert.match(hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, key === "curator-my" ? { enabled: false } : NOT_SYNCED])))), /data-mode="setup"/u, "curator-my синхронизирован, но выключен");
+  assert.match(hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, key === "sales" ? { ...NOT_SYNCED, stats: { runsRunning: 1 } } : NOT_SYNCED])))), /data-mode="working"/u);
   // Доля без ошибок — общая `successShare`, а не своя копия: пока запусков нет, число — «—».
   assert.match(strip_(hub({ ...F.LIST, summary: { ...F.LIST.summary, runs7d: 0 } })), /Без ошибок — /u);
 });

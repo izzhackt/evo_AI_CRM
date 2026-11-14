@@ -28,7 +28,7 @@ const NO_STORE = { "Cache-Control": "no-store" } as const;
 const QR_MAX_BYTES = 5 * 1024 * 1024;
 const QR_MIME = new Set(["image/jpeg", "image/png"]);
 
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return false;
   try {

@@ -198,6 +198,8 @@ const TELEPHONY_ADMIN_API_PATHS: ReadonlySet<string> = new Set([
 // сессию администратора вне просмотра роли; остальное под /api/v3/settings закрыто.
 const WHATSAPP_CONNECT_API_PATH = "/api/v3/settings/whatsapp-connect";
 const STUDENT_PAYMENT_RECEIPT_UPLOAD_API_PATH = "/api/portal/payment-receipts";
+// «Чек студента к уже принятой оплате» (миграция 360): файл к принятой оплате, только доказательство (один multipart POST).
+const STUDENT_PAYMENT_PROOF_UPLOAD_API_PATH = "/api/portal/payment-proofs";
 // «Реквизиты для оплаты» (миграция 358): сохранение (POST) и QR для предпросмотра администратору (GET); оба сами проверяют сессию администратора.
 const PAYMENT_DETAILS_API_PATH = "/api/v3/settings/payment-details";
 const PAYMENT_DETAILS_QR_API_PATH = "/api/v3/settings/payment-details/qr";
@@ -313,6 +315,8 @@ export function isConnectedStudentPortalApi(
     || (method === "GET" && path === "/api/portal/application-document-downloads")
     // «Чеки от студента» (миграция 358): один multipart POST; обработчик сам проверяет сессию или Bearer, студента и платёж.
     || (method === "POST" && path === STUDENT_PAYMENT_RECEIPT_UPLOAD_API_PATH)
+    // «Чек студента к уже принятой оплате» (миграция 360): тот же разбор сессии или Bearer, студент и оплата проверяются базой.
+    || (method === "POST" && path === STUDENT_PAYMENT_PROOF_UPLOAD_API_PATH)
     // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a
     // missing/rejected credential and never consults cookies.
     || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)

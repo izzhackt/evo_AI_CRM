@@ -1880,6 +1880,7 @@ const admissionRu = {
   receiptProgressLabel: "Оплачено {paid} из {total}",
   receiptAddedHeading: "Добавленные платежи",
   receiptSent: "Чек отправлен на проверку. Оплата засчитается, когда куратор его примет.",
+  proofAttached: "Чек приложен",
   receiptUnassignedHeading: "Чеки без платежа",
   receiptUnassignedNote: "Куратор отнесёт их к нужному платежу.",
   receiptErrorTooLarge: "Файл больше 25 МБ или пустой.",
@@ -2134,6 +2135,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   receiptProgressLabel: "{total} ичинен {paid} төлөндү",
   receiptAddedHeading: "Кошулган төлөмдөр",
   receiptSent: "Чек текшерүүгө жөнөтүлдү. Куратор кабыл алганда төлөм эсепке алынат.",
+  proofAttached: "Чек тиркелди", // KY: needs native proofreading
   receiptUnassignedHeading: "Төлөмсүз чектер",
   receiptUnassignedNote: "Куратор аларды керектүү төлөмгө бириктирет.",
   receiptErrorTooLarge: "Файл 25 МБ чоң же бош.",

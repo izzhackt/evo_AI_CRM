@@ -36,8 +36,9 @@ export function DataTableToolbar({
   if (placeholder === null && !extra && hideable.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2" data-slot="data-table-toolbar">
+      {/* Поле поиска не шире 24rem (14.11.2026, «поисковик слишком длинный»): рядом с ним — фильтры. */}
       {placeholder === null ? null : (
-        <div className="relative min-w-0 flex-1 basis-56">
+        <div className="relative min-w-0 flex-1 basis-56 sm:max-w-sm">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />
           <Input
             type="search"
@@ -53,7 +54,8 @@ export function DataTableToolbar({
       {hideable.length > 0 ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            {/* У правого края, как в таблицах shadcn: поле поиска не шире 24rem, и кнопка не висит посреди строки. */}
+            <Button variant="outline" className="ms-auto">
               <Columns3Icon aria-hidden="true" />
               Колонки
             </Button>

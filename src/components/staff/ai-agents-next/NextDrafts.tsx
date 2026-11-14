@@ -7,6 +7,7 @@ import { AI_AGENT_DRAFT_CHANNEL_LABELS, type AiAgentDraftRow, type AiAgentDraftS
 import { aiAgentHref, draftStatusWords, formatDateTimeRu, plainPreview, relativeTimeRu } from "@/lib/v3/ai-agents-view";
 import { WAZZUP_READ_ONLY_LINE, isReceiveOnlyDraft } from "@/lib/v3/wazzup-words";
 
+import { FEW_ROWS } from "./buttons";
 import { NextAgentMascot } from "./NextAgentMascot";
 import { AgentAlert } from "./NextNotices";
 import { DraftCard } from "@/components/staff/ai-agents/DraftCard";
@@ -101,6 +102,7 @@ export function NextDrafts({
         onRowClick={(draft) => { setCurrent(draft); setOpen(true); }}
         getRowLabel={target}
         searchPlaceholder={capped ? "Поиск среди показанных" : "Поиск по черновикам"}
+        searchable={capped || drafts.length > FEW_ROWS}
         paginate={false}
         columnMenu={false}
         empty={(

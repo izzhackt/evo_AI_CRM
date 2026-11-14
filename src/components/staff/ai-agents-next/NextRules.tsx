@@ -1,13 +1,16 @@
 "use client";
 
+import { EyeIcon, PencilLineIcon } from "lucide-react";
 import { useState } from "react";
 
 import { DetailSheet, StatusBadge, WidgetCard } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AI_AGENT_LIMITS, type AiAgentKey } from "@/lib/ai-agents/contract";
 import { saveAiAgentInstructionsAction } from "@/lib/platform-ai-agents-actions";
 
+import { Markdown } from "@/components/staff/ai-agents/Markdown";
 import { ActionMessage } from "@/components/staff/ai-agents/Notices";
 import { useAgentsAction } from "@/components/staff/ai-agents/useAgentsAction";
 import { useDirtyGuard } from "@/components/staff/ai-agents/useDirtyGuard";
@@ -16,6 +19,17 @@ import { AgentAlert } from "./NextNotices";
 
 /** Счётчик знаков появляется, когда до предела остаётся мало: далеко от него он только шум. */
 const COUNTER_FROM_SHARE = 0.9;
+const SEGMENT = "rounded-ctl data-active:border-transparent";
+
+/** Правила словами, с заголовками и списками (13.11.2026): решётки разметки на экране читались как код. */
+function RulesText({ text }: Readonly<{ text: string }>) {
+  return (
+    // Своя прокрутка — только на широком экране: на телефоне вторая прокрутка внутри страницы обрезала текст на полуслове.
+    <div className="rounded-ctl md:max-h-[60vh] md:overflow-auto" tabIndex={0} role="region" aria-label="Текст правил агента" data-testid="v3-aia-instructions-view">
+      {text.trim() ? <Markdown source={text} /> : <p className="t-body-compact text-fg-2">Текста пока нет.</p>}
+    </div>
+  );
+}
 
 function TextSheet({ title, text }: Readonly<{ title: string; text: string }>) {
   return (
@@ -27,7 +41,7 @@ function TextSheet({ title, text }: Readonly<{ title: string; text: string }>) {
 
 /**
  * «Правила агента» в «Новом виде»: действующий текст — свой или стандартный из репозитория — в одной карточке.
- * Правит только системный администратор; остальные читают. Сохранение отправляет изменение в Claude само, «Сбросить на
+ * Текст показывается размеченным («Просмотр»), администратор правит его во вкладке «Править»; остальные только читают. Сохранение отправляет изменение в Claude само, «Сбросить на
  * стандартные» просит подтверждения на месте. Стандартные и общие правила EVO — в панелях. Серверное действие то же.
  */
 export function NextRules({
@@ -35,6 +49,7 @@ export function NextRules({
 }: Readonly<{ agentKey: AiAgentKey; configVersion: number; current: string; isOverride: boolean; defaultText: string; preamble: string; canEdit: boolean; runtimeConfigured: boolean }>) {
   const [value, setValue] = useState(current);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [mode, setMode] = useState<"view" | "edit">(current.trim() ? "view" : "edit");
   const { state, pending, submit } = useAgentsAction(saveAiAgentInstructionsAction);
   // Сохранённый текст сменился (запись прошла) — поле показывает его.
   const [seen, setSeen] = useState(current);
@@ -60,34 +75,46 @@ export function NextRules({
       ) : null}
       <WidgetCard
         title="Правила агента"
-        help="Сохранение отправляет изменение в Claude само, если агент там уже есть."
+        // Без ключа Claude — об этом плашка над вкладками; здесь только что будет с сохранённым, и за «?».
+        help={runtimeConfigured ? "Сохранение отправляет изменение в Claude само, если агент там уже есть." : "Изменение сохранится в CRM, а в Claude уйдёт после синхронизации."}
         actions={hasDefault || isOverride ? <StatusBadge label={isOverride ? "Свои правила" : "Стандартные правила EVO"} tone={isOverride ? "info" : "neutral"} /> : undefined}
         footer={sheets.length > 0 ? <div className="flex flex-wrap gap-2">{sheets}</div> : undefined}
       >
         {canEdit ? (
           <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); if (changed && !pending) save("save"); }}>
-            <label htmlFor={`aia-instr-text-${agentKey}`} className="sr-only">Текст правил агента</label>
-            <Textarea
-              id={`aia-instr-text-${agentKey}`}
-              value={value}
-              maxLength={max}
-              rows={18}
-              disabled={pending}
-              onChange={(event) => setValue(event.target.value)}
-              className="min-h-72"
-              placeholder="Кто агент, чем занимается, как отвечает, чего не делает…"
-              data-testid="v3-aia-instructions-text"
-            />
+            <Tabs value={mode} onValueChange={(next) => setMode(next === "edit" ? "edit" : "view")}>
+              {/* Переключатель в той же рамке, что вкладки агента: выбранное — нейтральной подложкой, без тёмной обводки. */}
+              <TabsList variant="default" aria-label="Вид правил" className="w-fit border border-border bg-surface">
+                <TabsTrigger value="view" className={SEGMENT} data-testid="v3-aia-instructions-view-tab"><EyeIcon aria-hidden="true" />Просмотр</TabsTrigger>
+                <TabsTrigger value="edit" className={SEGMENT} data-testid="v3-aia-instructions-edit-tab"><PencilLineIcon aria-hidden="true" />Править</TabsTrigger>
+              </TabsList>
+              <TabsContent value="view" className="pt-3"><RulesText text={value} /></TabsContent>
+              <TabsContent value="edit" className="grid gap-3 pt-3">
+                <label htmlFor={`aia-instr-text-${agentKey}`} className="sr-only">Текст правил агента</label>
+                <Textarea
+                  id={`aia-instr-text-${agentKey}`}
+                  value={value}
+                  maxLength={max}
+                  rows={18}
+                  disabled={pending}
+                  onChange={(event) => setValue(event.target.value)}
+                  className="min-h-72"
+                  placeholder="Кто агент, чем занимается, как отвечает, чего не делает…"
+                  data-testid="v3-aia-instructions-text"
+                />
+              </TabsContent>
+            </Tabs>
             {changed || nearMax ? (
               <p className="flex flex-wrap justify-between gap-2 t-meta text-fg-3">
                 <span>{changed ? "Есть несохранённые изменения" : ""}</span>
                 {nearMax ? <span className="tabular-nums">{value.length.toLocaleString("ru-RU")} из {max.toLocaleString("ru-RU")}</span> : null}
               </p>
             ) : null}
-            <div className={changed ? STICKY_BAR : STATIC_BAR}>
+            {/* В «Просмотре» без правок неактивная «Сохранить» — лишняя кнопка. */}
+            {mode === "edit" || changed || confirmReset ? <div className={changed ? STICKY_BAR : STATIC_BAR}>
               <Button type="submit" disabled={!changed || pending} data-testid="v3-aia-instructions-save">{pending ? "Сохраняю…" : "Сохранить"}</Button>
               {isOverride && hasDefault ? <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirmReset(true)}>Сбросить на стандартные</Button> : null}
-            </div>
+            </div> : null}
             {confirmReset ? (
               <div role="group" aria-label="Подтверждение сброса" className="rounded-card border border-border bg-surface-2 p-3">
                 <p className="max-w-[60ch] t-body-compact text-fg">Свои правила будут удалены, агент вернётся к стандартным правилам EVO. Сбросить?</p>
@@ -97,13 +124,10 @@ export function NextRules({
                 </div>
               </div>
             ) : null}
-            {!runtimeConfigured ? <p className="t-meta text-fg-3">Ключ Claude API не задан: изменение сохранится в CRM, а в Claude уйдёт после синхронизации.</p> : null}
             <ActionMessage state={state} testId="v3-aia-instructions-message" />
           </form>
         ) : (
-          <div className="max-h-[60vh] overflow-auto" tabIndex={0} role="region" aria-label="Текст правил агента">
-            {current.trim() ? <p className="whitespace-pre-wrap break-words t-body text-fg">{current}</p> : <p className="t-body-compact text-fg-2">Текста пока нет.</p>}
-          </div>
+          <RulesText text={current} />
         )}
       </WidgetCard>
     </div>

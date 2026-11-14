@@ -12,7 +12,7 @@ import { searchHref } from "./link-filters-model";
  * Поиск по всему списку (отбирает сервер): поле с Enter, как у прежней строки инструментов. Состояние остаётся в адресе:
  * вид и фильтры приходят скрытыми полями (`hidden`), страница и открытая запись при новом поиске сбрасываются. С `liveMs`
  * поиск идёт сам после паузы набора (каталог университетов). Без скрипта — обычная форма GET. Клавиша «/» ставит
- * фокус сюда (`data-queue-search`).
+ * фокус сюда (`data-queue-search`). Шире 24rem поле не растягивается (14.11.2026, «поисковик слишком длинный»).
  */
 export function ListSearch({ action, name = "q", value, placeholder, label, hidden, liveMs, maxLength = 100 }: Readonly<{
   action: string;
@@ -43,7 +43,7 @@ export function ListSearch({ action, name = "q", value, placeholder, label, hidd
     if (replace) router.replace(href, { scroll: false }); else router.push(href, { scroll: false });
   };
   return (
-    <form action={action} method="get" role="search" aria-label={label} className="relative min-w-0 flex-1 basis-56"
+    <form action={action} method="get" role="search" aria-label={label} className="relative min-w-0 flex-1 basis-56 sm:max-w-sm"
       onSubmit={(event: FormEvent) => { event.preventDefault(); go(text, false); }}>
       {Object.entries(hidden).map(([key, hiddenValue]) => (hiddenValue ? <input key={key} type="hidden" name={key} value={hiddenValue} /> : null))}
       <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />

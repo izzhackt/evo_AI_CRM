@@ -7432,7 +7432,8 @@ a.pt-pay-file {
 
 .pt-pay-add-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  /* Дата — min-content: родное поле даты не сжимается (147px при 1x, 153px при 2x, 159px при 3x плотности) и иначе наезжает на соседнюю колонку. */
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(min-content, 1fr) minmax(0, 1.3fr) auto;
   gap: 12px;
   align-items: end;
 }
@@ -7462,7 +7463,8 @@ a.pt-pay-file {
   opacity: 1;
 }
 
-@media (max-width: 900px) {
+/* Брейкпоинт считает окно, а рейл кабинета забирает 224px: пять колонок формы помещаются только от ~1180px окна. */
+@media (max-width: 1180px) {
   .pt-pay-add-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }

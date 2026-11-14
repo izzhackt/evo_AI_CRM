@@ -8,7 +8,7 @@ import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn }
 import { Button } from "@/components/ui/button";
 import { AI_AGENT_RUN_STATUS_LABELS, type AiAgentKey, type AiAgentRunRow } from "@/lib/ai-agents/contract";
 import { AI_AGENT_DAILY_BUDGET_REACHED_CODE } from "@/lib/ai-agents/daily-cap";
-import { AI_AGENT_RUNS_MAX, AI_AGENT_RUNS_STEP, aiAgentHref, durationWords, formatDateTimeRu, formatUsdCents, pluralRu, runErrorWords, runIsSystemEvent, runOriginLabel, runStatusTone, runTextPreview } from "@/lib/v3/ai-agents-view";
+import { AI_AGENT_RUNS_MAX, AI_AGENT_RUNS_STEP, aiAgentHref, aiAgentRunIsActive, durationWords, formatDateTimeRu, formatUsdCents, pluralRu, runErrorWords, runIsSystemEvent, runOriginLabel, runStatusTone, runTextPreview } from "@/lib/v3/ai-agents-view";
 
 import { NextRunSheetBody, runSheetTitle } from "./NextRunSheet";
 
@@ -22,6 +22,12 @@ function words(run: AiAgentRunRow): { primary: string; secondary: string } {
   return { primary: prompt || outcome, secondary: prompt ? outcome : "" };
 }
 
+/** «Время и расход» без «– · 0,00 $»: идущий запуск — «идёт», неизвестное время не рисуется. */
+function spendWords(run: AiAgentRunRow): string {
+  if (aiAgentRunIsActive(run.status)) return "идёт";
+  return run.durationSeconds === null ? formatUsdCents(run.costCents) : `${durationWords(run.durationSeconds)} · ${formatUsdCents(run.costCents)}`;
+}
+
 function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRunRow>[] {
   return [
     { id: "when", header: "Когда", accessorFn: (run) => run.startedAt, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{formatDateTimeRu(row.original.startedAt, now)}</span>, meta: { label: "Когда" } },
@@ -32,7 +38,8 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
         const { primary, secondary } = words(row.original);
         return (
           <span className="block min-w-[16rem] max-w-[34rem]">
-            <span className="line-clamp-1 break-words text-fg">{primary || "—"}</span>
+            {/* Пусто — словами, а не прочерком (13.11.2026): итог идущего запуска ещё впереди. */}
+            <span className={`line-clamp-1 break-words ${primary ? "text-fg" : "text-fg-3"}`}>{primary || (aiAgentRunIsActive(row.original.status) ? "Итог будет, когда агент закончит" : "Без итога")}</span>
             {secondary ? <span className="line-clamp-1 break-words t-meta text-fg-3">{secondary}</span> : null}
           </span>
         );
@@ -40,7 +47,7 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
     },
     { id: "status", header: "Состояние", accessorFn: (run) => AI_AGENT_RUN_STATUS_LABELS[run.status], cell: ({ row }) => <StatusBadge label={AI_AGENT_RUN_STATUS_LABELS[row.original.status]} tone={runStatusTone(row.original.status)} />, meta: { label: "Состояние" } },
     { id: "origin", header: "Кто запустил", accessorFn: (run) => runOriginLabel(run, viewerName), meta: { label: "Кто запустил", mobile: "hide", wide: true } },
-    { id: "cost", header: "Время и расход", accessorFn: (run) => run.costCents, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{durationWords(row.original.durationSeconds)} · {formatUsdCents(row.original.costCents)}</span>, meta: { label: "Время и расход", align: "end" } },
+    { id: "cost", header: "Время и расход", accessorFn: (run) => run.costCents, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{spendWords(row.original)}</span>, meta: { label: "Время и расход", align: "end" } },
     {
       id: "steps", header: "Действия", accessorFn: (run) => run.actionsCount, meta: { label: "Действия", mobile: "hide", align: "end" },
       cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{row.original.actionsCount}{row.original.draftsCount > 0 ? ` · ${row.original.draftsCount} ${pluralRu(row.original.draftsCount, ["черновик", "черновика", "черновиков"])}` : ""}</span>,

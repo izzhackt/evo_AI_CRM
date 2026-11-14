@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { MailCheckIcon } from "lucide-react";
 
 import { DataTable, DetailSheet, EmptyState, SectionTabs, StatusBadge, type DataTableColumn } from "@/components/kit";
 import { AI_AGENT_DRAFT_CHANNEL_LABELS, type AiAgentDraftRow, type AiAgentDraftStatus, type AiAgentKey } from "@/lib/ai-agents/contract";
 import { aiAgentHref, draftStatusWords, formatDateTimeRu, plainPreview, relativeTimeRu } from "@/lib/v3/ai-agents-view";
 import { WAZZUP_READ_ONLY_LINE, isReceiveOnlyDraft } from "@/lib/v3/wazzup-words";
 
+import { NextAgentMascot } from "./NextAgentMascot";
 import { AgentAlert } from "./NextNotices";
 import { DraftCard } from "@/components/staff/ai-agents/DraftCard";
 
@@ -103,7 +103,13 @@ export function NextDrafts({
         searchPlaceholder={capped ? "Поиск среди показанных" : "Поиск по черновикам"}
         paginate={false}
         columnMenu={false}
-        empty={<div data-testid="v3-aia-drafts-empty"><EmptyState icon={MailCheckIcon} title={filter === "pending" ? "Нет черновиков, которые ждут решения." : "Черновиков не было."} /></div>}
+        empty={(
+          // Пустое — с маскотом агента вместо серого значка (13.11.2026): агенту сейчас нечего показать.
+          <div data-testid="v3-aia-drafts-empty" className="grid justify-items-center pt-6">
+            <NextAgentMascot agentKey={agentKey} size="lg" />
+            <EmptyState className="pt-2" title={filter === "pending" ? "Нет черновиков, которые ждут решения." : "Черновиков не было."} />
+          </div>
+        )}
       />
       {capped ? <p className="t-meta text-fg-3" data-testid="v3-aia-drafts-capped">Показаны последние {drafts.length} из {total}</p> : null}
       <DetailSheet open={open} onOpenChange={onOpenChange} title={current ? target(current) : "Черновик"} description={current ? `Создан ${relativeTimeRu(current.createdAt, now)}` : undefined}>

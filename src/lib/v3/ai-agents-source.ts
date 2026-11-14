@@ -6,7 +6,6 @@ import {
   AI_AGENT_STAFF_RPC,
   type AiAgentDetail,
   type AiAgentDigestsListResult,
-  type AiAgentDraftRow,
   type AiAgentDraftStatus,
   type AiAgentDraftsListResult,
   type AiAgentKey,
@@ -22,6 +21,8 @@ import {
   parseAiAgentRun,
   parseAiAgentRuns,
   parseAiAgentsList,
+  pendingRowsOf,
+  type AiAgentPendingRow,
 } from "./ai-agents-view.ts";
 
 /**
@@ -96,19 +97,24 @@ export function readAiAgentDigests(
   }, parseAiAgentDigests);
 }
 
-/** Лента главной «ИИ-агентов»: последние запуски всех агентов и черновики, ждущие решения. */
+/** «Ждут решения» на главной «ИИ-агентов»: ровно то, что рисуется, и сколько черновиков ждёт всего. */
 export type AiAgentsPending = Readonly<{
-  /** Черновики, ждущие решения, всех агентов. */
-  drafts: readonly AiAgentDraftRow[];
-  /** Чтение не удалось: список может быть неполным (говорим словом, не молчим). */
+  /** Свежие черновики, ждущие решения, всех агентов — только текст и адресат (`AiAgentPendingRow`). */
+  drafts: readonly AiAgentPendingRow[];
+  /** Сколько черновиков ждёт решения всего (больше, чем строк); null — чтение не удалось, числа нет. */
+  total: number | null;
+  /** Чтение не удалось (любой отказ, не только сбой): список может быть неполным — говорим словом, не молчим. */
   partial: boolean;
 }>;
 
 /**
  * «Ждут решения» на главной «ИИ-агентов» (12.11.2026, по отзыву владельца к #1449): то же чтение черновиков, что у
- * вкладки агента, по всем агентам сразу. Сбой не роняет страницу: `partial`.
+ * вкладки агента, по всем агентам сразу. Страница отдаёт браузеру не строки базы, а `AiAgentPendingRow`: входящие
+ * сообщения клиентов и причины агента на главной не показываются и поэтому не уходят в браузер. Сбой не роняет страницу:
+ * при любом исходе, кроме «прочитано», — `partial` и без числа (раньше «нет доступа» и «раздел готовится» молчали и блок просто пропадал).
  */
 export async function readAiAgentsPending(actor: ActivePlatformActor, options: Readonly<{ limit: number }>): Promise<AiAgentsPending> {
   const read = await readAiAgentDrafts(actor, { key: null, status: "pending", limit: options.limit });
-  return { drafts: read.status === "available" ? read.data.drafts : [], partial: read.status === "unavailable" };
+  if (read.status !== "available") return { drafts: [], total: null, partial: true };
+  return { ...pendingRowsOf(read.data), partial: false };
 }

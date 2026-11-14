@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
  */
 export function PageShell({
   title,
+  leading,
   count,
   meta,
   help,
@@ -20,6 +21,8 @@ export function PageShell({
   children,
 }: Readonly<{
   title: string;
+  /** Картинка перед заголовком — см. `PageHeader`. */
+  leading?: React.ReactNode;
   count?: number | null;
   meta?: React.ReactNode;
   help?: React.ReactNode;
@@ -37,7 +40,7 @@ export function PageShell({
   return (
     <main data-testid={testId} className={cn("mx-auto w-full px-4 py-8 sm:px-6", width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]")}>
       {back}
-      <PageHeader title={title} count={count} meta={meta} help={help} helpLabel={helpLabel} actions={actions} />
+      <PageHeader title={title} leading={leading} count={count} meta={meta} help={help} helpLabel={helpLabel} actions={actions} />
       {tabs ? <div className="mt-4">{tabs}</div> : null}
       <div className="mt-6 grid min-w-0 gap-4">{children}</div>
     </main>

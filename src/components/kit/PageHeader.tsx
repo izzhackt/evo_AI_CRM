@@ -8,9 +8,14 @@ import { cn } from "@/lib/utils";
  * (`main:has(> div:first-child > div:first-child > h1.t-page-title)`). Поэтому «?» и вторичная строка стоят в том
  * же блоке рядом с `h1`, а не во вложенном ряду. Главное действие страницы — одна красная кнопка в
  * `actions`; остальное — нейтральное.
+ *
+ * С картинкой `leading` («Директор / Аналитик» шириной 250 px рядом с маскотом и «?» на телефоне не помещается в одну строку)
+ * ряд не переносится: название сужается и переходит на вторую строку само, а «?» и картинка остаются по краям,
+ * вместо «?» на отдельной строке и шапки выше на 8–44 px. Со вторичной строкой `meta` ряд переносится, как прежде.
  */
 export function PageHeader({
   title,
+  leading,
   count,
   meta,
   help,
@@ -20,6 +25,8 @@ export function PageHeader({
   className,
 }: Readonly<{
   title: string;
+  /** Картинка перед заголовком (маскот агента); декоративная — заголовок говорит сам. */
+  leading?: React.ReactNode;
   /** Размер того, что показано; null/undefined — считать нечего, число не рисуется. */
   count?: number | null;
   /** Вторичная строка под заголовком (`t-meta`): например, дата. */
@@ -36,10 +43,12 @@ export function PageHeader({
   actions?: React.ReactNode;
   className?: string;
 }>) {
+  const inline = Boolean(leading) && !meta;
   return (
     <div data-slot="page-header" className={cn("flex flex-wrap items-start justify-between gap-4", className)}>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <h1 className="t-page-title text-fg">
+      <div className={cn("flex min-w-0 items-center gap-x-2 gap-y-1", inline ? "flex-nowrap" : "flex-wrap")}>
+        {leading}
+        <h1 className={cn("t-page-title text-fg", inline && "min-w-0")}>
           {title}
           {typeof count === "number" ? <span className="ml-2.5 font-normal tabular-nums text-fg-3">{count}</span> : null}
         </h1>

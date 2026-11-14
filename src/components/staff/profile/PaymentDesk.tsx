@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useActionState, useContext, useRef, useState, type ChangeEvent, type ReactNode, type RefObject } from "react";
+import { createContext, useActionState, useContext, useEffect, useRef, useState, type ChangeEvent, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -117,8 +117,16 @@ function PaymentComposer({ request, onClose }: Readonly<{ request: PaymentFormRe
   const [day, setDay] = useState(desk.today);
   const [due, setDue] = useState("");
   const [amount, setAmount] = useState(locked && BigInt(locked.outstandingMinor) > BigInt(0) ? minorToAmount(locked.outstandingMinor) : "");
+  const root = useRef<HTMLDivElement>(null);
+  // Форма, которая открылась, берёт фокус, и браузер показывает её: иначе после «Отметить оплаченным» у строки внизу длинной таблицы ничего не видно.
+  useEffect(() => {
+    // Открыта из меню строки: фокус отдаст меню, когда закроется (его ловушка фокуса вернула бы фокус в пункт, см. RowMenu).
+    if (document.activeElement?.closest("[role=menu]")) return;
+    root.current?.querySelector<HTMLElement>(locked ? "input[name=amount]" : "[role=radio][aria-checked=true]")?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только при открытии формы
+  }, []);
   return (
-    <div className="grid gap-3 rounded-ctl border border-border bg-surface-2 p-3">
+    <div ref={root} className="grid gap-3 rounded-ctl border border-border bg-surface-2 p-3">
       {locked ? <p className="t-body-compact text-fg">{locked.label}</p> : (
         <div role="radiogroup" aria-label={words.mode} className="inline-flex w-fit rounded-ctl border border-border bg-surface p-0.5">
           {(["paid", "planned"] as const).map((item) => (

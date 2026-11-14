@@ -100,6 +100,21 @@ test("«Оплата»: «Запланирован» не подставляет
   // Само значение, которое уходит в действие, проверяет клиентская часть стенда (tests/e2e/card-tabs-payment-client.cjs): пустой `due_on`.
 });
 
+test("«Оплата»: «⋯» строки — меню из `ui/dropdown-menu` (Esc и щелчок мимо закрывают, открыто одно), а не раскрытие `<details>`", () => {
+  const html = next("money-same");
+  const rows = html.slice(html.indexOf('data-testid="v3-case-agreement-tranches"'));
+  const list = rows.slice(rows.indexOf("<ul"), rows.indexOf("</ul>"));
+  assert.doesNotMatch(list, /<details|<summary/u);
+  const triggers = [...list.matchAll(/<button[^>]*aria-label="Действия со строкой: [^"]+"[^>]*>/gu)].map((match) => match[0]);
+  assert.ok(triggers.length >= 1, "у платежа, который ещё не оплачен, есть «⋯»");
+  for (const trigger of triggers) assert.match(trigger, /aria-haspopup="menu"/u);
+  const table = read("src/components/staff/profile/PaymentTable.tsx");
+  assert.match(table, /from "@\/components\/ui\/dropdown-menu"/u);
+  // Пункт, который открывает форму или правку, отдаёт ей фокус, когда меню закроется (Radix иначе вернул бы его на «⋯»); что поле суммы
+  // в фокусе и на экране, проверяет клиентская часть стенда (tests/e2e/card-tabs-payment-client.cjs).
+  assert.match(table, /onCloseAutoFocus=\{handOverFocus\}/u);
+});
+
 test("«Вузы и программы»: список вузов — одна карточка с кнопками добавления у заголовка, «вуза нет в каталоге» за «?», пакеты партнёру — карточка-раскрытие", () => {
   const html = next("route-four");
   assert.match(html, /<div[^>]*class="[^"]*@container\/unis"[^>]*id="applications"[^>]*data-testid="v3-profile-admissions-workspace"|id="applications"/u);

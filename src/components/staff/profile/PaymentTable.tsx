@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/kit/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { saveCaseTrancheAction } from "@/lib/platform-case-agreement-actions";
 import type { CaseAgreementState, CaseAgreementTranche } from "@/lib/platform-case-agreement-contract";
 import { caseMoneyWords } from "@/lib/v3/wording";
@@ -23,13 +25,7 @@ function minorToAmount(minor: string): string {
   const fraction = value % BigInt(100);
   return fraction === BigInt(0) ? whole.toString() : `${whole}.${fraction.toString().padStart(2, "0")}`;
 }
-const MENU = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 const TONE = { paid: "ok", expected: "neutral", overdue: "danger", refund: "warn" } as const;
-
-function closeMenu(target: HTMLElement) {
-  const menu = target.closest("details");
-  if (menu) menu.open = false;
-}
 
 /** Дата, сумма, статус и чек — оплаты и ещё открытые платежи графика в одном списке. */
 export function PaymentTable() {
@@ -132,31 +128,33 @@ function PlanAction({ line }: Readonly<{ line: CaseMoneyPlanLine }>) {
   );
 }
 
+/** «⋯» платежа графика: меню Radix (Esc и щелчок мимо закрывают, открыто одно). */
 function RowMenu({ line }: Readonly<{ line: CaseMoneyPlanLine }>) {
   const desk = usePaymentDesk();
   const canPay = line.status !== "paid" && BigInt(line.tranche.outstandingMinor) > BigInt(0);
+  const trigger = useRef<HTMLButtonElement>(null);
+  // Пункт, который открывает форму или правку, отдаёт ей фокус, когда меню закроется: Radix иначе вернул бы его на «⋯»,
+  // а раньше (пока меню открыто) ловушка фокуса меню забрала бы его назад.
+  const focusAfter = useRef<"form" | "editor" | null>(null);
+  const handOverFocus = (event: Event) => {
+    const kind = focusAfter.current;
+    focusAfter.current = null;
+    if (!kind) return;
+    event.preventDefault();
+    const scope = kind === "form" ? trigger.current?.closest("[data-testid=v3-case-agreement]") : trigger.current?.closest("li");
+    scope?.querySelector<HTMLElement>(kind === "form" ? "[data-testid=v3-case-agreement-payment] input[name=amount]" : "form input[name=label]")?.focus();
+  };
   return (
-    <details className="relative justify-self-end">
-      <summary aria-label={`${words.rowActions}: ${line.tranche.label}`}
-        className="grid size-11 cursor-pointer list-none place-items-center rounded-nav text-fg-2 marker:content-none hover:bg-surface-2 hover:text-fg [&::-webkit-details-marker]:hidden">
-        <Icon name="more-horizontal" size={18} />
-      </summary>
-      <div className="absolute end-0 z-20 mt-1 w-60 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
-        {canPay ? (
-          <button type="button" className={MENU} onClick={(event) => { closeMenu(event.currentTarget); desk.openForm({ mode: "paid", obligationId: line.tranche.id }); }}>
-            {words.markPaidMenu}
-          </button>
-        ) : null}
-        <button type="button" className={MENU} onClick={(event) => { closeMenu(event.currentTarget); desk.edit(line.tranche.id); }}>
-          {words.edit}
-        </button>
-        {line.canArchive ? (
-          <button type="button" className={MENU} onClick={(event) => { closeMenu(event.currentTarget); desk.archive(line.tranche.id); }}>
-            {words.remove}
-          </button>
-        ) : null}
-      </div>
-    </details>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button ref={trigger} variant="ghost" size="icon" aria-label={`${words.rowActions}: ${line.tranche.label}`}><Icon name="more-horizontal" size={20} /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60" onCloseAutoFocus={handOverFocus}>
+        {canPay ? <DropdownMenuItem onSelect={() => { focusAfter.current = "form"; desk.openForm({ mode: "paid", obligationId: line.tranche.id }); }}>{words.markPaidMenu}</DropdownMenuItem> : null}
+        <DropdownMenuItem onSelect={() => { focusAfter.current = "editor"; desk.edit(line.tranche.id); }}>{words.edit}</DropdownMenuItem>
+        {line.canArchive ? <DropdownMenuItem onSelect={() => desk.archive(line.tranche.id)}>{words.remove}</DropdownMenuItem> : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -1,5 +1,6 @@
-// Две обязательные галочки «Конфиденциальность» (веб `ConsentGateBoxes`, словарь `consentGate`):
-// на самом экране и на «Задайте свой пароль». Политика открывается в браузере системы.
+// Две обязательные галочки «Конфиденциальность» (веб `ConsentGateForm`, словарь `consentGate`) и одна строка о
+// файлах (решение владельца 14.11.2026: единственное место, где о них говорится). Политика открывается в браузере
+// системы.
 import { View } from "react-native";
 
 import { CheckRow } from "@/features/registration/WizardFields";
@@ -41,6 +42,9 @@ export function ConsentChecks({
       </CheckRow>
       <Text variant="secondary" tone="text2" testID="consent-ai-detail">
         {strings.aiDetail}
+      </Text>
+      <Text variant="secondary" tone="text2" testID="consent-files-note">
+        {strings.filesNote}
       </Text>
     </View>
   );

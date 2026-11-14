@@ -190,6 +190,25 @@ test("a student_receipt staff notification links to the money tab of the case", 
   assert.throws(() => decodeStaffNotifications({ unread_count: "1", items: [{ id: A, kind: "student_receipt", created_at: "2026-11-10T09:00:00+00:00", read_at: null }] }));
 });
 
+test("the staff notification of a proof names the payment and leads to the payments of the case; an old receipt notification stays as it was", () => {
+  const base = { id: C, kind: "student_receipt", created_at: "2026-11-14T09:00:00+00:00", read_at: null, student_case_id: B, actor_display_name: "Студент", student_display_name: "Тест Студент" };
+  const proof = decodeStaffNotifications({ unread_count: "1", items: [{ ...base, receipt_proof: true }] }).items[0];
+  assert.equal(proof.receiptProof, true);
+  assert.equal(proof.href, `/profile?case=${B}&tab=money`);
+  const old = decodeStaffNotifications({ unread_count: "1", items: [base] }).items[0];
+  assert.equal(old.receiptProof, false);
+  assert.equal(old.href, `/profile?case=${B}&tab=money#case-receipts`);
+  const odd = decodeStaffNotifications({ unread_count: "1", items: [{ ...base, receipt_proof: "yes" }] }).items[0];
+  assert.equal(odd.receiptProof, false, "anything but true is not the mark");
+  const other = decodeStaffNotifications({ unread_count: "1", items: [{ id: C, kind: "case_message", created_at: "2026-11-14T09:00:00+00:00", read_at: null, student_case_id: B, actor_display_name: "A", receipt_proof: true }] }).items[0];
+  assert.equal(other.receiptProof, false, "the mark belongs to the receipt kind only");
+  const bell = read("../src/components/staff/StaffNotifications.tsx");
+  assert.match(bell, /Студент приложил чек к оплате/);
+  assert.match(bell, /if \(item\.receiptProof\)/);
+  const wording = read("../src/lib/v3/wording.ts");
+  assert.match(wording, /"finance\.receipt\.attach": "Студент приложил чек к оплате"/);
+});
+
 test("the upload handler authorizes through the database before any bytes are stored and cleans up after a failed record", () => {
   const source = read("../src/lib/server/student-payment-receipts-route-handlers.ts");
   const upload = source.slice(source.indexOf("createStudentPaymentReceiptUploadHandler"), source.indexOf("createStaffStudentReceiptDownloadHandler"));

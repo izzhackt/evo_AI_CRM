@@ -20,6 +20,11 @@ export type StaffNotification = Readonly<{
   /** kind === "task_due" only: the exact due being reminded about. */
   subjectDueOn: string | null;
   subjectDueAt: string | null;
+  /**
+   * kind === "student_receipt" only (360_platform_student_payment_proof.sql): the Student attached a file to a payment that was already
+   * recorded and accepted, so there is nothing to review; false for a receipt that waits for a decision (358) and for every other kind.
+   */
+  receiptProof: boolean;
 }>;
 export type StaffNotificationCursor = Readonly<{ at: string; id: string }>;
 export type StaffNotificationPage = Readonly<{
@@ -96,13 +101,17 @@ export function decodeStaffNotifications(value: unknown): StaffNotificationPage 
       if (!isStaffNotificationId(row.student_case_id)) return fail();
       href = `/messages?case=${row.student_case_id}`;
     } else if (row.kind === "student_receipt") {
-      // Чек от студента (миграция 358): ведёт в блок «Договор и оплата» дела, где он ждёт решения.
+      // Чек от студента (миграция 358): ведёт в блок «Договор и оплата» дела, где он ждёт решения. Чек к уже принятой оплате (миграция 360)
+      // решения не ждёт: ведёт на оплаты дела.
       if (!isStaffNotificationId(row.student_case_id)) return fail();
-      href = `/profile?case=${row.student_case_id}&tab=money#case-receipts`;
+      href = row.receipt_proof === true
+        ? `/profile?case=${row.student_case_id}&tab=money`
+        : `/profile?case=${row.student_case_id}&tab=money#case-receipts`;
     } else return fail();
     return {
       id: row.id, kind: row.kind, createdAt: row.created_at, readAt: row.read_at, href,
       actorDisplayName, subjectTitle, studentDisplayName, subjectDueOn, subjectDueAt,
+      receiptProof: row.kind === "student_receipt" && row.receipt_proof === true,
     };
   });
   const visible = items.slice(0, 50);

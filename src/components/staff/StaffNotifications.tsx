@@ -81,6 +81,7 @@ function rowCopy(item: StaffNotification): string {
     case "case_message":
       return caseMessageNotificationCopy(item.actorDisplayName, item.studentDisplayName);
     case "student_receipt":
+      if (item.receiptProof) return item.studentDisplayName ? `Студент приложил чек к оплате · ${item.studentDisplayName}` : "Студент приложил чек к оплате";
       return item.studentDisplayName ? `Студент приложил чек · ${item.studentDisplayName}` : "Студент приложил чек";
     default:
       return "Событие";

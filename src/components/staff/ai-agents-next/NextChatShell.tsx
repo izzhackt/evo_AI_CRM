@@ -9,10 +9,16 @@ import { AI_AGENTS_HUB_HREF } from "@/lib/v3/ai-agents-view";
 
 /**
  * Рамка вкладки «Чат» в «Новом виде»: та же тонкая шапка в одну строку, что у `AgentChatShell` (решение владельца
- * 26.10.2026), с кнопками и «?» набора. Стрелка к списку агентов, название (единственный h1), «?» со строкой роли,
+ * 26.10.2026), с кнопками и «?» набора. Стрелка к списку агентов, маскот, название (единственный h1), «?» со строкой роли,
  * вкладки-ссылки, «Включён» и «Авто», «На весь экран». Высоту окна и прокрутку внутри чата, а не страницы, даёт
- * колонка оболочки (`isFillRoute`); порядок Tab и контейнерный запрос 81rem — как у прежней рамки. Лента, список
- * разговоров и поле поручения — прежний `CommandWorkspace` без изменений.
+ * колонка оболочки (`isFillRoute`); порядок Tab — как у прежней рамки. Лента, список разговоров и поле поручения —
+ * прежний `CommandWorkspace` без изменений.
+ *
+ * Ширина названия (отзыв к #1451): самое длинное, «Директор / Аналитик», занимает 250 px, а вместе со стрелкой (44), маскотом (40),
+ * «?» (24) и зазорами — 370 px, поэтому название агента — до 25rem и не обрезается; прежние 22rem и 19rem оставляли ему 232 и 184 px.
+ * Шесть вкладок («На одобрение 3») занимают 643 px и не должны обрезаться: в одну линию название (370 px), вкладки (40rem, 640 px) и
+ * переключатели (382 px) собираются от 90rem колонки (окно от 1748 px; прежние 81rem считались под название в 304 px, а 85rem оставляли
+ * вкладкам 584 px — «Настройки» уходили за край до окна 1735 px); уже — вкладки второй строкой на всю ширину.
  */
 export function NextChatShell({
   title, leading = null, roleLine, tabs, switches, testId, children,
@@ -24,7 +30,7 @@ export function NextChatShell({
     >
       <header className="@container shrink-0" data-testid="v3-aia-chat-header">
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-          <div className="flex min-w-0 max-w-[22rem] items-center gap-1 @[81rem]:max-w-[19rem]">
+          <div className="flex min-w-0 max-w-[25rem] items-center gap-1">
             <Button variant="ghost" size="icon" asChild className="text-fg-2">
               <Link href={AI_AGENTS_HUB_HREF} aria-label="Все ИИ-агенты" title="Все ИИ-агенты" data-testid="v3-aia-chat-back"><ArrowLeftIcon aria-hidden="true" /></Link>
             </Button>
@@ -32,11 +38,11 @@ export function NextChatShell({
             <h1 className="t-page-title min-w-0 truncate text-fg">{title}</h1>
             <HelpTip label={`Пояснение: ${title}`}>{roleLine}</HelpTip>
           </div>
-          <div className="ms-auto flex flex-wrap items-start justify-end gap-x-4 gap-y-1 @[81rem]:order-2">
+          <div className="ms-auto flex flex-wrap items-start justify-end gap-x-4 gap-y-1 @[90rem]:order-2">
             {switches}
             <ChatFocusToggle />
           </div>
-          <div className="w-full min-w-0 @[81rem]:order-1 @[81rem]:w-auto @[81rem]:flex-[1_1_37rem]">{tabs}</div>
+          <div className="w-full min-w-0 @[90rem]:order-1 @[90rem]:w-auto @[90rem]:flex-[1_1_40rem]">{tabs}</div>
         </div>
       </header>
       <div className="mt-3 flex min-h-0 flex-1 flex-col">{children}</div>

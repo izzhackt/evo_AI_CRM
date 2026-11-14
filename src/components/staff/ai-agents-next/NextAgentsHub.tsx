@@ -29,9 +29,9 @@ export function NextAgentsHub({
   return (
     <div className="grid min-w-0 gap-4" data-testid="v3-aia-hub">
       {runtimeConfigured ? null : <NextApiKeyMissing />}
-      <NextAgentsNow list={list} />
+      <NextAgentsNow list={list} runtimeConfigured={runtimeConfigured} />
       {pending?.partial ? <p className="t-meta text-warn" data-testid="v3-aia-pending-partial">Черновики не загрузились — список «Ждут решения» может быть неполным.</p> : null}
-      <NextAgentsDrafts drafts={pending?.drafts ?? []} agents={list.agents} />
+      <NextAgentsDrafts drafts={pending?.drafts ?? []} total={pending?.total ?? null} agents={list.agents} />
       <NextAgentsRoster agents={list.agents} now={list.now} canAskOf={canAskOf} hasInstructionsOf={hasInstructionsOf} canWriteRules={list.isAdmin && !preview} />
 
       <section aria-label="Помощник в чате WhatsApp" data-testid="v3-aia-gemini">

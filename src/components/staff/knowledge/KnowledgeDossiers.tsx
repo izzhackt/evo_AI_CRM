@@ -100,7 +100,7 @@ export function KnowledgeDossiers({ caseId, search, tab: tabParam = null }: { ca
         <button type="button" className={QUEUE_SECONDARY} disabled={busy || !record} onClick={() => void openManual()}>Папка клиента</button>
         <KnowledgeExport caseIds={[caseId]} label="Выгрузить досье" />
       </div>
-      <nav className="flex flex-wrap gap-1 border-b border-border pb-1" aria-label="Материалы клиента">
+      <nav className="flex flex-wrap gap-1" aria-label="Материалы клиента">
         {(Object.keys(TABS) as Tab[]).map((key) => <Link key={key} href={`/knowledge?area=clients&case=${caseId}${key === "documents" ? "" : `&tab=${key}`}`} scroll={false} className={TAB} aria-current={tab === key ? "page" : undefined}>{TABS[key]}</Link>)}
       </nav>
       {tab === "documents" && record && caseDocumentsAwaitCurator(record.state) && <p className="t-body-compact text-fg-2" data-testid="knowledge-documents-await">Документы {caseDocumentsWords.awaitCurator}.</p>}

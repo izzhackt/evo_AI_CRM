@@ -92,6 +92,7 @@ EVO под `.v3-world[data-surface="staff"][data-ui="next"]`; шрифт — Gol
   окна поверх панели `sheetEscape` делает явно (то же событие `cancel`, что дала бы настоящая Esc).
 - `SectionTabs({ label, tabs: { key, label, count?, href?, content? }[], value?, defaultValue?, onValueChange?, className?, focusable? })` —
   у всех вкладок есть `href` — ряд ссылок `?tab=` с `aria-current` (как прежние вкладки профиля); иначе вкладки на месте.
+  Линии под рядом нет (14.11.2026): выбранную вкладку отмечает одна нейтральная плашка `.v3-choice`, рамка фокуса — внутри вкладки.
   `focusable` (только для ряда ссылок) — ряд сам принимает фокус, кольцо рисуется внутри ряда: на него возвращается фокус после
   ответа в панели (профиль).
 - `StatusBadge({ label, tone?: "neutral" | "ok" | "warn" | "danger" | "info", title?, wrap?, className? })` — те же тона, что у `StatusChip`.

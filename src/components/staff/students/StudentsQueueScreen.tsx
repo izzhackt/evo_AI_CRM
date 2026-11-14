@@ -111,7 +111,7 @@ function DocsEmpty({ title, next, href, divider = true }: Readonly<{
   title: string;
   next: DocsNext;
   href: (view: StudentsDocsView) => string;
-  /** Вкладки очередей — без строки инструментов: над пустотой уже линия ряда вкладок. */
+  /** Вкладки очередей — без строки инструментов и без линии над пустотой: ряд вкладок сразу над ней (линии под рядом нет с 14.11.2026). */
   divider?: boolean;
 }>) {
   return <QueueEmpty inline divider={divider} title={title} action={next ? (

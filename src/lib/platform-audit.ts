@@ -116,6 +116,11 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // (`platform.record_payment_details_v1`), and the resource types `student_payment_receipt` and `payment_details`, by the
 // same rename-and-union wrappers (`..._pre_student_receipts`). The rows keep ids, amounts and the reject reason, never the
 // payment details text. They fall through to the `["record_status"]` default of `expectedChangedFieldCodes`.
+// Migration 360 («Чек студента к уже принятой оплате») adds one action, `finance.receipt.attach` (written by
+// `platform.record_student_payment_proof_v1`: one row per file a Student attaches to an already recorded payment), by the same
+// rename-and-union wrapper (`..._pre_student_payment_proof`). Its object is the existing `payment_receipt_file` type, so no resource type
+// is added; the row keeps ids and the file name, never the file. It falls through to the `["record_status"]` default of
+// `expectedChangedFieldCodes`.
 // Migration 344 («Сброс пароля студента администратором») adds one action, `student.password.reset` (written by
 // `platform.complete_student_password_reset_v1`: one row per temporary password an administrator gives a student), by the
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
@@ -279,6 +284,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "finance.payment.record",
   "finance.paymentdetails.update",
   "finance.receipt.accept",
+  "finance.receipt.attach",
   "finance.receipt.reject",
   "finance.receipt.submit",
   "finance.stop.create",

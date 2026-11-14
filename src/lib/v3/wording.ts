@@ -784,6 +784,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "finance.payment.record": "Платёж записан",
   "finance.paymentdetails.update": "Реквизиты для оплаты изменены",
   "finance.receipt.accept": "Чек студента принят",
+  "finance.receipt.attach": "Студент приложил чек к оплате",
   "finance.receipt.reject": "Чек студента отклонён",
   "finance.receipt.submit": "Студент приложил чек",
   "finance.stop.create": "Финансовый стоп поставлен",

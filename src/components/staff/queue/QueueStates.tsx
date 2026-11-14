@@ -23,7 +23,7 @@ export function QueueSkeleton({ rows = 6, label = "Загружаем задач
     <div aria-busy="true" className="space-y-4" data-testid="queue-skeleton">
       <p role="status" className="sr-only">{label}</p>
       {head ? <>
-        <div className="flex gap-2 border-b border-border pb-2">
+        <div className="flex gap-2">
           {["w-20", "w-26", "w-30"].map((width) => <SkeletonBlock key={width} className={`h-11 rounded-nav ${width}`} />)}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -53,7 +53,7 @@ export function QueueSkeleton({ rows = 6, label = "Загружаем задач
  * Честная пустота: что именно пусто и одно подходящее действие. `inline` —
  * действие в той же строке, что и слова (EVO Docs: «Проверять нечего. Не
  * хватает: 1 →»); на узкой строке оно переносится целиком. `divider={false}`
- * — без линии сверху, когда прямо над пустотой уже линия ряда вкладок.
+ * — без линии сверху (прежний вид EVO Docs; у рядов вкладок линии нет с 14.11.2026).
  */
 export function QueueEmpty({ title, action = null, inline = false, divider = true }: Readonly<{
   title: string;

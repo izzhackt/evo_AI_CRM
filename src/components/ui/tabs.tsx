@@ -22,10 +22,11 @@ function Tabs({ className, orientation = "horizontal", ...props }: React.Compone
   );
 }
 
+/** `line` — ряд во всю ширину; линии под ним нет (14.11.2026): выбранную вкладку отмечает одна нейтральная плашка. */
 const tabsListVariants = cva("flex w-fit max-w-full items-center gap-1 overflow-x-auto", {
   variants: {
     variant: {
-      line: "w-full border-b border-border pb-2",
+      line: "w-full",
       default: "rounded-ctl bg-surface-2 p-1",
     },
   },

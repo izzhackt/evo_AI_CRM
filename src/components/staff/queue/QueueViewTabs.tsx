@@ -18,25 +18,19 @@ export type QueueTab = Readonly<{
  * переносится (высота шапки не меняется, когда рядом открыта панель): лишнее
  * прокручивается вбок внутри ряда, текущая вкладка видна (`QueueTabStrip`).
  */
-export function QueueViewTabs({ label, tabs, id, bare = false, focusable = false }: Readonly<{
+export function QueueViewTabs({ label, tabs, id, focusable = false }: Readonly<{
   label: string;
   tabs: readonly QueueTab[];
   /** Якорь ряда вкладок (например, прежний адрес `#admissions-summary`). */
   id?: string;
-  /**
-   * Без линии под рядом: вкладки стоят в строке шапки рядом с названием (чат «Поручить»), а не над содержимым.
-   * Ряд тогда ровно по высоте вкладки и обрезает рамку фокуса снаружи — она рисуется внутри (`data-tab-ring`, staff.css).
-   */
-  bare?: boolean;
-  /** Вкладки профиля: ряд сам принимает фокус, рамка фокуса вкладки внутри (`QueueTabStrip`). */
+  /** Вкладки профиля: ряд сам принимает фокус — на него возвращается фокус после ответа в панели (`QueueTabStrip`). */
   focusable?: boolean;
 }>) {
   return (
     <QueueTabStrip id={id} label={label} focusable={focusable}>
-      <ul
-        className={bare ? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"}
-        data-tab-ring={bare ? "inset" : undefined}
-      >
+      {/* Без линии под рядом (14.11.2026, «выбранное выделено дважды»): выбранную вкладку отмечает одна нейтральная плашка.
+          Ряд ровно по высоте вкладки, поэтому рамка фокуса рисуется внутри (`data-tab-ring`, staff.css) и не обрезается. */}
+      <ul className="flex min-w-max items-center gap-1" data-tab-ring="inset">
         {tabs.map((tab) => (
           <li key={tab.key}>
             <Link

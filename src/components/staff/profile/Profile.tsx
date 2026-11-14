@@ -201,7 +201,7 @@ export function Profile({
         />
       ) : tabs.length > 1 ? (
         <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
-          <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
+          <ul className="flex min-w-max items-center gap-1">
             {tabs.map((entry) => (
               <li key={entry.key}>
                 <Link

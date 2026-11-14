@@ -13,7 +13,7 @@ export function ProfileSkeleton() {
         <div className="space-y-1.5"><SkeletonBlock className="h-3 w-12 rounded-nav" /><SkeletonBlock className="h-4 w-48 rounded-nav" /></div>
         <div className="min-w-0 flex-1 space-y-1.5"><SkeletonBlock className="h-3 w-20 rounded-nav" /><SkeletonBlock className="h-4 w-2/3 rounded-nav" /></div>
       </div>
-      <div className="flex gap-2 border-b border-border pb-2">
+      <div className="flex gap-2">
         {["w-20", "w-30", "w-20", "w-24"].map((width, index) => <SkeletonBlock key={index} className={`h-11 rounded-nav ${width}`} />)}
       </div>
       <div className="grid gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1fr)_22rem]">

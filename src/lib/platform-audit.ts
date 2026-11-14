@@ -119,8 +119,8 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // Migration 360 («Чек студента к уже принятой оплате») adds one action, `finance.receipt.attach` (written by
 // `platform.record_student_payment_proof_v1`: one row per file a Student attaches to an already recorded payment), by the same
 // rename-and-union wrapper (`..._pre_student_payment_proof`). Its object is the existing `payment_receipt_file` type, so no resource type
-// is added; the row keeps ids and the file name, never the file. It falls through to the `["record_status"]` default of
-// `expectedChangedFieldCodes`.
+// is added; the row keeps ids and the file name, never the file. Like every `finance.*` action it maps to `["finance_status"]`
+// in `expectedChangedFieldCodes` (the `finance.` branch), exactly like the server's `finance.%` branch of `p7a_changed_field_codes` (071).
 // Migration 344 («Сброс пароля студента администратором») adds one action, `student.password.reset` (written by
 // `platform.complete_student_password_reset_v1`: one row per temporary password an administrator gives a student), by the
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the

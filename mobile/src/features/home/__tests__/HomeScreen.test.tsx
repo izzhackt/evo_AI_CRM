@@ -259,9 +259,11 @@ describe("Главная: кыргызский и доступность", () =>
     const { transport } = fakeTransport(assistedHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport), "ky");
     expect(await screen.findByText("Азыр эмне кылуу керек")).toBeTruthy();
-    expect(screen.getByText("Менин тизмем")).toBeTruthy();
-    expect(screen.getByText("7 кадамдын 2-кадамы", { exact: false })).toBeTruthy();
-    expect(screen.getByText("Жакынкы даталар")).toBeTruthy();
+    // Блоки приходят из разных запросов: после первого блока остальные могут ещё не нарисоваться
+    // (в полном прогоне под нагрузкой тест иногда падал на синхронном getByText), поэтому ждём каждый.
+    expect(await screen.findByText("Менин тизмем", {}, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText("7 кадамдын 2-кадамы", { exact: false }, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText("Жакынкы даталар", {}, { timeout: 5000 })).toBeTruthy();
   });
 
   it("кнопки и ссылки не меньше 44 pt, у интерактивных есть роль и имя", async () => {

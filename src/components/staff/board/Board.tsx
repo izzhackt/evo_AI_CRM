@@ -195,20 +195,22 @@ export type BoardSegment = Readonly<{
   active: boolean;
 }>;
 
-/** Сегменты-ссылки с числами: «Срок» на продажах, разделы на поступлении. */
+/** Сегменты-ссылки с числами: «Срок» на продажах, разделы на поступлении. `bare` — без общей рамки, как ряд вкладок (период «Маркетинга»). */
 export function BoardSegments({
   label,
   showLabel = false,
+  bare = false,
   items,
 }: Readonly<{
   label: string;
   showLabel?: boolean;
+  bare?: boolean;
   items: readonly BoardSegment[];
 }>) {
   return (
     <nav aria-label={label} className="flex min-w-0 items-center gap-2">
       {showLabel ? <span aria-hidden="true" className="t-label shrink-0 text-fg-3">{label}</span> : null}
-      <ul className="flex min-w-0 flex-wrap items-center gap-0.5 rounded-ctl border border-border bg-surface p-0.5">
+      <ul className={cn("flex min-w-0 flex-wrap items-center gap-0.5", !bare && "rounded-ctl border border-border bg-surface p-0.5")}>
         {items.map((item) => (
           <li key={item.key}>
             <Link

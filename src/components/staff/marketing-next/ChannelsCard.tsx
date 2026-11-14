@@ -11,9 +11,13 @@ import { ReportTable, type ReportTableRow } from "@/components/staff/admin-next/
 
 type Cells = Pick<CohortChannelRow, "leads" | "qualified" | "handedOff" | "contract" | "contractLinked" | "paid" | "paidWithoutAmount"> & { paidAmounts?: CohortChannelRow["paidAmounts"] };
 
+/** Ноль и прочерк — серым (14.11.2026): настоящие числа читаются с первого взгляда, пустые ячейки не спорят с ними. */
+const quiet = (text: string) => <span className="text-fg-3">{text}</span>;
+const count = (value: number) => (value === 0 ? quiet("0") : n(value));
+
 /** Доля заявок периода, дошедших до этапа: «7 из 23 · 30 %» и тонкая полоса цвета канала (от 10 заявок); меньше — только «N из M». */
 function share(part: number, row: Cells) {
-  if (row.leads <= 0) return "—";
+  if (row.leads <= 0) return quiet("—");
   return row.leads < MARKETING_MIN_FOR_SHARE ? shareText(part, row.leads) : <>{shareText(part, row.leads)}<ShareMeter part={part} whole={row.leads} /></>;
 }
 
@@ -48,7 +52,7 @@ export function ChannelsCard({ overview, unknownHref }: Readonly<{ overview: Mar
     return {
       key: row.channel, channel: row.channel,
       head: <><ChannelLabel channel={row.channel}>{LEAD_CHANNELS[row.channel]}</ChannelLabel>{basis ? <span className="block pl-4 t-meta font-normal text-fg-3">{basis}</span> : null}</>,
-      cells: [n(row.leads), ...stageCells(row)],
+      cells: [count(row.leads), ...stageCells(row)],
     };
   });
   return (
@@ -68,7 +72,9 @@ export function ChannelsCard({ overview, unknownHref }: Readonly<{ overview: Mar
           label="Таблица заявок по каналам"
           columns={["Откуда узнал", "Заявки", "Квалифицированы", "Переданы", "Договор", "Оплатили"]}
           rows={rows}
-          foot={{ head: "Всего", cells: [n(cohort.totals.leads), ...stageCells({ ...cohort.totals })] }}
+          foot={{ head: "Всего", cells: [count(cohort.totals.leads), ...stageCells({ ...cohort.totals })] }}
+          // На телефоне канал — строка «название · Заявки N» со стрелкой; этапы раскрываются нажатием, а не пять строк на канал.
+          fold
         />
         <KeyFacts columns={4} facts={[
           { label: "Заявки с сайта", value: <span data-testid="marketing-website-source" className="tabular-nums">{n(cohort.sourceKeys.website ?? 0)}</span> },

@@ -19,7 +19,8 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
 }
 
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-  return <tfoot data-slot="table-footer" className={cn("border-t border-border bg-surface-2 t-item [&>tr]:last:border-b-0", className)} {...props} />;
+  // Строка итога без заливки (подкрашивать строку нельзя): её отмечают линия сверху и вес.
+  return <tfoot data-slot="table-footer" className={cn("border-t border-border t-item [&>tr]:last:border-b-0", className)} {...props} />;
 }
 
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {

@@ -34,7 +34,7 @@ export function SalesCard({ overview }: Readonly<{ overview: MarketingOverview }
             key: row.channel, channel: row.channel,
             head: <ChannelLabel channel={row.channel}>{row.channel === "without_lead" ? "Без привязки к лиду" : LEAD_CHANNELS[row.channel]}</ChannelLabel>,
             cells: [
-              <>{n(row.contracts)}{row.linkedManually > 0 ? <span className="block t-meta text-fg-3">связано вручную {n(row.linkedManually)}</span> : null}</>,
+              <>{row.contracts === 0 ? <span className="text-fg-3">0</span> : n(row.contracts)}{row.linkedManually > 0 ? <span className="block t-meta text-fg-3">связано вручную {n(row.linkedManually)}</span> : null}</>,
               <>
                 {row.amounts.length ? <MoneyLines items={row.amounts} noun={contractsWord} primary /> : <span className="text-fg-3">{row.contracts > 0 ? "сумма не указана" : "—"}</span>}
                 {row.amounts.length > 0 && row.amountMissing > 0 ? <span className="block t-meta text-fg-3">без суммы: {n(row.amountMissing)}</span> : null}

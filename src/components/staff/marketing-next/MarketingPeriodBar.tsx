@@ -13,7 +13,8 @@ import type { MarketingNextProps } from "./marketing-next-types";
 export function MarketingPeriodBar({ period }: Readonly<{ period: NonNullable<MarketingNextProps["period"]> }>) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3">
-      <BoardSegments label="Период" items={period.choices.map((choice) => ({ ...choice, count: null }))} />
+      {/* Без общей рамки (14.11.2026): период рядом с вкладками «Обзор / Заявки» и такой же лёгкий; на телефоне пять слов встают в ряд. */}
+      <BoardSegments label="Период" bare items={period.choices.map((choice) => ({ ...choice, count: null }))} />
       {period.range ? (
         <form method="get" action="/marketing" className="flex flex-wrap items-end gap-2" aria-label="Свой период">
           {Object.entries(period.hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}

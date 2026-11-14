@@ -112,6 +112,26 @@ test("deletion strings name the 30-day deadline and the kept records", async () 
   assert.equal(Object.hasOwn(PORTAL_DICTIONARIES.profile.ru, "deleteDescription"), false);
 });
 
+// Решение владельца 14.11.2026: на рабочем экране кабинета у «Удалить аккаунт» нет поясняющих абзацев о сроке и
+// хранении записей (они остались анкете и экрану ожидания); окно подтверждения говорит своими словами.
+test("the portal look of the deletion panel shows no explanatory notes; the apply look keeps them", () => {
+  const panel = source("src/components/account-deletion/AccountDeletionPanel.tsx");
+  assert.match(panel, /portal: \{\s*notes: false,/u);
+  assert.match(panel, /apply: \{\s*notes: true,/u);
+  assert.match(panel, /\{cls\.notes \? <p className=\{cls\.text\}>\{strings\.keptNote\}<\/p> : null\}/u);
+  assert.match(panel, /\{cls\.notes \? \(\s*<>\s*<p className=\{cls\.text\}>\{strings\.description\}<\/p>\s*<p className=\{cls\.text\}>\{strings\.keptNote\}<\/p>\s*<\/>\s*\) : null\}/u);
+  // Кнопка, окно подтверждения со своими словами и статус запроса остаются.
+  assert.match(panel, /strings\.action/u);
+  assert.match(panel, /strings\.confirmQuestion/u);
+  assert.match(panel, /strings\.confirmNote/u);
+  assert.match(panel, /strings\.requested/u);
+  // Кабинет рисует панель в «portal»-облике, анкета и экран ожидания в «apply».
+  assert.match(source("src/app/(portal)/portal/profile/page.tsx"), /look="portal"/u);
+  for (const page of ["src/app/apply/page.tsx", "src/app/apply/status/page.tsx", "src/app/auth/account-pending/page.tsx"]) {
+    assert.match(source(page), /look="apply"/u, page);
+  }
+});
+
 // #1360 (09.11.2026): «Мои данные» в профиле. Телефон в кабинете не правится: RPC для этого нет, поэтому страница
 // честно говорит, кто его меняет; пароль меняется формой кабинета, «Выйти» есть и в меню телефона.
 test("my data block shows name, email and login read-only; phone is not invented; logout is in the phone menu", async () => {

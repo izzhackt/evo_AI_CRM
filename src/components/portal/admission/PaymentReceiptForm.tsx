@@ -1,8 +1,11 @@
 "use client";
 
+import { FileText, Image as ImageIcon, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
+import type { PortalStrings } from "@/lib/portal/i18n";
 import {
   PAYMENT_RECEIPT_MAX_BYTES,
   PAYMENT_RECEIPT_MIME_TYPES,
@@ -11,144 +14,351 @@ import {
   paymentReceiptErrorKey,
   receiptAmountToMinor,
 } from "@/lib/portal/payment-center";
-import type { PortalStrings } from "@/lib/portal/i18n";
 
 type Strings = PortalStrings<"admission">;
 
-export type ReceiptFormDue = Readonly<{ obligationId: string; label: string; currency: string; outstandingMinor: number }>;
-
-const subscribe = () => () => {};
-const onClient = () => true;
-const onServer = () => false;
+const MIME = PAYMENT_RECEIPT_MIME_TYPES as readonly string[];
 
 function bishkekToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bishkek" });
 }
 
-/**
- * «Приложить чек» (миграция 358): раскрывающаяся форма на месте, без окна. Либо к одному платежу (`fixedDue`), либо без платежа
- * (`dues` - подсказка, к какому платежу, необязательно). Файл уходит одним запросом; ключ повтора живёт, пока попытка не
- * завершится, поэтому повтор после обрыва сети не создаёт второй чек.
- */
-export function PaymentReceiptForm({
-  strings,
-  label,
-  fixedDue,
-  dues,
-}: Readonly<{ strings: Strings; label: string; fixedDue?: ReceiptFormDue; dues?: readonly ReceiptFormDue[] }>) {
-  const hydrated = useSyncExternalStore(subscribe, onClient, onServer);
-  const router = useRouter();
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const attemptKey = useRef<string | null>(null);
-  const [dueId, setDueId] = useState(fixedDue?.obligationId ?? "");
-  const chosen = fixedDue ?? dues?.find((item) => item.obligationId === dueId) ?? null;
-  const [amount, setAmount] = useState(fixedDue && fixedDue.outstandingMinor > 0 ? minorToReceiptInput(fixedDue.outstandingMinor) : "");
-  const [currency, setCurrency] = useState(fixedDue?.currency ?? dues?.[0]?.currency ?? "KGS");
-  const [paidOn, setPaidOn] = useState(bishkekToday);
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [errorKey, setErrorKey] = useState<string>("receiptErrorUnavailable");
-  const text = strings as Readonly<Record<string, string>>;
+function fileProblem(file: File): "receiptErrorTooLarge" | "receiptErrorFileType" | null {
+  if (file.size > PAYMENT_RECEIPT_MAX_BYTES || file.size < 1) return "receiptErrorTooLarge";
+  if (!MIME.includes(file.type)) return "receiptErrorFileType";
+  return null;
+}
 
-  function pickDue(value: string) {
-    setDueId(value);
-    const next = dues?.find((item) => item.obligationId === value);
-    if (next) {
-      setCurrency(next.currency);
-      if (next.outstandingMinor > 0) setAmount(minorToReceiptInput(next.outstandingMinor));
+async function postReceipt(body: FormData, attemptKey: { current: string | null }): Promise<{ ok: true } | { ok: false; errorKey: string }> {
+  attemptKey.current ??= crypto.randomUUID();
+  try {
+    const response = await fetch(PAYMENT_RECEIPT_UPLOAD_PATH, {
+      method: "POST",
+      body,
+      headers: { "Idempotency-Key": attemptKey.current },
+    });
+    if (response.status === 201 || response.status === 200) {
+      attemptKey.current = null;
+      return { ok: true };
     }
+    const result: unknown = await response.json().catch(() => null);
+    const code = result && typeof result === "object" && "error" in result ? (result as { error: unknown }).error : null;
+    if (response.status < 500) attemptKey.current = null;
+    return { ok: false, errorKey: paymentReceiptErrorKey(code) };
+  } catch {
+    return { ok: false, errorKey: "receiptErrorUnavailable" };
+  }
+}
+
+function ErrorLine({ strings, errorKey }: Readonly<{ strings: Strings; errorKey: string | null }>) {
+  if (!errorKey) return null;
+  const text = strings as Readonly<Record<string, string>>;
+  return <p role="alert" className="pt-receipt-error">{text[errorKey] ?? strings.receiptErrorUnavailable}</p>;
+}
+
+function FileGlyph({ name }: Readonly<{ name: string }>) {
+  const Icon = /\.(png|jpe?g)$/i.test(name) ? ImageIcon : FileText;
+  return <Icon aria-hidden size={16} />;
+}
+
+function HiddenFileInput({
+  inputRef,
+  label,
+  disabled,
+  onPick,
+}: Readonly<{ inputRef: React.RefObject<HTMLInputElement | null>; label: string; disabled: boolean; onPick: (file: File | undefined) => void }>) {
+  return (
+    <input
+      ref={inputRef}
+      className="pt-pay-file-input"
+      type="file"
+      accept="image/jpeg,image/png,application/pdf"
+      aria-label={label}
+      tabIndex={-1}
+      disabled={disabled}
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        onPick(file);
+      }}
+    />
+  );
+}
+
+/**
+ * Фокус с клавиатуры. Кнопка выбора файла и форма исчезают при выборе и при отправке, и фокус падал на <body>: «Сохранить» приходилось
+ * искать заново, а Enter ничего не отправлял. Поэтому после смены экрана фокус ставится сразу, в самом обработчике: `flushSync` дорисовывает
+ * новый экран, и кнопка или текст уже в DOM. Хуков-эффектов здесь нет: экраны admission/ держит без них tests/v3-student-portal-ui.test.mjs.
+ */
+function focusNow(target: { current: HTMLElement | null }) {
+  target.current?.focus();
+}
+
+/**
+ * Ячейка «Чек» у строки платежа: выбрать файл и «Сохранить», либо «Заменить» у отклонённого.
+ * Сумма и валюта — у строки, дата оплаты — день чека или сегодня по Бишкеку. Тот же POST, что и раньше.
+ */
+export function ReceiptSlot({
+  strings,
+  obligationId,
+  amountMinor,
+  currency,
+  paidOn,
+  mode,
+}: Readonly<{
+  strings: Strings;
+  obligationId: string | null;
+  amountMinor: number;
+  currency: string;
+  paidOn: string | null;
+  mode: "attach" | "replace";
+}>) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
+  const attemptKey = useRef<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const locked = state === "sending";
+
+  function pick(next: File | undefined) {
+    if (!next) return;
+    const problem = fileProblem(next);
+    if (problem) {
+      setFile(null);
+      setErrorKey(problem);
+      return;
+    }
+    setErrorKey(null);
+    flushSync(() => setFile(next));
+    focusNow(saveRef);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!hydrated || state === "sending") return;
-    const file = fileRef.current?.files?.[0];
-    const minor = receiptAmountToMinor(amount);
-    const cur = (chosen?.currency ?? currency).trim().toUpperCase();
-    if (!file || !minor || !/^[A-Z]{3}$/.test(cur) || !paidOn || !(PAYMENT_RECEIPT_MIME_TYPES as readonly string[]).includes(file.type)
-      || file.size < 1 || file.size > PAYMENT_RECEIPT_MAX_BYTES) {
-      setErrorKey(file && file.size > PAYMENT_RECEIPT_MAX_BYTES ? "receiptErrorTooLarge" : file && !(PAYMENT_RECEIPT_MIME_TYPES as readonly string[]).includes(file.type) ? "receiptErrorFileType" : "receiptErrorInvalid");
-      setState("error");
+    if (locked || !file) return;
+    const amount = minorToReceiptInput(amountMinor);
+    const cur = currency.trim().toUpperCase();
+    const day = paidOn ?? bishkekToday();
+    if (!receiptAmountToMinor(amount) || !/^[A-Z]{3}$/.test(cur) || !day) {
+      setErrorKey("receiptErrorInvalid");
       return;
     }
-    attemptKey.current ??= crypto.randomUUID();
+    const body = new FormData();
+    body.set("file", file);
+    body.set("amount", amount);
+    body.set("currency", cur);
+    body.set("paid_on", day);
+    if (obligationId) body.set("payment_obligation_id", obligationId);
     setState("sending");
-    try {
-      const body = new FormData();
-      body.set("file", file);
-      body.set("amount", amount);
-      body.set("currency", cur);
-      body.set("paid_on", paidOn);
-      if (chosen) body.set("payment_obligation_id", chosen.obligationId);
-      const response = await fetch(PAYMENT_RECEIPT_UPLOAD_PATH, { method: "POST", body, headers: { "Idempotency-Key": attemptKey.current } });
-      if (response.status === 201 || response.status === 200) {
-        attemptKey.current = null;
-        setState("sent");
-        router.refresh();
-        return;
-      }
-      const result: unknown = await response.json().catch(() => null);
-      const code = result && typeof result === "object" && "error" in result ? (result as { error: unknown }).error : null;
-      // Отказ сервера по существу (не сеть, не 5xx) - новая попытка получит новый ключ.
-      if (response.status < 500) attemptKey.current = null;
-      setErrorKey(paymentReceiptErrorKey(code));
-      setState("error");
-    } catch {
-      setErrorKey("receiptErrorUnavailable");
-      setState("error");
+    const result = await postReceipt(body, attemptKey);
+    if (result.ok) {
+      flushSync(() => setState("sent"));
+      focusNow(sentRef);
+      router.refresh();
+      return;
     }
+    setErrorKey(result.errorKey);
+    setState("idle");
   }
 
-  if (state === "sent") {
-    return <p role="status" className="pt-receipt-sent">{strings.receiptSent}</p>;
-  }
-  const locked = !hydrated || state === "sending";
+  if (state === "sent") return <p ref={sentRef} tabIndex={-1} role="status" className="pt-receipt-sent">{strings.receiptSent}</p>;
+
   return (
-    <details ref={detailsRef} className="pt-receipt-form">
-      <summary className="pt-link pt-receipt-summary">{label}</summary>
-      <form onSubmit={submit} className="pt-receipt-fields" aria-busy={locked}>
-        <p className="pt-profile-note">{strings.receiptDialogLead}</p>
-        {!fixedDue && dues && dues.length > 0 ? (
-          <label className="pt-field">
-            <span className="pt-field-label">{strings.receiptFieldPayment}</span>
-            <select className="pt-input" value={dueId} onChange={(event) => pickDue(event.target.value)} disabled={locked}>
-              <option value="">{strings.receiptFieldPaymentNone}</option>
-              {dues.map((item) => (
-                <option key={item.obligationId} value={item.obligationId}>{item.label} · {item.currency}</option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <div className="pt-receipt-row">
-          <label className="pt-field">
-            <span className="pt-field-label">{strings.receiptFieldAmount}</span>
-            <input className="pt-input pt-data" inputMode="decimal" autoComplete="off" required value={amount} disabled={locked}
-              onChange={(event) => setAmount(event.target.value)} placeholder="0.00" />
-          </label>
-          <label className="pt-field">
-            <span className="pt-field-label">{strings.receiptFieldCurrency}</span>
-            <input className="pt-input pt-data" maxLength={3} required value={chosen?.currency ?? currency} disabled={locked || chosen !== null}
-              onChange={(event) => setCurrency(event.target.value.toUpperCase())} />
-          </label>
-          <label className="pt-field">
-            <span className="pt-field-label">{strings.receiptFieldDate}</span>
-            <input className="pt-input pt-data" type="date" required value={paidOn} max={bishkekToday()} disabled={locked}
-              onChange={(event) => setPaidOn(event.target.value)} />
-          </label>
-        </div>
-        <label className="pt-field">
-          <span className="pt-field-label">{strings.receiptFieldFile}</span>
-          <input ref={fileRef} className="pt-input pt-receipt-file" type="file" accept="image/jpeg,image/png,application/pdf" required disabled={locked} />
-          <span className="pt-profile-note">{strings.receiptFieldFileHint}</span>
-        </label>
-        <div className="pt-password-actions">
-          <button type="submit" className="pt-btn" disabled={locked}>{state === "sending" ? strings.receiptSubmitting : strings.receiptSubmit}</button>
-          <button type="button" className="pt-btn-ghost" disabled={locked} onClick={() => { if (detailsRef.current) detailsRef.current.open = false; setState("idle"); }}>
-            {strings.receiptCancel}
+    <div className="pt-pay-slot-wrap">
+      <HiddenFileInput inputRef={inputRef} label={strings.receiptFieldFile} disabled={locked} onPick={pick} />
+      {file ? (
+        <form onSubmit={submit} className="pt-pay-picked" aria-busy={locked}>
+          <span className="pt-pay-file">
+            <FileGlyph name={file.name} />
+            <span className="pt-pay-filename">{file.name}</span>
+          </span>
+          <button type="button" className="pt-pay-clear" aria-label={strings.receiptClearFile} disabled={locked} onClick={() => setFile(null)}>
+            <X aria-hidden size={14} />
           </button>
+          <button ref={saveRef} type="submit" className="pt-btn pt-pay-save" disabled={locked}>
+            {locked ? strings.receiptSaving : strings.receiptSave}
+          </button>
+        </form>
+      ) : (
+        <button type="button" className={mode === "replace" ? "pt-pay-textbtn" : "pt-pay-slot"} disabled={locked} onClick={() => inputRef.current?.click()}>
+          {mode === "attach" ? <Plus aria-hidden size={14} /> : null}
+          {mode === "replace" ? strings.replaceButton : strings.receiptAttach}
+        </button>
+      )}
+      <ErrorLine strings={strings} errorKey={errorKey} />
+    </div>
+  );
+}
+
+/** «Добавить платёж»: сумма, валюта, дата и чек без платежа в графике. Куратор относит его сам — прежний путь «чека без платежа». */
+export function AddPaymentForm({
+  strings,
+  currencies,
+  defaultCurrency,
+  onClose,
+}: Readonly<{ strings: Strings; currencies: readonly string[]; defaultCurrency: string; onClose: () => void }>) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
+  const attemptKey = useRef<string | null>(null);
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState(defaultCurrency);
+  const [paidOn, setPaidOn] = useState(bishkekToday);
+  const [file, setFile] = useState<File | null>(null);
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const locked = state === "sending";
+
+  function pick(next: File | undefined) {
+    if (!next) return;
+    const problem = fileProblem(next);
+    if (problem) {
+      setFile(null);
+      setErrorKey(problem);
+      return;
+    }
+    setErrorKey(null);
+    flushSync(() => setFile(next));
+    focusNow(saveRef);
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (locked) return;
+    const minor = receiptAmountToMinor(amount);
+    const cur = currency.trim().toUpperCase();
+    if (!file || !minor || !/^[A-Z]{3}$/.test(cur) || !paidOn) {
+      setErrorKey(!file ? (errorKey === "receiptErrorTooLarge" || errorKey === "receiptErrorFileType" ? errorKey : "receiptErrorInvalid") : "receiptErrorInvalid");
+      return;
+    }
+    const problem = fileProblem(file);
+    if (problem) {
+      setErrorKey(problem);
+      return;
+    }
+    const body = new FormData();
+    body.set("file", file);
+    body.set("amount", amount.trim());
+    body.set("currency", cur);
+    body.set("paid_on", paidOn);
+    setState("sending");
+    const result = await postReceipt(body, attemptKey);
+    if (result.ok) {
+      flushSync(() => setState("sent"));
+      focusNow(sentRef);
+      router.refresh();
+      return;
+    }
+    setErrorKey(result.errorKey);
+    setState("idle");
+  }
+
+  if (state === "sent") return <p ref={sentRef} tabIndex={-1} role="status" className="pt-receipt-sent pt-pay-add-sent">{strings.receiptSent}</p>;
+
+  return (
+    <form className="pt-pay-add" onSubmit={submit} aria-busy={locked}>
+      <div className="pt-pay-add-grid">
+        <label className="pt-field">
+          <span className="pt-field-label">{strings.receiptFieldAmount}</span>
+          <input className="pt-input pt-data" inputMode="decimal" autoComplete="off" required autoFocus value={amount} disabled={locked}
+            onChange={(event) => setAmount(event.target.value)} placeholder="0.00" />
+        </label>
+        <label className="pt-field">
+          <span className="pt-field-label">{strings.receiptFieldCurrency}</span>
+          <input className="pt-input pt-data" list="pay-currencies" maxLength={3} required value={currency} disabled={locked}
+            onChange={(event) => setCurrency(event.target.value.toUpperCase())} />
+          <datalist id="pay-currencies">
+            {currencies.map((code) => <option key={code} value={code} />)}
+          </datalist>
+        </label>
+        <label className="pt-field">
+          <span className="pt-field-label">{strings.receiptFieldDate}</span>
+          <input className="pt-input pt-data" type="date" required value={paidOn} max={bishkekToday()} disabled={locked}
+            onChange={(event) => setPaidOn(event.target.value)} />
+        </label>
+        <div className="pt-field">
+          <span className="pt-field-label">{strings.receiptColumnReceipt}</span>
+          <HiddenFileInput inputRef={inputRef} label={strings.receiptFieldFile} disabled={locked} onPick={pick} />
+          {file ? (
+            <span className="pt-pay-picked">
+              <span className="pt-pay-file">
+                <FileGlyph name={file.name} />
+                <span className="pt-pay-filename">{file.name}</span>
+              </span>
+              <button type="button" className="pt-pay-clear" aria-label={strings.receiptClearFile} disabled={locked} onClick={() => setFile(null)}>
+                <X aria-hidden size={14} />
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="pt-pay-slot" disabled={locked} onClick={() => inputRef.current?.click()}>
+              <Plus aria-hidden size={14} />
+              {strings.receiptAttach}
+            </button>
+          )}
         </div>
-        {state === "error" ? <p role="alert" className="pt-receipt-error">{text[errorKey] ?? strings.receiptErrorUnavailable}</p> : null}
-      </form>
-    </details>
+        <div className="pt-pay-add-actions">
+          <button ref={saveRef} type="submit" className="pt-btn pt-pay-save" disabled={locked}>{locked ? strings.receiptSaving : strings.receiptSave}</button>
+          <button type="button" className="pt-btn-ghost" disabled={locked} onClick={onClose}>{strings.receiptCancel}</button>
+        </div>
+      </div>
+      <p className="pt-pay-hint">{strings.receiptAddHint}</p>
+      <ErrorLine strings={strings} errorKey={errorKey} />
+    </form>
+  );
+}
+
+/** Шапка «Платежи» и кнопка, которая открывает форму нового платежа над списком. */
+export function PaymentsSection({
+  strings,
+  canUpload,
+  currencies,
+  defaultCurrency,
+  children,
+}: Readonly<{
+  strings: Strings;
+  canUpload: boolean;
+  currencies: readonly string[];
+  defaultCurrency: string;
+  children: ReactNode;
+}>) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+
+  function close() {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }
+
+  return (
+    <section className="pt-card pt-pay-card" aria-labelledby="pay-list">
+      <header className="pt-card-header">
+        <div className="pt-card-header-main">
+          <h2 id="pay-list" className="pt-card-title">{strings.paymentsHeading}</h2>
+          <p className="pt-card-note">{strings.bishkekNote}</p>
+        </div>
+        {canUpload ? (
+          <button
+            ref={buttonRef}
+            type="button"
+            className="pt-btn"
+            aria-expanded={open}
+            aria-controls="pay-add-form"
+            data-testid="portal-add-payment"
+            onClick={() => setOpen((value) => !value)}
+          >
+            <Plus aria-hidden size={14} />
+            {strings.receiptAddPayment}
+          </button>
+        ) : null}
+      </header>
+      <div id="pay-add-form" hidden={!open}>
+        {open ? <AddPaymentForm strings={strings} currencies={currencies} defaultCurrency={defaultCurrency} onClose={close} /> : null}
+      </div>
+      {children}
+    </section>
   );
 }

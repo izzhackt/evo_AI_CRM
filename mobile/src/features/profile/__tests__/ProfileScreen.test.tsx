@@ -79,7 +79,7 @@ describe("ProfileScreen", () => {
     await renderPortal(<ProfileScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("profile-lang-ky"));
     expect(await screen.findByText("Не удалось сохранить язык. Повторите.")).toBeTruthy();
-    expect(screen.getByText("Удаление аккаунта")).toBeTruthy();
+    expect(screen.getByTestId("deletion-start")).toBeTruthy();
   });
 
   it("политика и поддержка открываются в браузере, лицензии — экраном со списком", async () => {
@@ -103,6 +103,21 @@ describe("ProfileScreen", () => {
     await renderPortal(<ProfileScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("profile-privacy"));
     expect(await screen.findByText("Не удалось открыть ссылку.")).toBeTruthy();
+  });
+
+  it("«Конфиденциальность» (решение владельца 14.11.2026): политика, поддержка, согласие на ИИ и удаление в одной секции, без объяснений", async () => {
+    const { transport } = fakeTransport(handlers({ portal_ai_consent_get_v1: { ...CONSENT, status: "granted", policyVersion: "2026-10-25", decidedAt: "2026-11-02T10:00:00+00:00" } }));
+    await renderPortal(<ProfileScreen />, testApi(transport));
+    await screen.findByTestId("ai-consent-revoke");
+    expect(screen.getByText("Конфиденциальность")).toBeTruthy();
+    expect(screen.getByText("Политика конфиденциальности")).toBeTruthy();
+    expect(screen.getByText("Поддержка EVO")).toBeTruthy();
+    expect(screen.getByText("Отозвать согласие на ИИ")).toBeTruthy();
+    expect(screen.getByText("Удалить аккаунт")).toBeTruthy();
+    // Объяснений о данных на рабочем экране нет: ни про чтение ИИ, ни про срок удаления и хранение записей.
+    for (const phrase of [/читают вашу переписку/, /Anthropic/, /Не разрешать/, /в течение 30 дней/, /хранятся обезличенно/, /Условия обновились/, /стёрты/]) {
+      expect(screen.queryByText(phrase)).toBeNull();
+    }
   });
 
   it("выход: signOut вызывается; блок согласия на ИИ и удаления на экране", async () => {

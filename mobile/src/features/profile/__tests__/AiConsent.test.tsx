@@ -53,7 +53,7 @@ describe("запись согласия: идемпотентность", () => 
 });
 
 describe("строка в Профиле", () => {
-  it("разрешено: слово и дата, кнопка «Отозвать согласие» пишет отказ", async () => {
+  it("разрешено: подпись, слово и одна кнопка «Отозвать согласие на ИИ» пишет отказ", async () => {
     const { transport, calls } = fakeTransport({ portal_ai_consent_get_v1: decided("granted"), portal_ai_consent_set_v1: decided("declined") });
     await renderPortal(<AiConsentRow />, testApi(transport));
     expect((await screen.findByTestId("ai-consent-state")).props.children).toBeTruthy();
@@ -62,6 +62,30 @@ describe("строка в Профиле", () => {
     expect(await screen.findByText("Отказ сохранён.")).toBeTruthy();
     expect(calls.find((c) => c.name === "portal_ai_consent_set_v1")?.args?.p_status).toBe("declined");
     expect(screen.getByText("Не разрешено")).toBeTruthy();
+  });
+
+  it("отказ: та же строка даёт согласие снова одной кнопкой, без объяснений и второй кнопки", async () => {
+    const { transport, calls } = fakeTransport({ portal_ai_consent_get_v1: decided("declined"), portal_ai_consent_set_v1: decided("granted") });
+    await renderPortal(<AiConsentRow />, testApi(transport));
+    expect(await screen.findByText("Не разрешено")).toBeTruthy();
+    expect(screen.getByText("ИИ-помощники EVO")).toBeTruthy();
+    expect(screen.queryByTestId("ai-consent-decline")).toBeNull();
+    expect(screen.queryByTestId("ai-consent-policy")).toBeNull();
+    expect(screen.queryByText(/читают вашу переписку/)).toBeNull();
+    await fireEvent.press(screen.getByText("Разрешить ИИ-помощников"));
+    expect(await screen.findByText("Разрешение сохранено.")).toBeTruthy();
+    expect(calls.find((c) => c.name === "portal_ai_consent_set_v1")?.args?.p_status).toBe("granted");
+    expect(screen.getByText("Разрешено")).toBeTruthy();
+    expect(screen.getByTestId("ai-consent-revoke")).toBeTruthy();
+  });
+
+  it("студент без решения (сбой версий, отказ экрана): строка доступна, «Разрешить» есть, «Не разрешать» нет", async () => {
+    const { transport } = fakeTransport({ portal_ai_consent_get_v1: outdated });
+    await renderPortal(<AiConsentRow />, testApi(transport));
+    expect(await screen.findByText("Не выбрано")).toBeTruthy();
+    expect(screen.getByTestId("ai-consent-allow")).toBeTruthy();
+    expect(screen.queryByTestId("ai-consent-decline")).toBeNull();
+    expect(screen.queryByText(/Условия обновились/)).toBeNull();
   });
 
   it("approved видит строку (345): можно отозвать согласие, данное при регистрации", async () => {

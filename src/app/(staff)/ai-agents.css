@@ -51,3 +51,76 @@
     from { transform: translateX(-1rem); opacity: 0; }
   }
 }
+
+/*
+ * Полоса «Сейчас» на главной (11.11.2026, по образцу Molar AI — пользователь прямо попросил «как на референсе»):
+ * графит EVO с красным свечением, как шапка кабинета студента. Единственная тёмная панель CRM — исключение из
+ * «панели не красим», согласованное пользователем; текст белый 17.4:1 и тёплый серый 10.5:1 на графите.
+ */
+.v3-world .v3-aia-hero {
+  --aia-hero-ink: #ffffff;
+  --aia-hero-muted: #cfc8be;
+  --aia-hero-line: rgb(255 255 255 / 0.12);
+  --aia-hero-bar: rgb(255 255 255 / 0.85);
+  position: relative;
+  overflow: hidden;
+  color: var(--aia-hero-ink);
+  background:
+    radial-gradient(55% 150% at 100% 0%, rgb(215 2 23 / 0.38), transparent 70%),
+    radial-gradient(45% 120% at 0% 100%, rgb(215 2 23 / 0.14), transparent 72%),
+    #17181c;
+}
+
+/* Знак EVO в правом верхнем углу полосы — белый 5 процентов, украшение без текста (как у шапки кабинета студента). */
+.v3-world .v3-aia-hero::after {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -30px;
+  width: 220px;
+  height: 220px;
+  background: rgb(255 255 255 / 0.05);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M 50.00 49.74 L 32.58 39.65 L 70.19 17.19 C 70.29 17.14 70.35 17.03 70.35 16.91 L 70.35 12.99 C 70.35 11.97 69.24 11.34 68.37 11.87 L 27.19 36.54 L 12.39 27.99 L 49.99 5.57 C 50.09 5.51 50.15 5.40 50.15 5.29 L 50.15 1.64 C 50.15 0.63 49.06 0.00 48.18 0.50 L 8.92 23.16 C 7.29 24.10 6.29 25.83 6.29 27.71 L 6.29 73.22 C 6.29 74.39 6.92 75.47 7.93 76.05 L 48.36 99.41 C 49.38 100.00 50.62 100.00 51.64 99.41 L 92.24 75.96 C 93.15 75.43 93.71 74.46 93.71 73.41 L 93.71 26.75 C 93.71 25.74 92.62 25.11 91.74 25.62 Z'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M 50.00 49.74 L 32.58 39.65 L 70.19 17.19 C 70.29 17.14 70.35 17.03 70.35 16.91 L 70.35 12.99 C 70.35 11.97 69.24 11.34 68.37 11.87 L 27.19 36.54 L 12.39 27.99 L 49.99 5.57 C 50.09 5.51 50.15 5.40 50.15 5.29 L 50.15 1.64 C 50.15 0.63 49.06 0.00 48.18 0.50 L 8.92 23.16 C 7.29 24.10 6.29 25.83 6.29 27.71 L 6.29 73.22 C 6.29 74.39 6.92 75.47 7.93 76.05 L 48.36 99.41 C 49.38 100.00 50.62 100.00 51.64 99.41 L 92.24 75.96 C 93.15 75.43 93.71 74.46 93.71 73.41 L 93.71 26.75 C 93.71 25.74 92.62 25.11 91.74 25.62 Z'/%3E%3C/svg%3E") no-repeat center / contain;
+  pointer-events: none;
+}
+
+.v3-world .v3-aia-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.v3-world .v3-aia-hero-muted {
+  color: var(--aia-hero-muted);
+}
+
+.v3-world .v3-aia-hero-bar {
+  background: var(--aia-hero-bar);
+}
+
+/* Разделитель чисел в тёмной полосе — волосяная линия вместо плиток (11.11.2026, «перегружено»). */
+.v3-world .v3-aia-hero-sep {
+  border-inline-start: 1px solid var(--aia-hero-line);
+}
+
+/*
+ * Кольцо фокуса клавиатуры в полосе (отзыв к #1449): общее кольцо — графит `--focus-ring` (#202020), на графите полосы
+ * (#17181c) оно 1,09:1, то есть невидимо у ссылок «Кто работает». Внутри полосы кольцо белое, как её текст: 17,4:1 при нужных 3:1.
+ */
+.v3-world .v3-aia-hero :focus-visible {
+  outline-color: var(--aia-hero-ink);
+}
+
+/* Маскот агента в чате (12.11.2026): покачивается, пока агент работает; без движения при reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world .v3-aia-mascot[data-working] {
+    transform-origin: 50% 90%;
+    animation: v3-aia-mascot-work 1.4s ease-in-out infinite;
+  }
+  @keyframes v3-aia-mascot-work {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-3px) rotate(-6deg); }
+    50% { transform: translateY(0) rotate(0deg); }
+    75% { transform: translateY(-3px) rotate(6deg); }
+  }
+}

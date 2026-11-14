@@ -252,6 +252,19 @@ test("RU and KY carry the same keys, the owner's wording, the policy link and no
   assert.doesNotMatch(block, /проверен(?!ой)|reviewed/iu);
 });
 
+test("14.11.2026: the gate carries the one line about files; the Documents screen no longer does", () => {
+  // Решение владельца: условия и хранение файлов читают при регистрации и на этом экране, на рабочих экранах их нет.
+  const { ru, ky } = PORTAL_DICTIONARIES.consentGate;
+  assert.equal(ru.filesNote, "Файлы хранятся закрыто и проверяются антивирусом; их видят сотрудники EVO, которые ведут ваше дело.");
+  assert.notEqual(ky.filesNote.trim(), "");
+  assert.match(read("src/components/portal/consent/ConsentGateForm.tsx"), /<p className="pt-gate-note">\{strings\.filesNote\}<\/p>/u);
+  for (const locale of [PORTAL_DICTIONARIES.admission.ru, PORTAL_DICTIONARIES.admission.ky]) {
+    assert.equal(Object.hasOwn(locale, "documentsPrivacyNote"), false);
+    assert.equal(Object.hasOwn(locale, "documentsPrivacyLink"), false);
+  }
+  assert.doesNotMatch(read("src/components/portal/admission/DocumentsView.tsx"), /documentsPrivacy|pt-doc-privacy|AI_CONSENT_PRIVACY_URL/u);
+});
+
 test("10.11.2026: the password screens carry no boxes — the анкета or the gate asks once", () => {
   // Пользователь: «уберем с блока пароля и оставим в анкете». Галочки спрашивает анкета; кабинет без анкеты — экран
   // «Конфиденциальность» при первом входе (миграция 356 засчитывает согласие анкеты, повторного экрана нет).

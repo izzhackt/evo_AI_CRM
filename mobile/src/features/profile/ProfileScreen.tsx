@@ -1,16 +1,17 @@
-// Профиль (веб: portal/profile/page.tsx; iPhone: ProfileView): мои данные, язык, тема, согласие на ИИ,
-// пароль, о приложении (политика, поддержка, лицензии), выход и удаление аккаунта.
+// Профиль (веб: portal/profile/page.tsx; iPhone: ProfileView): мои данные, язык, тема, пароль, одна секция
+// «Конфиденциальность» (политика, поддержка, согласие на ИИ одной строкой, удаление аккаунта; решение владельца
+// 14.11.2026: без объяснений о данных), о приложении (лицензии, версия) и выход.
 // Телефон не меняется: на вебе такой строки нет (меняет куратор), поэтому и здесь только чтение имени и почты.
 import { useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { openExternal, PRIVACY_URL, SUPPORT_URL } from "@/features/profile/external";
 import { AiConsentRow } from "@/features/profile/AiConsent";
-import { DeletionCard } from "@/features/profile/DeletionCard";
+import { DeletionPanel } from "@/features/profile/DeletionPanel";
 import { LicensesScreen } from "@/features/profile/LicensesScreen";
 import { PasswordCard } from "@/features/profile/PasswordCard";
 import { useOwnLogin, useOwnProfile, useSaveLanguage } from "@/features/profile/use-profile";
@@ -46,6 +47,12 @@ function LinkRow({ label, onPress, testID }: { label: string; onPress: () => voi
       </Text>
     </Pressable>
   );
+}
+
+/** Блок секции под линией, как у строк-ссылок: согласие на ИИ и удаление аккаунта. */
+function Divided({ children }: { children: ReactNode }) {
+  const { tokens } = useTheme();
+  return <View style={{ borderTopWidth: 1, borderTopColor: tokens.line, paddingTop: 12 }}>{children}</View>;
 }
 
 export function ProfileScreen() {
@@ -105,7 +112,7 @@ export function ProfileScreen() {
           {tier === "assisted" ? (
             <LinkButton label={web.dataWrite} onPress={() => go(WRITE_EVO_ROUTE)} testID="profile-write-evo" />
           ) : (
-            <LinkButton label={m("profile.support")} onPress={() => void open(SUPPORT_URL)} testID="profile-data-support" />
+            <LinkButton label={web.supportLink} onPress={() => void open(SUPPORT_URL)} testID="profile-data-support" />
           )}
           <Text variant="caption" tone="text2">
             {shell.accountRole}
@@ -143,16 +150,24 @@ export function ProfileScreen() {
           />
         </Card>
 
-        <AiConsentRow />
-
         <PasswordCard />
 
         <Card>
-          <CardHead title={m("profile.aboutHeading")} />
-          <LinkRow label={m("profile.privacy")} onPress={() => void open(PRIVACY_URL)} testID="profile-privacy" />
-          <LinkRow label={m("profile.support")} onPress={() => void open(SUPPORT_URL)} testID="profile-support" />
-          <LinkRow label={m("profile.licenses")} onPress={() => setLicensesOpen(true)} testID="profile-licenses" />
+          <CardHead title={web.privacyHeading} />
+          <LinkRow label={web.privacyPolicy} onPress={() => void open(PRIVACY_URL)} testID="profile-privacy" />
+          <LinkRow label={web.supportLink} onPress={() => void open(SUPPORT_URL)} testID="profile-support" />
           {linkFailed ? <InlineAlert message={m("profile.openFailed")} /> : null}
+          <Divided>
+            <AiConsentRow />
+          </Divided>
+          <Divided>
+            <DeletionPanel />
+          </Divided>
+        </Card>
+
+        <Card>
+          <CardHead title={m("profile.aboutHeading")} />
+          <LinkRow label={m("profile.licenses")} onPress={() => setLicensesOpen(true)} testID="profile-licenses" />
           {version ? (
             <Text variant="caption" tone="text2" testID="profile-version">
               {format(m("profile.version"), { version })}
@@ -170,8 +185,6 @@ export function ProfileScreen() {
             void signOut().finally(() => setBusy(false));
           }}
         />
-
-        <DeletionCard />
       </View>
       <LicensesScreen visible={licensesOpen} onClose={() => setLicensesOpen(false)} />
     </Screen>

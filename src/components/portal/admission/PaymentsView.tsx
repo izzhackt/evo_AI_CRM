@@ -3,17 +3,22 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import type { PaymentCenter, PaymentEntry } from "@/lib/portal/payment-center";
+import type { PaymentCenter, PaymentDue } from "@/lib/portal/payment-center";
+import {
+  buildPaymentSchedule,
+  isGeneratedReceivedLabel,
+  paymentGroupTitle,
+  type PaymentGroup,
+  type PaymentLine,
+} from "@/lib/portal/payment-rows";
 import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 
-import { PaymentReceiptForm, type ReceiptFormDue } from "./PaymentReceiptForm";
+import { PaymentsSection, ReceiptSlot } from "./PaymentReceiptForm";
 import { PortalStatus } from "./PortalStatus";
 import {
-  formatPortalMoney,
   formatPortalDeadline,
+  formatPortalMoney,
   paymentCategory,
-  paymentStatus,
-  type PortalStatusTone,
 } from "./presentation";
 
 type Strings = ReturnType<typeof getPortalStrings<"admission">>;
@@ -24,44 +29,191 @@ function entryDay(value: string): string {
   return DAY.format(new Date(`${value}T00:00:00Z`));
 }
 
-function entryStatus(entry: PaymentEntry, strings: Strings): Readonly<{ label: string; tone: PortalStatusTone }> {
-  return entry.status === "accepted"
-    ? { label: strings.receiptStatusAccepted, tone: "ok" }
-    : entry.status === "rejected"
-      ? { label: strings.receiptStatusRejected, tone: "danger" }
-      : { label: strings.receiptStatusReview, tone: "info" };
+function shownDate(line: PaymentLine, payment: PaymentDue | undefined): { value: string | undefined; text: string } {
+  if (line.onDate) return { value: line.onDate, text: entryDay(line.onDate) };
+  if (!payment) return { value: undefined, text: "—" };
+  const value = payment.dueAt ?? undefined;
+  return { value, text: value ? (formatPortalDeadline(value) ?? "—") : "—" };
 }
 
-/** Одна строка истории: дата, сумма, статус, причина отказа, ссылка на чек. */
-function EntryRow({ entry, strings, action }: Readonly<{ entry: PaymentEntry; strings: Strings; action?: React.ReactNode }>) {
-  const status = entryStatus(entry, strings);
-  const sign = entry.kind === "refund" ? "−" : "";
+function dueFor(center: PaymentCenter, obligationId: string | null): PaymentDue | undefined {
+  if (!obligationId) return undefined;
+  return center.dues.find((item) => item.obligationId === obligationId);
+}
+
+function fileHref(line: PaymentLine): string | null {
+  if (!line.fileId || !line.fileKind) return null;
+  return `/api/portal/case-files/${line.fileKind}/${encodeURIComponent(line.fileId)}/download`;
+}
+
+function groupRefunded(center: PaymentCenter, obligationIds: readonly string[]): number {
+  return center.dues
+    .filter((due) => obligationIds.includes(due.obligationId))
+    .reduce((sum, due) => sum + due.refundedMinor, 0);
+}
+
+function Money({ amountMinor, currency, negative }: Readonly<{ amountMinor: number; currency: string; negative: boolean }>) {
+  const text = formatPortalMoney(amountMinor, currency);
+  return <span className="pt-data">{negative ? `−${text}` : text}</span>;
+}
+
+function LineStatus({ line, strings }: Readonly<{ line: PaymentLine; strings: Strings }>) {
+  const status = line.status === "accepted"
+    ? { label: strings.receiptStatusAccepted, tone: "ok" as const }
+    : line.status === "review"
+      ? { label: strings.receiptStatusReview, tone: "info" as const }
+      : line.status === "rejected"
+        ? { label: strings.receiptDeclined, tone: "danger" as const }
+        : line.status === "refund"
+          ? { label: strings.receiptKindRefund, tone: "neutral" as const }
+          : { label: strings.receiptNoReceipt, tone: "neutral" as const };
   return (
-    <li className="pt-receipt-entry" data-entry-status={entry.status} data-testid="portal-payment-entry">
-      <time dateTime={entry.onDate} className="pt-data pt-receipt-entry-date">{entryDay(entry.onDate)}</time>
-      <span className="pt-data pt-receipt-entry-amount">{sign}{formatPortalMoney(entry.amountMinor, entry.currency)}</span>
-      <span className="pt-receipt-entry-status">
-        {entry.kind === "refund" ? <span className="pt-pay-item-meta">{strings.receiptKindRefund}</span> : null}
-        <PortalStatus label={status.label} tone={status.tone} />
-      </span>
-      <span className="pt-receipt-entry-side">
-        {entry.fileId && entry.fileKind ? (
-          <a
-            className="pt-link"
-            href={`/api/portal/case-files/${entry.fileKind}/${encodeURIComponent(entry.fileId)}/download`}
-            aria-label={formatPortalString(strings.receiptOpenFileAria, { name: entry.filename ?? "" })}
-          >
-            {strings.receiptOpenFile}
-          </a>
-        ) : null}
-        {action}
-      </span>
-      {entry.rejectReason ? (
-        <p className="pt-receipt-reason" role="note">
-          <span className="pt-receipt-reason-label">{strings.receiptReasonLabel}</span> {entry.rejectReason}
-        </p>
+    <div className="pt-pay-status">
+      <PortalStatus label={status.label} tone={status.tone} />
+      {line.overdue ? <PortalStatus label={strings["payStatus.overdue"]} tone="danger" /> : null}
+      {line.rejectReason ? <p className="pt-pay-reason">{line.rejectReason}</p> : null}
+    </div>
+  );
+}
+
+function ReceiptCell({ line, strings }: Readonly<{ line: PaymentLine; strings: Strings }>) {
+  const href = fileHref(line);
+  const mode = line.replace ? "replace" : line.attach ? "attach" : null;
+  return (
+    <div className="pt-pay-receipt">
+      {href && line.filename ? (
+        <a className="pt-pay-file pt-link" href={href} aria-label={formatPortalString(strings.receiptOpenFileAria, { name: line.filename })}>
+          {line.filename}
+        </a>
       ) : null}
-    </li>
+      {mode ? (
+        <ReceiptSlot
+          strings={strings}
+          obligationId={line.obligationId}
+          amountMinor={line.submitAmountMinor}
+          currency={line.currency}
+          paidOn={line.submitDate}
+          mode={mode}
+        />
+      ) : null}
+      {!href && !mode ? <span className="pt-pay-nofile">—</span> : null}
+    </div>
+  );
+}
+
+function PaymentRow({ line, payment, strings }: Readonly<{ line: PaymentLine; payment: PaymentDue | undefined; strings: Strings }>) {
+  const date = shownDate(line, payment);
+  return (
+    <tr data-testid="portal-payment-entry" data-entry-status={line.status}>
+      <td>
+        <span className="pt-pay-cell-label">{strings.receiptColumnDate}</span>
+        {date.value ? <time dateTime={date.value} className="pt-data">{date.text}</time> : <span className="pt-data">{date.text}</span>}
+        {line.label ? <span className="pt-pay-row-label">{line.label}</span> : null}
+      </td>
+      <td>
+        <span className="pt-pay-cell-label">{strings.receiptColumnAmount}</span>
+        <Money amountMinor={line.amountMinor} currency={line.currency} negative={line.negative} />
+      </td>
+      <td>
+        <span className="pt-pay-cell-label">{strings.receiptColumnReceipt}</span>
+        <ReceiptCell line={line} strings={strings} />
+      </td>
+      <td>
+        <span className="pt-pay-cell-label">{strings.receiptColumnStatus}</span>
+        <LineStatus line={line} strings={strings} />
+      </td>
+    </tr>
+  );
+}
+
+function PaymentTable({ lines, center, strings, caption }: Readonly<{
+  lines: readonly PaymentLine[];
+  center: PaymentCenter;
+  strings: Strings;
+  caption: string;
+}>) {
+  return (
+    <table className="pt-pay-table">
+      <caption className="pt-sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{strings.receiptColumnDate}</th>
+          <th scope="col">{strings.receiptColumnAmount}</th>
+          <th scope="col">{strings.receiptColumnReceipt}</th>
+          <th scope="col">{strings.receiptColumnStatus}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((line) => (
+          <PaymentRow key={line.key} line={line} payment={dueFor(center, line.obligationId)} strings={strings} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function progressLabel(group: PaymentGroup, strings: Strings): string {
+  const paid = formatPortalString(strings.receiptProgressLabel, {
+    paid: formatPortalMoney(group.paidMinor, group.currency),
+    total: formatPortalMoney(group.amountMinor, group.currency),
+  });
+  if (group.reviewMinor < 1) return paid;
+  return `${paid}. ${formatPortalString(strings.receiptReviewAside, { amount: formatPortalMoney(group.reviewMinor, group.currency) })}`;
+}
+
+function ServiceBlock({ group, center, strings, title, sharedName }: Readonly<{
+  group: PaymentGroup;
+  center: PaymentCenter;
+  strings: Strings;
+  title: string;
+  sharedName: string | null;
+}>) {
+  const refundedMinor = groupRefunded(center, group.obligationIds);
+  const credited = Math.max(0, group.amountMinor - group.outstandingMinor);
+  const paidPct = group.amountMinor > 0 ? Math.min(100, (credited / group.amountMinor) * 100) : 0;
+  const reviewPct = group.amountMinor > 0 ? Math.min(100 - paidPct, (group.reviewMinor / group.amountMinor) * 100) : 0;
+  return (
+    <div className="pt-pay-service" data-testid="portal-payment">
+      <h3 className="pt-pay-service-title">{title}</h3>
+      {sharedName ? <p className="pt-pay-service-name">{sharedName}</p> : null}
+      <dl className="pt-pay-amounts">
+        <div className="pt-pay-amount">
+          <dt>{strings.toPayTerm}</dt>
+          <dd className="pt-data">{formatPortalMoney(group.amountMinor, group.currency)}</dd>
+        </div>
+        <div className="pt-pay-amount">
+          <dt>{strings.paidTerm}</dt>
+          <dd className="pt-data">
+            {formatPortalMoney(group.paidMinor, group.currency)}
+            {group.reviewMinor > 0 ? (
+              <span className="pt-pay-review">{formatPortalString(strings.receiptReviewAside, { amount: formatPortalMoney(group.reviewMinor, group.currency) })}</span>
+            ) : null}
+          </dd>
+        </div>
+        <div className="pt-pay-amount">
+          <dt>{strings.outstandingTerm}</dt>
+          <dd className="pt-data">{formatPortalMoney(group.outstandingMinor, group.currency)}</dd>
+        </div>
+        {refundedMinor > 0 ? (
+          <div className="pt-pay-amount">
+            <dt>{strings.refundedTerm}</dt>
+            <dd className="pt-data">{formatPortalMoney(refundedMinor, group.currency)}</dd>
+          </div>
+        ) : null}
+      </dl>
+      {group.amountMinor > 0 ? (
+        <div className="pt-pay-bar" role="img" aria-label={progressLabel(group, strings)}>
+          <span className="pt-pay-bar-paid" style={{ width: `${paidPct}%` }} />
+          {reviewPct > 0 ? <span className="pt-pay-bar-review" style={{ width: `${reviewPct}%` }} /> : null}
+        </div>
+      ) : null}
+      {group.nextActions.map((action) => (
+        <p key={action} className="pt-next-step">
+          <span className="pt-next-step-label">{strings.nextStepLabel}</span> {action}
+        </p>
+      ))}
+      {group.lines.length > 0 ? <PaymentTable lines={group.lines} center={center} strings={strings} caption={title} /> : null}
+    </div>
   );
 }
 
@@ -92,141 +244,69 @@ function HowToPay({ details, strings }: Readonly<{ details: NonNullable<PaymentC
   );
 }
 
+function sharedName(title: string, labels: readonly string[]): string | null {
+  const names = [...new Set(labels.filter((label) => !isGeneratedReceivedLabel(label)))];
+  if (names.length !== 1) return null;
+  return names[0].localeCompare(title, "ru", { sensitivity: "accent" }) === 0 ? null : names[0];
+}
+
 /**
- * «Оплата»: «Как оплатить» сверху (если заполнено), ниже платежи с историей оплат и чеков (на проверке, принято, отклонено + причина)
- * и приложить чек к платежу или без платежа. Деньги засчитывает куратор после проверки чека. Срок по Бишкеку.
+ * «Оплата»: как оплатить, затем платежи. У каждой строки свой чек. Платёж вне графика —
+ * «Добавить платёж»: тот же чек без платежа, его по-прежнему разбирает куратор.
  */
 export function PaymentsView({ center, locale }: Readonly<{ center: PaymentCenter; locale: Locale }>) {
   const strings = getPortalStrings("admission", locale);
-  const formDues: readonly ReceiptFormDue[] = center.dues
-    .map((due) => ({ obligationId: due.obligationId, label: due.label, currency: due.currency, outstandingMinor: due.outstandingMinor }));
-
-  if (center.dues.length === 0 && center.unassigned.length === 0) {
-    return (
-      <>
-        {center.details ? <HowToPay details={center.details} strings={strings} /> : null}
-        <section className="pt-adm-empty">
-          <EmptyIcon name="payments" />
-          <h2 className="pt-section-title">{strings.paymentsEmptyTitle}</h2>
-          <p className="pt-adm-empty-body">{strings.paymentsEmptyBody}</p>
-          <p>
-            <IntentPrefetchLink href={WRITE_EVO_HREF} className="pt-btn">{strings.paymentsWriteCurator}</IntentPrefetchLink>
-          </p>
-          {center.canUpload ? (
-            <div className="pt-receipt-attach">
-              <PaymentReceiptForm strings={strings} label={strings.receiptAttachLoose} dues={[]} />
-            </div>
-          ) : null}
-        </section>
-      </>
-    );
-  }
+  const schedule = buildPaymentSchedule(center);
+  const currencies = [...new Set([
+    ...center.dues.map((due) => due.currency),
+    ...center.unassigned.map((entry) => entry.currency),
+  ])];
+  const empty = schedule.groups.length === 0 && schedule.added.length === 0;
 
   return (
     <>
       {center.details ? <HowToPay details={center.details} strings={strings} /> : null}
-      <section className="pt-card" aria-labelledby="pay-list">
-        <header className="pt-card-header">
-          <div className="pt-card-header-main">
-            <h2 id="pay-list" className="pt-card-title">{strings.paymentsHeading}</h2>
-            <p className="pt-card-note">{strings.bishkekNote}</p>
+      <PaymentsSection
+        strings={strings}
+        canUpload={center.canUpload}
+        currencies={currencies}
+        defaultCurrency={currencies[0] ?? "KGS"}
+      >
+        {empty ? (
+          <div className="pt-pay-empty">
+            <EmptyIcon name="payments" />
+            <h3 className="pt-section-title">{strings.paymentsEmptyTitle}</h3>
+            <p className="pt-adm-empty-body">{strings.paymentsEmptyBody}</p>
+            <p className="pt-adm-empty-action">
+              <IntentPrefetchLink href={WRITE_EVO_HREF} className="pt-btn">{strings.paymentsWriteCurator}</IntentPrefetchLink>
+            </p>
           </div>
-        </header>
-        <ul className="pt-adm-list">
-          {center.dues.map((due) => {
-            const status = paymentStatus(due, strings);
-            const category = paymentCategory(due, strings);
-            const dueLabel = formatPortalDeadline(due.dueAt);
-            const canAttach = center.canUpload;
-            const fixed: ReceiptFormDue = { obligationId: due.obligationId, label: due.label, currency: due.currency, outstandingMinor: due.outstandingMinor };
-            return (
-              <li key={due.obligationId} className="pt-pay-item" data-testid="portal-payment">
-                <div className="pt-pay-item-head">
-                  <div>
-                    <h3 className="pt-pay-item-title">{due.label}</h3>
-                    {category ? <p className="pt-pay-item-meta">{category}</p> : null}
-                    {dueLabel ? (
-                      <p className="pt-pay-item-meta">
-                        {strings.dueTerm} <time dateTime={due.dueAt ?? undefined}>{dueLabel}</time>
-                      </p>
-                    ) : null}
-                  </div>
-                  <PortalStatus label={status.label} tone={status.tone} />
-                </div>
-
-                <dl className="pt-pay-amounts">
-                  <div className="pt-pay-amount">
-                    <dt>{strings.toPayTerm}</dt>
-                    <dd className="pt-data">{formatPortalMoney(due.amountMinor, due.currency)}</dd>
-                  </div>
-                  <div className="pt-pay-amount">
-                    <dt>{strings.paidTerm}</dt>
-                    <dd className="pt-data">{formatPortalMoney(due.paidMinor, due.currency)}</dd>
-                  </div>
-                  <div className="pt-pay-amount">
-                    <dt>{strings.outstandingTerm}</dt>
-                    <dd className="pt-data">{formatPortalMoney(due.outstandingMinor, due.currency)}</dd>
-                  </div>
-                  {due.refundedMinor > 0 ? (
-                    <div className="pt-pay-amount">
-                      <dt>{strings.refundedTerm}</dt>
-                      <dd className="pt-data">{formatPortalMoney(due.refundedMinor, due.currency)}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-
-                {due.nextAction ? (
-                  <p className="pt-next-step">
-                    <span className="pt-next-step-label">{strings.nextStepLabel}</span> {due.nextAction}
-                  </p>
-                ) : null}
-
-                {due.entries.length > 0 ? (
-                  <ul className="pt-receipt-entries" aria-label={strings.receiptHistoryHeading}>
-                    {due.entries.map((entry) => (
-                      <EntryRow
-                        key={`${entry.kind}:${entry.entryId}`}
-                        entry={entry}
-                        strings={strings}
-                        action={entry.status === "rejected" && canAttach
-                          ? <PaymentReceiptForm strings={strings} label={strings.receiptAttachAgain} fixedDue={fixed} />
-                          : null}
-                      />
-                    ))}
-                  </ul>
-                ) : null}
-
-                {canAttach && due.outstandingMinor > 0 ? (
-                  <div className="pt-receipt-attach">
-                    <PaymentReceiptForm strings={strings} label={strings.receiptAttach} fixedDue={fixed} />
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {center.unassigned.length > 0 || (center.canUpload && center.dues.length > 0) ? (
-        <section className="pt-card pt-receipt-loose" aria-labelledby="pay-loose">
-          <header className="pt-card-header">
-            <div className="pt-card-header-main">
-              <h2 id="pay-loose" className="pt-card-title">{strings.receiptUnassignedHeading}</h2>
-              <p className="pt-card-note">{strings.receiptUnassignedNote}</p>
-            </div>
-          </header>
-          {center.unassigned.length > 0 ? (
-            <ul className="pt-receipt-entries">
-              {center.unassigned.map((entry) => <EntryRow key={entry.entryId} entry={entry} strings={strings} />)}
-            </ul>
-          ) : null}
-          {center.canUpload ? (
-            <div className="pt-receipt-attach">
-              <PaymentReceiptForm strings={strings} label={strings.receiptAttachLoose} dues={formDues} />
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+        ) : (
+          <>
+            {schedule.groups.map((group) => {
+              const due = center.dues.find((item) => item.obligationId === group.obligationIds[0]);
+              const title = paymentGroupTitle(due ? paymentCategory(due, strings) : null, group.labels);
+              return (
+                <ServiceBlock
+                  key={group.key}
+                  group={group}
+                  center={center}
+                  strings={strings}
+                  title={title}
+                  sharedName={sharedName(title, group.labels)}
+                />
+              );
+            })}
+            {schedule.added.length > 0 ? (
+              <div className="pt-pay-service" data-testid="portal-added-payments">
+                <h3 className="pt-pay-service-title">{strings.receiptAddedHeading}</h3>
+                <p className="pt-pay-service-name">{strings.receiptUnassignedNote}</p>
+                <PaymentTable lines={schedule.added} center={center} strings={strings} caption={strings.receiptAddedHeading} />
+              </div>
+            ) : null}
+          </>
+        )}
+      </PaymentsSection>
     </>
   );
 }

@@ -11,9 +11,13 @@ export type AccountDeletionStrings = PortalStrings<"accountDeletion">;
 /**
  * Классы двух миров: кабинет студента рисует себя `pt-*` (portal.css),
  * анкета и экран ожидания — токенами Tailwind. Разметка и поведение одни.
+ * `notes` — поясняющие абзацы о сроке и хранении записей (`description`, `keptNote`): они нужны анкете и
+ * экрану ожидания, а на рабочем экране кабинета их нет (решение владельца 14.11.2026): там остаются кнопка,
+ * окно подтверждения со своими словами и статус запроса.
  */
 const LOOKS = {
   portal: {
+    notes: false,
     root: "pt-profile-deletion",
     text: "pt-profile-hint",
     status: "pt-profile-deletion-state",
@@ -27,6 +31,7 @@ const LOOKS = {
     error: "pt-account-deletion-error",
   },
   apply: {
+    notes: true,
     root: "flex flex-col items-start gap-3",
     text: "text-sm leading-6 text-fg-2",
     status: "text-sm leading-6 text-fg-2",
@@ -103,15 +108,19 @@ export function AccountDeletionPanel({
             <p className={cls.status}>{formatPortalString(strings.due, { date: accountDeletionDate(request.dueAt) })}</p>
           </>
         )}
-        <p className={cls.text}>{strings.keptNote}</p>
+        {cls.notes ? <p className={cls.text}>{strings.keptNote}</p> : null}
       </div>
     );
   }
 
   return (
     <div className={cls.root} data-testid="account-deletion-panel">
-      <p className={cls.text}>{strings.description}</p>
-      <p className={cls.text}>{strings.keptNote}</p>
+      {cls.notes ? (
+        <>
+          <p className={cls.text}>{strings.description}</p>
+          <p className={cls.text}>{strings.keptNote}</p>
+        </>
+      ) : null}
       {confirming ? (
         <div className={cls.confirm} role="group" aria-labelledby={questionId}>
           <p

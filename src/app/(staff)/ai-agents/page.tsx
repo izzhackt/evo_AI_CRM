@@ -6,7 +6,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { nextAgentsHasDefault } from "@/lib/server/ai-agents/next-defaults";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { aiAgentsRuntimeAvailability, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
-import { readAiAgents } from "@/lib/v3/ai-agents-source";
+import { readAiAgents, readAiAgentsPending } from "@/lib/v3/ai-agents-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ИИ-агенты" };
@@ -29,5 +29,7 @@ export default async function AiAgentsPage() {
     try { await reconcileAiAgentRuns({ staffClient: await createSupabaseServerClient(), actor }, {}); } catch { /* сверка ленивая */ }
   }
   const list = await readAiAgents(actor);
-  return <NextAgentsViewLazy read={list} runtimeConfigured={runtime.configured} preview={preview} hasDefault={nextAgentsHasDefault()} />;
+  // «Ждут решения» на главной — то же чтение черновиков, что у вкладки агента (отзыв владельца к #1449, 12.11.2026).
+  const pending = list.status === "available" ? await readAiAgentsPending(actor, { limit: 4 }) : null;
+  return <NextAgentsViewLazy read={list} pending={pending} runtimeConfigured={runtime.configured} preview={preview} hasDefault={nextAgentsHasDefault()} />;
 }

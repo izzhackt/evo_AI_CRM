@@ -1915,46 +1915,84 @@
 }
 
 /*
- * Согласие на ИИ-помощников (решение владельца 25.10.2026). Карточка на
- * «Главной» и строка в «Профиле» говорят одним текстом. Только токены --pt-*,
- * обе темы; новых анимаций нет: подтверждение рисует общая галочка
- * (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
+ * «Профиль → Конфиденциальность» (решение владельца 14.11.2026): две ссылки, строка согласия на ИИ-помощников и
+ * удаление аккаунта, без объяснений о данных. Только токены --pt-*, обе темы; новых анимаций нет: подтверждение
+ * рисует общая галочка (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
  */
-.pt-consent,
-.pt-consent-row {
+.pt-privacy-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-privacy-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-privacy-item:first-child {
+  border-top: 0;
+}
+
+/* Строки-блоки (согласие на ИИ, удаление аккаунта): вертикальный воздух вместо высоты ссылки. */
+.pt-privacy-item-block {
+  padding: 12px 0;
+}
+
+.pt-privacy-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-}
-
-.pt-consent-title {
-  margin: 0;
-  font-size: var(--pt-size-heading);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-
-.pt-consent-body,
-.pt-consent-note {
-  max-width: 68ch;
-  margin: 0;
-  font-size: var(--pt-size-secondary);
-  text-wrap: pretty;
-}
-
-.pt-consent-body {
+  min-height: 52px;
   color: var(--pt-text);
+  font-weight: 500;
+  text-decoration: none;
 }
 
-.pt-consent-note {
+.pt-privacy-link > span:last-child {
   color: var(--pt-text-2);
 }
 
-/* Ссылка высотой 44 px: отрицательный отступ возвращает её к тексту, зона касания не меняется. */
-.pt-consent-policy {
-  margin: -6px 0;
+.pt-privacy-link:hover > span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.pt-privacy-link:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-consent-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pt-consent-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pt-consent-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.pt-consent-name {
+  color: var(--pt-text);
+  font-weight: 500;
 }
 
 .pt-consent-actions {
@@ -1974,14 +2012,9 @@
   opacity: 0.6;
 }
 
-.pt-consent-state {
-  margin: 0;
+.pt-consent-state-word {
   color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
-}
-
-.pt-consent-state-word {
-  color: var(--pt-text);
   font-weight: 600;
 }
 
@@ -2000,7 +2033,7 @@
 }
 
 .pt-consent-live:empty {
-  margin-top: -12px;
+  margin-top: -8px;
 }
 
 .pt-consent-live[data-phase="saved"] {
@@ -2053,7 +2086,8 @@
 }
 
 .pt-gate-lead,
-.pt-gate-detail {
+.pt-gate-detail,
+.pt-gate-note {
   margin: 0;
   font-size: var(--pt-size-secondary);
   color: var(--pt-text-2);
@@ -6762,19 +6796,6 @@ main.pt-page > .pt-card {
   text-align: right;
 }
 
-/* Строка о данных: тихая плашка со щитом под полосой прогресса. */
-/* Строка о данных — мелко под списком (образец кабинета пользователя, 03.11.2026). */
-.pt-doc-privacy {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 16px 0 0;
-  padding: 0 4px;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  line-height: var(--pt-leading);
-}
-
 /*
  * «Документы» (03.11.2026, по образцу кабинета пользователя): шапка с кнопкой
  * карточка «Чеклист» со счётчиком, вкладки и список; файл загружается кнопкой
@@ -6977,16 +6998,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   font-size: inherit;
 }
 
-.pt-doc-privacy svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.pt-doc-privacy .pt-link {
-  min-height: 0;
-  font-size: inherit;
-}
-
 .pt-doc-summary .pt-doc-hint {
   margin: 0;
 }
@@ -7136,27 +7147,43 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 /* Оплата. */
 
-.pt-pay-item {
-  padding: 20px;
+.pt-pay-card {
+  min-width: 0;
+  overflow: visible;
 }
 
-.pt-pay-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+.pt-pay-card > .pt-card-header .pt-btn {
+  flex: none;
+  white-space: nowrap;
 }
 
-.pt-pay-item-title {
-  margin: 0;
+.pt-pay-empty {
+  padding: 28px 20px 36px;
+  text-align: center;
+}
+
+.pt-pay-empty .pt-section-title {
+  margin-top: 12px;
+  font-size: var(--pt-size-heading);
+}
+
+.pt-pay-service {
+  padding-top: 4px;
+}
+
+.pt-pay-service + .pt-pay-service {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-pay-service-title {
+  margin: 16px 20px 0;
   font-size: var(--pt-size-secondary);
   font-weight: 600;
   line-height: var(--pt-leading);
 }
 
-.pt-pay-item-meta {
-  margin: 4px 0 0;
+.pt-pay-service-name {
+  margin: 4px 20px 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
 }
@@ -7165,9 +7192,7 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
-  margin: 20px 0 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--pt-line);
+  margin: 16px 20px 0;
 }
 
 .pt-pay-amount dt {
@@ -7178,6 +7203,40 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 .pt-pay-amount dd {
   margin: 4px 0 0;
   font-weight: 600;
+}
+
+.pt-pay-review {
+  display: block;
+  margin-top: 2px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 500;
+}
+
+.pt-pay-bar {
+  display: flex;
+  height: 6px;
+  margin: 16px 20px 0;
+  overflow: hidden;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+}
+
+.pt-pay-bar-paid,
+.pt-pay-bar-review {
+  height: 100%;
+}
+
+.pt-pay-bar-paid {
+  background: var(--pt-ok);
+}
+
+.pt-pay-bar-review {
+  background: color-mix(in srgb, var(--pt-ok) 45%, var(--pt-bg));
+}
+
+.pt-pay-service .pt-next-step {
+  margin: 12px 20px 0;
 }
 
 /* «Оплата»: как оплатить, история оплат и чеков, форма чека (миграция 358). Без новых цветов: токены кабинета. */
@@ -7214,121 +7273,264 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   margin: 0;
 }
 
-.pt-receipt-entries {
-  display: grid;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
+.pt-pay-table {
+  width: 100%;
+  margin-top: 16px;
+  border-collapse: collapse;
   border-top: 1px solid var(--pt-line);
 }
 
-.pt-receipt-entry {
-  display: grid;
-  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--pt-line);
+.pt-pay-table th {
+  padding: 8px 12px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  text-align: start;
 }
 
-.pt-receipt-entry-date {
+.pt-pay-table th:first-child,
+.pt-pay-table td:first-child {
+  padding-inline-start: 20px;
+}
+
+.pt-pay-table th:last-child,
+.pt-pay-table td:last-child {
+  padding-inline-end: 20px;
+}
+
+.pt-pay-table td {
+  padding: 12px;
+  border-top: 1px solid var(--pt-line);
+  vertical-align: middle;
+}
+
+.pt-pay-cell-label {
+  display: none;
+}
+
+.pt-pay-row-label {
+  display: block;
+  margin-top: 2px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
 }
 
-.pt-receipt-entry-amount {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.pt-receipt-entry-status {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.pt-receipt-entry-side {
-  grid-column: 1 / -1;
+.pt-pay-receipt,
+.pt-pay-picked,
+.pt-pay-file,
+.pt-pay-status {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 20px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.pt-receipt-entry-side:empty {
-  display: none;
+.pt-pay-status {
+  align-items: flex-start;
+  flex-direction: column;
 }
 
-.pt-receipt-reason {
-  grid-column: 1 / -1;
-  margin: 0;
+.pt-pay-file {
+  min-width: 0;
   color: var(--pt-text);
-  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+}
+
+a.pt-pay-file {
+  color: var(--pt-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  /* Имя файла без пробелов (photo_…_y.jpg, Квитанция_…) не раздвигает таблицу: иначе «Статус», причина и «Заменить» уходят за край карточки. */
   overflow-wrap: anywhere;
 }
 
-.pt-receipt-reason-label {
+.pt-pay-filename {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pt-pay-nofile {
   color: var(--pt-text-2);
+}
+
+.pt-pay-reason {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pt-pay-slot,
+.pt-pay-textbtn,
+.pt-pay-clear {
+  font: inherit;
+  cursor: pointer;
+}
+
+.pt-pay-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px dashed var(--pt-control-edge);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-surface);
+  color: var(--pt-text);
   font-weight: 600;
 }
 
-.pt-receipt-attach {
-  margin: 16px 0 0;
+.pt-pay-slot:hover {
+  background: var(--pt-bg);
 }
 
-.pt-receipt-loose .pt-receipt-entries,
-.pt-receipt-loose .pt-receipt-attach {
-  margin-left: 20px;
-  margin-right: 20px;
+.pt-pay-textbtn {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pt-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.pt-receipt-loose .pt-receipt-attach {
-  padding-bottom: 20px;
-}
-
-.pt-receipt-summary {
+.pt-pay-clear {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--pt-radius-control);
+  background: transparent;
+  color: var(--pt-text-2);
+}
+
+.pt-pay-clear:hover {
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+
+.pt-pay-save {
   min-height: 44px;
-  cursor: pointer;
-  list-style: none;
+  padding-inline: 14px;
 }
 
-.pt-receipt-summary::-webkit-details-marker {
-  display: none;
+.pt-pay-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
-.pt-receipt-fields {
+.pt-pay-slot-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.pt-pay-add {
   display: grid;
   gap: 12px;
-  max-width: 480px;
-  padding-top: 8px;
+  margin: 16px 20px 0;
+  padding: 12px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
 }
 
-.pt-receipt-row {
+.pt-pay-add-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+  /* Дата — min-content: родное поле даты не сжимается (147px при 1x, 153px при 2x, 159px при 3x плотности) и иначе наезжает на соседнюю колонку. */
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(min-content, 1fr) minmax(0, 1.3fr) auto;
   gap: 12px;
+  align-items: end;
 }
 
-@media (max-width: 480px) {
-  .pt-receipt-row {
+.pt-pay-add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pt-pay-hint,
+.pt-pay-add-sent {
+  margin: 0;
+}
+
+.pt-pay-hint {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-pay-add .pt-field {
+  min-width: 0;
+}
+
+.pt-pay-add .pt-input::placeholder {
+  color: var(--pt-text-2);
+  opacity: 1;
+}
+
+/* Брейкпоинт считает окно, а рейл кабинета забирает 224px: пять колонок формы помещаются только от ~1180px окна. */
+@media (max-width: 1180px) {
+  .pt-pay-add-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .pt-pay-amounts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pt-pay-amounts:has(> :nth-child(4)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pt-pay-table thead {
+    display: none;
+  }
+
+  .pt-pay-cell-label {
+    display: inline;
+    color: var(--pt-text-2);
+    font-size: var(--pt-size-caption);
+    font-weight: 600;
+  }
+
+  .pt-pay-row-label {
+    flex-basis: 100%;
+  }
+
+  .pt-pay-table,
+  .pt-pay-table tbody,
+  .pt-pay-table tr,
+  .pt-pay-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .pt-pay-table tr {
+    padding: 8px 0 12px;
+    border-top: 1px solid var(--pt-line);
+  }
+
+  .pt-pay-table td {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 6px 20px;
+    border-top: 0;
+  }
+
+  .pt-pay-add-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .pt-receipt-entry {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .pt-receipt-entry-date {
-    grid-column: 1 / -1;
-  }
-}
-
-.pt-receipt-file {
-  padding: 8px 12px;
 }
 
 .pt-receipt-error {

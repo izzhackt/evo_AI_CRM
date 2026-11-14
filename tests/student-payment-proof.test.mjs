@@ -424,6 +424,41 @@ test("the slot follows the page rules: a real button of 44px, the focus is set b
   assert.match(css, /\.pt-pay-filename \{[^}]*overflow-wrap: anywhere/);
 });
 
+/** Тело `{ … }`, которое открывается после первого вхождения `marker` (вложенные скобки считаются). */
+function blockAfter(source, marker) {
+  const at = source.indexOf(marker);
+  assert.notEqual(at, -1, `${marker} is in the source`);
+  const open = source.indexOf("{", at);
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    else if (source[index] === "}" && (depth -= 1) === 0) return source.slice(open + 1, index);
+  }
+  throw new Error(`${marker}: unbalanced block`);
+}
+
+test("the proof slot does not refresh the page after a saved file, so the focus stays on «Чек приложен»; it refreshes when the server says the file already exists", () => {
+  const form = read("../src/components/portal/admission/PaymentReceiptForm.tsx");
+  const slot = form.slice(form.indexOf("export function ProofSlot"), form.indexOf("/** «Добавить платёж»"));
+  const submit = blockAfter(slot, "async function submit");
+  const saved = blockAfter(submit, "if (result.ok)");
+  const exists = blockAfter(submit, "if (result.exists)");
+  const count = (text, needle) => text.split(needle).length - 1;
+  // Saved: the screen changes and the confirmation takes the focus, both by hand (no effect hooks, no waiting for a refresh).
+  assert.match(saved, /flushSync\(\(\) => \{[^}]*setState\("sent"\)[^}]*\}\);\s*focusNow\(sentRef\);/);
+  // The one refresh the saved branch may have is the line for an answer of an unexpected shape (there is no file id to link to, so the
+  // page data brings the link): it stays behind its guard and after the focus. Any other refresh here would unmount the slot, drop the
+  // confirmation and lose the focus.
+  const guarded = "if (!result.result) router.refresh();";
+  assert.equal(count(saved, "router.refresh()"), count(saved, guarded), "every refresh of the saved branch is the guarded one");
+  assert.ok(count(saved, guarded) <= 1, "and there is at most one of it");
+  if (count(saved, guarded) === 1) assert.ok(saved.indexOf("focusNow(sentRef)") < saved.indexOf(guarded), "the focus is set before the guarded refresh");
+  // «Файл уже есть» (the payment was opened twice, or staff attached a file): the row must come back from the server with the link.
+  assert.match(exists, /router\.refresh\(\);/);
+  // Nowhere else in the slot: not on picking a file, not on the other error paths, not on the confirmation screen.
+  assert.equal(count(slot, "router.refresh()"), 2, "two refreshes in the whole slot: the guarded one and proof_exists");
+});
+
 test("the migration keeps its promises in the text: the old payment center answer is untouched and the new door is closed to the wrong roles", () => {
   const sql = read("../supabase/migrations/360_platform_student_payment_proof.sql");
   assert.doesNotMatch(sql, /CREATE (?:OR REPLACE )?FUNCTION platform\.student_portal_payment_center_v1/u, "the center is not redefined");

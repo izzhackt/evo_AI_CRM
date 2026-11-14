@@ -556,12 +556,19 @@ test("итоговые таблицы («Заявки по каналам», «�
     for (const [block, label, tableClass, stackClass, stack] of tables) {
       const [, tableHidden, stackHidden] = tableClass.match(/(@max-\[(\d+)rem\]:hidden)/u) ? [null, tableClass.match(/@max-\[(\d+)rem\]:hidden/u)[1], stackClass.match(/@min-\[(\d+)rem\]:hidden/u)?.[1]] : [null, null, null];
       assert.ok(tableHidden && tableHidden === stackHidden, `${label}: таблица прячется там же, где стопка показывается (${tableHidden} / ${stackHidden})`);
-      const tableCells = rows(block.slice(0, block.indexOf("<ul")), /<td[^>]*>([\s\S]*?)<\/td>/gu);
-      const stackCells = rows(stack, /<dd[^>]*>([\s\S]*?)<\/dd>/gu);
-      assert.deepEqual(stackCells, tableCells, `${label}: числа и слова ячеек те же`);
-      const heads = rows(block.slice(0, block.indexOf("<ul")), /<th[^>]*scope="row"[^>]*>([\s\S]*?)<\/th>/gu);
-      const stackHeads = rows(stack, /<li[^>]*><p[^>]*>([\s\S]*?)<\/p>/gu);
-      assert.deepEqual(stackHeads, heads, `${label}: названия строк те же`);
+      // Строка стопки читается так же, как строка таблицы: название, затем «подпись — число» по столбцам; свёрнутая строка (`fold`) — тоже,
+      // её остальные подписи с числами лежат в раскрывающейся части.
+      const tableBlock = block.slice(0, block.indexOf("<ul"));
+      const columns = rows(tableBlock, /<th[^>]*scope="col"[^>]*>([\s\S]*?)<\/th>/gu);
+      const expected = all(tableBlock, /<tr[^>]*>([\s\S]*?)<\/tr>/gu).filter((row) => /scope="row"/u.test(row)).map((row) => {
+        const [head] = rows(row, /<th[^>]*scope="row"[^>]*>([\s\S]*?)<\/th>/gu);
+        const cells = rows(row, /<td[^>]*>([\s\S]*?)<\/td>/gu);
+        return [head, ...cells.flatMap((cell, index) => [columns[index + 1], cell])].join(" ");
+      });
+      assert.deepEqual(all(stack, /<li[^>]*>([\s\S]*?)<\/li>/gu).map(text), expected, `${label}: в стопке те же названия, подписи и числа`);
+      // «Заявки по каналам» на телефоне — строки со стрелкой (14.11.2026): название и «Заявки N», этапы раскрываются; другие стопки открыты.
+      const folded = (stack.match(/<li><details class="group" data-stack-fold=""><summary /gu) ?? []).length;
+      assert.equal(folded, label === "Таблица заявок по каналам" ? expected.length : 0, `${label}: свёрнутые строки`);
       assert.doesNotMatch(stack, /<li[^>]*data-channel=|data-testid=/u, `${label}: у строк стопки нет меток строк таблицы (они не дублируются)`);
     }
   }

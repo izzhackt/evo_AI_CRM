@@ -7330,6 +7330,8 @@ a.pt-pay-file {
   color: var(--pt-accent);
   text-decoration: underline;
   text-underline-offset: 3px;
+  /* Имя файла без пробелов (photo_…_y.jpg, Квитанция_…) не раздвигает таблицу: иначе «Статус», причина и «Заменить» уходят за край карточки. */
+  overflow-wrap: anywhere;
 }
 
 .pt-pay-filename {

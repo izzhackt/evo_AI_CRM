@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { NextAgentMascot } from "@/components/staff/ai-agents-next/NextAgentMascot";
 import type { AiAgentKey, AiAgentRunRow, AiAgentRunStatus, AiAgentUiEvent } from "@/lib/ai-agents/contract";
 import {
   followUpAiAgentRunAction,
@@ -39,7 +40,7 @@ const CLOSED = new Set<AiAgentRunStatus>(["completed", "failed", "budget_reached
  * общая строка `announce` у `Console`. Время считается только в браузере:
  * в серверной разметке его нет, чтобы разметка не расходилась при гидратации.
  */
-function ProgressRow({ word, since }: Readonly<{ word: string | null; since: () => number }>) {
+function ProgressRow({ agentKey, word, since }: Readonly<{ agentKey: string; word: string | null; since: () => number }>) {
   const [elapsed, setElapsed] = useState<number | null>(null);
   // Начало работы читается на каждом тике у свежей `since`: у разговора, открытого посреди продолжения,
   // последнее сообщение сотрудника становится известно только после первого опроса, а не при монтировании.
@@ -53,7 +54,8 @@ function ProgressRow({ word, since }: Readonly<{ word: string | null; since: () 
   }, []);
   return (
     <p className="mt-4 flex items-center gap-2 t-meta text-fg-3" data-testid="v3-aia-progress">
-      <span aria-hidden="true" className="v3-aia-working-dot" />
+      {/* Маскот агента покачивается, пока агент работает (12.11.2026); без маскота — прежняя точка. */}
+      <NextAgentMascot agentKey={agentKey} size="md" working />
       <span data-testid="v3-aia-working">{word ? `Сейчас: ${lowerFirst(word)}` : "Думает…"}</span>
       {elapsed !== null ? <span className="tabular-nums">· {elapsedClock(elapsed)}</span> : null}
     </p>
@@ -372,13 +374,15 @@ export function Console({
             {empty ? (
               <div className="my-auto py-6">
                 {locked ? (
-                  <div className="mx-auto max-w-[52ch] text-center">
-                    <p className="t-item text-fg">Писать агенту пока нельзя</p>
+                  <div className="mx-auto grid max-w-[52ch] justify-items-center text-center">
+                    <NextAgentMascot agentKey={agentKey} size="lg" />
+                    <p className="mt-2 t-item text-fg">Писать агенту пока нельзя</p>
                     <p className="mt-1 t-body-compact text-fg-2">{blockedNote}</p>
                     {nextStep ? <div className="mt-4 flex justify-center">{nextStep}</div> : null}
                   </div>
                 ) : starters.length > 0 ? (
                   <div className="mx-auto w-full max-w-[34rem]">
+                    <div className="mb-4 flex justify-center"><NextAgentMascot agentKey={agentKey} size="lg" /></div>
                     <p className="t-meta text-fg-3">Примеры поручений</p>
                     <ul className="mt-2 flex flex-col gap-1.5" aria-label="Примеры поручений">
                       {starters.map((starter) => (
@@ -398,9 +402,9 @@ export function Console({
                 ) : null}
               </div>
             ) : (
-              <ChatTimeline items={items} agentLabel={agentTitle} runMeta={meta} allowTask={canMakeTasks} working={working} staticIds={staticIds} onRetry={retry} />
+              <ChatTimeline items={items} agentLabel={agentTitle} agentAvatar={<NextAgentMascot agentKey={agentKey} size="sm" />} runMeta={meta} allowTask={canMakeTasks} working={working} staticIds={staticIds} onRetry={retry} />
             )}
-            {working ? <ProgressRow key={runId ?? "new"} word={runningToolWord(items)} since={since} /> : null}
+            {working ? <ProgressRow key={runId ?? "new"} agentKey={agentKey} word={runningToolWord(items)} since={since} /> : null}
             {offline ? <p role="status" className="mt-3 t-meta text-warn">Нет связи, повторяю…</p> : null}
             {fatal ? <p role="alert" className="mt-3 t-body-compact text-danger">{fatal}</p> : null}
           </div>

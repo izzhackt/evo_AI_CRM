@@ -9,6 +9,7 @@ import { NextBackLink } from "./NextBackLink";
 import { NextAgentSwitches } from "./NextAgentSwitches";
 import { NextAgentTab } from "./NextAgentTab";
 import { NextChatShell } from "./NextChatShell";
+import { NextAgentMascot } from "./NextAgentMascot";
 import { AgentAlert, NextApiKeyMissing, NextPreviewLine } from "./NextNotices";
 
 /**
@@ -40,10 +41,12 @@ export function NextAgentPage(props: NextAgentPageProps) {
     </>
   );
   const body = <NextAgentTab props={props} gate={gate} />;
+  // Маскот агента в шапке каждой вкладки (13.11.2026): тот же, что на главной и в чате.
+  const mascot = <NextAgentMascot agentKey={detail.key} size="md" />;
 
   if (chat) {
     return (
-      <NextChatShell testId="v3-ai-agent-page" title={detail.title} roleLine={roleLine} tabs={<AgentTabs bare agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />} switches={switches}>
+      <NextChatShell testId="v3-ai-agent-page" title={detail.title} leading={mascot} roleLine={roleLine} tabs={<AgentTabs bare agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />} switches={switches}>
         <div className="flex min-h-0 flex-1 flex-col gap-3 [&>:not(:last-child)]:shrink-0" data-testid="v3-aia-agent" data-tab={tab} data-aia-chat="">
           {alerts}
           <div className="flex min-h-0 flex-1 flex-col">{body}</div>
@@ -52,7 +55,7 @@ export function NextAgentPage(props: NextAgentPageProps) {
     );
   }
   return (
-    <PageShell title={detail.title} help={roleLine} actions={switches} testId="v3-ai-agent-page" back={<NextBackLink />}>
+    <PageShell title={detail.title} leading={mascot} help={roleLine} actions={switches} testId="v3-ai-agent-page" back={<NextBackLink />}>
       <div className="grid min-w-0 gap-4" data-testid="v3-aia-agent" data-tab={tab}>
         {alerts}
         <SectionTabs

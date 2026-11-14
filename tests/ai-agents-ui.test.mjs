@@ -412,6 +412,8 @@ async function views() {
           b.onResolve({ filter: /^@\/lib\/platform-ai-agents-actions$/ }, () => ({ path: "actions-stub", namespace: "actions" }));
           b.onLoad({ filter: /.*/, namespace: "actions" }, () => ({ contents: ACTION_STUB, loader: "js" }));
           b.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+          // Маскоты агентов — статический импорт картинок, как в сборке Next: путь, ширина, высота.
+          b.onLoad({ filter: /\.webp$/ }, (args) => ({ contents: `export default { src: ${JSON.stringify(`/_next/static/media/${args.path.split("/").pop()}`)}, width: 200, height: 200 };`, loader: "js" }));
         },
       }],
     });
@@ -1047,6 +1049,8 @@ function browserKit() {
             b.onResolve({ filter: /^@\/lib\/platform-ai-agents-actions$/ }, () => ({ path: "actions", namespace: "browser-actions" }));
             b.onLoad({ filter: /.*/, namespace: "browser-actions" }, () => ({ contents: BROWSER_ACTIONS, loader: "js" }));
             b.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+            // Маскоты агентов — статический импорт картинок, как в сборке Next: путь, ширина, высота.
+            b.onLoad({ filter: /\.webp$/ }, (args) => ({ contents: `export default { src: ${JSON.stringify(`/_next/static/media/${args.path.split("/").pop()}`)}, width: 200, height: 200 };`, loader: "js" }));
           },
         }],
       };

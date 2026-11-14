@@ -102,3 +102,25 @@
 .v3-world .v3-aia-hero-sep {
   border-inline-start: 1px solid var(--aia-hero-line);
 }
+
+/*
+ * Кольцо фокуса клавиатуры в полосе (отзыв к #1449): общее кольцо — графит `--focus-ring` (#202020), на графите полосы
+ * (#17181c) оно 1,09:1, то есть невидимо у ссылок «Кто работает». Внутри полосы кольцо белое, как её текст: 17,4:1 при нужных 3:1.
+ */
+.v3-world .v3-aia-hero :focus-visible {
+  outline-color: var(--aia-hero-ink);
+}
+
+/* Маскот агента в чате (12.11.2026): покачивается, пока агент работает; без движения при reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world .v3-aia-mascot[data-working] {
+    transform-origin: 50% 90%;
+    animation: v3-aia-mascot-work 1.4s ease-in-out infinite;
+  }
+  @keyframes v3-aia-mascot-work {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-3px) rotate(-6deg); }
+    50% { transform: translateY(0) rotate(0deg); }
+    75% { transform: translateY(-3px) rotate(6deg); }
+  }
+}

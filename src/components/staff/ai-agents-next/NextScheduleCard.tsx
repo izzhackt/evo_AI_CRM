@@ -93,7 +93,7 @@ export function NextScheduleCard({
             <Label htmlFor="aia-prompt">Поручение для запуска по расписанию</Label>
             <HelpTip label="Пояснение: Поручение по расписанию">{defaultPrompt ? "Пусто — стандартное поручение EVO." : "Пусто — расписание не создаётся."}</HelpTip>
           </div>
-          <Textarea id="aia-prompt" rows={4} maxLength={8000} value={form.prompt} placeholder={defaultPrompt ?? "Расписание для этого агента не предусмотрено — напишите поручение сами."} onChange={(event) => set("prompt", event.target.value)} />
+          <Textarea id="aia-prompt" rows={4} maxLength={8000} value={form.prompt} placeholder={defaultPrompt ?? "Что агенту делать по расписанию?"} onChange={(event) => set("prompt", event.target.value)} />
         </div>
         <div role="group" aria-labelledby="aia-events-label" className="grid gap-1 border-t border-border pt-3">
           <span id="aia-events-label" className="t-label text-fg-2">Реагировать на</span>

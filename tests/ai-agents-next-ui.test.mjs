@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 import { AI_AGENT_CATALOG } from "../src/lib/ai-agents/contract.ts";
+import { AI_AGENT_PENDING_TEXT_MAX, aiAgentLastRun, pendingRowsOf } from "../src/lib/v3/ai-agents-view.ts";
 
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
@@ -46,13 +47,14 @@ export const reconcileAiAgentRuns = async () => undefined;`,
   "@/lib/v3/ai-agents-source": `import { AI_AGENT_CATALOG } from "@/lib/ai-agents/contract";
 import fixtures from ${JSON.stringify(FIXTURES_PATH)};
 const F = fixtures.makeFixtures(AI_AGENT_CATALOG);
-export const readAiAgents = async () => F.available(F.LIST);
+export const readAiAgents = async () => globalThis.__world.list ?? F.available(F.LIST);
 export const readAiAgent = async (_actor, key) => F.available(F.detail(key));
 export const readAiAgentDigests = async () => F.available({ digests: F.DIGESTS });
 export const readAiAgentRuns = async () => F.available({ runs: F.RUNS, hasMore: false });
 export const readAiAgentRun = async () => F.available(F.RUN_DETAIL);
 export const readAiAgentDrafts = async () => F.available(F.DRAFTS);
-export const readAiAgentsPending = async () => ({ drafts: F.DRAFTS.drafts, partial: false });`,
+// Чтение «Ждут решения» записывает свои вызовы (globalThis.__pendingCalls) и отдаёт то, что отдаёт сервер: строки без лишних полей.
+export const readAiAgentsPending = async (...args) => { (globalThis.__pendingCalls ??= []).push(args); return globalThis.__world.pending ?? F.PENDING; };`,
   "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }`,
 };
 
@@ -91,7 +93,7 @@ export const html = {
   legacyBody: (props) => renderToStaticMarkup(<AgentBody {...props} />),
   // Каталог текстов читает сервер (страница): новому виду он приходит готовым, как в страницах ai-agents.
   nextPage: (props) => renderToStaticMarkup(<NextAgentPage {...props} defaults={nextAgentDefaults(props.detail.key, props.tab)} />),
-  nextHub: (read, runtimeConfigured, preview) => renderToStaticMarkup(<NextAgentsView read={read} runtimeConfigured={runtimeConfigured} preview={preview} hasDefault={nextAgentsHasDefault()} />),
+  nextHub: (read, runtimeConfigured, preview, pending = null) => renderToStaticMarkup(<NextAgentsView read={read} pending={pending} runtimeConfigured={runtimeConfigured} preview={preview} hasDefault={nextAgentsHasDefault()} />),
   switches: (props) => renderToStaticMarkup(<NextAgentSwitches {...props} />),
   overview: (props) => renderToStaticMarkup(<NextOverview {...props} />),
   settings: (props) => renderToStaticMarkup(<NextSettings {...props} />),
@@ -127,11 +129,45 @@ async function views() {
           b.onResolve({ filter: /^(@\/lib\/platform-guards|@\/lib\/supabase\/server|@\/lib\/server\/ai-agents\/config-hash|@\/lib\/server\/ai-agents\/runtime|@\/lib\/v3\/ai-agents-source|next\/headers|next\/navigation)$/ }, (args) => ({ path: args.path, namespace: "stub" }));
           b.onLoad({ filter: /.*/, namespace: "stub" }, (args) => ({ contents: STUBS[args.path], resolveDir: base, loader: "ts" }));
           b.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+          // Маскоты агентов — статический импорт картинок, как в сборке Next: путь, ширина, высота.
+          b.onLoad({ filter: /\.webp$/ }, (args) => ({ contents: `export default { src: ${JSON.stringify(`/_next/static/media/${args.path.split("/").pop()}`)}, width: 160, height: 160 };`, loader: "js" }));
         },
       }],
     });
     bundle = createRequire(root("package.json"))(outfile).html;
     return bundle;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Клиент вошедшего сотрудника для настоящего `ai-agents-source.ts`: записывает вызов RPC и отдаёт то, что положил тест (globalThis.__pendingRpc). */
+const FAKE_SUPABASE = `exports.createSupabaseServerClient = async () => ({
+  schema: (schema) => ({ rpc: async (name, args) => { globalThis.__pendingRpc.calls.push({ schema, name, args }); const next = globalThis.__pendingRpc.next; if (next instanceof Error) throw next; return next; } }),
+});`;
+let realPendingModule;
+/** НАСТОЯЩИЙ `readAiAgentsPending` из `src/lib/v3/ai-agents-source.ts`: подменены только `server-only` и клиент базы. */
+async function realPending() {
+  if (realPendingModule) return realPendingModule;
+  const dir = mkdtempSync(join(tmpdir(), "aia-pending-"));
+  try {
+    writeFileSync(join(dir, "entry.ts"), `export { readAiAgentsPending } from ${JSON.stringify(root("src/lib/v3/ai-agents-source.ts"))};`);
+    const outfile = join(dir, "out.cjs");
+    await build({
+      entryPoints: [join(dir, "entry.ts")], outfile, bundle: true, platform: "node", format: "cjs", tsconfig: root("tsconfig.json"),
+      absWorkingDir: root(""), nodePaths: [root("node_modules")], logLevel: "silent",
+      plugins: [{
+        name: "aia-pending-real",
+        setup(b) {
+          b.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
+          b.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+          b.onResolve({ filter: /supabase\/server(\.ts)?$/ }, () => ({ path: "fake-supabase", namespace: "fake-supabase" }));
+          b.onLoad({ filter: /.*/, namespace: "fake-supabase" }, () => ({ contents: FAKE_SUPABASE, loader: "js" }));
+        },
+      }],
+    });
+    realPendingModule = createRequire(root("package.json"))(outfile);
+    return realPendingModule;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -233,6 +269,351 @@ test("хаб, предупреждения остаются: ключ Claude н�
   assert.match(denied, /Нет доступа к этому разделу\./u);
   assert.doesNotMatch(denied, /Повторить/u);
   assert.match(nextHub({ status: "unavailable" }, true, false), /Не удалось загрузить агентов\.[\s\S]*Повторить/u);
+});
+
+/* ------------------------------------------------------------------ хаб: исправления по независимому ревью #1449–#1451 (14.11.2026) */
+
+const textOf = (markup) => markup.replace(/<[^>]*>/gu, " ").replace(/&amp;/gu, "&").replace(/\s+/gu, " ").trim();
+const cardOf = (markup, key) => markup.match(new RegExp(`<li data-testid="v3-aia-card-${key}"[\\s\\S]*?</li>`, "u"))?.[0] ?? "";
+const anchorOf = (markup, testid) => markup.match(new RegExp(`<a\\b[^>]*data-testid="${testid}"[^>]*>`, "u"))?.[0] ?? "";
+const moreOf = (markup) => markup.match(/<div[^>]*data-testid="v3-aia-pending-more"[^>]*>([\s\S]*?)<\/div>/u)?.[1] ?? null;
+/** Остаток черновиков называть по агентам нечем: у каждого агента показаны все его ждущие черновики. */
+const NO_QUEUE_LEFT = F.listVariant({ sales: { stats: { draftsPending: 2 } }, director: { stats: { draftsPending: 1 } }, "curator-my": { stats: { draftsPending: 1 } } });
+
+/** Картинки разметки и скрыты ли они от читалки: сами (`aria-hidden`) или предком. Разметка React вложена правильно, хватает стека тегов. */
+function imagesOf(markup) {
+  const VOID = new Set(["img", "br", "hr", "input", "meta", "link", "source", "wbr"]);
+  const open = [];
+  const found = [];
+  for (const match of markup.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/gu)) {
+    const [, closing, name, attrs] = match;
+    const tag = name.toLowerCase();
+    if (closing) { const at = open.map((entry) => entry.tag).lastIndexOf(tag); if (at >= 0) open.length = at; continue; }
+    const hidden = /\saria-hidden="true"/u.test(attrs);
+    if (tag === "img") found.push({ alt: /\salt="([^"]*)"/u.exec(attrs)?.[1] ?? null, hidden: hidden || open.some((entry) => entry.hidden) });
+    else if (!VOID.has(tag) && !attrs.endsWith("/")) open.push({ tag, hidden });
+  }
+  return found;
+}
+
+test("хаб, «Ждут решения»: строки с адресатом, «Ещё N» со ссылкой в очередь каждого агента, у кого остались черновики; без числа или без черновиков — без «Ещё»; сбой чтения — слово о неполном списке", async () => {
+  const { nextHub } = await views();
+  const hub = (pending, list = F.LIST) => strip(nextHub(F.available(list), true, false, pending));
+  const on = hub(F.PENDING);
+  const rows = on.match(/<ul[^>]*data-testid="v3-aia-pending">([\s\S]*?)<\/ul>/u)[1];
+  assert.equal((rows.match(/<li>/gu) ?? []).length, 4, "четыре строки");
+  assert.match(textOf(rows), /^Продажи \(Closer\) → Клиент Синтетический 1 Здравствуйте! Подтверждаю.*Директор \/ Аналитик → Клиент Синтетический 2 Отчёт за неделю.*Куратор Малайзия → Клиент Синтетический 3 Добрый день.*Продажи \(Closer\) → Клиент Синтетический 4 Спасибо за ответ/u, "адресат и текст на строку");
+  assert.deepEqual([...rows.matchAll(/<a[^>]*href="([^"]+)"/gu)].map((link) => link[1]), ["/ai-agents/sales?tab=drafts", "/ai-agents/director?tab=drafts", "/ai-agents/curator-my?tab=drafts", "/ai-agents/sales?tab=drafts"], "строка ведёт в «На одобрение» своего агента");
+  // 13 ждут, 4 показаны: «Продаж» осталось 7 − 2, у «Директора» и «Куратора Малайзии» по 3 − 1; больше всего — первым, ссылки ведут в очереди.
+  const more = moreOf(on);
+  assert.equal(textOf(more), "Ещё 9 черновиков: Продажи (Closer) · 5 Директор / Аналитик · 2 Куратор Малайзия · 2");
+  assert.deepEqual([...more.matchAll(/<a[^>]*href="([^"]+)"/gu)].map((link) => link[1]), ["/ai-agents/sales?tab=drafts", "/ai-agents/director?tab=drafts", "/ai-agents/curator-my?tab=drafts"]);
+  assert.match(more, /<a[^>]*class="[^"]*\bmin-h-11\b/u, "ссылка «Ещё» — цель не меньше 44 px");
+  assert.match(textOf(moreOf(hub({ ...F.PENDING, total: 5 }))), /^Ещё 1 черновик:/u, "слово по числу: 1");
+  assert.match(textOf(moreOf(hub({ ...F.PENDING, total: 6 }))), /^Ещё 2 черновика:/u, "слово по числу: 2");
+  // Остаток есть, а назвать его по агентам нечем: одно слово без двоеточия и ссылок.
+  const unnamed = moreOf(hub(F.PENDING, NO_QUEUE_LEFT));
+  assert.equal(textOf(unnamed), "Ещё 9 черновиков");
+  assert.doesNotMatch(unnamed, /<a /u);
+  // Числа нет или показано всё: строки «Ещё» нет.
+  assert.equal(moreOf(hub({ ...F.PENDING, total: null })), null, "числа нет — «Ещё» не придумываем");
+  assert.equal(moreOf(hub({ ...F.PENDING, total: 4 })), null, "всё показано");
+  // Черновиков нет или чтение не удалось.
+  for (const pending of [null, { drafts: [], total: 0, partial: false }]) {
+    const none = hub(pending);
+    assert.doesNotMatch(none, /data-testid="v3-aia-pending"|Ждут решения/u, "блока нет");
+    assert.doesNotMatch(none, /v3-aia-pending-partial/u);
+  }
+  const partial = hub({ drafts: [], total: null, partial: true });
+  assert.match(partial, /data-testid="v3-aia-pending-partial"[^>]*>Черновики не загрузились — список «Ждут решения» может быть неполным\./u);
+  assert.doesNotMatch(partial, /data-testid="v3-aia-pending">/u);
+});
+
+test("главная зовёт `readAiAgentsPending` с вошедшим сотрудником и `{ limit: 4 }`; список агентов недоступен — этого чтения нет; браузеру уходят только id, агент, текст и адресат", async () => {
+  const { hubPage, hubElement } = await views();
+  globalThis.__pendingCalls = [];
+  await hubPage(world(ADMIN, "next"));
+  assert.equal(globalThis.__pendingCalls.length, 1, "одно чтение на страницу");
+  const [actor, options] = globalThis.__pendingCalls[0];
+  assert.deepEqual(actor, ADMIN, "от имени вошедшего сотрудника");
+  assert.deepEqual(options, { limit: 4 }, "четыре строки");
+  for (const status of ["denied", "unavailable", "not_ready", "missing"]) {
+    globalThis.__pendingCalls = [];
+    await hubPage(world(ADMIN, "next", { list: { status } }));
+    assert.deepEqual(globalThis.__pendingCalls, [], `список агентов «${status}»: черновики не читаются`);
+  }
+  const props = (await hubElement(world(ADMIN, "next"))).props;
+  assert.deepEqual(props.pending, F.PENDING);
+  assert.equal(props.pending.total, 13);
+  for (const row of props.pending.drafts) assert.deepEqual(Object.keys(row).sort(), ["agentKey", "id", "targetLabel", "text"], "в строке нет ни входящего сообщения клиента, ни причины агента");
+  const flight = JSON.stringify(props.pending);
+  for (const secret of ["sourceMessage", "reason", "failureCode", "conversationId", "studentCaseId", "leadId"]) assert.equal(flight.includes(secret), false, secret);
+});
+
+test("`pendingRowsOf`: от черновика остаются id, агент, текст (правка сотрудника — вместо исходного, до 320 знаков) и адресат; «всего ждёт» — из счётчика, не из длины списка", () => {
+  const rich = { ...F.DRAFTS_ALL.drafts[0], editedText: "Правка сотрудника", sourceMessage: { text: "Секретное сообщение клиента", at: F.NOW }, reason: "Причина агента", failureCode: "whatsapp_unavailable" };
+  const plain = { ...F.DRAFTS_ALL.drafts[1], editedText: null };
+  // Срез на границе пары суррогатов: 318 букв, смайлик (две единицы UTF-16) и хвост. По кодовым точкам смайлик остаётся целым.
+  const long = { ...F.DRAFTS_ALL.drafts[2], editedText: null, text: `${"я".repeat(318)}😀${"x".repeat(5)}` };
+  const { drafts, total } = pendingRowsOf({ drafts: [rich, plain, long], counts: { ...F.DRAFTS_ALL.counts, pending: 13 } });
+  assert.deepEqual(drafts[0], { id: rich.id, agentKey: "sales", text: "Правка сотрудника", targetLabel: rich.targetLabel });
+  assert.deepEqual(drafts[1], { id: plain.id, agentKey: "sales", text: plain.text, targetLabel: plain.targetLabel }, "короткий текст — как есть");
+  assert.equal(drafts[2].text, `${"я".repeat(318)}😀…`);
+  assert.equal(Array.from(drafts[2].text).length, AI_AGENT_PENDING_TEXT_MAX);
+  assert.equal(/[\ud800-\udfff]/u.test(drafts[2].text), false, "обрезка не оставляет половину пары суррогатов");
+  assert.equal(total, 13, "всего ждёт — счётчик чтения, строк в списке три");
+  assert.equal(pendingRowsOf({ drafts: [rich, plain, long], counts: { ...F.DRAFTS_ALL.counts, pending: 1 } }).total, 3, "счётчик не бывает меньше показанных");
+  assert.deepEqual(pendingRowsOf({ drafts: [], counts: { ...F.DRAFTS_ALL.counts, pending: 0 } }), { drafts: [], total: 0 });
+});
+
+test("настоящий `readAiAgentsPending` с подставным клиентом: наружу уходят только agentKey, id, targetLabel и text; «всего» — счётчик, не меньше показанных; любой отказ чтения — `total: null, partial: true`", async () => {
+  const { readAiAgentsPending } = await realPending();
+  const INCOMING = "ВХОДЯЩЕЕ-сообщение-клиента";
+  const REASON = "ПРИЧИНА-агента";
+  // Сырые строки так, как их отдаёт RPC: со входящим сообщением клиента, причиной агента, кодом отказа, идентификаторами дела и разговора.
+  const raw = (count, pending) => ({
+    drafts: F.DRAFTS_ALL.drafts.slice(0, count).map((draft, index) => ({ ...draft, sourceMessage: { text: `${INCOMING}-${index}`, at: F.NOW }, reason: `${REASON}-${index}`, failureCode: "whatsapp_unavailable", studentCaseId: `case-${index}`, leadId: `lead-${index}` })),
+    counts: { ...F.DRAFTS_ALL.counts, pending },
+  });
+  const run = async (next) => {
+    globalThis.__pendingRpc = { calls: [], next };
+    const out = await readAiAgentsPending(ADMIN, { limit: 4 });
+    return { out, calls: globalThis.__pendingRpc.calls };
+  };
+  // Четыре строки из тринадцати.
+  const four = raw(4, 13);
+  assert.ok(Object.keys(four.drafts[0]).includes("sourceMessage") && Object.keys(four.drafts[0]).includes("reason"), "в сыром ответе лишние поля есть");
+  const ok = await run({ data: four, error: null });
+  assert.deepEqual(ok.calls, [{ schema: "platform", name: "ai_agents_drafts_list_v1", args: { p_organization_id: ADMIN.organizationId, p_key: null, p_status: "pending", p_limit: 4 } }], "одно чтение: все агенты, только ждущие, четыре строки, от имени сотрудника");
+  assert.deepEqual(Object.keys(ok.out).sort(), ["drafts", "partial", "total"]);
+  assert.equal(ok.out.drafts.length, 4);
+  for (const row of ok.out.drafts) assert.deepEqual(Object.keys(row).sort(), ["agentKey", "id", "targetLabel", "text"], "в строке ничего лишнего");
+  assert.deepEqual(ok.out.drafts.map((row) => row.id), four.drafts.map((draft) => draft.id));
+  assert.equal(ok.out.total, 13);
+  assert.equal(ok.out.partial, false);
+  const flat = JSON.stringify(ok.out);
+  for (const leak of [INCOMING, REASON, "sourceMessage", "reason", "failureCode", "conversationId", "studentCaseId", "leadId", "case-0", "lead-0", "editedText", "runId", "channel", "expiresAt", "createdAt", "decidedByName"]) assert.equal(flat.includes(leak), false, `наружу не уходит «${leak}»`);
+  // Правка сотрудника — вместо исходного текста; длинный текст обрезан по кодовым точкам.
+  const edited = raw(2, 2);
+  edited.drafts[0] = { ...edited.drafts[0], editedText: "Правка сотрудника" };
+  edited.drafts[1] = { ...edited.drafts[1], text: `${"я".repeat(318)}😀${"x".repeat(5)}` };
+  const trimmed = (await run({ data: edited, error: null })).out.drafts;
+  assert.equal(trimmed[0].text, "Правка сотрудника");
+  assert.equal(trimmed[1].text, `${"я".repeat(318)}😀…`);
+  // Всего: счётчик чтения, но не меньше показанных (счётчик отстал); пусто — 0 без выдуманного.
+  assert.equal((await run({ data: raw(4, 2), error: null })).out.total, 4, "max(счётчик, показано)");
+  assert.equal((await run({ data: raw(4, 4), error: null })).out.total, 4);
+  assert.deepEqual((await run({ data: raw(0, 0), error: null })).out, { drafts: [], total: 0, partial: false });
+  // Любой отказ чтения — слово о неполном списке и никакого числа: ответ с ошибкой базы, «нет доступа», «функции нет», кривая форма, исключение клиента.
+  const failed = { drafts: [], total: null, partial: true };
+  for (const [name, next] of [
+    ["ошибка базы", { data: null, error: { code: "XX000", message: "boom" } }],
+    ["нет доступа", { data: null, error: { code: "42501", message: "ai_agent_forbidden" } }],
+    ["функции нет (миграция не применена)", { data: null, error: { code: "PGRST202", message: "Could not find the function platform.ai_agents_drafts_list_v1" } }],
+    ["кривая форма ответа", { data: { drafts: "не список" }, error: null }],
+    ["клиент бросил исключение", new Error("сеть")],
+  ]) assert.deepEqual((await run(next)).out, failed, name);
+});
+
+test("хаб: «Правила» — только настоящему администратору (не сотруднику и не просмотру роли); Директору «Поручить» — только администратору; без ключа Claude «Поручить» нет ни у кого", async () => {
+  const { nextHub } = await views();
+  const hub = (list, configured = true, preview = false) => strip(nextHub(F.available(list), configured, preview));
+  const staffList = { ...F.LIST, isAdmin: false, canManage: false };
+  const admin = hub(F.LIST);
+  for (const key of ["curator-eu", "curator-ae", "curator-tr"]) assert.match(admin, new RegExp(`data-testid="v3-aia-rules-${key}"`, "u"), `администратору — «Правила» у ${key}`);
+  assert.match(admin, /data-testid="v3-aia-ask-director"/u, "Директору поручает администратор");
+  const staff = hub(staffList);
+  assert.doesNotMatch(staff, /data-testid="v3-aia-rules-/u, "сотруднику «Правила» не предлагаются");
+  assert.doesNotMatch(staff, /data-testid="v3-aia-ask-director"/u, "Директору сотрудник не поручает");
+  assert.match(staff, /data-testid="v3-aia-ask-sales"/u, "остальным агентам — поручает");
+  assert.match(staff, /data-testid="v3-aia-card-director"/u, "карточка Директора на месте");
+  const preview = hub(F.LIST, true, true);
+  assert.doesNotMatch(preview, /data-testid="v3-aia-rules-|data-testid="v3-aia-ask-/u, "в просмотре роли ни «Правил», ни «Поручить»");
+  for (const [label, list, previewing] of [["администратор", F.LIST, false], ["сотрудник", staffList, false], ["просмотр роли", F.LIST, true]]) {
+    assert.doesNotMatch(hub(list, false, previewing), /data-testid="v3-aia-ask-/u, `ключ Claude не задан (${label}): «Поручить» нет ни у кого`);
+  }
+});
+
+test("карточка агента в хабе: «Авто: вкл» словом у того, кто пишет сам, и слово итога последнего запуска («3 ч назад · Готово», ошибка — красным); у агента без правил времени и итога нет", async () => {
+  const { nextHub } = await views();
+  const hub = strip(nextHub(F.available(F.LIST), true, false));
+  assert.match(cardOf(hub, "sales"), /<span class="v3-chip t-caption" data-tone="warn" data-size="sm" title="Агент сам пишет клиентам и студентам без одобрения">Авто: вкл<\/span>/u, "чип со словом и подсказкой, тон только подкрепляет");
+  assert.equal((hub.match(/Авто: вкл/gu) ?? []).length, 1, "«Авто: вкл» — только у «Продаж» (autoSend); у остальных его нет, «Авто: выкл» не рисуется");
+  // Чип — только у ВКЛЮЧЁННОГО агента с «Авто»: выключенный ничего никому не пишет, даже если «Авто» когда-то включили; у второго включённого с «Авто» чип есть.
+  const offAuto = strip(nextHub(F.available(F.listVariant({ sales: { enabled: false } })), true, false));
+  assert.doesNotMatch(cardOf(offAuto, "sales"), /Авто: вкл/u, "выключенный агент с «Авто» — без чипа");
+  assert.match(cardOf(offAuto, "sales"), /Выключен/u, "состояние — словом «Выключен»");
+  assert.equal((offAuto.match(/Авто: вкл/gu) ?? []).length, 0);
+  assert.equal((strip(nextHub(F.available(F.LIST_OFF), true, false)).match(/Авто: вкл/gu) ?? []).length, 0, "все выключены — чипа нет нигде, хотя у «Продаж» «Авто» включён");
+  const twoAuto = strip(nextHub(F.available(F.listVariant({ director: { autoSend: true } })), true, false));
+  assert.match(cardOf(twoAuto, "director"), /Авто: вкл/u);
+  assert.match(cardOf(twoAuto, "sales"), /Авто: вкл/u);
+  assert.equal((strip(nextHub(F.available(F.listVariant({ sales: { autoSend: false } })), true, false)).match(/Авто: вкл/gu) ?? []).length, 0, "«Авто» выключен — чипа нет");
+  assert.match(textOf(cardOf(hub, "director")), /Последний запуск: 3 ч назад · Готово/u, "время и итог словами; «Последний запуск» — для читалки");
+  assert.match(cardOf(hub, "director"), /<span class="sr-only">Последний запуск: <\/span>3 ч назад/u);
+  assert.match(cardOf(hub, "curator-cn"), /3 ч назад · <span class="font-medium text-danger">Ошибка<\/span>/u, "ошибка — словом, красным");
+  for (const key of ["curator-eu", "curator-ae", "curator-tr"]) assert.doesNotMatch(cardOf(hub, key), /v3-aia-last-|назад|не запускался/u, `${key}: правил нет — нет и «когда работал»`);
+  // Ссылки карточки — цели 44 px. «N черновиков ждут решения» берёт их в зазоре над собой и в поле под собой (отрицательные поля равны `gap-2` и `p-3`
+  // тела карточки), поэтому карточка выше на 8 px, а не на 28.
+  for (const testid of ["v3-aia-drafts-sales", "v3-aia-ask-sales", "v3-aia-rules-curator-eu"]) assert.match(anchorOf(hub, testid), /\bmin-h-11\b/u, `${testid}: цель не ниже 44 px`);
+  assert.match(anchorOf(hub, "v3-aia-drafts-sales"), /-mb-3 -mt-2 inline-flex min-h-11/u);
+  assert.match(cardOf(hub, "sales"), /<span class="grid flex-1 content-start gap-2 p-3">/u, "поля ссылки равны зазору и полю тела карточки");
+  const never = strip(nextHub(F.available(F.listVariant({ "curator-my": { stats: { lastRunAt: null, lastRunStatus: null } } })), true, false));
+  assert.match(textOf(cardOf(never, "curator-my")), /ещё не запускался/u);
+  assert.doesNotMatch(cardOf(never, "curator-my"), /text-danger|text-warn/u);
+});
+
+test("`aiAgentLastRun`: время и слово итога из тех же подписей, что у «Истории работы»; красное слово — только ошибка, жёлтое — «нужно внимание» и лимит", () => {
+  const NOW = F.NOW;
+  const at = (status) => aiAgentLastRun({ lastRunAt: new Date(Date.parse(NOW) - 200 * 60_000).toISOString(), lastRunStatus: status }, NOW);
+  assert.deepEqual(at("completed"), { when: "3 ч назад", result: "Готово", tone: "ok" });
+  assert.deepEqual(at("failed"), { when: "3 ч назад", result: "Ошибка", tone: "danger" });
+  assert.deepEqual(at("running"), { when: "3 ч назад", result: "Работает", tone: "info" });
+  assert.deepEqual(at("budget_reached"), { when: "3 ч назад", result: "Остановлен по лимиту", tone: "warn" });
+  assert.deepEqual(at("needs_attention"), { when: "3 ч назад", result: "Нужно внимание", tone: "warn" });
+  assert.deepEqual(at("interrupted"), { when: "3 ч назад", result: "Прерван", tone: "neutral" });
+  assert.deepEqual(at(null), { when: "3 ч назад", result: null, tone: "neutral" }, "итога нет — только время");
+  assert.deepEqual(aiAgentLastRun({ lastRunAt: null, lastRunStatus: null }, NOW), { when: "ещё не запускался", result: null, tone: "neutral" });
+});
+
+test("полоса «Сейчас» говорит правду: «на связи» — при ключе Claude и готовом к запуску включённом агенте, «в работе» — пока идёт запуск; иначе «не подключены», «выключены» или «ждут настройки»; Директор без ссылки не администратору", async () => {
+  const { nextHub, hubPage } = await views();
+  const hub = (list, configured = true) => strip(nextHub(F.available(list), configured, false));
+  const strip_ = (markup) => textOf(markup.match(/<section[^>]*data-testid="v3-aia-now"[\s\S]*?<\/section>/u)[0]);
+  const idle = hub(F.LIST);
+  assert.match(idle, /data-testid="v3-aia-now" data-mode="idle"/u);
+  assert.match(strip_(idle), /^ИИ-агенты · на связи Сегодня 24 запуска, сейчас никто не занят Запусков за 7 дней 64 Без ошибок 78% Расход за 7 дней 17,90 \$$/u, "«Без ошибок» — общая `successShare`: (64 − 14) / 64");
+  assert.doesNotMatch(idle, /aria-label="Кто работает"/u, "никто не работает — списка нет");
+  const working = hub(F.LIST_RUNNING);
+  assert.match(working, /data-mode="working"/u);
+  assert.match(strip_(working), /^ИИ-агенты · в работе Выполняют 2 поручения прямо сейчас Директор \/ Аналитик Продажи \(Closer\) /u);
+  assert.deepEqual([...working.match(/<ul[^>]*aria-label="Кто работает">([\s\S]*?)<\/ul>/u)[1].matchAll(/<a[^>]*href="([^"]+)"/gu)].map((link) => link[1]), ["/ai-agents/director?tab=runs", "/ai-agents/sales?tab=runs"], "администратор открывает «Историю работы» обоих");
+  for (const link of working.match(/<ul[^>]*aria-label="Кто работает">([\s\S]*?)<\/ul>/u)[1].match(/<a [^>]*>/gu)) assert.match(link, /\bmin-h-11\b/u, "ссылка в полосе — цель 44 px");
+  assert.match(working, /<ul class="-mb-3 -mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 t-meta" aria-label="Кто работает">/u, "ряд занимает зазор над собой и поле полосы под собой; имена без ссылок встают по центру ряда");
+  // Не администратор: «История работы» Директора ему закрыта — имя без ссылки; остальные ссылки остаются.
+  const staffWorking = strip(await hubPage(world(STAFF, "next", { list: F.available({ ...F.LIST_RUNNING, isAdmin: false, canManage: false }) })));
+  const who = staffWorking.match(/<ul[^>]*aria-label="Кто работает">([\s\S]*?)<\/ul>/u)[1];
+  assert.deepEqual([...who.matchAll(/<a[^>]*href="([^"]+)"/gu)].map((link) => link[1]), ["/ai-agents/sales?tab=runs"], "ссылка только у «Продаж»");
+  assert.match(textOf(who), /^Директор \/ Аналитик Продажи \(Closer\)$/u, "Директор назван, но не ссылкой");
+  assert.doesNotMatch(who, /director/u);
+  // Нет ключа Claude: ни «на связи», ни «в работе», ни списка «Кто работает», даже если запуски числятся идущими.
+  const noKey = hub(F.LIST_RUNNING, false);
+  assert.match(noKey, /data-mode="key"/u);
+  assert.match(strip_(noKey), /^ИИ-агенты · не подключены Запуски недоступны: не задан ключ Claude /u);
+  assert.doesNotMatch(strip_(noKey), /на связи|в работе|прямо сейчас/u);
+  assert.doesNotMatch(noKey, /aria-label="Кто работает"/u);
+  assert.match(noKey, /data-testid="v3-aia-key-missing"/u, "плашка про ключ остаётся");
+  // Ни один агент не включён.
+  const off = hub(F.LIST_OFF);
+  assert.match(off, /data-mode="off"/u);
+  assert.match(strip_(off), /^ИИ-агенты · выключены Ни один агент не включён /u);
+  assert.doesNotMatch(strip_(off), /на связи|в работе/u);
+  // Включённые агенты есть, но ни один не готов к запуску: не синхронизирован, либо синхронизация не удалась и рабочей настройки нет — не «на связи».
+  const ENABLED = ["director", "sales", "curator-cn", "curator-my"];
+  const NOT_SYNCED = { sync: F.sync({ status: "never", claudeAgentId: null, agentVersion: null, environmentId: null, vaultId: null, configHash: null }) };
+  const unsynced = hub(F.LIST_UNSYNCED);
+  assert.match(unsynced, /data-mode="setup"/u);
+  assert.match(strip_(unsynced), /^ИИ-агенты · ждут настройки Включённые агенты не готовы: нужна синхронизация с Claude /u);
+  assert.doesNotMatch(strip_(unsynced), /на связи|в работе/u);
+  assert.doesNotMatch(unsynced, /aria-label="Кто работает"/u);
+  const failedNoSetup = F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, { sync: F.sync({ status: "error", error: "сбой сети", claudeAgentId: null, agentVersion: null, environmentId: null, vaultId: null }) }])));
+  assert.match(hub(failedNoSetup), /data-mode="setup"/u, "синхронизация не удалась и рабочей настройки нет — не готов");
+  // Хоть один включённый готов — «на связи»; ошибка синхронизации при сохранённой рабочей настройке — тоже готов (как `aiAgentIsRunnable`).
+  const oneReady = hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, key === "curator-my" ? {} : NOT_SYNCED]))));
+  assert.match(oneReady, /data-mode="idle"/u);
+  assert.match(strip_(oneReady), /^ИИ-агенты · на связи /u);
+  assert.match(hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, { sync: F.sync({ status: "error", error: "сбой сети" }) }])))), /data-mode="idle"/u, "ошибка синхронизации при рабочей прежней настройке — готов");
+  // Готов только включённый: синхронизированный, но выключенный агент не в счёт. Идущий запуск — «в работе», даже когда новых принять некому.
+  assert.match(hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, key === "curator-my" ? { enabled: false } : NOT_SYNCED])))), /data-mode="setup"/u, "curator-my синхронизирован, но выключен");
+  assert.match(hub(F.listVariant(Object.fromEntries(ENABLED.map((key) => [key, key === "sales" ? { ...NOT_SYNCED, stats: { runsRunning: 1 } } : NOT_SYNCED])))), /data-mode="working"/u);
+  // Доля без ошибок — общая `successShare`, а не своя копия: пока запусков нет, число — «—».
+  assert.match(strip_(hub({ ...F.LIST, summary: { ...F.LIST.summary, runs7d: 0 } })), /Без ошибок — /u);
+});
+
+test("хаб: заголовки групп на виду (не `sr-only`), группа из одного агента — одна колонка рядом с такой же, длинная — на всю ширину; сетка 2 / 3 / 5 колонок, та же в заготовке загрузки", async () => {
+  const { nextHub } = await views();
+  const hub = strip(nextHub(F.available(F.LIST), true, false));
+  for (const [group, label] of [["sales", "Продажи"], ["analytics", "Аналитика"], ["curators", "Кураторы"]]) {
+    const heading = hub.match(new RegExp(`<h3 id="aia-group-${group}" class="([^"]*)">${label}</h3>`, "u"));
+    assert.ok(heading, `заголовок «${label}» на месте`);
+    assert.doesNotMatch(heading[1], /sr-only/u, `заголовок «${label}» виден глазами, а не только читалке`);
+  }
+  assert.match(hub, /<section aria-labelledby="aia-group-sales" data-testid="v3-aia-group-sales" class="grid content-start gap-2">/u, "«Продажи» — одна колонка");
+  assert.match(hub, /<section aria-labelledby="aia-group-analytics" data-testid="v3-aia-group-analytics" class="grid content-start gap-2">/u, "«Аналитика» — одна колонка рядом с «Продажами»");
+  assert.match(hub, /<section aria-labelledby="aia-group-curators" data-testid="v3-aia-group-curators" class="col-span-full grid gap-2">/u, "«Кураторы» — на всю ширину");
+  const COLUMNS = "grid-cols-2 @3xl:grid-cols-3 @5xl:grid-cols-5";
+  assert.equal(hub.split(COLUMNS).length - 1, 2, "внешняя сетка и сетка кураторов — одни колонки: карточки везде одной ширины");
+  assert.doesNotMatch(hub, /@3xl:grid-cols-3 @5xl:grid-cols-4/u, "четыре колонки оставляли на ноутбуке последнюю карточку одну в ряду");
+  const loading = read("src/app/(staff)/ai-agents/loading.tsx");
+  for (const column of COLUMNS.split(" ")) assert.ok(loading.includes(column), `заготовка загрузки — та же сетка (${column})`);
+  assert.doesNotMatch(loading, /@4xl:grid-cols-4/u, "четырёх плиток в заготовке больше нет");
+});
+
+test("кольцо фокуса в тёмной полосе «Сейчас» белое: общее графитовое было 1,09:1 на её фоне, нужно не меньше 3:1", () => {
+  const css = read("src/app/(staff)/ai-agents.css");
+  const staff = read("src/app/(staff)/staff.css");
+  const channel = (hex) => { const value = parseInt(hex.slice(1), 16); return [(value >> 16) & 255, (value >> 8) & 255, value & 255].map((part) => { const c = part / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); };
+  const luminance = (hex) => { const [r, g, b] = channel(hex); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contrast = (a, b) => { const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (light + 0.05) / (dark + 0.05); };
+  const ink = css.match(/--aia-hero-ink: (#[0-9a-f]{6});/u)[1];
+  const hero = css.match(/\.v3-world \.v3-aia-hero \{[\s\S]*?\n\}/u)[0];
+  const base = [...hero.matchAll(/#[0-9a-f]{6}\b/gu)].map((match) => match[0]).at(-1);
+  const generalRing = staff.match(/\.v3-world\[data-surface="staff"\] \{\n {2}--bg: #f3f1ec;[\s\S]*?--focus-ring: (#[0-9a-f]{6});/u)[1];
+  assert.equal(base, "#17181c", "основа полосы — графит");
+  assert.equal(generalRing, "#202020", "общее кольцо staff CRM — графитовое");
+  assert.ok(contrast(generalRing, base) < 1.2, `общее кольцо ${generalRing} на графите полосы невидимо (${contrast(generalRing, base).toFixed(2)}:1)`);
+  assert.match(css, /\.v3-world \.v3-aia-hero :focus-visible \{\n {2}outline-color: var\(--aia-hero-ink\);\n\}/u, "внутри полосы кольцо — цвет её текста");
+  assert.ok(contrast(ink, base) >= 3, `белое кольцо на графите: ${contrast(ink, base).toFixed(1)}:1`);
+});
+
+test("«Обзор» и «История работы» после #1451: «нет», а не «0»; «идёт»; «Итог будет, когда агент закончит» и «Без итога»; пустой «Расход по дням» не рисуется", async () => {
+  const { nextPage } = await views();
+  // «Ждут решения»: нет черновиков — слово «нет» и не ссылка; есть — число и ссылка в очередь.
+  const none = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { stats: F.stats({ draftsPending: 0 }) }) })));
+  assert.match(none, /Ждут решения<\/p><p class="t-figure px-4 text-fg">нет<\/p>/u, "«нет», а не «0»");
+  assert.doesNotMatch(none, /Ждут решения<\/p><p class="t-figure px-4 text-fg">0</u);
+  assert.doesNotMatch(none, /data-slot="stat-tile"[^>]*href="\/ai-agents\/director\?tab=drafts"/u, "без черновиков плитка — не ссылка");
+  assert.match(strip(nextPage(F.bodyProps("overview"))), /<a[^>]*data-slot="stat-tile"[^>]*href="\/ai-agents\/director\?tab=drafts"[^>]*>[\s\S]*?Ждут решения<\/p><p class="t-figure px-4 text-fg">3<\/p>/u, "с черновиками — число и ссылка");
+  // Расход по дням: не было расхода за 30 дней — карточки нет, график запусков на всю ширину; был — два графика рядом.
+  const base = F.detail("director");
+  const noSpend = strip(nextPage(F.bodyProps("overview", { detail: { ...base, charts: { ...base.charts, spendPerDay: base.charts.spendPerDay.map((point) => ({ ...point, costCents: 0 })) } } })));
+  assert.doesNotMatch(noSpend, /Расход по дням/u, "пустая карточка не рисуется");
+  assert.match(noSpend, /Запуски по дням/u);
+  const parentOfRuns = (markup) => { const before = markup.slice(0, markup.indexOf("Запуски по дням")); return before.slice(before.lastIndexOf('<div class="grid gap-4')).match(/^<div class="[^"]*"/u)[0]; };
+  assert.equal(parentOfRuns(noSpend), '<div class="grid gap-4"', "один график — на всю ширину");
+  assert.equal(parentOfRuns(strip(nextPage(F.bodyProps("overview")))), '<div class="grid gap-4 @4xl:grid-cols-2"', "с расходом — два графика рядом");
+  assert.match(strip(nextPage(F.bodyProps("overview"))), /Расход по дням/u);
+  // «История работы»: идущий запуск — «идёт» и «Итог будет…»; законченный без слов — «Без итога».
+  const running = { ...F.RUNS[7], promptPreview: null, summary: null };
+  const finished = { ...F.RUNS[0], id: "11111111-1111-4111-8111-0000000000f1", promptPreview: null, summary: null, durationSeconds: null };
+  const page = strip(nextPage(F.bodyProps("runs", { runs: F.available({ runs: [running, finished], hasMore: false }) })));
+  const rows = page.match(/<tbody[\s\S]*?<\/tbody>/u)[0].match(/<tr[\s\S]*?<\/tr>/gu);
+  assert.equal(rows.length, 2);
+  assert.match(textOf(rows[0]), /Итог будет, когда агент закончит/u, "идущий запуск без слов — обещание итога, а не прочерк");
+  assert.match(textOf(rows[0]), / идёт /u, "время и расход идущего запуска — «идёт» (`\\b` в JS не знает кириллицы)");
+  assert.doesNotMatch(textOf(rows[0]), /— · 0,00/u);
+  assert.match(textOf(rows[1]), /Без итога/u, "законченный без слов — «Без итога»");
+  assert.doesNotMatch(textOf(rows[1]), /Итог будет/u);
+  assert.match(textOf(rows[1]), /0,11 \$/u, "у законченного время неизвестно, а расход назван");
+  assert.doesNotMatch(textOf(rows[1]), /—/u, "неизвестное время не рисуется прочерком");
+});
+
+test("маскоты — декоративные картинки: пустое `alt` и `aria-hidden` (сами или предком) на хабе, в шапке страницы агента, в пустом и закрытом чате", async () => {
+  const { nextHub, nextPage } = await views();
+  const hub = imagesOf(strip(nextHub(F.available(F.LIST), true, false)));
+  assert.equal(hub.length, 7, "по маскоту на каждого из семи агентов");
+  const overview = imagesOf(strip(nextPage(F.bodyProps("overview"))));
+  const chat = imagesOf(strip(nextPage(F.bodyProps("command"))));
+  const emptyChat = imagesOf(strip(nextPage(F.bodyProps("command", { resume: { runId: null, sendAuthority: false, run: null }, conversations: [] }))));
+  const locked = imagesOf(strip(nextPage(F.bodyProps("command", { detail: F.detail("curator-eu", { hasInstructionsOverride: false, enabled: false }), resume: { runId: null, sendAuthority: false, run: null } }))));
+  assert.ok(overview.length >= 1 && chat.length >= 1, "маскот в шапке каждой вкладки");
+  assert.ok(emptyChat.length >= 2 && locked.length >= 2, "в пустом и закрытом чате ещё и крупный");
+  for (const [name, images] of [["хаб", hub], ["обзор", overview], ["чат", chat], ["пустой чат", emptyChat], ["закрытый чат", locked]]) {
+    for (const image of images) assert.deepEqual(image, { alt: "", hidden: true }, `${name}: маскот декоративен`);
+  }
+  // Шапка с маскотом не уходит «?» на отдельную строку: ряд не переносится, название сужается само; на телефоне маскот 32 px.
+  const header = strip(nextPage(F.bodyProps("overview")));
+  assert.match(header, /<div class="flex min-w-0 items-center gap-x-2 gap-y-1 flex-nowrap"><img [^>]*class="v3-aia-mascot shrink-0 object-contain size-8 sm:size-10"[^>]*\/><h1 class="t-page-title text-fg min-w-0">/u);
 });
 
 /* ------------------------------------------------------------------ условия запуска: те же, что у прежнего AgentBody */

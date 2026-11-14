@@ -76,6 +76,7 @@ export function ChatTimeline({
   items,
   userLabel,
   agentLabel = "Агент",
+  agentAvatar = null,
   runMeta = null,
   allowTask = false,
   working = false,
@@ -86,6 +87,8 @@ export function ChatTimeline({
   /** Подпись перед временем под репликой сотрудника («Поручение» в «Запусках»); без неё — только время. */
   userLabel?: string;
   agentLabel?: string;
+  /** Маскот агента у подписи ответа (12.11.2026); в «Запусках» и без маскота — нет. */
+  agentAvatar?: ReactNode;
   /** «12 с · 0,11 $ · 5 шагов» под последним ответом закончившегося запуска. */
   runMeta?: string | null;
   /** «Сделать задачей» под ответами (в «Запусках» не нужна). */
@@ -118,7 +121,7 @@ export function ChatTimeline({
           case "agent":
             return (
               <Entry key={block.id} kind="agent" animate={staticIds !== null && !staticIds.has(block.id)} className="flex flex-col gap-1.5">
-                <span className="t-meta text-fg-3">{agentLabel} · {formatDateTimeRu(block.at)}</span>
+                <span className="flex items-center gap-1.5 t-meta text-fg-3">{agentAvatar}{agentLabel} · {formatDateTimeRu(block.at)}</span>
                 <div className="rounded-card border border-border bg-surface px-4 py-3.5 @2xl:px-5 @2xl:py-4 [&_.t-body]:leading-[1.6]">
                   <Markdown source={block.text} />
                 </div>

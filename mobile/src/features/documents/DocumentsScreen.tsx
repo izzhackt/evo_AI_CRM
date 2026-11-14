@@ -5,7 +5,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText } from "lucide-react-native";
 import { useCallback, useState } from "react";
-import { Linking, View } from "react-native";
+import { View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useCaseFiles, useDocuments, useRefetchOnFocus } from "@/api/queries";
@@ -20,8 +20,6 @@ import { Button } from "@/ui/Button";
 import { CardHead, CardSkeleton, EmptyBlock, InlineAlert } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
-
-const PRIVACY_URL = "https://evoadmissions.com/ru/privacy/";
 
 function counterColor(kind: string, tokens: ReturnType<typeof useTheme>["tokens"]): string {
   return kind === "approved" ? tokens.ok : kind === "submitted" ? tokens.text : kind === "correction" ? tokens.warn : tokens.text2;
@@ -109,9 +107,6 @@ export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }
                 ))}
               </View>
             </Card>
-            <Text variant="caption" tone="text2" testID="documents-privacy" onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => undefined)} accessibilityRole="link">
-              {strings.documentsPrivacyNote} <Text variant="caption" tone="accent" bold>{strings.documentsPrivacyLink}</Text>
-            </Text>
           </>
         )}
 

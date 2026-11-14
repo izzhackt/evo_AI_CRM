@@ -64,9 +64,13 @@ describe("экран «Конфиденциальность»", () => {
     expect(screen.getByText("политику конфиденциальности")).toBeTruthy();
     expect(screen.getByText("Продолжить")).toBeTruthy();
     expect(screen.getByText("Выйти")).toBeTruthy();
+    // 14.11.2026: единственное место, где говорится о хранении файлов; на экране «Документы» этой строки нет.
+    expect(screen.getByTestId("consent-files-note")).toBeTruthy();
+    expect(screen.getByText("Файлы хранятся закрыто и проверяются антивирусом; их видят сотрудники EVO, которые ведут ваше дело.")).toBeTruthy();
     await screen.unmount();
     await renderScreen(<ConsentScreen />, "ky");
     expect(screen.getByText("Купуялуулук")).toBeTruthy();
+    expect(screen.getByTestId("consent-files-note")).toBeTruthy();
   });
 
   it("без обеих галочек продолжить нельзя: ни одной, только одна - RPC не вызывается", async () => {

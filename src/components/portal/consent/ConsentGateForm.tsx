@@ -49,6 +49,7 @@ export function ConsentGateForm({
         <label htmlFor={aiId}>{strings.aiLabel}</label>
       </div>
       <p id={aiDetailId} className="pt-gate-detail">{strings.aiDetail}</p>
+      <p className="pt-gate-note">{strings.filesNote}</p>
 
       {message ? <p role="alert" className="pt-consent-error">{message}</p> : null}
       <button type="submit" className="pt-btn pt-gate-submit" disabled={!both || pending} data-testid="consent-gate-submit">

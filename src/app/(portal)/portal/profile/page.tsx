@@ -21,6 +21,7 @@ import {
 import { readOwnConsultationRequests } from "@/lib/portal/consultation-source";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { AI_CONSENT_PRIVACY_URL, PORTAL_SUPPORT_URL } from "@/lib/portal/ai-consent";
 import { readOwnAiConsentForProfile } from "@/lib/portal/ai-consent-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import { readOwnStudentLogin } from "@/lib/portal/student-login-source";
@@ -99,8 +100,10 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Экран «Профиль» (PORT-5a, план §6 «Профиль», §13; дизайн-контракт §6):
  * «Мои данные» (#1360: имя, почта и логин для входа, телефон и имя правит куратор; пароль меняется здесь же), язык RU/KY (RPC 196 + cookie в одном действии), личные
- * результаты тестов, согласие на ИИ-помощников (320), выход и удаление
- * аккаунта (280): запрос, срок 30 дней и его статус с сервера.
+ * результаты тестов, выход и одна короткая секция «Конфиденциальность» (решение владельца 14.11.2026): ссылки на
+ * политику и поддержку, согласие на ИИ-помощников (320) одной строкой и удаление аккаунта (280) с его статусом
+ * с сервера. Объяснений о данных на рабочем экране нет: условия студент читает при регистрации и на экране
+ * «Конфиденциальность» при первом входе.
  */
 export default async function ProfilePage() {
   const [actor, locale] = await Promise.all([
@@ -247,20 +250,6 @@ export default async function ProfilePage() {
               )}
             </section>
 
-            {aiConsent.status === "not_applicable" ? null : (
-              <section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">
-                <h2 id="portal-profile-ai-consent" className="pt-section-title">
-                  <ProfileIcon name="ai" />
-                  {aiConsentStrings.rowHeading}
-                </h2>
-                {aiConsent.status === "ready" ? (
-                  <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
-                ) : (
-                  <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
-                )}
-              </section>
-            )}
-
             <section aria-labelledby="portal-profile-password" className="pt-profile-card">
               <h2 id="portal-profile-password" className="pt-section-title">
                 <ProfileIcon name="security" />
@@ -269,17 +258,42 @@ export default async function ProfilePage() {
               <PasswordChangeForm strings={strings} />
             </section>
 
-            <section aria-labelledby="portal-profile-deletion" className="pt-profile-card">
-              <h2 id="portal-profile-deletion" className="pt-section-title">
-                <ProfileIcon name="deletion" />
-                {deletionStrings.heading}
+            <section aria-labelledby="portal-profile-privacy" className="pt-profile-card" data-testid="profile-privacy-section">
+              <h2 id="portal-profile-privacy" className="pt-section-title">
+                <ProfileIcon name="privacy" />
+                {strings.privacyHeading}
               </h2>
-              <AccountDeletionPanel
-                initialRequest={deletion.status === "ready" ? deletion.request : null}
-                unavailable={deletion.status === "unavailable"}
-                strings={deletionStrings}
-                look="portal"
-              />
+              <ul className="pt-privacy-list" role="list">
+                <li className="pt-privacy-item">
+                  <a className="pt-privacy-link" href={AI_CONSENT_PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+                    <span>{strings.privacyPolicy}</span>
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                </li>
+                <li className="pt-privacy-item">
+                  <a className="pt-privacy-link" href={PORTAL_SUPPORT_URL} target="_blank" rel="noopener noreferrer">
+                    <span>{strings.supportLink}</span>
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                </li>
+                {aiConsent.status === "not_applicable" ? null : (
+                  <li className="pt-privacy-item pt-privacy-item-block">
+                    {aiConsent.status === "ready" ? (
+                      <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
+                    ) : (
+                      <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
+                    )}
+                  </li>
+                )}
+                <li className="pt-privacy-item pt-privacy-item-block">
+                  <AccountDeletionPanel
+                    initialRequest={deletion.status === "ready" ? deletion.request : null}
+                    unavailable={deletion.status === "unavailable"}
+                    strings={deletionStrings}
+                    look="portal"
+                  />
+                </li>
+              </ul>
             </section>
           </div>
         </>

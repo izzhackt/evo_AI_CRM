@@ -3,6 +3,7 @@
 import { FileText, Image as ImageIcon, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 import type { PortalStrings } from "@/lib/portal/i18n";
 import {
@@ -85,6 +86,15 @@ function HiddenFileInput({
 }
 
 /**
+ * Фокус с клавиатуры. Кнопка выбора файла и форма исчезают при выборе и при отправке, и фокус падал на <body>: «Сохранить» приходилось
+ * искать заново, а Enter ничего не отправлял. Поэтому после смены экрана фокус ставится сразу, в самом обработчике: `flushSync` дорисовывает
+ * новый экран, и кнопка или текст уже в DOM. Хуков-эффектов здесь нет: экраны admission/ держит без них tests/v3-student-portal-ui.test.mjs.
+ */
+function focusNow(target: { current: HTMLElement | null }) {
+  target.current?.focus();
+}
+
+/**
  * Ячейка «Чек» у строки платежа: выбрать файл и «Сохранить», либо «Заменить» у отклонённого.
  * Сумма и валюта — у строки, дата оплаты — день чека или сегодня по Бишкеку. Тот же POST, что и раньше.
  */
@@ -105,6 +115,8 @@ export function ReceiptSlot({
 }>) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
   const attemptKey = useRef<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
@@ -120,7 +132,8 @@ export function ReceiptSlot({
       return;
     }
     setErrorKey(null);
-    setFile(next);
+    flushSync(() => setFile(next));
+    focusNow(saveRef);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -142,7 +155,8 @@ export function ReceiptSlot({
     setState("sending");
     const result = await postReceipt(body, attemptKey);
     if (result.ok) {
-      setState("sent");
+      flushSync(() => setState("sent"));
+      focusNow(sentRef);
       router.refresh();
       return;
     }
@@ -150,7 +164,7 @@ export function ReceiptSlot({
     setState("idle");
   }
 
-  if (state === "sent") return <p role="status" className="pt-receipt-sent">{strings.receiptSent}</p>;
+  if (state === "sent") return <p ref={sentRef} tabIndex={-1} role="status" className="pt-receipt-sent">{strings.receiptSent}</p>;
 
   return (
     <div className="pt-pay-slot-wrap">
@@ -164,7 +178,7 @@ export function ReceiptSlot({
           <button type="button" className="pt-pay-clear" aria-label={strings.receiptClearFile} disabled={locked} onClick={() => setFile(null)}>
             <X aria-hidden size={14} />
           </button>
-          <button type="submit" className="pt-btn pt-pay-save" disabled={locked}>
+          <button ref={saveRef} type="submit" className="pt-btn pt-pay-save" disabled={locked}>
             {locked ? strings.receiptSaving : strings.receiptSave}
           </button>
         </form>
@@ -188,6 +202,8 @@ export function AddPaymentForm({
 }: Readonly<{ strings: Strings; currencies: readonly string[]; defaultCurrency: string; onClose: () => void }>) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
   const attemptKey = useRef<string | null>(null);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
@@ -206,7 +222,8 @@ export function AddPaymentForm({
       return;
     }
     setErrorKey(null);
-    setFile(next);
+    flushSync(() => setFile(next));
+    focusNow(saveRef);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -231,7 +248,8 @@ export function AddPaymentForm({
     setState("sending");
     const result = await postReceipt(body, attemptKey);
     if (result.ok) {
-      setState("sent");
+      flushSync(() => setState("sent"));
+      focusNow(sentRef);
       router.refresh();
       return;
     }
@@ -239,7 +257,7 @@ export function AddPaymentForm({
     setState("idle");
   }
 
-  if (state === "sent") return <p role="status" className="pt-receipt-sent pt-pay-add-sent">{strings.receiptSent}</p>;
+  if (state === "sent") return <p ref={sentRef} tabIndex={-1} role="status" className="pt-receipt-sent pt-pay-add-sent">{strings.receiptSent}</p>;
 
   return (
     <form className="pt-pay-add" onSubmit={submit} aria-busy={locked}>
@@ -283,7 +301,7 @@ export function AddPaymentForm({
           )}
         </div>
         <div className="pt-pay-add-actions">
-          <button type="submit" className="pt-btn pt-pay-save" disabled={locked}>{locked ? strings.receiptSaving : strings.receiptSave}</button>
+          <button ref={saveRef} type="submit" className="pt-btn pt-pay-save" disabled={locked}>{locked ? strings.receiptSaving : strings.receiptSave}</button>
           <button type="button" className="pt-btn-ghost" disabled={locked} onClick={onClose}>{strings.receiptCancel}</button>
         </div>
       </div>

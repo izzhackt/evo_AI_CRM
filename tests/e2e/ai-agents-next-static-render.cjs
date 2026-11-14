@@ -43,8 +43,8 @@ const NARROW = {
   m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 // Ширины рабочего стола для шапки «Чата» (раздел 10): помещается ли название агента целиком, видны ли все шесть вкладок и сколько в шапке строк.
-// 1668–1760 — вокруг порога «в одну строку» (колонка 90rem = окно 1748 px): там вкладки когда-то обрезались.
-const WIDE = Object.fromEntries([900, 1280, 1600, 1668, 1700, 1740, 1760, 1920].map((width) => [`w${width}`, { viewport: { width, height: 900 } }]));
+// 1668–1760 — вокруг прежнего порога «в одну строку» (колонка 90rem = окно 1748 px), 1900–1920 — вокруг нынешнего (100rem = окно 1908 px).
+const WIDE = Object.fromEntries([900, 1280, 1600, 1668, 1700, 1740, 1760, 1900, 1920].map((width) => [`w${width}`, { viewport: { width, height: 900 } }]));
 const AGENT_KEYS = ["director", "sales", "curator-cn", "curator-my", "curator-eu", "curator-ae", "curator-tr"];
 const SCENES = [
   { name: "hub", path: "/ai-agents", search: "" },
@@ -189,13 +189,13 @@ function smallTargets(rootSelector) {
 }
 
 /**
- * Вкладки шапки «Чата»: влезают ли все шесть в свой ряд. Ряд (`nav[data-testid=queue-view-tabs]`) прокручивается, и если ему тесно, последняя
+ * Вкладки шапки «Чата»: влезают ли все шесть в свой ряд. Ряд (`nav[data-testid=v3-aia-tabs]`) прокручивается, и если ему тесно, последняя
  * вкладка («Настройки») уходит за край: `overflow` — на сколько px содержимое шире ряда, `hidden` — вкладки, правый край которых за краем ряда,
  * `rows` — сколько строк в шапке (1 — всё в одну линию). Выполняется в странице: `page.evaluate(tabStripClip)`.
  */
 function tabStripClip() {
   const header = document.querySelector("[data-testid=v3-aia-chat-header]");
-  const strip = header.querySelector("nav[data-testid=queue-view-tabs]");
+  const strip = header.querySelector("nav[data-testid=v3-aia-tabs]");
   const box = strip.getBoundingClientRect();
   const hidden = [...strip.querySelectorAll("a")].filter((link) => link.getBoundingClientRect().right > box.right + 1).map((link) => link.textContent.trim().replace(/\s+/gu, " "));
   const rows = new Set([...header.firstElementChild.children].map((child) => Math.round(child.getBoundingClientRect().top))).size;
@@ -688,7 +688,7 @@ async function main() {
   for (const key of ["d1280", "m390"]) {
     const { context, page, errors } = await open("settings", key);
     const save = page.getByRole("button", { name: "Сохранить настройки" });
-    report(`${key}/settings: save is off until something changes`, await save.isDisabled(), null);
+    report(`${key}/settings: no save bar until something changes`, (await save.count()) === 0, null);
     await page.locator("#aia-model").click();
     await page.getByRole("listbox").waitFor();
     await expectOverlay(page, `${key}/settings: select list`, "[data-slot=select-content]");
@@ -741,6 +741,9 @@ async function main() {
     const { context, page, errors } = await open("instructions", "d1280");
     const field = page.locator("#aia-instr-text-director");
     const save = page.getByRole("button", { name: "Сохранить", exact: true });
+    // Правила открываются «Просмотром» (13.11.2026): размеченный текст без кнопки «Сохранить»; правка — во вкладке «Править».
+    report("d1280/rules: opens on the rendered view without a save button", (await page.getByTestId("v3-aia-instructions-view").count()) === 1 && (await save.count()) === 0, null);
+    await page.getByRole("tab", { name: "Править" }).click();
     report("d1280/rules: save is off until the text changes", await save.isDisabled(), null);
     report("d1280/rules: default text sheet is hidden while rules are the defaults", (await page.getByRole("button", { name: "Стандартные правила" }).count()) === 0 && (await page.getByRole("button", { name: "Общие правила EVO" }).count()) === 1, null);
     await field.fill(`${await field.inputValue()}\n\nНовое правило.`);
@@ -804,11 +807,11 @@ async function main() {
     }
     report(`${key}/chat: the full title of all seven agents fits the header and its «?» stays beside it`, bad.length === 0, bad);
     if (WIDE[key].viewport.width >= 1280) report(`${key}/chat: all six tabs fit their strip, none is cut off or scrolled`, cut.length === 0, cut);
-    // От 90rem рабочей колонки (окно 1748 px и шире) шапка — одна тонкая строка, как у прежней рамки; уже — вкладки второй строкой.
-    if (key === "w1760" || key === "w1920") report(`${key}/chat: the header is one thin line for every agent`, Object.values(heights).every((height) => height <= 48), heights);
+    // От 100rem рабочей колонки (окно 1908 px и шире) шапка — одна тонкая строка, как у прежней рамки; уже — вкладки второй строкой.
+    if (key === "w1920") report(`${key}/chat: the header is one thin line for every agent`, Object.values(heights).every((height) => height <= 56), heights); // вкладки в рамке: 44 px + поля 4 px + рамка — 54 px; две строки — больше 100
   }
   // Число на «На одобрение» шире — трёхзначное: вкладкам по-прежнему хватает места и в одной строке, и во второй.
-  for (const key of ["w1668", "w1740", "w1760"]) {
+  for (const key of ["w1668", "w1760", "w1900", "w1920"]) {
     const { context, page } = await open("chat", key, { query: "agent=director&drafts=140" });
     const clip = await page.evaluate(tabStripClip);
     report(`${key}/chat: six tabs with a three-digit count still fit their strip`, clip.overflow <= 1 && clip.hidden.length === 0, clip);

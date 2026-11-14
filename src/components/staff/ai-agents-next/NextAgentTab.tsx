@@ -40,9 +40,10 @@ export function NextAgentTab({ props, gate }: Readonly<{ props: NextAgentPagePro
       return <NextOverview detail={detail} digests={props.digests?.status === "available" ? props.digests.data.digests : []} now={now} canRun={canRun} setup={setup} canMakeTasks={Boolean(props.canMakeTasks) && !preview} />;
     case "command":
       // Разговор живёт в состоянии `CommandWorkspace`, а не в адресе: после действий страница перерисовывается сервером (#1293).
+      // Нет ключа Claude — это уже сказано плашкой над чатом: на компьютере пустой чат ту же фразу не повторяет, на телефоне плашка скрыта (13.11.2026).
       return (
         <CommandWorkspace
-          agentKey={key} agentTitle={detail.title} autoSend={detail.autoSend} canRun={canRun} blockedNote={blockedNote}
+          agentKey={key} agentTitle={detail.title} autoSend={detail.autoSend} canRun={canRun} blockedNote={blockedNote} noteAbove={!runtimeConfigured}
           canDirect={canManage && !preview} canMakeTasks={Boolean(props.canMakeTasks) && !preview} now={now}
           conversations={props.conversations ?? []} resume={props.resume} starters={AI_AGENT_STARTERS[key]}
           nextStep={step ? <SetupAction step={step} agentKey={key} configVersion={detail.configVersion} /> : null}
@@ -89,7 +90,7 @@ export function NextAgentTab({ props, gate }: Readonly<{ props: NextAgentPagePro
       // «Включён» и «Авто» живут только в шапке страницы: здесь второй пары переключателей нет.
       return (
         <NextSettings
-          detail={detail} defaultSchedulePrompt={defaults.schedulePrompt ?? null} canEdit={canEdit} canRunNow={canRun} runNowNote={blockedNote}
+          detail={detail} defaultSchedulePrompt={defaults.schedulePrompt ?? null} canEdit={canEdit} canRunNow={canRun} runNowNote={runtimeConfigured ? blockedNote : null}
           whatsappCap={props.whatsappDailyCapCents ? {
             capCents: props.whatsappDailyCapCents,
             spentTodayCents: props.whatsappCapState?.spentCents ?? spentTodayCents(detail.charts.spendPerDay, Date.parse(now)),

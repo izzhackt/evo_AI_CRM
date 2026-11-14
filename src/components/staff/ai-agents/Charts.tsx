@@ -25,6 +25,15 @@ function barTitle(mode: BarMode, row: ChartBarRow): string {
   return row.failed > 0 ? `${base}, из них с ошибкой — ${row.failed}` : base;
 }
 
+/** Легенда штриховки. Вынесенная в шапку карточки (`legend={false}`), она не сдвигает ось вниз против соседнего графика. */
+export function FailedLegend() {
+  return (
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 t-meta text-fg-2" aria-hidden="true">
+      <span className="inline-flex items-center gap-1.5"><span className="v3-aia-hatch size-2.5 rounded-[2px] border border-fg" />Из них с ошибкой</span>
+    </p>
+  );
+}
+
 /** Столбики по дням (30 дней): «Запуски по дням» и «Расход по дням». */
 export function DayBars({
   rows,
@@ -32,12 +41,14 @@ export function DayBars({
   caption,
   emptyText,
   tableHead,
+  legend = true,
 }: Readonly<{
   rows: readonly ChartBarRow[];
   mode: BarMode;
   caption: string;
   emptyText: string;
   tableHead: readonly [string, string, string?];
+  legend?: boolean;
 }>) {
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   if (rows.length === 0 || total === 0) {
@@ -57,11 +68,7 @@ export function DayBars({
   return (
     <figure className="min-w-0" aria-label={caption}>
       {/* Легенда нужна только штриховке: «что за столбцы» говорит заголовок панели. */}
-      {anyFailed ? (
-        <p className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 t-meta text-fg-2" aria-hidden="true">
-          <span className="inline-flex items-center gap-1.5"><span className="v3-aia-hatch size-2.5 rounded-[2px] border border-fg" />Из них с ошибкой</span>
-        </p>
-      ) : null}
+      {anyFailed && legend ? <div className="mb-2"><FailedLegend /></div> : null}
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
         <div aria-hidden="true" className="relative h-40 t-meta tabular-nums text-fg-3">
           <span className="invisible block">{valueText(mode, top)}</span>
@@ -80,15 +87,14 @@ export function DayBars({
               const height = (row.value / top) * 100;
               const failedShare = row.value > 0 ? (row.failed / row.value) * 100 : 0;
               return (
-                <div key={row.date} title={barTitle(mode, row)} className="flex h-full min-w-0 flex-1 items-end">
+                <div key={row.date} title={barTitle(mode, row)} className="group/bar flex h-full min-w-0 flex-1 items-end justify-center">
+                  {/* Пустой день — без чёрточки: ноль показывает линия оси. Столбик не шире 3rem: за 7 дней он был плиткой. */}
                   {row.value > 0 ? (
-                    <div className="flex w-full flex-col overflow-hidden rounded-t-[2px]" style={{ height: `${height}%`, minHeight: 3 }}>
+                    <div className="flex w-full max-w-12 flex-col overflow-hidden rounded-t-[3px]" style={{ height: `${height}%`, minHeight: 3 }}>
                       {failedShare > 0 ? <div className="v3-aia-hatch shrink-0 border-b border-surface" style={{ height: `${failedShare}%`, minHeight: 2 }} /> : null}
-                      <div className={`min-h-0 flex-1 ${index === lastIndex ? "bg-fg" : "bg-fg-2"}`} />
+                      <div className={`min-h-0 flex-1 transition-colors motion-reduce:transition-none ${index === lastIndex ? "bg-fg" : "bg-fg-2 group-hover/bar:bg-fg"}`} />
                     </div>
-                  ) : (
-                    <div className="h-px w-full bg-border-strong" />
-                  )}
+                  ) : null}
                 </div>
               );
             })}

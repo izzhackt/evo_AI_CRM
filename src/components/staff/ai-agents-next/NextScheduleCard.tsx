@@ -1,48 +1,48 @@
 "use client";
 
-import { useState } from "react";
-
 import { HelpTip, WidgetCard } from "@/components/kit";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { SCHEDULE_TIMEZONES, SCHEDULE_WEEKDAY_OPTIONS, timezoneLabel } from "@/lib/v3/ai-agents-view";
+import { cronFromPlan, SCHEDULE_TIMEZONES, SCHEDULE_WEEKDAY_OPTIONS, timezoneLabel } from "@/lib/v3/ai-agents-view";
 
 import { HOURS, MINUTE_STEPS, SCHEDULE_CHOICE_LABELS, type ScheduleChoice, type SettingsValues } from "./next-settings-model";
 
 type Setter = <K extends keyof SettingsValues>(name: K, value: SettingsValues[K]) => void;
-const KINDS = ["none", "daily", "weekdays", "weekly"] as const;
+const KINDS = ["none", "daily", "weekdays", "weekly", "custom"] as const;
 
 function Field({ id, label, children }: Readonly<{ id: string; label: string; children: React.ReactNode }>) {
   return <div className="grid min-w-0 gap-1.5"><Label htmlFor={id}>{label}</Label>{children}</div>;
 }
 
 /**
- * «Расписание и события»: как часто, время (два списка в 24-часовом виде), день недели, часовой пояс, своё расписание
- * (cron) по кнопке, поручение для запуска по расписанию и события, на которые агент реагирует. «Запустить сейчас» — в подвале.
+ * «Расписание и события»: как часто (последний пункт — «Своё…» с полем cron), время (два списка в 24-часовом виде), день
+ * недели, часовой пояс, поручение для запуска по расписанию — только когда расписание выбрано (13.11.2026) — и события,
+ * на которые агент реагирует. «Запустить сейчас» — в подвале.
  */
 export function NextScheduleCard({
   form, set, defaultPrompt, footer,
 }: Readonly<{ form: SettingsValues; set: Setter; defaultPrompt: string | null; footer?: React.ReactNode }>) {
-  const [cronOpen, setCronOpen] = useState(false);
   const [hour, minute] = form.time.split(":");
   const minutes = MINUTE_STEPS.includes(minute ?? "") ? MINUTE_STEPS : [...MINUTE_STEPS, minute ?? "00"].sort();
   const setTime = (nextHour: string, nextMinute: string) => set("time", `${nextHour}:${nextMinute}`);
+  // «Своё…» с пустым полем стёрло бы расписание при сохранении: поле начинается с того, что было выбрано.
+  const choose = (value: string) => {
+    if (value === "custom" && form.cron.trim() === "" && form.kind !== "none" && form.kind !== "custom") set("cron", cronFromPlan({ kind: form.kind, time: form.time, weekday: form.weekday }) ?? "");
+    set("kind", value as ScheduleChoice);
+  };
   const timezones = SCHEDULE_TIMEZONES.includes(form.tz) ? SCHEDULE_TIMEZONES : [form.tz, ...SCHEDULE_TIMEZONES];
-  const showCron = cronOpen || form.kind === "custom";
   return (
     <WidgetCard title="Расписание и события" footer={footer}>
       <div className="grid gap-5">
         <div className="grid gap-3 @2xl:grid-cols-4">
           <Field id="aia-kind" label="Как часто">
-            <Select value={form.kind} onValueChange={(value) => set("kind", value as ScheduleChoice)}>
+            <Select value={form.kind} onValueChange={choose}>
               <SelectTrigger id="aia-kind"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {KINDS.map((kind) => <SelectItem key={kind} value={kind}>{SCHEDULE_CHOICE_LABELS[kind]}</SelectItem>)}
-                {form.kind === "custom" ? <SelectItem value="custom">{SCHEDULE_CHOICE_LABELS.custom}</SelectItem> : null}
               </SelectContent>
             </Select>
           </Field>
@@ -79,22 +79,20 @@ export function NextScheduleCard({
             </Field>
           ) : null}
         </div>
-        <div className="grid gap-2">
-          {/* Своё расписание уже выбрано: поле стоит всегда, кнопка «открыть» ничего не открывала бы. Вернуться — выбором «Как часто». */}
-          {form.kind === "custom" ? null : <div><Button type="button" variant="outline" aria-expanded={showCron} onClick={() => setCronOpen((value) => !value)}>Своё расписание (cron)</Button></div>}
-          {showCron ? (
-            <Field id="aia-cron" label="Минута, час, день, месяц, день недели">
-              <Input id="aia-cron" className="max-w-xs font-mono" value={form.cron} placeholder="0 9 * * 1" onChange={(event) => { set("cron", event.target.value); set("kind", "custom"); }} />
-            </Field>
-          ) : null}
-        </div>
-        <div className="grid min-w-0 gap-1.5">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="aia-prompt">Поручение для запуска по расписанию</Label>
-            <HelpTip label="Пояснение: Поручение по расписанию">{defaultPrompt ? "Пусто — стандартное поручение EVO." : "Пусто — расписание не создаётся."}</HelpTip>
+        {form.kind === "custom" ? (
+          <Field id="aia-cron" label="Минута, час, день, месяц, день недели">
+            <Input id="aia-cron" className="max-w-xs font-mono" value={form.cron} placeholder="0 9 * * 1" onChange={(event) => set("cron", event.target.value)} />
+          </Field>
+        ) : null}
+        {form.kind === "none" ? null : (
+          <div className="grid min-w-0 gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="aia-prompt">Поручение для запуска по расписанию</Label>
+              <HelpTip label="Пояснение: Поручение по расписанию">{defaultPrompt ? "Пусто — стандартное поручение EVO." : "Пусто — расписание не создаётся."}</HelpTip>
+            </div>
+            <Textarea id="aia-prompt" rows={4} maxLength={8000} value={form.prompt} placeholder={defaultPrompt ?? "Что агенту делать по расписанию?"} onChange={(event) => set("prompt", event.target.value)} />
           </div>
-          <Textarea id="aia-prompt" rows={4} maxLength={8000} value={form.prompt} placeholder={defaultPrompt ?? "Что агенту делать по расписанию?"} onChange={(event) => set("prompt", event.target.value)} />
-        </div>
+        )}
         <div role="group" aria-labelledby="aia-events-label" className="grid gap-1 border-t border-border pt-3">
           <span id="aia-events-label" className="t-label text-fg-2">Реагировать на</span>
           {([["website", "Новая заявка с сайта"], ["whatsapp", "Новое входящее сообщение в WhatsApp"]] as const).map(([name, text]) => (

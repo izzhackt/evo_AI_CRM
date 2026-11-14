@@ -430,7 +430,7 @@ export function chartToolRows(items: readonly Readonly<{ tool: string; count: nu
 export function chartDateTicks(rows: readonly ChartBarRow[]): readonly Readonly<{ index: number; label: string }>[] {
   if (rows.length === 0) return [];
   const last = rows.length - 1;
-  const picks = rows.length >= 10 ? [0, Math.floor(last / 2), last] : rows.length > 1 ? [0, last] : [0];
+  const picks = rows.length >= 5 ? [0, Math.floor(last / 2), last] : rows.length > 1 ? [0, last] : [0];
   return picks.map((index) => ({ index, label: rows[index].label }));
 }
 

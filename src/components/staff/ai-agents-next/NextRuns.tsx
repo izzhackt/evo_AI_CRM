@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { HistoryIcon } from "lucide-react";
 
 import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,8 @@ import { AI_AGENT_RUN_STATUS_LABELS, type AiAgentKey, type AiAgentRunRow } from 
 import { AI_AGENT_DAILY_BUDGET_REACHED_CODE } from "@/lib/ai-agents/daily-cap";
 import { AI_AGENT_RUNS_MAX, AI_AGENT_RUNS_STEP, aiAgentHref, aiAgentRunIsActive, durationWords, formatDateTimeRu, formatUsdCents, pluralRu, runErrorWords, runIsSystemEvent, runOriginLabel, runStatusTone, runTextPreview } from "@/lib/v3/ai-agents-view";
 
+import { FEW_ROWS } from "./buttons";
+import { NextAgentMascot } from "./NextAgentMascot";
 import { NextRunSheetBody, runSheetTitle } from "./NextRunSheet";
 
 /**
@@ -49,8 +50,13 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
     { id: "origin", header: "Кто запустил", accessorFn: (run) => runOriginLabel(run, viewerName), meta: { label: "Кто запустил", mobile: "hide", wide: true } },
     { id: "cost", header: "Время и расход", accessorFn: (run) => run.costCents, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{spendWords(row.original)}</span>, meta: { label: "Время и расход", align: "end" } },
     {
-      id: "steps", header: "Действия", accessorFn: (run) => run.actionsCount, meta: { label: "Действия", mobile: "hide", align: "end" },
-      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{row.original.actionsCount}{row.original.draftsCount > 0 ? ` · ${row.original.draftsCount} ${pluralRu(row.original.draftsCount, ["черновик", "черновика", "черновиков"])}` : ""}</span>,
+      // «Шагов», а не «Действия» (13.11.2026): колонка «Действия» читалась как кнопки. Ноль шагов не пишется.
+      id: "steps", header: "Шагов", accessorFn: (run) => run.actionsCount, meta: { label: "Шагов", mobile: "hide", align: "end" },
+      cell: ({ row }) => {
+        const { actionsCount, draftsCount } = row.original;
+        const words = [actionsCount > 0 ? String(actionsCount) : null, draftsCount > 0 ? `${draftsCount} ${pluralRu(draftsCount, ["черновик", "черновика", "черновиков"])}` : null].filter(Boolean).join(" · ");
+        return <span className="whitespace-nowrap tabular-nums">{words}</span>;
+      },
     },
   ];
 }
@@ -65,17 +71,25 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
 export function NextRuns({
   agentKey, runs, hasMore, limit, now, viewerName, canRun = false, canAct = false, canStopAny = false,
 }: Readonly<{ agentKey: AiAgentKey; runs: readonly AiAgentRunRow[]; hasMore: boolean; limit: number; now: string; viewerName?: string; canRun?: boolean; canAct?: boolean; canStopAny?: boolean }>) {
-  const columns = useMemo(() => columnsFor(now, viewerName), [now, viewerName]);
+  // Колонка «Шагов», пустая во всех строках, ничего не сообщает — её нет.
+  const anySteps = runs.some((run) => run.actionsCount > 0 || run.draftsCount > 0);
+  const columns = useMemo(() => columnsFor(now, viewerName).filter((column) => anySteps || column.id !== "steps"), [now, viewerName, anySteps]);
   // Последняя выбранная запись остаётся в состоянии и после закрытия: панель уезжает 200 мс, и пустой она не мигает.
   const [current, setCurrent] = useState<AiAgentRunRow | null>(null);
   const [open, setOpen] = useState(false);
   const nextLimit = Math.min(AI_AGENT_RUNS_MAX, limit + AI_AGENT_RUNS_STEP);
+  // Пустая история — с маскотом агента, как пустые «На одобрение» и чат (13.11.2026).
   const empty = (
-    <EmptyState icon={HistoryIcon} title="Запусков ещё не было" action={canRun ? <Button variant="outline" asChild><Link href={aiAgentHref(agentKey, { tab: "command" })}>Поручить</Link></Button> : undefined} />
+    <div className="grid justify-items-center pt-6">
+      <NextAgentMascot agentKey={agentKey} size="lg" />
+      <EmptyState className="pt-2" title="Запусков ещё не было" action={canRun ? <Button variant="outline" asChild><Link href={aiAgentHref(agentKey, { tab: "command" })}>Поручить</Link></Button> : undefined} />
+    </div>
   );
+  // Поиск и «Колонки» над парой строк — лишний ряд: они появляются, когда строк больше, чем видно глазом сразу.
+  const few = runs.length <= FEW_ROWS && !hasMore;
   return (
     <div data-testid="v3-aia-runs" className="grid min-w-0 gap-3">
-      <DataTable label="История работы агента" data={runs} columns={columns} getRowId={(run) => run.id} onRowClick={(run) => { setCurrent(run); setOpen(true); }} getRowLabel={(run) => words(run).primary || "Запуск"} searchPlaceholder={hasMore ? "Поиск среди показанных" : "Поиск по поручениям"} paginate={false} empty={empty} />
+      <DataTable label="История работы агента" data={runs} columns={columns} getRowId={(run) => run.id} onRowClick={(run) => { setCurrent(run); setOpen(true); }} getRowLabel={(run) => words(run).primary || "Запуск"} searchPlaceholder={hasMore ? "Поиск среди показанных" : "Поиск по поручениям"} searchable={!few} columnMenu={!few} paginate={false} empty={empty} />
       {hasMore ? (
         <div className="flex flex-wrap items-center gap-3" data-testid="v3-aia-runs-more">
           {limit < AI_AGENT_RUNS_MAX ? <Button variant="outline" asChild><Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false}>Показать ещё</Link></Button> : null}

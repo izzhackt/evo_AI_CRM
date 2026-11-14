@@ -16,6 +16,7 @@ import {
   type AiAgentConversationRow,
 } from "@/lib/v3/ai-agents-view";
 
+import { NextAgentMascot } from "@/components/staff/ai-agents-next/NextAgentMascot";
 import { Console } from "./Console";
 import { ConversationList } from "./ConversationList";
 
@@ -97,6 +98,7 @@ export function CommandWorkspace({
   autoSend,
   canRun,
   blockedNote,
+  noteAbove = false,
   canDirect,
   canMakeTasks,
   now,
@@ -110,6 +112,8 @@ export function CommandWorkspace({
   autoSend: boolean;
   canRun: boolean;
   blockedNote: string | null;
+  /** Та же причина уже сказана плашкой над чатом; на телефоне плашки скрыты, поэтому там она остаётся. */
+  noteAbove?: boolean;
   canDirect: boolean;
   canMakeTasks: boolean;
   now: string;
@@ -197,6 +201,21 @@ export function CommandWorkspace({
     setPatches((previous) => (conversationPatchChanged(previous[run.id], next) ? { ...previous, [run.id]: next } : previous));
   }
 
+  // На телефоне шапка страницы скрыта (staff.css): строка над чатом называет агента и ведёт к его разделам (13.11.2026).
+  const back = (
+    <Link
+      href={aiAgentHref(agentKey, { tab: "overview" })}
+      aria-label={`${agentTitle} — к разделам агента`}
+      title="К разделам агента"
+      className="inline-flex min-h-11 min-w-0 items-center gap-2 rounded-ctl px-2 t-label text-fg hover:bg-surface-2 md:hidden"
+      data-testid="v3-aia-back"
+    >
+      <Icon name="arrow-left" size={18} className="shrink-0 text-fg-2" />
+      <NextAgentMascot agentKey={agentKey} size="sm" />
+      <span className="truncate">{agentTitle}</span>
+    </Link>
+  );
+
   const chat = (
     <Console
       key={opened.n}
@@ -205,6 +224,7 @@ export function CommandWorkspace({
       autoSend={autoSend}
       canRun={canRun}
       blockedNote={blockedNote}
+      noteAbove={noteAbove}
       canDirect={canDirect}
       canMakeTasks={canMakeTasks}
       initialRunId={opened.runId}
@@ -230,37 +250,21 @@ export function CommandWorkspace({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {locked ? (
             // Чат закрыт, а шапка страницы на телефоне скрыта (staff.css): без этой строки выхода к разделам агента нет.
-            <div className="flex shrink-0 items-center border-b border-border bg-surface px-2 md:hidden">
-              <Link
-                href={aiAgentHref(agentKey, { tab: "overview" })}
-                className="inline-flex min-h-11 items-center gap-2 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
-                data-testid="v3-aia-back"
-              >
-                <Icon name="arrow-left" size={18} className="shrink-0" />
-                К разделам агента
-              </Link>
-            </div>
+            <div className="flex shrink-0 items-center border-b border-border bg-surface px-2 md:hidden">{back}</div>
           ) : (
             <div className="flex shrink-0 items-center gap-1 border-b border-border bg-surface px-2 @4xl:hidden">
-              {/* На телефоне шапка страницы скрыта (staff.css): отсюда можно вернуться к разделам агента. */}
-              <Link
-                href={aiAgentHref(agentKey, { tab: "overview" })}
-                aria-label="К разделам агента"
-                title="К разделам агента"
-                className="inline-flex size-11 shrink-0 items-center justify-center rounded-ctl text-fg-2 hover:bg-surface-2 hover:text-fg md:hidden"
-              >
-                <Icon name="arrow-left" size={18} />
-              </Link>
+              {back}
               <button
                 ref={trigger}
                 type="button"
                 aria-haspopup="dialog"
                 onClick={() => setSheet(true)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
                 data-testid="v3-aia-conversations-open"
               >
                 <Icon name="messages-square" size={18} className="shrink-0" />
-                Разговоры
+                {/* На телефоне в строке — имя агента, «Разговоры» остаются словом для читалки и на планшете. */}
+                <span className="max-md:sr-only">Разговоры</span>
                 {rows.length > 0 ? <span className="tabular-nums text-fg-3">{rows.length}</span> : null}
               </button>
               <span className="flex-1" />

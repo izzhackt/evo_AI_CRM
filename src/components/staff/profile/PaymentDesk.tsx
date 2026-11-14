@@ -112,7 +112,9 @@ function PaymentComposer({ request, onClose }: Readonly<{ request: PaymentFormRe
   const desk = usePaymentDesk();
   const locked = desk.agreement.tranches.find((tranche) => tranche.id === request.obligationId) ?? null;
   const [mode, setMode] = useState<"paid" | "planned">(locked ? "paid" : request.mode);
+  // «Уже оплачен»: день оплаты - сегодня. «Запланирован»: срок пуст, пока его не указали (как на main): подставленное «сегодня» завтра стало бы просрочкой.
   const [day, setDay] = useState(desk.today);
+  const [due, setDue] = useState("");
   const [amount, setAmount] = useState(locked && BigInt(locked.outstandingMinor) > BigInt(0) ? minorToAmount(locked.outstandingMinor) : "");
   return (
     <div className="grid gap-3 rounded-ctl border border-border bg-surface-2 p-3">
@@ -129,7 +131,7 @@ function PaymentComposer({ request, onClose }: Readonly<{ request: PaymentFormRe
       )}
       {mode === "paid"
         ? <PaidForm agreement={desk.agreement} locked={locked} day={day} amount={amount} setDay={setDay} setAmount={setAmount} onClose={onClose} />
-        : <PlannedForm agreement={desk.agreement} day={day} amount={amount} setDay={setDay} setAmount={setAmount} onClose={onClose} />}
+        : <PlannedForm agreement={desk.agreement} due={due} amount={amount} setDue={setDue} setAmount={setAmount} onClose={onClose} />}
     </div>
   );
 }
@@ -276,11 +278,11 @@ function PaidForm({ agreement, locked, day, amount, setDay, setAmount, onClose }
   );
 }
 
-function PlannedForm({ agreement, day, amount, setDay, setAmount, onClose }: Readonly<{
+function PlannedForm({ agreement, due, amount, setDue, setAmount, onClose }: Readonly<{
   agreement: CaseAgreement;
-  day: string;
+  due: string;
   amount: string;
-  setDay: (value: string) => void;
+  setDue: (value: string) => void;
   setAmount: (value: string) => void;
   onClose: () => void;
 }>) {
@@ -299,7 +301,7 @@ function PlannedForm({ agreement, day, amount, setDay, setAmount, onClose }: Rea
         <div className="grid gap-3 @2xl:grid-cols-3">
           <label className="block">
             <span className={fieldLabelCls}>{words.date}</span>
-            <input name="due_on" type="date" value={day} onChange={(event) => setDay(event.target.value)} className={inputCls} />
+            <input name="due_on" type="date" value={due} onChange={(event) => setDue(event.target.value)} className={inputCls} />
           </label>
           <label className="block">
             <span className={fieldLabelCls}>{words.amount}</span>

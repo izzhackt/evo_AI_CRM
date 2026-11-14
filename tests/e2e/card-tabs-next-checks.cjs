@@ -208,6 +208,8 @@ async function run({ all, worldPage, inContexts, fx, renderToStaticMarkup, lazyS
     }
     // Клиентские куски: панель «Ещё N», «⋯» листа «Договор и оплата», «+ Документ».
     await require("./card-tabs-client.cjs").runClient({ browser, report, css, outDir, fx, join, pathToFileURL, lazySettled, VIEWPORTS });
+    // Карточка «Оплата»: настоящие формы и таблица в Chromium (значения полей, меню строки, фокус).
+    await require("./card-tabs-payment-client.cjs").runPayment({ browser, report, css, outDir, fx, join, pathToFileURL, VIEWPORTS });
   } finally {
     await browser.close();
   }

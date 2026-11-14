@@ -23,6 +23,33 @@ function Link(props) {
 module.exports = Link; module.exports.default = Link; module.exports.__esModule = true;
 `;
 const ACTION_STUB = `module.exports = new Proxy({}, { get: (_target, key) => (key === "__esModule" ? false : async () => ({ status: "unavailable" })) });`;
+// Карточка «Оплата» (card-tabs-payment-client.cjs): её действия и чтения - не заглушка «недоступно», а запись вызова в `window.__calls`
+// с ответом из `window.__actionResult`; чтения (`*-source`) только ради импорта: карточку рисует `AgreementNextView` из готовых данных.
+const RECORDING_HEAD = `
+const calls = (window.__calls = window.__calls || []);
+function make(key) {
+  return async (...args) => {
+    const form = args.find((arg) => typeof FormData !== "undefined" && arg instanceof FormData);
+    const entries = form ? [...form.entries()].map(([name, value]) => [name, typeof value === "string" ? value : "[file]"]) : [];
+    calls.push({ action: key, entries });
+    const previous = args[0] && typeof args[0] === "object" && !(args[0] instanceof FormData) ? args[0] : { requestId: "x" };
+    return window.__actionResult ? window.__actionResult(key, previous, entries) : { status: "unavailable", requestId: previous.requestId, resourceId: null, message: null };
+  };
+}
+`;
+const RECORDED = {
+  "platform-case-agreement-actions": ["saveCaseTrancheAction", "recordCasePaymentAction"],
+  "platform-student-receipts-actions": ["acceptStudentReceiptAction", "rejectStudentReceiptAction"],
+  "platform-pending-receipt-actions": ["allocatePendingReceiptAction"],
+  "case-agreement-source": ["readCaseAgreement"],
+  "pending-receipts-source": ["readPendingReceipts"],
+  "student-receipts-source": ["readStudentReceiptQueue"],
+  "platform-access": ["isStaffPreview"],
+};
+function stubFor(path) {
+  const name = Object.keys(RECORDED).find((key) => path.endsWith(key) || path.endsWith(`${key}.ts`));
+  return name ? RECORDING_HEAD + RECORDED[name].map((action) => `export const ${action} = make(${JSON.stringify(action)});`).join("\n") : ACTION_STUB;
+}
 
 const WRAP = `
 const React = require("react");
@@ -68,7 +95,8 @@ mount(h(ProfileDocumentsClient, { nextUi: true, groups: groups.filter((g) => g.k
 `,
 };
 
-async function buildBundle(entry, outFile, root, join) {
+/** `stubReaders`: карточка «Оплата» тянет чтения и `platform-access` ради импорта (она рисуется из готовых данных); остальным вкладкам их заглушка не нужна. */
+async function buildBundle(entry, outFile, root, join, { stubReaders = false } = {}) {
   const esbuild = require("esbuild");
   const plugin = {
     name: "card-tabs-client",
@@ -78,7 +106,8 @@ async function buildBundle(entry, outFile, root, join) {
       build.onResolve({ filter: /^next\/link$/ }, () => ({ path: "next-link", namespace: "link" }));
       build.onLoad({ filter: /.*/, namespace: "link" }, () => ({ contents: LINK_SHIM, resolveDir: root, loader: "js" }));
       build.onResolve({ filter: /(^|\/)[\w-]*actions(\.ts)?$/ }, (args) => ({ path: args.path, namespace: "actions" }));
-      build.onLoad({ filter: /.*/, namespace: "actions" }, () => ({ contents: ACTION_STUB, loader: "js" }));
+      if (stubReaders) build.onResolve({ filter: /(^|\/)(case-agreement-source|pending-receipts-source|student-receipts-source|platform-access)(\.ts)?$/ }, (args) => ({ path: args.path, namespace: "actions" }));
+      build.onLoad({ filter: /.*/, namespace: "actions" }, (args) => ({ contents: stubFor(args.path), loader: "js" }));
       build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
     },
   };
@@ -208,4 +237,4 @@ async function runClient({ browser, report, css, outDir, fx, join, pathToFileURL
   }
 }
 
-module.exports = { runClient };
+module.exports = { runClient, buildBundle, WRAP };

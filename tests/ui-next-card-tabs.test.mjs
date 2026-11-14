@@ -92,6 +92,14 @@ test("«Оплата»: одна карточка — сводка с полос
   assert.match(text(next("money-empty")), /Загрузить/u);
 });
 
+test("«Оплата»: «Запланирован» не подставляет срок, «Уже оплачен» начинает с сегодняшнего дня (подставленный срок завтра стал бы просрочкой)", () => {
+  const desk = read("src/components/staff/profile/PaymentDesk.tsx");
+  assert.match(desk, /const \[due, setDue\] = useState\(""\);/u, "срок планируемого платежа начинается пустым, как на main");
+  assert.match(desk, /const \[day, setDay\] = useState\(desk\.today\);/u, "день оплаты - сегодня");
+  assert.match(desk, /<input name="due_on" type="date" value=\{due\} onChange=\{\(event\) => setDue\(event\.target\.value\)\}/u, "поле срока читает свою величину, а не день оплаты");
+  // Само значение, которое уходит в действие, проверяет клиентская часть стенда (tests/e2e/card-tabs-payment-client.cjs): пустой `due_on`.
+});
+
 test("«Вузы и программы»: список вузов — одна карточка с кнопками добавления у заголовка, «вуза нет в каталоге» за «?», пакеты партнёру — карточка-раскрытие", () => {
   const html = next("route-four");
   assert.match(html, /<div[^>]*class="[^"]*@container\/unis"[^>]*id="applications"[^>]*data-testid="v3-profile-admissions-workspace"|id="applications"/u);

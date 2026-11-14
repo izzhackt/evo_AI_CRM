@@ -106,7 +106,7 @@ function Receipts({ line }: Readonly<{ line: Extract<CaseMoneyLine, { kind: "pay
   return (
     <>
       {payment.receipts.map((receipt) => (
-        <a key={receipt.id} className={CASE_MONEY_ROW_ACTION} href={`/api/v2/payment-receipt-files/${desk.agreement.studentCaseId}/${receipt.id}/download`}>
+        <a key={receipt.id} className={`${CASE_MONEY_ROW_ACTION} min-w-0 max-w-full break-all`} href={`/api/v2/payment-receipt-files/${desk.agreement.studentCaseId}/${receipt.id}/download`}>
           {receipt.originalFilename}
         </a>
       ))}

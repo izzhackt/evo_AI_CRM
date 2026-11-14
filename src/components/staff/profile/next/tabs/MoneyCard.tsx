@@ -9,7 +9,7 @@ import { NamedCard } from "../NamedCard";
  */
 export function MoneyCard({ children, actions, className }: Readonly<{ children: React.ReactNode; actions?: React.ReactNode; className?: string }>) {
   return (
-    <NamedCard title={caseMoneyWords.pay.title} testId="v3-case-agreement" className={className ? `@container ${className}` : "@container"} actions={<>{actions}<CaseMoneyMenu /></>}>
+    <NamedCard title={caseMoneyWords.pay.title} testId="v3-case-agreement" className={className ? `@container ${className}` : "@container"} bodyClassName="grid grid-cols-1 gap-3" actions={<>{actions}<CaseMoneyMenu /></>}>
       {children}
     </NamedCard>
   );

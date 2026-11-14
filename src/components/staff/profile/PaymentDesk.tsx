@@ -103,7 +103,7 @@ export function PaymentAddButton() {
 export function PaymentFormSlot() {
   const desk = usePaymentDesk();
   return (
-    <div data-testid="v3-case-agreement-payment">
+    <div data-testid="v3-case-agreement-payment" className="empty:hidden">
       {desk.form ? <PaymentComposer key={`${desk.form.mode}:${desk.form.obligationId ?? "new"}`} request={desk.form} onClose={desk.close} /> : null}
     </div>
   );

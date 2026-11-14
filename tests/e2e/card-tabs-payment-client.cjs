@@ -41,9 +41,17 @@ function scenarios(fx) {
   // Длинная таблица: платёж, который отмечают, далеко внизу.
   const many = Array.from({ length: 14 }, (_, index) => ({ id: fx.uuid("72727272", 100 + index), obligationId: same.tranches[0].id, amountMinor: "1000", currency: "USD",
     occurredOn: `2026-08-${String(10 + index).padStart(2, "0")}`, actorDisplayName: "Айгүл Осмонова", eventType: "payment", receipts: [] }));
-  return { same: view(), open2: view({ agreement: open2 }), long: view({ agreement: { ...same, payments: [...same.payments, ...many] } }) };
+  // Чеки студента и из разбора документов (над таблицей и под ней), и имена файлов без мест для переноса.
+  const receipt = { id: fx.uuid("81818181", 1), studentCaseId: fx.CASE_ID, studentDisplayName: "Айдана Сыдыкова", paymentObligationId: null, paymentLabel: null, amountMinor: "30000", currency: "USD", paidOn: "2026-09-22",
+    originalFilename: "chek-kaspi.jpg", submittedAt: "2026-09-22T10:00:00.000Z", status: "pending", rejectReason: null, reviewedAt: null, canReview: true, dues: [] };
+  const pending = [{ id: fx.uuid("82828282", 1), originalFilename: "scan-chek-iz-dokumentov.pdf", queuedAt: "2026-09-22T09:00:00.000Z" }];
+  const LONG = "IMG_20260912_143312_123456789_original_scan_color_final.jpeg";
+  const longNames = { ...same, payments: same.payments.map((payment, index) => ({ ...payment, receipts: [{ id: fx.uuid("73737373", 50 + index), originalFilename: LONG, uploadedAt: "2026-09-12T06:00:00.000Z" }] })) };
+  return { same: view(), open2: view({ agreement: open2 }), long: view({ agreement: { ...same, payments: [...same.payments, ...many] } }),
+    receipts: view({ studentReceipts: [receipt], pendingReceipts: pending }), longnames: view({ agreement: longNames, studentReceipts: [receipt], pendingReceipts: pending }) };
 }
 
+const NARROW = { w320: { viewport: { width: 320, height: 700 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true } };
 const field = (call, name) => call.entries.find(([key]) => key === name)?.[1];
 
 async function runPayment({ browser, report, css, outDir, fx, join, pathToFileURL, VIEWPORTS }) {
@@ -54,7 +62,7 @@ async function runPayment({ browser, report, css, outDir, fx, join, pathToFileUR
     writeFileSync(files[name], `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full"><div id="root"></div><script>window.__DATA = ${JSON.stringify({ panels: [], view })};</script><script src="card-tabs-payment.js"></script></body></html>`);
   }
   const open = async (name, key) => {
-    const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
+    const context = await browser.newContext({ ...{ ...VIEWPORTS, ...NARROW }[key], reducedMotion: "reduce" });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -73,6 +81,17 @@ async function runPayment({ browser, report, css, outDir, fx, join, pathToFileUR
   const showMenu = async (page, which) => { await rowMenus(page)[which]().click(); await page.getByRole("menu").waitFor(); await page.waitForTimeout(150); };
   const focused = (page) => page.evaluate(() => { const element = document.activeElement; return element ? { name: element.getAttribute("name"), label: element.getAttribute("aria-label"), value: element.value ?? null } : null; });
   const waitCalls = (page, count) => page.waitForFunction((n) => (window.__calls || []).length >= n, count, { timeout: 8000 });
+
+  // Длинные имена файлов (чек, договор) без мест для переноса не уходят за карточку на телефонах.
+  for (const key of ["m390", "w320"]) {
+    const { context, page } = await open("longnames", key);
+    const out = await page.evaluate(() => {
+      const card = document.querySelector("[data-testid=v3-case-agreement]").getBoundingClientRect();
+      return { overflow: document.documentElement.scrollWidth - window.innerWidth, outside: [...document.querySelectorAll("[data-testid=v3-case-agreement] a")].filter((link) => link.getBoundingClientRect().right > card.right + 1).map((link) => link.textContent.trim().slice(0, 30)) };
+    });
+    report(`payment client @${key}: long receipt file names stay inside the card`, out.overflow <= 0 && out.outside.length === 0, out);
+    await context.close();
+  }
 
   for (const key of ["d1280", "m390"]) {
     const label = `payment client @${key}`;
@@ -170,6 +189,19 @@ async function runPayment({ browser, report, css, outDir, fx, join, pathToFileUR
         return { top: Math.round(rect.top), bottom: Math.round(rect.bottom), viewport: window.innerHeight, focused: document.activeElement === input, scrollY: Math.round(window.scrollY) };
       });
       report(`${label}: after «Отметить оплаченным» in a long table the amount field is on screen and focused`, where.focused && where.top >= 0 && where.bottom <= where.viewport, where);
+      await context.close();
+    }
+    // Таблица не липнет к блоку над ней (договор, чеки на проверке, стоп), пустое место формы зазора не добавляет.
+    {
+      const { context, page } = await open("receipts", key);
+      const gap = await page.evaluate(() => {
+        const table = document.querySelector("[data-testid=v3-case-agreement-tranches]");
+        let above = table.previousElementSibling;
+        while (above && getComputedStyle(above).display === "none") above = above.previousElementSibling;
+        const slot = document.querySelector("[data-testid=v3-case-agreement-payment]");
+        return { gap: Math.round(table.getBoundingClientRect().top - above.getBoundingClientRect().bottom), above: above.id || above.getAttribute("data-testid") || above.tagName, slotDisplay: getComputedStyle(slot).display };
+      });
+      report(`${label}: the payment table is clear of the block above it (gap 12 px, the empty form slot adds none)`, gap.gap >= 10 && gap.gap <= 14 && gap.slotDisplay === "none", gap);
       await context.close();
     }
     // Полностью оплаченный платёж: «⋯» у его оплаты, в нём одно «Изменить название и срок»; сумма и валюта закрыты, сохранение идёт по этому платежу.

@@ -100,6 +100,16 @@ test("«Оплата»: «Запланирован» не подставляет
   // Само значение, которое уходит в действие, проверяет клиентская часть стенда (tests/e2e/card-tabs-payment-client.cjs): пустой `due_on`.
 });
 
+test("«Оплата»: блоки карточки стоят через зазор (`grid gap-3`), а имена файлов чеков переносятся (`break-all`)", () => {
+  const html = next("money-same");
+  const body = html.slice(html.indexOf('data-testid="v3-case-agreement"'));
+  assert.match(body.slice(body.indexOf('data-slot="card-content"'), body.indexOf('data-slot="card-content"') + 120), /class="[^"]*\bgrid grid-cols-1 gap-3\b/u, "тело карточки — сетка с зазором: таблица не липнет к договору, чекам и стопу");
+  assert.match(html, /<div data-testid="v3-case-agreement-payment" class="empty:hidden">/u, "пустое место формы не добавляет зазор");
+  const links = [...html.matchAll(/<a class="([^"]*)" href="\/api\/v2\/payment-receipt-files\//gu)].map((match) => match[1]);
+  assert.ok(links.length >= 1);
+  for (const classes of links) assert.match(classes, /\bbreak-all\b/u, "длинное имя файла чека не уходит за карточку на телефоне");
+});
+
 test("«Оплата»: «⋯» строки — меню из `ui/dropdown-menu` (Esc и щелчок мимо закрывают, открыто одно), а не раскрытие `<details>`", () => {
   const html = next("money-same");
   const rows = html.slice(html.indexOf('data-testid="v3-case-agreement-tranches"'));

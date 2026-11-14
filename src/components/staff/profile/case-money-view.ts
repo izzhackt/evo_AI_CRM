@@ -198,6 +198,114 @@ export function caseTrancheState(tranche: CaseAgreementTranche, today: string): 
   return null;
 }
 
+/**
+ * Доля оплаченного от стоимости, 0–100. Одна валюта и указанная стоимость —
+ * иначе полосы нет: суммы разных валют не пересчитываются и не выдумываются.
+ * Переплата — полная полоса; слово «переплата» остаётся у остатка.
+ */
+export function casePaidPercent(agreement: CaseAgreement): number | null {
+  if (agreement.currencyMismatch || agreement.costMinor === null || agreement.costCurrency === null || agreement.remainingMinor === null) return null;
+  const cost = BigInt(agreement.costMinor);
+  if (cost <= BigInt(0)) return null;
+  const paid = cost - BigInt(agreement.remainingMinor);
+  if (paid <= BigInt(0)) return 0;
+  if (paid >= cost) return 100;
+  return Number((paid * BigInt(1000)) / cost) / 10;
+}
+
+/** «Условия продажи» ведут на группу; «Изменить стоимость» — на поле суммы в ней. */
+export function caseSaleCostHref(saleConditionsHref: string): string {
+  const base = saleConditionsHref.split("#")[0] ?? saleConditionsHref;
+  return `${base}#sale-cost`;
+}
+
+export type CaseMoneyPaymentLine = Readonly<{
+  kind: "payment";
+  id: string;
+  date: string;
+  amountLabel: string;
+  status: "paid" | "refund";
+  who: string | null;
+  trancheLabel: string;
+  payment: CaseAgreementPayment;
+  tranche: CaseAgreementTranche;
+  /** Закрытый (оплаченный) платёж виден только своими оплатами, поэтому его «Изменить» (название, срок) — в «⋯» первой из них. */
+  canEdit: boolean;
+}>;
+
+export type CaseMoneyPlanLine = Readonly<{
+  kind: "plan";
+  id: string;
+  date: string | null;
+  amountLabel: string;
+  status: "expected" | "overdue" | "paid";
+  tranche: CaseAgreementTranche;
+  /** Архивировать можно только платёж, по которому ещё ничего не оплачено. */
+  canArchive: boolean;
+}>;
+
+export type CaseMoneyLine = CaseMoneyPaymentLine | CaseMoneyPlanLine;
+
+/**
+ * Один список вкладки «Оплата»: записанные оплаты и ещё не закрытые платежи графика.
+ * Закрытый платёж виден своими оплатами, а не второй строкой на ту же сумму.
+ * Оплата архивного платежа не теряется — она в `archived`.
+ */
+export function casePaymentLines(agreement: CaseAgreement, today: string): Readonly<{
+  lines: readonly CaseMoneyLine[];
+  archived: readonly CaseAgreementPayment[];
+}> {
+  const { byTranche, other } = casePaymentsBySchedule(agreement);
+  const lines: CaseMoneyLine[] = [];
+  for (const tranche of agreement.tranches) {
+    const outstanding = BigInt(tranche.outstandingMinor);
+    const paid = BigInt(tranche.totalPaidMinor);
+    const payments = byTranche.get(tranche.id) ?? [];
+    const open = outstanding > BigInt(0) || paid === BigInt(0);
+    if (open) {
+      lines.push({
+        kind: "plan",
+        id: tranche.id,
+        date: tranche.dueOn,
+        amountLabel: moneyAmount(outstanding > BigInt(0) ? tranche.outstandingMinor : tranche.amountMinor, tranche.currency),
+        status: caseTrancheState(tranche, today) === "overdue" ? "overdue" : "expected",
+        tranche,
+        canArchive: paid === BigInt(0),
+      });
+    } else if (payments.length === 0) {
+      lines.push({
+        kind: "plan",
+        id: tranche.id,
+        date: tranche.dueOn,
+        amountLabel: moneyAmount(tranche.amountMinor, tranche.currency),
+        status: "paid",
+        tranche,
+        canArchive: false,
+      });
+    }
+    for (const [index, payment] of payments.entries()) {
+      lines.push({
+        kind: "payment",
+        id: payment.id,
+        date: payment.occurredOn,
+        amountLabel: moneyAmount(payment.amountMinor, payment.currency),
+        status: payment.eventType === "refund" ? "refund" : "paid",
+        who: payment.actorDisplayName,
+        trancheLabel: tranche.label,
+        payment,
+        tranche,
+        canEdit: !open && index === 0,
+      });
+    }
+  }
+  lines.sort((left, right) => {
+    const byDate = (left.date ?? "9999-99-99").localeCompare(right.date ?? "9999-99-99");
+    if (byDate !== 0) return byDate;
+    return (left.kind === "payment" ? 0 : 1) - (right.kind === "payment" ? 0 : 1);
+  });
+  return { lines, archived: other };
+}
+
 export type CaseContractTemplateNote = Readonly<{
   text: string;
   link: Readonly<{ href: string; label: string }> | null;

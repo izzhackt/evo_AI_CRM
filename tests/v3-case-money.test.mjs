@@ -292,3 +292,32 @@ test("10.11.2026: schedule helpers — short sums, the remainder by the schedule
   assert.equal(grouped.byTranche.get(noCost.tranches[0].id)?.length, 1);
   assert.equal(grouped.other.length, 1, "a payment of an archived payment is not lost");
 });
+
+test("payment card lines: paid events and open tranches in one list, archived payments kept, share only in one currency", async () => {
+  const view = await import("../src/components/staff/profile/case-money-view.ts");
+  const plain = (value) => value.replace(/[\u00a0\u202f]/gu, " ");
+  const same = agreement({
+    payments: [payment(1, "40000", "USD"), payment(2, "20000", "USD")], paidMinor: "60000", remainingMinor: "90000",
+    tranches: [tranche(1, "60000", "USD", "0", { dueOn: "2026-09-01" }), tranche(2, "90000", "USD", "90000", { dueOn: "2026-09-20" })],
+    trancheSumMinor: "150000",
+  });
+  const lines = view.casePaymentLines(same, "2026-09-23");
+  assert.deepEqual(lines.lines.map((line) => `${line.date}:${line.kind}:${line.status}:${plain(line.amountLabel)}`), [
+    "2026-09-10:payment:paid:400 USD",
+    "2026-09-10:payment:paid:200 USD",
+    "2026-09-20:plan:overdue:900 USD",
+  ]);
+  assert.equal(lines.archived.length, 0);
+  // «Изменить» (название, срок) закрытого платежа - в «⋯» первой из его оплат; ещё не закрытый правится из своей строки графика.
+  const editable = lines.lines.filter((line) => line.kind === "payment" && line.canEdit);
+  assert.deepEqual(editable.map((line) => line.id), [id(101)], "одна оплата закрытого платежа несёт «Изменить»");
+  assert.equal(editable[0].tranche.id, id(1));
+  const partial = view.casePaymentLines(agreement({ tranches: [tranche(1, "60000", "USD", "20000")], payments: [payment(1, "40000", "USD")] }), "2026-09-23");
+  assert.deepEqual(partial.lines.map((line) => `${line.kind}:${line.kind === "payment" ? line.canEdit : "-"}`), ["payment:false", "plan:-"], "оплаты не закрытого платежа без своего «Изменить»: у него строка графика");
+  assert.equal(view.casePaidPercent(same), 40);
+  assert.equal(view.casePaidPercent({ ...same, currencyMismatch: true, remainingMinor: null }), null);
+  assert.equal(view.casePaidPercent({ ...same, costMinor: null, costCurrency: null, remainingMinor: null }), null);
+  const archived = view.casePaymentLines({ ...same, payments: [{ ...payment(1, "40000", "USD"), obligationId: id(99) }] }, "2026-09-23");
+  assert.equal(archived.archived.length, 1, "a payment of an archived tranche stays visible");
+  assert.equal(view.caseSaleCostHref("/profile?id=1&tab=overview#sale-conditions"), "/profile?id=1&tab=overview#sale-cost");
+});

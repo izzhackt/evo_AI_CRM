@@ -4,12 +4,12 @@ import { CaseMoneyMenu } from "../../CaseMoney";
 import { NamedCard } from "../NamedCard";
 
 /**
- * Карточка сводки «Договор и оплата» в «Новом виде»: заголовок листа, справа «⋯» с панелями (меню держит лист
- * `CaseMoneySection nextUi`, кнопка только читает его состояние). Остальное - транши, оплаты, открытая панель - соседние карточки листа.
+ * Карточка «Оплата»: сводка, договор и график. «⋯» — меню листа (`CaseMoneySection`).
+ * Дополнительные действия шапки (например «+ Платёж») стоят слева от меню.
  */
-export function MoneyCard({ children, className }: Readonly<{ children: React.ReactNode; className?: string }>) {
+export function MoneyCard({ children, actions, className }: Readonly<{ children: React.ReactNode; actions?: React.ReactNode; className?: string }>) {
   return (
-    <NamedCard title={caseMoneyWords.title} testId="v3-case-agreement" className={className ? `@container ${className}` : "@container"} actions={<CaseMoneyMenu />}>
+    <NamedCard title={caseMoneyWords.pay.title} testId="v3-case-agreement" className={className ? `@container ${className}` : "@container"} bodyClassName="grid grid-cols-1 gap-3" actions={<>{actions}<CaseMoneyMenu /></>}>
       {children}
     </NamedCard>
   );

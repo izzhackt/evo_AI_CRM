@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
-import type { PortalStrings } from "@/lib/portal/i18n";
+import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import {
   PAYMENT_RECEIPT_MAX_BYTES,
   PAYMENT_RECEIPT_MIME_TYPES,
@@ -14,6 +14,7 @@ import {
   paymentReceiptErrorKey,
   receiptAmountToMinor,
 } from "@/lib/portal/payment-center";
+import { PAYMENT_PROOF_UPLOAD_PATH, parsePaymentProofResult, paymentProofFileHref, type PaymentProofResult } from "@/lib/portal/payment-proof";
 
 type Strings = PortalStrings<"admission">;
 
@@ -47,6 +48,30 @@ async function postReceipt(body: FormData, attemptKey: { current: string | null 
     return { ok: false, errorKey: paymentReceiptErrorKey(code) };
   } catch {
     return { ok: false, errorKey: "receiptErrorUnavailable" };
+  }
+}
+
+/** Файл к принятой оплате: тот же ключ повтора на все попытки одного выбора, «файл уже есть» - не ошибка, а повод обновить строку. */
+type ProofOutcome = { ok: true; result: PaymentProofResult | null } | { ok: false; exists: boolean; errorKey: string };
+
+async function postProof(body: FormData, attemptKey: { current: string | null }): Promise<ProofOutcome> {
+  attemptKey.current ??= crypto.randomUUID();
+  try {
+    const response = await fetch(PAYMENT_PROOF_UPLOAD_PATH, {
+      method: "POST",
+      body,
+      headers: { "Idempotency-Key": attemptKey.current },
+    });
+    if (response.status === 201 || response.status === 200) {
+      attemptKey.current = null;
+      return { ok: true, result: parsePaymentProofResult(await response.json().catch(() => null)) };
+    }
+    const result: unknown = await response.json().catch(() => null);
+    const code = result && typeof result === "object" && "error" in result ? (result as { error: unknown }).error : null;
+    if (response.status < 500) attemptKey.current = null;
+    return { ok: false, exists: code === "proof_exists", errorKey: paymentReceiptErrorKey(code) };
+  } catch {
+    return { ok: false, exists: false, errorKey: "receiptErrorUnavailable" };
   }
 }
 
@@ -186,6 +211,111 @@ export function ReceiptSlot({
         <button type="button" className={mode === "replace" ? "pt-pay-textbtn" : "pt-pay-slot"} disabled={locked} onClick={() => inputRef.current?.click()}>
           {mode === "attach" ? <Plus aria-hidden size={14} /> : null}
           {mode === "replace" ? strings.replaceButton : strings.receiptAttach}
+        </button>
+      )}
+      <ErrorLine strings={strings} errorKey={errorKey} />
+    </div>
+  );
+}
+
+/**
+ * Ячейка «Чек» у принятой оплаты без файла (миграция 360): выбрать файл и «Сохранить». Только доказательство: новой оплаты нет, итоги и
+ * статус «Принято» не меняются, куратор ничего не проверяет. После сохранения здесь же ссылка на файл и «Чек приложен»: страницу не
+ * перезагружаем, поэтому фокус остаётся на сообщении. «Файл уже есть» (оплату открыли в двух местах) - обновляем строку, и ссылка
+ * приходит с сервера.
+ */
+export function ProofSlot({ strings, paymentEventId, context }: Readonly<{
+  strings: Strings;
+  paymentEventId: string;
+  /** Дата и сумма строки: имя кнопки в таблице из десятка одинаковых «Приложить чек». */
+  context: string;
+}>) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
+  const attemptKey = useRef<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [attached, setAttached] = useState<PaymentProofResult | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const locked = state === "sending";
+
+  function pick(next: File | undefined) {
+    if (!next) return;
+    const problem = fileProblem(next);
+    if (problem) {
+      setFile(null);
+      setErrorKey(problem);
+      return;
+    }
+    setErrorKey(null);
+    flushSync(() => setFile(next));
+    focusNow(saveRef);
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (locked || !file) return;
+    const body = new FormData();
+    body.set("file", file);
+    body.set("payment_event_id", paymentEventId);
+    setState("sending");
+    const result = await postProof(body, attemptKey);
+    if (result.ok) {
+      flushSync(() => {
+        setAttached(result.result);
+        setState("sent");
+      });
+      focusNow(sentRef);
+      // Ответ не той формы: сообщение остаётся, а ссылку подтянет обновление данных страницы.
+      if (!result.result) router.refresh();
+      return;
+    }
+    if (result.exists) {
+      setFile(null);
+      setErrorKey(null);
+      setState("idle");
+      router.refresh();
+      return;
+    }
+    setErrorKey(result.errorKey);
+    setState("idle");
+  }
+
+  if (state === "sent") {
+    return (
+      <>
+        {attached ? (
+          <a className="pt-pay-file pt-link" href={paymentProofFileHref(attached.fileId)} aria-label={formatPortalString(strings.receiptOpenFileAria, { name: attached.filename })}>
+            {attached.filename}
+          </a>
+        ) : null}
+        <p ref={sentRef} tabIndex={-1} role="status" className="pt-receipt-sent">{strings.proofAttached}</p>
+      </>
+    );
+  }
+
+  return (
+    <div className="pt-pay-slot-wrap">
+      <HiddenFileInput inputRef={inputRef} label={strings.receiptFieldFile} disabled={locked} onPick={pick} />
+      {file ? (
+        <form onSubmit={submit} className="pt-pay-picked" aria-busy={locked}>
+          <span className="pt-pay-file">
+            <FileGlyph name={file.name} />
+            <span className="pt-pay-filename">{file.name}</span>
+          </span>
+          <button type="button" className="pt-pay-clear" aria-label={strings.receiptClearFile} disabled={locked} onClick={() => setFile(null)}>
+            <X aria-hidden size={14} />
+          </button>
+          <button ref={saveRef} type="submit" className="pt-btn pt-pay-save" disabled={locked}>
+            {locked ? strings.receiptSaving : strings.receiptSave}
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="pt-pay-slot" aria-label={`${strings.receiptAttach}: ${context}`} disabled={locked} onClick={() => inputRef.current?.click()}>
+          <Plus aria-hidden size={14} />
+          {strings.receiptAttach}
         </button>
       )}
       <ErrorLine strings={strings} errorKey={errorKey} />

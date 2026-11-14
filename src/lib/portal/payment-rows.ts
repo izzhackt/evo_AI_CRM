@@ -1,8 +1,10 @@
 // Строки «Оплаты» для кабинета: транш без чека, оплата, чек на проверке, отклонённый чек, чек без платежа.
 // Чистый модуль (веб и, при желании, приложение): без next, DOM и React.
 // Принятие чека куратором создаёт оплату на выбранный платёж и не может превысить его остаток
-// (`record_case_payment_v1`). Поэтому «Приложить чек» есть только у открытого остатка, а не у уже
-// полностью зачтённой оплаты без файла: второй чек на тот же платёж куратор не смог бы принять.
+// (`record_case_payment_v1`). Поэтому «Приложить чек» как запрос на оплату есть только у открытого остатка,
+// а не у уже полностью зачтённой оплаты без файла: второй чек на тот же платёж куратор не смог бы принять.
+// У принятой оплаты без файла студент прикладывает файл как доказательство (миграция 360, `proofEventId`):
+// новой оплаты нет, итоги и статус не меняются, куратор ничего не проверяет.
 import type { PaymentCenter, PaymentDue, PaymentEntry, PaymentEntryFileKind } from "./payment-center.ts";
 
 const RECEIVED_IN_CURRENCY = /^Получено в [A-Z]{3}$/;
@@ -46,6 +48,11 @@ export type PaymentLine = Readonly<{
   rejectReason: string | null;
   /** Можно приложить первый чек к открытому остатку. */
   attach: boolean;
+  /**
+   * Идентификатор принятой оплаты (`entry_id` записи `payment`), если студент может приложить к ней файл как доказательство:
+   * оплата (не возврат), принята, файла ещё нет. Иначе null. Только доказательство: деньги и статус не меняются.
+   */
+  proofEventId: string | null;
   /** Можно заменить отклонённый чек. Скрыто, пока по этому платежу уже есть чек на проверке, и у полностью оплаченного платежа. */
   replace: boolean;
   overdue: boolean;
@@ -91,7 +98,7 @@ function bishkekDay(value: string | null): string | null {
   }).format(date);
 }
 
-function lineFromEntry(due: PaymentDue, entry: PaymentEntry, replace: boolean): PaymentLine {
+function lineFromEntry(due: PaymentDue, entry: PaymentEntry, replace: boolean, canUpload: boolean): PaymentLine {
   const rejected = entry.kind === "receipt" && entry.status === "rejected";
   return {
     key: `${entry.kind}:${entry.entryId}`,
@@ -106,6 +113,7 @@ function lineFromEntry(due: PaymentDue, entry: PaymentEntry, replace: boolean): 
     status: entry.kind === "refund" ? "refund" : entry.status,
     rejectReason: entry.rejectReason,
     attach: false,
+    proofEventId: canUpload && entry.kind === "payment" && entry.status === "accepted" && entry.fileId === null ? entry.entryId : null,
     replace: rejected && replace,
     overdue: false,
     label: null,
@@ -128,6 +136,7 @@ function missingLine(due: PaymentDue, canUpload: boolean, amountMinor: number): 
     status: "missing",
     rejectReason: null,
     attach: canUpload && amountMinor > 0,
+    proofEventId: null,
     replace: false,
     overdue: due.overdue,
     label: null,
@@ -150,7 +159,7 @@ function linesForDue(due: PaymentDue, canUpload: boolean): PaymentLine[] {
   // «Заменить» нужен, пока платёж не оплачен. Отклонённый чек остаётся в истории навсегда: когда его заменили и приняли, это уже
   // только история, а новый чек на оплаченный платёж куратор принять не сможет (record_case_payment_v1: case_agreement_exceeds_balance).
   const canReplace = canUpload && !hasReview && due.outstandingMinor > 0;
-  const lines = due.entries.map((entry) => lineFromEntry(due, entry, canReplace));
+  const lines = due.entries.map((entry) => lineFromEntry(due, entry, canReplace, canUpload));
   // Остаток, который не закрыт чеком на проверке и не ждёт замены отклонённого.
   // Чек на всю сумму остатка не даёт вторую строку; непокрытая часть остатка — даёт.
   const uncovered = Math.max(0, due.outstandingMinor - openReceiptMinor(due));
@@ -173,6 +182,7 @@ function looseLine(entry: PaymentEntry, canUpload: boolean): PaymentLine {
     status: entry.status === "review" ? "review" : "rejected",
     rejectReason: entry.rejectReason,
     attach: false,
+    proofEventId: null,
     replace: canUpload && rejected,
     overdue: false,
     label: null,

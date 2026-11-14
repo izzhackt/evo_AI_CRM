@@ -13,7 +13,7 @@ import {
 } from "@/lib/portal/payment-rows";
 import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 
-import { PaymentsSection, ReceiptSlot } from "./PaymentReceiptForm";
+import { PaymentsSection, ProofSlot, ReceiptSlot } from "./PaymentReceiptForm";
 import { PortalStatus } from "./PortalStatus";
 import {
   formatPortalDeadline,
@@ -76,7 +76,7 @@ function LineStatus({ line, strings }: Readonly<{ line: PaymentLine; strings: St
   );
 }
 
-function ReceiptCell({ line, strings }: Readonly<{ line: PaymentLine; strings: Strings }>) {
+function ReceiptCell({ line, strings, context }: Readonly<{ line: PaymentLine; strings: Strings; context: string }>) {
   const href = fileHref(line);
   const mode = line.replace ? "replace" : line.attach ? "attach" : null;
   return (
@@ -96,13 +96,15 @@ function ReceiptCell({ line, strings }: Readonly<{ line: PaymentLine; strings: S
           mode={mode}
         />
       ) : null}
-      {!href && !mode ? <span className="pt-pay-nofile">—</span> : null}
+      {line.proofEventId ? <ProofSlot strings={strings} paymentEventId={line.proofEventId} context={context} /> : null}
+      {!href && !mode && !line.proofEventId ? <span className="pt-pay-nofile">—</span> : null}
     </div>
   );
 }
 
 function PaymentRow({ line, payment, strings }: Readonly<{ line: PaymentLine; payment: PaymentDue | undefined; strings: Strings }>) {
   const date = shownDate(line, payment);
+  const context = `${date.text}, ${formatPortalMoney(line.amountMinor, line.currency)}`;
   return (
     <tr data-testid="portal-payment-entry" data-entry-status={line.status}>
       <td>
@@ -116,7 +118,7 @@ function PaymentRow({ line, payment, strings }: Readonly<{ line: PaymentLine; pa
       </td>
       <td>
         <span className="pt-pay-cell-label">{strings.receiptColumnReceipt}</span>
-        <ReceiptCell line={line} strings={strings} />
+        <ReceiptCell line={line} strings={strings} context={context} />
       </td>
       <td>
         <span className="pt-pay-cell-label">{strings.receiptColumnStatus}</span>

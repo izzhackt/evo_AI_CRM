@@ -5555,6 +5555,33 @@ SQL
       exit 1
     fi
   fi
+  # «Чек студента к уже принятой оплате» (migration 360, 14.11.2026). Matched by name, not number. The migration adds the Student's
+  # proof door (target check + server record), the proof notification helper, the `receipt_proof` mark on the staff notifications page and
+  # the `finance.receipt.attach` journal action: right after it a second apply refuses (a360_already_applied), then the suite,
+  # insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_student_payment_proof.sql ]]; then
+    t360_again_log="$(mktemp -t evo-t360-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t360_again_log" 2>&1; then
+      echo "migration 360 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a360_already_applied" "$t360_again_log"; then
+      echo "a second apply of migration 360 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t360_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t360_again_log"
+    student_proof_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_payment_proof.sql </dev/null)"
+    printf '%s\n' "$student_proof_log"
+    if ! grep -q 'A360_STUDENT_PAYMENT_PROOF_SUITE_PASSED' <<<"$student_proof_log"; then
+      echo "platform_student_payment_proof.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Скорость кабинета и CRM» (migration 351, 08.11.2026). Matched by name, not number. The migration rewrites the access
   # chain from LANGUAGE sql to plpgsql (and two hot callers): right after it a second apply refuses (a351_already_applied),
   # then the suite, insisting on its marker, proves no access decision moved.

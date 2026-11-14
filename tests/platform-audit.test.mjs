@@ -107,6 +107,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["356_platform_student_consent_gate.sql", "student_consent_gate"],
   // «Чеки от студента и реквизиты для оплаты»: четыре действия finance.receipt.* / finance.paymentdetails.update и типы student_payment_receipt, payment_details.
   ["358_platform_student_payment_receipts.sql", "student_receipts"],
+  // «Чек студента к уже принятой оплате»: одно действие finance.receipt.attach, объект payment_receipt_file (нового типа нет).
+  ["360_platform_student_payment_proof.sql", "student_payment_proof"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -285,6 +287,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "document.media.attach.reserve",
     "finance.paymentdetails.update",
     "finance.receipt.accept",
+    "finance.receipt.attach",
     "finance.receipt.reject",
     "finance.receipt.submit",
     "lead.admissions.gate.contract.confirmed",

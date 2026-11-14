@@ -1785,6 +1785,7 @@ export const caseMoneyWords = {
     markPaid: "Отметить оплату",
     markPaidMenu: "Отметить оплаченным",
     edit: "Изменить",
+    editPaid: "Изменить название и срок",
     remove: "Удалить",
     removeConfirm: "Убрать этот платёж из графика?",
     rowActions: "Действия со строкой",

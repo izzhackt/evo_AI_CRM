@@ -228,6 +228,9 @@ export type CaseMoneyPaymentLine = Readonly<{
   who: string | null;
   trancheLabel: string;
   payment: CaseAgreementPayment;
+  tranche: CaseAgreementTranche;
+  /** Закрытый (оплаченный) платёж виден только своими оплатами, поэтому его «Изменить» (название, срок) — в «⋯» первой из них. */
+  canEdit: boolean;
 }>;
 
 export type CaseMoneyPlanLine = Readonly<{
@@ -280,7 +283,7 @@ export function casePaymentLines(agreement: CaseAgreement, today: string): Reado
         canArchive: false,
       });
     }
-    for (const payment of payments) {
+    for (const [index, payment] of payments.entries()) {
       lines.push({
         kind: "payment",
         id: payment.id,
@@ -290,6 +293,8 @@ export function casePaymentLines(agreement: CaseAgreement, today: string): Reado
         who: payment.actorDisplayName,
         trancheLabel: tranche.label,
         payment,
+        tranche,
+        canEdit: !open && index === 0,
       });
     }
   }

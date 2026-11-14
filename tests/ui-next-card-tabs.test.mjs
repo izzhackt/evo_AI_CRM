@@ -106,7 +106,8 @@ test("«Оплата»: «⋯» строки — меню из `ui/dropdown-menu
   const list = rows.slice(rows.indexOf("<ul"), rows.indexOf("</ul>"));
   assert.doesNotMatch(list, /<details|<summary/u);
   const triggers = [...list.matchAll(/<button[^>]*aria-label="Действия со строкой: [^"]+"[^>]*>/gu)].map((match) => match[0]);
-  assert.ok(triggers.length >= 1, "у платежа, который ещё не оплачен, есть «⋯»");
+  assert.equal(triggers.length, 2, "«⋯» у ещё не оплаченного платежа и у закрытого (его «Изменить» - в меню первой оплаты)");
+  assert.ok(triggers.some((trigger) => /Действия со строкой: Первый платёж/u.test(trigger)) && triggers.some((trigger) => /Действия со строкой: Второй платёж/u.test(trigger)));
   for (const trigger of triggers) assert.match(trigger, /aria-haspopup="menu"/u);
   const table = read("src/components/staff/profile/PaymentTable.tsx");
   assert.match(table, /from "@\/components\/ui\/dropdown-menu"/u);

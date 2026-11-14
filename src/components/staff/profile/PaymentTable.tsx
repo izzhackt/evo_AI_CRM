@@ -67,6 +67,8 @@ export function PaymentTable() {
 
 function PaymentRow({ line, several }: Readonly<{ line: CaseMoneyLine; several: boolean }>) {
   const desk = usePaymentDesk();
+  // «⋯»: у ещё не оплаченного платежа - своя строка, у закрытого - первая из его оплат (название и срок можно править и после оплаты).
+  const menu = desk.canWrite && (line.kind === "plan" || line.canEdit);
   return (
     <li className="border-t border-border py-2 first:border-t-0">
       <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_2.75rem] items-start gap-x-3 gap-y-1 @3xl:grid-cols-[4.5rem_minmax(0,11rem)_8.5rem_minmax(0,1fr)_2.75rem] @3xl:items-center">
@@ -83,15 +85,15 @@ function PaymentRow({ line, several }: Readonly<{ line: CaseMoneyLine; several: 
           ) : null}
         </div>
         <div className="col-start-3 row-start-1 justify-self-end @3xl:col-start-5">
-          {line.kind === "plan" && desk.canWrite ? <RowMenu line={line} /> : null}
+          {menu ? <RowMenu line={line} /> : null}
         </div>
         <div className="col-span-2 col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 @3xl:contents">
           <span className="@3xl:col-start-3 @3xl:row-start-1"><StatusBadge label={words.status[line.status]} tone={TONE[line.status]} /></span>
           <span className="flex min-w-0 flex-wrap items-center gap-x-3 @3xl:col-start-4 @3xl:row-start-1">{line.kind === "payment" ? <Receipts line={line} /> : <PlanAction line={line} />}</span>
         </div>
       </div>
-      {line.kind === "plan" && desk.editingId === line.id ? (
-        <CaseAgreementTrancheEditor studentCaseId={desk.agreement.studentCaseId} tranche={line.tranche} canArchive={line.canArchive} embedded onClose={() => desk.edit(null)} />
+      {menu && desk.editingId === line.tranche.id ? (
+        <CaseAgreementTrancheEditor studentCaseId={desk.agreement.studentCaseId} tranche={line.tranche} canArchive={line.kind === "plan" && line.canArchive} embedded onClose={() => desk.edit(null)} />
       ) : null}
       {line.kind === "plan" && desk.archivingId === line.id ? <ArchiveConfirm tranche={line.tranche} onClose={() => desk.archive(null)} /> : null}
     </li>
@@ -128,10 +130,11 @@ function PlanAction({ line }: Readonly<{ line: CaseMoneyPlanLine }>) {
   );
 }
 
-/** «⋯» платежа графика: меню Radix (Esc и щелчок мимо закрывают, открыто одно). */
-function RowMenu({ line }: Readonly<{ line: CaseMoneyPlanLine }>) {
+/** «⋯» платежа графика: меню Radix (Esc и щелчок мимо закрывают, открыто одно). У закрытого платежа в нём одно «Изменить название и срок». */
+function RowMenu({ line }: Readonly<{ line: CaseMoneyLine }>) {
   const desk = usePaymentDesk();
-  const canPay = line.status !== "paid" && BigInt(line.tranche.outstandingMinor) > BigInt(0);
+  const plan = line.kind === "plan";
+  const canPay = plan && line.status !== "paid" && BigInt(line.tranche.outstandingMinor) > BigInt(0);
   const trigger = useRef<HTMLButtonElement>(null);
   // Пункт, который открывает форму или правку, отдаёт ей фокус, когда меню закроется: Radix иначе вернул бы его на «⋯»,
   // а раньше (пока меню открыто) ловушка фокуса меню забрала бы его назад.
@@ -151,8 +154,8 @@ function RowMenu({ line }: Readonly<{ line: CaseMoneyPlanLine }>) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60" onCloseAutoFocus={handOverFocus}>
         {canPay ? <DropdownMenuItem onSelect={() => { focusAfter.current = "form"; desk.openForm({ mode: "paid", obligationId: line.tranche.id }); }}>{words.markPaidMenu}</DropdownMenuItem> : null}
-        <DropdownMenuItem onSelect={() => { focusAfter.current = "editor"; desk.edit(line.tranche.id); }}>{words.edit}</DropdownMenuItem>
-        {line.canArchive ? <DropdownMenuItem onSelect={() => desk.archive(line.tranche.id)}>{words.remove}</DropdownMenuItem> : null}
+        <DropdownMenuItem onSelect={() => { focusAfter.current = "editor"; desk.edit(line.tranche.id); }}>{plan ? words.edit : words.editPaid}</DropdownMenuItem>
+        {plan && line.canArchive ? <DropdownMenuItem onSelect={() => desk.archive(line.tranche.id)}>{words.remove}</DropdownMenuItem> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

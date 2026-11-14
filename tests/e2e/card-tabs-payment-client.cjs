@@ -157,8 +157,9 @@ async function runPayment({ browser, report, css, outDir, fx, join, pathToFileUR
     // Далеко внизу длинной таблицы: форма, которая открылась после «Отметить оплаченным», на экране и в ней фокус.
     {
       const { context, page } = await open("long", key);
-      await rowMenus(page).first().scrollIntoViewIfNeeded();
-      await rowMenus(page).first().click();
+      // Последняя «⋯» - у ещё не оплаченного платежа в самом низу таблицы (первые - у оплат закрытого платежа).
+      await rowMenus(page).last().scrollIntoViewIfNeeded();
+      await rowMenus(page).last().click();
       await page.getByRole("menuitem", { name: "Отметить оплаченным" }).click();
       const slot = page.getByTestId("v3-case-agreement-payment");
       await slot.locator("form").waitFor();
@@ -169,6 +170,28 @@ async function runPayment({ browser, report, css, outDir, fx, join, pathToFileUR
         return { top: Math.round(rect.top), bottom: Math.round(rect.bottom), viewport: window.innerHeight, focused: document.activeElement === input, scrollY: Math.round(window.scrollY) };
       });
       report(`${label}: after «Отметить оплаченным» in a long table the amount field is on screen and focused`, where.focused && where.top >= 0 && where.bottom <= where.viewport, where);
+      await context.close();
+    }
+    // Полностью оплаченный платёж: «⋯» у его оплаты, в нём одно «Изменить название и срок»; сумма и валюта закрыты, сохранение идёт по этому платежу.
+    {
+      const { context, page } = await open("same", key);
+      const closedMenu = page.getByRole("button", { name: "Действия со строкой: Первый платёж" });
+      const count = await closedMenu.count();
+      await closedMenu.click();
+      const items = await page.getByRole("menuitem").allTextContents();
+      await page.getByRole("menuitem", { name: "Изменить название и срок" }).click();
+      const row = page.locator("[data-testid=v3-case-agreement-tranches] li", { has: page.locator("form") });
+      await row.locator("form").waitFor();
+      const editor = await row.evaluate((li) => ({ readOnly: [...li.querySelectorAll("input[name=amount], input[name=currency]")].map((input) => `${input.name}:${input.readOnly}`), archive: li.querySelectorAll("input[type=checkbox]").length, label: li.querySelector("input[name=label]").value }));
+      const focus = await focused(page);
+      await page.evaluate(() => { window.__mode = "saved"; });
+      await row.getByRole("button", { name: "Сохранить", exact: true }).click();
+      await waitCalls(page, 1);
+      const [call] = await calls(page);
+      const paidTranche = fx.AGREEMENTS.same.tranches[0];
+      report(`${label}: a fully paid payment keeps «Изменить название и срок» in the «⋯» of its payment row`,
+        count === 1 && JSON.stringify(items) === JSON.stringify(["Изменить название и срок"]) && editor.readOnly.join() === "amount:true,currency:true" && editor.archive === 0 && focus?.name === "label"
+        && call.action === "saveCaseTrancheAction" && field(call, "payment_obligation_id") === paidTranche.id && field(call, "archive") === "false" && field(call, "amount") === "600", { count, items, editor, focus, call });
       await context.close();
     }
     // «Изменить» из меню: правка открывается в строке, фокус - в её первом поле.

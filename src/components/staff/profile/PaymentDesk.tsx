@@ -14,6 +14,7 @@ import {
 import { caseMoneyWords } from "@/lib/v3/wording";
 
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
+import { moneyAmount } from "./case-money-view";
 
 const words = caseMoneyWords.pay;
 const UPLOAD_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -246,6 +247,7 @@ function PaidForm({ agreement, locked, day, amount, setDay, setAmount, onClose }
             </select>
           </label>
         )}
+        {obligation ? <p className="t-body-compact text-fg-2">{words.left}: {moneyAmount(obligation.outstandingMinor, obligation.currency)}</p> : null}
         <div className="grid gap-3 @2xl:grid-cols-[9.5rem_9.5rem_minmax(0,1fr)]">
           <label className="block">
             <span className={fieldLabelCls}>{words.date}</span>

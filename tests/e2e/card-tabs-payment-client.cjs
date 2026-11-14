@@ -90,6 +90,20 @@ async function runPayment({ browser, report, css, outDir, fx, join, pathToFileUR
       report(`${label}: payment form has no browser errors`, errors.length === 0, errors);
       await context.close();
     }
+    // «Уже оплачен»: под платежом сказано, сколько по нему осталось, - до отказа сервера за переплату.
+    {
+      const { context, page } = await open("same", key);
+      await page.getByTestId("v3-case-payment-add").click();
+      const slot = page.getByTestId("v3-case-agreement-payment");
+      const remaining = async () => ((await slot.innerText()).match(/Осталось: ([^\n]+)/u)?.[1] ?? "").replace(/\s+/gu, " ").trim();
+      const byDefault = await remaining();
+      await slot.locator("select").selectOption({ index: 0 });
+      const paidUp = await remaining();
+      await page.getByRole("button", { name: "Отметить оплату" }).click();
+      const fromRow = await remaining();
+      report(`${label}: «Осталось: X» is shown for the chosen payment (default, fully paid, and from a row)`, byDefault === "900 USD" && paidUp === "0 USD" && fromRow === "900 USD", { byDefault, paidUp, fromRow });
+      await context.close();
+    }
   }
 }
 

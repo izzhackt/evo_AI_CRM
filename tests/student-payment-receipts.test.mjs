@@ -374,6 +374,41 @@ test("payment rows put a receipt on every tranche and keep an off-schedule recei
   assert.doesNotMatch(`${view}\n${form}`, /paymentObligationId/);
 });
 
+test("a rejected receipt that was replaced and accepted leaves no «Заменить» on the paid payment", () => {
+  // Жизнь одного платежа на 1200 USD в ответе student_portal_payment_center_v1: отклонённый чек остаётся в истории навсегда.
+  const D = "35800000-0000-4000-8000-000000000005";
+  const rejectedReceipt = entry({ entry_id: C, file_id: C, status: "rejected", amount_minor: 120000, reject_reason: "не видно сумму", filename: "blur.jpg", on_date: "2026-11-01" });
+  const replacement = entry({ entry_id: D, file_id: D, status: "review", amount_minor: 120000, filename: "ok.jpg", on_date: "2026-11-06" });
+  const acceptedPayment = entry({ kind: "payment", entry_id: B, file_id: B, status: "accepted", amount_minor: 120000, file_kind: "receipt", filename: "ok.jpg", on_date: "2026-11-07" });
+  const lines = (over) => {
+    const parsed = parsePaymentCenter(center({ dues: [due({ amount_minor: 120000, ...over })] }));
+    assert.ok(parsed);
+    return buildPaymentSchedule(parsed).groups[0].lines;
+  };
+  const open = { paid_minor: 0, outstanding_minor: 120000, derived_status: "pending" };
+  const paid = { paid_minor: 120000, outstanding_minor: 0, derived_status: "paid" };
+
+  // 1. чек отклонён: его можно заменить.
+  assert.deepEqual(lines({ ...open, entries: [rejectedReceipt] }).map((line) => [line.status, line.replace]), [["rejected", true]]);
+  // 2. заменён, новый чек на проверке: у старого отказа «Заменить» нет.
+  assert.deepEqual(lines({ ...open, entries: [rejectedReceipt, replacement] }).map((line) => [line.status, line.replace]), [["rejected", false], ["review", false]]);
+  // 3. новый чек принят, платёж оплачен: отказ остаётся историей (причина видна), но «Заменить» и «Приложить чек» нет.
+  const settled = lines({ ...paid, entries: [acceptedPayment, rejectedReceipt] });
+  assert.deepEqual(settled.map((line) => line.status), ["rejected", "accepted"]);
+  assert.equal(settled.some((line) => line.replace || line.attach), false);
+  assert.equal(settled[0].rejectReason, "не видно сумму");
+  assert.equal(settled[1].filename, "ok.jpg");
+  // 4. правило не шире нужного: платёж оплачен частично, остаток открыт - отклонённый чек на остаток по-прежнему можно заменить.
+  const partial = lines({
+    paid_minor: 60000, outstanding_minor: 60000, derived_status: "partially_paid",
+    entries: [
+      entry({ kind: "payment", entry_id: B, file_id: B, status: "accepted", amount_minor: 60000, file_kind: "receipt", filename: "first.pdf", on_date: "2026-10-02" }),
+      entry({ entry_id: C, file_id: C, status: "rejected", amount_minor: 60000, reject_reason: "размыто", on_date: "2026-11-01" }),
+    ],
+  });
+  assert.deepEqual(partial.map((line) => [line.status, line.replace]), [["accepted", false], ["rejected", true]]);
+});
+
 test("the Student case-file door resolves a Student session in the browser (the staff resolver refused Students)", () => {
   const handler = read("../src/lib/server/platform-case-agreement-storage-route-handlers.ts");
   const student = handler.slice(handler.indexOf("createStudentPortalCaseFileDownloadHandler"));

@@ -46,7 +46,7 @@ export type PaymentLine = Readonly<{
   rejectReason: string | null;
   /** Можно приложить первый чек к открытому остатку. */
   attach: boolean;
-  /** Можно заменить отклонённый чек. Скрыто, пока по этому платежу уже есть чек на проверке. */
+  /** Можно заменить отклонённый чек. Скрыто, пока по этому платежу уже есть чек на проверке, и у полностью оплаченного платежа. */
   replace: boolean;
   overdue: boolean;
   /** Имя транша, когда в одной услуге их несколько и это не «Получено в …». */
@@ -147,7 +147,10 @@ function openReceiptMinor(due: PaymentDue): number {
 
 function linesForDue(due: PaymentDue, canUpload: boolean): PaymentLine[] {
   const hasReview = due.entries.some((entry) => entry.kind === "receipt" && entry.status === "review");
-  const lines = due.entries.map((entry) => lineFromEntry(due, entry, canUpload && !hasReview));
+  // «Заменить» нужен, пока платёж не оплачен. Отклонённый чек остаётся в истории навсегда: когда его заменили и приняли, это уже
+  // только история, а новый чек на оплаченный платёж куратор принять не сможет (record_case_payment_v1: case_agreement_exceeds_balance).
+  const canReplace = canUpload && !hasReview && due.outstandingMinor > 0;
+  const lines = due.entries.map((entry) => lineFromEntry(due, entry, canReplace));
   // Остаток, который не закрыт чеком на проверке и не ждёт замены отклонённого.
   // Чек на всю сумму остатка не даёт вторую строку; непокрытая часть остатка — даёт.
   const uncovered = Math.max(0, due.outstandingMinor - openReceiptMinor(due));

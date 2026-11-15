@@ -30,10 +30,11 @@ function CreateForm({ requestId, audiences }: Readonly<{ requestId: string; audi
 /**
  * «Новый шаблон» — главное действие раздела (единственная красная кнопка): форма открывается в панели. После сохранения
  * приходит новый запрос — страница меняет `key` кнопки, и панель закрывается сама (как закрывалась прежняя форма).
+ * Кнопка прижата вправо (`sm:ms-auto`): с 14.11.2026 поле поиска не шире 24rem, и без этого она стояла бы посреди строки.
  */
 export function SnippetCreateSheet({ requestId, audiences }: Readonly<{ requestId: string; audiences: readonly PlatformReplySnippetAudience[] }>) {
   return (
-    <DetailSheet title="Новый шаблон" onEscapeKeyDown={sheetEscape} trigger={<Button><PlusIcon aria-hidden="true" />Новый шаблон</Button>}>
+    <DetailSheet title="Новый шаблон" onEscapeKeyDown={sheetEscape} trigger={<Button className="sm:ms-auto"><PlusIcon aria-hidden="true" />Новый шаблон</Button>}>
       <CreateForm requestId={requestId} audiences={audiences} />
     </DetailSheet>
   );

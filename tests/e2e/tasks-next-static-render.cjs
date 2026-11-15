@@ -541,23 +541,37 @@ async function main() {
     await shot(page, `search-${key}`);
     await page.getByRole("searchbox").fill("");
 
-    // Фильтры — ссылки на адрес: «Срок → Просрочено».
-    await page.locator("[data-slot=dropdown-menu-trigger]", { hasText: "Срок" }).click();
-    await page.getByRole("menu").waitFor();
-    await overlay(page, key, "filter menu", "[data-slot=dropdown-menu-content]");
+    // Фильтры — отдельная панель (14.11.2026): «Фильтры» (значок рядом с поиском) → раздел «Срок» → «Просрочено».
+    const filtersPanel = page.getByRole("dialog", { name: "Фильтры" });
+    const openFilters = async () => {
+      if (!(await filtersPanel.isVisible())) await page.getByTestId("list-filters").click();
+      await filtersPanel.waitFor();
+    };
+    await openFilters();
+    await overlay(page, key, "filter panel", "[data-slot=sheet-content]");
+    const sections = (await filtersPanel.locator("details > summary").allInnerTexts()).map((text) => text.replace(/\s+/gu, " ").trim());
+    report(`${key}: every filter is a section of the panel with its current value`, sections.join(" | ") === "Срок Любой срок | Тип Все | Состояние Открытые", sections);
+    const marked = await filtersPanel.locator('[aria-current="true"]').evaluateAll((elements) => elements.map((element) => element.textContent.replace(/\s+/gu, " ").trim()));
+    report(`${key}: the current option of every filter is marked`, marked.join(" | ") === "Любой срок | Все | Открытые", marked);
+    await filtersPanel.getByTestId("list-filter-due").locator("summary").click();
     await shot(page, `filter-menu-${key}`);
-    await page.getByRole("menuitem", { name: "Просрочено" }).click();
-    await page.locator("[data-slot=dropdown-menu-trigger]", { hasText: "Срок: Просрочено" }).waitFor();
+    await filtersPanel.getByTestId("list-filter-due").getByRole("link", { name: "Просрочено" }).click();
+    await page.getByTestId("list-filters-chosen").waitFor();
     const filterPush = (await pushes(page)).at(-1);
     report(`${key}: filter is an address change`, filterPush === "/tasks?due=overdue", filterPush);
     const overdueRows = key === "m390" ? await page.locator("[data-slot=data-table-cards] > li").allInnerTexts() : await page.locator("tbody tr").allInnerTexts();
     report(`${key}: overdue filter keeps only overdue tasks`, overdueRows.length > 0 && overdueRows.every((text) => /прошёл/u.test(text)), overdueRows.map((text) => text.slice(0, 60)));
     await shot(page, `filtered-${key}`);
-    report(`${key}: reset link appears`, (await page.getByRole("link", { name: "Сбросить" }).count()) === 1, null);
+    await openFilters();
+    report(`${key}: reset appears in the filter panel`, (await filtersPanel.getByRole("link", { name: "Сбросить" }).count()) === 1, null);
+    await page.keyboard.press("Escape");
+    await filtersPanel.waitFor({ state: "hidden" });
 
     // Массовый выбор: «Выбрать» показывает отметки и строку действий.
-    await page.getByRole("link", { name: "Сбросить" }).click();
-    await page.getByRole("link", { name: "Сбросить" }).waitFor({ state: "detached" });
+    await page.getByTestId("list-filters").click();
+    await page.getByRole("dialog", { name: "Фильтры" }).getByRole("link", { name: "Сбросить" }).click();
+    await page.getByTestId("list-filters-chosen").waitFor({ state: "detached" });
+    if (await page.getByRole("dialog", { name: "Фильтры" }).isVisible()) await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Выбрать" }).click();
     const boxes = page.getByRole("checkbox");
     report(`${key}: select reveals checkboxes`, (await boxes.count()) > 3, await boxes.count());
@@ -606,7 +620,7 @@ async function main() {
 
   // 5. Состояния страницы: завершённые, поиск из адреса, пусто, неполное чтение, нет права, лид, сообщение, ошибка.
   const states = [
-    ["done", "Завершённые", (page) => page.locator("[data-slot=dropdown-menu-trigger]", { hasText: "Состояние: Завершённые" }).count()],
+    ["done", "Завершённые", (page) => page.getByRole("link", { name: "Убрать фильтр: Состояние: Завершённые" }).count()],
     ["query", "Поиск из адреса", (page) => page.getByRole("link", { name: /Убрать поиск: Тимур/u }).count()],
     ["empty", "Пусто", (page) => page.getByText("Открытых рабочих задач нет").or(page.getByText("На сегодня задач нет")).count()],
     ["incomplete", "Неполное чтение", (page) => page.getByText("Показаны не все задачи, числа скрыты.").count()],

@@ -185,7 +185,7 @@ test("новые файлы короче 150 строк, собраны из н�
 });
 
 test("красная кнопка одна: у «Нового шаблона», «Нового файла», «Создать» библиотеки; подтверждения в панелях — тёмные", () => {
-  assert.match(read("src/components/staff/reply-snippets/next/SnippetCreateSheet.tsx"), /<Button><PlusIcon[^>]*\/>Новый шаблон<\/Button>/u);
+  assert.match(read("src/components/staff/reply-snippets/next/SnippetCreateSheet.tsx"), /<Button(?: className="[^"]*")?><PlusIcon[^>]*\/>Новый шаблон<\/Button>/u);
   assert.match(read("src/components/staff/knowledge/next/FolderSheets.tsx"), /<Button><FilePlusIcon[^>]*\/>Новый файл<\/Button>/u);
   assert.match(read("src/components/staff/knowledge/next/LibraryToolbar.tsx"), /<Button data-testid="knowledge-create-menu">Создать/u);
   for (const file of ["SnippetSheetBody", "SnippetCreateSheet"]) assert.match(read(`src/components/staff/reply-snippets/next/${file}.tsx`), /QUEUE_CONFIRM/u, file);

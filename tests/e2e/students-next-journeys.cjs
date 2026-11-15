@@ -86,10 +86,13 @@ const journeys = [
   // Фильтры, поиск, массовый выбор, приём дела.
   async ({ open, shot, report }) => {
     const { context, page } = await open("queue", "d1280");
-    await page.getByRole("button", { name: /^Направление/u }).click();
-    const items = await page.getByRole("menuitem").allInnerTexts();
+    // Все фильтры — на панели за кнопкой «Фильтры» рядом с поиском (14.11.2026); раздел раскрывается списком вариантов-ссылок.
+    await page.getByRole("button", { name: /^Фильтры/u }).click();
+    const direction = page.getByRole("dialog", { name: "Фильтры" }).getByTestId("list-filter-direction");
+    await direction.locator("summary").click();
+    const items = await direction.getByRole("link").allInnerTexts();
     report("queue d1280: «Направление» lists every direction with its count", items.length === 7 && /Китай\s*\d+/u.test(items.join(" ")), items);
-    await page.getByRole("menuitem", { name: /Китай/u }).click();
+    await direction.getByRole("link", { name: /Китай/u }).click();
     report("queue d1280: a filter is a link into the address (the server filters)", /direction=CN/u.test((await pushes(page)).at(-1) ?? ""), await pushes(page));
     await context.close();
     const found = await open("queue", "d1280");
@@ -232,9 +235,13 @@ const journeys = [
     await field.fill("Fudan");
     await page.waitForFunction(() => window.__harness.pushes.some((href) => /q=Fudan/u.test(href)), null, { timeout: 3000 });
     report("uni-list d1280: search runs by itself after a pause and keeps the filters", true, await pushes(page));
-    await page.getByRole("button", { name: /^Страна/u }).click();
-    report("uni-list d1280: «Страна» is a menu of links with «Все страны» first", (await page.getByRole("menuitem").first().innerText()) === "Все страны", (await page.getByRole("menuitem").count()));
+    await page.getByRole("button", { name: /^Фильтры/u }).click();
+    const countrySection = page.getByRole("dialog", { name: "Фильтры" }).getByTestId("list-filter-country");
+    await countrySection.locator("summary").click();
+    const country = countrySection.getByRole("link");
+    report("uni-list d1280: «Страна» is a section of links in the filter panel, «Все страны» first", (await country.first().innerText()).trim() === "Все страны", (await country.count()));
     await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "Фильтры" }).waitFor({ state: "hidden" });
     const next = page.getByRole("link", { name: "Дальше", exact: true });
     report("uni-list d1280: the server pages are links («Дальше»)", /offset=30/u.test((await next.getAttribute("href")) ?? ""), null);
     const tree = await harness.rowA11yProblems(page);

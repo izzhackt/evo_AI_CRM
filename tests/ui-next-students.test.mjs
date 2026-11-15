@@ -359,10 +359,14 @@ test("«Университеты»: каталог в новом виде у к�
       assert.ok(ids.size > 0 && ids.size <= 30, "не больше страницы сервера");
     }
   }
-  const filtered = text(await universityPage("page.tsx", "next", ADMIN, { country: "MY", level: "bachelor" }).run());
+  const filteredHtml = await universityPage("page.tsx", "next", ADMIN, { country: "MY", level: "bachelor" }).run();
+  const filtered = text(filteredHtml);
   assert.match(filtered, /Страна: Малайзия/u);
   assert.match(filtered, /Уровень: Бакалавриат/u);
-  assert.match(filtered, /Сбросить/u);
+  // «Сбросить» — внутри панели «Фильтры» (14.11.2026); на странице — точка на кнопке и чип с крестиком на каждый фильтр.
+  assert.match(filteredHtml, /aria-label="Фильтры: есть выбранные"/u);
+  assert.match(filteredHtml, /href="\/universities\?level=bachelor"[^>]*aria-label="Убрать фильтр: Страна: Малайзия"/u);
+  assert.match(filteredHtml, /aria-label="Убрать фильтр: Уровень: Бакалавриат"/u);
   const failing = universityStubs("next", ADMIN, { "src/lib/v3/university-source.ts": { readStaffUniversityCatalogue: async () => { throw new Error("db"); }, readStaffUniversityCountries: async () => ({ countries: [] }) } });
   const broken = text(await renderSettled(await loader(failing)("src/app/(staff)/universities/page.tsx").default({ searchParams: Promise.resolve({}) })));
   assert.match(broken, /Не удалось загрузить каталог\. Обновите страницу\. Это не означает, что опубликованных университетов нет\./u, "ошибка чтения — на виду и в новом виде");

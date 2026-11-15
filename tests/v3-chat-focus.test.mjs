@@ -216,8 +216,9 @@ test("исходники: «Поручить» — рамка без потол�
   assert.match(chat, /<div className="flex min-w-0 max-w-\[25rem\] items-center gap-1">/u, "название агента с маскотом не режется: «Директор / Аналитик» с маскотом — 370 px");
 
   const tabs = read("src/components/staff/queue/QueueViewTabs.tsx");
-  assert.match(tabs, /data-tab-ring=\{bare \? "inset" : undefined\}/u);
-  assert.match(read("src/app/(staff)/staff.css"), /\.v3-world \[data-tab-ring="inset"\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u, "ряд вкладок в шапке ровно по высоте вкладки — рамка фокуса внутри, а не обрезана");
+  // 14.11.2026: линии под рядом вкладок нет нигде — любой ряд ровно по высоте вкладки, рамка фокуса всегда внутри.
+  assert.match(tabs, /<ul className="flex min-w-max items-center gap-1" data-tab-ring="inset">/u);
+  assert.match(read("src/app/(staff)/staff.css"), /\.v3-world \[data-tab-ring="inset"\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u, "ряд вкладок ровно по высоте вкладки — рамка фокуса внутри, а не обрезана");
 
   const page = read("src/app/(staff)/ai-agents/[key]/page.tsx");
   // С #1327 рамку чата и шапку остальных вкладок рисует «Новый вид» (NextAgentPage), страница передаёт ему те же свойства.

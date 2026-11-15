@@ -430,7 +430,7 @@ test("rendered Lead 360 (Э8.4): contract and payment in one place — the strip
 test("Lead 360 and Student 360 tabs (Э8.4): 44 px, the queue tab strip without a scrollbar, focus drawn inside", () => {
   const potential = pages.get("lead-potential");
   const strip = potential.slice(potential.indexOf('aria-label="Разделы профиля"') - 5, potential.indexOf("</nav>", potential.indexOf('aria-label="Разделы профиля"')));
-  assert.match(strip, /^<nav aria-label="Разделы профиля" tabindex="0" data-tab-strip="" class="v3-tab-strip -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="v3-profile-tabs"><ul class="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
+  assert.match(strip, /^<nav aria-label="Разделы профиля" tabindex="0" data-tab-strip="" class="v3-tab-strip -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="v3-profile-tabs"><ul class="flex min-w-max items-center gap-1">/u, "no line under the row (14.11.2026)");
   const links = [...strip.matchAll(/<a [^>]*class="([^"]+)"[^>]*>([^<]+)<\/a>/gu)];
   // Лид без дела: «Анкета» и «История» не рисуются пустыми — события лида в «Ленте», направление в «Сведениях».
   assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Деньги"]);

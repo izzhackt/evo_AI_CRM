@@ -16,9 +16,9 @@ import { AI_AGENTS_HUB_HREF } from "@/lib/v3/ai-agents-view";
  *
  * Ширина названия (отзыв к #1451): самое длинное, «Директор / Аналитик», занимает 250 px, а вместе со стрелкой (44), маскотом (40),
  * «?» (24) и зазорами — 370 px, поэтому название агента — до 25rem и не обрезается; прежние 22rem и 19rem оставляли ему 232 и 184 px.
- * Шесть вкладок («На одобрение 3») занимают 643 px и не должны обрезаться: в одну линию название (370 px), вкладки (40rem, 640 px) и
- * переключатели (382 px) собираются от 90rem колонки (окно от 1748 px; прежние 81rem считались под название в 304 px, а 85rem оставляли
- * вкладкам 584 px — «Настройки» уходили за край до окна 1735 px); уже — вкладки второй строкой на всю ширину.
+ * Шесть вкладок со значками (14.11.2026) занимают 771 px, с трёхзначным числом на «На одобрение» — до 816 px, и не должны обрезаться:
+ * в одну линию название (370 px), вкладки (51rem, 816 px) и переключатели (382 px) собираются от 100rem колонки (окно от 1908 px;
+ * прежние 90rem и 40rem считались под вкладки без значков в 643 px); уже — вкладки второй строкой на всю ширину.
  */
 export function NextChatShell({
   title, leading = null, roleLine, tabs, switches, testId, children,
@@ -38,11 +38,11 @@ export function NextChatShell({
             <h1 className="t-page-title min-w-0 truncate text-fg">{title}</h1>
             <HelpTip label={`Пояснение: ${title}`}>{roleLine}</HelpTip>
           </div>
-          <div className="ms-auto flex flex-wrap items-start justify-end gap-x-4 gap-y-1 @[90rem]:order-2">
+          <div className="ms-auto flex flex-wrap items-start justify-end gap-x-4 gap-y-1 @[100rem]:order-2">
             {switches}
             <ChatFocusToggle />
           </div>
-          <div className="w-full min-w-0 @[90rem]:order-1 @[90rem]:w-auto @[90rem]:flex-[1_1_40rem]">{tabs}</div>
+          <div className="w-full min-w-0 @[100rem]:order-1 @[100rem]:w-auto @[100rem]:flex-[1_1_51rem]">{tabs}</div>
         </div>
       </header>
       <div className="mt-3 flex min-h-0 flex-1 flex-col">{children}</div>

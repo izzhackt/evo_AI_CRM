@@ -1,15 +1,16 @@
-import { PageShell, SectionTabs } from "@/components/kit";
-import { AI_AGENT_TABS, aiAgentHref, aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
+import { PageShell } from "@/components/kit";
+import { aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
 
-import { AgentTabs } from "@/components/staff/ai-agents/AgentTabs";
 import { SyncNowButton } from "@/components/staff/ai-agents/SyncPanel";
 import type { NextAgentPageProps } from "./agent-defaults";
 import { agentGate } from "./agent-gate";
 import { NextBackLink } from "./NextBackLink";
 import { NextAgentSwitches } from "./NextAgentSwitches";
 import { NextAgentTab } from "./NextAgentTab";
+import { NextAgentTabs } from "./NextAgentTabs";
 import { NextChatShell } from "./NextChatShell";
 import { NextAgentMascot } from "./NextAgentMascot";
+import { NextAgentStatus } from "./NextAgentStatus";
 import { AgentAlert, NextApiKeyMissing, NextPreviewLine } from "./NextNotices";
 
 /**
@@ -19,7 +20,7 @@ import { AgentAlert, NextApiKeyMissing, NextPreviewLine } from "./NextNotices";
  * Тексты по умолчанию из каталога (`@/content/ai-agents`) приходят готовыми в `defaults`: каталога в клиентском коде нет.
  */
 export function NextAgentPage(props: NextAgentPageProps) {
-  const { detail, tab, canEdit, preview, runtimeConfigured, needsSync, defaults } = props;
+  const { detail, tab, now, canEdit, preview, runtimeConfigured, needsSync, defaults } = props;
   const gate = agentGate({ detail, canEdit, preview, runtimeConfigured, defaultHasInstructions: defaults.hasInstructions });
   const chat = tab === "command";
   const roleLine = aiAgentRoleLine(detail.roleLine);
@@ -43,10 +44,13 @@ export function NextAgentPage(props: NextAgentPageProps) {
   const body = <NextAgentTab props={props} gate={gate} />;
   // Маскот агента в шапке каждой вкладки (13.11.2026): тот же, что на главной и в чате.
   const mascot = <NextAgentMascot agentKey={detail.key} size="md" />;
+  // Состояние агента — строкой под шапкой, а не `meta`: со вторичной строкой ряд шапки переносится, и «?» на телефоне уходил вниз.
+  const status = <div className="-mt-2 t-meta text-fg-3"><NextAgentStatus detail={detail} now={now} /></div>;
+  const tabs = (bare: boolean) => <NextAgentTabs bare={bare} agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />;
 
   if (chat) {
     return (
-      <NextChatShell testId="v3-ai-agent-page" title={detail.title} leading={mascot} roleLine={roleLine} tabs={<AgentTabs bare agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />} switches={switches}>
+      <NextChatShell testId="v3-ai-agent-page" title={detail.title} leading={mascot} roleLine={roleLine} tabs={tabs(true)} switches={switches}>
         <div className="flex min-h-0 flex-1 flex-col gap-3 [&>:not(:last-child)]:shrink-0" data-testid="v3-aia-agent" data-tab={tab} data-aia-chat="">
           {alerts}
           <div className="flex min-h-0 flex-1 flex-col">{body}</div>
@@ -57,12 +61,9 @@ export function NextAgentPage(props: NextAgentPageProps) {
   return (
     <PageShell title={detail.title} leading={mascot} help={roleLine} actions={switches} testId="v3-ai-agent-page" back={<NextBackLink />}>
       <div className="grid min-w-0 gap-4" data-testid="v3-aia-agent" data-tab={tab}>
+        {status}
         {alerts}
-        <SectionTabs
-          label={`Разделы агента «${detail.title}»`}
-          value={tab}
-          tabs={AI_AGENT_TABS.map((one) => ({ key: one.key, label: one.label, count: one.key === "drafts" && detail.stats.draftsPending > 0 ? detail.stats.draftsPending : null, href: aiAgentHref(detail.key, { tab: one.key }) }))}
-        />
+        {tabs(false)}
         {body}
       </div>
     </PageShell>

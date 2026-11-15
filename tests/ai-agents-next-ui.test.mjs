@@ -235,7 +235,9 @@ test("хаб по образцу Molar AI: «Сейчас» с итогами, �
   const next = strip(nextHub(F.available(F.LIST), true, false));
   assert.doesNotMatch(next, /data-slot="stat-tile"/u, "11.11.2026: крупных плиток нет, итоги — в карточке «Сейчас»");
   assert.match(next, /data-testid="v3-aia-now"/u);
-  for (const label of ["Запусков за 7 дней", "Без ошибок", "Расход за 7 дней"]) assert.match(next, new RegExp(label, "u"));
+  // 13.11.2026: «за 7 дней» — один раз над числами, а не в каждой подписи (на телефоне подписи ломались).
+  assert.match(next, /id="aia-now-period"[^>]*>За 7 дней</u);
+  for (const label of ["Запусков", "Без ошибок", "Расход"]) assert.match(next, new RegExp(`<dt[^>]*>${label}</dt>`, "u"), label);
   for (const gone of ["Включено агентов", "Действий", "инструментов за 7 дней"]) assert.doesNotMatch(next, new RegExp(gone, "u"), `11.11.2026: «${gone}» — второй ряд чисел убран, экран был перегружен`);
   // Отзыв владельца к #1449 (12.11.2026): ленты «Что сделали агенты» и отдельного «Спросить агента» на главной нет.
   for (const gone of ["Что сделали агенты", "Спросить агента", "data-testid=\"v3-aia-askbox\""]) assert.doesNotMatch(next, new RegExp(gone, "u"), `12.11.2026: «${gone}» убрано`);
@@ -482,7 +484,7 @@ test("полоса «Сейчас» говорит правду: «на связ
   const strip_ = (markup) => textOf(markup.match(/<section[^>]*data-testid="v3-aia-now"[\s\S]*?<\/section>/u)[0]);
   const idle = hub(F.LIST);
   assert.match(idle, /data-testid="v3-aia-now" data-mode="idle"/u);
-  assert.match(strip_(idle), /^ИИ-агенты · на связи Сегодня 24 запуска, сейчас никто не занят Запусков за 7 дней 64 Без ошибок 78% Расход за 7 дней 17,90 \$$/u, "«Без ошибок» — общая `successShare`: (64 − 14) / 64");
+  assert.match(strip_(idle), /^ИИ-агенты · на связи Сегодня 24 запуска, сейчас никто не занят За 7 дней Запусков 64 Без ошибок 78% Расход 17,90 \$$/u, "«Без ошибок» — общая `successShare`: (64 − 14) / 64");
   assert.doesNotMatch(idle, /aria-label="Кто работает"/u, "никто не работает — списка нет");
   const working = hub(F.LIST_RUNNING);
   assert.match(working, /data-mode="working"/u);
@@ -566,23 +568,18 @@ test("кольцо фокуса в тёмной полосе «Сейчас» б
   assert.ok(contrast(ink, base) >= 3, `белое кольцо на графите: ${contrast(ink, base).toFixed(1)}:1`);
 });
 
-test("«Обзор» и «История работы» после #1451: «нет», а не «0»; «идёт»; «Итог будет, когда агент закончит» и «Без итога»; пустой «Расход по дням» не рисуется", async () => {
+test("«Обзор» и «История работы» после #1451: «За 7 дней» — числа над графиками; «идёт»; «Итог будет, когда агент закончит» и «Без итога»", async () => {
   const { nextPage } = await views();
-  // «Ждут решения»: нет черновиков — слово «нет» и не ссылка; есть — число и ссылка в очередь.
-  const none = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { stats: F.stats({ draftsPending: 0 }) }) })));
-  assert.match(none, /Ждут решения<\/p><p class="t-figure px-4 text-fg">нет<\/p>/u, "«нет», а не «0»");
-  assert.doesNotMatch(none, /Ждут решения<\/p><p class="t-figure px-4 text-fg">0</u);
-  assert.doesNotMatch(none, /data-slot="stat-tile"[^>]*href="\/ai-agents\/director\?tab=drafts"/u, "без черновиков плитка — не ссылка");
-  assert.match(strip(nextPage(F.bodyProps("overview"))), /<a[^>]*data-slot="stat-tile"[^>]*href="\/ai-agents\/director\?tab=drafts"[^>]*>[\s\S]*?Ждут решения<\/p><p class="t-figure px-4 text-fg">3<\/p>/u, "с черновиками — число и ссылка");
-  // Расход по дням: не было расхода за 30 дней — карточки нет, график запусков на всю ширину; был — два графика рядом.
+  // «Обзор» (14.11.2026): одна карточка «За 7 дней», «Запусков» и «Расход» над своими графиками; «Ждут решения» — на вкладке, не плиткой.
+  const overview = strip(nextPage(F.bodyProps("overview")));
+  const week = overview.match(/<div[^>]*data-testid="v3-aia-week"[\s\S]*$/u)[0];
+  assert.match(week, /aria-labelledby="aia-week-runs"[\s\S]*Запуски по дням[\s\S]*aria-labelledby="aia-week-spend"[\s\S]*Расход по дням/u, "каждое число — над своим графиком");
+  assert.doesNotMatch(overview, /data-slot="stat-tile"/u);
+  // Расхода за 7 дней не было — половина остаётся со словами, а не пустым графиком.
   const base = F.detail("director");
   const noSpend = strip(nextPage(F.bodyProps("overview", { detail: { ...base, charts: { ...base.charts, spendPerDay: base.charts.spendPerDay.map((point) => ({ ...point, costCents: 0 })) } } })));
-  assert.doesNotMatch(noSpend, /Расход по дням/u, "пустая карточка не рисуется");
+  assert.match(noSpend, /Расхода за 7 дней нет\./u);
   assert.match(noSpend, /Запуски по дням/u);
-  const parentOfRuns = (markup) => { const before = markup.slice(0, markup.indexOf("Запуски по дням")); return before.slice(before.lastIndexOf('<div class="grid gap-4')).match(/^<div class="[^"]*"/u)[0]; };
-  assert.equal(parentOfRuns(noSpend), '<div class="grid gap-4"', "один график — на всю ширину");
-  assert.equal(parentOfRuns(strip(nextPage(F.bodyProps("overview")))), '<div class="grid gap-4 @4xl:grid-cols-2"', "с расходом — два графика рядом");
-  assert.match(strip(nextPage(F.bodyProps("overview"))), /Расход по дням/u);
   // «История работы»: идущий запуск — «идёт» и «Итог будет…»; законченный без слов — «Без итога».
   const running = { ...F.RUNS[7], promptPreview: null, summary: null };
   const finished = { ...F.RUNS[0], id: "11111111-1111-4111-8111-0000000000f1", promptPreview: null, summary: null, durationSeconds: null };
@@ -660,10 +657,10 @@ test("шапка страницы агента: «?» с ролью, «Вклю�
   assert.match(page, /data-testid="v3-aia-switch-auto"/u);
   for (const [label, tab] of [["Чат", null], ["Обзор", "overview"], ["История работы", "runs"], ["На одобрение", "drafts"], ["Правила агента", "instructions"], ["Настройки", "settings"]]) {
     const href = tab ? `/ai-agents/director?tab=${tab}` : "/ai-agents/director";
-    assert.match(page, new RegExp(`<a[^>]*href="${href.replace(/[?]/gu, "\\?")}"[^>]*>${label}`, "u"), label);
+    assert.match(page, new RegExp(`<a[^>]*href="${href.replace(/[?]/gu, "\\?")}"[^>]*>(?:<svg[\\s\\S]*?</svg>)?(?:<span[^>]*>)?${label}`, "u"), label);
   }
-  assert.match(page, /aria-current="page"[^>]*>Обзор/u);
-  assert.match(page, /На одобрение<span[^>]*>3<\/span>/u);
+  assert.match(page, /aria-current="page"[^>]*>(?:<svg[\s\S]*?<\/svg>)?(?:<span[^>]*>)?Обзор/u, "вкладка со значком раздела (13.11.2026)");
+  assert.match(page, /На одобрение<\/span><span[^>]*>3<span class="sr-only"> ждут решения<\/span><\/span>/u);
   assert.match(page, /href="\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты/u, "возврат к списку");
   // Не администратор видит состояние словом, а не переключатели.
   const staff = strip(nextPage(F.bodyProps("overview", { canEdit: false })));
@@ -675,6 +672,14 @@ test("предупреждения остаются на виду во всех 
   const { nextPage } = await views();
   const noKey = strip(nextPage(F.bodyProps("runs", { runtimeConfigured: false })));
   assert.match(noKey, /data-testid="v3-aia-key-missing"/u);
+  // 13.11.2026: о ключе — одна плашка; чат, «Правила» и «Настройки» её не повторяют.
+  for (const tab of ["instructions", "settings"]) {
+    const html = strip(nextPage(F.bodyProps(tab, { runtimeConfigured: false })));
+    assert.equal((html.match(/Ключ Claude API не задан/gu) ?? []).length, 1, `${tab}: фраза о ключе один раз`);
+  }
+  // В чате на телефоне плашки скрыты (staff.css): причина в пустом чате остаётся только там.
+  const chat = strip(nextPage(F.bodyProps("command", { runtimeConfigured: false })));
+  assert.match(chat, /<p class="[^"]*md:hidden">Ключ Claude API не задан в CRM — его добавляет администратор\.<\/p>/u);
   const preview = strip(nextPage(F.bodyProps("overview", { preview: true, canEdit: false })));
   assert.match(preview, /Вы смотрите раздел глазами роли/u);
   const failed = F.bodyProps("overview", { detail: F.detail("director", { sync: F.sync({ status: "error", error: "сбой сети" }) }) });
@@ -695,7 +700,11 @@ test("предупреждения остаются на виду во всех 
 test("«Обзор»: плитки, последний отчёт, графики, «Работа агента»; инструменты и прошлые отчёты в панелях", async () => {
   const { nextPage } = await views();
   const page = strip(nextPage(F.bodyProps("overview")));
-  assert.equal((page.match(/data-slot="stat-tile"/gu) ?? []).length, 4);
+  assert.equal((page.match(/data-slot="stat-tile"/gu) ?? []).length, 0, "14.11.2026: плиток нет — числа стоят над своими графиками");
+  assert.match(page, /data-testid="v3-aia-week"/u);
+  assert.match(page, /За 7 дней/u);
+  assert.match(page, /<h3 id="aia-week-runs"[^>]*>Запусков<\/h3>/u);
+  assert.match(page, /<h3 id="aia-week-spend"[^>]*>Расход<\/h3>/u);
   assert.match(page, /Последний отчёт/u);
   assert.match(page, /Неделя 12–18 октября/u);
   assert.match(page, /Запуски по дням/u);
@@ -706,8 +715,12 @@ test("«Обзор»: плитки, последний отчёт, график�
   assert.doesNotMatch(page, /data-testid="v3-aia-tool-bars"/u, "столбики инструментов — в панели, не на экране");
   assert.doesNotMatch(page, /Неделя 5–11 октября/u, "прошлые отчёты — в панели");
   assert.doesNotMatch(page, /<details[^>]*data-testid="v3-aia-tools-panel"/u, "инструменты — не раскрывающаяся строка: второстепенное — в панели");
-  assert.match(page, /href="\/ai-agents\/director\?tab=drafts"/u, "плитка «Ждут решения» ведёт в очередь");
+  assert.doesNotMatch(page, />Ждут решения</u, "число черновиков — на вкладке «На одобрение», второй раз на «Обзоре» не повторяется");
   const never = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { stats: F.stats({ lastRunAt: null, lastRunStatus: null, runs7d: 0 }), lastDigest: null }) })));
+  assert.match(page, /data-testid="v3-aia-status"[^>]*><span>Последний запуск /u, "под именем — когда агент работал последний раз");
+  assert.match(never, /data-testid="v3-aia-status"[^>]*>Ещё не запускался</u);
+  const busy = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { stats: F.stats({ runsRunning: 2 }) }) })));
+  assert.match(busy, /Работает: 2 поручения/u);
   assert.match(never, /Запусков ещё не было/u);
   assert.match(never, /Поручить первую задачу/u);
   assert.equal((never.match(/data-slot="stat-tile"/gu) ?? []).length, 0, "у не работавшего агента нет четырёх нулевых плиток");
@@ -789,7 +802,8 @@ test("«На одобрение»: ряд «Ждут решения · Все»,
   assert.doesNotMatch(rows[0], /Остаётся в очереди|действует до/u);
   assert.match(rows[1], /data-testid="v3-aia-draft-note"[^>]*>Остаётся в очереди: WhatsApp сейчас не подключён/u);
   assert.match(rows[2], /data-testid="v3-aia-draft-expires"[^>]*>действует до /u);
-  assert.match(page, /placeholder="Поиск по черновикам"/u);
+  // 13.11.2026: над тремя строками поиск не нужен — он появляется, когда строк больше пяти.
+  assert.doesNotMatch(page, /placeholder="Поиск по черновикам"/u);
   assert.doesNotMatch(page, /data-slot="data-table-pagination"|\d+–\d+ из \d+|v3-aia-drafts-capped/u, "список ограничен сервером: ни «из N», ни второго листателя");
   assert.match(page.match(/<ul class="grid grid-cols-1 gap-2 md:hidden"[\s\S]*?<\/ul>/u)[0], /line-clamp-2 break-words t-meta text-fg-3 md:hidden">Здравствуйте!/u, "на телефоне ответ агента — вторая строка заголовка карточки");
   const all = strip(nextPage(F.bodyProps("drafts", { draftsFilter: "all" })));
@@ -811,7 +825,9 @@ test("«Правила агента» и «Настройки»: карточк�
   assert.match(rules, /Правила агента/u);
   assert.match(rules, /Стандартные правила EVO/u);
   assert.match(rules, /Общие правила EVO/u);
-  assert.match(rules, /data-testid="v3-aia-instructions-text"/u);
+  // 13.11.2026: правила открываются размеченными («Просмотр»), поле — во вкладке «Править».
+  assert.match(rules, /data-testid="v3-aia-instructions-view"/u);
+  assert.match(rules, /data-testid="v3-aia-instructions-edit-tab"[^>]*>(?:<svg[^]*?<\/svg>)?Править</u);
   assert.doesNotMatch(rules, /<details/u);
   const readOnly = strip(nextPage(F.bodyProps("instructions", { canEdit: false })));
   assert.doesNotMatch(readOnly, /<textarea/u);
@@ -820,7 +836,7 @@ test("«Правила агента» и «Настройки»: карточк�
   for (const title of ["Модель и расход", "Расписание и события", "Синхронизация с Claude"]) assert.match(settings, new RegExp(title, "u"), title);
   assert.equal((settings.match(/>Технические данные</gu) ?? []).length, 1, "одна кнопка «Технические данные»: ID агента правится в её панели, пустой карточки «Агент в Claude» нет");
   assert.doesNotMatch(settings, /<h[23][^>]*>Агент в Claude</u);
-  assert.match(settings, /Сохранить настройки/u);
+  assert.doesNotMatch(settings, /Сохранить настройки/u, "14.11.2026: без правок запертой «Сохранить» нет — панель появляется с первой правкой");
   assert.match(settings, /Лимит на WhatsApp/u, "дневной лимит остаётся на виду");
   assert.doesNotMatch(settings, /0 — без потолка\./u, "пояснение к потолку — за «?»");
   assert.doesNotMatch(settings, /ID агента в Claude/u, "технический ID — за кнопкой «Технические данные»");
@@ -831,14 +847,16 @@ test("«Правила агента» и «Настройки»: карточк�
   assert.doesNotMatch(read, /data-testid="v3-aia-settings-save"/u);
 });
 
-test("«Своё расписание (cron)»: кнопка открывает поле, а когда расписание уже своё — поле стоит всегда и мёртвой кнопки нет", async () => {
+test("«Своё…» — пункт «Как часто», поле cron только у своего расписания; без расписания нет поля поручения (13.11.2026)", async () => {
   const { nextPage } = await views();
   const normal = strip(nextPage(F.bodyProps("settings")));
-  assert.match(normal, /aria-expanded="false"[^>]*>Своё расписание \(cron\)/u, "обычное расписание: кнопка есть и поле закрыто");
+  assert.doesNotMatch(normal, /Своё расписание \(cron\)/u, "отдельной кнопки cron нет — это пункт списка");
   assert.doesNotMatch(normal, /id="aia-cron"/u);
   const custom = strip(nextPage(F.bodyProps("settings", { detail: F.detail("director", { scheduleCron: "5 4 1 * *" }) })));
   assert.match(custom, /id="aia-cron"/u, "своё расписание: поле на месте");
-  assert.doesNotMatch(custom, /Своё расписание \(cron\)/u, "кнопка, которая ничего не сворачивает, не рисуется");
+  assert.match(custom, /id="aia-prompt"/u, "есть расписание — есть поручение");
+  const none = strip(nextPage(F.bodyProps("settings", { detail: F.detail("director", { scheduleCron: null }) })));
+  assert.doesNotMatch(none, /id="aia-prompt"/u, "«Как часто: Нет» — поля поручения нет");
 });
 
 test("панель запуска: у поручения нет подписи «Поручение» под заголовком «Поручение»; поручение и итог одного размера", async () => {

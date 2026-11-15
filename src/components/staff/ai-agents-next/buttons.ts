@@ -9,3 +9,6 @@ export const STICKY_BAR = "sticky bottom-[calc(var(--shell-tabbar,0px)+var(--she
 
 /** Без правок панель стоит в конце формы и ничего не закрывает. */
 export const STATIC_BAR = "flex flex-wrap items-center gap-3 py-1";
+
+/** Списки агента («История работы», «На одобрение»): до стольких строк поиск и «Колонки» над таблицей не нужны. */
+export const FEW_ROWS = 5;

@@ -72,7 +72,6 @@ export function NextSyncCard({ agentKey, sync, needsSync, runtimeConfigured, has
         <div className="grid gap-1.5">
           <p role={sync.status === "error" ? "alert" : undefined} className="t-body-compact text-fg-2">{line}</p>
           {needsSync ? <p role="status" className="t-body-compact text-warn">Изменения не отправлены в Claude — агент работает по прежним настройкам.</p> : null}
-          {!runtimeConfigured ? <p className="t-body-compact text-warn">Ключ Claude API не задан в CRM: синхронизация недоступна.</p> : null}
           {canEdit && runtimeConfigured && !hasInstructions ? (
             <p className="t-body-compact text-fg-2">Сначала напишите <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className="text-fg underline underline-offset-4">правила</Link>: без них агента в Claude не создать.</p>
           ) : null}

@@ -95,11 +95,12 @@ export function NextSettings({
           {problems.map((problem) => <li key={problem}>{problem}</li>)}
         </ul>
       ) : null}
-      <div className={dirty ? STICKY_BAR : STATIC_BAR}>
+      {/* Без правок и без ответа на запись панели нет: запертая «Сохранить» внизу пустой формы — лишняя кнопка, как в «Правилах». */}
+      {dirty || save.state.status !== "idle" ? <div className={dirty ? STICKY_BAR : STATIC_BAR}>
         <Button type="submit" disabled={!dirty || problems.length > 0 || save.pending} data-testid="v3-aia-settings-save">{save.pending ? "Сохраняю…" : "Сохранить настройки"}</Button>
         {dirty ? <Button type="button" variant="outline" disabled={save.pending} onClick={() => setForm(base)}>Отменить правки</Button> : null}
         <ActionMessage state={save.state} testId="v3-aia-settings-message" />
-      </div>
+      </div> : null}
     </form>
   );
 }

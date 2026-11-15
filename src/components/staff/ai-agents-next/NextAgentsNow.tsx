@@ -32,9 +32,9 @@ export function NextAgentsNow({ list, runtimeConfigured }: Readonly<{ list: AiAg
           : `Сегодня ${today} ${pluralRu(today, ["запуск", "запуска", "запусков"])}, сейчас никто не занят`;
   const canOpenRuns = (agent: AiAgentListItem) => agent.key !== "director" || list.isAdmin;
   const stats = [
-    { label: "Запусков за 7 дней", value: String(list.summary.runs7d) },
+    { label: "Запусков", value: String(list.summary.runs7d) },
     { label: "Без ошибок", value: share === null ? "—" : `${share}%` },
-    { label: "Расход за 7 дней", value: formatUsdCents(list.summary.costCents7d) },
+    { label: "Расход", value: formatUsdCents(list.summary.costCents7d) },
   ];
   return (
     <section aria-labelledby="aia-now" data-testid="v3-aia-now" data-mode={mode} className="v3-aia-hero @container rounded-card p-6">
@@ -57,14 +57,18 @@ export function NextAgentsNow({ list, runtimeConfigured }: Readonly<{ list: AiAg
             </ul>
           ) : null}
         </div>
-        <dl aria-label="Показатели за 7 дней" data-testid="v3-aia-summary" className="grid grid-cols-3">
-          {stats.map(({ label, value }, index) => (
-            <div key={label} className={`grid content-between gap-1 ${index === 0 ? "pe-4" : "v3-aia-hero-sep px-4"}`}>
-              <dt className="v3-aia-hero-muted t-meta">{label}</dt>
-              <dd className="t-record-title tabular-nums">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        {/* «за 7 дней» — один раз над тремя числами: в каждой подписи на телефоне оно ломало строку (13.11.2026). */}
+        <div className="grid gap-2">
+          <p id="aia-now-period" className="v3-aia-hero-muted t-meta">За 7 дней</p>
+          <dl aria-labelledby="aia-now-period" data-testid="v3-aia-summary" className="grid grid-cols-3">
+            {stats.map(({ label, value }, index) => (
+              <div key={label} className={`grid content-between gap-1 ${index === 0 ? "pe-4" : "v3-aia-hero-sep px-4"}`}>
+                <dt className="v3-aia-hero-muted t-meta">{label}</dt>
+                <dd className="t-record-title tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </div>
     </section>
   );

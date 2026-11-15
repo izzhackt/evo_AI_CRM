@@ -87,6 +87,7 @@ export function Console({
   autoSend,
   canRun,
   blockedNote,
+  noteAbove = false,
   canDirect,
   canMakeTasks,
   initialRunId,
@@ -106,6 +107,8 @@ export function Console({
   canRun: boolean;
   /** Почему писать пока нельзя (вместо поля ввода). */
   blockedNote: string | null;
+  /** Причина уже на виду плашкой над чатом (не на телефоне): тогда на компьютере она здесь не повторяется. */
+  noteAbove?: boolean;
   /** Право `ai.agent.manage`: можно отправлять клиентам без черновика. */
   canDirect: boolean;
   /** Сотрудник может создавать задачи: под ответом есть «Сделать задачей». */
@@ -377,7 +380,7 @@ export function Console({
                   <div className="mx-auto grid max-w-[52ch] justify-items-center text-center">
                     <NextAgentMascot agentKey={agentKey} size="lg" />
                     <p className="mt-2 t-item text-fg">Писать агенту пока нельзя</p>
-                    <p className="mt-1 t-body-compact text-fg-2">{blockedNote}</p>
+                    <p className={`mt-1 t-body-compact text-fg-2${noteAbove ? " md:hidden" : ""}`}>{blockedNote}</p>
                     {nextStep ? <div className="mt-4 flex justify-center">{nextStep}</div> : null}
                   </div>
                 ) : starters.length > 0 ? (
@@ -425,7 +428,7 @@ export function Console({
       {locked ? (
         empty ? null : (
           <div className="shrink-0 space-y-3 border-t border-border bg-surface px-4 py-3" data-testid="v3-aia-blocked">
-            <p className="t-body-compact text-fg-2">{blockedNote}</p>
+            <p className={`t-body-compact text-fg-2${noteAbove ? " md:hidden" : ""}`}>{blockedNote}</p>
             {nextStep}
           </div>
         )

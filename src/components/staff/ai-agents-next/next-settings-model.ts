@@ -7,7 +7,7 @@ import { cronFromPlan, isValidCron, parseCronPlan, type ScheduleKind } from "@/l
  */
 export type ScheduleChoice = ScheduleKind | "custom";
 export const SCHEDULE_CHOICE_LABELS: Readonly<Record<ScheduleChoice, string>> = {
-  none: "Нет", daily: "Каждый день", weekdays: "По будням", weekly: "Раз в неделю", custom: "Своё расписание",
+  none: "Нет", daily: "Каждый день", weekdays: "По будням", weekly: "Раз в неделю", custom: "Своё…",
 };
 export const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
 export const MINUTE_STEPS = Array.from({ length: 12 }, (_, step) => String(step * 5).padStart(2, "0"));

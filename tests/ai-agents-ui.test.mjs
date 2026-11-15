@@ -924,7 +924,7 @@ test("«Поручить» при открытии на запуске: разм
   const locked = body(bodyProps({ tab: "command", runtimeConfigured: false, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() }, conversations: [resumeRun()] }));
   assert.doesNotMatch(locked, /v3-aia-progress|Покажи студентов с просроченными/u);
   assert.doesNotMatch(locked, /v3-aia-conversations|v3-aia-new/u, "заперто — списка разговоров и поля нет, только объяснение");
-  assert.match(locked, /<a[^>]*data-testid="v3-aia-back" href="\/ai-agents\/director\?tab=overview">[\s\S]*К разделам агента<\/a>/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента");
+  assert.match(locked, /<a aria-label="[^"]+ — к разделам агента"[^>]*data-testid="v3-aia-back" href="\/ai-agents\/director\?tab=overview"/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента, с именем агента (13.11.2026)");
   const fresh = body(bodyProps({ tab: "command" }));
   assert.doesNotMatch(fresh, /v3-aia-progress/u);
   assert.match(fresh, /placeholder="Что поручить\?"/u);

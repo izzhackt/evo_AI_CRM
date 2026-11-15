@@ -82,7 +82,7 @@ export function NextAgentsRoster({ agents, now, canAskOf, hasInstructionsOf, can
                 {list.map((agent) => {
                   const rules = hasInstructionsOf(agent);
                   const runnable = rules && canAskOf(agent) && agent.enabled && aiAgentIsRunnable(agent.sync);
-                  return <NextAgentCard key={agent.key} agent={agent} now={now} rules={rules} action={runnable ? "ask" : !rules && canWriteRules ? "rules" : null} />;
+                  return <NextAgentCard key={agent.key} agent={agent} now={now} rules={rules} action={runnable ? "ask" : !rules && canWriteRules ? "rules" : "open"} />;
                 })}
               </ul>
             </section>

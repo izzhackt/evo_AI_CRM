@@ -1,18 +1,18 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { KeyFacts, StatTile, WidgetCard } from "@/components/kit";
+import { KeyFacts, WidgetCard } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import type { AiAgentDetail, AiAgentDigestRow } from "@/lib/ai-agents/contract";
-import { aiAgentHref, chartBarRows, chartToolRows, describeSchedule, formatUsdCents, successShare } from "@/lib/v3/ai-agents-view";
+import { aiAgentHref, chartToolRows, describeSchedule } from "@/lib/v3/ai-agents-view";
 
 import { AnswerActions } from "@/components/staff/ai-agents/AnswerActions";
-import { DayBars } from "@/components/staff/ai-agents/Charts";
 import { NextDigest } from "./NextDigest";
+import { NextOverviewWeek } from "./NextOverviewWeek";
 import { OlderDigestsSheet, ToolsSheet } from "./NextOverviewSheets";
 
 /**
- * «Обзор» в «Новом виде»: плитки за 7 дней, последний отчёт, графики (расход — когда он был) и карточка «Работа агента» (расписание,
+ * «Обзор» в «Новом виде»: карточка «За 7 дней» (числа над своими графиками), последний отчёт и карточка «Работа агента» (расписание,
  * события; инструменты и прошлые отчёты — в панелях). У агента, который ещё не работал, десяти пустых блоков нет:
  * либо шаги запуска (`setup`), либо «Запусков ещё не было» и кнопка. Данные и условия те же, что у прежнего «Обзора».
  */
@@ -25,14 +25,11 @@ export function NextOverview({
   canMakeTasks = false,
 }: Readonly<{ detail: AiAgentDetail; digests: readonly AiAgentDigestRow[]; now: string; canRun?: boolean; setup?: ReactNode; canMakeTasks?: boolean }>) {
   const { stats, charts } = detail;
-  const share = successShare(stats);
   const toolRows = chartToolRows(charts.actionsByTool);
   const last = detail.lastDigest;
   const older = digests.filter((digest) => digest.id !== last?.id);
   const triggers = [detail.triggerWebsiteLead ? "новая заявка с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean);
   const hasSchedule = detail.scheduleCron !== null;
-  // Пустой график — не карточка на полэкрана (13.11.2026): без расхода за 30 дней остаётся один график на всю ширину.
-  const spent = charts.spendPerDay.some((point) => (point.costCents ?? 0) > 0);
   // Выключенный агент не запускается ни по расписанию, ни по событиям: одна строка под обоими фактами, а не по одной под каждым.
   const off = !detail.enabled && (hasSchedule || triggers.length > 0) ? <p className="t-meta text-warn" data-testid="v3-aia-off">Агент выключен — не запускается.</p> : null;
   const facts = [hasSchedule, triggers.length > 0].filter(Boolean).length;
@@ -78,12 +75,7 @@ export function NextOverview({
   return (
     <div className="grid gap-4" data-testid="v3-aia-overview">
       {setup}
-      <div role="group" aria-label="Показатели за 7 дней" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4">
-        <StatTile label="Запусков за 7 дней" value={stats.runs7d} hint={stats.runsRunning > 0 ? `сейчас работает: ${stats.runsRunning}` : undefined} />
-        <StatTile label="Без ошибок" value={share === null ? null : `${share}%`} hint={share === null ? "нет запусков" : stats.failed7d > 0 ? `с ошибкой: ${stats.failed7d}` : undefined} />
-        <StatTile label="Расход за 7 дней" value={formatUsdCents(stats.costCents7d)} />
-        <StatTile label="Ждут решения" value={stats.draftsPending > 0 ? stats.draftsPending : "нет"} href={stats.draftsPending > 0 ? aiAgentHref(detail.key, { tab: "drafts" }) : undefined} />
-      </div>
+      <NextOverviewWeek detail={detail} />
       {last || detail.key === "director" ? (
         <WidgetCard
           title="Последний отчёт"
@@ -93,16 +85,6 @@ export function NextOverview({
           {last ? <NextDigest digest={last} now={now} showTitle /> : <p className="t-body-compact text-fg-2" data-testid="v3-aia-no-digest">Отчётов пока нет.</p>}
         </WidgetCard>
       ) : null}
-      <div className={spent ? "grid gap-4 @4xl:grid-cols-2" : "grid gap-4"}>
-        <WidgetCard title="Запуски по дням">
-          <DayBars rows={chartBarRows(charts.runsPerDay, "count")} mode="count" caption="Запуски по дням" emptyText="За 30 дней запусков не было." tableHead={["День", "Запусков", "С ошибкой"]} />
-        </WidgetCard>
-        {spent ? (
-          <WidgetCard title="Расход по дням">
-            <DayBars rows={chartBarRows(charts.spendPerDay, "costCents")} mode="money" caption="Расход по дням" emptyText="Расхода за 30 дней нет." tableHead={["День", "Расход"]} />
-          </WidgetCard>
-        ) : null}
-      </div>
       {work}
     </div>
   );

@@ -122,7 +122,9 @@ const config: ExpoConfig = {
   web: { output: "single", favicon: "./assets/images/favicon.png" },
   plugins: [
     "expo-router",
-    "expo-secure-store",
+    // Face ID не используется (сессия лежит в Keychain без биометрии): без этой настройки Expo добавляет в Info.plist
+    // англоязычный NSFaceIDUsageDescription по умолчанию.
+    ["expo-secure-store", { faceIDPermission: false }],
     // Карта «Университетов»: MapLibre Native, тайлы OpenFreeMap как в вебе, без ключей (iOS и Android).
     "@maplibre/maplibre-react-native",
     "./plugins/with-scene-config",

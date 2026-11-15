@@ -2,8 +2,9 @@
 
 Срез M7. Личная ссылка регистрации `https://app.evoadmissions.com/apply?invite=<32 символа>`
 должна открывать приложение, а не браузер. Сторона приложения готова в `mobile/app.config.ts`;
-**сторона сервера в этой ветке не сделана**: нужны Team ID Apple и SHA-256 подписи Android,
-которых пока нет (см. «Что нужно от владельца» в `docs/mobile/PLAN.md`).
+**сторона сервера сделана** (ветка `izzhackt/app-links-well-known`): Next.js сам отдаёт оба файла
+на хостах кабинета и CRM, без перенаправлений. После выкладки остаётся проверить доставку (раздел
+«Как проверить») и добавить отпечаток Google Play App signing, когда появится аккаунт Play Console.
 
 ## Что уже сделано в приложении
 
@@ -16,7 +17,7 @@
 | Ввод вручную («Вставьте ссылку из письма/WhatsApp») | `mobile/src/features/registration/ApplyScreen.tsx` |
 | Разбор ссылки и токена `^[A-Za-z0-9_-]{32}$` | `mobile/src/features/registration/invite-link.ts` |
 
-Пока файлов на сервере нет, ссылка `https://app.evoadmissions.com/apply?invite=…` открывается в
+До выкладки этой ветки файлов на сервере нет, и ссылка `https://app.evoadmissions.com/apply?invite=…` открывается в
 браузере (веб-анкета работает как раньше), а приложение открывается по схеме
 `evoadmissions://apply?invite=…` или после вставки ссылки вручную.
 
@@ -28,20 +29,34 @@ xcrun simctl openurl <UDID> "evoadmissions://apply?invite=<токен>"
 
 Android: `adb shell am start -a android.intent.action.VIEW -d "evoadmissions://apply?invite=<токен>"`.
 
-## Что нужно опубликовать на `app.evoadmissions.com`
+## Что опубликовано на `app.evoadmissions.com` (сторона сервера)
 
-Оба файла отдаются по HTTPS, без перенаправлений, без авторизации и с `Content-Type: application/json`.
+Оба файла отдаются по HTTPS, без перенаправлений, без авторизации, `200`, `Content-Type: application/json`,
+`Cache-Control: public, max-age=3600`, только `GET` и `HEAD`. Те же пути отвечают и на хосте CRM (безвредно).
 
-### 1. `/.well-known/apple-app-site-association` (без расширения)
+| Что | Где |
+|---|---|
+| Значения (Team ID, bundle id, отпечатки), чистые данные | `src/lib/app-links.ts` |
+| `/.well-known/apple-app-site-association` | `src/app/.well-known/apple-app-site-association/route.ts` |
+| `/.well-known/assetlinks.json` | `src/app/.well-known/assetlinks.json/route.ts` |
+| Исключение в прокси: до проверки сессии, канонического хоста и закрытых маршрутов | `src/proxy.ts`, `isAppLinksAssociationFile` в `src/lib/platform-route-contract.ts` |
+| Тест | `tests/app-links.test.mjs` |
 
-Подставьте Team ID (developer.apple.com, Membership details). Bundle id `com.evoadmissions.app`.
+Без исключения прокси отвечал на эти пути `307` (закрытый маршрут или вход). Остальные пути ведут себя как раньше.
+Реверс-прокси (Caddy `evo-edge-caddy`) не должен добавлять своих перенаправлений для `/.well-known/*`.
+
+### `/.well-known/apple-app-site-association`
+
+Team ID `4D8W292RKQ` (общедоступный, он же в `mobile/app.config.ts`), bundle id `com.evoadmissions.app`.
+Открывается только `/apply` с непустым `invite`. Старое поле `paths` не добавлено: оно открывало бы
+приложение и по `/apply` без токена.
 
 ```json
 {
   "applinks": {
     "details": [
       {
-        "appIDs": ["TEAM_ID.com.evoadmissions.app"],
+        "appIDs": ["4D8W292RKQ.com.evoadmissions.app"],
         "components": [
           { "/": "/apply", "?": { "invite": "?*" }, "comment": "Личная ссылка регистрации" }
         ]
@@ -51,14 +66,12 @@ Android: `adb shell am start -a android.intent.action.VIEW -d "evoadmissions://a
 }
 ```
 
-Старые версии iOS читают поле `paths`; при необходимости добавьте рядом с `components`:
-`"appID": "TEAM_ID.com.evoadmissions.app", "paths": ["/apply"]`.
+### `/.well-known/assetlinks.json`
 
-### 2. `/.well-known/assetlinks.json`
-
-Подставьте SHA-256 сертификата подписи. Для Google Play это сертификат **App signing** из
-Play Console (Setup, App signing), а для проверки сборкой из EAS ещё и отпечаток из `eas credentials`.
-Можно перечислить оба.
+Список берётся из `ANDROID_CERT_SHA256_FINGERPRINTS` в `src/lib/app-links.ts`. Сейчас в нём один отпечаток:
+сертификат ключа **EAS** (production-сборка `ade0f767-567b-4f16-80aa-b85ad747811c`, серийный номер
+`84ac17664dfdcb59`), полученный командой `keytool -printcert -jarfile <файл.aab>` по `.aab` этой сборки.
+В репозитории только публичный отпечаток.
 
 ```json
 [
@@ -67,33 +80,26 @@ Play Console (Setup, App signing), а для проверки сборкой и�
     "target": {
       "namespace": "android_app",
       "package_name": "com.evoadmissions.app",
-      "sha256_cert_fingerprints": ["SHA256"]
+      "sha256_cert_fingerprints": ["C3:13:F1:59:AC:73:7B:92:66:66:C5:1C:3A:0B:CC:29:C8:77:8F:0C:6C:0B:1C:DA:F8:4D:E8:D2:B8:52:6E:E3"]
     }
   }
 ]
 ```
 
-## Где это добавить в веб-приложении Next.js
+#### Как добавить отпечаток Google Play App signing позже (одна строка)
 
-Файлы относятся к хосту `app.evoadmissions.com`, то есть к кабинету студента (`src/`), а не к сайту.
-
-1. Файлы отдаёт сам Next.js:
-   - `public/.well-known/assetlinks.json` (статический файл) и
-   - `src/app/.well-known/apple-app-site-association/route.ts`: `GET` возвращает JSON выше с
-     `Content-Type: application/json` (статический файл без расширения Next отдаст с неверным типом).
-   - Team ID и SHA-256 брать из переменных окружения (`EVO_APPLE_TEAM_ID`, `EVO_ANDROID_CERT_SHA256`), в Git их не класть.
-2. Прокси `src/proxy.ts` (matcher `/((?!_next/static|_next/image|favicon.ico).*)`) сейчас прогоняет
-   `/.well-known/*` через проверку сессии. Нужно добавить оба пути в список публичных в
-   `src/lib/platform-route-contract.ts` рядом с `isPublicStudentApplicationPage` и обработать в
-   `src/proxy.ts` так же, как публичный `/apply`: без перенаправлений на вход, только `GET` и `HEAD`.
-3. Хост: `app.evoadmissions.com` должен отдавать эти пути напрямую (Caddy `evo-edge-caddy`), без редиректа
-   `http -> https -> www`. Apple и Google не следуют перенаправлениям.
-4. Тест маршрута: ответ 200, `Content-Type: application/json`, JSON разбирается, содержит
-   `com.evoadmissions.app`, нет `Set-Cookie`.
+Приложение из Google Play подписывается ключом Google (App signing), а не ключом EAS, поэтому для
+подтверждения ссылок на устройствах из магазина нужен и его отпечаток. После создания приложения в
+Play Console: Setup, App signing, «App signing key certificate», строка **SHA-256**. Добавьте её одной
+строкой в массив `ANDROID_CERT_SHA256_FINGERPRINTS` в `src/lib/app-links.ts` (место отмечено комментарием);
+отпечаток EAS остаётся в списке. Тест проверяет формат (`AA:BB:...`, 32 байта).
 
 ## Как проверить после публикации
 
-- Apple: `https://app-site-association.cdn-apple.com/a/v1/app.evoadmissions.com` показывает файл
+- Сервер (ожидается `200`, `content-type: application/json`, без `location`):
+  `curl -sI https://app.evoadmissions.com/.well-known/apple-app-site-association`
+  и `curl -sI https://app.evoadmissions.com/.well-known/assetlinks.json`.
+- Apple: `curl -s https://app-site-association.cdn-apple.com/a/v1/app.evoadmissions.com` показывает файл
   (CDN обновляется до суток); на устройстве удалить и поставить сборку заново, открыть ссылку из «Заметок»
   или «Сообщений» (из Safari по ссылке на том же домене universal link не срабатывает).
 - Android: `adb shell pm get-app-links com.evoadmissions.app` показывает `verified`;

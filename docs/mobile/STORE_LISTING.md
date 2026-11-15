@@ -113,16 +113,24 @@ EN: `admissions,university,study abroad,student,documents,curator,China,Malaysia
 
 Data Used to Track You: **не собираются** («No, we do not track»).
 
-| Тип данных Apple | Собираем | Связано с пользователем | Трекинг | Цель |
+| Тип данных Apple | Что именно | Связано с пользователем | Трекинг | Цель |
 |---|---|---|---|---|
-| Contact Info: Name | да | да | нет | App Functionality |
-| Contact Info: Email Address | да | да | нет | App Functionality |
-| Contact Info: Phone Number | да | да | нет | App Functionality |
-| Identifiers: User ID | да | да | нет | App Functionality |
-| User Content: Photos or Videos (снимки документов) | да | да | нет | App Functionality |
-| User Content: Other User Content (файлы документов, сообщения) | да | да | нет | App Functionality |
-| Financial Info | нет: суммы и статусы платежей показываются из записей компании, приложение платёжных данных не вводит и не хранит | | | |
-| Location, Diagnostics, Usage Data, Purchases, Contacts, Health | нет | | | |
+| Contact Info: Name | имя и фамилия (анкета, профиль) | да | нет | App Functionality |
+| Contact Info: Email Address | вход, регистрация, восстановление пароля | да | нет | App Functionality |
+| Contact Info: Phone Number | телефон из анкеты | да | нет | App Functionality |
+| Health & Fitness: Health | медицинские документы, если их требует программа (например, Health Declaration Form) | да | нет | App Functionality |
+| Financial Info: Other Financial Info | бюджет и источник оплаты из анкеты, финансовые документы (выписки, письма спонсора), чеки об оплате | да | нет | App Functionality |
+| User Content: Emails or Text Messages | переписка с куратором в «Сообщениях» | да | нет | App Functionality |
+| User Content: Photos or Videos | снимки и фото документов | да | нет | App Functionality |
+| User Content: Customer Support | «Сообщить об ошибке» в заданиях CSCA | да | нет | App Functionality |
+| User Content: Other User Content | PDF-файлы документов, ответы тестов и уроков | да | нет | App Functionality |
+| Identifiers: User ID | ID аккаунта Supabase Auth | да | нет | App Functionality |
+| Usage Data: Product Interaction | избранные вузы, прогресс уроков и тестов, отметки «прочитано», язык, выбранная страна | да | нет | App Functionality |
+| Other Data: Other Data Types | ответы анкеты без контактов (страны, начало учёбы, образование, баллы, английский), версии согласий | да | нет | App Functionality |
+| Location, Diagnostics, Purchases, Contacts, Browsing/Search History, Device ID, Sensitive Info | нет | | | |
+
+Те же 12 типов записаны в `ios.privacyManifests` (`mobile/app.config.ts`) с 16.11.2026; раньше манифест
+перечислял 6 из них.
 
 Required-reason API (манифест): FileTimestamp C617.1/0A2A.1/3B52.1, UserDefaults CA92.1, SystemBootTime 35F9.1,
 DiskSpace E174.1/85F4.1: это объединение того, что объявляют React Native, expo-file-system, expo-constants,

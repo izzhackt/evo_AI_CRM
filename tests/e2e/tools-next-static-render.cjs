@@ -159,6 +159,7 @@ const PAGES = {
   "calendar-week": base("calendar", "/calendar", "view=week&date=2026-09-26", { calendar: calendar(fx.WEEK) }),
   "calendar-month": base("calendar", "/calendar", "view=month&date=2026-09-26", { calendar: calendar([...fx.WEEK, ...fx.MONTH_EXTRA]) }),
   "calendar-day": base("calendar", "/calendar", "view=day&date=2026-09-24", { calendar: calendar(fx.WEEK) }),
+  "calendar-list": base("calendar", "/calendar", "view=list&date=2026-09-26", { calendar: calendar([...fx.WEEK, ...fx.MONTH_EXTRA]) }),
   "calendar-empty": base("calendar", "/calendar", "view=week&date=2026-09-26", { calendar: calendar([]) }),
   "calendar-denied": base("calendar", "/calendar", "view=week&date=2026-09-26", { calendar: calendar([], { readAccess: { caseTasks: false, staffTasks: false, tasks: false } }) }),
   "calendar-panel": base("calendar", "/calendar", `view=week&date=2026-09-24&case=${fx.id("dddddddd", 41)}&task=${fx.id("cccccccc", 41)}`, { calendar: calendar(fx.WEEK) }),

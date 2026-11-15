@@ -22,7 +22,8 @@ export function calendarAccessNotice(access: CalendarReadAccess): string | null 
   return access.tasks ? null : "Нет доступа к личному списку задач.";
 }
 
-export type CalendarView = "day" | "week" | "month";
+/** «Список» (15.11.2026, как у «Акылмана») — задачи месяца по дням строками; читает и шагает как месяц. */
+export type CalendarView = "day" | "week" | "month" | "list";
 
 /**
  * Строка пустого периода (Э8.8): говорит о задачах СО СРОКОМ в показанном
@@ -32,7 +33,7 @@ export type CalendarView = "day" | "week" | "month";
 export function calendarEmptyPeriodLabel(access: CalendarReadAccess, view: CalendarView): string | null {
   if (!access.tasks) return null;
   if (view === "day") return "В этот день задач со сроком нет.";
-  if (view === "month") return "В этом месяце задач со сроком нет.";
+  if (view === "month" || view === "list") return "В этом месяце задач со сроком нет.";
   return "На этой неделе задач со сроком нет.";
 }
 
@@ -161,7 +162,7 @@ export function calendarTaskIsOpen(task: Pick<CalendarTask, "state">): boolean {
  * клетки. Задача, открытая адресом из другого периода, сюда не входит.
  */
 export function calendarPeriodDays(view: CalendarView, anchor: Day, days: readonly Day[]): readonly Day[] {
-  return view === "month" ? days.filter((day) => isSameMonth(day, anchor)) : days;
+  return view === "month" || view === "list" ? days.filter((day) => isSameMonth(day, anchor)) : days;
 }
 
 /** Есть ли в показанном периоде хоть одна задача со сроком. */
@@ -325,7 +326,7 @@ export function isSameMonth(a: Day, b: Day): boolean {
  * `?view=` открывает неделю, а не роняет страницу.
  */
 export function resolveView(raw: string | undefined): CalendarView {
-  return raw === "day" || raw === "month" ? raw : "week";
+  return raw === "day" || raw === "month" || raw === "list" ? raw : "week";
 }
 
 /**
@@ -465,15 +466,25 @@ export function dayFullLabel(day: Day): string {
   return `${WEEKDAY_FULL[weekdayIndex(day)]}, ${dayLabel(day)} ${yearOf(day)}`;
 }
 
+/** «окт» — три буквы месяца у первого числа в сетке месяца. */
+export function monthShort(day: Day): string {
+  return MONTH_GENITIVE[monthIndex(day)].slice(0, 3);
+}
+
 /** «Сентябрь 2026». */
 export function monthLabel(day: Day): string {
   return `${MONTH_NOMINATIVE[monthIndex(day)]} ${yearOf(day)}`;
 }
 
+/** «Сентябрь» — год только не текущий («Январь 2027»): короткая строка месяца на телефоне. */
+export function monthShortLabel(day: Day, today: Day): string {
+  return yearOf(day) === yearOf(today) ? MONTH_NOMINATIVE[monthIndex(day)] : monthLabel(day);
+}
+
 /** Что за период показан сейчас. */
 export function periodLabel(view: CalendarView, day: Day): string {
   if (view === "day") return dayFullLabel(day);
-  if (view === "month") return monthLabel(day);
+  if (view === "month" || view === "list") return monthLabel(day);
 
   const from = startOfWeek(day);
   const to = shiftDay(from, 6);
@@ -498,4 +509,5 @@ export const VIEW_TITLES: readonly Readonly<{ key: CalendarView; title: string }
   { key: "day", title: "День" },
   { key: "week", title: "Неделя" },
   { key: "month", title: "Месяц" },
+  { key: "list", title: "Список" },
 ];

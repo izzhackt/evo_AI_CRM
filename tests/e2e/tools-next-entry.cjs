@@ -37,7 +37,7 @@ function serveCalendar(search) {
   return {
     initialTaskKey: target?.key ?? null, unavailableTarget: unavailable,
     taskCapabilities: target?.kind === "case" ? { taskId: target.id, studentCaseId: target.studentCaseId, canAssign: true, canChangeVisibility: true, canReadCase: true } : null,
-    view, day, today: fx.today, nowMinutes: 600, days: gridDays(view, day), tasks, readAccess: fx.calendar.readAccess,
+    view, day, today: fx.today, nowMinutes: 670, days: gridDays(view, day), tasks, readAccess: fx.calendar.readAccess,
     undatedContinuationPage: false, undatedNextHref: null, undatedCursor: null, cases: fx.calendar.cases, casesHaveMore: false,
     assignees: fx.participants.map((p) => ({ membershipId: p.membershipId, displayName: p.displayName })),
     actorMembershipId: fx.me, actor: fx.actor, taskRequestIds: requestIds, basePath: "/calendar",

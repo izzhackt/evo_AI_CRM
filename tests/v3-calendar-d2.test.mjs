@@ -403,7 +403,11 @@ test("Э8.8: calendar markup — one sheet, staff type roles, 44 px day links, n
   assert.match(calendar, /Срок новой задачи — /u);
   // «ещё N» — 44 px; карточка задачи — нейтральное наведение.
   assert.match(grids, /t-label inline-flex min-h-11 items-center rounded-nav px-1\.5 text-fg-2 underline/u);
-  assert.match(grids, /v3-choice flex min-h-11 w-full flex-col items-start gap-0\.5 rounded-nav border border-border bg-surface px-2 py-1 text-start hover:bg-surface-2"/u);
+  // 15.11.2026 (выделение по смыслу, референс владельца): блок задачи залит по смыслу — просрочена светло-красным с красным ребром,
+  // срочная светло-жёлтым с тёмно-жёлтым ребром, остальные тёплой подложкой стола; наведение по-прежнему нейтральное (рамка контрола).
+  assert.match(grids, /v3-choice flex min-h-11 w-full flex-col items-start gap-0\.5 rounded-nav border border-transparent px-2 py-1 text-start hover:border-control-edge \$\{mark\}/u);
+  assert.match(grids, /const mark = overdue \? "border-s-\[3px\] border-s-danger bg-danger-weak" : urgent \? "border-s-\[3px\] border-s-warn bg-warn-weak" : "bg-bg";/u);
+  assert.match(grids, /<LimitedChips tasks=\{dayTasks\} limit=\{CELL_LIMIT\} chip=\{chip\} moreHref=\{hrefForDay\(day\)\} moreLabel=\{dayLabel\(day\)\} compact \/>/u);
   // Телефон: сетки от 768 px, ниже — список по дням с датами JetBrains Mono.
   assert.match(calendar, /<div className="hidden border-t border-border md:block">/u);
   assert.match(calendar, /<div className="border-t border-border md:hidden">\s*<DayList/u);

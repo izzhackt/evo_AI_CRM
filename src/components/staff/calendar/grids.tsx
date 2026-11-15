@@ -1,10 +1,13 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 
+import { PlusIcon } from "lucide-react";
+
 import { DueWord } from "@/components/staff/blocks/DueWord";
+import { Button } from "@/components/ui/button";
 import { Pill, type PillTone } from "@/components/staff/Pill";
-import { taskStatus } from "@/lib/v3/wording";
+import { taskPriorityMark, taskStatus } from "@/lib/v3/wording";
 
 import { formatQueueDay } from "../queue/due-bucket";
 import {
@@ -13,6 +16,7 @@ import {
   type Day,
   calendarDayList,
   calendarPeriodDays,
+  calendarTaskIsOpen,
   calendarTasksOfDay,
   clockLabel,
   dayFullLabel,
@@ -20,6 +24,7 @@ import {
   dayNumber,
   hasCalendarAllDayRow,
   isSameMonth,
+  monthShort,
   taskCountLabel,
   weekdayNames,
   weekdayShort,
@@ -106,7 +111,10 @@ export function TaskChip({
   panelId,
   idPrefix = "task",
   onSelect,
+  compact = false,
 }: {
+  /** Клетка месяца: название и под ним «время · состояние · кто» — без рамки, плотнее карточки недели. */
+  compact?: boolean;
   task: CalendarTask;
   selected: boolean;
   /** Есть только когда подробности открыты: ссылка на несуществующий узел — ошибка разметки. */
@@ -125,6 +133,49 @@ export function TaskChip({
   // у «выполнена», «отменена» и «заблокирована»; выполненная и отменённая стоят тихо.
   const pill = overdue ? null : taskPill(task);
   const quiet = task.state === "done" || task.state === "cancelled";
+  // Значение — заливкой, ребром слева и словом (15.11.2026: выделение по смыслу; референс владельца — залитые блоки событий):
+  // просрочена — светло-красная, красное ребро и «просрочена»; срочная открытая — светло-жёлтая, тёмно-жёлтое ребро и «срочно»;
+  // остальные — тёплая подложка стола без ребра. Ребро различимо и без цвета: заливки отличаются от подложки почти только оттенком.
+  const urgent = !overdue && calendarTaskIsOpen(task) ? taskPriorityMark(task.priority) : null;
+  const filled = overdue || urgent !== null;
+  const mark = overdue ? "border-s-[3px] border-s-danger bg-danger-weak" : urgent ? "border-s-[3px] border-s-warn bg-warn-weak" : "bg-bg";
+  const time = task.minutes === null ? null : clockLabel(task.minutes);
+  // На залитом блоке слово состояния — простым текстом: плашка того же тона на той же заливке пропадает и оставляет лишний отступ.
+  const pillWord = pill ? (filled ? <span>{pill.word}</span> : <Pill tone={pill.tone}>{pill.word}</Pill>) : null;
+  const title = (
+    <span className={`w-full ${compact ? "truncate t-body-compact" : "t-item line-clamp-2 break-words"} ${
+      selected ? "" : quiet ? "text-fg-3" : "text-fg"
+    } ${task.state === "done" ? "line-through" : ""}`}>
+      {task.title}
+    </span>
+  );
+
+  if (compact) {
+    // Клетка месяца — две строки: название во всю ширину, под ним время, состояние словом и чей студент (имя обрезается последним
+    // и первым: время и слово состояния важнее). Ревью 15.11: в одну строку от названия оставалось «Про…», а имя и слово — только
+    // в подсказке.
+    return (
+      <button
+        type="button"
+        id={`${idPrefix}-${task.key}`}
+        onClick={(event) => onSelect(event.currentTarget)}
+        aria-expanded={selected}
+        aria-controls={selected && panelId ? panelId : undefined}
+        className={`v3-choice flex min-h-11 w-full flex-col items-start justify-center rounded-nav border border-transparent px-1.5 py-0.5 text-start hover:border-control-edge ${mark}`}
+      >
+        {title}
+        {/* В узкой клетке строка обрезается многоточием, а не вылезает за край: первым сжимается имя, потом слово состояния. */}
+        <span className={`t-meta flex w-full min-w-0 items-baseline gap-x-1.5 overflow-hidden whitespace-nowrap ${selected ? "text-fg-2" : "text-fg-3"}`}>
+          {time ? <span className={`shrink-0 font-mono ${overdue ? "text-danger" : ""}`}>{time}</span> : null}
+          {task.day === null ? <span className="min-w-0 truncate">без срока</span> : null}
+          {overdue ? <span className="min-w-0 truncate text-danger">просрочена</span> : null}
+          {urgent ? <span className="min-w-0 truncate text-warn">{urgent}</span> : null}
+          {pill ? <span className="min-w-0 truncate">{pill.word}</span> : null}
+          {task.person ? <span className="min-w-0 shrink-[4] truncate">{task.person}</span> : null}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -133,15 +184,9 @@ export function TaskChip({
       onClick={(event) => onSelect(event.currentTarget)}
       aria-expanded={selected}
       aria-controls={selected && panelId ? panelId : undefined}
-      className="v3-choice flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border border-border bg-surface px-2 py-1 text-start hover:bg-surface-2"
+      className={`v3-choice flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border border-transparent px-2 py-1 text-start hover:border-control-edge ${mark}`}
     >
-      <span
-        className={`t-item line-clamp-2 w-full break-words ${
-          selected ? "" : quiet ? "text-fg-3" : "text-fg"
-        } ${task.state === "done" ? "line-through" : ""}`}
-      >
-        {task.title}
-      </span>
+      {title}
       {/* Чей это студент — прямо на карточке, а не только в подробностях.
           У четырёх «Проверить нострификацию аттестата» в одном часе название
           одинаковое, и без имени они неразличимы: пришлось бы открывать
@@ -151,12 +196,14 @@ export function TaskChip({
           selected ? "text-fg-2" : "text-fg-3"
         }`}
       >
+        {time ? <span className={`font-mono ${overdue ? "text-danger" : ""}`}>{time}</span> : null}
         {task.day === null
           ? <span>без срока</span>
           : null}
         {task.person ? <span className="max-w-full truncate">{task.person}</span> : null}
         {overdue ? <span className="text-danger">просрочена</span> : null}
-        {pill ? <Pill tone={pill.tone}>{pill.word}</Pill> : null}
+        {urgent ? <span className="text-warn">{urgent}</span> : null}
+        {pillWord}
       </span>
     </button>
   );
@@ -175,7 +222,25 @@ export type CalendarCellProps = {
   selectedId: string | null;
   panelId: string | null;
   onSelect: (id: string, trigger: HTMLElement) => void;
+  /** «+» на дне — новая задача со сроком на этот день; нет права создавать — `null`, кнопок нет. */
+  create?: ((day: Day) => Readonly<{ label: string; onOpen: (trigger: HTMLElement) => void }>) | null;
 };
+
+/**
+ * «+» на дне (15.11.2026, решение владельца): открывает «Создать задачу» со сроком на этот день. С мышью — виден при наведении
+ * на день и при фокусе с клавиатуры; на сенсорном экране наведения нет, поэтому виден всегда.
+ */
+function DayCreate({ day, chip, className }: Readonly<{ day: Day; chip: CalendarCellProps; className: string }>) {
+  const create = chip.create?.(day);
+  if (!create) return null;
+  return (
+    <Button variant="ghost" size="icon" aria-label={create.label} title={create.label} aria-haspopup="dialog" data-calendar-create={day}
+      onClick={(event) => create.onOpen(event.currentTarget)}
+      className={`text-fg-3 transition-opacity focus-visible:opacity-100 motion-reduce:transition-none pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 ${className}`}>
+      <PlusIcon aria-hidden="true" />
+    </Button>
+  );
+}
 
 /**
  * Число дня — ссылка на этот день, цель нажатия 44 px. «Сегодня» (Э6) —
@@ -191,7 +256,10 @@ function DayLink({
   href,
   muted = false,
   weekday = false,
+  monthStart = false,
 }: {
+  /** Клетка месяца с первым числом другого месяца: «1 окт», как у «Акылмана». */
+  monthStart?: boolean;
   day: Day;
   today: Day;
   selected: boolean;
@@ -210,8 +278,9 @@ function DayLink({
       // `aria-current` говорят то же самое.
       aria-current={isToday ? "date" : selected ? "true" : undefined}
       data-calendar-selected-day={selected ? "" : undefined}
-      className={`${selected ? "v3-choice " : ""}inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-nav px-1.5 hover:bg-surface-2`}
+      className={`${selected ? "v3-choice " : ""}inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-nav px-1.5 hover:bg-surface-2${weekday ? " flex-col gap-0 py-1" : ""}`}
     >
+      {/* Шапка недели (15.11.2026, как у «Акылмана»): день недели, под ним крупное число. */}
       {weekday ? (
         <span aria-hidden="true" className="t-caption text-fg-3">
           {weekdayShort(day)}
@@ -220,11 +289,11 @@ function DayLink({
       <span
         aria-hidden="true"
         data-calendar-today={isToday ? "" : undefined}
-        className={`t-item grid h-6 min-w-6 place-items-center rounded-nav px-1 tabular-nums ${
+        className={`${weekday ? "t-section grid h-8 min-w-8 place-items-center rounded-nav px-1 tabular-nums" : "t-item grid h-6 min-w-6 place-items-center rounded-nav px-1 tabular-nums"} ${
           isToday ? "bg-accent text-on-accent" : muted ? "text-fg-3" : "text-fg"
         }`}
       >
-        {dayNumber(day)}
+        {dayNumber(day)}{monthStart ? ` ${monthShort(day)}` : ""}
       </span>
       <span className="sr-only">
         {dayFullLabel(day)}
@@ -245,19 +314,23 @@ function LimitedChips({
   chip,
   moreHref,
   moreLabel,
+  compact = false,
+  nowAt = null,
 }: {
   tasks: readonly CalendarTask[];
   limit: number;
   chip: CalendarCellProps;
   moreHref: string;
   moreLabel: string;
+  compact?: boolean;
+  nowAt?: number | null;
 }) {
   const selected = tasks.findIndex((task) => task.key === chip.selectedId);
   const shown = selected >= limit ? [...tasks.slice(0, limit - 1), tasks[selected]] : tasks.slice(0, limit);
   const rest = tasks.length - shown.length;
   return (
     <>
-      <Chips tasks={shown} chip={chip} />
+      <Chips tasks={shown} chip={chip} compact={compact} nowAt={nowAt} />
       {rest > 0 ? (
         <Link
           href={moreHref}
@@ -273,30 +346,68 @@ function LimitedChips({
   );
 }
 
+/** Линия «сейчас» — красная (значит «сегодня») с точкой; декоративная, время названо сеткой. */
+function NowLine({ className = "relative", style }: Readonly<{ className?: string; style?: React.CSSProperties }>) {
+  return (
+    <span aria-hidden="true" data-calendar-now="" className={`pointer-events-none block h-0.5 bg-accent ${className}`} style={style}>
+      <span className="absolute -start-1 -top-[3px] size-2 rounded-full bg-accent" />
+    </span>
+  );
+}
+
 function Chips({
   tasks,
   chip,
   idPrefix,
+  compact = false,
+  nowAt = null,
 }: {
   tasks: readonly CalendarTask[];
   chip: CalendarCellProps;
   idPrefix?: string;
+  compact?: boolean;
+  /** Минуты «сейчас» в этом часе: линия встаёт в поток между задачами — до первой, чьё время ещё не наступило. */
+  nowAt?: number | null;
 }) {
   if (tasks.length === 0) return null;
+  const next = nowAt === null ? -1 : tasks.findIndex((task) => task.minutes !== null && task.minutes > nowAt);
+  const at = nowAt === null ? -1 : next === -1 ? tasks.length : next;
   return (
-    <div className="flex flex-col gap-1">
-      {tasks.map((task) => (
-        <TaskChip
-          key={task.key}
-          task={task}
-          idPrefix={idPrefix}
-          selected={task.key === chip.selectedId}
-          panelId={chip.panelId}
-          onSelect={(trigger) => chip.onSelect(task.key, trigger)}
-        />
+    <div className={`flex flex-col ${compact ? "gap-0.5" : "gap-1"}`}>
+      {tasks.map((task, index) => (
+        <Fragment key={task.key}>
+          {index === at ? <NowLine /> : null}
+          <TaskChip
+            task={task}
+            idPrefix={idPrefix}
+            compact={compact}
+            selected={task.key === chip.selectedId}
+            panelId={chip.panelId}
+            onSelect={(trigger) => chip.onSelect(task.key, trigger)}
+          />
+        </Fragment>
       ))}
+      {at === tasks.length ? <NowLine /> : null}
     </div>
   );
+}
+
+/**
+ * «Сейчас» в минутах: с сервера — на момент чтения страницы, дальше идёт само раз в полминуты (вкладку календаря держат открытой
+ * часами). Первая отрисовка — серверное значение, гидратация не расходится. После полуночи линии нет: день уже другой.
+ */
+function useLiveMinutes(start: number | null): number | null {
+  const [state, setState] = useState(() => ({ start, now: start }));
+  if (state.start !== start) setState({ start, now: start });
+  useEffect(() => {
+    if (start === null) return;
+    const began = Date.now();
+    const timer = window.setInterval(() => {
+      setState({ start, now: start + Math.floor((Date.now() - began) / 60_000) });
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [start]);
+  return state.now === null || state.now >= 24 * 60 ? null : state.now;
 }
 
 /* --------------------------------------------------------- сетка с часами */
@@ -313,10 +424,13 @@ export function TimeGrid({
   tasks,
   hours,
   anchor = null,
+  now = null,
   hrefForDay,
   label,
   chip,
 }: {
+  /** Минуты от полуночи сейчас (Бишкек, на момент чтения страницы): линия «сейчас» в клетке сегодняшнего дня. null — без линии. */
+  now?: number | null;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
   /** Минуты от полуночи: начало каждого часа сетки. */
@@ -329,8 +443,11 @@ export function TimeGrid({
   chip: CalendarCellProps;
 }) {
   // Столбец дня не уже 7.5rem: названия не рвутся посреди слова, неделя при нехватке места прокручивается.
-  const columns = `56px repeat(${days.length}, minmax(${days.length > 1 ? "7.5rem" : "0px"}, 1fr))`;
-  const allDay = tasks.filter((task) => task.day !== null && task.minutes === null);
+  // Колонка часов 72 px: «весь день» помещается одной строкой.
+  const columns = `72px repeat(${days.length}, minmax(${days.length > 1 ? "7.5rem" : "0px"}, 1fr))`;
+  // Страница читает весь месяц: у дня и недели — только задачи показанных дней.
+  const shownDays = new Set(days);
+  const allDay = tasks.filter((task) => task.day !== null && shownDays.has(task.day) && task.minutes === null);
   const week = days.length > 1;
 
   // Прокрутка к якорному часу — эффект, а не адрес: фрагмента в ссылках нет.
@@ -353,13 +470,17 @@ export function TimeGrid({
       8;
   }, [anchorKey]);
 
+  const live = useLiveMinutes(now);
+  const nowHour = live !== null && days.includes(chip.today) ? Math.floor(live / 60) * 60 : null;
+  const nowHere = (day: Day, hour: number) => (live !== null && day === chip.today && Math.floor(live / 60) * 60 === hour ? live : null);
+
   const at = (day: Day, hour: number) =>
     tasks.filter(
       (task) => task.day === day && task.minutes !== null && Math.floor(task.minutes / 60) * 60 === hour,
     );
 
   const grid = (
-    <div className={week ? "min-w-[896px]" : ""}>
+    <div className={week ? "min-w-[912px]" : ""}>
       <div className="grid" style={{ gridTemplateColumns: columns }}>
         {/* Шапка с днями — только у недели: у дня период назван в строке
             сверху, и второй раз повторять его незачем. «Пн 21» — одна ссылка
@@ -370,8 +491,9 @@ export function TimeGrid({
             {days.map((day) => (
               <span
                 key={day}
-                className="flex items-center justify-center border-b border-s border-border py-0.5"
+                className="group relative flex items-center justify-center border-b border-s border-border py-0.5"
               >
+                <DayCreate day={day} chip={chip} className="absolute end-0.5 top-1/2 -translate-y-1/2" />
                 <DayLink
                   day={day}
                   today={chip.today}
@@ -388,7 +510,7 @@ export function TimeGrid({
             Пустой строки нет — она появляется вместе с такой задачей. */}
         {hasCalendarAllDayRow(allDay) ? (
           <>
-            <span className="t-meta border-b border-border px-2 py-2 text-end text-fg-3">
+            <span className="t-caption flex items-center justify-end whitespace-nowrap border-b border-border pe-2 text-fg-3">
               весь день
             </span>
             {days.map((day) => (
@@ -408,17 +530,25 @@ export function TimeGrid({
           const edge = last ? "" : "border-b border-border";
           return (
             <Fragment key={hour}>
-              <span
-                ref={hour === anchor ? anchorRef : undefined}
-                className={`t-meta scroll-mt-2 pe-2 pt-1 text-end font-mono text-fg-3 ${edge}`}
-              >
-                {clockLabel(hour)}
+              {/* Колонка часов (15.11.2026, владелец просил доработать): без линий, метка часа стоит на линии своего часа, как в
+                  календарях телефона; текущий час — тёмным и жирным, остальные тихо. Первая метка — под линией шапки. */}
+              <span ref={hour === anchor ? anchorRef : undefined} className="relative scroll-mt-2">
+                <span className={`absolute end-2 t-caption font-mono tabular-nums ${index === 0 ? "top-1" : "top-0 -translate-y-1/2"} ${
+                  nowHour === hour ? "font-semibold text-fg" : "text-fg-3"
+                }`}>
+                  {clockLabel(hour)}
+                </span>
               </span>
               {days.map((day) => (
-                <div key={day} className={`min-h-16 border-s border-border p-1 ${edge}`}>
+                <div key={day} className={`relative min-h-16 border-s border-border p-1 ${edge}`}>
+                  {/* «Сейчас» (15.11.2026): тонкая линия поперёк сегодняшнего дня. В часе с задачами — в потоке между ними (задачи
+                      лежат потоком, без высоты, и линия поверх перечёркивала бы их, как «выполнена»); в пустом часе — по минутам. */}
                   {week
-                    ? <LimitedChips tasks={at(day, hour)} limit={HOUR_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} />
-                    : <Chips tasks={at(day, hour)} chip={chip} />}
+                    ? <LimitedChips tasks={at(day, hour)} limit={HOUR_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} nowAt={nowHere(day, hour)} />
+                    : <Chips tasks={at(day, hour)} chip={chip} nowAt={nowHere(day, hour)} />}
+                  {nowHere(day, hour) !== null && at(day, hour).length === 0
+                    ? <NowLine className="absolute inset-x-0" style={{ top: `${((live! % 60) / 60) * 100}%` }} />
+                    : null}
                 </div>
               ))}
             </Fragment>
@@ -512,19 +642,24 @@ export function MonthGrid({
                 key={day}
                 // Клетки идут следом за семью подписями дней, поэтому
                 // первая в строке — это каждый седьмой ребёнок сетки.
-                className={`flex min-h-[112px] flex-col items-start gap-1 border-s border-border p-1 [&:nth-child(7n+1)]:border-s-0 ${
+                className={`group relative flex min-h-[112px] flex-col items-start gap-1 border-s border-border p-1 [&:nth-child(7n+1)]:border-s-0 ${
                   last ? "" : "border-b border-border"
                 }`}
               >
-                <DayLink
-                  day={day}
-                  today={chip.today}
-                  selected={day === chip.selectedDay}
-                  href={hrefForDay(day)}
-                  muted={!isSameMonth(day, anchor)}
-                />
+                {/* Как у «Акылмана»: число в правом верхнем углу, «+» — в левом. */}
+                <span className="self-end">
+                  <DayLink
+                    day={day}
+                    today={chip.today}
+                    selected={day === chip.selectedDay}
+                    href={hrefForDay(day)}
+                    muted={!isSameMonth(day, anchor)}
+                    monthStart={dayNumber(day) === 1}
+                  />
+                </span>
+                <DayCreate day={day} chip={chip} className="absolute start-1 top-1" />
                 <div className="w-full">
-                  <LimitedChips tasks={dayTasks} limit={CELL_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} />
+                  <LimitedChips tasks={dayTasks} limit={CELL_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} compact />
                 </div>
               </div>
             );

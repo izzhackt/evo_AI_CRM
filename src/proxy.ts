@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   isLightPollApi,
   isConnectedPlatformApi,
+  isAppLinksAssociationFile,
   isPublicStudentApplicationPage,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
@@ -319,6 +320,13 @@ export async function proxy(request: NextRequest) {
 
   if (path === "/api/health" || path === "/api/version") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  // Apple and Google fetch these without cookies and never follow a redirect:
+  // no session, no canonical-host or closed-route redirect. The route sets its own cache headers.
+  if (isAppLinksAssociationFile(path) && (request.method === "GET" || request.method === "HEAD")) {
+    const response = nextResponse(requestHeaders);
+    response.headers.set("x-request-id", id);
+    return response;
   }
   // Замер A0: с этого места запрос — рабочий, и его строка `evo_timing` нужна.
   // Проверка живости (раз в 30 с), готовности и метрики в журнал замера не идут.

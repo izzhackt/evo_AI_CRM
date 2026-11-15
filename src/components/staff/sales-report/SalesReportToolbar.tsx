@@ -20,7 +20,7 @@ const tidy = (value: string) => value.trim().replace(/\s+/gu, " ");
 const TOGGLE = "v3-choice inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 const QUIET_LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 /** Меню направления: одно имя на написания; у выбранной группы — её остальные написания. */
-function labelOptions(groups: readonly SalesLabelGroup[], selected: string | null, href: (value: string | null) => string): FilterOption[] {
+export function labelOptions(groups: readonly SalesLabelGroup[], selected: string | null, href: (value: string | null) => string): FilterOption[] {
   const group = salesLabelGroupOf(groups, selected);
   const options: FilterOption[] = [{ key: "all", label: "Все", href: href(null), selected: !selected }];
   if (selected && !group) options.push({ key: "current", label: `Из фильтра: ${tidy(selected)}`, href: href(selected), selected: true });
@@ -42,7 +42,7 @@ function labelOptions(groups: readonly SalesLabelGroup[], selected: string | nul
  * выбора. Выбор — ключ; у кого есть «Менеджеры в отчёте», последний пункт
  * ведёт туда.
  */
-function managerOptions(workspace: SalesRegisterWorkspace, selected: string | null, href: (value: string | null) => string, managersHref: string | null): FilterOption[] {
+export function managerOptions(workspace: SalesRegisterWorkspace, selected: string | null, href: (value: string | null) => string, managersHref: string | null): FilterOption[] {
   const options: FilterOption[] = [{ key: "all", label: "Все", href: href(null), selected: !selected }];
   const current = workspace.managerKey;
   if (selected && current !== null && !workspace.managerOptions.some((option) => option.key === current)) {

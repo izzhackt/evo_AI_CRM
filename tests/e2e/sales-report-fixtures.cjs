@@ -39,8 +39,8 @@ function reviewReasonsOf(row) {
 function row(n, f) {
   const base = {
     id: uuid("78787878", n), version: 1, reportMonth: f.month ?? "2026-09-01", signingDate: f.sale === undefined ? "2026-09-10" : f.sale, applicantName: f.name, phone: "+996 000 000 0" + String(n).padStart(2, "0"),
-    country: f.country ?? "Малайзия", university: "", program: f.program ?? "Бакалавриат", direction: f.direction ?? f.country ?? "Малайзия", intake: "2027", contractNumber: "", managerLabel: f.manager ?? "Санжар Эскизов",
-    statusRaw: "", ownerMembershipId: ME, serviceCostRaw: String((f.cost === undefined ? 150000 : f.cost ?? 0) / 100), serviceCostMinor: f.cost === undefined ? 150000 : f.cost,
+    country: f.country ?? "Малайзия", university: f.university ?? "", program: f.program ?? "Бакалавриат", direction: f.direction ?? f.country ?? "Малайзия", intake: "2027", contractNumber: "", managerLabel: f.manager ?? "Санжар Эскизов",
+    statusRaw: f.status ?? "", ownerMembershipId: ME, serviceCostRaw: String((f.cost === undefined ? 150000 : f.cost ?? 0) / 100), serviceCostMinor: f.cost === undefined ? 150000 : f.cost,
     serviceCostCurrency: f.cost === null ? null : f.costCurrency ?? "USD", paidRaw: f.paid === null ? "" : String((f.paid === undefined ? 60000 : f.paid) / 100), paidMinor: f.paid === undefined ? 60000 : f.paid,
     paidCurrency: f.paid === null ? null : f.paidCurrency ?? "USD", needsReview: f.review ?? false, notes: f.notes ?? "", archived: f.archived ?? false, sourceKey: null, sourceKind: f.flags ? "import" : "manual",
     leadId: f.leadId ?? null, clientId: null, sourceSha256: null, sourceSheet: f.flags ? "Сентябрь (синтетический лист)" : null, sourceRow: f.flags ? 10 + n : null, updatedAt: "2026-09-24T05:00:00.000Z",
@@ -50,7 +50,7 @@ function row(n, f) {
   return { ...base, reviewReasons: reviewReasonsOf(base) };
 }
 const ROWS = [
-  row(1, { name: "Алина Переданная", sale: "2026-09-22" }),
+  row(1, { name: "Алина Переданная", sale: "2026-09-22", university: "UCSI University", status: "Частично оплачено" }),
   row(2, { name: "Айжан Примерова", sale: "2026-09-20", manager: " санжар эскизов", review: true, flags: ["status_unspecified"] }),
   row(3, { name: "Тимур Образцов", sale: "2026-09-14", manager: "Айдана Макетова", country: "Китай", program: "Магистратура, экономика", paid: null, review: true }),
   row(4, { name: "Бекзат Тестов", sale: null, review: true }),

@@ -73,6 +73,9 @@ export function SalesRecordsTable({ rows, openKey, sheet, listHref, toolbar, emp
         toolbar={toolbar ? <div className="min-w-0 flex-1">{toolbar}</div> : null}
         empty={empty}
         columnMenu={false}
+        // Восемь колонок с суммами: поля ячеек чуть уже общих; ячейки выровнены по первой строке текста — сумма со статусом под ней
+        // стоит на одной линии со стоимостью и долгом, «Убрать» — на линии имени и в высокой строке.
+        className="[&_td]:px-3 [&_td]:align-baseline [&_th]:px-3"
       />
       <DetailSheet
         open={open}

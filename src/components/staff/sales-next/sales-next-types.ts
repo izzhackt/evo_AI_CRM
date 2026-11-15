@@ -55,12 +55,14 @@ export type SalesHeadlineData =
   }>;
 
 export type SalesMoneyData = Readonly<{
-  caption: string;
+  /** Основа сумм и правила (пары валют, без пересчёта) — пояснение за «?». */
+  help: string;
   refusal: string | null;
   lines: readonly Readonly<{ currency: string; cost: string; paid: string; rest: string | null }>[];
   showRest: boolean;
   cross: readonly Readonly<{ key: string; label: string; title: string; sr: string; cost: string | null; paid: string | null }>[];
-  footnote: string;
+  /** Что не вошло в суммы и почему остатка нет — предупреждение о данных, на виду. */
+  warning: string | null;
 }>;
 
 export type SalesCashData =

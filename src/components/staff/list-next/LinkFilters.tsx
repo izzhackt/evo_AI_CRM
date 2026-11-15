@@ -56,6 +56,14 @@ function FilterSection({ menu }: Readonly<{ menu: LinkFilterMenu }>) {
             </Link>
           </li>
         ))}
+        {menu.link ? (
+          <li>
+            {/* Отступ — как у названий вариантов (кружок 18 px и промежуток 12 px): ссылка читается частью списка, но без кружка выбора. */}
+            <Link href={menu.link.href} className="flex min-h-11 items-center rounded-nav py-2 ps-[2.375rem] pe-2 t-body-compact text-fg-2 underline underline-offset-4 transition-colors hover:bg-surface-2 hover:text-fg motion-reduce:transition-none">
+              {menu.link.label}
+            </Link>
+          </li>
+        ) : null}
       </ul>
     </details>
   );

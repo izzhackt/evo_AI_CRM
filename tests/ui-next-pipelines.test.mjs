@@ -72,7 +72,7 @@ test("«Отчёт продаж»: новый вид у каждой роли, c
   assert.match(admin, /data-ui="next"/u);
   assert.match(admin, /data-testid="v3-sales-report"/u);
   assert.match(admin, /data-slot="data-table"/u);
-  assert.match(admin, /data-slot="stat-tile"/u);
+  assert.match(admin, /data-testid="v3-sales-summary"/u);
   for (const name of ["admin-no-cookie", "staff-cookie"]) {
     const html = report.get(name);
     assert.match(html, /data-slot="data-table"/u, `${name}: таблица набора`);
@@ -89,12 +89,28 @@ test("«Отчёт продаж»: новый вид у каждой роли, c
   const preview = report.get("preview-cookie");
   assert.match(preview, /data-testid="v3-finance-denied"/u);
   assert.doesNotMatch(preview, /data-slot="data-table"|data-testid="sales-report-toolbar"/u);
-  // Колонки таблицы владельца и сводка по менеджерам за месяц.
-  for (const header of ["ФИО студента", "Страна", "Стоимость", "Дата подписания", "Оплачено", "Долг", "Университет", "Программа", "Интейк", "Статус", "Менеджер"]) {
+  // Поля таблицы владельца (06.11.2026) и сводка по менеджерам за месяц. 15.11.2026 (решение упростить отчёт): родственные поля — одной ячейкой
+  // двумя строками, у каждого имя для читалки: под «Страной и программой» университет и интейк, под «Оплачено» статус оплаты.
+  for (const header of ["ФИО студента", "Страна", "Страна и программа", "Стоимость", "Оплачено", "Долг", "Менеджер"]) {
     assert.match(admin, new RegExp(`>${header}<`, "u"), `колонка «${header}»`);
   }
+  assert.match(admin, />Дата <br class="@\[68rem\]:hidden"\/>подписания</u, "колонка «Дата подписания» (таблица уже 68rem — в две строки)");
+  for (const [label, value] of [["Страна", "Малайзия"], ["Программа", "Бакалавриат"], ["Университет", "UCSI University"], ["Статус", "Частично оплачено"]]) {
+    assert.match(admin, new RegExp(`<span class="sr-only">${label}: </span>${value}<`, "u"), `поле «${label}»`);
+  }
+  // Интейк — без имени для читалки; пробел стоит ДО скрытой точки (пробел после aria-hidden Chrome выбрасывает): «UCSI University интейк 2027».
+  assert.match(admin, /UCSI University<\/span><span> <span aria-hidden="true">·<\/span> (?:<!-- -->)?интейк 2027</u, "поле «Интейк»");
+  for (const gone of ["Университет", "Программа", "Интейк", "Статус"]) assert.doesNotMatch(admin, new RegExp(`<button[^>]*>${gone}<`, "u"), `отдельной колонки «${gone}» нет`);
   assert.match(admin, /data-testid="sales-manager-summary"/u);
   assert.match(admin, /data-summary-row="total"/u);
+  // Поиск и одна кнопка «Фильтры» (15.11.2026, решение упростить отчёт): прежнего ряда кнопок-фильтров в новом виде нет.
+  const toolbarAt = admin.indexOf('data-testid="sales-report-toolbar"');
+  const toolbar = admin.slice(toolbarAt, admin.indexOf("<table", toolbarAt));
+  assert.match(toolbar, /data-testid="list-filters"/u, "кнопка «Фильтры»");
+  assert.doesNotMatch(toolbar, /sales-review-toggle|>Сверено<|>Архив<|popovertarget/u, "переключатели и меню — внутри панели, а не строкой");
+  assert.match(read("src/components/staff/sales-next/SalesRegisterNextView.tsx"), /<SalesFilterBar /u);
+  // Продаж нет — карточки «Продажи по менеджерам» нет: ноль уже стоит в сводке «Продажи» (15.11.2026: вкладка перегружена).
+  assert.match(read("src/components/staff/sales-next/SalesManagerSummaryCard.tsx"), /if \(!data \|\| data\.managers\.length === 0\) return null;/u);
 });
 
 test("свойства ленивых входов — данные: страницы отдают их через границу сервер → клиент без функций и экземпляров классов", () => {
@@ -222,18 +238,25 @@ test("«Отчёт продаж»: те же записи, деньги, ост�
   for (const word of ["Отказ, оплачено частично", "нет даты продажи", "оплата в другой валюте без суммы в валюте договора", "стоимость не разобрана", "Статус не указан"]) assert.match(text(next), new RegExp(word, "u"), word);
   // Продажи, план, суммы по валютам, сноска о том, что не вошло, строка отказа — одни числа и слова.
   assert.match(text(next), /План 35 осталось 29/u);
-  for (const sentence of [/Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\./u, /Остаток не считается, если оплата в другой валюте и нет суммы в валюте договора\./u,
+  for (const sentence of [/Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\./u,
     /Отказ — 1 запись; по ним оплачено 600 USD\. В продажи и суммы ниже они не входят\./u, /Не входят: без даты продажи — 1 запись/u]) {
     assert.match(text(next), sentence, "новый вид");
   }
+  // Основа сумм и правила «Сумм» — за «?» (15.11.2026, решение упростить отчёт): на карточке их нет, кнопка «?» есть; текст пояснения проверяет браузерный прогон.
+  const moneyCard = next.slice(next.indexOf('data-testid="sales-money-summary"'), next.indexOf('data-testid="sales-report-toolbar"'));
+  assert.doesNotMatch(text(moneyCard), /Суммы по 7|Остаток не считается|Валюты не пересчитываются/u, "пояснения не на карточке");
+  assert.match(next, /aria-label="Пояснение: Суммы"/u, "«?» у заголовка «Суммы»");
   for (const line of ["KGS", "USD"]) assert.match(next, new RegExp(`data-money-line="${line}"`, "u"));
 });
 
-test("«Отчёт продаж»: «План месяца» не повторяет число, которое уже стоит плиткой «План»", () => {
+test("«Отчёт продаж»: «Продажи» и «План» — одна сводка, «Изменить план» в ней; отдельной карточки «План месяца» нет (15.11.2026: вкладка перегружена)", () => {
   const next = report.get("admin-cookie");
-  assert.match(text(next), /План 35 осталось 29/u, "число плана стоит плиткой");
-  assert.match(text(next), /План месяца Изменить план/u, "карточка осталась: в ней действие");
+  const summary = next.slice(next.indexOf('data-testid="v3-sales-summary"'), next.indexOf('data-testid="v3-sales-headline-notes"'));
+  assert.match(text(summary), /Продажи 6 по дате продажи, без архива План 35 осталось 29 Изменить план/u, "число плана и его действие — в сводке");
+  assert.doesNotMatch(next, />План месяца<\/h2>/u, "отдельной карточки внизу нет");
   assert.doesNotMatch(text(next), /План на месяц: 35/u, "то же число второй раз предложением не повторяется");
+  // Сводки нет (чтение не удалось) — план остаётся отдельной карточкой, как раньше.
+  assert.match(read("src/components/staff/sales-next/SalesReportNextPage.tsx"), /plan && headline\?\.kind !== "ok" \? <SalesPlanCard \{\.\.\.plan\} \/> : null/u);
 });
 
 test("«Отчёт продаж»: о плане, которого не прочли, не сказано ничего — «не задан» только при удавшемся чтении (нет чтения — нет числа)", () => {
@@ -243,9 +266,9 @@ test("«Отчёт продаж»: о плане, которого не проч
     assert.doesNotMatch(text(report.get(name)), /План на месяц не задан|Текущий план: не задан/u, `${name}: «не задан» не утверждается без чтения`);
     assert.doesNotMatch(text(report.get(name)), /План на месяц: \d/u, name);
   }
-  // Чтение удалось, плана нет: так и сказано, плитки «План» нет.
+  // Чтение удалось, плана нет: так и сказано в сводке, числа плана нет.
   const none = report.get("admin-cookie-no-plan");
-  assert.match(text(none), /План на месяц не задан/u);
+  assert.match(text(none), /План не задан Изменить план/u);
   assert.doesNotMatch(text(none), /План 35/u);
 });
 
@@ -350,7 +373,7 @@ test("новые файлы короче 150 строк, собраны из н�
   assert.match(read("src/components/staff/pipeline-next/LeadSheetNext.tsx"), /<DetailSheet/u);
   assert.match(read("src/components/staff/admissions-pipeline-next/AdmissionsPipelineNextPage.tsx"), /PageShell[\s\S]*SectionTabs/u);
   assert.match(read("src/components/staff/sales-next/SalesRecordsTable.tsx"), /<DataTable[\s\S]*<DetailSheet/u);
-  assert.match(read("src/components/staff/sales-next/SalesHeadlineTiles.tsx"), /StatTile/u);
+  assert.match(read("src/components/staff/sales-next/SalesHeadlineTiles.tsx"), /<Card size="sm"/u);
   assert.match(read("src/components/staff/sales-next/SalesMoneyCard.tsx"), /WidgetCard/u);
   assert.match(read("src/components/staff/sales-next/SalesRecordsTable.tsx"), /^"use client";/u);
   assert.match(read("src/components/staff/sales-next/SalesRecordsTable.tsx"), /searchable=\{false\}[\s\S]*paginate=\{false\}/u, "поиск, фильтры и страницы ведёт сервер");
@@ -377,7 +400,7 @@ test("правила нового вида: доски — карточки на
   assert.match(read("src/components/staff/sales-next/SalesCashCard.tsx"), /help="Подтверждённые финансовые события/u);
   // Предупреждения остаются на виду: сбой чтения, граница роли, неполный итог.
   assert.match(read("src/components/staff/sales-next/SalesReportNextPage.tsx"), /role=\{alert\.role\}/u);
-  assert.match(read("src/components/staff/sales-next/SalesMoneyCard.tsx"), /\{data\.footnote\}/u);
+  assert.match(read("src/components/staff/sales-next/SalesMoneyCard.tsx"), /\{data\.warning\}/u);
   assert.match(read("src/components/staff/sales-next/SalesFramesNext.tsx"), /Записи продаж вашей роли недоступны/u);
 });
 

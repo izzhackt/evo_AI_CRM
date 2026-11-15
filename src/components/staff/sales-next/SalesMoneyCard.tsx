@@ -26,9 +26,9 @@ function stackBlocks(data: SalesMoneyData): CurrencyStackBlock[] {
 
 /**
  * «Суммы по записям»: по валютам стоимость, оплачено и остаток (остаток — только внутри одной валюты; оплата в другой валюте — строкой
- * пары валют без остатка). Подпись называет основу сумм, сноска — что в суммы не вошло и почему остатка нет: это предупреждения о данных,
- * они остаются на виду. Слова те же, что у прежнего вида (`salesMoneyParts`). Таблица — от 34rem ширины карточки; уже — стопка по валютам
- * (`SalesCurrencyStack`), чтобы «Остаток» не прятался за прокруткой.
+ * пары валют без остатка). Основа сумм и правила — за «?» (15.11.2026, решение упростить отчёт); строка отказа и предупреждение — что в суммы
+ * не вошло и почему остатка нет — остаются на виду. Слова те же, что у прежнего вида (`salesMoneyParts`). Таблица — от 34rem ширины
+ * карточки; уже — стопка по валютам (`SalesCurrencyStack`), чтобы «Остаток» не прятался за прокруткой.
  */
 export function SalesMoneyCard({ data, archive }: Readonly<{ data: SalesMoneyData | null; archive: string | null }>) {
   if (archive) {
@@ -36,13 +36,12 @@ export function SalesMoneyCard({ data, archive }: Readonly<{ data: SalesMoneyDat
   }
   if (!data) return null;
   const refusal = data.refusal ? <p className="t-meta text-fg-2" data-testid="sales-withdrawn-summary">{data.refusal}</p> : null;
-  if (data.lines.length === 0 && data.cross.length === 0 && !data.caption) {
+  if (data.lines.length === 0 && data.cross.length === 0 && !data.help) {
     return <WidgetCard title="Суммы">{refusal}</WidgetCard>;
   }
   return (
-    <WidgetCard title="Суммы">
+    <WidgetCard title="Суммы" help={data.help}>
       <div className="grid min-w-0 gap-3" data-testid="sales-money-summary">
-        <p className="t-meta text-fg-2">{data.caption}</p>
         {refusal}
         {data.lines.length > 0 || data.cross.length > 0 ? (
           <div className="@container min-w-0">
@@ -80,7 +79,7 @@ export function SalesMoneyCard({ data, archive }: Readonly<{ data: SalesMoneyDat
             </div>
           </div>
         ) : null}
-        <p className="t-meta text-fg-3">{data.footnote}</p>
+        {data.warning ? <p className="t-meta text-fg-2" data-testid="sales-money-warning">{data.warning}</p> : null}
       </div>
     </WidgetCard>
   );

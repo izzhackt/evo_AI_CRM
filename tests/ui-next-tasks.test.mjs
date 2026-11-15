@@ -336,7 +336,10 @@ test("пустота и права: пустой список называет, 
   const empty = renderNext(nextProps("due=today&type=staff", { queue: buildTaskQueue({ staff: [], cases: [], filters, actorMembershipId: ME, now: NOW, complete: true }) }));
   assert.match(empty, /На сегодня задач нет/);
   assert.match(empty, /<a[^>]*href="\/tasks\?type=staff"[^>]*>Показать все открытые/);
-  assert.match(empty, /Сбросить/, "выбран срок и тип — есть «Сбросить»");
+  // «Сбросить» — внутри панели «Фильтры» (14.11.2026); на странице — точка на кнопке и чип с крестиком на каждый выбранный фильтр.
+  assert.match(empty, /aria-label="Фильтры: есть выбранные"/u, "выбран срок и тип — точка на «Фильтры»");
+  assert.match(empty, /aria-label="Убрать фильтр: Срок: [^"]+"/u, "чип срока");
+  assert.match(empty, /aria-label="Убрать фильтр: Тип: [^"]+"/u, "чип типа");
   const none = renderNext(nextProps("", { canReadStaffTasks: false, canReadCaseTasks: false, teamView: false }));
   assert.match(none, /В вашей роли нет права на просмотр задач\./);
   assert.match(none, /Новую задачу можно создать кнопкой выше\./);

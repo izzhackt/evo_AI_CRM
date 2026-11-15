@@ -63,13 +63,22 @@ const config: ExpoConfig = {
           NSPrivacyAccessedAPITypeReasons: ["E174.1", "85F4.1"],
         },
       ],
+      // Те же 12 типов, что в ответах App Privacy (docs/mobile/STORE_LISTING.md, 6.1): анкета (бюджет и
+      // источник оплаты, ответы без контактов), переписка с куратором, медицинские документы, если их
+      // требует программа, «Сообщить об ошибке» в CSCA, избранное, прогресс и язык.
       NSPrivacyCollectedDataTypes: [
         "NSPrivacyCollectedDataTypeName",
         "NSPrivacyCollectedDataTypeEmailAddress",
         "NSPrivacyCollectedDataTypePhoneNumber",
-        "NSPrivacyCollectedDataTypeUserID",
+        "NSPrivacyCollectedDataTypeHealth",
+        "NSPrivacyCollectedDataTypeOtherFinancialInfo",
+        "NSPrivacyCollectedDataTypeEmailsOrTextMessages",
         "NSPrivacyCollectedDataTypePhotosorVideos",
+        "NSPrivacyCollectedDataTypeCustomerSupport",
         "NSPrivacyCollectedDataTypeOtherUserContent",
+        "NSPrivacyCollectedDataTypeUserID",
+        "NSPrivacyCollectedDataTypeProductInteraction",
+        "NSPrivacyCollectedDataTypeOtherDataTypes",
       ].map((type) => ({
         NSPrivacyCollectedDataType: type,
         NSPrivacyCollectedDataTypeLinked: true,

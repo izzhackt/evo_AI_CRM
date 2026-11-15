@@ -43,7 +43,7 @@ export const ANDROID_ASSET_LINKS = [
   },
 ] as const;
 
-/** One day at the edge/CDN and in the browser; Apple and Google cache on their side anyway. */
+/** One hour at the edge/CDN and in the browser; Apple and Google cache on their side anyway. */
 export const APP_LINKS_CACHE_CONTROL = "public, max-age=3600";
 
 export function appLinksJsonResponse(body: unknown, method: "GET" | "HEAD" = "GET"): Response {

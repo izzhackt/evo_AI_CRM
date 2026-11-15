@@ -29,6 +29,7 @@ export function SectionTabs({
   onValueChange,
   className,
   focusable = false,
+  pinnedKey,
 }: Readonly<{
   label: string;
   tabs: readonly SectionTab[];
@@ -38,6 +39,8 @@ export function SectionTabs({
   className?: string;
   /** Ряд ссылок принимает фокус сам (профиль): на него возвращается фокус после ответа в панели. */
   focusable?: boolean;
+  /** Ряд ссылок: вкладка с этим ключом стоит справа вне прокрутки и видна на любой ширине. */
+  pinnedKey?: string;
 }>) {
   if (tabs.length > 0 && tabs.every((tab) => tab.href)) {
     return (
@@ -45,6 +48,7 @@ export function SectionTabs({
         <QueueViewTabs
           label={label}
           focusable={focusable}
+          pinnedKey={pinnedKey}
           tabs={tabs.map((tab) => ({ key: tab.key, label: tab.label, href: tab.href ?? "#", count: tab.count ?? null, current: tab.key === value }))}
         />
       </div>

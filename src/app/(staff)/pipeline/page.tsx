@@ -6,10 +6,11 @@ import { notFound } from "next/navigation";
 import {
   BoardReset,
   BoardSearch,
-  BoardSegments,
   type BoardSegment,
 } from "@/components/staff/board/Board";
-import { BoardFilters, NavigateSelect, type NavigateOption } from "@/components/staff/board/BoardToolbar";
+import type { NavigateOption } from "@/components/staff/board/BoardToolbar";
+import { FilterPanel } from "@/components/staff/list-next/LinkFilters";
+import type { LinkFilterMenu } from "@/components/staff/list-next/link-filters-model";
 import { PipelineClosedNextLazy, PipelineNextLazy, PipelinePreviewNextLazy } from "@/components/staff/pipeline-next/PipelineNextLazy";
 import { ClosedLeadsList } from "@/components/staff/closure/ClosedLeadsList";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/staff/ManualLeadForm";
@@ -159,15 +160,29 @@ export default async function PipelinePart({
     query.due !== "all" ||
     query.assignment !== "all" ||
     query.owner !== null;
-  const activeFilterCount = Number(query.due !== "all") + Number(query.assignment !== "all" || query.owner !== null);
   const workingCount = board.truncated ? null : working.length;
+  const resetHref = boardHref({ q: null, stage: "all", due: "all", assignment: "all", owner: null, handed: query.handed });
+  // 15.11.2026 (строка фильтров разного вида выглядела неаккуратно): «Ответственный» и «Срок» — в панели «Фильтры», как на «Студентах» и в «Задачах»; в строке остаются
+  // поиск, кнопка и «Закрытые». Варианты — те же адреса (`assignment`, `owner`, `due`), числа «Срока» — в панели; выбранное видно чипом
+  // рядом с кнопкой, а срок каждого лида — словом на его карточке.
+  const filterMenus: readonly LinkFilterMenu[] = [
+    {
+      key: "owner", label: "Ответственный", valueLabel: null,
+      options: [...responsibleOptions, ...staffOptions].map((option) => ({ key: option.value, label: option.label, href: option.href, selected: option.value === responsibleValue })),
+    },
+    {
+      key: "due", label: "Срок", valueLabel: null,
+      options: dueChoices.map((choice) => ({ key: choice.key, label: choice.title, href: choice.href, selected: choice.active, count: choice.count })),
+    },
+  ];
 
   // Строка инструментов и пометки об усечённых чтениях — одни и те же в прежнем и новом виде.
   // Одна строка инструментов 44 px. Поиск — форма методом GET, как период на главной: запрос живёт в адресе,
-  // экран можно переслать целиком. Остальные фильтры поиск несёт скрытыми полями, а выбор «Ответственного» и «Срока»
+  // экран можно переслать целиком. Остальные фильтры поиск несёт скрытыми полями, а выбор в «Фильтрах»
   // применяется сразу, без «Найти».
   const toolbar = (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
+    // `min-w-0`: длинное имя ответственного в чипе фильтра обрезается многоточием, а не раздвигает страницу вбок.
+    <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
       <BoardSearch
         key={query.q ?? ""}
         action="/pipeline"
@@ -195,16 +210,7 @@ export default async function PipelinePart({
         }
       />
 
-      <BoardFilters activeCount={activeFilterCount}>
-        <NavigateSelect
-          key={responsibleValue}
-          label="Ответственный"
-          value={responsibleValue}
-          options={responsibleOptions}
-          groups={staffOptions.length > 0 ? [{ label: "Сотрудники", options: staffOptions }] : []}
-        />
-        <BoardSegments label="Срок" showLabel items={dueChoices} />
-      </BoardFilters>
+      <FilterPanel menus={filterMenus} resetHref={filtersActive ? resetHref : null} />
 
       {/* Закрытые лиды — не этап доски, а отдельный тихий список (246). */}
       <Link href={CLOSED_VIEW_PATH} prefetch={false} data-testid="v3-pipeline-closed-link"
@@ -212,18 +218,7 @@ export default async function PipelinePart({
         {closureWords.lead.closedList}
       </Link>
 
-      {filtersActive ? (
-        <BoardReset
-          href={boardHref({
-            q: null,
-            stage: "all",
-            due: "all",
-            assignment: "all",
-            owner: null,
-            handed: query.handed,
-          })}
-        />
-      ) : null}
+      {filtersActive ? <BoardReset href={resetHref} /> : null}
     </div>
   );
   // Пометки — отдельными узлами, а не одним фрагментом: прежняя разметка (в том числе `useId`) остаётся той же.
@@ -243,7 +238,7 @@ export default async function PipelinePart({
     <ManualLeadDisclosure>
       <PipelineNextLazy
         count={workingCount}
-        actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
+        actions={canCreateLead ? <ManualLeadTrigger compact /> : undefined}
         form={canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
           owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : undefined}
         toolbar={toolbar}

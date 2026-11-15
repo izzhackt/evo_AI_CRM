@@ -12,9 +12,6 @@ export const HANDED_VISIBLE_LIMIT = 20;
 
 export const leadLabel = (lead: Pick<PipelineLead, "source" | "name">): string => leadDisplayName(lead.source, lead.name);
 
-/** «на этапе 4 дн» — слово этапа и «дн». */
-export const stageAgeCopy = (days: number): string => `на этапе ${days} дн`;
-
 /** Срок лида словом от полудня сегодняшнего дня Бишкека, который прочитала страница; без срока — null. */
 export function leadDueWord(lead: PipelineLead, today: string): DueWordView | null {
   const dueDate = lead.nextActionAt ? lead.workflow.nextActionDueDate : null;

@@ -4,15 +4,13 @@ import type { AiAgentKey } from "@/lib/ai-agents/contract";
 
 /**
  * Шесть вкладок страницы агента настоящими ссылками `?tab=` (контракт §D.4).
- * `bare` — в строке шапки чата «Поручить» (`AgentChatShell`), без линии под рядом;
- * на остальных вкладках ряд стоит над содержимым (`AgentBody`).
+ * `bare` (строка шапки чата «Поручить») больше ничего не меняет: с 14.11.2026 у всех рядов вкладок нет линии под рядом.
  */
 export function AgentTabs({
   agentKey,
   title,
   tab,
   draftsPending,
-  bare = false,
 }: Readonly<{
   agentKey: AiAgentKey;
   title: string;
@@ -22,7 +20,6 @@ export function AgentTabs({
 }>) {
   return (
     <QueueViewTabs
-      bare={bare}
       label={`Разделы агента «${title}»`}
       tabs={AI_AGENT_TABS.map((one) => ({
         key: one.key,

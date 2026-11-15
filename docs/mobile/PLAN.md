@@ -118,6 +118,10 @@
    Осталось: publishable key Supabase как переменная EAS
    (`EXPO_PUBLIC_*`, окружения preview/production) — вводит владелец.
 3. ~~Team ID Apple~~ — получен 10.11.2026 (`4D8W292RKQ`, в `mobile/app.config.ts`).
-4. Google Play Console (25 $, личный или на компанию).
+4. Google Play Console (25 $, личный или на компанию). Всё для загрузки готово 16.11.2026: AAB из EAS,
+   тексты, графика, ответы Data safety (вариант Б), страница удаления аккаунта на сайте; App Links на сервере ждут
+   SHA-256 ключа Play App Signing (`docs/mobile/APP_LINKS.md`).
+4а. App Store: 16.11.2026 версия 2.0.0 заполнена в App Store Connect целиком. Осталось: создать кабинет демо-студенту
+   (`demo.student`), вписать логин и пароль в App Review Information, нажать «Add for Review».
 5. Текст «как платить» для «Оплаты» (#1359).
 6. Разрешение на удаление `ios/` после замены в App Store.

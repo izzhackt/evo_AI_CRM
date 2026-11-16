@@ -7,8 +7,8 @@ import { SALES_PAGE_SIZE } from "@/lib/sales-register-view";
 import { readSalesRegisterPage } from "@/lib/v3/sales-register-page";
 
 import { SalesPeriodStepper } from "../sales-report/SalesPeriodStepper";
-import { SalesReportToolbar } from "../sales-report/SalesReportToolbar";
 import { SalesRegisterForm, SalesTargetForm } from "../SalesRegisterForms";
+import { SalesFilterBar } from "./SalesFilterBar";
 import { SalesReportNextLazy } from "./SalesNextLazy";
 import { buildSalesSheet } from "./sales-next-sheet";
 import { salesRowData, salesMoney, salesTidy } from "./sales-next-rows";
@@ -78,7 +78,7 @@ export async function SalesRegisterNextView({ actor, query, dynamics = null, tab
         filtered: filedElsewhere ? rowFilters : hasFilters, yearOnly, filedElsewhere }) : null}
       archive={workspace && archiveView ? salesArchiveText(workspace.totalCount, yearOnly, Boolean(searchQuery || query.manager || query.direction || query.review)) : null}
       toolbar={workspace ? (
-        <SalesReportToolbar workspace={workspace} query={query} params={page.params} searchQuery={searchQuery} hidden={tools.hidden} activeCount={tools.activeCount}
+        <SalesFilterBar workspace={workspace} query={query} params={page.params} searchQuery={searchQuery} hidden={tools.hidden}
           selectedManager={tools.selectedManager} selectedManagerName={tools.selectedManagerName} directionControl={page.directionControl} directionGroups={tools.directionGroups}
           selectedDirection={tools.selectedDirection} filterHref={tools.filterHref} managersHref={tools.managersHref} reviewCount={page.reviewCount} hasFilters={hasFilters} clearFiltersHref={clearFiltersHref} />
       ) : null}

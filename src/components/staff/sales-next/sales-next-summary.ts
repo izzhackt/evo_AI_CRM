@@ -43,7 +43,10 @@ export function salesHeadlineData(read: SalesCountRead, ctx: Readonly<{
   };
 }
 
-/** «Суммы по записям»: подпись с основой, сноска (что не вошло и почему остатка нет) и строки по валютам — слова те же, что у прежнего вида. */
+/**
+ * «Суммы по записям»: строки по валютам, пояснение за «?» (основа сумм и правила) и предупреждение на виду (что не вошло и почему
+ * остатка нет) — слова те же, что у прежнего вида.
+ */
 export function salesMoneyData(args: Readonly<{
   workspace: SalesRegisterWorkspace;
   summary: SalesMoneySummary | null;
@@ -61,9 +64,9 @@ export function salesMoneyData(args: Readonly<{
     ? `Отказ — ${records(refused.count)}${refused.paid.length > 0 ? `; по ним оплачено ${refused.paid.map((line) => salesMoney(line.paidMinor, line.currency)).join(" и ")}` : ""}. В продажи и суммы ниже они не входят.`
     : null;
   const parts = salesMoneyParts({ ...args, total });
-  if (total === 0 && refusal) return { caption: "", refusal, lines: [], showRest: false, cross: [], footnote: "" };
+  if (total === 0 && refusal) return { help: "", refusal, lines: [], showRest: false, cross: [], warning: null };
   return {
-    caption: parts.caption,
+    help: [`${parts.caption}.`, ...parts.rules].join(" "),
     refusal,
     lines: parts.lines.map((line) => ({ currency: line.currency, cost: number.format(line.cost / 100), paid: number.format(line.paid / 100), rest: line.rest === null ? null : number.format(line.rest / 100) })),
     showRest: summary !== null,
@@ -75,7 +78,7 @@ export function salesMoneyData(args: Readonly<{
       cost: salesMoney(pair.costMinor, pair.costCurrency),
       paid: salesMoney(pair.paidMinor, pair.paidCurrency),
     })),
-    footnote: parts.footnote,
+    warning: parts.warning,
   };
 }
 

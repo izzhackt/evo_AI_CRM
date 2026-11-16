@@ -232,7 +232,11 @@ test("the sales table carries the owner's columns as stored, the debt is cost - 
   const other = salesRowData(saleRow({ paidCurrency: "KGS" }), ctx);
   assert.equal(other.debtMinor, null, "different currencies are never subtracted");
   const cells = read("src/components/staff/sales-next/SalesRecordCells.tsx");
-  for (const header of ["ФИО студента", "Страна", "Стоимость", "Дата подписания", "Оплачено", "Долг", "Университет", "Программа", "Интейк", "Статус", "Менеджер"]) assert.match(cells, new RegExp(`"${header}"`, "u"), header);
+  // 15.11.2026 (решение упростить отчёт): поля владельца те же; родственные — одной ячейкой двумя строками, у каждого имя для читалки.
+  for (const header of ["ФИО студента", "Стоимость", "Оплачено", "Долг", "Менеджер"]) assert.match(cells, new RegExp(`header: "${header}"`, "u"), header);
+  for (const [header, source] of [["Страна / Страна и программа", />Страна<\/span><span className="hidden @5xl:inline">Страна и программа</u], ["Дата подписания", />Дата <br className="@\[68rem\]:hidden" \/>подписания</u]]) assert.match(cells, source, header);
+  for (const [field, source] of [["Страна", /\["Страна", one\.country \|\| "—"\]/u], ["Программа", /\["Программа", one\.program\]/u], ["Университет", /\["Университет", one\.university\]/u],
+    ["Интейк", /интейк \$\{one\.intake\}/u], ["Статус", /Статус: <\/span>\{one\.status\}/u]]) assert.match(cells, source, field);
   assert.match(cells, /text-danger/u, "a debt above zero is highlighted (and has the word «Долг» for a screen reader)");
 });
 

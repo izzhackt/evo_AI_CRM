@@ -10,6 +10,8 @@ export type LinkFilterMenu = Readonly<{
   /** Выбранное значение, если оно не по умолчанию. */
   valueLabel: string | null;
   options: readonly LinkFilterOption[];
+  /** Переход из раздела, а не выбор (например, «Менеджеры в отчёте» отчёта продаж): ссылка под вариантами, без кружка. */
+  link?: Readonly<{ href: string; label: string }> | null;
 }>;
 
 export type LinkFilterBarData = Readonly<{

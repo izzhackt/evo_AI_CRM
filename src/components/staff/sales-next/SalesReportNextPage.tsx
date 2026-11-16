@@ -40,8 +40,8 @@ export type SalesReportNextProps = Readonly<{
 }>;
 
 /**
- * «Отчёт продаж» нового вида целиком: рамка страницы (период и «Добавить продажу» — одна группа действий), плитки «Продажи» и «План»,
- * суммы по валютам, таблица записей с панелью, поступления за месяц, «Динамика по дням» и «Звонки» (прежние серверные части) и план месяца.
+ * «Отчёт продаж» нового вида целиком: рамка страницы (период и «Добавить продажу» — одна группа действий), сводка «Продажи» и «План»
+ * с действиями плана, суммы по валютам, таблица записей с панелью, поступления за месяц, «Динамика по дням» и «Звонки» (прежние серверные части).
  * Показывается через `SalesReportNextLazy`; чтения, права, адреса и команды — те же, что у прежнего вида.
  */
 export function SalesReportNextPage({ period, addHref, alerts, headline, saved, failure, money, archive, toolbar, variantNote, slice, table, pagination, cash, plan, dynamics, tabs, managers }: SalesReportNextProps) {
@@ -53,7 +53,7 @@ export function SalesReportNextPage({ period, addHref, alerts, headline, saved, 
       actions={<>{period}{addHref ? <Button asChild><Link href={addHref}>Добавить продажу</Link></Button> : null}</>}
     >
       {alerts.map((alert) => <p key={alert.text} role={alert.role} className="t-body-compact text-fg-2">{alert.text}</p>)}
-      {headline ? <SalesHeadlineTiles data={headline} /> : null}
+      {headline ? <SalesHeadlineTiles data={headline} plan={headline.kind === "ok" ? plan : null} /> : null}
       {saved ? (
         <WidgetCard title="Продажа добавлена" id="saved-sale" actions={saved.openHref ? <Button variant="outline" asChild><Link href={saved.openHref}>Открыть дело</Link></Button> : undefined}>
           {saved.caseCreated ? <p className="t-body-compact text-fg-2">Дело студента создано и передано куратору.</p> : null}
@@ -89,7 +89,8 @@ export function SalesReportNextPage({ period, addHref, alerts, headline, saved, 
       ) : null}
       {cash ? <SalesCashCard data={cash} /> : null}
       {dynamics ? <div className="min-w-0">{dynamics}</div> : null}
-      {plan ? <SalesPlanCard {...plan} inTile={headline?.kind === "ok" && headline.target !== null} /> : null}
+      {/* План стоит в сводке над таблицей; отдельной карточкой — только когда сводки нет (её чтение не удалось). */}
+      {plan && headline?.kind !== "ok" ? <SalesPlanCard {...plan} /> : null}
     </PageShell>
   );
 }

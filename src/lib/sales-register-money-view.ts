@@ -19,7 +19,7 @@ export function salesMoneyParts({ workspace, summary, basis, reason, filtered, y
   /** Срез `sale=filed_elsewhere`: продажи периода, записанные в другой месяц отчёта. */
   filedElsewhere: boolean;
   total: number;
-}>): Readonly<{ caption: string; footnote: string; lines: readonly SalesMoneyRow[] }> {
+}>): Readonly<{ caption: string; footnote: string; warning: string | null; rules: readonly string[]; lines: readonly SalesMoneyRow[] }> {
   const within = [
     basis && basis.undated > 0 ? `${basis.undated} без даты продажи` : null,
     basis && basis.otherSaleDate > 0 ? `${basis.otherSaleDate} с датой продажи в другом ${yearOnly ? "году" : "месяце"}` : null,
@@ -41,16 +41,19 @@ export function salesMoneyParts({ workspace, summary, basis, reason, filtered, y
   const cross = summary && summary.cross.length > 0
     ? "Остаток не считается, если оплата в другой валюте и нет суммы в валюте договора."
     : null;
-  const footnote = [
-    cross,
+  // Предупреждения о данных (остаток не посчитан, что не вошло) — на виду; правила (пары валют, без пересчёта) — пояснение.
+  // Прежний вид показывает всё одной сноской в том же порядке.
+  const warnings = [
     summary ? null : reason === "too_many"
       ? `Остаток не посчитан: в выборке больше ${SALES_PAGE_SIZE * SALES_SUMMARY_MAX_PAGES} записей — сузьте период или фильтры.`
       : "Остаток не посчитан: не удалось прочитать все записи выборки — обновите страницу.",
     unresolved,
     left ? `Не вошли: ${left}.` : null,
-    "Валюты не пересчитываются; это записи отчёта, не поступления за месяц.",
-  ].filter(Boolean).join(" ");
+  ].filter((item) => item !== null);
+  const always = "Валюты не пересчитываются; это записи отчёта, не поступления за месяц.";
+  const footnote = [cross, ...warnings, always].filter(Boolean).join(" ");
+  const rules = cross ? [cross, always] : [always];
   const lines: SalesMoneyRow[] = summary ? summary.lines.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: line.remainderMinor as number | null }))
     : workspace.totals.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: null }));
-  return { caption, footnote, lines };
+  return { caption, footnote, warning: warnings.length > 0 ? warnings.join(" ") : null, rules, lines };
 }

@@ -72,6 +72,9 @@ const { NotificationsView } = require(join(ROOT, "src/components/portal/admissio
 const { ProfessionsBrowser } = require(join(ROOT, "src/components/portal/professions/ProfessionsBrowser.tsx"));
 const { ProfessionMatches } = require(join(ROOT, "src/components/portal/professions/ProfessionMatches.tsx"));
 const { ProfessionsTestHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsTestHero.tsx"));
+const { ProfessionsTabs } = require(join(ROOT, "src/components/portal/professions/ProfessionsTabs.tsx"));
+const { EviChat } = require(join(ROOT, "src/components/portal/evi/EviChat.tsx"));
+const { EviConsentGate } = require(join(ROOT, "src/components/portal/evi/EviConsentGate.tsx"));
 const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
 const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
@@ -958,6 +961,70 @@ const surfaces = [
           ),
         ),
       ),
+    ),
+  },
+  // Вкладка «Подбор с Эви» (решение владельца 16.11.2026): разговор в середине (несколько вариантов ответа),
+  // итог из трёх профессий каталога и строка «разрешите ИИ-помощников» для ученика без согласия.
+  {
+    name: "professions-evi-chat",
+    html: renderSurface(
+      "Профессии — Эви, разговор — a11y",
+      pageShell(null, professionsStrings.title, null, createElement(
+        "div",
+        null,
+        createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
+        createElement(EviChat, {
+          strings: professionsStrings,
+          initialMessages: [
+            { role: "assistant", text: professionsStrings["evi.greeting"], mood: "happy" },
+            { role: "user", text: professionsStrings["evi.start"] },
+            { role: "assistant", text: "Отлично! В каком ты классе?", mood: "talk" },
+            { role: "user", text: "11 класс" },
+            { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy" },
+          ],
+          initialOptions: { options: ["Математика", "Информатика", "Физика", "Биология", "Языки"], multi: true },
+        }),
+      )),
+    ),
+  },
+  {
+    name: "professions-evi-results",
+    html: renderSurface(
+      "Профессии — Эви, итог — a11y",
+      pageShell(null, professionsStrings.title, null, createElement(
+        "div",
+        null,
+        createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
+        createElement(EviChat, {
+          strings: professionsStrings,
+          initialMessages: [
+            { role: "user", text: "Собираю сайты и делаю игры с друзьями" },
+            {
+              role: "assistant",
+              text: "Придумал! Вот три профессии, которые тебе подходят:",
+              mood: "eureka",
+              results: professionCards.slice(0, 3).map((card, index) => ({
+                cardId: card.cardId,
+                title: card.titleRu,
+                why: ["Ты любишь информатику и уже делаешь сайты и игры.", "Тебе нравится считать и разбираться, как всё устроено.", "Сочетание математики и любви собирать своё."][index],
+              })),
+            },
+          ],
+          initialOptions: { options: ["Расскажи подробнее про первую", "Как выбрать вуз?"], multi: false },
+        }),
+      )),
+    ),
+  },
+  {
+    name: "professions-evi-consent",
+    html: renderSurface(
+      "Профессии — Эви, без согласия — a11y",
+      pageShell(null, professionsStrings.title, null, createElement(
+        "div",
+        null,
+        createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
+        createElement(EviConsentGate, { strings: professionsStrings }),
+      )),
     ),
   },
 ];

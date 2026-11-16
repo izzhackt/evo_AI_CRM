@@ -441,3 +441,8 @@ export function isConnectedPlatformApi(path: string): boolean {
 export function isPublicStudentApplicationPage(path: string): boolean {
   return path === "/apply";
 }
+
+/** Universal link / App Link association files (docs/mobile/APP_LINKS.md): public, no session, no redirect. */
+export function isAppLinksAssociationFile(path: string): boolean {
+  return path === "/.well-known/apple-app-site-association" || path === "/.well-known/assetlinks.json";
+}

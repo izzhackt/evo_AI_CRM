@@ -84,11 +84,48 @@ const calendar = {
       await reopened.context.close();
       await context.close();
     }
-    // День на сегодняшнем дне: «Сегодня» выключено, «сегодня» названо у периода.
+    // День на сегодняшнем дне (15.11.2026): «Сегодня» не ведёт никуда — ни ссылки, ни выключенной кнопки. Не на сегодняшнем дне —
+    // ссылка на сегодня.
     const { context, page } = await open("calendar-day", "d1280");
-    const todayDisabled = await page.getByRole("button", { name: "Сегодня", exact: true }).isDisabled();
-    report("calendar-day: «Сегодня» is disabled on today and the period says «сегодня»", todayDisabled && /сегодня/u.test(await page.locator("[data-calendar-period]").innerText()), null);
+    const bar = page.locator('[data-testid="v3-calendar-period-bar"]');
+    const controls = await bar.getByRole("link", { name: "Сегодня", exact: true }).count() + await bar.getByRole("button", { name: "Сегодня", exact: true }).count();
+    // Как у «Акылмана»: на сегодняшнем дне «Сегодня» — тихая надпись в рамке на своём месте, не ссылка; заголовок — день, под ним «сегодня».
+    report("calendar-day: on today «Сегодня» is a quiet label (no link or button) and the header says «сегодня»", controls === 0 && /сегодня/u.test(await page.locator('[data-slot="page-header"]').innerText()), controls);
     await context.close();
+    const away = await open("calendar-week", "d1280");
+    const link = away.page.locator('[data-testid="v3-calendar-period-bar"]').getByRole("link", { name: "Сегодня", exact: true });
+    const target = await link.count() === 1 ? await link.getAttribute("href") : null;
+    report("calendar-week: away from today «Сегодня» is a link to today", /date=2026-09-24/u.test(target ?? ""), target);
+    // «Сейчас» — одна линия, в сегодняшнем столбце, в часе с задачей — в потоке после задачи 11:00 (стенд: сейчас 11:10).
+    const now = await away.page.evaluate(() => {
+      const lines = [...document.querySelectorAll("[data-calendar-now]")].filter((line) => line.getClientRects().length > 0);
+      const line = lines[0];
+      const task = [...document.querySelectorAll("button")].find((button) => button.getClientRects().length > 0 && /Подготовить вопросы к планёрке/u.test(button.textContent));
+      return { count: lines.length, inFlow: line ? getComputedStyle(line).position !== "absolute" : false, afterTask: line && task ? line.getBoundingClientRect().top >= task.getBoundingClientRect().bottom - 1 : false };
+    });
+    report("calendar-week: one «сейчас» line, in flow after the 11:00 task, not over it", now.count === 1 && now.inFlow && now.afterTask, now);
+    // «+» (15.11.2026): в шапке — новая задача на выбранный день (сб 26.09), на дне — на этот день (вт 22.09); Esc — фокус на тот же «+».
+    const plusChecks = [];
+    for (const [selector, hover, expected] of [['[data-testid="v3-calendar-create-day"]', null, "2026-09-26"], ['[data-calendar-create="2026-09-22"]', "2026-09-22", "2026-09-22"]]) {
+      const plus = away.page.locator(selector).filter({ visible: true }).first();
+      if (hover) await plus.locator("xpath=..").hover();
+      await plus.click();
+      const dialog = away.page.getByRole("dialog");
+      await dialog.waitFor();
+      const date = await dialog.locator('input[type="date"]').inputValue().catch(() => null);
+      await away.page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "detached" });
+      const back = await away.page.evaluate(() => document.activeElement?.getAttribute("data-calendar-create") ?? document.activeElement?.getAttribute("data-testid") ?? null);
+      plusChecks.push({ selector, date, back, ok: date === expected && back !== null });
+    }
+    report("calendar-week: «+» opens «Создать задачу» with that day as the deadline, Esc returns focus to the «+»", plusChecks.every((check) => check.ok), plusChecks);
+    await away.context.close();
+    // Месяц: состояние видно словом, а не только цветом — «просрочена», «срочно», «заблокирована» на самих строках.
+    const month = await open("calendar-month", "d1280");
+    const words = await month.page.evaluate(() => ["просрочена", "срочно", "заблокирована"].map((word) =>
+      [...document.querySelectorAll('[role="group"][aria-label^="Сетка месяца"] button span')].some((span) => span.textContent.trim() === word && span.getBoundingClientRect().width > 10)));
+    report("calendar-month: overdue, urgent and blocked rows show their word on screen", words.every(Boolean), words);
+    await month.context.close();
     // Без доступа и пустая неделя говорят прежними словами.
     for (const [name, pattern] of [["calendar-denied", /Нет доступа к личному списку задач\./u], ["calendar-empty", /На этой неделе задач со сроком нет\./u]]) {
       const opened = await open(name, "d1280");

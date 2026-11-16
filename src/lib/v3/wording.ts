@@ -358,6 +358,11 @@ const TASK_STATUS: Record<string, string> = {
   overdue: "просрочена",
 };
 
+/** Отметка важности задачи в «Календаре» (15.11.2026): словом — только срочная; обычная и низкая не отмечаются. */
+const TASK_PRIORITY_MARK: Record<string, string> = {
+  urgent: "срочно",
+};
+
 /**
  * Product-level document state. The profile intentionally has only two; it
  * is a data attribute of the row, not a word — the row's word is the slot status.
@@ -549,6 +554,7 @@ export function studentOperationalStage(
     CUSTOM_STUDENT_OPERATIONAL_STAGE;
 }
 export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
+export const taskPriorityMark = (v: string | null | undefined) => lookup(TASK_PRIORITY_MARK, v);
 export const admissionsPipelineStage = (v: string | null | undefined) =>
   lookup(ADMISSIONS_PIPELINE_STAGE, v);
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];

@@ -147,6 +147,14 @@
   --pt-hero-wash:
     radial-gradient(55% 150% at 100% 0%, rgb(215 2 23 / 0.38), transparent 70%),
     radial-gradient(45% 120% at 0% 100%, rgb(215 2 23 / 0.16), transparent 72%);
+  /* Маскот Эви (16.11.2026): белый шлем, тёмный визор, огоньки глаз. Иллюстрация, не текст: контраст не нормируется. */
+  --pt-evi-helmet: #f2f3f6;
+  --pt-evi-ring: #0a0c12;
+  --pt-evi-visor: #15234c;
+  --pt-evi-eye: #62dcf7;
+  --pt-evi-ear: #1b1d24;
+  --pt-evi-accent: #49d3e6;
+  --pt-evi-shine: rgb(255 255 255 / 0.12);
 }
 
 /* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
@@ -186,6 +194,13 @@
    */
   --pt-logo-plate: #ffffff;
   --pt-rail-mark: #2f2c27;
+  --pt-evi-helmet: #e9e6e0;
+  --pt-evi-ring: #050608;
+  --pt-evi-visor: #15234c;
+  --pt-evi-eye: #62dcf7;
+  --pt-evi-ear: #0e1015;
+  --pt-evi-accent: #49d3e6;
+  --pt-evi-shine: rgb(255 255 255 / 0.12);
 }
 
 /*
@@ -9932,6 +9947,411 @@ a.pt-pay-file {
   .pt-prep-selection .pt-btn { width: 100%; }
   .pt-prep-state-list > div { grid-template-columns: 1fr; gap: 4px; }
   .pt-prep-section-heading { align-items: flex-start; }
+}
+
+/*
+ * Эви — ИИ-профориентатор во вкладке «Подбор с Эви» раздела «Профессии» (решение владельца 16.11.2026). Карточка
+ * разговора: шапка, переписка (прокручивается сама), варианты ответа и поле ввода. Маскот — иллюстрация по
+ * исключению из контракта (docs/design/portal/design-contract.md, «Маскот Эви»): цвета токенами, без свечения,
+ * смена выражения — короткий переход прозрачности, ничего не зацикливается.
+ */
+.pt-evi {
+  display: flex;
+  flex-direction: column;
+  height: min(72dvh, 680px);
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-evi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 20px;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-evi-name {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pt-evi-role {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-evi-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pt-evi-log::before {
+  content: "";
+  margin-top: auto;
+}
+
+.pt-evi-log:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+.pt-evi-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pt-evi-slot {
+  flex: none;
+  width: 64px;
+}
+
+.pt-evi-col {
+  display: grid;
+  flex: 1;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+  max-width: 600px;
+}
+
+.pt-evi-bubble {
+  position: relative;
+  max-width: min(100%, 560px);
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--pt-line);
+  border-radius: 18px;
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  font-size: var(--pt-size-secondary);
+  line-height: var(--pt-leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* «Хвост» облачка смотрит на маскота — только у реплики, рядом с которой он стоит. */
+.pt-evi-row[data-speaking] > .pt-evi-col > .pt-evi-bubble:first-child,
+.pt-evi-row[data-speaking] > .pt-evi-bubble {
+  margin-top: 6px;
+}
+
+.pt-evi-row[data-speaking] > .pt-evi-col > .pt-evi-bubble:first-child::before,
+.pt-evi-row[data-speaking] > .pt-evi-bubble::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 1px solid var(--pt-line);
+  border-left: 1px solid var(--pt-line);
+  border-bottom-left-radius: 3px;
+  background: var(--pt-surface);
+  transform: rotate(45deg);
+}
+
+/* Ответ ученика — как своё сообщение во «Входящих»: светлый тон бренда и рамка. */
+.pt-evi-bubble-mine {
+  align-self: flex-end;
+  max-width: min(85%, 520px);
+  border-color: color-mix(in srgb, var(--pt-accent) 32%, var(--pt-line));
+  background: color-mix(in srgb, var(--pt-accent) 6%, var(--pt-surface));
+  box-shadow: none;
+}
+
+.pt-evi-thinking {
+  color: var(--pt-text-2);
+}
+
+.pt-evi-dock {
+  display: grid;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-evi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pt-evi-chip {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-evi-chip:hover {
+  border-color: var(--pt-text);
+}
+
+.pt-evi-chip[aria-pressed="true"] {
+  border-color: var(--pt-text);
+  background: var(--pt-text);
+  color: var(--pt-surface);
+}
+
+.pt-evi-chip:focus-visible,
+.pt-evi-send:focus-visible,
+.pt-evi-result-title a:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-evi-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 16px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+}
+
+.pt-evi-composer:focus-within {
+  border-color: var(--pt-accent);
+}
+
+.pt-evi-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--pt-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.pt-evi-input::placeholder {
+  color: var(--pt-text-2);
+}
+
+.pt-evi-send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  cursor: pointer;
+}
+
+.pt-evi-send:disabled {
+  background: var(--pt-skeleton);
+  color: var(--pt-text-2);
+  cursor: default;
+}
+
+.pt-evi-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.pt-evi-error {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-evi-results {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-evi-result {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+}
+
+.pt-evi-result-n {
+  display: grid;
+  grid-row: span 2;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  font-size: var(--pt-size-secondary);
+  font-weight: 700;
+}
+
+.pt-evi-result-title {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pt-evi-result-title a {
+  color: var(--pt-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.pt-evi-result-why {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  line-height: var(--pt-leading);
+}
+
+.pt-evi-gate {
+  align-items: center;
+  gap: 12px;
+  height: auto;
+  min-height: 0;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.pt-evi-gate .pt-evi-mascot {
+  width: 96px;
+}
+
+.pt-evi-gate-line {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--pt-text-2);
+}
+
+.pt-evi-mascot {
+  display: block;
+  width: 64px;
+  height: auto;
+  overflow: visible;
+}
+
+.pt-evi-nub,
+.pt-evi-band {
+  fill: var(--pt-evi-accent);
+}
+
+.pt-evi-ear {
+  fill: var(--pt-evi-ear);
+}
+
+.pt-evi-helmet {
+  fill: var(--pt-evi-helmet);
+}
+
+.pt-evi-ring {
+  fill: var(--pt-evi-ring);
+}
+
+.pt-evi-visor {
+  fill: var(--pt-evi-visor);
+}
+
+.pt-evi-shine {
+  fill: none;
+  stroke: var(--pt-evi-shine);
+  stroke-linecap: round;
+  stroke-width: 7;
+}
+
+.pt-evi-eyes,
+.pt-evi-face {
+  fill: var(--pt-evi-eye);
+}
+
+.pt-evi-smile {
+  fill: none;
+  stroke: var(--pt-evi-eye);
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+.pt-evi-face {
+  opacity: 0;
+  transition: opacity var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-evi-eyes {
+  transition: transform var(--pt-motion-base) var(--pt-ease-out);
+}
+
+.pt-evi-mascot[data-listening] .pt-evi-eyes {
+  transform: translateY(4px);
+}
+
+.pt-evi-mascot[data-mood="thinking"] .pt-evi-eyes {
+  transform: translate(-4px, -3px);
+}
+
+.pt-evi-mascot:is([data-mood="idle"], [data-mood="talk"]) [data-face="bowl"],
+.pt-evi-mascot[data-mood="happy"] :is([data-face="dome"], [data-face="smile"]),
+.pt-evi-mascot[data-mood="wow"] :is([data-face="oval"], [data-face="o"]),
+.pt-evi-mascot[data-mood="thinking"] [data-face="scan"],
+.pt-evi-mascot[data-mood="eureka"] :is([data-face="star"], [data-face="o"]) {
+  opacity: 1;
+}
+
+@media (max-width: 767px) {
+  .pt-evi:not(.pt-evi-gate) {
+    height: min(68dvh, 620px);
+  }
+
+  .pt-evi-log {
+    padding: 14px;
+  }
+
+  .pt-evi-dock {
+    padding: 10px 14px 14px;
+  }
+
+  .pt-evi-slot,
+  .pt-evi-mascot {
+    width: 48px;
+  }
+
+  .pt-evi-row {
+    gap: 10px;
+  }
 }
 
 /* ================================================================

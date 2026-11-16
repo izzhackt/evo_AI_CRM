@@ -38,6 +38,7 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
   const [draft, setDraft] = useState("");
   const [pending, startTransition] = useTransition();
   const logRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const log = logRef.current;
@@ -69,6 +70,9 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
     setPicked(new Set());
     setFailure(null);
     setDraft("");
+    // Кнопка ответа исчезает вместе с вариантами: фокус переходит на разговор, а не теряется в начале страницы.
+    // Поле ввода не трогаем — на телефоне фокус в нём открывал бы клавиатуру после каждой кнопки.
+    if (document.activeElement !== inputRef.current) logRef.current?.focus({ preventScroll: true });
     request(next);
   }
 
@@ -146,7 +150,7 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
         ) : null}
         <form className="pt-evi-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); send(draft); }}>
           <label htmlFor="pt-evi-input" className="pt-sr-only">{strings["evi.inputLabel"]}</label>
-          <input id="pt-evi-input" className="pt-evi-input" value={draft} maxLength={EVI_LIMITS.maxUserChars} autoComplete="off"
+          <input ref={inputRef} id="pt-evi-input" className="pt-evi-input" value={draft} maxLength={EVI_LIMITS.maxUserChars} autoComplete="off"
             placeholder={strings["evi.placeholder"]} onChange={(event) => setDraft(event.target.value)} />
           <button type="submit" className="pt-evi-send" aria-label={strings["evi.send"]} disabled={pending || draft.trim().length === 0}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>

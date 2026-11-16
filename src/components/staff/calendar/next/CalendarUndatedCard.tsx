@@ -19,7 +19,9 @@ export function undatedShown(unscheduled: readonly CalendarTask[], notice: strin
  * «Без срока»: свёрнутая карточка над сеткой. Раскрывается сама на странице очереди без срока и когда в панели открыта задача
  * без срока; ручное сворачивание новая выдача сервера не отменяет. Следующая страница очереди — ссылки под списком.
  */
-export function CalendarUndatedCard({ unscheduled, chip, continuationPage, nextHref, startHref, targetKey, cursorKey }: Readonly<{
+export function CalendarUndatedCard({ unscheduled, chip, continuationPage, nextHref, startHref, targetKey, cursorKey, className }: Readonly<{
+  /** Место в раскладке страницы (в левой панели «Календаря» — под мини-месяцем). */
+  className?: string;
   unscheduled: readonly CalendarTask[];
   chip: CalendarCellProps;
   continuationPage: boolean;
@@ -40,6 +42,7 @@ export function CalendarUndatedCard({ unscheduled, chip, continuationPage, nextH
   return (
     <WidgetCard
       size="sm"
+      className={`@container ${className ?? ""}`}
       title={open === null ? "Без срока" : `Без срока — ${open}`}
       actions={(
         <Button variant="ghost" aria-expanded={state.expanded} aria-controls={state.expanded ? listId : undefined} onClick={() => setState((current) => ({ ...current, expanded: !current.expanded }))}>
@@ -49,7 +52,7 @@ export function CalendarUndatedCard({ unscheduled, chip, continuationPage, nextH
       )}
     >
       {state.expanded ? <div id={listId} className="grid gap-2">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-2 @lg:grid-cols-2 @4xl:grid-cols-3">
           {unscheduled.map((task) => (
             <TaskChip key={task.key} task={task} selected={task.key === chip.selectedId} panelId={chip.panelId} onSelect={(from) => chip.onSelect(task.key, from)} />
           ))}

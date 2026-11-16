@@ -8,7 +8,11 @@ import { shiftDay, type Day } from "../calendar/types";
 
 export type Choice = "today" | "tomorrow" | "friday" | "date" | "none";
 
-const CHIP = "v3-choice inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+/**
+ * Вариант срока — как вкладка «День · Неделя · Месяц»: без своей рамки, выбранный — общий нейтральный «выбрано» (подложка и вес 600).
+ * 15.11.2026 (владелец просил улучшить вид «Новой задачи»; обход CRM, пункт 6): пять вариантов в своих тёмных рамках выглядели тяжелее полей формы.
+ */
+const CHIP = "v3-choice inline-flex min-h-11 items-center rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 /** Быстрый вариант для дня по умолчанию: другой день — «Дата…» с этим днём. */
 export function composerDeadlineChoice(day: Day, defaultDay: Day | null): Choice {
@@ -69,7 +73,7 @@ export function ComposerDeadlineField({ day, defaultDay = null, current = null, 
       <input type="hidden" name="deadline_kind" value={kind} />
       <input type="hidden" name="due_on" value={dueOn} />
       <input type="hidden" name="due_at" value={dueAt} />
-      <div className="mt-1 flex flex-wrap gap-2">
+      <div className="mt-1 flex flex-wrap gap-1">
         {chips.map(([value, label]) => (
           <button key={value} type="button" aria-pressed={choice === value} onClick={() => setChoice(value)} className={CHIP}>
             {label}

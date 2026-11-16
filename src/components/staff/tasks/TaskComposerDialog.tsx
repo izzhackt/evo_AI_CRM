@@ -364,7 +364,7 @@ function TaskComposerModal({
             на телефоне с открытыми «Дата» и «Время» главная кнопка остаётся видна. */}
         <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">
           <label className={LABEL}>Название
-            <input ref={titleInputRef} name="title" required maxLength={1000} autoFocus value={title}
+            <input ref={titleInputRef} name="title" required maxLength={1000} autoFocus value={title} placeholder="Например: позвонить семье, проверить перевод аттестата"
               onChange={(event) => setTitle(event.target.value)} disabled={locked} autoComplete="off" className={CONTROL} />
           </label>
 
@@ -443,11 +443,12 @@ function TaskComposerModal({
             {errorCopy[state.status]}
             {state.status === "stale" ? <button type="button" className={QUIET} onClick={() => router.refresh()}>Обновить данные</button> : null}
           </p> : null}
-          <div className="flex flex-wrap gap-3">
+          {/* Как «Своя задача» у «Акылмана» (15.11.2026): кнопки справа, «Отмена» — перед главной. */}
+          <div className="flex flex-wrap justify-end gap-3">
+            <button type="button" className={SECONDARY} onClick={close}>Отмена</button>
             <button type="submit" disabled={submitBlocked} className={PRIMARY}>
               {pending ? "Создаём…" : "Создать задачу"}
             </button>
-            <button type="button" className={SECONDARY} onClick={close}>Отмена</button>
           </div>
         </div>
       </form>}

@@ -19,9 +19,9 @@ export function Segmented<T extends string>({ value, options, onChange, testIDPr
             accessibilityState={{ checked: active }}
             onPress={() => onChange(o.value)}
             testID={testIDPrefix ? `${testIDPrefix}-${o.value}` : undefined}
-            style={{ flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusChip, backgroundColor: active ? tokens.surface : "transparent", boxShadow: active && scheme === "light" ? tokens.shadowCard : undefined }}
+            style={{ flexGrow: 1, flexBasis: 0, minWidth: 0, paddingHorizontal: 6, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusChip, backgroundColor: active ? tokens.surface : "transparent", boxShadow: active && scheme === "light" ? tokens.shadowCard : undefined }}
           >
-            <Text variant="secondary" bold={active} tone={active ? "text" : "text2"}>
+            <Text variant="secondary" bold={active} tone={active ? "text" : "text2"} style={{ textAlign: "center" }}>
               {o.label}
             </Text>
           </Pressable>

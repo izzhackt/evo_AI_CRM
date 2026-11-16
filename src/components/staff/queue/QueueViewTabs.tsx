@@ -18,13 +18,18 @@ export type QueueTab = Readonly<{
  * переносится (высота шапки не меняется, когда рядом открыта панель): лишнее
  * прокручивается вбок внутри ряда, текущая вкладка видна (`QueueTabStrip`).
  */
-export function QueueViewTabs({ label, tabs, id, focusable = false }: Readonly<{
+export function QueueViewTabs({ label, tabs, id, focusable = false, pinnedKey }: Readonly<{
   label: string;
   tabs: readonly QueueTab[];
   /** Якорь ряда вкладок (например, прежний адрес `#admissions-summary`). */
   id?: string;
   /** Вкладки профиля: ряд сам принимает фокус — на него возвращается фокус после ответа в панели (`QueueTabStrip`). */
   focusable?: boolean;
+  /**
+   * Вкладка, которая от 42rem ширины области прилипает к правому краю ряда и видна целиком, пока остальные листаются под ней
+   * (`data-tab-pin`, `QueueTabStrip`). Уже — она на своём месте: на телефоне ряд листают пальцем.
+   */
+  pinnedKey?: string;
 }>) {
   return (
     <QueueTabStrip id={id} label={label} focusable={focusable}>
@@ -32,7 +37,7 @@ export function QueueViewTabs({ label, tabs, id, focusable = false }: Readonly<{
           Ряд ровно по высоте вкладки, поэтому рамка фокуса рисуется внутри (`data-tab-ring`, staff.css) и не обрезается. */}
       <ul className="flex min-w-max items-center gap-1" data-tab-ring="inset">
         {tabs.map((tab) => (
-          <li key={tab.key}>
+          <li key={tab.key} {...(tab.key === pinnedKey ? { "data-tab-pin": "", className: "@2xl:sticky @2xl:end-0 @2xl:bg-bg @2xl:ps-2" } : {})}>
             <Link
               href={tab.href}
               scroll={false}

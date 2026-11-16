@@ -318,7 +318,8 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   const toolbar = read("src/components/staff/board/BoardToolbar.tsx");
   assert.match(toolbar, /<label className="t-label [^"]*">\s*\{label\}\s*<select/u, "board filter label");
   const pipelinePage = read("src/app/(staff)/pipeline/page.tsx");
-  assert.match(pipelinePage, /label="Ответственный"/u, "pipeline «Ответственный» filter label");
+  // 15.11.2026: фильтры воронки — в панели «Фильтры», как на «Студентах»; раздел так и называется «Ответственный».
+  assert.match(pipelinePage, /label: "Ответственный"/u, "pipeline «Ответственный» filter label");
   assert.match(read("src/components/staff/board/Board.tsx"), /<span className="sr-only">Поиск<\/span>/u, "board search is named");
   // Э6: one 44 px toolbar row — the field names are labels for the screen reader, the values say what is chosen.
   const catalogue = read("src/components/staff/universities/UniversityToolbar.tsx");

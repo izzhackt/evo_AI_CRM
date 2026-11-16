@@ -7,6 +7,7 @@ import { BOARD_EMPTY } from "@/components/staff/board/Board";
 import { LeadCardNext } from "@/components/staff/pipeline-next/LeadCardNext";
 import { HANDED_VISIBLE_LIMIT, leadDueWord, type StageColumn } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead } from "@/components/staff/pipeline-next/types";
+import { cn } from "@/lib/utils";
 
 const MORE_LINK = "flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg";
 
@@ -29,9 +30,13 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
   const { stage, inStage, visible } = column;
   const more = stage.terminal && visible.length < inStage.length;
   const less = stage.terminal && handedExpanded && inStage.length > HANDED_VISIBLE_LIMIT;
+  // В «Всех этапах» шапки колонок лежат в одной общей строке сетки доски (subgrid, 15.11.2026): название в две строки делает выше все
+  // шапки ряда, и списки всех колонок начинаются на одной линии.
+  const rows = spread ? undefined : "@[43.75rem]:row-span-2 @[43.75rem]:grid @[43.75rem]:grid-rows-subgrid";
   return (
-    <section aria-label={stage.title} data-testid="v3-pipeline-column" data-stage={stage.key} className="min-w-0">
+    <section aria-label={stage.title} data-testid="v3-pipeline-column" data-stage={stage.key} className={cn("min-w-0", rows)}>
       <BoardColumnCard
+        className={rows}
         title={stage.title}
         count={inStage.length}
         marker={stage.gate ? <span title="Есть условия" className="inline-flex items-center"><Icon name="lock" size={14} /><span className="sr-only">Есть условия</span></span> : null}

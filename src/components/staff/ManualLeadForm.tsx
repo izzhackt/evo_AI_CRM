@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { createContext, useActionState, useContext, useId, useRef, useState } from "react";
+import { Icon } from "@/components/icons";
 import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/staff/queue/queue-buttons";
 import { LEAD_CHANNEL_REQUIRED, LEAD_CHANNEL_UNKNOWN_HINT, LEAD_CHANNELS } from "@/lib/lead-channel-contract";
@@ -34,8 +35,19 @@ function useManualLeadDisclosure(): DisclosureState {
  * `quiet` — второй вход в ту же форму (пустые «Заявки», Э3): тихая ссылка,
  * потому что сплошной красный у страницы один — кнопка в шапке.
  */
-export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean }>) {
+export function ManualLeadTrigger({ quiet = false, compact = false }: Readonly<{ quiet?: boolean; compact?: boolean }>) {
   const { open, toggle } = useManualLeadDisclosure();
+  if (compact) {
+    // Уже 40rem области (телефон) — квадрат 44 px со знаком «+» в строке заголовка, а не красная полоса на всю строку
+    // (15.11.2026: кнопка во всю строку была слишком крупной); имя для читалки и подсказка — «Добавить лида». Шире — прежняя кнопка со словами.
+    return (
+      <button type="button" aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle} title="Добавить лида"
+        className={`${btnCls} @max-[40rem]:w-11 @max-[40rem]:justify-center @max-[40rem]:px-0`}>
+        <Icon name="plus" size={20} className="@min-[40rem]:hidden" />
+        <span className="@max-[40rem]:sr-only">Добавить лида</span>
+      </button>
+    );
+  }
   return (
     <button type="button" aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}
       className={quiet ? "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" : btnCls}>

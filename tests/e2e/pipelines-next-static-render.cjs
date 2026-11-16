@@ -114,6 +114,67 @@ async function main() {
         return { count: list.length, rows: tops.size, widths: list.map((c) => Math.round(c.getBoundingClientRect().width)) };
       });
       report(`${name}: six stage columns, ${key === "m390" ? "stacked" : "one row"}`, columns.count === 6 && (key === "m390" ? columns.rows === 6 : columns.rows === 1), columns);
+      // 15.11.2026 (обход CRM, пункт 1): в строке — поиск, «Фильтры» и «Закрытые», одной высоты 44 px и на ноутбуке одной
+      // строкой; «Ответственный» и «Срок» — в панели. «Переданы» на ноутбуке прилипает к правому краю ряда вкладок. Число
+      // в шапке колонки — на первой строке названия: числа всех колонок ряда на одной линии.
+      const look = await page.evaluate(() => {
+        const box = (element) => element.getBoundingClientRect();
+        const shown = (element) => Boolean(element) && element.getClientRects().length > 0;
+        const row = [document.querySelector('form[role="search"] input'), document.querySelector('[data-testid="list-filters"]'),
+          document.querySelector('[data-testid="v3-pipeline-closed-link"]')].filter(shown);
+        const nav = document.querySelector('nav[aria-label="Этапы воронки"]');
+        const strip = nav.querySelector(".v3-tab-strip") ?? nav;
+        const handed = [...nav.querySelectorAll("a")].find((link) => /^Переданы/u.test(link.textContent.trim()) && shown(link));
+        const counts = [...document.querySelectorAll('[data-testid="v3-pipeline-column"] [data-slot="card-action"]')].filter(shown);
+        return {
+          row: row.length, inRow: Boolean(document.querySelector('[data-testid="v3-pipeline"] select, nav[aria-label="Срок"]')),
+          heights: [...new Set(row.map((element) => Math.round(box(element).height)))], tops: [...new Set(row.map((element) => Math.round(box(element).top)))],
+          // Шире 42rem — прилипает к правому краю ряда (sticky), видна целиком, затухание кончается перед ней (`--tab-pin`); на телефоне —
+          // на своём месте в листаемом ряду. Копия одна.
+          handed: Boolean(handed) && [...nav.querySelectorAll("a")].filter((link) => /^Переданы/u.test(link.textContent.trim())).length === 1 && (window.innerWidth < 500
+            ? getComputedStyle(handed.closest("li")).position === "static"
+            : getComputedStyle(handed.closest("li")).position === "sticky" && box(handed).right <= box(strip).right + 0.5 && box(handed).right <= window.innerWidth
+              && parseFloat(strip.style.getPropertyValue("--tab-pin")) >= Math.floor(box(handed.closest("li")).width)),
+          countTops: [...new Set(counts.map((element) => Math.round(box(element).top)))],
+          // Списки всех колонок начинаются на одной линии (общая строка шапок, subgrid) — то, что убрало «волну».
+          listTops: [...new Set([...document.querySelectorAll('[data-testid="v3-pipeline-column"] [data-slot="card-content"]')].filter(shown).map((element) => Math.round(box(element).top)))],
+        };
+      });
+      report(`${name}: filter row — search, «Фильтры», «Закрытые»; 44 px${key === "m390" ? "" : ", one line"}; no list or «Срок» chips in the row`,
+        look.row === 3 && !look.inRow && look.heights.length === 1 && look.heights[0] === 44 && (key === "m390" || look.tops.length === 1), look);
+      report(`${name}: «Переданы» ${key === "m390" ? "in its place in the scrolling row" : "sticks to the right end of the row, fully visible, no fade on it"}`, look.handed, look);
+      if (key !== "m390") report(`${name}: column counts and lists each on one line`, look.countTops.length === 1 && look.listTops.length === 1, look);
+      // Карточка лида (15.11.2026): срок в правом верхнем углу, инициалы в правом нижнем — на любой ширине; в широкой карточке (телефон) срок
+      // в одной строке с именем, в узкой колонке (шесть этапов на ноутбуке) — уголком над именем. Строки «на этапе» нет.
+      const card = await page.evaluate(() => {
+        const box = (element) => element.getBoundingClientRect();
+        const one = [...document.querySelectorAll('[data-testid="v3-pipeline-card"]')].find((item) => item.getClientRects().length && item.querySelector(".v3-due") && item.querySelector(".v3-initials"));
+        const [whole, name, due, initials] = [one, one.querySelector("[data-lead-link]"), one.querySelector(".v3-due"), one.querySelector(".v3-initials")].map(box);
+        return {
+          dueOnNameRow: Math.abs(due.top - name.top) < name.height / 2, dueAboveName: due.bottom <= name.top + 1, dueRight: Math.round(whole.right - due.right), dueTop: Math.round(due.top - whole.top), initialsRight: Math.round(whole.right - initials.right),
+          initialsBottom: Math.round(whole.bottom - initials.bottom), initialsBelowDue: initials.top >= due.bottom - 1, dueWithInitials: initials.top < due.bottom && due.top < initials.bottom,
+          age: [...document.querySelectorAll('[data-testid="v3-pipeline-card"]')].some((item) => /на этапе/u.test(item.textContent)),
+        };
+      });
+      report(`${name}: lead card — due word top-right${key === "m390" ? " on the name row" : " above the name"}, initials bottom-right; no «на этапе»`,
+        !card.age && card.dueRight <= 14 && card.dueTop <= 12 && card.initialsRight <= 14 && card.initialsBottom <= 12 && card.initialsBelowDue && (key === "m390" ? card.dueOnNameRow : card.dueAboveName), card);
+      if (key === "d1440") {
+        await page.locator('[data-testid="list-filters"]').click();
+        await page.locator('[data-testid="list-filters-panel"]').waitFor();
+        await page.locator('[data-testid="list-filter-due"] summary').click();
+        const panel = await page.evaluate(() => ({
+          sections: [...document.querySelectorAll('[data-testid="list-filters-panel"] details > summary > span:first-child')].map((span) => span.textContent.trim()),
+          due: [...document.querySelectorAll('[data-testid="list-filter-due"] li a')].map((link) => [...link.querySelectorAll("span")].map((span) => span.textContent.trim()).filter(Boolean).join(" ")),
+        }));
+        report(`${name}: «Фильтры» panel — «Ответственный» and «Срок» with the same counts`, panel.sections.join("|") === "Ответственный|Срок" && panel.due.join("|") === "Все|Просрочено 3|Сегодня 3|Без действия 2", panel);
+        await shot(page, "pipeline-filters-d1440");
+        await page.locator('[data-testid="list-filter-due"] a', { hasText: /^Просрочено/u }).click();
+        await page.waitForURL(/due=overdue/u);
+        await page.waitForLoadState("networkidle");
+        await page.locator('[data-testid="list-filter-applied"]').first().waitFor({ timeout: 5000 }).catch(() => {});
+        const chip = await page.locator('[data-testid="list-filter-applied"]').allTextContents();
+        report(`${name}: choosing «Просрочено» writes ?due=overdue and shows the «Срок: Просрочено» chip`, chip.some((text) => /Срок: Просрочено/u.test(text)), chip);
+      }
       report(`${name}: console clean`, errors.length === 0, errors);
       await context.close();
     }

@@ -94,7 +94,10 @@ export default async function CalendarPart({
   const requestedDay = singleValue(params.date);
   const day = requestedDay !== undefined ? resolveDay(requestedDay, today) : target?.task.day ?? today;
   const days = gridDays(view, day);
-  const workspace = await readCalendarWorkspace(actor, days[0], days[days.length - 1], undatedCursor, target);
+  // Читается весь месяц выбранного дня (его сетка захватывает и неделю, и день): мини-месяц слева ставит точки на дни с задачами
+  // по тем же данным, что и сетка (15.11.2026, по образцу «Акылмана»). Сетки и списки берут из прочитанного только свои дни.
+  const month = gridDays("month", day);
+  const workspace = await readCalendarWorkspace(actor, month[0], month[month.length - 1], undatedCursor, target);
   const taskRequestIds = Object.fromEntries(
     workspace.tasks.map((task) => [
       task.key,

@@ -447,14 +447,19 @@
 .v3-world .v3-tab-strip::-webkit-scrollbar {
   display: none;
 }
+/* `--tab-pin` — ширина вкладки, прилипшей к правому краю (`QueueTabStrip`): правое затухание кончается перед ней, сама она не гаснет. */
+/* Фокус с клавиатуры и прокрутка к вкладке не оставляют вкладку под прилипшей: правый край видимой части — перед ней. */
+.v3-world .v3-tab-strip {
+  scroll-padding-inline-end: var(--tab-pin, 0px);
+}
 .v3-world .v3-tab-strip[data-fade-end] {
-  mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 3rem - var(--tab-pin, 0px)), transparent calc(100% - var(--tab-pin, 0px)), #000 calc(100% - var(--tab-pin, 0px)));
 }
 .v3-world .v3-tab-strip[data-fade-start] {
   mask-image: linear-gradient(to left, #000 calc(100% - 3rem), transparent);
 }
 .v3-world .v3-tab-strip[data-fade-start][data-fade-end] {
-  mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem - var(--tab-pin, 0px)), transparent calc(100% - var(--tab-pin, 0px)), #000 calc(100% - var(--tab-pin, 0px)));
 }
 
 /*

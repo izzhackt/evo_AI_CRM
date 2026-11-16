@@ -704,7 +704,8 @@ test("the composer keeps «Создать задачу» in a pinned footer and 
   assert.match(html, /<form class="flex min-h-0 flex-col" data-composer-mode="staff"><div class="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">/u);
   const footer = 'class="shrink-0 space-y-2 border-t border-border p-4"';
   assert.doesNotMatch(html.slice(html.indexOf("overflow-y-auto"), html.indexOf(footer)), /type="submit"/u, "the submit is not inside the scroll");
-  assert.match(html, /class="shrink-0 space-y-2 border-t border-border p-4"><div class="flex flex-wrap gap-3"><button type="submit"[^>]*>Создать задачу<\/button>/u);
+  // 15.11.2026 (как «Своя задача» у «Акылмана»): кнопки в закреплённом низу справа, «Отмена» — перед главной.
+  assert.match(html, /class="shrink-0 space-y-2 border-t border-border p-4"><div class="flex flex-wrap justify-end gap-3"><button type="button"[^>]*>Отмена<\/button><button type="submit"[^>]*>Создать задачу<\/button>/u);
   // Роли текста: подписи — t-label, ни text-sm, ни text-xs во всём окне (и в поиске дела).
   const withCase = renderComposer({ initialCase: CASE, caseRemovable: true });
   const withPicker = renderComposer({ staffAllowed: false });

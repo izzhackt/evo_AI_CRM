@@ -33,17 +33,17 @@ const caseTask = (n, fields) => ({
   kind: "case", key: `case:${id("cccccccc", 40 + n)}`, id: id("cccccccc", 40 + n), studentCaseId: id("dddddddd", 40 + n), taskType: "follow_up",
   title: fields.title, details: fields.details ?? null, dueOn: fields.dueOn ?? null, dueAt: fields.dueAt ?? null, day: fields.day ?? null,
   minutes: fields.minutes ?? null, overdue: fields.overdue ?? false, state: fields.state ?? "open", cancelReason: null, person: fields.person ?? null,
-  priority: "normal", studentVisible: false, assigneeMembershipId: fields.assignee ?? ME, assigneeDisplayName: NAMES[fields.assignee ?? ME],
+  priority: fields.priority ?? "normal", studentVisible: false, assigneeMembershipId: fields.assignee ?? ME, assigneeDisplayName: NAMES[fields.assignee ?? ME],
   caseState: "active", version: "2",
 });
 const staffTask = (n, fields) => ({
   kind: "staff", key: `staff:${id("ffffffff", 40 + n)}`, id: id("ffffffff", 40 + n), title: fields.title, details: fields.details ?? null,
   dueOn: fields.dueOn ?? null, dueAt: fields.dueAt ?? null, day: fields.day ?? null, minutes: fields.minutes ?? null, overdue: false,
-  state: fields.state ?? "open", cancelReason: null, person: null, priority: "normal", assigneeMembershipId: ME, assigneeDisplayName: NAMES[ME], version: "3",
+  state: fields.state ?? "open", cancelReason: null, person: null, priority: fields.priority ?? "normal", assigneeMembershipId: ME, assigneeDisplayName: NAMES[ME], version: "3",
 });
 const WEEK = [
   caseTask(1, { title: "Записать на визу X1", person: "Мээрим Жолдошева", dueAt: "2026-09-24T08:30:00.000Z", day: "2026-09-24", minutes: 870, details: "Подтвердить время в консульстве и предупредить семью." }),
-  caseTask(2, { title: "Собрать апостиль на аттестат", person: "Айдана Сыдыкова", dueOn: "2026-09-25", day: "2026-09-25" }),
+  caseTask(2, { title: "Собрать апостиль на аттестат", person: "Айдана Сыдыкова", dueOn: "2026-09-25", day: "2026-09-25", priority: "urgent" }),
   caseTask(3, { title: "Согласовать список программ", person: "Тимур Абдылдаев", dueAt: "2026-09-22T05:00:00.000Z", day: "2026-09-22", minutes: 660, overdue: true }),
   staffTask(1, { title: "Подготовить вопросы к планёрке", dueAt: "2026-09-24T05:00:00.000Z", day: "2026-09-24", minutes: 660 }),
   staffTask(2, { title: "Обновить памятку по нострификации", dueOn: "2026-09-26", day: "2026-09-26" }),
@@ -52,7 +52,7 @@ const WEEK = [
   caseTask(6, { title: "Позвонить после консультации", person: "Камила Усенова", state: "done" }),
 ];
 const MONTH_EXTRA = ["Перевести паспорт", "Заверить у нотариуса", "Отправить пакет партнёру", "Собрать справку об оплате"].map((title, index) =>
-  caseTask(12 + index, { title, person: "Санжар Алиев", dueAt: `2026-09-15T0${3 + index}:00:00.000Z`, day: "2026-09-15", minutes: 540 + index * 60 }));
+  caseTask(12 + index, { title, person: "Санжар Алиев", dueAt: `2026-09-15T0${3 + index}:00:00.000Z`, day: "2026-09-15", minutes: 540 + index * 60, state: index === 0 ? "blocked" : "open" }));
 const CASE_OPTIONS = [["Айдана Сыдыкова", 1], ["Тимур Абдылдаев", 2], ["Мээрим Жолдошева", 3]].map(([name, n]) => ({ id: id("dddddddd", 40 + n), name }));
 
 /* ------------------------------------------------------------ шаблоны ответов */

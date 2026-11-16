@@ -30,7 +30,8 @@ export function PageShell({
   actions?: React.ReactNode;
   /** `data-testid` корня страницы — для проверки выпуска. */
   testId?: string;
-  width?: "wide" | "narrow";
+  /** `full` — без предела ширины: «Календарь» (15.11.2026, как у «Акылмана») с левой панелью занимает всю область. */
+  width?: "wide" | "narrow" | "full";
   /** Возврат к списку над заголовком: ссылка или кнопка. */
   back?: React.ReactNode;
   /** Ряд вкладок страницы под шапкой («Финансы»): ссылки с `aria-current`. */
@@ -38,7 +39,7 @@ export function PageShell({
   children: React.ReactNode;
 }>) {
   return (
-    <main data-testid={testId} className={cn("mx-auto w-full px-4 py-8 sm:px-6", width === "narrow" ? "max-w-[860px]" : "max-w-[1240px]")}>
+    <main data-testid={testId} className={cn("mx-auto w-full px-4 py-8 sm:px-6", width === "narrow" ? "max-w-[860px]" : width === "full" ? "max-w-none" : "max-w-[1240px]")}>
       {back}
       <PageHeader title={title} leading={leading} count={count} meta={meta} help={help} helpLabel={helpLabel} actions={actions} />
       {tabs ? <div className="mt-4">{tabs}</div> : null}

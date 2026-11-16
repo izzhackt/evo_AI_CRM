@@ -91,7 +91,7 @@ const supabaseConfig = require(join(ROOT, "src/lib/supabase/config.ts"));
 require(join(ROOT, "src/lib/i18n.ts")).getLocale = async () => "ru";
 
 calendarSource.readToday = async () => fx.TODAY;
-calendarSource.readNowMinutes = async () => 600;
+calendarSource.readNowMinutes = async () => 670;
 calendarSource.readCalendarWorkspace = async () => ({
   access: { caseTasks: true, staffTasks: true, tasks: true }, tasks: fx.WEEK, undatedNextCursor: null, cases: fx.CASE_OPTIONS, casesHaveMore: false, assignees: [],
 });

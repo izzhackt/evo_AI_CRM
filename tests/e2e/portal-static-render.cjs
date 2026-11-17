@@ -75,6 +75,7 @@ const { ProfessionsTestHero } = require(join(ROOT, "src/components/portal/profes
 const { ProfessionsTabs } = require(join(ROOT, "src/components/portal/professions/ProfessionsTabs.tsx"));
 const { EviChat } = require(join(ROOT, "src/components/portal/evi/EviChat.tsx"));
 const { EviConsentGate } = require(join(ROOT, "src/components/portal/evi/EviConsentGate.tsx"));
+const { EviRobot } = require(join(ROOT, "src/components/portal/evi/EviRobot.tsx"));
 const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
 const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
@@ -509,6 +510,28 @@ const professionCards = [
     summaryKy: null,
   },
 ];
+// Три карточки для итога Эви: две общие и аналитик данных (у медсестры нет строки «чем занимается» — она не рисуется).
+const eviCards = [
+  professionCards[0],
+  professionCards[1],
+  {
+    cardId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    cardKey: "data-scientist",
+    titleRu: "Аналитик данных",
+    orvisScales: ["analysis", "erudition"],
+    summaryRu: "Ищет закономерности в данных и помогает принимать решения.",
+  },
+];
+
+function eviPage(child) {
+  return createElement(
+    "main",
+    { className: "pt-page pt-prof-page pt-prof-page-evi" },
+    createElement("header", { className: "pt-page-header" }, createElement("h1", { className: "pt-page-title" }, professionsStrings.title)),
+    createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
+    child,
+  );
+}
 const profileStrings = getPortalStrings("profile", "ru");
 const consultationStrings = getPortalStrings("consultation", "ru");
 
@@ -963,68 +986,93 @@ const surfaces = [
       ),
     ),
   },
-  // Вкладка «Подбор с Эви» (решение владельца 16.11.2026): разговор в середине (несколько вариантов ответа),
-  // итог из трёх профессий каталога и строка «разрешите ИИ-помощников» для ученика без согласия.
+  // Вкладка «Подбор с Эви» (решение владельца 16.11.2026; сцена и живой робот — 17.11): начало разговора, разговор
+  // в середине (несколько вариантов ответа), итог из трёх профессий каталога, сбой с «Повторить», строка
+  // «разрешите ИИ-помощников» для ученика без согласия и лист выражений робота для просмотра владельцем.
+  {
+    name: "professions-evi-intro",
+    html: renderSurface("Профессии — Эви, начало — a11y", eviPage(createElement(EviChat, { strings: professionsStrings }))),
+  },
   {
     name: "professions-evi-chat",
     html: renderSurface(
       "Профессии — Эви, разговор — a11y",
-      pageShell(null, professionsStrings.title, null, createElement(
-        "div",
-        null,
-        createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
-        createElement(EviChat, {
-          strings: professionsStrings,
-          initialMessages: [
-            { role: "assistant", text: professionsStrings["evi.greeting"], mood: "happy" },
-            { role: "user", text: professionsStrings["evi.start"] },
-            { role: "assistant", text: "Отлично! В каком ты классе?", mood: "talk" },
-            { role: "user", text: "11 класс" },
-            { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy" },
-          ],
-          initialOptions: { options: ["Математика", "Информатика", "Физика", "Биология", "Языки"], multi: true },
-        }),
-      )),
+      eviPage(createElement(EviChat, {
+        strings: professionsStrings,
+        initialMessages: [
+          { role: "assistant", text: professionsStrings["evi.greeting"], mood: "happy" },
+          { role: "user", text: professionsStrings["evi.start"] },
+          { role: "assistant", text: "Отлично! В каком ты классе?", mood: "talk" },
+          { role: "user", text: "11 класс" },
+          { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy" },
+        ],
+        initialOptions: { options: ["Математика", "Информатика", "Физика", "Биология", "Языки"], multi: true },
+      })),
     ),
   },
   {
     name: "professions-evi-results",
     html: renderSurface(
       "Профессии — Эви, итог — a11y",
-      pageShell(null, professionsStrings.title, null, createElement(
-        "div",
-        null,
-        createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
-        createElement(EviChat, {
-          strings: professionsStrings,
-          initialMessages: [
-            { role: "user", text: "Собираю сайты и делаю игры с друзьями" },
-            {
-              role: "assistant",
-              text: "Придумал! Вот три профессии, которые тебе подходят:",
-              mood: "eureka",
-              results: professionCards.slice(0, 3).map((card, index) => ({
-                cardId: card.cardId,
-                title: card.titleRu,
-                why: ["Ты любишь информатику и уже делаешь сайты и игры.", "Тебе нравится считать и разбираться, как всё устроено.", "Сочетание математики и любви собирать своё."][index],
-              })),
-            },
-          ],
-          initialOptions: { options: ["Расскажи подробнее про первую", "Как выбрать вуз?"], multi: false },
-        }),
-      )),
+      eviPage(createElement(EviChat, {
+        strings: professionsStrings,
+        initialMessages: [
+          { role: "user", text: "Собираю сайты и делаю игры с друзьями" },
+          {
+            role: "assistant",
+            text: "Придумал! Вот три профессии, которые тебе подходят:",
+            mood: "eureka",
+            results: eviCards.map((card, index) => ({
+              cardId: card.cardId,
+              title: card.titleRu,
+              summary: card.summaryRu,
+              scales: card.orvisScales,
+              why: ["Ты любишь информатику и уже делаешь сайты и игры.", "Тебе нравится помогать людям и разбираться, как всё устроено.", "Любишь считать и искать закономерности."][index],
+            })),
+          },
+        ],
+        initialOptions: { options: ["Расскажи подробнее про первую", "Как выбрать вуз?"], multi: false },
+      })),
+    ),
+  },
+  {
+    name: "professions-evi-failure",
+    html: renderSurface(
+      "Профессии — Эви, сбой — a11y",
+      eviPage(createElement(EviChat, {
+        strings: professionsStrings,
+        initialMessages: [
+          { role: "assistant", text: professionsStrings["evi.greeting"], mood: "happy" },
+          { role: "user", text: professionsStrings["evi.start"] },
+        ],
+        initialFailure: "error",
+      })),
     ),
   },
   {
     name: "professions-evi-consent",
+    html: renderSurface("Профессии — Эви, без согласия — a11y", eviPage(createElement(EviConsentGate, { strings: professionsStrings }))),
+  },
+  {
+    name: "professions-evi-moods",
     html: renderSurface(
-      "Профессии — Эви, без согласия — a11y",
-      pageShell(null, professionsStrings.title, null, createElement(
-        "div",
-        null,
-        createElement(ProfessionsTabs, { view: "evi", strings: professionsStrings }),
-        createElement(EviConsentGate, { strings: professionsStrings }),
-      )),
+      "Эви — выражения — a11y",
+      createElement(
+        "main",
+        { className: "pt-page" },
+        createElement("header", { className: "pt-page-header" }, createElement("h1", { className: "pt-page-title" }, "Выражения Эви")),
+        createElement(
+          "div",
+          { className: "pt-evi pt-evi-gate", style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "16px" } },
+          ...[["idle", false, "Ждёт"], ["talk", false, "Говорит"], ["idle", true, "Слушает"], ["happy", false, "Радуется"], ["wow", false, "Удивлён"], ["thinking", false, "Думает"], ["eureka", false, "Придумал!"]]
+            .map(([face, listening, caption]) => createElement(
+              "figure",
+              { key: caption, style: { display: "grid", justifyItems: "center", gap: "8px", margin: 0 } },
+              createElement(EviRobot, { face, listening }),
+              createElement("figcaption", null, caption),
+            )),
+        ),
+      ),
     ),
   },
 ];

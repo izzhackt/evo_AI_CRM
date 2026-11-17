@@ -6,7 +6,8 @@ import { test } from "node:test";
  * Контракт движения кабинета студента (решение владельца 02.10,
  * docs/PLAN_CHANGES.md «анимации кабинета студента»): единый словарь токенов,
  * только transform/opacity, ничего бесконечного и длиннее 400 мс, отключение при
- * prefers-reduced-motion, смоук-якоря shell на месте. Структурный пин, как
+ * prefers-reduced-motion, смоук-якоря shell на месте. Одно исключение — живой робот Эви (решение владельца 17.11.2026):
+ * его блок «Живой Эви» вырезается из проверки и проверяется отдельно (только робот, только при no-preference). Структурный пин, как
  * соседние portal-*.test.mjs: движение само по себе проверяют записи Playwright
  * (превью в PR), а этот тест держит правила, чтобы они не расползлись.
  */
@@ -18,6 +19,11 @@ const PORTAL_CSS = source("src/app/(portal)/portal.css");
 const WIZARD_CSS = source("src/components/student-application/ApplicationWizard.module.css");
 const SECTION_MARK = "Движение кабинета студента (решение владельца 02.10";
 const MOTION_SECTION = PORTAL_CSS.slice(PORTAL_CSS.indexOf(SECTION_MARK));
+const ROBOT_MARK = "Живой Эви (исключение владельца 17.11.2026";
+const ROBOT_START = PORTAL_CSS.indexOf(ROBOT_MARK);
+const ROBOT_CSS = PORTAL_CSS.slice(ROBOT_START, PORTAL_CSS.indexOf(SECTION_MARK));
+/** Кабинет без блока робота: общие правила движения действуют на всё остальное. */
+const CABINET_CSS = PORTAL_CSS.slice(0, ROBOT_START) + PORTAL_CSS.slice(PORTAL_CSS.indexOf(SECTION_MARK));
 
 /** Тела всех @keyframes файла: имя → список свойств. */
 function keyframeProperties(css) {
@@ -69,8 +75,16 @@ test("the page entrance never starts from a blank frame, and the check mark stay
   assert.match(MOTION_SECTION, /\.pt-check \{[^}]*display: inline-block;/u);
 });
 
-test("portal motion moves only transform and opacity, never loops, never exceeds 400 ms", () => {
-  const keyframes = keyframeProperties(PORTAL_CSS);
+test("portal motion moves only transform and opacity, never loops, never exceeds 400 ms (except the live Эви robot)", () => {
+  assert.ok(ROBOT_START > 0 && ROBOT_START === PORTAL_CSS.lastIndexOf(ROBOT_MARK), "one robot block, before the motion section");
+  assert.deepEqual(
+    [...keyframeProperties(ROBOT_CSS).keys()].sort(),
+    ["pt-evi-blink", "pt-evi-bob", "pt-evi-flash", "pt-evi-hop", "pt-evi-jump", "pt-evi-nod", "pt-evi-pop", "pt-evi-pulse", "pt-evi-scan", "pt-evi-star-in", "pt-evi-talk", "pt-evi-tilt"],
+  );
+  for (const [name, props] of keyframeProperties(ROBOT_CSS)) {
+    for (const property of props) assert.ok(["opacity", "transform"].includes(property), `@keyframes ${name} animates ${property}`);
+  }
+  const keyframes = keyframeProperties(CABINET_CSS);
   assert.deepEqual(
     [...keyframes.keys()].sort(),
     ["pt-check-draw", "pt-enter", "pt-enter-page", "pt-fill-grow", "pt-heart-pop", "pt-skeleton-in"],
@@ -87,7 +101,7 @@ test("portal motion moves only transform and opacity, never loops, never exceeds
       assert.equal(props.has(property), false, `${name} must not animate ${property}`);
     }
   }
-  for (const css of [PORTAL_CSS, WIZARD_CSS]) {
+  for (const css of [CABINET_CSS, WIZARD_CSS]) {
     assert.doesNotMatch(css, /\binfinite\b/u, "nothing loops forever");
   }
   // Раздел «Движение»: длительности только токенами или не длиннее 400 мс.
@@ -110,7 +124,7 @@ test("prefers-reduced-motion zeroes the tokens and switches every entrance off",
     /@media \(prefers-reduced-motion: reduce\) \{\s*\.pt-shell \{\s*--pt-motion-press: 0ms;\s*--pt-motion-fast: 0ms;\s*--pt-motion-base: 0ms;\s*--pt-motion-slow: 0ms;\s*--pt-rise: 0px;\s*--pt-stagger: 0ms;\s*--pt-press-scale: 1;/u,
   );
   const reduced = MOTION_SECTION.slice(MOTION_SECTION.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
-  for (const selector of [".pt-route > *", "[data-pt-loading]", ".pt-progress::-webkit-progress-value", ".pt-res-meter::-webkit-meter-optimum-value", ".pt-check[data-fresh] .pt-check-path", ".pt-favorite-icon[data-pop]"]) {
+  for (const selector of [".pt-route > *", "[data-pt-loading]", ".pt-evi-results", ".pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note)", ".pt-progress::-webkit-progress-value", ".pt-res-meter::-webkit-meter-optimum-value", ".pt-check[data-fresh] .pt-check-path", ".pt-favorite-icon[data-pop]"]) {
     assert.ok(reduced.includes(selector), `${selector} is switched off`);
   }
   assert.match(reduced, /animation: none;/u);

@@ -10472,11 +10472,25 @@ a.pt-pay-file {
  * прокруткой вбок от края до края. Фото — снимок профессии (сгенерирован, как обложки уроков английского), номер —
  * красный кружок на фото. Вся карточка — одна ссылка на профессию.
  */
+.pt-evi-results-block {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pt-evi-results-title {
+  margin: 8px 0 0;
+  font-size: var(--pt-size-title);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
 .pt-evi-results {
   display: grid;
   gap: 12px;
   width: 100%;
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -11217,6 +11231,19 @@ a.pt-pay-file {
   animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
 }
 
+/* Итог Эви: заголовок «Твои профессии» входит сразу, три карточки — по одной с шагом 100 мс (последняя — к 400 мс). */
+.pt-evi-results-title {
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-evi-results > li:nth-child(2) {
+  animation-delay: var(--pt-motion-press);
+}
+
+.pt-evi-results > li:nth-child(3) {
+  animation-delay: calc(var(--pt-motion-press) * 2);
+}
+
 /*
  * Нажатие на карточку: когда нажата её главная ссылка, вся карточка «садится»
  * на 100 мс. :has() — улучшение; без него остаются hover и нажатие самой ссылки.
@@ -11381,6 +11408,7 @@ a.pt-pay-file {
     .pt-evi-results
   ) > *,
   .pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note),
+  .pt-evi-results-title,
   .pt-check[data-fresh] .pt-check-path,
   .pt-favorite-icon[data-pop] {
     animation: none;

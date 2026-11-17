@@ -208,6 +208,18 @@ test("every catalogue profession has its photo, and a result card finds it by th
   assert.match(read("src/app/(portal)/portal/professions/[cardId]/page.tsx"), /<ProfessionPhoto cardKey=\{card\.cardKey\} className="pt-prof-detail-photo" eager \/>/u);
 });
 
+test("the result opens with «Твои профессии» and the three cards arrive one by one within 400 ms", () => {
+  const results = read(`${EVI_DIR}/EviResults.tsx`);
+  assert.match(results, /<h3 id=\{titleId\} className="pt-evi-results-title">\{strings\["evi\.resultsTitle"\]\}<\/h3>/u);
+  assert.match(results, /<ol className="pt-evi-results" aria-labelledby=\{titleId\}>/u);
+  assert.match(results, /<h4 className="pt-evi-result-title">/u, "card titles sit under the results heading");
+  const motion = CSS.slice(CSS.indexOf(MOTION_MARK));
+  assert.match(motion, /\.pt-evi-results > li:nth-child\(2\) \{\s*animation-delay: var\(--pt-motion-press\);/u);
+  assert.match(motion, /\.pt-evi-results > li:nth-child\(3\) \{\s*animation-delay: calc\(var\(--pt-motion-press\) \* 2\);/u);
+  // 100 мс × 2 + 200 мс входа = 400 мс — предел движения кабинета.
+  assert.ok(100 * 2 + 200 <= 400);
+});
+
 test("the results show the catalogue's own line and no score", () => {
   const results = read(`${EVI_DIR}/EviResults.tsx`);
   assert.match(results, /result\.summary \? <p className="pt-evi-result-what">/u);

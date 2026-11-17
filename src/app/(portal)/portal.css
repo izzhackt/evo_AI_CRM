@@ -179,6 +179,19 @@
     radial-gradient(520px 480px at 100% 40%, rgb(255 158 174 / 0.2), transparent 70%),
     radial-gradient(640px 440px at 0% 100%, rgb(255 199 176 / 0.28), transparent 70%),
     radial-gradient(560px 420px at 100% 100%, rgb(255 59 79 / 0.06), transparent 70%);
+  /*
+   * Витрина вокруг окна Эви на компьютере (выбор пользователя 17.11.2026): спокойный тёплый беже-розовый фон с одним
+   * красным пятном сверху справа и персиковым снизу слева — без резких пятен и знака. На ней только заголовок страницы
+   * (текст ≥ 4.5:1, расчёт — tests/portal-evi.test.mjs) и белая «пилюля» вкладок. Окно держит тёплая тень.
+   */
+  --pt-evi-stage:
+    radial-gradient(60% 75% at 100% 0%, rgb(255 59 79 / 0.14), transparent 70%),
+    radial-gradient(55% 70% at 0% 100%, rgb(255 199 176 / 0.32), transparent 70%),
+    linear-gradient(170deg, rgb(255 250 248), rgb(253 238 237));
+  --pt-evi-window-shadow:
+    0 0 0 1px rgb(140 10 30 / 0.05),
+    0 2px 6px rgb(140 10 30 / 0.05),
+    0 24px 56px -20px rgb(140 10 30 / 0.18);
 }
 
 /* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
@@ -242,6 +255,13 @@
     radial-gradient(520px 480px at 100% 40%, rgb(255 74 87 / 0.07), transparent 70%),
     radial-gradient(640px 440px at 0% 100%, rgb(255 140 110 / 0.06), transparent 70%),
     radial-gradient(560px 420px at 100% 100%, rgb(255 74 87 / 0.07), transparent 70%);
+  --pt-evi-stage:
+    radial-gradient(60% 75% at 100% 0%, rgb(255 74 87 / 0.12), transparent 70%),
+    radial-gradient(55% 70% at 0% 100%, rgb(255 140 110 / 0.06), transparent 70%),
+    linear-gradient(170deg, rgb(24 21 20), rgb(34 24 24));
+  --pt-evi-window-shadow:
+    0 0 0 1px var(--pt-line),
+    0 32px 80px -30px rgb(0 0 0 / 0.6);
 }
 
 /*
@@ -9991,9 +10011,9 @@ a.pt-pay-file {
 }
 
 /*
- * Эви — ИИ-профориентатор во вкладке «Подбор с Эви» раздела «Профессии» (решение владельца 16.11.2026). Сцена Эви:
- * белая карточка с мягкой подсветкой бренда (исключение владельца 17.11.2026: --pt-evi-wash — только здесь), одна ось
- * разговора шириной 720 px, без внутренних линий; реплики лежат на непрозрачном --pt-evi-bubble. Робот — иллюстрация
+ * Эви — ИИ-профориентатор во вкладке «Подбор с Эви» раздела «Профессии» (решение владельца 16.11.2026). На компьютере —
+ * белое окно на тёплой витрине --pt-evi-stage, на телефоне — разговор прямо на подсветке --pt-evi-wash (исключения
+ * 17.11.2026: обе подсветки — только на этой вкладке); одна ось разговора шириной 720 px. Робот — иллюстрация
  * по исключениям контракта (docs/design/portal/design-contract.md, «Исключения 17.11.2026»): цвета токенами, без
  * свечения и фильтров. Здесь — только мгновенная смена выражения; живое движение робота — в блоке «Живой Эви» ниже.
  */
@@ -10006,8 +10026,48 @@ a.pt-pay-file {
   overflow: hidden;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
-  background: var(--pt-evi-wash), var(--pt-surface);
+  background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
+}
+
+/*
+ * Вкладка «Подбор с Эви» без серой подложки (выбор пользователя 17.11.2026). На компьютере — белое окно на спокойной
+ * тёплой витрине (--pt-evi-stage), реплики Эви — бледно-розовые; на телефоне окна нет: вся вкладка — белый лист с
+ * подсветкой --pt-evi-wash, разговор лежит прямо на нём (правила телефона — ниже, в его блоке).
+ */
+@media (min-width: 768px) {
+  .pt-content:has(.pt-prof-page-evi) {
+    background: var(--pt-evi-stage), var(--pt-bg);
+  }
+
+  .pt-prof-page-evi > .pt-evi {
+    border: 0;
+    border-radius: 24px;
+    box-shadow: var(--pt-evi-window-shadow);
+  }
+
+  .pt-prof-page-evi .pt-evi-head {
+    border-bottom: 1px solid var(--pt-line);
+  }
+
+  .pt-prof-page-evi .pt-evi-bubble:not(.pt-evi-bubble-mine),
+  .pt-prof-page-evi .pt-evi-row[data-speaking] > .pt-evi-bubble::before {
+    border-color: var(--pt-accent-soft);
+    background: var(--pt-accent-soft);
+    box-shadow: none;
+  }
+}
+
+/* Вкладки «Профессий» (каталог и Эви одинаково): белая «пилюля», открытая — тёмная, как выбранный вариант ответа. */
+.pt-prof-page > .pt-pill-tabs {
+  background: var(--pt-surface);
+  box-shadow: 0 0 0 1px var(--pt-line), var(--pt-shadow-card);
+}
+
+.pt-prof-page > .pt-pill-tabs .pt-pill-tab[aria-current="true"] {
+  background: var(--pt-text);
+  box-shadow: none;
+  color: var(--pt-surface);
 }
 
 .pt-evi-head,
@@ -10656,14 +10716,18 @@ a.pt-pay-file {
     align-self: flex-start;
   }
 
+  .pt-content:has(.pt-prof-page-evi) {
+    background: var(--pt-evi-wash), var(--pt-surface);
+  }
+
   .pt-prof-page-evi > .pt-evi {
     flex: 1 1 auto;
     height: auto;
     min-height: 0;
     margin-inline: calc(-1 * var(--pt-gutter));
     border: 0;
-    border-block-start: 1px solid var(--pt-line);
     border-radius: 0;
+    background: none;
     box-shadow: none;
   }
 

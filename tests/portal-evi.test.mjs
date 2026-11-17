@@ -245,10 +245,15 @@ test("Эви's colours have a light and a dark value; the wash belongs to the Э
     "--pt-evi-helmet", "--pt-evi-helmet-hi", "--pt-evi-helmet-lo", "--pt-evi-helmet-rim", "--pt-evi-ring", "--pt-evi-visor",
     "--pt-evi-visor-hi", "--pt-evi-visor-lo", "--pt-evi-eye", "--pt-evi-ear", "--pt-evi-ear-line", "--pt-evi-accent",
     "--pt-evi-nub-hi", "--pt-evi-nub-lo", "--pt-evi-shine", "--pt-evi-gloss", "--pt-evi-flash", "--pt-evi-bubble", "--pt-evi-wash",
+    "--pt-evi-stage", "--pt-evi-window-shadow",
   ];
   for (const token of tokens) assert.equal(CSS.split(`${token}:`).length - 1, 2, `${token} has a light and a dark value`);
+  // Подсветки — только на вкладке Эви: витрина вокруг окна на компьютере, подсветка всей вкладки на телефоне.
+  assert.equal(CSS.split("var(--pt-evi-stage)").length - 1, 1);
   assert.equal(CSS.split("var(--pt-evi-wash)").length - 1, 1);
-  assert.match(CSS, /\n\.pt-evi \{[^}]*background: var\(--pt-evi-wash\), var\(--pt-surface\);/u);
+  assert.match(CSS, /@media \(min-width: 768px\) \{\s*\.pt-content:has\(\.pt-prof-page-evi\) \{\s*background: var\(--pt-evi-stage\), var\(--pt-bg\);/u);
+  assert.match(CSS, /\n {2}\.pt-content:has\(\.pt-prof-page-evi\) \{\s*background: var\(--pt-evi-wash\), var\(--pt-surface\);/u);
+  assert.match(CSS, /\n\.pt-evi \{[^}]*background: var\(--pt-surface\);/u, "the window itself is a plain surface");
   assert.match(CSS, /\n\.pt-evi-bubble-mine \{[^}]*background: var\(--pt-accent\);[^}]*color: var\(--pt-on-accent\);/u);
 });
 
@@ -280,6 +285,26 @@ const contrast = (a, b) => {
   const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (high + 0.05) / (low + 0.05);
 };
+
+test("the page title stays readable on the darkest point of the desktop backdrop", () => {
+  for (const selector of [".pt-shell", ':root[data-theme="dark"] .pt-shell']) {
+    const start = CSS.indexOf(`${selector} {`);
+    const block = CSS.slice(start, CSS.indexOf("\n}", start));
+    const text = new RegExp("\\n\\s*--pt-text:\\s*#([0-9a-f]{6});", "u").exec(block)[1];
+    const stageStart = block.indexOf("--pt-evi-stage:");
+    const stage = block.slice(stageStart, block.indexOf(";", stageStart));
+    const layers = [...stage.matchAll(/rgb\((\d+) (\d+) (\d+)(?: \/ ([\d.]+))?\)/gu)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])]);
+    const solid = layers.filter((layer) => layer[3] === 1);
+    assert.equal(solid.length, 2, `${selector} stage ends in a two-stop linear gradient`);
+    // С запасом: оба пятна в полную силу поверх каждого конца линейного градиента — хуже на фоне не бывает.
+    for (const base of solid) {
+      let color = base.slice(0, 3);
+      for (const [r, g, b, a] of layers.filter((layer) => layer[3] < 1)) color = color.map((c, i) => c * (1 - a) + [r, g, b][i] * a);
+      const textRgb = [0, 2, 4].map((o) => Number.parseInt(text.slice(o, o + 2), 16));
+      assert.ok(contrast(textRgb, color.map(Math.round)) >= 4.5, `${selector} page title on the backdrop`);
+    }
+  }
+});
 
 test("text and control edges stay readable on every point of the wash", () => {
   for (const [selector, edgeEverywhere] of [[".pt-shell", false], [':root[data-theme="dark"] .pt-shell', true]]) {

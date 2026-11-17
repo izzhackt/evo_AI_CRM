@@ -8,10 +8,14 @@ import { Icon } from "@/components/icons";
 import { btnCls, fieldLabelCls, inputCls } from "@/components/ui";
 import { createAdmissionsStudentAction } from "@/lib/admissions-direct-student-actions";
 import {
+  ADMISSIONS_DIRECT_CHINESE,
   ADMISSIONS_DIRECT_CURRENCIES,
   ADMISSIONS_DIRECT_DEGREES,
+  ADMISSIONS_DIRECT_EDUCATION_CURRENT,
+  ADMISSIONS_DIRECT_ENGLISH,
   ADMISSIONS_DIRECT_MAX_PAYMENTS,
   ADMISSIONS_DIRECT_PARENT_RELATIONS,
+  ADMISSIONS_DIRECT_UNSPECIFIED,
   CHINA_DEFAULT_COST,
   EMPTY_ADMISSIONS_DIRECT_DRAFT,
   admissionsDirectCaseHref,
@@ -343,19 +347,27 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
 
           <Group title="Образование и язык">
             <Field label="Где учится сейчас" htmlFor={ids.educationCurrent} wide>
-              <input {...fieldProps("educationCurrent")} name="educationCurrent" autoComplete="off" maxLength={100} className={FIELD_CLS}
-                placeholder="например, 11 класс" value={draft.educationCurrent}
-                onChange={(e) => set("educationCurrent", e.target.value)} />
+              <select {...fieldProps("educationCurrent")} name="educationCurrent" className={SELECT_CLS}
+                value={draft.educationCurrent} onChange={(e) => set("educationCurrent", e.target.value)}>
+                <option value="">{ADMISSIONS_DIRECT_UNSPECIFIED}</option>
+                {ADMISSIONS_DIRECT_EDUCATION_CURRENT.map((label) => <option key={label} value={label}>{label}</option>)}
+              </select>
               {errorText("educationCurrent")}
             </Field>
             <Field label="Английский" htmlFor={ids.english}>
-              <input {...fieldProps("english")} name="english" autoComplete="off" maxLength={60} className={FIELD_CLS}
-                placeholder="например, IELTS 6.0" value={draft.english} onChange={(e) => set("english", e.target.value)} />
+              <select {...fieldProps("english")} name="english" className={SELECT_CLS}
+                value={draft.english} onChange={(e) => set("english", e.target.value)}>
+                <option value="">{ADMISSIONS_DIRECT_UNSPECIFIED}</option>
+                {ADMISSIONS_DIRECT_ENGLISH.map((label) => <option key={label} value={label}>{label}</option>)}
+              </select>
               {errorText("english")}
             </Field>
             <Field label="Китайский" htmlFor={ids.chinese}>
-              <input {...fieldProps("chinese")} name="chinese" autoComplete="off" maxLength={40} className={FIELD_CLS}
-                placeholder="например, HSK 3" value={draft.chinese} onChange={(e) => set("chinese", e.target.value)} />
+              <select {...fieldProps("chinese")} name="chinese" className={SELECT_CLS}
+                value={draft.chinese} onChange={(e) => set("chinese", e.target.value)}>
+                <option value="">{ADMISSIONS_DIRECT_UNSPECIFIED}</option>
+                {ADMISSIONS_DIRECT_CHINESE.map((label) => <option key={label} value={label}>{label}</option>)}
+              </select>
               {errorText("chinese")}
             </Field>
           </Group>

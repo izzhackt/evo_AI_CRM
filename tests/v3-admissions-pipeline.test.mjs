@@ -352,3 +352,55 @@ test("migration 251 continues the contiguous source ledger and runs its real-Pos
     assert.ok(undoSuite.includes(claim), claim);
   }
 });
+
+test("migration 362 adds intake to the 191 board body and the card shows it as a neutral chip", async () => {
+  const { admissionsPipelineIntakeLabel } = await import("../src/lib/admissions-pipeline-intake.ts");
+  const { intakeSeason } = await import("../src/lib/v3/wording.ts");
+  const { APPLICATION_LABELS } = await import("../src/lib/student-application-presentation.ts");
+  for (const key of ["spring", "summer", "autumn", "winter", "undecided"]) {
+    assert.equal(intakeSeason(key), APPLICATION_LABELS[key], key);
+  }
+  assert.equal(intakeSeason("not-a-season"), null);
+  assert.equal(admissionsPipelineIntakeLabel({
+    applicationSeason: "autumn", applicationYear: 2027,
+    wishesSeason: "Весна", wishesYear: "2026", intakeText: "сентябрь 2028",
+  }), "Осень 2027");
+  assert.equal(admissionsPipelineIntakeLabel({ applicationSeason: "not-a-season", applicationYear: null }), null);
+  assert.equal(admissionsPipelineIntakeLabel({ wishesSeason: "Осень", wishesYear: "2027" }), "Осень 2027");
+  assert.equal(admissionsPipelineIntakeLabel({ wishesSeason: "Осень 2028", wishesYear: "2027" }), "Осень 2027");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "сентябрь 2027" }), "Осень 2027");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "Сезон не определён 2027" }), "Пока не определился 2027");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "пока не решил" }), "Пока не определился");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "набор B" }), "набор B");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "  " }), null);
+  assert.equal(admissionsPipelineIntakeLabel({}), null);
+
+  const intakeMigration = source("supabase/migrations/362_platform_admissions_pipeline_intake.sql");
+  const body191 = source("supabase/migrations/191_platform_case_chat.sql");
+  const olds = [...intakeMigration.matchAll(/\$old\$([\s\S]*?)\$old\$/gu)].map((match) => match[1]);
+  assert.equal(olds.length, 2);
+  for (const old of olds) assert.ok(body191.includes(old), old.slice(0, 80));
+  assert.match(intakeMigration, /^BEGIN;/mu);
+  assert.match(intakeMigration, /COMMIT;\s*$/u);
+  assert.match(intakeMigration, /a362_already_applied/u);
+  assert.doesNotMatch(intakeMigration, /GRANT EXECUTE/u);
+  assert.match(serverModule, /intakeLabel: admissionsPipelineIntakeLabel\(/u);
+  assert.match(board, /data-testid="v3-admissions-card-intake"/u);
+  assert.match(board, /tone="neutral"/u);
+
+  const { normalizeAdmissionsPipelineBoard } = await import("../src/lib/platform-admissions-pipeline.ts");
+  const base = {
+    student_case_id: CASE_ID, student_display_name: "Студент Синтетический", target_country: "CN",
+    primary_institution_name: null, current_curator_membership_id: null, current_curator_display_name: null,
+    pipeline_stage: "documents", awaiting_ack: false, overdue: false, needs_reply: false,
+  };
+  const before = normalizeAdmissionsPipelineBoard({ rows: [base], truncated: false });
+  assert.equal(before.rows[0].intakeLabel, null, "a pre-362 row has no intake keys and still decodes");
+  const after = normalizeAdmissionsPipelineBoard({ rows: [{
+    ...base, application_intake_season: "autumn", application_intake_year: 2027,
+    wishes_intake_season: "Весна", wishes_intake_year: "2026", intake_text: "январь",
+  }], truncated: false });
+  assert.equal(after.rows[0].intakeLabel, "Осень 2027");
+  const raw = normalizeAdmissionsPipelineBoard({ rows: [{ ...base, intake_text: "сентябрь 2027" }], truncated: false });
+  assert.equal(raw.rows[0].intakeLabel, "Осень 2027");
+});

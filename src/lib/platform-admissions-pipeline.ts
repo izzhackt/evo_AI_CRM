@@ -12,6 +12,7 @@
  * (strict manual decoding, fail-closed) and platform-sales.ts's
  * mutationErrorFromRpc (errcode/message pair -> a small status enum).
  */
+import { admissionsPipelineIntakeLabel } from "./admissions-pipeline-intake.ts";
 import { staffCan, staffHasPermission } from "./platform-access.ts";
 import {
   ADMISSIONS_PIPELINE_STAGES,
@@ -131,6 +132,15 @@ function normalizeRow(value: unknown): AdmissionsPipelineRow {
     // false rather than requiredBoolean, so this same client build keeps
     // working against the board during a rolling deploy window.
     needsReply: value.needs_reply === true,
+    // 362: intake keys are absent on the pre-362 RPC. A bad value hides the
+    // chip; it does not drop the card.
+    intakeLabel: admissionsPipelineIntakeLabel({
+      applicationSeason: value.application_intake_season,
+      applicationYear: value.application_intake_year,
+      wishesSeason: value.wishes_intake_season,
+      wishesYear: value.wishes_intake_year,
+      intakeText: value.intake_text,
+    }),
   });
 }
 

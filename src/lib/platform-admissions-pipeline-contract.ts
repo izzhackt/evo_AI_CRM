@@ -59,6 +59,12 @@ export type AdmissionsPipelineRow = Readonly<{
   overdue: boolean;
   /** OTH-5: the case's per-case chat thread has await_state='needs_reply'. */
   needsReply: boolean;
+  /**
+   * Набор словами («Осень 2027»). null — ни анкета, ни пожелания лида, ни
+   * текст дела его не назвали. Старая доска (RPC до 362) ключей не шлёт:
+   * это тоже null, карточка набор не рисует.
+   */
+  intakeLabel: string | null;
 }>;
 
 export type AdmissionsPipelineBoard = Readonly<{

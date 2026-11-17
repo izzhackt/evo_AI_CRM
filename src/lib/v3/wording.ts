@@ -574,6 +574,22 @@ export const financeBlockedAction = (v: string | null | undefined) =>
   lookup(FINANCE_BLOCKED_ACTION, v);
 export const country = (v: string | null | undefined) => lookup(COUNTRY, v);
 export const degree = (v: string | null | undefined) => lookup(DEGREE, v);
+
+/**
+ * Сезон набора анкеты (`intakeSeason`: spring…undecided). Те же слова, что у
+ * анкеты (`APPLICATION_LABELS`) и у записи дела при одобрении (177/180), кроме
+ * «undecided»: там в `student_cases.intake` исторически «Сезон не определён»,
+ * на экране — «Пока не определился», как в самой анкете. Неизвестный ключ не
+ * рисуется.
+ */
+const INTAKE_SEASON: Record<string, string> = {
+  spring: "Весна",
+  summer: "Лето",
+  autumn: "Осень",
+  winter: "Зима",
+  undecided: "Пока не определился",
+};
+export const intakeSeason = (v: string | null | undefined) => lookup(INTAKE_SEASON, v);
 export const role = (v: string | null | undefined) => lookup(ROLE, v);
 export const source = (v: string | null | undefined) => lookup(SOURCE, v);
 /**

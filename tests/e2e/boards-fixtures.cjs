@@ -106,17 +106,17 @@ function row(n, fields) {
   return {
     studentCaseId: caseId(n), studentDisplayName: "", targetCountry: null, primaryInstitutionName: null,
     currentCuratorMembershipId: CURATOR_A, currentCuratorDisplayName: "Куратор Один", pipelineStage: "new",
-    awaitingAck: false, overdue: false, needsReply: false, ...fields,
+    awaitingAck: false, overdue: false, needsReply: false, intakeLabel: null, ...fields,
   };
 }
 const CURATOR_TWO = { currentCuratorMembershipId: CURATOR_B, currentCuratorDisplayName: "Куратор Два" };
 const ADMISSIONS_ROWS = [
-  row(1, { studentDisplayName: "Айжан Примерова", targetCountry: "CN", primaryInstitutionName: "Пекинский университет языка и культуры", pipelineStage: "new", awaitingAck: true }),
+  row(1, { studentDisplayName: "Айжан Примерова", targetCountry: "CN", primaryInstitutionName: "Пекинский университет языка и культуры", pipelineStage: "new", awaitingAck: true, intakeLabel: "Осень 2027" }),
   row(2, { studentDisplayName: "Тимур Образцов", targetCountry: "MY", pipelineStage: "new", ...CURATOR_TWO }),
-  row(3, { studentDisplayName: "Нурсултан-Бекмурза Тестов с длинным именем", targetCountry: "CN", primaryInstitutionName: "Шанхайский университет", pipelineStage: "shortlist", overdue: true }),
+  row(3, { studentDisplayName: "Нурсултан-Бекмурза Тестов с длинным именем", targetCountry: "CN", primaryInstitutionName: "Шанхайский университет", pipelineStage: "shortlist", overdue: true, intakeLabel: "Весна 2026" }),
   row(4, { studentDisplayName: "Элина Демо", targetCountry: "AE", pipelineStage: "documents", needsReply: true, ...CURATOR_TWO }),
   row(5, { studentDisplayName: "Бекзат Тестов", targetCountry: "TR", primaryInstitutionName: "Bilkent University", pipelineStage: "documents" }),
-  row(6, { studentDisplayName: "Айгерим Условная", targetCountry: "MY", primaryInstitutionName: "UCSI University", pipelineStage: "ready_to_submit", overdue: true, needsReply: true }),
+  row(6, { studentDisplayName: "Айгерим Условная", targetCountry: "MY", primaryInstitutionName: "UCSI University", pipelineStage: "ready_to_submit", overdue: true, needsReply: true, intakeLabel: "Пока не определился" }),
   row(7, { studentDisplayName: "Данияр Макетов", targetCountry: "CN", pipelineStage: "awaiting_decision" }),
   row(8, { studentDisplayName: "Камила Черновик", targetCountry: "CN", primaryInstitutionName: "Уханьский университет", pipelineStage: "confirmed", ...CURATOR_TWO }),
   row(9, { studentDisplayName: "Руслан Прототипов", targetCountry: "MY", pipelineStage: "visa", overdue: true }),

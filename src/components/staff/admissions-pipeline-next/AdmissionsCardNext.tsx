@@ -22,8 +22,9 @@ const keepPressInMenu = (event: SyntheticEvent) => {
 };
 
 /**
- * Содержимое карточки дела: имя ведёт в дело (ссылка растянута на всю карточку), вторая строка — страна · университет и круг куратора (когда кураторов несколько),
- * третья — состояния словом (просрочено, нужен ответ — ссылка на переписку, ждёт принятия). Одно и то же в доске и в «поднятой»
+ * Содержимое карточки дела: имя ведёт в дело (ссылка растянута на всю карточку), вторая строка — страна · университет,
+ * набор — нейтральный чип («Осень 2027»), когда он известен, затем круг куратора (когда кураторов несколько)
+ * и состояния словом (просрочено, нужен ответ — ссылка на переписку, ждёт принятия). Одно и то же в доске и в «поднятой»
  * карточке перетаскивания. Куратор — коротким именем («Умут М.»), круг с буквами только украшает; дело открывается на вкладке этапа
  * (`admissionsBoardCaseHref`) с возвратом на доску в то же состояние (`returnTo`).
  */
@@ -32,6 +33,11 @@ export function AdmissionsCardBody({ row, showCurator, returnTo }: Readonly<{ ro
   const curator = showCurator ? row.currentCuratorDisplayName : null;
   const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
   const marks = [
+    row.intakeLabel ? (
+      <span key="intake" data-testid="v3-admissions-card-intake" className="inline-flex max-w-full min-w-0" title={`Набор: ${row.intakeLabel}`}>
+        <StatusBadge label={row.intakeLabel} tone="neutral" className="max-w-full min-w-0 shrink truncate" />
+      </span>
+    ) : null,
     row.overdue ? <StatusBadge key="overdue" label="просрочено" tone="danger" /> : null,
     row.needsReply ? (
       <Link key="reply" href={`/messages?case=${row.studentCaseId}`} prefetch={false} draggable={false} className="v3-chip-link relative inline-flex">
@@ -57,7 +63,7 @@ export function AdmissionsCardBody({ row, showCurator, returnTo }: Readonly<{ ro
           <span className="min-w-0 truncate">{shortPersonName(curator)}</span>
         </p>
       ) : null}
-      {marks.length > 0 ? <p className="flex flex-wrap gap-1 py-px">{marks}</p> : null}
+      {marks.length > 0 ? <p className="flex min-w-0 max-w-full flex-wrap gap-1 py-px">{marks}</p> : null}
     </>
   );
 }

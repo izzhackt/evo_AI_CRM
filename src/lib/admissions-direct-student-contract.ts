@@ -32,6 +32,67 @@ export const ADMISSIONS_DIRECT_DEGREES: readonly string[] = Object.freeze(
   PLATFORM_APPLICATION_DEGREES.map((key) => degreeLabel(key)).filter((label): label is string => label !== null),
 );
 
+/**
+ * Пустой пункт трёх необязательных списков. Поля остаются пустыми в нагрузке:
+ * в базу уходит отсутствие ключа, а не эта подпись.
+ */
+export const ADMISSIONS_DIRECT_UNSPECIFIED = "— не указано —";
+
+/**
+ * «Где учится сейчас». Анкета студента спрашивает другое (`educationLevel`:
+ * secondary…phd, слова в `APPLICATION_LABELS`) — это ступень, а не класс.
+ * «Окончил школу» и «Магистратура» совпадают с её словами; остальное — список
+ * сотрудника. В карточку пишется само слово (`current_study_status`, до 100).
+ */
+export const ADMISSIONS_DIRECT_EDUCATION_CURRENT = Object.freeze([
+  "9 класс",
+  "10 класс",
+  "11 класс",
+  "Колледж",
+  "1 курс бакалавриата",
+  "2 курс бакалавриата",
+  "3 курс бакалавриата",
+  "4 курс бакалавриата",
+  "Окончил школу",
+  "Окончил бакалавриат",
+  "Магистратура",
+  "Работает",
+] as const);
+
+/**
+ * Английский одной строкой. Анкета хранит самооценку (beginner…fluent) или
+ * балл экзамена объектом, а поле карточки `english_level` — текст до 60.
+ * Здесь список сотрудника: «нет», CEFR и IELTS с шагом 0.5, как в анкете.
+ */
+export const ADMISSIONS_DIRECT_ENGLISH = Object.freeze([
+  "Нет",
+  "A1",
+  "A2",
+  "B1",
+  "B2",
+  "C1",
+  "C2",
+  "IELTS 5.0",
+  "IELTS 5.5",
+  "IELTS 6.0",
+  "IELTS 6.5",
+  "IELTS 7.0",
+  "IELTS 7.5",
+  "IELTS 8.0",
+  "IELTS 8.0+",
+] as const);
+
+/** Китайский. Отдельного списка HSK в анкете нет; поле карточки `chinese_level_hsk` — текст до 40. */
+export const ADMISSIONS_DIRECT_CHINESE = Object.freeze([
+  "Нет",
+  "HSK 1",
+  "HSK 2",
+  "HSK 3",
+  "HSK 4",
+  "HSK 5",
+  "HSK 6",
+] as const);
+
 export const ADMISSIONS_DIRECT_MAX_PAYMENTS = 20;
 
 export type AdmissionsDirectPaymentDraft = Readonly<{ amount: string; currency: string; paidOn: string }>;
@@ -115,14 +176,16 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const PHONE_SHAPE = /^\+?[\d\s().-]{7,40}$/u;
 const MAX_MINOR = 1_000_000_000_000;
 
-/** Сумма из поля в минимальных единицах: «1 500», «1500,50», «1500.5». "" — пусто, null — неверно. */
+const AMOUNT_ERROR = "Сумма: число от 0, до двух знаков после запятой.";
+
+/** Сумма из поля в минимальных единицах: «1 500», «1500,50», «0». "" — пусто, null — неверно. Ноль допустим. */
 export function amountToMinor(value: string): number | "" | null {
   const normalized = value.replace(/[\s  ]/gu, "").replace(",", ".");
   if (normalized === "") return "";
   if (!/^\d{1,11}(\.\d{1,2})?$/u.test(normalized)) return null;
   const [whole, cents = ""] = normalized.split(".");
   const minor = Number(whole) * 100 + Number(cents.padEnd(2, "0"));
-  return minor > 0 && minor <= MAX_MINOR ? minor : null;
+  return minor >= 0 && minor <= MAX_MINOR ? minor : null;
 }
 
 /** Сумма из минимальных единиц для поля и подписи: 150000 → «1 500», 150050 → «1 500,50». */
@@ -185,8 +248,8 @@ const TEXT_LIMITS = {
  * Черновик формы → нагрузка RPC. Те же правила, что у 281: имя и страна
  * обязательны; телефон в виде E.164 (`admissionsDirectPhone`), почта по форме
  * контакта; дата рождения, дата договора и даты оплат не позже сегодня,
- * возраст 5–99; родитель — мама или папа; оплаты с суммой, валютой и датой, в
- * валюте договора не больше стоимости. `today` — день в Бишкеке.
+ * возраст 5–99; родитель — мама или папа; оплаты с суммой от нуля, валютой и
+ * датой, в валюте договора не больше стоимости. `today` — день в Бишкеке.
  */
 export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today: string = bishkekToday()): AdmissionsDirectBuild {
   const errors: Partial<Record<AdmissionsDirectField, string>> = {};
@@ -195,6 +258,15 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
     if (value === "") return undefined;
     if (value.length > TEXT_LIMITS[field] || LINE_CONTROL.test(value)) {
       errors[field] = `Не больше ${TEXT_LIMITS[field]} символов в одну строку.`;
+      return undefined;
+    }
+    return value;
+  };
+  const choice = (field: "educationCurrent" | "english" | "chinese", options: readonly string[], message: string): string | undefined => {
+    const value = draft[field].trim();
+    if (value === "") return undefined;
+    if (!options.includes(value)) {
+      errors[field] = message;
       return undefined;
     }
     return value;
@@ -232,16 +304,16 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   if (degree && !ADMISSIONS_DIRECT_DEGREES.includes(degree)) errors.degree = "Выберите ступень из списка.";
   const program = text("program");
   const intake = text("intake");
-  const educationCurrent = text("educationCurrent");
-  const english = text("english");
-  const chinese = text("chinese");
+  const educationCurrent = choice("educationCurrent", ADMISSIONS_DIRECT_EDUCATION_CURRENT, "Выберите, где учится сейчас, из списка.");
+  const english = choice("english", ADMISSIONS_DIRECT_ENGLISH, "Выберите уровень английского из списка.");
+  const chinese = choice("chinese", ADMISSIONS_DIRECT_CHINESE, "Выберите уровень китайского из списка.");
 
   const curator = draft.curator.trim();
   if (curator && !UUID_PATTERN.test(curator)) errors.curator = "Выберите куратора из списка.";
   if (!isStage(draft.stage)) errors.stage = "Выберите этап.";
 
   const costMinor = amountToMinor(draft.costAmount);
-  if (costMinor === null) errors.costAmount = "Сумма: число больше нуля, до двух знаков после запятой.";
+  if (costMinor === null) errors.costAmount = AMOUNT_ERROR;
   if (costMinor !== "" && costMinor !== null && !isCurrency(draft.costCurrency)) errors.costCurrency = "Выберите валюту.";
   const signedOn = draft.signedOn.trim();
   // Договор студента, который пришёл с деньгами, уже подписан: дата не позже сегодня, как в 281.
@@ -254,7 +326,7 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   // Полученные деньги оплачены сегодня или раньше (день в Бишкеке), как в 281.
   const paymentErrors = draft.payments.map((payment): string | null => {
     const minor = amountToMinor(payment.amount);
-    if (minor === "" || minor === null) return "Сумма: число больше нуля, до двух знаков после запятой.";
+    if (minor === "" || minor === null) return AMOUNT_ERROR;
     if (!isCurrency(payment.currency)) return "Выберите валюту.";
     if (!isCalendarDate(payment.paidOn) || payment.paidOn < "2000-01-01" || payment.paidOn > today) {
       return "Укажите дату оплаты, не позже сегодняшнего дня.";
@@ -318,6 +390,9 @@ function optionalText(value: unknown, max: number): boolean {
   return value === undefined || (typeof value === "string" && value.trim() === value && value.length > 0
     && value.length <= max && !LINE_CONTROL.test(value));
 }
+function optionalChoice(value: unknown, options: readonly string[]): boolean {
+  return value === undefined || (typeof value === "string" && options.includes(value));
+}
 
 /**
  * Server action: нагрузка из браузера, проверенная ещё раз по форме контракта.
@@ -338,13 +413,15 @@ export function parseAdmissionsDirectPayload(input: unknown): AdmissionsDirectPa
   if (!isRecord(route) || !exactKeys(route, ["country", "degree", "program", "intake"]) || typeof route.country !== "string"
     || !isCountry(route.country) || !optionalText(route.degree, 60) || !optionalText(route.program, 100) || !optionalText(route.intake, 30)) return null;
   if (education !== undefined && (!isRecord(education) || !exactKeys(education, ["current", "english", "chinese"])
-    || !optionalText(education.current, 100) || !optionalText(education.english, 60) || !optionalText(education.chinese, 40))) return null;
+    || !optionalChoice(education.current, ADMISSIONS_DIRECT_EDUCATION_CURRENT)
+    || !optionalChoice(education.english, ADMISSIONS_DIRECT_ENGLISH)
+    || !optionalChoice(education.chinese, ADMISSIONS_DIRECT_CHINESE))) return null;
   if (!(curatorMembershipId === null || (typeof curatorMembershipId === "string" && UUID_PATTERN.test(curatorMembershipId)))) return null;
   if (typeof pipelineStage !== "string" || !isStage(pipelineStage)) return null;
   if (money !== undefined) {
     if (!isRecord(money) || !exactKeys(money, ["cost", "signedOn", "payments"])) return null;
     const { cost, signedOn, payments } = money;
-    const amount = (value: unknown) => Number.isInteger(value) && (value as number) > 0 && (value as number) <= MAX_MINOR;
+    const amount = (value: unknown) => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_MINOR;
     if (cost !== undefined && (!isRecord(cost) || !exactKeys(cost, ["amountMinor", "currency"]) || !amount(cost.amountMinor)
       || typeof cost.currency !== "string" || !isCurrency(cost.currency))) return null;
     if (signedOn !== undefined && (typeof signedOn !== "string" || !isCalendarDate(signedOn))) return null;

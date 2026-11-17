@@ -264,95 +264,22 @@ test("every failure's words match its one action", () => {
   }
 });
 
-test("Эви's colours have a light and a dark value; the wash belongs to the Эви card only", () => {
+test("Эви's colours have a light and a dark value; no backdrop, and the input has no red frame", () => {
   const tokens = [
     "--pt-evi-helmet", "--pt-evi-helmet-hi", "--pt-evi-helmet-lo", "--pt-evi-helmet-rim", "--pt-evi-ring", "--pt-evi-visor",
     "--pt-evi-visor-hi", "--pt-evi-visor-lo", "--pt-evi-eye", "--pt-evi-ear", "--pt-evi-ear-line", "--pt-evi-accent",
-    "--pt-evi-nub-hi", "--pt-evi-nub-lo", "--pt-evi-shine", "--pt-evi-gloss", "--pt-evi-flash", "--pt-evi-bubble", "--pt-evi-wash",
-    "--pt-evi-stage", "--pt-evi-window-shadow",
+    "--pt-evi-nub-hi", "--pt-evi-nub-lo", "--pt-evi-shine", "--pt-evi-gloss", "--pt-evi-flash", "--pt-evi-bubble",
   ];
   for (const token of tokens) assert.equal(CSS.split(`${token}:`).length - 1, 2, `${token} has a light and a dark value`);
-  // Подсветки — только на вкладке Эви: витрина вокруг окна на компьютере, подсветка всей вкладки на телефоне.
-  assert.equal(CSS.split("var(--pt-evi-stage)").length - 1, 1);
-  assert.equal(CSS.split("var(--pt-evi-wash)").length - 1, 1);
-  assert.match(CSS, /@media \(min-width: 768px\) \{\s*\.pt-content:has\(\.pt-prof-page-evi\) \{\s*background: var\(--pt-evi-stage\), var\(--pt-bg\);/u);
-  assert.match(CSS, /\n {2}\.pt-content:has\(\.pt-prof-page-evi\) \{\s*background: var\(--pt-evi-wash\), var\(--pt-surface\);/u);
+  // Подсветки нет (решение 17.11.2026): белое окно на обычном фоне кабинета, без градиентов вкладки.
+  assert.doesNotMatch(CSS, /--pt-evi-(?:wash|stage|window-shadow)/u);
+  assert.doesNotMatch(CSS, /\.pt-content:has\(\.pt-prof-page-evi\)/u);
   assert.match(CSS, /\n\.pt-evi \{[^}]*background: var\(--pt-surface\);/u, "the window itself is a plain surface");
+  // Поле ввода без красного: фокус — тёмная обводка поля, рамка общего правила textarea снята.
+  assert.match(CSS, /\.pt-evi-composer:focus-within \{\s*border-color: var\(--pt-text\);/u);
+  assert.match(CSS, /\.pt-page \.pt-evi-input:focus-visible \{\s*outline: none;/u);
   assert.match(CSS, /\n\.pt-evi-bubble-mine \{[^}]*background: var\(--pt-accent\);[^}]*color: var\(--pt-on-accent\);/u);
 });
 
-/** Цвет токена в блоке темы; подсветка — слои radial-gradient(Wpx Hpx at X% Y%, rgb(r g b / a), transparent 70%). */
-function theme(selector) {
-  const start = CSS.indexOf(`${selector} {`);
-  const block = CSS.slice(start, CSS.indexOf("\n}", start));
-  const hex = (name) => {
-    const value = new RegExp(`\\n\\s*${name}:\\s*#([0-9a-f]{6});`, "u").exec(block)?.[1];
-    assert.ok(value, `${selector} ${name}`);
-    return [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16));
-  };
-  const washStart = block.indexOf("--pt-evi-wash:");
-  const wash = [...block.slice(washStart, block.indexOf(";", washStart)).matchAll(
-    /radial-gradient\((\d+)px (\d+)px at (\d+)% (\d+)%, rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\), transparent 70%\)/gu,
-  )].map((match) => match.slice(1).map(Number));
-  assert.equal(wash.length, 4, `${selector} wash has four layers`);
-  return { hex, wash };
-}
 
-const luminance = (rgb) => {
-  const [r, g, b] = rgb.map((channel) => {
-    const value = channel / 255;
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-const contrast = (a, b) => {
-  const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (high + 0.05) / (low + 0.05);
-};
 
-test("the page title stays readable on the darkest point of the desktop backdrop", () => {
-  for (const selector of [".pt-shell", ':root[data-theme="dark"] .pt-shell']) {
-    const start = CSS.indexOf(`${selector} {`);
-    const block = CSS.slice(start, CSS.indexOf("\n}", start));
-    const text = new RegExp("\\n\\s*--pt-text:\\s*#([0-9a-f]{6});", "u").exec(block)[1];
-    const stageStart = block.indexOf("--pt-evi-stage:");
-    const stage = block.slice(stageStart, block.indexOf(";", stageStart));
-    const layers = [...stage.matchAll(/rgb\((\d+) (\d+) (\d+)(?: \/ ([\d.]+))?\)/gu)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])]);
-    const solid = layers.filter((layer) => layer[3] === 1);
-    assert.equal(solid.length, 2, `${selector} stage ends in a two-stop linear gradient`);
-    // С запасом: оба пятна в полную силу поверх каждого конца линейного градиента — хуже на фоне не бывает.
-    for (const base of solid) {
-      let color = base.slice(0, 3);
-      for (const [r, g, b, a] of layers.filter((layer) => layer[3] < 1)) color = color.map((c, i) => c * (1 - a) + [r, g, b][i] * a);
-      const textRgb = [0, 2, 4].map((o) => Number.parseInt(text.slice(o, o + 2), 16));
-      assert.ok(contrast(textRgb, color.map(Math.round)) >= 4.5, `${selector} page title on the backdrop`);
-    }
-  }
-});
-
-test("text and control edges stay readable on every point of the wash", () => {
-  for (const [selector, edgeEverywhere] of [[".pt-shell", false], [':root[data-theme="dark"] .pt-shell', true]]) {
-    const { hex, wash } = theme(selector);
-    const surface = hex("--pt-surface");
-    const minimum = { text: Infinity, "text-2": Infinity, error: Infinity, edge: Infinity };
-    for (const [width, height] of [[1024, 680], [393, 560], [375, 440]]) {
-      for (let y = 0; y <= height; y += 8) {
-        for (let x = 0; x <= width; x += 8) {
-          let color = [...surface];
-          for (const [rx, ry, px, py, r, g, b, alpha] of [...wash].reverse()) {
-            const t = Math.hypot((x - (px / 100) * width) / rx, (y - (py / 100) * height) / ry);
-            const a = alpha * Math.max(0, 1 - t / 0.7);
-            color = color.map((channel, index) => channel * (1 - a) + [r, g, b][index] * a);
-          }
-          const point = color.map(Math.round);
-          minimum.text = Math.min(minimum.text, contrast(hex("--pt-text"), point));
-          minimum["text-2"] = Math.min(minimum["text-2"], contrast(hex("--pt-text-2"), point));
-          minimum.error = Math.min(minimum.error, contrast(hex("--pt-error"), point));
-          if (edgeEverywhere || y >= height - 150) minimum.edge = Math.min(minimum.edge, contrast(hex("--pt-control-edge"), point));
-        }
-      }
-    }
-    for (const name of ["text", "text-2", "error"]) assert.ok(minimum[name] >= 4.5, `${selector} ${name} ${minimum[name].toFixed(2)}`);
-    assert.ok(minimum.edge >= 3, `${selector} control edge ${minimum.edge.toFixed(2)}`);
-  }
-});

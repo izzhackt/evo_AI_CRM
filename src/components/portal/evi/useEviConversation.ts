@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { EVI_LIMITS, type EviActionResult, type EviFailure, type EviMood, type EviResult, type EviTurn } from "@/lib/portal/evi";
+import { EVI_LIMITS, type EviActionResult, type EviFailure, type EviMood, type EviProgress, type EviResult, type EviTurn } from "@/lib/portal/evi";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
 type Strings = PortalStrings<"professions">;
@@ -12,6 +12,8 @@ export type EviMessage = Readonly<{
   text: string;
   mood?: EviMood;
   results?: readonly EviResult[] | null;
+  /** «Вопрос N из M» — только если его прислала модель. */
+  progress?: EviProgress | null;
   fresh?: true;
 }>;
 /** `go` — вариант, который ведёт дальше (красная кнопка); варианты модели его не ставят. */
@@ -59,8 +61,8 @@ export function useEviConversation({ strings, ask, initialMessages, initialOptio
       if (epochRef.current !== mine) return;
       settle();
       if (!result.ok) { setFailure(result.reason); return; }
-      const { message, mood, options: next, multi, results } = result.answer;
-      setMessages((current) => [...current, { role: "assistant", text: message, mood, results, fresh: true }]);
+      const { message, mood, options: next, multi, results, progress } = result.answer;
+      setMessages((current) => [...current, { role: "assistant", text: message, mood, results, progress, fresh: true }]);
       setOptions({ options: next, multi });
     } catch {
       if (epochRef.current !== mine) return;
@@ -120,6 +122,8 @@ export function useEviConversation({ strings, ask, initialMessages, initialOptio
     messages, options, picked, failure, draft, round, setDraft, send, retry, restart, toggle,
     pending: busy !== null,
     intro: !messages.some((message) => message.role === "user"),
+    /** Прогресс последней реплики Эви; у итога и у реплик без него — null. */
+    progress: messages.findLast((message) => message.role === "assistant")?.progress ?? null,
     canRetry: messages[messages.length - 1]?.role === "user",
   };
 }

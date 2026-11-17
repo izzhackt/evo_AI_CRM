@@ -10120,9 +10120,30 @@ a.pt-pay-file {
 }
 
 .pt-evi-head,
+.pt-evi-progress,
 .pt-evi-log,
 .pt-evi-dock {
   padding-inline: max(20px, calc((100% - var(--pt-evi-axis)) / 2));
+}
+
+/* «Вопрос 3 из 6» — только когда модель прислала, на какой она вопросе; полоска — общая полоса прогресса кабинета. */
+.pt-evi-progress {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding-block: 10px 2px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pt-evi-progress .pt-progress {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
 }
 
 .pt-evi-head {
@@ -10823,6 +10844,7 @@ a.pt-pay-file {
   }
 
   .pt-evi-head,
+  .pt-evi-progress,
   .pt-evi-log,
   .pt-evi-dock {
     padding-inline: 16px;

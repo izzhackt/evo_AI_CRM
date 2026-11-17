@@ -1,7 +1,7 @@
 "use client";
 
 import type { EviFailure } from "@/lib/portal/evi";
-import type { PortalStrings } from "@/lib/portal/i18n";
+import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 
 import { EviDock, keepEviFocus } from "./EviDock";
 import { EviRobot } from "./EviRobot";
@@ -42,6 +42,12 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
           </button>
         </div>
       )}
+      {chat.progress && !chat.intro ? (
+        <p className="pt-evi-progress">
+          <span>{formatPortalString(strings["evi.progress"], { step: String(chat.progress.step), total: String(chat.progress.total) })}</span>
+          <progress className="pt-progress" max={chat.progress.total} value={chat.progress.step} aria-hidden="true" />
+        </p>
+      ) : null}
       <EviThread strings={strings} messages={chat.messages} round={chat.round} intro={chat.intro} pending={chat.pending} failure={chat.failure} listening={chat.draft.length > 0} />
       <EviDock
         strings={strings}

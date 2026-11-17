@@ -19,6 +19,23 @@ import { getPortalStrings } from "../src/lib/portal/i18n.ts";
 const KEYS = new Set(["software-developer", "data-scientist", "mechanical-engineer", "physician"]);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
+test("progress comes only from the model and only when it is plausible", () => {
+  const reply = (progress, results = null) => parseEviReply({ message: "Привет", progress, results }, KEYS);
+  assert.deepEqual(reply({ step: 3, total: 6 })?.progress, { step: 3, total: 6 });
+  assert.equal(reply(undefined)?.progress, null);
+  assert.equal(reply({ step: 7, total: 6 })?.progress, null, "step past total");
+  assert.equal(reply({ step: 0, total: 6 })?.progress, null);
+  assert.equal(reply({ step: 2.5, total: 6 })?.progress, null);
+  assert.equal(reply({ step: 3, total: EVI_LIMITS.maxQuestions + 1 })?.progress, null);
+  assert.equal(reply("3/6")?.progress, null);
+  const results = [
+    { cardKey: "software-developer", why: "a" }, { cardKey: "data-scientist", why: "b" }, { cardKey: "physician", why: "c" },
+  ];
+  assert.equal(reply({ step: 6, total: 6 }, results)?.progress, null, "the result ends the questions");
+  const chat = read(`${EVI_DIR}/EviChat.tsx`);
+  assert.match(chat, /\{chat\.progress && !chat\.intro \? \(/u);
+});
+
 test("a question reply keeps the message, a known mood and clean distinct options", () => {
   const reply = parseEviReply({
     message: "  Отлично! Какие предметы тебе нравятся?  ",
@@ -33,6 +50,7 @@ test("a question reply keeps the message, a known mood and clean distinct option
     options: ["Математика", "Физика"],
     multi: true,
     picks: null,
+    progress: null,
   });
 });
 

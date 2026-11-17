@@ -20,7 +20,12 @@ export const EVI_LIMITS = {
   maxOptionChars: 60,
   maxWhyChars: 400,
   results: 3,
+  /** Вопросов в разговоре не больше — граница для «Вопрос N из M». */
+  maxQuestions: 10,
 } as const;
+
+/** Где разговор: «Вопрос step из total». Только от модели; нет или неверно — полоски нет. */
+export type EviProgress = Readonly<{ step: number; total: number }>;
 
 export type EviTurn = Readonly<{ role: "user" | "assistant"; content: string }>;
 
@@ -34,6 +39,8 @@ export type EviReply = Readonly<{
   multi: boolean;
   /** Ровно три карточки каталога или null, пока Эви ещё спрашивает. */
   picks: readonly EviPick[] | null;
+  /** «Вопрос N из M», если модель его прислала и он правдоподобен; с итогом — null. */
+  progress: EviProgress | null;
 }>;
 
 /**
@@ -49,6 +56,7 @@ export type EviAnswer = Readonly<{
   options: readonly string[];
   multi: boolean;
   results: readonly EviResult[] | null;
+  progress: EviProgress | null;
 }>;
 
 export type EviFailure = "consent" | "unavailable" | "limit" | "busy" | "invalid" | "error";
@@ -148,7 +156,17 @@ export function parseEviReply(value: unknown, cardKeys: ReadonlySet<string>): Ev
     }
   }
   const mood: EviMood = picks !== null ? "eureka" : isEviMood(value.mood) && value.mood !== "eureka" ? value.mood : "talk";
-  return { message, mood, options, multi: value.multi === true && options.length > 1, picks };
+  return { message, mood, options, multi: value.multi === true && options.length > 1, picks, progress: picks ? null : parseEviProgress(value.progress) };
+}
+
+/** «Вопрос N из M» от модели: целые 1 ≤ step ≤ total ≤ maxQuestions. Иначе null — без полоски, а не выдуманная цифра. */
+export function parseEviProgress(value: unknown): EviProgress | null {
+  if (!isPlainObject(value)) return null;
+  const { step, total } = value;
+  if (!Number.isInteger(step) || !Number.isInteger(total)) return null;
+  const s = step as number;
+  const t = total as number;
+  return s >= 1 && s <= t && t <= EVI_LIMITS.maxQuestions ? { step: s, total: t } : null;
 }
 
 /**

@@ -17,11 +17,11 @@ import {
   parseApplicationPackageSubmitReceipt, parseApplicationPackageReviewReceipt,
   parseApplicationPackageRecovery, parseApplicationPackageReadiness,
   parseApplicationPackageDetail, parseApplicationPackageHistory, parseApplicationPackageReviewHistory,
-  parseApplicationPackageQueue, parseApplicationPackageNotification,
+  parseApplicationPackageNotification,
   type ApplicationPackageTarget, type ApplicationPackageFailureResult,
   type ApplicationPackageSubmitReceipt, type ApplicationPackageReviewReceipt,
   type ApplicationPackageRecovery, type ApplicationPackageReadiness, type ApplicationPackageDetail,
-  type ApplicationPackageHistory, type ApplicationPackageReviewHistory, type ApplicationPackageQueue,
+  type ApplicationPackageHistory, type ApplicationPackageReviewHistory,
   type ApplicationPackageNotification,
 } from "./application-packages.ts";
 
@@ -177,17 +177,6 @@ export async function readApplicationPackageReviewHistoryAction(scope: Applicati
     if (error) return applicationPackageFailure(error);
     const history = parseApplicationPackageReviewHistory(data, target, packageId);
     return history ? { ok: true, history } : failure("unavailable");
-  } catch { return failure("unavailable"); }
-}
-export async function readStaffApplicationPackageQueueAction(owner: ApplicationDocumentOwner, cursor: ApplicationDocumentCursor | null = null): Promise<Result<"queue", ApplicationPackageQueue>> {
-  try {
-    if (cursor !== null && !parseApplicationDocumentCursor(cursor)) return failure("invalid");
-    if (!await staffScope(owner, "document.read.full")) return failure("forbidden");
-    const client = await createSupabaseServerClient();
-    const { data, error } = await client.schema("platform").rpc("application_package_queue_v1", { p_cursor: cursor, p_limit: 20 });
-    if (error) return applicationPackageFailure(error);
-    const queue = parseApplicationPackageQueue(data);
-    return queue ? { ok: true, queue } : failure("unavailable");
   } catch { return failure("unavailable"); }
 }
 export async function readStudentApplicationPackageNotificationAction(owner: ApplicationDocumentOwner, notificationId: string): Promise<Result<"notification", ApplicationPackageNotification>> {

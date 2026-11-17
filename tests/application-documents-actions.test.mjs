@@ -41,3 +41,9 @@ test('command exact conflict/forbidden/malformed retain and after-replay stale r
  }
  const a=actions({response:{data:{...receipt,applicationId:id(90)},error:null}});assert.equal((await a.api.submitStaffApplicationDocumentAction(scope,intent)).resolution,'retain');
 });
+test('the cross-student document queue is not a Server Action (EVO Docs removed 2026-11-17)',()=>{
+ const a=actions();
+ assert.equal(a.api.readStaffApplicationDocumentSubmissionQueueAction,undefined);
+ assert.doesNotMatch(source,/submission_queue_v1/u);
+ assert.equal(a.calls.length,0);
+});

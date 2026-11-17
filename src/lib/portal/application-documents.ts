@@ -214,11 +214,6 @@ export type ApplicationDocumentHistoryPage = ApplicationDocumentTarget & Readonl
 export type ApplicationDocumentReusableVersionsPage = ApplicationDocumentTarget & Readonly<{
   protocolVersion: 1; requirementItemId: string; versions: readonly ApplicationDocumentReusableVersion[]; nextCursor: ApplicationDocumentVersionCursor | null;
 }>;
-export type ApplicationDocumentQueueItem = ApplicationDocumentTarget & Readonly<{
-  studentDisplayName: string; universityTitle: string; programTitle: string; requirementLabel: string;
-  deadline: ApplicationRequirementDeadline | null; isCurrentRequirement: boolean; submission: ApplicationDocumentSubmission;
-}>;
-export type ApplicationDocumentQueuePage = Readonly<{ protocolVersion: 1; items: readonly ApplicationDocumentQueueItem[]; nextCursor: ApplicationDocumentCursor | null }>;
 function nullableText(value: unknown): value is string | null { return value === null || (typeof value === "string" && (value === "" || scalarText(value)) && !value.includes("\u0000")); }
 function list<T>(value: unknown, max: number, parse: (value: unknown) => T | null): T[] | null {
   if (!Array.isArray(value) || value.length > max) return null;
@@ -366,23 +361,6 @@ export function parseApplicationDocumentReusableVersionsPage(value: unknown, tar
   const versions = list(row.versions, 50, reusable), nextCursor = row.nextCursor === null ? null : parseApplicationDocumentVersionCursor(row.nextCursor);
   return versions && (row.nextCursor === null || nextCursor) && validVersionPage(versions, nextCursor) ? { protocolVersion: 1, ...target, requirementItemId, versions, nextCursor } : null;
 }
-export function parseApplicationDocumentQueuePage(value: unknown): ApplicationDocumentQueuePage | null {
-  const row = applicationDocumentRecord(value);
-  if (!row || !applicationDocumentExact(row, ["protocolVersion", "items", "nextCursor"]) || row.protocolVersion !== 1) return null;
-  const items = list(row.items, 50, value => {
-    const item = applicationDocumentRecord(value);
-    if (!item || !applicationDocumentExact(item, ["studentCaseId", "applicationId", "studentDisplayName", "universityTitle", "programTitle", "requirementLabel", "deadline", "isCurrentRequirement", "submission"])
-      || !uuid(item.studentCaseId) || !uuid(item.applicationId) || ![item.studentDisplayName, item.universityTitle, item.programTitle, item.requirementLabel].every(v => scalarText(v)) || typeof item.isCurrentRequirement !== "boolean") return null;
-    const submission = parseApplicationDocumentSubmission(item.submission), due = item.deadline === null ? null : deadline(item.deadline);
-    return submission && submission.review === null && (item.deadline === null || due) ? { studentCaseId: item.studentCaseId, applicationId: item.applicationId,
-      studentDisplayName: item.studentDisplayName as string, universityTitle: item.universityTitle as string, programTitle: item.programTitle as string, requirementLabel: item.requirementLabel as string,
-      deadline: due, isCurrentRequirement: item.isCurrentRequirement, submission } : null;
-  });
-  const nextCursor = row.nextCursor === null ? null : parseApplicationDocumentCursor(row.nextCursor);
-  return items && (row.nextCursor === null || nextCursor) && cursorMatches(items.map(i => ({ createdAt: i.submission.submittedAt, id: i.submission.submissionId })), nextCursor)
-    ? { protocolVersion: 1, items, nextCursor } : null;
-}
-
 export class ApplicationDocumentError extends Error {
   readonly reason: ApplicationDocumentFailure;
   constructor(reason: ApplicationDocumentFailure) { super("Application document unavailable"); this.reason = reason; }

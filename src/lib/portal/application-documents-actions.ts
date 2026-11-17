@@ -10,10 +10,10 @@ import { universityIntakeId as uuid } from "../platform-university-catalog.ts";
 import {
   applicationDocumentFailure, parseApplicationDocuments, parseApplicationDocumentTarget, parseApplicationDocumentSubmitIntent, parseApplicationDocumentSubmitReceipt,
   parseApplicationDocumentReviewIntent, parseApplicationDocumentReviewReceipt, parseApplicationDocumentHistoryPage, parseApplicationDocumentReusableVersionsPage,
-  parseApplicationDocumentQueuePage, parseApplicationDocumentCursor, parseApplicationDocumentVersionCursor,
+  parseApplicationDocumentCursor, parseApplicationDocumentVersionCursor,
   type ApplicationDocumentOwner, type ApplicationDocumentScope, type ApplicationDocumentTarget, type ApplicationDocuments,
   type ApplicationDocumentFailureResult, type ApplicationDocumentSubmitResult, type ApplicationDocumentReviewResult,
-  type ApplicationDocumentHistoryPage, type ApplicationDocumentReusableVersionsPage, type ApplicationDocumentQueuePage,
+  type ApplicationDocumentHistoryPage, type ApplicationDocumentReusableVersionsPage,
   type ApplicationDocumentCursor, type ApplicationDocumentVersionCursor,
 } from "./application-documents.ts";
 
@@ -111,17 +111,6 @@ export async function readApplicationDocumentReusableVersionsAction(scope: Appli
     const { data, error } = await client.schema("platform").rpc("application_document_reusable_versions_v1", { p_student_case_id: parsed.studentCaseId, p_application_id: parsed.applicationId, p_requirement_item_id: target.requirementItemId, p_cursor: cursor, p_limit: 20 });
     if (error) return applicationDocumentFailure(error);
     const page = parseApplicationDocumentReusableVersionsPage(data, parsed, target.requirementItemId);
-    return page ? { ok: true, page } : failure("unavailable");
-  } catch { return failure("unavailable"); }
-}
-export async function readStaffApplicationDocumentSubmissionQueueAction(owner: ApplicationDocumentOwner, cursor: ApplicationDocumentCursor | null = null): Promise<Readonly<{ ok: true; page: ApplicationDocumentQueuePage }> | ApplicationDocumentFailureResult> {
-  try {
-    if (cursor !== null && !parseApplicationDocumentCursor(cursor)) return failure("invalid");
-    if (!await staffScope(owner, "document.read.full")) return failure("forbidden");
-    const client = await createSupabaseServerClient();
-    const { data, error } = await client.schema("platform").rpc("staff_application_document_submission_queue_v1", { p_cursor: cursor, p_limit: 20 });
-    if (error) return applicationDocumentFailure(error);
-    const page = parseApplicationDocumentQueuePage(data);
     return page ? { ok: true, page } : failure("unavailable");
   } catch { return failure("unavailable"); }
 }

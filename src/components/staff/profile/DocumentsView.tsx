@@ -37,7 +37,7 @@ export type DocumentsViewInput = Readonly<{
  * (`tests/e2e/case-documents-static-render.cjs`) — с синтетикой.
  *
  * «N из M принято» — `caseChecklistCounts` того же чек-листа,
- * что у «Быстрого просмотра» и EVO Docs; пустой чек-лист чисел не рисует.
+ * что у «Быстрого просмотра»; пустой чек-лист чисел не рисует.
  */
 export function documentsView(input: DocumentsViewInput): ReactElement {
   const activeGroups = input.groups.filter(

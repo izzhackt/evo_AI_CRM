@@ -1,11 +1,9 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
-import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 import type { V3ProfileCaseDirectory, V3ProfileCaseDirectoryParams, V3ProfileCaseDirectoryRow } from "@/lib/v3/profile-source";
-import { caseDocumentsWords } from "@/lib/v3/wording";
 
-import { admissionsDirectoryHref, DIRECTION_LABELS, withDocsSection } from "../profile/admissions-view";
+import { admissionsDirectoryHref, DIRECTION_LABELS } from "../profile/admissions-view";
 import { FilterMenu } from "../queue/FilterMenu";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
@@ -18,13 +16,9 @@ const CELL = "min-w-0 px-3 @min-[40rem]/directory:px-2 @min-[40rem]/directory:py
 const HEAD = "flex h-9 items-center px-2 text-start t-caption text-fg-2 first:ps-3";
 const STATE: Readonly<Record<V3ProfileCaseDirectoryRow["state"], string>> = { active: "В работе", pending: "Ожидает начала", closed: "Закрыто" };
 
-function rowHref(row: V3ProfileCaseDirectoryRow, docsMode: boolean): string | null {
+function rowHref(row: V3ProfileCaseDirectoryRow): string | null {
   // Итог передачи (Sales) ведёт в карточку лида; полное дело — в «Обзор» дела.
-  // В «EVO Docs» имя ведёт на вкладку «Документы», но у дела без куратора её нет (правило — `caseDocumentsAwaitCurator`): туда имя ведёт в «Обзор».
-  if (row.access === "full") {
-    const tab = docsMode && !caseDocumentsAwaitCurator(row.state) ? "documents" : "overview";
-    return withDocsSection(`/profile?case=${row.studentCaseId}&tab=${tab}`, docsMode);
-  }
+  if (row.access === "full") return `/profile?case=${row.studentCaseId}&tab=overview`;
   return row.leadId ? `/profile?id=${row.leadId}` : null;
 }
 
@@ -38,15 +32,13 @@ function rowHref(row: V3ProfileCaseDirectoryRow, docsMode: boolean): string | nu
 export function StudentsDirectoryFallback({
   directory,
   params,
-  docsMode,
 }: Readonly<{
   directory: V3ProfileCaseDirectory;
   params: V3ProfileCaseDirectoryParams;
-  docsMode: boolean;
 }>) {
-  const rows = docsMode ? directory.rows.filter((row) => row.access === "full") : directory.rows;
-  const baseHref = withDocsSection("/profile", docsMode);
-  const stateHref = (state: V3ProfileCaseDirectoryParams["state"]) => admissionsDirectoryHref({ ...params, state, cursor: null }, undefined, docsMode);
+  const { rows } = directory;
+  const baseHref = "/profile";
+  const stateHref = (state: V3ProfileCaseDirectoryParams["state"]) => admissionsDirectoryHref({ ...params, state, cursor: null });
   const active = [params.query, params.state].filter(Boolean).length;
   return (
     <div className="min-w-0 space-y-3" data-testid="v3-student-case-directory">
@@ -54,7 +46,7 @@ export function StudentsDirectoryFallback({
       <QueueToolbar
         search={{
           action: "/profile", name: "case_q", defaultValue: params.query ?? "", placeholder: "Студент или страна",
-          label: "Найти студента", hidden: { section: docsMode ? "docs" : null, case_status: params.state ?? null },
+          label: "Найти студента", hidden: { case_status: params.state ?? null },
         }}
         filters={<FilterMenu
           label="Состояние"
@@ -82,7 +74,7 @@ export function StudentsDirectoryFallback({
             </thead>
             <tbody role="rowgroup" className="block">
               {rows.map((row) => {
-                const href = rowHref(row, docsMode);
+                const href = rowHref(row);
                 const meta = [row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "Страна не указана", row.targetDegree].filter(Boolean).join(" · ");
                 return (
                   <tr key={row.studentCaseId} role="row" data-queue-row={row.studentCaseId} data-testid="v3-student-case-row" data-access={row.access}
@@ -92,8 +84,6 @@ export function StudentsDirectoryFallback({
                         <Link href={href} data-queue-open="" title={row.studentDisplayName} className="block truncate t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline">{row.studentDisplayName}</Link>
                       ) : <span className="block truncate t-item text-fg" title={row.studentDisplayName}>{row.studentDisplayName}</span>}
                       <span className="block truncate t-meta text-fg-2" title={meta}>{meta}{row.access === "sales_summary" ? " · передан в поступление" : ""}</span>
-                      {docsMode && caseDocumentsAwaitCurator(row.state)
-                        ? <span className="block t-meta text-fg-2" data-testid="v3-student-case-documents-await">Документы {caseDocumentsWords.awaitCurator}.</span> : null}
                     </th>
                     <td role="cell" className={`${CELL} [grid-area:curator] t-body-compact text-fg`}>
                       <span className="@min-[40rem]/directory:hidden text-fg-2">Куратор: </span>
@@ -109,8 +99,8 @@ export function StudentsDirectoryFallback({
       )}
       {params.cursor || (directory.hasNext && directory.nextCursor) ? (
         <nav aria-label="Страницы списка студентов" className="flex flex-wrap items-center gap-x-6">
-          {params.cursor ? <Link className={QUEUE_QUIET_LINK} href={admissionsDirectoryHref(params, undefined, docsMode)}><Icon name="arrow-left" size={16} />К началу</Link> : null}
-          {directory.hasNext && directory.nextCursor ? <Link className={QUEUE_QUIET_LINK} rel="next" href={admissionsDirectoryHref(params, directory.nextCursor, docsMode)}>Следующие записи<Icon name="arrow-right" size={16} /></Link> : null}
+          {params.cursor ? <Link className={QUEUE_QUIET_LINK} href={admissionsDirectoryHref(params)}><Icon name="arrow-left" size={16} />К началу</Link> : null}
+          {directory.hasNext && directory.nextCursor ? <Link className={QUEUE_QUIET_LINK} rel="next" href={admissionsDirectoryHref(params, directory.nextCursor)}>Следующие записи<Icon name="arrow-right" size={16} /></Link> : null}
         </nav>
       ) : null}
     </div>

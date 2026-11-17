@@ -11,7 +11,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const harness = (flag) => JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL("./e2e/card-tabs-next-static-render.cjs", import.meta.url)), flag],
+const harness = (flag, ...more) => JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL("./e2e/card-tabs-next-static-render.cjs", import.meta.url)), flag, ...more],
   { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }));
 const pages = new Map(harness("--json").map((surface) => [surface.name, surface]));
 const realPages = new Map(harness("--page-json").map((surface) => [surface.name, surface.html]));
@@ -304,6 +304,24 @@ test("страница `/profile`: новый вид вкладок — у ка�
 });
 
 /* ---------------------------------------------------------------- исходники */
+
+test("прежний адрес EVO Docs `?section=docs&case=…&tab=…` (и с `returnTo` на список EVO Docs) открывает ту же карточку, что и без `section`; возврат — «Студенты», слов «EVO Docs» нет (17.11.2026)", () => {
+  const retired = (params) => new Map(harness("--page-json", "--page-params", JSON.stringify(params)).map((surface) => [surface.name, surface.html]));
+  const section = retired({ section: "docs" });
+  const withReturn = retired({ section: "docs", returnTo: "/profile?section=docs&view=review" });
+  assert.equal(section.size, realPages.size);
+  for (const mode of ["admin-cookie", "staff-cookie", "preview-cookie"]) {
+    for (const tab of ["docs-all", "route-four", "anketa-full"]) {
+      const plain = real(tab, mode);
+      assert.equal(section.get(`${tab}:${mode}`), plain, `${tab}/${mode}: с \`section=docs\` та же карточка, байт в байт`);
+      // Возврат со списка EVO Docs непринятый: ссылка «Студенты» ведёт на обычный список, а вкладки не несут ни `section`, ни `returnTo`.
+      const page = withReturn.get(`${tab}:${mode}`);
+      assert.equal(page, plain, `${tab}/${mode}: возврат на прежний список EVO Docs не принимается — карточка та же`);
+      assert.doesNotMatch(page, /EVO Docs|section=docs|returnTo=/u, `${tab}/${mode}`);
+      assert.match(page, /<a [^>]*href="\/profile"[^>]*>(?:<svg[^>]*>[\s\S]*?<\/svg>)?\s*Студенты<\/a>/u, `${tab}/${mode}: «Студенты» — возврат к обычному списку`);
+    }
+  }
+});
 
 test("«Новый вид» страницы единственный (#1327); закрытый лид и «не найден» всегда берут новую рамку", () => {
   const source = read("src/app/(staff)/profile/page.tsx");

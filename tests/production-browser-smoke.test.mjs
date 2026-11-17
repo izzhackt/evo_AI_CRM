@@ -130,8 +130,9 @@ test("source contract: receipt follows real case and isolated Student journeys",
   assert.deepEqual([...smokeSource.matchAll(/checkpoint\("([a-z_]+)"\)/gu)].map((match) => match[1]), [
     // OTH-1: «Воронка поступления» checkpoint added right after case_contract,
     // mirroring that checkpoint's own visit()+getByTestId()+runtimeError shape.
-    // Э0 (25.09): «Студенты» and EVO Docs queue checkpoints right after the admissions board.
-    "admin_login", "case_route", "case_contract", "admissions_pipeline", "students_queue", "evo_docs", "team_chat", "student_login", "student_overview", "student_documents", "student_navigation",
+    // Э0 (25.09): the «Студенты» queue checkpoint right after the admissions board. EVO Docs left the CRM on 17.11.2026: its
+    // checkpoint (`evo_docs`) and success code are gone from the script and from the receipt.
+    "admin_login", "case_route", "case_contract", "admissions_pipeline", "students_queue", "team_chat", "student_login", "student_overview", "student_documents", "student_navigation",
   ]);
   assert.ok(smokeSource.indexOf('"production_student_smoke_passed"') < smokeSource.indexOf("await writeProductionSmokeReceipt(configuration.receiptPath"));
   assert.ok(smokeSource.indexOf('if (page.url() !== `${baseUrl}/login`)') < smokeSource.indexOf('page.locator("#staff-email").fill(email)'));
@@ -177,7 +178,7 @@ test("CLI errors are sanitized and never echo missing credential names", () => {
   );
 });
 
-test("«Студенты» and EVO Docs smoke checks the real queue without depending on data", () => {
+test("«Студенты» smoke checks the real queue without depending on data", () => {
   const verify = smokeSource.slice(smokeSource.indexOf("async function verifyStudentsQueue("), smokeSource.indexOf("export async function runProductionBrowserSmoke("));
   // The container renders in every queue state, so a refusal, a list error and missing counts fail at once.
   assert.match(verify, /getByTestId\("v3-student-case-directory"\)\.waitFor\(\{ state: "visible", timeout: 30_000 \}\)/u);
@@ -186,27 +187,23 @@ test("«Студенты» and EVO Docs smoke checks the real queue without depe
   }
   assert.match(verify, /getByRole\("navigation", \{ name: "Виды списка студентов", exact: true \}\)/u);
   assert.match(verify, /views\.getByRole\("link", \{ name: tab \}\)\.first\(\)\.waitFor\(\{ state: "visible", timeout: 30_000 \}\)/u);
-  for (const [name, route, prefix, tab] of [
-    ["students_queue", "/profile`", "students_queue", "Все в работе"],
-    ["evo_docs", "/profile?section=docs`", "evo_docs_queue", "Документы дела"],
-  ]) {
-    const check = smokeSource.split(`checkpoint("${name}");`)[1]?.split("checkpoint(")[0] ?? "";
-    assert.ok(check.includes(`\${configuration.baseUrl}${route}`), `${name} visits ${route}`);
-    assert.ok(check.includes(`await verifyStudentsQueue(page, "${prefix}", /^${tab}/u);`), `${name} checks its own tab`);
-    assert.match(check, /if \(runtimeError\) throw new Error\("staff_runtime_error"\)/u);
-  }
+  const check = smokeSource.split('checkpoint("students_queue");')[1]?.split("checkpoint(")[0] ?? "";
+  assert.ok(check.includes("await visit(page, `${configuration.baseUrl}/profile`);"), "students_queue visits /profile");
+  assert.ok(check.includes('await verifyStudentsQueue(page, "students_queue", /^Все в работе/u);'), "students_queue checks its own tab");
+  assert.match(check, /if \(runtimeError\) throw new Error\("staff_runtime_error"\)/u);
+  assert.match(check, /production_students_queue_smoke_passed/u);
+  // EVO Docs left the CRM (17.11.2026): the retired checkpoint, its address and its success code must not come back.
+  assert.doesNotMatch(smokeSource, /evo_docs|section=docs|production_evo_docs_smoke_passed/u);
   // The selectors are the real components' — renaming one there breaks this test, not the release.
   const component = (path) => readFileSync(new URL(`../src/components/staff/${path}`, import.meta.url), "utf8");
-  // С #1327 очередь и EVO Docs рисует «Новый вид»: контейнер и состояния — у `StudentsNextPage`, вкладки и ошибки — у его видов.
+  // С #1327 очередь рисует «Новый вид»: контейнер и состояния — у `StudentsNextPage`, вкладки и ошибки — у её вида.
   const page = component("students-next/StudentsNextPage.tsx");
   assert.match(page, /<Alert testId="queue-forbidden"/u);
-  assert.match(page, /<div className="grid min-w-0 gap-4" data-testid="v3-student-case-directory">\{body\}<\/div>/u, "the container wraps every state: queue, EVO Docs, refusal, error");
-  for (const file of ["students-next/StudentsQueueNext.tsx", "students-next/DocsNext.tsx"]) {
-    assert.match(component(file), /data-testid="queue-counts-unavailable"/u, file);
-    assert.match(component(file), /data-testid="queue-error"/u, file);
-    assert.match(component(file), /label="Виды списка студентов"/u, file);
-  }
+  assert.match(page, /<div className="grid min-w-0 gap-4" data-testid="v3-student-case-directory">\{body\}<\/div>/u, "the container wraps every state: queue, refusal, error");
+  const queue = component("students-next/StudentsQueueNext.tsx");
+  assert.match(queue, /data-testid="queue-counts-unavailable"/u);
+  assert.match(queue, /data-testid="queue-error"/u);
+  assert.match(queue, /label="Виды списка студентов"/u);
   const labels = component("students/students-queue-view.ts");
   assert.match(labels, /active: "Все в работе"/u);
-  assert.match(labels, /review: "Документы дела"/u);
 });

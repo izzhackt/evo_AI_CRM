@@ -26,7 +26,6 @@ export const LINK_ICONS = {
   "sales-dynamics": "bar-chart",
   "admissions-pipeline": "funnel",
   "admissions-worklist": "users",
-  "evo-docs": "folder",
   universities: "building",
   calendar: "calendar",
   tasks: "check-square",

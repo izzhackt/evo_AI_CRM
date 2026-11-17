@@ -233,11 +233,10 @@ function checkpoint(phase) {
 }
 
 /**
- * «Студенты» and EVO Docs are the 241 work queue. The check does not depend on
- * data: the queue container renders in every state (the loading skeleton has
- * none), so a refusal, a list read error or missing counts fail at once — the
- * counts read is what migration 242 changes — and then the view tabs of this
- * mode must be there.
+ * «Студенты» is the 241 work queue. The check does not depend on data: the
+ * queue container renders in every state (the loading skeleton has none), so a
+ * refusal, a list read error or missing counts fail at once — the counts read
+ * is what migration 242 changes — and then the view tab must be there.
  */
 async function verifyStudentsQueue(page, prefix, tab) {
   await page.getByTestId("v3-student-case-directory").waitFor({ state: "visible", timeout: 30_000 });
@@ -294,21 +293,13 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       await page.getByTestId("v3-admissions-pipeline-board").waitFor({ state: "visible", timeout: 30_000 });
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_admissions_pipeline_smoke_passed"}\n');
-      // «Студенты» and EVO Docs (Э0 of the 25.09 redesign plan): each mode is
-      // told apart by its own tab — «Все в работе» is not in EVO Docs,
-      // «Документы дела» (Э8.5, 28.09; formerly «На проверку») is only there.
-      // EVO Docs opens on its first non-empty tab; the «Документы дела» link is
-      // always in the row, current or not.
+      // «Студенты» (Э0 of the 25.09 redesign plan) is told apart by its «Все в
+      // работе» tab: the link is always in the row, current or not.
       checkpoint("students_queue");
       await visit(page, `${configuration.baseUrl}/profile`);
       await verifyStudentsQueue(page, "students_queue", /^Все в работе/u);
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_students_queue_smoke_passed"}\n');
-      checkpoint("evo_docs");
-      await visit(page, `${configuration.baseUrl}/profile?section=docs`);
-      await verifyStudentsQueue(page, "evo_docs_queue", /^Документы дела/u);
-      if (runtimeError) throw new Error("staff_runtime_error");
-      process.stdout.write('{"ok":true,"code":"production_evo_docs_smoke_passed"}\n');
       checkpoint("team_chat");
       await visit(page, `${configuration.baseUrl}/team-chat`);
       const channels = page.getByRole("navigation", { name: "Каналы команды", exact: true });

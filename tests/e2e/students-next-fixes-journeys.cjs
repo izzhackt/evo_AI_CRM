@@ -30,8 +30,8 @@ async function press(page, key) {
 
 /**
  * Цели нажатия меньше 44 px в панели; исключения те же, что у проверки страницы (названия-ссылки накрывают ячейку, «?» растёт
- * псевдоэлементом) и прежние части на CSS-модуле (`.root`, «Скачать файл», «Сохранить решение»): стенд подставляет модулю имена
- * классов без стилей, их 44 px (`min-height` в `ProgramDocuments.module.css`) он не видит.
+ * псевдоэлементом) и прежние части на CSS-модуле (`.root`): стенд подставляет модулю имена классов без стилей, их 44 px
+ * (`min-height` в CSS-модуле) он не видит.
  */
 const smallTargets = (page, scope) => page.evaluate((query) => {
   const root = document.querySelector(query);
@@ -147,23 +147,9 @@ const journeys = [
       report("curators d1280: Esc in a field of the replacement form leaves the field, the panel stays", (await sheet(page).count()) === 1 && (await onTitle(page)), await pushes(page));
       await context.close();
     });
-    await guarded(report, "docs-program d1280: Esc in the decision form", async () => {
-      const { context, page } = await open("docs-program", "d1280");
-      await pressRow(page, "d1280", AIDANA, 1);
-      await sheet(page).waitFor();
-      await page.locator("details summary").click();
-      await page.locator("[data-slot=sheet-content] select").first().focus();
-      await page.keyboard.press("Escape");
-      await page.waitForTimeout(250);
-      report("docs-program d1280: Esc in the decision field leaves the field, the panel stays", (await sheet(page).count()) === 1 && (await onTitle(page)), null);
-      await page.keyboard.press("Escape");
-      await sheet(page).waitFor({ state: "detached" });
-      report("docs-program d1280: the second Esc closes the panel", true, null);
-      await context.close();
-    });
   },
 
-  // Клавиши списка: ↑/↓ и j/k по строкам, «/» — поиск; в «Студентах», в EVO Docs (дела, «Документы программ», «Комплекты») и в «Нагрузке кураторов».
+  // Клавиши списка: ↑/↓ и j/k по строкам, «/» — поиск; в «Студентах» и в «Нагрузке кураторов».
   async ({ open: openPage, report }) => {
     const open = quick(openPage);
     await guarded(report, "queue d1280: list keys", async () => {
@@ -174,37 +160,6 @@ const journeys = [
       await blur(page);
       await page.keyboard.press("/");
       report("queue d1280: «/» focuses the list search", await onSearch(page), null);
-      await context.close();
-    });
-    for (const name of ["docs-review", "docs-all"]) {
-      await guarded(report, `${name} d1280: list keys`, async () => {
-        const { context, page } = await open(name, "d1280");
-        await blur(page);
-        const keys = [await press(page, "j"), await press(page, "j"), await press(page, "k"), await press(page, "ArrowDown")];
-        report(`${name} d1280: j/k and ArrowDown walk the case rows`, keys.join() === "0,1,0,1", keys);
-        await blur(page);
-        await page.keyboard.press("/");
-        report(`${name} d1280: «/» focuses the case search`, await onSearch(page), null);
-        await context.close();
-      });
-    }
-    await guarded(report, "docs-program d1280: list keys", async () => {
-      const { context, page } = await open("docs-program", "d1280");
-      await blur(page);
-      const first = await press(page, "j");
-      await page.keyboard.press("Enter");
-      await sheet(page).waitFor();
-      report("docs-program d1280: j focuses a document row and Enter opens its panel", first === 0 && (await insideSheet(page)), first);
-      await page.keyboard.press("j");
-      report("docs-program d1280: with the panel open j stays in the panel", await insideSheet(page), null);
-      await context.close();
-    });
-    await guarded(report, "docs-packages d1280: list keys", async () => {
-      const { context, page } = await open("docs-packages", "d1280");
-      await blur(page);
-      const pair = [await press(page, "j"), await press(page, "j")];
-      await page.keyboard.press("Enter");
-      report("docs-packages d1280: j walks the package rows and Enter opens the preparation", pair.join() === "0,1" && /tab=route.*#preparation-/u.test((await pushes(page)).at(-1) ?? ""), { pair, pushes: await pushes(page) });
       await context.close();
     });
     await guarded(report, "curators d1280: list keys", async () => {
@@ -300,7 +255,7 @@ const journeys = [
   async ({ open: openPage, report }) => {
     const open = quick(openPage);
     for (const view of ["d1280", "m390"]) {
-      for (const [name, text, cell, label] of [["queue", AIDANA, 1, "the case panel"], ["curators", "Эрмек Токтосунов", 0, "the curator panel"], ["docs-program", AIDANA, 1, "the document panel"]]) {
+      for (const [name, text, cell, label] of [["queue", AIDANA, 1, "the case panel"], ["curators", "Эрмек Токтосунов", 0, "the curator panel"]]) {
         await guarded(report, `${name} ${view}: targets in ${label}`, async () => {
           const { context, page } = await open(name, view);
           await pressRow(page, view, text, view === "m390" ? 0 : cell);

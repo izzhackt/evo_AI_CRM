@@ -2,7 +2,7 @@
 
 /**
  * Пути «Нового вида» для стенда `students-next-static-render.cjs`: строка → панель → действие, клавиатура, фильтры, поиск,
- * вкладки, массовый выбор, очереди EVO Docs, «Нагрузка кураторов» и «Университеты». Каждый путь получает `tools`
+ * вкладки, массовый выбор, «Нагрузка кураторов» и «Университеты». Каждый путь получает `tools`
  * (`open`, `shot`, `report`, …) и печатает проверки строками JSON.
  */
 
@@ -141,9 +141,6 @@ const journeys = [
       ["state-page-error", /Не удалось загрузить список студентов/u, "read error stays visible with «Повторить»"],
       ["state-empty-mine", /Активных дел у вас нет/u, "empty queue says what is empty"],
       ["state-counts-unavailable", /Счётчики недоступны, список работает/u, "unavailable counts are named, the list works"],
-      ["docs-noAccess", /Нет доступа к документам/u, "docs without access say so in the cells"],
-      ["docs-programError", /Не удалось загрузить документы программ на проверку/u, "program queue read error stays visible"],
-      ["docs-packagesEmpty", /Проверять нечего/u, "empty packages queue names what is empty"],
     ]) {
       const state = await open(name, "d1280");
       const text = await state.page.locator("main").innerText();
@@ -170,57 +167,6 @@ const journeys = [
     }
   },
 
-  // EVO Docs: вкладки-ссылки, «⋯», дело ведёт в документы, «Документы программ» — панель с файлом и решением, «Комплекты».
-  async ({ open, shot, report, AxeBuilder }) => {
-    for (const view of ["d1280", "m390"]) {
-      const { context, page } = await open("docs-review", view);
-      const tabs = await page.locator('nav[aria-label="Виды списка студентов"] a').allInnerTexts();
-      report(`docs ${view}: the tab row is links with counts`, tabs.length >= 5 && /Документы программ\s*3/u.test(tabs.join(" ")), tabs);
-      await page.getByRole("link", { name: /^Документы программ/u }).click();
-      report(`docs ${view}: a tab is a link into the address`, /section=docs&view=program/u.test((await pushes(page)).at(-1) ?? ""), await pushes(page));
-      await context.close();
-      const row = await open("docs-review", view);
-      await pressRow(row.page, view, "Айдана Сыдыкова", 1);
-      const href = (await pushes(row.page)).at(-1) ?? "";
-      report(`docs ${view}: a case row goes to the case documents with the return address`, /case=cccccccc-2222-4222-8222-000000000001&tab=documents&section=docs&returnTo=/u.test(href), href);
-      await row.context.close();
-    }
-    const menu = await open("docs-review", "d1280");
-    await menu.page.getByRole("button", { name: /Ещё по документам: Айдана/u }).click();
-    report("docs d1280: «⋯» keeps «Анкета и формы» and «Пакет ZIP»", (await menu.page.getByRole("menuitem").allInnerTexts()).join("|") === "Анкета и формы|Пакет ZIP", await menu.page.getByRole("menuitem").allInnerTexts());
-    await menu.context.close();
-    for (const view of ["d1280", "m390"]) {
-      const { context, page, errors } = await open("docs-program", view);
-      await pressRow(page, view, "Айдана Сыдыкова", 1);
-      await page.getByRole("dialog").waitFor();
-      const dialog = page.getByRole("dialog");
-      const text = await dialog.innerText();
-      report(`docs-program ${view}: the panel holds the file, the download and the decision`, /attestat-sydykova\.pdf/u.test(text) && /Скачать/u.test(text) && (await dialog.locator("details summary").count()) === 1, text.slice(0, 200));
-      report(`docs-program ${view}: «Открыть программу» goes to the preparation`, /tab=route.*#preparation-/u.test((await dialog.getByRole("link", { name: "Открыть программу" }).getAttribute("href")) ?? ""), null);
-      await overlay(page, report, `docs-program ${view}`);
-      await dialog.locator("details summary").click();
-      await shot(page, `docs-program-sheet-${view}`);
-      const axe = await new AxeBuilder({ page }).include("[role=dialog]").analyze();
-      report(`docs-program ${view}: axe (panel)`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
-      await page.keyboard.press("Escape");
-      await dialog.waitFor({ state: "detached" });
-      report(`docs-program ${view}: no browser errors`, errors.length === 0, errors);
-      await context.close();
-    }
-    const older = await open("docs-program", "d1280");
-    report("docs-program d1280: a document by an older requirement is warned in the row", /Прежнее требование/u.test(await older.page.locator("tbody").innerText()), null);
-    await older.context.close();
-    const packages = await open("docs-packages", "d1280");
-    await pressRow(packages.page, "d1280", "Тимур Абдылдаев", 1);
-    report("docs-packages d1280: a package row goes to the preparation of that program", /tab=route.*#preparation-aaaaaaaa-9999-4999-8999-000000000001/u.test((await pushes(packages.page)).at(-1) ?? ""), await pushes(packages.page));
-    report("docs-packages d1280: a package by an older requirement is warned", /по прежней редакции|Прежн/u.test(await packages.page.locator("tbody").innerText()), null);
-    await shot(packages.page, "docs-packages-d1280");
-    await packages.context.close();
-    const partial = await open("docs-incomplete", "d1280");
-    const note = await partial.page.locator("[role=status]").allInnerTexts();
-    report("docs-incomplete d1280: a partial read says so and offers the next page", /числа вкладок неполные/u.test(note.join(" ")) && /Проверить следующие 100/u.test(note.join(" ")), note);
-    await partial.context.close();
-  },
   // «Университеты»: строка ведёт в карточку, поиск идёт по каталогу с паузой набора, фильтры — ссылки, страницы сервера.
   async ({ open, report, harness }) => {
     for (const view of ["d1280", "m390"]) {

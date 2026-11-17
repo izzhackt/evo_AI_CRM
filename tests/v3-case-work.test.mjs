@@ -310,10 +310,10 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // Закрытый лид (246) — его имя, как у дела.
   // Лид (Э4) — тоже по имени: `leadParts` — Lead 360 как рабочая карточка.
   // Даже запасная страница (роль без чтения продаж) называется по имени, а не «Профиль»: имя — единственный h1.
-  assert.match(page, /const title = view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode \? "EVO Docs"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты";/u);
+  assert.match(page, /const title = view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\)\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты";/u);
   assert.match(page, /<PartShell title=\{title\}/u);
-  // «Назад» возвращает туда, откуда пришли: «Заявки», «Воронка поступления» (с её фильтрами), EVO Docs или «Студенты» (06.11.2026).
-  assert.match(page, /<Link href=\{requestsReturnTo \?\? boardReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : boardReturnTo \? "Воронка поступления" : docsMode \? "EVO Docs" : "Студенты"\}/u);
+  // «Назад» возвращает туда, откуда пришли: «Заявки», «Воронка поступления» (с её фильтрами) или «Студенты» (06.11.2026).
+  assert.match(page, /<Link href=\{requestsReturnTo \?\? boardReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : boardReturnTo \? "Воронка поступления" : "Студенты"\}/u);
   assert.match(page, /const caseTarget = view\?\.details\.routeTarget\.studentCaseId && view\.details\.admissions/u);
   assert.match(page, /caseOverview=\{nextParts\?\.overview \?\? caseParts\?\.overview \?\? leadParts\?\.overview \?\? undefined\}/u);
   // Права редактора шага — одни для «Быстрого просмотра» и дела.

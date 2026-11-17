@@ -150,7 +150,7 @@ const STUDENTS = [
 
 function studentsPage(search) {
   const query = Object.fromEntries(new URLSearchParams(search));
-  const parse = studentsView.parseStudentsQueueParams(query, "queue", { admin: true, coverage: true });
+  const parse = studentsView.parseStudentsQueueParams(query, { admin: true, coverage: true });
   const params = parse.params;
   const rows = STUDENTS.filter((row) => params.view === "needs_curator" ? row.attentionFlags.includes("needs_curator") : true);
   const counts = null;

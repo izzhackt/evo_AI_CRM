@@ -7,14 +7,11 @@ import { fileURLToPath } from "node:url";
 import {
   bishkekNoon,
   caseNextActionBand,
-  docsRowMatches,
-  docsTabCounts,
   nextStepAccess,
   parseStudentsQueueParams,
   parseStudentsReturnTo,
   studentsBands,
   studentsCaseHref,
-  studentsDocsCell,
   studentsDocumentsLine,
   studentsListHref,
   studentsQueueHref,
@@ -54,9 +51,9 @@ const CURATOR = { admin: false, coverage: false };
 const MANAGER = { admin: false, coverage: true };
 const MEMBER = "aaaaaaaa-1111-4111-8111-000000000001";
 const CASE = "cccccccc-2222-4222-8222-000000000003";
-const parse = (query, actor = ADMIN, mode = "queue") => parseStudentsQueueParams(query, mode, actor);
-const ok = (query, actor = ADMIN, mode = "queue") => {
-  const result = parse(query, actor, mode);
+const parse = (query, actor = ADMIN) => parseStudentsQueueParams(query, actor);
+const ok = (query, actor = ADMIN) => {
+  const result = parse(query, actor);
   assert.equal(result.kind, "ok", JSON.stringify(query));
   return result.params;
 };
@@ -65,7 +62,6 @@ const texts = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").tri
 test("the default view follows the role: «Мои» for Admissions, «Требуют действия» for Admin", () => {
   assert.equal(ok({}).view, "needs_action");
   assert.equal(ok({}, CURATOR).view, "mine");
-  assert.equal(ok({ section: "docs" }, ADMIN, "docs").view, "review");
   // Default views are not written into the address.
   assert.equal(studentsQueueHref(ok({})), "/profile");
   assert.equal(studentsQueueHref(ok({}, CURATOR)), "/profile");
@@ -73,8 +69,8 @@ test("the default view follows the role: «Мои» for Admissions, «Требу
 });
 
 test("old facet and summary addresses map onto the new views and redirect", () => {
-  const redirect = (query, actor = ADMIN, mode = "queue") => {
-    const result = parse(query, actor, mode);
+  const redirect = (query, actor = ADMIN) => {
+    const result = parse(query, actor);
     assert.equal(result.kind, "redirect", JSON.stringify(query));
     return result.href;
   };
@@ -94,12 +90,20 @@ test("old facet and summary addresses map onto the new views and redirect", () =
   assert.equal(redirect({ attention: "visas" }), "/profile?view=active");
   // An old 078 cursor does not fit the new order: the list starts over.
   assert.equal(redirect({ case_before_at: "2026-09-18T00:00:00Z", case_before_id: CASE, case_status: "active" }), "/profile?view=active");
-  // EVO Docs shows no work statuses: they are dropped.
-  assert.equal(redirect({ section: "docs", attention: "overdue", case_q: "Ким" }, ADMIN, "docs"), "/profile?section=docs&q=%D0%9A%D0%B8%D0%BC");
+  // The retired EVO Docs address (17.11.2026) is this page too: `section` goes, the search and the filters stay. Its `view` named
+  // an EVO Docs tab (review, program, packages, fix, missing, all), never a queue view — it is not read — and its cursor is dropped.
+  assert.equal(redirect({ section: "docs" }), "/profile");
+  assert.equal(redirect({ section: "docs" }, CURATOR), "/profile");
+  for (const tab of ["review", "program", "packages", "fix", "missing", "all"]) {
+    assert.equal(redirect({ section: "docs", view: tab, q: "Ким", direction: "MY" }), "/profile?q=%D0%9A%D0%B8%D0%BC&direction=MY", tab);
+  }
+  assert.equal(redirect({ section: "docs", view: "review", cursor: "updated|2026-09-20T00:00:00.000000Z|" + CASE, curator: MEMBER }, CURATOR), `/profile?curator=${MEMBER}`);
+  // Without `section=docs` such a view is still not a queue view (see the refusals below).
+  assert.equal(parse({ view: "review" }).kind, "invalid");
   // A case number is a case: 241 search does not match ids, so it opens the case overview.
   assert.equal(redirect({ q: CASE.toUpperCase() }), `/profile?case=${CASE}&tab=overview`);
   assert.equal(redirect({ case_q: CASE }, CURATOR), `/profile?case=${CASE}&tab=overview`);
-  assert.equal(redirect({ q: CASE }, ADMIN, "docs"), `/profile?case=${CASE}&tab=documents&section=docs`);
+  assert.equal(redirect({ q: CASE, section: "docs" }), `/profile?case=${CASE}&tab=overview`);
 });
 
 test("coverage links open «Нагрузка кураторов» for Admin; the facet curator sync is dropped", () => {
@@ -127,7 +131,6 @@ test("unparseable addresses are refused honestly, never guessed", () => {
   assert.equal(parse({ view: "needs_curator" }, CURATOR).kind, "invalid");
   assert.equal(parse({ view: "curators" }, CURATOR).kind, "invalid");
   assert.equal(parse({ view: "review" }).kind, "invalid");
-  assert.equal(parse({ view: "mine" }, ADMIN, "docs").kind, "invalid");
   const html = surfaces.get("invalid");
   assert.match(html, /role="alert" data-testid="v3-student-case-filter-rejected"/u);
   assert.match(html, /Не удалось применить фильтры\./u);
@@ -143,18 +146,21 @@ test("the address keeps view, filters, page and the open row; returnTo accepts o
   // Tabs and filters start the list over and close the row.
   assert.equal(studentsListHref(params, { view: "closed" }), `/profile?view=closed&q=%D0%9A%D0%B8%D0%BC&direction=MY&curator=${MEMBER}&stage=documents&sort=updated`);
   assert.equal(parseStudentsReturnTo(href), href);
-  assert.equal(parseStudentsReturnTo("/profile?section=docs&view=fix"), "/profile?section=docs&view=fix");
+  // The retired EVO Docs list (17.11.2026) is not a return address any more: the back link falls to the plain list.
   for (const bad of ["/profile?evil=1", "/requests?source=all", "https://evil.example/profile", "/profile?view=active#x",
-    "/profile?view=active&view=closed", "/profile?section=summary", "/profile?stage=nope", 42]) {
+    "/profile?view=active&view=closed", "/profile?section=summary", "/profile?section=docs", "/profile?section=docs&view=fix",
+    "/profile?stage=nope", 42]) {
     assert.equal(parseStudentsReturnTo(bad), null, String(bad));
   }
-  // Entry links open «Обзор» (EVO Docs — «Документы»), never «Вузы и программы».
+  // Entry links open «Обзор», never «Вузы и программы»; a tab can be named.
   assert.equal(studentsCaseHref(CASE, { returnTo: href }), `/profile?case=${CASE}&tab=overview&returnTo=${encodeURIComponent(href)}`);
-  assert.equal(studentsCaseHref(CASE, { docs: true }), `/profile?case=${CASE}&tab=documents&section=docs`);
+  assert.equal(studentsCaseHref(CASE, { tab: "documents" }), `/profile?case=${CASE}&tab=documents`);
+  assert.equal(studentsCaseHref(CASE), `/profile?case=${CASE}&tab=overview`, "no retired `section` is written");
   const page = read("src/app/(staff)/profile/page.tsx");
   assert.match(page, /const studentsReturnTo = requestsReturnTo \? null : parseStudentsReturnTo\(singleSearchParam\(params\.returnTo\)\);/u);
-  assert.match(page, /const directoryHref = studentsReturnTo \?\? withDocsSection\("\/profile", docsMode\);/u);
-  assert.match(page, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);
+  assert.match(page, /const directoryHref = studentsReturnTo \?\? "\/profile";/u);
+  assert.match(page, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : "К списку студентов"\}/u);
+  assert.doesNotMatch(page, /docsMode|withDocsSection|EVO Docs/u, "the page has no docs mode");
 });
 
 test("due bands mirror case_next_action_band (241) on top of dueBucket, Sunday included", () => {
@@ -223,26 +229,10 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
     // 245: «Требуют действия» также считает дела в работе без шага (2) и переписку, ждущую ответа (1).
     ["Мои", "8"], ["Требуют действия", "12"], ["Все в работе", "20"], ["Ожидает начала", "2"], ["Ждут куратора", "2"], ["Закрытые", "14"], ["Нагрузка кураторов", null],
   ]);
-  // EVO Docs: review/fix tabs are filtered inside the read, so their numbers need a complete read.
-  const rows = [{ documents: { submitted: 2, correctionRequired: 0, rejected: 0 } }, { documents: { submitted: 0, correctionRequired: 1, rejected: 1 } }, { documents: null }];
-  // «Не хватает» (Э3) — тот же отбор; «Документы программ» и «Комплекты» — свои очереди: без их чтения числа нет.
-  assert.deepEqual(docsTabCounts(rows, true, null), { review: 1, program: null, packages: null, fix: 1, missing: 0, all: 3 });
-  assert.deepEqual(docsTabCounts(rows, false, null), { review: null, program: null, packages: null, fix: null, missing: null, all: null });
-  assert.deepEqual(docsTabCounts(rows, false, { views: { active: 57 } }), { review: null, program: null, packages: null, fix: null, missing: null, all: 57 });
-  assert.equal(docsRowMatches("review", rows[2]), false, "no document read, no document tab");
-  assert.equal(docsRowMatches("all", rows[2]), true);
-  const incomplete = surfaces.get("docs-incomplete");
-  const docsNav = incomplete.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
-  assert.deepEqual([...docsNav.matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)].map((match) => [match[1], match[2] ?? null]), [
-    ["Документы дела", null], ["Исправить", null], ["Не хватает", null], ["Все", "20"],
-  ]);
-  // Прочитаны не все дела: «Документы дела» в порядке сервера, и это сказано коротко.
-  assert.match(incomplete, /Прочитаны не все дела — порядок не по ожиданию\./u);
-  assert.match(incomplete, /Прочитаны первые 20 дел; числа вкладок неполные\./u);
 });
 
 test("view tabs are real links with exactly one aria-current page and the old summary anchor", () => {
-  for (const [name, current] of [["admin-active", "Все в работе"], ["admin-default", "Требуют действия"], ["curator-mine", "Мои"], ["curators", "Нагрузка кураторов"], ["docs-review", "Документы дела"]]) {
+  for (const [name, current] of [["admin-active", "Все в работе"], ["admin-default", "Требуют действия"], ["curator-mine", "Мои"], ["curators", "Нагрузка кураторов"]]) {
     const html = surfaces.get(name);
     const nav = html.match(/<nav id="admissions-summary" aria-label="Виды списка студентов"[\s\S]*?<\/nav>/u)?.[0];
     assert.ok(nav, name);
@@ -523,45 +513,6 @@ test("empty, error and loading states are honest", () => {
   assert.match(loading, /<QueueSkeleton label="Загружаем список студентов…" leading=\{false\} \/>/u);
 });
 
-test("EVO Docs is a document review queue without work statuses", () => {
-  const html = surfaces.get("docs-review");
-  const headers = [...html.matchAll(/<th role="columnheader" scope="col"[^>]*>([\s\S]*?)<\/th>/gu)].map((match) => texts(match[1]));
-  assert.deepEqual(headers, ["Студент", "Документы", "Куратор", "Действие", "Ещё"]);
-  for (const word of ["Этап", "Сортировка", "Сигналы", "ждёт принятия", "Следующий шаг", "Просрочено"]) assert.doesNotMatch(html, new RegExp(word, "u"), word);
-  assert.doesNotMatch(html, />Сбросить</u, "the fixed docs order is not a chosen filter");
-  const rows = [...html.matchAll(/<tr role="row" data-queue-row="([^"]+)" data-testid="v3-student-case-row"[^>]*>([\s\S]*?)<\/tr>/gu)];
-  assert.ok(rows.length > 0);
-  for (const [, id, body] of rows) {
-    assert.match(body, /^<th role="rowheader" scope="row"/u, id);
-    // One row action; its hit area is the row. The former actions stay in «⋯».
-    assert.equal([...body.matchAll(/data-queue-open=""/gu)].length, 1, id);
-    // The case returns to the tab that was open (Э8.5: every EVO Docs address names its view).
-    assert.match(body, new RegExp(`<a data-queue-open=""[^>]*href="/profile\\?case=${id}&amp;tab=documents&amp;section=docs&amp;returnTo=%2Fprofile%3Fsection%3Ddocs%26view%3Dreview">Открыть документы`, "u"), id);
-    assert.match(body, /aria-label="Ещё по документам: [^"]+"/u, id);
-    assert.match(body, /на проверке/u, id);
-  }
-  // The docs menu keeps «Анкета и формы» and «Пакет ZIP» at their former destinations.
-  const menu = read("src/components/staff/students/StudentsDocsTable.tsx");
-  assert.match(menu, /anketaHref=\{studentsCaseHref\(row\.studentCaseId, \{ docs: true, tab: "anketa", returnTo \}\)\}/u);
-  assert.match(menu, /packetHref=\{`\$\{studentsCaseHref\(row\.studentCaseId, \{ docs: true, tab: "route", returnTo \}\)\}&panel=packets#partner-packets`\}/u);
-  assert.match(surfaces.get("docs-all"), /Нет доступа к документам/u);
-  // The row action looks like a link: text and arrow, underlined on row hover and on focus, one line.
-  assert.match(menu, /className="inline-flex min-h-11 items-center gap-1\.5 whitespace-nowrap t-label text-fg underline-offset-4 before:absolute before:inset-0 before:content-\[''\] group-hover:underline focus-visible:underline"/u);
-  assert.doesNotMatch(html, /Порядок:/u, "the wait words in the rows say the order; no standing caption");
-  assert.doesNotMatch(surfaces.get("docs-fix"), /Порядок:/u);
-  // The documents cell leads with the number that defines the tab.
-  const documents = { total: 12, approved: 7, submitted: 2, correctionRequired: 1, rejected: 1, missing: 1 };
-  assert.deepEqual(studentsDocsCell("review", documents).lead.map((part) => part.text), ["2\u00a0на проверке"]);
-  assert.deepEqual(studentsDocsCell("review", documents).rest.map((part) => part.text), ["7 из 12 принято", "1\u00a0исправить", "1\u00a0отклонён", "1\u00a0не\u00a0загружено"]);
-  assert.deepEqual(studentsDocsCell("fix", documents).lead.map((part) => [part.text, part.tone]), [["1\u00a0исправить", "warn"], ["1\u00a0отклонён", "warn"]]);
-  assert.deepEqual(studentsDocsCell("all", documents).lead.map((part) => part.text), ["7 из 12 принято"]);
-  assert.equal(studentsDocsCell("review", null), null);
-  assert.match(surfaces.get("docs-fix"), /<span class="block t-item"><span><span class="inline-block font-medium text-warn">\d\u00a0(?:исправить|отклонён)/u);
-  const tabs = html.match(/<nav id="admissions-summary"[\s\S]*?<\/nav>/u)?.[0] ?? "";
-  // Без чтения очередей документов программ и комплектов (рендер их не подставляет) их вкладок нет.
-  assert.deepEqual([...tabs.matchAll(/<a [^>]*>([^<]+)/gu)].map((match) => match[1]), ["Документы дела", "Исправить", "Не хватает", "Все"]);
-});
-
 test("«Нагрузка кураторов» keeps the coverage read, form and permissions as an Admin view", () => {
   const html = surfaces.get("curators");
   const headers = [...html.matchAll(/<th role="columnheader" scope="col"[^>]*>([^<]+)<\/th>/gu)].map((match) => match[1]);
@@ -640,11 +591,11 @@ test("the facet rail is gone and the page reads no summary for it", () => {
   }
   const page = read("src/app/(staff)/profile/page.tsx");
   assert.doesNotMatch(page, /readAdmissionsSummary|StudentsWorkspace|students-facets/u);
-  for (const name of ["admin-active", "curator-mine", "docs-review"]) {
+  for (const name of ["admin-active", "curator-mine"]) {
     assert.doesNotMatch(surfaces.get(name), /aria-label="Фильтры студентов"|students-facet-/u, name);
   }
   // The queue has no main action of its own: nothing here is solid red.
-  for (const file of ["StudentsQueueTable.tsx", "StudentsQueueHead.tsx", "StudentQuickView.tsx", "NextStepEditor.tsx", "StudentsDocsTable.tsx", "CuratorWorkloadView.tsx", "StudentsDirectoryFallback.tsx", "StudentsQueueScreen.tsx"]) {
+  for (const file of ["StudentsQueueTable.tsx", "StudentsQueueHead.tsx", "StudentQuickView.tsx", "NextStepEditor.tsx", "CuratorWorkloadView.tsx", "StudentsDirectoryFallback.tsx", "StudentsQueueScreen.tsx"]) {
     assert.doesNotMatch(read(`src/components/staff/students/${file}`), /\bbg-accent\b|\bopacity-/u, file);
   }
 });
@@ -699,9 +650,10 @@ test("a queue read the server refuses is an honest dead end, not a retry loop", 
   assert.doesNotMatch(html, /Сотрудник/u);
   // The coverage read does not go through 241: whoever may assign curators keeps «Нагрузка кураторов».
   assert.match(html, /href="\/profile\?view=curators">Открыть «Нагрузку кураторов»</u);
-  const docs = surfaces.get("forbidden-docs");
-  assert.match(docs, /Очередь EVO Docs для вашей учётной записи недоступна\./u);
-  assert.doesNotMatch(docs, /Список студентов|Нагрузку кураторов/u, "EVO Docs names itself; no coverage link without the right");
+  // Without the right to assign curators there is no coverage link to offer.
+  const withoutRight = surfaces.get("forbidden-curator");
+  assert.match(withoutRight, /Список студентов для вашей учётной записи недоступен\./u);
+  assert.doesNotMatch(withoutRight, /Нагрузку кураторов/u);
   const lib = read("src/lib/platform-student-case-queue.ts");
   assert.match(lib, /if \(response\.error\?\.code === "42501"\) throw new StudentCaseQueueForbiddenError\(\);/u);
   assert.match(read("src/lib/v3/students-queue-source.ts"), /forbidden = error instanceof StudentCaseQueueForbiddenError;/u);
@@ -712,24 +664,6 @@ test("when the list itself failed, the counts note does not claim the list works
   assert.match(html, /Не удалось загрузить список студентов\./u);
   assert.doesNotMatch(html, /Счётчики недоступны, список работает/u);
   assert.match(surfaces.get("counts-unavailable"), /Счётчики недоступны, список работает/u, "still shown when only counts failed");
-});
-
-test("EVO Docs does not say «нет» from a partial read or without document access", () => {
-  const partial = surfaces.get("docs-incomplete-empty");
-  assert.match(partial, /В прочитанной части списка ничего не найдено/u);
-  assert.doesNotMatch(partial, /Документов на проверку нет/u);
-  assert.match(partial, /Проверить следующие 100/u);
-  assert.match(partial, /Прочитаны первые \d+ (дело|дела|дел);/u);
-  assert.doesNotMatch(partial, /первые [234] дел /u, "Russian plural: 4 дела, not 4 дел");
-  const noAccess = surfaces.get("docs-no-access");
-  assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
-  assert.doesNotMatch(noAccess, /Документов на проверку нет/u);
-  // No readable documents: the review tabs and the header have no number, not «0».
-  assert.match(noAccess, /href="\/profile\?section=docs&amp;view=review">Документы дела<\/a>/u);
-  assert.match(noAccess, /href="\/profile\?section=docs&amp;view=fix">Исправить<\/a>/u);
-  const blind = [{ documents: null }, { documents: null }];
-  assert.deepEqual(docsTabCounts(blind, true, { views: { active: 2 } }), { review: null, program: null, packages: null, fix: null, missing: null, all: 2 });
-  assert.deepEqual(docsTabCounts([], true, null), { review: 0, program: null, packages: null, fix: 0, missing: 0, all: 0 }, "no cases at all is a true zero");
 });
 
 test("«Закрытые» has no due groups and no add-a-step hint", () => {
@@ -831,23 +765,17 @@ test("the quick view asks the one case-state rule and does not spell it again", 
   assert.doesNotMatch(view, /state === "pending"[^\n]*(documents|Документ)/u);
   // Ссылка строится в очереди как и раньше; панель просто не рисует её у дела без куратора.
   assert.match(read("src/components/staff/students/StudentsQueueBody.tsx"), /documents: studentsCaseHref\(openRow\.studentCaseId, \{ tab: "documents"/u);
+  assert.equal(caseDocumentsWords.awaitCurator, "появятся, когда у дела будет куратор");
 });
 
-// «EVO Docs» для ролей без очереди (17.10.2026, хвост ссылок после #1228): имя дела ведёт на вкладку «Документы» только у дела,
-// у которого она есть. У `pending` имя ведёт в «Обзор», строка остаётся в списке, а причина названа теми же словами.
-test("«EVO Docs» of a role without the queue leads a «Ждёт куратора» case to the overview, not to the missing Documents tab", () => {
+// Список для ролей без очереди (Sales и просмотр роли «Продажи»): имя полного дела ведёт в «Обзор», а у итога передачи — в карточку лида.
+// Вкладки «Документы» и раздела EVO Docs у него нет (17.11.2026), поэтому и логики вокруг `caseDocumentsAwaitCurator` здесь нет.
+test("the directory of a role without the queue opens a full case on its overview and a handed-off summary on the lead card", () => {
   const fallback = read("src/components/staff/students/StudentsDirectoryFallback.tsx");
-  assert.match(fallback, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
-  assert.match(fallback, /import \{ caseDocumentsWords \} from "@\/lib\/v3\/wording";/u);
-  // Вкладка выбирается одним правилом, а не сравнением с `pending`; для дела в работе и закрытого — «documents», как раньше.
-  assert.match(fallback, /const tab = docsMode && !caseDocumentsAwaitCurator\(row\.state\) \? "documents" : "overview";/u);
-  assert.match(fallback, /withDocsSection\(`\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\)/u);
-  assert.doesNotMatch(fallback, /tab=\$\{docsMode \? "documents" : "overview"\}/u, "the old unconditional documents tab is gone");
-  assert.doesNotMatch(fallback, /state === "pending"/u);
-  // Дело не пропадает из списка и из счёта: под строкой та же строка слов, что в «Сведениях», панели и досье.
-  assert.match(fallback, /\{docsMode && caseDocumentsAwaitCurator\(row\.state\)\s*\? <span [^>]*data-testid="v3-student-case-documents-await">Документы \{caseDocumentsWords\.awaitCurator\}\.<\/span> : null\}/u);
-  assert.match(fallback, /const rows = docsMode \? directory\.rows\.filter\(\(row\) => row\.access === "full"\) : directory\.rows;/u, "no other filtering of the list");
-  assert.equal(caseDocumentsWords.awaitCurator, "появятся, когда у дела будет куратор");
+  assert.match(fallback, /if \(row\.access === "full"\) return `\/profile\?case=\$\{row\.studentCaseId\}&tab=overview`;/u);
+  assert.match(fallback, /return row\.leadId \? `\/profile\?id=\$\{row\.leadId\}` : null;/u);
+  assert.match(fallback, /const \{ rows \} = directory;/u, "no other filtering of the list");
+  assert.doesNotMatch(fallback, /docsMode|withDocsSection|caseDocumentsAwaitCurator|caseDocumentsWords|v3-student-case-documents-await|state === "pending"/u);
 });
 
 test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {

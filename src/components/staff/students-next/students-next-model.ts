@@ -1,5 +1,5 @@
 /**
- * «Студенты» и EVO Docs в «Новом виде»: чистые модели над теми же чтениями, что у прежнего вида (`students-queue-view`):
+ * «Студенты» в «Новом виде»: чистые модели над теми же чтениями, что у прежнего вида (`students-queue-view`):
  * строки таблицы, плитки сроков, меню фильтров и поиск. Ни запросов, ни React — страница и тест зовут одни и те же функции.
  */
 import { ADMISSIONS_PIPELINE_STAGES } from "@/lib/platform-admissions-pipeline-contract";
@@ -42,7 +42,7 @@ const TILES = [["overdue", "Просрочено", "danger"], ["today", "Сег�
 
 /** Плитки сроков вместо заголовков групп: только числа из чтения чисел (нет чтения — нет плиток) и только там, где ведётся шаг. */
 export function studentTiles(params: StudentsQueueParams, counts: StudentCaseQueueCounts | null): readonly StudentTile[] {
-  if (!counts || params.mode !== "queue" || params.sort === "updated" || !studentsStepView(params.view)) return [];
+  if (!counts || params.sort === "updated" || !studentsStepView(params.view)) return [];
   return TILES.map(([key, label, tone]) => ({ key, label, value: counts.bands[key], tone })).filter((tile) => tile.value > 0);
 }
 
@@ -55,20 +55,17 @@ function facet<T>(counts: StudentCaseQueueCounts | null, list: readonly T[] | un
 
 /** Скрытые поля поиска: вид и фильтры остаются, страница и открытая запись сбрасываются (как у прежней строки инструментов). */
 export function studentsSearchHidden(params: StudentsQueueParams): Record<string, string | null> {
-  const queue = params.mode === "queue";
   return {
-    section: queue ? null : "docs",
-    view: !queue || params.view !== params.defaultView ? params.view : null,
+    view: params.view !== params.defaultView ? params.view : null,
     direction: params.direction,
     curator: params.curator,
-    stage: queue ? params.stage : null,
-    sort: queue && params.sort === "updated" ? "updated" : null,
+    stage: params.stage,
+    sort: params.sort === "updated" ? "updated" : null,
   };
 }
 
 /** Меню «Направление», «Куратор», «Этап», «Сортировка»: те же значения и адреса, что у прежней строки инструментов. */
 export function studentsFilterBar(params: StudentsQueueParams, counts: StudentCaseQueueCounts | null, names: readonly CuratorName[], curatorFilter: boolean): LinkFilterBarData {
-  const queue = params.mode === "queue";
   const menus: LinkFilterMenu[] = [{
     key: "direction", label: "Направление", valueLabel: params.direction ? DIRECTION_LABELS[params.direction] : null,
     options: [
@@ -83,30 +80,28 @@ export function studentsFilterBar(params: StudentsQueueParams, counts: StudentCa
     const options = curatorOptions(params, counts, names);
     menus.push({ key: "curator", label: "Куратор", valueLabel: options.find((option) => option.key === params.curator)?.label ?? null, options });
   }
-  if (queue) {
+  menus.push({
+    key: "stage", label: "Этап", valueLabel: params.stage ? admissionsPipelineStage(params.stage) : null,
+    options: [
+      { key: "all", label: "Все этапы", href: studentsListHref(params, { stage: null }), selected: params.stage === null },
+      ...ADMISSIONS_PIPELINE_STAGES.flatMap((stage) => {
+        const label = admissionsPipelineStage(stage);
+        return label ? [{
+          key: stage, label, href: studentsListHref(params, { stage }), selected: params.stage === stage,
+          count: facet(counts, counts?.stages, (item) => item.pipelineStage === stage, (item) => item.count),
+        }] : [];
+      }),
+    ],
+  });
+  if (studentsStepView(params.view)) {
     menus.push({
-      key: "stage", label: "Этап", valueLabel: params.stage ? admissionsPipelineStage(params.stage) : null,
+      key: "sort", label: "Сортировка", valueLabel: params.sort === "updated" ? "по обновлению" : "по сроку",
       options: [
-        { key: "all", label: "Все этапы", href: studentsListHref(params, { stage: null }), selected: params.stage === null },
-        ...ADMISSIONS_PIPELINE_STAGES.flatMap((stage) => {
-          const label = admissionsPipelineStage(stage);
-          return label ? [{
-            key: stage, label, href: studentsListHref(params, { stage }), selected: params.stage === stage,
-            count: facet(counts, counts?.stages, (item) => item.pipelineStage === stage, (item) => item.count),
-          }] : [];
-        }),
+        { key: "due", label: "По сроку шага", href: studentsListHref(params, { sort: null }), selected: params.sort === "due" },
+        { key: "updated", label: "По обновлению", href: studentsListHref(params, { sort: "updated" }), selected: params.sort === "updated" },
       ],
     });
-    if (studentsStepView(params.view)) {
-      menus.push({
-        key: "sort", label: "Сортировка", valueLabel: params.sort === "updated" ? "по обновлению" : "по сроку",
-        options: [
-          { key: "due", label: "По сроку шага", href: studentsListHref(params, { sort: null }), selected: params.sort === "due" },
-          { key: "updated", label: "По обновлению", href: studentsListHref(params, { sort: "updated" }), selected: params.sort === "updated" },
-        ],
-      });
-    }
   }
-  const active = [params.query, params.direction, params.curator, queue ? params.stage : null, queue && params.sort === "updated" ? "updated" : null].filter(Boolean).length;
+  const active = [params.query, params.direction, params.curator, params.stage, params.sort === "updated" ? "updated" : null].filter(Boolean).length;
   return { menus, resetHref: active ? studentsListHref(params, { query: null, direction: null, curator: null, stage: null, sort: null }) : null };
 }

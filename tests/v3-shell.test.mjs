@@ -86,7 +86,7 @@ test("tab slots per role follow the owner's order: admissions and Admin — Ст
 
 test("tabs come only from the role's visible navigation: never an item it cannot open, never more than four plus «Ещё»", () => {
   for (const who of Object.keys(ACTORS)) {
-    for (const href of ["/main", "/tasks", "/calendar", "/profile?section=docs", "/pipeline"]) {
+    for (const href of ["/main", "/tasks", "/calendar", "/universities", "/pipeline"]) {
       const model = nav(who, href);
       const visible = visibleNavigationLinks(model);
       const tabs = shellTabs(model);

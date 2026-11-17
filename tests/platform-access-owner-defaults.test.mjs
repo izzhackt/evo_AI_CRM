@@ -265,7 +265,7 @@ for (const label of ["Admissions", "Admissions Manager"]) {
     // former Главная.
     assert.deepEqual(ids(model).groups, [
       ["sales", ["requests", "inbox", "sales-dynamics"]],
-      ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
+      ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "universities"]],
     ]);
     assert.equal(ids(model).common.includes("requests"), false, "«Заявки» left «Общее»");
     assert.equal(ids(model).common[0], "tasks");
@@ -320,7 +320,7 @@ test("D: the Admin keeps both groups with both conversation pages; «Заявк�
   const admin = navigationFor([], "/main", "admin");
   assert.deepEqual(ids(admin).groups, [
     ["sales", ["requests", "pipeline", "inbox"]],
-    ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities"]],
+    ["admissions", ["admissions-pipeline", "messages", "admissions-worklist", "universities"]],
   ]);
   assert.equal(ids(admin).common[0], "tasks");
   assert.equal(ids(admin).common.some((id) => id === "requests" || id === "inbox" || id === "messages"), false);

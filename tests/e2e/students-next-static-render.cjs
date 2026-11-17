@@ -3,10 +3,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * «Студенты», EVO Docs и «Университеты» в «Новом виде» (решение владельца 27.10.2026) — клиентская сборка НАСТОЯЩИХ компонентов
- * (`StudentsNextPage`: вкладки, плитки, `DataTable`, фильтры, панель дела, массовый выбор, EVO Docs, «Нагрузка кураторов»;
+ * «Студенты» и «Университеты» в «Новом виде» (решение владельца 27.10.2026) — клиентская сборка НАСТОЯЩИХ компонентов
+ * (`StudentsNextPage`: вкладки, плитки, `DataTable`, фильтры, панель дела, массовый выбор, «Нагрузка кураторов»;
  * `UniversitiesListNext`, `UniversityDetailNext`, `ManageIndexNext`, `UniversityFrame`) на СИНТЕТИЧЕСКИХ данных
- * (`students-next-fixtures.cjs`): имена, дела, файлы и даты выдуманы и не являются записями EVO. Адрес в стенде — состояние:
+ * (`students-next-fixtures.cjs`): имена, дела и даты выдуманы и не являются записями EVO. Адрес в стенде — состояние:
  * `router.push` открывает и закрывает панель дела и меняет вид, как это делает сервер (ответ приходит из заготовленных чтений).
  * Серверные действия подменены: шаг дела «сохраняется» и записывается как вызов, остальные честно отказывают. Supabase, права и
  * данные этот стенд не проверяет — проверяются вёрстка, токены, адаптив, клавиатура, доступность и путь «строка → панель → действие».
@@ -81,7 +81,7 @@ const geography = () => h("section", { "aria-label": "Город и стоимо
 
 function body(search) {
   switch (fx.kind) {
-    case "students": return h(StudentsNextPage, { input: fx.inputs[search] ?? fx.inputs[fx.search], manageUniversities: true });
+    case "students": return h(StudentsNextPage, { input: fx.inputs[search] ?? fx.inputs[fx.search] });
     case "universities": return h(UniversitiesListNext, { ...fx.data, rows: fx.data.rows.map((row) => ({ ...row, thumb: thumb() })) });
     case "university": return h(UniversityDetailNext, { ...fx.data, photo: photo() }, fx.data.canManage ? geography() : null);
     case "manage": return h(UniversityFrame, {
@@ -213,7 +213,6 @@ function pagesOf(fixtures) {
     updated: queue(students.sortedUpdated),
     curators: queue(students.curators),
     ...Object.fromEntries(Object.entries(students.states).map(([name, entry]) => [`state-${name}`, queue(entry)])),
-    ...Object.fromEntries(Object.entries(students.docs).map(([name, entry]) => [`docs-${name}`, queue(entry)])),
     "uni-list": uni("universities", universities.list),
     "uni-stale": uni("universities", universities.stale),
     "uni-filtered": uni("universities", universities.filtered),

@@ -15,7 +15,7 @@ const { journeys: fixes } = require("./students-next-fixes-journeys.cjs");
 
 const MAINS = { students: "v3-students-next", universities: "v3-universities-next", university: "v3-university-next", manage: "v3-universities-next" };
 // Страницы, у которых проверяются все три ширины; остальные — 1440 и 390.
-const ALL_WIDTHS = new Set(["queue", "mine", "docs-review", "docs-program", "docs-packages", "curators", "uni-list", "uni-detail", "uni-manage"]);
+const ALL_WIDTHS = new Set(["queue", "mine", "curators", "uni-list", "uni-detail", "uni-manage"]);
 
 async function run() {
   const args = process.argv.slice(2);
@@ -103,7 +103,7 @@ async function run() {
     }
   }
 
-  // 2. Пути: строка → панель → действие, клавиатура, фильтры, вкладки, очереди EVO Docs.
+  // 2. Пути: строка → панель → действие, клавиатура, фильтры, вкладки.
   for (const journey of [...journeys, ...fixes]) await journey(tools);
 
   await browser.close();

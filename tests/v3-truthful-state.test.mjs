@@ -430,8 +430,8 @@ test("lead card from the board panel returns to the same board state", () => {
   assert.match(profile, /const listReturnTo = requestsReturnTo \?\? studentsReturnTo \?\? pipelineReturnTo \?\? boardReturnTo;/u);
   assert.match(profile, /<Link href=\{requestsReturnTo \?\? boardReturnTo \?\? directoryHref\}/u);
   // A lead opened without a return address goes back to the board it lives on.
-  assert.match(profile, /listReturnTo === null && leadParam && !hasCaseParam && !docsMode && staffCanAccessRoute\(actor, PIPELINE_PATH\)/u);
-  assert.match(profile, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : docsMode \? "К списку EVO Docs" : "К списку студентов"\}/u);
+  assert.match(profile, /listReturnTo === null && leadParam && !hasCaseParam && staffCanAccessRoute\(actor, PIPELINE_PATH\)/u);
+  assert.match(profile, /\{requestsReturnTo \? "К списку заявок" : pipelineBackHref \? "К воронке продаж" : "К списку студентов"\}/u);
   assert.match(profile, /href=\{requestsReturnTo \?\? pipelineBackHref \?\? directoryHref\}/u);
   // The English «Sales» card title is gone.
   const tabs = source("src/components/staff/profile/tabs.tsx");

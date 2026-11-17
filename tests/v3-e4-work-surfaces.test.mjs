@@ -730,7 +730,7 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   assert.match(page, /agreement: leadAgreement,/u);
   assert.match(page, /gateForms: Boolean\(view\.sales && view\.details\.routeTarget\.leadId && hasHandoffGateForms\(view\.sales\.gate, isStaffPreview\(actor\)\)\)/u);
   // Student 360 (Э4): действия дела у заголовка — `caseParts.actions`, как у Lead 360.
-  assert.match(page, /action=\{docsAction \?\? caseParts\?\.actions \?\? leadParts\?\.actions\}/u);
+  assert.match(page, /action=\{caseParts\?\.actions \?\? leadParts\?\.actions\}/u);
   // Вкладка браузера остаётся «Лид — EVO CRM».
   assert.match(read("src/lib/v3/navigation.ts"), /isLeadProfile\(query\)\) return "Лид";/u);
   const drawer = read("src/components/staff/profile/LeadStepDrawer.tsx");

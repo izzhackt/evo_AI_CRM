@@ -18,7 +18,6 @@ import { fieldLabelCls, inputCls } from "@/components/ui";
 import { StatusChip } from "@/components/staff/blocks/StatusChip";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/staff/queue/queue-buttons";
 import { useAnchoredPopover } from "@/components/staff/queue/useAnchoredPopover";
-import { MENU_ITEM } from "@/components/staff/students/DocsRowMenu";
 import {
   changePlatformDocumentSlotMetadataAction,
   removePlatformDocumentSlotAction,
@@ -48,9 +47,9 @@ import type {
  * «Скачать», «Заменить файл», «Изменить пункт», «Связи», «Убрать»,
  * «Распознавание»; выбранное раскрывается под строкой, по одному.
  *
- * Строка — своя сетка по ширине области (container query `documents`), как
- * таблица EVO Docs: колонки фиксированные, потому что у каждой строки своя
- * сетка. Уже 52rem — стопка: название и «⋯», состояние и дата, действия.
+ * Строка — своя сетка по ширине области (container query `documents`):
+ * колонки фиксированные, потому что у каждой строки своя сетка, общей таблицы
+ * нет. Уже 52rem — стопка: название и «⋯», состояние и дата, действия.
  */
 const ROW_GRID = "grid grid-cols-[auto_minmax(0,1fr)_2.75rem] items-center gap-x-3 gap-y-2 [grid-template-areas:'name_name_menu'_'status_date_date'_'actions_actions_actions'] @min-[52rem]/documents:grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_22rem_2.75rem] @min-[52rem]/documents:[grid-template-areas:'name_status_date_actions_menu']";
 
@@ -291,9 +290,12 @@ function ChecklistItemRemove({
   );
 }
 
+/** Пункт «⋯» строки документа. */
+const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+
 /**
- * «⋯» строки — тот же приём, что у строки EVO Docs (`DocsRowMenu`): popover
- * API в верхнем слое, место — у своей кнопки; выбор пункта его закрывает.
+ * «⋯» строки: popover API в верхнем слое, место — у своей кнопки; выбор
+ * пункта его закрывает.
  */
 function DocumentRowMenu({ name, children }: Readonly<{ name: string; children: (close: () => void) => ReactNode }>) {
   const menu = useAnchoredPopover("end");

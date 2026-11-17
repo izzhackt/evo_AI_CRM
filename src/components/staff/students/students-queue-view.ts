@@ -29,10 +29,7 @@ import {
   type StudentCaseQueueView,
 } from "../../../lib/platform-student-case-queue-contract.ts";
 import type { HandoffAcknowledgement } from "../../../lib/platform-handoff-acknowledgement.ts";
-import type { ApplicationDocumentCursor, ApplicationDocumentQueueItem } from "../../../lib/portal/application-documents.ts";
-import type { ApplicationPackageQueueItem } from "../../../lib/portal/application-packages.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
-import { dayDelta } from "../calendar/types.ts";
 import { dueBucket, formatQueueDay, queueDayWithWeekday, weekEnd } from "../queue/due-bucket.ts";
 import { shortPersonName } from "../queue/person-name.ts";
 
@@ -41,17 +38,6 @@ export const STUDENTS_PATH = "/profile";
 /** Виды «Студентов» в порядке вкладок; «Нагрузка кураторов» — вид без строк дел. */
 export const STUDENTS_QUEUE_VIEWS = ["mine", "needs_action", "active", "pending", "needs_curator", "closed", "curators"] as const;
 export type StudentsQueueView = (typeof STUDENTS_QUEUE_VIEWS)[number];
-/**
- * Вкладки EVO Docs — один центр проверки документов (Э8.5, 28.09.2026).
- * «Документы дела» (ключ адреса `review` — прежние ссылки работают),
- * «Исправить» и «Не хватает» отбирают дела по счётчикам чек-листа строки 241;
- * «Документы программ» — очередь документов требований программ (228),
- * «Комплекты» — очередь «Комплекты на проверку» (232); «Все» — последней.
- */
-export const STUDENTS_DOCS_VIEWS = ["review", "program", "packages", "fix", "missing", "all"] as const;
-export type StudentsDocsView = (typeof STUDENTS_DOCS_VIEWS)[number];
-/** Вкладки-работа EVO Docs в порядке ряда: из них выбирается вкладка по умолчанию и следующая непустая. */
-export const STUDENTS_DOCS_WORK_VIEWS = ["review", "program", "packages", "fix", "missing"] as const satisfies readonly StudentsDocsView[];
 
 /**
  * Виды назначения кураторов: «Ждут куратора» и «Нагрузка кураторов». Их видит
@@ -69,35 +55,17 @@ export const STUDENTS_VIEW_LABELS: Readonly<Record<StudentsQueueView, string>> =
   closed: "Закрытые",
   curators: "Нагрузка кураторов",
 };
-export const STUDENTS_DOCS_VIEW_LABELS: Readonly<Record<StudentsDocsView, string>> = {
-  review: "Документы дела",
-  program: "Документы программ",
-  packages: "Комплекты",
-  fix: "Исправить",
-  missing: "Не хватает",
-  all: "Все",
-};
 
-/** Строк на странице очереди; EVO Docs отбирает вкладки внутри чтения по 100 дел. */
+/** Строк на странице очереди. */
 export const STUDENTS_QUEUE_PAGE_SIZE = 50;
-export const STUDENTS_DOCS_PAGE_SIZE = 100;
 
 const DIRECTION_FILTERS = [...ADMISSIONS_DIRECTIONS, "unknown"] as const;
 const QUERY_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u;
 
-export type StudentsQueueMode = "queue" | "docs";
-
 export type StudentsQueueParams = Readonly<{
-  mode: StudentsQueueMode;
-  view: StudentsQueueView | StudentsDocsView;
+  view: StudentsQueueView;
   /** Вид, который открывается без `view` в адресе (зависит от роли). */
-  defaultView: StudentsQueueView | StudentsDocsView;
-  /**
-   * EVO Docs без `view` в адресе: экран после чтений откроет первую вкладку с
-   * известным числом больше нуля, а с поиском или фильтром — «Документы дела»
-   * (`docsInitialView`); а пока вид — `defaultView`.
-   */
-  autoView: boolean;
+  defaultView: StudentsQueueView;
   query: string | null;
   direction: StudentCaseQueueDirectionFilter | null;
   curator: string | null;
@@ -128,14 +96,12 @@ type SearchParams = Readonly<Record<string, string | readonly string[] | undefin
 const LEGACY_KEYS = ["case_q", "case_status", "attention", "case_before_at", "case_before_id"] as const;
 const COVERAGE_KEYS = ["coverage_curator", "coverage_case", "coverage_after"] as const;
 
-export function studentsDefaultView(mode: StudentsQueueMode, actor: StudentsQueueActor): StudentsQueueView | StudentsDocsView {
-  if (mode === "docs") return "review";
+export function studentsDefaultView(actor: StudentsQueueActor): StudentsQueueView {
   // Admin работает с исключениями по всем кураторам; сотрудник поступления — со своими делами.
   return actor.admin ? "needs_action" : "mine";
 }
 
-export function studentsViewAllowed(view: string, mode: StudentsQueueMode, actor: StudentsQueueActor): boolean {
-  if (mode === "docs") return (STUDENTS_DOCS_VIEWS as readonly string[]).includes(view);
+export function studentsViewAllowed(view: string, actor: StudentsQueueActor): boolean {
   return (STUDENTS_QUEUE_VIEWS as readonly string[]).includes(view) && (actor.coverage || !COVERAGE_VIEWS.has(view));
 }
 
@@ -180,30 +146,34 @@ function legacyView(attention: string | null, state: string | null, actor: Stude
 
 /**
  * Адрес страницы → параметры очереди. Прежние адреса (`case_q`,
- * `case_status`, `attention`, `case_before_*`, `section=summary`) и поиск по
- * номеру дела дают переадресацию; всё остальное проверяется строго.
+ * `case_status`, `attention`, `case_before_*`, `section=summary`,
+ * `section=docs`) и поиск по номеру дела дают переадресацию; всё остальное
+ * проверяется строго.
  */
 export function parseStudentsQueueParams(
   searchParams: SearchParams,
-  mode: StudentsQueueMode,
   actor: StudentsQueueActor,
 ): StudentsQueueParse {
-  const defaultView = studentsDefaultView(mode, actor);
+  const defaultView = studentsDefaultView(actor);
   const fallback: StudentsQueueParams = Object.freeze({
-    mode, view: defaultView, defaultView, autoView: mode === "docs", query: null, direction: null, curator: null, stage: null,
-    sort: mode === "docs" ? "updated" : "due", cursor: null, open: null, coverage: Object.freeze({}) as StudentsQueueParams["coverage"],
+    view: defaultView, defaultView, query: null, direction: null, curator: null, stage: null,
+    sort: "due", cursor: null, open: null, coverage: Object.freeze({}) as StudentsQueueParams["coverage"],
   });
   try {
-    const legacy = LEGACY_KEYS.some((key) => searchParams[key] !== undefined) || single(searchParams, "section") === "summary";
-    const rawView = trimmed(single(searchParams, "view"));
+    const section = single(searchParams, "section");
+    // `section=docs` — прежний адрес вкладок EVO Docs: теперь это та же страница. Его `view` называл вкладку EVO Docs
+    // (`review`, `program`, …), а не вид очереди, поэтому он не читается; поиск и фильтры сохраняются.
+    const docsAddress = section === "docs";
+    const legacy = LEGACY_KEYS.some((key) => searchParams[key] !== undefined) || section === "summary" || docsAddress;
+    const rawView = docsAddress ? null : trimmed(single(searchParams, "view"));
     const coverageEntries = COVERAGE_KEYS
       .map((key) => [key, single(searchParams, key)] as const)
       .filter((entry): entry is readonly [(typeof COVERAGE_KEYS)[number], string] => entry[1] !== undefined);
-    let view: StudentsQueueView | StudentsDocsView | null = null;
+    let view: StudentsQueueView | null = null;
     if (rawView !== null) {
-      if (!studentsViewAllowed(rawView, mode, actor)) throw new StudentsQueueParamError();
-      view = rawView as StudentsQueueView | StudentsDocsView;
-    } else if (mode === "queue") {
+      if (!studentsViewAllowed(rawView, actor)) throw new StudentsQueueParamError();
+      view = rawView as StudentsQueueView;
+    } else {
       view = legacyView(trimmed(single(searchParams, "attention")), trimmed(single(searchParams, "case_status")), actor);
       // Ссылки замещения куратора открывают «Нагрузку кураторов».
       if (view === null && coverageEntries.length > 0 && actor.coverage) view = "curators";
@@ -215,26 +185,26 @@ export function parseStudentsQueueParams(
     if (directionValue !== null && !(DIRECTION_FILTERS as readonly string[]).includes(directionValue)) throw new StudentsQueueParamError();
     const curatorValue = trimmed(single(searchParams, "curator"));
     const curator = curatorValue === null ? null : parseQueueUuid(curatorValue) ?? fail();
-    const stageValue = mode === "docs" ? null : trimmed(single(searchParams, "stage"));
+    const stageValue = trimmed(single(searchParams, "stage"));
     if (stageValue !== null && !(ADMISSIONS_PIPELINE_STAGES as readonly string[]).includes(stageValue)) throw new StudentsQueueParamError();
-    const sortValue = mode === "docs" ? null : trimmed(single(searchParams, "sort"));
+    const sortValue = trimmed(single(searchParams, "sort"));
     if (sortValue !== null && sortValue !== "due" && sortValue !== "updated") throw new StudentsQueueParamError();
-    const sort: StudentCaseQueueSort = mode === "docs" ? "updated" : sortValue === "updated" ? "updated" : "due";
+    const sort: StudentCaseQueueSort = sortValue === "updated" ? "updated" : "due";
     const cursorValue = legacy ? null : trimmed(single(searchParams, "cursor"));
     const cursor = cursorValue === null ? null : parseStudentCaseQueueCursor(cursorValue, studentsEffectiveSort(resolvedView, sort)) ?? fail();
     const openValue = trimmed(single(searchParams, "open"));
-    const open = openValue === null || mode === "docs" || resolvedView === "curators" ? null : parseQueueUuid(openValue) ?? fail();
+    const open = openValue === null || resolvedView === "curators" ? null : parseQueueUuid(openValue) ?? fail();
     const coverage = Object.freeze(Object.fromEntries(resolvedView === "curators" ? coverageEntries : [])) as StudentsQueueParams["coverage"];
 
     const params: StudentsQueueParams = Object.freeze({
-      mode, view: resolvedView, defaultView, autoView: mode === "docs" && view === null, query, direction: directionValue as StudentCaseQueueDirectionFilter | null,
+      view: resolvedView, defaultView, query, direction: directionValue as StudentCaseQueueDirectionFilter | null,
       // В «Нагрузке кураторов» прежний `curator` был только синхронизацией фасета с замещением.
       curator: resolvedView === "curators" && curator !== null && curator === coverage.coverage_curator ? null : curator,
       stage: stageValue as AdmissionsPipelineStage | null, sort, cursor, open, coverage,
     });
     // Поиск по номеру дела: 241 ищет по имени, стране и уровню, а номер — это дело.
     if (query !== null && parseQueueUuid(query) !== null) {
-      return { kind: "redirect", href: studentsCaseHref(parseQueueUuid(query)!, { docs: mode === "docs" }) };
+      return { kind: "redirect", href: studentsCaseHref(parseQueueUuid(query)!) };
     }
     if (legacy) return { kind: "redirect", href: studentsQueueHref(params) };
     return { kind: "ok", params };
@@ -248,7 +218,7 @@ function fail(): never {
 }
 
 type HrefOverrides = Partial<{
-  view: StudentsQueueView | StudentsDocsView | null;
+  view: StudentsQueueView | null;
   query: string | null;
   direction: StudentCaseQueueDirectionFilter | null;
   curator: string | null;
@@ -262,18 +232,13 @@ type HrefOverrides = Partial<{
 /**
  * Адрес очереди: порядок ключей постоянный, значения по умолчанию (вид по
  * роли, сортировка по сроку) не пишутся. `overrides` с `null` убирает ключ.
- * EVO Docs пишет вид всегда: вкладка по умолчанию зависит от чисел, поэтому
- * адрес без `view` означает «первая непустая», а не «Документы дела». Без
- * `view` остаётся только адрес, где вид и не выбирали (`autoView`).
  */
 export function studentsQueueHref(params: StudentsQueueParams, overrides: HrefOverrides = {}): string {
   const value = <K extends keyof HrefOverrides>(key: K): StudentsQueueParams[K] | null =>
     Object.hasOwn(overrides, key) ? (overrides[key] ?? null) as StudentsQueueParams[K] | null : params[key];
   const query = new URLSearchParams();
-  if (params.mode === "docs") query.set("section", "docs");
-  const chosen = Object.hasOwn(overrides, "view") ? overrides.view ?? null : params.autoView ? null : params.view;
   const view = value("view") ?? params.defaultView;
-  if (params.mode === "docs" ? chosen !== null : view !== params.defaultView) query.set("view", view);
+  if (view !== params.defaultView) query.set("view", view);
   const text = value("query");
   if (text) query.set("q", text);
   const direction = value("direction");
@@ -281,9 +246,9 @@ export function studentsQueueHref(params: StudentsQueueParams, overrides: HrefOv
   const curator = value("curator");
   if (curator) query.set("curator", curator);
   const stage = value("stage");
-  if (stage && params.mode === "queue") query.set("stage", stage);
+  if (stage) query.set("stage", stage);
   const sort = value("sort");
-  if (sort && sort !== "due" && params.mode === "queue") query.set("sort", sort);
+  if (sort && sort !== "due") query.set("sort", sort);
   const cursor = value("cursor");
   if (cursor) query.set("cursor", cursor);
   const open = value("open");
@@ -301,7 +266,7 @@ export function studentsListHref(params: StudentsQueueParams, overrides: HrefOve
   return studentsQueueHref(params, { cursor: null, open: null, coverage: null, ...overrides });
 }
 
-const RETURN_KEYS: ReadonlySet<string> = new Set(["section", "view", "q", "direction", "curator", "stage", "sort", "cursor", "open"]);
+const RETURN_KEYS: ReadonlySet<string> = new Set(["view", "q", "direction", "curator", "stage", "sort", "cursor", "open"]);
 
 /**
  * `returnTo` Student 360 обратно в очередь: только путь «Студентов» и только
@@ -320,48 +285,40 @@ export function parseStudentsReturnTo(value: unknown): string | null {
       seen.add(key);
       raw[key] = val;
     }
-    if (raw.section !== undefined && raw.section !== "docs") return null;
-    const mode: StudentsQueueMode = raw.section === "docs" ? "docs" : "queue";
     // Виды назначения кураторов проверит сама страница; здесь достаточно, чтобы вид вообще существовал.
-    const parsed = parseStudentsQueueParams(raw, mode, { admin: true, coverage: true });
+    const parsed = parseStudentsQueueParams(raw, { admin: true, coverage: true });
     if (parsed.kind !== "ok") return null;
-    const text = new URLSearchParams(Object.entries(raw).filter(([key]) => key !== "section"));
-    const prefix = mode === "docs" ? "section=docs" : "";
-    const search = [prefix, text.toString()].filter(Boolean).join("&");
+    const search = new URLSearchParams(Object.entries(raw)).toString();
     return search ? `${STUDENTS_PATH}?${search}` : STUDENTS_PATH;
   } catch {
     return null;
   }
 }
 
-/** Student 360: вход из очереди — «Обзор» (EVO Docs — «Документы»), с возвратом в тот же список. */
+/** Student 360: вход из очереди — «Обзор», с возвратом в тот же список. */
 export function studentsCaseHref(
   caseId: string,
-  options: Readonly<{ docs?: boolean; tab?: string; returnTo?: string | null }> = {},
+  options: Readonly<{ tab?: string; returnTo?: string | null }> = {},
 ): string {
-  const query = new URLSearchParams({ case: caseId, tab: options.tab ?? (options.docs ? "documents" : "overview") });
-  if (options.docs) query.set("section", "docs");
+  const query = new URLSearchParams({ case: caseId, tab: options.tab ?? "overview" });
   if (options.returnTo) query.set("returnTo", options.returnTo);
   return `${STUDENTS_PATH}?${query.toString()}`;
 }
 
-/** Запрос страницы 241 для вида. EVO Docs читает дела в работе по 100 и отбирает вкладку сама. */
+/** Запрос страницы 241 для вида. */
 export function studentsQueueRequest(params: StudentsQueueParams): StudentCaseQueueRequest {
   const filters = {
     direction: params.direction,
     curatorMembershipId: params.curator,
-    pipelineStage: params.mode === "queue" ? params.stage : null,
+    pipelineStage: params.stage,
     query: params.query,
   };
-  if (params.mode === "docs") {
-    return { ...filters, view: "active", sort: "updated", cursor: params.cursor, pageSize: STUDENTS_DOCS_PAGE_SIZE };
-  }
   return { ...filters, view: studentsCountsView(params), sort: studentsEffectiveSort(params.view, params.sort), cursor: params.cursor, pageSize: STUDENTS_QUEUE_PAGE_SIZE };
 }
 
-/** Вид 241 для чтения чисел: у «Нагрузки кураторов» и EVO Docs своих строк дел нет — «Все в работе». */
+/** Вид 241 для чтения чисел: у «Нагрузки кураторов» своих строк дел нет — «Все в работе». */
 export function studentsCountsView(params: StudentsQueueParams): StudentCaseQueueView {
-  return params.mode === "docs" || params.view === "curators" ? "active" : params.view as StudentCaseQueueView;
+  return params.view === "curators" ? "active" : params.view;
 }
 
 export type StudentsTab = Readonly<{ key: string; label: string; href: string; count: number | null; current: boolean }>;
@@ -380,7 +337,7 @@ export function studentsQueueTabs(
   actor: StudentsQueueActor,
 ): readonly StudentsTab[] {
   return STUDENTS_QUEUE_VIEWS
-    .filter((view) => studentsViewAllowed(view, "queue", actor))
+    .filter((view) => studentsViewAllowed(view, actor))
     .map((view) => ({
       key: view,
       label: STUDENTS_VIEW_LABELS[view],
@@ -389,275 +346,6 @@ export function studentsQueueTabs(
       current: params.view === view,
     }))
     .filter((tab) => tab.current || tab.count !== 0 || !EXCEPTION_QUEUE_VIEWS.has(tab.key));
-}
-
-/** Какие очереди документов учётная запись читает: без чтения своей вкладки нет. */
-export type DocsQueuesShown = Readonly<{ program: boolean; packages: boolean }>;
-
-/** Вкладка EVO Docs есть в ряду: очереди программ и комплектов — только тем, кто их читает (или если адрес их назвал). */
-function docsTabShown(view: StudentsDocsView, shown: DocsQueuesShown, current: StudentsQueueParams["view"] | null = null): boolean {
-  if (view === "program") return shown.program || current === "program";
-  if (view === "packages") return shown.packages || current === "packages";
-  return true;
-}
-
-/**
- * Вкладки очередей, которые не прячутся при нуле. «Все» — не работа.
- * «Документы программ» и «Комплекты» несут восстановление незавершённых
- * решений (`DocsQueueRecovery`): оно читает браузер, а не сервер, поэтому
- * число очереди 0 не повод убрать вкладку — решение, чей ответ потерян,
- * иначе осталось бы без входа.
- */
-const DOCS_TABS_KEPT_AT_ZERO: ReadonlySet<string> = new Set(["all", "program", "packages"]);
-
-/**
- * Вкладки EVO Docs: число «Все» — из чтения чисел; вкладки дел — только при
- * полном чтении страницы; «Документы программ» и «Комплекты» — только при
- * полном чтении своей очереди. Вкладок очередей программ и комплектов нет у
- * того, кто их не читает (нет `document.read.full` или просмотр роли), — как
- * ссылок на них в шапке доски поступления. Вкладка дел (`review`, `fix`,
- * `missing`) с прочитанным нулём не показывается, пока на ней не стоят.
- */
-export function studentsDocsTabs(
-  params: StudentsQueueParams,
-  counts: Readonly<Record<StudentsDocsView, number | null>>,
-  shown: DocsQueuesShown = { program: true, packages: true },
-): readonly StudentsTab[] {
-  return STUDENTS_DOCS_VIEWS.filter((view) => docsTabShown(view, shown, params.view)).map((view) => ({
-    key: view,
-    label: STUDENTS_DOCS_VIEW_LABELS[view],
-    href: studentsListHref(params, { view }),
-    count: counts[view],
-    current: params.view === view,
-  // Пустая вкладка дел — не повод для кнопки: число 0 (а не «неизвестно») её прячет, пока на ней не стоят.
-  })).filter((tab) => tab.current || tab.count !== 0 || DOCS_TABS_KEPT_AT_ZERO.has(tab.key));
-}
-
-/**
- * Вкладка EVO Docs без `view` в адресе: первая вкладка-работа с известным
- * числом больше нуля. Неизвестные числа (неполное чтение, сбой) не
- * угадываются — тогда «Документы дела». «Все» — не работа и сама не выбирается.
- */
-export function docsAutoView(counts: Readonly<Record<StudentsDocsView, number | null>>, shown: DocsQueuesShown): StudentsDocsView {
-  return STUDENTS_DOCS_WORK_VIEWS.find((view) => docsTabShown(view, shown) && (counts[view] ?? 0) > 0) ?? "review";
-}
-
-/**
- * Вкладка, которую EVO Docs открывает по адресу без `view`: без поиска и
- * фильтров — первая вкладка-работа (`docsAutoView`); с поиском, направлением
- * или куратором — «Документы дела». Числа очередей программ и комплектов
- * поиск и фильтры дел не сужают, и поиск не уводит на очередь, где его нет.
- */
-export function docsInitialView(
-  params: StudentsQueueParams,
-  counts: Readonly<Record<StudentsDocsView, number | null>>,
-  shown: DocsQueuesShown,
-): StudentsDocsView {
-  if (params.query || params.direction || params.curator) return "review";
-  return docsAutoView(counts, shown);
-}
-
-/**
- * Пустая вкладка называет следующую непустую — по кругу ряда вкладок-работы,
- * только с известным числом больше нуля. null — непустых вкладок нет.
- */
-export function docsNextNonEmpty(
-  current: StudentsDocsView,
-  counts: Readonly<Record<StudentsDocsView, number | null>>,
-  shown: DocsQueuesShown,
-): Readonly<{ view: StudentsDocsView; label: string; count: number }> | null {
-  const order: readonly StudentsDocsView[] = STUDENTS_DOCS_WORK_VIEWS;
-  // «Все» не в ряду работы: с неё поиск начинается с первой вкладки.
-  const start = order.indexOf(current);
-  for (let step = 1; step <= order.length; step += 1) {
-    const view = order[(start + step) % order.length];
-    const count = counts[view];
-    if (view !== current && docsTabShown(view, shown) && count !== null && count > 0) return { view, label: STUDENTS_DOCS_VIEW_LABELS[view], count };
-  }
-  return null;
-}
-
-/**
- * Отбор строки на вкладку EVO Docs по счётчикам её чек-листа. Нет доступа к
- * документам — только «Все». «Не хватает» — в чек-листе есть места без
- * загруженного документа (`missing`: место в состоянии `required`, версии
- * нет); дело без чек-листа сюда не входит — его требования неизвестны.
- * «Комплекты» дела не отбирают: у них своя очередь.
- */
-export function docsRowMatches(view: StudentsDocsView, row: Pick<StudentCaseQueueRow, "documents">): boolean {
-  if (view === "all") return true;
-  if (view === "packages" || view === "program") return false;
-  const documents = row.documents;
-  if (documents === null) return false;
-  if (view === "missing") return documents.missing > 0;
-  return view === "review" ? documents.submitted > 0 : documents.correctionRequired + documents.rejected > 0;
-}
-
-/** Документы прочитаны хотя бы у одного дела (или дел нет): без права на документы вкладкам дел нечего считать. */
-export function docsReadable(rows: readonly Pick<StudentCaseQueueRow, "documents">[]): boolean {
-  return rows.length === 0 || rows.some((row) => row.documents !== null);
-}
-
-/**
- * Числа вкладок EVO Docs. Вкладки дел считаются по прочитанным строкам,
- * поэтому число есть только у полного чтения (первая страница без
- * продолжения); «Документы программ» и «Комплекты» — только у своей очереди,
- * прочитанной целиком; «Все» — число вида «Все в работе» из чтения чисел.
- */
-export function docsTabCounts(
-  rows: readonly Pick<StudentCaseQueueRow, "documents">[],
-  complete: boolean,
-  counts: StudentCaseQueueCounts | null,
-  packages: DocsPackagesRead = { kind: "hidden" },
-  program: DocsProgramRead = { kind: "hidden" },
-): Readonly<Record<StudentsDocsView, number | null>> {
-  // Число «0» без прочитанных документов было бы неправдой: неизвестно — null.
-  const known = complete && docsReadable(rows);
-  return {
-    review: known ? rows.filter((row) => docsRowMatches("review", row)).length : null,
-    program: docsQueueCount(program),
-    packages: docsQueueCount(packages),
-    fix: known ? rows.filter((row) => docsRowMatches("fix", row)).length : null,
-    missing: known ? rows.filter((row) => docsRowMatches("missing", row)).length : null,
-    all: counts ? counts.views.active : complete ? rows.length : null,
-  };
-}
-
-/**
- * Очередь документов для вкладки EVO Docs: «Документы программ»
- * (`staff_application_document_submission_queue_v1`) или «Комплекты»
- * (`application_package_queue_v1`) — до `DOCS_QUEUE_READ_PAGES` страниц по
- * 20, новые сверху. `hidden` — учётная запись эту очередь не читает (нет
- * `document.read.full` или просмотр роли): вкладки нет; `denied` — сервер
- * отказал; `error` — сбой. У `ready` `nextCursor` не null — очередь
- * прочитана не вся.
- */
-export type DocsQueueRead<Item> =
-  | Readonly<{ kind: "hidden" }>
-  | Readonly<{ kind: "ready"; queue: Readonly<{ items: readonly Item[]; nextCursor: ApplicationDocumentCursor | null }> }>
-  | Readonly<{ kind: "denied" }>
-  | Readonly<{ kind: "error" }>;
-export type DocsPackagesRead = DocsQueueRead<ApplicationPackageQueueItem>;
-export type DocsProgramRead = DocsQueueRead<ApplicationDocumentQueueItem>;
-
-/** Число вкладки очереди — только когда очередь прочитана целиком (последняя страница без продолжения). */
-export function docsQueueCount(read: DocsQueueRead<unknown>): number | null {
-  return read.kind === "ready" && read.queue.nextCursor === null ? read.queue.items.length : null;
-}
-export const docsPackagesCount = docsQueueCount;
-
-/**
- * Сколько страниц очереди (по 20, новые сверху) читает вкладка — как у чтений
- * «Сегодня» (3 страницы): число вкладки и порядок «сначала дольше всех
- * ждущие» есть, пока очередь не длиннее 60.
- */
-export const DOCS_QUEUE_READ_PAGES = 3;
-export const DOCS_PACKAGE_READ_PAGES = DOCS_QUEUE_READ_PAGES;
-
-/** Страница очереди: ответ действия чтения, приведённый к `queue`. */
-export type DocsQueuePage<Item> =
-  | Readonly<{ ok: true; queue: Readonly<{ items: readonly Item[]; nextCursor: ApplicationDocumentCursor | null }> }>
-  | Readonly<{ ok: false; reason: string }>;
-export type DocsPackagesPage = DocsQueuePage<ApplicationPackageQueueItem>;
-
-/**
- * Чтение вкладки очереди: страницы подряд, пока есть продолжение, но не
- * больше `pages`. Отказ или сбой первой страницы — своё состояние; сбой
- * следующей — прочитанная часть без числа (продолжение остаётся). Одна
- * запись (`idOf`) дважды не показывается.
- */
-export async function readDocsQueuePages<Item>(
-  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsQueuePage<Item>>,
-  idOf: (item: Item) => string,
-  pages: number = DOCS_QUEUE_READ_PAGES,
-): Promise<DocsQueueRead<Item>> {
-  const items: Item[] = [];
-  const seen = new Set<string>();
-  let cursor: ApplicationDocumentCursor | null = null;
-  for (let index = 0; index < pages; index += 1) {
-    let page: DocsQueuePage<Item>;
-    try {
-      page = await readPage(cursor);
-    } catch {
-      page = { ok: false, reason: "unavailable" };
-    }
-    if (!page.ok) {
-      if (index === 0) return Object.freeze({ kind: page.reason === "forbidden" ? "denied" : "error" });
-      break;
-    }
-    for (const item of page.queue.items) {
-      if (seen.has(idOf(item))) continue;
-      seen.add(idOf(item));
-      items.push(item);
-    }
-    cursor = page.queue.nextCursor;
-    if (cursor === null) break;
-  }
-  return Object.freeze({ kind: "ready", queue: Object.freeze({ items: Object.freeze(items), nextCursor: cursor }) });
-}
-
-/** «Комплекты»: страницы `readStaffApplicationPackageQueueAction`, комплект — по `packageId`. */
-export function readDocsPackagePages(
-  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsPackagesPage>,
-  pages: number = DOCS_QUEUE_READ_PAGES,
-): Promise<DocsPackagesRead> {
-  return readDocsQueuePages(readPage, (item) => item.package.packageId, pages);
-}
-
-/** «Документы программ»: страницы `readStaffApplicationDocumentSubmissionQueueAction`, документ — по `submissionId`. */
-export function readDocsProgramPages(
-  readPage: (cursor: ApplicationDocumentCursor | null) => Promise<DocsQueuePage<ApplicationDocumentQueueItem>>,
-  pages: number = DOCS_QUEUE_READ_PAGES,
-): Promise<DocsProgramRead> {
-  return readDocsQueuePages(readPage, (item) => item.submission.submissionId, pages);
-}
-
-// --- Ожидание проверки ----------------------------------------------------
-
-/** С какого дня ожидания слово — предупреждение (`text-warn`): два дня и дольше. */
-export const DOCS_WAIT_WARN_DAYS = 2;
-
-export type DocsWaiting = Readonly<{
-  /** Момент загрузки для `<time dateTime>`. */
-  dateTime: string;
-  /** День загрузки по Бишкеку: «25.09» (год — только не текущий). */
-  day: string;
-  /** «сегодня» или «ждёт 3 дн». */
-  word: string;
-  warn: boolean;
-}>;
-
-/**
- * Сколько ждёт проверки — от последней загрузки до сегодняшнего дня
- * Бишкека, днями (как «ждёт N дн» у переписки): загружено сегодня —
- * «сегодня», раньше — «ждёт N дн», с двух дней — предупреждением. Нет
- * времени — нет слова.
- */
-export function docsWaiting(uploadedAt: string | null | undefined, today: string): DocsWaiting | null {
-  if (!uploadedAt) return null;
-  const moment = new Date(uploadedAt);
-  if (!Number.isFinite(moment.getTime())) return null;
-  const day = dayInOrganizationTimezone(moment);
-  const days = Math.max(0, dayDelta(day, today));
-  return { dateTime: uploadedAt, day: formatQueueDay(day, today), word: days === 0 ? "сегодня" : `ждёт${NBSP}${days}${NBSP}дн`, warn: days >= DOCS_WAIT_WARN_DAYS };
-}
-
-/**
- * Порядок строк очереди документов: «сначала дольше всех ждущие» — только
- * когда прочитано всё (иначе самые давние могли не попасть в прочитанную
- * часть, и порядок сервера остаётся — об этом говорит одна короткая строка:
- * у дел — над таблицей, у программ и комплектов — под ней).
- * Строка без времени ожидания оставляет порядок сервера целиком.
- */
-export function docsOldestFirst<Item>(
-  items: readonly Item[],
-  uploadedAt: (item: Item) => string | null | undefined,
-  idOf: (item: Item) => string,
-  complete: boolean,
-): Readonly<{ items: readonly Item[]; oldestFirst: boolean }> {
-  if (!complete || items.some((item) => !uploadedAt(item) || !Number.isFinite(Date.parse(uploadedAt(item)!)))) return { items, oldestFirst: false };
-  const sorted = [...items].sort((a, b) => Date.parse(uploadedAt(a)!) - Date.parse(uploadedAt(b)!) || (idOf(a) < idOf(b) ? -1 : idOf(a) > idOf(b) ? 1 : 0));
-  return { items: sorted, oldestFirst: true };
 }
 
 // --- Сроки ---------------------------------------------------------------
@@ -752,7 +440,7 @@ export function studentsBands<Row extends Pick<StudentCaseQueueRow, "dueBand">>(
 // --- Слова строки ----------------------------------------------------------
 
 /** 1 задача, 2 задачи, 5 задач. */
-export function russianPlural(count: number, one: string, few: string, many: string): string {
+function russianPlural(count: number, one: string, few: string, many: string): string {
   const tens = count % 100;
   const units = count % 10;
   if (tens >= 11 && tens <= 14) return many;
@@ -779,10 +467,10 @@ export type StudentsSignalOptions = Readonly<{
  * «Сигналы» строки — словами и только из самой строки 241: «нужен ответ»
  * (переписка ждёт сотрудника, 245), просроченные задачи, документы исправить
  * или отклонены, просроченный дедлайн (флаг внимания без просроченных задач
- * и шага), «ждём партнёра». Документы «на
- * проверке» — работа проверяющего: они в строке документов панели и в EVO
- * Docs, а не в сигналах. «Ждёт принятия» и «нужен куратор» — в колонке
- * «Куратор», а без неё (`curatorWords`) — первыми сигналами.
+ * и шага), «ждём партнёра». Документы «на проверке» — работа проверяющего:
+ * они в строке документов панели и на вкладке «Документы» дела, а не в
+ * сигналах. «Ждёт принятия» и «нужен куратор» — в колонке «Куратор», а без
+ * неё (`curatorWords`) — первыми сигналами.
  */
 export function studentsRowSignals(
   row: Pick<StudentCaseQueueRow, "overdueTaskCount" | "documents" | "attentionFlags" | "dueBand">
@@ -828,7 +516,7 @@ export type StudentsDocumentsLine = Readonly<{
   parts: readonly StudentsSignal[];
 }>;
 
-/** Строка документов (EVO Docs и «Быстрый просмотр»). null — нет права читать документы. */
+/** Строка документов («Быстрый просмотр» и «Обзор» дела). null — нет права читать документы. */
 export function studentsDocumentsLine(documents: StudentCaseChecklistCounts | null): StudentsDocumentsLine | null {
   if (documents === null) return null;
   if (documents.total === 0) return { summary: "Чек-лист не собран", parts: [] };
@@ -838,30 +526,6 @@ export function studentsDocumentsLine(documents: StudentCaseChecklistCounts | nu
   if (documents.rejected) parts.push({ key: "rejected", tone: "warn", text: `${documents.rejected}${NBSP}${russianPlural(documents.rejected, "отклонён", "отклонены", "отклонено")}` });
   if (documents.missing) parts.push({ key: "missing", tone: "muted", text: `${documents.missing}${NBSP}не${NBSP}загружено` });
   return { summary: `${documents.approved} из ${documents.total} принято`, parts };
-}
-
-/**
- * Ячейка «Документы» EVO Docs: первым — число, которое определяет вкладку
- * («2 на проверке» на «Документах дела», «1 исправить · 1 отклонён» на
- * «Исправить», «3 не загружено» на «Не хватает»), затем остальное тише. На
- * «Все» первым идёт «7 из 12 принято».
- * null — нет права читать документы.
- */
-export type StudentsDocsPart = Readonly<{ key: string; text: string; tone: "default" | "danger" | "warn" | "muted" }>;
-
-export function studentsDocsCell(
-  view: StudentsDocsView,
-  documents: StudentCaseChecklistCounts | null,
-): Readonly<{ lead: readonly StudentsDocsPart[]; rest: readonly StudentsDocsPart[] }> | null {
-  const line = studentsDocumentsLine(documents);
-  if (line === null) return null;
-  const summary: StudentsDocsPart = { key: "summary", tone: "default", text: line.summary };
-  const leadKeys: readonly string[] = view === "review" ? ["review"] : view === "fix" ? ["fix", "rejected"] : view === "missing" ? ["missing"] : [];
-  // Число вкладки — обычным цветом: «2 на проверке», «3 не загружено»; «исправить» и «отклонён» остаются предупреждением.
-  const lead = line.parts.filter((part) => leadKeys.includes(part.key))
-    .map((part) => part.key === "review" || part.key === "missing" ? { ...part, tone: "default" as const } : part);
-  if (lead.length === 0) return { lead: [summary], rest: line.parts };
-  return { lead, rest: [{ ...summary, tone: "muted" }, ...line.parts.filter((part) => !leadKeys.includes(part.key))] };
 }
 
 /** День последнего изменения дела (сортировка «по обновлению»): «обн. 22.09» по Бишкеку. */

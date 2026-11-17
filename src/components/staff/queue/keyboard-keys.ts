@@ -4,7 +4,7 @@
  */
 export type KeyHint = readonly [readonly string[], string];
 
-/** Клавиши списка-очереди («Задачи», «Студенты», EVO Docs). */
+/** Клавиши списка-очереди («Задачи», «Студенты»). */
 export const QUEUE_KEYS: readonly KeyHint[] = [
   [["/"], "поиск"],
   [["↑", "↓"], "выбрать строку"],

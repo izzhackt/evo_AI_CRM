@@ -39,7 +39,7 @@ test("the tab shows «N из M принято», no filter chips and one chip pe
     const chips = row.slice(0, row.indexOf("</li>")).match(/class="v3-chip t-caption"/gu) ?? [];
     assert.equal(chips.length, 1, "exactly one state word per row");
   }
-  // Rows keep their anchors for links from the feed and EVO Docs.
+  // Rows keep their anchors for links from the feed.
   assert.match(html, /<li id="document-88888888-5555-4555-8555-000000000001"/u);
   // Dates: the current version's upload moment, Bishkek time, mono; the year only when it is not this year.
   assert.match(html, /<time dateTime="2026-09-18T10:58:00.000Z" class="font-mono tabular-nums">18\.09 16:58<\/time>/u);

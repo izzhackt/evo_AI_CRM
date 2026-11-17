@@ -481,7 +481,7 @@ const ROW_PANEL_TITLES: Readonly<Record<RowPanel, string>> = {
   status: "Отметить статус",
   partner: "Партнёр и решение",
 };
-/** Пункт «⋯» строки — как у «⋯» EVO Docs (`DocsRowMenu`). */
+/** Пункт «⋯» строки. */
 const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 /** Внешняя ссылка партнёра становится ссылкой только по http(s); остальное — текстом. */

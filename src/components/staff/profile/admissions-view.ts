@@ -13,14 +13,8 @@ export const ATTENTION_LABELS: Record<AdmissionsAttention, string> = {
   // assignment — Admin needs to pick a new curator inside the same case.
   needs_curator: "Нужно назначить куратора",
 };
-export function withDocsSection(href: string, docsMode: boolean): string {
-  if (!docsMode) return href;
-  const url = new URL(href, "https://evo.invalid");
-  url.searchParams.set("section", "docs");
-  return `${url.pathname}?${url.searchParams}${url.hash}`;
-}
 
-export function admissionsDirectoryHref(params: V3ProfileCaseDirectoryParams, cursor?: Readonly<{ sortAt: string; id: string }>, docsMode = false): string {
+export function admissionsDirectoryHref(params: V3ProfileCaseDirectoryParams, cursor?: Readonly<{ sortAt: string; id: string }>): string {
   const query = new URLSearchParams();
   if (params.query) query.set("case_q", params.query);
   if (params.state) query.set("case_status", params.state);
@@ -28,5 +22,5 @@ export function admissionsDirectoryHref(params: V3ProfileCaseDirectoryParams, cu
   if (params.curatorMembershipId) query.set("curator", params.curatorMembershipId);
   if (params.attention) query.set("attention", params.attention);
   if (cursor) { query.set("case_before_at", cursor.sortAt); query.set("case_before_id", cursor.id); }
-  return withDocsSection(`/profile${query.size ? `?${query}` : ""}`, docsMode);
+  return `/profile${query.size ? `?${query}` : ""}`;
 }

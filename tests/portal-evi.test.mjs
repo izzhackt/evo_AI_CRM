@@ -104,6 +104,9 @@ test("history from the browser: known roles, limits, and the student speaks last
     { role: "user", content: "Начнём!" },
   ]);
   assert.equal(parseEviHistory([{ role: "user", content: "a" }, { role: "assistant", content: "b" }]), null);
+  // Начало — всегда реплика Эви: текст ученика не сливается с заметкой кабинета в запросе к модели.
+  assert.equal(parseEviHistory([{ role: "user", content: "a" }]), null);
+  assert.equal(parseEviHistory([{ role: "user", content: "a" }, { role: "assistant", content: "b" }, { role: "user", content: "c" }]), null);
   assert.equal(parseEviHistory([{ role: "system", content: "a" }]), null);
   assert.equal(parseEviHistory([{ role: "user", content: "x".repeat(EVI_LIMITS.maxUserChars + 1) }]), null);
   assert.equal(parseEviHistory([]), null);
@@ -169,7 +172,7 @@ test("Эви never asks for AI consent: it is given at registration, not on a wo
     assert.deepEqual(keys.filter((key) => /^evi\.(?:allow|consentLine|saving|allowError)$/u.test(key)), [], locale);
   }
   assert.doesNotMatch(CSS, /\.pt-evi-(?:gate|saving|error)\b/u);
-  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /return <EviChat strings=\{strings\} offline \/>;/u);
+  assert.doesNotMatch(read(`${EVI_DIR}/EviTab.tsx`), /consent|Consent/u);
 });
 
 test("before the first answer the chat greets with a welcome stage, and the section always has one name", () => {
@@ -360,6 +363,20 @@ test("the chat header says what is happening, and «Новый чат» is a lab
   assert.match(CSS, /\.pt-evi-new-label \{\s*position: absolute;\s*width: 1px;\s*height: 1px;\s*overflow: hidden;\s*clip-path: inset\(50%\);/u);
 });
 
+test("the top of «Профессии» invites to Эви instead of the interest test; without Эви the test card stays", () => {
+  const page = read("src/app/(portal)/portal/professions/page.tsx");
+  assert.match(page, /\{eviAvailable\(consent\) && eviOnline \? <ProfessionsEviHero strings=\{strings\} \/> : <ProfessionsTestHero state=\{orvis\} strings=\{strings\} \/>\}/u);
+  const hero = read("src/components/portal/professions/ProfessionsEviHero.tsx");
+  assert.match(hero, /<Link className="pt-btn" href="\/portal\/professions\?view=evi">\{strings\["evi\.heroAction"\]\}<\/Link>/u);
+  assert.match(hero, /<EviRobot face="happy" settled still \/>/u);
+  for (const locale of ["ru", "ky"]) {
+    const strings = getPortalStrings("professions", locale);
+    assert.ok(strings["evi.heroMeta"] && strings["evi.heroAction"], locale);
+    // «Пара вопросов» не обещаем: вопросов до десяти.
+    for (const key of ["evi.greeting", "evi.welcomeText", "evi.heroMeta"]) assert.doesNotMatch(strings[key], /пара вопросов/iu, `${locale} ${key}`);
+  }
+});
+
 test("every failure's words match its one action", () => {
   const thread = read(`${EVI_DIR}/EviThread.tsx`);
   for (const locale of ["ru", "ky"]) {
@@ -375,7 +392,7 @@ test("every failure's words match its one action", () => {
 
 test("without the model Эви says so on the welcome and offers the catalogue, not an input that never answers", () => {
   // Модели нет — вкладка рендерит чат offline: «недоступен» сразу на приветствии, робот спокоен.
-  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /return <EviChat strings=\{strings\} offline \/>;/u);
+  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /: <EviChat strings=\{strings\} offline \/>;/u);
   const chat = read(`${EVI_DIR}/EviChat.tsx`);
   assert.match(chat, /initialFailure: offline \? "unavailable" : initialFailure/u);
   const thread = read(`${EVI_DIR}/EviThread.tsx`);

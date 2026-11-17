@@ -76,7 +76,7 @@ const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/Do
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsBrowser } = require(join(ROOT, "src/components/portal/professions/ProfessionsBrowser.tsx"));
 const { ProfessionMatches } = require(join(ROOT, "src/components/portal/professions/ProfessionMatches.tsx"));
-const { ProfessionsTestHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsTestHero.tsx"));
+const { ProfessionsEviHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsEviHero.tsx"));
 const { ProfessionsTabs } = require(join(ROOT, "src/components/portal/professions/ProfessionsTabs.tsx"));
 const { EviChat } = require(join(ROOT, "src/components/portal/evi/EviChat.tsx"));
 const { EviRobot } = require(join(ROOT, "src/components/portal/evi/EviRobot.tsx"));
@@ -791,10 +791,8 @@ const surfaces = [
         createElement(
           "div",
           null,
-          createElement(ProfessionsTestHero, {
-            state: { questionCount: 92, draftAnswered: 40, completed: false, profile: null },
-            strings: professionsStrings,
-          }),
+          // Верх «Профессий» — вход в подбор с Эви вместо карточки теста (решение владельца 17.11.2026).
+          createElement(ProfessionsEviHero, { strings: professionsStrings }),
           createElement(ProfessionMatches, {
             matches: [{ card: professionCards[0], percent: 87, reasons: ["analysis"] }],
             locale: "ru",

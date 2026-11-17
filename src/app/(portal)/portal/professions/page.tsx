@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { EviTab } from "@/components/portal/evi/EviTab";
 import { ProfessionMatches } from "@/components/portal/professions/ProfessionMatches";
+import { ProfessionsEviHero } from "@/components/portal/professions/ProfessionsEviHero";
 import { ProfessionsBrowser } from "@/components/portal/professions/ProfessionsBrowser";
 import { ProfessionsTabs } from "@/components/portal/professions/ProfessionsTabs";
 import { ProfessionsTestHero } from "@/components/portal/professions/ProfessionsTestHero";
@@ -13,6 +14,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { topProfessionMatches } from "@/lib/portal/profession-guide";
 import { isOrvisScaleId, type ProfessionCardSummary } from "@/lib/portal/professions";
 import { readOwnOrvisState, readProfessionCards } from "@/lib/portal/professions-source";
+import { readEviApiKey } from "@/lib/server/evi/messages";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +56,8 @@ export default async function ProfessionsPage({
   const activeScale = rawScale !== undefined && isOrvisScaleId(rawScale) ? rawScale : null;
   const strings = getPortalStrings("professions", locale);
   const consentRead = readOwnAiConsentForProfile(actor.accessTier);
+  // Ключ Эви на сервере (кладёт владелец): без него чат честно «недоступен», а наверху остаётся карточка теста.
+  const eviOnline = readEviApiKey(process.env) !== null;
 
   if (rawView === "evi") {
     if (!eviAvailable(await consentRead)) redirect("/portal/professions");
@@ -63,7 +67,7 @@ export default async function ProfessionsPage({
           <h1 className="pt-page-title">{strings.title}</h1>
         </header>
         <ProfessionsTabs view="evi" strings={strings} />
-        <EviTab strings={strings} />
+        <EviTab strings={strings} online={eviOnline} />
       </main>
     );
   }
@@ -88,7 +92,8 @@ export default async function ProfessionsPage({
       </header>
       {eviAvailable(consent) ? <ProfessionsTabs view="catalog" strings={strings} /> : null}
 
-      <ProfessionsTestHero state={orvis} strings={strings} />
+      {/* Вход в подбор с Эви вместо карточки теста (решение владельца 17.11.2026); Эви не отвечает — прежняя карточка. */}
+      {eviAvailable(consent) && eviOnline ? <ProfessionsEviHero strings={strings} /> : <ProfessionsTestHero state={orvis} strings={strings} />}
 
       {cards === null || filtered === null ? (
         <p role="alert" className="pt-alert">{strings.unavailable}</p>

@@ -177,8 +177,10 @@ export function parseEviProgress(value: unknown): EviProgress | null {
 }
 
 /**
- * История разговора из браузера: только роли user/assistant с непустым текстом в пределах лимитов, последнее —
- * сообщение ученика, не длиннее `maxTurns`. Иначе null (лимит разговора отличается отдельно — `historyTooLong`).
+ * История разговора из браузера: только роли user/assistant с непустым текстом в пределах лимитов, первое — реплика
+ * Эви (приветствие), последнее — сообщение ученика, не длиннее `maxTurns`. Иначе null (лимит разговора отличается
+ * отдельно — `historyTooLong`). Первое сообщение запроса к модели — заметка кабинета; история с репликой ученика
+ * в начале слилась бы с ней.
  */
 export function parseEviHistory(value: unknown): EviTurn[] | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > EVI_LIMITS.maxTurns) return null;
@@ -190,7 +192,7 @@ export function parseEviHistory(value: unknown): EviTurn[] | null {
     if (content === null) return null;
     turns.push({ role: item.role, content });
   }
-  return turns[turns.length - 1]?.role === "user" ? turns : null;
+  return turns[0]?.role === "assistant" && turns[turns.length - 1]?.role === "user" ? turns : null;
 }
 
 export function historyTooLong(value: unknown): boolean {

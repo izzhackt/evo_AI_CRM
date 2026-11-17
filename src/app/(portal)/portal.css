@@ -4625,6 +4625,20 @@ html:has(.pt-program-dialog[open]) {
   margin-top: 8px;
 }
 
+/* Вход в подбор с Эви (17.11.2026): та же карточка, слева неподвижный робот, текст занимает середину. */
+.pt-prof-hero-evi .pt-prof-hero-main {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.pt-prof-hero-robot {
+  flex: none;
+}
+
+.pt-prof-hero-robot .pt-evi-mascot {
+  width: 56px;
+}
+
 /* Блок страницы: заголовок слева, пояснение справа. */
 .pt-prof-block {
   margin-top: 36px;

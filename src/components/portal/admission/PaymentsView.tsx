@@ -4,6 +4,7 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { PaymentCenter, PaymentDue } from "@/lib/portal/payment-center";
+import { amountCopyValue, nextUnpaidTranche } from "@/lib/portal/how-to-pay";
 import {
   buildPaymentSchedule,
   isGeneratedReceivedLabel,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/portal/payment-rows";
 import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 
+import { HowToPayCard } from "./HowToPayCard";
 import { PaymentsSection, ProofSlot, ReceiptSlot } from "./PaymentReceiptForm";
 import { PortalStatus } from "./PortalStatus";
 import {
@@ -219,33 +221,6 @@ function ServiceBlock({ group, center, strings, title, sharedName }: Readonly<{
   );
 }
 
-/** «Как оплатить»: реквизиты и QR одной организации; пока администратор ничего не заполнил, блока нет. */
-function HowToPay({ details, strings }: Readonly<{ details: NonNullable<PaymentCenter["details"]>; strings: Strings }>) {
-  return (
-    <section className="pt-card pt-howtopay" aria-labelledby="pay-how" data-testid="portal-how-to-pay">
-      <header className="pt-card-header">
-        <div className="pt-card-header-main">
-          <h2 id="pay-how" className="pt-card-title">{strings.howToPayTitle}</h2>
-        </div>
-      </header>
-      <div className="pt-howtopay-body">
-        {details.text ? <p className="pt-howtopay-text">{details.text}</p> : null}
-        {details.qrId ? (
-          // eslint-disable-next-line @next/next/no-img-element -- ссылка на закрытый файл отвечает перенаправлением на подписанный адрес
-          <img
-            className="pt-howtopay-qr"
-            src={`/api/portal/case-files/payment_details_qr/${encodeURIComponent(details.qrId)}/download`}
-            alt={strings.howToPayQrAlt}
-            width={192}
-            height={192}
-          />
-        ) : null}
-      </div>
-      <p className="pt-card-note">{strings.howToPayQrNote}</p>
-    </section>
-  );
-}
-
 function sharedName(title: string, labels: readonly string[]): string | null {
   const names = [...new Set(labels.filter((label) => !isGeneratedReceivedLabel(label)))];
   if (names.length !== 1) return null;
@@ -264,10 +239,27 @@ export function PaymentsView({ center, locale }: Readonly<{ center: PaymentCente
     ...center.unassigned.map((entry) => entry.currency),
   ])];
   const empty = schedule.groups.length === 0 && schedule.added.length === 0;
+  const nextDue = nextUnpaidTranche(center.dues);
+  const amount = nextDue
+    ? {
+        display: formatPortalMoney(nextDue.outstandingMinor, nextDue.currency),
+        dueOn: nextDue.dueAt ? formatPortalDeadline(nextDue.dueAt) : null,
+        copyValue: amountCopyValue(nextDue.outstandingMinor),
+      }
+    : null;
 
   return (
     <>
-      {center.details ? <HowToPay details={center.details} strings={strings} /> : null}
+      {center.details ? (
+        <HowToPayCard
+          text={center.details.text}
+          qrSrc={center.details.qrId
+            ? `/api/portal/case-files/payment_details_qr/${encodeURIComponent(center.details.qrId)}/download`
+            : null}
+          amount={amount}
+          locale={locale}
+        />
+      ) : null}
       <PaymentsSection
         strings={strings}
         canUpload={center.canUpload}

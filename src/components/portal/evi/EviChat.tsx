@@ -4,6 +4,7 @@ import type { EviFailure } from "@/lib/portal/evi";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
 import { EviDock, keepEviFocus } from "./EviDock";
+import { EviRobot } from "./EviRobot";
 import { EviThread } from "./EviThread";
 import { useEviConversation, type EviAsk, type EviMessage, type EviOptions } from "./useEviConversation";
 
@@ -28,12 +29,16 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
     <section className="pt-evi" aria-labelledby="pt-evi-name" data-intro={chat.intro ? "" : undefined}>
       {chat.intro ? null : (
         <div className="pt-evi-head">
-          <div>
+          <span className="pt-evi-avatar" aria-hidden="true"><EviRobot face="happy" settled still /></span>
+          <div className="pt-evi-who">
             <h2 id="pt-evi-name" className="pt-evi-name">{strings["evi.name"]}</h2>
             <p className="pt-evi-role">{strings["evi.role"]}</p>
           </div>
-          <button type="button" className="pt-btn-ghost pt-evi-new" onClick={() => { chat.restart(); keepEviFocus(); }}>
-            {strings["evi.newChat"]}
+          <button type="button" className="pt-evi-new" aria-label={strings["evi.newChat"]} title={strings["evi.newChat"]}
+            onClick={() => { chat.restart(); keepEviFocus(); }}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" />
+            </svg>
           </button>
         </div>
       )}

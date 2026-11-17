@@ -10148,11 +10148,53 @@ a.pt-pay-file {
   font-size: var(--pt-size-caption);
 }
 
+/* Шапка разговора: аватар Эви (неподвижный робот), имя и роль, «Новый чат» — круглая кнопка со стрелкой по кругу. */
+.pt-evi-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--pt-accent-soft);
+}
+
+.pt-evi-avatar .pt-evi-mascot {
+  width: 34px;
+}
+
+.pt-evi-who {
+  flex: 1;
+  min-width: 0;
+}
+
 .pt-evi-new {
-  border-color: var(--pt-control-edge);
-  border-radius: var(--pt-radius-chip);
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: 50%;
   background: var(--pt-surface);
   color: var(--pt-text);
+  cursor: pointer;
+  transition:
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-evi-new:hover {
+  border-color: var(--pt-text);
+}
+
+.pt-evi-new:active {
+  transform: scale(var(--pt-press-scale));
+}
+
+.pt-evi-new:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
 }
 
 .pt-evi-log {
@@ -10952,6 +10994,12 @@ a.pt-pay-file {
 @media (prefers-reduced-motion: no-preference) {
   .pt-evi-mascot {
     animation: pt-evi-bob 3.4s ease-in-out infinite;
+  }
+
+  /* Аватар в шапке чата — неподвижный: двигается только робот у реплики. */
+  .pt-evi-mascot[data-still],
+  .pt-evi-mascot[data-still] * {
+    animation: none;
   }
 
   .pt-evi-mascot:is([data-mood="idle"], [data-mood="talk"]) .pt-evi-lids {

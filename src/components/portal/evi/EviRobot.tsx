@@ -11,11 +11,13 @@ export type EviFace = EviMood | "idle";
  * Цвета — токены `--pt-evi-*` в portal.css (у градиентов — через классы `<stop>`), без свечения и фильтров; движение —
  * блок «Живой Эви» там же. Идентификаторы градиентов уникальны, чтобы на одном экране могло стоять несколько роботов.
  */
-export function EviRobot({ face, listening = false, settled = false }: Readonly<{
+export function EviRobot({ face, listening = false, settled = false, still = false }: Readonly<{
   face: EviFace;
   listening?: boolean;
   /** Лицо без разовой реакции (подскок, «поп», прыжок): реплика уже не новая. */
   settled?: boolean;
+  /** Неподвижный робот — аватар в шапке чата: живой только робот у реплики. */
+  still?: boolean;
 }>) {
   const id = useId().replace(/\W/gu, "");
   return (
@@ -24,6 +26,7 @@ export function EviRobot({ face, listening = false, settled = false }: Readonly<
       data-mood={face}
       data-listening={listening ? "" : undefined}
       data-settled={settled ? "" : undefined}
+      data-still={still ? "" : undefined}
       viewBox="0 0 160 130"
       aria-hidden="true"
       focusable="false"

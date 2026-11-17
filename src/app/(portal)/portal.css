@@ -10047,6 +10047,7 @@ a.pt-pay-file {
 }
 
 .pt-evi-log {
+  container: pt-evi-log / inline-size;
   position: relative;
   display: flex;
   flex: 1;
@@ -10275,22 +10276,53 @@ a.pt-pay-file {
   font-size: var(--pt-size-secondary);
 }
 
-/* Три профессии — во всю ширину оси, под репликой «Придумал!»; вся карточка — ссылка на профессию. */
+/*
+ * Три профессии — карточки с фото под репликой «Придумал!»: три в ряд, когда переписка шире 600 px, иначе — лента с
+ * прокруткой вбок от края до края. Фото — снимок профессии (сгенерирован, как обложки уроков английского), номер —
+ * красный кружок на фото. Вся карточка — одна ссылка на профессию.
+ */
 .pt-evi-results {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
 
+@container pt-evi-log (min-width: 600px) {
+  .pt-evi-results {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container pt-evi-log (max-width: 599px) {
+  .pt-evi-results {
+    grid-auto-columns: 78%;
+    grid-auto-flow: column;
+    width: auto;
+    margin-inline: -16px;
+    padding: 4px 16px 8px;
+    overflow-x: auto;
+    scroll-padding-inline: 16px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .pt-evi-results::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pt-evi-result {
+    scroll-snap-align: start;
+  }
+}
+
 .pt-evi-result {
   position: relative;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 2px 14px;
-  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-evi-bubble);
@@ -10298,7 +10330,7 @@ a.pt-pay-file {
 }
 
 .pt-evi-result:hover {
-  border-color: var(--pt-control-edge);
+  box-shadow: var(--pt-shadow-raised);
 }
 
 .pt-evi-result:has(a:focus-visible) {
@@ -10306,17 +10338,41 @@ a.pt-pay-file {
   outline-offset: 2px;
 }
 
+.pt-evi-result-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: var(--pt-skeleton);
+}
+
+.pt-evi-result-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .pt-evi-result-n {
+  position: absolute;
+  top: 10px;
+  left: 10px;
   display: grid;
-  grid-row: span 3;
   place-items: center;
   width: 32px;
   height: 32px;
   border-radius: 50%;
   background: var(--pt-accent);
+  box-shadow: var(--pt-shadow-card);
   color: var(--pt-on-accent);
   font-size: var(--pt-size-secondary);
   font-weight: 700;
+}
+
+.pt-evi-result-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
 }
 
 .pt-evi-result-title {
@@ -10324,19 +10380,19 @@ a.pt-pay-file {
   font-size: var(--pt-size-body);
   font-weight: 700;
   line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .pt-evi-result-title a {
   color: var(--pt-text);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 
 .pt-evi-result-title a::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   border-radius: var(--pt-radius-card);
 }
 
@@ -10359,7 +10415,7 @@ a.pt-pay-file {
 }
 
 .pt-evi-result-why {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   font-size: var(--pt-size-secondary);
   line-height: var(--pt-leading);
 }

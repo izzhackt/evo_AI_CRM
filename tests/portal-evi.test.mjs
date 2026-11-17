@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -138,6 +138,22 @@ test("every failure has at most one recovery action, and the robot keeps a bound
   assert.equal(eviSpeakMs(Array(10).fill("слово").join(" ")), 1000);
   assert.equal(eviSpeakMs(Array(100).fill("слово").join(" ")), 2400);
   assert.equal(EVI_BEAT.react.eureka, 2400);
+});
+
+test("every catalogue profession has its photo, and a result card finds it by the card key", () => {
+  const catalogue = read("supabase/migrations/359_platform_profession_cards_v1_1.sql");
+  const keys = [...new Set([...catalogue.matchAll(/'([a-z]+(?:-[a-z]+)*)', '1\.1\.0'/gu)].map((match) => match[1]))].sort();
+  assert.equal(keys.length, 24);
+  const photos = read("src/components/portal/professions/profession-photo-files.ts");
+  const mapped = [...photos.matchAll(/^ {2}"([a-z-]+)": [A-Za-z]+,$/gmu)].map((match) => match[1]).sort();
+  assert.deepEqual(mapped, keys);
+  for (const key of keys) {
+    assert.match(photos, new RegExp(`from "\\.\\./\\.\\./\\.\\./content/professions/photos/${key}\\.webp";`, "u"), `${key} imports its own file`);
+    assert.ok(existsSync(new URL(`../src/content/professions/photos/${key}.webp`, import.meta.url)), `${key}.webp exists`);
+  }
+  const results = read(`${EVI_DIR}/EviResults.tsx`);
+  assert.match(results, /const photo = PROFESSION_PHOTOS\[result\.cardKey\];/u);
+  assert.match(results, /alt="" loading="lazy"/u, "the photo is decoration: the title names the card");
 });
 
 test("the results show the catalogue's own line and no score", () => {

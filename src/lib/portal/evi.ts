@@ -37,10 +37,11 @@ export type EviReply = Readonly<{
 }>;
 
 /**
- * Направление, готовое к показу: карточка каталога, её название и строка «чем занимается» на языке кабинета (из самой
- * карточки, не от модели; null — не рисуется) и объяснение Эви, почему подходит.
+ * Направление, готовое к показу: карточка каталога (id и ключ — по ключу находится фото профессии), её название и
+ * строка «чем занимается» на языке кабинета (из самой карточки, не от модели; null — не рисуется) и объяснение Эви,
+ * почему подходит.
  */
-export type EviResult = Readonly<{ cardId: string; title: string; summary: string | null; why: string }>;
+export type EviResult = Readonly<{ cardId: string; cardKey: string; title: string; summary: string | null; why: string }>;
 
 export type EviAnswer = Readonly<{
   message: string;

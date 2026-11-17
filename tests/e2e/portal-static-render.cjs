@@ -41,6 +41,11 @@ for (const extension of [".ts", ".tsx"]) {
   };
 }
 
+// Статические фото (WebP 720 × 405, как у Next StaticImageData): в стенд — встроенным data-URI, чтобы снимки были с фото.
+Module._extensions[".webp"] = (module, filename) => {
+  module.exports = { src: `data:image/webp;base64,${readFileSync(filename).toString("base64")}`, width: 720, height: 405 };
+};
+
 // --- alias "@/..." → src/... (tsconfig paths) --------------------------------
 const originalResolve = Module._resolveFilename;
 Module._resolveFilename = function patchedResolve(request, ...rest) {
@@ -1023,6 +1028,7 @@ const surfaces = [
             mood: "eureka",
             results: eviCards.map((card, index) => ({
               cardId: card.cardId,
+              cardKey: card.cardKey,
               title: card.titleRu,
               summary: card.summaryRu,
               why: ["Ты любишь информатику и уже делаешь сайты и игры.", "Тебе нравится помогать людям и разбираться, как всё устроено.", "Любишь считать и искать закономерности."][index],

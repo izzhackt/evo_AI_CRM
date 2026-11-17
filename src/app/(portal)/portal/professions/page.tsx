@@ -48,7 +48,7 @@ export default async function ProfessionsPage({
   if (rawView === "evi") {
     const consent = await readOwnAiConsentForProfile(actor.accessTier);
     return (
-      <main className="pt-page pt-prof-page">
+      <main className="pt-page pt-prof-page pt-prof-page-evi">
         <header className="pt-page-header">
           <h1 className="pt-page-title">{strings.title}</h1>
         </header>

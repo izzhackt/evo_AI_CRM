@@ -36,8 +36,11 @@ export type EviReply = Readonly<{
   picks: readonly EviPick[] | null;
 }>;
 
-/** Направление, готовое к показу: карточка каталога, её название на языке кабинета и объяснение. */
-export type EviResult = Readonly<{ cardId: string; title: string; why: string }>;
+/**
+ * Направление, готовое к показу: карточка каталога, её название и строка «чем занимается» на языке кабинета (из самой
+ * карточки, не от модели; null — не рисуется) и объяснение Эви, почему подходит.
+ */
+export type EviResult = Readonly<{ cardId: string; title: string; summary: string | null; why: string }>;
 
 export type EviAnswer = Readonly<{
   message: string;
@@ -52,6 +55,34 @@ export type EviFailure = "consent" | "unavailable" | "limit" | "busy" | "invalid
 export type EviActionResult =
   | Readonly<{ ok: true; answer: EviAnswer }>
   | Readonly<{ ok: false; reason: EviFailure }>;
+
+/** Одно действие, которым ученик выходит из сбоя: повторить тот же вопрос, начать заново или разрешить ИИ-помощников. */
+export const EVI_FAILURE_ACTION = {
+  error: "retry",
+  busy: "retry",
+  limit: "restart",
+  invalid: "restart",
+  consent: "allow",
+  unavailable: null,
+} as const satisfies Record<EviFailure, "retry" | "restart" | "allow" | null>;
+
+/**
+ * Такт робота (исключение владельца 17.11.2026): сначала реакция на новый ответ, потом «говорит» по длине реплики,
+ * потом спокойное лицо. Текст при этом виден сразу — такт ничего не задерживает. Миллисекунды.
+ */
+export const EVI_BEAT = {
+  react: { happy: 900, wow: 900, eureka: 2400 },
+  perWord: 60,
+  base: 400,
+  speakMin: 800,
+  speakMax: 2400,
+} as const;
+
+/** Сколько робот «говорит» реплику: 60 мс на слово плюс 400 мс, от 0,8 до 2,4 с. */
+export function eviSpeakMs(text: string): number {
+  const words = text.trim().split(/\s+/u).filter(Boolean).length;
+  return Math.min(EVI_BEAT.speakMax, Math.max(EVI_BEAT.speakMin, words * EVI_BEAT.perWord + EVI_BEAT.base));
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

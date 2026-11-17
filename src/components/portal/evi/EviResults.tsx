@@ -3,8 +3,9 @@ import type { EviResult } from "@/lib/portal/evi";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
 /**
- * Три профессии от Эви: номер, название-ссылка на карточку каталога (там «Где учиться в EVO») и объяснение «почему»
- * словами Эви. Процентов и оценок нет: сравнивать не с чем (CLAUDE.md, «Что считается ложью»).
+ * Три профессии от Эви — во всю ширину разговора: номер, название-ссылка на карточку каталога (там «Где учиться в EVO»;
+ * ссылка покрывает всю карточку), строка «чем занимается» из самой карточки каталога и объяснение «почему» словами Эви.
+ * Процентов и оценок нет: сравнивать не с чем (CLAUDE.md, «Что считается ложью»).
  */
 export function EviResults({ results, strings }: Readonly<{
   results: readonly EviResult[];
@@ -18,6 +19,7 @@ export function EviResults({ results, strings }: Readonly<{
           <h3 className="pt-evi-result-title">
             <IntentPrefetchLink href={`/portal/professions/${result.cardId}`}>{result.title}</IntentPrefetchLink>
           </h3>
+          {result.summary ? <p className="pt-evi-result-what">{result.summary}</p> : null}
           <p className="pt-evi-result-why">{result.why}</p>
         </li>
       ))}

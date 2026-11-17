@@ -56,10 +56,14 @@ const EXPECTED_SURFACES = [
   "consent-gate",
   // Согласие на ИИ-помощников (25.10.2026): строка «Профиля» во всех состояниях.
   "profile-ai-consent",
-  // «Подбор с Эви» (16.11.2026): разговор, итог, строка без согласия на ИИ.
+  // «Подбор с Эви» (16.11.2026, сцена и живой робот — 17.11): начало, разговор, итог, сбой, строка без согласия на ИИ
+  // и лист выражений робота.
+  "professions-evi-intro",
   "professions-evi-chat",
   "professions-evi-results",
+  "professions-evi-failure",
   "professions-evi-consent",
+  "professions-evi-moods",
 ] as const;
 
 test("static render produces every expected portal surface", () => {

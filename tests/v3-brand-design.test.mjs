@@ -73,19 +73,20 @@ test("role settings retain native disclosure and shell retains visible preview e
 test("directory filters reset native form state when applied URL filters change", () => {
   // «Студенты» work queue (2026-09-25): one queue toolbar. The search form is
   // keyed by the applied query, carries the view and filters as hidden
-  // fields, and «Сбросить» (only when something is set) keeps the view and
-  // the EVO Docs section.
+  // fields, and «Сбросить» (only when something is set) keeps the view.
   const toolbar = read("src/components/staff/queue/QueueToolbar.tsx");
   assert.match(toolbar, /<form key=\{search\.defaultValue\}/u);
   assert.match(toolbar, /Object\.entries\(search\.hidden\)\.map\(\(\[name, value\]\) => value \? <input key=\{name\} type="hidden" name=\{name\} value=\{value\} \/> : null\)/u);
   assert.match(toolbar, /\{resetHref \? \([\s\S]*Сбросить[\s\S]*\) : null\}/u);
   const students = read("src/components/staff/students/StudentsQueueHead.tsx");
-  // EVO Docs always keeps its tab: an address without a view there means «first non-empty tab».
-  assert.match(students, /section: params\.mode === "docs" \? "docs" : null,\s*(?:\/\/[^\n]*\n\s*)?view: params\.mode === "docs" \|\| params\.view !== params\.defaultView \? params\.view : null,/u);
+  // The default view is not written into the address; the retired `section` is not written at all.
+  assert.match(students, /view: params\.view !== params\.defaultView \? params\.view : null,/u);
+  assert.doesNotMatch(students, /section:|params\.mode/u);
   assert.match(students, /resetHref=\{active \? studentsListHref\(params, \{ query: null, direction: null, curator: null, stage: null, sort: null \}\) : null\}/u);
-  // The Sales list keeps the 078 parameters and the chosen section.
+  // The Sales list keeps the 078 parameters.
   const fallback = read("src/components/staff/students/StudentsDirectoryFallback.tsx");
-  assert.match(fallback, /const baseHref = withDocsSection\("\/profile", docsMode\);/u);
+  assert.match(fallback, /const baseHref = "\/profile";/u);
+  assert.doesNotMatch(fallback, /section:|docsMode|withDocsSection/u);
   assert.match(fallback, /resetHref=\{active \? baseHref : null\}/u);
 });
 
@@ -125,7 +126,7 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/staff/board/Board.tsx",
     "src/components/staff/board/BoardToolbar.tsx",
     // Э8.5 (28.09): the admissions board has no «Разделы поступления» choice any
-    // more — its review queues are EVO Docs tabs (QueueViewTabs below).
+    // more; its review queues left with EVO Docs (17.11.2026).
     // «Задачи» (25.09.2026): вкладки, фильтры и срок в диалоге — примитивы очереди.
     "src/components/staff/queue/QueueViewTabs.tsx",
     "src/components/staff/queue/FilterMenu.tsx",
@@ -177,16 +178,11 @@ test("solid red stays for the main action and every selection shares one accent-
     }
   }
 
-  // EVO Docs (25.09.2026): one quiet row action «Открыть документы», and the
-  // former «Анкета и формы» / «Пакет ZIP» in the row menu — none of them red
-  // or a bordered button.
-  const docsTable = read("src/components/staff/students/StudentsDocsTable.tsx");
-  const openDocuments = docsTable.match(/data-queue-open=""\s+className="([^"]+)"\s*>\s*Открыть документы/u)?.[1] ?? "";
-  assert.ok(openDocuments, "«Открыть документы» is the row action");
-  assert.doesNotMatch(openDocuments, /\bbg-accent\b|\bborder\b/u);
-  const docsMenu = read("src/components/staff/students/DocsRowMenu.tsx");
-  assert.match(docsMenu, /className=\{MENU_ITEM\}>Анкета и формы<\/Link>/u);
-  assert.doesNotMatch(docsMenu.match(/const MENU_ITEM = "([^"]+)";/u)?.[1] ?? "", /\bbg-accent\b|\bborder\b/u);
+  // The «⋯» menu of a checklist row (Э8.1): its items are quiet — none of them red or a bordered button.
+  const documentRow = read("src/components/staff/profile/DocumentRow.tsx");
+  assert.match(documentRow, /className=\{MENU_ITEM\}/u);
+  assert.doesNotMatch(documentRow.match(/const MENU_ITEM = "([^"]+)";/u)?.[1] ?? "", /\bbg-accent\b|\bborder\b/u);
+  assert.ok(documentRow.match(/const MENU_ITEM = "([^"]+)";/u), "the row menu item class is defined next to the menu");
   const notifications = read("src/components/staff/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);

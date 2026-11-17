@@ -7,11 +7,11 @@
 
 /**
  * Статический рендер «Студентов» — рабочей очереди дел (25.09.2026,
- * PLAN_CHANGES «Студенты» PR 2) и EVO Docs.
+ * PLAN_CHANGES «Студенты» PR 2).
  *
  * Рендерит НАСТОЯЩИЙ экран (`buildStudentsQueueScreen`: вкладки, строка
  * инструментов, таблица по группам срока, «Быстрый просмотр» с редактором
- * шага, «Нагрузка кураторов» с `CuratorCoveragePanel`, EVO Docs) и прежний
+ * шага, «Нагрузка кураторов» с `CuratorCoveragePanel`) и прежний
  * список для Sales (`StudentsDirectoryFallback`) с СИНТЕТИЧЕСКИМИ данными:
  * имена, числа и дела выдуманы для проверки вёрстки и не являются записями
  * EVO. Числа вкладок, групп и меню считаются здесь из тех же синтетических
@@ -72,8 +72,7 @@ for (const extension of [".ts", ".tsx"]) {
 Module._extensions[".png"] = (module, filename) => {
   module.exports = { src: pathToFileURL(filename).href, width: 1843, height: 842 };
 };
-// CSS-модули (файл и решение «Документов программ» EVO Docs): имя класса —
-// сам ключ; `__esModule` нет, `import styles from` получает прокси как `default`.
+// CSS-модули: имя класса — сам ключ; `__esModule` нет, `import styles from` получает прокси как `default`.
 Module._extensions[".css"] = (module) => {
   module.exports = new Proxy({}, { get: (_target, key) => (typeof key === "string" && key !== "__esModule" ? key : undefined) });
 };
@@ -285,9 +284,9 @@ function coverage(selection = {}) {
 }
 
 /** Сценарий: адрес страницы → разбор тем же `parseStudentsQueueParams`, чтения — синтетика. */
-function scenario(search, { actor = "admin", docsMode = false, read, openTasks = null, handoff = null, coverageRead = null, invalid = false, closure = null } = {}) {
+function scenario(search, { actor = "admin", read, openTasks = null, handoff = null, coverageRead = null, invalid = false, closure = null } = {}) {
   const query = Object.fromEntries(new URLSearchParams(search));
-  const parse = view.parseStudentsQueueParams(query, docsMode ? "docs" : "queue", QUEUE_ACTOR[actor]);
+  const parse = view.parseStudentsQueueParams(query, QUEUE_ACTOR[actor]);
   if (parse.kind === "redirect") throw new Error(`scenario ${search} redirects to ${parse.href}`);
   const params = parse.params;
   const countsView = view.studentsCountsView(params);
@@ -296,7 +295,7 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     params,
     invalid: invalid || parse.kind === "invalid",
     read: read ?? {
-      page: params.view === "curators" ? null : docsMode ? pageFor("active", "updated", filters) : pageFor(params.view, view.studentsEffectiveSort(params.view, params.sort), filters),
+      page: params.view === "curators" ? null : pageFor(params.view, view.studentsEffectiveSort(params.view, params.sort), filters),
       counts: countsFor(countsView, filters),
       forbidden: false,
     },
@@ -312,7 +311,7 @@ function scenario(search, { actor = "admin", docsMode = false, read, openTasks =
     createTask: actor !== "preview",
     requestIds: { nextStep: "99999999-6666-4666-8666-000000000001", coverage: "99999999-6666-4666-8666-000000000002" },
   };
-  return { kind: "queue", search, docsMode, input, actor };
+  return { kind: "queue", search, input, actor };
 }
 
 /** Первое дело вида с сохранённым шагом, срок которого прошёл (как после отказа куратора в 182). */
@@ -371,8 +370,9 @@ const SCENARIOS = {
     const base = scenario("view=active", { actor: "manager" });
     return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
   })(),
-  "forbidden-docs": (() => {
-    const base = scenario("section=docs", { actor: "curator", docsMode: true });
+  // То же без права назначать кураторов: ссылки на «Нагрузку кураторов» нет.
+  "forbidden-curator": (() => {
+    const base = scenario("", { actor: "curator" });
     return { ...base, input: { ...base.input, read: { page: null, counts: null, forbidden: true } } };
   })(),
   "manager-default": scenario("", { actor: "manager" }),
@@ -437,32 +437,15 @@ const SCENARIOS = {
     const counts = { ...base.input.read.counts, total: rows.length, views: { ...views, active: views.active - 1, closed: rows.length } };
     return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows }, counts } } };
   })(),
-  "docs-no-access": (() => {
-    const base = scenario("section=docs", { docsMode: true });
-    const rows = base.input.read.page.rows.map((row) => ({ ...row, documents: null }));
-    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
-  })(),
-  "docs-incomplete-empty": (() => {
-    const base = scenario("section=docs", { docsMode: true });
-    const rows = base.input.read.page.rows.filter((row) => !row.documents || row.documents.submitted === 0);
-    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows, nextCursor: rows.at(-1).cursor } } } };
-  })(),
   "empty-mine": (() => {
     const base = scenario("", { actor: "curator" });
     return { ...base, input: { ...base.input, read: { page: { ...base.input.read.page, rows: [] }, counts: { ...base.input.read.counts, total: 0, views: { ...base.input.read.counts.views, mine: 0 }, bands: Object.fromEntries(BAND_ORDER.map((band) => [band, 0])) } } } };
   })(),
   invalid: scenario("view=active", { invalid: true }),
-  "docs-review": scenario("section=docs", { docsMode: true }),
-  "docs-all": scenario("section=docs&view=all", { docsMode: true }),
-  "docs-fix": scenario("section=docs&view=fix", { docsMode: true }),
-  "docs-incomplete": (() => {
-    const base = scenario("section=docs", { docsMode: true });
-    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, nextCursor: base.input.read.page.rows.at(-1).cursor } } } };
-  })(),
   curators: scenario(`view=curators&coverage_curator=${CURATOR_B}&coverage_case=${caseId(2)}`, { coverageRead: coverage({ curatorId: CURATOR_B, caseId: caseId(2), explicit: true }) }),
   "curators-plain": scenario("view=curators", { coverageRead: coverage() }),
   "curators-unavailable": scenario("view=curators", { coverageRead: { kind: "unavailable", curatorId: null, caseId: null, afterCaseId: null, explicit: false } }),
-  sales: { kind: "sales", search: "", docsMode: false, directory: SALES_DIRECTORY, params: { active: false, cursor: null, invalid: false } },
+  sales: { kind: "sales", search: "", directory: SALES_DIRECTORY, params: { active: false, cursor: null, invalid: false } },
 };
 
 // --- рендер ------------------------------------------------------------------
@@ -490,7 +473,7 @@ function withContexts(node, pathname, search) {
 function screen(name) {
   const item = SCENARIOS[name];
   if (item.kind === "sales") {
-    return { count: null, content: createElement(StudentsDirectoryFallback, { directory: item.directory, params: item.params, docsMode: false }) };
+    return { count: null, content: createElement(StudentsDirectoryFallback, { directory: item.directory, params: item.params }) };
   }
   return buildStudentsQueueScreen(item.input);
 }
@@ -534,9 +517,6 @@ function renderPage(name) {
   const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const item = SCENARIOS[name];
   const built = screen(name);
-  const action = item.docsMode
-    ? createElement("a", { href: "/universities", className: "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" }, "Университеты и бланки")
-    : undefined;
   const page = createElement(
     "div",
     { className: "v3-world", "data-surface": "staff" },
@@ -546,7 +526,7 @@ function renderPage(name) {
         actor: item.actor === "curator" ? CURATOR_ACTOR : ACTOR,
         initialNotifications: null,
       },
-      createElement(PartShell, { title: item.docsMode ? "EVO Docs" : "Студенты", count: built.count, action, dense: item.kind !== "sales" },
+      createElement(PartShell, { title: "Студенты", count: built.count, dense: item.kind !== "sales" },
         createElement("div", { id: CLIENT_ROOT_ID }, built.content)),
     ),
   );
@@ -570,7 +550,7 @@ const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent)
 const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} };
 const item = fixture.item;
 const content = item.kind === "sales"
-  ? createElement(StudentsDirectoryFallback, { directory: item.directory, params: item.params, docsMode: false })
+  ? createElement(StudentsDirectoryFallback, { directory: item.directory, params: item.params })
   : buildStudentsQueueScreen(item.input).content;
 createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
   createElement(AppRouterContext.Provider, { value: router },
@@ -688,20 +668,13 @@ async function screenshots() {
       ["students-curators-390.png", PHONE, false, null],
     ]],
     ["curators-plain", [["students-curators-plain-1440.png", DESKTOP, false, null]]],
-    ["docs-review", [
-      ["students-docs-1440.png", DESKTOP, false, null],
-      ["students-docs-390.png", PHONE, false, null],
-      ["students-docs-menu-1440.png", DESKTOP, false, "docs-menu"],
-    ]],
-    ["docs-fix", [["students-docs-fix-1440.png", DESKTOP, false, null]]],
-    ["docs-incomplete", [["students-docs-incomplete-1440.png", DESKTOP, false, null]]],
     ["sales", [["students-sales-1440.png", DESKTOP, false, null]]],
     // Исправления по независимому review #1056.
     ["forbidden", [
       ["students-forbidden-1440.png", DESKTOP, false, null],
       ["students-forbidden-390.png", PHONE, false, null],
     ]],
-    ["forbidden-docs", [["students-forbidden-docs-1440.png", DESKTOP, false, null]]],
+    ["forbidden-curator", [["students-forbidden-curator-1440.png", DESKTOP, false, null]]],
     ["page-and-counts-error", [["students-page-and-counts-error-1440.png", DESKTOP, false, null]]],
     ["manager-default", [["students-manager-default-1440.png", DESKTOP, false, null]]],
     ["manager-curators", [["students-manager-curators-1440.png", DESKTOP, false, null]]],
@@ -725,11 +698,6 @@ async function screenshots() {
       ["students-pending-1440.png", DESKTOP, false, null],
       ["students-pending-390.png", PHONE, false, null],
     ]],
-    ["docs-no-access", [["students-docs-no-access-1440.png", DESKTOP, false, null]]],
-    ["docs-incomplete-empty", [
-      ["students-docs-incomplete-empty-1440.png", DESKTOP, false, null],
-      ["students-docs-incomplete-empty-390.png", PHONE, false, null],
-    ]],
   ];
   const css = await compileCss();
   const { chromium } = require("playwright");
@@ -742,7 +710,7 @@ async function screenshots() {
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
-        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${SCENARIOS[name].docsMode ? "EVO Docs" : "Студенты"} — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Студенты — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
         `<body class="min-h-full">${renderPage(name)}<script type="application/json" id="${FIXTURE_ID}">${clientFixture(name)}</script><script src="${bundleName}"></script></body></html>`,
       ].join(""));
       for (const [file, context, fullPage, step] of shots) {
@@ -757,7 +725,6 @@ async function screenshots() {
         const editor = '[data-testid="v3-next-step-editor"]';
         if (step === "filters") await page.click('[data-testid="queue-toolbar"] button[aria-controls]');
         if (step === "direction") await page.click('[data-testid="queue-toolbar"] button:has-text("Направление")');
-        if (step === "docs-menu") await page.click('[data-queue-row] button[aria-label^="Ещё по документам"]');
         if (step === "validation") {
           // Пустой шаг со сроком «Сегодня»: честная ошибка до отправки.
           await page.fill(`${editor} textarea`, "");

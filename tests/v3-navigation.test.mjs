@@ -7,7 +7,7 @@ import {
   fixedRoleCanAccessRoute,
 } from "../src/lib/fixed-role-policy.ts";
 import { buildV3Navigation, v3SectionTitle } from "../src/lib/v3/navigation.ts";
-import { admissionsDirectoryHref, withDocsSection } from "../src/components/staff/profile/admissions-view.ts";
+import { admissionsDirectoryHref } from "../src/components/staff/profile/admissions-view.ts";
 
 function navigation(role, href = "/main") {
   const url = new URL(href, "https://navigation.test");
@@ -58,9 +58,9 @@ function links(model) {
 // their own (id `marketing`/`finance`, `model.sections`) right after
 // «Поступление» and before «Общее»; real Admin only, never a role preview.
 const expectedRoleLinks = {
-  admin: ["home", "requests", "pipeline", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "marketing", "finance", "tasks", "team-chat", "calendar", "knowledge", "ai-agents", "settings"],
+  admin: ["home", "requests", "pipeline", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "universities", "marketing", "finance", "tasks", "team-chat", "calendar", "knowledge", "ai-agents", "settings"],
   sales: ["home", "requests", "pipeline", "inbox", "sales-dynamics", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets", "ai-agents"],
-  admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "ai-agents"],
+  admissions: ["home", "inbox", "admissions-pipeline", "messages", "admissions-worklist", "universities", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "ai-agents"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -106,7 +106,7 @@ test("the two disclosure groups use the approved destinations and worklist remai
   // two identical «Воронка» items were ambiguous.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
     ["Продажи", [["Заявки", "/requests"], ["Воронка продаж", "/pipeline"], ["WhatsApp", "/inbox"]]],
-    ["Поступление", [["Воронка поступления", "/admissions-pipeline"], ["Переписка", "/messages"], ["Студенты", "/profile"], ["EVO Docs", "/profile?section=docs"], ["Университеты", "/universities"]]],
+    ["Поступление", [["Воронка поступления", "/admissions-pipeline"], ["Переписка", "/messages"], ["Студенты", "/profile"], ["Университеты", "/universities"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["sales", "admissions"]);
@@ -209,7 +209,7 @@ test("a lead card lives under «Воронка продаж» and names itself �
   // Audit 26.09: Lead 360 highlighted Поступление › Студенты and the tab read
   // «Студенты — EVO CRM». A case (`?case=`) stays «Студенты».
   for (const href of ["/profile?id=record", "/profile?id=record&tab=history", "/profile?id=record&section=summary",
-    "/profile?id=record&returnTo=%2Fpipeline%3Fdue%3Dunscheduled"]) {
+    "/profile?id=record&section=docs", "/profile?id=record&returnTo=%2Fpipeline%3Fdue%3Dunscheduled"]) {
     for (const role of ["admin", "sales"]) {
       const model = navigation(role, href);
       assert.equal(model.activeId, "pipeline", `${role} ${href}`);
@@ -224,7 +224,6 @@ test("a lead card lives under «Воронка продаж» and names itself �
     assert.equal(navigation("admin", href).activeId, "admissions-worklist", href);
     assert.equal(sectionTitle(href), "Студенты", href);
   }
-  assert.equal(sectionTitle("/profile?id=record&section=docs"), "EVO Docs");
 });
 
 test("forbidden and unknown paths never mark an unrelated link current", () => {
@@ -244,39 +243,30 @@ test("forbidden and unknown paths never mark an unrelated link current", () => {
   }
 });
 
-test("Docs keeps its own navigation context for directory and case routes", () => {
-  for (const role of ["admin", "admissions"]) {
-    for (const href of ["/profile?section=docs", "/profile?section=docs&direction=MY", "/profile?case=record&tab=anketa&section=docs", "/profile?case=record&tab=route&panel=packets&section=docs#partner-packets"]) {
-      assert.equal(navigation(role, href).activeId, "evo-docs", href);
+test("the retired `section=docs` address is the same «Студенты» page: no EVO Docs item, same highlight, same tab name", () => {
+  for (const role of ["admin", "sales", "admissions"]) {
+    assert.equal(links(navigation(role)).some((link) => link.label === "EVO Docs" || link.id === "evo-docs"), false, role);
+    for (const href of ["/profile?section=docs", "/profile?section=docs&direction=MY", "/profile?section=docs&view=review",
+      "/profile?case=record&tab=anketa&section=docs", "/profile?case=record&tab=route&panel=packets&section=docs#partner-packets",
+      "/profile?section=docs&section=docs"]) {
+      const model = navigation(role, href);
+      assert.equal(model.activeId, "admissions-worklist", `${role} ${href}`);
+      assert.equal(model.destinationKey, navigation(role, "/profile").destinationKey, `${role} ${href}`);
+      assert.equal(sectionTitle(href), "Студенты", `${role} ${href}`);
     }
-    assert.equal(navigation(role, "/profile?section=docs&section=docs").activeId, "admissions-worklist");
   }
-  assert.equal(navigation("sales", "/profile?section=docs").activeId, "admissions-worklist");
 });
 
-test("Docs presentation requires profile read authority and does not expose it to summary-only staff", () => {
-  const actor = { systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: ["lead.read", "case.read.summary"] };
-  const url = new URL("https://navigation.test/profile?section=docs");
-  assert.equal(links(buildV3Navigation(actor, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), false);
-  assert.equal(links(buildV3Navigation({ ...actor, permissionKeys: ["case.read.full"] }, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), false);
-  assert.equal(links(buildV3Navigation({ ...actor, permissionKeys: ["case.read.full", "profile.read.full"] }, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), true);
-});
-
-test("Docs links preserve filters, cursor, selected case, tab and ZIP anchor", () => {
+test("directory links keep filters and cursor and never write the retired `section`", () => {
   const params = { query: "Student", direction: "MY", state: "active", curatorMembershipId: "curator", attention: "awaiting_ack" };
   const cursor = { sortAt: "2026-09-18T00:00:00Z", id: "case" };
-  const directory = new URL(admissionsDirectoryHref(params, cursor, true), "https://navigation.test");
-  assert.equal(directory.searchParams.get("section"), "docs");
+  const directory = new URL(admissionsDirectoryHref(params, cursor), "https://navigation.test");
+  assert.equal(directory.pathname, "/profile");
   assert.equal(directory.searchParams.get("case_q"), "Student");
   assert.equal(directory.searchParams.get("direction"), "MY");
   assert.equal(directory.searchParams.get("case_before_id"), "case");
-  const zip = new URL(withDocsSection("/profile?case=case&tab=route&panel=packets#partner-packets", true), "https://navigation.test");
-  assert.equal(zip.searchParams.get("case"), "case");
-  assert.equal(zip.searchParams.get("tab"), "route");
-  assert.equal(zip.searchParams.get("panel"), "packets");
-  assert.equal(zip.searchParams.get("section"), "docs");
-  assert.equal(zip.hash, "#partner-packets");
-  assert.equal(withDocsSection("/profile?tab=anketa", false), "/profile?tab=anketa");
+  assert.equal(directory.searchParams.has("section"), false);
+  assert.equal(admissionsDirectoryHref({ query: null }), "/profile");
 });
 
 test("university details keep the catalogue and Admissions section active", () => {
@@ -303,10 +293,10 @@ test("destination keys preserve disclosure identity through filters and client d
   const destinations = [
     ["finance", ["/finance", "/finance?tab=sales", "/finance?tab=sales&year=2026&month=9&q=Name&offset=30&review=true", "/finance?tab=debts"]],
     ["calendar", ["/calendar", "/calendar?view=month&date=2026-09-01", "/calendar?date=2026-10-01&view=week"]],
-    ["admissions-worklist", ["/profile", "/profile?case=record&tab=route", "/profile?section=summary&case=", "/profile?section=summary&id="]],
+    ["admissions-worklist", ["/profile", "/profile?case=record&tab=route", "/profile?section=summary&case=", "/profile?section=summary&id=",
+      "/profile?section=docs", "/profile?case=record&section=docs&tab=anketa"]],
     // The board and a lead card opened from it keep the same sidebar identity.
     ["pipeline", ["/pipeline", "/pipeline?due=unscheduled&lead=record", "/profile?id=record&query=updated"]],
-    ["evo-docs", ["/profile?section=docs", "/profile?case=record&section=docs&tab=anketa"]],
     ["universities", ["/universities", "/universities?country=MY&level=bachelor", "/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b"]],
   ];
   for (const [activeId, hrefs] of destinations) {
@@ -320,7 +310,7 @@ test("destination keys preserve disclosure identity through filters and client d
 });
 
 test("different authorized destinations reset identity and malformed queries retain existing classification", () => {
-  const destinations = ["/main", "/finance?tab=sales", "/profile", "/profile?section=docs", "/pipeline"];
+  const destinations = ["/main", "/finance?tab=sales", "/profile", "/universities", "/pipeline"];
   assert.equal(new Set(destinations.map((href) => navigation("admin", href).destinationKey)).size, destinations.length);
   for (const href of ["/main?view=unknown", "/main?view=sales"]) {
     assert.equal(navigation("admin", href).destinationKey, navigation("admin", "/main").destinationKey);
@@ -408,10 +398,10 @@ test("the browser tab names the sidebar item that the same address highlights", 
     ["/finance?tab=sales&year=2026&month=9", "Финансы"],
     ["/profile?case=record&tab=route", "Студенты"],
     ["/profile?section=docs&section=docs", "Студенты"],
-    ["/profile?case=record&tab=anketa&section=docs", "EVO Docs"],
+    ["/profile?case=record&tab=anketa&section=docs", "Студенты"],
     ["/profile?section=summary&period=month", "Студенты"],
     ["/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b", "Университеты"],
-    // The former board subpages redirect to EVO Docs; the address itself still names the board.
+    // The former board subpages redirect to the board; the address itself still names it.
     ["/admissions-pipeline?view=documents", "Воронка поступления"],
     // 27.09.2026: each conversation page highlights its own item and names its own tab.
     ["/inbox", "WhatsApp"],
@@ -476,11 +466,9 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["inbox", `${V3}/inbox/page.tsx`, true], ["inbox", `${V3}/inbox/loading.tsx`, true],
     ["pipeline", `${V3}/pipeline/page.tsx`, true], ["pipeline", `${V3}/pipeline/loading.tsx`, true],
     ["sales-dynamics", "src/components/staff/sales-next/SalesFramesNext.tsx", false],
-    // Э8.5 (28.09): the board's review subpages are EVO Docs tabs — one heading again.
     ["admissions-pipeline", `${V3}/admissions-pipeline/page.tsx`, true],
     ["messages", `${V3}/messages/page.tsx`, true],
     ["admissions-worklist", `${V3}/profile/page.tsx`, false], ["admissions-worklist", `${V3}/profile/loading.tsx`, true],
-    ["evo-docs", `${V3}/profile/page.tsx`, false],
     ["universities", `${V3}/universities/page.tsx`, true], ["universities", `${V3}/universities/loading.tsx`, true],
     ["tasks", `${V3}/tasks/page.tsx`, true], ["tasks", `${V3}/tasks/loading.tsx`, true],
     ["team-chat", `${V3}/team-chat/page.tsx`, true], ["team-chat", "src/components/staff/team-chat/TeamChat.tsx", false],

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AdmissionsPipelineNextLazy } from "@/components/staff/admissions-pipeline-next/AdmissionsPipelineNextLazy";
@@ -6,8 +5,6 @@ import { AddStudentDrawer } from "@/components/staff/admissions/AddStudentDrawer
 import { BoardReset, BoardSearch } from "@/components/staff/board/Board";
 import { BoardFilters, NavigateSelect } from "@/components/staff/board/BoardToolbar";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
-import { readStaffApplicationPackageQueueAction } from "@/lib/portal/application-packages-actions";
-import { readStaffApplicationDocumentSubmissionQueueAction } from "@/lib/portal/application-documents-actions";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readAdmissionsPipelineBoard,
@@ -54,29 +51,6 @@ const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const MAX_QUERY_LENGTH = 200;
 
-const QUEUE_LINK_CLASS =
-  "t-meta inline-flex min-h-11 items-center gap-1 text-fg-2 underline-offset-4 hover:text-fg hover:underline";
-
-/**
- * Очереди на проверку живут в EVO Docs (Э8.5, 28.09.2026): ссылки шапки и
- * прежние адреса подстраниц доски `?view=documents|packages` ведут на вкладки
- * «Документы программ» и «Комплекты».
- */
-const EVO_DOCS_QUEUE_HREF = {
-  documents: "/profile?section=docs&view=program",
-  packages: "/profile?section=docs&view=packages",
-} as const;
-
-/**
- * Первая страница очереди (до 20 записей): число — только из прочитанного;
- * есть продолжение — «20+», чтение не удалось — без числа.
- */
-function queueCount(result: PromiseSettledResult<Readonly<{ items: readonly unknown[]; nextCursor: unknown }> | null>): string | null {
-  if (result.status !== "fulfilled" || result.value === null) return null;
-  const { items, nextCursor } = result.value;
-  return nextCursor === null ? String(items.length) : `${items.length}+`;
-}
-
 export default async function AdmissionsPipelinePart({
   searchParams,
 }: Readonly<{ searchParams: Promise<SearchParams> }>) {
@@ -86,18 +60,16 @@ export default async function AdmissionsPipelinePart({
   ]);
   const view = singleValue(params.view);
   if (view !== undefined && view !== "documents" && view !== "packages") notFound();
-  // Прежние подстраницы доски — вкладки EVO Docs; права проверяет EVO Docs.
-  if (view !== undefined) redirect(EVO_DOCS_QUEUE_HREF[view]);
+  // Прежние подстраницы доски (`?view=documents|packages`) убраны: доска — одна страница.
+  if (view !== undefined) redirect("/admissions-pipeline");
   const query = parseBoardQuery(params);
-  const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
   // «Добавить студента» (миграция 281): у держателей `case.create.direct` вне
   // просмотра роли. Назначающий кураторов (`case.curator.assign`) выбирает
   // куратора или оставляет дело ждать его; куратор заводит студента себе.
   const canAddStudent = !isStaffPreview(actor) && staffHasPermission(actor, "case.create.direct");
   const assignsCurators = !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign");
 
-  const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-  const [boardResult, curatorsResult, documentsResult, packagesResult, addCuratorsResult] = await Promise.allSettled([
+  const [boardResult, curatorsResult, addCuratorsResult] = await Promise.allSettled([
     readAdmissionsPipelineBoard(actor, {
       country: query.country,
       curatorMembershipId: query.curator,
@@ -109,14 +81,6 @@ export default async function AdmissionsPipelinePart({
     !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign")
       ? listStudentPortalActiveCurators(actor)
       : Promise.resolve([]),
-    // Числа очередей в шапке — первые страницы тех же чтений, что у вкладок
-    // EVO Docs; без права на документы очереди не читаются вовсе.
-    canReadDocuments
-      ? readStaffApplicationDocumentSubmissionQueueAction(owner).then((result) => (result.ok ? result.page : null))
-      : Promise.resolve(null),
-    canReadDocuments
-      ? readStaffApplicationPackageQueueAction(owner).then((result) => (result.ok ? result.queue : null))
-      : Promise.resolve(null),
     // «Куратор» в «Добавить студента»: только те, кого актёр может назначить
     // (правило области команды 281), и можно ли оставить дело без куратора.
     canAddStudent && assignsCurators ? readAdmissionsDirectCuratorOptions(actor) : Promise.resolve(null),
@@ -129,8 +93,6 @@ export default async function AdmissionsPipelinePart({
   // числа нет.
   const tabCount = (tabKey: AdmissionsPipelineTab) =>
     board && !board.truncated ? board.rows.filter((row) => admissionsPipelineTabOf(row.pipelineStage) === tabKey).length : null;
-  const documentsCount = queueCount(documentsResult);
-  const packagesCount = queueCount(packagesResult);
 
   // Чтение списка не удалось: прежний список кураторов организации; базу это
   // не обходит, а отказ говорит, кого выбрать.
@@ -144,30 +106,6 @@ export default async function AdmissionsPipelinePart({
         : { kind: "self", membershipId: actor.membershipId }}
     />
   ) : null;
-
-  // Очередь без дел — не повод для ссылки: «0» в шапке ничего не говорит.
-  // Число не прочитано (null) или неполное («20+») — ссылка остаётся.
-  const queueLinks = canReadDocuments
-    ? ([
-      { key: "documents", label: "Документы на проверку", count: documentsCount, href: EVO_DOCS_QUEUE_HREF.documents },
-      { key: "packages", label: "Комплекты на проверку", count: packagesCount, href: EVO_DOCS_QUEUE_HREF.packages },
-    ] as const).filter((link) => link.count !== "0")
-    : [];
-  const queues = queueLinks.length > 0 ? (
-    // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
-    // на 180 px вниз.
-    <nav aria-label="Очереди на проверку" className="flex flex-wrap items-center gap-x-2">
-      {queueLinks.map((link, index) => (
-        <span key={link.key} className="inline-flex items-center gap-x-2">
-          {index > 0 ? <span aria-hidden="true" className="t-meta text-fg-3">·</span> : null}
-          <Link className={QUEUE_LINK_CLASS} href={link.href}>
-            {link.label}
-            {link.count !== null ? <span className="tabular-nums text-fg-3">{link.count}</span> : null}
-          </Link>
-        </span>
-      ))}
-    </nav>
-  ) : undefined;
 
   const countryOptions = [
     { value: "", label: "Все страны", href: boardHref({ ...query, country: null }) },
@@ -186,15 +124,6 @@ export default async function AdmissionsPipelinePart({
     })),
   ];
 
-  // Части строки инструментов и главные действия — одни и те же в прежнем и новом виде.
-  const actions = queues || addStudent ? (
-    // Главное действие первым в разметке: на телефоне оно над ссылками очередей и
-    // Tab доходит до него первым; от `sm` ряд зеркалится — ссылки слева, кнопка справа.
-    <div className="flex flex-col items-end gap-y-2 sm:flex-row-reverse sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-4">
-      {addStudent}
-      {queues}
-    </div>
-  ) : undefined;
   const search = (
     <BoardSearch
       key={boardHref(query)}
@@ -236,7 +165,7 @@ export default async function AdmissionsPipelinePart({
   // перетаскиванием (`@dnd-kit/core`) и те же части строки инструментов.
   return (
     <AdmissionsPipelineNextLazy
-      actions={actions}
+      actions={addStudent}
       tabs={(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => ({
         key: tabKey,
         label: admissionsPipelineTab(tabKey),

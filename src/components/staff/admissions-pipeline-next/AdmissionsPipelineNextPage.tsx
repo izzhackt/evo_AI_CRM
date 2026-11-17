@@ -2,8 +2,8 @@ import { PageShell, SectionTabs, type SectionTab } from "@/components/kit";
 import { AdmissionsBoardNext } from "@/components/staff/admissions-pipeline-next/AdmissionsBoardNext";
 
 /**
- * «Воронка поступления» нового вида целиком: рамка страницы («Добавить студента» и очереди проверки приходят готовыми со страницы,
- * это те же клиентские части), вкладки разделов (ссылки `?tab=` с числами), строка инструментов (поиск, страна, куратор — те же
+ * «Воронка поступления» нового вида целиком: рамка страницы («Добавить студента» приходит готовым со страницы, это та же
+ * клиентская часть), вкладки разделов (ссылки `?tab=` с числами), строка инструментов (поиск, страна, куратор — те же
  * части, что у прежней доски) и доска. Показывается через `AdmissionsPipelineNextLazy`.
  */
 export function AdmissionsPipelineNextPage({ actions, tabs, toolbar, ...board }: Readonly<{

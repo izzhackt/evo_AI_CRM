@@ -85,7 +85,7 @@ export function KeyboardHelpDialog() {
         <h3 className="mt-3 t-item text-fg">Везде</h3>
         <KeyList keys={SHELL_KEYS} className="mt-2" />
         <h3 className="mt-4 t-item text-fg">В списках</h3>
-        <p className="mt-0.5 t-meta text-fg-2">«Задачи», «Студенты», EVO Docs</p>
+        <p className="mt-0.5 t-meta text-fg-2">«Задачи» и «Студенты»</p>
         <KeyList keys={LIST_KEYS} className="mt-2" />
       </div> : null}
     </dialog>

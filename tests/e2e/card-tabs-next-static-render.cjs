@@ -193,7 +193,9 @@ if (process.argv.includes("--json-legacy")) {
   process.stdout.write(JSON.stringify(all().filter((scenario) => !scenario.html).map((scenario) => ({ name: scenario.name,
     html: renderToStaticMarkup(inContexts(body(scenario, true), "/profile", scenario.search)) }))));
 } else if (process.argv.includes("--page-json")) {
-  require("./card-tabs-page.cjs").pageHtml({ fx, leads, scenarios: all(), prepare: (scenario) => { current = scenario.def; } })
+  const extra = process.argv.indexOf("--page-params");
+  const extraParams = extra === -1 ? {} : JSON.parse(process.argv[extra + 1]);
+  require("./card-tabs-page.cjs").pageHtml({ fx, leads, scenarios: all(), prepare: (scenario) => { current = scenario.def; }, extraParams })
     .then((pages) => process.stdout.write(JSON.stringify(pages)))
     .catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--json")) {

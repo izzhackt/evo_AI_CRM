@@ -132,7 +132,7 @@ export function FilterPanel({ menus, resetHref }: Readonly<{ menus: readonly Lin
   );
 }
 
-/** Фильтры списка рядом с поиском («Студенты», EVO Docs, «Университеты»): кнопка «Фильтры», панель и выбранные фильтры. */
+/** Фильтры списка рядом с поиском («Студенты», «Университеты»): кнопка «Фильтры», панель и выбранные фильтры. */
 export function LinkFilters({ bar }: Readonly<{ bar: LinkFilterBarData }>) {
   return <FilterPanel menus={bar.menus} resetHref={bar.resetHref} />;
 }

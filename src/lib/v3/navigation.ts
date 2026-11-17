@@ -1,7 +1,4 @@
-import {
-  type FixedRoleCapability,
-  type FixedRoleRoute,
-} from "../fixed-role-policy.ts";
+import type { FixedRoleRoute } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { isStaffPreview, staffCanAccessRoute, staffCanSalesTab, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 
@@ -12,7 +9,6 @@ export type V3NavigationLinkId =
   | "sales-dynamics"
   | "admissions-pipeline"
   | "admissions-worklist"
-  | "evo-docs"
   | "universities"
   | "calendar"
   | "tasks"
@@ -32,7 +28,6 @@ export type V3NavigationLink = Readonly<{
   href: string;
   label: string;
   route: FixedRoleRoute;
-  capability?: FixedRoleCapability;
 }>;
 
 export type V3NavigationGroup = Readonly<{
@@ -92,7 +87,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       // this group (owner plan). Its own route already requires
       // admissions.read (fixed-role-policy.ts), which Sales lacks entirely,
       // so — like admissions-worklist/universities below — no extra
-      // `capability` gate is needed here; staffCanAccessRoute already hides
+      // gate is needed here; staffCanAccessRoute already hides
       // it from Sales. Named «Воронка поступления» so an Admin, who sees both
       // groups, never meets two identical «Воронка» items (UX quick win 2,
       // 2026-09-24); the sales board is «Воронка продаж».
@@ -105,7 +100,6 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       { id: "messages", href: "/messages", route: "/messages", label: "Переписка" },
       // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
       { id: "admissions-worklist", href: "/profile", route: "/profile", label: "Студенты" },
-      { id: "evo-docs", href: "/profile?section=docs", route: "/profile", label: "EVO Docs", capability: "admissions.read" },
       { id: "universities", href: "/universities", route: "/universities", label: "Университеты" },
       // «Сводка по направлениям» removed 2026-09-24: its counts are the facets
       // of «Студенты» now; `/profile?section=summary` resolves to that page.
@@ -152,8 +146,8 @@ function isSingleValue(query: NavigationQuery, name: string, value: string) {
 
 /**
  * Карточка лида (`/profile?id=…` без дела): лид живёт на «Воронке
- * продаж», а не в «Студентах» (аудит 26.09). Дело (`?case=`) и EVO Docs
- * остаются своими разделами.
+ * продаж», а не в «Студентах» (аудит 26.09). Дело (`?case=`) остаётся
+ * в «Студентах».
  */
 function isLeadProfile(query: NavigationQuery): boolean {
   const ids = query.getAll("id");
@@ -178,7 +172,7 @@ export function v3SectionTitle(
   for (const [name, value] of Object.entries(searchParams)) {
     for (const one of typeof value === "string" ? [value] : value ?? []) query.append(name, one);
   }
-  if (pathname === "/profile" && !isSingleValue(query, "section", "docs") && isLeadProfile(query)) return "Лид";
+  if (pathname === "/profile" && isLeadProfile(query)) return "Лид";
   // Gemini-помощник — дочерняя страница хаба «ИИ-агенты»: пункт меню подсвечен
   // тот же, а вкладка называет саму страницу, как карточка лида.
   if (pathname === "/ai-agent") return "ИИ-агент";
@@ -187,7 +181,7 @@ export function v3SectionTitle(
   const id: V3NavigationLinkId | undefined = pathname === "/main"
     ? isSingleValue(query, "view", "sales") ? "sales-dynamics" : "home"
     : pathname === "/profile"
-      ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
+      ? "admissions-worklist"
       : pathname.startsWith("/universities/")
         ? "universities"
         : pathname.startsWith("/ai-agents/")
@@ -227,9 +221,7 @@ export function buildV3Navigation(
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
     && (link.id !== "finance" || financeSection || staffCanSalesTab(actor))
-    && (link.id !== "sales-dynamics" || (!staffCanSalesTab(actor) && staffPresentationCan(actor, "sales.read")))
-    && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
-    && (!link.capability || staffPresentationCan(actor, link.capability));
+    && (link.id !== "sales-dynamics" || (!staffCanSalesTab(actor) && staffPresentationCan(actor, "sales.read")));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
   // Без работы продаж (D) «Воронка продаж» в «Продажах» скрыта. Остаются
@@ -269,12 +261,11 @@ export function buildV3Navigation(
     candidate = isSingleValue(query, "view", "sales") && links.some((link) => link.id === "sales-dynamics") ? "sales-dynamics" : "home";
   } else if (pathname === "/profile") {
     // The former summary address (`?section=summary`) is the same «Студенты»
-    // page since 2026-09-24; only EVO Docs is a separate destination here.
-    candidate = isSingleValue(query, "section", "docs") && links.some(link => link.id === "evo-docs")
-      ? "evo-docs"
-      : isLeadProfile(query) && links.some(link => link.id === "pipeline")
-        ? "pipeline"
-        : "admissions-worklist";
+    // page since 2026-09-24, and so is the retired `?section=docs`: `section`
+    // never picks a menu item here.
+    candidate = isLeadProfile(query) && links.some(link => link.id === "pipeline")
+      ? "pipeline"
+      : "admissions-worklist";
   } else if (pathname.startsWith("/universities/")) {
     candidate = "universities";
   } else if (pathname.startsWith("/ai-agents/") || pathname === "/ai-agent") {

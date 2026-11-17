@@ -9,8 +9,9 @@
  * `caseWorkParts`/`caseNextParts`, `Profile`, вкладки. Асинхронные вкладки (`Documents`, `UniversityProgramsTab`, `CaseAgreement*`) заменены тем же
  * синхронным видом, что в `card-tabs-next-static-render.cjs`: статический рендер React не ждёт async-компоненты.
  *
- *   node tests/e2e/card-tabs-next-static-render.cjs --page-json
- *     → stdout: JSON [{ name, html }] - имя `<сценарий>:<режим>`.
+ *   node tests/e2e/card-tabs-next-static-render.cjs --page-json [--page-params '{"section":"docs"}']
+ *     → stdout: JSON [{ name, html }] - имя `<сценарий>:<режим>`; `--page-params` добавляет параметры к адресу дела (так проверяются
+ *       прежние адреса, например `?section=docs`: страница должна открыть ту же карточку).
  */
 
 const Module = require("node:module");
@@ -27,7 +28,7 @@ const MODES = [
   ["preview-no-cookie", "preview"],
 ];
 
-async function pageHtml({ fx, leads, scenarios, prepare }) {
+async function pageHtml({ fx, leads, scenarios, prepare, extraParams = {} }) {
   const cases = fx;
   const state = { who: null, item: null, closed: null };
   const stub = (spec, exports, merge = false) => {
@@ -66,7 +67,7 @@ async function pageHtml({ fx, leads, scenarios, prepare }) {
       state.who = actors[who];
       state.closed = scenario.closed ?? null;
       state.item = registered ? { ...registered, actor: actors[who] } : null;
-      const params = scenario.closed ? { id: cases.LEAD_ID } : { case: cases.CASE_ID, tab: scenario.def.tab };
+      const params = scenario.closed ? { id: cases.LEAD_ID, ...extraParams } : { case: cases.CASE_ID, tab: scenario.def.tab, ...extraParams };
       const element = await page({ searchParams: Promise.resolve(params) });
       // Страница выдаёт случайные ключи запросов форм (`randomUUID`): в разметке они заменены, остальное сравнивается как есть.
       const html = renderToStaticMarkup(leads.withContexts(element, "/profile", new URLSearchParams(params).toString()));

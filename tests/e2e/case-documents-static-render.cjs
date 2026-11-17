@@ -99,7 +99,7 @@ const ORG = "eeeeeeee-4444-4444-8444-000000000000";
 const ME = "aaaaaaaa-1111-4111-8111-000000000001";
 const CASE_ID = "cccccccc-2222-4222-8222-000000000001";
 const NAME = "Тестовый Студент";
-const RETURN_TO = "/profile?section=docs&view=review";
+const RETURN_TO = "/profile?view=active";
 const uuid = (prefix, n) => `${prefix}-5555-4555-8555-${String(n).padStart(12, "0")}`;
 
 const CURATOR = {
@@ -232,7 +232,7 @@ const SCENARIOS = {
 };
 
 function hrefFor(tab) {
-  return `${buildV3ProfileHref({ leadId: null, studentCaseId: CASE_ID }, tab)}&section=docs&returnTo=${encodeURIComponent(RETURN_TO)}`;
+  return `${buildV3ProfileHref({ leadId: null, studentCaseId: CASE_ID }, tab)}&returnTo=${encodeURIComponent(RETURN_TO)}`;
 }
 
 /** Входы `documentsView` — как их собирает `Documents` из чтения и прав (Profile.tsx). */
@@ -296,7 +296,7 @@ function withContexts(node, search) {
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 }
-const searchOf = () => `case=${CASE_ID}&tab=documents&section=docs`;
+const searchOf = () => `case=${CASE_ID}&tab=documents`;
 
 /** Разметка только вкладки (SSR, до гидратации) — для unit-теста. */
 function renderTab(name) {
@@ -309,7 +309,7 @@ function renderPage(name) {
   const { PartShell } = require(join(ROOT, "src/components/staff/PartShell.tsx"));
   const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const back = createElement("a", { href: RETURN_TO, className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
-    createElement(Icon, { name: "arrow-left", size: 16 }), "EVO Docs");
+    createElement(Icon, { name: "arrow-left", size: 16 }), "Студенты");
   const { actions, body } = buildPage(name);
   const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: SCENARIOS[name].actor, initialNotifications: null },

@@ -23,7 +23,6 @@ import { ParentPhoneLookalikes } from "@/components/staff/profile/ParentPhoneLoo
 import type { ParentPhoneSubject } from "@/lib/parent-phone-lookalikes-contract";
 import { ClosedLeadNext } from "@/components/staff/profile/next/tabs/ClosedLeadNext";
 import { EmptyState } from "@/components/kit/EmptyState";
-import { withDocsSection } from "@/components/staff/profile/admissions-view";
 import { type StudentsQueueScreenInput } from "@/components/staff/students/StudentsQueueScreen";
 import { StudentsNextLazy } from "@/components/staff/students-next/StudentsNextLazy";
 import { StudentsDirectoryFallback } from "@/components/staff/students/StudentsDirectoryFallback";
@@ -83,13 +82,13 @@ import { studentPortalOrigin } from "@/lib/server/student-registration-link";
 import { caseAccountNamePrefill } from "@/lib/student-account-contract";
 import { readStudentCaseCabinet } from "@/lib/v3/lead-cabinet-source";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
-import { readDocsPackages, readDocsProgramDocuments, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
+import { readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Вкладка называет подсвеченный пункт меню: «Студенты» (включая профиль и
- * прежний адрес сводки `?section=summary`) или «EVO Docs»; дело студента —
+ * прежние адреса `?section=summary` и `?section=docs`); дело студента —
  * «Дело студента».
  */
 export async function generateMetadata({
@@ -199,9 +198,9 @@ function previewClosure(actor: ActivePlatformActor, closure: CaseClosure | null)
 }
 
 /**
- * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
- * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
- * нагрузку кураторов, а экран собирает `StudentsNextLazy` («Новый вид», единственный вид, #1327).
+ * «Студенты» как рабочая очередь (миграция 241, PLAN_CHANGES «Студенты» PR 2):
+ * страница читает очередь, числа, задачи открытого дела и нагрузку кураторов,
+ * а экран собирает `StudentsNextLazy` («Новый вид», единственный вид, #1327).
  */
 async function studentsQueueInput(
   actor: ActivePlatformActor,
@@ -210,7 +209,7 @@ async function studentsQueueInput(
   curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
 ): Promise<StudentsQueueScreenInput> {
   const params = parse.params;
-  const [reads, curators, packages, program] = await Promise.all([
+  const [reads, curators] = await Promise.all([
     parse.kind === "invalid" ? null : Promise.all([
       readStudentsQueue(actor, params),
       params.open ? readStudentsOpenTasks(actor, params.open) : Promise.resolve(null),
@@ -221,10 +220,6 @@ async function studentsQueueInput(
       params.open ? readCaseClosure(actor, params.open).catch(() => null) : Promise.resolve(null),
     ]),
     curatorsRead,
-    // EVO Docs, вкладка «Комплекты» и её число (Э3): очередь «Комплекты на проверку».
-    params.mode === "docs" ? readDocsPackages(actor) : Promise.resolve(undefined),
-    // EVO Docs, вкладка «Документы программ» и её число (Э8.5): очередь документов программ.
-    params.mode === "docs" ? readDocsProgramDocuments(actor) : Promise.resolve(undefined),
   ]);
   const editor = nextStepEditor(actor);
   return {
@@ -236,13 +231,6 @@ async function studentsQueueInput(
     coverage: reads?.[2] ?? null,
     handoff: reads?.[3] ?? null,
     closure: previewClosure(actor, reads?.[4] ?? null),
-    packages,
-    program,
-    // Решение в строке «Документов программ» — то же условие, что у прежней очереди доски.
-    documentReview: params.mode === "docs" ? {
-      owner: { organizationId: actor.organizationId, membershipId: actor.membershipId },
-      canReview: !isStaffPreview(actor) && staffHasPermission(actor, "document.review"),
-    } : undefined,
     today: dayInOrganizationTimezone(new Date()),
     curatorNames: curators.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
     editor: editor.input,
@@ -260,9 +248,6 @@ export default async function ProfilePart({
   const actor = await requireV3PageActor("/profile");
   const params = await searchParams;
   const directoryParams = parseV3ProfileCaseDirectoryParams(params);
-  const docsMode = singleSearchParam(params.section) === "docs"
-    && staffPresentationCan(actor, "admissions.read")
-    && (isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"));
   const requestsReturnTo = parseRequestsReturnTo(singleSearchParam(params.returnTo));
   // «К списку студентов» возвращает тот же вид очереди, фильтры, страницу и строку.
   const studentsReturnTo = requestsReturnTo ? null : parseStudentsReturnTo(singleSearchParam(params.returnTo));
@@ -271,7 +256,7 @@ export default async function ProfilePart({
   // Дело с «Воронки поступления» (06.11.2026): «Назад» возвращает на доску с её фильтрами.
   const boardReturnTo = requestsReturnTo || studentsReturnTo || pipelineReturnTo ? null : parseAdmissionsBoardReturnTo(singleSearchParam(params.returnTo));
   const listReturnTo = requestsReturnTo ?? studentsReturnTo ?? pipelineReturnTo ?? boardReturnTo;
-  const directoryHref = studentsReturnTo ?? withDocsSection("/profile", docsMode);
+  const directoryHref = studentsReturnTo ?? "/profile";
   const withRequestsReturn = (href: string) => listReturnTo
     ? `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(listReturnTo)}` : href;
 
@@ -285,7 +270,7 @@ export default async function ProfilePart({
   // Лид (не дело) без адреса возврата — назад на доску, где лиды и живут; в
   // меню подсвечена та же «Воронка продаж» (navigation.ts).
   const pipelineBackHref = pipelineReturnTo
-    ?? (listReturnTo === null && leadParam && !hasCaseParam && !docsMode && staffCanAccessRoute(actor, PIPELINE_PATH)
+    ?? (listReturnTo === null && leadParam && !hasCaseParam && staffCanAccessRoute(actor, PIPELINE_PATH)
       ? PIPELINE_PATH : null);
   const hasNoteBeforeAt = params.note_before_at !== undefined;
   const hasNoteBeforeId = params.note_before_id !== undefined;
@@ -333,7 +318,7 @@ export default async function ProfilePart({
   const directoryMode = routeMode.kind === "directory";
   const queueMode = staffPresentationCan(actor, "admissions.read") && staffHasPermission(actor, "case.read.full");
   const queueParse = directoryMode && queueMode
-    ? parseStudentsQueueParams(params, docsMode ? "docs" : "queue", studentsQueueActor(actor))
+    ? parseStudentsQueueParams(params, studentsQueueActor(actor))
     : null;
   // Прежние адреса (фасеты, сводка) и поиск по номеру дела — на новый адрес.
   if (queueParse?.kind === "redirect") redirect(queueParse.href);
@@ -366,7 +351,7 @@ export default async function ProfilePart({
     ? "overview" : requestedTab;
   const anketaSection = Boolean(view?.details.routeTarget.studentCaseId && view.details.admissions);
   const hrefFor = (next: string) => view
-    ? `${withRequestsReturn(withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode))}${next === "anketa" && anketaSection ? "#case-anketa" : ""}`
+    ? `${withRequestsReturn(buildV3ProfileHref(view.details.routeTarget, next))}${next === "anketa" && anketaSection ? "#case-anketa" : ""}`
     : directoryHref;
   const requestIds = {
     contract: randomUUID(),
@@ -383,10 +368,10 @@ export default async function ProfilePart({
   const contractResult = parseContractResult(params);
   const contractRetry = parseContractRetry(params, contractResult);
   const notesOlderHref = view?.notes.page.nextCursor
-    ? withDocsSection(buildProfileNotesHref(view.details.routeTarget, view.notes.page.nextCursor), docsMode)
+    ? buildProfileNotesHref(view.details.routeTarget, view.notes.page.nextCursor)
     : null;
   const notesLatestHref = view && noteCursor
-    ? withDocsSection(buildProfileNotesHref(view.details.routeTarget), docsMode)
+    ? buildProfileNotesHref(view.details.routeTarget)
     : null;
   // Имена кураторов нужны и делу, и меню «Куратор ▾» очереди: очередь
   // читается параллельно с ними. Читает тот, кто назначает кураторов (Admin и
@@ -449,14 +434,9 @@ export default async function ProfilePart({
   const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
   const studentPortalCuratorsAvailable = curatorOptions.available;
-  // «Университеты и бланки» — редкий путь: тихая ссылка справа от заголовка, не красная.
-  const manageUniversities = docsMode && directoryMode && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage");
-  const docsAction = manageUniversities
-    ? <Link href="/universities" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Университеты и бланки</Link>
-    : undefined;
-  // «Новый вид» (единственный вид, #1327): очередь «Студентов» и EVO Docs из набора виджетов; экран сам
+  // «Новый вид» (единственный вид, #1327): очередь «Студентов» из набора виджетов; экран сам
   // отдаёт `StudentsNextLazy` и ничего больше (дел и карточек в очереди нет).
-  if (queueInput) return <StudentsNextLazy input={queueInput} manageUniversities={manageUniversities} />;
+  if (queueInput) return <StudentsNextLazy input={queueInput} />;
 
   const caseParts = view && caseTarget && caseWork ? (() => {
     const editor = nextStepEditor(actor);
@@ -552,11 +532,11 @@ export default async function ProfilePart({
     ? await readClosedLeads(actor, { leadId: explicitTarget.leadId, limit: 1 }).then((page) => page.rows[0] ?? null, () => null)
     : null;
 
-  // Возврат из дела — тот же вид списка (`returnTo` #1059): «Студенты», EVO Docs или «Заявки».
+  // Возврат из дела — тот же вид списка (`returnTo` #1059): «Студенты» или «Заявки».
   const caseBack = caseParts ? (
     <Link href={requestsReturnTo ?? boardReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
       <Icon name="arrow-left" size={16} />
-      {requestsReturnTo ? "Заявки" : boardReturnTo ? "Воронка поступления" : docsMode ? "EVO Docs" : "Студенты"}
+      {requestsReturnTo ? "Заявки" : boardReturnTo ? "Воронка поступления" : "Студенты"}
     </Link>
   ) : undefined;
   // Закрытый лид: тот же возврат над заголовком, что у дела (не красная ссылка
@@ -565,7 +545,7 @@ export default async function ProfilePart({
   const leadBack = leadParts ? (
     <Link href={requestsReturnTo ?? pipelineBackHref ?? directoryHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
       <Icon name="arrow-left" size={16} />
-      {requestsReturnTo ? "Заявки" : pipelineBackHref ? "Воронка продаж" : docsMode ? "EVO Docs" : "Студенты"}
+      {requestsReturnTo ? "Заявки" : pipelineBackHref ? "Воронка продаж" : "Студенты"}
     </Link>
   ) : undefined;
   const closedLeadBack = closedLead ? (
@@ -577,14 +557,14 @@ export default async function ProfilePart({
     </Link>
   ) : undefined;
 
-  const title = view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs"
+  const title = view ? leadDisplayName(view.profile.source, view.profile.person)
     : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты";
   // «Новый вид» рисует и закрытый лид, и «не найден» вокруг карточки (явный адрес лида или дела), не только живую карточку.
   const nextCard = nextParts !== null || closedLead !== null || invalidIdentityShape || missing;
   const content = (
     <div className={nextCard ? "space-y-4" : "space-y-6"}>
       {directory ? (
-        <StudentsDirectoryFallback directory={directory} params={directoryParams} docsMode={docsMode} />
+        <StudentsDirectoryFallback directory={directory} params={directoryParams} />
       ) : null}
       {view ? (
         <>
@@ -592,7 +572,7 @@ export default async function ProfilePart({
             className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
             href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
           >
-            {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
+            {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : "К списку студентов"}
           </Link>}
           {!leadParts && view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
             <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
@@ -644,7 +624,7 @@ export default async function ProfilePart({
     <ProfileNextShell title={title} actions={nextParts?.actions} back={caseBack ?? leadBack ?? closedLeadBack}>{content}</ProfileNextShell>
   ) : (
     <PartShell title={title}
-      action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={caseParts !== null || leadParts !== null}
+      action={caseParts?.actions ?? leadParts?.actions} dense={caseParts !== null || leadParts !== null}
       back={caseBack ?? leadBack ?? closedLeadBack}>
       {content}
     </PartShell>

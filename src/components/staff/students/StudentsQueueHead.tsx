@@ -50,10 +50,9 @@ export function StudentsTabs({ tabs }: Readonly<{ tabs: readonly StudentsTab[] }
 
 /**
  * Строка инструментов «Студентов»: поиск, «Направление ▾», «Куратор ▾»
- * (право назначать кураторов), «Этап ▾» и «Сортировка» — в EVO Docs без
- * этапа и сортировки (статусов работы там нет), в «Закрытых» и «Ожидает
- * начала» без сортировки (всегда по обновлению). Числа в меню — из чтения
- * чисел 241.
+ * (право назначать кураторов), «Этап ▾» и «Сортировка» — в «Закрытых» и
+ * «Ожидает начала» без сортировки (всегда по обновлению). Числа в меню — из
+ * чтения чисел 241.
  */
 export function StudentsToolbar({
   params,
@@ -70,9 +69,8 @@ export function StudentsToolbar({
   /** У роли есть массовые действия (Э7): «x» — в окне «?». */
   selectKey?: boolean;
 }>) {
-  const queue = params.mode === "queue";
   // Выбор порядка есть только у видов с шагами (studentsEffectiveSort).
-  const sortable = queue && studentsStepView(params.view);
+  const sortable = studentsStepView(params.view);
   const curator = params.curator ? curatorOptions(params, counts, curatorNames).find((option) => option.key === params.curator) : null;
   const filters = <>
     <FilterMenu
@@ -98,27 +96,25 @@ export function StudentsToolbar({
         options={curatorOptions(params, counts, curatorNames)}
       />
     ) : null}
-    {queue ? (
-      <FilterMenu
-        label="Этап"
-        valueLabel={params.stage ? admissionsPipelineStage(params.stage) : null}
-        clearHref={studentsListHref(params, { stage: null })}
-        options={[
-          { key: "all", label: "Все этапы", href: studentsListHref(params, { stage: null }), selected: params.stage === null },
-          // Этап без слова в wording.ts не показывается ключом базы (CLAUDE.md).
-          ...ADMISSIONS_PIPELINE_STAGES.flatMap((stage) => {
-            const label = admissionsPipelineStage(stage);
-            return label ? [{
-              key: stage,
-              label,
-              href: studentsListHref(params, { stage }),
-              selected: params.stage === stage,
-              count: facetCount(counts, (value) => value.stages, (item) => item.pipelineStage === stage, (item) => item.count),
-            }] : [];
-          }),
-        ]}
-      />
-    ) : null}
+    <FilterMenu
+      label="Этап"
+      valueLabel={params.stage ? admissionsPipelineStage(params.stage) : null}
+      clearHref={studentsListHref(params, { stage: null })}
+      options={[
+        { key: "all", label: "Все этапы", href: studentsListHref(params, { stage: null }), selected: params.stage === null },
+        // Этап без слова в wording.ts не показывается ключом базы (CLAUDE.md).
+        ...ADMISSIONS_PIPELINE_STAGES.flatMap((stage) => {
+          const label = admissionsPipelineStage(stage);
+          return label ? [{
+            key: stage,
+            label,
+            href: studentsListHref(params, { stage }),
+            selected: params.stage === stage,
+            count: facetCount(counts, (value) => value.stages, (item) => item.pipelineStage === stage, (item) => item.count),
+          }] : [];
+        }),
+      ]}
+    />
     {sortable ? (
       <FilterMenu
         label="Сортировка"
@@ -130,17 +126,14 @@ export function StudentsToolbar({
       />
     ) : null}
   </>;
-  // В EVO Docs порядок всегда «по обновлению» и выбором не считается.
-  const active = activeFilterCount([params.query, params.direction, params.curator, queue ? params.stage : null, sortable && params.sort === "updated" ? "updated" : null]);
+  const active = activeFilterCount([params.query, params.direction, params.curator, params.stage, sortable && params.sort === "updated" ? "updated" : null]);
   const hidden: Record<string, string | null> = {
-    section: params.mode === "docs" ? "docs" : null,
-    // EVO Docs пишет вид всегда: адрес без `view` там — «первая непустая вкладка».
-    view: params.mode === "docs" || params.view !== params.defaultView ? params.view : null,
+    view: params.view !== params.defaultView ? params.view : null,
     direction: params.direction,
     curator: params.curator,
-    stage: queue ? params.stage : null,
+    stage: params.stage,
     // Поиск сохраняет выбор порядка, как вкладки и меню, даже в виде без выбора.
-    sort: queue && params.sort === "updated" ? "updated" : null,
+    sort: params.sort === "updated" ? "updated" : null,
   };
   return (
     <QueueToolbar
@@ -151,7 +144,7 @@ export function StudentsToolbar({
       filters={filters}
       activeCount={active}
       resetHref={active ? studentsListHref(params, { query: null, direction: null, curator: null, stage: null, sort: null }) : null}
-      keys={queue ? [[["Shift", "Enter"], "открыть дело"], ...(selectKey ? [SELECT_KEY] : [])] : []}
+      keys={[[["Shift", "Enter"], "открыть дело"], ...(selectKey ? [SELECT_KEY] : [])]}
     />
   );
 }

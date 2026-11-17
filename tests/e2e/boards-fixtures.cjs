@@ -125,8 +125,6 @@ const ADMISSIONS_ROWS = [
   row(12, { studentDisplayName: "Алина Переданная", targetCountry: "TR", pipelineStage: "arrived", ...CURATOR_TWO }),
 ];
 
-const queueItems = (count) => Array.from({ length: count }, (_, index) => ({ id: `q-${index}` }));
-
 /**
  * Положение дел на доске поступления, как у сервера после 251: этап, «убрано»
  * и версия положения (+1 при каждом перемещении). Подменённое действие
@@ -290,19 +288,12 @@ const STUBS = {
       return movePipeline(input);
     },
   },
-  "@/lib/portal/application-documents-actions": {
-    readStaffApplicationDocumentSubmissionQueueAction: async () => ({ ok: true, page: { protocolVersion: 1, items: queueItems(20), nextCursor: { sortAt: "2026-09-20T10:00:00Z", id: "x" } } }),
-  },
-  "@/lib/portal/application-packages-actions": {
-    readStaffApplicationPackageQueueAction: async () => ({ ok: true, queue: { protocolVersion: 1, items: queueItems(3), nextCursor: null } }),
-  },
   "@/lib/server/student-portal-curator-options": {
     listStudentPortalActiveCurators: async () => [
       { membershipId: CURATOR_A, displayName: "Куратор Один" },
       { membershipId: CURATOR_B, displayName: "Куратор Два" },
     ],
   },
-  // Очередей документов на доске нет (Э8.5): шапка читает только их первые страницы для чисел.
 };
 
 /**

@@ -2,19 +2,14 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { DocsPackagesRead, DocsProgramRead, StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/staff/students/students-queue-view";
+import type { StudentsHandoff, StudentsOpenTasks, StudentsQueueParams } from "@/components/staff/students/students-queue-view";
 import {
-  readDocsPackagePages,
-  readDocsProgramPages,
   studentsCountsView,
   studentsHandoffPending,
   studentsQueueRequest,
 } from "@/components/staff/students/students-queue-view";
 
-import { isStaffPreview, staffHasPermission } from "../platform-access";
 import { getPlatformAdmissionsTaskWorkspace } from "../platform-admissions-workspace";
-import { readStaffApplicationDocumentSubmissionQueueAction } from "../portal/application-documents-actions";
-import { readStaffApplicationPackageQueueAction } from "../portal/application-packages-actions";
 import { getHandoffAcknowledgement } from "../platform-handoff-acknowledgement";
 import type { ActivePlatformActor } from "../platform-auth";
 import {
@@ -43,7 +38,7 @@ export async function readStudentsQueue(actor: ActivePlatformActor, params: Stud
   const filters = {
     direction: params.direction,
     curatorMembershipId: params.curator,
-    pipelineStage: params.mode === "queue" ? params.stage : null,
+    pipelineStage: params.stage,
     query: params.query,
   };
   let forbidden = false;
@@ -92,38 +87,4 @@ export async function readStudentsHandoff(actor: ActivePlatformActor, studentCas
   } catch {
     return null;
   }
-}
-
-/** Очереди документов EVO Docs читает тот, кто читает документы полностью, и не в просмотре роли — как шапка доски поступления. */
-function readsDocumentQueues(actor: ActivePlatformActor): boolean {
-  return !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
-}
-
-/**
- * Вкладка «Комплекты» EVO Docs (Э3, 27.09.2026): очередь «Комплекты на
- * проверку» — то же чтение и то же условие, что у шапки доски поступления
- * (`application_package_queue_v1`, до 3 страниц по 20 — `readDocsPackagePages`;
- * `document.read.full`, не в просмотре роли). Без условия очередь не читается
- * вовсе — вкладки нет; отказ сервера и сбой — разные состояния.
- */
-export async function readDocsPackages(actor: ActivePlatformActor): Promise<DocsPackagesRead> {
-  if (!readsDocumentQueues(actor)) return Object.freeze({ kind: "hidden" });
-  const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-  return readDocsPackagePages((cursor) => readStaffApplicationPackageQueueAction(owner, cursor));
-}
-
-/**
- * Вкладка «Документы программ» EVO Docs (Э8.5, 28.09.2026): очередь
- * документов требований программ без решения
- * (`staff_application_document_submission_queue_v1`, 228) — та, что жила на
- * подстранице доски поступления; то же условие, что у «Комплектов», до 3
- * страниц по 20.
- */
-export async function readDocsProgramDocuments(actor: ActivePlatformActor): Promise<DocsProgramRead> {
-  if (!readsDocumentQueues(actor)) return Object.freeze({ kind: "hidden" });
-  const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-  return readDocsProgramPages(async (cursor) => {
-    const result = await readStaffApplicationDocumentSubmissionQueueAction(owner, cursor);
-    return result.ok ? { ok: true, queue: result.page } : { ok: false, reason: result.reason };
-  });
 }

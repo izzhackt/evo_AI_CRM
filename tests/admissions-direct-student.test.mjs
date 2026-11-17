@@ -128,9 +128,16 @@ test("validation mirrors the database: required, shapes, money", () => {
   assert.equal(zero.ok, true);
   assert.deepEqual(zero.payload.money, {
     cost: { amountMinor: 0, currency: "USD" },
-    payments: [{ amountMinor: 0, currency: "USD", paidOn: "2026-09-01" }],
   });
+  assert.equal(zero.payload.money.payments, undefined, "a zero payment is not sent: no payment row for «received 0»");
   assert.deepEqual(parseAdmissionsDirectPayload(zero.payload), zero.payload);
+  const mixed = buildAdmissionsDirectPayload(draft({ payments: [
+    { amount: "0", currency: "", paidOn: "" }, { amount: "50", currency: "KGS", paidOn: "2026-09-01" },
+  ] }), "2026-10-16");
+  assert.equal(mixed.ok, true, "a zero row needs no currency or date");
+  assert.deepEqual(mixed.payload.money.payments, [{ amountMinor: 5000, currency: "KGS", paidOn: "2026-09-01" }]);
+  assert.equal(parseAdmissionsDirectPayload({ ...zero.payload, money: { cost: { amountMinor: 0, currency: "USD" },
+    payments: [{ amountMinor: 0, currency: "USD", paidOn: "2026-09-01" }] } }), null, "the server refuses a zero payment");
   assert.equal(parseAdmissionsDirectPayload({ ...zero.payload, money: { cost: { amountMinor: -1, currency: "USD" } } }), null);
   assert.ok(errors({ costAmount: "0", costCurrency: "USD", payments: [{ amount: "1", currency: "USD", paidOn: "2026-09-01" }] }).errors.payments,
     "a positive payment still cannot exceed a zero cost in the same currency");
@@ -404,6 +411,8 @@ test("migration 361 allows a zero amount without touching 281 or manual finance 
   assert.match(zero, /COMMIT;\s*$/u);
   assert.match(zero, /raw !~ '\^\(0\|\[1-9\]\[0-9\]\{0,12\}\)\$'/u);
   assert.match(zero, /CHECK \(amount_minor >= 0\)/u);
+  assert.match(zero, /raw = '0' AND p_label IS DISTINCT FROM 'cost'/u, "zero only for the cost; a payment stays positive");
+  assert.doesNotMatch(zero.replace(/--[^\n]*/gu, ""), /payment_events/u, "the payment_events CHECK stays amount_minor > 0");
   assert.match(zero, /a361_already_applied/u);
   assert.match(zero, /a361_anchor_drift/u);
   assert.doesNotMatch(zero, /GRANT EXECUTE[\s\S]*TO authenticated/u);

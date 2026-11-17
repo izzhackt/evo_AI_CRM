@@ -369,8 +369,12 @@ test("migration 362 adds intake to the 191 board body and the card shows it as a
   assert.equal(admissionsPipelineIntakeLabel({ wishesSeason: "Осень", wishesYear: "2027" }), "Осень 2027");
   assert.equal(admissionsPipelineIntakeLabel({ wishesSeason: "Осень 2028", wishesYear: "2027" }), "Осень 2027");
   assert.equal(admissionsPipelineIntakeLabel({ intakeText: "сентябрь 2027" }), "Осень 2027");
-  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "Сезон не определён 2027" }), "Пока не определился 2027");
-  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "пока не решил" }), "Пока не определился");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "Сезон не определён 2027" }), "2027", "undecided keeps only the year");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "Сезон не определён" }), null, "undecided alone draws no chip");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "пока не решил" }), null);
+  assert.equal(admissionsPipelineIntakeLabel({ applicationSeason: "undecided", applicationYear: 2027, wishesSeason: "Весна" }), "2027");
+  assert.equal(admissionsPipelineIntakeLabel({ applicationSeason: "undecided", applicationYear: null, intakeText: "сентябрь 2027" }), null,
+    "the questionnaire answered «undecided»: older sources do not override it");
   assert.equal(admissionsPipelineIntakeLabel({ intakeText: "набор B" }), "набор B");
   assert.equal(admissionsPipelineIntakeLabel({ intakeText: "  " }), null);
   assert.equal(admissionsPipelineIntakeLabel({}), null);

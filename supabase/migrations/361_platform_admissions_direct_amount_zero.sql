@@ -1,5 +1,5 @@
--- 361 «Добавить студента»: стоимость договора и оплата могут быть 0
--- (решение владельца 17.11.2026).
+-- 361 «Добавить студента»: стоимость договора может быть 0; оплата 0 не
+-- записывается (решения владельца 17.11.2026).
 --
 -- Что было. platform_private.admissions_direct_minor (281) принимает только
 -- положительное целое, а CHECK на platform.payment_obligations.amount_minor и
@@ -7,12 +7,18 @@
 -- до базы не доходит, а если бы дошёл — строка денег не записалась бы.
 --
 -- Что меняется.
---   1) admissions_direct_minor принимает 0. Верхняя граница та же
+--   1) admissions_direct_minor принимает 0 только для стоимости
+--      (p_label = 'cost'). Оплата 0 по-прежнему отвергается
+--      (admissions_direct_invalid:payment): «получено 0» — это не оплата, и
+--      форма такую строку не отправляет. Верхняя граница та же
 --      (1 000 000 000 000). Функцию зовут и create_admissions_student_case
---      (281), и импорт дела из отчёта продаж (307): ноль становится допустим
---      и там. Форма нагрузки не меняется: amountMinor остаётся целым.
---   2) Два CHECK таблиц, куда 281 пишет деньги, становятся amount_minor >= 0.
---      Имена ограничений сохраняются. Ручные команды оплаты
+--      (281), и импорт дела из отчёта продаж (307): стоимость 0 становится
+--      допустимой и там. Форма нагрузки не меняется.
+--   2) CHECK platform.payment_obligations.amount_minor становится >= 0 (имя
+--      ограничения сохраняется): договор на 0 записывается обязательством 0,
+--      оно сразу «оплачено» (derive_obligation_status: 0 = 0).
+--      CHECK platform.payment_events.amount_minor > 0 НЕ меняется: строки
+--      оплаты на 0 в базе быть не может. Ручные команды
 --      (create_payment_obligation, запись оплаты, чеки 358) по-прежнему
 --      отвергают сумму <= 0 своей проверкой: их этот файл не трогает.
 --
@@ -39,7 +45,7 @@ BEGIN
   IF strpos(minor_body, '^[1-9][0-9]{0,12}$') = 0 THEN
     RAISE EXCEPTION 'a361_anchor_drift: admissions_direct_minor is not the 281 positive-only check' USING ERRCODE = '55000';
   END IF;
-  FOREACH rel IN ARRAY ARRAY['platform.payment_obligations'::REGCLASS, 'platform.payment_events'::REGCLASS] LOOP
+  FOREACH rel IN ARRAY ARRAY['platform.payment_obligations'::REGCLASS] LOOP
     SELECT array_agg(c.conname ORDER BY c.conname) INTO names
     FROM pg_catalog.pg_constraint c
     WHERE c.conrelid = rel AND c.contype = 'c'
@@ -61,21 +67,22 @@ BEGIN
     RAISE EXCEPTION 'admissions_direct_invalid:%', p_label USING ERRCODE = '22023';
   END IF;
   raw := p_object ->> p_key;
-  IF raw !~ '^(0|[1-9][0-9]{0,12})$' OR raw::NUMERIC > 1000000000000 THEN
+  IF raw !~ '^(0|[1-9][0-9]{0,12})$' OR raw::NUMERIC > 1000000000000
+     OR (raw = '0' AND p_label IS DISTINCT FROM 'cost') THEN
     RAISE EXCEPTION 'admissions_direct_invalid:%', p_label USING ERRCODE = '22023';
   END IF;
   RETURN raw::BIGINT;
 END $$;
 
 COMMENT ON FUNCTION platform_private.admissions_direct_minor(JSONB, TEXT, TEXT) IS
-  '361: non-negative minor-unit amount (0 allowed) for the direct-admissions case and the sales-report case import. Upper bound 1000000000000.';
+  '361: minor-unit amount for the direct-admissions case and the sales-report case import; 0 only for the contract cost (p_label = cost), a payment stays positive. Upper bound 1000000000000.';
 
 DO $a361_checks$
 DECLARE
   rel REGCLASS;
   check_name TEXT;
 BEGIN
-  FOREACH rel IN ARRAY ARRAY['platform.payment_obligations'::REGCLASS, 'platform.payment_events'::REGCLASS] LOOP
+  FOREACH rel IN ARRAY ARRAY['platform.payment_obligations'::REGCLASS] LOOP
     SELECT c.conname INTO check_name
     FROM pg_catalog.pg_constraint c
     WHERE c.conrelid = rel AND c.contype = 'c'

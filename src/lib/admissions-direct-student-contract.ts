@@ -248,8 +248,9 @@ const TEXT_LIMITS = {
  * Черновик формы → нагрузка RPC. Те же правила, что у 281: имя и страна
  * обязательны; телефон в виде E.164 (`admissionsDirectPhone`), почта по форме
  * контакта; дата рождения, дата договора и даты оплат не позже сегодня,
- * возраст 5–99; родитель — мама или папа; оплаты с суммой от нуля, валютой и
- * датой, в валюте договора не больше стоимости. `today` — день в Бишкеке.
+ * возраст 5–99; родитель — мама или папа; оплаты с суммой, валютой и датой, в
+ * валюте договора не больше стоимости. Стоимость может быть 0; оплата 0 не
+ * записывается вовсе. `today` — день в Бишкеке.
  */
 export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today: string = bishkekToday()): AdmissionsDirectBuild {
   const errors: Partial<Record<AdmissionsDirectField, string>> = {};
@@ -327,6 +328,8 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
   const paymentErrors = draft.payments.map((payment): string | null => {
     const minor = amountToMinor(payment.amount);
     if (minor === "" || minor === null) return AMOUNT_ERROR;
+    // Оплата 0 — «ничего не получено»: строка не записывается (решение владельца 17.11.2026).
+    if (minor === 0) return null;
     if (!isCurrency(payment.currency)) return "Выберите валюту.";
     if (!isCalendarDate(payment.paidOn) || payment.paidOn < "2000-01-01" || payment.paidOn > today) {
       return "Укажите дату оплаты, не позже сегодняшнего дня.";
@@ -337,7 +340,7 @@ export function buildAdmissionsDirectPayload(draft: AdmissionsDirectDraft, today
     amountMinor: amountToMinor(payment.amount) as number,
     currency: payment.currency as AdmissionsDirectCurrency,
     paidOn: payment.paidOn,
-  }));
+  })).filter((payment) => payment.amountMinor > 0);
   if (!errors.payments && typeof costMinor === "number" && isCurrency(draft.costCurrency) && paymentErrors.every((e) => e === null)) {
     const sameCurrency = payments.filter((p) => p.currency === draft.costCurrency).reduce((sum, p) => sum + p.amountMinor, 0);
     if (sameCurrency > costMinor) errors.payments = `Получено больше стоимости договора в ${draft.costCurrency}.`;
@@ -427,7 +430,7 @@ export function parseAdmissionsDirectPayload(input: unknown): AdmissionsDirectPa
     if (signedOn !== undefined && (typeof signedOn !== "string" || !isCalendarDate(signedOn))) return null;
     if (payments !== undefined && (!Array.isArray(payments) || payments.length === 0 || payments.length > ADMISSIONS_DIRECT_MAX_PAYMENTS
       || !payments.every((payment) => isRecord(payment) && exactKeys(payment, ["amountMinor", "currency", "paidOn"])
-        && amount(payment.amountMinor) && typeof payment.currency === "string" && isCurrency(payment.currency)
+        && amount(payment.amountMinor) && (payment.amountMinor as number) > 0 && typeof payment.currency === "string" && isCurrency(payment.currency)
         && typeof payment.paidOn === "string" && isCalendarDate(payment.paidOn)))) return null;
   }
   if (note !== undefined && (typeof note !== "string" || note.trim() !== note || note.length === 0 || note.length > 3500 || NOTE_CONTROL.test(note))) return null;

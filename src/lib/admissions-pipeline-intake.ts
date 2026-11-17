@@ -39,6 +39,11 @@ const NUMERIC_MONTH: readonly Exclude<Season, "undecided">[] = [
   "winter", "winter", "spring", "spring", "spring", "summer", "summer", "summer", "autumn", "autumn", "autumn", "winter",
 ];
 
+/** «Пока не определился» на карточке ничего не сообщает: остаётся только год (решение владельца 17.11.2026). */
+function seasonWord(key: string | null): string | null {
+  return key === null || key === "undecided" ? null : intakeSeason(key);
+}
+
 function yearOf(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value) && value >= 1900 && value <= 2100) return value;
   if (typeof value === "string" && /^(19|20|21)\d{2}$/u.test(value.trim())) return Number(value.trim());
@@ -87,20 +92,21 @@ function recognize(text: string): { season: Season | null; year: number | null }
 }
 
 function fromRecognized(recognized: { season: Season | null; year: number | null }, yearOverride: number | null): string | null {
-  return join(recognized.season ? intakeSeason(recognized.season) : null, yearOverride ?? recognized.year);
+  return join(seasonWord(recognized.season), yearOverride ?? recognized.year);
 }
 
 /**
  * Лучший набор, в этом порядке: сезон и год анкеты студента, пожелания лида
  * (`wishes_intake_season` / `wishes_intake_year`), свободный текст дела
  * (прямое добавление вроде «сентябрь 2027»). Сезон и месяц становятся словом
- * («Осень 2027»). Текст, который так не прочитать, остаётся как есть. Пусто — null.
+ * («Осень 2027»), «не определился» — только год или ничего. Текст, который так
+ * не прочитать, остаётся как есть. Пусто — null.
  */
 export function admissionsPipelineIntakeLabel(sources: AdmissionsPipelineIntakeSources): string | null {
   if (sources.applicationSeason != null || sources.applicationYear != null) {
-    const word = typeof sources.applicationSeason === "string" ? intakeSeason(sources.applicationSeason.trim()) : null;
+    const key = typeof sources.applicationSeason === "string" ? sources.applicationSeason.trim() : null;
     const year = yearOf(sources.applicationYear);
-    if (word || year) return join(word, year);
+    if (key === "undecided" || intakeSeason(key) || year) return join(seasonWord(key), year);
   }
   const wishesSeason = textOf(sources.wishesSeason, 100);
   const wishesYear = yearOf(sources.wishesYear);
@@ -115,5 +121,5 @@ export function admissionsPipelineIntakeLabel(sources: AdmissionsPipelineIntakeS
   const raw = textOf(sources.intakeText);
   if (!raw) return null;
   const recognized = recognize(raw);
-  return recognized ? fromRecognized(recognized, null) ?? raw : raw;
+  return recognized ? fromRecognized(recognized, null) : raw;
 }

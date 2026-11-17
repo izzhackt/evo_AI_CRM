@@ -125,6 +125,20 @@ test("without the model the chat says Эви is unavailable instead of inventing
   assert.match(tab, /<EviConsentGate/u);
 });
 
+test("before the first answer the chat greets with a welcome stage, and the section always has one name", () => {
+  const thread = read(`${EVI_DIR}/EviThread.tsx`);
+  const chat = read(`${EVI_DIR}/EviChat.tsx`);
+  // Приветствие: крупный робот и заголовок с id имени секции; шапка с тем же id — только в разговоре.
+  assert.match(thread, /if \(intro && greeting\) \{/u);
+  assert.match(thread, /<h2 id="pt-evi-name" className="pt-evi-welcome-title">\{strings\["evi\.welcomeTitle"\]\}<\/h2>/u);
+  assert.match(chat, /\{chat\.intro \? null : \(\s*<div className="pt-evi-head">/u);
+  assert.equal(chat.split('id="pt-evi-name"').length - 1, 1);
+  // Хуки — до раннего выхода приветствия.
+  assert.ok(thread.indexOf("useEffect(") < thread.indexOf("if (intro && greeting)"));
+  // Пока Эви думает — облачко с точками, текст остаётся для читалки.
+  assert.match(thread, /className="pt-evi-bubble pt-evi-typing" role="status">\s*<span className="pt-sr-only">\{strings\["evi\.thinking"\]\}<\/span>/u);
+});
+
 test("a new chat ignores replies that arrive for the old one", () => {
   const conversation = read(`${EVI_DIR}/useEviConversation.ts`);
   assert.match(conversation, /epochRef\.current \+= 1/u);

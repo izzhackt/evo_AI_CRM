@@ -10001,7 +10001,7 @@ a.pt-pay-file {
   --pt-evi-axis: 720px;
   display: flex;
   flex-direction: column;
-  height: min(72dvh, 680px);
+  height: clamp(520px, calc(100dvh - 248px), 860px);
   min-height: 420px;
   overflow: hidden;
   border: 1px solid var(--pt-line);
@@ -10122,8 +10122,67 @@ a.pt-pay-file {
   box-shadow: none;
 }
 
-.pt-evi-thinking {
+/*
+ * Экран приветствия до первого ответа: крупный робот, «Привет! Я Эви» и строка о том, что будет, — по центру сцены;
+ * варианты «Начнём!» и «Как это работает?» — по центру над полем ввода. С первым ответом это обычная переписка.
+ */
+/* margin: auto — по центру, когда место есть; на коротком телефоне блок начинается сверху и не обрезается. */
+.pt-evi-welcome {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 520px;
+  margin: auto;
+  text-align: center;
+}
+
+.pt-evi-welcome .pt-evi-mascot {
+  width: 128px;
+  margin-bottom: 8px;
+}
+
+.pt-evi-welcome-title {
+  margin: 0;
+  font-size: var(--pt-size-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.pt-evi-welcome-text {
+  max-width: 40ch;
+  margin: 0;
   color: var(--pt-text-2);
+  font-size: var(--pt-size-body);
+  line-height: var(--pt-leading);
+}
+
+.pt-evi[data-intro] :is(.pt-evi-chips, .pt-evi-rail) {
+  justify-content: safe center;
+}
+
+/* Пока Эви думает — облачко с тремя точками; сам робот рядом «думает» (блок «Живой Эви»). */
+.pt-evi-bubble.pt-evi-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 20px;
+}
+
+.pt-evi-typing i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pt-text-2);
+}
+
+.pt-evi-typing i:nth-of-type(2) {
+  opacity: 0.6;
+}
+
+.pt-evi-typing i:nth-of-type(3) {
+  opacity: 0.3;
 }
 
 /* Сбой — строка системы под последним ответом, не словами Эви. */
@@ -10156,11 +10215,15 @@ a.pt-pay-file {
 }
 
 .pt-evi-chip {
-  min-height: 44px;
-  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 20px;
   border: 1px solid var(--pt-control-edge);
   border-radius: var(--pt-radius-chip);
   background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
   color: var(--pt-text);
   font: inherit;
   font-size: var(--pt-size-secondary);
@@ -10181,10 +10244,17 @@ a.pt-pay-file {
   transform: scale(var(--pt-press-scale));
 }
 
+/* Галочка не меняет ширину варианта: 20 + 20 = 11 + 11 + 18 (значок 16, зазор 6, сдвиг −4) — соседи не прыгают. */
 .pt-evi-chip[aria-pressed="true"] {
+  padding-inline: 11px;
   border-color: var(--pt-text);
   background: var(--pt-text);
   color: var(--pt-surface);
+}
+
+.pt-evi-chip-check {
+  flex: none;
+  margin-inline-start: -4px;
 }
 
 /* Следующий шаг — одна красная кнопка: «Начнём!», «Готово», «Повторить», «Новый чат». */
@@ -10212,11 +10282,11 @@ a.pt-pay-file {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 4px 4px 4px 18px;
+  padding: 6px 6px 6px 20px;
   border: 1px solid var(--pt-control-edge);
-  border-radius: 26px;
+  border-radius: 28px;
   background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
+  box-shadow: var(--pt-shadow-raised);
 }
 
 .pt-evi-composer:focus-within {
@@ -10619,6 +10689,14 @@ a.pt-pay-file {
 
   .pt-evi-row[data-speaking] > .pt-evi-bubble::before {
     top: 14px;
+  }
+
+  .pt-evi-welcome .pt-evi-mascot {
+    width: 104px;
+  }
+
+  .pt-evi-welcome-title {
+    font-size: var(--pt-size-title);
   }
 
   .pt-evi-chips {

@@ -11,7 +11,8 @@ export type { EviMessage, EviOptions } from "./useEviConversation";
 
 /**
  * Разговор с Эви — сцена Эви: белая карточка с мягкой подсветкой бренда (исключение владельца 17.11.2026), одна ось
- * разговора, живой робот у последней реплики. `ask` — серверное действие разговора; пока его нет, отправка честно
+ * разговора, живой робот у последней реплики. До первого ответа — экран приветствия (крупный робот и имя по центру),
+ * шапка появляется с разговором. `ask` — серверное действие разговора; пока его нет, отправка честно
  * говорит «Эви сейчас недоступен». `initial*` — состояние для статического рендера и проверок.
  */
 export function EviChat({ strings, ask, initialMessages, initialOptions, initialFailure = null }: Readonly<{
@@ -24,19 +25,19 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
   const chat = useEviConversation({ strings, ask, initialMessages, initialOptions, initialFailure });
 
   return (
-    <section className="pt-evi" aria-labelledby="pt-evi-name">
-      <div className="pt-evi-head">
-        <div>
-          <h2 id="pt-evi-name" className="pt-evi-name">{strings["evi.name"]}</h2>
-          <p className="pt-evi-role">{strings["evi.role"]}</p>
-        </div>
-        {chat.intro ? null : (
+    <section className="pt-evi" aria-labelledby="pt-evi-name" data-intro={chat.intro ? "" : undefined}>
+      {chat.intro ? null : (
+        <div className="pt-evi-head">
+          <div>
+            <h2 id="pt-evi-name" className="pt-evi-name">{strings["evi.name"]}</h2>
+            <p className="pt-evi-role">{strings["evi.role"]}</p>
+          </div>
           <button type="button" className="pt-btn-ghost pt-evi-new" onClick={() => { chat.restart(); keepEviFocus(); }}>
             {strings["evi.newChat"]}
           </button>
-        )}
-      </div>
-      <EviThread strings={strings} messages={chat.messages} round={chat.round} pending={chat.pending} failure={chat.failure} listening={chat.draft.length > 0} />
+        </div>
+      )}
+      <EviThread strings={strings} messages={chat.messages} round={chat.round} intro={chat.intro} pending={chat.pending} failure={chat.failure} listening={chat.draft.length > 0} />
       <EviDock
         strings={strings}
         options={chat.options}

@@ -90,6 +90,9 @@ export function EviDock({ strings, options, picked, failure, canRetry, round, dr
               <button key={option} type="button" className={option === options.go ? "pt-evi-chip pt-evi-go" : "pt-evi-chip"}
                 aria-pressed={options.multi ? picked.has(option) : undefined}
                 onClick={() => (options.multi ? onToggle(option) : answer(option))}>
+                {options.multi && picked.has(option) ? (
+                  <svg className="pt-evi-chip-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+                ) : null}
                 {option}
               </button>
             ))}

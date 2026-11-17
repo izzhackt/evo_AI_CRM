@@ -10800,9 +10800,16 @@ a.pt-pay-file {
     padding-bottom: 0;
   }
 
-  /* Кнопка «Написать EVO» у ученика с сопровождением стоит над нижней панелью — поле ввода заканчивается выше неё. */
-  .pt-shell[data-chat-fab] .pt-prof-page-evi {
-    height: calc(100dvh - var(--pt-topbar-height) - 150px - env(safe-area-inset-bottom));
+  /*
+   * «Написать EVO» на вкладке Эви не висит под полем ввода (решение владельца 17.11.2026, как в «Сообщениях»): у Эви
+   * своё поле, а «Сообщения» — в нижней панели. Запас под кнопку внизу тоже не нужен — переписке остаётся больше места.
+   */
+  .pt-shell:has(.pt-prof-page-evi) .pt-chat-fab {
+    display: none;
+  }
+
+  .pt-shell[data-chat-fab]:has(.pt-prof-page-evi) .pt-content {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 
   .pt-prof-page-evi > .pt-pill-tabs {

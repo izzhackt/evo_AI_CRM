@@ -332,6 +332,16 @@ test("the AI-consent screen keeps «ИИ-помощников» whole, uses Эв
   assert.doesNotMatch(rule, /height/u);
 });
 
+test("on phone the «Написать EVO» button is hidden on the Эви tab, and the chat gets its space back", () => {
+  const phone = CSS.slice(CSS.indexOf("  .pt-prof-page-evi {\n    display: flex;"));
+  assert.match(phone, /^\s*\.pt-shell:has\(\.pt-prof-page-evi\) \.pt-chat-fab \{\s*display: none;\s*\}/mu);
+  assert.match(phone, /\.pt-shell\[data-chat-fab\]:has\(\.pt-prof-page-evi\) \.pt-content \{\s*padding-bottom: calc\(96px \+ env\(safe-area-inset-bottom\)\);/u);
+  assert.doesNotMatch(CSS, /\.pt-shell\[data-chat-fab\] \.pt-prof-page-evi \{/u);
+  // Только телефон: правило стоит внутри телефонного блока Эви, на компьютере кнопка остаётся.
+  const media = CSS.lastIndexOf("@media (max-width: 767px) {", CSS.indexOf(".pt-shell:has(.pt-prof-page-evi) .pt-chat-fab"));
+  assert.ok(media > 0 && CSS.indexOf("  .pt-prof-page-evi {\n    display: flex;") > media);
+});
+
 test("Эви's colours have a light and a dark value; no backdrop, and the input has no red frame", () => {
   const tokens = [
     "--pt-evi-helmet", "--pt-evi-helmet-hi", "--pt-evi-helmet-lo", "--pt-evi-helmet-rim", "--pt-evi-ring", "--pt-evi-visor",

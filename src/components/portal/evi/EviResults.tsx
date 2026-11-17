@@ -1,5 +1,5 @@
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
-import { PROFESSION_PHOTOS } from "@/components/portal/professions/profession-photo-files";
+import { ProfessionPhoto } from "@/components/portal/professions/ProfessionPhoto";
 import type { EviResult } from "@/lib/portal/evi";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
@@ -15,27 +15,21 @@ export function EviResults({ results, strings }: Readonly<{
 }>) {
   return (
     <ol className="pt-evi-results" aria-label={strings["evi.resultsLabel"]}>
-      {results.map((result, index) => {
-        const photo = PROFESSION_PHOTOS[result.cardKey];
-        return (
-          <li key={result.cardId} className="pt-evi-result">
-            <span className="pt-evi-result-media" aria-hidden="true">
-              {photo ? (
-                // eslint-disable-next-line @next/next/no-img-element -- статический WebP 720 px из сборки, оптимизатор не нужен
-                <img className="pt-evi-result-photo" src={photo.src} width={photo.width} height={photo.height} alt="" loading="lazy" decoding="async" />
-              ) : null}
-              <span className="pt-evi-result-n pt-data">{index + 1}</span>
-            </span>
-            <div className="pt-evi-result-body">
-              <h3 className="pt-evi-result-title">
-                <IntentPrefetchLink href={`/portal/professions/${result.cardId}`}>{result.title}</IntentPrefetchLink>
-              </h3>
-              {result.summary ? <p className="pt-evi-result-what">{result.summary}</p> : null}
-              <p className="pt-evi-result-why">{result.why}</p>
-            </div>
-          </li>
-        );
-      })}
+      {results.map((result, index) => (
+        <li key={result.cardId} className="pt-evi-result">
+          <span className="pt-evi-result-media" aria-hidden="true">
+            <ProfessionPhoto cardKey={result.cardKey} className="pt-evi-result-photo" />
+            <span className="pt-evi-result-n pt-data">{index + 1}</span>
+          </span>
+          <div className="pt-evi-result-body">
+            <h3 className="pt-evi-result-title">
+              <IntentPrefetchLink href={`/portal/professions/${result.cardId}`}>{result.title}</IntentPrefetchLink>
+            </h3>
+            {result.summary ? <p className="pt-evi-result-what">{result.summary}</p> : null}
+            <p className="pt-evi-result-why">{result.why}</p>
+          </div>
+        </li>
+      ))}
     </ol>
   );
 }

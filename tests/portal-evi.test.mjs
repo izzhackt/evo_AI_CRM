@@ -166,8 +166,14 @@ test("every catalogue profession has its photo, and a result card finds it by th
     assert.ok(existsSync(new URL(`../src/content/professions/photos/${key}.webp`, import.meta.url)), `${key}.webp exists`);
   }
   const results = read(`${EVI_DIR}/EviResults.tsx`);
-  assert.match(results, /const photo = PROFESSION_PHOTOS\[result\.cardKey\];/u);
-  assert.match(results, /alt="" loading="lazy"/u, "the photo is decoration: the title names the card");
+  assert.match(results, /<ProfessionPhoto cardKey=\{result\.cardKey\} className="pt-evi-result-photo" \/>/u);
+  const photo = read("src/components/portal/professions/ProfessionPhoto.tsx");
+  assert.match(photo, /const photo = PROFESSION_PHOTOS\[cardKey\];\s*if \(!photo\) return null;/u);
+  assert.match(photo, /alt=""/u, "the photo is decoration: the title names the card");
+  // Тот же снимок — в каталоге, в «Подходят вам» и в шапке страницы профессии.
+  assert.match(read("src/components/portal/professions/ProfessionsBrowser.tsx"), /<ProfessionPhoto cardKey=\{card\.cardKey\} className="pt-prof-photo" \/>/u);
+  assert.match(read("src/components/portal/professions/ProfessionMatches.tsx"), /<ProfessionPhoto cardKey=\{card\.cardKey\} className="pt-prof-photo" \/>/u);
+  assert.match(read("src/app/(portal)/portal/professions/[cardId]/page.tsx"), /<ProfessionPhoto cardKey=\{card\.cardKey\} className="pt-prof-detail-photo" eager \/>/u);
 });
 
 test("the results show the catalogue's own line and no score", () => {

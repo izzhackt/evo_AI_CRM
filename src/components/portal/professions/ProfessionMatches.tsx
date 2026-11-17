@@ -4,6 +4,8 @@ import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import type { ProfessionMatch } from "@/lib/portal/profession-guide";
 
+import { ProfessionPhoto } from "./ProfessionPhoto";
+
 /**
  * «Подходят вам» (разбор владельца 10.11.2026, п. 2): три профессии с самым
  * высоким совпадением по собственному orvis92 и причиной — шкалы профессии,
@@ -36,6 +38,7 @@ export function ProfessionMatches({
         {matches.map(({ card, percent, reasons }) => (
           <li key={card.cardId}>
             <article className="pt-prof-card">
+              <ProfessionPhoto cardKey={card.cardKey} className="pt-prof-photo" />
               <p className="pt-prof-match-percent pt-data">
                 <span aria-hidden="true">{percent}%</span>
                 <span className="pt-sr-only">{formatPortalString(strings.matchPercent, { percent: String(percent) })}</span>

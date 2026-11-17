@@ -4837,6 +4837,22 @@ html:has(.pt-program-dialog[open]) {
   box-shadow: var(--pt-shadow-card);
 }
 
+/*
+ * Фото профессии (17.11.2026): на карточке каталога и в «Подходят вам» — снимок во всю ширину карточки сверху, как в
+ * итоге Эви; сгенерированные фото — исключение контракта, как обложки уроков английского.
+ */
+.pt-prof-photo {
+  display: block;
+  width: calc(100% + 40px);
+  max-width: none;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: -18px -20px 4px;
+  border-radius: calc(var(--pt-radius-card) - 1px) calc(var(--pt-radius-card) - 1px) 0 0;
+  background: var(--pt-skeleton);
+  object-fit: cover;
+}
+
 .pt-prof-title {
   margin: 0;
   font-size: var(--pt-size-body);
@@ -4902,6 +4918,39 @@ html:has(.pt-program-dialog[open]) {
 
 .pt-prof-detail-head .pt-page-title {
   margin-top: 0;
+}
+
+/* Шапка страницы профессии с фото: на телефоне фото сверху, на широком экране — справа от текста. */
+.pt-prof-detail-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 12px 0 16px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-skeleton);
+  box-shadow: var(--pt-shadow-card);
+  object-fit: cover;
+}
+
+@media (min-width: 900px) {
+  .pt-prof-detail-head:has(.pt-prof-detail-photo) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+    column-gap: 32px;
+    align-items: start;
+    max-width: none;
+  }
+
+  .pt-prof-detail-head:has(.pt-prof-detail-photo) > :not(.pt-prof-detail-photo) {
+    grid-column: 1;
+  }
+
+  .pt-prof-detail-photo {
+    grid-row: 1 / span 5;
+    grid-column: 2;
+    margin: 0;
+  }
 }
 
 .pt-prof-detail-head .pt-chip-row {

@@ -477,6 +477,3 @@ test("Эви's colours have a light and a dark value; no backdrop, and the input
   assert.match(CSS, /\.pt-page \.pt-evi-input:focus-visible \{\s*outline: none;/u);
   assert.match(CSS, /\n\.pt-evi-bubble-mine \{[^}]*background: var\(--pt-accent\);[^}]*color: var\(--pt-on-accent\);/u);
 });
-
-
-

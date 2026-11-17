@@ -56,13 +56,13 @@ const EXPECTED_SURFACES = [
   "consent-gate",
   // Согласие на ИИ-помощников (25.10.2026): строка «Профиля» во всех состояниях.
   "profile-ai-consent",
-  // «Подбор с Эви» (16.11.2026, сцена и живой робот — 17.11): начало, разговор, итог, сбой, строка без согласия на ИИ
-  // и лист выражений робота.
+  // «Подбор с Эви» (16.11.2026, сцена и живой робот — 17.11): начало, разговор, итог, сбой, Эви без модели («Открыть
+  // каталог») и лист выражений робота.
   "professions-evi-intro",
   "professions-evi-chat",
   "professions-evi-results",
   "professions-evi-failure",
-  "professions-evi-consent",
+  "professions-evi-offline",
   "professions-evi-moods",
 ] as const;
 
@@ -92,6 +92,11 @@ for (const name of EXPECTED_SURFACES) {
       await page.waitForFunction(() =>
         document.getAnimations().every((animation) =>
           animation.playState !== "running" || animation.effect?.getComputedTiming().iterations === Infinity));
+      // Окно Эви с водяными знаками (17.11.2026): axe не видит фон под псевдоэлементом и пропускает контраст, поэтому
+      // текст окна проверяется на сплошном цвете знака — худшем случае.
+      if (name.startsWith("professions-evi")) {
+        await page.addStyleTag({ content: ".pt-evi::before{display:none}.pt-evi{background:var(--pt-evi-mark)}" });
+      }
       const results = await new AxeBuilder({ page })
         .withTags([...WCAG_TAGS])
         .analyze();

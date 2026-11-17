@@ -8,11 +8,15 @@ import { useEviFace } from "./useEviFace";
  * у свежей реплики; без него робот «успокоен» (`settled`): лицо реплики без разовой реакции, поэтому робот, вернувшийся
  * к старой реплике после сбоя, не прыгает заново.
  */
-export function EviMascot({ mood, listening = false, speakMs }: Readonly<{
+export function EviMascot({ mood, listening = false, speakMs, poke = 0, hopOnMount = false }: Readonly<{
   mood: EviFace;
   listening?: boolean;
   speakMs?: number;
+  /** Счётчик действий ученика (выбранных вариантов): вырос — робот коротко радуется. */
+  poke?: number;
+  /** Радость сразу при появлении — робот, который сейчас начнёт думать над ответом ученика. */
+  hopOnMount?: boolean;
 }>) {
-  const face = useEviFace(mood, listening, speakMs);
-  return <EviRobot face={face} listening={listening} settled={speakMs === undefined} />;
+  const { face, poking } = useEviFace(mood, listening, speakMs, poke, hopOnMount);
+  return <EviRobot face={face} listening={listening && !poking} settled={speakMs === undefined && !poking} />;
 }

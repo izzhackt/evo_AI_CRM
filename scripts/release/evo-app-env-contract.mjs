@@ -124,7 +124,11 @@ const WAZZUP_WEBHOOK_TOKEN = /^[0-9a-f]{64}$/u;
 //  - EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD: дневной лимит расхода агента на запуски по входящему
 //    WhatsApp, USD, число больше 0 и не больше 1000 (миграция 322, PLAN_CHANGES 26.10.2026). Пусто — $10.
 //    Ноль, минус и мусор не принимаются: «без лимита» этим именем не включается.
+//  - EVO_EVI_ANTHROPIC_API_KEY: отдельный ключ Claude API для Эви — ИИ-профориентатора кабинета студента (решение
+//    владельца 16.11.2026: свой ключ и свой лимит трат). Тот же формат; не совпадает ни с одним другим значением, в том
+//    числе с ключом ИИ-агентов. Пусто — Эви в кабинете честно «недоступен».
 const AI_AGENTS_KEY_NAME = "EVO_ANTHROPIC_API_KEY";
+const EVI_KEY_NAME = "EVO_EVI_ANTHROPIC_API_KEY";
 const AI_AGENTS_BASE_URL_NAME = "EVO_ANTHROPIC_API_BASE_URL";
 const AI_AGENTS_MCP_URL_NAME = "EVO_AI_AGENTS_MCP_URL";
 const AI_AGENTS_MCP_IP_NAME = "EVO_AI_AGENTS_MCP_IP_ALLOWLIST";
@@ -137,6 +141,7 @@ const OPTIONAL_AI_AGENTS_NAMES = Object.freeze([
   AI_AGENTS_MCP_IP_NAME,
   AI_AGENTS_BUDGET_NAME,
   AI_AGENTS_WHATSAPP_DAILY_BUDGET_NAME,
+  EVI_KEY_NAME,
 ]);
 const AI_AGENTS_API_KEY = /^[\x21-\x7e]{20,300}$/u;
 const AI_AGENTS_MCP_PATH = "/api/mcp/v1";
@@ -547,12 +552,13 @@ function isIpOrCidr(value) {
 function validateAiAgentsConfiguration(entries) {
   const value = (name) => entries.get(name) ?? "";
 
-  const key = value(AI_AGENTS_KEY_NAME);
-  if (key !== "") {
+  // Ключи Claude API (агенты CRM и Эви): каждый — свой секрет, не совпадает ни с одним другим значением этого env.
+  for (const keyName of [AI_AGENTS_KEY_NAME, EVI_KEY_NAME]) {
+    const key = value(keyName);
+    if (key === "") continue;
     if (!AI_AGENTS_API_KEY.test(key)) fail("optional_feature_configuration_invalid");
-    // Свой секрет: значение не совпадает ни с одним другим значением этого env.
     for (const [name, other] of entries) {
-      if (name !== AI_AGENTS_KEY_NAME && other === key) {
+      if (name !== keyName && other === key) {
         fail("optional_feature_configuration_invalid");
       }
     }

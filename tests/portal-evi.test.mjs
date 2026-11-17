@@ -170,6 +170,20 @@ test("every failure has at most one recovery action, and the robot keeps a bound
   assert.equal(eviSpeakMs(Array(10).fill("слово").join(" ")), 1000);
   assert.equal(eviSpeakMs(Array(100).fill("слово").join(" ")), 2400);
   assert.equal(EVI_BEAT.react.eureka, 2400);
+  assert.equal(EVI_BEAT.poke, 700);
+});
+
+test("the robot answers the student's actions: a picked option and a sent answer", () => {
+  const conversation = read(`${EVI_DIR}/useEviConversation.ts`);
+  assert.match(conversation, /const adding = !picked\.has\(option\);[\s\S]*if \(adding\) setPokes\(\(current\) => current \+ 1\);/u);
+  const thread = read(`${EVI_DIR}/EviThread.tsx`);
+  assert.match(thread, /speakMs=\{fresh \? eviSpeakMs\(message\.text\) : undefined\} poke=\{poke\}/u);
+  assert.match(thread, /<EviMascot mood="thinking" hopOnMount \/>/u);
+  const face = read(`${EVI_DIR}/useEviFace.ts`);
+  assert.match(face, /if \(poking\) return \{ face: "happy", poking \};/u);
+  assert.match(face, /window\.setTimeout\(\(\) => setSeenPoke\(poke\), EVI_BEAT\.poke\)/u);
+  // На время радости робот не «успокоен» — иначе подскок не сыграет у старой реплики.
+  assert.match(read(`${EVI_DIR}/EviMascot.tsx`), /settled=\{speakMs === undefined && !poking\}/u);
 });
 
 test("every catalogue profession has its photo, and a result card finds it by the card key", () => {

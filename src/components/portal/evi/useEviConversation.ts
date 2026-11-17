@@ -42,6 +42,7 @@ export function useEviConversation({ strings, ask, initialMessages, initialOptio
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const [round, setRound] = useState(0);
+  const [pokes, setPokes] = useState(0);
   const epochRef = useRef(0);
   const busyRef = useRef<number | null>(null);
   const messagesRef = useRef(messages);
@@ -110,16 +111,19 @@ export function useEviConversation({ strings, ask, initialMessages, initialOptio
     setDraft("");
   }
 
+  /** Выбор варианта: робот коротко радуется (`pokes` растёт только при выборе, не при снятии). */
   function toggle(option: string) {
+    const adding = !picked.has(option);
     setPicked((current) => {
       const next = new Set(current);
       if (next.has(option)) next.delete(option); else next.add(option);
       return next;
     });
+    if (adding) setPokes((current) => current + 1);
   }
 
   return {
-    messages, options, picked, failure, draft, round, setDraft, send, retry, restart, toggle,
+    messages, options, picked, failure, draft, round, pokes, setDraft, send, retry, restart, toggle,
     pending: busy !== null,
     intro: !messages.some((message) => message.role === "user"),
     /** Прогресс последней реплики Эви; у итога и у реплик без него — null. */

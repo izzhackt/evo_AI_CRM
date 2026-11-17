@@ -21,7 +21,7 @@ export const EVI_FAILURE_TEXT: Readonly<Record<EviFailure, keyof Strings>> = {
  * экран приветствия: крупный робот, «Привет! Я Эви» и строка о том, что будет. Пока Эви думает — облачко с тремя точками. Новая реплика Эви
  * открывается с начала, чтобы «Придумал!» и первая профессия были видны первыми; остальное — прокрутка вниз.
  */
-export function EviThread({ strings, messages, round, intro, pending, failure, listening }: Readonly<{
+export function EviThread({ strings, messages, round, intro, pending, failure, listening, poke }: Readonly<{
   strings: Strings;
   messages: readonly EviMessage[];
   /** Номер разговора: после «Нового чата» строки монтируются заново. */
@@ -31,6 +31,8 @@ export function EviThread({ strings, messages, round, intro, pending, failure, l
   pending: boolean;
   failure: EviFailure | null;
   listening: boolean;
+  /** Счётчик выбранных вариантов: робот у реплики коротко радуется каждому выбору. */
+  poke: number;
 }>) {
   const logRef = useRef<HTMLDivElement>(null);
   const lastAi = messages.findLastIndex((message) => message.role === "assistant");
@@ -72,7 +74,7 @@ export function EviThread({ strings, messages, round, intro, pending, failure, l
             <div className="pt-evi-row" data-speaking={speaking ? "" : undefined}>
               <div className="pt-evi-slot">
                 {speaking ? (
-                  <EviMascot mood={message.mood ?? "talk"} listening={listening} speakMs={fresh ? eviSpeakMs(message.text) : undefined} />
+                  <EviMascot mood={message.mood ?? "talk"} listening={listening} speakMs={fresh ? eviSpeakMs(message.text) : undefined} poke={poke} />
                 ) : null}
               </div>
               <p className="pt-evi-bubble">{message.text}</p>
@@ -83,7 +85,7 @@ export function EviThread({ strings, messages, round, intro, pending, failure, l
       })}
       {pending ? (
         <div className="pt-evi-row" data-speaking="">
-          <div className="pt-evi-slot"><EviMascot mood="thinking" /></div>
+          <div className="pt-evi-slot"><EviMascot mood="thinking" hopOnMount /></div>
           <p className="pt-evi-bubble pt-evi-typing" role="status">
             <span className="pt-sr-only">{strings["evi.thinking"]}</span>
             <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />

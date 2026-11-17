@@ -81,6 +81,8 @@ export const EVI_FAILURE_ACTION = {
  */
 export const EVI_BEAT = {
   react: { happy: 900, wow: 900, eureka: 2400 },
+  /** Короткая радость на действие ученика: выбрал вариант, отправил ответ. */
+  poke: 700,
   perWord: 60,
   base: 400,
   speakMin: 800,

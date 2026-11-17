@@ -48,7 +48,8 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
           <progress className="pt-progress" max={chat.progress.total} value={chat.progress.step} aria-hidden="true" />
         </p>
       ) : null}
-      <EviThread strings={strings} messages={chat.messages} round={chat.round} intro={chat.intro} pending={chat.pending} failure={chat.failure} listening={chat.draft.length > 0} />
+      <EviThread strings={strings} messages={chat.messages} round={chat.round} intro={chat.intro} pending={chat.pending} failure={chat.failure}
+        listening={chat.draft.length > 0} poke={chat.pokes} />
       <EviDock
         strings={strings}
         options={chat.options}

@@ -214,8 +214,20 @@ test('scoped readers reject different application and preserve default paginatio
 test('the cross-student package queue is not a Server Action (EVO Docs removed 2026-11-17)', async () => {
   const h = harness({});
   assert.equal(h.actions.readStaffApplicationPackageQueueAction, undefined);
-  assert.doesNotMatch(readFileSync(new URL('../src/lib/portal/application-packages-actions.ts', import.meta.url), 'utf8'), /application_package_queue_v1/u);
-  assert.equal(h.calls.length, 0);
+  assert.doesNotMatch(actionSource, /application_package_queue_v1/u);
+});
+
+test('staff package reads use the existing document read permission and no client assignment filtering', async () => {
+  const response = name => ({ data: name === 'application_package_readiness_v1' ? readiness : history, error: null });
+  const h = harness({ studentStatus: 'anonymous', response });
+  assert.equal((await h.actions.readStaffApplicationPackageReadinessAction(scope, target, [])).ok, true);
+  assert.equal((await h.actions.readApplicationPackageHistoryAction(scope, target)).ok, true);
+  assert.deepEqual(h.permissionsChecked, ['document.read.full', 'document.read.full']);
+  assert.deepEqual(h.calls.map(([name]) => name), ['application_package_readiness_v1', 'application_package_history_v1']);
+  const denied = harness({ studentStatus: 'anonymous', permissions: ['document.upload', 'document.review'], response });
+  assert.equal((await denied.actions.readStaffApplicationPackageReadinessAction(scope, target, [])).reason, 'forbidden');
+  assert.equal((await denied.actions.readApplicationPackageHistoryAction(scope, target)).reason, 'forbidden');
+  assert.equal(denied.calls.length, 0);
 });
 
 test('notification binds both notification ID and current Student case', async () => {

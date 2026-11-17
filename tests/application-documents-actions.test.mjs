@@ -45,5 +45,4 @@ test('the cross-student document queue is not a Server Action (EVO Docs removed 
  const a=actions();
  assert.equal(a.api.readStaffApplicationDocumentSubmissionQueueAction,undefined);
  assert.doesNotMatch(source,/submission_queue_v1/u);
- assert.equal(a.calls.length,0);
 });

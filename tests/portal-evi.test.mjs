@@ -32,8 +32,10 @@ test("progress comes only from the model and only when it is plausible", () => {
     { cardKey: "software-developer", why: "a" }, { cardKey: "data-scientist", why: "b" }, { cardKey: "physician", why: "c" },
   ];
   assert.equal(reply({ step: 6, total: 6 }, results)?.progress, null, "the result ends the questions");
+  // «Вопрос 3 из 6» — вторая строка шапки и полоса по её кромке, только когда модель прислала шаг.
   const chat = read(`${EVI_DIR}/EviChat.tsx`);
-  assert.match(chat, /\{chat\.progress && !chat\.intro \? \(/u);
+  assert.match(chat, /\{chat\.progress\s*\? formatPortalString\(strings\["evi\.progress"\]/u);
+  assert.match(chat, /<i className="pt-evi-line-fill" style=\{\{ transform: `scaleX\(\$\{chat\.progress\.step \/ chat\.progress\.total\}\)` \}\} \/>/u);
 });
 
 test("a question reply keeps the message, a known mood and clean distinct options", () => {
@@ -129,7 +131,9 @@ const BASE_MARK = "Эви — ИИ-профориентатор во вклад�
 const ROBOT_MARK = "Живой Эви (исключение владельца 17.11.2026";
 const MOTION_MARK = "Движение кабинета студента (решение владельца 02.10";
 const BASE = CSS.slice(CSS.indexOf(BASE_MARK), CSS.indexOf(ROBOT_MARK));
-const ROBOT = CSS.slice(CSS.indexOf(ROBOT_MARK), CSS.indexOf(MOTION_MARK));
+const TYPING_MARK = "Эви пишет ответ (исключение владельца 17.11.2026";
+const ROBOT = CSS.slice(CSS.indexOf(ROBOT_MARK), CSS.indexOf(TYPING_MARK));
+const TYPING = CSS.slice(CSS.indexOf(TYPING_MARK), CSS.indexOf(MOTION_MARK));
 
 test("the professions page validates ?view= and keeps the catalogue as the default tab", () => {
   const page = read("src/app/(portal)/portal/professions/page.tsx");
@@ -164,7 +168,7 @@ test("before the first answer the chat greets with a welcome stage, and the sect
   assert.equal(chat.split('id="pt-evi-name"').length - 1, 1);
   // Хуки — до раннего выхода приветствия.
   assert.ok(thread.indexOf("useEffect(") < thread.indexOf("if (intro && greeting)"));
-  // Пока Эви думает — облачко с точками, текст остаётся для читалки.
+  // Пока Эви печатает — облачко с точками, текст остаётся для читалки.
   assert.match(thread, /className="pt-evi-bubble pt-evi-typing" role="status">\s*<span className="pt-sr-only">\{strings\["evi\.thinking"\]\}<\/span>/u);
 });
 
@@ -286,6 +290,61 @@ test("the robot's live motion is robot-only and switched off under reduced motio
     assert.ok(rule, reaction);
     assert.match(rule[1].trim(), /^\.pt-evi-mascot:not\(\[data-settled\]\)/u, `${reaction} skips a settled robot`);
   }
+});
+
+test("while Эви writes a reply the dots and the header strip move — only then, and never under reduced motion", () => {
+  const typing = CSS.indexOf(TYPING_MARK);
+  assert.ok(typing > CSS.indexOf(ROBOT_MARK) && typing < CSS.indexOf(MOTION_MARK) && typing === CSS.lastIndexOf(TYPING_MARK), "one typing block after the robot");
+  const names = [...TYPING.matchAll(/@keyframes\s+([\w-]+)\s*\{/gu)].map((match) => match[1]).sort();
+  assert.deepEqual(names, ["pt-evi-dot", "pt-evi-run"]);
+  for (const body of TYPING.matchAll(/@keyframes[^{]*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/gu)) {
+    for (const property of body[1].matchAll(/([a-z-]+)\s*:/gu)) assert.ok(["opacity", "transform"].includes(property[1]), property[1]);
+  }
+  const opener = "@media (prefers-reduced-motion: no-preference) {";
+  const start = TYPING.indexOf(opener);
+  assert.ok(start > 0 && start === TYPING.lastIndexOf(opener), "exactly one no-preference block");
+  // Конец блока — по глубине скобок: правило после блока должно попасть «наружу» и быть пойманным.
+  let depth = 1;
+  let end = start + opener.length;
+  while (depth > 0 && end < TYPING.length) {
+    if (TYPING[end] === "{") depth += 1;
+    if (TYPING[end] === "}") depth -= 1;
+    end += 1;
+  }
+  const inside = TYPING.slice(start + opener.length, end - 1);
+  const outside = (TYPING.slice(0, start) + TYPING.slice(end)).replace(/\/\*[\s\S]*?\*\//gu, "").replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/gu, "");
+  assert.doesNotMatch(outside, /animation(?:-[a-z-]+)?\s*:/u, "no animation outside the no-preference block");
+  for (const rule of inside.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+    assert.match(rule[2], /animation(?:-[a-z-]+)?\s*:/u, "the block holds only typing animations");
+    for (const selector of rule[1].split(",").map((part) => part.trim()).filter(Boolean)) {
+      assert.match(selector, /^\.pt-evi-(?:typing|dots|line-run)\b/u, `${selector} is not the typing indicator`);
+    }
+  }
+  // Точки и полоска есть на экране только во время настоящего запроса.
+  const chat = read(`${EVI_DIR}/EviChat.tsx`);
+  assert.match(chat, /\{chat\.pending \? \(\s*<p className="pt-evi-role" data-busy="">\s*\{strings\["evi\.typing"\]\}<span className="pt-evi-dots" aria-hidden="true">/u);
+  // Пока Эви печатает, вместо доли вопросов по пустой полосе бежит полоска: красное по красному не сливается.
+  assert.match(chat, /\{chat\.pending \? \(\s*<i className="pt-evi-line-run" \/>\s*\) : chat\.progress \? \(\s*<i className="pt-evi-line-fill"/u);
+  // При «уменьшить движение» полосы без доли нет — остаётся волосяная линия.
+  assert.match(TYPING, /@media \(prefers-reduced-motion: reduce\) \{\s*\.pt-evi-line:has\(> \.pt-evi-line-run\) \{\s*display: none;/u);
+  assert.match(read(`${EVI_DIR}/EviThread.tsx`), /\{pending \? \(\s*<div className="pt-evi-row" data-speaking="">/u);
+});
+
+test("the chat header says what is happening, and «Новый чат» is a labelled button", () => {
+  const chat = read(`${EVI_DIR}/EviChat.tsx`);
+  assert.match(chat, /<EviRobot face=\{chat\.pending \? "thinking" : "happy"\} settled still \/>/u);
+  // Робот в шапке неподвижен и с «думающим» лицом: бесконечное движение «думает» — только у робота в переписке.
+  for (const part of ["pt-evi-eyes", "pt-evi-robot-head", "pt-evi-nub"]) {
+    assert.match(ROBOT, new RegExp(`\\.pt-evi-mascot:not\\(\\[data-still\\]\\)\\[data-mood="thinking"\\] \\.${part} \\{\\s*animation: pt-evi-`, "u"), part);
+  }
+  assert.match(chat, /<button type="button" className="pt-evi-new" onClick=\{\(\) => \{ chat\.restart\(\); keepEviFocus\(\); \}\}>\s*<SquarePen size=\{20\} strokeWidth=\{2\} aria-hidden="true" \/>\s*<span className="pt-evi-new-label">\{strings\["evi\.newChat"\]\}<\/span>/u);
+  for (const locale of ["ru", "ky"]) {
+    const strings = getPortalStrings("professions", locale);
+    assert.ok(strings["evi.typing"], locale);
+    assert.match(strings["evi.thinking"], locale === "ru" ? /печатает/u : /жазып жатат/u, `${locale}: the screen reader hears the same word`);
+  }
+  // На телефоне кнопка круглая, подпись остаётся для читалки.
+  assert.match(CSS, /\.pt-evi-new-label \{\s*position: absolute;\s*width: 1px;\s*height: 1px;\s*overflow: hidden;\s*clip-path: inset\(50%\);/u);
 });
 
 test("every failure's words match its one action", () => {

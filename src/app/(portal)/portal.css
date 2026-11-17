@@ -10093,40 +10093,20 @@ a.pt-pay-file {
 }
 
 .pt-evi-head,
-.pt-evi-progress,
 .pt-evi-log,
 .pt-evi-dock {
   padding-inline: max(20px, calc((100% - var(--pt-evi-axis)) / 2));
 }
 
-/* «Вопрос 3 из 6» — только когда модель прислала, на какой она вопросе; полоска — общая полоса прогресса кабинета. */
-.pt-evi-progress {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 12px;
-  margin: 0;
-  padding-block: 10px 2px;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.pt-evi-progress .pt-progress {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-
 .pt-evi-head {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 68px;
-  padding-block: 12px;
+  min-height: 60px;
+  padding-block: 8px;
 }
 
 .pt-evi-name {
@@ -10136,25 +10116,42 @@ a.pt-pay-file {
   line-height: 1.3;
 }
 
+/* Вторая строка шапки — что сейчас: роль, «Вопрос 3 из 6» или «печатает» с точками (движение — блок «Эви пишет ответ»). */
 .pt-evi-role {
   margin: 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Шапка разговора: аватар Эви (неподвижный робот), имя и роль, «Новый чат» — круглая кнопка со стрелкой по кругу. */
+.pt-evi-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-inline-start: 4px;
+  vertical-align: middle;
+}
+
+.pt-evi-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/*
+ * Шапка разговора: неподвижный робот без подложки (пока Эви пишет — «думающее» лицо), имя и вторая строка, «Новый чат» —
+ * кнопка со значком «новый разговор» и подписью; на телефоне — круглая, подпись остаётся для читалки.
+ */
 .pt-evi-avatar {
   display: grid;
   flex: none;
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  background: var(--pt-bg);
 }
 
 .pt-evi-avatar .pt-evi-mascot {
-  width: 34px;
+  width: 44px;
 }
 
 .pt-evi-who {
@@ -10163,15 +10160,20 @@ a.pt-pay-file {
 }
 
 .pt-evi-new {
-  display: grid;
+  display: inline-flex;
   flex: none;
-  place-items: center;
-  width: 44px;
-  height: 44px;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px 0 12px;
   border: 1px solid var(--pt-control-edge);
-  border-radius: 50%;
+  border-radius: var(--pt-radius-chip);
   background: var(--pt-surface);
   color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     border-color var(--pt-motion-fast) var(--pt-ease),
@@ -10189,6 +10191,38 @@ a.pt-pay-file {
 .pt-evi-new:focus-visible {
   outline: 2px solid var(--pt-accent);
   outline-offset: 2px;
+}
+
+/*
+ * Прогресс — полоса по нижней кромке шапки поверх волосяной линии: заливка — доля вопросов, пока модель это присылает;
+ * пока Эви печатает, вместо доли по пустой полосе бежит полоска (блок «Эви пишет ответ»; при «уменьшить движение» полосы
+ * нет — остаётся волосяная линия).
+ */
+.pt-evi-line {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: 3px;
+  overflow: hidden;
+  background: var(--pt-line);
+}
+
+.pt-evi-line > i {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background: var(--pt-accent);
+}
+
+.pt-evi-line-fill {
+  width: 100%;
+  transform-origin: left;
+  transition: transform var(--pt-motion-slow) var(--pt-ease-out);
+}
+
+.pt-evi-line-run {
+  width: 24%;
+  transform: translateX(-100%);
 }
 
 .pt-evi-log {
@@ -10306,7 +10340,7 @@ a.pt-pay-file {
   justify-content: safe center;
 }
 
-/* Пока Эви думает — облачко с тремя точками; сам робот рядом «думает» (блок «Живой Эви»). */
+/* Пока Эви печатает — облачко с тремя точками; сам робот рядом «думает» (блок «Живой Эви»). */
 .pt-evi-bubble.pt-evi-typing {
   display: inline-flex;
   align-items: center;
@@ -10322,11 +10356,13 @@ a.pt-pay-file {
   background: var(--pt-text-2);
 }
 
-.pt-evi-typing i:nth-of-type(2) {
+.pt-evi-typing i:nth-of-type(2),
+.pt-evi-dots i:nth-of-type(2) {
   opacity: 0.6;
 }
 
-.pt-evi-typing i:nth-of-type(3) {
+.pt-evi-typing i:nth-of-type(3),
+.pt-evi-dots i:nth-of-type(3) {
   opacity: 0.3;
 }
 
@@ -10858,10 +10894,24 @@ a.pt-pay-file {
   }
 
   .pt-evi-head,
-  .pt-evi-progress,
   .pt-evi-log,
   .pt-evi-dock {
     padding-inline: 16px;
+  }
+
+  .pt-evi-new {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+
+  .pt-evi-new-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .pt-evi-row {
@@ -11050,15 +11100,15 @@ a.pt-pay-file {
     animation: pt-evi-nod 500ms ease-in-out infinite alternate;
   }
 
-  .pt-evi-mascot[data-mood="thinking"] .pt-evi-eyes {
+  .pt-evi-mascot:not([data-still])[data-mood="thinking"] .pt-evi-eyes {
     animation: pt-evi-scan 1.4s ease-in-out infinite;
   }
 
-  .pt-evi-mascot[data-mood="thinking"] .pt-evi-robot-head {
+  .pt-evi-mascot:not([data-still])[data-mood="thinking"] .pt-evi-robot-head {
     animation: pt-evi-tilt 2.8s ease-in-out infinite;
   }
 
-  .pt-evi-mascot[data-mood="thinking"] .pt-evi-nub {
+  .pt-evi-mascot:not([data-still])[data-mood="thinking"] .pt-evi-nub {
     animation: pt-evi-pulse 1s ease-in-out infinite;
   }
 
@@ -11084,6 +11134,63 @@ a.pt-pay-file {
 
   .pt-evi-mascot:not([data-settled])[data-mood="eureka"] .pt-evi-nub {
     animation: pt-evi-pulse 500ms ease-in-out 4;
+  }
+}
+
+/*
+ * Эви пишет ответ (исключение владельца 17.11.2026, docs/design/portal/design-contract.md «Исключения 17.11.2026», п. 4):
+ * пока идёт настоящий запрос, три точки в облачке переписки и в шапке («печатает») бегут волной, а по нижней кромке
+ * шапки бежит полоска. Элементы есть на экране только во время запроса, поэтому и движение — только тогда. Всё внутри
+ * no-preference: при «уменьшить движение» точки стоят ступенями яркости, полосы нет, «печатает» сказано словом.
+ */
+@keyframes pt-evi-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pt-evi-run {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(420%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pt-evi-typing i,
+  .pt-evi-dots i {
+    animation: pt-evi-dot 1.2s ease-in-out infinite;
+  }
+
+  .pt-evi-typing i:nth-of-type(2),
+  .pt-evi-dots i:nth-of-type(2) {
+    animation-delay: 150ms;
+  }
+
+  .pt-evi-typing i:nth-of-type(3),
+  .pt-evi-dots i:nth-of-type(3) {
+    animation-delay: 300ms;
+  }
+
+  .pt-evi-line-run {
+    animation: pt-evi-run 1.6s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-evi-line:has(> .pt-evi-line-run) {
+    display: none;
   }
 }
 

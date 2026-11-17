@@ -6,8 +6,8 @@
   <text x="60" y="112" font-family="Golos Text, system-ui, sans-serif" font-size="14" fill="#17181c">EXAMPLEOVA ADA NUR</text>
   <text x="60" y="140" font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#5c616b">Счёт · 0000 0000 0000</text>
   <text x="60" y="190" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#5c616b">Остаток</text>
-  <text x="60" y="228" font-family="Golos Text, system-ui, sans-serif" font-size="32" font-weight="800" fill="#17181c">100 000</text>
-  <text x="230" y="228" font-family="Golos Text, system-ui, sans-serif" font-size="16" fill="#17181c">KGS</text>
+  <text x="60" y="228" font-family="Golos Text, system-ui, sans-serif" font-size="32" font-weight="800" fill="#17181c">0 000</text>
+  <text x="170" y="228" font-family="Golos Text, system-ui, sans-serif" font-size="16" fill="#17181c">KGS</text>
   <text x="60" y="340" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample balance · invented account</text>
   <g transform="rotate(-22 320 200)" opacity="0.26"><text x="320" y="210" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="56" font-weight="800">ОБРАЗЕЦ</text></g>
 </svg>

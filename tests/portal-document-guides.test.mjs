@@ -135,6 +135,18 @@ test("known checklist labels and requirement keys open a guide, unknown labels d
   assert.equal(documentGuideView({ requirementKey: "transcript", label: "Что-то" }, "ru")?.typeKey, "attestat");
   assert.equal(documentGuideView({ requirementKey: "p4.custom", label: "Паспорт" }, "ru")?.typeKey, "passport");
   assert.equal(documentGuideView({ requirementKey: null, label: "Военный билет" }, "ru"), null);
+  // Похожий, но чужой документ: справки нет — чужая хуже, чем никакой.
+  for (const label of [
+    "Паспорт родителя", "Копия паспорта матери", "Parent passport", "Ата-эненин паспорту", "Перевод паспорта",
+    "Перевод аттестата", "Апостиль на аттестат", "Аттестаттын котормосу", "Диплом олимпиады", "Выписка оценок",
+    "Фото паспорта", "Фото с паспортом", "Договор аренды", "Договор с вузом", "Медицинская страховка",
+    "Медицинская справка родителей", "Заявление родителей", "Анкета на визу",
+  ]) {
+    assert.equal(documentGuideView({ requirementKey: null, label }, "ru"), null, label);
+  }
+  assert.equal(documentGuideView({ requirementKey: null, label: "Фото на паспорт" }, "ru")?.typeKey, "photo");
+  assert.equal(documentGuideView({ requirementKey: null, label: "Выписка из банка" }, "ru")?.typeKey, "bank_statement");
+  assert.equal(documentGuideView({ requirementKey: null, label: "Bank statement" }, "ru")?.typeKey, "bank_statement");
   assert.equal(documentGuideView({ requirementKey: "other", label: "Прочее" }, "ru"), null);
   assert.equal(renderGuide({
     label: "Военный билет",
@@ -187,6 +199,9 @@ test("the documents page wires the guide and drops the repeated locked subtitle"
   assert.match(files, /DocumentGuideSlot/);
   assert.doesNotMatch(controls, /pt-doc-locked/);
   assert.doesNotMatch(view, /uploadLocked/);
+  // Принятый документ не заменяется ни в строке, ни в панели — даже без файла версии.
+  assert.match(view, /upload=\{document\.status === "approved" \? null : \{/u);
+  assert.match(view, /allowUpload=\{document\.status !== "approved"\}/u);
 });
 
 test("an accepted document offers download in the drawer and does not open a second upload", () => {

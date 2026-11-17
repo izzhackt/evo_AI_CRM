@@ -146,7 +146,8 @@ export function DocumentsView({
                     locale={locale}
                     statusLabel={status.label}
                     statusTone={status.tone}
-                    upload={acceptedDownload ? null : {
+                    // Принятый документ заменить нельзя — как и в строке (`allowUpload`), даже если файла версии нет.
+                    upload={document.status === "approved" ? null : {
                       documentSlotId: document.documentSlotId,
                       documentVersionId: document.documentVersionId,
                       originalFilename: document.originalFilename,

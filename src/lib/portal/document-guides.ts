@@ -549,20 +549,31 @@ for (const guide of GUIDES) {
   for (const label of guide.labels) LABEL_INDEX.set(normalizeDocumentLabel(label), guide);
 }
 
+/*
+ * Подпись, которую куратор написал сам, узнаётся по слову — но только если это документ самого ученика, а не похожий:
+ * паспорт родителя, перевод или апостиль аттестата, медицинская страховка, договор аренды, анкета на визу, диплом
+ * олимпиады. Чужая справка хуже, чем никакой: с такими словами кнопки «!» нет. Точные подписи из списка (LABEL_INDEX)
+ * эта проверка не трогает.
+ */
+const NOT_THIS_DOCUMENT = /родител|отц|отец|матер|мать|ата-эне|ата эне|parent|father|mother|перевод|котормо|translation|апостил|нотариал|apostille|страхов|insurance|аренд|олимпиад|виз[аыуе]|визов|visa/u;
+
 const LABEL_RULES: readonly Readonly<{ typeKey: DocumentGuideType; test: (label: string) => boolean }>[] = [
   { typeKey: "language_certificate", test: (label) => /toefl|ielts|hsk|duolingo|\bpte\b|сертификат по языку|тил боюнча сертификат|языковой сертификат/u.test(label) },
   { typeKey: "motivation_letter", test: (label) => /мотивационн|мотивациялык/u.test(label) },
   { typeKey: "recommendation_letter", test: (label) => /рекомендательн|рекомендациялык/u.test(label) },
   { typeKey: "payment_receipt", test: (label) => /чек об оплате|квитанц|төлөм чеги|^чек$/u.test(label) },
   { typeKey: "application_form", test: (label) => /анкета|заявление|^арыз$|application form/u.test(label) },
-  { typeKey: "contract", test: (label) => /договор|келишим|\bcontract\b/u.test(label) },
+  // Справка — о договоре с EVO: «Договор с вузом» или «договор аренды» — другие бумаги.
+  { typeKey: "contract", test: (label) => /^(договор|келишим|contract)( с evo| evo)?$/u.test(label) },
   { typeKey: "police_certificate", test: (label) => /несудимост|соттолбогон/u.test(label) },
   { typeKey: "medical", test: (label) => /медицинск|медициналык/u.test(label) },
-  { typeKey: "bank_statement", test: (label) => /справка из банка|банктан маалымкат|выписка/u.test(label) },
+  // «Выписка» бывает и из аттестата, и оценок: банковская — только со словом «банк» или «счёт».
+  { typeKey: "bank_statement", test: (label) => /справка из банка|банктан маалымкат|bank statement|выписка (из|с|по) (банк|сче|сч)|банковск(ая|ой) выписк/u.test(label) },
   { typeKey: "study_certificate", test: (label) => /справка с места учебы|окуу жайынан маалымкат/u.test(label) },
   { typeKey: "birth_certificate", test: (label) => /свидетельств[оа] о рождении|туулгандыгы тууралуу/u.test(label) },
   { typeKey: "attestat", test: (label) => /аттестат|диплом|транскрипт|transcript|diploma/u.test(label) },
-  { typeKey: "photo", test: (label) => /^(фото|фотография|photo|сүрөт|цветное фото)( |$)/u.test(label) },
+  // «Фото паспорта», «фото с паспортом» — это скан паспорта, а не фото 3×4 («Фото на паспорт» — фото 3×4).
+  { typeKey: "photo", test: (label) => /^(фото|фотография|photo|сүрөт|цветное фото)( |$)/u.test(label) && !/паспорта|с паспортом|и паспорт|of passport|passport (page|copy|scan)/u.test(label) },
   { typeKey: "passport", test: (label) => /загранпаспорт|паспорт|passport|чет өлкө/u.test(label) && !/фото/u.test(label) },
 ];
 
@@ -612,6 +623,7 @@ export function documentGuideView(
   if (!normalized) return null;
   const byLabel = LABEL_INDEX.get(normalized);
   if (byLabel) return viewOf(byLabel, locale);
+  if (NOT_THIS_DOCUMENT.test(normalized)) return null;
   const rule = LABEL_RULES.find((candidate) => candidate.test(normalized));
   if (!rule) return null;
   const guide = GUIDE_BY_TYPE.get(rule.typeKey);

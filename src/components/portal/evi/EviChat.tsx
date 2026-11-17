@@ -69,7 +69,6 @@ export function EviChat({ strings, ask, offline = false, initialMessages, initia
         picked={chat.picked}
         failure={chat.failure}
         canRetry={chat.canRetry}
-        round={chat.round}
         intro={chat.intro}
         draft={chat.draft}
         pending={chat.pending}

@@ -79,7 +79,6 @@ const { ProfessionMatches } = require(join(ROOT, "src/components/portal/professi
 const { ProfessionsTestHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsTestHero.tsx"));
 const { ProfessionsTabs } = require(join(ROOT, "src/components/portal/professions/ProfessionsTabs.tsx"));
 const { EviChat } = require(join(ROOT, "src/components/portal/evi/EviChat.tsx"));
-const { EviConsentGate } = require(join(ROOT, "src/components/portal/evi/EviConsentGate.tsx"));
 const { EviRobot } = require(join(ROOT, "src/components/portal/evi/EviRobot.tsx"));
 const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
@@ -991,8 +990,8 @@ const surfaces = [
     ),
   },
   // Вкладка «Подбор с Эви» (решение владельца 16.11.2026; сцена и живой робот — 17.11): начало разговора, разговор
-  // в середине (несколько вариантов ответа), итог из трёх профессий каталога, сбой с «Повторить», строка
-  // «разрешите ИИ-помощников» для ученика без согласия и лист выражений робота для просмотра владельцем.
+  // в середине (несколько вариантов ответа), итог из трёх профессий каталога, сбой с «Повторить», Эви без модели и
+  // лист выражений робота для просмотра владельцем. Экрана «разрешите ИИ-помощников» нет: согласие дают при регистрации.
   {
     name: "professions-evi-intro",
     html: renderSurface("Профессии — Эви, начало — a11y", eviPage(createElement(EviChat, { strings: professionsStrings }))),
@@ -1056,10 +1055,6 @@ const surfaces = [
   {
     name: "professions-evi-offline",
     html: renderSurface("Профессии — Эви, модель не подключена — a11y", eviPage(createElement(EviChat, { strings: professionsStrings, offline: true }))),
-  },
-  {
-    name: "professions-evi-consent",
-    html: renderSurface("Профессии — Эви, без согласия — a11y", eviPage(createElement(EviConsentGate, { strings: professionsStrings }))),
   },
   {
     name: "professions-evi-moods",

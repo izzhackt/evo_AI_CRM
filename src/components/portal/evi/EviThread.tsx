@@ -12,7 +12,7 @@ import type { EviMessage } from "./useEviConversation";
 type Strings = PortalStrings<"professions">;
 
 export const EVI_FAILURE_TEXT: Readonly<Record<EviFailure, keyof Strings>> = {
-  consent: "evi.consentLine", unavailable: "evi.unavailable", limit: "evi.limit", busy: "evi.busy", invalid: "evi.invalid", error: "evi.error",
+  consent: "evi.unavailable", unavailable: "evi.unavailable", limit: "evi.limit", busy: "evi.busy", invalid: "evi.invalid", error: "evi.error",
 };
 
 /**

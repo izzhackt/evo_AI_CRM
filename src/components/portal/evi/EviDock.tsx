@@ -7,13 +7,12 @@ import { EVI_FAILURE_ACTION, EVI_LIMITS, type EviFailure } from "@/lib/portal/ev
 import type { PortalStrings } from "@/lib/portal/i18n";
 
 import { EVI_FAILURE_TEXT } from "./EviThread";
-import { useAllowAi } from "./useAllowAi";
 import type { EviOptions } from "./useEviConversation";
 
 type Strings = PortalStrings<"professions">;
 
 /**
- * Нажатая кнопка исчезает (вариант ответа, «Готово», «Повторить», «Новый чат», «Разрешить») — фокус переходит на
+ * Нажатая кнопка исчезает (вариант ответа, «Готово», «Повторить», «Новый чат») — фокус переходит на
  * разговор, а не теряется в начале страницы (фикс владельца от 16.11 к «Подбору с Эви»). Поле ввода не трогаем: на телефоне фокус
  * в нём открывал бы клавиатуру после каждой кнопки.
  */
@@ -24,34 +23,18 @@ export function keepEviFocus() {
 }
 
 /**
- * «Разрешить ИИ-помощников» прямо в чате: после согласия тот же вопрос уходит снова, разговор не теряется. Пока согласие
- * записывается — под кнопкой «Сохраняем…», не удалось — строка ошибки.
- */
-function EviAllowAction({ strings, onDone }: Readonly<{ strings: Strings; onDone: () => void }>) {
-  const { allow, pending, failed } = useAllowAi(onDone);
-  return (
-    <>
-      <button type="button" className="pt-evi-chip pt-evi-go" aria-disabled={pending} aria-busy={pending} onClick={allow}>{strings["evi.allow"]}</button>
-      {pending ? <p role="status" className="pt-evi-saving">{strings["evi.saving"]}</p> : failed ? <p role="alert" className="pt-evi-error">{strings["evi.allowError"]}</p> : null}
-    </>
-  );
-}
-
-/**
  * Ответ ученика: варианты кнопками (следующий шаг — красная; на телефоне варианты — лента с прокруткой вбок, «Готово»
  * стоит рядом с ней). При сбое на месте вариантов — один блок по центру: строка сбоя и ровно одно действие под ней
  * (на приветствии строка уже стоит под именем Эви, здесь — только действие). Поле ввода растёт до пяти строк
  * (Enter — отправить, Shift+Enter — новая строка); когда выход один — новый чат или каталог, — поля нет. После нажатия
  * варианта фокус переходит на разговор (`keepEviFocus`).
  */
-export function EviDock({ strings, options, picked, failure, canRetry, round, intro, draft, pending, onDraft, onSend, onToggle, onRetry, onRestart }: Readonly<{
+export function EviDock({ strings, options, picked, failure, canRetry, intro, draft, pending, onDraft, onSend, onToggle, onRetry, onRestart }: Readonly<{
   strings: Strings;
   options: EviOptions;
   picked: ReadonlySet<string>;
   failure: EviFailure | null;
   canRetry: boolean;
-  /** Номер разговора, для которого нажато «Разрешить»: после «Нового чата» повтора не будет. */
-  round: number;
   /** Экран приветствия: строку сбоя уже показывает он. */
   intro: boolean;
   draft: string;
@@ -59,7 +42,7 @@ export function EviDock({ strings, options, picked, failure, canRetry, round, in
   onDraft: (value: string) => void;
   onSend: (text: string) => void;
   onToggle: (option: string) => void;
-  onRetry: (from?: number) => void;
+  onRetry: () => void;
   onRestart: () => void;
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -100,8 +83,6 @@ export function EviDock({ strings, options, picked, failure, canRetry, round, in
             <button type="button" className="pt-evi-chip pt-evi-go" onClick={() => { onRetry(); keepEviFocus(); }}>{strings["evi.retry"]}</button>
           ) : action === "restart" ? (
             <button type="button" className="pt-evi-chip pt-evi-go" onClick={() => { onRestart(); keepEviFocus(); }}>{strings["evi.newChat"]}</button>
-          ) : action === "allow" ? (
-            <EviAllowAction strings={strings} onDone={() => { onRetry(round); keepEviFocus(); }} />
           ) : action === "catalog" ? (
             <IntentPrefetchLink href="/portal/professions" className="pt-evi-chip pt-evi-go">{strings["evi.toCatalog"]}</IntentPrefetchLink>
           ) : null}

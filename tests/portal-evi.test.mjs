@@ -142,6 +142,10 @@ test("the professions page validates ?view= and keeps the catalogue as the defau
   assert.match(page, /<ProfessionsTabs view="evi"/u);
   assert.match(page, /<ProfessionsTabs view="catalog"/u);
   assert.match(page, /readOwnAiConsentForProfile\(actor\.accessTier\)/u);
+  // Отозвал согласие на ИИ в «Профиле» — нет ни вкладок, ни Эви; сбой чтения согласия Эви не прячет.
+  assert.match(page, /return consent\.status !== "ready" \|\| aiConsentState\(consent\.consent\) === "granted";/u);
+  assert.match(page, /if \(!eviAvailable\(await consentRead\)\) redirect\("\/portal\/professions"\);/u);
+  assert.match(page, /\{eviAvailable\(consent\) \? <ProfessionsTabs view="catalog" strings=\{strings\} \/> : null\}/u);
   const tabs = read("src/components/portal/professions/ProfessionsTabs.tsx");
   assert.match(tabs, /href="\/portal\/professions"/u);
   assert.match(tabs, /href="\/portal\/professions\?view=evi"/u);
@@ -153,9 +157,19 @@ test("without the model the chat says Эви is unavailable instead of inventing
   for (const file of eviFiles()) {
     assert.doesNotMatch(read(`${EVI_DIR}/${file}`), /localStorage|sessionStorage|fetch\(/u, `${file}: nothing is stored in the browser or fetched directly`);
   }
-  const tab = read(`${EVI_DIR}/EviTab.tsx`);
-  assert.match(tab, /aiConsentState\(consent\.consent\) !== "granted"/u);
-  assert.match(tab, /<EviConsentGate/u);
+});
+
+test("Эви never asks for AI consent: it is given at registration, not on a work screen", () => {
+  for (const file of ["EviConsentGate.tsx", "useAllowAi.ts"]) assert.equal(existsSync(new URL(`../${EVI_DIR}/${file}`, import.meta.url)), false, file);
+  for (const file of eviFiles()) {
+    assert.doesNotMatch(read(`${EVI_DIR}/${file}`), /useAllowAi|setOwnAiConsentAction|evi\.(?:allow|consentLine|saving|allowError)/u, file);
+  }
+  for (const locale of ["ru", "ky"]) {
+    const keys = Object.keys(getPortalStrings("professions", locale));
+    assert.deepEqual(keys.filter((key) => /^evi\.(?:allow|consentLine|saving|allowError)$/u.test(key)), [], locale);
+  }
+  assert.doesNotMatch(CSS, /\.pt-evi-(?:gate|saving|error)\b/u);
+  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /return <EviChat strings=\{strings\} offline \/>;/u);
 });
 
 test("before the first answer the chat greets with a welcome stage, and the section always has one name", () => {
@@ -180,7 +194,7 @@ test("a new chat ignores replies that arrive for the old one", () => {
 });
 
 test("every failure has at most one recovery action, and the robot keeps a bounded beat", () => {
-  assert.deepEqual(EVI_FAILURE_ACTION, { error: "retry", busy: "retry", limit: "restart", invalid: "restart", consent: "allow", unavailable: "catalog" });
+  assert.deepEqual(EVI_FAILURE_ACTION, { error: "retry", busy: "retry", limit: "restart", invalid: "restart", consent: "catalog", unavailable: "catalog" });
   assert.equal(eviSpeakMs(""), 800);
   assert.equal(eviSpeakMs(Array(10).fill("слово").join(" ")), 1000);
   assert.equal(eviSpeakMs(Array(100).fill("слово").join(" ")), 2400);
@@ -384,21 +398,6 @@ test("a failure is one block above the input: the line and its one action togeth
   assert.doesNotMatch(read(`${EVI_DIR}/EviThread.tsx`), /className="pt-evi-note"/u);
   assert.match(read(`${EVI_DIR}/EviThread.tsx`), /<EviMascot mood=\{failure \? "idle" : message\.mood \?\? "talk"\}/u);
   assert.match(CSS, /\.pt-evi-failure \{\s*display: grid;\s*justify-items: center;/u);
-});
-
-test("the AI-consent screen keeps «ИИ-помощников» whole, uses Эви's button and shows it is saving", () => {
-  for (const locale of ["ru", "ky"]) {
-    const strings = getPortalStrings("professions", locale);
-    for (const key of ["evi.consentLine", "evi.allow"]) assert.match(strings[key], /(?:ИИ|ЖИ)-\u2060/u, `${locale} ${key}: no line break after the hyphen`);
-    assert.ok(strings["evi.saving"], locale);
-  }
-  const gate = read(`${EVI_DIR}/EviConsentGate.tsx`);
-  assert.match(gate, /const busy = pending \|\| refreshing;/u);
-  assert.match(gate, /className="pt-evi-chip pt-evi-go" aria-disabled=\{busy\} aria-busy=\{busy\} onClick=\{\(\) => \{ if \(!busy\) allow\(\); \}\}/u);
-  assert.match(gate, /\{busy \? <p role="status" className="pt-evi-saving">\{strings\["evi\.saving"\]\}<\/p>/u);
-  // Окно той же высоты, что чат: своей высоты у экрана согласия нет.
-  const rule = /\.pt-evi-gate \{([^}]*)\}/u.exec(CSS)?.[1] ?? "";
-  assert.doesNotMatch(rule, /height/u);
 });
 
 test("on phone the «Написать EVO» button is hidden on the Эви tab, and the chat gets its space back", () => {

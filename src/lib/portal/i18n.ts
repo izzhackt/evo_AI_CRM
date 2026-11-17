@@ -1585,10 +1585,6 @@ const professionsRu = {
   "evi.invalid": "Разговор сбился. Начните новый чат.",
   "evi.unavailable": "Эви сейчас недоступен. Загляните позже.",
   "evi.toCatalog": "Открыть каталог",
-  "evi.consentLine": "Чтобы поговорить с Эви, разрешите ИИ-\u2060помощников.",
-  "evi.allow": "Разрешить ИИ-\u2060помощников",
-  "evi.saving": "Сохраняем…",
-  "evi.allowError": "Не удалось сохранить. Попробуйте ещё раз.",
 } as const;
 
 type ProfessionsKey = keyof typeof professionsRu;
@@ -1692,10 +1688,6 @@ const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
   "evi.invalid": "Маек бузулуп калды. Жаңы маек баштаңыз.",
   "evi.unavailable": "Эви азыр жеткиликсиз. Кийинчерээк кириңиз.",
   "evi.toCatalog": "Каталогду ачуу",
-  "evi.consentLine": "Эви менен сүйлөшүү үчүн ЖИ-\u2060жардамчыларга уруксат бериңиз.",
-  "evi.allow": "ЖИ-\u2060жардамчыларга уруксат берүү",
-  "evi.saving": "Сактап жатабыз…",
-  "evi.allowError": "Сакталган жок. Кайра аракет кылыңыз.",
 };
 
 /**

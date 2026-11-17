@@ -93,9 +93,9 @@ export function useEviConversation({ strings, ask, initialMessages, initialOptio
     request(next);
   }
 
-  /** Повторить последний вопрос. `from` — номер разговора, для которого нажали (после «Разрешить»): устарел — ничего. */
-  function retry(from?: number) {
-    if ((from !== undefined && from !== epochRef.current) || busyRef.current !== null) return;
+  /** Повторить последний вопрос после сбоя. */
+  function retry() {
+    if (busyRef.current !== null) return;
     setFailure(null);
     request(messagesRef.current);
   }

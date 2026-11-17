@@ -292,11 +292,11 @@ test("the robot's live motion is robot-only and switched off under reduced motio
   }
 });
 
-test("while Эви writes a reply the dots and the header strip move — only then, and never under reduced motion", () => {
+test("while Эви writes a reply only the dots move — only then, never under reduced motion, and no running strip", () => {
   const typing = CSS.indexOf(TYPING_MARK);
   assert.ok(typing > CSS.indexOf(ROBOT_MARK) && typing < CSS.indexOf(MOTION_MARK) && typing === CSS.lastIndexOf(TYPING_MARK), "one typing block after the robot");
   const names = [...TYPING.matchAll(/@keyframes\s+([\w-]+)\s*\{/gu)].map((match) => match[1]).sort();
-  assert.deepEqual(names, ["pt-evi-dot", "pt-evi-run"]);
+  assert.deepEqual(names, ["pt-evi-dot"]);
   for (const body of TYPING.matchAll(/@keyframes[^{]*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/gu)) {
     for (const property of body[1].matchAll(/([a-z-]+)\s*:/gu)) assert.ok(["opacity", "transform"].includes(property[1]), property[1]);
   }
@@ -317,16 +317,15 @@ test("while Эви writes a reply the dots and the header strip move — only th
   for (const rule of inside.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
     assert.match(rule[2], /animation(?:-[a-z-]+)?\s*:/u, "the block holds only typing animations");
     for (const selector of rule[1].split(",").map((part) => part.trim()).filter(Boolean)) {
-      assert.match(selector, /^\.pt-evi-(?:typing|dots|line-run)\b/u, `${selector} is not the typing indicator`);
+      assert.match(selector, /^\.pt-evi-(?:typing|dots)\b/u, `${selector} is not the typing indicator`);
     }
   }
-  // Точки и полоска есть на экране только во время настоящего запроса.
+  // Точки есть на экране только во время настоящего запроса.
   const chat = read(`${EVI_DIR}/EviChat.tsx`);
   assert.match(chat, /\{chat\.pending \? \(\s*<p className="pt-evi-role" data-busy="">\s*\{strings\["evi\.typing"\]\}<span className="pt-evi-dots" aria-hidden="true">/u);
-  // Пока Эви печатает, вместо доли вопросов по пустой полосе бежит полоска: красное по красному не сливается.
-  assert.match(chat, /\{chat\.pending \? \(\s*<i className="pt-evi-line-run" \/>\s*\) : chat\.progress \? \(\s*<i className="pt-evi-line-fill"/u);
-  // При «уменьшить движение» полосы без доли нет — остаётся волосяная линия.
-  assert.match(TYPING, /@media \(prefers-reduced-motion: reduce\) \{\s*\.pt-evi-line:has\(> \.pt-evi-line-run\) \{\s*display: none;/u);
+  // Бегущей полоски нет (владелец убрал 17.11.2026): по кромке шапки — только неподвижная доля вопросов.
+  assert.doesNotMatch(chat + CSS, /pt-evi-line-run|pt-evi-run/u);
+  assert.match(chat, /\{chat\.progress \? \(\s*<span className="pt-evi-line" aria-hidden="true">\s*<i className="pt-evi-line-fill"/u);
   assert.match(read(`${EVI_DIR}/EviThread.tsx`), /\{pending \? \(\s*<div className="pt-evi-row" data-speaking="">/u);
 });
 

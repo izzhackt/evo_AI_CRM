@@ -79,7 +79,7 @@ test("portal motion moves only transform and opacity, never loops, never exceeds
   assert.ok(ROBOT_START > 0 && ROBOT_START === PORTAL_CSS.lastIndexOf(ROBOT_MARK), "one robot block, before the motion section");
   assert.deepEqual(
     [...keyframeProperties(ROBOT_CSS).keys()].sort(),
-    ["pt-evi-blink", "pt-evi-bob", "pt-evi-dot", "pt-evi-flash", "pt-evi-hop", "pt-evi-jump", "pt-evi-nod", "pt-evi-pop", "pt-evi-pulse", "pt-evi-run", "pt-evi-scan", "pt-evi-star-in", "pt-evi-talk", "pt-evi-tilt"],
+    ["pt-evi-blink", "pt-evi-bob", "pt-evi-dot", "pt-evi-flash", "pt-evi-hop", "pt-evi-jump", "pt-evi-nod", "pt-evi-pop", "pt-evi-pulse", "pt-evi-scan", "pt-evi-star-in", "pt-evi-talk", "pt-evi-tilt"],
   );
   for (const [name, props] of keyframeProperties(ROBOT_CSS)) {
     for (const property of props) assert.ok(["opacity", "transform"].includes(property), `@keyframes ${name} animates ${property}`);

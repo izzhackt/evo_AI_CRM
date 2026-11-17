@@ -16,8 +16,7 @@ export type { EviMessage, EviOptions } from "./useEviConversation";
  * Разговор с Эви: белое окно на обычном фоне кабинета (решение владельца 17.11.2026), одна ось разговора, живой робот у
  * последней реплики. До первого ответа — экран приветствия (крупный робот и имя по центру), шапка появляется с
  * разговором: неподвижный робот, имя и живая вторая строка — «Вопрос 3 из 6», пока модель это присылает, «печатает» с
- * бегущими точками, пока она пишет ответ; прогресс — полоса по нижней кромке шапки, пока Эви печатает — вместо доли по
- * пустой полосе бежит полоска.
+ * бегущими точками, пока она пишет ответ; прогресс — неподвижная полоса по нижней кромке шапки.
  * `ask` — серверное действие разговора; без него отправка честно говорит «Эви сейчас недоступен».
  * `offline` — модели нет вовсе: это видно сразу на приветствии, вместо вариантов — «Открыть каталог», поле закрыто.
  * `initial*` — состояние для статического рендера и проверок.
@@ -55,13 +54,9 @@ export function EviChat({ strings, ask, offline = false, initialMessages, initia
             <SquarePen size={20} strokeWidth={2} aria-hidden="true" />
             <span className="pt-evi-new-label">{strings["evi.newChat"]}</span>
           </button>
-          {chat.progress || chat.pending ? (
+          {chat.progress ? (
             <span className="pt-evi-line" aria-hidden="true">
-              {chat.pending ? (
-                <i className="pt-evi-line-run" />
-              ) : chat.progress ? (
-                <i className="pt-evi-line-fill" style={{ transform: `scaleX(${chat.progress.step / chat.progress.total})` }} />
-              ) : null}
+              <i className="pt-evi-line-fill" style={{ transform: `scaleX(${chat.progress.step / chat.progress.total})` }} />
             </span>
           ) : null}
         </div>

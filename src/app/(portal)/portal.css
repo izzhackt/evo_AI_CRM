@@ -10194,9 +10194,8 @@ a.pt-pay-file {
 }
 
 /*
- * Прогресс — полоса по нижней кромке шапки поверх волосяной линии: заливка — доля вопросов, пока модель это присылает;
- * пока Эви печатает, вместо доли по пустой полосе бежит полоска (блок «Эви пишет ответ»; при «уменьшить движение» полосы
- * нет — остаётся волосяная линия).
+ * Прогресс — полоса по нижней кромке шапки поверх волосяной линии: заливка — доля вопросов, пока модель это присылает.
+ * Пока Эви печатает, полоса стоит: бегущую полоску владелец убрал 17.11.2026.
  */
 .pt-evi-line {
   position: absolute;
@@ -10207,22 +10206,12 @@ a.pt-pay-file {
   background: var(--pt-line);
 }
 
-.pt-evi-line > i {
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  background: var(--pt-accent);
-}
-
 .pt-evi-line-fill {
-  width: 100%;
+  position: absolute;
+  inset: 0;
+  background: var(--pt-accent);
   transform-origin: left;
   transition: transform var(--pt-motion-slow) var(--pt-ease-out);
-}
-
-.pt-evi-line-run {
-  width: 24%;
-  transform: translateX(-100%);
 }
 
 .pt-evi-log {
@@ -11139,9 +11128,9 @@ a.pt-pay-file {
 
 /*
  * Эви пишет ответ (исключение владельца 17.11.2026, docs/design/portal/design-contract.md «Исключения 17.11.2026», п. 4):
- * пока идёт настоящий запрос, три точки в облачке переписки и в шапке («печатает») бегут волной, а по нижней кромке
- * шапки бежит полоска. Элементы есть на экране только во время запроса, поэтому и движение — только тогда. Всё внутри
- * no-preference: при «уменьшить движение» точки стоят ступенями яркости, полосы нет, «печатает» сказано словом.
+ * пока идёт настоящий запрос, три точки в облачке переписки и в шапке («печатает») бегут волной. Точки есть на экране
+ * только во время запроса, поэтому и движение — только тогда. Всё внутри no-preference: при «уменьшить движение» точки
+ * стоят ступенями яркости, «печатает» сказано словом.
  */
 @keyframes pt-evi-dot {
   0%,
@@ -11154,16 +11143,6 @@ a.pt-pay-file {
   30% {
     opacity: 1;
     transform: translateY(-3px);
-  }
-}
-
-@keyframes pt-evi-run {
-  from {
-    transform: translateX(-100%);
-  }
-
-  to {
-    transform: translateX(420%);
   }
 }
 
@@ -11181,16 +11160,6 @@ a.pt-pay-file {
   .pt-evi-typing i:nth-of-type(3),
   .pt-evi-dots i:nth-of-type(3) {
     animation-delay: 300ms;
-  }
-
-  .pt-evi-line-run {
-    animation: pt-evi-run 1.6s ease-in-out infinite;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pt-evi-line:has(> .pt-evi-line-run) {
-    display: none;
   }
 }
 

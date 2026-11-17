@@ -140,9 +140,12 @@ test("every failure has at most one recovery action, and the robot keeps a bound
   assert.equal(EVI_BEAT.react.eureka, 2400);
 });
 
-test("the results show the catalogue's own line and no score", () => {
+test("the results show the catalogue's own line and interests, lead to «Где учиться», and carry no score", () => {
   const results = read(`${EVI_DIR}/EviResults.tsx`);
   assert.match(results, /result\.summary \? <p className="pt-evi-result-what">/u);
+  assert.match(results, /result\.scales\.map\(\(scale\) => <li key=\{scale\} className="pt-chip">\{strings\[`scale\.\$\{scale\}`\]\}<\/li>\)/u);
+  assert.match(results, /href=\{`\/portal\/professions\/\$\{result\.cardId\}#pt-prof-study-title`\}/u);
+  assert.match(read("src/app/(portal)/portal/professions/[cardId]/page.tsx"), /id="pt-prof-study-title"/u, "the anchor exists");
   assert.doesNotMatch(results, /%|score|percent/iu);
 });
 

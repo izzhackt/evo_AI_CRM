@@ -5,6 +5,8 @@
  * «Повторить», выдуманного ответа нет.
  */
 
+import type { OrvisScaleId } from "./professions";
+
 /** Мимика маскота: каждая — настоящее состояние разговора, а не украшение. */
 export const EVI_MOODS = ["talk", "happy", "wow", "thinking", "eureka"] as const;
 export type EviMood = (typeof EVI_MOODS)[number];
@@ -37,10 +39,17 @@ export type EviReply = Readonly<{
 }>;
 
 /**
- * Направление, готовое к показу: карточка каталога, её название и строка «чем занимается» на языке кабинета (из самой
- * карточки, не от модели; null — не рисуется) и объяснение Эви, почему подходит.
+ * Направление, готовое к показу: карточка каталога, её название, строка «чем занимается» на языке кабинета и интересы
+ * теста, с которыми она связана (всё — из самой карточки, не от модели; пустое не рисуется), и объяснение Эви, почему
+ * подходит.
  */
-export type EviResult = Readonly<{ cardId: string; title: string; summary: string | null; why: string }>;
+export type EviResult = Readonly<{
+  cardId: string;
+  title: string;
+  summary: string | null;
+  scales: readonly OrvisScaleId[];
+  why: string;
+}>;
 
 export type EviAnswer = Readonly<{
   message: string;

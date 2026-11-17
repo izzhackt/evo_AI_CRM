@@ -518,6 +518,7 @@ const eviCards = [
     cardId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     cardKey: "data-scientist",
     titleRu: "Аналитик данных",
+    orvisScales: ["analysis", "erudition"],
     summaryRu: "Ищет закономерности в данных и помогает принимать решения.",
   },
 ];
@@ -1025,6 +1026,7 @@ const surfaces = [
               cardId: card.cardId,
               title: card.titleRu,
               summary: card.summaryRu,
+              scales: card.orvisScales,
               why: ["Ты любишь информатику и уже делаешь сайты и игры.", "Тебе нравится помогать людям и разбираться, как всё устроено.", "Любишь считать и искать закономерности."][index],
             })),
           },

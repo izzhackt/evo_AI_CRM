@@ -10047,6 +10047,7 @@ a.pt-pay-file {
 }
 
 .pt-evi-log {
+  container: pt-evi-log / inline-size;
   position: relative;
   display: flex;
   flex: 1;
@@ -10275,22 +10276,35 @@ a.pt-pay-file {
   font-size: var(--pt-size-secondary);
 }
 
-/* Три профессии — во всю ширину оси, под репликой «Придумал!»; вся карточка — ссылка на профессию. */
+/*
+ * Три профессии — пьедестал под репликой «Придумал!». Первая — во всю ширину оси в облике шапки «Главной» (графит,
+ * красные градиенты --pt-hero-*, знак EVO; белый 17.4:1, приглушённый 10.5:1), вторая и третья — рядом, когда переписка
+ * шире 560 px. Крупная цифра — графика: место читается из нумерованного списка. Вся карточка — одна ссылка.
+ */
 .pt-evi-results {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
 
+@container pt-evi-log (min-width: 560px) {
+  .pt-evi-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pt-evi-result[data-rank="1"] {
+    grid-column: 1 / -1;
+  }
+}
+
 .pt-evi-result {
   position: relative;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 2px 14px;
-  padding: 16px 20px;
+  display: flex;
+  gap: 16px;
+  padding: 20px;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-evi-bubble);
@@ -10298,7 +10312,7 @@ a.pt-pay-file {
 }
 
 .pt-evi-result:hover {
-  border-color: var(--pt-control-edge);
+  box-shadow: var(--pt-shadow-raised);
 }
 
 .pt-evi-result:has(a:focus-visible) {
@@ -10307,42 +10321,45 @@ a.pt-pay-file {
 }
 
 .pt-evi-result-n {
-  display: grid;
-  grid-row: span 3;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--pt-accent);
-  color: var(--pt-on-accent);
-  font-size: var(--pt-size-secondary);
-  font-weight: 700;
+  flex: none;
+  min-width: 0.7em;
+  color: var(--pt-accent);
+  font-size: 44px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+}
+
+.pt-evi-result-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .pt-evi-result-title {
   margin: 0;
-  font-size: var(--pt-size-body);
+  font-size: var(--pt-size-heading);
   font-weight: 700;
-  line-height: 1.3;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .pt-evi-result-title a {
-  color: var(--pt-text);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .pt-evi-result-title a::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   border-radius: var(--pt-radius-card);
-}
-
-.pt-evi-result-title a:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
 }
 
 @supports selector(:has(a)) {
@@ -10359,9 +10376,74 @@ a.pt-pay-file {
 }
 
 .pt-evi-result-why {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: var(--pt-size-secondary);
   line-height: var(--pt-leading);
+}
+
+.pt-evi-result-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-top: auto;
+  padding: 0 14px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: var(--pt-radius-chip);
+  color: var(--pt-text);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+/* Первая профессия — как шапка «Главной»: знак EVO под текстом (isolation + z-index -1), красная кромка сверху. */
+.pt-evi-result[data-rank="1"] {
+  isolation: isolate;
+  overflow: hidden;
+  padding: 24px 28px;
+  border-color: transparent;
+  border-top: 3px solid var(--pt-brand-red);
+  background: var(--pt-hero-wash), var(--pt-hero-bg);
+  color: var(--pt-hero-ink);
+}
+
+.pt-evi-result[data-rank="1"]::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -30px;
+  right: -36px;
+  width: 220px;
+  height: 220px;
+  background: var(--pt-hero-mark);
+  -webkit-mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+  mask: var(--pt-evo-mark-shape) no-repeat center / contain;
+  pointer-events: none;
+}
+
+.pt-evi-result[data-rank="1"] .pt-evi-result-n {
+  color: var(--pt-brand-red);
+  font-size: 56px;
+}
+
+.pt-evi-result[data-rank="1"] .pt-evi-result-title {
+  font-size: var(--pt-size-title);
+}
+
+.pt-evi-result[data-rank="1"] .pt-evi-result-what {
+  color: var(--pt-hero-muted);
+}
+
+/* Интересы — чипы каталога (.pt-chip); на графите — в тонах шапки. */
+.pt-evi-result[data-rank="1"] .pt-chip {
+  border-color: var(--pt-hero-line);
+  background: var(--pt-hero-mark);
+  color: var(--pt-hero-ink);
+}
+
+.pt-evi-result[data-rank="1"] .pt-evi-result-go {
+  border-color: var(--pt-hero-ink);
+  background: var(--pt-hero-ink);
+  color: var(--pt-hero-bg);
 }
 
 .pt-evi-gate {
@@ -10563,6 +10645,18 @@ a.pt-pay-file {
 
   .pt-evi-row[data-speaking] > .pt-evi-bubble::before {
     top: 14px;
+  }
+
+  .pt-evi-result[data-rank="1"] {
+    padding: 20px;
+  }
+
+  .pt-evi-result[data-rank="1"] .pt-evi-result-n {
+    font-size: 44px;
+  }
+
+  .pt-evi-result[data-rank="1"] .pt-evi-result-title {
+    font-size: var(--pt-size-heading);
   }
 
   .pt-evi-chips {

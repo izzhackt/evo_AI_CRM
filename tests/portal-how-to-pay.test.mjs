@@ -11,6 +11,7 @@ import * as howToPay from "../src/lib/portal/how-to-pay.ts";
 import * as portalI18n from "../src/lib/portal/i18n.ts";
 import {
   amountCopyValue,
+  amountToPayMinor,
   dialablePhone,
   nextUnpaidTranche,
   parseHowToPayText,
@@ -44,11 +45,12 @@ const QR_SRC = `/api/portal/case-files/payment_details_qr/${QR}/download`;
 const SAMPLE = [
   "KICB (Kyrgyz Investment and Credit Bank)",
   "Получатель: Айкол Р.",
-  "Телефон: +996 999 939 212",
+  "Телефон: +996 700 000 001",
   "Отсканируйте QR-код в любом банковском приложении",
 ].join("\n");
 
-const due = (outstandingMinor, dueAt) => ({ outstandingMinor, dueAt });
+const due = (outstandingMinor, dueAt, entries = []) => ({ outstandingMinor, dueAt, currency: "KGS", entries });
+const receipt = (amountMinor, status, currency = "KGS") => ({ kind: "receipt", status, amountMinor, currency });
 
 function render(props = {}) {
   return renderToStaticMarkup(createElement(HowToPayCard, {
@@ -67,7 +69,7 @@ test("admin payment text becomes bank, recipient and phone without a hardcoded s
   assert.deepEqual(parsed.fields.map((item) => [item.key, item.value, item.copyValue]), [
     ["bank", "KICB (Kyrgyz Investment and Credit Bank)", "KICB (Kyrgyz Investment and Credit Bank)"],
     ["recipient", "Айкол Р.", "Айкол Р."],
-    ["phone", "+996 999 939 212", "+996999939212"],
+    ["phone", "+996 700 000 001", "+996700000001"],
   ]);
   assert.equal(parsed.rest, "");
   assert.equal(parseHowToPayText("Банк: KICB\nПолучатель: ЭВО\nТел.: +996 (555) 00-11").fields[2].copyValue, "+9965550011");
@@ -85,9 +87,9 @@ test("lines that are not bank, recipient or phone stay visible, and a free parag
 });
 
 test("a phone copied for a bank app keeps the plus and drops grouping characters", () => {
-  assert.equal(dialablePhone("+996 999 939 212"), "+996999939212");
-  assert.equal(dialablePhone("+996-999-939-212"), "+996999939212");
-  assert.equal(dialablePhone("996 999 939 212"), "996999939212");
+  assert.equal(dialablePhone("+996 700 000 001"), "+996700000001");
+  assert.equal(dialablePhone("+996-700-000-001"), "+996700000001");
+  assert.equal(dialablePhone("996 700 000 001"), "996700000001");
   assert.equal(dialablePhone("без номера"), "без номера");
   assert.equal(amountCopyValue(150000), "1500");
   assert.equal(amountCopyValue(150050), "1500.50");
@@ -110,11 +112,11 @@ test("the amount field is the earliest unpaid tranche and is hidden when nothing
 
 test("writeCopiedText uses the clipboard and falls back only after it refuses", async () => {
   const written = [];
-  assert.equal(await writeCopiedText("+996999939212", {
+  assert.equal(await writeCopiedText("+996700000001", {
     writeText: async (value) => { written.push(value); },
     fallback: () => { throw new Error("fallback must not run"); },
   }), true);
-  assert.deepEqual(written, ["+996999939212"]);
+  assert.deepEqual(written, ["+996700000001"]);
 
   let fallback = "";
   assert.equal(await writeCopiedText("1500", {
@@ -135,9 +137,9 @@ test("the card renders copyable fields, a large QR and no amount when nothing is
   assert.match(html, /data-testid="portal-how-to-pay-bank"/);
   assert.match(html, /KICB \(Kyrgyz Investment and Credit Bank\)/);
   assert.match(html, /data-testid="portal-how-to-pay-phone"/);
-  assert.match(html, /\+996 999 939 212/);
+  assert.match(html, /\+996 700 000 001/);
   assert.match(html, /aria-label="Скопировать номер телефона"/);
-  assert.match(html, /data-copy-value="\+996999939212"/);
+  assert.match(html, /data-copy-value="\+996700000001"/);
   assert.match(html, /aria-label="Скопировать банк"/);
   assert.match(html, /aria-label="Скопировать получателя"/);
   assert.doesNotMatch(html, /data-testid="portal-how-to-pay-amount"/);
@@ -146,7 +148,8 @@ test("the card renders copyable fields, a large QR and no amount when nothing is
   assert.match(html, /width="240"/);
   assert.match(html, /class="pt-howtopay-qr-brand">KICB</);
   assert.match(html, />Скачать QR</);
-  assert.match(html, />Сохранить QR в галерею</);
+  // Одна ссылка «Скачать QR» на всех ширинах: на iPhone загрузка уходит в «Файлы», а не в «Фото».
+  assert.doesNotMatch(html, /галере/u);
   assert.match(html, />Открыть на весь экран</);
   assert.match(html, /Оплатили\? Приложите чек/);
   assert.doesNotMatch(html, /Отсканируйте QR-код/);
@@ -158,12 +161,17 @@ test("the card renders copyable fields, a large QR and no amount when nothing is
 
 test("the amount field and the copied confirmation appear only when there is something to show", () => {
   const withAmount = render({
-    amount: { display: "15\u00A0000\u00A0сом", dueOn: "20.01.2027", copyValue: "15000" },
+    amount: { display: "15\u00A0000\u00A0сом", dueOn: "20.01.2027", copyValue: "15000", overdue: false },
   });
   assert.match(withAmount, /data-testid="portal-how-to-pay-amount"/);
   assert.match(withAmount, /Сумма к оплате/);
   assert.match(withAmount, /15\u00A0000\u00A0сом/);
   assert.match(withAmount, /до 20\.01\.2027/);
+  const overdue = render({
+    amount: { display: "15\u00A0000\u00A0сом", dueOn: "01.11.2026", copyValue: "15000", overdue: true },
+  });
+  assert.match(overdue, /просрочено, срок был 01\.11\.2026/);
+  assert.doesNotMatch(overdue, /до 01\.11\.2026/);
   assert.match(withAmount, /data-copy-value="15000"/);
   assert.match(withAmount, /aria-label="Скопировать сумму"/);
 
@@ -188,7 +196,7 @@ test("the QR dialog is closed until opened and then shows a large code with a cl
   const source = read("../src/components/portal/admission/HowToPayCard.tsx");
   assert.match(source, /showModal\(\)/);
   assert.match(source, /onClose=\{\(\) => opener\.current\?\.focus\(\)\}/);
-  assert.doesNotMatch(source, /Айкол|999 939 212|Kyrgyz Investment/);
+  assert.doesNotMatch(source, /Айкол|700 000 001|Kyrgyz Investment/);
 });
 
 test("an account line that is not one of the three fields is still on the card", () => {
@@ -201,4 +209,36 @@ test("an account line that is not one of the three fields is still on the card",
   assert.match(html, /Счёт: 0000/);
   assert.doesNotMatch(html, /pt-howtopay-qr/);
   assert.doesNotMatch(html, /Скачать QR/);
+});
+
+test("several phones in one line copy the first number, not glued digits", () => {
+  assert.equal(dialablePhone("+996 700 000 001 / +996 700 000 002"), "+996700000001");
+  assert.equal(dialablePhone("+996 700 000 001 или +996 700 000 002"), "+996700000001");
+  assert.equal(dialablePhone("+996 700 000 001, 0700 000 002"), "+996700000001");
+  assert.equal(dialablePhone("доб. 12"), "доб. 12");
+});
+
+test("requisite lines are never lost and a card number is not labelled as a phone", () => {
+  const withAccount = parseHowToPayText("Банк: Тестбанк\nПолучатель: Тест\nСчёт 1234 5678 (оплата по QR-коду)");
+  assert.match(withAccount.rest, /Счёт 1234 5678/u);
+  const card = parseHowToPayText("Банк: Тестбанк\nНомер: 4000 0000 0000 0001");
+  assert.equal(card.fields.some((item) => item.key === "phone"), false);
+  assert.match(card.rest, /Номер: 4000 0000 0000 0001/u);
+  const phone = parseHowToPayText("Банк: Тестбанк\nНомер телефона: +996 700 000 001");
+  assert.equal(phone.fields.find((item) => item.key === "phone")?.copyValue, "+996700000001");
+  const dashed = parseHowToPayText("Банк - Тестбанк\nПолучатель — Тест");
+  assert.deepEqual(dashed.fields.map((item) => [item.key, item.value]), [["bank", "Тестбанк"], ["recipient", "Тест"]]);
+  assert.equal(dashed.brand, "Тестбанк");
+});
+
+test("the amount to pay leaves out receipts the curator is still checking", () => {
+  assert.equal(amountToPayMinor(due(15000, null, [receipt(5000, "review")])), 10000);
+  assert.equal(amountToPayMinor(due(15000, null, [receipt(5000, "accepted"), receipt(5000, "rejected")])), 15000);
+  assert.equal(amountToPayMinor(due(15000, null, [receipt(5000, "review", "USD")])), 15000);
+  assert.equal(amountToPayMinor(due(15000, null, [receipt(20000, "review")])), 0);
+  const next = nextUnpaidTranche([
+    due(15000, "2026-06-01T00:00:00Z", [receipt(15000, "review")]),
+    due(9000, "2026-12-01T00:00:00Z"),
+  ]);
+  assert.equal(next.outstandingMinor, 9000);
 });

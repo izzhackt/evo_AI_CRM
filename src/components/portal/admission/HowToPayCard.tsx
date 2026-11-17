@@ -146,7 +146,9 @@ export function HowToPayCard({
     }, 2000);
   }
 
-  const dueText = amount?.dueOn ? formatPortalString(strings.howToPayAmountDue, { date: amount.dueOn }) : null;
+  const dueText = amount?.dueOn
+    ? formatPortalString(amount.overdue ? strings.howToPayAmountOverdue : strings.howToPayAmountDue, { date: amount.dueOn })
+    : null;
   const rows: { key: string; value: string; copyValue: string; due: string | null }[] = [
     ...parsed.fields.map((item) => ({ key: item.key, value: item.value, copyValue: item.copyValue, due: null })),
     ...(amount
@@ -195,11 +197,8 @@ export function HowToPayCard({
               <img className="pt-howtopay-qr" src={qrSrc} alt={strings.howToPayQrAlt} width={240} height={240} />
             </figure>
             <div className="pt-howtopay-qr-actions">
-              <a className="pt-btn-ghost pt-howtopay-download-wide" href={qrSrc} download="evo-payment-qr">
+              <a className="pt-btn-ghost" href={qrSrc} download="evo-payment-qr">
                 {strings.howToPayDownload}
-              </a>
-              <a className="pt-btn-ghost pt-howtopay-download-narrow" href={qrSrc} download="evo-payment-qr">
-                {strings.howToPaySaveGallery}
               </a>
               <button
                 ref={opener}

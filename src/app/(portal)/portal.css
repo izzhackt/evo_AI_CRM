@@ -7474,10 +7474,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   width: 100%;
 }
 
-.pt-howtopay-download-narrow {
-  display: none;
-}
-
 .pt-howtopay .pt-card-note {
   padding: 16px 20px 20px;
   margin: 0;
@@ -7490,8 +7486,8 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   padding: 0;
   border: 0;
   border-radius: var(--pt-radius-card);
-  background: #fff;
-  color: #17181c;
+  background: var(--pt-surface);
+  color: var(--pt-text);
   box-shadow: var(--pt-shadow-raised);
   overflow: auto;
 }
@@ -7531,13 +7527,13 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
   border: 0;
   border-radius: var(--pt-radius-control);
   background: transparent;
-  color: #5c616b;
+  color: var(--pt-text-2);
   cursor: pointer;
 }
 
 .pt-howtopay-close:hover {
-  background: #f3f4f6;
-  color: #17181c;
+  background: var(--pt-bg);
+  color: var(--pt-text);
 }
 
 .pt-howtopay-close:focus-visible {
@@ -7547,9 +7543,14 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
 
 .pt-howtopay-dialog-qr {
   display: block;
+  box-sizing: border-box;
   width: min(440px, 86vw);
   height: auto;
   margin: 8px auto 0;
+  padding: 12px;
+  border-radius: var(--pt-radius-item);
+  /* QR сканируется только на белом: подложка белая и в тёмной теме, как у рамки QR на карточке. */
+  background: #fff;
 }
 
 @container howtopay (max-width: 640px) {
@@ -7572,14 +7573,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
     width: min(260px, 100%);
     height: auto;
     aspect-ratio: 1;
-  }
-
-  .pt-howtopay-download-wide {
-    display: none;
-  }
-
-  .pt-howtopay-download-narrow {
-    display: inline-flex;
   }
 
   .pt-howtopay-cluster {
@@ -7611,14 +7604,6 @@ main.pt-page > .pt-pill-tabs + .pt-docs-list {
     width: min(260px, 100%);
     height: auto;
     aspect-ratio: 1;
-  }
-
-  .pt-howtopay-download-wide {
-    display: none;
-  }
-
-  .pt-howtopay-download-narrow {
-    display: inline-flex;
   }
 
   .pt-howtopay-cluster {

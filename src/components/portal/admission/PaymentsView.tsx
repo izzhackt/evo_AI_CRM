@@ -4,7 +4,7 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { PaymentCenter, PaymentDue } from "@/lib/portal/payment-center";
-import { amountCopyValue, nextUnpaidTranche } from "@/lib/portal/how-to-pay";
+import { amountCopyValue, amountToPayMinor, nextUnpaidTranche } from "@/lib/portal/how-to-pay";
 import {
   buildPaymentSchedule,
   isGeneratedReceivedLabel,
@@ -240,11 +240,13 @@ export function PaymentsView({ center, locale }: Readonly<{ center: PaymentCente
   ])];
   const empty = schedule.groups.length === 0 && schedule.added.length === 0;
   const nextDue = nextUnpaidTranche(center.dues);
+  const toPay = nextDue ? amountToPayMinor(nextDue) : 0;
   const amount = nextDue
     ? {
-        display: formatPortalMoney(nextDue.outstandingMinor, nextDue.currency),
+        display: formatPortalMoney(toPay, nextDue.currency),
         dueOn: nextDue.dueAt ? formatPortalDeadline(nextDue.dueAt) : null,
-        copyValue: amountCopyValue(nextDue.outstandingMinor),
+        copyValue: amountCopyValue(toPay),
+        overdue: nextDue.overdue,
       }
     : null;
 

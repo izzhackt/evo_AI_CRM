@@ -28,17 +28,22 @@ export type HowToPayAmount = Readonly<{
   dueOn: string | null;
   /** Число для вставки в поле суммы банковского приложения. */
   copyValue: string;
+  /** Срок уже прошёл: вместо «до …» пишем «просрочено». */
+  overdue: boolean;
 }>;
 
+// Подпись отделена двоеточием или тире с пробелом («Банк - KICB»). Голое «Номер:» не телефон: так пишут и номер карты.
+const SEP = String.raw`(?:\s*[:：]|\s+[-–—])\s*(.+)$`;
 const FIELD_LABELS: readonly { key: HowToPayFieldKey; pattern: RegExp }[] = [
-  { key: "bank", pattern: /^(?:банк|bank)\s*[:：]\s*(.+)$/iu },
-  { key: "recipient", pattern: /^(?:получатель|алуучу|recipient)\s*[:：]\s*(.+)$/iu },
-  { key: "phone", pattern: /^(?:телефон|тел\.?|phone|номер(?:\s+телефона)?)\s*[:：]\s*(.+)$/iu },
+  { key: "bank", pattern: new RegExp(`^(?:банк|bank)${SEP}`, "iu") },
+  { key: "recipient", pattern: new RegExp(`^(?:получатель|алуучу|recipient)${SEP}`, "iu") },
+  { key: "phone", pattern: new RegExp(`^(?:телефон|тел\\.?|phone|номер\\s+телефона)${SEP}`, "iu") },
 ];
 
-/** Строка-подсказка про сканирование. Своих данных в ней нет, QR её заменяет. Строка с двоеточием — это реквизит, её не прячем. */
+/** Строка-подсказка про сканирование. Своих данных в ней нет, QR её заменяет. Строка с двоеточием или цифрами — реквизит, её не прячем. */
 function isScanInstruction(line: string): boolean {
-  if (/[:：]/u.test(line)) return false;
+  // В строке с цифрами может быть счёт или сумма — её показываем, даже если там же слово «QR».
+  if (/[:：]/u.test(line) || /\d/u.test(line)) return false;
   return /(?:отсканир|сканируйте|qr[-\s]?код|сканерле)/iu.test(line);
 }
 
@@ -52,12 +57,14 @@ export function qrBrandLabel(bank: string | null): string | null {
 /**
  * Номер для вставки в банковское приложение: остаются «+» и цифры.
  * Пробелы, скобки и дефисы банковское поле номера обычно не принимает, а «+» нужен, чтобы код страны не потерялся.
- * В строке нет ни одной цифры — возвращаем текст как есть.
+ * Несколько номеров («… / …», «… или …») — копируется первый: склеенные цифры дали бы несуществующий номер.
+ * Не похоже на телефон (меньше 7 или больше 15 цифр) — возвращаем текст как есть.
  */
 export function dialablePhone(value: string): string {
-  const compact = value.replace(/[^\d+]/gu, "");
+  const first = value.split(/[/,;]|\s(?:или|or|же)\s/iu).find((part) => /\d/u.test(part)) ?? value;
+  const compact = first.replace(/[^\d+]/gu, "");
   const digits = compact.replace(/\+/gu, "");
-  if (digits.length === 0) return value.trim();
+  if (digits.length < 7 || digits.length > 15) return value.trim();
   return compact.startsWith("+") ? `+${digits}` : digits;
 }
 
@@ -70,12 +77,23 @@ export function amountCopyValue(amountMinor: number): string {
 }
 
 /**
- * Следующий неоплаченный транш: остаток больше нуля и самый ранний срок.
+ * Сколько ещё платить по траншу: остаток минус чеки, которые куратор ещё проверяет.
+ * Иначе студент видит «оплатите X» рядом с «X на проверке» и может заплатить дважды.
+ */
+export function amountToPayMinor(due: PaymentDue): number {
+  const inReview = due.entries.reduce((sum, entry) => (
+    entry.kind === "receipt" && entry.status === "review" && entry.currency === due.currency ? sum + entry.amountMinor : sum
+  ), 0);
+  return Math.max(0, due.outstandingMinor - inReview);
+}
+
+/**
+ * Следующий неоплаченный транш: есть что платить (`amountToPayMinor` больше нуля) и самый ранний срок.
  * Без срока — после тех, у кого срок есть. Одинаковый срок — порядок ответа кабинета.
- * Полностью закрытый транш (остаток 0) не показываем.
+ * Закрытый транш и транш, целиком покрытый чеками на проверке, не показываем.
  */
 export function nextUnpaidTranche(dues: readonly PaymentDue[]): PaymentDue | null {
-  const open = dues.filter((due) => due.outstandingMinor > 0);
+  const open = dues.filter((due) => amountToPayMinor(due) > 0);
   if (open.length === 0) return null;
   return open.reduce((best, due) => {
     if (best.dueAt === due.dueAt) return best;

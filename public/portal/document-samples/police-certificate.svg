@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Вымышленный образец справки о несудимости">
+  <rect width="640" height="400" rx="16" fill="#f7f8fa"/>
+  <rect x="48" y="28" width="544" height="344" rx="8" fill="#fff" stroke="#e3e5e9"/>
+  <text x="72" y="72" font-family="Golos Text, system-ui, sans-serif" font-size="16" font-weight="700" fill="#17181c">Справка о несудимости</text>
+  <text x="560" y="72" text-anchor="end" font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#5c616b">01.11.2026</text>
+  <text x="72" y="116" font-family="Golos Text, system-ui, sans-serif" font-size="14" fill="#17181c">EXAMPLEOVA ADA NUR</text>
+  <g stroke="#e6e7eb" stroke-width="8" stroke-linecap="round"><path d="M72 148h480M72 176h440M72 204h500"/></g>
+  <circle cx="470" cy="280" r="34" fill="none" stroke="#b42318" stroke-width="3"/>
+  <text x="470" y="276" text-anchor="middle" font-size="10" fill="#b42318" font-family="Golos Text, system-ui, sans-serif">ПЕЧАТЬ</text>
+  <text x="470" y="290" text-anchor="middle" font-size="10" fill="#b42318" font-family="Golos Text, system-ui, sans-serif">ОБРАЗЕЦ</text>
+  <text x="72" y="340" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample certificate · invented person</text>
+  <g transform="rotate(-22 320 190)" opacity="0.24"><text x="320" y="200" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="56" font-weight="800">ОБРАЗЕЦ</text></g>
+</svg>

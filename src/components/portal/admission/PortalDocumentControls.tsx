@@ -58,14 +58,17 @@ export function PortalDocumentControls({
   allowUpload,
   locale,
   idScope = "",
+  placement = "row",
 }: {
   documentSlotId: string;
   documentVersionId: string | null;
   originalFilename: string | null;
   allowUpload: boolean;
   locale: Locale;
-  /** Приставка id полей: второй экземпляр (окно «Загрузить документ») не дублирует id строки. */
+  /** Приставка id полей: второй экземпляр (панель справки) не дублирует id строки. */
   idScope?: string;
+  /** В панели справки «Загрузить» — главная кнопка, без строки «только для скачивания». */
+  placement?: "row" | "drawer";
 }) {
   // PORT-6a: все подписи и сообщения — из неймспейса admission
   // (RU байт-в-байт прежние, KY полный); локаль приходит из server-родителя
@@ -160,7 +163,7 @@ export function PortalDocumentControls({
               уходит тем же XHR-путём; после сбоя рядом кнопка «Повторить». */}
           <label
             htmlFor={fieldId}
-            className="pt-btn-ghost pt-doc-pick"
+            className={placement === "drawer" ? "pt-btn pt-doc-pick" : "pt-btn-ghost pt-doc-pick"}
             data-pending={pending ? "" : undefined}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -209,9 +212,7 @@ export function PortalDocumentControls({
           ) : null}
           <p id={`${fieldId}-hint`} className="pt-sr-only">{strings.uploadHint}</p>
         </form>
-      ) : (
-        <p className="pt-doc-locked">{strings.uploadLocked}</p>
-      )}
+      ) : null}
 
       {documentVersionId ? (
         <a

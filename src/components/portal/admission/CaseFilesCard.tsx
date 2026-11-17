@@ -2,6 +2,7 @@ import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { StudentPortalCaseFile } from "@/lib/v3/portal-source";
 
+import { DocumentGuideSlot } from "./DocumentGuide";
 import { DocumentStatusIcon } from "./DocumentStatusIcon";
 import { PortalStatus } from "./PortalStatus";
 import { formatPortalTimestamp } from "./presentation";
@@ -26,11 +27,27 @@ export function CaseFilesCard({ files, locale }: { files: readonly StudentPortal
         {files.map((file) => {
           const added = formatPortalTimestamp(file.addedAt);
           const title = file.kind === "contract" ? strings.caseFileContract : strings.caseFileReceipt;
+          const statusLabel = file.kind === "contract"
+            ? null
+            : file.kind === "receipt" ? strings.caseFileReceiptAttached : strings.caseFileReceiptPending;
           return (
             <li key={`${file.kind}:${file.fileId}`} className="pt-doc-item pt-doc-row" data-case-file-kind={file.kind}>
               <DocumentStatusIcon icon="file" className="pt-doc-row-mark" />
               <div className="pt-doc-row-main">
-                <h3 className="pt-doc-item-title">{title}</h3>
+                <div className="pt-doc-title-line">
+                  <h3 className="pt-doc-item-title">{title}</h3>
+                  <DocumentGuideSlot
+                    label={title}
+                    requirementKey={file.kind === "contract" ? "contract" : file.kind}
+                    locale={locale}
+                    statusLabel={statusLabel}
+                    statusTone={file.kind === "receipt" ? "ok" : "neutral"}
+                    download={{
+                      href: `/api/portal/case-files/${file.kind}/${encodeURIComponent(file.fileId)}/download`,
+                      filename: file.originalFilename,
+                    }}
+                  />
+                </div>
                 <p className="pt-doc-row-facts">
                   <span>
                     {file.originalFilename}

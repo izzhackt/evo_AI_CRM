@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Вымышленный образец разворота паспорта">
+  <rect width="640" height="400" rx="16" fill="#f6efe6"/>
+  <rect x="0" y="0" width="640" height="58" fill="#7a2430"/>
+  <text x="24" y="26" fill="#f6efe6" font-family="Golos Text, system-ui, sans-serif" font-size="13" font-weight="700">КЫРГЫЗ РЕСПУБЛИКАСЫ</text>
+  <text x="24" y="44" fill="#f3d3c4" font-family="Golos Text, system-ui, sans-serif" font-size="11">KYRGYZ REPUBLIC</text>
+  <text x="616" y="36" text-anchor="end" fill="#fff" font-family="Golos Text, system-ui, sans-serif" font-size="16" font-weight="700">PASSPORT</text>
+  <rect x="28" y="82" width="118" height="148" rx="6" fill="#e4d3c4" stroke="#c4a890"/>
+  <circle cx="87" cy="132" r="28" fill="#c4a890"/>
+  <path d="M48 214c8-28 22-40 39-40s31 12 39 40" fill="#c4a890"/>
+  <g font-family="Golos Text, system-ui, sans-serif" fill="#3a2a24">
+    <text x="166" y="100" font-size="10" fill="#8a7064">Type / Тип</text>
+    <text x="166" y="118" font-size="14" font-weight="700">P</text>
+    <text x="280" y="100" font-size="10" fill="#8a7064">Code / Код</text>
+    <text x="280" y="118" font-size="14" font-weight="700">KGZ</text>
+    <text x="166" y="146" font-size="10" fill="#8a7064">Passport No. / № паспорта</text>
+    <text x="166" y="164" font-size="14" font-weight="700">EZ 0987654</text>
+    <text x="166" y="190" font-size="10" fill="#8a7064">Surname / Фамилия</text>
+    <text x="166" y="208" font-size="14" font-weight="700">EXAMPLEOVA</text>
+    <text x="166" y="234" font-size="10" fill="#8a7064">Given names / Имя</text>
+    <text x="166" y="252" font-size="14" font-weight="700">ADA NUR</text>
+    <text x="400" y="190" font-size="10" fill="#8a7064">Nationality</text>
+    <text x="400" y="208" font-size="14" font-weight="700">KYRGYZ</text>
+    <text x="400" y="234" font-size="10" fill="#8a7064">Date of birth</text>
+    <text x="400" y="252" font-size="14" font-weight="700">15 MAR 2005</text>
+    <text x="166" y="286" font-size="10" fill="#8a7064">Date of issue</text>
+    <text x="166" y="304" font-size="14" font-weight="700">20 JAN 2024</text>
+    <text x="400" y="286" font-size="10" fill="#8a7064">Date of expiry</text>
+    <text x="400" y="304" font-size="14" font-weight="700">19 JAN 2034</text>
+  </g>
+  <text x="28" y="348" font-family="ui-monospace, monospace" font-size="12" fill="#5c463c">P&lt;KGZEXAMPLEOVA&lt;&lt;ADA&lt;NUR&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</text>
+  <text x="28" y="366" font-family="ui-monospace, monospace" font-size="12" fill="#5c463c">EZ09876544KGZ0503158F3401190&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;02</text>
+  <text x="28" y="388" font-family="Golos Text, system-ui, sans-serif" font-size="11" fill="#8a7064">Sample only · invented data · not a travel document</text>
+  <g transform="rotate(-24 320 210)" opacity="0.28">
+    <text x="320" y="220" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="64" font-weight="800">ОБРАЗЕЦ</text>
+  </g>
+</svg>

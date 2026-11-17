@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { EVI_LIMITS, parseEviReply } from "../src/lib/portal/evi.ts";
-import { EVI_MODEL, eviCatalogDossier, eviReplySchema, eviSystemPrompt } from "../src/lib/server/evi/prompt.ts";
+import { EVI_MODEL, EVI_OPENING, eviCatalogDossier, eviOpening, eviReplySchema, eviSystemPrompt } from "../src/lib/server/evi/prompt.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -24,6 +24,11 @@ test("Эви runs on Claude Sonnet 5.5 and sees every catalogue card, sorted, wi
     assert.equal(dossier.split(`\n${field}: `).length - 1, 24, field);
   }
   assert.doesNotMatch(dossier, /scale\.|undefined/u, "scale names come from the cabinet dictionary");
+  // Шкалы названы словами результата теста — теми же, что в вопросах промта.
+  for (const label of ["Практическая работа", "Динамичная работа", "Изучение и знания"]) {
+    assert.ok(dossier.includes(label) && PROMPT.split(label).length > 2, label);
+  }
+  assert.doesNotMatch(dossier, /Производство|Приключения|Эрудиция/u);
   // Порядок карточек из базы не меняет текст: промт кешируется побайтно.
   assert.equal(eviSystemPrompt([...CARDS].reverse(), "ru"), PROMPT);
 });
@@ -33,6 +38,14 @@ test("the prompt is filled in completely, in the cabinet's language, with the li
   for (const prompt of [PROMPT, ky]) assert.doesNotMatch(prompt, /\{\{[A-Z_]*\}\}/u, "every placeholder is filled");
   assert.match(PROMPT, /Пиши по-русски;/u);
   assert.match(ky, /Пиши по-кыргызски;/u);
+  // Досье написано по-русски; пересказ — на языке ответа, а не «по-кыргызски» в русском кабинете.
+  assert.match(PROMPT, /Досье пересказывай своими словами на языке ответа/u);
+  assert.doesNotMatch(PROMPT, /по-кыргызски пересказывай/u);
+  // Раздел вузов и названия профессий — как в кабинете этого языка.
+  assert.equal(PROMPT.split("«Где учиться в EVO»").length - 1, 4);
+  assert.equal(ky.split("«EVO менен кайда окуса болот»").length - 1, 4);
+  assert.equal(ky.split("\nПо-кыргызски: ").length - 1, 24);
+  assert.doesNotMatch(PROMPT, /\nПо-кыргызски: /u);
   assert.match(PROMPT, new RegExp(`"message": строка 1–${EVI_LIMITS.maxAssistantChars} символов`, "u"));
   assert.match(PROMPT, new RegExp(`"options": 0–${EVI_LIMITS.maxOptions} разных непустых строк, каждая до ${EVI_LIMITS.maxOptionChars} символов`, "u"));
   assert.match(PROMPT, new RegExp(`"why" — 1–${EVI_LIMITS.maxWhyChars} символов`, "u"));
@@ -81,4 +94,31 @@ test("the reply schema matches the parser: six required fields, closed objects, 
   assert.deepEqual([...schema.properties.results.anyOf[0].items.properties.cardKey.enum], [...KEYS].sort());
   // Ограничения длины и количества схема не выражает (structured outputs их не поддерживают) — их держит parseEviReply.
   assert.doesNotMatch(JSON.stringify(schema), /minLength|maxLength|minimum|maximum|minItems|maxItems/u);
+});
+
+test("a student who passed the interest test: Эви gets the result in words, in the cabinet note, without scores", () => {
+  assert.equal(eviOpening(null), EVI_OPENING, "no test — only the cabinet note");
+  const profile = {
+    means: { creativity: 4.6, altruism: 4.3, erudition: 3.8, analysis: 3.1, organization: 2.9, leadership: 2.6, production: 2.0, adventure: 1.8 },
+    topScales: ["creativity", "altruism"],
+  };
+  const note = eviOpening(profile);
+  assert.ok(note.startsWith(`${EVI_OPENING}\n`));
+  assert.match(note, /ведущие — Творчество, Помощь людям; дальше от сильных к слабым — Изучение и знания, Анализ, Организация, Лидерство; самые слабые — Практическая работа, Динамичная работа\./u);
+  assert.doesNotMatch(note, /\d/u, "no scores reach the model");
+  // Тест не отметил ведущих — ведущие по порядку; шкалы без ответа не выдумываются.
+  assert.match(eviOpening({ means: { analysis: 4, production: 3.5, leadership: 2 }, topScales: [] }), /ведущие — Анализ, Практическая работа; самые слабые — Лидерство\./u);
+  assert.equal(eviOpening({ means: {}, topScales: [] }), EVI_OPENING);
+  // Ведущие у теста — шкалы с наибольшим средним; три и больше — профиль ровный, опоры нет.
+  const flat = eviOpening({ means: { analysis: 3, creativity: 3, altruism: 3, leadership: 2 }, topScales: ["altruism", "analysis", "creativity"] });
+  assert.match(flat, /явных ведущих интересов тест не выделил\.$/u);
+  assert.doesNotMatch(flat, /ведущие — /u);
+  // Системный промт одинаков для всех: результат теста живёт только в заметке.
+  assert.doesNotMatch(PROMPT, /ведущие — /u);
+  assert.match(PROMPT, /## 2а\. Если ученик прошёл тест интересов/u);
+  // Разговор главнее теста; тест — не больше одной опоры и не единственная; отвергнутый тест — ни опора, ни минус.
+  assert.match(PROMPT, /Ученик прямо выбрал другое — верь разговору: этот интерес теста уже не опора\./u);
+  assert.match(PROMPT, /у карточки не больше одной такой опоры и не единственная/u);
+  assert.match(PROMPT, /тест не опора и не минус, его не оценивай\./u);
+  assert.match(PROMPT, /В заметке «явных ведущих тест не выделил» — работай как без теста\./u);
 });

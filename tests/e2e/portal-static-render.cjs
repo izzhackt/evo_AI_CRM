@@ -1054,6 +1054,10 @@ const surfaces = [
     ),
   },
   {
+    name: "professions-evi-offline",
+    html: renderSurface("Профессии — Эви, модель не подключена — a11y", eviPage(createElement(EviChat, { strings: professionsStrings, offline: true }))),
+  },
+  {
     name: "professions-evi-consent",
     html: renderSurface("Профессии — Эви, без согласия — a11y", eviPage(createElement(EviConsentGate, { strings: professionsStrings }))),
   },

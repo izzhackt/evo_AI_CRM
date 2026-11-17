@@ -17,9 +17,11 @@ export const EVI_FAILURE_TEXT: Readonly<Record<EviFailure, keyof Strings>> = {
 
 /**
  * Переписка: реплики Эви слева (робот только у последней, как в уроке), ответы ученика справа, три профессии во всю
- * ширину под репликой «Придумал!», сбой — строкой системы под последним ответом (не словами Эви). Пока ученик не ответил —
- * экран приветствия: крупный робот, «Привет! Я Эви» и строка о том, что будет. Пока Эви думает — облачко с тремя точками. Новая реплика Эви
- * открывается с начала, чтобы «Придумал!» и первая профессия были видны первыми; остальное — прокрутка вниз.
+ * ширину под репликой «Придумал!». Сбой — строкой системы над полем ввода вместе со своей кнопкой (EviDock), робот при
+ * сбое спокоен, а не улыбается. Пока ученик не ответил — экран приветствия: крупный робот, «Привет! Я Эви» и строка о том,
+ * что будет; если Эви недоступен с самого начала — эта строка говорит об этом. Пока Эви думает — облачко с тремя
+ * точками. Новая реплика Эви открывается с начала, чтобы «Придумал!» и первая профессия были видны первыми; остальное —
+ * прокрутка вниз.
  */
 export function EviThread({ strings, messages, round, intro, pending, failure, listening, poke }: Readonly<{
   strings: Strings;
@@ -54,9 +56,13 @@ export function EviThread({ strings, messages, round, intro, pending, failure, l
     return (
       <div ref={logRef} id="pt-evi-log" className="pt-evi-log" role="log" aria-label={strings["evi.logLabel"]} tabIndex={0} data-intro="">
         <div key={`${round}-welcome`} className="pt-evi-welcome">
-          <EviMascot mood={greeting.mood ?? "happy"} listening={listening} speakMs={greeting.fresh ? eviSpeakMs(greeting.text) : undefined} />
+          {failure ? (
+            <EviMascot mood="idle" />
+          ) : (
+            <EviMascot mood={greeting.mood ?? "happy"} listening={listening} speakMs={greeting.fresh ? eviSpeakMs(greeting.text) : undefined} />
+          )}
           <h2 id="pt-evi-name" className="pt-evi-welcome-title">{strings["evi.welcomeTitle"]}</h2>
-          <p className="pt-evi-welcome-text">{strings["evi.welcomeText"]}</p>
+          <p className="pt-evi-welcome-text">{strings[failure ? EVI_FAILURE_TEXT[failure] : "evi.welcomeText"]}</p>
         </div>
       </div>
     );
@@ -74,7 +80,7 @@ export function EviThread({ strings, messages, round, intro, pending, failure, l
             <div className="pt-evi-row" data-speaking={speaking ? "" : undefined}>
               <div className="pt-evi-slot">
                 {speaking ? (
-                  <EviMascot mood={message.mood ?? "talk"} listening={listening} speakMs={fresh ? eviSpeakMs(message.text) : undefined} poke={poke} />
+                  <EviMascot mood={failure ? "idle" : message.mood ?? "talk"} listening={listening} speakMs={fresh ? eviSpeakMs(message.text) : undefined} poke={poke} />
                 ) : null}
               </div>
               <p className="pt-evi-bubble">{message.text}</p>
@@ -92,7 +98,6 @@ export function EviThread({ strings, messages, round, intro, pending, failure, l
           </p>
         </div>
       ) : null}
-      {failure ? <p className="pt-evi-note">{strings[EVI_FAILURE_TEXT[failure]]}</p> : null}
     </div>
   );
 }

@@ -10300,14 +10300,24 @@ a.pt-pay-file {
   opacity: 0.3;
 }
 
-/* Сбой — строка системы под последним ответом, не словами Эви. */
+/*
+ * Сбой — строка системы (не словами Эви) и её одно действие одним блоком по центру над полем ввода, на месте вариантов:
+ * что случилось и что нажать — рядом, под пальцем. На приветствии строку показывает оно само, здесь — только действие.
+ */
+.pt-evi-failure {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-align: center;
+}
+
 .pt-evi-note {
-  align-self: center;
   max-width: min(92%, 520px);
   margin: 0;
   color: var(--pt-error);
   font-size: var(--pt-size-secondary);
-  text-align: center;
+  text-wrap: balance;
 }
 
 .pt-evi-dock {
@@ -10343,6 +10353,7 @@ a.pt-pay-file {
   font: inherit;
   font-size: var(--pt-size-secondary);
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background-color var(--pt-motion-fast) var(--pt-ease),
@@ -10464,6 +10475,13 @@ a.pt-pay-file {
 .pt-evi-error {
   margin: 0;
   color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+}
+
+/* Согласие записывается: спокойная строка под кнопкой «Разрешить», пока не откроется чат. */
+.pt-evi-saving {
+  margin: 0;
+  color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
 }
 
@@ -10625,12 +10643,11 @@ a.pt-pay-file {
   line-height: var(--pt-leading);
 }
 
+/* Без согласия — то же окно той же высоты, что чат: после «Разрешить» оно не прыгает. */
 .pt-evi-gate {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  height: auto;
-  min-height: 360px;
   padding: 32px 20px;
   text-align: center;
 }
@@ -10643,6 +10660,7 @@ a.pt-pay-file {
   max-width: 40ch;
   margin: 0;
   color: var(--pt-text-2);
+  text-wrap: balance;
 }
 
 /* Робот: рисунок токенами, у градиентов шлема, визора и антенны — цвета на <stop>. */
@@ -11224,10 +11242,11 @@ a.pt-pay-file {
 }
 
 /*
- * Разговор с Эви: новая реплика, ответ ученика и строка сбоя поднимаются тем же входом, что карточки кабинета; три
- * профессии входят стаггером списков выше (0, 30, 60 мс).
+ * Разговор с Эви: новая реплика, ответ ученика и блок сбоя поднимаются тем же входом, что карточки кабинета; три
+ * профессии входят по одной (ниже).
  */
-.pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note) {
+.pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine),
+.pt-evi-failure {
   animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
 }
 
@@ -11407,7 +11426,8 @@ a.pt-pay-file {
     .pt-lesson-list,
     .pt-evi-results
   ) > *,
-  .pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note),
+  .pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine),
+  .pt-evi-failure,
   .pt-evi-results-title,
   .pt-check[data-fresh] .pt-check-path,
   .pt-favorite-icon[data-pop] {

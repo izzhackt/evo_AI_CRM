@@ -65,15 +65,18 @@ export type EviActionResult =
   | Readonly<{ ok: true; answer: EviAnswer }>
   | Readonly<{ ok: false; reason: EviFailure }>;
 
-/** Одно действие, которым ученик выходит из сбоя: повторить тот же вопрос, начать заново или разрешить ИИ-помощников. */
+/**
+ * Одно действие, которым ученик выходит из сбоя: повторить тот же вопрос, начать заново, разрешить ИИ-помощников или,
+ * пока Эви недоступен, открыть каталог профессий (поле ввода тогда закрыто — сообщения без ответа не копятся).
+ */
 export const EVI_FAILURE_ACTION = {
   error: "retry",
   busy: "retry",
   limit: "restart",
   invalid: "restart",
   consent: "allow",
-  unavailable: null,
-} as const satisfies Record<EviFailure, "retry" | "restart" | "allow" | null>;
+  unavailable: "catalog",
+} as const satisfies Record<EviFailure, "retry" | "restart" | "allow" | "catalog">;
 
 /**
  * Такт робота (исключение владельца 17.11.2026): сначала реакция на новый ответ, потом «говорит» по длине реплики,

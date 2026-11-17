@@ -124,7 +124,7 @@ test("prefers-reduced-motion zeroes the tokens and switches every entrance off",
     /@media \(prefers-reduced-motion: reduce\) \{\s*\.pt-shell \{\s*--pt-motion-press: 0ms;\s*--pt-motion-fast: 0ms;\s*--pt-motion-base: 0ms;\s*--pt-motion-slow: 0ms;\s*--pt-rise: 0px;\s*--pt-stagger: 0ms;\s*--pt-press-scale: 1;/u,
   );
   const reduced = MOTION_SECTION.slice(MOTION_SECTION.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
-  for (const selector of [".pt-route > *", "[data-pt-loading]", ".pt-evi-results", ".pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note)", ".pt-progress::-webkit-progress-value", ".pt-res-meter::-webkit-meter-optimum-value", ".pt-check[data-fresh] .pt-check-path", ".pt-favorite-icon[data-pop]"]) {
+  for (const selector of [".pt-route > *", "[data-pt-loading]", ".pt-evi-results", ".pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine)", ".pt-evi-failure", ".pt-progress::-webkit-progress-value", ".pt-res-meter::-webkit-meter-optimum-value", ".pt-check[data-fresh] .pt-check-path", ".pt-favorite-icon[data-pop]"]) {
     assert.ok(reduced.includes(selector), `${selector} is switched off`);
   }
   assert.match(reduced, /animation: none;/u);

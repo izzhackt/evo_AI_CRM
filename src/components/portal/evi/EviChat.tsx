@@ -11,19 +11,21 @@ import { useEviConversation, type EviAsk, type EviMessage, type EviOptions } fro
 export type { EviMessage, EviOptions } from "./useEviConversation";
 
 /**
- * Разговор с Эви — сцена Эви: белая карточка с мягкой подсветкой бренда (исключение владельца 17.11.2026), одна ось
- * разговора, живой робот у последней реплики. До первого ответа — экран приветствия (крупный робот и имя по центру),
- * шапка появляется с разговором. `ask` — серверное действие разговора; пока его нет, отправка честно
- * говорит «Эви сейчас недоступен». `initial*` — состояние для статического рендера и проверок.
+ * Разговор с Эви: белое окно на обычном фоне кабинета (решение владельца 17.11.2026), одна ось разговора, живой робот у
+ * последней реплики. До первого ответа — экран приветствия (крупный робот и имя по центру), шапка появляется с
+ * разговором. `ask` — серверное действие разговора; без него отправка честно говорит «Эви сейчас недоступен».
+ * `offline` — модели нет вовсе: это видно сразу на приветствии, вместо вариантов — «Открыть каталог», поле закрыто.
+ * `initial*` — состояние для статического рендера и проверок.
  */
-export function EviChat({ strings, ask, initialMessages, initialOptions, initialFailure = null }: Readonly<{
+export function EviChat({ strings, ask, offline = false, initialMessages, initialOptions, initialFailure = null }: Readonly<{
   strings: PortalStrings<"professions">;
   ask?: EviAsk;
+  offline?: boolean;
   initialMessages?: readonly EviMessage[];
   initialOptions?: EviOptions;
   initialFailure?: EviFailure | null;
 }>) {
-  const chat = useEviConversation({ strings, ask, initialMessages, initialOptions, initialFailure });
+  const chat = useEviConversation({ strings, ask, initialMessages, initialOptions, initialFailure: offline ? "unavailable" : initialFailure });
 
   return (
     <section className="pt-evi" aria-labelledby="pt-evi-name" data-intro={chat.intro ? "" : undefined}>
@@ -57,6 +59,7 @@ export function EviChat({ strings, ask, initialMessages, initialOptions, initial
         failure={chat.failure}
         canRetry={chat.canRetry}
         round={chat.round}
+        intro={chat.intro}
         draft={chat.draft}
         pending={chat.pending}
         onDraft={chat.setDraft}

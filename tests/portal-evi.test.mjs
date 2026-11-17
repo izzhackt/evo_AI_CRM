@@ -165,7 +165,7 @@ test("a new chat ignores replies that arrive for the old one", () => {
 });
 
 test("every failure has at most one recovery action, and the robot keeps a bounded beat", () => {
-  assert.deepEqual(EVI_FAILURE_ACTION, { error: "retry", busy: "retry", limit: "restart", invalid: "restart", consent: "allow", unavailable: null });
+  assert.deepEqual(EVI_FAILURE_ACTION, { error: "retry", busy: "retry", limit: "restart", invalid: "restart", consent: "allow", unavailable: "catalog" });
   assert.equal(eviSpeakMs(""), 800);
   assert.equal(eviSpeakMs(Array(10).fill("слово").join(" ")), 1000);
   assert.equal(eviSpeakMs(Array(100).fill("слово").join(" ")), 2400);
@@ -288,6 +288,48 @@ test("every failure's words match its one action", () => {
       if (action !== "retry") assert.doesNotMatch(strings[key], /ещё раз|кайра аракет/iu, `${locale} ${failure} promises a retry it does not offer`);
     }
   }
+});
+
+test("without the model Эви says so on the welcome and offers the catalogue, not an input that never answers", () => {
+  // Модели нет — вкладка рендерит чат offline: «недоступен» сразу на приветствии, робот спокоен.
+  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /return <EviChat strings=\{strings\} offline \/>;/u);
+  const chat = read(`${EVI_DIR}/EviChat.tsx`);
+  assert.match(chat, /initialFailure: offline \? "unavailable" : initialFailure/u);
+  const thread = read(`${EVI_DIR}/EviThread.tsx`);
+  assert.match(thread, /\{failure \? \(\s*<EviMascot mood="idle" \/>/u);
+  assert.match(thread, /strings\[failure \? EVI_FAILURE_TEXT\[failure\] : "evi\.welcomeText"\]/u);
+  // Единственный выход — ссылка в каталог; поле ввода закрыто, сообщения без ответа не копятся.
+  const dock = read(`${EVI_DIR}/EviDock.tsx`);
+  assert.match(dock, /const closed = action === "restart" \|\| action === "catalog";/u);
+  assert.match(dock, /\{closed \? null : <form className="pt-evi-composer"/u);
+  // Фокус уходит на разговор только когда поле закрылось посреди разговора, не на загрузке вкладки.
+  assert.match(dock, /if \(closed && !wasClosed\.current\) keepEviFocus\(\);/u);
+  assert.match(dock, /<IntentPrefetchLink href="\/portal\/professions" className="pt-evi-chip pt-evi-go">\{strings\["evi\.toCatalog"\]\}<\/IntentPrefetchLink>/u);
+  for (const locale of ["ru", "ky"]) assert.ok(getPortalStrings("professions", locale)["evi.toCatalog"], locale);
+});
+
+test("a failure is one block above the input: the line and its one action together, and the robot does not smile", () => {
+  const dock = read(`${EVI_DIR}/EviDock.tsx`);
+  assert.match(dock, /\{failure \? \(\s*<div className="pt-evi-failure">\s*\{intro \? null : <p className="pt-evi-note" role="alert">/u);
+  // Сбой больше не строка внутри переписки.
+  assert.doesNotMatch(read(`${EVI_DIR}/EviThread.tsx`), /className="pt-evi-note"/u);
+  assert.match(read(`${EVI_DIR}/EviThread.tsx`), /<EviMascot mood=\{failure \? "idle" : message\.mood \?\? "talk"\}/u);
+  assert.match(CSS, /\.pt-evi-failure \{\s*display: grid;\s*justify-items: center;/u);
+});
+
+test("the AI-consent screen keeps «ИИ-помощников» whole, uses Эви's button and shows it is saving", () => {
+  for (const locale of ["ru", "ky"]) {
+    const strings = getPortalStrings("professions", locale);
+    for (const key of ["evi.consentLine", "evi.allow"]) assert.match(strings[key], /(?:ИИ|ЖИ)-\u2060/u, `${locale} ${key}: no line break after the hyphen`);
+    assert.ok(strings["evi.saving"], locale);
+  }
+  const gate = read(`${EVI_DIR}/EviConsentGate.tsx`);
+  assert.match(gate, /const busy = pending \|\| refreshing;/u);
+  assert.match(gate, /className="pt-evi-chip pt-evi-go" aria-disabled=\{busy\} aria-busy=\{busy\} onClick=\{\(\) => \{ if \(!busy\) allow\(\); \}\}/u);
+  assert.match(gate, /\{busy \? <p role="status" className="pt-evi-saving">\{strings\["evi\.saving"\]\}<\/p>/u);
+  // Окно той же высоты, что чат: своей высоты у экрана согласия нет.
+  const rule = /\.pt-evi-gate \{([^}]*)\}/u.exec(CSS)?.[1] ?? "";
+  assert.doesNotMatch(rule, /height/u);
 });
 
 test("Эви's colours have a light and a dark value; no backdrop, and the input has no red frame", () => {

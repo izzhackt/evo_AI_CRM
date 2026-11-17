@@ -11,7 +11,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  ADMISSIONS_DIRECT_CHINESE,
   ADMISSIONS_DIRECT_DEGREES,
+  ADMISSIONS_DIRECT_EDUCATION_CURRENT,
+  ADMISSIONS_DIRECT_ENGLISH,
+  ADMISSIONS_DIRECT_UNSPECIFIED,
   CHINA_DEFAULT_COST,
   EMPTY_ADMISSIONS_DIRECT_DRAFT,
   admissionsDirectCaseHref,
@@ -35,14 +39,20 @@ const directSource = source("src/lib/v3/admissions-direct-student-source.ts");
 
 const draft = (overrides = {}) => ({ ...EMPTY_ADMISSIONS_DIRECT_DRAFT, firstName: "Айдай", country: "MY", ...overrides });
 
-test("amounts: spaces and comma, two decimals, positive only", () => {
+test("amounts: spaces and comma, two decimals, zero allowed", () => {
   assert.equal(amountToMinor("1 500"), 150000);
   assert.equal(amountToMinor("1500,5"), 150050);
   assert.equal(amountToMinor("1 500.25"), 150025);
   assert.equal(amountToMinor(""), "");
-  assert.equal(amountToMinor("0"), null);
+  assert.equal(amountToMinor("0"), 0);
+  assert.equal(amountToMinor("0,00"), 0);
+  assert.equal(amountToMinor("0.0"), 0);
+  assert.equal(amountToMinor(" 0 "), 0);
+  assert.equal(amountToMinor("00"), 0);
+  assert.equal(amountToMinor("0.001"), null);
   assert.equal(amountToMinor("12.345"), null);
   assert.equal(amountToMinor("-5"), null);
+  assert.equal(minorToAmount(0), "0");
   assert.equal(minorToAmount(150000), "1 500");
   assert.equal(minorToAmount(150050), "1 500,50");
 });
@@ -110,7 +120,27 @@ test("validation mirrors the database: required, shapes, money", () => {
   assert.ok(errors({ age: "4" }).errors.age);
   assert.ok(errors({ parentFirstName: "Мама" }).errors.parentRelation, "a parent needs mother or father");
   assert.ok(errors({ stage: "bogus" }).errors.stage);
-  assert.ok(errors({ costAmount: "abc" }).errors.costAmount);
+  assert.equal(errors({ costAmount: "abc" }).errors.costAmount, "Сумма: число от 0, до двух знаков после запятой.");
+  assert.equal(errors({ costAmount: "-1" }).errors.costAmount, "Сумма: число от 0, до двух знаков после запятой.");
+  const zero = buildAdmissionsDirectPayload(draft({
+    costAmount: "0", costCurrency: "USD", payments: [{ amount: "0", currency: "USD", paidOn: "2026-09-01" }],
+  }), "2026-10-16");
+  assert.equal(zero.ok, true);
+  assert.deepEqual(zero.payload.money, {
+    cost: { amountMinor: 0, currency: "USD" },
+  });
+  assert.equal(zero.payload.money.payments, undefined, "a zero payment is not sent: no payment row for «received 0»");
+  assert.deepEqual(parseAdmissionsDirectPayload(zero.payload), zero.payload);
+  const mixed = buildAdmissionsDirectPayload(draft({ payments: [
+    { amount: "0", currency: "", paidOn: "" }, { amount: "50", currency: "KGS", paidOn: "2026-09-01" },
+  ] }), "2026-10-16");
+  assert.equal(mixed.ok, true, "a zero row needs no currency or date");
+  assert.deepEqual(mixed.payload.money.payments, [{ amountMinor: 5000, currency: "KGS", paidOn: "2026-09-01" }]);
+  assert.equal(parseAdmissionsDirectPayload({ ...zero.payload, money: { cost: { amountMinor: 0, currency: "USD" },
+    payments: [{ amountMinor: 0, currency: "USD", paidOn: "2026-09-01" }] } }), null, "the server refuses a zero payment");
+  assert.equal(parseAdmissionsDirectPayload({ ...zero.payload, money: { cost: { amountMinor: -1, currency: "USD" } } }), null);
+  assert.ok(errors({ costAmount: "0", costCurrency: "USD", payments: [{ amount: "1", currency: "USD", paidOn: "2026-09-01" }] }).errors.payments,
+    "a positive payment still cannot exceed a zero cost in the same currency");
   assert.ok(errors({ costAmount: "100", payments: [{ amount: "200", currency: "USD", paidOn: "2026-09-01" }] }).errors.payments,
     "payments above the cost in its currency");
   assert.equal(buildAdmissionsDirectPayload(draft({ costAmount: "100", costCurrency: "USD",
@@ -341,6 +371,56 @@ test("delta review #1194 r2 (1, 3): 9-digit key, and a phone with other signs is
   }
   assert.equal(admissionsDirectPhone(" +996 (555) 28-19.99 "), "+996555281999");
   assert.equal(admissionsDirectPhone("0555\u00a0281\u00a0999"), "+996555281999", "a no-break space is a space, as [[:space:]] in 281");
+});
+
+test("study, English and Chinese are lists; the empty choice is omitted", () => {
+  assert.equal(ADMISSIONS_DIRECT_UNSPECIFIED, "— не указано —");
+  for (const label of ADMISSIONS_DIRECT_EDUCATION_CURRENT) assert.ok(label.length <= 100, label);
+  for (const label of ADMISSIONS_DIRECT_ENGLISH) assert.ok(label.length <= 60, label);
+  for (const label of ADMISSIONS_DIRECT_CHINESE) assert.ok(label.length <= 40, label);
+  assert.ok(ADMISSIONS_DIRECT_EDUCATION_CURRENT.includes("Окончил школу"));
+  assert.ok(ADMISSIONS_DIRECT_EDUCATION_CURRENT.includes("Магистратура"));
+  assert.ok(ADMISSIONS_DIRECT_ENGLISH.includes("IELTS 6.0"));
+  assert.ok(ADMISSIONS_DIRECT_CHINESE.includes("HSK 3"));
+  const empty = buildAdmissionsDirectPayload(draft({ educationCurrent: "", english: "", chinese: "" }), "2026-10-16");
+  assert.equal(empty.ok, true);
+  assert.equal(empty.payload.education, undefined);
+  const wrong = buildAdmissionsDirectPayload(draft({ educationCurrent: "аспирантура", english: "fluent", chinese: "HSK 7" }), "2026-10-16");
+  assert.equal(wrong.ok, false);
+  assert.equal(wrong.errors.educationCurrent, "Выберите, где учится сейчас, из списка.");
+  assert.equal(wrong.errors.english, "Выберите уровень английского из списка.");
+  assert.equal(wrong.errors.chinese, "Выберите уровень китайского из списка.");
+  const base = { student: { name: "Айдай" }, route: { country: "MY" }, curatorMembershipId: null, pipelineStage: "new" };
+  assert.equal(parseAdmissionsDirectPayload({ ...base, education: { current: "11 класс" } }).education.current, "11 класс");
+  assert.equal(parseAdmissionsDirectPayload({ ...base, education: { current: "аспирантура" } }), null);
+  assert.equal(parseAdmissionsDirectPayload({ ...base, education: { english: "B2" } }).education.english, "B2");
+  assert.equal(parseAdmissionsDirectPayload({ ...base, education: { chinese: "HSK 9" } }), null);
+  assert.match(drawer, /<select \{\.\.\.fieldProps\("educationCurrent"\)\} name="educationCurrent" className=\{SELECT_CLS\}/u);
+  assert.match(drawer, /<select \{\.\.\.fieldProps\("english"\)\} name="english" className=\{SELECT_CLS\}/u);
+  assert.match(drawer, /<select \{\.\.\.fieldProps\("chinese"\)\} name="chinese" className=\{SELECT_CLS\}/u);
+  assert.equal(drawer.match(/<option value="">\{ADMISSIONS_DIRECT_UNSPECIFIED\}<\/option>/gu)?.length, 3);
+  assert.doesNotMatch(drawer, /name="educationCurrent"[\s\S]{0,80}<input/u);
+  assert.match(drawer, /name="program"/u);
+  assert.match(drawer, /name="intake"/u);
+});
+
+test("migration 361 allows a zero amount without touching 281 or manual finance commands", () => {
+  const zero = source("supabase/migrations/361_platform_admissions_direct_amount_zero.sql");
+  assert.match(migration, /raw !~ '\^\[1-9\]\[0-9\]\{0,12\}\$'/u, "281 stays positive-only; 361 is the forward change");
+  assert.match(zero, /^BEGIN;/mu);
+  assert.match(zero, /COMMIT;\s*$/u);
+  assert.match(zero, /raw !~ '\^\(0\|\[1-9\]\[0-9\]\{0,12\}\)\$'/u);
+  assert.match(zero, /CHECK \(amount_minor >= 0\)/u);
+  assert.match(zero, /raw = '0' AND p_label IS DISTINCT FROM 'cost'/u, "zero only for the cost; a payment stays positive");
+  assert.doesNotMatch(zero.replace(/--[^\n]*/gu, ""), /payment_events/u, "the payment_events CHECK stays amount_minor > 0");
+  assert.match(zero, /a361_already_applied/u);
+  assert.match(zero, /a361_anchor_drift/u);
+  assert.doesNotMatch(zero, /GRANT EXECUTE[\s\S]*TO authenticated/u);
+  const sql = zero.replace(/--[^\n]*/gu, "");
+  assert.doesNotMatch(sql, /create_payment_obligation|record_case_payment|accepted_amount_minor/u);
+  assert.match(source("src/components/staff/profile/case-money-view.ts"), /if \(cost <= BigInt\(0\)\) return null/u);
+  assert.match(source("src/components/portal/admission/PaymentsView.tsx"), /group\.amountMinor > 0 \? Math\.min/u);
+  assert.match(source("src/lib/portal/payment-rows.ts"), /attach: canUpload && amountMinor > 0/u);
 });
 
 test("delta review #1194 r2 (2): manual sales leads and website enquiries match every spelling, body-only", () => {

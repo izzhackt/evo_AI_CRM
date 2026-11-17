@@ -92,4 +92,3 @@ function OwnerRecoveryState({ owner, audience, strings, onSaved, showEmpty = fal
     </>}
   </>;
 }
-export function PackageQueueRecovery(props: Omit<OwnerRecoveryProps, "audience">) { return <PackageOwnerRecovery {...props} audience="staff" />; }

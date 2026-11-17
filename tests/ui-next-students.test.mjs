@@ -274,7 +274,7 @@ test("прежний адрес EVO Docs (`?section=docs`, с видом и по
 
 /** Страница доски с подменёнными границами сервера и клиентскими частями: нужны только её решения (переадресация, 404, части шапки). */
 const boardPage = (params, who = ADMIN) => {
-  const seen = { board: 0, curators: 0, queueActions: 0 };
+  const seen = { board: 0, curators: 0 };
   const part = (name) => ({ [name]: (props) => createElement("div", { "data-part": name, ...Object.fromEntries(Object.keys(props).filter((key) => typeof props[key] === "string").map((key) => [`data-${key}`, props[key]])) }) });
   const stubs = {
     ...browserStubs,
@@ -282,8 +282,6 @@ const boardPage = (params, who = ADMIN) => {
     "src/lib/platform-admissions-pipeline.ts": { readAdmissionsPipelineBoard: async () => { seen.board += 1; return { rows: [], truncated: false }; } },
     "src/lib/server/student-portal-curator-options.ts": { listStudentPortalActiveCurators: async () => { seen.curators += 1; return []; } },
     "src/lib/v3/admissions-direct-student-source.ts": { readAdmissionsDirectCuratorOptions: async () => ({ options: [], withoutCurator: true }) },
-    "src/lib/portal/application-documents-actions.ts": { readStaffApplicationDocumentSubmissionQueueAction: async () => { seen.queueActions += 1; return { ok: false, reason: "unavailable" }; } },
-    "src/lib/portal/application-packages-actions.ts": { readStaffApplicationPackageQueueAction: async () => { seen.queueActions += 1; return { ok: false, reason: "unavailable" }; } },
     "src/components/staff/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx": part("AdmissionsPipelineNextLazy"),
     "src/components/staff/admissions/AddStudentDrawer.tsx": part("AddStudentDrawer"),
     "src/components/staff/board/Board.tsx": { ...part("BoardSearch"), ...part("BoardReset") },
@@ -298,7 +296,7 @@ test("«Воронка поступления»: прежние адреса `?v
     for (const extra of [{}, { q: "Ким", tab: "visa", country: "CN" }]) {
       const run = boardPage({ view, ...extra });
       await assert.rejects(run.element(), (error) => error.message === "NEXT_REDIRECT /admissions-pipeline", `${view} ${JSON.stringify(extra)}`);
-      assert.deepEqual(run.seen, { board: 0, curators: 0, queueActions: 0 }, `${view}: переадресация раньше любых чтений`);
+      assert.deepEqual(run.seen, { board: 0, curators: 0 }, `${view}: переадресация раньше любых чтений`);
     }
   }
   await assert.rejects(boardPage({ view: "other" }).element(), /NEXT_NOT_FOUND/u, "чужое значение — 404, как раньше");
@@ -307,11 +305,9 @@ test("«Воронка поступления»: прежние адреса `?v
   const run = boardPage({}, STAFF);
   const board = await run.element();
   assert.equal(run.seen.board, 1);
-  assert.equal(run.seen.queueActions, 0, "очереди документов программ и комплектов с доски не читаются");
   assert.equal(board.props.actions, null, "у сотрудника без права добавлять студентов шапка пуста: ссылок «Документы на проверку» и «Комплекты на проверку» нет");
   const withAdd = await boardPage({}, ADMIN).element();
   assert.equal(withAdd.props.actions?.type.name, "AddStudentDrawer", "у Admin в шапке одно «Добавить студента», без обёртки для ссылок");
-  assert.equal(boardPage({}, ADMIN).seen.queueActions, 0);
   assert.doesNotMatch(read("src/app/(staff)/admissions-pipeline/page.tsx"), /readStaffApplication|Очереди на проверку|document\.read\.full|section=docs/u);
 });
 

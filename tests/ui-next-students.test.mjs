@@ -510,7 +510,7 @@ const nextFiles = () => NEXT_DIRS.flatMap((dir) => readdirSync(new URL(`../${dir
 
 test("файлы нового вида: каждый до 150 строк, без собственных серверных действий, тёмной темы и импорта действий; набор виджетов — не больше 150", () => {
   const files = nextFiles();
-  assert.ok(files.length >= 30, `файлов: ${files.length}`); // 36 после ухода EVO Docs (17.11.2026; было 45)
+  assert.ok(files.length >= 35, `файлов: ${files.length}`); // 36 после ухода EVO Docs (17.11.2026; было 45)
   for (const file of files) {
     const source = read(file);
     assert.ok(source.split("\n").length <= 150, `${file}: ${source.split("\n").length} строк`);

@@ -5,9 +5,11 @@ import { EmptyIcon } from "@/components/portal/home/HomeParts";
 
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
+import { documentGuideView } from "@/lib/portal/document-guides";
 import { defaultDocumentHint } from "@/lib/portal/document-hints";
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
+import { DocumentGuideSlot } from "./DocumentGuide";
 import { DocumentStatusIcon } from "./DocumentStatusIcon";
 import { PortalDocumentControls } from "./PortalDocumentControls";
 import { PortalStatus } from "./PortalStatus";
@@ -115,6 +117,17 @@ export function DocumentsView({
             : decisionLabel;
           const deadlineLabel = formatPortalDeadline(document.deadline);
           const submittedLabel = formatPortalTimestamp(document.submittedAt);
+          const guide = documentGuideView(
+            { requirementKey: document.requirementKey, label: document.requirementLabel },
+            locale,
+          );
+          const hint = document.instructions ?? (guide ? null : defaultDocumentHint(document.requirementLabel, locale));
+          const acceptedDownload = document.status === "approved" && document.documentVersionId
+            ? {
+              href: `/api/portal/document-versions/${encodeURIComponent(document.documentVersionId)}/download`,
+              filename: document.originalFilename ?? "",
+            }
+            : null;
 
           return (
             <li
@@ -125,13 +138,25 @@ export function DocumentsView({
             >
               <DocumentStatusIcon icon={documentChecklistIcon(document)} className="pt-doc-row-mark" />
               <div className="pt-doc-row-main">
-                <h3 className="pt-doc-item-title">{document.requirementLabel}</h3>
-                {/* Своя инструкция куратора важнее; без неё — общая подсказка к пункту списка по умолчанию. */}
-                {document.instructions ?? defaultDocumentHint(document.requirementLabel, locale) ? (
-                  <p className="pt-doc-item-instructions">
-                    {document.instructions ?? defaultDocumentHint(document.requirementLabel, locale)}
-                  </p>
-                ) : null}
+                <div className="pt-doc-title-line">
+                  <h3 className="pt-doc-item-title">{document.requirementLabel}</h3>
+                  <DocumentGuideSlot
+                    label={document.requirementLabel}
+                    requirementKey={document.requirementKey}
+                    locale={locale}
+                    statusLabel={status.label}
+                    statusTone={status.tone}
+                    // Принятый документ заменить нельзя — как и в строке (`allowUpload`), даже если файла версии нет.
+                    upload={document.status === "approved" ? null : {
+                      documentSlotId: document.documentSlotId,
+                      documentVersionId: document.documentVersionId,
+                      originalFilename: document.originalFilename,
+                    }}
+                    download={acceptedDownload}
+                  />
+                </div>
+                {/* Своя инструкция куратора остаётся в строке. Общая подсказка уходит в панель, если она есть. */}
+                {hint ? <p className="pt-doc-item-instructions">{hint}</p> : null}
                 {deadlineLabel || document.originalFilename || reviewLabel ? (
                   <p className="pt-doc-row-facts">
                     {document.originalFilename ? (

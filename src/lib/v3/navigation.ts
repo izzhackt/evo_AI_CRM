@@ -87,7 +87,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       // this group (owner plan). Its own route already requires
       // admissions.read (fixed-role-policy.ts), which Sales lacks entirely,
       // so — like admissions-worklist/universities below — no extra
-      // `capability` gate is needed here; staffCanAccessRoute already hides
+      // gate is needed here; staffCanAccessRoute already hides
       // it from Sales. Named «Воронка поступления» so an Admin, who sees both
       // groups, never meets two identical «Воронка» items (UX quick win 2,
       // 2026-09-24); the sales board is «Воронка продаж».

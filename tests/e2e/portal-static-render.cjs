@@ -1005,7 +1005,7 @@ const surfaces = [
           { role: "user", text: professionsStrings["evi.start"] },
           { role: "assistant", text: "Отлично! В каком ты классе?", mood: "talk" },
           { role: "user", text: "11 класс" },
-          { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy", progress: { step: 3, total: 6 } },
+          { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy", progress: { step: 3, total: 10 } },
         ],
         initialOptions: { options: ["Математика", "Информатика", "Физика", "Биология", "Языки"], multi: true },
       })),

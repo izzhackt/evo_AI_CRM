@@ -118,6 +118,19 @@ test("the limiter: 40 answers per student in 10 minutes, then a pause", () => {
   resetEviSlots();
 });
 
+test("the limiter: no more than 150 answers per student in a day", () => {
+  resetEviSlots();
+  const now = 1_000_000;
+  // По 30 ответов каждые 10 минут — окно в 10 минут не мешает, держит суточный потолок.
+  for (let index = 0; index < 150; index += 1) {
+    assert.equal(takeEviSlot("student-a", now + Math.floor(index / 30) * 10 * 60_000 + index), true);
+  }
+  assert.equal(takeEviSlot("student-a", now + 5 * 10 * 60_000 + 1), false, "the day cap");
+  assert.equal(takeEviSlot("student-b", now + 5 * 10 * 60_000 + 2), true, "another student is not blocked");
+  assert.equal(takeEviSlot("student-a", now + 24 * 60 * 60_000 + 1), true, "a day later it opens again");
+  resetEviSlots();
+});
+
 test("the action checks session, history, consent, key and rate before any model call, and sends only the chat and the test", () => {
   const action = read("src/lib/portal/evi-actions.ts");
   assert.match(action, /^"use server";/u);

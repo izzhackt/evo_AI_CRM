@@ -19,7 +19,7 @@ import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 
-/** Эви есть у всех, кроме ученика, который сам отозвал согласие на ИИ-помощников; сбой чтения согласия Эви не прячет. */
+/** Эви есть у ученика с действующим согласием на ИИ-помощников (не отозвано и дано на текущую версию политики); сбой чтения согласия Эви не прячет — сервер всё равно проверит согласие на каждом сообщении. */
 function eviAvailable(consent: AiConsentRead): boolean {
   return consent.status !== "ready" || aiConsentState(consent.consent) === "granted";
 }

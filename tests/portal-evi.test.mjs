@@ -21,18 +21,20 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 
 test("progress comes only from the model and only when it is plausible", () => {
   const reply = (progress, results = null) => parseEviReply({ message: "Привет", progress, results }, KEYS);
-  assert.deepEqual(reply({ step: 3, total: 6 })?.progress, { step: 3, total: 6 });
+  const max = EVI_LIMITS.maxQuestions;
+  assert.deepEqual(reply({ step: 3, total: max })?.progress, { step: 3, total: max });
   assert.equal(reply(undefined)?.progress, null);
-  assert.equal(reply({ step: 7, total: 6 })?.progress, null, "step past total");
-  assert.equal(reply({ step: 0, total: 6 })?.progress, null);
-  assert.equal(reply({ step: 2.5, total: 6 })?.progress, null);
-  assert.equal(reply({ step: 3, total: EVI_LIMITS.maxQuestions + 1 })?.progress, null);
+  assert.equal(reply({ step: max + 1, total: max })?.progress, null, "step past total");
+  assert.equal(reply({ step: 0, total: max })?.progress, null);
+  assert.equal(reply({ step: 2.5, total: max })?.progress, null);
+  assert.equal(reply({ step: 3, total: max + 1 })?.progress, null);
+  assert.equal(reply({ step: 3, total: 6 })?.progress, null, "the total is always maxQuestions, so the bar never jumps");
   assert.equal(reply("3/6")?.progress, null);
   const results = [
     { cardKey: "software-developer", why: "a" }, { cardKey: "data-scientist", why: "b" }, { cardKey: "physician", why: "c" },
   ];
-  assert.equal(reply({ step: 6, total: 6 }, results)?.progress, null, "the result ends the questions");
-  // «Вопрос 3 из 6» — вторая строка шапки и полоса по её кромке, только когда модель прислала шаг.
+  assert.equal(reply({ step: 6, total: max }, results)?.progress, null, "the result ends the questions");
+  // «Вопрос 3 из 10» — вторая строка шапки и полоса по её кромке, только когда модель прислала шаг.
   const chat = read(`${EVI_DIR}/EviChat.tsx`);
   assert.match(chat, /\{chat\.progress\s*\? formatPortalString\(strings\["evi\.progress"\]/u);
   assert.match(chat, /<i className="pt-evi-line-fill" style=\{\{ transform: `scaleX\(\$\{chat\.progress\.step \/ chat\.progress\.total\}\)` \}\} \/>/u);

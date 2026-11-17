@@ -166,14 +166,17 @@ export function parseEviReply(value: unknown, cardKeys: ReadonlySet<string>): Ev
   return { message, mood, options, multi: value.multi === true && options.length > 1, picks, progress: picks ? null : parseEviProgress(value.progress) };
 }
 
-/** «Вопрос N из M» от модели: целые 1 ≤ step ≤ total ≤ maxQuestions. Иначе null — без полоски, а не выдуманная цифра. */
+/**
+ * «Вопрос N из M» от модели: целые 1 ≤ step ≤ total, а total — ровно maxQuestions, как велит промт (иначе полоса прыгала бы
+ * от ответа к ответу). Иначе null — без полоски, а не выдуманная цифра.
+ */
 export function parseEviProgress(value: unknown): EviProgress | null {
   if (!isPlainObject(value)) return null;
   const { step, total } = value;
   if (!Number.isInteger(step) || !Number.isInteger(total)) return null;
   const s = step as number;
   const t = total as number;
-  return s >= 1 && s <= t && t <= EVI_LIMITS.maxQuestions ? { step: s, total: t } : null;
+  return s >= 1 && s <= t && t === EVI_LIMITS.maxQuestions ? { step: s, total: t } : null;
 }
 
 /**

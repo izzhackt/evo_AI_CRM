@@ -93,6 +93,11 @@ for (const name of EXPECTED_SURFACES) {
       await page.waitForFunction(() =>
         document.getAnimations().every((animation) =>
           animation.playState !== "running" || animation.effect?.getComputedTiming().iterations === Infinity));
+      // Окно Эви с водяными знаками (17.11.2026): axe не видит фон под псевдоэлементом и пропускает контраст, поэтому
+      // текст окна проверяется на сплошном цвете знака — худшем случае.
+      if (name.startsWith("professions-evi")) {
+        await page.addStyleTag({ content: ".pt-evi::before{display:none}.pt-evi{background:var(--pt-evi-mark)}" });
+      }
       const results = await new AxeBuilder({ page })
         .withTags([...WCAG_TAGS])
         .analyze();

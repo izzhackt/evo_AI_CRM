@@ -114,6 +114,17 @@ test("history from the browser: known roles, limits, and the student speaks last
 const EVI_DIR = "src/components/portal/evi";
 const eviFiles = () => readdirSync(new URL(`../${EVI_DIR}`, import.meta.url)).filter((name) => /\.tsx?$/u.test(name));
 const CSS = read("src/app/(portal)/portal.css");
+function luminance(hex) {
+  const [r, g, b] = hex.slice(1).match(/../gu).map((part) => {
+    const value = parseInt(part, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return r * 0.2126 + g * 0.7152 + b * 0.0722;
+}
+const contrast = (fg, bg) => {
+  const values = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+};
 const BASE_MARK = "Эви — ИИ-профориентатор во вкладке";
 const ROBOT_MARK = "Живой Эви (исключение владельца 17.11.2026";
 const MOTION_MARK = "Движение кабинета студента (решение владельца 02.10";
@@ -342,11 +353,45 @@ test("on phone the «Написать EVO» button is hidden on the Эви tab, 
   assert.ok(media > 0 && CSS.indexOf("  .pt-prof-page-evi {\n    display: flex;") > media);
 });
 
+test("the chat window carries the logobook watermark: four motifs in an angled grid, one solid colour, still, the header clean", () => {
+  const rule = /\.pt-evi::before \{([^}]*)\}/u.exec(CSS)?.[1] ?? "";
+  // Один сплошной цвет-токен через маску, без движения и прозрачности; узор не ловит касания.
+  assert.match(rule, /background: var\(--pt-evi-mark\);/u);
+  assert.match(rule, /-webkit-mask: var\(--pt-evi-pattern\) 0 0 \/ 384px 168px repeat;\s*mask: var\(--pt-evi-pattern\) 0 0 \/ 384px 168px repeat;/u);
+  // Ровная сетка под углом: слой вдвое больше окна, повёрнут один раз, без движения.
+  assert.match(rule, /inset: -50%;[\s\S]*transform: rotate\(-20deg\);/u);
+  assert.match(rule, /pointer-events: none;/u);
+  assert.doesNotMatch(rule, /animation|transition|opacity|gradient/u);
+  // Плитка: четыре мотива (знак EVO, шапка, карандаш, самолётик) в одном положении, по два раза (два ряда кирпичиком).
+  const tile = decodeURIComponent(/--pt-evi-pattern: url\("data:image\/svg\+xml,([^"]+)"\);/u.exec(rule)?.[1] ?? "");
+  for (const id of ["s", "c", "p", "a"]) {
+    assert.ok(tile.includes(`<g id='${id}'>`), `motif ${id}`);
+    assert.ok(tile.split(`href='#${id}'`).length - 1 >= 2, `motif ${id} in both rows`);
+  }
+  // Окно — свой слой, узор под содержимым; шапка окна без узора.
+  assert.match(CSS, /\.pt-evi \{\s*--pt-evi-axis: 720px;\s*position: relative;\s*isolation: isolate;/u);
+  assert.match(rule, /z-index: -1;/u);
+  assert.match(CSS, /\.pt-evi-head \{\s*border-bottom: 1px solid var\(--pt-line\);\s*background: var\(--pt-surface\);/u);
+  // Плитка узора определена один раз — только для окна Эви.
+  assert.equal(CSS.split("--pt-evi-pattern:").length - 1, 1);
+  // Цвет знака — сплошной, и текст и рамки на нём читаются в обеих темах.
+  const light = CSS.slice(CSS.indexOf(".pt-shell {"), CSS.indexOf(':root[data-theme="dark"] .pt-shell {'));
+  const dark = CSS.slice(CSS.indexOf(':root[data-theme="dark"] .pt-shell {'));
+  const token = (block, name) => new RegExp(`${name}: (#[0-9a-f]{6});`, "u").exec(block)?.[1];
+  for (const block of [light, dark]) {
+    const mark = token(block, "--pt-evi-mark");
+    assert.match(mark ?? "", /^#[0-9a-f]{6}$/u, "the mark is one solid colour");
+    assert.ok(contrast(token(block, "--pt-text-2"), mark) >= 5, "secondary text on the mark");
+    assert.ok(contrast(token(block, "--pt-error"), mark) >= 5, "error text on the mark");
+    assert.ok(contrast(token(block, "--pt-control-edge"), mark) >= 3, "control edges on the mark");
+  }
+});
+
 test("Эви's colours have a light and a dark value; no backdrop, and the input has no red frame", () => {
   const tokens = [
     "--pt-evi-helmet", "--pt-evi-helmet-hi", "--pt-evi-helmet-lo", "--pt-evi-helmet-rim", "--pt-evi-ring", "--pt-evi-visor",
     "--pt-evi-visor-hi", "--pt-evi-visor-lo", "--pt-evi-eye", "--pt-evi-ear", "--pt-evi-ear-line", "--pt-evi-accent",
-    "--pt-evi-nub-hi", "--pt-evi-nub-lo", "--pt-evi-shine", "--pt-evi-gloss", "--pt-evi-flash", "--pt-evi-bubble",
+    "--pt-evi-nub-hi", "--pt-evi-nub-lo", "--pt-evi-shine", "--pt-evi-gloss", "--pt-evi-flash", "--pt-evi-bubble", "--pt-evi-mark",
   ];
   for (const token of tokens) assert.equal(CSS.split(`${token}:`).length - 1, 2, `${token} has a light and a dark value`);
   // Подсветки нет (решение 17.11.2026): белое окно на обычном фоне кабинета, без градиентов вкладки.

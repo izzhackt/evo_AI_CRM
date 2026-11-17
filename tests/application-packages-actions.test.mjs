@@ -34,7 +34,6 @@ const packageReview = {
 const reviewReceipt = { protocolVersion: 1, requestId: id(14), ...target, packageId: id(9), packageReview };
 const history = { protocolVersion: 1, ...target, packages: [], nextCursor: null };
 const reviewHistory = { protocolVersion: 1, ...target, packageId: id(9), reviews: [], nextCursor: null };
-const queue = { protocolVersion: 1, items: [], nextCursor: null };
 const notification = { protocolVersion: 1, notificationId: id(16), ...target, packageId: id(9), packageReviewId: id(15), review: packageReview };
 const requirements = JSON.parse(readFileSync(new URL('./fixtures/application-requirements-v2.json', import.meta.url), 'utf8')).cases[0].value;
 const readiness = {
@@ -212,13 +211,22 @@ test('scoped readers reject different application and preserve default paginatio
   retain(await malformed.actions.readApplicationPackageHistoryAction(scope, target));
 });
 
-test('staff queue uses existing document read permission and no client assignment filtering', async () => {
-  const h = harness({ studentStatus: 'anonymous', response: { data: queue, error: null } });
-  assert.equal((await h.actions.readStaffApplicationPackageQueueAction(scope)).ok, true);
-  assert.deepEqual(h.permissionsChecked, ['document.read.full']);
-  assert.deepEqual(json(h.calls), [['application_package_queue_v1', { p_cursor: null, p_limit: 20 }]]);
-  const denied = harness({ permissions: [] });
-  assert.equal((await denied.actions.readStaffApplicationPackageQueueAction(scope)).reason, 'forbidden');
+test('the cross-student package queue is not a Server Action (EVO Docs removed 2026-11-17)', async () => {
+  const h = harness({});
+  assert.equal(h.actions.readStaffApplicationPackageQueueAction, undefined);
+  assert.doesNotMatch(actionSource, /application_package_queue_v1/u);
+});
+
+test('staff package reads use the existing document read permission and no client assignment filtering', async () => {
+  const response = name => ({ data: name === 'application_package_readiness_v1' ? readiness : history, error: null });
+  const h = harness({ studentStatus: 'anonymous', response });
+  assert.equal((await h.actions.readStaffApplicationPackageReadinessAction(scope, target, [])).ok, true);
+  assert.equal((await h.actions.readApplicationPackageHistoryAction(scope, target)).ok, true);
+  assert.deepEqual(h.permissionsChecked, ['document.read.full', 'document.read.full']);
+  assert.deepEqual(h.calls.map(([name]) => name), ['application_package_readiness_v1', 'application_package_history_v1']);
+  const denied = harness({ studentStatus: 'anonymous', permissions: ['document.upload', 'document.review'], response });
+  assert.equal((await denied.actions.readStaffApplicationPackageReadinessAction(scope, target, [])).reason, 'forbidden');
+  assert.equal((await denied.actions.readApplicationPackageHistoryAction(scope, target)).reason, 'forbidden');
   assert.equal(denied.calls.length, 0);
 });
 

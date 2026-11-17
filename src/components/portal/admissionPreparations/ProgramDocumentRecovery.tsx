@@ -62,17 +62,16 @@ function RecoverEntry({ entry, scope, audience, strings, onSaved }: {
   </div>;
 }
 
-export function ProgramDocumentRecovery({ scope, audience, currentItemIds, currentSubmissionIds, strings, onSaved, onlyReviews = false }: {
+export function ProgramDocumentRecovery({ scope, audience, currentItemIds, currentSubmissionIds, strings, onSaved }: {
   scope: ProgramDocumentScope; audience: "student" | "staff"; currentItemIds: readonly string[];
   currentSubmissionIds: readonly string[]; strings: ProgramDocumentStrings; onSaved: () => void;
-  onlyReviews?: boolean;
 }) {
   const snapshot = useSyncExternalStore(subscribe, () => {
     try { return JSON.stringify(listApplicationDocumentPending(scope)); } catch { return "unavailable"; }
   }, () => "[]");
   const entries = useMemo(() => snapshot === "unavailable" ? [] : JSON.parse(snapshot) as readonly Entry[], [snapshot]);
-  const hidden = entries.filter(entry => (!onlyReviews || entry.operation === "review") && (entry.blocked || (entry.operation === "review"
-    ? !currentSubmissionIds.includes(entry.target) : !currentItemIds.includes(entry.target))));
+  const hidden = entries.filter(entry => entry.blocked || (entry.operation === "review"
+    ? !currentSubmissionIds.includes(entry.target) : !currentItemIds.includes(entry.target)));
   if (snapshot === "unavailable") return <p className={styles.error} role="alert">{strings.storageUnavailable}</p>;
   if (!hidden.length) return null;
   return <section className={`${styles.root} ${audience === "student" ? styles.portal : ""} ${styles.section}`} aria-label={strings.retry}>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Вымышленный образец рекомендательного письма">
+  <rect width="640" height="400" rx="16" fill="#fff"/>
+  <text x="48" y="52" font-family="Golos Text, system-ui, sans-serif" font-size="16" font-weight="700" fill="#17181c">Учитель Пример Примерұлы</text>
+  <text x="48" y="76" font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#5c616b">Школа № 00 · sample.teacher@example.test</text>
+  <text x="48" y="112" font-family="Golos Text, system-ui, sans-serif" font-size="14" fill="#17181c">Рекомендую Ada Examplekyzy на программу Business.</text>
+  <g stroke="#eceef2" stroke-width="8" stroke-linecap="round"><path d="M48 140h540M48 168h500M48 196h520"/></g>
+  <text x="48" y="280" font-family="Georgia, serif" font-size="22" fill="#1b2a4a">P. Example</text>
+  <path d="M48 292h170" stroke="#17181c"/>
+  <text x="48" y="328" font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#17181c">+996 000 000 000</text>
+  <text x="48" y="364" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample letter · invented teacher</text>
+  <g transform="rotate(-22 340 190)" opacity="0.22"><text x="340" y="200" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="60" font-weight="800">ОБРАЗЕЦ</text></g>
+</svg>

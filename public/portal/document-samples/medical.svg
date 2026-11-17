@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Вымышленный образец медицинской справки">
+  <rect width="640" height="400" rx="16" fill="#f4f8f6"/>
+  <rect x="0" y="0" width="640" height="56" fill="#177245"/>
+  <text x="24" y="35" fill="#fff" font-family="Golos Text, system-ui, sans-serif" font-size="18" font-weight="700">Медицинская справка</text>
+  <text x="616" y="35" text-anchor="end" fill="#d7efe3" font-family="Golos Text, system-ui, sans-serif" font-size="13">02.11.2026</text>
+  <text x="32" y="100" font-family="Golos Text, system-ui, sans-serif" font-size="15" font-weight="700" fill="#173028">EXAMPLEOVA ADA NUR</text>
+  <g stroke="#d5e4db" stroke-width="8" stroke-linecap="round"><path d="M32 128h560M32 156h500M32 184h540"/></g>
+  <circle cx="520" cy="280" r="34" fill="none" stroke="#177245" stroke-width="3"/>
+  <text x="520" y="276" text-anchor="middle" font-size="10" fill="#177245" font-family="Golos Text, system-ui, sans-serif">ПЕЧАТЬ</text>
+  <text x="520" y="290" text-anchor="middle" font-size="10" fill="#177245" font-family="Golos Text, system-ui, sans-serif">ОБРАЗЕЦ</text>
+  <text x="32" y="360" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#5c616b">Sample form · invented record · not a medical document</text>
+  <g transform="rotate(-22 320 210)" opacity="0.26"><text x="320" y="220" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="60" font-weight="800">ОБРАЗЕЦ</text></g>
+</svg>

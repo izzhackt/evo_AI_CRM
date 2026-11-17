@@ -12,6 +12,8 @@ import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { groupProfessionsByScale, searchProfessions } from "@/lib/portal/profession-guide";
 import { ORVIS_SCALE_IDS, type OrvisScaleId, type ProfessionCardSummary } from "@/lib/portal/professions";
 
+import { ProfessionPhoto } from "./ProfessionPhoto";
+
 type Strings = PortalStrings<"professions">;
 
 /**
@@ -104,6 +106,7 @@ function ProfessionTile({ card, locale, strings }: { card: ProfessionCardSummary
   const summary = locale === "ky" ? card.summaryKy : card.summaryRu;
   return (
     <article className="pt-prof-card">
+      <ProfessionPhoto cardKey={card.cardKey} className="pt-prof-photo" />
       <h3 className="pt-prof-title">
         <IntentPrefetchLink href={`/portal/professions/${card.cardId}`}>
           {locale === "ky" ? card.titleKy : card.titleRu}

@@ -41,6 +41,11 @@ for (const extension of [".ts", ".tsx"]) {
   };
 }
 
+// Статические фото (WebP 720 × 405, как у Next StaticImageData): в стенд — встроенным data-URI, чтобы снимки были с фото.
+Module._extensions[".webp"] = (module, filename) => {
+  module.exports = { src: `data:image/webp;base64,${readFileSync(filename).toString("base64")}`, width: 720, height: 405 };
+};
+
 // --- alias "@/..." → src/... (tsconfig paths) --------------------------------
 const originalResolve = Module._resolveFilename;
 Module._resolveFilename = function patchedResolve(request, ...rest) {
@@ -71,10 +76,9 @@ const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/Do
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsBrowser } = require(join(ROOT, "src/components/portal/professions/ProfessionsBrowser.tsx"));
 const { ProfessionMatches } = require(join(ROOT, "src/components/portal/professions/ProfessionMatches.tsx"));
-const { ProfessionsTestHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsTestHero.tsx"));
+const { ProfessionsEviHero } = require(join(ROOT, "src/components/portal/professions/ProfessionsEviHero.tsx"));
 const { ProfessionsTabs } = require(join(ROOT, "src/components/portal/professions/ProfessionsTabs.tsx"));
 const { EviChat } = require(join(ROOT, "src/components/portal/evi/EviChat.tsx"));
-const { EviConsentGate } = require(join(ROOT, "src/components/portal/evi/EviConsentGate.tsx"));
 const { EviRobot } = require(join(ROOT, "src/components/portal/evi/EviRobot.tsx"));
 const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
@@ -518,7 +522,6 @@ const eviCards = [
     cardId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     cardKey: "data-scientist",
     titleRu: "Аналитик данных",
-    orvisScales: ["analysis", "erudition"],
     summaryRu: "Ищет закономерности в данных и помогает принимать решения.",
   },
 ];
@@ -788,10 +791,8 @@ const surfaces = [
         createElement(
           "div",
           null,
-          createElement(ProfessionsTestHero, {
-            state: { questionCount: 92, draftAnswered: 40, completed: false, profile: null },
-            strings: professionsStrings,
-          }),
+          // Верх «Профессий» — вход в подбор с Эви вместо карточки теста (решение владельца 17.11.2026).
+          createElement(ProfessionsEviHero, { strings: professionsStrings }),
           createElement(ProfessionMatches, {
             matches: [{ card: professionCards[0], percent: 87, reasons: ["analysis"] }],
             locale: "ru",
@@ -987,8 +988,8 @@ const surfaces = [
     ),
   },
   // Вкладка «Подбор с Эви» (решение владельца 16.11.2026; сцена и живой робот — 17.11): начало разговора, разговор
-  // в середине (несколько вариантов ответа), итог из трёх профессий каталога, сбой с «Повторить», строка
-  // «разрешите ИИ-помощников» для ученика без согласия и лист выражений робота для просмотра владельцем.
+  // в середине (несколько вариантов ответа), итог из трёх профессий каталога, сбой с «Повторить», Эви без модели и
+  // лист выражений робота для просмотра владельцем. Экрана «разрешите ИИ-помощников» нет: согласие дают при регистрации.
   {
     name: "professions-evi-intro",
     html: renderSurface("Профессии — Эви, начало — a11y", eviPage(createElement(EviChat, { strings: professionsStrings }))),
@@ -1004,7 +1005,7 @@ const surfaces = [
           { role: "user", text: professionsStrings["evi.start"] },
           { role: "assistant", text: "Отлично! В каком ты классе?", mood: "talk" },
           { role: "user", text: "11 класс" },
-          { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy" },
+          { role: "assistant", text: "Самое время выбирать! Какие предметы тебе нравятся больше всего?", mood: "happy", progress: { step: 3, total: 10 } },
         ],
         initialOptions: { options: ["Математика", "Информатика", "Физика", "Биология", "Языки"], multi: true },
       })),
@@ -1024,9 +1025,9 @@ const surfaces = [
             mood: "eureka",
             results: eviCards.map((card, index) => ({
               cardId: card.cardId,
+              cardKey: card.cardKey,
               title: card.titleRu,
               summary: card.summaryRu,
-              scales: card.orvisScales,
               why: ["Ты любишь информатику и уже делаешь сайты и игры.", "Тебе нравится помогать людям и разбираться, как всё устроено.", "Любишь считать и искать закономерности."][index],
             })),
           },
@@ -1050,8 +1051,8 @@ const surfaces = [
     ),
   },
   {
-    name: "professions-evi-consent",
-    html: renderSurface("Профессии — Эви, без согласия — a11y", eviPage(createElement(EviConsentGate, { strings: professionsStrings }))),
+    name: "professions-evi-offline",
+    html: renderSurface("Профессии — Эви, модель не подключена — a11y", eviPage(createElement(EviChat, { strings: professionsStrings, offline: true }))),
   },
   {
     name: "professions-evi-moods",

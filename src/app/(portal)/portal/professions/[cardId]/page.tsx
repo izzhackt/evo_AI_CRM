@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProfessionDetailMore } from "@/components/portal/professions/ProfessionDetailMore";
+import { ProfessionPhoto } from "@/components/portal/professions/ProfessionPhoto";
 import { ProfessionProgramsTable } from "@/components/portal/professions/ProfessionProgramsTable";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
@@ -72,6 +73,7 @@ export default async function ProfessionCardPage({
             {strings.backToGrid}
           </Link>
         </p>
+        <ProfessionPhoto cardKey={card.cardKey} className="pt-prof-detail-photo" eager />
         <h1 className="pt-page-title">{ky ? body.title_ky : body.title_ru}</h1>
         <p className="pt-chip-row">
           {body.orvis_scales.map((scale) => (

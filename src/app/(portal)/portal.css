@@ -168,17 +168,10 @@
   --pt-evi-shine: rgb(255 255 255 / 0.12);
   --pt-evi-gloss: rgb(255 255 255 / 0.55);
   --pt-evi-flash: #c8f6ff;
-  /*
-   * Карточка Эви (исключение владельца 17.11.2026): белый лист с мягкими пятнами бренда без размытия, как в прототипе.
-   * Реплики лежат на непрозрачном --pt-evi-bubble. Самая тёмная точка подсветки ≈ #ffe6e8: текст 14.9, вторичный 5.2,
-   * ошибка 5.5, рамка поля ≥3.0 в нижних 150 px; красного текста на подсветке нет (4.5). Расчёт — tests/portal-evi.test.mjs.
-   */
+  /* Реплики Эви — непрозрачная поверхность. */
   --pt-evi-bubble: #ffffff;
-  --pt-evi-wash:
-    radial-gradient(600px 440px at 0% 0%, rgb(255 59 79 / 0.13), transparent 70%),
-    radial-gradient(520px 480px at 100% 40%, rgb(255 158 174 / 0.2), transparent 70%),
-    radial-gradient(640px 440px at 0% 100%, rgb(255 199 176 / 0.28), transparent 70%),
-    radial-gradient(560px 420px at 100% 100%, rgb(255 59 79 / 0.06), transparent 70%);
+  /* Водяные знаки окна Эви — на ступень темнее поверхности (1.12:1); рамка кнопок на них — 3.05:1. */
+  --pt-evi-mark: #f0f2f4;
 }
 
 /* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
@@ -235,13 +228,10 @@
   --pt-evi-shine: rgb(255 255 255 / 0.12);
   --pt-evi-gloss: rgb(255 255 255 / 0.45);
   --pt-evi-flash: #c8f6ff;
-  /* Реплики на ступень выше поверхности (1.12:1); самая светлая точка подсветки ≈ #392220, вторичный текст на ней 5.4. */
+  /* Реплики на ступень выше поверхности (1.12:1). */
   --pt-evi-bubble: #282521;
-  --pt-evi-wash:
-    radial-gradient(600px 440px at 0% 0%, rgb(255 74 87 / 0.12), transparent 70%),
-    radial-gradient(520px 480px at 100% 40%, rgb(255 74 87 / 0.07), transparent 70%),
-    radial-gradient(640px 440px at 0% 100%, rgb(255 140 110 / 0.06), transparent 70%),
-    radial-gradient(560px 420px at 100% 100%, rgb(255 74 87 / 0.07), transparent 70%);
+  /* Водяные знаки — на ступень светлее поверхности (1.09:1), темнее реплики. */
+  --pt-evi-mark: #252320;
 }
 
 /*
@@ -4635,6 +4625,20 @@ html:has(.pt-program-dialog[open]) {
   margin-top: 8px;
 }
 
+/* Вход в подбор с Эви (17.11.2026): та же карточка, слева неподвижный робот, текст занимает середину. */
+.pt-prof-hero-evi .pt-prof-hero-main {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.pt-prof-hero-robot {
+  flex: none;
+}
+
+.pt-prof-hero-robot .pt-evi-mascot {
+  width: 56px;
+}
+
 /* Блок страницы: заголовок слева, пояснение справа. */
 .pt-prof-block {
   margin-top: 36px;
@@ -4817,6 +4821,22 @@ html:has(.pt-program-dialog[open]) {
   box-shadow: var(--pt-shadow-card);
 }
 
+/*
+ * Фото профессии (17.11.2026): на карточке каталога и в «Подходят вам» — снимок во всю ширину карточки сверху, как в
+ * итоге Эви; сгенерированные фото — исключение контракта, как обложки уроков английского.
+ */
+.pt-prof-photo {
+  display: block;
+  width: calc(100% + 40px);
+  max-width: none;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: -18px -20px 4px;
+  border-radius: calc(var(--pt-radius-card) - 1px) calc(var(--pt-radius-card) - 1px) 0 0;
+  background: var(--pt-skeleton);
+  object-fit: cover;
+}
+
 .pt-prof-title {
   margin: 0;
   font-size: var(--pt-size-body);
@@ -4882,6 +4902,39 @@ html:has(.pt-program-dialog[open]) {
 
 .pt-prof-detail-head .pt-page-title {
   margin-top: 0;
+}
+
+/* Шапка страницы профессии с фото: на телефоне фото сверху, на широком экране — справа от текста. */
+.pt-prof-detail-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 12px 0 16px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-skeleton);
+  box-shadow: var(--pt-shadow-card);
+  object-fit: cover;
+}
+
+@media (min-width: 900px) {
+  .pt-prof-detail-head:has(.pt-prof-detail-photo) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+    column-gap: 32px;
+    align-items: start;
+    max-width: none;
+  }
+
+  .pt-prof-detail-head:has(.pt-prof-detail-photo) > :not(.pt-prof-detail-photo) {
+    grid-column: 1;
+  }
+
+  .pt-prof-detail-photo {
+    grid-row: 1 / span 5;
+    grid-column: 2;
+    margin: 0;
+  }
 }
 
 .pt-prof-detail-head .pt-chip-row {
@@ -10277,23 +10330,66 @@ a.pt-pay-file {
 }
 
 /*
- * Эви — ИИ-профориентатор во вкладке «Подбор с Эви» раздела «Профессии» (решение владельца 16.11.2026). Сцена Эви:
- * белая карточка с мягкой подсветкой бренда (исключение владельца 17.11.2026: --pt-evi-wash — только здесь), одна ось
- * разговора шириной 720 px, без внутренних линий; реплики лежат на непрозрачном --pt-evi-bubble. Робот — иллюстрация
+ * Эви — ИИ-профориентатор во вкладке «Подбор с Эви» раздела «Профессии» (решение владельца 16.11.2026). Белое окно на
+ * обычном сером фоне кабинета, без подсветки (решение 17.11.2026); на телефоне — белый лист от края до края; одна ось
+ * разговора шириной 720 px. Робот — иллюстрация
  * по исключениям контракта (docs/design/portal/design-contract.md, «Исключения 17.11.2026»): цвета токенами, без
  * свечения и фильтров. Здесь — только мгновенная смена выражения; живое движение робота — в блоке «Живой Эви» ниже.
  */
 .pt-evi {
   --pt-evi-axis: 720px;
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  height: min(72dvh, 680px);
+  height: clamp(520px, calc(100dvh - 248px), 860px);
   min-height: 420px;
   overflow: hidden;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
-  background: var(--pt-evi-wash), var(--pt-surface);
+  background: var(--pt-surface);
   box-shadow: var(--pt-shadow-card);
+}
+
+/*
+ * Водяные знаки окна (решение владельца 17.11.2026, design-contract «Исключения 17.11.2026», п. 3): узор №3 logobook
+ * EVO — знак EVO, выпускная шапка, карандаш и бумажный самолётик ровными рядами кирпичиком, весь узор под углом 20°,
+ * одним сплошным цветом на ступень от поверхности. Узор стоит на месте, переписка прокручивается поверх; шапка окна
+ * чистая. Только рисунок: в разметке и для читалки его нет. Плитка — маска 384 × 168, цвет — токен `--pt-evi-mark`;
+ * слой вдвое больше окна и повёрнут, окно обрезает края.
+ */
+.pt-evi::before {
+  --pt-evi-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='384' height='168'%3E%3Cdefs%3E%3Cg id='s'%3E%3Cpath d='M0 91 156 180 312 91 312 270 156 361 0 270Z'/%3E%3Cpath d='M0 91 156 0 156 12 10 97Z'/%3E%3Cpath d='M74 133 228 43 228 55 84 139Z'/%3E%3C/g%3E%3Cg id='c'%3E%3Cpath d='M0 90 160 10 320 90 160 170Z'/%3E%3Cpath d='M60 140 160 190 260 140 260 222Q160 272 60 222Z'/%3E%3Cpath d='M292 104 302 99 302 220 292 220Z'/%3E%3Cpath d='M283 216 311 216 316 262 278 262Z'/%3E%3C/g%3E%3Cg id='p'%3E%3Cpath d='M64 0 270 0 270 60 64 60Z'/%3E%3Cpath d='M284 0 340 30 284 60Z'/%3E%3Cpath d='M18 0 50 0 50 60 18 60Q4 60 4 46L4 14Q4 0 18 0Z'/%3E%3C/g%3E%3Cg id='a'%3E%3Cpath d='M0 118 310 0 112 150Z'/%3E%3Cpath d='M128 160 310 6 236 236Z'/%3E%3Cpath d='M112 168 140 182 104 226Z'/%3E%3C/g%3E%3C/defs%3E%3Cg stroke='%23000' stroke-width='6' stroke-linejoin='round'%3E%3Cuse href='%23s' transform='translate(30.5 21.8) scale(0.112)'/%3E%3Cuse href='%23c' transform='translate(121.6 22.3) scale(0.14)'/%3E%3Cuse href='%23p' transform='translate(213.9 37.5) scale(0.15)'/%3E%3Cuse href='%23a' transform='translate(315.9 26.7) scale(0.13)'/%3E%3Cuse href='%23p' transform='translate(69.9 121.5) scale(0.15)'/%3E%3Cuse href='%23a' transform='translate(171.8 110.7) scale(0.13)'/%3E%3Cuse href='%23s' transform='translate(270.5 105.8) scale(0.112)'/%3E%3Cuse href='%23c' transform='translate(361.6 106.3) scale(0.14)'/%3E%3Cuse href='%23c' transform='translate(-22.4 106.3) scale(0.14)'/%3E%3C/g%3E%3C/svg%3E");
+  content: "";
+  position: absolute;
+  inset: -50%;
+  z-index: -1;
+  background: var(--pt-evi-mark);
+  -webkit-mask: var(--pt-evi-pattern) 0 0 / 384px 168px repeat;
+  mask: var(--pt-evi-pattern) 0 0 / 384px 168px repeat;
+  transform: rotate(-20deg);
+  pointer-events: none;
+}
+
+/*
+ * Шапка окна отделена волосяной линией и не получает водяных знаков. Фон вкладки — обычный серый кабинета, без подсветки
+ * (решение 17.11.2026).
+ */
+.pt-evi-head {
+  border-bottom: 1px solid var(--pt-line);
+  background: var(--pt-surface);
+}
+
+/* Вкладки «Профессий» (каталог и Эви одинаково): белая «пилюля», открытая — тёмная, как выбранный вариант ответа. */
+.pt-prof-page > .pt-pill-tabs {
+  background: var(--pt-surface);
+  box-shadow: 0 0 0 1px var(--pt-line), var(--pt-shadow-card);
+}
+
+.pt-prof-page > .pt-pill-tabs .pt-pill-tab[aria-current="true"] {
+  background: var(--pt-text);
+  box-shadow: none;
+  color: var(--pt-surface);
 }
 
 .pt-evi-head,
@@ -10303,13 +10399,14 @@ a.pt-pay-file {
 }
 
 .pt-evi-head {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 68px;
-  padding-block: 12px;
+  min-height: 60px;
+  padding-block: 8px;
 }
 
 .pt-evi-name {
@@ -10319,17 +10416,102 @@ a.pt-pay-file {
   line-height: 1.3;
 }
 
+/* Вторая строка шапки — что сейчас: роль, «Вопрос 3 из 6» или «печатает» с точками (движение — блок «Эви пишет ответ»). */
 .pt-evi-role {
   margin: 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-evi-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-inline-start: 4px;
+  vertical-align: middle;
+}
+
+.pt-evi-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/*
+ * Шапка разговора: неподвижный робот без подложки (пока Эви пишет — «думающее» лицо), имя и вторая строка, «Новый чат» —
+ * кнопка со значком «новый разговор» и подписью; на телефоне — круглая, подпись остаётся для читалки.
+ */
+.pt-evi-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+
+.pt-evi-avatar .pt-evi-mascot {
+  width: 44px;
+}
+
+.pt-evi-who {
+  flex: 1;
+  min-width: 0;
 }
 
 .pt-evi-new {
-  border-color: var(--pt-control-edge);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px 0 12px;
+  border: 1px solid var(--pt-control-edge);
   border-radius: var(--pt-radius-chip);
   background: var(--pt-surface);
   color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-evi-new:hover {
+  border-color: var(--pt-text);
+}
+
+.pt-evi-new:active {
+  transform: scale(var(--pt-press-scale));
+}
+
+.pt-evi-new:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Прогресс — полоса по нижней кромке шапки поверх волосяной линии: заливка — доля вопросов, пока модель это присылает.
+ * Пока Эви печатает, полоса стоит: бегущую полоску владелец убрал 17.11.2026.
+ */
+.pt-evi-line {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: 3px;
+  overflow: hidden;
+  background: var(--pt-line);
+}
+
+.pt-evi-line-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--pt-accent);
+  transform-origin: left;
+  transition: transform var(--pt-motion-slow) var(--pt-ease-out);
 }
 
 .pt-evi-log {
@@ -10408,18 +10590,89 @@ a.pt-pay-file {
   box-shadow: none;
 }
 
-.pt-evi-thinking {
-  color: var(--pt-text-2);
+/*
+ * Экран приветствия до первого ответа: крупный робот, «Привет! Я Эви» и строка о том, что будет, — по центру сцены;
+ * варианты «Начнём!» и «Как это работает?» — по центру над полем ввода. С первым ответом это обычная переписка.
+ */
+/* margin: auto — по центру, когда место есть; на коротком телефоне блок начинается сверху и не обрезается. */
+.pt-evi-welcome {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 520px;
+  margin: auto;
+  text-align: center;
 }
 
-/* Сбой — строка системы под последним ответом, не словами Эви. */
+.pt-evi-welcome .pt-evi-mascot {
+  width: 128px;
+  margin-bottom: 8px;
+}
+
+.pt-evi-welcome-title {
+  margin: 0;
+  font-size: var(--pt-size-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.pt-evi-welcome-text {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-body);
+  line-height: var(--pt-leading);
+}
+
+.pt-evi[data-intro] :is(.pt-evi-chips, .pt-evi-rail) {
+  justify-content: safe center;
+}
+
+/* Пока Эви печатает — облачко с тремя точками; сам робот рядом «думает» (блок «Живой Эви»). */
+.pt-evi-bubble.pt-evi-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 20px;
+}
+
+.pt-evi-typing i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pt-text-2);
+}
+
+.pt-evi-typing i:nth-of-type(2),
+.pt-evi-dots i:nth-of-type(2) {
+  opacity: 0.6;
+}
+
+.pt-evi-typing i:nth-of-type(3),
+.pt-evi-dots i:nth-of-type(3) {
+  opacity: 0.3;
+}
+
+/*
+ * Сбой — строка системы (не словами Эви) и её одно действие одним блоком по центру над полем ввода, на месте вариантов:
+ * что случилось и что нажать — рядом, под пальцем. На приветствии строку показывает оно само, здесь — только действие.
+ */
+.pt-evi-failure {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-align: center;
+}
+
 .pt-evi-note {
-  align-self: center;
   max-width: min(92%, 520px);
   margin: 0;
   color: var(--pt-error);
   font-size: var(--pt-size-secondary);
-  text-align: center;
+  text-wrap: balance;
 }
 
 .pt-evi-dock {
@@ -10442,15 +10695,20 @@ a.pt-pay-file {
 }
 
 .pt-evi-chip {
-  min-height: 44px;
-  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 20px;
   border: 1px solid var(--pt-control-edge);
   border-radius: var(--pt-radius-chip);
   background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
   color: var(--pt-text);
   font: inherit;
   font-size: var(--pt-size-secondary);
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background-color var(--pt-motion-fast) var(--pt-ease),
@@ -10467,10 +10725,17 @@ a.pt-pay-file {
   transform: scale(var(--pt-press-scale));
 }
 
+/* Галочка не меняет ширину варианта: 20 + 20 = 11 + 11 + 18 (значок 16, зазор 6, сдвиг −4) — соседи не прыгают. */
 .pt-evi-chip[aria-pressed="true"] {
+  padding-inline: 11px;
   border-color: var(--pt-text);
   background: var(--pt-text);
   color: var(--pt-surface);
+}
+
+.pt-evi-chip-check {
+  flex: none;
+  margin-inline-start: -4px;
 }
 
 /* Следующий шаг — одна красная кнопка: «Начнём!», «Готово», «Повторить», «Новый чат». */
@@ -10498,15 +10763,21 @@ a.pt-pay-file {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 4px 4px 4px 18px;
+  padding: 6px 6px 6px 20px;
   border: 1px solid var(--pt-control-edge);
-  border-radius: 26px;
+  border-radius: 28px;
   background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
+  box-shadow: var(--pt-shadow-raised);
 }
 
+/* Фокус поля — тёмная обводка всего поля (без красного, решение 17.11.2026); прямоугольная рамка textarea не рисуется. */
 .pt-evi-composer:focus-within {
-  border-color: var(--pt-accent);
+  border-color: var(--pt-text);
+  box-shadow: 0 0 0 1px var(--pt-text), var(--pt-shadow-raised);
+}
+
+.pt-page .pt-evi-input:focus-visible {
+  outline: none;
 }
 
 .pt-evi-input {
@@ -10556,41 +10827,67 @@ a.pt-pay-file {
   cursor: default;
 }
 
-.pt-evi-error {
-  margin: 0;
-  color: var(--pt-error);
-  font-size: var(--pt-size-secondary);
+/*
+ * Три профессии — карточки с фото под репликой «Придумал!»: три в ряд, когда переписка шире 600 px, иначе — лента с
+ * прокруткой вбок от края до края. Фото — снимок профессии (сгенерирован, как обложки уроков английского), номер —
+ * красный кружок на фото. Вся карточка — одна ссылка на профессию.
+ */
+.pt-evi-results-block {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 
-/*
- * Три профессии — пьедестал под репликой «Придумал!». Первая — во всю ширину оси в облике шапки «Главной» (графит,
- * красные градиенты --pt-hero-*, знак EVO; белый 17.4:1, приглушённый 10.5:1), вторая и третья — рядом, когда переписка
- * шире 560 px. Крупная цифра — графика: место читается из нумерованного списка. Вся карточка — одна ссылка.
- */
+.pt-evi-results-title {
+  margin: 8px 0 0;
+  font-size: var(--pt-size-title);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
 .pt-evi-results {
   display: grid;
   gap: 12px;
   width: 100%;
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-@container pt-evi-log (min-width: 560px) {
+@container pt-evi-log (min-width: 600px) {
   .pt-evi-results {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container pt-evi-log (max-width: 599px) {
+  .pt-evi-results {
+    grid-auto-columns: 78%;
+    grid-auto-flow: column;
+    width: auto;
+    margin-inline: -16px;
+    padding: 4px 16px 8px;
+    overflow-x: auto;
+    scroll-padding-inline: 16px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
   }
 
-  .pt-evi-result[data-rank="1"] {
-    grid-column: 1 / -1;
+  .pt-evi-results::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pt-evi-result {
+    scroll-snap-align: start;
   }
 }
 
 .pt-evi-result {
   position: relative;
   display: flex;
-  gap: 16px;
-  padding: 20px;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-evi-bubble);
@@ -10606,37 +10903,53 @@ a.pt-pay-file {
   outline-offset: 2px;
 }
 
+.pt-evi-result-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: var(--pt-skeleton);
+}
+
+.pt-evi-result-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .pt-evi-result-n {
-  flex: none;
-  min-width: 0.7em;
-  color: var(--pt-accent);
-  font-size: 44px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 0.9;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--pt-accent);
+  box-shadow: var(--pt-shadow-card);
+  color: var(--pt-on-accent);
+  font-size: var(--pt-size-secondary);
+  font-weight: 700;
 }
 
 .pt-evi-result-body {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
+  gap: 6px;
+  padding: 14px 16px 16px;
 }
 
 .pt-evi-result-title {
   margin: 0;
-  font-size: var(--pt-size-heading);
+  font-size: var(--pt-size-body);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
 .pt-evi-result-title a {
-  color: inherit;
+  color: var(--pt-text);
   text-decoration: none;
 }
 
@@ -10646,6 +10959,11 @@ a.pt-pay-file {
   inset: 0;
   z-index: 1;
   border-radius: var(--pt-radius-card);
+}
+
+.pt-evi-result-title a:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
 }
 
 @supports selector(:has(a)) {
@@ -10662,94 +10980,9 @@ a.pt-pay-file {
 }
 
 .pt-evi-result-why {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: var(--pt-size-secondary);
   line-height: var(--pt-leading);
-}
-
-.pt-evi-result-go {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  margin-top: auto;
-  padding: 0 14px;
-  border: 1px solid var(--pt-control-edge);
-  border-radius: var(--pt-radius-chip);
-  color: var(--pt-text);
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-}
-
-/* Первая профессия — как шапка «Главной»: знак EVO под текстом (isolation + z-index -1), красная кромка сверху. */
-.pt-evi-result[data-rank="1"] {
-  isolation: isolate;
-  overflow: hidden;
-  padding: 24px 28px;
-  border-color: transparent;
-  border-top: 3px solid var(--pt-brand-red);
-  background: var(--pt-hero-wash), var(--pt-hero-bg);
-  color: var(--pt-hero-ink);
-}
-
-.pt-evi-result[data-rank="1"]::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  top: -30px;
-  right: -36px;
-  width: 220px;
-  height: 220px;
-  background: var(--pt-hero-mark);
-  -webkit-mask: var(--pt-evo-mark-shape) no-repeat center / contain;
-  mask: var(--pt-evo-mark-shape) no-repeat center / contain;
-  pointer-events: none;
-}
-
-.pt-evi-result[data-rank="1"] .pt-evi-result-n {
-  color: var(--pt-brand-red);
-  font-size: 56px;
-}
-
-.pt-evi-result[data-rank="1"] .pt-evi-result-title {
-  font-size: var(--pt-size-title);
-}
-
-.pt-evi-result[data-rank="1"] .pt-evi-result-what {
-  color: var(--pt-hero-muted);
-}
-
-/* Интересы — чипы каталога (.pt-chip); на графите — в тонах шапки. */
-.pt-evi-result[data-rank="1"] .pt-chip {
-  border-color: var(--pt-hero-line);
-  background: var(--pt-hero-mark);
-  color: var(--pt-hero-ink);
-}
-
-.pt-evi-result[data-rank="1"] .pt-evi-result-go {
-  border-color: var(--pt-hero-ink);
-  background: var(--pt-hero-ink);
-  color: var(--pt-hero-bg);
-}
-
-.pt-evi-gate {
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  height: auto;
-  min-height: 360px;
-  padding: 32px 20px;
-  text-align: center;
-}
-
-.pt-evi-gate .pt-evi-mascot {
-  width: 96px;
-}
-
-.pt-evi-gate-line {
-  max-width: 40ch;
-  margin: 0;
-  color: var(--pt-text-2);
 }
 
 /* Робот: рисунок токенами, у градиентов шлема, визора и антенны — цвета на <stop>. */
@@ -10889,9 +11122,16 @@ a.pt-pay-file {
     padding-bottom: 0;
   }
 
-  /* Кнопка «Написать EVO» у ученика с сопровождением стоит над нижней панелью — поле ввода заканчивается выше неё. */
-  .pt-shell[data-chat-fab] .pt-prof-page-evi {
-    height: calc(100dvh - var(--pt-topbar-height) - 150px - env(safe-area-inset-bottom));
+  /*
+   * «Написать EVO» на вкладке Эви не висит под полем ввода (решение владельца 17.11.2026, как в «Сообщениях»): у Эви
+   * своё поле, а «Сообщения» — в нижней панели. Запас под кнопку внизу тоже не нужен — переписке остаётся больше места.
+   */
+  .pt-shell:has(.pt-prof-page-evi) .pt-chat-fab {
+    display: none;
+  }
+
+  .pt-shell[data-chat-fab]:has(.pt-prof-page-evi) .pt-content {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 
   .pt-prof-page-evi > .pt-pill-tabs {
@@ -10915,6 +11155,21 @@ a.pt-pay-file {
     padding-inline: 16px;
   }
 
+  .pt-evi-new {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+
+  .pt-evi-new-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .pt-evi-row {
     gap: 10px;
   }
@@ -10933,16 +11188,12 @@ a.pt-pay-file {
     top: 14px;
   }
 
-  .pt-evi-result[data-rank="1"] {
-    padding: 20px;
+  .pt-evi-welcome .pt-evi-mascot {
+    width: 104px;
   }
 
-  .pt-evi-result[data-rank="1"] .pt-evi-result-n {
-    font-size: 44px;
-  }
-
-  .pt-evi-result[data-rank="1"] .pt-evi-result-title {
-    font-size: var(--pt-size-heading);
+  .pt-evi-welcome-title {
+    font-size: var(--pt-size-title);
   }
 
   .pt-evi-chips {
@@ -11087,6 +11338,12 @@ a.pt-pay-file {
     animation: pt-evi-bob 3.4s ease-in-out infinite;
   }
 
+  /* Аватар в шапке чата — неподвижный: двигается только робот у реплики. */
+  .pt-evi-mascot[data-still],
+  .pt-evi-mascot[data-still] * {
+    animation: none;
+  }
+
   .pt-evi-mascot:is([data-mood="idle"], [data-mood="talk"]) .pt-evi-lids {
     animation: pt-evi-blink 4.6s infinite;
   }
@@ -11099,15 +11356,15 @@ a.pt-pay-file {
     animation: pt-evi-nod 500ms ease-in-out infinite alternate;
   }
 
-  .pt-evi-mascot[data-mood="thinking"] .pt-evi-eyes {
+  .pt-evi-mascot:not([data-still])[data-mood="thinking"] .pt-evi-eyes {
     animation: pt-evi-scan 1.4s ease-in-out infinite;
   }
 
-  .pt-evi-mascot[data-mood="thinking"] .pt-evi-robot-head {
+  .pt-evi-mascot:not([data-still])[data-mood="thinking"] .pt-evi-robot-head {
     animation: pt-evi-tilt 2.8s ease-in-out infinite;
   }
 
-  .pt-evi-mascot[data-mood="thinking"] .pt-evi-nub {
+  .pt-evi-mascot:not([data-still])[data-mood="thinking"] .pt-evi-nub {
     animation: pt-evi-pulse 1s ease-in-out infinite;
   }
 
@@ -11133,6 +11390,43 @@ a.pt-pay-file {
 
   .pt-evi-mascot:not([data-settled])[data-mood="eureka"] .pt-evi-nub {
     animation: pt-evi-pulse 500ms ease-in-out 4;
+  }
+}
+
+/*
+ * Эви пишет ответ (исключение владельца 17.11.2026, docs/design/portal/design-contract.md «Исключения 17.11.2026», п. 4):
+ * пока идёт настоящий запрос, три точки в облачке переписки и в шапке («печатает») бегут волной. Точки есть на экране
+ * только во время запроса, поэтому и движение — только тогда. Всё внутри no-preference: при «уменьшить движение» точки
+ * стоят ступенями яркости, «печатает» сказано словом.
+ */
+@keyframes pt-evi-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pt-evi-typing i,
+  .pt-evi-dots i {
+    animation: pt-evi-dot 1.2s ease-in-out infinite;
+  }
+
+  .pt-evi-typing i:nth-of-type(2),
+  .pt-evi-dots i:nth-of-type(2) {
+    animation-delay: 150ms;
+  }
+
+  .pt-evi-typing i:nth-of-type(3),
+  .pt-evi-dots i:nth-of-type(3) {
+    animation-delay: 300ms;
   }
 }
 
@@ -11328,11 +11622,25 @@ a.pt-pay-file {
 }
 
 /*
- * Разговор с Эви: новая реплика, ответ ученика и строка сбоя поднимаются тем же входом, что карточки кабинета; три
- * профессии входят стаггером списков выше (0, 30, 60 мс).
+ * Разговор с Эви: новая реплика, ответ ученика и блок сбоя поднимаются тем же входом, что карточки кабинета; три
+ * профессии входят по одной (ниже).
  */
-.pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note) {
+.pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine),
+.pt-evi-failure {
   animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+/* Итог Эви: заголовок «Твои профессии» входит сразу, три карточки — по одной с шагом 100 мс (последняя — к 400 мс). */
+.pt-evi-results-title {
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-evi-results > li:nth-child(2) {
+  animation-delay: var(--pt-motion-press);
+}
+
+.pt-evi-results > li:nth-child(3) {
+  animation-delay: calc(var(--pt-motion-press) * 2);
 }
 
 /*
@@ -11498,7 +11806,9 @@ a.pt-pay-file {
     .pt-lesson-list,
     .pt-evi-results
   ) > *,
-  .pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine, .pt-evi-note),
+  .pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine),
+  .pt-evi-failure,
+  .pt-evi-results-title,
   .pt-check[data-fresh] .pt-check-path,
   .pt-favorite-icon[data-pop] {
     animation: none;

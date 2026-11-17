@@ -5,8 +5,6 @@
  * «Повторить», выдуманного ответа нет.
  */
 
-import type { OrvisScaleId } from "./professions";
-
 /** Мимика маскота: каждая — настоящее состояние разговора, а не украшение. */
 export const EVI_MOODS = ["talk", "happy", "wow", "thinking", "eureka"] as const;
 export type EviMood = (typeof EVI_MOODS)[number];
@@ -22,7 +20,12 @@ export const EVI_LIMITS = {
   maxOptionChars: 60,
   maxWhyChars: 400,
   results: 3,
+  /** Вопросов в разговоре не больше — граница для «Вопрос N из M». */
+  maxQuestions: 10,
 } as const;
+
+/** Где разговор: «Вопрос step из total». Только от модели; нет или неверно — полоски нет. */
+export type EviProgress = Readonly<{ step: number; total: number }>;
 
 export type EviTurn = Readonly<{ role: "user" | "assistant"; content: string }>;
 
@@ -36,20 +39,16 @@ export type EviReply = Readonly<{
   multi: boolean;
   /** Ровно три карточки каталога или null, пока Эви ещё спрашивает. */
   picks: readonly EviPick[] | null;
+  /** «Вопрос N из M», если модель его прислала и он правдоподобен; с итогом — null. */
+  progress: EviProgress | null;
 }>;
 
 /**
- * Направление, готовое к показу: карточка каталога, её название, строка «чем занимается» на языке кабинета и интересы
- * теста, с которыми она связана (всё — из самой карточки, не от модели; пустое не рисуется), и объяснение Эви, почему
- * подходит.
+ * Направление, готовое к показу: карточка каталога (id и ключ — по ключу находится фото профессии), её название и
+ * строка «чем занимается» на языке кабинета (из самой карточки, не от модели; null — не рисуется) и объяснение Эви,
+ * почему подходит.
  */
-export type EviResult = Readonly<{
-  cardId: string;
-  title: string;
-  summary: string | null;
-  scales: readonly OrvisScaleId[];
-  why: string;
-}>;
+export type EviResult = Readonly<{ cardId: string; cardKey: string; title: string; summary: string | null; why: string }>;
 
 export type EviAnswer = Readonly<{
   message: string;
@@ -57,6 +56,7 @@ export type EviAnswer = Readonly<{
   options: readonly string[];
   multi: boolean;
   results: readonly EviResult[] | null;
+  progress: EviProgress | null;
 }>;
 
 export type EviFailure = "consent" | "unavailable" | "limit" | "busy" | "invalid" | "error";
@@ -65,15 +65,20 @@ export type EviActionResult =
   | Readonly<{ ok: true; answer: EviAnswer }>
   | Readonly<{ ok: false; reason: EviFailure }>;
 
-/** Одно действие, которым ученик выходит из сбоя: повторить тот же вопрос, начать заново или разрешить ИИ-помощников. */
+/**
+ * Одно действие, которым ученик выходит из сбоя: повторить тот же вопрос, начать заново или, пока Эви недоступен,
+ * открыть каталог профессий (поле ввода тогда закрыто — сообщения без ответа не копятся). Согласие на ИИ-помощников
+ * ученик даёт при регистрации, на рабочих экранах его не спрашивают (решения владельца 07.11 и 14.11.2026, повторено
+ * 17.11): отозвал его посреди разговора — для Эви это то же «недоступен».
+ */
 export const EVI_FAILURE_ACTION = {
   error: "retry",
   busy: "retry",
   limit: "restart",
   invalid: "restart",
-  consent: "allow",
-  unavailable: null,
-} as const satisfies Record<EviFailure, "retry" | "restart" | "allow" | null>;
+  consent: "catalog",
+  unavailable: "catalog",
+} as const satisfies Record<EviFailure, "retry" | "restart" | "catalog">;
 
 /**
  * Такт робота (исключение владельца 17.11.2026): сначала реакция на новый ответ, потом «говорит» по длине реплики,
@@ -81,6 +86,8 @@ export const EVI_FAILURE_ACTION = {
  */
 export const EVI_BEAT = {
   react: { happy: 900, wow: 900, eureka: 2400 },
+  /** Короткая радость на действие ученика: выбрал вариант, отправил ответ. */
+  poke: 700,
   perWord: 60,
   base: 400,
   speakMin: 800,
@@ -156,12 +163,27 @@ export function parseEviReply(value: unknown, cardKeys: ReadonlySet<string>): Ev
     }
   }
   const mood: EviMood = picks !== null ? "eureka" : isEviMood(value.mood) && value.mood !== "eureka" ? value.mood : "talk";
-  return { message, mood, options, multi: value.multi === true && options.length > 1, picks };
+  return { message, mood, options, multi: value.multi === true && options.length > 1, picks, progress: picks ? null : parseEviProgress(value.progress) };
 }
 
 /**
- * История разговора из браузера: только роли user/assistant с непустым текстом в пределах лимитов, последнее —
- * сообщение ученика, не длиннее `maxTurns`. Иначе null (лимит разговора отличается отдельно — `historyTooLong`).
+ * «Вопрос N из M» от модели: целые 1 ≤ step ≤ total, а total — ровно maxQuestions, как велит промт (иначе полоса прыгала бы
+ * от ответа к ответу). Иначе null — без полоски, а не выдуманная цифра.
+ */
+export function parseEviProgress(value: unknown): EviProgress | null {
+  if (!isPlainObject(value)) return null;
+  const { step, total } = value;
+  if (!Number.isInteger(step) || !Number.isInteger(total)) return null;
+  const s = step as number;
+  const t = total as number;
+  return s >= 1 && s <= t && t === EVI_LIMITS.maxQuestions ? { step: s, total: t } : null;
+}
+
+/**
+ * История разговора из браузера: только роли user/assistant с непустым текстом в пределах лимитов, первое — реплика
+ * Эви (приветствие), последнее — сообщение ученика, не длиннее `maxTurns`. Иначе null (лимит разговора отличается
+ * отдельно — `historyTooLong`). Первое сообщение запроса к модели — заметка кабинета; история с репликой ученика
+ * в начале слилась бы с ней.
  */
 export function parseEviHistory(value: unknown): EviTurn[] | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > EVI_LIMITS.maxTurns) return null;
@@ -173,7 +195,7 @@ export function parseEviHistory(value: unknown): EviTurn[] | null {
     if (content === null) return null;
     turns.push({ role: item.role, content });
   }
-  return turns[turns.length - 1]?.role === "user" ? turns : null;
+  return turns[0]?.role === "assistant" && turns[turns.length - 1]?.role === "user" ? turns : null;
 }
 
 export function historyTooLong(value: unknown): boolean {

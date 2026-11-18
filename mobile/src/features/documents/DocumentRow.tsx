@@ -12,6 +12,7 @@ import { useInvalidateAfterUpload } from "@/api/queries";
 import { documentChecklistIcon, documentReviewText, documentStatusLabel, documentStatusTone, type PickSource } from "@/domain/documents-model";
 import type { StudentPortalDocument } from "@/domain/portal-source";
 import { formatPortalDeadline, formatPortalTimestamp } from "@/domain/presentation";
+import { DocumentGuideButton, guideFor, type GuideAction } from "@/features/documents/DocumentGuide";
 import { downloadFile, type DownloadErrorKey } from "@/features/documents/download";
 import type { DocumentsIo } from "@/features/documents/io";
 import { SourceSheet } from "@/features/documents/SourceSheet";
@@ -27,6 +28,10 @@ import { Text } from "@/ui/Text";
 const ICONS = { file: FileText, clock: Clock, check: Check, alert: AlertTriangle } as const;
 
 type Notice = Readonly<{ kind: "camera"; canAskAgain: boolean }> | Readonly<{ kind: "pick" }> | Readonly<{ kind: "download"; error: DownloadErrorKey }> | null;
+
+function fileLabelFor(document: StudentPortalDocument, fallback: string): string {
+  return document.originalFilename ?? fallback;
+}
 
 export function DocumentRow({ document, io, first = false, highlighted = false }: { document: StudentPortalDocument; io: DocumentsIo; first?: boolean; highlighted?: boolean }) {
   const { lang, m, t, format } = useLang();
@@ -44,7 +49,9 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
   const busy = upload.status === "uploading" || upload.status === "confirming";
   const status = documentStatusLabel(document.status, strings);
   const Icon = ICONS[documentChecklistIcon(document.status)];
-  const hint = document.instructions ?? defaultDocumentHint(document.requirementLabel, lang);
+  // Общая подсказка уходит в лист «Что это за документ», если справка есть (веб: DocumentsView.tsx). Своя инструкция куратора остаётся в строке.
+  const guide = guideFor(document.requirementLabel, document.requirementKey, lang);
+  const hint = document.instructions ?? (guide ? null : defaultDocumentHint(document.requirementLabel, lang));
   const deadline = formatPortalDeadline(document.deadline);
   const submitted = formatPortalTimestamp(document.submittedAt);
   const review = documentReviewText(document, strings);
@@ -91,6 +98,16 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
     setDownloading(false);
   };
 
+  // Принятый документ заменить нельзя: в листе справки у него «Скачать», у остальных «Загрузить» / «Заменить».
+  const guideAction: GuideAction | null =
+    document.status === "approved"
+      ? document.documentVersionId
+        ? { label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: fileLabelFor(document, strings.lastFileFallback) }), onPress: () => void onDownload(), testID: `guide-download-${document.documentSlotId}` }
+        : null
+      : busy
+        ? null
+        : { label: document.documentVersionId ? strings.replaceButton : strings.uploadButton, onPress: () => setSheet(true), testID: `guide-upload-${document.documentSlotId}` };
+
   const feedback =
     upload.status === "uploading"
       ? format(m("docs.progress"), { percent: String(upload.progress) })
@@ -121,9 +138,12 @@ export function DocumentRow({ document, io, first = false, highlighted = false }
         <Icon size={18} strokeWidth={1.75} color={tokens.accent} />
       </View>
       <View style={{ flex: 1, gap: 6 }}>
-        <Text variant="body" bold accessibilityRole="header">
-          {document.requirementLabel}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
+          <Text variant="body" bold accessibilityRole="header" style={{ flexShrink: 1 }}>
+            {document.requirementLabel}
+          </Text>
+          <DocumentGuideButton label={document.requirementLabel} requirementKey={document.requirementKey} statusLabel={status} statusTone={documentStatusTone(document.status)} action={guideAction} testID={`guide-${document.documentSlotId}`} />
+        </View>
         <StatusPill label={status} tone={documentStatusTone(document.status)} testID={`status-${document.documentSlotId}`} />
         {hint ? (
           <Text variant="secondary" tone="text2">

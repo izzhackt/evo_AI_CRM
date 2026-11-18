@@ -9,7 +9,7 @@ import { minorToReceiptInput, type PaymentCenter, type PaymentEntry } from "@web
 
 import { usePortalApi } from "@/api/PortalApi";
 import { usePaymentCenter, useRefetchOnFocus } from "@/api/queries";
-import { paymentCategoryLabel, paymentStatusPresentation } from "@/domain/payments-model";
+import { canAttachProof, howToPayAmount, paymentCategoryLabel, paymentStatusPresentation } from "@/domain/payments-model";
 import { formatPortalDeadline, formatPortalMoney } from "@/domain/presentation";
 import { EntryRow } from "@/features/payments/EntryRow";
 import { HowToPayCard } from "@/features/payments/HowToPayCard";
@@ -121,7 +121,7 @@ export function PaymentsScreen({ io = nativePaymentsIo }: { io?: PaymentsIo }) {
           )
         ) : (
           <>
-            {data.details ? <HowToPayCard key={data.details.qrId ?? "text"} details={data.details} io={io} /> : null}
+            {data.details ? <HowToPayCard key={data.details.qrId ?? "text"} details={data.details} amount={howToPayAmount(data.dues)} io={io} /> : null}
 
             {isEmpty ? (
               <Card>
@@ -192,6 +192,7 @@ export function PaymentsScreen({ io = nativePaymentsIo }: { io?: PaymentsIo }) {
                                 io={io}
                                 first={entryIndex === 0}
                                 testID={`payment-${index}-entry-${entryIndex}`}
+                                proofIo={canAttachProof(entry, data.canUpload) ? io : null}
                                 onAttachAgain={data.canUpload ? () => open({ target, obligationId: payment.obligationId, currency: payment.currency, amount: minorToReceiptInput(entry.amountMinor), date: entry.onDate }) : null}
                               />
                             ))}

@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import type { PaymentsIo } from "@/features/payments/io";
+import type { ProofAttempt } from "@/features/payments/proof-upload";
 import type { ReceiptAttempt, ReceiptResponse } from "@/features/payments/receipt-upload";
 import { PaymentsScreen } from "@/features/payments/PaymentsScreen";
 import { OBLIGATION_ID, QR_ID, RECEIPT_FILE_ID, paymentCenterRow, paymentDueRow, paymentEntryRow } from "@/test-fixtures/rpc-rows";
@@ -18,14 +19,17 @@ jest.mock("@/features/documents/native", () => ({
   createDownloadDeps: jest.fn(),
   openLocalFile: jest.fn(),
 }));
-jest.mock("@/features/payments/native", () => ({ createReceiptSend: jest.fn() }));
+jest.mock("@/features/payments/native", () => ({ createReceiptSend: jest.fn(), createProofSend: jest.fn(), copyText: jest.fn() }));
 
 const navigate = router.navigate as jest.Mock;
 const ACK: ReceiptResponse = { status: 201, body: { receipt_id: "e5555555-5555-4555-8555-555555555555", status: "pending" } };
 const REJECTED_ID = "d4444444-4444-4444-8444-444444444445";
 
-function makeIo(responses: ReceiptResponse[] = [ACK]) {
+function makeIo(responses: ReceiptResponse[] = [ACK], proofResponses: ReceiptResponse[] = []) {
   const attempts: ReceiptAttempt[] = [];
+  const proofs: ProofAttempt[] = [];
+  const copied: string[] = [];
+  const copyResult = { ok: true };
   const downloads: string[] = [];
   const opened: string[] = [];
   const io: PaymentsIo = {
@@ -35,6 +39,14 @@ function makeIo(responses: ReceiptResponse[] = [ACK]) {
       attempts.push(attempt);
       return responses.shift() ?? { status: 503, body: null };
     },
+    createProofSend: () => async (attempt) => {
+      proofs.push(attempt);
+      return proofResponses.shift() ?? { status: 503, body: null };
+    },
+    copyText: jest.fn(async (value: string) => {
+      copied.push(value);
+      return copyResult.ok;
+    }),
     createDownloadDeps: () => ({
       baseUrl: "https://portal.example.test",
       getToken: async () => "t",
@@ -46,7 +58,7 @@ function makeIo(responses: ReceiptResponse[] = [ACK]) {
     }),
     openLocalFile: jest.fn(async (uri: string) => void opened.push(uri)),
   };
-  return { io, attempts, downloads, opened };
+  return { io, attempts, downloads, opened, proofs, copied, copyResult };
 }
 
 beforeEach(() => navigate.mockClear());
@@ -134,6 +146,140 @@ describe("Оплата: «Как оплатить»", () => {
     expect(await screen.findByText("Только текст")).toBeTruthy();
     expect(screen.queryByTestId("how-to-pay-qr")).toBeNull();
     expect(downloads).toHaveLength(0);
+  });
+});
+
+const BANK_TEXT = "Банк: KICB (Kyrgyz Commercial Bank)\nПолучатель: Test Recipient\nТелефон: +996 700 000 000\nСчёт: 0000 0000";
+const withQr = { text: BANK_TEXT, has_qr: true, qr_id: QR_ID, updated_at: "2026-11-01T08:00:00+00:00" };
+
+describe("Оплата: «Как оплатить» как на сайте (#1476)", () => {
+  it("поля банк, получатель, телефон, сумма и остальной текст; сумма - остаток транша и срок", async () => {
+    const { transport } = center({ details: withQr });
+    await renderPortal(<PaymentsScreen io={makeIo().io} />, testApi(transport));
+    expect(await screen.findByText("Как оплатить")).toBeTruthy();
+    expect(screen.getByTestId("how-to-pay-bank-value")).toHaveTextContent("KICB (Kyrgyz Commercial Bank)");
+    expect(screen.getByTestId("how-to-pay-recipient-value")).toHaveTextContent("Test Recipient");
+    expect(screen.getByTestId("how-to-pay-phone-value")).toHaveTextContent("+996 700 000 000");
+    // остаток 60 USD минус чек на 40 на проверке = 20 к оплате; «до 01.12.2026»
+    expect(screen.getByTestId("how-to-pay-amount-value").props.children).toContain("20");
+    expect(screen.getByText("до 01.12.2026")).toBeTruthy();
+    expect(screen.getByTestId("how-to-pay-text")).toHaveTextContent("Счёт: 0000 0000");
+    expect(screen.getByText("Сумма к оплате")).toBeTruthy();
+  });
+
+  it("«Скопировать»: телефон без пробелов, сумма числом; подтверждение «Скопировано»", async () => {
+    const { transport } = center({ details: withQr });
+    const { io, copied } = makeIo();
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("how-to-pay-phone-copy"));
+    await waitFor(() => expect(copied).toEqual(["+996700000000"]));
+    expect(await screen.findByTestId("how-to-pay-phone-feedback")).toHaveTextContent("Скопировано");
+    await fireEvent.press(screen.getByTestId("how-to-pay-amount-copy"));
+    await waitFor(() => expect(copied).toEqual(["+996700000000", "20"]));
+    await fireEvent.press(screen.getByTestId("how-to-pay-bank-copy"));
+    await waitFor(() => expect(copied[2]).toBe("KICB (Kyrgyz Commercial Bank)"));
+    expect(screen.getByTestId("how-to-pay-bank-copy").props.accessibilityLabel).toBe("Скопировать банк");
+  });
+
+  it("система не дала записать в буфер: «Не удалось скопировать»", async () => {
+    const { transport } = center({ details: withQr });
+    const { io, copyResult } = makeIo();
+    copyResult.ok = false;
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("how-to-pay-recipient-copy"));
+    expect(await screen.findByTestId("how-to-pay-recipient-feedback")).toHaveTextContent("Не удалось скопировать");
+  });
+
+  it("крупный QR: подпись банка, «Скачать QR» открывает файл, «На весь экран» открывает окно с большим QR", async () => {
+    const { transport } = center({ details: withQr });
+    const { io, opened } = makeIo();
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    const qr = await screen.findByTestId("how-to-pay-qr");
+    expect(qr.props.style.width).toBeGreaterThanOrEqual(220);
+    expect(screen.getByTestId("how-to-pay-qr-brand")).toHaveTextContent("KICB");
+    await fireEvent.press(screen.getByTestId("how-to-pay-qr-download"));
+    await waitFor(() => expect(opened).toHaveLength(1));
+    expect(opened[0]).toMatch(/payment-qr/);
+    expect(screen.queryByTestId("how-to-pay-qr-large")).toBeNull();
+    await fireEvent.press(screen.getByTestId("how-to-pay-qr-full"));
+    expect(await screen.findByTestId("how-to-pay-qr-large")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("how-to-pay-qr-close"));
+    await waitFor(() => expect(screen.queryByTestId("how-to-pay-qr-large")).toBeNull());
+  });
+
+  it("всё оплачено: строки «Сумма к оплате» нет", async () => {
+    const paid = paymentDueRow({ paid_minor: 10000, outstanding_minor: 0, derived_status: "paid", entries: [] });
+    const { transport } = center({ details: withQr, dues: [paid] });
+    await renderPortal(<PaymentsScreen io={makeIo().io} />, testApi(transport));
+    await screen.findByText("Как оплатить");
+    expect(screen.queryByTestId("how-to-pay-amount")).toBeNull();
+    expect(screen.getByTestId("how-to-pay-bank")).toBeTruthy();
+  });
+});
+
+describe("Оплата: чек к уже принятой оплате (#1458)", () => {
+  const ACCEPTED_ID = "d4444444-4444-4444-8444-444444444450";
+  const acceptedNoFile = paymentEntryRow({ kind: "payment", status: "accepted", entry_id: ACCEPTED_ID, file_kind: null, file_id: null, filename: null });
+  const PROOF_OK: ReceiptResponse = { status: 201, body: { payment_receipt_file_id: RECEIPT_FILE_ID, original_filename: "chek.jpg" } };
+
+  it("кнопка только у принятой оплаты без файла и только при canUpload", async () => {
+    const withFile = paymentEntryRow({ kind: "payment", status: "accepted", entry_id: "d4444444-4444-4444-8444-444444444451", file_kind: "receipt" });
+    const review = paymentEntryRow({ kind: "receipt", status: "review", entry_id: "d4444444-4444-4444-8444-444444444452" });
+    const { transport } = center({ dues: [paymentDueRow({ entries: [acceptedNoFile, withFile, review] })] });
+    await renderPortal(<PaymentsScreen io={makeIo().io} />, testApi(transport));
+    expect(await screen.findByTestId("payment-0-entry-0-proof-attach")).toBeTruthy();
+    expect(screen.queryByTestId("payment-0-entry-1-proof-attach")).toBeNull();
+    expect(screen.queryByTestId("payment-0-entry-2-proof-attach")).toBeNull();
+  });
+
+  it("canUpload=false: кнопки нет", async () => {
+    const { transport } = center({ can_upload: false, dues: [paymentDueRow({ entries: [acceptedNoFile] })] });
+    await renderPortal(<PaymentsScreen io={makeIo().io} />, testApi(transport));
+    await screen.findByTestId("payment-0-entry-0");
+    expect(screen.queryByTestId("payment-0-entry-0-proof-attach")).toBeNull();
+  });
+
+  it("выбрать файл и «Сохранить»: POST с id оплаты и ключом повтора, затем «Чек приложен» и перечитывание", async () => {
+    const { transport, calls } = center({ dues: [paymentDueRow({ entries: [acceptedNoFile] })] });
+    const { io, proofs } = makeIo([ACK], [PROOF_OK]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(await screen.findByTestId("payment-0-entry-0-proof-attach"));
+      await fireEvent.press(screen.getByTestId("pick-photo"));
+      await act(async () => {
+        jest.advanceTimersByTime(800);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+    await screen.findByText("chek.jpg");
+    await fireEvent.press(screen.getByTestId("payment-0-entry-0-proof-save"));
+    expect(await screen.findByTestId("payment-0-entry-0-proof-sent")).toHaveTextContent("Чек приложен");
+    expect(proofs).toHaveLength(1);
+    expect(proofs[0]).toMatchObject({ paymentEventId: ACCEPTED_ID, mimeType: "image/jpeg" });
+    expect(proofs[0]?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+    await waitFor(() => expect(calls.filter((c) => c.name === "student_portal_payment_center_v1").length).toBeGreaterThan(1));
+  });
+
+  it("сервер отказал: понятная строка без текста ответа", async () => {
+    const { transport } = center({ dues: [paymentDueRow({ entries: [acceptedNoFile] })] });
+    const { io } = makeIo([ACK], [{ status: 413, body: { error: "file_too_large" } }]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(await screen.findByTestId("payment-0-entry-0-proof-attach"));
+      await fireEvent.press(screen.getByTestId("pick-photo"));
+      await act(async () => {
+        jest.advanceTimersByTime(800);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+    await screen.findByText("chek.jpg");
+    await fireEvent.press(screen.getByTestId("payment-0-entry-0-proof-save"));
+    expect(await screen.findByTestId("payment-0-entry-0-proof-error")).toBeTruthy();
+    expect(screen.queryByTestId("payment-0-entry-0-proof-sent")).toBeNull();
   });
 });
 

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { usePortalApi } from "@/api/PortalApi";
+import { orvisProfileFromAttempt } from "@/features/learning/professions/model";
 import { readAssessmentAttempt, readAssessmentCatalog } from "@/features/learning/tests/api";
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
@@ -21,4 +22,12 @@ export function useOwnTopScales() {
   const attemptId = catalog.data?.instruments.find((i) => i.instrumentKey === "orvis92")?.latestCompletedAttemptId ?? null;
   const attempt = useAssessmentAttempt(attemptId);
   return { topScales: attempt.data?.result?.orvis?.topScales ?? null, ready: catalog.status !== "pending" && (attemptId === null || attempt.status !== "pending") };
+}
+
+/** Профиль собственного завершённого orvis92 для «Подходят вам»; нет теста или чтение не удалось - null (блока нет). */
+export function useOwnOrvisProfile() {
+  const catalog = useAssessmentCatalog();
+  const attemptId = catalog.data?.instruments.find((i) => i.instrumentKey === "orvis92")?.latestCompletedAttemptId ?? null;
+  const attempt = useAssessmentAttempt(attemptId);
+  return orvisProfileFromAttempt(attempt.data);
 }

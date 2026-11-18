@@ -131,27 +131,33 @@ test("the limiter: no more than 150 answers per student in a day", () => {
   resetEviSlots();
 });
 
-test("the action checks session, history, consent, key and rate before any model call, and sends only the chat and the test", () => {
+test("the shared core checks history, consent, key and rate before any model call, and sends only the chat and the test; web and mobile both go through it", () => {
   const action = read("src/lib/portal/evi-actions.ts");
   assert.match(action, /^"use server";/u);
+  assert.match(action, /await requireStudentPortalActor\(\)/u);
+  assert.match(action, /return runEviTurn\(\{ history, actor, client, locale \}\);/u);
+  assert.doesNotMatch(action, /callEviModel|takeEviSlot|eviSystemPrompt/u, "the action holds no prompt, limit or model code of its own");
+  const core = read("src/lib/portal/evi-core.ts");
+  assert.doesNotMatch(core, /^"use server";/u);
   const order = [
-    "await requireStudentPortalActor()",
     "historyTooLong(history)",
     "parseEviHistory(history)",
-    "readOwnAiConsentForProfile(actor.accessTier)",
-    "readEviApiKey(process.env)",
+    "readAiConsentForProfile(actor.accessTier",
+    "readEviApiKey(dependencies.env ?? process.env)",
     "takeEviSlot(actor.authUserId)",
     "callEviModel(",
-  ].map((marker) => action.indexOf(marker));
+  ].map((marker) => core.indexOf(marker));
   assert.ok(order.every((position, index) => position > 0 && (index === 0 || position > order[index - 1])), `order ${order}`);
-  assert.match(action, /eviOpening\(orvis\?\.completed \? orvis\.profile : null\)/u);
-  assert.match(action, /parseEviReply\(extractJsonObject\(text\), new Set\(keys\)\)/u);
-  assert.doesNotMatch(action, /console\.|studentCaseId|displayName|email/u, "no logging and no profile data");
+  assert.match(core, /eviOpening\(orvis\?\.completed \? orvis\.profile : null\)/u);
+  assert.match(core, /parseEviReply\(extractJsonObject\(text\), new Set\(keys\)\)/u);
+  assert.doesNotMatch(core, /console\.|studentCaseId|displayName|email/u, "no logging and no profile data");
+  // Мобильный маршрут идёт через то же ядро.
+  assert.match(read("src/lib/server/student-portal-mobile-evi-route-handler.ts"), /import\("\.\.\/portal\/evi-core\.ts"\)/u);
   // Страница: ключ на сервере — чат отвечает, нет ключа — «недоступен».
   assert.match(read("src/components/portal/evi/EviTab.tsx"), /return online \? <EviChat strings=\{strings\} ask=\{askEviAction\} \/> : <EviChat strings=\{strings\} offline \/>;/u);
   const page = read("src/app/(portal)/portal/professions/page.tsx");
   assert.match(page, /const eviOnline = readEviApiKey\(process\.env\) !== null;/u);
   assert.match(page, /<EviTab strings=\{strings\} online=\{eviOnline\} \/>/u);
   // Отказ модели — «начни заново», мёртвый ключ — «недоступен», перегрузка — «подожди».
-  assert.match(action, /code === "rate_limited" \? "busy" : code === "refused" \? "invalid" : code === "unavailable" \? "unavailable" : "error"/u);
+  assert.match(core, /code === "rate_limited" \? "busy" : code === "refused" \? "invalid" : code === "unavailable" \? "unavailable" : "error"/u);
 });

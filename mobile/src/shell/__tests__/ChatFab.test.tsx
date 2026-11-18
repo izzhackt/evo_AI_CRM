@@ -4,7 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PortalApiProvider } from "@/api/PortalApi";
 import { LangProvider } from "@/i18n/LangProvider";
 import { ChatFab } from "@/shell/ChatFab";
-import { CHAT_FAB_GAP, TAB_BAR_BODY, chatFabBottom, chatFabVisible } from "@/shell/chat-fab-rules";
+import { CHAT_FAB_GAP, TAB_BAR_BODY, chatFabBottom, chatFabVisible, isConversationPath } from "@/shell/chat-fab-rules";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { testApi } from "@/test-fixtures/render";
 
@@ -39,7 +39,16 @@ describe("плавающая кнопка «Написать EVO»", () => {
     expect(chatFabVisible("assisted", "/universities/abc")).toBe(true);
     expect(chatFabVisible("assisted", "/messages")).toBe(false);
     expect(chatFabVisible("assisted", "/messages/chat")).toBe(false);
+    expect(chatFabVisible("assisted", "/professions")).toBe(true);
+    expect(chatFabVisible("assisted", "/professions/evi")).toBe(false);
     expect(chatFabVisible("approved", "/home")).toBe(false);
+  });
+
+  it("беседы без панели вкладок: с командой и с Эви", () => {
+    expect(isConversationPath("/messages/chat")).toBe(true);
+    expect(isConversationPath("/professions/evi")).toBe(true);
+    expect(isConversationPath("/professions")).toBe(false);
+    expect(isConversationPath("/professions/evi/x")).toBe(false);
   });
 
   it("встаёт над панелью вкладок и безопасной зоной; без панели - просто над краем", () => {

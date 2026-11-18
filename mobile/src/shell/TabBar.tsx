@@ -7,6 +7,7 @@ import { usePortalUnread } from "@/api/PortalPoll";
 import { usePortalApi } from "@/api/PortalApi";
 import { useLang } from "@/i18n/LangProvider";
 import { SECTION_ICONS } from "@/shell/icons";
+import { isConversationPath } from "@/shell/chat-fab-rules";
 import { PHONE_TABS, SECTIONS, hasTabBar } from "@/shell/sections";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "@/ui/Text";
@@ -21,8 +22,8 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
   const unread = usePortalUnread();
   const pathname = usePathname();
   const { tier } = usePortalApi();
-  // В беседе панель убрана: поле ввода и клавиатура получают весь низ экрана.
-  if (pathname === "/messages/chat") return null;
+  // В беседе (с командой и с Эви) панель убрана: поле ввода и клавиатура получают весь низ экрана.
+  if (isConversationPath(pathname)) return null;
   // Одна вкладка (approved) - не панель: остаётся шапка с ☰ (веб Shell.tsx, `tabSections.length > 1`).
   if (!hasTabBar(tier)) return null;
   const visible = state.routes.filter((r) => (PHONE_TABS as readonly string[]).includes(r.name));

@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
+import { aiConsentState } from "@web/lib/portal/ai-consent";
 import { groupProfessionsByScale, searchProfessions, topProfessionMatches } from "@web/lib/portal/profession-guide";
 import { ORVIS_SCALE_IDS, professionResonates, type OrvisScaleId, type ProfessionCardSummary } from "@web/lib/portal/professions";
 
@@ -15,6 +16,7 @@ import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
 import { readProfessionCards } from "@/features/learning/professions/api";
 import { useOwnOrvisProfile } from "@/features/learning/tests/queries";
 import { Chip } from "@/features/learning/ui";
+import { useAiConsent } from "@/features/profile/use-profile";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
@@ -31,6 +33,9 @@ export function ProfessionsScreen() {
   useRefetchOnFocus();
   const cards = useQuery({ queryKey: ["portal", userKey, "profession-cards"], queryFn: () => readProfessionCards(transport) });
   const profile = useOwnOrvisProfile();
+  // Как на вебе: Эви скрыта у ученика, отозвавшего согласие на ИИ-помощников; не прочиталось - показываем, сервер проверит сам.
+  const consent = useAiConsent();
+  const eviShown = !consent.data || aiConsentState(consent.data) === "granted";
   const [scale, setScale] = useState<OrvisScaleId | null>(null);
   const [query, setQuery] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
@@ -54,6 +59,17 @@ export function ProfessionsScreen() {
         <Text variant="display" accessibilityRole="header" testID="title-professions">
           {p.title}
         </Text>
+        {eviShown ? (
+          <Card>
+            <Text variant="body" bold>
+              {p["tab.evi"]}
+            </Text>
+            <Text variant="secondary" tone="text2">
+              {p["evi.heroMeta"]}
+            </Text>
+            <Button label={p["evi.heroAction"]} onPress={() => router.navigate("/professions/evi")} testID="professions-evi-open" />
+          </Card>
+        ) : null}
         <Card>
           <Text variant="body" bold>
             {p.testEntry}

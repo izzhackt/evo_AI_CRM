@@ -157,7 +157,7 @@ test("the professions page validates ?view= and keeps the catalogue as the defau
 });
 
 test("without the model the chat says Эви is unavailable instead of inventing a reply", () => {
-  const conversation = read(`${EVI_DIR}/useEviConversation.ts`);
+  const conversation = read("src/lib/portal/evi-conversation.ts");
   assert.match(conversation, /if \(!ask\) \{ setFailure\("unavailable"\); return; \}/u);
   for (const file of eviFiles()) {
     assert.doesNotMatch(read(`${EVI_DIR}/${file}`), /localStorage|sessionStorage|fetch\(/u, `${file}: nothing is stored in the browser or fetched directly`);
@@ -192,7 +192,7 @@ test("before the first answer the chat greets with a welcome stage, and the sect
 });
 
 test("a new chat ignores replies that arrive for the old one", () => {
-  const conversation = read(`${EVI_DIR}/useEviConversation.ts`);
+  const conversation = read("src/lib/portal/evi-conversation.ts");
   assert.match(conversation, /epochRef\.current \+= 1/u);
   assert.equal(conversation.split("if (epochRef.current !== mine) return;").length - 1, 2, "both the reply and the failure are checked");
   assert.doesNotMatch(conversation, /useTransition/u);
@@ -208,7 +208,7 @@ test("every failure has at most one recovery action, and the robot keeps a bound
 });
 
 test("the robot answers the student's actions: a picked option and a sent answer", () => {
-  const conversation = read(`${EVI_DIR}/useEviConversation.ts`);
+  const conversation = read("src/lib/portal/evi-conversation.ts");
   assert.match(conversation, /const adding = !picked\.has\(option\);[\s\S]*if \(adding\) setPokes\(\(current\) => current \+ 1\);/u);
   const thread = read(`${EVI_DIR}/EviThread.tsx`);
   assert.match(thread, /speakMs=\{fresh \? eviSpeakMs\(message\.text\) : undefined\} poke=\{poke\}/u);

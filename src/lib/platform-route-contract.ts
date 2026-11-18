@@ -130,6 +130,8 @@ const STUDENT_PASSWORD_RECOVERY_API_PATH = "/api/portal/password-recovery";
 // Мобильное приложение (Expo): вход на сервере (аноним) и смена пароля (Bearer).
 const STUDENT_MOBILE_SESSION_API_PATH = "/api/portal/mobile/session";
 const STUDENT_MOBILE_PASSWORD_API_PATH = "/api/portal/mobile/password";
+// «Подбор с Эви» в приложении: Bearer, тот же ход разговора, что у веб-действия.
+const STUDENT_MOBILE_EVI_API_PATH = "/api/portal/mobile/evi";
 
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
@@ -322,6 +324,8 @@ export function isConnectedStudentPortalApi(
     || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)
     // Мобильная смена пароля: только Bearer, обработчик сам отвечает 401 без токена.
     || (method === "POST" && path === STUDENT_MOBILE_PASSWORD_API_PATH)
+    // «Подбор с Эви» в приложении: только Bearer; обработчик отвечает 401 без токена, 403 не-студенту.
+    || (method === "POST" && path === STUDENT_MOBILE_EVI_API_PATH)
   );
 }
 

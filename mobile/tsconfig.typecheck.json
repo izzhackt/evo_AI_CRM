@@ -1,0 +1,15 @@
+{
+  // Только для `npm run typecheck`. Общие файлы веба (../src) ищут `react` вверх по дереву, а в CI корневых
+  // node_modules нет, поэтому типы React берутся из приложения. В tsconfig.json это писать нельзя: Metro читает
+  // его `paths` и тогда резолвит `react` в @types/react (проверено на `expo export`).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./assets/*"],
+      "@web/*": ["../src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"]
+    }
+  }
+}

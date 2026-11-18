@@ -232,6 +232,23 @@ export function portalNotificationText(
 }
 
 /**
+ * Вид события ленты по тем же веткам, что и `portalNotificationTarget` (18.11.2026, значок строки «Что нового» на
+ * «Главной»): пакет программы, документ, ответ или сообщение команды, оплата, остальное.
+ */
+export type PortalNotificationKind = "package" | "document" | "message" | "payment" | "other";
+
+export function portalNotificationKind(
+  notification: Pick<StudentPortalNotification, "category" | "eventCode">,
+): PortalNotificationKind {
+  if (notification.eventCode === "application_package_review") return "package";
+  if (notification.eventCode === "application_document_review") return "document";
+  if (notification.eventCode === "case_help_answer" || notification.eventCode === "case_chat_message") return "message";
+  if (notification.category.startsWith("document")) return "document";
+  if (notification.category.startsWith("payment")) return "payment";
+  return "other";
+}
+
+/**
  * One deep link per notification, derived from the durable `category` (and
  * `case_help_answer`, the one event code with its own detail route). The
  * `application`/`visa` categories the retired «Заявки и виза» screen used

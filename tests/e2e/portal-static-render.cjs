@@ -94,6 +94,11 @@ const { AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/conse
 const { ConsentGateForm } = require(join(ROOT, "src/components/portal/consent/ConsentGateForm.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
+// 18.11.2026: «Мой список» в левой колонке, карточка CSCA и её даты в «Ближайших датах».
+const { HomeList } = require(join(ROOT, "src/components/portal/home/HomeList.tsx"));
+const { HomeFavorites } = require(join(ROOT, "src/components/portal/home/HomeFavorites.tsx"));
+const { CscaHomeCard } = require(join(ROOT, "src/components/portal/home/CscaHomeCard.tsx"));
+const { cscaHomeDates, selectCscaHomeCard } = require(join(ROOT, "src/lib/portal/csca-home-card.ts"));
 // S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
 // на «Главной» его карточка.
 const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
@@ -662,6 +667,128 @@ const favoriteUniversityFixture = {
   },
 };
 
+/**
+ * «Главная» клиента (18.11.2026): первое дело — просроченный аттестат (красная пилюля «просрочено»), за ним паспорт
+ * и оплата строками и «Ещё действий: 1»; в «Моём списке» три вуза; Китай — карточка CSCA и её даты в «Ближайших датах».
+ */
+const homeOverviewFixture = {
+  ...overviewFixture,
+  // Порядок сервера — по сроку: просроченный аттестат первым, без срока — последним.
+  studentAction: {
+    kind: "upload_document",
+    label: "Аттестат с приложением",
+    dueAt: "2026-09-17T09:00:00Z",
+    documentSlotId: "11111111-1111-4111-8111-111111111111",
+  },
+  studentActions: [
+    {
+      kind: "upload_document",
+      label: "Аттестат с приложением",
+      dueAt: "2026-09-17T09:00:00Z",
+      documentSlotId: "11111111-1111-4111-8111-111111111111",
+    },
+    {
+      kind: "upload_document",
+      label: "Загранпаспорт",
+      dueAt: "2026-09-25T09:00:00Z",
+      documentSlotId: "a1111111-1111-4111-8111-111111111111",
+    },
+    overviewFixture.studentActions[0],
+    {
+      kind: "upload_document",
+      label: "Фото 3×4",
+      dueAt: null,
+      documentSlotId: "a2222222-2222-4222-8222-222222222222",
+    },
+  ],
+};
+const homeFavoritesFixture = [
+  favoriteUniversityFixture,
+  {
+    ...favoriteUniversityFixture,
+    id: "f7777777-7777-4777-8777-777777777777",
+    // Дедлайн через 25 дней: попадает в «Ближайшие даты» строкой «Wuhan University: последний день подачи».
+    content: {
+      ...favoriteUniversityFixture.content,
+      name: "Wuhan University",
+      country: "CN",
+      city: "Ухань",
+      programs: favoriteUniversityFixture.content.programs.map((program) => ({
+        ...program,
+        intakes: program.intakes.map((intake) => ({ ...intake, applicationDeadline: "2026-10-15" })),
+      })),
+    },
+  },
+  {
+    ...favoriteUniversityFixture,
+    id: "f8888888-8888-4888-8888-888888888888",
+    content: { ...favoriteUniversityFixture.content, name: "Zhejiang University", country: "CN", city: "Ханчжоу", programs: [] },
+  },
+];
+/**
+ * «Мои программы» клиента (18.11.2026): программа в Wuhan University со сроком подачи 5 октября — её строка в «Ближайших
+ * датах» заменяет общую строку вуза из избранного.
+ */
+const homePreparationsFixture = [
+  {
+    applicationId: "fa111111-1111-4111-8111-111111111111",
+    studentCaseId: "33333333-3333-4333-8333-333333333333",
+    institutionId: "f7777777-7777-4777-8777-777777777777",
+    programId: "f5555555-5555-4555-8555-555555555555",
+    intakeId: "fb111111-1111-4111-8111-111111111111",
+    publicationId: "fc111111-1111-4111-8111-111111111111",
+    publicationVersion: 1,
+    catalogLevel: "bachelor",
+    applicationDegree: "bachelor",
+    selectedAt: "2026-09-10T08:00:00Z",
+    deadlineStateAtSelection: "confirmed",
+    applicationStatus: "preparation",
+    applicationVersion: "1",
+    content: {
+      ...favoriteUniversityFixture.content,
+      name: "Wuhan University",
+      country: "CN",
+      city: "Ухань",
+      programs: favoriteUniversityFixture.content.programs.map((program) => ({
+        ...program,
+        intakes: program.intakes.map((intake) => ({ ...intake, id: "fb111111-1111-4111-8111-111111111111", applicationDeadline: "2026-10-05" })),
+      })),
+    },
+  },
+];
+/** Своя анкета ученика до договора: отправлена 10 сентября, одобрена 12 сентября. */
+const homeApplicationFixture = { status: "approved", submittedAt: "2026-09-10T08:00:00Z", decidedAt: "2026-09-12T10:00:00Z" };
+
+/** Главная трека CSCA в той форме, что читает «Главная» (learning_track_home_v1): одна будущая сессия. */
+const cscaHomeFixture = {
+  today: "2026-09-20",
+  serverNow: "2026-09-20T12:00:00Z",
+  sessions: [
+    {
+      sessionKey: "2026-10",
+      examFrom: "2026-10-31",
+      examTo: "2026-11-01",
+      registrationOpensAt: "2026-08-15T00:00:00Z",
+      registrationClosesAt: "2026-09-26T15:59:59Z",
+      sourceUrl: "https://www.csca.cn",
+      verifiedOn: "2026-09-01",
+    },
+  ],
+};
+const homeChinaChoice = { country: "CN" };
+const homeCscaCard = selectCscaHomeCard({
+  choice: homeChinaChoice,
+  home: cscaHomeFixture,
+  locale: "ru",
+  cscaStrings: getPortalStrings("csca", "ru"),
+  homeStrings,
+});
+const homeList = (favorites, programsCount = 0) => createElement(
+  HomeList,
+  { boxed: true, view: "universities", favoritesCount: favorites.length, programsCount, locale: "ru" },
+  createElement(HomeFavorites, { favorites, total: favorites.length, locale: "ru", now: HOME_NOW }),
+);
+
 /** Ответы portal_ai_consent_get_v1 в форме сервера (миграция 320). */
 const aiConsentAsked = {
   status: null,
@@ -841,6 +968,9 @@ const surfaces = [
           overviewFailed: false,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
+          list: homeList([favoriteUniversityFixture]),
+          // Анкета с датами; избранный вуз со сроком позже 60 дней — строка «Дальше» вместо «Дат пока нет».
+          application: homeApplicationFixture,
           // Страны нет: выбор страны первым блоком под шапкой, карточки пути нет.
           journey: null,
           countryChoice: timelineChoose,
@@ -862,11 +992,17 @@ const surfaces = [
           tier: "assisted",
           displayName: "Айгерим Асанова",
           studyCountry: "Китай",
-          overview: overviewFixture,
+          // 18.11.2026: в шапке набор пути и отсчёт до ближайшей даты.
+          intake: chinaJourney.view.intake.label,
+          overview: homeOverviewFixture,
           overviewFailed: false,
-          news: [],
-          favorites: [],
-          favoritesTotal: 0,
+          news: notificationsFixture,
+          favorites: homeFavoritesFixture,
+          favoritesTotal: homeFavoritesFixture.length,
+          list: homeList(homeFavoritesFixture, homePreparationsFixture.length),
+          preparations: homePreparationsFixture,
+          dates: cscaHomeDates({ choice: homeChinaChoice, home: cscaHomeFixture, homeStrings }),
+          csca: createElement(CscaHomeCard, { view: homeCscaCard }),
           journey: journeyCardChina,
           locale: "ru",
           now: HOME_NOW,

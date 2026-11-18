@@ -8,11 +8,13 @@ import {
   CSCA_HOME_COUNTRY,
   CSCA_HOME_HREF,
   cscaHomeCardVisible,
+  cscaHomeDates,
   nearestCscaSession,
   selectCscaHomeCard,
 } from "../src/lib/portal/csca-home-card.ts";
 import { CSCA_OVERVIEW } from "../src/lib/portal/csca-overview.ts";
 import { parseCscaHome } from "../src/lib/portal/csca.ts";
+import { upcomingHomeDates } from "../src/lib/portal/home-dates.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { STUDY_COUNTRY_CODES } from "../src/lib/study-countries.ts";
 
@@ -155,6 +157,41 @@ test("the nearest session skips finished ones and the card survives having none"
   const empty = card(choice("CN"), home((value) => ({ ...value, sessions: [] })));
   assert.equal(empty.session, null);
   assert.equal(empty.action, "К подготовке");
+});
+
+test("«Ближайшие даты» get the official CSCA dates: last registration day and first exam day, China only", () => {
+  const ru = PORTAL_DICTIONARIES.home.ru;
+  const dates = cscaHomeDates({ choice: choice("CN"), home: home(), homeStrings: ru });
+  // 2026-11: регистрация до 21.10 15:59 UTC — в Бишкеке это ещё 21.10; у сессии без окна регистрации — только экзамен.
+  assert.deepEqual(dates.slice(0, 3), [
+    { day: "2026-10-21", title: "CSCA: регистрация закрывается", href: CSCA_HOME_HREF },
+    { day: "2026-11-14", title: "CSCA: экзамен", href: CSCA_HOME_HREF },
+    { day: "2026-12-19", title: "CSCA: экзамен", href: CSCA_HOME_HREF },
+  ]);
+  // Окно и предел «Ближайших дат» те же: на 16.10 видны регистрация и ноябрьский экзамен, декабрь за 60 днями.
+  assert.deepEqual(upcomingHomeDates(dates, "2026-10-16").map((item) => item.day), ["2026-10-21", "2026-11-14"]);
+  // Окно закрылось в 21:59 по Бишкеку — до полуночи того же дня строки «регистрация закрывается» уже нет.
+  const closed = cscaHomeDates({ choice: choice("CN"), home: home((value) => ({ ...value, serverNow: "2026-10-21T16:30:00+00:00", today: "2026-10-21" })), homeStrings: ru });
+  assert.equal(closed[0].day, "2026-11-14");
+  assert.equal(closed.filter((item) => item.title === ru.cscaDateRegistration).length, 0);
+  // Закончившаяся сессия не попадает; прошедший срок регистрации отсекает окно «Ближайших дат».
+  const later = cscaHomeDates({ choice: choice("CN"), home: home((value) => ({ ...value, today: "2026-11-16" })), homeStrings: ru });
+  assert.equal(later[0].day, "2026-12-19");
+  assert.deepEqual(upcomingHomeDates(dates, "2026-10-22").map((item) => item.day), ["2026-11-14", "2026-12-19"]);
+  // Не Китай, нет выбора или CSCA не прочитался — дат нет, как нет и карточки.
+  assert.deepEqual(cscaHomeDates({ choice: choice("MY"), home: home(), homeStrings: ru }), []);
+  assert.deepEqual(cscaHomeDates({ choice: null, home: home(), homeStrings: ru }), []);
+  assert.deepEqual(cscaHomeDates({ choice: choice("CN"), home: null, homeStrings: ru }), []);
+  for (const locale of ["ru", "ky"]) {
+    for (const key of ["cscaDateRegistration", "cscaDateExam"]) {
+      assert.match(PORTAL_DICTIONARIES.home[locale][key], /^CSCA: \S/u, `${locale} ${key}`);
+    }
+  }
+  assert.equal(cscaHomeDates({ choice: choice("CN"), home: home(), homeStrings: PORTAL_DICTIONARIES.home.ky })[0].title, "CSCA: каттоо жабылат");
+  // Страница передаёт их «Главной» одной строкой.
+  const page = read("src/app/(portal)/portal/page.tsx");
+  assert.match(page, /const cscaDates = cscaHomeDates\(\{ choice, home: cscaHome, homeStrings: strings \}\);/u);
+  assert.match(page, /dates=\{cscaDates\}/u);
 });
 
 test("the page reads the choice and the CSCA home in its single wave, only for China", () => {

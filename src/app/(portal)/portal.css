@@ -8592,9 +8592,18 @@ a.pt-pay-file {
 }
 
 .pt-home-hero-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+  padding: 28px 32px 24px;
+}
+
+.pt-home-hero-who {
   display: grid;
   gap: 8px;
-  padding: 28px 32px 24px;
+  min-width: 0;
 }
 
 .pt-home-hero-title {
@@ -8614,9 +8623,78 @@ a.pt-pay-file {
   font-weight: 500;
 }
 
+/*
+ * Отсчёт до ближайшей даты (18.11.2026, по образцу кабинета Акылмана): крупное число дней, под ним «дней до 25 сент.» и
+ * само дело. Вся плашка — ссылка туда же, куда ведёт строка «Ближайших дат». Цвет — белый шапки: красный текст только у
+ * проблем.
+ */
+.pt-home-hero-count {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  max-width: 340px;
+  min-width: 0;
+  color: var(--pt-hero-ink);
+  text-align: right;
+  text-decoration: none;
+}
+
+.pt-home-hero-count:hover .pt-home-hero-count-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-home-hero-count:focus-visible {
+  outline: 2px solid var(--pt-hero-ink);
+  outline-offset: 4px;
+  border-radius: var(--pt-radius-item);
+}
+
+.pt-home-hero-count-big {
+  font-size: var(--pt-size-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.pt-home-hero-count-when {
+  color: var(--pt-hero-muted);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-home-hero-count-title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @container pt-hero (max-width: 940px) {
   .pt-home-hero-head {
     padding: 22px 20px 18px;
+  }
+}
+
+/* Узкая шапка: отсчёт строкой под именем, над ним волосяная линия шапки. */
+@container pt-hero (max-width: 600px) {
+  .pt-home-hero-count {
+    flex: 1 1 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    align-items: baseline;
+    gap: 2px 10px;
+    max-width: none;
+    padding-top: 14px;
+    border-top: 1px solid var(--pt-hero-line);
+    text-align: left;
+  }
+
+  .pt-home-hero-count-big {
+    grid-row: span 2;
+    font-size: var(--pt-size-title);
   }
 }
 
@@ -8646,6 +8724,8 @@ a.pt-pay-file {
 
 .pt-home-slot[data-slot="case"] { order: 1; }
 .pt-home-slot[data-slot="path"] { order: 2; }
+/* «Мой список» (18.11.2026): в одну колонку сразу за путём — путь не уезжает за вузы (08.11.2026). */
+.pt-home-slot[data-slot="list"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
 .pt-home-slot[data-slot="csca"] { order: 6; }
@@ -8656,6 +8736,11 @@ a.pt-pay-file {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Список меряет свою ширину: в колонке две карточки вузов в ряд, во всю ширину — четыре (18.11.2026). */
+.pt-home-list {
+  container: pt-list / inline-size;
 }
 
 .pt-home-list > .pt-home-head {
@@ -8685,8 +8770,9 @@ a.pt-pay-file {
     flex-grow: 1;
   }
 
-  .pt-home-main > .pt-home-slot:last-child > *,
-  .pt-home-side > .pt-home-slot:last-child > * {
+  /* В слоте «Мой список» над карточкой может стоять ссылка «Незавершённые отправки»: тянется только карточка. */
+  .pt-home-main > .pt-home-slot:last-child > :last-child,
+  .pt-home-side > .pt-home-slot:last-child > :last-child {
     flex-grow: 1;
   }
 
@@ -8715,13 +8801,25 @@ a.pt-pay-file {
   margin: 0;
 }
 
+/*
+ * Заголовок и его переход или «?» — в одной строке: переносится текст заголовка, а не знак (18.11.2026: с числом дел у
+ * «Что сделать сейчас» знак «?» уходил на узком телефоне вниз, и его панель открывалась за левым краем экрана).
+ */
 .pt-home-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0 16px;
   min-height: 28px;
+}
+
+.pt-home-head > * {
+  flex: none;
+}
+
+.pt-home-head > .pt-home-heading {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* Ссылка шапки держит цель 44 px, но не раздвигает шапку. */
@@ -8783,6 +8881,91 @@ a.pt-pay-file {
 
 .pt-home-empty-action {
   margin-top: 10px;
+}
+
+/* Одной строкой со значком слева (18.11.2026): «Ближайшие даты» без дат не занимают пол-экрана под неделей. */
+.pt-home-empty.is-compact {
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-items: start;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 4px 0 0;
+  text-align: left;
+}
+
+.pt-home-empty.is-compact .pt-home-empty-icon {
+  grid-row: span 2;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+}
+
+.pt-home-empty.is-compact .pt-home-empty-body {
+  max-width: none;
+}
+
+/*
+ * «?» в шапке карточки (18.11.2026): пояснение «откуда это» по нажатию, а не строкой на экране. Цель 44 px, шапку не
+ * раздвигает; панель — под знаком, к правому краю карточки.
+ */
+.pt-home-hint {
+  position: relative;
+  margin-block: -8px;
+}
+
+.pt-home-hint-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-inline-end: -12px;
+  border-radius: var(--pt-radius-chip);
+  color: var(--pt-text-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+.pt-home-hint-btn::-webkit-details-marker {
+  display: none;
+}
+
+.pt-home-hint-btn > span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid currentColor;
+  border-radius: var(--pt-radius-chip);
+  font-size: var(--pt-size-caption);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pt-home-hint-btn:hover,
+.pt-home-hint[open] > .pt-home-hint-btn {
+  color: var(--pt-text);
+}
+
+.pt-home-hint-btn:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -6px;
+}
+
+.pt-home-hint-text {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% - 4px);
+  right: -8px;
+  width: min(280px, 72vw);
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-raised);
+  color: var(--pt-text);
+  font-size: var(--pt-size-caption);
+  line-height: 1.45;
 }
 
 /* Строка внизу карточки во всю её ширину, над ней волосяная линия. */
@@ -8921,29 +9104,53 @@ a.pt-pay-file {
   border-top: 1px solid var(--pt-line);
 }
 
+/*
+ * Строка события (18.11.2026): как у следующих дел — серая плитка со значком вида события, справа название и время
+ * словом. Непрочитанное — полужирное и с красной точкой на плитке; у прочитанного точки нет.
+ */
 .pt-home-news-row {
-  position: relative;
   display: grid;
-  gap: 2px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
   min-height: 44px;
-  padding: 10px 0 10px 16px;
+  padding: 10px 0;
   color: var(--pt-text);
   text-decoration: none;
 }
 
-.pt-home-news-row::before {
-  content: "";
-  position: absolute;
-  top: 17px;
-  left: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-line);
+.pt-home-news-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
 }
 
-.pt-home-news-row[data-unread]::before {
+.pt-home-news-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pt-home-news-row[data-unread] .pt-home-news-icon::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--pt-surface);
+  border-radius: var(--pt-radius-chip);
   background: var(--pt-accent);
+}
+
+.pt-home-news-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .pt-home-news-row:hover .pt-home-news-title {
@@ -8978,15 +9185,32 @@ a.pt-pay-file {
   list-style: none;
 }
 
+/* «Дальше» (18.11.2026): в окне 60 дней дат нет — подпись и первая дата позже. */
+.pt-home-dates-later {
+  display: grid;
+  gap: 2px;
+}
+
+.pt-home-dates-later-label {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
 .pt-home-dates-list > li + li {
   border-top: 1px solid var(--pt-line);
 }
 
+/*
+ * Строка даты (18.11.2026, по образцу кабинета Акылмана): плитка «число и месяц», название, справа сколько осталось.
+ * «Сегодня» и «завтра» — весом, не цветом: красный в кабинете только у «сегодня» в неделе и у проблем.
+ */
 .pt-home-date-row {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
   min-height: 44px;
   padding: 10px 0;
   color: var(--pt-text);
@@ -9003,7 +9227,24 @@ a.pt-pay-file {
   outline-offset: 2px;
 }
 
-.pt-home-date-day {
+.pt-home-date-tile {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  line-height: 1.05;
+}
+
+.pt-home-date-num {
+  font-size: var(--pt-size-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-home-date-month {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   font-weight: 600;
@@ -9014,8 +9255,62 @@ a.pt-pay-file {
   overflow-wrap: anywhere;
 }
 
+.pt-home-date-left {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  white-space: nowrap;
+}
+
+.pt-home-date-left[data-soon] {
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+/* Узкая карточка (правая колонка у 960–1080 px при раскрытом меню): «через N дней» уходит под название. */
+.pt-home-dates {
+  container: pt-dates / inline-size;
+}
+
+@container pt-dates (max-width: 380px) {
+  .pt-home-date-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+    row-gap: 2px;
+  }
+
+  .pt-home-date-tile {
+    grid-row: span 2;
+  }
+
+  .pt-home-date-left {
+    grid-column: 2;
+  }
+}
+
+/*
+ * Дело (18.11.2026): слева значок по виду дела — документ или оплата — в красноватой плитке, как значки пустых
+ * состояний; справа заголовок, срок с пилюлей «через N дней» и кнопка.
+ */
 .pt-home-case-body {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
   min-width: 0;
+}
+
+.pt-home-case-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-accent-soft);
+  color: var(--pt-accent);
+}
+
+.pt-home-case-main {
+  min-width: 0;
+  padding-top: 8px;
 }
 
 .pt-home-case-title {
@@ -9034,6 +9329,7 @@ a.pt-pay-file {
 
 .pt-home-case-fact {
   display: flex;
+  align-items: baseline;
   gap: 6px;
   font-size: var(--pt-size-secondary);
 }
@@ -9043,6 +9339,10 @@ a.pt-pay-file {
 }
 
 .pt-home-case-fact dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
   margin: 0;
 }
 
@@ -9056,6 +9356,137 @@ a.pt-pay-file {
 
 .pt-home-case-more {
   font-size: var(--pt-size-caption);
+}
+
+/* Панель «?» выходит за край карточки, поэтому карточка дел не обрезает содержимое. Раскладку дела задаёт её ширина. */
+.pt-home-case {
+  container: pt-case / inline-size;
+  overflow: visible;
+}
+
+/* Следующие дела строками под первым, во всю ширину карточки, как прежняя строка внизу. */
+.pt-home-case-rest {
+  display: grid;
+  justify-items: start;
+  margin: 4px -22px -20px;
+  padding: 4px 22px 12px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-home-case-next {
+  display: grid;
+  justify-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-home-case-next > li + li {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-home-case-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--pt-text);
+  text-decoration: none;
+}
+
+/* Значок следующего дела — нейтральный: красноватая плитка только у первого. */
+.pt-home-case-row-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+}
+
+.pt-home-case-row-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pt-home-case-row:hover .pt-home-case-row-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-home-case-row:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-home-case-row-title {
+  min-width: 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.pt-home-case-row-due {
+  display: flex;
+}
+
+/*
+ * Узкая карточка (телефон): значок меньше и стоит рядом с заголовком, срок и кнопка — во всю ширину под ними; у
+ * следующих дел пилюля срока уходит под название.
+ */
+@container pt-case (max-width: 440px) {
+  .pt-home-case-body {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .pt-home-case-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pt-home-case-main {
+    display: contents;
+  }
+
+  .pt-home-case-title {
+    align-self: center;
+  }
+
+  .pt-home-case-facts,
+  .pt-home-case-actions {
+    grid-column: 1 / -1;
+  }
+
+  .pt-home-case-facts {
+    margin-top: 0;
+  }
+
+  .pt-home-case-actions {
+    margin-top: 4px;
+  }
+
+  .pt-home-case-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+    row-gap: 4px;
+  }
+
+  .pt-home-case-row-icon {
+    grid-row: span 2;
+  }
+
+  .pt-home-case-row-due {
+    grid-column: 2;
+  }
+}
+
+.pt-home-case-rest > .pt-home-case-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 .pt-home-card {
@@ -9101,6 +9532,74 @@ a.pt-pay-file {
   padding-top: 8px;
 }
 
+/*
+ * «Ваша анкета» до договора (18.11.2026): короткая дорожка — сделанное зелёной галочкой с датой, текущее тёмным
+ * кольцом без срока. Кружки соединены волосяной линией.
+ */
+.pt-home-steps {
+  display: grid;
+  align-self: stretch;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-home-steps > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-home-steps > li + li::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 10px;
+  height: 14px;
+  border-left: 1px solid var(--pt-line);
+}
+
+.pt-home-step-mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--pt-control-edge);
+  border-radius: var(--pt-radius-chip);
+}
+
+.pt-home-step-mark .pt-check {
+  margin: 0;
+}
+
+.pt-home-steps > li[data-done] .pt-home-step-mark {
+  border-color: var(--pt-ok);
+  color: var(--pt-ok);
+}
+
+.pt-home-steps > li[data-current] .pt-home-step-mark {
+  border: 2px solid var(--pt-text);
+}
+
+.pt-home-steps > li[data-current] .pt-home-step-text {
+  font-weight: 600;
+}
+
+.pt-home-step-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pt-home-step-date {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  white-space: nowrap;
+}
+
 /* «Мои вузы» во вкладке «Вузы» (10.11.2026, перенесено из #1423): карточки с фото кампуса и названием по две в ряд; вся карточка — ссылка. */
 .pt-home-fav-grid {
   display: grid;
@@ -9111,10 +9610,33 @@ a.pt-pay-file {
   list-style: none;
 }
 
-/* Широкий экран: все четыре карточки в один ряд (размер картинки в HomeFavorites рассчитан на ~260px). */
-@media (min-width: 960px) {
+@container pt-list (min-width: 720px) {
   .pt-home-fav-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/*
+ * Телефон (18.11.2026): лента вбок — карточка на 78% ширины, край следующей виден. Лента доходит до краёв карточки
+ * «Мой список»; сверху и снизу запас под рамку фокуса. Наполовину видную карточку при фокусе с клавиатуры браузер сам
+ * не докручивает — это делает HomeFavoritesStrip.
+ */
+@media (max-width: 767px) {
+  .pt-home-list .pt-home-fav-grid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 78%;
+    gap: 12px;
+    margin: -6px -22px;
+    padding: 6px 22px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 22px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .pt-home-list .pt-home-fav-grid > li {
+    scroll-snap-align: start;
   }
 }
 
@@ -9125,6 +9647,11 @@ a.pt-pay-file {
   min-width: 0;
   color: inherit;
   text-decoration: none;
+  transition: transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-home-fav-card:active {
+  transform: scale(var(--pt-press-scale));
 }
 
 .pt-home-fav-card:hover .pt-home-fav-name {
@@ -9156,6 +9683,14 @@ a.pt-pay-file {
 
 .pt-home-fav-photo .pt-photo-img {
   height: 100%;
+  transition: transform var(--pt-motion-slow) var(--pt-ease-out);
+}
+
+/* Фото чуть приближается под мышью (как у карточек мест); на сенсорном экране наведения нет. */
+@media (hover: hover) {
+  .pt-home-fav-card:hover .pt-photo-img {
+    transform: scale(1.04);
+  }
 }
 
 .pt-home-fav-name {
@@ -9167,6 +9702,17 @@ a.pt-pay-file {
 .pt-home-fav-place {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+}
+
+/* Ближайший срок подачи или старт — текстом каталога («подача до …»), с заглавной. */
+.pt-home-fav-intake {
+  margin-top: 2px;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.pt-home-fav-intake::first-letter {
+  text-transform: uppercase;
 }
 
 .pt-home-fav-more {
@@ -12111,6 +12657,40 @@ a.pt-btn.pt-doc-guide-download:hover {
 }
 
 /*
+ * «Главная» (18.11.2026): блоки колонок входят по очереди с шагом --pt-stagger в порядке чтения — дело, путь, список,
+ * даты, новости, CSCA (последний стартует на 150 мс, заканчивает к 350 мс). Полоса шагов пути один раз вырастает
+ * слева направо, когда её карточка уже на месте.
+ */
+.pt-home-columns .pt-home-slot {
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-home-columns .pt-home-slot[data-slot="path"] {
+  animation-delay: calc(var(--pt-stagger) * 1);
+}
+
+.pt-home-columns .pt-home-slot[data-slot="list"] {
+  animation-delay: calc(var(--pt-stagger) * 2);
+}
+
+.pt-home-columns .pt-home-slot[data-slot="dates"] {
+  animation-delay: calc(var(--pt-stagger) * 3);
+}
+
+.pt-home-columns .pt-home-slot[data-slot="news"] {
+  animation-delay: calc(var(--pt-stagger) * 4);
+}
+
+.pt-home-columns .pt-home-slot[data-slot="csca"] {
+  animation-delay: calc(var(--pt-stagger) * 5);
+}
+
+.pt-home-path .pt-journey-meter {
+  transform-origin: left center;
+  animation: pt-fill-grow var(--pt-motion-slow) var(--pt-ease-out) calc(var(--pt-stagger) * 2) backwards;
+}
+
+/*
  * Нажатие на карточку: когда нажата её главная ссылка, вся карточка «садится»
  * на 100 мс. :has() — улучшение; без него остаются hover и нажатие самой ссылки.
  */
@@ -12276,9 +12856,16 @@ a.pt-btn.pt-doc-guide-download:hover {
   .pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine),
   .pt-evi-failure,
   .pt-evi-results-title,
+  .pt-home-columns .pt-home-slot,
+  .pt-home-path .pt-journey-meter,
   .pt-check[data-fresh] .pt-check-path,
   .pt-favorite-icon[data-pop] {
     animation: none;
+  }
+
+  /* Под мышью фото избранного не приближается: оно стоит как есть. */
+  .pt-home-fav-card:hover .pt-photo-img {
+    transform: none;
   }
 
   /* Вендорные псевдоэлементы — отдельными правилами: в другом движке один

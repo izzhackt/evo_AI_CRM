@@ -7,6 +7,7 @@ import { View } from "react-native";
 import { usePortalApi } from "@/api/PortalApi";
 import type { StudentPortalCaseFile } from "@/domain/portal-source";
 import { formatPortalTimestamp } from "@/domain/presentation";
+import { DocumentGuideButton } from "@/features/documents/DocumentGuide";
 import { downloadFile, type DownloadErrorKey } from "@/features/documents/download";
 import type { DocumentsIo } from "@/features/documents/io";
 import { useLang } from "@/i18n/LangProvider";
@@ -51,9 +52,19 @@ function CaseFileRow({ file, io, first }: { file: StudentPortalCaseFile; io: Doc
         <FileText size={18} strokeWidth={1.75} color={tokens.accent} />
       </View>
       <View style={{ flex: 1, gap: 6 }}>
-        <Text variant="body" bold>
-          {title}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
+          <Text variant="body" bold style={{ flexShrink: 1 }}>
+            {title}
+          </Text>
+          <DocumentGuideButton
+            label={title}
+            requirementKey={file.kind === "contract" ? "contract" : file.kind}
+            statusLabel={file.kind === "contract" ? null : file.kind === "receipt" ? strings.caseFileReceiptAttached : strings.caseFileReceiptPending}
+            statusTone={file.kind === "receipt" ? "ok" : "neutral"}
+            action={{ label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: file.originalFilename }), onPress: () => void open(), testID: `guide-download-${file.kind}-${file.fileId}` }}
+            testID={`guide-${file.kind}-${file.fileId}`}
+          />
+        </View>
         <Text variant="caption" tone="text2">
           {file.originalFilename}
           {added ? ` · ${added}` : ""}

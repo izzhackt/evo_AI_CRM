@@ -9,6 +9,8 @@ import { entryKindLabel, entryStatusPresentation, formatEntryDay } from "@/domai
 import { formatPortalMoney } from "@/domain/presentation";
 import { downloadFile } from "@/features/documents/download";
 import type { DocumentsIo } from "@/features/documents/io";
+import type { PaymentsIo } from "@/features/payments/io";
+import { ProofSlot } from "@/features/payments/ProofSlot";
 import type { MobileStringKey } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -18,7 +20,7 @@ import { Text } from "@/ui/Text";
 
 const FILE_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
 
-export function EntryRow({ entry, io, testID, first, onAttachAgain }: { entry: PaymentEntry; io: DocumentsIo; testID: string; first: boolean; onAttachAgain?: (() => void) | null }) {
+export function EntryRow({ entry, io, testID, first, onAttachAgain, proofIo = null }: { entry: PaymentEntry; io: DocumentsIo; testID: string; first: boolean; onAttachAgain?: (() => void) | null; /** Задан - у принятой оплаты без файла есть «Приложить чек» (#1458). */ proofIo?: PaymentsIo | null }) {
   const { m, t, format } = useLang();
   const { tokens } = useTheme();
   const api = usePortalApi();
@@ -81,6 +83,7 @@ export function EntryRow({ entry, io, testID, first, onAttachAgain }: { entry: P
         ) : null}
         {entry.status === "rejected" && onAttachAgain ? <Button variant="ghost" label={strings.receiptAttachAgain} onPress={onAttachAgain} testID={`${testID}-again`} /> : null}
       </View>
+      {proofIo ? <ProofSlot io={proofIo} paymentEventId={entry.entryId} context={`${formatEntryDay(entry.onDate)}, ${formatPortalMoney(entry.amountMinor, entry.currency)}`} testID={`${testID}-proof`} /> : null}
     </View>
   );
 }

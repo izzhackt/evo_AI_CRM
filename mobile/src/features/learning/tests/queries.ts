@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { orvisProfileFromAttempt } from "@/features/learning/professions/model";
@@ -29,5 +30,6 @@ export function useOwnOrvisProfile() {
   const catalog = useAssessmentCatalog();
   const attemptId = catalog.data?.instruments.find((i) => i.instrumentKey === "orvis92")?.latestCompletedAttemptId ?? null;
   const attempt = useAssessmentAttempt(attemptId);
-  return orvisProfileFromAttempt(attempt.data);
+  // Профиль считается от данных попытки, не от каждого рендера (поиск перерисовывает экран на каждую букву).
+  return useMemo(() => orvisProfileFromAttempt(attempt.data), [attempt.data]);
 }

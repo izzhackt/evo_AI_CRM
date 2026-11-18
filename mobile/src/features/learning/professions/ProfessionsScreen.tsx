@@ -71,7 +71,7 @@ export function ProfessionsScreen() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={p.matchesHelpLabel}
+              accessibilityLabel={`${p.matchesSource}. ${p.matchesHelpLabel}`}
               accessibilityState={{ expanded: helpOpen }}
               onPress={() => setHelpOpen((open) => !open)}
               testID="matches-help-toggle"
@@ -136,7 +136,7 @@ export function ProfessionsScreen() {
             </Text>
           </Card>
         ) : groups.length === 0 ? (
-          <Text variant="secondary" tone="text2" testID="professions-search-empty">
+          <Text variant="secondary" tone="text2" accessibilityRole="summary" accessibilityLiveRegion="polite" testID="professions-search-empty">
             {p.searchEmpty}
           </Text>
         ) : (

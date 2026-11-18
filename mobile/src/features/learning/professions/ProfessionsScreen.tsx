@@ -1,16 +1,19 @@
-// «Профессии»: карточки с фильтром по шкалам интересов и отметкой «созвучно вашим интересам»,
-// которую клиент считает по топ-шкалам СОБСТВЕННОГО завершённого теста интересов (серверной связки нет).
+// «Профессии»: тест интересов, «Подходят вам» (три лучших совпадения с собственным тестом), поиск,
+// фильтр по интересам и группы. Веб: src/app/(portal)/portal/professions/page.tsx, ProfessionMatches,
+// ProfessionsBrowser (правки владельца 10–11.11.2026). Отметка «созвучно» осталась как в первой версии
+// приложения: на карточке, когда шкалы профессии совпали с топ-шкалами теста.
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
-import { ORVIS_SCALE_IDS, professionResonates, type OrvisScaleId } from "@web/lib/portal/professions";
+import { groupProfessionsByScale, searchProfessions, topProfessionMatches } from "@web/lib/portal/profession-guide";
+import { ORVIS_SCALE_IDS, professionResonates, type OrvisScaleId, type ProfessionCardSummary } from "@web/lib/portal/professions";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
 import { readProfessionCards } from "@/features/learning/professions/api";
-import { useOwnTopScales } from "@/features/learning/tests/queries";
+import { useOwnOrvisProfile } from "@/features/learning/tests/queries";
 import { Chip } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -18,17 +21,33 @@ import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
+import { TextField } from "@/ui/TextField";
 
 export function ProfessionsScreen() {
-  const { lang, m, t } = useLang();
+  const { lang, m, t, format } = useLang();
   const { tokens } = useTheme();
   const { transport, userKey } = usePortalApi();
   const p = t("professions");
   useRefetchOnFocus();
   const cards = useQuery({ queryKey: ["portal", userKey, "profession-cards"], queryFn: () => readProfessionCards(transport) });
-  const { topScales } = useOwnTopScales();
+  const profile = useOwnOrvisProfile();
   const [scale, setScale] = useState<OrvisScaleId | null>(null);
-  const list = (cards.data ?? []).filter((c) => scale === null || c.orvisScales.includes(scale));
+  const [query, setQuery] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
+  const topScales = profile?.topScales ?? null;
+  const all = cards.data ?? [];
+  // Как на сайте: «Подходят вам» только без фильтра по интересу и только при завершённом тесте.
+  const matches = useMemo(() => (cards.data && profile && scale === null ? topProfessionMatches(cards.data, profile) : []), [cards.data, profile, scale]);
+  const inScale = all.filter((card) => scale === null || card.orvisScales.includes(scale));
+  const found = searchProfessions(inScale, query, lang === "ky" ? "ky" : "ru");
+  const groups = scale === null ? groupProfessionsByScale(found) : found.length > 0 ? [{ scale, cards: found }] : [];
+  const plural = new Intl.PluralRules(lang === "ky" ? "ky" : "ru");
+  const countLabel = (count: number) => {
+    const rule = plural.select(count);
+    return format(p[rule === "one" ? "groupCount.one" : rule === "few" ? "groupCount.few" : "groupCount.many"], { count: String(count) });
+  };
+  const title = (card: ProfessionCardSummary) => (lang === "ky" ? card.titleKy : card.titleRu);
+  const open = (card: ProfessionCardSummary) => router.navigate({ pathname: "/professions/[cardId]", params: { cardId: card.cardId } });
   return (
     <Screen topInset={false} tabBar onRefresh={() => void cards.refetch()} refreshing={cards.isRefetching}>
       <View style={{ gap: 16 }} testID="professions-screen">
@@ -44,6 +63,53 @@ export function ProfessionsScreen() {
           </Text>
           <Button variant="ghost" label={p.testEntry} onPress={() => router.navigate({ pathname: "/tests/[key]", params: { key: "orvis92" } })} testID="professions-test-open" />
         </Card>
+
+        {matches.length > 0 ? (
+          <View style={{ gap: 10 }} testID="profession-matches">
+            <Text variant="heading" accessibilityRole="header">
+              {p.matchesHeading}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${p.matchesSource}. ${p.matchesHelpLabel}`}
+              accessibilityState={{ expanded: helpOpen }}
+              onPress={() => setHelpOpen((open) => !open)}
+              testID="matches-help-toggle"
+              style={{ minHeight: MIN_TARGET, justifyContent: "center" }}
+            >
+              <Text variant="secondary" tone="accent" bold>
+                {p.matchesSource} · ?
+              </Text>
+            </Pressable>
+            {helpOpen ? (
+              <Text variant="secondary" tone="text2" testID="matches-help">
+                {p.matchesHelp}
+              </Text>
+            ) : null}
+            {matches.map(({ card, percent, reasons }) => (
+              <Pressable
+                key={card.cardId}
+                accessibilityRole="button"
+                accessibilityLabel={`${title(card)}. ${format(p.matchPercent, { percent: String(percent) })}`}
+                onPress={() => open(card)}
+                testID={`match-${card.cardKey}`}
+                style={{ minHeight: MIN_TARGET + 16, gap: 6, padding: 14, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
+              >
+                <Text variant="heading" tone="accent" testID={`match-percent-${card.cardKey}`}>
+                  {percent}%
+                </Text>
+                <Text variant="body" bold>
+                  {title(card)}
+                </Text>
+                <Text variant="secondary" tone="text2">
+                  {format(p.matchReasons, { scales: reasons.map((id) => p[`scale.${id}`]).join(", ") })}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        <TextField label={p.searchLabel} value={query} onChangeText={setQuery} autoCorrect={false} autoCapitalize="none" returnKeyType="search" testID="professions-search" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel={p.filterAria} contentContainerStyle={{ gap: 8 }}>
           {[null, ...ORVIS_SCALE_IDS].map((id) => {
             const on = scale === id;
@@ -62,37 +128,59 @@ export function ProfessionsScreen() {
           ) : (
             <CardSkeleton label={m("state.loading")} lines={4} />
           )
-        ) : list.length === 0 ? (
+        ) : all.length === 0 || (scale !== null && inScale.length === 0) ? (
           <Card>
             <Text variant="heading">{p.emptyTitle}</Text>
             <Text variant="secondary" tone="text2">
               {p.emptyBody}
             </Text>
           </Card>
+        ) : groups.length === 0 ? (
+          <Text variant="secondary" tone="text2" accessibilityRole="summary" accessibilityLiveRegion="polite" testID="professions-search-empty">
+            {p.searchEmpty}
+          </Text>
         ) : (
-          list.map((card) => {
-            const resonates = professionResonates(card.orvisScales, topScales);
-            return (
-              <Pressable
-                key={card.cardId}
-                accessibilityRole="button"
-                accessibilityLabel={`${lang === "ky" ? card.titleKy : card.titleRu}${resonates ? `. ${p.resonance}` : ""}`}
-                onPress={() => router.navigate({ pathname: "/professions/[cardId]", params: { cardId: card.cardId } })}
-                testID={`profession-${card.cardKey}`}
-                style={{ minHeight: MIN_TARGET + 16, gap: 8, padding: 14, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
-              >
-                <Text variant="body" bold>
-                  {lang === "ky" ? card.titleKy : card.titleRu}
+          groups.map((group) => (
+            <View key={group.scale} style={{ gap: 10 }} testID={`group-${group.scale}`}>
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                <Text variant="heading" accessibilityRole="header">
+                  {p[`scale.${group.scale}`]}
                 </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {card.orvisScales.map((sc) => (
-                    <Chip key={sc} label={p[`scale.${sc}`]} />
-                  ))}
-                </View>
-                {resonates ? <Chip tone="accent" label={p.resonance} testID="resonance" /> : null}
-              </Pressable>
-            );
-          })
+                <Text variant="caption" tone="text2">
+                  {countLabel(group.cards.length)}
+                </Text>
+              </View>
+              {group.cards.map((card) => {
+                const resonates = professionResonates(card.orvisScales, topScales);
+                const summary = lang === "ky" ? card.summaryKy : card.summaryRu;
+                return (
+                  <Pressable
+                    key={card.cardId}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${title(card)}${resonates ? `. ${p.resonance}` : ""}`}
+                    onPress={() => open(card)}
+                    testID={`profession-${card.cardKey}`}
+                    style={{ minHeight: MIN_TARGET + 16, gap: 8, padding: 14, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
+                  >
+                    <Text variant="body" bold>
+                      {title(card)}
+                    </Text>
+                    {summary ? (
+                      <Text variant="secondary" tone="text2">
+                        {summary}
+                      </Text>
+                    ) : null}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {card.orvisScales.map((sc) => (
+                        <Chip key={sc} label={p[`scale.${sc}`]} />
+                      ))}
+                    </View>
+                    {resonates ? <Chip tone="accent" label={p.resonance} testID="resonance" /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))
         )}
         {topScales ? (
           <Text variant="caption" tone="text2">

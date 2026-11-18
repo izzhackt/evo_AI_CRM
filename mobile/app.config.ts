@@ -12,7 +12,7 @@ const config: ExpoConfig = {
   slug: "evo-admissions",
   // Проект EAS принадлежит команде EVO в Expo, не личному аккаунту.
   owner: "izzhackts-team",
-  version: "2.0.0",
+  version: "2.1.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "evoadmissions",

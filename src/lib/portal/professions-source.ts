@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
 import { createSupabaseServerClient } from "../supabase/server";
 import { readStudentAssessmentAttempt, readStudentAssessments } from "../v3/student-assessment-source";
@@ -29,24 +31,25 @@ export class ProfessionSourceError extends Error {
   }
 }
 
-async function rpc(name: string, args?: Record<string, unknown>): Promise<unknown> {
-  const client = await createSupabaseServerClient();
+/** `client` — клиент сессии ученика; без него берётся клиент cookie-сессии (веб). Мобильное приложение передаёт Bearer-клиент. */
+async function rpc(name: string, args?: Record<string, unknown>, client?: SupabaseClient): Promise<unknown> {
+  client ??= await createSupabaseServerClient();
   const response = await client.schema("platform").rpc(name, args);
   if (response.error) throw new ProfessionSourceError();
   return response.data;
 }
 
-export async function readProfessionCards(): Promise<ProfessionCardSummary[]> {
+export async function readProfessionCards(client?: SupabaseClient): Promise<ProfessionCardSummary[]> {
   try {
-    return parseProfessionCards(await rpc("profession_cards_v1"));
+    return parseProfessionCards(await rpc("profession_cards_v1", undefined, client));
   } catch {
     throw new ProfessionSourceError();
   }
 }
 
-export async function readProfessionCard(cardId: string): Promise<ProfessionCard> {
+export async function readProfessionCard(cardId: string, client?: SupabaseClient): Promise<ProfessionCard> {
   try {
-    return parseProfessionCard(await rpc("profession_card_v1", { p_card_id: cardId }));
+    return parseProfessionCard(await rpc("profession_card_v1", { p_card_id: cardId }, client));
   } catch {
     throw new ProfessionSourceError();
   }
@@ -106,9 +109,10 @@ export async function readProfessionPrograms(
  * сессии ученика. Инструмента нет или чтение не удалось — честный null:
  * блок теста ведёт в раздел без прогресса, «Подходят вам» не показывается.
  */
-export async function readOwnOrvisState(): Promise<OrvisState | null> {
+export async function readOwnOrvisState(client?: SupabaseClient): Promise<OrvisState | null> {
   try {
-    const catalog = await readStudentAssessments();
+    const dependencies = client ? { client } : {};
+    const catalog = await readStudentAssessments(dependencies);
     const orvis = catalog.instruments.find((item) => item.instrumentKey === "orvis92");
     if (!orvis) return null;
     const draft = orvis.draftAttemptId
@@ -117,7 +121,7 @@ export async function readOwnOrvisState(): Promise<OrvisState | null> {
     let profile: OrvisProfile | null = null;
     if (orvis.latestCompletedAttemptId) {
       try {
-        const attempt = await readStudentAssessmentAttempt(orvis.latestCompletedAttemptId);
+        const attempt = await readStudentAssessmentAttempt(orvis.latestCompletedAttemptId, dependencies);
         const result = attempt.result && "orvis" in attempt.result ? attempt.result.orvis ?? null : null;
         if (result && result.scales.length > 0) {
           profile = {

@@ -80,6 +80,8 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",
       "^@web/(.*)$": "<rootDir>/../src/$1",
+      "^react$": "<rootDir>/node_modules/react",
+      "^react/(.*)$": "<rootDir>/node_modules/react/$1",
       "^lucide-react-native$": "<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js",
       "^@babel/runtime/(.*)$": "<rootDir>/node_modules/@babel/runtime/$1"
     },

@@ -376,6 +376,16 @@ test("migration 362 adds intake to the 191 board body and the card shows it as a
   assert.equal(admissionsPipelineIntakeLabel({ applicationSeason: "undecided", applicationYear: null, intakeText: "сентябрь 2027" }), null,
     "the questionnaire answered «undecided»: older sources do not override it");
   assert.equal(admissionsPipelineIntakeLabel({ intakeText: "набор B" }), "набор B");
+  for (const [text, label] of [
+    ["26 осень", "Осень 2026"], ["осень 26", "Осень 2026"],
+    ["след год", "Следующий год"], ["в след год", "Следующий год"], ["next year", "Следующий год"],
+    ["в следующем году", "Следующий год"], ["осень след года", "Осень следующего года"],
+    ["скорее осень", "Осень"], ["Весна/Осень", "Весна/осень"], ["весна или осень 2027", "Весна/осень 2027"],
+  ]) assert.equal(admissionsPipelineIntakeLabel({ intakeText: text }), label, text);
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "26" }), "26", "two digits alone are not a year");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "осень 15" }), "осень 15", "only 20–39 read as a year");
+  assert.equal(admissionsPipelineIntakeLabel({ intakeText: "Осень 2027 след год" }), "Осень 2027 след год", "a year and «next year» together stay as typed");
+  assert.equal(admissionsPipelineIntakeLabel({ wishesSeason: "след год", wishesYear: "2027" }), "2027", "a stored year beats «next year»");
   assert.equal(admissionsPipelineIntakeLabel({ intakeText: "  " }), null);
   assert.equal(admissionsPipelineIntakeLabel({}), null);
 

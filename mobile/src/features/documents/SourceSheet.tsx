@@ -27,7 +27,6 @@ export function SourceSheet({ visible, title, onPick, onClose, onDismissed }: Pr
         <Pressable accessibilityLabel={m("docs.pickCancel")} accessibilityRole="button" onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }} />
         <View
           testID="source-sheet"
-          accessibilityViewIsModal
           style={{ backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: Math.max(insets.bottom, 16) + 8, gap: 4 }}
         >
           <Text variant="heading" accessibilityRole="header">

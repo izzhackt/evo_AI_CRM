@@ -157,7 +157,7 @@ export function DocumentGuideButton({
         <View style={{ flex: 1, justifyContent: "flex-end", alignItems: "center" }}>
           <Pressable accessibilityLabel={strings.guideClose} accessibilityRole="button" onPress={close} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }} />
           {enlarged ? (
-            <View testID={`${id}-lightbox`} accessibilityViewIsModal style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16) + 8, gap: 12 }}>
+            <View testID={`${id}-lightbox`} style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16) + 8, gap: 12 }}>
               <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
                 <Pressable accessibilityRole="button" accessibilityLabel={strings.guideSampleClose} onPress={() => setEnlarged(false)} testID={`${id}-lightbox-close`} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
                   <X size={20} strokeWidth={1.8} color={tokens.text} />
@@ -167,7 +167,7 @@ export function DocumentGuideButton({
               <Legend guide={guide} />
             </View>
           ) : (
-            <View testID={`${id}-sheet`} accessibilityViewIsModal style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+            <View testID={`${id}-sheet`} style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingLeft: 16, paddingRight: 4, paddingTop: 12 }}>
                 <View style={{ flex: 1, gap: 6, paddingTop: 8 }}>
                   <Text variant="heading" accessibilityRole="header">

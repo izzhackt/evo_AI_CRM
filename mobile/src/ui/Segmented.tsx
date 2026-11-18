@@ -21,7 +21,7 @@ export function Segmented<T extends string>({ value, options, onChange, testIDPr
             testID={testIDPrefix ? `${testIDPrefix}-${o.value}` : undefined}
             style={{ flexGrow: 1, flexBasis: 0, minWidth: 0, paddingHorizontal: 6, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusChip, backgroundColor: active ? tokens.surface : "transparent", boxShadow: active && scheme === "light" ? tokens.shadowCard : undefined }}
           >
-            <Text variant="secondary" bold={active} tone={active ? "text" : "text2"} style={{ textAlign: "center" }}>
+            <Text variant="secondary" bold={active} tone={active ? "text" : "text2"} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ textAlign: "center" }}>
               {o.label}
             </Text>
           </Pressable>

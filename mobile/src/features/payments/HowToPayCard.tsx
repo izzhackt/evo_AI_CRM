@@ -17,6 +17,7 @@ import type { PaymentsIo } from "@/features/payments/io";
 import type { MobileStringKey } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
+import { FULL_QR_CARD_PAD, fullQrSize } from "@/features/payments/qr-size";
 import { Button } from "@/ui/Button";
 import { CardHead, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
@@ -95,7 +96,7 @@ export function HowToPayCard({ details, amount = null, io }: { details: PaymentD
     ...(amount ? [{ key: "amount" as const, value: amount.display, copyValue: amount.copyValue, due: dueText }] : []),
   ];
   const qrSize = Math.min(320, Math.max(220, width - 32 - 32 - 16));
-  const fullSize = Math.min(560, width - 32);
+  const fullSize = fullQrSize(width);
 
   return (
     <Card>
@@ -184,8 +185,8 @@ export function HowToPayCard({ details, amount = null, io }: { details: PaymentD
       </View>
       {qr.status === "ready" ? (
         <Modal visible={full} transparent animationType="fade" onRequestClose={() => setFull(false)} statusBarTranslucent>
-          <View testID="how-to-pay-qr-dialog" accessibilityViewIsModal style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 16 }}>
-            <View style={{ width: fullSize + 32, maxWidth: "100%", padding: 16, gap: 12, borderRadius: tokens.radiusControl, backgroundColor: "#FFFFFF" }}>
+          <View testID="how-to-pay-qr-dialog" style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <View style={{ width: fullSize + 2 * FULL_QR_CARD_PAD, maxWidth: "100%", padding: FULL_QR_CARD_PAD, gap: 12, borderRadius: tokens.radiusControl, backgroundColor: "#FFFFFF" }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <Text variant="heading" accessibilityRole="header" style={{ color: "#1A1A1A", flexShrink: 1 }}>
                   {parsed.brand ?? strings.howToPayQrAlt}

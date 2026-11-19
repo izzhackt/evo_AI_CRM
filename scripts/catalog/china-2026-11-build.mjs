@@ -122,7 +122,6 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   for (const row of input.rows) rowsByUid.set(row.uid, [...(rowsByUid.get(row.uid) ?? []), row]);
   const feeByRow = new Map();
   for (const group of input.feeGroups) for (const rowNumber of group.rows) feeByRow.set(rowNumber, group.feeId);
-  const feeById = new Map(input.feeGroups.map((group) => [group.feeId, group]));
   const aById = new Map(input.costA.map((entry) => [entry.feeId, entry]));
   const bById = new Map(input.costB.map((entry) => [entry.feeId, entry]));
   const acceptedByFee = new Map(), rejectedCosts = [];
@@ -235,8 +234,21 @@ export function evidenceMarkdown({ result, identities, rows, verifiedOn }) {
   out("|---|---|---|");
   for (const excluded of report.excluded) {
     const first = rows.find((row) => row.uid === excluded.uid);
-    out(`| ${first?.nameEn || excluded.uid} (${first?.location ?? ""}) | ${excluded.rows} | ${excluded.why} |`);
+    const why = excluded.why === "no programmes after cleaning" ? "нет программ: в строках таблицы не указана специальность" : excluded.why;
+    out(`| ${byUid.get(excluded.uid)?.nameEn || first?.nameEn || "название не указано"} (${first?.location ?? ""}) | ${excluded.rows} | ${why} |`);
   }
+  out();
+  const published = new Set([...report.created, ...report.merged].map((entry) => entry.uid));
+  const names = (filter) => identities.filter((rec) => published.has(rec.uid) && filter(rec)).map((rec) => rec.nameEn).sort((a, b) => a.localeCompare(b, "en"));
+  out("## Проверено слабее");
+  out();
+  out("Сайт не открылся из среды проверки (отказ в соединении, тайм-аут, ошибка сертификата или защита от ботов); домен подтверждён Wikidata или Wikipedia, факты взяты из них и из страниц вуза, открывавшихся частично:");
+  out();
+  out(names((rec) => rec.reachable === false).map((name) => `- ${name}`).join("\n"));
+  out();
+  out("Личность подтверждена по китайскому названию, городу и вторичным источникам, английское название на официальном сайте не найдено или вуз недавно переименован (уверенность medium):");
+  out();
+  out(names((rec) => rec.confidence !== "high").map((name) => `- ${name}`).join("\n"));
   out();
   out("## Что не проверено");
   out();

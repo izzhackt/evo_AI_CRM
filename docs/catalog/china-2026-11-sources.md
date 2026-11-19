@@ -158,9 +158,54 @@
 
 | Вуз в таблице | Строк | Причина |
 |---|---|---|
-| Youjiang National Hospital (Baise) | 12 | в таблице записана больница (右江民族医院), соответствие вузу 右江民族医学院 не подтверждено, нужно решение владельца |
-| u074 (Shijiazhuang) | 5 | личность не подтверждена: домен сайта не открывается, источники расходятся по домену, типу и адресу |
-| u133 (Changsha) | 1 | no programmes after cleaning |
+| Youjiang Medical University for Nationalities (Baise) | 12 | в таблице записана больница (Youjiang National Hospital); соответствие вузу Youjiang Medical University for Nationalities не подтверждено, нужно решение владельца |
+| Hebei Academy of Fine Arts (Shijiazhuang) | 5 | личность не подтверждена: домен сайта не открывается, источники расходятся по домену, типу и адресу |
+| Central South University (Changsha) | 1 | нет программ: в строках таблицы не указана специальность |
+
+## Проверено слабее
+
+Сайт не открылся из среды проверки (отказ в соединении, тайм-аут, ошибка сертификата или защита от ботов); домен подтверждён Wikidata или Wikipedia, факты взяты из них и из страниц вуза, открывавшихся частично:
+
+- Beibu Gulf University
+- China Jiliang University
+- China West Normal University
+- Dali University
+- Harbin Cambridge University
+- Henan University of Science and Technology
+- Huanghuai University
+- Huzhou Normal University
+- Jiangsu Normal University
+- Nanjing University of Science and Technology
+- Southwest University of Science and Technology
+- Wuchang University of Technology
+- Yangzhou University
+- Yunnan Technology and Business University
+
+Личность подтверждена по китайскому названию, городу и вторичным источникам, английское название на официальном сайте не найдено или вуз недавно переименован (уверенность medium):
+
+- Beibu Gulf University
+- China West Normal University
+- Dali University
+- Guangdong University of Finance
+- Harbin Cambridge University
+- Hebei Vocational University of Industry and Technology
+- Henan University of Science and Technology
+- Huanghuai University
+- Huzhou Normal University
+- Jiangsu Normal University
+- Nanjing University of Science and Technology
+- Qiongtai Normal University
+- Shantou University
+- Shenyang Urban Construction University
+- Sichuan Agricultural University
+- South China Business College, Guangdong University of Foreign Studies
+- Southwest University of Political Science and Law
+- Southwest University of Science and Technology
+- Weifang University
+- Wuchang University of Technology
+- Xuzhou University of Technology
+- Yangzhou University
+- Yunnan Technology and Business University
 
 ## Что не проверено
 

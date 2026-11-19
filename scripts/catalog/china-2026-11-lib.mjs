@@ -11,7 +11,6 @@ export const WORKSHEET_NAME = "Рабочая таблица EVO, набор 202
 export const ACADEMIC_YEAR = "2026/27";
 
 const MONTH_RU = Object.freeze({ 1: "Январь", 2: "Февраль", 3: "Март", 4: "Апрель", 5: "Май", 6: "Июнь", 7: "Июль", 8: "Август", 9: "Сентябрь", 10: "Октябрь", 11: "Ноябрь", 12: "Декабрь" });
-const MONTH_NUMBER = Object.freeze({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 });
 
 export const collapse = (text) => String(text ?? "").replace(/[ 　\s]+/gu, " ").trim();
 

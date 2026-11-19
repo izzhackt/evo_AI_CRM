@@ -9982,6 +9982,11 @@ a.pt-pay-file {
   margin: 0 0 4px;
 }
 
+/* Под линией строки текущего шага пояснение срока не прилипает к ней. */
+.pt-journey-now + .pt-journey-body > .pt-journey-body-note {
+  margin-top: 16px;
+}
+
 @container pt-journey (max-width: 640px) {
   .pt-journey-head[data-hero] .pt-journey-photo::after {
     background: rgb(20 16 12 / 0.76);
@@ -10378,8 +10383,11 @@ a.pt-pay-file {
 }
 
 /*
- * Тонкая строка «Шаг N из M · название» не уезжает при прокрутке пути; под ней полоса шагов. Нажатие раскрывает текущий
- * шаг и ведёт к нему; при переходе шаги останавливаются под строкой.
+ * Строка «Где вы сейчас» под шапкой пути (19.11.2026, пользователь: строку улучшить) — полоса самой карточки, без своей
+ * рамки и тени: вторая карточка внутри карточки спорила с ней. Круг с номером — как у текущего шага в списке; название
+ * шага, под ним «Шаг N из M · дальше — …» (10.11.2026, владелец; раньше — карточка «Путь»); ниже полоса шагов и в её
+ * конце «Все шаги». Нажатие на шаг раскрывает путь и текущий шаг и ведёт к нему. При прокрутке раскрытого пути строка
+ * не уезжает, шаги останавливаются под ней; линия под строкой — только пока шаги раскрыты.
  */
 .pt-card.pt-journey {
   overflow: clip;
@@ -10389,59 +10397,134 @@ a.pt-pay-file {
   position: sticky;
   top: calc(var(--pt-topbar-height) + 8px);
   z-index: 4;
+  --pt-now-node: 36px;
+  --pt-now-gap: 14px;
   display: grid;
-  gap: 8px;
   margin-top: 20px;
-  padding: 10px 14px 12px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-item);
   background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
+}
+
+/*
+ * Под шапкой на фото строка идёт во всю ширину карточки и закрепляется вплотную к верхней полосе: закреплённая, она
+ * закрывает шаги от края до края, без щели над собой. Нижний отступ здесь не задаётся — его даёт раскрытый путь.
+ */
+.pt-journey:has(> .pt-journey-head:is([data-photo], [data-hero])) > .pt-journey-now {
+  top: var(--pt-topbar-height);
+  margin: 0;
+  padding-top: 16px;
+  padding-inline: var(--pt-journey-x);
+}
+
+.pt-journey:has(> .pt-journey-head:is([data-photo], [data-hero])):has(> .pt-journey-now + .pt-journey-body[hidden]) {
+  padding-bottom: 8px;
+}
+
+.pt-journey-now:has(+ .pt-journey-body:not([hidden])) {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--pt-line);
 }
 
 .pt-journey-now + .pt-journey-body .pt-journey-steps {
-  margin-top: 8px;
-}
-
-.pt-journey-now-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  margin-top: 16px;
 }
 
 .pt-journey-now-step {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: var(--pt-now-gap);
+  min-width: 0;
   min-height: 44px;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
   color: var(--pt-text);
   font: inherit;
   text-align: left;
+}
+
+button.pt-journey-now-step {
   cursor: pointer;
 }
 
-.pt-journey-now-n {
+.pt-journey-now-node {
+  display: grid;
   flex-shrink: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
+  place-items: center;
+  width: var(--pt-now-node);
+  height: var(--pt-now-node);
+  border-radius: 50%;
+  background: var(--pt-text);
+  color: var(--pt-surface);
+  font-size: var(--pt-size-body);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.pt-journey-now[data-state="complete"] .pt-journey-now-node {
+  background: var(--pt-ok);
+}
+
+/*
+ * Полоса шагов и «Все шаги» в её конце; полоса начинается под названием шага. Где кнопке и полосе вместе тесно
+ * (телефон, длинная кыргызская подпись), кнопка уходит строкой ниже, к правому краю, а полоса не сжимается в точки.
+ */
+.pt-journey-now-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  column-gap: 12px;
+  margin-left: calc(var(--pt-now-node) + var(--pt-now-gap));
+}
+
+/* Свой отступ сверху и снизу: когда кнопка ушла строкой ниже, полоса не прилипает к тексту. */
+.pt-journey-now-bar > .pt-journey-meter {
+  flex: 1 1 128px;
+  margin-block: 12px;
+}
+
+/* Стрелка «Все шаги» — на правом крае содержимого карточки, как у кнопок шапки. */
+.pt-journey-now-bar > .pt-journey-fold {
+  margin-right: -6px;
+}
+
+/* Без полосы (дело завершено или закрыто) «Все шаги» стоит в одной строке с «Поступление завершено». */
+.pt-journey-now:not(:has(.pt-journey-meter)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.pt-journey-now:not(:has(.pt-journey-meter)) > .pt-journey-now-bar {
+  margin-left: 0;
+}
+
+.pt-journey-now-check {
+  width: 20px;
+  height: 20px;
+}
+
+.pt-journey-now-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .pt-journey-now-title {
   min-width: 0;
-  flex: 1;
   font-size: var(--pt-size-body);
   font-weight: 600;
   line-height: 1.3;
 }
 
+.pt-journey-now-sub {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.35;
+}
+
 @media (hover: hover) {
-  .pt-journey-now-step:hover .pt-journey-now-title {
+  button.pt-journey-now-step:hover .pt-journey-now-title {
     text-decoration: underline;
     text-underline-offset: 3px;
   }
@@ -10456,12 +10539,12 @@ a.pt-pay-file {
 /* Полоса шагов: зелёные пройдены, тёмный сейчас, светлые впереди. */
 .pt-journey-meter {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 
 .pt-journey-meter-seg {
   flex: 1;
-  height: 4px;
+  height: 6px;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-line);
 }
@@ -10474,8 +10557,16 @@ a.pt-pay-file {
   background: var(--pt-text);
 }
 
+@container pt-journey (max-width: 479.98px) {
+  .pt-journey-now {
+    --pt-now-node: 32px;
+    --pt-now-gap: 12px;
+  }
+}
+
+/* Запас под закреплённой строкой; переход к текущему шагу ставит точный отступ по её высоте. */
 .pt-journey-now ~ .pt-journey-body .pt-step {
-  scroll-margin-top: calc(var(--pt-topbar-height) + 96px);
+  scroll-margin-top: calc(var(--pt-topbar-height) + 128px);
 }
 
 /* «Все шаги» / «Свернуть»: весь путь сворачивается в строку текущего шага (08.11.2026, пользователь). */
@@ -12845,6 +12936,12 @@ a.pt-btn.pt-doc-guide-download:hover {
   animation-delay: calc(var(--pt-stagger) * 4);
 }
 
+/* Полоса шагов под шапкой «Главной» один раз вырастает слева направо (19.11.2026: была в карточке «Путь»). */
+.pt-journey-head[data-hero] ~ .pt-journey-now .pt-journey-meter {
+  transform-origin: left center;
+  animation: pt-fill-grow var(--pt-motion-slow) var(--pt-ease-out) calc(var(--pt-stagger) * 2) backwards;
+}
+
 /*
  * Нажатие на карточку: когда нажата её главная ссылка, вся карточка «садится»
  * на 100 мс. :has() — улучшение; без него остаются hover и нажатие самой ссылки.
@@ -13012,6 +13109,7 @@ a.pt-btn.pt-doc-guide-download:hover {
   .pt-evi-failure,
   .pt-evi-results-title,
   .pt-home-columns .pt-home-slot,
+  .pt-journey-head[data-hero] ~ .pt-journey-now .pt-journey-meter,
   .pt-check[data-fresh] .pt-check-path,
   .pt-favorite-icon[data-pop] {
     animation: none;

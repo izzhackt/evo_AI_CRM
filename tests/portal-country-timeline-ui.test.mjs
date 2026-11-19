@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -181,9 +182,8 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(block, /aria-expanded=\{showDone\}/u);
   // Ничего не раскрывается само: длинный список шага — только по нажатию.
   assert.match(block, /const \{ open, toggle \} = useOpenSteps\(view\);/u);
-  assert.match(block, /className="pt-journey-now"/u);
-  assert.match(block, /<span className="pt-journey-now-n">\{strings\.nowLabel\}<\/span>/u);
-  // Цвет всегда со словом: «Пройден» и «Сейчас» рядом с названием.
+  assert.match(block, /className="pt-journey-now" role="group" aria-label=\{strings\.whereNow\} data-state=\{nowRow\.kind\}/u);
+  // Цвет всегда со словом: «Пройден» и «Сейчас» рядом с названием. «Сейчас:» строки шага остаётся в словаре для iPhone.
   // «Сейчас» один раз на экран: у текущего шага значка рядом с названием нет, слово осталось для читалки.
   assert.match(block, /state === "done" \? \(\s+<span className="pt-step-state" data-progress=\{state\}>\{strings\.progressDone\}<\/span>\s+\) : state === "current" \? \(\s+<span className="pt-sr-only"> \(\{strings\.progressCurrent\}\)<\/span>/u);
   const { ru, ky } = PORTAL_DICTIONARIES.timeline;
@@ -201,7 +201,7 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(css, /\.pt-card\.pt-journey \{\n {2}overflow: clip;/u);
   assert.match(css, /\.pt-journey-now \{\n {2}position: sticky;\n {2}top: calc\(var\(--pt-topbar-height\) \+ 8px\);/u);
   assert.match(css, /\.pt-step\[data-progress="done"\] \.pt-step-node,/u);
-  assert.doesNotMatch(css, /pt-node-wave|pt-journey-now-count|pt-journey-now-timing/u, "no pulse and no repeated count or timing");
+  assert.doesNotMatch(css, /pt-node-wave|pt-journey-now-timing/u, "no pulse and no step timing in the line");
   // Весь путь сворачивается: шаги и «Важно знать» за «Все шаги»; 18.11.2026 — сначала свёрнут у всех (только шапка).
   assert.match(block, /useFolded\(true\)/u);
   assert.match(block, /<div id=\{stepsId\} className="pt-journey-body" hidden=\{folded\}>/u);
@@ -212,11 +212,23 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(css, /\.pt-journey-fold \{[\s\S]*?min-height: 44px;/u);
 });
 
-test("the step line names the current step, the current step opens Documents, timing stays under the title (user, 08.11.2026)", () => {
-  // «Сейчас: название» вместо «Шаг N из M»: число шагов спорило с числом этапов дела; оно осталось только читалке.
+test("the step line says «Шаг N из M · дальше — …», the current step opens Documents, timing stays under the title (owner 10.11.2026, user 19.11.2026)", () => {
+  // Число шагов прежде спорило с этапами дела в шапке «Главной»; этапов там нет с 10.11.2026, и строка под шапкой говорит
+  // слова полосы пути «Главной» (`home.strip*`, как iPhone) по общей функции `journeyStrip`. Второго словаря нет.
+  assert.match(block, /const strip = view \? journeyStrip\(view\.steps, progress, stage\) : null;/u);
+  assert.match(block, /formatPortalString\(stripStrings\.step, \{ n: String\(nowRow\.n\), total: String\(nowRow\.total\) \}\)/u);
+  assert.match(block, /formatPortalString\(stripStrings\.next, \{ title: nowRow\.nextTitle \}\)/u);
+  assert.match(block, /<span className="pt-journey-now-title">\{stripStrings\?\.done\}<\/span>/u, "a finished case says so");
+  assert.match(page, /stripStrings: \{ step: strings\.stripStep, next: strings\.stripNext, done: strings\.stripDone \},/u);
+  assert.match(page, /stage: overviewResult\.ok \? overviewResult\.value\?\.operationalStage \?\? null : null,/u);
   assert.doesNotMatch(block, /strings\.nowStep|timeline\.nowStep/u);
   assert.equal(PORTAL_DICTIONARIES.timeline.ru.nowStep, undefined);
-  assert.match(block, /strings\.stepOf, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
+  // Без слов полосы — название, число шагов слышит читалка.
+  assert.match(block, /strings\.stepOf, \{ n: String\(nowRow\.n\), total: String\(nowRow\.total\) \}/u);
+  // Полоса самой карточки: без своей рамки и тени (19.11.2026, карточка в карточке); круг с номером, как у шага.
+  const line = /\.pt-journey-now \{[^}]*\}/u.exec(css)[0];
+  assert.doesNotMatch(line, /border|box-shadow/u);
+  assert.match(block, /<span className="pt-journey-now-node" aria-hidden="true">\{nowRow\.n\}<\/span>/u);
   // «Открыть документы» — у текущего шага этапа документов и только тому, кому «Документы» открыты.
   assert.match(block, /state === "current" && documentsHref && step\.stageKeys\.includes\("documents"\)/u);
   assert.match(page, /documentsHref: assisted \? "\/portal\/documents" : null,/u);
@@ -225,6 +237,38 @@ test("the step line names the current step, the current step opens Documents, ti
   // Срок шага всегда строкой под названием: столбика сроков слева больше нет.
   assert.doesNotMatch(css, /"period node title chevron"|--pt-step-period: 184px/u);
   assert.match(css, /grid-template-areas:\n {4}"node title chevron"\n {4}"node period chevron"\n {4}"node goal chevron"\n {4}"node go chevron";/u);
+});
+
+test("the home step line renders the current step, a finished case and the bar on the stand (19.11.2026)", () => {
+  // Стенд рендерит настоящие компоненты в отдельном процессе без react-server (как проверка доступности).
+  const surfaces = JSON.parse(execFileSync(process.execPath, [new URL("./e2e/portal-static-render.cjs", import.meta.url).pathname], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  }));
+  const row = (name) => {
+    const html = surfaces.find((surface) => surface.name === name)?.html ?? "";
+    const start = html.lastIndexOf("<div", html.indexOf('class="pt-journey-now"'));
+    assert.ok(start > 0, `${name}: the step line is there`);
+    return { html, line: html.slice(start, html.lastIndexOf("<div", html.indexOf('class="pt-journey-body"', start))) };
+  };
+  const text = (html) => html.replace(/<span class="pt-sr-only">[^<]*<\/span>/gu, "").replace(/<[^>]+>/gu, "");
+
+  // Клиент на шаге «Экзамены»: круг с номером, название, «Шаг 2 из 8 · дальше — Документы», полоса из восьми частей.
+  const current = row("home-assisted");
+  assert.match(current.line, /data-state="step"/u);
+  assert.match(text(current.line), /^2Экзамены: CSCA и языкШаг 2 из 8 · дальше — ДокументыВсе шаги$/u);
+  assert.match(current.line, /<span class="pt-sr-only">\. <\/span>Шаг 2 из 8<span aria-hidden="true"> · <\/span><span class="pt-sr-only">, <\/span>дальше — Документы/u);
+  assert.deepEqual([...current.line.matchAll(/class="pt-journey-meter-seg" data-progress="(\w+)"/gu)].map((match) => match[1]),
+    ["done", "current", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
+  assert.match(current.line, /<div class="pt-journey-now-bar"><span class="pt-journey-meter"[^>]*>[\s\S]*<\/span><button type="button" class="pt-journey-fold"/u);
+  assert.doesNotMatch(current.html, /class="pt-journey-change"><button type="button" class="pt-journey-fold"/u, "one fold button, in the line");
+
+  // Дело завершено: «Поступление завершено», полосы нет — отметок по шагам у такого дела нет, список их не рисует.
+  const finished = row("home-path-finished");
+  assert.match(finished.line, /data-state="complete"/u);
+  assert.match(text(finished.line), /^Поступление завершеноВсе шаги$/u);
+  assert.doesNotMatch(finished.line, /pt-journey-meter/u);
+  assert.doesNotMatch(finished.html, /class="pt-step"[^>]*data-progress=/u);
 });
 
 test("every cabinet page has the same content width as the user's sample (08.11.2026)", () => {
@@ -236,7 +280,7 @@ test("every cabinet page has the same content width as the user's sample (08.11.
 
 // Перенесено из #1423 (Айвар): без текущего шага «Все шаги» стоит в шапке рядом с «Сменить страну», а не одна строка внизу.
 test("without a current step the fold button sits next to «Сменить страну» in the header", () => {
-  assert.match(block, /<div className="pt-journey-change">\s*\{\/\*[^]*?\*\/\}\s*\{currentStep \? null : foldButton\}\s*<button\s+ref=\{changeRef\}/u);
+  assert.match(block, /<div className="pt-journey-change">\s*\{\/\*[^]*?\*\/\}\s*\{nowRow \? null : foldButton\}\s*<button\s+ref=\{changeRef\}/u);
   assert.doesNotMatch(block, /pt-journey-fold-row/u);
   assert.doesNotMatch(css, /pt-journey-fold-row/u);
   assert.match(css, /\.pt-journey-change \{\n {2}display: flex;\n {2}flex-wrap: wrap;/u);

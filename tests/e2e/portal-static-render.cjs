@@ -582,8 +582,10 @@ const timelineChina = createElement(CountryTimeline, {
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
   photo: beijingPhotoFixture, photoStrings: universitiesStrings,
 });
-/** Путь Китая клиента на этапе «Документы» (строка «Сейчас» и полоса шагов) — весь путь под шапкой «Главной». */
+/** Путь Китая клиента на этапе «Документы» (строка текущего шага и полоса шагов) — весь путь под шапкой «Главной». */
 const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
+/** То же дело завершено: этапа `completed` нет среди этапов пути, отметок по шагам нет. */
+const chinaFinished = selectStudentJourney({ country: "CN", stage: "completed", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
 
 const learningModulesDraftFixture = [
   {
@@ -1022,11 +1024,50 @@ const surfaces = [
           preparations: homePreparationsFixture,
           dates: cscaHomeDates({ choice: homeChinaChoice, home: cscaHomeFixture, homeStrings }),
           csca: createElement(CscaHomeCard, { view: homeCscaCard }),
-          // Со страной шапка «Главной» и весь путь — один блок на фото Пекина, под ним строка «Сейчас».
+          // Со страной шапка «Главной» и весь путь — один блок на фото Пекина, под ним строка текущего шага.
           path: {
             view: chinaJourney.view, progress: chinaJourney.progress, documentsHref: "/portal/documents",
             source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
             photo: beijingPhotoFixture, photoStrings: universitiesStrings,
+            // 19.11.2026: строка под шапкой — «Шаг N из M · дальше — …», как у iPhone.
+            stripStrings: { step: homeStrings.stripStep, next: homeStrings.stripNext, done: homeStrings.stripDone },
+            stage: "documents",
+          },
+          locale: "ru",
+          now: HOME_NOW,
+        }),
+      ),
+    ),
+  },
+  // 19.11.2026: дело завершено — строка под шапкой «Поступление завершено», без полосы и отметок (прогресса по шагам нет).
+  {
+    name: "home-path-finished",
+    html: renderSurface(
+      "Главная — дело завершено — a11y",
+      pageShell(
+        null,
+        homeStrings.title,
+        null,
+        createElement(HomeView, {
+          tier: "assisted",
+          displayName: "Айгерим Асанова",
+          studyCountry: "Китай",
+          intake: chinaJourney.view.intake.label,
+          overview: null,
+          overviewFailed: false,
+          news: [],
+          favorites: [],
+          favoritesTotal: 0,
+          list: null,
+          preparations: [],
+          dates: [],
+          csca: null,
+          path: {
+            view: chinaFinished.view, progress: chinaFinished.progress, documentsHref: "/portal/documents",
+            source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+            photo: beijingPhotoFixture, photoStrings: universitiesStrings,
+            stripStrings: { step: homeStrings.stripStep, next: homeStrings.stripNext, done: homeStrings.stripDone },
+            stage: "completed",
           },
           locale: "ru",
           now: HOME_NOW,

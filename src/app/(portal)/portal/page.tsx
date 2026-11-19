@@ -204,6 +204,9 @@ export default async function StudentPortalHomePage({
           strings: getPortalStrings("timeline", locale),
           photo: capital?.image ? { country: capital.country, image: capital.image } : null,
           photoStrings: getPortalStrings("universities", locale),
+          // Строка под шапкой — слова полосы пути «Главной» (10.11.2026), как у iPhone.
+          stripStrings: { step: strings.stripStep, next: strings.stripNext, done: strings.stripDone },
+          stage: overviewResult.ok ? overviewResult.value?.operationalStage ?? null : null,
         } : null}
         countryChoice={journey.view ? null : (
           <CountryTimeline

@@ -2855,9 +2855,10 @@ html:has(.pt-program-dialog[open]) {
  * затемнении (подложка тёмная и без фото), интерфейс вокруг — «Атлас».
  * ================================================================ */
 
-.pt-atlas {
+.pt-atlas,
+.pt-journey-head[data-photo] {
   /* Подложка мест: тёплый тёмный тон, одинаковый в обеих темах, чтобы белый
-     текст на фото читался и до загрузки снимка. */
+     текст на фото читался и до загрузки снимка. Те же значения у шапки пути на фото столицы (18.11.2026). */
   --pt-place-ink: #2a2520;
   --pt-place-scrim: linear-gradient(180deg, rgb(20 16 12 / 0) 34%, rgb(20 16 12 / 0.38) 62%, rgb(20 16 12 / 0.82) 100%);
   --pt-place-on: #ffffff;
@@ -8591,11 +8592,11 @@ a.pt-pay-file {
   z-index: 1;
 }
 
+/* Две колонки, а не перенос: длинное имя уходит на вторую строку, отсчёт остаётся справа. */
 .pt-home-hero-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 16px 32px;
   padding: 28px 32px 24px;
 }
@@ -8679,9 +8680,9 @@ a.pt-pay-file {
 }
 
 /* Узкая шапка: отсчёт строкой под именем, над ним волосяная линия шапки. */
-@container pt-hero (max-width: 600px) {
+@container pt-hero (max-width: 720px) {
   .pt-home-hero-count {
-    flex: 1 1 100%;
+    grid-column: 1 / -1;
     grid-template-columns: auto minmax(0, 1fr);
     justify-items: start;
     align-items: baseline;
@@ -8723,8 +8724,7 @@ a.pt-pay-file {
 }
 
 .pt-home-slot[data-slot="case"] { order: 1; }
-.pt-home-slot[data-slot="path"] { order: 2; }
-/* «Мой список» (18.11.2026): в одну колонку сразу за путём — путь не уезжает за вузы (08.11.2026). */
+/* «Мой список» (18.11.2026): в одну колонку сразу за делом; весь путь стоит выше, под шапкой. */
 .pt-home-slot[data-slot="list"] { order: 3; }
 .pt-home-slot[data-slot="dates"] { order: 4; }
 .pt-home-slot[data-slot="news"] { order: 5; }
@@ -8976,54 +8976,6 @@ a.pt-pay-file {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   line-height: 1.45;
-}
-
-/* Карточка «Пути поступления»: где студент сейчас; весь путь на «Поступлении». */
-.pt-home-path-lead {
-  margin: 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  line-height: 1.45;
-}
-
-.pt-home-path-now {
-  display: grid;
-  gap: 10px;
-}
-
-.pt-home-path-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-  margin: 0;
-}
-
-.pt-home-path-n {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.pt-home-path-title {
-  font-size: var(--pt-size-body);
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.pt-home-path-n {
-  font-weight: 600;
-}
-
-.pt-home-path-next {
-  margin: -4px 0 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  line-height: 1.4;
-}
-
-.pt-home-path-all {
-  margin: 0;
 }
 
 /* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
@@ -9745,8 +9697,8 @@ a.pt-pay-file {
 }
 
 /* ---------- «Путь поступления» (S4, план §8.4) ----------
- * С 08.11.2026 весь путь стоит на «Поступлении» между плитками и вкладками,
- * на «Главной» — его карточка (.pt-home-path-*).
+ * С 18.11.2026 весь путь стоит на «Главной» сразу под шапкой, свёрнутый до
+ * компактной шапки на фото столицы; отдельной карточки пути нет.
  * Вертикальный путь: номер шага на линии, срок, название и цель; шаг
  * раскрывается в пункты (только чтение) и «Когда шаг пройден». На широком
  * экране сроки стоят колонкой слева от линии, на узком над названием.
@@ -9839,6 +9791,219 @@ a.pt-pay-file {
   margin: 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+}
+
+/*
+ * Шапка пути на фото столицы (18.11.2026, «Главная»): фото во всю ширину карточки, компактная шапка. Под текстом —
+ * тёмная подложка слева направо, как у карточек мест каталога (фото — контент, у автора «©»); текст и кнопки стоят
+ * слева, где подложка плотнее всего, справа фото видно. Без фото шапка прежняя. Без :has() фото остаётся внутри
+ * обычных полей карточки.
+ */
+.pt-journey {
+  --pt-journey-x: 32px;
+}
+
+@media (max-width: 639.98px) {
+  .pt-journey {
+    --pt-journey-x: 16px;
+  }
+}
+
+.pt-journey:has(> .pt-journey-head:is([data-photo], [data-hero])) {
+  padding: 0;
+}
+
+.pt-journey:has(> .pt-journey-head:is([data-photo], [data-hero])) > :not(.pt-journey-head) {
+  margin-inline: var(--pt-journey-x);
+}
+
+.pt-journey:has(> .pt-journey-head:is([data-photo], [data-hero])):has(> .pt-journey-now, > .pt-journey-body:not([hidden]), > .pt-journey-picker-wrap, > .pt-journey-alert) {
+  padding-bottom: 20px;
+}
+
+.pt-journey-head[data-photo] {
+  position: relative;
+  isolation: isolate;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 184px;
+  padding: 24px var(--pt-journey-x) 20px;
+  background: var(--pt-place-ink);
+  color: var(--pt-place-on);
+}
+
+.pt-journey-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.pt-journey-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Плотная часть — до конца колонки текста (до ~600 px), а не до доли ширины: иначе на карточке 641–700 px конец
+     пояснения ложится на редеющую подложку. */
+  background: linear-gradient(90deg, rgb(20 16 12 / 0.86) 0, rgb(20 16 12 / 0.74) 600px, rgb(20 16 12 / 0.28) 100%);
+}
+
+.pt-journey-photo-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pt-journey-head[data-photo] .pt-journey-head-main {
+  flex: 0 0 auto;
+  max-width: min(560px, 100%);
+}
+
+.pt-journey-head[data-photo] .pt-journey-title {
+  color: var(--pt-place-on);
+  font-size: var(--pt-size-heading);
+}
+
+.pt-journey-head[data-photo] .pt-journey-intake {
+  margin-top: 8px;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-head[data-photo] :is(.pt-journey-intake, .pt-journey-intake-icon, .pt-journey-intake-note, .pt-journey-source) {
+  color: var(--pt-place-on);
+}
+
+.pt-journey-head[data-photo] .pt-journey-intake-note {
+  margin-top: 4px;
+  font-size: var(--pt-size-caption);
+}
+
+.pt-journey-head[data-photo] .pt-journey-change {
+  justify-content: flex-start;
+  max-width: none;
+}
+
+.pt-journey-head[data-photo] .pt-journey-change > .pt-journey-source {
+  text-align: left;
+}
+
+/* Кнопки на фото — на своей подложке поверхности, как обычные кнопки кабинета. */
+.pt-journey-head:is([data-photo], [data-hero]) .pt-journey-fold {
+  padding: 0 10px 0 14px;
+  border: 1px solid var(--pt-line);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+}
+
+@media (hover: hover) {
+  .pt-journey-head:is([data-photo], [data-hero]) .pt-journey-fold:hover {
+    background: var(--pt-bg);
+  }
+}
+
+/* Рамка фокуса на фото — светлая: красная теряется на снимке. */
+.pt-journey-head:is([data-photo], [data-hero]) :is(a, button, summary):focus-visible {
+  outline-color: var(--pt-place-on);
+}
+
+/* Фото не загрузилось (PlaceImage убирает картинку): шапка на тёмной подложке, «©» не к чему. */
+.pt-journey-head[data-photo]:not(:has(.pt-journey-photo img)) .pt-photo-rights {
+  display: none;
+}
+
+/*
+ * Одна шапка «Главной» на фото столицы (18.11.2026, пользователь: две тёмные плашки подряд смотрелись плохо):
+ * приветствие-h1, «страна · набор» и отсчёт — содержимое шапки «Главной» (HomeHeroContent), под ним кнопки пути.
+ * Красная кромка сверху — как у шапки «Главной». Без фото — её тёмная плашка с красными градиентами. Текст прижат
+ * книзу, верх снимка открыт.
+ */
+.pt-journey-head[data-hero] {
+  container: pt-hero / inline-size;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 300px;
+  justify-content: flex-end;
+  /* Верхние 64 px подложки светлые: длинная шапка растёт вниз, текст туда не поднимается. */
+  padding: 64px var(--pt-journey-x) 20px;
+  border-top: 3px solid var(--pt-brand-red);
+  background: var(--pt-hero-wash), var(--pt-hero-bg);
+  color: var(--pt-hero-ink);
+}
+
+/* Фото лежит поверх фона шапки: не загрузилось — остаётся тёмная плашка с красными градиентами. */
+.pt-journey-head[data-hero][data-photo] {
+  background: var(--pt-hero-wash), var(--pt-hero-bg);
+}
+
+.pt-journey-head[data-hero] > .pt-home-hero-head {
+  align-self: stretch;
+  padding: 0;
+}
+
+/*
+ * Подложка сверху вниз: верхняя полоса фото светлая, текст ниже 64 px. Расчёт на белом пикселе снимка: с 64 px белый
+ * ≥3.5:1 (крупное приветствие и число дней), с 90 px — ≥4.8:1 (мелкий текст начинается не выше ~100 px). Приглушённый
+ * шапки на фото не держит 4.5:1, поэтому подпись и «дней до…» здесь белые.
+ */
+.pt-journey-head[data-hero] .pt-journey-photo::after {
+  background: linear-gradient(180deg, rgb(20 16 12 / 0.1) 0, rgb(20 16 12 / 0.5) 64px, rgb(20 16 12 / 0.8) 150px, rgb(20 16 12 / 0.88) 100%);
+}
+
+.pt-journey-head[data-hero][data-photo] :is(.pt-home-hero-sub, .pt-home-hero-count-when) {
+  color: var(--pt-place-on);
+}
+
+.pt-journey-head[data-hero] .pt-journey-change {
+  justify-content: flex-start;
+  max-width: none;
+}
+
+.pt-journey-head[data-hero] .pt-journey-change > .pt-journey-source {
+  color: var(--pt-hero-muted);
+  text-align: left;
+}
+
+.pt-journey-head[data-hero][data-photo] .pt-journey-change > .pt-journey-source {
+  color: var(--pt-place-on);
+}
+
+/* «©» — в нижнем углу: сверху справа стоит отсчёт. */
+.pt-journey-head[data-hero] .pt-photo-rights-bottom {
+  bottom: 6px;
+}
+
+.pt-journey-body-note {
+  margin: 0 0 4px;
+}
+
+@container pt-journey (max-width: 640px) {
+  .pt-journey-head[data-hero] .pt-journey-photo::after {
+    background: rgb(20 16 12 / 0.76);
+  }
+
+  .pt-journey-head[data-hero] {
+    min-height: 0;
+    padding-top: 22px;
+    padding-bottom: 52px;
+  }
+}
+
+/* На узкой карточке подложка ровная: текст идёт во всю ширину. */
+@container pt-journey (max-width: 640px) {
+  .pt-journey-photo::after {
+    background: rgb(20 16 12 / 0.74);
+  }
+
+  .pt-journey-head[data-photo] {
+    min-height: 0;
+    padding-top: 52px;
+  }
 }
 
 .pt-journey-alert {
@@ -12657,15 +12822,14 @@ a.pt-btn.pt-doc-guide-download:hover {
 }
 
 /*
- * «Главная» (18.11.2026): блоки колонок входят по очереди с шагом --pt-stagger в порядке чтения — дело, путь, список,
- * даты, новости, CSCA (последний стартует на 150 мс, заканчивает к 350 мс). Полоса шагов пути один раз вырастает
- * слева направо, когда её карточка уже на месте.
+ * «Главная» (18.11.2026): блоки колонок входят по очереди с шагом --pt-stagger в порядке чтения — дело, даты, список,
+ * новости, CSCA (последний стартует на 120 мс, заканчивает к 320 мс).
  */
 .pt-home-columns .pt-home-slot {
   animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
 }
 
-.pt-home-columns .pt-home-slot[data-slot="path"] {
+.pt-home-columns .pt-home-slot[data-slot="dates"] {
   animation-delay: calc(var(--pt-stagger) * 1);
 }
 
@@ -12673,21 +12837,12 @@ a.pt-btn.pt-doc-guide-download:hover {
   animation-delay: calc(var(--pt-stagger) * 2);
 }
 
-.pt-home-columns .pt-home-slot[data-slot="dates"] {
+.pt-home-columns .pt-home-slot[data-slot="news"] {
   animation-delay: calc(var(--pt-stagger) * 3);
 }
 
-.pt-home-columns .pt-home-slot[data-slot="news"] {
-  animation-delay: calc(var(--pt-stagger) * 4);
-}
-
 .pt-home-columns .pt-home-slot[data-slot="csca"] {
-  animation-delay: calc(var(--pt-stagger) * 5);
-}
-
-.pt-home-path .pt-journey-meter {
-  transform-origin: left center;
-  animation: pt-fill-grow var(--pt-motion-slow) var(--pt-ease-out) calc(var(--pt-stagger) * 2) backwards;
+  animation-delay: calc(var(--pt-stagger) * 4);
 }
 
 /*
@@ -12857,7 +13012,6 @@ a.pt-btn.pt-doc-guide-download:hover {
   .pt-evi-failure,
   .pt-evi-results-title,
   .pt-home-columns .pt-home-slot,
-  .pt-home-path .pt-journey-meter,
   .pt-check[data-fresh] .pt-check-path,
   .pt-favorite-icon[data-pop] {
     animation: none;

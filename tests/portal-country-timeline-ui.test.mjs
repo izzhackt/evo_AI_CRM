@@ -13,7 +13,6 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const page = read("src/app/(portal)/portal/page.tsx");
 const view = read("src/components/portal/home/HomeView.tsx");
 const block = read("src/components/portal/home/CountryTimeline.tsx");
-const card = read("src/components/portal/home/HomeJourneyCard.tsx");
 const journey = read("src/lib/portal/student-journey.ts");
 const anchor = read("src/lib/portal/journey-anchor.ts");
 const action = read("src/lib/portal/country-choice-actions.ts");
@@ -44,39 +43,26 @@ test("the choice is read in the same wave as the other reads on both pages", () 
   assert.doesNotMatch(block, /COUNTRY_TIMELINES|content\/timelines|selectCountryTimeline\(|student-journey/u);
 });
 
-test("one home: the card sits in the right column, the whole path closes the page under «Мой список» (#1355)", () => {
-  // На странице два CountryTimeline: выбор страны (view={null}, пока страны нет) и весь путь, когда страна выбрана.
-  assert.equal(page.match(/<CountryTimeline/gu)?.length, 2);
+test("one home: the whole path stands right under the header, no separate path card (#1355, 18.11.2026)", () => {
+  // Выбор страны (view={null}) — на странице; весь путь страницы передаёт свойствами, блок собирает HomeView.
+  assert.equal(page.match(/<CountryTimeline/gu)?.length, 1);
   assert.match(page, /countryChoice=\{journey\.view \? null : \(\s+<CountryTimeline\s+view=\{null\}/u);
-  assert.match(page, /fullPath=\{journey\.view \? \(\s+(?:\/\/[^\n]*\n\s+)?<CountryTimeline\s+view=\{journey\.view\}/u);
-  assert.match(page, /journey=\{journey\.view \? \(\s+<HomeJourneyCard view=\{journey\.view\} progress=\{journey\.progress\} stage=\{[^}]*\} locale=\{locale\} \/>\s+\) : null\}/u);
-  assert.ok(view.indexOf("{list}") > view.indexOf('<div className="pt-home-columns">') && view.indexOf("{fullPath}") > view.indexOf("{list}"), "columns, then the list, then the whole path");
+  assert.match(page, /path=\{journey\.view \? \{\n(?:\s+\/\/[^\n]*\n)?\s+view: journey\.view,/u);
+  // 18.11.2026 (пользователь): со страной шапка «Главной» и путь — один блок на фото столицы, на месте шапки; без
+  // страны — прежняя тёмная шапка и под ней выбор страны. Карточки «Путь: страна» справа нет.
+  assert.match(view, /\{path \? <CountryTimeline \{\.\.\.path\} hero=\{<HomeHeroContent \{\.\.\.hero\} \/>\} \/> : <HomeHero \{\.\.\.hero\} \/>\}\n\s+\{countryChoice\}/u);
+  assert.ok(view.indexOf("<CountryTimeline {...path}") < view.indexOf('<div className="pt-home-columns">'), "the path block opens the page");
+  assert.match(block, /\{hero\}\n\s+\{\/\*[^*]*\*\/\}\n\s+<h2 id=\{headingId\} ref=\{headingRef\} tabIndex=\{-1\} className="pt-sr-only">\{title\}<\/h2>/u);
+  assert.ok(view.indexOf("{list}") > view.indexOf('<div className="pt-home-columns">'), "columns, then the wide list");
+  assert.doesNotMatch(page + view, /HomeJourneyCard|\{journey\}|data-slot="path"/u);
+  assert.equal(existsSync(new URL("../src/components/portal/home/HomeJourneyCard.tsx", import.meta.url)), false);
   // Выбор страны первым блоком под шапкой, до колонок (карточки согласия на «Главной» больше нет, 09.11.2026).
-  const hv = view;
-  assert.ok(hv.indexOf("{countryChoice}") > hv.indexOf("<HomeHero") && hv.indexOf("{countryChoice}") < hv.indexOf("{info}"), "country choice first under the header");
-  // Карточка открывает правую колонку «Главной», перед датами.
-  const side = view.indexOf('<div className="pt-home-side">');
-  const cardAt = view.indexOf("{journey}");
-  const dates = view.indexOf("<HomeDates");
-  assert.ok(side > 0 && cardAt > side && dates > cardAt, "the card opens the right column");
-  // Карточка ведёт к якорю блока, переход по ней раскрывает путь.
+  assert.ok(view.indexOf("{countryChoice}") > view.indexOf("<HomeHero") && view.indexOf("{countryChoice}") < view.indexOf("{info}"), "country choice first under the header");
+  // Якорь блока: переход по #path (с других страниц) раскрывает путь.
   assert.match(anchor, /export const JOURNEY_ANCHOR = "path";/u);
-  assert.match(anchor, /export const JOURNEY_HREF = `\/portal#\$\{JOURNEY_ANCHOR\}`;/u);
   assert.match(block, /id=\{JOURNEY_ANCHOR\}/u);
   assert.match(block, /if \(window\.location\.hash === `#\$\{JOURNEY_ANCHOR\}`\) setFolded\(false\);/u);
-  assert.match(card, /href=\{JOURNEY_HREF\}/u);
-  // Карточка — серверная разметка: шаг словами, полоса шагов скрыта от читалки, сбой выбора — честная плашка.
-  assert.doesNotMatch(card, /^"use client";/u);
-  // 10.11.2026: «Шаг N из M · название · дальше — …» считает общий journeyStrip (тот же код у iPhone).
-  assert.match(card, /journeyStrip\(view\.steps, progress, stage\)/u);
-  assert.match(card, /strings\.stripStep, \{ n: String\(strip\.n\), total: String\(strip\.total\) \}/u);
-  assert.match(card, /strings\.stripNext, \{ title: strip\.nextTitle \}/u);
-  assert.match(card, /strings\.stripDone/u);
-  assert.match(card, /<span className="pt-journey-meter" aria-hidden="true">/u);
-  assert.match(card, /<p role="alert" className="pt-alert">\{timeline\.readError\}<\/p>/u);
-  // Без страны карточки нет (выбор стоит первым блоком «Главной»); заголовок называет страну пути.
-  assert.match(card, /if \(view === null\) return null;/u);
-  assert.match(card, /strings\.pathTitle, \{ country: view\.countryName \}/u);
+  // Строки карточки остаются в словаре: ими пользуется приложение (mobile/src/features/home).
   const home = PORTAL_DICTIONARIES.home;
   assert.deepEqual([home.ru.pathAll, home.ru.pathTitle, home.ru.stripStep, home.ru.stripNext, home.ru.stripDone], ["Весь путь", "Путь: {country}", "Шаг {n} из {total}", "дальше — {title}", "Поступление завершено"]);
   for (const key of ["pathAll", "pathTitle", "stripStep", "stripNext", "stripDone"]) assert.ok(home.ky[key], `ky ${key}`);
@@ -189,7 +175,7 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(page, /boardStage: overviewResult\.ok \? overviewResult\.value\?\.boardStage \?\? null : null,/u);
   // Как на «Главной»: прогресс только у клиента с делом на сопровождении.
   assert.match(page, /const assisted = tier === "assisted";/u);
-  assert.match(page, /progress=\{journey\.progress\}/u);
+  assert.match(page, /progress: journey\.progress,/u);
   assert.doesNotMatch(block, /timelineStepProgress\(/u, "the client gets the result, not the content files");
   assert.match(block, /hidden=\{state === "done" && !showDone\}/u);
   assert.match(block, /aria-expanded=\{showDone\}/u);
@@ -216,8 +202,8 @@ test("progress on the path: done steps fold into one line, the step line stays o
   assert.match(css, /\.pt-journey-now \{\n {2}position: sticky;\n {2}top: calc\(var\(--pt-topbar-height\) \+ 8px\);/u);
   assert.match(css, /\.pt-step\[data-progress="done"\] \.pt-step-node,/u);
   assert.doesNotMatch(css, /pt-node-wave|pt-journey-now-count|pt-journey-now-timing/u, "no pulse and no repeated count or timing");
-  // Весь путь сворачивается: шаги и «Важно знать» за «Все шаги»; с текущим шагом путь сначала свёрнут, без дела — раскрыт.
-  assert.match(block, /useFolded\(currentStep !== null\)/u);
+  // Весь путь сворачивается: шаги и «Важно знать» за «Все шаги»; 18.11.2026 — сначала свёрнут у всех (только шапка).
+  assert.match(block, /useFolded\(true\)/u);
   assert.match(block, /<div id=\{stepsId\} className="pt-journey-body" hidden=\{folded\}>/u);
   assert.match(block, /aria-expanded=\{!folded\} aria-controls=\{stepsId\}/u);
   assert.match(block, /if \(folded\) setFolded\(false\);/u, "the step line opens the folded path");
@@ -228,12 +214,12 @@ test("progress on the path: done steps fold into one line, the step line stays o
 
 test("the step line names the current step, the current step opens Documents, timing stays under the title (user, 08.11.2026)", () => {
   // «Сейчас: название» вместо «Шаг N из M»: число шагов спорило с числом этапов дела; оно осталось только читалке.
-  assert.doesNotMatch(block + card, /strings\.nowStep|timeline\.nowStep/u);
+  assert.doesNotMatch(block, /strings\.nowStep|timeline\.nowStep/u);
   assert.equal(PORTAL_DICTIONARIES.timeline.ru.nowStep, undefined);
   assert.match(block, /strings\.stepOf, \{ n: String\(currentStep\.order\), total: String\(total\) \}/u);
   // «Открыть документы» — у текущего шага этапа документов и только тому, кому «Документы» открыты.
   assert.match(block, /state === "current" && documentsHref && step\.stageKeys\.includes\("documents"\)/u);
-  assert.match(page, /documentsHref=\{assisted \? "\/portal\/documents" : null\}/u);
+  assert.match(page, /documentsHref: assisted \? "\/portal\/documents" : null,/u);
   assert.equal(PORTAL_DICTIONARIES.timeline.ru.openDocuments, "Открыть документы");
   assert.ok(PORTAL_DICTIONARIES.timeline.ky.openDocuments);
   // Срок шага всегда строкой под названием: столбика сроков слева больше нет.

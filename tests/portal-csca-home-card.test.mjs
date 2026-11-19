@@ -198,7 +198,8 @@ test("the page reads the choice and the CSCA home in its single wave, only for C
   const page = read("src/app/(portal)/portal/page.tsx");
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
-  assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \(\{/u);
+  // 18.11.2026: за выбором страны в той же цепочке читается и фото столицы (шапка пути), рядом с CSCA.
+  assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \{/u);
   assert.match(wave[1], /cscaHome: cscaHomeCardVisible\(choice\) \? await readCscaHome\(\)\.catch\(\(\): null => null\) : null,/u);
   // Волна одна: после проверки студента только один Promise.all, ожидание не добавлено.
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
@@ -216,11 +217,12 @@ test("the card sits in the right column of the home, once for both tiers", () =>
   // #1355: «Мои вузы» ушли в «Мой список» под колонками; в левой колонке «Что сделать сейчас».
   const favorites = view.indexOf("<HomeCase");
   const side = view.indexOf('<div className="pt-home-side">');
-  const journey = view.indexOf("{journey}");
+  // 18.11.2026: карточки пути справа нет — путь целиком стоит под шапкой; справа даты, «Что нового» и CSCA.
+  const dates = view.indexOf("<HomeDates");
   const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
   assert.ok(favorites > 0 && side > favorites, "the case card in the left column");
-  assert.ok(journey > side && news > journey && card > news, "path card, dates, news, then CSCA");
+  assert.ok(dates > side && news > dates && card > news, "dates, news, then CSCA");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
 });
 

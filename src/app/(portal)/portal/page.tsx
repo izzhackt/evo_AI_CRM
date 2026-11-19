@@ -9,7 +9,6 @@ import { HomeFavorites } from "@/components/portal/home/HomeFavorites";
 import { HomeList, type HomeListView } from "@/components/portal/home/HomeList";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
-import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
@@ -22,6 +21,8 @@ import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
 } from "@/lib/portal/university-favorites-source";
+import { readStudentUniversityIndex } from "@/lib/portal/university-index-source";
+import { capitalPhoto } from "@/lib/portal/university-tiles";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
@@ -92,14 +93,25 @@ export default async function StudentPortalHomePage({
         ),
       }))
       .catch(() => ({ ok: false as const })),
-    readStudentCountryChoice().catch((): null => null).then(async (choice) => ({
-      choice,
-      cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
-    })),
+    readStudentCountryChoice().catch((): null => null).then(async (choice) => {
+      // 18.11.2026: фото столицы выбранной страны — фон шапки «Пути поступления»; индекс каталога читается рядом с
+      // CSCA, а не после неё. Сбой — шапка без фото.
+      const country = choice?.country ?? null;
+      const capitalRead = country !== null && isStudyCountryCode(country)
+        ? readStudentUniversityIndex(actor)
+          .then((index) => ({ country, image: capitalPhoto(index, country) }))
+          .catch((): null => null)
+        : Promise.resolve(null);
+      return {
+        choice,
+        cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
+        capital: await capitalRead,
+      };
+    }),
     readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
     tier === "approved" ? readOwnStudentApplication().catch((): null => null) : Promise.resolve(null),
   ]);
-  const { choice, cscaHome } = choiceRead;
+  const { choice, cscaHome, capital } = choiceRead;
   const now = new Date();
   // 08.11.2026 (пользователь): весь путь на «Поступлении», здесь его карточка — тот же выбор пути и прогресс.
   const journey = selectStudentJourney({
@@ -181,21 +193,18 @@ export default async function StudentPortalHomePage({
         application={ownApplication
           ? { status: ownApplication.status, submittedAt: ownApplication.submittedAt, decidedAt: ownApplication.decidedAt }
           : null}
-        fullPath={journey.view ? (
-          // Якорь #path ставит сам CountryTimeline (JOURNEY_ANCHOR): к нему ведёт карточка пути выше.
-          <CountryTimeline
-            view={journey.view}
-            progress={journey.progress}
-            documentsHref={assisted ? "/portal/documents" : null}
-            source={choice?.source ?? null}
-            readFailed={choice === null}
-            options={timelineCountryOptions(locale)}
-            strings={getPortalStrings("timeline", locale)}
-          />
-        ) : null}
-        journey={journey.view ? (
-          <HomeJourneyCard view={journey.view} progress={journey.progress} stage={overviewResult.ok ? overviewResult.value?.operationalStage ?? null : null} locale={locale} />
-        ) : null}
+        path={journey.view ? {
+          // Якорь #path ставит сам CountryTimeline (JOURNEY_ANCHOR); шапку «Главной» в него вставляет HomeView.
+          view: journey.view,
+          progress: journey.progress,
+          documentsHref: assisted ? "/portal/documents" : null,
+          source: choice?.source ?? null,
+          readFailed: choice === null,
+          options: timelineCountryOptions(locale),
+          strings: getPortalStrings("timeline", locale),
+          photo: capital?.image ? { country: capital.country, image: capital.image } : null,
+          photoStrings: getPortalStrings("universities", locale),
+        } : null}
         countryChoice={journey.view ? null : (
           <CountryTimeline
             view={null}

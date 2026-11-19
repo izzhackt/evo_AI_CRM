@@ -316,12 +316,12 @@ test("the home lifts «Мой список» next to the case and keeps the expl
   const css = source("src/app/(portal)/portal.css");
 
   // Список — в левой колонке, когда справа есть путь; без страны и «Всё избранное» — во всю ширину под колонками.
-  assert.match(view, /const listInColumn = list !== null && journey !== null && \(tier === "assisted" \|\| csca !== null\);/u);
+  assert.match(view, /const listInColumn = list !== null && path !== null && \(tier === "assisted" \|\| csca !== null\);/u);
   const main = view.indexOf('<div className="pt-home-main">');
   const listSlot = view.indexOf('data-slot="list"');
   const side = view.indexOf('<div className="pt-home-side">');
   assert.ok(main > 0 && listSlot > main && side > listSlot, "the list slot sits in the left column");
-  assert.match(view, /\{listInColumn \? null : list\}\n\s+\{wideList\}\n\s+\{fullPath\}/u);
+  assert.match(view, /\{listInColumn \? null : list\}\n\s+\{wideList\}/u);
   assert.match(page, /const allFavoritesView = view === "universities" && allFavorites;/u);
   assert.match(page, /list=\{allFavoritesView \? null : list\}\n\s+wideList=\{allFavoritesView \? list : null\}/u);
   assert.match(page, /boxed=\{!allFavoritesView\}/u);
@@ -332,7 +332,8 @@ test("the home lifts «Мой список» next to the case and keeps the expl
   // Полувидную карточку ленты фокус с клавиатуры докручивает в кадр.
   assert.match(source("src/components/portal/home/HomeFavoritesStrip.tsx"), /scrollIntoView\(\{ block: "nearest", inline: "nearest" \}\)/u);
   // В одну колонку путь стоит раньше списка (08.11.2026: путь не уезжает за вузы).
-  assert.match(css, /\.pt-home-slot\[data-slot="path"\] \{ order: 2; \}\n[^\n]*\n\.pt-home-slot\[data-slot="list"\] \{ order: 3; \}/u);
+  assert.match(css, /\.pt-home-slot\[data-slot="list"\] \{ order: 3; \}/u);
+  assert.doesNotMatch(css, /data-slot="path"/u, "18.11.2026: path card removed; the whole path stands under the header");
   // Под фото вуза — ближайший срок тем же текстом, что у каталога; без открытого набора строки нет.
   assert.match(favorites, /const intake = nearest \? intakeText\(nearest, universityStrings, locale\) : null;/u);
   assert.match(favorites, /\{intake \? <span className="pt-home-fav-intake">\{intake\}<\/span> : null\}/u);
@@ -450,6 +451,49 @@ test("the home dates add own programmes and the first later date; news and the a
       assert.ok(PORTAL_DICTIONARIES.home[locale][key], `${locale} ${key}`);
     }
   }
+});
+
+test("the path header on «Главная» stands on a real photo of the capital, with credit, only for its own country", async (t) => {
+  // 18.11.2026: фото столицы — фон компактной шапки пути; нет фото столицы (ОАЭ) — фото страны; нет и его — без фото.
+  // Адрес фото собирается из публичного адреса Supabase: на время теста — выдуманные значения, потом прежние.
+  const saved = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY };
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_home-photo-test";
+  t.after(() => {
+    if (saved.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = saved.url;
+    if (saved.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = saved.key;
+  });
+  const { capitalPhoto } = await import("../src/lib/portal/university-tiles.ts");
+  const geo = (path) => ({ path, width: 2000, height: 1200, author: "A", authorUrl: null, sourceName: "Pexels", sourceUrl: "https://www.pexels.com/photo/x/", license: "Pexels License", licenseUrl: "https://www.pexels.com/license/" });
+  const index = {
+    version: "1",
+    universities: [],
+    countries: [
+      { code: "CN", name: { ru: "Китай", ky: "Кытай" }, photo: geo("geography/countries/cn-f1bef3115cf5.jpg"), summary: null, universityCount: 1, cityCount: 2 },
+      { code: "AE", name: { ru: "ОАЭ", ky: "БАЭ" }, photo: geo("geography/countries/ae-1ca7d146ccef.jpg"), summary: null, universityCount: 1, cityCount: 1 },
+      { code: "IT", name: { ru: "Италия", ky: "Италия" }, photo: null, summary: null, universityCount: 0, cityCount: 0 },
+    ],
+    cities: [
+      { key: "shanghai", country: "CN", photo: geo("geography/cities/cn-shanghai-41b1eb070bbd.jpg") },
+      { key: "beijing", country: "CN", photo: geo("geography/cities/cn-beijing-7288cd4b2583.jpg") },
+      { key: "dubai", country: "AE", photo: geo("geography/cities/ae-dubai-291c279a2408.jpg") },
+    ],
+  };
+  assert.match(capitalPhoto(index, "CN")?.src ?? "", /geography\/cities\/cn-beijing-7288cd4b2583\.jpg$/u);
+  assert.equal(capitalPhoto(index, "CN")?.credit.author, "A");
+  assert.match(capitalPhoto(index, "AE")?.src ?? "", /geography\/countries\/ae-1ca7d146ccef\.jpg$/u, "no Abu Dhabi: the country photo");
+  assert.equal(capitalPhoto(index, "IT"), null);
+
+  const page = source("src/app/(portal)/portal/page.tsx");
+  assert.match(page, /readStudentUniversityIndex\(actor\)\n\s+\.then\(\(index\) => \(\{ country, image: capitalPhoto\(index, country\) \}\)\)\n\s+\.catch\(\(\): null => null\)/u);
+  assert.match(page, /photo: capital\?\.image \? \{ country: capital\.country, image: capital\.image \} : null,/u);
+  const block = source("src/components/portal/home/CountryTimeline.tsx");
+  assert.match(block, /const headPhoto = view && photo && photo\.country === view\.choice \? photo\.image : null;/u);
+  assert.match(block, /<PhotoRights credit=\{headPhoto\.credit\} strings=\{photoStrings\} placement="top" \/>/u);
+  // Белый текст на фото — на тёмной подложке; значения те же, что у мест каталога, объявлены в одном месте.
+  const css = source("src/app/(portal)/portal.css");
+  assert.match(css, /\.pt-atlas,\n\.pt-journey-head\[data-photo\] \{/u);
+  assert.match(css, /\.pt-journey-photo::after \{[^}]*rgb\(20 16 12 \/ 0\.86\) 0, rgb\(20 16 12 \/ 0\.74\) 600px/u);
 });
 
 test("the retired applications route is an unconditional redirect, not a view", () => {

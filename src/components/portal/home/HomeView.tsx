@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
@@ -21,8 +21,9 @@ import type { StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/
 import { CheckMark } from "../CheckMark";
 import type { PortalAccessTier } from "../Shell";
 import { HomeCase, actionHref, actionTitle } from "./HomeCase";
+import { CountryTimeline } from "./CountryTimeline";
 import { HomeDates } from "./HomeDates";
-import { HomeHero } from "./HomeHero";
+import { HomeHero, HomeHeroContent } from "./HomeHero";
 import { HomeNews } from "./HomeNews";
 
 /**
@@ -32,21 +33,22 @@ import { HomeNews } from "./HomeNews";
  *
  * 08.11.2026 (по образцу «Главной» от пользователя): сверху приветствие с этапом дела (HomeHero, без изменений), ниже
  * две колонки. Слева «Что сделать сейчас» (HomeCase, assisted) или «Ваша анкета» (approved) и «Мои вузы»
- * (HomeFavorites). Справа карточка «Пути поступления» (`journey`, HomeJourneyCard: весь путь переехал на
- * «Поступление»), «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента «Входящих», только assisted) и карточка
+ * (HomeFavorites). Справа карточка «Пути поступления» (снята 18.11.2026: путь целиком стоит под шапкой),
+ * «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента «Входящих», только assisted) и карточка
  * CSCA (`csca`, только при выбранном Китае). На узком экране колонки идут одна за другой.
  *
  * #1355 (09.11.2026): это единственная домашняя страница кабинета (/portal; прежний /portal/home перенаправляется
  * сюда). Первым идёт «Что сделать сейчас». Под шапкой — заявка на рассмотрении и задача EVO (`info`), вместо
  * карточки «Мои вузы» под колонками стоит «Мой список» (`list`: вкладки «Вузы» и «Мои программы»), а под ним весь
- * «Путь поступления» (`fullPath`, якорь #path). Карточка «Написать EVO» (assisted) — один вход в чат «Входящих» (#1356).
+ * «Путь поступления» (`path`, якорь #path). Карточка «Написать EVO» (assisted) — один вход в чат «Входящих» (#1356).
  *
  * 18.11.2026 (главная казалась скучной): в «Ближайших датах» — сроки своих программ; «Ваша анкета» до договора —
  * отметки «отправлена» и «одобрена» с датами. «Мой список» поднят в левую колонку под «Что сделать сейчас» (`list`), когда
  * правая колонка длинная: путь и даты плюс «Что нового» или CSCA. Иначе (нет страны; анкета на рассмотрении без Китая)
  * последняя карточка справа растянулась бы пустой — тогда список стоит под колонками во всю ширину. «Всё избранное» со сравнением всегда
  * во всю ширину (`wideList`). В «Ближайшие даты» добавлены официальные даты CSCA (`dates`, их собирает страница),
- * блоки входят по очереди.
+ * блоки входят по очереди. Со страной шапка «Главной» и весь путь (`path`) — один блок на фото столицы: приветствие,
+ * «страна · набор», отсчёт и кнопки пути, шаги — по «Все шаги»; карточка «Путь: страна» справа снята.
  *
  * Правка 08.11.2026 (разбор вёрстки): без выбранной страны первым блоком под шапкой стоит выбор страны
  * (`countryChoice`, тот же CountryTimeline с выбором, что был до #1408), карточки пути в это время нет; выбрана страна —
@@ -69,8 +71,7 @@ export function HomeView({
   dates = [],
   preparations = null,
   application = null,
-  fullPath = null,
-  journey = null,
+  path = null,
   countryChoice = null,
   csca = null,
   locale,
@@ -102,10 +103,11 @@ export function HomeView({
   preparations?: readonly CatalogPreparation[] | null;
   /** Своя анкета (только до договора, tier approved): даты отметок в «Ваша анкета»; `null` — нет или не прочиталась. */
   application?: Readonly<{ status: "pending" | "approved" | "rejected"; submittedAt: string; decidedAt: string | null }> | null;
-  /** Весь «Путь поступления» (CountryTimeline с путём) под списком; null, пока страна не выбрана. */
-  fullPath?: ReactNode;
-  /** Карточка «Пути поступления» (HomeJourneyCard); null, если её нет. */
-  journey?: ReactNode;
+  /**
+   * Весь «Путь поступления» страны (свойства CountryTimeline); `null`, пока страна не выбрана. 18.11.2026: путь и
+   * шапка «Главной» — один блок на фото столицы; без страны — прежняя тёмная шапка и выбор страны.
+   */
+  path?: Omit<ComponentProps<typeof CountryTimeline>, "hero"> | null;
   /** Выбор страны (CountryTimeline без пути): первым блоком под шапкой, пока страны нет; иначе null. */
   countryChoice?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
@@ -115,9 +117,9 @@ export function HomeView({
 }) {
   const strings = getPortalStrings("home", locale);
   const admission = getPortalStrings("admission", locale);
-  // Колонки кончаются на одной линии (08.11.2026): список встаёт в колонку, только когда правая колонка длинная —
-  // путь и даты плюс «Что нового» (клиент) или CSCA (Китай). Иначе её последняя карточка растянулась бы пустой.
-  const listInColumn = list !== null && journey !== null && (tier === "assisted" || csca !== null);
+  // Колонки кончаются на одной линии (08.11.2026): список встаёт в колонку, только когда страна выбрана и правая
+  // колонка длинная — даты плюс «Что нового» (клиент) или CSCA (Китай). Иначе её последняя карточка растянулась бы пустой.
+  const listInColumn = list !== null && path !== null && (tier === "assisted" || csca !== null);
 
   // «Ближайшие даты»: сроки дел, сроки своих программ и дедлайн или старт избранных вузов. Если у вуза есть своя
   // программа, общая строка вуза не повторяет её.
@@ -139,6 +141,13 @@ export function HomeView({
     ...dates,
   ];
   const nearest = upcomingHomeDates(dated, today)[0] ?? null;
+  const hero = {
+    displayName,
+    studyCountry,
+    intake,
+    countdown: nearest ? { ...nearest, days: homeDaysUntil(nearest.day, today) } : null,
+    locale,
+  };
   // «10 нояб.»; другой год — с годом.
   const stepDate = (iso: string) => {
     const day = bishkekDay(iso);
@@ -148,13 +157,8 @@ export function HomeView({
 
   return (
     <div className="pt-home">
-      <HomeHero
-        displayName={displayName}
-        studyCountry={studyCountry}
-        intake={intake}
-        countdown={nearest ? { ...nearest, days: homeDaysUntil(nearest.day, today) } : null}
-        locale={locale}
-      />
+      {/* 18.11.2026 (пользователь): со страной шапка «Главной» и путь — один блок на фото столицы. */}
+      {path ? <CountryTimeline {...path} hero={<HomeHeroContent {...hero} />} /> : <HomeHero {...hero} />}
       {countryChoice}
       {info}
       <div className="pt-home-columns">
@@ -200,7 +204,6 @@ export function HomeView({
         </div>
 
         <div className="pt-home-side">
-          {journey ? <div className="pt-home-slot" data-slot="path">{journey}</div> : null}
           <div className="pt-home-slot" data-slot="dates">
             <HomeDates items={dated} today={today} locale={locale} />
           </div>
@@ -214,7 +217,6 @@ export function HomeView({
       </div>
       {listInColumn ? null : list}
       {wideList}
-      {fullPath}
     </div>
   );
 }

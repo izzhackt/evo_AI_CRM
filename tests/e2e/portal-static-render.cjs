@@ -102,7 +102,6 @@ const { cscaHomeDates, selectCscaHomeCard } = require(join(ROOT, "src/lib/portal
 // S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
 // на «Главной» его карточка.
 const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
-const { HomeJourneyCard } = require(join(ROOT, "src/components/portal/home/HomeJourneyCard.tsx"));
 const { selectStudentJourney } = require(join(ROOT, "src/lib/portal/student-journey.ts"));
 const { TIMELINE_UNDECIDED, selectCountryTimeline } = require(join(ROOT, "src/lib/portal/country-timeline.ts"));
 const { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } = require(join(ROOT, "src/lib/study-countries.ts"));
@@ -556,15 +555,35 @@ const timelineOptions = studyCountryOptions("ru", { undecided: true }).map((opti
 const timelineChoose = createElement(CountryTimeline, {
   view: null, source: "none", readFailed: false, options: timelineOptions, strings: timelineStrings,
 });
+/**
+ * Фото столицы — фон шапки пути на «Главной» (18.11.2026). Адрес на стенде не грузится (нет хранилища): проверяется
+ * разметка, «©» и контраст текста на подложке; снимки экрана подставляют настоящий файл бакета.
+ */
+const beijingPhotoFixture = {
+  country: "CN",
+  image: {
+    src: "/geography/cities/cn-beijing-7288cd4b2583.jpg",
+    srcSet: null,
+    width: 2000,
+    height: 1501,
+    credit: {
+      kind: "author",
+      author: "BI ravencrow",
+      authorUrl: "https://www.pexels.com/@biravencrow/",
+      license: "Pexels License",
+      licenseUrl: "https://www.pexels.com/license/",
+      source: { name: "Pexels", url: "https://www.pexels.com/photo/traditional-architecture-of-the-forbidden-city-39468928/" },
+    },
+  },
+};
+const universitiesStrings = getPortalStrings("universities", "ru");
 const timelineChina = createElement(CountryTimeline, {
   view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+  photo: beijingPhotoFixture, photoStrings: universitiesStrings,
 });
-/** Карточка пути на «Главной»: Китай клиента на этапе «Документы» (шаг и полоса шагов). */
+/** Путь Китая клиента на этапе «Документы» (строка «Сейчас» и полоса шагов) — весь путь под шапкой «Главной». */
 const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
-const journeyCardChina = createElement(HomeJourneyCard, {
-  view: chinaJourney.view, progress: chinaJourney.progress, readFailed: false, locale: "ru",
-});
 
 const learningModulesDraftFixture = [
   {
@@ -1003,7 +1022,12 @@ const surfaces = [
           preparations: homePreparationsFixture,
           dates: cscaHomeDates({ choice: homeChinaChoice, home: cscaHomeFixture, homeStrings }),
           csca: createElement(CscaHomeCard, { view: homeCscaCard }),
-          journey: journeyCardChina,
+          // Со страной шапка «Главной» и весь путь — один блок на фото Пекина, под ним строка «Сейчас».
+          path: {
+            view: chinaJourney.view, progress: chinaJourney.progress, documentsHref: "/portal/documents",
+            source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+            photo: beijingPhotoFixture, photoStrings: universitiesStrings,
+          },
           locale: "ru",
           now: HOME_NOW,
         }),

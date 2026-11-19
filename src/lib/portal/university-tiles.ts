@@ -145,6 +145,25 @@ export type PlacePhoto = Readonly<{
 export const PLACE_CARD_WIDTHS = [480, 800, 1200] as const;
 export const PLACE_HERO_WIDTHS = [800, 1200, 1600, 2000] as const;
 
+/**
+ * Столица страны поступления — город каталога (миграция 283), чьё фото стоит фоном шапки «Пути поступления» на
+ * «Главной» (18.11.2026). У ОАЭ Абу-Даби в каталоге нет: берётся фото страны; нет и его — шапка без фото.
+ */
+const CAPITAL_CITY: Readonly<Record<string, string>> = {
+  CN: "beijing",
+  MY: "kuala-lumpur",
+  AE: "abu-dhabi",
+  TR: "ankara",
+  IT: "rome",
+  CZ: "prague",
+};
+
+export function capitalPhoto(index: StudentUniversityIndex, country: string): PlacePhoto | null {
+  const city = index.cities.find((item) => item.country === country && item.key === CAPITAL_CITY[country]);
+  const photo = city?.photo ?? index.countries.find((item) => item.code === country)?.photo ?? null;
+  return placePhoto(photo, PLACE_HERO_WIDTHS);
+}
+
 export function placePhoto(photo: GeographyPhoto | null, widths: readonly number[]): PlacePhoto | null {
   if (photo === null) return null;
   const sources = geographyPhotoSources(photo.path, widths.filter((width) => width < photo.width));

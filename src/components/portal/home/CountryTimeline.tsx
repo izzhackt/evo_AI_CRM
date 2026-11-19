@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   useTransition,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
@@ -18,11 +19,15 @@ import { setStudentCountryChoiceAction } from "@/lib/portal/country-choice-actio
 import type { CountryTimelineView, TimelineStepProgress, TimelineViewStep } from "@/lib/portal/country-timeline";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { JOURNEY_ANCHOR } from "@/lib/portal/journey-anchor";
+import type { PlacePhoto } from "@/lib/portal/university-tiles";
+
+import { PhotoRights, type PhotoRightsStrings } from "../universities/PhotoRights";
+import { PlaceImage } from "../universities/PlaceImage";
 
 /**
  * «Путь поступления» (S4, план §8.4; контракт docs/portal/country-timeline-contract.md
- * §3, §5 и §7). С 08.11.2026 стоит на «Поступлении» под якорем #path, на «Главной» —
- * его карточка (HomeJourneyCard); переход по ней раскрывает путь. Сервер уже выбрал и
+ * §3, §5 и §7). С 08.11.2026 стоит на «Поступлении» под якорем #path; с 18.11.2026 и на
+ * «Главной» — свёрнутым, с её шапкой (проп `hero`) на фото столицы. Сервер уже выбрал и
  * локализовал путь (`selectCountryTimeline`): сюда приходит только он, без
  * всех файлов контента. Шаги раскрываются в пункты (только чтение, отметок
  * нет); раскрытые шаги помнит браузер, ключ с `file` и `contentVersion`.
@@ -271,6 +276,9 @@ export function CountryTimeline({
   readFailed,
   options,
   strings,
+  photo = null,
+  photoStrings = null,
+  hero = null,
 }: Readonly<{
   /** Путь выбранной страны; `null`: выбора нет, показываем «Выберите страну». */
   view: CountryTimelineView | null;
@@ -284,6 +292,17 @@ export function CountryTimeline({
   /** Шесть стран и «Пока не решил» (код UNDECIDED), названия из study-countries.json. */
   options: readonly CountryOption[];
   strings: Strings;
+  /**
+   * Фото столицы страны (18.11.2026, «Главная»): фон шапки пути с автором по «©». Показывается, только пока страна
+   * фото совпадает со страной пути; `null` — шапка без фото, как раньше.
+   */
+  photo?: Readonly<{ country: string; image: PlacePhoto }> | null;
+  photoStrings?: PhotoRightsStrings | null;
+  /**
+   * Шапка «Главной» (приветствие, «страна · набор», отсчёт; 18.11.2026, пользователь: одна шапка на фото вместо двух
+   * тёмных плашек). С ней шапка пути — это шапка страницы: название пути остаётся заголовком блока для читалки.
+   */
+  hero?: ReactNode;
 }>) {
   const baseId = useId();
   const headingId = `${baseId}-heading`;
@@ -307,8 +326,9 @@ export function CountryTimeline({
   const stepId = (id: string) => `${baseId}-step-${id}`;
 
   const { open, toggle } = useOpenSteps(view);
-  // Без выбора студента путь с текущим шагом свёрнут: на виду строка «Шаг N из M»; без дела — раскрыт, как раньше.
-  const { folded, setFolded } = useFolded(currentStep !== null);
+  // Без выбора студента путь свёрнут до шапки (18.11.2026, пользователь: на «Главной» — только компактная шапка);
+  // с текущим шагом под шапкой ещё строка «Сейчас». Раскрытый студентом путь запоминается.
+  const { folded, setFolded } = useFolded(true);
   const stepsId = `${baseId}-steps`;
 
   // Переход «Весь путь» с карточки «Главной» (#path) — выбор студента увидеть весь путь: путь раскрыт и запомнен так.
@@ -398,6 +418,8 @@ export function CountryTimeline({
     : source === "case"
       ? strings.sourceCase
       : null;
+  // Фото — только своей страны: после смены страны до обновления страницы шапка идёт без фото.
+  const headPhoto = view && photo && photo.country === view.choice ? photo.image : null;
   const timed = view?.steps.some((step) => step.timing !== null) ?? false;
   const total = view?.steps.length ?? 0;
 
@@ -411,7 +433,55 @@ export function CountryTimeline({
       data-ky-proofreading={view?.kyNeedsProofreading ? "pending" : undefined}
       aria-busy={busy || undefined}
     >
-      <header className="pt-journey-head">
+      {hero && view ? (
+        <header className="pt-journey-head" data-hero="" data-photo={headPhoto ? "" : undefined}>
+          {headPhoto ? (
+            <div className="pt-journey-photo">
+              <PlaceImage
+                src={headPhoto.src}
+                srcSet={headPhoto.srcSet}
+                sizes="(min-width: 1100px) 1024px, 100vw"
+                width={headPhoto.width}
+                height={headPhoto.height}
+                priority
+                className="pt-journey-photo-img"
+              />
+            </div>
+          ) : null}
+          {hero}
+          {/* Заголовок блока для читалки: путь страны под приветствием-h1. */}
+          <h2 id={headingId} ref={headingRef} tabIndex={-1} className="pt-sr-only">{title}</h2>
+          <div className="pt-journey-change">
+            {currentStep ? null : foldButton}
+            <button
+              ref={changeRef}
+              type="button"
+              className="pt-btn-ghost"
+              aria-expanded={pickerOpen}
+              aria-controls={pickerOpen ? pickerId : undefined}
+              onClick={() => (pickerOpen ? closePicker() : setPickerOpen(true))}
+            >
+              {strings.changeCountry}
+            </button>
+            {sourceNote ? <p className="pt-journey-source">{sourceNote}</p> : null}
+          </div>
+          {headPhoto && photoStrings ? <PhotoRights credit={headPhoto.credit} strings={photoStrings} placement="bottom" /> : null}
+        </header>
+      ) : (
+      <header className="pt-journey-head" data-photo={headPhoto ? "" : undefined}>
+        {headPhoto ? (
+          <div className="pt-journey-photo">
+            <PlaceImage
+              src={headPhoto.src}
+              srcSet={headPhoto.srcSet}
+              sizes="(min-width: 1100px) 1024px, 100vw"
+              width={headPhoto.width}
+              height={headPhoto.height}
+              className="pt-journey-photo-img"
+            />
+          </div>
+        ) : null}
+        {headPhoto && photoStrings ? <PhotoRights credit={headPhoto.credit} strings={photoStrings} placement="top" /> : null}
         <div className="pt-journey-head-main">
           <h2 id={headingId} ref={headingRef} tabIndex={-1} className="pt-journey-title">{title}</h2>
           {view ? (
@@ -444,6 +514,7 @@ export function CountryTimeline({
           </div>
         ) : null}
       </header>
+      )}
 
       <p role="status" className="pt-sr-only">{busy ? strings.saving : ""}</p>
       {readFailed ? <p role="alert" className="pt-journey-alert">{strings.readError}</p> : null}
@@ -491,6 +562,8 @@ export function CountryTimeline({
           ) : null}
           {/* Весь путь сворачивается (08.11.2026, пользователь): шаги и «Важно знать» — по «Все шаги». */}
           <div id={stepsId} className="pt-journey-body" hidden={folded}>
+          {/* В шапке-приветствии места под пояснение срока нет: оно открывается вместе с шагами. */}
+          {hero && view.intake.note ? <p className="pt-journey-intake-note pt-journey-body-note">{view.intake.note}</p> : null}
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>
             {/* Пройденные шаги свёрнуты в одну строку; раскрываются по нажатию. */}
             {doneSteps.length > 0 ? (

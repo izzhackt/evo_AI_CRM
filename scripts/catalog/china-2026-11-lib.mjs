@@ -60,7 +60,30 @@ export function cleanDeadlineText(raw) {
   if (text === "") return null;
   const words = text.replace(/(\d)\s*(?:st|nd|rd|th)\b/giu, "$1").match(/[A-Za-z]+/gu) ?? [];
   if (words.length === 0 || !words.every((word) => DEADLINE_WORDS.has(word.toLowerCase()))) return null;
+  if (!deadlineIsPlausible(text)) return null;
   return text.length > 200 ? `${text.slice(0, 197)}...` : text;
+}
+
+const MONTH_INDEX = Object.freeze({ jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 });
+const MONTH_DAYS = Object.freeze({ 1: 31, 2: 29, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31 });
+
+/** Срок из таблицы с невозможной датой («June 31») или перевёрнутым диапазоном («November 2026 to Feb 15, 2026») не показывается. */
+export function deadlineIsPlausible(text) {
+  const names = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec";
+  const flat = String(text).replace(/(\d)\s*(?:st|nd|rd|th)\b/giu, "$1");
+  for (const match of flat.matchAll(new RegExp(`\\b(${names})[a-z]*\\.?[\\s,]*(\\d{1,2})(?!\\d)`, "giu"))) {
+    if (Number(match[2]) < 1 || Number(match[2]) > MONTH_DAYS[MONTH_INDEX[match[1].toLowerCase()]]) return false;
+  }
+  for (const match of flat.matchAll(new RegExp(`(?<!\\d)(\\d{1,2})[\\s,]*(${names})[a-z]*`, "giu"))) {
+    if (Number(match[1]) < 1 || Number(match[1]) > MONTH_DAYS[MONTH_INDEX[match[2].toLowerCase()]]) return false;
+  }
+  const range = new RegExp(`(${names})[a-z]*\\.?\\s*\\d{0,2}[\\s,]*(20\\d\\d)?\\s*(?:to|-)\\s*(${names})[a-z]*\\.?\\s*\\d{0,2}[\\s,]*(20\\d\\d)?`, "giu");
+  for (const match of flat.matchAll(range)) {
+    const [, first, firstYear, last, lastYear] = match;
+    if (firstYear && lastYear && (Number(firstYear) > Number(lastYear)
+      || (firstYear === lastYear && MONTH_INDEX[first.toLowerCase()] > MONTH_INDEX[last.toLowerCase()]))) return false;
+  }
+  return true;
 }
 
 /**
@@ -116,8 +139,17 @@ export const yearsRu = (years) => `${years} ${years === 1 ? "год" : years < 5
  * остаётся словами в заметке.
  */
 export function buildIntakes({ intakeRaw, deadlineRaw, sourceUrl }) {
-  const { months, rolling } = parseIntake(intakeRaw);
-  const deadline = cleanDeadlineText(deadlineRaw);
+  // Rows of one programme that repeat in the worksheet (March and September on separate rows) are passed as lists and united.
+  const monthSet = new Set();
+  let rolling = false;
+  for (const raw of Array.isArray(intakeRaw) ? intakeRaw : [intakeRaw]) {
+    const parsed = parseIntake(raw);
+    for (const month of parsed.months) monthSet.add(month);
+    rolling ||= parsed.rolling;
+  }
+  const months = [...monthSet].sort((a, b) => a - b);
+  const texts = [...new Set((Array.isArray(deadlineRaw) ? deadlineRaw : [deadlineRaw]).map(cleanDeadlineText).filter((text) => text !== null))];
+  const deadline = texts.length === 0 ? null : texts.join("; ").slice(0, 400);
   const base = "Месяц набора по таблице EVO (набор 2026, файл от 16.01.2026). Даты ближайшего набора и срок подачи подтверждает менеджер у университета.";
   const note = (extra) => (extra ? `${base} Срок по таблице: ${extra}.` : base).slice(0, 1000);
   const intakes = months.map((month) => ({
@@ -184,13 +216,13 @@ export function uniqueProgramId(title, languageIso, taken) {
 
 export const CARD_NOTES = [
   "Перечень программ бакалавриата, языки обучения, месяцы набора и ориентировочные суммы взяты из рабочей таблицы EVO",
-  "(файл от 16.01.2026, набор 2026). Название, город и сайт вуза сверены с официальными источниками; программы по",
-  "отдельности с сайтом вуза не сверялись, поэтому у программ указана общая страница вуза. Даты ближайшего набора,",
-  "срок подачи и окончательную сумму подтверждает менеджер EVO у университета.",
+  "(файл от 16.01.2026, набор 2026). Название, город и сайт вуза сверены по официальным страницам вуза и открытым",
+  "справочникам (Wikidata, Wikipedia); программы по отдельности с сайтом вуза не сверялись, поэтому у программ указана",
+  "общая страница вуза. Даты ближайшего набора, срок подачи и окончательную сумму подтверждает менеджер EVO у университета.",
   "Наличие программы в каталоге не означает гарантии приёма, стипендии, визы или признания диплома.",
 ].join(" ");
 
-export const MERGE_NOTE = "Часть программ бакалавриата добавлена из рабочей таблицы EVO (набор 2026, файл от 16.01.2026); у них в наборах стоит пометка «по таблице EVO».";
+export const MERGE_NOTE = "Часть программ бакалавриата добавлена из рабочей таблицы EVO (набор 2026, файл от 16.01.2026); по отдельности они с сайтом вуза не сверялись, ссылка у них общая страница карточки, в наборах стоит пометка «по таблице EVO».";
 
 /** Фраза в обзоре карточки: сколько программ и на каких языках. */
 export function programmesSentence(programs) {
@@ -238,8 +270,10 @@ export function mergeIntoExisting(existing, additions) {
     added.push(next);
     idMap.set(program.id, id);
   }
-  const notes = existing.notes.includes("рабочей таблицы EVO") ? existing.notes : `${existing.notes} ${MERGE_NOTE}`.trim();
-  return { content: { ...existing, notes: notes.slice(0, 1500), programs: [...existing.programs, ...added] }, added: added.length, idMap, skipped };
+  // The note grows by exactly MERGE_NOTE (the SQL guard accepts nothing else); a note that would pass 1 500 characters stays as it is.
+  const appended = `${existing.notes} ${MERGE_NOTE}`;
+  const notes = existing.notes.includes("рабочей таблицы EVO") || appended.length > 1500 ? existing.notes : appended;
+  return { content: { ...existing, notes, programs: [...existing.programs, ...added] }, added: added.length, idMap, skipped };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -273,6 +307,26 @@ const KIND_EVIDENCE = Object.freeze({
 });
 const numbersIn = (text) => [...String(text).matchAll(/\d[\d,]*(?:\.\d+)?/gu)].map((match) => Number(match[0].replace(/,/gu, "")));
 
+/**
+ * Название вида суммы стоит в самом фрагменте или перед ним: последнее слово-метка этого вида до фрагмента, и между ней
+ * и фрагментом нет метки другого вида («Tuition: Arts 10000, Science 16000»: метка «Tuition» действует на оба числа).
+ */
+function kindLabelApplies(text, evidenceText, kind) {
+  const label = KIND_EVIDENCE[kind];
+  if (!label) return true;
+  const evidence = collapse(evidenceText);
+  if (label.test(evidence)) return true;
+  // A fragment that names another kind of cost is that other cost, whatever stands before it.
+  if (Object.entries(KIND_EVIDENCE).some(([other, pattern]) => other !== kind && pattern.test(evidence))) return false;
+  const before = text.slice(0, text.indexOf(evidence));
+  const every = new RegExp(label.source, "giu");
+  let last = null, found;
+  while ((found = every.exec(before)) !== null) last = found;
+  if (last === null) return false;
+  const between = before.slice(last.index + last[0].length);
+  return !Object.entries(KIND_EVIDENCE).some(([other, pattern]) => other !== kind && pattern.test(between));
+}
+
 /** Один разобранный элемент допустим, только если он целиком подтверждён исходным текстом. */
 export function validateCostItem(sourceText, item) {
   const text = collapse(sourceText);
@@ -288,13 +342,7 @@ export function validateCostItem(sourceText, item) {
   if (problems.length === 0) {
     const inEvidence = new Set(numbersIn(item.evidence));
     if (!inEvidence.has(min) || (max !== null && !inEvidence.has(max))) problems.push("amount_not_in_evidence");
-    const label = KIND_EVIDENCE[item.kind];
-    // The kind must be named by the evidence itself or by the words right before it, up to the previous amount.
-    const at = text.indexOf(collapse(item.evidence));
-    let start = at;
-    while (start > 0 && at - start < 48 && !/\d/u.test(text[start - 1])) start -= 1;
-    const window = text.slice(start, at + collapse(item.evidence).length);
-    if (label && !label.test(window)) problems.push("kind_not_named_near_evidence");
+    if (!kindLabelApplies(text, item.evidence, item.kind)) problems.push("kind_not_named_near_evidence");
   }
   return problems;
 }
@@ -332,8 +380,14 @@ export function buildCostRows({ cardKey, institutionName, programmeLanguages, gr
   const hasLanguage = (iso) => programmeLanguages.has(iso) || programmeLanguages.has("both");
   const bucket = new Map();
   const dropped = [];
+  // Another standard tuition amount that only one pass found (or that failed a check) means the text names several prices:
+  // a single amount would be wrong for part of the programmes, so this university gets no tuition row.
+  const tuitionAmbiguous = groups.some((group) => (group.rejected ?? []).some((entry) => entry.item?.kind === "tuition"
+    && entry.item.basis === "standard" && entry.item.scope !== "language_course"));
+  if (tuitionAmbiguous) dropped.push({ why: "tuition: the text names amounts that were not confirmed by both passes" });
   for (const group of groups) {
     for (const item of group.accepted) {
+      if (item.kind === "tuition" && tuitionAmbiguous) continue;
       if (item.min === 0 || item.kind === "other") continue;
       if (item.kind === "tuition" && item.basis !== "standard") { dropped.push({ feeId: group.feeId, why: "tuition is not the standard fee", item }); continue; }
       if (item.kind === "tuition" && item.scope === "language_course") continue;
@@ -374,4 +428,10 @@ export function buildCostRows({ cardKey, institutionName, programmeLanguages, gr
     });
   }
   return { rows, dropped };
+}
+
+/** Статусные метки («211», «985», «Double First-Class») в обзорах не нужны: правила каталога не допускают рейтингов и званий. */
+const STATUS_LABEL = /Double\s*First[-\s]?Class|(?<!\d)(?:211|985)(?!\d)|Двойн\p{L}*\s+перв\p{L}*/iu;
+export function scrubOverview(text) {
+  return collapse(text).split(/(?<=[.!?])\s+/u).filter((sentence) => !STATUS_LABEL.test(sentence)).join(" ");
 }

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { planImport } from "../scripts/catalog/import-catalog-costs.mjs";
 import { ORGANIZATION_ID } from "../scripts/catalog/malaysia-universities-sql.mjs";
 import { EXISTING_CITY_KEYS } from "../scripts/catalog/china-2026-11-build.mjs";
-import { CARD_NOTES, WORKSHEET_DATE, lettersOnly } from "../scripts/catalog/china-2026-11-lib.mjs";
+import { CARD_NOTES, MERGE_NOTE, WORKSHEET_DATE, lettersOnly } from "../scripts/catalog/china-2026-11-lib.mjs";
 import { buildSql } from "../scripts/catalog/china-universities-sql.mjs";
 import { parseUniversityContent } from "../src/lib/platform-university-catalog.ts";
 
@@ -159,6 +160,8 @@ test("China 2026-11: the SQL generator rolls back by default, writes only throug
   }
   assert.doesNotMatch(dry.sql, /\b(INSERT INTO|UPDATE|DELETE FROM)\s+platform(_private)?\./u, "no direct writes to the catalogue tables");
   assert.match(dry.sql, /refusing a non-additive update/u);
+  assert.match(dry.sql, /immutable_fields CONSTANT TEXT\[\] := ARRAY\['name','country','city','overview','websiteUrl','sourceUrl','verifiedOn','photoKey'\]/u, "the verification date is protected");
+  assert.ok(dry.sql.includes(MERGE_NOTE), "the only note growth the guard accepts is the merge note");
   assert.match(buildSql({ commit: true }).sql, /\nCOMMIT;\n$/u);
   assert.throws(() => buildSql({ actorMembership: "not-a-uuid" }), /UUID/u);
   const pilot = buildSql({ only: [cards[47].key] });
@@ -166,4 +169,18 @@ test("China 2026-11: the SQL generator rolls back by default, writes only throug
   assert.ok(pilot.costRows <= costs.rows.length);
   assert.throws(() => buildSql({ only: ["no-such-card"] }), /unknown card/u);
   assert.equal(lettersOnly("A-b c"), "abc");
+});
+
+test("China 2026-11: the cost request id comes from the rows themselves, so an edited file never reuses an identifier", () => {
+  const plan = planImport(costs, { fileSha256: "0".repeat(64), organizationId: ORGANIZATION_ID, today: "2026-11-19" });
+  const rows = plan.batches.flatMap((batch) => batch.p_rows);
+  const expected = createHash("sha256").update("evo-cn-2611:costs:").update(JSON.stringify(rows)).digest("hex");
+  assert.ok(buildSql().sql.includes(`md5('${expected}')`));
+  assert.ok(!buildSql({ only: [cards[47].key] }).sql.includes(`md5('${expected}')`), "a pilot run uses its own identifier");
+});
+
+test("China 2026-11: no overview carries a status label or a ranking word", () => {
+  for (const card of cards.slice(47)) {
+    assert.doesNotMatch(card.content.overview, /Double\s*First|(?<!\d)(?:211|985)(?!\d)/iu, card.key);
+  }
 });

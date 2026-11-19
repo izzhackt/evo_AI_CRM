@@ -2,9 +2,9 @@
 
 Карточки собраны `2026-11-19` для `src/lib/server/university-catalog-reviewed-china.json` скриптом `scripts/catalog/china-2026-11-build.mjs`. Личность вуза (название, город, официальный сайт, год основания, тип) проверена по официальным источникам и Wikidata/Wikipedia; перечень программ, языки, месяцы набора и ориентировочные суммы взяты из рабочей таблицы EVO (`Новая таблица(6).xlsx`, файл от 2026-01-16, SHA-256 `4c8c6ee36c84feb0c68c0dbb8b353680ce637e70a80f97073f1f7e434117163c`, 1582 строк-программ). Программы по отдельности с сайтами вузов не сверялись: у программ указана общая страница вуза. Фото вузов не добавлялись.
 
-Учёт строк Excel (1582): в программах 1538, совпали с уже имевшимися программами карточки 18, пропущено 9, строки неопубликованных вузов 17. Каждая строка учтена ровно один раз; строки одной и той же специальности внутри вуза схлопнуты в одну программу.
+Учёт строк Excel (1582): в программах 1523, совпали с уже имевшимися программами карточки 18, пропущено 7, строки неопубликованных вузов 34. Каждая строка учтена ровно один раз; строки одной и той же специальности внутри вуза схлопнуты в одну программу.
 
-Итого: 121 новых карточек, 19 прежних карточек получили программы из таблицы, 3 вузов таблицы не опубликованы (ниже), программ из таблицы 1516, строк стоимости 291, пропущено строк таблицы 9.
+Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 283, пропущено строк таблицы 7.
 
 ## Новые карточки
 
@@ -16,7 +16,7 @@
 | Anhui University of Technology | Ma’anshan | 2 | 3 | https://en.ahut.edu.cn/ | https://www.wikidata.org/wiki/Q2040973 https://en.wikipedia.org/wiki/Anhui_University_of_Technology |
 | Beibu Gulf University | Qinzhou | 4 | 2 | https://en.bbgu.edu.cn/ | https://www.wikidata.org/wiki/Q43896002 https://en.wikipedia.org/wiki/Beibu_Gulf_University |
 | Beihang University | Beijing | 5 | 4 | https://ev.buaa.edu.cn/ | https://www.wikidata.org/wiki/Q2299797 https://en.wikipedia.org/wiki/Beihang_University |
-| Beijing Foreign Studies University | Beijing | 22 | 3 | https://en.bfsu.edu.cn/ | https://www.wikidata.org/wiki/Q1144682 https://en.wikipedia.org/wiki/Beijing_Foreign_Studies_University |
+| Beijing Foreign Studies University | Beijing | 22 | 4 | https://en.bfsu.edu.cn/ | https://www.wikidata.org/wiki/Q1144682 https://en.wikipedia.org/wiki/Beijing_Foreign_Studies_University |
 | Beijing Institute of Fashion Technology | Beijing | 23 | 3 | https://english.bift.edu.cn/ | https://www.wikidata.org/wiki/Q10902330 https://www.bift.edu.cn/xxgk/xyjj/index.htm |
 | Beijing Institute of Graphic Communication | Beijing | 7 | 3 | https://english.bigc.edu.cn/ | https://www.wikidata.org/wiki/Q10902061 https://www.bigc.edu.cn/ |
 | Beijing Wuzi University | Beijing | 3 | 3 | https://www.bwu.edu.cn/ | https://www.wikidata.org/wiki/Q4881219 https://www.bwu.edu.cn/xxgk/xxjj.htm |
@@ -25,7 +25,7 @@
 | Central South University of Forestry and Technology | Changsha | 2 | 3 | https://www.csuft.edu.cn/ | https://www.wikidata.org/wiki/Q10872553 https://en.wikipedia.org/wiki/Central_South_University_of_Forestry_and_Technology |
 | Changzhou University | Changzhou | 6 | 2 | https://eng.cczu.edu.cn/ | https://www.wikidata.org/wiki/Q8802965 https://eng.cczu.edu.cn/ |
 | Chengdu University | Chengdu | 11 | 0 | https://en.cdu.edu.cn/ | https://www.wikidata.org/wiki/Q11074647 https://en.wikipedia.org/wiki/Chengdu_University |
-| China Three Gorges University | Yichang | 11 | 2 | https://eng.ctgu.edu.cn/ | https://www.wikidata.org/wiki/Q3431706 https://en.wikipedia.org/wiki/China_Three_Gorges_University |
+| China Three Gorges University | Yichang | 11 | 3 | https://eng.ctgu.edu.cn/ | https://www.wikidata.org/wiki/Q3431706 https://en.wikipedia.org/wiki/China_Three_Gorges_University |
 | China University of Mining and Technology | Xuzhou | 3 | 2 | https://global.cumt.edu.cn/ | https://www.wikidata.org/wiki/Q1074084 https://en.wikipedia.org/wiki/China_University_of_Mining_and_Technology |
 | China University of Petroleum (Beijing) | Beijing | 31 | 3 | https://www.cup.edu.cn/english/ | https://www.wikidata.org/wiki/Q3274786 https://en.wikipedia.org/wiki/China_University_of_Petroleum |
 | China West Normal University | Nanchong | 5 | 3 | https://www.cwnu.edu.cn/ | https://www.wikidata.org/wiki/Q5099970 https://en.wikipedia.org/wiki/China_West_Normal_University |
@@ -48,7 +48,6 @@
 | Guilin University of Electronic Technology | Guilin | 5 | 2 | https://www.guet.edu.cn/ | https://www.wikidata.org/wiki/Q461322 https://en.wikipedia.org/wiki/Guilin_University_of_Electronic_Technology |
 | Hainan University | Haikou | 3 | 3 | https://en.hainanu.edu.cn/ | https://www.wikidata.org/wiki/Q5639382 https://en.wikipedia.org/wiki/Hainan_University |
 | Hangzhou Dianzi University | Hangzhou | 9 | 2 | https://en.hdu.edu.cn/ | https://en.wikipedia.org/wiki/Hangzhou_Dianzi_University https://en.hdu.edu.cn/ |
-| Harbin Cambridge University | Harbin | 3 | 3 | https://www.hcc.edu.cn/ | https://www.wikidata.org/wiki/Q112676424 https://www.unirank.org/cn/uni/harbin-cambridge-university/ |
 | Harbin Institute of Technology, Shenzhen | Shenzhen | 12 | 4 | https://en.hitsz.edu.cn/ | https://www.wikidata.org/wiki/Q253826 https://en.wikipedia.org/wiki/Harbin_Institute_of_Technology,_Shenzhen |
 | Hebei GEO University | Shijiazhuang | 2 | 4 | https://www.hgu.edu.cn/ | https://www.wikidata.org/wiki/Q15904170 https://en.wikipedia.org/wiki/Hebei_GEO_University |
 | Hebei University | Baoding | 1 | 3 | https://en.hbu.cn/ | https://www.wikidata.org/wiki/Q835731 https://en.wikipedia.org/wiki/Hebei_University |
@@ -60,7 +59,6 @@
 | Huanghuai University | Zhumadian | 50 | 1 | https://www.huanghuai.edu.cn/ | https://www.wikidata.org/wiki/Q11177952 https://zh.wikipedia.org/wiki/%E9%BB%84%E6%B7%AE%E5%AD%A6%E9%99%A2 |
 | Huangshan University | Huangshan | 1 | 2 | https://www.hsu.edu.cn/ | https://www.wikidata.org/wiki/Q11177393 https://www.hsu.edu.cn/ |
 | Hubei University of Technology | Wuhan | 7 | 1 | https://en.hbut.edu.cn/ | https://www.wikidata.org/wiki/Q5927048 https://en.hbut.edu.cn/ |
-| Huzhou Normal University | Huzhou | 2 | 2 | https://www.huznu.edu.cn/ | https://www.wikidata.org/wiki/Q15940681 https://www.wikidata.org/wiki/Q109413363 |
 | Jiangsu Normal University | Xuzhou | 4 | 4 | https://www.jsnu.edu.cn/ | https://www.wikidata.org/wiki/Q8045313 https://en.wikipedia.org/wiki/Jiangsu_Normal_University |
 | Jiangsu Ocean University | Lianyungang | 4 | 3 | https://www.jou.edu.cn/ | https://www.wikidata.org/wiki/Q11152732 https://en.wikipedia.org/wiki/Jiangsu_Ocean_University |
 | Jiangsu University | Zhenjiang | 19 | 4 | https://eng.ujs.edu.cn/ | https://www.wikidata.org/wiki/Q6191740 https://en.wikipedia.org/wiki/Jiangsu_University |
@@ -70,7 +68,7 @@
 | Jiaxing University | Jiaxing | 9 | 4 | https://www.zjxu.edu.cn/ | https://www.wikidata.org/wiki/Q10923945 https://www.zjxu.edu.cn/ |
 | Jilin University | Changchun | 2 | 4 | https://en.jlu.edu.cn/ | https://www.wikidata.org/wiki/Q1432030 https://en.wikipedia.org/wiki/Jilin_University |
 | Lanzhou Jiaotong University | Lanzhou | 60 | 3 | https://en.lzjtu.edu.cn/ | https://www.wikidata.org/wiki/Q10893606 https://en.wikipedia.org/wiki/Lanzhou_Jiaotong_University |
-| Liaoning Petrochemical University | Fushun | 17 | 1 | https://english.lnpu.edu.cn/ | https://www.wikidata.org/wiki/Q6540153 https://www.lnpu.edu.cn/ |
+| Liaoning Petrochemical University | Fushun | 17 | 2 | https://english.lnpu.edu.cn/ | https://www.wikidata.org/wiki/Q6540153 https://www.lnpu.edu.cn/ |
 | Linyi University | Linyi | 4 | 1 | https://www.lyu.edu.cn/ | https://www.wikidata.org/wiki/Q3249121 https://en.wikipedia.org/wiki/Linyi_University |
 | Lishui University | Lishui | 3 | 3 | https://www.lsu.edu.cn/ | https://www.wikidata.org/wiki/Q10877504 https://www.lsu.edu.cn/34/list.htm |
 | Nanchang Hangkong University | Nanchang | 4 | 2 | https://www.nchu.edu.cn/ | https://www.wikidata.org/wiki/Q6962480 https://en.wikipedia.org/wiki/Nanchang_Hangkong_University |
@@ -91,9 +89,9 @@
 | Shanghai Polytechnic University | Shanghai | 4 | 4 | https://en.sspu.edu.cn/ | https://en.wikipedia.org/wiki/Shanghai_Polytechnic_University https://en.sspu.edu.cn/ |
 | Shanghai University of Electric Power | Shanghai | 1 | 3 | https://www.shiep.edu.cn/ | https://www.wikidata.org/wiki/Q7488528 https://en.wikipedia.org/wiki/Shanghai_University_of_Electric_Power |
 | Shanghai University of Engineering Science | Shanghai | 4 | 3 | https://en.sues.edu.cn/ | https://www.wikidata.org/wiki/Q5928582 https://en.sues.edu.cn/ |
-| Shantou University | Shantou | 18 | 2 | https://www.stu.edu.cn/ | https://www.wikidata.org/wiki/Q835075 https://en.wikipedia.org/wiki/Shantou_University |
+| Shantou University | Shantou | 18 | 1 | https://www.stu.edu.cn/ | https://www.wikidata.org/wiki/Q835075 https://en.wikipedia.org/wiki/Shantou_University |
 | Shanxi University | Taiyuan | 6 | 0 | https://www.sxu.edu.cn/ | https://www.wikidata.org/wiki/Q7489128 https://en.wikipedia.org/wiki/Shanxi_University |
-| Shaoxing University | Shaoxing | 7 | 3 | https://www.usx.edu.cn/ | https://en.wikipedia.org/wiki/Shaoxing_University https://www.usx.edu.cn/ |
+| Shaoxing University | Shaoxing | 7 | 2 | https://www.usx.edu.cn/ | https://en.wikipedia.org/wiki/Shaoxing_University https://www.usx.edu.cn/ |
 | Shenyang Agricultural University | Shenyang | 57 | 3 | https://en.syau.edu.cn/ | https://www.wikidata.org/wiki/Q7494338 https://en.wikipedia.org/wiki/Shenyang_Agricultural_University |
 | Shenyang Jianzhu University | Shenyang | 5 | 2 | https://english.sjzu.edu.cn/ | https://www.wikidata.org/wiki/Q7494352 https://english.sjzu.edu.cn/ |
 | Shenyang University of Chemical Technology | Shenyang | 5 | 1 | https://english.syuct.edu.cn/ | https://www.wikidata.org/wiki/Q7494347 https://english.syuct.edu.cn/ |
@@ -116,7 +114,7 @@
 | Wenzhou University | Wenzhou | 11 | 0 | https://www.wzu.edu.cn/en.htm | https://www.wikidata.org/wiki/Q7983088 https://en.wikipedia.org/wiki/Wenzhou_University |
 | Wuchang University of Technology | Wuhan | 3 | 0 | https://www.wut.edu.cn/ | https://www.wikidata.org/wiki/Q11124339 https://en.wikipedia.org/wiki/Wuchang_University_of_Technology |
 | Wuhan College | Wuhan | 1 | 2 | https://www.whxy.edu.cn/ | https://www.wikidata.org/wiki/Q19852923 https://www.whxy.edu.cn/ |
-| Wuxi University | Wuxi | 1 | 1 | https://www.cwxu.edu.cn/ | https://www.wikidata.org/wiki/Q10906657 https://zh.wikipedia.org/wiki/%E6%97%A0%E9%94%A1%E5%AD%A6%E9%99%A2 |
+| Wuxi University | Wuxi | 1 | 0 | https://www.cwxu.edu.cn/ | https://www.wikidata.org/wiki/Q10906657 https://zh.wikipedia.org/wiki/%E6%97%A0%E9%94%A1%E5%AD%A6%E9%99%A2 |
 | Xi’an Shiyou University | Xi’an | 62 | 1 | https://english.xsyu.edu.cn/ | https://www.wikidata.org/wiki/Q8044031 https://english.xsyu.edu.cn/ |
 | Xi’an Technological University | Xi’an | 3 | 1 | https://en.xatu.edu.cn/ | https://www.wikidata.org/wiki/Q17066865 https://zh.wikipedia.org/wiki/%E8%A5%BF%E5%AE%89%E5%B7%A5%E4%B8%9A%E5%A4%A7%E5%AD%A6 |
 | Xi’an University of Architecture and Technology | Xi’an | 3 | 1 | https://www.xauat.edu.cn/gwyw/ | https://www.wikidata.org/wiki/Q4418179 https://en.wikipedia.org/wiki/Xi%27an_University_of_Architecture_and_Technology |
@@ -125,7 +123,6 @@
 | Yangtze University | Jingzhou | 1 | 3 | https://english.yangtzeu.edu.cn/ | https://www.wikidata.org/wiki/Q13527910 https://en.wikipedia.org/wiki/Yangtze_University |
 | Yangzhou University | Yangzhou | 7 | 2 | https://www.yzu.edu.cn/ | https://www.wikidata.org/wiki/Q8048674 https://en.wikipedia.org/wiki/Yangzhou_University |
 | Yanshan University | Qinhuangdao | 3 | 3 | https://english.ysu.edu.cn/ | https://www.wikidata.org/wiki/Q832792 https://en.wikipedia.org/wiki/Yanshan_University |
-| Yunnan Technology and Business University | Kunming | 10 | 3 | https://www.ytbu.edu.cn/ | https://www.wikidata.org/wiki/Q112677278 https://www.unirank.org/cn/uni/yunnan-technology-and-business-university/ |
 | Yunnan University | Kunming | 3 | 1 | https://www.ynu.edu.cn/ | https://www.wikidata.org/wiki/Q649882 https://en.wikipedia.org/wiki/Yunnan_University |
 | Zaozhuang University | Zaozhuang | 3 | 2 | https://english.uzz.edu.cn/ | https://www.wikidata.org/wiki/Q11107588 https://en.wikipedia.org/wiki/Zaozhuang_University |
 | Zhejiang Normal University | Jinhua | 6 | 3 | https://www.zjnu.edu.cn/english/ | https://www.wikidata.org/wiki/Q11148738 https://en.wikipedia.org/wiki/Zhejiang_Normal_University |
@@ -161,7 +158,10 @@
 | Вуз в таблице | Строк | Причина |
 |---|---|---|
 | Youjiang Medical University for Nationalities (Baise) | 12 | в таблице записана больница (Youjiang National Hospital); соответствие вузу Youjiang Medical University for Nationalities не подтверждено, нужно решение владельца |
+| Yunnan Technology and Business University (Kunming) | 12 | официальный сайт не открылся и его домена нет в Wikidata и Wikipedia; источники только справочники и сайты вакансий, нужно подтверждение |
 | Hebei Academy of Fine Arts (Shijiazhuang) | 5 | личность не подтверждена: домен сайта не открывается, источники расходятся по домену, типу и адресу |
+| Harbin Cambridge University (Harbin) | 3 | официальный сайт не открылся, английское название взято из справочников, нужно подтверждение |
+| Huzhou Normal University (Huzhou) | 2 | официальный сайт не открылся, переименование подтверждено только новостью, нужно подтверждение |
 | Central South University (Changsha) | 1 | нет программ: в строках таблицы не указана специальность |
 
 ## Проверено слабее
@@ -172,16 +172,13 @@
 - China Jiliang University
 - China West Normal University
 - Dali University
-- Harbin Cambridge University
 - Henan University of Science and Technology
 - Huanghuai University
-- Huzhou Normal University
 - Jiangsu Normal University
 - Nanjing University of Science and Technology
 - Southwest University of Science and Technology
 - Wuchang University of Technology
 - Yangzhou University
-- Yunnan Technology and Business University
 
 Личность подтверждена по китайскому названию, городу и вторичным источникам, английское название на официальном сайте не найдено или вуз недавно переименован (уверенность medium):
 
@@ -189,11 +186,9 @@
 - China West Normal University
 - Dali University
 - Guangdong University of Finance
-- Harbin Cambridge University
 - Hebei Vocational University of Industry and Technology
 - Henan University of Science and Technology
 - Huanghuai University
-- Huzhou Normal University
 - Jiangsu Normal University
 - Nanjing University of Science and Technology
 - Qiongtai Normal University
@@ -207,7 +202,6 @@
 - Wuchang University of Technology
 - Xuzhou University of Technology
 - Yangzhou University
-- Yunnan Technology and Business University
 
 ## Что не проверено
 

@@ -13,14 +13,15 @@
  * Все записи идут теми же RPC, что и Admin-публикация в CRM, от имени действующего системного Admin:
  *   1. src/lib/server/university-catalog-reviewed-china.json: для каждой карточки находится вуз по названию и
  *      стране; нет: публикуется новой карточкой (stage + review); есть и равна: пропуск; есть и отличается:
- *      новая версия, но только если она ДОБАВЛЯЕТ (все прежние программы остаются без изменений, имя, страна,
- *      город, обзор, сайты и фото не меняются; допустимо менять только notes и verifiedOn). Иначе транзакция
- *      прерывается: в карточке есть правка, которой нет во входном файле;
+ *      новая версия, но только если она ДОБАВЛЯЕТ (все прежние программы остаются без изменений; имя, страна,
+ *      город, обзор, сайты, дата проверки и фото не меняются; заметка либо прежняя, либо прежняя плюс ровно
+ *      MERGE_NOTE). Иначе транзакция прерывается: в карточке есть правка, которой нет во входном файле;
  *   2. scripts/catalog/data/china-2026-11/city-links.json: связь НОВЫХ карточек с уже существующими городами
  *      (staff_catalog_institution_city_set_v1); связь карточек, уже имевшихся в каталоге, не трогается;
  *   3. scripts/catalog/data/china-2026-11/programme-costs.json: строки стоимости через staff_catalog_cost_import_v1
  *      (формат и проверки import-catalog-costs.mjs; importKey, уже импортированный, не создаётся второй раз).
- * Повтор тем же файлом ничего не дублирует: неизменные карточки пропускаются, request_id выводятся из содержимого.
+ * Повтор тем же файлом ничего не дублирует: неизменные карточки пропускаются, request_id выводятся из содержимого
+ * (у стоимости из хэша самих строк, поэтому правка файла не даёт повторное использование идентификатора).
  * Режим --only key,key: те же шаги только для перечисленных карточек (пробный пуск перед полным).
  */
 import { createHash } from "node:crypto";
@@ -28,6 +29,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { planImport } from "./import-catalog-costs.mjs";
+import { MERGE_NOTE } from "./china-2026-11-lib.mjs";
 import { ORGANIZATION_ID } from "./malaysia-universities-sql.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -41,9 +43,8 @@ const dollar = (value, tag) => {
   return `$${tag}$${text}$${tag}$`;
 };
 
-/** Поля карточки, которые обновление не вправе менять (меняется только то, что в ADDITIVE_FIELDS и programs). */
-export const IMMUTABLE_CARD_FIELDS = Object.freeze(["name", "country", "city", "overview", "websiteUrl", "sourceUrl", "photoKey"]);
-export const ADDITIVE_FIELDS = Object.freeze(["notes", "verifiedOn"]);
+/** Поля карточки, которые обновление не вправе менять; растут только programs и (ровно на MERGE_NOTE) notes. */
+export const IMMUTABLE_CARD_FIELDS = Object.freeze(["name", "country", "city", "overview", "websiteUrl", "sourceUrl", "verifiedOn", "photoKey"]);
 
 export function loadChinaInputs() {
   const cards = JSON.parse(readFileSync(resolve(ROOT, "src/lib/server/university-catalog-reviewed-china.json"), "utf8"));
@@ -57,6 +58,7 @@ export function isAdditiveUpdate(oldContent, nextContent) {
   for (const field of IMMUTABLE_CARD_FIELDS) {
     if (JSON.stringify(oldContent[field]) !== JSON.stringify(nextContent[field])) return false;
   }
+  if (nextContent.notes !== oldContent.notes && nextContent.notes !== `${oldContent.notes} ${MERGE_NOTE}`) return false;
   const byId = new Map(nextContent.programs.map((program) => [program.id, program]));
   return oldContent.programs.every((program) => {
     const next = byId.get(program.id);
@@ -88,8 +90,8 @@ export function buildSql({ commit = false, actorMembership = null, skipCosts = f
   const costRows = plan.batches.flatMap((batch) => batch.p_rows).filter((row) => names.has(row.institutionName));
   const costBatches = [];
   for (let start = 0; start < costRows.length; start += 2000) {
-    costBatches.push({ rows: costRows.slice(start, start + 2000), requestId: createHash("sha256")
-      .update(`${REQUEST_PREFIX}:costs:${only === null ? "all" : [...only].sort().join(",")}:${start}:${costRows.length}`).digest("hex") });
+    const rows = costRows.slice(start, start + 2000);
+    costBatches.push({ rows, requestId: createHash("sha256").update(`${REQUEST_PREFIX}:costs:`).update(JSON.stringify(rows)).digest("hex") });
   }
   const lines = [];
   const out = (text) => lines.push(text);
@@ -117,7 +119,8 @@ export function buildSql({ commit = false, actorMembership = null, skipCosts = f
 DECLARE
   org CONSTANT UUID := '${ORGANIZATION_ID}';
   c RECORD; inst UUID; ver BIGINT; old JSONB; st TEXT; digest TEXT; draft JSONB; pub JSONB; link TEXT; n_new INT; ok BOOLEAN;
-  immutable_fields CONSTANT TEXT[] := ARRAY['name','country','city','overview','websiteUrl','sourceUrl','photoKey'];
+  immutable_fields CONSTANT TEXT[] := ARRAY['name','country','city','overview','websiteUrl','sourceUrl','verifiedOn','photoKey'];
+  merge_note CONSTANT TEXT := ${dollar(MERGE_NOTE, "m")};
   f TEXT;
 BEGIN
   FOR c IN SELECT * FROM a_cards ORDER BY ord LOOP
@@ -137,6 +140,7 @@ BEGIN
       FOREACH f IN ARRAY immutable_fields LOOP
         IF old -> f IS DISTINCT FROM c.content -> f THEN ok := FALSE; END IF;
       END LOOP;
+      IF ok AND NOT (c.content ->> 'notes' = old ->> 'notes' OR c.content ->> 'notes' = (old ->> 'notes') || ' ' || merge_note) THEN ok := FALSE; END IF;
       IF ok THEN
         ok := NOT EXISTS (SELECT 1 FROM jsonb_array_elements(old -> 'programs') o
           WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements(c.content -> 'programs') n WHERE n = o));

@@ -23,7 +23,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CARD_NOTES, acceptCostItems, autoFillRows, basicMajorClean, buildCostRows, cleanedTitleIsFaithful, buildIntakes, buildSummary, collapse, lettersOnly, mergeIntoExisting,
-  normalizeLanguage, parseAge, parseDurationYears, programmesSentence, slugify, uniqueProgramId, yearsRu,
+  normalizeLanguage, parseAge, parseDurationYears, programmesSentence, scrubOverview, slugify, uniqueProgramId, yearsRu,
 } from "./china-2026-11-lib.mjs";
 import { parseUniversityContent } from "../../src/lib/platform-university-catalog.ts";
 
@@ -87,22 +87,31 @@ export function programmesForRows(rows, { majors, overrides, sourceUrl, scholars
     }
     const language = normalizeLanguage(row.langRaw);
     const years = parseDurationYears(row.major);
+    if (badAge.has(row.row)) blanked.push({ row: row.row, field: "age" });
+    if (badDeadline.has(row.row)) blanked.push({ row: row.row, field: "deadline" });
+    const part = {
+      intakeRaw: row.intakeRaw, deadlineRaw: badDeadline.has(row.row) ? "" : row.deadline,
+      ageRu: badAge.has(row.row) ? null : parseAge(row.req), scholarship: scholarshipByRow.get(row.row) === true,
+    };
     for (const title of titles.map((entry) => overrides.titleOverrides?.[entry] ?? entry)) {
       const key = `${lettersOnly(title)}|${language.iso}`;
-      if (seen.has(key)) { seen.get(key).rows.push(row.row); continue; }
+      // The same programme on several rows (March and September on separate rows): the rows are united, not the first one kept.
+      if (seen.has(key)) { const again = seen.get(key); again.rows.push(row.row); again.parts.push(part); continue; }
       const id = uniqueProgramId(title, language.iso, taken);
       taken.add(id);
-      if (badAge.has(row.row)) blanked.push({ row: row.row, field: "age" });
-      if (badDeadline.has(row.row)) blanked.push({ row: row.row, field: "deadline" });
-      const programme = {
-        id, level: "bachelor", title, intakes: buildIntakes({ intakeRaw: row.intakeRaw, deadlineRaw: badDeadline.has(row.row) ? "" : row.deadline, sourceUrl }),
-        summary: buildSummary({ languageRu: language.ru, ageRu: badAge.has(row.row) ? null : parseAge(row.req), scholarship: scholarshipByRow.get(row.row) === true }),
-        duration: years === null ? null : yearsRu(years), language: language.ru, sourceUrl,
-      };
-      const entry = { programme, languageIso: language.iso, rows: [row.row] };
+      const entry = { id, title, language, years, languageIso: language.iso, rows: [row.row], parts: [part] };
       seen.set(key, entry);
       programmes.push(entry);
     }
+  }
+  for (const entry of programmes) {
+    const ages = entry.parts.map((part) => part.ageRu);
+    entry.programme = {
+      id: entry.id, level: "bachelor", title: entry.title,
+      intakes: buildIntakes({ intakeRaw: entry.parts.map((part) => part.intakeRaw), deadlineRaw: entry.parts.map((part) => part.deadlineRaw), sourceUrl }),
+      summary: buildSummary({ languageRu: entry.language.ru, ageRu: ages.every((age) => age === ages[0]) ? ages[0] : null, scholarship: entry.parts.some((part) => part.scholarship) }),
+      duration: entry.years === null ? null : yearsRu(entry.years), language: entry.language.ru, sourceUrl,
+    };
   }
   for (const entry of programmes) trace.push({ programId: entry.programme.id, rows: entry.rows });
   return { programmes, trace, skipped, blanked };
@@ -117,6 +126,11 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   const input = loadWorkDir(workDir);
   const base = baseCards(baseRef);
   const baseByName = new Map(base.map((card) => [card.content.name, card]));
+  // Sources that turned out to describe another institution are dropped from the sources document.
+  for (const rec of input.identities) {
+    const dropped = input.overrides.dropSources?.[rec.uid] ?? [];
+    if (dropped.length > 0) rec.sources = (rec.sources ?? []).filter((url) => !dropped.includes(url));
+  }
   const idByUid = new Map(input.identities.map((rec) => [rec.uid, rec]));
   const rowsByUid = new Map();
   for (const row of input.rows) rowsByUid.set(row.uid, [...(rowsByUid.get(row.uid) ?? []), row]);
@@ -128,10 +142,10 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   for (const group of input.feeGroups) {
     const a = aById.get(group.feeId), b = bById.get(group.feeId);
     const { accepted, rejected } = acceptCostItems(group.text, a?.items, b?.items);
-    acceptedByFee.set(group.feeId, { accepted, scholarship: Boolean(a?.scholarshipMentioned || b?.scholarshipMentioned) });
+    acceptedByFee.set(group.feeId, { accepted, rejected, scholarship: Boolean(a?.scholarshipMentioned || b?.scholarshipMentioned) });
     for (const entry of rejected) rejectedCosts.push({ feeId: group.feeId, ...entry });
   }
-  const report = { builtFor: baseRef, universities: rowsByUid.size, excluded: [], merged: [], created: [], skippedRows: [], blankedCells: [], rowsMatchedToExisting: [], rejectedCosts, droppedCosts: [], costRows: 0 };
+  const report = { builtFor: baseRef, universities: rowsByUid.size, excluded: [], merged: [], created: [], skippedRows: [], blankedCells: [], rowsMatchedToExisting: [], droppedByVerification: [], rejectedCosts, droppedCosts: [], costRows: 0 };
   const cardsByKey = new Map(base.map((card) => [card.key, card]));
   const newCards = [], links = {}, newLinks = {}, trace = [], costRows = [];
   for (const [uid, rows] of [...rowsByUid.entries()].sort(([a], [b]) => a.localeCompare(b))) {
@@ -165,7 +179,7 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
         throw new Error(`${uid}: ${rec.nameEn} repeats an existing card name; set crmMatch or fix the name`);
       }
       const programs = built.programmes.map((entry) => entry.programme);
-      const overview = `${collapse(rec.overviewRu)} ${programmesSentence(programs)}`;
+      const overview = `${scrubOverview(rec.overviewRu)} ${programmesSentence(programs)}`;
       card = { key, content: {
         name: rec.nameEn, country: "CN", city: rec.cityRu, overview, websiteUrl: rec.websiteUrl, sourceUrl,
         verifiedOn, notes: CARD_NOTES, photoKey: null, programs,
@@ -178,7 +192,7 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
     if (JSON.stringify(parsed) !== JSON.stringify(card.content)) throw new Error(`card ${key} does not survive parseUniversityContent`);
     const usedIds = new Set(card.content.programs.map((program) => program.id));
     for (const entry of built.trace) if (usedIds.has(entry.programId)) trace.push({ card: key, ...entry });
-    const groups = input.feeGroups.filter((group) => group.uid === uid).map((group) => ({ feeId: group.feeId, accepted: acceptedByFee.get(group.feeId).accepted }));
+    const groups = input.feeGroups.filter((group) => group.uid === uid).map((group) => ({ feeId: group.feeId, accepted: acceptedByFee.get(group.feeId).accepted, rejected: acceptedByFee.get(group.feeId).rejected }));
     const live = existing ? input.liveCosts.filter((row) => row.institution === existing.content.name) : [];
     const costs = buildCostRows({
       cardKey: key, institutionName: card.content.name, groups, existingPublished: live,
@@ -189,6 +203,10 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   }
   newCards.sort((a, b) => a.content.name.localeCompare(b.content.name, "en"));
   const cards = [...base.map((card) => cardsByKey.get(card.key)), ...newCards];
+  // Rows that the third, independent verification pass did not confirm (listed in overrides.dropCostKeys) are not published.
+  const dropKeys = new Set(Object.keys(input.overrides.dropCostKeys ?? {}));
+  report.droppedByVerification = costRows.filter((row) => dropKeys.has(row.importKey)).map((row) => ({ importKey: row.importKey, why: input.overrides.dropCostKeys[row.importKey] }));
+  for (let index = costRows.length - 1; index >= 0; index -= 1) if (dropKeys.has(costRows[index].importKey)) costRows.splice(index, 1);
   costRows.sort((a, b) => a.importKey.localeCompare(b.importKey, "en"));
   report.costRows = costRows.length;
   report.cards = cards.length;

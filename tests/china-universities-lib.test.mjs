@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  ACADEMIC_YEAR, autoFillRows, WORKSHEET_DATE, buildIntakes, buildSummary, cleanedTitleIsFaithful, editDistance, mergeIntoExisting,
-  cleanDeadlineText, languageClass, normalizeLanguage, parseAge, parseDurationYears, parseIntake, programmesSentence, slugify, uniqueProgramId,
+  ACADEMIC_YEAR, MERGE_NOTE, autoFillRows, WORKSHEET_DATE, buildIntakes, buildSummary, cleanedTitleIsFaithful, editDistance, mergeIntoExisting,
+  cleanDeadlineText, languageClass, normalizeLanguage, parseAge, parseDurationYears, parseIntake, programmesSentence, scrubOverview, slugify, uniqueProgramId,
 } from "../scripts/catalog/china-2026-11-lib.mjs";
 import { isAdditiveUpdate } from "../scripts/catalog/china-universities-sql.mjs";
 
@@ -130,7 +130,7 @@ test("China 2026-11 lib: merging keeps every earlier programme and field and add
   assert.deepEqual(content.programs[0], existing.programs[0]);
   assert.deepEqual(content.programs.slice(1).map((program) => program.id), ["civil-engineering", "computer-science-and-technology"]);
   assert.ok(!("languageIso" in content.programs[1]));
-  assert.match(content.notes, /^Старая заметка\. Часть программ бакалавриата добавлена/u);
+  assert.equal(content.notes, `Старая заметка. ${MERGE_NOTE}`);
   assert.equal(content.name, existing.name);
   assert.ok(isAdditiveUpdate(existing, content));
   assert.equal(mergeIntoExisting(content, []).content.notes, content.notes, "the merge note is not repeated");
@@ -140,7 +140,10 @@ test("China 2026-11 SQL guard: an update that edits or drops an earlier programm
   const existing = existingCard();
   const plus = { ...existing, programs: [...existing.programs, { ...existing.programs[0], id: "law", title: "Law" }] };
   assert.ok(isAdditiveUpdate(existing, plus));
-  assert.ok(isAdditiveUpdate(existing, { ...plus, notes: "Другая заметка.", verifiedOn: "2026-11-19" }));
+  assert.ok(isAdditiveUpdate(existing, { ...plus, notes: `${existing.notes} ${MERGE_NOTE}` }), "the note may grow by exactly the merge note");
+  assert.ok(!isAdditiveUpdate(existing, { ...plus, notes: "Другая заметка." }), "an Admin edit of the note is never overwritten");
+  assert.ok(!isAdditiveUpdate(existing, { ...plus, notes: `${existing.notes} Своя приписка.` }));
+  assert.ok(!isAdditiveUpdate(existing, { ...plus, verifiedOn: "2026-11-19" }), "the verification date is protected too");
   assert.ok(!isAdditiveUpdate(existing, { ...plus, city: "Шанхай" }));
   assert.ok(!isAdditiveUpdate(existing, { ...plus, overview: "Новый обзор." }));
   assert.ok(!isAdditiveUpdate(existing, { ...plus, programs: [{ ...plus.programs[0], summary: "Изменено." }, plus.programs[1]] }));
@@ -220,4 +223,46 @@ test("China 2026-11 lib: a language class separates English from Chinese program
   assert.equal(languageClass("Китайский"), "zh");
   assert.equal(languageClass("Китайский или английский — по потоку"), "both");
   assert.equal(languageClass(null), null);
+});
+
+test("China 2026-11 lib: a deadline with an impossible date or a reversed range is not shown", () => {
+  assert.equal(cleanDeadlineText("Deadline:June 31"), null);
+  assert.equal(cleanDeadlineText("Deadline: Feb 30"), null);
+  assert.equal(cleanDeadlineText("Application time: November 2026 to Feb 15,2026"), null);
+  assert.equal(cleanDeadlineText("Application time: November 1 to Feb 15"), "Application time: November 1 to Feb 15", "a range that wraps over the new year has no years and stays");
+  assert.equal(cleanDeadlineText("Deadline: Aug 1, 2026 Scholarship deadline: July 1.2026"), "Deadline: Aug 1, 2026 Scholarship deadline: July 1.2026");
+  assert.equal(cleanDeadlineText("March 1 - June 30, 2026 (Fall entry) October 1 - December 31, 2026 (Spring entry)"), "March 1 - June 30, 2026 (Fall entry) October 1 - December 31, 2026 (Spring entry)");
+});
+
+test("China 2026-11 lib: the rows of one repeated programme are united (March on one row, September on another)", () => {
+  const url = "https://www.example.edu.cn/admissions";
+  const united = buildIntakes({ intakeRaw: ["Mar", "Sep", "Sep"], deadlineRaw: ["Deadline: May 1", "Deadline: May 1", "Deadline: June 30"], sourceUrl: url });
+  assert.deepEqual(united.map((intake) => intake.label), ["Март (по таблице EVO)", "Сентябрь (по таблице EVO)"]);
+  assert.match(united[0].note, /Срок по таблице: Deadline: May 1; Deadline: June 30\./u);
+});
+
+test("China 2026-11 lib: status labels (211, 985, Double First-Class) are cut out of an overview, other numbers stay", () => {
+  assert.equal(scrubOverview("Университет в Пекине. С 2017 года вуз входит в программу Double First-Class. Основан в 1952 году."), "Университет в Пекине. Основан в 1952 году.");
+  assert.equal(scrubOverview("Входит в проект 211 и 985. Учатся 12113 студентов."), "Учатся 12113 студентов.");
+});
+
+test("China 2026-11 costs: a faculty list under one tuition label is read as one range, and an unconfirmed second price blocks the tuition row", () => {
+  const text = "University Scholarship: Tuition free Tuition: Liberal Arts: 14000CNY/Y Science: 16000CNY/Y Accommodation: 3600CNY/Y double room Insurance: 600CNY/Y";
+  const arts = { kind: "tuition", basis: "standard", scope: "arts", min: 14000, max: null, period: "year", room: null, evidence: "Liberal Arts: 14000CNY/Y" };
+  const science = { kind: "tuition", basis: "standard", scope: "science_engineering", min: 16000, max: null, period: "year", room: null, evidence: "Science: 16000CNY/Y" };
+  assert.deepEqual(validateCostItem(text, science), [], "the tuition label before the list applies to the second price");
+  const stay = { kind: "accommodation", basis: "standard", scope: "all", min: 3600, max: null, period: "year", room: "double", evidence: "3600CNY/Y double room" };
+  assert.deepEqual(validateCostItem(text, stay), [], "the accommodation label stands right before the amount");
+  assert.ok(validateCostItem(text, { ...stay, kind: "tuition" }).includes("kind_not_named_near_evidence"), "an accommodation amount is not a tuition amount");
+  const both = acceptCostItems(text, [arts, science], [arts, science]);
+  assert.equal(both.accepted.length, 2);
+  const range = buildCostRows({ cardKey: "u", institutionName: "U", programmeLanguages: new Set(["en"]), groups: [{ feeId: "f", accepted: both.accepted, rejected: both.rejected }] });
+  assert.equal(range.rows[0].amountMin, "14000");
+  assert.equal(range.rows[0].amountMax, "16000");
+  // Only one pass found the second price: a single 14000 would be wrong for science programmes, so there is no tuition row.
+  const half = acceptCostItems(text, [arts, science], [arts]);
+  assert.equal(half.accepted.length, 1);
+  const blocked = buildCostRows({ cardKey: "u", institutionName: "U", programmeLanguages: new Set(["en"]), groups: [{ feeId: "f", accepted: half.accepted, rejected: half.rejected }] });
+  assert.ok(!blocked.rows.some((row) => row.costKind === "tuition"));
+  assert.ok(blocked.dropped.some((entry) => /not confirmed by both passes/u.test(entry.why)));
 });

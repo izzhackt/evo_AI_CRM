@@ -8,11 +8,13 @@ import {
   CSCA_HOME_COUNTRY,
   CSCA_HOME_HREF,
   cscaHomeCardVisible,
+  cscaHomeDates,
   nearestCscaSession,
   selectCscaHomeCard,
 } from "../src/lib/portal/csca-home-card.ts";
 import { CSCA_OVERVIEW } from "../src/lib/portal/csca-overview.ts";
 import { parseCscaHome } from "../src/lib/portal/csca.ts";
+import { upcomingHomeDates } from "../src/lib/portal/home-dates.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { STUDY_COUNTRY_CODES } from "../src/lib/study-countries.ts";
 
@@ -157,11 +159,47 @@ test("the nearest session skips finished ones and the card survives having none"
   assert.equal(empty.action, "К подготовке");
 });
 
+test("«Ближайшие даты» get the official CSCA dates: last registration day and first exam day, China only", () => {
+  const ru = PORTAL_DICTIONARIES.home.ru;
+  const dates = cscaHomeDates({ choice: choice("CN"), home: home(), homeStrings: ru });
+  // 2026-11: регистрация до 21.10 15:59 UTC — в Бишкеке это ещё 21.10; у сессии без окна регистрации — только экзамен.
+  assert.deepEqual(dates.slice(0, 3), [
+    { day: "2026-10-21", title: "CSCA: регистрация закрывается", href: CSCA_HOME_HREF },
+    { day: "2026-11-14", title: "CSCA: экзамен", href: CSCA_HOME_HREF },
+    { day: "2026-12-19", title: "CSCA: экзамен", href: CSCA_HOME_HREF },
+  ]);
+  // Окно и предел «Ближайших дат» те же: на 16.10 видны регистрация и ноябрьский экзамен, декабрь за 60 днями.
+  assert.deepEqual(upcomingHomeDates(dates, "2026-10-16").map((item) => item.day), ["2026-10-21", "2026-11-14"]);
+  // Окно закрылось в 21:59 по Бишкеку — до полуночи того же дня строки «регистрация закрывается» уже нет.
+  const closed = cscaHomeDates({ choice: choice("CN"), home: home((value) => ({ ...value, serverNow: "2026-10-21T16:30:00+00:00", today: "2026-10-21" })), homeStrings: ru });
+  assert.equal(closed[0].day, "2026-11-14");
+  assert.equal(closed.filter((item) => item.title === ru.cscaDateRegistration).length, 0);
+  // Закончившаяся сессия не попадает; прошедший срок регистрации отсекает окно «Ближайших дат».
+  const later = cscaHomeDates({ choice: choice("CN"), home: home((value) => ({ ...value, today: "2026-11-16" })), homeStrings: ru });
+  assert.equal(later[0].day, "2026-12-19");
+  assert.deepEqual(upcomingHomeDates(dates, "2026-10-22").map((item) => item.day), ["2026-11-14", "2026-12-19"]);
+  // Не Китай, нет выбора или CSCA не прочитался — дат нет, как нет и карточки.
+  assert.deepEqual(cscaHomeDates({ choice: choice("MY"), home: home(), homeStrings: ru }), []);
+  assert.deepEqual(cscaHomeDates({ choice: null, home: home(), homeStrings: ru }), []);
+  assert.deepEqual(cscaHomeDates({ choice: choice("CN"), home: null, homeStrings: ru }), []);
+  for (const locale of ["ru", "ky"]) {
+    for (const key of ["cscaDateRegistration", "cscaDateExam"]) {
+      assert.match(PORTAL_DICTIONARIES.home[locale][key], /^CSCA: \S/u, `${locale} ${key}`);
+    }
+  }
+  assert.equal(cscaHomeDates({ choice: choice("CN"), home: home(), homeStrings: PORTAL_DICTIONARIES.home.ky })[0].title, "CSCA: каттоо жабылат");
+  // Страница передаёт их «Главной» одной строкой.
+  const page = read("src/app/(portal)/portal/page.tsx");
+  assert.match(page, /const cscaDates = cscaHomeDates\(\{ choice, home: cscaHome, homeStrings: strings \}\);/u);
+  assert.match(page, /dates=\{cscaDates\}/u);
+});
+
 test("the page reads the choice and the CSCA home in its single wave, only for China", () => {
   const page = read("src/app/(portal)/portal/page.tsx");
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
-  assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \(\{/u);
+  // 18.11.2026: за выбором страны в той же цепочке читается и фото столицы (шапка пути), рядом с CSCA.
+  assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \{/u);
   assert.match(wave[1], /cscaHome: cscaHomeCardVisible\(choice\) \? await readCscaHome\(\)\.catch\(\(\): null => null\) : null,/u);
   // Волна одна: после проверки студента только один Promise.all, ожидание не добавлено.
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
@@ -179,11 +217,12 @@ test("the card sits in the right column of the home, once for both tiers", () =>
   // #1355: «Мои вузы» ушли в «Мой список» под колонками; в левой колонке «Что сделать сейчас».
   const favorites = view.indexOf("<HomeCase");
   const side = view.indexOf('<div className="pt-home-side">');
-  const journey = view.indexOf("{journey}");
+  // 18.11.2026: карточки пути справа нет — путь целиком стоит под шапкой; справа даты, «Что нового» и CSCA.
+  const dates = view.indexOf("<HomeDates");
   const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
   assert.ok(favorites > 0 && side > favorites, "the case card in the left column");
-  assert.ok(journey > side && news > journey && card > news, "path card, dates, news, then CSCA");
+  assert.ok(dates > side && news > dates && card > news, "dates, news, then CSCA");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
 });
 
@@ -198,12 +237,12 @@ test("the card is quiet markup: one heading, one link, no alert and no extra cli
   assert.match(component, /aria-describedby="home-csca"/u);
   assert.match(component, /className="pt-btn-ghost"/u);
   assert.match(component, /view\.session \? \(/u);
-  assert.match(component, /view\.session\.registration \? \(/u);
-  // Срок выделен весом, а не цветом; своих цветов и акцентов у карточки нет.
+  // Срок регистрации уже стоит в «Ближайших датах»: в карточке он не повторяется (19.11.2026).
+  assert.doesNotMatch(component, /\{view\.session\.registration\}/u);
+  // Своих цветов и акцентов у карточки нет.
   const css = read("src/app/(portal)/portal.css");
   const rules = css.slice(css.indexOf(".pt-home-csca-session {"), css.indexOf("«Путь поступления» (S4"));
   assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgb\(|var\(--pt-accent|var\(--pt-error/iu);
-  assert.match(rules, /\.pt-home-csca-soon \{\n {2}color: var\(--pt-text\);\n {2}font-weight: 600;/u);
 });
 
 test("home strings exist in RU and KY, without dashes", () => {

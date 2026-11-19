@@ -94,10 +94,14 @@ const { AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/conse
 const { ConsentGateForm } = require(join(ROOT, "src/components/portal/consent/ConsentGateForm.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
+// 18.11.2026: «Мой список» в левой колонке, карточка CSCA и её даты в «Ближайших датах».
+const { HomeList } = require(join(ROOT, "src/components/portal/home/HomeList.tsx"));
+const { HomeFavorites } = require(join(ROOT, "src/components/portal/home/HomeFavorites.tsx"));
+const { CscaHomeCard } = require(join(ROOT, "src/components/portal/home/CscaHomeCard.tsx"));
+const { cscaHomeDates, selectCscaHomeCard } = require(join(ROOT, "src/lib/portal/csca-home-card.ts"));
 // S4: «Путь поступления», настоящий контент src/content/timelines. С 08.11.2026 весь путь на «Поступлении»,
 // на «Главной» его карточка.
 const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
-const { HomeJourneyCard } = require(join(ROOT, "src/components/portal/home/HomeJourneyCard.tsx"));
 const { selectStudentJourney } = require(join(ROOT, "src/lib/portal/student-journey.ts"));
 const { TIMELINE_UNDECIDED, selectCountryTimeline } = require(join(ROOT, "src/lib/portal/country-timeline.ts"));
 const { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } = require(join(ROOT, "src/lib/study-countries.ts"));
@@ -551,15 +555,37 @@ const timelineOptions = studyCountryOptions("ru", { undecided: true }).map((opti
 const timelineChoose = createElement(CountryTimeline, {
   view: null, source: "none", readFailed: false, options: timelineOptions, strings: timelineStrings,
 });
+/**
+ * Фото столицы — фон шапки пути на «Главной» (18.11.2026). Адрес на стенде не грузится (нет хранилища): проверяется
+ * разметка, «©» и контраст текста на подложке; снимки экрана подставляют настоящий файл бакета.
+ */
+const beijingPhotoFixture = {
+  country: "CN",
+  image: {
+    src: "/geography/cities/cn-beijing-7288cd4b2583.jpg",
+    srcSet: null,
+    width: 2000,
+    height: 1501,
+    credit: {
+      kind: "author",
+      author: "BI ravencrow",
+      authorUrl: "https://www.pexels.com/@biravencrow/",
+      license: "Pexels License",
+      licenseUrl: "https://www.pexels.com/license/",
+      source: { name: "Pexels", url: "https://www.pexels.com/photo/traditional-architecture-of-the-forbidden-city-39468928/" },
+    },
+  },
+};
+const universitiesStrings = getPortalStrings("universities", "ru");
 const timelineChina = createElement(CountryTimeline, {
   view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
   source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+  photo: beijingPhotoFixture, photoStrings: universitiesStrings,
 });
-/** Карточка пути на «Главной»: Китай клиента на этапе «Документы» (шаг и полоса шагов). */
+/** Путь Китая клиента на этапе «Документы» (строка текущего шага и полоса шагов) — весь путь под шапкой «Главной». */
 const chinaJourney = selectStudentJourney({ country: "CN", stage: "documents", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
-const journeyCardChina = createElement(HomeJourneyCard, {
-  view: chinaJourney.view, progress: chinaJourney.progress, readFailed: false, locale: "ru",
-});
+/** То же дело завершено: этапа `completed` нет среди этапов пути, отметок по шагам нет. */
+const chinaFinished = selectStudentJourney({ country: "CN", stage: "completed", locale: "ru", now: new Date("2026-10-16T12:00:00Z") });
 
 const learningModulesDraftFixture = [
   {
@@ -661,6 +687,128 @@ const favoriteUniversityFixture = {
     ],
   },
 };
+
+/**
+ * «Главная» клиента (18.11.2026): первое дело — просроченный аттестат (красная пилюля «просрочено»), за ним паспорт
+ * и оплата строками и «Ещё действий: 1»; в «Моём списке» три вуза; Китай — карточка CSCA и её даты в «Ближайших датах».
+ */
+const homeOverviewFixture = {
+  ...overviewFixture,
+  // Порядок сервера — по сроку: просроченный аттестат первым, без срока — последним.
+  studentAction: {
+    kind: "upload_document",
+    label: "Аттестат с приложением",
+    dueAt: "2026-09-17T09:00:00Z",
+    documentSlotId: "11111111-1111-4111-8111-111111111111",
+  },
+  studentActions: [
+    {
+      kind: "upload_document",
+      label: "Аттестат с приложением",
+      dueAt: "2026-09-17T09:00:00Z",
+      documentSlotId: "11111111-1111-4111-8111-111111111111",
+    },
+    {
+      kind: "upload_document",
+      label: "Загранпаспорт",
+      dueAt: "2026-09-25T09:00:00Z",
+      documentSlotId: "a1111111-1111-4111-8111-111111111111",
+    },
+    overviewFixture.studentActions[0],
+    {
+      kind: "upload_document",
+      label: "Фото 3×4",
+      dueAt: null,
+      documentSlotId: "a2222222-2222-4222-8222-222222222222",
+    },
+  ],
+};
+const homeFavoritesFixture = [
+  favoriteUniversityFixture,
+  {
+    ...favoriteUniversityFixture,
+    id: "f7777777-7777-4777-8777-777777777777",
+    // Дедлайн через 25 дней: попадает в «Ближайшие даты» строкой «Wuhan University: последний день подачи».
+    content: {
+      ...favoriteUniversityFixture.content,
+      name: "Wuhan University",
+      country: "CN",
+      city: "Ухань",
+      programs: favoriteUniversityFixture.content.programs.map((program) => ({
+        ...program,
+        intakes: program.intakes.map((intake) => ({ ...intake, applicationDeadline: "2026-10-15" })),
+      })),
+    },
+  },
+  {
+    ...favoriteUniversityFixture,
+    id: "f8888888-8888-4888-8888-888888888888",
+    content: { ...favoriteUniversityFixture.content, name: "Zhejiang University", country: "CN", city: "Ханчжоу", programs: [] },
+  },
+];
+/**
+ * «Мои программы» клиента (18.11.2026): программа в Wuhan University со сроком подачи 5 октября — её строка в «Ближайших
+ * датах» заменяет общую строку вуза из избранного.
+ */
+const homePreparationsFixture = [
+  {
+    applicationId: "fa111111-1111-4111-8111-111111111111",
+    studentCaseId: "33333333-3333-4333-8333-333333333333",
+    institutionId: "f7777777-7777-4777-8777-777777777777",
+    programId: "f5555555-5555-4555-8555-555555555555",
+    intakeId: "fb111111-1111-4111-8111-111111111111",
+    publicationId: "fc111111-1111-4111-8111-111111111111",
+    publicationVersion: 1,
+    catalogLevel: "bachelor",
+    applicationDegree: "bachelor",
+    selectedAt: "2026-09-10T08:00:00Z",
+    deadlineStateAtSelection: "confirmed",
+    applicationStatus: "preparation",
+    applicationVersion: "1",
+    content: {
+      ...favoriteUniversityFixture.content,
+      name: "Wuhan University",
+      country: "CN",
+      city: "Ухань",
+      programs: favoriteUniversityFixture.content.programs.map((program) => ({
+        ...program,
+        intakes: program.intakes.map((intake) => ({ ...intake, id: "fb111111-1111-4111-8111-111111111111", applicationDeadline: "2026-10-05" })),
+      })),
+    },
+  },
+];
+/** Своя анкета ученика до договора: отправлена 10 сентября, одобрена 12 сентября. */
+const homeApplicationFixture = { status: "approved", submittedAt: "2026-09-10T08:00:00Z", decidedAt: "2026-09-12T10:00:00Z" };
+
+/** Главная трека CSCA в той форме, что читает «Главная» (learning_track_home_v1): одна будущая сессия. */
+const cscaHomeFixture = {
+  today: "2026-09-20",
+  serverNow: "2026-09-20T12:00:00Z",
+  sessions: [
+    {
+      sessionKey: "2026-10",
+      examFrom: "2026-10-31",
+      examTo: "2026-11-01",
+      registrationOpensAt: "2026-08-15T00:00:00Z",
+      registrationClosesAt: "2026-09-26T15:59:59Z",
+      sourceUrl: "https://www.csca.cn",
+      verifiedOn: "2026-09-01",
+    },
+  ],
+};
+const homeChinaChoice = { country: "CN" };
+const homeCscaCard = selectCscaHomeCard({
+  choice: homeChinaChoice,
+  home: cscaHomeFixture,
+  locale: "ru",
+  cscaStrings: getPortalStrings("csca", "ru"),
+  homeStrings,
+});
+const homeList = (favorites, programsCount = 0) => createElement(
+  HomeList,
+  { boxed: true, view: "universities", favoritesCount: favorites.length, programsCount, locale: "ru" },
+  createElement(HomeFavorites, { favorites, total: favorites.length, locale: "ru", now: HOME_NOW }),
+);
 
 /** Ответы portal_ai_consent_get_v1 в форме сервера (миграция 320). */
 const aiConsentAsked = {
@@ -841,6 +989,9 @@ const surfaces = [
           overviewFailed: false,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
+          list: homeList([favoriteUniversityFixture]),
+          // Анкета с датами; избранный вуз со сроком позже 60 дней — строка «Дальше» вместо «Дат пока нет».
+          application: homeApplicationFixture,
           // Страны нет: выбор страны первым блоком под шапкой, карточки пути нет.
           journey: null,
           countryChoice: timelineChoose,
@@ -862,12 +1013,62 @@ const surfaces = [
           tier: "assisted",
           displayName: "Айгерим Асанова",
           studyCountry: "Китай",
-          overview: overviewFixture,
+          // 18.11.2026: в шапке набор пути и отсчёт до ближайшей даты.
+          intake: chinaJourney.view.intake.label,
+          overview: homeOverviewFixture,
+          overviewFailed: false,
+          news: notificationsFixture,
+          favorites: homeFavoritesFixture,
+          favoritesTotal: homeFavoritesFixture.length,
+          list: homeList(homeFavoritesFixture, homePreparationsFixture.length),
+          preparations: homePreparationsFixture,
+          dates: cscaHomeDates({ choice: homeChinaChoice, home: cscaHomeFixture, homeStrings }),
+          csca: createElement(CscaHomeCard, { view: homeCscaCard }),
+          // Со страной шапка «Главной» и весь путь — один блок на фото Пекина, под ним строка текущего шага.
+          path: {
+            view: chinaJourney.view, progress: chinaJourney.progress, documentsHref: "/portal/documents",
+            source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+            photo: beijingPhotoFixture, photoStrings: universitiesStrings,
+            // 19.11.2026: строка под шапкой — «Шаг N из M · дальше — …», как у iPhone.
+            stripStrings: { step: homeStrings.stripStep, next: homeStrings.stripNext, done: homeStrings.stripDone },
+            stage: "documents",
+          },
+          locale: "ru",
+          now: HOME_NOW,
+        }),
+      ),
+    ),
+  },
+  // 19.11.2026: дело завершено — строка под шапкой «Поступление завершено», без полосы и отметок (прогресса по шагам нет).
+  {
+    name: "home-path-finished",
+    html: renderSurface(
+      "Главная — дело завершено — a11y",
+      pageShell(
+        null,
+        homeStrings.title,
+        null,
+        createElement(HomeView, {
+          tier: "assisted",
+          displayName: "Айгерим Асанова",
+          studyCountry: "Китай",
+          intake: chinaJourney.view.intake.label,
+          overview: null,
           overviewFailed: false,
           news: [],
           favorites: [],
           favoritesTotal: 0,
-          journey: journeyCardChina,
+          list: null,
+          preparations: [],
+          dates: [],
+          csca: null,
+          path: {
+            view: chinaFinished.view, progress: chinaFinished.progress, documentsHref: "/portal/documents",
+            source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+            photo: beijingPhotoFixture, photoStrings: universitiesStrings,
+            stripStrings: { step: homeStrings.stripStep, next: homeStrings.stripNext, done: homeStrings.stripDone },
+            stage: "completed",
+          },
           locale: "ru",
           now: HOME_NOW,
         }),

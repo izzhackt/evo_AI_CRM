@@ -9,12 +9,11 @@ import { HomeFavorites } from "@/components/portal/home/HomeFavorites";
 import { HomeList, type HomeListView } from "@/components/portal/home/HomeList";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
-import { HomeJourneyCard } from "@/components/portal/home/HomeJourneyCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
-import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
+import { cscaHomeCardVisible, cscaHomeDates, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { selectStudentJourney, timelineCountryOptions } from "@/lib/portal/student-journey";
@@ -22,7 +21,10 @@ import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
 } from "@/lib/portal/university-favorites-source";
+import { readStudentUniversityIndex } from "@/lib/portal/university-index-source";
+import { capitalPhoto } from "@/lib/portal/university-tiles";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
+import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import {
   readStudentPortalNotifications,
@@ -73,7 +75,8 @@ export default async function StudentPortalHomePage({
   // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной» — их
   // чтений здесь больше нет; «Что нового» (лента «Входящих») — только assisted.
   // «Мой список» (#1355): выбранные программы читаются в той же волне.
-  const [overviewResult, news, favoritesResult, choiceRead, preparations] = await Promise.all([
+  // 18.11.2026: до договора (approved) своя анкета даёт даты отметок «отправлена» и «одобрена»; сбой — прежняя карточка.
+  const [overviewResult, news, favoritesResult, choiceRead, preparations, ownApplication] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
@@ -90,13 +93,25 @@ export default async function StudentPortalHomePage({
         ),
       }))
       .catch(() => ({ ok: false as const })),
-    readStudentCountryChoice().catch((): null => null).then(async (choice) => ({
-      choice,
-      cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
-    })),
+    readStudentCountryChoice().catch((): null => null).then(async (choice) => {
+      // 18.11.2026: фото столицы выбранной страны — фон шапки «Пути поступления»; индекс каталога читается рядом с
+      // CSCA, а не после неё. Сбой — шапка без фото.
+      const country = choice?.country ?? null;
+      const capitalRead = country !== null && isStudyCountryCode(country)
+        ? readStudentUniversityIndex(actor)
+          .then((index) => ({ country, image: capitalPhoto(index, country) }))
+          .catch((): null => null)
+        : Promise.resolve(null);
+      return {
+        choice,
+        cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
+        capital: await capitalRead,
+      };
+    }),
     readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
+    tier === "approved" ? readOwnStudentApplication().catch((): null => null) : Promise.resolve(null),
   ]);
-  const { choice, cscaHome } = choiceRead;
+  const { choice, cscaHome, capital } = choiceRead;
   const now = new Date();
   // 08.11.2026 (пользователь): весь путь на «Поступлении», здесь его карточка — тот же выбор пути и прогресс.
   const journey = selectStudentJourney({
@@ -106,6 +121,7 @@ export default async function StudentPortalHomePage({
     locale,
     now,
   });
+  const cscaDates = cscaHomeDates({ choice, home: cscaHome, homeStrings: strings });
   const cscaCard = selectCscaHomeCard({
     choice,
     home: cscaHome,
@@ -120,6 +136,40 @@ export default async function StudentPortalHomePage({
   const preparationStrings = getPortalStrings("preparations", locale);
   const assisted = tier === "assisted";
 
+  // «Мой список» (#1355) — карточкой в левой колонке под «Что сделать сейчас» (18.11.2026); «Всё избранное» со
+  // сравнением — во всю ширину под колонками, ему тесно в колонке.
+  const allFavoritesView = view === "universities" && allFavorites;
+  const list = (
+    <>
+      {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
+      <div className="pt-pending-packages">
+        <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
+      </div>
+      <HomeList
+        boxed={!allFavoritesView}
+        view={view}
+        favoritesCount={favoritesResult.ok ? favoritesResult.total : null}
+        programsCount={preparations?.length ?? null}
+        locale={locale}
+      >
+        {view === "universities" ? (
+          allFavorites ? (
+            <FavoritesSection institutionIds={favoritesResult.ok ? favoritesResult.ids : null} locale={locale} />
+          ) : (
+            <HomeFavorites
+              favorites={favoritesResult.ok ? favoritesResult.items : null}
+              total={favoritesResult.ok ? favoritesResult.total : 0}
+              locale={locale}
+              now={now}
+            />
+          )
+        ) : (
+          <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
+        )}
+      </HomeList>
+    </>
+  );
+
   // Заголовок страницы — приветствие в шапке HomeView (HomeHero).
   return (
     <main className="pt-page">
@@ -127,6 +177,7 @@ export default async function StudentPortalHomePage({
         tier={tier}
         displayName={actor.displayName}
         studyCountry={studyCountry}
+        intake={journey.view?.intake.label ?? null}
         overview={overviewResult.ok ? overviewResult.value : null}
         overviewFailed={!overviewResult.ok}
         news={news}
@@ -135,49 +186,28 @@ export default async function StudentPortalHomePage({
           // Заявка на рассмотрении — одна, карточка «Ваша анкета» в HomeView (tier approved): здесь только задача EVO.
           <OverviewView overview={overviewResult.value} locale={locale} />
         ) : null}
-        list={(
-          <>
-            {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
-            <div className="pt-pending-packages">
-              <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
-            </div>
-            <HomeList
-              view={view}
-              favoritesCount={favoritesResult.ok ? favoritesResult.total : null}
-              programsCount={preparations?.length ?? null}
-              locale={locale}
-            >
-              {view === "universities" ? (
-                allFavorites ? (
-                  <FavoritesSection institutionIds={favoritesResult.ok ? favoritesResult.ids : null} locale={locale} />
-                ) : (
-                  <HomeFavorites
-                    favorites={favoritesResult.ok ? favoritesResult.items : null}
-                    total={favoritesResult.ok ? favoritesResult.total : 0}
-                    locale={locale}
-                  />
-                )
-              ) : (
-                <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
-              )}
-            </HomeList>
-          </>
-        )}
-        fullPath={journey.view ? (
-          // Якорь #path ставит сам CountryTimeline (JOURNEY_ANCHOR): к нему ведёт карточка пути выше.
-          <CountryTimeline
-            view={journey.view}
-            progress={journey.progress}
-            documentsHref={assisted ? "/portal/documents" : null}
-            source={choice?.source ?? null}
-            readFailed={choice === null}
-            options={timelineCountryOptions(locale)}
-            strings={getPortalStrings("timeline", locale)}
-          />
-        ) : null}
-        journey={journey.view ? (
-          <HomeJourneyCard view={journey.view} progress={journey.progress} stage={overviewResult.ok ? overviewResult.value?.operationalStage ?? null : null} locale={locale} />
-        ) : null}
+        list={allFavoritesView ? null : list}
+        wideList={allFavoritesView ? list : null}
+        dates={cscaDates}
+        preparations={preparations}
+        application={ownApplication
+          ? { status: ownApplication.status, submittedAt: ownApplication.submittedAt, decidedAt: ownApplication.decidedAt }
+          : null}
+        path={journey.view ? {
+          // Якорь #path ставит сам CountryTimeline (JOURNEY_ANCHOR); шапку «Главной» в него вставляет HomeView.
+          view: journey.view,
+          progress: journey.progress,
+          documentsHref: assisted ? "/portal/documents" : null,
+          source: choice?.source ?? null,
+          readFailed: choice === null,
+          options: timelineCountryOptions(locale),
+          strings: getPortalStrings("timeline", locale),
+          photo: capital?.image ? { country: capital.country, image: capital.image } : null,
+          photoStrings: getPortalStrings("universities", locale),
+          // Строка под шапкой — слова полосы пути «Главной» (10.11.2026), как у iPhone.
+          stripStrings: { step: strings.stripStep, next: strings.stripNext, done: strings.stripDone },
+          stage: overviewResult.ok ? overviewResult.value?.operationalStage ?? null : null,
+        } : null}
         countryChoice={journey.view ? null : (
           <CountryTimeline
             view={null}

@@ -19,6 +19,7 @@ import type { Locale } from "../i18n-data.ts";
 import type { StudentCountryChoice } from "./country-choice.ts";
 import type { CscaHome, CscaSession } from "./csca.ts";
 import { CSCA_OVERVIEW } from "./csca-overview.ts";
+import { bishkekDay, type HomeDateItem } from "./home-dates.ts";
 import { formatPortalString, type PortalStrings } from "./i18n.ts";
 
 /** Код Китая в выборе страны (src/lib/study-countries.json). */
@@ -94,4 +95,28 @@ export function selectCscaHomeCard(input: Readonly<{
     action: homeStrings.cscaAction,
     href: CSCA_HOME_HREF,
   });
+}
+
+/**
+ * Официальные даты CSCA для «Ближайших дат» «Главной» (18.11.2026): последний день регистрации и первый день экзамена
+ * каждой ещё не закончившейся сессии. Доступ тот же, что у карточки: только Китай и только прочитанная главная трека.
+ * Срок регистрации — пока окно не закрылось по часам сервера (csca.cn закрывает в 23:59 по Пекину, это 21:59 в Бишкеке:
+ * позже в тот же день строки «регистрация закрывается» уже нет, как и в карточке CSCA). Окно в 60 дней, порядок и
+ * предел задаёт `upcomingHomeDates`.
+ */
+export function cscaHomeDates(input: Readonly<{
+  choice: Pick<StudentCountryChoice, "country"> | null;
+  home: CscaHome | null;
+  homeStrings: PortalStrings<"home">;
+}>): HomeDateItem[] {
+  if (!cscaHomeCardVisible(input.choice) || input.home === null) return [];
+  const { home, homeStrings } = input;
+  return home.sessions
+    .filter((session) => session.examTo >= home.today)
+    .flatMap((session) => [
+      ...(session.registrationClosesAt && Date.parse(home.serverNow) <= Date.parse(session.registrationClosesAt)
+        ? [{ day: bishkekDay(session.registrationClosesAt), title: homeStrings.cscaDateRegistration, href: CSCA_HOME_HREF }]
+        : []),
+      { day: session.examFrom, title: homeStrings.cscaDateExam, href: CSCA_HOME_HREF },
+    ]);
 }

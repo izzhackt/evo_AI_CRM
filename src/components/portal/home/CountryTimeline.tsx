@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   useTransition,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
@@ -18,11 +19,16 @@ import { setStudentCountryChoiceAction } from "@/lib/portal/country-choice-actio
 import type { CountryTimelineView, TimelineStepProgress, TimelineViewStep } from "@/lib/portal/country-timeline";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { JOURNEY_ANCHOR } from "@/lib/portal/journey-anchor";
+import { journeyStrip } from "@/lib/portal/journey-strip";
+import type { PlacePhoto } from "@/lib/portal/university-tiles";
+
+import { PhotoRights, type PhotoRightsStrings } from "../universities/PhotoRights";
+import { PlaceImage } from "../universities/PlaceImage";
 
 /**
  * «Путь поступления» (S4, план §8.4; контракт docs/portal/country-timeline-contract.md
- * §3, §5 и §7). С 08.11.2026 стоит на «Поступлении» под якорем #path, на «Главной» —
- * его карточка (HomeJourneyCard); переход по ней раскрывает путь. Сервер уже выбрал и
+ * §3, §5 и §7). С 08.11.2026 стоит на «Поступлении» под якорем #path; с 18.11.2026 и на
+ * «Главной» — свёрнутым, с её шапкой (проп `hero`) на фото столицы. Сервер уже выбрал и
  * локализовал путь (`selectCountryTimeline`): сюда приходит только он, без
  * всех файлов контента. Шаги раскрываются в пункты (только чтение, отметок
  * нет); раскрытые шаги помнит браузер, ключ с `file` и `contentVersion`.
@@ -271,6 +277,11 @@ export function CountryTimeline({
   readFailed,
   options,
   strings,
+  photo = null,
+  photoStrings = null,
+  hero = null,
+  stripStrings = null,
+  stage = null,
 }: Readonly<{
   /** Путь выбранной страны; `null`: выбора нет, показываем «Выберите страну». */
   view: CountryTimelineView | null;
@@ -284,6 +295,24 @@ export function CountryTimeline({
   /** Шесть стран и «Пока не решил» (код UNDECIDED), названия из study-countries.json. */
   options: readonly CountryOption[];
   strings: Strings;
+  /**
+   * Фото столицы страны (18.11.2026, «Главная»): фон шапки пути с автором по «©». Показывается, только пока страна
+   * фото совпадает со страной пути; `null` — шапка без фото, как раньше.
+   */
+  photo?: Readonly<{ country: string; image: PlacePhoto }> | null;
+  photoStrings?: PhotoRightsStrings | null;
+  /**
+   * Шапка «Главной» (приветствие, «страна · набор», отсчёт; 18.11.2026, пользователь: одна шапка на фото вместо двух
+   * тёмных плашек). С ней шапка пути — это шапка страницы: название пути остаётся заголовком блока для читалки.
+   */
+  hero?: ReactNode;
+  /**
+   * Слова строки «Шаг N из M · дальше — …» и «Поступление завершено» (10.11.2026, владелец; `home.strip*`, общие с
+   * iPhone). С 19.11.2026 их говорит строка под шапкой «Главной», как раньше карточка «Путь»; `null` — только название.
+   */
+  stripStrings?: Readonly<{ step: string; next: string; done: string }> | null;
+  /** Этап дела (`operational_stage`): `completed` и `closed` — «Поступление завершено», как у `journeyStrip`. */
+  stage?: string | null;
 }>) {
   const baseId = useId();
   const headingId = `${baseId}-heading`;
@@ -291,6 +320,7 @@ export function CountryTimeline({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const changeRef = useRef<HTMLButtonElement>(null);
   const pickerWrapRef = useRef<HTMLDivElement>(null);
+  const nowRef = useRef<HTMLDivElement>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -303,12 +333,18 @@ export function CountryTimeline({
   const progressOf = (id: string): TimelineStepProgress | null => progress?.[id] ?? null;
   const doneSteps = view?.steps.filter((step) => progressOf(step.id) === "done") ?? [];
   const currentStep = view?.steps.find((step) => progressOf(step.id) === "current") ?? null;
+  // Строка под шапкой: текущий шаг или «Поступление завершено» (это — только со словами `stripStrings`). Тот же счёт,
+  // что у iPhone (`journeyStrip`): номер — `order` шага, всего — все шаги, «дальше» пропускает шаги «по желанию».
+  // У завершённого или закрытого дела прогресса по шагам нет: строка говорит «завершено», полосы и отметок нет.
+  const strip = view ? journeyStrip(view.steps, progress, stage) : null;
+  const nowRow = strip?.kind === "step" && currentStep ? strip : strip?.kind === "complete" && stripStrings ? strip : null;
   const [showDone, setShowDone] = useState(false);
   const stepId = (id: string) => `${baseId}-step-${id}`;
 
   const { open, toggle } = useOpenSteps(view);
-  // Без выбора студента путь с текущим шагом свёрнут: на виду строка «Шаг N из M»; без дела — раскрыт, как раньше.
-  const { folded, setFolded } = useFolded(currentStep !== null);
+  // Без выбора студента путь свёрнут до шапки (18.11.2026, пользователь: на «Главной» — только компактная шапка);
+  // с текущим шагом под шапкой ещё строка текущего шага. Раскрытый студентом путь запоминается.
+  const { folded, setFolded } = useFolded(true);
   const stepsId = `${baseId}-steps`;
 
   // Переход «Весь путь» с карточки «Главной» (#path) — выбор студента увидеть весь путь: путь раскрыт и запомнен так.
@@ -322,9 +358,16 @@ export function CountryTimeline({
     if (folded) setFolded(false);
     if (!open.has(currentStep.id)) toggle(currentStep.id);
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // Шаги появляются после следующей отрисовки: прокрутка — после неё.
+    // Шаги появляются после следующей отрисовки: прокрутка — после неё. Шаг встаёт под закреплённой строкой, а её
+    // высота зависит от переноса названия и «дальше — …», поэтому отступ берётся из самой строки.
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      document.getElementById(stepId(currentStep.id))?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+      const target = document.getElementById(stepId(currentStep.id));
+      const row = nowRef.current;
+      if (target && row) {
+        const top = Number.parseFloat(window.getComputedStyle(row).top) || 0;
+        target.style.scrollMarginTop = `${top + row.offsetHeight + 12}px`;
+      }
+      target?.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
     }));
   }
 
@@ -393,11 +436,15 @@ export function CountryTimeline({
       ? formatPortalString(strings.headingCountry, { country: view.countryName })
       : strings.heading
     : strings.chooseTitle;
+  // Откуда страна. На шапке «Главной» подписи нет (19.11.2026, пользователь выбрал шапку без неё): её говорит выбор
+  // страны, когда студент его открывает.
   const sourceNote = source === "application"
     ? strings.sourceApplication
     : source === "case"
       ? strings.sourceCase
       : null;
+  // Фото — только своей страны: после смены страны до обновления страницы шапка идёт без фото.
+  const headPhoto = view && photo && photo.country === view.choice ? photo.image : null;
   const timed = view?.steps.some((step) => step.timing !== null) ?? false;
   const total = view?.steps.length ?? 0;
 
@@ -411,7 +458,54 @@ export function CountryTimeline({
       data-ky-proofreading={view?.kyNeedsProofreading ? "pending" : undefined}
       aria-busy={busy || undefined}
     >
-      <header className="pt-journey-head">
+      {hero && view ? (
+        <header className="pt-journey-head" data-hero="" data-photo={headPhoto ? "" : undefined}>
+          {headPhoto ? (
+            <div className="pt-journey-photo">
+              <PlaceImage
+                src={headPhoto.src}
+                srcSet={headPhoto.srcSet}
+                sizes="(min-width: 1100px) 1024px, 100vw"
+                width={headPhoto.width}
+                height={headPhoto.height}
+                priority
+                className="pt-journey-photo-img"
+              />
+            </div>
+          ) : null}
+          {hero}
+          {/* Заголовок блока для читалки: путь страны под приветствием-h1. */}
+          <h2 id={headingId} ref={headingRef} tabIndex={-1} className="pt-sr-only">{title}</h2>
+          <div className="pt-journey-change">
+            {nowRow ? null : foldButton}
+            <button
+              ref={changeRef}
+              type="button"
+              className="pt-btn-ghost"
+              aria-expanded={pickerOpen}
+              aria-controls={pickerOpen ? pickerId : undefined}
+              onClick={() => (pickerOpen ? closePicker() : setPickerOpen(true))}
+            >
+              {strings.changeCountry}
+            </button>
+          </div>
+          {headPhoto && photoStrings ? <PhotoRights credit={headPhoto.credit} strings={photoStrings} placement="bottom" /> : null}
+        </header>
+      ) : (
+      <header className="pt-journey-head" data-photo={headPhoto ? "" : undefined}>
+        {headPhoto ? (
+          <div className="pt-journey-photo">
+            <PlaceImage
+              src={headPhoto.src}
+              srcSet={headPhoto.srcSet}
+              sizes="(min-width: 1100px) 1024px, 100vw"
+              width={headPhoto.width}
+              height={headPhoto.height}
+              className="pt-journey-photo-img"
+            />
+          </div>
+        ) : null}
+        {headPhoto && photoStrings ? <PhotoRights credit={headPhoto.credit} strings={photoStrings} placement="top" /> : null}
         <div className="pt-journey-head-main">
           <h2 id={headingId} ref={headingRef} tabIndex={-1} className="pt-journey-title">{title}</h2>
           {view ? (
@@ -428,8 +522,8 @@ export function CountryTimeline({
         </div>
         {view ? (
           <div className="pt-journey-change">
-            {/* Без текущего шага «Все шаги» стоит в шапке рядом со сменой страны, а не одна внизу (перенесено из #1423, Айвар). */}
-            {currentStep ? null : foldButton}
+            {/* Без строки под шапкой «Все шаги» стоит в шапке рядом со сменой страны, а не одна внизу (перенесено из #1423, Айвар). */}
+            {nowRow ? null : foldButton}
             <button
               ref={changeRef}
               type="button"
@@ -444,6 +538,7 @@ export function CountryTimeline({
           </div>
         ) : null}
       </header>
+      )}
 
       <p role="status" className="pt-sr-only">{busy ? strings.saving : ""}</p>
       {readFailed ? <p role="alert" className="pt-journey-alert">{strings.readError}</p> : null}
@@ -456,7 +551,7 @@ export function CountryTimeline({
             current={view?.choice ?? null}
             savingCode={savingCode}
             busy={busy}
-            lead={view ? strings.changeLead : null}
+            lead={view ? (hero && sourceNote ? `${sourceNote} ${strings.changeLead}` : strings.changeLead) : null}
             strings={strings}
             onChoose={choose}
             onCancel={view ? closePicker : null}
@@ -467,30 +562,61 @@ export function CountryTimeline({
 
       {view ? (
         <>
-          {/* Текущий шаг всегда на виду при прокрутке пути (08.11.2026, владелец). */}
-          {currentStep ? (
-            <div className="pt-journey-now" role="group" aria-label={strings.whereNow}>
-              <div className="pt-journey-now-row">
-                {/* «Сейчас: название» без «Шаг N из M»: число шагов спорило с числом этапов дела в шапке «Главной». */}
+          {/* Текущий шаг всегда на виду при прокрутке пути (08.11.2026, владелец). 19.11.2026 (пользователь: строку
+              улучшить): круг с номером шага, название, «Шаг N из M · дальше — …», полоса шагов и в её конце «Все шаги».
+              Число шагов прежде спорило с этапами дела в шапке «Главной»; этапов там больше нет (10.11.2026). */}
+          {nowRow ? (
+            <div ref={nowRef} className="pt-journey-now" role="group" aria-label={strings.whereNow} data-state={nowRow.kind}>
+              {nowRow.kind === "step" ? (
                 <button type="button" className="pt-journey-now-step" onClick={jumpToCurrent}>
-                  <span className="pt-journey-now-n">{strings.nowLabel}</span>{" "}
-                  <span className="pt-journey-now-title">{currentStep.title}</span>
-                  <span className="pt-sr-only">
-                    {" "}{formatPortalString(strings.stepOf, { n: String(currentStep.order), total: String(total) })}
+                  <span className="pt-journey-now-node" aria-hidden="true">{nowRow.n}</span>
+                  <span className="pt-journey-now-text">
+                    <span className="pt-journey-now-title">{nowRow.title}</span>
+                    {stripStrings ? (
+                      <span className="pt-journey-now-sub">
+                        <span className="pt-sr-only">. </span>
+                        {formatPortalString(stripStrings.step, { n: String(nowRow.n), total: String(nowRow.total) })}
+                        {nowRow.nextTitle ? (
+                          <>
+                            <span aria-hidden="true"> · </span>
+                            <span className="pt-sr-only">, </span>
+                            {formatPortalString(stripStrings.next, { title: nowRow.nextTitle })}
+                          </>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span className="pt-sr-only">
+                        {" "}{formatPortalString(strings.stepOf, { n: String(nowRow.n), total: String(nowRow.total) })}
+                      </span>
+                    )}
                   </span>
                 </button>
+              ) : (
+                <p className="pt-journey-now-step">
+                  <span className="pt-journey-now-node" aria-hidden="true">
+                    <Icon path={ICON.check} className="pt-journey-now-check" />
+                  </span>
+                  <span className="pt-journey-now-title">{stripStrings?.done}</span>
+                </p>
+              )}
+              <div className="pt-journey-now-bar">
+                {/* Полоса шагов — картинка к строке выше по тем же отметкам, что у шагов; читалка слышит «Шаг N из M» в
+                    самой строке. Нет отметок (дело завершено или закрыто) — нет и полосы. */}
+                {progress ? (
+                  <span className="pt-journey-meter" aria-hidden="true">
+                    {view.steps.filter((step) => progressOf(step.id) !== "optional").map((step) => (
+                      <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
+                    ))}
+                  </span>
+                ) : null}
                 {foldButton}
               </div>
-              {/* Полоса шагов — картинка к строке «Сейчас»; читалка слышит «Шаг N из M» в самой строке. */}
-              <span className="pt-journey-meter" aria-hidden="true">
-                {view.steps.filter((step) => progressOf(step.id) !== "optional").map((step) => (
-                  <span key={step.id} className="pt-journey-meter-seg" data-progress={progressOf(step.id) ?? "upcoming"} />
-                ))}
-              </span>
             </div>
           ) : null}
           {/* Весь путь сворачивается (08.11.2026, пользователь): шаги и «Важно знать» — по «Все шаги». */}
           <div id={stepsId} className="pt-journey-body" hidden={folded}>
+          {/* В шапке-приветствии места под пояснение срока нет: оно открывается вместе с шагами. */}
+          {hero && view.intake.note ? <p className="pt-journey-intake-note pt-journey-body-note">{view.intake.note}</p> : null}
           <ol className="pt-journey-steps" aria-label={strings.stepsLabel} data-timed={timed ? "true" : "false"}>
             {/* Пройденные шаги свёрнуты в одну строку; раскрываются по нажатию. */}
             {doneSteps.length > 0 ? (

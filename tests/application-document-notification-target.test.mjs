@@ -33,3 +33,23 @@ test("ordinary document, payment and help notifications retain their destination
     assert.equal(portalNotificationTarget({ notificationId, category, eventCode }, strings).href, href);
   }
 });
+
+// 18.11.2026: значок строки «Что нового» на «Главной» — по тем же веткам, что и переход: ветка, добавленная в одну
+// функцию и забытая в другой, роняет эту таблицу.
+test("the «Что нового» icon kind follows the same branches as the notification link", async () => {
+  const { portalNotificationKind } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].text).toString("base64")}`);
+  const strings = getPortalStrings("admission", "ru");
+  const cases = [
+    ["application.package.review", "application_package_review", "package", `/portal/package-notifications/${notificationId}`],
+    ["application.document.review", "application_document_review", "document", `/portal/document-notifications/${notificationId}`],
+    ["case.help", "case_help_answer", "message", `/portal/notifications/${notificationId}`],
+    ["case.chat", "case_chat_message", "message", "/portal/messages"],
+    ["document.review", "correction_required", "document", "/portal/documents"],
+    ["payment.overdue", "overdue", "payment", "/portal/payments"],
+    ["application.unknown", "future_event", "other", "/portal"],
+  ];
+  for (const [category, eventCode, kind, href] of cases) {
+    assert.equal(portalNotificationKind({ category, eventCode }), kind, eventCode);
+    assert.equal(portalNotificationTarget({ notificationId, category, eventCode }, strings).href, href, eventCode);
+  }
+});

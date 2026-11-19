@@ -11,6 +11,14 @@ import {
 } from "../src/lib/v3/wording.ts";
 import { studentPortalNotificationReadRequestId } from "../src/lib/server/student-portal-notification-command-id.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
+import {
+  homeDayMonth,
+  homeDaysLabel,
+  homeDaysUntil,
+  homeTimeLabel,
+  laterHomeDate,
+  preparationHomeDates,
+} from "../src/lib/portal/home-dates.ts";
 
 // PORT-6a: строки экранов сопровождения живут в неймспейсе admission;
 // структурные пины ниже проверяют ключи в TSX и русские значения в словаре.
@@ -299,6 +307,202 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   assert.match(routeContract, /"\/portal\/home",/u);
 });
 
+test("the home lifts «Мой список» next to the case and keeps the explanation behind «?»", () => {
+  // 18.11.2026: главная казалась скучной — список вузов поднят рядом с делом, блоки входят по очереди.
+  const page = source("src/app/(portal)/portal/page.tsx");
+  const view = source("src/components/portal/home/HomeView.tsx");
+  const homeCase = source("src/components/portal/home/HomeCase.tsx");
+  const favorites = source("src/components/portal/home/HomeFavorites.tsx");
+  const css = source("src/app/(portal)/portal.css");
+
+  // Список — в левой колонке, когда справа есть путь; без страны и «Всё избранное» — во всю ширину под колонками.
+  assert.match(view, /const listInColumn = list !== null && path !== null && \(tier === "assisted" \|\| csca !== null\);/u);
+  const main = view.indexOf('<div className="pt-home-main">');
+  const listSlot = view.indexOf('data-slot="list"');
+  const side = view.indexOf('<div className="pt-home-side">');
+  assert.ok(main > 0 && listSlot > main && side > listSlot, "the list slot sits in the left column");
+  assert.match(view, /\{listInColumn \? null : list\}\n\s+\{wideList\}/u);
+  assert.match(page, /const allFavoritesView = view === "universities" && allFavorites;/u);
+  assert.match(page, /list=\{allFavoritesView \? null : list\}\n\s+wideList=\{allFavoritesView \? list : null\}/u);
+  assert.match(page, /boxed=\{!allFavoritesView\}/u);
+  // Из «Всего избранного» вкладка возвращает список в колонку: переход докручивает к #list; между вкладками — на месте.
+  const list = source("src/components/portal/home/HomeList.tsx");
+  assert.match(list, /const scroll = boxed \? false : undefined;/u);
+  assert.equal(list.match(/scroll=\{scroll\}/gu)?.length, 2);
+  // Полувидную карточку ленты фокус с клавиатуры докручивает в кадр.
+  assert.match(source("src/components/portal/home/HomeFavoritesStrip.tsx"), /scrollIntoView\(\{ block: "nearest", inline: "nearest" \}\)/u);
+  // В одну колонку путь стоит раньше списка (08.11.2026: путь не уезжает за вузы).
+  assert.match(css, /\.pt-home-slot\[data-slot="list"\] \{ order: 3; \}/u);
+  assert.doesNotMatch(css, /data-slot="path"/u, "18.11.2026: path card removed; the whole path stands under the header");
+  // Под фото вуза — ближайший срок тем же текстом, что у каталога; без открытого набора строки нет.
+  assert.match(favorites, /const intake = nearest \? intakeText\(nearest, universityStrings, locale\) : null;/u);
+  assert.match(favorites, /\{intake \? <span className="pt-home-fav-intake">\{intake\}<\/span> : null\}/u);
+
+  // Дело: кнопка одна, следующие два дела строками. Образец документа пробовали и сняли (18.11.2026).
+  assert.doesNotMatch(homeCase, /documentGuideView|DocumentSampleFigure|pt-home-case-sample/u);
+  assert.equal(homeCase.match(/className="pt-btn"/gu)?.length, 1, "one red button: the first case");
+  assert.match(homeCase, /const HOME_CASE_ROWS = 3;/u);
+  assert.match(homeCase, /overview\.studentActions\.slice\(1, HOME_CASE_ROWS\)/u);
+  // Значок по виду дела и срок словом в пилюле статуса кабинета: просрочено — «опасно», сегодня и завтра — «внимание».
+  assert.match(homeCase, /<HomeIcon name=\{primary\.kind === "payment" \? "payments" : "documents"\} \/>/u);
+  assert.match(homeCase, /tone=\{days < 0 \? "danger" : days <= 1 \? "warn" : "neutral"\}/u);
+  assert.match(homeCase, /homeDaysUntil\(bishkekDay\(dueAt\), today\)/u);
+  // Срок, прошедший сегодня по часам, — «просрочено», как у сервера и «Оплаты».
+  assert.match(homeCase, /if \(days >= 0 && passed\) return <PortalStatus label=\{strings\.dateOverdueNow\} tone="danger" \/>;/u);
+  assert.equal(PORTAL_DICTIONARIES.home.ru.dateOverdueNow, PORTAL_DICTIONARIES.admission.ru["payStatus.overdue"]);
+  assert.equal(PORTAL_DICTIONARIES.home.ky.dateOverdueNow, PORTAL_DICTIONARIES.admission.ky["payStatus.overdue"]);
+  assert.match(homeCase, /count=\{failed \? null : overview\?\.studentActions\.length \?\? null\}/u);
+  assert.match(view, /<HomeCase overview=\{overview\} failed=\{overviewFailed\} today=\{today\} now=\{now\} locale=\{locale\} \/>/u);
+  // «?» и переходы шапки карточки не уходят на вторую строку: переносится текст заголовка.
+  assert.match(source("src/app/(portal)/portal.css"), /\.pt-home-head > \.pt-home-heading \{\n {2}flex: 0 1 auto;\n {2}min-width: 0;\n\}/u);
+  // Пояснение «откуда действия» — за «?» в шапке, строкой внизу его больше нет.
+  assert.match(homeCase, /<HomeHint label=\{strings\.caseHint\} text=\{strings\.caseFoot\} \/>/u);
+  assert.doesNotMatch(homeCase, /pt-home-foot/u);
+  assert.equal(PORTAL_DICTIONARIES.home.ru.caseHint, "Откуда эти действия");
+  // «Ближайшие даты» (по образцу Акылмана): плитка «число и месяц», полная дата для читалки, сколько осталось.
+  const dates = source("src/components/portal/home/HomeDates.tsx");
+  assert.match(dates, /<time dateTime=\{item\.day\} className="pt-home-date-tile">/u);
+  assert.match(dates, /<span className="pt-sr-only">\{universityDateLabel\(item\.day, locale\)\}<\/span>/u);
+  assert.match(dates, /homeDaysLabel\(homeDaysUntil\(item\.day, today\), locale, strings\)/u);
+  assert.equal(homeDaysUntil("2026-09-20", "2026-09-20"), 0);
+  assert.equal(homeDaysUntil("2026-10-01", "2026-09-20"), 11);
+  assert.equal(homeDaysUntil("2027-01-01", "2026-12-31"), 1);
+  const ru = PORTAL_DICTIONARIES.home.ru;
+  assert.equal(homeDaysLabel(0, "ru", ru), "сегодня");
+  assert.equal(homeDaysLabel(1, "ru", ru), "завтра");
+  assert.equal(homeDaysLabel(21, "ru", ru), "через 21 день");
+  assert.equal(homeDaysLabel(3, "ru", ru), "через 3 дня");
+  assert.equal(homeDaysLabel(11, "ru", ru), "через 11 дней");
+  assert.equal(homeDaysLabel(-1, "ru", ru), "просрочено на 1 день");
+  assert.equal(homeDaysLabel(-3, "ru", ru), "просрочено на 3 дня");
+  assert.equal(homeDaysLabel(-5, "ky", PORTAL_DICTIONARIES.home.ky), "5 күн кечикти");
+  for (const locale of ["ru", "ky"]) {
+    for (const key of ["dateToday", "dateTomorrow", "dateIn.one", "dateIn.few", "dateIn.many", "dateOverdue.one", "dateOverdue.few", "dateOverdue.many"]) {
+      assert.ok(PORTAL_DICTIONARIES.home[locale][key], `${locale} ${key}`);
+    }
+  }
+  assert.equal(PORTAL_DICTIONARIES.home.ru["dateIn.few"], "через {count} дня");
+
+  // Шапка (18.11.2026, выбор пользователя): набор рядом со страной и отсчёт до ближайшей даты; куратора в шапке нет.
+  const hero = source("src/components/portal/home/HomeHero.tsx");
+  assert.equal(hero.match(/<h1 /gu)?.length, 1, "one h1: the greeting");
+  assert.doesNotMatch(hero, /curator|accountInitials/u);
+  assert.match(view, /const nearest = upcomingHomeDates\(dated, today\)\[0\] \?\? null;/u);
+  assert.match(page, /intake=\{journey\.view\?\.intake\.label \?\? null\}/u);
+  assert.match(hero, /className="pt-home-hero-count"/u);
+  // 19.11.2026: просроченное дело важнее ближайшей даты — шапка говорит «Просрочено» красной плашкой со словом.
+  assert.match(view, /const countdown = overdue\?\.dueAt\n\s+\? \{[^}]*overdue: true \}\n\s+: nearest/u);
+  assert.match(view, /Date\.parse\(action\.dueAt\) < now\.getTime\(\)/u, "passed today by the clock is overdue, as in the case card");
+  assert.match(hero, /if \(countdown\.overdue\) return \{ big: strings\.heroOverdue, word: null \};/u);
+  assert.match(hero, /data-overdue=\{countdown\.overdue \? "" : undefined\}/u);
+  assert.equal(PORTAL_DICTIONARIES.home.ru.heroOverdue, "Просрочено");
+  assert.ok(PORTAL_DICTIONARIES.home.ky.heroOverdue.length > 0);
+  assert.doesNotMatch(source("src/app/(portal)/portal.css").slice(
+    source("src/app/(portal)/portal.css").indexOf("/*\n * Отсчёт до ближайшей даты"),
+    source("src/app/(portal)/portal.css").indexOf("/* Узкая шапка: отсчёт строкой"),
+  ), /var\(--pt-(?:accent|error|danger)|#[0-9a-f]{3,8}\b/iu, "hero additions use hero tokens only, no red text");
+  assert.ok(PORTAL_DICTIONARIES.home.ky.caseHint.length > 0);
+});
+
+test("the home dates add own programmes and the first later date; news and the application read in words", () => {
+  // 18.11.2026: четыре дополнения «Главной» без новых данных и схемы.
+  const ru = PORTAL_DICTIONARIES.home.ru;
+  const today = "2026-09-20";
+  const intake = (patch = {}) => ({ id: "i1", label: "Сентябрь 2027", startDate: "2027-09-01", startMonth: "2027-09", applicationDeadline: "2026-10-05", deadlineTime: null, timezone: null, status: "open", note: "", sourceUrl: "https://example.edu", verifiedOn: "2026-09-01", ...patch });
+  const prep = (patch = {}, intakePatch = {}) => ({
+    applicationId: "a1", institutionId: "u1", programId: "p1", intakeId: "i1", deadlineStateAtSelection: "confirmed", applicationStatus: "preparation",
+    content: { name: "Wuhan University", programs: [{ id: "p1", title: "Computer Science", intakes: [intake(intakePatch)] }] },
+    ...patch,
+  });
+  // Срок своей программы: подача, без неё — старт; ссылка на программу; вуз для снятия общей строки избранного.
+  assert.deepEqual(preparationHomeDates([prep()], today, ru), [
+    { day: "2026-10-05", title: "Computer Science, Wuhan University: последний день подачи", href: "/portal/preparations/a1", institutionId: "u1" },
+  ]);
+  assert.equal(preparationHomeDates([prep({}, { applicationDeadline: null })], today, ru)[0].title, "Computer Science, Wuhan University: начало учёбы");
+  assert.equal(preparationHomeDates([prep({}, { applicationDeadline: "2026-09-01" })], today, ru)[0].day, "2027-09-01", "a passed deadline falls back to the start");
+  // Заявка подана, срок «уточнить с куратором», набор закрыт — строки нет.
+  for (const [patch, intakePatch] of [[{ applicationStatus: "submitted" }, {}], [{ deadlineStateAtSelection: "needs_confirmation" }, {}], [{}, { status: "closed" }], [{ intakeId: "other" }, {}]]) {
+    assert.deepEqual(preparationHomeDates([prep(patch, intakePatch)], today, ru), [], JSON.stringify([patch, intakePatch]));
+  }
+  const view = source("src/components/portal/home/HomeView.tsx");
+  assert.match(view, /if \(programInstitutions\.has\(item\.id\)\) return \[\];/u, "a favourite with an own programme does not repeat it");
+  assert.match(source("src/app/(portal)/portal/page.tsx"), /preparations=\{preparations\}/u);
+
+  // «Дальше»: первая дата позже окна в 60 дней, только когда в окне пусто.
+  const later = laterHomeDate([{ day: "2027-05-31", title: "UM", href: "/u" }, { day: "2027-03-01", title: "X", href: "/x" }, { day: "2026-10-01", title: "near", href: "/n" }], today);
+  assert.equal(later?.day, "2027-03-01");
+  assert.equal(laterHomeDate([{ day: "2026-10-01", title: "near", href: "/n" }], today), null);
+  assert.match(source("src/components/portal/home/HomeDates.tsx"), /const later = upcoming\.length === 0 \? laterHomeDate\(items, today\) : null;/u);
+
+  // Время события словом по Бишкеку; число рядом с месяцем — в родительном падеже.
+  const now = new Date("2026-09-20T12:00:00Z");
+  assert.equal(homeTimeLabel("2026-09-20T08:00:00Z", now, "ru", ru), "сегодня, 14:00");
+  assert.equal(homeTimeLabel("2026-09-19T10:30:00Z", now, "ru", ru), "вчера, 16:30");
+  assert.equal(homeTimeLabel("2026-09-17T10:30:00Z", now, "ru", ru), "3 дня назад");
+  assert.equal(homeTimeLabel("2026-09-01T10:30:00Z", now, "ru", ru), "1 сент.");
+  assert.equal(homeTimeLabel("2025-05-31T10:30:00Z", now, "ru", ru), "31 мая 2025");
+  assert.equal(homeTimeLabel("not a date", now, "ru", ru), null);
+  assert.equal(homeDayMonth("2027-05-31", "ru"), "31 мая");
+  const news = source("src/components/portal/home/HomeNews.tsx");
+  assert.match(news, /<HomeIcon name=\{KIND_ICON\[portalNotificationKind\(item\)\]\} \/>/u);
+  assert.match(news, /<time dateTime=\{item\.createdAt\} title=\{created \?\? undefined\}/u);
+
+
+  // «Ваша анкета» до договора: отметки с датами из своей анкеты; чтение — только у approved, сбой — прежняя карточка.
+  const page = source("src/app/(portal)/portal/page.tsx");
+  assert.match(page, /tier === "approved" \? readOwnStudentApplication\(\)\.catch\(\(\): null => null\) : Promise\.resolve\(null\)/u);
+  assert.match(view, /\{strings\.applicationSent\}/u);
+  assert.match(view, /application\?\.status === "approved" && application\.decidedAt/u);
+  for (const locale of ["ru", "ky"]) {
+    for (const key of ["dateProgramDeadline", "dateProgramStart", "datesLater", "timeToday", "timeYesterday", "timeDaysAgo.one", "timeDaysAgo.few", "timeDaysAgo.many", "applicationSent", "applicationApproved"]) {
+      assert.ok(PORTAL_DICTIONARIES.home[locale][key], `${locale} ${key}`);
+    }
+  }
+});
+
+test("the path header on «Главная» stands on a real photo of the capital, with credit, only for its own country", async (t) => {
+  // 18.11.2026: фото столицы — фон компактной шапки пути; нет фото столицы (ОАЭ) — фото страны; нет и его — без фото.
+  // Адрес фото собирается из публичного адреса Supabase: на время теста — выдуманные значения, потом прежние.
+  const saved = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY };
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_home-photo-test";
+  t.after(() => {
+    if (saved.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = saved.url;
+    if (saved.key === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = saved.key;
+  });
+  const { capitalPhoto } = await import("../src/lib/portal/university-tiles.ts");
+  const geo = (path) => ({ path, width: 2000, height: 1200, author: "A", authorUrl: null, sourceName: "Pexels", sourceUrl: "https://www.pexels.com/photo/x/", license: "Pexels License", licenseUrl: "https://www.pexels.com/license/" });
+  const index = {
+    version: "1",
+    universities: [],
+    countries: [
+      { code: "CN", name: { ru: "Китай", ky: "Кытай" }, photo: geo("geography/countries/cn-f1bef3115cf5.jpg"), summary: null, universityCount: 1, cityCount: 2 },
+      { code: "AE", name: { ru: "ОАЭ", ky: "БАЭ" }, photo: geo("geography/countries/ae-1ca7d146ccef.jpg"), summary: null, universityCount: 1, cityCount: 1 },
+      { code: "IT", name: { ru: "Италия", ky: "Италия" }, photo: null, summary: null, universityCount: 0, cityCount: 0 },
+    ],
+    cities: [
+      { key: "shanghai", country: "CN", photo: geo("geography/cities/cn-shanghai-41b1eb070bbd.jpg") },
+      { key: "beijing", country: "CN", photo: geo("geography/cities/cn-beijing-7288cd4b2583.jpg") },
+      { key: "dubai", country: "AE", photo: geo("geography/cities/ae-dubai-291c279a2408.jpg") },
+    ],
+  };
+  assert.match(capitalPhoto(index, "CN")?.src ?? "", /geography\/cities\/cn-beijing-7288cd4b2583\.jpg$/u);
+  assert.equal(capitalPhoto(index, "CN")?.credit.author, "A");
+  assert.match(capitalPhoto(index, "AE")?.src ?? "", /geography\/countries\/ae-1ca7d146ccef\.jpg$/u, "no Abu Dhabi: the country photo");
+  assert.equal(capitalPhoto(index, "IT"), null);
+
+  const page = source("src/app/(portal)/portal/page.tsx");
+  assert.match(page, /readStudentUniversityIndex\(actor\)\n\s+\.then\(\(index\) => \(\{ country, image: capitalPhoto\(index, country\) \}\)\)\n\s+\.catch\(\(\): null => null\)/u);
+  assert.match(page, /photo: capital\?\.image \? \{ country: capital\.country, image: capital\.image \} : null,/u);
+  const block = source("src/components/portal/home/CountryTimeline.tsx");
+  assert.match(block, /const headPhoto = view && photo && photo\.country === view\.choice \? photo\.image : null;/u);
+  assert.match(block, /<PhotoRights credit=\{headPhoto\.credit\} strings=\{photoStrings\} placement="top" \/>/u);
+  // Белый текст на фото — на тёмной подложке; значения те же, что у мест каталога, объявлены в одном месте.
+  const css = source("src/app/(portal)/portal.css");
+  assert.match(css, /\.pt-atlas,\n\.pt-journey-head\[data-photo\] \{/u);
+  assert.match(css, /\.pt-journey-photo::after \{[^}]*rgb\(20 16 12 \/ 0\.86\) 0, rgb\(20 16 12 \/ 0\.74\) 600px/u);
+});
+
 test("the retired applications route is an unconditional redirect, not a view", () => {
   const page = source("src/app/(portal)/portal/applications/page.tsx");
   assert.match(page, /import \{ redirect \} from "next\/navigation"/u);
@@ -399,7 +603,8 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   const homeView = source("src/components/portal/home/HomeView.tsx");
   assert.doesNotMatch(overview, /pendingApplication|pendingManager|pending\??: boolean|\bpending = /u);
   assert.equal(homeView.match(/admission\.pendingApplicationHeading/gu)?.length, 1);
-  assert.match(homeView, /admission\.pendingManagerNotice/u);
+  // 18.11.2026: «Менеджер свяжется с вами» — текущий шаг дорожки анкеты, подписью без точки (как у сделанных шагов).
+  assert.match(homeView, /strings\.applicationManagerStep/u);
   assert.match(homeView, /href="\/apply\/status"/u);
   // 03.11.2026: без карточки куратора pending-кабинет получает одну карточку
   // «Ваша анкета» с тем же честным текстом и ссылкой на статус.

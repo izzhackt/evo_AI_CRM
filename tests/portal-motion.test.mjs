@@ -62,8 +62,10 @@ test("portal motion tokens form one vocabulary: 100/160/200/240 ms and an ease-o
   assert.match(shell, /--pt-enter-floor:\s*0\.55;/u);
   // Стаггер читается из CSS: самая поздняя задержка плюс длительность входа карточки укладывается в 400 мс.
   const multipliers = [...MOTION_SECTION.matchAll(/animation-delay:\s*calc\(var\(--pt-stagger\) \* (\d+)\)/gu)].map((match) => Number(match[1]));
-  assert.deepEqual([...multipliers].sort((a, b) => a - b), [1, 2, 3, 4, 5], "items 2..6 are staggered, the rest are instant");
+  // Две лесенки: первые шесть карточек сеток и пять блоков колонок «Главной» (18.11.2026).
+  assert.deepEqual([...multipliers].sort((a, b) => a - b), [1, 1, 2, 2, 3, 3, 4, 4, 5], "items 2..6 are staggered, the rest are instant");
   assert.match(MOTION_SECTION, /> :nth-child\(-n \+ 6\) \{\s*animation: pt-enter var\(--pt-motion-base\)/u);
+  assert.match(MOTION_SECTION, /\.pt-home-columns \.pt-home-slot \{\s*animation: pt-enter var\(--pt-motion-base\) var\(--pt-ease-out\) backwards;/u);
   assert.ok(Math.max(...multipliers) * 30 + 200 <= 400, "the last staggered card finishes within 400 ms");
 });
 
@@ -124,7 +126,7 @@ test("prefers-reduced-motion zeroes the tokens and switches every entrance off",
     /@media \(prefers-reduced-motion: reduce\) \{\s*\.pt-shell \{\s*--pt-motion-press: 0ms;\s*--pt-motion-fast: 0ms;\s*--pt-motion-base: 0ms;\s*--pt-motion-slow: 0ms;\s*--pt-rise: 0px;\s*--pt-stagger: 0ms;\s*--pt-press-scale: 1;/u,
   );
   const reduced = MOTION_SECTION.slice(MOTION_SECTION.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
-  for (const selector of [".pt-route > *", "[data-pt-loading]", ".pt-evi-results", ".pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine)", ".pt-evi-failure", ".pt-progress::-webkit-progress-value", ".pt-res-meter::-webkit-meter-optimum-value", ".pt-check[data-fresh] .pt-check-path", ".pt-favorite-icon[data-pop]"]) {
+  for (const selector of [".pt-route > *", "[data-pt-loading]", ".pt-evi-results", ".pt-home-columns .pt-home-slot", ".pt-evi-log > :is(.pt-evi-row, .pt-evi-bubble-mine)", ".pt-evi-failure", ".pt-progress::-webkit-progress-value", ".pt-res-meter::-webkit-meter-optimum-value", ".pt-check[data-fresh] .pt-check-path", ".pt-favorite-icon[data-pop]"]) {
     assert.ok(reduced.includes(selector), `${selector} is switched off`);
   }
   assert.match(reduced, /animation: none;/u);

@@ -1,7 +1,15 @@
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
-import { homeWeek, upcomingHomeDates, type HomeDateItem } from "@/lib/portal/home-dates";
+import {
+  homeDaysLabel,
+  homeDaysUntil,
+  homeMonthShort,
+  homeWeek,
+  laterHomeDate,
+  upcomingHomeDates,
+  type HomeDateItem,
+} from "@/lib/portal/home-dates";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { universityDateLabel } from "@/lib/portal/universities";
 
@@ -12,12 +20,32 @@ function weekday(day: string, locale: Locale): string {
     .format(new Date(`${day}T00:00:00Z`));
 }
 
+/** Строка даты: плитка «число и месяц» (полная дата — для читалки), название и справа подпись. */
+function DateRow({ item, right, soon, locale }: Readonly<{ item: HomeDateItem; right: string | null; soon: boolean; locale: Locale }>) {
+  return (
+    <IntentPrefetchLink href={item.href} className="pt-home-date-row">
+      <time dateTime={item.day} className="pt-home-date-tile">
+        <span aria-hidden="true" className="pt-home-date-num">{Number(item.day.slice(8))}</span>
+        <span aria-hidden="true" className="pt-home-date-month">{homeMonthShort(item.day, locale)}</span>
+        <span className="pt-sr-only">{universityDateLabel(item.day, locale)}</span>
+      </time>
+      <span className="pt-home-date-title">{item.title}</span>
+      {right ? <span className="pt-home-date-left" data-soon={soon ? "" : undefined}>{right}</span> : null}
+    </IntentPrefetchLink>
+  );
+}
+
 /**
  * «Ближайшие даты» (03.11.2026, по образцу кабинета пользователя): неделя от
  * сегодня (сегодня — красной заливкой, дни с пунктом — точкой) и до пяти
- * пунктов на 60 дней вперёд: сроки дел студента и дедлайн или старт
- * избранных вузов. Пусто — честное пустое состояние: значок, заголовок и
- * строка о том, что сюда попадёт (08.11.2026, образец пользователя).
+ * пунктов на 60 дней вперёд: сроки дел студента, дедлайн или старт
+ * избранных вузов и (18.11.2026) официальные даты CSCA у выбравшего Китай.
+ * Пусто — честное пустое состояние со значком и строкой о том, что сюда
+ * попадёт (08.11.2026, образец пользователя); с 18.11.2026 одной строкой под
+ * неделей, а не большим блоком. Строка даты (18.11.2026, по образцу кабинета Акылмана): слева плитка «число и
+ * месяц», справа сколько осталось — «сегодня», «завтра», «через 5 дней»; полная дата — в `<time>` для читалки. Если в
+ * окне дат нет, а позже есть (18.11.2026), вместо «Дат пока нет» — «Дальше» и первая такая дата, справа год, если он
+ * другой.
  */
 export function HomeDates({ items, today, locale }: Readonly<{
   items: readonly HomeDateItem[];
@@ -26,6 +54,7 @@ export function HomeDates({ items, today, locale }: Readonly<{
 }>) {
   const strings = getPortalStrings("home", locale);
   const upcoming = upcomingHomeDates(items, today);
+  const later = upcoming.length === 0 ? laterHomeDate(items, today) : null;
   const marked = new Set(items.map((item) => item.day));
 
   return (
@@ -39,19 +68,30 @@ export function HomeDates({ items, today, locale }: Readonly<{
           </li>
         ))}
       </ol>
-      {upcoming.length === 0 ? (
-        <HomeEmpty icon="calendar" title={strings.datesEmptyTitle} body={strings.datesEmptyBody} />
-      ) : (
+      {upcoming.length > 0 ? (
         <ul className="pt-home-dates-list">
           {upcoming.map((item) => (
             <li key={`${item.day}-${item.href}-${item.title}`}>
-              <IntentPrefetchLink href={item.href} className="pt-home-date-row">
-                <time dateTime={item.day} className="pt-home-date-day">{universityDateLabel(item.day, locale)}</time>
-                <span className="pt-home-date-title">{item.title}</span>
-              </IntentPrefetchLink>
+              <DateRow
+                item={item}
+                right={homeDaysLabel(homeDaysUntil(item.day, today), locale, strings)}
+                soon={homeDaysUntil(item.day, today) <= 1}
+                locale={locale}
+              />
             </li>
           ))}
         </ul>
+      ) : later ? (
+        <div className="pt-home-dates-later">
+          <p className="pt-home-dates-later-label">{strings.datesLater}</p>
+          <ul className="pt-home-dates-list">
+            <li>
+              <DateRow item={later} right={later.day.slice(0, 4) === today.slice(0, 4) ? null : later.day.slice(0, 4)} soon={false} locale={locale} />
+            </li>
+          </ul>
+        </div>
+      ) : (
+        <HomeEmpty compact icon="calendar" title={strings.datesEmptyTitle} body={strings.datesEmptyBody} />
       )}
     </section>
   );

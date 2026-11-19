@@ -75,7 +75,8 @@ export function HomeHeroContent({ displayName, studyCountry, intake = null, coun
             date: universityDateLabel(countdown.day, locale),
           })}
         >
-          <span className="pt-home-hero-count-big" aria-hidden="true">{when.big}</span>
+          {/* «Сегодня» и «Завтра» стоят на месте числа: крупное число — только у числа, слово мельче. */}
+          <span className="pt-home-hero-count-big" data-word={when.word ? undefined : ""} aria-hidden="true">{when.big}</span>
           <span className="pt-home-hero-count-when" aria-hidden="true">
             {when.word ? formatPortalString(strings.heroCountdownLine, { word: when.word, date: shortDate }) : shortDate}
           </span>

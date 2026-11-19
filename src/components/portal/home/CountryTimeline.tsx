@@ -436,6 +436,8 @@ export function CountryTimeline({
       ? formatPortalString(strings.headingCountry, { country: view.countryName })
       : strings.heading
     : strings.chooseTitle;
+  // Откуда страна. На шапке «Главной» подписи нет (19.11.2026, пользователь выбрал шапку без неё): её говорит выбор
+  // страны, когда студент его открывает.
   const sourceNote = source === "application"
     ? strings.sourceApplication
     : source === "case"
@@ -486,7 +488,6 @@ export function CountryTimeline({
             >
               {strings.changeCountry}
             </button>
-            {sourceNote ? <p className="pt-journey-source">{sourceNote}</p> : null}
           </div>
           {headPhoto && photoStrings ? <PhotoRights credit={headPhoto.credit} strings={photoStrings} placement="bottom" /> : null}
         </header>
@@ -550,7 +551,7 @@ export function CountryTimeline({
             current={view?.choice ?? null}
             savingCode={savingCode}
             busy={busy}
-            lead={view ? strings.changeLead : null}
+            lead={view ? (hero && sourceNote ? `${sourceNote} ${strings.changeLead}` : strings.changeLead) : null}
             strings={strings}
             onChoose={choose}
             onCancel={view ? closePicker : null}

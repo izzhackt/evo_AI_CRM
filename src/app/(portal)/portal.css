@@ -8651,17 +8651,23 @@ a.pt-pay-file {
   border-radius: var(--pt-radius-item);
 }
 
+/* Число дней — главное в отсчёте (19.11.2026, пользователь выбрал вариант с крупным числом). */
 .pt-home-hero-count-big {
-  font-size: var(--pt-size-display);
+  font-size: calc(var(--pt-size-display) * 2);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   line-height: 1;
+}
+
+.pt-home-hero-count-big[data-word] {
+  font-size: var(--pt-size-display);
 }
 
 .pt-home-hero-count-when {
   color: var(--pt-hero-muted);
-  font-size: var(--pt-size-caption);
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
 }
 
 .pt-home-hero-count-title {
@@ -8695,6 +8701,10 @@ a.pt-pay-file {
 
   .pt-home-hero-count-big {
     grid-row: span 2;
+    font-size: calc(var(--pt-size-display) * 1.375);
+  }
+
+  .pt-home-hero-count-big[data-word] {
     font-size: var(--pt-size-title);
   }
 }
@@ -9964,13 +9974,25 @@ a.pt-pay-file {
   max-width: none;
 }
 
-.pt-journey-head[data-hero] .pt-journey-change > .pt-journey-source {
-  color: var(--pt-hero-muted);
-  text-align: left;
+/*
+ * Кнопки шапки «Главной» — контуром (19.11.2026, пользователь выбрал вариант A): «Сменить страну» нужна редко и не
+ * спорит с приветствием и отсчётом. Белые текст и рамка — цвет самой шапки (есть и без фото); стоят на плотной части
+ * подложки: на белом пикселе снимка под ними не меньше 8:1, без фото — тёмная плашка.
+ */
+.pt-journey-head[data-hero] .pt-journey-change :is(.pt-btn-ghost, .pt-journey-fold) {
+  border: 1px solid var(--pt-hero-ink);
+  background: transparent;
+  color: var(--pt-hero-ink);
 }
 
-.pt-journey-head[data-hero][data-photo] .pt-journey-change > .pt-journey-source {
-  color: var(--pt-place-on);
+.pt-journey-head[data-hero] .pt-journey-change .pt-journey-fold-icon {
+  color: var(--pt-hero-ink);
+}
+
+@media (hover: hover) {
+  .pt-journey-head[data-hero] .pt-journey-change :is(.pt-btn-ghost, .pt-journey-fold):hover {
+    background: var(--pt-hero-line);
+  }
 }
 
 /* «©» — в нижнем углу: сверху справа стоит отсчёт. */

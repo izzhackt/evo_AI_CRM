@@ -19,13 +19,16 @@ const current = currentBundles.flatMap((name) => JSON.parse(readFileSync(new URL
 // another campus under «no reuse licence»). Every other card keeps the rule «a real campus photo with provenance»;
 // the card leaves this set when a licensed photo of that campus is found.
 const AWAITING_PHOTO = new Set(["inti-sabah"]);
+// China 2026-11: the 118 new cards from the EVO worksheet come without a photo; campus photos follow as their own slice (the
+// photoKey list lives inside a database function and needs a migration). They are recognised by their provenance note.
+const WORKSHEET_CARD = ({ content }) => content.country === "CN" && content.photoKey === null && content.notes.includes("рабочей таблицы EVO");
 test("the complete real research package parses, has campus photos, and retains existing identities", () => {
   assert.ok(current.length >= 140);
   const rows = universityBatchRows(current, []);
   assert.equal(rows.length, current.length);
   for (const entry of current) {
     assert.deepEqual(parseUniversityContent(entry.content), entry.content, entry.key);
-    if (AWAITING_PHOTO.has(entry.key)) { assert.equal(entry.content.photoKey, null, entry.key); continue; }
+    if (AWAITING_PHOTO.has(entry.key) || WORKSHEET_CARD(entry)) { assert.equal(entry.content.photoKey, null, entry.key); continue; }
     assert.ok(entry.content.photoKey, entry.key);
     const photo = UNIVERSITY_PHOTOS[entry.content.photoKey];
     assert.ok(photo?.caption && photo.author && photo.title && photo.license, entry.key);
@@ -278,7 +281,7 @@ test("real catalogue content renders known facts without missing-field or uncert
     assert.ok(html.includes(`href="${escape(content.websiteUrl)}"`), `${key}: official website`);
     assert.ok(html.includes(`href="${escape(content.sourceUrl)}"`), `${key}: institutional source`);
     // PORT-9d: the photo comes from our managed bucket once the manifest says migrated, otherwise from the library's hotlink.
-    if (content.photoKey === null) assert.ok(AWAITING_PHOTO.has(key), `${key}: only cards awaiting a photo may have none`);
+    if (content.photoKey === null) assert.ok(AWAITING_PHOTO.has(key) || WORKSHEET_CARD({ content }), `${key}: only cards awaiting a photo may have none`);
     else {
     assert.ok(html.includes(`src="${escape(universityPhotoUrl(content.photoKey) ?? UNIVERSITY_PHOTOS[content.photoKey].path)}"`), `${key}: real photo markup`);
     assert.ok(html.includes(`href="${escape(UNIVERSITY_PHOTOS[content.photoKey].licenseUrl)}"`), `${key}: photo attribution`);

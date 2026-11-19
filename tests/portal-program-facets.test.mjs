@@ -18,6 +18,17 @@ test("direction comes from the English title; unknown stays «other» instead of
   assert.equal(programField("Master of Counselling"), "social");
   assert.equal(programField("Diploma of Prevention Studies"), "social");
   assert.equal(programField("Cambridge A Level"), "other");
+  // 19.11.2026, Китай из рабочей таблицы EVO: языки, сельское хозяйство, искусство, специальные инженерные названия.
+  assert.equal(programField("Japanese"), "social");
+  assert.equal(programField("Horticulture"), "science");
+  assert.equal(programField("Bio-Technology"), "science");
+  assert.equal(programField("Painting (Oil Painting Direction)"), "design");
+  assert.equal(programField("Stomatology"), "medicine");
+  assert.equal(programField("Intellectual Property"), "law");
+  assert.equal(programField("Advertising"), "business");
+  assert.equal(programField("Water Conservancy and Hydropower Engineering"), "engineering");
+  assert.equal(programField("Marine Biology"), "science", "marine alone does not turn a biology programme into engineering");
+  assert.equal(programField("Performance Management"), "business", "business keeps its priority over the performance-arts keyword");
 });
 
 test("start months come from intake dates and Russian month names in the intake label", () => {

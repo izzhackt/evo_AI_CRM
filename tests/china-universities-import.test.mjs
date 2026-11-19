@@ -184,3 +184,21 @@ test("China 2026-11: no overview carries a status label or a ranking word", () =
     assert.doesNotMatch(card.content.overview, /Double\s*First|(?<!\d)(?:211|985)(?!\d)/iu, card.key);
   }
 });
+
+test("registration fees that the worksheet text does not give as an application fee are not published as one", () => {
+  // Fujian A&F and Jiangxi UST: the text says «Application: 0» and the amount is a registration fee after admission;
+  // Chongqing Jiaotong and Yangtze: «Registration Fees: 800CNY (Only for First Year)», an enrolment-year charge.
+  const keys = new Set(costs.rows.map((row) => row.importKey));
+  for (const slug of ["fujian-agriculture-and-forestry-university", "jiangxi-university-of-science-and-technology", "chongqing-jiaotong-university", "yangtze-university"]) {
+    assert.ok(!keys.has(`cn26:${slug}:application_fee:all`), `${slug}: no application_fee row`);
+  }
+  // Unconfirmed by the third verification pass: not published either.
+  for (const key of ["cn26:wuxi-university:accommodation:all", "cn26:beihang-university:insurance:all", "cn26:lishui-university:tuition:all"]) {
+    assert.ok(!keys.has(key), `${key}: dropped`);
+  }
+  // The Excel autofill collapse leaves single amounts, not invented narrow ranges.
+  for (const row of costs.rows) {
+    if (row.amountMax === undefined || row.amountMax === row.amountMin) continue;
+    assert.ok((Number(row.amountMax) - Number(row.amountMin)) / Number(row.amountMin) >= 0.08, `${row.importKey}: a range this narrow is an autofill trace`);
+  }
+});

@@ -61,3 +61,13 @@ test("China 2026-11 cities: generated SQL is a dry run by default and writes onl
   assert.doesNotMatch(dry, /\b(INSERT INTO|UPDATE)\s+platform(_private)?\./u, "no direct writes to the catalogue tables");
   assert.throws(() => buildCitiesSql({ actorMembership: "not-a-uuid" }), /UUID/u);
 });
+
+test("China 2026-11 cities: a published city that differs from the seed (a staff or native-speaker edit) is kept unless overwriting is asked for", () => {
+  const safe = buildCitiesSql().sql;
+  const forced = buildCitiesSql({ overwriteExisting: true }).sql;
+  assert.match(safe, /overwrite CONSTANT BOOLEAN := FALSE;/u);
+  assert.match(forced, /overwrite CONSTANT BOOLEAN := TRUE;/u);
+  assert.ok(safe.includes("WHEN ex.status = 'published' AND NOT overwrite THEN 'kept_edited'"));
+  assert.ok(safe.includes("IF st NOT IN ('current', 'kept_edited') THEN"), "kept cities are not upserted");
+  assert.equal(safe.replace("overwrite CONSTANT BOOLEAN := FALSE;", ""), forced.replace("overwrite CONSTANT BOOLEAN := TRUE;", ""), "the flag is the only difference");
+});

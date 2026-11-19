@@ -18,7 +18,7 @@
  * и build-report.json в рабочей папке. В Git не попадает ничего, кроме того, что платформа покажет студенту.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -41,15 +41,22 @@ export function loadWorkDir(dir) {
   const optional = (name, fallback) => { try { return readJson(dir, name); } catch { return fallback; } };
   const rows = readJson(dir, "rows.json");
   const feeGroups = readJson(dir, "fee_groups.json");
+  const overrides = optional("overrides.json", { dropRows: [], splitRows: {}, excludeUids: {} });
+  const identities = readJson(dir, "identities.json");
+  // Sources that turned out to describe another institution are dropped for every consumer, the sources document included.
+  for (const rec of identities) {
+    const dropped = overrides.dropSources?.[rec.uid] ?? [];
+    if (dropped.length > 0) rec.sources = (rec.sources ?? []).filter((url) => !dropped.includes(url));
+  }
   return {
     rows: Array.isArray(rows) ? rows : rows.rows,
-    identities: readJson(dir, "identities.json"),
+    identities,
     majors: readJson(dir, "majors.json"),
     feeGroups,
     costA: readJson(dir, "cost_a.json"),
     costB: readJson(dir, "cost_b.json"),
     liveCosts: optional("live_costs.json", []),
-    overrides: optional("overrides.json", { dropRows: [], splitRows: {}, excludeUids: {} }),
+    overrides,
   };
 }
 
@@ -126,11 +133,6 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   const input = loadWorkDir(workDir);
   const base = baseCards(baseRef);
   const baseByName = new Map(base.map((card) => [card.content.name, card]));
-  // Sources that turned out to describe another institution are dropped from the sources document.
-  for (const rec of input.identities) {
-    const dropped = input.overrides.dropSources?.[rec.uid] ?? [];
-    if (dropped.length > 0) rec.sources = (rec.sources ?? []).filter((url) => !dropped.includes(url));
-  }
   const idByUid = new Map(input.identities.map((rec) => [rec.uid, rec]));
   const rowsByUid = new Map();
   for (const row of input.rows) rowsByUid.set(row.uid, [...(rowsByUid.get(row.uid) ?? []), row]);
@@ -306,7 +308,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     writeFileSync(resolve(ROOT, REVIEWED_PATH), `${JSON.stringify(result.cards, null, 2)}\n`);
     writeFileSync(resolve(DATA_DIR, "programme-costs.json"), `${JSON.stringify(result.costs, null, 2)}\n`);
     writeFileSync(resolve(DATA_DIR, "city-links.json"), `${JSON.stringify(result.links, null, 2)}\n`);
-    writeFileSync(resolve(DATA_DIR, "city-links-new.json"), `${JSON.stringify(result.newLinks, null, 2)}\n`);
+    // New-city links are kept only for cities that have a seed card (a city without a free photo stays unlinked and is reported).
+    const seedFile = resolve(DATA_DIR, "geography-seed/cities.json");
+    let newLinks = result.newLinks;
+    if (existsSync(seedFile)) {
+      const seeded = new Set(JSON.parse(readFileSync(seedFile, "utf8")).cities.map((city) => city.city_key));
+      result.report.newCityLinksWithoutSeed = Object.entries(newLinks).filter(([, city]) => !seeded.has(city)).map(([card, city]) => ({ card, city }));
+      newLinks = Object.fromEntries(Object.entries(newLinks).filter(([, city]) => seeded.has(city)));
+    }
+    summary.newCityLinks = Object.keys(newLinks).length;
+    writeFileSync(resolve(DATA_DIR, "city-links-new.json"), `${JSON.stringify(newLinks, null, 2)}\n`);
     writeFileSync(resolve(DATA_DIR, "programme-trace.json"), `${JSON.stringify(result.trace)}\n`);
     const verifiedOn = option("--verified-on", new Date().toISOString().slice(0, 10));
     const input = loadWorkDir(resolve(workDir));

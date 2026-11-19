@@ -3,7 +3,7 @@
  * Китай 2026-11: карточки новых городов и связь вузов с ними одной транзакцией SQL (план
  * docs/catalog/china-2026-11-plan.md, срез C5). Вторая часть после china-universities-sql.mjs: вузы уже опубликованы.
  *
- *   node scripts/catalog/china-cities-sql.mjs [--commit] [--actor-membership UUID] [--seed-dir DIR] > china-cities.sql
+ *   node scripts/catalog/china-cities-sql.mjs [--commit] [--actor-membership UUID] [--seed-dir DIR] [--overwrite-existing] > china-cities.sql
  *
  * Скрипт ничего не выполняет: он печатает SQL. Без --commit транзакция заканчивается ROLLBACK (сухой прогон, в конце
  * печатается отчёт). С --commit заканчивается COMMIT. Запуск на production тем же способом, что у china-universities-sql.mjs.
@@ -16,7 +16,9 @@
  *
  * Что делает SQL (теми же RPC, что редактор «География» в CRM, от имени действующего системного Admin):
  *   1. города: отсутствует: staff_catalog_city_upsert_v1 (версия 0) и staff_catalog_city_publish_v1; есть и равен входу:
- *      пропуск; отличается: правка по текущей версии и публикация;
+ *      пропуск; опубликован и отличается от входа: пропуск (`kept_edited`), потому что это правка Админа или носителя
+ *      кыргызского (текст, статус проверки), которую повторный запуск не должен затирать; перезапись только с
+ *      --overwrite-existing; есть, но не опубликован и отличается: правка по текущей версии и публикация;
  *   2. staff_catalog_institution_city_set_v1: каждый вуз списка (по названию и стране) связывается со своим городом,
  *      если у него нет связи (существующая связь не перезаписывается: вузы, уже имевшие город, не трогаются).
  * Повтор ничего не дублирует: request_id выводятся из содержимого и версии, неизменное пропускается.
@@ -39,7 +41,7 @@ const dollar = (value, tag) => {
   return `$${tag}$${text}$${tag}$`;
 };
 
-export function buildCitiesSql({ commit = false, actorMembership = null, seedDir = DEFAULT_SEED_DIR } = {}) {
+export function buildCitiesSql({ commit = false, actorMembership = null, seedDir = DEFAULT_SEED_DIR, overwriteExisting = false } = {}) {
   if (actorMembership !== null && !UUID.test(actorMembership)) throw new Error("--actor-membership must be a UUID");
   const seed = loadGeographySeed({ seedDir, allowMissing: true });
   const cards = JSON.parse(readFileSync(resolve(ROOT, "src/lib/server/university-catalog-reviewed-china.json"), "utf8"));
@@ -89,6 +91,7 @@ export function buildCitiesSql({ commit = false, actorMembership = null, seedDir
   out(`DO $run$
 DECLARE
   org CONSTANT UUID := '${ORGANIZATION_ID}';
+  overwrite CONSTANT BOOLEAN := ${overwriteExisting ? "TRUE" : "FALSE"};
   r RECORD; l RECORD; ex platform.catalog_cities%ROWTYPE; inst UUID; ver BIGINT; st TEXT; digest TEXT; link TEXT; same BOOLEAN; v_status TEXT;
 BEGIN
   FOR r IN SELECT * FROM a_cities ORDER BY ord LOOP
@@ -105,9 +108,9 @@ BEGIN
         AND ex.fact_ru IS NOT DISTINCT FROM r.city ->> 'factRu' AND ex.fact_ky IS NOT DISTINCT FROM r.city ->> 'factKy'
         AND ex.fact_source_url IS NOT DISTINCT FROM r.city ->> 'factSourceUrl'
         AND ex.fact_verified_on IS NOT DISTINCT FROM (r.city ->> 'factVerifiedOn')::DATE AND ex.ky_review = r.city ->> 'kyReview';
-      st := CASE WHEN same THEN 'current' ELSE 'update' END;
+      st := CASE WHEN same THEN 'current' WHEN ex.status = 'published' AND NOT overwrite THEN 'kept_edited' ELSE 'update' END;
     END IF;
-    IF st <> 'current' THEN
+    IF st NOT IN ('current', 'kept_edited') THEN
       EXECUTE 'SET LOCAL ROLE authenticated';
       PERFORM platform.staff_catalog_city_upsert_v1(org, r.city, ver,
         md5('${REQUEST_PREFIX}:' || (r.city ->> 'key') || ':' || ver || ':' || digest || ':upsert')::UUID);
@@ -146,6 +149,7 @@ BEGIN
 END
 $run$;`);
   out("SELECT 'CITY', key, state, version_after, city_status FROM a_city_report ORDER BY ord;");
+  out("SELECT 'SUMMARY_CITIES', count(*) FILTER (WHERE state = 'new'), count(*) FILTER (WHERE state = 'current'), count(*) FILTER (WHERE state = 'kept_edited'), count(*) FILTER (WHERE state IN ('update', 'publish')) FROM a_city_report;");
   out("SELECT 'LINK', card_key, city_key, state FROM a_link_report ORDER BY ord;");
   out("SELECT 'SUMMARY_LINKS', count(*) FILTER (WHERE state = 'set'), count(*) FILTER (WHERE state = 'current'), count(*) FILTER (WHERE state = 'kept_other_city') FROM a_link_report;");
   out(`SELECT 'CN_CITIES_PUBLISHED', count(*) FROM platform.catalog_cities WHERE organization_id = '${ORGANIZATION_ID}' AND country_code = 'CN' AND status = 'published';`);
@@ -157,14 +161,15 @@ $run$;`);
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  let commit = false, actorMembership = null, seedDir = DEFAULT_SEED_DIR;
+  let commit = false, actorMembership = null, seedDir = DEFAULT_SEED_DIR, overwriteExisting = false;
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--commit") commit = true;
     else if (args[index] === "--actor-membership") actorMembership = args[++index] ?? null;
     else if (args[index] === "--seed-dir") seedDir = resolve(args[++index] ?? "");
-    else { process.stderr.write("Usage: node scripts/catalog/china-cities-sql.mjs [--commit] [--actor-membership UUID] [--seed-dir DIR]\n"); process.exit(1); }
+    else if (args[index] === "--overwrite-existing") overwriteExisting = true;
+    else { process.stderr.write("Usage: node scripts/catalog/china-cities-sql.mjs [--commit] [--actor-membership UUID] [--seed-dir DIR] [--overwrite-existing]\n"); process.exit(1); }
   }
-  const result = buildCitiesSql({ commit, actorMembership, seedDir });
+  const result = buildCitiesSql({ commit, actorMembership, seedDir, overwriteExisting });
   process.stderr.write(`${JSON.stringify({ mode: commit ? "COMMIT" : "ROLLBACK (dry run)", cities: result.cities, links: result.links })}\n`);
   process.stdout.write(result.sql);
 }

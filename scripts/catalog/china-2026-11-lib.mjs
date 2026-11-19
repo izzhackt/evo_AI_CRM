@@ -111,8 +111,9 @@ export function autoFillRows(entries) {
  * Следы автозаполнения Excel в тексте платы: в соседних строках одного вуза один и тот же текст, а ПОСЛЕДНЕЕ число
  * растёт ровно на 1 («Dorms: CNY 1,200», «1,201», «1,202», «1,203» или «6,000» … «6,017» за одноместную комнату).
  * Исходное значение у первой строки серии (Excel растягивает то, что ввёл человек), остальные тексты производные:
- * их группы схлопываются в первую (строки переходят к ней), иначе из одной суммы получился бы выдуманный диапазон.
- * Серия это три и более соседних строки; всё остальное в тексте обязано совпадать.
+ * их строки переходят к группе первой строки, иначе из одной суммы получился бы выдуманный диапазон.
+ * Серия это три и более соседних СТРОКИ Excel (группа с одинаковым текстом может стоять в строках далеко друг от
+ * друга, поэтому работаем по строкам); всё остальное в тексте обязано совпадать.
  */
 export function collapseFeeAutoFill(groups) {
   const tokenPattern = /\d+(?:,\d{3})*(?:\.\d+)?/gu;
@@ -121,37 +122,45 @@ export function collapseFeeAutoFill(groups) {
     const values = [...source.matchAll(tokenPattern)].map((match) => Number(match[0].replace(/,/gu, "")));
     return { skeleton: source.replace(tokenPattern, "#"), values };
   };
-  const removed = new Set();
-  const rowsOfFirst = new Map();
+  const target = new Map();
   const collapsed = [];
   const byUid = new Map();
-  for (const group of groups) byUid.set(group.uid, [...(byUid.get(group.uid) ?? []), group]);
+  for (const group of groups) {
+    const parsed = shape(group.text);
+    for (const row of group.rows) byUid.set(group.uid, [...(byUid.get(group.uid) ?? []), { row, group, parsed }]);
+  }
   for (const [uid, list] of byUid) {
-    const ordered = [...list].sort((a, b) => Math.min(...a.rows) - Math.min(...b.rows));
+    list.sort((a, b) => a.row - b.row);
     let run = [];
     const flush = () => {
       if (run.length >= 3) {
-        const [first, ...rest] = run;
-        rowsOfFirst.set(first.feeId, run.flatMap((entry) => entry.rows));
-        for (const entry of rest) removed.add(entry.feeId);
-        collapsed.push({ uid, feeIds: run.map((entry) => entry.feeId), rows: run.flatMap((entry) => entry.rows), firstValue: shape(first.text).values.at(-1) });
+        for (const entry of run) target.set(entry.row, run[0].group.feeId);
+        collapsed.push({ uid, feeIds: [...new Set(run.map((entry) => entry.group.feeId))], rows: run.map((entry) => entry.row), firstValue: run[0].parsed.values.at(-1) });
       }
       run = [];
     };
-    for (const group of ordered) {
-      const current = shape(group.text);
-      const previous = run.length === 0 ? null : shape(run.at(-1).text);
-      const continues = previous !== null && current.values.length > 0
-        && current.skeleton === previous.skeleton && current.values.length === previous.values.length
-        && current.values.slice(0, -1).every((value, index) => value === previous.values[index])
-        && current.values.at(-1) === previous.values.at(-1) + 1
-        && Math.min(...group.rows) === Math.max(...run.at(-1).rows) + 1;
-      if (continues) run.push(group);
-      else { flush(); run = current.values.length > 0 ? [group] : []; }
+    for (const entry of list) {
+      const previous = run.at(-1);
+      const continues = previous !== undefined && entry.parsed.values.length > 0
+        && entry.parsed.skeleton === previous.parsed.skeleton && entry.parsed.values.length === previous.parsed.values.length
+        && entry.parsed.values.slice(0, -1).every((value, index) => value === previous.parsed.values[index])
+        && entry.parsed.values.at(-1) === previous.parsed.values.at(-1) + 1
+        && entry.row === previous.row + 1;
+      if (continues) run.push(entry);
+      else { flush(); run = entry.parsed.values.length > 0 ? [entry] : []; }
     }
     flush();
   }
-  const kept = groups.filter((group) => !removed.has(group.feeId)).map((group) => (rowsOfFirst.has(group.feeId) ? { ...group, rows: rowsOfFirst.get(group.feeId) } : group));
+  const rowsOf = new Map(groups.map((group) => [group.feeId, []]));
+  for (const group of groups) for (const row of group.rows) rowsOf.get(target.get(row) ?? group.feeId).push(row);
+  const kept = groups
+    .filter((group) => rowsOf.get(group.feeId).length > 0)
+    .map((group) => {
+      const rows = rowsOf.get(group.feeId).sort((a, b) => a - b);
+      const next = { ...group, rows };
+      if ("rowCount" in group) next.rowCount = rows.length;
+      return next;
+    });
   return { groups: kept, collapsed };
 }
 

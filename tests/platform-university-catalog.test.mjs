@@ -19,7 +19,7 @@ const current = currentBundles.flatMap((name) => JSON.parse(readFileSync(new URL
 // another campus under «no reuse licence»). Every other card keeps the rule «a real campus photo with provenance»;
 // the card leaves this set when a licensed photo of that campus is found.
 const AWAITING_PHOTO = new Set(["inti-sabah"]);
-// China 2026-11: the 121 cards from the EVO worksheet come without a photo; campus photos follow as their own slice (the
+// China 2026-11: the 118 new cards from the EVO worksheet come without a photo; campus photos follow as their own slice (the
 // photoKey list lives inside a database function and needs a migration). They are recognised by their provenance note.
 const WORKSHEET_CARD = ({ content }) => content.country === "CN" && content.photoKey === null && content.notes.includes("рабочей таблицы EVO");
 test("the complete real research package parses, has campus photos, and retains existing identities", () => {

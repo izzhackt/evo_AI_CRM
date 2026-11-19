@@ -4,7 +4,7 @@
 
 Учёт строк Excel (1582): в программах 1523, совпали с уже имевшимися программами карточки 18, пропущено 7, строки неопубликованных вузов 34. Каждая строка учтена ровно один раз; строки одной и той же специальности внутри вуза схлопнуты в одну программу.
 
-Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 282, пропущено строк таблицы 7.
+Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 280, пропущено строк таблицы 7.
 
 ## Новые карточки
 
@@ -38,7 +38,7 @@
 | Dali University | Dali | 45 | 0 | https://www.dali.edu.cn/ | https://www.wikidata.org/wiki/Q1622094 https://zh.wikipedia.org/wiki/%E5%A4%A7%E7%90%86%E5%A4%A7%E5%AD%A6 |
 | Dalian Polytechnic University | Dalian | 3 | 2 | https://www.dlpu.edu.cn/ | https://www.wikidata.org/wiki/Q647594 https://en.wikipedia.org/wiki/Dalian_Polytechnic_University |
 | Dalian University of Technology | Dalian | 52 | 2 | https://en.dlut.edu.cn/ | https://www.wikidata.org/wiki/Q1477368 https://en.wikipedia.org/wiki/Dalian_University_of_Technology |
-| Fujian Agriculture and Forestry University | Fuzhou | 8 | 3 | https://english.fafu.edu.cn/ | https://www.wikidata.org/wiki/Q5507366 https://en.wikipedia.org/wiki/Fujian_Agriculture_and_Forestry_University |
+| Fujian Agriculture and Forestry University | Fuzhou | 8 | 2 | https://english.fafu.edu.cn/ | https://www.wikidata.org/wiki/Q5507366 https://en.wikipedia.org/wiki/Fujian_Agriculture_and_Forestry_University |
 | Fuzhou University of International Studies and Trade | Fuzhou | 1 | 3 | https://www.fzfu.com/efzfu/ | https://zh.wikipedia.org/wiki/%E7%A6%8F%E5%B7%9E%E5%A4%96%E8%AF%AD%E5%A4%96%E8%B4%B8%E5%AD%A6%E9%99%A2 https://www.fzfu.com/ |
 | Gannan Normal University | Ganzhou | 34 | 2 | https://www.gnnu.edu.cn/ | https://www.wikidata.org/wiki/Q18119211 https://www.gnnu.edu.cn/ |
 | Guangdong Polytechnic Normal University | Guangzhou | 2 | 2 | https://en.gpnu.edu.cn/ | https://en.wikipedia.org/wiki/Guangdong_Polytechnic_Normal_University https://www.gpnu.edu.cn/ |
@@ -63,8 +63,8 @@
 | Jiangsu Ocean University | Lianyungang | 4 | 3 | https://www.jou.edu.cn/ | https://www.wikidata.org/wiki/Q11152732 https://en.wikipedia.org/wiki/Jiangsu_Ocean_University |
 | Jiangsu University | Zhenjiang | 19 | 4 | https://eng.ujs.edu.cn/ | https://www.wikidata.org/wiki/Q6191740 https://en.wikipedia.org/wiki/Jiangsu_University |
 | Jiangsu University of Science and Technology | Zhenjiang | 6 | 3 | https://en.just.edu.cn/ | https://www.wikidata.org/wiki/Q11135052 https://www.just.edu.cn/11991/list.htm |
-| Jiangsu University of Technology | Changzhou | 2 | 3 | https://english.jsut.edu.cn/ | https://www.wikidata.org/wiki/Q11134930 https://www.wikidata.org/wiki/Q11135052 |
-| Jiangxi University of Science and Technology | Ganzhou | 14 | 4 | https://e.jxust.edu.cn/ | https://www.wikidata.org/wiki/Q6191782 https://e.jxust.edu.cn/ |
+| Jiangsu University of Technology | Changzhou | 2 | 3 | https://english.jsut.edu.cn/ | https://www.wikidata.org/wiki/Q11134930 https://www.jsut.edu.cn/7774/list.htm |
+| Jiangxi University of Science and Technology | Ganzhou | 14 | 3 | https://e.jxust.edu.cn/ | https://www.wikidata.org/wiki/Q6191782 https://e.jxust.edu.cn/ |
 | Jiaxing University | Jiaxing | 9 | 4 | https://www.zjxu.edu.cn/ | https://www.wikidata.org/wiki/Q10923945 https://www.zjxu.edu.cn/ |
 | Jilin University | Changchun | 2 | 4 | https://en.jlu.edu.cn/ | https://www.wikidata.org/wiki/Q1432030 https://en.wikipedia.org/wiki/Jilin_University |
 | Lanzhou Jiaotong University | Lanzhou | 60 | 3 | https://en.lzjtu.edu.cn/ | https://www.wikidata.org/wiki/Q10893606 https://en.wikipedia.org/wiki/Lanzhou_Jiaotong_University |

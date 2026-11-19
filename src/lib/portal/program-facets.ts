@@ -21,16 +21,16 @@ export type ProgramFacets = Readonly<{ field: ProgramField; months: readonly num
 // Порядок важен: первое совпадение решает («Business Information Technology» - IT, «Biomedical Engineering» - медицина,
 // «Tourism Management» - туризм, а не бизнес).
 const FIELD_RULES: readonly (readonly [ProgramField, RegExp])[] = [
-  ["law", /\blaws?\b|\blegal\b|\bllb\b|\bllm\b|juris|criminal|shariah/i],
-  ["it", /comput|software|information|\bit\b|\bdata\b|artificial intelligence|cyber|informatic|network|multimedia|game|programming|visual effects|intelligent system|information security|\bgis\b|remote sensing/i],
-  ["medicine", /medic|nurs|pharm|dent|health|biomed|surg|\bmbbs\b|clinic|physio|optometr|nutrition|dietet|rehabilit|veterinar|midwif|optician|anaesthe|anesthe|epidemiolog|sport|fitness|obstetric|gynaec|ophthalm|paediatr|pediatr|patholog|radiolog|audiolog|strength and conditioning/i],
-  ["engineering", /engineer|mechatron|electr|mechanic|civil|aerospace|aeronaut|aircraft|robot|automat|petroleum|manufactur|maritime|textile|surveying|construction|material|renewable energy/i],
+  ["law", /\blaws?\b|\blegal\b|\bllb\b|\bllm\b|juris|criminal|shariah|intellectual property/i],
+  ["it", /comput|software|information|\bit\b|\bdata\b|artificial intelligence|cyber|informatic|network|multimedia|game|programming|visual effects|intelligent system|information security|\bgis\b|remote sensing|internet of things/i],
+  ["medicine", /medic|nurs|pharm|dent|health|biomed|surg|\bmbbs\b|clinic|physio|optometr|nutrition|dietet|rehabilit|veterinar|midwif|optician|anaesthe|anesthe|epidemiolog|sport|fitness|obstetric|gynaec|ophthalm|paediatr|pediatr|patholog|radiolog|audiolog|strength and conditioning|stomatolog|hygien/i],
+  ["engineering", /engineer|mechatron|electr|mechanic|civil|aerospace|aeronaut|aircraft|robot|automat|petroleum|manufactur|maritime|textile|surveying|construction|material|renewable energy|measur|instrument|metallurg|steel|nuclear|radiation|water conservancy|hydropower|process equipment/i],
   ["hospitality", /hospitality|tourism|hotel|culinary|patisserie|pastry|bakery|gastronom|\bevents?\b|pelancongan/i],
-  ["business", /business|commerce|accounting|account|financ|econom|management|marketing|\bmba\b|banking|actuar|logistic|supply chain|entrepreneur|technopreneur|human resource|real estate/i],
-  ["design", /design|architect|\barts?\b|music|film|media|animation|fashion|creative|photograph|interior|screen|stage|acting|cinema|dance|drama|planning|urban|land administration/i],
+  ["business", /business|commerce|accounting|account|financ|econom|management|marketing|\bmba\b|banking|actuar|logistic|supply chain|entrepreneur|technopreneur|human resource|real estate|advertis|apprais/i],
+  ["design", /design|architect|\barts?\b|music|film|media|animation|fashion|creative|photograph|interior|screen|stage|acting|cinema|dance|drama|planning|urban|land administration|landscap|paint|sculpt|drawing|performance|television|radio|publication|editing|broadcast/i],
   ["education", /education|teaching|\btesl\b|pedagog|early childhood|measurement and assessment/i],
-  ["science", /science|physics|chemi|biolog|mathemat|statistic|biotech|environment|agricult|food|geolog|geograph|sustainab/i],
-  ["social", /social|politic|international|communication|journalism|sociolog|histor|philosoph|humanit|islamic|language|english|chinese|\bhsk\b|linguist|literature|translat|governance|global|studies|quran|hadith|usuluddin|dakwah|community|public administration|public policy|psycholog|counsel|behaviou?r/i],
+  ["science", /science|physics|chemi|biolog|mathemat|statistic|bio-?tech|environment|agricult|food|geolog|geograph|sustainab|ecolog|horticult|agronom|zoolog|forest|plant|garden|silkworm|phytolog|meteorolog|astronom|marine|archeolog|animal|rural/i],
+  ["social", /social|politic|international|communication|journalism|sociolog|histor|philosoph|humanit|islamic|language|english|chinese|\bhsk\b|linguist|literature|translat|governance|global|studies|quran|hadith|usuluddin|dakwah|community|public administration|public policy|psycholog|counsel|behaviou?r|japanese|russian|german|spanish|french|arabic|korean|portuguese|italian|swahili|ukrainian|polish|thai|amharic|diplomac|marxis|public relations|public (service )?administration|administrative|archiv/i],
 ];
 
 export function programField(title: string): ProgramField {

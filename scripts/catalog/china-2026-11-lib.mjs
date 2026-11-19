@@ -107,6 +107,54 @@ export function autoFillRows(entries) {
   return flagged;
 }
 
+/**
+ * Следы автозаполнения Excel в тексте платы: в соседних строках одного вуза один и тот же текст, а ПОСЛЕДНЕЕ число
+ * растёт ровно на 1 («Dorms: CNY 1,200», «1,201», «1,202», «1,203» или «6,000» … «6,017» за одноместную комнату).
+ * Исходное значение у первой строки серии (Excel растягивает то, что ввёл человек), остальные тексты производные:
+ * их группы схлопываются в первую (строки переходят к ней), иначе из одной суммы получился бы выдуманный диапазон.
+ * Серия это три и более соседних строки; всё остальное в тексте обязано совпадать.
+ */
+export function collapseFeeAutoFill(groups) {
+  const tokenPattern = /\d+(?:,\d{3})*(?:\.\d+)?/gu;
+  const shape = (text) => {
+    const source = collapse(String(text ?? ""));
+    const values = [...source.matchAll(tokenPattern)].map((match) => Number(match[0].replace(/,/gu, "")));
+    return { skeleton: source.replace(tokenPattern, "#"), values };
+  };
+  const removed = new Set();
+  const rowsOfFirst = new Map();
+  const collapsed = [];
+  const byUid = new Map();
+  for (const group of groups) byUid.set(group.uid, [...(byUid.get(group.uid) ?? []), group]);
+  for (const [uid, list] of byUid) {
+    const ordered = [...list].sort((a, b) => Math.min(...a.rows) - Math.min(...b.rows));
+    let run = [];
+    const flush = () => {
+      if (run.length >= 3) {
+        const [first, ...rest] = run;
+        rowsOfFirst.set(first.feeId, run.flatMap((entry) => entry.rows));
+        for (const entry of rest) removed.add(entry.feeId);
+        collapsed.push({ uid, feeIds: run.map((entry) => entry.feeId), rows: run.flatMap((entry) => entry.rows), firstValue: shape(first.text).values.at(-1) });
+      }
+      run = [];
+    };
+    for (const group of ordered) {
+      const current = shape(group.text);
+      const previous = run.length === 0 ? null : shape(run.at(-1).text);
+      const continues = previous !== null && current.values.length > 0
+        && current.skeleton === previous.skeleton && current.values.length === previous.values.length
+        && current.values.slice(0, -1).every((value, index) => value === previous.values[index])
+        && current.values.at(-1) === previous.values.at(-1) + 1
+        && Math.min(...group.rows) === Math.max(...run.at(-1).rows) + 1;
+      if (continues) run.push(group);
+      else { flush(); run = current.values.length > 0 ? [group] : []; }
+    }
+    flush();
+  }
+  const kept = groups.filter((group) => !removed.has(group.feeId)).map((group) => (rowsOfFirst.has(group.feeId) ? { ...group, rows: rowsOfFirst.get(group.feeId) } : group));
+  return { groups: kept, collapsed };
+}
+
 /** Колонка Requirements: только простой возрастной предел; всё остальное (квоты стран, служебное) не берётся. */
 export function parseAge(raw) {
   const text = collapse(String(raw ?? "").replace(/[：]/gu, ":").replace(/[–—~]/gu, "-"));

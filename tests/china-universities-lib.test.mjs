@@ -39,7 +39,7 @@ test("China 2026-11 lib: a deadline stays words, only when it is made of deadlin
   assert.equal(cleanDeadlineText("  March 1 - June 30,\n 2026 (Fall entry) \u00a0 October 1 - December 31, 2026 (Spring entry) "),
     "March 1 - June 30, 2026 (Fall entry) October 1 - December 31, 2026 (Spring entry)");
   assert.equal(cleanDeadlineText("Scholarship Deadline:May 20 Self-supporting student deadline: June 30"), "Scholarship Deadline:May 20 Self-supporting student deadline: June 30");
-  assert.equal(cleanDeadlineText("Direct Major from March 2026, Students will get JW202 like normally and can enter into China"), null);
+  assert.equal(cleanDeadlineText("Apply by June, the university issues the JW202 form after admission"), null);
   assert.equal(cleanDeadlineText("1st year Excellent Students will get Extra Scholarship from Nanjing Government (10,000 RMB/Year)"), null);
   assert.equal(cleanDeadlineText("Deadline: anytime Students apply now and can enroll in the spring class"), null);
   assert.equal(cleanDeadlineText(""), null);
@@ -150,7 +150,7 @@ test("China 2026-11 SQL guard: an update that edits or drops an earlier programm
   assert.ok(!isAdditiveUpdate(existing, { ...plus, programs: [plus.programs[1]] }));
 });
 
-import { acceptCostItems, basicMajorClean, buildCostRows, validateCostItem } from "../scripts/catalog/china-2026-11-lib.mjs";
+import { acceptCostItems, basicMajorClean, buildCostRows, collapseFeeAutoFill, validateCostItem } from "../scripts/catalog/china-2026-11-lib.mjs";
 
 test("China 2026-11 lib: the title pre-clean removes numbering, bullets, Chinese runs and glued CamelCase `and`", () => {
   assert.equal(basicMajorClean("4.Computer Science and Technology"), "Computer Science and Technology");
@@ -265,4 +265,33 @@ test("China 2026-11 costs: a faculty list under one tuition label is read as one
   const blocked = buildCostRows({ cardKey: "u", institutionName: "U", programmeLanguages: new Set(["en"]), groups: [{ feeId: "f", accepted: half.accepted, rejected: half.rejected }] });
   assert.ok(!blocked.rows.some((row) => row.costKind === "tuition"));
   assert.ok(blocked.dropped.some((entry) => /not confirmed by both passes/u.test(entry.why)));
+});
+
+test("collapseFeeAutoFill: a last number that grows by 1 over neighbouring rows is an Excel autofill and collapses to the first value", () => {
+  const dorm = (n) => `Original Fee: Tuition (per academic year): CNY 20,000 Dorms (per academic year): CNY ${n.toLocaleString("en-US")} (four-bed room)`;
+  const groups = [1200, 1201, 1202, 1203].map((value, index) => ({ feeId: `f${index}`, uid: "u1", text: dorm(value), rows: [1085 + index], teachingLanguages: ["English"] }));
+  const other = { feeId: "g1", uid: "u2", text: "Tuition fee: 15000CNY/year", rows: [2000], teachingLanguages: ["English"] };
+  const { groups: kept, collapsed } = collapseFeeAutoFill([...groups, other]);
+  assert.deepEqual(kept.map((group) => group.feeId), ["f0", "g1"], "later groups of the run are gone");
+  assert.deepEqual(kept[0].rows, [1085, 1086, 1087, 1088], "their rows move to the first group");
+  assert.match(kept[0].text, /1,200/u);
+  assert.equal(collapsed.length, 1);
+  assert.equal(collapsed[0].firstValue, 1200);
+  // A long run (single room 6,000 ... 6,017) collapses the same way.
+  const long = Array.from({ length: 18 }, (_, index) => ({ feeId: `s${index}`, uid: "u3", text: `Residence: 1500CNY/year (quad room);6,${String(index).padStart(3, "0")}CNY/year(Single room)`, rows: [1089 + index] }));
+  assert.equal(collapseFeeAutoFill(long).groups.length, 1);
+});
+
+test("collapseFeeAutoFill: only three or more neighbouring rows, one growing last number, identical rest", () => {
+  const make = (texts, firstRow = 10) => texts.map((text, index) => ({ feeId: `x${index}`, uid: "u1", text, rows: [firstRow + index] }));
+  assert.equal(collapseFeeAutoFill(make(["Dorm 1200", "Dorm 1201"])).groups.length, 2, "two rows are not a run");
+  assert.equal(collapseFeeAutoFill(make(["Dorm 1200", "Dorm 1201", "Dorm 1203"])).groups.length, 3, "a step other than 1 breaks the run");
+  assert.equal(collapseFeeAutoFill(make(["Tuition 15000 Dorm 1200", "Tuition 16000 Dorm 1201", "Tuition 17000 Dorm 1202"])).groups.length, 3, "another number differs");
+  assert.equal(collapseFeeAutoFill(make(["Dorm 1200 single", "Dorm 1201 double", "Dorm 1202 single"])).groups.length, 3, "the text around the number differs");
+  const gap = make(["Dorm 1200", "Dorm 1201", "Dorm 1202"]);
+  gap[2].rows = [99];
+  assert.equal(collapseFeeAutoFill(gap).groups.length, 3, "rows must be neighbours");
+  const grouped = collapseFeeAutoFill([...make(["Dorm 1200", "Dorm 1201", "Dorm 1202"]), { feeId: "y", uid: "u2", text: "Dorm 1203", rows: [13] }]);
+  assert.equal(grouped.groups.length, 2, "another university never joins the run");
+  assert.equal(collapseFeeAutoFill(make(["no digits", "no digits", "no digits"])).groups.length, 3);
 });

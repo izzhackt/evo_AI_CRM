@@ -22,7 +22,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  CARD_NOTES, acceptCostItems, autoFillRows, basicMajorClean, buildCostRows, cleanedTitleIsFaithful, buildIntakes, buildSummary, collapse, lettersOnly, mergeIntoExisting,
+  CARD_NOTES, acceptCostItems, autoFillRows, basicMajorClean, buildCostRows, cleanedTitleIsFaithful, buildIntakes, buildSummary, collapse, collapseFeeAutoFill, lettersOnly, mergeIntoExisting,
   normalizeLanguage, parseAge, parseDurationYears, programmesSentence, scrubOverview, slugify, uniqueProgramId, yearsRu,
 } from "./china-2026-11-lib.mjs";
 import { parseUniversityContent } from "../../src/lib/platform-university-catalog.ts";
@@ -134,18 +134,21 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   const idByUid = new Map(input.identities.map((rec) => [rec.uid, rec]));
   const rowsByUid = new Map();
   for (const row of input.rows) rowsByUid.set(row.uid, [...(rowsByUid.get(row.uid) ?? []), row]);
+  // Excel autofill in the fee text (the last number grows by 1 over neighbouring rows) is collapsed to its first value before any amount is read.
+  const feeCollapse = collapseFeeAutoFill(input.feeGroups);
+  const feeGroups = feeCollapse.groups;
   const feeByRow = new Map();
-  for (const group of input.feeGroups) for (const rowNumber of group.rows) feeByRow.set(rowNumber, group.feeId);
+  for (const group of feeGroups) for (const rowNumber of group.rows) feeByRow.set(rowNumber, group.feeId);
   const aById = new Map(input.costA.map((entry) => [entry.feeId, entry]));
   const bById = new Map(input.costB.map((entry) => [entry.feeId, entry]));
   const acceptedByFee = new Map(), rejectedCosts = [];
-  for (const group of input.feeGroups) {
+  for (const group of feeGroups) {
     const a = aById.get(group.feeId), b = bById.get(group.feeId);
     const { accepted, rejected } = acceptCostItems(group.text, a?.items, b?.items);
     acceptedByFee.set(group.feeId, { accepted, rejected, scholarship: Boolean(a?.scholarshipMentioned || b?.scholarshipMentioned) });
     for (const entry of rejected) rejectedCosts.push({ feeId: group.feeId, ...entry });
   }
-  const report = { builtFor: baseRef, universities: rowsByUid.size, excluded: [], merged: [], created: [], skippedRows: [], blankedCells: [], rowsMatchedToExisting: [], droppedByVerification: [], rejectedCosts, droppedCosts: [], costRows: 0 };
+  const report = { builtFor: baseRef, universities: rowsByUid.size, excluded: [], merged: [], created: [], skippedRows: [], blankedCells: [], rowsMatchedToExisting: [], droppedByVerification: [], collapsedFeeRuns: feeCollapse.collapsed, rejectedCosts, droppedCosts: [], costRows: 0 };
   const cardsByKey = new Map(base.map((card) => [card.key, card]));
   const newCards = [], links = {}, newLinks = {}, trace = [], costRows = [];
   for (const [uid, rows] of [...rowsByUid.entries()].sort(([a], [b]) => a.localeCompare(b))) {
@@ -192,7 +195,7 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
     if (JSON.stringify(parsed) !== JSON.stringify(card.content)) throw new Error(`card ${key} does not survive parseUniversityContent`);
     const usedIds = new Set(card.content.programs.map((program) => program.id));
     for (const entry of built.trace) if (usedIds.has(entry.programId)) trace.push({ card: key, ...entry });
-    const groups = input.feeGroups.filter((group) => group.uid === uid).map((group) => ({ feeId: group.feeId, accepted: acceptedByFee.get(group.feeId).accepted, rejected: acceptedByFee.get(group.feeId).rejected }));
+    const groups = feeGroups.filter((group) => group.uid === uid).map((group) => ({ feeId: group.feeId, accepted: acceptedByFee.get(group.feeId).accepted, rejected: acceptedByFee.get(group.feeId).rejected }));
     const live = existing ? input.liveCosts.filter((row) => row.institution === existing.content.name) : [];
     const costs = buildCostRows({
       cardKey: key, institutionName: card.content.name, groups, existingPublished: live,

@@ -4,7 +4,7 @@
 
 Учёт строк Excel (1582): в программах 1523, совпали с уже имевшимися программами карточки 18, пропущено 7, строки неопубликованных вузов 34. Каждая строка учтена ровно один раз; строки одной и той же специальности внутри вуза схлопнуты в одну программу.
 
-Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 283, пропущено строк таблицы 7.
+Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 282, пропущено строк таблицы 7.
 
 ## Новые карточки
 
@@ -15,7 +15,7 @@
 | Anhui University | Hefei | 77 | 3 | https://www.ahu.edu.cn/ | https://www.wikidata.org/wiki/Q545540 https://www.ahu.edu.cn/ |
 | Anhui University of Technology | Ma’anshan | 2 | 3 | https://en.ahut.edu.cn/ | https://www.wikidata.org/wiki/Q2040973 https://en.wikipedia.org/wiki/Anhui_University_of_Technology |
 | Beibu Gulf University | Qinzhou | 4 | 2 | https://en.bbgu.edu.cn/ | https://www.wikidata.org/wiki/Q43896002 https://en.wikipedia.org/wiki/Beibu_Gulf_University |
-| Beihang University | Beijing | 5 | 4 | https://ev.buaa.edu.cn/ | https://www.wikidata.org/wiki/Q2299797 https://en.wikipedia.org/wiki/Beihang_University |
+| Beihang University | Beijing | 5 | 3 | https://ev.buaa.edu.cn/ | https://www.wikidata.org/wiki/Q2299797 https://en.wikipedia.org/wiki/Beihang_University |
 | Beijing Foreign Studies University | Beijing | 22 | 4 | https://en.bfsu.edu.cn/ | https://www.wikidata.org/wiki/Q1144682 https://en.wikipedia.org/wiki/Beijing_Foreign_Studies_University |
 | Beijing Institute of Fashion Technology | Beijing | 23 | 3 | https://english.bift.edu.cn/ | https://www.wikidata.org/wiki/Q10902330 https://www.bift.edu.cn/xxgk/xyjj/index.htm |
 | Beijing Institute of Graphic Communication | Beijing | 7 | 3 | https://english.bigc.edu.cn/ | https://www.wikidata.org/wiki/Q10902061 https://www.bigc.edu.cn/ |
@@ -70,7 +70,7 @@
 | Lanzhou Jiaotong University | Lanzhou | 60 | 3 | https://en.lzjtu.edu.cn/ | https://www.wikidata.org/wiki/Q10893606 https://en.wikipedia.org/wiki/Lanzhou_Jiaotong_University |
 | Liaoning Petrochemical University | Fushun | 17 | 2 | https://english.lnpu.edu.cn/ | https://www.wikidata.org/wiki/Q6540153 https://www.lnpu.edu.cn/ |
 | Linyi University | Linyi | 4 | 1 | https://www.lyu.edu.cn/ | https://www.wikidata.org/wiki/Q3249121 https://en.wikipedia.org/wiki/Linyi_University |
-| Lishui University | Lishui | 3 | 3 | https://www.lsu.edu.cn/ | https://www.wikidata.org/wiki/Q10877504 https://www.lsu.edu.cn/34/list.htm |
+| Lishui University | Lishui | 3 | 2 | https://www.lsu.edu.cn/ | https://www.wikidata.org/wiki/Q10877504 https://www.lsu.edu.cn/34/list.htm |
 | Nanchang Hangkong University | Nanchang | 4 | 2 | https://www.nchu.edu.cn/ | https://www.wikidata.org/wiki/Q6962480 https://en.wikipedia.org/wiki/Nanchang_Hangkong_University |
 | Nanjing Tech University | Nanjing | 8 | 4 | https://en.njtech.edu.cn/ | https://www.wikidata.org/wiki/Q10906760 https://en.wikipedia.org/wiki/Nanjing_Tech_University |
 | Nanjing University of Information Science and Technology | Nanjing | 6 | 3 | https://www.nuist.edu.cn/ | https://www.wikidata.org/wiki/Q6963692 https://en.wikipedia.org/wiki/Nanjing_University_of_Information_Science_and_Technology |
@@ -89,7 +89,7 @@
 | Shanghai Polytechnic University | Shanghai | 4 | 4 | https://en.sspu.edu.cn/ | https://en.wikipedia.org/wiki/Shanghai_Polytechnic_University https://en.sspu.edu.cn/ |
 | Shanghai University of Electric Power | Shanghai | 1 | 3 | https://www.shiep.edu.cn/ | https://www.wikidata.org/wiki/Q7488528 https://en.wikipedia.org/wiki/Shanghai_University_of_Electric_Power |
 | Shanghai University of Engineering Science | Shanghai | 4 | 3 | https://en.sues.edu.cn/ | https://www.wikidata.org/wiki/Q5928582 https://en.sues.edu.cn/ |
-| Shantou University | Shantou | 18 | 1 | https://www.stu.edu.cn/ | https://www.wikidata.org/wiki/Q835075 https://en.wikipedia.org/wiki/Shantou_University |
+| Shantou University | Shantou | 18 | 2 | https://www.stu.edu.cn/ | https://www.wikidata.org/wiki/Q835075 https://en.wikipedia.org/wiki/Shantou_University |
 | Shanxi University | Taiyuan | 6 | 0 | https://www.sxu.edu.cn/ | https://www.wikidata.org/wiki/Q7489128 https://en.wikipedia.org/wiki/Shanxi_University |
 | Shaoxing University | Shaoxing | 7 | 2 | https://www.usx.edu.cn/ | https://en.wikipedia.org/wiki/Shaoxing_University https://www.usx.edu.cn/ |
 | Shenyang Agricultural University | Shenyang | 57 | 3 | https://en.syau.edu.cn/ | https://www.wikidata.org/wiki/Q7494338 https://en.wikipedia.org/wiki/Shenyang_Agricultural_University |

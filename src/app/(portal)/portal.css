@@ -8664,6 +8664,14 @@ a.pt-pay-file {
   font-size: var(--pt-size-display);
 }
 
+/* Просрочено (19.11.2026): слово белым на фирменном красном, 5.6:1 — красный здесь значит проблему. */
+.pt-home-hero-count-big[data-overdue] {
+  padding: 4px 12px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-brand-red);
+  color: var(--pt-hero-ink);
+}
+
 .pt-home-hero-count-when {
   color: var(--pt-hero-muted);
   font-size: var(--pt-size-secondary);
@@ -8784,6 +8792,15 @@ a.pt-pay-file {
   .pt-home-main > .pt-home-slot:last-child > :last-child,
   .pt-home-side > .pt-home-slot:last-child > :last-child {
     flex-grow: 1;
+  }
+
+  /*
+   * Короткую карточку CSCA не тянем (19.11.2026): под её двумя строками оставалась большая пустая плашка. Лучше колонка
+   * кончится раньше, чем на экране будет пустая карточка.
+   */
+  .pt-home-side > .pt-home-slot[data-slot="csca"]:last-child,
+  .pt-home-side > .pt-home-slot[data-slot="csca"]:last-child > :last-child {
+    flex-grow: 0;
   }
 
   .pt-home-main,
@@ -9683,9 +9700,8 @@ a.pt-pay-file {
 
 /* ---------- Карточка CSCA в «Продолжить» (Q16, 18.10.2026) ----------
  * Обычная карточка сетки (.pt-home-card): название, строка обзора, сессия и
- * одно действие. Свои только две строки: сессия и срок идут друг под другом, а
- * «закрывается через N дней» выделено весом, не цветом (как .cs-session-soon
- * в блоке сессий раздела).
+ * одно действие. Срок регистрации здесь не повторяется: он стоит строкой в
+ * «Ближайших датах» рядом (19.11.2026).
  */
 
 /* Заголовок «CSCA» того же размера, что у соседних карточек колонки (08.11.2026). */
@@ -9699,11 +9715,6 @@ a.pt-pay-file {
   flex-direction: column;
   gap: 2px;
   font-size: var(--pt-size-secondary);
-}
-
-.pt-home-csca-soon {
-  color: var(--pt-text);
-  font-weight: 600;
 }
 
 /* ---------- «Путь поступления» (S4, план §8.4) ----------

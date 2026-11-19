@@ -141,11 +141,19 @@ export function HomeView({
     ...dates,
   ];
   const nearest = upcomingHomeDates(dated, today)[0] ?? null;
+  // 19.11.2026: просроченное дело важнее ближайшей даты — шапка не должна звучать спокойно, пока срок уже прошёл.
+  // Самое давнее из просроченных; «прошло сегодня по часам» — тоже просрочено, как в «Что сделать сейчас».
+  const overdue = (overview?.studentActions ?? [])
+    .filter((action) => action.dueAt !== null && Date.parse(action.dueAt) < now.getTime())
+    .sort((a, b) => Date.parse(a.dueAt ?? "") - Date.parse(b.dueAt ?? ""))[0] ?? null;
+  const countdown = overdue?.dueAt
+    ? { day: bishkekDay(overdue.dueAt), title: actionTitle(overdue, admission), href: actionHref(overdue), days: 0, overdue: true }
+    : nearest ? { ...nearest, days: homeDaysUntil(nearest.day, today) } : null;
   const hero = {
     displayName,
     studyCountry,
     intake,
-    countdown: nearest ? { ...nearest, days: homeDaysUntil(nearest.day, today) } : null,
+    countdown,
     locale,
   };
   // «10 нояб.»; другой год — с годом.

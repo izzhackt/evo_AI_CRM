@@ -237,12 +237,12 @@ test("the card is quiet markup: one heading, one link, no alert and no extra cli
   assert.match(component, /aria-describedby="home-csca"/u);
   assert.match(component, /className="pt-btn-ghost"/u);
   assert.match(component, /view\.session \? \(/u);
-  assert.match(component, /view\.session\.registration \? \(/u);
-  // Срок выделен весом, а не цветом; своих цветов и акцентов у карточки нет.
+  // Срок регистрации уже стоит в «Ближайших датах»: в карточке он не повторяется (19.11.2026).
+  assert.doesNotMatch(component, /\{view\.session\.registration\}/u);
+  // Своих цветов и акцентов у карточки нет.
   const css = read("src/app/(portal)/portal.css");
   const rules = css.slice(css.indexOf(".pt-home-csca-session {"), css.indexOf("«Путь поступления» (S4"));
   assert.doesNotMatch(rules, /#[0-9a-f]{3,8}\b|rgb\(|var\(--pt-accent|var\(--pt-error/iu);
-  assert.match(rules, /\.pt-home-csca-soon \{\n {2}color: var\(--pt-text\);\n {2}font-weight: 600;/u);
 });
 
 test("home strings exist in RU and KY, without dashes", () => {

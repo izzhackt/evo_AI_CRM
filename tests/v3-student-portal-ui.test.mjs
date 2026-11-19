@@ -390,6 +390,13 @@ test("the home lifts «Мой список» next to the case and keeps the expl
   assert.match(view, /const nearest = upcomingHomeDates\(dated, today\)\[0\] \?\? null;/u);
   assert.match(page, /intake=\{journey\.view\?\.intake\.label \?\? null\}/u);
   assert.match(hero, /className="pt-home-hero-count"/u);
+  // 19.11.2026: просроченное дело важнее ближайшей даты — шапка говорит «Просрочено» красной плашкой со словом.
+  assert.match(view, /const countdown = overdue\?\.dueAt\n\s+\? \{[^}]*overdue: true \}\n\s+: nearest/u);
+  assert.match(view, /Date\.parse\(action\.dueAt\) < now\.getTime\(\)/u, "passed today by the clock is overdue, as in the case card");
+  assert.match(hero, /if \(countdown\.overdue\) return \{ big: strings\.heroOverdue, word: null \};/u);
+  assert.match(hero, /data-overdue=\{countdown\.overdue \? "" : undefined\}/u);
+  assert.equal(PORTAL_DICTIONARIES.home.ru.heroOverdue, "Просрочено");
+  assert.ok(PORTAL_DICTIONARIES.home.ky.heroOverdue.length > 0);
   assert.doesNotMatch(source("src/app/(portal)/portal.css").slice(
     source("src/app/(portal)/portal.css").indexOf("/*\n * Отсчёт до ближайшей даты"),
     source("src/app/(portal)/portal.css").indexOf("/* Узкая шапка: отсчёт строкой"),

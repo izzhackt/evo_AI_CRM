@@ -12,12 +12,13 @@ export function CscaHomeCard({ view }: { view: CscaHomeCardView }) {
     <article className="pt-home-card pt-home-csca">
       <h3 id="home-csca" className="pt-home-card-title">{view.title}</h3>
       <p className="pt-home-card-body">{view.summary}</p>
+      {/*
+        Срок регистрации (`view.session.registration`) есть в модели, намеренно не рисуется (19.11.2026): та же дата
+        уже стоит строкой в «Ближайших датах» рядом, второй раз она ничего не сообщает.
+      */}
       {view.session ? (
         <p className="pt-home-card-meta pt-home-csca-session">
           <span>{view.session.line}</span>
-          {view.session.registration ? (
-            <strong className="pt-home-csca-soon">{view.session.registration}</strong>
-          ) : null}
         </p>
       ) : null}
       <p className="pt-home-card-action">

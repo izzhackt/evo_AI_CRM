@@ -5,10 +5,15 @@ import { homeDayMonth, type HomeDateItem } from "@/lib/portal/home-dates";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import { universityDateLabel } from "@/lib/portal/universities";
 
-/** Ближайшая дата «Главной» для отсчёта в шапке: пункт «Ближайших дат» и сколько до него дней (0 — сегодня). */
-export type HomeHeroCountdown = HomeDateItem & Readonly<{ days: number }>;
+/**
+ * Ближайшая дата «Главной» для отсчёта в шапке: пункт «Ближайших дат» и сколько до него дней (0 — сегодня).
+ * `overdue` — просроченное дело студента (19.11.2026): оно важнее любой будущей даты, шапка говорит о нём.
+ */
+export type HomeHeroCountdown = HomeDateItem & Readonly<{ days: number; overdue?: boolean }>;
 
-function countdownWhen(days: number, locale: Locale, strings: PortalStrings<"home">): { big: string; word: string | null } {
+function countdownWhen(countdown: HomeHeroCountdown, locale: Locale, strings: PortalStrings<"home">): { big: string; word: string | null } {
+  const { days } = countdown;
+  if (countdown.overdue) return { big: strings.heroOverdue, word: null };
   if (days <= 0) return { big: strings.heroToday, word: null };
   if (days === 1) return { big: strings.heroTomorrow, word: null };
   const form = new Intl.PluralRules(locale === "ky" ? "ky" : "ru").select(days);
@@ -54,7 +59,7 @@ export function HomeHeroContent({ displayName, studyCountry, intake = null, coun
   const sub = studyCountry && intake
     ? formatPortalString(strings.heroIntake, { country: studyCountry, intake: intake.charAt(0).toLocaleLowerCase(locale) + intake.slice(1) })
     : studyCountry;
-  const when = countdown ? countdownWhen(countdown.days, locale, strings) : null;
+  const when = countdown ? countdownWhen(countdown, locale, strings) : null;
   const shortDate = countdown ? homeDayMonth(countdown.day, locale) : "";
 
   return (
@@ -76,7 +81,15 @@ export function HomeHeroContent({ displayName, studyCountry, intake = null, coun
           })}
         >
           {/* «Сегодня» и «Завтра» стоят на месте числа: крупное число — только у числа, слово мельче. */}
-          <span className="pt-home-hero-count-big" data-word={when.word ? undefined : ""} aria-hidden="true">{when.big}</span>
+          {/* Просрочено — красная плашка со словом: проблема видна в шапке, а не только в карточке ниже. */}
+          <span
+            className="pt-home-hero-count-big"
+            data-word={when.word ? undefined : ""}
+            data-overdue={countdown.overdue ? "" : undefined}
+            aria-hidden="true"
+          >
+            {when.big}
+          </span>
           <span className="pt-home-hero-count-when" aria-hidden="true">
             {when.word ? formatPortalString(strings.heroCountdownLine, { word: when.word, date: shortDate }) : shortDate}
           </span>

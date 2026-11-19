@@ -375,7 +375,7 @@ test("the home lifts «Мой список» next to the case and keeps the expl
   assert.equal(homeDaysLabel(11, "ru", ru), "через 11 дней");
   assert.equal(homeDaysLabel(-1, "ru", ru), "просрочено на 1 день");
   assert.equal(homeDaysLabel(-3, "ru", ru), "просрочено на 3 дня");
-  assert.equal(homeDaysLabel(-5, "ky", PORTAL_DICTIONARIES.home.ky), "5 күн кечикти");
+  assert.equal(homeDaysLabel(-5, "ky", PORTAL_DICTIONARIES.home.ky), "мөөнөтү 5 күн өттү");
   for (const locale of ["ru", "ky"]) {
     for (const key of ["dateToday", "dateTomorrow", "dateIn.one", "dateIn.few", "dateIn.many", "dateOverdue.one", "dateOverdue.few", "dateOverdue.many"]) {
       assert.ok(PORTAL_DICTIONARIES.home[locale][key], `${locale} ${key}`);

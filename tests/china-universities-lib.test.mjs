@@ -296,16 +296,27 @@ test("collapseFeeAutoFill: only three or more neighbouring rows, one growing las
   assert.equal(collapseFeeAutoFill(make(["no digits", "no digits", "no digits"])).groups.length, 3);
 });
 
-test("collapseFeeAutoFill: a group whose identical text stands in far apart rows still owns the start of the run", () => {
+test("collapseFeeAutoFill: a group whose identical text stands in far apart rows owns the whole fill, also across a retyped start value", () => {
   // Rows 286 and 293 carry the typed value 600; rows 287-292 and 294-302 are Excel fills of it (601..606 and 608..616).
+  // Row 293 is the start value typed again by hand where the fill would have given 607, and 608 follows, so it is one fill.
   const text = (n) => `Fee after scholarship: tuition 8000/year, Accommodation fee:${n}/month`;
   const groups = [{ feeId: "A", uid: "u1", text: text(600), rows: [286, 293], teachingLanguages: { English: 2 }, rowCount: 2 }];
   for (let n = 601; n <= 606; n += 1) groups.push({ feeId: `B${n}`, uid: "u1", text: text(n), rows: [286 + (n - 600)], teachingLanguages: { Chinese: 1 }, rowCount: 1 });
   for (let n = 608; n <= 616; n += 1) groups.push({ feeId: `C${n}`, uid: "u1", text: text(n), rows: [294 + (n - 608)], teachingLanguages: { English: 1 }, rowCount: 1 });
   const { groups: kept, collapsed } = collapseFeeAutoFill(groups);
-  assert.deepEqual(kept.map((group) => group.feeId), ["A", "C608"]);
-  assert.deepEqual(kept[0].rows, [286, 287, 288, 289, 290, 291, 292, 293], "the 600 group keeps its own two rows and takes the fill rows");
-  assert.equal(kept[0].rowCount, 8);
-  assert.deepEqual(kept[1].rows, [294, 295, 296, 297, 298, 299, 300, 301, 302]);
-  assert.deepEqual(collapsed.map((run) => run.firstValue), [600, 608]);
+  assert.deepEqual(kept.map((group) => group.feeId), ["A"], "one group remains: no second 'price' 608 is invented");
+  assert.deepEqual(kept[0].rows, Array.from({ length: 17 }, (_, index) => 286 + index));
+  assert.equal(kept[0].rowCount, 17);
+  assert.equal(collapsed.length, 1);
+  assert.equal(collapsed[0].firstValue, 600);
+});
+
+test("collapseFeeAutoFill: a different number typed inside the fill, or a repeat without a continuation, breaks the run", () => {
+  const make = (values, firstRow = 10) => values.map((value, index) => ({ feeId: `x${index}`, uid: "u1", text: `Dorm:${value}/month`, rows: [firstRow + index] }));
+  // 9999 is a real different price: it is not collapsed and the rows after it are not a run of their own (only two rows).
+  assert.deepEqual(collapseFeeAutoFill(make([600, 601, 602, 9999, 604, 605])).groups.map((group) => group.feeId), ["x0", "x3", "x4", "x5"]);
+  // The start value typed again, but nothing continues the fill afterwards: the repeat stays what it is.
+  assert.deepEqual(collapseFeeAutoFill(make([600, 601, 602, 600, 900])).groups.map((group) => group.feeId), ["x0", "x3", "x4"]);
+  // The repeat that is followed by the number the fill would have reached keeps the run together.
+  assert.deepEqual(collapseFeeAutoFill(make([600, 601, 602, 600, 604, 605])).groups.map((group) => group.feeId), ["x0"]);
 });

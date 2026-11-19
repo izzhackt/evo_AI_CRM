@@ -113,7 +113,8 @@ export function autoFillRows(entries) {
  * Исходное значение у первой строки серии (Excel растягивает то, что ввёл человек), остальные тексты производные:
  * их строки переходят к группе первой строки, иначе из одной суммы получился бы выдуманный диапазон.
  * Серия это три и более соседних СТРОКИ Excel (группа с одинаковым текстом может стоять в строках далеко друг от
- * друга, поэтому работаем по строкам); всё остальное в тексте обязано совпадать.
+ * друга, поэтому работаем по строкам); всё остальное в тексте обязано совпадать. Одна строка посреди серии, где
+ * начальное значение набрано заново, серию не прерывает, если следующая строка продолжает счёт.
  */
 export function collapseFeeAutoFill(groups) {
   const tokenPattern = /\d+(?:,\d{3})*(?:\.\d+)?/gu;
@@ -139,15 +140,26 @@ export function collapseFeeAutoFill(groups) {
       }
       run = [];
     };
-    for (const entry of list) {
-      const previous = run.at(-1);
-      const continues = previous !== undefined && entry.parsed.values.length > 0
-        && entry.parsed.skeleton === previous.parsed.skeleton && entry.parsed.values.length === previous.parsed.values.length
-        && entry.parsed.values.slice(0, -1).every((value, index) => value === previous.parsed.values[index])
-        && entry.parsed.values.at(-1) === previous.parsed.values.at(-1) + 1
-        && entry.row === previous.row + 1;
-      if (continues) run.push(entry);
-      else { flush(); run = entry.parsed.values.length > 0 ? [entry] : []; }
+    // The text around the number and every number but the last must match the first row of the run.
+    const sameShape = (entry, head) => entry.parsed.values.length > 0 && entry.parsed.skeleton === head.parsed.skeleton
+      && entry.parsed.values.length === head.parsed.values.length
+      && entry.parsed.values.slice(0, -1).every((value, index) => value === head.parsed.values[index]);
+    let next = 0;
+    for (let index = 0; index < list.length; index += 1) {
+      const entry = list[index];
+      const head = run[0];
+      if (head !== undefined && entry.row === run.at(-1).row + 1 && sameShape(entry, head)) {
+        const value = entry.parsed.values.at(-1);
+        if (value === next) { run.push(entry); next += 1; continue; }
+        // One row where the start value was typed again by hand: when the row after it carries the number the fill would
+        // have reached, the fill goes on through it (a repeated start value is not a new price).
+        const after = list[index + 1];
+        if (value === head.parsed.values.at(-1) && after !== undefined && after.row === entry.row + 1 && sameShape(after, head)
+          && after.parsed.values.at(-1) === next + 1) { run.push(entry); next += 1; continue; }
+      }
+      flush();
+      run = entry.parsed.values.length > 0 ? [entry] : [];
+      next = (entry.parsed.values.at(-1) ?? 0) + 1;
     }
     flush();
   }
@@ -157,9 +169,9 @@ export function collapseFeeAutoFill(groups) {
     .filter((group) => rowsOf.get(group.feeId).length > 0)
     .map((group) => {
       const rows = rowsOf.get(group.feeId).sort((a, b) => a - b);
-      const next = { ...group, rows };
-      if ("rowCount" in group) next.rowCount = rows.length;
-      return next;
+      const copy = { ...group, rows };
+      if ("rowCount" in group) copy.rowCount = rows.length;
+      return copy;
     });
   return { groups: kept, collapsed };
 }

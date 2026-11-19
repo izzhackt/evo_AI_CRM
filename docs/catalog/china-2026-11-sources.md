@@ -4,7 +4,7 @@
 
 Учёт строк Excel (1582): в программах 1523, совпали с уже имевшимися программами карточки 18, пропущено 7, строки неопубликованных вузов 34. Каждая строка учтена ровно один раз; строки одной и той же специальности внутри вуза схлопнуты в одну программу.
 
-Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 280, пропущено строк таблицы 7.
+Итого: 118 новых карточек, 19 прежних карточек получили программы из таблицы, 6 вузов таблицы не опубликованы (ниже), программ из таблицы 1501, строк стоимости 278, пропущено строк таблицы 7.
 
 ## Новые карточки
 
@@ -30,7 +30,7 @@
 | China University of Petroleum (Beijing) | Beijing | 31 | 3 | https://www.cup.edu.cn/english/ | https://www.wikidata.org/wiki/Q3274786 https://en.wikipedia.org/wiki/China_University_of_Petroleum |
 | China West Normal University | Nanchong | 5 | 3 | https://www.cwnu.edu.cn/ | https://www.wikidata.org/wiki/Q5099970 https://en.wikipedia.org/wiki/China_West_Normal_University |
 | Chongqing Institute of Foreign Studies | Chongqing | 2 | 2 | https://www.cqifs.edu.cn/ | https://www.wikidata.org/wiki/Q22100340 https://www.cqifs.edu.cn/channel_495.html |
-| Chongqing Jiaotong University | Chongqing | 3 | 4 | https://www.cqjtu.edu.cn/en.htm | https://www.wikidata.org/wiki/Q5104660 https://en.wikipedia.org/wiki/Chongqing_Jiaotong_University |
+| Chongqing Jiaotong University | Chongqing | 3 | 3 | https://www.cqjtu.edu.cn/en.htm | https://www.wikidata.org/wiki/Q5104660 https://en.wikipedia.org/wiki/Chongqing_Jiaotong_University |
 | Chongqing Technology and Business University | Chongqing | 2 | 2 | https://en2014.ctbu.edu.cn/ | https://www.wikidata.org/wiki/Q5104671 https://en.wikipedia.org/wiki/Chongqing_Technology_and_Business_University |
 | Chongqing University | Chongqing | 64 | 3 | https://www.cqu.edu.cn/ | https://en.wikipedia.org/wiki/Chongqing_University https://www.cqu.edu.cn/ |
 | Chongqing University of Posts and Telecommunications | Chongqing | 4 | 2 | https://english.cqupt.edu.cn/ | https://www.wikidata.org/wiki/Q5104676 https://en.wikipedia.org/wiki/Chongqing_University_of_Posts_and_Telecommunications |
@@ -120,7 +120,7 @@
 | Xi’an University of Architecture and Technology | Xi’an | 3 | 1 | https://www.xauat.edu.cn/gwyw/ | https://www.wikidata.org/wiki/Q4418179 https://en.wikipedia.org/wiki/Xi%27an_University_of_Architecture_and_Technology |
 | Xuzhou University of Technology | Xuzhou | 2 | 1 | https://en.xzit.edu.cn/ | https://www.wikidata.org/wiki/Q8045301 https://en.wikipedia.org/wiki/Xuzhou_University_of_Technology |
 | Yangtze Normal University | Chongqing | 6 | 4 | https://www.yznu.edu.cn/ | https://www.wikidata.org/wiki/Q8048658 https://en.wikipedia.org/wiki/Yangtze_Normal_University |
-| Yangtze University | Jingzhou | 1 | 3 | https://english.yangtzeu.edu.cn/ | https://www.wikidata.org/wiki/Q13527910 https://en.wikipedia.org/wiki/Yangtze_University |
+| Yangtze University | Jingzhou | 1 | 2 | https://english.yangtzeu.edu.cn/ | https://www.wikidata.org/wiki/Q13527910 https://en.wikipedia.org/wiki/Yangtze_University |
 | Yangzhou University | Yangzhou | 7 | 2 | https://www.yzu.edu.cn/ | https://www.wikidata.org/wiki/Q8048674 https://en.wikipedia.org/wiki/Yangzhou_University |
 | Yanshan University | Qinhuangdao | 3 | 3 | https://english.ysu.edu.cn/ | https://www.wikidata.org/wiki/Q832792 https://en.wikipedia.org/wiki/Yanshan_University |
 | Yunnan University | Kunming | 3 | 1 | https://www.ynu.edu.cn/ | https://www.wikidata.org/wiki/Q649882 https://en.wikipedia.org/wiki/Yunnan_University |

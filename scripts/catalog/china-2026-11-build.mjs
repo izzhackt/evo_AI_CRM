@@ -192,6 +192,17 @@ export function build({ workDir, baseRef = "origin/main", verifiedOn }) {
   costRows.sort((a, b) => a.importKey.localeCompare(b.importKey, "en"));
   report.costRows = costRows.length;
   report.cards = cards.length;
+  // Every Excel row must be accounted for exactly once: a programme, a programme the card already had, a skipped row or an unpublished university.
+  const accounted = new Map();
+  const mark = (row, label) => { if (!accounted.has(row)) accounted.set(row, label); };
+  for (const entry of trace) for (const row of entry.rows) mark(row, "programme");
+  for (const entry of report.rowsMatchedToExisting) for (const row of entry.rows) mark(row, "matchedToExisting");
+  for (const entry of report.skippedRows) mark(entry.row, "skipped");
+  const unpublished = new Set(report.excluded.map((entry) => entry.uid));
+  for (const row of input.rows) if (unpublished.has(row.uid)) mark(row.row, "unpublishedUniversity");
+  const missing = input.rows.filter((row) => !accounted.has(row.row)).map((row) => row.row);
+  if (missing.length > 0) throw new Error(`rows not accounted for: ${missing.slice(0, 10).join(", ")}`);
+  report.rowAccounting = { total: input.rows.length, ...Object.fromEntries([...new Set(accounted.values())].map((label) => [label, [...accounted.values()].filter((value) => value === label).length])) };
   return { cards, links, newLinks, trace, costs: { schemaVersion: 1, rows: costRows, fxRates: [] }, report };
 }
 
@@ -207,6 +218,9 @@ export function evidenceMarkdown({ result, identities, rows, verifiedOn }) {
   out("# Китай: источники карточек и программ (рабочая таблица EVO, 19.11.2026)");
   out();
   out(`Карточки собраны \`${verifiedOn}\` для \`src/lib/server/university-catalog-reviewed-china.json\` скриптом \`scripts/catalog/china-2026-11-build.mjs\`. Личность вуза (название, город, официальный сайт, год основания, тип) проверена по официальным источникам и Wikidata/Wikipedia; перечень программ, языки, месяцы набора и ориентировочные суммы взяты из рабочей таблицы EVO (\`Новая таблица(6).xlsx\`, файл от 2026-01-16, SHA-256 \`4c8c6ee36c84feb0c68c0dbb8b353680ce637e70a80f97073f1f7e434117163c\`, ${rows.length} строк-программ). Программы по отдельности с сайтами вузов не сверялись: у программ указана общая страница вуза. Фото вузов не добавлялись.`);
+  out();
+  const acc = report.rowAccounting;
+  out(`Учёт строк Excel (${acc.total}): в программах ${acc.programme}, совпали с уже имевшимися программами карточки ${acc.matchedToExisting ?? 0}, пропущено ${acc.skipped ?? 0}, строки неопубликованных вузов ${acc.unpublishedUniversity ?? 0}. Каждая строка учтена ровно один раз; строки одной и той же специальности внутри вуза схлопнуты в одну программу.`);
   out();
   out(`Итого: ${report.created.length} новых карточек, ${report.merged.length} прежних карточек получили программы из таблицы, ${report.excluded.length} вузов таблицы не опубликованы (ниже), программ из таблицы ${tableProgrammes}, строк стоимости ${report.costRows}, пропущено строк таблицы ${report.skippedRows.length}.`);
   out();

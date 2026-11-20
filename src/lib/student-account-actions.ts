@@ -24,7 +24,8 @@ type BeforeProvision = (actor: ActivePlatformActor, input: StudentAccountInput, 
   Promise<StudentAccountActionState | null>;
 
 /**
- * Только администратор вне просмотра роли; право ещё раз проверяет база. Повтор того же запроса (потерянный ответ) не
+ * Кабинет без дела — только администратор; кабинет по делу — ещё и куратор этого дела (363, решение владельца 20.11.2026),
+ * кто именно может, решает база. Просмотр роли не пишет ничего. Повтор того же запроса (потерянный ответ) не
  * создаёт второй аккаунт; после ответа базы — новый запрос, иначе после отказа («почта занята») повтор упирался бы в
  * закрытое разрешение. Временный пароль возвращается один раз и нигде не хранится.
  */
@@ -39,7 +40,7 @@ async function provision(
     ? ["request_id", "student_case_id", "first_name", "last_name", "email"]
     : ["request_id", "first_name", "last_name", "email", "confirm_duplicate"]);
   const requestId = parsePlatformSalesUuid(fields?.get("request_id")) ?? previous.requestId;
-  if (actor.systemRole !== "admin" || isStaffPreview(actor)) return { status: "forbidden", requestId };
+  if (isStaffPreview(actor) || (!withCase && actor.systemRole !== "admin")) return { status: "forbidden", requestId };
   const studentCaseId = withCase ? parsePlatformSalesUuid(fields?.get("student_case_id")) : null;
   const input = fields && (!withCase || studentCaseId)
     ? parseStudentAccountInput(fields.get("first_name") ?? "", fields.get("last_name") ?? "", fields.get("email") ?? "")

@@ -379,6 +379,15 @@ const SCENARIOS = {
   // «⋯» у заголовка — «Завершить дело» (246): сервер подсказал право.
   "curator": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null, work: work(),
     closure: { studentCaseId: CASE_ID, state: "active", admissionsVersion: "4", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true } },
+  // Кабинет студенту открывает и его куратор (363): база отдала куратору этого дела состояние кабинета — форма
+  // «Создать кабинет» в «Доступе к порталу»; открытый кабинет куратору ничего не показывает (сброс пароля — у Admin).
+  "curator-cabinet": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
+    work: work(), cabinet: { state: "none", refusal: null, login: null, email: null, requestId: uuid("12121212", 20),
+      resetRequestId: uuid("12121212", 21), portalOrigin: "https://app.example.invalid", firstName: "Айдай", lastName: "Чынарова" } },
+  "curator-cabinet-open": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
+    work: work(), cabinet: { state: "open", refusal: "case_has_cabinet", login: "aidai.chynarova", email: null,
+      requestId: uuid("12121212", 22), resetRequestId: uuid("12121212", 23), portalOrigin: "https://app.example.invalid",
+      firstName: "Айдай", lastName: "Чынарова" } },
   // Чип «ИИ: ...» шапки (миграция 320): разрешено, не разрешено, не спрашивали (с кабинетом и без него).
   "ai-consent-granted": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
     work: work({ aiConsent: { status: "granted", decidedAt: "2026-10-25T05:00:00.000000+00:00", aiAllowed: true } }) },
@@ -515,7 +524,7 @@ function buildParts(name) {
       direction: uuid("12121212", 17),
     },
     notes: item.notes ?? NOTES, notesOlderHref: null, notesLatestHref: item.notesLatestHref ?? null, curators: [], curatorsAvailable: true, hrefFor,
-    salesDataOpen: false, help: null, closure: item.closure ?? null,
+    salesDataOpen: false, help: null, closure: item.closure ?? null, cabinet: item.cabinet ?? null,
   });
   return { item, parts, hrefFor };
 }

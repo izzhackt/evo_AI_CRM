@@ -10,8 +10,9 @@
  *
  *   ssh hermes-vps 'docker exec -i evo-supabase-db psql -U postgres -d postgres -X -q -At -F "	" -v ON_ERROR_STOP=1' < china-photos.sql
  *
- * Карточки берутся из явного списка scripts/catalog/data/china-2026-11/photo-keys.json (ключи фото среза C8, ключ фото
- * равен ключу карточки). Для каждой: новая версия карточки из src/lib/server/university-catalog-reviewed-china.json
+ * Карточки берутся из явного списка scripts/catalog/data/china-2026-11/photo-keys.json (ключи карточек среза C8; ключ
+ * фото равен ключу карточки, кроме явных исключений PHOTO_KEY_FOR_CARD ниже). Для каждой: новая версия карточки из
+ * src/lib/server/university-catalog-reviewed-china.json
  * теми же RPC, что Admin-публикация в CRM (stage + review), от действующего системного Admin. Меняется ТОЛЬКО photoKey:
  * в живой опубликованной версии он пуст, во входном файле это ключ из src/lib/university-photo-library.json, а все
  * остальные поля совпадают. Иначе транзакция прерывается: в карточке есть правка, которой нет во входном файле.
@@ -61,7 +62,25 @@ export function loadPhotoInputs() {
   };
 }
 
-/** Карточки среза C8: каждая из списка есть во входном файле, ключ фото равен ключу карточки и есть в библиотеке. */
+/**
+ * Карточки, у которых ключ фото не равен ключу карточки. Загрузчик PORT-9d кладёт копию под `<ключ фото>.<расширение>`
+ * и никогда не перезаписывает объект (x-upsert: false), поэтому другая версия фото получает свой ключ.
+ * - harbin-institute-of-technology-shenzhen: под ключом карточки в бакете лежит снимок Commons 2018 года (960 px), а
+ *   владелец одобрил официальный снимок с en.hitsz.edu.cn.
+ * - Пять вузов ниже: под ключом карточки в бакете лежит оригинал больше 16,8 Мп (загружен 20.11.2026 до того, как
+ *   нашёлся лимит imgproxy), а карточка показывает уменьшенную копию того же кадра (migrate-university-photos.mjs).
+ */
+export const PHOTO_KEY_FOR_CARD = Object.freeze({
+  "anhui-university-of-technology": "anhui-university-of-technology-campus",
+  "guangdong-university-of-finance": "guangdong-university-of-finance-campus",
+  "hainan-university": "hainan-university-campus",
+  "harbin-institute-of-technology-shenzhen": "harbin-institute-of-technology-shenzhen-campus",
+  "huangshan-university": "huangshan-university-campus",
+  "jilin-university": "jilin-university-campus",
+});
+export const photoKeyForCard = (cardKey) => (Object.hasOwn(PHOTO_KEY_FOR_CARD, cardKey) ? PHOTO_KEY_FOR_CARD[cardKey] : cardKey);
+
+/** Карточки среза C8: каждая из списка есть во входном файле, её ключ фото (photoKeyForCard) стоит в ней и есть в библиотеке. */
 export function photoTargets({ cards, library, photoKeys }, only = null) {
   if (!Array.isArray(photoKeys) || photoKeys.some((key) => typeof key !== "string")) throw new Error("photo-keys.json must be a list of keys");
   if (new Set(photoKeys).size !== photoKeys.length) throw new Error("photo-keys.json has duplicates");
@@ -75,8 +94,9 @@ export function photoTargets({ cards, library, photoKeys }, only = null) {
     const card = byKey.get(key);
     if (!card) throw new Error(`photo key ${key}: no such card in the China file`);
     if (card.content.country !== "CN") throw new Error(`photo key ${key}: not a China card`);
-    if (card.content.photoKey !== key) throw new Error(`photo key ${key}: the card's photoKey must equal its key`);
-    if (!Object.hasOwn(library, key)) throw new Error(`photo key ${key}: missing from the photo library`);
+    const photoKey = photoKeyForCard(key);
+    if (card.content.photoKey !== photoKey) throw new Error(`photo key ${key}: the card's photoKey must be ${photoKey}`);
+    if (!Object.hasOwn(library, photoKey)) throw new Error(`photo key ${key}: ${photoKey} is missing from the photo library`);
     return card;
   });
 }

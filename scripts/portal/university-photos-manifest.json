@@ -1,15 +1,15 @@
 {
   "schema": "evo-university-photos-manifest/v1",
-  "generatedAt": "2026-11-20T16:06:09.968Z",
+  "generatedAt": "2026-11-20T17:29:15.657Z",
   "projectRef": "selfhosted",
   "bucket": "portal-university-photos",
   "source": "src/lib/university-photo-library.json",
   "totals": {
-    "entries": 242,
+    "entries": 243,
     "verified": 230,
     "ineligible": 11,
-    "failed": 1,
-    "migrated": 132
+    "failed": 2,
+    "migrated": 225
   },
   "entries": {
     "academy-of-arts-architecture-and-design-in-prague": {
@@ -74,7 +74,7 @@
       "objectPath": "anhui-jianzhu-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "anhui-normal-university": {
       "sourceUrl": "https://www.ahnu.edu.cn/__local/E/05/96/463243E7C01DDBAE6C93376D173_43C0561F_B88C4.jpg",
@@ -90,7 +90,7 @@
       "objectPath": "anhui-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "anhui-university": {
       "sourceUrl": "https://www.ahu.edu.cn/_upload/article/images/e9/71/dd24554645eba2a767e2498c3677/9734309a-5e9d-4b9b-81f9-b488b413456f.jpg",
@@ -106,9 +106,9 @@
       "objectPath": "anhui-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
-    "anhui-university-of-technology": {
+    "anhui-university-of-technology-campus": {
       "sourceUrl": "https://en.ahut.edu.cn/__local/1/75/7A/8611869403108987A050440EEAB_D927E1B5_D89DEC.jpg",
       "finalUrl": null,
       "pageUrl": "https://en.ahut.edu.cn/ca/Campus.htm",
@@ -116,13 +116,20 @@
       "licenseUrl": "https://en.ahut.edu.cn/ca/Campus.htm",
       "attribution": "Anhui University of Technology — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "b383cf6e73d647b72e0b126d4d384b950b7487a404aac7e7744b61a420231034",
-      "bytes": 14196204,
+      "sha256": "93f8670316f0b6df16af2cb95c842fdfc5cea973db904529bf7b219290a15ee3",
+      "bytes": 1898016,
       "contentType": "image/jpeg",
-      "objectPath": "anhui-university-of-technology.jpg",
+      "objectPath": "anhui-university-of-technology-campus.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "b383cf6e73d647b72e0b126d4d384b950b7487a404aac7e7744b61a420231034",
+        "bytes": 14196204,
+        "contentType": "image/jpeg",
+        "width": 5664,
+        "height": 3632
+      }
     },
     "ankara-university": {
       "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/3/37/Dil_ve_Tarih_Co%C4%9Frafya_Fak%C3%BCltesi_Binas%C4%B1%2C_Ankara.jpg",
@@ -202,7 +209,7 @@
       "objectPath": "beihang-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "beijing-foreign-studies-university": {
       "sourceUrl": "https://cnsubsites.chinadaily.com.cn/bfsu/img/attachement/jpg/site17/20241126/17325892785701.jpg",
@@ -218,7 +225,7 @@
       "objectPath": "beijing-foreign-studies-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "beijing-institute-of-fashion-technology": {
       "sourceUrl": "https://english.bift.edu.cn/images/2025-09/c8568d04e8ee48f4848d733041f5f9c9.jpg",
@@ -234,7 +241,7 @@
       "objectPath": "beijing-institute-of-fashion-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "beijing-institute-of-graphic-communication": {
       "sourceUrl": "https://english.bigc.edu.cn/images/2025-05/0faf9d39ec4d46a197b57ca7514d3a9d.jpg",
@@ -250,7 +257,7 @@
       "objectPath": "beijing-institute-of-graphic-communication.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "beijing-institute-of-technology-zhuhai-bit-zhuhai": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/Beijing_Institute_of_Technology%2C_Zhuhai_20250920_06.jpg/960px-Beijing_Institute_of_Technology%2C_Zhuhai_20250920_06.jpg",
@@ -314,7 +321,7 @@
       "objectPath": "beijing-wuzi-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "bilkent-university": {
       "sourceUrl": "https://w3.bilkent.edu.tr/bilkent/wp-content/uploads/sites/2/2023/03/slider_bilkent_rektorluk-1600x640.jpg",
@@ -397,7 +404,7 @@
       "migrated": true
     },
     "central-china-normal-university": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Science_Hall_in_CCNU.jpg/1280px-Science_Hall_in_CCNU.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Science_Hall_in_CCNU.jpg/1280px-Science_Hall_in_CCNU.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:Science_Hall_in_CCNU.jpg",
       "license": "CC BY-SA 3.0",
@@ -410,7 +417,7 @@
       "objectPath": "central-china-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "central-south-university-of-forestry-and-technology": {
       "sourceUrl": "https://library.csuft.edu.cn:443/virtual_attach_file.vsb?afc=5nNlC4olC4o7rfLQzf2nRW7MRfRMllqZnz6VU4WfM4v8U8l0gihFp2hmCIa0oShVLSh2USyanRNPM7lZL8n7nRvbnN7YnlrVM46VnR74LzMFUNnfnmNiUNWFnR98olCJv2bjo4Oeosn4QYhXptQ0gY84gY84gtA8pUpcc&oid=2144713825&e=.png",
@@ -426,7 +433,7 @@
       "objectPath": "central-south-university-of-forestry-and-technology.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "chang-an-university": {
       "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/ChdUniversityLibrary.jpg/1280px-ChdUniversityLibrary.jpg",
@@ -458,7 +465,7 @@
       "objectPath": "changzhou-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "charles-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Prague_Charles_University.JPG/960px-Prague_Charles_University.JPG",
@@ -490,7 +497,7 @@
       "objectPath": "chengdu-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "china-jiliang-university": {
       "sourceUrl": "https://sie.cjlu.edu.cn/images/banner4.jpg",
@@ -522,7 +529,7 @@
       "objectPath": "china-three-gorges-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "china-university-of-mining-and-technology": {
       "sourceUrl": "https://global.cumt.edu.cn/__local/B/F0/4A/405A188C716F605BC6401F1EC95_89461B0B_6B1AA.jpg",
@@ -538,7 +545,7 @@
       "objectPath": "china-university-of-mining-and-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "china-university-of-petroleum-beijing": {
       "sourceUrl": "https://www.cup.edu.cn/english/images/banner.png",
@@ -554,7 +561,7 @@
       "objectPath": "china-university-of-petroleum-beijing.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "chongqing-jiaotong-university": {
       "sourceUrl": "https://www.cqjtu.edu.cn/__local/3/54/F9/1D8FA28B79514329F09EAB8EDD6_1E487B50_11DEA5F.jpg",
@@ -564,13 +571,20 @@
       "licenseUrl": "https://www.cqjtu.edu.cn/en/About/Campus_Scenery.htm",
       "attribution": "Chongqing Jiaotong University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "e84b37aaf3ef23154df4c29b07fbafdc77aa513697aaf8fcbd8e7f7a2fd6aa97",
-      "bytes": 18737759,
+      "sha256": "7858e18d999248e1e1601d33031efd5296dcdaa53d37b5f390c22b1e08be9250",
+      "bytes": 1190295,
       "contentType": "image/jpeg",
       "objectPath": "chongqing-jiaotong-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "e84b37aaf3ef23154df4c29b07fbafdc77aa513697aaf8fcbd8e7f7a2fd6aa97",
+        "bytes": 18737759,
+        "contentType": "image/jpeg",
+        "width": 6000,
+        "height": 4000
+      }
     },
     "chongqing-technology-and-business-university": {
       "sourceUrl": "https://www.ctbu.edu.cn/__local/A/DB/1F/EE59B435CE0274AA3801FD82B70_FE32761F_7A6D0.jpg",
@@ -586,7 +600,7 @@
       "objectPath": "chongqing-technology-and-business-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "chongqing-university": {
       "sourceUrl": "https://www.cqu.edu.cn/__local/9/96/8A/FFD54304B0D3F4D19A854838C23_4CD7C2F2_4025C.jpg",
@@ -602,7 +616,7 @@
       "objectPath": "chongqing-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "chongqing-university-of-posts-and-telecommunications": {
       "sourceUrl": "https://jjc.cqupt.edu.cn/dfiles/photos/xinkedax.jpg",
@@ -618,7 +632,7 @@
       "objectPath": "chongqing-university-of-posts-and-telecommunications.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "city-malaysia": {
       "sourceUrl": "https://city.edu.my/wp-content/uploads/2024/11/CityU-Cyberjaya-Campus-ariel.webp",
@@ -637,7 +651,7 @@
       "migrated": true
     },
     "civil-aviation-university-of-china": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Main_building_of_CAUC_North_Campus_%2820230621131412%29.jpg/1280px-Main_building_of_CAUC_North_Campus_%2820230621131412%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Main_building_of_CAUC_North_Campus_%2820230621131412%29.jpg/1280px-Main_building_of_CAUC_North_Campus_%2820230621131412%29.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:Main_building_of_CAUC_North_Campus_(20230621131412).jpg",
       "license": "CC BY-SA 4.0",
@@ -650,7 +664,7 @@
       "objectPath": "civil-aviation-university-of-china.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "communication-university-of-zhejiang": {
       "sourceUrl": "https://eng.cuz.edu.cn/images24/Nybg_ban052802.jpg",
@@ -717,7 +731,7 @@
       "migrated": true
     },
     "dali-university": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Dali_Yunnan_China_Dali-University-02.jpg/1280px-Dali_Yunnan_China_Dali-University-02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Dali_Yunnan_China_Dali-University-02.jpg/1280px-Dali_Yunnan_China_Dali-University-02.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:Dali_Yunnan_China_Dali-University-02.jpg",
       "license": "CC BY-SA 3.0",
@@ -730,7 +744,7 @@
       "objectPath": "dali-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "dalian-polytechnic-university": {
       "sourceUrl": "https://zsb.dep.dlpu.edu.cn/ueditor/php/upload/image/20230620/1687246614706080.jpg",
@@ -746,7 +760,7 @@
       "objectPath": "dalian-polytechnic-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "dalian-university-of-technology": {
       "sourceUrl": "https://en.dlut.edu.cn/images/5fc3eaf3-c807-4e53-a4a0-caf3dd1c.jpg",
@@ -762,7 +776,7 @@
       "objectPath": "dalian-university-of-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "east-china-normal-university": {
       "sourceUrl": "https://www.ecnu.edu.cn/images/video202609020m0s.jpg",
@@ -890,7 +904,7 @@
       "objectPath": "gannan-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "gbs-global-banking-school-dubai-campus": {
       "sourceUrl": "https://gbs.ac.ae/media/3v4pb0jc/dubai-campus-may-22-3.webp?width=1600&height=1200&v=1d977fbd6c8f0d0&format=webp&quality=75",
@@ -954,9 +968,9 @@
       "objectPath": "guangdong-polytechnic-normal-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
-    "guangdong-university-of-finance": {
+    "guangdong-university-of-finance-campus": {
       "sourceUrl": "https://zs.gduf.edu.cn/__local/C/6D/14/E6F234F7553114AE6A160E77B00_C724464D_8987CC.jpg",
       "finalUrl": null,
       "pageUrl": "https://zs.gduf.edu.cn/info/1056/2451.htm",
@@ -964,13 +978,20 @@
       "licenseUrl": "https://zs.gduf.edu.cn/info/1056/2451.htm",
       "attribution": "Guangdong University of Finance — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "042141c9a4d558e1638b354c440e72a42f21dcdfa6561eae4ec14bdd499924fc",
-      "bytes": 9013196,
+      "sha256": "9e8bf59c5dffb865eed2a55c4246966e2305c673a9e5316ff81cda5c3fd51075",
+      "bytes": 2091930,
       "contentType": "image/jpeg",
-      "objectPath": "guangdong-university-of-finance.jpg",
+      "objectPath": "guangdong-university-of-finance-campus.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "042141c9a4d558e1638b354c440e72a42f21dcdfa6561eae4ec14bdd499924fc",
+        "bytes": 9013196,
+        "contentType": "image/jpeg",
+        "width": 8192,
+        "height": 5464
+      }
     },
     "guangdong-university-of-foreign-studies": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/New_Gate_of_Guangdong_University_of_Foreign_Studies.jpg/960px-New_Gate_of_Guangdong_University_of_Foreign_Studies.jpg",
@@ -1002,7 +1023,7 @@
       "objectPath": "guangxi-minzu-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "guangzhou-huashang-vocational-college": {
       "sourceUrl": "https://www.gzhsvc.edu.cn/images/xiaomen.jpeg",
@@ -1034,7 +1055,7 @@
       "objectPath": "guangzhou-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "guilin-university-of-electronic-technology": {
       "sourceUrl": "https://www.guet.edu.cn/_upload/article/images/8d/9f/78e8665f4a0ea4f481e70ef71837/a2302144-0ae7-4e77-8456-067a102eb2e6.jpg",
@@ -1050,9 +1071,9 @@
       "objectPath": "guilin-university-of-electronic-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
-    "hainan-university": {
+    "hainan-university-campus": {
       "sourceUrl": "https://en.hainanu.edu.cn/images/DSC01809defuben.jpg",
       "finalUrl": null,
       "pageUrl": "https://en.hainanu.edu.cn/Campus/CampusView/Haidian_Campus.htm",
@@ -1060,13 +1081,20 @@
       "licenseUrl": "https://en.hainanu.edu.cn/Campus/CampusView/Haidian_Campus.htm",
       "attribution": "Hainan University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "e168825e1df59fd3e49e74adfa93b478c0218b8cbe6e0c8b96677bc06fffad61",
-      "bytes": 17989993,
+      "sha256": "6a1e863471e79a45d1478de6f66f610feba32e8ab347db20f3412da9a7afa677",
+      "bytes": 2035648,
       "contentType": "image/jpeg",
-      "objectPath": "hainan-university.jpg",
+      "objectPath": "hainan-university-campus.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "e168825e1df59fd3e49e74adfa93b478c0218b8cbe6e0c8b96677bc06fffad61",
+        "bytes": 17989993,
+        "contentType": "image/jpeg",
+        "width": 5897,
+        "height": 3931
+      }
     },
     "hangzhou-city-university": {
       "sourceUrl": "https://english.hzcu.edu.cn/images/HZCUtushuguan.png",
@@ -1098,7 +1126,7 @@
       "objectPath": "hangzhou-dianzi-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "hangzhou-normal-university-hznu": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fd/%E6%9D%AD%E5%B7%9E%E5%B8%88%E8%8C%83%E5%A4%A7%E5%AD%A6.jpg/960px-%E6%9D%AD%E5%B7%9E%E5%B8%88%E8%8C%83%E5%A4%A7%E5%AD%A6.jpg",
@@ -1148,6 +1176,22 @@
       "reason": null,
       "migrated": true
     },
+    "harbin-institute-of-technology-shenzhen-campus": {
+      "sourceUrl": "https://en.hitsz.edu.cn/__local/E/86/3A/AF99EDB30FB318C97603A3E457D_909ED554_E9776.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://en.hitsz.edu.cn/Campus.htm",
+      "license": "Official-source embedding; no reuse license stated",
+      "licenseUrl": "https://en.hitsz.edu.cn/Campus.htm",
+      "attribution": "Harbin Institute of Technology, Shenzhen — официальный сайт; фотограф не указан",
+      "rights": "official_media_owner_accepted",
+      "sha256": "9c3a0a98f76b027f932f38ae30b92180ed45240bda5230dcdd2d32fc9ad79195",
+      "bytes": 956278,
+      "contentType": "image/jpeg",
+      "objectPath": "harbin-institute-of-technology-shenzhen-campus.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": true
+    },
     "hebei-geo-university": {
       "sourceUrl": "https://www.hgu.edu.cn/images/586435c0bc4250fd9b26089d1155335d.jpg",
       "finalUrl": null,
@@ -1162,7 +1206,7 @@
       "objectPath": "hebei-geo-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "hebei-university": {
       "sourceUrl": "https://en.hbu.cn/u/cms/hbuennew/202303/131546395l4o.jpg",
@@ -1178,10 +1222,10 @@
       "objectPath": "hebei-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "hebei-university-of-technology": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Gate_of_HEBUT_%28Beichen%29_20210527.jpg/1280px-Gate_of_HEBUT_%28Beichen%29_20210527.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Gate_of_HEBUT_%28Beichen%29_20210527.jpg/1280px-Gate_of_HEBUT_%28Beichen%29_20210527.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:Gate_of_HEBUT_(Beichen)_20210527.jpg",
       "license": "CC BY-SA 4.0",
@@ -1194,7 +1238,7 @@
       "objectPath": "hebei-university-of-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "henan-polytechnic-university": {
       "sourceUrl": "https://en.hpu.edu.cn/images/banner0720240704.png",
@@ -1210,7 +1254,7 @@
       "objectPath": "henan-polytechnic-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "huai-an-university": {
       "sourceUrl": "https://en.hau.edu.cn/__local/E/29/7A/927806A13E74650261CE4FD95CC_156329F9_7CF73.jpg",
@@ -1226,9 +1270,9 @@
       "objectPath": "huai-an-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
-    "huangshan-university": {
+    "huangshan-university-campus": {
       "sourceUrl": "https://www.hsu.edu.cn/_upload/article/images/9b/16/f6ce0f7b4f26b99ff1653b4c29ac/6eca2e86-af59-4013-a0c0-5ed8bc66fc8d.jpg",
       "finalUrl": null,
       "pageUrl": "https://www.hsu.edu.cn/",
@@ -1236,13 +1280,20 @@
       "licenseUrl": "https://www.hsu.edu.cn/",
       "attribution": "Huangshan University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "d51696c9b8642b32638c7aa50d9dd59b64f5a89badc630531ffbde589b36668e",
-      "bytes": 12136424,
+      "sha256": "dc57884b5946bc1505fd4c915cd6a1c865bd5b39cdd6b694c5b173e0edd84ff0",
+      "bytes": 1675768,
       "contentType": "image/jpeg",
-      "objectPath": "huangshan-university.jpg",
+      "objectPath": "huangshan-university-campus.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "d51696c9b8642b32638c7aa50d9dd59b64f5a89badc630531ffbde589b36668e",
+        "bytes": 12136424,
+        "contentType": "image/jpeg",
+        "width": 6144,
+        "height": 4096
+      }
     },
     "huazhong-university-of-science-and-technology-hust": {
       "sourceUrl": "https://news.hust.edu.cn/__local/6/97/44/2ECDC3410FB76EBC15EC71636A7_7DBC7313_1CA24.jpeg",
@@ -1437,7 +1488,7 @@
       "migrated": true
     },
     "jiangsu-normal-university": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b6/Jiangsu_Normal_University.jpg/1280px-Jiangsu_Normal_University.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b6/Jiangsu_Normal_University.jpg/1280px-Jiangsu_Normal_University.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:Jiangsu_Normal_University.jpg",
       "license": "CC BY-SA 4.0",
@@ -1450,7 +1501,7 @@
       "objectPath": "jiangsu-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jiangsu-ocean-university": {
       "sourceUrl": "https://www.jou.edu.cn/images/QQ20250325-151127.png",
@@ -1466,7 +1517,7 @@
       "objectPath": "jiangsu-ocean-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jiangsu-university": {
       "sourceUrl": "https://jjc.ujs.edu.cn/__local/A/EB/73/3BEBC12465871928DCAB7483453_980AC277_82D12.jpg",
@@ -1482,7 +1533,7 @@
       "objectPath": "jiangsu-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jiangsu-university-of-science-and-technology": {
       "sourceUrl": "https://en.just.edu.cn/_upload/article/images/90/84/a7543e894864b969be8ec42c782b/fbc82ddc-e5e1-4973-9d68-3ce8f331ec28.jpg",
@@ -1498,7 +1549,7 @@
       "objectPath": "jiangsu-university-of-science-and-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jiangsu-university-of-technology": {
       "sourceUrl": "https://english.jsut.edu.cn/_upload/article/images/c7/dc/bf69a9694c6fa73517ab8c8e5930/999cc251-a9ce-4f69-9ed3-d50df5da8bdc.jpg",
@@ -1514,7 +1565,7 @@
       "objectPath": "jiangsu-university-of-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jiangxi-university-of-science-and-technology": {
       "sourceUrl": "https://www.jxust.edu.cn/__local/F/BA/BD/58187506F4E1FBB70ADAD67D09C_72E82481_7F4BD.jpg",
@@ -1530,7 +1581,7 @@
       "objectPath": "jiangxi-university-of-science-and-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jiaxing-university": {
       "sourceUrl": "https://www.zjxu.edu.cn/__local/A/D6/7D/49C9EDF755A4C9E87D399ED9D3D_1936AA3D_84AE0.jpg",
@@ -1546,9 +1597,9 @@
       "objectPath": "jiaxing-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
-    "jilin-university": {
+    "jilin-university-campus": {
       "sourceUrl": "https://en.jlu.edu.cn/__local/2/8F/AE/CAFC5103AC26A5EFEEC052A3675_24F8EED2_871AB0.jpg?e=.jpg",
       "finalUrl": null,
       "pageUrl": "https://en.jlu.edu.cn/Campus_Life.htm",
@@ -1556,13 +1607,20 @@
       "licenseUrl": "https://en.jlu.edu.cn/Campus_Life.htm",
       "attribution": "Jilin University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "22f9eedac3ea9e9c188ac46d885602722424db936a62af1299c4bc4d1a8f6e1d",
-      "bytes": 8854192,
+      "sha256": "4139c01ea47306dd5a7462cb8f8675e8ab73fffddbf8a51d33734923f1d019c3",
+      "bytes": 2801804,
       "contentType": "image/jpeg",
-      "objectPath": "jilin-university.jpg",
+      "objectPath": "jilin-university-campus.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "22f9eedac3ea9e9c188ac46d885602722424db936a62af1299c4bc4d1a8f6e1d",
+        "bytes": 8854192,
+        "contentType": "image/jpeg",
+        "width": 5513,
+        "height": 3676
+      }
     },
     "koc-university": {
       "sourceUrl": "https://svcs-image.dreamapply.com/eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJkcmVhbS1hcHBseSIsImF1ZCI6ImRyZWFtLWltYWdlIiwicGxkIjp7InBhdGgiOiJkcmVhbS1hcHBseTpzaGFyZDExMDgvaW5zdGFuY2VfcGhvdG9zL2FiZDllOGJhLTc5ZDMtNDM3Mi04ZjI5LTZiYTJiNmYwMWE2MiIsInRyYW5zZm9ybWF0aW9ucyI6W3sibmFtZSI6ImxpbWl0IiwicGFyYW1zIjp7IndpZHRoIjoiMTI4MCIsInF1YWxpdHkiOiI3MCJ9fV0sImNhY2hlIjoibWF4LWFnZT0zMTUzNjAwMCwgcHVibGljIiwib3V0cHV0X2Zvcm1hdCI6InNhbWUiLCJhdHRhY2giOm51bGwsInNka192ZXJzaW9uIjoiMS4wIn19.YiHHy35cirlZrfaMCk4rqbwSLNY5oWhyDI7f3jKt4ZtMaVE5Hnzqf3fOo2dRKy4ew_QAmLtrQyFV74-_fSgcv6l6Ls9JUdLua3d9JHm78Mcbzw5CBxT-hvaUd9bg-F3zSbwNm67R2U3r1VwF4urleSyWmlEuY2CYS2iMDzgLf41avTCsxtp1BMEsPFMaTluv7r4pSeQOLHdXiDSrQMSQmvP5n5uzZ5dR4oCGbZWDWLZnT5hjSSaFObi6ftEeAhXJb0r001q2DQnaLOjm4_skgQHMOQic3mDrzgnPw5vCQylX29Wi2kxsZiFnXGVu7N8SS08xCFqJf9HCDb8apAHFww?M",
@@ -1626,7 +1684,7 @@
       "objectPath": "lanzhou-jiaotong-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "liaoning-petrochemical-university": {
       "sourceUrl": "https://english.lnpu.edu.cn/__local/3/40/48/1AB507DECC02AEAF6879E1C01B0_FCFFF019_67801.jpg",
@@ -1642,7 +1700,7 @@
       "objectPath": "liaoning-petrochemical-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "linyi-university": {
       "sourceUrl": "https://www.lyu.edu.cn/_upload/article/images/3e/39/6a502898458aa07de247413a9fd1/8c4af485-2a6f-4c10-906a-a91e39ea800f.jpg",
@@ -1658,7 +1716,7 @@
       "objectPath": "linyi-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "lishui-university": {
       "sourceUrl": "https://lib.lsu.edu.cn/_upload/article/images/6f/a1/eb65ede94f42addacf1c702808b4/c992ece4-ad04-439b-8048-7d41d5b768d8.jpg",
@@ -1674,7 +1732,7 @@
       "objectPath": "lishui-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "masaryk-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/ECON_MUNI_2026.jpg/1280px-ECON_MUNI_2026.jpg",
@@ -1818,7 +1876,7 @@
       "objectPath": "nanchang-hangkong-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "nanchang-university": {
       "sourceUrl": "https://www.ncu.edu.cn/images/ba.jpg",
@@ -1850,7 +1908,7 @@
       "objectPath": "nanjing-tech-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "nanjing-university": {
       "sourceUrl": "https://nh.nju.edu.cn/en/images/26/01/23/1lnrqt8bq8/81.jpg",
@@ -1876,12 +1934,12 @@
       "licenseUrl": "https://gjy.nuist.edu.cn/main.htm",
       "attribution": "Nanjing University of Information Science and Technology — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "cdff15927df32aa7512a1ab68c864c75bc44faf08a0cd8dce590202ae700cacc",
-      "bytes": 680147,
-      "contentType": "image/jpeg",
-      "objectPath": "nanjing-university-of-information-science-and-technology.jpg",
-      "status": "verified",
-      "reason": null,
+      "sha256": null,
+      "bytes": null,
+      "contentType": null,
+      "objectPath": null,
+      "status": "failed",
+      "reason": "network_error:TypeError",
       "migrated": false
     },
     "nanjing-university-of-science-and-technology": {
@@ -1898,7 +1956,7 @@
       "objectPath": "nanjing-university-of-science-and-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "near-east-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Yak%C4%B1n_Do%C4%9Fu_%C3%9Cniversitesi_Hukuk_Fak%C3%BCltesi.JPG/960px-Yak%C4%B1n_Do%C4%9Fu_%C3%9Cniversitesi_Hukuk_Fak%C3%BCltesi.JPG",
@@ -1924,13 +1982,20 @@
       "licenseUrl": "https://news.ncepu.edu.cn/hdgy/8295d1ca0dbc46e290b84985ddf6d0b4.htm",
       "attribution": "North China Electric Power University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "ed9f367eda49ad418034f91d7178a0769ee60db74dc092610afb5b458411c896",
-      "bytes": 3598087,
+      "sha256": "67867d9c4b0825f7c086f48927e1ce29cc89147e0bf09c099c56ecd609a860cc",
+      "bytes": 1900638,
       "contentType": "image/jpeg",
       "objectPath": "north-china-electric-power-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "ed9f367eda49ad418034f91d7178a0769ee60db74dc092610afb5b458411c896",
+        "bytes": 3598087,
+        "contentType": "image/jpeg",
+        "width": 8192,
+        "height": 5464
+      }
     },
     "northeast-petroleum-university": {
       "sourceUrl": "https://www.nepu.edu.cn/en/images/122.jpg",
@@ -1946,7 +2011,7 @@
       "objectPath": "northeast-petroleum-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "northwestern-polytechnical-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/00/Northwestern_Polytechnical_University_1.jpg/960px-Northwestern_Polytechnical_University_1.jpg",
@@ -2074,7 +2139,7 @@
       "objectPath": "qiongtai-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "sabanc-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9c/SabanciUniversity_DormView.jpg/960px-SabanciUniversity_DormView.jpg",
@@ -2170,7 +2235,7 @@
       "objectPath": "shandong-jianzhu-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shandong-university": {
       "sourceUrl": "https://www.en.sdu.edu.cn/__local/7/B7/70/6FD508562C1FAF4E00093A1A15E_247B3043_B4320.jpg",
@@ -2186,7 +2251,7 @@
       "objectPath": "shandong-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shandong-university-of-technology": {
       "sourceUrl": "https://en.sdut.edu.cn/_upload/article/images/e3/2f/bc9ed3e84590814d7d309ad48239/9b864823-53bc-4a51-8b6d-862332e95983_d.jpg",
@@ -2202,7 +2267,7 @@
       "objectPath": "shandong-university-of-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-business-school": {
       "sourceUrl": "https://www.sbs.edu.cn/images/banner.png",
@@ -2218,7 +2283,7 @@
       "objectPath": "shanghai-business-school.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-international-studies-university": {
       "sourceUrl": "https://sisutraining.shisu.edu.cn/_upload/article/images/13/f3/1f1e4d83496ea15ea2a0d5bf9594/021ef5ad-a24d-4d84-959f-02d5a3fbb73c.jpg",
@@ -2282,7 +2347,7 @@
       "objectPath": "shanghai-ocean-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-polytechnic-university": {
       "sourceUrl": "https://en.sspu.edu.cn/_upload/article/images/1c/ee/1456dcb741488c9941406d92bacd/5e99b18c-1970-4a5d-8e5d-fc51d27564b0_d.jpg",
@@ -2298,7 +2363,7 @@
       "objectPath": "shanghai-polytechnic-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-university": {
       "sourceUrl": "https://www.shu.edu.cn/images/24/04/03/1rs7a13737/8.jpg",
@@ -2330,7 +2395,7 @@
       "objectPath": "shanghai-university-of-engineering-science.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shantou-university": {
       "sourceUrl": "https://www.stu.edu.cn/__local/1/3C/DE/489A5764082638F95773E6802DE_C2CB1411_8E067.jpg",
@@ -2346,7 +2411,7 @@
       "objectPath": "shantou-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanxi-university": {
       "sourceUrl": "https://dt.sxu.edu.cn/images/2026-10/926def17013048ae8810e72c88450cfd.jpg",
@@ -2362,7 +2427,7 @@
       "objectPath": "shanxi-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shaoxing-university": {
       "sourceUrl": "https://www.usx.edu.cn/images/20261006qs3.jpg",
@@ -2378,7 +2443,7 @@
       "objectPath": "shaoxing-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shenyang-aerospace-university": {
       "sourceUrl": "https://www.sau.edu.cn/__local/7/AE/D6/8585E30E2CC0740FEA907DF3FC0_AFE4D3C5_2A087.jpg",
@@ -2410,7 +2475,7 @@
       "objectPath": "shenyang-university-of-chemical-technology.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shenyang-urban-construction-university": {
       "sourceUrl": "https://www.syucu.edu.cn/images/ead6045e-3dd5-4858-82b9-8204545c20b1.jpg",
@@ -2426,7 +2491,7 @@
       "objectPath": "shenyang-urban-construction-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shenzhen-university": {
       "sourceUrl": "https://en.szu.edu.cn/images/20/10/23/1fg0s01n4a/20171207145331_oqdy9l99js.jpg",
@@ -2442,7 +2507,7 @@
       "objectPath": "shenzhen-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "sichuan-agricultural-university": {
       "sourceUrl": "https://www.sicau.edu.cn/__local/A/29/37/AEAC28197A50A088516F7178602_CA203FD3_643752.jpg",
@@ -2452,13 +2517,20 @@
       "licenseUrl": "https://www.sicau.edu.cn/xywh/xyfg.htm",
       "attribution": "Sichuan Agricultural University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "1922b1fa5d2acb7b4a9a0fe0fc80f6992a10953fa08486973f50b23dc83caf44",
-      "bytes": 6567762,
+      "sha256": "f5819ede6453768e4bc2a3b7ef4bd1eb92e1b2d1879736d8cdf25feae1c44eeb",
+      "bytes": 2510974,
       "contentType": "image/jpeg",
       "objectPath": "sichuan-agricultural-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "1922b1fa5d2acb7b4a9a0fe0fc80f6992a10953fa08486973f50b23dc83caf44",
+        "bytes": 6567762,
+        "contentType": "image/jpeg",
+        "width": 7360,
+        "height": 4912
+      }
     },
     "south-central-minzu-university": {
       "sourceUrl": "https://english.scuec.edu.cn/images/2.png",
@@ -2474,7 +2546,7 @@
       "objectPath": "south-central-minzu-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "southwest-university": {
       "sourceUrl": "https://admissions.swu.edu.cn/dfiles/22419/r/cms/admissions/admissions/images/news/6374f1e30881e4c879f01c444db918d9.jpg",
@@ -2498,7 +2570,7 @@
       "pageUrl": "https://www.swupl.edu.cn/",
       "license": "Official-source embedding; no reuse license stated",
       "licenseUrl": "https://www.swupl.edu.cn/",
-      "attribution": "Southwest University of Political Science and Law — официальный сайт; фотограф не указан",
+      "attribution": "Southwest University of Political Science and Law — официальный сайт; фото: Ли Линьфэн (李林峰)",
       "rights": "official_media_owner_accepted",
       "sha256": "87b1274a43ce5a3d96ec0b25688d8fd8086c0dd8cb8548401b3c6071795b9dd1",
       "bytes": 2023547,
@@ -2506,7 +2578,7 @@
       "objectPath": "southwest-university-of-political-science-and-law.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "southwestern-university-of-finance-and-economics": {
       "sourceUrl": "https://international.swufe.edu.cn/english/images/d31823e63018420da24ebf96b3212e21.jpg",
@@ -2538,7 +2610,7 @@
       "objectPath": "sun-yat-sen-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "sunway": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/Cmglee_Sunway_University_new_building.jpg/1280px-Cmglee_Sunway_University_new_building.jpg",
@@ -2570,7 +2642,7 @@
       "objectPath": "taiyuan-university-of-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "taizhou-university": {
       "sourceUrl": "https://english.tzc.edu.cn/images/mr/20241011111455.png",
@@ -2586,7 +2658,7 @@
       "objectPath": "taizhou-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "taylors": {
       "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Taylor%27s_Lakeside_Campus%2C_Subang_Jaya%2C_Malaysia.jpg/960px-Taylor%27s_Lakeside_Campus%2C_Subang_Jaya%2C_Malaysia.jpg",
@@ -2628,13 +2700,20 @@
       "licenseUrl": "https://en.tcu.edu.cn/About_TCU.htm",
       "attribution": "Tianjin Chengjian University — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "10c0ed2d3ac056ba0121d81e49b01ae6ee8e6c64a565bd75c9cfec6b635026b4",
-      "bytes": 18083664,
+      "sha256": "c06c33c7bcf2db0be77ae67036331799434765aa54f8443bc6f5d98d6d2df56f",
+      "bytes": 1538044,
       "contentType": "image/jpeg",
       "objectPath": "tianjin-chengjian-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "10c0ed2d3ac056ba0121d81e49b01ae6ee8e6c64a565bd75c9cfec6b635026b4",
+        "bytes": 18083664,
+        "contentType": "image/jpeg",
+        "width": 6614,
+        "height": 3456
+      }
     },
     "tianjin-foreign-studies-university": {
       "sourceUrl": "https://www.tjfsu.edu.cn/_upload/article/images/0a/86/81b15f8240fd84064b340e0391d7/df54e96d-79d2-4cba-b755-8bdbf06cda30_d.jpg",
@@ -2650,7 +2729,7 @@
       "objectPath": "tianjin-foreign-studies-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "tongji-university": {
       "sourceUrl": "https://www.tongji.edu.cn/images/DSC_1318.jpg?e=.jpg",
@@ -3220,13 +3299,20 @@
       "licenseUrl": "https://en.ustb.edu.cn/Campus.htm",
       "attribution": "University of Science and Technology Beijing — официальный сайт; фотограф не указан",
       "rights": "official_media_owner_accepted",
-      "sha256": "79b81ac8ac5f951bfd0254bb2ea5d1818df65f1beb2cc4a69ec38d166393342a",
-      "bytes": 4302046,
+      "sha256": "2b514abf1fb61ad427580a3dfa478b3f3601b8d319fac8b61f86ec9a6508a3fd",
+      "bytes": 2214462,
       "contentType": "image/jpeg",
       "objectPath": "university-of-science-and-technology-beijing.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true,
+      "derivedFrom": {
+        "sha256": "79b81ac8ac5f951bfd0254bb2ea5d1818df65f1beb2cc4a69ec38d166393342a",
+        "bytes": 4302046,
+        "contentType": "image/jpeg",
+        "width": 5400,
+        "height": 3200
+      }
     },
     "university-of-science-and-technology-of-china-ustc": {
       "sourceUrl": "https://en.ustc.edu.cn/style/home-banner5.jpg",
@@ -3469,7 +3555,7 @@
       "migrated": true
     },
     "weifang-university": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg/1280px-20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg/1280px-20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg",
       "license": "CC BY-SA 4.0",
@@ -3482,7 +3568,7 @@
       "objectPath": "weifang-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "wenzhou-university": {
       "sourceUrl": "https://www.wzu.edu.cn/english/images/banner4.png",
@@ -3498,7 +3584,7 @@
       "objectPath": "wenzhou-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "wuchang-university-of-technology": {
       "sourceUrl": "https://znonline.wut.edu.cn/__local/D/AE/A7/B20AF983CB80E4B3E19C2A52635_F3AE690A_A0015.jpg",
@@ -3514,7 +3600,7 @@
       "objectPath": "wuchang-university-of-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "wuhan-college": {
       "sourceUrl": "https://wmw.whxy.edu.cn/virtual_attach_file.vsb?afc=5nmMCfo7UbMRAkMQRL4o7QVUmV7nmWqRnlUYLRUsM4lPUlC0gihFp2hmCIa0LYyDMkhkn1ybnlLYUmn2L4vYLRVfnm6RU4CPnRG8LRAknz6FMllYL7UYL4AFLzGaLzMkgjfJQ4Oeo4xsqdAb6DisgDTJQty0gzL0gzLJqdpnx&oid=2044520762&e=.png",
@@ -3530,7 +3616,7 @@
       "objectPath": "wuhan-college.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "wuhan-university": {
       "sourceUrl": "https://en.whu.edu.cn/__local/2/96/9D/B4BFF7B0FE07392DA491C69BCA0_EE04E8C3_50578.jpg",
@@ -3562,7 +3648,7 @@
       "objectPath": "wuxi-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "xi-an-international-studies-university": {
       "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/images/banner318.png",
@@ -3594,7 +3680,7 @@
       "objectPath": "xi-an-shiyou-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "xi-an-technological-university": {
       "sourceUrl": "https://www.xatu.edu.cn/__local/1/3F/63/0CE6804FF39BE89B7DF518F8C68_623787C9_6F3E2.jpg",
@@ -3610,7 +3696,7 @@
       "objectPath": "xi-an-technological-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "xi-an-university-of-architecture-and-technology": {
       "sourceUrl": "https://www.xauat.edu.cn/gwyw/images/26/06/06/1jq82jvkt0/2bd415d6-efdf-4a16-b0f2-7fe353fbaa6d.jpg",
@@ -3626,7 +3712,7 @@
       "objectPath": "xi-an-university-of-architecture-and-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "xiamen-malaysia": {
       "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/XMUM_entrance_%28211127%29.jpg/960px-XMUM_entrance_%28211127%29.jpg",
@@ -3690,7 +3776,7 @@
       "objectPath": "yangtze-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "yangtze-university": {
       "sourceUrl": "https://english.yangtzeu.edu.cn/images/22/11/21/dongxiaoqu-14haojiaoxuelou.jpg",
@@ -3706,10 +3792,10 @@
       "objectPath": "yangtze-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "yanshan-university": {
-      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Gate_1_of_Yanshan_University_East_Campus_%2820240403111932%29.jpg/1280px-Gate_1_of_Yanshan_University_East_Campus_%2820240403111932%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Gate_1_of_Yanshan_University_East_Campus_%2820240403111932%29.jpg/1280px-Gate_1_of_Yanshan_University_East_Campus_%2820240403111932%29.jpg",
       "finalUrl": null,
       "pageUrl": "https://commons.wikimedia.org/wiki/File:Gate_1_of_Yanshan_University_East_Campus_(20240403111932).jpg",
       "license": "CC BY-SA 4.0",
@@ -3722,7 +3808,7 @@
       "objectPath": "yanshan-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "yeditepe-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/37/Yeditepe_University_26_August_Campus_%282%29_20220315.jpg/960px-Yeditepe_University_26_August_Campus_%282%29_20220315.jpg",
@@ -3770,7 +3856,7 @@
       "objectPath": "yunnan-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zaozhuang-university": {
       "sourceUrl": "https://english.uzz.edu.cn/images/20250913-1.jpg",
@@ -3786,7 +3872,7 @@
       "objectPath": "zaozhuang-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zhejiang-gongshang-university": {
       "sourceUrl": "https://sie.zjgsu.edu.cn/_upload/article/images/7f/56/3f865d5440749be95199ad163986/b8764650-b1bd-41f5-abe0-8235f5c4c519.jpg",
@@ -3866,7 +3952,7 @@
       "objectPath": "zhengzhou-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zjut": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e3/20250423_Zhejiang_Gongye_Daxue.jpg/960px-20250423_Zhejiang_Gongye_Daxue.jpg",

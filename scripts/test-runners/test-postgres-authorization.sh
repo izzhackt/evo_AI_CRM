@@ -5451,6 +5451,32 @@ SQL
       exit 1
     fi
   fi
+  # «Ключи фото новых карточек Китая» (migration 365, 20.11.2026). Matched by name, not number. The migration widens the
+  # photoKey allow-list of `valid_university_content` by the C8 keys: right after it a second apply refuses
+  # (a365_already_applied), then the suite, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_university_photo_keys_china.sql ]]; then
+    t365_again_log="$(mktemp -t evo-t365-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t365_again_log" 2>&1; then
+      echo "migration 365 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a365_already_applied" "$t365_again_log"; then
+      echo "a second apply of migration 365 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t365_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t365_again_log"
+    photo_keys_china_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_photo_keys_china.sql </dev/null)"
+    printf '%s\n' "$photo_keys_china_log"
+    if ! grep -q 'A365_UNIVERSITY_PHOTO_KEYS_CHINA_SUITE_PASSED' <<<"$photo_keys_china_log"; then
+      echo "platform_university_photo_keys_china.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Чтение справочника городов для просмотра в CRM» (migration 354, 08.11.2026). Matched by name, not number. The migration
   # adds the read-only `staff_catalog_geography_read_v1` (published cities and links, catalog.read): right after it a second
   # apply refuses (a354_already_applied), then the suite, insisting on its marker.

@@ -10,7 +10,9 @@
  *   --check                    сеть, строго read-only: скачивает eligible-
  *                              оригиналы, проверяет 200 + image/* + размер,
  *                              считает sha256 и пишет манифест
- *                              scripts/portal/university-photos-manifest.json;
+ *                              scripts/portal/university-photos-manifest.json
+ *                              (исходник больше 16,8 Мп хранится уменьшенной
+ *                              копией, см. RENDER_MAX_SOURCE_PIXELS);
  *   --check --only=<k1,k2>     то же только для названных ключей: остальные
  *                              записи манифеста остаются байт-в-байт (запись
  *                              библиотеки сменилась, весь каталог заново не
@@ -31,6 +33,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import sharp from "sharp";
 import { getPlatformSupabaseBackendConfig } from "../../src/lib/server/platform-supabase-backend-config.ts";
 import { jwtRefAcceptable, matchSupabaseTarget, SELFHOSTED_SUPABASE_ORIGIN } from "../lib/evo-supabase-target.mjs";
 import {
@@ -65,6 +68,30 @@ const REVIEWED_BUNDLES = Object.freeze(["china", "malaysia", "europe", "turkey",
 class MigrationError extends Error { constructor(code) { super(code); this.code = code; } }
 const fail = code => { throw new MigrationError(code); };
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+
+/**
+ * Уменьшенные копии (srcset) делает imgproxy self-hosted Supabase, а он отказывает исходнику больше 16,8 млн пикселей
+ * (IMGPROXY_MAX_SRC_RESOLUTION=16.8): у такого фото ломаются все уменьшенные копии, и рамка качает весь оригинал
+ * (срез C8, 20.11.2026: десять официальных фото вузов Китая на 17–45 Мп, до 18,7 МБ). Такой исходник хранится
+ * одной уменьшенной копией: длинная сторона не больше 4096 px, JPEG. `sha256`/`bytes` записи манифеста относятся
+ * к хранимой копии, `derivedFrom` хранит sha256, размер и тип самого исходника. Исходник, который sharp не читает,
+ * хранится байт-в-байт, как раньше.
+ */
+export const RENDER_MAX_SOURCE_PIXELS = 16_800_000;
+export const DERIVED_MAX_SIDE = 4096;
+async function storedCopy(source) {
+  if (source.contentType === "image/gif") return { bytes: source.bytes, contentType: source.contentType, derivedFrom: null };
+  let width = 0, height = 0;
+  try { ({ width = 0, height = 0 } = await sharp(source.bytes).metadata()); } catch { /* not decodable: stored as is */ }
+  if (!(width * height > RENDER_MAX_SOURCE_PIXELS)) return { bytes: source.bytes, contentType: source.contentType, derivedFrom: null };
+  try {
+    const bytes = await sharp(source.bytes).rotate()
+      .resize({ width: DERIVED_MAX_SIDE, height: DERIVED_MAX_SIDE, fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#ffffff" }).jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+    return { bytes, contentType: "image/jpeg",
+      derivedFrom: { sha256: sha256(source.bytes), bytes: source.bytes.byteLength, contentType: source.contentType, width, height } };
+  } catch { return { failure: "reduced_copy_failed" }; }
+}
 
 export function readUniversityPhotoLibrary() {
   const library = JSON.parse(readFileSync(LIBRARY_URL, "utf8"));
@@ -207,15 +234,22 @@ export async function checkUniversityPhotoMigration({ library, sites, fetchImpl 
     for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
       const record = library[key], result = await downloadPhoto(record.path, fetchImpl);
       const entry = baseManifestEntry(record, official.has(key) ? PHOTO_RIGHTS_OFFICIAL_MEDIA : PHOTO_RIGHTS_OPEN_LICENSE);
-      if (result.failure) { entry.reason = result.failure; }
+      const stored = result.failure ? result : await storedCopy(result);
+      if (stored.failure) { entry.reason = stored.failure; }
       else {
         entry.status = "verified"; entry.finalUrl = result.finalUrl;
-        entry.sha256 = sha256(result.bytes); entry.bytes = result.bytes.byteLength;
-        entry.contentType = result.contentType; entry.objectPath = `${key}.${EXTENSION_BY_TYPE[result.contentType]}`;
+        entry.sha256 = sha256(stored.bytes); entry.bytes = stored.bytes.byteLength;
+        entry.contentType = stored.contentType; entry.objectPath = `${key}.${EXTENSION_BY_TYPE[stored.contentType]}`;
+        if (stored.derivedFrom !== null) entry.derivedFrom = stored.derivedFrom;
         const before = previous?.entries?.[key];
         if (before?.migrated === true) {
-          if (before.sha256 === entry.sha256 && before.objectPath === entry.objectPath) entry.migrated = true;
-          else entry.reason = "source_drifted_since_migration";
+          // A reduced copy is judged by its source: another sharp build may encode other bytes from the same source.
+          const unchanged = before.objectPath === entry.objectPath && (stored.derivedFrom === null
+            ? before.sha256 === entry.sha256 : before.derivedFrom?.sha256 === stored.derivedFrom.sha256);
+          if (unchanged) {
+            entry.migrated = true;
+            if (stored.derivedFrom !== null) { entry.sha256 = before.sha256; entry.bytes = before.bytes; }
+          } else entry.reason = "source_drifted_since_migration";
         }
       }
       entries[key] = entry;
@@ -271,7 +305,11 @@ export const universityPhotoPublicUrl = (objectPath, origin = ORIGIN) =>
 async function uploadVerifiedEntry(origin, key, entry, headers, fetchImpl) {
   const source = await downloadPhoto(entry.sourceUrl, fetchImpl);
   if (source.failure) return `redownload_failed:${source.failure}`;
-  if (sha256(source.bytes) !== entry.sha256) return "content_drifted";
+  // The bytes to store are what --check recorded: the source itself, or its reduced copy (derivedFrom).
+  const stored = await storedCopy(source);
+  if (stored.failure) return `redownload_failed:${stored.failure}`;
+  if (sha256(stored.bytes) !== entry.sha256 || stored.contentType !== entry.contentType
+    || (stored.derivedFrom === null) !== (entry.derivedFrom === undefined || entry.derivedFrom === null)) return "content_drifted";
   const readback = async () => {
     const result = await downloadPhoto(universityPhotoPublicUrl(entry.objectPath, origin), fetchImpl);
     return !result.failure && sha256(result.bytes) === entry.sha256 ? null : "readback_mismatch";
@@ -279,7 +317,7 @@ async function uploadVerifiedEntry(origin, key, entry, headers, fetchImpl) {
   const stop = new AbortController(), timer = setTimeout(() => stop.abort(), DOWNLOAD_TIMEOUT_MS);
   try {
     const response = await fetchImpl(`${origin}/storage/v1/object/${UNIVERSITY_PHOTO_BUCKET.id}/${entry.objectPath}`, {
-      method: "POST", redirect: "error", cache: "no-store", signal: stop.signal, body: source.bytes,
+      method: "POST", redirect: "error", cache: "no-store", signal: stop.signal, body: stored.bytes,
       headers: { ...headers, "content-type": entry.contentType, "x-upsert": "false", "cache-control": "max-age=604800" } });
     void response.body?.cancel().catch(() => {});
     if (response.status === 401 || response.status === 403) fail("credentials_rejected");

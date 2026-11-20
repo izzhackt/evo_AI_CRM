@@ -8,6 +8,7 @@ import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, 
 import { universityBatchRequestId, universityContentHash, universityBatchRows, universityMissingIntakeIds, withStableUniversityIntakeIds } from "../src/lib/server/university-catalog-batch.ts";
 import { universityIntakeStatusKey } from "../src/lib/portal/universities.ts";
 import { universityPhotoUrl } from "../src/lib/university-photo-url.ts";
+import { photoKeyForCard } from "../scripts/catalog/china-photos-sql.mjs";
 // The reader resolves managed photo addresses from NEXT_PUBLIC_SUPABASE_URL (docs/runbooks/selfhosted-cutover.md).
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://supabase.evoadmissions.com";
 const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
@@ -125,11 +126,11 @@ test("forward migration photo vocabulary matches the fixed reviewed image regist
   // Migration 353 widens the allow-list by exactly the keys of the new Malaysia photos.
   const added = keysOf("353_platform_university_photo_keys.sql");
   assert.deepEqual(added, ["um", "iium", "alfa", "inti-subang", "inti-penang"]);
-  // Migration 365 adds exactly the China 2026-11 (C8) photo keys that were new to the library; the one C8 card whose
-  // key was already in the library (harbin-institute-of-technology-shenzhen) reuses that entry.
+  // Migration 365 adds exactly the China 2026-11 (C8) photo keys, one per listed card (photoKeyForCard), all new to the
+  // library. The older 151 entry harbin-institute-of-technology-shenzhen stays; that card gets its own new key.
   const china = keysOf("365_platform_university_photo_keys_china.sql");
   const c8 = JSON.parse(readFileSync(new URL("../scripts/catalog/data/china-2026-11/photo-keys.json", import.meta.url), "utf8"));
-  assert.deepEqual(china, c8.filter((key) => key !== "harbin-institute-of-technology-shenzhen"));
+  assert.deepEqual(china, c8.map(photoKeyForCard).sort());
   assert.deepEqual([...values, ...added, ...china].sort(), Object.keys(UNIVERSITY_PHOTOS).sort());
   assert.match(sql, /platform_private\.valid_university_content\(jsonb\)/);
   assert.match(sql, /platform_private\.university_catalog_page\(uuid,text,text,text,uuid,integer\)/);

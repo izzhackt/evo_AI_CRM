@@ -7,6 +7,7 @@ import { ORGANIZATION_ID } from "../scripts/catalog/malaysia-universities-sql.mj
 import { EXISTING_CITY_KEYS } from "../scripts/catalog/china-2026-11-build.mjs";
 import { CARD_NOTES, MERGE_NOTE, WORKSHEET_DATE, lettersOnly } from "../scripts/catalog/china-2026-11-lib.mjs";
 import { buildSql } from "../scripts/catalog/china-universities-sql.mjs";
+import { PHOTO_KEYS_FILE, photoKeyForCard } from "../scripts/catalog/china-photos-sql.mjs";
 import { parseUniversityContent } from "../src/lib/platform-university-catalog.ts";
 
 const read = (path) => JSON.parse(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"));
@@ -59,12 +60,14 @@ test("China 2026-11: every card has the exact reviewed-content shape and valid p
   }
 });
 
-test("China 2026-11: new cards state the worksheet provenance, promise nothing and carry no photo yet", () => {
+test("China 2026-11: new cards state the worksheet provenance, promise nothing and carry a photo only from the C8 list", () => {
   const fresh = cards.slice(47).filter((card) => card.content.notes === CARD_NOTES);
   assert.ok(fresh.length >= 100, "a hundred and more new universities");
   assert.equal(fresh.length, cards.length - 47, "every new card carries the standard notes");
+  const withPhoto = new Set(read(PHOTO_KEYS_FILE));
   for (const card of fresh) {
-    assert.equal(card.content.photoKey, null, `${card.key}: no photo in this slice`);
+    // C8 (20.11.2026): the photo key comes from the explicit C8 list; every other new card stays without a photo.
+    assert.equal(card.content.photoKey, withPhoto.has(card.key) ? photoKeyForCard(card.key) : null, `${card.key}: photo key`);
     assert.ok(card.content.overview.length <= 1200 && card.content.overview.length > 60, card.key);
     assert.match(card.content.websiteUrl, /^https:\/\//u, card.key);
     assert.doesNotMatch(card.content.overview, /гарант|лучш|ведущ|престижн|топ-/iu, `${card.key}: no superlatives or guarantees`);

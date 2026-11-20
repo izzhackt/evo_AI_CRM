@@ -3,25 +3,30 @@ import {
   universityPublicUrl,
   type UniversityFilters,
   type UniversityIntake,
+  type UniversityLevel,
   type UniversityProgram,
 } from "./platform-university-catalog.ts";
 
-export type StaffUniversityDeadline = Readonly<{
-  program: UniversityProgram;
-  intake: UniversityIntake;
+/** What the rule reads of an intake and a programme: a full card or a light catalogue row (364) both fit. */
+type DeadlineIntake = Pick<UniversityIntake, "applicationDeadline" | "deadlineTime" | "timezone" | "status" | "verifiedOn" | "sourceUrl">;
+type DeadlineProgram = Readonly<{ id: string; level: UniversityLevel; intakes: readonly DeadlineIntake[] }>;
+
+export type StaffUniversityDeadline<P extends DeadlineProgram = UniversityProgram> = Readonly<{
+  program: P;
+  intake: P["intakes"][number];
   applicationDeadline: string;
   sameDateCount: number;
 }>;
 
 /** Display only: the earliest published calendar date, not an absolute instant
  * or admission eligibility. Keep the exact programme/intake and its provenance. */
-export function staffUniversityDeadline(
-  programs: readonly UniversityProgram[],
+export function staffUniversityDeadline<P extends DeadlineProgram>(
+  programs: readonly P[],
   level: UniversityFilters["level"],
   now: Date,
-): StaffUniversityDeadline | null {
+): StaffUniversityDeadline<P> | null {
   if (!Number.isFinite(now.getTime())) return null;
-  const candidates: Array<StaffUniversityDeadline & { intakeIndex: number }> = [];
+  const candidates: Array<StaffUniversityDeadline<P> & { intakeIndex: number }> = [];
   for (const program of programs) {
     if (level && program.level !== level) continue;
     for (const [intakeIndex, intake] of program.intakes.entries()) {
@@ -46,7 +51,7 @@ export function staffUniversityDeadline(
       const day = `${at("year")}-${at("month")}-${at("day")}`;
       if (verifiedOn > day || applicationDeadline < day
         || (applicationDeadline === day && deadlineTime !== null && deadlineTime <= `${at("hour")}:${at("minute")}`)) continue;
-      candidates.push({ program, intake, applicationDeadline, intakeIndex, sameDateCount: 0 });
+      candidates.push({ program, intake: intake as P["intakes"][number], applicationDeadline, intakeIndex, sameDateCount: 0 });
     }
   }
   candidates.sort((a, b) => {

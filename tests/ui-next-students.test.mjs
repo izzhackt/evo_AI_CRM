@@ -15,6 +15,7 @@ import { createElement } from "react";
 import ts from "typescript";
 
 import { searchHref } from "../src/components/staff/list-next/link-filters-model.ts";
+import { universityListItem } from "../src/lib/university-list-item.ts";
 
 const require = createRequire(import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -325,7 +326,7 @@ const universityStubs = (cookie, who, overrides = {}) => ({
   "next/headers": cookiesOf(cookie),
   "src/lib/platform-guards.ts": { requireV3PageActor: async () => who },
   "src/lib/v3/university-source.ts": {
-    readStaffUniversityCatalogue: async () => ({ kind: "complete", items: published }),
+    readStaffUniversityCatalogue: async () => ({ kind: "complete", items: published.map(universityListItem) }),
     readStaffUniversityCountries: async () => ({ countries: [...new Set(published.map((item) => item.content.country))].sort() }),
     readStaffUniversities: async (_actor, _filters, id) => ({ items: published.filter((item) => item.id === id), nextOffset: null }),
     readUniversityDrafts: async () => [], readUniversityBatchSnapshot: async () => [], reviewedUniversityTemplates: () => CATALOGUE.slice(0, 6).map(({ key, content }) => ({ key, content })),
@@ -334,6 +335,7 @@ const universityStubs = (cookie, who, overrides = {}) => ({
   "src/lib/v3/catalog-geography-source.ts": {
     canManageCatalogGeography: (actor) => actor.systemRole === "admin" && actor.presentationRole === null, canConfirmAgencyCosts: () => true,
     readStaffCatalogGeography: async () => ({ cities: [], countries: [], rates: [] }), geographyPhotoBase: () => null,
+    readStaffInstitutionGeography: async () => ({ cities: [], countries: [], rates: [] }),
   },
   "src/components/staff/universities/geography/UniversityGeographyPanel.tsx": { UniversityGeographyPanel: () => createElement("section", { "data-testid": "geography-panel" }, "Город и стоимость") },
   "src/components/staff/universities/geography/FxRates.tsx": { FxRates: () => createElement("section", { "data-testid": "fx-rates" }, "Курсы") },
@@ -489,7 +491,7 @@ test("«Университеты»: у давно не проверявшейс�
   const fresh = new Date().toISOString().slice(0, 10);
   const items = published.slice(0, 5).map((item, index) => ({ ...item, content: { ...item.content, verifiedOn: index === 0 ? "2020-01-15" : fresh } }));
   const base = universityStubs("next", ADMIN)["src/lib/v3/university-source.ts"];
-  const run = universityPage("page.tsx", "next", ADMIN, {}, { "src/lib/v3/university-source.ts": { ...base, readStaffUniversityCatalogue: async () => ({ kind: "complete", items }) } });
+  const run = universityPage("page.tsx", "next", ADMIN, {}, { "src/lib/v3/university-source.ts": { ...base, readStaffUniversityCatalogue: async () => ({ kind: "complete", items: items.map(universityListItem) }) } });
   const rows = (await run.element()).props.rows;
   const old = rows.find((row) => row.id === items[0].id);
   assert.deepEqual([old.staleOn, old.verifiedOn], ["15.01.20", "2020-01-15"], "текст — для глаз, ISO — для машины");

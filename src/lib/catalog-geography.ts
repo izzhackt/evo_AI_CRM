@@ -184,6 +184,19 @@ export function parseStaffGeography(value: unknown): StaffGeography | null {
 }
 
 /**
+ * Узкий ответ карточки вуза (миграция 364, `staff_catalog_institution_geography_v1`): тот же разбор, что у полного, и
+ * только этот вуз: не больше одного вуза с этим id, только его стоимость и только города его страны (у вуза вне
+ * шести стран нет ни вуза, ни городов). Иное означает ошибку чтения, а не пустую панель.
+ */
+export function parseInstitutionGeography(value: unknown, institutionId: string): StaffGeography | null {
+  const geography = parseStaffGeography(value);
+  if (!geography || geography.institutions.length > 1 || geography.institutions.some((item) => item.id !== institutionId)) return null;
+  const country = geography.institutions[0]?.country ?? null;
+  if (geography.costs.some((row) => row.institutionId !== institutionId) || geography.cities.some((city) => city.country !== country)) return null;
+  return geography;
+}
+
+/**
  * Справочник городов для страниц просмотра «Университеты → страны» (миграция 354, `staff_catalog_geography_read_v1`):
  * только опубликованные города и связи «вуз → ключ города». Читают все сотрудники с `catalog.read`; полей редактора нет.
  */

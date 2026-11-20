@@ -2,20 +2,20 @@ import "server-only";
 
 import type { ActivePlatformActor } from "../platform-auth";
 import type { BrowseCity } from "../catalog-geography.ts";
-import type { PublishedUniversity } from "../platform-university-catalog";
+import type { UniversityListItem } from "../university-list-item.ts";
 import { groupCountryUniversities, type CityDirectory, type CityGroup } from "../university-geo-groups.ts";
 import { readStaffCatalogGeographyBrowse } from "./catalog-geography-source";
 import { EMPTY_UNIVERSITY_FILTERS, readStaffUniversityCatalogue } from "./university-source";
 
 export type StaffCountryGeo = Readonly<{
-  items: readonly PublishedUniversity[];
-  groups: readonly CityGroup<PublishedUniversity>[];
+  items: readonly UniversityListItem[];
+  groups: readonly CityGroup<UniversityListItem>[];
   /** Опубликованные города страны со справочника (фото, текст): у всех сотрудников с `catalog.read`. */
   cities: readonly BrowseCity[];
 }>;
 
 /**
- * Вузы одной страны по городам для страниц «Университеты → страны» (право `catalog.read`, те же чтения, что у таблицы).
+ * Вузы одной страны по городам для страниц «Университеты → страны» (право `catalog.read`, те же лёгкие строки 364, что у таблицы).
  * Нужен полный каталог страны: разбитая по страницам выдача (`kind: "server"`) сюда не годится, и страница честно говорит
  * «не удалось загрузить», а не показывает часть. Город вуза берётся по ключу города (миграция 354,
  * `staff_catalog_geography_read_v1`), одинаково у всех сотрудников; вуз без опубликованного города группируется по

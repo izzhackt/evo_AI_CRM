@@ -5,7 +5,8 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/kit/StatusBadge";
 import { CITY_PHOTO_PATH, type BrowseCity } from "@/lib/catalog-geography";
-import { UNIVERSITY_LEVEL_LABELS, UNIVERSITY_LEVELS, type PublishedUniversity } from "@/lib/platform-university-catalog";
+import { UNIVERSITY_LEVEL_LABELS, UNIVERSITY_LEVELS } from "@/lib/platform-university-catalog";
+import type { UniversityListItem } from "@/lib/university-list-item";
 import { isStudyCountryCode } from "@/lib/study-countries";
 import { cityHref, countryHref, type CityGroup } from "@/lib/university-geo-groups";
 import { catalogueProgramCount, programsWord } from "@/lib/v3/university-view";
@@ -51,7 +52,7 @@ export function CountryCards({ countries }: Readonly<{ countries: readonly Count
 /** Карточки городов страны. Фото и текст есть только у города из справочника (читает менеджер каталога). */
 export function CityCards({ code, groups, cities, photoBase, canEdit }: Readonly<{
   code: string;
-  groups: readonly CityGroup<PublishedUniversity>[];
+  groups: readonly CityGroup<UniversityListItem>[];
   cities: readonly BrowseCity[];
   photoBase: string | null;
   canEdit: boolean;
@@ -81,12 +82,11 @@ export function CityCards({ code, groups, cities, photoBase, canEdit }: Readonly
   );
 }
 
-function levelsLine(university: PublishedUniversity): string {
-  const present = new Set(university.content.programs.map((program) => program.level));
-  return UNIVERSITY_LEVELS.filter((level) => present.has(level)).map((level) => UNIVERSITY_LEVEL_LABELS[level]).join(", ");
+function levelsLine(university: UniversityListItem): string {
+  return UNIVERSITY_LEVELS.filter((level) => (university.levels[level] ?? 0) > 0).map((level) => UNIVERSITY_LEVEL_LABELS[level]).join(", ");
 }
 
-function UniversityRow({ university }: Readonly<{ university: PublishedUniversity }>) {
+function UniversityRow({ university }: Readonly<{ university: UniversityListItem }>) {
   const programs = catalogueProgramCount(university, "");
   const meta = [programs > 0 ? `${programs} ${programsWord(programs)}` : "", levelsLine(university)].filter(Boolean).join(" · ");
   return (
@@ -102,7 +102,7 @@ function UniversityRow({ university }: Readonly<{ university: PublishedUniversit
 }
 
 /** Вузы одним списком (город): строки с фото, названием-ссылкой и уровнями. */
-export function UniversityRows({ items }: Readonly<{ items: readonly PublishedUniversity[] }>) {
+export function UniversityRows({ items }: Readonly<{ items: readonly UniversityListItem[] }>) {
   return (
     <ul className="m-0 list-none rounded-card border border-border bg-surface px-3" data-testid="university-geo-rows">
       {items.map((university) => <UniversityRow key={university.id} university={university} />)}
@@ -111,7 +111,7 @@ export function UniversityRows({ items }: Readonly<{ items: readonly PublishedUn
 }
 
 /** «Списком»: все вузы страны, города А→Я, вузы внутри А→Я, «Город не указан» последним. */
-export function CountryGroupedList({ code, groups }: Readonly<{ code: string; groups: readonly CityGroup<PublishedUniversity>[] }>) {
+export function CountryGroupedList({ code, groups }: Readonly<{ code: string; groups: readonly CityGroup<UniversityListItem>[] }>) {
   return (
     <div className="grid gap-6" data-testid="university-country-list">
       {groups.map((group) => (

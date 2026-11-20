@@ -116,8 +116,11 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
 
   const portalControls = !preview && (actor.systemRole === "admin" || (admissions.isCabinetCase && staffCan(actor, "sales.write")));
   const application = draft.studentApplication;
-  const cabinetView = admin ? caseCabinetView(input.cabinet, admissions.caseState) : null;
-  const portalSettings = portalControls || application?.status === "pending" || (application?.status === "rejected" && application.decisionReason) ? (
+  // Кабинет с временным паролем (343): состояние приходит только тем, кому база его отдала — админу и куратору этого
+  // дела (363). Открытый кабинет куратору показывать нечего: «Сбросить пароль» (344) остаётся за админом.
+  const cabinetView = preview ? null : caseCabinetView(input.cabinet, admissions.caseState);
+  const cabinetShown = cabinetView !== null && (admin || cabinetView !== "open");
+  const portalSettings = portalControls || cabinetShown || application?.status === "pending" || (application?.status === "rejected" && application.decisionReason) ? (
     <div className="space-y-3">
       {application?.status === "pending" && !preview && sales !== null ? (
         <ApplicationDecision application={application} requestId={input.requestIds.platformAccess} quiet />
@@ -126,13 +129,13 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         <p className="whitespace-pre-wrap break-words t-body-compact text-fg-2">{application.decisionReason}</p>
       ) : null}
       {/* Одно место для формы, «Кабинет открыт» и отказа (343): после обновления карточки показанный пароль остаётся. */}
-      {admin && input.cabinet && cabinetView ? (
+      {input.cabinet && cabinetView && cabinetShown ? (
         <CaseCabinetAccount studentCaseId={caseId} requestId={input.cabinet.requestId} firstName={input.cabinet.firstName}
-          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView}
+          lastName={input.cabinet.lastName} portalOrigin={input.cabinet.portalOrigin} view={cabinetView} canReset={admin}
           reset={{ requestId: input.cabinet.resetRequestId, login: input.cabinet.login, email: input.cabinet.email }} />
       ) : null}
       {/* Кабинет уже открыт (343): приглашение по почте ему не нужно, база его и не примет. */}
-      {portalControls && !(admin && input.cabinet?.state === "open") ? (
+      {portalControls && input.cabinet?.state !== "open" ? (
         <StudentPortalAccessControls
           organizationId={actor.organizationId}
           studentCaseId={caseId}
@@ -149,8 +152,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       ) : null}
     </div>
   ) : null;
-  const portalStatus = admin && input.cabinet?.state === "open" ? CABINET_OPEN : casePortalStatus(application);
-  const portal = application !== null || portalControls ? { ...portalStatus, settings: portalSettings } : null;
+  const portalStatus = input.cabinet?.state === "open" ? CABINET_OPEN : casePortalStatus(application);
+  const portal = application !== null || portalControls || cabinetShown ? { ...portalStatus, settings: portalSettings } : null;
 
   // --- Действия у заголовка ------------------------------------------------
   const handoff = draft.handoffAcknowledgement;

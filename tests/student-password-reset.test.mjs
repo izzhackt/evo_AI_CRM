@@ -182,7 +182,9 @@ test("the open cabinet in the card: its own reset request, the reset block in th
   assert.match(read("src/app/(staff)/profile/page.tsx"), /requestId: randomUUID\(\), resetRequestId: randomUUID\(\)/u,
     "the reset never reuses the cabinet form's request");
   assert.match(read("src/components/staff/profile/CaseCabinetAccount.tsx"),
-    /if \(view === "open"\) return <CaseCabinetReset studentCaseId=\{studentCaseId\} portalOrigin=\{portalOrigin\} \{\.\.\.reset\} \/>;/u);
+    /if \(view === "open"\) return canReset \? <CaseCabinetReset studentCaseId=\{studentCaseId\} portalOrigin=\{portalOrigin\} \{\.\.\.reset\} \/> : null;/u,
+    "the reset stays with the Admin: a curator who opened the cabinet (363) gets no reset block");
+  assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /view=\{cabinetView\} canReset=\{admin\}/u);
   assert.match(read("src/components/staff/profile/CaseCabinetReset.tsx"), /useActionState\(resetStudentPasswordAction,/u);
 });
 

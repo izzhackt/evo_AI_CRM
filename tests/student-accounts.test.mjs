@@ -180,6 +180,21 @@ test("only an administrator outside role preview creates; the database gets the 
   assert.notEqual(created.requestId, REQUEST, "the next account is a new request");
 });
 
+test("a cabinet for a case: the curator of the case may ask too (363), the database decides; a role preview never", async () => {
+  const curator = action({ actor: { organizationId: ORG, systemRole: "staff" } });
+  const created = await curator.submitCase();
+  assert.deepEqual(curator.calls, [[ORG, REQUEST, { ...NAME, email: null }, CASE]], "the request with its case reaches the database");
+  assert.equal(created.status, "created");
+  const refused = await action({ actor: { organizationId: ORG, systemRole: "staff" }, outcome: { status: "forbidden" } }).submitCase();
+  assert.equal(refused.status, "forbidden", "not the curator of this case: the database refuses");
+  const preview = action({ preview: true });
+  assert.deepEqual(await preview.submitCase(), { status: "forbidden", requestId: REQUEST });
+  assert.equal(preview.calls.length, 0);
+  const settings = action({ actor: { organizationId: ORG, systemRole: "staff" } });
+  assert.deepEqual(await settings.submit(), { status: "forbidden", requestId: REQUEST }, "a cabinet without a case stays Admin-only");
+  assert.equal(settings.calls.length, 0);
+});
+
 test("after any answer of the database the next attempt is a new request; a lost answer gives the login", async () => {
   for (const outcome of [{ status: "email_taken" }, { status: "unavailable" }, { status: "invalid" }]) {
     const result = await action({ outcome }).submit();
@@ -222,7 +237,9 @@ test("the case action: the exact case field, the case reaches the database, refu
   assert.deepEqual(await bad.submitCase({ student_case_id: "not-a-case" }), { status: "invalid", requestId: REQUEST });
   assert.deepEqual(await bad.submit({ student_case_id: CASE }), { status: "invalid", requestId: REQUEST }, "the settings form takes no case");
   assert.equal(bad.calls.length, 0);
-  assert.deepEqual(await action({ actor: { organizationId: ORG, systemRole: "staff" } }).submitCase(), { status: "forbidden", requestId: REQUEST });
+  // 363: a non-admin may be the curator of the case, so the case form is decided by the database, not here.
+  assert.equal((await action({ actor: { organizationId: ORG, systemRole: "staff" }, outcome: { status: "forbidden" } }).submitCase()).status,
+    "forbidden");
   const refused = await action({ outcome: { status: "case_invite_exists" } }).submitCase();
   assert.equal(refused.status, "case_invite_exists");
   assert.notEqual(refused.requestId, REQUEST);
@@ -345,4 +362,19 @@ test("the card shows the form, «open» or the reason in one place (review 07.11
   assert.equal(contract.caseCabinetView({ state: "none", refusal: null }, "pending"), "form");
   assert.equal(contract.studentCaseRefusal("student_case_unsupported"), "case_unsupported");
   assert.equal(contract.studentCaseRefusal("other"), null);
+});
+
+test("the case card (363): the curator whom the database gave the cabinet state gets the form, an open cabinet no reset", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const surfaces = new Map(JSON.parse(execFileSync(process.execPath,
+    [fileURLToPath(new URL("./e2e/case-static-render.cjs", import.meta.url)), "--json"],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })).map((surface) => [surface.name, surface.html]));
+  const form = surfaces.get("curator-cabinet");
+  assert.match(form, /data-testid="case-cabinet-account"/u, "the curator of the case sees «Создать кабинет»");
+  assert.match(form, />Доступ к порталу</u, "«⋯» offers «Доступ к порталу» next to «Завершить дело»");
+  const open = surfaces.get("curator-cabinet-open");
+  assert.doesNotMatch(open, /case-cabinet-reset/u, "the password reset stays with the Admin");
+  assert.doesNotMatch(open, /data-testid="case-cabinet-account"/u);
+  assert.doesNotMatch(surfaces.get("curator"), /case-cabinet-account/u, "without the database's answer there is no form");
 });

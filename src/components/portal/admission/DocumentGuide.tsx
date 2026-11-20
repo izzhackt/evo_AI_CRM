@@ -39,7 +39,7 @@ export function DocumentGuideSlot({
   label: string;
   requirementKey: string | null;
   locale: Locale;
-  /** Страна дела (`CN`…): добавляет её требования к документу. */
+  /** Страна поступления студента (`CN`…): добавляет её требования к документу. */
   country?: string | null;
   statusLabel?: string | null;
   statusTone?: PortalStatusTone;

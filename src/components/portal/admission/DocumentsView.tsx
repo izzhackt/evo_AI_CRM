@@ -42,7 +42,7 @@ export function DocumentsView({
 }: {
   documents: readonly StudentPortalDocument[];
   locale: Locale;
-  /** Страна дела (`CN`…): её требования в справке «Образец и советы». */
+  /** Страна поступления студента (`CN`…, `readStudentCountryChoice`): её требования в справке «Образец и советы». */
   country?: string | null;
   /** Вкладки страницы — между карточкой «Чеклист» и содержимым (как у образца). */
   tabs?: ReactNode;

@@ -120,7 +120,7 @@ const GUIDES: readonly DocumentGuide[] = [
       { n: 3, x: 78, y: 70, legend: { ru: "Без фильтров", ky: "Чыпкасыз" } },
     ],
     ru: {
-      description: "Цветное фото как на документы: лицо анфас, белый фон, уши открыты. Размер для вашей страны — ниже или у куратора.",
+      description: "Цветное фото как на документы: лицо анфас, белый фон, уши открыты. Размер для вашей страны скажет куратор.",
       where: [
         "Сфотографируйтесь в фотосалоне на белом фоне",
         "Без очков и головного убора, уши открыты, выражение спокойное",
@@ -130,7 +130,7 @@ const GUIDES: readonly DocumentGuide[] = [
       mistakes: "Не обрезайте лицо и не накладывайте фильтры.",
     },
     ky: {
-      description: "Документке тарткандай түстүү сүрөт: жүз түз, фон ак, кулак ачык. Өлкөңүз үчүн өлчөм — төмөндө же куратордо.",
+      description: "Документке тарткандай түстүү сүрөт: жүз түз, фон ак, кулак ачык. Өлкөңүз үчүн өлчөмдү куратор айтат.",
       where: [
         "Фотосалондо ак фондо тартылыңыз",
         "Көз айнексиз жана баш кийимсиз, кулак ачык, жүз тынч",
@@ -591,7 +591,7 @@ export type DocumentGuideView = Readonly<{
   mistakes: string;
   sampleSrc: string;
   pins: readonly DocumentGuidePinView[];
-  /** Требования страны дела (пока только Китай). Нет страны или заметок — null. */
+  /** Требования страны поступления (пока только Китай). Нет страны или заметок — null. */
   countryNotes: Readonly<{ country: GuideCountry; items: readonly string[] }> | null;
   /** «Как сфотографировать» — у всех, кроме самого фото и договора с EVO (его не снимают, а скачивают). */
   photoTips: boolean;
@@ -633,7 +633,7 @@ function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | nu
 export function documentGuideView(
   input: Readonly<{ requirementKey: string | null; label: string }>,
   locale: Locale,
-  /** Страна дела (`CN`, `MY`, …): добавляет её требования. Без страны — общая справка. */
+  /** Страна поступления (`CN`, `MY`, …): добавляет её требования. Без страны — общая справка. */
   country: string | null = null,
 ): DocumentGuideView | null {
   const place = guideCountry(country);

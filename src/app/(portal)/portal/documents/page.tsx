@@ -37,10 +37,11 @@ export default async function StudentPortalDocumentsPage({
   await requireStudentPortalActor();
   // Свои договор и чеки (352) - дополнение: сбой чтения не роняет чек-лист, блок просто не показывается.
   const caseFilesRead = readStudentPortalCaseFiles().catch(() => []);
-  // Страна дела добавляет её требования в справку «Образец и советы»; сбой чтения оставляет общую справку.
+  // Страна поступления (как подпись в меню и «Путь поступления»: выбор студента, иначе анкета, иначе дело) добавляет
+  // её требования в справку «Образец и советы»; сбой чтения оставляет общую справку.
   const countryRead = readStudentCountryChoice().then((choice) => choice?.country ?? null, (): null => null);
-  const [documents, locale, country] = await Promise.all([readStudentPortalDocuments(), getLocale(), countryRead]);
-  const caseFiles = await caseFilesRead;
+  const [documents, locale] = await Promise.all([readStudentPortalDocuments(), getLocale()]);
+  const [caseFiles, country] = await Promise.all([caseFilesRead, countryRead]);
   const strings = getPortalStrings("admission", locale);
 
   return (

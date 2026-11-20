@@ -7,15 +7,22 @@ import type { Locale } from "@/lib/i18n-data";
 import { documentGuideView, type DocumentGuideView } from "@/lib/portal/document-guides";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 
+import { DocumentGuideBody, SampleFigure, SampleLegend } from "./DocumentGuideBody";
+import { CloseIcon, DownloadIcon, GuideMarkIcon } from "./DocumentGuideIcons";
 import { PortalDocumentControls } from "./PortalDocumentControls";
 import { PortalStatus } from "./PortalStatus";
 import type { PortalStatusTone } from "./presentation";
 
 const CHAT_HREF = "/portal/messages?view=chat";
-const PROGRAMS_HREF = "/portal?view=programs#list";
+
+type Upload = {
+  documentSlotId: string;
+  documentVersionId: string | null;
+  originalFilename: string | null;
+};
 
 /**
- * Кнопка «!» и панель «что это за документ».
+ * Кнопка «Образец и советы» и панель «что это за документ».
  * Панель — системный `<dialog>`: Esc, ловушка фокуса и возврат фокуса даёт браузер.
  * На телефоне та же панель становится нижним листом (portal.css).
  */
@@ -23,6 +30,7 @@ export function DocumentGuideSlot({
   label,
   requirementKey,
   locale,
+  country = null,
   statusLabel = null,
   statusTone = "neutral",
   upload = null,
@@ -31,18 +39,16 @@ export function DocumentGuideSlot({
   label: string;
   requirementKey: string | null;
   locale: Locale;
+  /** Страна дела (`CN`…): добавляет её требования к документу. */
+  country?: string | null;
   statusLabel?: string | null;
   statusTone?: PortalStatusTone;
   /** Существующая загрузка строки. Рисуется, когда файл ещё не принят. */
-  upload?: {
-    documentSlotId: string;
-    documentVersionId: string | null;
-    originalFilename: string | null;
-  } | null;
+  upload?: Upload | null;
   /** Скачивание принятого файла или договора/чека. */
   download?: { href: string; filename: string } | null;
 }) {
-  const guide = documentGuideView({ requirementKey, label }, locale);
+  const guide = documentGuideView({ requirementKey, label }, locale, country);
   if (!guide) return null;
   return (
     <DocumentGuide
@@ -71,11 +77,7 @@ function DocumentGuide({
   guide: DocumentGuideView;
   statusLabel: string | null;
   statusTone: PortalStatusTone;
-  upload: {
-    documentSlotId: string;
-    documentVersionId: string | null;
-    originalFilename: string | null;
-  } | null;
+  upload: Upload | null;
   download: { href: string; filename: string } | null;
 }) {
   const strings = getPortalStrings("admission", locale);
@@ -129,14 +131,14 @@ function DocumentGuide({
         ref={openerRef}
         type="button"
         className="pt-doc-guide-btn"
-        data-tooltip={strings.guideTooltip}
-        aria-label={formatPortalString(strings.guideOpenAria, { name: label })}
+        aria-label={formatPortalString(strings.guideButtonAria, { name: label })}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={dialogId}
         onClick={openGuide}
       >
-        <InfoIcon />
+        <span className="pt-doc-guide-btn-mark"><GuideMarkIcon /></span>
+        <span className="pt-doc-guide-btn-label">{strings.guideButton}</span>
       </button>
       <dialog
         ref={dialogRef}
@@ -164,42 +166,7 @@ function DocumentGuide({
             </button>
           </header>
           <div className="pt-doc-guide-body" tabIndex={0} role="region" aria-label={label}>
-            <p className="pt-doc-guide-lead">{guide.description}</p>
-            <section className="pt-doc-guide-where" aria-labelledby={`${titleId}-where`}>
-              <h3 id={`${titleId}-where`}>{strings.guideWhere}</h3>
-              <ul>
-                {guide.where.map((line) => <li key={line}>{line}</li>)}
-              </ul>
-            </section>
-            <div className="pt-doc-guide-sample-head">
-              <p className="pt-doc-guide-req">{guide.requirements}</p>
-              <button type="button" className="pt-doc-guide-chip" onClick={(event) => openSample(event.currentTarget)}>
-                {strings.guideSample}
-                <ExpandIcon />
-              </button>
-            </div>
-            <button
-              type="button"
-              className="pt-doc-guide-hero"
-              aria-label={strings.guideSampleOpen}
-              onClick={(event) => openSample(event.currentTarget)}
-            >
-              <SampleFigure guide={guide} />
-            </button>
-            <p className="pt-doc-guide-legend">
-              {guide.pins.map((pin, index) => (
-                <span key={pin.n}>
-                  {index > 0 ? <span className="pt-doc-guide-dot" aria-hidden="true">·</span> : null}
-                  <i aria-hidden="true">{pin.n}</i>
-                  {pin.legend}
-                </span>
-              ))}
-            </p>
-            <p className="pt-doc-guide-mistakes">{guide.mistakes}</p>
-            <p className="pt-doc-guide-university">
-              {strings.guideUniversityNote}{" "}
-              <Link className="pt-link" href={PROGRAMS_HREF}>{strings.guideUniversityLink}</Link>
-            </p>
+            <DocumentGuideBody guide={guide} strings={strings} titleId={titleId} onOpenSample={openSample} />
           </div>
           <footer className="pt-doc-guide-foot">
             <div className="pt-doc-guide-actions">
@@ -227,66 +194,9 @@ function DocumentGuide({
           </button>
           <h2 id={sampleTitleId} className="pt-sr-only">{strings.guideSampleOpen}</h2>
           <SampleFigure guide={guide} enlarged />
-          <p className="pt-doc-guide-legend">
-            {guide.pins.map((pin) => (
-              <span key={pin.n}><i aria-hidden="true">{pin.n}</i>{pin.legend}</span>
-            ))}
-          </p>
+          <SampleLegend guide={guide} />
         </div>
       </dialog>
     </>
-  );
-}
-
-function SampleFigure({ guide, enlarged = false }: { guide: DocumentGuideView; enlarged?: boolean }) {
-  return (
-    <span className={enlarged ? "pt-doc-guide-figure is-large" : "pt-doc-guide-figure"}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- статический SVG-образец из public/, оптимизатор не нужен */}
-      <img src={guide.sampleSrc} alt="" width={640} height={400} decoding="async" />
-      {guide.pins.map((pin) => (
-        <span
-          key={pin.n}
-          className="pt-doc-guide-pin"
-          style={{ left: `${pin.x}%`, top: `${pin.y}%` }}
-          aria-hidden="true"
-        >
-          {pin.n}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.35" />
-      <path d="M8 4.85v3.45" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <circle cx="8" cy="11.15" r="1.05" fill="currentColor" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ExpandIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 4v12M8 12l4 4 4-4M5 20h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

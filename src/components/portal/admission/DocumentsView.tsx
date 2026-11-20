@@ -36,11 +36,14 @@ import {
 export function DocumentsView({
   documents,
   locale,
+  country = null,
   tabs = null,
   children = null,
 }: {
   documents: readonly StudentPortalDocument[];
   locale: Locale;
+  /** Страна дела (`CN`…): её требования в справке «Образец и советы». */
+  country?: string | null;
   /** Вкладки страницы — между карточкой «Чеклист» и содержимым (как у образца). */
   tabs?: ReactNode;
   /** Другое содержимое вместо списка документов (с 09.11.2026 страница его не передаёт). */
@@ -120,6 +123,7 @@ export function DocumentsView({
           const guide = documentGuideView(
             { requirementKey: document.requirementKey, label: document.requirementLabel },
             locale,
+            country,
           );
           const hint = document.instructions ?? (guide ? null : defaultDocumentHint(document.requirementLabel, locale));
           const acceptedDownload = document.status === "approved" && document.documentVersionId
@@ -144,6 +148,7 @@ export function DocumentsView({
                     label={document.requirementLabel}
                     requirementKey={document.requirementKey}
                     locale={locale}
+                    country={country}
                     statusLabel={status.label}
                     statusTone={status.tone}
                     // Принятый документ заменить нельзя — как и в строке (`allowUpload`), даже если файла версии нет.

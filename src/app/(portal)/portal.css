@@ -11163,12 +11163,14 @@ button.pt-journey-now-step {
   .pt-prep-section-heading { align-items: flex-start; }
 }
 
-/* ---------- Справка о документе: кнопка «!» и панель ---------- */
+/* ---------- Справка о документе: кнопка «Образец и советы» и панель ---------- */
 
 .pt-doc-title-line {
   display: flex;
-  align-items: flex-start;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
   min-width: 0;
 }
 
@@ -11176,68 +11178,61 @@ button.pt-journey-now-step {
   min-width: 0;
 }
 
-.pt-doc-title-line:has(.pt-doc-guide-btn) .pt-doc-item-title {
-  padding-top: 10px;
-}
-
+/*
+ * 20.11.2026: «!» был серым значком 16 px, его не замечали. Теперь это подпись со значком в красном кружке:
+ * бледный красный — только подложка значка (токен), подпись — обычный текст на нейтральной плашке.
+ * Видимая высота 32 px, цель нажатия 44 px за счёт невидимой рамки.
+ */
 .pt-doc-guide-btn {
   position: relative;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
   flex: none;
-  width: 44px;
-  height: 44px;
-  margin: -2px 0 0;
-  padding: 0;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  margin: 6px 0;
+  padding: 0 12px 0 4px;
   border: 0;
   border-radius: var(--pt-radius-chip);
-  background: transparent;
-  color: var(--pt-text-2);
+  background: var(--pt-bg);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-caption);
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.pt-doc-guide-btn:hover,
-.pt-doc-guide-btn:focus-visible {
-  color: var(--pt-accent);
-  background: radial-gradient(circle at center, var(--pt-accent-soft) 14px, transparent 15px);
-}
-
-.pt-doc-guide-btn:hover::after,
-.pt-doc-guide-btn:focus-visible::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  z-index: 6;
-  left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  padding: 6px 9px;
-  border-radius: var(--pt-radius-item);
-  background: var(--pt-text);
-  color: var(--pt-surface);
-  font-size: var(--pt-size-caption);
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  box-shadow: var(--pt-shadow-raised);
-  pointer-events: none;
-}
-
-.pt-doc-guide-btn:hover::before,
-.pt-doc-guide-btn:focus-visible::before {
+.pt-doc-guide-btn::after {
   content: "";
   position: absolute;
-  z-index: 7;
-  left: 50%;
-  bottom: calc(100% - 2px);
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: var(--pt-text);
-  pointer-events: none;
+  inset: -6px 0;
 }
 
-.pt-doc-guide-btn[aria-expanded="true"]::before,
-.pt-doc-guide-btn[aria-expanded="true"]::after {
-  content: none;
+.pt-doc-guide-btn-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent-soft);
+  color: var(--pt-accent);
+}
+
+.pt-doc-guide-btn:hover {
+  box-shadow: inset 0 0 0 1px var(--pt-control-edge);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pt-doc-guide-btn {
+    transition: box-shadow var(--pt-motion-fast) var(--pt-ease-out), transform var(--pt-motion-press) var(--pt-ease-out);
+  }
+
+  .pt-doc-guide-btn:active {
+    transform: scale(0.98);
+  }
 }
 
 .pt-doc-guide-dialog,
@@ -11345,10 +11340,15 @@ html:has(.pt-doc-guide-lightbox[open]) {
   line-height: 1.5;
 }
 
-.pt-doc-guide-where {
-  margin-top: 18px;
+.pt-doc-guide-where,
+.pt-doc-guide-country,
+.pt-doc-guide-tips {
+  margin-top: 20px;
 }
 
+.pt-doc-guide-sample-head h3,
+.pt-doc-guide-country h3,
+.pt-doc-guide-tips h3,
 .pt-doc-guide-where h3 {
   margin: 0 0 8px;
   color: var(--pt-text-2);
@@ -11359,32 +11359,101 @@ html:has(.pt-doc-guide-lightbox[open]) {
   text-transform: uppercase;
 }
 
-.pt-doc-guide-where ul {
+.pt-doc-guide-where ol,
+.pt-doc-guide-country ul,
+.pt-doc-guide-tips ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pt-doc-guide-where li {
+.pt-doc-guide-where ol {
+  counter-reset: pt-doc-step;
+}
+
+.pt-doc-guide-where li,
+.pt-doc-guide-country li {
   position: relative;
-  padding-left: 14px;
   font-size: var(--pt-size-secondary);
   line-height: 1.45;
 }
 
-.pt-doc-guide-where li + li {
-  margin-top: 6px;
+.pt-doc-guide-where li {
+  padding-left: 30px;
+  counter-increment: pt-doc-step;
 }
 
+.pt-doc-guide-where li + li,
+.pt-doc-guide-country li + li {
+  margin-top: 8px;
+}
+
+/* Шаги «где взять» по порядку: номер в кружке, как метки на образце. */
 .pt-doc-guide-where li::before {
+  content: counter(pt-doc-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Требования страны: белый блок с тёмным ребром слева, без заливки (панели не подкрашиваются, красный — для действий). */
+.pt-doc-guide-country {
+  padding: 14px 16px;
+  border-radius: var(--pt-radius-item);
+  box-shadow: inset 3px 0 0 var(--pt-text), inset 0 0 0 1px var(--pt-line);
+}
+
+.pt-doc-guide-country li {
+  padding-left: 14px;
+}
+
+.pt-doc-guide-country li::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 0.55em;
+  top: 0.6em;
   width: 5px;
   height: 5px;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-control-edge);
+}
+
+.pt-doc-guide-tips ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pt-doc-guide-tips li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--pt-radius-item);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  font-size: var(--pt-size-caption);
+  line-height: 1.4;
+}
+
+.pt-doc-guide-tips svg {
+  flex: none;
+  color: var(--pt-text-2);
+}
+
+
+.pt-doc-guide-sample {
+  margin-top: 20px;
 }
 
 .pt-doc-guide-sample-head {
@@ -11392,16 +11461,26 @@ html:has(.pt-doc-guide-lightbox[open]) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 16px 0 10px;
+  margin: 0 0 8px;
 }
+
+
 
 .pt-doc-guide-req,
 .pt-doc-guide-mistakes,
 .pt-doc-guide-university {
-  margin: 0;
+  margin: 6px 0 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   line-height: 1.4;
+}
+
+.pt-doc-guide-req {
+  margin-top: 20px;
+}
+
+.pt-doc-guide-sample-head h3 {
+  margin: 0;
 }
 
 .pt-doc-guide-chip {
@@ -11481,7 +11560,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 0;
+  gap: 6px 14px;
   margin: 10px 0 0;
   font-size: var(--pt-size-caption);
   line-height: 1.35;
@@ -11494,11 +11573,6 @@ html:has(.pt-doc-guide-lightbox[open]) {
 
 .pt-doc-guide-legend i {
   margin-right: 5px;
-}
-
-.pt-doc-guide-dot {
-  margin: 0 8px;
-  color: var(--pt-control-edge);
 }
 
 .pt-doc-guide-mistakes {
@@ -11614,18 +11688,23 @@ a.pt-btn.pt-doc-guide-download:hover {
     padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
   }
 
-  .pt-doc-guide-btn:hover::after,
-  .pt-doc-guide-btn:focus-visible::after {
-    left: auto;
-    right: 0;
-    transform: none;
+}
+
+@media (max-width: 600px) {
+  /* На телефоне кнопка всегда своей строкой под названием: одинаково у коротких и длинных названий. */
+  .pt-doc-title-line {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
-  .pt-doc-guide-btn:hover::before,
-  .pt-doc-guide-btn:focus-visible::before {
-    left: auto;
-    right: 16px;
-    transform: none;
+  .pt-doc-guide-btn {
+    margin: 4px 0 2px;
+  }
+}
+
+@media (max-width: 359px) {
+  .pt-doc-guide-tips ul {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

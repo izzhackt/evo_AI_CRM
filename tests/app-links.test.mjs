@@ -133,3 +133,35 @@ test("the route handlers answer 200 application/json with the exact documented J
     assert.equal(await head.text(), "");
   }
 });
+
+// Образцы справки «что это за документ» (#1478): статичные картинки кабинета. `<img>` не идёт за перенаправлением,
+// поэтому файл отдаётся без сессии, как два файла выше, и только по точному шаблону одного уровня.
+const SAMPLE = "/portal/document-samples/passport.svg";
+
+test("route contract: document samples are exact one-level image files", () => {
+  for (const p of [SAMPLE, "/portal/document-samples/police-certificate.svg", "/portal/document-samples/diploma-1.webp", "/portal/document-samples/a1.png", "/portal/document-samples/b.jpg"]) {
+    assert.equal(routes.isDocumentSampleFile(p), true, p);
+  }
+  for (const p of [
+    "/portal/document-samples/", "/portal/document-samples/Passport.svg", "/portal/document-samples/a/b.svg",
+    "/portal/document-samples/../documents", "/portal/document-samples/passport.svg/", "/portal/document-samples/passport.html",
+    "/portal/document-samples/-passport.svg", "/portal/document-samples/passport--x.svg", "/portal/documents", "/document-samples/passport.svg",
+  ]) {
+    assert.equal(routes.isDocumentSampleFile(p), false, p);
+  }
+});
+
+test("the proxy lets a document sample through without a session; other methods are not exempt", async () => {
+  let supabase = 0;
+  const proxy = loadProxy(() => { supabase += 1; });
+  for (const method of ["GET", "HEAD"]) {
+    const response = await proxy(req("app.evoadmissions.com", SAMPLE, method));
+    assert.equal(response.headers.get("x-middleware-next"), "1", `${method} passes to the static file`);
+    assert.equal(response.headers.get("location"), null);
+  }
+  assert.equal(supabase, 0, "no session or database read");
+  const post = await proxy(req("app.evoadmissions.com", SAMPLE, "POST"));
+  assert.notEqual(post.headers.get("x-middleware-next"), "1");
+  const nested = await proxy(req("app.evoadmissions.com", "/portal/document-samples/a/b.svg"));
+  assert.equal(nested.status, 307);
+});

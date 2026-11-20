@@ -1,5 +1,7 @@
 import type { Locale } from "../i18n-data.ts";
 
+import { CN_DOCUMENT_NOTES } from "./document-guides-cn.ts";
+
 /**
  * Справка «что это за документ» для кабинета студента.
  *
@@ -91,7 +93,7 @@ const GUIDES: readonly DocumentGuide[] = [
       where: [
         "Оформите загранпаспорт в ЦОН или паспортном столе",
         "Сфотографируйте разворот с фото, не обложку",
-        "Какой запас срока нужен, скажет куратор — это не правило вуза",
+        "Проверьте срок действия: какой запас нужен, скажет куратор",
       ],
       requirements: "PDF, JPG или PNG · до 25 МБ · цветной разворот, без бликов",
       mistakes: "Не загружайте только обложку и не закрывайте углы пальцем или бликом.",
@@ -101,7 +103,7 @@ const GUIDES: readonly DocumentGuide[] = [
       where: [
         "Чет өлкөлүк паспортту ЦОНдон же паспорт столунан алыңыз",
         "Мукабасын эмес, сүрөтү бар бетти сүрөткө тартыңыз",
-        "Канча мөөнөт керек экенин куратор айтат — бул университеттин эрежеси эмес",
+        "Мөөнөтүн текшериңиз: канча запас керек экенин куратор айтат",
       ],
       requirements: "PDF, JPG же PNG · 25 МБга чейин · түстүү бет, жарык таксыз",
       mistakes: "Мукабасын гана жүктөбөңүз жана бурчтарын манжа же жарык так менен жаппаңыз.",
@@ -114,25 +116,25 @@ const GUIDES: readonly DocumentGuide[] = [
     sampleSrc: `${SAMPLE}/photo.svg`,
     pins: [
       { n: 1, x: 50, y: 42, legend: { ru: "Лицо по центру", ky: "Жүз ортодо" } },
-      { n: 2, x: 22, y: 22, legend: { ru: "Светлый фон", ky: "Ачык фон" } },
+      { n: 2, x: 22, y: 22, legend: { ru: "Белый фон", ky: "Ак фон" } },
       { n: 3, x: 78, y: 70, legend: { ru: "Без фильтров", ky: "Чыпкасыз" } },
     ],
     ru: {
-      description: "Цветное фото как на документы: лицо анфас, светлый фон. Размер для конкретного вуза скажет куратор.",
+      description: "Цветное фото как на документы: лицо анфас, белый фон, уши открыты. Размер для вашей страны — ниже или у куратора.",
       where: [
-        "Сфотографируйтесь на светлом фоне или в фотосалоне",
-        "Лицо по центру, без головного убора и тёмных очков",
-        "Нужный размер и фон назовёт куратор",
+        "Сфотографируйтесь в фотосалоне на белом фоне",
+        "Без очков и головного убора, уши открыты, выражение спокойное",
+        "Попросите у фотографа и электронную версию",
       ],
       requirements: "JPG или PNG · до 25 МБ · цветное, без фильтров",
       mistakes: "Не обрезайте лицо и не накладывайте фильтры.",
     },
     ky: {
-      description: "Документке тарткандай түстүү сүрөт: жүз түз, фон ачык. Так өлчөмдү куратор айтат.",
+      description: "Документке тарткандай түстүү сүрөт: жүз түз, фон ак, кулак ачык. Өлкөңүз үчүн өлчөм — төмөндө же куратордо.",
       where: [
-        "Ачык фондо же фотосалондо тартылыңыз",
-        "Жүз ортодо, баш кийимсиз жана кара көз айнексиз",
-        "Керектүү өлчөм менен фонду куратор айтат",
+        "Фотосалондо ак фондо тартылыңыз",
+        "Көз айнексиз жана баш кийимсиз, кулак ачык, жүз тынч",
+        "Фотографтан электрондук нускасын да сураңыз",
       ],
       requirements: "JPG же PNG · 25 МБга чейин · түстүү, чыпкасыз",
       mistakes: "Жүздү кесип салбаңыз жана чыпка колдонбоңуз.",
@@ -193,9 +195,9 @@ const GUIDES: readonly DocumentGuide[] = [
       { n: 3, x: 88, y: 72, legend: { ru: "Общий балл", ky: "Жалпы балл" } },
     ],
     ru: {
-      description: "Официальный отчёт языкового теста, например TOEFL iBT или IELTS. Обычно смотрят общий балл и иногда баллы по частям.",
+      description: "Официальный отчёт языкового теста: IELTS, TOEFL iBT или HSK. Обычно смотрят общий балл и иногда баллы по частям.",
       where: [
-        "Запишитесь на тест у организатора: TOEFL — на ets.org, IELTS — в центре IELTS",
+        "Запишитесь на тест у организатора: IELTS — в центре IELTS, TOEFL — на ets.org, HSK — в центре HSK",
         "Результат обычно приходит в личный кабинет через несколько дней",
         "Скачайте PDF и при необходимости отправьте баллы в вуз",
       ],
@@ -203,9 +205,9 @@ const GUIDES: readonly DocumentGuide[] = [
       mistakes: "Не отправляйте обрезанный скриншот. Подойдёт ли старый отчёт, скажет куратор.",
     },
     ky: {
-      description: "Тил тестинин расмий отчёту, мисалы TOEFL iBT же IELTS. Көбүнчө жалпы баллды, кээде бөлүктөр боюнча баллды карашат.",
+      description: "Тил тестинин расмий отчёту: IELTS, TOEFL iBT же HSK. Көбүнчө жалпы баллды, кээде бөлүктөр боюнча баллды карашат.",
       where: [
-        "Тестке уюштуруучудан жазылыңыз: TOEFL — ets.org, IELTS — IELTS борбору",
+        "Тестке уюштуруучудан жазылыңыз: IELTS — IELTS борбору, TOEFL — ets.org, HSK — HSK борбору",
         "Жыйынтык көбүнчө бир нече күндө жеке кабинетке келет",
         "PDF жүктөп алыңыз жана керек болсо баллды университетке жөнөтүңүз",
       ],
@@ -416,7 +418,7 @@ const GUIDES: readonly DocumentGuide[] = [
       { n: 3, x: 70, y: 68, legend: { ru: "Остаток", ky: "Калдык" } },
     ],
     ru: {
-      description: "Справка или выписка банка об остатке на счёте. Нужную сумму называет куратор, здесь её нет.",
+      description: "Справка или выписка банка об остатке на счёте. Нужную сумму называет куратор.",
       where: [
         "Возьмите выписку в банке или в приложении банка",
         "Должны быть видны ваше имя, дата и остаток",
@@ -426,7 +428,7 @@ const GUIDES: readonly DocumentGuide[] = [
       mistakes: "Не закрывайте имя и остаток и не присылайте чужой счёт.",
     },
     ky: {
-      description: "Эсептеги калдык тууралуу банк маалымкаты же көчүрмө. Керектүү сумманы куратор айтат, бул жерде ал жок.",
+      description: "Эсептеги калдык тууралуу банк маалымкаты же көчүрмө. Керектүү сумманы куратор айтат.",
       where: [
         "Көчүрмөнү банктан же банк тиркемесинен алыңыз",
         "Атыңыз, күнү жана калдык көрүнүшү керек",
@@ -571,7 +573,7 @@ const LABEL_RULES: readonly Readonly<{ typeKey: DocumentGuideType; test: (label:
   { typeKey: "bank_statement", test: (label) => /справка из банка|банктан маалымкат|bank statement|выписка (из|с|по) (банк|сче|сч)|банковск(ая|ой) выписк/u.test(label) },
   { typeKey: "study_certificate", test: (label) => /справка с места учебы|окуу жайынан маалымкат/u.test(label) },
   { typeKey: "birth_certificate", test: (label) => /свидетельств[оа] о рождении|туулгандыгы тууралуу/u.test(label) },
-  { typeKey: "attestat", test: (label) => /аттестат|диплом|транскрипт|transcript|diploma/u.test(label) },
+  { typeKey: "attestat", test: (label) => /аттестат|диплом|транскрипт|transcript|diploma|табел|ведомость оценок/u.test(label) },
   // «Фото паспорта», «фото с паспортом» — это скан паспорта, а не фото 3×4 («Фото на паспорт» — фото 3×4).
   { typeKey: "photo", test: (label) => /^(фото|фотография|photo|сүрөт|цветное фото)( |$)/u.test(label) && !/паспорта|с паспортом|и паспорт|of passport|passport (page|copy|scan)/u.test(label) },
   { typeKey: "passport", test: (label) => /загранпаспорт|паспорт|passport|чет өлкө/u.test(label) && !/фото/u.test(label) },
@@ -589,10 +591,23 @@ export type DocumentGuideView = Readonly<{
   mistakes: string;
   sampleSrc: string;
   pins: readonly DocumentGuidePinView[];
+  /** Требования страны дела (пока только Китай). Нет страны или заметок — null. */
+  countryNotes: Readonly<{ country: GuideCountry; items: readonly string[] }> | null;
+  /** «Как сфотографировать» — у всех, кроме самого фото и договора с EVO (его не снимают, а скачивают). */
+  photoTips: boolean;
 }>;
 
-function viewOf(guide: DocumentGuide, locale: Locale): DocumentGuideView {
+export type GuideCountry = "CN";
+
+const COUNTRY_NOTES: Readonly<Record<GuideCountry, typeof CN_DOCUMENT_NOTES>> = { CN: CN_DOCUMENT_NOTES };
+
+function guideCountry(country: string | null | undefined): GuideCountry | null {
+  return country?.trim().toUpperCase() === "CN" ? "CN" : null;
+}
+
+function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | null): DocumentGuideView {
   const copy = locale === "ky" ? guide.ky : guide.ru;
+  const notes = country ? COUNTRY_NOTES[country][guide.typeKey] : undefined;
   return {
     typeKey: guide.typeKey,
     description: copy.description,
@@ -606,6 +621,8 @@ function viewOf(guide: DocumentGuide, locale: Locale): DocumentGuideView {
       y: pin.y,
       legend: locale === "ky" ? pin.legend.ky : pin.legend.ru,
     })),
+    countryNotes: notes && country ? { country, items: locale === "ky" ? notes.ky : notes.ru } : null,
+    photoTips: guide.typeKey !== "photo" && guide.typeKey !== "contract",
   };
 }
 
@@ -616,18 +633,21 @@ function viewOf(guide: DocumentGuide, locale: Locale): DocumentGuideView {
 export function documentGuideView(
   input: Readonly<{ requirementKey: string | null; label: string }>,
   locale: Locale,
+  /** Страна дела (`CN`, `MY`, …): добавляет её требования. Без страны — общая справка. */
+  country: string | null = null,
 ): DocumentGuideView | null {
+  const place = guideCountry(country);
   const byKey = input.requirementKey ? KEY_INDEX.get(input.requirementKey) : undefined;
-  if (byKey) return viewOf(byKey, locale);
+  if (byKey) return viewOf(byKey, locale, place);
   const normalized = normalizeDocumentLabel(input.label);
   if (!normalized) return null;
   const byLabel = LABEL_INDEX.get(normalized);
-  if (byLabel) return viewOf(byLabel, locale);
+  if (byLabel) return viewOf(byLabel, locale, place);
   if (NOT_THIS_DOCUMENT.test(normalized)) return null;
   const rule = LABEL_RULES.find((candidate) => candidate.test(normalized));
   if (!rule) return null;
   const guide = GUIDE_BY_TYPE.get(rule.typeKey);
-  return guide ? viewOf(guide, locale) : null;
+  return guide ? viewOf(guide, locale, place) : null;
 }
 
 /** Все образцы каталога. Тесты сверяют, что файл есть и это вымышленный образец. */

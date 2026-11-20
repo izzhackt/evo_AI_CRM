@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getLocale } from "@/lib/i18n";
+import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
 import { CaseFilesCard } from "@/components/portal/admission/CaseFilesCard";
@@ -36,7 +37,9 @@ export default async function StudentPortalDocumentsPage({
   await requireStudentPortalActor();
   // Свои договор и чеки (352) - дополнение: сбой чтения не роняет чек-лист, блок просто не показывается.
   const caseFilesRead = readStudentPortalCaseFiles().catch(() => []);
-  const [documents, locale] = await Promise.all([readStudentPortalDocuments(), getLocale()]);
+  // Страна дела добавляет её требования в справку «Образец и советы»; сбой чтения оставляет общую справку.
+  const countryRead = readStudentCountryChoice().then((choice) => choice?.country ?? null, (): null => null);
+  const [documents, locale, country] = await Promise.all([readStudentPortalDocuments(), getLocale(), countryRead]);
   const caseFiles = await caseFilesRead;
   const strings = getPortalStrings("admission", locale);
 
@@ -52,7 +55,7 @@ export default async function StudentPortalDocumentsPage({
           </p>
         </div>
       </header>
-      <DocumentsView documents={documents} locale={locale} />
+      <DocumentsView documents={documents} locale={locale} country={country} />
       <CaseFilesCard files={caseFiles} locale={locale} />
     </main>
   );

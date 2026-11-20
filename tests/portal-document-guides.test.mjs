@@ -157,7 +157,7 @@ test("known checklist labels and requirement keys open a guide, unknown labels d
   }), "");
 });
 
-test("the info button names the document and the drawer is an accessible dialog", () => {
+test("the visible «Образец и советы» button names the document and the drawer is an accessible dialog", () => {
   const html = renderGuide({
     label: "TOEFL",
     requirementKey: null,
@@ -166,8 +166,10 @@ test("the info button names the document and the drawer is an accessible dialog"
     statusTone: "neutral",
     upload: { documentSlotId: SLOT, documentVersionId: null, originalFilename: null },
   });
-  assert.match(html, /aria-label="Что это за документ\? TOEFL"/u);
-  assert.match(html, /data-tooltip="Что это за документ\?"/u);
+  // Видимая подпись входит в доступное имя (WCAG 2.5.3), подсказка-тултип больше не нужна.
+  assert.match(html, /aria-label="Образец и советы: TOEFL"/u);
+  assert.match(html, /<span class="pt-doc-guide-btn-label">Образец и советы<\/span>/u);
+  assert.doesNotMatch(html, /data-tooltip=/u);
   assert.match(html, /aria-haspopup="dialog"/u);
   assert.match(html, /aria-expanded="false"/u);
   const controls = html.match(/aria-controls="([^"]+)"/u);
@@ -188,6 +190,41 @@ test("the info button names the document and the drawer is an accessible dialog"
   assert.doesNotMatch(html, /Принятый документ доступен только для скачивания/u);
   assert.match(html, /\/portal\/document-samples\/language-score\.svg/u);
   assert.match(html, /class="pt-doc-guide-pin"/u);
+  // Без страны дела — общая справка: блока страны нет, «Как сфотографировать» есть.
+  assert.doesNotMatch(html, /pt-doc-guide-country/u);
+  assert.match(html, />Как сфотографировать</u);
+  assert.match(html, /Лист целиком, видны все четыре угла/u);
+});
+
+test("a China case adds the curator guide requirements; other countries keep the general guide", () => {
+  const cn = renderGuide({ label: "Медицинская справка", requirementKey: null, locale: "ru", country: "CN" });
+  assert.match(cn, />Для Китая</u);
+  assert.match(cn, /Foreigner Physical Examination Form/u);
+  assert.ok(cn.indexOf("Для Китая") < cn.indexOf("Где взять"), "country requirements come before the general steps");
+  const cnKy = renderGuide({ label: "Медицинская справка", requirementKey: null, locale: "ky", country: "cn" });
+  assert.match(cnKy, />Кытай үчүн</u);
+  const my = renderGuide({ label: "Медицинская справка", requirementKey: null, locale: "ru", country: "MY" });
+  assert.doesNotMatch(my, /Для Китая|Foreigner Physical/u);
+  // Для самого фото и договора с EVO советов «как сфотографировать документ» нет.
+  const photo = renderGuide({ label: "Фото", requirementKey: null, locale: "ru", country: "CN" });
+  assert.doesNotMatch(photo, /Как сфотографировать/u);
+  assert.match(photo, /33×48 мм/u);
+});
+
+test("every China note has RU and KY in step, at most four short lines, and no year", () => {
+  for (const type of DOCUMENT_GUIDE_TYPES) {
+    const ru = documentGuideView({ requirementKey: type, label: "" }, "ru", "CN");
+    const ky = documentGuideView({ requirementKey: type, label: "" }, "ky", "CN");
+    assert.equal(Boolean(ru.countryNotes), Boolean(ky.countryNotes), type);
+    if (!ru.countryNotes) continue;
+    assert.equal(ru.countryNotes.items.length, ky.countryNotes.items.length, type);
+    assert.ok(ru.countryNotes.items.length <= 4, type);
+    for (const line of [...ru.countryNotes.items, ...ky.countryNotes.items]) {
+      assert.doesNotMatch(line, /20\d\d/u, `${type}: years live in the country timeline`);
+      assert.ok(line.length <= 140, `${type}: ${line}`);
+    }
+  }
+  assert.equal(documentGuideView({ requirementKey: "passport", label: "" }, "ru").countryNotes, null);
 });
 
 test("the documents page wires the guide and drops the repeated locked subtitle", () => {
@@ -216,7 +253,7 @@ test("an accepted document offers download in the drawer and does not open a sec
       filename: "passport-sample.jpg",
     },
   });
-  assert.match(html, /aria-label="Что это за документ\? Паспорт"/u);
+  assert.match(html, /aria-label="Образец и советы: Паспорт"/u);
   assert.match(html, /class="pt-btn pt-doc-guide-download"/u);
   assert.match(html, /href="\/api\/portal\/document-versions\/20000000-0000-4000-8000-000000000002\/download"/u);
   assert.match(html, /aria-label="Скачать passport-sample\.jpg"/u);
@@ -230,7 +267,8 @@ test("an accepted document offers download in the drawer and does not open a sec
     locale: "ky",
     download: { href: "/api/portal/case-files/contract/file/download", filename: "contract.pdf" },
   });
-  assert.match(ky, /aria-label="Бул кандай документ\? Келишим"/u);
+  assert.match(ky, /aria-label="Үлгү жана кеңештер: Келишим"/u);
+  assert.doesNotMatch(ky, /Кантип сүрөткө тартуу/u);
   assert.match(ky, />Кайдан алуу</u);
   assert.match(ky, />Куратордон суроо</u);
   assert.match(ky, /class="pt-btn pt-doc-guide-download"/u);

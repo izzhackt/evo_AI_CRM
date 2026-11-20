@@ -33,6 +33,11 @@
   --pt-on-accent: #ffffff;
   /* Бледный фирменный красный: только подложка значков, не текст и не панели. */
   --pt-accent-soft: #fdecee;
+  /* Рисунок фото и скан образца — изображение бумаги: одинаковы в обеих темах. */
+  --pt-photo-paper: #ffffff;
+  --pt-photo-ink: #26282d;
+  --pt-photo-skin: #c9ccd1;
+  --pt-photo-line: #d5d8de;
   --pt-ok: #177245;
   --pt-warn: #b45309;
   --pt-error: #b3261e;
@@ -189,6 +194,10 @@
   --pt-accent: #ff4a57;
   --pt-on-accent: #141311;
   --pt-accent-soft: #3a1c20;
+  --pt-photo-paper: #ffffff;
+  --pt-photo-ink: #26282d;
+  --pt-photo-skin: #c9ccd1;
+  --pt-photo-line: #d5d8de;
   --pt-ok: #4cc38a;
   --pt-warn: #e5a445;
   --pt-error: #ff8177;
@@ -11276,7 +11285,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
 .pt-doc-guide-panel {
   display: flex;
   flex-direction: column;
-  width: min(460px, 100%);
+  width: min(520px, 100%);
   height: 100%;
   background: var(--pt-surface);
   box-shadow: -16px 0 48px rgb(16 24 40 / 0.16);
@@ -11287,13 +11296,11 @@ html:has(.pt-doc-guide-lightbox[open]) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 22px 24px 0;
+  padding: 24px 24px 0;
 }
 
 .pt-doc-guide-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
   gap: 10px;
   min-width: 0;
 }
@@ -11304,6 +11311,33 @@ html:has(.pt-doc-guide-lightbox[open]) {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
+}
+
+.pt-doc-guide-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* «Когда · Ноябрь–декабрь»: тихая плашка рядом со статусом, месяц — данные, подпись — вторичным цветом. */
+.pt-doc-guide-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  color: var(--pt-text);
+  font-size: var(--pt-size-caption);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.pt-doc-guide-when span {
+  color: var(--pt-text-2);
+  font-weight: 500;
 }
 
 .pt-doc-guide-close {
@@ -11330,27 +11364,30 @@ html:has(.pt-doc-guide-lightbox[open]) {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 16px 24px 8px;
+  padding: 14px 24px 24px;
 }
 
 .pt-doc-guide-lead {
   margin: 0;
-  max-width: 42ch;
+  max-width: 46ch;
   font-size: var(--pt-size-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-.pt-doc-guide-where,
+.pt-doc-guide-sample,
+.pt-doc-guide-photo,
 .pt-doc-guide-country,
+.pt-doc-guide-where,
 .pt-doc-guide-tips {
-  margin-top: 20px;
+  margin-top: 28px;
 }
 
 .pt-doc-guide-sample-head h3,
+.pt-doc-guide-photo h3,
 .pt-doc-guide-country h3,
 .pt-doc-guide-tips h3,
 .pt-doc-guide-where h3 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   font-weight: 700;
@@ -11359,124 +11396,14 @@ html:has(.pt-doc-guide-lightbox[open]) {
   text-transform: uppercase;
 }
 
-.pt-doc-guide-where ol,
-.pt-doc-guide-country ul,
-.pt-doc-guide-tips ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pt-doc-guide-where ol {
-  counter-reset: pt-doc-step;
-}
-
-.pt-doc-guide-where li,
-.pt-doc-guide-country li {
-  position: relative;
-  font-size: var(--pt-size-secondary);
-  line-height: 1.45;
-}
-
-.pt-doc-guide-where li {
-  padding-left: 30px;
-  counter-increment: pt-doc-step;
-}
-
-.pt-doc-guide-where li + li,
-.pt-doc-guide-country li + li {
-  margin-top: 8px;
-}
-
-/* Шаги «где взять» по порядку: номер в кружке, как метки на образце. */
-.pt-doc-guide-where li::before {
-  content: counter(pt-doc-step);
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-bg);
-  box-shadow: inset 0 0 0 1px var(--pt-line);
-  color: var(--pt-text);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-/* Требования страны: белый блок с тёмным ребром слева, без заливки (панели не подкрашиваются, красный — для действий). */
-.pt-doc-guide-country {
-  padding: 14px 16px;
-  border-radius: var(--pt-radius-item);
-  box-shadow: inset 3px 0 0 var(--pt-text), inset 0 0 0 1px var(--pt-line);
-}
-
-.pt-doc-guide-country li {
-  padding-left: 14px;
-}
-
-.pt-doc-guide-country li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.6em;
-  width: 5px;
-  height: 5px;
-  border-radius: var(--pt-radius-chip);
-  background: var(--pt-control-edge);
-}
-
-.pt-doc-guide-tips ul {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.pt-doc-guide-tips li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--pt-radius-item);
-  box-shadow: inset 0 0 0 1px var(--pt-line);
-  font-size: var(--pt-size-caption);
-  line-height: 1.4;
-}
-
-.pt-doc-guide-tips svg {
-  flex: none;
-  color: var(--pt-text-2);
-}
-
-
-.pt-doc-guide-sample {
-  margin-top: 20px;
-}
+/* ---- Образцы ---- */
 
 .pt-doc-guide-sample-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 8px;
-}
-
-
-
-.pt-doc-guide-req,
-.pt-doc-guide-mistakes,
-.pt-doc-guide-university {
-  margin: 6px 0 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  line-height: 1.4;
-}
-
-.pt-doc-guide-req {
-  margin-top: 20px;
+  margin-bottom: 10px;
 }
 
 .pt-doc-guide-sample-head h3 {
@@ -11487,17 +11414,17 @@ html:has(.pt-doc-guide-lightbox[open]) {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 8px 0 10px;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
   border: 0;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-bg);
-  box-shadow: inset 0 0 0 1px var(--pt-line);
   color: var(--pt-text);
   font: inherit;
   font-size: var(--pt-size-caption);
-  font-weight: 700;
+  font-weight: 650;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -11505,7 +11432,44 @@ html:has(.pt-doc-guide-lightbox[open]) {
   color: var(--pt-text-2);
 }
 
+.pt-doc-guide-chip:hover {
+  box-shadow: inset 0 0 0 1px var(--pt-control-edge);
+}
+
+/* Наборы образцов: сегменты на сером треке, выбранный — белый, как вкладки кабинета. */
+.pt-doc-guide-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 12px;
+  padding: 4px;
+  border-radius: calc(var(--pt-radius-control) + 4px);
+  background: var(--pt-bg);
+}
+
+.pt-doc-guide-sets button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--pt-radius-control);
+  background: transparent;
+  color: var(--pt-text-2);
+  font: inherit;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pt-doc-guide-sets button[aria-pressed="true"] {
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.08), 0 0 0 1px var(--pt-line);
+}
+
 .pt-doc-guide-hero {
+  position: relative;
   display: block;
   width: 100%;
   margin: 0;
@@ -11513,8 +11477,120 @@ html:has(.pt-doc-guide-lightbox[open]) {
   border: 0;
   border-radius: var(--pt-radius-card);
   background: none;
-  cursor: pointer;
+  cursor: zoom-in;
   text-align: left;
+}
+
+/* Скан лежит листом бумаги на сером столе: без рамок, с одной мягкой тенью. */
+.pt-doc-guide-scan {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 340px;
+  padding: 16px;
+  overflow: hidden;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-bg);
+}
+
+.pt-doc-guide-scan img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  border-radius: 3px;
+  background: var(--pt-photo-paper);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.1), 0 8px 24px -10px rgb(16 24 40 / 0.28);
+}
+
+.pt-doc-guide-zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  box-shadow: 0 1px 3px rgb(16 24 40 / 0.16);
+}
+
+/* Страницы набора — одна строка миниатюр; длинный набор прокручивается вбок (Tab, затем стрелки или жест). */
+.pt-doc-guide-pages {
+  display: flex;
+  gap: 8px;
+  margin: 12px -4px 0;
+  padding: 4px 4px 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  list-style: none;
+}
+
+.pt-doc-guide-pages li {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.pt-doc-guide-pages button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 84px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pt-text-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pt-doc-guide-thumb {
+  display: block;
+  width: 64px;
+  height: 84px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--pt-photo-paper);
+  box-shadow: 0 0 0 1px var(--pt-line);
+}
+
+.pt-doc-guide-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.pt-doc-guide-pages button[aria-current="true"] .pt-doc-guide-thumb {
+  box-shadow: 0 0 0 2px var(--pt-text);
+}
+
+.pt-doc-guide-thumb-caption {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pt-doc-guide-pages button[aria-current="true"] .pt-doc-guide-thumb-caption {
+  color: var(--pt-text);
+  font-weight: 650;
+}
+
+.pt-doc-guide-caption {
+  margin: 10px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  text-align: center;
 }
 
 .pt-doc-guide-figure {
@@ -11575,18 +11651,236 @@ html:has(.pt-doc-guide-lightbox[open]) {
   margin-right: 5px;
 }
 
-.pt-doc-guide-mistakes {
-  margin-top: 10px;
+/* ---- Памятка по фото ---- */
+
+.pt-doc-guide-photo-spec {
+  margin: -4px 0 12px;
+  color: var(--pt-text);
+  font-size: var(--pt-size-caption);
+  font-weight: 650;
+}
+
+.pt-doc-guide-photo ul {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-doc-guide-photo li {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pt-doc-guide-photo li > span:last-child {
+  color: var(--pt-text-2);
+}
+
+.pt-doc-guide-photo strong {
+  margin-top: 6px;
+  color: var(--pt-error);
+  font-size: var(--pt-size-caption);
+  font-weight: 650;
+}
+
+.pt-doc-guide-photo li[data-ok="true"] strong {
+  color: var(--pt-ok);
+}
+
+.pt-doc-guide-photo-frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 33 / 44;
+  border-radius: 6px;
+  background: var(--pt-photo-paper);
+  box-shadow: 0 0 0 1px var(--pt-photo-line);
+}
+
+.pt-doc-guide-photo-frame svg {
+  position: absolute;
+  inset: 8% 6% 0;
+  width: 88%;
+  height: 92%;
+}
+
+.pt-doc-guide-photo-frame .skin { fill: var(--pt-photo-skin); }
+.pt-doc-guide-photo-frame .ink { fill: var(--pt-photo-ink); }
+.pt-doc-guide-photo-frame .light { fill: var(--pt-photo-paper); stroke: var(--pt-photo-line); stroke-width: 1.2; }
+.pt-doc-guide-photo-frame .frame { stroke: var(--pt-photo-ink); }
+
+.pt-doc-guide-photo-mark {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-error);
+  color: var(--pt-surface);
+  box-shadow: 0 0 0 2px var(--pt-surface);
+}
+
+.pt-doc-guide-photo li[data-ok="true"] .pt-doc-guide-photo-mark {
+  background: var(--pt-ok);
+}
+
+.pt-doc-guide-photo-note {
+  margin: 14px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.45;
+}
+
+/* ---- Требования страны: мягкая нейтральная карточка с подзаголовками ---- */
+
+.pt-doc-guide-country {
+  padding: 16px 18px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-bg);
+}
+
+.pt-doc-guide-country h3 {
+  color: var(--pt-text);
+}
+
+.pt-doc-guide-country h4 {
+  margin: 16px 0 6px;
+  font-size: var(--pt-size-secondary);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.pt-doc-guide-country > ul + .pt-doc-guide-country-part h4,
+.pt-doc-guide-country h3 + .pt-doc-guide-country-part h4 {
+  margin-top: 0;
+}
+
+.pt-doc-guide-where ol,
+.pt-doc-guide-country ul,
+.pt-doc-guide-tips ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-doc-guide-where li,
+.pt-doc-guide-country li {
+  position: relative;
+  font-size: var(--pt-size-secondary);
+  line-height: 1.45;
+}
+
+.pt-doc-guide-where li + li,
+.pt-doc-guide-country li + li {
+  margin-top: 8px;
+}
+
+.pt-doc-guide-country li {
+  padding-left: 16px;
+}
+
+.pt-doc-guide-country li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-control-edge);
+}
+
+/* ---- Где взять: шаги с номерами ---- */
+
+.pt-doc-guide-where ol {
+  counter-reset: pt-doc-step;
+}
+
+.pt-doc-guide-where li {
+  padding-left: 32px;
+  counter-increment: pt-doc-step;
+}
+
+.pt-doc-guide-where li::before {
+  content: counter(pt-doc-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-text);
+  color: var(--pt-surface);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---- Как сфотографировать ---- */
+
+.pt-doc-guide-tips ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pt-doc-guide-tips li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--pt-radius-item);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  font-size: var(--pt-size-caption);
+  line-height: 1.4;
+}
+
+.pt-doc-guide-tips svg {
+  flex: none;
+  color: var(--pt-text-2);
+}
+
+/* ---- Формат и ошибки: мелкий шрифт под линией ---- */
+
+.pt-doc-guide-fine {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-doc-guide-req,
+.pt-doc-guide-mistakes,
+.pt-doc-guide-university {
+  margin: 6px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.45;
+}
+
+.pt-doc-guide-req {
+  margin-top: 0;
 }
 
 .pt-doc-guide-university {
-  margin-top: 14px;
+  margin-top: 12px;
 }
+
+/* ---- Подвал с действиями ---- */
 
 .pt-doc-guide-foot {
   flex: none;
-  padding: 12px 24px 24px;
+  padding: 14px 24px 24px;
   background: var(--pt-surface);
+  box-shadow: 0 -1px 0 var(--pt-line);
 }
 
 .pt-doc-guide-actions {
@@ -11629,11 +11923,13 @@ a.pt-btn.pt-doc-guide-download:hover {
   font-weight: 600;
 }
 
+/* ---- Крупный просмотр образца ---- */
+
 .pt-doc-guide-lightbox-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: min(880px, 100%);
+  width: min(920px, 100%);
   max-height: 100%;
   padding: 16px;
   overflow: auto;
@@ -11652,6 +11948,54 @@ a.pt-btn.pt-doc-guide-download:hover {
   object-fit: contain;
 }
 
+.pt-doc-guide-scan.is-large {
+  height: auto;
+  max-height: calc(100dvh - 190px);
+  padding: 20px;
+}
+
+.pt-doc-guide-scan.is-large img {
+  max-height: calc(100dvh - 230px);
+}
+
+.pt-doc-guide-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.pt-doc-guide-pager p {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 140px;
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  text-align: center;
+}
+
+.pt-doc-guide-pager p span {
+  color: var(--pt-text-2);
+}
+
+.pt-doc-guide-pager-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  color: var(--pt-text);
+  cursor: pointer;
+}
+
+.pt-doc-guide-pager-btn:disabled {
+  color: var(--pt-control-edge);
+  cursor: default;
+}
+
 .pt-doc-guide-dialog :focus-visible,
 .pt-doc-guide-lightbox :focus-visible,
 .pt-doc-guide-btn:focus-visible {
@@ -11662,6 +12006,19 @@ a.pt-btn.pt-doc-guide-download:hover {
 @media (prefers-reduced-motion: no-preference) {
   .pt-doc-guide-panel {
     animation: pt-enter-page var(--pt-motion-base) var(--pt-ease-out);
+  }
+
+  .pt-doc-guide-scan img {
+    transition: transform var(--pt-motion-base) var(--pt-ease-out);
+  }
+
+  .pt-doc-guide-hero:hover .pt-doc-guide-scan img {
+    transform: translateY(-2px);
+  }
+
+  .pt-doc-guide-sets button,
+  .pt-doc-guide-chip {
+    transition: box-shadow var(--pt-motion-fast) var(--pt-ease-out);
   }
 }
 
@@ -11688,6 +12045,19 @@ a.pt-btn.pt-doc-guide-download:hover {
     padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
   }
 
+  .pt-doc-guide-scan {
+    height: 280px;
+    padding: 12px;
+  }
+
+  .pt-doc-guide-photo ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
+
+  .pt-doc-guide-lightbox[open] {
+    padding: 8px;
+  }
 }
 
 @media (max-width: 600px) {

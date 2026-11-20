@@ -7,7 +7,8 @@ import type { Locale } from "@/lib/i18n-data";
 import { documentGuideView, type DocumentGuideView } from "@/lib/portal/document-guides";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 
-import { DocumentGuideBody, SampleFigure, SampleLegend } from "./DocumentGuideBody";
+import { DocumentGuideBody } from "./DocumentGuideBody";
+import { SampleLightboxContent, type SampleCursor } from "./DocumentGuideSamples";
 import { CloseIcon, DownloadIcon, GuideMarkIcon } from "./DocumentGuideIcons";
 import { PortalDocumentControls } from "./PortalDocumentControls";
 import { PortalStatus } from "./PortalStatus";
@@ -89,6 +90,7 @@ function DocumentGuide({
   const openerRef = useRef<HTMLButtonElement>(null);
   const sampleOpenerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState<SampleCursor>({ set: 0, page: 0 });
 
   function openGuide() {
     const dialog = dialogRef.current;
@@ -158,7 +160,14 @@ function DocumentGuide({
           <header className="pt-doc-guide-head">
             <div className="pt-doc-guide-heading">
               <h2 id={titleId}>{label}</h2>
-              {statusLabel ? <PortalStatus label={statusLabel} tone={statusTone} /> : null}
+              <div className="pt-doc-guide-meta">
+                {statusLabel ? <PortalStatus label={statusLabel} tone={statusTone} /> : null}
+                {guide.when ? (
+                  <span className="pt-doc-guide-when">
+                    <span>{strings.guideWhen}</span> {guide.when}
+                  </span>
+                ) : null}
+              </div>
             </div>
             <button type="button" className="pt-doc-guide-close" onClick={() => dialogRef.current?.close()}>
               <CloseIcon />
@@ -166,7 +175,14 @@ function DocumentGuide({
             </button>
           </header>
           <div className="pt-doc-guide-body" tabIndex={0} role="region" aria-label={label}>
-            <DocumentGuideBody guide={guide} strings={strings} titleId={titleId} onOpenSample={openSample} />
+            <DocumentGuideBody
+              guide={guide}
+              strings={strings}
+              titleId={titleId}
+              cursor={cursor}
+              onSelectSample={setCursor}
+              onOpenSample={openSample}
+            />
           </div>
           <footer className="pt-doc-guide-foot">
             <div className="pt-doc-guide-actions">
@@ -180,6 +196,15 @@ function DocumentGuide({
         ref={sampleRef}
         className="pt-doc-guide-lightbox"
         aria-labelledby={sampleTitleId}
+        onKeyDown={(event) => {
+          // Стрелки листают страницы набора, как кнопки «‹ ›» под образцом.
+          const pages = guide.sampleSets[cursor.set]?.pages.length ?? 0;
+          const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+          const next = cursor.page + step;
+          if (step === 0 || next < 0 || next >= pages) return;
+          event.preventDefault();
+          setCursor({ set: cursor.set, page: next });
+        }}
         onClick={(event) => {
           if (event.target === event.currentTarget) event.currentTarget.close();
         }}
@@ -193,8 +218,7 @@ function DocumentGuide({
             <span className="pt-sr-only">{strings.guideSampleClose}</span>
           </button>
           <h2 id={sampleTitleId} className="pt-sr-only">{strings.guideSampleOpen}</h2>
-          <SampleFigure guide={guide} enlarged />
-          <SampleLegend guide={guide} />
+          <SampleLightboxContent guide={guide} strings={strings} cursor={cursor} onSelect={setCursor} />
         </div>
       </dialog>
     </>

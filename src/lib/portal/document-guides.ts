@@ -1,6 +1,7 @@
 import type { Locale } from "../i18n-data.ts";
 
-import { CN_DOCUMENT_NOTES } from "./document-guides-cn.ts";
+import { CN_DOCUMENT_GUIDES, type CountryDocumentGuide } from "./document-guides-cn.ts";
+import { DOCUMENT_SAMPLE_SETS } from "./document-sample-sets.ts";
 
 /**
  * Справка «что это за документ» для кабинета студента.
@@ -35,6 +36,9 @@ export const DOCUMENT_GUIDE_TYPES = [
   "motivation_letter",
   "recommendation_letter",
   "birth_certificate",
+  "csca_result",
+  "parents_documents",
+  "parental_consent",
 ] as const;
 
 export type DocumentGuideType = (typeof DOCUMENT_GUIDE_TYPES)[number];
@@ -183,6 +187,7 @@ const GUIDES: readonly DocumentGuide[] = [
     labels: [
       "сертификат по языку (ielts, toefl), если есть",
       "сертификат по языку (ielts, toefl)",
+      "сертификат по языку (hsk, ielts или toefl)",
       "toefl",
       "ielts",
       "тил боюнча сертификат",
@@ -531,6 +536,103 @@ const GUIDES: readonly DocumentGuide[] = [
       mistakes: "Бурчтарын кесип салбаңыз жана атты жаппаңыз.",
     },
   },
+  {
+    typeKey: "csca_result",
+    labels: ["результаты csca", "результаты csca, для бакалавриата", "csca", "csca жыйынтыгы"],
+    keys: ["csca_result"],
+    sampleSrc: `${SAMPLE}/csca-result.svg`,
+    pins: [
+      { n: 1, x: 24, y: 27, legend: { ru: "Имя как в паспорте", ky: "Паспорттогудай ат" } },
+      { n: 2, x: 22, y: 50, legend: { ru: "Предметы", ky: "Сабактар" } },
+      { n: 3, x: 86, y: 50, legend: { ru: "Баллы", ky: "Баллдар" } },
+    ],
+    ru: {
+      description: "Результаты вступительного экзамена CSCA для бакалавриата Китая: баллы по каждому предмету.",
+      where: [
+        "Зарегистрируйтесь и сдайте CSCA на csca.cn",
+        "Скачайте отчёт с баллами в личном кабинете CSCA",
+        "Загрузите отчёт целиком, без обрезки",
+      ],
+      requirements: "PDF, JPG или PNG · до 25 МБ · отчёт целиком",
+      mistakes: "Не присылайте скриншот части экрана — нужен весь отчёт с именем и баллами.",
+    },
+    ky: {
+      description: "Кытайдын бакалавриатына CSCA кирүү экзаменинин жыйынтыгы: ар бир сабак боюнча балл.",
+      where: [
+        "csca.cn сайтында катталып, CSCA тапшырыңыз",
+        "Баллдары бар отчётту CSCA жеке кабинетинен жүктөп алыңыз",
+        "Отчётту кеспей, толугу менен жүктөңүз",
+      ],
+      requirements: "PDF, JPG же PNG · 25 МБга чейин · отчёт толугу менен",
+      mistakes: "Экрандын бир бөлүгүнүн скриншотун жибербеңиз — аты жана баллдары бар толук отчёт керек.",
+    },
+  },
+  {
+    typeKey: "parents_documents",
+    labels: ["паспорта и данные родителей", "ата-эненин паспорттору жана маалыматтары"],
+    keys: ["parents_documents"],
+    sampleSrc: `${SAMPLE}/parents-documents.svg`,
+    pins: [
+      { n: 1, x: 26, y: 20, legend: { ru: "Паспорт матери", ky: "Эненин паспорту" } },
+      { n: 2, x: 72, y: 20, legend: { ru: "Паспорт отца", ky: "Атанын паспорту" } },
+      { n: 3, x: 50, y: 70, legend: { ru: "Контакты и работа", ky: "Байланыш жана иш" } },
+    ],
+    ru: {
+      description: "Копии паспортов обоих родителей и их данные — для анкеты вуза.",
+      where: [
+        "Сфотографируйте страницу с фото в паспорте каждого родителя",
+        "Для каждого напишите куратору ФИО, телефон, e-mail, работу, должность и адрес",
+        "Если кто-то из родителей не работает, так и напишите",
+      ],
+      requirements: "PDF, JPG или PNG · до 25 МБ · оба паспорта, лучше одним PDF",
+      mistakes: "Не забудьте второго родителя и не обрезайте страницу с данными.",
+    },
+    ky: {
+      description: "Ата-эненин экөөнүн тең паспортторунун көчүрмөсү жана маалыматтары — университеттин анкетасы үчүн.",
+      where: [
+        "Ар бир ата-эненин паспортундагы сүрөтү бар бетти тартыңыз",
+        "Ар бири үчүн кураторго аты-жөнүн, телефонун, e-mail, ишин, кызматын жана дарегин жазыңыз",
+        "Ата-энеңиздин бири иштебесе, ошондой деп жазыңыз",
+      ],
+      requirements: "PDF, JPG же PNG · 25 МБга чейин · эки паспорт, жакшысы бир PDF",
+      mistakes: "Экинчи ата-энени унутпаңыз жана маалымат бетин кеспеңиз.",
+    },
+  },
+  {
+    typeKey: "parental_consent",
+    labels: [
+      "нотариальное согласие родителей на выезд",
+      "нотариальное согласие родителей на выезд, если вам нет 18 лет",
+      "ата-эненин чыгууга нотариалдык макулдугу",
+    ],
+    keys: ["parental_consent"],
+    sampleSrc: `${SAMPLE}/parental-consent.svg`,
+    pins: [
+      { n: 1, x: 50, y: 17, legend: { ru: "Согласие на выезд", ky: "Чыгууга макулдук" } },
+      { n: 2, x: 30, y: 66, legend: { ru: "Подписи обоих родителей", ky: "Ата-эненин колдору" } },
+      { n: 3, x: 75, y: 73, legend: { ru: "Печать нотариуса", ky: "Нотариустун мөөрү" } },
+    ],
+    ru: {
+      description: "Нотариальное согласие обоих родителей на выезд на учёбу за границу, если вам ещё нет 18 лет.",
+      where: [
+        "Родители вместе идут к нотариусу с паспортами",
+        "Нотариус оформляет согласие на выезд на учёбу",
+        "Загрузите согласие целиком, со всеми подписями и печатью",
+      ],
+      requirements: "PDF, JPG или PNG · до 25 МБ · все страницы",
+      mistakes: "Нужны подписи обоих родителей: согласие одного не подойдёт.",
+    },
+    ky: {
+      description: "18 жашка толо элек болсоңуз, ата-эненин экөөнүн тең чет өлкөгө окууга чыгууга нотариалдык макулдугу.",
+      where: [
+        "Ата-энеңиз паспорттору менен нотариуска чогуу барышат",
+        "Нотариус окууга чыгууга макулдук түзөт",
+        "Макулдукту бардык колдору жана мөөрү менен толугу менен жүктөңүз",
+      ],
+      requirements: "PDF, JPG же PNG · 25 МБга чейин · бардык барактар",
+      mistakes: "Ата-эненин экөөнүн тең колу керек: бирөөнүн гана макулдугу жарабайт.",
+    },
+  },
 ];
 
 /** Нижний регистр, «ё» → «е», лишние пробелы сняты. KY- и RU-подписи сравниваются одинаково. */
@@ -560,6 +662,7 @@ for (const guide of GUIDES) {
 const NOT_THIS_DOCUMENT = /родител|отц|отец|матер|мать|ата-эне|ата эне|parent|father|mother|перевод|котормо|translation|апостил|нотариал|apostille|страхов|insurance|аренд|олимпиад|виз[аыуе]|визов|visa/u;
 
 const LABEL_RULES: readonly Readonly<{ typeKey: DocumentGuideType; test: (label: string) => boolean }>[] = [
+  { typeKey: "csca_result", test: (label) => /csca/u.test(label) },
   { typeKey: "language_certificate", test: (label) => /toefl|ielts|hsk|duolingo|\bpte\b|сертификат по языку|тил боюнча сертификат|языковой сертификат/u.test(label) },
   { typeKey: "motivation_letter", test: (label) => /мотивационн|мотивациялык/u.test(label) },
   { typeKey: "recommendation_letter", test: (label) => /рекомендательн|рекомендациялык/u.test(label) },
@@ -583,35 +686,74 @@ const GUIDE_BY_TYPE = new Map(GUIDES.map((guide) => [guide.typeKey, guide]));
 
 export type DocumentGuidePinView = Readonly<{ n: 1 | 2 | 3; x: number; y: number; legend: string }>;
 
+export type DocumentGuideSampleSetView = Readonly<{
+  id: string;
+  label: string;
+  /** `thumb` — та же страница шириной 240 px для полосы миниатюр. */
+  pages: readonly Readonly<{ src: string; thumb: string; caption: string }>[];
+  download: Readonly<{ href: string; label: string }> | null;
+}>;
+
 export type DocumentGuideView = Readonly<{
   typeKey: DocumentGuideType;
   description: string;
   where: readonly string[];
   requirements: string;
   mistakes: string;
+  /** Нарисованная схема с метками: показывается, когда настоящих образцов для страны нет (и в приложении). */
   sampleSrc: string;
   pins: readonly DocumentGuidePinView[];
+  /** Настоящие образцы с закрытыми личными данными (document-sample-sets.ts). Пусто — показывается схема. */
+  sampleSets: readonly DocumentGuideSampleSetView[];
+  /** Когда нужен документ для страны поступления («Ноябрь–декабрь»). */
+  when: string | null;
   /** Требования страны поступления (пока только Китай). Нет страны или заметок — null. */
-  countryNotes: Readonly<{ country: GuideCountry; items: readonly string[] }> | null;
+  countryNotes: Readonly<{
+    country: GuideCountry;
+    items: readonly string[];
+    sections: readonly Readonly<{ title: string; items: readonly string[] }>[];
+  }> | null;
   /** «Как сфотографировать» — у всех, кроме самого фото и договора с EVO (его не снимают, а скачивают). */
   photoTips: boolean;
+  /** Памятка «каким должно быть фото» — только у документа «Фото»; страна задаёт размер. */
+  photoRules: Readonly<{ country: GuideCountry | null }> | null;
 }>;
 
-export type GuideCountry = "CN";
+export type GuideCountry = "CN" | "MY";
 
-const COUNTRY_NOTES: Readonly<Record<GuideCountry, typeof CN_DOCUMENT_NOTES>> = { CN: CN_DOCUMENT_NOTES };
+const COUNTRY_GUIDES: Readonly<Record<GuideCountry, Readonly<Partial<Record<string, CountryDocumentGuide>>>>> = {
+  CN: CN_DOCUMENT_GUIDES,
+  MY: {},
+};
 
 function guideCountry(country: string | null | undefined): GuideCountry | null {
-  return country?.trim().toUpperCase() === "CN" ? "CN" : null;
+  const code = country?.trim().toUpperCase();
+  return code === "CN" || code === "MY" ? code : null;
 }
 
 function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | null): DocumentGuideView {
-  const copy = locale === "ky" ? guide.ky : guide.ru;
-  const notes = country ? COUNTRY_NOTES[country][guide.typeKey] : undefined;
+  const ky = locale === "ky";
+  const copy = ky ? guide.ky : guide.ru;
+  const local = country ? COUNTRY_GUIDES[country][guide.typeKey] : undefined;
+  const pick = <T,>(line: Readonly<{ ru: T; ky: T }>): T => (ky ? line.ky : line.ru);
+  const notes = local?.notes ? pick(local.notes) : [];
+  const sections = (local?.sections ?? []).map((section) => ({ title: pick(section.title), items: pick(section.items) }));
+  const sampleSets = (DOCUMENT_SAMPLE_SETS[guide.typeKey] ?? [])
+    .filter((set) => !set.country || set.country === country)
+    .map((set) => ({
+      id: set.id,
+      label: pick(set.label),
+      pages: set.pages.map((item) => ({
+        src: `${SAMPLE}/${item.file}`,
+        thumb: `${SAMPLE}/${item.file.replace(/\.jpg$/u, "-t.jpg")}`,
+        caption: pick(item.caption),
+      })),
+      download: set.download ? { href: `${SAMPLE}/${set.download.file}`, label: pick(set.download.label) } : null,
+    }));
   return {
     typeKey: guide.typeKey,
-    description: copy.description,
-    where: copy.where,
+    description: local?.lead ? pick(local.lead) : copy.description,
+    where: local?.where ? pick(local.where) : copy.where,
     requirements: copy.requirements,
     mistakes: copy.mistakes,
     sampleSrc: guide.sampleSrc,
@@ -619,10 +761,13 @@ function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | nu
       n: pin.n,
       x: pin.x,
       y: pin.y,
-      legend: locale === "ky" ? pin.legend.ky : pin.legend.ru,
+      legend: ky ? pin.legend.ky : pin.legend.ru,
     })),
-    countryNotes: notes && country ? { country, items: locale === "ky" ? notes.ky : notes.ru } : null,
+    sampleSets,
+    when: local?.when ? pick(local.when) : null,
+    countryNotes: country && (notes.length || sections.length) ? { country, items: notes, sections } : null,
     photoTips: guide.typeKey !== "photo" && guide.typeKey !== "contract",
+    photoRules: guide.typeKey === "photo" ? { country } : null,
   };
 }
 

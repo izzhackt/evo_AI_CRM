@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Вымышленный образец результатов CSCA">
+  <rect width="640" height="400" rx="16" fill="#f7f8fa"/>
+  <rect x="48" y="28" width="544" height="344" rx="8" fill="#fff" stroke="#e3e5e9"/>
+  <text x="72" y="70" font-family="Golos Text, system-ui, sans-serif" font-size="16" font-weight="700" fill="#17181c">CSCA · Score Report</text>
+  <text x="568" y="70" text-anchor="end" font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#5c616b">2026-12-14</text>
+  <text x="72" y="110" font-family="Golos Text, system-ui, sans-serif" font-size="14" fill="#17181c">EXAMPLEOVA ADA NUR</text>
+  <g font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#5c616b"><text x="72" y="160">Mathematics</text><text x="72" y="196">Physics</text><text x="72" y="232">Chinese (science)</text></g>
+  <g font-family="Golos Text, system-ui, sans-serif" font-size="13" font-weight="700" fill="#17181c" text-anchor="end"><text x="568" y="160">000</text><text x="568" y="196">000</text><text x="568" y="232">000</text></g>
+  <g stroke="#eceef1" stroke-width="1"><path d="M72 172h496M72 208h496M72 244h496"/></g>
+  <text x="72" y="340" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample only · invented scores</text>
+  <g transform="rotate(-22 320 190)" opacity="0.24"><text x="320" y="200" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="56" font-weight="800">ОБРАЗЕЦ</text></g>
+</svg>

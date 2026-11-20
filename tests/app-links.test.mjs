@@ -139,7 +139,7 @@ test("the route handlers answer 200 application/json with the exact documented J
 const SAMPLE = "/portal/document-samples/passport.svg";
 
 test("route contract: document samples are exact one-level image files", () => {
-  for (const p of [SAMPLE, "/portal/document-samples/police-certificate.svg", "/portal/document-samples/diploma-1.webp", "/portal/document-samples/a1.png", "/portal/document-samples/b.jpg"]) {
+  for (const p of [SAMPLE, "/portal/document-samples/police-certificate.svg", "/portal/document-samples/diploma-1.webp", "/portal/document-samples/a1.png", "/portal/document-samples/b.jpg", "/portal/document-samples/medical-blank.pdf"]) {
     assert.equal(routes.isDocumentSampleFile(p), true, p);
   }
   for (const p of [

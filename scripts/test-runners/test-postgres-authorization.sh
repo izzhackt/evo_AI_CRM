@@ -950,6 +950,41 @@ SQL
     rm -f "$t328_tamper_log"
   fi
 
+  # «Скорость раздела Университеты в CRM» (364). Matched by name, not number. Immediately BEFORE it: an edited body of any
+  # of the five functions 364 replaces, drops or mirrors makes it fail closed with its own reason (a364_drift), inside a
+  # transaction that the failure rolls back; the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == *_platform_university_catalog_speed.sql ]]; then
+    for pinned_function in \
+      'platform.staff_catalog_geography_v1(uuid)' \
+      'platform_private.catalog_cost_staff_json(platform.catalog_costs)' \
+      'platform_private.catalog_city_staff_json(platform.catalog_cities)' \
+      'platform.staff_university_catalog(uuid,text,text,text,uuid,integer)' \
+      'platform_private.university_catalog_page(uuid,text,text,text,uuid,integer,text[])'; do
+      t364_tamper_log="$(mktemp -t evo-t364-pin-tamper.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$pinned_function" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t364_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT regexp_replace(pg_get_functiondef(:'pinned_function'::regprocedure), '\$function\$\s*$',
+  E'\n-- tampered before migration 364\n$function$\n') AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 364 accepted an edited $pinned_function" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a364_drift: $pinned_function" "$t364_tamper_log"; then
+        echo "migration 364 failed for the wrong drift reason ($pinned_function)" >&2
+        sed -n '1,60p' "$t364_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t364_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"

@@ -210,6 +210,9 @@ test("catalogue read (364): one light read per page, no paging of full cards, th
   const offsets = (name) => pages.find((entry) => entry.name === name).catalogueOffsets;
   assert.deepEqual(offsets("universities-list"), ["rows"], "the whole catalogue in one light call");
   assert.deepEqual(offsets("universities-list-filtered"), ["rows"], "a filtered list: one call too");
+  // Past the limit the light read answers complete = false and the page reads the old server page by name, offset 0.
+  assert.deepEqual(offsets("universities-list-over-limit"), ["rows", 0], "past the limit: the old page by name");
+  assert.doesNotMatch(page("universities-list-over-limit"), /Не удалось загрузить каталог/u);
   const reader = source("src/lib/v3/university-source.ts");
   assert.match(reader, /rpc\("staff_university_catalog_rows_v1"/u);
   assert.match(reader, /if \(read\.complete\) return \{ kind: "complete", items: read\.items \};\s*const page = await readStaffUniversities\(actor, filters\);/u,

@@ -185,6 +185,7 @@ const fakeSupabase = {
           const { universityListItem } = require(join(ROOT, "src/lib/university-list-item.ts"));
           const all = filterCatalogue({ query: args.p_query ?? "", country: args.p_country ?? "", level: args.p_level ?? "" });
           catalogueOffsets.push("rows");
+          if (providerScenario === "catalogue-over-limit") return { data: { organizationId: ORG, complete: false, items: [] }, error: null };
           return { data: { organizationId: ORG, complete: true, items: all.map(published).map(universityListItem) }, error: null };
         }
         if (name !== "staff_university_catalog") return { data: null, error: { message: `unexpected rpc ${name}` } };
@@ -298,7 +299,8 @@ const idOf = (key) => CATALOGUE.find((item) => item.key === key)?.id ?? CATALOGU
 const PAGES = [
   ["universities-list", "admin", "/universities", "", "production"],
   ["universities-list-filtered", "admin", "/universities", "country=MY&level=bachelor", "production"],
-  // Только для проверки чтения (без снимков): Admin публикует карточку посреди полного чтения.
+  // Только для проверки чтения (без снимков): каталог больше предела лёгкого чтения (364), прежняя страница по названию.
+  ["universities-list-over-limit", "admin", "/universities", "", "catalogue-over-limit"],
   ["universities-detail", "admin", () => `/universities/${idOf("utm")}`, "", "production"],
   ["universities-detail-unconfirmed", "admin", () => `/universities/${idOf("apu")}`, "", "production"],
   // «Университеты» по странам (08.11.2026): страны, города, списком, город; карта в статической разметке — только рамка.

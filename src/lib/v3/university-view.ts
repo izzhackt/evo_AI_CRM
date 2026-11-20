@@ -1,10 +1,10 @@
 import {
   universityDate,
   universityIntakeLabel,
-  type PublishedUniversity,
   type UniversityFilters,
   type UniversityIntake,
 } from "../platform-university-catalog.ts";
+import { listItemProgramCount, type UniversityListItem } from "../university-list-item.ts";
 import { staffUniversityDeadline } from "../university-staff-deadline.ts";
 
 /**
@@ -81,11 +81,12 @@ export type UniversityDeadlineView = Readonly<{
  * не прошёл в поясе набора) и его подача — дата, слово, программа.
  */
 export function universityDeadlineView(
-  university: PublishedUniversity,
+  university: UniversityListItem,
   level: UniversityFilters["level"],
   now: Date,
 ): UniversityDeadlineView | null {
-  const deadline = staffUniversityDeadline(university.content.programs, level, now);
+  // 364: правило то же, программы — только те, что несут открытый или объявленный набор (лёгкая строка).
+  const deadline = staffUniversityDeadline(university.deadlinePrograms, level, now);
   if (!deadline) return null;
   const timezone = deadline.intake.timezone ?? "";
   const today = catalogueZoneToday(timezone, now);
@@ -104,7 +105,7 @@ export function universityDeadlineView(
 }
 
 export type UniversityCatalogueRow = Readonly<{
-  university: PublishedUniversity;
+  university: UniversityListItem;
   deadline: UniversityDeadlineView | null;
 }>;
 
@@ -116,7 +117,7 @@ const byName = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
  * общий для всего прочитанного каталога, а не внутри страницы.
  */
 export function sortCatalogueRows(
-  items: readonly PublishedUniversity[],
+  items: readonly UniversityListItem[],
   level: UniversityFilters["level"],
   now: Date,
 ): UniversityCatalogueRow[] {
@@ -163,7 +164,7 @@ export function catalogueSortedPage(rows: readonly UniversityCatalogueRow[], off
  * названию. Сроки у строк есть, общего числа нет — его не выдумываем.
  */
 export function catalogueServerPage(
-  items: readonly PublishedUniversity[],
+  items: readonly UniversityListItem[],
   offset: number,
   nextOffset: number | null,
   level: UniversityFilters["level"],
@@ -181,8 +182,8 @@ export function catalogueServerPage(
 }
 
 /** Сколько программ в карточке; с фильтром уровня — сколько программ этого уровня. */
-export function catalogueProgramCount(university: PublishedUniversity, level: UniversityFilters["level"]): number {
-  return level ? university.content.programs.filter((program) => program.level === level).length : university.content.programs.length;
+export function catalogueProgramCount(university: UniversityListItem, level: UniversityFilters["level"]): number {
+  return listItemProgramCount(university, level);
 }
 
 /** «1 программа», «3 программы», «12 программ». */

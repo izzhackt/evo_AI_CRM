@@ -47,6 +47,8 @@ export function withUniversityIntakeIds(content: UniversityContent, createId: ()
 function object(value: unknown): Record<string, unknown> | null { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 function exact(value: Record<string, unknown>, keys: readonly string[]) { return Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key)); }
 function text(value: unknown, max: number, empty = false): value is string { return typeof value === "string" && (empty || value.trim().length > 0) && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value); }
+/** Та же проверка текста карточки для лёгкой строки каталога (`university-list-item.ts`). */
+export function universityText(value: unknown, max: number, empty = false): value is string { return text(value, max, empty); }
 export function universityDate(value: unknown): value is string { return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) > 0 && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value; }
 /** Display-only links. No server fetching, credentials, ports or private literals. */
 export function universityPublicUrl(value: unknown): value is string {

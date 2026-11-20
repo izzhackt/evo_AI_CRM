@@ -2,10 +2,11 @@ import { staffHasPermission, isStaffPreview } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
-import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type UniversityPage, type PublishedUniversity } from "../platform-university-catalog";
+import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type PublishedUniversity } from "../platform-university-catalog";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseStaffUniversityCountries } from "../university-staff-countries.ts";
 import { parseManageDraftPage, parseManageIndex, parseManageCursor, type ManageIndex } from "../university-manage-contract.ts";
+import { parseUniversityListRead, universityListItem, type UniversityListItem } from "../university-list-item.ts";
 import chinaContent from "../server/university-catalog-reviewed-china.json";
 import malaysiaContent from "../server/university-catalog-reviewed-malaysia.json";
 import europeContent from "../server/university-catalog-reviewed-europe.json";
@@ -23,64 +24,31 @@ export async function readStaffUniversities(actor: ActivePlatformActor, filters 
   if (!page || (id !== null && page.items.some((item) => item.id !== id))) throw new Error("Catalogue unavailable");
   return page;
 }
-/** Страниц по 30 в полном чтении каталога для общего порядка по сроку (до 1 200 университетов). */
-const CATALOGUE_SORT_PAGES = 40;
-const CATALOGUE_SORT_BATCH = 4;
-const CATALOGUE_PAGE = 30;
 export type StaffUniversityCatalogue =
-  | Readonly<{ kind: "complete"; items: readonly PublishedUniversity[] }>
-  | Readonly<{ kind: "server"; page: UniversityPage }>;
-/** Каталог изменился посреди чтения (строка пришла дважды): чтение повторяется один раз. */
-class CatalogueChangedError extends Error {
-  constructor() { super("Catalogue changed during read"); }
-}
-async function readWholeCatalogue(actor: ActivePlatformActor, filters: UniversityFilters): Promise<StaffUniversityCatalogue> {
-  const items: PublishedUniversity[] = [], seen = new Set<string>();
-  /** true — страница последняя. */
-  const take = (page: UniversityPage, offset: number) => {
-    for (const item of page.items) {
-      if (seen.has(item.id)) throw new CatalogueChangedError();
-      seen.add(item.id); items.push(item);
-    }
-    if (page.nextOffset === null) return true;
-    if (page.nextOffset !== offset + CATALOGUE_PAGE) throw new Error("Catalogue pagination invalid");
-    return false;
-  };
-  // Первая страница — одна: каталог до 30 строк читается одним запросом.
-  if (take(await readStaffUniversities(actor, { ...filters, offset: 0 }), 0)) return { kind: "complete", items };
-  // Дальше — по четыре страницы сразу: 143 университета — 1 + 4 запроса.
-  for (let first = 1; first < CATALOGUE_SORT_PAGES; first += CATALOGUE_SORT_BATCH) {
-    const offsets = Array.from({ length: Math.min(CATALOGUE_SORT_BATCH, CATALOGUE_SORT_PAGES - first) }, (_, index) => (first + index) * CATALOGUE_PAGE);
-    const pages = await Promise.all(offsets.map((offset) => readStaffUniversities(actor, { ...filters, offset })));
-    for (const [index, page] of pages.entries()) {
-      if (take(page, offsets[index])) return { kind: "complete", items };
-    }
-  }
-  return { kind: "server", page: await readStaffUniversities(actor, filters) };
-}
+  | Readonly<{ kind: "complete"; items: readonly UniversityListItem[] }>
+  | Readonly<{ kind: "server"; items: readonly UniversityListItem[]; nextOffset: number | null }>;
 /**
- * Весь отфильтрованный каталог для «Университетов» сотрудников (Э6): порядок
- * по ближайшему сроку общий, поэтому страница читает все страницы того же
- * чтения `staff_university_catalog` и делит их сама. Первая страница читается
- * одна, остальные — по четыре сразу, без чтений за концом каталога. Каталог
- * за пределом — прежняя страница сервера по названию, без общего числа.
- * Каталог, изменившийся посреди чтения (Admin публикует карточку, строка
- * пришла дважды), читается ещё раз; второй сбой — ошибка чтения, а не молча
- * склеенный список.
+ * Весь отфильтрованный каталог для «Университетов» сотрудников (Э6; миграция 364): лёгкие строки одним вызовом
+ * `staff_university_catalog_rows_v1` — одна проверка права и одна сборка последних версий на запрос, без программ
+ * целиком (число программ по уровням и только открытые и объявленные наборы для «ближайшего срока»). Порядок по
+ * сроку и деление на страницы — у страницы, как прежде. Ответ одного вызова — один снимок каталога, поэтому прежнее
+ * повторное чтение «каталог изменился посреди чтения» не нужно. Больше 1 200 вузов по фильтру — прежняя страница
+ * сервера по названию (полные карточки), без общего числа.
  *
- * Замер 27.09.2026 (локальный Supabase Postgres 17.6.1.143 из
- * `resolve-postgres-test-image.sh`, 249 миграций, 143 проверенные карточки,
- * опубликованные функциями stage/review; Apple M4 Max): один вызов
- * `staff_university_catalog` — 4,1–4,8 мс, всё чтение из пяти вызовов —
- * 19,5–23 мс на сервере. Сеть и PostgREST production не измерялись.
+ * Замер 20.11.2026 (production, 269 вузов, 3 580 программ): прежнее полное чтение — 10 вызовов по 30 вузов,
+ * 138–200 мс в базе и 3,14 МБ; лёгкое — один вызов на 91 КБ (замер после выпуска — docs/PLAN_CHANGES.md).
  */
 export async function readStaffUniversityCatalogue(actor: ActivePlatformActor, filters: UniversityFilters): Promise<StaffUniversityCatalogue> {
-  try {
-    return await readWholeCatalogue(actor, filters);
-  } catch (error) {
-    if (!(error instanceof CatalogueChangedError)) throw error;
-    return readWholeCatalogue(actor, filters);
-  }
+  if (!staffHasPermission(actor, "catalog.read")) throw new Error("Catalogue unavailable");
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_university_catalog_rows_v1", {
+    p_organization_id: actor.organizationId, p_query: filters.query || null, p_country: filters.country || null, p_level: filters.level || null,
+  });
+  const read = !error && parseUniversityListRead(data, actor.organizationId);
+  if (!read) throw new Error("Catalogue unavailable");
+  if (read.complete) return { kind: "complete", items: read.items };
+  const page = await readStaffUniversities(actor, filters);
+  return { kind: "server", items: page.items.map(universityListItem), nextOffset: page.nextOffset };
 }
 export async function readStaffUniversityCountries(actor: ActivePlatformActor) {
   if (!staffHasPermission(actor, "catalog.read")) throw new Error("Catalogue unavailable");

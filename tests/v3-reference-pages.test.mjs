@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { UNIVERSITY_PHOTOS, universityIntakeLabel } from "../src/lib/platform-university-catalog.ts";
+import { universityListItem } from "../src/lib/university-list-item.ts";
 import {
   UNIVERSITY_PAGE_SIZE,
   catalogueDueWord,
@@ -64,7 +65,8 @@ test("catalogue order: the nearest verified deadline first, then the name — ac
   const passed = university("Бета", [["bachelor", [intake({ applicationDeadline: "2026-09-01" })]]]);
   const unverified = university("Гамма", [["bachelor", [intake({ applicationDeadline: "2026-10-01", status: "needs_reconfirmation" })]]]);
   const none = university("Аист", [["bachelor", []]]);
-  const rows = sortCatalogueRows([none, passed, later, unverified, sooner], "", NOW);
+  // 364: the list sorts light rows (the same projection the SQL read returns).
+  const rows = sortCatalogueRows([none, passed, later, unverified, sooner].map(universityListItem), "", NOW);
   assert.deepEqual(rows.map((row) => row.university.content.name), ["Яблоко", "Альфа", "Аист", "Бета", "Гамма"],
     "deadlines first; a passed or unconfirmed deadline is no deadline; the rest by name");
   assert.deepEqual(rows[0].deadline, {
@@ -72,12 +74,12 @@ test("catalogue order: the nearest verified deadline first, then the name — ac
     program: "Программа 1", intake: "Набор", verifiedOn: "2026-09-10", sameDateCount: 0,
   });
   // The level filter picks the deadline of that level only.
-  const byLevel = sortCatalogueRows([later, sooner], "bachelor", NOW);
+  const byLevel = sortCatalogueRows([later, sooner].map(universityListItem), "bachelor", NOW);
   assert.deepEqual(byLevel.map((row) => [row.university.content.name, row.deadline?.dateTime ?? null]), [["Альфа", "2026-11-30"], ["Яблоко", null]]);
 });
 
 test("catalogue pages: honest «N–M из K» from the complete read, none from the name-ordered server page", () => {
-  const rows = Array.from({ length: 65 }, (_, index) => ({ university: university(`В${index}`, [["bachelor", []]]), deadline: null }));
+  const rows = Array.from({ length: 65 }, (_, index) => ({ university: universityListItem(university(`В${index}`, [["bachelor", []]])), deadline: null }));
   assert.equal(UNIVERSITY_PAGE_SIZE, 30);
   assert.deepEqual({ ...catalogueSortedPage(rows, 0), rows: undefined }, { rows: undefined, total: 65, first: 1, last: 30, previousOffset: null, nextOffset: 30, order: "deadline" });
   assert.deepEqual({ ...catalogueSortedPage(rows, 60), rows: undefined }, { rows: undefined, total: 65, first: 61, last: 65, previousOffset: 30, nextOffset: null, order: "deadline" });
@@ -204,17 +206,18 @@ test("«Университеты»: the toolbar applies filters on change and ke
   assert.doesNotMatch(html, /aria-label="Страницы каталога"/u);
 });
 
-test("catalogue read: offset 0 alone, then four at once, nothing past the end; one retry when the catalogue changes mid-read", () => {
+test("catalogue read (364): one light read per page, no paging of full cards, the old pages by name only past the limit", () => {
   const offsets = (name) => pages.find((entry) => entry.name === name).catalogueOffsets;
-  assert.deepEqual(offsets("universities-list"), [0, 30, 60, 90, 120], "143 universities: 5 calls, none past the end");
-  assert.deepEqual(offsets("universities-list-filtered"), [0], "13 rows: one call");
-  // A row seen twice (Admin publishes during the read) reads the catalogue once more instead of failing the page.
-  assert.deepEqual(offsets("universities-list-changed"), [0, 30, 60, 90, 120, 0, 30, 60, 90, 120]);
-  const changed = page("universities-list-changed");
-  assert.doesNotMatch(changed, /Не удалось загрузить каталог/u);
-  assert.match(changed, /1–30<\/span> из <span class="tabular-nums">143<\/span>/u);
+  assert.deepEqual(offsets("universities-list"), ["rows"], "the whole catalogue in one light call");
+  assert.deepEqual(offsets("universities-list-filtered"), ["rows"], "a filtered list: one call too");
+  // Past the limit the light read answers complete = false and the page reads the old server page by name, offset 0.
+  assert.deepEqual(offsets("universities-list-over-limit"), ["rows", 0], "past the limit: the old page by name");
+  assert.doesNotMatch(page("universities-list-over-limit"), /Не удалось загрузить каталог/u);
   const reader = source("src/lib/v3/university-source.ts");
-  assert.match(reader, /if \(!\(error instanceof CatalogueChangedError\)\) throw error;\s*return readWholeCatalogue\(actor, filters\);/u, "one retry, then the error");
+  assert.match(reader, /rpc\("staff_university_catalog_rows_v1"/u);
+  assert.match(reader, /if \(read\.complete\) return \{ kind: "complete", items: read\.items \};\s*const page = await readStaffUniversities\(actor, filters\);/u,
+    "past the limit: the old server page by name");
+  assert.doesNotMatch(reader, /CATALOGUE_SORT_PAGES|CatalogueChangedError|readWholeCatalogue/u, "no batched reading of full cards");
 });
 
 test("university page: programmes and intakes first, then the overview; the photo smaller at the side with one Russian credit line", () => {

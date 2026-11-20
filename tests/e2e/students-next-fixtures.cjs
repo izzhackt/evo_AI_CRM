@@ -70,7 +70,9 @@ function universities() {
   const all = catalogue();
   const published = all.map(({ id, version, publishedAt, content }) => ({ id, version, publishedAt, content }));
   const today = "2026-09-27";
-  const page = (items, filters, offset = 0) => view.catalogueSortedPage(view.sortCatalogueRows(items, filters.level, NOW), offset);
+  const { universityListItem } = src("lib/university-list-item.ts");
+  // 364: the list sorts the light rows of the SQL read; the same projection from the full cards.
+  const page = (items, filters, offset = 0) => view.catalogueSortedPage(view.sortCatalogueRows(items.map(universityListItem), filters.level, NOW), offset);
   const countries = [...new Set(published.map((item) => item.content.country))].sort();
   const props = (items, filters, offset = 0, day = today) => {
     const filtered = list.universityListProps(page(items, filters, offset), { query: "", country: "", level: "", offset, ...filters }, countries, true, day);

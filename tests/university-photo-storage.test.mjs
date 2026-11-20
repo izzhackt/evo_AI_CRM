@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import sharp from "sharp";
 
 import {
   applyUniversityPhotoMigration,
   checkUniversityPhotoMigration,
+  DERIVED_MAX_SIDE,
+  RENDER_MAX_SOURCE_PIXELS,
   libraryEntryProblems,
   licenseAllowsRedistribution,
   planUniversityPhotoMigration,
@@ -181,11 +184,21 @@ test("committed manifest schema is complete, honest and attribution-preserving",
   for (const [key, entry] of Object.entries(manifest.entries)) {
     const record = library[key];
     assert.deepEqual(
-      Object.keys(entry).sort(),
+      Object.keys(entry).filter(field => field !== "derivedFrom").sort(),
       ["attribution", "bytes", "contentType", "finalUrl", "license", "licenseUrl", "migrated",
         "objectPath", "pageUrl", "reason", "rights", "sha256", "sourceUrl", "status"],
       key,
     );
+    if (Object.hasOwn(entry, "derivedFrom")) {
+      // A source above the imgproxy limit is stored as its reduced JPEG copy (C8, RENDER_MAX_SOURCE_PIXELS).
+      assert.equal(entry.status, "verified", key);
+      assert.equal(entry.contentType, "image/jpeg", key);
+      assert.deepEqual(Object.keys(entry.derivedFrom).sort(), ["bytes", "contentType", "height", "sha256", "width"], key);
+      assert.match(entry.derivedFrom.sha256, /^[0-9a-f]{64}$/u, key);
+      assert.notEqual(entry.derivedFrom.sha256, entry.sha256, key);
+      assert.ok(entry.derivedFrom.width * entry.derivedFrom.height > RENDER_MAX_SOURCE_PIXELS, key);
+      assert.ok(Number.isSafeInteger(entry.derivedFrom.bytes) && entry.derivedFrom.bytes <= UNIVERSITY_PHOTO_BUCKET.file_size_limit, key);
+    }
     // Атрибуция CC переживает миграцию байт-в-байт: манифест дублирует библиотеку.
     assert.equal(entry.sourceUrl, record.path, key);
     assert.equal(entry.pageUrl, record.sourceUrl, key);
@@ -499,6 +512,112 @@ test("apply records drifted sources as unmigratable instead of uploading them", 
   assert.deepEqual(result.report.failures, [{ key: "ok", reason: "content_drifted" }]);
   assert.equal(result.manifest.entries.ok.status, "failed");
   assert.equal(result.manifest.entries.ok.migrated, false);
+});
+
+// C8 (20.11.2026): imgproxy of the self-hosted stack refuses sources above 16.8 MP, so such a source is stored as one
+// reduced JPEG copy; everything else stays byte for byte.
+const solidJpeg = (width, height) => sharp({ create: { width, height, channels: 3, background: { r: 40, g: 110, b: 170 } } })
+  .jpeg({ quality: 70 }).toBuffer();
+
+test("a source above the imgproxy limit is stored as one reduced JPEG copy; a smaller source stays byte for byte", async () => {
+  assert.equal(RENDER_MAX_SOURCE_PIXELS, 16_800_000);
+  const big = await solidJpeg(5200, 3400), small = await solidJpeg(1600, 1000);
+  assert.ok(5200 * 3400 > RENDER_MAX_SOURCE_PIXELS);
+  const fetchImpl = async (url) => (url === CHECK_LIBRARY.ok.path ? imageResponse(big)
+    : url === CHECK_LIBRARY.gone.path ? imageResponse(small) : new Response("x", { status: 404 }));
+  const library = { ok: CHECK_LIBRARY.ok, gone: CHECK_LIBRARY.gone };
+  const first = await checkUniversityPhotoMigration({ library, sites: new Map(), fetchImpl, concurrency: 1 });
+  const derived = first.manifest.entries.ok;
+  assert.equal(derived.status, "verified");
+  assert.equal(derived.contentType, "image/jpeg");
+  assert.equal(derived.objectPath, "ok.jpg");
+  assert.deepEqual(derived.derivedFrom, { sha256: sha256(big), bytes: big.byteLength, contentType: "image/jpeg", width: 5200, height: 3400 });
+  assert.notEqual(derived.sha256, sha256(big));
+  const kept = first.manifest.entries.gone;
+  assert.equal(kept.sha256, sha256(small));
+  assert.equal(Object.hasOwn(kept, "derivedFrom"), false);
+  const again = await checkUniversityPhotoMigration({ library, sites: new Map(), fetchImpl, concurrency: 1 });
+  assert.equal(again.manifest.entries.ok.sha256, derived.sha256, "the reduced copy is deterministic");
+
+  // Apply re-derives from the re-downloaded source and uploads exactly the recorded copy: long side 4096, same ratio.
+  let uploaded = null;
+  const applyFetch = async (url, init = {}) => {
+    const method = init.method ?? "GET";
+    if (url.endsWith(`/storage/v1/bucket/${UNIVERSITY_PHOTO_BUCKET.id}`)) {
+      return Response.json({ ...UNIVERSITY_PHOTO_BUCKET, allowed_mime_types: [...UNIVERSITY_PHOTO_BUCKET.allowed_mime_types] });
+    }
+    if (url === CHECK_LIBRARY.ok.path) return imageResponse(big);
+    if (method === "POST" && url.endsWith(`/storage/v1/object/${UNIVERSITY_PHOTO_BUCKET.id}/ok.jpg`)) {
+      assert.equal(init.headers["content-type"], "image/jpeg");
+      uploaded = Buffer.from(init.body);
+      return Response.json({ Key: "ok.jpg" }, { status: 200 });
+    }
+    if (url === universityPhotoPublicUrl("ok.jpg")) return imageResponse(uploaded);
+    throw new Error(`unexpected request: ${method} ${url}`);
+  };
+  const manifest = { ...APPLY_MANIFEST, entries: { ok: derived } };
+  const applied = await applyUniversityPhotoMigration({ environment: applyEnvironment, manifest, fetchImpl: applyFetch });
+  assert.equal(applied.report.status, "applied");
+  assert.equal(sha256(uploaded), derived.sha256);
+  const { width, height } = await sharp(uploaded).metadata();
+  assert.equal(width, DERIVED_MAX_SIDE);
+  assert.equal(height, Math.round((3400 * DERIVED_MAX_SIDE) / 5200));
+  assert.ok(width * height <= RENDER_MAX_SOURCE_PIXELS);
+  assert.deepEqual(applied.manifest.entries.ok.derivedFrom, derived.derivedFrom);
+
+  // A source that changed after --check is not uploaded, reduced or not.
+  const changed = await solidJpeg(5300, 3400);
+  const drift = await applyUniversityPhotoMigration({ environment: applyEnvironment, manifest, fetchImpl: async (url, init = {}) => (
+    url === CHECK_LIBRARY.ok.path ? imageResponse(changed) : applyFetch(url, init)) });
+  assert.deepEqual(drift.report.failures, [{ key: "ok", reason: "content_drifted" }]);
+});
+
+test("the limit is strict, a square source fits after reduction, and apply refuses a source that changed only in metadata", async () => {
+  // Exactly 16 800 000 pixels stays as is; one more column is reduced.
+  const atLimit = await solidJpeg(4200, 4000), overLimit = await solidJpeg(4201, 4000), square = await solidJpeg(5000, 5000);
+  const library = { ok: CHECK_LIBRARY.ok, gone: CHECK_LIBRARY.gone, official: { ...CHECK_LIBRARY.ok, path: "https://photos.example/square.jpg" } };
+  const bytesFor = { [CHECK_LIBRARY.ok.path]: atLimit, [CHECK_LIBRARY.gone.path]: overLimit, "https://photos.example/square.jpg": square };
+  const checked = await checkUniversityPhotoMigration({ library, sites: new Map(), concurrency: 1,
+    fetchImpl: async (url) => (bytesFor[url] ? imageResponse(bytesFor[url]) : new Response("x", { status: 404 })) });
+  assert.equal(checked.manifest.entries.ok.sha256, sha256(atLimit));
+  assert.equal(Object.hasOwn(checked.manifest.entries.ok, "derivedFrom"), false);
+  assert.equal(checked.manifest.entries.gone.derivedFrom.width, 4201);
+  assert.equal(checked.manifest.entries.official.derivedFrom.width, 5000);
+
+  // The same frame with a JPEG comment segment (COM right after SOI, pixels untouched): other source bytes, the very
+  // same reduced copy. Apply must not upload it under the old derivedFrom.
+  const big = await solidJpeg(5200, 3400);
+  const note = Buffer.from("changed metadata");
+  const commented = Buffer.concat([big.subarray(0, 2), Buffer.from([0xff, 0xfe, 0, note.length + 2]), note, big.subarray(2)]);
+  assert.notEqual(sha256(commented), sha256(big));
+  const checkWith = async (source) => (await checkUniversityPhotoMigration({ library: { ok: CHECK_LIBRARY.ok }, sites: new Map(),
+    fetchImpl: async (url) => (url === CHECK_LIBRARY.ok.path ? imageResponse(source) : new Response("x", { status: 404 })) })).manifest.entries.ok;
+  const derived = await checkWith(big);
+  assert.equal((await checkWith(commented)).sha256, derived.sha256, "the copy itself does not change");
+  const result = await applyUniversityPhotoMigration({ environment: applyEnvironment, manifest: { ...APPLY_MANIFEST, entries: { ok: derived } },
+    fetchImpl: async (url, init = {}) => {
+      if (url.endsWith(`/storage/v1/bucket/${UNIVERSITY_PHOTO_BUCKET.id}`)) {
+        return Response.json({ ...UNIVERSITY_PHOTO_BUCKET, allowed_mime_types: [...UNIVERSITY_PHOTO_BUCKET.allowed_mime_types] });
+      }
+      if (url === CHECK_LIBRARY.ok.path) return imageResponse(commented);
+      assert.fail(`unexpected request: ${init.method ?? "GET"} ${url}`);
+    } });
+  assert.deepEqual(result.report.failures, [{ key: "ok", reason: "content_drifted" }]);
+});
+
+test("re-check keeps a migrated reduced copy while its source is unchanged, whatever bytes another encoder gives", async () => {
+  const big = await solidJpeg(5200, 3400);
+  const fetchImpl = async (url) => (url === CHECK_LIBRARY.ok.path ? imageResponse(big) : new Response("x", { status: 404 }));
+  const stored = { sha256: "b".repeat(64), bytes: 123456 };
+  const previous = (sourceSha) => ({ schema: UNIVERSITY_PHOTO_MANIFEST_SCHEMA, entries: { ok: { migrated: true, objectPath: "ok.jpg", ...stored,
+    derivedFrom: { sha256: sourceSha, bytes: big.byteLength, contentType: "image/jpeg", width: 5200, height: 3400 } } } });
+  const kept = await checkUniversityPhotoMigration({ library: { ok: CHECK_LIBRARY.ok }, fetchImpl, previous: previous(sha256(big)) });
+  assert.equal(kept.manifest.entries.ok.migrated, true);
+  assert.equal(kept.manifest.entries.ok.sha256, stored.sha256, "the bucket keeps the bytes that were uploaded");
+  assert.equal(kept.manifest.entries.ok.bytes, stored.bytes);
+  const drifted = await checkUniversityPhotoMigration({ library: { ok: CHECK_LIBRARY.ok }, fetchImpl, previous: previous("0".repeat(64)) });
+  assert.equal(drifted.manifest.entries.ok.migrated, false);
+  assert.equal(drifted.manifest.entries.ok.reason, "source_drifted_since_migration");
 });
 
 test("CLI: offline default plan, explicit modes only, no secret leakage", async () => {

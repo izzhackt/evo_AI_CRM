@@ -308,8 +308,11 @@ async function uploadVerifiedEntry(origin, key, entry, headers, fetchImpl) {
   // The bytes to store are what --check recorded: the source itself, or its reduced copy (derivedFrom).
   const stored = await storedCopy(source);
   if (stored.failure) return `redownload_failed:${stored.failure}`;
+  // A reduced copy is also bound to its source: a source that changed only in metadata can give the same copy, and
+  // derivedFrom would then name a source that is gone (the next --check would mark the photo drifted).
+  const recordedSource = entry.derivedFrom?.sha256 ?? null;
   if (sha256(stored.bytes) !== entry.sha256 || stored.contentType !== entry.contentType
-    || (stored.derivedFrom === null) !== (entry.derivedFrom === undefined || entry.derivedFrom === null)) return "content_drifted";
+    || (stored.derivedFrom?.sha256 ?? null) !== recordedSource) return "content_drifted";
   const readback = async () => {
     const result = await downloadPhoto(universityPhotoPublicUrl(entry.objectPath, origin), fetchImpl);
     return !result.failure && sha256(result.bytes) === entry.sha256 ? null : "readback_mismatch";

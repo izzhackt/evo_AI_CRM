@@ -8,6 +8,7 @@ import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, 
 import { universityBatchRequestId, universityContentHash, universityBatchRows, universityMissingIntakeIds, withStableUniversityIntakeIds } from "../src/lib/server/university-catalog-batch.ts";
 import { universityIntakeStatusKey } from "../src/lib/portal/universities.ts";
 import { universityPhotoUrl } from "../src/lib/university-photo-url.ts";
+import { photoKeyForCard } from "../scripts/catalog/china-photos-sql.mjs";
 // The reader resolves managed photo addresses from NEXT_PUBLIC_SUPABASE_URL (docs/runbooks/selfhosted-cutover.md).
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://supabase.evoadmissions.com";
 const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
@@ -120,11 +121,17 @@ test("language courses have their own valid filter rather than masquerading as d
 test("forward migration photo vocabulary matches the fixed reviewed image registry", () => {
   const sql = readFileSync(new URL("../supabase/migrations/151_platform_university_catalog_completion.sql", import.meta.url), "utf8");
   const values = sql.match(/new_photo CONSTANT TEXT := \$new\$value->>'photoKey' IN \(([^)]+)\)/)[1].split(",").map((v) => v.slice(1, -1));
+  const keysOf = (file) => readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8")
+    .match(/new_keys CONSTANT TEXT\[\] := ARRAY\[([^\]]+)\]/)[1].split(",").map((v) => v.trim().slice(1, -1));
   // Migration 353 widens the allow-list by exactly the keys of the new Malaysia photos.
-  const widening = readFileSync(new URL("../supabase/migrations/353_platform_university_photo_keys.sql", import.meta.url), "utf8");
-  const added = widening.match(/new_keys CONSTANT TEXT\[\] := ARRAY\[([^\]]+)\]/)[1].split(",").map((v) => v.trim().slice(1, -1));
+  const added = keysOf("353_platform_university_photo_keys.sql");
   assert.deepEqual(added, ["um", "iium", "alfa", "inti-subang", "inti-penang"]);
-  assert.deepEqual([...values, ...added].sort(), Object.keys(UNIVERSITY_PHOTOS).sort());
+  // Migration 365 adds exactly the China 2026-11 (C8) photo keys, one per listed card (photoKeyForCard), all new to the
+  // library. The older 151 entry harbin-institute-of-technology-shenzhen stays; that card gets its own new key.
+  const china = keysOf("365_platform_university_photo_keys_china.sql");
+  const c8 = JSON.parse(readFileSync(new URL("../scripts/catalog/data/china-2026-11/photo-keys.json", import.meta.url), "utf8"));
+  assert.deepEqual(china, c8.map(photoKeyForCard).sort());
+  assert.deepEqual([...values, ...added, ...china].sort(), Object.keys(UNIVERSITY_PHOTOS).sort());
   assert.match(sql, /platform_private\.valid_university_content\(jsonb\)/);
   assert.match(sql, /platform_private\.university_catalog_page\(uuid,text,text,text,uuid,integer\)/);
   assert.match(sql, /'doctorate','language'/);

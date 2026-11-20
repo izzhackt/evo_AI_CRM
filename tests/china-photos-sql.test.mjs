@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSql, isPhotoOnlyUpdate, photoTargets } from "../scripts/catalog/china-photos-sql.mjs";
+import { buildSql, isPhotoOnlyUpdate, loadPhotoInputs, photoTargets } from "../scripts/catalog/china-photos-sql.mjs";
+import { isOfficialMediaLicense, onOfficialSite } from "../src/lib/university-photo-rights.ts";
 
 const content = (photoKey, extra = {}) => ({
   name: "Example University", country: "CN", city: "Пример", overview: "Обзор.", websiteUrl: "https://www.example.edu.cn/",
@@ -60,6 +61,21 @@ test("the SQL rolls back by default, commits only on request and guards photo-on
   assert.match(dry.sql, /platform\.review_university_catalog_publication\(org, \(draft ->> 'draftId'\)::UUID, 'publish'/);
   assert.equal(buildSql({ inputs: inputs() }).digest, dry.digest, "the same input gives the same SQL");
   assert.throws(() => buildSql({ inputs: inputs(), actorMembership: "not-a-uuid" }), /UUID/);
+});
+
+test("C8 data: every listed card shows its own library photo; official photos come from that card's own site", () => {
+  const inputs = loadPhotoInputs();
+  const targets = photoTargets(inputs);
+  assert.equal(targets.length, inputs.photoKeys.length);
+  assert.ok(targets.length >= 80, `C8 photos: ${targets.length}`);
+  for (const card of targets) {
+    const photo = inputs.library[card.key];
+    if (isOfficialMediaLicense(photo.license)) {
+      assert.ok(onOfficialSite(photo.sourceUrl, card.content.websiteUrl), `${card.key}: ${photo.sourceUrl} is not on ${card.content.websiteUrl}`);
+      assert.match(photo.author, /— официальный сайт; фотограф не указан$/u, card.key);
+    }
+    assert.doesNotMatch(photo.caption, /[.]$/u, card.key);
+  }
 });
 
 test("the SQL carries only the C8 cards, never the other China cards", () => {

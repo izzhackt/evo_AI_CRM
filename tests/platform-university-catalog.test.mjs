@@ -120,11 +120,17 @@ test("language courses have their own valid filter rather than masquerading as d
 test("forward migration photo vocabulary matches the fixed reviewed image registry", () => {
   const sql = readFileSync(new URL("../supabase/migrations/151_platform_university_catalog_completion.sql", import.meta.url), "utf8");
   const values = sql.match(/new_photo CONSTANT TEXT := \$new\$value->>'photoKey' IN \(([^)]+)\)/)[1].split(",").map((v) => v.slice(1, -1));
+  const keysOf = (file) => readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8")
+    .match(/new_keys CONSTANT TEXT\[\] := ARRAY\[([^\]]+)\]/)[1].split(",").map((v) => v.trim().slice(1, -1));
   // Migration 353 widens the allow-list by exactly the keys of the new Malaysia photos.
-  const widening = readFileSync(new URL("../supabase/migrations/353_platform_university_photo_keys.sql", import.meta.url), "utf8");
-  const added = widening.match(/new_keys CONSTANT TEXT\[\] := ARRAY\[([^\]]+)\]/)[1].split(",").map((v) => v.trim().slice(1, -1));
+  const added = keysOf("353_platform_university_photo_keys.sql");
   assert.deepEqual(added, ["um", "iium", "alfa", "inti-subang", "inti-penang"]);
-  assert.deepEqual([...values, ...added].sort(), Object.keys(UNIVERSITY_PHOTOS).sort());
+  // Migration 365 adds exactly the China 2026-11 (C8) photo keys that were new to the library; the one C8 card whose
+  // key was already in the library (harbin-institute-of-technology-shenzhen) reuses that entry.
+  const china = keysOf("365_platform_university_photo_keys_china.sql");
+  const c8 = JSON.parse(readFileSync(new URL("../scripts/catalog/data/china-2026-11/photo-keys.json", import.meta.url), "utf8"));
+  assert.deepEqual(china, c8.filter((key) => key !== "harbin-institute-of-technology-shenzhen"));
+  assert.deepEqual([...values, ...added, ...china].sort(), Object.keys(UNIVERSITY_PHOTOS).sort());
   assert.match(sql, /platform_private\.valid_university_content\(jsonb\)/);
   assert.match(sql, /platform_private\.university_catalog_page\(uuid,text,text,text,uuid,integer\)/);
   assert.match(sql, /'doctorate','language'/);

@@ -1339,5 +1339,815 @@
     "sourceUrl": "https://commons.wikimedia.org/wiki/File:Cmglee_Inti_College_Penang.jpg",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "anhui-jianzhu-university": {
+    "path": "https://www.ahjzu.edu.cn/_upload/article/images/92/72/4729b07646b3b637b606d9532e86/353a184b-8c8f-4cdf-974f-e20c8bead367.jpg",
+    "author": "Anhui Jianzhu University — официальный сайт; фотограф не указан",
+    "title": "Панорама кампуса с высоты, город на горизонте, Anhui Jianzhu University",
+    "caption": "Панорама кампуса с высоты, город на горизонте, Anhui Jianzhu University, Хэфэй; официальная фотография",
+    "sourceUrl": "https://www.ahjzu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.ahjzu.edu.cn/"
+  },
+  "anhui-normal-university": {
+    "path": "https://www.ahnu.edu.cn/__local/E/05/96/463243E7C01DDBAE6C93376D173_43C0561F_B88C4.jpg",
+    "author": "Anhui Normal University — официальный сайт; фотограф не указан",
+    "title": "Главный корпус и кампус с высоты, Anhui Normal University",
+    "caption": "Главный корпус и кампус с высоты, Anhui Normal University, Уху; официальная фотография",
+    "sourceUrl": "https://www.ahnu.edu.cn/xxgk/xyfg1.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.ahnu.edu.cn/xxgk/xyfg1.htm"
+  },
+  "anhui-university-of-technology": {
+    "path": "https://en.ahut.edu.cn/__local/1/75/7A/8611869403108987A050440EEAB_D927E1B5_D89DEC.jpg",
+    "author": "Anhui University of Technology — официальный сайт; фотограф не указан",
+    "title": "Учебные корпуса у озера на кампусе, Anhui University of Technology",
+    "caption": "Учебные корпуса у озера на кампусе, Anhui University of Technology, Мааньшань; официальная фотография",
+    "sourceUrl": "https://en.ahut.edu.cn/ca/Campus.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.ahut.edu.cn/ca/Campus.htm"
+  },
+  "beihang-university": {
+    "path": "https://ev.buaa.edu.cn/images/events10.jpg",
+    "author": "Beihang University — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты, парк и корпуса, Beihang University",
+    "caption": "Кампус с высоты, парк и корпуса, Beihang University, Пекин; официальная фотография",
+    "sourceUrl": "https://ev.buaa.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://ev.buaa.edu.cn/"
+  },
+  "beijing-foreign-studies-university": {
+    "path": "https://cnsubsites.chinadaily.com.cn/bfsu/img/attachement/jpg/site17/20241126/17325892785701.jpg",
+    "author": "Beijing Foreign Studies University — официальный сайт; фотограф не указан",
+    "title": "Арка у входа и учебный корпус, Beijing Foreign Studies University",
+    "caption": "Арка у входа и учебный корпус, Beijing Foreign Studies University, Пекин; официальная фотография",
+    "sourceUrl": "https://en.bfsu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.bfsu.edu.cn/"
+  },
+  "beijing-institute-of-fashion-technology": {
+    "path": "https://english.bift.edu.cn/images/2025-09/c8568d04e8ee48f4848d733041f5f9c9.jpg",
+    "author": "Beijing Institute of Fashion Technology — официальный сайт; фотограф не указан",
+    "title": "Современные учебные корпуса на кампусе, Beijing Institute of Fashion Technology",
+    "caption": "Современные учебные корпуса на кампусе, Beijing Institute of Fashion Technology, Пекин; официальная фотография",
+    "sourceUrl": "https://english.bift.edu.cn/Departments/560097f95e694eaba73f3571da8676a9.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.bift.edu.cn/Departments/560097f95e694eaba73f3571da8676a9.htm"
+  },
+  "central-south-university-of-forestry-and-technology": {
+    "path": "https://library.csuft.edu.cn:443/virtual_attach_file.vsb?afc=5nNlC4olC4o7rfLQzf2nRW7MRfRMllqZnz6VU4WfM4v8U8l0gihFp2hmCIa0oShVLSh2USyanRNPM7lZL8n7nRvbnN7YnlrVM46VnR74LzMFUNnfnmNiUNWFnR98olCJv2bjo4Oeosn4QYhXptQ0gY84gY84gtA8pUpcc&oid=2144713825&e=.png",
+    "author": "Central South University of Forestry and Technology — официальный сайт; фотограф не указан",
+    "title": "Учебные корпуса у озера, Central South University of Forestry and Technology",
+    "caption": "Учебные корпуса у озера, Central South University of Forestry and Technology, Чанша; официальная фотография",
+    "sourceUrl": "https://library.csuft.edu.cn:443/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://library.csuft.edu.cn:443/"
+  },
+  "changzhou-university": {
+    "path": "https://eng.cczu.edu.cn/_upload/tpl/04/9e/1182/template1182/images/back2.jpg",
+    "author": "Changzhou University — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса среди зелени с высоты, Changzhou University",
+    "caption": "Корпуса кампуса среди зелени с высоты, Changzhou University, Чанчжоу; официальная фотография",
+    "sourceUrl": "https://eng.cczu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://eng.cczu.edu.cn/"
+  },
+  "chengdu-university": {
+    "path": "https://en.cdu.edu.cn/images/2022042001ban.png",
+    "author": "Chengdu University — официальный сайт; фотограф не указан",
+    "title": "Современный корпус с кирпично-красным фасадом, Chengdu University",
+    "caption": "Современный корпус с кирпично-красным фасадом, Chengdu University, Чэнду; официальная фотография",
+    "sourceUrl": "https://en.cdu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.cdu.edu.cn/"
+  },
+  "china-three-gorges-university": {
+    "path": "https://eng.ctgu.edu.cn/__local/B/67/23/6A4ADEC4CB7390C7E3481274BE3_48BE57E0_36C58.jpg",
+    "author": "China Three Gorges University — официальный сайт; фотограф не указан",
+    "title": "Вид на кампус с высоты на закате, China Three Gorges University",
+    "caption": "Вид на кампус с высоты на закате, China Three Gorges University, Ичан; официальная фотография",
+    "sourceUrl": "https://eng.ctgu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://eng.ctgu.edu.cn/"
+  },
+  "china-university-of-mining-and-technology": {
+    "path": "https://global.cumt.edu.cn/__local/B/F0/4A/405A188C716F605BC6401F1EC95_89461B0B_6B1AA.jpg",
+    "author": "China University of Mining and Technology — официальный сайт; фотограф не указан",
+    "title": "Кампус у озера в осенних красках, China University of Mining and Technology",
+    "caption": "Кампус у озера в осенних красках, China University of Mining and Technology, Сюйчжоу; официальная фотография",
+    "sourceUrl": "https://global.cumt.edu.cn/Around_Campus.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://global.cumt.edu.cn/Around_Campus.htm"
+  },
+  "china-university-of-petroleum-beijing": {
+    "path": "https://www.cup.edu.cn/english/images/banner.png",
+    "author": "China University of Petroleum (Beijing) — официальный сайт; фотограф не указан",
+    "title": "Обзор кампуса с высоты, China University of Petroleum (Beijing)",
+    "caption": "Обзор кампуса с высоты, China University of Petroleum (Beijing), Пекин; официальная фотография",
+    "sourceUrl": "https://www.cup.edu.cn/english/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.cup.edu.cn/english/"
+  },
+  "chongqing-jiaotong-university": {
+    "path": "https://www.cqjtu.edu.cn/__local/3/54/F9/1D8FA28B79514329F09EAB8EDD6_1E487B50_11DEA5F.jpg",
+    "author": "Chongqing Jiaotong University — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса среди зелени с высоты, Chongqing Jiaotong University",
+    "caption": "Корпуса кампуса среди зелени с высоты, Chongqing Jiaotong University, Чунцин; официальная фотография",
+    "sourceUrl": "https://www.cqjtu.edu.cn/en/About/Campus_Scenery.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.cqjtu.edu.cn/en/About/Campus_Scenery.htm"
+  },
+  "chongqing-university": {
+    "path": "https://www.cqu.edu.cn/__local/9/96/8A/FFD54304B0D3F4D19A854838C23_4CD7C2F2_4025C.jpg",
+    "author": "Chongqing University — официальный сайт; фотограф не указан",
+    "title": "Корпус в традиционном китайском стиле с красными колоннами, Chongqing University",
+    "caption": "Корпус в традиционном китайском стиле с красными колоннами, Chongqing University, Чунцин; официальная фотография",
+    "sourceUrl": "https://www.cqu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.cqu.edu.cn/"
+  },
+  "dalian-university-of-technology": {
+    "path": "https://en.dlut.edu.cn/images/5fc3eaf3-c807-4e53-a4a0-caf3dd1c.jpg",
+    "author": "Dalian University of Technology — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса с высоты на фоне холмов, Dalian University of Technology",
+    "caption": "Корпуса кампуса с высоты на фоне холмов, Dalian University of Technology, Далянь; официальная фотография",
+    "sourceUrl": "https://en.dlut.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.dlut.edu.cn/"
+  },
+  "gannan-normal-university": {
+    "path": "https://www.gnnu.edu.cn/__local/9/3C/1F/5F62FD4639F52E984CB92FF48D1_1446C266_48B2F.jpg",
+    "author": "Gannan Normal University — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса у озера с отражением, Gannan Normal University",
+    "caption": "Корпуса кампуса у озера с отражением, Gannan Normal University, Ганьчжоу; официальная фотография",
+    "sourceUrl": "https://www.gnnu.edu.cn/xxgk/xyfg/rjxq.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.gnnu.edu.cn/xxgk/xyfg/rjxq.htm"
+  },
+  "guangdong-polytechnic-normal-university": {
+    "path": "https://en.gpnu.edu.cn/images/banner.png",
+    "author": "Guangdong Polytechnic Normal University — официальный сайт; фотограф не указан",
+    "title": "Современный корпус с подсветкой в сумерках, Guangdong Polytechnic Normal University",
+    "caption": "Современный корпус с подсветкой в сумерках, Guangdong Polytechnic Normal University, Гуанчжоу; официальная фотография",
+    "sourceUrl": "https://en.gpnu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.gpnu.edu.cn/"
+  },
+  "guangxi-minzu-university": {
+    "path": "https://english.gxmzu.edu.cn/__local/7/C7/FB/33B714F20DF24DD288C9E4132E8_CCFBABA2_569797.jpg",
+    "author": "Guangxi Minzu University — официальный сайт; фотограф не указан",
+    "title": "Красный учебный корпус у озера и горы, Guangxi Minzu University",
+    "caption": "Красный учебный корпус у озера и горы, Guangxi Minzu University, Наньнин; официальная фотография",
+    "sourceUrl": "https://english.gxmzu.edu.cn/info/1179/1458.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.gxmzu.edu.cn/info/1179/1458.htm"
+  },
+  "guangzhou-university": {
+    "path": "https://english.gzhu.edu.cn/__local/9/F3/F2/87D714FA120B719B5C95A61E4FA_D7EBEB8D_273F2C.jpg",
+    "author": "Guangzhou University — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса с башней у озера, Guangzhou University",
+    "caption": "Корпуса кампуса с башней у озера, Guangzhou University, Гуанчжоу; официальная фотография",
+    "sourceUrl": "https://english.gzhu.edu.cn/About_GU___Rankings/Overview.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.gzhu.edu.cn/About_GU___Rankings/Overview.htm"
+  },
+  "hainan-university": {
+    "path": "https://en.hainanu.edu.cn/images/DSC01809defuben.jpg",
+    "author": "Hainan University — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус на берегу озера, Hainan University",
+    "caption": "Учебный корпус на берегу озера, Hainan University, Хайкоу; официальная фотография",
+    "sourceUrl": "https://en.hainanu.edu.cn/Campus/CampusView/Haidian_Campus.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.hainanu.edu.cn/Campus/CampusView/Haidian_Campus.htm"
+  },
+  "hangzhou-dianzi-university": {
+    "path": "https://tsg.hdu.edu.cn/_upload/article/images/a3/35/3e3f1de94a1092f6517f69d087b5/a2123d16-a5f5-4866-9ec4-7fe2cb9cd74a.png",
+    "author": "Hangzhou Dianzi University — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус среди деревьев, Hangzhou Dianzi University",
+    "caption": "Учебный корпус среди деревьев, Hangzhou Dianzi University, Ханчжоу; официальная фотография",
+    "sourceUrl": "https://tsg.hdu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://tsg.hdu.edu.cn/"
+  },
+  "hebei-university": {
+    "path": "https://en.hbu.cn/u/cms/hbuennew/202303/131546395l4o.jpg",
+    "author": "Hebei University — официальный сайт; фотограф не указан",
+    "title": "Главный корпус университета с площадью, Hebei University",
+    "caption": "Главный корпус университета с площадью, Hebei University, Баодин; официальная фотография",
+    "sourceUrl": "https://en.hbu.cn/Campusyw/index.jhtml",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.hbu.cn/Campusyw/index.jhtml"
+  },
+  "henan-polytechnic-university": {
+    "path": "https://en.hpu.edu.cn/images/banner0720240704.png",
+    "author": "Henan Polytechnic University — официальный сайт; фотограф не указан",
+    "title": "Кампус осенью, вид с высоты, Henan Polytechnic University",
+    "caption": "Кампус осенью, вид с высоты, Henan Polytechnic University, Цзяоцзо; официальная фотография",
+    "sourceUrl": "https://en.hpu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.hpu.edu.cn/"
+  },
+  "huai-an-university": {
+    "path": "https://en.hau.edu.cn/__local/E/29/7A/927806A13E74650261CE4FD95CC_156329F9_7CF73.jpg",
+    "author": "Huai’an University — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на кампус с прудом и газонами, Huai’an University",
+    "caption": "Вид с высоты на кампус с прудом и газонами, Huai’an University, Хуайань; официальная фотография",
+    "sourceUrl": "https://en.hau.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.hau.edu.cn/"
+  },
+  "huangshan-university": {
+    "path": "https://www.hsu.edu.cn/_upload/article/images/9b/16/f6ce0f7b4f26b99ff1653b4c29ac/6eca2e86-af59-4013-a0c0-5ed8bc66fc8d.jpg",
+    "author": "Huangshan University — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты, корпуса среди зелени, Huangshan University",
+    "caption": "Кампус с высоты, корпуса среди зелени, Huangshan University, Хуаншань; официальная фотография",
+    "sourceUrl": "https://www.hsu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.hsu.edu.cn/"
+  },
+  "jiangsu-university-of-science-and-technology": {
+    "path": "https://en.just.edu.cn/_upload/article/images/90/84/a7543e894864b969be8ec42c782b/fbc82ddc-e5e1-4973-9d68-3ce8f331ec28.jpg",
+    "author": "Jiangsu University of Science and Technology — официальный сайт; фотограф не указан",
+    "title": "Ворота кампуса и корпуса на фоне гор, Jiangsu University of Science and Technology",
+    "caption": "Ворота кампуса и корпуса на фоне гор, Jiangsu University of Science and Technology, Чжэньцзян; официальная фотография",
+    "sourceUrl": "https://en.just.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.just.edu.cn/"
+  },
+  "jiangsu-university-of-technology": {
+    "path": "https://english.jsut.edu.cn/_upload/article/images/c7/dc/bf69a9694c6fa73517ab8c8e5930/999cc251-a9ce-4f69-9ed3-d50df5da8bdc.jpg",
+    "author": "Jiangsu University of Technology — официальный сайт; фотограф не указан",
+    "title": "Вечерний вид на кампус с высоты, Jiangsu University of Technology",
+    "caption": "Вечерний вид на кампус с высоты, Jiangsu University of Technology, Чанчжоу; официальная фотография",
+    "sourceUrl": "https://english.jsut.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.jsut.edu.cn/"
+  },
+  "jilin-university": {
+    "path": "https://en.jlu.edu.cn/__local/2/8F/AE/CAFC5103AC26A5EFEEC052A3675_24F8EED2_871AB0.jpg?e=.jpg",
+    "author": "Jilin University — официальный сайт; фотограф не указан",
+    "title": "Стеклянный современный корпус и цветущие деревья, Jilin University",
+    "caption": "Стеклянный современный корпус и цветущие деревья, Jilin University, Чанчунь; официальная фотография",
+    "sourceUrl": "https://en.jlu.edu.cn/Campus_Life.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.jlu.edu.cn/Campus_Life.htm"
+  },
+  "lanzhou-jiaotong-university": {
+    "path": "https://en.lzjtu.edu.cn/__local/E/5B/A4/6AB11D4F58B3C39DF9CCB976BFD_B8A732F0_59D3DB.jpg",
+    "author": "Lanzhou Jiaotong University — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты, парк и высотные корпуса, Lanzhou Jiaotong University",
+    "caption": "Кампус с высоты, парк и высотные корпуса, Lanzhou Jiaotong University, Ланьчжоу; официальная фотография",
+    "sourceUrl": "https://en.lzjtu.edu.cn/About/lntroduction.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.lzjtu.edu.cn/About/lntroduction.htm"
+  },
+  "liaoning-petrochemical-university": {
+    "path": "https://english.lnpu.edu.cn/__local/3/40/48/1AB507DECC02AEAF6879E1C01B0_FCFFF019_67801.jpg",
+    "author": "Liaoning Petrochemical University — официальный сайт; фотограф не указан",
+    "title": "Кампус у озера с высоты на закате, Liaoning Petrochemical University",
+    "caption": "Кампус у озера с высоты на закате, Liaoning Petrochemical University, Фушунь; официальная фотография",
+    "sourceUrl": "https://english.lnpu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.lnpu.edu.cn/"
+  },
+  "linyi-university": {
+    "path": "https://www.lyu.edu.cn/_upload/article/images/3e/39/6a502898458aa07de247413a9fd1/8c4af485-2a6f-4c10-906a-a91e39ea800f.jpg",
+    "author": "Linyi University — официальный сайт; фотограф не указан",
+    "title": "Библиотека и стена с названием вуза за водоёмом, Linyi University",
+    "caption": "Библиотека и стена с названием вуза за водоёмом, Linyi University, Линьи; официальная фотография",
+    "sourceUrl": "https://www.lyu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.lyu.edu.cn/"
+  },
+  "lishui-university": {
+    "path": "https://lib.lsu.edu.cn/_upload/article/images/6f/a1/eb65ede94f42addacf1c702808b4/c992ece4-ad04-439b-8048-7d41d5b768d8.jpg",
+    "author": "Lishui University — официальный сайт; фотограф не указан",
+    "title": "Площадь и корпуса кампуса на фоне гор, Lishui University",
+    "caption": "Площадь и корпуса кампуса на фоне гор, Lishui University, Лишуй; официальная фотография",
+    "sourceUrl": "https://lib.lsu.edu.cn/main.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://lib.lsu.edu.cn/main.htm"
+  },
+  "nanchang-hangkong-university": {
+    "path": "https://www.nchu.edu.cn/upload/main/contentmanage/article/image/2025/07/18/6.jpg",
+    "author": "Nanchang Hangkong University — официальный сайт; фотограф не указан",
+    "title": "Главный корпус и площадь с моделью ракеты, Nanchang Hangkong University",
+    "caption": "Главный корпус и площадь с моделью ракеты, Nanchang Hangkong University, Наньчан; официальная фотография",
+    "sourceUrl": "https://www.nchu.edu.cn/xxgk/xyfg/content_183074",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.nchu.edu.cn/xxgk/xyfg/content_183074"
+  },
+  "nanjing-tech-university": {
+    "path": "https://en.njtech.edu.cn/images/index1.png",
+    "author": "Nanjing Tech University — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на корпуса среди зелени, Nanjing Tech University",
+    "caption": "Вид с высоты на корпуса среди зелени, Nanjing Tech University, Нанкин; официальная фотография",
+    "sourceUrl": "https://en.njtech.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.njtech.edu.cn/"
+  },
+  "northeast-petroleum-university": {
+    "path": "https://www.nepu.edu.cn/en/images/122.jpg",
+    "author": "Northeast Petroleum University — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты: корпуса, озеро, осенняя зелень, Northeast Petroleum University",
+    "caption": "Кампус с высоты: корпуса, озеро, осенняя зелень, Northeast Petroleum University, Дацин; официальная фотография",
+    "sourceUrl": "https://www.nepu.edu.cn/en/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.nepu.edu.cn/en/"
+  },
+  "qiongtai-normal-university": {
+    "path": "https://www.qtnu.edu.cn/images/24/11/04/1puv3jos0f/ban11-1.jpg",
+    "author": "Qiongtai Normal University — официальный сайт; фотограф не указан",
+    "title": "Учебные корпуса и газон перед ними, Qiongtai Normal University",
+    "caption": "Учебные корпуса и газон перед ними, Qiongtai Normal University, Хайкоу; официальная фотография",
+    "sourceUrl": "https://www.qtnu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.qtnu.edu.cn/"
+  },
+  "shandong-university": {
+    "path": "https://www.en.sdu.edu.cn/__local/7/B7/70/6FD508562C1FAF4E00093A1A15E_247B3043_B4320.jpg",
+    "author": "Shandong University — официальный сайт; фотограф не указан",
+    "title": "Высотный корпус на фоне города осенью, Shandong University",
+    "caption": "Высотный корпус на фоне города осенью, Shandong University, Цзинань; официальная фотография",
+    "sourceUrl": "https://www.en.sdu.edu.cn/News_Events/Photos.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.en.sdu.edu.cn/News_Events/Photos.htm"
+  },
+  "shandong-university-of-technology": {
+    "path": "https://en.sdut.edu.cn/_upload/article/images/e3/2f/bc9ed3e84590814d7d309ad48239/9b864823-53bc-4a51-8b6d-862332e95983_d.jpg",
+    "author": "Shandong University of Technology — официальный сайт; фотограф не указан",
+    "title": "Корпуса у пруда с мостиком, Shandong University of Technology",
+    "caption": "Корпуса у пруда с мостиком, Shandong University of Technology, Цзыбо; официальная фотография",
+    "sourceUrl": "https://en.sdut.edu.cn/2395/list.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.sdut.edu.cn/2395/list.htm"
+  },
+  "shanghai-business-school": {
+    "path": "https://www.sbs.edu.cn/images/banner.png",
+    "author": "Shanghai Business School — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты среди зелени, Shanghai Business School",
+    "caption": "Кампус с высоты среди зелени, Shanghai Business School, Шанхай; официальная фотография",
+    "sourceUrl": "https://www.sbs.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.sbs.edu.cn/"
+  },
+  "shanghai-ocean-university": {
+    "path": "https://www.shou.edu.cn/_upload/article/c3/d5/37c477574f3d8f38aa474c7e3dd7/def84171-838f-4f16-8d43-17e7067676c6_d.jpg",
+    "author": "Shanghai Ocean University — официальный сайт; фотограф не указан",
+    "title": "Озеро на кампусе и учебные корпуса вдали, Shanghai Ocean University",
+    "caption": "Озеро на кампусе и учебные корпуса вдали, Shanghai Ocean University, Шанхай; официальная фотография",
+    "sourceUrl": "https://www.shou.edu.cn/eng/6688/list.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.shou.edu.cn/eng/6688/list.htm"
+  },
+  "shanghai-polytechnic-university": {
+    "path": "https://en.sspu.edu.cn/_upload/article/images/1c/ee/1456dcb741488c9941406d92bacd/5e99b18c-1970-4a5d-8e5d-fc51d27564b0_d.jpg",
+    "author": "Shanghai Polytechnic University — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на кампус и учебные корпуса, Shanghai Polytechnic University",
+    "caption": "Вид с высоты на кампус и учебные корпуса, Shanghai Polytechnic University, Шанхай; официальная фотография",
+    "sourceUrl": "https://en.sspu.edu.cn/About/list.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.sspu.edu.cn/About/list.htm"
+  },
+  "shanxi-university": {
+    "path": "https://dt.sxu.edu.cn/images/2026-10/926def17013048ae8810e72c88450cfd.jpg",
+    "author": "Shanxi University — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на кампус и стадион, Shanxi University",
+    "caption": "Вид с высоты на кампус и стадион, Shanxi University, Тайюань; официальная фотография",
+    "sourceUrl": "https://dt.sxu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://dt.sxu.edu.cn/"
+  },
+  "shaoxing-university": {
+    "path": "https://www.usx.edu.cn/images/20261006qs3.jpg",
+    "author": "Shaoxing University — официальный сайт; фотограф не указан",
+    "title": "Корпуса и круглое здание кампуса среди зелени, Shaoxing University",
+    "caption": "Корпуса и круглое здание кампуса среди зелени, Shaoxing University, Шаосин; официальная фотография",
+    "sourceUrl": "https://www.usx.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.usx.edu.cn/"
+  },
+  "shenyang-agricultural-university": {
+    "path": "https://en.syau.edu.cn/images/2017117133822452.jpg",
+    "author": "Shenyang Agricultural University — официальный сайт; фотограф не указан",
+    "title": "Главный корпус с отражением в воде, Shenyang Agricultural University",
+    "caption": "Главный корпус с отражением в воде, Shenyang Agricultural University, Шэньян; официальная фотография",
+    "sourceUrl": "https://en.syau.edu.cn/About_SYAU/Campus_at_A_Glance.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.syau.edu.cn/About_SYAU/Campus_at_A_Glance.htm"
+  },
+  "shenyang-university-of-chemical-technology": {
+    "path": "https://english.syuct.edu.cn/images/campus-life.png",
+    "author": "Shenyang University of Chemical Technology — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на кампус и учебные корпуса, Shenyang University of Chemical Technology",
+    "caption": "Вид с высоты на кампус и учебные корпуса, Shenyang University of Chemical Technology, Шэньян; официальная фотография",
+    "sourceUrl": "https://english.syuct.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.syuct.edu.cn/"
+  },
+  "shenzhen-university": {
+    "path": "https://en.szu.edu.cn/images/20/10/23/1fg0s01n4a/20171207145331_oqdy9l99js.jpg",
+    "author": "Shenzhen University — официальный сайт; фотограф не указан",
+    "title": "Футбольное поле на кампусе на фоне гор и города, Shenzhen University",
+    "caption": "Футбольное поле на кампусе на фоне гор и города, Shenzhen University, Шэньчжэнь; официальная фотография",
+    "sourceUrl": "https://en.szu.edu.cn/Campus_Life/Sports_Facilities.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.szu.edu.cn/Campus_Life/Sports_Facilities.htm"
+  },
+  "sichuan-agricultural-university": {
+    "path": "https://www.sicau.edu.cn/__local/A/29/37/AEAC28197A50A088516F7178602_CA203FD3_643752.jpg",
+    "author": "Sichuan Agricultural University — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты на фоне гор, Sichuan Agricultural University",
+    "caption": "Кампус с высоты на фоне гор, Sichuan Agricultural University, Чэнду; официальная фотография",
+    "sourceUrl": "https://www.sicau.edu.cn/xywh/xyfg.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.sicau.edu.cn/xywh/xyfg.htm"
+  },
+  "south-central-minzu-university": {
+    "path": "https://english.scuec.edu.cn/images/2.png",
+    "author": "South-Central Minzu University — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на корпуса у озера, South-Central Minzu University",
+    "caption": "Вид с высоты на корпуса у озера, South-Central Minzu University, Ухань; официальная фотография",
+    "sourceUrl": "https://english.scuec.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.scuec.edu.cn/"
+  },
+  "southwest-university-of-political-science-and-law": {
+    "path": "https://www.swupl.edu.cn/images/2026-04/758698374d2f4ee6a9f40df595e117c1.jpg",
+    "author": "Southwest University of Political Science and Law — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на корпус и озеро кампуса, Southwest University of Political Science and Law",
+    "caption": "Вид сверху на корпус и озеро кампуса, Southwest University of Political Science and Law, Чунцин; официальная фотография",
+    "sourceUrl": "https://www.swupl.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.swupl.edu.cn/"
+  },
+  "sun-yat-sen-university": {
+    "path": "https://www.sysu.edu.cn/__local/7/2E/A6/9B5ADBE2805820577DEEA3E9F1A_D269FD4B_4F657.jpg",
+    "author": "Sun Yat-sen University — официальный сайт; фотограф не указан",
+    "title": "Кирпичные корпуса кампуса на берегу озера, Sun Yat-sen University",
+    "caption": "Кирпичные корпуса кампуса на берегу озера, Sun Yat-sen University, Гуанчжоу; официальная фотография",
+    "sourceUrl": "https://www.sysu.edu.cn/sysuen/Campus_Life.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.sysu.edu.cn/sysuen/Campus_Life.htm"
+  },
+  "taiyuan-university-of-technology": {
+    "path": "https://english.tyut.edu.cn/images/2022831.jpg",
+    "author": "Taiyuan University of Technology — официальный сайт; фотограф не указан",
+    "title": "Старинный учебный корпус с часовой башней, Taiyuan University of Technology",
+    "caption": "Старинный учебный корпус с часовой башней, Taiyuan University of Technology, Тайюань; официальная фотография",
+    "sourceUrl": "https://english.tyut.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.tyut.edu.cn/"
+  },
+  "taizhou-university": {
+    "path": "https://english.tzc.edu.cn/images/mr/20241011111455.png",
+    "author": "Taizhou University — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на корпуса и зелёный двор, Taizhou University",
+    "caption": "Вид сверху на корпуса и зелёный двор, Taizhou University, Тайчжоу; официальная фотография",
+    "sourceUrl": "https://english.tzc.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.tzc.edu.cn/"
+  },
+  "tianjin-chengjian-university": {
+    "path": "https://en.tcu.edu.cn/over.jpg",
+    "author": "Tianjin Chengjian University — официальный сайт; фотограф не указан",
+    "title": "Панорама кампуса с озером и корпусами, Tianjin Chengjian University",
+    "caption": "Панорама кампуса с озером и корпусами, Tianjin Chengjian University, Тяньцзинь; официальная фотография",
+    "sourceUrl": "https://en.tcu.edu.cn/About_TCU.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.tcu.edu.cn/About_TCU.htm"
+  },
+  "tianjin-foreign-studies-university": {
+    "path": "https://www.tjfsu.edu.cn/_upload/article/images/0a/86/81b15f8240fd84064b340e0391d7/df54e96d-79d2-4cba-b755-8bdbf06cda30_d.jpg",
+    "author": "Tianjin Foreign Studies University — официальный сайт; фотограф не указан",
+    "title": "Историческое кирпичное здание вуза с высоты, Tianjin Foreign Studies University",
+    "caption": "Историческое кирпичное здание вуза с высоты, Tianjin Foreign Studies University, Тяньцзинь; официальная фотография",
+    "sourceUrl": "https://www.tjfsu.edu.cn/8/list.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.tjfsu.edu.cn/8/list.htm"
+  },
+  "university-of-science-and-technology-beijing": {
+    "path": "https://en.ustb.edu.cn/__local/B/BB/C4/5B45B6481F72FB9D3424FC5D834_482FBD68_41A4DE.jpg",
+    "author": "University of Science and Technology Beijing — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на кампус со стадионом, University of Science and Technology Beijing",
+    "caption": "Вид сверху на кампус со стадионом, University of Science and Technology Beijing, Пекин; официальная фотография",
+    "sourceUrl": "https://en.ustb.edu.cn/Campus.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://en.ustb.edu.cn/Campus.htm"
+  },
+  "wenzhou-university": {
+    "path": "https://www.wzu.edu.cn/english/images/banner4.png",
+    "author": "Wenzhou University — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на кампус на фоне гор, Wenzhou University",
+    "caption": "Вид сверху на кампус на фоне гор, Wenzhou University, Вэньчжоу; официальная фотография",
+    "sourceUrl": "https://www.wzu.edu.cn/en.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.wzu.edu.cn/en.htm"
+  },
+  "wuchang-university-of-technology": {
+    "path": "https://znonline.wut.edu.cn/__local/D/AE/A7/B20AF983CB80E4B3E19C2A52635_F3AE690A_A0015.jpg",
+    "author": "Wuchang University of Technology — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус среди цветущих деревьев, Wuchang University of Technology",
+    "caption": "Учебный корпус среди цветущих деревьев, Wuchang University of Technology, Ухань; официальная фотография",
+    "sourceUrl": "https://znonline.wut.edu.cn/info/5171/1228441.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://znonline.wut.edu.cn/info/5171/1228441.htm"
+  },
+  "wuhan-college": {
+    "path": "https://wmw.whxy.edu.cn/virtual_attach_file.vsb?afc=5nmMCfo7UbMRAkMQRL4o7QVUmV7nmWqRnlUYLRUsM4lPUlC0gihFp2hmCIa0LYyDMkhkn1ybnlLYUmn2L4vYLRVfnm6RU4CPnRG8LRAknz6FMllYL7UYL4AFLzGaLzMkgjfJQ4Oeo4xsqdAb6DisgDTJQty0gzL0gzLJqdpnx&oid=2044520762&e=.png",
+    "author": "Wuhan College — официальный сайт; фотограф не указан",
+    "title": "Современное здание у пруда на территории кампуса, Wuhan College",
+    "caption": "Современное здание у пруда на территории кампуса, Wuhan College, Ухань; официальная фотография",
+    "sourceUrl": "https://wmw.whxy.edu.cn",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://wmw.whxy.edu.cn"
+  },
+  "wuxi-university": {
+    "path": "https://www.cwxu.edu.cn/images/cf8c9c9366b54b6076f9cb6c4fae10a.jpg",
+    "author": "Wuxi University — официальный сайт; фотограф не указан",
+    "title": "Лужайка перед учебными корпусами кампуса, Wuxi University",
+    "caption": "Лужайка перед учебными корпусами кампуса, Wuxi University, Уси; официальная фотография",
+    "sourceUrl": "https://www.cwxu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.cwxu.edu.cn/"
+  },
+  "xi-an-university-of-architecture-and-technology": {
+    "path": "https://www.xauat.edu.cn/gwyw/images/26/06/06/1jq82jvkt0/2bd415d6-efdf-4a16-b0f2-7fe353fbaa6d.jpg",
+    "author": "Xi’an University of Architecture and Technology — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на кампус у подножия гор, Xi’an University of Architecture and Technology",
+    "caption": "Вид сверху на кампус у подножия гор, Xi’an University of Architecture and Technology, Сиань; официальная фотография",
+    "sourceUrl": "https://www.xauat.edu.cn/gwyw/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.xauat.edu.cn/gwyw/"
+  },
+  "yangtze-university": {
+    "path": "https://english.yangtzeu.edu.cn/images/22/11/21/dongxiaoqu-14haojiaoxuelou.jpg",
+    "author": "Yangtze University — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на учебные корпуса и аллеи кампуса, Yangtze University",
+    "caption": "Вид сверху на учебные корпуса и аллеи кампуса, Yangtze University, Цзинчжоу; официальная фотография",
+    "sourceUrl": "https://english.yangtzeu.edu.cn/About/Campus_Scenery.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.yangtzeu.edu.cn/About/Campus_Scenery.htm"
+  },
+  "yunnan-university": {
+    "path": "https://www.ynu.edu.cn/images/chenggongxiaoqubaijiadadao2026xia.jpg",
+    "author": "Yunnan University — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на аллею и исторические корпуса, Yunnan University",
+    "caption": "Вид сверху на аллею и исторические корпуса, Yunnan University, Куньмин; официальная фотография",
+    "sourceUrl": "https://www.ynu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.ynu.edu.cn/"
+  },
+  "zaozhuang-university": {
+    "path": "https://english.uzz.edu.cn/images/20250913-1.jpg",
+    "author": "Zaozhuang University — официальный сайт; фотограф не указан",
+    "title": "Вид сверху на кампус с озером и корпусами, Zaozhuang University",
+    "caption": "Вид сверху на кампус с озером и корпусами, Zaozhuang University, Цзаочжуан; официальная фотография",
+    "sourceUrl": "https://english.uzz.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.uzz.edu.cn/"
+  },
+  "anhui-university": {
+    "path": "https://www.ahu.edu.cn/_upload/article/images/e9/71/dd24554645eba2a767e2498c3677/9734309a-5e9d-4b9b-81f9-b488b413456f.jpg",
+    "author": "Anhui University — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус университета с вывеской на крыше, Anhui University",
+    "caption": "Учебный корпус университета с вывеской на крыше, Anhui University, Хэфэй; официальная фотография",
+    "sourceUrl": "https://www.ahu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.ahu.edu.cn/"
+  },
+  "beijing-institute-of-graphic-communication": {
+    "path": "https://english.bigc.edu.cn/images/2025-05/0faf9d39ec4d46a197b57ca7514d3a9d.jpg",
+    "author": "Beijing Institute of Graphic Communication — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус со стеклянным фасадом вечером, Beijing Institute of Graphic Communication",
+    "caption": "Учебный корпус со стеклянным фасадом вечером, Beijing Institute of Graphic Communication, Пекин; официальная фотография",
+    "sourceUrl": "https://english.bigc.edu.cn/CampusLife/CampusFacilities/index.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.bigc.edu.cn/CampusLife/CampusFacilities/index.htm"
+  },
+  "beijing-wuzi-university": {
+    "path": "https://www.bwu.edu.cn/__local/5/7B/7B/96AE149CC3EA10D559345A88C7C_1FE61F89_491DC.jpg",
+    "author": "Beijing Wuzi University — официальный сайт; фотограф не указан",
+    "title": "Каменная стела у входа и учебные корпуса, Beijing Wuzi University",
+    "caption": "Каменная стела у входа и учебные корпуса, Beijing Wuzi University, Пекин; официальная фотография",
+    "sourceUrl": "https://www.bwu.edu.cn/xxgk/xyfg.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.bwu.edu.cn/xxgk/xyfg.htm"
+  },
+  "central-china-normal-university": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Science_Hall_in_CCNU.jpg/1280px-Science_Hall_in_CCNU.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "Doraemon.tvb",
+    "title": "Science Hall in CCNU.jpg",
+    "caption": "Кирпичный корпус и бронзовый сосуд перед входом, Central China Normal University, Ухань, 2016",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Science_Hall_in_CCNU.jpg",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "chongqing-technology-and-business-university": {
+    "path": "https://www.ctbu.edu.cn/__local/A/DB/1F/EE59B435CE0274AA3801FD82B70_FE32761F_7A6D0.jpg",
+    "author": "Chongqing Technology and Business University — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса у пруда, Chongqing Technology and Business University",
+    "caption": "Корпуса кампуса у пруда, Chongqing Technology and Business University, Чунцин; официальная фотография",
+    "sourceUrl": "https://www.ctbu.edu.cn/xxgk/xyfg/cyxq.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.ctbu.edu.cn/xxgk/xyfg/cyxq.htm"
+  },
+  "chongqing-university-of-posts-and-telecommunications": {
+    "path": "https://jjc.cqupt.edu.cn/dfiles/photos/xinkedax.jpg",
+    "author": "Chongqing University of Posts and Telecommunications — официальный сайт; фотограф не указан",
+    "title": "Высокий корпус и беседка на кампусе, Chongqing University of Posts and Telecommunications",
+    "caption": "Высокий корпус и беседка на кампусе, Chongqing University of Posts and Telecommunications, Чунцин; официальная фотография",
+    "sourceUrl": "https://jjc.cqupt.edu.cn",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://jjc.cqupt.edu.cn"
+  },
+  "civil-aviation-university-of-china": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Main_building_of_CAUC_North_Campus_%2820230621131412%29.jpg/1280px-Main_building_of_CAUC_North_Campus_%2820230621131412%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "N509FZ",
+    "title": "Main building of CAUC North Campus (20230621131412).jpg",
+    "caption": "Главный корпус университета и площадь перед ним, Civil Aviation University of China, Тяньцзинь, 2023",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Main_building_of_CAUC_North_Campus_(20230621131412).jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "dali-university": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Dali_Yunnan_China_Dali-University-02.jpg/1280px-Dali_Yunnan_China_Dali-University-02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "CEphoto, Uwe Aranas",
+    "title": "Dali Yunnan China Dali-University-02.jpg",
+    "caption": "Скульптура у корпусов кампуса на фоне гор, Dali University, Дали, 2012",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Dali_Yunnan_China_Dali-University-02.jpg",
+    "license": "CC BY-SA 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "dalian-polytechnic-university": {
+    "path": "https://zsb.dep.dlpu.edu.cn/ueditor/php/upload/image/20230620/1687246614706080.jpg",
+    "author": "Dalian Polytechnic University — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус за цветущей аркой, Dalian Polytechnic University",
+    "caption": "Учебный корпус за цветущей аркой, Dalian Polytechnic University, Далянь; официальная фотография",
+    "sourceUrl": "https://zsb.dep.dlpu.edu.cn/tour/view/id/65",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://zsb.dep.dlpu.edu.cn/tour/view/id/65"
+  },
+  "guangdong-university-of-finance": {
+    "path": "https://zs.gduf.edu.cn/__local/C/6D/14/E6F234F7553114AE6A160E77B00_C724464D_8987CC.jpg",
+    "author": "Guangdong University of Finance — официальный сайт; фотограф не указан",
+    "title": "Учебные корпуса кампуса на фоне гор, Guangdong University of Finance",
+    "caption": "Учебные корпуса кампуса на фоне гор, Guangdong University of Finance, Гуанчжоу; официальная фотография",
+    "sourceUrl": "https://zs.gduf.edu.cn/info/1056/2451.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://zs.gduf.edu.cn/info/1056/2451.htm"
+  },
+  "guilin-university-of-electronic-technology": {
+    "path": "https://www.guet.edu.cn/_upload/article/images/8d/9f/78e8665f4a0ea4f481e70ef71837/a2302144-0ae7-4e77-8456-067a102eb2e6.jpg",
+    "author": "Guilin University of Electronic Technology — официальный сайт; фотограф не указан",
+    "title": "Корпуса у озера на территории кампуса, Guilin University of Electronic Technology",
+    "caption": "Корпуса у озера на территории кампуса, Guilin University of Electronic Technology, Гуйлинь; официальная фотография",
+    "sourceUrl": "https://www.guet.edu.cn/2025/0320/c6577a134730/page.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.guet.edu.cn/2025/0320/c6577a134730/page.htm"
+  },
+  "hebei-geo-university": {
+    "path": "https://www.hgu.edu.cn/images/586435c0bc4250fd9b26089d1155335d.jpg",
+    "author": "Hebei GEO University — официальный сайт; фотограф не указан",
+    "title": "Учебные корпуса и площадь перед ними, Hebei GEO University",
+    "caption": "Учебные корпуса и площадь перед ними, Hebei GEO University, Шицзячжуан; официальная фотография",
+    "sourceUrl": "https://www.hgu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.hgu.edu.cn/"
+  },
+  "hebei-university-of-technology": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Gate_of_HEBUT_%28Beichen%29_20210527.jpg/1280px-Gate_of_HEBUT_%28Beichen%29_20210527.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "Vikarna",
+    "title": "Gate of HEBUT (Beichen) 20210527.jpg",
+    "caption": "Главные ворота университета, Hebei University of Technology, Тяньцзинь, 2021",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Gate_of_HEBUT_(Beichen)_20210527.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "jiangsu-normal-university": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b6/Jiangsu_Normal_University.jpg/1280px-Jiangsu_Normal_University.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "Zhou Guanhuai",
+    "title": "Jiangsu Normal University.jpg",
+    "caption": "Ворота кампуса с каменными столбами, Jiangsu Normal University, Сюйчжоу, 2020",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Jiangsu_Normal_University.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "jiangsu-ocean-university": {
+    "path": "https://www.jou.edu.cn/images/QQ20250325-151127.png",
+    "author": "Jiangsu Ocean University — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса за озером в ясный день, Jiangsu Ocean University",
+    "caption": "Корпуса кампуса за озером в ясный день, Jiangsu Ocean University, Ляньюньган; официальная фотография",
+    "sourceUrl": "https://www.jou.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.jou.edu.cn/"
+  },
+  "jiangsu-university": {
+    "path": "https://jjc.ujs.edu.cn/__local/A/EB/73/3BEBC12465871928DCAB7483453_980AC277_82D12.jpg",
+    "author": "Jiangsu University — официальный сайт; фотограф не указан",
+    "title": "Аллея и крытая галерея между корпусами, Jiangsu University",
+    "caption": "Аллея и крытая галерея между корпусами, Jiangsu University, Чжэньцзян; официальная фотография",
+    "sourceUrl": "https://jjc.ujs.edu.cn/content.jsp?urltype=news.NewsContentUrl&wbtreeid=1038&wbnewsid=3234",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://jjc.ujs.edu.cn/content.jsp?urltype=news.NewsContentUrl&wbtreeid=1038&wbnewsid=3234"
+  },
+  "jiangxi-university-of-science-and-technology": {
+    "path": "https://www.jxust.edu.cn/__local/F/BA/BD/58187506F4E1FBB70ADAD67D09C_72E82481_7F4BD.jpg",
+    "author": "Jiangxi University of Science and Technology — официальный сайт; фотограф не указан",
+    "title": "Учебный корпус на берегу озера, Jiangxi University of Science and Technology",
+    "caption": "Учебный корпус на берегу озера, Jiangxi University of Science and Technology, Ганьчжоу; официальная фотография",
+    "sourceUrl": "https://www.jxust.edu.cn/xxgk/xydy.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.jxust.edu.cn/xxgk/xydy.htm"
+  },
+  "jiaxing-university": {
+    "path": "https://www.zjxu.edu.cn/__local/A/D6/7D/49C9EDF755A4C9E87D399ED9D3D_1936AA3D_84AE0.jpg",
+    "author": "Jiaxing University — официальный сайт; фотограф не указан",
+    "title": "Многоэтажное здание у камня на территории кампуса, Jiaxing University",
+    "caption": "Многоэтажное здание у камня на территории кампуса, Jiaxing University, Цзясин; официальная фотография",
+    "sourceUrl": "https://www.zjxu.edu.cn/xqzl/xyfm.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.zjxu.edu.cn/xqzl/xyfm.htm"
+  },
+  "nanjing-university-of-information-science-and-technology": {
+    "path": "https://gjy.nuist.edu.cn/_upload/article/images/d5/86/5dabda4f441782045d526317450e/386f768c-c7e6-4410-a42d-bd2a0c541c1e.jpg",
+    "author": "Nanjing University of Information Science and Technology — официальный сайт; фотограф не указан",
+    "title": "Корпуса кампуса на закате, Nanjing University of Information Science and Technology",
+    "caption": "Корпуса кампуса на закате, Nanjing University of Information Science and Technology, Нанкин; официальная фотография",
+    "sourceUrl": "https://gjy.nuist.edu.cn/main.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://gjy.nuist.edu.cn/main.htm"
+  },
+  "nanjing-university-of-science-and-technology": {
+    "path": "https://english.njust.edu.cn/_upload/article/images/5c/08/0db6e636442cace6a067b80ab2c5/28fecb2a-59a4-4c48-8a28-4980e9f01d88.jpg",
+    "author": "Nanjing University of Science and Technology — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты и главная аллея, Nanjing University of Science and Technology",
+    "caption": "Кампус с высоты и главная аллея, Nanjing University of Science and Technology, Нанкин; официальная фотография",
+    "sourceUrl": "https://english.njust.edu.cn/_t21/582/list.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.njust.edu.cn/_t21/582/list.htm"
+  },
+  "north-china-electric-power-university": {
+    "path": "https://news.ncepu.edu.cn/images/2025-12/bc567b1a601d42f38a62c3b18962ed28.jpg",
+    "author": "North China Electric Power University — официальный сайт; фотограф не указан",
+    "title": "Главный корпус университета зимой, North China Electric Power University",
+    "caption": "Главный корпус университета зимой, North China Electric Power University, Пекин; официальная фотография",
+    "sourceUrl": "https://news.ncepu.edu.cn/hdgy/8295d1ca0dbc46e290b84985ddf6d0b4.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://news.ncepu.edu.cn/hdgy/8295d1ca0dbc46e290b84985ddf6d0b4.htm"
+  },
+  "shandong-jianzhu-university": {
+    "path": "https://www.sdjzu.edu.cn/__local/B/19/76/402223751234637555D3ED14F8A_C7602AC2_51468.jpg",
+    "author": "Shandong Jianzhu University — официальный сайт; фотограф не указан",
+    "title": "Кампус с высоты: здание с часовой башней и аллеи, Shandong Jianzhu University",
+    "caption": "Кампус с высоты: здание с часовой башней и аллеи, Shandong Jianzhu University, Цзинань; официальная фотография",
+    "sourceUrl": "https://www.sdjzu.edu.cn/gjjlhz/index/xyfg.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.sdjzu.edu.cn/gjjlhz/index/xyfg.htm"
+  },
+  "shanghai-university-of-engineering-science": {
+    "path": "https://www.sues.edu.cn/_upload/article/images/de/ef/d23503ed4c459cf14f53f076739c/67e4c290-91d6-49b3-aaf1-d030f01f1476.jpg",
+    "author": "Shanghai University of Engineering Science — официальный сайт; фотограф не указан",
+    "title": "Обзор кампуса с озером и корпусами с высоты, Shanghai University of Engineering Science",
+    "caption": "Обзор кампуса с озером и корпусами с высоты, Shanghai University of Engineering Science, Шанхай; официальная фотография",
+    "sourceUrl": "https://www.sues.edu.cn/_t812/26/list3.psp",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.sues.edu.cn/_t812/26/list3.psp"
+  },
+  "shantou-university": {
+    "path": "https://www.stu.edu.cn/__local/1/3C/DE/489A5764082638F95773E6802DE_C2CB1411_8E067.jpg",
+    "author": "Shantou University — официальный сайт; фотограф не указан",
+    "title": "Учебные корпуса на берегу моря с высоты, Shantou University",
+    "caption": "Учебные корпуса на берегу моря с высоты, Shantou University, Шаньтоу; официальная фотография",
+    "sourceUrl": "https://www.stu.edu.cn/info/1108/24456.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.stu.edu.cn/info/1108/24456.htm"
+  },
+  "shenyang-urban-construction-university": {
+    "path": "https://www.syucu.edu.cn/images/ead6045e-3dd5-4858-82b9-8204545c20b1.jpg",
+    "author": "Shenyang Urban Construction University — официальный сайт; фотограф не указан",
+    "title": "Корпус с башней среди зелени, Shenyang Urban Construction University",
+    "caption": "Корпус с башней среди зелени, Shenyang Urban Construction University, Шэньян; официальная фотография",
+    "sourceUrl": "https://www.syucu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.syucu.edu.cn/"
+  },
+  "xi-an-shiyou-university": {
+    "path": "https://english.xsyu.edu.cn/__local/C/3C/16/8D7D6D805B922D03E2541F7EADA_6ED8A8AF_23574A.jpeg",
+    "author": "Xi’an Shiyou University — официальный сайт; фотограф не указан",
+    "title": "Главный корпус с фонтаном и красной скульптурой, Xi’an Shiyou University",
+    "caption": "Главный корпус с фонтаном и красной скульптурой, Xi’an Shiyou University, Сиань; официальная фотография",
+    "sourceUrl": "https://english.xsyu.edu.cn/info/1007/1270.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://english.xsyu.edu.cn/info/1007/1270.htm"
+  },
+  "yanshan-university": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Gate_1_of_Yanshan_University_East_Campus_%2820240403111932%29.jpg/1280px-Gate_1_of_Yanshan_University_East_Campus_%2820240403111932%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "N509FZ",
+    "title": "Gate 1 of Yanshan University East Campus (20240403111932).jpg",
+    "caption": "Главные ворота университета, Yanshan University, Циньхуандао, 2024",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Gate_1_of_Yanshan_University_East_Campus_(20240403111932).jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
   }
 }

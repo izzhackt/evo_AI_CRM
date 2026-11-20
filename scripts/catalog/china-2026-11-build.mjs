@@ -5,6 +5,9 @@
  *
  *   node scripts/catalog/china-2026-11-build.mjs --work-dir DIR [--base-ref origin/main] [--verified-on 2026-11-19] [--write]
  *
+ * --base-ref это коммит с 47 прежними карточками. После слияния PR #1490 `origin/main` уже содержит все 165, и сборка
+ * остановится на «duplicate card key»: для повторной сборки укажите main до слияния (`--base-ref 49b6f6d8d`).
+ *
  * Рабочая папка (вне Git: в ней сырые строки таблицы) содержит:
  *   rows.json        строки Excel как есть (row, id, uid, nameEn, nameZh, location, intakeRaw, major, langRaw, fee, req, deadline)
  *   identities.json  проверенные личности вузов по uid (нужны nameEn, cityRu, cityKey, websiteUrl, overviewRu, crmMatch)

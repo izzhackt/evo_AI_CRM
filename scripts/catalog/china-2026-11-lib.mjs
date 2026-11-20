@@ -145,21 +145,24 @@ export function collapseFeeAutoFill(groups) {
       && entry.parsed.values.length === head.parsed.values.length
       && entry.parsed.values.slice(0, -1).every((value, index) => value === head.parsed.values[index]);
     let next = 0;
+    let holeUsed = false;
     for (let index = 0; index < list.length; index += 1) {
       const entry = list[index];
       const head = run[0];
       if (head !== undefined && entry.row === run.at(-1).row + 1 && sameShape(entry, head)) {
         const value = entry.parsed.values.at(-1);
         if (value === next) { run.push(entry); next += 1; continue; }
-        // One row where the start value was typed again by hand: when the row after it carries the number the fill would
-        // have reached, the fill goes on through it (a repeated start value is not a new price).
+        // One row, once per run and only after three rows of a real fill, where the start value was typed again by hand:
+        // when the row after it carries the number the fill would have reached, the fill goes on through it (a repeated
+        // start value is not a new price).
         const after = list[index + 1];
-        if (value === head.parsed.values.at(-1) && after !== undefined && after.row === entry.row + 1 && sameShape(after, head)
-          && after.parsed.values.at(-1) === next + 1) { run.push(entry); next += 1; continue; }
+        if (!holeUsed && run.length >= 3 && value === head.parsed.values.at(-1) && after !== undefined && after.row === entry.row + 1
+          && sameShape(after, head) && after.parsed.values.at(-1) === next + 1) { run.push(entry); next += 1; holeUsed = true; continue; }
       }
       flush();
       run = entry.parsed.values.length > 0 ? [entry] : [];
       next = (entry.parsed.values.at(-1) ?? 0) + 1;
+      holeUsed = false;
     }
     flush();
   }

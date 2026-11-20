@@ -319,4 +319,9 @@ test("collapseFeeAutoFill: a different number typed inside the fill, or a repeat
   assert.deepEqual(collapseFeeAutoFill(make([600, 601, 602, 600, 900])).groups.map((group) => group.feeId), ["x0", "x3", "x4"]);
   // The repeat that is followed by the number the fill would have reached keeps the run together.
   assert.deepEqual(collapseFeeAutoFill(make([600, 601, 602, 600, 604, 605])).groups.map((group) => group.feeId), ["x0"]);
+  // A repeat needs a real fill of three rows before it: two equal rows at the start are not a fill.
+  assert.deepEqual(collapseFeeAutoFill(make([600, 600, 602])).groups.map((group) => group.feeId), ["x0", "x1", "x2"]);
+  assert.deepEqual(collapseFeeAutoFill(make([600, 601, 600, 603, 604])).groups.map((group) => group.feeId), ["x0", "x1", "x2", "x3", "x4"]);
+  // Only one repeat per run: the second one ends the run.
+  assert.deepEqual(collapseFeeAutoFill(make([600, 601, 602, 600, 604, 600, 606, 607])).groups.map((group) => group.feeId), ["x0", "x5", "x6", "x7"]);
 });

@@ -148,14 +148,12 @@ function filterCatalogue(filters) {
 
 /**
  * Клиент Supabase для настоящего `university-source.ts`: ответы чтений
- * `staff_university_catalog` (30 строк и следующее смещение, как у SQL 148) и
- * `staff_university_catalog_countries`. Так рендер проходит и полное чтение
- * каталога страницами, и разбор ответа (`parseUniversityPage`).
+ * `staff_university_catalog_rows_v1` (лёгкие строки, как у SQL 364: та же проекция `universityListItem`),
+ * `staff_university_catalog` (карточка по id) и `staff_university_catalog_countries`. Так рендер проходит и
+ * чтение каталога, и разбор ответа (`parseUniversityListRead`, `parseUniversityPage`).
  */
-/** Смещения чтений каталога за один рендер страницы (сколько запросов делает полное чтение). */
+/** Чтения каталога за один рендер страницы: «rows» — лёгкое чтение, число — смещение прежней страницы по названию. */
 let catalogueOffsets = [];
-/** Сценарий «каталог изменился посреди чтения»: первое чтение смещения 30 сдвинуто на строку назад (строка 30 приходит дважды). */
-let catalogueShiftOnce = false;
 /**
  * Справочник городов для страниц стран (`staff_catalog_geography_read_v1`, миграция 354; СИНТЕТИКА, только вёрстка): три
  * опубликованных города Китая, вузы связаны по названию подписи карточки. Фото-путь верен по форме, файла в бакете нет.
@@ -183,13 +181,19 @@ const fakeSupabase = {
           return { data: { organizationId: ORG, countries: [...new Set(CATALOGUE.map((item) => item.content.country))].sort() }, error: null };
         }
         if (name === "staff_catalog_geography_read_v1") return { data: geographyFixture(), error: null };
+        if (name === "staff_university_catalog_rows_v1") {
+          const { universityListItem } = require(join(ROOT, "src/lib/university-list-item.ts"));
+          const all = filterCatalogue({ query: args.p_query ?? "", country: args.p_country ?? "", level: args.p_level ?? "" });
+          catalogueOffsets.push("rows");
+          if (providerScenario === "catalogue-over-limit") return { data: { organizationId: ORG, complete: false, items: [] }, error: null };
+          return { data: { organizationId: ORG, complete: true, items: all.map(published).map(universityListItem) }, error: null };
+        }
         if (name !== "staff_university_catalog") return { data: null, error: { message: `unexpected rpc ${name}` } };
         if (args.p_institution_id) return { data: { items: CATALOGUE.filter((item) => item.id === args.p_institution_id).map(published), nextOffset: null }, error: null };
         const all = filterCatalogue({ query: args.p_query ?? "", country: args.p_country ?? "", level: args.p_level ?? "" });
         const offset = args.p_offset;
         catalogueOffsets.push(offset);
-        const start = catalogueShiftOnce && offset === 30 ? (catalogueShiftOnce = false, offset - 1) : offset;
-        return { data: { items: all.slice(start, start + 30).map(published), nextOffset: offset + 30 < all.length ? offset + 30 : null }, error: null };
+        return { data: { items: all.slice(offset, offset + 30).map(published), nextOffset: offset + 30 < all.length ? offset + 30 : null }, error: null };
       },
     };
   },
@@ -295,8 +299,8 @@ const idOf = (key) => CATALOGUE.find((item) => item.key === key)?.id ?? CATALOGU
 const PAGES = [
   ["universities-list", "admin", "/universities", "", "production"],
   ["universities-list-filtered", "admin", "/universities", "country=MY&level=bachelor", "production"],
-  // Только для проверки чтения (без снимков): Admin публикует карточку посреди полного чтения.
-  ["universities-list-changed", "admin", "/universities", "", "catalogue-changed"],
+  // Только для проверки чтения (без снимков): каталог больше предела лёгкого чтения (364), прежняя страница по названию.
+  ["universities-list-over-limit", "admin", "/universities", "", "catalogue-over-limit"],
   ["universities-detail", "admin", () => `/universities/${idOf("utm")}`, "", "production"],
   ["universities-detail-unconfirmed", "admin", () => `/universities/${idOf("apu")}`, "", "production"],
   // «Университеты» по странам (08.11.2026): страны, города, списком, город; карта в статической разметке — только рамка.
@@ -351,7 +355,6 @@ async function renderPage([name, role, path, search, providers]) {
   providerScenario = providers;
   journalRead = JOURNAL_READS[name] ?? JOURNAL_READS["settings-journal-empty"];
   catalogueOffsets = [];
-  catalogueShiftOnce = providers === "catalogue-changed";
   const pathname = typeof path === "function" ? path() : path;
   const { AppShell } = require(join(ROOT, "src/components/staff/AppShell.tsx"));
   const node = await pageNode(pathname, search);

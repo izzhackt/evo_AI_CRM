@@ -2,7 +2,7 @@ import "server-only";
 
 import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
-import { parseBrowseGeography, parseStaffGeography, type BrowseGeography, type StaffGeography } from "../catalog-geography.ts";
+import { parseBrowseGeography, parseInstitutionGeography, parseStaffGeography, type BrowseGeography, type StaffGeography } from "../catalog-geography.ts";
 import { getSupabasePublicConfig } from "../supabase/config";
 import { createSupabaseServerClient } from "../supabase/server";
 
@@ -25,6 +25,21 @@ export async function readStaffCatalogGeography(actor: ActivePlatformActor): Pro
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("staff_catalog_geography_v1", { p_organization_id: actor.organizationId });
   const geography = !error && parseStaffGeography(data);
+  if (!geography) throw new Error("Geography unavailable");
+  return geography;
+}
+
+/**
+ * География одной карточки вуза (миграция 364): то же право и тот же ответ, что у полной, но только этот вуз, его
+ * стоимость и города его страны — карточка не получает стоимость всех вузов организации.
+ */
+export async function readStaffInstitutionGeography(actor: ActivePlatformActor, institutionId: string): Promise<StaffGeography> {
+  if (!canManageCatalogGeography(actor)) throw new Error("Geography unavailable");
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_catalog_institution_geography_v1", {
+    p_organization_id: actor.organizationId, p_institution_id: institutionId,
+  });
+  const geography = !error && parseInstitutionGeography(data, institutionId);
   if (!geography) throw new Error("Geography unavailable");
   return geography;
 }

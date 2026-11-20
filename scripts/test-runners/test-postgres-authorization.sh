@@ -950,6 +950,41 @@ SQL
     rm -f "$t328_tamper_log"
   fi
 
+  # «Скорость раздела Университеты в CRM» (364). Matched by name, not number. Immediately BEFORE it: an edited body of any
+  # of the five functions 364 replaces, drops or mirrors makes it fail closed with its own reason (a364_drift), inside a
+  # transaction that the failure rolls back; the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == *_platform_university_catalog_speed.sql ]]; then
+    for pinned_function in \
+      'platform.staff_catalog_geography_v1(uuid)' \
+      'platform_private.catalog_cost_staff_json(platform.catalog_costs)' \
+      'platform_private.catalog_city_staff_json(platform.catalog_cities)' \
+      'platform.staff_university_catalog(uuid,text,text,text,uuid,integer)' \
+      'platform_private.university_catalog_page(uuid,text,text,text,uuid,integer,text[])'; do
+      t364_tamper_log="$(mktemp -t evo-t364-pin-tamper.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$pinned_function" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t364_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT regexp_replace(pg_get_functiondef(:'pinned_function'::regprocedure), '\$function\$\s*$',
+  E'\n-- tampered before migration 364\n$function$\n') AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 364 accepted an edited $pinned_function" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a364_drift: $pinned_function" "$t364_tamper_log"; then
+        echo "migration 364 failed for the wrong drift reason ($pinned_function)" >&2
+        sed -n '1,60p' "$t364_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t364_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -5605,6 +5640,33 @@ SQL
     printf '%s\n' "$portal_speed_log"
     if ! grep -q 'A351_PORTAL_SPEED_SUITE_PASSED' <<<"$portal_speed_log"; then
       echo "platform_portal_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Скорость раздела Университеты в CRM» (migration 364, 20.11.2026). Matched by name, not number. The migration adds the
+  # light staff catalogue read and the narrow card geography, and rebuilds staff_catalog_geography_v1 without a function per
+  # row: right after it a second apply refuses (a364_already_applied), then the suite, insisting on its marker, proves that
+  # no access decision moved and that every answer equals the old one.
+  if [[ "$(basename "$migration")" == *_platform_university_catalog_speed.sql ]]; then
+    t364_again_log="$(mktemp -t evo-t364-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t364_again_log" 2>&1; then
+      echo "migration 364 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a364_already_applied" "$t364_again_log"; then
+      echo "a second apply of migration 364 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t364_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t364_again_log"
+    catalog_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_catalog_speed.sql </dev/null)"
+    printf '%s\n' "$catalog_speed_log"
+    if ! grep -q 'A364_UNIVERSITY_CATALOG_SPEED_SUITE_PASSED' <<<"$catalog_speed_log"; then
+      echo "platform_university_catalog_speed.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

@@ -4,7 +4,7 @@
     "cn": {
       "contentVersion": 4,
       "validUntil": "2027-10-31",
-      "sha256": "5937235e86146f83f8df7a9482fa68c7140adc91edf615b21ce85cff0a3f97dd"
+      "sha256": "1ac0f1c26608eb5b777f07dcee9ecae8741e92e7256733a7e0106b97fab32a18"
     },
     "my": {
       "contentVersion": 5,
@@ -48,7 +48,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "64159fca7714da944db8f18373e736eb109615d19c49dcc37c0de6f7f91ea5a6"
+      "sha256": "437319ea31f343e9acfa72973942cc337f9b3b0687fcb3130b5dd350890f8bb5"
     },
     {
       "choice": "CN",
@@ -60,7 +60,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "64159fca7714da944db8f18373e736eb109615d19c49dcc37c0de6f7f91ea5a6"
+      "sha256": "437319ea31f343e9acfa72973942cc337f9b3b0687fcb3130b5dd350890f8bb5"
     },
     {
       "choice": "CN",
@@ -72,7 +72,7 @@
       "datesHidden": true,
       "steps": 8,
       "items": 56,
-      "sha256": "19cf190e15a690baa38c16c2a1cc00c457f345fe113d9012eb805248b67f3b65"
+      "sha256": "35a91ea9b72257763d95d325f702ff4e7ef96aaa7993539c7b2406ce0b3a9ab0"
     },
     {
       "choice": "CN",
@@ -84,7 +84,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "23674a0c7d4bc740dc48ff38f7abfb5640ec1a63f4166caefebe318cab0f7ef0"
+      "sha256": "39a7a3385bf447232c33a50e147f0fb4b7466eaf482b13e0d8b616a064ebdab6"
     },
     {
       "choice": "CN",
@@ -96,7 +96,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "23674a0c7d4bc740dc48ff38f7abfb5640ec1a63f4166caefebe318cab0f7ef0"
+      "sha256": "39a7a3385bf447232c33a50e147f0fb4b7466eaf482b13e0d8b616a064ebdab6"
     },
     {
       "choice": "CN",
@@ -108,7 +108,7 @@
       "datesHidden": true,
       "steps": 8,
       "items": 56,
-      "sha256": "55bdbeba429e681ae586d2754816a1347c513b8a7fb96147f927aa2af720e31a"
+      "sha256": "eb4b66d82bcc34175d68f4c2e8a364e7a997a71d5650886f7754efc7f495c1e4"
     },
     {
       "choice": "MY",
@@ -554,7 +554,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "d9ac7cc3077d9870a5caab79253f9ce71fbf2ba0ec09dbbe43d02bd69b9a4c4e"
+      "sha256": "d96762bbbc9fd327739061ffabe39113f788e0306cd3450f5e4e7103ca14d388"
     },
     {
       "choice": "CN",
@@ -568,7 +568,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "1b7d08f07c371b6bf2eec12193a12ab1bd9b7956338668a01e95f65896cc3cd3"
+      "sha256": "84c80146da3edfff4d7afbd5cfc367b3a6f43ee1c1744b5f810d28d266f9fe2e"
     },
     {
       "choice": "CN",
@@ -582,7 +582,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "3937e14e8c1169576b3e62791ecb090312ef1ac1900bba4620ae9c74361d59f0"
+      "sha256": "f03acd4d6164c2cc4d05fb4019cb31213ff2e23b1046173941059a12df1bb89b"
     },
     {
       "choice": "CN",
@@ -596,7 +596,7 @@
       "datesHidden": false,
       "steps": 8,
       "items": 56,
-      "sha256": "3d85024fccae68ba702cef5e16cc212db02ef1cd7f7529c4a1bd0591ace9c7a6"
+      "sha256": "7b08339afe003acf63f618abb85189cce794289f231e366607706c859cea86a7"
     }
   ]
 }

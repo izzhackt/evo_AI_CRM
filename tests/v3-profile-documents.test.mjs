@@ -217,7 +217,7 @@ test("V3 profile mutates one canonical case checklist with versioned commands", 
   for (const field of ["student_case_id", "document_slot_id", "expected_version", "group_label", "reason", "request_id"]) {
     assert.match(both, new RegExp(`name="${field}"`, "u"));
   }
-  assert.match(row, /Файлы сохранятся в истории дела/u);
+  assert.match(row, /Файл останется в истории дела/u);
   assert.match(source("src/components/staff/profile/DocumentChecklistFeedback.tsx"), /router\.refresh\(\)/u);
 
   assert.match(profileSource, /new Map<string, ActiveGroup\["items"\]\[number\]\[\]>/u);

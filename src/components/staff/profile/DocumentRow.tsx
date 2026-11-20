@@ -74,7 +74,7 @@ const PANEL_TITLE: Readonly<Record<Exclude<Panel, "recognition">, string>> = {
   return: "Вернуть студенту",
   edit: "Изменить пункт",
   links: "Связи",
-  remove: "Убрать из чек-листа",
+  remove: "Убрать в архив",
 };
 
 const REVIEW_MESSAGES: Readonly<Record<DocumentReviewOutcome, string>> = {
@@ -279,9 +279,9 @@ function ChecklistItemRemove({
       <input type="hidden" name="expected_version" value={state.version ?? baseVersion} />
       <input type="hidden" name="request_id" value={state.requestId || requestId} />
       <input type="hidden" name="reason" value="Удаление пункта из активного чек-листа сотрудником" />
-      <p className="t-body-compact text-fg-2">Пункт уйдёт из чек-листа. Файлы сохранятся в истории дела.</p>
+      <p className="t-body-compact text-fg-2">Документ пропадёт из списка, студент его не увидит. Файл останется в истории дела.</p>
       <button type="submit" className={QUEUE_CONFIRM} disabled={locked}>
-        {pending ? "Убираем…" : "Убрать из чек-листа"}
+        {pending ? "Убираем…" : "Убрать в архив"}
       </button>
       <div className="w-full">
         <ChecklistFeedback state={state} />
@@ -449,7 +449,7 @@ export function DocumentRow({
         <button type="button" className={MENU_ITEM} disabled={!hydrated} onClick={() => { close(); setPanel("links"); }}>Связи</button>
       ) : null}
       {canEditItem ? (
-        <button type="button" className={MENU_ITEM} disabled={!hydrated} onClick={() => { close(); setPanel("remove"); }}>Убрать из чек-листа…</button>
+        <button type="button" className={MENU_ITEM} disabled={!hydrated} onClick={() => { close(); setPanel("remove"); }}>Убрать в архив…</button>
       ) : null}
       {recognition && present ? (
         <button type="button" className={MENU_ITEM} disabled={!hydrated} onClick={() => { close(); setPanel((open) => open === "recognition" ? null : "recognition"); }}>

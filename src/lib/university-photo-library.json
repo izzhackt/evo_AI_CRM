@@ -1727,15 +1727,6 @@
     "license": "Official-source embedding; no reuse license stated",
     "licenseUrl": "https://www.usx.edu.cn/"
   },
-  "shenyang-agricultural-university": {
-    "path": "https://en.syau.edu.cn/images/2017117133822452.jpg",
-    "author": "Shenyang Agricultural University — официальный сайт; фотограф не указан",
-    "title": "Главный корпус с отражением в воде, Shenyang Agricultural University",
-    "caption": "Главный корпус с отражением в воде, Shenyang Agricultural University, Шэньян; официальная фотография",
-    "sourceUrl": "https://en.syau.edu.cn/About_SYAU/Campus_at_A_Glance.htm",
-    "license": "Official-source embedding; no reuse license stated",
-    "licenseUrl": "https://en.syau.edu.cn/About_SYAU/Campus_at_A_Glance.htm"
-  },
   "shenyang-university-of-chemical-technology": {
     "path": "https://english.syuct.edu.cn/images/campus-life.png",
     "author": "Shenyang University of Chemical Technology — официальный сайт; фотограф не указан",
@@ -2149,5 +2140,41 @@
     "sourceUrl": "https://commons.wikimedia.org/wiki/File:Gate_1_of_Yanshan_University_East_Campus_(20240403111932).jpg",
     "license": "CC BY-SA 4.0",
     "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "weifang-university": {
+    "path": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg/1280px-20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "author": "Ngguls",
+    "title": "20211011 潍坊学院马克思主义学院门口.jpg",
+    "caption": "Учебный корпус среди зелени на кампусе, Weifang University, Вэйфан, 2021",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "xi-an-technological-university": {
+    "path": "https://www.xatu.edu.cn/__local/1/3F/63/0CE6804FF39BE89B7DF518F8C68_623787C9_6F3E2.jpg",
+    "author": "Xi’an Technological University — официальный сайт; фотограф не указан",
+    "title": "Вид с высоты на главные ворота и корпуса, Xi’an Technological University",
+    "caption": "Вид с высоты на главные ворота и корпуса, Xi’an Technological University, Сиань; официальная фотография",
+    "sourceUrl": "https://www.xatu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://www.xatu.edu.cn/"
+  },
+  "yangtze-normal-university": {
+    "path": "https://zsb.yznu.edu.cn/_upload/article/images/e7/8a/040774034788b0343d4c760f1f6a/bde11da5-f0b8-48f1-a17e-fd1ca1dd81bc.jpg",
+    "author": "Yangtze Normal University — официальный сайт; фотограф не указан",
+    "title": "Студенческий центр и корпуса за цветочным полем, Yangtze Normal University",
+    "caption": "Студенческий центр и корпуса за цветочным полем, Yangtze Normal University, Чунцин; официальная фотография",
+    "sourceUrl": "https://zsb.yznu.edu.cn/5918/list.htm",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://zsb.yznu.edu.cn/5918/list.htm"
+  },
+  "zhengzhou-university": {
+    "path": "https://ao.zzu.edu.cn/__local/2/62/61/6B3FCF758065201C28619852558_1F346780_64B5F.jpg",
+    "author": "Zhengzhou University — официальный сайт; фотограф не указан",
+    "title": "Въезд на кампус и красные корпуса, Zhengzhou University",
+    "caption": "Въезд на кампус и красные корпуса, Zhengzhou University, Чжэнчжоу; официальная фотография",
+    "sourceUrl": "https://ao.zzu.edu.cn/",
+    "license": "Official-source embedding; no reuse license stated",
+    "licenseUrl": "https://ao.zzu.edu.cn/"
   }
 }

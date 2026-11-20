@@ -1,14 +1,14 @@
 {
   "schema": "evo-university-photos-manifest/v1",
-  "generatedAt": "2026-11-20T15:57:04.182Z",
+  "generatedAt": "2026-11-20T16:06:09.968Z",
   "projectRef": "selfhosted",
   "bucket": "portal-university-photos",
   "source": "src/lib/university-photo-library.json",
   "totals": {
-    "entries": 239,
-    "verified": 226,
+    "entries": 242,
+    "verified": 230,
     "ineligible": 11,
-    "failed": 2,
+    "failed": 1,
     "migrated": 132
   },
   "entries": {
@@ -2396,22 +2396,6 @@
       "reason": null,
       "migrated": true
     },
-    "shenyang-agricultural-university": {
-      "sourceUrl": "https://en.syau.edu.cn/images/2017117133822452.jpg",
-      "finalUrl": null,
-      "pageUrl": "https://en.syau.edu.cn/About_SYAU/Campus_at_A_Glance.htm",
-      "license": "Official-source embedding; no reuse license stated",
-      "licenseUrl": "https://en.syau.edu.cn/About_SYAU/Campus_at_A_Glance.htm",
-      "attribution": "Shenyang Agricultural University — официальный сайт; фотограф не указан",
-      "rights": "official_media_owner_accepted",
-      "sha256": null,
-      "bytes": null,
-      "contentType": null,
-      "objectPath": null,
-      "status": "failed",
-      "reason": "timeout",
-      "migrated": false
-    },
     "shenyang-university-of-chemical-technology": {
       "sourceUrl": "https://english.syuct.edu.cn/images/campus-life.png",
       "finalUrl": null,
@@ -3484,6 +3468,22 @@
       "reason": null,
       "migrated": true
     },
+    "weifang-university": {
+      "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg/1280px-20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "finalUrl": null,
+      "pageUrl": "https://commons.wikimedia.org/wiki/File:20211011_%E6%BD%8D%E5%9D%8A%E5%AD%A6%E9%99%A2%E9%A9%AC%E5%85%8B%E6%80%9D%E4%B8%BB%E4%B9%89%E5%AD%A6%E9%99%A2%E9%97%A8%E5%8F%A3.jpg",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "attribution": "Ngguls",
+      "rights": "open_license",
+      "sha256": "7b998b73b6fba1877c088172ca31fa6d42b22fa492396c3c516862fa0137cb52",
+      "bytes": 457923,
+      "contentType": "image/jpeg",
+      "objectPath": "weifang-university.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
+    },
     "wenzhou-university": {
       "sourceUrl": "https://www.wzu.edu.cn/english/images/banner4.png",
       "finalUrl": null,
@@ -3596,6 +3596,22 @@
       "reason": null,
       "migrated": false
     },
+    "xi-an-technological-university": {
+      "sourceUrl": "https://www.xatu.edu.cn/__local/1/3F/63/0CE6804FF39BE89B7DF518F8C68_623787C9_6F3E2.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://www.xatu.edu.cn/",
+      "license": "Official-source embedding; no reuse license stated",
+      "licenseUrl": "https://www.xatu.edu.cn/",
+      "attribution": "Xi’an Technological University — официальный сайт; фотограф не указан",
+      "rights": "official_media_owner_accepted",
+      "sha256": "5237c353a8beadc86527399f64bb7d3be846bf6dee24667adc58091c4f409e27",
+      "bytes": 455650,
+      "contentType": "image/jpeg",
+      "objectPath": "xi-an-technological-university.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
+    },
     "xi-an-university-of-architecture-and-technology": {
       "sourceUrl": "https://www.xauat.edu.cn/gwyw/images/26/06/06/1jq82jvkt0/2bd415d6-efdf-4a16-b0f2-7fe353fbaa6d.jpg",
       "finalUrl": null,
@@ -3659,6 +3675,22 @@
       "status": "verified",
       "reason": null,
       "migrated": true
+    },
+    "yangtze-normal-university": {
+      "sourceUrl": "https://zsb.yznu.edu.cn/_upload/article/images/e7/8a/040774034788b0343d4c760f1f6a/bde11da5-f0b8-48f1-a17e-fd1ca1dd81bc.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://zsb.yznu.edu.cn/5918/list.htm",
+      "license": "Official-source embedding; no reuse license stated",
+      "licenseUrl": "https://zsb.yznu.edu.cn/5918/list.htm",
+      "attribution": "Yangtze Normal University — официальный сайт; фотограф не указан",
+      "rights": "official_media_owner_accepted",
+      "sha256": "d8f0136e8cc9d05eb1170ab75e4537e168cf16bee82a3629e4935e39cecc9606",
+      "bytes": 512971,
+      "contentType": "image/jpeg",
+      "objectPath": "yangtze-normal-university.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
     },
     "yangtze-university": {
       "sourceUrl": "https://english.yangtzeu.edu.cn/images/22/11/21/dongxiaoqu-14haojiaoxuelou.jpg",
@@ -3819,6 +3851,22 @@
       "status": "verified",
       "reason": null,
       "migrated": true
+    },
+    "zhengzhou-university": {
+      "sourceUrl": "https://ao.zzu.edu.cn/__local/2/62/61/6B3FCF758065201C28619852558_1F346780_64B5F.jpg",
+      "finalUrl": null,
+      "pageUrl": "https://ao.zzu.edu.cn/",
+      "license": "Official-source embedding; no reuse license stated",
+      "licenseUrl": "https://ao.zzu.edu.cn/",
+      "attribution": "Zhengzhou University — официальный сайт; фотограф не указан",
+      "rights": "official_media_owner_accepted",
+      "sha256": "bae5c73d75d1dd64b784de9dd4bfae2f682444ff97f37d9d6eaf20e7f3b258ad",
+      "bytes": 412511,
+      "contentType": "image/jpeg",
+      "objectPath": "zhengzhou-university.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": false
     },
     "zjut": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e3/20250423_Zhejiang_Gongye_Daxue.jpg/960px-20250423_Zhejiang_Gongye_Daxue.jpg",

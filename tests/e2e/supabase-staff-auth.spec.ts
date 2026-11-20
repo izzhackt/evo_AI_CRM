@@ -2623,7 +2623,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     university_application_id: null,
   });
 
-  await chooseDocumentMenuItem(renamedDocumentItem, "Убрать из чек-листа…");
+  await chooseDocumentMenuItem(renamedDocumentItem, "Убрать в архив…");
   await renamedDocumentItem
     .getByTestId("v3-document-checklist-remove")
     .locator('button[type="submit"]')

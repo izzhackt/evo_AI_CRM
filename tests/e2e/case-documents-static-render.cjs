@@ -565,7 +565,7 @@ async function screenshots() {
       // «⋯» строки «Аттестат»: редкие действия.
       await row(page, 2).getByTestId("v3-document-menu").click();
       const menuItems = await row(page, 2).locator("[popover] :is(a,button)").allTextContents();
-      check(JSON.stringify(menuItems) === JSON.stringify(["Скачать", "Заменить файл", "Изменить пункт", "Убрать из чек-листа…", "Распознавание"]),
+      check(JSON.stringify(menuItems) === JSON.stringify(["Скачать", "Заменить файл", "Изменить пункт", "Убрать в архив…", "Распознавание"]),
         `${width}: «⋯» lists the rare actions (${menuItems.join(", ")})`);
       await shot(page, `docs-menu-${width}.png`, { at: `#document-${uuid("88888888", 2)}` });
       await page.keyboard.press("Escape");

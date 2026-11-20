@@ -107,8 +107,8 @@ test("rare actions sit in the row's «⋯»; «+ Документ» is quiet and
   const html = rendered.get("all");
   assert.match(html, /aria-label="Ещё по документу: Аттестат"/u);
   const menu = html.slice(html.indexOf('aria-label="Ещё по документу: Аттестат"'));
-  const items = [...menu.slice(0, menu.indexOf("</div>")).matchAll(/>(Скачать|Заменить файл|Изменить пункт|Связи|Убрать из чек-листа…|Распознавание)</gu)].map((match) => match[1]);
-  assert.deepEqual(items, ["Скачать", "Заменить файл", "Изменить пункт", "Убрать из чек-листа…", "Распознавание"]);
+  const items = [...menu.slice(0, menu.indexOf("</div>")).matchAll(/>(Скачать|Заменить файл|Изменить пункт|Связи|Убрать в архив…|Распознавание)</gu)].map((match) => match[1]);
+  assert.deepEqual(items, ["Скачать", "Заменить файл", "Изменить пункт", "Убрать в архив…", "Распознавание"]);
   const toggle = html.match(/<button type="button" class="([^"]+)" aria-expanded="false" aria-controls="case-documents-add"[^>]*data-testid="v3-document-add-toggle"/u);
   assert.ok(toggle, "«+ Документ» controls the add region");
   assert.doesNotMatch(toggle[1], /bg-accent|bg-fg\b/u, "quiet, not a solid button");
@@ -133,6 +133,6 @@ test("role preview stays read-only: no upload, no decision, no checklist change"
   const html = rendered.get("preview");
   assert.match(html, /В режиме этой роли документы доступны только для просмотра\./u);
   assert.doesNotMatch(html, /v3-document-upload-form|v3-document-approve|v3-document-return|v3-document-add-toggle|v3-document-checklist-create/u);
-  assert.doesNotMatch(html, />(?:Заменить файл|Изменить пункт|Убрать из чек-листа…|Распознавание)</u);
+  assert.doesNotMatch(html, />(?:Заменить файл|Изменить пункт|Убрать в архив…|Распознавание)</u);
   assert.match(html, /data-testid="v3-document-download"/u, "download stays for a readable file");
 });

@@ -83,9 +83,11 @@ CREATE FUNCTION pg_temp.a363_cabinet(p_who INTEGER, p_case INTEGER) RETURNS JSON
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.a363_id(INTEGER) TO authenticated, anon, service_role;
 
--- Fixture: 101 System Admin, 102 and 103 curators, 104 a seller; 111..113 new Auth users the server made.
--- Cases (all active, without a student): 401 curated by 102; 402 curated by 103, 102 also has access to it;
--- 403 curated by 102, reassigned to 103 in section 3; 404 without a curator.
+-- Fixture, members modelled like production (as in the Today deadlines suite): 101 the System Admin (coarse admin,
+-- organization scope); 102 and 103 curators without a coarse role, with the production «Admissions» role on their own
+-- cases; 102 also reads the whole admissions department («Case reader»); 104 a seller. 111..113 new Auth users the
+-- server made. Cases without a student: 401 curated by 102; 402 curated by 103 (102 reads it); 403 curated by 102,
+-- reassigned to 103 in section 3 (all three active); 404 pending, so without a curator (CHECK student_cases_state_shape).
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.a363_id(1), 'A363 Fictional organization');
 INSERT INTO auth.users(id, email, raw_user_meta_data)
   SELECT pg_temp.a363_id(100 + n), 'a363-' || (100 + n) || '@example.invalid', '{}'::JSONB
@@ -93,23 +95,28 @@ INSERT INTO auth.users(id, email, raw_user_meta_data)
 INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_version)
   SELECT pg_temp.a363_id(200 + n), pg_temp.a363_id(100 + n), 'A363 Person ' || n, 'active', 1 FROM unnest(ARRAY[1, 2, 3, 4]) AS n;
 INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id, is_system_admin)
-  SELECT pg_temp.a363_id(300 + r.n), pg_temp.a363_id(1), pg_temp.a363_id(200 + r.n), 'active', r.role,
-    (SELECT id FROM platform.role_bundle_versions WHERE role = r.role AND status = 'published' ORDER BY version DESC LIMIT 1),
-    r.role = 'admin'
-  FROM (VALUES (1, 'admin'::platform.business_role), (2, 'curator'::platform.business_role),
-    (3, 'curator'::platform.business_role), (4, 'sales'::platform.business_role)) AS r(n, role);
+  SELECT pg_temp.a363_id(300 + n), pg_temp.a363_id(1), pg_temp.a363_id(200 + n), 'active',
+    CASE WHEN n = 1 THEN 'admin'::platform.business_role END,
+    CASE WHEN n = 1 THEN (SELECT id FROM platform.role_bundle_versions WHERE role = 'admin' AND status = 'published'
+      ORDER BY version DESC LIMIT 1) END,
+    n = 1
+  FROM unnest(ARRAY[1, 2, 3, 4]) AS n;
 INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version)
   VALUES (pg_temp.a363_id(501), pg_temp.a363_id(1), 'organization', pg_temp.a363_id(1), 1);
 INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version)
   SELECT pg_temp.a363_id(1000 + n), pg_temp.a363_id(1), 'student_case', pg_temp.a363_id(n), 1
   FROM unnest(ARRAY[401, 402, 403, 404]) AS n;
--- The Admin has the organization; each curator the cases he works on (102: 401, 402, 403; 103: 402, 403); the seller 404.
-INSERT INTO platform.membership_scope_assignments(id, organization_id, membership_id, scope_id, scope_version,
-  assignment_version, granted, actor_kind, actor_profile_id, reason, request_id)
-  SELECT pg_temp.a363_id(600 + a.k), pg_temp.a363_id(1), pg_temp.a363_id(a.who), pg_temp.a363_id(a.scope), 1, 1, TRUE, 'system', NULL,
-    'A363 fixture scope', pg_temp.a363_id(700 + a.k)
-  FROM (VALUES (1, 301, 501), (2, 302, 1401), (3, 302, 1402), (4, 302, 1403), (5, 303, 1402), (6, 303, 1403),
-    (7, 304, 1404)) AS a(k, who, scope);
+INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
+  assignment_version, granted, actor_kind, reason, request_id)
+  VALUES (pg_temp.a363_id(1), pg_temp.a363_id(301), pg_temp.a363_id(501), 1, 1, TRUE, 'system',
+    'A363 synthetic organization scope', pg_temp.a363_id(601));
+INSERT INTO platform.staff_departments(id, organization_id, name) VALUES
+  (pg_temp.a363_id(901), pg_temp.a363_id(1), 'A363 Sales'),
+  (pg_temp.a363_id(902), pg_temp.a363_id(1), 'A363 Admissions');
+INSERT INTO platform.staff_organizational_details(organization_id, membership_id, department_id) VALUES
+  (pg_temp.a363_id(1), pg_temp.a363_id(302), pg_temp.a363_id(902)),
+  (pg_temp.a363_id(1), pg_temp.a363_id(303), pg_temp.a363_id(902)),
+  (pg_temp.a363_id(1), pg_temp.a363_id(304), pg_temp.a363_id(901));
 -- Cases normally come from the sale handoff; here only the insert-time transition trigger is bypassed, every table
 -- constraint still holds.
 SET LOCAL session_replication_role = replica;
@@ -118,13 +125,65 @@ INSERT INTO platform.student_cases(id, organization_id, student_membership_id, r
   state, handoff_at, current_scope_id, current_scope_version)
 SELECT pg_temp.a363_id(c.n), pg_temp.a363_id(1), NULL, pg_temp.a363_id(304),
   CASE WHEN c.curator IS NOT NULL THEN pg_temp.a363_id(c.curator) END, 'synthetic:a363:' || c.n, 'A363 Student ' || c.n,
-  'Malaysia', 'Bachelor', 'Engineering', 'active', statement_timestamp(), pg_temp.a363_id(1000 + c.n), 1
-FROM (VALUES (401, 302), (402, 303), (403, 302), (404, NULL)) AS c(n, curator);
+  'Malaysia', 'Bachelor', 'Engineering', c.state::platform.student_case_state,
+  CASE WHEN c.state = 'active' THEN statement_timestamp() END, pg_temp.a363_id(1000 + c.n), 1
+FROM (VALUES (401, 302, 'active'), (402, 303, 'active'), (403, 302, 'active'), (404, NULL, 'pending'))
+  AS c(n, curator, state);
 SET LOCAL session_replication_role = origin;
 
+-- Roles with the production permission keys of the curator (26.09 audit, the same lists as the Today deadlines suite).
+CREATE TEMP TABLE a363_roles(role_id UUID, label TEXT, keys JSONB, request_base INTEGER);
+INSERT INTO a363_roles VALUES
+ (pg_temp.a363_id(1101), 'Admissions', '["ai.draft.request","ai.draft.review","application.manage","case.lifecycle.change","case.read.full","case.read.summary","case.route.manage","case.update.append","case.workflow.read","client.read","communication.manual.send","communication.read.full","decision.manage","decision.read","document.download","document.extract","document.manage","document.read.full","document.review","document.upload","finance.read.summary","finance.stop.create","lead.read","notification.create","post.contract.manage","profile.manage","profile.read.full","staff.task.complete","staff.task.edit","staff.task.read","task.assign","task.create","task.manage","task.visibility.manage","visa.manage"]', 1110),
+ (pg_temp.a363_id(1103), 'Sales Manager', '["ai.draft.request","ai.draft.review","case.read.summary","case.workflow.read","client.read","communication.manual.send","communication.read.full","communication.read.summary","contract.draft.manage","contract.evidence.confirm","document.read.sales","finance.event.confirm","finance.first.payment.confirm","finance.read.summary","lead.read","lead.sales.owner.assign","lead.sales.workflow.manage","sales.register.manage","sales.register.read","staff.task.complete","staff.task.edit","staff.task.read","task.create"]', 1130),
+ (pg_temp.a363_id(1106), 'Case reader', '["case.read.full","profile.read.full"]', 1160);
+CREATE TEMP TABLE a363_grants(membership INTEGER, role_id UUID, scope JSONB);
+INSERT INTO a363_grants VALUES
+ (302, pg_temp.a363_id(1101), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
+ (302, pg_temp.a363_id(1106), jsonb_build_object('kind', 'department', 'key', pg_temp.a363_id(902), 'resourceKind', NULL)),
+ (303, pg_temp.a363_id(1101), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
+ (304, pg_temp.a363_id(1103), jsonb_build_object('kind', 'department', 'key', pg_temp.a363_id(901), 'resourceKind', NULL));
+CREATE TEMP TABLE a363_versions AS SELECT m.id AS membership_id, p.access_version
+  FROM platform.organization_memberships m JOIN platform.profiles p ON p.id = m.profile_id
+  WHERE m.organization_id = pg_temp.a363_id(1);
+GRANT SELECT ON a363_roles, a363_grants, a363_versions TO authenticated;
+SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.a363_id(101),
+  'claims', jsonb_build_object('sub', pg_temp.a363_id(101), 'role', 'authenticated'))) -> 'claims')::TEXT AS a363_admin_setup \gset
+SET LOCAL request.jwt.claims TO :'a363_admin_setup';
+SET LOCAL ROLE authenticated;
+DO $a363_roles$
+DECLARE r RECORD; published JSONB; m INTEGER; items JSONB; bindings JSONB; bundles JSONB := '{}'::JSONB;
+BEGIN
+  FOR r IN SELECT * FROM a363_roles ORDER BY request_base LOOP
+    PERFORM platform.staff_role_command(pg_temp.a363_id(1), r.role_id, 0, 'create',
+      jsonb_build_object('label', 'A363 ' || r.label, 'description', 'Curator cabinet synthetic role',
+        'permissionKeys', r.keys), 'A363 create role', pg_temp.a363_id(r.request_base + 1));
+    published := platform.staff_role_publish(pg_temp.a363_id(1), r.role_id, 1,
+      platform.staff_role_impact(pg_temp.a363_id(1), r.role_id, 1) ->> 'impactFingerprint',
+      'A363 publish role', pg_temp.a363_id(r.request_base + 2));
+    bundles := bundles || jsonb_build_object(r.role_id::TEXT, published ->> 'bundleId');
+  END LOOP;
+  FOR m IN SELECT DISTINCT membership FROM a363_grants ORDER BY 1 LOOP
+    SELECT jsonb_agg(jsonb_build_object('roleId', g.role_id, 'scope', g.scope) ORDER BY g.role_id),
+      jsonb_agg(jsonb_build_object('roleId', g.role_id, 'roleVersion', 2,
+        'bundleId', (bundles ->> g.role_id::TEXT)::UUID, 'bundleVersion', 1) ORDER BY g.role_id)
+      INTO items, bindings FROM a363_grants g WHERE g.membership = m;
+    PERFORM platform.staff_role_assignments_save(pg_temp.a363_id(1), pg_temp.a363_id(m),
+      (SELECT access_version FROM a363_versions WHERE membership_id = pg_temp.a363_id(m)), items, bindings,
+      'A363 grant roles', pg_temp.a363_id(2000 + m));
+  END LOOP;
+END
+$a363_roles$;
+RESET ROLE;
+SET LOCAL request.jwt.claims TO '';
+
 SELECT pg_temp.a363_assert(platform_private.staff_can_access(pg_temp.a363_id(1), pg_temp.a363_id(302), 'case.read.full',
-    'student_case', pg_temp.a363_id(402)),
-  'fixture: curator 102 reads case 402 he does not curate (only curating opens a cabinet)');
+    'student_case', pg_temp.a363_id(401))
+  AND platform_private.staff_can_access(pg_temp.a363_id(1), pg_temp.a363_id(302), 'case.read.full',
+    'student_case', pg_temp.a363_id(402))
+  AND NOT platform_private.staff_can_access(pg_temp.a363_id(1), pg_temp.a363_id(303), 'case.read.full',
+    'student_case', pg_temp.a363_id(401)),
+  'fixture: curator 102 reads his case 401 and case 402 he does not curate; curator 103 does not read 401');
 
 -- ---------------------------------------------------------------------------
 -- 1. Permission.
@@ -132,7 +191,8 @@ SELECT pg_temp.a363_assert(platform_private.staff_can_access(pg_temp.a363_id(1),
 SELECT pg_temp.a363_authorize(102, 901, 401) AS a363_first \gset
 SELECT pg_temp.a363_assert(:'a363_first'::JSONB #>> '{ok,state}' = 'authorized'
     AND (SELECT count(*) = 1 AND bool_and(p.requested_by_membership_id = pg_temp.a363_id(302)
-        AND p.requested_by_profile_id = pg_temp.a363_id(202) AND p.requested_by_access_version = 1
+        AND p.requested_by_profile_id = pg_temp.a363_id(202)
+        AND p.requested_by_access_version = (SELECT access_version FROM platform.profiles WHERE id = pg_temp.a363_id(202))
         AND p.student_case_id = pg_temp.a363_id(401))
       FROM platform_private.student_case_account_provisioning p WHERE p.organization_id = pg_temp.a363_id(1)),
   'the curator of case 401 gets one permission for it: ' || :'a363_first');

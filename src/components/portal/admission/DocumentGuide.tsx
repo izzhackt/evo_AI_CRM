@@ -187,7 +187,7 @@ function DocumentGuide({
           <footer className="pt-doc-guide-foot">
             <div className="pt-doc-guide-actions">
               {action}
-              <Link className="pt-link pt-doc-guide-ask" href={CHAT_HREF}>{strings.guideAskCurator}</Link>
+              <Link className="pt-btn-ghost pt-doc-guide-ask" href={CHAT_HREF}>{strings.guideAskCurator}</Link>
             </div>
           </footer>
         </div>
@@ -217,7 +217,7 @@ function DocumentGuide({
             <CloseIcon />
             <span className="pt-sr-only">{strings.guideSampleClose}</span>
           </button>
-          <h2 id={sampleTitleId} className="pt-sr-only">{strings.guideSampleOpen}</h2>
+          <h2 id={sampleTitleId} className="pt-sr-only">{`${strings.guideSample}: ${label}`}</h2>
           <SampleLightboxContent guide={guide} strings={strings} cursor={cursor} onSelect={setCursor} />
         </div>
       </dialog>

@@ -8,5 +8,5 @@
   <path d="M48 292h170" stroke="#17181c"/>
   <text x="48" y="328" font-family="Golos Text, system-ui, sans-serif" font-size="13" fill="#17181c">+996 000 000 000</text>
   <text x="48" y="364" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample letter · invented teacher</text>
-  <g transform="rotate(-22 340 190)" opacity="0.22"><text x="340" y="200" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="60" font-weight="800">ОБРАЗЕЦ</text></g>
+  <g transform="rotate(-22 340 190)" opacity="0.22"><text x="340" y="200" text-anchor="middle" fill="#8a8b93" font-family="Golos Text, system-ui, sans-serif" font-size="60" font-weight="800">ОБРАЗЕЦ</text></g>
 </svg>

@@ -33,13 +33,10 @@ export function DocumentGuideSamples({
       <section className="pt-doc-guide-sample" aria-labelledby={headingId}>
         <div className="pt-doc-guide-sample-head">
           <h3 id={headingId}>{strings.guideSample}</h3>
-          <button type="button" className="pt-doc-guide-chip" onClick={(event) => onOpen(event.currentTarget)}>
-            {strings.guideSampleOpen}
-            <ExpandIcon />
-          </button>
         </div>
         <button type="button" className="pt-doc-guide-hero" aria-label={strings.guideSampleOpen} onClick={(event) => onOpen(event.currentTarget)}>
           <SampleFigure guide={guide} />
+          <span className="pt-doc-guide-zoom" aria-hidden="true"><ExpandIcon /></span>
         </button>
         <SampleLegend guide={guide} />
       </section>
@@ -49,14 +46,18 @@ export function DocumentGuideSamples({
   const set = sets[Math.min(cursor.set, sets.length - 1)];
   const pageIndex = Math.min(cursor.page, set.pages.length - 1);
   const page = set.pages[pageIndex];
+  const many = set.pages.length > 1;
+  // Бланк скачивается при любом выбранном наборе: шаг «Где взять» ссылается на эту кнопку.
+  const download = sets.find((item) => item.download)?.download ?? null;
+  const single = sets.length === 1 && !many;
   return (
     <section className="pt-doc-guide-sample" aria-labelledby={headingId}>
       <div className="pt-doc-guide-sample-head">
-        <h3 id={headingId}>{strings.guideSamples}</h3>
-        {set.download ? (
-          <a className="pt-doc-guide-chip" href={set.download.href} download>
+        <h3 id={headingId}>{single ? strings.guideSample : strings.guideSamples}</h3>
+        {download ? (
+          <a className="pt-doc-guide-chip" href={download.href} download>
             <DownloadIcon />
-            {set.download.label}
+            {download.label}
           </a>
         ) : null}
       </div>
@@ -82,31 +83,34 @@ export function DocumentGuideSamples({
       >
         <span className="pt-doc-guide-scan">
           {/* eslint-disable-next-line @next/next/no-img-element -- статичный образец из public/, оптимизатор не нужен */}
-          <img src={page.src} alt="" decoding="async" />
+          <img src={page.src} alt="" loading="lazy" decoding="async" />
         </span>
         <span className="pt-doc-guide-zoom" aria-hidden="true"><ExpandIcon /></span>
       </button>
-      {set.pages.length > 1 ? (
-        <ol className="pt-doc-guide-pages" aria-label={set.label} tabIndex={0}>
+      <p className="pt-doc-guide-caption">
+        {page.caption}
+        {many ? <span> · {pageCounter(strings, pageIndex, set.pages.length)}</span> : null}
+      </p>
+      {many ? (
+        // Длинный набор прокручивается вбок: тогда ряду нужен фокус с клавиатуры.
+        <ol className="pt-doc-guide-pages" aria-label={set.label} tabIndex={set.pages.length > 5 ? 0 : undefined}>
           {set.pages.map((item, index) => (
             <li key={item.src}>
               <button
                 type="button"
                 aria-current={index === pageIndex ? "true" : undefined}
+                aria-label={`${item.caption}, ${pageCounter(strings, index, set.pages.length)}`}
                 onClick={() => onSelect({ set: cursor.set, page: index })}
               >
                 <span className="pt-doc-guide-thumb">
                   {/* eslint-disable-next-line @next/next/no-img-element -- миниатюра того же статичного файла */}
                   <img src={item.thumb} alt="" loading="lazy" decoding="async" />
                 </span>
-                <span className="pt-doc-guide-thumb-caption">{item.caption}</span>
               </button>
             </li>
           ))}
         </ol>
-      ) : (
-        <p className="pt-doc-guide-caption">{page.caption}</p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -140,7 +144,7 @@ export function SampleLightboxContent({
     <>
       <span className="pt-doc-guide-scan is-large">
         {/* eslint-disable-next-line @next/next/no-img-element -- статичный образец из public/ */}
-        <img src={page.src} alt={`${set.label}: ${page.caption}`} decoding="async" />
+        <img src={page.src} alt={`${set.label}: ${page.caption}`} loading="lazy" decoding="async" />
       </span>
       <div className="pt-doc-guide-pager">
         {many ? (
@@ -148,27 +152,27 @@ export function SampleLightboxContent({
             type="button"
             className="pt-doc-guide-pager-btn"
             aria-label={strings.guidePagePrev}
-            disabled={pageIndex === 0}
-            onClick={() => onSelect({ set: cursor.set, page: pageIndex - 1 })}
+            aria-disabled={pageIndex === 0}
+            onClick={() => {
+              if (pageIndex > 0) onSelect({ set: cursor.set, page: pageIndex - 1 });
+            }}
           >
             <Chevron direction="left" />
           </button>
         ) : null}
-        <p>
+        <p aria-live="polite" aria-atomic="true">
           <strong>{page.caption}</strong>
-          {many ? (
-            <span>
-              {strings.guidePageCounter.replace("{n}", String(pageIndex + 1)).replace("{m}", String(set.pages.length))}
-            </span>
-          ) : null}
+          {many ? <span>{pageCounter(strings, pageIndex, set.pages.length)}</span> : null}
         </p>
         {many ? (
           <button
             type="button"
             className="pt-doc-guide-pager-btn"
             aria-label={strings.guidePageNext}
-            disabled={pageIndex === set.pages.length - 1}
-            onClick={() => onSelect({ set: cursor.set, page: pageIndex + 1 })}
+            aria-disabled={pageIndex === set.pages.length - 1}
+            onClick={() => {
+              if (pageIndex < set.pages.length - 1) onSelect({ set: cursor.set, page: pageIndex + 1 });
+            }}
           >
             <Chevron direction="right" />
           </button>
@@ -195,7 +199,7 @@ function SampleFigure({ guide, enlarged = false }: { guide: DocumentGuideView; e
   return (
     <span className={enlarged ? "pt-doc-guide-figure is-large" : "pt-doc-guide-figure"}>
       {/* eslint-disable-next-line @next/next/no-img-element -- статический SVG-образец из public/, оптимизатор не нужен */}
-      <img src={guide.sampleSrc} alt="" width={640} height={400} decoding="async" />
+      <img src={guide.sampleSrc} alt="" width={640} height={400} loading="lazy" decoding="async" />
       {guide.pins.map((pin) => (
         <span key={pin.n} className="pt-doc-guide-pin" style={{ left: `${pin.x}%`, top: `${pin.y}%` }} aria-hidden="true">
           {pin.n}
@@ -203,6 +207,10 @@ function SampleFigure({ guide, enlarged = false }: { guide: DocumentGuideView; e
       ))}
     </span>
   );
+}
+
+function pageCounter(strings: Strings, index: number, total: number): string {
+  return strings.guidePageCounter.replace("{n}", String(index + 1)).replace("{m}", String(total));
 }
 
 function Chevron({ direction }: { direction: "left" | "right" }) {

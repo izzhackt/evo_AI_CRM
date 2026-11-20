@@ -38,7 +38,10 @@ export function DocumentGuidePhotoRules({
                 {item.variant === "ok" ? <CheckMark /> : <CrossMark />}
               </span>
             </span>
-            <strong>{item.title}</strong>
+            <strong>
+              {item.variant === "ok" ? null : <span className="pt-sr-only">{strings.guidePhotoWrong}: </span>}
+              {item.title}
+            </strong>
             <span>{item.hint}</span>
           </li>
         ))}

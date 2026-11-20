@@ -16,6 +16,6 @@
   <text x="500" y="330" text-anchor="middle" font-family="Golos Text, system-ui, sans-serif" font-size="10" fill="#b42318">ОБРАЗЕЦ</text>
   <text x="70" y="340" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#6b5c48">Sample only · invented grades</text>
   <g transform="rotate(-22 320 210)" opacity="0.26">
-    <text x="320" y="220" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="64" font-weight="800">ОБРАЗЕЦ</text>
+    <text x="320" y="220" text-anchor="middle" fill="#8a8b93" font-family="Golos Text, system-ui, sans-serif" font-size="64" font-weight="800">ОБРАЗЕЦ</text>
   </g>
 </svg>

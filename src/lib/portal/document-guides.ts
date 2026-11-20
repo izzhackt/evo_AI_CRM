@@ -203,7 +203,7 @@ const GUIDES: readonly DocumentGuide[] = [
       description: "Официальный отчёт языкового теста: IELTS, TOEFL iBT или HSK. Обычно смотрят общий балл и иногда баллы по частям.",
       where: [
         "Запишитесь на тест у организатора: IELTS — в центре IELTS, TOEFL — на ets.org, HSK — в центре HSK",
-        "Результат обычно приходит в личный кабинет через несколько дней",
+        "Результат приходит в личный кабинет; у HSK ждать до месяца — сдавайте с запасом",
         "Скачайте PDF и при необходимости отправьте баллы в вуз",
       ],
       requirements: "PDF, JPG или PNG · до 25 МБ · часто просят отчёт не старше 2 лет",
@@ -213,7 +213,7 @@ const GUIDES: readonly DocumentGuide[] = [
       description: "Тил тестинин расмий отчёту: IELTS, TOEFL iBT же HSK. Көбүнчө жалпы баллды, кээде бөлүктөр боюнча баллды карашат.",
       where: [
         "Тестке уюштуруучудан жазылыңыз: IELTS — IELTS борбору, TOEFL — ets.org, HSK — HSK борбору",
-        "Жыйынтык көбүнчө бир нече күндө жеке кабинетке келет",
+        "Жыйынтык жеке кабинетке келет; HSKда бир айга чейин күтүүгө туура келет — убакыт калтырып тапшырыңыз",
         "PDF жүктөп алыңыз жана керек болсо баллды университетке жөнөтүңүз",
       ],
       requirements: "PDF, JPG же PNG · 25 МБга чейин · көбүнчө 2 жылдан эски эмес отчёт сурашат",
@@ -542,9 +542,9 @@ const GUIDES: readonly DocumentGuide[] = [
     keys: ["csca_result"],
     sampleSrc: `${SAMPLE}/csca-result.svg`,
     pins: [
-      { n: 1, x: 24, y: 27, legend: { ru: "Имя как в паспорте", ky: "Паспорттогудай ат" } },
-      { n: 2, x: 22, y: 50, legend: { ru: "Предметы", ky: "Сабактар" } },
-      { n: 3, x: 86, y: 50, legend: { ru: "Баллы", ky: "Баллдар" } },
+      { n: 1, x: 42, y: 27, legend: { ru: "Имя как в паспорте", ky: "Паспорттогудай ат" } },
+      { n: 2, x: 40, y: 49, legend: { ru: "Предметы", ky: "Сабактар" } },
+      { n: 3, x: 80, y: 49, legend: { ru: "Баллы", ky: "Баллдар" } },
     ],
     ru: {
       description: "Результаты вступительного экзамена CSCA для бакалавриата Китая: баллы по каждому предмету.",
@@ -713,13 +713,16 @@ export type DocumentGuideView = Readonly<{
     items: readonly string[];
     sections: readonly Readonly<{ title: string; items: readonly string[] }>[];
   }> | null;
-  /** «Как сфотографировать» — у всех, кроме самого фото и договора с EVO (его не снимают, а скачивают). */
+  /** «Как сфотографировать» — у бумажных документов; не у фото, договора EVO и отчётов тестов (их скачивают). */
   photoTips: boolean;
   /** Памятка «каким должно быть фото» — только у документа «Фото»; страна задаёт размер. */
   photoRules: Readonly<{ country: GuideCountry | null }> | null;
 }>;
 
 export type GuideCountry = "CN" | "MY";
+
+/** Без «Как сфотографировать»: само фото, договор EVO (скачивают) и отчёты тестов (скачивают PDF из кабинета теста). */
+const NO_PHOTO_TIPS: ReadonlySet<DocumentGuideType> = new Set(["photo", "contract", "csca_result", "language_certificate"]);
 
 const COUNTRY_GUIDES: Readonly<Record<GuideCountry, Readonly<Partial<Record<string, CountryDocumentGuide>>>>> = {
   CN: CN_DOCUMENT_GUIDES,
@@ -766,7 +769,7 @@ function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | nu
     sampleSets,
     when: local?.when ? pick(local.when) : null,
     countryNotes: country && (notes.length || sections.length) ? { country, items: notes, sections } : null,
-    photoTips: guide.typeKey !== "photo" && guide.typeKey !== "contract",
+    photoTips: !NO_PHOTO_TIPS.has(guide.typeKey),
     photoRules: guide.typeKey === "photo" ? { country } : null,
   };
 }

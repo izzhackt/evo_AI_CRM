@@ -6,5 +6,5 @@
   <text x="48" y="310" font-family="Georgia, serif" font-size="22" fill="#1b2a4a">A. Example</text>
   <path d="M48 320h160" stroke="#17181c"/>
   <text x="48" y="360" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample letter · invented applicant</text>
-  <g transform="rotate(-22 320 190)" opacity="0.22"><text x="320" y="200" text-anchor="middle" fill="#d70217" font-family="Golos Text, system-ui, sans-serif" font-size="60" font-weight="800">ОБРАЗЕЦ</text></g>
+  <g transform="rotate(-22 320 190)" opacity="0.22"><text x="320" y="200" text-anchor="middle" fill="#8a8b93" font-family="Golos Text, system-ui, sans-serif" font-size="60" font-weight="800">ОБРАЗЕЦ</text></g>
 </svg>

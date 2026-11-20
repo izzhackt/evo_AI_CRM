@@ -11288,7 +11288,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
   width: min(520px, 100%);
   height: 100%;
   background: var(--pt-surface);
-  box-shadow: -16px 0 48px rgb(16 24 40 / 0.16);
+  box-shadow: var(--pt-shadow-raised);
 }
 
 .pt-doc-guide-head {
@@ -11296,7 +11296,8 @@ html:has(.pt-doc-guide-lightbox[open]) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 24px 24px 0;
+  padding: 24px 24px 16px;
+  box-shadow: 0 1px 0 var(--pt-line);
 }
 
 .pt-doc-guide-heading {
@@ -11325,14 +11326,14 @@ html:has(.pt-doc-guide-lightbox[open]) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
-  padding: 0 10px;
+  padding: 2px 10px;
+  border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-chip);
-  background: var(--pt-bg);
+  background: var(--pt-surface);
   color: var(--pt-text);
   font-size: var(--pt-size-caption);
-  font-weight: 650;
-  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .pt-doc-guide-when span {
@@ -11346,16 +11347,17 @@ html:has(.pt-doc-guide-lightbox[open]) {
   place-items: center;
   width: 44px;
   height: 44px;
-  margin: -8px -8px 0 0;
+  margin: -10px -10px 0 0;
   padding: 0;
   border: 0;
-  border-radius: var(--pt-radius-control);
-  background: var(--pt-bg);
+  border-radius: var(--pt-radius-chip);
+  background: transparent;
   color: var(--pt-text-2);
   cursor: pointer;
 }
 
 .pt-doc-guide-close:hover {
+  background: var(--pt-bg);
   color: var(--pt-text);
 }
 
@@ -11364,11 +11366,12 @@ html:has(.pt-doc-guide-lightbox[open]) {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 14px 24px 24px;
+  padding: 20px 24px 24px;
 }
 
 .pt-doc-guide-lead {
   margin: 0;
+  color: var(--pt-text);
   max-width: 46ch;
   font-size: var(--pt-size-secondary);
   line-height: 1.55;
@@ -11411,6 +11414,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
 }
 
 .pt-doc-guide-chip {
+  position: relative;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -11432,6 +11436,13 @@ html:has(.pt-doc-guide-lightbox[open]) {
   color: var(--pt-text-2);
 }
 
+.pt-doc-guide-chip::after,
+.pt-doc-guide-sets button::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+
 .pt-doc-guide-chip:hover {
   box-shadow: inset 0 0 0 1px var(--pt-control-edge);
 }
@@ -11450,6 +11461,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
 }
 
 .pt-doc-guide-sets button {
+  position: relative;
   min-height: 36px;
   padding: 0 12px;
   border: 0;
@@ -11465,7 +11477,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
 .pt-doc-guide-sets button[aria-pressed="true"] {
   background: var(--pt-surface);
   color: var(--pt-text);
-  box-shadow: 0 1px 2px rgb(16 24 40 / 0.08), 0 0 0 1px var(--pt-line);
+  box-shadow: var(--pt-shadow-card);
 }
 
 .pt-doc-guide-hero {
@@ -11515,14 +11527,15 @@ html:has(.pt-doc-guide-lightbox[open]) {
   border-radius: var(--pt-radius-chip);
   background: var(--pt-surface);
   color: var(--pt-text);
-  box-shadow: 0 1px 3px rgb(16 24 40 / 0.16);
+  box-shadow: var(--pt-shadow-card);
 }
 
 /* Страницы набора — одна строка миниатюр; длинный набор прокручивается вбок (Tab, затем стрелки или жест). */
 .pt-doc-guide-pages {
   display: flex;
+  justify-content: center;
   gap: 8px;
-  margin: 12px -4px 0;
+  margin: 10px -4px 0;
   padding: 4px 4px 6px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -11537,24 +11550,20 @@ html:has(.pt-doc-guide-lightbox[open]) {
 }
 
 .pt-doc-guide-pages button {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  width: 84px;
+  display: block;
   padding: 0;
   border: 0;
+  border-radius: var(--pt-radius-item);
   background: none;
-  color: var(--pt-text-2);
-  font: inherit;
   cursor: pointer;
 }
 
 .pt-doc-guide-thumb {
   display: block;
-  width: 64px;
-  height: 84px;
+  width: 48px;
+  height: 64px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: var(--pt-radius-item);
   background: var(--pt-photo-paper);
   box-shadow: 0 0 0 1px var(--pt-line);
 }
@@ -11571,26 +11580,17 @@ html:has(.pt-doc-guide-lightbox[open]) {
   box-shadow: 0 0 0 2px var(--pt-text);
 }
 
-.pt-doc-guide-thumb-caption {
-  display: -webkit-box;
-  overflow: hidden;
-  font-size: 12px;
-  line-height: 1.25;
-  text-align: center;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.pt-doc-guide-pages button[aria-current="true"] .pt-doc-guide-thumb-caption {
-  color: var(--pt-text);
-  font-weight: 650;
-}
-
 .pt-doc-guide-caption {
   margin: 10px 0 0;
-  color: var(--pt-text-2);
+  color: var(--pt-text);
   font-size: var(--pt-size-caption);
+  font-weight: 600;
   text-align: center;
+}
+
+.pt-doc-guide-caption span {
+  color: var(--pt-text-2);
+  font-weight: 500;
 }
 
 .pt-doc-guide-figure {
@@ -11629,7 +11629,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
   height: 22px;
   margin: -11px 0 0 -11px;
   font-size: 12px;
-  box-shadow: 0 1px 2px rgb(16 24 40 / 0.24);
+  box-shadow: var(--pt-shadow-card);
 }
 
 .pt-doc-guide-legend {
@@ -11673,7 +11673,7 @@ html:has(.pt-doc-guide-lightbox[open]) {
   display: grid;
   align-content: start;
   gap: 3px;
-  font-size: 12px;
+  font-size: var(--pt-size-caption);
   line-height: 1.35;
 }
 
@@ -11681,22 +11681,19 @@ html:has(.pt-doc-guide-lightbox[open]) {
   color: var(--pt-text-2);
 }
 
+/* Правильно или нет — говорит значок (и скрытое слово для скринридера); подпись — обычным текстом. */
 .pt-doc-guide-photo strong {
   margin-top: 6px;
-  color: var(--pt-error);
+  color: var(--pt-text);
   font-size: var(--pt-size-caption);
   font-weight: 650;
-}
-
-.pt-doc-guide-photo li[data-ok="true"] strong {
-  color: var(--pt-ok);
 }
 
 .pt-doc-guide-photo-frame {
   position: relative;
   display: block;
   aspect-ratio: 33 / 44;
-  border-radius: 6px;
+  border-radius: var(--pt-radius-item);
   background: var(--pt-photo-paper);
   box-shadow: 0 0 0 1px var(--pt-photo-line);
 }
@@ -11715,16 +11712,15 @@ html:has(.pt-doc-guide-lightbox[open]) {
 
 .pt-doc-guide-photo-mark {
   position: absolute;
-  top: -7px;
-  right: -7px;
+  top: 6px;
+  right: 6px;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-error);
-  color: var(--pt-surface);
-  box-shadow: 0 0 0 2px var(--pt-surface);
+  color: var(--pt-photo-paper);
 }
 
 .pt-doc-guide-photo li[data-ok="true"] .pt-doc-guide-photo-mark {
@@ -11818,9 +11814,10 @@ html:has(.pt-doc-guide-lightbox[open]) {
   width: 22px;
   height: 22px;
   border-radius: var(--pt-radius-chip);
-  background: var(--pt-text);
-  color: var(--pt-surface);
-  font-size: 12px;
+  background: var(--pt-bg);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text);
+  font-size: var(--pt-size-caption);
   font-weight: 700;
   line-height: 1;
 }
@@ -11830,16 +11827,13 @@ html:has(.pt-doc-guide-lightbox[open]) {
 .pt-doc-guide-tips ul {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 14px 20px;
 }
 
 .pt-doc-guide-tips li {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px;
-  border-radius: var(--pt-radius-item);
-  box-shadow: inset 0 0 0 1px var(--pt-line);
   font-size: var(--pt-size-caption);
   line-height: 1.4;
 }
@@ -11920,7 +11914,7 @@ a.pt-btn.pt-doc-guide-download:hover {
 }
 
 .pt-doc-guide-ask {
-  font-weight: 600;
+  min-height: 44px;
 }
 
 /* ---- Крупный просмотр образца ---- */
@@ -11991,7 +11985,7 @@ a.pt-btn.pt-doc-guide-download:hover {
   cursor: pointer;
 }
 
-.pt-doc-guide-pager-btn:disabled {
+.pt-doc-guide-pager-btn[aria-disabled="true"] {
   color: var(--pt-control-edge);
   cursor: default;
 }
@@ -12051,8 +12045,7 @@ a.pt-btn.pt-doc-guide-download:hover {
   }
 
   .pt-doc-guide-photo ul {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px 12px;
+    gap: 12px 8px;
   }
 
   .pt-doc-guide-lightbox[open] {
@@ -12072,9 +12065,15 @@ a.pt-btn.pt-doc-guide-download:hover {
   }
 }
 
-@media (max-width: 359px) {
+@media (max-width: 600px) {
   .pt-doc-guide-tips ul {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 359px) {
+  .pt-doc-guide-photo ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

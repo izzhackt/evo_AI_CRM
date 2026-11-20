@@ -192,10 +192,15 @@ test("the visible «Образец и советы» button names the document a
   assert.doesNotMatch(html, /Принятый документ доступен только для скачивания/u);
   assert.match(html, /\/portal\/document-samples\/language-score\.svg/u);
   assert.match(html, /class="pt-doc-guide-pin"/u);
-  // Без страны дела — общая справка: блока страны нет, «Как сфотографировать» есть.
+  // Без страны дела — общая справка без блока страны. Отчёт теста скачивают, а не снимают: советов «Как
+  // сфотографировать» нет; у бумажной справки они есть.
   assert.doesNotMatch(html, /pt-doc-guide-country/u);
-  assert.match(html, />Как сфотографировать</u);
-  assert.match(html, /Лист целиком, видны все четыре угла/u);
+  assert.doesNotMatch(html, />Как сфотографировать</u);
+  const paper = renderGuide({ label: "Справка о несудимости", requirementKey: null, locale: "ru" });
+  assert.match(paper, />Как сфотографировать</u);
+  assert.match(paper, /Лист целиком, видны все четыре угла/u);
+  // Окно крупного образца называется документом, а не действием.
+  assert.match(html, /<h2 id="[^"]+" class="pt-sr-only">Образец: TOEFL<\/h2>/u);
 });
 
 test("a China case adds the curator guide requirements; other countries keep the general guide", () => {

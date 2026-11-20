@@ -149,12 +149,13 @@ SET LOCAL session_replication_role = origin;
 SELECT pg_temp.a364_assert((SELECT string_agg(l.item_position || ':' || l.label || ':' || l.group_label, ' | ' ORDER BY l.item_position)
     FROM platform_private.default_document_checklist('CN') l)
   = '1:Загранпаспорт:Обязательные документы | 2:Фото:Обязательные документы | 3:Аттестат или транскрипт:Обязательные документы | '
-    || '4:Сертификат по языку (HSK, IELTS или TOEFL):Обязательные документы | 5:Результаты CSCA:Для бакалавриата | '
+    || '4:Сертификат по языку (HSK, IELTS или TOEFL):Обязательные документы | 5:Результаты CSCA, для бакалавриата:Для бакалавриата | '
     || '6:Справка о несудимости:Обязательные документы | 7:Медицинская справка:Обязательные документы | '
     || '8:Справка из банка:Обязательные документы | 9:Мотивационное письмо:Обязательные документы | '
     || '10:Рекомендательные письма:Обязательные документы | 11:Паспорта и данные родителей:Обязательные документы | '
-    || '12:Справка с места учёбы:Если сейчас учитесь | 13:Нотариальное согласие родителей на выезд:Если вам нет 18 лет | '
-    || '14:Свидетельство о рождении:Если вам нет 18 лет',
+    || '12:Справка с места учёбы, если сейчас учитесь:Если сейчас учитесь | '
+    || '13:Нотариальное согласие родителей на выезд, если вам нет 18 лет:Если вам нет 18 лет | '
+    || '14:Свидетельство о рождении, если вам нет 18 лет:Если вам нет 18 лет',
   'China is the 14 items of the guide, in order, with their groups');
 SELECT pg_temp.a364_assert((SELECT array_agg((l.item_position, l.label, l.group_label)::TEXT ORDER BY l.item_position)
     FROM platform_private.default_document_checklist('MY') l)
@@ -199,8 +200,9 @@ SELECT pg_temp.a364_assert((SELECT count(*) = (SELECT count(*) FROM a364_before)
   'no existing item is renamed, regrouped, removed or touched');
 SELECT pg_temp.a364_assert((SELECT string_agg(substr(s.id::TEXT, 1, 2) || ' ' || s.display_label || ' / ' || s.group_label, ' | ' ORDER BY s.id)
     FROM platform.document_slots s WHERE s.student_case_id = pg_temp.a364_id(803) AND s.id NOT IN (SELECT b.id FROM a364_before b))
-  = '0b Результаты CSCA / Для бакалавриата | 0c Паспорта и данные родителей / Обязательные документы | '
-    || '0d Нотариальное согласие родителей на выезд / Если вам нет 18 лет | 0e Свидетельство о рождении / Если вам нет 18 лет',
+  = '0b Результаты CSCA, для бакалавриата / Для бакалавриата | 0c Паспорта и данные родителей / Обязательные документы | '
+    || '0d Нотариальное согласие родителей на выезд, если вам нет 18 лет / Если вам нет 18 лет | '
+    || '0e Свидетельство о рождении, если вам нет 18 лет / Если вам нет 18 лет',
   'the added items follow the 338 ones (numbers 11-14), in the order and groups of the guide; no second certificate');
 SELECT pg_temp.a364_assert((SELECT bool_and(s.intent_kind = 'custom' AND s.requirement_id IS NULL AND s.status = 'required' AND s.version = 1
       AND s.removed_at IS NULL AND s.created_by_membership_id = pg_temp.a364_id(302))
@@ -220,6 +222,9 @@ SELECT pg_temp.a364_assert((SELECT count(*) FROM platform.document_slots s WHERE
       AND s.display_label = 'Свидетельство о рождении') = 1
     AND pg_temp.a364_count(5) = 14,
   'a removed item with the same label is not added again');
+SELECT pg_temp.a364_assert(NOT EXISTS (SELECT 1 FROM platform.document_slots s WHERE s.organization_id = pg_temp.a364_id(1)
+      AND s.display_label = 'Справка с места учёбы, если сейчас учитесь' AND s.student_case_id <> pg_temp.a364_id(801)),
+  'the 338 study certificate (active, or removed as in case 7) counts as the same document: no second one with the condition');
 SELECT pg_temp.a364_assert(pg_temp.a364_count(7) = 14
     AND NOT EXISTS (SELECT 1 FROM platform.document_slots s WHERE s.student_case_id = pg_temp.a364_id(807)
       AND s.display_label LIKE 'Сертификат по языку%'),
@@ -252,7 +257,8 @@ SELECT set_config('request.jwt.claims', '', TRUE);
 SELECT pg_temp.a364_assert((SELECT string_agg(p.requirement_label, ' | ' ORDER BY p.n) FROM a364_portal p)
     = 'Загранпаспорт | Фото | Аттестат или транскрипт | Справка с места учёбы | Справка о несудимости | Медицинская справка | '
     || 'Справка из банка | Мотивационное письмо | Рекомендательные письма | Сертификат по языку (IELTS, TOEFL), если есть | '
-    || 'Результаты CSCA | Паспорта и данные родителей | Нотариальное согласие родителей на выезд | Свидетельство о рождении',
+    || 'Результаты CSCA, для бакалавриата | Паспорта и данные родителей | '
+    || 'Нотариальное согласие родителей на выезд, если вам нет 18 лет | Свидетельство о рождении, если вам нет 18 лет',
   'the student sees the 338 items, then the added ones, in order');
 SELECT pg_temp.a364_assert((SELECT bool_and(p.case_id = pg_temp.a364_id(803) AND p.slot_status = 'required') FROM a364_portal p),
   'only the student''s own case, all still to upload');

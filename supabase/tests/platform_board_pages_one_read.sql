@@ -5,6 +5,8 @@
 --     (назначение, этап, срок, ответственный, связь, поиск) и пределов страниц выдача (jsonb) и ошибки (SQLSTATE и текст) равны.
 --  2. platform.staff_task_list_pages_v1 так же равна склейке страниц platform.staff_task_list для каждого участника, вида и
 --     статуса.
+--  3. Независимая проверка без цикла: прямое чтение прежней функции одной большой страницей (её порядок проверяется строго
+--     убывающим по ключу курсора), новое чтение — ровно её первые page_size * max_pages строк, обрезка — только если строк больше.
 --  Сравнение не пустое: у части участников несколько страниц и обрезка на последней; ключи сортировки повторяются, поэтому
 --  границы страниц проходят и внутри равных значений. Вход вне пределов — 22023; функции SECURITY INVOKER; EXECUTE только у
 --  authenticated.
@@ -343,6 +345,71 @@ BEGIN
     compared, with_rows, multi_page, truncated, refused;
 END
 $t372_tasks$;
+
+-- 2b. Ground truth independent of any loop: one direct read of the old function, large enough for every row of the
+--     fixture, taken as PostgREST took it (to_jsonb of each row, scan order). Its order is checked to be strictly descending
+--     by the cursor key; the paged read must then be exactly its first page_size * max_pages rows, truncated iff more exist.
+DO $t372_truth$
+DECLARE
+  w RECORD; a TEXT; v TEXT; st TEXT; s RECORD; direct TEXT; paged TEXT; d JSONB; pj JSONB; n INTEGER; lim INTEGER;
+  leads_checked INTEGER := 0; tasks_checked INTEGER := 0; leads_cut INTEGER := 0; tasks_cut INTEGER := 0;
+BEGIN
+  FOR w IN SELECT * FROM t372_who WHERE label <> 'anon' ORDER BY label LOOP
+    FOREACH a IN ARRAY ARRAY['all', 'mine', 'unassigned'] LOOP
+      direct := pg_temp.t372_run(w.claims, 'authenticated', format(
+        'SELECT COALESCE(jsonb_agg(to_jsonb(r)), ''[]'')::TEXT FROM platform.staff_sales_lead_page(101, NULL, NULL, ''all'', ''all'', %L, NULL, ''all'', NULL) AS r', a));
+      CONTINUE WHEN direct LIKE 'ERR %';
+      d := direct::JSONB; n := jsonb_array_length(d);
+      PERFORM pg_temp.t372_assert(n <= 100, format('one direct page holds every lead of %s / %s', w.label, a));
+      PERFORM pg_temp.t372_assert(NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(d) WITH ORDINALITY AS x(e, i) JOIN jsonb_array_elements(d) WITH ORDINALITY AS y(e, i) ON y.i = x.i + 1
+        WHERE ((x.e ->> 'sort_at')::TIMESTAMPTZ, (x.e ->> 'lead_id')::UUID) <= ((y.e ->> 'sort_at')::TIMESTAMPTZ, (y.e ->> 'lead_id')::UUID)),
+        format('direct leads strictly descend by (sort_at, lead_id) for %s / %s', w.label, a));
+      FOR s IN SELECT * FROM (VALUES (1, 1), (2, 1), (2, 2), (2, 3), (3, 2), (4, 2), (5, 3), (2, 40), (100, 40)) AS x(size, maxp) LOOP
+        paged := pg_temp.t372_run(w.claims, 'authenticated', format(
+          'SELECT platform.staff_sales_lead_pages_v1(%s, %s, ''all'', ''all'', %L, NULL, ''all'', NULL)::TEXT', s.size, s.maxp, a));
+        pj := paged::JSONB; lim := s.size * s.maxp;
+        PERFORM pg_temp.t372_assert(pj -> 'rows' = (SELECT COALESCE(jsonb_agg(x.e ORDER BY x.i), '[]'::JSONB)
+            FROM jsonb_array_elements(d) WITH ORDINALITY AS x(e, i) WHERE x.i <= lim),
+          format('paged leads are the first %s direct rows for %s / %s', lim, w.label, a));
+        PERFORM pg_temp.t372_assert((pj ->> 'truncated')::BOOLEAN = (n > lim),
+          format('leads truncated iff more than %s rows for %s / %s', lim, w.label, a));
+        leads_checked := leads_checked + 1;
+        IF n > lim THEN leads_cut := leads_cut + 1; END IF;
+      END LOOP;
+    END LOOP;
+    FOREACH v IN ARRAY ARRAY['mine', 'created', 'all'] LOOP
+      FOREACH st IN ARRAY ARRAY['active', 'completed', 'all'] LOOP
+        direct := pg_temp.t372_run(w.claims, 'authenticated', format(
+          'SELECT COALESCE(jsonb_agg(to_jsonb(r)), ''[]'')::TEXT FROM platform.staff_task_list(%L::UUID, %L, %L, NULL, NULL, NULL, 101) AS r',
+          pg_temp.t372_id(1), v, st));
+        CONTINUE WHEN direct LIKE 'ERR %';
+        d := direct::JSONB; n := jsonb_array_length(d);
+        PERFORM pg_temp.t372_assert(n <= 100, format('one direct page holds every task of %s / %s / %s', w.label, v, st));
+        PERFORM pg_temp.t372_assert(NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements(d) WITH ORDINALITY AS x(e, i) JOIN jsonb_array_elements(d) WITH ORDINALITY AS y(e, i) ON y.i = x.i + 1
+          WHERE ((x.e ->> 'updated_at')::TIMESTAMPTZ, (x.e ->> 'id')::UUID) <= ((y.e ->> 'updated_at')::TIMESTAMPTZ, (y.e ->> 'id')::UUID)),
+          format('direct tasks strictly descend by (updated_at, id) for %s / %s / %s', w.label, v, st));
+        FOR s IN SELECT * FROM (VALUES (1, 1), (2, 1), (2, 2), (2, 3), (3, 2), (4, 2), (5, 3), (2, 10), (50, 4)) AS x(size, maxp) LOOP
+          paged := pg_temp.t372_run(w.claims, 'authenticated', format(
+            'SELECT platform.staff_task_list_pages_v1(%L::UUID, %L, %L, %s, %s)::TEXT', pg_temp.t372_id(1), v, st, s.size, s.maxp));
+          pj := paged::JSONB; lim := s.size * s.maxp;
+          PERFORM pg_temp.t372_assert(pj -> 'rows' = (SELECT COALESCE(jsonb_agg(x.e ORDER BY x.i), '[]'::JSONB)
+              FROM jsonb_array_elements(d) WITH ORDINALITY AS x(e, i) WHERE x.i <= lim),
+            format('paged tasks are the first %s direct rows for %s / %s / %s', lim, w.label, v, st));
+          PERFORM pg_temp.t372_assert((pj ->> 'truncated')::BOOLEAN = (n > lim),
+            format('tasks truncated iff more than %s rows for %s / %s / %s', lim, w.label, v, st));
+          tasks_checked := tasks_checked + 1;
+          IF n > lim THEN tasks_cut := tasks_cut + 1; END IF;
+        END LOOP;
+      END LOOP;
+    END LOOP;
+  END LOOP;
+  PERFORM pg_temp.t372_assert(leads_checked >= 60 AND leads_cut >= 20 AND tasks_checked >= 100 AND tasks_cut >= 30,
+    format('the ground truth is not vacuous: leads %s (%s cut), tasks %s (%s cut)', leads_checked, leads_cut, tasks_checked, tasks_cut));
+  RAISE NOTICE 'T372 ground truth: leads % (% cut), tasks % (% cut)', leads_checked, leads_cut, tasks_checked, tasks_cut;
+END
+$t372_truth$;
 
 -- 3. Limits: outside the bounds the new reads refuse with 22023 before reading anything.
 SELECT pg_temp.t372_assert(pg_temp.t372_run(:'t372_admin', 'authenticated', format(

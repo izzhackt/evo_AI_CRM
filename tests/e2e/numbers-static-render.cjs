@@ -509,6 +509,7 @@ const STUBS = {
   },
   "@/lib/platform-sales": {
     listPlatformSalesLeads: async () => ({ rows: BOARD_ROWS, hasNext: false, nextCursor: null }),
+    listAllPlatformSalesLeads: async () => ({ rows: BOARD_ROWS, truncated: false }),
     listPlatformSalesOwnerOptions: async () => ({ rows: [], hasNext: false, nextCursor: null }),
     readPlatformSalesPipeline: async (actor, readers) => ({ board: await readers.board(actor), ownerOptions: null, canCreateLead: true }),
     PlatformSalesRepositoryError: class PlatformSalesRepositoryError extends Error {},

@@ -251,9 +251,9 @@ const ACTORS = {
 function readers(data) {
   const fail = (key) => { if (data.fail?.includes(key)) throw new Error(`synthetic ${key} failure`); };
   return {
-    async listStaffTasks() {
+    async listStaffTaskPages() {
       fail("tasks");
-      return { rows: (data.staff ?? []).filter((task) => task.assigneeMembershipId === ME && task.status !== "done"), nextCursor: null };
+      return { rows: (data.staff ?? []).filter((task) => task.assigneeMembershipId === ME && task.status !== "done"), complete: true };
     },
     async listCaseTasks(_actor, options) {
       fail("tasks");

@@ -5,8 +5,8 @@ import { StateChip, TopicStrip } from "@/components/portal/csca/StateChip";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { cscaMomentDayLabel } from "@/lib/portal/csca";
+import { requireCscaStudentPortalActor } from "@/lib/portal/csca-access";
 import { readCscaHome, readCscaProgress } from "@/lib/portal/csca-source";
-import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,8 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * баллов, шкал 0..100 и порогов. Прогресс видит только сам студент.
  */
 export default async function CscaProgressPage() {
-  const [, locale, progress, home] = await Promise.all([
-    requireStudentPortalActor(),
+  await requireCscaStudentPortalActor();
+  const [locale, progress, home] = await Promise.all([
     getLocale(),
     readCscaProgress().catch(() => null),
     readCscaHome().catch(() => null),

@@ -1,9 +1,11 @@
 /**
- * Карточка CSCA на «Главной» (решение владельца Q16, 18.10.2026): только для
- * студента, чей выбор страны (`student_country_choice_v1`, миграция 284; тот
+ * Раздел CSCA целиком (меню, страницы, действия, карточка на «Главной», даты;
+ * решение владельца Q16, 18.10.2026, распространено на весь раздел 21.11.2026):
+ * только для студента, чей выбор страны (`student_country_choice_v1`, миграция 284; тот
  * же выбор, что ведёт «Путь поступления») это Китай. Сохранённый выбор и вывод
  * по умолчанию из анкеты или дела считаются одинаково. Для остальных стран,
- * для «Пока не решил», без выбора и при сбое чтения выбора карточки нет.
+ * для «Пока не решил», без выбора и при сбое чтения выбора раздела нет. Это
+ * уместность, а не граница безопасности: база CSCA не меняется.
  *
  * Текст берётся из уже существующего: одна строка `summary` из
  * src/content/csca/overview.json (новых утверждений нет) и ближайшая сессия из
@@ -29,10 +31,10 @@ export const CSCA_HOME_COUNTRY = "CN";
 export const CSCA_HOME_HREF = "/portal/csca";
 
 /**
- * Показывать ли карточку по выбору страны. `null`: выбор не прочитался, без
- * выбранной страны карточки нет, как нет и пути поступления.
+ * Доступен ли студенту раздел CSCA по выбору страны. `null`: выбор не
+ * прочитался; без выбранной страны раздела нет, как нет и пути поступления.
  */
-export function cscaHomeCardVisible(choice: Pick<StudentCountryChoice, "country"> | null): boolean {
+export function cscaAvailableFor(choice: Pick<StudentCountryChoice, "country"> | null): boolean {
   return choice?.country === CSCA_HOME_COUNTRY;
 }
 
@@ -75,7 +77,7 @@ export function selectCscaHomeCard(input: Readonly<{
   cscaStrings: PortalStrings<"csca">;
   homeStrings: PortalStrings<"home">;
 }>): CscaHomeCardView | null {
-  if (!cscaHomeCardVisible(input.choice) || input.home === null) return null;
+  if (!cscaAvailableFor(input.choice) || input.home === null) return null;
   const { home, locale, cscaStrings, homeStrings } = input;
   const nearest = nearestCscaSession(home.sessions, home.today);
   const labels = nearest
@@ -109,7 +111,7 @@ export function cscaHomeDates(input: Readonly<{
   home: CscaHome | null;
   homeStrings: PortalStrings<"home">;
 }>): HomeDateItem[] {
-  if (!cscaHomeCardVisible(input.choice) || input.home === null) return [];
+  if (!cscaAvailableFor(input.choice) || input.home === null) return [];
   const { home, homeStrings } = input;
   return home.sessions
     .filter((session) => session.examTo >= home.today)

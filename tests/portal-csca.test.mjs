@@ -286,3 +286,50 @@ test("KaTeX stays on CSCA routes only and runners never refresh the route after 
   assert.doesNotMatch(actions, /revalidatePath\(/u);
   assert.match(source("package.json"), /"katex": "0\.19\.0"/u);
 });
+
+// 21.11.2026 (решение владельца): весь раздел CSCA только для студента с выбором «Китай».
+test("the CSCA menu item is China-only and the layout passes the rule to the Shell", () => {
+  const shell = source("src/components/portal/Shell.tsx");
+  assert.match(shell, /href: "\/portal\/csca", key: "nav\.csca", tiers: \["approved", "assisted"\], cscaOnly: true/u);
+  assert.match(shell, /\(cscaAvailable \|\| !\("cscaOnly" in section\)\)/u);
+  assert.match(shell, /cscaAvailable = false,/u, "no China choice means no item");
+  assert.match(source("src/app/(portal)/layout.tsx"), /cscaAvailable=\{cscaAvailableFor\(countryChoice\)\}/u);
+});
+
+test("every CSCA page redirects a non-China student before it reads anything", () => {
+  const access = source("src/lib/portal/csca-access.ts");
+  assert.match(access, /if \(!\(await cscaAccessForCurrentStudent\(\)\)\) redirect\("\/portal"\);/u);
+  assert.match(access, /cscaAvailableFor\(await readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\)/u);
+  const pages = [
+    "page.tsx", "math/progress/page.tsx", "math/review/page.tsx",
+    "math/test/[formId]/page.tsx", "math/lesson/[lessonId]/page.tsx",
+  ];
+  for (const page of pages) {
+    const text = source(`src/app/(portal)/portal/csca/${page}`);
+    assert.doesNotMatch(text, /requireStudentPortalActor/u, page);
+    const guard = text.indexOf("await requireCscaStudentPortalActor();");
+    assert.ok(guard > 0, page);
+    assert.ok(guard < text.indexOf("Promise.all("), `${page}: guard first`);
+    for (const read of ["readCscaHome(", "readCscaProgress(", "readCscaReview(", "readCscaLesson(", "readCscaTestAttempt(", "readCscaModuleLessons("]) {
+      const at = text.indexOf(read, text.indexOf("export default"));
+      assert.ok(at === -1 || at > guard, `${page}: ${read} after the guard`);
+    }
+  }
+});
+
+test("every CSCA server action refuses a non-China student before any database call", () => {
+  const actions = source("src/lib/portal/csca-actions.ts");
+  assert.match(actions, /return \(await cscaAccessForCurrentStudent\(\)\) \? null : \{ ok: false, code: "denied" \};/u);
+  const bodies = actions.split(/^export async function /mu).slice(1);
+  assert.equal(bodies.length, 10);
+  for (const body of bodies) {
+    const name = body.slice(0, body.indexOf("("));
+    assert.match(body, /\n {2}const refused = await refusedOutsideChina\(\);\n {2}if \(refused\) return refused;\n/u, name);
+    const guard = body.indexOf("refusedOutsideChina()");
+    for (const call of ["readCsca", "startCsca", "saveCsca", "completeCsca", "recordCsca", "reportCsca", "setCsca"]) {
+      const at = body.indexOf(`await ${call}`);
+      assert.ok(at === -1 || at > guard, `${name}: ${call} after the guard`);
+    }
+    assert.doesNotMatch(body, /requireStudentPortalActor/u, name);
+  }
+});

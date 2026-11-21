@@ -7,7 +7,7 @@ import { COUNTRY_TIMELINES } from "../src/lib/portal/country-timeline.ts";
 import {
   CSCA_HOME_COUNTRY,
   CSCA_HOME_HREF,
-  cscaHomeCardVisible,
+  cscaAvailableFor,
   cscaHomeDates,
   nearestCscaSession,
   selectCscaHomeCard,
@@ -49,20 +49,20 @@ test("only China shows the card, whether the choice is saved or the default", ()
   assert.equal(COUNTRY_TIMELINES.cn.country, CSCA_HOME_COUNTRY, "the card follows the same choice as the China path");
   // Сохранённый выбор, вывод из анкеты и из дела одинаково дают карточку.
   for (const source of ["saved", "application", "case"]) {
-    assert.equal(cscaHomeCardVisible(choice("CN", source)), true, `CN ${source}`);
+    assert.equal(cscaAvailableFor(choice("CN", source)), true, `CN ${source}`);
   }
   // Остальные пять стран, «Пока не решил» и отсутствие выбора карточки не дают.
   for (const country of STUDY_COUNTRY_CODES.filter((code) => code !== "CN")) {
     for (const source of ["saved", "application", "case"]) {
-      assert.equal(cscaHomeCardVisible(choice(country, source)), false, `${country} ${source}`);
+      assert.equal(cscaAvailableFor(choice(country, source)), false, `${country} ${source}`);
     }
   }
-  assert.equal(cscaHomeCardVisible(choice("UNDECIDED")), false, "«Пока не решил»");
-  assert.equal(cscaHomeCardVisible(choice(null, "none")), false, "нет выбора");
-  assert.equal(cscaHomeCardVisible(null), false, "выбор не прочитался");
+  assert.equal(cscaAvailableFor(choice("UNDECIDED")), false, "«Пока не решил»");
+  assert.equal(cscaAvailableFor(choice(null, "none")), false, "нет выбора");
+  assert.equal(cscaAvailableFor(null), false, "выбор не прочитался");
   // Код сравнивается точно: не регистр и не пробелы.
-  assert.equal(cscaHomeCardVisible({ country: "cn" }), false);
-  assert.equal(cscaHomeCardVisible({ country: " CN" }), false);
+  assert.equal(cscaAvailableFor({ country: "cn" }), false);
+  assert.equal(cscaAvailableFor({ country: " CN" }), false);
 });
 
 test("the card is hidden for every other choice, and without CSCA data it is hidden, not an error", () => {
@@ -200,7 +200,7 @@ test("the page reads the choice and the CSCA home in its single wave, only for C
   assert.ok(wave, "home reads stay in one Promise.all");
   // 18.11.2026: за выбором страны в той же цепочке читается и фото столицы (шапка пути), рядом с CSCA.
   assert.match(wave[1], /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\.then\(async \(choice\) => \{/u);
-  assert.match(wave[1], /cscaHome: cscaHomeCardVisible\(choice\) \? await readCscaHome\(\)\.catch\(\(\): null => null\) : null,/u);
+  assert.match(wave[1], /cscaHome: cscaAvailableFor\(choice\) \? await readCscaHome\(\)\.catch\(\(\): null => null\) : null,/u);
   // Волна одна: после проверки студента только один Promise.all, ожидание не добавлено.
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2);
   assert.equal(page.match(/readCscaHome\(/gu)?.length, 1);

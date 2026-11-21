@@ -12,10 +12,10 @@ import { menuTokensFor, useTheme } from "@/theme/ThemeProvider";
 import { EvoMark } from "@/ui/EvoMark";
 import { Text } from "@/ui/Text";
 
-type Props = { visible: boolean; tier: AccessTier; active: SectionId | null; onSelect: (id: SectionId) => void; onSignOut: () => void; onClose: () => void };
+type Props = { visible: boolean; tier: AccessTier; cscaAvailable: boolean; active: SectionId | null; onSelect: (id: SectionId) => void; onSignOut: () => void; onClose: () => void };
 
 /** Меню ☰: левая тёмная колонка шириной min(300, 84%), заезжает за 240 мс, подложка 45 %. */
-export function MenuSheet({ visible, tier, active, onSelect, onSignOut, onClose }: Props) {
+export function MenuSheet({ visible, tier, cscaAvailable, active, onSelect, onSignOut, onClose }: Props) {
   const { scheme } = useTheme();
   const t = menuTokensFor(scheme);
   const { shell, m } = useLang();
@@ -55,7 +55,7 @@ export function MenuSheet({ visible, tier, active, onSelect, onSignOut, onClose 
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 8 }}>
-            {menuFor(tier).map((block, index) => (
+            {menuFor(tier, cscaAvailable).map((block, index) => (
               <View key={`${block.group ?? "top"}-${index}`} style={{ marginTop: block.group || index > 0 ? 12 : 0 }}>
                 {block.group ? (
                   <Text variant="caption" style={{ color: t.railGroup, paddingHorizontal: 12, paddingBottom: 4 }}>

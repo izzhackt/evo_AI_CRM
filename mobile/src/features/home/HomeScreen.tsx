@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { View } from "react-native";
-import { cscaHomeCardVisible, selectCscaHomeCard } from "@web/lib/portal/csca-home-card";
+import { cscaAvailableFor, selectCscaHomeCard } from "@web/lib/portal/csca-home-card";
 import { selectStudentJourney } from "@web/lib/portal/student-journey";
 import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
 
@@ -36,7 +36,7 @@ export function HomeScreen() {
   const homeItems = favorites.data?.items.slice(0, HOME_FAVORITES_LIMIT) ?? null;
   const choice = useCountryChoice();
   const choiceData = choice.data ?? null;
-  const cscaVisible = cscaHomeCardVisible(choiceData);
+  const cscaVisible = cscaAvailableFor(choiceData);
   const csca = useCscaHome(cscaVisible);
   const [refreshing, setRefreshing] = useState(false);
   const refresh = useCallback(async () => {

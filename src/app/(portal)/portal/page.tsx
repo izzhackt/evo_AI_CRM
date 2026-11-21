@@ -13,7 +13,7 @@ import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
-import { cscaHomeCardVisible, cscaHomeDates, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
+import { cscaAvailableFor, cscaHomeDates, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { selectStudentJourney, timelineCountryOptions } from "@/lib/portal/student-journey";
@@ -104,7 +104,7 @@ export default async function StudentPortalHomePage({
         : Promise.resolve(null);
       return {
         choice,
-        cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
+        cscaHome: cscaAvailableFor(choice) ? await readCscaHome().catch((): null => null) : null,
         capital: await capitalRead,
       };
     }),

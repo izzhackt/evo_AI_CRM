@@ -271,7 +271,7 @@ Owner decision 18.10.2026. One compact card on «Главная», on web and iP
 
 | Rule | Web | iPhone |
 |---|---|---|
-| Visible when | choice country is `CN` (`cscaHomeCardVisible`, `src/lib/portal/csca-home-card.ts`) | the same (`CSCAHomeCardPolicy.isVisible`, `ios/EVOAdmissions/Services/CSCA/CSCAHomeCard.swift`) |
+| Visible when | choice country is `CN` (`cscaAvailableFor`, `src/lib/portal/csca-home-card.ts`) | the same (`CSCAHomeCardPolicy.isVisible`, `ios/EVOAdmissions/Services/CSCA/CSCAHomeCard.swift`) |
 | Hidden for | IT, MY, AE, TR, CZ, «Пока не решил», no choice, a failed choice read, a failed `learning_track_home_v1` read; never an error card (the CSCA section shows its own error) | the same; after a choice change the card appears or disappears at once, without a restart |
 | Content | title «CSCA»; one line `summary` of `src/content/csca/overview.json` (RU or KY, no new claims); nearest official session; one action «К подготовке» | the same text from the same JSON (`CSCAHomeCardPolicy.summary`) |
 | Nearest session | first by start date of the sessions whose last exam day is not before `today` of the server answer; none left: title, summary and action stay | the same (`nearestSession`) |

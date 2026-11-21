@@ -12,6 +12,7 @@ import {
 } from "./clamd-malware-scanner.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { applyDownloadName, resolveDownloadName } from "./download-file-name.ts";
 
 /**
  * Upload/download route handlers for the «Договор и оплата» block's contract
@@ -319,10 +320,12 @@ export function createCaseContractFileDownloadHandler() {
       targetResponse.error.code === "42501" ? "case_agreement_forbidden" : "contract_target_unavailable");
     const target = decodeContractDownloadTarget(targetResponse.data, actorResult.actor.organizationId, studentCaseId, fileId);
     if (!target) return errorResponse(503, "contract_target_unavailable");
+    const downloadName = await resolveDownloadName(userClient, "staff_case_file_download_name_v1",
+      { p_file_kind: "contract", p_file_id: fileId, p_student_case_id: studentCaseId });
     const serviceClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     const signedResponse = await serviceClient.storage.from(BUCKET_ID).createSignedUrl(target.storageObjectName, 60, { download: true });
     if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
-    return Response.redirect(signedResponse.data.signedUrl, 307);
+    return Response.redirect(applyDownloadName(signedResponse.data.signedUrl, downloadName), 307);
     } catch {
       return errorResponse(503, "contract_unavailable");
     }
@@ -353,10 +356,12 @@ export function createPaymentReceiptFileDownloadHandler() {
       targetResponse.error.code === "42501" ? "case_agreement_forbidden" : "receipt_target_unavailable");
     const target = decodeReceiptDownloadTarget(targetResponse.data, actorResult.actor.organizationId, studentCaseId, fileId);
     if (!target) return errorResponse(503, "receipt_target_unavailable");
+    const downloadName = await resolveDownloadName(userClient, "staff_case_file_download_name_v1",
+      { p_file_kind: "receipt", p_file_id: fileId, p_student_case_id: studentCaseId });
     const serviceClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
     const signedResponse = await serviceClient.storage.from(BUCKET_ID).createSignedUrl(target.storageObjectName, 60, { download: true });
     if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
-    return Response.redirect(signedResponse.data.signedUrl, 307);
+    return Response.redirect(applyDownloadName(signedResponse.data.signedUrl, downloadName), 307);
     } catch {
       return errorResponse(503, "receipt_unavailable");
     }
@@ -436,11 +441,13 @@ export function createStudentPortalCaseFileDownloadHandler(
         || (target as Record<string, string>).storage_object_name.length < 1) {
         return errorResponse(503, "case_file_unavailable");
       }
+      const downloadName = await resolveDownloadName(userClient, "student_portal_case_file_download_name_v1",
+        { p_file_kind: params.fileKind, p_file_id: fileId });
       const serviceClient = (overrides?.createServiceClient ?? (() => createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig())))();
       const signedResponse = await serviceClient.storage.from(BUCKET_ID)
         .createSignedUrl((target as Record<string, string>).storage_object_name, 60, { download: true });
       if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
-      return new Response(null, { status: 307, headers: { "Cache-Control": "no-store", Location: signedResponse.data.signedUrl } });
+      return new Response(null, { status: 307, headers: { "Cache-Control": "no-store", Location: applyDownloadName(signedResponse.data.signedUrl, downloadName) } });
     } catch {
       return errorResponse(503, "case_file_unavailable");
     }

@@ -20,6 +20,7 @@ import {
   type PlatformSupabaseBackendConfig,
 } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { applyDownloadName, resolveDownloadName } from "./download-file-name.ts";
 import {
   STANDARD_UPLOAD_MAX_BYTES,
   uploadSupabaseStorageObjectWithTus,
@@ -1720,6 +1721,8 @@ function createDocumentDownloadHandler(
       }
       const grant = normalizeDownloadGrant(grantResponse.data);
       if (!grant) return errorResponse(503, "storage_unavailable");
+      // «<Тип документа> — <Фамилия>.<расширение>»; при любой ошибке чтения имени остаётся прежний `download: true`.
+      const downloadName = await resolveDownloadName(userClient, "document_download_name_v1", { p_download_grant_id: grant.id });
 
       const serviceClient = dependencies.createServiceClient();
       const consumptionRpc = policy.accessPurpose === "student_document_download"
@@ -1761,16 +1764,17 @@ function createDocumentDownloadHandler(
         consumption.objectName,
       );
       if (!signedUrl) return errorResponse(503, "storage_unavailable");
+      const namedUrl = applyDownloadName(signedUrl, downloadName);
       if (policy.noStore) {
         return new Response(null, {
           status: policy.redirectStatus,
           headers: {
             "Cache-Control": "no-store",
-            Location: signedUrl,
+            Location: namedUrl,
           },
         });
       }
-      return Response.redirect(signedUrl, policy.redirectStatus);
+      return Response.redirect(namedUrl, policy.redirectStatus);
     } catch {
       return errorResponse(503, "storage_unavailable");
     }
@@ -1989,6 +1993,7 @@ function createApplicationDocumentDownloadHandler(dependencies: PlatformDocument
       if (granted.error) return applicationRpcError(granted.error);
       const grant = normalizeDownloadGrant(granted.data);
       if (!grant) return applicationError(503, "unavailable");
+      const downloadName = await resolveDownloadName(client, "document_download_name_v1", { p_download_grant_id: grant.id });
       const service = dependencies.createServiceClient();
       const consumed = await service.schema("platform").rpc("consume_application_document_download_v1", {
         p_organization_id: actor.organizationId, p_actor_auth_user_id: actor.authUserId, p_download_grant_id: grant.id, p_request_id: dependencies.requestId(),
@@ -1999,7 +2004,7 @@ function createApplicationDocumentDownloadHandler(dependencies: PlatformDocument
       const signed = await service.storage.from(consumption.bucketId).createSignedUrl(consumption.objectName, consumption.maximumLifetimeSeconds, { download: true });
       if (signed.error) return applicationError(503, "unavailable");
       const url = safeSignedUrl(signed.data.signedUrl, dependencies.supabaseOrigin(), consumption.objectName);
-      return url ? new Response(null, { status: 302, headers: { "Cache-Control": "no-store", Location: url } }) : applicationError(503, "unavailable");
+      return url ? new Response(null, { status: 302, headers: { "Cache-Control": "no-store", Location: applyDownloadName(url, downloadName) } }) : applicationError(503, "unavailable");
     } catch { return applicationError(503, "unavailable"); }
   };
 }

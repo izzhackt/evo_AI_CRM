@@ -5,6 +5,7 @@ import {
   type ApplicationDocumentItemTarget, type ApplicationDocumentUploadHeader, type ApplicationDocumentUploadIntent,
   type ApplicationDocumentUploadResult, type ApplicationDocumentFailure,
 } from "./application-documents.ts";
+import { parseContentDispositionFilename } from "../download-filename.ts";
 
 export const APPLICATION_DOCUMENT_UPLOAD_HEADER = "X-EVO-Upload-Intent";
 export const APPLICATION_DOCUMENT_UPLOAD_HEADER_MAX = 8192;
@@ -115,9 +116,8 @@ export async function downloadApplicationDocumentFile(input: Readonly<{
     const blob = await response.blob();
     if (!blob.size || blob.size > APPLICATION_DOCUMENT_MAX_FILE_BYTES) return { ok: false, reason: "unavailable" };
     // Do not interpolate a server-controlled filename into markup or a path.
-    const disposition = response.headers.get("Content-Disposition") ?? "";
-    const candidate = disposition.match(/filename="([^"\r\n]*)"/iu)?.[1];
-    const name = candidate && !/[\p{Cc}/\\]/u.test(candidate) && candidate.length <= 255 ? candidate : "document";
+    // Storage отдаёт `filename*=UTF-8''…` (кириллица) и ASCII-запасной `filename="…"` с «_» вместо неё: сначала RFC 5987.
+    const name = parseContentDispositionFilename(response.headers.get("Content-Disposition")) ?? "document";
     const url = URL.createObjectURL(blob);
     try { const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; document.body.append(anchor); anchor.click(); anchor.remove(); }
     finally { URL.revokeObjectURL(url); }

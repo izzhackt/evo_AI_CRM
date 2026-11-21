@@ -26,10 +26,13 @@ export const metadata = { title: "Финансы" };
 export default async function FinancePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const actor = await requireV3PageActor("/finance");
   const query = await searchParams;
-  const finance: ReportLinkRead = staffCanFinanceTabHint(actor) ? await readReportLink(actor, "finance") : { status: "denied" };
   // «Чеки на проверке» (миграция 358): общая очередь для администратора и держателя полного чтения финансов; что видно и что можно
-  // решить, считает база (чтение блока «Договор и оплата»). Бейдж - число чеков, ждущих решения.
-  const receipts = staffCanFinanceTabHint(actor) ? await readStudentReceiptQueue(actor) : null;
+  // решить, считает база (чтение блока «Договор и оплата»). Бейдж - число чеков, ждущих решения. Оба чтения независимы: идут вместе.
+  const hint = staffCanFinanceTabHint(actor);
+  const [finance, receipts] = await Promise.all([
+    hint ? readReportLink(actor, "finance") : Promise.resolve<ReportLinkRead>({ status: "denied" }),
+    hint ? readStudentReceiptQueue(actor) : Promise.resolve(null),
+  ]);
   const keys: FinanceTabKey[] = [
     ...(staffCanSalesTab(actor) ? ["sales" as const] : []),
     ...(finance.status !== "denied" ? ["finance" as const, "debts" as const] : []),

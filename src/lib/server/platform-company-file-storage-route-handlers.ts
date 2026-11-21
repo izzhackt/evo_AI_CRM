@@ -13,6 +13,7 @@ import {
 } from "../platform-company-files.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { applyDownloadName, resolveDownloadName } from "./download-file-name.ts";
 import {
   ClamdScanError,
   isClamdMalwareScanProof,
@@ -1194,6 +1195,13 @@ export function createPlatformCompanyFileDownloadHandler(
       if (grantResponse.error) return errorResponse(403, "download_not_authorized");
       const grant = normalizeDownloadGrant(grantResponse.data);
       if (!grant) return errorResponse(503, "storage_unavailable");
+      // Файл компании называется по сохранённому имени; при ошибке чтения остаётся прежний `download: true`.
+      const downloadName = await resolveDownloadName(
+        userClient,
+        "company_file_download_name_v1",
+        { p_download_grant_id: grant.id },
+        "stored",
+      );
 
       const serviceClient = dependencies.createServiceClient();
       const consumptionResponse = await serviceClient.schema("platform").rpc(
@@ -1228,7 +1236,7 @@ export function createPlatformCompanyFileDownloadHandler(
         dependencies.supabaseOrigin(),
       );
       if (!signedUrl) return errorResponse(503, "storage_unavailable");
-      return Response.redirect(signedUrl, 307);
+      return Response.redirect(applyDownloadName(signedUrl, downloadName), 307);
     } catch {
       return errorResponse(503, "storage_unavailable");
     }

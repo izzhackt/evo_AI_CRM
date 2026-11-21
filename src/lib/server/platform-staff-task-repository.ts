@@ -41,6 +41,35 @@ export async function readStaffTaskLeadContext(actor: ActivePlatformActor, leadI
     workflowVersion: data.workflow_version as string, nextActionText: data.next_action as string | null,
     nextActionDueDate: data.next_action_due_date as string | null, canOpenPipeline: data.can_open_pipeline as boolean };
 }
+/** Лид и имя клиента задачи (`staff_task_lead_refs_v1`, миграция 367). */
+export type StaffTaskLeadRef = Readonly<{ taskId: string; leadId: string; clientDisplayName: string }>;
+
+/** Не больше, чем принимает функция базы за одно чтение. */
+export const STAFF_TASK_LEAD_REFS_LIMIT = 50;
+
+/**
+ * Лиды многих задач ОДНИМ чтением вместо `readStaffTaskContext` + `readStaffTaskLeadContext` на каждую (две функции на задачу).
+ * Что сотруднику можно прочитать, решают те же две функции базы внутри `staff_task_lead_refs_v1`: задача, которую он не
+ * читает, и лид, которого он не читает, в ответ не попадают. Любой сбой или ответ не той формы — исключение: звать функцию
+ * должен код, для которого «строка без клиента» — допустимый исход (`telephony-task-leads-source`).
+ */
+export async function readStaffTaskLeadRefs(actor: ActivePlatformActor, taskIds: readonly string[]): Promise<readonly StaffTaskLeadRef[]> {
+  assertStaff(actor);
+  if (taskIds.length === 0) return [];
+  if (taskIds.length > STAFF_TASK_LEAD_REFS_LIMIT || new Set(taskIds).size !== taskIds.length) throw new Error("Task lead refs are unavailable.");
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_task_lead_refs_v1", { p_organization_id: actor.organizationId, p_task_ids: [...taskIds] });
+  if (error || !data || !Array.isArray(data.refs) || data.refs.length > taskIds.length) throw new Error("Task lead refs are unavailable.");
+  const asked = new Set(taskIds.map((id) => id.toLowerCase()));
+  const refs = data.refs.map((row: unknown): StaffTaskLeadRef => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Task lead refs are unavailable.");
+    const value = row as Record<string, unknown>;
+    const taskId = staffTaskUuid(value.task_id), leadId = staffTaskUuid(value.lead_id);
+    if (!taskId || !leadId || !asked.delete(taskId) || typeof value.client_name !== "string" || value.client_name.length > 1000) throw new Error("Task lead refs are unavailable.");
+    return { taskId, leadId, clientDisplayName: value.client_name };
+  });
+  return refs;
+}
 export async function readLeadTaskLinks(actor: ActivePlatformActor, leadId: string) {
   assertStaff(actor);
   const client = await createSupabaseServerClient();

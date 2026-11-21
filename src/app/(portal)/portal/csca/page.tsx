@@ -10,8 +10,8 @@ import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { cscaDayLabel } from "@/lib/portal/csca";
 import { CSCA_OVERVIEW } from "@/lib/portal/csca-overview";
+import { requireCscaStudentPortalActor } from "@/lib/portal/csca-access";
 import { readCscaHome } from "@/lib/portal/csca-source";
-import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
@@ -30,8 +30,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CscaHomePage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
-  const [, locale, home, params] = await Promise.all([
-    requireStudentPortalActor(),
+  await requireCscaStudentPortalActor();
+  const [locale, home, params] = await Promise.all([
     getLocale(),
     readCscaHome().catch(() => null),
     searchParams,

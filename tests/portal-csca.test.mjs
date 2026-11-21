@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 import {
   CSCA_FIGURE_DARK_PALETTE,
@@ -285,4 +290,122 @@ test("KaTeX stays on CSCA routes only and runners never refresh the route after 
   const actions = source("src/lib/portal/csca-actions.ts");
   assert.doesNotMatch(actions, /revalidatePath\(/u);
   assert.match(source("package.json"), /"katex": "0\.19\.0"/u);
+});
+
+// 21.11.2026 (решение владельца): весь раздел CSCA только для студента с выбором «Китай».
+test("the CSCA menu item is China-only and the layout passes the rule to the Shell", () => {
+  const shell = source("src/components/portal/Shell.tsx");
+  assert.match(shell, /href: "\/portal\/csca", key: "nav\.csca", tiers: \["approved", "assisted"\], cscaOnly: true/u);
+  assert.match(shell, /\(cscaAvailable \|\| !\("cscaOnly" in section\)\)/u);
+  assert.match(shell, /cscaAvailable = false,/u, "no China choice means no item");
+  assert.match(source("src/app/(portal)/layout.tsx"), /cscaAvailable=\{cscaAvailableFor\(countryChoice\)\}/u);
+});
+
+test("every CSCA page redirects a non-China student before it reads anything", () => {
+  const access = source("src/lib/portal/csca-access.ts");
+  assert.match(access, /if \(!\(await cscaAccessForCurrentStudent\(\)\)\) redirect\("\/portal"\);/u);
+  assert.match(access, /cscaAvailableFor\(await readStudentCountryChoice\(\)\.catch\(\(\): null => null\)\)/u);
+  const pages = [
+    "page.tsx", "math/progress/page.tsx", "math/review/page.tsx",
+    "math/test/[formId]/page.tsx", "math/lesson/[lessonId]/page.tsx",
+  ];
+  for (const page of pages) {
+    const text = source(`src/app/(portal)/portal/csca/${page}`);
+    assert.doesNotMatch(text, /requireStudentPortalActor/u, page);
+    const guard = text.indexOf("await requireCscaStudentPortalActor();");
+    assert.ok(guard > 0, page);
+    assert.ok(guard < text.indexOf("Promise.all("), `${page}: guard first`);
+    for (const read of ["readCscaHome(", "readCscaProgress(", "readCscaReview(", "readCscaLesson(", "readCscaTestAttempt(", "readCscaModuleLessons("]) {
+      const at = text.indexOf(read, text.indexOf("export default"));
+      assert.ok(at === -1 || at > guard, `${page}: ${read} after the guard`);
+    }
+  }
+});
+
+test("every CSCA server action refuses a non-China student before any database call", () => {
+  const actions = source("src/lib/portal/csca-actions.ts");
+  assert.match(actions, /return \(await cscaAccessForCurrentStudent\(\)\) \? null : \{ ok: false, code: "denied" \};/u);
+  const bodies = actions.split(/^export async function /mu).slice(1);
+  assert.equal(bodies.length, 10);
+  for (const body of bodies) {
+    const name = body.slice(0, body.indexOf("("));
+    assert.match(body, /\n {2}const refused = await refusedOutsideChina\(\);\n {2}if \(refused\) return refused;\n/u, name);
+    const guard = body.indexOf("refusedOutsideChina()");
+    for (const call of ["readCsca", "startCsca", "saveCsca", "completeCsca", "recordCsca", "reportCsca", "setCsca"]) {
+      const at = body.indexOf(`await ${call}`);
+      assert.ok(at === -1 || at > guard, `${name}: ${call} after the guard`);
+    }
+    assert.doesNotMatch(body, /requireStudentPortalActor/u, name);
+  }
+});
+
+// Поведение настоящих `csca-access.ts` и `csca-actions.ts`: подменены только `server-only`, `next/navigation`,
+// проверка студента, чтение выбора страны и чтение/запись CSCA (счётчик обращений к базе).
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const SOURCE_STUBS = {
+  "next/navigation": `exports.redirect = (to) => { const e = new Error("NEXT_REDIRECT"); e.to = to; throw e; };`,
+  "student-portal-guards": `exports.requireStudentPortalActor = async () => { globalThis.__csca.actor += 1; return { displayName: "Student" }; };`,
+  "country-choice-source": `exports.readStudentCountryChoice = async () => { const v = globalThis.__csca.choice; if (v instanceof Error) throw v; return v; };`,
+  "csca-source": `class CscaSourceError extends Error { constructor(code = "unavailable") { super("x"); this.code = code; } }
+exports.CscaSourceError = CscaSourceError;
+for (const name of ["completeCscaLesson", "completeCscaTest", "readCscaLesson", "readCscaTestAttempt", "recordCscaReview", "reportCscaItem", "saveCscaAnswer", "saveCscaTest", "setCscaTargetSession", "startCscaLesson", "startCscaTest"]) {
+  exports[name] = async () => { globalThis.__csca.db += 1; return { draft: null, latestCompleted: null, targetSessionKey: null, attemptId: "x" }; };
+}`,
+};
+let cscaAccessBundle;
+async function cscaAccess() {
+  if (cscaAccessBundle) return cscaAccessBundle;
+  const dir = mkdtempSync(join(tmpdir(), "csca-access-"));
+  try {
+    writeFileSync(join(dir, "entry.ts"), `export { cscaAccessForCurrentStudent, requireCscaStudentPortalActor } from ${JSON.stringify(`${ROOT}src/lib/portal/csca-access.ts`)};
+export { reloadCscaLessonAction, startCscaTestAction, setCscaTargetSessionAction } from ${JSON.stringify(`${ROOT}src/lib/portal/csca-actions.ts`)};`);
+    const outfile = join(dir, "out.cjs");
+    await build({
+      entryPoints: [join(dir, "entry.ts")], outfile, bundle: true, platform: "node", format: "cjs", tsconfig: `${ROOT}tsconfig.json`,
+      absWorkingDir: ROOT, nodePaths: [`${ROOT}node_modules`], logLevel: "silent",
+      plugins: [{
+        name: "csca-access-test",
+        setup(b) {
+          b.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
+          b.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+          b.onResolve({ filter: /^(next\/navigation|(\.\.?\/)+student-portal-guards|\.\/country-choice-source|\.\/csca-source)$/ }, (args) => ({ path: args.path.split("/").pop(), namespace: "stub" }));
+          b.onLoad({ filter: /.*/, namespace: "stub" }, (args) => ({ contents: SOURCE_STUBS[args.path === "navigation" ? "next/navigation" : args.path], loader: "js" }));
+        },
+      }],
+    });
+    cscaAccessBundle = createRequire(`${ROOT}package.json`)(outfile);
+    return cscaAccessBundle;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const REFUSED_CHOICES = [
+  ["MY", { country: "MY", source: "saved" }],
+  ["UNDECIDED", { country: "UNDECIDED", source: "saved" }],
+  ["none", { country: null, source: "none" }],
+  ["a thrown read", new Error("Country choice unavailable")],
+];
+
+test("CSCA access: China passes, every other choice and a failed read are refused (page redirect, action denied)", async () => {
+  const csca = await cscaAccess();
+  const lessonId = "6a568c67-44e7-56dd-8ba5-c1b77305daba";
+
+  globalThis.__csca = { actor: 0, db: 0, choice: { country: "CN", source: "saved" } };
+  assert.equal(await csca.cscaAccessForCurrentStudent(), true);
+  assert.deepEqual(await csca.requireCscaStudentPortalActor(), { displayName: "Student" });
+  assert.deepEqual(await csca.reloadCscaLessonAction(lessonId), { ok: true, draft: null, latestCompleted: null });
+  assert.equal(globalThis.__csca.db, 1, "China reaches the database");
+
+  for (const [name, choice] of REFUSED_CHOICES) {
+    globalThis.__csca = { actor: 0, db: 0, choice };
+    assert.equal(await csca.cscaAccessForCurrentStudent(), false, name);
+    await assert.rejects(csca.requireCscaStudentPortalActor(), (error) => error.message === "NEXT_REDIRECT" && error.to === "/portal", `${name}: page redirect`);
+    assert.deepEqual(await csca.reloadCscaLessonAction(lessonId), { ok: false, code: "denied" }, `${name}: reload`);
+    assert.deepEqual(await csca.startCscaTestAction(lessonId, lessonId), { ok: false, code: "denied" }, `${name}: start test`);
+    assert.deepEqual(await csca.setCscaTargetSessionAction(null), { ok: false, code: "denied" }, `${name}: target session`);
+    assert.equal(globalThis.__csca.db, 0, `${name}: no database call`);
+    assert.ok(globalThis.__csca.actor >= 4, `${name}: the student is still authenticated first`);
+  }
+  delete globalThis.__csca;
 });

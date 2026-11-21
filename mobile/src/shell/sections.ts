@@ -37,6 +37,8 @@ export type Section = Readonly<{
   group: SectionGroup;
   /** Срез плана, в котором раздел получит содержимое (docs/mobile/PLAN.md). */
   milestone: "M1" | "M2" | "M3" | "M4" | "M5" | "M6";
+  /** Раздел только для студента с выбором «Китай» (веб Shell.tsx, `cscaOnly`, 21.11.2026). */
+  cscaOnly?: true;
 }>;
 
 const BOTH = ["approved", "assisted"] as const;
@@ -50,7 +52,7 @@ export const SECTIONS: readonly Section[] = [
   { id: "universities", navKey: "nav.universities", icon: "Landmark", tiers: BOTH, group: "choice", milestone: "M4" },
   { id: "professions", navKey: "nav.professions", icon: "BriefcaseBusiness", tiers: BOTH, group: "choice", milestone: "M4" },
   { id: "english", navKey: "nav.english", icon: "Languages", tiers: BOTH, group: "prep", milestone: "M5" },
-  { id: "csca", navKey: "nav.csca", icon: "NotebookPen", tiers: BOTH, group: "prep", milestone: "M5" },
+  { id: "csca", navKey: "nav.csca", icon: "NotebookPen", tiers: BOTH, group: "prep", milestone: "M5", cscaOnly: true },
   { id: "tests", navKey: "nav.tests", icon: "ListChecks", tiers: BOTH, group: "prep", milestone: "M5" },
   { id: "profile", navKey: "nav.profile", icon: "CircleUserRound", tiers: BOTH, group: null, milestone: "M6" },
 ];
@@ -74,10 +76,11 @@ export type MenuBlock = Readonly<{ group: SectionGroup; sections: readonly Secti
 
 /**
  * Пункты меню ☰: все разделы уровня, с подписями групп «Выбор» и «Учёба»;
- * «Профиль» закрывает список (на телефоне карточки аккаунта нет).
+ * «Профиль» закрывает список (на телефоне карточки аккаунта нет). CSCA только
+ * при `cscaAvailable` (выбор страны — Китай, `cscaAvailableFor`).
  */
-export function menuFor(tier: AccessTier): readonly MenuBlock[] {
-  const list = allowedFor(tier);
+export function menuFor(tier: AccessTier, cscaAvailable: boolean): readonly MenuBlock[] {
+  const list = allowedFor(tier).filter((s) => cscaAvailable || !s.cscaOnly);
   const blocks: MenuBlock[] = [];
   const top = list.filter((s) => s.group === null && s.id !== "profile");
   if (top.length) blocks.push({ group: null, sections: top });

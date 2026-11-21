@@ -193,6 +193,8 @@ Review round 1 (web and server, same PR): the timed-test clock runs on page mono
 
 Superseding the line «iPhone parity is not built in this slice» above: the iPhone now has the same CSCA screens over the same RPC 285/286 and JSON (`docs/portal/csca-contract.md`): track home (next step, diagnostic and mock, mistakes, progress, syllabus sections with topic state, official sessions with target choice), lesson and practice with typed theory blocks, item card with per-option explanations, step-by-step solution and «Сообщить об ошибке», timed test with navigator and «Вернуться позже», result and review after finish, spaced review and progress. Entry: a «CSCA» row above the English list in the «Английский» tab, shown even when the English list fails or is empty (owner default: navigation unchanged).
 
+Superseded on 2026-11-21 (owner decision): CSCA is only for students whose country choice is China, on the web (menu item, every `/portal/csca/**` page, every CSCA server action) and in Expo (menu item and the `csca` layout guard). Other students (another country, «Пока не решил», no choice, failed read) have no CSCA entry; the home card and dates follow the same rule (`cscaAvailableFor`). The native iPhone app in `ios/` is replaced by Expo (ADR 0038) and is not changed, so its «CSCA» row above is historical.
+
 How the iPhone renders differently from the web:
 
 - Formulas: SwiftMath 1.7.3 images inside SwiftUI `Text` instead of KaTeX HTML+MathML; `'` is set as the U+2032 prime glyph. VoiceOver reads a spoken label built from TeX, with English runs marked `en` (SwiftUI passes it as `UIAccessibilitySpeechAttributeLanguage`), where the web exposes MathML.
@@ -271,7 +273,7 @@ Owner decision 18.10.2026. One compact card on «Главная», on web and iP
 
 | Rule | Web | iPhone |
 |---|---|---|
-| Visible when | choice country is `CN` (`cscaHomeCardVisible`, `src/lib/portal/csca-home-card.ts`) | the same (`CSCAHomeCardPolicy.isVisible`, `ios/EVOAdmissions/Services/CSCA/CSCAHomeCard.swift`) |
+| Visible when | choice country is `CN` (`cscaAvailableFor`, `src/lib/portal/csca-home-card.ts`) | the same (`CSCAHomeCardPolicy.isVisible`, `ios/EVOAdmissions/Services/CSCA/CSCAHomeCard.swift`) |
 | Hidden for | IT, MY, AE, TR, CZ, «Пока не решил», no choice, a failed choice read, a failed `learning_track_home_v1` read; never an error card (the CSCA section shows its own error) | the same; after a choice change the card appears or disappears at once, without a restart |
 | Content | title «CSCA»; one line `summary` of `src/content/csca/overview.json` (RU or KY, no new claims); nearest official session; one action «К подготовке» | the same text from the same JSON (`CSCAHomeCardPolicy.summary`) |
 | Nearest session | first by start date of the sessions whose last exam day is not before `today` of the server answer; none left: title, summary and action stay | the same (`nearestSession`) |

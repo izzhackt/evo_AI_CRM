@@ -129,6 +129,15 @@ test("лиды начинаются заранее: недостающие за�
   assert.equal(TODAY_TASK_LEAD_PREFETCH_CAP >= 15, true, "предзагрузка не уже предела видимых строк");
 });
 
+test("повторяющиеся id задач не доходят до базы (она отказывает 22023): уходит каждая задача один раз", async () => {
+  const { readTaskLeadRefs, calls } = leadsSource(refsFor);
+  const task = { key: `staff:${id(1)}`, id: id(1) };
+  const other = { key: `staff:${id(2)}`, id: id(2) };
+  const result = await readTaskLeadRefs(admin, [task, other, { ...task }]);
+  assert.deepEqual(calls.refs, [[id(1), id(2)]]);
+  assert.deepEqual(Object.keys(result), [task.key, other.key]);
+});
+
 test("список «Задач»: задачи-перезвоны одним чтением, не больше предела", async () => {
   const { readQueueTaskLeads, calls } = leadsSource(refsFor);
   const tasks = Array.from({ length: 18 }, (_, index) => ({ kind: "staff", key: `staff:${id(index + 1)}`, id: id(index + 1), title: CALLBACK }));
@@ -172,6 +181,7 @@ test("`/main`: лиды перезвонов начинаются, как тол
     },
     "@/components/staff/today-next/TodayNextLazy": { TodayNextLazy: () => null },
     "@/components/staff/sales-next/SalesTabView": { SalesTabView: () => null },
+    "next/navigation": { redirect: () => { throw new Error("NEXT_REDIRECT"); } },
   });
   const pending = load("src/app/(staff)/main/page.tsx").default({ searchParams: Promise.resolve({}) });
   await flush();
@@ -209,6 +219,7 @@ test("`/main`: набор закрыт этому сотруднику — ли�
     },
     "@/components/staff/today-next/TodayNextLazy": { TodayNextLazy: () => null },
     "@/components/staff/sales-next/SalesTabView": { SalesTabView: () => null },
+    "next/navigation": { redirect: () => { throw new Error("NEXT_REDIRECT"); } },
   });
   const element = await load("src/app/(staff)/main/page.tsx").default({ searchParams: Promise.resolve({}) });
   assert.deepEqual(refs, []);
@@ -311,6 +322,7 @@ test("`/finance`: ссылка отчёта и очередь чеков ста�
     "@/lib/v3/student-debts-source": { readStudentDebts: async () => ({ status: "denied" }) },
     "@/components/staff/sales-next/SalesTabView": { SalesTabView },
     "@/components/staff/finance-next/FinanceNextLazy": { FinanceNextLazy: () => null },
+    "@/components/staff/finance-next/FinanceTabs": { FinanceTabs: () => null },
   });
   const pending = load("src/app/(staff)/finance/page.tsx").default({ searchParams: Promise.resolve({}) });
   await flush();
@@ -331,6 +343,7 @@ test("`/finance`: роль без финансовых вкладок не чи�
     "@/lib/v3/student-debts-source": { readStudentDebts: async () => ({ status: "denied" }) },
     "@/components/staff/sales-next/SalesTabView": { SalesTabView },
     "@/components/staff/finance-next/FinanceNextLazy": { FinanceNextLazy: () => null },
+    "@/components/staff/finance-next/FinanceTabs": { FinanceTabs: () => null },
   });
   await load("src/app/(staff)/finance/page.tsx").default({ searchParams: Promise.resolve({}) });
   assert.deepEqual(started, []);

@@ -38,7 +38,9 @@ export async function readLeadRef(actor: ActivePlatformActor, leadId: string): P
 export async function readTaskLeadRefs(actor: ActivePlatformActor, tasks: readonly Readonly<{ key: string; id: string }>[]): Promise<Readonly<Record<string, TaskLeadRef>>> {
   if (tasks.length === 0) return Object.freeze({});
   try {
-    const refs = await readStaffTaskLeadRefs(actor, tasks.slice(0, STAFF_TASK_LEAD_REFS_LIMIT).map((task) => task.id));
+    // The database refuses repeated ids (22023): each task is asked once; a repeated row shares the answer.
+    const ids = [...new Set(tasks.map((task) => task.id.toLowerCase()))].slice(0, STAFF_TASK_LEAD_REFS_LIMIT);
+    const refs = await readStaffTaskLeadRefs(actor, ids);
     const byTask = new Map<string, StaffTaskLeadRef>(refs.map((ref) => [ref.taskId, ref]));
     return Object.freeze(Object.fromEntries(tasks.flatMap((task): [string, TaskLeadRef][] => {
       const ref = byTask.get(task.id.toLowerCase());

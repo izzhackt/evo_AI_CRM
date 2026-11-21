@@ -642,6 +642,9 @@ export function countryCodeFromSlug(slug: string): string | null {
 
 export const UNIVERSITIES_BASE = "/portal/universities";
 
+/** Все страны: маркер `all=1` отключает вход в страну студента (иначе каталог открывается на ней). */
+export const UNIVERSITIES_ALL_HREF = `${UNIVERSITIES_BASE}?all=1`;
+
 export type CountryView = "cities" | "list" | "map";
 
 export function countryHref(code: string, view: CountryView = "cities"): string {
@@ -815,19 +818,19 @@ export function countForm(value: number): "one" | "few" | "many" {
 }
 
 export type LegacyUniversitiesRoute =
-  | Readonly<{ kind: "page"; query: string }>
+  | Readonly<{ kind: "page"; query: string; all: boolean }>
   | Readonly<{ kind: "redirect"; href: string }>
   | Readonly<{ kind: "invalid" }>;
 
 /**
- * Адрес `/portal/universities?…`: новый вид: только необязательный `q`
- * (поиск по названию). Прежние адреса списка и карты (`view`, `country`,
+ * Адрес `/portal/universities?…`: новый вид: необязательный `q` (поиск по
+ * названию) и маркер `all=1` («Все страны»: без входа в страну студента). Прежние адреса списка и карты (`view`, `country`,
  * `level`, `offset`) ведут на новые экраны: карта страны остаётся картой
  * страны, поиск остаётся поиском (план 7.3).
  */
 export function resolveUniversitiesRoute(params: Readonly<Record<string, string | string[] | undefined>>): LegacyUniversitiesRoute {
   const keys = Object.keys(params).filter((key) => params[key] !== undefined);
-  if (keys.some((key) => !["q", "view", "country", "level", "offset"].includes(key) || Array.isArray(params[key]))) {
+  if (keys.some((key) => !["q", "all", "view", "country", "level", "offset"].includes(key) || Array.isArray(params[key]))) {
     return { kind: "invalid" };
   }
   const value = (key: string) => (typeof params[key] === "string" ? params[key] as string : "");
@@ -836,15 +839,41 @@ export function resolveUniversitiesRoute(params: Readonly<Record<string, string 
   const country = value("country");
   const level = value("level");
   const offset = value("offset");
+  const allValue = value("all");
+  if (params.all !== undefined && allValue !== "1") return { kind: "invalid" };
   if (query.length > 100 || /[\u0000-\u001f\u007f]/u.test(query)
     || (params.view !== undefined && view !== "map" && view !== "list")
     || (country !== "" && !STUDY_COUNTRY_CODES.includes(country))
     || (level !== "" && !UNIVERSITY_LEVELS.includes(level as UniversityLevel))
     || (offset !== "" && !/^(?:0|[1-9]\d{0,4})$/u.test(offset))) return { kind: "invalid" };
-  const legacy = keys.some((key) => key !== "q");
+  const all = allValue === "1";
+  const legacy = keys.some((key) => key !== "q" && key !== "all");
   const trimmed = query.trim();
-  if (!legacy) return { kind: "page", query };
-  if (trimmed !== "") return { kind: "redirect", href: `${UNIVERSITIES_BASE}?${new URLSearchParams({ q: trimmed })}` };
+  if (!legacy) return { kind: "page", query, all };
+  if (trimmed !== "") return { kind: "redirect", href: `${UNIVERSITIES_BASE}?${new URLSearchParams(all ? { q: trimmed, all: "1" } : { q: trimmed })}` };
   if (country !== "") return { kind: "redirect", href: countryHref(country, view === "map" ? "map" : "cities") };
-  return { kind: "redirect", href: UNIVERSITIES_BASE };
+  return { kind: "redirect", href: all ? UNIVERSITIES_ALL_HREF : UNIVERSITIES_BASE };
+}
+
+/**
+ * Страна, на которой открывается каталог, или null (общий экран).
+ * «Пока не решил», пустой выбор, сбой чтения и страна вне шести дают общий
+ * экран; поиск и маркер «Все страны» тоже остаются на нём.
+ */
+export function universitiesEntryCountry(
+  route: Readonly<{ query: string; all: boolean }>,
+  choice: Readonly<{ country: string | null }> | null,
+): string | null {
+  if (route.all || route.query.trim() !== "") return null;
+  const country = choice?.country ?? null;
+  return country !== null && STUDY_COUNTRY_CODES.includes(country) ? country : null;
+}
+
+/** Адрес входа в каталог: страница страны студента или null (общий экран). */
+export function universitiesEntryTarget(
+  route: Readonly<{ query: string; all: boolean }>,
+  choice: Readonly<{ country: string | null }> | null,
+): string | null {
+  const country = universitiesEntryCountry(route, choice);
+  return country === null ? null : countryHref(country);
 }

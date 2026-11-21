@@ -10,7 +10,7 @@ import { formatPortalString } from "@web/lib/portal/i18n";
 
 import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
-import { EmptyBlock } from "@/ui/CardParts";
+import { EmptyBlock, LinkButton } from "@/ui/CardParts";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
@@ -20,7 +20,7 @@ import { CatalogFrame } from "./CatalogFrame";
 import { CatalogMap } from "./CatalogMap";
 import { useFavoriteState } from "./FavoritesContext";
 import { countryPageModel, placeCounts, searchCountry, tileModel } from "./model";
-import { CityCardView, geographyUrls, open, PathRow, PhotoCredit, RemotePhoto, universityRoute, UniversityTileView, usePhotoPixels } from "./parts";
+import { ALL_COUNTRIES_ROUTE, CityCardView, geographyUrls, open, PathRow, PhotoCredit, RemotePhoto, universityRoute, UniversityTileView, usePhotoPixels } from "./parts";
 import { geographyPhotoCredit } from "./photos";
 import { NotFoundBlock } from "./NotFoundBlock";
 
@@ -78,10 +78,11 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                 icon={Landmark}
                 title={strings.countryEmptyTitle}
                 body={strings.countryEmptyBody}
-                action={<Button variant="ghost" label={strings.allCountries} onPress={() => open("/universities")} />}
+                action={<Button variant="ghost" label={strings.allCountries} onPress={() => open(ALL_COUNTRIES_ROUTE)} />}
               />
             ) : (
               <>
+                <LinkButton label={strings.allCountries} onPress={() => open(ALL_COUNTRIES_ROUTE)} testID="all-countries" />
                 <Segmented<View_>
                   value={view}
                   testIDPrefix="view"

@@ -19,6 +19,8 @@ import { Text } from "@/ui/Text";
 import type { CityCard, CountryCard, TileModel, UniversityStrings } from "./model";
 import { geographyPhotoUrls, universityPhotoUrls, type PhotoCreditView, type PhotoUrls } from "./photos";
 
+/** «Все страны»: маркер `all=1` отключает вход в страну студента. */
+export const ALL_COUNTRIES_ROUTE = "/universities?all=1";
 export const open = (href: string) => router.push(href as Href);
 export const universityRoute = (id: string) => `/universities/${id}`;
 export const countryRoute = (code: string, view: "cities" | "list" | "map" = "cities") =>
@@ -143,7 +145,7 @@ export function PathRow({ crumbs, strings }: { crumbs: readonly string[]; string
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={m("uni.back")}
-        onPress={() => (router.canGoBack() ? router.back() : open("/universities"))}
+        onPress={() => (router.canGoBack() ? router.back() : open(ALL_COUNTRIES_ROUTE))}
         style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}
         testID="path-back"
       >

@@ -27,6 +27,7 @@ import {
   citySearchText,
   countryUniversitiesWithoutCity,
   localizedText,
+  UNIVERSITIES_ALL_HREF,
   UNIVERSITIES_BASE,
   type StudentUniversityIndex,
 } from "@/lib/portal/university-index";
@@ -87,7 +88,7 @@ export default async function CountryPage({
   if (index === null) {
     return (
       <main className="pt-page pt-atlas">
-        <Breadcrumbs crumbs={[{ label: strings.title, href: UNIVERSITIES_BASE }]} label={strings.breadcrumbAria} />
+        <Breadcrumbs crumbs={[{ label: strings.title, href: UNIVERSITIES_ALL_HREF }]} label={strings.breadcrumbAria} />
         <UnavailableNotice strings={strings} href={countryHref(code, view)} />
       </main>
     );
@@ -136,7 +137,7 @@ export default async function CountryPage({
   return (
     <main className="pt-page pt-atlas">
       <Breadcrumbs
-        crumbs={[{ label: strings.title, href: UNIVERSITIES_BASE }, { label: name, href: null }]}
+        crumbs={[{ label: strings.title, href: UNIVERSITIES_ALL_HREF }, { label: name, href: null }]}
         label={strings.breadcrumbAria}
       />
       <PlaceHero
@@ -157,11 +158,14 @@ export default async function CountryPage({
           <h2 className="pt-empty-title">{strings.countryEmptyTitle}</h2>
           <p className="pt-empty-body">{strings.countryEmptyBody}</p>
           <p>
-            <IntentPrefetchLink href={UNIVERSITIES_BASE} className="pt-btn-ghost">{strings.allCountries}</IntentPrefetchLink>
+            <IntentPrefetchLink href={UNIVERSITIES_ALL_HREF} className="pt-btn-ghost">{strings.allCountries}</IntentPrefetchLink>
           </p>
         </section>
       ) : (
         <>
+          <p>
+            <IntentPrefetchLink href={UNIVERSITIES_ALL_HREF} className="pt-link">{strings.allCountries}</IntentPrefetchLink>
+          </p>
           <nav aria-label={strings.viewAria} className="pt-view-toggle pt-place-toggle">
             <IntentPrefetchLink
               href={countryHref(code)}

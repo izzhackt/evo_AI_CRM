@@ -111,7 +111,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
       "/portal/professions",
       // 03.11.2026: «Избранное» — вкладка «Вузы» на /portal, без пункта меню.
       "/portal/english",
-      // S5.1: CSCA рядом с «Английским», навигация не перестраивается.
+      // S5.1: CSCA рядом с «Английским»; с 21.11.2026 пункт только для Китая (cscaOnly).
       "/portal/csca",
       // 03.11.2026: «Уведомления» вошли во «Входящие» (/portal/messages,
       // лента «Что нового»); сама страница осталась для старых ссылок.
@@ -131,7 +131,7 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
   // 02.10: Shell получает тему запроса для кнопки «солнце/луна».
-  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s+studyCountry=\{studyCountry\}\s+railCollapsed=\{portalRailCollapsed\(cookieStore\.get\(PORTAL_RAIL_COOKIE\)\?\.value\)\}\s*>/u);
+  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s+studyCountry=\{studyCountry\}\s+cscaAvailable=\{cscaAvailableFor\(countryChoice\)\}\s+railCollapsed=\{portalRailCollapsed\(cookieStore\.get\(PORTAL_RAIL_COOKIE\)\?\.value\)\}\s*>/u);
   // 03.11.2026: страна поступления для карточки внизу рейла — то же чтение 284,
   // сбой не роняет кабинет.
   assert.match(layout, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);

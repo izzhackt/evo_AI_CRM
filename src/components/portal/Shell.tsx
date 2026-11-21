@@ -102,9 +102,8 @@ const SECTIONS = [
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"], group: "nav.groupChoice" },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
   { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"], group: "nav.groupPrep" },
-  // S5.1: CSCA рядом с «Английским», навигация не перестраивается (решение по
-  // умолчанию до ответа владельца, PLAN_CHANGES 16.10).
-  { href: "/portal/csca", key: "nav.csca", tiers: ["approved", "assisted"] },
+  // S5.1: CSCA рядом с «Английским». С 21.11.2026 пункт только у студента с выбором «Китай» (`cscaOnly`).
+  { href: "/portal/csca", key: "nav.csca", tiers: ["approved", "assisted"], cscaOnly: true },
   { href: "/portal/tests", key: "nav.tests", tiers: ["approved", "assisted"] },
   { href: "/portal/profile", key: "nav.profile", tiers: ["approved", "assisted"] },
 ] as const satisfies readonly {
@@ -113,6 +112,8 @@ const SECTIONS = [
   tiers: readonly PortalAccessTier[];
   /** Подпись группы над пунктом — только в рейле широкого экрана. */
   group?: keyof PortalStrings<"shell">;
+  /** Пункт только для студента, чей выбор страны — Китай. */
+  cscaOnly?: true;
 }[];
 
 /**
@@ -234,6 +235,7 @@ export function Shell({
   theme,
   release = null,
   studyCountry = null,
+  cscaAvailable = false,
   railCollapsed = false,
 }: {
   children: React.ReactNode;
@@ -245,13 +247,15 @@ export function Shell({
   release?: string | null;
   /** Страна поступления для подписи в карточке внизу рейла; `null` — без неё. */
   studyCountry?: string | null;
+  /** Раздел CSCA доступен: выбор страны студента — Китай (`cscaAvailableFor`). */
+  cscaAvailable?: boolean;
   /** Рейл свёрнут до значков (cookie `portal_rail`, читает layout). */
   railCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const strings = getPortalStrings("shell", locale);
   const sections = SECTIONS.filter((section) =>
-    (section.tiers as readonly PortalAccessTier[]).includes(accessTier));
+    (section.tiers as readonly PortalAccessTier[]).includes(accessTier) && (cscaAvailable || !("cscaOnly" in section)));
   // Плавающая кнопка «Написать EVO» (10.11.2026): чат есть только у клиента с сопровождением; на самих «Входящих»
   // она лишняя. Экраны согласий, входа и анкеты живут вне оболочки, поэтому кнопки там нет по построению.
   const chatFab = accessTier === "assisted" && pathname !== "/portal/messages" && !pathname.startsWith("/portal/messages/");

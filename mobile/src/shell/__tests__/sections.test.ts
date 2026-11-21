@@ -18,11 +18,19 @@ describe("разделы по уровню (Shell.tsx веба, #1355)", () => {
     expect(allowedFor("assisted")).toHaveLength(SECTIONS.length);
     expect(allowedFor("approved").map((s) => s.id)).toEqual(["home", "universities", "professions", "english", "csca", "tests", "profile"]);
   });
+  it("CSCA в меню только при выборе «Китай»; доступ по уровню от страны не зависит", () => {
+    const ids = (china: boolean) => menuFor("assisted", china).flatMap((b) => b.sections.map((s) => s.id));
+    expect(ids(true)).toContain("csca");
+    expect(ids(false)).not.toContain("csca");
+    expect(ids(false)).toEqual(ids(true).filter((id) => id !== "csca"));
+    expect(menuFor("approved", false).flatMap((b) => b.sections.map((s) => s.id))).toEqual(["home", "universities", "professions", "english", "tests", "profile"]);
+    expect(isAllowed("csca", "approved")).toBe(true);
+  });
   it("меню: группы «Выбор» и «Учёба», Профиль последним; «Оплата» в меню", () => {
-    const blocks = menuFor("assisted");
+    const blocks = menuFor("assisted", true);
     expect(blocks.map((b) => b.group)).toEqual([null, "choice", "prep", null]);
     expect(blocks[0]?.sections.map((s) => s.id)).toEqual(["home", "documents", "payments", "messages"]);
     expect(blocks[3]?.sections.map((s) => s.id)).toEqual(["profile"]);
-    expect(menuFor("approved")[0]?.sections.map((s) => s.id)).toEqual(["home"]);
+    expect(menuFor("approved", true)[0]?.sections.map((s) => s.id)).toEqual(["home"]);
   });
 });

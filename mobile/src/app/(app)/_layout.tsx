@@ -1,9 +1,10 @@
 import { router, Tabs, usePathname, type Href } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 
 import { PortalPoll } from "@/api/PortalPoll";
 import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
 import { getConfig } from "@/config";
+import { useCscaAccess } from "@/features/learning/csca/useCscaAccess";
 import { UniversityIndexWarmup } from "@/features/universities/IndexWarmup";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { ChatFab } from "@/shell/ChatFab";
@@ -17,6 +18,11 @@ function activeSection(pathname: string): SectionId | null {
   // Первый сегмент: у вложенных разделов («Университеты») путь длиннее одного имени.
   const name = pathname.split("/").filter(Boolean)[0] ?? "home";
   return SECTIONS.find((s) => s.id === name)?.id ?? null;
+}
+
+/** Меню ☰ внутри провайдера: CSCA в нём только у студента с выбором «Китай». */
+function AppMenu(props: Omit<ComponentProps<typeof MenuSheet>, "cscaAvailable">) {
+  return <MenuSheet {...props} cscaAvailable={useCscaAccess().available} />;
 }
 
 /**
@@ -72,7 +78,7 @@ export default function AppLayout() {
       {/* Одна кнопка к команде EVO с любого экрана кабинета; не рисуется на «Входящих» и в беседе. */}
       <ChatFab />
       </PortalPoll>
-      <MenuSheet
+      <AppMenu
         visible={menuOpen}
         tier={tier}
         active={activeSection(pathname)}

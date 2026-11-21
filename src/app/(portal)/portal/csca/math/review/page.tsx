@@ -6,8 +6,8 @@ import { EmptyIcon } from "@/components/portal/home/HomeParts";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { cscaDayLabel } from "@/lib/portal/csca";
+import { requireCscaStudentPortalActor } from "@/lib/portal/csca-access";
 import { readCscaReview } from "@/lib/portal/csca-source";
-import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,8 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * сегодня по Бишкеку), ответы через record_learning_review_v1.
  */
 export default async function CscaReviewPage() {
-  const [, locale, review] = await Promise.all([
-    requireStudentPortalActor(),
+  await requireCscaStudentPortalActor();
+  const [locale, review] = await Promise.all([
     getLocale(),
     readCscaReview().catch(() => null),
   ]);

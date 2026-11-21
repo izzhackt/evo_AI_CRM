@@ -8,6 +8,7 @@ import { getLocale } from "@/lib/i18n";
 import { consentGateDestination, consentGateRequired, CONSENT_GATE_PATH_HEADER, isConsentGatePath } from "@/lib/portal/consent-gate";
 import { readOwnConsentStatus } from "@/lib/portal/consent-gate-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
+import { cscaAvailableFor } from "@/lib/portal/csca-home-card";
 import { PORTAL_RAIL_COOKIE, portalRailCollapsed } from "@/lib/portal/rail-choice";
 import { readReleaseMetadata } from "@/lib/release-metadata";
 import { hasTemporaryPassword, NEW_PASSWORD_PATH } from "@/lib/student-account-contract";
@@ -64,6 +65,7 @@ export default async function StudentPortalLayout({
       theme={theme}
       release={metadata.status === "available" ? metadata.revision : null}
       studyCountry={studyCountry}
+      cscaAvailable={cscaAvailableFor(countryChoice)}
       railCollapsed={portalRailCollapsed(cookieStore.get(PORTAL_RAIL_COOKIE)?.value)}
     >
       {children}

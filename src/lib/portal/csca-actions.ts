@@ -1,6 +1,7 @@
 "use server";
 
 import { requireStudentPortalActor } from "../student-portal-guards";
+import { cscaAccessForCurrentStudent } from "./csca-access";
 import {
   isCscaKey,
   isCscaOptionId,
@@ -47,6 +48,15 @@ function failure(error: unknown): CscaActionError {
 
 const invalid = (): CscaActionError => ({ ok: false, code: "invalid" });
 
+/**
+ * Решение владельца 21.11.2026: CSCA только у студента с выбором «Китай».
+ * Проверка идёт после входа студента и до любого чтения или записи в базе.
+ */
+async function refusedOutsideChina(): Promise<CscaActionError | null> {
+  await requireStudentPortalActor();
+  return (await cscaAccessForCurrentStudent()) ? null : { ok: false, code: "denied" };
+}
+
 function revision(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 }
@@ -71,7 +81,8 @@ export async function answerCscaLessonItemAction(input: {
   requestId: unknown;
   completeRequestId: unknown;
 }): Promise<CscaAnswerActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (
     !isCscaUuid(input.lessonId) || !isCscaUuid(input.exerciseId) || !isCscaUuid(input.requestId)
     || !isCscaUuid(input.startRequestId) || !isCscaUuid(input.completeRequestId)
@@ -118,7 +129,8 @@ export async function completeCscaLessonAction(input: {
   expectedRevision: unknown;
   requestId: unknown;
 }): Promise<CscaLessonCompleteResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (!isCscaUuid(input.attemptId) || !isCscaUuid(input.requestId) || !revision(input.expectedRevision)) {
     return invalid();
   }
@@ -140,7 +152,8 @@ export type CscaLessonReloadResult =
 
 /** Свежее состояние урока после конфликта ревизии или повторного ответа. */
 export async function reloadCscaLessonAction(lessonId: unknown): Promise<CscaLessonReloadResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (!isCscaUuid(lessonId)) return invalid();
   try {
     const view = await readCscaLesson(lessonId);
@@ -153,7 +166,8 @@ export async function reloadCscaLessonAction(lessonId: unknown): Promise<CscaLes
 export type CscaTestActionResult = { ok: true; attempt: CscaTestAttempt } | CscaActionError;
 
 export async function startCscaTestAction(formId: unknown, requestId: unknown): Promise<CscaTestActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (!isCscaUuid(formId) || !isCscaUuid(requestId)) return invalid();
   try {
     return { ok: true, attempt: await startCscaTest(formId, requestId) };
@@ -163,7 +177,8 @@ export async function startCscaTestAction(formId: unknown, requestId: unknown): 
 }
 
 export async function readCscaTestAttemptAction(attemptId: unknown): Promise<CscaTestActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (!isCscaUuid(attemptId)) return invalid();
   try {
     return { ok: true, attempt: await readCscaTestAttempt(attemptId) };
@@ -183,7 +198,8 @@ export async function saveCscaTestAction(input: {
   itemSeconds: unknown;
   requestId: unknown;
 }): Promise<CscaTestSaveActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   const keys = input.itemKeys;
   if (
     !isCscaUuid(input.attemptId) || !isCscaUuid(input.requestId) || !revision(input.expectedRevision)
@@ -219,7 +235,8 @@ export async function completeCscaTestAction(input: {
   expectedRevision: unknown;
   requestId: unknown;
 }): Promise<CscaTestActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (!isCscaUuid(input.attemptId) || !isCscaUuid(input.requestId) || !revision(input.expectedRevision)) {
     return invalid();
   }
@@ -242,7 +259,8 @@ export async function recordCscaReviewAction(input: {
   selected: unknown;
   requestId: unknown;
 }): Promise<CscaReviewActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (!isCscaKey(input.itemKey) || !isCscaOptionId(input.selected) || !isCscaUuid(input.requestId)) {
     return invalid();
   }
@@ -265,7 +283,8 @@ export async function reportCscaItemAction(input: {
   message: unknown;
   requestId: unknown;
 }): Promise<CscaReportActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   const message = typeof input.message === "string" ? input.message.trim() : "";
   if (
     !isCscaKey(input.itemKey) || !isCscaUuid(input.requestId)
@@ -286,7 +305,8 @@ export async function reportCscaItemAction(input: {
 export type CscaTargetActionResult = { ok: true; targetSessionKey: string | null } | CscaActionError;
 
 export async function setCscaTargetSessionAction(sessionKey: unknown): Promise<CscaTargetActionResult> {
-  await requireStudentPortalActor();
+  const refused = await refusedOutsideChina();
+  if (refused) return refused;
   if (sessionKey !== null && !isCscaKey(sessionKey)) return invalid();
   try {
     const receipt = await setCscaTargetSession(sessionKey);

@@ -8,8 +8,8 @@ import { TheoryBlocks, theoryBlockId, theoryBlockLabel } from "@/components/port
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { isCscaUuid, type CscaLessonSummary, type CscaLessonView } from "@/lib/portal/csca";
+import { requireCscaStudentPortalActor } from "@/lib/portal/csca-access";
 import { CscaSourceError, readCscaLesson, readCscaModuleLessons } from "@/lib/portal/csca-source";
-import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +34,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * Чужой, несуществующий урок и урок «Английского» неразличимы: честный 404.
  */
 export default async function CscaLessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
+  await requireCscaStudentPortalActor();
   const { lessonId } = await params;
   if (!isCscaUuid(lessonId)) notFound();
-  const [, locale, loaded, siblings] = await Promise.all([
-    requireStudentPortalActor(),
+  const [locale, loaded, siblings] = await Promise.all([
     getLocale(),
     readCscaLesson(lessonId).then(
       (view): CscaLessonView | "denied" | null => view,

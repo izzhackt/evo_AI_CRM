@@ -7,8 +7,8 @@ import type { TitleMaps } from "@/components/portal/csca/TestResultView";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { cscaTopicNextLessons, isCscaUuid, type CscaHome, type CscaTestAttempt } from "@/lib/portal/csca";
+import { requireCscaStudentPortalActor } from "@/lib/portal/csca-access";
 import { readCscaHome, readCscaTestAttempt } from "@/lib/portal/csca-source";
-import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
@@ -42,11 +42,11 @@ export default async function CscaTestPage({
   params: Promise<{ formId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireCscaStudentPortalActor();
   const [{ formId }, query] = await Promise.all([params, searchParams]);
   if (!isCscaUuid(formId)) notFound();
   const attemptParam = typeof query.attempt === "string" && isCscaUuid(query.attempt) ? query.attempt : null;
-  const [, locale, home, attempt] = await Promise.all([
-    requireStudentPortalActor(),
+  const [locale, home, attempt] = await Promise.all([
     getLocale(),
     readCscaHome().catch(() => null),
     attemptParam ? readCscaTestAttempt(attemptParam).catch((): CscaTestAttempt | null => null) : Promise.resolve(null),

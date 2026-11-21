@@ -6,6 +6,11 @@ type NameRpcClient = Readonly<{
   };
 }>;
 
+function logFallback(kind: string, reason: string): void {
+  // Одна структурная строка без персональных данных: сорванный выкат миграции или функции виден в журнале приложения.
+  console.warn(JSON.stringify({ event: "download_name_fallback", kind, reason }));
+}
+
 /**
  * Параметр `download` для `createSignedUrl`: имя файла «<Тип> — <Фамилия>.<расширение>» или `true` (прежнее поведение).
  *
@@ -21,12 +26,22 @@ export async function resolveDownloadName(
 ): Promise<string | true> {
   try {
     const response = await (client as NameRpcClient).schema("platform").rpc(rpcName, args);
-    if (response.error) return true;
+    if (response.error) {
+      const code = (response.error as { code?: unknown }).code;
+      logFallback(rpcName, typeof code === "string" && /^[A-Za-z0-9_]{1,16}$/u.test(code) ? `rpc_error_${code}` : "rpc_error");
+      return true;
+    }
     const data = response.data;
-    if (typeof data !== "object" || data === null || Array.isArray(data)) return true;
+    if (typeof data !== "object" || data === null || Array.isArray(data)) {
+      logFallback(rpcName, "unexpected_shape");
+      return true;
+    }
     const record = data as Record<string, unknown>;
     const text = (key: string): string | null => (typeof record[key] === "string" ? (record[key] as string) : null);
-    if (!text("label") && !text("student_surname") && !text("original_filename")) return true;
+    if (!text("label") && !text("student_surname") && !text("original_filename")) {
+      logFallback(rpcName, "no_usable_fields");
+      return true;
+    }
     const name = mode === "stored"
       ? buildStoredDownloadFilename({ name: text("original_filename"), mimeType: text("mime_type") })
       : buildDownloadFilename({
@@ -37,6 +52,7 @@ export async function resolveDownloadName(
       });
     return name.length > 0 ? name : true;
   } catch {
+    logFallback(rpcName, "exception");
     return true;
   }
 }

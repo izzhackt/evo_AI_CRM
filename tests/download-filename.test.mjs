@@ -69,3 +69,15 @@ test("Content-Disposition: broken or hostile values fall back, never throw", () 
   assert.equal(parseContentDispositionFilename(`attachment; filename*=UTF-8''a%0Ab.pdf; filename="ok.pdf"`), "ok.pdf");
   assert.equal(parseContentDispositionFilename(`attachment; filename*=ISO-8859-1''%C4.pdf; filename="ok.pdf"`), "ok.pdf");
 });
+
+test("an unmapped MIME takes the extension from the original name only when it is allowlisted", () => {
+  const name = (fallbackName) => buildDownloadFilename({ label: "Файл", surname: "Фамилия", mimeType: "application/x-unknown", fallbackName });
+  for (const ext of ["pdf", "jpg", "jpeg", "png", "heic", "webp", "gif", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "zip", "mp3", "m4a", "ogg", "mp4", "mov"]) {
+    assert.equal(name(`scan.${ext.toUpperCase()}`), `Файл — Фамилия.${ext}`, ext);
+  }
+  for (const ext of ["exe", "html", "htm", "js", "svg", "bat", "sh", "php", "jar", "dmg"]) {
+    assert.equal(name(`scan.${ext}`), "Файл — Фамилия", ext);
+  }
+  assert.equal(buildDownloadFilename({ mimeType: "", fallbackName: "evil.exe" }), "evil");
+  assert.equal(buildDownloadFilename({ label: "Файл", mimeType: "application/pdf", fallbackName: "evil.exe" }), "Файл.pdf");
+});

@@ -5,7 +5,7 @@
 -- ни ключи ответов выдачи и погашения, ни права (бегущее приложение строго проверяет набор ключей).
 --
 --   1) platform.document_download_name_v1(grant_id): версии документов и документы заявки. Тип = display_label места
---      документа, иначе label требования; фамилия = student_profile_fields.student_last_name дела (миграция 160), а если в анкете
+--      документа, иначе label требования; фамилия = student_profile_fields.student_last_name дела (миграция 160; сначала confirmed, затем needs_review, затем extracted, conflict не берётся), а если в анкете
 --      её нет, то student_display_name дела целиком (порядок слов в нём не гарантирован, угадывать фамилию нельзя).
 --   2) platform.company_file_download_name_v1(grant_id): исходное имя и MIME версии файла компании.
 --   3) platform.staff_case_file_download_name_v1(kind, file_id, case_id): договор и чеки для сотрудника.
@@ -56,7 +56,8 @@ RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     (SELECT f.value FROM platform.student_profile_fields f
       WHERE f.organization_id = p_organization_id AND f.student_case_id = p_student_case_id
         AND f.field_key = 'student_last_name' AND f.value IS NOT NULL AND f.review_state <> 'conflict'
-      ORDER BY f.updated_at DESC LIMIT 1),
+      ORDER BY CASE f.review_state WHEN 'confirmed' THEN 0 WHEN 'needs_review' THEN 1 WHEN 'extracted' THEN 2 ELSE 3 END,
+        f.updated_at DESC LIMIT 1),
     (SELECT c.student_display_name FROM platform.student_cases c
       WHERE c.organization_id = p_organization_id AND c.id = p_student_case_id))
 $$;

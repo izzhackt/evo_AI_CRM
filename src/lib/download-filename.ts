@@ -59,6 +59,13 @@ function clipStem(value: string): string {
   return chars.slice(0, MAX_STEM_LENGTH).join("").replace(/[\s.]+$/gu, "");
 }
 
+// Расширение из исходного имени берём только из короткого списка документов, изображений, офисных файлов, архивов и медиа:
+// иначе имя с «.exe», «.html», «.js» или «.svg» стало бы именем скачиваемого файла.
+const FALLBACK_EXTENSIONS: ReadonlySet<string> = new Set([
+  "pdf", "jpg", "jpeg", "png", "heic", "webp", "gif", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+  "txt", "csv", "zip", "mp3", "m4a", "ogg", "mp4", "mov",
+]);
+
 function extensionOf(name: string | null | undefined): string {
   if (typeof name !== "string") return "";
   const match = /\.([A-Za-z0-9]{1,8})\s*$/u.exec(name.replace(/[\p{Cc}\p{Cf}]/gu, ""));
@@ -85,7 +92,8 @@ function mimeExtension(mimeType: string | null | undefined): string {
 export function buildDownloadFilename(input: DownloadFilenameInput): string {
   const label = cleanPart(input.label);
   const surname = cleanPart(input.surname);
-  const extension = mimeExtension(input.mimeType) || extensionOf(input.fallbackName);
+  const fallbackExtension = extensionOf(input.fallbackName);
+  const extension = mimeExtension(input.mimeType) || (FALLBACK_EXTENSIONS.has(fallbackExtension) ? fallbackExtension : "");
   let stem: string;
   if (label && surname) stem = `${label}${SEPARATOR}${surname}`;
   else if (label) stem = label;

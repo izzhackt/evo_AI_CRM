@@ -73,3 +73,25 @@ test("name lookup helpers fall back to the plain download on bad answers and kee
   assert.doesNotMatch(named.search, /%25/u);
   assert.equal(applyDownloadName("not a url", "a.pdf"), "not a url");
 });
+
+test("a failed lookup writes one structured line without personal data", async () => {
+  const lines = [];
+  const original = console.warn;
+  console.warn = (line) => lines.push(line);
+  try {
+    const client = (data, error = null) => ({ schema: () => ({ rpc: async () => ({ data, error }) }) });
+    await resolveDownloadName(client(null, { code: "42501", message: "Фамилия секрет" }), "document_download_name_v1", { p_download_grant_id: "x" });
+    await resolveDownloadName(client({}), "document_download_name_v1", {});
+    await resolveDownloadName({ schema: () => { throw new Error("Фамилия секрет"); } }, "document_download_name_v1", {});
+    await resolveDownloadName(client({ label: "Паспорт" }), "document_download_name_v1", {});
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(lines.length, 3);
+  assert.deepEqual(lines.map((line) => JSON.parse(line)), [
+    { event: "download_name_fallback", kind: "document_download_name_v1", reason: "rpc_error_42501" },
+    { event: "download_name_fallback", kind: "document_download_name_v1", reason: "no_usable_fields" },
+    { event: "download_name_fallback", kind: "document_download_name_v1", reason: "exception" },
+  ]);
+  assert.ok(lines.every((line) => !line.includes("секрет")));
+});

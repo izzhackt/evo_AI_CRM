@@ -95,9 +95,17 @@ FROM (VALUES (501, 401, 304), (502, 402, 305)) AS c(n, scope, student);
 INSERT INTO platform.student_cases(id, organization_id, student_membership_id, responsible_sales_membership_id, source_key,
   student_display_name, operational_stage, state, current_scope_id, current_scope_version) VALUES
   (pg_temp.a366_id(503), pg_temp.a366_id(1), NULL, pg_temp.a366_id(301), 'synthetic:a366:case3', 'A366 Student 503', 'intake_review', 'pending', pg_temp.a366_id(403), 1);
--- The profile surname of case 501 only: case 502 and 503 fall back to the display name.
-INSERT INTO platform.student_profile_fields(organization_id, student_case_id, student_profile_id, field_key, value, review_state, profile_revision)
-  VALUES (pg_temp.a366_id(1), pg_temp.a366_id(501), pg_temp.a366_id(951), 'student_last_name', 'Фамилиянов', 'needs_review', 1);
+-- Surname precedence: confirmed > needs_review > extracted, conflict never. Case 501 has a needs_review, an extracted and a confirmed value
+-- (confirmed wins); case 503 has an extracted and a needs_review value (needs_review wins); case 502 has only a conflict (falls back to the
+-- display name).
+INSERT INTO platform.student_profile_fields(organization_id, student_case_id, student_profile_id, field_key, value, review_state, profile_revision,
+  reviewed_at, reviewed_by_membership_id) VALUES
+  (pg_temp.a366_id(1), pg_temp.a366_id(501), pg_temp.a366_id(951), 'student_last_name', 'Проверяемая', 'needs_review', 1, NULL, NULL),
+  (pg_temp.a366_id(1), pg_temp.a366_id(501), pg_temp.a366_id(952), 'student_last_name', 'Извлечённая', 'extracted', 1, NULL, NULL),
+  (pg_temp.a366_id(1), pg_temp.a366_id(501), pg_temp.a366_id(953), 'student_last_name', 'Подтверждённая', 'confirmed', 1, clock_timestamp(), pg_temp.a366_id(301)),
+  (pg_temp.a366_id(1), pg_temp.a366_id(503), pg_temp.a366_id(954), 'student_last_name', 'Извлечённая', 'extracted', 1, NULL, NULL),
+  (pg_temp.a366_id(1), pg_temp.a366_id(503), pg_temp.a366_id(955), 'student_last_name', 'Проверяемая', 'needs_review', 1, NULL, NULL),
+  (pg_temp.a366_id(1), pg_temp.a366_id(502), pg_temp.a366_id(956), 'student_last_name', 'Спорная', 'conflict', 1, NULL, NULL);
 -- Checklist files: slot 821 «Паспорт» (a custom slot has a display label and no requirement), version 921, on case 501.
 INSERT INTO platform.document_slots(id, organization_id, student_case_id, requirement_id, intent_kind, display_label, group_label, created_by_membership_id)
   VALUES (pg_temp.a366_id(821), pg_temp.a366_id(1), pg_temp.a366_id(501), NULL, 'custom', 'Паспорт', 'A366 synthetic', pg_temp.a366_id(301)),
@@ -139,6 +147,23 @@ INSERT INTO platform.case_pending_receipts(id, organization_id, student_case_id,
   byte_size, sha256_hex, storage_object_name, queued_by_membership_id) VALUES
   (pg_temp.a366_id(641), pg_temp.a366_id(1), pg_temp.a366_id(501), pg_temp.a366_id(923), 'receipt-photo.png', 'image/png', 128, repeat('c', 64),
     'payment-receipts/a366/p', pg_temp.a366_id(301));
+-- Staff receipts: payment events 741 (case 503) and 744 (case 502), receipt files 742 / 743; a Student receipt 761 on case 503.
+INSERT INTO platform.payment_events(id, organization_id, student_case_id, payment_obligation_id, event_type, amount_minor, currency, occurred_at,
+  source_key, actor_membership_id, request_id) VALUES
+  (pg_temp.a366_id(741), pg_temp.a366_id(1), pg_temp.a366_id(503), pg_temp.a366_id(751), 'payment', 100, 'USD', clock_timestamp(), 'a366:741', pg_temp.a366_id(301), pg_temp.a366_id(791)),
+  (pg_temp.a366_id(744), pg_temp.a366_id(1), pg_temp.a366_id(502), pg_temp.a366_id(752), 'payment', 100, 'USD', clock_timestamp(), 'a366:744', pg_temp.a366_id(301), pg_temp.a366_id(792));
+INSERT INTO platform.payment_receipt_files(id, organization_id, student_case_id, payment_obligation_id, payment_event_id, original_filename,
+  declared_mime_type, byte_size, sha256_hex, storage_object_name, uploaded_by_membership_id) VALUES
+  (pg_temp.a366_id(742), pg_temp.a366_id(1), pg_temp.a366_id(503), pg_temp.a366_id(751), pg_temp.a366_id(741), 'receipt-503.jpg', 'image/jpeg', 128, repeat('2', 64), 'payment-receipts/a366/r503', pg_temp.a366_id(301)),
+  (pg_temp.a366_id(743), pg_temp.a366_id(1), pg_temp.a366_id(502), pg_temp.a366_id(752), pg_temp.a366_id(744), 'receipt-502.jpg', 'image/jpeg', 128, repeat('3', 64), 'payment-receipts/a366/r502', pg_temp.a366_id(301));
+INSERT INTO platform.student_payment_receipts(id, organization_id, student_case_id, student_membership_id, declared_amount_minor, declared_currency,
+  declared_paid_on, original_filename, declared_mime_type, byte_size, sha256_hex, storage_object_name, submit_request_id) VALUES
+  (pg_temp.a366_id(761), pg_temp.a366_id(1), pg_temp.a366_id(503), pg_temp.a366_id(304), 100, 'USD', DATE '2026-11-01', 'student-receipt.pdf', 'application/pdf', 128,
+    repeat('4', 64), 'payment-receipts/a366/s503', pg_temp.a366_id(793));
+-- Payment details with a QR (organization 1, current version).
+INSERT INTO platform.payment_details_versions(id, organization_id, version_no, details_text, qr_original_filename, qr_mime_type, qr_byte_size,
+  qr_sha256_hex, qr_storage_object_name, updated_by_membership_id) VALUES
+  (pg_temp.a366_id(771), pg_temp.a366_id(1), 1, 'A366 synthetic details', 'qr-code.png', 'image/png', 128, repeat('5', 64), 'payment-details/a366/qr', pg_temp.a366_id(306));
 SET LOCAL session_replication_role = origin;
 
 SELECT pg_temp.a366_claims(1) AS a366_rep \gset
@@ -168,12 +193,12 @@ SELECT pg_temp.a366_assert(NOT has_function_privilege('authenticated', 'platform
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.a366_as(:'a366_student_a', format('SELECT platform.document_download_name_v1(%L)', pg_temp.a366_id(1))) AS a366_doc_a \gset
 SELECT pg_temp.a366_assert((SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(:'a366_doc_a'::JSONB) k) = ARRAY['label', 'mime_type', 'original_filename', 'student_surname']
-  AND (:'a366_doc_a'::JSONB) ->> 'label' = 'Паспорт' AND (:'a366_doc_a'::JSONB) ->> 'student_surname' = 'Фамилиянов'
+  AND (:'a366_doc_a'::JSONB) ->> 'label' = 'Паспорт' AND (:'a366_doc_a'::JSONB) ->> 'student_surname' = 'Подтверждённая'
   AND (:'a366_doc_a'::JSONB) ->> 'mime_type' = 'image/png' AND (:'a366_doc_a'::JSONB) ->> 'original_filename' = 'IMG_0001.png',
   'the owner of the live grant gets label, profile surname, MIME and original name: ' || :'a366_doc_a');
 SELECT pg_temp.a366_as(:'a366_rep', format('SELECT platform.document_download_name_v1(%L)', pg_temp.a366_id(2))) AS a366_doc_rep \gset
-SELECT pg_temp.a366_assert((:'a366_doc_rep'::JSONB) ->> 'label' = 'Аттестат' AND (:'a366_doc_rep'::JSONB) ->> 'student_surname' = 'A366 Student 503',
-  'without a profile surname the case display name is used: ' || :'a366_doc_rep');
+SELECT pg_temp.a366_assert((:'a366_doc_rep'::JSONB) ->> 'label' = 'Аттестат' AND (:'a366_doc_rep'::JSONB) ->> 'student_surname' = 'Проверяемая',
+  'the surname is the best-ranked profile value (needs_review over extracted): ' || :'a366_doc_rep');
 SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_student_b', format('SELECT platform.document_download_name_v1(%L)', pg_temp.a366_id(1))) ->> 'error' = '42501',
   'another Student cannot read the name of the grant');
 SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_rep', format('SELECT platform.document_download_name_v1(%L)', pg_temp.a366_id(1))) ->> 'error' = '42501',
@@ -206,7 +231,7 @@ SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_foreign', format('SELECT platf
 -- 4. Staff contract.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.a366_as(:'a366_rep', format('SELECT platform.staff_case_file_download_name_v1(%L, %L, %L)', 'contract', pg_temp.a366_id(633), pg_temp.a366_id(503))) AS a366_staff_contract \gset
-SELECT pg_temp.a366_assert((:'a366_staff_contract'::JSONB) ->> 'label' = 'Договор' AND (:'a366_staff_contract'::JSONB) ->> 'student_surname' = 'A366 Student 503'
+SELECT pg_temp.a366_assert((:'a366_staff_contract'::JSONB) ->> 'label' = 'Договор' AND (:'a366_staff_contract'::JSONB) ->> 'student_surname' = 'Проверяемая'
   AND (:'a366_staff_contract'::JSONB) ->> 'mime_type' = 'image/jpeg' AND (:'a366_staff_contract'::JSONB) ->> 'original_filename' = 'contract-c.jpg',
   'the rep of the case gets «Договор» with the case name: ' || :'a366_staff_contract');
 SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_rep', format('SELECT platform.staff_case_file_download_name_v1(%L, %L, %L)', 'contract', pg_temp.a366_id(633), pg_temp.a366_id(502))) ->> 'error' = '42501',
@@ -222,15 +247,39 @@ SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_rep', format('SELECT platform.
 SELECT pg_temp.a366_assert(pg_temp.a366_call('anon', '{"role":"anon"}', format('SELECT platform.staff_case_file_download_name_v1(%L, %L, %L)', 'contract', pg_temp.a366_id(633), pg_temp.a366_id(503))) ->> 'error' = '42501',
   'anon cannot execute it');
 
+-- Staff receipts (the p_student_case_id given for 'receipt', taken from the row for 'student_receipt').
+SELECT pg_temp.a366_as(:'a366_rep', format('SELECT platform.staff_case_file_download_name_v1(%L, %L, %L)', 'receipt', pg_temp.a366_id(742), pg_temp.a366_id(503))) AS a366_staff_receipt \gset
+SELECT pg_temp.a366_assert((:'a366_staff_receipt'::JSONB) ->> 'label' = 'Чек' AND (:'a366_staff_receipt'::JSONB) ->> 'student_surname' = 'Проверяемая'
+  AND (:'a366_staff_receipt'::JSONB) ->> 'mime_type' = 'image/jpeg' AND (:'a366_staff_receipt'::JSONB) ->> 'original_filename' = 'receipt-503.jpg',
+  'the rep gets the attached receipt named «Чек»: ' || :'a366_staff_receipt');
+SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_rep', format('SELECT platform.staff_case_file_download_name_v1(%L, %L, %L)', 'receipt', pg_temp.a366_id(743), pg_temp.a366_id(503))) ->> 'error' = '42501',
+  'a receipt file of another case is refused under this case');
+SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_stranger', format('SELECT platform.staff_case_file_download_name_v1(%L, %L, %L)', 'receipt', pg_temp.a366_id(742), pg_temp.a366_id(503))) ->> 'error' = '42501',
+  'a staff member without the case is refused on a receipt');
+SELECT pg_temp.a366_as(:'a366_rep', format('SELECT platform.staff_case_file_download_name_v1(%L, %L)', 'student_receipt', pg_temp.a366_id(761))) AS a366_staff_student_receipt \gset
+SELECT pg_temp.a366_assert((:'a366_staff_student_receipt'::JSONB) ->> 'label' = 'Чек' AND (:'a366_staff_student_receipt'::JSONB) ->> 'student_surname' = 'Проверяемая'
+  AND (:'a366_staff_student_receipt'::JSONB) ->> 'mime_type' = 'application/pdf' AND (:'a366_staff_student_receipt'::JSONB) ->> 'original_filename' = 'student-receipt.pdf',
+  'the rep gets the Student receipt, the case taken from the row: ' || :'a366_staff_student_receipt');
+SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_stranger', format('SELECT platform.staff_case_file_download_name_v1(%L, %L)', 'student_receipt', pg_temp.a366_id(761))) ->> 'error' = '42501',
+  'a staff member without the case is refused on a Student receipt');
+SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_rep', format('SELECT platform.staff_case_file_download_name_v1(%L, %L)', 'student_receipt', pg_temp.a366_id(999))) ->> 'error' = '42501',
+  'an unknown Student receipt is refused');
+
 -- ---------------------------------------------------------------------------
 -- 5. Student contract and receipt.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.a366_as(:'a366_student_a', format('SELECT platform.student_portal_case_file_download_name_v1(%L, %L)', 'contract', pg_temp.a366_id(631))) AS a366_student_contract \gset
-SELECT pg_temp.a366_assert((:'a366_student_contract'::JSONB) ->> 'label' = 'Договор' AND (:'a366_student_contract'::JSONB) ->> 'student_surname' = 'Фамилиянов'
+SELECT pg_temp.a366_assert((:'a366_student_contract'::JSONB) ->> 'label' = 'Договор' AND (:'a366_student_contract'::JSONB) ->> 'student_surname' = 'Подтверждённая'
   AND (:'a366_student_contract'::JSONB) ->> 'mime_type' = 'application/pdf', 'the Student gets own contract with the profile surname: ' || :'a366_student_contract');
 SELECT pg_temp.a366_as(:'a366_student_a', format('SELECT platform.student_portal_case_file_download_name_v1(%L, %L)', 'pending_receipt', pg_temp.a366_id(641))) AS a366_student_receipt \gset
 SELECT pg_temp.a366_assert((:'a366_student_receipt'::JSONB) ->> 'label' = 'Чек' AND (:'a366_student_receipt'::JSONB) ->> 'original_filename' = 'receipt-photo.png',
   'the Student gets own receipt named «Чек»: ' || :'a366_student_receipt');
+SELECT pg_temp.a366_as(:'a366_student_a', format('SELECT platform.student_portal_case_file_download_name_v1(%L, %L)', 'payment_details_qr', pg_temp.a366_id(771))) AS a366_student_qr \gset
+SELECT pg_temp.a366_assert((:'a366_student_qr'::JSONB) ->> 'label' = 'Реквизиты' AND (:'a366_student_qr'::JSONB) ->> 'student_surname' IS NULL
+  AND (:'a366_student_qr'::JSONB) ->> 'mime_type' = 'image/png' AND (:'a366_student_qr'::JSONB) ->> 'original_filename' = 'qr-code.png',
+  'the Student gets the payment details QR named «Реквизиты» with no surname: ' || :'a366_student_qr');
+SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_rep', format('SELECT platform.student_portal_case_file_download_name_v1(%L, %L)', 'payment_details_qr', pg_temp.a366_id(771))) ->> 'error' = '42501',
+  'a staff caller is refused on the QR');
 SELECT pg_temp.a366_as(:'a366_student_b', format('SELECT platform.student_portal_case_file_download_name_v1(%L, %L)', 'contract', pg_temp.a366_id(632))) AS a366_student_b_contract \gset
 SELECT pg_temp.a366_assert((:'a366_student_b_contract'::JSONB) ->> 'student_surname' = 'A366 Student 502', 'Student B falls back to the case display name');
 SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_student_b', format('SELECT platform.student_portal_case_file_download_name_v1(%L, %L)', 'contract', pg_temp.a366_id(631))) ->> 'error' = '42501',
@@ -247,7 +296,7 @@ SELECT pg_temp.a366_assert(pg_temp.a366_as(:'a366_student_a', format('SELECT pla
 -- ---------------------------------------------------------------------------
 -- 6. No storage key leaves through any answer.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.a366_assert(NOT (:'a366_doc_a' || :'a366_company' || :'a366_staff_contract' || :'a366_student_contract' || :'a366_student_receipt') ~ 'case-contracts|payment-receipts|storage_object_name',
+SELECT pg_temp.a366_assert(NOT (:'a366_doc_a' || :'a366_company' || :'a366_staff_contract' || :'a366_student_contract' || :'a366_student_receipt' || :'a366_staff_receipt' || :'a366_staff_student_receipt' || :'a366_student_qr') ~ 'case-contracts|payment-receipts|payment-details|storage_object_name',
   'no answer carries a storage object name');
 
 \echo A366_DOWNLOAD_FILE_NAMES_SUITE_PASSED

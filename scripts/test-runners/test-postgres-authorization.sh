@@ -5512,6 +5512,32 @@ SQL
       exit 1
     fi
   fi
+  # «Имена скачиваемых файлов» (migration 366, 21.11.2026). Matched by name, not number. Four new read functions give the data for
+  # «<Тип документа> — <Фамилия>.<расширение>»: right after the migration a second apply refuses (a366_already_applied), then the
+  # suite, insisting on its marker: the owner of a live grant / the authorized actor gets the fields, everyone else is refused.
+  if [[ "$(basename "$migration")" == *_platform_download_file_names.sql ]]; then
+    t366_again_log="$(mktemp -t evo-t366-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t366_again_log" 2>&1; then
+      echo "migration 366 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a366_already_applied" "$t366_again_log"; then
+      echo "a second apply of migration 366 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t366_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t366_again_log"
+    download_file_names_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_download_file_names.sql </dev/null)"
+    printf '%s\n' "$download_file_names_log"
+    if ! grep -q 'A366_DOWNLOAD_FILE_NAMES_SUITE_PASSED' <<<"$download_file_names_log"; then
+      echo "platform_download_file_names.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Чтение справочника городов для просмотра в CRM» (migration 354, 08.11.2026). Matched by name, not number. The migration
   # adds the read-only `staff_catalog_geography_read_v1` (published cities and links, catalog.read): right after it a second
   # apply refuses (a354_already_applied), then the suite, insisting on its marker.

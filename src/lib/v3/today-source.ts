@@ -210,6 +210,11 @@ export async function readTodayQueue(
      * с неизвестного номера открывает её, а не панель доски. Чтение начато страницей заранее, не отказывает; по умолчанию — нет.
      */
     callsTab?: Promise<boolean>;
+    /**
+     * Зовётся, как только прочитан КАЖДЫЙ источник, не дожидаясь остальных: страница начинает чтение лидов задач-перезвонов
+     * сразу после источника задач, а не после всей очереди. Не отказывает чтению: сбой обработчика гасится.
+     */
+    onSourceRead?: (read: TodaySourceRead) => void;
   }>,
 ): Promise<TodayRead> {
   const access = todayAccess(actor);
@@ -217,7 +222,12 @@ export async function readTodayQueue(
   const today = dayInOrganizationTimezone(options.now);
   const taskAccess = taskQueueAccess(actor);
 
-  const read = (source: TodaySource): Promise<TodaySourceRead> => settle(source, async () => {
+  const read = async (source: TodaySource): Promise<TodaySourceRead> => {
+    const result = await readSource(source);
+    try { options.onSourceRead?.(result); } catch { /* the page's early start is an optimisation, never a read failure */ }
+    return result;
+  };
+  const readSource = (source: TodaySource): Promise<TodaySourceRead> => settle(source, async () => {
     switch (source) {
       case "tasks": {
         const [staff, cases] = await Promise.all([

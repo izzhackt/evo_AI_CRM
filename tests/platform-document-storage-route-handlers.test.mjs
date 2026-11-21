@@ -857,8 +857,10 @@ function downloadDependencies({
   grantError = null,
   consumptionResult = consumption(),
   consumptionError = null,
-  signedUrl = `http://127.0.0.1:54321/storage/v1/object/sign/platform-documents/${OBJECT_NAME}?token=short-lived`,
+  signedUrl = `http://127.0.0.1:54321/storage/v1/object/sign/platform-documents/${OBJECT_NAME}?token=short-lived&download=`,
   signedError = null,
+  nameResult = { label: "Паспорт", student_surname: "Фамилия", mime_type: "image/jpeg", original_filename: "scan.jpg" },
+  nameError = null,
 } = {}) {
   const calls = [];
   const userClient = {
@@ -866,6 +868,7 @@ function downloadDependencies({
       return {
         async rpc(name, args) {
           calls.push(["user-rpc", name, args]);
+          if (name === "document_download_name_v1") return { data: nameError ? null : nameResult, error: nameError };
           return { data: grantResult, error: grantError };
         },
       };
@@ -924,11 +927,41 @@ test("authorized download consumes one grant and redirects only to a 60-second p
   assert.match(response.headers.get("location"), /^http:\/\/127\.0\.0\.1:54321\/storage\/v1\/object\/sign\/platform-documents\//);
   assert.deepEqual(calls.map(([kind, name]) => [kind, name]), [
     ["user-rpc", "grant_document_download"],
+    ["user-rpc", "document_download_name_v1"],
     ["service-rpc", "consume_document_download_grant"],
     ["sign", "platform-documents"],
   ]);
   assert.equal(calls.at(-1)[3], 60);
+  // Storage-js кодирует имя дважды, поэтому подписываем как раньше, а имя ставим в готовую ссылку один раз.
   assert.deepEqual(calls.at(-1)[4], { download: true });
+  const location = new URL(response.headers.get("location"));
+  assert.equal(location.searchParams.get("download"), "Паспорт — Фамилия.jpg");
+  assert.equal(location.searchParams.get("token"), "short-lived");
+  assert.match(location.search, /download=%D0%9F%D0%B0%D1%81%D0%BF%D0%BE%D1%80%D1%82\+%E2%80%94\+%D0%A4/u);
+  const nameCall = calls.find(([, name]) => name === "document_download_name_v1");
+  assert.deepEqual(nameCall[2], { p_download_grant_id: grant().document_download_grant_id });
+});
+
+test("a failed name lookup keeps the plain attachment download", async () => {
+  const { calls, dependencies } = downloadDependencies({ nameError: { code: "42501" } });
+  const response = await createPlatformDocumentDownloadHandler(dependencies)(
+    new Request("http://app.test/download"),
+    { params: Promise.resolve({ versionId: VERSION_ID }) },
+  );
+  assert.equal(response.status, 307);
+  assert.equal(new URL(response.headers.get("location")).searchParams.get("download"), "");
+  assert.deepEqual(calls.at(-1)[4], { download: true });
+});
+
+test("a download name never contains the storage object key", async () => {
+  const { dependencies } = downloadDependencies({ nameResult: { label: null, student_surname: null, mime_type: "application/pdf", original_filename: "scan.pdf" } });
+  const response = await createPlatformDocumentDownloadHandler(dependencies)(
+    new Request("http://app.test/download"),
+    { params: Promise.resolve({ versionId: VERSION_ID }) },
+  );
+  const name = new URL(response.headers.get("location")).searchParams.get("download");
+  assert.equal(name, "scan.pdf");
+  assert.ok(!name.includes(OBJECT_NAME.replace("/", "")));
 });
 
 test("Student upload uses the same storage engine but returns only the browser-safe receipt", async () => {

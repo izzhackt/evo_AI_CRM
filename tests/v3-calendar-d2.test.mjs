@@ -267,7 +267,8 @@ test("D2 calendar exhausts bounded ranges but reads only one undated page", () =
   const adapter = source("src/lib/v3/calendar-source.ts");
   assert.match(adapter, /mode: "dated", from, to/u);
   assert.match(adapter, /do \{[\s\S]*readPersonalCalendarPage[\s\S]*\} while \(datedCursor !== null\)/u);
-  assert.match(adapter, /const undated = await readPersonalCalendarPage/u);
+  // 369: the single undated page is read beside the dated pages (Promise.allSettled), not after them.
+  assert.match(adapter, /Promise\.allSettled\(\[\s*readDated\(\),\s*readPersonalCalendarPage\(actor, \{ mode: "undated"/u);
   assert.doesNotMatch(adapter, /while \(undatedCursor !== null\)/u);
   assert.match(adapter, /undatedNextCursor: undated\.nextCursor/u);
   assert.doesNotMatch(adapter, /listCalendarApplicationDeadlinePage/u);

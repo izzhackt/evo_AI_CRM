@@ -180,7 +180,7 @@ test("only exact download=1 requests attachment disposition", async () => {
   assert.equal(response.status, 307);
   assert.equal(
     response.headers.get("location"),
-    `${ORIGIN}${SIGNED_PATH}?token=${SIGNED_QUERY_VALUE}&download=`,
+    `${ORIGIN}${SIGNED_PATH}?token=${SIGNED_QUERY_VALUE}&download=offer.pdf`,
   );
   assertSecurityHeaders(response);
   assert.deepEqual(harness.calls.at(-1), ["sign", OBJECT_NAME, 60, { download: true }]);

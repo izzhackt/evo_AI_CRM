@@ -14,6 +14,7 @@ import {
 } from "./platform-case-agreement-storage-route-handlers.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { applyDownloadName, resolveDownloadName } from "./download-file-name.ts";
 
 /**
  * «Чеки от студента» и «Реквизиты для оплаты» (миграция 358): маршруты загрузки файлов.
@@ -208,10 +209,11 @@ export function createStaffStudentReceiptDownloadHandler() {
       const name = row && typeof row.storage_object_name === "string" ? row.storage_object_name : "";
       const prefix = `payment-receipts/${actorResult.actor.organizationId}/`;
       if (!row || row.receipt_id !== receiptId || !name.startsWith(prefix) || name.length > 512) return errorResponse(503, "receipt_unavailable");
+      const downloadName = await resolveDownloadName(userClient, "staff_case_file_download_name_v1", { p_file_kind: "student_receipt", p_file_id: receiptId });
       const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
       const signed = await service.storage.from(BUCKET_ID).createSignedUrl(name, 60, { download: true });
       if (signed.error) return errorResponse(503, "storage_signing_unavailable");
-      return new Response(null, { status: 307, headers: { ...NO_STORE, Location: signed.data.signedUrl } });
+      return new Response(null, { status: 307, headers: { ...NO_STORE, Location: applyDownloadName(signed.data.signedUrl, downloadName) } });
     } catch {
       return errorResponse(503, "receipt_unavailable");
     }

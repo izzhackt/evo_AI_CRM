@@ -8,6 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { buildStoredDownloadFilename } from "../download-filename.ts";
+import { applyDownloadName } from "./download-file-name.ts";
 
 const MEDIA_BUCKET_ID = "platform-whatsapp-media";
 const UUID_PATTERN =
@@ -41,6 +43,8 @@ type MediaDownloadConsumption = Readonly<{
   bucketId: typeof MEDIA_BUCKET_ID;
   objectName: string;
   expiresInSeconds: number;
+  fileName: string;
+  mimeType: string;
 }>;
 
 type MediaRouteContext = Readonly<{
@@ -142,6 +146,8 @@ function normalizeConsumption(
     bucketId: MEDIA_BUCKET_ID,
     objectName: value.object_name,
     expiresInSeconds: expiresInSeconds as number,
+    fileName: value.file_name,
+    mimeType: value.mime_type,
   });
 }
 
@@ -301,10 +307,17 @@ export function createPlatformCommunicationMediaDownloadHandler(
         download,
       );
       if (!signedUrl) return secureJsonResponse(503, "media_unavailable");
+      // Скачивание вложения: сохранённое имя файла, расширение по MIME, если его нет. Ключ объекта в имя не попадает.
+      const location = download
+        ? applyDownloadName(
+          signedUrl,
+          buildStoredDownloadFilename({ name: consumption.fileName, mimeType: consumption.mimeType }),
+        )
+        : signedUrl;
 
       return new Response(null, {
         status: 307,
-        headers: { ...SECURITY_HEADERS, Location: signedUrl },
+        headers: { ...SECURITY_HEADERS, Location: location },
       });
     } catch {
       return secureJsonResponse(503, "media_unavailable");

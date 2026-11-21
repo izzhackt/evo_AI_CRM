@@ -2,7 +2,7 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import type { DialOptions } from "@/lib/v3/telephony-dial";
-import type { TodayLink, TodayNotice, TodayQueue, TodaySectionView } from "@/lib/v3/today-queue";
+import type { TodayLink, TodayNotice, TodayQueue, TodayQueueSummary, TodaySectionView } from "@/lib/v3/today-queue";
 
 import { QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
@@ -27,7 +27,7 @@ function Notices({ notices }: Readonly<{ notices: readonly TodayNotice[] }>) {
 }
 
 /** Честная пустота дня: что именно пусто и одно подходящее действие или ближайший срок. */
-function Empty({ queue, mainAction }: Readonly<{ queue: TodayQueue; mainAction: TodayLink | null }>) {
+function Empty({ queue, mainAction }: Readonly<{ queue: TodayQueueSummary; mainAction: TodayLink | null }>) {
   const link = mainAction ? <Button variant="outline" asChild><IntentPrefetchLink href={mainAction.href}>{mainAction.label}</IntentPrefetchLink></Button> : null;
   const nearest = queue.nearest ? (
     <p className="t-body-compact text-fg-2">
@@ -67,8 +67,8 @@ export function TodayNext({
   dial = null,
   taskLeads = null,
 }: Readonly<{
-  /** Вся очередь: предупреждения источников и пустой день. */
-  queue: TodayQueue;
+  /** Вся очередь без строк: предупреждения источников и пустой день. Строки — в разделах. */
+  queue: TodayQueueSummary;
   /** Разделы по роли (`buildTodaySections`): продажи и сопровождение студентов отдельно. */
   sections: readonly TodaySectionView[];
   headed: boolean;

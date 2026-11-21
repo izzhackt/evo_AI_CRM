@@ -495,7 +495,8 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/professions",
   // «Избранное» is the «Вузы» tab of «Мой список» on /portal, no menu item.
   "/portal/english",
-  "/portal/csca",
+  // 21.11.2026: «CSCA» только у студента с выбором «Китай»; у этого студента выбора страны нет
+  // (его не создаёт сид test-e4-student-portal-browser.sh), поэтому пункта в меню нет.
   // 03.11.2026: «Уведомления» — лента «Что нового» во «Входящих»
   // (/portal/messages); /portal/notifications — только переход на неё (#1358).
   "/portal/tests",
@@ -544,6 +545,7 @@ test("every mobile Portal section is reachable on screen from the drawer, which 
     }
   }
   expect(unreachable, `${testInfo.project.name}: sections outside the screen`).toEqual([]);
+  await expect(drawer.locator('a[href="/portal/csca"]'), "no CSCA item without a China choice").toHaveCount(0);
   // #1360: «Выйти» is in the drawer, not only in the profile.
   const logout = drawer.getByRole("button", { name: "Выйти", exact: true });
   await logout.scrollIntoViewIfNeeded();

@@ -426,26 +426,44 @@ function admissionEnv(sha, overrides = {}) {
   };
 }
 
-function runAdmission(t, stepName, { output, exitCode = 0, env }) {
+function runAdmission(t, stepName, { output, exitCode = 0, failFirst = 0, env }) {
   const dir = mkdtempSync(join(tmpdir(), "evo-admission-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const log = join(dir, "git.log");
+  const count = join(dir, "git.count");
   const fake = join(dir, "git");
-  // The stand-in git cannot read the step's environment (the step passes none of it), so its answer is baked in.
-  writeFileSync(fake, `#!/bin/bash\n{ printf 'ARG %s\\n' "$@"; env | sort | sed 's/^/ENV /'; } > ${JSON.stringify(log)}\n`
-    + `printf '%b' ${JSON.stringify(output)}\nexit ${exitCode}\n`, { mode: 0o755 });
+  // The stand-in git cannot read the step's environment (the step passes none of it), so its answer is baked in:
+  // the first `failFirst` calls exit 128 with no output, the next ones answer `output` with `exitCode`.
+  writeFileSync(fake, `#!/bin/bash
+n=$(( $(cat ${JSON.stringify(count)} 2>/dev/null || echo 0) + 1 )); echo "$n" > ${JSON.stringify(count)}
+{ printf 'ARG %s\\n' "$@"; env | sort | sed 's/^/ENV /'; } > ${JSON.stringify(log)}
+if (( n <= ${failFirst} )); then exit 128; fi
+printf '%b' ${JSON.stringify(output)}
+exit ${exitCode}
+`, { mode: 0o755 });
   const result = runStep(namedStep(stepName), { ...env, PATH: `${dir}:${dirname(process.execPath)}:/usr/bin:/bin` });
   let calls = null;
   try { calls = readFileSync(log, "utf8").split("\n").filter(Boolean); } catch { calls = null; }
-  return { ...result, calls };
+  let attempts = 0;
+  try { attempts = Number(readFileSync(count, "utf8")); } catch { attempts = 0; }
+  return { ...result, calls, attempts };
 }
+
+// What bash itself adds to a child's environment; everything else must come from the step's explicit list.
+const GIT_CHILD_ENV = new Set(["PATH", "HOME", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT", "PWD", "SHLVL", "_"]);
 
 for (const [stepName, code] of [["Secretless build admission", "build"], ["Secretless deploy admission", "deploy"]]) {
   test(`${stepName}: main is read with git ls-remote, without the API or any token`, (t) => {
     const sha = "3b6f00cd16d13d18f73021e7208324d8a7357205";
-    const accepted = runAdmission(t, stepName, { output: `${sha}\trefs/heads/main\n`, env: admissionEnv(sha) });
+    const poison = {
+      HTTPS_PROXY: "http://proxy.invalid:1", https_proxy: "http://proxy.invalid:1", GIT_ASKPASS: "/bin/false",
+      GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "url.https://evil.invalid/.insteadOf", GIT_CONFIG_VALUE_0: "https://github.com/",
+      GIT_CONFIG_PARAMETERS: "'http.extraheader'='AUTHORIZATION: basic must-not-reach-git'", SSL_CERT_FILE: "/dev/null",
+    };
+    const accepted = runAdmission(t, stepName, { output: `${sha}\trefs/heads/main\n`, env: admissionEnv(sha, poison) });
     assert.equal(accepted.status, 0, accepted.stderr);
     assert.equal(accepted.stdout.trim(), `{"ok":true,"code":"release_${code}_admitted"}`);
+    assert.equal(accepted.attempts, 1);
     assert.deepEqual(accepted.calls.filter((line) => line.startsWith("ARG ")), [
       "ARG -c", "ARG credential.helper=", "ARG -c", "ARG http.followRedirects=false",
       "ARG ls-remote", "ARG --exit-code", "ARG https://github.com/izzhackt/evo_AI_CRM.git", "ARG refs/heads/main",
@@ -454,21 +472,36 @@ for (const [stepName, code] of [["Secretless build admission", "build"], ["Secre
     for (const expected of ["GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0"]) {
       assert.ok(childEnv.includes(expected), `${expected} reaches git`);
     }
-    assert.ok(!childEnv.some((line) => /^(?:EVO_|GITHUB_|ACTIONS_)/u.test(line) || line.includes("must-not-reach-git")),
-      "git sees no release variable and no token");
+    const leaked = childEnv.map((line) => line.split("=")[0]).filter((name) => !GIT_CHILD_ENV.has(name) && !name.startsWith("__CF"));
+    assert.deepEqual(leaked, [], "git sees only PATH, HOME and the git isolation variables");
+    assert.ok(!childEnv.some((line) => line.includes("must-not-reach-git") || line.includes("proxy.invalid")));
+
+    // ls-remote matches the END of a ref name: a branch or tag ending in refs/heads/main shows up too and is ignored.
+    const tails = runAdmission(t, stepName, {
+      output: `${"1".repeat(40)}\trefs/heads/x/refs/heads/main\n${sha}\trefs/heads/main\n${"2".repeat(40)}\trefs/tags/refs/heads/main\n`,
+      env: admissionEnv(sha),
+    });
+    assert.equal(tails.status, 0, `look-alike refs do not block a release: ${tails.stderr}`);
+
+    // A transient git failure is retried; the answer then decides.
+    const flaky = runAdmission(t, stepName, { output: `${sha}\trefs/heads/main\n`, failFirst: 1, env: admissionEnv(sha) });
+    assert.equal(flaky.status, 0, flaky.stderr);
+    assert.equal(flaky.attempts, 2);
 
     const other = "0".repeat(40);
-    for (const [label, output, exitCode, stage] of [
-      ["another SHA", `${other}\trefs/heads/main\n`, 0, "main_ref_identity"],
-      ["a second line", `${sha}\trefs/heads/main\n${sha}\trefs/remotes/x/refs/heads/main\n`, 0, "main_ref_identity"],
-      ["another ref", `${sha}\trefs/heads/mainline\n`, 0, "main_ref_identity"],
-      ["no output", "", 0, "main_ref_identity"],
-      ["git fails", "", 2, "main_ref_git"],
-      ["git denied", `${sha}\trefs/heads/main\n`, 128, "main_ref_git"],
+    for (const [label, output, exitCode, stage, status, attempts] of [
+      ["another SHA", `${other}\trefs/heads/main\n`, 0, "main_ref_identity", "none", 1],
+      ["only a look-alike ref", `${sha}\trefs/heads/x/refs/heads/main\n`, 0, "main_ref_identity", "none", 1],
+      ["main twice", `${sha}\trefs/heads/main\n${sha}\trefs/heads/main\n`, 0, "main_ref_identity", "none", 1],
+      ["another ref", `${sha}\trefs/heads/mainline\n`, 0, "main_ref_identity", "none", 1],
+      ["no output", "", 0, "main_ref_identity", "none", 1],
+      ["no main on the server", "", 2, "main_ref_git", "git_2", 3],
+      ["git denied", `${sha}\trefs/heads/main\n`, 128, "main_ref_git", "git_128", 3],
     ]) {
       const refused = runAdmission(t, stepName, { output, exitCode, env: admissionEnv(sha) });
       assert.equal(refused.status, 2, `${label}: refused`);
-      assert.match(refused.stderr, new RegExp(`::error::release_${code}_admission_failed stage=${stage} `, "u"), label);
+      assert.match(refused.stderr, new RegExp(`::error::release_${code}_admission_failed stage=${stage} http_status=${status}$`, "mu"), label);
+      assert.equal(refused.attempts, attempts, `${label}: git calls`);
     }
     const elsewhere = runAdmission(t, stepName, {
       output: `${sha}\trefs/heads/main\n`, env: admissionEnv(sha, { EVO_SERVER_URL: "https://github.example" }),

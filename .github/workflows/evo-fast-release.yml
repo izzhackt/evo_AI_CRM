@@ -119,37 +119,49 @@ jobs:
             stage = "main_ref_request";
             const { execFileSync } = require("node:child_process");
             const { tmpdir } = require("node:os");
-            let listing = "";
-            try {
-              listing = execFileSync("git", [
-                "-c", "credential.helper=",
-                "-c", "http.followRedirects=false",
-                "ls-remote", "--exit-code",
-                `${env.EVO_SERVER_URL}/${env.EVO_EXPECTED_REPOSITORY}.git`,
-                "refs/heads/main",
-              ], {
-                cwd: tmpdir(),
-                encoding: "utf8",
-                timeout: 15_000,
-                maxBuffer: 64 * 1024,
-                stdio: ["ignore", "pipe", "pipe"],
-                env: {
-                  PATH: env.PATH ?? "",
-                  HOME: tmpdir(),
-                  GIT_CONFIG_GLOBAL: "/dev/null",
-                  GIT_CONFIG_NOSYSTEM: "1",
-                  GIT_TERMINAL_PROMPT: "0",
-                },
-              });
-            } catch {
-              stage = "main_ref_git";
-              fail();
+            let listing = null;
+            // A git failure (network, throttling) is retried twice after a pause; a wrong answer never is.
+            for (let attempt = 1; listing === null; attempt += 1) {
+              try {
+                listing = execFileSync("git", [
+                  "-c", "credential.helper=",
+                  "-c", "http.followRedirects=false",
+                  "ls-remote", "--exit-code",
+                  `${env.EVO_SERVER_URL}/${env.EVO_EXPECTED_REPOSITORY}.git`,
+                  "refs/heads/main",
+                ], {
+                  cwd: tmpdir(),
+                  encoding: "utf8",
+                  timeout: 15_000,
+                  killSignal: "SIGKILL",
+                  maxBuffer: 64 * 1024,
+                  stdio: ["ignore", "pipe", "pipe"],
+                  env: {
+                    PATH: env.PATH ?? "",
+                    HOME: tmpdir(),
+                    GIT_CONFIG_GLOBAL: "/dev/null",
+                    GIT_CONFIG_NOSYSTEM: "1",
+                    GIT_TERMINAL_PROMPT: "0",
+                  },
+                });
+              } catch (error) {
+                // Only the cause, never git's own output: exit code, signal or system code, letters and digits only.
+                httpStatus = `git_${error?.status ?? error?.signal ?? error?.code ?? "error"}`.replace(/[^A-Za-z0-9_]/gu, "");
+                if (attempt >= 3) {
+                  stage = "main_ref_git";
+                  fail();
+                }
+                await new Promise((resolve) => setTimeout(resolve, 2_000));
+              }
             }
+            httpStatus = null;
             stage = "main_ref_identity";
-            const lines = listing.split("\n").filter((line) => line !== "");
+            // ls-remote matches the pattern against the END of a ref name (refs/heads/x/refs/heads/main would match
+            // too), so exactly one line must name refs/heads/main itself, and it must carry the release SHA.
+            const mains = listing.split("\n").filter((line) => line.endsWith("\trefs/heads/main"));
             if (
-              lines.length !== 1 ||
-              lines[0] !== `${env.EVO_UPSTREAM_HEAD_SHA}\trefs/heads/main`
+              mains.length !== 1 ||
+              mains[0] !== `${env.EVO_UPSTREAM_HEAD_SHA}\trefs/heads/main`
             ) fail();
             process.stdout.write('{"ok":true,"code":"release_build_admitted"}\n');
           };
@@ -416,37 +428,49 @@ jobs:
             stage = "main_ref_request";
             const { execFileSync } = require("node:child_process");
             const { tmpdir } = require("node:os");
-            let listing = "";
-            try {
-              listing = execFileSync("git", [
-                "-c", "credential.helper=",
-                "-c", "http.followRedirects=false",
-                "ls-remote", "--exit-code",
-                `${env.EVO_SERVER_URL}/${env.EVO_EXPECTED_REPOSITORY}.git`,
-                "refs/heads/main",
-              ], {
-                cwd: tmpdir(),
-                encoding: "utf8",
-                timeout: 15_000,
-                maxBuffer: 64 * 1024,
-                stdio: ["ignore", "pipe", "pipe"],
-                env: {
-                  PATH: env.PATH ?? "",
-                  HOME: tmpdir(),
-                  GIT_CONFIG_GLOBAL: "/dev/null",
-                  GIT_CONFIG_NOSYSTEM: "1",
-                  GIT_TERMINAL_PROMPT: "0",
-                },
-              });
-            } catch {
-              stage = "main_ref_git";
-              fail();
+            let listing = null;
+            // A git failure (network, throttling) is retried twice after a pause; a wrong answer never is.
+            for (let attempt = 1; listing === null; attempt += 1) {
+              try {
+                listing = execFileSync("git", [
+                  "-c", "credential.helper=",
+                  "-c", "http.followRedirects=false",
+                  "ls-remote", "--exit-code",
+                  `${env.EVO_SERVER_URL}/${env.EVO_EXPECTED_REPOSITORY}.git`,
+                  "refs/heads/main",
+                ], {
+                  cwd: tmpdir(),
+                  encoding: "utf8",
+                  timeout: 15_000,
+                  killSignal: "SIGKILL",
+                  maxBuffer: 64 * 1024,
+                  stdio: ["ignore", "pipe", "pipe"],
+                  env: {
+                    PATH: env.PATH ?? "",
+                    HOME: tmpdir(),
+                    GIT_CONFIG_GLOBAL: "/dev/null",
+                    GIT_CONFIG_NOSYSTEM: "1",
+                    GIT_TERMINAL_PROMPT: "0",
+                  },
+                });
+              } catch (error) {
+                // Only the cause, never git's own output: exit code, signal or system code, letters and digits only.
+                httpStatus = `git_${error?.status ?? error?.signal ?? error?.code ?? "error"}`.replace(/[^A-Za-z0-9_]/gu, "");
+                if (attempt >= 3) {
+                  stage = "main_ref_git";
+                  fail();
+                }
+                await new Promise((resolve) => setTimeout(resolve, 2_000));
+              }
             }
+            httpStatus = null;
             stage = "main_ref_identity";
-            const lines = listing.split("\n").filter((line) => line !== "");
+            // ls-remote matches the pattern against the END of a ref name (refs/heads/x/refs/heads/main would match
+            // too), so exactly one line must name refs/heads/main itself, and it must carry the release SHA.
+            const mains = listing.split("\n").filter((line) => line.endsWith("\trefs/heads/main"));
             if (
-              lines.length !== 1 ||
-              lines[0] !== `${env.EVO_UPSTREAM_HEAD_SHA}\trefs/heads/main`
+              mains.length !== 1 ||
+              mains[0] !== `${env.EVO_UPSTREAM_HEAD_SHA}\trefs/heads/main`
             ) fail();
             process.stdout.write('{"ok":true,"code":"release_deploy_admitted"}\n');
           };

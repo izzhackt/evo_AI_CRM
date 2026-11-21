@@ -19,6 +19,69 @@ BEGIN
 END
 $$;
 
+-- Verbatim copy of the migration 217 rows builder (the pre-369 definition), kept as the reference for the new builder.
+CREATE FUNCTION pg_temp.a369_old_rows(
+  p_kind TEXT DEFAULT NULL, p_task_id UUID DEFAULT NULL
+) RETURNS TABLE(sort_at TIMESTAMPTZ, kind TEXT, task_id UUID, task JSONB)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE actor RECORD; can_case BOOLEAN; can_staff BOOLEAN;
+BEGIN
+  SELECT a.organization_id, a.membership_id INTO actor
+  FROM platform.current_actor_authority() AS a
+  JOIN platform_private.staff_membership_identity(a.organization_id, a.membership_id) AS i ON TRUE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Personal calendar is unavailable' USING ERRCODE = '42501';
+  END IF;
+  can_case := platform_private.staff_has_permission(actor.organization_id, actor.membership_id, 'task.manage');
+  can_staff := platform_private.staff_has_permission(actor.organization_id, actor.membership_id, 'staff.task.read');
+  IF NOT (can_case OR can_staff) THEN
+    RAISE EXCEPTION 'Personal calendar is unavailable' USING ERRCODE = '42501';
+  END IF;
+
+  IF can_case AND (p_kind IS NULL OR p_kind = 'case') THEN
+    RETURN QUERY
+    SELECT deadline.sort_at, 'case'::TEXT, t.id, jsonb_build_object(
+      'kind', 'case', 'task_id', t.id, 'organization_id', t.organization_id,
+      'version', t.version::TEXT, 'title', t.title, 'details', NULL::TEXT,
+      'status', t.status, 'priority', t.priority, 'due_on', t.due_on, 'due_at', t.due_at,
+      'sort_at', deadline.sort_at, 'assignee_membership_id', t.assignee_membership_id,
+      'assignee_display_name', p.display_name, 'created_at', t.created_at, 'updated_at', t.updated_at,
+      'student_case_id', c.id, 'student_display_name', c.student_display_name,
+      'case_state', c.state, 'task_type', t.task_type, 'student_visible', t.student_visible)
+    FROM platform.case_tasks AS t
+    JOIN platform.student_cases AS c ON c.organization_id = t.organization_id AND c.id = t.student_case_id
+    JOIN platform.organization_memberships AS m ON m.organization_id = t.organization_id AND m.id = t.assignee_membership_id
+    JOIN platform.profiles AS p ON p.id = m.profile_id
+    CROSS JOIN LATERAL (SELECT CASE WHEN t.due_at IS NOT NULL THEN t.due_at
+      WHEN t.due_on IS NOT NULL THEN t.due_on::TIMESTAMP AT TIME ZONE 'Asia/Bishkek'
+      ELSE '9999-12-31 00:00:00+00'::TIMESTAMPTZ END AS sort_at) AS deadline
+    WHERE t.organization_id = actor.organization_id AND t.assignee_membership_id = actor.membership_id
+      AND (p_task_id IS NULL OR t.id = p_task_id)
+      AND c.state IN ('active', 'closed') AND c.handoff_at IS NOT NULL
+      AND platform_private.staff_can_access(t.organization_id, actor.membership_id, 'task.manage', 'task', t.id);
+  END IF;
+
+  IF can_staff AND (p_kind IS NULL OR p_kind = 'staff') THEN
+    RETURN QUERY
+    SELECT deadline.sort_at, 'staff'::TEXT, t.id, jsonb_build_object(
+      'kind', 'staff', 'task_id', t.id, 'organization_id', t.organization_id,
+      'version', t.version::TEXT, 'title', t.title, 'details', t.description,
+      'status', t.status, 'priority', t.priority, 'due_on', t.due_on, 'due_at', t.due_at,
+      'sort_at', deadline.sort_at, 'assignee_membership_id', t.assignee_membership_id,
+      'assignee_display_name', p.display_name, 'created_at', t.created_at, 'updated_at', t.updated_at)
+    FROM platform.staff_tasks AS t
+    JOIN platform.organization_memberships AS m ON m.organization_id = t.organization_id AND m.id = t.assignee_membership_id
+    JOIN platform.profiles AS p ON p.id = m.profile_id
+    CROSS JOIN LATERAL (SELECT CASE WHEN t.due_at IS NOT NULL THEN t.due_at
+      WHEN t.due_on IS NOT NULL THEN t.due_on::TIMESTAMP AT TIME ZONE 'Asia/Bishkek'
+      ELSE '9999-12-31 00:00:00+00'::TIMESTAMPTZ END AS sort_at) AS deadline
+    WHERE t.organization_id = actor.organization_id AND t.assignee_membership_id = actor.membership_id
+      AND (p_task_id IS NULL OR t.id = p_task_id)
+      AND platform_private.staff_can_access(t.organization_id, actor.membership_id, 'staff.task.read', 'staff_task', t.id);
+  END IF;
+END;
+$$;
+
 -- Reference copy of the pre-369 page body (migration 217): build every row, then filter, cursor, limit.
 CREATE FUNCTION pg_temp.a369_ref_page(
   p_mode TEXT, p_due_from DATE, p_due_to DATE, p_limit INTEGER,
@@ -27,7 +90,7 @@ CREATE FUNCTION pg_temp.a369_ref_page(
 DECLARE result JSONB;
 BEGIN
   WITH eligible AS MATERIALIZED (
-    SELECT r.* FROM platform_private.personal_calendar_rows_v1() AS r
+    SELECT r.* FROM pg_temp.a369_old_rows() AS r
     WHERE CASE WHEN p_mode = 'undated' THEN r.task->>'due_on' IS NULL AND r.task->>'due_at' IS NULL
       ELSE (r.task->>'due_on' IS NOT NULL OR r.task->>'due_at' IS NOT NULL)
         AND (pg_catalog.timezone('Asia/Bishkek', r.sort_at)::DATE BETWEEN p_due_from AND p_due_to) END
@@ -92,8 +155,24 @@ BEGIN
 END
 $$;
 
+-- The new builder without arguments equals the verbatim 217 builder (same rows, same order), and the kind/task filters too.
+CREATE FUNCTION pg_temp.a369_builder_equal() RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE fresh JSONB; reference JSONB;
+BEGIN
+  SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sort_at, r.kind, r.task_id), '[]') INTO fresh FROM platform_private.personal_calendar_rows_v1() AS r;
+  SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sort_at, r.kind, r.task_id), '[]') INTO reference FROM pg_temp.a369_old_rows() AS r;
+  IF fresh IS DISTINCT FROM reference THEN RETURN FALSE; END IF;
+  SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sort_at, r.kind, r.task_id), '[]') INTO fresh FROM platform_private.personal_calendar_rows_v1('staff') AS r;
+  SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sort_at, r.kind, r.task_id), '[]') INTO reference FROM pg_temp.a369_old_rows('staff') AS r;
+  IF fresh IS DISTINCT FROM reference THEN RETURN FALSE; END IF;
+  SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sort_at, r.kind, r.task_id), '[]') INTO fresh FROM platform_private.personal_calendar_rows_v1('case') AS r;
+  SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sort_at, r.kind, r.task_id), '[]') INTO reference FROM pg_temp.a369_old_rows('case') AS r;
+  RETURN fresh IS NOT DISTINCT FROM reference AND jsonb_array_length(fresh) >= 0;
+END
+$$;
+
 GRANT EXECUTE ON FUNCTION pg_temp.a369_assert(BOOLEAN, TEXT), pg_temp.a369_ref_page(TEXT, DATE, DATE, INTEGER, TIMESTAMPTZ, TEXT, UUID),
-  pg_temp.a369_compare(TEXT, DATE, DATE, INTEGER), pg_temp.a369_compare_actor()
+  pg_temp.a369_compare(TEXT, DATE, DATE, INTEGER), pg_temp.a369_compare_actor(), pg_temp.a369_builder_equal()
   TO authenticated, service_role;
 
 \set a369_org 36936900-0000-4000-8000-000000000001
@@ -109,20 +188,25 @@ GRANT EXECUTE ON FUNCTION pg_temp.a369_assert(BOOLEAN, TEXT), pg_temp.a369_ref_p
 \set a369_student_user 36936900-0000-4000-8000-000000000024
 \set a369_curator2_user 36936900-0000-4000-8000-000000000025
 \set a369_foreign_admin_user 36936900-0000-4000-8000-000000000026
+\set a369_curator3_user 36936900-0000-4000-8000-000000000027
 \set a369_admin_profile 36936900-0000-4000-8000-000000000031
 \set a369_sales_profile 36936900-0000-4000-8000-000000000032
 \set a369_curator_profile 36936900-0000-4000-8000-000000000033
 \set a369_student_profile 36936900-0000-4000-8000-000000000034
 \set a369_curator2_profile 36936900-0000-4000-8000-000000000035
 \set a369_foreign_admin_profile 36936900-0000-4000-8000-000000000036
+\set a369_curator3_profile 36936900-0000-4000-8000-000000000037
 \set a369_admin_membership 36936900-0000-4000-8000-000000000041
 \set a369_sales_membership 36936900-0000-4000-8000-000000000042
 \set a369_curator_membership 36936900-0000-4000-8000-000000000043
 \set a369_student_membership 36936900-0000-4000-8000-000000000044
 \set a369_curator2_membership 36936900-0000-4000-8000-000000000045
 \set a369_foreign_admin_membership 36936900-0000-4000-8000-000000000046
+\set a369_curator3_membership 36936900-0000-4000-8000-000000000047
 \set a369_case 36936900-0000-4000-8000-000000000051
 \set a369_pending_case 36936900-0000-4000-8000-000000000052
+\set a369_other_case 36936900-0000-4000-8000-000000000053
+\set a369_other_scope 36936900-0000-4000-8000-000000000016
 \set a369_role_curator 36936900-0000-4000-8000-000000000081
 \set a369_role_staff 36936900-0000-4000-8000-000000000082
 
@@ -136,6 +220,7 @@ INSERT INTO platform.record_scopes (id, organization_id, scope_kind, scope_key, 
   (:'a369_org_scope', :'a369_org', 'organization', :'a369_org', 1),
   (:'a369_case_scope', :'a369_org', 'student_case', :'a369_case', 1),
   (:'a369_pending_scope', :'a369_org', 'student_case', :'a369_pending_case', 1),
+  (:'a369_other_scope', :'a369_org', 'student_case', :'a369_other_case', 1),
   (:'a369_foreign_scope', :'a369_foreign_org', 'organization', :'a369_foreign_org', 1);
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
@@ -144,7 +229,8 @@ INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   (:'a369_curator_user', 'a369-curator@example.invalid', '{}'::JSONB),
   (:'a369_student_user', 'a369-student@example.invalid', '{}'::JSONB),
   (:'a369_curator2_user', 'a369-curator2@example.invalid', '{}'::JSONB),
-  (:'a369_foreign_admin_user', 'a369-foreign-admin@example.invalid', '{}'::JSONB);
+  (:'a369_foreign_admin_user', 'a369-foreign-admin@example.invalid', '{}'::JSONB),
+  (:'a369_curator3_user', 'a369-curator3@example.invalid', '{}'::JSONB);
 
 INSERT INTO platform.profiles (id, auth_user_id, display_name, status, access_version) VALUES
   (:'a369_admin_profile', :'a369_admin_user', 'A369 Admin', 'active', 1),
@@ -152,7 +238,8 @@ INSERT INTO platform.profiles (id, auth_user_id, display_name, status, access_ve
   (:'a369_curator_profile', :'a369_curator_user', 'A369 Curator', 'active', 1),
   (:'a369_student_profile', :'a369_student_user', 'A369 Student', 'active', 1),
   (:'a369_curator2_profile', :'a369_curator2_user', 'A369 Curator Two', 'active', 1),
-  (:'a369_foreign_admin_profile', :'a369_foreign_admin_user', 'A369 Foreign Admin', 'active', 1);
+  (:'a369_foreign_admin_profile', :'a369_foreign_admin_user', 'A369 Foreign Admin', 'active', 1),
+  (:'a369_curator3_profile', :'a369_curator3_user', 'A369 Record-scoped Curator', 'active', 1);
 
 -- Invited staff carry no coarse role and get permissions only from scoped role assignments (production shape after 155).
 INSERT INTO platform.organization_memberships (id, organization_id, profile_id, status, "current_role", current_bundle_id, is_system_admin) VALUES
@@ -161,7 +248,8 @@ INSERT INTO platform.organization_memberships (id, organization_id, profile_id, 
   (:'a369_curator_membership', :'a369_org', :'a369_curator_profile', 'active', NULL, NULL, FALSE),
   (:'a369_student_membership', :'a369_org', :'a369_student_profile', 'active', 'student', :'a369_student_bundle', FALSE),
   (:'a369_curator2_membership', :'a369_org', :'a369_curator2_profile', 'active', NULL, NULL, FALSE),
-  (:'a369_foreign_admin_membership', :'a369_foreign_org', :'a369_foreign_admin_profile', 'active', NULL, NULL, TRUE);
+  (:'a369_foreign_admin_membership', :'a369_foreign_org', :'a369_foreign_admin_profile', 'active', NULL, NULL, TRUE),
+  (:'a369_curator3_membership', :'a369_org', :'a369_curator3_profile', 'active', NULL, NULL, FALSE);
 
 INSERT INTO platform.membership_scope_assignments (
   id, organization_id, membership_id, scope_id, scope_version, assignment_version, granted, actor_kind, actor_profile_id, reason, request_id
@@ -179,7 +267,8 @@ DECLARE r RECORD; published JSONB; bundles JSONB := '{}'::JSONB; m RECORD; items
 BEGIN
   FOR r IN SELECT * FROM (VALUES
     ('36936900-0000-4000-8000-000000000081'::UUID, 'Curator', '["case.read.full","task.manage","task.create","staff.task.read"]'::JSONB, 8100),
-    ('36936900-0000-4000-8000-000000000082'::UUID, 'Staff tasks', '["staff.task.read"]'::JSONB, 8200)) AS v(role_id, label, keys, base)
+    ('36936900-0000-4000-8000-000000000082'::UUID, 'Staff tasks', '["staff.task.read"]'::JSONB, 8200),
+    ('36936900-0000-4000-8000-000000000083'::UUID, 'Case tasks only', '["case.read.full","task.manage"]'::JSONB, 8400)) AS v(role_id, label, keys, base)
   LOOP
     PERFORM platform.staff_role_command('36936900-0000-4000-8000-000000000001', r.role_id, 0, 'create',
       jsonb_build_object('label', 'A369 ' || r.label, 'description', 'Migration 369 synthetic role', 'permissionKeys', r.keys),
@@ -190,11 +279,11 @@ BEGIN
     bundles := bundles || jsonb_build_object(r.role_id::TEXT, published ->> 'bundleId');
   END LOOP;
   FOR m IN SELECT * FROM (VALUES
-    ('36936900-0000-4000-8000-000000000043'::UUID, '36936900-0000-4000-8000-000000000081'::UUID, 8301),
-    ('36936900-0000-4000-8000-000000000045'::UUID, '36936900-0000-4000-8000-000000000081'::UUID, 8302),
-    ('36936900-0000-4000-8000-000000000042'::UUID, '36936900-0000-4000-8000-000000000082'::UUID, 8303)) AS v(membership_id, role_id, base)
+    ('36936900-0000-4000-8000-000000000043'::UUID, '36936900-0000-4000-8000-000000000081'::UUID, 8301, '{"kind":"own","key":null,"resourceKind":null}'::JSONB),
+    ('36936900-0000-4000-8000-000000000045'::UUID, '36936900-0000-4000-8000-000000000081'::UUID, 8302, '{"kind":"own","key":null,"resourceKind":null}'::JSONB),
+    ('36936900-0000-4000-8000-000000000042'::UUID, '36936900-0000-4000-8000-000000000082'::UUID, 8303, '{"kind":"own","key":null,"resourceKind":null}'::JSONB))  AS v(membership_id, role_id, base, scope)
   LOOP
-    items := jsonb_build_array(jsonb_build_object('roleId', m.role_id, 'scope', jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)));
+    items := jsonb_build_array(jsonb_build_object('roleId', m.role_id, 'scope', m.scope));
     bindings := jsonb_build_array(jsonb_build_object('roleId', m.role_id, 'roleVersion', 2,
       'bundleId', (bundles ->> m.role_id::TEXT)::UUID, 'bundleVersion', 1));
     PERFORM platform.staff_role_assignments_save('36936900-0000-4000-8000-000000000001', m.membership_id,
@@ -225,16 +314,40 @@ INSERT INTO platform.student_cases (
    'Computer Science', '2027', 'approved', 'contract_confirmed', 'pending', NULL, NULL, NULL, 'Submit applications', :'a369_case_scope', 1),
   (:'a369_pending_case', :'a369_org', :'a369_student_membership', :'a369_sales_membership', NULL,
    'synthetic:a369:pending', 'contract:a369:pending', '2026-08-01 08:00:00+00', 'A369 Pending Student', 'United Kingdom', 'Bachelor',
-   'Business', '2026', 'approved', 'contract_confirmed', 'pending', NULL, NULL, NULL, NULL, :'a369_pending_scope', 1);
+   'Business', '2026', 'approved', 'contract_confirmed', 'pending', NULL, NULL, NULL, NULL, :'a369_pending_scope', 1),
+  (:'a369_other_case', :'a369_org', :'a369_student_membership', :'a369_sales_membership', NULL,
+   'synthetic:a369:other', 'contract:a369:other', '2026-08-15 08:00:00+00', 'A369 Other Student', 'United Kingdom', 'Bachelor',
+   'Law', '2027', 'approved', 'contract_confirmed', 'pending', NULL, NULL, NULL, 'Other curator case', :'a369_other_scope', 1);
 
 -- Activate the case through the real lifecycle (handoff_at set); the pending case stays out of every calendar.
 SET request.jwt.claims TO :'a369_admin_claims';
 SET ROLE authenticated;
 SELECT platform.assign_student_case_curator(:'a369_org', :'a369_case', :'a369_curator_membership',
   'Activate the isolated migration 369 case through the real lifecycle', '36936900-0000-4000-8000-000000000075');
+SELECT platform.assign_student_case_curator(:'a369_org', :'a369_other_case', :'a369_curator2_membership',
+  'Hand the second isolated migration 369 case to the other curator', '36936900-0000-4000-8000-000000000076');
+RESET ROLE;
+RESET request.jwt.claims;
+-- Record scope needs the case to exist: the same case-task permissions, but only inside the first case.
+SELECT r.current_bundle_id AS a369_record_bundle FROM platform.staff_role_definitions AS r WHERE r.id = '36936900-0000-4000-8000-000000000083' \gset
+SELECT set_config('a369.record_bundle', :'a369_record_bundle', FALSE);
+SET request.jwt.claims TO :'a369_admin_claims';
+SET ROLE authenticated;
+DO $a369_record$
+DECLARE bundle_id UUID := current_setting('a369.record_bundle')::UUID;
+BEGIN
+  PERFORM platform.staff_role_assignments_save('36936900-0000-4000-8000-000000000001', '36936900-0000-4000-8000-000000000047',
+    (SELECT p.access_version FROM platform.organization_memberships AS om JOIN platform.profiles AS p ON p.id = om.profile_id WHERE om.id = '36936900-0000-4000-8000-000000000047'),
+    jsonb_build_array(jsonb_build_object('roleId', '36936900-0000-4000-8000-000000000083',
+      'scope', jsonb_build_object('kind', 'record', 'key', '36936900-0000-4000-8000-000000000051', 'resourceKind', 'student_case'))),
+    jsonb_build_array(jsonb_build_object('roleId', '36936900-0000-4000-8000-000000000083', 'roleVersion', 2, 'bundleId', bundle_id, 'bundleVersion', 1)),
+    'A369 grant record-scoped role', '36936900-0000-4000-8000-000000008304');
+END
+$a369_record$;
 RESET ROLE;
 RESET request.jwt.claims;
 -- The assignment bumps access versions: take the claims again.
+SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', :'a369_curator3_user'::UUID, 'claims', jsonb_build_object('sub', :'a369_curator3_user', 'role', 'authenticated'))) -> 'claims')::TEXT AS a369_curator3_claims \gset
 SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', :'a369_curator_user'::UUID, 'claims', jsonb_build_object('sub', :'a369_curator_user', 'role', 'authenticated'))) -> 'claims')::TEXT AS a369_curator_claims \gset
 SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', :'a369_admin_user'::UUID, 'claims', jsonb_build_object('sub', :'a369_admin_user', 'role', 'authenticated'))) -> 'claims')::TEXT AS a369_admin_claims \gset
 SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', :'a369_sales_user'::UUID, 'claims', jsonb_build_object('sub', :'a369_sales_user', 'role', 'authenticated'))) -> 'claims')::TEXT AS a369_sales_claims \gset
@@ -254,6 +367,13 @@ FROM (VALUES
 INSERT INTO platform.case_tasks (id, organization_id, student_case_id, task_type, title, assignee_membership_id, priority, due_at, due_on, status, student_visible, created_by_membership_id) VALUES
   ('36936900-0000-4000-8000-000000000181', :'a369_org', :'a369_pending_case', 'follow_up', 'A369 pending case task', :'a369_curator_membership', 'normal', NULL, '2026-09-10', 'open', FALSE, :'a369_curator_membership'),
   ('36936900-0000-4000-8000-000000000182', :'a369_org', :'a369_case', 'follow_up', 'A369 task of the other curator', :'a369_curator2_membership', 'normal', NULL, '2026-09-10', 'open', FALSE, :'a369_curator_membership');
+
+-- The record-scoped curator owns two tasks on 2026-09-10: one in the case of their scope, one in the other case. The
+-- second passes every cheap predicate (assignee, handoff, window) but staff_can_access refuses it.
+INSERT INTO platform.case_tasks (id, organization_id, student_case_id, task_type, title, assignee_membership_id, priority, due_at, due_on, status, student_visible, created_by_membership_id) VALUES
+  ('36936900-0000-4000-8000-000000000184', :'a369_org', :'a369_other_case', 'follow_up', 'A369 refused case task', :'a369_curator3_membership', 'normal', NULL, '2026-09-10', 'open', FALSE, :'a369_curator2_membership'),
+  ('36936900-0000-4000-8000-000000000185', :'a369_org', :'a369_case', 'follow_up', 'A369 allowed case task', :'a369_curator3_membership', 'normal', NULL, '2026-09-10', 'open', FALSE, :'a369_curator2_membership'),
+  ('36936900-0000-4000-8000-000000000186', :'a369_org', :'a369_other_case', 'follow_up', 'A369 refused undated case task', :'a369_curator3_membership', 'normal', NULL, NULL, 'open', FALSE, :'a369_curator2_membership');
 
 -- Staff tasks for every assignee (the same day edges), one per pattern, plus an undated pair for each.
 INSERT INTO platform.staff_tasks (id, organization_id, creator_membership_id, assignee_membership_id, title, status, priority, due_on, due_at)
@@ -275,6 +395,7 @@ SET request.jwt.claims TO :'a369_curator_claims';
 SET ROLE authenticated;
 SELECT (pg_temp.a369_compare_actor())[1] AS a369_curator_dated, (pg_temp.a369_compare_actor())[2] AS a369_curator_undated \gset
 SELECT pg_temp.a369_assert(:a369_curator_dated > 0 AND :a369_curator_undated > 0, 'the curator comparison covered dated and undated rows');
+SELECT pg_temp.a369_assert(pg_temp.a369_builder_equal(), 'the unwindowed builder equals the verbatim 217 builder for the curator');
 SELECT pg_temp.a369_assert(
   platform.staff_personal_calendar_page_v1('undated', NULL, NULL, 100)->>'total_count' = '7',
   'curator undated total: 4 case + 3 staff tasks');
@@ -288,10 +409,34 @@ SELECT pg_temp.a369_assert(
   'the 18:00 UTC deadline belongs to the next Bishkek day, 17:59:59 UTC to the previous one');
 RESET ROLE;
 
+-- The record-scoped curator: refused rows stay out of the pages and out of total_count, exactly as in the reference.
+SELECT count(*) AS a369_refused_candidates FROM platform.case_tasks AS t JOIN platform.student_cases AS c ON c.id = t.student_case_id
+WHERE t.id IN ('36936900-0000-4000-8000-000000000184', '36936900-0000-4000-8000-000000000186') AND t.assignee_membership_id = :'a369_curator3_membership'
+  AND c.state IN ('active', 'closed') AND c.handoff_at IS NOT NULL \gset
+SELECT pg_temp.a369_assert(:a369_refused_candidates = 2, 'the refused tasks are real candidates (assignee, handoff) that only staff_can_access can drop');
+SET request.jwt.claims TO :'a369_curator3_claims';
+SET ROLE authenticated;
+SELECT (pg_temp.a369_compare_actor())[1] AS a369_curator3_dated, (pg_temp.a369_compare_actor())[2] AS a369_curator3_undated \gset
+SELECT pg_temp.a369_assert(pg_temp.a369_builder_equal(), 'the unwindowed builder equals the verbatim 217 builder for the record-scoped curator');
+SELECT pg_temp.a369_assert(:a369_curator3_dated = 1 AND :a369_curator3_undated = 0, 'only the allowed task is visible (dated 1, undated 0)');
+SELECT pg_temp.a369_assert(
+  (SELECT string_agg(r->>'task_id', ',') FROM jsonb_array_elements(platform.staff_personal_calendar_page_v1('dated', '2026-09-10', '2026-09-10', 100)->'rows') AS r)
+    = '36936900-0000-4000-8000-000000000185'
+  AND platform.staff_personal_calendar_page_v1('dated', '2026-09-10', '2026-09-10', 100)->>'total_count' = '1'
+  AND platform.staff_personal_calendar_page_v1('dated', '2026-09-10', '2026-09-10', 100)
+    = pg_temp.a369_ref_page('dated', '2026-09-10', '2026-09-10', 100, NULL, NULL, NULL)
+  AND platform.staff_personal_calendar_page_v1('undated', NULL, NULL, 100)->>'total_count' = '0'
+  AND platform.staff_personal_calendar_page_v1('undated', NULL, NULL, 100)
+    = pg_temp.a369_ref_page('undated', NULL, NULL, 100, NULL, NULL, NULL),
+  'a task refused by staff_can_access inside the window is absent and total_count equals the reference');
+RESET ROLE;
+RESET request.jwt.claims;
+
 SET request.jwt.claims TO :'a369_sales_claims';
 SET ROLE authenticated;
 SELECT (pg_temp.a369_compare_actor())[1] AS a369_sales_dated, (pg_temp.a369_compare_actor())[2] AS a369_sales_undated \gset
 SELECT pg_temp.a369_assert(:a369_sales_dated > 0 AND :a369_sales_undated > 0, 'the staff-tasks-only member comparison covered rows');
+SELECT pg_temp.a369_assert(pg_temp.a369_builder_equal(), 'the unwindowed builder equals the verbatim 217 builder for the staff-tasks-only member');
 SELECT pg_temp.a369_assert(NOT EXISTS (
   SELECT 1 FROM jsonb_array_elements(platform.staff_personal_calendar_page_v1('dated', '2026-01-01', '2026-12-31', 100)->'rows') AS r
   WHERE r->>'kind' <> 'staff'), 'a member without task.manage sees staff tasks only');
@@ -301,6 +446,7 @@ SET request.jwt.claims TO :'a369_admin_claims';
 SET ROLE authenticated;
 SELECT (pg_temp.a369_compare_actor())[1] AS a369_admin_dated \gset
 SELECT pg_temp.a369_assert(:a369_admin_dated > 0, 'the admin comparison covered rows');
+SELECT pg_temp.a369_assert(pg_temp.a369_builder_equal(), 'the unwindowed builder equals the verbatim 217 builder for the admin');
 RESET ROLE;
 
 SET request.jwt.claims TO :'a369_curator2_claims';

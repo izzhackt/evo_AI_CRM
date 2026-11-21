@@ -93,3 +93,17 @@ test("a duplicate between the dated and undated reads still fails, and a failed 
   });
   await assert.rejects(() => failing.readCalendarTasks({}, "2026-09-07", "2026-09-13"), /undated read failed/u);
 });
+
+test("when both reads fail the dated error surfaces first, whatever the timing", async () => {
+  for (const undatedFirst of [false, true]) {
+    const gates = { dated: deferred(), undated: deferred() };
+    const adapter = adapterWith((_actor, options) => (options.mode === "undated" ? gates.undated : gates.dated).promise);
+    const result = adapter.readCalendarTasks({}, "2026-09-07", "2026-09-13");
+    const outcome = assert.rejects(() => result, /dated read failed/u);
+    await new Promise((resolve) => setImmediate(resolve));
+    const failDated = () => gates.dated.reject(new Error("dated read failed"));
+    const failUndated = () => gates.undated.reject(new Error("undated read failed"));
+    if (undatedFirst) { failUndated(); await new Promise((resolve) => setImmediate(resolve)); failDated(); } else { failDated(); failUndated(); }
+    await outcome;
+  }
+});

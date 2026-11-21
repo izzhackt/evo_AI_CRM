@@ -61,10 +61,15 @@ export async function readCalendarTasks(
     } while (datedCursor !== null);
     return dated;
   };
-  const [dated, undated] = await Promise.all([
+  // allSettled keeps the failure deterministic: the dated error surfaces first, as when the reads were sequential.
+  const [datedResult, undatedResult] = await Promise.allSettled([
     readDated(),
     readPersonalCalendarPage(actor, { mode: "undated", pageSize: QUEUE_PAGE_SIZE, cursor: undatedCursor }),
   ]);
+  if (datedResult.status === "rejected") throw datedResult.reason;
+  if (undatedResult.status === "rejected") throw undatedResult.reason;
+  const dated = datedResult.value;
+  const undated = undatedResult.value;
   const tasks: CalendarTask[] = [];
   const seen = new Set<string>();
   for (const task of [...dated, ...undated.tasks]) {

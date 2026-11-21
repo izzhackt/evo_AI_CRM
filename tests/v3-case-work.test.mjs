@@ -585,7 +585,7 @@ test("the invite reader takes the email of this case's client inside this organi
 
 test("a case without an open lead can be invited to the portal: the Admin block gets the client's email, the contact rows do not", () => {
   const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: await portalInviteEmailFor\(actor, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\),/u);
+  assert.match(fileOf("src/lib/v3/profile-source.ts"), /const inviteEmailRead = portalInviteEmailFor\(actor, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\);[\s\S]*?portalInviteEmail: await inviteEmailRead,/u);
   const reader = fileOf("src/lib/v3/portal-invite-email.ts");
   assert.match(reader, /from\("clients"\)\.select\("email"\)/u);
   assert.doesNotMatch(reader, /createPlatformSupabaseServiceClient/u, "the read stays under the staff session and RLS");
@@ -601,7 +601,7 @@ test("the case-only branch of readCaseProfile keeps the client e-mail/phone null
   assert.match(parts, /contacts(?:=\{|: )caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)/u);
   assert.match(parts, /email=\{profile\.email \?\? profile\.portalInviteEmail \?\? null\}/u, "portal access still takes the client e-mail only, never the анкета value");
   // Условия продажи (290): одно чтение дела параллельно с делом, не бросает, без запасного пути; блок лида остаётся null.
-  assert.match(branch, /const saleRead = readCaseSaleData\(actor, canonicalCaseId\);\n {2}const data = await loadFullCase\(actor, view\.studentCase\);/u);
+  assert.match(branch, /const saleRead = readCaseSaleData\(actor, canonicalCaseId\);\n[\s\S]*?const inviteEmailRead = [^\n]+\n[\s\S]*?const data = await fullCaseRead;/u);
   assert.match(branch, /\.\.\.\(await saleRead\),/u);
   assert.match(source, /saleConditions: conditions && caseSaleBlocks\(conditions\)\.length > 0 \? conditions : null/u);
   assert.match(source, /return \{ saleConditions: null, saleConditionsUnavailable: true \};/u);

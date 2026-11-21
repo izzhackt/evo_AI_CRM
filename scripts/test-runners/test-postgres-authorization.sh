@@ -985,6 +985,34 @@ SQL
     done
   fi
 
+  # «Скорость «Студентов»: числа вкладок» (370). Matched by name, not number. Immediately BEFORE it: a counts body whose
+  # row-by-row call is not the one 370 was written against makes it fail closed with a370_anchor_drift, inside a transaction
+  # that the failure rolls back; the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == *_platform_student_queue_counts_speed.sql ]]; then
+    t370_tamper_log="$(mktemp -t evo-t370-anchor-tamper.XXXXXX)"
+    if docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v "migration_file=/workspace/$migration" \
+      >"$t370_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(pg_get_functiondef('platform.staff_student_case_queue_counts_v1(text,text,uuid,text,text)'::regprocedure),
+  'private.platform_can_read_student_case(c.organization_id, c.id)',
+  'private.platform_can_read_student_case(c.organization_id, c.id) IS TRUE') AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+    then
+      echo "migration 370 accepted an edited counts body" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a370_anchor_drift" "$t370_tamper_log"; then
+      echo "migration 370 failed for the wrong drift reason" >&2
+      sed -n '1,60p' "$t370_tamper_log" >&2
+      exit 1
+    fi
+    rm -f "$t370_tamper_log"
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -5512,6 +5540,85 @@ SQL
       exit 1
     fi
   fi
+  # «Имена скачиваемых файлов» (migration 366, 21.11.2026). Matched by name, not number. Four new read functions give the data for
+  # «<Тип документа> — <Фамилия>.<расширение>»: right after the migration a second apply refuses (a366_already_applied), then the
+  # suite, insisting on its marker: the owner of a live grant / the authorized actor gets the fields, everyone else is refused.
+  if [[ "$(basename "$migration")" == *_platform_download_file_names.sql ]]; then
+    t366_again_log="$(mktemp -t evo-t366-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t366_again_log" 2>&1; then
+      echo "migration 366 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a366_already_applied" "$t366_again_log"; then
+      echo "a second apply of migration 366 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t366_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t366_again_log"
+    download_file_names_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_download_file_names.sql </dev/null)"
+    printf '%s\n' "$download_file_names_log"
+    if ! grep -q 'A366_DOWNLOAD_FILE_NAMES_SUITE_PASSED' <<<"$download_file_names_log"; then
+      echo "platform_download_file_names.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Скорость Сегодня и Финансов» (migration 367, 21.11.2026). Matched by name, not number. The migration adds the batch read
+  # `staff_task_lead_refs_v1` and replaces the per-row lead.read check of `staff_sales_handoff_facts` by the 310 set: right after
+  # it a second apply refuses (a367_already_applied), then the suite, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_today_finance_speed.sql ]]; then
+    t367_again_log="$(mktemp -t evo-t367-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t367_again_log" 2>&1; then
+      echo "migration 367 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a367_already_applied" "$t367_again_log"; then
+      echo "a second apply of migration 367 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t367_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t367_again_log"
+    today_finance_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_today_finance_speed.sql </dev/null)"
+    printf '%s\n' "$today_finance_speed_log"
+    if ! grep -q 'A367_TODAY_FINANCE_SPEED_SUITE_PASSED' <<<"$today_finance_speed_log"; then
+      echo "platform_today_finance_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Окно дат в сборщике личного календаря» (migration 369, 21.11.2026). Matched by name, not number. The migration moves the
+  # mode and date window of `staff_personal_calendar_page_v1` into the rows builder, before the per-row permission checks:
+  # right after it a second apply refuses (a369_already_applied), then the suite compares every page with a reference copy
+  # of the pre-369 logic, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_personal_calendar_window.sql ]]; then
+    t369_again_log="$(mktemp -t evo-t369-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t369_again_log" 2>&1; then
+      echo "migration 369 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a369_already_applied" "$t369_again_log"; then
+      echo "a second apply of migration 369 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t369_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t369_again_log"
+    personal_calendar_window_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_personal_calendar_window.sql </dev/null)"
+    printf '%s\n' "$personal_calendar_window_log"
+    if ! grep -q 'A369_PERSONAL_CALENDAR_WINDOW_SUITE_PASSED' <<<"$personal_calendar_window_log"; then
+      echo "platform_personal_calendar_window.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Чтение справочника городов для просмотра в CRM» (migration 354, 08.11.2026). Matched by name, not number. The migration
   # adds the read-only `staff_catalog_geography_read_v1` (published cities and links, catalog.read): right after it a second
   # apply refuses (a354_already_applied), then the suite, insisting on its marker.
@@ -5696,6 +5803,34 @@ SQL
       exit 1
     fi
   fi
+  # «Скорость «Студентов»: числа вкладок» (migration 370, 21.11.2026). Matched by name, not number. The migration moves the
+  # counts of the «Студенты» queue from a row-by-row read check to the readable-case set: right after it a second apply
+  # refuses (a370_already_applied), then the suite, insisting on its marker, proves that for several actors (admin, own-scope
+  # curators, an organization-scope manager, a member without case read, another organization) and every view and filter the
+  # answer equals the pre-370 definition kept in the suite.
+  if [[ "$(basename "$migration")" == *_platform_student_queue_counts_speed.sql ]]; then
+    t370_again_log="$(mktemp -t evo-t370-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t370_again_log" 2>&1; then
+      echo "migration 370 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a370_already_applied" "$t370_again_log"; then
+      echo "a second apply of migration 370 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t370_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t370_again_log"
+    queue_counts_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_queue_counts_speed.sql </dev/null)"
+    printf '%s\n' "$queue_counts_speed_log"
+    if ! grep -q 'N370_QUEUE_COUNTS_SPEED_SUITE_PASSED' <<<"$queue_counts_speed_log"; then
+      echo "platform_student_queue_counts_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
   # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
   # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the
@@ -5859,6 +5994,57 @@ SQL
     printf '%s\n' "$curator_case_accounts_log"
     if ! grep -q 'A363_CURATOR_STUDENT_CASE_ACCOUNTS_SUITE_PASSED' <<<"$curator_case_accounts_log"; then
       echo "platform_curator_student_case_accounts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Скорость Заявок» (migration 368, 21.11.2026). Matched by name, not number. The migration replaces the queue
+  # `staff_requests_queue_v3` and adds the sales-ledger guard and the batch read of call lines: right after it a second
+  # apply refuses (a368_already_applied), then the suite, insisting on its marker, proves that every answer equals the
+  # released one (rows, errors, every actor) and that the batch read equals the single read lead by lead.
+  if [[ "$(basename "$migration")" == *_platform_requests_speed.sql ]]; then
+    t368_again_log="$(mktemp -t evo-t368-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t368_again_log" 2>&1; then
+      echo "migration 368 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a368_already_applied" "$t368_again_log"; then
+      echo "a second apply of migration 368 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t368_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t368_again_log"
+    requests_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_requests_speed.sql </dev/null)"
+    printf '%s\n' "$requests_speed_log"
+    if ! grep -q 'A368_REQUESTS_SPEED_SUITE_PASSED' <<<"$requests_speed_log"; then
+      echo "platform_requests_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Список документов Китая по руководству куратора» (migration 371, 20.11.2026). Matched by name, not number. The 338
+  # list function is replaced and a new extension function is added: right after it a second apply refuses
+  # (a371_already_applied), then the suite, insisting on its marker. The suite proves: China is the 14 items of the guide,
+  # Malaysia is unchanged; a case with the 338 China list gets only the guide items it never had (no label twice, active
+  # or removed; no second language certificate), after the 338 items, without touching them; other cases get nothing.
+  if [[ "$(basename "$migration")" == *_platform_cn_document_checklist_guide.sql ]]; then
+    t371_again_log="$(mktemp -t evo-t371-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t371_again_log" 2>&1; then
+      echo "migration 371 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a371_already_applied" "$t371_again_log"; then
+      echo "a second apply of migration 371 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t371_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t371_again_log"
+    cn_document_checklist_guide_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_cn_document_checklist_guide.sql </dev/null)"
+    printf '%s\n' "$cn_document_checklist_guide_log"
+    if ! grep -q 'A371_CN_DOCUMENT_CHECKLIST_GUIDE_SUITE_PASSED' <<<"$cn_document_checklist_guide_log"; then
+      echo "platform_cn_document_checklist_guide.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import type { PipelineLead, PipelineStage } from "@/components/staff/Pipeline";
 import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import {
@@ -169,9 +171,9 @@ export type CanonicalSalesLeadsRead = Readonly<{
   truncated: boolean;
 }>;
 
-export async function readAllCanonicalSalesLeads(
+async function readAllCanonicalSalesLeadsOnce(
   actor: PlatformActor,
-  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
+  filters: PipelineBoardFilters,
 ): Promise<CanonicalSalesLeadsRead> {
   const rows: PlatformSalesLeadRow[] = [];
   const seenLeadIds = new Set<string>();
@@ -215,6 +217,36 @@ export async function readAllCanonicalSalesLeads(
   }
 
   return Object.freeze({ rows: Object.freeze(rows), truncated: true });
+}
+
+/** Ключ чтения: все поля фильтра, поэтому два разных фильтра («мои» и «без ответственного») не делят ответ. */
+function filtersKey(filters: PipelineBoardFilters): string {
+  return JSON.stringify([filters.query, filters.stage, filters.due, filters.assignment, filters.ownerMembershipId]);
+}
+
+/**
+ * Память одного запроса страницы. React сравнивает аргументы по значению для строк и по ссылке для объектов, поэтому фильтр
+ * идёт строкой-ключом, а из неё же собирается обратно: два равных фильтра в разных объектах попадают в одну запись.
+ * Сотрудник — тот же объект, что отдаёт `resolvePlatformActor` в этом запросе; чужой объект даёт отдельное чтение, не общее.
+ */
+const readAllCanonicalSalesLeadsInRequest = cache((actor: PlatformActor, key: string) => {
+  const [query, stage, due, assignment, ownerMembershipId] = JSON.parse(key) as [
+    PipelineBoardFilters["query"], PipelineBoardFilters["stage"], PipelineBoardFilters["due"],
+    PipelineBoardFilters["assignment"], PipelineBoardFilters["ownerMembershipId"],
+  ];
+  return readAllCanonicalSalesLeadsOnce(actor, { query, stage, due, assignment, ownerMembershipId });
+});
+
+/**
+ * Одинаковые (сотрудник, фильтр) читают базу ОДИН раз за запрос страницы: «Отчёт продаж» берёт все лиды дважды (когорта периода
+ * и воронка доски), ещё раз их читают те же вкладки «Сегодня». Память живёт только в запросе: React сбрасывает её между
+ * запросами и сотрудниками, вне запроса функция читает как раньше. Ответ заморожен и общий для читающих.
+ */
+export function readAllCanonicalSalesLeads(
+  actor: PlatformActor,
+  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
+): Promise<CanonicalSalesLeadsRead> {
+  return readAllCanonicalSalesLeadsInRequest(actor, filtersKey(filters));
 }
 
 export type PipelineBoardRead = Readonly<{

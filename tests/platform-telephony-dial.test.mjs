@@ -948,8 +948,8 @@ test("a lead made by an unknown number is «Номер …» on the lead card, t
 test("callback task: the Today row and the task panel name the client, and only for an employee whose dial is open", () => {
   const source = read("src/lib/v3/telephony-task-leads-source.ts");
   assert.match(source, /^import "server-only";/u);
-  assert.match(source, /readStaffTaskContext\(actor, taskId\)/u, "the lead of a task comes from the read the «Задачи» page already uses");
-  assert.match(source, /readStaffTaskLeadContext\(actor, leadId\)/u, "and its name from the lead read under the same session");
+  assert.match(source, /readStaffTaskLeadRefs\(actor, /u, "the leads of the list rows come in ONE read (367) that calls the same two database functions per task");
+  assert.match(source, /readStaffTaskLeadContext\(actor, leadId\)/u, "and the panel's lead name from the lead read under the same session");
   // Читаются только строки, видимые сразу (окно группы «Сегодня»), — клиент назван у каждой из них, а не у первых двенадцати.
   assert.match(source, /todayVisibleCount\(band\.items\.length, false\)/u);
   // Only the call-back tasks telephony itself creates (migration 298) are read; every other work task costs «Сегодня» no database read.
@@ -964,7 +964,7 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(source, /name: callerDisplayName\(lead\.clientDisplayName\)/u, "a lead made from an unknown number is named as in «Заявки» and «Сегодня»");
   assert.match(source, /catch \{\s*return null;/u, "a failed read leaves the row as it was");
   const main = read("src/app/(staff)/main/page.tsx");
-  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, \{ bands: sections\.flatMap\(\(section\) => section\.queue\.bands\) \}\) : null;/u, "no extra reads while dial is closed to this employee");
+  assert.match(main, /const taskLeads = dial\.status === "ready"\s*\? await readTodayTaskLeads\(actor, \{ bands: sections\.flatMap\(\(section\) => section\.queue\.bands\) \}, await early\.taskLeads\)\s*: null;/u, "no extra reads while dial is closed to this employee; the read starts early (see tests/v3-today-speed.test.mjs)");
   assert.match(main, /taskLeads=\{taskLeads\}/u);
   const row = read("src/components/staff/tasks/TaskQueueRow.tsx");
   assert.match(row, /leadRef \? <>/u);

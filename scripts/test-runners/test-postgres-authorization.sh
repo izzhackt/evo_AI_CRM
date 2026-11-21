@@ -5538,6 +5538,32 @@ SQL
       exit 1
     fi
   fi
+  # «Скорость Сегодня и Финансов» (migration 367, 21.11.2026). Matched by name, not number. The migration adds the batch read
+  # `staff_task_lead_refs_v1` and replaces the per-row lead.read check of `staff_sales_handoff_facts` by the 310 set: right after
+  # it a second apply refuses (a367_already_applied), then the suite, insisting on its marker.
+  if [[ "$(basename "$migration")" == *_platform_today_finance_speed.sql ]]; then
+    t367_again_log="$(mktemp -t evo-t367-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t367_again_log" 2>&1; then
+      echo "migration 367 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a367_already_applied" "$t367_again_log"; then
+      echo "a second apply of migration 367 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t367_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t367_again_log"
+    today_finance_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_today_finance_speed.sql </dev/null)"
+    printf '%s\n' "$today_finance_speed_log"
+    if ! grep -q 'A367_TODAY_FINANCE_SPEED_SUITE_PASSED' <<<"$today_finance_speed_log"; then
+      echo "platform_today_finance_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Чтение справочника городов для просмотра в CRM» (migration 354, 08.11.2026). Matched by name, not number. The migration
   # adds the read-only `staff_catalog_geography_read_v1` (published cities and links, catalog.read): right after it a second
   # apply refuses (a354_already_applied), then the suite, insisting on its marker.

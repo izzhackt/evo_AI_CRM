@@ -207,6 +207,20 @@ export type TodayQueue = Readonly<{
   nearest: Readonly<{ day: string; weekday: string; date: string }> | null;
 }>;
 
+/**
+ * Вся очередь без групп и строк: предупреждения источников, пустой день, «ближайший срок». Строки уходят в браузер один раз —
+ * в разделах (`TodaySectionView.queue`): те же строки во второй раз, в «общей» очереди, клиенту не нужны (он берёт из неё только
+ * эти поля), а раньше удваивали данные страницы.
+ */
+export type TodayQueueSummary = Omit<TodayQueue, "bands">;
+
+export function todayQueueSummary(queue: TodayQueue): TodayQueueSummary {
+  return Object.freeze({
+    today: queue.today, emptyNote: queue.emptyNote, notices: queue.notices, applicable: queue.applicable,
+    complete: queue.complete, actionEmpty: queue.actionEmpty, nearest: queue.nearest,
+  });
+}
+
 const TODAY_PATH = "/main";
 /** «Заявки» (Э3): очередь разбора, по умолчанию «Ждут разбора». */
 const TODAY_REQUESTS_PATH = "/requests";

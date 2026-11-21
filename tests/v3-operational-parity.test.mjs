@@ -27,7 +27,7 @@ test("«Сегодня» is the one start page of every role and replaces the op
   assert.doesNotMatch(calendar, /OperationsOverview|TodayScreen/u);
   assert.doesNotMatch(calendar, /href="\/main"/u);
   assert.doesNotMatch(calendar, /Сводка на Главной/u);
-  for (const reader of ["staff.listStaffTasks", "workspace.listPlatformAdmissionsTaskQueue", "queue.readStudentCaseQueue",
+  for (const reader of ["staff.listStaffTaskPages", "workspace.listPlatformAdmissionsTaskQueue", "queue.readStudentCaseQueue",
     "pipeline.readPipelineLeads", "chat.readStaffCaseChatThreads"]) {
     assert.match(today, new RegExp(reader.replace(".", "\\.")), reader);
   }

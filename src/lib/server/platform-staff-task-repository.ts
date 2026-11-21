@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { ActivePlatformActor, PlatformActor } from "../platform-auth";
-import { parseStaffParticipant, parseStaffTask, type StaffTaskCursor, type StaffTaskFilter, type StaffTaskView } from "../platform-staff-task-contract";
+import { parseStaffParticipant, parseStaffTask, type StaffTask, type StaffTaskCursor, type StaffTaskFilter, type StaffTaskView } from "../platform-staff-task-contract";
 import { createSupabaseServerClient } from "../supabase/server";
 import { isTeamChatChannel, staffCanAccessChatChannel } from "../platform-team-chat";
 import { staffTaskUuid } from "../platform-staff-task-contract";
@@ -135,4 +135,37 @@ export async function listStaffTasks(actor: PlatformActor, options: Readonly<{
   const page = rows.slice(0, 50);
   const last = page.at(-1);
   return Object.freeze({ rows: page, nextCursor: rows.length > 50 && last ? { updatedAt: last.updatedAt, id: last.id } : null });
+}
+
+/** Most pages one read may cover (migration 372 refuses more). */
+export const STAFF_TASK_MAX_PAGES_PER_READ = 10;
+
+/**
+ * Every page of `staff_task_list` in ONE read (migration 372, `staff_task_list_pages_v1`): the database walks the same pages
+ * of 50 with the same view, status and cursor that «Сегодня» requested one after another, under the same session.
+ * `complete` — the list ended before `maxPages` full pages. Rows pass the same checks as a page.
+ */
+export async function listStaffTaskPages(actor: PlatformActor, options: Readonly<{
+  view: StaffTaskView; status: StaffTaskFilter; maxPages: number;
+}>): Promise<Readonly<{ rows: readonly StaffTask[]; complete: boolean }>> {
+  assertStaff(actor);
+  if (!Number.isSafeInteger(options.maxPages) || options.maxPages < 1 || options.maxPages > STAFF_TASK_MAX_PAGES_PER_READ) {
+    throw new Error("Staff tasks are unavailable.");
+  }
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_task_list_pages_v1", {
+    p_organization_id: actor.organizationId, p_view: options.view, p_status: options.status,
+    p_page_size: 50, p_max_pages: options.maxPages,
+  });
+  const limit = 50 * options.maxPages;
+  if (error || !data || typeof data !== "object" || Array.isArray(data)
+    || Object.keys(data).length !== 2 || !Array.isArray((data as { rows?: unknown }).rows)
+    || typeof (data as { truncated?: unknown }).truncated !== "boolean") {
+    throw new Error("Staff tasks are unavailable.");
+  }
+  const { rows: raw, truncated } = data as { rows: unknown[]; truncated: boolean };
+  if (raw.length > limit || (truncated && raw.length !== limit)) throw new Error("Staff tasks are unavailable.");
+  const rows = raw.map((row) => parseStaffTask(row, actor.organizationId));
+  if (new Set(rows.map((row) => row.id)).size !== rows.length) throw new Error("Staff tasks are unavailable.");
+  return Object.freeze({ rows: Object.freeze(rows), complete: !truncated });
 }

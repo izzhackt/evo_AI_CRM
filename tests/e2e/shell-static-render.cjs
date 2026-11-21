@@ -247,8 +247,8 @@ function homeReaders(actor) {
     },
   });
   return {
-    async listStaffTasks() {
-      return { rows: [staffTask(1, "Подготовить вопросы к планёрке (синтетика)", day(-1)), staffTask(2, "Проверить отчёт недели (синтетика)", today)], nextCursor: null };
+    async listStaffTaskPages() {
+      return { rows: [staffTask(1, "Подготовить вопросы к планёрке (синтетика)", day(-1)), staffTask(2, "Проверить отчёт недели (синтетика)", today)], complete: true };
     },
     async listCaseTasks() {
       return { rows: [], nextCursor: null };

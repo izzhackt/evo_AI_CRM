@@ -15,7 +15,8 @@ import { indexBody } from "@/test-fixtures/university-index";
 const mockParams: { current: Record<string, string> } = { current: {} };
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams.current,
-  router: { push: jest.fn(), back: jest.fn(), canGoBack: () => false, setParams: jest.fn(), navigate: jest.fn(), replace: jest.fn() },
+  useNavigation: () => ({ getState: () => ({ routes: [{ name: "index" }] }) }),
+  router: { push: jest.fn(), back: jest.fn(), canGoBack: () => false, setParams: jest.fn(), navigate: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() },
 }));
 jest.mock("@/features/universities/CatalogMap", () => ({
   CatalogMap: ({ pins }: { pins: readonly unknown[] }) => {

@@ -850,9 +850,9 @@ export function resolveUniversitiesRoute(params: Readonly<Record<string, string 
   const legacy = keys.some((key) => key !== "q" && key !== "all");
   const trimmed = query.trim();
   if (!legacy) return { kind: "page", query, all };
-  if (trimmed !== "") return { kind: "redirect", href: `${UNIVERSITIES_BASE}?${new URLSearchParams({ q: trimmed })}` };
+  if (trimmed !== "") return { kind: "redirect", href: `${UNIVERSITIES_BASE}?${new URLSearchParams(all ? { q: trimmed, all: "1" } : { q: trimmed })}` };
   if (country !== "") return { kind: "redirect", href: countryHref(country, view === "map" ? "map" : "cities") };
-  return { kind: "redirect", href: UNIVERSITIES_BASE };
+  return { kind: "redirect", href: all ? UNIVERSITIES_ALL_HREF : UNIVERSITIES_BASE };
 }
 
 /**

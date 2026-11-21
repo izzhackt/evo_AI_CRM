@@ -1,6 +1,6 @@
 // «Университеты»: шесть карточек стран и поиск по городу и названию вуза по всем странам (веб S3, 7.3).
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 
 import { formatPortalString } from "@web/lib/portal/i18n";
@@ -15,6 +15,7 @@ import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
 
 import { CatalogFrame } from "./CatalogFrame";
+import { useEntryRedirect } from "./useEntryRedirect";
 import { useFavoriteState } from "./FavoritesContext";
 import { countryCards, searchIndex, tileModel } from "./model";
 import { CountryCardView, UniversityTileView } from "./parts";
@@ -30,10 +31,9 @@ export function UniversitiesScreen() {
   const all = params.all === "1";
   const choice = useCountryChoice();
   const ownCountry = universitiesEntryCountry({ query: "", all }, choice.data ?? null);
-  useEffect(() => {
-    if (ownCountry !== null) router.replace(`/universities/country/${ownCountry.toLowerCase()}` as never);
-  }, [ownCountry]);
-  if (!all && (choice.isLoading || ownCountry !== null)) {
+  useEntryRedirect(ownCountry);
+  // Сбой чтения выбора не ждёт повторов запроса: сразу общий список.
+  if (!all && ((choice.isLoading && !choice.isError && choice.failureCount === 0) || ownCountry !== null)) {
     return (
       <Screen topInset={false} tabBar>
         <CardSkeleton label={`${strings.title}. ${m("state.loading")}`} lines={3} testID="catalog-entry" />

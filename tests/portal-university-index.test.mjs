@@ -300,6 +300,8 @@ test("old list and map addresses lead to the new screens", () => {
     [{ all: "1" }, { kind: "page", query: "", all: true }],
     [{ all: "1", q: "Tongji" }, { kind: "page", query: "Tongji", all: true }],
     [{ all: "1", view: "map", country: "CN" }, { kind: "redirect", href: "/portal/universities/country/cn?view=map" }],
+    [{ all: "1", level: "master" }, { kind: "redirect", href: "/portal/universities?all=1" }],
+    [{ all: "1", q: "Tongji", offset: "30" }, { kind: "redirect", href: "/portal/universities?q=Tongji&all=1" }],
     [{ all: "0" }, { kind: "invalid" }],
     [{ all: ["1", "1"] }, { kind: "invalid" }],
     [{ view: "map", country: "CN" }, { kind: "redirect", href: "/portal/universities/country/cn?view=map" }],

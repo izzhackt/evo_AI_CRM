@@ -6024,6 +6024,30 @@ SQL
       exit 1
     fi
   fi
+  # «Список документов Китая по руководству куратора» (migration 371, 20.11.2026). Matched by name, not number. The 338
+  # list function is replaced and a new extension function is added: right after it a second apply refuses
+  # (a371_already_applied), then the suite, insisting on its marker. The suite proves: China is the 14 items of the guide,
+  # Malaysia is unchanged; a case with the 338 China list gets only the guide items it never had (no label twice, active
+  # or removed; no second language certificate), after the 338 items, without touching them; other cases get nothing.
+  if [[ "$(basename "$migration")" == *_platform_cn_document_checklist_guide.sql ]]; then
+    t371_again_log="$(mktemp -t evo-t371-again.XXXXXX)"
+    if docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f "/workspace/$migration" >"$t371_again_log" 2>&1; then
+      echo "migration 371 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a371_already_applied" "$t371_again_log"; then
+      echo "a second apply of migration 371 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t371_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t371_again_log"
+    cn_document_checklist_guide_log="$(docker exec "$container_name"       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database"       -f /workspace/supabase/tests/platform_cn_document_checklist_guide.sql </dev/null)"
+    printf '%s\n' "$cn_document_checklist_guide_log"
+    if ! grep -q 'A371_CN_DOCUMENT_CHECKLIST_GUIDE_SUITE_PASSED' <<<"$cn_document_checklist_guide_log"; then
+      echo "platform_cn_document_checklist_guide.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

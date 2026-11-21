@@ -1,5 +1,5 @@
 -- ============================================================
--- 364_platform_cn_document_checklist_guide.sql
+-- 371_platform_cn_document_checklist_guide.sql
 --
 -- Список документов Китая по руководству куратора (20.11.2026: руководитель согласился дополнить список Китая по
 -- руководству куратора; руководство от 15.10.2026, набор сентябрь 2027, раздел 4 «Документы»). Список 338 был взят
@@ -24,16 +24,16 @@
 -- (id 338 не меняется при переименовании и уборке, пункты не удаляются).
 --
 -- Хук набора в `scripts/test-runners/test-postgres-authorization.sh` привязан к имени файла. Forward-only: повтор
--- отказывает a364_already_applied; если список 338 уже не тот, что ожидается, — a364_list_drift. Новых прав нет:
+-- отказывает a371_already_applied; если список 338 уже не тот, что ожидается, — a371_list_drift. Новых прав нет:
 -- функции закрыты от всех ролей, вызываются только миграцией и набором.
 -- ============================================================
 
 BEGIN;
 
-DO $a364_guard$
+DO $a371_guard$
 BEGIN
   IF to_regprocedure('platform_private.extend_default_document_checklist_cn_guide(uuid,uuid)') IS NOT NULL THEN
-    RAISE EXCEPTION 'a364_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a371_already_applied' USING ERRCODE = '55000';
   END IF;
   IF (
     SELECT string_agg(list.item_position || ':' || list.label || ':' || list.group_label, ' | ' ORDER BY list.item_position)
@@ -49,10 +49,10 @@ BEGIN
     ) IS DISTINCT FROM '1:Загранпаспорт:Обязательные документы | 2:Фото:Обязательные документы | '
       || '3:Аттестат или транскрипт:Обязательные документы | 4:Сертификат по языку (IELTS, TOEFL):Обязательные документы'
   THEN
-    RAISE EXCEPTION 'a364_list_drift: the 338 default document checklist is not the expected one' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a371_list_drift: the 338 default document checklist is not the expected one' USING ERRCODE = '55000';
   END IF;
 END
-$a364_guard$;
+$a371_guard$;
 
 -- Списки. Китай — по руководству куратора; Малайзия — как в 338.
 CREATE OR REPLACE FUNCTION platform_private.default_document_checklist(p_direction TEXT)
@@ -276,12 +276,12 @@ REVOKE ALL ON FUNCTION
 FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 COMMENT ON FUNCTION platform_private.default_document_checklist(TEXT)
-  IS 'Default document checklist per admissions direction (CN by the curator guide since 364, MY), in display order.';
+  IS 'Default document checklist per admissions direction (CN by the curator guide since 371, MY), in display order.';
 COMMENT ON FUNCTION platform_private.extend_default_document_checklist_cn_guide(UUID, UUID)
-  IS 'One-time 364 extension of a China case that got the 338 checklist: adds the guide items it never had by label. Returns the number of created slots.';
+  IS 'One-time 371 extension of a China case that got the 338 checklist: adds the guide items it never had by label. Returns the number of created slots.';
 
 -- Один раз: дела, которые уже получили список Китая из 338.
-DO $a364_backfill$
+DO $a371_backfill$
 DECLARE
   extended_cases INTEGER;
   created_slots INTEGER;
@@ -295,8 +295,8 @@ BEGIN
       AND student_case.portal_activated_at IS NOT NULL
       AND student_case.state IN ('pending', 'active')
   ) AS extension;
-  RAISE NOTICE 'a364_backfill: % case(s) extended, % item(s) added', extended_cases, created_slots;
+  RAISE NOTICE 'a371_backfill: % case(s) extended, % item(s) added', extended_cases, created_slots;
 END
-$a364_backfill$;
+$a371_backfill$;
 
 COMMIT;

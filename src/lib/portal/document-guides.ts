@@ -1,5 +1,8 @@
 import type { Locale } from "../i18n-data.ts";
 
+import { CN_DOCUMENT_GUIDES, type CountryDocumentGuide } from "./document-guides-cn.ts";
+import { DOCUMENT_SAMPLE_SETS } from "./document-sample-sets.ts";
+
 /**
  * Справка «что это за документ» для кабинета студента.
  *
@@ -33,6 +36,9 @@ export const DOCUMENT_GUIDE_TYPES = [
   "motivation_letter",
   "recommendation_letter",
   "birth_certificate",
+  "csca_result",
+  "parents_documents",
+  "parental_consent",
 ] as const;
 
 export type DocumentGuideType = (typeof DOCUMENT_GUIDE_TYPES)[number];
@@ -91,7 +97,7 @@ const GUIDES: readonly DocumentGuide[] = [
       where: [
         "Оформите загранпаспорт в ЦОН или паспортном столе",
         "Сфотографируйте разворот с фото, не обложку",
-        "Какой запас срока нужен, скажет куратор — это не правило вуза",
+        "Проверьте срок действия: какой запас нужен, скажет куратор",
       ],
       requirements: "PDF, JPG или PNG · до 25 МБ · цветной разворот, без бликов",
       mistakes: "Не загружайте только обложку и не закрывайте углы пальцем или бликом.",
@@ -101,7 +107,7 @@ const GUIDES: readonly DocumentGuide[] = [
       where: [
         "Чет өлкөлүк паспортту ЦОНдон же паспорт столунан алыңыз",
         "Мукабасын эмес, сүрөтү бар бетти сүрөткө тартыңыз",
-        "Канча мөөнөт керек экенин куратор айтат — бул университеттин эрежеси эмес",
+        "Мөөнөтүн текшериңиз: канча запас керек экенин куратор айтат",
       ],
       requirements: "PDF, JPG же PNG · 25 МБга чейин · түстүү бет, жарык таксыз",
       mistakes: "Мукабасын гана жүктөбөңүз жана бурчтарын манжа же жарык так менен жаппаңыз.",
@@ -114,25 +120,25 @@ const GUIDES: readonly DocumentGuide[] = [
     sampleSrc: `${SAMPLE}/photo.svg`,
     pins: [
       { n: 1, x: 50, y: 42, legend: { ru: "Лицо по центру", ky: "Жүз ортодо" } },
-      { n: 2, x: 22, y: 22, legend: { ru: "Светлый фон", ky: "Ачык фон" } },
+      { n: 2, x: 22, y: 22, legend: { ru: "Белый фон", ky: "Ак фон" } },
       { n: 3, x: 78, y: 70, legend: { ru: "Без фильтров", ky: "Чыпкасыз" } },
     ],
     ru: {
-      description: "Цветное фото как на документы: лицо анфас, светлый фон. Размер для конкретного вуза скажет куратор.",
+      description: "Цветное фото как на документы: лицо анфас, белый фон, уши открыты. Размер для вашей страны скажет куратор.",
       where: [
-        "Сфотографируйтесь на светлом фоне или в фотосалоне",
-        "Лицо по центру, без головного убора и тёмных очков",
-        "Нужный размер и фон назовёт куратор",
+        "Сфотографируйтесь в фотосалоне на белом фоне",
+        "Без очков и головного убора, уши открыты, выражение спокойное",
+        "Попросите у фотографа и электронную версию",
       ],
       requirements: "JPG или PNG · до 25 МБ · цветное, без фильтров",
       mistakes: "Не обрезайте лицо и не накладывайте фильтры.",
     },
     ky: {
-      description: "Документке тарткандай түстүү сүрөт: жүз түз, фон ачык. Так өлчөмдү куратор айтат.",
+      description: "Документке тарткандай түстүү сүрөт: жүз түз, фон ак, кулак ачык. Өлкөңүз үчүн өлчөмдү куратор айтат.",
       where: [
-        "Ачык фондо же фотосалондо тартылыңыз",
-        "Жүз ортодо, баш кийимсиз жана кара көз айнексиз",
-        "Керектүү өлчөм менен фонду куратор айтат",
+        "Фотосалондо ак фондо тартылыңыз",
+        "Көз айнексиз жана баш кийимсиз, кулак ачык, жүз тынч",
+        "Фотографтан электрондук нускасын да сураңыз",
       ],
       requirements: "JPG же PNG · 25 МБга чейин · түстүү, чыпкасыз",
       mistakes: "Жүздү кесип салбаңыз жана чыпка колдонбоңуз.",
@@ -181,6 +187,7 @@ const GUIDES: readonly DocumentGuide[] = [
     labels: [
       "сертификат по языку (ielts, toefl), если есть",
       "сертификат по языку (ielts, toefl)",
+      "сертификат по языку (hsk, ielts или toefl)",
       "toefl",
       "ielts",
       "тил боюнча сертификат",
@@ -193,20 +200,20 @@ const GUIDES: readonly DocumentGuide[] = [
       { n: 3, x: 88, y: 72, legend: { ru: "Общий балл", ky: "Жалпы балл" } },
     ],
     ru: {
-      description: "Официальный отчёт языкового теста, например TOEFL iBT или IELTS. Обычно смотрят общий балл и иногда баллы по частям.",
+      description: "Официальный отчёт языкового теста: IELTS, TOEFL iBT или HSK. Обычно смотрят общий балл и иногда баллы по частям.",
       where: [
-        "Запишитесь на тест у организатора: TOEFL — на ets.org, IELTS — в центре IELTS",
-        "Результат обычно приходит в личный кабинет через несколько дней",
+        "Запишитесь на тест у организатора: IELTS — в центре IELTS, TOEFL — на ets.org, HSK — в центре HSK",
+        "Результат приходит в личный кабинет; у HSK ждать до месяца — сдавайте с запасом",
         "Скачайте PDF и при необходимости отправьте баллы в вуз",
       ],
       requirements: "PDF, JPG или PNG · до 25 МБ · часто просят отчёт не старше 2 лет",
       mistakes: "Не отправляйте обрезанный скриншот. Подойдёт ли старый отчёт, скажет куратор.",
     },
     ky: {
-      description: "Тил тестинин расмий отчёту, мисалы TOEFL iBT же IELTS. Көбүнчө жалпы баллды, кээде бөлүктөр боюнча баллды карашат.",
+      description: "Тил тестинин расмий отчёту: IELTS, TOEFL iBT же HSK. Көбүнчө жалпы баллды, кээде бөлүктөр боюнча баллды карашат.",
       where: [
-        "Тестке уюштуруучудан жазылыңыз: TOEFL — ets.org, IELTS — IELTS борбору",
-        "Жыйынтык көбүнчө бир нече күндө жеке кабинетке келет",
+        "Тестке уюштуруучудан жазылыңыз: IELTS — IELTS борбору, TOEFL — ets.org, HSK — HSK борбору",
+        "Жыйынтык жеке кабинетке келет; HSKда бир айга чейин күтүүгө туура келет — убакыт калтырып тапшырыңыз",
         "PDF жүктөп алыңыз жана керек болсо баллды университетке жөнөтүңүз",
       ],
       requirements: "PDF, JPG же PNG · 25 МБга чейин · көбүнчө 2 жылдан эски эмес отчёт сурашат",
@@ -416,7 +423,7 @@ const GUIDES: readonly DocumentGuide[] = [
       { n: 3, x: 70, y: 68, legend: { ru: "Остаток", ky: "Калдык" } },
     ],
     ru: {
-      description: "Справка или выписка банка об остатке на счёте. Нужную сумму называет куратор, здесь её нет.",
+      description: "Справка или выписка банка об остатке на счёте. Нужную сумму называет куратор.",
       where: [
         "Возьмите выписку в банке или в приложении банка",
         "Должны быть видны ваше имя, дата и остаток",
@@ -426,7 +433,7 @@ const GUIDES: readonly DocumentGuide[] = [
       mistakes: "Не закрывайте имя и остаток и не присылайте чужой счёт.",
     },
     ky: {
-      description: "Эсептеги калдык тууралуу банк маалымкаты же көчүрмө. Керектүү сумманы куратор айтат, бул жерде ал жок.",
+      description: "Эсептеги калдык тууралуу банк маалымкаты же көчүрмө. Керектүү сумманы куратор айтат.",
       where: [
         "Көчүрмөнү банктан же банк тиркемесинен алыңыз",
         "Атыңыз, күнү жана калдык көрүнүшү керек",
@@ -529,6 +536,103 @@ const GUIDES: readonly DocumentGuide[] = [
       mistakes: "Бурчтарын кесип салбаңыз жана атты жаппаңыз.",
     },
   },
+  {
+    typeKey: "csca_result",
+    labels: ["результаты csca", "результаты csca, для бакалавриата", "csca", "csca жыйынтыгы"],
+    keys: ["csca_result"],
+    sampleSrc: `${SAMPLE}/csca-result.svg`,
+    pins: [
+      { n: 1, x: 42, y: 27, legend: { ru: "Имя как в паспорте", ky: "Паспорттогудай ат" } },
+      { n: 2, x: 40, y: 49, legend: { ru: "Предметы", ky: "Сабактар" } },
+      { n: 3, x: 80, y: 49, legend: { ru: "Баллы", ky: "Баллдар" } },
+    ],
+    ru: {
+      description: "Результаты вступительного экзамена CSCA для бакалавриата Китая: баллы по каждому предмету.",
+      where: [
+        "Зарегистрируйтесь и сдайте CSCA на csca.cn",
+        "Скачайте отчёт с баллами в личном кабинете CSCA",
+        "Загрузите отчёт целиком, без обрезки",
+      ],
+      requirements: "PDF, JPG или PNG · до 25 МБ · отчёт целиком",
+      mistakes: "Не присылайте скриншот части экрана — нужен весь отчёт с именем и баллами.",
+    },
+    ky: {
+      description: "Кытайдын бакалавриатына CSCA кирүү экзаменинин жыйынтыгы: ар бир сабак боюнча балл.",
+      where: [
+        "csca.cn сайтында катталып, CSCA тапшырыңыз",
+        "Баллдары бар отчётту CSCA жеке кабинетинен жүктөп алыңыз",
+        "Отчётту кеспей, толугу менен жүктөңүз",
+      ],
+      requirements: "PDF, JPG же PNG · 25 МБга чейин · отчёт толугу менен",
+      mistakes: "Экрандын бир бөлүгүнүн скриншотун жибербеңиз — аты жана баллдары бар толук отчёт керек.",
+    },
+  },
+  {
+    typeKey: "parents_documents",
+    labels: ["паспорта и данные родителей", "ата-эненин паспорттору жана маалыматтары"],
+    keys: ["parents_documents"],
+    sampleSrc: `${SAMPLE}/parents-documents.svg`,
+    pins: [
+      { n: 1, x: 26, y: 20, legend: { ru: "Паспорт матери", ky: "Эненин паспорту" } },
+      { n: 2, x: 72, y: 20, legend: { ru: "Паспорт отца", ky: "Атанын паспорту" } },
+      { n: 3, x: 50, y: 70, legend: { ru: "Контакты и работа", ky: "Байланыш жана иш" } },
+    ],
+    ru: {
+      description: "Копии паспортов обоих родителей и их данные — для анкеты вуза.",
+      where: [
+        "Сфотографируйте страницу с фото в паспорте каждого родителя",
+        "Для каждого напишите куратору ФИО, телефон, e-mail, работу, должность и адрес",
+        "Если кто-то из родителей не работает, так и напишите",
+      ],
+      requirements: "PDF, JPG или PNG · до 25 МБ · оба паспорта, лучше одним PDF",
+      mistakes: "Не забудьте второго родителя и не обрезайте страницу с данными.",
+    },
+    ky: {
+      description: "Ата-эненин экөөнүн тең паспортторунун көчүрмөсү жана маалыматтары — университеттин анкетасы үчүн.",
+      where: [
+        "Ар бир ата-эненин паспортундагы сүрөтү бар бетти тартыңыз",
+        "Ар бири үчүн кураторго аты-жөнүн, телефонун, e-mail, ишин, кызматын жана дарегин жазыңыз",
+        "Ата-энеңиздин бири иштебесе, ошондой деп жазыңыз",
+      ],
+      requirements: "PDF, JPG же PNG · 25 МБга чейин · эки паспорт, жакшысы бир PDF",
+      mistakes: "Экинчи ата-энени унутпаңыз жана маалымат бетин кеспеңиз.",
+    },
+  },
+  {
+    typeKey: "parental_consent",
+    labels: [
+      "нотариальное согласие родителей на выезд",
+      "нотариальное согласие родителей на выезд, если вам нет 18 лет",
+      "ата-эненин чыгууга нотариалдык макулдугу",
+    ],
+    keys: ["parental_consent"],
+    sampleSrc: `${SAMPLE}/parental-consent.svg`,
+    pins: [
+      { n: 1, x: 50, y: 17, legend: { ru: "Согласие на выезд", ky: "Чыгууга макулдук" } },
+      { n: 2, x: 30, y: 66, legend: { ru: "Подписи обоих родителей", ky: "Ата-эненин колдору" } },
+      { n: 3, x: 75, y: 73, legend: { ru: "Печать нотариуса", ky: "Нотариустун мөөрү" } },
+    ],
+    ru: {
+      description: "Нотариальное согласие обоих родителей на выезд на учёбу за границу, если вам ещё нет 18 лет.",
+      where: [
+        "Родители вместе идут к нотариусу с паспортами",
+        "Нотариус оформляет согласие на выезд на учёбу",
+        "Загрузите согласие целиком, со всеми подписями и печатью",
+      ],
+      requirements: "PDF, JPG или PNG · до 25 МБ · все страницы",
+      mistakes: "Нужны подписи обоих родителей: согласие одного не подойдёт.",
+    },
+    ky: {
+      description: "18 жашка толо элек болсоңуз, ата-эненин экөөнүн тең чет өлкөгө окууга чыгууга нотариалдык макулдугу.",
+      where: [
+        "Ата-энеңиз паспорттору менен нотариуска чогуу барышат",
+        "Нотариус окууга чыгууга макулдук түзөт",
+        "Макулдукту бардык колдору жана мөөрү менен толугу менен жүктөңүз",
+      ],
+      requirements: "PDF, JPG же PNG · 25 МБга чейин · бардык барактар",
+      mistakes: "Ата-эненин экөөнүн тең колу керек: бирөөнүн гана макулдугу жарабайт.",
+    },
+  },
 ];
 
 /** Нижний регистр, «ё» → «е», лишние пробелы сняты. KY- и RU-подписи сравниваются одинаково. */
@@ -558,6 +662,7 @@ for (const guide of GUIDES) {
 const NOT_THIS_DOCUMENT = /родител|отц|отец|матер|мать|ата-эне|ата эне|parent|father|mother|перевод|котормо|translation|апостил|нотариал|apostille|страхов|insurance|аренд|олимпиад|виз[аыуе]|визов|visa/u;
 
 const LABEL_RULES: readonly Readonly<{ typeKey: DocumentGuideType; test: (label: string) => boolean }>[] = [
+  { typeKey: "csca_result", test: (label) => /csca/u.test(label) },
   { typeKey: "language_certificate", test: (label) => /toefl|ielts|hsk|duolingo|\bpte\b|сертификат по языку|тил боюнча сертификат|языковой сертификат/u.test(label) },
   { typeKey: "motivation_letter", test: (label) => /мотивационн|мотивациялык/u.test(label) },
   { typeKey: "recommendation_letter", test: (label) => /рекомендательн|рекомендациялык/u.test(label) },
@@ -571,7 +676,7 @@ const LABEL_RULES: readonly Readonly<{ typeKey: DocumentGuideType; test: (label:
   { typeKey: "bank_statement", test: (label) => /справка из банка|банктан маалымкат|bank statement|выписка (из|с|по) (банк|сче|сч)|банковск(ая|ой) выписк/u.test(label) },
   { typeKey: "study_certificate", test: (label) => /справка с места учебы|окуу жайынан маалымкат/u.test(label) },
   { typeKey: "birth_certificate", test: (label) => /свидетельств[оа] о рождении|туулгандыгы тууралуу/u.test(label) },
-  { typeKey: "attestat", test: (label) => /аттестат|диплом|транскрипт|transcript|diploma/u.test(label) },
+  { typeKey: "attestat", test: (label) => /аттестат|диплом|транскрипт|transcript|diploma|табел|ведомость оценок/u.test(label) },
   // «Фото паспорта», «фото с паспортом» — это скан паспорта, а не фото 3×4 («Фото на паспорт» — фото 3×4).
   { typeKey: "photo", test: (label) => /^(фото|фотография|photo|сүрөт|цветное фото)( |$)/u.test(label) && !/паспорта|с паспортом|и паспорт|of passport|passport (page|copy|scan)/u.test(label) },
   { typeKey: "passport", test: (label) => /загранпаспорт|паспорт|passport|чет өлкө/u.test(label) && !/фото/u.test(label) },
@@ -581,22 +686,77 @@ const GUIDE_BY_TYPE = new Map(GUIDES.map((guide) => [guide.typeKey, guide]));
 
 export type DocumentGuidePinView = Readonly<{ n: 1 | 2 | 3; x: number; y: number; legend: string }>;
 
+export type DocumentGuideSampleSetView = Readonly<{
+  id: string;
+  label: string;
+  /** `thumb` — та же страница шириной 240 px для полосы миниатюр. */
+  pages: readonly Readonly<{ src: string; thumb: string; caption: string }>[];
+  download: Readonly<{ href: string; label: string }> | null;
+}>;
+
 export type DocumentGuideView = Readonly<{
   typeKey: DocumentGuideType;
   description: string;
   where: readonly string[];
   requirements: string;
   mistakes: string;
+  /** Нарисованная схема с метками: показывается, когда настоящих образцов для страны нет (и в приложении). */
   sampleSrc: string;
   pins: readonly DocumentGuidePinView[];
+  /** Настоящие образцы с закрытыми личными данными (document-sample-sets.ts). Пусто — показывается схема. */
+  sampleSets: readonly DocumentGuideSampleSetView[];
+  /** Когда нужен документ для страны поступления («Ноябрь–декабрь»). */
+  when: string | null;
+  /** Требования страны поступления (пока только Китай). Нет страны или заметок — null. */
+  countryNotes: Readonly<{
+    country: GuideCountry;
+    items: readonly string[];
+    sections: readonly Readonly<{ title: string; items: readonly string[] }>[];
+  }> | null;
+  /** «Как сфотографировать» — у бумажных документов; не у фото, договора EVO и отчётов тестов (их скачивают). */
+  photoTips: boolean;
+  /** Памятка «каким должно быть фото» — только у документа «Фото»; страна задаёт размер. */
+  photoRules: Readonly<{ country: GuideCountry | null }> | null;
 }>;
 
-function viewOf(guide: DocumentGuide, locale: Locale): DocumentGuideView {
-  const copy = locale === "ky" ? guide.ky : guide.ru;
+export type GuideCountry = "CN" | "MY";
+
+/** Без «Как сфотографировать»: само фото, договор EVO (скачивают) и отчёты тестов (скачивают PDF из кабинета теста). */
+const NO_PHOTO_TIPS: ReadonlySet<DocumentGuideType> = new Set(["photo", "contract", "csca_result", "language_certificate"]);
+
+const COUNTRY_GUIDES: Readonly<Record<GuideCountry, Readonly<Partial<Record<string, CountryDocumentGuide>>>>> = {
+  CN: CN_DOCUMENT_GUIDES,
+  MY: {},
+};
+
+function guideCountry(country: string | null | undefined): GuideCountry | null {
+  const code = country?.trim().toUpperCase();
+  return code === "CN" || code === "MY" ? code : null;
+}
+
+function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | null): DocumentGuideView {
+  const ky = locale === "ky";
+  const copy = ky ? guide.ky : guide.ru;
+  const local = country ? COUNTRY_GUIDES[country][guide.typeKey] : undefined;
+  const pick = <T,>(line: Readonly<{ ru: T; ky: T }>): T => (ky ? line.ky : line.ru);
+  const notes = local?.notes ? pick(local.notes) : [];
+  const sections = (local?.sections ?? []).map((section) => ({ title: pick(section.title), items: pick(section.items) }));
+  const sampleSets = (DOCUMENT_SAMPLE_SETS[guide.typeKey] ?? [])
+    .filter((set) => !set.country || set.country === country)
+    .map((set) => ({
+      id: set.id,
+      label: pick(set.label),
+      pages: set.pages.map((item) => ({
+        src: `${SAMPLE}/${item.file}`,
+        thumb: `${SAMPLE}/${item.file.replace(/\.jpg$/u, "-t.jpg")}`,
+        caption: pick(item.caption),
+      })),
+      download: set.download ? { href: `${SAMPLE}/${set.download.file}`, label: pick(set.download.label) } : null,
+    }));
   return {
     typeKey: guide.typeKey,
-    description: copy.description,
-    where: copy.where,
+    description: local?.lead ? pick(local.lead) : copy.description,
+    where: local?.where ? pick(local.where) : copy.where,
     requirements: copy.requirements,
     mistakes: copy.mistakes,
     sampleSrc: guide.sampleSrc,
@@ -604,8 +764,13 @@ function viewOf(guide: DocumentGuide, locale: Locale): DocumentGuideView {
       n: pin.n,
       x: pin.x,
       y: pin.y,
-      legend: locale === "ky" ? pin.legend.ky : pin.legend.ru,
+      legend: ky ? pin.legend.ky : pin.legend.ru,
     })),
+    sampleSets,
+    when: local?.when ? pick(local.when) : null,
+    countryNotes: country && (notes.length || sections.length) ? { country, items: notes, sections } : null,
+    photoTips: !NO_PHOTO_TIPS.has(guide.typeKey),
+    photoRules: guide.typeKey === "photo" ? { country } : null,
   };
 }
 
@@ -616,18 +781,21 @@ function viewOf(guide: DocumentGuide, locale: Locale): DocumentGuideView {
 export function documentGuideView(
   input: Readonly<{ requirementKey: string | null; label: string }>,
   locale: Locale,
+  /** Страна поступления (`CN`, `MY`, …): добавляет её требования. Без страны — общая справка. */
+  country: string | null = null,
 ): DocumentGuideView | null {
+  const place = guideCountry(country);
   const byKey = input.requirementKey ? KEY_INDEX.get(input.requirementKey) : undefined;
-  if (byKey) return viewOf(byKey, locale);
+  if (byKey) return viewOf(byKey, locale, place);
   const normalized = normalizeDocumentLabel(input.label);
   if (!normalized) return null;
   const byLabel = LABEL_INDEX.get(normalized);
-  if (byLabel) return viewOf(byLabel, locale);
+  if (byLabel) return viewOf(byLabel, locale, place);
   if (NOT_THIS_DOCUMENT.test(normalized)) return null;
   const rule = LABEL_RULES.find((candidate) => candidate.test(normalized));
   if (!rule) return null;
   const guide = GUIDE_BY_TYPE.get(rule.typeKey);
-  return guide ? viewOf(guide, locale) : null;
+  return guide ? viewOf(guide, locale, place) : null;
 }
 
 /** Все образцы каталога. Тесты сверяют, что файл есть и это вымышленный образец. */

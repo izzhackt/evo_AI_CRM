@@ -450,3 +450,15 @@ export function isPublicStudentApplicationPage(path: string): boolean {
 export function isAppLinksAssociationFile(path: string): boolean {
   return path === "/.well-known/apple-app-site-association" || path === "/.well-known/assetlinks.json";
 }
+
+const DOCUMENT_SAMPLE_FILE_PATH = /^\/portal\/document-samples\/[a-z0-9]+(?:-[a-z0-9]+)*\.(?:svg|png|jpg|webp|pdf)$/;
+
+/**
+ * Образцы справки «что это за документ» (public/portal/document-samples): статичные картинки и пустой бланк
+ * медсправки (pdf) без личных данных.
+ * Без этого исключения `<img>` в кабинете получал перенаправление на страницу, а не картинку (#1478).
+ * Только GET/HEAD, только файл одного уровня по точному шаблону; сессия не читается.
+ */
+export function isDocumentSampleFile(path: string): boolean {
+  return DOCUMENT_SAMPLE_FILE_PATH.test(path);
+}

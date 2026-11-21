@@ -5,6 +5,7 @@ import {
   isLightPollApi,
   isConnectedPlatformApi,
   isAppLinksAssociationFile,
+  isDocumentSampleFile,
   isPublicStudentApplicationPage,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
@@ -323,7 +324,8 @@ export async function proxy(request: NextRequest) {
   }
   // Apple and Google fetch these without cookies and never follow a redirect:
   // no session, no canonical-host or closed-route redirect. The route sets its own cache headers.
-  if (isAppLinksAssociationFile(path) && (request.method === "GET" || request.method === "HEAD")) {
+  // Document help samples are static files without personal data: the cabinet <img> needs the file, not a redirect.
+  if ((isAppLinksAssociationFile(path) || isDocumentSampleFile(path)) && (request.method === "GET" || request.method === "HEAD")) {
     const response = nextResponse(requestHeaders);
     response.headers.set("x-request-id", id);
     return response;

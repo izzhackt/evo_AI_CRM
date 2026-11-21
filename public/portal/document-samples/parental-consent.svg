@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Вымышленный образец нотариального согласия на выезд">
+  <rect width="640" height="400" rx="16" fill="#f7f8fa"/>
+  <rect x="48" y="24" width="544" height="352" rx="8" fill="#fff" stroke="#e3e5e9"/>
+  <text x="320" y="64" text-anchor="middle" font-family="Golos Text, system-ui, sans-serif" font-size="15" font-weight="700" fill="#17181c">СОГЛАСИЕ</text>
+  <text x="320" y="86" text-anchor="middle" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#5c616b">на выезд несовершеннолетнего за границу</text>
+  <g stroke="#e6e7eb" stroke-width="7" stroke-linecap="round"><path d="M80 124h480M80 148h440M80 172h470M80 196h400M80 220h460"/></g>
+  <g font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#5c616b"><text x="80" y="268">Подписи обоих родителей</text><text x="80" y="300">Нотариус · номер в реестре</text></g>
+  <circle cx="480" cy="290" r="36" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+  <text x="480" y="286" text-anchor="middle" font-size="10" fill="#1d4ed8" font-family="Golos Text, system-ui, sans-serif">ПЕЧАТЬ</text>
+  <text x="480" y="300" text-anchor="middle" font-size="10" fill="#1d4ed8" font-family="Golos Text, system-ui, sans-serif">ОБРАЗЕЦ</text>
+  <text x="80" y="352" font-family="Golos Text, system-ui, sans-serif" font-size="12" fill="#8a8b93">Sample only · invented record</text>
+  <g transform="rotate(-22 320 190)" opacity="0.24"><text x="320" y="200" text-anchor="middle" fill="#8a8b93" font-family="Golos Text, system-ui, sans-serif" font-size="56" font-weight="800">ОБРАЗЕЦ</text></g>
+</svg>

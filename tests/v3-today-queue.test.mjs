@@ -464,7 +464,7 @@ function fakeReaders(overrides = {}) {
   return {
     calls,
     readers: {
-      async listStaffTasks(_actor, options) { calls.push(["staff", options]); return { rows: [staffTask(1, { dueOn: TODAY })], nextCursor: null }; },
+      async listStaffTaskPages(_actor, options) { calls.push(["staff", options]); return { rows: [staffTask(1, { dueOn: TODAY })], complete: true }; },
       async listCaseTasks(_actor, options) { calls.push(["case", options]); return { rows: [], nextCursor: null }; },
       async readStudentCaseQueue(_actor, request) {
         calls.push(["students", request]);
@@ -492,18 +492,19 @@ test("readTodayQueue: existing reads with their own limits, each failing on its 
   assert.deepEqual(reads.map((entry) => [entry.source, entry.state]), [
     ["tasks", "complete"], ["students", "partial"], ["handoffs", "denied"], ["leads", "complete"], ["requests", "complete"], ["chats", "error"],
   ]);
-  assert.deepEqual(calls.find(([kind]) => kind === "staff")[1], { view: "mine", status: "active", cursor: null });
+  assert.deepEqual(calls.find(([kind]) => kind === "staff")[1], { view: "mine", status: "active", maxPages: 4 }, "all staff pages in one read (372)");
+  assert.equal(calls.filter(([kind]) => kind === "staff").length, 1);
   assert.deepEqual(calls.find(([kind]) => kind === "case")[1], { pageSize: 100, cursor: null, dueTo: "2026-10-10" });
   assert.deepEqual(calls.filter(([kind]) => kind === "leads").map(([, assignment]) => assignment).sort(), ["mine", "unassigned"]);
   assert.deepEqual(studentRequests.map((request) => request.view).sort(), ["mine", "needs_action"]);
   assert.ok(studentRequests.every((request) => request.sort === "due" && request.pageSize === 100));
 
   // Предел страниц — неполное чтение, а не тихо обрезанный список.
-  let staffPages = 0;
-  const endless = fakeReaders({ async listStaffTasks() { staffPages += 1; return { rows: [], nextCursor: { updatedAt: "2026-09-20T00:00:00.000Z", id: ME } }; } });
+  const staffReads = [];
+  const endless = fakeReaders({ async listStaffTaskPages(_actor, options) { staffReads.push(options.maxPages); return { rows: [], complete: false }; } });
   const sales = await readTodayQueue(actor({ permissionKeys: SALES }), { now: NOW, readers: endless.readers });
   assert.deepEqual(sales.reads.map((entry) => [entry.source, entry.state]), [["tasks", "partial"], ["leads", "complete"], ["requests", "complete"]]);
-  assert.equal(staffPages, 4, "the same 4-page limit as «Задачи»");
+  assert.deepEqual(staffReads, [4], "one read with the same 4-page limit as «Задачи»");
   assert.ok(!endless.calls.some(([kind]) => ["case", "students", "chats"].includes(kind)), "no read outside the role");
 
   // Просмотр роли: доска продаж не читается, её проекция просмотру отказывает.

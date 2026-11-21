@@ -230,7 +230,7 @@ test("`readTodayQueue`: `onSourceRead` зовётся по мере готовн
   const { readTodayQueue } = loader({})("src/lib/v3/today-source.ts");
   const seen = [];
   const readers = {
-    listStaffTasks: async () => ({ rows: [], nextCursor: null }),
+    listStaffTaskPages: async () => ({ rows: [], complete: true }),
     listCaseTasks: async () => ({ rows: [], nextCursor: null }),
     readStudentCaseQueue: async () => ({ rows: [], nextCursor: null, today: "2026-11-21" }),
     readLeads: async () => { await flush(); return { leads: [], truncated: false }; },
@@ -250,7 +250,7 @@ function pipelineWith(react, pages) {
   const load = loader({
     react,
     "@/lib/platform-sales": {
-      listPlatformSalesLeads: async (_actor, options) => { calls.push(options); return pages(options); },
+      listAllPlatformSalesLeads: async (_actor, options) => { calls.push(options); return pages(options); },
       listPlatformSalesOwnerOptions: async () => ({ rows: [] }),
       readPlatformSalesPipeline: async () => ({}),
     },
@@ -258,7 +258,17 @@ function pipelineWith(react, pages) {
   });
   return { ...load("src/lib/v3/pipeline-source.ts"), calls };
 }
-const onePage = () => ({ rows: [{ leadId: id(1) }], hasNext: false, nextCursor: null });
+const onePage = () => ({ rows: [{ leadId: id(1) }], truncated: false });
+
+test("доска продаж: все страницы — одним чтением базы с прежними пределами (372)", async () => {
+  const { readAllCanonicalSalesLeads, PIPELINE_BOARD_NO_FILTERS, calls } = pipelineWith(requestScopedReact(), () => ({ rows: [], truncated: true }));
+  const board = await readAllCanonicalSalesLeads(admin, { ...PIPELINE_BOARD_NO_FILTERS, assignment: "unassigned" });
+  assert.equal(calls.length, 1, "одно чтение вместо страниц подряд");
+  assert.deepEqual(calls[0], { pageSize: 100, maxPages: 40, stageFilter: "all", assignmentFilter: "unassigned", dueFilter: "all" });
+  assert.equal(board.truncated, true, "обрезка на последней странице дошла до доски");
+  const src = read("src/lib/v3/pipeline-source.ts");
+  assert.doesNotMatch(src, /listPlatformSalesLeads\(/u, "доска больше не листает страницы сама");
+});
 
 test("доска продаж: одинаковые (сотрудник, фильтр) в одном запросе читают лиды один раз, разные — каждый свой раз", async () => {
   const { readAllCanonicalSalesLeads, PIPELINE_BOARD_NO_FILTERS, calls } = pipelineWith(requestScopedReact(), onePage);
@@ -359,4 +369,58 @@ test("очередь для клиента без строк: строки то�
   assert.deepEqual({ ...summary }, { today: "2026-11-21", emptyNote: null, notices: [], applicable: true, complete: true, actionEmpty: false, nearest: null });
   assert.ok(JSON.stringify(summary).length < JSON.stringify(queue).length);
   assert.match(read("src/app/(staff)/main/page.tsx"), /queue=\{todayQueueSummary\(queue\)\} sections=\{sections\}/u);
+});
+
+/* ------------------------------------------------------------------ задачи «Мои»: все страницы одним чтением (372) */
+
+function taskPagesWith(answer) {
+  const rpcs = [];
+  const client = { schema: () => ({ rpc: async (fn, args) => { rpcs.push([fn, args]); return typeof answer === "function" ? answer(args) : answer; } }) };
+  const { listStaffTaskPages } = loader({ "../supabase/server": { createSupabaseServerClient: async () => client } })(
+    "src/lib/server/platform-staff-task-repository.ts");
+  return { listStaffTaskPages, rpcs };
+}
+const taskRow = (n, overrides = {}) => ({
+  id: `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`, organization_id: ORG,
+  creator_membership_id: "10000000-0000-4000-8000-000000000001", creator_display_name: "Admin",
+  assignee_membership_id: "10000000-0000-4000-8000-000000000002", assignee_display_name: "Sales",
+  title: `Task ${n}`, description: null, status: "open", priority: "normal", due_on: null, due_at: null, version: "1",
+  source_message_id: null, created_at: "2026-11-20T10:00:00+00:00", updated_at: "2026-11-20T10:00:00+00:00", ...overrides,
+});
+
+test("задачи «Мои»: все страницы одним чтением `staff_task_list_pages_v1` с прежним пределом, строки как у страницы", async () => {
+  const { listStaffTaskPages, rpcs } = taskPagesWith({ data: { rows: [taskRow(1), taskRow(2)], truncated: false }, error: null });
+  const read = await listStaffTaskPages(admin, { view: "mine", status: "active", maxPages: 4 });
+  assert.deepEqual(rpcs, [["staff_task_list_pages_v1",
+    { p_organization_id: ORG, p_view: "mine", p_status: "active", p_page_size: 50, p_max_pages: 4 }]]);
+  assert.equal(read.complete, true);
+  assert.deepEqual(read.rows.map((row) => row.title), ["Task 1", "Task 2"]);
+  const full = taskPagesWith({ data: { rows: Array.from({ length: 50 }, (_, i) => taskRow(i + 1)), truncated: true }, error: null });
+  assert.equal((await full.listStaffTaskPages(admin, { view: "mine", status: "active", maxPages: 1 })).complete, false,
+    "обрезка на последней странице — неполное чтение");
+});
+
+test("задачи «Мои»: одно чтение отказывает при чужой форме, повторе, неполной обрезке и пределе страниц", async () => {
+  const bad = [
+    ["ошибка базы", { data: null, error: { code: "42501" } }],
+    ["массив вместо объекта", { data: [taskRow(1)], error: null }],
+    ["лишний ключ", { data: { rows: [], truncated: false, more: 1 }, error: null }],
+    ["truncated не boolean", { data: { rows: [], truncated: "no" }, error: null }],
+    ["строк больше пределов", { data: { rows: Array.from({ length: 51 }, (_, i) => taskRow(i + 1)), truncated: false }, error: null }],
+    ["обрезка без полных страниц", { data: { rows: [taskRow(1)], truncated: true }, error: null }],
+    ["одна задача дважды", { data: { rows: [taskRow(1), taskRow(1)], truncated: false }, error: null }],
+    ["чужая организация", { data: { rows: [taskRow(1, { organization_id: "10000000-0000-4000-8000-000000000999" })], truncated: false }, error: null }],
+  ];
+  for (const [label, answer] of bad) {
+    const { listStaffTaskPages } = taskPagesWith(answer);
+    await assert.rejects(listStaffTaskPages(admin, { view: "mine", status: "active", maxPages: 1 }), /Staff task/u, label);
+  }
+  for (const maxPages of [0, 11, 1.5]) {
+    const { listStaffTaskPages, rpcs } = taskPagesWith({ data: { rows: [], truncated: false }, error: null });
+    await assert.rejects(listStaffTaskPages(admin, { view: "mine", status: "active", maxPages }), /Staff task/u);
+    assert.deepEqual(rpcs, [], `без запроса при maxPages ${maxPages}`);
+  }
+  const { listStaffTaskPages, rpcs } = taskPagesWith({ data: { rows: [], truncated: false }, error: null });
+  await assert.rejects(listStaffTaskPages({ ...admin, systemRole: "student" }, { view: "mine", status: "active", maxPages: 4 }));
+  assert.deepEqual(rpcs, [], "студенту чтение не начинается");
 });

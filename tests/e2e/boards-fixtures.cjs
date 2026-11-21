@@ -229,6 +229,14 @@ const STUBS = {
         nextCursor: state.truncated ? { updatedAt: "2026-09-01T00:00:00.000Z", id: `truncated-cursor-${page}` } : null,
       };
     },
+    // Все страницы одним чтением (миграция 372): та же выборка; обрезку на последней странице сообщает сама база.
+    listAllPlatformSalesLeads: async (actor, options = {}) => ({
+      rows: (options.query
+        ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
+          .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
+        : state.salesRows).filter((one) => !state.closed.has(one.leadId) && matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
+      truncated: state.truncated,
+    }),
     listPlatformSalesOwnerOptions: async () => ({ rows: OWNERS, hasNext: false, nextCursor: null }),
     // Та же форма, что у настоящего координатора: чтение доски и сотрудников.
     readPlatformSalesPipeline: async (actor, readers) => ({

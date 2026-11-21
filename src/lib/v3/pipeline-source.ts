@@ -5,10 +5,9 @@ import { cache } from "react";
 import type { PipelineLead, PipelineStage } from "@/components/staff/Pipeline";
 import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import {
+  listAllPlatformSalesLeads,
   listPlatformSalesOwnerOptions,
-  listPlatformSalesLeads,
   readPlatformSalesPipeline,
-  type PlatformSalesCursor,
   type PlatformSalesDueFilter,
   type PlatformSalesLeadRow,
   type PlatformSalesOwnerOptionsPage,
@@ -159,11 +158,11 @@ function stageAgeDays(stageEnteredAt: string, today: string): number {
 }
 
 /**
- * Read every visible canonical lead page. The cursor and lead-id checks make a
- * changing or malformed result fail closed instead of silently duplicating or
- * truncating the board and dashboard. Filters are applied by the RPC itself,
- * so a filtered read pays for the matching pages only; the board still renders
- * every stage column and simply finds some of them empty.
+ * Read every visible canonical lead page in ONE database read (migration 372): the database walks the same pages with the
+ * same filters and cursor that this code used to request one after another (each page waited for the previous one, four
+ * requests in a row for 336 leads without an owner). Duplicate or malformed rows fail closed instead of silently
+ * duplicating or truncating the board and dashboard. Filters are applied by the RPC itself, so a filtered read pays for the
+ * matching pages only; the board still renders every stage column and simply finds some of them empty.
  */
 export type CanonicalSalesLeadsRead = Readonly<{
   rows: readonly PlatformSalesLeadRow[];
@@ -175,48 +174,18 @@ async function readAllCanonicalSalesLeadsOnce(
   actor: PlatformActor,
   filters: PipelineBoardFilters,
 ): Promise<CanonicalSalesLeadsRead> {
-  const rows: PlatformSalesLeadRow[] = [];
-  const seenLeadIds = new Set<string>();
-  const seenCursors = new Set<string>();
-  let cursor: PlatformSalesCursor | null = null;
-
-  for (let pageIndex = 0; pageIndex < MAX_LEAD_PAGES; pageIndex += 1) {
-    const page = await listPlatformSalesLeads(actor, {
-      pageSize: PAGE_SIZE,
-      cursor,
-      stageFilter: filters.stage === "handed_off" ? "all" : filters.stage,
-      assignmentFilter: filters.assignment,
-      dueFilter: RPC_DUE_FILTER[filters.due],
-      ...(filters.ownerMembershipId
-        ? { ownerMembershipId: filters.ownerMembershipId }
-        : {}),
-      ...(filters.query ? { query: filters.query } : {}),
-    });
-
-    for (const row of page.rows) {
-      if (seenLeadIds.has(row.leadId)) {
-        throw new Error("Canonical sales pagination returned a duplicate lead.");
-      }
-      seenLeadIds.add(row.leadId);
-      rows.push(row);
-    }
-
-    if (!page.hasNext) {
-      return Object.freeze({ rows: Object.freeze(rows), truncated: false });
-    }
-    if (!page.nextCursor) {
-      throw new Error("Canonical sales pagination stopped without a cursor.");
-    }
-
-    const cursorKey = `${page.nextCursor.updatedAt}:${page.nextCursor.id}`;
-    if (seenCursors.has(cursorKey)) {
-      throw new Error("Canonical sales pagination did not advance.");
-    }
-    seenCursors.add(cursorKey);
-    cursor = page.nextCursor;
-  }
-
-  return Object.freeze({ rows: Object.freeze(rows), truncated: true });
+  const read = await listAllPlatformSalesLeads(actor, {
+    pageSize: PAGE_SIZE,
+    maxPages: MAX_LEAD_PAGES,
+    stageFilter: filters.stage === "handed_off" ? "all" : filters.stage,
+    assignmentFilter: filters.assignment,
+    dueFilter: RPC_DUE_FILTER[filters.due],
+    ...(filters.ownerMembershipId
+      ? { ownerMembershipId: filters.ownerMembershipId }
+      : {}),
+    ...(filters.query ? { query: filters.query } : {}),
+  });
+  return Object.freeze({ rows: read.rows, truncated: read.truncated });
 }
 
 /** Ключ чтения: все поля фильтра, поэтому два разных фильтра («мои» и «без ответственного») не делят ответ. */

@@ -703,6 +703,72 @@ async function getPlatformClient(): Promise<PlatformSalesRpcClient> {
   return createSupabaseServerClient() as unknown as PlatformSalesRpcClient;
 }
 
+/** The board filters as the RPC arguments; the same for one page and for every page in one read. */
+function salesLeadFilterArgs(
+  options: Omit<PlatformSalesLeadPageOptions, "cursor" | "pageSize">,
+): Readonly<Record<string, unknown>> {
+  const connectionFilter = oneOf(
+    options.connectionFilter ?? "all",
+    PLATFORM_SALES_CONNECTION_FILTERS,
+  );
+  const stageFilter = options.stageFilter ?? "all";
+  if (
+    stageFilter !== "all" &&
+    parsePlatformSalesStage(stageFilter) === null
+  ) {
+    return invalidShape();
+  }
+  const assignmentFilter = oneOf(
+    options.assignmentFilter ?? "all",
+    PLATFORM_SALES_ASSIGNMENT_FILTERS,
+  );
+  const ownerMembershipId =
+    options.ownerMembershipId === null ||
+    options.ownerMembershipId === undefined
+      ? null
+      : requiredUuid(options.ownerMembershipId);
+  const dueFilter =
+    parsePlatformSalesDueFilter(options.dueFilter ?? "all") ?? invalidShape();
+  const query = normalizeQuery(options.query);
+  return {
+    p_connection_filter: connectionFilter,
+    p_stage_filter: stageFilter,
+    p_assignment_filter: assignmentFilter,
+    p_due_filter: dueFilter,
+    ...(ownerMembershipId
+      ? { p_owner_membership_id: ownerMembershipId }
+      : {}),
+    ...(query ? { p_query: query } : {}),
+  };
+}
+
+/** Board rows in the RPC order: exact keys, one row per lead, the sort key is the row's own update time. */
+function normalizeSalesQueueRows(
+  data: readonly unknown[],
+  organizationId: string,
+): readonly Readonly<{ row: PlatformSalesLeadRow; cursor: PlatformSalesCursor }>[] {
+  const seenLeadIds = new Set<string>();
+  return data.map((value) => {
+    const raw = requireExactRecord(value, QUEUE_ROW_KEYS);
+    const core = normalizeLeadCore(raw, organizationId);
+    const row: PlatformSalesLeadRow = Object.freeze({
+      ...core,
+      stageEnteredAt: requiredTimestamp(raw.stage_entered_at),
+      latestNote: normalizeLatestLeadNote(raw),
+    });
+    const rowCursor = parsePlatformSalesCursor(raw.sort_at, row.leadId);
+    if (
+      rowCursor === null ||
+      rowCursor.updatedAt !== row.updatedAt ||
+      seenLeadIds.has(row.leadId)
+    ) {
+      return invalidShape();
+    }
+    seenLeadIds.add(row.leadId);
+    return Object.freeze({ row, cursor: rowCursor });
+  });
+}
+
 export async function listPlatformSalesLeads(
   actor: PlatformActor,
   options: PlatformSalesLeadPageOptions = {},
@@ -713,48 +779,19 @@ export async function listPlatformSalesLeads(
     requireSalesReadPermission(actor, "lead.read");
     const pageSize = normalizePageSize(options.pageSize);
     const cursor = normalizeCursor(options.cursor);
-    const connectionFilter = oneOf(
-      options.connectionFilter ?? "all",
-      PLATFORM_SALES_CONNECTION_FILTERS,
-    );
-    const stageFilter = options.stageFilter ?? "all";
-    if (
-      stageFilter !== "all" &&
-      parsePlatformSalesStage(stageFilter) === null
-    ) {
-      return invalidShape();
-    }
-    const assignmentFilter = oneOf(
-      options.assignmentFilter ?? "all",
-      PLATFORM_SALES_ASSIGNMENT_FILTERS,
-    );
-    const ownerMembershipId =
-      options.ownerMembershipId === null ||
-      options.ownerMembershipId === undefined
-        ? null
-        : requiredUuid(options.ownerMembershipId);
-    const dueFilter =
-      parsePlatformSalesDueFilter(options.dueFilter ?? "all") ?? invalidShape();
-    const query = normalizeQuery(options.query);
+    const filters = salesLeadFilterArgs(options);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
       "staff_sales_lead_page",
       {
         p_limit: pageSize + 1,
-        p_connection_filter: connectionFilter,
-        p_stage_filter: stageFilter,
-        p_assignment_filter: assignmentFilter,
-        p_due_filter: dueFilter,
+        ...filters,
         ...(cursor
           ? {
               p_cursor_updated_at: cursor.updatedAt,
               p_cursor_id: cursor.id,
             }
           : {}),
-        ...(ownerMembershipId
-          ? { p_owner_membership_id: ownerMembershipId }
-          : {}),
-        ...(query ? { p_query: query } : {}),
       },
       { get: true },
     );
@@ -766,32 +803,71 @@ export async function listPlatformSalesLeads(
       return invalidShape();
     }
 
-    const seenLeadIds = new Set<string>();
-    const normalized = response.data.map((value) => {
-      const raw = requireExactRecord(value, QUEUE_ROW_KEYS);
-      const core = normalizeLeadCore(raw, organizationId);
-      const row: PlatformSalesLeadRow = Object.freeze({
-        ...core,
-        stageEnteredAt: requiredTimestamp(raw.stage_entered_at),
-        latestNote: normalizeLatestLeadNote(raw),
-      });
-      const rowCursor = parsePlatformSalesCursor(raw.sort_at, row.leadId);
-      if (
-        rowCursor === null ||
-        rowCursor.updatedAt !== row.updatedAt ||
-        seenLeadIds.has(row.leadId)
-      ) {
-        return invalidShape();
-      }
-      seenLeadIds.add(row.leadId);
-      return Object.freeze({ row, cursor: rowCursor });
-    });
+    const normalized = normalizeSalesQueueRows(response.data, organizationId);
     const hasNext = normalized.length > pageSize;
     const page = normalized.slice(0, pageSize);
     return Object.freeze({
       rows: Object.freeze(page.map((entry) => entry.row)),
       nextCursor: hasNext ? page.at(-1)?.cursor ?? null : null,
       hasNext,
+    });
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+/** Most pages one read may cover (migration 372 refuses more). */
+export const PLATFORM_SALES_MAX_PAGES_PER_READ = 40;
+
+export type PlatformSalesLeadPagesOptions = Omit<PlatformSalesLeadPageOptions, "cursor" | "pageSize"> &
+  Readonly<{ pageSize: number; maxPages: number }>;
+
+export type PlatformSalesLeadPagesRead = Readonly<{
+  rows: readonly PlatformSalesLeadRow[];
+  /** true — every allowed page was full and the board has more leads after them. */
+  truncated: boolean;
+}>;
+
+/**
+ * Every board page in ONE read (migration 372, `staff_sales_lead_pages_v1`): the database walks the same pages of
+ * `staff_sales_lead_page` with the same filters and cursor that this code walked one request at a time, under the same
+ * session, and answers the rows in order. Rows pass the same checks as a page.
+ */
+export async function listAllPlatformSalesLeads(
+  actor: PlatformActor,
+  options: PlatformSalesLeadPagesOptions,
+  dependencies: PlatformSalesRepositoryDependencies = {},
+): Promise<PlatformSalesLeadPagesRead> {
+  try {
+    const organizationId = requireActorOrganization(actor);
+    requireSalesReadPermission(actor, "lead.read");
+    const pageSize = normalizePageSize(options.pageSize);
+    const maxPages = Number.isSafeInteger(options.maxPages)
+      && options.maxPages >= 1 && options.maxPages <= PLATFORM_SALES_MAX_PAGES_PER_READ
+      ? options.maxPages
+      : invalidShape();
+    const filters = salesLeadFilterArgs(options);
+    const client = dependencies.client ?? await getPlatformClient();
+    const response = await client.schema("platform").rpc(
+      "staff_sales_lead_pages_v1",
+      { p_page_size: pageSize, p_max_pages: maxPages, ...filters },
+      { get: true },
+    );
+    if (response.error) return invalidShape();
+    const data = requireExactRecord(response.data, ["rows", "truncated"]);
+    const limit = pageSize * maxPages;
+    if (
+      !Array.isArray(data.rows) ||
+      typeof data.truncated !== "boolean" ||
+      data.rows.length > limit ||
+      (data.truncated && data.rows.length !== limit)
+    ) {
+      return invalidShape();
+    }
+    const normalized = normalizeSalesQueueRows(data.rows, organizationId);
+    return Object.freeze({
+      rows: Object.freeze(normalized.map((entry) => entry.row)),
+      truncated: data.truncated,
     });
   } catch (error) {
     return failClosed(error);

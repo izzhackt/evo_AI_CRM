@@ -6,7 +6,7 @@ import { isStaffPreview, staffCanAccessRoute, staffHasPermission, staffPresentat
 import type { ActivePlatformActor } from "../platform-auth";
 import type { PlatformAdmissionsTaskQueueCursor, PlatformAdmissionsTaskQueueRow } from "../platform-admissions-task-contract.ts";
 import type { CaseChatThreadRow } from "../platform-case-chat-contract.ts";
-import type { StaffTask, StaffTaskCursor } from "../platform-staff-task-contract.ts";
+import type { StaffTask } from "../platform-staff-task-contract.ts";
 import type { StudentCaseQueuePage, StudentCaseQueueRequest } from "../platform-student-case-queue-contract.ts";
 import { shiftDay } from "../../components/staff/calendar/types.ts";
 import { CASE_QUEUE_PAGE_SIZE, TASK_QUEUE_READ_PAGES, taskQueueAccess } from "./staff-task-source.ts";
@@ -40,8 +40,9 @@ export class TodaySourceDenied extends Error {
 }
 
 export type TodayReaders = Readonly<{
-  listStaffTasks: (actor: ActivePlatformActor, options: Readonly<{ view: "mine"; status: "active"; cursor: StaffTaskCursor | null }>) =>
-    Promise<Readonly<{ rows: readonly StaffTask[]; nextCursor: StaffTaskCursor | null }>>;
+  /** Every page of the staff task list in one read (migration 372); `complete` — the list ended within `maxPages`. */
+  listStaffTaskPages: (actor: ActivePlatformActor, options: Readonly<{ view: "mine"; status: "active"; maxPages: number }>) =>
+    Promise<Readonly<{ rows: readonly StaffTask[]; complete: boolean }>>;
   listCaseTasks: (actor: ActivePlatformActor, options: Readonly<{ pageSize: number; cursor: PlatformAdmissionsTaskQueueCursor | null; dueTo: string }>) =>
     Promise<Readonly<{ rows: readonly PlatformAdmissionsTaskQueueRow[]; nextCursor: PlatformAdmissionsTaskQueueCursor | null }>>;
   /** Отказ сервера — `TodaySourceDenied`. */
@@ -63,7 +64,7 @@ async function productionReaders(): Promise<TodayReaders> {
     import("./case-chat-source.ts"),
   ]);
   return {
-    listStaffTasks: (actor, options) => staff.listStaffTasks(actor, options),
+    listStaffTaskPages: (actor, options) => staff.listStaffTaskPages(actor, options),
     listCaseTasks: (actor, options) => workspace.listPlatformAdmissionsTaskQueue(actor, options),
     readStudentCaseQueue: async (actor, request) => {
       try {
@@ -193,7 +194,7 @@ export type TodayRead = Readonly<{
 
 /**
  * Все чтения «Сегодня» параллельно. Задачи — те же, что у «Задач» вида
- * «Мои»: рабочие (`staff_task_list`, 4 страницы по 50) и по студентам
+ * «Мои»: рабочие (`staff_task_list`, 4 страницы по 50 одним чтением, миграция 372) и по студентам
  * (`staff_case_task_queue`, 3 страницы по 100 со сроком до сегодня + 14
  * дней). Студенты — одна страница вида «Мои» и одна «Требуют действия»
  * (241/242). Лиды и заявки — чтение доски продаж с `assignment=mine` и
@@ -232,7 +233,7 @@ export async function readTodayQueue(
       case "tasks": {
         const [staff, cases] = await Promise.all([
           taskAccess.canReadStaffTasks
-            ? readPages(TASK_QUEUE_READ_PAGES.staff, (cursor: StaffTaskCursor | null) => readers.listStaffTasks(actor, { view: "mine", status: "active", cursor }))
+            ? readers.listStaffTaskPages(actor, { view: "mine", status: "active", maxPages: TASK_QUEUE_READ_PAGES.staff })
             : Promise.resolve({ rows: [], complete: true }),
           taskAccess.canReadCaseTasks
             ? readPages(TASK_QUEUE_READ_PAGES.case, (cursor: PlatformAdmissionsTaskQueueCursor | null) =>

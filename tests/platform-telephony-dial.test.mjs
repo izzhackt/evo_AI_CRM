@@ -990,7 +990,9 @@ test("«Заявки → Звонки»: the outcome and «Позвонить» 
   const source = read("src/lib/v3/telephony-request-calls-source.ts");
   assert.match(source, /row\.kind === "lead" && row\.source === "phone_call"/u, "only a lead made by a call");
   assert.match(source, /const REQUEST_CALLS_LIMIT = 20;/u);
-  assert.match(source, /p_limit: 1,/u, "the newest call of the lead is enough");
+  assert.match(source, /p_limit_per_lead: 1,/u, "the newest call of the lead is enough");
+  assert.match(source, /rpc\("telephony_lead_calls_batch_v1", \{/u, "one batch read for all rows, not one call per row");
+  assert.doesNotMatch(source, /Promise\.all|rpc\("telephony_lead_calls_v1"/u, "no call per lead");
   const view = read("src/components/staff/requests/RequestsQueueView.tsx");
   assert.match(view, /<DialButton leadId=\{dialLeadId\} mapped=\{props\.dial\.mapped\} subject=\{name\} iconOnly sharedHint \/>/u);
   assert.match(view, /<DialListHint \/>/u, "one hidden description for the whole list, not one per row");

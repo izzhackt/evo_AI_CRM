@@ -15,7 +15,8 @@ import { indexBody } from "@/test-fixtures/university-index";
 const mockParams: { current: Record<string, string> } = { current: {} };
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams.current,
-  router: { push: jest.fn(), back: jest.fn(), canGoBack: () => false, setParams: jest.fn(), navigate: jest.fn() },
+  useNavigation: () => ({ getState: () => ({ routes: [{ name: "index" }] }) }),
+  router: { push: jest.fn(), back: jest.fn(), canGoBack: () => false, setParams: jest.fn(), navigate: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() },
 }));
 jest.mock("@/features/universities/CatalogMap", () => ({
   CatalogMap: ({ pins }: { pins: readonly unknown[] }) => {
@@ -84,6 +85,37 @@ describe("Университеты", () => {
     expect(await screen.findByText("Bogaziçi Test University")).toBeTruthy();
     await fireEvent.changeText(screen.getByTestId("university-search"), "zzz");
     expect(await screen.findByTestId("search-empty")).toBeTruthy();
+  });
+
+  it("каталог открывается на стране студента; «Все страны», нет страны, «Пока не решил», сбой чтения - общий экран", async () => {
+    const saved = (country: string) => ({ country, source: "saved", savedAt: "2026-11-01T10:00:00+00:00" });
+    const replace = router.replace as jest.Mock;
+    replace.mockClear();
+    await renderPortal(<UniversitiesScreen />, testApi(transport({ student_country_choice_v1: saved("MY") }).transport));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/universities/country/my"));
+    expect(screen.queryByTestId("country-CN")).toBeNull();
+
+    for (const body of [saved("UNDECIDED"), { country: null, source: "none", savedAt: null }, undefined]) {
+      replace.mockClear();
+      await renderPortal(<UniversitiesScreen />, testApi(transport(body === undefined ? {} : { student_country_choice_v1: body }).transport));
+      expect(await screen.findByTestId("country-CN")).toBeTruthy();
+      expect(replace).not.toHaveBeenCalled();
+    }
+
+    replace.mockClear();
+    mockParams.current = { all: "1" };
+    await renderPortal(<UniversitiesScreen />, testApi(transport({ student_country_choice_v1: saved("MY") }).transport));
+    expect(await screen.findByTestId("country-CN")).toBeTruthy();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("страна: «Все страны» ведёт на общий экран с маркером", async () => {
+    mockParams.current = { code: "my" };
+    const push = router.push as jest.Mock;
+    push.mockClear();
+    await renderPortal(<CountryScreen />, testApi(transport().transport));
+    await fireEvent.press(await screen.findByTestId("all-countries"));
+    expect(push).toHaveBeenCalledWith("/universities?all=1");
   });
 
   it("страна: поиск по городу и вузу, очистка возвращает города", async () => {

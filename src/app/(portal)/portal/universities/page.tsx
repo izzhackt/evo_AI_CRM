@@ -11,8 +11,11 @@ import {
   localizedText,
   resolveUniversitiesRoute,
   UNIVERSITIES_BASE,
+  universitiesEntryTarget,
+  UNIVERSITIES_ALL_HREF,
   type StudentUniversityIndex,
 } from "@/lib/portal/university-index";
+import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { readStudentUniversityIndex } from "@/lib/portal/university-index-source";
 import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { PLACE_CARD_WIDTHS, indexTileModel, placePhoto, tileStrings } from "@/lib/portal/university-tiles";
@@ -46,6 +49,11 @@ export default async function UniversitiesPage({
   const route = resolveUniversitiesRoute(params);
   if (route.kind === "invalid") notFound();
   if (route.kind === "redirect") redirect(route.href);
+  // Каталог открывается на стране студента; сбой чтения выбора = как без страны.
+  if (!route.all && route.query.trim() === "") {
+    const entry = universitiesEntryTarget(route, await readStudentCountryChoice().catch(() => null));
+    if (entry !== null) redirect(entry);
+  }
   const strings = getPortalStrings("universities", locale);
   const now = new Date();
 
@@ -68,7 +76,7 @@ export default async function UniversitiesPage({
     return (
       <main className="pt-page pt-atlas">
         {header}
-        <UnavailableNotice strings={strings} href={UNIVERSITIES_BASE} />
+        <UnavailableNotice strings={strings} href={UNIVERSITIES_ALL_HREF} />
       </main>
     );
   }

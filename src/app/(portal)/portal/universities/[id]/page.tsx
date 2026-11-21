@@ -11,7 +11,7 @@ import {
   countryHref,
   localizedText,
   universityHref,
-  UNIVERSITIES_BASE,
+  UNIVERSITIES_ALL_HREF,
   type StudentUniversityDetail,
 } from "@/lib/portal/university-index";
 import { UniversityNotFoundError, readStudentUniversityDetail } from "@/lib/portal/university-index-source";
@@ -50,7 +50,7 @@ export default async function UniversityPage({
   }
   const { university, country, city } = detail;
   const crumbs = [
-    { label: strings.title, href: UNIVERSITIES_BASE },
+    { label: strings.title, href: UNIVERSITIES_ALL_HREF },
     { label: localizedText(country.name, locale), href: countryHref(country.code) },
     ...(city ? [{ label: localizedText(city.name, locale), href: cityHref(country.code, city.key) }] : []),
   ];

@@ -5862,6 +5862,33 @@ SQL
       exit 1
     fi
   fi
+  # «Скорость Заявок» (migration 368, 21.11.2026). Matched by name, not number. The migration replaces the queue
+  # `staff_requests_queue_v3` and adds the sales-ledger guard and the batch read of call lines: right after it a second
+  # apply refuses (a368_already_applied), then the suite, insisting on its marker, proves that every answer equals the
+  # released one (rows, errors, every actor) and that the batch read equals the single read lead by lead.
+  if [[ "$(basename "$migration")" == *_platform_requests_speed.sql ]]; then
+    t368_again_log="$(mktemp -t evo-t368-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t368_again_log" 2>&1; then
+      echo "migration 368 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a368_already_applied" "$t368_again_log"; then
+      echo "a second apply of migration 368 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t368_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t368_again_log"
+    requests_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_requests_speed.sql </dev/null)"
+    printf '%s\n' "$requests_speed_log"
+    if ! grep -q 'A368_REQUESTS_SPEED_SUITE_PASSED' <<<"$requests_speed_log"; then
+      echo "platform_requests_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

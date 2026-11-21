@@ -299,7 +299,7 @@ test("real samples: every page and blank is a small local file the proxy serves,
         const bytes = readFileSync(path.join(root, "public", href));
         assert.ok(bytes.length > 10_000 && bytes.length < 650_000, `${name}: ${bytes.length} bytes`);
         if (name.endsWith(".pdf")) {
-          // Пустой бланк: в свойствах файла нет автора и программы, кто его делал.
+          // Пустой бланк: в свойствах файла нет автора (остались только название и Producer macOS).
           assert.equal(bytes.includes(Buffer.from("/Author")), false, `${name} names an author`);
         } else {
           assert.equal(bytes.includes(Buffer.from("Exif")), false, `${name} carries EXIF`);

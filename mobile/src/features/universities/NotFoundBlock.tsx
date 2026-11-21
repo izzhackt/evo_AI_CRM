@@ -7,7 +7,7 @@ import { Button } from "@/ui/Button";
 import { EmptyBlock } from "@/ui/CardParts";
 import { Screen } from "@/ui/Screen";
 
-import { open } from "./parts";
+import { ALL_COUNTRIES_ROUTE, open } from "./parts";
 
 export function NotFoundBlock({ message }: { message?: string }) {
   const { t } = useLang();
@@ -15,7 +15,7 @@ export function NotFoundBlock({ message }: { message?: string }) {
   return (
     <Screen topInset={false} tabBar>
       <View testID="catalog-not-found">
-        <EmptyBlock icon={SearchX} title={message ?? strings.countryEmptyTitle} action={<Button variant="ghost" label={strings.allCountries} onPress={() => open("/universities")} />} />
+        <EmptyBlock icon={SearchX} title={message ?? strings.countryEmptyTitle} action={<Button variant="ghost" label={strings.allCountries} onPress={() => open(ALL_COUNTRIES_ROUTE)} />} />
       </View>
     </Screen>
   );

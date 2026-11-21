@@ -20,7 +20,7 @@ import { CatalogFrame } from "./CatalogFrame";
 import { CatalogMap } from "./CatalogMap";
 import { useFavoriteState } from "./FavoritesContext";
 import { countryPageModel, placeCounts, searchCountry, tileModel } from "./model";
-import { CityCardView, geographyUrls, open, PathRow, PhotoCredit, RemotePhoto, universityRoute, UniversityTileView, usePhotoPixels } from "./parts";
+import { ALL_COUNTRIES_ROUTE, CityCardView, geographyUrls, open, PathRow, PhotoCredit, RemotePhoto, universityRoute, UniversityTileView, usePhotoPixels } from "./parts";
 import { geographyPhotoCredit } from "./photos";
 import { NotFoundBlock } from "./NotFoundBlock";
 
@@ -61,6 +61,9 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
         return (
           <View style={{ gap: 16 }}>
             <PathRow crumbs={[page.name]} strings={strings} />
+            <Text variant="secondary" tone="accent" accessibilityRole="link" onPress={() => open(ALL_COUNTRIES_ROUTE)} style={{ paddingVertical: 12, alignSelf: "flex-start" }} testID="all-countries">
+              {strings.allCountries}
+            </Text>
             <View style={{ gap: 8 }}>
               <RemotePhoto urls={geographyUrls(page.country.photo, pixels)} height={view === "cities" ? 180 : 110} label={page.name} strings={strings} />
               {page.country.photo ? <PhotoCredit credit={geographyPhotoCredit(page.country.photo)} strings={strings} /> : null}
@@ -78,7 +81,7 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                 icon={Landmark}
                 title={strings.countryEmptyTitle}
                 body={strings.countryEmptyBody}
-                action={<Button variant="ghost" label={strings.allCountries} onPress={() => open("/universities")} />}
+                action={<Button variant="ghost" label={strings.allCountries} onPress={() => open(ALL_COUNTRIES_ROUTE)} />}
               />
             ) : (
               <>

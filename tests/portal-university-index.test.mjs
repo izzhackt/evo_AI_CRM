@@ -15,6 +15,8 @@ import {
   parseStudentUniversityDetail,
   parseStudentUniversityIndexResponse,
   resolveUniversitiesRoute,
+  universitiesEntryTarget,
+  UNIVERSITIES_ALL_HREF,
   searchUniversities,
   searchCities,
   searchIndexUniversities,
@@ -293,8 +295,13 @@ test("the nearest intake from the index follows the full-card rule", () => {
 
 test("old list and map addresses lead to the new screens", () => {
   const cases = [
-    [{}, { kind: "page", query: "" }],
-    [{ q: "Tongji" }, { kind: "page", query: "Tongji" }],
+    [{}, { kind: "page", query: "", all: false }],
+    [{ q: "Tongji" }, { kind: "page", query: "Tongji", all: false }],
+    [{ all: "1" }, { kind: "page", query: "", all: true }],
+    [{ all: "1", q: "Tongji" }, { kind: "page", query: "Tongji", all: true }],
+    [{ all: "1", view: "map", country: "CN" }, { kind: "redirect", href: "/portal/universities/country/cn?view=map" }],
+    [{ all: "0" }, { kind: "invalid" }],
+    [{ all: ["1", "1"] }, { kind: "invalid" }],
     [{ view: "map", country: "CN" }, { kind: "redirect", href: "/portal/universities/country/cn?view=map" }],
     [{ country: "TR", level: "bachelor" }, { kind: "redirect", href: "/portal/universities/country/tr" }],
     [{ view: "list", country: "MY", offset: "30" }, { kind: "redirect", href: "/portal/universities/country/my" }],
@@ -310,6 +317,36 @@ test("old list and map addresses lead to the new screens", () => {
     [{ q: "x".repeat(101) }, { kind: "invalid" }],
   ];
   for (const [params, expected] of cases) assert.deepEqual(resolveUniversitiesRoute(params), expected, JSON.stringify(params));
+});
+
+test("catalog entry opens the student's own country unless search, the all marker or no usable country", () => {
+  const plain = { query: "", all: false };
+  assert.equal(UNIVERSITIES_ALL_HREF, "/portal/universities?all=1");
+  assert.equal(universitiesEntryTarget(plain, { country: "MY" }), "/portal/universities/country/my");
+  for (const code of ["CN", "MY", "AE", "TR", "IT", "CZ"]) {
+    assert.equal(universitiesEntryTarget(plain, { country: code }), `/portal/universities/country/${code.toLowerCase()}`);
+  }
+  assert.equal(universitiesEntryTarget({ query: "Tongji", all: false }, { country: "MY" }), null);
+  assert.equal(universitiesEntryTarget({ query: "  ", all: false }, { country: "MY" }), "/portal/universities/country/my");
+  assert.equal(universitiesEntryTarget({ query: "", all: true }, { country: "MY" }), null);
+  assert.equal(universitiesEntryTarget(plain, { country: "UNDECIDED" }), null);
+  assert.equal(universitiesEntryTarget(plain, { country: null }), null);
+  assert.equal(universitiesEntryTarget(plain, { country: "PL" }), null);
+  assert.equal(universitiesEntryTarget(plain, null), null);
+});
+
+test("catalog pages: breadcrumbs and the all-countries link never point back at the redirecting entry", () => {
+  for (const path of [
+    "src/app/(portal)/portal/universities/country/[code]/page.tsx",
+    "src/app/(portal)/portal/universities/country/[code]/[city]/page.tsx",
+    "src/app/(portal)/portal/universities/[id]/page.tsx",
+  ]) {
+    const source = read(path);
+    assert.doesNotMatch(source, /href[:=]\s*\{?\s*UNIVERSITIES_BASE\b/u, path);
+    assert.match(source, /UNIVERSITIES_ALL_HREF/u, path);
+  }
+  const page = read("src/app/(portal)/portal/universities/page.tsx");
+  assert.match(page, /universitiesEntryTarget\(route,\s*await readStudentCountryChoice\(\)\.catch\(\(\) => null\)\)/u);
 });
 
 test("counters decline by the Russian rules", () => {

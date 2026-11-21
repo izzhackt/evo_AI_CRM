@@ -11,7 +11,7 @@ import {
   countryCodeFromSlug,
   countryHref,
   localizedText,
-  UNIVERSITIES_BASE,
+  UNIVERSITIES_ALL_HREF,
   type StudentUniversityIndex,
 } from "@/lib/portal/university-index";
 import { readStudentUniversityIndex } from "@/lib/portal/university-index-source";
@@ -54,7 +54,7 @@ export default async function CityPage({
   if (index === null) {
     return (
       <main className="pt-page pt-atlas">
-        <Breadcrumbs crumbs={[{ label: strings.title, href: UNIVERSITIES_BASE }]} label={strings.breadcrumbAria} />
+        <Breadcrumbs crumbs={[{ label: strings.title, href: UNIVERSITIES_ALL_HREF }]} label={strings.breadcrumbAria} />
         <UnavailableNotice strings={strings} href={cityHref(code, route.city)} />
       </main>
     );
@@ -69,7 +69,7 @@ export default async function CityPage({
     <main className="pt-page pt-atlas">
       <Breadcrumbs
         crumbs={[
-          { label: strings.title, href: UNIVERSITIES_BASE },
+          { label: strings.title, href: UNIVERSITIES_ALL_HREF },
           { label: localizedText(country.name, locale), href: countryHref(code) },
           { label: name, href: null },
         ]}

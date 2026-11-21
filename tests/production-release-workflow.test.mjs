@@ -375,11 +375,109 @@ test("each first step is inline and secretless before checkout or repository cod
     assert.match(step, /EVO_ORIGINAL_ACTOR_ID: \$\{\{ github\.actor_id \}\}/u);
     assert.doesNotMatch(step, /triggering_actor/u);
     assert.match(step, /EVO_ARM_SNAPSHOT: \$\{\{ vars\.EVO_PRODUCTION_RELEASE_ARMED \}\}/u);
-    assert.match(step, /git\/ref\/heads\/main/u);
-    assert.match(step, /redirect: "error"/u);
+    // The main ref is read over git, not the anonymous REST API (403 from shared runners on 21.11.2026), still without
+    // any token: no credential helper, no global or system git config, no redirects, no prompt.
+    assert.doesNotMatch(step, /fetch\(|api_url|EVO_API_URL|git\/ref\/heads\/main/u);
+    assert.match(step, /EVO_SERVER_URL: \$\{\{ github\.server_url \}\}/u);
+    assert.match(step, /exact\("EVO_SERVER_URL", "https:\/\/github\.com"\);/u);
+    assert.match(step, /execFileSync\("git", \[/u);
+    assert.match(step, /"-c", "credential\.helper=",/u);
+    assert.match(step, /"-c", "http\.followRedirects=false",/u);
+    assert.match(step, /"ls-remote", "--exit-code",/u);
+    assert.match(step, /GIT_CONFIG_GLOBAL: "\/dev\/null",/u);
+    assert.match(step, /GIT_CONFIG_NOSYSTEM: "1",/u);
+    assert.match(step, /GIT_TERMINAL_PROMPT: "0",/u);
     assert.match(step, /::error::release_(?:build|deploy)_admission_failed/u);
   }
 });
+
+// The real admission script of both first steps, run with a stand-in `git` on PATH: the SHA must be the release SHA on
+// exactly one `refs/heads/main` line; git gets the fixed arguments and only PATH, HOME and the git isolation variables.
+function admissionEnv(sha, overrides = {}) {
+  return {
+    EVO_SERVER_URL: "https://github.com",
+    EVO_EXPECTED_REPOSITORY: "izzhackt/evo_AI_CRM",
+    EVO_REPOSITORY: "izzhackt/evo_AI_CRM",
+    EVO_REPOSITORY_ID: "1283979375",
+    EVO_RELEASE_WORKFLOW_NAME: "EVO fast app release",
+    EVO_RELEASE_WORKFLOW_SHA: sha,
+    EVO_EVENT_ACTION: "completed",
+    EVO_UPSTREAM_WORKFLOW_NAME: "EVO platform CI",
+    EVO_UPSTREAM_WORKFLOW_PATH: ".github/workflows/evo-platform-ci.yml",
+    EVO_UPSTREAM_STATUS: "completed",
+    EVO_UPSTREAM_EVENT: "workflow_dispatch",
+    EVO_UPSTREAM_CONCLUSION: "success",
+    EVO_UPSTREAM_HEAD_BRANCH: "main",
+    EVO_UPSTREAM_HEAD_SHA: sha,
+    EVO_UPSTREAM_HEAD_REPOSITORY: "izzhackt/evo_AI_CRM",
+    EVO_UPSTREAM_HEAD_REPOSITORY_ID: "1283979375",
+    EVO_UPSTREAM_RUN_ID: "44928592244",
+    EVO_UPSTREAM_RUN_ATTEMPT: "1",
+    EVO_ORIGINAL_ACTOR_ID: "72846050",
+    EVO_UPSTREAM_ACTOR_ID: "72846050",
+    EVO_ARM_SNAPSHOT: "true",
+    EVO_ACTOR_ID_SNAPSHOT: "72846050",
+    EVO_RELEASE_RUN_ID: "44928630007",
+    EVO_RELEASE_RUN_ATTEMPT: "1",
+    EVO_ARTIFACT_ID: "4242",
+    EVO_ARTIFACT_DIGEST: "a".repeat(64),
+    GITHUB_TOKEN: "must-not-reach-git",
+    ...overrides,
+  };
+}
+
+function runAdmission(t, stepName, { output, exitCode = 0, env }) {
+  const dir = mkdtempSync(join(tmpdir(), "evo-admission-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const log = join(dir, "git.log");
+  const fake = join(dir, "git");
+  // The stand-in git cannot read the step's environment (the step passes none of it), so its answer is baked in.
+  writeFileSync(fake, `#!/bin/bash\n{ printf 'ARG %s\\n' "$@"; env | sort | sed 's/^/ENV /'; } > ${JSON.stringify(log)}\n`
+    + `printf '%b' ${JSON.stringify(output)}\nexit ${exitCode}\n`, { mode: 0o755 });
+  const result = runStep(namedStep(stepName), { ...env, PATH: `${dir}:${dirname(process.execPath)}:/usr/bin:/bin` });
+  let calls = null;
+  try { calls = readFileSync(log, "utf8").split("\n").filter(Boolean); } catch { calls = null; }
+  return { ...result, calls };
+}
+
+for (const [stepName, code] of [["Secretless build admission", "build"], ["Secretless deploy admission", "deploy"]]) {
+  test(`${stepName}: main is read with git ls-remote, without the API or any token`, (t) => {
+    const sha = "3b6f00cd16d13d18f73021e7208324d8a7357205";
+    const accepted = runAdmission(t, stepName, { output: `${sha}\trefs/heads/main\n`, env: admissionEnv(sha) });
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.equal(accepted.stdout.trim(), `{"ok":true,"code":"release_${code}_admitted"}`);
+    assert.deepEqual(accepted.calls.filter((line) => line.startsWith("ARG ")), [
+      "ARG -c", "ARG credential.helper=", "ARG -c", "ARG http.followRedirects=false",
+      "ARG ls-remote", "ARG --exit-code", "ARG https://github.com/izzhackt/evo_AI_CRM.git", "ARG refs/heads/main",
+    ]);
+    const childEnv = accepted.calls.filter((line) => line.startsWith("ENV ")).map((line) => line.slice(4));
+    for (const expected of ["GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0"]) {
+      assert.ok(childEnv.includes(expected), `${expected} reaches git`);
+    }
+    assert.ok(!childEnv.some((line) => /^(?:EVO_|GITHUB_|ACTIONS_)/u.test(line) || line.includes("must-not-reach-git")),
+      "git sees no release variable and no token");
+
+    const other = "0".repeat(40);
+    for (const [label, output, exitCode, stage] of [
+      ["another SHA", `${other}\trefs/heads/main\n`, 0, "main_ref_identity"],
+      ["a second line", `${sha}\trefs/heads/main\n${sha}\trefs/remotes/x/refs/heads/main\n`, 0, "main_ref_identity"],
+      ["another ref", `${sha}\trefs/heads/mainline\n`, 0, "main_ref_identity"],
+      ["no output", "", 0, "main_ref_identity"],
+      ["git fails", "", 2, "main_ref_git"],
+      ["git denied", `${sha}\trefs/heads/main\n`, 128, "main_ref_git"],
+    ]) {
+      const refused = runAdmission(t, stepName, { output, exitCode, env: admissionEnv(sha) });
+      assert.equal(refused.status, 2, `${label}: refused`);
+      assert.match(refused.stderr, new RegExp(`::error::release_${code}_admission_failed stage=${stage} `, "u"), label);
+    }
+    const elsewhere = runAdmission(t, stepName, {
+      output: `${sha}\trefs/heads/main\n`, env: admissionEnv(sha, { EVO_SERVER_URL: "https://github.example" }),
+    });
+    assert.equal(elsewhere.status, 2);
+    assert.match(elsewhere.stderr, /stage=metadata /u);
+    assert.equal(elsewhere.calls, null, "another server is refused before git runs");
+  });
+}
 
 test("both exact checkouts are immutable and never persist credentials", () => {
   const checkouts = workflow.match(/uses: actions\/checkout@[0-9a-f]{40}[\s\S]*?persist-credentials: false/gu) ?? [];

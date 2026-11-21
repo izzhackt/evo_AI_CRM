@@ -83,6 +83,7 @@ test('download grants exact historical context and signs only the one-use canoni
   const query=new URLSearchParams({...target,documentVersionId:id(8)});const result=await createStudentApplicationDocumentDownloadHandler(deps)(new Request(`https://app.test/api/portal/application-document-downloads?${query}`));
   assert.equal(result.status,wrongSlot?503:302);assert.equal(calls.some(c=>c[0]==='sign'),!wrongSlot);
   assert.equal(calls[0][0],'grant_application_document_download_v1');assert.equal(calls[0][1].p_requirements_revision_id,target.requirementsRevisionId);assert.equal(calls[0][1].p_requirement_item_id,target.requirementItemId);
-  assert.equal(calls[1][1].p_actor_auth_user_id,actor.authUserId);
+  assert.equal(calls[1][0],'document_download_name_v1');assert.deepEqual(calls[1][1],{p_download_grant_id:grantId});
+  assert.equal(calls[2][0],'consume_application_document_download_v1');assert.equal(calls[2][1].p_actor_auth_user_id,actor.authUserId);
  }
 });

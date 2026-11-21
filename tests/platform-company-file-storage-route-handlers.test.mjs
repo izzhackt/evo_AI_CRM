@@ -822,6 +822,9 @@ function downloadDependencies({ signedUrl, grantError = null, consumeError = nul
       return {
         async rpc(name, args) {
           calls.push(["user-rpc", name, args]);
+          if (name === "company_file_download_name_v1") {
+            return { data: { mime_type: "application/pdf", original_filename: "Прайс 2026.pdf" }, error: null };
+          }
           return {
             data: {
               company_file_download_grant_id: GRANT_ID,
@@ -901,11 +904,14 @@ test("company download consumes one grant and emits only a short private signed 
   assert.deepEqual(calls.map(([kind, name]) => [kind, name]), [
     ["authorize", "company.file.download"],
     ["user-rpc", "grant_company_file_download"],
+    ["user-rpc", "company_file_download_name_v1"],
     ["service-rpc", "consume_company_file_download_grant"],
     ["sign", "platform-company-files"],
   ]);
   assert.deepEqual(calls.at(-1).slice(3), [60, { download: true }]);
-  assert.deepEqual(calls[2][2], {
+  assert.equal(new URL(response.headers.get("location")).searchParams.get("download"), "Прайс 2026.pdf");
+  assert.deepEqual(calls[2][2], { p_download_grant_id: GRANT_ID });
+  assert.deepEqual(calls[3][2], {
     p_organization_id: ORGANIZATION_ID,
     p_company_file_download_grant_id: GRANT_ID,
     p_request_id: REQUEST_IDS[1],

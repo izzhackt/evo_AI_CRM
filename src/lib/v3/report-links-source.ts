@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
@@ -25,8 +27,7 @@ function mayAsk(actor: ActivePlatformActor, key: ReportKey): boolean {
   return actor.systemRole === "admin" || (key === "finance" && staffHasPermission(actor, "finance.read.full"));
 }
 
-/** Чтение ссылки. `denied` — отказ роли, `unavailable` — сбой или ответ не той формы; нуля и «не подключён» наугад нет. */
-export async function readReportLink(actor: ActivePlatformActor, key: ReportKey): Promise<ReportLinkRead> {
+async function readReportLinkOnce(actor: ActivePlatformActor, key: ReportKey): Promise<ReportLinkRead> {
   if (!mayAsk(actor, key)) return { status: "denied" };
   try {
     const { data, error } = await (await createSupabaseServerClient())
@@ -38,6 +39,14 @@ export async function readReportLink(actor: ActivePlatformActor, key: ReportKey)
     return { status: "unavailable" };
   }
 }
+
+/**
+ * Чтение ссылки. `denied` — отказ роли, `unavailable` — сбой или ответ не той формы; нуля и «не подключён» наугад нет.
+ * Один запрос страницы читает базу один раз на (сотрудник, отчёт): меню («Финансы» в layout) и сама страница делят ответ.
+ * Память живёт только в запросе (React сбрасывает её между запросами и сотрудниками); сохранение ссылки идёт отдельным запросом
+ * действия, где чтения нет.
+ */
+export const readReportLink: (actor: ActivePlatformActor, key: ReportKey) => Promise<ReportLinkRead> = cache(readReportLinkOnce);
 
 /**
  * Пункт «Финансы» в меню и палитре (план §6.2, точная проверка). Просмотр роли и сотрудник без `finance.read.full` в

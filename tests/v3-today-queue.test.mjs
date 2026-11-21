@@ -610,11 +610,11 @@ test("a long group shows the first TODAY_WINDOW rows; a group within the slack s
   // Клавиатура: после раскрытия фокус уходит на первую открывшуюся строку, а j/k от кнопки идут от конца её группы.
   assert.match(list, /if \(!open\) requestAnimationFrame\(\(\) => focusQueueRow\(band\.rows\[hiddenFrom\]\.key\)\);/u);
   assert.match(sourceText("src/components/staff/queue/useQueueKeyboard.ts"), /closest<HTMLElement>\("\[data-today-more\]"\)/u);
-  // Клиент у задачи-перезвона читается у видимых строк, но не больше предела: два чтения на задачу в одной отрисовке.
+  // Клиент у задачи-перезвона читается у видимых строк, но не больше предела (все они — одно чтение базы, миграция 367).
   const leads = sourceText("src/lib/v3/telephony-task-leads-source.ts");
   assert.match(leads, /band\.items\.slice\(0, todayVisibleCount\(band\.items\.length, false\)\)/u);
   assert.match(leads, /export const TODAY_TASK_LEAD_CAP = 15;/u);
-  assert.match(leads, /isCallbackTaskTitle\(item\.task\.title\)\)\s*\.slice\(0, TODAY_TASK_LEAD_CAP\);/u, "the cap applies to visible callback tasks in band order");
+  assert.match(leads, /\.filter\(callbackTask\)\s*\.slice\(0, TODAY_TASK_LEAD_CAP\);/u, "the cap applies to visible callback tasks in band order");
   assert.doesNotMatch(leads, /TASK_LEAD_LIMIT/u);
 });
 

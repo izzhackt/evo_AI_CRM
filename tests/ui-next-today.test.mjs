@@ -188,10 +188,10 @@ test("страницы всегда рисуют новый вид (#1327), чи
   const main = read("src/app/(staff)/main/page.tsx");
   assert.doesNotMatch(main, /isNextUi/u);
   // Новый вид подгружается лениво и не импортируется статически.
-  assert.match(main, /return <TodayNextLazy queue=\{queue\} sections=\{sections\} headed=\{headed\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
+  assert.match(main, /return <TodayNextLazy queue=\{todayQueueSummary\(queue\)\} sections=\{sections\} headed=\{headed\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
   assert.doesNotMatch(main, /from "@\/components\/staff\/today-next\/Today(Next|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
   assert.doesNotMatch(main, /<PartShell|<TodayScreen/u, "прежнего вида нет");
-  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, \{ bands: sections\.flatMap\(\(section\) => section\.queue\.bands\) \}\) : null;/u, "чтения прежние");
+  assert.match(main, /const taskLeads = dial\.status === "ready"\s*\? await readTodayTaskLeads\(actor, \{ bands: sections\.flatMap\(\(section\) => section\.queue\.bands\) \}, await early\.taskLeads\)\s*: null;/u, "чтения прежние, лиды перезвонов начаты раньше (одно чтение, миграция 367)");
   assert.match(main, /buildTodaySections\(reads, now, access\.role\)/u, "разделы по роли");
   const requests = read("src/app/(staff)/requests/page.tsx");
   assert.doesNotMatch(requests, /isNextUi/u);

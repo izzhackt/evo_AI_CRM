@@ -6048,6 +6048,34 @@ SQL
       exit 1
     fi
   fi
+  # «Главная»: лиды и задачи одним чтением (migration 372, 21.11.2026). Matched by name, not number. The migration adds two
+  # reads that walk the pages of staff_sales_lead_page and staff_task_list inside the database: right after it a second apply
+  # refuses (a372_already_applied), then the suite, insisting on its marker. The suite proves: for every participant, filter
+  # and page limit the one read equals the old page-by-page read (rows, truncation and refusals); limits refuse with 22023;
+  # both functions are stable SECURITY INVOKER reads that only authenticated may execute.
+  if [[ "$(basename "$migration")" == *_platform_board_pages_one_read.sql ]]; then
+    t372_again_log="$(mktemp -t evo-t372-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t372_again_log" 2>&1; then
+      echo "migration 372 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a372_already_applied" "$t372_again_log"; then
+      echo "a second apply of migration 372 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t372_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t372_again_log"
+    board_pages_one_read_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_board_pages_one_read.sql </dev/null)"
+    printf '%s\n' "$board_pages_one_read_log"
+    if ! grep -q 'A372_BOARD_PAGES_ONE_READ_SUITE_PASSED' <<<"$board_pages_one_read_log"; then
+      echo "platform_board_pages_one_read.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

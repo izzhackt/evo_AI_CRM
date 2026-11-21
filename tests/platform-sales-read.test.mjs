@@ -9,6 +9,7 @@ import {
   PlatformSalesWorkflowMutationError,
   getPlatformSalesLead,
   isPlatformLeadConversationLinked,
+  listAllPlatformSalesLeads,
   listPlatformSalesOwnerOptions,
   listPlatformSalesLeads,
   mutatePlatformSalesLeadWorkflow,
@@ -345,6 +346,81 @@ test("listPlatformSalesLeads uses the cookie-bound platform RPC contract and pag
   });
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.rows), true);
+});
+
+test("listAllPlatformSalesLeads reads every page in one GET RPC with the board filters (372)", async () => {
+  const second = validQueueRow({
+    lead_id: SECOND_LEAD_ID,
+    sort_at: "2026-09-02T11:00:00Z",
+    updated_at: "2026-09-02T11:00:00Z",
+  });
+  const recorded = staticClient({ rows: [validQueueRow(), second], truncated: false });
+  const result = await listAllPlatformSalesLeads(
+    actor,
+    { pageSize: 100, maxPages: 40, assignmentFilter: "unassigned", dueFilter: "overdue", query: "  Aijan  " },
+    { client: recorded.client },
+  );
+  assert.deepEqual(recorded.calls[1], {
+    kind: "rpc",
+    functionName: "staff_sales_lead_pages_v1",
+    args: {
+      p_page_size: 100,
+      p_max_pages: 40,
+      p_connection_filter: "all",
+      p_stage_filter: "all",
+      p_assignment_filter: "unassigned",
+      p_due_filter: "overdue",
+      p_query: "Aijan",
+    },
+    options: { get: true },
+  });
+  assert.equal(recorded.calls.length, 2, "one schema switch and one RPC");
+  assert.equal(result.truncated, false);
+  assert.deepEqual(result.rows.map((row) => row.leadId), [LEAD_ID, SECOND_LEAD_ID]);
+  assert.equal(result.rows[0].stageEnteredAt, "2026-09-02T09:00:00Z");
+  assert.equal(Object.isFrozen(result), true);
+  assert.equal(Object.isFrozen(result.rows), true);
+
+  // Truncation is reported only with every allowed page full.
+  const full = staticClient({ rows: [validQueueRow(), second], truncated: true });
+  const truncated = await listAllPlatformSalesLeads(actor, { pageSize: 1, maxPages: 2 }, { client: full.client });
+  assert.equal(truncated.truncated, true);
+  assert.equal(truncated.rows.length, 2);
+});
+
+test("listAllPlatformSalesLeads fails closed on shape, limits, duplicates and permission (372)", async () => {
+  const row = validQueueRow();
+  const second = validQueueRow({ lead_id: SECOND_LEAD_ID, sort_at: "2026-09-02T11:00:00Z", updated_at: "2026-09-02T11:00:00Z" });
+  const bad = [
+    ["plain array instead of the object", [row]],
+    ["missing truncated", { rows: [row] }],
+    ["extra key", { rows: [row], truncated: false, more: true }],
+    ["truncated is not boolean", { rows: [row], truncated: "false" }],
+    ["more rows than the pages allow", { rows: [row, second], truncated: false }],
+    ["truncated but the pages are not full", { rows: [], truncated: true }],
+    ["the same lead twice", { rows: [row, row], truncated: false }],
+    ["sort key is not the update time", { rows: [validQueueRow({ sort_at: "2026-09-02T11:00:00Z" })], truncated: false }],
+  ];
+  for (const [label, data] of bad) {
+    const client = staticClient(data);
+    await assert.rejects(listAllPlatformSalesLeads(actor, { pageSize: 1, maxPages: 1 }, { client: client.client }),
+      PlatformSalesRepositoryError, label);
+  }
+  const failure = staticClient(null, { message: "sensitive detail" });
+  await assert.rejects(listAllPlatformSalesLeads(actor, { pageSize: 100, maxPages: 40 }, { client: failure.client }),
+    PlatformSalesRepositoryError);
+  for (const limits of [{ pageSize: 101, maxPages: 1 }, { pageSize: 0, maxPages: 1 }, { pageSize: 100, maxPages: 41 },
+    { pageSize: 100, maxPages: 0 }, { pageSize: 100, maxPages: 1.5 }]) {
+    const unused = staticClient({ rows: [], truncated: false });
+    await assert.rejects(listAllPlatformSalesLeads(actor, limits, { client: unused.client }), PlatformSalesRepositoryError);
+    assert.deepEqual(unused.calls, [], `no request for ${JSON.stringify(limits)}`);
+  }
+  for (const permissionKeys of [[], ["pipeline.read"], ["lead.sales.workflow.manage"]]) {
+    const unused = staticClient({ rows: [], truncated: false });
+    await assert.rejects(listAllPlatformSalesLeads({ ...actor, permissionKeys }, { pageSize: 100, maxPages: 40 },
+      { client: unused.client }), PlatformSalesRepositoryError);
+    assert.deepEqual(unused.calls, []);
+  }
 });
 
 test("listPlatformSalesLeads omits nullable arguments from its GET RPC", async () => {

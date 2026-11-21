@@ -44,7 +44,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
     if (!draft) return <UniversityShell title="Проверка карточки" back={back}><p role="status" className={`mb-4 ${NOTE}`}>Черновик уже обработан или недоступен. Не создавайте дубликат: проверьте опубликованный каталог.</p><Link className={link} href="/universities">Открыть опубликованный каталог</Link></UniversityShell>;
     return <UniversityShell title={`Проверка: ${draft.content.name}`} back={back}><p className={`mb-5 ${NOTE}`}>{draft.reviewKind === "intake_ids" ? "Технический черновик" : "Черновик"} на основе версии {draft.baseVersion}. Студенты его не видят. Причина: {draft.reason}</p><UniversityContentView content={draft.content} now={new Date()} /><div className="mt-6"><UniversityReviewForm draftId={draft.id} requestId={randomUUID()} reviewKind={draft.reviewKind} /></div></UniversityShell>;
   }
-  const templates = reviewedUniversityTemplates();
+  // Шаблоны (~4,9 МБ JSON) нужны только режимам «batch», «template» и списку управления: остальные их не разбирают.
   // 10.11.2026: «Номера наборов» - одна кнопка для всех карточек без постоянных идентификаторов наборов.
   if (mode === "intakeIds") {
     let published;
@@ -55,7 +55,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
   }
   if (mode === "batch") {
     let rows;
-    try { rows = universityBatchRows(templates, await readUniversityBatchSnapshot(actor)); }
+    try { rows = universityBatchRows(reviewedUniversityTemplates(), await readUniversityBatchSnapshot(actor)); }
     catch { return <UniversityShell title="Публикация подготовленного каталога" back={back}><UniversityUnavailable /></UniversityShell>; }
     return <UniversityShell title="Публикация подготовленного каталога" back={back}><UniversityBatchReview initialRows={rows} /></UniversityShell>;
   }
@@ -65,7 +65,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
       let page;
       try { page = await readStaffUniversities(actor, undefined, editId ?? identifyId); } catch { return <UniversityShell title="Обновление карточки"><UniversityUnavailable /></UniversityShell>; }
       const university = page.items[0] ?? notFound(); content = university.content; version = university.version;
-    } else if (mode === "template") content = templates.find((item) => item.key === value)?.content ?? notFound();
+    } else if (mode === "template") content = reviewedUniversityTemplates().find((item) => item.key === value)?.content ?? notFound();
     else content = { name: "", country: "CN", city: null, overview: "", websiteUrl: "", sourceUrl: "", verifiedOn: today, notes: "", photoKey: null, programs: [{ id: "program-1", title: "", level: "bachelor", duration: null, language: null, summary: "", sourceUrl: "", intakes: [] }] };
     const missingIds = content.programs.reduce((total, program) => total + program.intakes.filter((intake) => intake.id === undefined).length, 0);
     // Generate once on the server, then preserve the seed through edits and exact retries.
@@ -82,6 +82,6 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
   let page: Awaited<ReturnType<typeof readUniversityManageDraftPage>> | null = null;
   try { page = await readUniversityManageDraftPage(actor, index); } catch { /* Keep navigation and templates available; never treat a failed read as an empty queue. */ }
   return <UniversityShell title="Управление каталогом" back={<Link className={BACK} href="/universities"><Icon name="arrow-left" size={16} />Все университеты</Link>} action={<div className="flex flex-wrap gap-2"><Link className={link} href={manageEditorHref("intakeIds", "1", listContext)}>Номера наборов</Link><Link className={PRIMARY_LINK} href={manageEditorHref("new", "1", listContext)}>Добавить университет</Link></div>}>
-    <ManageIndexNextLazy {...manageIndexProps({ index, page, templates, countryLabel: universityCountry })} />
+    <ManageIndexNextLazy {...manageIndexProps({ index, page, templates: reviewedUniversityTemplates(), countryLabel: universityCountry })} />
   </UniversityShell>;
 }

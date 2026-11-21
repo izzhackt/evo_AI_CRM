@@ -2,7 +2,7 @@ import { staffHasPermission, isStaffPreview } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
-import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type PublishedUniversity } from "../platform-university-catalog";
+import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityContent, type UniversityFilters, type PublishedUniversity } from "../platform-university-catalog";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseStaffUniversityCountries } from "../university-staff-countries.ts";
 import { parseManageDraftPage, parseManageIndex, parseManageCursor, type ManageIndex } from "../university-manage-contract.ts";
@@ -95,15 +95,24 @@ export async function readUniversityDrafts(actor: ActivePlatformActor, id: strin
   if (!drafts || (id !== null && drafts.some((draft) => draft.id !== id))) throw new Error("Drafts unavailable");
   return drafts;
 }
-/** Editorial templates for an actual Admin review; never a published fallback. */
-export function reviewedUniversityTemplates() {
+/**
+ * Editorial templates for an actual Admin review; never a published fallback.
+ * Шесть пакетов (~4,9 МБ) разбираются один раз на процесс при первом вызове: данные собраны в сборку и не меняются,
+ * поэтому повторный разбор на каждый запрос ничего не давал. Страница управления зовёт это только в режимах, где
+ * шаблоны нужны. Ошибка разбора не запоминается: следующий вызов проверит заново.
+ */
+let reviewedTemplates: readonly Readonly<{ key: string; content: UniversityContent }>[] | null = null;
+export function reviewedUniversityTemplates(): readonly Readonly<{ key: string; content: UniversityContent }>[] {
+  if (reviewedTemplates) return reviewedTemplates;
   const seen = new Set<string>();
-  return [...chinaContent, ...malaysiaContent, ...europeContent, ...turkeyContent, ...internationalContent, ...otherContent].map((entry) => {
+  const parsed = [...chinaContent, ...malaysiaContent, ...europeContent, ...turkeyContent, ...internationalContent, ...otherContent].map((entry) => {
     const content = parseUniversityContent(entry.content);
     if (!content || seen.has(entry.key)) throw new Error("Reviewed catalogue template invalid");
     seen.add(entry.key);
-    return { key: entry.key, content };
+    return Object.freeze({ key: entry.key, content });
   });
+  reviewedTemplates = Object.freeze(parsed);
+  return reviewedTemplates;
 }
 
 /**

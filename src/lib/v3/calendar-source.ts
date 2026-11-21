@@ -46,24 +46,33 @@ export async function readCalendarTasks(
   actor: ActivePlatformActor, from: Day, to: Day,
   undatedCursor: PersonalCalendarCursor | null = null,
 ) {
+  // The undated call does not depend on the dated cursor chain, so it runs
+  // beside it; only the dated pages stay sequential because each cursor comes
+  // from the previous page.
+  const readDated = async () => {
+    const dated: CalendarTask[] = [];
+    let datedCursor: PersonalCalendarCursor | null = null;
+    do {
+      const page = await readPersonalCalendarPage(actor, {
+        mode: "dated", from, to, pageSize: QUEUE_PAGE_SIZE, cursor: datedCursor,
+      });
+      dated.push(...page.tasks);
+      datedCursor = page.nextCursor;
+    } while (datedCursor !== null);
+    return dated;
+  };
+  // allSettled keeps the failure deterministic: the dated error surfaces first, as when the reads were sequential.
+  const [datedResult, undatedResult] = await Promise.allSettled([
+    readDated(),
+    readPersonalCalendarPage(actor, { mode: "undated", pageSize: QUEUE_PAGE_SIZE, cursor: undatedCursor }),
+  ]);
+  if (datedResult.status === "rejected") throw datedResult.reason;
+  if (undatedResult.status === "rejected") throw undatedResult.reason;
+  const dated = datedResult.value;
+  const undated = undatedResult.value;
   const tasks: CalendarTask[] = [];
   const seen = new Set<string>();
-  let datedCursor: PersonalCalendarCursor | null = null;
-  do {
-    const page = await readPersonalCalendarPage(actor, {
-      mode: "dated", from, to, pageSize: QUEUE_PAGE_SIZE, cursor: datedCursor,
-    });
-    for (const task of page.tasks) {
-      if (seen.has(task.key)) throw new Error("Personal calendar received a duplicate task.");
-      seen.add(task.key);
-      tasks.push(task);
-    }
-    datedCursor = page.nextCursor;
-  } while (datedCursor !== null);
-  const undated = await readPersonalCalendarPage(actor, {
-    mode: "undated", pageSize: QUEUE_PAGE_SIZE, cursor: undatedCursor,
-  });
-  for (const task of undated.tasks) {
+  for (const task of [...dated, ...undated.tasks]) {
     if (seen.has(task.key)) throw new Error("Personal calendar received a duplicate task.");
     seen.add(task.key);
     tasks.push(task);

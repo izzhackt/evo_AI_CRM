@@ -985,6 +985,34 @@ SQL
     done
   fi
 
+  # «Скорость «Студентов»: числа вкладок» (370). Matched by name, not number. Immediately BEFORE it: a counts body whose
+  # row-by-row call is not the one 370 was written against makes it fail closed with a370_anchor_drift, inside a transaction
+  # that the failure rolls back; the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == *_platform_student_queue_counts_speed.sql ]]; then
+    t370_tamper_log="$(mktemp -t evo-t370-anchor-tamper.XXXXXX)"
+    if docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v "migration_file=/workspace/$migration" \
+      >"$t370_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(pg_get_functiondef('platform.staff_student_case_queue_counts_v1(text,text,uuid,text,text)'::regprocedure),
+  'private.platform_can_read_student_case(c.organization_id, c.id)',
+  'private.platform_can_read_student_case(c.organization_id, c.id) IS TRUE') AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+    then
+      echo "migration 370 accepted an edited counts body" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a370_anchor_drift" "$t370_tamper_log"; then
+      echo "migration 370 failed for the wrong drift reason" >&2
+      sed -n '1,60p' "$t370_tamper_log" >&2
+      exit 1
+    fi
+    rm -f "$t370_tamper_log"
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -5772,6 +5800,34 @@ SQL
     printf '%s\n' "$catalog_speed_log"
     if ! grep -q 'A364_UNIVERSITY_CATALOG_SPEED_SUITE_PASSED' <<<"$catalog_speed_log"; then
       echo "platform_university_catalog_speed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Скорость «Студентов»: числа вкладок» (migration 370, 21.11.2026). Matched by name, not number. The migration moves the
+  # counts of the «Студенты» queue from a row-by-row read check to the readable-case set: right after it a second apply
+  # refuses (a370_already_applied), then the suite, insisting on its marker, proves that for several actors (admin, own-scope
+  # curators, an organization-scope manager, a member without case read, another organization) and every view and filter the
+  # answer equals the pre-370 definition kept in the suite.
+  if [[ "$(basename "$migration")" == *_platform_student_queue_counts_speed.sql ]]; then
+    t370_again_log="$(mktemp -t evo-t370-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t370_again_log" 2>&1; then
+      echo "migration 370 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a370_already_applied" "$t370_again_log"; then
+      echo "a second apply of migration 370 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t370_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t370_again_log"
+    queue_counts_speed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_queue_counts_speed.sql </dev/null)"
+    printf '%s\n' "$queue_counts_speed_log"
+    if ! grep -q 'N370_QUEUE_COUNTS_SPEED_SUITE_PASSED' <<<"$queue_counts_speed_log"; then
+      echo "platform_student_queue_counts_speed.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

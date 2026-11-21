@@ -46,6 +46,7 @@ import {
   type PlatformStudentCasePageItem,
   type PlatformStudentCaseSnapshot,
   type PlatformStudentCaseState,
+  type PlatformStudentCaseView,
 } from "@/lib/platform-admissions";
 import { getPlatformCaseVisa } from "@/lib/platform-case-operations";
 import {
@@ -699,6 +700,13 @@ function caseTimeline(studentCase: PlatformStudentCaseSnapshot): PersonProfile["
     : [];
 }
 
+/** Чтения дела, которые маршрут дела стартует сразу после снимка дела и отдаёт ветке лида (см. `readLeadProfile`). */
+type KnownCaseReads = Readonly<{
+  view: PlatformStudentCaseView;
+  fullCaseRead: Promise<FullCaseData>;
+  cabinetRead: Promise<boolean> | null;
+}>;
+
 async function readCaseProfile(
   actor: ActivePlatformActor,
   studentCaseId: string,
@@ -716,6 +724,15 @@ async function readCaseProfile(
   if (view === null || view.access !== "full") return null;
 
   const canonicalCaseId = view.studentCase.studentCaseId;
+  // Разделы дела и происхождение кабинета зависят только от дела, которое мы уже прочли: страница читает их в любом
+  // случае (через лид дела или без него), поэтому они стартуют сразу, а не после цепочки «лид, передача, условия» (#speed-students).
+  // Один и тот же набор чтений и в той и в другой ветке; отброшенный ответ при сбое ветки лида не оставляет необработанной ошибки.
+  const fullCaseRead = loadFullCase(actor, view.studentCase);
+  fullCaseRead.catch(() => {});
+  // Происхождение кабинета (только `pending`) и почта клиента для «Доступа к порталу» (только Admin) зависят
+  // от номера дела, а не от разделов дела: идут вместе с ними, а не тремя шагами после.
+  const cabinetRead = view.studentCase.state === "pending" ? readStudentCaseCabinetOrigin(actor, canonicalCaseId) : null;
+  cabinetRead?.catch(() => {});
   const links = earlyLinks !== null && requestedCaseId === canonicalCaseId
     ? await earlyLinks
     : await listPlatformStudentCaseLeadLinks(actor, [canonicalCaseId]);
@@ -727,6 +744,7 @@ async function readCaseProfile(
       link.leadId,
       { leadId: null, studentCaseId: canonicalCaseId },
       canonicalCaseId,
+      { view, fullCaseRead, cabinetRead },
     );
     if (leadProfile) return leadProfile;
   }
@@ -734,13 +752,9 @@ async function readCaseProfile(
   // «Данные продажи» дела прямого студента (290): отдельное чтение по праву на дело, параллельно с делом.
   // Не бросает: сбой - честная строка в группе, а не недоступная страница.
   const saleRead = readCaseSaleData(actor, canonicalCaseId);
-  // Происхождение кабинета (только `pending`) и почта клиента для «Доступа к порталу» (только Admin) зависят
-  // от номера дела, а не от разделов дела: идут вместе с ними, а не тремя шагами после.
-  const cabinetRead = view.studentCase.state === "pending" ? readStudentCaseCabinetOrigin(actor, canonicalCaseId) : null;
-  cabinetRead?.catch(() => {});
   const inviteEmailRead = portalInviteEmailFor(actor, () => readStudentCaseClientEmail(actor, canonicalCaseId));
   inviteEmailRead.catch(() => {});
-  const data = await loadFullCase(actor, view.studentCase);
+  const data = await fullCaseRead;
   if (link && data.handoff && data.handoff.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
   }
@@ -811,6 +825,9 @@ async function readLeadProfile(
   leadId: string,
   routeTarget: ProfileRouteTarget,
   expectedStudentCaseId: string | null = null,
+  // Дело, уже прочитанное маршрутом дела (`readCaseProfile`): снимок дела, разделы и происхождение кабинета стартовали
+  // вместе с чтением лида. Только вместе с `expectedStudentCaseId`; лид без дела по адресу читает всё сам.
+  known: KnownCaseReads | null = null,
 ): Promise<V3ProfileCoreView | null> {
   if (!staffPresentationCan(actor, "sales.read")) return null;
   const lead = await getPlatformSalesLead(actor, leadId);
@@ -848,11 +865,14 @@ async function readLeadProfile(
     }
   }
   if (expectedStudentCaseId !== null && caseId !== expectedStudentCaseId) return null;
-  const caseView = caseId ? await getPlatformStudentCaseView(actor, caseId) : null;
+  // Маршрут дела уже прочёл это дело (`caseId === expectedStudentCaseId` проверено выше): повторного чтения нет.
+  const caseView = known !== null && caseId === expectedStudentCaseId
+    ? known.view
+    : caseId ? await getPlatformStudentCaseView(actor, caseId) : null;
   const studentCase = caseView?.access === "full" ? caseView.studentCase : null;
   const salesCase = caseView?.access === "sales_summary" ? caseView.studentCase : null;
   const fullCase = staffPresentationCan(actor, "admissions.read") && studentCase
-    ? await loadFullCase(actor, studentCase)
+    ? await (known !== null && studentCase === known.view.studentCase ? known.fullCaseRead : loadFullCase(actor, studentCase))
     : null;
   const salesHandoffAcknowledgement = !fullCase && caseId && handoff.handedOffAt
     ? await getSalesHandoffAcknowledgement(actor, leadId, caseId)
@@ -923,7 +943,7 @@ async function readLeadProfile(
     : false;
   // S8: same pending-only optimization as readCaseProfile above.
   const isCabinetCase = fullCase && fullCase.studentCase.state === "pending" && caseId
-    ? await readStudentCaseCabinetOrigin(actor, caseId)
+    ? await (known?.cabinetRead && fullCase.studentCase === known.view.studentCase ? known.cabinetRead : readStudentCaseCabinetOrigin(actor, caseId))
     : false;
   const details: ProfileDraft = fullCase
     ? {

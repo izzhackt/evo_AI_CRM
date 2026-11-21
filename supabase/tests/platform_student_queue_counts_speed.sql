@@ -187,11 +187,11 @@ SELECT pg_temp.n370_assert(
 
 -- ---------------------------------------------------------------------------
 -- Fixture. Organization A: admin (1), sales (2), curator A (3), manager with full case read on the organization (4),
--- curator B (6). Organization B: its own admin (7). Staff roles come through the installed commands.
+-- curator B (6), a department manager (8) holding case.read.full and case.curator.assign for department D only. Organization B: its own admin (7). Staff roles come through the installed commands.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE n370_actors(n INTEGER, org INTEGER, role platform.business_role, claims TEXT);
 INSERT INTO n370_actors(n, org, role) VALUES
-  (1, 1, 'admin'), (2, 1, 'sales'), (3, 1, 'curator'), (4, 1, NULL), (6, 1, 'curator'), (7, 2, 'admin');
+  (1, 1, 'admin'), (2, 1, 'sales'), (3, 1, 'curator'), (4, 1, NULL), (6, 1, 'curator'), (7, 2, 'admin'), (8, 1, NULL);
 GRANT SELECT ON n370_actors TO authenticated;
 
 INSERT INTO platform.organizations(id, name) VALUES
@@ -222,8 +222,17 @@ INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, s
 CREATE TEMP TABLE n370_today AS SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Bishkek')::DATE AS d;
 GRANT SELECT ON n370_today TO authenticated;
 
+INSERT INTO platform.staff_departments(id, organization_id, name) VALUES (pg_temp.n370_id(801), pg_temp.n370_id(1), 'N370 Department D');
+INSERT INTO platform.staff_organizational_details(organization_id, membership_id, department_id) VALUES
+  (pg_temp.n370_id(1), pg_temp.n370_id(303), pg_temp.n370_id(801)),
+  (pg_temp.n370_id(1), pg_temp.n370_id(308), pg_temp.n370_id(801));
+INSERT INTO platform.clients(id, organization_id, display_name, normalized_name)
+  VALUES (pg_temp.n370_id(810), pg_temp.n370_id(1), 'N370 Client 10', platform_private.normalize_person_name('N370 Client 10'));
+INSERT INTO platform.leads(id, organization_id, client_id, stage_key, source_key)
+  VALUES (pg_temp.n370_id(811), pg_temp.n370_id(1), pg_temp.n370_id(810), 'new', 'n370');
+
 SET LOCAL session_replication_role = replica;
--- Organization A (cases 1-9) and organization B (11-13): every state, direction (and none), stage, curator (and none),
+-- Organization A (cases 1-10) and organization B (11-13): every state, direction (and none), stage, curator (and none),
 -- step band (overdue, today, later, none) and name the filters use.
 INSERT INTO platform.student_cases(
   id, organization_id, responsible_sales_membership_id, current_curator_membership_id,
@@ -250,10 +259,27 @@ FROM (VALUES
   (7, 1, 'active', 'a', 'Alpha Student 7', 'MY', 'MY', 'documents', 'Шаг 7', 20),
   (8, 1, 'active', 'm', 'Beta Student 8', 'CN', NULL, 'new', NULL, NULL),
   (9, 1, 'pending', NULL, 'Epsilon Student 9', 'AE', 'AE', 'new', 'Шаг 9', 1),
+  (10, 1, 'pending', NULL, 'Alpha Student 10', 'CN', NULL, 'new', NULL, NULL),
   (11, 2, 'active', 'x', 'Alpha Student 11', 'CN', 'CN', 'new', 'Шаг 11', -1),
   (12, 2, 'pending', NULL, 'Beta Student 12', 'MY', 'MY', 'new', NULL, NULL),
   (13, 2, 'closed', 'x', 'Zeta Student 13', 'CN', 'CN', 'documents', 'Шаг 13', 3)
 ) AS f(k, org, state, curator, student_name, country, direction, stage, step, due_offset);
+-- Case 10: declined by curator A (lifecycle event 'declined') with a sale behind its lead (a register row), no curator:
+-- the case that the case-curator-assignment path (staff_can_take_needs_curator_case) makes readable for a department
+-- manager who is not the last curator, although case.read.full alone does not reach it.
+UPDATE platform.student_cases SET canonical_lead_id = pg_temp.n370_id(811), canonical_client_id = pg_temp.n370_id(810)
+  WHERE id = pg_temp.n370_id(510);
+INSERT INTO platform.student_case_lifecycle_events(organization_id, student_case_id, event_type, previous_state,
+  new_state, actor_membership_id, reason, request_id)
+  VALUES (pg_temp.n370_id(1), pg_temp.n370_id(510), 'declined', 'active', 'pending', pg_temp.n370_id(303), 'N370 declined',
+    pg_temp.n370_id(7001));
+INSERT INTO platform_private.sales_register(id, organization_id, report_month, owner_membership_id, source_kind, fields,
+  lead_id, client_id, source_snapshot)
+VALUES (pg_temp.n370_id(9100), pg_temp.n370_id(1), DATE '2026-09-01', pg_temp.n370_id(302), 'pipeline',
+  jsonb_build_object('applicant_name', 'N370 Sale', 'phone', '', 'signing_date', DATE '2026-09-03', 'manager_label', 'N370 Manager',
+    'status_raw', '', 'service_cost_minor', 50000, 'service_cost_currency', 'USD', 'paid_minor', 50000,
+    'paid_currency', 'USD', 'needs_review', FALSE),
+  pg_temp.n370_id(811), pg_temp.n370_id(810), '{"review_flags":[]}'::JSONB);
 -- A chat waiting for staff on case 6 (a flag of 245), so the flags chain is not trivially empty.
 INSERT INTO platform.case_chat_threads(organization_id, student_case_id, await_state, last_message_at, last_message_sequence_id)
   VALUES (pg_temp.n370_id(1), pg_temp.n370_id(506), 'needs_reply', clock_timestamp(), 1);
@@ -270,7 +296,9 @@ INSERT INTO n370_roles VALUES
   (pg_temp.n370_id(703), 1, 1, pg_temp.n370_id(304), '["case.read.full","case.route.manage","case.update.append"]', 730,
     jsonb_build_object('kind', 'organization', 'key', pg_temp.n370_id(1)::TEXT, 'resourceKind', NULL)),
   (pg_temp.n370_id(704), 1, 1, pg_temp.n370_id(306), '["case.read.full","case.route.manage","case.update.append"]', 740,
-    '{"kind": "own", "key": null, "resourceKind": null}');
+    '{"kind": "own", "key": null, "resourceKind": null}'),
+  (pg_temp.n370_id(705), 1, 1, pg_temp.n370_id(308), '["case.read.full","case.curator.assign"]', 750,
+    jsonb_build_object('kind', 'department', 'key', pg_temp.n370_id(801)::TEXT, 'resourceKind', NULL));
 GRANT SELECT ON n370_roles TO authenticated;
 
 SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.n370_id(101),
@@ -287,7 +315,9 @@ BEGIN
     published := platform.staff_role_publish(pg_temp.n370_id(r.org), r.role_id, 1,
       platform.staff_role_impact(pg_temp.n370_id(r.org), r.role_id, 1) ->> 'impactFingerprint',
       'N370 publish role', pg_temp.n370_id(r.request_base + 2));
-    PERFORM platform.staff_role_assignments_save(pg_temp.n370_id(r.org), r.membership_id, 1,
+    PERFORM platform.staff_role_assignments_save(pg_temp.n370_id(r.org), r.membership_id,
+      (SELECT p.access_version FROM platform.organization_memberships AS m JOIN platform.profiles AS p ON p.id = m.profile_id
+       WHERE m.id = r.membership_id),
       jsonb_build_array(jsonb_build_object('roleId', r.role_id, 'scope', r.scope)),
       jsonb_build_array(jsonb_build_object('roleId', r.role_id, 'roleVersion', 2,
         'bundleId', (published ->> 'bundleId')::UUID, 'bundleVersion', 1)),
@@ -306,8 +336,17 @@ SELECT claims AS n370_curator_a FROM n370_actors WHERE n = 3 \gset
 SELECT claims AS n370_manager FROM n370_actors WHERE n = 4 \gset
 SELECT claims AS n370_curator_b FROM n370_actors WHERE n = 6 \gset
 SELECT claims AS n370_admin_b FROM n370_actors WHERE n = 7 \gset
-SELECT pg_temp.n370_assert((SELECT count(*) = 6 FROM n370_actors
+SELECT claims AS n370_dept FROM n370_actors WHERE n = 8 \gset
+SELECT pg_temp.n370_assert((SELECT count(*) = 7 FROM n370_actors
   WHERE claims::JSONB ->> 'platform_membership_id' = pg_temp.n370_id(300 + n)::TEXT), 'staff claims resolve to their memberships');
+
+-- The case-curator-assignment path is really exercised: the department manager (8) reads declined case 10 through it and
+-- not through case.read.full, and the pre-370 row check agrees.
+SELECT pg_temp.n370_assert(
+  pg_temp.n370_id(510) = ANY (ARRAY(SELECT v.id FROM platform_private.staff_readable_case_ids_v1(pg_temp.n370_id(1), pg_temp.n370_id(308)) AS v(id)))
+  AND NOT pg_temp.n370_id(510) = ANY (ARRAY(SELECT v.id FROM platform_private.staff_visible_ids_v1(pg_temp.n370_id(1), pg_temp.n370_id(308), 'case.read.full', 'student_case') AS v(id)))
+  AND platform_private.staff_can_take_needs_curator_case(pg_temp.n370_id(1), pg_temp.n370_id(308), pg_temp.n370_id(510)),
+  'case 10 is readable for the department manager only through the needs-curator path');
 
 -- ---------------------------------------------------------------------------
 -- Admin of A: every state, filter and view equals the old answer; the numbers are not vacuous.
@@ -317,8 +356,8 @@ SET LOCAL ROLE authenticated;
 SELECT pg_temp.n370_assert(pg_temp.n370_same('admin A', pg_temp.n370_id(303), pg_temp.n370_id(306)) = 8 * 16, 'admin A: all combinations compared');
 SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('active') -> 'views' ->> 'active')::INTEGER = 5,
   'admin A reads the five active cases of its own organization (and none of B)');
-SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'pending')::INTEGER = 3,
-  'admin A: three pending cases');
+SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'pending')::INTEGER = 4,
+  'admin A: four pending cases');
 SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('active') -> 'views' ->> 'needs_action')::INTEGER > 0,
   'the flags chain produces flags: the needs_action tab is not empty');
 SELECT pg_temp.n370_assert(jsonb_array_length(platform.staff_student_case_queue_counts_v1('active') -> 'directions') >= 3
@@ -344,8 +383,21 @@ SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('active'
   'curator B counts only own cases');
 SET LOCAL request.jwt.claims TO :'n370_manager';
 SELECT pg_temp.n370_assert(pg_temp.n370_same('manager', pg_temp.n370_id(303), pg_temp.n370_id(306)) = 8 * 16, 'manager: all combinations compared');
-SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'pending')::INTEGER = 3,
+SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'pending')::INTEGER = 4,
   'the manager with the organization scope reads the unassigned pending cases');
+
+-- ---------------------------------------------------------------------------
+-- The department manager (case.read.full and case.curator.assign for department D): the needs-curator path adds case 10 to
+-- what the department scope gives; old and new agree everywhere, and the manager sees fewer cases than the admin.
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n370_dept';
+SELECT pg_temp.n370_assert(pg_temp.n370_same('department manager', pg_temp.n370_id(303), pg_temp.n370_id(306)) = 8 * 16,
+  'department manager: all combinations compared');
+SELECT pg_temp.n370_assert((platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'pending')::INTEGER = 1
+  AND (platform.staff_student_case_queue_counts_v1('pending') -> 'views' ->> 'needs_curator')::INTEGER = 1
+  AND (platform.staff_student_case_queue_counts_v1('active') -> 'views' ->> 'active')::INTEGER = 2
+  AND (platform.staff_student_case_queue_counts_v1('closed') -> 'views' ->> 'closed')::INTEGER = 1,
+  'the department manager reads the declined case 10 (a needs_curator flag, the only pending case) and the department''s own cases (curator A: two active, one closed), nothing else');
 
 -- ---------------------------------------------------------------------------
 -- A member without case read (Sales): refused before any case is touched, exactly as before.

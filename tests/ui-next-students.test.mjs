@@ -432,6 +432,28 @@ test("«Управление каталогом» и вложенные стра
   await assert.rejects(universityPage("manage/page.tsx", "next", STAFF).run(), /NEXT_REDIRECT \/access-denied/u);
 });
 
+test("«Управление каталогом»: шаблоны разбираются только там, где нужны (индекс, шаблон, пакет), не в «новом», «номерах наборов», правке и черновике", async () => {
+  const calls = async (params) => {
+    let count = 0;
+    const base = universityStubs("next", ADMIN)["src/lib/v3/university-source.ts"];
+    const html = await universityPage("manage/page.tsx", "next", ADMIN, params, {
+      "src/lib/v3/university-source.ts": { ...base, reviewedUniversityTemplates: () => { count += 1; return base.reviewedUniversityTemplates(); },
+        readUniversityDrafts: async () => [{ id: "dddddddd-7777-4777-8777-000000000001", content: published[0].content, baseVersion: 2, reviewKind: "content", reason: "Проверка" }] },
+    }).run();
+    return { count, html };
+  };
+  assert.equal((await calls({ new: "1" })).count, 0, "«новый университет»: шаблоны не нужны");
+  assert.equal((await calls({ intakeIds: "1" })).count, 0, "«номера наборов»: шаблоны не нужны");
+  assert.equal((await calls({ edit: published[0].id })).count, 0, "правка карточки: шаблоны не нужны");
+  assert.equal((await calls({ draft: "dddddddd-7777-4777-8777-000000000001" })).count, 0, "черновик: шаблоны не нужны");
+  assert.equal((await calls({})).count, 1, "индекс управления: один разбор");
+  assert.equal((await calls({ batch: "1" })).count, 1, "пакет: один разбор");
+  const first = CATALOGUE[0];
+  const template = await calls({ template: first.key });
+  assert.equal(template.count, 1, "шаблон: один разбор");
+  assert.ok(template.html.includes(first.content.name.replace(/&/g, "&amp;")), "форма шаблона получает содержимое найденного шаблона");
+});
+
 /* ---------------------------------------------------------------- исправления после независимой проверки потока (27.10.2026) */
 
 test("Esc в панели-листе: окно или всплывающее окно поверх закрываются первыми, поле панели — выход из поля, иначе закрывается панель", () => {

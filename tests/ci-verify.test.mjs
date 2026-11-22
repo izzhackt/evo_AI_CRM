@@ -147,10 +147,10 @@ test("dependency cache: saved on main only, read-only token, no secrets, pinned 
   assert.match(warm, /^on:\n  push:\n    branches:\n      - main\n/mu);
   assert.doesNotMatch(warm, /pull_request/u);
   assert.match(warm, /^permissions:\n  contents: read$/mu);
-  assert.doesNotMatch(warm, /secrets\.|github\.token|GITHUB_TOKEN/u);
+  assert.doesNotMatch(warm, /\$\{\{\s*(?:secrets\.|github\.token)|GITHUB_TOKEN/u);
   assert.match(warm, /persist-credentials: false/u);
   for (const use of warm.match(/uses: [^\n]+/gu)) assert.match(use, /@[0-9a-f]{40} # v/u, use);
   const key = "key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}";
   assert.ok(warm.includes(key) && pr.includes(key), "the warm job and the PR jobs share one key");
-  assert.doesNotMatch(warm, /npm run|build|test/u, "it installs and caches only");
+  assert.deepEqual(warm.match(/^\s+run: .*$/gmu)?.map((line) => line.trim()), ["run: npm ci"], "it installs and caches only");
 });

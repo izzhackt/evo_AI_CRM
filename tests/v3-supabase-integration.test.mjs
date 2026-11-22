@@ -13,6 +13,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     .sort();
   assert.deepEqual(typescriptFiles, [
     "account-deletion-source.ts", // удаление аккаунта по запросу (280, 07.10.2026)
+    "admissions-board-return.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "admissions-direct-student-source.ts", // «Добавить студента» без отдела продаж (281, 16.10.2026)
     "admissions-source.ts",
     // «ИИ-агент» P1–P4 (06–07.10.2026): RPC «ИИ-агента» от имени сотрудника; P1–P3
@@ -23,6 +24,9 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "ai-agent-memory.ts",
     "ai-agent-source.ts",
     "ai-agent.ts",
+    "ai-agents-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "ai-agents-view.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "ai-consent-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "board-layout.ts", // #1053 (25.09.2026)
     "calendar-contract.ts",
     "calendar-source.ts",
@@ -32,9 +36,12 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "case-operations-source.ts",
     "case-work-source.ts",
     "catalog-geography-source.ts", // «Университеты» v2: город и стоимость в CRM (283, S3.5, 16.10.2026)
+    "chat-focus.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "command-palette-actions.ts", // #1085 (27.09.2026)
     "command-palette.ts", // #1085 (27.09.2026)
+    "country-curators-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "current-sales-funnel-source.ts",
+    "document-suggestions-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "finance-entry-source.ts",
     "funnel-source.ts",
     "inbox-access.ts", // WhatsApp for every employee (06.10.2026): pure page decisions, no Supabase
@@ -49,8 +56,11 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "lead-channel-source.ts", // «Маркетинг» М1 (06.10.2026)
     "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
+    "marketing-next-props.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "marketing-source.ts", // «Маркетинг» М1 (06.10.2026)
     "navigation.ts",
+    "parent-phone-lookalikes-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "pending-receipts-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     // operations-source.ts retired by #1067 (26.09.2026): replaced by
     // today-source.ts / today-queue.ts / sales-dynamics-source.ts /
     // sales-board-funnel.ts below.
@@ -58,6 +68,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "personal-calendar-contract.ts", // #963 (21.09.2026)
     "pipeline-return.ts", // #1064 (26.09.2026)
     "pipeline-source.ts",
+    "portal-invite-email.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "portal-source.ts",
     "possible-duplicates.ts", // предупреждение о дубле студента (07.11.2026)
     "profile-activity-source.ts",
@@ -77,6 +88,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "sales-stage.ts",
     "settings-health.ts", // #1064 (26.09.2026)
     "settings-journal-contract.ts",
+    "settings-next-journal.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "settings-next-props.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "settings-source.ts",
     "shell-tabs.ts", // #1068 (26.09.2026)
     "staff-catalog-preparation-actions.ts", // #967 (21.09.2026)
@@ -91,6 +104,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "stages.ts", // #1070 (27.09.2026)
     "student-application-source.ts",
     "student-assessment-source.ts",
+    "student-debts-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "student-receipts-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "student-search-readers.ts", // чтения Ctrl+K и предупреждения о дубле (07.11.2026)
     "students-coverage-source.ts", // #1050 (24.09.2026)
     "students-coverage.ts", // #1050 (24.09.2026)
@@ -112,11 +127,13 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "today-queue.ts", // #1067 (26.09.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
+    "university-geo-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "university-source.ts",
     "university-view.ts",
     "wazzup-words.ts", // WhatsApp через Wazzup (325, W3, 27.10.2026): pure words and channel rules, no Supabase
     "website-lead-source.ts",
     "whatsapp-chat.ts", // «Продажи → WhatsApp» как чат (06.10.2026): pure chat logic, no Supabase
+    "whatsapp-connect-contract.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)
     "whatsapp-contact.ts", // WhatsApp name and number (278, 07.10.2026): pure title logic, no Supabase
     "wording.ts",
@@ -131,13 +148,17 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "admissions-source.ts",
     "ai-agent-autosend-source.ts", // «ИИ-агент» P4 (07.10.2026)
     "ai-agent-source.ts", // «ИИ-агент» P1 (06.10.2026)
+    "ai-agents-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "ai-consent-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "calendar-source.ts",
     "case-agreement-source.ts",
     "case-chat-source.ts",
     "case-operations-source.ts",
     "case-work-source.ts",
     "catalog-geography-source.ts", // «Университеты» v2 (283, S3.5, 16.10.2026)
+    "country-curators-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "current-sales-funnel-source.ts",
+    "document-suggestions-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "finance-entry-source.ts",
     "funnel-source.ts",
     "inbox-source.ts",
@@ -148,6 +169,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
     "marketing-source.ts", // «Маркетинг» М1 (06.10.2026)
+    "parent-phone-lookalikes-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "pending-receipts-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     // operations-source.ts retired by #1067 (26.09.2026): see the file
     // inventory above.
     "pipeline-source.ts",
@@ -173,6 +196,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "staff-workspace-source.ts",
     "student-application-source.ts",
     "student-assessment-source.ts",
+    "student-debts-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
+    "student-receipts-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "students-coverage-source.ts", // #1050 (24.09.2026)
     "students-queue-source.ts",
     "team-chat-source.ts",
@@ -183,6 +208,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "telephony-task-leads-source.ts", // задача «Перезвонить клиенту» (18.10.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
+    "university-geo-source.ts", // CI repair: added by later PRs (15–21.11.2026), previously unpinned
     "university-source.ts",
     "website-lead-source.ts",
     "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)
@@ -201,7 +227,12 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     assert.doesNotMatch(adapter, /\.(?:from|rpc)\s*\(\s*["'`]evo_/);
   }
   assert.doesNotMatch(adapterSources, /better-sqlite3|drizzle-orm/i);
-  assert.match(adapterSources, /listPlatformSalesLeads/);
+  // #1514 (372) moved the leads read of «Сегодня» into one RPC; the sales-leads reader now lives in the
+  // Ctrl+K / duplicate-warning readers (student-search-readers.ts, not a «-source» file), still in src/lib/v3.
+  assert.match(
+    readFileSync(new URL("student-search-readers.ts", adapterDirectory), "utf8"),
+    /listPlatformSalesLeads/,
+  );
   assert.match(adapterSources, /listPlatformConversations/);
   assert.match(adapterSources, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapterSources, /listPlatformDocumentQueue/);

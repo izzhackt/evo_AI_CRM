@@ -162,25 +162,34 @@ const pages = JSON.parse(execFileSync(
 const page = (name) => pages.find((entry) => entry.name === name)?.html ?? assert.fail(name);
 const text = (html) => html.replace(/<svg[\s\S]*?<\/svg>/gu, "").replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
 
+// Каталог страниц — те же проверенные шаблоны карточек, что отдаёт стенд (`reference-static-render.cjs`): число вузов считается из них.
+const catalogueCards = ["china", "malaysia", "europe", "turkey", "international", "other"]
+  .flatMap((name) => JSON.parse(source(`src/lib/server/university-catalog-reviewed-${name}.json`)));
+// Строки таблицы «Нового вида»: `DataTable` рисует `<tr>` без своих атрибутов, имя вуза — `div[data-university-row]` в первой ячейке.
+const tableRows = (html) => [...html.matchAll(/<tr[^>]*><td[^>]*><div data-university-row="[^"]+"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
+
 test("«Университеты»: one dense table of 30 rows with the photo, the deadline column and an honest count", () => {
   const html = page("universities-list");
-  assert.match(html, /<h1 class="t-page-title[^"]*">Университеты<span[^>]*>143<\/span><\/h1>/u, "count from the complete read");
-  assert.match(html, /data-testid="v3-university-table"/u);
-  const rows = [...html.matchAll(/<tr role="row" data-university-row="[^"]+"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
+  assert.match(html, new RegExp(`<h1 class="t-page-title[^"]*">Университеты<span[^>]*>${catalogueCards.length}</span></h1>`, "u"), "count from the complete read");
+  assert.match(html, /data-testid="v3-universities-next"/u);
+  assert.match(html, /<div role="region" aria-label="Университеты"[^>]*><table/u);
+  const rows = tableRows(html);
   assert.equal(rows.length, 30);
+  // Страна и город — вторая строка ячейки имени («Китай · Шанхай»), своей колонки у страны больше нет.
   assert.deepEqual(text(html.match(/<thead[\s\S]*?<\/thead>/u)[0]).trim().split(" ").filter(Boolean),
-    ["Университет", "Страна", "Программы", "Ближайший", "срок"]);
+    ["Университет", "Программы", "Ближайший", "срок"]);
+  assert.ok(rows.every((row) => /<span class="block truncate t-meta text-fg-2">[^<·]+ · [^<]+<\/span>/u.test(row)), "country · city under each name");
   // Deadlines first, in date order; the rest say so in words.
   const deadlines = rows.map((row) => row.match(/data-deadline="([^"]+)"/u)[1]);
   const dated = deadlines.filter((value) => value !== "none");
   assert.ok(dated.length > 0);
   assert.deepEqual(deadlines.slice(0, dated.length), [...dated].sort(), "deadline rows lead, nearest first");
   assert.ok(deadlines.slice(dated.length).every((value) => value === "none"));
-  assert.ok(rows.filter((row) => row.includes('data-deadline="none"')).every((row) => row.includes(">Срок не подтверждён</p>")));
-  assert.ok(rows.every((row) => /<img[^>]*alt=""[^>]*class="size-full object-cover"|<span aria-hidden="true" class="grid size-12/u.test(row)), "a 48 px photo or its neutral place in each row");
-  assert.match(html, /<nav aria-label="Страницы каталога"[\s\S]*?1–30<\/span> из <span class="tabular-nums">143<\/span>/u);
+  assert.ok(rows.filter((row) => row.includes('data-deadline="none"')).every((row) => row.includes(">Срок не подтверждён</span>")));
+  assert.ok(rows.every((row) => /<figure class="size-12[^"]*"><img[^>]*alt=""|<span aria-hidden="true" class="grid size-12/u.test(row)), "a 48 px photo or its neutral place in each row");
+  assert.match(html, new RegExp(`<nav aria-label="Страницы каталога"[\\s\\S]*?1–30</span> из <span class="tabular-nums">${catalogueCards.length}</span>`, "u"));
   assert.match(html, /href="\/universities\?offset=30"/u);
-  // «Управлять каталогом» is a quiet link, not the page's red action.
+  // «Управлять каталогом» is a quiet outline button, not the page's red action.
   const end = html.indexOf("Управлять каталогом</a>");
   assert.ok(end > 0, "manage link");
   const manage = html.slice(html.lastIndexOf("<a ", end), end);
@@ -188,21 +197,28 @@ test("«Университеты»: one dense table of 30 rows with the photo, t
   assert.doesNotMatch(html, /Фото: |Photo by|Сроки подачи — в карточке/u, "no credits and no placeholders in the list");
 });
 
-test("«Университеты»: the toolbar applies filters on change and keeps «Найти» for a browser without scripts", () => {
+test("«Университеты»: search runs by itself after a pause and without scripts is a plain GET form; filters are links with removable chips", () => {
+  // «Новый вид» (#1327) заменил строку из двух `select` и «Найти» (прежний `UniversityToolbar`): поиск `ListSearch` с `liveMs`, фильтры ссылками.
   const html = page("universities-list-filtered");
-  assert.match(html, /<form role="search" aria-label="Поиск университетов" data-testid="university-toolbar"[^>]*action="\/universities" method="get">/u);
-  assert.match(html, /<noscript>/u);
-  assert.match(html, /href="\/universities"[^>]*>Сбросить<\/a>/u, "«Сбросить» only when something is chosen");
-  assert.doesNotMatch(page("universities-list"), />Сбросить<\/a>/u);
-  const toolbar = source("src/components/staff/universities/UniversityToolbar.tsx");
-  // Controlled selects, no remount after a choice: keyboard focus stays on the select (review #1079).
-  assert.match(toolbar, /<select name="country" value=\{countryValue\} onChange=\{\(event\) => \{\s*setCountryValue\(event\.target\.value\);\s*router\.push\(href\(\{ country: event\.target\.value \}\)/u);
-  assert.match(toolbar, /<select name="level" value=\{levelValue\} onChange=\{\(event\) => \{\s*setLevelValue\(event\.target\.value\);\s*router\.push\(href\(\{ level: event\.target\.value \}\)/u);
-  assert.doesNotMatch(toolbar, /key=\{(?:country|level)\}|defaultValue=\{(?:country|level)\}/u);
-  assert.match(html, /<select name="country"[^>]*>[\s\S]*?<option value="MY" selected="">Малайзия<\/option>/u, "the address still sets the value");
-  assert.match(toolbar, /setTimeout\(\(\) => search\(value, true\), LIVE_DELAY_MS\)/u, "search runs by itself after a pause");
-  // Both Malaysian bachelor filters reached the read: 13 rows, no pagination.
-  assert.equal([...html.matchAll(/data-university-row=/gu)].length, 13);
+  assert.match(html, /<form role="search" aria-label="Поиск университетов"[^>]*action="\/universities" method="get">/u, "works without scripts: a GET form");
+  assert.match(html, /<input type="hidden" name="country" value="MY"\/><input type="hidden" name="level" value="bachelor"\/>/u, "the chosen filters ride along with a search");
+  assert.match(html, /data-testid="list-filters"/u);
+  // Each chosen filter is a chip whose link removes only that filter; none on the unfiltered list.
+  const chip = (label) => html.match(new RegExp(`<a [^>]*aria-label="Убрать фильтр: ${label}"[^>]*>`, "u"))?.[0] ?? assert.fail(label);
+  assert.match(chip("Страна: Малайзия"), /data-testid="list-filter-applied"[^>]*href="\/universities\?level=bachelor"/u);
+  assert.match(chip("Уровень: Бакалавриат"), /data-testid="list-filter-applied"[^>]*href="\/universities\?country=MY"/u);
+  assert.doesNotMatch(page("universities-list"), /data-testid="list-filter-applied"/u);
+  const list = source("src/components/staff/universities-next/UniversitiesListNext.tsx");
+  assert.match(list, /<ListSearch action="\/universities" value=\{query\} placeholder="Найти университет" label="Поиск университетов" hidden=\{searchHidden\} liveMs=\{400\} \/>/u, "search runs by itself after a pause");
+  assert.match(list, /<LinkFilters bar=\{filters\} \/>/u);
+  const search = source("src/components/staff/list-next/ListSearch.tsx");
+  assert.match(search, /timer\.current = setTimeout\(\(\) => go\(event\.target\.value, true\), liveMs\)/u);
+  assert.match(search, /router\.replace\(href, \{ scroll: false \}\)/u, "the pause search does not stack history entries");
+  // The Malaysian bachelor filters reached the read: as many rows as cards that match, no pagination.
+  const expected = catalogueCards.filter((card) => card.content.country === "MY" && card.content.programs.some((program) => program.level === "bachelor")).length;
+  assert.ok(expected > 0);
+  assert.match(html, new RegExp(`<h1 class="t-page-title[^"]*">Университеты<span[^>]*>${expected}</span></h1>`, "u"));
+  assert.equal(tableRows(html).length, expected);
   assert.doesNotMatch(html, /aria-label="Страницы каталога"/u);
 });
 
@@ -222,22 +238,27 @@ test("catalogue read (364): one light read per page, no paging of full cards, th
 
 test("university page: programmes and intakes first, then the overview; the photo smaller at the side with one Russian credit line", () => {
   const html = page("universities-detail");
-  const programs = html.indexOf('id="university-programs"');
+  // «Новый вид»: каждая программа — своя секция с таблицей наборов, затем «Об университете», фото — боковая колонка (`aside`) последним в разметке.
+  const programs = html.indexOf('<section id="program-');
   const about = html.indexOf('id="university-about"');
   const photo = html.indexOf('aria-label="Фото кампуса"');
   assert.ok(programs > 0 && about > programs && photo > about, "programmes → overview → photo");
   // Name and place read as one unit: the place is the line under the h1, the Admin links come after it.
+  const utm = catalogueCards.find((card) => card.key === "utm").content.programs.length;
   const h1 = html.indexOf("<h1");
-  const place = html.indexOf('<p class="t-meta mt-1 text-fg-3">Малайзия · Johor Bahru · <span class="tabular-nums">3</span> программы</p>');
+  const place = html.indexOf(`<p class="t-meta basis-full text-fg-3">Малайзия · Johor Bahru · ${utm} программ</p>`);
   assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, "h1 → place → Admin links → programmes");
   assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
   assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
+  assert.match(html, /<aside aria-label="Фото кампуса" class="min-w-0 @max-4xl:max-w-80">/u, "the photo is a side column, at most 20 rem on a phone");
   assert.match(html, /aspect-\[4\/3\]/u);
-  assert.match(html, /<th role="columnheader" scope="col" class="t-caption text-start text-fg-2">Срок подачи<\/th>/u);
-  assert.match(html, /<td role="cell" class="t-body-compact" data-cell="deadline">[\s\S]*?<time dateTime="2026-07-17" class="font-mono tabular-nums text-fg">17\.07<\/time>/u);
+  assert.match(html, /<th [^>]*>Срок подачи<\/th>/u);
+  assert.match(html, /<span[^>]*data-cell="deadline"[^>]*><span[^>]*><time dateTime="2026-07-17"[^>]*>17\.07<\/time>/u);
   assert.match(html, />Приём закрыт по данным источника</u);
-  assert.match(html, />Проверено:<\/span><time dateTime="2026-09-10" class="font-mono tabular-nums">10\.09<\/time>/u);
+  const [year, month, day] = catalogueCards.find((card) => card.key === "utm").content.verifiedOn.split("-");
+  assert.match(html, new RegExp(`>Карточка проверена <time dateTime="${year}-${month}-${day}"[^>]*>${day}\\.${month}</time>`, "u"), "the card's own verification day");
+  assert.match(html, />проверено <time dateTime="2026-09-10"[^>]*>10\.09<\/time>/u, "the intake's verification day in its state cell");
   assert.match(html, />Бланки университета<\/a>/u);
   assert.match(html, />Предложить обновление<\/a>/u);
   assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
@@ -249,8 +270,9 @@ test("university page: each intake state is main's label — no deadline or zone
   const expected = apu.programs.flatMap((program) => shownIntakes(program.intakes)).map((one) => universityIntakeLabel(one, NOW));
   assert.ok(expected.includes("Срок приёма нужно уточнить"), "the card has an intake without a deadline");
   const html = page("universities-detail-unconfirmed");
-  const states = [...html.matchAll(/<tr role="row" data-intake=""[\s\S]*?<\/tr>/gu)]
-    .map((row) => row[0].match(/<td role="cell" class="t-body-compact text-fg-2"><span[^>]*>Состояние:<\/span>([^<]*)<\/td>/u)?.[1]);
+  // «Новый вид»: таблица наборов — `<tbody>` каждой программы; состояние — третья ячейка строки (вторая строка в ней — «проверено …»).
+  const states = [...html.matchAll(/<tbody[^>]*>[\s\S]*?<\/tbody>/gu)].flatMap((body) => [...body[0].matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/gu)])
+    .map((row) => row[0].match(/<td[^>]*>[\s\S]*?<\/td><td[^>]*>[\s\S]*?<\/td><td[^>]*><span[^>]*>([^<]*)<span/u)?.[1]);
   assert.deepEqual(states, expected, "states as on main");
   assert.doesNotMatch(html, />(?:Приём открыт|Набор объявлен)</u, "an undated intake is neither open nor announced");
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>Asia Pacific University of Technology &amp; Innovation — официальный сайт; фотограф не указан<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>с официального сайта, лицензия не указана<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · кадрировано<\/figcaption>/u);
@@ -260,51 +282,61 @@ test("university page: each intake state is main's label — no deadline or zone
 test("«Настройки»: every staff view has one section heading — no hidden duplicate for Playwright strict mode (review #1079)", () => {
   const headings = (html) => [...html.slice(html.indexOf("<main"), html.indexOf("</main>")).matchAll(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gu)]
     .map((match) => ({ level: Number(match[1]), hidden: /sr-only/u.test(match[2]), text: match[3].replace(/<[^>]+>/gu, "").trim() }));
-  for (const [name, title] of [["settings-staff", "Сотрудники · 5"], ["settings-roles", "Роли и доступ"], ["settings-departments", "Отделы · 2"], ["settings-integrations", "Интеграции"]]) {
+  // «Новый вид» (#1313): заголовок раздела один — скрытый `h2` с названием выбранного раздела (его уже называет вкладка в ряду разделов,
+  // а Playwright и чтец экрана ждут именно его); счётчика «· N» в заголовке больше нет.
+  for (const [name, title] of [["settings-staff", "Сотрудники"], ["settings-roles", "Роли и доступ"], ["settings-departments", "Отделы"], ["settings-integrations", "Интеграции"]]) {
     const list = headings(page(name));
-    const texts = list.map((heading) => heading.text);
-    assert.deepEqual(list.filter((heading) => heading.level === 2), [{ level: 2, hidden: false, text: title }], `${name}: one visible h2`);
-    assert.equal(new Set(texts).size, texts.length, `${name}: no two headings share a name (${texts})`);
+    assert.deepEqual(list.filter((heading) => heading.level === 2), [{ level: 2, hidden: true, text: title }], `${name}: one section h2 (${title})`);
+    const upper = list.filter((heading) => heading.level <= 2).map((heading) => heading.text);
+    assert.equal(new Set(upper).size, upper.length, `${name}: no two page or section headings share a name (${upper})`);
     assert.ok(list.every((heading, index) => index === 0 || heading.level <= list[index - 1].level + 1), `${name}: no skipped level`);
   }
   // `verifyScopedStaffRoleEditor` waits for this exact heading: one element, not two.
   assert.equal([...page("settings-roles").matchAll(/<h[1-6][^>]*>Роли и доступ<\/h[1-6]>/gu)].length, 1);
+  assert.match(source("src/components/staff/settings-next/SettingsSection.tsx"), /<h2 className="sr-only">\{current\?\.title\}<\/h2>/u, "the section heading is the one h2 of the page");
   const roles = source("src/components/staff/settings/StaffRolesSection.tsx");
   assert.match(roles, /if \(newRole\) return <><h2 className="sr-only">Роли и доступ<\/h2><RoleEditor /u, "the new-role form keeps the section heading");
 });
 
 test("«Настройки»: open on «Сотрудники», one section list, no «админ» marks, one integrations table", () => {
+  const SECTIONS = ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Отчёты", "Кураторы стран", "Реквизиты для оплаты", "Кабинеты студентов",
+    "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"];
   const staff = page("settings-staff");
-  const navAll = staff.match(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/u)[0];
-  // Узкий экран — текущий раздел одной кнопкой со списком (`details`), от 56rem — столбец; ссылки в обоих те же.
-  assert.match(navAll, /^<nav [^>]*><details class="group @4xl:hidden"[^>]*><summary [^>]*><span class="flex min-w-0 items-center">Сотрудники<\/span><svg/u);
-  const nav = navAll.slice(navAll.indexOf('<ul class="hidden gap-1 @4xl:flex @4xl:flex-col">'));
-  assert.deepEqual([...navAll.slice(0, navAll.indexOf('<ul class="hidden')).matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
-    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Отчёты", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
-  assert.deepEqual([...nav.matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
-    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Отчёты", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
-  // «Телефония» (T4b, 17.10.2026): раздел «Настройки → Телефония» стоит сразу после «Интеграций»; «Отчёты» (323, 27.10.2026) — после «Телефонии».
-  assert.match(nav, /<a aria-current="page"[^>]*href="\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
+  // Один и тот же список разделов дважды: вкладки (узкий экран, `v3-settings-nav-compact`) и столбец слева (`v3-settings-nav`).
+  const navs = [...staff.matchAll(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/gu)].map((match) => match[0]);
+  assert.equal(navs.length, 2, "the same list for a narrow and a wide screen");
+  for (const nav of navs) {
+    assert.deepEqual([...nav.matchAll(/<a\b[^>]*>(?:<span[^>]*>)?([^<]+)(?:<\/span>)?<\/a>/gu)].map((match) => match[1]), SECTIONS);
+    // «Телефония» (T4b, 17.10.2026): раздел «Настройки → Телефония» стоит сразу после «Интеграций»; «Отчёты» (323, 27.10.2026) — после «Телефонии».
+    assert.match(nav, /<a aria-current="page"[^>]*href="\/settings\?section=staff&amp;view=people">(?:<span[^>]*>)?Сотрудники(?:<\/span>)?<\/a>/u, "opens on «Сотрудники»");
+    assert.equal([...nav.matchAll(/aria-current="page"/gu)].length, 1);
+  }
   assert.doesNotMatch(staff, /aria-label="Управление командой"|виден только администратору|>админ</u, "no second tab row, no admin marks");
-  assert.match(staff, /<h2 class="t-section">Сотрудники · 5<\/h2>/u);
-  // Search, «Отдел» and «Доступ» in one toolbar row above the list and the card (review #1079).
-  const toolbar = staff.match(/<div role="search" aria-label="Поиск сотрудников" class="flex flex-wrap items-center gap-2">[\s\S]*?<\/div>/u)?.[0] ?? assert.fail("staff toolbar row");
-  assert.equal([...toolbar.matchAll(/<input type="search"|<select /gu)].length, 3);
+  // Search, «Отдел» and «Доступ» in one toolbar row above the list (review #1079).
+  const searchAt = staff.lastIndexOf("<input", staff.indexOf('placeholder="Имя, должность или отдел"'));
+  const listAt = staff.indexOf('aria-label="Список сотрудников"');
+  assert.ok(searchAt > 0 && listAt > searchAt, "staff toolbar row above the list");
+  const toolbar = staff.slice(searchAt, listAt);
+  assert.equal([...toolbar.matchAll(/<input type="search"/gu)].length, 1);
+  assert.deepEqual([...toolbar.matchAll(/<select [^>]*aria-label="([^"]+)"/gu)].map((match) => match[1]), ["Отдел", "Доступ"]);
   // «Показано N из M» — только когда отбор что-то скрыл.
   assert.doesNotMatch(toolbar, /Показано/u);
-  assert.ok(staff.indexOf('aria-label="Поиск сотрудников"') < staff.indexOf('aria-label="Список сотрудников"'), "the row stands above the list");
 
   const integrations = page("settings-integrations");
   assert.match(integrations, /data-testid="v3-settings-integrations"/u);
-  assert.deepEqual([...integrations.matchAll(/data-integration="([a-z]+)"/gu)].map((match) => match[1]), ["whatsapp", "amocrm", "gemini"]);
+  assert.equal([...integrations.matchAll(/<table\b/gu)].length, 1, "one integrations table");
+  // The phone cards repeat each row, so the rows are read in the table itself.
+  assert.deepEqual([...integrations.match(/<table\b[\s\S]*?<\/table>/u)[0].matchAll(/data-integration="([a-z]+)"/gu)].map((match) => match[1]), ["whatsapp", "amocrm", "gemini"]);
   assert.doesNotMatch(integrations, /data-testid="v3-settings-blocking"/u, "production facts are not a warning");
   assert.doesNotMatch(integrations, /Требует внимания|v3-edge-|border-s-2/u);
-  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя/u);
+  const integrationsTable = text(integrations.match(/<table\b[\s\S]*?<\/table>/u)[0]);
+  assert.match(integrationsTable, /^ ?Сервис Состояние Последняя проверка Что не работает WhatsApp не подключён нет данных Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя amoCRM не используется/u);
   // Блок «Подключение WhatsApp» стоит под таблицей, поэтому ссылка на него из строки не нужна: путь один — кнопка «Подключить» в блоке.
   assert.doesNotMatch(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/settings\?section=integrations#whatsapp-connect">Подключить WhatsApp<\/a>/u);
 
   // «Подключение WhatsApp» (20.10.2026): блок под таблицей, у Администратора. Состояния WAHA нет — слова состояния нет,
   // только честное «определить не удалось»; кнопки «Подключить» и «Получить код» есть, «Отключить» и «Выйти» нет.
+  assert.ok(integrations.indexOf("</table>") < integrations.indexOf('id="whatsapp-connect"'), "the block stands under the table");
   assert.match(integrations, /<section id="whatsapp-connect"[^>]*data-testid="v3-whatsapp-connect"/u);
   assert.doesNotMatch(integrations, /v3-chip/u, "an unknown WAHA state draws no chip");
   assert.match(text(integrations), /Подключение WhatsApp Привязка рабочего номера к CRM\./u);
@@ -323,9 +355,10 @@ test("«Настройки»: open on «Сотрудники», one section list
   // На самих «Интеграциях» то же стоит в таблице, поэтому предупреждения над ней нет; над остальными разделами оно есть (v3-truthful-state).
   assert.equal([...blocked.matchAll(/data-testid="v3-settings-blocking"/gu)].length, 0, "the table already says it");
   assert.doesNotMatch(text(blocked), /Не работают:/u);
-  assert.match(text(blocked), /WhatsApp заблокирован Требуется подключение WhatsApp по QR-коду\./u);
-  assert.match(text(blocked), /amoCRM заблокирована Доступ к аккаунту amoCRM не подтверждён\./u);
-  assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z" class="font-mono tabular-nums text-fg">26\.09 14:15<\/time>/u);
+  const blockedTable = text(blocked.match(/<table\b[\s\S]*?<\/table>/u)[0]);
+  assert.match(blockedTable, /WhatsApp заблокирован Требуется подключение WhatsApp по QR-коду\. 26\.09 14:15 Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя/u);
+  assert.match(blockedTable, /amoCRM заблокирована Доступ к аккаунту amoCRM не подтверждён\./u);
+  assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z"[^>]*>26\.09 14:15<\/time>/u);
 });
 
 // «Заявки» — первыми в «Продажах» (решение владельца 28.09.2026; с Э6 до него

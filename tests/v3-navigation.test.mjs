@@ -491,6 +491,13 @@ test("each sidebar destination opens under a heading with the same words", () =>
   for (const [id, file, strict] of headings) {
     const label = escapeRegExp(visible.get(id));
     const page = source(file);
+    // 15.11.2026 («по образцу Акылмана»): the heading of «Календарь» is the period itself («Сентябрь 2026»); the sidebar word stays in
+    // the tab title of the page and in the help label of the heading.
+    if (id === "calendar" && file.endsWith("/page.tsx")) {
+      assert.match(page, new RegExp(`export const metadata = \\{ title: "${label}" \\};`, "u"), `${id}: ${file}`);
+      assert.match(source("src/components/staff/calendar/next/CalendarNextPage.tsx"), new RegExp(`helpLabel="Пояснение: ${label}"`, "u"), `${id}: help label of the heading`);
+      continue;
+    }
     const literal = new RegExp(`<(?:PartShell|PageShell|UniversityShell)\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";|const title = [^;]*"${label}"`, "u");
     // С #1327 страницы отдают заголовок «Новому виду»: слово ищем в его файлах (`PageShell`/`PageHeader` с этим `title`).
     if (!literal.test(page)) assert.match(nextSources(), new RegExp(`\\btitle[=:] ?\\{?"${label}"|\\btitle="${label}"|<h1\\b[^>]*>${label}</h1>`, "u"), `${id}: ${file}`);

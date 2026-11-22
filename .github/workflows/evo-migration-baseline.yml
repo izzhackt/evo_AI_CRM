@@ -17,6 +17,10 @@ on:
       - "scripts/local-dev/resolve-postgres-test-image.sh"
       - ".github/workflows/evo-migration-baseline.yml"
   workflow_dispatch:
+  schedule:
+    # Caches unused for 7 days are evicted. Twice a week the key is looked up (and rebuilt only if it is gone), so PRs
+    # are not left on the whole chain for good. A no-op when the entry exists.
+    - cron: "17 3 * * 1,4"
 
 permissions:
   contents: read
@@ -49,7 +53,7 @@ jobs:
 
       - name: Look for an existing baseline
         id: existing
-        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/migration-baseline
           key: ${{ steps.key.outputs.key }}
@@ -64,7 +68,7 @@ jobs:
 
       - name: Save the baseline
         if: ${{ steps.existing.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/migration-baseline
           key: ${{ steps.key.outputs.key }}

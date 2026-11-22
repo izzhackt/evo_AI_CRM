@@ -173,7 +173,22 @@ case "$boundary_mode" in
     echo "MIGRATION_BOUNDARY_MODE=full reason=\"saving a baseline after the whole chain\""
     ;;
   auto)
-    if plan_output="$(node "$baseline_planner" plan --repo "$repo_root" --baseline-dir "$baseline_dir")"; then
+    # The decision is made by the planner of the BASELINE's source commit (main), never by the planner of the change
+    # under test, so a PR cannot edit the rules it is judged by. No readable baseline or no such planner: whole chain.
+    trusted_planner=""
+    plan_output=""
+    plan_reason=""
+    baseline_source_rev="$(sed -n 's/.*"sourceRev": *"\([0-9a-f]\{40\}\)".*/\1/p' "$baseline_dir/baseline.json" 2>/dev/null | head -n 1)"
+    if [[ -n "$baseline_source_rev" ]]; then
+      trusted_planner_dir="$(mktemp -d -t evo-trusted-planner.XXXXXX)"
+      if git -C "$repo_root" show "$baseline_source_rev:scripts/test-runners/migration-baseline.mjs" \
+        >"$trusted_planner_dir/migration-baseline.mjs" 2>/dev/null; then
+        trusted_planner="$trusted_planner_dir/migration-baseline.mjs"
+      fi
+    fi
+    if [[ -z "$trusted_planner" ]]; then
+      plan_reason="no baseline, or its trusted planner is not in this clone"
+    elif plan_output="$(node "$trusted_planner" plan --repo "$repo_root" --baseline-dir "$baseline_dir" --image "$postgres_image")"; then
       while IFS= read -r plan_line; do
         case "$plan_line" in
           "MODE "*) chain_mode="${plan_line#MODE }" ;;
@@ -181,10 +196,11 @@ case "$boundary_mode" in
           "NEW "*) fast_migrations+=("${plan_line#NEW }") ;;
         esac
       done <<<"$plan_output"
-    else
+    elif [[ -n "$trusted_planner" ]]; then
       chain_mode="full"
       plan_reason="the planner itself failed"
     fi
+    rm -rf -- "${trusted_planner_dir:-/nonexistent-evo-dir}"
     if [[ "$chain_mode" == "fast" ]] && ! command -v zstd >/dev/null 2>&1; then
       chain_mode="full"
       plan_reason="zstd is unavailable to unpack the baseline"

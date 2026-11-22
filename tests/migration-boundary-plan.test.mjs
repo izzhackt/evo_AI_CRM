@@ -8,7 +8,10 @@ import test from "node:test";
 
 import {
   ARCHIVE_NAME,
+  END_OF_CHAIN_ONLY_PATHS,
   HARNESS_PATH,
+  HELPER_PATHS,
+  INPUT_PATHSPECS,
   MANIFEST_NAME,
   baselineKey,
   planMigrationBoundary,
@@ -209,7 +212,7 @@ test("harness changes other than new migration blocks or end-of-chain insertions
 });
 
 test("a changed image resolver or planner runs the whole chain", async t => {
-  for (const path of ["scripts/local-dev/resolve-postgres-test-image.sh", "scripts/test-runners/migration-baseline.mjs"]) {
+  for (const path of HELPER_PATHS) {
     const s = scenario(t);
     s.pr({ [path]: "changed\n" });
     const plan = await s.plan();
@@ -270,4 +273,55 @@ test("the key follows the content of the inputs only", t => {
   const harness = s.pr({ [HARNESS_PATH]: HARNESS + "echo more\n" });
   assert.notEqual(baselineKey(s.repo, harness), baselineKey(s.repo, migration));
   assert.match(before, /^migration-baseline-v1-[0-9a-f]{64}$/u);
+});
+
+test("an unknown glob shape (extglob, classes, alternation) in a new block runs the whole chain", async t => {
+  for (const glob of ["@(a|b)_three.sql", "!(x)_three.sql", "+(3)_three.sql", "*(3)_three.sql", "?(3)_three.sql", "[0-9]*_three.sql"]) {
+    const s = scenario(t);
+    s.pr({
+      "supabase/migrations/003_three.sql": "select 3;\n",
+      [HARNESS_PATH]: HARNESS.replace("done < <(", `  if [[ "$(basename "$migration")" == ${glob} ]]; then\n    echo x\n  fi\ndone < <(`),
+    });
+    const plan = await s.plan();
+    assert.equal(plan.mode, "full", `${glob}: ${plan.reason}`);
+  }
+});
+
+test("a baseline built with another Postgres image runs the whole chain", async t => {
+  const s = scenario(t);
+  s.writeManifest({ ...s.manifest, image: "public.ecr.aws/supabase/postgres@sha256:aaa" });
+  s.pr({ "supabase/migrations/003_three.sql": "select 3;\n" });
+  assert.equal((await planMigrationBoundary({ repo: s.repo, baselineDir: s.baselineDir, image: "public.ecr.aws/supabase/postgres@sha256:aaa" })).mode, "fast");
+  const other = await planMigrationBoundary({ repo: s.repo, baselineDir: s.baselineDir, image: "supabase/postgres@sha256:bbb" });
+  assert.equal(other.mode, "full");
+  assert.match(other.reason, /another Postgres image/u);
+});
+
+test("every file the real harness reads is a baseline input (or read only after the loop)", () => {
+  const lines = realHarness.split("\n");
+  const loopClose = lines.findIndex((line, i) => i > 0 && /^\)$/u.test(line) && lines.slice(0, i).some(l => /^done < <\($/u.test(l)));
+  assert.ok(loopClose > 0);
+  const covered = path => INPUT_PATHSPECS.some(spec => (spec.endsWith("/") ? path.startsWith(spec) : path === spec));
+  const refs = [];
+  lines.forEach((line, index) => {
+    if (/^\s*#/u.test(line)) return;
+    for (const match of line.matchAll(/(?:\$repo_root|\$\{repo_root\}|\/workspace)\/([A-Za-z0-9_./-]+)/gu)) {
+      refs.push({ path: match[1].replace(/[.]$/u, ""), line: index });
+    }
+  });
+  assert.ok(refs.length > 100, "the extraction must see the harness references");
+  const paths = new Set(refs.map(ref => ref.path));
+  for (const expected of ["supabase/config.toml", "scripts/test-runners/test-p2g-queues-runtime.sh", "scripts/test-runners/test-platform-migration-077-runtime.sh"]) {
+    assert.ok(paths.has(expected), `${expected} is referenced by the harness`);
+  }
+  for (const { path, line } of refs) {
+    const ok = covered(path) || (line > loopClose && END_OF_CHAIN_ONLY_PATHS.includes(path));
+    assert.ok(ok, `harness line ${line + 1} reads ${path}, which is not part of the baseline key (add it to HELPER_PATHS)`);
+  }
+});
+
+test("the harness takes its decision from the planner of the baseline's source commit", () => {
+  assert.match(realHarness, /git -C "\$repo_root" show "\$baseline_source_rev:scripts\/test-runners\/migration-baseline\.mjs"/u);
+  assert.match(realHarness, /node "\$trusted_planner" plan /u);
+  assert.doesNotMatch(realHarness, /node "\$baseline_planner" plan/u);
 });

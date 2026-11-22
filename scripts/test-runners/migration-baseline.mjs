@@ -38,8 +38,17 @@ export const TESTS_DIR = "supabase/tests/";
 export const HELPER_PATHS = [
   "scripts/local-dev/resolve-postgres-test-image.sh",
   "scripts/test-runners/migration-baseline.mjs",
+  // Read by checkpoint blocks of OLD migrations inside the loop (and the deadline wrapper around every docker call):
+  // an edit to any of them changes what a checkpoint proves, so it forces the whole chain.
+  "scripts/test-runners/run-command-with-deadline.mjs",
+  "scripts/test-runners/test-p2g-queues-runtime.sh",
+  "scripts/test-runners/test-platform-migration-077-runtime.sh",
+  "supabase/config.toml",
 ];
 export const INPUT_PATHSPECS = [MIGRATIONS_DIR, TESTS_DIR, HARNESS_PATH, ...HELPER_PATHS];
+// Files the harness reads only AFTER the migration loop. They run in both modes, so they are not inputs of the saved
+// database. tests/migration-boundary-plan.test.mjs fails when the harness reads any other file than the inputs and these.
+export const END_OF_CHAIN_ONLY_PATHS = ["scripts/checks/check-platform-audit-journal-contract.mjs"];
 
 const LOOP_START = /^while IFS= read -r migration; do$/u;
 const LOOP_END = /^done < <\($/u;
@@ -79,7 +88,8 @@ export function baselineKey(repo, rev) {
 }
 
 function globToRegExp(glob) {
-  if (/[[\]\\"'`$]/u.test(glob)) return null;
+  // Only plain names with * and ? are understood; extglob (@( ) !( ) +( ) *( ) ?( )), classes, quotes: unknown -> null.
+  if (!/^[A-Za-z0-9_.*?-]+$/u.test(glob)) return null;
   const source = glob.replace(/[.+^${}()|]/gu, "\\$&").replace(/\*/gu, ".*").replace(/\?/gu, ".");
   return new RegExp(`^${source}$`, "u");
 }
@@ -224,7 +234,7 @@ function sha256File(path) {
 }
 
 /** Full plan for one run: reads the manifest and the archive, compares against git. Never throws: any doubt is "full". */
-export async function planMigrationBoundary({ repo, baselineDir, head = "HEAD" }) {
+export async function planMigrationBoundary({ repo, baselineDir, head = "HEAD", image }) {
   const full = reason => ({ mode: "full", reason });
   try {
     if (!baselineDir) return full("no baseline directory configured");
@@ -233,6 +243,9 @@ export async function planMigrationBoundary({ repo, baselineDir, head = "HEAD" }
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     if (manifest.schema !== 1 || !/^[0-9a-f]{40}$/u.test(manifest.sourceRev ?? "") || !manifest.key || !manifest.archive?.sha256) {
       return full("baseline manifest is malformed");
+    }
+    if (image !== undefined && manifest.image !== image) {
+      return full(`baseline was built with another Postgres image (${manifest.image || "unknown"}), this run uses ${image}`);
     }
     const archivePath = join(baselineDir, manifest.archive.name ?? ARCHIVE_NAME);
     if (!existsSync(archivePath) || statSync(archivePath).size !== manifest.archive.bytes) {
@@ -290,7 +303,7 @@ async function main(argv) {
     return 0;
   }
   if (command === "plan") {
-    const plan = await planMigrationBoundary({ repo, baselineDir: arg(argv, "--baseline-dir"), head: arg(argv, "--head", "HEAD") });
+    const plan = await planMigrationBoundary({ repo, baselineDir: arg(argv, "--baseline-dir"), head: arg(argv, "--head", "HEAD"), image: arg(argv, "--image") });
     // Machine lines for the harness: MODE / REASON / NEW. Human log lines go to stderr.
     console.log(`MODE ${plan.mode}`);
     console.log(`REASON ${plan.reason}`);

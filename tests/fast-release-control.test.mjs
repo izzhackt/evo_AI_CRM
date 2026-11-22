@@ -1,743 +1,35 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
 import {
   FAST_RELEASE_REQUIRED_CHECKS,
   validateFastReleaseChecks,
   verifyFastReleaseCi,
 } from "../scripts/release/fast-release-ci-gate.mjs";
-import {
-  expectedMigrationVersions,
-  verifySelfHostedMigrationLedger,
-} from "../scripts/release/fast-release-ledger-gate.mjs";
+import { expectedMigrationVersions, verifySelfHostedMigrationLedger } from "../scripts/release/fast-release-ledger-gate.mjs";
 import { sealCandidateEnvironmentSnapshot } from "../scripts/release/evo-app-env-contract.mjs";
-const REVISION = "90ab8b1b0c1dd6a92c931e9793c052f984f19fc4";
-const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
-
-function sha256(value) {
-  return createHash("sha256").update(value).digest("hex");
-}
-function hash(value) {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function writeExecutable(path, contents) {
-  writeFileSync(path, contents, { mode: 0o700 });
-  chmodSync(path, 0o700);
-}
-
-function createInterruptedReleaseFixture({ previousScannerPresent, killPoint }) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-fast-interruption-")));
-  const bin = join(root, "bin");
-  const releaseRoot = join(root, "release");
-  const transferRoot = join(root, "transfer");
-  const evidenceRoot = join(root, "evidence");
-  const archiveRoot = join(root, "archive");
-  const statePath = join(root, "runtime-state.json");
-  for (const directory of [bin, releaseRoot, transferRoot, evidenceRoot, archiveRoot]) {
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-  }
-
-  const previousRevision = "1".repeat(40);
-  const targetRevision = "2".repeat(40);
-  const unrelatedRevision = "3".repeat(40);
-  const previousVersion = "previous-v3";
-  const targetVersion = "candidate-v3";
-  const previousImage = `sha256:${"a".repeat(64)}`;
-  const unrelatedImage = `sha256:${"c".repeat(64)}`;
-  const runId = `interrupt-${previousScannerPresent ? "scanner" : "no-scanner"}-${killPoint}`;
-  const releaseId = `release-${runId}`;
-  const rollbackSeed = join(evidenceRoot, `seed-${runId}`, "state.json");
-  const composeFile = join(releaseRoot, "docker-compose.yml");
-  const environmentFile = join(releaseRoot, ".env.production");
-  const environmentExample = join(releaseRoot, "env.production.example");
-  const archive = join(transferRoot, "candidate.tar");
-  const config = JSON.stringify({
-    architecture: "amd64",
-    config: {
-      Labels: {
-        "org.opencontainers.image.source": "https://github.com/izzhackt/evo_AI_CRM",
-        "org.opencontainers.image.revision": targetRevision,
-        "org.opencontainers.image.version": targetVersion,
-      },
-    },
-    os: "linux",
-  });
-  const configDigest = hash(config);
-  const targetImage = `sha256:${configDigest}`;
-  const configPath = `${configDigest}.json`;
-  const layerDirectory = "d".repeat(64);
-  const layerPath = `${layerDirectory}/layer.tar`;
-  mkdirSync(join(archiveRoot, layerDirectory), { mode: 0o700 });
-  writeFileSync(join(archiveRoot, configPath), config);
-  writeFileSync(join(archiveRoot, layerPath), "layer");
-  writeFileSync(
-    join(archiveRoot, "manifest.json"),
-    JSON.stringify([{
-      Config: configPath,
-      Layers: [layerPath],
-      RepoTags: [`evo-crm:${targetRevision}`],
-    }]),
-  );
-  execFileSync("tar", ["-cf", archive, "-C", archiveRoot, "manifest.json", configPath, layerPath]);
-
-  const compose = `services:
-  app:
-    image: "evo-crm:\${EVO_RELEASE_REVISION}"
-    networks: [private]
-  clamav:
-    image: "${CLAMAV_IMAGE}"
-    networks: [private]
-  waha:
-    image: "fixture/waha@\${EVO_WAHA_IMAGE_DIGEST}"
-    networks: [private]
-networks:
-  private:
-    name: fixture_private
-`;
-  writeFileSync(composeFile, compose, { mode: 0o600 });
-  writeFileSync(environmentFile, "SAFE_FIXTURE=1\n", { mode: 0o600 });
-  writeFileSync(environmentExample, "SAFE_FIXTURE=1\n", { mode: 0o600 });
-  writeFileSync(statePath, JSON.stringify({
-    app: "baseline",
-    killed: false,
-    rollbackTagPresent: false,
-    scanner: previousScannerPresent,
-    scannerHealthy: true,
-    scannerImage: CLAMAV_IMAGE,
-  }));
-
-  const dockerPath = join(bin, "docker");
-  writeExecutable(
-    dockerPath,
-    `#!${process.execPath}
-import { readFileSync, writeFileSync } from "node:fs";
-
-const args = process.argv.slice(2);
-const statePath = process.env.FAKE_RUNTIME_STATE;
-const state = JSON.parse(readFileSync(statePath, "utf8"));
-const previousImage = ${JSON.stringify(previousImage)};
-const targetImage = ${JSON.stringify(targetImage)};
-const unrelatedImage = ${JSON.stringify(unrelatedImage)};
-const previousRevision = ${JSON.stringify(previousRevision)};
-const targetRevision = ${JSON.stringify(targetRevision)};
-const unrelatedRevision = ${JSON.stringify(unrelatedRevision)};
-const previousVersion = ${JSON.stringify(previousVersion)};
-const targetVersion = ${JSON.stringify(targetVersion)};
-const scannerImage = ${JSON.stringify(CLAMAV_IMAGE)};
-const wahaImage = "fixture/waha@" + process.env.EVO_WAHA_IMAGE_DIGEST;
-
-function save() { writeFileSync(statePath, JSON.stringify(state)); }
-function output(value) { if (value !== "") process.stdout.write(String(value) + "\\n"); }
-function serviceIds() {
-  return [state.app === null ? null : "app-id", state.scanner ? "clamav-id" : null, "waha-id"].filter(Boolean);
-}
-function serviceFor(id) {
-  if (id === "app-id") return "app";
-  if (id === "clamav-id") return "clamav";
-  if (id === "waha-id") return "waha";
-  process.exit(64);
-}
-function killController() {
-  state.killed = true;
-  save();
-  process.kill(process.ppid, "SIGKILL");
-  process.exit(0);
-}
-
-if (args[0] === "info") {
-  output("8589934592");
-} else if (args[0] === "ps") {
-  const filter = args.find((value) => value.startsWith("label=com.docker.compose.service="));
-  if (filter) {
-    const service = filter.split("=").at(-1);
-    if (service === "app" && state.app !== null) output("app-id");
-    if (service === "clamav" && state.scanner) output("clamav-id");
-    if (service === "waha") output("waha-id");
-  } else {
-    output(serviceIds().join("\\n"));
-  }
-} else if (args[0] === "inspect") {
-  const format = args[2];
-  const id = args[3];
-  const service = serviceFor(id);
-  if (format.includes("com.docker.compose.service")) output(service);
-  else if (format.includes("State.Health")) {
-    if (service === "app") output(state.app === "baseline" ? "healthy" : "unhealthy");
-    else if (service === "clamav") output(state.scannerHealthy ? "healthy" : "unhealthy");
-    else output("healthy");
-  } else if (format.includes("RestartCount")) output(service === "app" && state.app !== "baseline" ? "1" : "0");
-  else if (format.includes("org.opencontainers.image.revision")) {
-    output(state.app === "baseline" ? previousRevision : state.app === "target" ? targetRevision : unrelatedRevision);
-  } else if (format.includes("org.opencontainers.image.version")) {
-    output(state.app === "baseline" ? previousVersion : state.app === "target" ? targetVersion : "unrelated-v3");
-  } else if (format.includes("Config.Image")) {
-    if (service === "clamav") output(state.scannerImage);
-    else if (service === "waha") output(wahaImage);
-    else output("evo-crm:" + (state.app === "baseline" ? previousRevision : targetRevision));
-  } else if (format.includes("Config.Env")) {
-    output(JSON.stringify(state.app === "baseline"
-      ? ["EVO_RELEASE_REVISION=" + previousRevision]
-      : ["EVO_RELEASE_REVISION=" + targetRevision, "EVO_RUNTIME_IMAGE_ID=" + targetImage]));
-  } else if (format.includes("PortBindings")) output("{}");
-  else if (format.includes("NetworkSettings.Networks")) output("fixture_private");
-  else if (format.includes(".Image")) {
-    output(state.app === "baseline" ? previousImage : state.app === "target" ? targetImage : unrelatedImage);
-  } else process.exit(64);
-} else if (args[0] === "image" && args[1] === "inspect") {
-  const reference = args.at(-1);
-  if (reference.startsWith("evo-crm:rollback-") && !state.rollbackTagPresent) process.exit(1);
-  const formatIndex = args.indexOf("--format");
-  if (formatIndex !== -1) {
-    const format = args[formatIndex + 1];
-    if (format.includes(".Id")) output(reference.startsWith("evo-crm:rollback-") ? previousImage : reference === scannerImage ? scannerImage : reference === previousImage ? previousImage : targetImage);
-    else if (format.includes("org.opencontainers.image.source")) output("https://github.com/izzhackt/evo_AI_CRM");
-    else if (format.includes("org.opencontainers.image.revision")) output(reference === previousImage ? previousRevision : targetRevision);
-    else if (format.includes("org.opencontainers.image.version")) output(reference === previousImage ? previousVersion : targetVersion);
-    else if (format.includes(".Os")) output("linux");
-    else if (format.includes(".Architecture")) output("amd64");
-    else process.exit(64);
-  }
-} else if (args[0] === "image" && args[1] === "load") {
-  // The fixture archive is already bound to targetImage by the real controller.
-} else if (args[0] === "tag") {
-  state.rollbackTagPresent = true;
-  save();
-} else if (args[0] === "network" && args[1] === "inspect") {
-  // The unique fixture network exists for the duration of the test.
-} else if (args[0] === "compose" && args[1] === "version") {
-  output("5.1.2");
-} else if (args[0] === "compose") {
-  const commandIndex = args.findIndex((value) => ["config", "pull", "up", "rm"].includes(value));
-  const command = args[commandIndex];
-  if (command === "config") {
-    if (args.includes("--services")) output("app\\nclamav\\nwaha");
-    else if (args.includes("--format")) {
-      output(JSON.stringify({
-        networks: { private: { name: "fixture_private" } },
-        services: {
-          app: { image: "evo-crm:" + process.env.EVO_RELEASE_REVISION, networks: { private: {} } },
-          clamav: { image: scannerImage, networks: { private: {} } },
-          waha: { image: wahaImage, networks: { private: {} } },
-        },
-      }));
-    }
-  } else if (command === "pull") {
-    // The pinned scanner is present in the fixture image inventory.
-  } else if (command === "up") {
-    const service = args.at(-1);
-    const rollbackApp = service === "app" && args.filter((value) => value === "--file").length === 2;
-    if (service === "clamav") {
-      state.scanner = true;
-      state.scannerHealthy = true;
-      state.scannerImage = scannerImage;
-      save();
-      if (!state.killed && process.env.FAKE_KILL_POINT === "after-scanner" && state.app === "baseline") killController();
-      if (!state.killed && process.env.FAKE_KILL_POINT === "mid-rollback" && state.app === "target") killController();
-    } else if (rollbackApp) {
-      if (!state.killed && process.env.FAKE_KILL_POINT === "mid-rollback") {
-        state.app = null;
-        killController();
-      }
-      state.app = "baseline";
-      save();
-    } else if (service === "app") {
-      state.app = "target";
-      save();
-      process.exit(1);
-    }
-  } else if (command === "rm") {
-    const service = args.at(-1);
-    if (service === "clamav") state.scanner = false;
-    if (service === "app") state.app = null;
-    save();
-  }
-} else {
-  process.exit(64);
-}
-`,
-  );
-
-  writeExecutable(
-    join(bin, "node"),
-    `#!/usr/bin/env bash
-if [[ \${1-} == *evo-app-env-contract.mjs && \${2-} == --example ]]; then
-  # Provider validation is outside this interrupted-controller fixture;
-  # snapshot sealing and runtime identity use the actual Node implementation.
-  exit 0
-fi
-exec ${JSON.stringify(process.execPath)} "$@"
-`,
-  );
-  writeExecutable(join(bin, "curl"), "#!/usr/bin/env bash\nexit 0\n");
-  writeExecutable(join(bin, "flock"), "#!/usr/bin/env bash\nexit 0\n");
-
-  const wahaDigest = `sha256:${"e".repeat(64)}`;
-  const environment = {
-    ...process.env,
-    EVO_RELEASE_ACTIVE_COMPOSE_FILE: composeFile,
-    EVO_RELEASE_APP_ENV_FILE: environmentFile,
-    EVO_RELEASE_ARCHIVE: archive,
-    EVO_RELEASE_ARCHIVE_SHA256: hash(readFileSync(archive)),
-    EVO_RELEASE_ARTIFACT_DIGEST: `sha256:${"6".repeat(64)}`,
-    EVO_RELEASE_ARTIFACT_ID: "3",
-    EVO_RELEASE_COMPOSE_FILE: composeFile,
-    EVO_RELEASE_DOCKER_STORAGE_PATH: root,
-    EVO_RELEASE_ENV_EXAMPLE_FILE: environmentExample,
-    EVO_RELEASE_EVIDENCE_ROOT: evidenceRoot,
-    EVO_RELEASE_EXPECTED_COMPOSE_SHA256: hash(readFileSync(composeFile)),
-    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: targetImage,
-    EVO_RELEASE_EXPECTED_IMAGE_ID: targetImage,
-    EVO_RELEASE_EXTERNAL_HEALTH_URL: "http://127.0.0.1:9/api/health",
-    EVO_RELEASE_ID: releaseId,
-    EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: "4194304",
-    EVO_RELEASE_MIN_FREE_KB: "1048576",
-    EVO_RELEASE_PROJECT_NAME: "fixture-release",
-    EVO_RELEASE_REPOSITORY: "izzhackt/evo_AI_CRM",
-    EVO_RELEASE_REVISION: targetRevision,
-    EVO_RELEASE_ROOT: releaseRoot,
-    EVO_RELEASE_ROLLBACK_SEED: rollbackSeed,
-    EVO_RELEASE_RUN_ID: runId,
-    EVO_RELEASE_SEED_IMAGE: previousImage,
-    EVO_RELEASE_TRANSFER_ROOT: transferRoot,
-    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: "1",
-    EVO_RELEASE_UPSTREAM_CI_RUN_ID: "2",
-    EVO_RELEASE_VERSION: targetVersion,
-    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
-    EVO_RELEASE_WORKFLOW_RUN_ID: "1",
-    EVO_SUPABASE_IDENTITY: "selfhosted",
-    EVO_WAHA_IMAGE_DIGEST: wahaDigest,
-    FAKE_KILL_POINT: killPoint,
-    FAKE_RUNTIME_STATE: statePath,
-    PATH: `${bin}:${process.env.PATH ?? ""}`,
-  };
-  const releaseStatePath = join(
-    evidenceRoot,
-    releaseId,
-    "state.json",
-  );
-  return {
-    environment,
-    evidenceRoot,
-    previousImage,
-    previousRevision,
-    previousScannerPresent,
-    previousVersion,
-    releaseStatePath,
-    root,
-    statePath,
-    targetImage,
-    targetRevision,
-    targetVersion,
-    unrelatedImage,
-    unrelatedRevision,
-  };
-}
-
-function rollbackFixture({ appPresent, appHealth, previousIdentity = false }) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-fast-rollback-")));
-  const bin = join(root, "bin");
-  const releaseRoot = join(root, "release");
-  const transferRoot = join(root, "transfer");
-  const evidenceRoot = join(root, "evidence");
-  const releaseId = "v3-test-release";
-  const evidenceDir = join(evidenceRoot, releaseId);
-  for (const directory of [bin, releaseRoot, transferRoot, evidenceRoot, evidenceDir]) {
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-  }
-
-  const targetImage = `sha256:${"a".repeat(64)}`;
-  const previousImage = `sha256:${"b".repeat(64)}`;
-  const previousRevision = "c".repeat(40);
-  const targetVersion = "v3-test";
-  const previousVersion = "v2-test";
-  const wahaDigest = `sha256:${"d".repeat(64)}`;
-  const wahaImage = `devlikeapro/waha@${wahaDigest}`;
-  const candidateCompose = JSON.stringify({ candidate: true });
-  const previousCompose = JSON.stringify({ previous: true });
-  const candidateEnv = `NEXT_PUBLIC_SUPABASE_URL=https://supabase.evoadmissions.com\nEVO_RUNTIME_IMAGE_ID=${targetImage}\n`;
-  const previousEnv = `NEXT_PUBLIC_SUPABASE_URL=https://previous.supabase.evoadmissions.com\n${previousIdentity ? `EVO_RUNTIME_IMAGE_ID=${previousImage}\n` : ""}`;
-  const candidateComposePath = join(evidenceDir, "docker-compose.candidate.yml");
-  const previousComposePath = join(evidenceDir, "docker-compose.previous.yml");
-  const candidateEnvPath = join(evidenceDir, "candidate-app.env");
-  const previousEnvPath = join(evidenceDir, "rollback-app.env");
-  for (const [path, contents] of [
-    [candidateComposePath, candidateCompose],
-    [previousComposePath, previousCompose],
-    [candidateEnvPath, candidateEnv],
-    [previousEnvPath, previousEnv],
-  ]) {
-    writeFileSync(path, contents, { mode: 0o600 });
-    chmodSync(path, 0o600);
-  }
-
-  const state = {
-    schema: "evo-fast-release-state/v3",
-    generation: "v3",
-    repository: "izzhackt/evo_AI_CRM",
-    releaseId,
-    releaseRunId: "release-1-1",
-    workflowRunId: "1",
-    workflowRunAttempt: "1",
-    upstreamCiRunId: "2",
-    upstreamCiRunAttempt: "1",
-    artifactId: "3",
-    artifactDigest: `sha256:${"e".repeat(64)}`,
-    revision: REVISION,
-    version: targetVersion,
-    imageId: targetImage,
-    imageConfigDigest: targetImage,
-    imageSource: "https://github.com/izzhackt/evo_AI_CRM",
-    archiveSha256: "f".repeat(64),
-    composeSnapshot: "docker-compose.candidate.yml",
-    composeSha256: sha256(candidateCompose),
-    appEnvSnapshot: "candidate-app.env",
-    appEnvSha256: sha256(candidateEnv),
-    controllerSha256: "1".repeat(64),
-    rollbackWrapperSha256: "2".repeat(64),
-    rollbackTag: "evo-crm:rollback-v1-test",
-    previous: {
-      generation: "v1",
-      releaseId: "v1-test",
-      appPresent: true,
-      imageId: previousImage,
-      revision: previousRevision,
-      version: previousVersion,
-      scannerPresent: false,
-      scannerImage: "",
-      composeSnapshot: "docker-compose.previous.yml",
-      composeSha256: sha256(previousCompose),
-      appEnvSnapshot: "rollback-app.env",
-      appEnvSha256: sha256(previousEnv),
-      acceptedPointerSnapshot: "",
-      acceptedPointerSha256: "absent",
-    },
-  };
-  const statePath = join(evidenceDir, "state.json");
-  const stateText = JSON.stringify(state);
-  writeFileSync(statePath, stateText, { mode: 0o600 });
-  chmodSync(statePath, 0o600);
-  const pending = {
-    schema: "evo-v3-pending-current/v1",
-    generation: "v3",
-    releaseId,
-    repository: state.repository,
-    revision: REVISION,
-    workflowRunId: state.workflowRunId,
-    workflowRunAttempt: state.workflowRunAttempt,
-    artifactId: state.artifactId,
-    artifactDigest: state.artifactDigest,
-    stateSha256: sha256(stateText),
-  };
-  const pendingPath = join(evidenceRoot, "pending-current.json");
-  writeFileSync(pendingPath, JSON.stringify(pending), { mode: 0o600 });
-  chmodSync(pendingPath, 0o600);
-
-  const candidateContainer = "a".repeat(12);
-  if (appPresent) {
-    const runtime = {
-      schema: "evo-v3-candidate-runtime/v1",
-      releaseId,
-      revision: REVISION,
-      imageId: targetImage,
-      candidateContainerId: candidateContainer,
-      stateSha256: sha256(stateText),
-    };
-    const runtimePath = join(evidenceDir, "candidate-runtime.json");
-    writeFileSync(runtimePath, JSON.stringify(runtime), { mode: 0o600 });
-    chmodSync(runtimePath, 0o600);
-  }
-
-  const dockerState = join(root, "docker-state");
-  writeFileSync(dockerState, [
-    `APP_PRESENT=${appPresent ? "1" : "0"}`,
-    `APP_IMAGE=${targetImage}`,
-    `APP_REVISION=${REVISION}`,
-    `APP_VERSION=${targetVersion}`,
-    `APP_HEALTH=${appHealth}`,
-    `APP_RESTARTS=${appHealth === "healthy" ? "0" : "7"}`,
-    `APP_CONTAINER=${candidateContainer}`,
-    "CLAMAV_PRESENT=1",
-    "",
-  ].join("\n"), { mode: 0o600 });
-
-  const docker = join(bin, "docker");
-  writeFileSync(docker, `#!/usr/bin/env bash
-set -Eeuo pipefail
-printf '%q ' "$@" >> "$FAKE_DOCKER_LOG"
-printf '\\n' >> "$FAKE_DOCKER_LOG"
-source "$FAKE_DOCKER_STATE"
-clamav_container=eeeeeeeeeeee
-waha_container=${"d".repeat(12)}
-if [[ $1 == ps ]]; then
-  service=''
-  for argument in "$@"; do
-    case "$argument" in
-      label=com.docker.compose.service=*) service=\${argument##*=} ;;
-    esac
-  done
-  if [[ $service == app ]]; then
-    [[ $APP_PRESENT == 1 ]] && printf '%s\\n' "$APP_CONTAINER"
-  elif [[ $service == clamav ]]; then
-    [[ $CLAMAV_PRESENT == 1 ]] && printf '%s\\n' "$clamav_container"
-  elif [[ $service == waha ]]; then
-    printf '%s\\n' "$waha_container"
-  else
-    [[ $CLAMAV_PRESENT == 1 ]] && printf '%s\\n' "$clamav_container"
-    [[ $APP_PRESENT == 1 ]] && printf '%s\\n' "$APP_CONTAINER"
-    printf '%s\\n' "$waha_container"
-  fi
-elif [[ $1 == inspect ]]; then
-  format=$3
-  container=$4
-  if [[ $container == "$clamav_container" ]]; then
-    case "$format" in
-      *com.docker.compose.service*) printf '%s\\n' clamav ;;
-      *NetworkSettings.Networks*) printf '%s\\n' evo-private ;;
-      *HostConfig.PortBindings*) printf '%s\\n' '{}' ;;
-      *Config.Image*) printf '%s\\n' "$FAKE_CLAMAV_IMAGE" ;;
-      *RestartCount*) printf '%s\\n' 0 ;;
-      *State.Health*) printf '%s\\n' healthy ;;
-      *) exit 1 ;;
-    esac
-  elif [[ $container == "$waha_container" ]]; then
-    case "$format" in
-      *com.docker.compose.service*) printf '%s\\n' waha ;;
-      *NetworkSettings.Networks*) printf '%s\\n' evo-private ;;
-      *HostConfig.PortBindings*) printf '%s\\n' '{}' ;;
-      *Config.Image*) printf '%s\\n' "$FAKE_WAHA_IMAGE" ;;
-      *RestartCount*) printf '%s\\n' 0 ;;
-      *State.Health*) printf '%s\\n' healthy ;;
-      *) exit 1 ;;
-    esac
-  else
-    case "$format" in
-      *com.docker.compose.service*) printf '%s\\n' app ;;
-      *NetworkSettings.Networks*) printf '%s\\n' evo-private ;;
-      *RestartCount*) printf '%s\\n' "$APP_RESTARTS" ;;
-      *State.Health*) printf '%s\\n' "$APP_HEALTH" ;;
-      *org.opencontainers.image.revision*) printf '%s\\n' "$APP_REVISION" ;;
-      *org.opencontainers.image.version*) printf '%s\\n' "$APP_VERSION" ;;
-      *Config.Env*)
-        if [[ -n \${FAKE_APP_ENV_JSON-} ]]; then
-          printf '%s\\n' "$FAKE_APP_ENV_JSON"
-        elif [[ $APP_IMAGE == "$FAKE_PREVIOUS_IMAGE" && $FAKE_PREVIOUS_IDENTITY != 1 ]]; then
-          jq -cn --arg revision "$APP_REVISION" '["EVO_RELEASE_REVISION=" + $revision]'
-        else
-          jq -cn --arg revision "$APP_REVISION" --arg image "$APP_IMAGE" \\
-            '["EVO_RELEASE_REVISION=" + $revision, "EVO_RUNTIME_IMAGE_ID=" + $image]'
-        fi ;;
-      '{{.Image}}') printf '%s\\n' "$APP_IMAGE" ;;
-      *) exit 1 ;;
-    esac
-  fi
-elif [[ $1 == image && $2 == inspect ]]; then
-  [[ $4 == '{{.Id}}' ]] && printf '%s\\n' "$FAKE_PREVIOUS_IMAGE"
-elif [[ $1 == network && $2 == inspect ]]; then
-  exit 0
-elif [[ $1 == compose ]]; then
-  arguments=" $* "
-  if [[ $arguments == *' config '* ]]; then
-    if [[ $arguments == *' --services '* ]]; then
-      printf '%s\\n' app clamav waha
-    elif [[ $arguments == *' --format json '* ]]; then
-      printf '%s\\n' "$FAKE_COMPOSE_JSON"
-    fi
-  elif [[ $arguments == *' up '* && $arguments == *' clamav '* ]]; then
-    sed -i.bak 's/^CLAMAV_PRESENT=.*/CLAMAV_PRESENT=1/' "$FAKE_DOCKER_STATE"
-    rm -f "$FAKE_DOCKER_STATE.bak"
-  elif [[ $arguments == *' up '* ]]; then
-    printf '%s\\n' \\
-      'APP_PRESENT=1' \\
-      "APP_IMAGE=$FAKE_PREVIOUS_IMAGE" \\
-      "APP_REVISION=$FAKE_PREVIOUS_REVISION" \\
-      "APP_VERSION=$FAKE_PREVIOUS_VERSION" \\
-      'APP_HEALTH=healthy' \\
-      'APP_RESTARTS=0' \\
-      'APP_CONTAINER=bbbbbbbbbbbb' \\
-      "CLAMAV_PRESENT=$CLAMAV_PRESENT" > "$FAKE_DOCKER_STATE"
-  elif [[ $arguments == *' rm '* && $arguments == *' clamav '* ]]; then
-    sed -i.bak 's/^CLAMAV_PRESENT=.*/CLAMAV_PRESENT=0/' "$FAKE_DOCKER_STATE"
-    rm -f "$FAKE_DOCKER_STATE.bak"
-  else
-    exit 1
-  fi
-else
-  exit 1
-fi
-`, { mode: 0o700 });
-  chmodSync(docker, 0o700);
-  for (const command of ["curl", "flock"]) {
-    const path = join(bin, command);
-    writeFileSync(path, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
-    chmodSync(path, 0o700);
-  }
-  const liveEnv = join(root, "live.env");
-  const dockerLog = join(root, "docker.log");
-  writeFileSync(dockerLog, "", { mode: 0o600 });
-  writeFileSync(liveEnv, candidateEnv, { mode: 0o600 });
-  const composeJson = JSON.stringify({
-    services: {
-      app: { image: "unused", networks: { private: {} } },
-      clamav: { image: CLAMAV_IMAGE, networks: { private: {} } },
-      waha: { image: wahaImage, networks: { private: {} } },
-    },
-    networks: { private: { name: "evo-private" } },
-  });
-  const environment = {
-    ...process.env,
-    PATH: `${bin}:${process.env.PATH}`,
-    FAKE_DOCKER_STATE: dockerState,
-    FAKE_DOCKER_LOG: dockerLog,
-    FAKE_WAHA_IMAGE: wahaImage,
-    FAKE_CLAMAV_IMAGE: CLAMAV_IMAGE,
-    FAKE_PREVIOUS_IMAGE: previousImage,
-    FAKE_PREVIOUS_REVISION: previousRevision,
-    FAKE_PREVIOUS_VERSION: previousVersion,
-    FAKE_PREVIOUS_IDENTITY: previousIdentity ? "1" : "0",
-    FAKE_COMPOSE_JSON: composeJson,
-    EVO_RELEASE_ROOT: releaseRoot,
-    EVO_RELEASE_PROJECT_NAME: "evo-crm",
-    EVO_RELEASE_TRANSFER_ROOT: transferRoot,
-    EVO_RELEASE_EVIDENCE_ROOT: evidenceRoot,
-    EVO_RELEASE_COMPOSE_FILE: candidateComposePath,
-    EVO_RELEASE_APP_ENV_FILE: liveEnv,
-    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://crm.evoadmissions.com/api/health",
-    EVO_SUPABASE_IDENTITY: "selfhosted",
-    EVO_WAHA_IMAGE_DIGEST: wahaDigest,
-    EVO_RELEASE_ROLLBACK_STATE: statePath,
-    EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID: releaseId,
-  };
-  return {
-    dockerLog,
-    dockerState,
-    environment,
-    evidenceDir,
-    evidenceRoot,
-    pendingPath,
-    previousImage,
-    releaseId,
-    root,
-  };
-}
-
-function candidateIdentityFixture() {
-  const fixture = rollbackFixture({ appPresent: true, appHealth: "healthy" });
-  const statePath = fixture.environment.EVO_RELEASE_ROLLBACK_STATE;
-  const state = JSON.parse(readFileSync(statePath, "utf8"));
-  const controllerDir = join(fixture.evidenceDir, "controller");
-  mkdirSync(controllerDir, { mode: 0o700 });
-  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
-  const wrapper = "#!/bin/sh\nexit 1\n";
-  writeFileSync(join(controllerDir, "evo-fast-release.sh"), controller, { mode: 0o700 });
-  writeFileSync(join(fixture.evidenceDir, "rollback-command.sh"), wrapper, { mode: 0o700 });
-  state.controllerSha256 = sha256(controller);
-  state.rollbackWrapperSha256 = sha256(wrapper);
-  const stateText = JSON.stringify(state);
-  writeFileSync(statePath, stateText);
-  for (const path of [fixture.pendingPath, join(fixture.evidenceDir, "candidate-runtime.json")]) {
-    const receipt = JSON.parse(readFileSync(path, "utf8"));
-    receipt.stateSha256 = sha256(stateText);
-    writeFileSync(path, JSON.stringify(receipt));
-  }
-  const archive = join(fixture.environment.EVO_RELEASE_TRANSFER_ROOT, "candidate.tar");
-  writeFileSync(archive, "control-flow fixture; archive verifier has separate tests\n");
-  Object.assign(fixture.environment, {
-    EVO_RELEASE_REVISION: state.revision, EVO_RELEASE_VERSION: state.version,
-    EVO_RELEASE_ID: state.releaseId, EVO_RELEASE_REPOSITORY: state.repository,
-    EVO_RELEASE_RUN_ID: state.releaseRunId, EVO_RELEASE_WORKFLOW_RUN_ID: state.workflowRunId,
-    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: state.workflowRunAttempt,
-    EVO_RELEASE_UPSTREAM_CI_RUN_ID: state.upstreamCiRunId,
-    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: state.upstreamCiRunAttempt,
-    EVO_RELEASE_ARTIFACT_ID: state.artifactId, EVO_RELEASE_ARTIFACT_DIGEST: state.artifactDigest,
-    EVO_RELEASE_ARCHIVE: archive, EVO_RELEASE_ARCHIVE_SHA256: state.archiveSha256,
-    EVO_RELEASE_EXPECTED_IMAGE_ID: state.imageId,
-    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: state.imageConfigDigest,
-    EVO_RELEASE_EXPECTED_COMPOSE_SHA256: state.composeSha256,
-    EVO_RELEASE_ACTOR_ID: "1", EVO_RELEASE_CURRENT_MAIN_REVISION: state.revision,
-  });
-  return fixture;
-}
-
-function acceptedV3RollbackRetryFixture() {
-  const fixture = rollbackFixture({ appPresent: true, appHealth: "healthy" });
-  const statePath = fixture.environment.EVO_RELEASE_ROLLBACK_STATE;
-  const state = JSON.parse(readFileSync(statePath, "utf8"));
-  const previousPointer = {
-    schema: "evo-v3-current-accepted/v1",
-    generation: "v3",
-    releaseId: "previous-v3-release",
-    revision: state.previous.revision,
-    acceptanceRecord: "previous-v3-release/v3-acceptance-record.json",
-    acceptanceRecordSha256: "3".repeat(64),
-  };
-  const previousPointerText = JSON.stringify(previousPointer);
-  const previousPointerPath = join(fixture.evidenceDir, "previous-current-v3-accepted.json");
-  writeFileSync(previousPointerPath, previousPointerText, { mode: 0o600 });
-  chmodSync(previousPointerPath, 0o600);
-  state.previous.generation = "v3";
-  state.previous.releaseId = previousPointer.releaseId;
-  state.previous.acceptedPointerSnapshot = "previous-current-v3-accepted.json";
-  state.previous.acceptedPointerSha256 = sha256(previousPointerText);
-  writeFileSync(statePath, JSON.stringify(state), { mode: 0o600 });
-  chmodSync(statePath, 0o600);
-  rmSync(join(fixture.evidenceDir, "candidate-runtime.json"), { force: true });
-  rmSync(fixture.pendingPath, { force: true });
-
-  const acceptanceRecordText = JSON.stringify({ imageId: state.imageId });
-  const acceptanceRecordPath = join(fixture.evidenceDir, "v3-acceptance-record.json");
-  writeFileSync(acceptanceRecordPath, acceptanceRecordText, { mode: 0o600 });
-  chmodSync(acceptanceRecordPath, 0o600);
-  const currentPointerPath = join(fixture.evidenceRoot, "current-v3-accepted.json");
-  writeFileSync(currentPointerPath, JSON.stringify({
-    schema: "evo-v3-current-accepted/v1",
-    generation: "v3",
-    releaseId: fixture.releaseId,
-    revision: state.revision,
-    acceptanceRecord: `${fixture.releaseId}/v3-acceptance-record.json`,
-    acceptanceRecordSha256: sha256(acceptanceRecordText),
-  }), { mode: 0o600 });
-  chmodSync(currentPointerPath, 0o600);
-  writeFileSync(fixture.dockerState, [
-    "APP_PRESENT=1",
-    `APP_IMAGE=${state.previous.imageId}`,
-    `APP_REVISION=${state.previous.revision}`,
-    `APP_VERSION=${state.previous.version}`,
-    "APP_HEALTH=healthy",
-    "APP_RESTARTS=0",
-    "APP_CONTAINER=bbbbbbbbbbbb",
-    "CLAMAV_PRESENT=0",
-    "",
-  ].join("\n"), { mode: 0o600 });
-  return { ...fixture, currentPointerPath, previousPointer };
-}
-
-function greenChecks() {
-  return {
-    check_runs: FAST_RELEASE_REQUIRED_CHECKS.map((name) => ({
-      name,
-      status: "completed",
-      conclusion: "success",
-      app: { slug: "github-actions" },
-    })),
-  };
-}
+import {
+  REVISION,
+  CLAMAV_IMAGE,
+  writeExecutable,
+  rollbackFixture,
+  candidateIdentityFixture,
+  acceptedV3RollbackRetryFixture,
+  greenChecks,
+} from "./helpers/fast-release-fixtures.mjs";
 
 test("CI gate requires only the exact root CRM check from GitHub Actions", async () => {
   assert.deepEqual(FAST_RELEASE_REQUIRED_CHECKS, ["Main CRM"]);
@@ -779,7 +71,6 @@ test("CI gate requires only the exact root CRM check from GitHub Actions", async
   assert.equal(authorization, `Bearer ${githubFixtureCredential}`);
   assert.match(requestUrl, /filter=latest/u);
 });
-
 test("migration gate requires an exact contiguous source tree", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-ledger-"));
   try {
@@ -792,7 +83,6 @@ test("migration gate requires an exact contiguous source tree", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
-
 test("self-hosted migration gate compares the database ledger with the same exactness and never calls any HTTP API", async () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-ledger-selfhosted-"));
   try {
@@ -831,7 +121,6 @@ test("self-hosted migration gate compares the database ledger with the same exac
     rmSync(root, { recursive: true, force: true });
   }
 });
-
 test("the gate CLI reads the ledger only over ssh with a fixed command; leftover cloud variables change nothing and an unreachable database stops it", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-ledger-cli-"));
   try {
@@ -879,7 +168,6 @@ test("the gate CLI reads the ledger only over ssh with a fixed command; leftover
     rmSync(root, { recursive: true, force: true });
   }
 });
-
 test("preflight removes only owned snapshots with real filesystem commands", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const preflight = controller.slice(
@@ -916,7 +204,6 @@ test("preflight removes only owned snapshots with real filesystem commands", () 
     rmSync(root, { recursive: true, force: true });
   }
 });
-
 test("release health accepts only the canonical staff host and existing loopback rehearsal", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const declaration = controller.match(/^readonly HEALTH_URL_RE=.*$/mu)?.[0];
@@ -940,7 +227,6 @@ test("release health accepts only the canonical staff host and existing loopback
     assert.equal(result.status, accepted ? 0 : 1, url);
   }
 });
-
 test("controller accepts the word selfhosted as the Supabase identity and nothing else", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const declaration = controller.match(/^readonly SUPABASE_PROJECT_REF_RE=.*$/mu)?.[0];
@@ -961,7 +247,6 @@ test("controller accepts the word selfhosted as the Supabase identity and nothin
   assert.match(controller, /--supabase-project-ref "\$EVO_SUPABASE_IDENTITY"/u);
   assert.match(controller, /printf 'export EVO_SUPABASE_IDENTITY=%q\\n' "\$EVO_SUPABASE_IDENTITY"/u);
 });
-
 test("release controller is app-only, wait-gated, and avoids destructive shortcuts", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const preflight = controller.slice(
@@ -1018,7 +303,6 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
   assert.doesNotMatch(controller, /git pull/u);
   assert.doesNotMatch(controller, /rm -rf/u);
 });
-
 test("release controller closes archive TOCTOU and verifies every runtime transition", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const candidateConfiguration = controller.slice(
@@ -1089,7 +373,6 @@ test("release controller closes archive TOCTOU and verifies every runtime transi
   assert.match(manualRollback, /rollback_from_state/u);
   assert.doesNotMatch(manualRollback, /verify_rollback_seed/u);
 });
-
 test("release mutations hold one host flock and rollback on interruption", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const lock = controller.slice(
@@ -1135,134 +418,6 @@ test("release mutations hold one host flock and rollback on interruption", () =>
       deploy.indexOf("disarm_release_mutation_trap"),
   );
 });
-
-test("manual recovery is state-bound and idempotent after no-EXIT interruptions", () => {
-  const scenarios = [
-    { killPoint: "after-scanner", previousScannerPresent: false, interruptedApp: "baseline" },
-    { killPoint: "after-scanner", previousScannerPresent: true, interruptedApp: "baseline" },
-    { killPoint: "mid-rollback", previousScannerPresent: false, interruptedApp: null },
-    { killPoint: "mid-rollback", previousScannerPresent: true, interruptedApp: "target" },
-  ];
-
-  for (const scenario of scenarios) {
-    const fixture = createInterruptedReleaseFixture(scenario);
-    try {
-      const sealed = spawnSync(
-        "bash",
-        ["scripts/release/evo-fast-release.sh", "seal-rollback-seed"],
-        { encoding: "utf8", env: fixture.environment, timeout: 60_000 },
-      );
-      assert.equal(sealed.status, 0, `rollback seed failed: ${sealed.stderr}`);
-      const interrupted = spawnSync(
-        "bash",
-        ["scripts/release/evo-fast-release.sh", "deploy"],
-        { encoding: "utf8", env: fixture.environment, timeout: 60_000 },
-      );
-      assert.equal(
-        interrupted.signal,
-        "SIGKILL",
-        `the ${scenario.killPoint}/${scenario.previousScannerPresent} fixture must bypass EXIT; status=${interrupted.status}; stderr=${interrupted.stderr}; stdout=${interrupted.stdout}`,
-      );
-      const interruptedRuntime = JSON.parse(readFileSync(fixture.statePath, "utf8"));
-      assert.equal(interruptedRuntime.app, scenario.interruptedApp);
-      assert.equal(interruptedRuntime.scanner, true);
-
-      const releaseState = JSON.parse(readFileSync(fixture.releaseStatePath, "utf8"));
-      assert.deepEqual(
-        {
-          previousImage: releaseState.previous.imageId,
-          previousRevision: releaseState.previous.revision,
-          previousScannerPresent: releaseState.previous.scannerPresent,
-          previousVersion: releaseState.previous.version,
-          schema: releaseState.schema,
-          targetImage: releaseState.imageId,
-          targetRevision: releaseState.revision,
-          targetVersion: releaseState.version,
-        },
-        {
-          previousImage: fixture.previousImage,
-          previousRevision: fixture.previousRevision,
-          previousScannerPresent: scenario.previousScannerPresent,
-          previousVersion: fixture.previousVersion,
-          schema: "evo-fast-release-state/v3",
-          targetImage: fixture.targetImage,
-          targetRevision: fixture.targetRevision,
-          targetVersion: fixture.targetVersion,
-        },
-      );
-
-      const recoveryEnvironment = {
-        ...fixture.environment,
-        EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID: releaseState.releaseId,
-        EVO_RELEASE_ROLLBACK_STATE: fixture.releaseStatePath,
-      };
-      const recovery = spawnSync(
-        "bash",
-        ["scripts/release/evo-fast-release.sh", "rollback"],
-        { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
-      );
-      assert.equal(recovery.status, 0, recovery.stderr);
-      const recoveryResult = JSON.parse(recovery.stdout.trim());
-      assert.deepEqual(
-        { ok: recoveryResult.ok, command: recoveryResult.command, status: recoveryResult.status },
-        { ok: true, command: "rollback", status: "rolled_back" },
-      );
-      const restoredRuntime = JSON.parse(readFileSync(fixture.statePath, "utf8"));
-      assert.equal(restoredRuntime.app, "baseline");
-      assert.equal(restoredRuntime.scanner, scenario.previousScannerPresent);
-
-      if (scenario.killPoint === "after-scanner") {
-        const repeated = spawnSync(
-          "bash",
-          ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
-        );
-        assert.equal(repeated.status, 0, repeated.stderr);
-        assert.equal(JSON.parse(repeated.stdout.trim()).status, "rolled_back");
-      }
-
-      if (scenario.killPoint === "after-scanner" && !scenario.previousScannerPresent) {
-        writeFileSync(fixture.statePath, JSON.stringify({
-          ...restoredRuntime,
-          app: "unrelated",
-        }));
-        const unrelatedApp = spawnSync(
-          "bash",
-          ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
-        );
-        assert.equal(unrelatedApp.status, 2);
-        assert.match(unrelatedApp.stderr, /rollback_failed/u);
-
-        writeFileSync(fixture.statePath, JSON.stringify({
-          ...restoredRuntime,
-          scanner: true,
-          scannerImage: `unrelated/scanner@sha256:${"f".repeat(64)}`,
-        }));
-        const unrelatedScanner = spawnSync(
-          "bash",
-          ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
-        );
-        assert.equal(unrelatedScanner.status, 2);
-        assert.match(unrelatedScanner.stderr, /rollback_(?:failed|scanner_mismatch)/u);
-
-        const draftV2State = { ...releaseState, schema: "evo-fast-release-state/v2" };
-        writeFileSync(fixture.releaseStatePath, JSON.stringify(draftV2State), { mode: 0o600 });
-        const rejectedDraft = spawnSync(
-          "bash",
-          ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
-        );
-        assert.equal(rejectedDraft.status, 2);
-        assert.match(rejectedDraft.stderr, /rollback_state_contract_invalid/u);
-      }
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-});
-
 test("release status accepts exactly healthy app plus private ClamAV and WAHA and rejects an extra runtime", () => {
   const root = mkdtempSync(join(tmpdir(), "evo-fast-runtime-"));
   const bin = join(root, "bin");
@@ -1341,7 +496,6 @@ fi
     rmSync(root, { recursive: true, force: true });
   }
 });
-
 test("release controller requires one sealed rollback source and never stages a fallback path", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   assert.match(controller, /verify_rollback_seed\(\)/u);
@@ -1371,7 +525,6 @@ test("release controller requires one sealed rollback source and never stages a 
   );
   assert.doesNotMatch(controller, /controlled[_-]staging|EVO_RELEASE_STAGING_ROOT/u);
 });
-
 test("controller seals the mutable app environment once after the host lock and never reopens it for runtime work", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const deploy = controller.slice(
@@ -1397,7 +550,6 @@ test("controller seals the mutable app environment once after the host lock and 
   assert.doesNotMatch(controller, /sha256sum "\$EVO_RELEASE_APP_ENV_FILE"/u);
   assert.doesNotMatch(controller, /export EVO_CRM_APP_ENV_FILE=\$EVO_RELEASE_APP_ENV_FILE/u);
 });
-
 test("pending state and runtime receipt use crash-safe single-file transitions", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const state = controller.slice(
@@ -1431,7 +583,6 @@ test("pending state and runtime receipt use crash-safe single-file transitions",
   assert.match(deploy, /status:"pending"/u);
   assert.doesNotMatch(deploy, /status:"accepted"/u);
 });
-
 test("acceptance is deterministic, generation-bound, atomic, and idempotent across both crash windows", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const derive = controller.slice(
@@ -1479,7 +630,6 @@ test("acceptance is deterministic, generation-bound, atomic, and idempotent acro
   assert.match(controller, /accept-candidate\)/u);
   assert.match(controller, /candidate-status\)/u);
 });
-
 test("lost accept response is classified accepted without consulting health", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const status = controller.slice(
@@ -1499,7 +649,6 @@ test("lost accept response is classified accepted without consulting health", ()
   assert.match(identity, /verify_transition_runtime_identity/u);
   assert.match(identity, /container == "\$expected_container"/u);
 });
-
 test("unhealthy pending candidate remains classifiable for the rollback decision", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const status = controller.slice(
@@ -1522,7 +671,6 @@ test("unhealthy pending candidate remains classifiable for the rollback decision
   assert.match(running, /verify_external_health/u);
   assert.match(accept, /verify_running_bound_candidate/u);
 });
-
 test("rollback restores the previous app from an exact unhealthy pending candidate", () => {
   const fixture = rollbackFixture({ appPresent: true, appHealth: "unhealthy" });
   try {
@@ -1543,7 +691,6 @@ test("rollback restores the previous app from an exact unhealthy pending candida
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 test("candidate status and accept reject actual environment drift before accepting any receipt", () => {
   const fixture = candidateIdentityFixture();
   try {
@@ -1569,7 +716,6 @@ test("candidate status and accept reject actual environment drift before accepti
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 test("rollback restores the exact previous sealed image ID instead of inheriting the candidate ID", () => {
   const fixture = rollbackFixture({ appPresent: true, appHealth: "unhealthy", previousIdentity: true });
   const previousEnvPath = join(fixture.evidenceDir, "rollback-app.env");
@@ -1586,7 +732,6 @@ test("rollback restores the exact previous sealed image ID instead of inheriting
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 test("pending-only rollback refuses both accepted crash windows before runtime mutation", () => {
   for (const pendingRemains of [true, false]) {
     const fixture = rollbackFixture({ appPresent: true, appHealth: "unhealthy" });
@@ -1614,7 +759,6 @@ test("pending-only rollback refuses both accepted crash windows before runtime m
     }
   }
 });
-
 test("rollback restores the previous app when failed deploy left no candidate container", () => {
   const fixture = rollbackFixture({ appPresent: false, appHealth: "unhealthy" });
   try {
@@ -1637,7 +781,6 @@ test("rollback restores the previous app when failed deploy left no candidate co
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 test("accepted V3 rollback retry finishes pointer restore without mutating restored runtime", () => {
   const fixture = acceptedV3RollbackRetryFixture();
   try {
@@ -1661,7 +804,6 @@ test("accepted V3 rollback retry finishes pointer restore without mutating resto
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 test("accepted V3 rollback retry refuses a foreign runtime and preserves its pointer", () => {
   const fixture = acceptedV3RollbackRetryFixture();
   try {
@@ -1682,7 +824,6 @@ test("accepted V3 rollback retry refuses a foreign runtime and preserves its poi
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 test("rollback is bound to the exact pending or accepted generation and has no mutable env fallback", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const rollback = controller.slice(
@@ -1703,7 +844,6 @@ test("rollback is bound to the exact pending or accepted generation and has no m
   assert.doesNotMatch(rollback, /EVO_RELEASE_APP_ENV_FILE/u);
   assert.doesNotMatch(rollback, /--env-file "\$EVO_RELEASE_APP_ENV_FILE"/u);
 });
-
 test("pending-only wrapper and controller hold one lock from authority check through rollback", () => {
   const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const wrapper = controller.slice(
@@ -1724,7 +864,6 @@ test("pending-only wrapper and controller hold one lock from authority check thr
   assert.doesNotMatch(pendingRollback, /candidate_status/u);
   assert.match(controller, /rollback-pending\)/u);
 });
-
 test("release runbooks install the controller before sealing and provide complete executable commands", () => {
   const fastRelease = readFileSync("deploy/fast-app-release.md", "utf8");
   const productionRelease = readFileSync("deploy/production-release.md", "utf8");
@@ -1742,7 +881,6 @@ test("release runbooks install the controller before sealing and provide complet
     assert.match(runbook, /evo-fast-release\.sh rollback/u);
   }
 });
-
 test("workflow binds exact green main to one runner-built immutable release", () => {
   const workflow = readFileSync(".github/workflows/evo-fast-release.yml", "utf8");
   assert.match(workflow, /workflow_run:/u);
@@ -1776,7 +914,6 @@ test("workflow binds exact green main to one runner-built immutable release", ()
   assert.doesNotMatch(workflow, /^\s*environment:/mu);
   assert.doesNotMatch(workflow, /staging/iu);
 });
-
 test("active platform CI executes only the root successor product", () => {
   const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
   const fastPr = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
@@ -1859,7 +996,6 @@ test("active platform CI executes only the root successor product", () => {
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);
 });
-
 test("actual Fast checks shell requires every selected check to succeed or be skipped", () => {
   const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
   const gate = workflow.split("      - name: Require selected fast PR checks\n")[1];
@@ -1890,7 +1026,6 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
   assert.notEqual(run({ HAS_CHANGES: "false" }), 0);
   assert.notEqual(run({ UNKNOWN: "true" }), 0);
 });
-
 test("actual OrbStack container transports and verifies sealed runtime image identity", {
   skip: process.env.EVO_RUNTIME_IDENTITY_IMAGE === undefined,
 }, (context) => {
@@ -1953,7 +1088,6 @@ test("actual OrbStack container transports and verifies sealed runtime image ide
       scope: "actual local env transport/readback; no app release or D4 receipt" }));
   }
 });
-
 test("version endpoint stays staff-authenticated while public health stays minimal", () => {
   const route = readFileSync("src/app/api/version/route.ts", "utf8");
   const proxy = readFileSync("src/proxy.ts", "utf8");
@@ -1962,873 +1096,4 @@ test("version endpoint stays staff-authenticated while public health stays minim
   assert.match(route, /authentication_required/u);
   assert.match(proxy, /path === "\/api\/version"/u);
   assert.doesNotMatch(health, /EVO_RELEASE/u);
-});
-
-// «ИИ-агент» (plan §4.2/§4.6): the agent pair joins a release only for EVO_AI_AGENT_ENABLED=true.
-// The fixture drives the real controller end to end against a stateful fake Docker; agent
-// containers, digests and secrets are synthetic.
-const AGENT_REPOSITORY = "ghcr.io/izzhackt/evo-ai-agent";
-const PREVIOUS_AGENT_DIGEST = `sha256:${"7".repeat(64)}`;
-const TARGET_AGENT_DIGEST = `sha256:${"8".repeat(64)}`;
-const FOREIGN_AGENT_DIGEST = `sha256:${"9".repeat(64)}`;
-
-// The fixed override the controller feeds to compose on standard input while the agent is on
-// (the here-string adds the last newline). It also declares the bridge, so it renders on top of
-// a previous compose snapshot that predates it.
-const AGENT_APP_NETWORK_OVERRIDE = "services:\n  app:\n    networks:\n      ai:\n        aliases:\n          - evo-crm-app\n"
-  + "networks:\n  ai:\n    name: evo_crm_ai\n    driver: bridge\n\n";
-
-// Synthetic output of `docker logs --timestamps` for the outgoing app (both container streams).
-const FAKE_APP_LOG_STDOUT = "2026-10-10T09:00:00.000000001Z ▲ Next.js fixture ready\n"
-  + "2026-10-10T09:00:01.000000002Z GET /api/health 200\n";
-const FAKE_APP_LOG_STDERR = "2026-10-10T09:00:02.000000003Z fixture warning on stderr\n";
-const FAKE_APP_LOG_ERROR = "error from daemon in stream: fixture log read failure\n";
-
-function aiAgentReleaseFixture({ enabled, previousAgent = false, agentEnv = "complete", appOnAgentNetwork = previousAgent }) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-ai-agent-release-")));
-  const bin = join(root, "bin");
-  const releaseRoot = join(root, "release");
-  const transferRoot = join(root, "transfer");
-  const evidenceRoot = join(root, "evidence");
-  const archiveRoot = join(root, "archive");
-  const statePath = join(root, "runtime-state.json");
-  const dockerLog = join(root, "docker.log");
-  for (const directory of [bin, releaseRoot, transferRoot, evidenceRoot, archiveRoot]) {
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-  }
-  const previousRevision = "4".repeat(40);
-  const targetRevision = "5".repeat(40);
-  const previousVersion = "previous-ai";
-  const targetVersion = "candidate-ai";
-  const previousImage = `sha256:${"a".repeat(64)}`;
-  const runId = `ai-agent-${enabled ? "on" : "off"}-${previousAgent ? "upgrade" : "first"}`;
-  const releaseId = `release-${runId}`;
-  const composeFile = join(releaseRoot, "docker-compose.yml");
-  const environmentFile = join(releaseRoot, ".env.production");
-  const environmentExample = join(releaseRoot, "env.production.example");
-  const agentEnvironmentFile = join(releaseRoot, ".env.ai-agent");
-  const archive = join(transferRoot, "candidate.tar");
-  const config = JSON.stringify({
-    architecture: "amd64",
-    config: { Labels: {
-      "org.opencontainers.image.source": "https://github.com/izzhackt/evo_AI_CRM",
-      "org.opencontainers.image.revision": targetRevision,
-      "org.opencontainers.image.version": targetVersion,
-    } },
-    os: "linux",
-  });
-  const configDigest = hash(config);
-  const targetImage = `sha256:${configDigest}`;
-  const configPath = `${configDigest}.json`;
-  const layerPath = `${"d".repeat(64)}/layer.tar`;
-  mkdirSync(join(archiveRoot, "d".repeat(64)), { mode: 0o700 });
-  writeFileSync(join(archiveRoot, configPath), config);
-  writeFileSync(join(archiveRoot, layerPath), "layer");
-  writeFileSync(join(archiveRoot, "manifest.json"), JSON.stringify([{
-    Config: configPath, Layers: [layerPath], RepoTags: [`evo-crm:${targetRevision}`],
-  }]));
-  execFileSync("tar", ["-cf", archive, "-C", archiveRoot, "manifest.json", configPath, layerPath]);
-  writeFileSync(composeFile, "# fixture: the fake Docker renders the services\n", { mode: 0o600 });
-  writeFileSync(environmentFile, "SAFE_FIXTURE=1\n", { mode: 0o600 });
-  writeFileSync(environmentExample, "SAFE_FIXTURE=1\n", { mode: 0o600 });
-  const agentEnvironment = {
-    // Raw format keeps `$` and `#` literally, so they are allowed in a value.
-    complete: "# synthetic\nEVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\n  EVO_AI_AGENT_DATABASE_URL=postgresql://fixture:pa$word#1@fixture/db\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\nEVO_AI_AGENT_STORAGE_SECRET=\n",
-    incomplete: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=\n",
-    quoted: "EVO_AI_AGENT_GEMINI_API_KEY=\"synthetic-fixture\"\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
-    exported: "export EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture\nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
-    padded: "EVO_AI_AGENT_GEMINI_API_KEY=synthetic-fixture \nEVO_AI_AGENT_DATABASE_URL=postgresql://fixture\nEVO_AI_AGENT_INTERNAL_SECRET=synthetic-fixture\n",
-  }[agentEnv];
-  if (agentEnvironment !== undefined) {
-    writeFileSync(agentEnvironmentFile, agentEnvironment, { mode: 0o600 });
-    chmodSync(agentEnvironmentFile, 0o600);
-  }
-  writeFileSync(dockerLog, "", { mode: 0o600 });
-  const previousAgentImage = `${AGENT_REPOSITORY}@${PREVIOUS_AGENT_DIGEST}`;
-  writeFileSync(statePath, JSON.stringify({
-    app: "baseline",
-    scanner: true,
-    agent: previousAgent ? { api: previousAgentImage, worker: previousAgentImage, healthy: true } : null,
-    agentImages: previousAgent ? [previousAgentImage] : [],
-    appAi: appOnAgentNetwork,
-    rollbackTagPresent: false,
-  }));
-
-  writeExecutable(join(bin, "docker"), `#!${process.execPath}
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-const args = process.argv.slice(2);
-appendFileSync(process.env.FAKE_DOCKER_LOG, JSON.stringify(args) + "\\n");
-const statePath = process.env.FAKE_RUNTIME_STATE;
-const state = JSON.parse(readFileSync(statePath, "utf8"));
-const previousImage = ${JSON.stringify(previousImage)};
-const targetImage = ${JSON.stringify(targetImage)};
-const previousRevision = ${JSON.stringify(previousRevision)};
-const targetRevision = ${JSON.stringify(targetRevision)};
-const previousVersion = ${JSON.stringify(previousVersion)};
-const targetVersion = ${JSON.stringify(targetVersion)};
-const scannerImage = ${JSON.stringify(CLAMAV_IMAGE)};
-const wahaImage = "fixture/waha@" + process.env.EVO_WAHA_IMAGE_DIGEST;
-const agentRepository = ${JSON.stringify(AGENT_REPOSITORY)};
-const ids = { app: state.app === "target" ? "b0b0b0b0b0b0" : "a0a0a0a0a0a0", clamav: "c0c0c0c0c0c0",
-  waha: "d0d0d0d0d0d0", "ai-agent-api": "e0e0e0e0e0e0", "ai-agent-worker": "f0f0f0f0f0f0" };
-const save = () => writeFileSync(statePath, JSON.stringify(state));
-const output = (value) => { if (value !== "") process.stdout.write(String(value) + "\\n"); };
-// "--file -": the controller's app-network override arrives on standard input, exactly.
-const appOverride = args.some((value, index) => value === "-" && args[index - 1] === "--file");
-if (appOverride && readFileSync(0, "utf8") !== ${JSON.stringify(AGENT_APP_NETWORK_OVERRIDE)}) process.exit(65);
-const present = (service) => service === "app" ? state.app !== null : service === "clamav" ? state.scanner
-  : service === "waha" ? true : service === "ai-agent-api" ? Boolean(state.agent?.api)
-  : service === "ai-agent-worker" ? Boolean(state.agent?.worker) : false;
-const serviceFor = (id) => Object.keys(ids).find((service) => ids[service] === id && present(service));
-const agentImageFor = (service) => service === "ai-agent-api" ? state.agent.api : state.agent.worker;
-const services = Object.keys(ids);
-// hermes reported Docker Compose v5.1.2 on 2026-10-06; FAKE_COMPOSE_VERSION overrides it.
-if (args[0] === "compose" && args[1] === "version") {
-  if (args.length !== 3 || args[2] !== "--short") process.exit(64);
-  output(process.env.FAKE_COMPOSE_VERSION ?? "5.1.2");
-  process.exit(process.env.FAKE_COMPOSE_VERSION_FAIL === "1" ? 1 : 0);
-}
-if (args[0] === "info") output("8589934592");
-else if (args[0] === "ps") {
-  const filter = args.find((value) => value.startsWith("label=com.docker.compose.service="));
-  const wanted = filter ? [filter.split("=").at(-1)] : services;
-  output(wanted.filter(present).map((service) => ids[service]).join("\\n"));
-} else if (args[0] === "inspect") {
-  const format = args[2];
-  const service = serviceFor(args[3]);
-  if (!service) process.exit(1);
-  const agent = service.startsWith("ai-agent-");
-  if (format.includes("com.docker.compose.service")) output(service);
-  else if (format.includes("State.Health")) output(agent ? (state.agent.healthy ? "healthy" : "unhealthy") : "healthy");
-  else if (format.includes("State.Running")) output("true");
-  else if (format.includes("RestartCount")) output("0");
-  else if (format.includes("org.opencontainers.image.revision")) output(state.app === "target" ? targetRevision : previousRevision);
-  else if (format.includes("org.opencontainers.image.version")) output(state.app === "target" ? targetVersion : previousVersion);
-  else if (format.includes("Config.Image")) {
-    output(service === "clamav" ? scannerImage : service === "waha" ? wahaImage : agent ? agentImageFor(service)
-      : "evo-crm:" + (state.app === "target" ? targetRevision : previousRevision));
-  } else if (format.includes("Config.Env")) {
-    output(JSON.stringify(state.app === "target"
-      ? ["EVO_RELEASE_REVISION=" + targetRevision, "EVO_RUNTIME_IMAGE_ID=" + targetImage]
-      : ["EVO_RELEASE_REVISION=" + previousRevision]));
-  } else if (format.includes("PortBindings")) output("{}");
-  else if (format.includes("NetworkSettings.Networks")) {
-    output(service === "app" ? "fixture_private\\nfixture_web" + (state.appAi ? "\\nevo_crm_ai" : "")
-      : agent ? "evo_crm_ai" : "fixture_private");
-  } else if (format.includes(".Image")) output(state.app === "target" ? targetImage : previousImage);
-  else process.exit(64);
-} else if (args[0] === "image" && args[1] === "inspect") {
-  const reference = args.at(-1);
-  const formatIndex = args.indexOf("--format");
-  const format = formatIndex === -1 ? "" : args[formatIndex + 1];
-  if (reference.startsWith(agentRepository + "@")) {
-    if (!state.agentImages.includes(reference)) process.exit(1);
-    if (format.includes(".Os")) output("linux");
-    else if (format.includes(".Architecture")) output("amd64");
-    else if (format.includes("org.opencontainers.image.source")) output("https://github.com/izzhackt/evo-ai-agent");
-    else if (format.includes("org.opencontainers.image.revision")) output("6".repeat(40));
-    else if (format !== "") process.exit(64);
-  } else {
-    if (reference.startsWith("evo-crm:rollback-") && !state.rollbackTagPresent) process.exit(1);
-    if (format.includes(".Id")) output(reference.startsWith("evo-crm:rollback-") || reference === previousImage ? previousImage : reference === scannerImage ? scannerImage : targetImage);
-    else if (format.includes("org.opencontainers.image.source")) output("https://github.com/izzhackt/evo_AI_CRM");
-    else if (format.includes("org.opencontainers.image.revision")) output(reference === previousImage ? previousRevision : targetRevision);
-    else if (format.includes("org.opencontainers.image.version")) output(reference === previousImage ? previousVersion : targetVersion);
-    else if (format.includes(".Os")) output("linux");
-    else if (format.includes(".Architecture")) output("amd64");
-    else if (format !== "") process.exit(64);
-  }
-} else if (args[0] === "image" && args[1] === "load") {
-  // The fixture archive is bound to targetImage by the real controller.
-} else if (args[0] === "tag") { state.rollbackTagPresent = true; save(); }
-else if (args[0] === "network" && args[1] === "inspect") { /* fixture networks exist */ }
-else if (args[0] === "logs") {
-  // Only the exact bounded read of the outgoing app; both container streams, synthetic lines.
-  if (args.length !== 5 || args[1] !== "--timestamps" || args[2] !== "--tail" || args[3] !== "20000"
-    || serviceFor(args[4]) !== "app" || state.app !== "baseline") process.exit(64);
-  const mode = process.env.FAKE_APP_LOGS ?? "ok";
-  if (mode === "silent") process.exit(1);
-  if (mode === "error") {
-    process.stderr.write(${JSON.stringify(FAKE_APP_LOG_ERROR)});
-    process.exit(1);
-  }
-  process.stdout.write(${JSON.stringify(FAKE_APP_LOG_STDOUT)});
-  process.stderr.write(${JSON.stringify(FAKE_APP_LOG_STDERR)});
-}
-else if (args[0] === "exec") {
-  if (args[1] !== ids["ai-agent-api"] || !args.join(" ").includes("/v1/ready")) process.exit(64);
-  process.exit(process.env.FAKE_AGENT_READY_FAIL === "1" ? 1 : 0);
-} else if (args[0] === "compose") {
-  const profile = args.includes("--profile") && args[args.indexOf("--profile") + 1] === "ai-agent";
-  const agentImage = agentRepository + "@" + (process.env.EVO_AI_AGENT_IMAGE_DIGEST ?? "");
-  const command = args.find((value) => ["config", "pull", "up", "rm", "stop"].includes(value));
-  if (command === "config") {
-    if (args.includes("--services")) output((profile ? ["ai-agent-api", "ai-agent-worker"] : []).concat(["app", "clamav", "waha"]).join("\\n"));
-    else if (args.includes("--format")) {
-      // FAKE_COMPOSE_BREACH renders a compose that would put the agent next to WAHA or clamd.
-      const breach = process.env.FAKE_COMPOSE_BREACH ?? "";
-      const agentNetwork = breach === "agent-private" ? "private" : "ai";
-      const agentService = (aliases) => ({ image: agentImage, profiles: ["ai-agent"], read_only: true,
-        user: "10001:10001", cap_drop: ["ALL"], security_opt: ["no-new-privileges:true"],
-        healthcheck: { test: ["CMD"] }, networks: { [agentNetwork]: aliases ? { aliases } : null } });
-      const agentBridge = profile || appOverride;
-      output(JSON.stringify({
-        networks: { private: { name: "fixture_private" }, web: { name: "fixture_web" },
-          ...(agentBridge ? { ai: { name: "evo_crm_ai", driver: "bridge" } } : {}) },
-        services: {
-          app: { image: "evo-crm:" + process.env.EVO_RELEASE_REVISION,
-            networks: { private: {}, web: {}, ...(appOverride ? { ai: { aliases: ["evo-crm-app"] } } : {}) } },
-          clamav: { image: scannerImage, networks: { private: {} } },
-          waha: { image: wahaImage, networks: { private: {}, ...(breach === "waha-ai" && agentBridge ? { ai: {} } : {}) } },
-          ...(profile ? { "ai-agent-api": agentService(["evo-ai-agent"]), "ai-agent-worker": agentService(null) } : {}),
-        },
-      }));
-    }
-  } else if (command === "pull") {
-    if (!profile || args.at(-1) !== "ai-agent-api") process.exit(64);
-    if (process.env.FAKE_AGENT_PULL_FAIL === "1") process.exit(1);
-    state.agentImages.push(agentImage); save();
-  } else if (command === "up") {
-    if (args.includes("ai-agent-api")) {
-      if (!profile || !args.includes("ai-agent-worker")) process.exit(64);
-      if (!state.agentImages.includes(agentImage)) process.exit(1);
-      const healthy = process.env.FAKE_AGENT_UP_FAIL !== "1" || agentImage !== process.env.FAKE_TARGET_AGENT_IMAGE;
-      state.agent = { api: agentImage, worker: agentImage, healthy };
-      save();
-      if (!healthy) process.exit(1);
-    } else if (args.at(-1) === "clamav") { state.scanner = true; save(); }
-    else if (args.at(-1) === "app") {
-      state.app = args.some((value) => value.endsWith("/rollback.override.yml")) ? "baseline" : "target";
-      state.appAi = appOverride;
-      save();
-    } else process.exit(64);
-  } else if (command === "rm") {
-    if (args.includes("ai-agent-api")) { if (!profile) process.exit(64); state.agent = null; }
-    else if (args.at(-1) === "clamav") state.scanner = false;
-    else if (args.at(-1) === "app") state.app = null;
-    save();
-  } else process.exit(64);
-} else process.exit(64);
-`);
-  writeExecutable(join(bin, "node"), `#!/usr/bin/env bash
-if [[ \${1-} == *evo-app-env-contract.mjs && \${2-} == --example ]]; then exit 0; fi
-exec ${JSON.stringify(process.execPath)} "$@"
-`);
-  writeExecutable(join(bin, "curl"), "#!/usr/bin/env bash\nexit 0\n");
-  writeExecutable(join(bin, "flock"), "#!/usr/bin/env bash\nexit 0\n");
-  writeExecutable(join(bin, "sleep"), "#!/usr/bin/env bash\nexit 0\n");
-
-  const environment = {
-    ...process.env,
-    EVO_RELEASE_ACTIVE_COMPOSE_FILE: composeFile,
-    EVO_RELEASE_APP_ENV_FILE: environmentFile,
-    EVO_RELEASE_ARCHIVE: archive,
-    EVO_RELEASE_ARCHIVE_SHA256: hash(readFileSync(archive)),
-    EVO_RELEASE_ARTIFACT_DIGEST: `sha256:${"6".repeat(64)}`,
-    EVO_RELEASE_ARTIFACT_ID: "3",
-    EVO_RELEASE_COMPOSE_FILE: composeFile,
-    EVO_RELEASE_DOCKER_STORAGE_PATH: root,
-    EVO_RELEASE_ENV_EXAMPLE_FILE: environmentExample,
-    EVO_RELEASE_EVIDENCE_ROOT: evidenceRoot,
-    EVO_RELEASE_EXPECTED_COMPOSE_SHA256: hash(readFileSync(composeFile)),
-    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: targetImage,
-    EVO_RELEASE_EXPECTED_IMAGE_ID: targetImage,
-    EVO_RELEASE_EXTERNAL_HEALTH_URL: "http://127.0.0.1:9/api/health",
-    EVO_RELEASE_ID: releaseId,
-    EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: "4194304",
-    EVO_RELEASE_MIN_FREE_KB: "1048576",
-    EVO_RELEASE_PROJECT_NAME: "fixture-release",
-    EVO_RELEASE_REPOSITORY: "izzhackt/evo_AI_CRM",
-    EVO_RELEASE_REVISION: targetRevision,
-    EVO_RELEASE_ROOT: releaseRoot,
-    EVO_RELEASE_ROLLBACK_SEED: join(evidenceRoot, `seed-${runId}`, "state.json"),
-    EVO_RELEASE_RUN_ID: runId,
-    EVO_RELEASE_SEED_IMAGE: previousImage,
-    EVO_RELEASE_TRANSFER_ROOT: transferRoot,
-    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: "1",
-    EVO_RELEASE_UPSTREAM_CI_RUN_ID: "2",
-    EVO_RELEASE_VERSION: targetVersion,
-    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: "1",
-    EVO_RELEASE_WORKFLOW_RUN_ID: "1",
-    EVO_SUPABASE_IDENTITY: "selfhosted",
-    EVO_WAHA_IMAGE_DIGEST: `sha256:${"e".repeat(64)}`,
-    EVO_AI_AGENT_ENABLED: enabled ? "true" : "",
-    EVO_AI_AGENT_IMAGE_DIGEST: enabled ? TARGET_AGENT_DIGEST : "",
-    EVO_AI_AGENT_READY_ATTEMPTS: "2",
-    FAKE_DOCKER_LOG: dockerLog,
-    FAKE_RUNTIME_STATE: statePath,
-    FAKE_TARGET_AGENT_IMAGE: `${AGENT_REPOSITORY}@${TARGET_AGENT_DIGEST}`,
-    PATH: `${bin}:${process.env.PATH ?? ""}`,
-  };
-  delete environment.EVO_CRM_AI_AGENT_ENV_FILE;
-  delete environment.COMPOSE_PROFILES;
-  const releaseDir = join(evidenceRoot, releaseId);
-  const run = (command, overrides = {}) => spawnSync("bash", ["scripts/release/evo-fast-release.sh", command], {
-    encoding: "utf8", env: { ...environment, ...overrides }, timeout: 60_000,
-  });
-  const runtime = () => JSON.parse(readFileSync(statePath, "utf8"));
-  const setRuntime = (changes) => writeFileSync(statePath, JSON.stringify({ ...runtime(), ...changes }));
-  const dockerCalls = () => readFileSync(dockerLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
-  const rollbackEnvironment = {
-    EVO_RELEASE_ROLLBACK_STATE: join(releaseDir, "state.json"),
-    EVO_RELEASE_ROLLBACK_EXPECTED_RELEASE_ID: releaseId,
-  };
-  return {
-    agentEnvironmentFile, dockerCalls, environment, evidenceRoot, previousAgentImage, releaseDir,
-    releaseId, rollbackEnvironment, root, run, runtime, setRuntime, targetRevision,
-    targetAgentImage: `${AGENT_REPOSITORY}@${TARGET_AGENT_DIGEST}`,
-  };
-}
-
-const TODAY_STATE_KEYS = ["appEnvSha256", "appEnvSnapshot", "archiveSha256", "artifactDigest", "artifactId",
-  "composeSha256", "composeSnapshot", "controllerSha256", "generation", "imageConfigDigest", "imageId",
-  "imageSource", "previous", "releaseId", "releaseRunId", "repository", "revision", "rollbackTag",
-  "rollbackWrapperSha256", "schema", "upstreamCiRunAttempt", "upstreamCiRunId", "version",
-  "workflowRunAttempt", "workflowRunId"];
-
-test("AI agent disabled: a release makes no agent call and seals today's state and wrapper", () => {
-  const fixture = aiAgentReleaseFixture({ enabled: false });
-  try {
-    assert.equal(fixture.run("seal-rollback-seed").status, 0);
-    const deployed = fixture.run("deploy");
-    assert.equal(deployed.status, 0, deployed.stderr);
-    assert.equal(JSON.parse(deployed.stdout).status, "pending");
-    const agentCalls = fixture.dockerCalls().filter((call) => call[0] === "exec" || call.includes("--profile")
-      || call.includes("-") || call.includes("{{.State.Running}}")
-      || call.some((argument) => /^ai-agent-(?:api|worker)$|evo-ai-agent@/u.test(argument)));
-    assert.deepEqual(agentCalls, []);
-    assert.equal(fixture.runtime().appAi, false);
-    const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
-    assert.deepEqual(Object.keys(state).sort(), TODAY_STATE_KEYS);
-    const wrapper = readFileSync(join(fixture.releaseDir, "rollback-command.sh"), "utf8");
-    assert.match(wrapper, /^export EVO_AI_AGENT_ENABLED=false$/mu);
-    assert.doesNotMatch(wrapper, /EVO_AI_AGENT_IMAGE_DIGEST|EVO_CRM_AI_AGENT_ENV_FILE/u);
-    const status = fixture.run("candidate-status");
-    assert.equal(status.status, 0, status.stderr);
-    assert.equal(JSON.parse(status.stdout).status, "pending");
-    assert.match(fixture.run("candidate-status", { EVO_AI_AGENT_ENABLED: "true", EVO_AI_AGENT_IMAGE_DIGEST: TARGET_AGENT_DIGEST }).stderr,
-      /ai_agent_release_mismatch/u);
-    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
-    assert.equal(rolledBack.status, 0, rolledBack.stderr);
-    assert.equal(fixture.runtime().app, "baseline");
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("AI agent disabled: running agent containers still fail the exact runtime contract", () => {
-  const fixture = aiAgentReleaseFixture({ enabled: false, previousAgent: true });
-  try {
-    const status = fixture.run("status");
-    assert.equal(status.status, 2);
-    assert.match(status.stderr, /runtime_service_contract_invalid/u);
-    const deployed = fixture.run("deploy");
-    assert.equal(deployed.status, 2);
-    assert.match(deployed.stderr, /runtime_service_contract_invalid/u);
-    assert.equal(fixture.runtime().app, "baseline");
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("AI agent enabled: configuration fails closed before any runtime change", () => {
-  for (const [options, overrides, code] of [
-    [{ enabled: true }, { EVO_AI_AGENT_ENABLED: "yes" }, /ai_agent_enabled_invalid/u],
-    [{ enabled: true }, { EVO_AI_AGENT_IMAGE_DIGEST: "latest" }, /ai_agent_digest_invalid/u],
-    [{ enabled: true, agentEnv: "absent" }, {}, /ai_agent_env_missing/u],
-    [{ enabled: true, agentEnv: "incomplete" }, {}, /ai_agent_env_incomplete/u],
-    [{ enabled: true, agentEnv: "quoted" }, {}, /ai_agent_env_format_invalid/u],
-    [{ enabled: true, agentEnv: "exported" }, {}, /ai_agent_env_format_invalid/u],
-    [{ enabled: true, agentEnv: "padded" }, {}, /ai_agent_env_format_invalid/u],
-  ]) {
-    const fixture = aiAgentReleaseFixture(options);
-    try {
-      const deployed = fixture.run("deploy", overrides);
-      assert.equal(deployed.status, 2, deployed.stdout);
-      assert.match(deployed.stderr, code);
-      assert.doesNotMatch(deployed.stderr, /synthetic-fixture|postgresql:/u);
-      assert.deepEqual(fixture.dockerCalls(), []);
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-  const fixture = aiAgentReleaseFixture({ enabled: true });
-  try {
-    chmodSync(fixture.agentEnvironmentFile, 0o644);
-    assert.match(fixture.run("deploy").stderr, /ai_agent_env_permissions_invalid/u);
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("AI agent enabled: first release pulls by digest, proves /v1/ready, records the pin and rolls back to absent", () => {
-  const fixture = aiAgentReleaseFixture({ enabled: true });
-  try {
-    assert.equal(fixture.run("seal-rollback-seed").status, 0);
-    const deployed = fixture.run("deploy");
-    assert.equal(deployed.status, 0, deployed.stderr);
-    assert.equal(JSON.parse(deployed.stdout).status, "pending");
-    const calls = fixture.dockerCalls().map((call) => call.join(" "));
-    assert.ok(calls.some((call) => /^compose .*--profile ai-agent .*pull --quiet ai-agent-api$/u.test(call)), calls.join("\n"));
-    assert.ok(calls.some((call) => /^compose .*--profile ai-agent .*up .*--pull never .*ai-agent-api ai-agent-worker$/u.test(call)));
-    assert.ok(calls.some((call) => /^exec e0e0e0e0e0e0 python -c .*\/v1\/ready/u.test(call)));
-    // ADR 0032: the app joins the agent's own bridge only now, through the stdin override.
-    assert.ok(calls.some((call) => /^compose .*--file - .*--profile ai-agent up .* app$/u.test(call)), calls.join("\n"));
-    assert.equal(fixture.runtime().appAi, true);
-    assert.deepEqual(fixture.runtime().agent, { api: fixture.targetAgentImage, worker: fixture.targetAgentImage, healthy: true });
-    const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
-    assert.deepEqual(state.aiAgent, { image: fixture.targetAgentImage, previousPresent: false, previousImage: "" });
-    assert.deepEqual(Object.keys(state).filter((key) => key !== "aiAgent").sort(), TODAY_STATE_KEYS);
-    const wrapper = readFileSync(join(fixture.releaseDir, "rollback-command.sh"), "utf8");
-    assert.match(wrapper, /^export EVO_AI_AGENT_ENABLED=true$/mu);
-    assert.match(wrapper, new RegExp(`^export EVO_AI_AGENT_IMAGE_DIGEST=${TARGET_AGENT_DIGEST}$`, "mu"));
-    assert.match(fixture.run("candidate-status").stdout, /"status":"pending"/u);
-    assert.match(fixture.run("candidate-status", { EVO_AI_AGENT_ENABLED: "" }).stderr, /ai_agent_release_mismatch/u);
-
-    const callsBeforeRollback = fixture.dockerCalls().length;
-    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
-    assert.equal(rolledBack.status, 0, rolledBack.stderr);
-    assert.equal(fixture.runtime().app, "baseline");
-    assert.equal(fixture.runtime().appAi, false);
-    assert.equal(fixture.runtime().agent, null);
-    assert.equal(existsSync(join(fixture.evidenceRoot, "pending-current.json")), false);
-    // The previous release had no agent: its app is restored without the override.
-    assert.ok(!fixture.dockerCalls().slice(callsBeforeRollback).some((call) => call.includes("-")));
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("AI agent enabled: a failed readiness proof restores the previous app and agent pin", () => {
-  for (const failure of ["FAKE_AGENT_READY_FAIL", "FAKE_AGENT_UP_FAIL"]) {
-    const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
-    try {
-      assert.equal(fixture.run("seal-rollback-seed").status, 0);
-      const deployed = fixture.run("deploy", { [failure]: "1" });
-      assert.equal(deployed.status, 3, `${failure}: ${deployed.stderr}`);
-      assert.deepEqual(JSON.parse(deployed.stdout), {
-        ok: false, command: "deploy", status: "rolled_back", code: "deployment_failed",
-        evidenceDir: fixture.releaseDir,
-      });
-      const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
-      assert.deepEqual(state.aiAgent, {
-        image: fixture.targetAgentImage, previousPresent: true, previousImage: fixture.previousAgentImage,
-      });
-      assert.equal(fixture.runtime().app, "baseline");
-      assert.equal(fixture.runtime().appAi, true);
-      assert.deepEqual(fixture.runtime().agent, {
-        api: fixture.previousAgentImage, worker: fixture.previousAgentImage, healthy: true,
-      });
-      const calls = fixture.dockerCalls().map((call) => call.join(" "));
-      assert.ok(calls.some((call) => /up .*--force-recreate .*ai-agent-api ai-agent-worker$/u.test(call)), failure);
-      assert.ok(calls.some((call) => /--file \S+\/rollback\.override\.yml --file - .*up .* app$/u.test(call)), failure);
-      // Before any runtime change the previous snapshot was rendered as the rollback renders it.
-      const previousRender = calls.findIndex((call) => /--file \S+\/docker-compose\.previous\.yml --file - .*config --quiet$/u.test(call));
-      const firstUp = calls.findIndex((call) => /^compose .* up /u.test(call));
-      assert.ok(previousRender >= 0 && previousRender < firstUp, failure);
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-});
-
-test("AI agent enabled: acceptance records the pin and a hand-changed agent is drift", () => {
-  const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
-  try {
-    assert.equal(fixture.run("seal-rollback-seed").status, 0);
-    const deployed = fixture.run("deploy");
-    assert.equal(deployed.status, 0, deployed.stderr);
-    const state = JSON.parse(readFileSync(join(fixture.releaseDir, "state.json"), "utf8"));
-    const receipt = join(fixture.releaseDir, "browser-receipt.json");
-    const receiptText = JSON.stringify({
-      schema: "evo-v3-browser-receipt/v1", result: "passed", releaseId: state.releaseId,
-      repository: state.repository, revision: state.revision, workflowRunId: state.workflowRunId,
-      workflowRunAttempt: state.workflowRunAttempt, artifactId: state.artifactId, artifactDigest: state.artifactDigest,
-    });
-    writeFileSync(receipt, receiptText, { mode: 0o600 });
-    chmodSync(receipt, 0o600);
-    const accepted = fixture.run("accept-candidate", {
-      EVO_RELEASE_ACTOR_ID: "1", EVO_RELEASE_CURRENT_MAIN_REVISION: fixture.targetRevision,
-      EVO_RELEASE_BROWSER_RECEIPT: receipt, EVO_RELEASE_BROWSER_RECEIPT_SHA256: sha256(receiptText),
-    });
-    assert.equal(accepted.status, 0, accepted.stderr);
-    const record = JSON.parse(readFileSync(join(fixture.releaseDir, "v3-acceptance-record.json"), "utf8"));
-    assert.deepEqual(record.aiAgent, state.aiAgent);
-
-    // Same candidate again: the accepted agent pin is recognised, so only the revision check stops it.
-    assert.match(fixture.run("preflight").stderr, /current_release_invalid/u);
-    const foreign = `${AGENT_REPOSITORY}@${FOREIGN_AGENT_DIGEST}`;
-    fixture.setRuntime({ agent: { api: foreign, worker: foreign, healthy: true }, agentImages: [foreign] });
-    assert.match(fixture.run("preflight").stderr, /runtime_ai_agent_image_drift/u);
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("AI agent off after it ran: the app leaves the agent bridge and nothing else is rendered", () => {
-  // The disable runbook removed the agent pair; the app container still sits on evo_crm_ai.
-  const fixture = aiAgentReleaseFixture({ enabled: false, appOnAgentNetwork: true });
-  try {
-    assert.equal(fixture.run("seal-rollback-seed").status, 0);
-    const deployed = fixture.run("deploy");
-    assert.equal(deployed.status, 0, deployed.stderr);
-    assert.equal(fixture.runtime().app, "target");
-    assert.equal(fixture.runtime().appAi, false);
-    assert.ok(!fixture.dockerCalls().some((call) => call.includes("-") || call.includes("--profile")));
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("AI agent enabled: a compose that puts the agent next to WAHA or clamd is refused before any change", () => {
-  for (const breach of ["agent-private", "waha-ai"]) {
-    const fixture = aiAgentReleaseFixture({ enabled: true });
-    try {
-      assert.equal(fixture.run("seal-rollback-seed").status, 0);
-      const deployed = fixture.run("deploy", { FAKE_COMPOSE_BREACH: breach });
-      assert.equal(deployed.status, 2, `${breach}: ${deployed.stdout}`);
-      assert.match(deployed.stderr, /compose_ai_agent_contract_invalid/u);
-      assert.equal(fixture.runtime().app, "baseline");
-      assert.equal(fixture.runtime().agent, null);
-      assert.ok(!fixture.dockerCalls().some((call) => call.includes("up") || call.includes("pull")), breach);
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-});
-
-test("AI agent enabled: the 2 GiB headroom is required only while the agent is not running yet", (t) => {
-  const meminfo = existsSync("/proc/meminfo") ? readFileSync("/proc/meminfo", "utf8") : "";
-  const available = meminfo === "" ? 8589934592 / 1024 : Number(/^MemAvailable:\s+(\d+)/mu.exec(meminfo)?.[1]);
-  // Between today's minimum and today's minimum plus the agent's limits.
-  const minimum = Math.floor(available - 1048576);
-  if (!Number.isSafeInteger(minimum) || minimum < 4194304) {
-    t.skip("needs at least 5 GiB of available memory");
-    return;
-  }
-  for (const previousAgent of [true, false]) {
-    const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent });
-    try {
-      assert.equal(fixture.run("seal-rollback-seed").status, 0);
-      const preflight = fixture.run("preflight", { EVO_RELEASE_MIN_AVAILABLE_MEMORY_KB: String(minimum) });
-      if (previousAgent) assert.doesNotMatch(preflight.stderr, /insufficient_memory_capacity/u);
-      else assert.match(preflight.stderr, /insufficient_memory_capacity/u);
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-});
-
-test("AI agent enabled: a rollback whose previous agent image is gone stops before any change", () => {
-  const fixture = aiAgentReleaseFixture({ enabled: true, previousAgent: true });
-  try {
-    assert.equal(fixture.run("seal-rollback-seed").status, 0);
-    assert.equal(fixture.run("deploy").status, 0);
-    fixture.setRuntime({ agentImages: [fixture.targetAgentImage] });
-    const callsBeforeRollback = fixture.dockerCalls().length;
-    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
-    assert.notEqual(rolledBack.status, 0);
-    assert.match(rolledBack.stderr, /rollback_failed/u);
-    assert.equal(fixture.runtime().app, "target");
-    assert.deepEqual(fixture.runtime().agent, {
-      api: fixture.targetAgentImage, worker: fixture.targetAgentImage, healthy: true,
-    });
-    const mutations = fixture.dockerCalls().slice(callsBeforeRollback)
-      .filter((call) => call.includes("up") || call.includes("rm") || call.includes("stop") || call[0] === "tag");
-    assert.deepEqual(mutations, []);
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("release controller requires Docker Compose 2.30 or later and reads the version safely", () => {
-  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
-  const failHelper = controller.slice(controller.indexOf("fail() {"), controller.indexOf("require_command() {"));
-  const constants = controller.match(
-    /^readonly COMPOSE_MIN_MAJOR=.*\nreadonly COMPOSE_MIN_MINOR=.*\nreadonly COMPOSE_VERSION_RE=.*$/mu,
-  )?.[0];
-  const gate = controller.slice(controller.indexOf("verify_compose_version() {"), controller.indexOf("preflight() {"));
-  assert.ok(failHelper.startsWith("fail() {") && constants && gate.startsWith("verify_compose_version() {"),
-    "the actual version gate must exist");
-  const root = mkdtempSync(join(tmpdir(), "evo-compose-version-"));
-  const bin = join(root, "bin");
-  mkdirSync(bin);
-  writeExecutable(join(bin, "docker"), `#!/usr/bin/env bash
-[[ $* == "compose version --short" ]] || exit 64
-printf '%s' "$FAKE_OUTPUT"
-exit "$FAKE_STATUS"
-`);
-  try {
-    for (const [output, status, expected] of [
-      ["5.1.2\n", 0, "ok"], // hermes, read on 2026-10-06
-      ["2.30.0\n", 0, "ok"],
-      ["v2.30.0\n", 0, "ok"],
-      ["2.30.3-desktop.1\n", 0, "ok"],
-      ["2.100.0\n", 0, "ok"],
-      ["3.0.0\n", 0, "ok"],
-      ["10.0.0\n", 0, "ok"],
-      ["2.29.9\n", 0, "compose_version_unsupported"],
-      ["2.3.0\n", 0, "compose_version_unsupported"],
-      ["1.99.0\n", 0, "compose_version_unsupported"],
-      ["0.30.0\n", 0, "compose_version_unsupported"],
-      ["", 0, "compose_version_unreadable"],
-      ["5.1.2\n", 1, "compose_version_unreadable"],
-      ["2.30\n", 0, "compose_version_unreadable"],
-      ["2.030.0\n", 0, "compose_version_unreadable"],
-      [" 5.1.2\n", 0, "compose_version_unreadable"],
-      ["5.1.2 \n", 0, "compose_version_unreadable"],
-      ["Docker Compose version v5.1.2\n", 0, "compose_version_unreadable"],
-      ["2.31.0\n2.29.0\n", 0, "compose_version_unreadable"],
-      ["99999.0.0\n", 0, "compose_version_unreadable"],
-      ["5.1.2;id\n", 0, "compose_version_unreadable"],
-    ]) {
-      const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\n${failHelper}\n${constants}\n${gate}\nverify_compose_version`], {
-        env: { PATH: `${bin}:/usr/bin:/bin`, FAKE_OUTPUT: output, FAKE_STATUS: String(status) },
-        encoding: "utf8",
-      });
-      const label = JSON.stringify([output, status]);
-      if (expected === "ok") {
-        assert.equal(result.status, 0, `${label}: ${result.stderr}`);
-        assert.equal(result.stderr, "", label);
-      } else {
-        assert.equal(result.status, 2, label);
-        assert.equal(result.stderr, `{"ok":false,"code":"${expected}"}\n`, label);
-      }
-    }
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("every release refuses an old Docker Compose before any change; rollback is never gated", () => {
-  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
-  const body = (name, next) => controller.slice(controller.indexOf(`${name}() {`), controller.indexOf(`${next}() {`));
-  for (const [name, next] of [["preflight", "sync_file_and_parent"], ["deploy", "manual_rollback"]]) {
-    assert.match(body(name, next), /^\s+load_candidate_configuration\n\s+verify_compose_version\n\s+acquire_release_lock$/mu, name);
-  }
-  for (const [name, next] of [["manual_rollback", "rollback_pending_candidate"], ["rollback_from_state", "load_bound_release_state"],
-    ["seal_rollback_seed", "prepare_candidate_generation"], ["accept_candidate", "disarm_release_mutation_trap"]]) {
-    assert.doesNotMatch(body(name, next), /verify_compose_version/u, name);
-  }
-  assert.doesNotMatch(controller.slice(controller.indexOf("rollback_pending_candidate() {")), /verify_compose_version/u);
-
-  for (const enabled of [false, true]) {
-    const fixture = aiAgentReleaseFixture({ enabled });
-    try {
-      assert.equal(fixture.run("seal-rollback-seed").status, 0);
-      for (const command of ["preflight", "deploy"]) {
-        const callsBefore = fixture.dockerCalls().length;
-        const evidenceBefore = readdirSync(fixture.evidenceRoot).sort();
-        const refused = fixture.run(command, { FAKE_COMPOSE_VERSION: "2.29.9" });
-        assert.equal(refused.status, 2, `${command}/${enabled}: ${refused.stderr}`);
-        assert.equal(refused.stderr, '{"ok":false,"code":"compose_version_unsupported"}\n');
-        assert.equal(refused.stdout, "");
-        assert.deepEqual(fixture.dockerCalls().slice(callsBefore), [["compose", "version", "--short"]]);
-        assert.deepEqual(readdirSync(fixture.evidenceRoot).sort(), evidenceBefore);
-        const unreadable = fixture.run(command, { FAKE_COMPOSE_VERSION_FAIL: "1" });
-        assert.equal(unreadable.stderr, '{"ok":false,"code":"compose_version_unreadable"}\n');
-      }
-      assert.equal(fixture.runtime().app, "baseline");
-      const preflight = fixture.run("preflight", { FAKE_COMPOSE_VERSION: "2.30.0" });
-      assert.equal(preflight.status, 0, preflight.stderr);
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-});
-
-// Health audit A2 (2026-10-10): a release replaces the app container and Docker discards its
-// log with it. The controller keeps the outgoing app's bounded log tail root-only in the
-// release directory, prints none of it, and never lets a failed copy stop or roll back a release.
-const PREVIOUS_APP_LOG_RECORD_KEYS = ["bytes", "code", "containerId", "log", "schema", "sha256", "status", "tailLines"];
-
-function privateMode(path) {
-  return statSync(path).mode & 0o777;
-}
-
-function assertSingleDeployResult(deployed, releaseDir, releaseId) {
-  const lines = deployed.stdout.split("\n").filter(Boolean);
-  assert.equal(lines.length, 1, deployed.stdout);
-  assert.deepEqual(JSON.parse(lines[0]), {
-    ok: true, command: "deploy", status: "pending", releaseId, evidenceDir: releaseDir,
-  });
-}
-
-function leftoverLogTemporaries(releaseDir) {
-  return readdirSync(releaseDir).filter((name) => name.startsWith(".previous-app-log."));
-}
-
-test("release controller keeps the outgoing app log as best-effort private evidence", () => {
-  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
-  const deploy = controller.slice(controller.indexOf("deploy() {"), controller.indexOf("manual_rollback() {"));
-  const saver = controller.slice(
-    controller.indexOf("previous_app_logs_warning() {"),
-    controller.indexOf("create_rollback_wrapper() {"),
-  );
-  assert.match(controller, /^readonly PREVIOUS_APP_LOG_TAIL_LINES=20000$/mu);
-  // After every check and the scanner, right before the app is replaced, and never fatal.
-  assert.match(
-    deploy,
-    /\n  provision_scanner_runtime\n(?:  #[^\n]*\n)*  save_previous_app_logs "\$release_evidence_dir" "\$current_app_container_id" \|\| true\n  if EVO_RELEASE_REVISION=/u,
-  );
-  assert.ok(deploy.indexOf("save_previous_app_logs") > deploy.indexOf("arm_release_mutation_trap"));
-  assert.ok(deploy.indexOf("save_previous_app_logs") < deploy.indexOf("compose up --detach"));
-  assert.match(saver, /docker logs --timestamps --tail "\$PREVIOUS_APP_LOG_TAIL_LINES" "\$container" >"\$temporary" 2>&1/u);
-  assert.match(saver, /chmod 600 "\$temporary"/u);
-  // Nothing that can exit, roll back, read the environment or print a log line.
-  assert.doesNotMatch(saver, /\bfail\b|\brequire_[a-z_]+|docker inspect|Config\.Env|\bexit\b/u);
-  assert.doesNotMatch(saver, /\bcat\b|\btee\b|--follow|\brm\b/u);
-  // The rollback paths never touch the saved log.
-  const rollback = controller.slice(controller.indexOf("rollback_from_state() {"), controller.indexOf("load_bound_release_state() {"));
-  assert.doesNotMatch(rollback, /previous-app-log|save_previous_app_logs/u);
-});
-
-test("deploy saves the outgoing app log root-only before replacing it and prints none of it", () => {
-  const fixture = aiAgentReleaseFixture({ enabled: false });
-  try {
-    assert.equal(fixture.run("seal-rollback-seed").status, 0);
-    const deployed = fixture.run("deploy");
-    assert.equal(deployed.status, 0, deployed.stderr);
-    assertSingleDeployResult(deployed, fixture.releaseDir, fixture.releaseId);
-    assert.equal(deployed.stderr, "");
-    assert.equal(fixture.runtime().app, "target");
-
-    const expected = FAKE_APP_LOG_STDOUT + FAKE_APP_LOG_STDERR;
-    const logPath = join(fixture.releaseDir, "previous-app.log");
-    const recordPath = join(fixture.releaseDir, "previous-app-log.json");
-    // Exactly the container's two streams: no inspect output, environment or controller text.
-    assert.equal(readFileSync(logPath, "utf8"), expected);
-    assert.equal(privateMode(logPath), 0o600);
-    assert.equal(privateMode(fixture.releaseDir), 0o700);
-    const record = JSON.parse(readFileSync(recordPath, "utf8"));
-    assert.deepEqual(Object.keys(record).sort(), PREVIOUS_APP_LOG_RECORD_KEYS);
-    assert.deepEqual(record, {
-      schema: "evo-previous-app-log/v1", status: "saved", code: "saved", log: "previous-app.log",
-      containerId: "a0a0a0a0a0a0", tailLines: 20000, bytes: Buffer.byteLength(expected), sha256: sha256(expected),
-    });
-    assert.equal(privateMode(recordPath), 0o600);
-    assert.deepEqual(leftoverLogTemporaries(fixture.releaseDir), []);
-    for (const line of [FAKE_APP_LOG_STDOUT, FAKE_APP_LOG_STDERR]) {
-      assert.ok(!deployed.stdout.includes(line.trim()) && !deployed.stderr.includes(line.trim()));
-    }
-
-    const calls = fixture.dockerCalls();
-    const logCalls = calls.filter((call) => call[0] === "logs");
-    assert.deepEqual(logCalls, [["logs", "--timestamps", "--tail", "20000", "a0a0a0a0a0a0"]]);
-    const logRead = calls.findIndex((call) => call[0] === "logs");
-    const scannerUp = calls.findIndex((call) => call[0] === "compose" && call.includes("up") && call.at(-1) === "clamav");
-    const appUp = calls.findIndex((call) => call[0] === "compose" && call.includes("up") && call.at(-1) === "app");
-    assert.ok(scannerUp >= 0 && scannerUp < logRead && logRead < appUp, JSON.stringify(calls));
-
-    // The saved log is evidence only: status and rollback stay exactly as before.
-    assert.equal(JSON.parse(fixture.run("candidate-status").stdout).status, "pending");
-    const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
-    assert.equal(rolledBack.status, 0, rolledBack.stderr);
-    assert.equal(fixture.runtime().app, "baseline");
-    assert.equal(readFileSync(logPath, "utf8"), expected);
-    assert.equal(fixture.dockerCalls().filter((call) => call[0] === "logs").length, 1);
-  } finally {
-    rmSync(fixture.root, { recursive: true, force: true });
-  }
-});
-
-test("a failed log copy only warns: the release still deploys, verifies and rolls back", () => {
-  for (const [mode, expected] of [
-    ["error", { status: "incomplete", code: "previous_app_logs_incomplete", content: FAKE_APP_LOG_ERROR }],
-    ["silent", { status: "failed", code: "previous_app_logs_unavailable", content: null }],
-  ]) {
-    const fixture = aiAgentReleaseFixture({ enabled: false });
-    try {
-      assert.equal(fixture.run("seal-rollback-seed").status, 0);
-      const deployed = fixture.run("deploy", { FAKE_APP_LOGS: mode });
-      assert.equal(deployed.status, 0, `${mode}: ${deployed.stderr}`);
-      assertSingleDeployResult(deployed, fixture.releaseDir, fixture.releaseId);
-      assert.equal(deployed.stderr, `{"ok":true,"warning":"${expected.code}"}\n`, mode);
-      assert.equal(fixture.runtime().app, "target", mode);
-      const result = JSON.parse(readFileSync(join(fixture.releaseDir, "result.json"), "utf8"));
-      assert.equal(result.status, "pending", mode);
-      assert.equal(result.code, "verified", mode);
-
-      const logPath = join(fixture.releaseDir, "previous-app.log");
-      const record = JSON.parse(readFileSync(join(fixture.releaseDir, "previous-app-log.json"), "utf8"));
-      if (expected.content === null) {
-        assert.equal(existsSync(logPath), false, mode);
-        assert.deepEqual(record, {
-          schema: "evo-previous-app-log/v1", status: expected.status, code: expected.code, log: "",
-          containerId: "a0a0a0a0a0a0", tailLines: 20000, bytes: 0, sha256: "",
-        });
-      } else {
-        // What Docker wrote before failing is kept, root-only, and named incomplete.
-        assert.equal(readFileSync(logPath, "utf8"), expected.content, mode);
-        assert.equal(privateMode(logPath), 0o600, mode);
-        assert.deepEqual(record, {
-          schema: "evo-previous-app-log/v1", status: expected.status, code: expected.code, log: "previous-app.log",
-          containerId: "a0a0a0a0a0a0", tailLines: 20000, bytes: Buffer.byteLength(expected.content),
-          sha256: sha256(expected.content),
-        });
-      }
-      assert.deepEqual(leftoverLogTemporaries(fixture.releaseDir), [], mode);
-      const rolledBack = fixture.run("rollback", fixture.rollbackEnvironment);
-      assert.equal(rolledBack.status, 0, `${mode}: ${rolledBack.stderr}`);
-      assert.equal(fixture.runtime().app, "baseline", mode);
-    } finally {
-      rmSync(fixture.root, { recursive: true, force: true });
-    }
-  }
-});
-
-test("the log copy returns success under errexit for an absent app, a foreign id and an unwritable directory", () => {
-  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
-  const constants = controller.match(/^readonly HASH64_RE=.*$/mu)?.[0] + "\n"
-    + controller.match(/^readonly PREVIOUS_APP_LOG_TAIL_LINES=.*$/mu)?.[0];
-  const helpers = controller.slice(controller.indexOf("sync_file_and_parent() {"), controller.indexOf("replace_json_atomically() {"))
-    + controller.slice(controller.indexOf("previous_app_logs_warning() {"), controller.indexOf("create_rollback_wrapper() {"));
-  assert.match(helpers, /^sync_file_and_parent\(\) \{[\s\S]*create_once_json\(\) \{[\s\S]*save_previous_app_logs\(\) \{/u);
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-previous-app-log-")));
-  const bin = join(root, "bin");
-  mkdirSync(bin, { mode: 0o700 });
-  const dockerLog = join(root, "docker.log");
-  writeExecutable(join(bin, "docker"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(dockerLog)}\nprintf 'line\\n'\n`);
-  // No `|| true` here: the function itself must return 0 with errexit on.
-  const run = (directory, container) => spawnSync("bash", ["-c",
-    `set -Eeuo pipefail\numask 077\n${constants}\n${helpers}\nsave_previous_app_logs "$1" "$2"\nprintf 'continued\\n'`,
-    "bash", directory, container,
-  ], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` } });
-  const record = (directory) => JSON.parse(readFileSync(join(directory, "previous-app-log.json"), "utf8"));
-  try {
-    const absent = join(root, "absent");
-    mkdirSync(absent, { mode: 0o700 });
-    const first = run(absent, "");
-    assert.equal(first.status, 0, first.stderr);
-    assert.equal(first.stdout, "continued\n");
-    assert.equal(first.stderr, "");
-    assert.equal(record(absent).status, "absent");
-    assert.equal(record(absent).code, "previous_app_absent");
-    assert.equal(existsSync(join(absent, "previous-app.log")), false);
-
-    const foreign = join(root, "foreign");
-    mkdirSync(foreign, { mode: 0o700 });
-    const injected = run(foreign, "--follow");
-    assert.equal(injected.status, 0, injected.stderr);
-    assert.equal(injected.stdout, "continued\n");
-    assert.equal(injected.stderr, '{"ok":true,"warning":"previous_app_logs_container_invalid"}\n');
-    assert.equal(record(foreign).code, "previous_app_logs_container_invalid");
-    assert.equal(existsSync(dockerLog), false, "an invalid id never reaches Docker");
-
-    if (typeof process.getuid === "function" && process.getuid() !== 0) {
-      const locked = join(root, "locked");
-      mkdirSync(locked, { mode: 0o500 });
-      const unwritable = run(locked, "a0a0a0a0a0a0");
-      assert.equal(unwritable.status, 0, unwritable.stderr);
-      assert.equal(unwritable.stdout, "continued\n");
-      assert.equal(
-        unwritable.stderr,
-        '{"ok":true,"warning":"previous_app_logs_record_failed"}\n{"ok":true,"warning":"previous_app_logs_create_failed"}\n',
-      );
-      assert.deepEqual(readdirSync(locked), []);
-      chmodSync(locked, 0o700);
-    }
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
 });

@@ -99,24 +99,32 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /^  fast-checks:[\s\S]*test "\$UNKNOWN" = "false"/mu);
   assert.match(fastPr, /^  contracts:\n    name: Release contracts$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.contracts == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(fastPr, /run: npm run test:fast-release/u);
+  assert.match(fastPr, /name: Test release contracts\n        run: npm run verify -- --only contracts/u);
   assert.match(fastPr, /^  lint:\n    name: Lint$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.lint == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(fastPr, /run: npm run lint/u);
+  assert.match(fastPr, /name: Lint\n        run: npm run verify -- --only lint/u);
   assert.match(fastPr, /^  build:\n    name: Build$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.build == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(fastPr, /run: npm run build/u);
+  assert.match(fastPr, /name: Build with TypeScript authority\n        run: npm run verify -- --only build/u);
   assert.match(fastPr, /^  mobile:\n    name: Mobile app$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.mobile == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /working-directory: mobile\n        run: npm ci/u);
-  assert.match(fastPr, /working-directory: mobile\n        run: npm run check/u);
+  assert.match(fastPr, /name: Check the mobile app\n        run: npm run verify -- --only mobile/u);
   assert.match(fastPr, /^  migration_boundary:\n    name: Migration boundary$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
-  assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
-  assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
-  assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
+  assert.match(fastPr, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
+  // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every code change runs the
+  // types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
+  assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  assert.match(fastPr, /name: Check types\n        run: npm run verify -- --only typecheck/u);
+  assert.match(fastPr, /^  tests:\n    name: Tests \(\$\{\{ matrix\.shard \}\}\/4\)\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  assert.match(fastPr, /strategy:\n      fail-fast: false\n      matrix:\n        shard: \[1, 2, 3, 4\]/u);
+  assert.match(fastPr, /run: npm run verify -- --only tests --shard \$\{\{ matrix\.shard \}\}\/4/u);
+  assert.doesNotMatch(fastPr, /run: npm run (?:typecheck|lint|build|test:fast-release|test:ci:node)$/mu);
+  // node_modules comes from a cache keyed by the lockfile and Node; only a miss runs `npm ci`.
+  assert.equal((fastPr.match(/uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: node_modules\n          key: node-modules-\$\{\{ runner\.os \}\}-\$\{\{ hashFiles\('\.nvmrc', 'package-lock\.json'\) \}\}/gu) ?? []).length, 5);
+  assert.equal((fastPr.match(/if: \$\{\{ steps\.deps\.outputs\.cache-hit != 'true' \}\}\n        run: npm ci/gu) ?? []).length, 5);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);

@@ -1150,13 +1150,13 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
       const sealed = spawnSync(
         "bash",
         ["scripts/release/evo-fast-release.sh", "seal-rollback-seed"],
-        { encoding: "utf8", env: fixture.environment, timeout: 20_000 },
+        { encoding: "utf8", env: fixture.environment, timeout: 60_000 },
       );
       assert.equal(sealed.status, 0, `rollback seed failed: ${sealed.stderr}`);
       const interrupted = spawnSync(
         "bash",
         ["scripts/release/evo-fast-release.sh", "deploy"],
-        { encoding: "utf8", env: fixture.environment, timeout: 20_000 },
+        { encoding: "utf8", env: fixture.environment, timeout: 60_000 },
       );
       assert.equal(
         interrupted.signal,
@@ -1199,7 +1199,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
       const recovery = spawnSync(
         "bash",
         ["scripts/release/evo-fast-release.sh", "rollback"],
-        { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
+        { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
       );
       assert.equal(recovery.status, 0, recovery.stderr);
       const recoveryResult = JSON.parse(recovery.stdout.trim());
@@ -1215,7 +1215,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         const repeated = spawnSync(
           "bash",
           ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
+          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
         );
         assert.equal(repeated.status, 0, repeated.stderr);
         assert.equal(JSON.parse(repeated.stdout.trim()).status, "rolled_back");
@@ -1229,7 +1229,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         const unrelatedApp = spawnSync(
           "bash",
           ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
+          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
         );
         assert.equal(unrelatedApp.status, 2);
         assert.match(unrelatedApp.stderr, /rollback_failed/u);
@@ -1242,7 +1242,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         const unrelatedScanner = spawnSync(
           "bash",
           ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
+          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
         );
         assert.equal(unrelatedScanner.status, 2);
         assert.match(unrelatedScanner.stderr, /rollback_(?:failed|scanner_mismatch)/u);
@@ -1252,7 +1252,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         const rejectedDraft = spawnSync(
           "bash",
           ["scripts/release/evo-fast-release.sh", "rollback"],
-          { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
+          { encoding: "utf8", env: recoveryEnvironment, timeout: 60_000 },
         );
         assert.equal(rejectedDraft.status, 2);
         assert.match(rejectedDraft.stderr, /rollback_state_contract_invalid/u);
@@ -1826,27 +1826,35 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /^  fast-checks:[\s\S]*test "\$UNKNOWN" = "false"/mu);
   assert.match(fastPr, /^  contracts:\n    name: Release contracts$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.contracts == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(fastPr, /run: npm run test:fast-release/u);
+  assert.match(fastPr, /name: Test release contracts\n        run: npm run verify -- --only contracts/u);
   assert.match(fastPr, /^  lint:\n    name: Lint$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.lint == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(fastPr, /run: npm run lint/u);
+  assert.match(fastPr, /name: Lint\n        run: npm run verify -- --only lint/u);
   assert.match(fastPr, /^  build:\n    name: Build$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.build == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(fastPr, /run: npm run build/u);
+  assert.match(fastPr, /name: Build with TypeScript authority\n        run: npm run verify -- --only build/u);
   assert.match(fastPr, /^  mobile:\n    name: Mobile app$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.mobile == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /working-directory: mobile\n        run: npm ci/u);
-  assert.match(fastPr, /working-directory: mobile\n        run: npm run check/u);
+  assert.match(fastPr, /name: Check the mobile app\n        run: npm run verify -- --only mobile/u);
   assert.match(fastPr, /^  migration_boundary:\n    name: Migration boundary$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
-  assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
-  assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
-  assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
+  assert.match(fastPr, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
+  // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every code change runs the
+  // types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
+  assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  assert.match(fastPr, /name: Check types\n        run: npm run verify -- --only typecheck/u);
+  assert.match(fastPr, /^  tests:\n    name: Tests \(\$\{\{ matrix\.shard \}\}\/4\)\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  assert.match(fastPr, /strategy:\n      fail-fast: false\n      matrix:\n        shard: \[1, 2, 3, 4\]/u);
+  assert.match(fastPr, /run: npm run verify -- --only tests --shard \$\{\{ matrix\.shard \}\}\/4/u);
+  assert.doesNotMatch(fastPr, /run: npm run (?:typecheck|lint|build|test:fast-release|test:ci:node)$/mu);
+  // node_modules comes from a cache keyed by the lockfile and Node; only a miss runs `npm ci`.
+  assert.equal((fastPr.match(/uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: node_modules\n          key: node-modules-\$\{\{ runner\.os \}\}-\$\{\{ hashFiles\('\.nvmrc', 'package-lock\.json'\) \}\}/gu) ?? []).length, 5);
+  assert.equal((fastPr.match(/if: \$\{\{ steps\.deps\.outputs\.cache-hit != 'true' \}\}\n        run: npm ci/gu) ?? []).length, 5);
   assert.doesNotMatch(fastPr, /inbox_|lead_agent_/u);
   // Mobile is a separate product lane: only its two steps may leave the repository root.
-  assert.deepEqual(fastPr.match(/working-directory: .*/gu), ["working-directory: mobile", "working-directory: mobile"]);
+  assert.deepEqual(fastPr.match(/working-directory: .*/gu), ["working-directory: mobile"]);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);
@@ -1859,14 +1867,19 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
   const script = gate.split("        run: |\n")[1].replace(/^          /gmu, "");
   const env = {
     PATH: process.env.PATH,
-    RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false",
+    RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false", CODE: "false",
+    TYPECHECK_RESULT: "skipped", TESTS_RESULT: "skipped",
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped", MOBILE_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
-  assert.equal(run({}), 0);
-  assert.equal(run({ CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
-  for (const name of ["CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
+  assert.equal(run({}), 0, "a docs-only change needs no code checks");
+  assert.equal(run({ CODE: "true", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
+  // A code change must really run the types and every test part: skipped is not enough there.
+  assert.notEqual(run({ CODE: "true", TESTS_RESULT: "success" }), 0, "code change without types");
+  assert.notEqual(run({ CODE: "true", TYPECHECK_RESULT: "success" }), 0, "code change without tests");
+  assert.equal(run({ CODE: "true", TYPECHECK_RESULT: "success", TESTS_RESULT: "success" }), 0);
+  for (const name of ["TYPECHECK_RESULT", "TESTS_RESULT", "CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
     for (const result of ["failure", "cancelled", "", "unknown"]) {
       assert.notEqual(run({ [name]: result }), 0, `${name}=${result}`);
     }

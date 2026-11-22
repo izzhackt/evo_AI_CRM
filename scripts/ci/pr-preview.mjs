@@ -23,6 +23,8 @@ import { chromium } from "@playwright/test";
 
 import { waitForLocalSupabaseAuthAdmin } from "../local-dev/supabase-auth-readiness.mjs";
 import { seedMobileDevStack } from "../local-dev/mobile-dev-stack-seed.mjs";
+import { redact } from "./redact.mjs";
+import { STAFF_PAGES, STUDENT_PAGES } from "./pr-preview-pages.mjs";
 import { parseTimingLines } from "../maintenance/timing-report.mjs";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -38,22 +40,6 @@ export const PORTS = {
 // Сервисы, которых страницы не используют: быстрее старт, меньше образов. Auth, REST, Storage и БД остаются.
 const EXCLUDED_SERVICES = ["studio", "imgproxy", "vector", "logflare", "edge-runtime", "realtime", "postgres-meta", "supavisor", "mailpit"];
 
-// anchor.testIds: хотя бы один из них виден (содержимое страницы, а не скелет loading.tsx).
-// finalPath: куда страница обязана привести (старые закладки `/admissions-requests` перенаправляют на `/requests`).
-export const STAFF_PAGES = [
-  { path: "/main", anchor: { testIds: ["v3-operational-dashboard"] } },
-  { path: "/profile", anchor: { testIds: ["v3-student-case-directory"] } },
-  { path: "/pipeline", anchor: { testIds: ["v3-pipeline-board"] } },
-  { path: "/admissions-requests", finalPath: "/requests", anchor: { testIds: ["requests-queue"] } },
-  { path: "/calendar", anchor: { testIds: ["v3-calendar-period-bar"] } },
-  { path: "/tasks", anchor: { testIds: ["task-queue-next"] } },
-  { path: "/finance", anchor: { testIds: ["v3-sales-summary"] } },
-  { path: "/universities", anchor: { testIds: ["v3-universities-next"] } },
-];
-export const STUDENT_PAGES = [
-  { path: "/portal", anchor: { role: "heading", name: /Что сделать сейчас|Ваша анкета|Моё поступление/u } },
-  { path: "/portal/documents", anchor: { role: "heading", name: /Список документов пока пуст|Чеклист/u } },
-];
 
 const OUT_DIR = process.env.EVO_PR_PREVIEW_OUT ? resolve(process.env.EVO_PR_PREVIEW_OUT) : join(repo, "output/pr-preview");
 const WORK_DIR = join(OUT_DIR, "work");
@@ -180,6 +166,8 @@ async function waitForContent(page, anchor) {
   } else if (anchor.role) {
     await page.getByRole(anchor.role, { name: anchor.name }).first().waitFor({ state: "visible", timeout: 60_000 });
   }
+  // Засеянные данные должны быть на экране: пустой список или деградировавший вид не проходит.
+  for (const text of anchor.text ?? []) await page.getByText(text).first().waitFor({ state: "visible", timeout: 60_000 });
   await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 60_000 });
   await page.getByRole("heading").first().waitFor({ state: "visible", timeout: 10_000 });
 }
@@ -210,10 +198,11 @@ async function signIn(page, baseUrl, email, password, destination, { consentGate
 }
 
 /** Одна страница: HTTP 200, без редиректа, без границы ошибки, якорь на месте, ошибок в консоли страницы нет. */
-async function checkPage(page, baseUrl, spec, group, results, pageErrors) {
+async function checkPage(page, baseUrl, spec, group, results, pageErrors, serverErrors) {
   const url = `${baseUrl}${spec.path}`;
   const result = { group, path: spec.path, status: null, ok: false, note: "", timing: null, ms: null, testIds: [] };
   const errorsBefore = pageErrors.length;
+  const errorsBeforeServer = serverErrors.length;
   await delay(250); // дать предыдущим ответам дописать строки evo_timing
   const offset = statSync(APP_LOG).size;
   const started = Date.now();
@@ -228,6 +217,14 @@ async function checkPage(page, baseUrl, spec, group, results, pageErrors) {
     result.testIds = await page.evaluate(() => [...new Set([...document.querySelectorAll("[data-testid]")].map((e) => e.getAttribute("data-testid")))].slice(0, 40));
     if (await errorBoundary(page).count()) throw new Error("граница ошибки на странице");
     if (await page.locator(BAD_STATE).count()) throw new Error("страница показывает состояние «недоступно/нет доступа»");
+    for (const id of spec.anchor.absent ?? []) {
+      if (await page.locator(`[data-testid="${id}"]`).count()) throw new Error(`виден запасной/устаревший вид (${id})`);
+    }
+    if (serverErrors.length > errorsBeforeServer) throw new Error(`ответ сервера 5xx: ${serverErrors[serverErrors.length - 1]}`);
+    if (process.env.EVO_PR_PREVIEW_DUMP === "1") {
+      mkdirSync(join(OUT_DIR, "texts"), { recursive: true });
+      writeFileSync(join(OUT_DIR, "texts", `${group}-${spec.path.replace(/[^A-Za-z0-9-]+/gu, "_")}.txt`), await page.locator("body").innerText());
+    }
     if (pageErrors.length > errorsBefore) throw new Error(`ошибка в браузере: ${pageErrors[pageErrors.length - 1]}`);
     result.ok = true;
   } catch (error) {
@@ -235,12 +232,12 @@ async function checkPage(page, baseUrl, spec, group, results, pageErrors) {
     result.note = String(error?.message ?? error).split("\n")[0].slice(0, 200);
     failures.push(`${group} ${spec.path}: ${result.note}`);
   }
-  const shot = `${group}-${spec.path.replace(/^\//u, "").replace(/\//gu, "_") || "root"}.png`;
+  const shot = `${group}-${spec.path.replace(/^\//u, "").replace(/[^A-Za-z0-9-]+/gu, "_") || "root"}.png`;
   try { await page.screenshot({ path: join(SHOT_DIR, shot), fullPage: false }); } catch { /* снимок не обязателен для вердикта */ }
   await delay(300);
   const { records } = parseTimingLines(readFrom(APP_LOG, offset));
   const pageRecords = records.filter((r) => r.kind === "page");
-  result.timing = pageRecords.find((r) => `/${r.class}`.replace(/^\/\//u, "/") === (spec.finalPath ?? spec.path) || `/${r.class}` === spec.path) ?? pageRecords[0] ?? null;
+  result.timing = pageRecords.find((r) => `/${r.class}`.replace(/^\/\//u, "/") === (spec.finalPath ?? spec.path).split("?")[0]) ?? pageRecords[0] ?? null;
   results.push(result);
   log(`${result.ok ? "OK  " : "FAIL"} ${group} ${spec.path} ${result.status ?? "-"} ${result.ms} мс${result.note ? ` — ${result.note}` : ""}`);
 }
@@ -317,7 +314,7 @@ async function main() {
     chmodSync(key, 0o600);
     const tlsUrl = `https://127.0.0.1:${PORTS.tls}`;
     tlsProcess = spawn(process.execPath, [join(repo, "scripts/support/e4-loopback-tls-proxy.mjs"), statusEnv.API_URL, String(PORTS.tls), key, cert],
-      { env: baseEnv, stdio: ["ignore", openSync(SUPABASE_LOG, "a"), openSync(SUPABASE_LOG, "a")] });
+      { env: baseEnv, stdio: ["ignore", openSync(join(WORK_DIR, "tls-proxy.log"), "a"), openSync(join(WORK_DIR, "tls-proxy.log"), "a")] });
     children.add(tlsProcess);
     for (let i = 0; ; i++) {
       assert.ok(i < 30 && tlsProcess.exitCode === null, "TLS_PROXY_NOT_READY");
@@ -361,10 +358,17 @@ async function main() {
         context.setDefaultTimeout(60_000);
         const page = await context.newPage();
         const pageErrors = [];
+        const serverErrors = [];
+        // Ответы документа и XHR/fetch со статусом 5xx в ходе посещения страницы — сбой этой страницы.
+        page.on("response", (response) => {
+          if (response.status() >= 500 && ["document", "xhr", "fetch"].includes(response.request().resourceType())) {
+            serverErrors.push(`${response.status()} ${new URL(response.url()).pathname}`.slice(0, 120));
+          }
+        });
         page.on("pageerror", (error) => pageErrors.push(String(error?.message ?? error).slice(0, 160)));
         try {
           await signIn(page, baseUrl, account.email, account.password, options.destination, options);
-          for (const spec of pages) await checkPage(page, baseUrl, spec, group, results, pageErrors);
+          for (const spec of pages) await checkPage(page, baseUrl, spec, group, results, pageErrors, serverErrors);
         } catch (error) {
           const note = `вход не удался: ${String(error?.message ?? error).split("\n")[0].slice(0, 200)}`;
           failures.push(`${group}: ${note}`);
@@ -388,13 +392,18 @@ async function main() {
 }
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => { for (const child of children) child.kill("SIGKILL"); stopSupabase(); process.exit(130); });
+  // GitHub шлёт SIGINT, через ~7.5 с SIGKILL: путь быстрый, только процессы. Контейнеры снимет следующий запуск (stopSupabase в начале).
+  process.on(signal, () => { for (const child of children) child.kill("SIGKILL"); process.exit(130); });
 }
 
 let outcome = { results: [], revision: "unknown" };
 let fatal = null;
 try { outcome = await main(); } catch (error) { fatal = error; failures.push(`прогон прерван: ${String(error?.message ?? error).split("\n")[0].slice(0, 300)}`); }
 
+// Загружаемые логи в публичный артефакт: токены вида JWT и sb_* (в том числе локальные ключи по умолчанию) вычёркиваются.
+for (const file of [APP_LOG, SUPABASE_LOG, BUILD_LOG]) {
+  try { writeFileSync(file, redact(readFileSync(file, "utf8"))); } catch { /* файла нет при раннем сбое */ }
+}
 mkdirSync(OUT_DIR, { recursive: true });
 const expected = STAFF_PAGES.length + STUDENT_PAGES.length;
 if (!fatal && outcome.results.length !== expected) failures.push(`проверено страниц ${outcome.results.length} из ${expected}`);

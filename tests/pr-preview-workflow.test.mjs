@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { STAFF_PAGES, STUDENT_PAGES } from "../scripts/ci/pr-preview-pages.mjs";
+import { redact } from "../scripts/ci/redact.mjs";
+
 const workflow = readFileSync(new URL("../.github/workflows/evo-pr-preview.yml", import.meta.url), "utf8");
 const scriptSource = readFileSync(new URL("../scripts/ci/pr-preview.mjs", import.meta.url), "utf8");
 const script = scriptSource.split("\n").filter((line) => !/^\s*\/\//u.test(line)).join("\n");
@@ -72,7 +75,53 @@ test("the script is synthetic-only: isolated project and ports, local Docker, no
   assert.ok(allowList.length > 0);
   assert.doesNotMatch(allowList, /TOKEN|SECRET|KEY|PASSWORD|GITHUB/u);
   assert.doesNotMatch(script, /ssh |hermes-vps|crm\.evoadmissions|app\.evoadmissions|api\.supabase\.com/u);
-  for (const page of ["/main", "/profile", "/pipeline", "/admissions-requests", "/calendar", "/tasks", "/finance", "/universities", "/portal\"", "/portal/documents"]) {
-    assert.ok(script.includes(`path: "${page.replace(/"$/u, "")}"`), page);
+  const covered = [...STAFF_PAGES, ...STUDENT_PAGES].map((page) => page.path.split("?")[0]);
+  for (const page of ["/main", "/profile", "/pipeline", "/admissions-requests", "/calendar", "/tasks", "/finance", "/universities", "/portal", "/portal/documents"]) {
+    assert.ok(covered.includes(page), page);
   }
+});
+
+test("page anchors are real content: never the bare page frame or a fallback testid", () => {
+  const generic = new Set(["v3-shell", "v3-shell-topbar", "active-role", "student-portal-shell", "v3-error", "queue-empty", "list-filters", "queue-view-tabs"]);
+  // Test ids that the legacy or fallback views share with the current ones (see the comments in the pages module).
+  const sharedWithFallback = new Set(["v3-pipeline-board", "v3-student-case-directory", "v3-universities-next-frame"]);
+  for (const page of [...STAFF_PAGES, ...STUDENT_PAGES]) {
+    const { testIds = [], text = [], role } = page.anchor;
+    assert.ok(testIds.length + text.length > 0 || role, `${page.path} needs an anchor`);
+    for (const id of testIds) {
+      assert.ok(!generic.has(id), `${page.path}: ${id} is a generic frame id`);
+      assert.ok(!sharedWithFallback.has(id), `${page.path}: ${id} is also rendered by a fallback or legacy view`);
+    }
+  }
+  const byPath = new Map(STAFF_PAGES.map((page) => [page.path, page.anchor]));
+  // `v3-universities-next` is the page frame of an empty or failed list too: seeded universities are required.
+  assert.deepEqual(byPath.get("/universities").text, ["Test University Alpha", "Test University Beta", "Test University Gamma"]);
+  assert.ok(byPath.get("/pipeline").text.includes("Тест Приглашённый"));
+  assert.ok(byPath.get("/profile?view=active").text.includes("Тест Сопровождаемый"));
+  assert.ok(byPath.get("/finance?tab=debts").text.some((text) => text.includes("оплачено 400 USD")));
+});
+
+test("the signal handler stays fast: it kills children and exits, without running Docker", () => {
+  const handler = script.slice(script.indexOf('for (const signal of ["SIGINT", "SIGTERM"])'));
+  const body = handler.slice(0, handler.indexOf("\n}\n"));
+  assert.match(body, /child\.kill\("SIGKILL"\)/u);
+  assert.match(body, /process\.exit\(130\)/u);
+  assert.doesNotMatch(body, /stopSupabase|spawnSync|run\(/u);
+});
+
+test("page visits fail on 5xx document and XHR responses, not only on page errors", () => {
+  assert.match(script, /response\.status\(\) >= 500/u);
+  assert.match(script, /\["document", "xhr", "fetch"\]/u);
+  assert.match(script, /serverErrors/u);
+});
+
+test("uploaded logs are redacted of JWTs, sb_ keys and database passwords", () => {
+  const jwt = `eyJ${"a".repeat(20)}.${"b".repeat(30)}.${"c".repeat(20)}`;
+  const text = `service_role key: ${jwt}\nsb_secret_ABCdef123_-x and sb_publishable_ZZZ999\nDB: postgresql://postgres:postgres@127.0.0.1:46442/postgres`;
+  const out = redact(text);
+  assert.doesNotMatch(out, /eyJ|sb_secret_|sb_publishable_|:postgres@/u);
+  assert.match(out, /\[redacted-jwt\]/u);
+  assert.match(out, /postgresql:\/\/postgres:\[redacted\]@127\.0\.0\.1/u);
+  // The redaction is applied to every uploaded log before the summary is written.
+  assert.match(script, /for \(const file of \[APP_LOG, SUPABASE_LOG, BUILD_LOG\]\) \{\n  try \{ writeFileSync\(file, redact/u);
 });

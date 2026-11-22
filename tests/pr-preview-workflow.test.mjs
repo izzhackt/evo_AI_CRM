@@ -57,7 +57,14 @@ test("docs-only changes skip the preview using the same classifier as the fast P
 test("the artifact carries screenshots, logs and the timing table, and runs even after a failure", () => {
   const upload = executable.slice(executable.indexOf("Upload screenshots"));
   assert.match(upload, /if: \$\{\{ always\(\) \}\}/u);
-  for (const path of ["summary.md", "screenshots/", "app.log", "build.log", "supabase.log"]) assert.ok(upload.includes(`output/pr-preview/${path}`), path);
+  for (const path of ["summary.md", "screenshots/", "app.log", "build.log"]) assert.ok(upload.includes(`output/pr-preview/${path}`), path);
+  // The `supabase start` log can hold S3 and JWT secrets: it is never uploaded, and nothing else (texts, work dir) is.
+  assert.doesNotMatch(upload, /supabase\.log|texts|work\/|output\/pr-preview\/?\s*$/mu);
+  // Redaction is a separate step that runs under always() before the upload, so an interrupted run is covered too.
+  const redactStep = executable.slice(executable.indexOf("Redact uploaded logs"), executable.indexOf("Upload screenshots"));
+  assert.match(redactStep, /if: \$\{\{ always\(\) \}\}/u);
+  assert.match(redactStep, /node scripts\/ci\/redact\.mjs output\/pr-preview\/app\.log output\/pr-preview\/build\.log/u);
+  assert.ok(executable.indexOf("Redact uploaded logs") < executable.indexOf("Upload screenshots"));
   assert.match(executable, /run: npm run preview:ci/u);
   assert.equal(packageJson.scripts["preview:ci"], "node scripts/ci/pr-preview.mjs");
 });
@@ -117,11 +124,16 @@ test("page visits fail on 5xx document and XHR responses, not only on page error
 
 test("uploaded logs are redacted of JWTs, sb_ keys and database passwords", () => {
   const jwt = `eyJ${"a".repeat(20)}.${"b".repeat(30)}.${"c".repeat(20)}`;
-  const text = `service_role key: ${jwt}\nsb_secret_ABCdef123_-x and sb_publishable_ZZZ999\nDB: postgresql://postgres:postgres@127.0.0.1:46442/postgres`;
+  const text = `Access Key: 625729a08b95bf1b7ff351a663f3a23c\nSecret Key: 850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed6eda37307425907\nJWT secret: super-secret-jwt-token-with-at-least-32-characters\nservice_role key: ${jwt}\nsb_secret_ABCdef123_-x and sb_publishable_ZZZ999\nDB: postgresql://postgres:postgres@127.0.0.1:46442/postgres`;
   const out = redact(text);
-  assert.doesNotMatch(out, /eyJ|sb_secret_|sb_publishable_|:postgres@/u);
-  assert.match(out, /\[redacted-jwt\]/u);
+  assert.doesNotMatch(out, /eyJ|sb_secret_|sb_publishable_|:postgres@|625729a0|850181e4|super-secret-jwt/u);
+  assert.match(out, /\[redacted/u);
+  assert.match(redact(`token ${jwt}`), /\[redacted-jwt\]/u);
   assert.match(out, /postgresql:\/\/postgres:\[redacted\]@127\.0\.0\.1/u);
   // The redaction is applied to every uploaded log before the summary is written.
-  assert.match(script, /for \(const file of \[APP_LOG, SUPABASE_LOG, BUILD_LOG\]\) \{\n  try \{ writeFileSync\(file, redact/u);
+  assert.match(script, /for \(const file of \[APP_LOG, BUILD_LOG\]\) \{\n  try \{ writeFileSync\(file, redact/u);
+});
+
+test("the debug page-text dump is gone", () => {
+  assert.doesNotMatch(scriptSource, /EVO_PR_PREVIEW_DUMP|innerText|"texts"/u);
 });

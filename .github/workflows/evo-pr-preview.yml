@@ -97,6 +97,10 @@ jobs:
       - name: Run the PR preview
         run: npm run preview:ci
 
+      - name: Redact uploaded logs
+        if: ${{ always() }}
+        run: node scripts/ci/redact.mjs output/pr-preview/app.log output/pr-preview/build.log output/pr-preview/summary.md
+
       - name: Upload screenshots, logs and timing table
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -107,6 +111,5 @@ jobs:
             output/pr-preview/screenshots/
             output/pr-preview/app.log
             output/pr-preview/build.log
-            output/pr-preview/supabase.log
           if-no-files-found: warn
           retention-days: 7

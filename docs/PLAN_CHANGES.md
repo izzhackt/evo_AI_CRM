@@ -63455,3 +63455,8 @@ Reviewer notes: pending independent review on the exact PR head.
 - **Серверные ошибки:** ответ документа или XHR/fetch со статусом 5xx во время посещения страницы — сбой этой страницы.
 - **Классификатор** (`scripts/checks/classify-pr-changes.mjs`, не менялся): `scripts/**` и `supabase/**` кроме `migrations/`/`tests/` — код (`code=true`), миграции — граница миграций; предпросмотр запускается для всех трёх.
 - **Не сделано:** параллельная сборка с запуском Supabase — ключи известны только после `supabase status`, сложно и небезопасно ради ~30 с.
+
+## 2026-11-22 · Проверка «preview»: последние правки по повторному обзору (PR #1517)
+- `supabase.log` в артефакт больше не выкладывается (вывод `supabase start` может содержать ключи S3 и `JWT_SECRET`); сбои видны в логе задачи и `summary.md`. Артефакт: `summary.md`, снимки, `app.log`, `build.log`.
+- Очистка вынесена в отдельный шаг `Redact uploaded logs` (`if: always()`, до выгрузки; `node scripts/ci/redact.mjs`), поэтому покрыт и прерванный прогон. К правилам добавлены строки с метками «Access Key», «Secret Key», «JWT secret», «service_role».
+- Отладочный вывод текстов страниц (`EVO_PR_PREVIEW_DUMP`) удалён. Тесты закрепляют состав артефакта, шаг очистки и отсутствие дампа.

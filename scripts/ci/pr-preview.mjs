@@ -221,10 +221,6 @@ async function checkPage(page, baseUrl, spec, group, results, pageErrors, server
       if (await page.locator(`[data-testid="${id}"]`).count()) throw new Error(`виден запасной/устаревший вид (${id})`);
     }
     if (serverErrors.length > errorsBeforeServer) throw new Error(`ответ сервера 5xx: ${serverErrors[serverErrors.length - 1]}`);
-    if (process.env.EVO_PR_PREVIEW_DUMP === "1") {
-      mkdirSync(join(OUT_DIR, "texts"), { recursive: true });
-      writeFileSync(join(OUT_DIR, "texts", `${group}-${spec.path.replace(/[^A-Za-z0-9-]+/gu, "_")}.txt`), await page.locator("body").innerText());
-    }
     if (pageErrors.length > errorsBefore) throw new Error(`ошибка в браузере: ${pageErrors[pageErrors.length - 1]}`);
     result.ok = true;
   } catch (error) {
@@ -401,7 +397,7 @@ let fatal = null;
 try { outcome = await main(); } catch (error) { fatal = error; failures.push(`прогон прерван: ${String(error?.message ?? error).split("\n")[0].slice(0, 300)}`); }
 
 // Загружаемые логи в публичный артефакт: токены вида JWT и sb_* (в том числе локальные ключи по умолчанию) вычёркиваются.
-for (const file of [APP_LOG, SUPABASE_LOG, BUILD_LOG]) {
+for (const file of [APP_LOG, BUILD_LOG]) {
   try { writeFileSync(file, redact(readFileSync(file, "utf8"))); } catch { /* файла нет при раннем сбое */ }
 }
 mkdirSync(OUT_DIR, { recursive: true });

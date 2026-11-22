@@ -144,85 +144,168 @@ if [[ ! "$health_timeout_seconds" =~ ^[0-9]+$ ]] \
   exit 1
 fi
 
-node "$deadline_runner" 120000 docker run \
-  --detach \
-  --name "$container_name" \
-  --network none \
-  --env POSTGRES_PASSWORD=postgres \
-  --mount "type=bind,src=$repo_root,dst=/workspace,readonly" \
-  "$postgres_image" >/dev/null
+# Boundary mode (docs/PLAN_CHANGES.md, 22.11.2026). Default `full` is the whole chain, exactly as before.
+#   EVO_MIGRATION_BOUNDARY_MODE=auto  restore the saved baseline from EVO_MIGRATION_BASELINE_DIR when the planner
+#                                     (scripts/test-runners/migration-baseline.mjs) proves the change is additions only;
+#                                     otherwise fall back to the whole chain and say why in the log;
+#   EVO_MIGRATION_BOUNDARY_MODE=save  whole chain, then save the database after the last migration (before the
+#                                     end-of-chain checks) into EVO_MIGRATION_BASELINE_DIR, with a manifest at the end.
+boundary_mode="${EVO_MIGRATION_BOUNDARY_MODE:-full}"
+baseline_dir="${EVO_MIGRATION_BASELINE_DIR:-}"
+baseline_planner="$repo_root/scripts/test-runners/migration-baseline.mjs"
+baseline_archive_name="data.tar.zst"
+postgres_data_dir="/var/lib/postgresql/data"
+chain_mode="full"
+fast_migrations=()
 
-health_status=""
-health_deadline=$((SECONDS + health_timeout_seconds))
-while (( SECONDS < health_deadline )); do
-  if health_status="$(
-    node "$deadline_runner" 15000 docker inspect \
-      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
-      "$container_name" 2>/dev/null
-  )"; then
-    :
+case "$boundary_mode" in
+  full)
+    echo "MIGRATION_BOUNDARY_MODE=full reason=\"default: whole migration chain\""
+    ;;
+  save)
+    if [[ -z "$baseline_dir" ]] || ! command -v zstd >/dev/null 2>&1; then
+      echo "EVO_MIGRATION_BOUNDARY_MODE=save needs EVO_MIGRATION_BASELINE_DIR and zstd" >&2
+      exit 1
+    fi
+    node "$baseline_planner" precheck-save --repo "$repo_root"
+    mkdir -p "$baseline_dir"
+    rm -f -- "$baseline_dir/baseline.json" "$baseline_dir/$baseline_archive_name"
+    echo "MIGRATION_BOUNDARY_MODE=full reason=\"saving a baseline after the whole chain\""
+    ;;
+  auto)
+    if plan_output="$(node "$baseline_planner" plan --repo "$repo_root" --baseline-dir "$baseline_dir")"; then
+      while IFS= read -r plan_line; do
+        case "$plan_line" in
+          "MODE "*) chain_mode="${plan_line#MODE }" ;;
+          "REASON "*) plan_reason="${plan_line#REASON }" ;;
+          "NEW "*) fast_migrations+=("${plan_line#NEW }") ;;
+        esac
+      done <<<"$plan_output"
+    else
+      chain_mode="full"
+      plan_reason="the planner itself failed"
+    fi
+    if [[ "$chain_mode" == "fast" ]] && ! command -v zstd >/dev/null 2>&1; then
+      chain_mode="full"
+      plan_reason="zstd is unavailable to unpack the baseline"
+    fi
+    if [[ "$chain_mode" != "fast" ]]; then
+      chain_mode="full"
+      fast_migrations=()
+    fi
+    echo "MIGRATION_BOUNDARY_MODE=$chain_mode reason=\"${plan_reason:-unknown}\" new_migrations=${#fast_migrations[@]}"
+    ;;
+  *)
+    echo "EVO_MIGRATION_BOUNDARY_MODE must be full, auto or save" >&2
+    exit 1
+    ;;
+esac
+
+# The migrations the loop below applies: the whole chain, or only the new ones on top of the restored baseline.
+list_chain_migrations() {
+  if [[ "$chain_mode" == "fast" ]]; then
+    if (( ${#fast_migrations[@]} > 0 )); then
+      printf '%s\n' "${fast_migrations[@]}"
+    fi
   else
-    health_status="docker_unavailable"
+    find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
   fi
-  [[ "$health_status" == "healthy" ]] && break
-  sleep 1
-done
+}
 
-if [[ "$health_status" != "healthy" ]]; then
-  echo \
-    "Pinned Supabase Postgres container did not become healthy within ${health_timeout_seconds}s (last status: ${health_status:-unknown})" \
-    >&2
-  node "$deadline_runner" 15000 docker logs --tail 120 "$container_name" \
-    >&2 || true
-  exit 1
+wait_for_postgres_healthy() {
+  health_status=""
+  health_deadline=$((SECONDS + health_timeout_seconds))
+  while (( SECONDS < health_deadline )); do
+    if health_status="$(
+      node "$deadline_runner" 15000 docker inspect \
+        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+        "$container_name" 2>/dev/null
+    )"; then
+      :
+    else
+      health_status="docker_unavailable"
+    fi
+    [[ "$health_status" == "healthy" ]] && break
+    sleep 1
+  done
+
+  if [[ "$health_status" != "healthy" ]]; then
+    echo \
+      "Pinned Supabase Postgres container did not become healthy within ${health_timeout_seconds}s (last status: ${health_status:-unknown})" \
+      >&2
+    node "$deadline_runner" 15000 docker logs --tail 120 "$container_name" \
+      >&2 || true
+    exit 1
+  fi
+}
+
+container_run_args=(
+  --name "$container_name"
+  --network none
+  --env POSTGRES_PASSWORD=postgres
+  --mount "type=bind,src=$repo_root,dst=/workspace,readonly"
+  "$postgres_image"
+)
+if [[ "$chain_mode" == "fast" ]]; then
+  # Restore the saved data directory into a fresh container of the same image, then start it.
+  node "$deadline_runner" 120000 docker create "${container_run_args[@]}" >/dev/null
+  zstd -dc -q -- "$baseline_dir/$baseline_archive_name" \
+    | docker cp - "$container_name:$(dirname "$postgres_data_dir")"
+  node "$deadline_runner" 120000 docker start "$container_name" >/dev/null
+else
+  node "$deadline_runner" 120000 docker run --detach "${container_run_args[@]}" >/dev/null
 fi
+
+wait_for_postgres_healthy
 
 docker exec "$container_name" \
   pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null
 postgres_image_id="$(
   docker inspect --format '{{.Image}}' "$container_name"
 )"
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "postgres" \
-  -c "CREATE DATABASE ${test_database} TEMPLATE template0;"
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-  -c "COMMENT ON DATABASE ${test_database} IS 'EVO disposable authorization and queue contract test';"
-docker exec \
-  --env PGPASSWORD=postgres \
-  "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U supabase_admin -d "$test_database" \
-  -c "GRANT anon, authenticated, service_role, supabase_auth_admin, supabase_admin TO postgres;"
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-  -f /workspace/supabase/tests/bootstrap_supabase.sql
+if [[ "$chain_mode" == "full" ]]; then
+  docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "postgres" \
+    -c "CREATE DATABASE ${test_database} TEMPLATE template0;"
+  docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -c "COMMENT ON DATABASE ${test_database} IS 'EVO disposable authorization and queue contract test';"
+  docker exec \
+    --env PGPASSWORD=postgres \
+    "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U supabase_admin -d "$test_database" \
+    -c "GRANT anon, authenticated, service_role, supabase_auth_admin, supabase_admin TO postgres;"
+  docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -f /workspace/supabase/tests/bootstrap_supabase.sql
 
-# Prove migration 040 fails closed instead of adopting a browser-owned object
-# from a pre-existing namespace. The ordinary migration loop then proves that
-# empty owner drift is safely normalized and remains idempotent.
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-  -c "SET ROLE authenticated; CREATE TABLE platform.p2b_untrusted_owner_probe (id integer); RESET ROLE;"
+  # Prove migration 040 fails closed instead of adopting a browser-owned object
+  # from a pre-existing namespace. The ordinary migration loop then proves that
+  # empty owner drift is safely normalized and remains idempotent.
+  docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -c "SET ROLE authenticated; CREATE TABLE platform.p2b_untrusted_owner_probe (id integer); RESET ROLE;"
 
-if docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-  -f /workspace/supabase/migrations/040_platform_namespaces_and_secret_containment.sql \
-  >"$p2b_drift_log" 2>&1; then
-  echo "migration 040 unexpectedly adopted a browser-owned schema object" >&2
-  exit 1
+  if docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -f /workspace/supabase/migrations/040_platform_namespaces_and_secret_containment.sql \
+    >"$p2b_drift_log" 2>&1; then
+    echo "migration 040 unexpectedly adopted a browser-owned schema object" >&2
+    exit 1
+  fi
+
+  if ! grep -Fq \
+    "Platform schema owner drift contains non-postgres objects" \
+    "$p2b_drift_log"; then
+    echo "migration 040 failed for the wrong owner-drift reason" >&2
+    sed -n '1,80p' "$p2b_drift_log" >&2
+    exit 1
+  fi
+
+  docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -c "DROP TABLE platform.p2b_untrusted_owner_probe;"
 fi
-
-if ! grep -Fq \
-  "Platform schema owner drift contains non-postgres objects" \
-  "$p2b_drift_log"; then
-  echo "migration 040 failed for the wrong owner-drift reason" >&2
-  sed -n '1,80p' "$p2b_drift_log" >&2
-  exit 1
-fi
-
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-  -c "DROP TABLE platform.p2b_untrusted_owner_probe;"
 
 while IFS= read -r migration; do
   # Preserve one migration-060-compatible direct-chat identity just before
@@ -6078,8 +6161,28 @@ SQL
   fi
 done < <(
   cd "$repo_root"
-  find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
+  list_chain_migrations
 )
+
+# Save mode: the database exactly as the last migration left it, before any end-of-chain check touches it. Stop Postgres
+# cleanly (the image's stop signal is SIGINT = fast shutdown), copy the data directory out, start the same container
+# again so the end-of-chain checks below run on the saved state. The manifest is written only at the very end of a green
+# run, so a failed run leaves no usable baseline.
+if [[ "$boundary_mode" == "save" ]]; then
+  echo "Saving the migration baseline into $baseline_dir"
+  docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "postgres" -c "CHECKPOINT;" >/dev/null
+  node "$deadline_runner" 180000 docker stop --time 150 "$container_name" >/dev/null
+  if ! docker logs --tail 40 "$container_name" 2>&1 | grep -q "database system is shut down"; then
+    echo "Postgres did not shut down cleanly; refusing to save a baseline" >&2
+    exit 1
+  fi
+  docker cp "$container_name:$postgres_data_dir" - \
+    | zstd -q -3 -T0 -o "$baseline_dir/$baseline_archive_name.partial"
+  mv -- "$baseline_dir/$baseline_archive_name.partial" "$baseline_dir/$baseline_archive_name"
+  node "$deadline_runner" 120000 docker start "$container_name" >/dev/null
+  wait_for_postgres_healthy
+fi
 
 # «Сегодня» — сроки вузов на 14 дней (Э3, PLAN_CHANGES 27.09.2026): no
 # migration, the band reuses 145's admissions_deadline_page_v1. The suite runs
@@ -6131,6 +6234,17 @@ docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
   -f /workspace/supabase/tests/authorization_inventory.sql
 
+if [[ "$boundary_mode" == "save" ]]; then
+  node "$baseline_planner" manifest --repo "$repo_root" --dir "$baseline_dir" \
+    --image "$postgres_image" --image-id "$postgres_image_id"
+fi
+
 printf 'Verified disposable authorization database with %s (%s).\n' \
   "$postgres_image" \
   "${postgres_image_id:0:19}"
+if [[ "$chain_mode" == "fast" ]]; then
+  printf 'Migration boundary ran in FAST mode: baseline plus %s new migration(s); all end-of-chain checks ran.\n' \
+    "${#fast_migrations[@]}"
+else
+  printf 'Migration boundary ran the FULL chain.\n'
+fi

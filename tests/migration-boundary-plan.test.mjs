@@ -1,0 +1,273 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import test from "node:test";
+
+import {
+  ARCHIVE_NAME,
+  HARNESS_PATH,
+  MANIFEST_NAME,
+  baselineKey,
+  planMigrationBoundary,
+} from "../scripts/test-runners/migration-baseline.mjs";
+
+// Pins the choice between the fast baseline mode and the whole chain for the «Migration boundary» check
+// (docs/PLAN_CHANGES.md, 22.11.2026). Real git repositories in a temp directory, no Docker: additions only ->
+// fast; anything else, or no usable baseline -> the whole chain, with a reason.
+
+const realHarness = readFileSync(new URL(`../${HARNESS_PATH}`, import.meta.url), "utf8");
+
+const HARNESS = `#!/usr/bin/env bash
+set -euo pipefail
+preamble_marker=1
+
+while IFS= read -r migration; do
+  if [[ "$(basename "$migration")" == 001_* ]]; then
+    echo first
+  fi
+  # Second block.
+  if [[ "$(basename "$migration")" == *_two.sql ]]; then
+    echo second
+  fi
+done < <(
+  cd "$repo_root"
+  list_chain_migrations
+)
+
+echo end-of-chain \\
+  --flag
+psql -f /workspace/supabase/tests/final.sql
+`;
+
+const BASE_FILES = {
+  [HARNESS_PATH]: HARNESS,
+  "scripts/local-dev/resolve-postgres-test-image.sh": "#!/usr/bin/env bash\necho image\n",
+  "scripts/test-runners/migration-baseline.mjs": "// planner placeholder\n",
+  "supabase/migrations/001_one.sql": "select 1;\n",
+  "supabase/migrations/002_two.sql": "select 2;\n",
+  "supabase/tests/one.sql": "select 'one';\n",
+  "supabase/tests/final.sql": "select 'final';\n",
+  "docs/notes.md": "notes\n",
+};
+
+const NEW_BLOCK = `  if [[ "$(basename "$migration")" == *_three.sql ]]; then
+    echo third
+  fi
+`;
+
+function run(repo, ...args) {
+  return execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], {
+    cwd: repo,
+    encoding: "utf8",
+  }).trim();
+}
+
+function write(repo, files) {
+  for (const [path, content] of Object.entries(files)) {
+    if (content === null) {
+      rmSync(join(repo, path), { force: true });
+      continue;
+    }
+    mkdirSync(dirname(join(repo, path)), { recursive: true });
+    writeFileSync(join(repo, path), content);
+  }
+}
+
+function commit(repo, files, message) {
+  write(repo, files);
+  run(repo, "add", "-A");
+  run(repo, "commit", "-q", "-m", message);
+  return run(repo, "rev-parse", "HEAD");
+}
+
+/** A repo whose first commit is the baseline source, a baseline dir for it, and a helper to add the PR commit. */
+function scenario(t, { baselineFiles = BASE_FILES } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "evo-boundary-plan-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const repo = join(root, "repo");
+  const baselineDir = join(root, "baseline");
+  mkdirSync(repo);
+  mkdirSync(baselineDir);
+  run(repo, "init", "-q");
+  const sourceRev = commit(repo, baselineFiles, "baseline");
+  const archive = Buffer.from("not a real archive, only its checksum matters here");
+  writeFileSync(join(baselineDir, ARCHIVE_NAME), archive);
+  const manifest = {
+    schema: 1,
+    key: baselineKey(repo, sourceRev),
+    sourceRev,
+    archive: { name: ARCHIVE_NAME, bytes: archive.length, sha256: createHash("sha256").update(archive).digest("hex") },
+  };
+  const writeManifest = value => writeFileSync(join(baselineDir, MANIFEST_NAME), JSON.stringify(value));
+  writeManifest(manifest);
+  return {
+    repo,
+    baselineDir,
+    sourceRev,
+    manifest,
+    writeManifest,
+    pr: (files, message = "pr") => commit(repo, files, message),
+    plan: () => planMigrationBoundary({ repo, baselineDir }),
+  };
+}
+
+const withBlock = harness => harness.replace('done < <(', `${NEW_BLOCK}done < <(`);
+
+test("additions only (new migration, new suite, new migration block, end-of-chain line) run in fast mode", async t => {
+  const s = scenario(t);
+  s.pr({
+    "supabase/migrations/003_three.sql": "select 3;\n",
+    "supabase/tests/three.sql": "select 'three';\n",
+    [HARNESS_PATH]: withBlock(HARNESS).replace("psql -f /workspace/supabase/tests/final.sql\n", "psql -f /workspace/supabase/tests/final.sql\npsql -f /workspace/supabase/tests/three.sql\n"),
+    "docs/notes.md": "changed notes\n",
+  });
+  const plan = await s.plan();
+  assert.equal(plan.mode, "fast", plan.reason);
+  assert.deepEqual(plan.addedMigrations, ["supabase/migrations/003_three.sql"]);
+  assert.deepEqual(plan.addedSuites, ["supabase/tests/three.sql"]);
+});
+
+test("a block added at the start of the loop body is also fast", async t => {
+  const s = scenario(t);
+  s.pr({
+    "supabase/migrations/003_three.sql": "select 3;\n",
+    [HARNESS_PATH]: HARNESS.replace("migration; do\n", `migration; do\n${NEW_BLOCK}`),
+  });
+  assert.equal((await s.plan()).mode, "fast");
+});
+
+test("an end-of-chain-only PR with no new migration is fast with nothing to apply", async t => {
+  const s = scenario(t);
+  s.pr({ [HARNESS_PATH]: HARNESS + "echo more\n" });
+  const plan = await s.plan();
+  assert.equal(plan.mode, "fast", plan.reason);
+  assert.deepEqual(plan.addedMigrations, []);
+});
+
+test("the real harness accepts a new migration block inserted before the end of the loop", async t => {
+  const insertion = NEW_BLOCK;
+  const marker = "\ndone < <(\n  cd \"$repo_root\"\n  list_chain_migrations\n)";
+  assert.ok(realHarness.includes(marker), "the real harness keeps its loop markers");
+  const s = scenario(t, { baselineFiles: { ...BASE_FILES, [HARNESS_PATH]: realHarness } });
+  s.pr({
+    "supabase/migrations/003_three.sql": "select 3;\n",
+    [HARNESS_PATH]: realHarness.replace(marker, `\n${insertion}${marker.slice(1)}`),
+  });
+  const plan = await s.plan();
+  assert.equal(plan.mode, "fast", plan.reason);
+});
+
+test("a modified existing migration runs the whole chain", async t => {
+  const s = scenario(t);
+  s.pr({ "supabase/migrations/002_two.sql": "select 22;\n", "supabase/migrations/003_three.sql": "select 3;\n" });
+  const plan = await s.plan();
+  assert.equal(plan.mode, "full");
+  assert.match(plan.reason, /existing migration 002_two\.sql was modified/u);
+});
+
+test("a deleted existing migration runs the whole chain", async t => {
+  const s = scenario(t);
+  s.pr({ "supabase/migrations/002_two.sql": null });
+  assert.match((await s.plan()).reason, /deleted/u);
+});
+
+test("a modified existing suite runs the whole chain", async t => {
+  const s = scenario(t);
+  s.pr({ "supabase/tests/one.sql": "select 'changed';\n" });
+  const plan = await s.plan();
+  assert.equal(plan.mode, "full");
+  assert.match(plan.reason, /existing suite supabase\/tests\/one\.sql was modified/u);
+});
+
+test("a migration that sorts before the last existing one runs the whole chain", async t => {
+  const s = scenario(t);
+  s.pr({ "supabase/migrations/001_zero.sql": "select 0;\n" });
+  assert.match((await s.plan()).reason, /does not sort after/u);
+});
+
+test("harness changes other than new migration blocks or end-of-chain insertions run the whole chain", async t => {
+  const cases = {
+    "a removed or changed line": h => h.replace("echo second", "echo SECOND"),
+    "an insertion in the preamble": h => h.replace("preamble_marker=1\n", "preamble_marker=1\nextra=1\n"),
+    "an insertion inside an existing block": h => h.replace("    echo first\n", "    echo first\n    echo sneaked\n"),
+    "a loop statement that is not migration-gated": h => h.replace("done < <(", "  echo ungated\ndone < <("),
+    "a block matching an existing migration": h => h.replace("done < <(", `  if [[ "$(basename "$migration")" == *_two.sql ]]; then\n    echo again\n  fi\ndone < <(`),
+    "a block matching no added migration": h => h.replace("done < <(", `  if [[ "$(basename "$migration")" == *_other.sql ]]; then\n    echo x\n  fi\ndone < <(`),
+    "an insertion inside the migration list command": h => h.replace('  cd "$repo_root"\n', '  cd "$repo_root"\n  echo hidden\n'),
+    "an insertion in the middle of a continued statement": h => h.replace("echo end-of-chain \\\n", "echo end-of-chain \\\n  --extra \\\n"),
+  };
+  for (const [name, edit] of Object.entries(cases)) {
+    const s = scenario(t);
+    s.pr({ "supabase/migrations/003_three.sql": "select 3;\n", [HARNESS_PATH]: edit(HARNESS) });
+    const plan = await s.plan();
+    assert.equal(plan.mode, "full", `${name}: ${plan.reason}`);
+    assert.match(plan.reason, /harness/u, name);
+  }
+});
+
+test("a changed image resolver or planner runs the whole chain", async t => {
+  for (const path of ["scripts/local-dev/resolve-postgres-test-image.sh", "scripts/test-runners/migration-baseline.mjs"]) {
+    const s = scenario(t);
+    s.pr({ [path]: "changed\n" });
+    const plan = await s.plan();
+    assert.equal(plan.mode, "full");
+    assert.match(plan.reason, /changed/u);
+  }
+});
+
+test("no baseline, a missing or damaged one, or a mismatching one runs the whole chain with a reason", async t => {
+  const none = scenario(t);
+  none.pr({ "supabase/migrations/003_three.sql": "select 3;\n" });
+  assert.match((await planMigrationBoundary({ repo: none.repo, baselineDir: join(none.baselineDir, "nope") })).reason, /no baseline manifest/u);
+  assert.match((await planMigrationBoundary({ repo: none.repo, baselineDir: undefined })).reason, /no baseline directory/u);
+
+  const badSum = scenario(t);
+  badSum.writeManifest({ ...badSum.manifest, archive: { ...badSum.manifest.archive, sha256: "0".repeat(64) } });
+  badSum.pr({ "supabase/migrations/003_three.sql": "select 3;\n" });
+  assert.match((await badSum.plan()).reason, /checksum/u);
+
+  const badSize = scenario(t);
+  badSize.writeManifest({ ...badSize.manifest, archive: { ...badSize.manifest.archive, bytes: 1 } });
+  assert.match((await badSize.plan()).reason, /wrong size/u);
+
+  const badKey = scenario(t);
+  badKey.writeManifest({ ...badKey.manifest, key: "migration-baseline-v1-deadbeef" });
+  assert.match((await badKey.plan()).reason, /key does not match/u);
+
+  const malformed = scenario(t);
+  malformed.writeManifest({ schema: 2 });
+  assert.match((await malformed.plan()).reason, /malformed/u);
+});
+
+test("a baseline built from a revision that is not an ancestor runs the whole chain", async t => {
+  const s = scenario(t);
+  // Same repository, a sibling history: build the baseline on a side branch the tested head does not contain.
+  run(s.repo, "checkout", "-q", "-b", "side");
+  const sideRev = commit(s.repo, { "supabase/migrations/003_side.sql": "select 3;\n" }, "side");
+  s.writeManifest({ ...s.manifest, sourceRev: sideRev, key: baselineKey(s.repo, sideRev) });
+  run(s.repo, "checkout", "-q", "-");
+  s.pr({ "supabase/migrations/003_three.sql": "select 3;\n" });
+  assert.match((await s.plan()).reason, /not an ancestor/u);
+});
+
+test("uncommitted or untracked boundary inputs run the whole chain", async t => {
+  const s = scenario(t);
+  s.pr({ "supabase/migrations/003_three.sql": "select 3;\n" });
+  write(s.repo, { "supabase/migrations/004_loose.sql": "select 4;\n" });
+  assert.match((await s.plan()).reason, /uncommitted/u);
+});
+
+test("the key follows the content of the inputs only", t => {
+  const s = scenario(t);
+  const before = baselineKey(s.repo, s.sourceRev);
+  const docs = s.pr({ "docs/notes.md": "other\n" });
+  assert.equal(baselineKey(s.repo, docs), before);
+  const migration = s.pr({ "supabase/migrations/002_two.sql": "select 22;\n" });
+  assert.notEqual(baselineKey(s.repo, migration), before);
+  const harness = s.pr({ [HARNESS_PATH]: HARNESS + "echo more\n" });
+  assert.notEqual(baselineKey(s.repo, harness), baselineKey(s.repo, migration));
+  assert.match(before, /^migration-baseline-v1-[0-9a-f]{64}$/u);
+});

@@ -175,6 +175,8 @@ case "$boundary_mode" in
   auto)
     # The decision is made by the planner of the BASELINE's source commit (main), never by the planner of the change
     # under test, so a PR cannot edit the rules it is judged by. No readable baseline or no such planner: whole chain.
+    # This protects against ACCIDENTS and planner bugs, not against a hostile PR: such a PR could still replace this
+    # preamble or the workflow. That case is covered by code review and branch protection, not by this script.
     trusted_planner=""
     plan_output=""
     plan_reason=""

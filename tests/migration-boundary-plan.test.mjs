@@ -297,16 +297,24 @@ test("a baseline built with another Postgres image runs the whole chain", async 
   assert.match(other.reason, /another Postgres image/u);
 });
 
+// Bare path tokens that are known not to be files the harness reads (none today). Add an entry only with a reason.
+const BARE_PATH_ALLOW_LIST = new Set([]);
+
 test("every file the real harness reads is a baseline input (or read only after the loop)", () => {
   const lines = realHarness.split("\n");
   const loopClose = lines.findIndex((line, i) => i > 0 && /^\)$/u.test(line) && lines.slice(0, i).some(l => /^done < <\($/u.test(l)));
   assert.ok(loopClose > 0);
-  const covered = path => INPUT_PATHSPECS.some(spec => (spec.endsWith("/") ? path.startsWith(spec) : path === spec));
+  const covered = path => INPUT_PATHSPECS.some(spec => (spec.endsWith("/") ? `${path}/`.startsWith(spec) : path === spec));
   const refs = [];
   lines.forEach((line, index) => {
     if (/^\s*#/u.test(line)) return;
-    for (const match of line.matchAll(/(?:\$repo_root|\$\{repo_root\}|\/workspace)\/([A-Za-z0-9_./-]+)/gu)) {
+    for (const match of line.matchAll(/(?:\$repo_root|\$\{repo_root\}|\/workspace)"?\/([A-Za-z0-9_./-]+)/gu)) {
       refs.push({ path: match[1].replace(/[.]$/u, ""), line: index });
+    }
+    // Bare tokens: relative paths after `cd "$repo_root"`, a path inside a git revision spec, and so on.
+    for (const match of line.matchAll(/(?<![A-Za-z0-9_./$-])((?:scripts|supabase|docs)\/[A-Za-z0-9_./-]+)/gu)) {
+      const path = match[1].replace(/[.]$/u, "");
+      if (!BARE_PATH_ALLOW_LIST.has(path)) refs.push({ path, line: index });
     }
   });
   assert.ok(refs.length > 100, "the extraction must see the harness references");
@@ -324,4 +332,14 @@ test("the harness takes its decision from the planner of the baseline's source c
   assert.match(realHarness, /git -C "\$repo_root" show "\$baseline_source_rev:scripts\/test-runners\/migration-baseline\.mjs"/u);
   assert.match(realHarness, /node "\$trusted_planner" plan /u);
   assert.doesNotMatch(realHarness, /node "\$baseline_planner" plan/u);
+});
+
+test("the bare path scan sees relative paths and a quote closed before the slash", () => {
+  const sample = ['  find supabase/migrations -maxdepth 1', 'bash "$repo_root"/scripts/x.sh', 'git show "$rev:scripts/y.mjs"'];
+  const found = [];
+  for (const line of sample) {
+    for (const m of line.matchAll(/(?:\$repo_root|\$\{repo_root\}|\/workspace)"?\/([A-Za-z0-9_./-]+)/gu)) found.push(m[1]);
+    for (const m of line.matchAll(/(?<![A-Za-z0-9_./$-])((?:scripts|supabase|docs)\/[A-Za-z0-9_./-]+)/gu)) found.push(m[1]);
+  }
+  assert.deepEqual(found, ["supabase/migrations", "scripts/x.sh", "scripts/y.mjs"]);
 });

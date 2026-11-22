@@ -386,7 +386,11 @@ test("case file: a Bearer student gets the 60 s signed-URL redirect after the ta
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(calls.actor, [TOKEN]);
     assert.deepEqual(calls.client, [TOKEN]);
-    assert.deepEqual(calls.rpc, [["student_portal_case_file_target_v1", { p_file_kind: kind, p_file_id: FILE_ID }]]);
+    // #1509 (migrations 366–370): after the target the same session asks the database for the download name of that file.
+    assert.deepEqual(calls.rpc, [
+      ["student_portal_case_file_target_v1", { p_file_kind: kind, p_file_id: FILE_ID }],
+      ["student_portal_case_file_download_name_v1", { p_file_kind: kind, p_file_id: FILE_ID }],
+    ]);
     assert.deepEqual(calls.sign, [["cases/synthetic/object", 60, { download: true }]]);
   }
 });

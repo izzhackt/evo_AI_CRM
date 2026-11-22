@@ -777,7 +777,10 @@ test("the window: «Отчёт загружается…» shows under a transpa
 test("the layout computes `financeSection` next to the existing reads and hands it to the shell; a failed read hides the item", async () => {
   const shellProps = [];
   const reads = [];
+  // С #1378 (06.11.2026) layout читает cookie свёрнутого меню: вне запроса `cookies()` недоступен, здесь он отдаёт заданное значение.
+  let menuCookie;
   const make = (actor, finance) => loader({
+    "next/headers": { cookies: async () => ({ get: (name) => (menuCookie === undefined ? undefined : { name, value: menuCookie }) }) },
     "./staff.css": {}, "./ai-agent.css": {},
     "@/components/ServerReleaseMark": { ServerReleaseMark: () => null },
     "@/components/staff/AppShell": { AppShell: (props) => { shellProps.push(props); return null; } },
@@ -794,8 +797,12 @@ test("the layout computes `financeSection` next to the existing reads and hands 
     assert.equal(shell.props.financeSection, expected);
     assert.equal(shell.props.actor, actor);
     assert.ok(!("nextUi" in shell.props), "переключателя «Нового вида» больше нет (#1327)");
+    assert.equal(shell.props.menuCollapsed, false, "no cookie: the menu is open");
     void shellProps;
   }
+  menuCookie = "rail";
+  assert.equal((await make(admin, () => true)({ children: null })).props.children[0].props.menuCollapsed, true, "the rail cookie folds the menu");
+  menuCookie = undefined;
   // Ошибка чтения не роняет страницу: пункт скрыт.
   const failing = await make(accountant, () => { throw new Error("rpc down"); })({ children: null });
   assert.equal(failing.props.children[0].props.financeSection, false);

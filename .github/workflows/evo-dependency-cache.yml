@@ -1,0 +1,53 @@
+name: EVO dependency cache
+
+# PR checks restore node_modules from a cache keyed by the lockfile and Node (PLAN_CHANGES 22.11.2026). A cache saved by
+# a pull request is visible only to that pull request; a cache saved on main is visible to every pull request. This job
+# saves it on main, so even the first run of a new PR skips `npm ci`. It installs and caches only: no build, no secrets.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package-lock.json
+      - .nvmrc
+      - .github/workflows/evo-dependency-cache.yml
+  # GitHub evicts a cache unused for 7 days; a weekly run puts it back (a hit makes the run a no-op).
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evo-dependency-cache
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    name: Warm dependency cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
+      - name: Install locked dependencies
+        if: ${{ steps.deps.outputs.cache-hit != 'true' }}
+        run: npm ci

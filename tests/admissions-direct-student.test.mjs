@@ -343,7 +343,7 @@ test("delta review #1194 (2): a «Ждут куратора» reader is not offe
   const workSource = source("src/lib/v3/case-work-source.ts");
   const profilePage = source("src/app/(staff)/profile/page.tsx");
   assert.match(profileSource, /assignOnly: data\.assignOnly,/u);
-  assert.match(workSource, /assignOnly \? FORBIDDEN : options\.overview \? readCaseTasks\(actor, target\) : NOT_READ/u);
+  assert.match(workSource, /assignOnly \? FORBIDDEN : readCaseTasks\(actor, target\)/u);
   assert.match(workSource, /assignOnly \? FORBIDDEN : options\.overview && options\.feed \? readCaseActivity\(actor, target\) : ACTIVITY_NOT_READ/u);
   assert.match(profilePage, /assignOnly: view\?\.details\.assignOnly === true/u);
   // «История» for that reader: no journal read (it answers this reader with an error), an honest line instead.

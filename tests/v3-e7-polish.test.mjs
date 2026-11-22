@@ -257,11 +257,13 @@ test("an empty composer takes the new key's own draft; nothing else ever fills t
 
 test("the dialog moves drafts only through switchComposerDraft and never overwrites typed fields", () => {
   const source = read("src/components/staff/tasks/TaskComposerDialog.tsx");
-  const effect = source.match(/useEffect\(\(\) => \{\n\s+if \(state\.status === "saved"\) return;[\s\S]*?\n {2}\}, \[draftContext, title, description, state\.status\]\);/u)?.[0] ?? "";
+  const effect = source.match(/useEffect\(\(\) => \{\n\s+if \(state\.status === "saved"\) return;[\s\S]*?\n {2}\}, \[draftContext, title, description, state\.status, initialDescription, opened\]\);/u)?.[0] ?? "";
   assert.ok(effect, "the draft effect is present");
   assert.match(effect, /const next = switchComposerDraft\(drafts, from, draftContext, \{ title, description \}\);/u);
   assert.match(effect, /if \(next\.title !== title\) setTitle\(next\.title\);/u);
   assert.match(effect, /if \(next\.description !== description\) setDescription\(next\.description\);/u);
+  // С «Сделать задачей» под ответом ИИ-агента (#1431 и ранее): нетронутое описание, которое дал вход, черновиком не становится.
+  assert.match(effect, /if \(initialDescription\.trim\(\) && title === opened\.title && description === opened\.description\) return;\n\s+drafts\.write\(draftContext, \{ title, description \}\);/u);
   // Прежняя ошибка: поля при смене дела заполнялись черновиком нового ключа или пустотой.
   assert.doesNotMatch(source, /setTitle\(next\?\.title \?\? ""\)|readDraft\(/u);
   assert.match(source, /const \[opened\] = useState\(\(\) => openComposerDraft\(drafts, draftContext, initialTitle, initialDescription\)\);/u);

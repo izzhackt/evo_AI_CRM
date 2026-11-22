@@ -209,7 +209,7 @@ case "$boundary_mode" in
       chain_mode="full"
       fast_migrations=()
     fi
-    echo "MIGRATION_BOUNDARY_MODE=$chain_mode reason=\"${plan_reason:-unknown}\" new_migrations=${#fast_migrations[@]}"
+    echo "MIGRATION_BOUNDARY_MODE=$chain_mode reason=\"${plan_reason:-the planner printed no decision}\" new_migrations=${#fast_migrations[@]}"
     ;;
   *)
     echo "EVO_MIGRATION_BOUNDARY_MODE must be full, auto or save" >&2

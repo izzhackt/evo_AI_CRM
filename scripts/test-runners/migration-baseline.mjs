@@ -23,7 +23,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -343,7 +343,15 @@ async function main(argv) {
   return 2;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Compare real paths: a copy run from a temp dir reached through a symlink (macOS /var -> /private/var) must still run.
+const isEntryPoint = (() => {
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
+if (isEntryPoint) {
   main(process.argv.slice(2)).then(
     code => process.exit(code),
     error => {

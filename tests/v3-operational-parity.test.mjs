@@ -17,13 +17,16 @@ test("«Сегодня» is the one start page of every role and replaces the op
   // root by the same test id. The queue reads only existing sources.
   // С #1327 корень страницы с этим test id рисует «Новый вид» («Сегодня»), страница отдаёт ему очередь.
   assert.match(source("src/components/staff/today-next/TodayNextPage.tsx"), /testId="v3-operational-dashboard"/u);
-  assert.match(main, /readTodayQueue\(actor, \{ now, callsTab: /u);
+  // #1514 (372): the queue call also carries `onSourceRead` (early start of the call-back leads read), so `callsTab` is no longer last-but-one.
+  assert.match(main, /readTodayQueue\(actor, \{\s*now,\s*callsTab: dialRead\.then\(/u);
   assert.match(main, /<TodayNextLazy\b/u);
   assert.doesNotMatch(main, /redirect\("\/admissions-pipeline"\)/u);
   assert.doesNotMatch(main, /OperationsOverview|readV3OperationalDashboard|readCurrentSalesFunnel|TrendChart|MetricCard/u);
   // Charts, period and funnel live in the report's «Динамика по дням».
   assert.match(main, /query\.view === "sales"/u);
-  assert.match(main, /<SalesDynamics\b/u);
+  // The report's section view is rendered by SalesTabView (shared with «Финансы»), which holds <SalesDynamics>.
+  assert.match(main, /<SalesTabView actor=\{actor\} query=\{query\} home="today" \/>/u);
+  assert.match(source("src/components/staff/sales-next/SalesTabView.tsx"), /<SalesDynamics\b/u);
   assert.doesNotMatch(calendar, /OperationsOverview|TodayScreen/u);
   assert.doesNotMatch(calendar, /href="\/main"/u);
   assert.doesNotMatch(calendar, /Сводка на Главной/u);

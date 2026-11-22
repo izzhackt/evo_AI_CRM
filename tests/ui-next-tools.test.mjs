@@ -231,7 +231,11 @@ test("страницы всегда рисуют новый вид (#1327) по�
   assert.match(documents, /redirect\("\/knowledge\?section=documents"\)/u, "администратор по-прежнему уходит в базу знаний");
   assert.match(snippets, /redirect\("\/knowledge\?section=snippets"\)/u);
   for (const page of [calendar, knowledge, chat, documents, snippets]) assert.doesNotMatch(page, /next\/(?:CalendarNextPage|KnowledgeNextPage|TeamChatNextPage|FilesNext|SnippetsNext)"/u, "виджеты нового вида в первую загрузку страницы не входят");
-  for (const page of [calendar, knowledge, chat]) assert.doesNotMatch(page, /from "@\/components\/kit"/u);
+  for (const page of [calendar, chat]) assert.doesNotMatch(page, /from "@\/components\/kit"/u);
+  // «База знаний» рисует рамку-заготовку (строки листа) в `Suspense`, пока входит ленивый вид (Э8.10); с #1349 рамка — `PageShell` набора, как у
+  // `loading.tsx` разделов. Это единственный разрешённый вход из набора: `PageShell` не клиентский и не тянет таблицы и панели, `HelpTip` у него ленивый.
+  assert.deepEqual([...knowledge.matchAll(/import \{([^}]*)\} from "@\/components\/kit";/gu)].map((match) => match[1].trim()), ["PageShell"], "из набора — только рамка-заготовка");
+  assert.doesNotMatch(read("src/components/kit/PageShell.tsx") + read("src/components/kit/PageHeader.tsx"), /"use client"|@\/components\/ui\/|DataTable|DetailSheet/u, "рамка не тянет виджеты нового вида");
   for (const server of ["KnowledgeDocuments", "KnowledgeSnippets"]) assert.doesNotMatch(read(`src/components/staff/knowledge/${server}.tsx`), /from "@\/components\/kit"|next\/(?:FilesNext|SnippetsNext)"/u, `${server}: только ленивый вход`);
 });
 

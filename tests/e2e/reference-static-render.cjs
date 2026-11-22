@@ -32,6 +32,9 @@
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const Module = require("node:module");
+// «Новый вид» подгружается лениво: версия `next/dynamic` как в сборке (App Router) и рендер до устойчивой разметки (см. `render-settled.cjs`).
+require("./next-dynamic-alias.cjs");
+const { renderSettled } = require("./render-settled.cjs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
@@ -91,7 +94,6 @@ function stubModule(path, exports) {
 }
 
 const { createElement } = require("react");
-const { renderToStaticMarkup } = require("react-dom/server");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
@@ -360,7 +362,7 @@ async function renderPage([name, role, path, search, providers]) {
   const node = await pageNode(pathname, search);
   const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: who, initialNotifications: null }, node));
-  const html = renderToStaticMarkup(withContexts(page, pathname, search));
+  const html = await renderSettled(withContexts(page, pathname, search));
   return { name, role, pathname, catalogueOffsets: catalogueOffsets.slice(), html };
 }
 

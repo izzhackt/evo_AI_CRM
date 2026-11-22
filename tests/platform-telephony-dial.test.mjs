@@ -933,14 +933,23 @@ test("a lead made by an unknown number is «Номер …» on the lead card, t
   assert.doesNotMatch(read("src/lib/v3/profile-source.ts"), /leadDisplayName|callerDisplayName/u, "the data keeps the database name");
   // The lead's tasks heading; the pipeline search link keeps the name as the database wrote it.
   const tasks = read("src/app/(staff)/tasks/page.tsx");
-  assert.match(tasks, /<h2 className="t-section">\{callerDisplayName\(sourceLead\.clientDisplayName \?\? "Имя клиента не указано"\)\}<\/h2>/u);
-  assert.match(tasks, /\/pipeline\?q=\$\{encodeURIComponent\(sourceLead\.clientDisplayName\)\}/u);
-  // The board: the card (text and title), the side panel (title and the close menu) and the «closed» line.
-  const board = read("src/components/staff/Pipeline.tsx");
-  assert.match(board, /function leadLabel\(lead: Pick<PipelineLead, "source" \| "name">\): string \{\s*return leadDisplayName\(lead\.source, lead\.name\);/u);
-  assert.equal((board.match(/leadLabel\(lead\)/gu) ?? []).length, 4, "card title and text, panel title, close-menu subject");
-  assert.match(board, /leadClosed\(leadLabel\(selected\), receipt\)/u);
-  assert.doesNotMatch(board, /\{lead\.name\}|title=\{lead\.name\}|subjectName=\{lead\.name\}/u, "no raw name left on the board");
+  // «Новый вид»: the page hands the lead to TaskLeadCards (TaskSourceCards.tsx), which writes the heading of the lead's tasks.
+  assert.match(tasks, /sourceLead=\{sourceLead\}/u);
+  const leadCards = read("src/components/staff/tasks/next/TaskSourceCards.tsx");
+  assert.match(leadCards, /const name = lead\.clientDisplayName \?\? "Имя клиента не указано";/u);
+  assert.match(leadCards, /title=\{callerDisplayName\(name\)\}/u);
+  assert.match(leadCards, /`\/pipeline\?q=\$\{encodeURIComponent\(lead\.clientDisplayName \?\? ""\)\}`/u, "the pipeline search link keeps the database name");
+  // The board («Новый вид»): the card (text and title), the side panel (title and the close menu) and the «closed» line.
+  assert.match(read("src/components/staff/pipeline-next/pipeline-next-model.ts"),
+    /export const leadLabel = \(lead: Pick<PipelineLead, "source" \| "name">\): string => leadDisplayName\(lead\.source, lead\.name\);/u);
+  const card = read("src/components/staff/pipeline-next/LeadCardNext.tsx");
+  assert.equal((card.match(/leadLabel\(lead\)/gu) ?? []).length, 2, "card title and text");
+  const sheet = read("src/components/staff/pipeline-next/LeadSheetNext.tsx");
+  assert.equal((sheet.match(/leadLabel\(lead\)/gu) ?? []).length, 2, "panel title, close-menu subject");
+  assert.match(read("src/components/staff/pipeline-next/PipelineBoardNext.tsx"), /setClosed\(\{ name: leadLabel\(lead\), receipt/u, "the «closed» line");
+  for (const file of ["LeadCardNext", "LeadSheetNext", "PipelineBoardNext"]) {
+    assert.doesNotMatch(read(`src/components/staff/pipeline-next/${file}.tsx`), /\{lead\.name\}|title=\{lead\.name\}|subjectName=\{lead\.name\}|name: lead\.name/u, `no raw name left on the board (${file})`);
+  }
 });
 
 // ------------------------------------------------------------ the task of a missed call names the client

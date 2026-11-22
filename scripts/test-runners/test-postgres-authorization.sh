@@ -6170,9 +6170,7 @@ done < <(
 # run, so a failed run leaves no usable baseline.
 if [[ "$boundary_mode" == "save" ]]; then
   echo "Saving the migration baseline into $baseline_dir"
-  docker exec "$container_name" \
-    psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "postgres" -c "CHECKPOINT;" >/dev/null
-  node "$deadline_runner" 180000 docker stop --time 150 "$container_name" >/dev/null
+  node "$deadline_runner" 180000 docker stop --timeout 150 "$container_name" >/dev/null
   if ! docker logs --tail 40 "$container_name" 2>&1 | grep -q "database system is shut down"; then
     echo "Postgres did not shut down cleanly; refusing to save a baseline" >&2
     exit 1

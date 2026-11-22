@@ -490,12 +490,16 @@ test("P3 wiring: counts, labels, the email retry, the note rule and the Auth jou
   assert.match(layout, /deletionRequests=\{deletionRequests\}/u);
   const settingsPage = source("src/app/(staff)/settings/page.tsx");
   assert.match(settingsPage, /readOpenAccountDeletionCount\(actor\)/u);
-  assert.match(settingsPage, /deletionOpen=\{deletionOpen\}/u);
-  const settingsView = source("src/components/staff/settings/Settings.tsx");
-  assert.match(settingsView, /if \(!open \|\| open\.open <= 0\) return null;/u, "no counter at zero");
-  assert.match(settingsView, /entry\.key === "deletion" \? <DeletionCount open=\{deletionOpen\}/u, "the list item carries the count");
-  assert.match(settingsView, /current\.key === "deletion" \? null : <DeletionCount open=\{deletionOpen\} \/>/u, "the folded phone list still shows the count on its button");
-  assert.match(settingsView, /просрочено: \$\{open\.overdue\}/u, "overdue is spoken");
+  assert.match(settingsPage, /\n\s+deletionOpen,\n/u, "the count reaches the screen through settingsNextProps");
+  // The legacy Settings.tsx is gone (#1327, «Новый вид» is the only view): the count rides the section tabs.
+  const settingsProps = source("src/lib/v3/settings-next-props.ts");
+  assert.match(settingsProps, /count: entry\.key === "deletion" && input\.deletionOpen && input\.deletionOpen\.open > 0 \? input\.deletionOpen\.open : null/u,
+    "the list item carries the count, and no counter at zero");
+  const settingsNav = source("src/components/staff/settings-next/SettingsNav.tsx");
+  assert.match(settingsNav, /data-testid=\{item\.key === "deletion" \? "v3-settings-deletion-count" : undefined\}/u, "the count has its test id");
+  assert.match(settingsNav, /count: item\.count/u, "the tab shows the count on its button");
+  assert.match(source("src/components/staff/settings-next/DeletionNext.tsx"), /data-overdue=\{row\.original\.overdue \|\| undefined\}/u,
+    "overdue is marked per request in the list (the combined «просрочено: N» word went with the legacy view)");
   const reader = source("src/lib/v3/account-deletion-source.ts");
   const open = reader.slice(reader.indexOf("export async function readOpenAccountDeletionCount"));
   assert.ok(open.indexOf('actor.systemRole !== "admin" || isStaffPreview(actor)') < open.indexOf("createSupabaseServerClient()"),

@@ -369,11 +369,26 @@ function browserKit() {
     // Правила staff.css, на которые опирается раскладка: виден ли пункт, что скрыто на телефоне.
     const css = `.hidden{display:none}@media (width >= 48rem){.md\\:hidden{display:none}.md\\:flex{display:flex}}@media (width < 48rem){.max-md\\:hidden{display:none}}`;
     const html = new Map();
-    const server = createServer((request, response) => {
+    // Ленивые куски нового вида («?» — `HelpTip`) подгружаются асинхронно: первая отдача рисует заглушку в границе Suspense, и такая
+    // разметка не гидратируется без ошибки React #419. Сборка Next отдаёт уже загруженные куски; здесь рендерим, пока две отдачи
+    // подряд не совпадут и в разметке не останется границы, которую сервер не закончил (`<!--$!-->`).
+    // Так тест не проверяет первую отдачу с заглушкой: от ошибки #419 в production защищает предзагрузка динамических
+    // модулей в SSR самого Next, а не этот тест.
+    const settled = async (initial) => {
+      let previous = null;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const markup = render(initial);
+        if (markup === previous && !markup.includes("<!--$!-->")) return markup;
+        previous = markup;
+        await new Promise((done) => setTimeout(done, 15));
+      }
+      throw new Error("серверная разметка не устоялась");
+    };
+    const server = createServer(async (request, response) => {
       const url = new URL(request.url, "http://x");
       if (url.pathname === "/client.js") { response.writeHead(200, { "content-type": "text/javascript" }); response.end(clientJs); return; }
       const initial = { pathname: url.pathname, search: url.search };
-      const markup = render(initial);
+      const markup = await settled(initial);
       html.set(url.pathname + url.search, markup);
       response.writeHead(200, { "content-type": "text/html" });
       response.end(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chat focus</title><style>${css}</style></head><body><div id="root">${markup}</div>

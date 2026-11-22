@@ -68,5 +68,7 @@ secrets/knowledge/
 # Локальный мобильный стенд (npm run mobile:stack:up): адреса, ключи и пароли тестовых аккаунтов
 /mobile/.env.local-stack*
 /mobile/.local-stack-accounts.json
+# npm run verify: per-step logs
+.verify/
 
 /.cache/migration-baseline/

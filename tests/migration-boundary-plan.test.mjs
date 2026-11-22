@@ -343,3 +343,13 @@ test("the bare path scan sees relative paths and a quote closed before the slash
   }
   assert.deepEqual(found, ["supabase/migrations", "scripts/x.sh", "scripts/y.mjs"]);
 });
+
+test("the fast PR checks restore the baseline and run the harness in auto mode", () => {
+  const fastPr = readFileSync(new URL("../.github/workflows/evo-fast-pr-checks.yml", import.meta.url), "utf8");
+  const job = fastPr.slice(fastPr.indexOf("\n  migration_boundary:\n"), fastPr.indexOf("\n  fast-checks:\n"));
+  assert.match(job, /fetch-depth: 0/u, "the planner needs history for the merge base");
+  assert.match(job, /node scripts\/test-runners\/migration-baseline\.mjs key --merge-base-with origin\/main/u);
+  assert.match(job, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: \.cache\/migration-baseline\n          key: \$\{\{ steps\.baseline\.outputs\.key \}\}\n          restore-keys: migration-baseline-v1-/u);
+  assert.doesNotMatch(job, /actions\/cache\/save|actions\/cache@/u, "a PR never saves a baseline");
+  assert.match(job, /env:\n          EVO_MIGRATION_BOUNDARY_MODE: auto\n          EVO_MIGRATION_BASELINE_DIR: \$\{\{ github\.workspace \}\}\/\.cache\/migration-baseline\n        run: npm run test:database:migration-boundaries/u);
+});

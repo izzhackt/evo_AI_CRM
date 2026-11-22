@@ -38,6 +38,23 @@
 - Keep WAHA and its dashboards/APIs private unless explicit authenticated
   public access is added.
 
+## One Verify Command — 2026-11-22
+
+The owner asked for fast and strict CI with one command that says pass or fail. This replaces the light PR
+checks of #821 for code changes; the real-path rules below still apply.
+
+- Before pushing code, run `npm run verify`. It runs the same steps as PR CI in parallel and ends with
+  `VERIFY PASS` or `VERIFY FAIL`, a table, and an exit code. Each step has its own log in `.verify/`.
+  - The steps are whitespace, types, lint, the whole Node test manifest, release contracts, the mobile app
+    and the production build.
+  - Migration boundaries join automatically when `supabase/` changed.
+  - The preview runs with `--with preview`.
+- To iterate on one step, use `--only <step>`, `--skip <step>` or `--shard i/n`. Before pushing, run the
+  full command once.
+- PR CI calls the same command step by step. A code change must pass the types and every part of the
+  test manifest; «skipped» does not count. A failing test is fixed or the code is fixed. Never skip, delete
+  or weaken a test to get green.
+
 ## Fast Execution And Validation — 2026-09-18
 
 The owner approves fast, scope-local execution. This supersedes earlier blanket

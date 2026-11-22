@@ -1,0 +1,112 @@
+name: EVO PR preview
+
+# Runs the PR's real production build against a throwaway synthetic Supabase
+# stack inside this job and proves in Chromium that the key staff and Student
+# pages open. No secrets, no deployment, no persistent URL: the repository is
+# public and PRs may come from forks, so this uses `pull_request` only.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evo-pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changed-range:
+    name: Changed range
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run_preview: ${{ steps.decide.outputs.run_preview }}
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refresh the main baseline
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
+
+      - name: Classify PR changes
+        id: classify
+        env:
+          BASE_SHA: origin/main
+          HEAD_SHA: HEAD
+        run: |
+          set -Eeuo pipefail
+          format_base_sha=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          format_head_sha=$(git rev-parse "$HEAD_SHA")
+          node scripts/checks/classify-pr-changes.mjs --base "$format_base_sha" --head "$format_head_sha" --github-output "$GITHUB_OUTPUT"
+
+      - name: Decide whether the preview is needed
+        id: decide
+        env:
+          CODE: ${{ steps.classify.outputs.code }}
+          MIGRATION_BOUNDARY: ${{ steps.classify.outputs.migration_boundary }}
+          UNKNOWN: ${{ steps.classify.outputs.unknown }}
+        run: |
+          set -Eeuo pipefail
+          for value in "$CODE" "$MIGRATION_BOUNDARY" "$UNKNOWN"; do
+            case "$value" in
+              true|false) ;;
+              *)
+                echo "::error::PR classifier returned an invalid boolean output"
+                exit 1
+                ;;
+            esac
+          done
+          # Docs-only, contract-only and mobile-only PRs skip the preview; code,
+          # migrations and anything the classifier does not recognise run it.
+          if [ "$CODE" = "true" ] || [ "$MIGRATION_BOUNDARY" = "true" ] || [ "$UNKNOWN" = "true" ]; then
+            echo "run_preview=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_preview=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  preview:
+    name: Preview (synthetic stack and browser)
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.run_preview == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: node_modules/.bin/playwright install --with-deps --only-shell chromium
+
+      - name: Run the PR preview
+        run: npm run preview:ci
+
+      - name: Upload screenshots, logs and timing table
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evo-pr-preview-${{ github.event.pull_request.number }}
+          path: |
+            output/pr-preview/summary.md
+            output/pr-preview/screenshots/
+            output/pr-preview/app.log
+            output/pr-preview/build.log
+            output/pr-preview/supabase.log
+          if-no-files-found: warn
+          retention-days: 7

@@ -170,6 +170,9 @@ const tableRows = (html) => [...html.matchAll(/<tr[^>]*><td[^>]*><div data-unive
 
 test("«Университеты»: one dense table of 30 rows with the photo, the deadline column and an honest count", () => {
   const html = page("universities-list");
+  // The count below comes from the same reviewed catalogue the harness renders; it proves «the full total, not the page
+  // size» only while the catalogue is larger than one page.
+  assert.ok(catalogueCards.length > 30, `the catalogue is larger than one page (${catalogueCards.length})`);
   assert.match(html, new RegExp(`<h1 class="t-page-title[^"]*">Университеты<span[^>]*>${catalogueCards.length}</span></h1>`, "u"), "count from the complete read");
   assert.match(html, /data-testid="v3-universities-next"/u);
   assert.match(html, /<div role="region" aria-label="Университеты"[^>]*><table/u);

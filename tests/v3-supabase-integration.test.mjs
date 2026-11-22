@@ -229,10 +229,12 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
   assert.doesNotMatch(adapterSources, /better-sqlite3|drizzle-orm/i);
   // #1514 (372) moved the leads read of «Сегодня» into one RPC; the sales-leads reader now lives in the
   // Ctrl+K / duplicate-warning readers (student-search-readers.ts, not a «-source» file), still in src/lib/v3.
-  assert.match(
-    readFileSync(new URL("student-search-readers.ts", adapterDirectory), "utf8"),
-    /listPlatformSalesLeads/,
-  );
+  const searchReaders = readFileSync(new URL("student-search-readers.ts", adapterDirectory), "utf8");
+  assert.match(searchReaders, /listPlatformSalesLeads/);
+  // Same legacy-name guards as for the «-source» adapters above.
+  assert.deepEqual(searchReaders.match(/\bevo_[a-z0-9_]+\b/g) ?? [], [], "student-search-readers.ts contains legacy names");
+  assert.doesNotMatch(searchReaders, /\.(?:from|rpc)\s*\(\s*["'`]evo_/);
+  assert.doesNotMatch(searchReaders, /@\/lib\/server\/database/);
   assert.match(adapterSources, /listPlatformConversations/);
   assert.match(adapterSources, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapterSources, /listPlatformDocumentQueue/);

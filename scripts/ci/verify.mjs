@@ -19,6 +19,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
+/** Running step processes, stopped when verify itself is interrupted. */
+const CHILDREN = new Set();
 
 /** The steps. `command(ctx)` returns [executable, args]; `requires(ctx)` returns null or why it cannot run. */
 export const STEPS = Object.freeze({
@@ -109,12 +111,17 @@ function gitRefExists(root, ref) {
   return spawnSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd: root }).status === 0;
 }
 
-/** Tracked changes against the base (committed or not) plus new untracked files. */
+/**
+ * What this branch changed: commits since the merge base with `base` (not main's newer commits), plus uncommitted and
+ * untracked files. null when the base is not available: then nobody can tell whether supabase/ changed.
+ */
 export function changedPathsSince(root, base) {
-  if (!gitRefExists(root, base)) return [];
-  const tracked = spawnSync("git", ["diff", "--name-only", base], { cwd: root, encoding: "utf8" }).stdout ?? "";
-  const untracked = spawnSync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" }).stdout ?? "";
-  return [...new Set(`${tracked}\n${untracked}`.split("\n").map((line) => line.trim()).filter(Boolean))];
+  if (!gitRefExists(root, base)) return null;
+  const git = (...args) => spawnSync("git", args, { cwd: root, encoding: "utf8" }).stdout ?? "";
+  const committed = git("diff", "--name-only", `${base}...HEAD`);
+  const uncommitted = git("diff", "--name-only", "HEAD");
+  const untracked = git("ls-files", "--others", "--exclude-standard");
+  return [...new Set(`${committed}\n${uncommitted}\n${untracked}`.split("\n").map((line) => line.trim()).filter(Boolean))];
 }
 
 const seconds = (ms) => {
@@ -153,26 +160,42 @@ export async function runSteps(names, { ctx, steps = STEPS, jobs = names.length,
       results.push(result);
       done();
     };
-    const blocked = step.requires?.(ctx) ?? null;
-    if (blocked) return finish("FAIL", blocked);
-    const [executable, args] = step.command(ctx);
-    out.write(`start ${name}: ${[executable, ...args].join(" ")}\n`);
-    const file = stream ? null : createWriteStream(log);
-    const child = spawn(executable, args, {
-      cwd: ctx.root,
-      env: { ...process.env, FORCE_COLOR: "0" },
-      stdio: stream ? "inherit" : ["ignore", "pipe", "pipe"],
-    });
-    if (!stream) {
-      child.stdout.pipe(file);
-      child.stderr.pipe(file);
+    let file = null;
+    const closeLog = (then) => {
+      if (!file || file.closed || file.destroyed) return then();
+      file.end(then);
+    };
+    try {
+      const blocked = step.requires?.(ctx) ?? null;
+      if (blocked) return finish("FAIL", blocked);
+      const [executable, args] = step.command(ctx);
+      out.write(`start ${name}: ${[executable, ...args].join(" ")}\n`);
+      if (!stream) {
+        file = createWriteStream(log);
+        file.on("error", (error) => finish("FAIL", `log: ${error.message}`));
+      }
+      const child = spawn(executable, args, {
+        cwd: ctx.root,
+        env: { ...process.env, FORCE_COLOR: "0" },
+        stdio: stream ? "inherit" : ["ignore", "pipe", "pipe"],
+      });
+      CHILDREN.add(child);
+      if (file) {
+        // Both streams write into one log; only the process end closes it (late stderr is kept).
+        child.stdout.pipe(file, { end: false });
+        child.stderr.pipe(file, { end: false });
+      }
+      child.on("error", (error) => {
+        CHILDREN.delete(child);
+        closeLog(() => finish("FAIL", error.message));
+      });
+      child.on("close", (code, signal) => {
+        CHILDREN.delete(child);
+        closeLog(() => finish(code === 0 ? "PASS" : "FAIL", code === 0 ? null : signal ? `signal ${signal}` : `exit ${code}`));
+      });
+    } catch (error) {
+      closeLog(() => finish("FAIL", error?.message ?? String(error)));
     }
-    child.on("error", (error) => finish("FAIL", error.message));
-    child.on("close", (code, signal) => {
-      const settle = () => finish(code === 0 ? "PASS" : "FAIL", code === 0 ? null : signal ? `signal ${signal}` : `exit ${code}`);
-      if (file) file.end(settle);
-      else settle();
-    });
   });
   await new Promise((allDone) => {
     const next = () => {
@@ -214,7 +237,13 @@ async function main() {
   }
   const base = options.base ?? process.env.VERIFY_BASE ?? "origin/main";
   const ctx = { root: ROOT, base, shard: options.shard };
-  const names = selectSteps(options, options.only ? [] : changedPathsSince(ROOT, base));
+  // A plain run must know whether supabase/ changed; without the base it fails instead of guessing.
+  const decidesMigrations = !options.only && !options.skip.includes("migrations") && !options.with.includes("migrations");
+  const changed = decidesMigrations ? changedPathsSince(ROOT, base) : [];
+  if (changed === null) {
+    throw new Error(`base ${base} is not available, so whether supabase/ changed is unknown: git fetch origin main, or pass --base, --with migrations or --skip migrations`);
+  }
+  const names = selectSteps(options, changed);
   if (names.length === 0) throw new Error("No step selected");
   const inCi = process.env.GITHUB_ACTIONS === "true";
   // Three steps at a time by default: the test manifest alone runs four workers, and timing-bound tests (the release
@@ -234,6 +263,12 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => {
+      for (const child of CHILDREN) child.kill(signal);
+      process.exit(signal === "SIGINT" ? 130 : 143);
+    });
+  }
   main().then((code) => { process.exitCode = code; }, (error) => {
     process.stderr.write(`verify: ${error.message}\n`);
     process.exitCode = 2;

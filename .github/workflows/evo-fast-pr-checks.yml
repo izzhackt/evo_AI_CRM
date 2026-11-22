@@ -72,12 +72,13 @@ jobs:
             esac
           done
 
-  # The types and the whole Node test manifest run on every code change (PLAN_CHANGES 22.11.2026: fast and strict CI,
-  # superseding the light checks of #821). `npm run verify` is the one command: the same steps run on a laptop.
+  # The types and the whole Node test manifest run on every change that is not ordinary docs: code, workflows,
+  # migrations and the mobile app alike (PLAN_CHANGES 22.11.2026: fast and strict CI, superseding the light checks of
+  # #821). `npm run verify` is the one command: the same steps run on a laptop.
   typecheck:
     name: Types
     needs: changed-range
-    if: ${{ needs.changed-range.outputs.code == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    if: ${{ needs.changed-range.outputs.has_changes == 'true' && needs.changed-range.outputs.ordinary_docs != 'true' && needs.changed-range.outputs.unknown != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -109,7 +110,7 @@ jobs:
   tests:
     name: Tests (${{ matrix.shard }}/4)
     needs: changed-range
-    if: ${{ needs.changed-range.outputs.code == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    if: ${{ needs.changed-range.outputs.has_changes == 'true' && needs.changed-range.outputs.ordinary_docs != 'true' && needs.changed-range.outputs.unknown != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -439,7 +440,7 @@ jobs:
           RANGE_RESULT: ${{ needs.changed-range.result }}
           HAS_CHANGES: ${{ needs.changed-range.outputs.has_changes }}
           UNKNOWN: ${{ needs.changed-range.outputs.unknown }}
-          CODE: ${{ needs.changed-range.outputs.code }}
+          ORDINARY_DOCS: ${{ needs.changed-range.outputs.ordinary_docs }}
           TYPECHECK_RESULT: ${{ needs.typecheck.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
@@ -452,8 +453,8 @@ jobs:
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
-          # A code change must actually run the types and every test part: «skipped» is not enough for them.
-          if test "$CODE" = "true"; then
+          # Anything but ordinary docs must actually run the types and every test part: «skipped» is not enough.
+          if test "$ORDINARY_DOCS" != "true"; then
             test "$TYPECHECK_RESULT" = "success"
             test "$TESTS_RESULT" = "success"
           fi

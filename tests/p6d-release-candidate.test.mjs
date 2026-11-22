@@ -114,11 +114,11 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
   assert.match(fastPr, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
-  // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every code change runs the
-  // types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
-  assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every change that is not
+  // ordinary docs runs the types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
+  assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.has_changes == 'true' && needs\.changed-range\.outputs\.ordinary_docs != 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
   assert.match(fastPr, /name: Check types\n        run: npm run verify -- --only typecheck/u);
-  assert.match(fastPr, /^  tests:\n    name: Tests \(\$\{\{ matrix\.shard \}\}\/4\)\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  assert.match(fastPr, /^  tests:\n    name: Tests \(\$\{\{ matrix\.shard \}\}\/4\)\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.has_changes == 'true' && needs\.changed-range\.outputs\.ordinary_docs != 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
   assert.match(fastPr, /strategy:\n      fail-fast: false\n      matrix:\n        shard: \[1, 2, 3, 4\]/u);
   assert.match(fastPr, /run: npm run verify -- --only tests --shard \$\{\{ matrix\.shard \}\}\/4/u);
   assert.doesNotMatch(fastPr, /run: npm run (?:typecheck|lint|build|test:fast-release|test:ci:node)$/mu);

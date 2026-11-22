@@ -1841,11 +1841,11 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
   assert.match(fastPr, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
-  // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every code change runs the
-  // types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
-  assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every change that is not
+  // ordinary docs runs the types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
+  assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.has_changes == 'true' && needs\.changed-range\.outputs\.ordinary_docs != 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
   assert.match(fastPr, /name: Check types\n        run: npm run verify -- --only typecheck/u);
-  assert.match(fastPr, /^  tests:\n    name: Tests \(\$\{\{ matrix\.shard \}\}\/4\)\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.code == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
+  assert.match(fastPr, /^  tests:\n    name: Tests \(\$\{\{ matrix\.shard \}\}\/4\)\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.has_changes == 'true' && needs\.changed-range\.outputs\.ordinary_docs != 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
   assert.match(fastPr, /strategy:\n      fail-fast: false\n      matrix:\n        shard: \[1, 2, 3, 4\]/u);
   assert.match(fastPr, /run: npm run verify -- --only tests --shard \$\{\{ matrix\.shard \}\}\/4/u);
   assert.doesNotMatch(fastPr, /run: npm run (?:typecheck|lint|build|test:fast-release|test:ci:node)$/mu);
@@ -1867,18 +1867,19 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
   const script = gate.split("        run: |\n")[1].replace(/^          /gmu, "");
   const env = {
     PATH: process.env.PATH,
-    RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false", CODE: "false",
+    RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false", ORDINARY_DOCS: "true",
     TYPECHECK_RESULT: "skipped", TESTS_RESULT: "skipped",
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped", MOBILE_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
   assert.equal(run({}), 0, "a docs-only change needs no code checks");
-  assert.equal(run({ CODE: "true", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
-  // A code change must really run the types and every test part: skipped is not enough there.
-  assert.notEqual(run({ CODE: "true", TESTS_RESULT: "success" }), 0, "code change without types");
-  assert.notEqual(run({ CODE: "true", TYPECHECK_RESULT: "success" }), 0, "code change without tests");
-  assert.equal(run({ CODE: "true", TYPECHECK_RESULT: "success", TESTS_RESULT: "success" }), 0);
+  assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
+  // Anything but ordinary docs (code, workflows, migrations, the mobile app) must really run the types and every test
+  // part: skipped is not enough there.
+  assert.notEqual(run({ ORDINARY_DOCS: "false", TESTS_RESULT: "success" }), 0, "a non-docs change without types");
+  assert.notEqual(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success" }), 0, "a non-docs change without tests");
+  assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success" }), 0);
   for (const name of ["TYPECHECK_RESULT", "TESTS_RESULT", "CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
     for (const result of ["failure", "cancelled", "", "unknown"]) {
       assert.notEqual(run({ [name]: result }), 0, `${name}=${result}`);

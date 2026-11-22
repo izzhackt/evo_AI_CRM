@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -37,7 +38,7 @@ while IFS= read -r migration; do
   fi
 done < <(
   cd "$repo_root"
-  list_chain_migrations
+  find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
 )
 
 echo end-of-chain \\
@@ -152,7 +153,7 @@ test("an end-of-chain-only PR with no new migration is fast with nothing to appl
 
 test("the real harness accepts a new migration block inserted before the end of the loop", async t => {
   const insertion = NEW_BLOCK;
-  const marker = "\ndone < <(\n  cd \"$repo_root\"\n  list_chain_migrations\n)";
+  const marker = "\ndone < <(\n  cd \"$repo_root\"\n  find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort\n)";
   assert.ok(realHarness.includes(marker), "the real harness keeps its loop markers");
   const s = scenario(t, { baselineFiles: { ...BASE_FILES, [HARNESS_PATH]: realHarness } });
   s.pr({
@@ -352,4 +353,50 @@ test("the fast PR checks restore the baseline and run the harness in auto mode",
   assert.match(job, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: \.cache\/migration-baseline\n          key: \$\{\{ steps\.baseline\.outputs\.key \}\}\n          restore-keys: migration-baseline-v1-/u);
   assert.doesNotMatch(job, /actions\/cache\/save|actions\/cache@/u, "a PR never saves a baseline");
   assert.match(job, /env:\n          EVO_MIGRATION_BOUNDARY_MODE: auto\n          EVO_MIGRATION_BASELINE_DIR: \$\{\{ github\.workspace \}\}\/\.cache\/migration-baseline\n        run: npm run test:database:migration-boundaries/u);
+});
+
+test("auto mode without a usable baseline runs the whole chain instead of stopping silently", t => {
+  // The REAL harness preamble with a stand-in docker that refuses to start a container, so each run ends right after
+  // the mode decision. On 22.11 the first CI cache miss ended here with exit 2 and no message: `set -e` plus a read of
+  // the missing manifest.
+  const dir = mkdtempSync(join(tmpdir(), "evo-boundary-preamble-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const dockerLog = join(dir, "docker.log");
+  writeFileSync(join(bin, "docker"), [
+    "#!/bin/sh",
+    `echo "$*" >> ${JSON.stringify(dockerLog)}`,
+    'case "$1" in',
+    '  run|create) echo "stand-in docker: no containers here" >&2; exit 97 ;;',
+    "esac",
+    "exit 0",
+    "",
+  ].join("\n"), { mode: 0o755 });
+  mkdirSync(join(dir, "empty"));
+  mkdirSync(join(dir, "foreign"));
+  writeFileSync(join(dir, "foreign", MANIFEST_NAME), JSON.stringify({ sourceRev: "0".repeat(40) }));
+  const harness = fileURLToPath(new URL(`../${HARNESS_PATH}`, import.meta.url));
+  const run = overrides => {
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+    delete env.EVO_MIGRATION_BASELINE_DIR;
+    delete env.POSTGRES_TEST_IMAGE;
+    writeFileSync(dockerLog, "");
+    const result = spawnSync("bash", [harness], { env: { ...env, ...overrides }, encoding: "utf8", timeout: 60_000 });
+    return { ...result, docker: readFileSync(dockerLog, "utf8") };
+  };
+
+  for (const [label, baselineDir] of [["no directory", join(dir, "missing")], ["no manifest", join(dir, "empty")], ["a source commit this clone lacks", join(dir, "foreign")], ["no variable", undefined]]) {
+    const result = run({ EVO_MIGRATION_BOUNDARY_MODE: "auto", ...(baselineDir ? { EVO_MIGRATION_BASELINE_DIR: baselineDir } : {}) });
+    assert.match(result.stdout, /^MIGRATION_BOUNDARY_MODE=full reason="no baseline, or its trusted planner is not in this clone" new_migrations=0$/mu, `${label}: ${result.stderr}`);
+    assert.match(result.docker, /^run --detach /mu, `${label}: the whole chain starts a fresh container`);
+    assert.doesNotMatch(result.docker, /^create /mu, label);
+    assert.match(result.stderr, /stand-in docker: no containers here/u, `${label}: the run went on to the container start`);
+    assert.notEqual(result.status, 0, label);
+  }
+
+  const unknown = run({ EVO_MIGRATION_BOUNDARY_MODE: "quick" });
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /EVO_MIGRATION_BOUNDARY_MODE must be full, auto or save/u);
+  assert.doesNotMatch(unknown.docker, /^run /mu, "an unknown mode never starts a container");
 });

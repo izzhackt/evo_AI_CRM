@@ -180,7 +180,13 @@ case "$boundary_mode" in
     trusted_planner=""
     plan_output=""
     plan_reason=""
-    baseline_source_rev="$(sed -n 's/.*"sourceRev": *"\([0-9a-f]\{40\}\)".*/\1/p' "$baseline_dir/baseline.json" 2>/dev/null | head -n 1)"
+    # A missing manifest is the ordinary cache miss: under `set -e` a failing read must not end the run silently.
+    baseline_source_rev=""
+    if [[ -n "$baseline_dir" && -f "$baseline_dir/baseline.json" ]]; then
+      baseline_source_rev="$(sed -n 's/.*"sourceRev": *"\([0-9a-f]\{40\}\)".*/\1/p' "$baseline_dir/baseline.json" 2>/dev/null)" \
+        || baseline_source_rev=""
+      baseline_source_rev="${baseline_source_rev%%$'\n'*}"
+    fi
     if [[ -n "$baseline_source_rev" ]]; then
       trusted_planner_dir="$(mktemp -d -t evo-trusted-planner.XXXXXX)"
       if git -C "$repo_root" show "$baseline_source_rev:scripts/test-runners/migration-baseline.mjs" \
@@ -219,15 +225,15 @@ case "$boundary_mode" in
     ;;
 esac
 
-# The migrations the loop below applies: the whole chain, or only the new ones on top of the restored baseline.
-list_chain_migrations() {
-  if [[ "$chain_mode" == "fast" ]]; then
-    if (( ${#fast_migrations[@]} > 0 )); then
-      printf '%s\n' "${fast_migrations[@]}"
-    fi
-  else
-    find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
-  fi
+# Fast mode applies only the planner's new migrations on top of the restored baseline; the loop below skips the rest.
+fast_applied=0
+is_fast_migration() {
+  local candidate
+  (( ${#fast_migrations[@]} > 0 )) || return 1
+  for candidate in "${fast_migrations[@]}"; do
+    [[ "$candidate" == "$1" ]] && return 0
+  done
+  return 1
 }
 
 wait_for_postgres_healthy() {
@@ -326,6 +332,11 @@ if [[ "$chain_mode" == "full" ]]; then
 fi
 
 while IFS= read -r migration; do
+  # Fast mode: the restored baseline already holds every earlier migration and the checks that ran with it.
+  if [[ "$chain_mode" == "fast" ]]; then
+    is_fast_migration "$migration" || continue
+    fast_applied=$((fast_applied + 1))
+  fi
   # Preserve one migration-060-compatible direct-chat identity just before
   # 085. Its short numeric identifier is intentionally outside U3's supported
   # E.164-sized range, so the forward migration must leave it untouched rather
@@ -6179,8 +6190,13 @@ SQL
   fi
 done < <(
   cd "$repo_root"
-  list_chain_migrations
+  find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
 )
+
+if [[ "$chain_mode" == "fast" ]] && (( fast_applied != ${#fast_migrations[@]} )); then
+  echo "Fast mode applied ${fast_applied} migration(s), but the planner listed ${#fast_migrations[@]}" >&2
+  exit 1
+fi
 
 # Save mode: the database exactly as the last migration left it, before any end-of-chain check touches it. Stop Postgres
 # cleanly (the image's stop signal is SIGINT = fast shutdown), copy the data directory out, start the same container

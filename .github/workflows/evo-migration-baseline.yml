@@ -13,8 +13,13 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - "scripts/test-runners/test-postgres-authorization.sh"
-      - "scripts/test-runners/migration-baseline.mjs"
+      # Every other key input (HELPER_PATHS in scripts/test-runners/migration-baseline.mjs; pinned by a test).
       - "scripts/local-dev/resolve-postgres-test-image.sh"
+      - "scripts/test-runners/migration-baseline.mjs"
+      - "scripts/test-runners/run-command-with-deadline.mjs"
+      - "scripts/test-runners/test-p2g-queues-runtime.sh"
+      - "scripts/test-runners/test-platform-migration-077-runtime.sh"
+      - "supabase/config.toml"
       - ".github/workflows/evo-migration-baseline.yml"
   workflow_dispatch:
   schedule:

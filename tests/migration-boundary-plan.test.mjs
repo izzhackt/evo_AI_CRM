@@ -352,6 +352,8 @@ test("the fast PR checks restore the baseline and run the harness in auto mode",
   assert.match(job, /node scripts\/test-runners\/migration-baseline\.mjs key --merge-base-with origin\/main/u);
   assert.match(job, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: \.cache\/migration-baseline\n          key: \$\{\{ steps\.baseline\.outputs\.key \}\}\n          restore-keys: migration-baseline-v1-/u);
   assert.doesNotMatch(job, /actions\/cache\/save|actions\/cache@/u, "a PR never saves a baseline");
+  assert.match(job, /then\n\s+echo "key=\$key" >> "\$GITHUB_OUTPUT"\n\s+else\n\s+echo "::warning title=Migration baseline::[^"\n]+"\n\s+fi\n/u, "no key means the whole chain, not a failed job");
+  assert.match(job, /if: \$\{\{ steps\.baseline\.outputs\.key != '' \}\}\n        uses: actions\/cache\/restore@/u, "no restore without a key");
   assert.match(job, /env:\n          EVO_MIGRATION_BOUNDARY_MODE: auto\n          EVO_MIGRATION_BASELINE_DIR: \$\{\{ github\.workspace \}\}\/\.cache\/migration-baseline\n        run: npm run test:database:migration-boundaries/u);
 });
 
@@ -399,4 +401,15 @@ test("auto mode without a usable baseline runs the whole chain instead of stoppi
   assert.equal(unknown.status, 1);
   assert.match(unknown.stderr, /EVO_MIGRATION_BOUNDARY_MODE must be full, auto or save/u);
   assert.doesNotMatch(unknown.docker, /^run /mu, "an unknown mode never starts a container");
+});
+
+test("the baseline workflow rebuilds on a change to every key input", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/evo-migration-baseline.yml", import.meta.url), "utf8");
+  const push = workflow.slice(workflow.indexOf("\n  push:\n"), workflow.indexOf("\n  workflow_dispatch:"));
+  const paths = [...push.matchAll(/^ {6}- "([^"]+)"$/gmu)].map(match => match[1]);
+  for (const input of INPUT_PATHSPECS) {
+    const wanted = input.endsWith("/") ? `${input}**` : input;
+    assert.ok(paths.includes(wanted), `push.paths lacks ${wanted}: a main commit changing it would leave PRs without an exact baseline`);
+  }
+  assert.ok(paths.includes(".github/workflows/evo-migration-baseline.yml"));
 });

@@ -338,10 +338,17 @@ jobs:
         id: baseline
         run: |
           set -Eeuo pipefail
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          echo "key=$(node scripts/test-runners/migration-baseline.mjs key --merge-base-with origin/main)" >> "$GITHUB_OUTPUT"
+          # No key only costs time: the harness then runs the whole chain. It must never fail the check by itself.
+          if git fetch --no-tags origin main:refs/remotes/origin/main \
+            && key="$(node scripts/test-runners/migration-baseline.mjs key --merge-base-with origin/main)" \
+            && [[ -n "$key" ]]; then
+            echo "key=$key" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Migration baseline::no baseline key, so the boundary check runs the whole chain"
+          fi
 
       - name: Restore the migration baseline (a miss only means the full chain)
+        if: ${{ steps.baseline.outputs.key != '' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/migration-baseline

@@ -11,6 +11,9 @@ on:
       - package-lock.json
       - .nvmrc
       - .github/workflows/evo-dependency-cache.yml
+  # GitHub evicts a cache unused for 7 days; a weekly run puts it back (a hit makes the run a no-op).
+  schedule:
+    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 permissions:

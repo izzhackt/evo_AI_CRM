@@ -145,6 +145,7 @@ test("dependency cache: saved on main only, read-only token, no secrets, pinned 
   const warm = readFileSync(new URL("../.github/workflows/evo-dependency-cache.yml", import.meta.url), "utf8");
   const pr = readFileSync(new URL("../.github/workflows/evo-fast-pr-checks.yml", import.meta.url), "utf8");
   assert.match(warm, /^on:\n  push:\n    branches:\n      - main\n/mu);
+  assert.match(warm, /schedule:\n    - cron: "17 3 \* \* 1"/u, "a weekly run restores an evicted cache");
   assert.doesNotMatch(warm, /pull_request/u);
   assert.match(warm, /^permissions:\n  contents: read$/mu);
   assert.doesNotMatch(warm, /\$\{\{\s*(?:secrets\.|github\.token)|GITHUB_TOKEN/u);

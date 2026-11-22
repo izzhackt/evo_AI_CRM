@@ -178,6 +178,8 @@ export async function runSteps(names, { ctx, steps = STEPS, jobs = names.length,
         cwd: ctx.root,
         env: { ...process.env, FORCE_COLOR: "0" },
         stdio: stream ? "inherit" : ["ignore", "pipe", "pipe"],
+        // Its own process group, so an interrupted verify stops the whole step (npm -> next, node --test workers).
+        detached: process.platform !== "win32",
       });
       CHILDREN.add(child);
       if (file) {
@@ -265,7 +267,14 @@ async function main() {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.on(signal, () => {
-      for (const child of CHILDREN) child.kill(signal);
+      for (const child of CHILDREN) {
+        try {
+          if (process.platform !== "win32" && child.pid) process.kill(-child.pid, signal);
+          else child.kill(signal);
+        } catch {
+          // The step already ended.
+        }
+      }
       process.exit(signal === "SIGINT" ? 130 : 143);
     });
   }

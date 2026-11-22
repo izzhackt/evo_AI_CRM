@@ -1840,7 +1840,7 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /^  migration_boundary:\n    name: Migration boundary$/mu);
   assert.match(fastPr, /if: \$\{\{ needs\.changed-range\.outputs\.migration_boundary == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(fastPr, /run: npm run test:database:migration-boundaries/u);
-  assert.match(fastPr, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
+  assert.match(fastPr, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - preview\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary/u);
   // Fast and strict CI (PLAN_CHANGES 22.11.2026, superseding the light checks of #821): every change that is not
   // ordinary docs runs the types and the whole Node test manifest in four parts, all through the one command `npm run verify`.
   assert.match(fastPr, /^  typecheck:\n    name: Types\n    needs: changed-range\n    if: \$\{\{ needs\.changed-range\.outputs\.has_changes == 'true' && needs\.changed-range\.outputs\.ordinary_docs != 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}$/mu);
@@ -1850,8 +1850,8 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /run: npm run verify -- --only tests --shard \$\{\{ matrix\.shard \}\}\/4/u);
   assert.doesNotMatch(fastPr, /run: npm run (?:typecheck|lint|build|test:fast-release|test:ci:node)$/mu);
   // node_modules comes from a cache keyed by the lockfile and Node; only a miss runs `npm ci`.
-  assert.equal((fastPr.match(/uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: node_modules\n          key: node-modules-\$\{\{ runner\.os \}\}-\$\{\{ hashFiles\('\.nvmrc', 'package-lock\.json'\) \}\}/gu) ?? []).length, 5);
-  assert.equal((fastPr.match(/if: \$\{\{ steps\.deps\.outputs\.cache-hit != 'true' \}\}\n        run: npm ci/gu) ?? []).length, 5);
+  assert.equal((fastPr.match(/uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6\.1\.0\n        with:\n          path: node_modules\n          key: node-modules-\$\{\{ runner\.os \}\}-\$\{\{ hashFiles\('\.nvmrc', 'package-lock\.json'\) \}\}/gu) ?? []).length, 6);
+  assert.equal((fastPr.match(/if: \$\{\{ steps\.deps\.outputs\.cache-hit != 'true' \}\}\n        run: npm ci/gu) ?? []).length, 6);
   assert.doesNotMatch(fastPr, /inbox_|lead_agent_/u);
   // Mobile is a separate product lane: only its two steps may leave the repository root.
   assert.deepEqual(fastPr.match(/working-directory: .*/gu), ["working-directory: mobile"]);
@@ -1868,19 +1868,20 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
   const env = {
     PATH: process.env.PATH,
     RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false", ORDINARY_DOCS: "true",
-    TYPECHECK_RESULT: "skipped", TESTS_RESULT: "skipped",
+    TYPECHECK_RESULT: "skipped", TESTS_RESULT: "skipped", PREVIEW_RESULT: "skipped",
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped", MOBILE_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
   assert.equal(run({}), 0, "a docs-only change needs no code checks");
-  assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
+  assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", PREVIEW_RESULT: "success", CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MOBILE_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
   // Anything but ordinary docs (code, workflows, migrations, the mobile app) must really run the types and every test
   // part: skipped is not enough there.
-  assert.notEqual(run({ ORDINARY_DOCS: "false", TESTS_RESULT: "success" }), 0, "a non-docs change without types");
-  assert.notEqual(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success" }), 0, "a non-docs change without tests");
-  assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success" }), 0);
-  for (const name of ["TYPECHECK_RESULT", "TESTS_RESULT", "CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
+  assert.notEqual(run({ ORDINARY_DOCS: "false", TESTS_RESULT: "success", PREVIEW_RESULT: "success" }), 0, "a non-docs change without types");
+  assert.notEqual(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", PREVIEW_RESULT: "success" }), 0, "a non-docs change without tests");
+  assert.notEqual(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success" }), 0, "a non-docs change without the preview");
+  assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", PREVIEW_RESULT: "success" }), 0);
+  for (const name of ["TYPECHECK_RESULT", "TESTS_RESULT", "PREVIEW_RESULT", "CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
     for (const result of ["failure", "cancelled", "", "unknown"]) {
       assert.notEqual(run({ [name]: result }), 0, `${name}=${result}`);
     }

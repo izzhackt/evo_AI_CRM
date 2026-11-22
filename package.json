@@ -37,6 +37,7 @@
     "pretest:d1": "node scripts/test-runners/run-node-test-suite.mjs --suite d1 --validate-only",
     "test:d1": "node --conditions=react-server --experimental-strip-types --test tests/platform-case-notes.test.mjs tests/platform-admissions.test.mjs tests/v3-profile-admissions.test.mjs tests/platform-queue-read-extensions.test.mjs tests/platform-reply-snippets.test.mjs tests/platform-message-media-case-attach.test.mjs",
     "test:portal-mobile-routes": "node scripts/test-runners/test-portal-mobile-routes.mjs",
+    "preview:ci": "node scripts/ci/pr-preview.mjs",
     "mobile:stack:up": "node scripts/local-dev/mobile-dev-stack.mjs up",
     "mobile:stack:status": "node scripts/local-dev/mobile-dev-stack.mjs status",
     "mobile:stack:down": "node scripts/local-dev/mobile-dev-stack.mjs down",

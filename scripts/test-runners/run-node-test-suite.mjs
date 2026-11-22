@@ -240,21 +240,35 @@ export function loadDefaultNodeTestPlan(repositoryRoot = resolve(dirname(fileURL
   return resolveNodeTestPlan({ packageJson, repositoryRoot });
 }
 
-export function runNodeTestPlan(plan, { repositoryRoot, nodeExecutable = process.execPath } = {}) {
+/** `i/n` with 1 <= i <= n: the part of every group this run takes (Node's own `--test-shard`); null for all. */
+export function parseNodeTestShard(value) {
+  if (value === null || value === undefined) return null;
+  const match = /^([1-9][0-9]*)\/([1-9][0-9]*)$/u.exec(String(value));
+  if (!match || Number(match[1]) > Number(match[2])) throw new Error(`Invalid --shard: ${value} (expected i/n)`);
+  return `${Number(match[1])}/${Number(match[2])}`;
+}
+
+/**
+ * Runs every group, even after one fails, so a single run reports every failure; exits with the first failing status.
+ * With a shard, each group runs only its Node `--test-shard` part (an empty part passes with 0 tests).
+ */
+export function runNodeTestPlan(plan, { repositoryRoot, nodeExecutable = process.execPath, shard = null } = {}) {
   const root = resolve(repositoryRoot);
+  const part = parseNodeTestShard(shard);
+  let status = 0;
   for (const group of plan.groups) {
     const result = spawnSync(
       nodeExecutable,
-      [...group.nodeArgs, `--test-concurrency=${group.concurrency}`, "--test", ...group.files],
+      [...group.nodeArgs, `--test-concurrency=${group.concurrency}`, ...(part ? [`--test-shard=${part}`] : []), "--test", ...group.files],
       {
         cwd: root,
         stdio: "inherit",
       },
     );
     if (result.error) throw result.error;
-    if (result.status !== 0) return result.status ?? 1;
+    if (result.status !== 0 && status === 0) status = result.status ?? 1;
   }
-  return 0;
+  return status;
 }
 
 function isMainModule() {
@@ -267,10 +281,12 @@ if (isMainModule()) {
   let suiteName = "ci";
   let listJson = false;
   let validateOnly = false;
+  let shard = null;
   for (let index = 0; index < cliArguments.length; index += 1) {
     if (cliArguments[index] === "--list-json") listJson = true;
     else if (cliArguments[index] === "--validate-only") validateOnly = true;
     else if (cliArguments[index] === "--suite") suiteName = cliArguments[++index] ?? "";
+    else if (cliArguments[index] === "--shard") shard = parseNodeTestShard(cliArguments[++index] ?? "");
     else throw new Error(`Unknown argument: ${cliArguments[index]}`);
   }
   if (!new Set(["ci", "unit", "d1"]).has(suiteName)) {
@@ -293,8 +309,8 @@ if (isMainModule()) {
     process.stdout.write(`Validated ${plan.uniqueFileCount} unique Node test files.\n`);
   } else {
     process.stdout.write(
-      `Running ${plan.uniqueFileCount} unique Node test files (${plan.duplicateCount} duplicate invocations removed).\n`,
+      `Running ${plan.uniqueFileCount} unique Node test files (${plan.duplicateCount} duplicate invocations removed)${shard ? `, shard ${shard}` : ""}.\n`,
     );
-    process.exitCode = runNodeTestPlan(plan, { repositoryRoot });
+    process.exitCode = runNodeTestPlan(plan, { repositoryRoot, shard });
   }
 }

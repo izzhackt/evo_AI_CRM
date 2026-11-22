@@ -72,6 +72,77 @@ jobs:
             esac
           done
 
+  # The types and the whole Node test manifest run on every change that is not ordinary docs: code, workflows,
+  # migrations and the mobile app alike (PLAN_CHANGES 22.11.2026: fast and strict CI, superseding the light checks of
+  # #821). `npm run verify` is the one command: the same steps run on a laptop.
+  typecheck:
+    name: Types
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.has_changes == 'true' && needs.changed-range.outputs.ordinary_docs != 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # node_modules is a pure function of the lockfile and Node: a hit skips `npm ci`, a miss installs as before.
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
+      - name: Install locked dependencies
+        if: ${{ steps.deps.outputs.cache-hit != 'true' }}
+        run: npm ci
+
+      - name: Check types
+        run: npm run verify -- --only typecheck
+
+  tests:
+    name: Tests (${{ matrix.shard }}/4)
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.has_changes == 'true' && needs.changed-range.outputs.ordinary_docs != 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # node_modules is a pure function of the lockfile and Node: a hit skips `npm ci`, a miss installs as before.
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
+      - name: Install locked dependencies
+        if: ${{ steps.deps.outputs.cache-hit != 'true' }}
+        run: npm ci
+
+      - name: Run the Node test manifest (one of four parts)
+        run: npm run verify -- --only tests --shard ${{ matrix.shard }}/4
+
   contracts:
     name: Release contracts
     needs: changed-range
@@ -88,11 +159,20 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # node_modules is a pure function of the lockfile and Node: a hit skips `npm ci`, a miss installs as before.
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
       - name: Install locked dependencies
+        if: ${{ steps.deps.outputs.cache-hit != 'true' }}
         run: npm ci
 
       - name: Test release contracts
-        run: npm run test:fast-release
+        run: npm run verify -- --only contracts
 
   lint:
     name: Lint
@@ -110,11 +190,20 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # node_modules is a pure function of the lockfile and Node: a hit skips `npm ci`, a miss installs as before.
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
       - name: Install locked dependencies
+        if: ${{ steps.deps.outputs.cache-hit != 'true' }}
         run: npm ci
 
       - name: Lint
-        run: npm run lint
+        run: npm run verify -- --only lint
 
   build:
     name: Build
@@ -132,11 +221,20 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # node_modules is a pure function of the lockfile and Node: a hit skips `npm ci`, a miss installs as before.
+      - name: Restore installed dependencies
+        id: deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('.nvmrc', 'package-lock.json') }}
+
       - name: Install locked dependencies
+        if: ${{ steps.deps.outputs.cache-hit != 'true' }}
         run: npm ci
 
       - name: Build with TypeScript authority
-        run: npm run build
+        run: npm run verify -- --only build
 
   mobile:
     name: Mobile app
@@ -159,8 +257,7 @@ jobs:
         run: npm ci
 
       - name: Check the mobile app
-        working-directory: mobile
-        run: npm run check
+        run: npm run verify -- --only mobile
 
   migration_boundary:
     name: Migration boundary
@@ -329,6 +426,8 @@ jobs:
     if: ${{ always() }}
     needs:
       - changed-range
+      - typecheck
+      - tests
       - contracts
       - lint
       - build
@@ -341,6 +440,9 @@ jobs:
           RANGE_RESULT: ${{ needs.changed-range.result }}
           HAS_CHANGES: ${{ needs.changed-range.outputs.has_changes }}
           UNKNOWN: ${{ needs.changed-range.outputs.unknown }}
+          ORDINARY_DOCS: ${{ needs.changed-range.outputs.ordinary_docs }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
@@ -351,7 +453,12 @@ jobs:
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
-          for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
+          # Anything but ordinary docs must actually run the types and every test part: «skipped» is not enough.
+          if test "$ORDINARY_DOCS" != "true"; then
+            test "$TYPECHECK_RESULT" = "success"
+            test "$TESTS_RESULT" = "success"
+          fi
+          for result in "$TYPECHECK_RESULT" "$TESTS_RESULT" "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
             case "$result" in
               success|skipped) ;;
               *)

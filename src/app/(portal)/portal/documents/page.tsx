@@ -11,6 +11,7 @@ import { DocumentsView } from "@/components/portal/admission/DocumentsView";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { readStudentPortalDocuments } from "@/lib/v3/portal-source";
 import { readStudentPortalCaseFiles } from "@/lib/v3/portal-source";
+import { readStudentPortalCaseDirections } from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +38,14 @@ export default async function StudentPortalDocumentsPage({
   await requireStudentPortalActor();
   // Свои договор и чеки (352) - дополнение: сбой чтения не роняет чек-лист, блок просто не показывается.
   const caseFilesRead = readStudentPortalCaseFiles().catch(() => []);
-  // Страна поступления (как подпись в меню и «Путь поступления»: выбор студента, иначе анкета, иначе дело) добавляет
-  // её требования в справку «Образец и советы»; сбой чтения оставляет общую справку.
+  // Справка «Образец и советы» добавляет требования страны. Первой идёт страна дела, где лежат документы (373, то же
+  // правило, по которому поставлен список): иначе студент, выбравший на «Главной» другую страну, видел бы чужие
+  // требования. Запасная — страна поступления, как в меню и «Пути поступления» (выбор, иначе анкета, иначе дело).
+  // Сбой любого из чтений оставляет другое, а без обоих — общую справку.
+  const directionsRead = readStudentPortalCaseDirections();
   const countryRead = readStudentCountryChoice().then((choice) => choice?.country ?? null, (): null => null);
   const [documents, locale] = await Promise.all([readStudentPortalDocuments(), getLocale()]);
-  const [caseFiles, country] = await Promise.all([caseFilesRead, countryRead]);
+  const [caseFiles, country, caseCountries] = await Promise.all([caseFilesRead, countryRead, directionsRead]);
   const strings = getPortalStrings("admission", locale);
 
   return (
@@ -56,7 +60,7 @@ export default async function StudentPortalDocumentsPage({
           </p>
         </div>
       </header>
-      <DocumentsView documents={documents} locale={locale} country={country} />
+      <DocumentsView documents={documents} locale={locale} country={country} caseCountries={caseCountries} />
       <CaseFilesCard files={caseFiles} locale={locale} />
     </main>
   );

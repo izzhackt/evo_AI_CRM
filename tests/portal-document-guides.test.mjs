@@ -181,7 +181,10 @@ test("the visible «Образец и советы» button names the document a
   assert.match(html, /role="region"/u);
   assert.match(html, /tabindex="0"/u);
   assert.match(html, />Где взять</u);
-  assert.match(html, /aria-label="Открыть образец целиком"/u);
+  // 23.11.2026: у сертификата по языку свои нарисованные образцы (IELTS и HSK) вместо схемы.
+  assert.match(html, /aria-label="Открыть образец целиком: IELTS, Пример, данные вымышлены"/u);
+  assert.match(html, /aria-pressed="true">IELTS</u);
+  assert.match(html, /aria-pressed="false">HSK</u);
   assert.match(html, /href="\/portal\/messages\?view=chat"/u);
   assert.match(html, /href="\/portal\?view=programs#list"/u);
   assert.match(html, />Спросить куратора</u);
@@ -190,8 +193,11 @@ test("the visible «Образец и советы» button names the document a
   assert.match(html, />Загрузить/u);
   assert.doesNotMatch(html, /pt-doc-guide-download/u);
   assert.doesNotMatch(html, /Принятый документ доступен только для скачивания/u);
-  assert.match(html, /\/portal\/document-samples\/language-score\.svg/u);
-  assert.match(html, /class="pt-doc-guide-pin"/u);
+  assert.match(html, /\/portal\/document-samples\/ielts-1\.jpg/u);
+  // Документ без наборов по-прежнему показывает нарисованную схему с метками.
+  const scheme = renderGuide({ label: "Медицинская справка", requirementKey: null, locale: "ru" });
+  assert.match(scheme, /\/portal\/document-samples\/medical\.svg/u);
+  assert.match(scheme, /class="pt-doc-guide-pin"/u);
   // Без страны дела — общая справка без блока страны. Отчёт теста скачивают, а не снимают: советов «Как
   // сфотографировать» нет; у бумажной справки они есть.
   assert.doesNotMatch(html, /pt-doc-guide-country/u);
@@ -389,4 +395,22 @@ test("an accepted document offers download in the drawer and does not open a sec
   assert.match(ky, />Куратордон суроо</u);
   assert.match(ky, /class="pt-btn pt-doc-guide-download"/u);
   assert.doesNotMatch(ky, /type="file"/u);
+});
+
+// 23.11.2026: недостающие образцы нарисованы нами — вымышленные данные, подпись говорит об этом на RU и KY.
+test("drawn specimens: bank, language tests, CSCA and birth certificate say they are fictional", () => {
+  for (const type of ["bank_statement", "language_certificate", "csca_result", "birth_certificate"]) {
+    const sets = DOCUMENT_SAMPLE_SETS[type];
+    assert.ok(sets && sets.length > 0, type);
+    for (const set of sets) {
+      assert.ok(set.label.ru && set.label.ky, `${type}: ${set.id}`);
+      for (const page of set.pages) {
+        assert.equal(page.caption.ru, "Пример, данные вымышлены", `${type}: ${page.file}`);
+        assert.equal(page.caption.ky, "Үлгү, маалыматтар ойдон чыгарылган", `${type}: ${page.file}`);
+        assert.ok(existsSync(path.join(root, "public/portal/document-samples", page.file)), page.file);
+        assert.ok(existsSync(path.join(root, "public/portal/document-samples", page.file.replace(/\.jpg$/u, "-t.jpg"))), page.file);
+      }
+    }
+  }
+  assert.deepEqual(DOCUMENT_SAMPLE_SETS.language_certificate.map((set) => set.id), ["ielts", "hsk"]);
 });

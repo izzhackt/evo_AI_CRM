@@ -43,7 +43,7 @@ export function DocumentsView({
 }: {
   documents: readonly StudentPortalDocument[];
   locale: Locale;
-  /** Запасная страна справки «Образец и советы»: выбор студента (`readStudentCountryChoice`), если страна дела неизвестна. */
+  /** Запасная страна справки «Пример»: выбор студента (`readStudentCountryChoice`), если страна дела неизвестна. */
   country?: string | null;
   /** Страна каждого дела (373): справка к документу берёт страну его дела, по ней поставлен список. */
   caseCountries?: ReadonlyMap<string, string>;

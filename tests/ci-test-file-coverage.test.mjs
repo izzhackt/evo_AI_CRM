@@ -65,3 +65,11 @@ test("the PR checks run both surfaces this guard counts", () => {
     /- name: Install Chromium\n {8}run: node_modules\/\.bin\/playwright install --with-deps --only-shell chromium\n\n {6}- name: Run the Node test manifest \(one of four parts\)\n {8}env:\n {10}EVO_REQUIRE_BROWSER: "1"\n/u,
   );
 });
+
+test("a test file that launches a browser fails instead of skipping when the PR checks require one", () => {
+  const launchers = testFiles("tests").filter(file => /\bchromium\.launch\(/u.test(readFileSync(join(repositoryRoot, file), "utf8")));
+  assert.ok(launchers.length >= 2, `found only ${launchers.length} browser test files`);
+  for (const file of launchers) {
+    assert.match(readFileSync(join(repositoryRoot, file), "utf8"), /process\.env\.EVO_REQUIRE_BROWSER === "1"/u, `${file} would skip silently in CI`);
+  }
+});

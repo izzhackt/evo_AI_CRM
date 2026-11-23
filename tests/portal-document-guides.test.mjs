@@ -181,10 +181,9 @@ test("the visible «Образец и советы» button names the document a
   assert.match(html, /role="region"/u);
   assert.match(html, /tabindex="0"/u);
   assert.match(html, />Где взять</u);
-  // 23.11.2026: у сертификата по языку свои нарисованные образцы (IELTS и HSK) вместо схемы.
+  // 23.11.2026: у сертификата по языку свои нарисованные образцы вместо схемы; без страны — один IELTS (HSK — для Китая).
   assert.match(html, /aria-label="Открыть образец целиком: IELTS, Пример, данные вымышлены"/u);
-  assert.match(html, /aria-pressed="true">IELTS</u);
-  assert.match(html, /aria-pressed="false">HSK</u);
+  assert.doesNotMatch(html, /aria-pressed="(?:true|false)">HSK</u);
   assert.match(html, /href="\/portal\/messages\?view=chat"/u);
   assert.match(html, /href="\/portal\?view=programs#list"/u);
   assert.match(html, />Спросить куратора</u);
@@ -416,6 +415,12 @@ test("drawn specimens: bank, language tests, CSCA and birth certificate say they
     }
   }
   assert.deepEqual(DOCUMENT_SAMPLE_SETS.language_certificate.map((set) => set.id), ["ielts", "hsk"]);
+  // HSK — только в деле Китая: у Малайзии и без страны остаётся один IELTS.
+  const languageSets = (country) => documentGuideView({ requirementKey: "language_certificate", label: "" }, "ru", country)
+    .sampleSets.map((set) => set.label);
+  assert.deepEqual(languageSets("CN"), ["IELTS", "HSK"]);
+  assert.deepEqual(languageSets("MY"), ["IELTS"]);
+  assert.deepEqual(languageSets(null), ["IELTS"]);
   // Исходники лежат рядом и перерисовываются одной командой; в исходниках только вымышленные данные.
   const dir = path.join(root, "scripts/portal/document-specimens");
   for (const name of ["bank-statement", "ielts", "hsk", "csca", "birth-certificate"]) {

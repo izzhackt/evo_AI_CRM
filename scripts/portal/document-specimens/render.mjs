@@ -2,7 +2,7 @@
 // Нарисованные образцы документов для справки «Образец и советы» (23.11.2026): HTML этой папки -> JPG в
 // public/portal/document-samples (<имя>-1.jpg до 1300 px и миниатюра <имя>-1-t.jpg 240 px, без метаданных).
 // Данные вымышленные, логотипов, гербов, печатей и подписей нет: официальные образцы брать нельзя
-// (docs/design/v3/references/2026-11-23-document-specimens.md). Правка образца — правка HTML и повторный запуск:
+// (docs/design/v3/references/2026-11-23-document-specimens/README.md). Правка образца — правка HTML и повторный запуск:
 //   node scripts/portal/document-specimens/render.mjs
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

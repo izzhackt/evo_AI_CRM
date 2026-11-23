@@ -148,6 +148,8 @@ export const DOCUMENT_SAMPLE_SETS: Readonly<Partial<Record<string, readonly Docu
     {
       id: "hsk",
       label: { ru: "HSK", ky: "HSK" },
+      // HSK сдают для Китая; студенту Малайзии он ни к чему.
+      country: "CN",
       pages: [{ file: "hsk-1.jpg", caption: FICTIONAL }],
     },
   ],

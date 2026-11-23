@@ -778,6 +778,23 @@ function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | nu
  * Справка к пункту списка. Нет совпадения — null: кнопку «!» не рисуют.
  * Известный ключ важнее подписи. Неизвестный ключ не мешает узнать документ по имени.
  */
+/**
+ * Страна справки для списка документов (373): если все документы лежат в делах одной страны — она; дела разных стран или
+ * страна неизвестна — `null`, тогда справка берёт выбор студента.
+ */
+export function caseGuideCountry(
+  caseIds: readonly string[],
+  directions: ReadonlyMap<string, string>,
+): string | null {
+  const found = new Set<string>();
+  for (const caseId of caseIds) {
+    const direction = directions.get(caseId);
+    if (!direction) return null;
+    found.add(direction);
+  }
+  return found.size === 1 ? [...found][0] : null;
+}
+
 export function documentGuideView(
   input: Readonly<{ requirementKey: string | null; label: string }>,
   locale: Locale,

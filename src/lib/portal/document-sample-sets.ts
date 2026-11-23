@@ -6,6 +6,12 @@
  * Айвара, 20.11.2026 (docs/design/v3/product.md). Новые сканы добавляются только так же: сначала закраска и проверка,
  * потом файл в public/portal/document-samples (имя: строчные латинские буквы, цифры и дефисы, .jpg).
  *
+ * Справку из банка, сертификаты IELTS и HSK, результаты CSCA и свидетельство о рождении нарисовали сами, с выдуманными
+ * данными (студентка «Образцова Алина», нули вместо номеров), без логотипов, гербов, печатей и подписей и с водяным знаком
+ * «ОБРАЗЕЦ» (ответ Айвара 23.11.2026: найти в интернете). Официальные образцы брать нельзя: условия IELTS, ETS, HSK и
+ * csca.cn запрещают перепечатку, у банков своих образцов нет, а фото свидетельства в новостях — с настоящими данными.
+ * Исходники и отрисовка — scripts/portal/document-specimens (HTML -> JPG одной командой).
+ *
  * Если у документа есть наборы для страны дела, справка показывает их вместо нарисованной схемы.
  */
 import type { GuideCountry } from "./document-guides.ts";
@@ -27,6 +33,10 @@ const TRANSLATION: Line = { ru: "Перевод", ky: "Котормо" };
 const NOTARY: Line = { ru: "Заверка нотариуса", ky: "Нотариустун күбөлөндүрүүсү" };
 const NOTARY_EN: Line = { ru: "Заверка, англ.", ky: "Күбөлөндүрүү, англ." };
 const page = (n: number): Line => ({ ru: `Страница ${n}`, ky: `${n}-бет` });
+/** Нарисованный нами образец с вымышленными данными. */
+const FICTIONAL: Line = { ru: "Пример, данные вымышлены", ky: "Үлгү, маалыматтар ойдон чыгарылган" };
+/** Официального образца нет нигде (CSCA): вид примерный, настоящий отчёт может выглядеть иначе. */
+const APPROXIMATE: Line = { ru: "Примерный вид, данные вымышлены", ky: "Болжолдуу көрүнүшү, маалыматтар ойдон чыгарылган" };
 
 export const DOCUMENT_SAMPLE_SETS: Readonly<Partial<Record<string, readonly DocumentSampleSetSource[]>>> = {
   passport: [
@@ -127,6 +137,41 @@ export const DOCUMENT_SAMPLE_SETS: Readonly<Partial<Record<string, readonly Docu
       id: "consent",
       label: { ru: "Согласие у нотариуса", ky: "Нотариустагы макулдук" },
       pages: [{ file: "consent-1.jpg", caption: ORIGINAL }],
+    },
+  ],
+  language_certificate: [
+    {
+      id: "ielts",
+      label: { ru: "IELTS", ky: "IELTS" },
+      pages: [{ file: "ielts-1.jpg", caption: FICTIONAL }],
+    },
+    {
+      id: "hsk",
+      label: { ru: "HSK", ky: "HSK" },
+      // HSK сдают для Китая; студенту Малайзии он ни к чему.
+      country: "CN",
+      pages: [{ file: "hsk-1.jpg", caption: FICTIONAL }],
+    },
+  ],
+  csca_result: [
+    {
+      id: "csca",
+      label: { ru: "Отчёт с баллами", ky: "Баллдар менен отчёт" },
+      pages: [{ file: "csca-1.jpg", caption: APPROXIMATE }],
+    },
+  ],
+  bank_statement: [
+    {
+      id: "bank",
+      label: { ru: "Справка на английском", ky: "Англисче маалымкат" },
+      pages: [{ file: "bank-statement-1.jpg", caption: FICTIONAL }],
+    },
+  ],
+  birth_certificate: [
+    {
+      id: "birth",
+      label: { ru: "Свидетельство", ky: "Күбөлүк" },
+      pages: [{ file: "birth-certificate-1.jpg", caption: FICTIONAL }],
     },
   ],
 };

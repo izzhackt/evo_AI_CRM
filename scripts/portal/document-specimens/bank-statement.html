@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+  .bank { font-family: Arial, Helvetica, sans-serif; }
+  .bank b { display: block; font-size: 22px; letter-spacing: 0.04em; }
+  .bank span { display: block; font-size: 12px; color: #5c616b; line-height: 1.5; }
+  .logo { width: 64px; height: 64px; border-radius: 12px; }
+  .meta { display: flex; justify-content: space-between; margin-top: 26px; }
+  h1 { margin: 40px 0 6px; font-size: 20px; text-align: center; letter-spacing: 0.06em; }
+  .addressee { margin: 26px 0 18px; font-weight: bold; letter-spacing: 0.04em; }
+  td, th { border: 1px solid #1d1d1f; padding: 8px 10px; text-align: left; font-size: 14px; vertical-align: top; }
+  th { background: #eef0f3; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+  .num { text-align: right; white-space: nowrap; }
+  .sign { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 54px; }
+  .line { display: inline-block; width: 170px; border-bottom: 1px solid #1d1d1f; margin: 0 14px; }
+  .stamp { width: 120px; height: 120px; border-radius: 50%; }
+  .verify { display: flex; align-items: center; gap: 16px; margin-top: 60px; }
+  .qr { width: 86px; height: 86px; }
+</style></head>
+<body><div class="sheet">
+  <div class="watermark"><span>ОБРАЗЕЦ</span></div>
+  <div class="head">
+    <div class="bank">
+      <b>BANK NAME (EXAMPLE)</b>
+      <span>Open Joint-Stock Company · Licence of the National Bank of the Kyrgyz Republic No. 000</span>
+      <span>00 Example Street, Bishkek 720000, Kyrgyz Republic · +996 (000) 000 000 · info@bank.example</span>
+    </div>
+    <div class="placeholder logo">BANK<br>LOGO</div>
+  </div>
+  <div class="rule"></div>
+  <div class="meta"><span>Ref. No. 0000/00</span><span>Bishkek, 01.03.2027</span></div>
+
+  <h1>CERTIFICATE OF ACCOUNT AND BALANCE</h1>
+  <div class="addressee">TO WHOM IT MAY CONCERN</div>
+
+  <p>This is to certify that <b>Ms. OBRAZTSOVA ALINA</b>, date of birth 14.10.2009, passport No. <b>AC0000000</b>,
+    is a client of Bank Name (Example) and holds the following account with the balance below:</p>
+
+  <table>
+    <tr><th>Account No.</th><th>Account type</th><th>Currency</th><th>Opened</th><th class="num">Balance as at 01.03.2027</th></tr>
+    <tr><td>0000 0000 0000 0000</td><td>Current account</td><td>USD</td><td>12.03.2024</td><td class="num"><b>3 000.00</b></td></tr>
+  </table>
+
+  <p style="margin-top:18px">Balance in words: <b>three thousand US dollars and 00 cents</b>.</p>
+  <p>The certificate is issued at the client's request for submission to the embassy and the university.
+    The bank bears no responsibility for further changes of the balance.</p>
+
+  <div class="sign">
+    <div>Head of Retail Department<span class="line"></span>A. Primerov</div>
+    <div class="placeholder stamp">BANK<br>STAMP</div>
+  </div>
+
+  <div class="verify">
+    <div class="placeholder qr">QR</div>
+    <div class="small muted">Verification code: 0000-0000-0000<br>The certificate can be checked on the bank's website by this code.</div>
+  </div>
+</div></body></html>

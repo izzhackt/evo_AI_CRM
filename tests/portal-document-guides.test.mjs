@@ -182,7 +182,9 @@ test("the visible «Образец и советы» button names the document a
   assert.match(html, /role="region"/u);
   assert.match(html, /tabindex="0"/u);
   assert.match(html, />Где взять</u);
-  assert.match(html, /aria-label="Открыть образец целиком"/u);
+  // 23.11.2026: у сертификата по языку свои нарисованные образцы вместо схемы; без страны — один IELTS (HSK — для Китая).
+  assert.match(html, /aria-label="Открыть образец целиком: IELTS, Пример, данные вымышлены"/u);
+  assert.doesNotMatch(html, /aria-pressed="(?:true|false)">HSK</u);
   assert.match(html, /href="\/portal\/messages\?view=chat"/u);
   assert.match(html, /href="\/portal\?view=programs#list"/u);
   assert.match(html, />Спросить куратора</u);
@@ -191,8 +193,11 @@ test("the visible «Образец и советы» button names the document a
   assert.match(html, />Загрузить/u);
   assert.doesNotMatch(html, /pt-doc-guide-download/u);
   assert.doesNotMatch(html, /Принятый документ доступен только для скачивания/u);
-  assert.match(html, /\/portal\/document-samples\/language-score\.svg/u);
-  assert.match(html, /class="pt-doc-guide-pin"/u);
+  assert.match(html, /\/portal\/document-samples\/ielts-1\.jpg/u);
+  // Документ без наборов по-прежнему показывает нарисованную схему с метками.
+  const scheme = renderGuide({ label: "Медицинская справка", requirementKey: null, locale: "ru" });
+  assert.match(scheme, /\/portal\/document-samples\/medical\.svg/u);
+  assert.match(scheme, /class="pt-doc-guide-pin"/u);
   // Без страны дела — общая справка без блока страны. Отчёт теста скачивают, а не снимают: советов «Как
   // сфотографировать» нет; у бумажной справки они есть.
   assert.doesNotMatch(html, /pt-doc-guide-country/u);
@@ -443,4 +448,39 @@ test("migration 373: the student reads only their own cases, with the 338 countr
   assert.match(suite, /^ROLLBACK;\s*$/mu);
   assert.match(suite, /\\echo A373_STUDENT_CASE_DIRECTION_SUITE_PASSED/u);
   assert.doesNotMatch(suite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");
+});
+
+// 23.11.2026: недостающие образцы нарисованы нами — вымышленные данные, подпись говорит об этом на RU и KY.
+test("drawn specimens: bank, language tests, CSCA and birth certificate say they are fictional", () => {
+  for (const type of ["bank_statement", "language_certificate", "csca_result", "birth_certificate"]) {
+    const sets = DOCUMENT_SAMPLE_SETS[type];
+    assert.ok(sets && sets.length > 0, type);
+    for (const set of sets) {
+      assert.ok(set.label.ru && set.label.ky, `${type}: ${set.id}`);
+      for (const page of set.pages) {
+        // У CSCA официального образца нет нигде: подпись говорит, что вид примерный.
+        const caption = type === "csca_result"
+          ? { ru: "Примерный вид, данные вымышлены", ky: "Болжолдуу көрүнүшү, маалыматтар ойдон чыгарылган" }
+          : { ru: "Пример, данные вымышлены", ky: "Үлгү, маалыматтар ойдон чыгарылган" };
+        assert.deepEqual(page.caption, caption, `${type}: ${page.file}`);
+        assert.ok(existsSync(path.join(root, "public/portal/document-samples", page.file)), page.file);
+        assert.ok(existsSync(path.join(root, "public/portal/document-samples", page.file.replace(/\.jpg$/u, "-t.jpg"))), page.file);
+      }
+    }
+  }
+  assert.deepEqual(DOCUMENT_SAMPLE_SETS.language_certificate.map((set) => set.id), ["ielts", "hsk"]);
+  // HSK — только в деле Китая: у Малайзии и без страны остаётся один IELTS.
+  const languageSets = (country) => documentGuideView({ requirementKey: "language_certificate", label: "" }, "ru", country)
+    .sampleSets.map((set) => set.label);
+  assert.deepEqual(languageSets("CN"), ["IELTS", "HSK"]);
+  assert.deepEqual(languageSets("MY"), ["IELTS"]);
+  assert.deepEqual(languageSets(null), ["IELTS"]);
+  // Исходники лежат рядом и перерисовываются одной командой; в исходниках только вымышленные данные.
+  const dir = path.join(root, "scripts/portal/document-specimens");
+  for (const name of ["bank-statement", "ielts", "hsk", "csca", "birth-certificate"]) {
+    const html = readFileSync(path.join(dir, `${name}.html`), "utf8");
+    assert.match(html, /ОБРАЗЕЦ/u, name);
+    assert.doesNotMatch(html, /<img\b|https?:\/\//u, `${name}: no outside images or links`);
+  }
+  assert.match(readFileSync(path.join(dir, "render.mjs"), "utf8"), /public\/portal\/document-samples/u);
 });

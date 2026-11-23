@@ -1,0 +1,51 @@
+/* Общий вид вымышленных образцов: лист A4, без логотипов, гербов, печатей и подписей; водяной знак «ОБРАЗЕЦ». */
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; }
+.sheet {
+  position: relative;
+  width: 794px;
+  height: 1123px;
+  padding: 64px 70px;
+  overflow: hidden;
+  background: #fff;
+  color: #1d1d1f;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.sans { font-family: Arial, Helvetica, sans-serif; }
+.cjk { font-family: "PingFang SC", "Hiragino Sans GB", "Songti SC", Arial, sans-serif; }
+.watermark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.watermark span {
+  transform: rotate(-32deg);
+  color: rgba(200, 30, 40, 0.13);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 150px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.muted { color: #5c616b; }
+.small { font-size: 12px; }
+.rule { height: 1px; background: #1d1d1f; margin: 14px 0; }
+.box { border: 1px solid #1d1d1f; }
+.fill { background: #eef0f3; }
+.placeholder {
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed #9aa0a9;
+  color: #8a8f98;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.25;
+}
+.photo svg { width: 100%; height: 100%; display: block; }
+table { border-collapse: collapse; width: 100%; }

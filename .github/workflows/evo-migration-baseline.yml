@@ -1,0 +1,79 @@
+name: EVO migration baseline
+
+# Builds the saved database for the «Migration boundary» fast mode (docs/PLAN_CHANGES.md, 22.11.2026): the whole
+# forward-only migration chain with every checkpoint suite, then a compressed copy of the Postgres data directory taken
+# right after the last migration. Pull requests that only add migrations restore it (see evo-fast-pr-checks.yml) and
+# apply just the new ones. The cache key is a content hash of the migrations, suites, harness and helper scripts, so a
+# main commit that changes none of them finds the entry already there and does no work.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "scripts/test-runners/test-postgres-authorization.sh"
+      # Every other key input (HELPER_PATHS in scripts/test-runners/migration-baseline.mjs; pinned by a test).
+      - "scripts/local-dev/resolve-postgres-test-image.sh"
+      - "scripts/test-runners/migration-baseline.mjs"
+      - "scripts/test-runners/run-command-with-deadline.mjs"
+      - "scripts/test-runners/test-p2g-queues-runtime.sh"
+      - "scripts/test-runners/test-platform-migration-077-runtime.sh"
+      - "supabase/config.toml"
+      - ".github/workflows/evo-migration-baseline.yml"
+  workflow_dispatch:
+  schedule:
+    # Caches unused for 7 days are evicted. Twice a week the key is looked up (and rebuilt only if it is gone), so PRs
+    # are not left on the whole chain for good. A no-op when the entry exists.
+    - cron: "17 3 * * 1,4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evo-migration-baseline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  baseline:
+    name: Migration baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute the baseline key
+        id: key
+        run: |
+          set -Eeuo pipefail
+          echo "key=$(node scripts/test-runners/migration-baseline.mjs key --rev HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Look for an existing baseline
+        id: existing
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/migration-baseline
+          key: ${{ steps.key.outputs.key }}
+          lookup-only: true
+
+      - name: Build the baseline (whole chain, then save)
+        if: ${{ steps.existing.outputs.cache-hit != 'true' }}
+        env:
+          EVO_MIGRATION_BOUNDARY_MODE: save
+          EVO_MIGRATION_BASELINE_DIR: ${{ github.workspace }}/.cache/migration-baseline
+        run: npm run test:database:migration-boundaries
+
+      - name: Save the baseline
+        if: ${{ steps.existing.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/migration-baseline
+          key: ${{ steps.key.outputs.key }}

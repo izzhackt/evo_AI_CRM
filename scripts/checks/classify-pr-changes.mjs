@@ -17,6 +17,7 @@ const CONTRACT_PATHS = new Set([
 const CONTRACT_PREFIXES = ["docs/adr/", "docs/design/v3/", ".github/workflows/"];
 const MIGRATION_BOUNDARY_PATHS = new Set([
   "scripts/test-runners/test-postgres-authorization.sh",
+  "scripts/test-runners/migration-baseline.mjs",
 ]);
 const MIGRATION_BOUNDARY_PREFIXES = ["supabase/migrations/", "supabase/tests/"];
 const PROSE_EXTENSIONS = new Set([".md", ".mdx", ".txt", ".rst", ".adoc"]);

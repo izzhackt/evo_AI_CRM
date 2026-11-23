@@ -70,3 +70,5 @@ secrets/knowledge/
 /mobile/.local-stack-accounts.json
 # npm run verify: per-step logs
 .verify/
+
+/.cache/migration-baseline/

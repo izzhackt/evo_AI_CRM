@@ -8,7 +8,8 @@ import ts from "typescript";
 import * as pending from "../src/lib/portal/application-packages-pending.ts";
 import * as codec from "../src/lib/portal/application-packages.ts";
 import * as documents from "../src/lib/portal/application-documents.ts";
-import { getPortalStrings } from "../src/lib/portal/i18n.ts";
+import * as portalI18n from "../src/lib/portal/i18n.ts";
+const { getPortalStrings } = portalI18n;
 import { packageStrings } from "../src/components/portal/applicationPackages/strings.ts";
 import * as wording from "../src/lib/v3/wording.ts";
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/application-packages-v1.json", import.meta.url), "utf8"));
@@ -115,7 +116,7 @@ test("confirmed receipt remains confirmed if local cleanup fails", async t => {
 });
 test("RU and KY package notification targets remain distinct from individual documents", () => {
   const presentation = {};
-  runInNewContext(compile("../src/components/portal/admission/presentation.ts"), { exports: presentation, require(name) { assert.equal(name, "@/lib/v3/wording"); return wording; } });
+  runInNewContext(compile("../src/components/portal/admission/presentation.ts"), { exports: presentation, require(name) { const modules = { "@/lib/v3/wording": wording, "@/lib/portal/i18n": portalI18n }; assert.ok(Object.hasOwn(modules, name), name); return modules[name]; } });
   const labels = [];
   for (const locale of ["ru", "ky"]) {
     const strings = getPortalStrings("admission", locale);

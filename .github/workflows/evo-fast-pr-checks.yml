@@ -140,7 +140,14 @@ jobs:
         if: ${{ steps.deps.outputs.cache-hit != 'true' }}
         run: npm ci
 
+      # Browser-rendered UI tests (tests/ai-agents-ui.test.mjs) need Chromium. With EVO_REQUIRE_BROWSER they fail instead
+      # of skipping when it does not start (PLAN_CHANGES 22.11.2026).
+      - name: Install Chromium
+        run: node_modules/.bin/playwright install --with-deps --only-shell chromium
+
       - name: Run the Node test manifest (one of four parts)
+        env:
+          EVO_REQUIRE_BROWSER: "1"
         run: npm run verify -- --only tests --shard ${{ matrix.shard }}/4
 
   # The PR's real app on a throwaway synthetic stack, checked in a browser (owner's choice «A: превью в CI», 22.11.2026):

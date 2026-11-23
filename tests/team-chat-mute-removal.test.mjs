@@ -23,7 +23,8 @@ function withCurrentAuthority(definition, signature, expectedPatches) {
 test("chat removes mute and permanent explanatory copy while retaining recovery and sparse seen", () => {
   const chat = source("src/components/staff/team-chat/TeamChat.tsx");
   assert.doesNotMatch(chat, /Сообщения появляются автоматически|Внутренняя переписка сотрудников EVO|Приглушить|Включить уведомления|item\.muted/u);
-  assert.match(chat, /transportLabel \|\| error \? <div className=\{styles\.transport\} role="status"/u);
+  assert.match(chat, /transportLabel \? <div className=\{styles\.transport\} role="status"/u);
+  assert.match(chat, /readFailure && readFailureCopy \? <div role="alert"/u, "a failed read still shows its own alert");
   assert.match(chat, /transport === "live" \? null/u);
   assert.match(chat, /Обновить историю/u);
   assert.match(chat, /Подключить снова/u);

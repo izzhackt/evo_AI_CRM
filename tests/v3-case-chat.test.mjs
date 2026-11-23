@@ -259,7 +259,7 @@ test("the pipeline board renders needs_reply as a warning word with a link to th
 
 test("the staff notification contract decodes case_message with an ids-only href to the messages screen", () => {
   const contract = source("src/lib/platform-staff-notifications-contract.ts");
-  assert.match(contract, /\| "case_message";/u);
+  assert.match(contract, /^ {2}\| "case_message"[;]?$/mu);
   assert.match(contract, /else if \(row\.kind === "case_message"\) \{\s*if \(!isStaffNotificationId\(row\.student_case_id\)\) return fail\(\);\s*href = `\/messages\?case=\$\{row\.student_case_id\}`;/u);
 });
 

@@ -314,7 +314,11 @@ test("declares the exact private Platform document and WhatsApp media buckets", 
     /^\[storage\.buckets\.platform-whatsapp-media\]\n([\s\S]*?)(?=^\[)/m,
   );
 
-  assert.deepEqual(bucketNames, ["platform-documents", "platform-whatsapp-media"]);
+  assert.deepEqual(bucketNames, ["platform-documents", "platform-document-exports", "platform-company-files", "platform-whatsapp-media"]);
+  for (const name of bucketNames) {
+    const section = config.match(new RegExp(`^\\[storage\\.buckets\\.${name}\\]\\n([\\s\\S]*?)(?=^\\[|(?![\\s\\S]))`, "mu"));
+    assert.match(section?.[1] ?? "", /^public\s*=\s*false$/mu, `${name} must stay private`);
+  }
   assert.ok(documentBucketSection, "platform-documents bucket must be declared");
   assert.match(documentBucketSection[1], /^public\s*=\s*false$/m);
   assert.match(documentBucketSection[1], /^file_size_limit\s*=\s*"25MiB"$/m);

@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 import {
-  caseGuideCountry,
+  documentGuideCountry,
   documentGuideSamples,
   documentGuideView,
   DOCUMENT_GUIDE_TYPES,
@@ -392,20 +392,21 @@ test("an accepted document offers download in the drawer and does not open a sec
   assert.doesNotMatch(ky, /type="file"/u);
 });
 
-// 373 (23.11.2026): справка следует стране дела, где лежат документы, а не выбору студента на «Главной».
-test("the guide country follows the case of the documents; mixed or unknown cases fall back to the student's choice", () => {
-  const directions = new Map([["case-cn", "CN"], ["case-cn-2", "CN"], ["case-my", "MY"]]);
-  assert.equal(caseGuideCountry(["case-cn", "case-cn", "case-cn-2"], directions), "CN");
-  assert.equal(caseGuideCountry(["case-my"], directions), "MY");
-  assert.equal(caseGuideCountry(["case-cn", "case-my"], directions), null, "two countries: no single answer");
-  assert.equal(caseGuideCountry(["case-cn", "case-unknown"], directions), null, "an unknown case: no guess");
-  assert.equal(caseGuideCountry([], directions), null);
-  assert.equal(caseGuideCountry(["case-cn"], new Map()), null, "a failed read leaves the choice");
+// 373 (23.11.2026): справка следует стране дела, где лежит документ, а не выбору студента на «Главной».
+test("each document's help follows the country of its case; an unknown case falls back to the student's choice", () => {
+  const caseCountries = new Map([["case-cn", "CN"], ["case-my", "MY"]]);
+  assert.equal(documentGuideCountry("case-cn", caseCountries, "MY"), "CN", "the case wins over the choice");
+  assert.equal(documentGuideCountry("case-my", caseCountries, "CN"), "MY", "two cases, two countries: each row its own");
+  assert.equal(documentGuideCountry("case-unknown", caseCountries, "MY"), "MY", "an unknown case: the choice");
+  assert.equal(documentGuideCountry("case-cn", new Map(), null), null, "a failed read and no choice: the general help");
 
   const page = readFileSync(path.join(root, "src/app/(portal)/portal/documents/page.tsx"), "utf8");
   assert.match(page, /import \{ readStudentPortalCaseDirections \} from "@\/lib\/v3\/portal-source"/u);
-  assert.match(page, /const country = caseGuideCountry\(documents\.map\(\(document\) => document\.caseId\), directions\) \?\? choiceCountry;/u);
-  assert.match(page, /<DocumentsView documents=\{documents\} locale=\{locale\} country=\{country\} \/>/u);
+  assert.match(page, /const \[caseFiles, country, caseCountries\] = await Promise\.all\(\[caseFilesRead, countryRead, directionsRead\]\);/u);
+  assert.match(page, /<DocumentsView documents=\{documents\} locale=\{locale\} country=\{country\} caseCountries=\{caseCountries\} \/>/u);
+  const view = readFileSync(path.join(root, "src/components/portal/admission/DocumentsView.tsx"), "utf8");
+  assert.match(view, /const guideCountry = documentGuideCountry\(document\.caseId, caseCountries, country\);/u);
+  assert.match(view, /country=\{guideCountry\}/u);
 
   const source = readFileSync(path.join(root, "src/lib/v3/portal-source.ts"), "utf8");
   const reader = source.slice(source.indexOf("export async function readStudentPortalCaseDirections"));

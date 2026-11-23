@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 
 import { getLocale } from "@/lib/i18n";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
-import { caseGuideCountry } from "@/lib/portal/document-guides";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
 import { CaseFilesCard } from "@/components/portal/admission/CaseFilesCard";
@@ -46,8 +45,7 @@ export default async function StudentPortalDocumentsPage({
   const directionsRead = readStudentPortalCaseDirections();
   const countryRead = readStudentCountryChoice().then((choice) => choice?.country ?? null, (): null => null);
   const [documents, locale] = await Promise.all([readStudentPortalDocuments(), getLocale()]);
-  const [caseFiles, choiceCountry, directions] = await Promise.all([caseFilesRead, countryRead, directionsRead]);
-  const country = caseGuideCountry(documents.map((document) => document.caseId), directions) ?? choiceCountry;
+  const [caseFiles, country, caseCountries] = await Promise.all([caseFilesRead, countryRead, directionsRead]);
   const strings = getPortalStrings("admission", locale);
 
   return (
@@ -62,7 +60,7 @@ export default async function StudentPortalDocumentsPage({
           </p>
         </div>
       </header>
-      <DocumentsView documents={documents} locale={locale} country={country} />
+      <DocumentsView documents={documents} locale={locale} country={country} caseCountries={caseCountries} />
       <CaseFilesCard files={caseFiles} locale={locale} />
     </main>
   );

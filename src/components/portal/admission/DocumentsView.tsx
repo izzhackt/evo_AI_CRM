@@ -5,7 +5,7 @@ import { EmptyIcon } from "@/components/portal/home/HomeParts";
 
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import { documentGuideView } from "@/lib/portal/document-guides";
+import { documentGuideCountry, documentGuideView } from "@/lib/portal/document-guides";
 import { defaultDocumentHint } from "@/lib/portal/document-hints";
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
@@ -37,13 +37,16 @@ export function DocumentsView({
   documents,
   locale,
   country = null,
+  caseCountries = new Map<string, string>(),
   tabs = null,
   children = null,
 }: {
   documents: readonly StudentPortalDocument[];
   locale: Locale;
-  /** Страна поступления студента (`CN`…, `readStudentCountryChoice`): её требования в справке «Образец и советы». */
+  /** Запасная страна справки «Образец и советы»: выбор студента (`readStudentCountryChoice`), если страна дела неизвестна. */
   country?: string | null;
+  /** Страна каждого дела (373): справка к документу берёт страну его дела, по ней поставлен список. */
+  caseCountries?: ReadonlyMap<string, string>;
   /** Вкладки страницы — между карточкой «Чеклист» и содержимым (как у образца). */
   tabs?: ReactNode;
   /** Другое содержимое вместо списка документов (с 09.11.2026 страница его не передаёт). */
@@ -118,12 +121,13 @@ export function DocumentsView({
             && decisionLabel.toLocaleLowerCase() === status.label.toLocaleLowerCase()
             ? null
             : decisionLabel;
+          const guideCountry = documentGuideCountry(document.caseId, caseCountries, country);
           const deadlineLabel = formatPortalDeadline(document.deadline);
           const submittedLabel = formatPortalTimestamp(document.submittedAt);
           const guide = documentGuideView(
             { requirementKey: document.requirementKey, label: document.requirementLabel },
             locale,
-            country,
+            guideCountry,
           );
           const hint = document.instructions ?? (guide ? null : defaultDocumentHint(document.requirementLabel, locale));
           const acceptedDownload = document.status === "approved" && document.documentVersionId
@@ -148,7 +152,7 @@ export function DocumentsView({
                     label={document.requirementLabel}
                     requirementKey={document.requirementKey}
                     locale={locale}
-                    country={country}
+                    country={guideCountry}
                     statusLabel={status.label}
                     statusTone={status.tone}
                     // Принятый документ заменить нельзя — как и в строке (`allowUpload`), даже если файла версии нет.

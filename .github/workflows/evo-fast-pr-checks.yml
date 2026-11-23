@@ -332,6 +332,29 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # A baseline of main's tail lets a PR that only adds migrations apply just those (PLAN_CHANGES 22.11.2026); anything
+      # else, or no usable baseline, runs the full chain, announced on the first line of the boundary log.
+      - name: Resolve the migration baseline key
+        id: baseline
+        run: |
+          set -Eeuo pipefail
+          # No key only costs time: the harness then runs the whole chain. It must never fail the check by itself.
+          if git fetch --no-tags origin main:refs/remotes/origin/main \
+            && key="$(node scripts/test-runners/migration-baseline.mjs key --merge-base-with origin/main)" \
+            && [[ -n "$key" ]]; then
+            echo "key=$key" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Migration baseline::no baseline key, so the boundary check runs the whole chain"
+          fi
+
+      - name: Restore the migration baseline (a miss only means the full chain)
+        if: ${{ steps.baseline.outputs.key != '' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/migration-baseline
+          key: ${{ steps.baseline.outputs.key }}
+          restore-keys: migration-baseline-v1-
+
       - name: Classify the exact migration boundary diff
         id: migration-scope
         run: |
@@ -389,6 +412,9 @@ jobs:
 
       - name: Test migration boundary
         if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' && steps.migration-scope.outputs.scoped_student_conflicts != 'true' && steps.migration-scope.outputs.scoped_invite_conflicts != 'true' }}
+        env:
+          EVO_MIGRATION_BOUNDARY_MODE: auto
+          EVO_MIGRATION_BASELINE_DIR: ${{ github.workspace }}/.cache/migration-baseline
         run: npm run test:database:migration-boundaries
 
       - name: Check scoped Docs intake source boundary

@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 import {
+  documentGuideCountry,
   documentGuideSamples,
   documentGuideView,
   DOCUMENT_GUIDE_TYPES,
@@ -389,4 +390,57 @@ test("an accepted document offers download in the drawer and does not open a sec
   assert.match(ky, />Куратордон суроо</u);
   assert.match(ky, /class="pt-btn pt-doc-guide-download"/u);
   assert.doesNotMatch(ky, /type="file"/u);
+});
+
+// 373 (23.11.2026): справка следует стране дела, где лежит документ, а не выбору студента на «Главной».
+test("each document's help follows the country of its case; an unknown case falls back to the student's choice", () => {
+  const caseCountries = new Map([["case-cn", "CN"], ["case-my", "MY"]]);
+  assert.equal(documentGuideCountry("case-cn", caseCountries, "MY"), "CN", "the case wins over the choice");
+  assert.equal(documentGuideCountry("case-my", caseCountries, "CN"), "MY", "two cases, two countries: each row its own");
+  assert.equal(documentGuideCountry("case-unknown", caseCountries, "MY"), "MY", "an unknown case: the choice");
+  assert.equal(documentGuideCountry("case-cn", new Map(), null), null, "a failed read and no choice: the general help");
+
+  const page = readFileSync(path.join(root, "src/app/(portal)/portal/documents/page.tsx"), "utf8");
+  assert.match(page, /import \{ readStudentPortalCaseDirections \} from "@\/lib\/v3\/portal-source"/u);
+  assert.match(page, /const \[caseFiles, country, caseCountries\] = await Promise\.all\(\[caseFilesRead, countryRead, directionsRead\]\);/u);
+  assert.match(page, /<DocumentsView documents=\{documents\} locale=\{locale\} country=\{country\} caseCountries=\{caseCountries\} \/>/u);
+  const view = readFileSync(path.join(root, "src/components/portal/admission/DocumentsView.tsx"), "utf8");
+  assert.match(view, /const guideCountry = documentGuideCountry\(document\.caseId, caseCountries, country\);/u);
+  assert.match(view, /country=\{guideCountry\}/u);
+
+  const source = readFileSync(path.join(root, "src/lib/v3/portal-source.ts"), "utf8");
+  const reader = source.slice(source.indexOf("export async function readStudentPortalCaseDirections"));
+  assert.match(reader, /rpc\("student_portal_case_directions_v1", \{\}, \{ get: true \}\)/u);
+  assert.match(reader.slice(0, reader.indexOf("\n}\n")), /catch \{\s+return new Map\(\);/u, "a failed read never breaks the page");
+});
+
+test("migration 373: the student reads only their own cases, with the 338 country rule, and nothing else is opened", () => {
+  const sql = readFileSync(path.join(root, "supabase/migrations/373_platform_student_case_direction.sql"), "utf8");
+  // The rule is the one that seeded the checklist (338), in the same order.
+  const seed = readFileSync(path.join(root, "supabase/migrations/338_platform_default_document_checklist.sql"), "utf8");
+  assert.match(seed, /direction := target_case\.admissions_direction;/u);
+  assert.match(seed, /platform_private\.student_application_direction\(upper\(btrim\(target_case\.target_country\)\)\)/u);
+  assert.match(sql, /COALESCE\(\s+student_case\.admissions_direction,\s+platform_private\.student_application_direction\(upper\(btrim\(student_case\.target_country\)\)\),/u);
+  assert.match(sql, /application\.student_case_id = p_student_case_id OR application\.invited_case_id = p_student_case_id\)\s+ORDER BY application\.submitted_at DESC NULLS LAST, application\.id DESC/u);
+  // The read: the signed-in student, own cases with a portal, the same checks as 357; only id and country come back.
+  assert.match(sql, /RETURNS TABLE\(student_case_id UUID, direction TEXT\)/u);
+  assert.match(sql, /student_profile\.auth_user_id = \(SELECT auth\.uid\(\)\)/u);
+  assert.match(sql, /private\.platform_can_read_student_portal_case\(student_case\.organization_id, student_case\.id\)/u);
+  assert.match(sql, /student_case\.portal_activated_at IS NOT NULL/u);
+  assert.match(sql, /REVOKE ALL ON FUNCTION platform_private\.student_case_direction\(UUID, UUID\)\s+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  assert.match(sql, /REVOKE ALL ON FUNCTION platform\.student_portal_case_directions_v1\(\) FROM PUBLIC, anon, service_role, supabase_auth_admin;/u);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.student_portal_case_directions_v1\(\) TO authenticated;/u);
+  assert.equal((sql.match(/SECURITY DEFINER SET search_path = ''/gu) ?? []).length, 2);
+  assert.doesNotMatch(sql, /INSERT INTO|UPDATE platform|DELETE FROM|audit_events/u, "a read only");
+  assert.match(sql, /RAISE EXCEPTION 'a373_already_applied'/u);
+  // The real-Postgres proof runs right after the migration, by file name.
+  const runner = readFileSync(path.join(root, "scripts/test-runners/test-postgres-authorization.sh"), "utf8");
+  assert.match(runner, /== \*_platform_student_case_direction\.sql \]\]; then/u);
+  assert.match(runner, /grep -Fq "a373_already_applied"/u);
+  assert.match(runner, /A373_STUDENT_CASE_DIRECTION_SUITE_PASSED/u);
+  const suite = readFileSync(path.join(root, "supabase/tests/platform_student_case_direction.sql"), "utf8");
+  assert.match(suite, /^BEGIN;$/mu);
+  assert.match(suite, /^ROLLBACK;\s*$/mu);
+  assert.match(suite, /\\echo A373_STUDENT_CASE_DIRECTION_SUITE_PASSED/u);
+  assert.doesNotMatch(suite, /@(?!example\.invalid)[a-z0-9-]+\.[a-z]/iu, "synthetic addresses only");
 });

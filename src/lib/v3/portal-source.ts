@@ -772,6 +772,30 @@ export async function readStudentPortalCaseFiles(
   }
 }
 
+/**
+ * Страна своих дел (373, правило 338: admissions_direction, иначе код target_country, иначе анкета дела). По ней справка
+ * «Образец и советы» показывает требования той страны, по которой поставлен список документов. Сбой или пустой ответ —
+ * пустой список: справка берёт выбор студента, как раньше, страница не падает.
+ */
+export async function readStudentPortalCaseDirections(
+  dependencies: StudentPortalSourceDependencies = {},
+): Promise<ReadonlyMap<string, string>> {
+  try {
+    const client = await clientFor(dependencies);
+    const response = await client.schema("platform").rpc("student_portal_case_directions_v1", {}, { get: true });
+    const directions = new Map<string, string>();
+    if (response.error || !Array.isArray(response.data)) return directions;
+    for (const row of response.data as readonly unknown[]) {
+      if (!row || typeof row !== "object") continue;
+      const { student_case_id: caseId, direction } = row as Record<string, unknown>;
+      if (typeof caseId === "string" && typeof direction === "string" && direction.length > 0) directions.set(caseId, direction);
+    }
+    return directions;
+  } catch {
+    return new Map();
+  }
+}
+
 export async function readStudentPortalPayments(
   dependencies: StudentPortalSourceDependencies = {},
 ): Promise<readonly StudentPortalPayment[]> {

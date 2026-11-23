@@ -6188,6 +6188,34 @@ SQL
       exit 1
     fi
   fi
+  # «Страна своего дела для справки к документам» (migration 373, 23.11.2026). Matched by name, not number. The migration
+  # adds the 338 country rule as one closed function and a student read of their own portal cases with that country:
+  # right after it a second apply refuses (a373_already_applied), then the suite, insisting on its marker. The suite
+  # proves: the 338 rule (direction, target code, case application, else NULL); a student reads only their own portal
+  # cases, closed included, without a portal not; staff read nothing; anon may not execute; posture and grants.
+  if [[ "$(basename "$migration")" == *_platform_student_case_direction.sql ]]; then
+    t373_again_log="$(mktemp -t evo-t373-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t373_again_log" 2>&1; then
+      echo "migration 373 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a373_already_applied" "$t373_again_log"; then
+      echo "a second apply of migration 373 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t373_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t373_again_log"
+    student_case_direction_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_case_direction.sql </dev/null)"
+    printf '%s\n' "$student_case_direction_log"
+    if ! grep -q 'A373_STUDENT_CASE_DIRECTION_SUITE_PASSED' <<<"$student_case_direction_log"; then
+      echo "platform_student_case_direction.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

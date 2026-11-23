@@ -775,6 +775,19 @@ function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | nu
 }
 
 /**
+ * Страна справки для документа (373): страна его дела — то же правило, по которому поставлен список; если она неизвестна
+ * (чтение не удалось или дело без страны) — запасная страна, выбор студента. У студента с делами в двух странах каждая
+ * строка берёт страну своего дела.
+ */
+export function documentGuideCountry(
+  caseId: string,
+  caseCountries: ReadonlyMap<string, string>,
+  fallback: string | null,
+): string | null {
+  return caseCountries.get(caseId) ?? fallback;
+}
+
+/**
  * Справка к пункту списка. Нет совпадения — null: кнопку «!» не рисуют.
  * Известный ключ важнее подписи. Неизвестный ключ не мешает узнать документ по имени.
  */

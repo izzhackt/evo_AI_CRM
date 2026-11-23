@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  .sheet { font-family: Arial, Helvetica, sans-serif; font-size: 13px; padding: 56px 60px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .top h1 { margin: 0; font-size: 26px; letter-spacing: 0.02em; }
+  .module { border: 2px solid #1d1d1f; padding: 8px 18px; font-weight: bold; font-size: 16px; letter-spacing: 0.08em; }
+  .note { margin: 14px 0 18px; font-size: 11px; color: #5c616b; line-height: 1.4; }
+  .row { display: grid; gap: 12px; margin-bottom: 12px; }
+  .row3 { grid-template-columns: repeat(3, 1fr); }
+  .field label { display: block; font-size: 11px; color: #5c616b; margin-bottom: 3px; }
+  .field div { background: #eef0f3; border: 1px solid #c9cdd3; padding: 7px 10px; font-weight: bold; min-height: 32px; }
+  h2 { margin: 22px 0 10px; font-size: 14px; letter-spacing: 0.04em; border-bottom: 2px solid #1d1d1f; padding-bottom: 4px; }
+  .details { display: grid; grid-template-columns: 1fr 150px; gap: 16px; }
+  .photo { width: 150px; height: 193px; border: 1px solid #1d1d1f; background: #f4f5f7; }
+  .scores { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .score { text-align: center; }
+  .score label { display: block; font-size: 11px; color: #5c616b; margin-bottom: 4px; }
+  .score div { border: 2px solid #1d1d1f; padding: 10px 0; font-size: 22px; font-weight: bold; }
+  .score.total div { background: #1d1d1f; color: #fff; }
+  .bottom { display: grid; grid-template-columns: 1fr 150px 150px; gap: 14px; margin-top: 22px; }
+  .comments { min-height: 130px; }
+  .stamp { height: 130px; }
+  .foot { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 14px; margin-top: 18px; }
+  .sig { border-bottom: 1px solid #1d1d1f; height: 32px; }
+</style></head>
+<body><div class="sheet">
+  <div class="watermark"><span>ОБРАЗЕЦ</span></div>
+  <div class="top">
+    <div><div class="placeholder" style="width:120px;height:44px;margin-bottom:10px">TEST LOGO</div><h1>Test Report Form</h1></div>
+    <div class="module">ACADEMIC</div>
+  </div>
+  <p class="note">Universities usually accept results for two years from the test date.</p>
+
+  <div class="row row3">
+    <div class="field"><label>Centre Number</label><div>XX000</div></div>
+    <div class="field"><label>Test Date</label><div>14/NOV/2026</div></div>
+    <div class="field"><label>Candidate Number</label><div>000000</div></div>
+  </div>
+
+  <h2>CANDIDATE DETAILS</h2>
+  <div class="details">
+    <div>
+      <div class="row"><div class="field"><label>Family Name</label><div>OBRAZTSOVA</div></div></div>
+      <div class="row"><div class="field"><label>First Name(s)</label><div>ALINA</div></div></div>
+      <div class="row"><div class="field"><label>Candidate ID</label><div>AC0000000</div></div></div>
+      <div class="row row3">
+        <div class="field"><label>Date of Birth</label><div>14/10/2009</div></div>
+        <div class="field"><label>Sex (M/F)</label><div>F</div></div>
+        <div class="field"><label>Scheme Code</label><div>Private Candidate</div></div>
+      </div>
+      <div class="row row3">
+        <div class="field"><label>Country or Region of Origin</label><div>KYRGYZSTAN</div></div>
+        <div class="field"><label>Country of Nationality</label><div>KYRGYZSTAN</div></div>
+        <div class="field"><label>First Language</label><div>KYRGYZ</div></div>
+      </div>
+    </div>
+    <div class="photo"><svg viewBox="0 0 150 193" aria-hidden="true"><rect width="150" height="193" fill="#f4f5f7"/><circle cx="75" cy="78" r="34" fill="#c9cdd3"/><path d="M20 193c4-46 26-66 55-66s51 20 55 66z" fill="#c9cdd3"/></svg></div>
+  </div>
+
+  <h2>TEST RESULTS</h2>
+  <div class="scores">
+    <div class="score"><label>Listening</label><div>6.5</div></div>
+    <div class="score"><label>Reading</label><div>7.0</div></div>
+    <div class="score"><label>Writing</label><div>6.0</div></div>
+    <div class="score"><label>Speaking</label><div>6.5</div></div>
+    <div class="score total"><label>Overall Band Score</label><div>6.5</div></div>
+    <div class="score"><label>CEFR Level</label><div>B2</div></div>
+  </div>
+
+  <div class="bottom">
+    <div class="field comments"><label>Administrator Comments</label><div style="min-height:110px"></div></div>
+    <div><label class="small muted">Centre stamp</label><div class="placeholder stamp">CENTRE<br>STAMP</div></div>
+    <div><label class="small muted">Validation stamp</label><div class="placeholder stamp">VALIDATION<br>STAMP</div></div>
+  </div>
+  <div class="foot">
+    <div><div class="small muted">Administrator's Signature</div><div class="sig"></div></div>
+    <div class="field"><label>Issue Date</label><div>27/NOV/2026</div></div>
+    <div class="field"><label>Test Report Form Number</label><div>27XX000000OBRA000A</div></div>
+  </div>
+</div></body></html>

@@ -405,12 +405,23 @@ test("drawn specimens: bank, language tests, CSCA and birth certificate say they
     for (const set of sets) {
       assert.ok(set.label.ru && set.label.ky, `${type}: ${set.id}`);
       for (const page of set.pages) {
-        assert.equal(page.caption.ru, "Пример, данные вымышлены", `${type}: ${page.file}`);
-        assert.equal(page.caption.ky, "Үлгү, маалыматтар ойдон чыгарылган", `${type}: ${page.file}`);
+        // У CSCA официального образца нет нигде: подпись говорит, что вид примерный.
+        const caption = type === "csca_result"
+          ? { ru: "Примерный вид, данные вымышлены", ky: "Болжолдуу көрүнүшү, маалыматтар ойдон чыгарылган" }
+          : { ru: "Пример, данные вымышлены", ky: "Үлгү, маалыматтар ойдон чыгарылган" };
+        assert.deepEqual(page.caption, caption, `${type}: ${page.file}`);
         assert.ok(existsSync(path.join(root, "public/portal/document-samples", page.file)), page.file);
         assert.ok(existsSync(path.join(root, "public/portal/document-samples", page.file.replace(/\.jpg$/u, "-t.jpg"))), page.file);
       }
     }
   }
   assert.deepEqual(DOCUMENT_SAMPLE_SETS.language_certificate.map((set) => set.id), ["ielts", "hsk"]);
+  // Исходники лежат рядом и перерисовываются одной командой; в исходниках только вымышленные данные.
+  const dir = path.join(root, "scripts/portal/document-specimens");
+  for (const name of ["bank-statement", "ielts", "hsk", "csca", "birth-certificate"]) {
+    const html = readFileSync(path.join(dir, `${name}.html`), "utf8");
+    assert.match(html, /ОБРАЗЕЦ/u, name);
+    assert.doesNotMatch(html, /<img\b|https?:\/\//u, `${name}: no outside images or links`);
+  }
+  assert.match(readFileSync(path.join(dir, "render.mjs"), "utf8"), /public\/portal\/document-samples/u);
 });

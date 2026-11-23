@@ -10,6 +10,7 @@
  * данными (студентка «Образцова Алина», нули вместо номеров), без логотипов, гербов, печатей и подписей и с водяным знаком
  * «ОБРАЗЕЦ» (ответ Айвара 23.11.2026: найти в интернете). Официальные образцы брать нельзя: условия IELTS, ETS, HSK и
  * csca.cn запрещают перепечатку, у банков своих образцов нет, а фото свидетельства в новостях — с настоящими данными.
+ * Исходники и отрисовка — scripts/portal/document-specimens (HTML -> JPG одной командой).
  *
  * Если у документа есть наборы для страны дела, справка показывает их вместо нарисованной схемы.
  */
@@ -34,6 +35,8 @@ const NOTARY_EN: Line = { ru: "Заверка, англ.", ky: "Күбөлөнд
 const page = (n: number): Line => ({ ru: `Страница ${n}`, ky: `${n}-бет` });
 /** Нарисованный нами образец с вымышленными данными. */
 const FICTIONAL: Line = { ru: "Пример, данные вымышлены", ky: "Үлгү, маалыматтар ойдон чыгарылган" };
+/** Официального образца нет нигде (CSCA): вид примерный, настоящий отчёт может выглядеть иначе. */
+const APPROXIMATE: Line = { ru: "Примерный вид, данные вымышлены", ky: "Болжолдуу көрүнүшү, маалыматтар ойдон чыгарылган" };
 
 export const DOCUMENT_SAMPLE_SETS: Readonly<Partial<Record<string, readonly DocumentSampleSetSource[]>>> = {
   passport: [
@@ -152,7 +155,7 @@ export const DOCUMENT_SAMPLE_SETS: Readonly<Partial<Record<string, readonly Docu
     {
       id: "csca",
       label: { ru: "Отчёт с баллами", ky: "Баллдар менен отчёт" },
-      pages: [{ file: "csca-1.jpg", caption: FICTIONAL }],
+      pages: [{ file: "csca-1.jpg", caption: APPROXIMATE }],
     },
   ],
   bank_statement: [

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  .sheet { font-family: "PingFang SC", "Hiragino Sans GB", Arial, sans-serif; padding: 64px 72px; font-size: 14px; }
+  h1 { margin: 10px 0 34px; text-align: center; font-size: 28px; letter-spacing: 0.1em; }
+  h1 small { display: block; margin-top: 4px; font-size: 15px; letter-spacing: 0.04em; color: #5c616b; font-weight: 400; }
+  .person { display: grid; grid-template-columns: 1fr 130px; gap: 26px; }
+  dl { display: grid; grid-template-columns: 190px 1fr; margin: 0; row-gap: 12px; }
+  dt { color: #5c616b; }
+  dd { margin: 0; font-weight: 600; font-family: Arial, Helvetica, sans-serif; border-bottom: 1px solid #d6d9de; padding-bottom: 4px; }
+  .photo { width: 130px; height: 173px; border: 1px solid #1d1d1f; }
+  table { margin-top: 34px; }
+  th, td { border-bottom: 1px solid #c9cdd3; padding: 12px 10px; text-align: left; }
+  th { border-bottom: 2px solid #1d1d1f; font-size: 13px; color: #5c616b; font-weight: 600; }
+  td.score { font-weight: 700; font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
+  .valid { margin-top: 16px; color: #5c616b; font-size: 13px; }
+  .bottom { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 64px; }
+  .issue div { margin-bottom: 8px; }
+  .qr { width: 96px; height: 96px; }
+</style></head>
+<body><div class="sheet">
+  <div class="watermark"><span>ОБРАЗЕЦ</span></div>
+  <h1>成绩单<small>Score Report</small></h1>
+
+  <div class="person">
+    <dl>
+      <dt>姓名 Full Name</dt><dd>OBRAZTSOVA ALINA</dd>
+      <dt>性别 Gender</dt><dd>女 Female</dd>
+      <dt>出生日期 Date of Birth</dt><dd>2009-10-14</dd>
+      <dt>护照号 Passport No.</dt><dd>AC0000000</dd>
+      <dt>国籍 Nationality</dt><dd>吉尔吉斯斯坦 Kyrgyzstan</dd>
+      <dt>考试日期 Test Date</dt><dd>2026-12-12</dd>
+      <dt>证书编号 Certificate No.</dt><dd>CS0000000000</dd>
+    </dl>
+    <div class="photo"><svg viewBox="0 0 130 173" aria-hidden="true"><rect width="130" height="173" fill="#f4f5f7"/><circle cx="65" cy="69" r="30" fill="#c9cdd3"/><path d="M16 173c4-41 23-58 49-58s45 17 49 58z" fill="#c9cdd3"/></svg></div>
+  </div>
+
+  <table>
+    <tr><th>考试科目 Subject</th><th>考试语言 Language</th><th>分数 Score</th></tr>
+    <tr><td>理科中文<br><span class="muted small">Chinese (Science)</span></td><td>中文 Chinese</td><td class="score">72/100</td></tr>
+    <tr><td>数学<br><span class="muted small">Mathematics</span></td><td>英文 English</td><td class="score">81/100</td></tr>
+    <tr><td>物理<br><span class="muted small">Physics</span></td><td>英文 English</td><td class="score">76/100</td></tr>
+  </table>
+  <div class="valid">每科满分100分，无总分 · Each subject is scored out of 100, there is no total.</div>
+
+  <div class="bottom">
+    <div class="issue small">
+      <div>签发日期 Date of Issue: 2026-12-26</div>
+      <div>签发机构 Issuing Authority: ______________</div>
+      <div>防伪验证码 Verification code: 0000-0000-0000</div>
+    </div>
+    <div class="placeholder qr">QR</div>
+  </div>
+</div></body></html>

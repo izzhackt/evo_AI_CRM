@@ -1028,10 +1028,13 @@ const BROWSER_FAKE = () => {
 let browserKitPromise;
 const browserCleanups = [];
 after(async () => { for (const cleanup of browserCleanups) await cleanup(); });
+// The PR checks install Chromium and set EVO_REQUIRE_BROWSER=1 (PLAN_CHANGES 22.11.2026): there a browser that does not
+// start fails these tests instead of skipping them. Elsewhere (a laptop without Playwright browsers) they still skip.
+const browserRequired = process.env.EVO_REQUIRE_BROWSER === "1";
 function browserKit() {
   browserKitPromise ??= (async () => {
     let chromium;
-    try { ({ chromium } = createRequire(root("package.json"))("playwright")); } catch { return { skip: "playwright не установлен" }; }
+    try { ({ chromium } = createRequire(root("package.json"))("playwright")); } catch (error) { if (browserRequired) throw error; return { skip: "playwright не установлен" }; }
     const dir = mkdtempSync(join(tmpdir(), "aia-browser-"));
     let browser;
     try {
@@ -1061,6 +1064,7 @@ function browserKit() {
       browser = await chromium.launch({ headless: true });
     } catch (error) {
       rmSync(dir, { recursive: true, force: true });
+      if (browserRequired) throw error;
       return { skip: `Chromium не запустился: ${String(error?.message ?? error).split("\n")[0]}` };
     }
     const { render } = createRequire(import.meta.url)(join(dir, "ssr.cjs"));

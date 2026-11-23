@@ -59,4 +59,9 @@ test("the PR checks run both surfaces this guard counts", () => {
   const workflow = readFileSync(join(repositoryRoot, ".github/workflows/evo-fast-pr-checks.yml"), "utf8");
   assert.match(workflow, /run: npm run verify -- --only tests --shard \$\{\{ matrix\.shard \}\}\/4/u);
   assert.match(workflow, /run: npm run verify -- --only contracts/u);
+  // Browser-rendered tests really run there: Chromium is installed and a browser that does not start is a failure.
+  assert.match(
+    workflow,
+    /- name: Install Chromium\n {8}run: node_modules\/\.bin\/playwright install --with-deps --only-shell chromium\n\n {6}- name: Run the Node test manifest \(one of four parts\)\n {8}env:\n {10}EVO_REQUIRE_BROWSER: "1"\n/u,
+  );
 });

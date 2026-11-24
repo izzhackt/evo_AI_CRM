@@ -447,6 +447,9 @@ test("the chat window carries the logobook watermark: four motifs in an angled g
   }
   // Окно — свой слой, узор под содержимым; шапка окна без узора.
   assert.match(CSS, /\.pt-evi \{\s*--pt-evi-axis: 720px;\s*position: relative;\s*isolation: isolate;/u);
+  // 24.11.2026: окно не прокручивается (clip, а не только hidden): водяной знак ::before вдвое больше окна, и любая прокрутка
+  // к элементу сдвигала всё окно — шапка с «Вопрос N из 10» уходила за край.
+  assert.match(CSS, /\n\.pt-evi \{[^}]*overflow: hidden;\s*overflow: clip;/u);
   assert.match(rule, /z-index: -1;/u);
   assert.match(CSS, /\.pt-evi-head \{\s*border-bottom: 1px solid var\(--pt-line\);\s*background: var\(--pt-surface\);/u);
   // Плитка узора определена один раз — только для окна Эви.

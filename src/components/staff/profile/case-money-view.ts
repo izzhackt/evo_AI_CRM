@@ -41,8 +41,9 @@ export function moneyDay(day: string, today: string): string {
 }
 
 /**
- * Сумма без нулевых копеек (10.11.2026, «стильно минималистично»): «600 USD», а «600,50 USD» — как было. Только для
- * показа на вкладке «Деньги»; суммы в отчётах и формах не трогаются.
+ * Сумма без нулевых копеек (10.11.2026, «стильно минималистично»): «600 USD», а «600,50 USD» — как было. Для сумм
+ * карточки дела: вкладка «Деньги» и через `formatMoney` в profile-source «Обзор» и «Обязательства»; суммы в отчётах и
+ * формах не трогаются.
  */
 export function moneyShort(text: string): string {
   return text.replace(/,00(?= [A-Z]{3}$)/u, "");
@@ -240,6 +241,8 @@ export type CaseMoneyPlanLine = Readonly<{
   amountLabel: string;
   status: "expected" | "overdue" | "paid";
   tranche: CaseAgreementTranche;
+  /** Сумма всего платежа («1 500 USD»), если строка — остаток частично оплаченного: «остаток из 1 500 USD». Иначе null. */
+  remainderOf: string | null;
   /** Архивировать можно только платёж, по которому ещё ничего не оплачено. */
   canArchive: boolean;
 }>;
@@ -270,6 +273,9 @@ export function casePaymentLines(agreement: CaseAgreement, today: string): Reado
         amountLabel: moneyAmount(outstanding > BigInt(0) ? tranche.outstandingMinor : tranche.amountMinor, tranche.currency),
         status: caseTrancheState(tranche, today) === "overdue" ? "overdue" : "expected",
         tranche,
+        // Остаток — только когда что-то оплачено за вычетом возвратов: `totalPaidMinor` без возвратов, а полностью
+        // возвращённая оплата оставляет весь платёж, и «остаток из» его же суммы ничего не говорит (как paidPart «Обязательств»).
+        remainderOf: outstanding > BigInt(0) && outstanding < BigInt(tranche.amountMinor) ? moneyAmount(tranche.amountMinor, tranche.currency) : null,
         canArchive: paid === BigInt(0),
       });
     } else if (payments.length === 0) {
@@ -280,6 +286,7 @@ export function casePaymentLines(agreement: CaseAgreement, today: string): Reado
         amountLabel: moneyAmount(tranche.amountMinor, tranche.currency),
         status: "paid",
         tranche,
+        remainderOf: null,
         canArchive: false,
       });
     }

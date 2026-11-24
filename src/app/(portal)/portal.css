@@ -12093,7 +12093,14 @@ a.pt-btn.pt-doc-guide-download:hover {
   flex-direction: column;
   height: clamp(520px, calc(100dvh - 248px), 860px);
   min-height: 420px;
+  /*
+   * clip, а не hidden (24.11.2026): водяной знак ::before вдвое больше окна, и с hidden окно становилось прокручиваемой
+   * областью. Любая прокрутка к элементу (фокус с клавиатуры, поле ввода на телефоне, поиск по странице) сдвигала всё
+   * окно: шапка с «Вопрос N из 10» уходила за край, под полем ввода оставалась пустота. clip обрезает так же, но
+   * прокрутить окно нельзя. hidden — запас для браузеров без clip.
+   */
   overflow: hidden;
+  overflow: clip;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-surface);

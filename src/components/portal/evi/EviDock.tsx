@@ -4,6 +4,7 @@ import { useEffect, useRef, type KeyboardEvent } from "react";
 
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { EVI_FAILURE_ACTION, EVI_LIMITS, type EviFailure } from "@/lib/portal/evi";
+import { reloadForNewDeployment } from "@/lib/stale-deployment";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
 import { EVI_FAILURE_TEXT } from "./EviThread";
@@ -29,7 +30,7 @@ export function keepEviFocus() {
  * (Enter — отправить, Shift+Enter — новая строка); когда выход один — новый чат или каталог, — поля нет. После нажатия
  * варианта фокус переходит на разговор (`keepEviFocus`).
  */
-export function EviDock({ strings, options, picked, failure, canRetry, intro, draft, pending, onDraft, onSend, onToggle, onRetry, onRestart }: Readonly<{
+export function EviDock({ strings, options, picked, failure, canRetry, intro, draft, pending, onDraft, onSend, onToggle, onRetry, onRestart, stale = null }: Readonly<{
   strings: Strings;
   options: EviOptions;
   picked: ReadonlySet<string>;
@@ -44,11 +45,13 @@ export function EviDock({ strings, options, picked, failure, canRetry, intro, dr
   onToggle: (option: string) => void;
   onRetry: () => void;
   onRestart: () => void;
+  /** Вкладка на прошлой сборке: ни варианты, ни поле уже не дойдут до сервера — только «Обновить страницу». */
+  stale?: Readonly<{ text: string; reload: string }> | null;
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
   const action = failure ? EVI_FAILURE_ACTION[failure] : null;
-  const closed = action === "restart" || action === "catalog";
+  const closed = stale !== null || action === "restart" || action === "catalog";
 
   useEffect(() => {
     if (draft === "" && inputRef.current) inputRef.current.style.height = "";
@@ -76,7 +79,12 @@ export function EviDock({ strings, options, picked, failure, canRetry, intro, dr
 
   return (
     <div className="pt-evi-dock">
-      {failure ? (
+      {stale ? (
+        <div className="pt-evi-failure">
+          <p className="pt-evi-note" role="alert">{stale.text}</p>
+          <button type="button" className="pt-evi-chip pt-evi-go" onClick={reloadForNewDeployment}>{stale.reload}</button>
+        </div>
+      ) : failure ? (
         <div className="pt-evi-failure">
           {intro ? null : <p className="pt-evi-note" role="alert">{strings[EVI_FAILURE_TEXT[failure]]}</p>}
           {action === "retry" && canRetry ? (

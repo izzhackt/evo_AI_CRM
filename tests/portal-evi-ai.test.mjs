@@ -154,10 +154,10 @@ test("the shared core checks history, consent, key and rate before any model cal
   // Мобильный маршрут идёт через то же ядро.
   assert.match(read("src/lib/server/student-portal-mobile-evi-route-handler.ts"), /import\("\.\.\/portal\/evi-core\.ts"\)/u);
   // Страница: ключ на сервере — чат отвечает, нет ключа — «недоступен».
-  assert.match(read("src/components/portal/evi/EviTab.tsx"), /return online \? <EviChat strings=\{strings\} ask=\{askEviAction\} \/> : <EviChat strings=\{strings\} offline \/>;/u);
+  assert.match(read("src/components/portal/evi/EviTab.tsx"), /return online \? <EviChat strings=\{strings\} ask=\{askEviAction\} stale=\{stale\} \/> : <EviChat strings=\{strings\} offline \/>;/u);
   const page = read("src/app/(portal)/portal/professions/page.tsx");
   assert.match(page, /const eviOnline = readEviApiKey\(process\.env\) !== null;/u);
-  assert.match(page, /<EviTab strings=\{strings\} online=\{eviOnline\} \/>/u);
+  assert.match(page, /<EviTab strings=\{strings\} online=\{eviOnline\} stale=\{\{ text: shell\.staleVersion, reload: shell\.staleVersionReload \}\} \/>/u);
   // Отказ модели — «начни заново», мёртвый ключ — «недоступен», перегрузка — «подожди».
   assert.match(core, /code === "rate_limited" \? "busy" : code === "refused" \? "invalid" : code === "unavailable" \? "unavailable" : "error"/u);
 });

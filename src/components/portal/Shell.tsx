@@ -45,6 +45,7 @@ import {
 import { writePortalRailChoice } from "@/lib/portal/rail-choice";
 import { WRITE_EVO_HREF } from "@/lib/portal/write-evo";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
+import { EviMemoryProvider } from "@/components/portal/evi/EviMemory";
 import type { Theme } from "@/lib/theme";
 
 /**
@@ -461,10 +462,16 @@ export function Shell({
           slice'ов — v3-world здесь сознательно, это не staff-shell.
         */}
         <div id="portal-content" tabIndex={-1} className="pt-content v3-world">
-          {/* key=pathname: вход содержимого на каждой смене маршрута (portal.css, «Движение»). */}
-          <div key={pathname} className="pt-route">
-            {children}
-          </div>
+          {/*
+            Разговор с Эви живёт, пока открыт кабинет: память — снаружи страниц и снаружи обёртки с key=pathname, которая
+            пересоздаётся на каждом переходе.
+          */}
+          <EviMemoryProvider>
+            {/* key=pathname: вход содержимого на каждой смене маршрута (portal.css, «Движение»). */}
+            <div key={pathname} className="pt-route">
+              {children}
+            </div>
+          </EviMemoryProvider>
         </div>
       </div>
       {chatFab ? (

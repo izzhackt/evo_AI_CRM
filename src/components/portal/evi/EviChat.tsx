@@ -1,11 +1,15 @@
 "use client";
 
 import { SquarePen } from "lucide-react";
+import { useMemo } from "react";
 
 import type { EviFailure } from "@/lib/portal/evi";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { noteStaleDeployment } from "@/lib/stale-deployment";
+import { useInlineStalePrompt, useStaleDeployment } from "@/lib/use-stale-deployment";
 
 import { EviDock, keepEviFocus } from "./EviDock";
+import { useEviMemory } from "./EviMemory";
 import { EviRobot } from "./EviRobot";
 import { EviThread } from "./EviThread";
 import { useEviConversation, type EviAsk, type EviMessage, type EviOptions } from "./useEviConversation";
@@ -20,16 +24,34 @@ export type { EviMessage, EviOptions } from "./useEviConversation";
  * `ask` — серверное действие разговора; без него отправка честно говорит «Эви сейчас недоступен».
  * `offline` — модели нет вовсе: это видно сразу на приветствии, вместо вариантов — «Открыть каталог», поле закрыто.
  * `initial*` — состояние для статического рендера и проверок.
+ * Разговор держится в памяти кабинета (`EviMemoryProvider` в оболочке), пока кабинет открыт. Вкладка пережила выпуск
+ * (24.11.2026: сервер отвечает 409 «действие не найдено», и «Повторить» не помогло бы никогда) — вместо вариантов и поля
+ * одна строка `stale` и «Обновить страницу»; общая строка оболочки на это время молчит.
  */
-export function EviChat({ strings, ask, offline = false, initialMessages, initialOptions, initialFailure = null }: Readonly<{
+export function EviChat({ strings, ask, offline = false, stale = null, initialMessages, initialOptions, initialFailure = null }: Readonly<{
   strings: PortalStrings<"professions">;
   ask?: EviAsk;
   offline?: boolean;
+  /** Слова «вышла новая версия» и «обновить страницу» (словарь оболочки кабинета). */
+  stale?: Readonly<{ text: string; reload: string }> | null;
   initialMessages?: readonly EviMessage[];
   initialOptions?: EviOptions;
   initialFailure?: EviFailure | null;
 }>) {
-  const chat = useEviConversation({ strings, ask, initialMessages, initialOptions, initialFailure: offline ? "unavailable" : initialFailure });
+  const memory = useEviMemory();
+  // Ошибка прошлой сборки отмечает страницу: подсказку покажет и чат, и опросы кабинета остановятся.
+  const checkedAsk = useMemo<EviAsk | undefined>(() => ask && (async (history) => {
+    try {
+      return await ask(history);
+    } catch (error) {
+      noteStaleDeployment(error);
+      throw error;
+    }
+  }), [ask]);
+  const chat = useEviConversation({ strings, ask: checkedAsk, memory, initialMessages, initialOptions, initialFailure: offline ? "unavailable" : initialFailure });
+  const pageStale = useStaleDeployment();
+  const showStale = pageStale && stale !== null && !offline;
+  useInlineStalePrompt(showStale);
 
   return (
     <section className="pt-evi" aria-labelledby="pt-evi-name" data-intro={chat.intro ? "" : undefined}>
@@ -77,6 +99,7 @@ export function EviChat({ strings, ask, offline = false, initialMessages, initia
         onToggle={chat.toggle}
         onRetry={chat.retry}
         onRestart={chat.restart}
+        stale={showStale ? stale : null}
       />
     </section>
   );

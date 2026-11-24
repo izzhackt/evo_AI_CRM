@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { EVI_LIMITS, type EviActionResult, type EviFailure, type EviMood, type EviProgress, type EviResult, type EviTurn } from "./evi.ts";
 import type { PortalStrings } from "./i18n.ts";
+import { eviSnapshot, restoredEviFailure, type EviMemory, type EviSnapshot } from "./evi-memory.ts";
+
+export type { EviMemory, EviSnapshot } from "./evi-memory.ts";
 
 type Strings = PortalStrings<"professions">;
 /** `fresh` — реплика только что пришла: робот на неё реагирует. На сервер не уходит. */
@@ -17,26 +20,29 @@ export type EviMessage = Readonly<{
 /** `go` — вариант, который ведёт дальше (красная кнопка); варианты модели его не ставят. */
 export type EviOptions = Readonly<{ options: readonly string[]; multi: boolean; go?: string }>;
 export type EviAsk = (history: EviTurn[]) => Promise<EviActionResult>;
-
 /**
- * Общий для веба и приложения (чистый React без DOM: приложение берёт его через @web). Состояние разговора с Эви. Ничего не хранится: разговор живёт, пока открыта страница. «Новый чат» поднимает номер
+ * Общий для веба и приложения (чистый React без DOM: приложение берёт его через @web). Состояние разговора с Эви. В браузере
+ * ничего не хранится: разговор живёт, пока открыт кабинет (`memory` веба) или экран (приложение). «Новый чат» поднимает номер
  * разговора (`round`): ответ или повтор, пришедшие для старого разговора, отбрасываются, а строки переписки получают
  * новые ключи — робот на приветствии реагирует заново. Одновременно идёт не больше одного запроса. Пока серверного
  * действия нет (`ask`), отправка честно говорит «Эви сейчас недоступен».
  */
-export function useEviConversation({ strings, ask, initialMessages, initialOptions, initialFailure }: Readonly<{
+export function useEviConversation({ strings, ask, memory, initialMessages, initialOptions, initialFailure }: Readonly<{
   strings: Strings;
   ask?: EviAsk;
+  memory?: EviMemory | null;
   initialMessages?: readonly EviMessage[];
   initialOptions?: EviOptions;
   initialFailure: EviFailure | null;
 }>) {
   const greeting: readonly EviMessage[] = [{ role: "assistant", text: strings["evi.greeting"], mood: "happy", fresh: true }];
   const greetingOptions: EviOptions = { options: [strings["evi.start"], strings["evi.how"]], multi: false, go: strings["evi.start"] };
-  const [messages, setMessages] = useState<readonly EviMessage[]>(initialMessages ?? greeting);
-  const [options, setOptions] = useState<EviOptions>(initialOptions ?? greetingOptions);
+  // Разговор, начатый до перехода на другую страницу кабинета. Читается один раз: при первой загрузке страницы память пуста.
+  const [restored] = useState<EviSnapshot | null>(() => memory?.load() ?? null);
+  const [messages, setMessages] = useState<readonly EviMessage[]>(restored?.messages ?? initialMessages ?? greeting);
+  const [options, setOptions] = useState<EviOptions>(restored?.options ?? initialOptions ?? greetingOptions);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
-  const [failure, setFailure] = useState<EviFailure | null>(initialFailure);
+  const [failure, setFailure] = useState<EviFailure | null>(restoredEviFailure(restored, initialFailure));
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const [round, setRound] = useState(0);
@@ -48,6 +54,11 @@ export function useEviConversation({ strings, ask, initialMessages, initialOptio
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Каждый шаг разговора кладётся в память кабинета; «Новый чат» (только приветствие) её очищает.
+  useEffect(() => {
+    memory?.save(eviSnapshot(messages, options));
+  }, [memory, messages, options]);
 
   function settle() {
     busyRef.current = null;

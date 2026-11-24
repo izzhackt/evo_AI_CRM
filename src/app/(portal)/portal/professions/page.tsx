@@ -61,13 +61,15 @@ export default async function ProfessionsPage({
 
   if (rawView === "evi") {
     if (!eviAvailable(await consentRead)) redirect("/portal/professions");
+    // «Вышла новая версия — обновите страницу»: те же слова, что у общей строки оболочки кабинета.
+    const shell = getPortalStrings("shell", locale);
     return (
       <main className="pt-page pt-prof-page pt-prof-page-evi">
         <header className="pt-page-header">
           <h1 className="pt-page-title">{strings.title}</h1>
         </header>
         <ProfessionsTabs view="evi" strings={strings} />
-        <EviTab strings={strings} online={eviOnline} />
+        <EviTab strings={strings} online={eviOnline} stale={{ text: shell.staleVersion, reload: shell.staleVersionReload }} />
       </main>
     );
   }

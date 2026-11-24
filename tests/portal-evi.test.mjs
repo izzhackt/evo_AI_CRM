@@ -522,4 +522,3 @@ test("after a release the chat asks to reload the page instead of an endless Â«Ð
   assert.match(page, /const shell = getPortalStrings\("shell", locale\);/u);
   assert.match(page, /stale=\{\{ text: shell\.staleVersion, reload: shell\.staleVersionReload \}\}/u);
 });
-

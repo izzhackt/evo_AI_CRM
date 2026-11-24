@@ -23,7 +23,7 @@ type Upload = {
 };
 
 /**
- * Кнопка «Образец и советы» и панель «что это за документ».
+ * Кнопка «Пример» и панель с примером документа (владелец 24.11.2026: без советов, только пример).
  * Панель — системный `<dialog>`: Esc, ловушка фокуса и возврат фокуса даёт браузер.
  * На телефоне та же панель становится нижним листом (portal.css).
  */
@@ -160,14 +160,11 @@ function DocumentGuide({
           <header className="pt-doc-guide-head">
             <div className="pt-doc-guide-heading">
               <h2 id={titleId}>{label}</h2>
-              <div className="pt-doc-guide-meta">
-                {statusLabel ? <PortalStatus label={statusLabel} tone={statusTone} /> : null}
-                {guide.when ? (
-                  <span className="pt-doc-guide-when">
-                    <span>{strings.guideWhen}</span> {guide.when}
-                  </span>
-                ) : null}
-              </div>
+              {statusLabel ? (
+                <div className="pt-doc-guide-meta">
+                  <PortalStatus label={statusLabel} tone={statusTone} />
+                </div>
+              ) : null}
             </div>
             <button type="button" className="pt-doc-guide-close" onClick={() => dialogRef.current?.close()}>
               <CloseIcon />

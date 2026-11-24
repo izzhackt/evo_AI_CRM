@@ -663,7 +663,7 @@ const NOT_THIS_DOCUMENT = /родител|отц|отец|матер|мать|а
 
 const LABEL_RULES: readonly Readonly<{ typeKey: DocumentGuideType; test: (label: string) => boolean }>[] = [
   { typeKey: "csca_result", test: (label) => /csca/u.test(label) },
-  { typeKey: "language_certificate", test: (label) => /toefl|ielts|hsk|duolingo|\bpte\b|сертификат по языку|тил боюнча сертификат|языковой сертификат/u.test(label) },
+  { typeKey: "language_certificate", test: (label) => /toefl|ielts|hsk|duolingo|\bpte\b|сертификат по языку|сертификат о знании языка|тил боюнча сертификат|языковой сертификат/u.test(label) },
   { typeKey: "motivation_letter", test: (label) => /мотивационн|мотивациялык/u.test(label) },
   { typeKey: "recommendation_letter", test: (label) => /рекомендательн|рекомендациялык/u.test(label) },
   { typeKey: "payment_receipt", test: (label) => /чек об оплате|квитанц|төлөм чеги|^чек$/u.test(label) },
@@ -734,15 +734,33 @@ function guideCountry(country: string | null | undefined): GuideCountry | null {
   return code === "CN" || code === "MY" ? code : null;
 }
 
-function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | null): DocumentGuideView {
+/**
+ * Языковые тесты, которые пункт может назвать сам. HSK — отдельный документ со своим примером (владелец 24.11.2026):
+ * «Сертификат IELTS» показывает только IELTS, «Сертификат HSK» — только HSK. Пункт без названия теста («Сертификат о
+ * знании языка») показывает примеры страны дела. У TOEFL своего примера нет — у такого пункта общая схема.
+ */
+const NAMED_LANGUAGE_TESTS: readonly Readonly<{ id: string; pattern: RegExp }>[] = [
+  { id: "ielts", pattern: /ielts/u },
+  { id: "hsk", pattern: /hsk/u },
+  { id: "toefl", pattern: /toefl/u },
+];
+
+function namedLanguageTests(guide: DocumentGuide, label: string): readonly string[] {
+  if (guide.typeKey !== "language_certificate") return [];
+  const normalized = normalizeDocumentLabel(label);
+  return NAMED_LANGUAGE_TESTS.filter((test) => test.pattern.test(normalized)).map((test) => test.id);
+}
+
+function viewOf(guide: DocumentGuide, locale: Locale, country: GuideCountry | null, label = ""): DocumentGuideView {
   const ky = locale === "ky";
   const copy = ky ? guide.ky : guide.ru;
   const local = country ? COUNTRY_GUIDES[country][guide.typeKey] : undefined;
   const pick = <T,>(line: Readonly<{ ru: T; ky: T }>): T => (ky ? line.ky : line.ru);
   const notes = local?.notes ? pick(local.notes) : [];
   const sections = (local?.sections ?? []).map((section) => ({ title: pick(section.title), items: pick(section.items) }));
+  const named = namedLanguageTests(guide, label);
   const sampleSets = (DOCUMENT_SAMPLE_SETS[guide.typeKey] ?? [])
-    .filter((set) => !set.country || set.country === country)
+    .filter((set) => (named.length > 0 ? named.includes(set.id) : !set.country || set.country === country))
     .map((set) => ({
       id: set.id,
       label: pick(set.label),
@@ -799,16 +817,16 @@ export function documentGuideView(
 ): DocumentGuideView | null {
   const place = guideCountry(country);
   const byKey = input.requirementKey ? KEY_INDEX.get(input.requirementKey) : undefined;
-  if (byKey) return viewOf(byKey, locale, place);
+  if (byKey) return viewOf(byKey, locale, place, input.label);
   const normalized = normalizeDocumentLabel(input.label);
   if (!normalized) return null;
   const byLabel = LABEL_INDEX.get(normalized);
-  if (byLabel) return viewOf(byLabel, locale, place);
+  if (byLabel) return viewOf(byLabel, locale, place, input.label);
   if (NOT_THIS_DOCUMENT.test(normalized)) return null;
   const rule = LABEL_RULES.find((candidate) => candidate.test(normalized));
   if (!rule) return null;
   const guide = GUIDE_BY_TYPE.get(rule.typeKey);
-  return guide ? viewOf(guide, locale, place) : null;
+  return guide ? viewOf(guide, locale, place, input.label) : null;
 }
 
 /** Все образцы каталога. Тесты сверяют, что файл есть и это вымышленный образец. */

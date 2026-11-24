@@ -455,9 +455,11 @@ test("placeholders say what is missing: an unconfirmed deadline, an unknown coun
   const catalogue = source("src/components/staff/universities/UniversityCatalogue.tsx");
   assert.match(catalogue, />Срок не подтверждён<\/p>/u);
   assert.doesNotMatch(catalogue, /Сроки подачи — в карточке/u);
+  // Одна склейка строки студента: «Страна не указана» только для пустой страны, а записанная страна — словом.
+  const rowMeta = source("src/components/staff/students/StudentsQueueTable.tsx");
+  assert.match(rowMeta, /row\.targetCountry\?\.trim\(\) \? caseCountry\(row\.targetCountry\) : "Страна не указана"/u);
+  assert.match(source("src/components/staff/students/StudentsDirectoryFallback.tsx"), /const meta = studentsRowMeta\(row\);/u);
   for (const file of ["src/components/staff/students/StudentsQueueTable.tsx", "src/components/staff/students/StudentsDirectoryFallback.tsx"]) {
-    const text = source(file);
-    assert.match(text, /row\.targetCountry \?\? "Страна не указана"/u, file);
-    assert.doesNotMatch(text, /"не указано"/u, file);
+    assert.doesNotMatch(source(file), /"не указано"/u, file);
   }
 });

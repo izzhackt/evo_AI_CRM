@@ -361,10 +361,14 @@ const VERSION_ID = "22222222-2222-4222-8222-222222222222";
 
 function DocumentsClientMarker() { return null; }
 
+// Подпись версии требований переводится настоящим словарём, а не заглушкой.
+const wordingModule = await import("../src/lib/v3/wording.ts");
+
 function documentsWrapper(read) {
   const calls = [];
   const { Documents } = compile("src/components/staff/profile/Documents.tsx", (id) => {
     if (id === "@/lib/platform-task-deadline") return { dayInOrganizationTimezone: () => "2026-09-28" };
+    if (id === "@/lib/v3/wording") return wordingModule;
     // The synchronous tab view receives exactly what the wrapper read and issued.
     // Разбор файлов из amoCRM (333) проверяется в tests/amo-document-sorting.test.mjs; здесь он молчит.
     if (id === "@/lib/v3/document-suggestions-source") return { readCaseDocumentSuggestions: async () => null };
@@ -451,7 +455,8 @@ test("V3 documents wrapper tells a failed baseline-options read apart from an em
   assert.equal(loaded.props.baselineTemplatesAbsent, false);
   assert.equal(loaded.props.baselineOptions.length, 1);
   assert.equal(loaded.props.baselineOptions[0].countryRequirementVersionId, VERSION_ID);
-  assert.match(loaded.props.baselineOptions[0].label, /CN · bachelor · версия 3 — 7 документов/u);
+  // Версия хранит код страны и ключ ступени (179): в подписи — слова, сырых CN и bachelor нет.
+  assert.match(loaded.props.baselineOptions[0].label, /^Китай · Бакалавриат · версия 3 — 7 документов$/u);
   assert.equal(typeof loaded.props.baselineChecklistRequestId, "string");
 
   // Without document.manage the server always refuses the read: it is not

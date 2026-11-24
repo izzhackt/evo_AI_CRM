@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KnowledgeItem } from "@/lib/knowledge-library-contract";
 import type { PlatformStudentCaseQueueRow } from "@/lib/platform-admissions";
+import { caseCountry, caseIntake } from "@/lib/v3/wording";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { command, knowledgeFetch } from "./client";
 import { KB_CHECK, KB_CHECK_ROW, KB_DIALOG, KB_DIALOG_BODY, KB_DIALOG_HEAD, KB_ERROR, KB_FIELD, KB_LABEL, KB_QUIET, knowledgeDay } from "./knowledge-look";
@@ -71,7 +72,7 @@ export function KnowledgeAssignCase({ items, folders, onClose, onSaved }: { item
               <input type="radio" name="case" className={`${KB_CHECK} mt-0.5`} checked={selected?.studentCaseId === item.studentCaseId} disabled={busy || done.size > 0}
                 onChange={() => { setSelected(item); setConfirmed(false); }} />
               <span className="min-w-0">
-                <span className="block text-fg [overflow-wrap:anywhere]">{item.studentDisplayName} · {item.targetCountry ?? "Страна не указана"} · {item.intake ?? "Набор не указан"}</span>
+                <span className="block text-fg [overflow-wrap:anywhere]">{[item.studentDisplayName, item.targetCountry?.trim() ? caseCountry(item.targetCountry) : "Страна не указана", caseIntake(item.intake) ?? "Набор не указан"].filter(Boolean).join(" · ")}</span>
                 <span className="block t-meta text-fg-3">Дело <span className="font-mono">{item.studentCaseId.slice(0, 8)}</span>{created ? <> · создано <span className="font-mono">{created}</span></> : null}</span>
               </span>
             </label>

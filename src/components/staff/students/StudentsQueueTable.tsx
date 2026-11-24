@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import type { StudentCaseQueueRow, StudentCaseQueueSort } from "@/lib/platform-student-case-queue-contract";
 import { stagePhase } from "@/lib/v3/stages";
-import { admissionsPipelineStage } from "@/lib/v3/wording";
+import { admissionsPipelineStage, caseCountry, caseDegree } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { PHONE_HIDDEN, RowSelect } from "../queue/Bulk";
@@ -93,9 +93,16 @@ export type StudentsRowLinks = Readonly<{
   case: string;
 }>;
 
-export function studentsRowMeta(row: Pick<StudentCaseQueueRow, "admissionsDirection" | "targetCountry" | "targetDegree">): string {
-  const direction = row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "Страна не указана";
-  return [direction, row.targetDegree].filter(Boolean).join(" · ");
+/**
+ * Строка под именем: направление дела, а без него страна; затем ступень. Страна и ступень — словами `wording.ts`
+ * (в базе бывает код `CN` и ключ `bachelor`); непереводимое значение не рисуется, «Страна не указана» — только
+ * когда страны нет совсем. Одна склейка на очередь, панель студента и запасной список.
+ */
+export function studentsRowMeta(row: Partial<Pick<StudentCaseQueueRow, "admissionsDirection">> & Pick<StudentCaseQueueRow, "targetCountry" | "targetDegree">): string {
+  const direction = row.admissionsDirection
+    ? DIRECTION_LABELS[row.admissionsDirection]
+    : row.targetCountry?.trim() ? caseCountry(row.targetCountry) : "Страна не указана";
+  return [direction, caseDegree(row.targetDegree)].filter(Boolean).join(" · ");
 }
 
 /**

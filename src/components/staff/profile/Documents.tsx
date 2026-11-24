@@ -8,6 +8,7 @@ import {
   type PlatformCaseBaselineChecklistOption,
 } from "@/lib/platform-private-documents";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
+import { caseCountry, caseDegree, caseProgram } from "@/lib/v3/wording";
 
 import type {
   ActiveDocumentGroup,
@@ -24,10 +25,11 @@ import { amoSortingFiles, sortingMode, sortingRows } from "./amo-sorting-view";
 function baselineChecklistOptionLabel(
   option: PlatformCaseBaselineChecklistOption,
 ): string {
-  const route = [option.targetCountry, option.targetDegree, option.programDirection]
+  // Версия требований хранит код страны и ключ ступени (`CN`, `bachelor`, 179): на экран — слова `wording.ts`.
+  const route = [caseCountry(option.targetCountry), caseDegree(option.targetDegree), caseProgram(option.programDirection)]
     .filter((part): part is string => part !== null)
     .join(" · ");
-  return `${route} · версия ${option.checklistVersion} — ${option.requirementCount} документов`;
+  return `${[route || null, `версия ${option.checklistVersion}`].filter(Boolean).join(" · ")} — ${option.requirementCount} документов`;
 }
 
 /**

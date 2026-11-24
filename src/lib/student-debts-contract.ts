@@ -6,7 +6,8 @@ import { parseSalesUuid } from "./platform-sales-register-contract.ts";
  * ошибка, а не пустая таблица.
  */
 export type StudentDebtRow = Readonly<{
-  caseId: string; studentName: string; country: string; direction: string | null; curator: string | null;
+  /** `student_cases.target_country` как хранится: код (`CN`), прежнее `China` или пусто (дела передачи из продаж и анкет). */
+  caseId: string; studentName: string; country: string | null; direction: string | null; curator: string | null;
   currency: string; costMinor: number; paidMinor: number; debtMinor: number;
   /** У дела есть оплаты в другой валюте, которых эта строка не видит (в долг они не вычитаются). */
   hasOtherCurrencyPayments: boolean;
@@ -40,7 +41,7 @@ export function parseStudentDebts(raw: unknown, organizationId: string): Student
     const caseId = parseSalesUuid(row.case_id) ?? fail();
     const costMinor = money(row.cost_minor); const paidMinor = money(row.paid_minor); const debtMinor = money(row.debt_minor);
     if (debtMinor <= 0 || costMinor - paidMinor !== debtMinor) fail();
-    return Object.freeze({ caseId, studentName: text(row.student_name), country: text(row.country), direction: optional(row.direction), curator: optional(row.curator),
+    return Object.freeze({ caseId, studentName: text(row.student_name), country: optional(row.country), direction: optional(row.direction), curator: optional(row.curator),
       currency: currency(row.currency), costMinor, paidMinor, debtMinor, hasOtherCurrencyPayments: row.has_other_currency_payments });
   });
   const totals = r.totals.map((item) => {

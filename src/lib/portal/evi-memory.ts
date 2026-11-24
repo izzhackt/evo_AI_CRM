@@ -1,4 +1,4 @@
-import type { EviFailure } from "./evi.ts";
+import { EVI_FAILURE_ACTION, type EviFailure } from "./evi.ts";
 import type { EviMessage, EviOptions } from "./evi-conversation.ts";
 
 /**
@@ -20,12 +20,14 @@ export function eviSnapshot(messages: readonly EviMessage[], options: EviOptions
 }
 
 /**
- * Сбой после возврата: недоступность Эви на странице главнее всего; затем сбой, который был до ухода; ответ на последний
- * вопрос не пришёл без сбоя (ученик ушёл, пока Эви печатала) — тот же вопрос повторяют одной кнопкой.
+ * Сбой после возврата: недоступность Эви на странице главнее всего. Затем сбой самого разговора, который был до ухода
+ * («Разговор сбился», «получился длинным», «занят», «не получилось»). «Нет согласия» и «Эви недоступен» не
+ * восстанавливаются: страница только что проверила их заново, и устаревшая копия заперла бы чат с одной ссылкой в каталог.
+ * Ответ на последнюю реплику ученика не пришёл (ушёл, пока Эви печатала, или такой сбой) — её повторяют одной кнопкой.
  */
 export function restoredEviFailure(snapshot: EviSnapshot | null, initialFailure: EviFailure | null): EviFailure | null {
   if (initialFailure !== null || !snapshot) return initialFailure;
-  if (snapshot.failure !== null) return snapshot.failure;
+  if (snapshot.failure !== null && EVI_FAILURE_ACTION[snapshot.failure] !== "catalog") return snapshot.failure;
   return snapshot.messages[snapshot.messages.length - 1]?.role === "user" ? "error" : null;
 }
 

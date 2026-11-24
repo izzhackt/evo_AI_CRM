@@ -12,10 +12,13 @@ import { EviChat } from "./EviChat";
 export function EviTab({ strings, online, owner, stale }: Readonly<{
   strings: PortalStrings<"professions">;
   online: boolean;
-  /** Непрозрачная метка ученика для памяти разговора (`eviOwnerKey`). */
+  /**
+   * Непрозрачная метка ученика для памяти разговора (`eviOwnerKey`). Она же ключ чата: если страница перерисовалась для
+   * другого ученика (вход в соседней вкладке), чат начинается заново, а не переписывает прежний разговор на нового.
+   */
   owner: string;
   /** «Вышла новая версия» и «Обновить страницу» из словаря оболочки кабинета. */
   stale: Readonly<{ text: string; reload: string }>;
 }>) {
-  return online ? <EviChat strings={strings} ask={askEviAction} owner={owner} stale={stale} /> : <EviChat strings={strings} offline />;
+  return online ? <EviChat key={owner} strings={strings} ask={askEviAction} owner={owner} stale={stale} /> : <EviChat strings={strings} offline />;
 }

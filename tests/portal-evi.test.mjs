@@ -496,9 +496,14 @@ test("the conversation is kept while the cabinet is open, only in page memory, a
   assert.equal(restoredEviFailure(kept, null), null);
   const asked = [...talk, { role: "user", text: "Рисую" }];
   assert.equal(restoredEviFailure(eviSnapshot(asked, options, null), null), "error", "left while Эви was typing: one «Повторить»");
-  // Сбой до ухода остаётся тем же сбоем: «Разговор получился длинным» не превращается в «Повторить».
-  for (const failure of ["limit", "invalid", "busy", "unavailable", "error"]) {
+  // Сбой самого разговора остаётся тем же сбоем: «Разговор получился длинным» не превращается в «Повторить».
+  for (const failure of ["limit", "invalid", "busy", "error"]) {
     assert.equal(restoredEviFailure(eviSnapshot(asked, options, failure), null), failure, failure);
+  }
+  // «Нет согласия» и «недоступен» страница только что проверила заново: устаревшая копия не запирает чат, вопрос повторяют.
+  for (const failure of ["consent", "unavailable"]) {
+    assert.equal(restoredEviFailure(eviSnapshot(asked, options, failure), null), "error", failure);
+    assert.equal(restoredEviFailure(eviSnapshot(talk, options, failure), null), null, `${failure}: answered, nothing to retry`);
   }
   assert.equal(restoredEviFailure(eviSnapshot(asked, options, "limit"), "unavailable"), "unavailable", "an offline chat stays offline");
   assert.equal(restoredEviFailure(null, null), null);
@@ -536,7 +541,8 @@ test("the kept conversation belongs to one student: another student in the same 
   assert.ok(!eviOwnerKey(id).includes(id) && /^[\w-]{22}$/u.test(eviOwnerKey(id)), "only a hash goes to the page");
   const page = read("src/app/(portal)/portal/professions/page.tsx");
   assert.match(page, /owner=\{eviOwnerKey\(actor\.authUserId\)\}/u);
-  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /<EviChat strings=\{strings\} ask=\{askEviAction\} owner=\{owner\} stale=\{stale\} \/>/u);
+  // Ключ чата — метка ученика: перерисовка страницы для другого ученика начинает чат заново, а не переписывает разговор.
+  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /<EviChat key=\{owner\} strings=\{strings\} ask=\{askEviAction\} owner=\{owner\} stale=\{stale\} \/>/u);
   const memory = read(`${EVI_DIR}/EviMemory.tsx`);
   assert.match(memory, /store && owner\s*\? \{ load: \(\) => store\.load\(owner\), save: \(snapshot\) => store\.save\(owner, snapshot\) \}\s*: null/u);
 });

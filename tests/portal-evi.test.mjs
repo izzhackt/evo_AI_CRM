@@ -402,7 +402,8 @@ test("without the model Эви says so on the welcome and offers the catalogue, 
   assert.match(thread, /strings\[failure \? EVI_FAILURE_TEXT\[failure\] : "evi\.welcomeText"\]/u);
   // Единственный выход — ссылка в каталог; поле ввода закрыто, сообщения без ответа не копятся.
   const dock = read(`${EVI_DIR}/EviDock.tsx`);
-  assert.match(dock, /const closed = action === "restart" \|\| action === "catalog";/u);
+  // 24.11.2026: поле закрыто и тогда, когда вкладка пережила выпуск (`stale`) — отправка уже не дойдёт до сервера.
+  assert.match(dock, /const closed = stale !== null \|\| action === "restart" \|\| action === "catalog";/u);
   assert.match(dock, /\{closed \? null : <form className="pt-evi-composer"/u);
   // Фокус уходит на разговор только когда поле закрылось посреди разговора, не на загрузке вкладки.
   assert.match(dock, /if \(closed && !wasClosed\.current\) keepEviFocus\(\);/u);
@@ -412,7 +413,7 @@ test("without the model Эви says so on the welcome and offers the catalogue, 
 
 test("a failure is one block above the input: the line and its one action together, and the robot does not smile", () => {
   const dock = read(`${EVI_DIR}/EviDock.tsx`);
-  assert.match(dock, /\{failure \? \(\s*<div className="pt-evi-failure">\s*\{intro \? null : <p className="pt-evi-note" role="alert">/u);
+  assert.match(dock, /\) : failure \? \(\s*<div className="pt-evi-failure">\s*\{intro \? null : <p className="pt-evi-note" role="alert">/u);
   // Сбой больше не строка внутри переписки.
   assert.doesNotMatch(read(`${EVI_DIR}/EviThread.tsx`), /className="pt-evi-note"/u);
   assert.match(read(`${EVI_DIR}/EviThread.tsx`), /<EviMascot mood=\{failure \? "idle" : message\.mood \?\? "talk"\}/u);
@@ -446,6 +447,9 @@ test("the chat window carries the logobook watermark: four motifs in an angled g
   }
   // Окно — свой слой, узор под содержимым; шапка окна без узора.
   assert.match(CSS, /\.pt-evi \{\s*--pt-evi-axis: 720px;\s*position: relative;\s*isolation: isolate;/u);
+  // 24.11.2026: окно не прокручивается (clip, а не только hidden): водяной знак ::before вдвое больше окна, и любая прокрутка
+  // к элементу сдвигала всё окно — шапка с «Вопрос N из 10» уходила за край.
+  assert.match(CSS, /\n\.pt-evi \{[^}]*overflow: hidden;\s*overflow: clip;/u);
   assert.match(rule, /z-index: -1;/u);
   assert.match(CSS, /\.pt-evi-head \{\s*border-bottom: 1px solid var\(--pt-line\);\s*background: var\(--pt-surface\);/u);
   // Плитка узора определена один раз — только для окна Эви.
@@ -478,4 +482,84 @@ test("Эви's colours have a light and a dark value; no backdrop, and the input
   assert.match(CSS, /\.pt-evi-composer:focus-within \{\s*border-color: var\(--pt-text\);/u);
   assert.match(CSS, /\.pt-page \.pt-evi-input:focus-visible \{\s*outline: none;/u);
   assert.match(CSS, /\n\.pt-evi-bubble-mine \{[^}]*background: var\(--pt-accent\);[^}]*color: var\(--pt-on-accent\);/u);
+});
+
+// 24.11.2026: разговор не стирается переходом из итога на карточку профессии и «Назад» (раньше «Назад» возвращал к
+// приветствию). Решение владельца 17.11 то же: держать, пока открыт кабинет, нигде не записывать — после перезагрузки
+// или выхода заново.
+test("the conversation is kept while the cabinet is open, only in page memory, and a new chat clears it", async () => {
+  const { eviSnapshot, restoredEviFailure } = await import("../src/lib/portal/evi-memory.ts");
+  const greeting = [{ role: "assistant", text: "Привет", fresh: true }];
+  const options = { options: ["Начнём!"], multi: false, go: "Начнём!" };
+  assert.equal(eviSnapshot(greeting, options, null), null, "only the greeting: nothing to keep");
+  const talk = [...greeting, { role: "user", text: "Начнём!" }, { role: "assistant", text: "Вопрос", mood: "talk", fresh: true }];
+  const kept = eviSnapshot(talk, options, null);
+  assert.deepEqual(kept.messages.map((message) => message.fresh), [undefined, undefined, undefined], "no fresh: the robot does not react again");
+  assert.equal(kept.messages[2].mood, "talk");
+  assert.equal(restoredEviFailure(kept, null), null);
+  const asked = [...talk, { role: "user", text: "Рисую" }];
+  assert.equal(restoredEviFailure(eviSnapshot(asked, options, null), null), "error", "left while Эви was typing: one «Повторить»");
+  // Сбой самого разговора остаётся тем же сбоем: «Разговор получился длинным» не превращается в «Повторить».
+  for (const failure of ["limit", "invalid", "busy", "error"]) {
+    assert.equal(restoredEviFailure(eviSnapshot(asked, options, failure), null), failure, failure);
+  }
+  // «Нет согласия» и «недоступен» страница только что проверила заново: устаревшая копия не запирает чат, вопрос повторяют.
+  for (const failure of ["consent", "unavailable"]) {
+    assert.equal(restoredEviFailure(eviSnapshot(asked, options, failure), null), "error", failure);
+    assert.equal(restoredEviFailure(eviSnapshot(talk, options, failure), null), null, `${failure}: answered, nothing to retry`);
+  }
+  assert.equal(restoredEviFailure(eviSnapshot(asked, options, "limit"), "unavailable"), "unavailable", "an offline chat stays offline");
+  assert.equal(restoredEviFailure(null, null), null);
+
+  const conversation = read("src/lib/portal/evi-conversation.ts");
+  assert.match(conversation, /const \[restored\] = useState<EviSnapshot \| null>\(\(\) => memory\?\.load\(\) \?\? null\);/u);
+  assert.match(conversation, /memory\?\.save\(eviSnapshot\(messages, options, failure\)\);\s*\}, \[memory, messages, options, failure\]\);/u);
+  const memory = read(`${EVI_DIR}/EviMemory.tsx`);
+  assert.match(memory, /const \[store\] = useState\(createEviMemoryStore\);/u);
+  assert.doesNotMatch(memory, /localStorage|sessionStorage|indexedDB|document\.cookie/u, "page memory only");
+  assert.doesNotMatch(read("src/lib/portal/evi-memory.ts"), /localStorage|sessionStorage|indexedDB|document\.cookie/u, "page memory only");
+  // Память — в оболочке кабинета и снаружи обёртки с key=pathname: иначе переход пересоздал бы её.
+  const shell = read("src/components/portal/Shell.tsx");
+  assert.match(shell, /<EviMemoryProvider>\s*\{\/\*[^*]*\*\/\}\s*<div key=\{pathname\} className="pt-route">\s*\{children\}\s*<\/div>\s*<\/EviMemoryProvider>/u);
+  assert.match(read(`${EVI_DIR}/EviChat.tsx`), /const memory = useEviMemory\(owner\);/u);
+});
+
+// 24.11.2026: память кабинета помечена учеником. Вкладку не перезагружали, а в соседней вошёл другой ученик — чужой
+// разговор он не увидит. В страницу уходит только хеш идентификатора.
+test("the kept conversation belongs to one student: another student in the same tab starts from the greeting", async () => {
+  const { createEviMemoryStore, eviSnapshot } = await import("../src/lib/portal/evi-memory.ts");
+  const store = createEviMemoryStore();
+  const talk = [{ role: "assistant", text: "Привет" }, { role: "user", text: "Рисую" }];
+  const snapshot = eviSnapshot(talk, { options: [], multi: false }, null);
+  store.save("student-a", snapshot);
+  assert.equal(store.load("student-a"), snapshot);
+  assert.equal(store.load("student-b"), null, "another student gets nothing");
+  store.save("student-b", null);
+  assert.equal(store.load("student-a"), null, "the other student's greeting clears the old conversation");
+
+  const { eviOwnerKey } = await import("../src/lib/server/evi/messages.ts");
+  const id = "00000000-0000-4000-8000-000000000001";
+  assert.equal(eviOwnerKey(id), eviOwnerKey(id), "stable for one student");
+  assert.notEqual(eviOwnerKey(id), eviOwnerKey("00000000-0000-4000-8000-000000000002"));
+  assert.ok(!eviOwnerKey(id).includes(id) && /^[\w-]{22}$/u.test(eviOwnerKey(id)), "only a hash goes to the page");
+  const page = read("src/app/(portal)/portal/professions/page.tsx");
+  assert.match(page, /owner=\{eviOwnerKey\(actor\.authUserId\)\}/u);
+  // Ключ чата — метка ученика: перерисовка страницы для другого ученика начинает чат заново, а не переписывает разговор.
+  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /<EviChat key=\{owner\} strings=\{strings\} ask=\{askEviAction\} owner=\{owner\} stale=\{stale\} \/>/u);
+  const memory = read(`${EVI_DIR}/EviMemory.tsx`);
+  assert.match(memory, /store && owner\s*\? \{ load: \(\) => store\.load\(owner\), save: \(snapshot\) => store\.save\(owner, snapshot\) \}\s*: null/u);
+});
+
+// 24.11.2026: вкладка пережила выпуск — сервер отвечает 409 «действие не найдено», и «Повторить» не поможет никогда.
+test("after a release the chat asks to reload the page instead of an endless «Повторить»", () => {
+  const chat = read(`${EVI_DIR}/EviChat.tsx`);
+  assert.match(chat, /catch \(error\) \{\s*noteStaleDeployment\(error\);\s*throw error;\s*\}/u);
+  assert.match(chat, /const showStale = pageStale && stale !== null && !offline;\s*useInlineStalePrompt\(showStale\);/u);
+  const dock = read(`${EVI_DIR}/EviDock.tsx`);
+  // Без role="alert": фразу один раз объявляет скрытая строка оболочки, как у других мест с той же просьбой.
+  assert.match(dock, /\{stale \? \(\s*\/\/[^\n]*\n\s*<div className="pt-evi-failure">\s*<p className="pt-evi-note">\{stale\.text\}<\/p>\s*<button type="button" className="pt-evi-chip pt-evi-go" onClick=\{reloadForNewDeployment\}>\{stale\.reload\}<\/button>/u);
+  assert.match(read("src/components/portal/PortalStaleDeploymentNotice.tsx"), /<p role="status" className="pt-sr-only">\{stale \? strings\.staleVersion : ""\}<\/p>/u);
+  const page = read("src/app/(portal)/portal/professions/page.tsx");
+  assert.match(page, /const shell = getPortalStrings\("shell", locale\);/u);
+  assert.match(page, /stale=\{\{ text: shell\.staleVersion, reload: shell\.staleVersionReload \}\}/u);
 });

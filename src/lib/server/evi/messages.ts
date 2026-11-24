@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { EVI_MODEL } from "./prompt.ts";
 
 /*
@@ -32,6 +34,14 @@ const RETRY_DELAY_MS = 800;
 export function readEviApiKey(env: Env): string | null {
   const value = env[EVI_ENV.apiKey]?.trim();
   return value ? value : null;
+}
+
+/**
+ * Непрозрачная метка ученика для памяти разговора в кабинете: по ней разговор не достаётся другому ученику в той же
+ * вкладке. Сам идентификатор в страницу не уходит — только его хеш.
+ */
+export function eviOwnerKey(authUserId: string): string {
+  return createHash("sha256").update(`evi-memory:${authUserId}`).digest("base64url").slice(0, 22);
 }
 
 export type EviMessage = Readonly<{ role: "user" | "assistant"; content: string }>;

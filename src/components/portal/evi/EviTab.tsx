@@ -9,11 +9,13 @@ import { EviChat } from "./EviChat";
  * (`EVO_EVI_ANTHROPIC_API_KEY`, кладёт владелец): чат отвечает через серверное действие. Ключа нет — чат `offline`:
  * с первого экрана «Эви сейчас недоступен» и «Открыть каталог», поле закрыто.
  */
-export function EviTab({ strings, online, stale }: Readonly<{
+export function EviTab({ strings, online, owner, stale }: Readonly<{
   strings: PortalStrings<"professions">;
   online: boolean;
+  /** Непрозрачная метка ученика для памяти разговора (`eviOwnerKey`). */
+  owner: string;
   /** «Вышла новая версия» и «Обновить страницу» из словаря оболочки кабинета. */
   stale: Readonly<{ text: string; reload: string }>;
 }>) {
-  return online ? <EviChat strings={strings} ask={askEviAction} stale={stale} /> : <EviChat strings={strings} offline />;
+  return online ? <EviChat strings={strings} ask={askEviAction} owner={owner} stale={stale} /> : <EviChat strings={strings} offline />;
 }

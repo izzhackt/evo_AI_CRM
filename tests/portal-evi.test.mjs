@@ -488,27 +488,57 @@ test("the conversation is kept while the cabinet is open, only in page memory, a
   const { eviSnapshot, restoredEviFailure } = await import("../src/lib/portal/evi-memory.ts");
   const greeting = [{ role: "assistant", text: "Привет", fresh: true }];
   const options = { options: ["Начнём!"], multi: false, go: "Начнём!" };
-  assert.equal(eviSnapshot(greeting, options), null, "only the greeting: nothing to keep");
+  assert.equal(eviSnapshot(greeting, options, null), null, "only the greeting: nothing to keep");
   const talk = [...greeting, { role: "user", text: "Начнём!" }, { role: "assistant", text: "Вопрос", mood: "talk", fresh: true }];
-  const kept = eviSnapshot(talk, options);
+  const kept = eviSnapshot(talk, options, null);
   assert.deepEqual(kept.messages.map((message) => message.fresh), [undefined, undefined, undefined], "no fresh: the robot does not react again");
   assert.equal(kept.messages[2].mood, "talk");
   assert.equal(restoredEviFailure(kept, null), null);
-  const unanswered = eviSnapshot([...talk, { role: "user", text: "Рисую" }], options);
-  assert.equal(restoredEviFailure(unanswered, null), "error", "the answer never came: one «Повторить»");
-  assert.equal(restoredEviFailure(unanswered, "unavailable"), "unavailable", "an offline chat stays offline");
+  const asked = [...talk, { role: "user", text: "Рисую" }];
+  assert.equal(restoredEviFailure(eviSnapshot(asked, options, null), null), "error", "left while Эви was typing: one «Повторить»");
+  // Сбой до ухода остаётся тем же сбоем: «Разговор получился длинным» не превращается в «Повторить».
+  for (const failure of ["limit", "invalid", "busy", "unavailable", "error"]) {
+    assert.equal(restoredEviFailure(eviSnapshot(asked, options, failure), null), failure, failure);
+  }
+  assert.equal(restoredEviFailure(eviSnapshot(asked, options, "limit"), "unavailable"), "unavailable", "an offline chat stays offline");
   assert.equal(restoredEviFailure(null, null), null);
 
   const conversation = read("src/lib/portal/evi-conversation.ts");
   assert.match(conversation, /const \[restored\] = useState<EviSnapshot \| null>\(\(\) => memory\?\.load\(\) \?\? null\);/u);
-  assert.match(conversation, /memory\?\.save\(eviSnapshot\(messages, options\)\);/u);
+  assert.match(conversation, /memory\?\.save\(eviSnapshot\(messages, options, failure\)\);\s*\}, \[memory, messages, options, failure\]\);/u);
   const memory = read(`${EVI_DIR}/EviMemory.tsx`);
-  assert.match(memory, /const kept = useRef<EviSnapshot \| null>\(null\);/u);
+  assert.match(memory, /const \[store\] = useState\(createEviMemoryStore\);/u);
   assert.doesNotMatch(memory, /localStorage|sessionStorage|indexedDB|document\.cookie/u, "page memory only");
+  assert.doesNotMatch(read("src/lib/portal/evi-memory.ts"), /localStorage|sessionStorage|indexedDB|document\.cookie/u, "page memory only");
   // Память — в оболочке кабинета и снаружи обёртки с key=pathname: иначе переход пересоздал бы её.
   const shell = read("src/components/portal/Shell.tsx");
   assert.match(shell, /<EviMemoryProvider>\s*\{\/\*[^*]*\*\/\}\s*<div key=\{pathname\} className="pt-route">\s*\{children\}\s*<\/div>\s*<\/EviMemoryProvider>/u);
-  assert.match(read(`${EVI_DIR}/EviChat.tsx`), /const memory = useEviMemory\(\);/u);
+  assert.match(read(`${EVI_DIR}/EviChat.tsx`), /const memory = useEviMemory\(owner\);/u);
+});
+
+// 24.11.2026: память кабинета помечена учеником. Вкладку не перезагружали, а в соседней вошёл другой ученик — чужой
+// разговор он не увидит. В страницу уходит только хеш идентификатора.
+test("the kept conversation belongs to one student: another student in the same tab starts from the greeting", async () => {
+  const { createEviMemoryStore, eviSnapshot } = await import("../src/lib/portal/evi-memory.ts");
+  const store = createEviMemoryStore();
+  const talk = [{ role: "assistant", text: "Привет" }, { role: "user", text: "Рисую" }];
+  const snapshot = eviSnapshot(talk, { options: [], multi: false }, null);
+  store.save("student-a", snapshot);
+  assert.equal(store.load("student-a"), snapshot);
+  assert.equal(store.load("student-b"), null, "another student gets nothing");
+  store.save("student-b", null);
+  assert.equal(store.load("student-a"), null, "the other student's greeting clears the old conversation");
+
+  const { eviOwnerKey } = await import("../src/lib/server/evi/messages.ts");
+  const id = "00000000-0000-4000-8000-000000000001";
+  assert.equal(eviOwnerKey(id), eviOwnerKey(id), "stable for one student");
+  assert.notEqual(eviOwnerKey(id), eviOwnerKey("00000000-0000-4000-8000-000000000002"));
+  assert.ok(!eviOwnerKey(id).includes(id) && /^[\w-]{22}$/u.test(eviOwnerKey(id)), "only a hash goes to the page");
+  const page = read("src/app/(portal)/portal/professions/page.tsx");
+  assert.match(page, /owner=\{eviOwnerKey\(actor\.authUserId\)\}/u);
+  assert.match(read(`${EVI_DIR}/EviTab.tsx`), /<EviChat strings=\{strings\} ask=\{askEviAction\} owner=\{owner\} stale=\{stale\} \/>/u);
+  const memory = read(`${EVI_DIR}/EviMemory.tsx`);
+  assert.match(memory, /store && owner\s*\? \{ load: \(\) => store\.load\(owner\), save: \(snapshot\) => store\.save\(owner, snapshot\) \}\s*: null/u);
 });
 
 // 24.11.2026: вкладка пережила выпуск — сервер отвечает 409 «действие не найдено», и «Повторить» не поможет никогда.
@@ -517,7 +547,9 @@ test("after a release the chat asks to reload the page instead of an endless «�
   assert.match(chat, /catch \(error\) \{\s*noteStaleDeployment\(error\);\s*throw error;\s*\}/u);
   assert.match(chat, /const showStale = pageStale && stale !== null && !offline;\s*useInlineStalePrompt\(showStale\);/u);
   const dock = read(`${EVI_DIR}/EviDock.tsx`);
-  assert.match(dock, /\{stale \? \(\s*<div className="pt-evi-failure">\s*<p className="pt-evi-note" role="alert">\{stale\.text\}<\/p>\s*<button type="button" className="pt-evi-chip pt-evi-go" onClick=\{reloadForNewDeployment\}>\{stale\.reload\}<\/button>/u);
+  // Без role="alert": фразу один раз объявляет скрытая строка оболочки, как у других мест с той же просьбой.
+  assert.match(dock, /\{stale \? \(\s*\/\/[^\n]*\n\s*<div className="pt-evi-failure">\s*<p className="pt-evi-note">\{stale\.text\}<\/p>\s*<button type="button" className="pt-evi-chip pt-evi-go" onClick=\{reloadForNewDeployment\}>\{stale\.reload\}<\/button>/u);
+  assert.match(read("src/components/portal/PortalStaleDeploymentNotice.tsx"), /<p role="status" className="pt-sr-only">\{stale \? strings\.staleVersion : ""\}<\/p>/u);
   const page = read("src/app/(portal)/portal/professions/page.tsx");
   assert.match(page, /const shell = getPortalStrings\("shell", locale\);/u);
   assert.match(page, /stale=\{\{ text: shell\.staleVersion, reload: shell\.staleVersionReload \}\}/u);

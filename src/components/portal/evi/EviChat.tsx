@@ -26,11 +26,13 @@ export type { EviMessage, EviOptions } from "./useEviConversation";
  * `initial*` — состояние для статического рендера и проверок.
  * Разговор держится в памяти кабинета (`EviMemoryProvider` в оболочке), пока кабинет открыт. Вкладка пережила выпуск
  * (24.11.2026: сервер отвечает 409 «действие не найдено», и «Повторить» не помогло бы никогда) — вместо вариантов и поля
- * одна строка `stale` и «Обновить страницу»; общая строка оболочки на это время молчит.
+ * одна строка `stale` и «Обновить страницу»; общая карточка оболочки на это время скрыта.
  */
-export function EviChat({ strings, ask, offline = false, stale = null, initialMessages, initialOptions, initialFailure = null }: Readonly<{
+export function EviChat({ strings, ask, owner = null, offline = false, stale = null, initialMessages, initialOptions, initialFailure = null }: Readonly<{
   strings: PortalStrings<"professions">;
   ask?: EviAsk;
+  /** Непрозрачная метка ученика: память кабинета отдаёт разговор только ему. */
+  owner?: string | null;
   offline?: boolean;
   /** Слова «вышла новая версия» и «обновить страницу» (словарь оболочки кабинета). */
   stale?: Readonly<{ text: string; reload: string }> | null;
@@ -38,7 +40,7 @@ export function EviChat({ strings, ask, offline = false, stale = null, initialMe
   initialOptions?: EviOptions;
   initialFailure?: EviFailure | null;
 }>) {
-  const memory = useEviMemory();
+  const memory = useEviMemory(owner);
   // Ошибка прошлой сборки отмечает страницу: подсказку покажет и чат, и опросы кабинета остановятся.
   const checkedAsk = useMemo<EviAsk | undefined>(() => ask && (async (history) => {
     try {

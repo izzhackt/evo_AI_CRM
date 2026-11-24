@@ -80,8 +80,9 @@ export function EviDock({ strings, options, picked, failure, canRetry, intro, dr
   return (
     <div className="pt-evi-dock">
       {stale ? (
+        // Без role="alert": ту же фразу один раз объявляет скрытая строка оболочки (PortalStaleDeploymentNotice).
         <div className="pt-evi-failure">
-          <p className="pt-evi-note" role="alert">{stale.text}</p>
+          <p className="pt-evi-note">{stale.text}</p>
           <button type="button" className="pt-evi-chip pt-evi-go" onClick={reloadForNewDeployment}>{stale.reload}</button>
         </div>
       ) : failure ? (

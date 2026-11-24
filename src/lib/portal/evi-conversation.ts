@@ -55,10 +55,10 @@ export function useEviConversation({ strings, ask, memory, initialMessages, init
     messagesRef.current = messages;
   }, [messages]);
 
-  // Каждый шаг разговора кладётся в память кабинета; «Новый чат» (только приветствие) её очищает.
+  // Каждый шаг разговора и сбой кладутся в память кабинета; «Новый чат» (только приветствие) её очищает.
   useEffect(() => {
-    memory?.save(eviSnapshot(messages, options));
-  }, [memory, messages, options]);
+    memory?.save(eviSnapshot(messages, options, failure));
+  }, [memory, messages, options, failure]);
 
   function settle() {
     busyRef.current = null;

@@ -14,7 +14,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { topProfessionMatches } from "@/lib/portal/profession-guide";
 import { isOrvisScaleId, type ProfessionCardSummary } from "@/lib/portal/professions";
 import { readOwnOrvisState, readProfessionCards } from "@/lib/portal/professions-source";
-import { readEviApiKey } from "@/lib/server/evi/messages";
+import { eviOwnerKey, readEviApiKey } from "@/lib/server/evi/messages";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ export default async function ProfessionsPage({
           <h1 className="pt-page-title">{strings.title}</h1>
         </header>
         <ProfessionsTabs view="evi" strings={strings} />
-        <EviTab strings={strings} online={eviOnline} stale={{ text: shell.staleVersion, reload: shell.staleVersionReload }} />
+        <EviTab strings={strings} online={eviOnline} owner={eviOwnerKey(actor.authUserId)} stale={{ text: shell.staleVersion, reload: shell.staleVersionReload }} />
       </main>
     );
   }

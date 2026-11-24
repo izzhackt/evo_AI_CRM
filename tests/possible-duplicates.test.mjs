@@ -56,7 +56,8 @@ test("cases and leads with links: the student's own lead and case are skipped, t
     { leadId: LEAD(9), studentCaseId: CASE(2) });
   assert.deepEqual(log, [["students", "Сатыбалдиев", 20], ["leads", "Сатыбалдиев", 20]], "one read per group, by the surname");
   assert.deepEqual(found, [
-    { kind: "case", id: CASE(1), label: "Абдурахман Сатыбалдиев", meta: "MY", href: `/profile?case=${CASE(1)}` },
+    // Страна дела хранится кодом (`MY`), на экране — слово.
+    { kind: "case", id: CASE(1), label: "Абдурахман Сатыбалдиев", meta: "Малайзия", href: `/profile?case=${CASE(1)}` },
     { kind: "lead", id: LEAD(1), label: "Абдурахман Сатыбалдиев", meta: null, href: `/profile?id=${LEAD(1)}` },
   ]);
   const own = await findPossibleDuplicates(admin, { firstName: "Абдурахман", lastName: "Сатыбалдиев" }, readers([]), { leadId: LEAD(1) });

@@ -11,7 +11,7 @@ import { shortPersonName } from "@/components/staff/queue/person-name";
 import { cn } from "@/lib/utils";
 import type { AdmissionsPipelineRow, AdmissionsPipelineTab } from "@/lib/platform-admissions-pipeline-contract";
 import { admissionsBoardCaseHref } from "@/lib/v3/admissions-board-return";
-import { caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
+import { caseChatAwaitState, caseCountry } from "@/lib/v3/wording";
 
 /**
  * Меню «⋯» лежит внутри карточки, а перетаскивание слушает вся карточка: нажатие на пункт меню с лёгким сдвигом (щелчок по трекпаду) не должно
@@ -29,7 +29,7 @@ const keepPressInMenu = (event: SyntheticEvent) => {
  * (`admissionsBoardCaseHref`) с возвратом на доску в то же состояние (`returnTo`).
  */
 export function AdmissionsCardBody({ row, showCurator, returnTo }: Readonly<{ row: AdmissionsPipelineRow; showCurator: boolean; returnTo: string }>) {
-  const secondLine = [countryLabel(row.targetCountry), row.primaryInstitutionName].filter((value): value is string => Boolean(value)).join(" · ");
+  const secondLine = [caseCountry(row.targetCountry), row.primaryInstitutionName].filter((value): value is string => Boolean(value)).join(" · ");
   const curator = showCurator ? row.currentCuratorDisplayName : null;
   const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
   const marks = [

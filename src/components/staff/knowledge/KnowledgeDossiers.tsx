@@ -9,7 +9,7 @@ import type { ProfileEvent } from "@/components/staff/profile/types";
 import { Icon } from "@/components/icons";
 import { SkeletonBlock } from "@/components/ui";
 import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
-import { caseDocumentsWords, journalEventText } from "@/lib/v3/wording";
+import { caseCountry, caseDegree, caseDocumentsWords, caseIntake, journalEventText } from "@/lib/v3/wording";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { knowledgeFetch, command } from "./client";
 import { KnowledgeCaseDocuments } from "./KnowledgeCaseDocuments";
@@ -89,7 +89,7 @@ export function KnowledgeDossiers({ caseId, search, tab: tabParam = null }: { ca
       {directory && !directory.items.length && <p className="t-body-compact text-fg-2">По запросу ничего не найдено.</p>}
       {directory?.items.length ? <ul className="divide-y divide-border border-y border-border">{directory.items.map((item) => <li key={item.studentCaseId} className="grid gap-x-3 py-1 @xl/kbl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] @xl/kbl:items-center">
         <Link href={`/knowledge?area=clients&case=${item.studentCaseId}`} className="flex min-h-11 items-center t-item text-fg underline-offset-4 hover:underline [overflow-wrap:anywhere]">{item.studentDisplayName}</Link>
-        <span className="t-body-compact text-fg-2">{[item.targetCountry, item.targetDegree, item.intake].filter(Boolean).join(" · ")}</span>
+        <span className="t-body-compact text-fg-2">{[caseCountry(item.targetCountry), caseDegree(item.targetDegree), caseIntake(item.intake)].filter(Boolean).join(" · ")}</span>
       </li>)}</ul> : null}
       {directory?.hasMore && <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void more()}>Показать ещё клиентов</button>}
     </> : <>

@@ -12,6 +12,7 @@
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { staffCanAccessRoute, staffPresentationCan } from "../platform-access.ts";
 import type { V3Navigation, V3NavigationLink } from "./navigation.ts";
+import { caseCountry, caseDegree } from "./wording.ts";
 
 /** Поиск начинается с двух символов: один символ находит почти всех. */
 export const PALETTE_MIN_QUERY = 2;
@@ -74,7 +75,7 @@ const STATE_WORD: Readonly<Record<PaletteStudentCase["state"], string | null>> =
 };
 
 export function paletteStudentRow(row: PaletteStudentCase): PaletteRow {
-  const meta = [row.targetCountry, row.targetDegree, STATE_WORD[row.state]].filter(Boolean).join(" · ");
+  const meta = [caseCountry(row.targetCountry), caseDegree(row.targetDegree), STATE_WORD[row.state]].filter(Boolean).join(" · ");
   return {
     id: row.studentCaseId,
     label: row.studentDisplayName,

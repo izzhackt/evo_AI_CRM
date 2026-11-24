@@ -13,6 +13,7 @@ import { readLeadHandoffStrip } from "./sales-numbers-source";
 import { withWhatsAppTitles } from "./whatsapp-contact-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
+import { allDayDate, applicationStatus, caseCountry, caseDegree, caseIntake, caseProgram, visaStatus } from "@/lib/v3/wording";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
@@ -282,13 +283,13 @@ function profileDocumentCaseLinkTargets(
   visa: PlatformCaseVisa | null,
 ): readonly DocumentCaseLinkTarget[] {
   const targets: DocumentCaseLinkTarget[] = applications.map((application) => {
+    // Набор, статус и срок — словами wording.ts: в базе `2027-09`, `preparation`, `2027-03-01`.
+    const deadline = allDayDate(application.universityDeadlineOn);
     const details = [
-      application.intake ?? "интейк не указан",
-      application.status,
+      caseIntake(application.intake) ?? "интейк не указан",
+      applicationStatus(application.status),
       application.isPrimary ? "основная" : null,
-      application.universityDeadlineOn
-        ? `дедлайн ${application.universityDeadlineOn}`
-        : null,
+      deadline ? `дедлайн ${deadline}` : null,
       `#${application.universityApplicationId.slice(0, 8)}`,
     ].filter((value): value is string => value !== null);
     return {
@@ -303,7 +304,7 @@ function profileDocumentCaseLinkTargets(
     targets.push({
       kind: "visa_case",
       id: visa.visaCaseId,
-      label: `Визовое дело · ${visa.status}`,
+      label: ["Визовое дело", visaStatus(visa.status)].filter(Boolean).join(" · "),
       linked: false,
       requestId: allowWrite ? randomUUID() : null,
     });
@@ -453,10 +454,10 @@ function profileFacts(
       },
     ],
     study: [
-      { label: "Целевая страна", value: studentCase.targetCountry },
-      { label: "Ступень", value: studentCase.targetDegree },
-      { label: "Направление", value: studentCase.programDirection },
-      { label: "Интейк", value: studentCase.intake },
+      { label: "Целевая страна", value: caseCountry(studentCase.targetCountry) },
+      { label: "Ступень", value: caseDegree(studentCase.targetDegree) },
+      { label: "Направление", value: caseProgram(studentCase.programDirection) },
+      { label: "Интейк", value: caseIntake(studentCase.intake) },
       { label: "Текущее образование", value: studentProfile.currentEducationSummary },
       { label: "Академический профиль", value: studentProfile.academicSummary },
       { label: "Языковой профиль", value: studentProfile.languageSummary },

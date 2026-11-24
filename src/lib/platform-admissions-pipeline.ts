@@ -120,7 +120,8 @@ function normalizeRow(value: unknown): AdmissionsPipelineRow {
   return Object.freeze({
     studentCaseId: requiredUuid(value.student_case_id),
     studentDisplayName: requiredText(value.student_display_name, 200),
-    targetCountry: optionalText(value.target_country, 16),
+    // Страна дела — свободный TEXT: у старых дел из анкеты (177) бывает «United Arab Emirates». Предел как у других чтений дела.
+    targetCountry: optionalText(value.target_country, 200),
     primaryInstitutionName: optionalText(value.primary_institution_name, 300),
     currentCuratorMembershipId: optionalUuid(value.current_curator_membership_id),
     currentCuratorDisplayName: optionalText(value.current_curator_display_name, 200),

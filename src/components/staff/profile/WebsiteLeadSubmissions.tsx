@@ -1,19 +1,7 @@
 import { Icon } from "@/components/icons";
 import type { PlatformActor } from "@/lib/platform-auth";
-import { studyCountryFromWebsiteValue, studyCountryName } from "@/lib/study-countries";
 import { readWebsiteLeadSubmissions } from "@/lib/v3/website-lead-source";
-
-/** Прежние значения формы сайта (до 282) по-русски; приёмник их по-прежнему принимает. */
-const LEGACY_WEBSITE_COUNTRY_LABELS: Readonly<Record<string, string>> = {
-  Europe: "Европа", Germany: "Германия", "United Kingdom": "Великобритания", Netherlands: "Нидерланды",
-  France: "Франция", Poland: "Польша", Austria: "Австрия", Cyprus: "Кипр",
-};
-
-/** Страна из заявки сайта по-русски: единый список по study-countries.json, прежние значения формы по своей подписи. */
-function websiteCountryLabel(value: string): string {
-  const code = studyCountryFromWebsiteValue(value);
-  return (code && studyCountryName(code, "ru")) ?? (Object.hasOwn(LEGACY_WEBSITE_COUNTRY_LABELS, value) ? LEGACY_WEBSITE_COUNTRY_LABELS[value] : value);
-}
+import { websiteCountry } from "@/lib/v3/wording";
 
 export async function WebsiteLeadSubmissions({ actor, leadId }: { actor: PlatformActor; leadId: string }) {
   let submissions;
@@ -32,7 +20,7 @@ export async function WebsiteLeadSubmissions({ actor, leadId }: { actor: Platfor
       }).format(new Date(submission.createdAt))} (Бишкек)</time>
       <p className="mt-1 t-body-compact text-fg">{submission.name} · {submission.phone}</p>
       <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2 t-body-compact">
-        <div><dt className="t-caption text-fg-2">Страна обучения</dt><dd>{websiteCountryLabel(submission.country)}</dd></div>
+        {websiteCountry(submission.country) ? <div><dt className="t-caption text-fg-2">Страна обучения</dt><dd>{websiteCountry(submission.country)}</dd></div> : null}
         {submission.university ? <div className="min-w-0 max-w-full"><dt className="t-caption text-fg-2">Выбранный университет</dt><dd className="break-words">{submission.university.name}</dd></div> : null}
         {submission.city ? <div><dt className="t-caption text-fg-2">Город</dt><dd>{submission.city}</dd></div> : null}
         {submission.age !== null ? <div><dt className="t-caption text-fg-2">Возраст на дату заявки</dt><dd>{submission.age}</dd></div> : null}

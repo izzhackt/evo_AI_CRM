@@ -5,11 +5,14 @@ import Link from "next/link";
 import { DataTable, EmptyState, WidgetCard, type DataTableColumn } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import type { StudentDebtRow, StudentDebtsRead } from "@/lib/student-debts-contract";
+import { caseCountry, caseProgram } from "@/lib/v3/wording";
 
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 /** «120 000 KGS» как записано: сумма в минимальных единицах и её валюта, без пересчёта. */
 const amount = (minor: number, currency: string) => `${number.format(minor / 100)} ${currency}`;
 const caseHref = (id: string) => `/profile?case=${encodeURIComponent(id)}`;
+/** «Китай · Computer Science»: страна дела словом (в базе код `CN` или `China`), программа как записана; код направления не рисуется. */
+const placeOf = (row: StudentDebtRow) => [caseCountry(row.country), caseProgram(row.direction)].filter(Boolean).join(" · ");
 
 function buildColumns(): DataTableColumn<StudentDebtRow>[] {
   const money = (id: string, header: string, value: (row: StudentDebtRow) => number, strong = false): DataTableColumn<StudentDebtRow> => ({
@@ -30,8 +33,8 @@ function buildColumns(): DataTableColumn<StudentDebtRow>[] {
     money("cost", "Стоимость договора", (row) => row.costMinor),
     money("paid", "Оплачено", (row) => row.paidMinor),
     {
-      id: "direction", header: "Страна · направление", accessorFn: (row) => `${row.country} ${row.direction ?? ""}`, meta: { label: "Страна · направление", mobile: "hide" },
-      cell: ({ row }) => <span className="block max-w-56 truncate text-fg-2">{[row.original.country, row.original.direction].filter(Boolean).join(" · ") || "—"}</span>,
+      id: "direction", header: "Страна · направление", accessorFn: placeOf, meta: { label: "Страна · направление", mobile: "hide" },
+      cell: ({ row }) => <span className="block max-w-56 truncate text-fg-2">{placeOf(row.original) || "—"}</span>,
     },
     {
       id: "curator", header: "Куратор", accessorFn: (row) => row.curator ?? "", meta: { label: "Куратор", mobile: "hide" },

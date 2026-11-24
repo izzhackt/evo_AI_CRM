@@ -3,12 +3,13 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import type { V3ProfileCaseDirectory, V3ProfileCaseDirectoryParams, V3ProfileCaseDirectoryRow } from "@/lib/v3/profile-source";
 
-import { admissionsDirectoryHref, DIRECTION_LABELS } from "../profile/admissions-view";
+import { admissionsDirectoryHref } from "../profile/admissions-view";
 import { FilterMenu } from "../queue/FilterMenu";
 import { QueueEmpty, QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QueueToolbar } from "../queue/QueueToolbar";
 import { StudentsFilterRejected } from "./StudentsQueueHead";
+import { studentsRowMeta } from "./StudentsQueueTable";
 
 const COLUMNS = "@min-[40rem]/directory:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)] @min-[40rem]/directory:[grid-template-areas:'student_curator_state']";
 const ROW_GRID = `grid grid-cols-[minmax(0,1fr)] [grid-template-areas:'student'_'curator'_'state'] ${COLUMNS}`;
@@ -75,7 +76,7 @@ export function StudentsDirectoryFallback({
             <tbody role="rowgroup" className="block">
               {rows.map((row) => {
                 const href = rowHref(row);
-                const meta = [row.admissionsDirection ? DIRECTION_LABELS[row.admissionsDirection] : row.targetCountry ?? "Страна не указана", row.targetDegree].filter(Boolean).join(" · ");
+                const meta = studentsRowMeta(row);
                 return (
                   <tr key={row.studentCaseId} role="row" data-queue-row={row.studentCaseId} data-testid="v3-student-case-row" data-access={row.access}
                     data-student-case-id={row.studentCaseId} className={`relative ${ROW_GRID} border-b border-border py-2 hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface @min-[40rem]/directory:py-0`}>

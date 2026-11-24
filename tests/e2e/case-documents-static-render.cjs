@@ -247,7 +247,7 @@ function tabInput(name) {
     today: TODAY,
     createRequestId: allowed ? uuid("17000000", 1) : null,
     baselineOptions: allowed && scenario.baseline === "options"
-      ? [{ countryRequirementVersionId: uuid("18000000", 1), label: "CN · bachelor · версия 3 — 7 документов" }] : [],
+      ? [{ countryRequirementVersionId: uuid("18000000", 1), label: "Китай · Бакалавриат · версия 3 — 7 документов" }] : [],
     baselineOptionsUnavailable: false,
     baselineTemplatesAbsent: allowed && scenario.baseline === "absent",
     baselineChecklistRequestId: allowed && scenario.baseline === "options" ? uuid("19000000", 1) : null,

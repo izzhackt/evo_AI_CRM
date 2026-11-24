@@ -30,7 +30,7 @@ import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 // Смена направления в «Журнале» и «Истории» (блок рядом с `journalActor`): названия направлений - тот же словарь, что у очереди, доски и дела.
 import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view.ts";
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
-import { studyCountryOptions } from "../study-countries.ts";
+import { studyCountryFromWebsiteValue, studyCountryName, studyCountryOptions } from "../study-countries.ts";
 
 export function studentProfileFieldState(value: string): string | null {
   const labels: Record<string, string> = {
@@ -574,6 +574,98 @@ export const financeBlockedAction = (v: string | null | undefined) =>
   lookup(FINANCE_BLOCKED_ACTION, v);
 export const country = (v: string | null | undefined) => lookup(COUNTRY, v);
 export const degree = (v: string | null | undefined) => lookup(DEGREE, v);
+
+// --- Маршрут дела в строках и карточках: страна, ступень, программа, набор ----
+// `student_cases.target_country`, `target_degree`, `program_direction` и `intake` —
+// свободный TEXT, и пути записи кладут туда разное. Страна — код списка продукта
+// (`CN`: «Добавить студента», импорт amoCRM 281, «Отчёт продаж» 307) или
+// значение формы сайта у старых дел из анкеты (`China`, 177). Ступень — слово
+// продукта («Бакалавриат»), ключ (`bachelor`) кладёт базовый чек-лист (179).
+// Набор — свободный текст («сентябрь 2027», «Осень 2027»). На экран идёт
+// слово: ключ и код переводятся, записанное человеком остаётся как есть,
+// машинное значение без перевода не рисуется (`null`).
+
+/** Прежние значения формы сайта (до 282), которых нет в едином списке стран; приёмник их по-прежнему принимает. */
+const LEGACY_WEBSITE_COUNTRY: Record<string, string> = {
+  Europe: "Европа", Germany: "Германия", "United Kingdom": "Великобритания", Netherlands: "Нидерланды",
+  France: "Франция", Poland: "Польша", Austria: "Австрия", Cyprus: "Кипр",
+};
+
+/**
+ * Страна из формы сайта по-русски: `China` → «Китай» по единому списку стран
+ * (`study-countries.json`), `Undecided` → «Пока не решил», прежние значения
+ * формы (`Germany`) — своим словом. Остальное — `null`.
+ */
+export function websiteCountry(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const code = studyCountryFromWebsiteValue(value);
+  return (code === null ? null : studyCountryName(code, "ru")) ?? lookup(LEGACY_WEBSITE_COUNTRY, value);
+}
+
+/**
+ * Английские названия, которые одобрение анкеты (177) писало в страну дела и которых нет ни в едином списке, ни в
+ * прежней форме сайта (там Чехия — `Czechia`).
+ */
+const LEGACY_CASE_COUNTRY: Record<string, string> = {
+  "Czech Republic": "Чехия", Spain: "Испания", Hungary: "Венгрия",
+};
+
+/** Машинный ключ: одно латинское слово строчными, можно через `_` (`bachelor`, `foundation_year`). */
+const MACHINE_KEY = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
+const MONTH_NOMINATIVE = [
+  "январь", "февраль", "март", "апрель", "май", "июнь",
+  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+] as const;
+
+function caseText(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  return text ? text : null;
+}
+
+/**
+ * Страна дела: код (`CN`), значение формы сайта (`China`) и прежнее название
+ * из анкеты (`Czech Republic`) → слово; страна,
+ * записанная по-русски, остаётся как есть. Неизвестный код или английское
+ * название — `null`.
+ */
+export function caseCountry(value: string | null | undefined): string | null {
+  const text = caseText(value);
+  if (text === null) return null;
+  return country(text) ?? websiteCountry(text) ?? lookup(LEGACY_CASE_COUNTRY, text)
+    ?? (/\p{Script=Cyrillic}/u.test(text) ? text : null);
+}
+
+/**
+ * Ступень дела: ключ (`bachelor`, `Bachelor`) → «Бакалавриат»; записанное
+ * слово («Колледж / диплом») остаётся; другой машинный ключ — `null`.
+ */
+export function caseDegree(value: string | null | undefined): string | null {
+  const text = caseText(value);
+  if (text === null) return null;
+  return degree(text) ?? degree(text.toLowerCase()) ?? (MACHINE_KEY.test(text) ? null : text);
+}
+
+/**
+ * Программа дела (`program_direction`): свободный текст поля «Программа».
+ * Код направления (`CN`, `EUROPE`) — не программа: рядом со страной он
+ * только повторил бы её, поэтому не рисуется.
+ */
+export function caseProgram(value: string | null | undefined): string | null {
+  const text = caseText(value);
+  if (text === null) return null;
+  return Object.hasOwn(DIRECTION_LABELS, text) ? null : text;
+}
+
+/**
+ * Набор дела: свободный текст («сентябрь 2027», «Осень 2027») как записан;
+ * машинный месяц или дата (`2027-09`, `2027-09-01`) → «сентябрь 2027».
+ */
+export function caseIntake(value: string | null | undefined): string | null {
+  const text = caseText(value);
+  if (text === null) return null;
+  const month = /^(\d{4})-(0[1-9]|1[0-2])(?:-\d{2})?$/u.exec(text);
+  return month ? `${MONTH_NOMINATIVE[Number(month[2]) - 1]} ${month[1]}` : text;
+}
 
 /**
  * Сезон набора анкеты (`intakeSeason`: spring…undecided). Те же слова, что у

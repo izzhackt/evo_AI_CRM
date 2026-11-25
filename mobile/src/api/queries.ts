@@ -24,7 +24,7 @@ import {
   readPreparations,
   saveCountryChoice,
 } from "@/api/portal-reads";
-import { FAVORITES_QUERY_LIMIT } from "@/domain/home-model";
+import { HOME_FAVORITES_LIMIT } from "@/domain/home-model";
 import { useFocusEffect } from "@/lib/focus";
 import { RpcError, type FrozenWrite } from "@/lib/rpc";
 
@@ -99,10 +99,13 @@ export function useCountryChoice() {
   return useQuery({ queryKey: key(userKey, "country-choice"), queryFn: () => readCountryChoice(transport) });
 }
 
-/** Избранное: один общий запрос (до 120 карточек и общее число) для Главной и Поступления. */
+/**
+ * Избранное «Главной»: общее число и первые карточки, сколько она показывает (веб `HOME_FAVORITES_LIMIT`: карточки, даты и
+ * счёт во вкладке). Полный список со сравнением читается отдельно, пока открыт (`useAllFavorites`).
+ */
 export function useFavorites() {
   const { transport, userKey } = usePortalApi();
-  return useQuery({ queryKey: key(userKey, "favorites"), queryFn: () => readFavorites(transport, FAVORITES_QUERY_LIMIT) });
+  return useQuery({ queryKey: key(userKey, "favorites"), queryFn: () => readFavorites(transport, HOME_FAVORITES_LIMIT) });
 }
 
 /**

@@ -8,7 +8,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState, type ReactElement } from "react";
-import { View, type LayoutChangeEvent } from "react-native";
+import { BackHandler, View, type LayoutChangeEvent } from "react-native";
 import { cscaAvailableFor, cscaHomeDates, selectCscaHomeCard } from "@web/lib/portal/csca-home-card";
 import { selectStudentJourney } from "@web/lib/portal/student-journey";
 import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
@@ -27,6 +27,7 @@ import { useUniversityIndex } from "@/features/universities/hooks";
 import { geographyUrls, usePhotoPixels } from "@/features/universities/parts";
 import { geographyPhotoCredit } from "@/features/universities/photos";
 import { useLang } from "@/i18n/LangProvider";
+import { useFocusEffect } from "@/lib/focus";
 import { CardSkeleton } from "@/ui/CardParts";
 import { Enter } from "@/ui/motion";
 import { Card, Screen, type ScrollTarget } from "@/ui/Screen";
@@ -74,6 +75,8 @@ export function HomeScreen() {
   // и из нажатий на самом экране.
   const params = homeParams(useLocalSearchParams<{ list?: string; path?: string; at?: string }>());
   const [listTab, setListTab] = useState<HomeListTab>(params.listTab ?? "universities");
+  // «Всё избранное» (полный список со сравнением): веб `?all=1#list`; вкладка «Вузы» и ссылка на список возвращают ленту.
+  const [favoritesAll, setFavoritesAll] = useState(false);
   const [pathOpen, setPathOpen] = useState(params.openPath);
   // Каждый запрос «раскрыть путь» (ссылка с новой меткой `at`) - новая метка для JourneySection.
   const [unfoldStamp, setUnfoldStamp] = useState(params.openPath ? params.stamp : "");
@@ -96,6 +99,7 @@ export function HomeScreen() {
     setSeenLink(linkKey);
     if (params.listTab) {
       setListTab(params.listTab);
+      setFavoritesAll(false);
       setPending("list");
     } else if (params.openPath) {
       setPathOpen(true);
@@ -103,6 +107,21 @@ export function HomeScreen() {
       setPending("path");
     }
   }
+  // Избранное опустело (последний вуз убран из полного списка): ленты и кнопки больше нет, прежнее «открыто» не остаётся.
+  if (favoritesAll && favorites.data?.total === 0) setFavoritesAll(false);
+  // Android: «Назад» при открытом полном списке избранного закрывает его (Главная - первая вкладка: без этого «Назад» вышло бы из
+  // приложения). Обработчик живёт, только пока вкладка в фокусе и список открыт, и снимается при уходе: чужой экран «Назад» не
+  // перехватывает. На iPhone обработчик ничего не делает: назад - нажатие на уже выбранную вкладку «Вузы» (у веба то же).
+  useFocusEffect(
+    useCallback(() => {
+      if (!favoritesAll) return undefined;
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        setFavoritesAll(false);
+        return true;
+      });
+      return () => subscription.remove();
+    }, [favoritesAll]),
+  );
 
   const now = new Date();
   const home = t("home");
@@ -167,7 +186,18 @@ export function HomeScreen() {
       case "csca":
         return cscaCard ? <CscaCard view={cscaCard} /> : null;
       case "list":
-        return <HomeList tab={listTab} onTabChange={setListTab} now={now} />;
+        return (
+          <HomeList
+            tab={listTab}
+            onTabChange={(next) => {
+              setListTab(next);
+              setFavoritesAll(false);
+            }}
+            favoritesAll={favoritesAll}
+            onFavoritesAll={setFavoritesAll}
+            now={now}
+          />
+        );
     }
   };
 

@@ -9,12 +9,8 @@ appId: com.evoadmissions.app
     id: password-input
 - inputText: ${MAESTRO_E2E_PASSWORD}
 - pressKey: Enter
-# Системный запрос iOS «Сохранить пароль?» (не часть приложения) закрываем, если он появился.
-- runFlow:
-    when:
-      visible: "Not Now"
-    commands:
-      - tapOn: "Not Now"
+# Системный запрос «Сохранить пароль?» (не часть приложения, язык системы любой) закрываем, если он появился.
+- runFlow: dismiss-save-password.yaml
 # 356: студенту без решения о Политике и ИИ первым открывается экран «Конфиденциальность» - проходим его.
 - extendedWaitUntil:
     visible:

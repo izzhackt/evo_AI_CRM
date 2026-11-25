@@ -13,6 +13,8 @@ import { Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
 
+import { FavoritesLink } from "@/features/home/FavoritesLink";
+
 import { CatalogFrame } from "./CatalogFrame";
 import { useEntryRedirect } from "./useEntryRedirect";
 import { CountryCardView } from "./cards";
@@ -54,6 +56,7 @@ export function UniversitiesScreen() {
           <Text variant="secondary" tone="text2">
             {strings.lead}
           </Text>
+          <FavoritesLink />
         </View>
       }
     >

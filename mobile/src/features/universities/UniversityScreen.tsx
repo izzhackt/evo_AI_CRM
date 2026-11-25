@@ -1,25 +1,20 @@
 // Страница вуза: путь, фото с подписью, сердечко, обзор, сайт, «Стоимость» (если есть опубликованные
-// строки), «Программы вуза» с наборами и кнопка «Добавить в мои программы».
+// строки), «Программы вуза» (подбор, окно программы, кнопка «Добавить в мои программы» - ProgramSection.tsx).
 // Программы по #1357: описание программ вуза живёт здесь (каталог), а выбранные студентом программы -
 // ОДНО место, «Мои программы» (вкладка «Мой список» на Главной); это название везде одно.
 // Веб: src/app/(portal)/portal/universities/[id]/page.tsx, components/portal/universities/Detail.tsx.
 import { useLocalSearchParams } from "expo-router";
-import { Linking, View } from "react-native";
+import { View } from "react-native";
 import { useMemo } from "react";
 
-import type { UniversityIntake, UniversityProgram } from "@web/lib/platform-university-catalog";
 import { universityUuid } from "@web/lib/platform-university-catalog";
-import { isPlatformApplicationCountryCode } from "@web/lib/platform-application-contract";
 import { localizedText } from "@web/lib/portal/university-index";
-import { universityDateLabel, universityIntakeStatusKey, universityLevelKey, universityMonthLabel } from "@web/lib/portal/universities";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { ConsultationCard } from "@/features/consultation/ConsultationCard";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
-import { rpcErrorKey } from "@/lib/rpc";
-import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
@@ -27,8 +22,10 @@ import { Text } from "@/ui/Text";
 
 import { UniversityNotFoundError } from "./api";
 import { buildCostView } from "./costs-view";
+import { ExternalLink } from "./ExternalLink";
 import { useFavoriteState } from "./FavoritesContext";
-import { useSelectProgram, useUniversityDetail } from "./hooks";
+import { useUniversityDetail } from "./hooks";
+import { ProgramSection } from "./ProgramSection";
 import { NotFoundBlock } from "./NotFoundBlock";
 import { closeCreditPanel } from "./PhotoCredit";
 import { usePullRefresh } from "./use-pull-refresh";
@@ -36,14 +33,6 @@ import { cityRoute, countryRoute, CreditedPhoto, FavoriteHeart, PathRow, univers
 import { universityPhotoCaption, universityPhotoCredit } from "./photos";
 import type { StudentUniversityDetail } from "@web/lib/portal/university-index";
 import type { UniversityStrings } from "./model";
-
-function ExternalLink({ url, label }: { url: string; label: string }) {
-  return (
-    <Text variant="secondary" tone="accent" bold accessibilityRole="link" onPress={() => void Linking.openURL(url).catch(() => undefined)} style={{ paddingVertical: 8 }}>
-      {label}
-    </Text>
-  );
-}
 
 export function UniversityScreen() {
   const { id: raw } = useLocalSearchParams<{ id: string }>();
@@ -66,7 +55,7 @@ function UniversityBody({ id }: { id: string }) {
         {detail.error instanceof UniversityNotFoundError ? (
           <NotFoundBlock embedded />
         ) : detail.data ? (
-          <DetailView detail={detail.data} strings={strings} />
+          <DetailView detail={detail.data} strings={strings} onRefresh={() => void detail.refetch()} />
         ) : detail.isError ? (
           <InlineAlert message={m(loadErrorKey(detail.error) === "error.load" ? "uni.unavailable" : loadErrorKey(detail.error))} retryLabel={m("gate.retry")} onRetry={() => void detail.refetch()} testID="detail-error" />
         ) : (
@@ -77,14 +66,13 @@ function UniversityBody({ id }: { id: string }) {
   );
 }
 
-function DetailView({ detail, strings }: { detail: StudentUniversityDetail; strings: UniversityStrings }) {
-  const { lang, m, t } = useLang();
+function DetailView({ detail, strings, onRefresh }: { detail: StudentUniversityDetail; strings: UniversityStrings; onRefresh: () => void }) {
+  const { lang, t } = useLang();
   const favorites = useFavoriteState();
   const pixels = usePhotoPixels();
   const now = useMemo(() => new Date(), []);
-  const { canSelectPrograms, studentCaseId, tier } = usePortalApi();
+  const { tier } = usePortalApi();
   const { university, country, city, costs } = detail;
-  const listKnown = detail.preparations?.studentCaseId === studentCaseId;
   const content = university.content;
   const cost = costs ? buildCostView(costs, content.programs, strings, lang) : null;
   const favored = favorites.isFavored(university.id) ?? detail.favored;
@@ -172,147 +160,8 @@ function DetailView({ detail, strings }: { detail: StudentUniversityDetail; stri
         </Card>
       ) : null}
 
-      <View style={{ gap: 12 }}>
-        <Text variant="heading" accessibilityRole="header">
-          {m("uni.programsHeading")}
-        </Text>
-        {listKnown && !canSelectPrograms ? (
-          <Text variant="caption" tone="text2">
-            {m("programs.caseIneligible")}
-          </Text>
-        ) : null}
-        {content.programs.map((program) => (
-          <ProgramCard key={program.id} program={program} detail={detail} strings={strings} now={now} />
-        ))}
-      </View>
+      <ProgramSection detail={detail} strings={strings} now={now} onRefresh={onRefresh} />
       <ExternalLink url={content.sourceUrl} label={strings.cardSource} />
     </>
-  );
-}
-
-function ProgramCard({ program, detail, strings, now }: { program: UniversityProgram; detail: StudentUniversityDetail; strings: UniversityStrings; now: Date }) {
-  const { lang } = useLang();
-  return (
-    <Card>
-      <Text variant="caption" tone="text2" bold>
-        {strings[universityLevelKey(program.level)]}
-      </Text>
-      <Text variant="heading">{program.title}</Text>
-      {program.duration ? (
-        <Text variant="secondary">
-          <Text variant="secondary" tone="text2">
-            {strings.duration}:{" "}
-          </Text>
-          {program.duration}
-        </Text>
-      ) : null}
-      {program.language ? (
-        <Text variant="secondary">
-          <Text variant="secondary" tone="text2">
-            {strings.teachingLanguage}:{" "}
-          </Text>
-          {program.language}
-        </Text>
-      ) : null}
-      {program.summary ? <Text variant="secondary">{program.summary}</Text> : null}
-      <ExternalLink url={program.sourceUrl} label={strings.programPage} />
-      {program.intakes.map((intake, index) => (
-        <IntakeBlock key={intake.id ?? index} intake={intake} program={program} detail={detail} strings={strings} now={now} lang={lang} />
-      ))}
-    </Card>
-  );
-}
-
-function IntakeBlock({ intake, program, detail, strings, now, lang }: { intake: UniversityIntake; program: UniversityProgram; detail: StudentUniversityDetail; strings: UniversityStrings; now: Date; lang: "ru" | "ky" }) {
-  const { tokens } = useTheme();
-  const { m, t } = useLang();
-  const { canSelectPrograms, studentCaseId } = usePortalApi();
-  const select = useSelectProgram();
-  const start = intake.startDate ? universityDateLabel(intake.startDate, lang) : intake.startMonth ? universityMonthLabel(intake.startMonth, lang) : null;
-  const deadline = intake.applicationDeadline
-    ? `${universityDateLabel(intake.applicationDeadline, lang)}${intake.deadlineTime ? `, ${intake.deadlineTime} (${intake.timezone})` : ""}`
-    : null;
-  const statusKey = universityIntakeStatusKey(intake, now);
-  const uncertain = !["open", "announced"].includes(intake.status) || !intake.applicationDeadline || !intake.timezone || statusKey === "intakeStatus.needsConfirmation";
-  // Подготовки читаются в том же вызове; чужое дело или нечитаемый список: честно «не знаем».
-  const bindings = detail.preparations?.studentCaseId === studentCaseId ? detail.preparations.items : null;
-  const existing = bindings?.find((item) => item.institutionId === detail.university.id && item.programId === program.id && item.intakeId === intake.id) ?? null;
-  // Причина отказа та же, что в вебе (SelectionAction): текст берётся из его словаря «preparations».
-  const blocked = !intake.id
-    ? "identityMissing"
-    : !isPlatformApplicationCountryCode(detail.university.content.country)
-      ? "unsupportedCountry"
-      : intake.status === "closed"
-        ? "closedIntake"
-        : null;
-
-  let action: React.ReactNode = null;
-  if (existing || select.isSuccess) {
-    action = <Button variant="ghost" label={m("programs.openMine")} onPress={() => go("/home", { list: "programs", at: String(Date.now()) })} testID="program-open-mine" />;
-  } else if (bindings !== null && !canSelectPrograms) {
-    action = null; // одно объяснение стоит ниже, на каждом наборе оно не повторяется
-  } else if (blocked) {
-    action = (
-      <Text variant="caption" tone="text2">
-        {t("preparations")[blocked]}
-      </Text>
-    );
-  } else if (bindings === null) {
-    action = null;
-  } else {
-    action = (
-      <View style={{ gap: 8 }}>
-        <Text variant="caption" tone="text2">
-          {m("programs.hint")}
-          {uncertain ? ` ${m("programs.confirmDeadline")}` : ""}
-        </Text>
-        <Button
-          label={select.isPending ? m("programs.adding") : m("programs.add")}
-          busy={select.isPending}
-          onPress={() =>
-            select.mutate({ studentCaseId, institutionId: detail.university.id, programId: program.id, intakeId: intake.id as string, publicationVersion: detail.university.version })
-          }
-          testID="program-add"
-        />
-        {select.isError ? (
-          <Text variant="caption" tone="error" accessibilityRole="alert">
-            {select.error && rpcErrorKey(select.error) !== "error.generic" ? m(rpcErrorKey(select.error)) : m("programs.error")}
-          </Text>
-        ) : null}
-      </View>
-    );
-  }
-  return (
-    <View style={{ gap: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: tokens.line }}>
-      <Text variant="body" bold>
-        {intake.label}
-      </Text>
-      <Text variant="secondary" tone="text2">
-        {strings[statusKey]}
-      </Text>
-      {start ? (
-        <Text variant="secondary">
-          <Text variant="secondary" tone="text2">
-            {strings.intakeStart}:{" "}
-          </Text>
-          {start}
-        </Text>
-      ) : null}
-      {deadline ? (
-        <Text variant="secondary">
-          <Text variant="secondary" tone="text2">
-            {strings.intakeDeadline}:{" "}
-          </Text>
-          {deadline}
-        </Text>
-      ) : null}
-      {intake.note ? (
-        <Text variant="caption" tone="text2">
-          {intake.note}
-        </Text>
-      ) : null}
-      <ExternalLink url={intake.sourceUrl} label={strings.intakeSource} />
-      {action}
-    </View>
   );
 }

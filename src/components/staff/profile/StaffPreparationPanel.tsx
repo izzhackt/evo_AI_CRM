@@ -128,7 +128,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
       <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-aria-expanded:rotate-180 motion-reduce:transition-none" />
     </button>
     {/* Правило отправки — пояснение, а не строка на экране: за «?» рядом с разделом. */}
-    <HelpTip label="Пояснение: документы программы">{documentStrings.saveHint}</HelpTip>
+    {canRead && view?.status !== "forbidden" && !editorOpen ? <HelpTip label="Пояснение: документы программы">{documentStrings.saveHint}</HelpTip> : null}
     <PackageRecovery scope={documentScope} audience="staff" strings={packageStrings("ru")} onSaved={() => void load()} />
     {opened ? <div id={`${id}-documents`} className="mt-2 space-y-3" aria-busy={loading || pending}>
       {editorOpen ? <StaffRequirementsEditor key={`${scope.organizationId}:${scope.membershipId}:${scope.studentCaseId}:${preparation.applicationId}`} scope={{ ...scope, applicationId: preparation.applicationId }} onSaved={() => { void load(); }} onClose={() => { setEditorOpen(false); requestAnimationFrame(() => editorButton.current?.focus()); }} /> : <>

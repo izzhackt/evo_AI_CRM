@@ -660,8 +660,8 @@
 
 /*
  * Раскрытия, которые карточка дела берёт из кабинета (`audience="staff"`: комплект, история документов, пакеты партнёру),
- * рисуют нативный ▶. В CRM у них тот же шеврон справа, что у раскрытий карточки (`Icon chevron-down`), и он
- * поворачивается при открытии. Только под staff: кабинет не меняется. Контейнер помечен классом `v3-staff-disclosures`;
+ * рисуют нативный ▶. В CRM у них тот же шеврон, что у раскрытий карточки (`Icon chevron-down`): сразу после текста,
+ * как у «Документов программы», и он поворачивается при открытии. В режиме высокой контрастности — цвет текста системы. Только под staff: кабинет не меняется. Контейнер помечен классом `v3-staff-disclosures`;
  * у собственных summary карточки (`list-none` + иконка) класса нет.
  */
 .v3-world[data-surface="staff"] .v3-staff-disclosures summary {
@@ -690,6 +690,12 @@
 @media (prefers-reduced-motion: reduce) {
   .v3-world[data-surface="staff"] .v3-staff-disclosures summary::after {
     transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .v3-world[data-surface="staff"] .v3-staff-disclosures summary::after {
+    forced-color-adjust: none;
+    background-color: CanvasText;
   }
 }
 

@@ -266,7 +266,11 @@ test("раскрытия из кабинета в «Документах про�
   assert.match(read("src/components/staff/profile/StaffPreparationPanel.tsx"), /<section id=\{id\} className="v3-staff-disclosures mt-1 scroll-mt-6"/u);
   assert.match(read("src/components/staff/profile/PartnerPacketsPanel.tsx"), /<div className="v3-staff-disclosures pb-4 pt-1">/u);
   const prep = read("src/components/staff/profile/StaffPreparationPanel.tsx");
-  assert.match(prep, /<HelpTip label="Пояснение: документы программы">\{documentStrings\.saveHint\}<\/HelpTip>/u);
+  assert.match(prep, /canRead && view\?\.status !== "forbidden" && !editorOpen \? <HelpTip label="Пояснение: документы программы">\{documentStrings\.saveHint\}<\/HelpTip> : null/u);
+  // В каждом «Выберите файл» правило — только студенту: сотруднику его показывает «?».
+  assert.match(read("src/components/portal/admissionPreparations/ProgramDocumentItem.tsx"),
+    /\{audience === "student" \? <p className=\{styles\.note\}>\{sendAfterSave \? strings\.saveHintOneTap : strings\.saveHint\}<\/p> : null\}/u);
+  assert.match(css, /@media \(forced-colors: active\) \{\s*\.v3-world\[data-surface="staff"\] \.v3-staff-disclosures summary::after \{\s*forced-color-adjust: none;\s*background-color: CanvasText;/u);
   assert.doesNotMatch(prep, /<p className="text-sm text-fg-3">\{documentStrings\.saveHint\}<\/p>/u);
   assert.match(read("src/components/staff/profile/CaseOperationsForms.tsx"), /<HelpTip label=\{`Пояснение: \$\{words\.zipLimit\}`\}>\{words\.cap\}<\/HelpTip>/u);
 });

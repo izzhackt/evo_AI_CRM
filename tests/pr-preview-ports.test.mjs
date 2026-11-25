@@ -3,7 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import test from "node:test";
 
-import { diagnoseBusyPorts, describePortHolders, parseLsof, parseProcNetTcp, parseSs } from "../scripts/ci/pr-preview-port-holders.mjs";
+import {
+  describePortHolders, describeSocketStates, diagnoseBusyPorts, logSocketStates, parseLsof, parseProcNetTcp, parseSs, realEnvironment,
+} from "../scripts/ci/pr-preview-port-holders.mjs";
 import {
   EPHEMERAL_RANGE_FILE, PORT_CHECK_ATTEMPTS, PORT_CHECK_PAUSE_MS, assertPortsFree, describePortBlock, readEphemeralRange,
 } from "../scripts/ci/pr-preview-ports.mjs";
@@ -134,10 +136,10 @@ test("pr-preview.mjs checks its ports through the retrying helper, between stopp
   const source = readFileSync(new URL("../scripts/ci/pr-preview.mjs", import.meta.url), "utf8");
   const code = source.split("\n").filter((line) => !/^\s*\/\//u.test(line)).join("\n");
   assert.match(code, /^import \{ assertPortsFree, describePortBlock, readEphemeralRange \} from "\.\/pr-preview-ports\.mjs";$/mu);
-  assert.match(code, /^import \{ diagnoseBusyPorts \} from "\.\/pr-preview-port-holders\.mjs";$/mu);
-  // Its own stale stand goes first (otherwise it would count as a foreign process), then the journal line about the block, then every
-  // port on all interfaces (with the holder diagnosis on failure), then `supabase start`.
-  assert.match(code, /stopSupabase\(\);\s*log\(describePortBlock\(PORTS, readEphemeralRange\(\)\)\);\s*await assertPortsFree\(PORTS, \{ host: "0\.0\.0\.0", log, diagnose: diagnoseBusyPorts \}\);\s*const statusEnv = await phase\("Supabase: запуск стенда/u);
+  assert.match(code, /^import \{ diagnoseBusyPorts, logSocketStates \} from "\.\/pr-preview-port-holders\.mjs";$/mu);
+  // Its own stale stand goes first (otherwise it would count as a foreign process), then the journal lines about the block and the
+  // socket states, then every port on all interfaces (with the holder diagnosis on failure), then `supabase start`.
+  assert.match(code, /stopSupabase\(\);\s*log\(describePortBlock\(PORTS, readEphemeralRange\(\)\)\);\s*logSocketStates\(log\);\s*await assertPortsFree\(PORTS, \{ host: "0\.0\.0\.0", log, diagnose: diagnoseBusyPorts \}\);\s*const statusEnv = await phase\("Supabase: запуск стенда/u);
   // No second, single-shot probe next to it.
   assert.doesNotMatch(code, /\bportFree\b/u);
 });
@@ -396,6 +398,21 @@ test("diagnoseBusyPorts: the ephemeral range, socket counts by state, then each 
   ]);
 });
 
+test("the socket-state line counts TCP sockets by state, most frequent first; no ss means no line; logging it never throws", () => {
+  const states = ["ESTAB 0 0 10.1.0.30:45678 140.82.112.4:443", "TIME-WAIT 0 0 10.1.0.30:45680 20.60.1.2:443", "TIME-WAIT 0 0 10.1.0.30:45682 20.60.1.2:443", "LISTEN 0 4096 127.0.0.53:53 0.0.0.0:*", ""].join("\n");
+  const env = fakeEnvironment({ commands: { "ss -tanH": answer(states) } });
+  assert.equal(describeSocketStates(env), "сокеты TCP по состояниям: TIME-WAIT 2, ESTAB 1, LISTEN 1");
+  assert.equal(describeSocketStates(fakeEnvironment({ commands: { "ss -tanH": answer("") } })), "сокеты TCP по состояниям: сокетов нет");
+  assert.equal(describeSocketStates(fakeEnvironment()), null);
+  const lines = [];
+  logSocketStates((line) => lines.push(line), env);
+  logSocketStates((line) => lines.push(line), fakeEnvironment());
+  assert.deepEqual(lines, ["сокеты TCP по состояниям: TIME-WAIT 2, ESTAB 1, LISTEN 1"]);
+  const throwing = () => { throw new Error("взрыв"); };
+  assert.equal(describeSocketStates({ run: throwing }), null);
+  assert.doesNotThrow(() => logSocketStates(() => { throw new Error("журнал закрыт"); }, env));
+});
+
 test("the holder diagnosis never reads command lines or environments of other processes", () => {
   const source = readFileSync(new URL("../scripts/ci/pr-preview-port-holders.mjs", import.meta.url), "utf8");
   const code = source.split("\n").filter((line) => !/^\s*\/\//u.test(line)).join("\n");
@@ -411,6 +428,11 @@ test("with the real tools: a live listener of this very process is found by name
   if (lines.some((line) => line.includes("выяснить нечем"))) return t.skip("neither ss, lsof nor /proc/net/tcp is available here");
   assert.ok(lines.some((line) => line.includes("LISTEN") && line.includes(`(pid ${process.pid})`)), lines.join("\n"));
   assert.ok(!lines.some((line) => line.includes("диагностика недоступна")), lines.join("\n"));
+  // Where ss exists (every GitHub runner has it) it is the tool that must have answered: a wrong ss call would otherwise hide behind
+  // the /proc fallback, which passes this test too. The lines go to the test log as a record of the real output.
+  if (realEnvironment.run("ss", ["-V"])?.status === 0) assert.ok(lines.every((line) => line.endsWith("[ss]")), `ss exists but did not answer:\n${lines.join("\n")}`);
+  t.diagnostic(`real holder lines:\n${lines.join("\n")}`);
+  t.diagnostic(`real socket states: ${describeSocketStates() ?? "no ss here"}`);
   // The same through the full chain: a real busy port, the real check, the real diagnosis, the unchanged error.
   const clock = recorder();
   await assert.rejects(

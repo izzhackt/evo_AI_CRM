@@ -189,6 +189,22 @@ function socketCounts(env) {
   return [...counts].sort((a, b) => b[1] - a[1]).map(([state, count]) => `${state} ${count}`).join(", ") || "сокетов нет";
 }
 
+/** Строка журнала «сокеты TCP по состояниям: TIME-WAIT 143, ESTAB 14, LISTEN 7» или null (нет ss). Никогда не бросает. */
+export function describeSocketStates(env = realEnvironment) {
+  try {
+    const counts = socketCounts(env);
+    return counts === null ? null : `сокеты TCP по состояниям: ${counts}`;
+  } catch { return null; }
+}
+
+/** Печатает describeSocketStates, если есть что печатать: сколько недавних соединений раннера может держать порты в момент проверки. */
+export function logSocketStates(log, env = realEnvironment) {
+  try {
+    const line = describeSocketStates(env);
+    if (line) log(line);
+  } catch { /* только журнал */ }
+}
+
 /**
  * Для `assertPortsFree({ diagnose })`: `busy` - [{ name, port }]. Возвращает строки журнала: эфемерный диапазон ОС, сколько
  * TCP-сокетов в каком состоянии (для проверки догадки про TIME-WAIT) и по каждому занятому порту (не больше MAX_PORTS), чем он занят.
@@ -203,10 +219,7 @@ export function diagnoseBusyPorts(busy, env = realEnvironment) {
     const reserved = (env.readText("/proc/sys/net/ipv4/ip_local_reserved_ports") ?? "").trim();
     return [`эфемерный диапазон ОС: ${range ? `${range.low}-${range.high}` : "не определён"}${reserved ? `; зарезервировано: ${reserved}` : ""}`];
   });
-  section("сокеты TCP", () => {
-    const counts = socketCounts(env);
-    return counts === null ? [] : [`сокеты TCP по состояниям: ${counts}`];
-  });
+  section("сокеты TCP", () => [describeSocketStates(env)].filter(Boolean));
   for (const { name, port } of busy.slice(0, MAX_PORTS)) section(`порт ${name}:${port}`, () => describePortHolders(port, env));
   if (busy.length > MAX_PORTS) lines.push(`ещё занятых портов: ${busy.length - MAX_PORTS}`);
   return lines;

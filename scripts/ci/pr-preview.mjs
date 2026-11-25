@@ -24,7 +24,7 @@ import { waitForLocalSupabaseAuthAdmin } from "../local-dev/supabase-auth-readin
 import { seedMobileDevStack } from "../local-dev/mobile-dev-stack-seed.mjs";
 import { redact } from "./redact.mjs";
 import { STAFF_PAGES, STUDENT_PAGES } from "./pr-preview-pages.mjs";
-import { diagnoseBusyPorts } from "./pr-preview-port-holders.mjs";
+import { diagnoseBusyPorts, logSocketStates } from "./pr-preview-port-holders.mjs";
 import { assertPortsFree, describePortBlock, readEphemeralRange } from "./pr-preview-ports.mjs";
 import { parseTimingLines } from "../maintenance/timing-report.mjs";
 
@@ -275,9 +275,11 @@ async function main() {
     // Свой прошлый (прерванный) прогон снимаем до проверки портов; чужие стенды не трогаем.
     writeProjectConfig();
     stopSupabase();
-    // Блок портов вне эфемерного диапазона Linux; строка в журнале это показывает. Проверка всё равно повторяется (до ~25 с),
-    // а если порт занят и после этого, в журнал печатается, чем он занят (pr-preview-ports.mjs, pr-preview-port-holders.mjs).
+    // Блок портов вне эфемерного диапазона Linux; строка в журнале это показывает, на Linux следом идёт счёт TCP-сокетов по
+    // состояниям (сколько недавних соединений раннера в этот момент). Проверка всё равно повторяется (до ~25 с), а если порт
+    // занят и после этого, в журнал печатается, чем он занят (pr-preview-ports.mjs, pr-preview-port-holders.mjs).
     log(describePortBlock(PORTS, readEphemeralRange()));
+    logSocketStates(log);
     await assertPortsFree(PORTS, { host: "0.0.0.0", log, diagnose: diagnoseBusyPorts });
 
     const statusEnv = await phase("Supabase: запуск стенда и все миграции", async () => {

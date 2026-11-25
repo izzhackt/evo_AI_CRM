@@ -32,6 +32,8 @@ function Runner() {
   useEffect(() => {
     guard = current;
   });
+  // Как `AssessmentFlow`: закрытие экрана закрывает сессию (`dispose` досылает неотправленное, если студент не отказался от него).
+  useEffect(() => () => session.dispose(), []);
   return <Text testID="runner">{String(current.exitNotice)}</Text>;
 }
 
@@ -145,11 +147,59 @@ describe("настоящий стек: выходы из упорного сбо
     await act(async () => guard.leaveAnyway());
     await waitFor(() => expect(view.getPathname()).toBe("/"));
     expect(screen.queryByTestId("runner")).toBeNull();
-    // Закрытие экрана досылает неотправленное один раз (`dispose`); здесь экран закрыт сам, повторов по таймеру нет.
-    await act(async () => session.dispose());
     const sent = saves(harness).length;
     await pass(10 * ASSESSMENT_RETRY_MS);
-    expect(saves(harness)).toHaveLength(sent);
+    expect(saves(harness)).toHaveLength(sent); // повторов по таймеру после ухода нет
+  });
+
+  it("«Выйти без сохранения» - настоящий отказ: связь вернулась в момент ухода, а закрытие экрана ничего не досылает (сервер ответа не получает)", async () => {
+    start({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
+    const view = await mount();
+    await act(async () => session.select("o1", "3"));
+    await pass(ASSESSMENT_SAVE_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    expect(session.getState().failures).toBe(3);
+    expect(saves(harness)).toHaveLength(9);
+    await act(async () => guard.leaveAnyway());
+    await act(async () => harness.settle());
+    await waitFor(() => expect(view.getPathname()).toBe("/"));
+    expect(saves(harness)).toHaveLength(9); // раньше закрытие экрана слало десятый запрос, и сервер сохранял ответ вопреки окну «пропадут»
+  });
+
+  it("обычный выход при сбое (сессию закрывают без отказа): неотправленное досылается один раз «по возможности»", async () => {
+    start({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
+    await mount();
+    await act(async () => session.select("o1", "3"));
+    await pass(ASSESSMENT_SAVE_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    expect(saves(harness)).toHaveLength(9);
+    await act(async () => router.dismissAll()); // выход другим путём (как выход из кабинета): экран размонтирован без отказа
+    await act(async () => harness.settle());
+    expect(saves(harness)).toHaveLength(10);
+  });
+
+  it("«Выйти без сохранения» не убрало экран: отказ снимается, сохранение возобновляется тем же запросом", async () => {
+    start({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
+    backTarget = () => undefined; // уход не состоялся
+    const view = await mount();
+    await act(async () => session.select("o1", "3"));
+    await pass(ASSESSMENT_SAVE_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    const frozen = saves(harness)[0].args.p_request_id;
+    await act(async () => guard.leaveAnyway());
+    await pass(10 * ASSESSMENT_RETRY_MS);
+    expect(saves(harness)).toHaveLength(9); // пока метка «уходим» стоит, ничего не уходит
+    await act(async () => {
+      jest.advanceTimersByTime(LEAVING_RESET_MS + 100);
+    });
+    await pass(ASSESSMENT_RETRY_MS);
+    expect(view.getPathname()).toBe("/tests/orvis92");
+    expect(saves(harness)).toHaveLength(10);
+    expect(saves(harness)[9].args.p_request_id).toBe(frozen);
+    expect(session.getState().saveStatus).toBe("saved");
   });
 
   it("уход не убрал экран: защита возвращается, и новый несохранённый ответ снова держит «назад»", async () => {

@@ -58,10 +58,9 @@ describe("«Выйти без сохранения» (ревью #1559: упор
     expect(notice({ ...conflict, failures: 3 }).actions).toEqual(["loadSaved", "leaveAnyway"]);
   });
 
-  it("когда запирать нечем (всё сохранено, окончательный отказ, идёт обычная отправка), кнопки нет, сколько бы ни было неудач в счётчике", () => {
+  it("когда запирать нечем (всё сохранено, окончательный отказ), кнопки нет, сколько бы ни было неудач в счётчике", () => {
     expect(notice({ failures: 5 }).actions).toEqual([]);
     expect(notice({ error: "denied", saveStatus: "unconfirmed", failures: 5 }).actions).toEqual([]);
-    expect(notice({ saveStatus: "saving", unsaved: true, failures: 5 }).actions).toEqual([]);
   });
 
   it("на телефоне, где жест назад выключен (iPhone), плашка называет и это; без сбоя и там её нет", () => {
@@ -70,11 +69,49 @@ describe("«Выйти без сохранения» (ревью #1559: упор
     expect(runNotice({ ...base, saveStatus: "saving", unsaved: true }, false, true).messages).toEqual([]);
   });
 
-  it("isBlocked: сбой при несохранённом (обрыв или сверка), но не обычная отправка и не сохранённое", () => {
-    expect(isBlocked({ saveStatus: "unconfirmed", reloadRequired: false, unsaved: true })).toBe(true);
-    expect(isBlocked({ saveStatus: "dirty", reloadRequired: true, unsaved: true })).toBe(true);
-    expect(isBlocked({ saveStatus: "dirty", reloadRequired: false, unsaved: true })).toBe(false);
-    expect(isBlocked({ saveStatus: "saving", reloadRequired: false, unsaved: true })).toBe(false);
-    expect(isBlocked({ saveStatus: "unconfirmed", reloadRequired: false, unsaved: false })).toBe(false);
+  it("isBlocked: сбой при несохранённом (обрыв, сверка или неудачные повторы подряд), но не обычная отправка и не сохранённое", () => {
+    const state = { saveStatus: "saved", reloadRequired: false, unsaved: false, failures: 0 } as const;
+    expect(isBlocked({ ...state, saveStatus: "unconfirmed", unsaved: true })).toBe(true);
+    expect(isBlocked({ ...state, saveStatus: "dirty", reloadRequired: true, unsaved: true })).toBe(true);
+    expect(isBlocked({ ...state, saveStatus: "dirty", unsaved: true })).toBe(false);
+    expect(isBlocked({ ...state, saveStatus: "saving", unsaved: true })).toBe(false); // первая отправка: обычная
+    expect(isBlocked({ ...state, saveStatus: "unconfirmed", unsaved: false })).toBe(false);
+    // Повтор идёт (статус «сохраняем») или студент выбрал другой ответ («есть несохранённые»), а сбой тот же: плашка не гаснет.
+    expect(isBlocked({ ...state, saveStatus: "saving", unsaved: true, failures: 1 })).toBe(true);
+    expect(isBlocked({ ...state, saveStatus: "dirty", unsaved: true, failures: 2 })).toBe(true);
+    expect(isBlocked({ ...state, saveStatus: "saved", unsaved: false, failures: 2 })).toBe(false);
+  });
+});
+
+describe("повтор в полёте не прячет плашку и «Выйти без сохранения» (ревью #1581)", () => {
+  const retrying = { unsaved: true } as const;
+
+  it("статус «сохраняем» или «есть несохранённые» при неудачных повторах: те же строки и те же кнопки, что при «не подтверждено»", () => {
+    const unconfirmed = notice({ ...retrying, saveStatus: "unconfirmed", failures: 1 });
+    expect(unconfirmed).toEqual({ messages: ["error.unavailable", NOTE], actions: ["retrySave"] });
+    for (const saveStatus of ["saving", "dirty"] as const) {
+      expect(notice({ ...retrying, saveStatus, failures: 1 })).toEqual(unconfirmed);
+    }
+  });
+
+  it("кнопка «Выйти без сохранения» остаётся на всё время повторов: на третьей неудаче появилась, пока летит четвёртая отправка - на месте", () => {
+    for (const saveStatus of ["unconfirmed", "saving", "dirty"] as const) {
+      expect(notice({ ...retrying, saveStatus, failures: 3 }).actions).toEqual(["retrySave", "leaveAnyway"]);
+    }
+  });
+
+  it("ошибка другого рода при несохранённом и неудачных повторах: её строка и повтор, а не пустая плашка", () => {
+    expect(notice({ ...retrying, saveStatus: "saving", error: "unavailable", failures: 2 })).toEqual({ messages: ["error.unavailable", NOTE], actions: ["retrySave"] });
+  });
+
+  it("первая отправка, ещё без неудач, плашку не рисует (обычное сохранение), и когда всё сохранено, она гаснет", () => {
+    expect(notice({ ...retrying, saveStatus: "saving", failures: 0 })).toEqual({ messages: [], actions: [] });
+    expect(notice({ saveStatus: "saved", failures: 0 })).toEqual({ messages: [], actions: [] });
+  });
+});
+
+describe("квитанцию записи не удалось прочитать (ревью #1581)", () => {
+  it("строка без «повторите запрос» и без кнопок: повторять нечего, защита снята", () => {
+    expect(notice({ error: "unreadable", saveStatus: "unconfirmed" })).toEqual({ messages: ["assess.receiptUnreadable"], actions: [] });
   });
 });

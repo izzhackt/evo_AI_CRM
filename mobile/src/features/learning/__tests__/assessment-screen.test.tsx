@@ -5,6 +5,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { AccessibilityInfo, Alert, Platform, ScrollView } from "react-native";
 
+import { ASSESSMENT_RETRY_MS, ASSESSMENT_SAVE_MS } from "@/features/learning/tests/assessment-session";
 import { AssessmentScreen } from "@/features/learning/tests/AssessmentScreen";
 import { answersFor, attemptFixture, ATTEMPT_ID, catalogFixture, completedFixture, type FixtureKey } from "@/test-fixtures/assessment";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -385,7 +386,7 @@ describe("упорный сбой: «Выйти без сохранения» (�
   });
 
   it("окно спрашивает подтверждение: «Остаться» ничего не меняет, «Выйти» снимает защиту и уходит в «Все тесты»", async () => {
-    const { alert } = await offlineThreeTimes();
+    const { alert, calls, unmount } = await offlineThreeTimes();
     await retry();
     await retry();
     await fireEvent.press(await screen.findByTestId("assessment-leave-anyway"));
@@ -400,6 +401,18 @@ describe("упорный сбой: «Выйти без сохранения» (�
     await act(async () => buttons[1].onPress?.());
     expect(mockDisable).toHaveBeenCalledTimes(1); // защита снята, иначе уход перехватила бы она же
     expect(router.dismissTo).toHaveBeenCalledWith("/tests");
+    // Это настоящий отказ: когда экран закроется, неотправленное не уходит на сервер (раньше закрытие слало ещё один запрос).
+    const sent = calls.filter((c) => c.name === SAVE).length;
+    await unmount();
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(sent);
+    alert.mockRestore();
+  });
+
+  it("а закрытие экрана без отказа досылает неотправленное, как и прежде (одна попытка по возможности)", async () => {
+    const { alert, calls, unmount } = await offlineThreeTimes();
+    const sent = calls.filter((c) => c.name === SAVE).length;
+    await unmount();
+    expect(calls.filter((c) => c.name === SAVE).length).toBeGreaterThan(sent);
     alert.mockRestore();
   });
 
@@ -429,7 +442,7 @@ describe("упорный сбой: «Выйти без сохранения» (�
     await begin();
     await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
     const notice = await screen.findByTestId("assessment-error", undefined, { timeout: 3000 });
-    expect(notice).toHaveTextContent(/Не удалось подтвердить сохранение/);
+    expect(notice).toHaveTextContent(/Не удалось прочитать ответ сервера на сохранение/);
     expect(screen.queryByTestId("assessment-retry-save")).toBeNull();
     expect(screen.queryByTestId("assessment-leave-anyway")).toBeNull();
     expect(guard()[0]).toBe(false);
@@ -485,5 +498,147 @@ describe("карточка вариантов и «Пройти заново»",
     await fireEvent.press(again);
     expect(await screen.findByTestId("assessment-begin")).toBeTruthy();
     expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+  });
+});
+
+describe("повтор в полёте не прячет плашку и «Выйти без сохранения» (ревью #1581)", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+  const tick = (ms: number) =>
+    act(async () => {
+      await jest.advanceTimersByTimeAsync(ms);
+    });
+  /** Без связи: ответ выбран, сохранение пошло по кругу. `save` решает ответ сервера на каждое обращение (слой RPC пробует обрыв по три раза). */
+  async function openOffline(save: (args: Record<string, unknown> | undefined, call: number) => unknown) {
+    const view = await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92"), [SAVE]: save });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    return view;
+  }
+  const notice = "Не удалось подтвердить сохранение";
+
+  it("повтор висит в полёте (на плохой связи до минуты): плашка, «Повторить» и «Выйти без сохранения» на месте всё это время", async () => {
+    let fail: () => void = () => undefined;
+    const hold = new Promise<unknown>((_resolve, reject) => {
+      fail = () => reject(new Error("net"));
+    });
+    const { calls } = await openOffline((_args, call) => (call <= 9 ? failure(null, 0) : hold));
+    await tick(ASSESSMENT_SAVE_MS); // отправка 1 не прошла
+    await tick(ASSESSMENT_RETRY_MS); // 2
+    await tick(ASSESSMENT_RETRY_MS); // 3: кнопка «Выйти без сохранения» появилась
+    expect(screen.getByTestId("assessment-leave-anyway")).toBeTruthy();
+    await tick(ASSESSMENT_RETRY_MS); // 4: отправка повисла
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(10);
+    const present = () => {
+      expect(screen.getByTestId("assessment-save-status")).toHaveTextContent(/Сохраняем/);
+      expect(screen.getByTestId("assessment-error")).toHaveTextContent(new RegExp(notice));
+      expect(screen.getByTestId("assessment-retry-save")).toBeTruthy();
+      expect(screen.getByTestId("assessment-leave-anyway")).toBeTruthy();
+    };
+    present();
+    await tick(60_000); // висит целую минуту
+    present();
+    fail(); // ... и не прошла: тот же сбой, плашка не мигала
+    await tick(0);
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(new RegExp(notice));
+    expect(screen.getByTestId("assessment-leave-anyway")).toBeTruthy();
+  });
+
+  it("быстрый цикл отказов: жест назад выключается один раз на весь сбой, а плашка читается читалкой один раз, не на каждом круге", async () => {
+    // `announceForAccessibility` в Jest уже общий мок: вызовы прошлых тестов копятся, поэтому счёт начинается с нуля.
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    announce.mockClear();
+    await openOffline(() => failure(null, 0));
+    await tick(ASSESSMENT_SAVE_MS);
+    for (let cycle = 0; cycle < 6; cycle += 1) await tick(ASSESSMENT_RETRY_MS);
+    expect(mockNav.setOptions.mock.calls).toEqual([[{ gestureEnabled: false }]]); // раньше [false, true, false, true, ...]
+    expect(announce.mock.calls.map((call) => String(call[0])).filter((text) => text.includes(notice))).toHaveLength(1); // раньше 7 за 6 кругов
+    expect(screen.getByTestId("assessment-leave-anyway")).toBeTruthy();
+    announce.mockRestore();
+  });
+
+  it("связь вернулась: плашка и кнопка исчезают, жест включается, а о восстановлении читалка молчит", async () => {
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    announce.mockClear();
+    let online = false;
+    await openOffline(() => (online ? attemptFixture("orvis92", { revision: 2 }) : failure(null, 0)));
+    await tick(ASSESSMENT_SAVE_MS);
+    for (let cycle = 0; cycle < 3; cycle += 1) await tick(ASSESSMENT_RETRY_MS);
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(new RegExp(notice));
+    online = true;
+    await tick(ASSESSMENT_RETRY_MS);
+    expect(screen.queryByTestId("assessment-error")).toBeNull();
+    expect(screen.queryByTestId("assessment-leave-anyway")).toBeNull();
+    expect(screen.getByTestId("assessment-save-status")).toHaveTextContent("Все ответы сохранены");
+    expect(mockNav.setOptions.mock.calls).toEqual([[{ gestureEnabled: false }], [{ gestureEnabled: true }]]);
+    // У сайта о восстановлении говорит только строка статуса («Все ответы сохранены»); отдельного объявления нет и здесь.
+    const spoken = announce.mock.calls.map((call) => String(call[0]));
+    expect(spoken.filter((text) => text.includes(notice))).toHaveLength(1);
+    expect(spoken.at(-1)).toContain(notice);
+    announce.mockRestore();
+  });
+
+  it("студент выбрал другой ответ посреди сбоя (статус «Есть несохранённые ответы»): плашка и кнопка не пропадают", async () => {
+    await openOffline(() => failure(null, 0));
+    await tick(ASSESSMENT_SAVE_MS);
+    for (let cycle = 0; cycle < 3; cycle += 1) await tick(ASSESSMENT_RETRY_MS);
+    await fireEvent.press(screen.getByTestId("assessment-option-o2-4"));
+    expect(screen.getByTestId("assessment-save-status")).toHaveTextContent("Есть несохранённые ответы");
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(new RegExp(notice));
+    expect(screen.getByTestId("assessment-leave-anyway")).toBeTruthy();
+  });
+});
+
+describe("жест назад и квитанция, которую не удалось прочитать (ревью #1581)", () => {
+  it("на Android `gestureEnabled` не трогается вовсе: там он не действует, а «назад» идёт через защиту", async () => {
+    const platform = jest.replaceProperty(Platform, "OS", "android");
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92"), [SAVE]: failure(null, 0) });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    await screen.findByTestId("assessment-retry-save", undefined, { timeout: 3000 });
+    expect(mockNav.setOptions).not.toHaveBeenCalled();
+    platform.restore();
+    alert.mockRestore();
+  });
+
+  it("квитанцию сохранения не прочитать: строка без «повторите запрос» и без кнопок, следующий ответ уходит с продвинутой ревизией", async () => {
+    let saves = 0;
+    const { calls } = await open("orvis92", {
+      start_student_assessment_v1: attemptFixture("orvis92"),
+      [SAVE]: () => (++saves === 1 ? { attemptId: ATTEMPT_ID, revision: 2 } : attemptFixture("orvis92", { revision: 3 })),
+    });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    const notice = await screen.findByTestId("assessment-error", undefined, { timeout: 3000 });
+    expect(notice).toHaveTextContent(/Не удалось прочитать ответ сервера на сохранение/);
+    expect(notice).not.toHaveTextContent(/Повторите запрос/);
+    expect(screen.queryByTestId("assessment-retry-save")).toBeNull();
+    expect(screen.queryByTestId("assessment-leave-anyway")).toBeNull();
+    expect(guard()[0]).toBe(false);
+    await fireEvent.press(screen.getByTestId("assessment-option-o2-4"));
+    await waitFor(() => expect(screen.queryByTestId("assessment-error")).toBeNull(), { timeout: 3000 });
+    const writes = calls.filter((c) => c.name === SAVE);
+    expect(writes).toHaveLength(2);
+    expect(writes[1].args?.p_expected_revision).toBe(2); // без ревизии из ответа ушла бы 1 и дала бы ложный конфликт
+    expect(screen.queryByTestId("assessment-load-saved")).toBeNull();
+    expect(screen.getByTestId("assessment-save-status")).toHaveTextContent("Все ответы сохранены");
+  });
+
+  it("формулировка идёт отдельным элементом прямо перед вариантами своей группы: читалка называет её, не дожидаясь подписи контейнера", async () => {
+    await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92") });
+    await begin();
+    type Json = { type: string; props?: Record<string, unknown>; children?: (Json | string)[] | null } | (Json | string)[] | null;
+    const order: string[] = [];
+    const walk = (node: Json) => {
+      if (node === null || typeof node === "string") return;
+      if (Array.isArray(node)) return node.forEach((child) => walk(child as Json));
+      const id = node.props?.testID;
+      if (typeof id === "string" && /^assessment-(prompt|options)-o[12]$/.test(id)) order.push(id);
+      (node.children ?? []).forEach((child) => walk(child as Json));
+    };
+    walk(screen.toJSON() as Json);
+    expect(order).toEqual(["assessment-prompt-o1", "assessment-options-o1", "assessment-prompt-o2", "assessment-options-o2"]);
+    expect(screen.getByTestId("assessment-prompt-o1").props.accessible).not.toBe(false);
   });
 });

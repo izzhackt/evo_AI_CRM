@@ -400,7 +400,7 @@ describe("упорный сбой: студента не запираем (ре�
     expect(saves(h)).toHaveLength(1);
     const state = session.getState();
     expect(state.saveStatus).toBe("unconfirmed");
-    expect(state.error).toBe("unavailable");
+    expect(state.error).toBe("unreadable");
     expect(state.unsaved).toBe(false); // досохранять нечем: уход свободен
     expect(state.failures).toBe(0);
     expect(h.pendingTimers()).toBe(0);
@@ -516,51 +516,51 @@ describe("упорный сбой: студента не запираем (ре�
   });
 });
 
-describe("таймеры сессии не остаются без хозяина (ревью #1559)", () => {
-  /** Среда с запросом, который висит, пока тест его не отпустит: так выбор меняется, пока сохранение в полёте. */
-  function hangingEnv() {
-    let now = 0;
-    let next = 1;
-    let id = 0;
-    const timers = new Map<number, { at: number; ms: number; fn: () => void }>();
-    const calls: string[] = [];
-    const waiting: ((reply: unknown) => void)[] = [];
-    const env = {
-      transport: ((name: string) => {
-        calls.push(name);
-        return new Promise((resolve) => waiting.push(resolve));
-      }) as never,
-      setTimer: (fn: () => void, ms: number) => {
-        const handle = next++;
-        timers.set(handle, { at: now + ms, ms, fn });
-        return handle;
-      },
-      clearTimer: (handle: unknown) => void timers.delete(handle as number),
-      newId: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`,
-    };
-    const settle = async () => {
-      for (let i = 0; i < 60; i += 1) await Promise.resolve();
-    };
-    const advance = async (ms: number) => {
-      const target = now + ms;
-      for (;;) {
-        const due = [...timers.entries()].filter(([, t]) => t.at <= target).sort((a, b) => a[1].at - b[1].at)[0];
-        if (!due) break;
-        now = Math.max(now, due[1].at);
-        timers.delete(due[0]);
-        due[1].fn();
-        await settle();
-      }
-      now = target;
+/** Среда с запросом, который висит, пока тест его не отпустит: так выбор меняется, пока сохранение в полёте. */
+function hangingEnv() {
+  let now = 0;
+  let next = 1;
+  let id = 0;
+  const timers = new Map<number, { at: number; ms: number; fn: () => void }>();
+  const calls: string[] = [];
+  const waiting: ((reply: unknown) => void)[] = [];
+  const env = {
+    transport: ((name: string) => {
+      calls.push(name);
+      return new Promise((resolve) => waiting.push(resolve));
+    }) as never,
+    setTimer: (fn: () => void, ms: number) => {
+      const handle = next++;
+      timers.set(handle, { at: now + ms, ms, fn });
+      return handle;
+    },
+    clearTimer: (handle: unknown) => void timers.delete(handle as number),
+    newId: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`,
+  };
+  const settle = async () => {
+    for (let i = 0; i < 60; i += 1) await Promise.resolve();
+  };
+  const advance = async (ms: number) => {
+    const target = now + ms;
+    for (;;) {
+      const due = [...timers.entries()].filter(([, t]) => t.at <= target).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) break;
+      now = Math.max(now, due[1].at);
+      timers.delete(due[0]);
+      due[1].fn();
       await settle();
-    };
-    const fail = async () => {
-      waiting.shift()?.({ data: null, error: { code: null, message: "net" }, status: null });
-      await settle();
-    };
-    return { env, calls, timers, advance, settle, fail };
-  }
+    }
+    now = target;
+    await settle();
+  };
+  const fail = async () => {
+    waiting.shift()?.({ data: null, error: { code: null, message: "net" }, status: null });
+    await settle();
+  };
+  return { env, calls, timers, advance, settle, fail };
+}
 
+describe("таймеры сессии не остаются без хозяина (ревью #1559)", () => {
   it("выбор изменили, пока сохранение в полёте, и оно оборвалось: остаётся один таймер повтора, а после закрытия экрана ни одного", async () => {
     const h = hangingEnv();
     const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
@@ -577,5 +577,161 @@ describe("таймеры сессии не остаются без хозяин�
     const before = h.calls.length;
     await h.advance(ASSESSMENT_RETRY_MS + ASSESSMENT_SAVE_MS + 10);
     expect(h.calls).toHaveLength(before); // после закрытия экрана запросов нет
+  });
+});
+
+describe("«Выйти без сохранения» - настоящий отказ от несохранённого (ревью #1581)", () => {
+  const saves = (h: ReturnType<typeof sessionHarness>) => h.calls.filter((c) => c.name === SAVE);
+  /** Три неудачные отправки подряд (девять обращений: слой RPC пробует обрыв три раза); десятое обращение получило бы ответ сервера. */
+  async function offline() {
+    const h = sessionHarness({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    expect(session.getState().failures).toBe(3);
+    expect(saves(h)).toHaveLength(9);
+    return { h, session };
+  }
+
+  it("обычный выход досылает неотправленное один раз «по возможности», а отказ от сохранения - нет: связь вернулась в момент ухода, и сервер не получает ответ", async () => {
+    const kept = await offline();
+    kept.session.dispose();
+    await kept.h.settle();
+    expect(saves(kept.h)).toHaveLength(10); // закрытие экрана без отказа: одна досылка (так было и до правки)
+
+    const gone = await offline();
+    gone.session.discard();
+    gone.session.dispose();
+    await gone.h.settle();
+    expect(saves(gone.h)).toHaveLength(9); // подтверждённый отказ: ничего не ушло, сервер ответа не получил
+  });
+
+  it("отказ снимает таймер повтора: время идёт, а запросов нет; flush отвечает «слать нечего», уход не ждёт сохранения", async () => {
+    const { h, session } = await offline();
+    session.discard();
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(10 * ASSESSMENT_RETRY_MS);
+    expect(saves(h)).toHaveLength(9);
+    await expect(session.flush()).resolves.toBe(true);
+    await expect(session.saveForExit()).resolves.toBe(true);
+    expect(saves(h)).toHaveLength(9);
+    session.dispose();
+  });
+
+  it("отказ не даёт отправить и завершение (замороженный запрос завершения тоже), в том числе когда он выбран посреди завершения", async () => {
+    // До завершения: нажатие «Завершить» после отказа ничего не шлёт.
+    const answered = attemptFixture("english36", { answers: answersFor("english36", 36) });
+    const h = sessionHarness({ [COMPLETE]: [done("english36")], [SAVE]: [attemptFixture("english36", { revision: 2 })] });
+    const early = new AssessmentSession(h.env, "english36", null, normalizeAssessmentAttempt(answered));
+    early.discard();
+    await early.complete();
+    expect(h.calls).toHaveLength(0);
+    expect(early.getState().phase).toBe("running");
+    early.dispose();
+
+    // Посреди завершения: отправка ответов в полёте, студент выбирает отказ, она заканчивается, а запрос завершения не уходит.
+    const hang = hangingEnv();
+    const mid = new AssessmentSession(hang.env, "english36", null, normalizeAssessmentAttempt(answered));
+    mid.select("e1", "b");
+    const completing = mid.complete();
+    await hang.settle();
+    expect(mid.getState().phase).toBe("completing");
+    expect(hang.calls).toEqual([SAVE]);
+    mid.discard();
+    for (let k = 0; k < 3; k += 1) await hang.fail();
+    await completing;
+    expect(hang.calls).toHaveLength(3); // ни одного запроса завершения
+    expect(mid.getState().phase).toBe("running"); // экран не застрял на «сохраняем»
+    mid.dispose();
+  });
+
+  it("уход не состоялся: `keep` возвращает сохранение, тот же замороженный запрос уходит снова, ничего не потеряно", async () => {
+    const { h, session } = await offline();
+    const frozen = saves(h)[0].args.p_request_id;
+    session.discard();
+    session.keep();
+    expect(h.pendingTimers()).toBe(1); // таймер повтора снова взведён
+    await h.advance(ASSESSMENT_RETRY_MS);
+    expect(saves(h)).toHaveLength(10);
+    expect(saves(h)[9].args.p_request_id).toBe(frozen);
+    expect(session.getState().saveStatus).toBe("saved");
+    session.dispose();
+  });
+
+  it("`keep` при ответе, выбранном, но ещё не отправленном, возвращает и таймер 0,9 с; без отказа он ничего не делает", async () => {
+    const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.keep();
+    expect(h.pendingTimers()).toBe(0);
+    session.select("o1", "3");
+    session.discard();
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(saves(h)).toHaveLength(0);
+    session.keep();
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(saves(h)).toHaveLength(1);
+    session.dispose();
+  });
+
+  it("отказ после закрытия экрана ни на что не влияет", async () => {
+    const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.dispose();
+    session.discard();
+    session.keep();
+    await h.settle();
+    expect(h.calls).toHaveLength(0);
+  });
+});
+
+describe("квитанцию записи не удалось прочитать: ревизия не теряется (ревью #1581)", () => {
+  const saves = (h: ReturnType<typeof sessionHarness>) => h.calls.filter((c) => c.name === SAVE);
+  /** Ответ сервера без вопросов и метаданных: строгий разборщик его отвергает, но ревизия и номер попытки видны. */
+  const unreadable = (extra: Record<string, unknown> = {}) => ({ attemptId: ATTEMPT_ID, revision: 2, ...extra });
+
+  it("ревизия берётся из ответа: следующий выбор уходит с ней, ложного конфликта «Тест открыт в другой вкладке» нет", async () => {
+    const h = sessionHarness({ [SAVE]: [unreadable(), attemptFixture("orvis92", { revision: 3 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().error).toBe("unreadable");
+    expect(session.getState().saveStatus).toBe("unconfirmed");
+    expect(session.getState().unsaved).toBe(false); // досохранять нечем: уход свободен
+    expect(session.debug().revision).toBe(2);
+    session.select("o2", "4");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(saves(h)).toHaveLength(2);
+    expect(saves(h)[1].args.p_expected_revision).toBe(2);
+    expect(session.getState().reloadRequired).toBe(false);
+    expect(session.getState().error).toBeNull();
+    expect(session.getState().saveStatus).toBe("saved");
+    session.dispose();
+  });
+
+  it("ревизии в ответе нет, она не целая, чужая попытка или она меньше известной: прежняя ревизия остаётся, как раньше", async () => {
+    for (const reply of [{ attemptId: ATTEMPT_ID }, unreadable({ revision: "2" }), unreadable({ revision: 2.5 }), unreadable({ revision: -1 }), unreadable({ attemptId: OTHER_ATTEMPT_ID }), unreadable({ revision: 0 }), "не объект", null]) {
+      const h = sessionHarness({ [SAVE]: [reply] });
+      const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92", { revision: 4 }));
+      session.select("o1", "3");
+      await h.advance(ASSESSMENT_SAVE_MS);
+      expect(session.getState().error).toBe("unreadable");
+      expect(session.debug().revision).toBe(4);
+      session.dispose();
+    }
+  });
+
+  it("следующее успешное сохранение убирает сбой, а сбой другого рода заменяет его", async () => {
+    const h = sessionHarness({ [SAVE]: [unreadable(), "DENIED"] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().error).toBe("unreadable");
+    session.select("o2", "4");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().error).toBe("denied");
+    session.dispose();
   });
 });

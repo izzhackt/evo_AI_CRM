@@ -10,7 +10,7 @@ import type { AssessmentAttempt } from "@web/lib/student-assessment-contract";
 import { AssessmentQuestionView } from "@/features/learning/tests/AssessmentQuestionView";
 import type { AssessmentSession, AssessmentUiState } from "@/features/learning/tests/assessment-session";
 import { assessmentPageCount, assessmentPageSize, firstOpenPage, pageQuestions } from "@/features/learning/tests/paging";
-import { runNotice, type RunNoticeKey } from "@/features/learning/tests/run-notice";
+import { isAppNoticeKey, runNotice, type RunNoticeKey } from "@/features/learning/tests/run-notice";
 import { SegmentBar } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -52,7 +52,7 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
   const select = (questionId: string, optionId: string) => session.select(questionId, optionId);
   const notice = runNotice(state, exitNotice, Platform.OS === "ios");
   // Строки веба берутся из словаря `tests`, строка «ответы ещё не сохранены» своя (у телефона есть выходы, которых нет у сайта).
-  const textOf = (key: RunNoticeKey) => (key === "assess.unsavedNote" || key === "assess.swipeOff" ? m(key) : s[key]);
+  const textOf = (key: RunNoticeKey) => (isAppNoticeKey(key) ? m(key) : s[key]);
   const noticeText = notice.messages.map(textOf);
   const spokenNotice = noticeText.join(" ");
   // Читалка узнаёт о сбое сохранения без поиска плашки глазами (на iPhone живые области не работают): плашка читается целиком.

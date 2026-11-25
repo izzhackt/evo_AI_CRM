@@ -25,7 +25,8 @@ export function AssessmentQuestionView({ question, instrumentKey, answer, number
           </Text>
         </View>
       ) : null}
-      {/* Группа называется формулировкой: читалка, дойдя до вариантов, говорит, на какое утверждение они отвечают (без подписи группа безымянная). */}
+      {/* Подпись группы - подсказка: контейнер не элемент доступности, и читалка (VoiceOver, TalkBack) вправе её не озвучить. Надёжно
+          имя даёт `Text` формулировки прямо перед вариантами: он отдельный элемент, а порядок обхода тот же, что на экране. */}
       <View accessibilityRole="radiogroup" accessibilityLabel={statement} accessibilityLanguage={english ? "en" : "ru"} style={{ gap: 8 }} testID={`assessment-options-${question.id}`}>
         {question.options.map((option) => {
           const on = answer === option.id;

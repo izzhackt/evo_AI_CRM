@@ -17,6 +17,7 @@ import {
   saveAssessmentWrite,
   sendAssessment,
   startAssessmentWrite,
+  UnreadableReceiptError,
 } from "@/features/learning/tests/api";
 import { assessmentPageCount, assessmentPageSize, firstOpenPage } from "@/features/learning/tests/paging";
 import { randomUUID } from "expo-crypto";
@@ -28,6 +29,8 @@ export const ASSESSMENT_RETRY_MS = 3_000;
 export const ASSESSMENT_LEAVE_AFTER_FAILURES = 3;
 
 export type AssessmentSaveStatus = "idle" | "dirty" | "saving" | "saved" | "unconfirmed";
+/** Сбои сервера плюс «квитанцию записи не удалось прочитать» (сервер запись принял, повторять нечего, но «повторите запрос» говорить неправда). */
+export type AssessmentFailure = CscaFailure | "unreadable";
 /** «Показать сохранённые ответы»: идёт чтение или оно не удалось (ответы на экране не тронуты). */
 export type AssessmentReloadStatus = "idle" | "loading" | "failed";
 export type AssessmentUiState = Readonly<{
@@ -37,7 +40,7 @@ export type AssessmentUiState = Readonly<{
   /** Страница теста: `0..pageCount-1` - вопросы, `pageCount` - шаг «Готовы завершить?». */
   page: number;
   saveStatus: AssessmentSaveStatus;
-  error: CscaFailure | null;
+  error: AssessmentFailure | null;
   /** Конфликт ревизии: ответы на экране ещё не сверены с сервером; выбор, завершение и уход закрыты до «Показать сохранённые ответы». */
   reloadRequired: boolean;
   reload: AssessmentReloadStatus;
@@ -78,6 +81,8 @@ export class AssessmentSession {
   private disposed = false;
   /** Экран не на виду (другая вкладка или экран сверху): повторы по таймеру стоят, пока студент не вернётся. */
   private paused = false;
+  /** Студент подтвердил «Выйти без сохранения»: неотправленное не отправляется ни по таймеру, ни при закрытии экрана (`discard`). */
+  private discarded = false;
 
   constructor(
     private readonly env: AssessmentEnv,
@@ -111,11 +116,12 @@ export class AssessmentSession {
 
   /**
    * Экран закрыт (свайп назад, выход, выход из кабинета): ответы, которые ещё не ушли, отправляются «по возможности»
-   * (запрос идёт и после закрытия), повторов по таймеру больше нет.
+   * (запрос идёт и после закрытия), повторов по таймеру больше нет. Кроме «Выйти без сохранения» (`discard`): там студент
+   * подтвердил, что несохранённое пропадёт, и закрытие экрана не должно его отправлять.
    */
   dispose(): void {
     if (this.disposed) return;
-    if (this.state.attempt?.status === "draft" && !this.state.reloadRequired && (this.dirty || this.retry !== null)) void this.flush().catch(() => undefined);
+    if (!this.discarded && this.state.attempt?.status === "draft" && !this.state.reloadRequired && (this.dirty || this.retry !== null)) void this.flush().catch(() => undefined);
     this.disposed = true;
     if (this.timer) this.env.clearTimer(this.timer);
     this.timer = null;
@@ -192,6 +198,7 @@ export class AssessmentSession {
    */
   async flush(): Promise<boolean> {
     while (this.saving) await this.saving;
+    if (this.discarded) return true; // студент выбрал не сохранять: слать больше нечего
     const attempt = this.state.attempt;
     if (!attempt || attempt.status !== "draft" || this.state.phase === "result") return this.confirmed();
     if (this.state.reloadRequired) return false;
@@ -235,9 +242,17 @@ export class AssessmentSession {
       this.patch({ saveStatus: this.dirty ? "dirty" : "saved", error: null, failures: 0 });
     } catch (error) {
       const code = cscaFailure(error);
-      // Обрыв и сбой сервера лечатся повтором. Ответ, который приложение не смогло разобрать, не лечится: сервер запрос уже
-      // принял, а тот же запрос вернёт ту же непонятную квитанцию. Его по таймеру не повторяем, иначе экран был бы заперт навсегда.
-      if (code === "unavailable" && !(error instanceof PortalDecodeError)) {
+      // Ответ, который приложение не смогло разобрать, повтором не лечится: сервер запрос уже принял, а тот же запрос вернёт ту же
+      // непонятную квитанцию. Его по таймеру не повторяем, иначе экран был бы заперт навсегда. Ревизия из ответа сохраняется, если она
+      // видна: сервер её уже продвинул, и без неё следующий ответ дал бы ложный конфликт.
+      if (error instanceof PortalDecodeError) {
+        if (error instanceof UnreadableReceiptError && error.revision !== null && error.revision > this.revision) this.revision = error.revision;
+        this.retry = null;
+        this.patch({ saveStatus: "unconfirmed", error: "unreadable", failures: 0 });
+        return;
+      }
+      // Обрыв и сбой сервера лечатся повтором.
+      if (code === "unavailable") {
         // Тот же запрос: сервер мог его уже принять, повтор вернёт ту же квитанцию.
         this.retry = request;
         this.patch({ saveStatus: "unconfirmed", failures: this.state.failures + 1 });
@@ -250,7 +265,7 @@ export class AssessmentSession {
         this.patch({ saveStatus: "unconfirmed", error: "conflict", reloadRequired: true, failures: 0 });
         return;
       }
-      // Отказ без повтора (доступ закрыт, ответ не принят, квитанцию не разобрать): состояние честное, «сохранено» не пишем.
+      // Отказ без повтора (доступ закрыт, ответ не принят): состояние честное, «сохранено» не пишем.
       this.patch({ saveStatus: "unconfirmed", error: code, failures: 0 });
     }
   }
@@ -261,11 +276,38 @@ export class AssessmentSession {
       this.env.clearTimer(this.timer);
       this.timer = null;
     }
-    if (this.disposed || this.paused) return;
+    if (this.disposed || this.paused || this.discarded) return;
     this.timer = this.env.setTimer(() => {
       this.timer = null;
       void this.flush();
     }, ASSESSMENT_RETRY_MS);
+  }
+
+  /**
+   * «Выйти без сохранения» (студент подтвердил окно): неотправленное отбрасывается по-настоящему. Таймеры снимаются, новых запросов
+   * нет: ни повтора, ни досылки при закрытии экрана (`dispose`), ни завершения. Запрос, который уже в полёте, отозвать нельзя.
+   * Уход не состоялся (экран остался): `keep()` возвращает всё как было.
+   */
+  discard(): void {
+    if (this.disposed || this.discarded) return;
+    this.discarded = true;
+    if (this.timer) {
+      this.env.clearTimer(this.timer);
+      this.timer = null;
+    }
+  }
+
+  /** После `discard()` экран не ушёл: сохранение продолжается, замороженные запросы те же, ничего не потеряно. */
+  keep(): void {
+    if (this.disposed || !this.discarded) return;
+    this.discarded = false;
+    if (this.retry) this.scheduleRetry();
+    else if (this.dirty) {
+      this.timer = this.env.setTimer(() => {
+        this.timer = null;
+        void this.flush();
+      }, ASSESSMENT_SAVE_MS);
+    }
   }
 
   /**
@@ -314,7 +356,7 @@ export class AssessmentSession {
   /** «Завершить»: нужны ответы на все вопросы; сначала досылается несохранённое. */
   async complete(): Promise<void> {
     const attempt = this.state.attempt;
-    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired) return;
+    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired || this.discarded) return;
     if (attempt.questions.some((q) => !(q.id in this.answers))) return this.patch({ error: "invalid" });
     this.patch({ phase: "completing", error: null });
     const run = this.runComplete(attempt);
@@ -329,6 +371,8 @@ export class AssessmentSession {
   private async runComplete(attempt: AssessmentAttempt): Promise<void> {
     await this.flush();
     if (this.disposed) return;
+    // Студент выбрал «Выйти без сохранения», пока шло завершение: запрос завершения не уходит (замороженный остаётся на месте).
+    if (this.discarded) return this.patch({ phase: "running" });
     if (this.state.reloadRequired) return this.patch({ phase: "running" });
     if (this.retry) return this.patch({ phase: "running", error: "unavailable" });
     const fingerprint = assessmentAnswersFingerprint(this.answers);

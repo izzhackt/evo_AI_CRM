@@ -109,8 +109,8 @@ describe("в мастере анкеты", () => {
       expect(screen.getByTestId("consent").props.accessibilityState).toEqual({ checked: false });
       await fireEvent.press(screen.getByTestId("consent"));
       expect(screen.getByTestId("consent").props.accessibilityState).toEqual({ checked: true });
-      // вторая галочка (ИИ-помощники) осталась обычной строкой-флажком
-      expect(screen.getAllByRole("link")).toHaveLength(1);
+      // вторая галочка (ИИ-помощники) осталась обычной строкой-флажком: ссылок две, политика и «Уже есть аккаунт? Войти» в шапке (#1554)
+      expect(screen.getAllByRole("link").map((node) => node.props.accessibilityLabel).sort()).toEqual(["Политику конфиденциальности", "Уже есть аккаунт? Войти"].sort());
     } finally {
       open.mockRestore();
     }

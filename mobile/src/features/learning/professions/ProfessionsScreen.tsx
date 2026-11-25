@@ -20,6 +20,7 @@ import { EviHero, TestHero } from "@/features/learning/professions/ProfessionsHe
 import { ProfessionPhoto } from "@/features/learning/professions/ProfessionPhoto";
 import { useAssessmentCatalog, useOwnOrvisProfile } from "@/features/learning/tests/queries";
 import { Chip } from "@/features/learning/ui";
+import { usePullRefresh } from "@/features/universities/use-pull-refresh";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { CardSkeleton, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
@@ -34,6 +35,7 @@ export function ProfessionsScreen() {
   const p = t("professions");
   useRefetchOnFocus();
   const cards = useQuery({ queryKey: ["portal", userKey, "profession-cards"], queryFn: () => readProfessionCards(transport) });
+  const { refreshing, pull } = usePullRefresh(cards.refetch);
   const profile = useOwnOrvisProfile();
   // Как на вебе: сверху вход в Эви, а карточка теста - когда Эви скрыта: у студента, отозвавшего согласие на ИИ-помощников, или когда
   // на сервере нет ключа Эви. Не прочиталось ни то ни другое - Эви показана, сервер проверит сам (`useEviEntry`).
@@ -59,7 +61,7 @@ export function ProfessionsScreen() {
   // `from`: после выхода из теста вернуться на «Профессии», а не остаться в каталоге «Тестов» (ревью QA 22).
   const openTest = () => router.navigate({ pathname: "/tests/[key]", params: { key: "orvis92", from: "professions" } });
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void cards.refetch()} refreshing={cards.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void pull()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="professions-screen">
         <Text variant="display" accessibilityRole="header" testID="title-professions">
           {p.title}

@@ -83,7 +83,7 @@ export function CountryCardView({ card, strings, photoActive = true }: { card: C
       photoHeight={COUNTRY_PHOTO}
       overlay={card.photo !== null && shown ? <PhotoCredit credit={geographyPhotoCredit(card.photo)} strings={strings} placement="top" testID={`credit-${card.code}`} /> : null}
     >
-      <RemotePhoto urls={urls} height={COUNTRY_PHOTO} label={card.name} strings={strings} rounded={false} active={photoActive} onDisplay={setShown} />
+      <RemotePhoto urls={urls} height={COUNTRY_PHOTO} label={card.name} strings={strings} rounded={false} decorative active={photoActive} onDisplay={setShown} testID={`photo-${card.code}`} />
       <View style={{ padding: 12, gap: 2 }}>
         <Text variant="heading">{card.name}</Text>
         <Text variant="secondary" tone="text2">
@@ -106,7 +106,7 @@ export function CityCardView({ card, code, strings, photoActive = true }: { card
       photoHeight={CITY_PHOTO}
       overlay={shown ? <PhotoCredit credit={geographyPhotoCredit(card.photo)} strings={strings} placement="top" testID={`credit-${card.key}`} /> : null}
     >
-      <RemotePhoto urls={urls} height={CITY_PHOTO} label={card.name} strings={strings} rounded={false} active={photoActive} onDisplay={setShown} />
+      <RemotePhoto urls={urls} height={CITY_PHOTO} label={card.name} strings={strings} rounded={false} decorative active={photoActive} onDisplay={setShown} testID={`photo-${card.key}`} />
       <View style={{ padding: 12, gap: 6 }}>
         <View style={{ gap: 2 }}>
           <Text variant="heading">{card.name}</Text>

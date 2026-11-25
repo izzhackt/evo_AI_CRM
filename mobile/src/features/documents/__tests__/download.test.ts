@@ -1,4 +1,4 @@
-import { downloadFile, downloadPath, type DownloadDeps } from "@/features/documents/download";
+import { downloadFile, downloadPath, downloadPublicFile, type DownloadDeps } from "@/features/documents/download";
 
 const BASE = "https://portal.example.test";
 const VERSION = "55555555-5555-4555-8555-555555555555";
@@ -181,5 +181,60 @@ describe("два шага: Bearer не попадает на подписанн�
     const none = hops(() => ({ status: 401 }), { refreshToken: async () => null });
     await expect(downloadFile(none.value, target, "a.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.errorSession" });
     expect(none.seen).toHaveLength(1);
+  });
+});
+
+describe("публичный файл без входа (бланк медсправки)", () => {
+  const BLANK = `${BASE}/portal/document-samples/medical-blank.pdf`;
+  type Call = { url: string; headers: Record<string, string>; redirect: string };
+  function publicDeps(response: Partial<Awaited<ReturnType<DownloadDeps["fetchImpl"]>>> | Error = {}) {
+    const calls: Call[] = [];
+    const written: { name: string; size: number }[] = [];
+    const value: Pick<DownloadDeps, "fetchImpl" | "writeFile"> = {
+      fetchImpl: async (url, init) => {
+        calls.push({ url, headers: init.headers, redirect: init.redirect });
+        if (response instanceof Error) throw response;
+        return { status: 200, ok: true, headers: new Headers({ "content-type": "application/pdf" }), arrayBuffer: async () => new Uint8Array([37, 80, 68, 70]).buffer, ...response };
+      },
+      writeFile: async (name, bytes) => {
+        written.push({ name, size: bytes.byteLength });
+        return `file:///cache/${name}`;
+      },
+    };
+    return { value, calls, written };
+  }
+
+  it("один GET без Authorization и без перехода по перенаправлению; файл пишется в кэш", async () => {
+    const d = publicDeps();
+    await expect(downloadPublicFile(d.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: true, uri: "file:///cache/medical-blank.pdf", name: "medical-blank.pdf" });
+    expect(d.calls).toEqual([{ url: BLANK, headers: { Accept: "application/pdf" }, redirect: "manual" }]);
+    expect(Object.keys(d.calls[0]!.headers).map((k) => k.toLowerCase())).not.toContain("authorization");
+    expect(d.written).toEqual([{ name: "medical-blank.pdf", size: 4 }]);
+  });
+
+  it("перенаправление (например, на вход: файл не публичный) не принимается и не выполняется", async () => {
+    const d = publicDeps({ status: 307, ok: false, headers: new Headers({ location: `${BASE}/login` }) });
+    await expect(downloadPublicFile(d.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    expect(d.calls).toHaveLength(1);
+    expect(d.written).toHaveLength(0);
+  });
+
+  it.each([
+    [404, "docs.downloadUnavailable"],
+    [503, "docs.downloadUnavailable"],
+  ])("статус %i -> %s, файл не пишется", async (status, error) => {
+    const d = publicDeps({ status, ok: false });
+    await expect(downloadPublicFile(d.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error });
+    expect(d.written).toHaveLength(0);
+  });
+
+  it("страница вместо PDF и пустое тело не сохраняются; обрыв сети", async () => {
+    const html = publicDeps({ headers: new Headers({ "content-type": "text/html" }) });
+    await expect(downloadPublicFile(html.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    const empty = publicDeps({ arrayBuffer: async () => new ArrayBuffer(0) });
+    await expect(downloadPublicFile(empty.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    const offline = publicDeps(new TypeError("Network request failed"));
+    await expect(downloadPublicFile(offline.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "errorNetwork" });
+    expect(html.written.length + empty.written.length + offline.written.length).toBe(0);
   });
 });

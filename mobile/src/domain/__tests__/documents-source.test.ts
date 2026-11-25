@@ -5,6 +5,7 @@ import {
   CASE_FILE_KINDS,
   DOCUMENT_REVIEW_DECISIONS,
   DOCUMENT_SLOT_STATUSES,
+  decodeCaseDirections,
   decodeCaseFiles,
   decodeDocuments,
   normalizeStudentPortalCaseFile,
@@ -79,4 +80,42 @@ describe("договор и чеки", () => {
     ["размер", { ...CASE_FILE_ROW, byte_size: -1 }],
   ])("отклоняет: %s", (_name, row) => rejects(() => normalizeStudentPortalCaseFile(row)));
   it("повтор вида и id отклоняется", () => rejects(() => decodeCaseFiles([CASE_FILE_ROW, CASE_FILE_ROW])));
+});
+
+describe("страна дела для справки «Пример» (373)", () => {
+  const OTHER_CASE = "99999999-9999-4999-8999-999999999999";
+
+  it("строки (student_case_id, direction) -> карта «дело -> код страны»", () => {
+    const map = decodeCaseDirections([
+      { student_case_id: "33333333-3333-4333-8333-333333333333", direction: "CN" },
+      { student_case_id: OTHER_CASE, direction: "MY" },
+    ]);
+    expect([...map]).toEqual([
+      ["33333333-3333-4333-8333-333333333333", "CN"],
+      [OTHER_CASE, "MY"],
+    ]);
+  });
+
+  it("id дела в нижнем регистре: ключ совпадает с `caseId` документа", () => {
+    const map = decodeCaseDirections([{ student_case_id: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA", direction: " CN " }]);
+    expect(map.get("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toBe("CN");
+  });
+
+  it("мягкий разбор, как у веба: не массив, чужая форма, пустая страна (NULL у дела без направления) пропускаются, а не роняют экран", () => {
+    expect(decodeCaseDirections(null).size).toBe(0);
+    expect(decodeCaseDirections({ student_case_id: OTHER_CASE, direction: "CN" }).size).toBe(0);
+    expect(decodeCaseDirections("CN").size).toBe(0);
+    const map = decodeCaseDirections([
+      null,
+      "строка",
+      42,
+      { student_case_id: OTHER_CASE, direction: null },
+      { student_case_id: OTHER_CASE, direction: "   " },
+      { student_case_id: "не-uuid", direction: "CN" },
+      { student_case_id: 7, direction: "CN" },
+      { direction: "CN" },
+      { student_case_id: "44444444-4444-4444-8444-444444444444", direction: "EUROPE" },
+    ]);
+    expect([...map]).toEqual([["44444444-4444-4444-8444-444444444444", "EUROPE"]]);
+  });
 });

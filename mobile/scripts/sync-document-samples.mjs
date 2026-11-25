@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// Образцы документов для справки «Что это за документ»: <repo>/public/portal/document-samples/*.svg
-// (вымышленные образцы веба, ссылка на каждый - `sampleSrc` в src/lib/portal/document-guides.ts)
+// Нарисованные схемы документов для справки «Пример»: <repo>/public/portal/document-samples/*.svg
+// (вымышленные схемы веба, ссылка на каждую - `sampleSrc` в src/lib/portal/document-guides.ts)
 // -> src/features/documents/document-samples.generated.ts (имя файла -> текст SVG).
-// Приложение не ходит за картинками в сеть и не держит вторую копию рисунков: одна правда - файлы веба.
+// Схемы зашиты в приложение: это запасной вид «Примера», когда у документа нет настоящих образцов или нет сети.
+// Настоящие образцы (JPG, миниатюры `-t.jpg` и бланк PDF, около 6 МБ) в сборку НЕ кладутся: лист «Пример» грузит их
+// по адресу портала, `<адрес портала>/portal/document-samples/<файл>`, без входа (кэш ведёт expo-image).
+// Второй копии рисунков нет: одна правда - файлы веба.
 //   node scripts/sync-document-samples.mjs           записать файл
 //   node scripts/sync-document-samples.mjs --check   упасть, если файл устарел (npm run check)
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";

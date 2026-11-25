@@ -10,6 +10,7 @@ import type { StudentCountryChoice } from "@web/lib/portal/country-choice";
 import { usePortalApi } from "@/api/PortalApi";
 import {
   countryChoiceWrite,
+  readCaseDirections,
   readCaseFiles,
   readCountryChoice,
   readDocuments,
@@ -48,6 +49,16 @@ export function useDocuments() {
 export function useCaseFiles() {
   const { transport, tier, userKey } = usePortalApi();
   return useQuery({ queryKey: key(userKey, "case-files"), queryFn: () => readCaseFiles(transport), enabled: tier === "assisted" });
+}
+
+/**
+ * Страна своих дел (373) для справки «Пример». Читается один раз за открытый кабинет: страна дела меняется редко,
+ * поэтому ответ не «стареет» (лист открывается сразу, без запроса) и не выгружается из кэша; вытягивание экрана
+ * читает заново. Сбой на экран не выходит: справка берёт выбор студента, а без него общую.
+ */
+export function useCaseDirections() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "case-directions"), queryFn: () => readCaseDirections(transport), enabled: tier === "assisted", staleTime: Infinity, gcTime: Infinity });
 }
 
 export function usePayments() {

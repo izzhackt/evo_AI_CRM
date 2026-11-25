@@ -102,6 +102,11 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
     }
     if (REDIRECT_STATUSES.has(response.status)) return { ok: false, error: "docs.downloadFailed" };
   }
+  return saveBody(deps, response, fileName, mimeTypes);
+}
+
+/** Общий хвост скачивания: ответ 2xx нужного типа, непустое тело в пределах лимита, запись в кэш приложения. */
+async function saveBody(deps: Pick<DownloadDeps, "writeFile">, response: FetchResult, fileName: string, mimeTypes: readonly string[]): Promise<DownloadResult> {
   if (!response.ok) return { ok: false, error: "docs.downloadUnavailable" };
   if (!contentTypeMatches(response.headers.get("content-type"), mimeTypes)) return { ok: false, error: "docs.downloadFailed" };
   let bytes: Uint8Array;
@@ -117,4 +122,20 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
   } catch {
     return { ok: false, error: "docs.downloadFailed" };
   }
+}
+
+/**
+ * Публичный файл портала без входа: пустой бланк медсправки Китая из public/portal/document-samples (его отдаёт прокси
+ * без сессии, `isDocumentSampleFile`). Один простой GET: ни Bearer, ни перехода по перенаправлению (перенаправление на
+ * вход означало бы, что файл не публичный, и файл не берётся). Тип, размер и запись в кэш - как у `downloadFile`.
+ */
+export async function downloadPublicFile(deps: Pick<DownloadDeps, "fetchImpl" | "writeFile">, url: string, fileName: string, mimeType: string, signal?: AbortSignal): Promise<DownloadResult> {
+  let response: FetchResult;
+  try {
+    response = await deps.fetchImpl(url, { method: "GET", headers: { Accept: mimeType }, redirect: "manual", signal });
+  } catch {
+    return { ok: false, error: "errorNetwork" };
+  }
+  if (REDIRECT_STATUSES.has(response.status)) return { ok: false, error: "docs.downloadFailed" };
+  return saveBody(deps, response, fileName, [mimeType]);
 }

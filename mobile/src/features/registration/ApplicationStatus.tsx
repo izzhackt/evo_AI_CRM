@@ -1,10 +1,14 @@
-// Статус анкеты вошедшего студента (SessionState.applicationStatus): статус, ответы,
-// комментарий команды при отказе, исправление отклонённой, «Обновить статус».
+// Статус анкеты вошедшего студента (SessionState.applicationStatus): статус, ответы, почта анкеты, логин для входа,
+// комментарий команды, исправление отклонённой, «Обновить статус», «Выйти» и «Удалить аккаунт» (веб: apply/status/page.tsx
+// и ApplicationStatus.tsx; Apple 5.1.1(v): аккаунт удаляется из приложения до одобрения анкеты).
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { isTechnicalStudentEmail } from "@/features/registration/account-identity";
 
 import { createPortalQueryClient } from "@/api/PortalApi";
+import { readOwnLogin } from "@/features/profile/profile-source";
+import { ApplicantDeletionSection } from "@/features/registration/ApplicantDeletion";
 import { SignedInWizard, useSubmitDeps } from "@/features/registration/SignedInApplication";
 import { applicationAnswers } from "@/features/registration/answers";
 import { readOwnApplication, type FullApplication } from "@/features/registration/own-application";
@@ -14,6 +18,7 @@ import type { OwnApplication } from "@/session/access";
 import { useSession } from "@/session/SessionProvider";
 import { Button } from "@/ui/Button";
 import { InlineAlert, CardSkeleton } from "@/ui/CardParts";
+import { LangSwitch } from "@/ui/LangSwitch";
 import { Card, Screen } from "@/ui/Screen";
 import { StatusPill } from "@/ui/StatusPill";
 import { Text } from "@/ui/Text";
@@ -44,20 +49,27 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
   const { refreshAccess, signOut } = useSession();
   const deps = useSubmitDeps();
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const [fixing, setFixing] = useState(false);
   const query = useQuery({
     queryKey: ["own-student-application", application.status],
     queryFn: () => readOwnApplication(deps.transport),
   });
+  // 340: логин для следующего входа; нет логина или сбой чтения - строки нет (веб: apply-status-login).
+  const login = useQuery({ queryKey: ["own-student-login"], queryFn: () => readOwnLogin(deps.transport), enabled: !readOnly });
   const full: FullApplication | null = query.data ?? null;
   const loadFailed = query.isError ? m(rpcErrorKey(query.error)) : null;
   const load = () => void query.refetch();
 
   const refresh = async () => {
     setRefreshing(true);
+    setRefreshFailed(false);
     try {
       await refreshAccess();
-      await query.refetch();
+      const result = await query.refetch();
+      if (result.isError) setRefreshFailed(true);
+    } catch {
+      setRefreshFailed(true);
     } finally {
       setRefreshing(false);
     }
@@ -85,6 +97,11 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
   return (
     <Screen onRefresh={() => void (readOnly ? query.refetch() : refresh())} refreshing={refreshing || (readOnly && query.isRefetching)} topInset={!readOnly} tabBar={readOnly}>
       <View style={{ gap: 16 }}>
+        {readOnly ? null : (
+          <View style={{ alignItems: "flex-end" }}>
+            <LangSwitch />
+          </View>
+        )}
         <Card>
           <Text variant="caption" tone="text2">
             {strings.statusKicker}
@@ -94,7 +111,7 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
           </Text>
           <StatusPill label={m(`gate.status.${status}`)} tone={TONE[status]} testID="application-status-pill" />
           <Text variant="body">{lead}</Text>
-          {status === "rejected" && full?.decisionReason ? (
+          {full?.decisionReason ? (
             <View style={{ gap: 4 }} testID="application-reason">
               <Text variant="secondary" tone="text2" bold>
                 {m("status.reasonLabel")}
@@ -119,7 +136,12 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
                 busy={refreshing}
                 testID="gate-refresh"
               />
-              <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} />
+              {refreshFailed ? (
+                <Text variant="secondary" tone="error" accessibilityRole="alert" testID="application-refresh-failed">
+                  {strings.refreshFailed}
+                </Text>
+              ) : null}
+              <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} testID="application-sign-out" />
             </>
           )}
         </Card>
@@ -135,6 +157,11 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
             <Text variant="heading" accessibilityRole="header">
               {strings.answersHeading}
             </Text>
+            {isTechnicalStudentEmail(full.email) ? null : (
+              <Text variant="secondary" tone="text2" selectable testID="application-email">
+                {full.email}
+              </Text>
+            )}
             {applicationAnswers(full.questionnaire, strings, lang).map((row) => (
               <View key={row.label} style={{ gap: 2 }}>
                 <Text variant="caption" tone="text2">
@@ -148,6 +175,12 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
             </Text>
           </Card>
         ) : null}
+        {login.data ? (
+          <Text variant="body" tone="text2" accessibilityLabel={`${strings.loginLabel}: ${login.data}`} testID="application-login">
+            {strings.loginLabel}: {login.data}
+          </Text>
+        ) : null}
+        {readOnly ? null : <ApplicantDeletionSection transport={deps.transport} />}
       </View>
     </Screen>
   );

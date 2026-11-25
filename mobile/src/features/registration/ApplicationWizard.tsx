@@ -1,8 +1,10 @@
-// Мастер анкеты (порт ApplicationWizard.tsx веба). 7 шагов, прогресс, «Назад/Далее», проверка
+// Мастер анкеты (порт ApplicationWizard.tsx веба). 7 шагов, прогресс, «Назад/Продолжить», проверка
 // каждого шага правилами веба, черновик на устройстве без пароля.
 // Контейнер даёт `onSubmit`: регистрация по ссылке (аноним) или submit_student_application_v1 (вошедший).
+// Шапка (язык, «Уже есть аккаунт? Войти» у анонима, «Выйти» и «Удалить аккаунт» у вошедшего) и секция удаления аккаунта
+// внизу у вошедшего: аккаунт, созданный в приложении, выходит и удаляется из приложения до одобрения анкеты (Apple 5.1.1(v)).
 import { randomUUID } from "expo-crypto";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -28,9 +30,12 @@ import {
 } from "@/features/registration/wizard-model";
 import { PolicyCheckRow } from "@/features/consent/PolicyCheckRow";
 import { CheckRow, ChoiceRow, OptionGroup, PickerField, type Option } from "@/features/registration/WizardFields";
+import { WizardHeader } from "@/features/registration/WizardHeader";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce, useReducedMotion } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
+import { LinkButton } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
@@ -45,6 +50,7 @@ import {
   type StudentApplicationDraft,
 } from "@/features/registration/application-contract";
 import { ENGLISH_EXAMS, localizedCountryLabel, NATIONALITY_COUNTRIES, STUDY_FIELD_OPTIONS } from "@/features/registration/application-contract";
+import { isTechnicalStudentEmail } from "@/features/registration/account-identity";
 import { studyCountryOptions } from "@web/lib/study-countries";
 
 export type WizardSubmitInput = Readonly<{
@@ -55,8 +61,14 @@ export type WizardSubmitInput = Readonly<{
   aiConsent: boolean;
 }>;
 
-/** Сообщение об ошибке для показа или `null`, если отправка принята. */
-export type WizardSubmit = (input: WizardSubmitInput) => Promise<string | null>;
+/**
+ * Отказ с действием: сообщение и, если аккаунт с этой почтой уже есть, ссылка «Перейти ко входу» под ним
+ * (веб: `result.status === "conflict"` + `goToLogin`).
+ */
+export type WizardFailure = Readonly<{ message: string; signIn?: boolean }>;
+
+/** Сообщение об ошибке для показа (строка или отказ с действием) или `null`, если отправка принята. */
+export type WizardSubmit = (input: WizardSubmitInput) => Promise<string | WizardFailure | null>;
 
 export type ApplicationWizardProps = Readonly<{
   /** Аноним: создаётся аккаунт (email и пароль). Вошедший: только анкета, почта из сессии. */
@@ -70,24 +82,35 @@ export type ApplicationWizardProps = Readonly<{
   /** Слева сверху на первом шаге: «Назад» из мастера (выход к вводу ссылки или входу). */
   onExit?: () => void;
   exitLabel?: string;
+  /** Аноним: «Уже есть аккаунт? Войти» вверху и «Перейти ко входу» под ошибкой «аккаунт уже есть». */
+  onSignIn?: () => void;
+  /**
+   * Вошедший: «Выйти», «Удалить аккаунт» вверху и секция удаления аккаунта внизу (`deletion` рисует контейнер:
+   * у мастера нет ни транспорта, ни сессии).
+   */
+  account?: Readonly<{ onSignOut: () => void; deletion: ReactNode }>;
 }>;
 
 type AnyStrings = Readonly<Record<string, string>>;
 
-export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, namePrefill = null, onSubmit, onExit, exitLabel }: ApplicationWizardProps) {
+export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, namePrefill = null, onSubmit, onExit, exitLabel, onSignIn, account }: ApplicationWizardProps) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const { lang, m, format, t } = useLang();
   const strings = t("apply") as unknown as AnyStrings;
   const S = (key: string) => strings[key] ?? key;
   const scrollRef = useRef<{ scrollTo: (options: { y: number; animated: boolean }) => void } | null>(null);
+  const deletionY = useRef(0);
   const [requestId] = useState(() => randomUUID());
   const base = useMemo(() => initialValues(requestId, initialDraft, namePrefill, signedInEmail ?? ""), [requestId, initialDraft, namePrefill, signedInEmail]);
 
   const [values, setValues] = useState<WizardValues>(base);
   const [step, setStep] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ message: string; signIn: boolean } | null>(null);
+  const error = failure?.message ?? null;
+  const setError = (message: string | null) => setFailure(message === null ? null : { message, signIn: false });
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [aiConsent, setAiConsent] = useState(false);
@@ -134,9 +157,9 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
 
   const goNext = async () => {
     if (busy) return;
-    const failure = validateStep(step, values, context);
-    if (failure) {
-      setError(messageFor(failure));
+    const invalid = validateStep(step, values, context);
+    if (invalid) {
+      setError(messageFor(invalid));
       return;
     }
     setError(null);
@@ -151,9 +174,10 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
     }
     setBusy(true);
     try {
-      const message = await onSubmit({ values, draft, password: signedInEmail ? null : password, aiConsent });
-      if (message) setError(message);
-      else await clearDraft(scope);
+      const result = await onSubmit({ values, draft, password: signedInEmail ? null : password, aiConsent });
+      if (!result) await clearDraft(scope);
+      else if (typeof result === "string") setError(result);
+      else setFailure({ message: result.message, signIn: result.signIn === true });
     } finally {
       setBusy(false);
     }
@@ -163,6 +187,12 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
     setError(null);
     if (step > 0) setStep(step - 1);
     else onExit?.();
+  };
+
+  const goToDeletion = () => {
+    scrollRef.current?.scrollTo({ y: Math.max(0, deletionY.current - 8), animated: !reduceMotion });
+    // Читалке: куда ушла прокрутка (веб: фокус переходит по якорю `#account-deletion`).
+    announce(t("accountDeletion").heading);
   };
 
   const opt = (key: string): string => S(`opt.${key}`);
@@ -211,6 +241,7 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: Math.max(insets.bottom, 16) + 16, gap: 16 }}
       >
+        <WizardHeader onSignIn={account ? undefined : onSignIn} account={account ? { onSignOut: account.onSignOut, onDelete: goToDeletion } : undefined} />
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
             <Text variant="secondary" tone="text2" bold style={{ flexShrink: 1 }}>
@@ -279,6 +310,9 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
               <View style={{ gap: 8 }}>
                 <Text variant="secondary" tone="text2" bold>
                   {S("question.levels")}
+                </Text>
+                <Text variant="secondary" tone="text2">
+                  {S("copyMulti")}
                 </Text>
                 {STUDENT_APPLICATION_STUDY_LEVELS.map((level) => (
                   <ChoiceRow key={level} label={opt(level)} multi selected={values.studyLevels.includes(level)} onPress={() => toggle("studyLevels", level)} testID={`level-${level}`} />
@@ -370,14 +404,17 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
               <TextField label={S("lastNameLabel")} value={values.lastName} onChangeText={(v) => update("lastName", v)} autoComplete="family-name" textContentType="familyName" maxLength={60} returnKeyType="next" testID="last-name" />
               <TextField label={S("phoneLabel")} value={values.phone} onChangeText={(v) => update("phone", v)} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" maxLength={40} placeholder={S("phonePlaceholder")} testID="phone" />
               {signedInEmail ? (
-                <View style={{ gap: 4 }}>
-                  <Text variant="secondary" tone="text2" bold>
-                    {S("accountEmailLabel")}
-                  </Text>
-                  <Text variant="body" testID="signed-in-email">
-                    {signedInEmail}
-                  </Text>
-                </View>
+                // Служебная почта кабинета без почты студенту не показывается (веб: isTechnicalStudentEmail, скрытое поле).
+                isTechnicalStudentEmail(signedInEmail) ? null : (
+                  <View style={{ gap: 4 }}>
+                    <Text variant="secondary" tone="text2" bold>
+                      {S("accountEmailLabel")}
+                    </Text>
+                    <Text variant="body" testID="signed-in-email">
+                      {signedInEmail}
+                    </Text>
+                  </View>
+                )
               ) : (
                 <>
                   <TextField
@@ -442,11 +479,12 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
               {error}
             </Text>
           ) : null}
+          {failure?.signIn && onSignIn ? <LinkButton label={S("goToLogin")} onPress={onSignIn} testID="wizard-go-sign-in" /> : null}
         </Card>
 
         <View style={{ gap: 8 }}>
           <Button
-            label={step === LAST_STEP_INDEX ? (busy ? S("saving") : lastLabel) : m("wizard.next")}
+            label={step === LAST_STEP_INDEX ? (busy ? S("saving") : lastLabel) : S("continueButton")}
             onPress={() => void goNext()}
             busy={busy}
             testID="wizard-next"
@@ -456,6 +494,17 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
             {m("wizard.draftHint")}
           </Text>
         </View>
+
+        {account ? (
+          <View
+            onLayout={(event) => {
+              deletionY.current = event.nativeEvent.layout.y;
+            }}
+            testID="wizard-account-deletion"
+          >
+            {account.deletion}
+          </View>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

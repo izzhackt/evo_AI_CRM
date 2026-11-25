@@ -196,6 +196,39 @@ describe("регистрация и «Проверьте почту»", () => {
     expect(screen.getByTestId("first-name").props.value).toBe("Тест");
   });
 
+  it("аккаунт с этой почтой уже есть: под ошибкой «Перейти ко входу», ответы остаются на телефоне", async () => {
+    const { api } = fakeApi({ register: async () => ({ ok: false, reason: "conflict" }) });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    await screen.findByTestId("wizard-next");
+    expect(screen.queryByTestId("wizard-go-sign-in")).toBeNull();
+    await fillAllSteps();
+    await next();
+    expect(await screen.findByTestId("wizard-error")).toHaveTextContent(/Не удалось создать аккаунт с этим email/);
+    expect(screen.getByText("Перейти ко входу")).toBeTruthy();
+    await press("wizard-go-sign-in");
+    expect(router.replace).toHaveBeenCalledWith("/sign-in");
+    // «Другая ссылка» стирает ответы, вход их не трогает (веб: обычная ссылка на /login)
+    expect(await AsyncStorage.getItem("evo.application-draft.v1:anonymous")).toContain("Тест");
+    expect([...mockSecure.values()]).toContain(INVITE);
+  });
+
+  it("шапка мастера у анонима: «Уже есть аккаунт? Войти» и язык RU|KY, без «Выйти» и удаления", async () => {
+    const { api } = fakeApi();
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    expect(await screen.findByTestId("wizard-login-link")).toBeTruthy();
+    expect(screen.getByText("Уже есть аккаунт? Войти")).toBeTruthy();
+    expect(screen.queryByTestId("wizard-sign-out")).toBeNull();
+    expect(screen.queryByTestId("wizard-delete-account")).toBeNull();
+    expect(screen.queryByTestId("applicant-deletion-heading")).toBeNull();
+    await press("wizard-login-link");
+    expect(router.replace).toHaveBeenCalledWith("/sign-in");
+    // язык переключается внутри мастера: ответы и шаг остаются
+    await press("country-CN");
+    await press("lang-ky");
+    expect(await screen.findByText("Улантуу")).toBeTruthy();
+    expect(screen.getByTestId("country-CN").props.accessibilityState.checked).toBe(true);
+  });
+
   it("отказ invite: ссылка и черновик стираются, возврат к вводу ссылки с пояснением", async () => {
     const { api } = fakeApi({ register: async () => ({ ok: false, reason: "invite" }) });
     await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);

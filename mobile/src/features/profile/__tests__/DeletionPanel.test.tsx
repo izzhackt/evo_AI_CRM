@@ -1,10 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fireEvent, screen } from "@testing-library/react-native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react-native";
+import type { ReactElement } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { OPEN_STEPS_PREFIX } from "@/features/admission/useOpenSteps";
 import { DeletionPanel } from "@/features/profile/DeletionPanel";
+import { LangProvider } from "@/i18n/LangProvider";
 import { RpcError } from "@/lib/rpc";
 import { clearAllLocalData, registerLocalDataCleaner } from "@/session/local-data";
+import { ThemeProvider } from "@/theme/ThemeProvider";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
@@ -93,6 +98,76 @@ describe("удаление аккаунта", () => {
     await renderPortal(<DeletionPanel />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("deletion-sign-out"));
     expect(mockSession.signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+// До кабинета (анкета, статус анкеты, «Доступ готовится») `PortalApiProvider` нет: `usePortalApi()` там бросает ошибку,
+// поэтому панель получает транспорт и ключ кэша явно (G9 аудита паритета, Apple 5.1.1(v)).
+const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
+async function renderBeforeCabinet(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
+  const result = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ThemeProvider>
+        <LangProvider initial="ru">
+          <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+        </LangProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>,
+  );
+  return { ...result, client };
+}
+
+describe("удаление аккаунта до кабинета: явный источник, как на вебе (look=apply)", () => {
+  it("без PortalApiProvider панель читает статус, подтверждает и шлёт request_account_deletion_v2 с тем же p_request_id при повторе", async () => {
+    const { transport, calls } = fakeTransport({
+      own_account_deletion_request_v1: null,
+      request_account_deletion_v2: (_a: unknown, n: number) => (n === 1 ? failure("XX000", 500) : open),
+    });
+    const { client } = await renderBeforeCabinet(<DeletionPanel source={{ transport, userKey: "applicant" }} look="apply" />);
+    await fireEvent.press(await screen.findByTestId("deletion-start"));
+    await fireEvent.press(screen.getByTestId("deletion-confirm-yes"));
+    expect(await screen.findByText("Не удалось отправить запрос. Проверьте соединение и попробуйте снова.")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("deletion-confirm-yes"));
+    expect(await screen.findByText("Запрос на удаление принят 09.11.2026.")).toBeTruthy();
+    const writes = calls.filter((c) => c.name === "request_account_deletion_v2");
+    expect(writes).toHaveLength(2);
+    expect(writes[0]?.args).toEqual({ p_request_id: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(writes[1]?.args?.p_request_id).toBe(writes[0]?.args?.p_request_id);
+    // ответ лёг в кэш под ключ явного источника
+    expect(client.getQueryData(["portal", "applicant", "account-deletion"])).toMatchObject({ requestId: open.requestId, status: "requested" });
+  });
+
+  it("look=apply говорит о сроке и хранении записей (description, keptNote), look=portal молчит", async () => {
+    const a = fakeTransport({ own_account_deletion_request_v1: null });
+    const apply = await renderBeforeCabinet(<DeletionPanel source={{ transport: a.transport, userKey: "applicant" }} look="apply" />);
+    expect(await screen.findByText("Мы удалим аккаунт и связанные с ним данные в течение 30 дней.")).toBeTruthy();
+    expect(screen.getByText("Записи о договоре и оплатах хранятся обезличенно столько, сколько требует закон.")).toBeTruthy();
+    await apply.unmount();
+    const b = fakeTransport({ own_account_deletion_request_v1: null });
+    await renderBeforeCabinet(<DeletionPanel source={{ transport: b.transport, userKey: "applicant" }} />);
+    await screen.findByTestId("deletion-start");
+    expect(screen.queryByTestId("deletion-description")).toBeNull();
+    expect(screen.queryByTestId("deletion-kept-note")).toBeNull();
+  });
+
+  it("запрос уже принят: статус, пояснение о хранении записей и «Выйти и стереть данные на этом устройстве»", async () => {
+    const { transport } = fakeTransport({ own_account_deletion_request_v1: open });
+    await renderBeforeCabinet(<DeletionPanel source={{ transport, userKey: "applicant" }} look="apply" />);
+    expect(await screen.findByTestId("deletion-status")).toBeTruthy();
+    expect(screen.getByTestId("deletion-kept-note")).toBeTruthy();
+    expect(screen.queryByTestId("deletion-start")).toBeNull();
+    await fireEvent.press(screen.getByTestId("deletion-sign-out"));
+    expect(mockSession.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("без явного источника и без кабинета ошибка называет причину, а не молча ломает экран", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(renderBeforeCabinet(<DeletionPanel />)).rejects.toThrow(/требует явного источника/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

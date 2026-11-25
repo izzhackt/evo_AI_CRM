@@ -207,6 +207,8 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
         setPhase({ kind: "entry" });
         return null;
       }
+      // Аккаунт с этой почтой уже есть: под сообщением появляется «Перейти ко входу» (веб: server.conflict + goToLogin).
+      if (result.reason === "conflict") return { message: failureMessage(result.reason), signIn: true };
       return failureMessage(result.reason);
     },
     [api, failureMessage, phase],
@@ -221,7 +223,18 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
   }
 
   if (phase.kind === "wizard") {
-    return <ApplicationWizard signedInEmail={null} scope="anonymous" namePrefill={phase.prefill} onSubmit={onSubmit} onExit={() => void changeLink()} exitLabel={m("apply.changeLink")} />;
+    return (
+      <ApplicationWizard
+        signedInEmail={null}
+        scope="anonymous"
+        namePrefill={phase.prefill}
+        onSubmit={onSubmit}
+        onExit={() => void changeLink()}
+        exitLabel={m("apply.changeLink")}
+        // Черновик остаётся: «Уже есть аккаунт? Войти» не стирает ответы (в отличие от «Другая ссылка»).
+        onSignIn={() => router.replace("/sign-in")}
+      />
+    );
   }
 
   return (

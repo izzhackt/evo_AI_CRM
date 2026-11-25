@@ -12,11 +12,11 @@ import { Text } from "@/ui/Text";
 export function AssessmentQuestionView({ question, instrumentKey, answer, number, disabled = false, onSelect }: { question: AssessmentQuestion; instrumentKey: StudentAssessmentKey; answer: string | undefined; number: number; disabled?: boolean; onSelect: (questionId: string, optionId: string) => void }) {
   const { tokens } = useTheme();
   const english = instrumentKey === "english36";
+  const statement = `${instrumentKey === "orvis92" ? `${number}. ` : ""}${question.prompt}`;
   return (
     <View style={{ gap: 10 }} testID={`assessment-question-${question.id}`}>
       <Text variant="body" bold accessibilityLanguage={english ? "en" : "ru"} testID={`assessment-prompt-${question.id}`}>
-        {instrumentKey === "orvis92" ? `${number}. ` : ""}
-        {question.prompt}
+        {statement}
       </Text>
       {question.passage ? (
         <View style={{ borderLeftWidth: 3, borderLeftColor: tokens.line, paddingLeft: 12 }}>
@@ -25,7 +25,8 @@ export function AssessmentQuestionView({ question, instrumentKey, answer, number
           </Text>
         </View>
       ) : null}
-      <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
+      {/* Группа называется формулировкой: читалка, дойдя до вариантов, говорит, на какое утверждение они отвечают (без подписи группа безымянная). */}
+      <View accessibilityRole="radiogroup" accessibilityLabel={statement} accessibilityLanguage={english ? "en" : "ru"} style={{ gap: 8 }} testID={`assessment-options-${question.id}`}>
         {question.options.map((option) => {
           const on = answer === option.id;
           return (

@@ -2,7 +2,7 @@
 // молчаливой замены ответов, замороженный запрос завершения, досылка при закрытии экрана. Сеть и таймеры поддельные.
 import { normalizeAssessmentAttempt } from "@/features/learning/tests/assessment-decode";
 import { ASSESSMENT_RETRY_MS, ASSESSMENT_SAVE_MS, AssessmentSession } from "@/features/learning/tests/assessment-session";
-import { answersFor, attemptFixture, ATTEMPT_ID, OTHER_ATTEMPT_ID, sessionHarness, type FixtureKey } from "@/test-fixtures/assessment";
+import { answersFor, attemptFixture, ATTEMPT_ID, completedFixture, OTHER_ATTEMPT_ID, sessionHarness, type FixtureKey } from "@/test-fixtures/assessment";
 
 const SAVE = "save_student_assessment_answers_v1";
 const START = "start_student_assessment_v1";
@@ -12,28 +12,7 @@ const READ = "student_assessment_attempt_v1";
 /** Одна запись при обрыве: слой RPC повторяет тот же запрос ещё дважды, поэтому три ответа «обрыв» на один вызов. */
 const down = (calls = 1) => Array<string>(3 * calls).fill("NETWORK");
 const parse = (key: FixtureKey, overrides: Record<string, unknown> = {}) => normalizeAssessmentAttempt(attemptFixture(key, overrides));
-const done = (key: FixtureKey, revision = 9) => {
-  const questions = attemptFixture(key).questions;
-  const answers = answersFor(key, questions.length);
-  const english = key === "english36";
-  return attemptFixture(key, {
-    status: "completed",
-    revision,
-    answers,
-    completedAt: "2026-11-09T10:05:00+00:00",
-    result: {
-      instrumentKey: key,
-      version: "1.0.0",
-      metadata: { title: "t", description: "d", instructions: ["i"], limitations: ["l"] },
-      answeredCount: questions.length,
-      questionCount: questions.length,
-      completedAt: "2026-11-09T10:05:00+00:00",
-      ...(english
-        ? { english: { correctCount: 1, totalCount: questions.length, topics: [{ topic: "grammar", correctCount: 1, totalCount: questions.length }], feedback: questions.map((q) => ({ questionId: q.id, selectedOptionId: "a", correctOptionId: "a", correct: true, explanation: "e", topic: "grammar" })) } }
-        : { orvis: { scales: [{ scale: "analysis", rawSum: 40, itemCount: 14, mean: 2.86 }], topScales: ["analysis"] } }),
-    },
-  });
-};
+const done = completedFixture;
 
 describe("страницы теста: правило веба", () => {
   it("orvis92 по четыре утверждения: открывается на странице первого пропущенного, 92 вопроса дают 23 страницы", () => {
@@ -405,5 +384,198 @@ describe("завершение: замороженный запрос", () => {
     expect(session.getState().phase).toBe("result");
     expect(session.getState().unsaved).toBe(false);
     session.dispose();
+  });
+});
+
+describe("упорный сбой: студента не запираем (ревью #1559)", () => {
+  /** Ответ сервера, который приложение не может разобрать (`PortalDecodeError`): сервер запрос принял, а квитанцию не прочитать. */
+  const garbage = { not: "an attempt" };
+  const saves = (h: ReturnType<typeof sessionHarness>) => h.calls.filter((c) => c.name === SAVE);
+
+  it("квитанцию сохранения не удалось разобрать: повторов по таймеру нет, защита снята, сбой показан", async () => {
+    const h = sessionHarness({ [SAVE]: [garbage] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(saves(h)).toHaveLength(1);
+    const state = session.getState();
+    expect(state.saveStatus).toBe("unconfirmed");
+    expect(state.error).toBe("unavailable");
+    expect(state.unsaved).toBe(false); // досохранять нечем: уход свободен
+    expect(state.failures).toBe(0);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(10 * ASSESSMENT_RETRY_MS);
+    expect(saves(h)).toHaveLength(1); // раньше тот же запрос уходил каждые 3 секунды вечно
+    await expect(session.saveForExit()).resolves.toBe(true);
+    session.dispose();
+  });
+
+  it("обрыв повторяется тем же запросом, счётчик неудач растёт с каждой неудачной отправкой и сбрасывается успехом", async () => {
+    const h = sessionHarness({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().failures).toBe(1);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    expect(session.getState().failures).toBe(2);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    expect(session.getState().failures).toBe(3);
+    expect(session.getState().unsaved).toBe(true); // обрыв держит экран, пока студент сам не выберет «Выйти без сохранения»
+    expect(new Set(saves(h).map((c) => c.args.p_request_id)).size).toBe(1);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    expect(session.getState().failures).toBe(0);
+    expect(session.getState().saveStatus).toBe("saved");
+    expect(session.getState().unsaved).toBe(false);
+    session.dispose();
+  });
+
+  it("нажатие «Повторить сохранение» тоже считается попыткой; конфликт и окончательный отказ счётчик обнуляют (их повтором не лечить)", async () => {
+    const h = sessionHarness({ [SAVE]: [...down(2), "CONFLICT"] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    await session.flush();
+    expect(session.getState().failures).toBe(2);
+    await session.flush();
+    expect(session.getState().reloadRequired).toBe(true);
+    expect(session.getState().failures).toBe(0);
+    session.dispose();
+  });
+
+  it("сверка после конфликта: обрыв при чтении оставляет кнопку и считает неудачи; ответ, который не разобрать, снимает защиту", async () => {
+    const down1 = sessionHarness({ [SAVE]: ["CONFLICT"], [READ]: ["NETWORK"] });
+    const offline = new AssessmentSession(down1.env, "orvis92", null, parse("orvis92"));
+    offline.select("o1", "3");
+    await down1.advance(ASSESSMENT_SAVE_MS);
+    for (const n of [1, 2, 3]) {
+      await offline.loadSaved();
+      expect(offline.getState().failures).toBe(n);
+      expect(offline.getState().reloadRequired).toBe(true);
+      expect(offline.getState().unsaved).toBe(true);
+    }
+    offline.dispose();
+
+    const broken = sessionHarness({ [SAVE]: ["CONFLICT"], [READ]: [garbage] });
+    const session = new AssessmentSession(broken.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await broken.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().reloadRequired).toBe(true);
+    await session.loadSaved();
+    expect(session.getState().reload).toBe("failed");
+    expect(session.getState().reloadRequired).toBe(false); // сверять нечем, повтор тот же ответ не поймёт
+    expect(session.getState().unsaved).toBe(false);
+    expect(session.getState().failures).toBe(0);
+    await expect(session.saveForExit()).resolves.toBe(true);
+    session.dispose();
+  });
+
+  it("экран не на виду: повторов по таймеру нет; вернулись: неподтверждённое уходит сразу тем же запросом", async () => {
+    const h = sessionHarness({ [SAVE]: [...down(1), attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(saves(h)).toHaveLength(3); // одна отправка: слой RPC пробует обрыв три раза
+    session.setPaused(true);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(10 * ASSESSMENT_RETRY_MS);
+    expect(saves(h)).toHaveLength(3);
+    session.setPaused(false);
+    await h.settle();
+    expect(saves(h)).toHaveLength(4);
+    expect(new Set(saves(h).map((c) => c.args.p_request_id)).size).toBe(1);
+    expect(session.getState().saveStatus).toBe("saved");
+    session.dispose();
+  });
+
+  it("сбой пришёл, пока экран не на виду: таймер не ставится, пока не вернутся", async () => {
+    const h = sessionHarness({ [SAVE]: [...down(1), attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    session.setPaused(true);
+    await h.advance(ASSESSMENT_SAVE_MS); // выбор сделан на виду, отправка пошла уже без него
+    expect(session.getState().saveStatus).toBe("unconfirmed");
+    expect(h.pendingTimers()).toBe(0);
+    session.setPaused(false);
+    await h.settle();
+    expect(session.getState().saveStatus).toBe("saved");
+    session.dispose();
+  });
+
+  it("пауза и возобновление без сбоя ничего не шлют; после закрытия экрана они ни на что не влияют", async () => {
+    const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.setPaused(true);
+    session.setPaused(false);
+    await h.settle();
+    expect(h.calls).toHaveLength(0);
+    session.dispose();
+    session.setPaused(true);
+    session.setPaused(false);
+    await h.settle();
+    expect(h.calls).toHaveLength(0);
+  });
+});
+
+describe("таймеры сессии не остаются без хозяина (ревью #1559)", () => {
+  /** Среда с запросом, который висит, пока тест его не отпустит: так выбор меняется, пока сохранение в полёте. */
+  function hangingEnv() {
+    let now = 0;
+    let next = 1;
+    let id = 0;
+    const timers = new Map<number, { at: number; ms: number; fn: () => void }>();
+    const calls: string[] = [];
+    const waiting: ((reply: unknown) => void)[] = [];
+    const env = {
+      transport: ((name: string) => {
+        calls.push(name);
+        return new Promise((resolve) => waiting.push(resolve));
+      }) as never,
+      setTimer: (fn: () => void, ms: number) => {
+        const handle = next++;
+        timers.set(handle, { at: now + ms, ms, fn });
+        return handle;
+      },
+      clearTimer: (handle: unknown) => void timers.delete(handle as number),
+      newId: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`,
+    };
+    const settle = async () => {
+      for (let i = 0; i < 60; i += 1) await Promise.resolve();
+    };
+    const advance = async (ms: number) => {
+      const target = now + ms;
+      for (;;) {
+        const due = [...timers.entries()].filter(([, t]) => t.at <= target).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!due) break;
+        now = Math.max(now, due[1].at);
+        timers.delete(due[0]);
+        due[1].fn();
+        await settle();
+      }
+      now = target;
+      await settle();
+    };
+    const fail = async () => {
+      waiting.shift()?.({ data: null, error: { code: null, message: "net" }, status: null });
+      await settle();
+    };
+    return { env, calls, timers, advance, settle, fail };
+  }
+
+  it("выбор изменили, пока сохранение в полёте, и оно оборвалось: остаётся один таймер повтора, а после закрытия экрана ни одного", async () => {
+    const h = hangingEnv();
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS); // отправка №1 повисла в полёте
+    expect(h.calls).toHaveLength(1);
+    session.select("o2", "4"); // выбор изменили: поставлен таймер 0,9 с
+    expect([...h.timers.values()].map((t) => t.ms)).toEqual([ASSESSMENT_SAVE_MS]);
+    for (let k = 0; k < 3; k += 1) await h.fail(); // слой RPC пробует обрыв три раза
+    // Раньше таймер повтора затирал ручку таймера 0,9 с, и тот оставался в памяти без хозяина.
+    expect([...h.timers.values()].map((t) => t.ms)).toEqual([ASSESSMENT_RETRY_MS]);
+    session.dispose();
+    expect(h.timers.size).toBe(0);
+    const before = h.calls.length;
+    await h.advance(ASSESSMENT_RETRY_MS + ASSESSMENT_SAVE_MS + 10);
+    expect(h.calls).toHaveLength(before); // после закрытия экрана запросов нет
   });
 });

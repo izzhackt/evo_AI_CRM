@@ -2,20 +2,20 @@
 // сохранения, конфликт с кнопкой «Показать сохранённые ответы», начатый тест открывается без «Перед началом». Чтения и записи
 // идут по настоящему пути приложения (слой RPC, разборщики) на поддельном транспорте; данные синтетические.
 import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 import { AccessibilityInfo, Alert, ScrollView } from "react-native";
 
 import { AssessmentScreen } from "@/features/learning/tests/AssessmentScreen";
-import { answersFor, attemptFixture, ATTEMPT_ID, catalogFixture, type FixtureKey } from "@/test-fixtures/assessment";
+import { answersFor, attemptFixture, ATTEMPT_ID, catalogFixture, completedFixture, type FixtureKey } from "@/test-fixtures/assessment";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
-const mockBack = jest.fn();
 const mockDisable = jest.fn();
 const mockNav = { setOptions: jest.fn(), dispatch: jest.fn() };
 const mockPrevent = jest.fn((..._args: unknown[]) => mockDisable);
 jest.mock("expo-router", () => ({
-  router: { navigate: jest.fn(), back: jest.fn() },
-  useRouter: () => ({ back: mockBack, canGoBack: () => true, navigate: jest.fn() }),
+  router: { navigate: jest.fn(), back: jest.fn(), dismissTo: jest.fn() },
+  useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }),
   useNavigation: () => mockNav,
   usePreventRemove: (...args: unknown[]) => mockPrevent(...args),
 }));
@@ -24,7 +24,8 @@ const SAVE = "save_student_assessment_answers_v1";
 const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
 
 beforeEach(() => {
-  mockBack.mockClear();
+  jest.mocked(router.dismissTo).mockClear();
+  jest.mocked(router.navigate).mockClear();
   mockDisable.mockClear();
   mockNav.setOptions.mockClear();
   mockNav.dispatch.mockClear();
@@ -160,15 +161,33 @@ describe("начатый тест открывается сразу (G62)", () =
 });
 
 describe("уход с теста (G58)", () => {
-  it("защита включается, пока есть несохранённое, и снимается, когда сервер подтвердил; жест назад закрыт на это время", async () => {
+  it("защита включается, пока есть несохранённое, и снимается, когда сервер подтвердил; в обычную отправку жест назад не трогается", async () => {
     await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92"), [SAVE]: attemptFixture("orvis92", { revision: 2 }) });
     await begin();
     expect(guard()[0]).toBe(false);
     await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
     expect(guard()[0]).toBe(true);
-    expect(mockNav.setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
     await waitFor(() => expect(guard()[0]).toBe(false), { timeout: 3000 });
-    expect(mockNav.setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
+    // Жест идёт через защиту (как «назад»): сохраняет и уходит. Выключать и включать его на каждое сохранение незачем.
+    expect(mockNav.setOptions).not.toHaveBeenCalled();
+  });
+
+  it("жест назад выключается один раз, когда защита держит экран из-за сбоя, и включается, когда сбой прошёл", async () => {
+    let saves = 0;
+    await open("orvis92", {
+      start_student_assessment_v1: attemptFixture("orvis92"),
+      [SAVE]: () => (++saves <= 3 ? failure(null, 0) : attemptFixture("orvis92", { revision: 2 })),
+    });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    await screen.findByTestId("assessment-retry-save", undefined, { timeout: 3000 });
+    expect(mockNav.setOptions.mock.calls).toEqual([[{ gestureEnabled: false }]]);
+    // Плашка говорит, почему жест молчит и что будет, если выйти другим путём.
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Ответы ещё не сохранены, свайп назад выключен/);
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(/через меню или вкладки/);
+    await fireEvent.press(screen.getByTestId("assessment-retry-save"));
+    await waitFor(() => expect(screen.queryByTestId("assessment-error")).toBeNull());
+    expect(mockNav.setOptions.mock.calls).toEqual([[{ gestureEnabled: false }], [{ gestureEnabled: true }]]);
   });
 
   it("«назад» раньше таймера 0,9 с: ответ уходит сразу, после подтверждения экран закрывается сам и ничего не спрашивает", async () => {
@@ -210,12 +229,13 @@ describe("уход с теста (G58)", () => {
     await begin();
     await fireEvent.press(screen.getByTestId("assessment-option-o2-5"));
     await fireEvent.press(screen.getByTestId("assessment-exit"));
-    expect(mockBack).not.toHaveBeenCalled();
+    expect(router.dismissTo).not.toHaveBeenCalled();
     expect(await screen.findByTestId("assessment-retry-save")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("assessment-retry-save"));
     await waitFor(() => expect(screen.queryByTestId("assessment-error")).toBeNull());
     await fireEvent.press(screen.getByTestId("assessment-exit"));
-    await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledTimes(1));
+    expect(router.dismissTo).toHaveBeenCalledWith("/tests"); // к «Всем тестам», а не `router.back()` во вкладку «Главная»
     expect(mockDisable).toHaveBeenCalled();
     // Один и тот же замороженный запрос на все попытки сохранить этот ответ.
     expect(new Set(calls.filter((c) => c.name === SAVE).map((c) => c.args?.p_request_id)).size).toBe(1);
@@ -225,7 +245,7 @@ describe("уход с теста (G58)", () => {
     const { calls } = await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92", { answers: answersFor("orvis92", 3) }) });
     await begin();
     await fireEvent.press(screen.getByTestId("assessment-exit"));
-    await waitFor(() => expect(mockBack).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledTimes(1));
     expect(calls.some((c) => c.name === SAVE)).toBe(false);
     expect(screen.getByText("Можно вернуться к любому ответу до завершения.")).toBeTruthy();
   });
@@ -334,5 +354,119 @@ describe("сбой сохранения без ухода", () => {
     await waitFor(() => expect(screen.queryByTestId("assessment-error")).toBeNull());
     expect(screen.getByTestId("assessment-save-status")).toHaveTextContent("Все ответы сохранены");
     expect(new Set(calls.filter((c) => c.name === SAVE).map((c) => c.args?.p_request_id)).size).toBe(1);
+  });
+});
+
+describe("упорный сбой: «Выйти без сохранения» (ревью #1559)", () => {
+  /** Три неудачные отправки подряд: первая сама, две нажатием «Повторить сохранение». */
+  async function offlineThreeTimes() {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    const view = await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92"), [SAVE]: failure(null, 0) });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    await screen.findByTestId("assessment-retry-save", undefined, { timeout: 3000 });
+    return { ...view, alert };
+  }
+  const retry = async () => {
+    await fireEvent.press(screen.getByTestId("assessment-retry-save"));
+    await act(async () => undefined);
+  };
+
+  it("до трёх неудач подряд кнопки нет; на третьей рядом с повтором появляется «Выйти без сохранения»", async () => {
+    const { alert } = await offlineThreeTimes();
+    expect(screen.queryByTestId("assessment-leave-anyway")).toBeNull();
+    await retry();
+    expect(screen.queryByTestId("assessment-leave-anyway")).toBeNull();
+    await retry();
+    expect(await screen.findByTestId("assessment-leave-anyway")).toHaveTextContent("Выйти без сохранения");
+    expect(screen.getByTestId("assessment-retry-save")).toBeTruthy();
+    alert.mockRestore();
+  });
+
+  it("окно спрашивает подтверждение: «Остаться» ничего не меняет, «Выйти» снимает защиту и уходит в «Все тесты»", async () => {
+    const { alert } = await offlineThreeTimes();
+    await retry();
+    await retry();
+    await fireEvent.press(await screen.findByTestId("assessment-leave-anyway"));
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, message, buttons] = alert.mock.calls[0] as [string, string, { text: string; style?: string; onPress?: () => void }[]];
+    expect(title).toBe("Выйти без сохранения?");
+    expect(message).toBe("Ответы, которые не удалось сохранить, пропадут. Те, что сохранены раньше, останутся.");
+    expect(buttons.map((b) => b.text)).toEqual(["Остаться", "Выйти"]);
+    expect(buttons[0].style).toBe("cancel");
+    expect(buttons[1].style).toBe("destructive");
+    expect(router.dismissTo).not.toHaveBeenCalled(); // ничего не меняется, пока не выбрали «Выйти»
+    await act(async () => buttons[1].onPress?.());
+    expect(mockDisable).toHaveBeenCalledTimes(1); // защита снята, иначе уход перехватила бы она же
+    expect(router.dismissTo).toHaveBeenCalledWith("/tests");
+    alert.mockRestore();
+  });
+
+  it("на плашке сказано, что ответы ещё не сохранены и что свайп назад выключен; читалка слышит плашку целиком", async () => {
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    const { alert } = await offlineThreeTimes();
+    const notice = screen.getByTestId("assessment-error");
+    expect(notice).toHaveTextContent(/Не удалось подтвердить сохранение/);
+    expect(notice).toHaveTextContent(/Ответы ещё не сохранены, свайп назад выключен/);
+    const spoken = announce.mock.calls.map((c) => String(c[0])).filter((text) => text.includes("Не удалось подтвердить сохранение"));
+    expect(spoken[spoken.length - 1]).toContain("свайп назад выключен");
+    announce.mockRestore();
+    alert.mockRestore();
+  });
+
+  it("ответ сервера не разобрать: повтора и «Выйти без сохранения» нет, защита снята, «Сохранить и выйти» уходит сразу", async () => {
+    const { calls } = await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92"), [SAVE]: { not: "an attempt" } });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    const notice = await screen.findByTestId("assessment-error", undefined, { timeout: 3000 });
+    expect(notice).toHaveTextContent(/Не удалось подтвердить сохранение/);
+    expect(screen.queryByTestId("assessment-retry-save")).toBeNull();
+    expect(screen.queryByTestId("assessment-leave-anyway")).toBeNull();
+    expect(guard()[0]).toBe(false);
+    await fireEvent.press(screen.getByTestId("assessment-exit"));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith("/tests"));
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(1);
+  });
+
+  it("стрелка в шапке идёт тем же путём, что «Сохранить и выйти»: без связи остаётся на экране, со связью сохраняет и уходит", async () => {
+    let saves = 0;
+    const { calls } = await open("orvis92", {
+      start_student_assessment_v1: attemptFixture("orvis92"),
+      [SAVE]: () => (++saves <= 3 ? failure(null, 0) : attemptFixture("orvis92", { revision: 2 })),
+    });
+    await begin();
+    await fireEvent.press(screen.getByTestId("assessment-option-o1-3"));
+    await fireEvent.press(screen.getByTestId("assessment-title-back"));
+    expect(router.dismissTo).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("assessment-retry-save")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("assessment-title-back"));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith("/tests"));
+    expect(new Set(calls.filter((c) => c.name === SAVE).map((c) => c.args?.p_request_id)).size).toBe(1);
+  });
+});
+
+describe("карточка вариантов и «Пройти заново»", () => {
+  it("группа вариантов называется формулировкой: у orvis92 с номером, у english36 как есть", async () => {
+    await open("orvis92", { start_student_assessment_v1: attemptFixture("orvis92") });
+    await begin();
+    expect(screen.getByTestId("assessment-options-o1").props.accessibilityRole).toBe("radiogroup");
+    expect(screen.getByTestId("assessment-options-o1").props.accessibilityLabel).toBe("1. Утверждение 1");
+    expect(screen.getByTestId("assessment-options-o4").props.accessibilityLabel).toBe("4. Утверждение 4");
+  });
+
+  it("english36: группа называется заданием и читается как английская", async () => {
+    await open("english36", { start_student_assessment_v1: attemptFixture("english36") });
+    await begin();
+    expect(screen.getByTestId("assessment-options-e1").props.accessibilityLabel).toBe("Choose the word 1");
+    expect(screen.getByTestId("assessment-options-e1").props.accessibilityLanguage).toBe("en");
+  });
+
+  it("«Пройти заново» прокручивает наверх: «Перед началом» короче результата, без этого страница открылась бы с пустого низа", async () => {
+    await open("english36", { student_assessment_attempt_v1: completedFixture("english36") }, { attemptId: ATTEMPT_ID });
+    const again = await screen.findByTestId("assessment-restart");
+    scrollTo.mockClear();
+    await fireEvent.press(again);
+    expect(await screen.findByTestId("assessment-begin")).toBeTruthy();
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
   });
 });

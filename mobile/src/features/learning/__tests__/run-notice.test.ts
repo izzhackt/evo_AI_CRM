@@ -1,38 +1,74 @@
-// Плашка над заданиями теста (G58, G59): что сказать и какую кнопку предложить в каждом состоянии. Правила - блок `errorNotice` веба.
-import { runNotice } from "@/features/learning/tests/run-notice";
+// Плашка над заданиями теста (G58, G59): что сказать и какую кнопку предложить в каждом состоянии. Правила - блок `errorNotice` веба;
+// строка «ответы ещё не сохранены» и «Выйти без сохранения» добавлены для телефона (ревью #1559).
+import { ASSESSMENT_LEAVE_AFTER_FAILURES } from "@/features/learning/tests/assessment-session";
+import { isBlocked, runNotice } from "@/features/learning/tests/run-notice";
 
-const base = { error: null, saveStatus: "saved", reloadRequired: false, reload: "idle", unsaved: false } as const;
+const base = { error: null, saveStatus: "saved", reloadRequired: false, reload: "idle", unsaved: false, failures: 0 } as const;
 const notice = (patch: Partial<Parameters<typeof runNotice>[0]>, exit = false) => runNotice({ ...base, ...patch }, exit);
+const NOTE = "assess.unsavedNote";
 
 describe("плашка теста", () => {
   it("всё хорошо: плашки нет", () => {
-    expect(notice({})).toEqual({ messages: [], action: null });
-    expect(notice({ saveStatus: "dirty", unsaved: true })).toEqual({ messages: [], action: null });
+    expect(notice({})).toEqual({ messages: [], actions: [] });
+    expect(notice({ saveStatus: "dirty", unsaved: true })).toEqual({ messages: [], actions: [] });
+    expect(notice({ saveStatus: "saving", unsaved: true })).toEqual({ messages: [], actions: [] });
   });
 
   it("конфликт: текст обещает «Показать сохранённые ответы» - и действие то же; не удалось прочитать - своя строка, действие остаётся", () => {
-    expect(notice({ error: "conflict", reloadRequired: true, saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["error.conflict"], action: "loadSaved" });
-    expect(notice({ error: "unavailable", reloadRequired: true, reload: "failed", saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["reloadUnavailable"], action: "loadSaved" });
+    expect(notice({ error: "conflict", reloadRequired: true, saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["error.conflict", NOTE], actions: ["loadSaved"] });
+    expect(notice({ error: "unavailable", reloadRequired: true, reload: "failed", saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["reloadUnavailable", NOTE], actions: ["loadSaved"] });
   });
 
-  it("сохранение не подтверждено (обрыв): «Не удалось подтвердить сохранение» и «Повторить сохранение»", () => {
-    expect(notice({ saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["error.unavailable"], action: "retrySave" });
+  it("сохранение не подтверждено (обрыв): «Не удалось подтвердить сохранение», «Повторить сохранение» и строка, что ответы ещё не сохранены", () => {
+    expect(notice({ saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["error.unavailable", NOTE], actions: ["retrySave"] });
   });
 
-  it("сбой завершения при несохранённом ответе: та же строка и тот же повтор; когда всё сохранено, кнопка повтора не нужна (повторяет «Завершить»)", () => {
-    expect(notice({ error: "unavailable", saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["error.unavailable"], action: "retrySave" });
-    expect(notice({ error: "unavailable" })).toEqual({ messages: ["error.unavailable"], action: null });
+  it("сбой завершения при несохранённом ответе: та же строка и тот же повтор; когда всё сохранено, кнопка повтора и строка про несохранённое не нужны (повторяет «Завершить»)", () => {
+    expect(notice({ error: "unavailable", saveStatus: "unconfirmed", unsaved: true })).toEqual({ messages: ["error.unavailable", NOTE], actions: ["retrySave"] });
+    expect(notice({ error: "unavailable" })).toEqual({ messages: ["error.unavailable"], actions: [] });
   });
 
-  it("окончательные отказы: своя строка, повторять нечего", () => {
-    expect(notice({ error: "denied", saveStatus: "unconfirmed" })).toEqual({ messages: ["error.denied"], action: null });
-    expect(notice({ error: "invalid" })).toEqual({ messages: ["error.invalid"], action: null });
-    expect(notice({ error: "deadline_passed" })).toEqual({ messages: ["error.unavailable"], action: null });
+  it("окончательные отказы: своя строка, повторять нечего, держать студента не за что (строки про несохранённое нет)", () => {
+    expect(notice({ error: "denied", saveStatus: "unconfirmed" })).toEqual({ messages: ["error.denied"], actions: [] });
+    expect(notice({ error: "invalid" })).toEqual({ messages: ["error.invalid"], actions: [] });
+    expect(notice({ error: "deadline_passed" })).toEqual({ messages: ["error.unavailable"], actions: [] });
   });
 
   it("попытка уйти раньше подтверждения: строка «Сначала сохраним…», после конфликта «Сначала нажмите «Показать сохранённые ответы»»", () => {
-    expect(notice({ saveStatus: "unconfirmed", unsaved: true }, true).messages).toEqual(["error.unavailable", "exitBlocked"]);
+    expect(notice({ saveStatus: "unconfirmed", unsaved: true }, true).messages).toEqual(["error.unavailable", "exitBlocked", NOTE]);
     expect(notice({ saveStatus: "dirty", unsaved: true }, true).messages).toEqual(["exitBlocked"]);
-    expect(notice({ error: "conflict", reloadRequired: true, saveStatus: "unconfirmed", unsaved: true }, true).messages).toEqual(["error.conflict", "reloadBeforeExit"]);
+    expect(notice({ error: "conflict", reloadRequired: true, saveStatus: "unconfirmed", unsaved: true }, true).messages).toEqual(["error.conflict", "reloadBeforeExit", NOTE]);
+  });
+});
+
+describe("«Выйти без сохранения» (ревью #1559: упорный сбой запирал экран навсегда)", () => {
+  const failing = { saveStatus: "unconfirmed", unsaved: true } as const;
+
+  it("до трёх неудачных попыток подряд кнопки нет, на третьей она появляется рядом с повтором", () => {
+    expect(ASSESSMENT_LEAVE_AFTER_FAILURES).toBe(3);
+    expect(notice({ ...failing, failures: 1 }).actions).toEqual(["retrySave"]);
+    expect(notice({ ...failing, failures: 2 }).actions).toEqual(["retrySave"]);
+    expect(notice({ ...failing, failures: 3 }).actions).toEqual(["retrySave", "leaveAnyway"]);
+    expect(notice({ ...failing, failures: 7 }).actions).toEqual(["retrySave", "leaveAnyway"]);
+  });
+
+  it("после конфликта и неудачных чтений сохранённого она тоже появляется, рядом с «Показать сохранённые ответы»", () => {
+    const conflict = { error: "unavailable", reloadRequired: true, reload: "failed", saveStatus: "unconfirmed", unsaved: true } as const;
+    expect(notice({ ...conflict, failures: 2 }).actions).toEqual(["loadSaved"]);
+    expect(notice({ ...conflict, failures: 3 }).actions).toEqual(["loadSaved", "leaveAnyway"]);
+  });
+
+  it("когда запирать нечем (всё сохранено, окончательный отказ, идёт обычная отправка), кнопки нет, сколько бы ни было неудач в счётчике", () => {
+    expect(notice({ failures: 5 }).actions).toEqual([]);
+    expect(notice({ error: "denied", saveStatus: "unconfirmed", failures: 5 }).actions).toEqual([]);
+    expect(notice({ saveStatus: "saving", unsaved: true, failures: 5 }).actions).toEqual([]);
+  });
+
+  it("isBlocked: сбой при несохранённом (обрыв или сверка), но не обычная отправка и не сохранённое", () => {
+    expect(isBlocked({ saveStatus: "unconfirmed", reloadRequired: false, unsaved: true })).toBe(true);
+    expect(isBlocked({ saveStatus: "dirty", reloadRequired: true, unsaved: true })).toBe(true);
+    expect(isBlocked({ saveStatus: "dirty", reloadRequired: false, unsaved: true })).toBe(false);
+    expect(isBlocked({ saveStatus: "saving", reloadRequired: false, unsaved: true })).toBe(false);
+    expect(isBlocked({ saveStatus: "unconfirmed", reloadRequired: false, unsaved: false })).toBe(false);
   });
 });

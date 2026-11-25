@@ -16,8 +16,9 @@ import { AssessmentRunner } from "@/features/learning/tests/AssessmentRunner";
 import { AssessmentSession, defaultAssessmentEnv, type AssessmentUiState } from "@/features/learning/tests/assessment-session";
 import { RunnerPage } from "@/features/learning/tests/RunnerPage";
 import { useAssessmentAttempt, useAssessmentCatalog } from "@/features/learning/tests/queries";
+import { leaveTests, testsOrigin, type TestsOrigin } from "@/features/learning/tests/exit";
 import { useLeaveGuard } from "@/features/learning/tests/useLeaveGuard";
-import { Chip, StackPage, SubHeader, useBack } from "@/features/learning/ui";
+import { Chip, StackPage, SubHeader } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
@@ -42,13 +43,13 @@ function Unavailable() {
   );
 }
 
-export function AssessmentScreen({ instrumentKey, attemptId }: { instrumentKey: string; attemptId: string | null }) {
+export function AssessmentScreen({ instrumentKey, attemptId, from = null }: { instrumentKey: string; attemptId: string | null; from?: string | string[] | null }) {
   const { m, t } = useLang();
-  const back = useBack("/tests");
+  const origin = testsOrigin(from);
   const s = t("tests");
   const catalog = useAssessmentCatalog();
   const shown = useAssessmentAttempt(attemptId);
-  const header = (title: string) => <SubHeader title={title} onBack={back} backLabel={s.backToCatalog} testID="assessment-title" />;
+  const header = (title: string) => <SubHeader title={title} onBack={() => leaveTests(origin)} backLabel={s.backToCatalog} testID="assessment-title" />;
   if (!isAssessmentKey(instrumentKey)) {
     return (
       <StackPage header={header(s.title)} testID="assessment-screen">
@@ -71,17 +72,17 @@ export function AssessmentScreen({ instrumentKey, attemptId }: { instrumentKey: 
       </StackPage>
     );
   }
-  return <AssessmentFlow key={`${instrumentKey}:${attemptId ?? ""}`} instrumentKey={instrumentKey} knownDraft={instrument?.draftAttemptId ?? null} initial={shown.data ?? null} instrument={instrument} />;
+  return <AssessmentFlow key={`${instrumentKey}:${attemptId ?? ""}`} instrumentKey={instrumentKey} knownDraft={instrument?.draftAttemptId ?? null} initial={shown.data ?? null} instrument={instrument} origin={origin} />;
 }
 
 type Instrument = NonNullable<ReturnType<typeof useAssessmentCatalog>["data"]>["instruments"][number];
 
-function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument }: { instrumentKey: StudentAssessmentKey; knownDraft: string | null; initial: AssessmentAttempt | null; instrument: Instrument | null }) {
+function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin }: { instrumentKey: StudentAssessmentKey; knownDraft: string | null; initial: AssessmentAttempt | null; instrument: Instrument | null; origin: TestsOrigin | null }) {
   const { transport, userKey } = usePortalApi();
   const client = useQueryClient();
   const { m, t } = useLang();
   const s = t("tests");
-  const back = useBack("/tests");
+  const exit = useCallback(() => leaveTests(origin), [origin]);
   const [session] = useState(() => new AssessmentSession(defaultAssessmentEnv(transport), instrumentKey, knownDraft, initial));
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const scroller = useRef<ScrollTarget>(null);
@@ -106,14 +107,20 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument }: { in
   }, [phase, client, userKey]);
   const title = state.attempt?.metadata.title ?? instrument?.metadata.title ?? s.title;
   const running = phase === "running" || phase === "completing";
-  const { exitNotice, saveAndExit } = useLeaveGuard({ session, active: running, back });
+  const { exitNotice, saveAndExit, leaveAnyway } = useLeaveGuard({ session, active: running, back: exit });
   const loading = resuming && (phase === "intro" || phase === "starting");
   return (
-    <RunnerPage header={<SubHeader title={title} onBack={back} backLabel={s.backToCatalog} testID="assessment-title" />} scrollRef={scroller} testID="assessment-screen">
+    <RunnerPage header={<SubHeader title={title} onBack={saveAndExit} backLabel={s.backToCatalog} testID="assessment-title" />} scrollRef={scroller} testID="assessment-screen">
       {loading ? <CardSkeleton label={m("state.loading")} lines={4} /> : null}
       {!loading && (phase === "intro" || phase === "starting") ? <Intro instrument={instrument} state={state} onStart={() => void session.start()} resume={state.resumable} /> : null}
-      {running && state.attempt ? <AssessmentRunner session={session} state={state} attempt={state.attempt} exitNotice={exitNotice} onSaveAndExit={saveAndExit} onPageChange={toTop} /> : null}
-      {phase === "result" && state.attempt ? <AssessmentResult attempt={state.attempt} onRestart={() => session.restart()} /> : null}
+      {running && state.attempt ? <AssessmentRunner session={session} state={state} attempt={state.attempt} exitNotice={exitNotice} onSaveAndExit={saveAndExit} onLeaveAnyway={leaveAnyway} onPageChange={toTop} /> : null}
+      {phase === "result" && state.attempt ? <AssessmentResult
+          attempt={state.attempt}
+          onRestart={() => {
+            session.restart();
+            toTop(); // «Перед началом» короче результата: без прокрутки открылся бы пустой низ экрана
+          }}
+        /> : null}
     </RunnerPage>
   );
 }

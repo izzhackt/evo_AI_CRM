@@ -2,14 +2,29 @@
 // выйти» уходит только после подтверждённого сохранения). Системная «назад», свайп и стрелка в шапке сначала досылают
 // ответы и уходят сами, если сервер подтвердил; нет связи или нужна сверка после конфликта - экран остаётся, ответы на нём,
 // студент видит строку «Сначала сохраним ответы…». Если всё сохранено, уход свободен и ничего не спрашивает.
+//
+// Чтобы сбой не запирал студента навсегда (ревью #1559), у защиты есть три выхода:
+//  - «Выйти без сохранения» (`leaveAnyway`): плашка предлагает её после нескольких неудачных попыток подряд, окно подтверждения
+//    рисует раннер; экран уходит, неотправленное досылается один раз «по возможности» при закрытии (`session.dispose`);
+//  - повторы по таймеру стоят, пока экран не на виду (другая вкладка, экран сверху), и возобновляются при возвращении;
+//  - ответ, который приложение не смогло разобрать, повтором не лечится: сессия останавливает повторы и защита снимается.
+// Выходы, которых защита не видит (меню ☰, вкладки: экран остаётся в памяти, сохранение стоит), плашка называет прямо:
+// «ответы ещё не сохранены».
 import { useNavigation, usePreventRemove } from "expo-router";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { BackHandler } from "react-native";
 
 import type { AssessmentSession } from "@/features/learning/tests/assessment-session";
+import { isBlocked } from "@/features/learning/tests/run-notice";
+import { useFocusEffect } from "@/lib/focus";
 
-export function useLeaveGuard({ session, active, back }: { session: AssessmentSession; active: boolean; back: () => void }): { exitNotice: boolean; saveAndExit: () => void } {
+/** Сколько ждать, прежде чем вернуть защиту, если уход не убрал экран (действие не дошло или другой перехватчик его остановил). */
+export const LEAVING_RESET_MS = 800;
+
+export function useLeaveGuard({ session, active, back }: { session: AssessmentSession; active: boolean; back: () => void }): { exitNotice: boolean; saveAndExit: () => void; leaveAnyway: () => void } {
   const navigation = useNavigation();
   const unsaved = useSyncExternalStore(session.subscribe, () => session.getState().unsaved);
+  const blocked = useSyncExternalStore(session.subscribe, () => isBlocked(session.getState()));
   const [leaving, setLeaving] = useState(false);
   const [exitNotice, setExitNotice] = useState(false);
   const settling = useRef(false);
@@ -38,13 +53,36 @@ export function useLeaveGuard({ session, active, back }: { session: AssessmentSe
     [session],
   );
 
+  // Уход пошёл, а экран остался (действие не сняло его со стека): защита возвращается, иначе новые ответы остались бы без неё.
+  // Если экран ушёл, он размонтирован и таймер снят.
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => setLeaving(false), LEAVING_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+
   const disablePrevention = usePreventRemove(guarded, ({ repeat }) => {
     void settle(repeat);
   });
-  // Пока есть несохранённое, жест «назад» закрыт: он всё равно не дал бы уйти, но показывал бы полустёртый экран.
+
+  // Свайп назад выключается только когда защита держит экран из-за сбоя (не подтверждено или нужна сверка): в обычную отправку
+  // (доли секунды после выбора) жест идёт через защиту, как «назад», сохраняет и уходит. Включается и выключается один раз на смену
+  // состояния, а не на каждое сохранение; почему он молчит, студенту говорит плашка («свайп назад выключен»).
+  const gestureOff = active && blocked && !leaving;
+  const gestureWasOff = useRef(false);
   useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !guarded });
-  }, [navigation, guarded]);
+    if (gestureOff === gestureWasOff.current) return;
+    gestureWasOff.current = gestureOff;
+    navigation.setOptions({ gestureEnabled: !gestureOff });
+  }, [navigation, gestureOff]);
+
+  // Экран не на виду: повторов по таймеру нет (без связи запрос шёл бы каждые 3 с из фона); вернулись: неподтверждённое уходит сразу.
+  useFocusEffect(
+    useCallback(() => {
+      session.setPaused(false);
+      return () => session.setPaused(true);
+    }, [session]),
+  );
 
   const saveAndExit = useCallback(() => {
     void settle(() => {
@@ -53,5 +91,32 @@ export function useLeaveGuard({ session, active, back }: { session: AssessmentSe
     });
   }, [settle, disablePrevention, back]);
 
-  return { exitNotice, saveAndExit };
+  // Без подтверждения: студент выбрал «Выйти без сохранения» в окне раннера. Защита снимается так же, как после сохранения.
+  const leaveAnyway = useCallback(() => {
+    setExitNotice(false);
+    setLeaving(true);
+    disablePrevention();
+    back();
+  }, [disablePrevention, back]);
+
+  // Системная «назад» на Android, когда под тестом нет другого экрана (тест открыли из другого раздела): стек не снимает экран,
+  // а переключает вкладку на «Главную», и тест оставался бы жить в памяти. Поэтому уход идёт тем же путём, что и «Сохранить и
+  // выйти». Если под тестом есть экран (каталог тестов), «назад» снимает его сама и защита работает как обычно.
+  const exitRef = useRef(saveAndExit);
+  useEffect(() => {
+    exitRef.current = saveAndExit;
+  });
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        const below = (navigation.getState?.()?.routes.length ?? 2) > 1;
+        if (below) return false;
+        exitRef.current();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [navigation]),
+  );
+
+  return { exitNotice, saveAndExit, leaveAnyway };
 }

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useChatFabClearance, useTabBarClearance } from "@/shell/useTabBarClearance";
 import { useTheme } from "@/theme/ThemeProvider";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -59,17 +60,30 @@ export function SubHeader({ title, subtitle, subtitleExtra, avatar, onBack, back
   );
 }
 
-/** Страница со шапкой и прокруткой. */
-export function StackPage({ children, header, refreshing, onRefresh, bottomPad = 32, testID }: { children: ReactNode; header: ReactNode; refreshing?: boolean; onRefresh?: () => void; bottomPad?: number; testID?: string }) {
-  const { tokens } = useTheme();
+/**
+ * Нижний отступ страницы стека, как у `Screen`: запас под плавающую панель вкладок и под кнопку «Написать EVO» (одни и те же правила
+ * и те же хуки). Без него главная кнопка внизу страницы («Начать» и «Продолжить» в тесте) оказывалась под панелью (ревью QA 22).
+ * `extra` - запас сверху этого, если экрану нужен свой.
+ */
+export function useStackPageBottom(extra = 0): number {
   const insets = useSafeAreaInsets();
+  const tabBar = useTabBarClearance();
+  const chatFab = useChatFabClearance();
+  return Math.max(insets.bottom, 16) + extra + tabBar + chatFab;
+}
+
+/** Страница со шапкой и прокруткой. */
+export function StackPage({ children, header, refreshing, onRefresh, bottomPad = 0, testID }: { children: ReactNode; header: ReactNode; refreshing?: boolean; onRefresh?: () => void; bottomPad?: number; testID?: string }) {
+  const { tokens } = useTheme();
+  const bottom = useStackPageBottom(bottomPad);
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }} testID={testID}>
       {header}
       <ScrollView
+        testID={testID ? `${testID}-scroll` : undefined}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + bottomPad }}
+        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: bottom }}
       >
         {children}
       </ScrollView>

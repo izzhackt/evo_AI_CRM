@@ -21,6 +21,7 @@ import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, NewsCard }
 import { capitalGeographyPhoto } from "@/features/home/capital-photo";
 import { HeroContent, HomeHero } from "@/features/home/HomeHero";
 import { HomeList } from "@/features/home/HomeList";
+import { useHomeNow } from "@/features/home/useHomeNow";
 import { CountryChoiceCard } from "@/features/portal/CountryChoiceCard";
 import { loadOf } from "@/features/portal/load";
 import { useUniversityIndex } from "@/features/universities/hooks";
@@ -120,7 +121,9 @@ export function HomeScreen() {
     }, [favoritesAll]),
   );
 
-  const now = new Date();
+  // Время сервера, которое не застывает: пересчитывается в полночь по Бишкеку, в час срока ближайшего дела, при возврате в приложение
+  // и на вкладку (раньше `new Date()` при каждой отрисовке: после ночи в фоне «Сегодня» и «Завтра» оставались вчерашними).
+  const now = useHomeNow((overview.data?.studentActions ?? []).map((action) => action.dueAt));
   const home = t("home");
   const admission = t("admission");
 

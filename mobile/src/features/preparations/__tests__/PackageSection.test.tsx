@@ -25,6 +25,7 @@ import {
   versionId,
 } from "@/test-fixtures/preparations";
 import { PACKAGE_REQUEST, packageDetail, packageItem, packageSummary, submitReceiptOf } from "@/test-fixtures/preparations-packages";
+import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { makeIo } from "@/test-fixtures/preparations-io";
 import { PortalShell, renderPortal, testApi, testClient } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow, uuidN } from "@/test-fixtures/universities";
@@ -287,6 +288,35 @@ describe("«Отправить комплект в EVO»", () => {
     expect(screen.queryByTestId("prep-package-message")).toBeNull();
     // точный отказ записи запрос не снимает: судит проверка результата
     expect(await packageKeys()).toHaveLength(1);
+  });
+});
+
+describe("замки: два нажатия раньше, чем кнопка выключилась", () => {
+  const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+  const ready = (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([selectionEcho(0, 5)]) : current());
+
+  it("«Проверить состав»: состав читается один раз", async () => {
+    const t = await open({ ready });
+    await openChoice();
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    const reads = t.packageCalls("application_package_readiness_v1").length;
+    await pressTwiceInOneTick("prep-package-preview");
+    await screen.findByTestId("prep-package-preview-box");
+    expect(t.packageCalls("application_package_readiness_v1")).toHaveLength(reads + 1);
+  });
+
+  it("«Отправить комплект в EVO»: комплект уходит один раз, второе нажатие не говорит «действие уже выполняется»", async () => {
+    const t = await open({ ready, extra: { application_package_submit_v1: (args: Raw | undefined) => submitReceiptOf(args!.p_intent as Raw, 1) } });
+    await openChoice();
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    await fireEvent.press(screen.getByTestId("prep-package-preview"));
+    await screen.findByTestId("prep-package-preview-box");
+    spoken.mockClear();
+    await pressTwiceInOneTick("prep-package-submit");
+    await waitFor(() => expect(screen.getByTestId("prep-package-message")).toHaveTextContent("Комплект отправлен в EVO", { exact: false }));
+    expect(t.packageCalls("application_package_submit_v1")).toHaveLength(1);
+    expect(spoken.mock.calls.filter(([text]) => String(text).includes("Действие уже выполняется"))).toHaveLength(0);
+    expect(await packageKeys()).toEqual([]);
   });
 });
 

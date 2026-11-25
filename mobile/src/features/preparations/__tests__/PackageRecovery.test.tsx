@@ -2,7 +2,7 @@
 // повреждённая запись и недоступное хранилище. Записи лежат в jest-моке AsyncStorage, как на устройстве.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 
 import { packagesPending } from "@/features/preparations/packages-pending";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
@@ -25,6 +25,7 @@ import {
 } from "@/test-fixtures/preparations";
 import { makeIo } from "@/test-fixtures/preparations-io";
 import { PACKAGE_REQUEST, recoveryAbsent, recoveryCommitted, submitIntentOf, submitReceiptOf } from "@/test-fixtures/preparations-packages";
+import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
@@ -85,6 +86,18 @@ describe("оборванная отправка комплекта на экра
     expect(reads()).toBeGreaterThan(1);
     await fireEvent.press(screen.getByTestId("prep-package-choose-toggle"));
     expect(screen.getByTestId("prep-package-preview").props.accessibilityState).toMatchObject({ disabled: false });
+  });
+
+  it("два нажатия «Проверить результат» раньше, чем кнопка выключилась: проверка уходит один раз", async () => {
+    const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+    await seed();
+    const t = await open({ application_package_recover_v1: (args: Raw | undefined) => recoveryCommitted(args!.p_intent as Raw, 1) });
+    await screen.findByTestId(`prep-recovery-check-${PACKAGE_REQUEST}`);
+    spoken.mockClear();
+    await pressTwiceInOneTick(`prep-recovery-check-${PACKAGE_REQUEST}`);
+    await waitFor(async () => expect(await packageKeys()).toEqual([]));
+    expect(t.named("application_package_recover_v1")).toHaveLength(1);
+    expect(spoken.mock.calls.filter(([text]) => String(text).includes("Действие уже выполняется"))).toHaveLength(0);
   });
 
   it("«Проверить результат»: сервер ответил «не записано» - запрос снят, можно готовить новый", async () => {

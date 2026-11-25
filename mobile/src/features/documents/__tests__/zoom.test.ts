@@ -278,3 +278,57 @@ describe("ZoomController: жесты", () => {
     expect(later).toEqual([1]);
   });
 });
+
+describe("ZoomController: смена размеров", () => {
+  function setup(content = { width: 240, height: 340 }, frame = { width: 300, height: 400 }) {
+    const views: { view: ZoomView; animated: boolean }[] = [];
+    const controller = new ZoomController(content, frame, { onView: (view, animated) => views.push({ view, animated }), onStep: () => undefined });
+    return { controller, views };
+  }
+  const T = (x: number, y: number): Touch => ({ x, y });
+
+  it("тот же размер ничего не делает; сменился - сдвиг прижимается к новым границам и экран узнаёт об этом без анимации", () => {
+    const { controller, views } = setup();
+    controller.grant([T(100, 200), T(200, 200)], 0);
+    controller.move([T(20, 200), T(280, 200)]);
+    controller.release(300);
+    // подвинули страницу до правого края
+    controller.grant([T(150, 200)], 1000);
+    controller.move([T(-5000, 200)]);
+    controller.release(1200);
+    const big = controller.getView();
+    expect(big.scale).toBeGreaterThan(2);
+    expect(big.x).toBeLessThan(-100);
+    const emitted = views.length;
+    controller.setBounds({ width: 240, height: 340 }, { width: 300, height: 400 });
+    expect(views).toHaveLength(emitted);
+    // рамка и страница уже: допустимый сдвиг меньше
+    controller.setBounds({ width: 180, height: 260 }, { width: 220, height: 300 });
+    const after = controller.getView();
+    expect(after.scale).toBe(big.scale);
+    expect(Math.abs(after.x)).toBeLessThanOrEqual(maxOffset({ width: 180, height: 260 }, { width: 220, height: 300 }, big.scale).x);
+    expect(views[views.length - 1]).toEqual({ view: after, animated: false });
+  });
+
+  it("новые границы не меняют вид, который в них умещается: о нём не сообщается", () => {
+    const { controller, views } = setup();
+    controller.setBounds({ width: 250, height: 350 }, { width: 310, height: 410 });
+    expect(controller.getView()).toEqual(FULL_VIEW);
+    expect(views).toHaveLength(0);
+  });
+
+  it("палец ведёт страницу и в это время размер сменился: жест продолжается из прижатого вида, без скачка", () => {
+    const { controller, views } = setup();
+    controller.grant([T(100, 200), T(200, 200)], 0);
+    controller.move([T(20, 200), T(280, 200)]);
+    controller.release(300);
+    controller.grant([T(150, 200)], 1000);
+    controller.move([T(100, 200)]);
+    controller.setBounds({ width: 180, height: 260 }, { width: 220, height: 300 });
+    const clamped = controller.getView();
+    controller.move([T(95, 200)]);
+    const next = views[views.length - 1]!.view;
+    expect(next.x).toBeCloseTo(Math.max(clamped.x - 5, -maxOffset({ width: 180, height: 260 }, { width: 220, height: 300 }, clamped.scale).x), 5);
+    expect(next.scale).toBe(clamped.scale);
+  });
+});

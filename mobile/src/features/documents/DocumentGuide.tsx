@@ -51,6 +51,8 @@ export function guideFor(label: string, requirementKey: string | null, lang: "ru
 
 /** Через сколько после закрытия окна читалке возвращают фокус на кнопку, с которой лист открыли (мс). */
 const FOCUS_DELAY = 350;
+/** Сколько ждём бланк (PDF около 360 КБ), мс: дольше - запрос отменяется и лист говорит, что связи нет. */
+const BLANK_TIMEOUT_MS = 30_000;
 
 /**
  * Кнопка «Пример» рядом со статусом документа. `action` - главное действие в листе (загрузить, заменить или скачать):
@@ -86,15 +88,26 @@ export function DocumentGuideButton({
   const [open, setOpen] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [cursor, setCursor] = useState<SampleCursor>(FIRST_PAGE);
-  const [schemeOnly, setSchemeOnly] = useState(false);
+  const [failedUri, setFailedUri] = useState<string | null>(null);
   const [blank, setBlank] = useState<BlankState>({ status: "idle" });
   const pending = useRef<(() => void) | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
-  const shown = useRef(false);
   const button = useRef<HostInstance>(null);
   const opener = useRef<HostInstance>(null);
+  /** Какое по счёту «показ листа» идёт: скачивание бланка, начатое в прошлый показ, в новый не вмешивается. */
+  const generation = useRef(0);
+  const blankJob = useRef<{ abort: AbortController; timer: ReturnType<typeof setTimeout> } | null>(null);
+
+  /** Бланк: отменить скачивание (закрыли лист, открыли заново, ушли с экрана) и сбросить его таймер. */
+  const cancelBlank = useCallback(() => {
+    const job = blankJob.current;
+    blankJob.current = null;
+    if (!job) return;
+    clearTimeout(job.timer);
+    job.abort.abort();
+  }, []);
 
   useEffect(() => {
     alive.current = true;
@@ -102,12 +115,9 @@ export function DocumentGuideButton({
       alive.current = false;
       if (timer.current) clearTimeout(timer.current);
       if (focusTimer.current) clearTimeout(focusTimer.current);
+      cancelBlank();
     };
-  }, []);
-  // Скачивание бланка читает «лист ещё открыт?» после ожидания, когда замыкание уже устарело: нужна ссылка.
-  useEffect(() => {
-    shown.current = open;
-  }, [open]);
+  }, [cancelBlank]);
 
   /** Окно закрылось - читалка продолжает с того места, откуда его открыли (веб: `openerRef.current?.focus()`). */
   const restoreFocus = useCallback((target: { current: HostInstance | null }) => {
@@ -127,23 +137,36 @@ export function DocumentGuideButton({
   const close = useCallback(() => {
     // за закрытием идёт действие (загрузка, чат, бланк) - фокус вернётся туда, куда оно приведёт
     if (!pending.current) restoreFocus(button);
+    generation.current += 1;
+    cancelBlank();
     setOpen(false);
     setEnlarged(false);
-  }, [restoreFocus]);
+  }, [restoreFocus, cancelBlank]);
   const closeThen = (run: () => void) => {
     pending.current = run;
     close();
     if (Platform.OS === "ios") timer.current = setTimeout(flush, 700);
     else flush();
   };
-  const enlarge = () => setEnlarged(true);
+  // Не загрузилась одна страница - схема стоит на её месте, пока студент на ней. Другая страница, вкладка, открытие или
+  // закрытие просмотра, новое открытие листа - попытка заново: один сбой не портит остальные страницы.
+  const enlarge = () => {
+    setFailedUri(null);
+    setEnlarged(true);
+  };
   const shrink = () => {
+    setFailedUri(null);
     setEnlarged(false);
     restoreFocus(opener);
   };
-  // Каждое открытие пробует картинки заново: «нет сети» прошлого раза листу не прилипает.
+  const select = (next: SampleCursor) => {
+    setFailedUri(null);
+    setCursor(next);
+  };
   const openSheet = () => {
-    setSchemeOnly(false);
+    generation.current += 1;
+    cancelBlank();
+    setFailedUri(null);
     setBlank({ status: "idle" });
     setOpen(true);
   };
@@ -156,10 +179,17 @@ export function DocumentGuideButton({
       setBlank({ status: "error", error: "docs.downloadFailed" });
       return;
     }
+    cancelBlank();
+    // Закрыли лист или открыли заново, пока файл качался, - его результат уже не нужен (generation сменился, запрос отменён).
+    const mine = generation.current;
+    const abort = new AbortController();
+    const job = { abort, timer: setTimeout(() => abort.abort(), BLANK_TIMEOUT_MS) };
+    blankJob.current = job;
     setBlank({ status: "busy" });
-    const result = await downloadPublicFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), url, sampleFileName(blankHref), "application/pdf");
-    // Лист закрыли, пока файл качался: просмотр сам не всплывает.
-    if (!alive.current || !shown.current) return;
+    const result = await downloadPublicFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), url, sampleFileName(blankHref), "application/pdf", abort.signal);
+    clearTimeout(job.timer);
+    if (blankJob.current === job) blankJob.current = null;
+    if (!alive.current || generation.current !== mine) return;
     if (!result.ok) {
       setBlank({ status: "error", error: result.error });
       return;
@@ -222,11 +252,11 @@ export function DocumentGuideButton({
                     base={api.portalBaseUrl}
                     width={contentWidth}
                     cursor={cursor}
-                    onSelect={setCursor}
+                    onSelect={select}
                     onOpen={enlarge}
                     openerRef={opener}
-                    schemeOnly={schemeOnly}
-                    onImageError={() => setSchemeOnly(true)}
+                    failedUri={failedUri}
+                    onImageError={setFailedUri}
                     blank={blank}
                     onBlank={() => void downloadBlank()}
                     id={id}
@@ -243,7 +273,7 @@ export function DocumentGuideButton({
             <View testID={`${id}-overlay`} style={StyleSheet.absoluteFill}>
               <Pressable testID={`${id}-overlay-scrim`} accessible={false} importantForAccessibility="no" onPress={shrink} style={[StyleSheet.absoluteFill, { backgroundColor: tokens.dialogBackdrop }]} />
               <View pointerEvents="box-none" style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: insets.top + margin, paddingBottom: insets.bottom + margin }}>
-                <GuideLightbox guide={guide} base={api.portalBaseUrl} label={label} cursor={cursor} onSelect={setCursor} onClose={shrink} schemeOnly={schemeOnly} onImageError={() => setSchemeOnly(true)} id={id} />
+                <GuideLightbox guide={guide} base={api.portalBaseUrl} label={label} cursor={cursor} onSelect={select} onClose={shrink} failedUri={failedUri} onImageError={setFailedUri} id={id} />
               </View>
             </View>
           ) : null}

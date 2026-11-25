@@ -1,19 +1,34 @@
 // Рамка крупного просмотра: страница, которую можно приблизить щипком или двойным касанием, подвигать пальцем и перелистнуть
 // движением по целой странице. Жесты разбирает ZoomController (zoom-controller.ts, обычные тесты); здесь - только касания
 // из системы ответов RN (`onResponder*`, без новых нативных зависимостей) и перенос вида в Animated (нативный драйвер).
-// Дети рамки не принимают касаний (`pointerEvents="none"`), поэтому `locationX/Y` - от рамки.
-import { useEffect, useMemo, useState } from "react";
+// Дети рамки не принимают касаний (`pointerEvents="none"`), поэтому касание, с которого начался жест, попадает в саму рамку.
+// Точки считаются по `pageX/pageY` (общие для всех пальцев) минус начало рамки, а не по `locationX/Y`: у пальца, севшего
+// не на рамку (поле карточки, подпись), `locationX/Y` отсчитывается от его собственной цели, и щипок смешал бы системы координат.
+// Автомат один на всё время показа страницы: перерисовка родителя (опрос, смена темы, обновление токена) приближение не
+// сбрасывает; смена размеров только прижимает вид к новым границам.
+import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, View, type GestureResponderEvent } from "react-native";
 
 import { ScanPage } from "@/features/documents/GuideImages";
 import { ZoomController, type Touch } from "@/features/documents/zoom-controller";
-import type { Size, ZoomView } from "@/features/documents/zoom-math";
+import type { Point, Size, ZoomView } from "@/features/documents/zoom-math";
 import { useTheme } from "@/theme/ThemeProvider";
 
 const ANIMATION_MS = 160;
 
-function touchesOf(event: GestureResponderEvent): Touch[] {
-  return event.nativeEvent.touches.map((touch) => ({ x: touch.locationX, y: touch.locationY }));
+/** Начало рамки на экране: страница касания, с которого начался жест, минус его положение в самой рамке. */
+function frameOrigin(event: GestureResponderEvent): Point | null {
+  const native = event.nativeEvent;
+  const first = native.changedTouches?.[0] ?? native.touches[0];
+  if (!first || typeof first.pageX !== "number" || typeof first.pageY !== "number") return null;
+  return { x: first.pageX - first.locationX, y: first.pageY - first.locationY };
+}
+
+/** Все пальцы в координатах рамки; без страниц касания (тесты, странная платформа) - как есть, `locationX/Y`. */
+function touchesOf(event: GestureResponderEvent, origin: Point | null): Touch[] {
+  return event.nativeEvent.touches.map((touch) =>
+    origin && typeof touch.pageX === "number" && typeof touch.pageY === "number" ? { x: touch.pageX - origin.x, y: touch.pageY - origin.y } : { x: touch.locationX, y: touch.locationY },
+  );
 }
 const timeOf = (event: GestureResponderEvent): number => (typeof event.nativeEvent.timestamp === "number" ? event.nativeEvent.timestamp : Date.now());
 
@@ -76,6 +91,10 @@ type Props = Readonly<{
 export function ZoomableScan({ uri, placeholderUri, content, exact, frame, label, onFailed, onStep, testID, imageTestID }: Props) {
   const { tokens } = useTheme();
   const [animator] = useState(() => new ScanAnimator());
+  const [controller] = useState(() => new ZoomController(content, frame, { onView: (view, animated) => animator.apply(view, animated), onStep: () => undefined }));
+  const origin = useRef<Point | null>(null);
+  const { width: contentWidth, height: contentHeight } = content;
+  const { width: frameWidth, height: frameHeight } = frame;
 
   useEffect(() => {
     let alive = true;
@@ -90,11 +109,16 @@ export function ZoomableScan({ uri, placeholderUri, content, exact, frame, label
     };
   }, [animator]);
 
-  const controller = useMemo(() => new ZoomController(content, frame, { onView: (view, animated) => animator.apply(view, animated), onStep: () => undefined }), [content, frame, animator]);
   // Лист по движению пальца идёт в обработчик родителя последнего рендера, а не первого.
   useEffect(() => {
     controller.setOnStep(onStep);
   }, [controller, onStep]);
+  // Размеры сменились (поворот, шрифт, окно) - вид прижимается к новым границам, картинка встаёт на вид автомата.
+  // Зависимости - числа, а не объекты: родитель собирает размеры заново на каждую перерисовку.
+  useEffect(() => {
+    controller.setBounds({ width: contentWidth, height: contentHeight }, { width: frameWidth, height: frameHeight });
+    animator.jump(controller.getView());
+  }, [controller, animator, contentWidth, contentHeight, frameWidth, frameHeight]);
 
   return (
     <View
@@ -106,18 +130,19 @@ export function ZoomableScan({ uri, placeholderUri, content, exact, frame, label
       onMoveShouldSetResponder={() => true}
       onResponderTerminationRequest={() => false}
       onResponderGrant={(event) => {
+        origin.current = frameOrigin(event);
         // новый жест застаёт прежнюю анимацию на полпути: встаём сразу на вид, который она везла
         animator.jump(controller.getView());
-        controller.grant(touchesOf(event), timeOf(event));
+        controller.grant(touchesOf(event, origin.current), timeOf(event));
       }}
-      onResponderStart={(event) => controller.move(touchesOf(event))}
-      onResponderMove={(event) => controller.move(touchesOf(event))}
-      onResponderEnd={(event) => controller.move(touchesOf(event))}
+      onResponderStart={(event) => controller.move(touchesOf(event, origin.current))}
+      onResponderMove={(event) => controller.move(touchesOf(event, origin.current))}
+      onResponderEnd={(event) => controller.move(touchesOf(event, origin.current))}
       onResponderRelease={(event) => controller.release(timeOf(event))}
       onResponderTerminate={() => controller.cancel()}
       style={{ width: frame.width, height: frame.height, borderRadius: tokens.radiusCard, backgroundColor: tokens.bg, overflow: "hidden", alignItems: "center", justifyContent: "center" }}
     >
-      <Animated.View pointerEvents="none" style={{ width: content.width, height: content.height, transform: [{ translateX: animator.x }, { translateY: animator.y }, { scale: animator.scale }] }}>
+      <Animated.View testID={`${testID}-page`} pointerEvents="none" style={{ width: content.width, height: content.height, transform: [{ translateX: animator.x }, { translateY: animator.y }, { scale: animator.scale }] }}>
         <ScanPage uri={uri} placeholderUri={placeholderUri} size={exact ? content : null} box={content} onFailed={onFailed} testID={imageTestID} />
       </Animated.View>
     </View>

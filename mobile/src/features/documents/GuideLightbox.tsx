@@ -53,21 +53,22 @@ type LightboxProps = Readonly<{
   cursor: SampleCursor;
   onSelect: (cursor: SampleCursor) => void;
   onClose: () => void;
-  schemeOnly: boolean;
-  onImageError: () => void;
+  /** Адрес страницы, что только что не загрузилась: вместо неё схема, а «‹ ›» остаются. Другая страница - забыт, попытка заново. */
+  failedUri: string | null;
+  onImageError: (uri: string) => void;
   id: string;
 }>;
 
-export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, schemeOnly, onImageError, id }: LightboxProps) {
+export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, failedUri, onImageError, id }: LightboxProps) {
   const { tokens } = useTheme();
   const { format, t } = useLang();
   const insets = useSafeAreaInsets();
   const { width, height, fontScale } = useWindowDimensions();
   const strings = t("admission");
-  const picked = schemeOnly ? null : currentSample(guide, cursor);
-  const fullUri = picked ? sampleUrl(base, picked.page.src) : null;
-  const real = picked !== null && fullUri !== null ? { current: picked, fullUri } : null;
-  const current = real?.current ?? null;
+  const current = currentSample(guide, cursor);
+  const fullUri = current ? sampleUrl(base, current.page.src) : null;
+  // Страница есть, адрес годится и она не отказала - показываем её; иначе (и без образцов вовсе) - схема.
+  const real = current !== null && fullUri !== null && failedUri !== fullUri ? { current, fullUri } : null;
   const pages = current?.set.pages.length ?? 0;
   const counterText = current && current.many ? format(strings.guidePageCounter, { n: String(current.pageIndex + 1), m: String(pages) }) : "";
   const spoken = current ? (counterText ? `${current.page.caption}, ${counterText}` : current.page.caption) : "";
@@ -117,41 +118,41 @@ export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, s
         </Pressable>
       </View>
       {real ? (
-        <>
-          <ZoomableScan
-            key={real.fullUri}
-            uri={real.fullUri}
-            placeholderUri={sampleUrl(base, real.current.page.thumb)}
-            content={content}
-            exact={aspect !== null}
-            frame={frame}
-            label={`${real.current.set.label}: ${real.current.page.caption}`}
-            onFailed={onImageError}
-            onStep={(step) => go(step)}
-            testID={`${id}-lightbox-zoom`}
-            imageTestID={`${id}-lightbox-image`}
-          />
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
-            {real.current.many ? <PagerButton direction="prev" disabled={real.current.pageIndex === 0} label={strings.guidePagePrev} onPress={() => go(-1)} id={id} /> : null}
-            <View accessible accessibilityLabel={spoken} accessibilityLiveRegion="polite" style={{ minWidth: 140, alignItems: "center", gap: 2, flexShrink: 1 }} testID={`${id}-lightbox-caption`}>
-              <Text variant="caption" bold style={{ textAlign: "center" }}>
-                {real.current.page.caption}
-              </Text>
-              {counterText ? (
-                <Text variant="caption" tone="text2">
-                  {counterText}
-                </Text>
-              ) : null}
-            </View>
-            {real.current.many ? <PagerButton direction="next" disabled={real.current.pageIndex === pages - 1} label={strings.guidePageNext} onPress={() => go(1)} id={id} /> : null}
-          </View>
-        </>
+        <ZoomableScan
+          key={real.fullUri}
+          uri={real.fullUri}
+          placeholderUri={sampleUrl(base, real.current.page.thumb)}
+          content={content}
+          exact={aspect !== null}
+          frame={frame}
+          label={`${real.current.set.label}: ${real.current.page.caption}`}
+          onFailed={() => onImageError(real.fullUri)}
+          onStep={(step) => go(step)}
+          testID={`${id}-lightbox-zoom`}
+          imageTestID={`${id}-lightbox-image`}
+        />
       ) : (
         <ScrollView contentContainerStyle={{ gap: 12 }}>
           <SchemeFigure guide={guide} width={innerWidth} />
           <SchemeLegend guide={guide} />
         </ScrollView>
       )}
+      {current ? (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
+          {current.many ? <PagerButton direction="prev" disabled={current.pageIndex === 0} label={strings.guidePagePrev} onPress={() => go(-1)} id={id} /> : null}
+          <View accessible accessibilityLabel={spoken} accessibilityLiveRegion="polite" style={{ minWidth: 140, alignItems: "center", gap: 2, flexShrink: 1 }} testID={`${id}-lightbox-caption`}>
+            <Text variant="caption" bold style={{ textAlign: "center" }}>
+              {current.page.caption}
+            </Text>
+            {counterText ? (
+              <Text variant="caption" tone="text2">
+                {counterText}
+              </Text>
+            ) : null}
+          </View>
+          {current.many ? <PagerButton direction="next" disabled={current.pageIndex === pages - 1} label={strings.guidePageNext} onPress={() => go(1)} id={id} /> : null}
+        </View>
+      ) : null}
     </View>
   );
 }

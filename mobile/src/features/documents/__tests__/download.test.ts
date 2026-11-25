@@ -1,4 +1,4 @@
-import { downloadFile, downloadPath, downloadPublicFile, type DownloadDeps } from "@/features/documents/download";
+import { downloadFile, downloadPath, downloadPublicFile, looksLikePdf, type DownloadDeps } from "@/features/documents/download";
 
 const BASE = "https://portal.example.test";
 const VERSION = "55555555-5555-4555-8555-555555555555";
@@ -194,7 +194,7 @@ describe("публичный файл без входа (бланк медспр
       fetchImpl: async (url, init) => {
         calls.push({ url, headers: init.headers, redirect: init.redirect });
         if (response instanceof Error) throw response;
-        return { status: 200, ok: true, headers: new Headers({ "content-type": "application/pdf" }), arrayBuffer: async () => new Uint8Array([37, 80, 68, 70]).buffer, ...response };
+        return { status: 200, ok: true, headers: new Headers({ "content-type": "application/pdf" }), arrayBuffer: async () => new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]).buffer, ...response };
       },
       writeFile: async (name, bytes) => {
         written.push({ name, size: bytes.byteLength });
@@ -209,7 +209,7 @@ describe("публичный файл без входа (бланк медспр
     await expect(downloadPublicFile(d.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: true, uri: "file:///cache/medical-blank.pdf", name: "medical-blank.pdf" });
     expect(d.calls).toEqual([{ url: BLANK, headers: { Accept: "application/pdf" }, redirect: "manual" }]);
     expect(Object.keys(d.calls[0]!.headers).map((k) => k.toLowerCase())).not.toContain("authorization");
-    expect(d.written).toEqual([{ name: "medical-blank.pdf", size: 4 }]);
+    expect(d.written).toEqual([{ name: "medical-blank.pdf", size: 8 }]);
   });
 
   it("перенаправление (например, на вход: файл не публичный) не принимается и не выполняется", async () => {
@@ -226,6 +226,48 @@ describe("публичный файл без входа (бланк медспр
     const d = publicDeps({ status, ok: false });
     await expect(downloadPublicFile(d.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error });
     expect(d.written).toHaveLength(0);
+  });
+
+  it("отмена запроса (`signal`) доходит до fetch; отменённый запрос - обрыв связи, файл не пишется", async () => {
+    const abort = new AbortController();
+    const seen: (AbortSignal | undefined)[] = [];
+    const written: string[] = [];
+    const deps: Pick<DownloadDeps, "fetchImpl" | "writeFile"> = {
+      fetchImpl: async (_url, init) => {
+        seen.push(init.signal);
+        throw new Error("aborted");
+      },
+      writeFile: async (name) => {
+        written.push(name);
+        return `file:///cache/${name}`;
+      },
+    };
+    abort.abort();
+    await expect(downloadPublicFile(deps, BLANK, "medical-blank.pdf", "application/pdf", abort.signal)).resolves.toEqual({ ok: false, error: "errorNetwork" });
+    expect(seen).toEqual([abort.signal]);
+    expect(written).toEqual([]);
+  });
+
+  it("PDF узнаётся по первым байтам: тип octet-stream с настоящим PDF проходит, со страницей ошибки - нет", async () => {
+    const ok = publicDeps({ headers: new Headers({ "content-type": "application/octet-stream" }) });
+    await expect(downloadPublicFile(ok.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toMatchObject({ ok: true, name: "medical-blank.pdf" });
+    const page = publicDeps({ headers: new Headers({ "content-type": "application/octet-stream" }), arrayBuffer: async () => new TextEncoder().encode("<!doctype html><title>Вход</title>").buffer });
+    await expect(downloadPublicFile(page.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    expect(page.written).toHaveLength(0);
+    // тип верный, а тело не PDF
+    const lying = publicDeps({ arrayBuffer: async () => new TextEncoder().encode("{\"error\":\"forbidden\"}").buffer });
+    await expect(downloadPublicFile(lying.value, BLANK, "medical-blank.pdf", "application/pdf")).resolves.toEqual({ ok: false, error: "docs.downloadFailed" });
+    expect(lying.written).toHaveLength(0);
+  });
+
+  it("looksLikePdf: `%PDF-` в начале или после мусора до 1024 байт; позже, короче или другой заголовок - нет", () => {
+    const bytes = (text: string) => new TextEncoder().encode(text);
+    expect(looksLikePdf(bytes("%PDF-1.7\n%âãÏÓ"))).toBe(true);
+    expect(looksLikePdf(bytes(`${"x".repeat(1000)}%PDF-1.4`))).toBe(true);
+    expect(looksLikePdf(bytes(`${"x".repeat(1100)}%PDF-1.4`))).toBe(false);
+    expect(looksLikePdf(bytes("%PDF"))).toBe(false);
+    expect(looksLikePdf(bytes("%PDX-1.7"))).toBe(false);
+    expect(looksLikePdf(new Uint8Array(0))).toBe(false);
   });
 
   it("страница вместо PDF и пустое тело не сохраняются; обрыв сети", async () => {

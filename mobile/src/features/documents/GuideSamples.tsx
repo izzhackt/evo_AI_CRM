@@ -2,8 +2,9 @@
 // со счётчиком, ряд миниатюр. Картинки НЕ лежат в сборке: грузятся по адресу портала (public/portal/document-samples, вход
 // не нужен), миниатюры `-t.jpg` в ряду, полный файл на странице и в просмотре; кэш на диске ведёт expo-image. Пропорции
 // страницы известны заранее (document-sample-sizes.generated.ts), поэтому лист встаёт в рамку и получает тень до загрузки.
-// Не загрузилась страница (нет сети) - вместо образцов нарисованная схема с метками, как было до «Примера»
-// (GuideScheme.tsx); следующее открытие листа пробует картинки снова. Крупный просмотр - GuideLightbox.tsx.
+// Не загрузилась страница (нет сети) - на её месте нарисованная схема с метками, как было до «Примера» (GuideScheme.tsx);
+// вкладки и ряд страниц остаются, а следующий показ страницы (другая страница или вкладка, открытие просмотра, новое
+// открытие листа) пробует картинку снова: один сбой не портит остальные страницы. Крупный просмотр - GuideLightbox.tsx.
 // Доступность: вкладки (`tablist`/`tab`), страницы ряда с состоянием «выбрано», кнопка вокруг страницы подписана
 // «Открыть пример целиком: набор, подпись».
 import { Download, Maximize2 } from "lucide-react-native";
@@ -143,6 +144,22 @@ function PageStrip({ current, base, counter, onSelect, id }: { current: CurrentS
   );
 }
 
+/** Нарисованная схема с метками и легендой: у документа без образцов, а у страницы, что не загрузилась, - вместо неё. Открывается крупно. */
+function SchemeBlock({ guide, width, onOpen, openerRef, id }: { guide: DocumentGuideView; width: number; onOpen: () => void; openerRef: Ref<HostInstance>; id: string }) {
+  const { tokens } = useTheme();
+  const { t } = useLang();
+  const strings = t("admission");
+  return (
+    <>
+      <Pressable ref={openerRef} accessibilityRole="button" accessibilityLabel={strings.guideSampleOpen} onPress={onOpen} testID={`${id}-sample-open`} style={{ borderRadius: tokens.radiusCard, overflow: "hidden", alignSelf: "flex-start" }}>
+        <SchemeFigure guide={guide} width={width} />
+        <ZoomBadge />
+      </Pressable>
+      <SchemeLegend guide={guide} />
+    </>
+  );
+}
+
 type SamplesProps = Readonly<{
   guide: DocumentGuideView;
   /** Адрес портала: от него считаются адреса образцов. */
@@ -154,24 +171,25 @@ type SamplesProps = Readonly<{
   onOpen: () => void;
   /** Кнопка, открывающая крупный просмотр: после его закрытия фокус читалки возвращается на неё. */
   openerRef: Ref<HostInstance>;
-  /** Настоящая страница не загрузилась: показываем схему, пока лист открыт. */
-  schemeOnly: boolean;
-  onImageError: () => void;
+  /** Адрес страницы, что только что не загрузилась: вместо неё схема. Другая страница или новый показ - забыт, попытка заново. */
+  failedUri: string | null;
+  onImageError: (uri: string) => void;
   blank: BlankState;
   onBlank: () => void;
   id: string;
 }>;
 
-export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, openerRef, schemeOnly, onImageError, blank, onBlank, id }: SamplesProps) {
+export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, openerRef, failedUri, onImageError, blank, onBlank, id }: SamplesProps) {
   const { tokens } = useTheme();
   const { format, t } = useLang();
   const { width: screen } = useWindowDimensions();
   const errorText = useErrorText();
   const strings = t("admission");
-  const picked = schemeOnly ? null : currentSample(guide, cursor);
+  const picked = currentSample(guide, cursor);
   const heroUri = picked ? sampleUrl(base, picked.page.src) : null;
-  // Настоящий образец показываем, только если есть и страница, и её адрес; иначе - схема.
+  // Набор страниц показываем, только если есть и страница, и её адрес; иначе - одна схема.
   const real = picked !== null && heroUri !== null ? { current: picked, heroUri } : null;
+  const pageFailed = real !== null && failedUri === real.heroUri;
   const download = guideBlank(guide);
   const counter = (index: number, total: number) => format(strings.guidePageCounter, { n: String(index + 1), m: String(total) });
   // Стол под страницей: на телефоне 280 px и поля 12, шире - 340 и 16 (веб: `.pt-doc-guide-scan`).
@@ -196,17 +214,21 @@ export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, ope
       {real ? (
         <>
           {guide.sampleSets.length > 1 ? <SetTabs guide={guide} selected={real.current.setIndex} onSelect={onSelect} id={id} /> : null}
-          <Pressable
-            ref={openerRef}
-            accessibilityRole="button"
-            accessibilityLabel={`${strings.guideSampleOpen}: ${real.current.set.label}, ${real.current.page.caption}`}
-            onPress={onOpen}
-            testID={`${id}-sample-open`}
-            style={{ height: heroHeight, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusCard, backgroundColor: tokens.bg, overflow: "hidden" }}
-          >
-            <ScanPage uri={real.heroUri} placeholderUri={sampleUrl(base, real.current.page.thumb)} size={size} box={box} onFailed={onImageError} testID={`${id}-hero-image`} />
-            <ZoomBadge />
-          </Pressable>
+          {pageFailed ? (
+            <SchemeBlock guide={guide} width={width} onOpen={onOpen} openerRef={openerRef} id={id} />
+          ) : (
+            <Pressable
+              ref={openerRef}
+              accessibilityRole="button"
+              accessibilityLabel={`${strings.guideSampleOpen}: ${real.current.set.label}, ${real.current.page.caption}`}
+              onPress={onOpen}
+              testID={`${id}-sample-open`}
+              style={{ height: heroHeight, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusCard, backgroundColor: tokens.bg, overflow: "hidden" }}
+            >
+              <ScanPage uri={real.heroUri} placeholderUri={sampleUrl(base, real.current.page.thumb)} size={size} box={box} onFailed={() => onImageError(real.heroUri)} testID={`${id}-hero-image`} />
+              <ZoomBadge />
+            </Pressable>
+          )}
           <Text variant="caption" bold style={{ textAlign: "center" }} testID={`${id}-caption`}>
             {real.current.page.caption}
             {real.current.many ? (
@@ -218,13 +240,7 @@ export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, ope
           {real.current.many ? <PageStrip current={real.current} base={base} counter={counter} onSelect={onSelect} id={id} /> : null}
         </>
       ) : (
-        <>
-          <Pressable ref={openerRef} accessibilityRole="button" accessibilityLabel={strings.guideSampleOpen} onPress={onOpen} testID={`${id}-sample-open`} style={{ borderRadius: tokens.radiusCard, overflow: "hidden", alignSelf: "flex-start" }}>
-            <SchemeFigure guide={guide} width={width} />
-            <ZoomBadge />
-          </Pressable>
-          <SchemeLegend guide={guide} />
-        </>
+        <SchemeBlock guide={guide} width={width} onOpen={onOpen} openerRef={openerRef} id={id} />
       )}
     </View>
   );

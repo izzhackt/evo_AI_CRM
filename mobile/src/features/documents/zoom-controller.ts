@@ -39,16 +39,32 @@ export class ZoomController {
   private onStep: (step: -1 | 1) => void;
 
   constructor(
-    private readonly content: Size,
-    private readonly frame: Size,
+    private content: Size,
+    private frame: Size,
     private readonly hooks: ZoomHooks,
   ) {
     this.onStep = hooks.onStep;
   }
 
-  /** Экран пересоздаётся с новой страницей - автомат остаётся, лист по движению пальца идёт в актуальный обработчик. */
+  /** Экран перерисовался - автомат остаётся (приближение не сбрасывается), лист по движению пальца идёт в актуальный обработчик. */
   setOnStep(handler: (step: -1 | 1) => void): void {
     this.onStep = handler;
+  }
+
+  /**
+   * Рамка или страница стали другого размера (поворот, смена размера шрифта, окно): прежний сдвиг прижимается к новым
+   * границам, и если вид изменился, о нём узнаёт экран, чтобы картинка и автомат не расходились. Тот же размер - ничего.
+   */
+  setBounds(content: Size, frame: Size): void {
+    const same = content.width === this.content.width && content.height === this.content.height && frame.width === this.frame.width && frame.height === this.frame.height;
+    if (same) return;
+    this.content = content;
+    this.frame = frame;
+    this.start = clampView(this.start, content, frame);
+    const next = clampView(this.view, content, frame);
+    if (next.scale === this.view.scale && next.x === this.view.x && next.y === this.view.y) return;
+    this.view = next;
+    this.hooks.onView(next, false);
   }
 
   /** Нынешний вид (после жеста). */

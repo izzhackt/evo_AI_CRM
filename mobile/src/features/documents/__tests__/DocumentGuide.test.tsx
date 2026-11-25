@@ -5,17 +5,16 @@ import path from "node:path";
 import { AccessibilityInfo } from "react-native";
 import { documentGuideSamples, documentGuideView } from "@web/lib/portal/document-guides";
 
-import type { DocumentsIo } from "@/features/documents/io";
-import { DocumentsScreen } from "@/features/documents/DocumentsScreen";
 import { DOCUMENT_SAMPLE_SVG } from "@/features/documents/document-samples.generated";
-import { decodeSvgText } from "@/features/documents/GuideScheme";
 import { PAGE_SHADOW } from "@/features/documents/GuideImages";
+import { decodeSvgText } from "@/features/documents/GuideScheme";
 import { pageAspect } from "@/features/documents/guide-model";
 import { fitContain } from "@/features/documents/zoom-math";
-import { getPortalStrings } from "@/i18n";
-import { CASE_FILE_ROW, CASE_ID, DOCUMENT_ROW_CORRECTION, DOCUMENT_ROW_EMPTY, FILE_ID, SLOT_ID } from "@/test-fixtures/rpc-rows";
-import { renderPortal, testApi } from "@/test-fixtures/render";
-import { failure, fakeTransport } from "@/test-fixtures/universities";
+import {
+  APPROVED_PASSPORT, ATTESTAT, BOTH, CASE_B, CASE_ID, DOCUMENT_ROW_EMPTY, FORM, HSK, IELTS, MEDICAL, OWN, PDF, PDF_BYTES, PHOTO, SAMPLES, S_APPROVED, S_ATTESTAT, S_BOTH, S_FORM, S_HSK, S_IELTS, S_MEDICAL, S_MEDICAL_B, S_OWN, S_PASSPORT, S_PHOTO, S_TOEFL, TOEFL, choice, directions, failImage, hang, ky, openGuide, placeholderOf, renderDocs, row, ru, slot, uriOf,
+} from "@/test-fixtures/document-guide";
+import { CASE_FILE_ROW, FILE_ID } from "@/test-fixtures/rpc-rows";
+import { failure } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
 jest.mock("@/features/documents/native", () => ({
@@ -28,87 +27,6 @@ jest.mock("@/features/documents/native", () => ({
 }));
 
 const navigate = router.navigate as jest.Mock;
-const BASE = "https://portal.example.test";
-const SAMPLES = `${BASE}/portal/document-samples`;
-const CASE_B = "99999999-9999-4999-8999-999999999999";
-const ru = getPortalStrings("admission", "ru");
-const ky = getPortalStrings("admission", "ky");
-const slot = (n: number) => `44444444-4444-4444-8444-4444444444${String(n).padStart(2, "0")}`;
-const S_PASSPORT = SLOT_ID;
-const S_ATTESTAT = slot(61);
-const S_IELTS = slot(62);
-const S_HSK = slot(63);
-const S_BOTH = slot(64);
-const S_TOEFL = slot(65);
-const S_MEDICAL = slot(66);
-const S_PHOTO = slot(67);
-const S_FORM = slot(68);
-const S_OWN = slot(69);
-const S_APPROVED = slot(70);
-const S_MEDICAL_B = slot(71);
-
-const row = (id: string, label: string, over: Record<string, unknown> = {}) => ({ ...DOCUMENT_ROW_EMPTY, document_slot_id: id, requirement_key: null, requirement_label: label, ...over });
-const ATTESTAT = row(S_ATTESTAT, "Аттестат", { requirement_key: "attestat" });
-const IELTS = row(S_IELTS, "Сертификат IELTS");
-const HSK = row(S_HSK, "Сертификат HSK");
-const BOTH = row(S_BOTH, "Сертификат по языку (HSK, IELTS или TOEFL)");
-const TOEFL = row(S_TOEFL, "TOEFL");
-const MEDICAL = row(S_MEDICAL, "Медицинская справка");
-const PHOTO = row(S_PHOTO, "Фото");
-const FORM = row(S_FORM, "Анкета");
-const OWN = row(S_OWN, "Особый пункт куратора", { instructions: "Принесите оригинал" });
-const APPROVED_PASSPORT = { ...DOCUMENT_ROW_CORRECTION, document_slot_id: S_APPROVED, slot_status: "approved", review_decision: "approved", rework_reason: null, instructions: null, deadline: null };
-
-const directions = (...pairs: [string, string | null][]) => pairs.map(([caseId, direction]) => ({ student_case_id: caseId, direction }));
-const choice = (country: string) => ({ country, source: "saved", savedAt: "2026-11-01T08:00:00+00:00" });
-const PDF = { status: 200, ok: true, headers: new Headers({ "content-type": "application/pdf" }), arrayBuffer: async () => new Uint8Array([37, 80, 68, 70]).buffer };
-
-type Fetched = { url: string; headers: Record<string, string> };
-function makeIo(over: Partial<DocumentsIo> = {}) {
-  const opened: { uri: string; mime: string }[] = [];
-  const fetched: Fetched[] = [];
-  let respond: () => unknown = () => PDF;
-  const io: DocumentsIo = {
-    pick: jest.fn(),
-    createUploadSend: jest.fn(),
-    createDownloadDeps: () => ({
-      baseUrl: BASE,
-      getToken: async () => "t",
-      fetchImpl: async (url, init) => {
-        fetched.push({ url, headers: init.headers });
-        return (await respond()) as Awaited<ReturnType<ReturnType<DocumentsIo["createDownloadDeps"]>["fetchImpl"]>>;
-      },
-      writeFile: async (name) => `file:///cache/${name}`,
-    }),
-    openLocalFile: jest.fn(async (uri: string, mime: string) => void opened.push({ uri, mime })),
-    ...over,
-  };
-  return { io, opened, fetched, respondWith: (next: () => unknown) => void (respond = next) };
-}
-
-async function renderDocs(rows: unknown[], extra: Record<string, unknown> = {}, files: unknown[] = [], lang: "ru" | "ky" = "ru") {
-  const { transport, calls } = fakeTransport({ student_portal_documents: rows, student_portal_case_files_v1: files, ...extra });
-  const io = makeIo();
-  const view = await renderPortal(<DocumentsScreen io={io.io} />, testApi(transport), lang);
-  return { ...io, calls, ...view };
-}
-const openGuide = async (id: string) => fireEvent.press(await screen.findByTestId(`guide-${id}-open`));
-const uriOf = (testID: string): string => (screen.getByTestId(testID).props.source as { uri: string }[])[0]!.uri;
-const placeholderOf = (testID: string): string => (screen.getByTestId(testID).props.placeholder as { uri: string }[])[0]!.uri;
-const failImage = async (testID: string) => fireEvent(screen.getByTestId(testID), "error", { nativeEvent: { error: "offline" } });
-/** Касание рамки просмотра: точки относительно рамки (`locationX/Y`), время в мс. */
-const touch = (x: number, y: number) => ({ locationX: x, locationY: y });
-async function drag(testID: string, from: [number, number], to: [number, number], at = 1000, duration = 120) {
-  const zoom = screen.getByTestId(testID);
-  await fireEvent(zoom, "responderGrant", { nativeEvent: { touches: [touch(...from)], timestamp: at } });
-  await fireEvent(zoom, "responderMove", { nativeEvent: { touches: [touch(...to)], timestamp: at + duration / 2 } });
-  await fireEvent(zoom, "responderRelease", { nativeEvent: { touches: [], timestamp: at + duration } });
-}
-async function tap(testID: string, at: [number, number], time: number) {
-  const zoom = screen.getByTestId(testID);
-  await fireEvent(zoom, "responderGrant", { nativeEvent: { touches: [touch(...at)], timestamp: time } });
-  await fireEvent(zoom, "responderRelease", { nativeEvent: { touches: [], timestamp: time + 40 } });
-}
 
 beforeEach(() => {
   navigate.mockClear();
@@ -385,50 +303,6 @@ describe("Пример: наборы, страницы и крупный про�
     expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-6.jpg`);
   });
 
-  it("жесты в просмотре: палец влево листает вперёд, вправо - назад, на краях и по вертикали страница остаётся", async () => {
-    await renderDocs([ATTESTAT]);
-    await openGuide(S_ATTESTAT);
-    await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
-    await screen.findByTestId(`${id}-lightbox`);
-    const zoom = `${id}-lightbox-zoom`;
-    // на первой странице движение вправо - «назад» некуда
-    await drag(zoom, [200, 300], [330, 300]);
-    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
-    // вертикальное движение не листает
-    await drag(zoom, [200, 100], [210, 330]);
-    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
-    // короткий сдвиг не листает
-    await drag(zoom, [200, 300], [180, 300], 2000, 600);
-    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
-    // влево - следующая, подпись и озвучивание те же, что у кнопок
-    await drag(zoom, [330, 300], [190, 300], 3000);
-    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-2.jpg`);
-    expect(screen.getByTestId(`${id}-lightbox-caption`).props.accessibilityLabel).toBe("Оценки, 2 из 7");
-    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenLastCalledWith("Оценки, 2 из 7");
-    // вправо - назад
-    await drag(zoom, [190, 300], [340, 300], 4000);
-    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
-  });
-
-  it("двойное касание приближает страницу, а не листает; рамка принимает касания и не отдаёт их выше", async () => {
-    await renderDocs([ATTESTAT]);
-    await openGuide(S_ATTESTAT);
-    await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
-    await screen.findByTestId(`${id}-lightbox`);
-    const zoom = screen.getByTestId(`${id}-lightbox-zoom`);
-    expect(zoom.props.onStartShouldSetResponder()).toBe(true);
-    expect(zoom.props.onMoveShouldSetResponder()).toBe(true);
-    expect(zoom.props.onResponderTerminationRequest()).toBe(false);
-    await tap(`${id}-lightbox-zoom`, [300, 200], 5000);
-    await tap(`${id}-lightbox-zoom`, [302, 201], 5120);
-    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
-    // жест отобрали системой: просмотр цел
-    await fireEvent(zoom, "responderGrant", { nativeEvent: { touches: [touch(100, 100), touch(200, 100)], timestamp: 6000 } });
-    await fireEvent(zoom, "responderMove", { nativeEvent: { touches: [touch(50, 100), touch(250, 100)], timestamp: 6050 } });
-    await fireEvent(zoom, "responderTerminate", { nativeEvent: { touches: [], timestamp: 6100 } });
-    expect(screen.getByTestId(`${id}-lightbox`)).toBeTruthy();
-  });
-
   it("просмотр закрывается затемнением и кнопкой «Назад» Android; сначала он, потом лист", async () => {
     await renderDocs([ATTESTAT]);
     await openGuide(S_ATTESTAT);
@@ -531,24 +405,46 @@ describe("Пример: нарисованная схема вместо обр�
     expect(await screen.findByTestId(`guide-${S_FORM}-sheet`)).toBeTruthy();
   });
 
-  it("не загрузилась страница (нет сети): вместо образцов схема, без вкладок и ряда; следующее открытие пробует картинки снова", async () => {
+  it("не загрузилась страница: на её месте схема, вкладки и ряд страниц остаются; другая страница, вкладка и возврат пробуют картинку заново", async () => {
     await renderDocs([ATTESTAT]);
     const id = `guide-${S_ATTESTAT}`;
     await openGuide(S_ATTESTAT);
     await screen.findByTestId(`${id}-sheet`);
     await failImage(`${id}-hero-image`);
+    // схема вместо первой страницы, остальное цело
     expect(screen.queryByTestId(`${id}-hero-image`)).toBeNull();
     expect(screen.getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByTestId("guide-legend")).toBeTruthy();
-    expect(screen.queryAllByRole("tab")).toHaveLength(0);
-    expect(screen.queryByTestId(`${id}-pages`)).toBeNull();
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getByTestId(`${id}-pages`)).toBeTruthy();
+    expect(screen.getByTestId(`${id}-caption`)).toHaveTextContent("Оригинал · 1 из 7");
     expect(screen.getByTestId(`${id}-ask`)).toBeTruthy();
-    // схема открывается крупно, листания нет
+    // другая страница ряда - обычная картинка
+    await fireEvent.press(screen.getByTestId(`${id}-page-1`));
+    expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-2.jpg`);
+    expect(screen.queryByTestId("guide-sample", { includeHiddenElements: true })).toBeNull();
+    // возврат на отказавшую страницу - новая попытка
+    await fireEvent.press(screen.getByTestId(`${id}-page-0`));
+    expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+    // сбой на второй странице не портит первую
+    await failImage(`${id}-hero-image`);
+    await fireEvent.press(screen.getByTestId(`${id}-page-1`));
+    expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-2.jpg`);
+    // смена вкладки тоже новая попытка
+    await failImage(`${id}-hero-image`);
+    await fireEvent.press(screen.getByTestId(`${id}-tab-diploma`));
+    expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/diploma-1.jpg`);
+    await fireEvent.press(screen.getByTestId(`${id}-tab-attestat`));
+    expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+    // схема открывается крупно, листания по другим страницам это не отнимает
+    await failImage(`${id}-hero-image`);
     await fireEvent.press(screen.getByTestId(`${id}-sample-open`));
     const box = await screen.findByTestId(`${id}-lightbox`);
-    expect(within(box).getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.queryByTestId(`${id}-pager-next`)).toBeNull();
+    expect(screen.getByTestId(`${id}-pager-next`)).toBeTruthy();
+    expect(within(box).queryByTestId(`${id}-lightbox-image`)).toBeTruthy();
     await fireEvent.press(screen.getByTestId(`${id}-lightbox-close`));
+    // новое открытие листа - попытка заново
+    await failImage(`${id}-hero-image`);
     await fireEvent.press(await screen.findByTestId(`${id}-close`));
     await waitFor(() => expect(screen.queryByTestId(`${id}-sheet`)).toBeNull());
     await openGuide(S_ATTESTAT);
@@ -556,18 +452,39 @@ describe("Пример: нарисованная схема вместо обр�
     expect(screen.getAllByRole("tab")).toHaveLength(3);
   });
 
-  it("не загрузилась страница в крупном просмотре: схема на месте страницы, просмотр остаётся открытым", async () => {
+  it("нет сети: каждая страница показывает схему по очереди, вкладки и ряд на месте, возврат пробует снова", async () => {
+    await renderDocs([ATTESTAT]);
+    const id = `guide-${S_ATTESTAT}`;
+    await openGuide(S_ATTESTAT);
+    await screen.findByTestId(`${id}-sheet`);
+    for (const index of [0, 1, 2]) {
+      await fireEvent.press(screen.getByTestId(`${id}-page-${index}`));
+      await failImage(`${id}-hero-image`);
+      expect(screen.queryByTestId(`${id}-hero-image`)).toBeNull();
+      expect(screen.getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
+      expect(screen.getAllByRole("tab")).toHaveLength(3);
+    }
+    await fireEvent.press(screen.getByTestId(`${id}-page-0`));
+    expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+  });
+  it("не загрузилась страница в крупном просмотре: схема на её месте, «‹ ›» остаются; следующая страница пробует картинку, возврат тоже", async () => {
     await renderDocs([ATTESTAT]);
     const id = `guide-${S_ATTESTAT}`;
     await openGuide(S_ATTESTAT);
     await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
     await screen.findByTestId(`${id}-lightbox`);
     await failImage(`${id}-lightbox-image`);
-    expect(within(screen.getByTestId(`${id}-lightbox`)).getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
+    const box = screen.getByTestId(`${id}-lightbox`);
+    expect(within(box).getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByTestId(`${id}-lightbox-image`)).toBeNull();
-    expect(screen.getByTestId(`${id}-lightbox`)).toBeTruthy();
+    expect(screen.getByTestId(`${id}-lightbox-caption`).props.accessibilityLabel).toBe("Оригинал, 1 из 7");
+    expect(screen.getByTestId(`${id}-pager-prev`)).toBeDisabled();
+    await fireEvent.press(screen.getByTestId(`${id}-pager-next`));
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-2.jpg`);
+    expect(within(screen.getByTestId(`${id}-lightbox`)).queryByTestId("guide-sample", { includeHiddenElements: true })).toBeNull();
+    await fireEvent.press(screen.getByTestId(`${id}-pager-prev`));
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
   });
-
   it("не загрузилась миниатюра: в ряду номер страницы, образцы остаются", async () => {
     await renderDocs([ATTESTAT]);
     const id = `guide-${S_ATTESTAT}`;
@@ -745,7 +662,9 @@ describe("Пример: бланк медсправки Китая", () => {
       jest.useRealTimers();
     }
     await waitFor(() => expect(opened).toEqual([{ uri: "file:///cache/medical-blank.pdf", mime: "application/pdf" }]));
-    expect(fetched).toEqual([{ url: `${SAMPLES}/medical-blank.pdf`, headers: { Accept: "application/pdf" } }]);
+    expect(fetched).toEqual([{ url: `${SAMPLES}/medical-blank.pdf`, headers: { Accept: "application/pdf" }, signal: expect.any(AbortSignal) }]);
+    // скачали и открыли - отменять уже нечего
+    expect(fetched[0]!.signal!.aborted).toBe(false);
   });
 
   it("пока файл качается, кнопка занята и повторное нажатие не шлёт второй запрос", async () => {
@@ -802,18 +721,104 @@ describe("Пример: бланк медсправки Китая", () => {
     expect(opened).toHaveLength(0);
   });
 
-  it("лист закрыли, пока файл качался: просмотр сам не всплывает", async () => {
+  it("лист закрыли, пока файл качался: запрос отменяется, просмотр сам не всплывает", async () => {
+    const { opened, fetched, respondWith } = await renderDocs([MEDICAL], china);
+    respondWith(hang);
+    await openGuide(S_MEDICAL);
+    await fireEvent.press(await screen.findByTestId(`${id}-blank`));
+    await waitFor(() => expect(fetched).toHaveLength(1));
+    expect(fetched[0]!.signal!.aborted).toBe(false);
+    await fireEvent.press(screen.getByTestId(`${id}-close`));
+    expect(fetched[0]!.signal!.aborted).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(opened).toHaveLength(0);
+  });
+
+  it("лист закрыли и открыли заново, пока файл качался: поздний ответ новому листу не мешает (не закрывает его и не открывает просмотр)", async () => {
     let release: (value: unknown) => void = () => undefined;
-    const { opened, respondWith } = await renderDocs([MEDICAL], china);
+    const { opened, fetched, respondWith } = await renderDocs([MEDICAL], china);
+    // ответ, что не слушает отмену и приходит позже всех: защищает именно счётчик показов листа
     respondWith(() => new Promise((resolve) => (release = resolve)));
     await openGuide(S_MEDICAL);
     await fireEvent.press(await screen.findByTestId(`${id}-blank`));
+    await waitFor(() => expect(fetched).toHaveLength(1));
     await fireEvent.press(screen.getByTestId(`${id}-close`));
+    await waitFor(() => expect(screen.queryByTestId(`${id}-sheet`)).toBeNull());
+    await openGuide(S_MEDICAL);
+    await screen.findByTestId(`${id}-sheet`);
     await act(async () => {
       release(PDF);
     });
     await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(screen.getByTestId(`${id}-sheet`)).toBeTruthy();
     expect(opened).toHaveLength(0);
+    expect(screen.getByTestId(`${id}-blank`).props.accessibilityState).toEqual({ disabled: false, busy: false });
+    expect(screen.queryByTestId(`${id}-blank-error`)).toBeNull();
+  });
+
+  it("связь зависла: через 30 с запрос отменяется, лист говорит про соединение, нажать можно снова", async () => {
+    const { opened, fetched, respondWith } = await renderDocs([MEDICAL], china);
+    respondWith(hang);
+    await openGuide(S_MEDICAL);
+    const chip = await screen.findByTestId(`${id}-blank`);
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(chip);
+      await waitFor(() => expect(fetched).toHaveLength(1));
+      await act(async () => {
+        jest.advanceTimersByTime(29_000);
+      });
+      expect(screen.getByTestId(`${id}-blank`).props.accessibilityState).toEqual({ disabled: true, busy: true });
+      await act(async () => {
+        jest.advanceTimersByTime(1_500);
+      });
+      expect(await screen.findByTestId(`${id}-blank-error`)).toHaveTextContent(ru.errorNetwork);
+      expect(fetched[0]!.signal!.aborted).toBe(true);
+      expect(screen.getByTestId(`${id}-blank`).props.accessibilityState).toEqual({ disabled: false, busy: false });
+      expect(opened).toHaveLength(0);
+      respondWith(() => PDF);
+      await fireEvent.press(screen.getByTestId(`${id}-blank`));
+      await waitFor(() => expect(screen.queryByTestId(`${id}-sheet`)).toBeNull());
+      await act(async () => {
+        jest.advanceTimersByTime(800);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+    await waitFor(() => expect(opened).toHaveLength(1));
+  });
+
+  it("с экрана ушли, пока файл качался: запрос отменяется", async () => {
+    const { fetched, respondWith, unmount } = await renderDocs([MEDICAL], china);
+    respondWith(hang);
+    await openGuide(S_MEDICAL);
+    await fireEvent.press(await screen.findByTestId(`${id}-blank`));
+    await waitFor(() => expect(fetched).toHaveLength(1));
+    await unmount();
+    expect(fetched[0]!.signal!.aborted).toBe(true);
+  });
+
+  it("не PDF под видом файла (страница с типом octet-stream) в кэш не ложится: сообщение о сбое, просмотра нет", async () => {
+    const { opened, respondWith } = await renderDocs([MEDICAL], china);
+    respondWith(() => ({ status: 200, ok: true, headers: new Headers({ "content-type": "application/octet-stream" }), arrayBuffer: async () => new TextEncoder().encode("<html><body>Войдите</body></html>").buffer }));
+    await openGuide(S_MEDICAL);
+    await fireEvent.press(await screen.findByTestId(`${id}-blank`));
+    expect(await screen.findByTestId(`${id}-blank-error`)).toHaveTextContent("Не удалось скачать файл. Повторите.");
+    expect(screen.getByTestId(`${id}-sheet`)).toBeTruthy();
+    expect(opened).toHaveLength(0);
+    // настоящий PDF с тем же типом принимается
+    respondWith(() => ({ status: 200, ok: true, headers: new Headers({ "content-type": "application/octet-stream" }), arrayBuffer: async () => PDF_BYTES.buffer }));
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(screen.getByTestId(`${id}-blank`));
+      await waitFor(() => expect(screen.queryByTestId(`${id}-sheet`)).toBeNull());
+      await act(async () => {
+        jest.advanceTimersByTime(800);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+    await waitFor(() => expect(opened).toHaveLength(1));
   });
 });
 

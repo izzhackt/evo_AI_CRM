@@ -46,6 +46,8 @@ function fakeApi(over: Partial<RegistrationApi> = {}) {
       return { ok: false, reason: "rate_limit" };
     },
     acceptInvite: async () => ({ ok: false }),
+    // Маршрут проверки ссылки недоступен: приложение работает как раньше (отдельные тесты ниже проверяют сам разбор).
+    checkInvite: async () => null,
     ...over,
   };
   return { api, requests, resends };
@@ -170,7 +172,10 @@ describe("регистрация и «Проверьте почту»", () => {
     expect(q.averageGrade).toBe(4.5);
     expect(q.destinationCountries).toEqual(["CN"]);
     expect(JSON.stringify(q)).not.toContain(PASSWORD);
-    expect(mockSecure.size).toBe(0);
+    // личная ссылка стёрта; в защищённом хранилище осталось только ожидание подтверждения почты (G10), без ссылки и без пароля
+    expect([...mockSecure.keys()]).toEqual(["evo.registration-pending.v1"]);
+    expect([...mockSecure.values()].join("")).not.toContain(INVITE);
+    expect([...mockSecure.values()].join("")).not.toContain(PASSWORD);
     expect(await AsyncStorage.getItem("evo.application-draft.v1:anonymous")).toBeNull();
     await press("pending-sign-in");
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
@@ -230,6 +235,7 @@ describe("ConfirmationPending", () => {
       const api: RegistrationApi = {
         register: async () => ({ ok: false, reason: "unavailable" }),
         acceptInvite: async () => ({ ok: false }),
+        checkInvite: async () => null,
         resend: async (cap) => {
           resends.push(cap);
           call += 1;
@@ -257,6 +263,7 @@ describe("ConfirmationPending", () => {
     const api: RegistrationApi = {
       register: async () => ({ ok: false, reason: "unavailable" }),
       acceptInvite: async () => ({ ok: false }),
+      checkInvite: async () => null,
       resend: async () => ({ ok: false, reason: "expired" }),
     };
     jest.useFakeTimers();

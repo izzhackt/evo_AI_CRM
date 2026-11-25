@@ -7,6 +7,7 @@ import { getConfig } from "@/config";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
 import { clearInviteToken } from "@/features/registration/draft-store";
+import { clearPendingSignup } from "@/features/registration/pending-store";
 import { createAccessDeps } from "@/session/deps";
 import { clearAllLocalData } from "@/session/local-data";
 
@@ -132,8 +133,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         forcedMustSetRef.current = true;
         setMustSetPassword(true);
       }
-      // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку).
+      // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку); ожидание подтверждения почты тоже.
       void clearInviteToken();
+      void clearPendingSignup();
       // Дальше маршрут ведёт onAuthStateChange (SIGNED_IN).
       return { ok: true };
     },

@@ -10,6 +10,7 @@ import { usePortalApi } from "@/api/PortalApi";
 import { accountDeletionWrite, readOwnAccountDeletion, requestAccountDeletion } from "@/features/profile/account-deletion";
 import { aiConsentWrite, readAiConsent, saveAiConsent } from "@/features/profile/ai-consent";
 import { readOwnLogin, readOwnProfile, saveOwnLanguage } from "@/features/profile/profile-source";
+import { readOwnApplication } from "@/features/registration/own-application";
 import type { FrozenWrite } from "@/lib/rpc";
 
 const key = (userKey: string, name: string) => ["portal", userKey, name] as const;
@@ -22,6 +23,15 @@ export function useOwnProfile() {
 export function useOwnLogin() {
   const { transport, userKey } = usePortalApi();
   return useQuery({ queryKey: key(userKey, "login"), queryFn: () => readOwnLogin(transport) });
+}
+
+/**
+ * «Ваша анкета» в «Профиле» (веб: readOwnStudentApplication на странице профиля): ответы анкеты только для чтения. `null`:
+ * анкеты нет (студента завели вручную или по приглашению), блока нет; сбой чтения - честная строка, а не пустое место.
+ */
+export function useOwnApplication() {
+  const { transport, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "own-application"), queryFn: () => readOwnApplication(transport) });
 }
 
 /** Строка «Профиля» - любому студенту кабинета (345). */

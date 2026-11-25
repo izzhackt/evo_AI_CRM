@@ -26,6 +26,7 @@ import {
   type ValidationKey,
   type WizardValues,
 } from "@/features/registration/wizard-model";
+import { PolicyCheckRow } from "@/features/consent/PolicyCheckRow";
 import { CheckRow, ChoiceRow, OptionGroup, PickerField, type Option } from "@/features/registration/WizardFields";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -198,7 +199,6 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
   });
   const customFields = values.studyFields.filter((field) => !(STUDY_FIELD_OPTIONS as readonly string[]).includes(field));
 
-  const [policyBefore, policyAfter = ""] = S("consentLabel").split("{policy}");
   const lastLabel = signedInEmail ? S("submitApplication") : S("createAccount");
 
   return (
@@ -413,15 +413,15 @@ export function ApplicationWizard({ signedInEmail, scope, initialDraft = null, n
                   />
                 </>
               )}
-              <CheckRow checked={values.consent} onToggle={() => update("consent", !values.consent)} testID="consent">
-                <Text variant="secondary" tone="text2">
-                  {policyBefore}
-                  <Text variant="secondary" tone="accent" bold onPress={() => void Linking.openURL(AI_CONSENT_PRIVACY_URL)} accessibilityRole="link">
-                    {S("consentPolicyLink")}
-                  </Text>
-                  {policyAfter}
-                </Text>
-              </CheckRow>
+              <PolicyCheckRow
+                checked={values.consent}
+                onToggle={() => update("consent", !values.consent)}
+                template={S("consentLabel")}
+                linkLabel={S("consentPolicyLink")}
+                onOpenLink={() => void Linking.openURL(AI_CONSENT_PRIVACY_URL)}
+                testID="consent"
+                linkTestID="consent-policy-link"
+              />
               <CheckRow
                 checked={aiConsent}
                 onToggle={() => {

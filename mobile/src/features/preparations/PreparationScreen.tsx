@@ -113,6 +113,9 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
       ) : (
         <CardSkeleton label={m("state.loading")} lines={4} testID="prep-loading" />
       );
+  } else if (saved === null && preparations.isFetching) {
+    // Программу только что добавили, а список в кэше ещё прежний: пока он перечитывается, «не найдена» не мигает.
+    body = <CardSkeleton label={m("state.loading")} lines={4} testID="prep-loading" />;
   } else if (saved === null) {
     body = (
       <Text variant="body" accessibilityRole="alert" testID="prep-not-found">

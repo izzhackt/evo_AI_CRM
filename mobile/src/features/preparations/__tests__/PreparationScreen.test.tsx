@@ -395,6 +395,33 @@ describe("нет программы и сбой списка", () => {
     expect(screen.getByTestId("prep-back")).toBeTruthy();
   });
 
+  it("программу только что добавили, а список в кэше прежний: пока он перечитывается, «не найдена» не показывается", async () => {
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let lists = 0;
+    const { transport } = fakeTransport({ student_catalog_preparations_v1: [], application_package_readiness_v1: starterReadiness() });
+    const slowSecond: typeof transport = async (name, args, options) => {
+      if (name === "student_catalog_preparations_v1" && (lists += 1) === 2) {
+        await gate;
+        return { data: [row()], error: null, status: 200 };
+      }
+      return transport(name, args, options);
+    };
+    const view = await renderPortal(<PreparationScreen applicationId={APPLICATION_ID} />, testApi(slowSecond));
+    expect(await screen.findByTestId("prep-not-found")).toBeTruthy();
+    // страница вуза после «Добавить» объявляет список устаревшим
+    await act(async () => {
+      void view.client.invalidateQueries({ queryKey: ["portal", "user-test", "preparations"] });
+    });
+    await waitFor(() => expect(screen.getByTestId("prep-loading")).toBeTruthy());
+    expect(screen.queryByTestId("prep-not-found")).toBeNull();
+    await act(async () => release?.());
+    expect(await screen.findByTestId("prep-title")).toHaveTextContent("Информатика", { exact: false });
+    expect(screen.queryByTestId("prep-not-found")).toBeNull();
+  });
+
   it("негодный идентификатор в ссылке: «не найдена» без единого запроса", async () => {
     for (const id of ["", "..", "not-a-uuid", "../universities"]) {
       const { calls, unmount } = await open(handlers(starterReadiness()), { id });

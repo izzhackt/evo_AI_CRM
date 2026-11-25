@@ -1,0 +1,175 @@
+// Шапка «Главной» (веб #1489): фото столицы с «©», «страна · набор», отсчёт до ближайшей даты, тёмная плашка без фото
+// и без страны, светлая и тёмная темы.
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { router } from "expo-router";
+import { Linking } from "react-native";
+import { homeDayMonth } from "@web/lib/portal/home-dates";
+import { formatPortalString, getPortalStrings } from "@web/lib/portal/i18n";
+
+import { HomeScreen } from "@/features/home/HomeScreen";
+import { darkTokens, lightTokens } from "@/theme/tokens.generated";
+import { OVERVIEW_ROW_EMPTY } from "@/test-fixtures/rpc-rows";
+import { homeHandlers, moveNow, restoreNow, setNow } from "@/test-fixtures/home";
+import { renderPortal, testApi } from "@/test-fixtures/render";
+import { failure, fakeTransport } from "@/test-fixtures/universities";
+
+jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
+jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
+jest.mock("expo-file-system", () => jest.requireActual("@/test-fixtures/memory-file-system").memoryFileSystem());
+
+const navigate = router.navigate as jest.Mock;
+const uriOf = (node: { props: unknown }) => [(node.props as { source: { uri: string } | { uri: string }[] }).source].flat()[0].uri;
+const flat = (node: { props: { style?: unknown } }) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+
+beforeEach(async () => {
+  jest.requireMock("expo-file-system").__files.clear(); // копия индекса каталога с диска не переходит между тестами
+  await AsyncStorage.clear();
+  navigate.mockClear();
+  setNow("2026-09-08T05:00:00Z");
+});
+afterEach(restoreNow);
+
+describe("шапка на фото столицы", () => {
+  it("фото города-столицы из нашего бакета, подпись автора по «©», приветствие и «страна · набор» поверх", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const photo = await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    // Куала-Лумпур - столица Малайзии: копия нужной ширины из бакета каталога, без похода на чужие сайты
+    expect(uriOf(photo)).toMatch(/^http:\/\/localhost:46421\/storage\/v1\/render\/image\/public\/portal-university-photos\/geography\/cities\/kuala-lumpur-0123456789ab\.jpg\?width=\d+/);
+    expect(within(screen.getByTestId("home-hero")).getByText("Здравствуйте, Тест Студентов")).toBeTruthy();
+    expect(screen.getByTestId("hero-sub")).toHaveTextContent(/^Малайзия · /);
+    // фото не читается экранной читалкой: это декор, название страны уже в тексте
+    expect(photo.props.accessibilityElementsHidden).toBe(true);
+    // «©» сворачивается; по нажатию - автор, источник и лицензия, ссылка ведёт на страницу файла
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    expect(screen.queryByTestId("hero-credit-text")).toBeNull();
+    await fireEvent.press(screen.getByTestId("hero-credit"));
+    const line = screen.getByTestId("hero-credit-text");
+    expect(within(line).getByText("Фото: Автор Тестов, Wikimedia Commons, CC BY 4.0")).toBeTruthy();
+    await fireEvent.press(line);
+    expect(open).toHaveBeenCalledWith("https://commons.wikimedia.org/wiki/File:Test.jpg");
+    open.mockRestore();
+  });
+
+  it("копия не загрузилась - оригинал; и он не загрузился - тёмная плашка без «©»", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const first = await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    expect(uriOf(first)).toContain("/render/image/public/");
+    await fireEvent(first, "error", { nativeEvent: { error: "load failed" } });
+    const second = await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    expect(uriOf(second)).toBe("http://localhost:46421/storage/v1/object/public/portal-university-photos/geography/cities/kuala-lumpur-0123456789ab.jpg");
+    await fireEvent(second, "error", { nativeEvent: { error: "load failed" } });
+    await waitFor(() => expect(screen.queryByTestId("hero-photo", { includeHiddenElements: true })).toBeNull());
+    expect(screen.queryByTestId("hero-credit")).toBeNull();
+    // шапка осталась: текст, «Сменить страну» и строка шага на месте
+    expect(screen.getByText("Здравствуйте, Тест Студентов")).toBeTruthy();
+    expect(screen.getByTestId("change-country")).toBeTruthy();
+    expect(screen.getByTestId("journey-now")).toBeTruthy();
+  });
+
+  it("нет фото столицы (у Китая в тестовом каталоге нет ни Пекина, ни фото страны) - плашка без «©»", async () => {
+    const { transport } = fakeTransport(homeHandlers("CN"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("hero-sub");
+    expect(screen.queryByTestId("hero-photo", { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId("hero-credit")).toBeNull();
+    expect(screen.getByTestId("hero-sub")).toHaveTextContent(/^Китай · набор на сентябрь 2027 года$/);
+  });
+
+  it("индекс каталога не прочитался - шапка без фото, страница не падает", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY", { student_university_index_v1: failure(null, 503) }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("hero-sub");
+    await screen.findByTestId("case-open");
+    expect(screen.queryByTestId("hero-photo", { includeHiddenElements: true })).toBeNull();
+    expect(screen.getByTestId("journey")).toBeTruthy();
+  });
+
+  it("без страны - тёмная плашка с приветствием и отсчётом, фото и «©» нет", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY", { student_country_choice_v1: { country: null, source: "none", savedAt: null } }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByText("Выберите страну");
+    expect(screen.getByTestId("home-hero")).toBeTruthy();
+    expect(screen.queryByTestId("hero-photo", { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId("hero-sub")).toBeNull();
+    expect(await screen.findByTestId("hero-countdown")).toBeTruthy(); // отсчёт есть и у тёмной плашки (веб #1489)
+  });
+});
+
+describe("отсчёт до ближайшей даты", () => {
+  it("число дней, «дней до 12 сент.» и само дело; вся плашка ведёт к делу", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const count = await screen.findByTestId("hero-countdown");
+    expect(within(count).getByText("4", { includeHiddenElements: true })).toBeTruthy();
+    expect(within(count).getByText("дня до 12 сент.", { includeHiddenElements: true })).toBeTruthy();
+    expect(within(count).getByText("Замените документ: Паспорт", { includeHiddenElements: true })).toBeTruthy();
+    // читалка слышит одну фразу: «4 дня до: дело, полная дата»
+    expect(count.props.accessibilityLabel).toBe("4 дня до: Замените документ: Паспорт, 12 сентября 2026 г.");
+    await fireEvent.press(count);
+    expect(navigate).toHaveBeenCalledWith("/documents");
+  });
+
+  it.each([
+    ["2026-09-12T02:00:00Z", "Сегодня", "12 сент."], // 08:00 в Бишкеке, срок паспорта - 09:00 того же дня
+    ["2026-09-11T05:00:00Z", "Завтра", "12 сент."],
+  ])("при «сегодня» %s на месте числа стоит слово «%s» и дата «%s»", async (today, word, date) => {
+    moveNow(today);
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const count = await screen.findByTestId("hero-countdown");
+    expect(within(count).getByText(word, { includeHiddenElements: true })).toBeTruthy();
+    expect(within(count).getByText(date, { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it("просроченное дело важнее будущей даты: красная плашка «Просрочено» и ссылка на это дело", async () => {
+    moveNow("2026-09-20T05:00:00Z"); // паспорт до 12.09 прошёл, платёж до 01.10 ещё впереди
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const count = await screen.findByTestId("hero-countdown");
+    expect(within(count).getByText("Просрочено", { includeHiddenElements: true })).toBeTruthy();
+    expect(within(count).getByText("Замените документ: Паспорт", { includeHiddenElements: true })).toBeTruthy();
+    expect(flat(screen.getByTestId("hero-countdown-big", { includeHiddenElements: true })).backgroundColor).toBe(lightTokens.brandRed);
+    await fireEvent.press(count);
+    expect(navigate).toHaveBeenCalledWith("/documents");
+  });
+
+  it("дат на 60 дней нет - отсчёта нет", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY", { student_portal_overview_v2: [OVERVIEW_ROW_EMPTY], student_portal_finance_v2: [], student_university_favorites_v1: [] }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByText("Дат пока нет");
+    expect(screen.queryByTestId("hero-countdown")).toBeNull();
+  });
+
+  it("кыргызский: слова отсчёта из общего словаря", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport), "ky");
+    const count = await screen.findByTestId("hero-countdown");
+    const home = getPortalStrings("home", "ky");
+    expect(within(count).getByText("4", { includeHiddenElements: true })).toBeTruthy();
+    // строка отсчёта по шаблону кыргызского словаря: «{дата} · {слово}»
+    const line = formatPortalString(home.heroCountdownLine, { word: home["heroDays.few"], date: homeDayMonth("2026-09-12", "ky") });
+    expect(within(count).getByText(line, { includeHiddenElements: true })).toBeTruthy();
+    expect(line).toContain(home["heroDays.few"]);
+  });
+});
+
+describe("светлая и тёмная тема", () => {
+  it("шапка одинакова в обеих темах (графит с белым текстом), остальное берёт токены темы", async () => {
+    await AsyncStorage.setItem("evo.theme", "dark");
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("hero-sub");
+    await waitFor(() => expect(flat(screen.getByTestId("journey")).backgroundColor).toBe(darkTokens.surface));
+    // шапка: графит и красная кромка не зависят от темы
+    expect(flat(screen.getByTestId("home-hero")).backgroundColor).toBe(darkTokens.heroBg);
+    expect(flat(screen.getByTestId("home-hero")).borderTopColor).toBe(darkTokens.brandRed);
+    // строка шага и карточки - цвета тёмной темы
+    expect(flat(screen.getByTestId("journey-now-row")).borderColor).toBe(darkTokens.line);
+    expect(flat(screen.getByTestId("journey-now-row")).backgroundColor).toBe(darkTokens.surface);
+    expect(darkTokens.heroBg).toBe(lightTokens.heroBg);
+    expect(darkTokens.surface).not.toBe(lightTokens.surface);
+  });
+});

@@ -43,9 +43,35 @@ export function LinkButton({ label, onPress, testID, accessibilityHint }: { labe
   );
 }
 
-/** Пустое состояние: значок в бледно-красном круге, заголовок, строка и действие. */
-export function EmptyBlock({ icon: Icon, title, body = null, action = null }: { icon: LucideIcon; title: string; body?: string | null; action?: ReactNode }) {
+/**
+ * Пустое состояние: значок в бледно-красном круге, заголовок, строка и действие. `compact` - одной строкой со значком
+ * слева (веб, 18.11.2026: «Ближайшие даты» без дат не занимают пол-экрана под неделей).
+ */
+export function EmptyBlock({ icon: Icon, title, body = null, action = null, compact = false }: { icon: LucideIcon; title: string; body?: string | null; action?: ReactNode; compact?: boolean }) {
   const { tokens } = useTheme();
+  if (compact) {
+    return (
+      <View accessible={false} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 4 }}>
+        <View
+          style={{ width: 36, height: 36, borderRadius: tokens.radiusChip, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Icon size={18} strokeWidth={1.75} color={tokens.accent} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="body" bold>
+            {title}
+          </Text>
+          {body ? (
+            <Text variant="secondary" tone="text2">
+              {body}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   return (
     <View accessible={false} style={{ alignItems: "flex-start", gap: 4 }}>
       <View

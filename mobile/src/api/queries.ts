@@ -17,6 +17,7 @@ import {
   readPayments,
   readCscaHome,
   readFavorites,
+  readHomeApplication,
   readNotifications,
   readOverview,
   readPreparations,
@@ -103,6 +104,12 @@ export function useRefetchOnFocus() {
       void client.refetchQueries({ queryKey: ["portal", userKey], type: "active", stale: true }, { cancelRefetch: false });
     }, [client, userKey]),
   );
+}
+
+/** Своя анкета до договора: даты отметок карточки «Ваша анкета» на «Главной» (только approved). */
+export function useHomeApplication() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "home-application"), queryFn: () => readHomeApplication(transport), enabled: tier === "approved" });
 }
 
 /** Карточка CSCA: читается только для Китая (`enabled` решает вызывающий). */

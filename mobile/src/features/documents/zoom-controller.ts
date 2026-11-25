@@ -11,6 +11,7 @@ export type Touch = Readonly<{ x: number; y: number }>;
 /** Касание короче и неподвижнее этого - не жест, а «тап»; два тапа подряд - двойное касание. */
 const TAP_MS = 300;
 const TAP_SLOP = 10;
+/** Пауза между тапами - от отпускания первого до НАЧАЛА второго, как у платформы (Android: `getDoubleTapTimeout()`, 300 мс). */
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_SLOP = 40;
 /** След за пальцем при листании: страница едва заметно тянется, но не уезжает. */
@@ -134,7 +135,8 @@ export class ZoomController {
     this.count = 0;
     if (isTap) {
       const previous = this.lastTap;
-      if (previous && time - previous.at <= DOUBLE_TAP_MS && distance(previous.point, this.firstPoint) <= DOUBLE_TAP_SLOP) {
+      // пауза - до начала этого касания (`startedAt`), а не до его отпускания: иначе окно съедает длительность второго нажатия
+      if (previous && this.startedAt - previous.at <= DOUBLE_TAP_MS && distance(previous.point, this.firstPoint) <= DOUBLE_TAP_SLOP) {
         this.lastTap = null;
         this.view = doubleTapView(this.view, this.center(this.firstPoint), this.content, this.frame);
         this.hooks.onView(this.view, true);

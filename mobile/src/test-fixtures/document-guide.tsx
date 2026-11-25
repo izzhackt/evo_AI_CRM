@@ -133,6 +133,17 @@ export async function move(zoomId: string, fingers: Finger[], time: number) {
 export async function lift(zoomId: string, time: number) {
   await fireEvent(screen.getByTestId(zoomId), "responderRelease", { nativeEvent: { touches: [], changedTouches: [], ...at(time) } });
 }
+/**
+ * Одно касание так, как его даёт платформа: захват ответчика, «начало» (то же касание), «конец» (пальцев не осталось) и
+ * отпускание; между двумя касаниями двойного ответчик свободен (каждое - свой захват). Время - то, что в событиях.
+ */
+export async function wholeTap(targetId: string, finger: Finger, down: number, up: number) {
+  const target = screen.getByTestId(targetId);
+  await fireEvent(target, "responderGrant", { nativeEvent: { touches: [finger], changedTouches: [finger], ...at(down) } });
+  await fireEvent(target, "responderStart", { nativeEvent: { touches: [finger], changedTouches: [finger], ...at(down) } });
+  await fireEvent(target, "responderEnd", { nativeEvent: { touches: [], changedTouches: [finger], ...at(up) } });
+  await fireEvent(target, "responderRelease", { nativeEvent: { touches: [], changedTouches: [finger], ...at(up) } });
+}
 export async function drag(zoomId: string, from: [number, number], to: [number, number], start = 1000, duration = 120) {
   await press(zoomId, [touch(...from)], start);
   await move(zoomId, [touch(...to)], start + duration / 2);

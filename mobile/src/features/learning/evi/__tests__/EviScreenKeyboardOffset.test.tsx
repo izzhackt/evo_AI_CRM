@@ -28,8 +28,7 @@ jest.mock("react-native/Libraries/Components/Keyboard/KeyboardAvoidingView", () 
   const React = jest.requireActual<typeof import("react")>("react");
   return {
     __esModule: true,
-    default: ({ keyboardVerticalOffset, children, ...rest }: Record<string, unknown> & { children?: React.ReactNode }) =>
-      React.createElement(View, { ...rest, keyboardVerticalOffset }, children),
+    default: ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) => React.createElement(View, props as never, children),
   };
 });
 let mockBarHeight = 52;

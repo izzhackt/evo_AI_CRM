@@ -11,4 +11,3 @@ export function fullQrSize(windowWidth: number): number {
 }
 
 export const FULL_QR_CARD_PAD = CARD_PAD;
-// Throwaway CI test, round 2 (PR never merged): this comment line changes no behaviour.

@@ -13,7 +13,15 @@ import { NOTIFICATION_ID, NOTIFICATION_ROW } from "@/test-fixtures/rpc-rows";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
-jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }), usePathname: () => "/messages" }));
+// Стек «Входящих» под экраном: по умолчанию список лежит внизу (вход из списка); тесты стрелки «назад» меняют его на «вход снаружи».
+const mockBack = jest.fn();
+let mockStack: { index: number; routes: { name: string }[] } = { index: 1, routes: [{ name: "index" }, { name: "updates" }] };
+jest.mock("expo-router", () => ({
+  router: { navigate: jest.fn() },
+  useRouter: () => ({ back: mockBack, canGoBack: () => true, navigate: jest.fn() }),
+  useNavigation: () => ({ getState: () => mockStack }),
+  usePathname: () => "/messages",
+}));
 const AUTH = "11111111-1111-4111-8111-111111111111";
 jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
 const navigate = router.navigate as jest.Mock;
@@ -23,6 +31,8 @@ const READ_FAILED = "Не удалось подтвердить отметку �
 beforeEach(() => {
   navigate.mockClear();
   announce.mockClear();
+  mockBack.mockClear();
+  mockStack = { index: 1, routes: [{ name: "index" }, { name: "updates" }] };
   visible.mockReturnValue(true);
 });
 const WRITE = "mark_own_student_portal_notification_read_v2";
@@ -287,6 +297,42 @@ describe("Что нового", () => {
     const { transport } = fakeTransport({ student_portal_notifications_v2: [] });
     await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
     expect(await screen.findByText("Новых уведомлений нет")).toBeTruthy();
+  });
+});
+
+describe("Что нового: стрелка «назад» говорит о том, куда ведёт", () => {
+  const feed = () => renderPortal(<UpdatesScreen />, testApi(fakeTransport({ student_portal_notifications_v2: [] }).transport, { userKey: AUTH }));
+
+  it("список «Входящих» лежит под лентой (вошли из списка): «Все чаты» и возврат на шаг назад", async () => {
+    await feed();
+    const arrow = await screen.findByTestId("updates-back");
+    expect(arrow.props.accessibilityLabel).toBe("Все чаты");
+    await fireEvent.press(arrow);
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("ленту открыли снаружи (колокольчик, «Главная»): под ней списка нет, стрелка называется нейтрально «Назад» и ведёт туда, откуда пришли", async () => {
+    mockStack = { index: 0, routes: [{ name: "updates" }] };
+    await feed();
+    const arrow = await screen.findByTestId("updates-back");
+    expect(arrow.props.accessibilityLabel).toBe("Назад");
+    await fireEvent.press(arrow);
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("под лентой не список, а другой экран (решение): тоже «Назад»", async () => {
+    mockStack = { index: 1, routes: [{ name: "reply/[notificationId]" }, { name: "updates" }] };
+    await feed();
+    expect((await screen.findByTestId("updates-back")).props.accessibilityLabel).toBe("Назад");
+  });
+
+  it("кыргызский язык: слова из общего словаря (backToList / apply.back)", async () => {
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [] });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }), "ky");
+    expect((await screen.findByTestId("updates-back")).props.accessibilityLabel).toBe("Бардык маектер");
+    mockStack = { index: 0, routes: [{ name: "updates" }] };
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }), "ky");
+    expect((await screen.findByTestId("updates-back")).props.accessibilityLabel).toBe("Артка");
   });
 });
 

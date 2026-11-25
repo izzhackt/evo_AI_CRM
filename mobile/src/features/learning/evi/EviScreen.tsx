@@ -27,7 +27,7 @@ import { SubHeader, useBack } from "@/features/learning/ui";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import type { PortalStrings } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
-import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
+import { useTopChromeHeight } from "@/shell/top-chrome";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useFocusEffect } from "@/lib/focus";
@@ -84,6 +84,7 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
   const portal = usePortalApi();
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardInset();
+  const topChrome = useTopChromeHeight();
   const back = useBack("/professions");
   const p = t("professions");
   // Разговор из памяти кабинета: тот же студент получает его обратно, другой - только приветствие (см. EviMemory.tsx). Без ключа на
@@ -134,7 +135,7 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + TOP_BAR_HEIGHT : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? topChrome : 0}
       style={{ flex: 1, backgroundColor: tokens.bg, paddingBottom: keyboard > 0 ? keyboard + insets.bottom : 0 }}
       testID="evi-screen"
     >

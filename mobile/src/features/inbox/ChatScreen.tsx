@@ -3,7 +3,6 @@
 // документа в сообщении команды), поэтому и здесь только текст. Как у веба (PORT-6a): лента названа для читалки
 // (`threadAria`), новое входящее объявляется («Новое сообщение от …»), под полем ввода «Отправляем…» и «Сообщение отправлено.»,
 // сбой обновления говорит «Не удалось обновить переписку.» с «Повторить».
-import { useRouter } from "expo-router";
 import { ArrowLeft, ArrowUp, MessagesSquare } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from "react-native";
@@ -13,10 +12,12 @@ import { PORTAL_CASE_MESSAGE_BODY_LIMIT, type OutboxItem, type PortalCaseMessage
 import { dayKey, dayLabel, timeLabel } from "@/features/inbox/format";
 import { useAnnounceOnAppear } from "@/features/inbox/useAnnounceOnAppear";
 import { useChatThread } from "@/features/inbox/useChatThread";
+import { useInboxBack } from "@/features/inbox/useInboxBack";
 import { useIncomingNotice } from "@/features/inbox/useIncomingNotice";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import { useLang } from "@/i18n/LangProvider";
-import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
+import { useTopChromeHeight } from "@/shell/top-chrome";
+import { useReportUnsentChat } from "@/shell/unsent-chat";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
@@ -76,10 +77,10 @@ export function ChatScreen() {
   const { lang, m, t, format } = useLang();
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const strings = t("messages");
   const thread = useChatThread();
   const keyboard = useKeyboardInset();
+  const topChrome = useTopChromeHeight();
   const [draft, setDraft] = useState("");
   const entries = useMemo(
     () => buildEntries(thread.messages, thread.outbox, lang, strings.dayToday).reverse(),
@@ -87,6 +88,8 @@ export function ChatScreen() {
   );
   const trimmed = draft.trim();
   const canSend = trimmed.length >= 1;
+  // Черновик и очередь отправки живут в этом экране: пока в них что-то есть, уход с вкладки «Входящие» его не закрывает (`shell/unsent-chat.ts`).
+  useReportUnsentChat(canSend || thread.outbox.length > 0);
   // Статус отправки под полем (веб: `role="status"` у формы): «Отправляем…», затем «Сообщение отправлено.» до следующей отправки. Пока в
   // ленте стоит неотправленное (сбой другой отправки), «отправлено» не показывается и не озвучивается: оно читалось бы как итог всего.
   const sending = thread.outbox.some((item) => item.status === "sending");
@@ -115,17 +118,17 @@ export function ChatScreen() {
     if (thread.send(draft)) setDraft("");
   };
 
-  const back = () => (router.canGoBack() ? router.back() : router.navigate("/messages"));
+  const back = useInboxBack();
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + TOP_BAR_HEIGHT : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? topChrome : 0}
       style={{ flex: 1, backgroundColor: tokens.bg, paddingBottom: keyboard > 0 ? keyboard + insets.bottom : 0 }}
       testID="chat-screen"
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.line }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={strings.backToList} onPress={back} testID="chat-back" hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={back.label} onPress={back.onPress} testID="chat-back" hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
           <ArrowLeft size={22} strokeWidth={1.75} color={tokens.text} />
         </Pressable>
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center" }}>

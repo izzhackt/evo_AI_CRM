@@ -20,6 +20,15 @@ function session(handlers: Record<string, unknown>, opts: Parameters<typeof less
   return { ...fake, session: new EnglishSession(fake.transport, parsed.lesson.lessonId, parsed.lesson.exercises, parsed.draft, parsed.latestCompleted, newId) };
 }
 const nameOf = (calls: { name: string }[]) => calls.map((c) => c.name);
+/** Первые три попытки (одна отправка с повторами) обрываются, дальше сервер отвечает `reply`: так одна досылка при закрытии проходит. */
+const down = (name: string, reply: unknown) => {
+  let n = 0;
+  return { [name]: (args: Record<string, unknown> | undefined) => (++n <= 3 ? failure(null, 0) : typeof reply === "function" ? (reply as (a: unknown) => unknown)(args) : reply) };
+};
+/** Ответы поддельной сети приходят цепочкой обещаний без таймеров: двадцати проходов с запасом хватает, чтобы все ожидания закончились. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+}
 
 describe("урок: «Начать урок» открывает попытку", () => {
   it("попытка создаётся сразу, второй вызов её не создаёт; первый ответ идёт в уже открытую попытку", async () => {
@@ -208,10 +217,6 @@ describe("урок: идентификаторы запросов и ответ 
 
 describe("урок: закрытие экрана досылает неподтверждённое один раз (замена запирающего выхода)", () => {
   const draft = () => attemptFixture(1, { total: 3 });
-  const down = (name: string, reply: unknown) => {
-    let n = 0;
-    return { [name]: (args: Record<string, unknown> | undefined) => (++n <= 3 ? failure(null, 0) : typeof reply === "function" ? (reply as (a: unknown) => unknown)(args) : reply) };
-  };
 
   it("ответ отправлен, подтверждения нет: при закрытии один повтор того же замороженного запроса; второе закрытие ничего не шлёт", async () => {
     const { session: s, calls } = session(down(SAVE, saveResult(1, 1, true)), { draft: draft() });
@@ -269,5 +274,91 @@ describe("урок: закрытие экрана досылает неподт�
     const completes = fake.calls.filter((c) => c.name === COMPLETE);
     expect(completes).toHaveLength(4);
     expect(new Set(completes.map((c) => c.args?.p_request_id)).size).toBe(1);
+  });
+});
+
+describe("урок: экран узнаёт о подтверждённой досылке; после выхода из аккаунта ничего не шлётся (QA 23, мелочь 4 и выход)", () => {
+  const draft = () => attemptFixture(1, { total: 3 });
+  const full = () => attemptFixture(1, { total: 1, answers: { [exerciseId(1, 1)]: attemptEntry("b", true) } });
+  const finishing = (handlers: Record<string, unknown>) => {
+    const parsed = parseLearningLessonView(lessonView({ n: 1, exercises: 1 }, { draft: full() }));
+    const fake = fakeTransport(handlers);
+    return { ...fake, session: new EnglishSession(fake.transport, parsed.lesson.lessonId, parsed.lesson.exercises, parsed.draft, null, newId) };
+  };
+  const completed = () => attemptFixture(1, { status: "completed", total: 1, result: { correct: 1, total: 1, wrong: [] }, answers: full().answers });
+
+  it("досылка ответа подтверждена: `onConfirmed` вызван один раз; второе закрытие экрана ничего не шлёт и не зовёт", async () => {
+    const { session: s, calls } = session(down(SAVE, saveResult(1, 1, true)), { draft: draft() });
+    await s.answer({ selected: "b" });
+    const confirmed = jest.fn();
+    s.dispose(confirmed);
+    s.dispose(confirmed);
+    await settle();
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(4);
+    expect(confirmed).toHaveBeenCalledTimes(1);
+  });
+
+  it("досылка завершения подтверждена: `onConfirmed` вызван один раз", async () => {
+    const { session: s, calls } = finishing(down(COMPLETE, completed()));
+    await expect(s.finish()).resolves.toBe(false);
+    const confirmed = jest.fn();
+    s.dispose(confirmed);
+    await settle();
+    expect(calls.filter((c) => c.name === COMPLETE)).toHaveLength(4);
+    expect(confirmed).toHaveBeenCalledTimes(1);
+  });
+
+  it("досылка не удалась (сервер недоступен и на этот раз): `onConfirmed` не вызван, ошибки наружу не вылетает", async () => {
+    const { session: s, calls } = session({ [SAVE]: failure(null, 0) }, { draft: draft() });
+    await s.answer({ selected: "b" });
+    const sent = calls.filter((c) => c.name === SAVE).length;
+    const confirmed = jest.fn();
+    s.dispose(confirmed);
+    await settle();
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(2 * sent);
+    expect(confirmed).not.toHaveBeenCalled();
+  });
+
+  it("закрытие экрана без обратного вызова по-прежнему досылает (вызов `dispose()` без аргументов)", async () => {
+    const { session: s, calls } = session(down(SAVE, saveResult(1, 1, true)), { draft: draft() });
+    await s.answer({ selected: "b" });
+    s.dispose();
+    await settle();
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(4);
+  });
+
+  it("выход из аккаунта после обрыва: закрытие экрана ничего не досылает и не зовёт `onConfirmed` (токен отозван)", async () => {
+    const answered = session(down(SAVE, saveResult(1, 1, true)), { draft: draft() });
+    await answered.session.answer({ selected: "b" });
+    const confirmed = jest.fn();
+    answered.session.abandon();
+    answered.session.dispose(confirmed);
+    await settle();
+    expect(answered.calls.filter((c) => c.name === SAVE)).toHaveLength(3);
+    expect(confirmed).not.toHaveBeenCalled();
+
+    const finishingSession = finishing(down(COMPLETE, completed()));
+    await finishingSession.session.finish();
+    finishingSession.session.abandon();
+    finishingSession.session.dispose(confirmed);
+    await settle();
+    expect(finishingSession.calls.filter((c) => c.name === COMPLETE)).toHaveLength(3);
+    expect(confirmed).not.toHaveBeenCalled();
+  });
+
+  it("после выхода из аккаунта кнопки уже ничего не шлют: «Начать», ответ, «Завершить» и перечитывание", async () => {
+    const lesson = session({ [START]: attemptFixture(1, { total: 3 }), [SAVE]: saveResult(1, 1, true), [READ]: lessonView({ n: 1 }, {}) });
+    lesson.session.abandon();
+    await expect(lesson.session.begin()).resolves.toBe(false);
+    await lesson.session.answer({ selected: "b" });
+    await expect(lesson.session.finish()).resolves.toBe(false);
+    await lesson.session.reload();
+    expect(lesson.calls).toHaveLength(0);
+
+    const open = finishing({ [COMPLETE]: completed() });
+    open.session.abandon();
+    await expect(open.session.finish()).resolves.toBe(false);
+    expect(open.calls).toHaveLength(0);
+    expect(open.session.getState().error).toBeNull();
   });
 });

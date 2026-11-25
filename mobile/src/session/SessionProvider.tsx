@@ -1,15 +1,19 @@
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Alert } from "react-native";
 
 import { createPortalAuthApi, type PortalAuthApi, type SignInFailure } from "@/api/portal-auth";
 import { clearDownloadCache } from "@/features/documents/download-cache";
 import { getConfig } from "@/config";
+import { DEFAULT_LANG, mobileString } from "@/i18n";
+import { useOptionalLang } from "@/i18n/LangProvider";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
 import { clearInviteToken } from "@/features/registration/draft-store";
 import { clearPendingSignup } from "@/features/registration/pending-store";
 import { createAccessDeps } from "@/session/deps";
 import { clearAllLocalData } from "@/session/local-data";
+import { announceSignOut } from "@/session/sign-out-signal";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
 
@@ -46,6 +50,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [mustSetPassword, setMustSetPassword] = useState(false);
   const [ready, setReady] = useState(false);
   const stateRef = useRef(state);
+  // Язык нужен только для слов «выйти не удалось»; провайдер языка есть в приложении всегда, а в проверках его может не быть.
+  const lang = useOptionalLang()?.lang ?? DEFAULT_LANG;
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
   // Запуск приложения: файлы документов прошлой сессии в кэше не нужны.
   useEffect(() => {
     void clearDownloadCache();
@@ -109,6 +119,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           case "SIGNED_IN":
           case "TOKEN_REFRESHED":
             if (!session) {
+              announceSignOut();
               runId.current += 1;
               setState({ kind: "signedOut", accountDeleted: accountDeletedRef.current });
               setReady(true);
@@ -120,6 +131,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             routeSession(event, session);
             return;
           case "SIGNED_OUT":
+            announceSignOut();
             void clearAllLocalData();
             runId.current += 1;
             forcedMustSetRef.current = false;
@@ -181,7 +193,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const epoch = signInEpochRef.current;
-    await supabase.auth.signOut({ scope: "local" });
+    // Первым делом, до запроса на отзыв токена: сессии записи (тест, урок) бросают неотправленное, иначе закрытие экрана слало бы его с отозванным токеном.
+    announceSignOut();
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // Хранилище не дало стереть сессию: SIGNED_OUT не пришло, студент остался внутри, а экраны записи уже брошены и ничего не сохраняют
+      // (тест молча не пишет, урок не принимает ответ, тест на время замер). Вернуть им запись нельзя (таймеры сняты), поэтому говорим
+      // о сбое и открываем кабинет заново: экраны, а с ними и сессии записи, новые. Обрыв сети сюда не попадает: библиотека убирает
+      // локальную сессию и шлёт SIGNED_OUT раньше запроса, а ответ её ошибки выход не читает.
+      if (epoch === signInEpochRef.current) {
+        Alert.alert(mobileString(langRef.current, "error.generic"));
+        await resolve(false);
+      }
+      return;
+    }
     if (epoch !== signInEpochRef.current) return; // за ожиданием сервера начат другой вход: хвост выхода чужой
     await clearAllLocalData();
     if (epoch !== signInEpochRef.current) return;
@@ -189,13 +215,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     forcedMustSetRef.current = false;
     setMustSetPassword(false);
     setState({ kind: "signedOut", accountDeleted: false });
-  }, [supabase]);
+  }, [resolve, supabase]);
 
   const retry = useCallback(() => resolve(false), [resolve]);
 
   const refreshAccess = useCallback(async () => {
     if (await deps.authUserIsDeleted()) {
       accountDeletedRef.current = true;
+      announceSignOut();
       await supabase.auth.signOut({ scope: "local" });
       return;
     }

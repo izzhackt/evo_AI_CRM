@@ -13,7 +13,12 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { NOTIFICATION_ROW } from "@/test-fixtures/rpc-rows";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
-jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }), usePathname: () => "/messages" }));
+jest.mock("expo-router", () => ({
+  router: { navigate: jest.fn() },
+  useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }),
+  useNavigation: () => ({ getState: () => ({ index: 1, routes: [{ name: "index" }, { name: "updates" }] }) }),
+  usePathname: () => "/messages",
+}));
 jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
 
 const AUTH = "11111111-1111-4111-8111-111111111111";

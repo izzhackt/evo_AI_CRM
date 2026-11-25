@@ -19,6 +19,7 @@ import { leaveTests, testsOrigin, type TestsOrigin } from "@/features/learning/t
 import { useLeaveGuard } from "@/features/learning/tests/useLeaveGuard";
 import { StackPage, SubHeader } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
+import { useAbandonOnSignOut } from "@/session/sign-out-signal";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
 import { Card, type ScrollTarget } from "@/ui/Screen";
@@ -87,6 +88,8 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin
   const scroller = useRef<ScrollTarget>(null);
   const toTop = useCallback(() => scroller.current?.scrollTo({ y: 0, animated: false }), []);
   useEffect(() => () => session.dispose(), [session]);
+  // Выход из аккаунта: токен отозван, ни повтор, ни закрытие экрана больше ничего не шлют (QA 23: запись с отозванным токеном, 401).
+  useAbandonOnSignOut(session);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (status) => {
       if (status !== "active") void session.flush();
@@ -108,16 +111,24 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin
   const running = phase === "running" || phase === "completing";
   const { exitNotice, saveAndExit, leaveAnyway } = useLeaveGuard({ session, active: running, back: exit });
   const loading = resuming && (phase === "intro" || phase === "starting");
-  const restart = () => {
-    session.restart();
-    toTop(); // «Перед началом» короче результата: без прокрутки открылся бы пустой низ экрана
-  };
+  // Страница одна и та же прокрутка, а содержимое под ней меняется: «Перед началом» длиннее страницы вопросов, и студент жмёт «Начать»,
+  // долистав до кнопки. Без сброса тест открывался с той же прокруткой: первое задание выше экрана, наверху второе (QA 23, D3). Так же
+  // итог открывается сверху, а не с низа последней страницы, и «Пройти заново» возвращает к началу. Переход «страница теста» делает
+  // раннер сам (`onPageChange`). Сброс при смене стадии, а не фазы: `running` и `completing` одна стадия (иначе сбой завершения
+  // бросал бы студента наверх).
+  const stage = phase === "result" ? "result" : phase === "intro" || phase === "starting" ? "intro" : "runner";
+  const shownStage = useRef(stage);
+  useEffect(() => {
+    if (shownStage.current === stage) return;
+    shownStage.current = stage;
+    toTop();
+  }, [stage, toTop]);
   return (
     <RunnerPage header={<SubHeader title={title} onBack={saveAndExit} backLabel={s.backToCatalog} testID="assessment-title" />} scrollRef={scroller} testID="assessment-screen">
       {loading ? <CardSkeleton label={m("state.loading")} lines={4} /> : null}
       {!loading && (phase === "intro" || phase === "starting") ? <Intro instrument={instrument} state={state} onStart={() => void session.start()} resume={state.resumable} /> : null}
       {running && state.attempt ? <AssessmentRunner session={session} state={state} attempt={state.attempt} exitNotice={exitNotice} onSaveAndExit={saveAndExit} onLeaveAnyway={leaveAnyway} onPageChange={toTop} /> : null}
-      {phase === "result" && state.attempt ? <AssessmentResult attempt={state.attempt} onRestart={restart} /> : null}
+      {phase === "result" && state.attempt ? <AssessmentResult attempt={state.attempt} onRestart={() => session.restart()} /> : null}
     </RunnerPage>
   );
 }

@@ -180,7 +180,25 @@ describe("настоящий стек: выходы из упорного сбо
     expect(saves(harness)).toHaveLength(10);
   });
 
-  it("«Выйти без сохранения» не убрало экран: отказ снимается, сохранение возобновляется тем же запросом", async () => {
+  it("медленный уход (JS занят дольше 0,8 с): таймер защиты срабатывает раньше, чем экран закрылся, а закрытие после «пропадут» ничего не шлёт", async () => {
+    start({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
+    backTarget = () => undefined; // экран закроется позже, чем сработает таймер защиты
+    await mount();
+    await act(async () => session.select("o1", "3"));
+    await pass(ASSESSMENT_SAVE_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    await pass(ASSESSMENT_RETRY_MS);
+    expect(saves(harness)).toHaveLength(9);
+    await act(async () => guard.leaveAnyway());
+    await act(async () => {
+      jest.advanceTimersByTime(1_200); // дольше LEAVING_RESET_MS: раньше этот таймер снимал отказ (`keep`)
+    });
+    await act(async () => session.dispose()); // экран наконец закрылся
+    await act(async () => harness.settle());
+    expect(saves(harness)).toHaveLength(9); // раньше уходил десятый запрос, и сервер сохранял ответ вопреки «пропадут»
+  });
+
+  it("«Выйти без сохранения» не убрало экран: время отказ не снимает, а следующее действие студента снимает, и сохранение идёт тем же запросом", async () => {
     start({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })] });
     backTarget = () => undefined; // уход не состоялся
     const view = await mount();
@@ -191,13 +209,15 @@ describe("настоящий стек: выходы из упорного сбо
     const frozen = saves(harness)[0].args.p_request_id;
     await act(async () => guard.leaveAnyway());
     await pass(10 * ASSESSMENT_RETRY_MS);
-    expect(saves(harness)).toHaveLength(9); // пока метка «уходим» стоит, ничего не уходит
     await act(async () => {
-      jest.advanceTimersByTime(LEAVING_RESET_MS + 100);
+      jest.advanceTimersByTime(LEAVING_RESET_MS + 100); // защита вернулась, а отказ остаётся
     });
+    await pass(10 * ASSESSMENT_RETRY_MS);
+    expect(saves(harness)).toHaveLength(9);
+    await act(async () => session.select("o2", "4")); // студент остался и снова отвечает
     await pass(ASSESSMENT_RETRY_MS);
     expect(view.getPathname()).toBe("/tests/orvis92");
-    expect(saves(harness)).toHaveLength(10);
+    expect(saves(harness).length).toBeGreaterThanOrEqual(10);
     expect(saves(harness)[9].args.p_request_id).toBe(frozen);
     expect(session.getState().saveStatus).toBe("saved");
   });

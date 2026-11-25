@@ -2,11 +2,12 @@
 // «Продолжить», задания только после неё, вместо формы после ответа формулировка и разбор, озвучка вердикта, итог со списком заданий
 // и ссылкой на повторение, пройденный урок сразу на итоге. Чтения и записи идут по настоящему пути приложения (слой RPC, строгие
 // разборщики) на поддельном транспорте; данные синтетические.
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { AccessibilityInfo, Dimensions, ScrollView, StyleSheet } from "react-native";
 
 import { EnglishLessonScreen } from "@/features/learning/english/EnglishLessonScreen";
+import { announceSignOut } from "@/session/sign-out-signal";
 import { CHAT_FAB_CLEARANCE, TAB_BAR_CLEARANCE } from "@/shell/useTabBarClearance";
 import { lightTokens } from "@/theme/tokens.generated";
 import { ATTEMPT_ID, MODULE_ID, NEW_ATTEMPT_ID, attemptEntry, attemptFixture, exerciseId, lessonId, lessonView, saveResult } from "@/test-fixtures/english";
@@ -380,6 +381,51 @@ describe("задания и вердикт (G54, G56)", () => {
     await unmount();
     expect(calls.filter((c) => c.name === SAVE)).toHaveLength(4);
     expect(new Set(calls.filter((c) => c.name === SAVE).map((c) => c.args?.p_request_id)).size).toBe(1);
+  });
+
+  it("«Завершить» не подтверждено, и закрытие экрана досылает его, а сервер подтвердил: список уроков перечитывается (раньше «Пройден» появлялся только после следующего возврата; мелочь 4)", async () => {
+    let n = 0;
+    const { calls, client, unmount } = await open(
+      { draft: attemptFixture(1, { answers: answers([1, "b", true], [2, "a", false], [3, "b", true]) }) },
+      { [COMPLETE]: () => (++n <= 3 ? failure(null, 0) : completedAttempt()) },
+    );
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    await fireEvent.press(await screen.findByTestId("english-finish"));
+    await screen.findByTestId("english-run-error");
+    expect(invalidate).not.toHaveBeenCalled();
+    await unmount(); // досылка идёт после закрытия экрана
+    await waitFor(() => expect(calls.filter((c) => c.name === COMPLETE)).toHaveLength(4));
+    await waitFor(() => expect(invalidate).toHaveBeenCalled());
+    const keys = invalidate.mock.calls.map(([filter]) => (filter as { queryKey: unknown[] }).queryKey.slice(-1)[0]);
+    expect(keys).toEqual(expect.arrayContaining(["english-modules", "english-review"]));
+  });
+
+  it("досылка при закрытии не удалась: список не перечитывается", async () => {
+    const { calls, client, unmount } = await open(
+      { draft: attemptFixture(1, { answers: answers([1, "b", true], [2, "a", false], [3, "b", true]) }) },
+      { [COMPLETE]: () => failure(null, 0) },
+    );
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    await fireEvent.press(await screen.findByTestId("english-finish"));
+    await screen.findByTestId("english-run-error");
+    const sent = calls.filter((c) => c.name === COMPLETE).length;
+    await unmount();
+    // Досылка делает столько же попыток, сколько первая отправка; ждём, пока она кончится, и только потом смотрим на список.
+    await waitFor(() => expect(calls.filter((c) => c.name === COMPLETE)).toHaveLength(2 * sent));
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("выход из аккаунта посреди сбоя: закрытие экрана ничего не досылает (токен отозван, иначе запись кончилась бы 401)", async () => {
+    const { calls, unmount } = await open(
+      { draft: attemptFixture(1, { answers: answers([1, "b", true], [2, "a", false], [3, "b", true]) }) },
+      { [COMPLETE]: () => failure(null, 0) },
+    );
+    await fireEvent.press(await screen.findByTestId("english-finish"));
+    await screen.findByTestId("english-run-error");
+    const sent = calls.filter((c) => c.name === COMPLETE).length;
+    await act(async () => announceSignOut());
+    await unmount();
+    expect(calls.filter((c) => c.name === COMPLETE)).toHaveLength(sent);
   });
 
   it("закрытие экрана, когда ответ только выбран и не отправлен: ничего не шлётся (ответ финален и уходит кнопкой)", async () => {

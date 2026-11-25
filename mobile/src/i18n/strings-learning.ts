@@ -7,6 +7,9 @@ export const LEARN_RU = {
   "learn.testExitBody": "Таймер продолжит идти, ответы сохранены. Вернуться можно с экрана CSCA.",
   "learn.testExitStay": "Остаться",
   "learn.testExitLeave": "Выйти",
+  // Тексты теста на время без слов веба «в другой вкладке» и «Обновите страницу» (в приложении вкладок и страниц нет).
+  "learn.testConflict": "Попытка изменилась на другом устройстве. Показаны сохранённые ответы.",
+  "learn.testRejected": "Ответ не принят. Откройте тест заново.",
   "learn.navOpen": "Все задания",
   "learn.navClose": "Закрыть",
   "learn.finishTitle": "Завершить тест?",
@@ -38,6 +41,10 @@ export const LEARN_RU = {
   "learn.next": "Далее",
   "learn.finishLesson": "Завершить урок",
   "learn.lessonNotFound": "Урок не найден",
+  // Тексты урока и практики без слов веба «в другой вкладке» и «Обновите страницу» (в приложении вкладок и страниц нет).
+  "learn.lessonConflict": "Попытка изменилась на другом устройстве. Загрузите сохранённую.",
+  "learn.lessonAlreadyAnswered": "Это задание уже отвечено на другом устройстве.",
+  "learn.lessonRejected": "Ответ не принят. Откройте задание заново.",
   "learn.progressLabel": "Пройдено {done} из {total}",
   "learn.reviewMistakes": "Повторить ошибки",
   "learn.testsHistory": "История",
@@ -57,6 +64,8 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.testExitBody": "Таймер иштей берет, жооптор сакталган. CSCA экранынан кайра кире аласыз.",
   "learn.testExitStay": "Калуу",
   "learn.testExitLeave": "Чыгуу",
+  "learn.testConflict": "Аракет башка түзмөктө өзгөрдү. Сакталган жооптор көрсөтүлдү.", // KY: needs native proofreading
+  "learn.testRejected": "Жооп кабыл алынган жок. Тестти кайра ачыңыз.", // KY: needs native proofreading
   "learn.navOpen": "Бардык тапшырмалар",
   "learn.navClose": "Жабуу",
   "learn.finishTitle": "Тестти бүтүрөсүзбү?",
@@ -88,6 +97,9 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.next": "Кийинки",
   "learn.finishLesson": "Сабакты бүтүрүү",
   "learn.lessonNotFound": "Сабак табылган жок",
+  "learn.lessonConflict": "Аракет башка түзмөктө өзгөрдү. Сакталганын жүктөңүз.", // KY: needs native proofreading
+  "learn.lessonAlreadyAnswered": "Бул тапшырмага башка түзмөктө жооп берилген.", // KY: needs native proofreading
+  "learn.lessonRejected": "Жооп кабыл алынган жок. Тапшырманы кайра ачыңыз.", // KY: needs native proofreading
   "learn.progressLabel": "Өтүлдү {done} / {total}",
   "learn.reviewMistakes": "Каталарды кайталоо",
   "learn.testsHistory": "Тарых",

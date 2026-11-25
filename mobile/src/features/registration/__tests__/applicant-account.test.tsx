@@ -117,13 +117,45 @@ beforeEach(async () => {
 });
 
 describe("мастер вошедшего заявителя: выход и удаление аккаунта", () => {
-  it("вверху «Выйти» и «Удалить аккаунт», внизу секция удаления; «Выйти» выходит", async () => {
+  it("вверху «Выйти» и «Удалить аккаунт», внизу секция удаления; «Выйти» выходит после подтверждения", async () => {
     await renderScreen(<SignedInWizard email="me@example.test" expectedRevision={0} onDone={() => undefined} />);
     expect(await screen.findByTestId("wizard-sign-out")).toBeTruthy();
     expect(screen.getByTestId("wizard-delete-account")).toBeTruthy();
     expect(screen.getByTestId("applicant-deletion-heading")).toHaveTextContent("Удаление аккаунта");
     await press("wizard-sign-out");
+    await press("wizard-sign-out-yes");
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Выйти» - кнопка (действие), «Удалить аккаунт» - ссылка (переход к месту на экране)", async () => {
+    await renderScreen(<SignedInWizard email="me@example.test" expectedRevision={0} onDone={() => undefined} />);
+    await screen.findByTestId("wizard-sign-out");
+    const signOut = screen.getByTestId("wizard-sign-out");
+    expect(signOut.props.accessibilityRole).toBe("button");
+    expect(screen.getByRole("button", { name: "Выйти" })).toBe(signOut);
+    expect(screen.getByTestId("wizard-delete-account").props.accessibilityRole).toBe("link");
+  });
+
+  it("случайное нажатие «Выйти» не выходит: сначала вопрос о стёртых ответах, «Отмена» возвращает к анкете", async () => {
+    await renderScreen(<SignedInWizard email="me@example.test" expectedRevision={0} onDone={() => undefined} />);
+    await screen.findByTestId("wizard-sign-out");
+    expect(screen.queryByTestId("wizard-sign-out-confirm")).toBeNull();
+    await press("wizard-sign-out");
+    expect(screen.getByTestId("wizard-sign-out-confirm")).toBeTruthy();
+    expect(screen.getByText("Выйти из аккаунта?")).toBeTruthy();
+    expect(screen.getByText("Ответы анкеты, сохранённые на этом телефоне, будут стёрты. После входа анкету можно будет заполнить заново.")).toBeTruthy();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    await press("wizard-sign-out-cancel");
+    expect(screen.queryByTestId("wizard-sign-out-confirm")).toBeNull();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    // анкета на месте
+    expect(screen.getByTestId("wizard-next")).toBeTruthy();
+  });
+
+  it("KY: вопрос о выходе на кыргызском", async () => {
+    await renderScreen(<SignedInWizard email="me@example.test" expectedRevision={0} onDone={() => undefined} />, "ky");
+    await fireEvent.press(await screen.findByText("Чыгуу"));
+    expect(await screen.findByText("Аккаунттан чыгасызбы?")).toBeTruthy();
   });
 
   it("«Удалить аккаунт» вверху прокручивает к секции удаления внизу", async () => {
@@ -227,6 +259,25 @@ describe("«Анкета не отправилась» и «Доступ гот�
     expect(screen.getByTestId("lang-ky")).toBeTruthy();
     expect(await screen.findByTestId("deletion-start")).toBeTruthy();
     await press("resume-sign-out");
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("в сессии нет почты (аудит U19): вместо вечной загрузки обновить, выйти, язык и удаление аккаунта", async () => {
+    mockState = { kind: "needsApplication", entry: { signedInEmail: null, resume: false } };
+    await renderScreen(<GateScreen />);
+    expect(await screen.findByTestId("no-email-sign-out")).toBeTruthy();
+    expect(screen.getByTestId("no-email-refresh")).toBeTruthy();
+    expect(screen.getByTestId("lang-ky")).toBeTruthy();
+    // секция удаления аккаунта: человек, застрявший здесь, всё равно может удалить аккаунт (Apple 5.1.1(v))
+    expect(screen.getByTestId("applicant-deletion-heading")).toHaveTextContent("Удаление аккаунта");
+    await fireEvent.press(await screen.findByTestId("deletion-start"));
+    await press("deletion-confirm-yes");
+    await waitFor(() => expect(mockCalls.some((c) => c.name === "request_account_deletion_v2")).toBe(true));
+    // и мастера нет: без почты анкету не открыть
+    expect(screen.queryByTestId("wizard-next")).toBeNull();
+    await press("no-email-refresh");
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    await press("no-email-sign-out");
     expect(mockSignOut).toHaveBeenCalledTimes(1);
   });
 

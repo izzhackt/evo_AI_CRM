@@ -8,6 +8,8 @@ const CONTRACT_PATHS = new Set([
   "CLAUDE.md",
   "CONTEXT.md",
   ".github/CODEOWNERS",
+  // The PR template carries the «Приложение:» line that the «Mobile parity» check reads (AGENTS.md, 25.11.2026).
+  ".github/pull_request_template.md",
   "docs/EVO_LAUNCH_PLAN.md",
   "docs/PLAN_CHANGES.md",
   "deploy/fast-app-release.md",

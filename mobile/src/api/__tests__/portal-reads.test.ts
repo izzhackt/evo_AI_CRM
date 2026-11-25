@@ -1,5 +1,5 @@
 import { PortalDecodeError } from "@/domain/portal-source";
-import { countryChoiceWrite, decodeHomeApplication, readCountryChoice, readCscaHome, readFavorites, readHomeApplication, readNotifications, readOverview, readPaymentCenter, readPreparations, saveCountryChoice } from "@/api/portal-reads";
+import { countryChoiceWrite, decodeHomeApplication, readCaseDirections, readCountryChoice, readCscaHome, readFavorites, readHomeApplication, readNotifications, readOverview, readPaymentCenter, readPreparations, saveCountryChoice } from "@/api/portal-reads";
 import { RpcError } from "@/lib/rpc";
 import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW, paymentCenterRow } from "@/test-fixtures/rpc-rows";
 import { STUDENT_CASE_ID, failure, fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
@@ -199,5 +199,21 @@ describe("своя анкета для «Главной» (карточка «В
     const error = await readHomeApplication(transport).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(RpcError);
     expect((error as RpcError).message).toBe("rpc:forbidden");
+  });
+});
+
+describe("страна своих дел (373)", () => {
+  it("читает student_portal_case_directions_v1 в режиме GET без аргументов и отдаёт карту дел", async () => {
+    const { transport, calls } = fakeTransport({ student_portal_case_directions_v1: [{ student_case_id: STUDENT_CASE_ID, direction: "CN" }] });
+    const map = await readCaseDirections(transport);
+    expect(map.get(STUDENT_CASE_ID)).toBe("CN");
+    expect(calls).toEqual([{ name: "student_portal_case_directions_v1", args: {}, get: true }]);
+  });
+
+  it("отказ сервера: RpcError без текста сервера (экран возьмёт запасную страну)", async () => {
+    const { transport } = fakeTransport({ student_portal_case_directions_v1: failure("42501", 403) });
+    const error = await readCaseDirections(transport).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).kind).toBe("forbidden");
   });
 });

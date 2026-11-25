@@ -38,5 +38,11 @@ describe("«Открыть анкету» у approved: экран анкеты �
     expect(screen.queryByTestId("gate-refresh")).toBeNull();
     expect(screen.queryByTestId("application-fix")).toBeNull();
     expect(screen.queryByText("Выйти")).toBeNull();
+    // внутри кабинета язык, выход и удаление аккаунта живут в «Профиле»: на экране анкеты их нет
+    expect(screen.queryByTestId("lang-ky")).toBeNull();
+    expect(screen.queryByTestId("applicant-deletion-heading")).toBeNull();
+    expect(screen.queryByTestId("application-login")).toBeNull();
+    expect(mockCalls).not.toContain("own_account_deletion_request_v1");
+    expect(mockCalls).not.toContain("own_student_login_v1");
   });
 });

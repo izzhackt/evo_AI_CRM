@@ -19,21 +19,8 @@ import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-dele
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { RegistrationInviteRequired } from "@/components/student-application/RegistrationInviteRequired";
 import { checkRegistrationLink } from "@/lib/server/student-registration-link";
+import { invitedNamePrefill } from "@/lib/student-invited-name";
 import { accountNamePrefill, hasTemporaryPassword, NEW_PASSWORD_PATH } from "@/lib/student-account-contract";
-
-/**
- * PORT-1b: prefill only what the invited person already sees as their own —
- * the receipt's display name (their invite was addressed with it). Lead-side
- * contact facts are staff data and are deliberately not copied here.
- */
-function invitedNamePrefill(displayName: string | null): ApplicationNamePrefill | null {
-  const [first = "", ...rest] = (displayName ?? "").trim().split(/\s+/).filter(Boolean);
-  if (first.length === 0) return null;
-  return {
-    firstName: first.slice(0, 60),
-    lastName: rest.join(" ").slice(0, 60),
-  };
-}
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {

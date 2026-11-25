@@ -1,30 +1,95 @@
-// «Ошибки»: повторение с интервалами 1/3/7/14 дней (контракт §8). До 20 заданий на сегодня;
-// ответ финален, вердикт и разбор приходят в ответе. Запись замораживается на задание.
+// «Ошибки»: повторение с интервалами 1/3/7/14 дней (контракт §8). До 20 заданий на сегодня; ответ финален, вердикт и разбор
+// приходят в ответе. Запись замораживается на задание. Устроен как на вебе (components/portal/csca/ReviewRunner.tsx и
+// math/review/page.tsx): вводная об интервалах всегда над экраном, пустое состояние ведёт «К темам», набор заданий
+// фиксируется при открытии экрана (перечитанный банк его не сдвигает), вердикт озвучивается читалке.
+import { NotebookPen } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { View } from "react-native";
 
-import type { CscaOptionId, CscaReviewReceipt } from "@web/lib/portal/csca";
+import type { CscaOptionId, CscaReview, CscaReviewReceipt } from "@web/lib/portal/csca";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { cscaFailure, reviewWrite, sendReview, type CscaFailure } from "@/features/learning/csca/api";
 import { cscaOnLabelSafe } from "@/features/learning/csca/format";
-import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { ItemCard, verdictAnnouncement } from "@/features/learning/csca/ItemCard";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
+import { CSCA_TOPICS_FALLBACK, openCscaTopics } from "@/features/learning/csca/routes";
+import { useWarmMath } from "@/features/learning/math/useWarmMath";
 import { useCscaReviewBank, useInvalidateCsca } from "@/features/learning/queries";
 import { StackPage, SubHeader, useBack } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import type { FrozenWrite } from "@/lib/rpc";
 import { Button } from "@/ui/Button";
-import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
+import { CardSkeleton, EmptyBlock, InlineAlert } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
+import { announce } from "@/ui/a11y";
 import { Text } from "@/ui/Text";
 
+/** Что сказать после ответа: срок следующего повтора, «выучено» или «вернётся завтра» (веб `outcome`). */
+export function reviewOutcome(receipt: CscaReviewReceipt, text: { retired: string; tomorrow: string; nextDue: (date: string) => string }): string {
+  if (receipt.retired) return text.retired;
+  return receipt.correct && receipt.dueOn ? text.nextDue(receipt.dueOn) : text.tomorrow;
+}
+
 export function CscaReviewScreen() {
-  const { lang, m, t, format } = useLang();
-  const back = useBack("/csca");
+  useWarmMath();
+  const { m, t } = useLang();
+  const back = useBack(CSCA_TOPICS_FALLBACK);
   const c = t("csca");
   const bank = useCscaReviewBank();
+  // Набор заданий сессии повторения фиксируется при открытии экрана: перечитанный после ответа банк его не двигает.
+  const [review, setReview] = useState<CscaReview | null>(null);
+  if (review === null && bank.data) setReview(bank.data);
+  const header = <SubHeader title={c.reviewTitle} onBack={back} backLabel={c.backToHome} testID="review-title" />;
+  const lead = (
+    <Text variant="secondary" tone="text2" testID="review-lead">
+      {c.reviewLead}
+    </Text>
+  );
+
+  if (!review) {
+    return (
+      <StackPage header={header} testID="review-screen">
+        {lead}
+        {bank.status === "error" ? <InlineAlert message={m(loadErrorKey(bank.error))} retryLabel={m("gate.retry")} onRetry={() => void bank.refetch()} testID="review-load-error" /> : <CardSkeleton label={m("state.loading")} lines={3} />}
+      </StackPage>
+    );
+  }
+  if (review.items.length === 0) {
+    return (
+      <StackPage header={header} testID="review-screen">
+        {lead}
+        <ReviewEmpty review={review} />
+      </StackPage>
+    );
+  }
+  return (
+    <StackPage header={header} testID="review-screen">
+      {lead}
+      <ReviewRunner review={review} />
+    </StackPage>
+  );
+}
+
+function ReviewEmpty({ review }: { review: CscaReview }) {
+  const { lang, t, format } = useLang();
+  const c = t("csca");
+  return (
+    <Card>
+      <EmptyBlock
+        icon={NotebookPen}
+        title={c.reviewEmptyTitle}
+        body={review.activeCount > 0 && review.nextDueOn ? format(c.reviewEmptyNext, { date: cscaOnLabelSafe(review.nextDueOn, lang), count: String(review.activeCount) }) : c.reviewEmptyBankBody}
+        action={<Button variant="ghost" label={c.backToTopics} onPress={openCscaTopics} testID="review-to-topics" />}
+      />
+    </Card>
+  );
+}
+
+function ReviewRunner({ review }: { review: CscaReview }) {
+  const { lang, m, t, format } = useLang();
+  const c = t("csca");
   const invalidate = useInvalidateCsca();
   const { transport } = usePortalApi();
   const [index, setIndex] = useState(0);
@@ -35,34 +100,7 @@ export function CscaReviewScreen() {
   const [reporting, setReporting] = useState<string | null>(null);
   const [retryable, setRetryable] = useState(false);
   const pending = useRef<{ itemKey: string; selected: CscaOptionId; write: FrozenWrite } | null>(null);
-  const data = bank.data;
-  const header = <SubHeader title={c.reviewTitle} onBack={back} backLabel={c.backToHome} testID="review-title" />;
-
-  if (!data) {
-    return (
-      <StackPage header={header} testID="review-screen">
-        {bank.status === "error" ? <InlineAlert message={m(loadErrorKey(bank.error))} retryLabel={m("gate.retry")} onRetry={() => void bank.refetch()} testID="review-load-error" /> : <CardSkeleton label={m("state.loading")} lines={3} />}
-      </StackPage>
-    );
-  }
-  const items = data.items;
-  if (items.length === 0) {
-    return (
-      <StackPage header={header} testID="review-screen">
-        <Text variant="secondary" tone="text2">
-          {c.reviewLead}
-        </Text>
-        <Card>
-          <Text variant="heading" testID="review-empty">
-            {data.activeCount === 0 ? c.reviewEmptyTitle : c.reviewEmptyTitle}
-          </Text>
-          <Text variant="secondary" tone="text2">
-            {data.activeCount === 0 ? c.reviewEmptyBankBody : data.nextDueOn ? format(c.reviewEmptyNext, { date: cscaOnLabelSafe(data.nextDueOn, lang), count: String(data.activeCount) }) : c.reviewNone}
-          </Text>
-        </Card>
-      </StackPage>
-    );
-  }
+  const items = review.items;
   const done = Object.keys(receipts).length;
   const current = index < items.length ? items[index] : null;
   const result = current ? receipts[current.itemKey] : undefined;
@@ -84,6 +122,7 @@ export function CscaReviewScreen() {
       setRetryable(false);
       setReceipts((prev) => ({ ...prev, [current.itemKey]: { selected: choice, receipt } }));
       setSelected(null);
+      announce(verdictAnnouncement(choice, receipt.correct, receipt.explain.correctOptionId, c, format));
       invalidate();
     } catch (e) {
       const code = cscaFailure(e);
@@ -97,29 +136,27 @@ export function CscaReviewScreen() {
 
   if (!current) {
     return (
-      <StackPage header={header} testID="review-screen">
-        <Card>
-          <Text variant="heading" accessibilityRole="header" testID="review-done">
-            {c.reviewDoneTitle}
-          </Text>
-          <Text variant="secondary" tone="text2">
-            {format(c.reviewDoneBody, { correct: String(correctCount), total: String(items.length) })}
-          </Text>
-          <Button label={c.backToTopics} onPress={back} />
-        </Card>
-      </StackPage>
+      <Card>
+        <Text variant="heading" accessibilityRole="header" testID="review-done">
+          {c.reviewDoneTitle}
+        </Text>
+        <Text variant="secondary" tone="text2">
+          {format(c.reviewDoneBody, { correct: String(correctCount), total: String(done) })}
+        </Text>
+        <Button label={c.backToTopics} onPress={openCscaTopics} testID="review-done-topics" />
+      </Card>
     );
   }
-  const errorText = error === "review_not_due" ? c.reviewNotDue : error === "denied" ? c.errorDenied : error === "unavailable" ? c.errorUnavailable : error ? c.errorInvalid : null;
+  const errorText = error === "review_not_due" ? m("learn.reviewNotDue") : error === "denied" ? c.errorDenied : error === "unavailable" ? c.errorUnavailable : error ? m("learn.reviewRejected") : null;
   return (
-    <StackPage header={header} testID="review-screen">
-      <Text variant="caption" tone="text2">
-        {format(c.reviewProgress, { done: String(done), total: String(items.length) })} · {format(c.reviewBox, { n: String(current.box) })}
+    <>
+      <Text variant="caption" tone="text2" testID="review-progress">
+        {format(c.reviewProgress, { done: String(done), total: String(items.length) })} · {format(c.reviewBox, { n: String(result?.receipt.box ?? current.box) })}
       </Text>
       <ItemCard
         key={current.itemKey}
         item={current.item}
-        figure={current.item.figureKey ? data.figures[current.item.figureKey] ?? null : null}
+        figure={current.item.figureKey ? review.figures[current.item.figureKey] ?? null : null}
         counter={format(c.itemCounter, { n: String(index + 1), total: String(items.length) })}
         state={result ? { kind: "answered", selected: result.selected, correct: result.receipt.correct, explain: result.receipt.explain } : { kind: "open", selected, busy }}
         onSelect={(id) => {
@@ -131,10 +168,10 @@ export function CscaReviewScreen() {
           <View style={{ gap: 8 }}>
             {result ? (
               <Text variant="secondary" tone="text2" testID="review-next-due">
-                {result.receipt.retired ? c.reviewRetired : result.receipt.dueOn ? format(c.reviewNextDue, { date: cscaOnLabelSafe(result.receipt.dueOn, lang) }) : c.reviewTomorrow}
+                {reviewOutcome(result.receipt, { retired: c.reviewRetired, tomorrow: c.reviewTomorrow, nextDue: (date) => format(c.reviewNextDue, { date: cscaOnLabelSafe(date, lang) }) })}
               </Text>
             ) : null}
-            {errorText ? <InlineAlert message={errorText} testID="review-error" /> : null}
+            {errorText ? <InlineAlert message={errorText} retryLabel={error === "unavailable" ? c.retry : undefined} onRetry={error === "unavailable" ? () => void submit() : undefined} testID="review-error" /> : null}
             {result ? (
               <Button label={index + 1 < items.length ? c.nextItem : c.toSummary} onPress={() => { setIndex((i) => i + 1); setError(null); }} testID="review-next" />
             ) : (
@@ -144,6 +181,6 @@ export function CscaReviewScreen() {
         }
       />
       {reporting ? <ReportSheet itemKey={reporting} visible onClose={() => setReporting(null)} /> : null}
-    </StackPage>
+    </>
   );
 }

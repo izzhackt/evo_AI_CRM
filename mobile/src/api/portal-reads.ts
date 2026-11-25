@@ -11,9 +11,11 @@ import { chunkInstitutionIds, parseUniversityFavorites } from "@web/lib/portal/u
 import { parseUniversityPage, type PublishedUniversity } from "@web/lib/platform-university-catalog";
 
 import type { HomeApplication } from "@/domain/home-model";
+import { decodeApplicationHead } from "@/domain/own-application";
 import {
   buildPortalOverview,
   decodeBoardStage,
+  decodeCaseDirections,
   decodeCaseFiles,
   decodeDocuments,
   decodeNotifications,
@@ -119,6 +121,15 @@ export async function readCaseFiles(transport: RpcTransport): Promise<readonly S
   return decodeCaseFiles(await rpcRead(transport, "student_portal_case_files_v1", {}, { get: true }));
 }
 
+/**
+ * Страна каждого своего дела (`student_portal_case_directions_v1`, STABLE: GET; миграция 373): по ней справка «Пример»
+ * показывает образцы той страны, по которой поставлен список документов. Сбой уходит вызывающему, а тот берёт запасную
+ * страну (выбор студента) или общую справку.
+ */
+export async function readCaseDirections(transport: RpcTransport): Promise<ReadonlyMap<string, string>> {
+  return decodeCaseDirections(await rpcRead(transport, "student_portal_case_directions_v1", {}, { get: true }));
+}
+
 /** Начисления (`student_portal_finance_v2`). */
 export async function readPayments(transport: RpcTransport): Promise<readonly StudentPortalPayment[]> {
   return decodePayments(await rpcRead(transport, "student_portal_finance_v2", {}, { get: true }));
@@ -131,22 +142,17 @@ export async function readPaymentCenter(transport: RpcTransport): Promise<Paymen
   return center;
 }
 
-const isTimestamp = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
-
 /**
  * Строгий разбор своей анкеты для «Главной»: нужны статус и даты (отправлена, решение). Остальные поля ответа
- * (`own_student_application_v1`, форма как у `decodeStudentApplication` веба) здесь не читаются. Чужая форма - ошибка
- * данных, а не выдуманная дата. Анкеты нет - `null`.
+ * (`own_student_application_v1`, форма как у `decodeStudentApplication` веба) здесь не читаются. Правила - общие
+ * (`domain/own-application.ts`): чужая форма - ошибка данных, а не выдуманная дата. Анкеты нет - `null`.
  */
 export function decodeHomeApplication(value: unknown): HomeApplication | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "object" || Array.isArray(value)) throw new PortalDecodeError();
-  const { status, submitted_at: submittedAt, decided_at: decidedAt = null } = value as Record<string, unknown>;
-  if (status !== "pending" && status !== "approved" && status !== "rejected") throw new PortalDecodeError();
-  if (!isTimestamp(submittedAt) || (decidedAt !== null && !isTimestamp(decidedAt))) throw new PortalDecodeError();
-  // Как у веба: решения нет только у анкеты на рассмотрении.
-  if ((status === "pending") !== (decidedAt === null)) throw new PortalDecodeError();
-  return { status, submittedAt, decidedAt };
+  const head = decodeApplicationHead(value as Record<string, unknown>);
+  if (head === null) throw new PortalDecodeError();
+  return head;
 }
 
 /** Своя анкета до договора (`own_student_application_v1`): даты отметок карточки «Ваша анкета» (только approved). */

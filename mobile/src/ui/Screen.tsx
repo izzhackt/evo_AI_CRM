@@ -19,6 +19,7 @@ export function Screen({
   refreshing = false,
   scrollRef,
   stickyHeaderIndices,
+  onScrollY,
 }: {
   children: ReactNode;
   bottomInset?: number;
@@ -37,6 +38,8 @@ export function Screen({
    * строка текущего шага на «Главной». Закреплённый блок держится, пока следующий закреплённый не дойдёт до верха.
    */
   stickyHeaderIndices?: readonly number[];
+  /** Где сейчас верх окна в списке (пункты от начала содержимого): для экранов, которым важно, ниже ли экран какого-то блока. */
+  onScrollY?: (y: number) => void;
 }) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
@@ -49,6 +52,8 @@ export function Screen({
         testID="screen-scroll"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
         stickyHeaderIndices={stickyHeaderIndices ? [...stickyHeaderIndices] : undefined}
+        onScroll={onScrollY ? (event) => onScrollY(event.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={onScrollY ? 16 : undefined}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: topInset ? insets.top + 16 : 16, paddingBottom: Math.max(insets.bottom, 16) + bottomInset + (tabBar ? clearance + (chatFab ? fabClearance : 0) : 0) }}

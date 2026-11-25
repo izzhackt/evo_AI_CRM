@@ -6,8 +6,11 @@ import test from "node:test";
 import {
   createStudentPortalInviteAcceptanceHandler,
   createStudentPortalRegistrationHandler,
+  createStudentPortalRegistrationLinkCheckHandler,
   createStudentPortalRegistrationResendHandler,
 } from "../src/lib/server/student-portal-intake-route-handlers.ts";
+import { invitedNamePrefill } from "../src/lib/student-invited-name.ts";
+import { createRecoveryRateLimiter } from "../src/lib/student-password-recovery-rate-limit.ts";
 import { STUDENT_APPLICATION_CONSENT_VERSION } from "../src/lib/student-application-contract.ts";
 
 // PORT-9a (docs/PLAN_CHANGES.md): the two narrow intake route handlers of the
@@ -414,6 +417,15 @@ test("intake route files delegate to the shared handlers on the node runtime", (
   assert.match(acceptance, /export const runtime = "nodejs";/u);
   assert.match(acceptance, /export const dynamic = "force-dynamic";/u);
   assert.doesNotMatch(acceptance, /GET|PUT|DELETE/u);
+
+  const linkCheck = readFileSync(
+    new URL("../src/app/api/portal/registration/link-check/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(linkCheck, /export const POST = createStudentPortalRegistrationLinkCheckHandler\(\);/u);
+  assert.match(linkCheck, /export const runtime = "nodejs";/u);
+  assert.match(linkCheck, /export const dynamic = "force-dynamic";/u);
+  assert.doesNotMatch(linkCheck, /GET|PUT|DELETE/u);
 });
 
 test("old registration transport stops before reading body or creating identity", async () => {
@@ -450,4 +462,162 @@ test("resend maps terminal statuses and errors without leaking internal fields",
     const request=new Request("https://app.evoadmissions.com/api/portal/registration/resend",{method:"POST",headers:{"content-type":"application/json","X-EVO-Registration-Flow":"email-confirmation-v2"},body:JSON.stringify({cap:PENDING.resendCapability})});
     const response=await handler(request);assert.equal(response.status,code);assert.deepEqual(await response.json(),{status});assert.equal(response.headers.get("cache-control"),"no-store");
   }
+});
+
+// --- проверка личной ссылки регистрации для приложения (G11 аудита паритета 25.11.2026) ---
+
+const LINK = "b".repeat(32);
+function linkRequest({ body = { invite: LINK }, contentType = "application/json", raw, ip = "203.0.113.7", extraHeaders = {} } = {}) {
+  return new Request("https://app.evoadmissions.com/api/portal/registration/link-check", {
+    method: "POST",
+    headers: {
+      ...(contentType === null ? {} : { "content-type": contentType }),
+      "x-forwarded-for": ip,
+      ...extraHeaders,
+    },
+    body: raw ?? JSON.stringify(body),
+  });
+}
+function checkStub(result) {
+  const calls = [];
+  return {
+    calls,
+    async check(token) {
+      calls.push(token);
+      if (result instanceof Error) throw result;
+      return result;
+    },
+  };
+}
+const freshLimiter = () => createRecoveryRateLimiter();
+
+test("link check answers every link state with its status and nothing else", async () => {
+  const cases = [
+    [{ status: "valid", displayName: "Айдана Осмонова" }, { status: "valid", firstName: "Айдана", lastName: "Осмонова" }],
+    [{ status: "valid", displayName: "Айдана" }, { status: "valid", firstName: "Айдана", lastName: "" }],
+    [{ status: "valid", displayName: null }, { status: "valid", firstName: null, lastName: null }],
+    [{ status: "valid", displayName: "   " }, { status: "valid", firstName: null, lastName: null }],
+    [{ status: "used" }, { status: "used" }],
+    [{ status: "expired" }, { status: "expired" }],
+    [{ status: "unknown" }, { status: "unknown" }],
+    [{ status: "unavailable" }, { status: "unavailable" }],
+  ];
+  for (const [result, expected] of cases) {
+    const stub = checkStub(result);
+    const response = await createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter: freshLimiter() })(linkRequest());
+    assert.equal(response.status, 200, JSON.stringify(result));
+    assert.deepEqual(await response.json(), expected, JSON.stringify(result));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.deepEqual(stub.calls, [LINK]);
+  }
+});
+
+test("link check never echoes anything beyond the status and the invited name", async () => {
+  const stub = checkStub({ status: "valid", displayName: "Айдана Осмонова", leadId: "lead-1", email: "x@example.com", hash: "abc" });
+  const response = await createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter: freshLimiter() })(linkRequest());
+  assert.deepEqual(Object.keys(await response.json()).sort(), ["firstName", "lastName", "status"]);
+});
+
+test("link check turns a failing check into the unavailable status, not a crash", async () => {
+  const stub = checkStub(new Error("database down: secret detail"));
+  const response = await createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter: freshLimiter() })(linkRequest());
+  assert.equal(response.status, 200);
+  const text = await response.text();
+  assert.deepEqual(JSON.parse(text), { status: "unavailable" });
+  assert.doesNotMatch(text, /secret|database/u);
+});
+
+test("link check requires JSON, one exact key and a bounded string before any lookup", async () => {
+  const stub = checkStub({ status: "valid", displayName: null });
+  const handler = createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter: freshLimiter() });
+  const rejected = [
+    [linkRequest({ contentType: "text/plain" }), 415],
+    [linkRequest({ contentType: null }), 415],
+    [linkRequest({ raw: "{not json" }), 400],
+    [linkRequest({ raw: "[]" }), 400],
+    [linkRequest({ raw: "null" }), 400],
+    [linkRequest({ body: {} }), 400],
+    [linkRequest({ body: { invite: LINK, extra: 1 } }), 400],
+    [linkRequest({ body: { token: LINK } }), 400],
+    [linkRequest({ body: { invite: 5 } }), 400],
+    [linkRequest({ body: { invite: null } }), 400],
+    [linkRequest({ body: { invite: "c".repeat(257) } }), 400],
+    [linkRequest({ raw: JSON.stringify({ invite: "d".repeat(600) }) }), 400],
+  ];
+  for (const [request, status] of rejected) {
+    const response = await handler(request);
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), { status: "invalid" });
+  }
+  assert.deepEqual(stub.calls, []);
+  const charset = await handler(linkRequest({ contentType: "application/json; charset=utf-8" }));
+  assert.equal(charset.status, 200);
+  assert.deepEqual(stub.calls, [LINK]);
+});
+
+test("link check passes a malformed token to the shared check, which answers unknown without a lookup", async () => {
+  // Обработчик не дублирует правило токена: решает общая `checkRegistrationLink` (32 символа base64url, иначе unknown).
+  const stub = checkStub({ status: "unknown" });
+  const response = await createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter: freshLimiter() })(linkRequest({ body: { invite: "not-a-real-token" } }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "unknown" });
+  assert.deepEqual(stub.calls, ["not-a-real-token"]);
+});
+
+test("link check is rate limited per client address and counts malformed requests too", async () => {
+  const stub = checkStub({ status: "used" });
+  const limiter = freshLimiter();
+  const handler = createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter, rule: { limit: 3, windowMs: 60_000 } });
+  assert.equal((await handler(linkRequest())).status, 200);
+  assert.equal((await handler(linkRequest({ raw: "{bad" }))).status, 400);
+  assert.equal((await handler(linkRequest())).status, 200);
+  const limited = await handler(linkRequest());
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { status: "rate_limit" });
+  assert.equal(limited.headers.get("cache-control"), "no-store");
+  // Лимит исчерпан до разбора тела и до обращения к базе: проверки было ровно две.
+  assert.equal(stub.calls.length, 2);
+  // Другой адрес считается отдельно; в списке адресов берётся последний, его дописал прокси.
+  assert.equal((await handler(linkRequest({ ip: "198.51.100.9" }))).status, 200);
+  assert.equal((await handler(linkRequest({ ip: "198.51.100.1, 198.51.100.9" }))).status, 200);
+  assert.equal((await handler(linkRequest({ ip: "2001:db8:1:2::5" }))).status, 200);
+  // IPv6 считается по блоку /64: другой адрес того же блока делит лимит.
+  const sameBlock = createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter: freshLimiter(), rule: { limit: 1, windowMs: 60_000 } });
+  assert.equal((await sameBlock(linkRequest({ ip: "2001:db8:1:2::5" }))).status, 200);
+  assert.equal((await sameBlock(linkRequest({ ip: "2001:db8:1:2::99" }))).status, 429);
+});
+
+test("link check limit expires with its window", async () => {
+  const stub = checkStub({ status: "expired" });
+  const limiter = freshLimiter();
+  const key = "registration-link-check:ip4:203.0.113.7";
+  const rule = { limit: 1, windowMs: 1_000 };
+  assert.equal(limiter.consume(key, rule, 1_000), true);
+  assert.equal(limiter.consume(key, rule, 1_500), false);
+  assert.equal(limiter.consume(key, rule, 2_100), true);
+  const handler = createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter, rule: { limit: 1_000_000, windowMs: 1 } });
+  assert.equal((await handler(linkRequest())).status, 200);
+});
+
+test("invited name prefill is the one function the /apply page and the link check share", () => {
+  // Раньше это была приватная функция страницы, скопированная в обработчик; теперь копии нет (рецензия #1563, L4).
+  const page = readFileSync(new URL("../src/app/apply/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /import \{ invitedNamePrefill \} from "@\/lib\/student-invited-name";/u);
+  assert.doesNotMatch(page, /function invitedNamePrefill/u);
+  const handlers = readFileSync(new URL("../src/lib/server/student-portal-intake-route-handlers.ts", import.meta.url), "utf8");
+  assert.match(handlers, /import \{ invitedNamePrefill \} from "\.\.\/student-invited-name\.ts";/u);
+  assert.doesNotMatch(handlers, /function invitedNamePrefill/u);
+});
+
+test("invited name prefill splits like the web apply page", () => {
+  assert.deepEqual(invitedNamePrefill("Айдана Осмонова"), { firstName: "Айдана", lastName: "Осмонова" });
+  assert.deepEqual(invitedNamePrefill("  Айдана  "), { firstName: "Айдана", lastName: "" });
+  assert.deepEqual(invitedNamePrefill("Мария   Дель  Росарио"), { firstName: "Мария", lastName: "Дель Росарио" });
+  assert.equal(invitedNamePrefill(""), null);
+  assert.equal(invitedNamePrefill("   "), null);
+  assert.equal(invitedNamePrefill(null), null);
+  assert.equal(invitedNamePrefill(undefined), null);
+  assert.equal(invitedNamePrefill("а".repeat(61) + " " + "б".repeat(61)).firstName.length, 60);
+  assert.equal(invitedNamePrefill("а".repeat(61) + " " + "б".repeat(61)).lastName.length, 60);
 });

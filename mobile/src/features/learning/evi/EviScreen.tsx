@@ -1,49 +1,84 @@
-// «Подбор с Эви» (веб: вкладка «Подбор с Эви» в «Профессиях»): разговор с ИИ-профориентатором. Состояние разговора -
+// «Подбор с Эви» (веб: вкладка «Подбор с Эви» в «Профессиях», `?view=evi`): разговор с ИИ-профориентатором. Состояние разговора -
 // общий с вебом хук (`@web/lib/portal/evi-conversation`), ответы идут на сервер приложения (POST /api/portal/mobile/evi).
 // Разговор помнится, пока открыт кабинет (веб #1530): его держит память оболочки (`EviMemory.tsx`), не экран; после выхода и
 // после нового запуска приложения он начинается заново.
-// Экран без напоминаний о конфиденциальности: согласие на ИИ-помощников спрашивают при регистрации, не здесь. Если оно
-// отозвано, сервер отвечает `consent`, и экран говорит то же «Эви сейчас недоступен» с входом в каталог, что и веб.
+// Экран без напоминаний о конфиденциальности: согласие на ИИ-помощников спрашивают при регистрации, не здесь.
+// Как страница веба, экран сам решает, пускать ли: согласие отозвано - уходит в каталог (`?view=evi` ведёт в каталог); ключа Эви на
+// сервере нет - «Эви сейчас недоступен» и «Открыть каталог» с первого экрана, поле закрыто (`EviChat offline`). Не удалось узнать ни то
+// ни другое - чат открывается как прежде, ответит или откажет сервер.
 import { router } from "expo-router";
-import { ArrowUp, Bot, Check, SquarePen } from "lucide-react-native";
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { ArrowUp, Check, SquarePen } from "lucide-react-native";
+import { useCallback, useEffect, useRef } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { EVI_FAILURE_ACTION, EVI_LIMITS, type EviFailure, type EviResult } from "@web/lib/portal/evi";
+import { EVI_FAILURE_ACTION, EVI_LIMITS, type EviResult } from "@web/lib/portal/evi";
 import { useEviConversation, type EviMessage } from "@web/lib/portal/evi-conversation";
 
 import { usePortalApi } from "@/api/PortalApi";
-import { createEviApi, type EviApi } from "@/features/learning/evi/api";
+import type { EviApi } from "@/features/learning/evi/api";
 import { useEviMemory } from "@/features/learning/evi/EviMemory";
+import { EviRobot } from "@/features/learning/evi/EviRobot";
+import { FAILURE_TEXT, EviThread } from "@/features/learning/evi/EviThread";
+import { useEviApi, useEviGate } from "@/features/learning/evi/hooks";
+import { leaveEviForCatalog } from "@/features/learning/evi/navigation";
+import { TypingDots } from "@/features/learning/evi/TypingDots";
 import { SubHeader, useBack } from "@/features/learning/ui";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import type { PortalStrings } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
+import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
-import { MIN_TARGET } from "@/ui/CardParts";
+import { useFocusEffect } from "@/lib/focus";
+import { useAnnouncer } from "@/ui/useAnnouncer";
+import { MIN_TARGET, CardSkeleton } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
 type Strings = PortalStrings<"professions">;
 
-const FAILURE_TEXT: Readonly<Record<EviFailure, "evi.unavailable" | "evi.limit" | "evi.busy" | "evi.invalid" | "evi.error">> = {
-  consent: "evi.unavailable",
-  unavailable: "evi.unavailable",
-  limit: "evi.limit",
-  busy: "evi.busy",
-  invalid: "evi.invalid",
-  error: "evi.error",
-};
-
 export function EviScreen({ api }: { api?: EviApi }) {
   const { userKey } = usePortalApi();
-  // Чат принадлежит одному студенту (веб: key={owner}): если на том же месте окажется другой, он начнёт с приветствия, а не
-  // перепишет чужой разговор на себя.
-  return <EviChat key={userKey} api={api} />;
+  const evi = useEviApi(api);
+  const gate = useEviGate(evi);
+  // Согласие отозвано: как `redirect("/portal/professions")` веба. Уходим, только когда экран на виду: Эви под другим экраном стека
+  // не должна дёргать навигацию, пока студент смотрит на карточку профессии.
+  const redirect = gate.state === "redirect";
+  useFocusEffect(
+    useCallback(() => {
+      if (redirect) leaveEviForCatalog();
+    }, [redirect]),
+  );
+  if (gate.state !== "open") return <EviWaiting />;
+  // Чат принадлежит одному студенту (веб: key={owner}): если на том же месте окажется другой, он начнёт с приветствия, а не перепишет
+  // чужой разговор на себя. Смена «ключ есть / ключа нет» тоже открывает чат заново: приветствие и «недоступен» - разные экраны.
+  return <EviChat key={`${userKey}:${gate.offline ? "offline" : "online"}`} api={evi} offline={gate.offline} />;
 }
 
-function EviChat({ api: apiProp }: { api?: EviApi }) {
+/** Пока читается согласие (или экран уходит в каталог): шапка и заглушка, самого чата ещё нет. */
+function EviWaiting() {
+  const { tokens } = useTheme();
+  const { m, t } = useLang();
+  const back = useBack("/professions");
+  const p = t("professions");
+  return (
+    <View style={{ flex: 1, backgroundColor: tokens.bg }} testID="evi-waiting">
+      <SubHeader title={p["evi.name"]} onBack={back} backLabel={p.backToGrid} testID="evi-title" />
+      <View style={{ padding: 16 }}>
+        <CardSkeleton label={m("state.loading")} lines={3} />
+      </View>
+    </View>
+  );
+}
+
+/** Что читает экранная читалка вместо живой области веба: реплика Эви и, у итога, заголовок с тремя названиями. */
+export function replyAnnouncement(message: EviMessage, strings: Strings): string {
+  if (!message.results || message.results.length === 0) return message.text;
+  const titles = message.results.map((result, index) => `${index + 1}. ${result.title}`).join(", ");
+  return `${message.text} ${strings["evi.resultsTitle"]}: ${titles}`;
+}
+
+function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
   const { lang, t, format } = useLang();
   const { tokens } = useTheme();
   const portal = usePortalApi();
@@ -51,35 +86,44 @@ function EviChat({ api: apiProp }: { api?: EviApi }) {
   const keyboard = useKeyboardInset();
   const back = useBack("/professions");
   const p = t("professions");
-  const evi = useMemo(
-    () => apiProp ?? createEviApi({ baseUrl: portal.portalBaseUrl, getToken: portal.getAccessToken, refreshToken: portal.refreshAccessToken }),
-    [apiProp, portal.portalBaseUrl, portal.getAccessToken, portal.refreshAccessToken],
-  );
-  // Разговор из памяти кабинета: тот же студент получает его обратно, другой - только приветствие (см. EviMemory.tsx).
-  const memory = useEviMemory(portal.userKey);
+  // Разговор из памяти кабинета: тот же студент получает его обратно, другой - только приветствие (см. EviMemory.tsx). Без ключа на
+  // сервере памяти нет (как на вебе: `EviChat offline` без `owner`), и открытие недоступного Эви не стирает прежний разговор.
+  const stored = useEviMemory(portal.userKey);
+  const memory = offline ? null : stored;
   const chat = useEviConversation({
     strings: p,
-    ask: (history) => evi.ask(history, lang),
+    ask: (history) => api.ask(history, lang),
     memory,
-    initialFailure: null,
+    initialFailure: offline ? "unavailable" : null,
   });
-  // RN 0.88: тип ScrollView - компонент, не экземпляр (см. ui/Screen.tsx), поэтому ссылка описана тем, что нужно экрану.
-  const logRef = useRef<{ scrollToEnd: (options?: { animated?: boolean }) => void } | null>(null);
   const action = chat.failure ? EVI_FAILURE_ACTION[chat.failure] : null;
   const closed = action === "restart" || action === "catalog";
+  const listening = chat.draft.length > 0;
+  const openResult = useCallback((result: EviResult) => router.navigate({ pathname: "/professions/[cardId]", params: { cardId: result.cardId } }), []);
 
+  // Живая область веба (`role="log"`, `role="status"`, `role="alert"`): новая реплика, «печатает» и сбой объявляются читалкой. Проход
+  // по разговору, который уже был на экране (возврат из памяти, приветствие), ничего не объявляет: только то, что случилось на глазах.
+  const { announce, region } = useAnnouncer();
+  const last = chat.messages[chat.messages.length - 1];
+  const replyKey = !chat.intro && last?.role === "assistant" && last.fresh === true ? `${chat.round}:${chat.messages.length}` : null;
+  const spokenReply = useRef(replyKey);
   useEffect(() => {
-    logRef.current?.scrollToEnd({ animated: true });
-  }, [chat.messages, chat.pending, chat.failure]);
-
-  // Разговор из памяти открывается на последней реплике, как на вебе (там при монтировании scrollTop = scrollHeight): первый же
-  // замер содержимого прокручивает к концу без анимации, до замера прокручивать нечего. Новые реплики дальше ведёт эффект выше.
-  const pinToEnd = useRef(!chat.intro);
-  const pinLogToEnd = useCallback((_width: number, height: number) => {
-    if (!pinToEnd.current || height <= 0) return;
-    pinToEnd.current = false;
-    logRef.current?.scrollToEnd({ animated: false });
-  }, []);
+    if (replyKey === null || replyKey === spokenReply.current || !last) return;
+    spokenReply.current = replyKey;
+    announce(replyAnnouncement(last, p));
+    // Реплика меняется вместе с ключом.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyKey]);
+  const wasPending = useRef(chat.pending);
+  useEffect(() => {
+    if (chat.pending && !wasPending.current) announce(p["evi.thinking"]);
+    wasPending.current = chat.pending;
+  }, [chat.pending, announce, p]);
+  const spokenFailure = useRef(chat.failure);
+  useEffect(() => {
+    if (chat.failure && chat.failure !== spokenFailure.current && !chat.intro) announce(p[FAILURE_TEXT[chat.failure]], "assertive");
+    spokenFailure.current = chat.failure;
+  }, [chat.failure, chat.intro, announce, p]);
 
   const subtitle = chat.pending
     ? p["evi.typing"]
@@ -90,20 +134,45 @@ function EviChat({ api: apiProp }: { api?: EviApi }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + TOP_BAR_HEIGHT : 0}
       style={{ flex: 1, backgroundColor: tokens.bg, paddingBottom: keyboard > 0 ? keyboard + insets.bottom : 0 }}
       testID="evi-screen"
     >
       <SubHeader
         title={p["evi.name"]}
         subtitle={chat.intro ? null : subtitle}
+        subtitleExtra={chat.pending ? <TypingDots size={4} gap={3} tone="text2" testID="evi-header-dots" /> : null}
+        avatar={chat.intro ? null : <EviRobot face={chat.pending ? "thinking" : "happy"} settled still size={44} testID="evi-avatar" />}
+        subtitleBelow
         onBack={back}
         backLabel={p.backToGrid}
         testID="evi-title"
         right={
           chat.intro ? null : (
-            <Pressable accessibilityRole="button" accessibilityLabel={p["evi.newChat"]} onPress={chat.restart} testID="evi-new-chat" hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
-              <SquarePen size={22} strokeWidth={1.75} color={tokens.text} />
+            <Pressable
+              accessibilityRole="button"
+              onPress={chat.restart}
+              testID="evi-new-chat"
+              hitSlop={4}
+              style={({ pressed }) => ({
+                marginRight: 12,
+                minHeight: MIN_TARGET,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                paddingLeft: 12,
+                paddingRight: 16,
+                borderRadius: tokens.radiusChip,
+                borderWidth: 1,
+                borderColor: tokens.controlEdge,
+                backgroundColor: tokens.surface,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <SquarePen size={20} strokeWidth={2} color={tokens.text} />
+              <Text variant="secondary" bold numberOfLines={1}>
+                {p["evi.newChat"]}
+              </Text>
             </Pressable>
           )
         }
@@ -114,31 +183,17 @@ function EviChat({ api: apiProp }: { api?: EviApi }) {
         </View>
       ) : null}
 
-      <ScrollView ref={logRef as RefObject<never>} accessibilityLabel={p["evi.logLabel"]} keyboardShouldPersistTaps="handled" onContentSizeChange={pinLogToEnd} contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} testID="evi-log">
-        {chat.intro ? (
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 32 }} testID="evi-welcome">
-            <Avatar size={96} />
-            <Text variant="heading" accessibilityRole="header" style={{ textAlign: "center" }}>
-              {p["evi.welcomeTitle"]}
-            </Text>
-            <Text variant="body" tone="text2" style={{ textAlign: "center" }} testID="evi-welcome-text">
-              {p[chat.failure ? FAILURE_TEXT[chat.failure] : "evi.welcomeText"]}
-            </Text>
-          </View>
-        ) : (
-          chat.messages.map((message, index) => <Row key={`${chat.round}-${index}`} message={message} last={index === chat.messages.length - 1} strings={p} />)
-        )}
-        {chat.pending ? (
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
-            <Avatar size={32} />
-            <View accessibilityRole="progressbar" accessibilityLabel={p["evi.thinking"]} testID="evi-typing" style={{ paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }}>
-              <Text variant="secondary" tone="text2">
-                {"•••"}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-      </ScrollView>
+      <EviThread
+        strings={p}
+        messages={chat.messages}
+        round={chat.round}
+        intro={chat.intro}
+        pending={chat.pending}
+        failure={chat.failure}
+        listening={listening}
+        poke={chat.pokes}
+        onOpenResult={openResult}
+      />
 
       <View style={{ gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: keyboard > 0 ? 8 : Math.max(insets.bottom, 8), borderTopWidth: 1, borderTopColor: tokens.line, backgroundColor: tokens.bg }}>
         {chat.failure ? (
@@ -153,7 +208,7 @@ function EviChat({ api: apiProp }: { api?: EviApi }) {
             ) : action === "restart" ? (
               <Go label={p["evi.newChat"]} onPress={chat.restart} testID="evi-restart" />
             ) : action === "catalog" ? (
-              <Go label={p["evi.toCatalog"]} onPress={() => router.navigate("/professions")} testID="evi-catalog" />
+              <Go label={p["evi.toCatalog"]} onPress={leaveEviForCatalog} testID="evi-catalog" />
             ) : null}
           </View>
         ) : chat.options.options.length > 0 && !chat.pending ? (
@@ -199,7 +254,10 @@ function EviChat({ api: apiProp }: { api?: EviApi }) {
           <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
             <TextInput
               testID="evi-input"
-              accessibilityLabel={p["evi.inputLabel"]}
+              // Одно имя у поля: iOS (RN, RCTUITextView.accessibilityLabel) склеивает подпись и подсказку, пока поле пусто, и читалка
+              // слышала «Сообщение для Эви Сообщение для Эви…». Пустое поле называет сама подсказка, подпись появляется с первой
+              // буквой, когда подсказки уже нет (иначе у набранного текста не осталось бы имени).
+              accessibilityLabel={chat.draft.length > 0 ? p["evi.inputLabel"] : undefined}
               placeholder={p["evi.placeholder"]}
               placeholderTextColor={tokens.text2}
               value={chat.draft}
@@ -222,16 +280,8 @@ function EviChat({ api: apiProp }: { api?: EviApi }) {
           </View>
         )}
       </View>
+      {region}
     </KeyboardAvoidingView>
-  );
-}
-
-function Avatar({ size }: { size: number }) {
-  const { tokens } = useTheme();
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", backgroundColor: tokens.accentSoft }}>
-      <Bot size={Math.round(size * 0.55)} strokeWidth={1.75} color={tokens.accent} />
-    </View>
   );
 }
 
@@ -243,63 +293,5 @@ function Go({ label, onPress, testID }: { label: string; onPress: () => void; te
         {label}
       </Text>
     </Pressable>
-  );
-}
-
-function Row({ message, last, strings }: { message: EviMessage; last: boolean; strings: Strings }) {
-  const { tokens } = useTheme();
-  if (message.role === "user") {
-    return (
-      <View style={{ alignSelf: "flex-end", maxWidth: "85%", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: tokens.accent }} testID="evi-bubble-mine">
-        <Text variant="body" tone="onAccent">
-          {message.text}
-        </Text>
-      </View>
-    );
-  }
-  return (
-    <View style={{ gap: 12 }}>
-      <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
-        <View style={{ width: 32 }}>{last ? <Avatar size={32} /> : null}</View>
-        <View style={{ flex: 1, alignItems: "flex-start" }}>
-          <View style={{ maxWidth: "92%", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }} testID="evi-bubble">
-            <Text variant="body">{message.text}</Text>
-          </View>
-        </View>
-      </View>
-      {message.results ? <Results results={message.results} strings={strings} /> : null}
-    </View>
-  );
-}
-
-/** Три профессии: номер, название-ссылка на карточку каталога, «чем занимается» из самой карточки и «почему» словами Эви. Процентов нет. */
-function Results({ results, strings }: { results: readonly EviResult[]; strings: Strings }) {
-  const { tokens } = useTheme();
-  return (
-    <View style={{ gap: 10 }} testID="evi-results">
-      <Text variant="heading" accessibilityRole="header">
-        {strings["evi.resultsTitle"]}
-      </Text>
-      {results.map((result, index) => (
-        <Pressable
-          key={result.cardId}
-          accessibilityRole="link"
-          accessibilityLabel={`${index + 1}. ${result.title}`}
-          onPress={() => router.navigate({ pathname: "/professions/[cardId]", params: { cardId: result.cardId } })}
-          testID={`evi-result-${result.cardKey}`}
-          style={{ gap: 6, padding: 14, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
-        >
-          <Text variant="body" bold>
-            {`${index + 1}. ${result.title}`}
-          </Text>
-          {result.summary ? (
-            <Text variant="secondary" tone="text2">
-              {result.summary}
-            </Text>
-          ) : null}
-          <Text variant="secondary">{result.why}</Text>
-        </Pressable>
-      ))}
-    </View>
   );
 }

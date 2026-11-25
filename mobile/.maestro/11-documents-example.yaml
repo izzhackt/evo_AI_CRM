@@ -1,0 +1,51 @@
+appId: com.evoadmissions.app
+name: "Документы, «Пример»: лист, просмотр, закрытие, меню ☰ цело"
+# Лист «Пример» (#1544) и проверка #1488: после листа и крупного просмотра меню ☰ показывает все пункты (раньше читалка
+# видела один узел «EVO admissions», и Maestro не находил пункты). Пока просмотр открыт, лист под ним скрыт от читалки,
+# после закрытия снова виден: поэтому `-sheet` ждём именно после закрытия просмотра. Первая строка чек-листа любая: у
+# документа с образцами в просмотре страница, у остальных схема, кнопка открытия есть в обоих случаях.
+# ПОТОК ДОБАВЛЕН БЕЗ ЗАПУСКА: симулятор и эмулятор в этой работе не использовались, первый прогон - за проходом по стенду.
+---
+- runFlow: subflows/fresh-login.yaml
+- tapOn:
+    id: tab-documents
+- extendedWaitUntil:
+    visible:
+      id: documents-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "guide-.*-open"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: "guide-.*-open"
+- extendedWaitUntil:
+    visible:
+      id: "guide-.*-sheet"
+    timeout: 10000
+# Крупный просмотр поверх листа.
+- tapOn:
+    id: "guide-.*-sample-open"
+- extendedWaitUntil:
+    visible:
+      id: "guide-.*-lightbox"
+    timeout: 10000
+- tapOn:
+    id: "guide-.*-lightbox-close"
+# Лист снова виден читалке (под просмотром он скрыт).
+- extendedWaitUntil:
+    visible:
+      id: "guide-.*-sheet"
+    timeout: 10000
+- tapOn:
+    id: "guide-.*-close"
+- waitForAnimationToEnd:
+    timeout: 8000
+# #1488: меню ☰ после листа показывает свои пункты.
+- tapOn:
+    id: menu-button
+- assertVisible:
+    id: menu-payments
+- assertVisible:
+    id: menu-professions

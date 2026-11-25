@@ -1,15 +1,37 @@
 // «©» на фото (G41): кнопка и панель, ссылки, одна открытая панель на экране, читалка.
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import type { ReactElement } from "react";
-import { AccessibilityInfo, Linking, View } from "react-native";
+import { AccessibilityInfo, BackHandler, Linking, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { PhotoCredit } from "@/features/universities/PhotoCredit";
+import { closeCreditPanel, PhotoCredit } from "@/features/universities/PhotoCredit";
 import { geographyPhotoCredit, universityPhotoCredit } from "@/features/universities/photos";
 import { LangProvider } from "@/i18n/LangProvider";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+
+// Уход с экрана в тесте: эффект фокуса ведёт учёт, а «уход» играет сам тест, вызывая очистку (как react-navigation при blur).
+const mockLeave = new Set<() => void>();
+jest.mock("@/lib/focus", () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const React = jest.requireActual<typeof import("react")>("react");
+    React.useEffect(() => {
+      const leave = callback();
+      if (typeof leave === "function") mockLeave.add(leave);
+      return () => {
+        if (typeof leave === "function") {
+          mockLeave.delete(leave);
+          leave();
+        }
+      };
+    }, [callback]);
+  },
+}));
+const leaveScreen = () =>
+  act(async () => {
+    for (const leave of [...mockLeave]) leave();
+  });
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 const ru = getPortalStrings("universities", "ru");
@@ -134,5 +156,58 @@ describe("PhotoCredit", () => {
     await first.unmount();
     await render(wrap(<PhotoCredit credit={place} strings={ru} testID="b" />));
     expect(screen.queryByTestId("b-panel")).toBeNull();
+  });
+});
+
+describe("PhotoCredit: панель закрывается сама", () => {
+  it("«Назад» Android закрывает открытую панель, а не страницу; у закрытой панели обработчика нет и после закрытия он снят", async () => {
+    const remove = jest.fn();
+    const subscribe = jest.spyOn(BackHandler, "addEventListener").mockImplementation(() => ({ remove }));
+    await render(wrap(<PhotoCredit credit={place} strings={ru} />));
+    expect(subscribe).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId("photo-credit"));
+    expect(subscribe).toHaveBeenCalledWith("hardwareBackPress", expect.any(Function));
+    const back = subscribe.mock.calls[0]![1] as () => boolean;
+    let answer = false;
+    await act(async () => {
+      answer = back();
+    });
+    expect(answer).toBe(true); // «Назад» поглощена: страница остаётся
+    expect(screen.queryByTestId("photo-credit-panel")).toBeNull();
+    expect(remove).toHaveBeenCalled();
+    subscribe.mockRestore();
+  });
+
+  it("уход с экрана закрывает панель: на вернувшемся экране она закрыта", async () => {
+    await render(wrap(<PhotoCredit credit={place} strings={ru} />));
+    await fireEvent.press(screen.getByTestId("photo-credit"));
+    expect(screen.getByTestId("photo-credit-panel")).toBeTruthy();
+    await leaveScreen();
+    expect(screen.queryByTestId("photo-credit-panel")).toBeNull();
+    expect(screen.getByTestId("photo-credit").props.accessibilityState).toEqual({ expanded: false });
+  });
+
+  it("касание мимо подписи (и начало прокрутки) закрывает панель; касание внутри подписи до экрана не доходит", async () => {
+    await render(
+      wrap(
+        <View testID="content" onTouchStart={closeCreditPanel}>
+          <PhotoCredit credit={place} strings={ru} />
+        </View>,
+      ),
+    );
+    await fireEvent.press(screen.getByTestId("photo-credit"));
+    expect(screen.getByTestId("photo-credit-panel")).toBeTruthy();
+    // касание кнопки или панели останавливается у подписи: иначе оно закрыло бы панель, а нажатие открыло бы её снова
+    const stop = jest.fn();
+    await fireEvent(screen.getByTestId("photo-credit"), "touchStart", { stopPropagation: stop });
+    await fireEvent(screen.getByTestId("photo-credit-panel"), "touchStart", { stopPropagation: stop });
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("photo-credit-panel")).toBeTruthy();
+    // касание содержимого экрана мимо подписи
+    await fireEvent(screen.getByTestId("content"), "touchStart");
+    expect(screen.queryByTestId("photo-credit-panel")).toBeNull();
+    // закрытой панели такое касание ничего не меняет
+    await fireEvent(screen.getByTestId("content"), "touchStart");
+    expect(screen.queryByTestId("photo-credit-panel")).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 // Карточки каталога: страна, город, вуз. Вся карточка - одна кнопка (веб: ссылка названия растянута на карточку), а «©» и
 // сердечко лежат над ней отдельными элементами на углах фото и нажимаются сами по себе: так их слышит читалка
 // (вложенная кнопка скрывается вместе с содержимым карточки, G44) и так же устроен веб (UniversityTile.tsx, Places.tsx).
-import { useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
 import { useTheme } from "@/theme/ThemeProvider";
@@ -143,26 +143,43 @@ function LevelChips({ levels }: { levels: readonly string[] }) {
   );
 }
 
-/**
- * Карточка вуза: фото, место, название, уровни, ближайший набор. Сердечко (если избранное известно) в углу фото, «©» в другом.
- * `photoActive` - окно прокрутки (NearList): вдали от экрана фото не грузится. Подпись читалки собрана из всего, что видит глаз:
- * название, место, уровни, ближайший набор; «Программы и сроки» - подсказка действия.
- */
-export function UniversityTileView({
-  tile,
-  strings,
-  favored,
-  onToggle,
-  photoActive = true,
-  priority,
-}: {
+type TileViewProps = {
   tile: TileModel;
   strings: UniversityStrings;
   favored: boolean | null;
   onToggle: (id: string, next: boolean) => void;
   photoActive?: boolean;
   priority?: "low" | "normal" | "high";
-}) {
+};
+
+/** Та же карточка: модель сравнивается по содержимому (экран строит её заново при каждой отрисовке), остальное - как есть. */
+function sameTileProps(a: TileViewProps, b: TileViewProps): boolean {
+  const x = a.tile;
+  const y = b.tile;
+  return (
+    a.strings === b.strings &&
+    a.favored === b.favored &&
+    a.onToggle === b.onToggle &&
+    a.photoActive === b.photoActive &&
+    a.priority === b.priority &&
+    (x === y || (x.id === y.id && x.name === y.name && x.place === y.place && x.intake === y.intake && x.photoKey === y.photoKey && x.levels.length === y.levels.length && x.levels.every((level, i) => level === y.levels[i])))
+  );
+}
+
+/**
+ * Карточка вуза: фото, место, название, уровни, ближайший набор. Сердечко (если избранное известно) в углу фото, «©» в другом.
+ * `photoActive` - окно прокрутки (NearList): вдали от экрана фото не грузится. Подпись читалки собрана из всего, что видит глаз:
+ * название, место, уровни, ближайший набор; «Программы и сроки» - подсказка действия. Перерисовывается, только если изменилась
+ * она сама (окно прокрутки меняет `photoActive` у единиц карточек из 165, остальные не трогаются).
+ */
+export const UniversityTileView = memo(function UniversityTileView({
+  tile,
+  strings,
+  favored,
+  onToggle,
+  photoActive = true,
+  priority,
+}: TileViewProps) {
   const pixels = usePhotoPixels(TILE_PHOTO_PIXELS);
   const urls = universityUrls(tile.photoKey, pixels);
   const credit = universityPhotoCredit(tile.photoKey);
@@ -206,4 +223,4 @@ export function UniversityTileView({
       </View>
     </CardShell>
   );
-}
+}, sameTileProps);

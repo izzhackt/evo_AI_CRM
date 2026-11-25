@@ -12,6 +12,7 @@ import { localizedText } from "@web/lib/portal/university-index";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
+import { ConsultationCard } from "@/features/consultation/ConsultationCard";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
@@ -26,6 +27,8 @@ import { useFavoriteState } from "./FavoritesContext";
 import { useUniversityDetail } from "./hooks";
 import { ProgramSection } from "./ProgramSection";
 import { NotFoundBlock } from "./NotFoundBlock";
+import { closeCreditPanel } from "./PhotoCredit";
+import { usePullRefresh } from "./use-pull-refresh";
 import { cityRoute, countryRoute, CreditedPhoto, FavoriteHeart, PathRow, universityUrls, usePhotoPixels } from "./parts";
 import { universityPhotoCaption, universityPhotoCredit } from "./photos";
 import type { StudentUniversityDetail } from "@web/lib/portal/university-index";
@@ -42,9 +45,13 @@ function UniversityBody({ id }: { id: string }) {
   const { t, m } = useLang();
   const strings = t("universities");
   const detail = useUniversityDetail(id);
+  // Полоса «потянули вниз» горит только у запроса студента: перечитывание карточки после сердечка, «Добавить в мои программы» и возврата
+  // в приложение идёт молча (раньше `isRefetching` зажигал её при любом перечитывании).
+  const { refreshing, pull } = usePullRefresh(detail.refetch);
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
-      <View style={{ gap: 16 }}>
+    <Screen topInset={false} tabBar onRefresh={() => void pull()} refreshing={refreshing}>
+      {/* Касание содержимого (мимо подписи фото) и начало прокрутки закрывают открытую панель «©». */}
+      <View style={{ gap: 16 }} onTouchStart={closeCreditPanel} testID="university-content">
         {detail.error instanceof UniversityNotFoundError ? (
           <NotFoundBlock embedded />
         ) : detail.data ? (
@@ -97,8 +104,14 @@ function DetailView({ detail, strings, onRefresh }: { detail: StudentUniversityD
       </View>
       <Text variant="body">{content.overview}</Text>
       <ExternalLink url={content.websiteUrl} label={strings.website} />
-      {/* #1356: у клиента с сопровождением один вход к команде - чат «Входящих»; студенту без сопровождения чата нет. */}
-      {tier === "assisted" ? <Button variant="ghost" label={t("home").writeAction} onPress={() => go(WRITE_EVO_ROUTE)} testID="university-write-evo" /> : null}
+      {/* #1356: у клиента с сопровождением один вход к команде - чат «Входящих»; студенту без сопровождения чата нет, у него запрос
+          консультации (веб: `consultation` и `writeEvo` в `[id]/page.tsx`). Ключ по вузу: набранное и «Запрос отправлен» не переходят
+          на страницу другого вуза. */}
+      {tier === "assisted" ? (
+        <Button variant="ghost" label={t("home").writeAction} onPress={() => go(WRITE_EVO_ROUTE)} testID="university-write-evo" />
+      ) : (
+        <ConsultationCard key={university.id} variant="university" institutionId={university.id} initialOpenRequest={detail.openConsultation} />
+      )}
 
       {cost ? (
         <Card>

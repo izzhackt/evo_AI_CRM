@@ -1,10 +1,10 @@
-// Запросы и записи «Университетов». Индекс: диск -> один вызов с версией за запуск
-// (тянуть вниз проверяет всегда); избранное: оптимистичное сердечко с откатом,
-// правда - квитанция сервера, нажатия по тому же вузу в полёте игнорируются.
+// Запросы и записи «Университетов». Индекс: диск -> вызов с известной версией; версия проверяется при открытии каталога,
+// при возврате в приложение и на экран каталога не чаще раза в минуту, тянуть вниз проверяет всегда; избранное:
+// оптимистичное сердечко с откатом, правда - квитанция сервера, нажатия по тому же вузу в полёте игнорируются.
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CatalogPreparationIntent, CatalogPreparationReceipt } from "@web/lib/portal/catalog-preparations";
 import type { StudentUniversityDetail, StudentUniversityIndex } from "@web/lib/portal/university-index";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePortalApi } from "@/api/PortalApi";
 import type { FrozenWrite } from "@/lib/rpc";
@@ -14,20 +14,36 @@ import { fileDisk, type IndexDisk } from "./cache";
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
 
+/**
+ * Как давно проверена версия каталога (мс), чтобы проверить её снова: вызов идёт с известной версией и при отсутствии перемен
+ * отвечает «не изменился» без тела. Веб проверяет версию при каждом открытии вида (`university-index-source.ts`), приложение раз
+ * в минуту: срок подачи, опубликованный, пока приложение открыто, больше не ждёт перезапуска (G46).
+ */
+export const INDEX_RECHECK_MS = 60_000;
+
 /** Индекс каталога. Данные из кэша важнее свежей ошибки; `index === null` пока нечего показать. */
 export function useUniversityIndex(disk: IndexDisk = fileDisk) {
   const { transport, userKey } = usePortalApi();
   const client = useQueryClient();
-  const queryKey = key(userKey, "university-index");
+  const queryKey = useMemo(() => key(userKey, "university-index"), [userKey]);
   const query = useQuery<IndexLoad>({
     queryKey,
     queryFn: () => loadUniversityIndex(transport, disk, userKey, client.getQueryData<IndexLoad>(queryKey)?.index ?? null),
-    // Одна проверка версии за запуск; дальше только по тяге вниз.
-    staleTime: Infinity,
+    // Версия перепроверяется: при открытии каталога, при возврате в приложение (`focusManager` кабинета) и сети, раз в минуту.
+    staleTime: INDEX_RECHECK_MS,
     gcTime: Infinity,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
   });
+  /**
+   * Перепроверка при возвращении на экран каталога (экран остаётся в стеке, поэтому `refetchOnMount` его не видит): не чаще раза в
+   * `INDEX_RECHECK_MS`, не поверх идущего запроса и не раньше первой загрузки.
+   */
+  const recheck = useCallback(() => {
+    const state = client.getQueryState(queryKey);
+    if (!state || state.fetchStatus === "fetching" || state.dataUpdatedAt === 0 || Date.now() - state.dataUpdatedAt < INDEX_RECHECK_MS) return;
+    void client.refetchQueries({ queryKey, exact: true }, { cancelRefetch: false });
+  }, [client, queryKey]);
   // Копия с диска показывается сразу, не дожидаясь сети.
   const [diskCopy, setDiskCopy] = useState<{ userKey: string; index: StudentUniversityIndex } | null>(null);
   useEffect(() => {
@@ -52,6 +68,7 @@ export function useUniversityIndex(disk: IndexDisk = fileDisk) {
     error: query.error,
     refreshing: query.isFetching && index !== null,
     refresh,
+    recheck,
   };
 }
 

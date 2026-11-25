@@ -7,11 +7,14 @@
 // Соглашение: каждая новая KY-строка получает в конце пометку `// KY: needs native proofreading`.
 
 export const UNIVERSITIES_RU = {
-  // Пока пусто: строки добавляет срез.
+  // Карта страны: кнопки приближения (у веба NavigationControl подписан по-английски, у приложения по-русски и по-кыргызски).
+  "uni.mapZoomIn": "Приблизить карту",
+  "uni.mapZoomOut": "Отдалить карту",
 } as const;
 
 export type UniversitiesStringKey = keyof typeof UNIVERSITIES_RU;
 
 export const UNIVERSITIES_KY: Readonly<Record<UniversitiesStringKey, string>> = {
-  // Пока пусто: см. соглашение в шапке.
+  "uni.mapZoomIn": "Картаны жакындатуу", // KY: needs native proofreading
+  "uni.mapZoomOut": "Картаны алыстатуу", // KY: needs native proofreading
 };

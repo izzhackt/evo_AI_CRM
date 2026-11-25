@@ -95,10 +95,18 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                 />
                 {view === "map" ? (
                   <View style={{ gap: 8 }}>
-                    {mapFailed || page.pins.length === 0 ? (
+                    {page.pins.length === 0 ? (
                       <Text variant="secondary" tone="text2" testID="map-failed">
-                        {page.pins.length === 0 ? formatPortalString(strings.mapWithoutPoint, { count: String(page.missingPins) }) : strings.mapFailed}
+                        {formatPortalString(strings.mapWithoutPoint, { count: String(page.missingPins) })}
                       </Text>
+                    ) : mapFailed ? (
+                      // Сбой карты - предупреждение с выходом на «Города» (веб: UniversitiesMapView, `role="alert"` и кнопка «Города»).
+                      <View accessibilityRole="alert" style={{ gap: 8, alignItems: "flex-start" }} testID="map-failed">
+                        <Text variant="secondary" tone="text2">
+                          {strings.mapFailed}
+                        </Text>
+                        <Button variant="ghost" label={strings.viewCities} onPress={() => router.setParams({ view: undefined } as never)} testID="map-failed-cities" />
+                      </View>
                     ) : (
                       <>
                         <CatalogMap pins={page.pins} onOpen={(id) => open(universityRoute(id))} onFail={() => setMapFailed(true)} />

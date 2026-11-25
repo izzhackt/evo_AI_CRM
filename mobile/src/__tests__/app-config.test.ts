@@ -12,4 +12,11 @@ describe("app.config: нативные тексты и разрешения", ()
     expect(String(entry[1].photosPermission)).toMatch(/фото/);
     expect(entry[1].microphonePermission).toBe(false);
   });
+
+  it("строка про местоположение есть (ITMS-90683 от MapLibre) и честно говорит, что оно не используется", () => {
+    const plist = config.ios?.infoPlist as Record<string, unknown>;
+    expect(String(plist.NSLocationWhenInUseUsageDescription)).toMatch(/не определяет и не использует/);
+    expect(plist.NSLocationAlwaysAndWhenInUseUsageDescription).toBeUndefined();
+    expect(config.android?.blockedPermissions).toContain("android.permission.ACCESS_FINE_LOCATION");
+  });
 });

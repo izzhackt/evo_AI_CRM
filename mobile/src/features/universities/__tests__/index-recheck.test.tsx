@@ -3,7 +3,7 @@
 // не тянет. Перепроверка идёт молча: полоса «потянули вниз» горит только у запроса, начатого самим студентом. Возврат сети не
 // проверяется: без NetInfo `onlineManager` в React Native событий сети не получает.
 import { screen, waitFor, act, render } from "@testing-library/react-native";
-import { focusManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 
 import { CountryScreen } from "@/features/universities/CountryScreen";
 import { INDEX_RECHECK_MS } from "@/features/universities/hooks";
@@ -60,6 +60,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   jest.restoreAllMocks();
+  onlineManager.setOnline(true);
 });
 
 /** Сервер каталога: версия меняется между вызовами; с известной версией отвечает «не изменился», иначе целиком. */
@@ -280,5 +281,23 @@ describe("перепроверка версии каталога", () => {
     expect(pull().refreshing).toBe(true); // потянули вниз: полоса горит, пока идёт запрос
     await act(async () => held.release());
     await waitFor(() => expect(pull().refreshing).toBe(false));
+  });
+
+  it("возврат сети каталог не перечитывает: у запроса явно `refetchOnReconnect: false` (в общих настройках кабинета `true`)", async () => {
+    const c = catalogue();
+    await renderPortal(<CountryScreen />, testApi(c.transport));
+    await screen.findByText("Куала-Лумпур");
+    expect(c.reads()).toHaveLength(1);
+    offset = INDEX_RECHECK_MS + 5_000; // каталог устарел: возврат сети перечитал бы его, если бы запрос просил
+    await act(async () => {
+      onlineManager.setOnline(false);
+    });
+    await act(async () => {
+      onlineManager.setOnline(true);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(c.reads()).toHaveLength(1);
   });
 });

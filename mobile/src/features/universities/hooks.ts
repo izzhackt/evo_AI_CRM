@@ -11,6 +11,7 @@ import type { FrozenWrite } from "@/lib/rpc";
 
 import { decodeIndexBody, loadUniversityIndex, readFavoriteIds, readUniversityDetail, selectProgram, selectProgramWrite, setFavorite, type IndexLoad } from "./api";
 import { fileDisk, type IndexDisk } from "./cache";
+import { usePullRefresh } from "./use-pull-refresh";
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
 
@@ -21,7 +22,9 @@ const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", us
  * не ждёт перезапуска (G46).
  *
  * Возврат сети сюда не входит: `onlineManager` TanStack Query в React Native событий сети не получает без `@react-native-community/netinfo`
- * или `expo-network`, а это нативный модуль (нативная сборка заморожена), поэтому `refetchOnReconnect` у запроса не включается.
+ * или `expo-network`, а это нативный модуль (нативная сборка заморожена), поэтому у запроса явно `refetchOnReconnect: false`, как было
+ * до G46 (общие настройки кабинета держат `true`, и без этой строки запрос его унаследовал бы). Когда источник событий сети появится,
+ * строку нужно убрать.
  */
 export const INDEX_RECHECK_MS = 60_000;
 
@@ -44,6 +47,7 @@ export function useUniversityIndex(disk: IndexDisk = fileDisk) {
     // (с двумя повторами при обрыве связи и полосой загрузки без копии).
     staleTime: INDEX_RECHECK_MS,
     gcTime: Infinity,
+    refetchOnReconnect: false,
     refetchOnWindowFocus: (current) => recheckDue(current.state),
     refetchOnMount: (current) => recheckDue(current.state),
     retryOnMount: (current) => recheckDue(current.state),
@@ -72,18 +76,8 @@ export function useUniversityIndex(disk: IndexDisk = fileDisk) {
   }, [disk, userKey]);
   // Копия прежнего пользователя не показывается новому.
   const index = query.data?.index ?? (diskCopy?.userKey === userKey ? diskCopy.index : null);
-  // Полоса «потянули вниз» горит только пока идёт запрос, который начал сам студент: автоматическая перепроверка идёт молча
-  // (иначе полоса появлялась бы сама при каждом возврате на каталог, а на iPhone ещё и сдвигала бы содержимое вниз).
-  const [pulling, setPulling] = useState(false);
-  const { refetch } = query;
-  const refresh = useCallback(async () => {
-    setPulling(true);
-    try {
-      return await refetch();
-    } finally {
-      setPulling(false);
-    }
-  }, [refetch]);
+  // Полоса «потянули вниз» горит только пока идёт запрос, который начал сам студент: автоматическая перепроверка идёт молча.
+  const { refreshing: pulling, pull: refresh } = usePullRefresh(query.refetch);
   return {
     index,
     refreshFailed: query.data?.refreshFailed === true || (query.isError && index !== null),

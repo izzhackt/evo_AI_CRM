@@ -1,6 +1,6 @@
-// Карта страны (G43): кнопки «+» и «-», загрузка, «Уменьшить движение», вузы для читалки (не для касаний), мини-карточка и кнопка
-// «Назад», рамка камеры по окну, цвета слоёв по теме. Нативная карта заменена заглушкой, которая запоминает свойства и отдаёт ссылки
-// на камеру, карту и источник.
+// Карта страны (G43): кнопки «+» и «-», загрузка, «Уменьшить движение», вузы для читалки (не для касаний), фокус читалки на карточке,
+// мини-карточка и кнопка «Назад» (только пока экран в фокусе), рамка камеры по окну, цвета слоёв по теме. Нативная карта заменена
+// заглушкой, которая запоминает свойства и отдаёт ссылки на камеру, карту и источник.
 import { act, fireEvent, isHiddenFromAccessibility, render, screen } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { AccessibilityInfo, BackHandler, Dimensions, Platform } from "react-native";
@@ -11,6 +11,38 @@ import { LangProvider } from "@/i18n/LangProvider";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { darkTokens, lightTokens } from "@/theme/tokens.generated";
 import { setReducedMotionForTests } from "@/ui/motion";
+
+// Фокус экрана в тесте: эффект фокуса ведёт учёт, а «уход» и «возврат» играет сам тест (как react-navigation: очистка на blur, повторный запуск на focus).
+const mockFocusEntries = new Set<{ callback: () => void | (() => void); dispose: (() => void) | null }>();
+jest.mock("@/lib/focus", () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const React = jest.requireActual<typeof import("react")>("react");
+    React.useEffect(() => {
+      const entry: { callback: () => void | (() => void); dispose: (() => void) | null } = { callback, dispose: null };
+      const result = callback();
+      entry.dispose = typeof result === "function" ? result : null;
+      mockFocusEntries.add(entry);
+      return () => {
+        mockFocusEntries.delete(entry);
+        entry.dispose?.();
+      };
+    }, [callback]);
+  },
+}));
+const leaveScreen = () =>
+  act(async () => {
+    for (const entry of mockFocusEntries) {
+      entry.dispose?.();
+      entry.dispose = null;
+    }
+  });
+const returnToScreen = () =>
+  act(async () => {
+    for (const entry of mockFocusEntries) {
+      const result = entry.callback();
+      entry.dispose = typeof result === "function" ? result : null;
+    }
+  });
 
 const mockMap = { getZoom: jest.fn(async () => 8) };
 const mockCamera = { zoomTo: jest.fn(), easeTo: jest.fn() };
@@ -191,18 +223,19 @@ describe("вузы на карте для читалки и мини-карто�
     expect(screen.getByTestId("map-reader-pins").props.pointerEvents).toBe("none");
     expect(screen.getByTestId("map-pin-u1").props.onPress).toBeUndefined();
     expect(screen.getByTestId("map-pin-u2").props.onPress).toBeUndefined();
+    // все кнопки лежат в одной точке слоя, а не друг под другом за его границей
+    for (const id of ["u1", "u2"]) expect(screen.getByTestId(`map-pin-${id}`).props.style).toEqual({ position: "absolute", left: 0, top: 0, width: 1, height: 1 });
     await fireEvent.press(screen.getByTestId("map-pin-u2"));
     await fireEvent(screen.getByTestId("map-pin-u2"), "touchEnd");
     expect(screen.queryByTestId("map-card")).toBeNull();
   });
 
-  it("двойное касание читалки (iOS: onAccessibilityTap) открывает мини-карточку и озвучивает её; «Открыть карточку» ведёт на вуз, «Закрыть» закрывает", async () => {
-    const speak = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+  it("двойное касание читалки (iOS: onAccessibilityTap) открывает мини-карточку; «Открыть карточку» ведёт на вуз, «Закрыть» закрывает", async () => {
+    jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
     const { onOpen } = await show();
     await activate("u2");
     expect(screen.getByTestId("map-card")).toBeTruthy();
     expect(screen.getByText("Академия Альфа")).toBeTruthy();
-    expect(speak).toHaveBeenCalledWith("Академия Альфа. Пенанг · Малайзия");
     await fireEvent.press(screen.getByTestId("map-open"));
     expect(onOpen).toHaveBeenCalledWith("u2");
     expect(screen.getByTestId("map-close").props.accessibilityLabel ?? "Закрыть").toBe("Закрыть");
@@ -253,6 +286,79 @@ describe("вузы на карте для читалки и мини-карто�
     });
     expect(answer).toBe(true); // «Назад» поглощена: страница остаётся
     expect(screen.queryByTestId("map-card")).toBeNull();
+  });
+});
+
+describe("фокус экрана и «Назад»", () => {
+  it("уход с экрана снимает «Назад» карточки: на странице вуза поверх неё первое «Назад» не проглатывается; возврат возвращает обработчик", async () => {
+    const remove = jest.fn();
+    const subscribe = jest.spyOn(BackHandler, "addEventListener").mockImplementation(() => ({ remove }));
+    const { onOpen } = await show();
+    await activate("u1");
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    // «Открыть карточку»: страница вуза встаёт поверх, а экран карты остаётся под ней с открытой карточкой
+    await fireEvent.press(screen.getByTestId("map-open"));
+    expect(onOpen).toHaveBeenCalledWith("u1");
+    await leaveScreen();
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("map-card")).toBeTruthy();
+    // вернулись на карту: карточка всё ещё открыта, «Назад» снова закрывает её
+    await returnToScreen();
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    const back = subscribe.mock.calls[1]![1] as () => boolean;
+    let answer = false;
+    await act(async () => {
+      answer = back();
+    });
+    expect(answer).toBe(true);
+    expect(screen.queryByTestId("map-card")).toBeNull();
+    subscribe.mockRestore();
+  });
+});
+
+describe("фокус читалки после выбора вуза", () => {
+  const spyFocus = () => jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
+
+  it("кнопка вуза переносит фокус читалки на название карточки (веб: фокус на диалоге); название и место читаются одним элементом, повторного озвучивания нет", async () => {
+    const focus = spyFocus();
+    const speak = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    await show();
+    await activate("u2");
+    expect(focus).toHaveBeenCalledTimes(1);
+    const [node, kind] = focus.mock.calls[0]!;
+    expect(kind).toBe("focus");
+    expect((node as unknown as { props: { testID: string } }).props.testID).toBe("map-card-head");
+    const head = screen.getByTestId("map-card-head");
+    expect(head.props.accessible).toBe(true);
+    expect(head.props.accessibilityLabel).toBe("Академия Альфа. Пенанг · Малайзия");
+    expect(speak).not.toHaveBeenCalled();
+  });
+
+  it("повторный выбор того же вуза переносит фокус снова; выбор нажатием на точку карты фокус не трогает", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u1");
+    await activate("u1");
+    expect(focus).toHaveBeenCalledTimes(2);
+    await activate("u2");
+    expect(focus).toHaveBeenCalledTimes(3);
+    focus.mockClear();
+    await act(async () => {
+      await (mockState.source.onPress as (event: unknown) => Promise<void>)({ stopPropagation: jest.fn(), nativeEvent: { features: [{ properties: { pin: 0 }, geometry: { type: "Point", coordinates: [101.6, 3.1] } }] } });
+    });
+    expect(screen.getByTestId("map-card")).toBeTruthy();
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("порядок в дереве: карточка стоит сразу за кнопками вузов, до кнопок масштаба (читалке Android она следующая)", async () => {
+    spyFocus();
+    await show();
+    await finishLoading();
+    await activate("u1");
+    const root = screen.toJSON() as unknown as { props?: { testID?: string }; children?: { props?: { testID?: string } }[] | null };
+    const map = (Array.isArray(root) ? root : [root]).flatMap((node) => [node, ...((node as { children?: unknown[] }).children ?? [])]).find((node) => (node as { props?: { testID?: string } })?.props?.testID === "catalog-map") as { children: { props?: { testID?: string } }[] };
+    const order = map.children.map((child) => child.props?.testID).filter(Boolean);
+    expect(order).toEqual(["map-reader-pins", "map-card", "map-zoom"]);
   });
 });
 

@@ -4,16 +4,18 @@
 // Карта - второй путь к тем же вузам: вид «Списком» всегда доступен.
 //
 // Как в вебе (MapCanvas.tsx, MapView.tsx; аудит паритета 25.11.2026, G43): кнопки «+» и «-», пока карта грузится - «Загружаем карту…»,
-// при «Уменьшить движение» камера прыгает без анимации, мини-карточка закрывается кнопкой «Закрыть» и кнопкой «Назад» Android,
-// а каждый вуз на карте доступен читалке отдельной кнопкой (у веба маркеры - кнопки DOM; слои нативной карты читалка не видит).
+// при «Уменьшить движение» камера прыгает без анимации, мини-карточка закрывается кнопкой «Закрыть» и кнопкой «Назад» Android
+// (пока экран с картой в фокусе), а каждый вуз на карте доступен читалке отдельной кнопкой (у веба маркеры - кнопки DOM; слои
+// нативной карты читалка не видит). Выбор вуза читалкой переносит её фокус на карточку (веб: `node.focus()` у диалога).
 import { Camera, GeoJSONSource, Layer, Map as MapView, type CameraRef, type GeoJSONSourceRef, type MapRef } from "@maplibre/maplibre-react-native";
 import { Minus, Plus } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, Platform, Pressable, View, useWindowDimensions, type AccessibilityActionEvent, type AccessibilityActionInfo, type NativeSyntheticEvent } from "react-native";
+import { AccessibilityInfo, BackHandler, Platform, Pressable, View, useWindowDimensions, type AccessibilityActionEvent, type AccessibilityActionInfo, type HostInstance, type NativeSyntheticEvent } from "react-native";
 
 import { useLang } from "@/i18n/LangProvider";
+import { useFocusEffect } from "@/lib/focus";
 import { useTheme } from "@/theme/ThemeProvider";
-import { announce, useReducedMotion } from "@/ui/a11y";
+import { useReducedMotion } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -37,6 +39,8 @@ const SCREEN_GUTTERS = 32;
  * слое): вуз открывается только жестом читалки, а не касанием левого верхнего угла карты.
  */
 const READER_ONLY = { position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "hidden" } as const;
+/** Кнопка вуза для читалки: все лежат в одной точке слоя (второй и дальше не выходят за его 1 x 1 pt). */
+const READER_PIN = { position: "absolute", left: 0, top: 0, width: 1, height: 1 } as const;
 /** TalkBack доставляет двойное касание действием `activate` (ACTION_CLICK), а не касанием экрана; на iOS для этого `onAccessibilityTap`. */
 const ACTIVATE: readonly AccessibilityActionInfo[] = [{ name: "activate" }];
 
@@ -50,6 +54,11 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
   const source = useRef<GeoJSONSourceRef>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Читалка выбрала вуз: после появления карточки её фокус переходит на название (у веба фокус получает диалог). Номер запроса, а не
+  // флаг: выбор вуза нажатием на карту фокус не трогает, а повторный выбор той же кнопкой переносит его снова.
+  const cardHead = useRef<HostInstance>(null);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const focusedRequest = useRef(0);
   const { width } = useWindowDimensions();
   const data = useMemo(() => pinsToGeoJSON(pins), [pins]);
   // Рамка считается по окну карты: на планшете та же рамка встаёт глубже, чем на телефоне (камера принимает её один раз, при показе).
@@ -57,15 +66,24 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
   const pin = selected === null ? null : (pins[selected] ?? null);
 
   const close = useCallback(() => setSelected(null), []);
-  // Кнопка «Назад» Android закрывает мини-карточку, а не уводит со страницы (веб: Esc закрывает карточку).
+  // Кнопка «Назад» Android закрывает мини-карточку, а не уводит со страницы (веб: Esc закрывает карточку). Обработчик живёт, только
+  // пока экран с картой в фокусе: «Открыть карточку» ведёт на страницу вуза, а экран карты остаётся под ней с открытой карточкой, и
+  // его обработчик, последний из зарегистрированных, проглотил бы первое же «Назад» на странице вуза.
+  useFocusEffect(
+    useCallback(() => {
+      if (pin === null) return undefined;
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        setSelected(null);
+        return true;
+      });
+      return () => subscription.remove();
+    }, [pin]),
+  );
   useEffect(() => {
-    if (pin === null) return undefined;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      setSelected(null);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [pin]);
+    if (pin === null || focusedRequest.current === focusRequest) return;
+    focusedRequest.current = focusRequest;
+    if (cardHead.current !== null) AccessibilityInfo.sendAccessibilityEvent(cardHead.current, "focus");
+  }, [focusRequest, pin]);
 
   const onPress = async (event: NativeSyntheticEvent<PressLike>) => {
     // Нажатие на точку не должно доходить до карты: её onPress закрывает мини-карточку.
@@ -92,8 +110,7 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
 
   const choose = (index: number) => {
     setSelected(index);
-    const chosen = pins[index];
-    if (chosen) announce(`${chosen.name}. ${chosen.place}`);
+    setFocusRequest((n) => n + 1);
   };
 
   return (
@@ -153,10 +170,32 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
               if (event.nativeEvent.actionName === "activate") choose(index);
             }}
             testID={`map-pin-${entry.id}`}
-            style={{ width: 1, height: 1 }}
+            style={READER_PIN}
           />
         ))}
       </View>
+
+      {/* Карточка идёт в дереве сразу за кнопками вузов (до кнопок масштаба): читалке Android она следующая после выбранного вуза. */}
+      {pin ? (
+        <View
+          style={{ position: "absolute", zIndex: 10, elevation: 10, left: 8, right: 8, bottom: 8, padding: 12, gap: 8, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }}
+          testID="map-card"
+        >
+          {/* Одним элементом для читалки: сюда переходит её фокус после выбора вуза (название и место читаются вместе). */}
+          <View ref={cardHead} accessible accessibilityLabel={`${pin.name}. ${pin.place}`} testID="map-card-head">
+            <Text variant="body" bold>
+              {pin.name}
+            </Text>
+            <Text variant="secondary" tone="text2">
+              {pin.place}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Button label={strings.mapOpenCard} onPress={() => onOpen(pin.id)} testID="map-open" style={{ flex: 1 }} />
+            <Button variant="ghost" label={strings.mapCloseCard} onPress={close} testID="map-close" />
+          </View>
+        </View>
+      ) : null}
 
       {loaded ? (
         <View
@@ -185,26 +224,6 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
           </Text>
         </View>
       )}
-
-      {pin ? (
-        <View
-          style={{ position: "absolute", zIndex: 10, elevation: 10, left: 8, right: 8, bottom: 8, padding: 12, gap: 8, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }}
-          testID="map-card"
-        >
-          <View>
-            <Text variant="body" bold>
-              {pin.name}
-            </Text>
-            <Text variant="secondary" tone="text2">
-              {pin.place}
-            </Text>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Button label={strings.mapOpenCard} onPress={() => onOpen(pin.id)} testID="map-open" style={{ flex: 1 }} />
-            <Button variant="ghost" label={strings.mapCloseCard} onPress={close} testID="map-close" />
-          </View>
-        </View>
-      ) : null}
     </View>
   );
 }

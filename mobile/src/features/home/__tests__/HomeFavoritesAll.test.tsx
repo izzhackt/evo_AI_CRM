@@ -38,6 +38,7 @@ function chainTo(node: Json | string, testID: string): Json[] | null {
   return null;
 }
 const tree = (): Json => ([] as Json[]).concat(screen.toJSON() as never)[0];
+const flat = (node: { props: { style?: unknown } }) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
 
 const byIdsCalls = (calls: { name: string; args?: Record<string, unknown> }[]) => calls.filter((call) => call.name === "student_university_catalog_by_ids_v1").map((call) => (call.args?.p_institution_ids as string[]).length);
 
@@ -154,6 +155,14 @@ describe("запись избранного на карточке каталог
     expect(target(credit)).toBeGreaterThanOrEqual(44);
     expect(heartBottom).toBeLessThanOrEqual(creditTop); // сердечко кончается выше, чем начинается «©»
     expect(creditTop + target(credit)).toBeLessThanOrEqual(layer!.height as number); // и обе кнопки целиком на фото
+  });
+
+  it("строка флажка «Сравнивать» - цель нажатия не меньше 44 pt, как у остальных кнопок (кружок флажка внутри 24)", async () => {
+    await openAll(2);
+    const pick = screen.getByTestId(`compare-pick-${uuidN(1)}`);
+    expect(flat(pick).minHeight).toBeGreaterThanOrEqual(44);
+    expect(pick.props.accessibilityRole).toBe("checkbox");
+    expect(pick.props.accessibilityState).toMatchObject({ checked: false });
   });
 
   it("вуз без фото: сердечко на месте, «©» нет; флажок над карточкой, как у вуза с фото", async () => {

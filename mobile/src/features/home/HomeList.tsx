@@ -18,6 +18,7 @@ import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
 import { CardHead, CardSkeleton, EmptyBlock, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
+import { announce } from "@/ui/a11y";
 import { Enter, PressableScale } from "@/ui/motion";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
@@ -127,7 +128,7 @@ export function HomeList({
   onFavoritesAll: (open: boolean) => void;
   now: Date;
 }) {
-  const { m, t } = useLang();
+  const { m, t, format } = useLang();
   const { canSelectPrograms } = usePortalApi();
   const favorites = useFavorites();
   const preparations = usePreparations();
@@ -188,7 +189,18 @@ export function HomeList({
                   ))}
                 </ScrollView>
                 {/* Всегда, когда в избранном что-то есть (веб: `total > 0`): полный список со сравнением. */}
-                {favorites.data.total > 0 ? <LinkButton label={home.favoritesAll} onPress={() => onFavoritesAll(true)} testID="favorites-all" /> : null}
+                {favorites.data.total > 0 ? (
+                  <LinkButton
+                    label={home.favoritesAll}
+                    onPress={() => {
+                      // Нажатая кнопка исчезает вместе с лентой, на её месте встаёт полный список, а фокус читалки сам не переходит:
+                      // сообщаем о новом виде («Всё избранное. Сохранено: N»).
+                      announce(`${home.favoritesAll}. ${format(favoritesStrings.savedCount, { count: String(favoritesCount ?? 0) })}`);
+                      onFavoritesAll(true);
+                    }}
+                    testID="favorites-all"
+                  />
+                ) : null}
               </>
             )}
           </>

@@ -14,14 +14,13 @@ const navigate = router.navigate as jest.Mock;
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 
-async function renderBar({ tier = "assisted", lang = "ru", theme = "light", onMenu = jest.fn() }: { tier?: "approved" | "assisted"; lang?: "ru" | "ky"; theme?: "light" | "dark"; onMenu?: () => void } = {}) {
+async function renderBar({ tier = "assisted", lang = "ru", theme = "light", onMenu = jest.fn(), provider = true }: { tier?: "approved" | "assisted"; lang?: "ru" | "ky"; theme?: "light" | "dark"; onMenu?: () => void; provider?: boolean } = {}) {
+  const bar = <TopBar onMenu={onMenu} />;
   return await render(
     <SafeAreaProvider initialMetrics={metrics}>
       <ThemeProvider initial={theme}>
         <LangProvider initial={lang}>
-          <PortalApiProvider api={testApi(async () => ({ data: null, error: null, status: 200 }), { tier })}>
-            <TopBar onMenu={onMenu} />
-          </PortalApiProvider>
+          {provider ? <PortalApiProvider api={testApi(async () => ({ data: null, error: null, status: 200 }), { tier })}>{bar}</PortalApiProvider> : bar}
         </LangProvider>
       </ThemeProvider>
     </SafeAreaProvider>,
@@ -31,18 +30,30 @@ async function renderBar({ tier = "assisted", lang = "ru", theme = "light", onMe
 beforeEach(() => navigate.mockClear());
 
 describe("верхняя полоса телефона (веб Shell.tsx: .pt-topbar)", () => {
-  it("assisted: ☰, лого-ссылка, справа колокольчик «Что нового» с числом", async () => {
+  it("assisted: ☰, лого-ссылка, справа колокольчик «Что нового» с числом, затем кнопка темы (порядок веба)", async () => {
     await renderBar();
     expect(screen.getByTestId("menu-button")).toBeTruthy();
     expect(screen.getByTestId("topbar-logo")).toBeTruthy();
     expect(screen.getByLabelText("Новых уведомлений: 4")).toBeTruthy();
+    // колокольчик раньше кнопки темы: порядок в разметке справа налево читается как в вебе (Shell.tsx: колокольчик, тема)
+    const order = screen.getAllByTestId(/^(notification-bell|theme-toggle)$/).map((node) => node.props.testID);
+    expect(order).toEqual(["notification-bell", "theme-toggle"]);
   });
 
-  it("approved: ленты нет, колокольчика нет; ☰ и лого остаются", async () => {
+  it("approved: ленты нет, колокольчика нет; ☰, лого и кнопка темы остаются (тема нужна всем уровням)", async () => {
     await renderBar({ tier: "approved" });
     expect(screen.queryByTestId("notification-bell")).toBeNull();
     expect(screen.getByTestId("menu-button")).toBeTruthy();
     expect(screen.getByTestId("topbar-logo")).toBeTruthy();
+    expect(screen.getByTestId("theme-toggle")).toBeTruthy();
+  });
+
+  it("без провайдера кабинета полоса не падает: ☰, лого и кнопка темы, колокольчика нет", async () => {
+    await renderBar({ provider: false });
+    expect(screen.getByTestId("menu-button")).toBeTruthy();
+    expect(screen.getByTestId("topbar-logo")).toBeTruthy();
+    expect(screen.getByTestId("theme-toggle")).toBeTruthy();
+    expect(screen.queryByTestId("notification-bell")).toBeNull();
   });
 
   it("лого — ссылка на «Главную» с именем веба (home), в обоих языках", async () => {

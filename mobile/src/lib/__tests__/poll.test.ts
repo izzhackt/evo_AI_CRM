@@ -105,18 +105,22 @@ describe("планировщик: сбои, пауза и возврат (как
     poller.stop();
   });
 
-  it("поке во время сбоев запускает сразу и не обнуляет счёт сбоев, пока запуск не удался", async () => {
+  it("поке во время сбоев запускает сразу, счёт сбоев не растёт, пока запуск не удался; отсчёт начинается заново", async () => {
     const run = jest.fn().mockRejectedValue(new Error("x"));
     const poller = createPoller({ intervalMs: 1_000, run, delayAfterFailures: (failures) => 1_000 * 2 ** failures });
     poller.start();
-    await jest.advanceTimersByTimeAsync(1_000); // сбой 1, дальше 2 с
-    poller.poke(); // сбой 2, дальше 4 с
+    await jest.advanceTimersByTimeAsync(1_000); // по расписанию: сбой 1, дальше 2 с
+    poller.poke(); // сразу; сбой, но в счёт не идёт: всё те же 2 с, отсчитанные от запуска
     await jest.advanceTimersByTimeAsync(0);
     expect(run).toHaveBeenCalledTimes(2);
-    await jest.advanceTimersByTimeAsync(3_999);
+    await jest.advanceTimersByTimeAsync(1_999);
     expect(run).toHaveBeenCalledTimes(2);
     await jest.advanceTimersByTimeAsync(1);
+    expect(run).toHaveBeenCalledTimes(3); // по расписанию: сбой 2, дальше 4 с
+    await jest.advanceTimersByTimeAsync(3_999);
     expect(run).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(run).toHaveBeenCalledTimes(4);
     poller.stop();
   });
 
@@ -178,5 +182,69 @@ describe("планировщик: сбои, пауза и возврат (как
     poller.resume();
     await jest.advanceTimersByTimeAsync(10_000);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("внеочередной запуск (poke) сбоем для расписания не считается: «Повторить» без связи не раздувает задержку", async () => {
+    const run = jest.fn().mockRejectedValue(new Error("нет связи"));
+    const poller = createPoller({ intervalMs: 1_000, run, delayAfterFailures: (failures) => 1_000 * 2 ** failures });
+    poller.start();
+    await jest.advanceTimersByTimeAsync(1_000); // по расписанию: сбой 1, дальше 2 с
+    expect(run).toHaveBeenCalledTimes(1);
+    for (let i = 0; i < 4; i += 1) {
+      poller.poke(); // четыре нажатия «Повторить»: каждое падает, но в счёт не идёт
+      await jest.advanceTimersByTimeAsync(0);
+    }
+    expect(run).toHaveBeenCalledTimes(5);
+    await jest.advanceTimersByTimeAsync(1_999);
+    expect(run).toHaveBeenCalledTimes(5); // следующий по расписанию через 2 с после последнего нажатия, а не через 32 с
+    await jest.advanceTimersByTimeAsync(1);
+    expect(run).toHaveBeenCalledTimes(6);
+    poller.stop();
+  });
+
+  it("успех внеочередного запуска возвращает обычную задержку", async () => {
+    let fail = true;
+    const run = jest.fn(async () => {
+      if (fail) throw new Error("нет связи");
+    });
+    const poller = createPoller({ intervalMs: 1_000, run, delayAfterFailures: (failures) => 1_000 * 2 ** failures });
+    poller.start();
+    await jest.advanceTimersByTimeAsync(1_000); // сбой 1
+    await jest.advanceTimersByTimeAsync(2_000); // сбой 2, дальше 4 с
+    expect(run).toHaveBeenCalledTimes(2);
+    fail = false;
+    poller.poke(); // связь вернулась
+    await jest.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(999);
+    expect(run).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(1); // снова обычная секунда
+    expect(run).toHaveBeenCalledTimes(4);
+    poller.stop();
+  });
+
+  it("start({ immediate }): первый запуск сразу, и его сбой по расписанию считается", async () => {
+    const run = jest.fn().mockRejectedValue(new Error("нет связи"));
+    const poller = createPoller({ intervalMs: 1_000, run, delayAfterFailures: (failures) => 1_000 * 2 ** failures });
+    poller.start({ immediate: true });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(1); // сразу
+    await jest.advanceTimersByTimeAsync(1_999);
+    expect(run).toHaveBeenCalledTimes(1); // сбой 1: ждём 2 с, не 1 с
+    await jest.advanceTimersByTimeAsync(1);
+    expect(run).toHaveBeenCalledTimes(2);
+    poller.stop();
+  });
+
+  it("start без immediate ждёт интервал; повторный start на живом опросе ничего не меняет", async () => {
+    const run = jest.fn(async () => undefined);
+    const poller = createPoller({ intervalMs: 1_000, run });
+    poller.start();
+    poller.start({ immediate: true }); // уже запущен: игнорируется
+    await jest.advanceTimersByTimeAsync(999);
+    expect(run).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    expect(run).toHaveBeenCalledTimes(1);
+    poller.stop();
   });
 });

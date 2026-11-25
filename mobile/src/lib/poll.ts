@@ -5,10 +5,14 @@
 // подряд, задержка до следующего растёт (`delayAfterFailures`); первый успех возвращает обычный интервал. Возврат из фона
 // опрашивает сразу, только если прошлый запуск начался не меньше чем `resumeMinGapMs` назад (веб RESUME_MIN_GAP_MS), иначе
 // просто ставит обычный отсчёт: частые переключения приложений не засыпают сервер запросами.
+// Отличие от веба (разбор PR #1565): внеочередной запуск по действию студента (`poke`: «Повторить», смена раздела, «прочитано»)
+// сбоем для расписания не считается. Иначе несколько нажатий «Повторить» без связи раздували бы задержку до десяти минут,
+// хотя самих опросов по расписанию не было. Успех такого запуска, как и любой другой, возвращает обычный интервал.
 export type Poller = Readonly<{
-  start: () => void;
+  /** Начать отсчёт; `immediate` - первый запуск сразу (он считается запуском по расписанию, сбой удлинит задержку). */
+  start: (options?: Readonly<{ immediate?: boolean }>) => void;
   stop: () => void;
-  /** Внеочередной запуск (после отправки, смены раздела, кнопки «Повторить»): отсчёт начинается заново. */
+  /** Внеочередной запуск по действию студента (после отправки, смены раздела, кнопки «Повторить»): отсчёт начинается заново, сбой в счёт задержки не идёт. */
   poke: () => void;
   /** Приложение ушло в фон: отсчёт стоит, внеочередные запуски не идут. */
   pause: () => void;
@@ -47,10 +51,11 @@ export function createPoller(options: PollerOptions): Poller {
     const delay = options.delayAfterFailures ? options.delayAfterFailures(failures) : options.intervalMs;
     timer = setTimeout(() => {
       timer = null;
-      void tick();
+      void tick(true);
     }, delay);
   };
-  const tick = async () => {
+  /** `scheduled`: запуск по расписанию (таймер, первый запуск, возврат из фона); внеочередной (`poke`) сбоем для задержки не считается. */
+  const tick = async (scheduled: boolean) => {
     if (!active || paused || running) return;
     clear();
     running = true;
@@ -59,27 +64,28 @@ export function createPoller(options: PollerOptions): Poller {
       await options.run();
       failures = 0;
     } catch {
-      // сбой одного опроса не останавливает следующий; он удлиняет задержку (если она задана)
-      failures += 1;
+      // сбой одного опроса не останавливает следующий; запуск по расписанию удлиняет задержку (если она задана)
+      if (scheduled) failures += 1;
     } finally {
       running = false;
       schedule();
     }
   };
   return {
-    start() {
+    start(startOptions) {
       if (active) return;
       active = true;
       paused = false;
       failures = 0;
-      schedule();
+      if (startOptions?.immediate) void tick(true);
+      else schedule();
     },
     stop() {
       active = false;
       clear();
     },
     poke() {
-      void tick();
+      void tick(false);
     },
     pause() {
       paused = true;
@@ -90,7 +96,7 @@ export function createPoller(options: PollerOptions): Poller {
       paused = false;
       if (running) return;
       const gap = options.resumeMinGapMs ?? 0;
-      if (lastRunAt === null || now() - lastRunAt >= gap) void tick();
+      if (lastRunAt === null || now() - lastRunAt >= gap) void tick(true);
       else schedule();
     },
   };

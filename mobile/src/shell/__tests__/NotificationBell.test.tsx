@@ -1,10 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { AccessibilityInfo, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { LangProvider } from "@/i18n/LangProvider";
-import { NotificationBell } from "@/shell/NotificationBell";
+import { BADGE_MAX_FONT_SCALE, NotificationBell } from "@/shell/NotificationBell";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
 let mockUnread: number | null = null;
@@ -77,6 +77,14 @@ describe("колокольчик «Что нового» (веб: PortalNotifica
     mockUnread = 100;
     await view.rerender(tree("ru"));
     expect(screen.getByTestId("notification-bell-count", HIDDEN)).toHaveTextContent("99+");
+  });
+
+  it("число в кружке не раздувается крупным шрифтом системы: масштаб ограничен, чтобы не лечь на значок", async () => {
+    mockUnread = 7;
+    await renderBell();
+    const digits = within(screen.getByTestId("notification-bell-count", HIDDEN)).getByText("7", HIDDEN);
+    expect(BADGE_MAX_FONT_SCALE).toBeLessThanOrEqual(1.3);
+    expect(digits.props.maxFontSizeMultiplier).toBe(BADGE_MAX_FONT_SCALE);
   });
 
   it("нажатие ведёт в ленту «Что нового»", async () => {

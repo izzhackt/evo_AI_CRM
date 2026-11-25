@@ -14,6 +14,8 @@ import { announce } from "@/ui/a11y";
 import { Text } from "@/ui/Text";
 
 export const BELL_ROUTE = "/messages/updates";
+/** Предел увеличения шрифта числа в кружке (системный масштаб до 2x раздул бы кружок поверх значка). */
+export const BADGE_MAX_FONT_SCALE = 1.2;
 
 /** Подпись колокольчика по числу непрочитанного (веб: label в PortalNotificationUpdates). */
 function useUnreadLabel(): string {
@@ -55,7 +57,8 @@ export function NotificationBell() {
           importantForAccessibility="no-hide-descendants"
           style={{ position: "absolute", top: 2, right: 0, minWidth: 18, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 999, backgroundColor: tokens.accent, alignItems: "center" }}
         >
-          <Text variant="caption" tone="onAccent" bold style={{ fontSize: 11, lineHeight: 14 }}>
+          {/* Кружок маленький: крупный шрифт системы не должен раздувать число поверх значка колокольчика. */}
+          <Text variant="caption" tone="onAccent" bold maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE} style={{ fontSize: 11, lineHeight: 14 }}>
             {unread > 99 ? "99+" : unread}
           </Text>
         </View>

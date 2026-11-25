@@ -150,20 +150,60 @@ describe("Опрос оболочки", () => {
       expect(screen.getByTestId("unread").props.children).toBe("2");
     });
 
-    it("ответ «нет доступа» сбоем не считается и снимает карточку сбоя", async () => {
-      let denied = false;
-      const { transport } = fakeTransport({ student_portal_poll_v1: () => (denied ? { access: false } : failure(null, 503)) });
+    it("ответ «нет доступа» - такой же сбой, как отказ 403 у веба: число сброшено, карточка, задержка растёт; успех снимает", async () => {
+      let mode: "ok" | "denied" = "ok";
+      const { transport, calls } = fakeTransport({ student_portal_poll_v1: () => (mode === "ok" ? { access: true, unread: 4, version: VERSION_1 } : { access: false }) });
       await renderPortal(<PortalPoll><Badge /></PortalPoll>, testApi(transport));
       await act(async () => {
         await jest.advanceTimersByTimeAsync(10);
       });
-      expect(screen.getByTestId("failed").props.children).toBe("failed");
-      denied = true;
-      await fireEvent.press(screen.getByTestId("retry"));
+      expect(screen.getByTestId("unread").props.children).toBe("4");
+      mode = "denied";
       await act(async () => {
-        await jest.advanceTimersByTimeAsync(10);
+        await jest.advanceTimersByTimeAsync(60_000); // опрос в минуту: «нет доступа»
       });
+      expect(polls(calls)).toHaveLength(2);
+      expect(screen.getByTestId("failed").props.children).toBe("failed");
+      expect(screen.getByTestId("unread").props.children).toBe("none");
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(119_000);
+      });
+      expect(polls(calls)).toHaveLength(2); // задержка выросла: 120 с, не 60
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(1_500);
+      });
+      expect(polls(calls)).toHaveLength(3);
+      mode = "ok";
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(240_500); // и ещё вдвое
+      });
+      expect(polls(calls)).toHaveLength(4);
       expect(screen.getByTestId("failed").props.children).toBe("ok");
+      expect(screen.getByTestId("unread").props.children).toBe("4");
+    });
+
+    it("«Повторить» без связи в счёт сбоев не идёт: задержка растёт только от опросов по расписанию", async () => {
+      const { transport, calls } = fakeTransport({ student_portal_poll_v1: failure(null, 503) });
+      await renderPortal(<PortalPoll><Badge /></PortalPoll>, testApi(transport));
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10); // первый опрос по расписанию: сбой 1, дальше 120 с
+      });
+      expect(polls(calls)).toHaveLength(1);
+      for (let i = 0; i < 3; i += 1) {
+        await fireEvent.press(screen.getByTestId("retry")); // три нажатия «Повторить»: каждое падает
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(10);
+        });
+      }
+      expect(polls(calls)).toHaveLength(4);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(119_000);
+      });
+      expect(polls(calls)).toHaveLength(4); // 120 с от последнего нажатия
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(1_500);
+      });
+      expect(polls(calls)).toHaveLength(5); // а не через 8 минут, как было бы при счёте нажатий
     });
   });
 

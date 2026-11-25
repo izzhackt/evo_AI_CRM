@@ -5,8 +5,9 @@
 // Расписание то же, что у веба (`src/lib/light-poll.ts`, числа берутся оттуда же): после сбоя задержка удваивается (120, 240,
 // 480 с, не больше 600 с) и сбрасывается первым успехом; возврат из фона опрашивает сразу, только если прошлый опрос был не
 // меньше 30 с назад. Сбой виден: число сбрасывается (колокольчик без числа), `usePortalPollFailure` отдаёт признак сбоя и
-// «Повторить» для карточки «Не удалось обновить уведомления». Предел ожидания ответа (20 с) стоит в самом транспорте
-// (`lib/supabase.ts`, TRANSPORT_TIMEOUT_MS), как REQUEST_TIMEOUT_MS у веба.
+// «Повторить» для карточки «Не удалось обновить уведомления». Сбоем считается и ответ «нет доступа» (`access: false`): веб
+// (`decodeLightPollRpc`) отдаёт его как 403, и карточка, сброс числа и задержка там те же. Предел ожидания ответа (20 с) стоит в
+// самом транспорте (`lib/supabase.ts`, TRANSPORT_TIMEOUT_MS), как REQUEST_TIMEOUT_MS у веба.
 import { POLL_BASE_MS, RESUME_MIN_GAP_MS, nextPollDelay } from "@web/lib/light-poll";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "expo-router";
@@ -20,6 +21,14 @@ import { createPoller, isForeground, type Poller } from "@/lib/poll";
 import { SECTIONS, type SectionId } from "@/shell/sections";
 
 export const POLL_INTERVAL_MS = POLL_BASE_MS;
+
+/** Сервер ответил «нет доступа»: для расписания это сбой, как отказ 403 у веба. */
+class PollDeniedError extends Error {
+  constructor() {
+    super("portal:poll-denied");
+    this.name = "PollDeniedError";
+  }
+}
 
 type PollValue = Readonly<{ unread: number | null; failed: boolean; poke: () => void; retry: () => void }>;
 const PollContext = createContext<PollValue>({ unread: null, failed: false, poke: () => undefined, retry: () => undefined });
@@ -81,8 +90,14 @@ export function PortalPoll({ children }: { children: ReactNode }) {
           setFailed(true);
           throw error;
         }
+        if (!result.access) {
+          // Как у веба: «нет доступа» - это отказ (403): число сброшено, карточка сбоя, планировщик удлиняет задержку.
+          last.unread = null;
+          setUnread(null);
+          setFailed(true);
+          throw new PollDeniedError();
+        }
         setFailed(false);
-        if (!result.access) return;
         const changed = last.unread !== null && last.unread !== result.unread;
         const versionMoved = versionChanged(last.versions.get(current), result.version);
         last.unread = result.unread;
@@ -94,9 +109,9 @@ export function PortalPoll({ children }: { children: ReactNode }) {
       },
     });
     pollerRef.current = poller;
-    poller.start();
-    if (isForeground(AppState.currentState)) poller.poke();
-    else poller.pause();
+    // Первый опрос сразу и по расписанию (его сбой удлиняет задержку, как у веба); в фоне только пауза.
+    poller.start({ immediate: isForeground(AppState.currentState) });
+    if (!isForeground(AppState.currentState)) poller.pause();
     return () => {
       poller.stop();
       if (pollerRef.current === poller) pollerRef.current = null;

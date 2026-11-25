@@ -6,11 +6,11 @@ import { aiConsentInProfile, type AiConsent, type AiConsentStatus } from "@web/l
 import type { OwnAccountDeletion } from "@web/lib/account-deletion-contract";
 import type { PortalLanguage } from "@web/lib/portal/portal-profile";
 
-import { usePortalApi } from "@/api/PortalApi";
+import { useOptionalPortalApi, usePortalApi } from "@/api/PortalApi";
 import { accountDeletionWrite, readOwnAccountDeletion, requestAccountDeletion } from "@/features/profile/account-deletion";
 import { aiConsentWrite, readAiConsent, saveAiConsent } from "@/features/profile/ai-consent";
 import { readOwnLogin, readOwnProfile, saveOwnLanguage } from "@/features/profile/profile-source";
-import type { FrozenWrite } from "@/lib/rpc";
+import type { FrozenWrite, RpcTransport } from "@/lib/rpc";
 
 const key = (userKey: string, name: string) => ["portal", userKey, name] as const;
 
@@ -71,14 +71,28 @@ export function useDecideAiConsent() {
   };
 }
 
-export function useAccountDeletion() {
-  const { transport, userKey } = usePortalApi();
+/**
+ * Откуда удаление аккаунта берёт транспорт и ключ кэша. Внутри кабинета (`(app)`) это `PortalApi`; анкета, статус анкеты и
+ * экран «Доступ готовится» стоят до кабинета, и `usePortalApi()` там бросает ошибку: их вызывающий код передаёт источник
+ * явно (Apple 5.1.1(v): аккаунт, созданный в приложении, удаляется из приложения на любом шаге, не только после одобрения).
+ */
+export type DeletionSource = Readonly<{ transport: RpcTransport; userKey: string }>;
+
+function useDeletionSource(explicit: DeletionSource | undefined): DeletionSource {
+  const portal = useOptionalPortalApi();
+  if (explicit) return explicit;
+  if (portal) return { transport: portal.transport, userKey: portal.userKey };
+  throw new Error("Удаление аккаунта вне кабинета требует явного источника (transport, userKey)");
+}
+
+export function useAccountDeletion(source?: DeletionSource) {
+  const { transport, userKey } = useDeletionSource(source);
   return useQuery({ queryKey: key(userKey, "account-deletion"), queryFn: () => readOwnAccountDeletion(transport) });
 }
 
 /** Запись замораживается один раз на экран: повтор нажатия и сбой сети безопасны (тот же p_request_id). */
-export function useRequestAccountDeletion() {
-  const { transport, userKey } = usePortalApi();
+export function useRequestAccountDeletion(source?: DeletionSource) {
+  const { transport, userKey } = useDeletionSource(source);
   const client = useQueryClient();
   const frozen = useRef<FrozenWrite | null>(null);
   return useMutation<OwnAccountDeletion, Error, void>({

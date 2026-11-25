@@ -1,7 +1,8 @@
 // Разбор по шагам (контракт §13, `example`, и разбор задания §6; веб: components/portal/csca/StepReveal.tsx). Сначала не
 // показан ни один шаг: «Следующий шаг» открывает следующую строку, «Показать решение» все сразу, а ответ примера появляется
 // только после последнего шага (иначе он выдал бы решение до попытки подумать). Новый шаг озвучивается читалке словами «Шаг N»
-// и текстом шага: перевод фокуса читалки на устройствах ведёт себя по-разному, а слово до студента доходит везде.
+// и текстом шага (при «Показать решение» все открытые шаги одной фразой): перевод фокуса читалки на устройствах ведёт себя
+// по-разному, а слово до студента доходит везде.
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -23,11 +24,13 @@ export function StepReveal({ steps, answer, answerLabel, testID }: { steps: read
   const [shown, setShown] = useState(0);
   const done = shown >= steps.length;
 
+  /** Открыть шаги до `next` и прочитать читалке все вновь открытые: «Показать решение» открывает сразу несколько. */
   function reveal(next: number) {
     const first = shown;
-    setShown(Math.min(next, steps.length));
-    const text = steps[first];
-    if (text !== undefined) announce(`${format(c.exampleStep, { n: String(first + 1) })}. ${speakMathText(text)}`);
+    const upto = Math.min(next, steps.length);
+    setShown(upto);
+    const spoken = steps.slice(first, upto).map((text, offset) => `${format(c.exampleStep, { n: String(first + offset + 1) })}. ${speakMathText(text)}`);
+    if (spoken.length > 0) announce(spoken.join(" "));
   }
 
   return (

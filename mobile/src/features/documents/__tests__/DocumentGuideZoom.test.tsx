@@ -1,13 +1,15 @@
-// Крупный просмотр «Примера»: касания рамки доходят до вида страницы (щипок, двойное касание, движение, листание), вид не
-// сбрасывается перерисовкой (опрос, новый `api`), жест, севший не на рамку, считается по страницам касаний.
+// Крупный просмотр «Примера»: касания доходят до вида страницы (щипок, двойное касание, движение, листание), вид не
+// сбрасывается перерисовкой (опрос, новый `api`), жест считается по страницам касаний, а поверхность жестов - вся карточка:
+// щипок начинается там, куда село первое касание (поле карточки, шапка, подпись), в любом порядке пальцев.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { Dimensions, Pressable } from "react-native";
 
 import { DocumentsScreen } from "@/features/documents/DocumentsScreen";
-import { DOUBLE_TAP_SCALE } from "@/features/documents/zoom-math";
+import { DOUBLE_TAP_SCALE, pinchView, type Size } from "@/features/documents/zoom-math";
 import {
-  addFinger, ATTESTAT, CASE_ID, directions, drag, FRAME_AT, instantAnimations, lift, makeIo, move, openGuide, outside, pinch, press, readView, renderDocs, S_ATTESTAT, SAMPLES, tap, touch, uriOf,
+  addFinger, ATTESTAT, CASE_ID, directions, drag, failImage, FRAME_AT, FRAME_ORIGIN, inFrame, instantAnimations, layoutFrame, lift, makeIo, move, openGuide, outside, pinch, press, readView, renderDocs, S_ATTESTAT, SAMPLES, sizeOf, tap,
+  touch, uriOf,
 } from "@/test-fixtures/document-guide";
 import { PortalShell, testApi, testClient } from "@/test-fixtures/render";
 import { fakeTransport } from "@/test-fixtures/universities";
@@ -32,9 +34,13 @@ beforeEach(() => {
 afterEach(() => restoreAnimations());
 
 const id = `guide-${S_ATTESTAT}`;
+const CARD = `${id}-lightbox`;
 const ZOOM = `${id}-lightbox-zoom`;
 const IMAGE = `${id}-lightbox-image`;
-/** Центр рамки в тесте: окно 750 pt, карточка 734, рамка 702 шириной, страница 1300x885 вписана в 662 по ширине. */
+/**
+ * Точка рамки в тесте: окно 750 pt, карточка 734, рамка 702 шириной, страница 1300x885 вписана в 662 по ширине. Высота рамки
+ * одна на весь набор (по самой высокой странице), так что 245 по высоте - просто точка внутри рамки, а не её центр.
+ */
 const CENTER: [number, number] = [351, 245];
 
 async function openLightbox() {
@@ -154,8 +160,8 @@ describe("просмотр: касания доходят до вида стра
     // а настоящее двойное касание по приближенной возвращает целую страницу
     await tap(ZOOM, CENTER, 2200);
     expect(readView(ZOOM)).toEqual({ x: 0, y: 0, scale: 1 });
-    // рамка не отдаёт касание родителю
-    expect(screen.getByTestId(ZOOM).props.onResponderTerminationRequest()).toBe(false);
+    // карточка (поверхность жестов) не отдаёт касание родителю
+    expect(screen.getByTestId(CARD).props.onResponderTerminationRequest()).toBe(false);
   });
 });
 
@@ -316,5 +322,138 @@ describe("просмотр: перерисовка не сбрасывает п�
     expect(readView(ZOOM)).toEqual({ x: 0, y: 0, scale: 1 });
     await fireEvent.press(screen.getByTestId(`${id}-pager-prev`));
     expect(readView(ZOOM)).toEqual({ x: 0, y: 0, scale: 1 });
+  });
+});
+
+describe("просмотр: щипок начинается там, куда село первое касание (поверхность жестов - вся карточка)", () => {
+  type P = { x: number; y: number };
+  /** Просмотр открыт, рамка сообщила, где стоит в карточке (на устройстве это делает раскладка). Пальцы дальше - в координатах рамки. */
+  async function openWithLayout() {
+    await openLightbox();
+    await layoutFrame(ZOOM);
+    return { frame: sizeOf(ZOOM), content: sizeOf(`${ZOOM}-page`) };
+  }
+  /** Приблизили до 2,5 двойным касанием по центру: у приближенной страницы границы широкие и щипок упирается в них не сразу. */
+  async function openZoomed() {
+    const { frame, content } = await openWithLayout();
+    const centre = inFrame(frame.width / 2, frame.height / 2);
+    await press(CARD, [centre], 5000);
+    await lift(CARD, 5040);
+    await press(CARD, [centre], 5100);
+    await lift(CARD, 5140);
+    expect(readView(ZOOM).scale).toBe(DOUBLE_TAP_SCALE);
+    return { frame, content, start: readView(ZOOM) };
+  }
+  const dist = (a: P, b: P) => Math.hypot(a.x - b.x, a.y - b.y);
+  const mid = (a: P, b: P): P => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const fromCentre = (frame: Size, point: P): P => ({ x: point.x - frame.width / 2, y: point.y - frame.height / 2 });
+  /** Вид, который должен получиться, по формуле автомата: точки рамки (от её угла) -> от центра -> щипок вокруг пальцев. */
+  function expectedPinch(start: { x: number; y: number; scale: number }, frame: Size, content: Size, from: [P, P], to: [P, P]) {
+    return pinchView(start, dist(...to) / dist(...from), fromCentre(frame, mid(...from)), fromCentre(frame, mid(...to)), content, frame);
+  }
+  function expectView(got: { x: number; y: number; scale: number }, want: { x: number; y: number; scale: number }) {
+    expect(got.scale).toBeCloseTo(want.scale, 5);
+    expect(got.x).toBeCloseTo(want.x, 5);
+    expect(got.y).toBeCloseTo(want.y, 5);
+  }
+
+  it("первый палец на поле карточки, второй на странице: страница приближается, а точка под пальцами остаётся под ними", async () => {
+    const { frame, content, start } = await openZoomed();
+    const y = frame.height / 2;
+    const margin: P = { x: -10, y }; // левое поле карточки (16 шириной): вне рамки
+    const from: [P, P] = [margin, { x: 400, y }];
+    const to: [P, P] = [margin, { x: 450, y }];
+    await press(CARD, [inFrame(from[0].x, from[0].y)], 6000);
+    await addFinger(CARD, [inFrame(from[0].x, from[0].y), inFrame(from[1].x, from[1].y)], 6010);
+    await move(CARD, [inFrame(to[0].x, to[0].y), inFrame(to[1].x, to[1].y)], 6060);
+    const want = expectedPinch(start, frame, content, from, to);
+    expect(want.scale).toBeGreaterThan(start.scale * 1.1); // жест не вырожден
+    expectView(readView(ZOOM), want);
+    await lift(CARD, 6500);
+    expectView(readView(ZOOM), want);
+  });
+
+  it("первый палец на странице, второй на поле карточки (другой порядок): тот же щипок", async () => {
+    const { frame, content, start } = await openZoomed();
+    const y = frame.height / 2;
+    const margin: P = { x: -10, y };
+    const from: [P, P] = [{ x: 400, y }, margin];
+    const to: [P, P] = [{ x: 450, y }, margin];
+    await press(CARD, [inFrame(from[0].x, from[0].y)], 6000);
+    await addFinger(CARD, [inFrame(from[0].x, from[0].y), inFrame(from[1].x, from[1].y)], 6010);
+    await move(CARD, [inFrame(to[0].x, to[0].y), inFrame(to[1].x, to[1].y)], 6060);
+    expectView(readView(ZOOM), expectedPinch(start, frame, content, from, to));
+    await lift(CARD, 6500);
+    expectView(readView(ZOOM), expectedPinch(start, frame, content, from, to));
+  });
+
+  it("оба пальца разом, один над рамкой (шапка), другой под ней (подпись): щипок идёт и вокруг пальцев", async () => {
+    const { frame, content, start } = await openZoomed();
+    const x = frame.width / 2 - 100;
+    const from: [P, P] = [{ x, y: -30 }, { x, y: frame.height + 30 }]; // над рамкой и под ней: пальцы вне рамки
+    const to: [P, P] = [{ x, y: -60 }, { x, y: frame.height + 60 }];
+    await press(CARD, [inFrame(from[0].x, from[0].y), inFrame(from[1].x, from[1].y)], 6000);
+    await move(CARD, [inFrame(to[0].x, to[0].y), inFrame(to[1].x, to[1].y)], 6060);
+    const want = expectedPinch(start, frame, content, from, to);
+    expect(want.scale).toBeGreaterThan(start.scale);
+    expectView(readView(ZOOM), want);
+    await lift(CARD, 6500);
+  });
+
+  it("два пальца разом, один на кнопке «Далее»: начало рамки берётся по пальцу, севшему на карточку (targetTouches), а не по первому в списке", async () => {
+    const { frame, content, start } = await openZoomed();
+    const y = frame.height / 2;
+    // палец на кнопке: `locationX/Y` от самой кнопки (48 x 48), страница - где кнопка стоит на экране
+    const buttonAt: P = { x: 300, y: frame.height + 40 };
+    const button = { locationX: 20, locationY: 24, pageX: FRAME_ORIGIN.x + buttonAt.x, pageY: FRAME_ORIGIN.y + buttonAt.y };
+    const from: [P, P] = [buttonAt, { x: 450, y }];
+    const to: [P, P] = [buttonAt, { x: 520, y }];
+    const first = inFrame(from[1].x, from[1].y);
+    const second = inFrame(to[1].x, to[1].y);
+    const card = screen.getByTestId(CARD);
+    // система на iOS шлёт одно событие на цель: в нём оба пальца в `changedTouches`, а свои - в `targetTouches`
+    await fireEvent(card, "responderGrant", { nativeEvent: { touches: [button, first], changedTouches: [button, first], targetTouches: [first], timestamp: 6000 } });
+    await fireEvent(card, "responderMove", { nativeEvent: { touches: [button, second], changedTouches: [button, second], targetTouches: [second], timestamp: 6060 } });
+    expectView(readView(ZOOM), expectedPinch(start, frame, content, from, to));
+    await lift(CARD, 6500);
+  });
+
+  it("поверхность - карточка: рамка, подпись и шапка не принимают касаний, кнопки и ряды (кроме кнопок) тоже; без страницы карточка касаний не берёт", async () => {
+    await openWithLayout();
+    // всё, что в карточке не кнопка, не может быть целью касания: цель такого пальца - сама карточка (там и стоит ответчик)
+    expect(screen.getByTestId(ZOOM).props.pointerEvents).toBe("none");
+    expect(screen.getByTestId(`${id}-lightbox-caption`).props.pointerEvents).toBe("none");
+    expect(screen.getByTestId(`${id}-lightbox-top`).props.pointerEvents).toBe("box-none");
+    expect(screen.getByTestId(`${id}-lightbox-pager`).props.pointerEvents).toBe("box-none");
+    // кнопки глубже карточки: система спрашивает их первыми, нажатия работают как раньше
+    await fireEvent.press(screen.getByTestId(`${id}-pager-next`));
+    expect(uriOf(IMAGE)).toBe(`${SAMPLES}/attestat-2.jpg`);
+    // страница на экране - карточка берёт касание; страница отказала (схема вместо неё) - не берёт, схема прокручивается сама
+    expect(screen.getByTestId(CARD).props.onStartShouldSetResponder()).toBe(true);
+    await failImage(IMAGE);
+    expect(screen.queryByTestId(ZOOM)).toBeNull();
+    expect(screen.getByTestId(CARD).props.onStartShouldSetResponder()).toBe(false);
+    // и снова страница (листание «‹ ›» пробует заново) - карточка опять берёт касания
+    await fireEvent.press(screen.getByTestId(`${id}-pager-next`));
+    expect(await screen.findByTestId(ZOOM)).toBeTruthy();
+    expect(screen.getByTestId(CARD).props.onStartShouldSetResponder()).toBe(true);
+  });
+
+  it("высота рамки одна на весь набор: при листании страниц разных пропорций карточка не прыгает, страница ниже стоит по центру", async () => {
+    await openWithLayout();
+    const frames = new Set<number>();
+    const pages = new Set<number>();
+    for (let page = 1; page <= 7; page += 1) {
+      expect(uriOf(IMAGE)).toBe(`${SAMPLES}/attestat-${page}.jpg`);
+      frames.add(Math.round(sizeOf(ZOOM).height * 1000));
+      pages.add(Math.round(sizeOf(`${ZOOM}-page`).height * 1000));
+      if (page < 7) await fireEvent.press(screen.getByTestId(`${id}-pager-next`));
+    }
+    // страницы набора разной высоты (три альбомных разных пропорций и четыре книжных), а рамка - одна
+    expect(pages.size).toBeGreaterThan(2);
+    expect(frames.size).toBe(1);
+    // она по самой высокой странице: на 20 pt стола сверху и снизу выше неё
+    const tallest = Math.max(...pages) / 1000;
+    expect([...frames][0]! / 1000).toBeCloseTo(tallest + 40, 2);
   });
 });

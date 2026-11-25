@@ -2,7 +2,7 @@
 // времени, пачки сохранения, замороженные запросы, завершение) живёт в CscaTestSession.
 import { router, useNavigation, usePreventRemove } from "expo-router";
 import { Flag } from "lucide-react-native";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { Alert, AppState, Modal, Pressable, View } from "react-native";
 
 import { formatClock, type CscaTestAttempt } from "@web/lib/portal/csca";
@@ -12,6 +12,7 @@ import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { cscaDayLabelSafe } from "@/features/learning/csca/format";
 import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { CSCA_TOPICS_FALLBACK, openCscaTopics } from "@/features/learning/csca/routes";
 import { useWarmMath } from "@/features/learning/math/useWarmMath";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
 import { useCscaHome, useCscaTestResult, useInvalidateCsca } from "@/features/learning/queries";
@@ -25,11 +26,8 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
-import { Card } from "@/ui/Screen";
+import { Card, type ScrollTarget } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
-
-/** «К темам»: вернуться к главной раздела на вкладке «Занятия» (разворачивает стек до неё, а не кладёт вторую копию). */
-const openTopics = () => router.dismissTo({ pathname: "/csca", params: { view: "lessons" } });
 
 /** Текст сбоя без слов веба «в другой вкладке» и «Обновите страницу»: в приложении ни вкладок, ни страниц нет. */
 function errorText(code: string | null, c: PortalStrings<"csca">, m: (key: MobileStringKey) => string): string {
@@ -38,7 +36,7 @@ function errorText(code: string | null, c: PortalStrings<"csca">, m: (key: Mobil
 
 export function TestScreen({ formId, attemptId }: { formId: string; attemptId: string | null }) {
   const { m, t } = useLang();
-  const back = useBack("/csca?view=lessons");
+  const back = useBack(CSCA_TOPICS_FALLBACK);
   const c = t("csca");
   const home = useCscaHome(true);
   const shown = useCscaTestResult(attemptId);
@@ -72,7 +70,7 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
   const invalidate = useInvalidateCsca();
   const { lang, m, t, format } = useLang();
   const c = t("csca");
-  const back = useBack("/csca?view=lessons");
+  const back = useBack(CSCA_TOPICS_FALLBACK);
 
   useWarmMath();
   useEffect(() => () => session.dispose(), [session]);
@@ -117,6 +115,7 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
   // Свайп назад и системная «назад» не должны терять неотправленные ответы: пока идёт тест,
   // уход перехватывается и спрашивает подтверждение; жест закрыт, и экран закрывается через flush.
   const navigation = useNavigation();
+  const scroller = useRef<ScrollTarget>(null);
   const [leaving, setLeaving] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
   usePreventRemove(running && leaving === null, ({ data }) => confirmLeave(session, () => setLeaving(data.action), m));
   useEffect(() => {
@@ -131,9 +130,10 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
       header={<SubHeader title={title} onBack={back} backLabel={c.backToHome} testID="test-title" right={running && state.remaining !== null ? <Clock state={state} /> : undefined} />}
       testID="test-screen"
       bottomPad={32}
+      scrollRef={scroller}
     >
       {phase === "intro" || phase === "starting" ? <Intro form={form} state={state} onStart={() => void session.start()} /> : null}
-      {phase === "running" || phase === "finishing" ? <Runner session={session} state={state} /> : null}
+      {phase === "running" || phase === "finishing" ? <Runner session={session} state={state} scrollRef={scroller} /> : null}
       {phase === "result" && state.attempt ? <Result attempt={state.attempt} onRestart={() => session.restart()} /> : null}
     </StackPage>
   );
@@ -205,7 +205,7 @@ function Intro({ form, state, onStart }: { form: Form | null; state: TestUiState
       </View>
       {state.error ? <InlineAlert message={errorText(state.error, c, m)} testID="test-start-error" /> : null}
       <Button label={state.phase === "starting" ? c.testStarting : form.draft ? c.testResume : c.testBegin} busy={state.phase === "starting"} onPress={onStart} testID="test-begin" />
-      <LinkButton label={c.backToTopics} onPress={openTopics} testID="test-intro-topics" />
+      <LinkButton label={c.backToTopics} onPress={openCscaTopics} disabled={state.phase === "starting"} testID="test-intro-topics" />
     </View>
   );
 }
@@ -223,7 +223,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Runner({ session, state }: { session: CscaTestSession; state: TestUiState }) {
+function Runner({ session, state, scrollRef }: { session: CscaTestSession; state: TestUiState; scrollRef: RefObject<ScrollTarget | null> }) {
   const { m, t, format } = useLang();
   const { tokens } = useTheme();
   const c = t("csca");
@@ -236,6 +236,15 @@ function Runner({ session, state }: { session: CscaTestSession; state: TestUiSta
   const finishing = state.phase === "finishing";
   const status = state.saveStatus === "pending" || state.saveStatus === "saving" ? c.saveSaving : state.saveStatus === "retrying" ? c.saveRetrying : state.saveStatus === "saved" ? c.saveSaved : c.saveIdle;
   const last = state.index === attempt.items.length - 1;
+  // Устойчивая функция: навигатор обёрнут в `memo`, а часы перерисовывают экран каждые полсекунды.
+  const goTo = useCallback((next: number) => session.goTo(next), [session]);
+  // Новое задание читается с начала: после «Далее» внизу страницы прокрутка вернулась бы к его концу (веб переводит фокус на заголовок).
+  const shownIndex = useRef(state.index);
+  useEffect(() => {
+    if (shownIndex.current === state.index) return;
+    shownIndex.current = state.index;
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [state.index, scrollRef]);
   // Верхняя строка как на вебе: «Отвечено X из Y» и состояние сохранения; при завершении слова «Время вышло» или «Подводим итог».
   const barStatus = finishing ? (state.remaining === 0 ? c.timeUp : c.finishing) : status;
   return (
@@ -244,11 +253,12 @@ function Runner({ session, state }: { session: CscaTestSession; state: TestUiSta
         <Text variant="body" bold testID="test-answered">
           {format(c.answeredCount, { answered: String(answeredCount), total: String(attempt.items.length) })}
         </Text>
-        <Text variant="caption" tone="text2" accessibilityLiveRegion="polite" testID="test-save-status">
+        {/* Состояние сохранения читается живой областью; слова завершения читает `announce` (в `TestFlow`), иначе Android скажет их дважды. */}
+        <Text variant="caption" tone="text2" accessibilityLiveRegion={finishing ? "none" : "polite"} testID="test-save-status">
           {barStatus}
         </Text>
       </View>
-      <TestNavigator attempt={attempt} answers={state.answers} flags={state.flags} index={state.index} disabled={finishing} onPick={(i) => session.goTo(i)} />
+      <TestNavigator attempt={attempt} answers={state.answers} flags={state.flags} index={state.index} disabled={finishing} onPick={goTo} />
       {state.notice === "finishUnsent" ? <InlineAlert message={c.finishUnsent} testID="test-unsent" /> : null}
       {state.notice === "conflict" ? <InlineAlert message={m("learn.testConflict")} testID="test-conflict" /> : null}
       {state.error ? <InlineAlert message={errorText(state.error, c, m)} testID="test-error" /> : null}
@@ -276,8 +286,8 @@ function Runner({ session, state }: { session: CscaTestSession; state: TestUiSta
               </Text>
             </Pressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <Button variant="ghost" label={c.prev} disabled={state.index === 0 || finishing} onPress={() => session.goTo(state.index - 1)} style={{ flex: 1 }} testID="test-prev" />
-              <Button variant="ghost" label={c.next} disabled={last || finishing} onPress={() => session.goTo(state.index + 1)} style={{ flex: 1 }} testID="test-next" />
+              <Button variant="ghost" label={c.prev} disabled={state.index === 0 || finishing} onPress={() => goTo(state.index - 1)} style={{ flex: 1 }} testID="test-prev" />
+              <Button variant="ghost" label={c.next} disabled={last || finishing} onPress={() => goTo(state.index + 1)} style={{ flex: 1 }} testID="test-next" />
             </View>
           </View>
         }
@@ -314,13 +324,13 @@ function Result({ attempt, onRestart }: { attempt: CscaTestAttempt; onRestart: (
   const [reporting, setReporting] = useState<string | null>(null);
   const result = attempt.result;
   const review = attempt.review;
-  if (!result || !review) return <InlineAlert message={m("learn.testRejected")} />;
+  if (!result || !review) return <InlineAlert message={m("learn.testNoResult")} testID="test-result-missing" />;
   const tallies = resultTallies(result, home.data, lang, c);
   const actions = resultActions(attempt, home.data, lang, c);
   const byItem = Object.fromEntries(attempt.items.map((it) => [it.itemKey, it]));
   const run = (action: (typeof actions)[number]) => {
     if (action.kind === "lesson") router.navigate({ pathname: "/csca/lesson/[lessonId]", params: { lessonId: action.lessonId } });
-    else if (action.kind === "topics") openTopics();
+    else if (action.kind === "topics") openCscaTopics();
     else onRestart();
   };
   return (

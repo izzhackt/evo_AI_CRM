@@ -1,7 +1,7 @@
 // Общие помощники доступности (аудит паритета 25.11.2026, G6): сказать читалке короткое сообщение и «Уменьшить
 // движение». Только ядро React Native (`AccessibilityInfo`): новых нативных модулей нет, поэтому всё, что пользуется
 // этим файлом, уходит к студентам обновлением EAS Update на той же сборке.
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 
 /**
  * Окно, в котором то же самое сообщение второй раз не озвучивается: двойной вызов эффекта, быстрый повтор нажатия.
@@ -12,16 +12,25 @@ export const ANNOUNCE_REPEAT_MS = 800;
 let lastText = "";
 let lastAt = 0;
 
+export type AnnounceOptions = {
+  /**
+   * Поставить сообщение в очередь за тем, что читалка уже говорит, а не прерывать его («Новое сообщение» в чате, пока
+   * читается реплика). Только iPhone: `announceForAccessibilityWithOptions({ queue: true })`. На Android и там, где такого
+   * системного вызова нет, сообщение уходит как обычно. Без параметра поведение прежнее.
+   */
+  queue?: boolean;
+};
+
 /**
  * Сказать читалке (VoiceOver, TalkBack) короткое сообщение, не двигая фокус: «Верно», «Сообщение отправлено»,
  * «Осталась минута». Работает одинаково на iPhone и Android (`AccessibilityInfo.announceForAccessibility`); без
  * включённой читалки ничего не происходит.
  *
  * - Пустая строка, пробелы, `null` и `undefined` не озвучиваются.
- * - То же сообщение подряд в течение `ANNOUNCE_REPEAT_MS` озвучивается один раз.
+ * - То же сообщение подряд в течение `ANNOUNCE_REPEAT_MS` озвучивается один раз (с очередью или без).
  * - Сбой системного вызова не доходит до экрана: озвучивание необязательно, действие студента важнее.
  */
-export function announce(message: string | null | undefined): void {
+export function announce(message: string | null | undefined, options?: AnnounceOptions): void {
   const text = typeof message === "string" ? message.trim() : "";
   if (!text) return;
   const now = Date.now();
@@ -31,13 +40,17 @@ export function announce(message: string | null | undefined): void {
   lastText = text;
   lastAt = now;
   try {
-    AccessibilityInfo.announceForAccessibility(text);
+    if (options?.queue && Platform.OS === "ios" && typeof AccessibilityInfo.announceForAccessibilityWithOptions === "function") {
+      AccessibilityInfo.announceForAccessibilityWithOptions(text, { queue: true });
+    } else {
+      AccessibilityInfo.announceForAccessibility(text);
+    }
   } catch {
     // Озвучивание необязательно: сбой читалки не должен ломать нажатие.
   }
 }
 
-/** Для тестов: забыть последнее сообщение, чтобы тесты друг друга не глушили. */
+/** Для тестов: забыть последнее сообщение, чтобы тесты друг друга не глушили. `jest.setup.ts` зовёт её перед каждым тестом. */
 export function resetAnnouncementsForTests(): void {
   lastText = "";
   lastAt = 0;

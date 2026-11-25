@@ -1,12 +1,13 @@
 // `announce`: короткое сообщение читалке. Системный вызов в Jest - заглушка из пресета React Native, поэтому проверяется,
 // что и когда до него доходит: пустое не доходит, повтор внутри окна склеивается, настоящий повтор позже окна проходит.
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 
 import * as a11y from "@/ui/a11y";
 import { ANNOUNCE_REPEAT_MS, announce, resetAnnouncementsForTests } from "@/ui/a11y";
 import * as motion from "@/ui/motion";
 
 const native = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+const withOptions = AccessibilityInfo.announceForAccessibilityWithOptions as unknown as jest.Mock;
 
 /** Часы теста: `announce` читает `Date.now()`. */
 function clock(start = 1_000_000) {
@@ -24,6 +25,7 @@ function clock(start = 1_000_000) {
 
 beforeEach(() => {
   native.mockClear();
+  withOptions.mockClear();
   resetAnnouncementsForTests();
 });
 afterEach(() => jest.restoreAllMocks());
@@ -114,6 +116,71 @@ describe("announce: быстрые повторы", () => {
     time.set(1_000_000);
     announce("Верно");
     expect(native).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("announce: очередь (queue)", () => {
+  it("без параметра, с queue: false и с пустыми настройками уходит обычное сообщение; вариант с очередью не трогается", () => {
+    const time = clock();
+    announce("Верно");
+    time.tick(ANNOUNCE_REPEAT_MS);
+    announce("Верно", { queue: false });
+    time.tick(ANNOUNCE_REPEAT_MS);
+    announce("Верно", {});
+    expect(native).toHaveBeenCalledTimes(3);
+    expect(native).toHaveBeenCalledWith("Верно");
+    expect(withOptions).not.toHaveBeenCalled();
+  });
+
+  it("queue: true на iPhone: сообщение встаёт в очередь за текущей речью, обычный вызов не делается", () => {
+    clock();
+    expect(Platform.OS).toBe("ios");
+    announce("  Новое сообщение  ", { queue: true });
+    expect(withOptions).toHaveBeenCalledTimes(1);
+    expect(withOptions).toHaveBeenCalledWith("Новое сообщение", { queue: true });
+    expect(native).not.toHaveBeenCalled();
+  });
+
+  it("queue: true на Android: обычное сообщение, очередь есть только на iPhone", () => {
+    clock();
+    jest.replaceProperty(Platform, "OS", "android");
+    announce("Новое сообщение", { queue: true });
+    expect(native).toHaveBeenCalledTimes(1);
+    expect(native).toHaveBeenCalledWith("Новое сообщение");
+    expect(withOptions).not.toHaveBeenCalled();
+  });
+
+  it("queue: true на iPhone без системного вызова с настройками: обычное сообщение", () => {
+    clock();
+    const info = AccessibilityInfo as unknown as Record<string, unknown>;
+    const original = info.announceForAccessibilityWithOptions;
+    try {
+      info.announceForAccessibilityWithOptions = undefined;
+      announce("Новое сообщение", { queue: true });
+    } finally {
+      info.announceForAccessibilityWithOptions = original;
+    }
+    expect(native).toHaveBeenCalledWith("Новое сообщение");
+  });
+
+  it("пустое сообщение с очередью не озвучивается; повтор в окне склеивается так же, с очередью и без неё", () => {
+    const time = clock();
+    announce("", { queue: true });
+    announce("Верно", { queue: true });
+    time.tick(10);
+    announce("Верно", { queue: true });
+    time.tick(10);
+    announce("Верно");
+    expect(withOptions).toHaveBeenCalledTimes(1);
+    expect(native).not.toHaveBeenCalled();
+  });
+
+  it("сбой вызова с очередью не доходит до экрана", () => {
+    clock();
+    withOptions.mockImplementationOnce(() => {
+      throw new Error("native module is not available");
+    });
+    expect(() => announce("Верно", { queue: true })).not.toThrow();
   });
 });
 

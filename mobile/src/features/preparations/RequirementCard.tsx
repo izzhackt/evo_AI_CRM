@@ -28,11 +28,15 @@ export function RequirementCard({ item, state, revisionId, strings }: {
   return (
     <Card>
       <View style={{ gap: 8 }} testID={`prep-requirement-${item.requirementItemId}`}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-          <Text variant="heading" accessibilityRole="header" style={{ flex: 1 }}>
+        {/* «Обязательно» стоит справа от названия, пока им обоим хватает места; тесно (крупный шрифт системы, длинное название) -
+            плашка уходит строкой под название, а оно не ломается посреди слова (QA 25.11, AX3: «Загранпа / спорт»). Для этого
+            строка переносится, а у названия нет `flex: 1`: оно занимает столько, сколько ему нужно, и сжимается, только когда
+            остаётся в строке одно. */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", columnGap: 8, rowGap: 6 }} testID={`prep-requirement-head-${item.requirementItemId}`}>
+          <Text variant="heading" accessibilityRole="header" style={{ flexShrink: 1 }} testID={`prep-requirement-title-${item.requirementItemId}`}>
             {item.label}
           </Text>
-          <StatusPill label={item.required ? strings.required : strings.optional} tone="neutral" />
+          <StatusPill label={item.required ? strings.required : strings.optional} tone="neutral" testID={`prep-requirement-pill-${item.requirementItemId}`} />
         </View>
         <Text variant="caption" tone="text2">
           {item.groupLabel}

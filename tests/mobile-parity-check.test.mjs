@@ -21,6 +21,7 @@ import {
   checkReason,
   createGitHubClient,
   evaluateParity,
+  hiddenInComments,
   isCabinetUiPath,
   isMobileAppChange,
   isTestFile,
@@ -417,7 +418,7 @@ test("the failure message says what triggered it, the three ways to fix, the lin
   assert.ok(text.includes("Приложение: отдельным PR #<номер>"));
   // The line must begin with the word, with only list, quote and emphasis marks before it.
   assert.ok(text.includes(`Строка должна начинаться со слова «Приложение:» и быть не длиннее ${MAX_DECLARATION_LINE} знаков.`));
-  assert.ok(text.includes("«- », «* », «> », «- [x] », «1. », «**»"));
+  assert.ok(text.includes("«- », «* », «- [ ] », «- [x] », «> », «1. », «**»"));
   assert.ok(text.includes("gh run rerun 9001 --failed --repo izzhackt/evo_AI_CRM"));
   assert.match(text, /Правка описания проверку сама не запускает/u);
   assert.ok(text.includes('git commit --allow-empty -m "chore: перезапуск проверок" && git push'), "a way out for those who cannot re-run jobs");
@@ -1234,4 +1235,66 @@ test("canary: every trigger path still matches a tracked file, so a rename canno
   }
   assert.ok(tracked.some((path) => path.startsWith("mobile/src/app/(auth)/")), "the app's sign-in screens, the reason the sign-in paths trigger, are gone or moved");
   assert.ok(tracked.includes("src/app/auth/staff/page.tsx"), "the staff sign-in page the exclusion is about");
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Live round 2 (25.11.2026): a line hidden in a comment, and the unchecked box
+// ---------------------------------------------------------------------------------------------------------------------
+
+test("a «Приложение:» line that exists only inside an HTML comment is called out: it is invisible, so it does not count", async (t) => {
+  const template = read(".github/pull_request_template.md");
+  const hint = "строка «Приложение:» есть, но внутри <!-- -->: уберите комментарий";
+
+  // The template as it is has its examples in the comment, but the bare line below it is visible: not «only inside».
+  assert.equal(hiddenInComments(template), false);
+  // The comment is all that is left: the bare line deleted, or an example filled in inside the comment.
+  const commentOnly = template.replace(/^Приложение:\s*$/mu, "");
+  assert.equal(hiddenInComments(commentOnly), true);
+  for (const body of [
+    `<!-- Приложение: не нужно — ${REASON} -->`,
+    `Описание\n<!--\nПриложение: не нужно — ${REASON}\n-->\n`,
+    `<!--\n- [x] Приложение: отдельным PR #1540\n-->`,
+    `Описание\n<!-- Приложение: не нужно — ${REASON}\nещё текст`,
+  ]) assert.equal(hiddenInComments(body), true, body);
+  for (const body of [
+    "", null, undefined, "без строки", "<!-- просто комментарий -->", `Приложение: не нужно — ${REASON}`,
+    "<!-- заметка -->\nПриложение:", "<!-- Приложение: пример -->\nПриложение: отдельным PR #1", "Итог: приложение: не нужно — слова слова слова",
+  ]) assert.equal(hiddenInComments(body), false, String(body));
+
+  const verdict = (body) => evaluateParity({ files: [CABINET_FILE], readBody: async () => body, lookupPullRequest: never("lookup") });
+  const bare = await verdict(commentOnly);
+  assert.equal(bare.outcome, "fail");
+  assert.deepEqual(bare.problems, [hint]);
+  // Even a perfectly valid line in a comment does not pass; it is named, and nothing is looked up for it.
+  for (const body of [`<!-- Приложение: не нужно — ${REASON} -->`, "<!--\nПриложение: отдельным PR #1540\n-->"]) {
+    const hidden = await verdict(body);
+    assert.equal(hidden.outcome, "fail", body);
+    assert.deepEqual(hidden.problems, [hint], body);
+  }
+  // A visible line is the one to name, even the template's bare one: no comment hint beside it.
+  assert.deepEqual((await verdict(template)).problems, ["строка «Приложение:» не заполнена"]);
+  assert.equal((await verdict(`<!-- Приложение: не нужно — ${REASON} -->\nПриложение: не нужно — коротко`)).problems.some((problem) => problem.includes("внутри <!-- -->")), false);
+  // No «Приложение:» anywhere: nothing to add to the general advice.
+  assert.deepEqual((await verdict("просто описание")).problems, []);
+
+  // As the person reads it, in the failure message.
+  const { filesFile, bodyFile } = inputs(t, { body: commentOnly });
+  const result = await run(["--files-file", filesFile, "--body-file", bodyFile]);
+  assert.equal(result.code, 1);
+  assert.ok(result.text.includes(`Что не так в описании:\n  - ${hint}\n`), result.text);
+});
+
+test("the allowed prefixes are listed the same in AGENTS.md and in the failure message, and the parser accepts each, the unchecked box included", () => {
+  const flat = (text) => text.replace(/\s+/gu, " ");
+  const marks = ["- ", "* ", "- [ ] ", "- [x] ", "> ", "1. ", "**"];
+  assert.ok(flat(read("AGENTS.md")).includes(`: ${marks.map((mark) => `\`${mark}\``).join(", ")}).`), "AGENTS.md lists the prefixes");
+  assert.ok(renderFailure({ cabinet: [CABINET_FILE] }).includes(marks.map((mark) => `«${mark}»`).join(", ")), "the failure message lists the same ones");
+  for (const mark of marks) {
+    assert.equal(parseDeclarations(`${mark}Приложение: не нужно — ${REASON}`).notNeeded[0]?.ok, true, JSON.stringify(mark));
+    assert.deepEqual(parseDeclarations(`${mark}Приложение: отдельным PR #1540`).separate.map((entry) => entry.number), [1540], JSON.stringify(mark));
+  }
+  // Wherever else a checkbox is named, both forms are: the people who wrote the line either way meant it.
+  for (const [name, text] of [["CLAUDE.md", flat(read("CLAUDE.md"))], ["the PR template", flat(read(".github/pull_request_template.md"))]]) {
+    if (text.includes("[x] ")) assert.ok(text.includes("[ ] "), `${name} names «- [x] » but not «- [ ] »`);
+  }
 });

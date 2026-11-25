@@ -118,6 +118,17 @@ export function stripHtmlComments(text) {
   return String(text ?? "").replace(/<!--[\s\S]*?(?:-->|$)/gu, "");
 }
 
+/**
+ * True when «Приложение:» lines exist ONLY inside HTML comments. Such lines are invisible in the rendered description, so
+ * they never count; the PR template keeps its example lines in a comment and an author may fill one in there. The comment
+ * marks themselves become line breaks, so a one-line «<!-- Приложение: … -->» is found too.
+ */
+export function hiddenInComments(body) {
+  const raw = String(body ?? "");
+  const keyLines = (text) => text.split(/\r\n|\r|\n/u).filter((line) => LINE_KEY.test(line.trim().slice(0, KEY_WINDOW)));
+  return keyLines(stripHtmlComments(raw)).length === 0 && keyLines(raw.replace(/<!--|-->/gu, "\n")).length > 0;
+}
+
 const isNoise = (character) => character === "*" || character === "_" || character === "`" || /\s/u.test(character);
 
 /** A reason is real words, 12+ characters, not an unfilled <placeholder>. */
@@ -197,6 +208,7 @@ export async function evaluateParity({ files, readBody, lookupPullRequest, curre
 
   const declarations = parseDeclarations(body);
   const problems = [];
+  if (hiddenInComments(body)) problems.push("строка «Приложение:» есть, но внутри <!-- -->: уберите комментарий");
 
   for (const note of declarations.notNeeded) {
     if (note.ok) return { outcome: "pass", reason: "not-needed", cabinet, line: note.line };
@@ -264,7 +276,7 @@ export function renderFailure({ cabinet, problems = [], runId = null, repository
     "  3. Если приложение делается отдельным PR в тот же день, добавить строку:",
     "       Приложение: отдельным PR #<номер>",
     `Строка должна начинаться со слова «Приложение:» и быть не длиннее ${MAX_DECLARATION_LINE} знаков. Перед словом допустимы только знаки списка,`,
-    "цитаты и выделения: «- », «* », «> », «- [x] », «1. », «**».",
+    "цитаты и выделения: «- », «* », «- [ ] », «- [x] », «> », «1. », «**».",
     "",
     "Правка описания проверку сама не запускает. После неё перезапустите только упавшую проверку:",
     `  ${rerunCommand(runId, repository)}`,

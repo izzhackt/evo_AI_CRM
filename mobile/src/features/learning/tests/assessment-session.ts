@@ -172,6 +172,11 @@ export class AssessmentSession {
     this.dirty = true;
     this.patch({ answers: { ...this.answers }, saveStatus: "dirty" });
     if (this.retry) return; // таймер повтора не сбивается
+    this.armSaveTimer();
+  }
+
+  /** Отправка через 0,9 с после выбора; прежний таймер снимается (иначе его ручка потерялась бы, а сам он сработал бы после закрытия экрана). */
+  private armSaveTimer(): void {
     if (this.timer) this.env.clearTimer(this.timer);
     this.timer = this.env.setTimer(() => {
       this.timer = null;
@@ -302,12 +307,7 @@ export class AssessmentSession {
     if (this.disposed || !this.discarded) return;
     this.discarded = false;
     if (this.retry) this.scheduleRetry();
-    else if (this.dirty) {
-      this.timer = this.env.setTimer(() => {
-        this.timer = null;
-        void this.flush();
-      }, ASSESSMENT_SAVE_MS);
-    }
+    else if (this.dirty) this.armSaveTimer();
   }
 
   /**

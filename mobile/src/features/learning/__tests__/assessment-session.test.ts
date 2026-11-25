@@ -706,6 +706,19 @@ describe("«Выйти без сохранения» - настоящий отк
     session.dispose();
   });
 
+  it("выбор, сделанный пока стоял отказ, и `keep` после него оставляют один таймер, а не два (прежняя ручка не теряется)", async () => {
+    const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    session.discard();
+    session.select("o2", "4"); // таймер 0,9 с взведён снова, но при отказе его выстрел ничего не отправит
+    expect(h.pendingTimers()).toBe(1);
+    session.keep();
+    expect(h.pendingTimers()).toBe(1);
+    session.dispose();
+    expect(h.pendingTimers()).toBe(0); // после закрытия экрана ничего не остаётся
+  });
+
   it("отказ после закрытия экрана ни на что не влияет", async () => {
     const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
     const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));

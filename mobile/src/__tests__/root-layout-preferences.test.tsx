@@ -4,13 +4,18 @@
 // хранилища управляется тестом.
 import { act, render, screen } from "@testing-library/react-native";
 import * as MockReact from "react";
-import { StyleSheet } from "react-native";
+import { Appearance, StyleSheet } from "react-native";
 
 import RootLayout from "@/app/_layout";
 import { deferredStorage } from "@/test-fixtures/deferred-storage";
 import { darkTokens, lightTokens } from "@/theme/tokens.generated";
 
-const mockHideAsync = jest.fn(async () => true);
+// Порядок событий корневого макета: системная схема окна (`appearance:*`) и снятие заставки (`splash:hide`).
+const mockOrder: string[] = [];
+const mockHideAsync = jest.fn(async () => {
+  mockOrder.push("splash:hide");
+  return true;
+});
 const mockLayout: { configError: string | null; fontsLoaded: boolean } = { configError: null, fontsLoaded: true };
 
 jest.mock("@/polyfills", () => ({}));
@@ -47,9 +52,14 @@ describe("корневой макет ждёт выбор темы и языка
   const storage = deferredStorage();
   beforeEach(() => {
     mockHideAsync.mockClear();
+    mockOrder.length = 0;
     mockLayout.configError = null;
     mockLayout.fontsLoaded = true;
+    jest.spyOn(Appearance, "setColorScheme").mockImplementation((scheme) => {
+      mockOrder.push(`appearance:${scheme}`);
+    });
   });
+  afterEach(() => jest.restoreAllMocks());
 
   describe("приложение не настроено", () => {
     beforeEach(() => {
@@ -116,6 +126,37 @@ describe("корневой макет ждёт выбор темы и языка
       await act(async () => storage.fail());
       expect(screen.getByTestId("routes")).toBeTruthy();
       expect(mockHideAsync).toHaveBeenCalledTimes(1);
+    });
+
+    // Рецензия #1579: на iOS заставка берёт стиль из `overrideUserInterfaceStyle` окна. Пока выбор студента не прочитан, `choice` -
+    // значение по умолчанию (светлая); выставить его значило бы на миг перекрасить заставку и вернуть обратно.
+    describe("системная схема окна (`Appearance.setColorScheme`) не ставится до чтения выбора", () => {
+      it("«Тёмная»: до чтения ничего; потом сразу тёмная, без промежуточной светлой, и только затем снятие заставки", async () => {
+        await render(<RootLayout />);
+        expect(mockOrder).toEqual([]);
+        await act(async () => storage.release({ "evo.theme": "dark" }));
+        expect(mockOrder).toEqual(["appearance:dark", "splash:hide"]);
+      });
+
+      it("«Как в системе»: сразу `unspecified`, без промежуточной светлой", async () => {
+        await render(<RootLayout />);
+        expect(mockOrder).toEqual([]);
+        await act(async () => storage.release({ "evo.theme": "system" }));
+        expect(mockOrder).toEqual(["appearance:unspecified", "splash:hide"]);
+      });
+
+      it("на устройстве ничего нет: светлая по умолчанию, один раз, перед снятием заставки", async () => {
+        await render(<RootLayout />);
+        expect(mockOrder).toEqual([]);
+        await act(async () => storage.release());
+        expect(mockOrder).toEqual(["appearance:light", "splash:hide"]);
+      });
+
+      it("хранилище недоступно: светлая по умолчанию, затем заставка", async () => {
+        await render(<RootLayout />);
+        await act(async () => storage.fail());
+        expect(mockOrder).toEqual(["appearance:light", "splash:hide"]);
+      });
     });
   });
 });

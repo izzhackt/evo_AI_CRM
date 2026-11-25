@@ -21,8 +21,8 @@ jest.mock("expo-updates", () => ({
 
 const HOUR = UPDATE_CHECK_INTERVAL_MS;
 
-function fakeDeps(over: Partial<UpdateCheckDeps> & { available?: boolean } = {}) {
-  const { available = false, ...rest } = over;
+function fakeDeps(over: Partial<UpdateCheckDeps> & { available?: boolean; rollback?: boolean } = {}) {
+  const { available = false, rollback = false, ...rest } = over;
   const clock = { now: 1_000_000 };
   const calls: string[] = [];
   const deps: UpdateCheckDeps = {
@@ -30,7 +30,7 @@ function fakeDeps(over: Partial<UpdateCheckDeps> & { available?: boolean } = {})
     isEnabled: () => true,
     check: async () => {
       calls.push("check");
-      return { isAvailable: available };
+      return { isAvailable: available, isRollBackToEmbedded: rollback };
     },
     fetch: async () => {
       calls.push("fetch");
@@ -68,6 +68,48 @@ describe("createForegroundUpdateChecker", () => {
     clock.now += HOUR + 1;
     expect(await run()).toBe("downloaded");
     expect(calls).toEqual(["check", "fetch"]);
+  });
+
+  it("откат на встроенную сборку (eas update:rollback): isAvailable ложно, но директиву скачивает", async () => {
+    // типы expo-updates: у отката `isAvailable: false` и `isRollBackToEmbedded: true`; без скачивания он не дойдёт до долгой сессии
+    const { deps, clock, calls } = fakeDeps({ rollback: true, fetch: async () => ({ isNew: false, isRollBackToEmbedded: true }) });
+    const run = createForegroundUpdateChecker(deps);
+    clock.now += HOUR;
+    expect(await run()).toBe("downloaded");
+    expect(calls).toEqual(["check"]);
+    let fetched = 0;
+    const second = fakeDeps({
+      rollback: true,
+      fetch: async () => {
+        fetched += 1;
+        return { isNew: false, isRollBackToEmbedded: true };
+      },
+    });
+    const again = createForegroundUpdateChecker(second.deps);
+    second.clock.now += HOUR;
+    expect(await again()).toBe("downloaded");
+    expect(fetched).toBe(1);
+  });
+
+  it("нет ни обновления, ни отката: ничего не скачивает", async () => {
+    let fetched = 0;
+    const { deps, clock } = fakeDeps({
+      fetch: async () => {
+        fetched += 1;
+        return { isNew: true };
+      },
+    });
+    const run = createForegroundUpdateChecker(deps);
+    clock.now += HOUR;
+    expect(await run()).toBe("none");
+    expect(fetched).toBe(0);
+  });
+
+  it("итог скачивания читается: не новое (то же, что уже запущено) скачиванием не считается", async () => {
+    const { deps, clock } = fakeDeps({ available: true, fetch: async () => ({ isNew: false, isRollBackToEmbedded: false }) });
+    const run = createForegroundUpdateChecker(deps);
+    clock.now += HOUR;
+    expect(await run()).toBe("none");
   });
 
   it("не чаще раза в час: второй возврат за час пропускается, через час после пробы разрешён снова", async () => {
@@ -215,14 +257,27 @@ describe("useForegroundUpdateCheck", () => {
     expect(mockUpdates.check).toHaveBeenCalledTimes(1);
   });
 
-  it("обновления выключены: подписка есть, обращений к expo-updates нет", async () => {
+  it("обновления выключены (разработка, Expo Go): на возврат на передний план не подписываемся, к expo-updates не обращаемся", async () => {
     mockUpdates.isEnabled = false;
+    // вызовы шпиона накапливаются между тестами файла: считаем только этот
+    const subscribe = AppState.addEventListener as unknown as jest.Mock;
+    subscribe.mockClear();
     await render(<Probe />);
-    now += 3 * HOUR;
-    handler?.("active");
-    await new Promise((resolve) => setImmediate(resolve));
+    expect(handler).toBeNull();
+    expect(subscribe.mock.calls.filter(([type]) => type === "change")).toEqual([]);
     expect(mockUpdates.check).not.toHaveBeenCalled();
     expect(mockUpdates.fetch).not.toHaveBeenCalled();
+  });
+
+  it("откат на встроенную сборку при возврате на передний план скачивается", async () => {
+    mockUpdates.check = jest.fn(async () => ({ isAvailable: false, isRollBackToEmbedded: true }));
+    mockUpdates.fetch = jest.fn(async () => ({ isNew: false, isRollBackToEmbedded: true }));
+    await render(<Probe />);
+    now += HOUR;
+    handler?.("active");
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(mockUpdates.check).toHaveBeenCalledTimes(1);
+    expect(mockUpdates.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("сбой проверки не доходит до экрана; при уходе с экрана подписка снимается", async () => {

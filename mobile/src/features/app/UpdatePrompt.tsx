@@ -11,6 +11,9 @@
 // перезапуска нет, кнопка через 8 секунд снова нажимается; (в) появление карточки озвучивается читалке (iOS живые области
 // не слышит); (г) карточка стоит под верхней полосой кабинета, а не поверх неё: ☰, кнопка темы и всё, что добавят справа,
 // остаются нажимаемыми.
+// Рецензия #1579: пока идёт загрузка или перезапуск (`isDownloading`, `isRestarting`), кнопка занята и после 8 секунд (иначе второе
+// нажатие поставило бы второй перезапуск за идущей загрузкой); высота верхней полосы - общая константа `shell/top-bar-metrics.ts`;
+// живой области у карточки нет: её слышат из `announce`, а на Android живая область прочитала бы карточку второй раз.
 import * as Updates from "expo-updates";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
@@ -19,12 +22,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useForegroundUpdateCheck } from "@/features/app/update-check";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
+import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Text } from "@/ui/Text";
 
-/** Высота ряда верхней полосы кабинета (`shell/TopBar.tsx`: `height: 52` под отступом безопасной зоны); тест сверяет число с файлом полосы. */
-export const TOP_BAR_HEIGHT = 52;
 /** Если перезапуск не случился, кнопка «Обновить» снова нажимается через это время. */
 export const RELOAD_RESET_MS = 8_000;
 
@@ -45,12 +47,15 @@ function UpdatePromptCard() {
   const insets = useSafeAreaInsets();
   const { state } = useSession();
   // Хук читает состояние нативного модуля; при выключенных обновлениях он возвращает пустое состояние.
-  const { isUpdatePending } = Updates.useUpdates();
+  const { isUpdatePending, isDownloading, isRestarting } = Updates.useUpdates();
   useForegroundUpdateCheck();
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visible = Updates.isEnabled && isUpdatePending && !dismissed;
+  // Кнопка занята, пока идёт наш перезапуск, а также пока `expo-updates` скачивает обновление или перезапускается: `reloadAsync`
+  // встаёт в очередь за идущей загрузкой и возвращается только когда перезапуск состоялся, второе нажатие поставило бы второй.
+  const working = busy || Boolean(isDownloading) || Boolean(isRestarting);
   const text = m("app.update.text");
 
   // iOS не озвучивает живые области: карточка, появившаяся сама, говорится читалке явно.
@@ -66,7 +71,7 @@ function UpdatePromptCard() {
   if (!visible) return null;
 
   const reload = async () => {
-    if (busy) return;
+    if (working) return;
     setBusy(true);
     // `reloadAsync` мог вернуться, а перезапуск не случиться (или не вернуться вовсе): кнопка не остаётся занятой навсегда.
     resetTimer.current = setTimeout(() => setBusy(false), RELOAD_RESET_MS);
@@ -87,7 +92,7 @@ function UpdatePromptCard() {
     <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, top, paddingHorizontal: 16 }} testID="update-prompt-host">
       <View
         accessibilityRole="alert"
-        accessibilityLiveRegion="polite"
+        accessibilityLiveRegion="none"
         style={{
           gap: 4,
           padding: 12,
@@ -103,7 +108,7 @@ function UpdatePromptCard() {
           {text}
         </Text>
         <View style={{ flexDirection: "row", gap: 16 }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} onPress={() => void reload()} style={{ minHeight: 44, justifyContent: "center" }} testID="update-prompt-reload">
+          <Pressable accessibilityRole="button" accessibilityState={{ busy: working, disabled: working }} onPress={() => void reload()} style={{ minHeight: 44, justifyContent: "center" }} testID="update-prompt-reload">
             <Text variant="secondary" tone="accent" bold>
               {m("app.update.action")}
             </Text>

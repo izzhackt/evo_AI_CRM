@@ -2,16 +2,16 @@
 // обновления включены; молчит без обновлений, в разработке и при любом сбое. Настоящий `expo-updates` заменён: путь OTA в
 // приложении ещё ни разу не проходился до конца.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { AccessibilityInfo, AppState, type AppStateStatus, Text as RNText } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { RELOAD_RESET_MS, TOP_BAR_HEIGHT, UpdatePrompt } from "@/features/app/UpdatePrompt";
+import { RELOAD_RESET_MS, UpdatePrompt } from "@/features/app/UpdatePrompt";
 import { LangProvider } from "@/i18n/LangProvider";
+import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
-const mockUpdates: { isEnabled: boolean; state: () => { isUpdatePending: boolean }; reloadAsync: jest.Mock; check: jest.Mock; fetch: jest.Mock } = {
+type UpdatesState = { isUpdatePending: boolean; isDownloading?: boolean; isRestarting?: boolean };
+const mockUpdates: { isEnabled: boolean; state: () => UpdatesState; reloadAsync: jest.Mock; check: jest.Mock; fetch: jest.Mock } = {
   isEnabled: true,
   state: () => ({ isUpdatePending: false }),
   reloadAsync: jest.fn(async () => undefined),
@@ -30,24 +30,33 @@ jest.mock("expo-updates", () => ({
 }));
 let mockSessionKind = "signedOut";
 jest.mock("@/session/SessionProvider", () => ({ useSession: () => ({ state: { kind: mockSessionKind } }) }));
+// Общая константа высоты верхней полосы читается через геттер: тест может подменить число и увидеть, что карточка берёт его
+// оттуда, а не своим числом. Настоящее значение сверяется отдельно (`jest.requireActual`).
+let mockBarHeight = 52;
+jest.mock("@/shell/top-bar-metrics", () => ({
+  get TOP_BAR_HEIGHT() {
+    return mockBarHeight;
+  },
+}));
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
-const renderPrompt = (lang: "ru" | "ky" = "ru") =>
-  render(
-    <SafeAreaProvider initialMetrics={metrics}>
-      <ThemeProvider>
-        <LangProvider initial={lang}>
-          <RNText testID="app-body">приложение</RNText>
-          <UpdatePrompt />
-        </LangProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>,
-  );
+const promptTree = (lang: "ru" | "ky" = "ru") => (
+  <SafeAreaProvider initialMetrics={metrics}>
+    <ThemeProvider>
+      <LangProvider initial={lang}>
+        <RNText testID="app-body">приложение</RNText>
+        <UpdatePrompt />
+      </LangProvider>
+    </ThemeProvider>
+  </SafeAreaProvider>
+);
+const renderPrompt = (lang: "ru" | "ky" = "ru") => render(promptTree(lang));
 
 const announced = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 
 beforeEach(() => {
   mockSessionKind = "signedOut";
+  mockBarHeight = 52;
   announced.mockClear();
   mockUpdates.isEnabled = true;
   mockUpdates.state = () => ({ isUpdatePending: false });
@@ -182,11 +191,19 @@ describe("карточка обновления: доработки после �
     expect(announced).toHaveBeenCalledWith("Жаңы версия чыкты — колдонмону жаңыртыңыз.");
   });
 
+  it("(в) у карточки нет живой области: её говорит `announce`, иначе на Android карточка прозвучала бы дважды", async () => {
+    await renderPrompt();
+    const card = screen.getByTestId("update-prompt");
+    expect(card.props.accessibilityRole).toBe("alert");
+    expect(card.props.accessibilityLiveRegion).toBe("none");
+    expect(announced).toHaveBeenCalledTimes(1);
+  });
+
   describe("(г) карточка не закрывает верхнюю полосу кабинета", () => {
     it("в кабинете (есть полоса) она под полосой: отступ безопасной зоны 47 + полоса 52 + 8", async () => {
       mockSessionKind = "active";
       await renderPrompt();
-      expect(screen.getByTestId("update-prompt-host").props.style.top).toBe(47 + TOP_BAR_HEIGHT + 8);
+      expect(screen.getByTestId("update-prompt-host").props.style.top).toBe(47 + 52 + 8);
     });
 
     it("на экранах без полосы (вход, анкета, шлюз) она у верха безопасной зоны", async () => {
@@ -198,11 +215,20 @@ describe("карточка обновления: доработки после �
       }
     });
 
-    it("число высоты полосы совпадает с самой полосой (`shell/TopBar.tsx`): ☰, кнопка темы и всё справа остаются доступными", () => {
-      const bar = readFileSync(path.join(__dirname, "../../../shell/TopBar.tsx"), "utf8");
-      expect(bar).toContain(`height: ${TOP_BAR_HEIGHT},`);
-      // карточка стартует ниже конца ряда полосы: 52 pt полосы целиком над ней
-      expect(TOP_BAR_HEIGHT).toBe(52);
+    it("высота полосы берётся из общей константы `shell/top-bar-metrics`, а не числом в карточке", async () => {
+      mockSessionKind = "active";
+      mockBarHeight = 64;
+      const view = await renderPrompt();
+      expect(TOP_BAR_HEIGHT).toBe(64);
+      expect(screen.getByTestId("update-prompt-host").props.style.top).toBe(47 + 64 + 8);
+      // без полосы (вход, анкета, шлюз) константа не нужна
+      mockSessionKind = "signedOut";
+      await view.rerender(promptTree());
+      expect(screen.getByTestId("update-prompt-host").props.style.top).toBe(47 + 8);
+    });
+
+    it("настоящее значение константы - высота ряда полосы кабинета, 52 (пока полоса держит своё число, `TopBar.tsx`: `height: 52`)", () => {
+      expect(jest.requireActual<{ TOP_BAR_HEIGHT: number }>("@/shell/top-bar-metrics").TOP_BAR_HEIGHT).toBe(52);
     });
   });
 
@@ -237,6 +263,45 @@ describe("карточка обновления: доработки после �
         await jest.advanceTimersByTimeAsync(8_001);
       });
       expect(screen.getByTestId("update-prompt-reload").props.accessibilityState).toEqual({ busy: false, disabled: false });
+    });
+
+    it("идёт загрузка обновления: кнопка занята, нажатие не ставит перезапуск в очередь за загрузкой", async () => {
+      mockUpdates.state = () => ({ isUpdatePending: true, isDownloading: true });
+      await renderPrompt();
+      expect(screen.getByTestId("update-prompt-reload").props.accessibilityState).toEqual({ busy: true, disabled: true });
+      await fireEvent.press(screen.getByTestId("update-prompt-reload"));
+      expect(mockUpdates.reloadAsync).not.toHaveBeenCalled();
+    });
+
+    it("идёт перезапуск (`isRestarting`): кнопка занята, нажатие игнорируется", async () => {
+      mockUpdates.state = () => ({ isUpdatePending: true, isRestarting: true });
+      await renderPrompt();
+      expect(screen.getByTestId("update-prompt-reload").props.accessibilityState).toEqual({ busy: true, disabled: true });
+      await fireEvent.press(screen.getByTestId("update-prompt-reload"));
+      expect(mockUpdates.reloadAsync).not.toHaveBeenCalled();
+    });
+
+    it("перезапуск стоит в очереди за загрузкой: через 8 секунд кнопка остаётся занятой, пока загрузка идёт, и второй перезапуск не ставится", async () => {
+      mockUpdates.reloadAsync = jest.fn(() => new Promise<void>(() => undefined));
+      const view = await renderPrompt();
+      await fireEvent.press(screen.getByTestId("update-prompt-reload"));
+      expect(mockUpdates.reloadAsync).toHaveBeenCalledTimes(1);
+      // expo-updates сообщает, что идёт загрузка: `reloadAsync` ждёт её и не возвращается
+      mockUpdates.state = () => ({ isUpdatePending: true, isDownloading: true });
+      await view.rerender(promptTree());
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8_001);
+      });
+      expect(screen.getByTestId("update-prompt-reload").props.accessibilityState).toEqual({ busy: true, disabled: true });
+      await fireEvent.press(screen.getByTestId("update-prompt-reload"));
+      expect(mockUpdates.reloadAsync).toHaveBeenCalledTimes(1);
+
+      // загрузка закончилась, а перезапуска нет: кнопка снова нажимается
+      mockUpdates.state = () => ({ isUpdatePending: true, isDownloading: false });
+      await view.rerender(promptTree());
+      expect(screen.getByTestId("update-prompt-reload").props.accessibilityState).toEqual({ busy: false, disabled: false });
+      await fireEvent.press(screen.getByTestId("update-prompt-reload"));
+      expect(mockUpdates.reloadAsync).toHaveBeenCalledTimes(2);
     });
 
     it("отказ перезапуска возвращает кнопку сразу и снимает таймер", async () => {

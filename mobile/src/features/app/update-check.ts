@@ -5,6 +5,9 @@
 // час (документация expo-updates: проверять при запуске и выходе на передний план, не опрашивать в цикле; сервер Expo может
 // ограничивать частоту), только когда обновления включены (не разработка и не Expo Go), и без собственного интерфейса: скачанное
 // обновление показывает уже существующая карточка «Вышла новая версия». Любой сбой молча проглатывается: проверка необязательна.
+// Откат на встроенную сборку (`eas update:rollback`) приходит директивой, а не обновлением: проверка отвечает `isAvailable: false` и
+// `isRollBackToEmbedded: true` (типы expo-updates). Его тоже нужно скачать, иначе аварийный откат не дойдёт до сессии, которая живёт
+// днями (рецензия #1579).
 import * as Updates from "expo-updates";
 import { useEffect } from "react";
 import { AppState } from "react-native";
@@ -17,8 +20,8 @@ export type UpdateCheckOutcome = "skipped" | "none" | "downloaded" | "failed";
 export type UpdateCheckDeps = Readonly<{
   now: () => number;
   isEnabled: () => boolean;
-  check: () => Promise<{ isAvailable: boolean }>;
-  fetch: () => Promise<unknown>;
+  check: () => Promise<{ isAvailable: boolean; isRollBackToEmbedded?: boolean }>;
+  fetch: () => Promise<{ isNew?: boolean; isRollBackToEmbedded?: boolean }>;
 }>;
 
 const REAL_DEPS: UpdateCheckDeps = {
@@ -46,9 +49,11 @@ export function createForegroundUpdateChecker(deps: UpdateCheckDeps = REAL_DEPS,
       lastAttemptAt = now;
       running = true;
       const result = await deps.check();
-      if (!result.isAvailable) return "none";
-      await deps.fetch();
-      return "downloaded";
+      // Откат на встроенную сборку: `isAvailable` ложно, но директиву нужно скачать, как обновление.
+      if (!result.isAvailable && !result.isRollBackToEmbedded) return "none";
+      const fetched = await deps.fetch();
+      // Скачано новое или директива отката; «не новое» (то же, что уже запущено) скачиванием не считается.
+      return fetched.isNew || fetched.isRollBackToEmbedded ? "downloaded" : "none";
     } catch {
       return "failed";
     } finally {
@@ -60,6 +65,8 @@ export function createForegroundUpdateChecker(deps: UpdateCheckDeps = REAL_DEPS,
 /** Подписка на возврат на передний план. Ставится внутри предохранителя карточки обновления. */
 export function useForegroundUpdateCheck(): void {
   useEffect(() => {
+    // Обновления выключены (разработка, Expo Go): слушать возврат на передний план незачем.
+    if (!Updates.isEnabled) return;
     const run = createForegroundUpdateChecker();
     const subscription = AppState.addEventListener("change", (status) => {
       if (status === "active") void run();

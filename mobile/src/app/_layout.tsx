@@ -83,10 +83,13 @@ function Routes({ fontsLoaded, preferencesReady }: { fontsLoaded: boolean; prefe
     return unbind;
   }, []);
 
-  // Родные элементы (клавиатура, диалоги) следуют выбору студента.
+  // Родные элементы (клавиатура, диалоги, а на iOS и заставка: её стиль берётся из `overrideUserInterfaceStyle` окна) следуют
+  // выбору студента. Пока выбор с устройства не прочитан, `choice` - значение по умолчанию (светлая): выставить его значило бы
+  // на миг перекрасить заставку тёмной ОС в светлую и обратно (рецензия #1579), поэтому до `preferencesReady` ничего не ставится.
   useEffect(() => {
+    if (!preferencesReady) return;
     Appearance.setColorScheme(choice === "system" ? "unspecified" : choice);
-  }, [choice]);
+  }, [choice, preferencesReady]);
 
   const show = fontsLoaded && ready && preferencesReady;
   useEffect(() => {

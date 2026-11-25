@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { hydrateFromStorage } from "@/lib/storage-hydration";
 import {
@@ -40,17 +40,20 @@ const LangContext = createContext<LangContextValue | null>(null);
 export function LangProvider({ children, initial = DEFAULT_LANG }: { children: ReactNode; initial?: Lang }) {
   const [lang, setLangState] = useState<Lang>(initial);
   const [hydrated, setHydrated] = useState(false);
+  // Студент уже выбрал язык сам: его выбор новее того, что лежало на устройстве (см. `ThemeProvider`).
+  const chosenNow = useRef(false);
 
   useEffect(
     () =>
       hydrateFromStorage(STORAGE_KEY, (stored) => {
-        if (isLang(stored)) setLangState(stored);
+        if (isLang(stored) && !chosenNow.current) setLangState(stored);
         setHydrated(true);
       }),
     [],
   );
 
   const setLang = useCallback((next: Lang) => {
+    chosenNow.current = true;
     setLangState(next);
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
   }, []);

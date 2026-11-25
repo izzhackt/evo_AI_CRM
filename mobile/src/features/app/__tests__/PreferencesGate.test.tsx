@@ -1,5 +1,6 @@
 // Выбор темы и языка с устройства (рецензия #1568, п. 4): провайдеры сообщают, что выбор прочитан (`hydrated`), а экраны, которые
 // могут появиться раньше остальных, до этого не рисуются (`PreferencesGate`). Чтение хранилища здесь управляется тестом.
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, render, screen } from "@testing-library/react-native";
 import { type ReactNode } from "react";
 import { Text as RNText } from "react-native";
@@ -23,6 +24,17 @@ function LangFrames({ into }: { into: LangFrame[] }) {
   const { hydrated, lang } = useLang();
   into.push({ hydrated, lang });
   return <RNText testID="lang-frame">{`${hydrated}|${lang}`}</RNText>;
+}
+/** Отдаёт тесту значение хука (`setChoice`, `setLang`): последнее в списке - то, что видит экран сейчас. */
+function ThemeHandle({ into }: { into: ReturnType<typeof useTheme>[] }) {
+  const value = useTheme();
+  into.push(value);
+  return null;
+}
+function LangHandle({ into }: { into: ReturnType<typeof useLang>[] }) {
+  const value = useLang();
+  into.push(value);
+  return null;
 }
 /** Дети шлюза: пишет язык и тему каждого кадра, в котором шлюз их показал. */
 function GatedFrames({ into }: { into: string[] }) {
@@ -114,6 +126,46 @@ describe("ThemeProvider: выбор с устройства прочитан", (
     expect(frames.at(-1)).toEqual({ hydrated: true, choice: "dark" });
   });
 
+  it("запоздавшее чтение не перебивает выбор, сделанный за это время: студент нажал «солнце/луна», медленное чтение вернуло старое", async () => {
+    jest.useFakeTimers();
+    const frames: ThemeFrame[] = [];
+    const handle: ReturnType<typeof useTheme>[] = [];
+    (AsyncStorage.setItem as unknown as jest.Mock).mockClear();
+    await render(
+      <ThemeProvider>
+        <ThemeHandle into={handle} />
+        <ThemeFrames into={frames} />
+      </ThemeProvider>,
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(HYDRATION_CAP_MS);
+    });
+    expect(frames.at(-1)).toEqual({ hydrated: true, choice: "light" });
+    await act(async () => handle.at(-1)?.setChoice("dark"));
+    expect(frames.at(-1)).toEqual({ hydrated: true, choice: "dark" });
+
+    // чтение вернулось после выбора и принесло то, что лежало на устройстве раньше
+    await run(() => storage.release({ "evo.theme": "system" }));
+    expect(frames.at(-1)).toEqual({ hydrated: true, choice: "dark" });
+    expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.setItem).toHaveBeenLastCalledWith("evo.theme", "dark");
+  });
+
+  it("выбор сделан, пока чтение ещё идёт (до предела): прочитанное его тоже не перебивает, но чтение завершено", async () => {
+    const frames: ThemeFrame[] = [];
+    const handle: ReturnType<typeof useTheme>[] = [];
+    await render(
+      <ThemeProvider>
+        <ThemeHandle into={handle} />
+        <ThemeFrames into={frames} />
+      </ThemeProvider>,
+    );
+    await act(async () => handle.at(-1)?.setChoice("dark"));
+    expect(frames.at(-1)).toEqual({ hydrated: false, choice: "dark" });
+    await run(() => storage.release({ "evo.theme": "light" }));
+    expect(frames.at(-1)).toEqual({ hydrated: true, choice: "dark" });
+  });
+
   it("экран ушёл до ответа: позднее чтение ничего не обновляет", async () => {
     const frames: ThemeFrame[] = [];
     const view = await render(
@@ -130,6 +182,7 @@ describe("ThemeProvider: выбор с устройства прочитан", (
 
 describe("LangProvider: выбор с устройства прочитан", () => {
   const storage = deferredStorage();
+  afterEach(() => jest.useRealTimers());
 
   it("до ответа хранилища hydrated = false и язык по умолчанию; язык и флаг приходят одним обновлением", async () => {
     const frames: LangFrame[] = [];
@@ -143,6 +196,38 @@ describe("LangProvider: выбор с устройства прочитан", ()
     await run(() => storage.release({ "evo.lang": "ky" }));
     expect(frames.at(-1)).toEqual({ hydrated: true, lang: "ky" });
     expect(frames.filter((frame) => frame.hydrated && frame.lang === "ru")).toEqual([]);
+  });
+
+  it("запоздавшее чтение не перебивает язык, выбранный за это время; а если студент ничего не выбирал, применяется", async () => {
+    jest.useFakeTimers();
+    const handle: ReturnType<typeof useLang>[] = [];
+    const chosen: LangFrame[] = [];
+    const first = await render(
+      <LangProvider>
+        <LangHandle into={handle} />
+        <LangFrames into={chosen} />
+      </LangProvider>,
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(HYDRATION_CAP_MS);
+    });
+    expect(chosen.at(-1)).toEqual({ hydrated: true, lang: "ru" });
+    await act(async () => handle.at(-1)?.setLang("ky"));
+    await run(() => storage.release({ "evo.lang": "ru" }));
+    expect(chosen.at(-1)).toEqual({ hydrated: true, lang: "ky" });
+    await first.unmount();
+
+    const untouched: LangFrame[] = [];
+    await render(
+      <LangProvider>
+        <LangFrames into={untouched} />
+      </LangProvider>,
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(HYDRATION_CAP_MS);
+    });
+    await run(() => storage.release({ "evo.lang": "ky" }));
+    expect(untouched.at(-1)).toEqual({ hydrated: true, lang: "ky" });
   });
 
   it("на устройстве ничего нет или чтение сорвалось: hydrated = true, язык по умолчанию", async () => {

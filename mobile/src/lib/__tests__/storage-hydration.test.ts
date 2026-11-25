@@ -29,6 +29,10 @@ afterEach(() => {
 });
 
 describe("hydrateFromStorage", () => {
+  it("предел ожидания - две секунды (записан числом: правка константы не должна незаметно сдвинуть его)", () => {
+    expect(HYDRATION_CAP_MS).toBe(2_000);
+  });
+
   it("отдаёт сохранённое значение, как только оно прочитано, и снимает таймер ожидания", async () => {
     const onResult = jest.fn();
     const before = jest.getTimerCount();

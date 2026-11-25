@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useColorScheme } from "react-native";
 
 import { hydrateFromStorage } from "@/lib/storage-hydration";
@@ -50,19 +50,23 @@ export const DEFAULT_THEME_CHOICE: ThemeChoice = "light";
 export function ThemeProvider({ children, initial = DEFAULT_THEME_CHOICE }: { children: ReactNode; initial?: ThemeChoice }) {
   const [choice, setChoiceState] = useState<ThemeChoice>(initial);
   const [hydrated, setHydrated] = useState(false);
+  // Студент уже выбрал сам (кнопка «солнце/луна», «Профиль»): его выбор новее того, что лежало на устройстве.
+  const chosenNow = useRef(false);
   const system = useColorScheme();
 
   useEffect(
     () =>
       hydrateFromStorage(STORAGE_KEY, (stored) => {
-        // Выбор и флаг ставятся одним обновлением: кадра «готово, но тема ещё не та» не бывает.
-        if (isThemeChoice(stored)) setChoiceState(stored);
+        // Выбор и флаг ставятся одним обновлением: кадра «готово, но тема ещё не та» не бывает. Запоздавшее чтение (дольше
+        // предела ожидания) не перебивает выбор, сделанный за это время (рецензия #1579).
+        if (isThemeChoice(stored) && !chosenNow.current) setChoiceState(stored);
         setHydrated(true);
       }),
     [],
   );
 
   const setChoice = useCallback((next: ThemeChoice) => {
+    chosenNow.current = true;
     setChoiceState(next);
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
   }, []);

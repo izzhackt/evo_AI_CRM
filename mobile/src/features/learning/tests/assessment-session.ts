@@ -9,6 +9,7 @@
 //    нажмёт «Показать сохранённые ответы» и не подтвердит замену (`loadSaved`); до этого выбор и сохранение закрыты.
 import { assessmentAnswersFingerprint, type AssessmentAnswers, type AssessmentAttempt, type StudentAssessmentKey } from "@web/lib/student-assessment-contract";
 
+import { PortalDecodeError } from "@/domain/portal-source";
 import { cscaFailure, type CscaFailure } from "@/features/learning/csca/api";
 import {
   completeAssessmentWrite,
@@ -16,6 +17,7 @@ import {
   saveAssessmentWrite,
   sendAssessment,
   startAssessmentWrite,
+  UnreadableReceiptError,
 } from "@/features/learning/tests/api";
 import { assessmentPageCount, assessmentPageSize, firstOpenPage } from "@/features/learning/tests/paging";
 import { randomUUID } from "expo-crypto";
@@ -23,8 +25,12 @@ import type { FrozenWrite, RpcTransport } from "@/lib/rpc";
 
 export const ASSESSMENT_SAVE_MS = 900;
 export const ASSESSMENT_RETRY_MS = 3_000;
+/** Столько неудачных попыток сохранить (или сверить) подряд, и студенту предлагается выйти без сохранения: иначе без связи экран держал бы его вечно. */
+export const ASSESSMENT_LEAVE_AFTER_FAILURES = 3;
 
 export type AssessmentSaveStatus = "idle" | "dirty" | "saving" | "saved" | "unconfirmed";
+/** Сбои сервера плюс «квитанцию записи не удалось прочитать» (сервер запись принял, повторять нечего, но «повторите запрос» говорить неправда). */
+export type AssessmentFailure = CscaFailure | "unreadable";
 /** «Показать сохранённые ответы»: идёт чтение или оно не удалось (ответы на экране не тронуты). */
 export type AssessmentReloadStatus = "idle" | "loading" | "failed";
 export type AssessmentUiState = Readonly<{
@@ -34,12 +40,14 @@ export type AssessmentUiState = Readonly<{
   /** Страница теста: `0..pageCount-1` - вопросы, `pageCount` - шаг «Готовы завершить?». */
   page: number;
   saveStatus: AssessmentSaveStatus;
-  error: CscaFailure | null;
+  error: AssessmentFailure | null;
   /** Конфликт ревизии: ответы на экране ещё не сверены с сервером; выбор, завершение и уход закрыты до «Показать сохранённые ответы». */
   reloadRequired: boolean;
   reload: AssessmentReloadStatus;
   /** Есть ответы, которые ещё не лежат на сервере и которые можно досохранить: уход с экрана придерживается (веб: exit guard). */
   unsaved: boolean;
+  /** Подряд неудачных попыток сохранить или сверить ответы (обрыв, сбой сервера): после `ASSESSMENT_LEAVE_AFTER_FAILURES` экран предлагает выйти без сохранения. */
+  failures: number;
   /** На сервере есть начатая, не завершённая попытка: вместо «Начать тест» «Продолжить». */
   resumable: boolean;
 }>;
@@ -71,6 +79,10 @@ export class AssessmentSession {
   private startWrite: FrozenWrite | null = null;
   private starting = false;
   private disposed = false;
+  /** Экран не на виду (другая вкладка или экран сверху): повторы по таймеру стоят, пока студент не вернётся. */
+  private paused = false;
+  /** Студент подтвердил «Выйти без сохранения»: неотправленное не отправляется ни по таймеру, ни при закрытии экрана (`discard`). */
+  private discarded = false;
 
   constructor(
     private readonly env: AssessmentEnv,
@@ -80,7 +92,7 @@ export class AssessmentSession {
   ) {
     this.pageSize = assessmentPageSize(instrumentKey);
     // Открыли конкретную попытку: завершённая показывает результат, черновик продолжается с первого пропущенного (как веб).
-    this.state = { phase: initial ? (initial.status === "completed" ? "result" : "running") : "intro", attempt: initial, answers: {}, page: 0, saveStatus: "idle", error: null, reloadRequired: false, reload: "idle", unsaved: false, resumable: knownDraft !== null };
+    this.state = { phase: initial ? (initial.status === "completed" ? "result" : "running") : "intro", attempt: initial, answers: {}, page: 0, saveStatus: "idle", error: null, reloadRequired: false, reload: "idle", unsaved: false, failures: 0, resumable: knownDraft !== null };
     if (initial && initial.status === "draft") this.adopt(initial, true);
     if (initial) this.state = { ...this.state, attempt: initial };
   }
@@ -104,7 +116,8 @@ export class AssessmentSession {
 
   /**
    * Экран закрыт (свайп назад, выход, выход из кабинета): ответы, которые ещё не ушли, отправляются «по возможности»
-   * (запрос идёт и после закрытия), повторов по таймеру больше нет.
+   * (запрос идёт и после закрытия), повторов по таймеру больше нет. Кроме «Выйти без сохранения» (`discard`): там студент
+   * подтвердил, что несохранённое пропадёт, и `flush` ничего не шлёт, так что закрытие экрана тоже ничего не отправит.
    */
   dispose(): void {
     if (this.disposed) return;
@@ -121,7 +134,7 @@ export class AssessmentSession {
     this.retry = null;
     this.completeFrozen = null;
     const page = resetPage ? firstOpenPage(attempt.questions, attempt.answers, this.pageSize) : this.state.page;
-    this.state = { ...this.state, attempt, answers: { ...this.answers }, page };
+    this.state = { ...this.state, attempt, answers: { ...this.answers }, page, failures: 0 };
   }
 
   /** «Начать» или «Продолжить»: известный черновик читается, иначе открывается новая попытка. */
@@ -159,6 +172,11 @@ export class AssessmentSession {
     this.dirty = true;
     this.patch({ answers: { ...this.answers }, saveStatus: "dirty" });
     if (this.retry) return; // таймер повтора не сбивается
+    this.armSaveTimer();
+  }
+
+  /** Отправка через 0,9 с после выбора; прежний таймер снимается (иначе его ручка потерялась бы, а сам он сработал бы после закрытия экрана). */
+  private armSaveTimer(): void {
     if (this.timer) this.env.clearTimer(this.timer);
     this.timer = this.env.setTimer(() => {
       this.timer = null;
@@ -185,6 +203,7 @@ export class AssessmentSession {
    */
   async flush(): Promise<boolean> {
     while (this.saving) await this.saving;
+    if (this.discarded) return true; // студент выбрал не сохранять: слать больше нечего
     const attempt = this.state.attempt;
     if (!attempt || attempt.status !== "draft" || this.state.phase === "result") return this.confirmed();
     if (this.state.reloadRequired) return false;
@@ -225,25 +244,87 @@ export class AssessmentSession {
       const saved = await sendAssessment(this.env.transport, request.write);
       this.retry = null;
       this.revision = saved.revision;
-      this.patch({ saveStatus: this.dirty ? "dirty" : "saved", error: null });
+      this.patch({ saveStatus: this.dirty ? "dirty" : "saved", error: null, failures: 0 });
     } catch (error) {
       const code = cscaFailure(error);
+      // Ответ, который приложение не смогло разобрать, повтором не лечится: сервер запрос уже принял, а тот же запрос вернёт ту же
+      // непонятную квитанцию. Его по таймеру не повторяем, иначе экран был бы заперт навсегда. Ревизия из ответа сохраняется, если она
+      // видна: сервер её уже продвинул, и без неё следующий ответ дал бы ложный конфликт.
+      if (error instanceof PortalDecodeError) {
+        if (error instanceof UnreadableReceiptError && error.revision !== null && error.revision > this.revision) this.revision = error.revision;
+        this.retry = null;
+        this.patch({ saveStatus: "unconfirmed", error: "unreadable", failures: 0 });
+        return;
+      }
+      // Обрыв и сбой сервера лечатся повтором.
       if (code === "unavailable") {
         // Тот же запрос: сервер мог его уже принять, повтор вернёт ту же квитанцию.
         this.retry = request;
-        this.patch({ saveStatus: "unconfirmed" });
-        if (!this.disposed) this.timer = this.env.setTimer(() => void this.flush(), ASSESSMENT_RETRY_MS);
+        this.patch({ saveStatus: "unconfirmed", failures: this.state.failures + 1 });
+        this.scheduleRetry();
         return;
       }
       this.retry = null;
       if (code === "conflict") {
         // Веб: ответы на экране остаются, пока студент не подтвердит замену сохранёнными (`loadSaved`).
-        this.patch({ saveStatus: "unconfirmed", error: "conflict", reloadRequired: true });
+        this.patch({ saveStatus: "unconfirmed", error: "conflict", reloadRequired: true, failures: 0 });
         return;
       }
       // Отказ без повтора (доступ закрыт, ответ не принят): состояние честное, «сохранено» не пишем.
-      this.patch({ saveStatus: "unconfirmed", error: code });
+      this.patch({ saveStatus: "unconfirmed", error: code, failures: 0 });
     }
+  }
+
+  /** Повтор неподтверждённого сохранения через интервал. Прежний таймер (0,9 с после выбора) снимается: потерянный, он сработал бы после закрытия экрана. */
+  private scheduleRetry(): void {
+    if (this.timer) {
+      this.env.clearTimer(this.timer);
+      this.timer = null;
+    }
+    if (this.disposed || this.paused || this.discarded) return;
+    this.timer = this.env.setTimer(() => {
+      this.timer = null;
+      void this.flush();
+    }, ASSESSMENT_RETRY_MS);
+  }
+
+  /**
+   * «Выйти без сохранения» (студент подтвердил окно): неотправленное отбрасывается по-настоящему. Таймеры снимаются, новых запросов
+   * нет: ни повтора, ни досылки при закрытии экрана (`dispose`), ни завершения. Запрос, который уже в полёте, отозвать нельзя.
+   * Уход не состоялся (экран остался): `keep()` возвращает всё как было.
+   */
+  discard(): void {
+    if (this.disposed || this.discarded) return;
+    this.discarded = true;
+    if (this.timer) {
+      this.env.clearTimer(this.timer);
+      this.timer = null;
+    }
+  }
+
+  /** После `discard()` экран не ушёл: сохранение продолжается, замороженные запросы те же, ничего не потеряно. */
+  keep(): void {
+    if (this.disposed || !this.discarded) return;
+    this.discarded = false;
+    if (this.retry) this.scheduleRetry();
+    else if (this.dirty) this.armSaveTimer();
+  }
+
+  /**
+   * Экран ушёл с виду (другая вкладка, экран сверху) или вернулся. Пока он не на виду, повторов по таймеру нет (иначе без связи
+   * запрос шёл бы каждые 3 с из фона); при возвращении неподтверждённое досылается сразу.
+   */
+  setPaused(paused: boolean): void {
+    if (this.disposed || this.paused === paused) return;
+    this.paused = paused;
+    if (paused) {
+      if (this.retry && this.timer) {
+        this.env.clearTimer(this.timer);
+        this.timer = null;
+      }
+      return;
+    }
+    if (this.retry && !this.saving) void this.flush();
   }
 
   /**
@@ -259,21 +340,23 @@ export class AssessmentSession {
       if (fresh.status === "completed") {
         this.adopt(fresh, false);
         if (this.knownDraft === fresh.attemptId) this.knownDraft = null;
-        return this.patch({ phase: "result", attempt: fresh, saveStatus: "idle", error: null, reloadRequired: false, reload: "idle", resumable: this.knownDraft !== null });
+        return this.patch({ phase: "result", attempt: fresh, saveStatus: "idle", error: null, reloadRequired: false, reload: "idle", failures: 0, resumable: this.knownDraft !== null });
       }
       this.adopt(fresh, false);
-      this.patch({ attempt: fresh, answers: { ...this.answers }, saveStatus: "saved", error: null, reloadRequired: false, reload: "idle" });
+      this.patch({ attempt: fresh, answers: { ...this.answers }, saveStatus: "saved", error: null, reloadRequired: false, reload: "idle", failures: 0 });
     } catch (error) {
-      // Нет связи: ответы на экране остаются, кнопка остаётся. Отказ доступа (`denied`): сверять нечего, студента не держим.
+      // Нет связи: ответы на экране остаются, кнопка остаётся. Отказ доступа (`denied`) и ответ, который не удалось разобрать
+      // (повтор не поможет): сверять нечего, студента не держим.
       const code = cscaFailure(error);
-      this.patch({ error: code, reload: "failed", reloadRequired: code === "unavailable" });
+      const retryable = code === "unavailable" && !(error instanceof PortalDecodeError);
+      this.patch({ error: code, reload: "failed", reloadRequired: retryable, failures: retryable ? this.state.failures + 1 : 0 });
     }
   }
 
   /** «Завершить»: нужны ответы на все вопросы; сначала досылается несохранённое. */
   async complete(): Promise<void> {
     const attempt = this.state.attempt;
-    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired) return;
+    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired || this.discarded) return;
     if (attempt.questions.some((q) => !(q.id in this.answers))) return this.patch({ error: "invalid" });
     this.patch({ phase: "completing", error: null });
     const run = this.runComplete(attempt);
@@ -288,6 +371,8 @@ export class AssessmentSession {
   private async runComplete(attempt: AssessmentAttempt): Promise<void> {
     await this.flush();
     if (this.disposed) return;
+    // Студент выбрал «Выйти без сохранения», пока шло завершение: запрос завершения не уходит (замороженный остаётся на месте).
+    if (this.discarded) return this.patch({ phase: "running" });
     if (this.state.reloadRequired) return this.patch({ phase: "running" });
     if (this.retry) return this.patch({ phase: "running", error: "unavailable" });
     const fingerprint = assessmentAnswersFingerprint(this.answers);
@@ -316,6 +401,6 @@ export class AssessmentSession {
     this.dirty = false;
     this.answers = {};
     this.revision = 0;
-    this.patch({ phase: "intro", attempt: null, answers: {}, page: 0, saveStatus: "idle", error: null, reloadRequired: false, reload: "idle", resumable: this.knownDraft !== null });
+    this.patch({ phase: "intro", attempt: null, answers: {}, page: 0, saveStatus: "idle", error: null, reloadRequired: false, reload: "idle", failures: 0, resumable: this.knownDraft !== null });
   }
 }

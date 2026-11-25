@@ -34,6 +34,9 @@ export const UNIVERSITIES_RU = {
   "uni.notFoundTitle": "Страница не найдена",
   "uni.notFoundBody": "Ссылка устарела или адрес введён неверно. Вернитесь в личный кабинет и откройте нужный раздел заново.",
   "uni.cityOpenHint": "Открыть страницу города",
+  // Карта страны: кнопки приближения (у веба NavigationControl подписан по-английски, у приложения по-русски и по-кыргызски).
+  "uni.mapZoomIn": "Приблизить карту",
+  "uni.mapZoomOut": "Отдалить карту",
 } as const;
 
 export type UniversitiesStringKey = keyof typeof UNIVERSITIES_RU;
@@ -66,4 +69,6 @@ export const UNIVERSITIES_KY: Readonly<Record<UniversitiesStringKey, string>> = 
   "uni.notFoundTitle": "Барак табылган жок", // KY: needs native proofreading
   "uni.notFoundBody": "Шилтеме эскирген же дарек туура эмес киргизилген. Жеке кабинетке кайтып, керектүү бөлүмдү кайра ачыңыз.", // KY: needs native proofreading
   "uni.cityOpenHint": "Шаардын барагын ачуу", // KY: needs native proofreading
+  "uni.mapZoomIn": "Картаны жакындатуу", // KY: needs native proofreading
+  "uni.mapZoomOut": "Картаны алыстатуу", // KY: needs native proofreading
 };

@@ -6,6 +6,7 @@ import { isStudentSignupConfirmationEnvelope } from "../student-signup-confirmat
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createRecoveryRateLimiter, recoveryClientIpKey, type RecoveryRateLimit, type RecoveryRateLimiter } from "../student-password-recovery-rate-limit.ts";
+import { invitedNamePrefill } from "../student-invited-name.ts";
 import { readBoundedJsonBody as readJsonBodyWithLimits } from "./bounded-json-body.ts";
 import type { RegistrationLinkCheck } from "./student-registration-link.ts";
 
@@ -244,16 +245,6 @@ const MAX_LINK_CHECK_INVITE_CHARS = 256;
 // отказе 429 пропускает проверку и работает как раньше, поэтому предел может быть щедрым для общих адресов операторов.
 const LINK_CHECK_RATE: RecoveryRateLimit = Object.freeze({ limit: 60, windowMs: 10 * 60_000 });
 const defaultLinkCheckLimiter = createRecoveryRateLimiter();
-
-/**
- * Имя приглашённого -> поля анкеты, как `invitedNamePrefill` страницы /apply веба: первое слово - имя, остальные - фамилия,
- * каждое до 60 знаков. Нет имени - `null`.
- */
-export function invitedNamePrefill(displayName: string | null | undefined): Readonly<{ firstName: string; lastName: string }> | null {
-  const [first = "", ...rest] = (displayName ?? "").trim().split(/\s+/).filter(Boolean);
-  if (first.length === 0) return null;
-  return { firstName: first.slice(0, 60), lastName: rest.join(" ").slice(0, 60) };
-}
 
 export type StudentPortalRegistrationLinkCheckDependencies = Readonly<{
   /** По умолчанию `checkRegistrationLink` (service-role RPC `check_student_registration_link_v1`). */

@@ -8,8 +8,8 @@ import {
   createStudentPortalRegistrationHandler,
   createStudentPortalRegistrationLinkCheckHandler,
   createStudentPortalRegistrationResendHandler,
-  invitedNamePrefill,
 } from "../src/lib/server/student-portal-intake-route-handlers.ts";
+import { invitedNamePrefill } from "../src/lib/student-invited-name.ts";
 import { createRecoveryRateLimiter } from "../src/lib/student-password-recovery-rate-limit.ts";
 import { STUDENT_APPLICATION_CONSENT_VERSION } from "../src/lib/student-application-contract.ts";
 
@@ -598,6 +598,16 @@ test("link check limit expires with its window", async () => {
   assert.equal(limiter.consume(key, rule, 2_100), true);
   const handler = createStudentPortalRegistrationLinkCheckHandler({ check: stub.check, limiter, rule: { limit: 1_000_000, windowMs: 1 } });
   assert.equal((await handler(linkRequest())).status, 200);
+});
+
+test("invited name prefill is the one function the /apply page and the link check share", () => {
+  // Раньше это была приватная функция страницы, скопированная в обработчик; теперь копии нет (рецензия #1563, L4).
+  const page = readFileSync(new URL("../src/app/apply/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /import \{ invitedNamePrefill \} from "@\/lib\/student-invited-name";/u);
+  assert.doesNotMatch(page, /function invitedNamePrefill/u);
+  const handlers = readFileSync(new URL("../src/lib/server/student-portal-intake-route-handlers.ts", import.meta.url), "utf8");
+  assert.match(handlers, /import \{ invitedNamePrefill \} from "\.\.\/student-invited-name\.ts";/u);
+  assert.doesNotMatch(handlers, /function invitedNamePrefill/u);
 });
 
 test("invited name prefill splits like the web apply page", () => {

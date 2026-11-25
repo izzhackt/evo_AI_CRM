@@ -6,6 +6,10 @@
 // приглашённого подставляется в анкету. Если маршрут проверки недоступен или сбоит (старый сервер, нет связи), приложение идёт
 // дальше, как раньше: ссылку всё равно проверит отправка анкеты (403 `invite`).
 // «Проверьте почту» запоминается (pending-store.ts) и после перезапуска возвращается с «Отправить письмо ещё раз».
+// Порядок как на вебе (apply/page.tsx:85-98): ожидание подтверждения почты первее ссылки. Сервер гасит личную ссылку при создании
+// аккаунта, поэтому ссылка из письма менеджера, открытая второй раз, отвечает «использована», а записи ожидания (предъявитель
+// повторной отправки) стирать из-за этого нельзя: без неё не войти (почта не подтверждена), не отправить письмо и не
+// зарегистрироваться заново (409). Запись стирает только действующая новая ссылка.
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -92,25 +96,39 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
     [],
   );
 
-  /** Проверить ссылку и открыть анкету или экран «Регистрация по приглашению». */
+  /**
+   * Проверить ссылку и открыть анкету или экран «Регистрация по приглашению». Если регистрация уже ждёт подтверждения почты,
+   * анкета открывается только по действующей новой ссылке (запись ожидания стирается ею); использованная, просроченная, неизвестная
+   * ссылка и сбой проверки оставляют запись и показывают «Подтвердите почту» с повтором письма.
+   */
   const begin = useCallback(
     async (invite: string) => {
       const id = ++run.current;
       setPhase({ kind: "checking", invite });
-      const check = await api.checkInvite(invite);
+      const [waiting, check] = await Promise.all([loadPendingSignup(), api.checkInvite(invite)]);
       if (id !== run.current) return;
-      // `null`: маршрута нет или он сбоит. Как раньше: анкета открыта, ссылку проверит отправка.
-      if (check === null) {
-        setPhase({ kind: "wizard", invite, prefill: null });
+      if (waiting) {
+        if (check?.status === "valid") {
+          await clearPendingSignup();
+          await saveInviteToken(invite);
+          if (id !== run.current) return;
+          setPhase({ kind: "wizard", invite, prefill: check.prefill });
+          return;
+        }
+        setPhase({ kind: "pending", pending: { ...waiting.pending, retryAfterSeconds: waiting.cooldownSeconds }, restored: true });
         return;
       }
-      if (check.status === "valid") {
-        setPhase({ kind: "wizard", invite, prefill: check.prefill });
+      // `null`: маршрута нет или он сбоит. Как раньше: анкета открыта, ссылку проверит отправка.
+      if (check === null || check.status === "valid") {
+        await saveInviteToken(invite);
+        if (id !== run.current) return;
+        setPhase({ kind: "wizard", invite, prefill: check === null ? null : check.prefill });
         return;
       }
       // Использованная, просроченная и неизвестная ссылка бесполезна: стереть её и черновик (как после отказа `invite`).
       // «Не удалось проверить» ничего не стирает: ссылка, возможно, в порядке.
-      if (check.status !== "unavailable") {
+      if (check.status === "unavailable") await saveInviteToken(invite);
+      else {
         await clearInviteToken();
         await clearDraft("anonymous");
       }
@@ -121,13 +139,11 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
   );
 
   // Токен из ссылки приложения важнее сохранённого; без обоих — ввод вручную. Ожидающая регистрация («Проверьте почту»)
-  // возвращается, пока нет новой ссылки: новая ссылка начинает новую регистрацию.
+  // возвращается, пока нет действующей новой ссылки (её проверяет `begin`).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       if (inviteParam) {
-        await saveInviteToken(inviteParam);
-        await clearPendingSignup();
         if (!cancelled) await begin(inviteParam);
         return;
       }
@@ -154,8 +170,6 @@ export function ApplyScreen({ inviteParam, api: apiProp }: { inviteParam?: strin
     }
     setPasteError(false);
     setNotice(null);
-    await saveInviteToken(token);
-    await clearPendingSignup();
     await begin(token);
   };
 

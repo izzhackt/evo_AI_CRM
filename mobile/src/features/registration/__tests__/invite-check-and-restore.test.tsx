@@ -294,3 +294,88 @@ describe("«Подтвердите почту» после перезапуск�
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
   });
 });
+
+// Рецензия #1563, M1: ожидание подтверждения почты нельзя стирать до проверки новой ссылки. Сервер гасит личную ссылку при создании
+// аккаунта, поэтому та же ссылка из WhatsApp, открытая второй раз, отвечает «использована»; запись с предъявителем повторной
+// отправки при этом нужна (без неё не войти, не отправить письмо, не зарегистрироваться заново). Порядок как на вебе
+// (apply/page.tsx:85-98): ожидание первее ссылки, а новая анкета открывается только по действующей новой ссылке.
+describe("ожидание подтверждения почты и ссылка (M1)", () => {
+  const waiting: PendingConfirmation = { ...PENDING, retryAfterSeconds: 0 };
+
+  it("человек зарегистрировался, письмо задерживается, он снова открыл ту же ссылку: ожидание и «Отправить письмо ещё раз» на месте", async () => {
+    const first = fakeApi();
+    const view = await renderPlain(<ApplyScreen api={first.api} inviteParam={INVITE} />);
+    await openAccountStep();
+    await fillAccountAndSubmit();
+    await screen.findByTestId("pending-masked-email");
+    await view.unmount();
+
+    // тот же токен: сервер его уже погасил
+    const second = fakeApi({ checkInvite: async () => ({ status: "used" }) });
+    await renderPlain(<ApplyScreen api={second.api} inviteParam={INVITE} />);
+    expect(await screen.findByTestId("pending-masked-email")).toHaveTextContent("t***@example.test");
+    expect(screen.getByTestId("pending-dispatch")).toHaveTextContent(/Подтверждение почты ещё не завершено/);
+    expect(screen.queryByTestId("invite-required-used")).toBeNull();
+    expect(screen.queryByTestId("wizard-next")).toBeNull();
+    expect((await loadPendingSignup())?.pending.resendCapability).toBe("cap.synthetic_first");
+    expect([...mockSecure.keys()]).toEqual(["evo.registration-pending.v1"]);
+  });
+
+  it.each(["used", "expired", "unknown", "unavailable"] as const)("ожидание и ссылка %s: запись остаётся, экран «Подтвердите почту», повтор письма работает", async (status) => {
+    await savePendingSignup(waiting);
+    const { api, resends } = fakeApi({ checkInvite: async () => ({ status }) });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    expect(await screen.findByTestId("pending-masked-email")).toBeTruthy();
+    expect(screen.queryByTestId(`invite-required-${status}`)).toBeNull();
+    expect(screen.queryByTestId("wizard-next")).toBeNull();
+    expect((await loadPendingSignup())?.pending.resendCapability).toBe("cap.synthetic_first");
+    // ссылка не сохранена: она негодна или неизвестно, годна ли
+    expect([...mockSecure.keys()]).toEqual(["evo.registration-pending.v1"]);
+    await waitFor(() => expect(screen.getByTestId("pending-resend").props.accessibilityState.disabled).toBe(false));
+    await press("pending-resend");
+    await waitFor(() => expect(resends).toEqual(["cap.synthetic_first"]));
+  });
+
+  it("проверка ссылки не удалась (маршрута нет, нет связи): запись остаётся, анкета не открывается поверх неё", async () => {
+    await savePendingSignup(waiting);
+    const { api } = fakeApi({ checkInvite: async () => null });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    expect(await screen.findByTestId("pending-masked-email")).toBeTruthy();
+    expect(screen.queryByTestId("wizard-next")).toBeNull();
+    expect((await loadPendingSignup())?.pending.resendCapability).toBe("cap.synthetic_first");
+    expect([...mockSecure.keys()]).toEqual(["evo.registration-pending.v1"]);
+  });
+
+  it("действующая новая ссылка: ожидание стёрто, ссылка сохранена, анкета с именем приглашённого", async () => {
+    await savePendingSignup(waiting);
+    const { api } = fakeApi({ checkInvite: async () => ({ status: "valid", prefill: { firstName: "Айдана", lastName: "Осмонова" } }) });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    await openAccountStep();
+    expect(screen.getByTestId("first-name").props.value).toBe("Айдана");
+    expect(await loadPendingSignup()).toBeNull();
+    expect([...mockSecure.values()]).toEqual([INVITE]);
+  });
+
+  it("запись стирается не раньше ответа проверки: пока ссылка проверяется, ожидание на месте", async () => {
+    await savePendingSignup(waiting);
+    let release: (value: InviteCheck | null) => void = () => undefined;
+    const slow = new Promise<InviteCheck | null>((resolve) => {
+      release = resolve;
+    });
+    const { api } = fakeApi({ checkInvite: () => slow });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    await waitFor(() => expect(screen.queryByTestId("invite-input")).toBeNull());
+    expect(await loadPendingSignup()).not.toBeNull();
+    expect([...mockSecure.keys()]).toEqual(["evo.registration-pending.v1"]);
+    release({ status: "used" });
+    expect(await screen.findByTestId("pending-masked-email")).toBeTruthy();
+    expect(await loadPendingSignup()).not.toBeNull();
+  });
+
+  it("без ожидания использованная ссылка по-прежнему открывает «Регистрация по приглашению» и стирает ссылку", async () => {
+    const { api } = fakeApi({ checkInvite: async () => ({ status: "used" }) });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    expect(await screen.findByTestId("invite-required-used")).toBeTruthy();
+    expect(mockSecure.size).toBe(0);
+  });
+});

@@ -17,6 +17,7 @@ import { useIncomingNotice } from "@/features/inbox/useIncomingNotice";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import { useLang } from "@/i18n/LangProvider";
 import { useTopChromeHeight } from "@/shell/top-chrome";
+import { useReportUnsentChat } from "@/shell/unsent-chat";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
@@ -87,6 +88,8 @@ export function ChatScreen() {
   );
   const trimmed = draft.trim();
   const canSend = trimmed.length >= 1;
+  // Черновик и очередь отправки живут в этом экране: пока в них что-то есть, уход с вкладки «Входящие» его не закрывает (`shell/unsent-chat.ts`).
+  useReportUnsentChat(canSend || thread.outbox.length > 0);
   // Статус отправки под полем (веб: `role="status"` у формы): «Отправляем…», затем «Сообщение отправлено.» до следующей отправки. Пока в
   // ленте стоит неотправленное (сбой другой отправки), «отправлено» не показывается и не озвучивается: оно читалось бы как итог всего.
   const sending = thread.outbox.some((item) => item.status === "sending");

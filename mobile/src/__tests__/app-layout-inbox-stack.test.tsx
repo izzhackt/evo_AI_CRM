@@ -4,7 +4,9 @@
 //   и в стеке один этот экран, списка под ним нет. Студент уходит «назад», а нажатие на «Входящие» открывало ту же ленту, не список;
 // - при уходе с вкладки такой стек возвращается к списку, нажатие на уже открытую вкладку тоже ведёт к списку;
 // - прямой заход и вход из списка работают как раньше; «Назад» с экрана решения (F9 ревью P2a) не изменилось;
-// - стрелка «назад» называется по тому, куда ведёт: «Все чаты» только когда под экраном список.
+// - стрелка «назад» называется по тому, куда ведёт: «Все чаты» только когда под экраном список;
+// - беседа с неотправленным (черновик, сообщение в пути или не ушедшее) при уходе с вкладки НЕ закрывается: сброс унёс бы набранное
+//   (ревью #1590); беседа без неотправленного сбрасывается к списку, как решено в D2.
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { type ComponentType, type ReactNode } from "react";
@@ -19,12 +21,15 @@ import PreparationsLayout from "@/app/(app)/preparations/_layout";
 import { LangProvider } from "@/i18n/LangProvider";
 import type { RpcTransport } from "@/lib/rpc";
 import { SECTIONS } from "@/shell/sections";
+import { MSG_A, MSG_B, POST_RECEIPT, chatMessage, chatPage } from "@/test-fixtures/inbox";
+import { failure, fakeTransport } from "@/test-fixtures/universities";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
 // Нужна настоящая обёртка фокуса: уход с вкладки и возврат проверяются на самой навигации.
 jest.mock("@/lib/focus", () => jest.requireActual("@/lib/focus"));
 const mockSession: { state: unknown; signOut: jest.Mock } = { state: null, signOut: jest.fn() };
-const mockTransport: RpcTransport = async () => ({ data: null, error: { code: "42883" }, status: 404 });
+const unavailable: RpcTransport = async () => ({ data: null, error: { code: "42883" }, status: 404 });
+let mockTransport: RpcTransport = unavailable;
 jest.mock("@/session/SessionProvider", () => ({ useSession: () => mockSession }));
 jest.mock("@/config", () => ({ getConfig: () => ({ portalBaseUrl: "https://portal.example.test" }) }));
 jest.mock("@/lib/supabase", () => ({ getSupabase: () => ({}), platformTransport: () => (...args: Parameters<RpcTransport>) => mockTransport(...args) }));
@@ -97,8 +102,8 @@ function files(): Record<string, Mod> {
   };
 }
 
-const mount = (url: string) => {
-  mockSession.state = signedIn;
+const mount = (url: string, state: unknown = signedIn) => {
+  mockSession.state = state;
   return renderRouter(files() as never, { initialUrl: url, wrapper: Wrapper });
 };
 const press = (testID: string) => fireEvent.press(screen.getByTestId(testID));
@@ -111,6 +116,7 @@ function shown(): string {
 const bell = () => screen.findByTestId("notification-bell");
 
 beforeEach(() => {
+  mockTransport = unavailable;
   jest.spyOn(console, "warn").mockImplementation(() => undefined);
 });
 afterEach(() => jest.restoreAllMocks());
@@ -222,6 +228,106 @@ describe("экран решения с «Главной» (F9 ревью P2a): �
     await act(async () => router.navigate("/messages/reply/66666666-6666-4666-8666-666666666666"));
     await waitFor(() => expect(shown()).toBe("route-reply"));
     await press("reply-back");
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+  });
+});
+
+describe("беседа с неотправленным, открытая снаружи, при уходе с вкладки не закрывается (ревью #1590)", () => {
+  const FIRST = chatMessage(MSG_A, "11", true, "Здравствуйте", "2026-09-07T08:00:00+00:00");
+  const SECOND = chatMessage(MSG_B, "12", false, "Принесите оригинал паспорта", "2026-09-07T08:30:00+00:00");
+  const THIRD = chatMessage("a0000000-0000-4000-8000-000000000009", "13", false, "Новое от команды", "2026-09-07T09:00:00+00:00");
+  /** Сервер беседы: `post` - ответ на отправку (по умолчанию принимает и добавляет «Новое от команды»). */
+  function serveChat(post?: unknown) {
+    let page = chatPage([SECOND, FIRST]);
+    mockTransport = fakeTransport({
+      portal_case_chat_page_v1: () => page,
+      mark_own_case_chat_notifications_read_v1: null,
+      portal_case_chat_post_v1:
+        post ??
+        ((args: Record<string, unknown> | undefined) => {
+          page = chatPage([THIRD, SECOND, FIRST]);
+          return POST_RECEIPT(String(args?.p_request_id), "13");
+        }),
+    }).transport;
+  }
+  /** «Написать EVO» с «Главной»: в стеке «Входящих» одна беседа, списка под ней нет. */
+  async function openChat(state: unknown = signedIn) {
+    const view = await mount("/home", state);
+    await act(async () => router.navigate("/messages/chat"));
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    await screen.findByText("Здравствуйте");
+    return view;
+  }
+  const typeIntoChat = (text: string) => fireEvent.changeText(screen.getByTestId("chat-input"), text);
+  const backHomeAndReturn = async () => {
+    await press("chat-back");
+    await waitFor(() => expect(visible("route-home")).toBe(true));
+    await press("tab-messages");
+  };
+
+  it("черновик: «назад» на «Главную», затем вкладка «Входящие» - та же беседа и черновик в поле, а не пустой список", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Добрый день, у меня вопрос по визе");
+    await backHomeAndReturn();
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("chat-input").props.value).toBe("Добрый день, у меня вопрос по визе");
+  });
+
+  it("черновик: студент ушёл на другую вкладку (не «назад», например из меню ☰) и вернулся - беседа и черновик на месте", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Письмо, которое ещё не дописано");
+    await act(async () => router.navigate("/documents"));
+    await waitFor(() => expect(visible("route-documents")).toBe(true));
+    await press("tab-messages");
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("chat-input").props.value).toBe("Письмо, которое ещё не дописано");
+  });
+
+  it("сообщение не ушло (сбой отправки): после ухода и возврата оно в ленте с «Повторить», а не пропало", async () => {
+    serveChat(failure("42501", 403));
+    await openChat();
+    await typeIntoChat("Это не отправилось");
+    await press("chat-send");
+    await screen.findByTestId("outbox-failed");
+    await backHomeAndReturn();
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("outbox-failed")).toBeTruthy();
+    expect(screen.getByText("Это не отправилось")).toBeTruthy();
+    expect(screen.getByTestId("chat-retry")).toBeTruthy();
+  });
+
+  it("отправлено (поле и очередь пусты): беседа без неотправленного сбрасывается к списку, как решено в D2", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Привет, вот скан");
+    await press("chat-send");
+    await screen.findByText("Новое от команды");
+    await waitFor(() => expect(screen.queryByTestId("outbox-sending")).toBeNull());
+    expect(screen.getByTestId("chat-input").props.value).toBe("");
+    await backHomeAndReturn();
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+  });
+
+  it("в поле остались одни пробелы (текст стёрли): это не черновик, беседа сбрасывается к списку", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Начал писать");
+    await typeIntoChat("   ");
+    await backHomeAndReturn();
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+  });
+
+  it("другой студент на том же устройстве: чужого черновика у него нет, а его беседа без черновика сбрасывается к списку", async () => {
+    serveChat();
+    const first = await openChat();
+    await typeIntoChat("Личное письмо первого студента");
+    await first.unmount(); // выход: кабинет закрыт вместе с беседой
+    const second = { ...signedIn, session: { ...signedIn.session, authority: { ...signedIn.session.authority, authUserId: "student-b" } } };
+    await openChat(second);
+    expect(screen.getByTestId("chat-input").props.value).toBe("");
+    await backHomeAndReturn();
     await waitFor(() => expect(shown()).toBe("route-inbox"));
   });
 });

@@ -46,6 +46,8 @@ function fakeApi(over: Partial<RegistrationApi> = {}) {
       return { ok: false, reason: "rate_limit" };
     },
     acceptInvite: async () => ({ ok: false }),
+    // Маршрут проверки ссылки недоступен: приложение работает как раньше (отдельные тесты ниже проверяют сам разбор).
+    checkInvite: async () => null,
     ...over,
   };
   return { api, requests, resends };
@@ -170,7 +172,10 @@ describe("регистрация и «Проверьте почту»", () => {
     expect(q.averageGrade).toBe(4.5);
     expect(q.destinationCountries).toEqual(["CN"]);
     expect(JSON.stringify(q)).not.toContain(PASSWORD);
-    expect(mockSecure.size).toBe(0);
+    // личная ссылка стёрта; в защищённом хранилище осталось только ожидание подтверждения почты (G10), без ссылки и без пароля
+    expect([...mockSecure.keys()]).toEqual(["evo.registration-pending.v1"]);
+    expect([...mockSecure.values()].join("")).not.toContain(INVITE);
+    expect([...mockSecure.values()].join("")).not.toContain(PASSWORD);
     expect(await AsyncStorage.getItem("evo.application-draft.v1:anonymous")).toBeNull();
     await press("pending-sign-in");
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
@@ -189,6 +194,39 @@ describe("регистрация и «Проверьте почту»", () => {
     await next();
     expect(await screen.findByTestId("wizard-error")).toHaveTextContent(new RegExp(text));
     expect(screen.getByTestId("first-name").props.value).toBe("Тест");
+  });
+
+  it("аккаунт с этой почтой уже есть: под ошибкой «Перейти ко входу», ответы остаются на телефоне", async () => {
+    const { api } = fakeApi({ register: async () => ({ ok: false, reason: "conflict" }) });
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    await screen.findByTestId("wizard-next");
+    expect(screen.queryByTestId("wizard-go-sign-in")).toBeNull();
+    await fillAllSteps();
+    await next();
+    expect(await screen.findByTestId("wizard-error")).toHaveTextContent(/Не удалось создать аккаунт с этим email/);
+    expect(screen.getByText("Перейти ко входу")).toBeTruthy();
+    await press("wizard-go-sign-in");
+    expect(router.replace).toHaveBeenCalledWith("/sign-in");
+    // «Другая ссылка» стирает ответы, вход их не трогает (веб: обычная ссылка на /login)
+    expect(await AsyncStorage.getItem("evo.application-draft.v1:anonymous")).toContain("Тест");
+    expect([...mockSecure.values()]).toContain(INVITE);
+  });
+
+  it("шапка мастера у анонима: «Уже есть аккаунт? Войти» и язык RU|KY, без «Выйти» и удаления", async () => {
+    const { api } = fakeApi();
+    await renderPlain(<ApplyScreen api={api} inviteParam={INVITE} />);
+    expect(await screen.findByTestId("wizard-login-link")).toBeTruthy();
+    expect(screen.getByText("Уже есть аккаунт? Войти")).toBeTruthy();
+    expect(screen.queryByTestId("wizard-sign-out")).toBeNull();
+    expect(screen.queryByTestId("wizard-delete-account")).toBeNull();
+    expect(screen.queryByTestId("applicant-deletion-heading")).toBeNull();
+    await press("wizard-login-link");
+    expect(router.replace).toHaveBeenCalledWith("/sign-in");
+    // язык переключается внутри мастера: ответы и шаг остаются
+    await press("country-CN");
+    await press("lang-ky");
+    expect(await screen.findByText("Улантуу")).toBeTruthy();
+    expect(screen.getByTestId("country-CN").props.accessibilityState.checked).toBe(true);
   });
 
   it("отказ invite: ссылка и черновик стираются, возврат к вводу ссылки с пояснением", async () => {
@@ -230,6 +268,7 @@ describe("ConfirmationPending", () => {
       const api: RegistrationApi = {
         register: async () => ({ ok: false, reason: "unavailable" }),
         acceptInvite: async () => ({ ok: false }),
+        checkInvite: async () => null,
         resend: async (cap) => {
           resends.push(cap);
           call += 1;
@@ -257,6 +296,7 @@ describe("ConfirmationPending", () => {
     const api: RegistrationApi = {
       register: async () => ({ ok: false, reason: "unavailable" }),
       acceptInvite: async () => ({ ok: false }),
+      checkInvite: async () => null,
       resend: async () => ({ ok: false, reason: "expired" }),
     };
     jest.useFakeTimers();

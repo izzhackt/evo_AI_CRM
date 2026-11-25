@@ -2,12 +2,23 @@
 // есть в вебе (навигация, профиль, пароль, восстановление), берётся оттуда.
 // Тексты входа повторяют логин-страницу веба (src/app/login/page.tsx, COPY).
 // KY: needs native proofreading, как и в вебе.
+// Строки срезов лежат в `strings-*.ts`, по файлу на срез (таблица владельцев: docs/mobile/PLAN.md, «Волна 0 паритета»);
+// здесь файлы только подключены: срез правит свой файл и не правит этот.
+// Соглашение: каждая новая KY-строка получает в конце пометку `// KY: needs native proofreading`.
 
 import { INBOX_KY, INBOX_RU } from "@/i18n/strings-inbox";
 import { LEARN_KY, LEARN_RU } from "@/i18n/strings-learning";
 import { DOCS_KY, DOCS_RU } from "@/i18n/strings-documents";
 import { PROFILE_KY, PROFILE_RU } from "@/i18n/strings-profile";
 import { REGISTRATION_KY, REGISTRATION_RU } from "@/i18n/strings-registration";
+import { APP_KY, APP_RU } from "@/i18n/strings-app";
+import { CONSULTATION_KY, CONSULTATION_RU } from "@/i18n/strings-consultation";
+import { HOME_KY, HOME_RU } from "@/i18n/strings-home";
+import { LEARN2_KY, LEARN2_RU } from "@/i18n/strings-learning-2";
+import { PAYMENTS_KY, PAYMENTS_RU } from "@/i18n/strings-payments";
+import { PREPARATIONS_KY, PREPARATIONS_RU } from "@/i18n/strings-preparations";
+import { SHELL_KY, SHELL_RU } from "@/i18n/strings-shell";
+import { UNIVERSITIES_KY, UNIVERSITIES_RU } from "@/i18n/strings-universities";
 
 const ru = {
   "auth.title": "Кабинет студента",
@@ -37,16 +48,10 @@ const ru = {
   "gate.retry": "Повторить",
   "gate.pendingTitle": "Доступ готовится",
   "gate.pendingBody": "Кабинет пока недоступен для этого аккаунта. Если вы ждёте доступа, напишите куратору EVO.",
-  "gate.applicationTitle": "Анкета",
-  "gate.applicationSoon": "Подача и просмотр анкеты в приложении появятся в одном из следующих обновлений.",
-  "gate.applicationSoonHint": "Пока подайте анкету в веб-кабинете.",
-  "gate.statusTitle": "Статус анкеты",
   "gate.status.pending": "На рассмотрении",
   "gate.status.approved": "Одобрена, кабинет скоро откроется",
   "gate.status.rejected": "Требует исправления",
   "gate.refresh": "Обновить статус",
-  "shell.soonTitle": "Скоро в приложении",
-  "shell.soonBody": "Этот раздел появится в одном из следующих обновлений.",
   "shell.menuClose": "Закрыть меню",
   "profile.theme": "Тема оформления",
   "profile.themeLight": "Светлая",
@@ -64,35 +69,20 @@ const ru = {
   "timeline.pathExpandedHint": "Нажмите, чтобы свернуть или раскрыть шаг",
   "timeline.openLink": "Открыть: {label}",
   "admission.countLabel": "{label}: {count}",
-  "uni.unavailable": "Каталог не загрузился. Потяните вниз, чтобы повторить.",
-  "uni.refreshFailed": "Показан сохранённый каталог: обновить не удалось.",
-  "uni.back": "Назад",
-  "uni.pathLabel": "Путь по каталогу: {path}",
-  "uni.favorites": "Мои вузы",
-  "uni.favoritesHidden": "Больше нет в каталоге: {count}",
-  "uni.mapAttribution": "© OpenFreeMap · © OpenMapTiles · данные © OpenStreetMap",
-  "uni.programsHeading": "Программы вуза",
-  "uni.openSite": "Сайт вуза",
-  "uni.openSource": "Источник",
-  "uni.costUsdInline": "{amount} USD",
-  "uni.noCosts": "Стоимость для этого вуза пока не опубликована.",
-  "uni.creditShow": "Автор и лицензия фото",
-  "uni.creditHide": "Скрыть подпись фото",
-  "programs.mine": "Мои программы",
-  "programs.add": "Добавить в мои программы",
-  "programs.adding": "Добавляем…",
-  "programs.added": "Добавлено в мои программы",
-  "programs.openMine": "Открыть мои программы",
-  "programs.hint": "Это ещё не подача заявки в университет.",
-  "programs.confirmDeadline": "Срок и доступность набора уточните у куратора.",
-  "programs.caseIneligible": "Новые программы добавляет куратор при активном сопровождении.",
-  "programs.error": "Не получилось проверить, добавлена ли программа. Повторите: ничего не задвоится.",
   "config.errorTitle": "Приложение не настроено",
   ...DOCS_RU,
   ...INBOX_RU,
   ...LEARN_RU,
   ...PROFILE_RU,
   ...REGISTRATION_RU,
+  ...APP_RU,
+  ...CONSULTATION_RU,
+  ...HOME_RU,
+  ...LEARN2_RU,
+  ...PAYMENTS_RU,
+  ...PREPARATIONS_RU,
+  ...SHELL_RU,
+  ...UNIVERSITIES_RU,
 } as const;
 
 export type MobileStringKey = keyof typeof ru;
@@ -125,16 +115,10 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "gate.retry": "Кайталоо",
   "gate.pendingTitle": "Мүмкүнчүлүк даярдалууда",
   "gate.pendingBody": "Бул аккаунт үчүн кабинет азырынча жеткиликсиз. Мүмкүнчүлүктү күтүп жатсаңыз, EVO куратору менен байланышыңыз.",
-  "gate.applicationTitle": "Анкета",
-  "gate.applicationSoon": "Колдонмодо анкетаны берүү жана көрүү кийинки жаңыртууларда пайда болот.",
-  "gate.applicationSoonHint": "Азырынча анкетаны веб-кабинетте толтуруңуз.",
-  "gate.statusTitle": "Анкетанын абалы",
   "gate.status.pending": "Каралууда",
   "gate.status.approved": "Жактырылды, кабинет жакында ачылат",
   "gate.status.rejected": "Оңдоону талап кылат",
   "gate.refresh": "Абалды жаңыртуу",
-  "shell.soonTitle": "Колдонмодо жакында",
-  "shell.soonBody": "Бул бөлүм кийинки жаңыртууларда пайда болот.",
   "shell.menuClose": "Менюну жабуу",
   "profile.theme": "Тема",
   "profile.themeLight": "Жарык",
@@ -152,35 +136,20 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   "timeline.pathExpandedHint": "Кадамды жыйноо же ачуу үчүн басыңыз",
   "timeline.openLink": "Ачуу: {label}",
   "admission.countLabel": "{label}: {count}",
-  "uni.unavailable": "Каталог жүктөлгөн жок. Кайталоо үчүн төмөн тартыңыз.",
-  "uni.refreshFailed": "Сакталган каталог көрсөтүлдү: жаңыртуу мүмкүн болгон жок.",
-  "uni.back": "Артка",
-  "uni.pathLabel": "Каталог боюнча жол: {path}",
-  "uni.favorites": "Менин ЖОЖдорум",
-  "uni.favoritesHidden": "Каталогдо жок: {count}",
-  "uni.mapAttribution": "© OpenFreeMap · © OpenMapTiles · маалыматтар © OpenStreetMap",
-  "uni.programsHeading": "ЖОЖдун программалары",
-  "uni.openSite": "ЖОЖдун сайты",
-  "uni.openSource": "Булак",
-  "uni.costUsdInline": "{amount} USD",
-  "uni.noCosts": "Бул ЖОЖ үчүн баа азырынча жарыялана элек.",
-  "uni.creditShow": "Сүрөттүн автору жана лицензиясы",
-  "uni.creditHide": "Сүрөт жазуусун жашыруу",
-  "programs.mine": "Менин программаларым",
-  "programs.add": "Менин программаларыма кошуу",
-  "programs.adding": "Кошуп жатабыз…",
-  "programs.added": "Менин программаларыма кошулду",
-  "programs.openMine": "Менин программаларымды ачуу",
-  "programs.hint": "Бул дагы университетке арыз берүү эмес.",
-  "programs.confirmDeadline": "Кабыл алуунун мөөнөтүн жана жеткиликтүүлүгүн куратордон тактаңыз.",
-  "programs.caseIneligible": "Жаңы программаларды активдүү коштоодо куратор кошот.",
-  "programs.error": "Программа кошулганын текшерүү мүмкүн болгон жок. Кайталаңыз: эч нерсе эки эседей болбойт.",
   "config.errorTitle": "Колдонмо ыңгайлаштырылган эмес",
   ...DOCS_KY,
   ...INBOX_KY,
   ...LEARN_KY,
   ...PROFILE_KY,
   ...REGISTRATION_KY,
+  ...APP_KY,
+  ...CONSULTATION_KY,
+  ...HOME_KY,
+  ...LEARN2_KY,
+  ...PAYMENTS_KY,
+  ...PREPARATIONS_KY,
+  ...SHELL_KY,
+  ...UNIVERSITIES_KY,
 };
 
 export const MOBILE_STRINGS = { ru, ky } as const;

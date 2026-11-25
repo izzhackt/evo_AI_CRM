@@ -3,7 +3,6 @@ import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 
-import { formatPortalString } from "@web/lib/portal/i18n";
 import { universitiesEntryCountry } from "@web/lib/portal/university-index";
 
 import { useCountryChoice } from "@/api/queries";
@@ -14,11 +13,18 @@ import { Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
 
+import { FavoritesLink } from "@/features/home/FavoritesLink";
+
 import { CatalogFrame } from "./CatalogFrame";
 import { useEntryRedirect } from "./useEntryRedirect";
+import { CountryCardView } from "./cards";
 import { useFavoriteState } from "./FavoritesContext";
+import { ResultsStatus, tileItem } from "./lists";
 import { countryCards, searchIndex, tileModel } from "./model";
-import { CountryCardView, UniversityTileView } from "./parts";
+import { NearList } from "./NearList";
+
+/** Длина запроса поиска (веб: `maxLength={100}`). */
+const SEARCH_MAX = 100;
 
 export function UniversitiesScreen() {
   const { t, m, lang } = useLang();
@@ -50,6 +56,7 @@ export function UniversitiesScreen() {
           <Text variant="secondary" tone="text2">
             {strings.lead}
           </Text>
+          <FavoritesLink />
         </View>
       }
     >
@@ -66,6 +73,7 @@ export function UniversitiesScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
+              maxLength={SEARCH_MAX}
               testID="university-search"
               clearLabel={strings.searchClear}
               onClear={() => setQuery("")}
@@ -76,30 +84,17 @@ export function UniversitiesScreen() {
                   <CountryCardView key={card.code} card={card} strings={strings} />
                 ))}
               </View>
-            ) : found.length === 0 ? (
-              <View style={{ gap: 4 }} testID="search-empty">
-                <Text variant="body" bold>
-                  {formatPortalString(strings.searchEmptyTitle, { query: trimmed })}
-                </Text>
-                <Text variant="secondary" tone="text2">
-                  {strings.searchEmptyBody}
-                </Text>
-              </View>
             ) : (
-              <View style={{ gap: 16 }}>
-                <Text variant="secondary" tone="text2" accessibilityLiveRegion="polite">
-                  {formatPortalString(strings.searchFound, { count: String(found.length) })}
-                </Text>
-                {found.map((item) => (
-                  <UniversityTileView
-                    key={item.id}
-                    tile={tileModel(index, item, { strings, lang, now, showPlace: true })}
-                    strings={strings}
-                    favored={favorites.isFavored(item.id)}
-                    onToggle={favorites.toggle}
+              <>
+                <ResultsStatus found={found.length} trimmed={trimmed} strings={strings} onClear={() => setQuery("")} />
+                {found.length > 0 ? (
+                  <NearList
+                    gap={16}
+                    listKey={`search:${trimmed}`}
+                    items={found.map((item, position) => tileItem({ id: item.id, tile: tileModel(index, item, { strings, lang, now, showPlace: true }), strings, favorites, position }))}
                   />
-                ))}
-              </View>
+                ) : null}
+              </>
             )}
           </View>
         );

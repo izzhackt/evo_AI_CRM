@@ -1,5 +1,5 @@
 import { PortalDecodeError } from "@/domain/portal-source";
-import { countryChoiceWrite, readCountryChoice, readCscaHome, readFavorites, readNotifications, readOverview, readPaymentCenter, readPreparations, saveCountryChoice } from "@/api/portal-reads";
+import { countryChoiceWrite, decodeHomeApplication, readCaseDirections, readCountryChoice, readCscaHome, readFavorites, readHomeApplication, readNotifications, readOverview, readPaymentCenter, readPreparations, saveCountryChoice } from "@/api/portal-reads";
 import { RpcError } from "@/lib/rpc";
 import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW, paymentCenterRow } from "@/test-fixtures/rpc-rows";
 import { STUDENT_CASE_ID, failure, fakeTransport, preparationRow, universityRow, uuidN } from "@/test-fixtures/universities";
@@ -171,5 +171,49 @@ describe("оплата (центр платежей)", () => {
   it("отказ сервера: RpcError", async () => {
     const { transport } = fakeTransport({ student_portal_payment_center_v1: failure("42501", 403) });
     await expect(readPaymentCenter(transport)).rejects.toBeInstanceOf(RpcError);
+  });
+});
+
+describe("своя анкета для «Главной» (карточка «Ваша анкета»)", () => {
+  const row = { id: uuidN(1), status: "approved", revision: 1, email: "a@example.org", submitted_at: "2026-11-10T04:00:00+00:00", decided_at: "2026-11-18T09:00:00+00:00", decision_reason: null };
+
+  it("читает статус и даты; остальные поля ответа не нужны", async () => {
+    const { transport, calls } = fakeTransport({ own_student_application_v1: row });
+    await expect(readHomeApplication(transport)).resolves.toEqual({ status: "approved", submittedAt: "2026-11-10T04:00:00+00:00", decidedAt: "2026-11-18T09:00:00+00:00" });
+    expect(calls.map((c) => c.name)).toEqual(["own_student_application_v1"]);
+  });
+
+  it("анкеты нет - null; на рассмотрении без даты решения", () => {
+    expect(decodeHomeApplication(null)).toBeNull();
+    expect(decodeHomeApplication({ ...row, status: "pending", decided_at: null })).toEqual({ status: "pending", submittedAt: row.submitted_at, decidedAt: null });
+  });
+
+  it("чужая форма - ошибка данных, а не выдуманная дата", () => {
+    for (const bad of ["x", [], { ...row, status: "unknown" }, { ...row, submitted_at: "вчера" }, { ...row, decided_at: "не дата" }, { ...row, status: "pending" }, { ...row, status: "approved", decided_at: null }]) {
+      expect(() => decodeHomeApplication(bad)).toThrow(PortalDecodeError);
+    }
+  });
+
+  it("отказ сервера не показывает текст сервера", async () => {
+    const { transport } = fakeTransport({ own_student_application_v1: failure("42501", 403) });
+    const error = await readHomeApplication(transport).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).message).toBe("rpc:forbidden");
+  });
+});
+
+describe("страна своих дел (373)", () => {
+  it("читает student_portal_case_directions_v1 в режиме GET без аргументов и отдаёт карту дел", async () => {
+    const { transport, calls } = fakeTransport({ student_portal_case_directions_v1: [{ student_case_id: STUDENT_CASE_ID, direction: "CN" }] });
+    const map = await readCaseDirections(transport);
+    expect(map.get(STUDENT_CASE_ID)).toBe("CN");
+    expect(calls).toEqual([{ name: "student_portal_case_directions_v1", args: {}, get: true }]);
+  });
+
+  it("отказ сервера: RpcError без текста сервера (экран возьмёт запасную страну)", async () => {
+    const { transport } = fakeTransport({ student_portal_case_directions_v1: failure("42501", 403) });
+    const error = await readCaseDirections(transport).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).kind).toBe("forbidden");
   });
 });

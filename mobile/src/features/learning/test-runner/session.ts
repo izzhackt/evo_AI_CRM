@@ -205,6 +205,10 @@ export class CscaTestSession {
 
   // ---- вход в тест -----------------------------------------------------------------------
   private run(draft: CscaTestAttempt, receivedAt: number): void {
+    // Ученик ушёл с экрана, пока шёл запрос старта (стрелка «назад», «К темам»): `dispose()` уже отработал, и заводить часы
+    // некому. Без этой проверки отсчёт `startTicking()` пережил бы экран: таймер каждые 500 мс и вызовы после закрытия.
+    // Сама попытка на сервере уже начата и идёт; ученик вернётся к ней кнопкой «Продолжить тест».
+    if (this.disposed) return;
     this.adopt(draft, receivedAt);
     const firstOpen = draft.items.findIndex((entry) => !(entry.itemKey in draft.answers));
     this.index = firstOpen === -1 ? 0 : firstOpen;

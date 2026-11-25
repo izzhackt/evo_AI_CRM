@@ -38,11 +38,18 @@ function InlineFormula({ tex, fontSize, color }: FormulaProps) {
   );
 }
 
+/**
+ * Текст с формулами. `lang="en"` ставится только у текста на английском (условия, варианты ответа, условие разобранного
+ * примера, термины): читалка читает его английским голосом. У русских и кыргызских объяснений язык не задан: на iPhone
+ * `accessibilityLanguage` действует на весь элемент, и английский голос прочёл бы кириллицу по буквам. Слова формул внутри
+ * такого текста английские (`speakMathText`), как и у MathML веба, где язык страницы остаётся языком интерфейса.
+ */
 export function MathText({
   source,
   variant = "body",
   tone = "text",
   bold,
+  lang,
   style,
   testID,
 }: {
@@ -50,6 +57,8 @@ export function MathText({
   variant?: TextVariant;
   tone?: "text" | "text2" | "accent" | "error" | "ok" | "onAccent";
   bold?: boolean;
+  /** Язык, на котором читалка читает текст; без значения читается языком устройства. */
+  lang?: "en";
   style?: StyleProp<TextStyle>;
   testID?: string;
 }) {
@@ -68,20 +77,20 @@ export function MathText({
     const width = only.widthEm * fontSize;
     const height = only.heightEm * fontSize;
     return (
-      <View testID={testID} accessible accessibilityLabel={speakMathText(source)} accessibilityLanguage="en" style={{ minHeight: fontSize * 1.45, justifyContent: "center", alignItems: "flex-start" }}>
+      <View testID={testID} accessible accessibilityLabel={speakMathText(source)} accessibilityLanguage={lang} style={{ minHeight: fontSize * 1.45, justifyContent: "center", alignItems: "flex-start" }}>
         <SvgXml xml={colorizeSvg(only.svg, color)} width={width} height={height} />
       </View>
     );
   }
   if (!hasMath) {
     return (
-      <Text variant={variant} tone={tone} bold={bold} style={style} testID={testID}>
+      <Text variant={variant} tone={tone} bold={bold} style={style} testID={testID} accessibilityLanguage={lang}>
         {source}
       </Text>
     );
   }
   return (
-    <Text variant={variant} tone={tone} bold={bold} style={[style, { paddingBottom: pad }]} testID={testID} accessibilityLabel={speakMathText(source)} accessibilityLanguage="en">
+    <Text variant={variant} tone={tone} bold={bold} style={[style, { paddingBottom: pad }]} testID={testID} accessibilityLabel={speakMathText(source)} accessibilityLanguage={lang}>
       {segments.map((segment, index) =>
         segment.math ? <InlineFormula key={index} tex={segment.value} fontSize={fontSize} color={color} /> : segment.value,
       )}

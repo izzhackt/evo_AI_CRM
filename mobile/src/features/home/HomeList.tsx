@@ -3,7 +3,7 @@
 // Чтения общие с «Главной» (избранное читается один раз), сбой одного списка не трогает второй.
 import { GraduationCap, Landmark } from "lucide-react-native";
 import { useState } from "react";
-import { PixelRatio, Pressable, View, useWindowDimensions } from "react-native";
+import { PixelRatio, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import type { CatalogPreparation } from "@web/lib/portal/catalog-preparations";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import { universityCountryLabel } from "@web/lib/portal/universities";
@@ -18,6 +18,7 @@ import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
 import { CardHead, CardSkeleton, EmptyBlock, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
+import { Enter, PressableScale } from "@/ui/motion";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
 
@@ -50,35 +51,66 @@ function ProgramRow({ item }: { item: CatalogPreparation }) {
   );
 }
 
-/** Две карточки в ряд: поля карточки «Мой список» (по 16) и промежуток между колонками. */
-const FAV_COLUMN_GAP = 16;
-const FAV_PHOTO_HEIGHT = 96;
+/**
+ * Лента вбок (веб, 18.11.2026: на телефоне вузы - лента, карточка на 78% ширины, край следующей виден). Лента доходит
+ * до краёв карточки «Мой список»: поля карточки по 16, поэтому лента тянется на них и держит свой отступ.
+ */
+const STRIP_SHARE = 0.78;
+const STRIP_GAP = 12;
+const STRIP_MAX_CARD = 320;
+/** Фото карточки одной высоты при любой ширине: `aspect-ratio: 16 / 10`. */
+const FAV_PHOTO_RATIO = 10 / 16;
+/** Сколько первых карточек ленты входят по очереди. */
+const FAV_ENTER_LIMIT = 6;
+
+/** Ширина карточки ленты: доля ширины списка (экран без полей по 16), не шире предела (на планшете лента остаётся лентой). */
+export function stripCardWidth(windowWidth: number): number {
+  return Math.min(STRIP_MAX_CARD, Math.round((windowWidth - 32) * STRIP_SHARE));
+}
+
+/** Первая буква заглавная: «подача до 1 мая» -> «Подача до 1 мая» (веб `::first-letter`). */
+const capitalized = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 /**
  * Карточка избранного вуза (перенесено из #1423, Айвар; как HomeFavorites на вебе): фото кампуса из нашего бакета,
- * название и «город · страна». Нет фото — серая подложка без надписи. Вся карточка — переход на вуз.
+ * название, «город · страна» и ближайший срок подачи или старт тем же текстом, что у карточек каталога. Нет фото - серая
+ * подложка без надписи. Вся карточка - переход на вуз.
  */
-function FavoriteCard({ item, pixels }: { item: PublishedUniversity; pixels: number }) {
+function FavoriteCard({ item, width, now, index }: { item: PublishedUniversity; width: number; now: Date; index: number }) {
   const { lang, t } = useLang();
   const universities = t("universities");
   const country = universityCountryLabel(item.content.country, lang);
-  return (
-    <Pressable
+  const card = (
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={item.content.name}
       onPress={() => go(`/universities/${item.id}`)}
       testID={`fav-${item.id}`}
-      style={{ flexGrow: 1, flexBasis: "40%", maxWidth: "50%", minWidth: 0, minHeight: MIN_TARGET, gap: 4 }}
+      style={{ width, minHeight: MIN_TARGET }}
     >
-      <RemotePhoto urls={universityUrls(item.content.photoKey, pixels)} height={FAV_PHOTO_HEIGHT} label={item.content.name} strings={universities} quiet testID={`fav-photo-${item.id}`} />
-      <Text variant="body" bold style={{ marginTop: 4 }}>
-        {item.content.name}
-      </Text>
-      <Text variant="caption" tone="text2">
-        {item.content.city ? `${item.content.city} · ${country}` : country}
-      </Text>
-    </Pressable>
+      <View style={{ gap: 4 }}>
+        <RemotePhoto
+          urls={universityUrls(item.content.photoKey, Math.round(width * PixelRatio.get()))}
+          height={Math.round(width * FAV_PHOTO_RATIO)}
+          label={item.content.name}
+          strings={universities}
+          quiet
+          testID={`fav-photo-${item.id}`}
+        />
+        <Text variant="body" bold style={{ marginTop: 4 }}>
+          {item.content.name}
+        </Text>
+        <Text variant="caption" tone="text2">
+          {item.content.city ? `${item.content.city} · ${country}` : country}
+        </Text>
+        <Text variant="caption" bold testID={`fav-intake-${item.id}`}>
+          {capitalized(nearestIntakeText(item, lang, now, universities))}
+        </Text>
+      </View>
+    </PressableScale>
   );
+  // Первые шесть карточек входят по очереди (веб: `.pt-home-fav-grid > :nth-child(-n + 6)`).
+  return index < FAV_ENTER_LIMIT ? <Enter index={index}>{card}</Enter> : card;
 }
 
 export function HomeList({ tab, onTabChange, now }: { tab: HomeListTab; onTabChange: (tab: HomeListTab) => void; now: Date }) {
@@ -94,8 +126,7 @@ export function HomeList({ tab, onTabChange, now }: { tab: HomeListTab; onTabCha
   const favoritesCount = favorites.data?.total ?? null;
   const [allFavorites, setAllFavorites] = useState(false);
   const { width } = useWindowDimensions();
-  // Колонка: экран без полей экрана и карточки (по 32) и промежутка между колонками.
-  const photoPixels = Math.round(((width - 64 - FAV_COLUMN_GAP) / 2) * PixelRatio.get());
+  const cardWidth = stripCardWidth(width);
   const programsCount = preparations.data?.length ?? null;
 
   return (
@@ -151,11 +182,21 @@ export function HomeList({ tab, onTabChange, now }: { tab: HomeListTab; onTabCha
                 ))}
               </View>
             ) : (
-              <View accessibilityRole="list" style={{ flexDirection: "row", flexWrap: "wrap", columnGap: FAV_COLUMN_GAP, rowGap: 20 }} testID="home-favorites">
-                {favorites.data.items.slice(0, HOME_FAVORITES_LIMIT).map((item) => (
-                  <FavoriteCard key={item.id} item={item} pixels={photoPixels} />
+              <ScrollView
+                horizontal
+                accessibilityRole="list"
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={cardWidth + STRIP_GAP}
+                snapToAlignment="start"
+                testID="home-favorites"
+                style={{ marginHorizontal: -16 }}
+                contentContainerStyle={{ gap: STRIP_GAP, paddingHorizontal: 16, paddingVertical: 6 }}
+              >
+                {favorites.data.items.slice(0, HOME_FAVORITES_LIMIT).map((item, index) => (
+                  <FavoriteCard key={item.id} item={item} width={cardWidth} now={now} index={index} />
                 ))}
-              </View>
+              </ScrollView>
             )}
             {/* Полный список (с ближайшим набором) только если вузов больше, чем карточек. */}
             {!allFavorites && favorites.data.items.length > HOME_FAVORITES_LIMIT ? (

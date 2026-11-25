@@ -18,6 +18,7 @@ export function Screen({
   onRefresh,
   refreshing = false,
   scrollRef,
+  stickyHeaderIndices,
 }: {
   children: ReactNode;
   bottomInset?: number;
@@ -31,6 +32,11 @@ export function Screen({
   refreshing?: boolean;
   /** Для экранов, которые сами прокручивают к блоку (переход «Весь путь» на «Главной»). */
   scrollRef?: RefObject<ScrollTarget | null>;
+  /**
+   * Блоки списка (прямые дети `children`, считая сверху с нуля), которые закрепляются у верха экрана при прокрутке:
+   * строка текущего шага на «Главной». Закреплённый блок держится, пока следующий закреплённый не дойдёт до верха.
+   */
+  stickyHeaderIndices?: readonly number[];
 }) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
@@ -42,6 +48,7 @@ export function Screen({
         ref={scrollRef as RefObject<never> | undefined}
         testID="screen-scroll"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
+        stickyHeaderIndices={stickyHeaderIndices ? [...stickyHeaderIndices] : undefined}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: topInset ? insets.top + 16 : 16, paddingBottom: Math.max(insets.bottom, 16) + bottomInset + (tabBar ? clearance + (chatFab ? fabClearance : 0) : 0) }}

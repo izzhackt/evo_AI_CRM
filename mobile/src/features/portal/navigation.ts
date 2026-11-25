@@ -14,6 +14,14 @@ export function go(route: string, params?: Record<string, string>): void {
   router.navigate((params ? { pathname: route, params } : route) as Href);
 }
 
+/**
+ * Переход по строке «Ближайших дат» и отсчёту шапки. Маршрут «Главной» с параметрами (`/home?list=programs`) получает
+ * метку `at`: открытая «Главная» видит повторную ссылку с теми же параметрами новой (как у `openLink`).
+ */
+export function goStamped(route: string): void {
+  go(route.startsWith("/home?") ? `${route}&at=${Date.now()}` : route);
+}
+
 /** Ссылка контента: вкладка приложения или браузер. Неизвестная ссылка не открывается. */
 export function openLink(href: string): void {
   const target = linkTarget(href);

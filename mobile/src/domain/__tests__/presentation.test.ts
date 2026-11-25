@@ -1,6 +1,6 @@
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { ADMISSION_STAGE_PATH, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
+import { ADMISSION_STAGE_PATH, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
 import { normalizeStudentPortalOverview } from "@/domain/portal-source";
 
 import { OVERVIEW_ROW, SLOT_ID } from "@/test-fixtures/rpc-rows";
@@ -76,6 +76,26 @@ describe("уведомления и ссылки", () => {
     [{ category: "application", eventCode: "application_document_review" }, "/messages/updates"],
     [{ category: "novelty", eventCode: "new_thing" }, "/home"],
   ])("%j -> %s", (input, route) => expect(notificationRoute(input)).toBe(route));
+
+  // Значок строки «Что нового» (веб portalNotificationKind): те же ветки, что у перехода.
+  it.each([
+    [{ category: "application.package", eventCode: "application_package_review" }, "package"],
+    [{ category: "application.document.review", eventCode: "application_document_review" }, "document"],
+    [{ category: "case", eventCode: "case_help_answer" }, "message"],
+    [{ category: "anything", eventCode: "case_chat_message" }, "message"],
+    [{ category: "document", eventCode: "correction_required" }, "document"],
+    [{ category: "payment_due", eventCode: "x" }, "payment"],
+    [{ category: "novelty", eventCode: "new_thing" }, "other"],
+  ])("значок %j -> %s", (input, kind) => expect(portalNotificationKind(input)).toBe(kind));
+
+  it("значок и переход согласованы: оплата ведёт в «Оплату», документ - в «Документы», остальное - на «Главную»", () => {
+    expect(notificationRoute({ category: "payment_due", eventCode: "x" })).toBe("/payments");
+    expect(portalNotificationKind({ category: "payment_due", eventCode: "x" })).toBe("payment");
+    expect(notificationRoute({ category: "document", eventCode: "x" })).toBe("/documents");
+    expect(portalNotificationKind({ category: "document", eventCode: "x" })).toBe("document");
+    expect(notificationRoute({ category: "novelty", eventCode: "x" })).toBe("/home");
+    expect(portalNotificationKind({ category: "novelty", eventCode: "x" })).toBe("other");
+  });
 
   it("сообщение команды подписано на языке студента", () => {
     expect(portalNotificationText({ eventCode: "case_chat_message", subjectLabel: "текст по-русски", detail: "x" }, ky)).toEqual({

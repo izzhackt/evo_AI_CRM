@@ -121,6 +121,21 @@ export function portalNotificationText(
   return { title: notification.subjectLabel, detail: notification.detail };
 }
 
+/**
+ * Вид события ленты по тем же веткам, что и `notificationRoute` (portalNotificationKind, веб, 18.11.2026): значок строки
+ * «Что нового» на «Главной». Пакет программы, документ, ответ или сообщение команды, оплата, остальное.
+ */
+export type PortalNotificationKind = "package" | "document" | "message" | "payment" | "other";
+
+export function portalNotificationKind(notification: Pick<StudentPortalNotification, "category" | "eventCode">): PortalNotificationKind {
+  if (notification.eventCode === "application_package_review") return "package";
+  if (notification.eventCode === "application_document_review") return "document";
+  if (notification.eventCode === "case_help_answer" || notification.eventCode === "case_chat_message") return "message";
+  if (notification.category.startsWith("document")) return "document";
+  if (notification.category.startsWith("payment")) return "payment";
+  return "other";
+}
+
 export type NotificationRoute = "/documents" | "/payments" | "/messages/chat" | "/messages/updates" | "/home";
 
 /**

@@ -10,6 +10,7 @@ import { CSCA_TRACK, parseCscaHome, type CscaHome } from "@web/lib/portal/csca";
 import { chunkInstitutionIds, parseUniversityFavorites } from "@web/lib/portal/university-favorites";
 import { parseUniversityPage, type PublishedUniversity } from "@web/lib/platform-university-catalog";
 
+import type { HomeApplication } from "@/domain/home-model";
 import {
   buildPortalOverview,
   decodeBoardStage,
@@ -128,4 +129,27 @@ export async function readPaymentCenter(transport: RpcTransport): Promise<Paymen
   const center = parsePaymentCenter(await rpcRead(transport, "student_portal_payment_center_v1", {}, { get: true }));
   if (!center) throw new PortalDecodeError();
   return center;
+}
+
+const isTimestamp = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
+
+/**
+ * Строгий разбор своей анкеты для «Главной»: нужны статус и даты (отправлена, решение). Остальные поля ответа
+ * (`own_student_application_v1`, форма как у `decodeStudentApplication` веба) здесь не читаются. Чужая форма - ошибка
+ * данных, а не выдуманная дата. Анкеты нет - `null`.
+ */
+export function decodeHomeApplication(value: unknown): HomeApplication | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) throw new PortalDecodeError();
+  const { status, submitted_at: submittedAt, decided_at: decidedAt = null } = value as Record<string, unknown>;
+  if (status !== "pending" && status !== "approved" && status !== "rejected") throw new PortalDecodeError();
+  if (!isTimestamp(submittedAt) || (decidedAt !== null && !isTimestamp(decidedAt))) throw new PortalDecodeError();
+  // Как у веба: решения нет только у анкеты на рассмотрении.
+  if ((status === "pending") !== (decidedAt === null)) throw new PortalDecodeError();
+  return { status, submittedAt, decidedAt };
+}
+
+/** Своя анкета до договора (`own_student_application_v1`): даты отметок карточки «Ваша анкета» (только approved). */
+export async function readHomeApplication(transport: RpcTransport): Promise<HomeApplication | null> {
+  return decodeHomeApplication(await rpcRead(transport, "own_student_application_v1"));
 }

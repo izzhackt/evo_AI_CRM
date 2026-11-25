@@ -14,9 +14,12 @@ import { bindAutoRefresh, getSupabase } from "@/lib/supabase";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
 import { FONT_FILES } from "@/theme/fonts";
 import { ThemeProvider, useTheme } from "@/theme/ThemeProvider";
+import { primeReducedMotion } from "@/ui/motion";
 import { Text } from "@/ui/Text";
 
 void SplashScreen.preventAutoHideAsync();
+// Настройка «Уменьшить движение» читается при запуске: к первому показу «Главной» она уже известна.
+primeReducedMotion();
 
 export default function RootLayout() {
   return (

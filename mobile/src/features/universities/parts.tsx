@@ -84,17 +84,22 @@ export function geographyUrls(photo: Parameters<typeof geographyPhotoUrls>[0], p
   return geographyPhotoUrls(photo, supabaseUrl(), pixels);
 }
 
+/** Строка автора и лицензии под «©» (общая у подписи под фото и у «©» на шапке «Главной»). */
+export function creditLine(credit: PhotoCreditView, strings: UniversityStrings, universityName?: string): string {
+  return credit.kind === "official"
+    ? formatPortalString(strings.photoCreditOfficial, { university: universityName ?? "" })
+    : credit.sourceName
+      ? formatPortalString(strings.photoCreditSource, { author: credit.author, source: credit.sourceName, license: credit.license })
+      : formatPortalString(strings.photoCredit, { author: credit.author, license: credit.license });
+}
+
 /** «©»: автор и лицензия по нажатию; ссылка на источник открывается в браузере. */
 export function PhotoCredit({ credit, universityName, strings }: { credit: PhotoCreditView | null; universityName?: string; strings: UniversityStrings }) {
   const { tokens } = useTheme();
   const { m } = useLang();
   const [shown, setShown] = useState(false);
   if (credit === null) return null;
-  const line = credit.kind === "official"
-    ? formatPortalString(strings.photoCreditOfficial, { university: universityName ?? "" })
-    : credit.sourceName
-      ? formatPortalString(strings.photoCreditSource, { author: credit.author, source: credit.sourceName, license: credit.license })
-      : formatPortalString(strings.photoCredit, { author: credit.author, license: credit.license });
+  const line = creditLine(credit, strings, universityName);
   return (
     <View style={{ gap: 4 }}>
       <Pressable

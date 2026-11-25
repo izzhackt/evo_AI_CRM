@@ -149,6 +149,41 @@ describe("«Что сделать сейчас»: дела строками", ()
     expect(within(screen.getByTestId("case-next-0")).getByText(/через \d+ д/)).toBeTruthy();
   });
 
+  // Читалка слышит и дату, и слова пилюли («Срок: 20.09.2026, через 12 дней»): у веба оба читаются (`pt-sr-only` и пилюля).
+  it("метка строки следующего дела несёт слова пилюли: «через N дней», «просрочено на N дня», «сегодня»", async () => {
+    const world = {
+      student_portal_overview_v2: [OVERVIEW_ROW_EMPTY],
+      student_portal_finance_v2: [
+        payment("Взнос 1", "2026-09-03T08:00:00+00:00"), // просрочено на 5 дней: первое дело, кнопкой
+        payment("Взнос 2", "2026-09-06T08:00:00+00:00"), // просрочено на 2 дня
+        payment("Взнос 3", "2026-09-08T10:00:00+00:00"), // сегодня, 16:00
+        payment("Взнос 4", "2026-09-20T08:00:00+00:00"), // через 12 дней
+        payment("Взнос 5", "2026-10-01T08:00:00+00:00"), // «Ещё действий»
+      ],
+    };
+    const { transport } = fakeTransport(homeHandlers("MY", world));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("case-open");
+    expect(screen.getByTestId("case-next-0").props.accessibilityLabel).toBe("Оплата: Взнос 2. Срок: 06.09.2026, просрочено на 2 дня");
+    expect(screen.getByTestId("case-next-1").props.accessibilityLabel).toBe("Оплата: Взнос 3. Срок: 08.09.2026, сегодня");
+    // те же слова рисует сама пилюля строки
+    expect(within(screen.getByTestId("case-next-0")).getByText("просрочено на 2 дня")).toBeTruthy();
+    expect(within(screen.getByTestId("case-next-1")).getByText("сегодня")).toBeTruthy();
+  });
+
+  it("метка следующего дела со сроком «через N дней» и дело без срока: у второго слов пилюли и даты в метке нет", async () => {
+    const world = {
+      student_portal_overview_v2: [OVERVIEW_ROW_EMPTY],
+      student_portal_finance_v2: [payment("Взнос 1", "2026-09-20T08:00:00+00:00"), payment("Взнос 2", "2026-10-01T08:00:00+00:00"), { ...PAYMENT_ROW, obligation_label: "Взнос 3", due_at: null }],
+    };
+    const { transport } = fakeTransport(homeHandlers("MY", world));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("case-open");
+    const labels = [0, 1].map((index) => screen.getByTestId(`case-next-${index}`).props.accessibilityLabel);
+    expect(labels).toEqual(expect.arrayContaining(["Оплата: Взнос 2. Срок: 01.10.2026, через 23 дня"]));
+    expect(labels.some((label) => label === "Оплата: Взнос 3")).toBe(true); // без срока - одно название, без «Срок» и слов
+  });
+
   it.each([
     ["2026-09-08T03:00:00+00:00", /^просрочено$/], // 09:00 в Бишкеке, сейчас 11:00: срок прошёл сегодня по часам
     ["2026-09-08T10:00:00+00:00", /^сегодня$/], // 16:00: срок позже сегодня

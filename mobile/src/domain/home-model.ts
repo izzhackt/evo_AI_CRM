@@ -81,9 +81,6 @@ export function showCountryChoice(hasJourney: boolean): boolean {
 
 export type HomeDate = HomeDateItem;
 
-/** «Мои программы» на «Главной»: сюда ведёт ссылка из веба `/portal?view=programs` и запасной адрес испорченной ссылки на программу. */
-export const PROGRAMS_ROUTE = "/home?list=programs";
-
 /** Адрес из общего кода веба (`/portal/csca`) -> маршрут приложения (`/csca`); адрес приложения остаётся как есть. */
 function appRoute(href: string): string {
   const target = linkTarget(href);

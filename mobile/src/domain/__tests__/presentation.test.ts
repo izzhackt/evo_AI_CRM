@@ -140,11 +140,23 @@ describe("уведомления и ссылки", () => {
     expect(linkTarget(`/portal/preparations/${id}`)).toEqual({ kind: "route", route: `/preparations/${id}` });
     expect(linkTarget(`/portal/preparations/${id}/`)).toEqual({ kind: "route", route: `/preparations/${id}` });
     expect(linkTarget("/portal/preparations/a%20b")).toEqual({ kind: "route", route: "/preparations/a%20b" });
-    // негодный идентификатор не уводит на чужой маршрут и не бросает исключения
-    expect(linkTarget("/portal/preparations/%E0%A4%A")).toBeNull();
+    // негодный идентификатор не уводит на чужой маршрут и не бросает исключения: «Мои программы»
+    expect(linkTarget("/portal/preparations/%E0%A4%A")).toEqual({ kind: "route", route: "/home?list=programs" });
     expect(linkTarget("/portal/preparations/..")).toEqual({ kind: "route", route: "/home?list=programs" });
-    expect(linkTarget("/portal/preparations")).toEqual({ kind: "route", route: "/preparations" });
+    expect(linkTarget("/portal/preparations/.")).toEqual({ kind: "route", route: "/home?list=programs" });
     const university = "aaaaaaaa-0000-4000-8000-000000000001";
+    // веб добавляет к адресу программы хвост: якорь требования или запрос; экран программы в приложении якорей не знает - хвост отбрасывается
+    expect(linkTarget(`/portal/preparations/${id}#requirement-passport`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}?tab=requirements`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}?tab=requirements#requirement-passport`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}/#requirement-passport`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget("/portal/preparations/a%20b#requirement-x")).toEqual({ kind: "route", route: "/preparations/a%20b" });
+    // без годного идентификатора - «Мои программы», с хвостом или без: пустой, лишний сегмент, только хвост
+    for (const malformed of ["/portal/preparations", "/portal/preparations/", "/portal/preparations/a/b", `/portal/preparations/${id}/extra`, "/portal/preparations/#requirement-x", "/portal/preparations?x=1", "/portal/preparations#requirement-x", "/portal/preparations//", "/portal/preparations/..#requirement-x"]) {
+      expect(linkTarget(malformed)).toEqual({ kind: "route", route: "/home?list=programs" });
+    }
+    // соседние имена разделов правило программы не задевает
+    expect(linkTarget("/portal/preparationsx/a")).toEqual({ kind: "route", route: "/preparationsx" });
     expect(linkTarget(`/portal/universities/${university}`)).toEqual({ kind: "route", route: `/universities/${university}` });
     expect(linkTarget(`/portal/universities/${university.toUpperCase()}`)).toEqual({ kind: "route", route: `/universities/${university}` });
     // не uuid - прежнее правило раздела

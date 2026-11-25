@@ -231,16 +231,19 @@ function decodeSegment(segment: string): string | null {
  * `/portal/home` — «Главная»; `/portal?view=programs` — «Главная» с вкладкой «Мои
  * программы»; `/portal/messages?view=chat|updates` — беседа или лента «Входящих» (#1356:
  * «Написать EVO»). `/portal/preparations/<id>` - экран программы (`preparationPath`), `/portal/universities/<id>` -
- * карточка вуза: идентификатор сохраняется, а не отбрасывается общим правилом. Внешние адреса открывает браузер.
+ * карточка вуза: идентификатор сохраняется, а не отбрасывается общим правилом. Веб добавляет к адресу программы
+ * хвост (`#requirement-…`, запрос): у экрана программы в приложении якорей нет, хвост отбрасывается. Адрес программы без
+ * годного идентификатора (пустой, лишний сегмент, `.`, `..`, испорченное кодирование) ведёт в «Мои программы»: туда же ведёт
+ * `preparationPath` для негодного идентификатора. Внешние адреса открывает браузер.
  * Прочее (неизвестный относительный адрес) в приложение не ведёт: `null`.
  */
 export function linkTarget(href: string): LinkTarget | null {
   if (/^https:\/\//i.test(href)) return { kind: "external", url: href };
   // Страницы с идентификатором в адресе: общее правило ниже его отбросило бы (`/portal/universities/<id>` -> `/universities`).
-  const preparation = /^\/portal\/preparations\/([^/?#]+)\/?$/.exec(href);
-  if (preparation) {
-    const id = decodeSegment(preparation[1]);
-    return id === null ? null : { kind: "route", route: preparationPath(id) };
+  if (/^\/portal\/preparations(?:[/?#]|$)/.test(href)) {
+    const preparation = /^\/portal\/preparations\/([^/?#]+)\/?(?:[?#].*)?$/.exec(href);
+    // Нет годного идентификатора - пустая строка, а `preparationPath("")` - «Мои программы» (одно запасное место для всех таких ссылок).
+    return { kind: "route", route: preparationPath((preparation && decodeSegment(preparation[1])) ?? "") };
   }
   const university = /^\/portal\/universities\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$/.exec(href);
   if (university) return { kind: "route", route: `/universities/${university[1].toLowerCase()}` };

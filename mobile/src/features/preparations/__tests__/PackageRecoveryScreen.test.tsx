@@ -5,6 +5,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { router } from "expo-router";
+import { Alert } from "react-native";
 
 import PackageRecoveryRoute from "@/app/(app)/preparations/recovery";
 import { PackageRecoveryScreen } from "@/features/preparations/PackageRecoveryScreen";
@@ -179,6 +180,43 @@ describe("страница «Незавершённые отправки на э
     await renderPortal(<PackageRecoveryScreen />, testApi(transport), "ky");
     expect(screen.getByTestId("prep-recovery-title")).toHaveTextContent("Бул түзмөктөгү аякталбаган жөнөтүүлөр");
     expect(screen.getByText("Жүктөө үзүлсө, ушул жерден улантыңыз.")).toBeTruthy();
+  });
+});
+
+describe("отказ на странице «Незавершённые отправки»", () => {
+  const OTHER_MEMBER = "aaaaaaaa-0000-4000-8000-0000000000ff";
+  let alert: jest.SpyInstance;
+  beforeEach(() => {
+    alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+  });
+  afterEach(() => alert.mockRestore());
+  async function confirm(testID: string) {
+    await fireEvent.press(await screen.findByTestId(testID));
+    const button = (alert.mock.lastCall![2] as { text?: string; onPress?: () => void }[]).find((value) => value.text === "Отказаться")!;
+    await act(async () => button.onPress?.());
+  }
+  const packageKeys = async () => (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith("evo.application-packages.v1:"));
+
+  it("«Отказаться»: запись снята, программа пропала со страницы, итог остаётся виден; запись другого участника цела", async () => {
+    await seed();
+    await seed({ membershipId: OTHER_MEMBER });
+    await renderPage();
+    await confirm(`prep-recovery-discard-${PACKAGE_REQUEST}`);
+    await waitFor(() => expect(screen.getByTestId("prep-recovery-owner-notice")).toHaveTextContent("Незавершённое действие снято с этого телефона."));
+    await waitFor(() => expect(screen.queryByTestId(`prep-recovery-package-${PACKAGE_REQUEST}`)).toBeNull());
+    expect(await screen.findByTestId("prep-recovery-empty")).toBeTruthy();
+    expect(await packageKeys()).toEqual([packagesPending.key({ ...scope, membershipId: OTHER_MEMBER }, "submit", REVISION_ID)]);
+  });
+
+  it("нечитаемая запись: на странице сказано прямо, «Отказаться» снимает её", async () => {
+    const key = packagesPending.key(scope, "submit", REVISION_ID);
+    await AsyncStorage.setItem(key, "{сломано");
+    await renderPage();
+    expect(await screen.findByTestId(`prep-recovery-unreadable-${REVISION_ID}`)).toHaveTextContent("не читается, повторять попытку бессмысленно", { exact: false });
+    await confirm(`prep-recovery-discard-unreadable-${REVISION_ID}`);
+    await waitFor(async () => expect(await AsyncStorage.getItem(key)).toBeNull());
+    expect(await screen.findByTestId("prep-recovery-empty")).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("prep-recovery-owner-notice")).toHaveTextContent("Незавершённое действие снято с этого телефона."));
   });
 });
 

@@ -216,13 +216,14 @@ export function createPendingStore<Operation extends string, Intent>(kind: Pendi
      * Отказ от незавершённой записи ОДНОЙ цели (кнопка «Отказаться от незавершённой загрузки»): снимает ровно её ключ; чужие
      * цели, записи других операций и других программ не трогаются. В отличие от `clear` снимает и испорченную запись
      * (`blocked`), которая иначе не уходит. Берёт замок цели, поэтому идущую команду этой цели не прерывает (`busy`);
-     * снятие проверяется чтением, подписчики узнают о нём.
+     * снятие проверяется чтением, подписчики узнают о нём. `lockTarget`: цель замка, когда команды берут замок не по цели
+     * записи (комплект: один замок на программу, а запись лежит по ревизии требований).
      */
-    async discard(scope: PendingScope, operation: Operation, target: string, storage: PendingStorage = asyncPendingStorage): Promise<DiscardResult> {
+    async discard(scope: PendingScope, operation: Operation, target: string, storage: PendingStorage = asyncPendingStorage, lockTarget: string = target): Promise<DiscardResult> {
       const locked = await this.withLock(
         scope,
         operation,
-        target,
+        lockTarget,
         async () => {
           const k = key(scope, operation, target);
           await storage.removeItem(k);

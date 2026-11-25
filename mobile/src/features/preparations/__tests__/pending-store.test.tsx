@@ -291,6 +291,52 @@ describe("отказ от незавершённой записи", () => {
   });
 });
 
+describe("отказ: замок берётся по цели замка, а не только по цели записи (комплект: замок на программу, запись по ревизии)", () => {
+  const REVISION = REVISION_ID;
+  const intent = () => submitIntentOf([0], [5]) as never;
+
+  it("команда держит замок программы: отказ от записи по ревизии получает «занято», запись цела; без замка программы отказ проходит", async () => {
+    const storage = memoryPendingStorage();
+    await packagesPending.persist(scope, "submit", REVISION, intent(), storage);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const running = packagesPending.withLock(scope, "submit", scope.applicationId, () => gate, storage);
+    expect(await packagesPending.discard(scope, "submit", REVISION, storage, scope.applicationId)).toEqual({ ok: false, reason: "busy" });
+    expect(storage.data.size).toBe(1);
+    release();
+    await running;
+    expect(await packagesPending.discard(scope, "submit", REVISION, storage, scope.applicationId)).toEqual({ ok: true });
+    expect(storage.data.size).toBe(0);
+  });
+
+  it("по умолчанию замок берётся по цели записи (документы): замок программы такой отказ не останавливает", async () => {
+    const storage = memoryPendingStorage();
+    await packagesPending.persist(scope, "submit", REVISION, intent(), storage);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const running = packagesPending.withLock(scope, "submit", scope.applicationId, () => gate, storage);
+    expect(await packagesPending.discard(scope, "submit", REVISION, storage)).toEqual({ ok: true });
+    release();
+    await running;
+  });
+
+  it("снимается только запись этой ревизии этой программы: вторая ревизия, другая программа, другой участник целы", async () => {
+    const storage = memoryPendingStorage();
+    const second = "dddddddd-0000-4000-8000-0000000000d2";
+    await packagesPending.persist(scope, "submit", REVISION, intent(), storage);
+    await packagesPending.persist(scope, "submit", second, submitIntentOf([0], [5], { requirementsRevisionId: second, requestId: "99999999-0000-4000-8000-0000000000c2" }) as never, storage);
+    await packagesPending.persist({ ...scope, applicationId: itemId(9) }, "submit", REVISION, submitIntentOf([0], [5], { applicationId: itemId(9), requestId: "99999999-0000-4000-8000-0000000000c3" }) as never, storage);
+    await packagesPending.persist({ ...scope, membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }, "submit", REVISION, intent(), storage);
+    const before = [...storage.data.keys()].sort();
+    expect(await packagesPending.discard(scope, "submit", REVISION, storage, scope.applicationId)).toEqual({ ok: true });
+    expect([...storage.data.keys()].sort()).toEqual(before.filter((key) => key !== packagesPending.key(scope, "submit", REVISION)));
+  });
+});
+
 describe("замок цели", () => {
   it("второе нажатие во время работы получает «занято», после работы замок свободен", async () => {
     const storage = memoryPendingStorage();

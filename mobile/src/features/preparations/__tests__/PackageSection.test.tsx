@@ -2,7 +2,7 @@
 // сбои, смена требований под выбором, последний комплект. Сеть и устройство подменены; хранилище записей - jest-мок AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
-import { AccessibilityInfo, Platform } from "react-native";
+import { AccessibilityInfo, Alert, Platform } from "react-native";
 
 import { packageCandidates } from "@/features/preparations/PackageSelectionRow";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
@@ -255,6 +255,38 @@ describe("«Отправить комплект в EVO»", () => {
     await waitFor(() => expect(t.packageCalls("application_package_readiness_v1").length).toBeGreaterThan(reads));
     // время отправки стоит в той же строке, что и сообщение
     expect(screen.getByTestId("prep-package-message")).toHaveTextContent("(Бишкек)", { exact: false });
+  });
+
+  it("отправка идёт: «Отказаться от незавершённой отправки комплекта» получает «занято», запись цела, отправка завершается сама", async () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      await open({
+        ...sendable(),
+        wrap: (inner) => async (name, args, options) => {
+          if (name === "application_package_submit_v1") await gate;
+          return inner(name, args, options);
+        },
+      });
+      await toPreview();
+      await fireEvent.press(screen.getByTestId("prep-package-submit"));
+      // запись пишется до сети: она уже лежит, и перечень программы её показал, пока ответа сервера ещё нет
+      const button = await screen.findByTestId(`prep-recovery-discard-${PACKAGE_REQUEST}`);
+      await fireEvent.press(button);
+      const confirm = (alert.mock.lastCall![2] as { text?: string; onPress?: () => void }[]).find((value) => value.text === "Отказаться")!;
+      await act(async () => confirm.onPress?.());
+      expect(await screen.findByTestId(`prep-recovery-discard-${PACKAGE_REQUEST}-error`)).toHaveTextContent("Это действие сейчас выполняется. Дождитесь результата.");
+      expect(await packageKeys()).toHaveLength(1);
+      await act(async () => release());
+      await waitFor(() => expect(screen.getByTestId("prep-package-message")).toHaveTextContent("Комплект отправлен в EVO", { exact: false }));
+      expect(await packageKeys()).toEqual([]);
+    } finally {
+      release();
+      alert.mockRestore();
+    }
   });
 
   it("после отправки появляется «Открыть комплект» и последний комплект со статусом «Отправлен на проверку EVO · Комплект 1»", async () => {

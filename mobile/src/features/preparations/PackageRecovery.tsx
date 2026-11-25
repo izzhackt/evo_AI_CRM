@@ -8,18 +8,39 @@ import { View } from "react-native";
 import { usePortalApi } from "@/api/PortalApi";
 import { readDocumentHistory } from "@/api/preparations-documents";
 import { recoverApplicationPackage, submitApplicationPackage } from "@/api/preparations-packages";
+import { DiscardAction } from "@/features/preparations/DiscardAction";
 import { packageCommandFailure, runPackageCommand } from "@/features/preparations/package-commands";
 import { go } from "@/features/portal/navigation";
-import { packagesPending } from "@/features/preparations/packages-pending";
+import { packagesPending, type PackageOperation } from "@/features/preparations/packages-pending";
 import { usePackageStrings, type PackageStrings } from "@/features/preparations/package-strings";
 import type { PendingScope } from "@/features/preparations/pending-store";
 import { preparationPath } from "@/features/preparations/routes";
 import { usePackagePending } from "@/features/preparations/use-package-pending";
+import { useLang } from "@/i18n/LangProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
 
 type FrozenFile = Readonly<{ label: string; filename: string; version: string }>;
+
+/**
+ * «Отказаться от незавершённой отправки комплекта»: снимает ОДНУ запись этой программы (`target` - ревизия требований, по
+ * которой она записана); записи других программ, участников и организаций не трогаются. Замок берётся тот же, что у команд
+ * комплекта (один на программу), поэтому идущая отправка или проверка не прерывается: ответ «занято».
+ */
+function DiscardPackage({ scope, operation, target, disabled = false, onDiscarded, testID }: { scope: PendingScope; operation: PackageOperation; target: string; disabled?: boolean; onDiscarded?: (text: string) => void; testID: string }) {
+  const { m } = useLang();
+  return (
+    <DiscardAction
+      label={m("prep.discardPackage")}
+      body={m("prep.discardPackageBody")}
+      discard={() => packagesPending.discard(scope, operation, target, undefined, scope.applicationId)}
+      disabled={disabled}
+      onDiscarded={onDiscarded}
+      testID={testID}
+    />
+  );
+}
 
 /** Одна неоконченная отправка комплекта: что в ней, «Проверить результат», «Повторить сохранённое действие». */
 function RecoveryEntry({ scope, intent, strings: t, onSaved, historyLink }: { scope: PendingScope; intent: ApplicationPackageSubmitIntent; strings: PackageStrings; onSaved: (message?: string) => void; historyLink: boolean }) {
@@ -107,6 +128,8 @@ function RecoveryEntry({ scope, intent, strings: t, onSaved, historyLink }: { sc
         <Button variant="ghost" label={t.checkResult} onPress={() => void run(true)} disabled={busy || loading} testID={`prep-recovery-check-${intent.requestId}`} />
         <Button label={busy ? t.submitting : t.retry} onPress={() => void run(false)} disabled={busy || loading || !files} testID={`prep-recovery-retry-${intent.requestId}`} />
         {historyLink ? <Button variant="ghost" label={t.allHistory} onPress={() => go(preparationPath(scope.applicationId))} testID={`prep-recovery-history-${intent.requestId}`} /> : null}
+        {/* Исход неизвестен, а проверка не помогает или студент решил начать заново: запись можно снять. «Проверить результат» остаётся. */}
+        <DiscardPackage scope={scope} operation="submit" target={intent.requirementsRevisionId} disabled={busy || loading} onDiscarded={(text) => onSaved(text)} testID={`prep-recovery-discard-${intent.requestId}`} />
       </View>
       {message ? <Text variant="secondary" testID={`prep-recovery-message-${intent.requestId}`}>{message}</Text> : null}
     </View>
@@ -121,6 +144,7 @@ export function PackageRecovery({ scope, onSaved, historyLink = false }: {
   historyLink?: boolean;
 }) {
   const t = usePackageStrings();
+  const { m } = useLang();
   const [notice, setNotice] = useState<string | null>(null);
   const pending = usePackagePending(scope);
   const saved = (message?: string) => {
@@ -138,9 +162,13 @@ export function PackageRecovery({ scope, onSaved, historyLink = false }: {
           {pending.blocked ? <Text variant="secondary" tone="error" accessibilityRole="alert">{t.storage}</Text> : null}
           {pending.entries.map((entry) =>
             entry.blocked || !entry.intent ? (
-              <Text key={`${entry.operation}:${entry.target}`} variant="secondary" tone="error" accessibilityRole="alert">
-                {t.storage}
-              </Text>
+              // Нечитаемую запись не повторить и не стереть втихую: текст говорит прямо, а снять её можно только отказом.
+              <View key={`${entry.operation}:${entry.target}`} style={{ gap: 8 }}>
+                <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-recovery-unreadable-${entry.target}`}>
+                  {m("prep.packageUnreadable")}
+                </Text>
+                <DiscardPackage scope={scope} operation={entry.operation} target={entry.target} onDiscarded={(text) => saved(text)} testID={`prep-recovery-discard-unreadable-${entry.target}`} />
+              </View>
             ) : (
               <RecoveryEntry key={entry.intent.requestId} scope={scope} intent={entry.intent} strings={t} onSaved={saved} historyLink={historyLink} />
             ),

@@ -1,8 +1,8 @@
 // Неоконченная отправка комплекта на экране программы: что видно, «Проверить результат», «Повторить сохранённое действие»,
 // повреждённая запись и недоступное хранилище. Записи лежат в jest-моке AsyncStorage, как на устройстве.
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
-import { AccessibilityInfo, Platform } from "react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { AccessibilityInfo, Alert, Platform } from "react-native";
 
 import { packagesPending } from "@/features/preparations/packages-pending";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
@@ -28,6 +28,7 @@ import { PACKAGE_REQUEST, recoveryAbsent, recoveryCommitted, submitIntentOf, sub
 import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { settle, waitForEnabled } from "@/test-fixtures/settle";
+import type { RpcTransport } from "@/lib/rpc";
 import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -44,9 +45,9 @@ const intent = () => submitIntentOf([0], [5]);
 const seed = () => packagesPending.persist(scope, "submit", REVISION_ID, intent() as never);
 const packageKeys = async () => (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith("evo.application-packages.v1:"));
 
-async function open(extra: Record<string, unknown> = {}, ready: unknown = current()) {
+async function open(extra: Record<string, unknown> = {}, ready: unknown = current(), wrap?: (inner: RpcTransport) => RpcTransport, lang?: "ru" | "ky") {
   const { transport, calls } = fakeTransport({ student_catalog_preparations_v1: [preparationRow(1)], application_package_readiness_v1: ready, ...extra });
-  const view = await renderPortal(<PreparationScreen applicationId={APPLICATION_ID} io={makeIo().io} />, testApi(transport));
+  const view = await renderPortal(<PreparationScreen applicationId={APPLICATION_ID} io={makeIo().io} />, testApi(wrap ? wrap(transport) : transport), lang);
   return { ...view, calls, named: (name: string) => calls.filter((call) => call.name === name) };
 }
 
@@ -166,7 +167,8 @@ describe("оборванная отправка комплекта на экра
     await AsyncStorage.setItem(packagesPending.key(scope, "submit", REVISION_ID), "{сломано");
     const t = await open();
     const box = await screen.findByTestId("prep-package-recovery");
-    expect(within(box).getByText("Не удалось прочитать или сохранить действие на этом телефоне. Проверьте результат.")).toBeTruthy();
+    // запись нечитаема: повторять бессмысленно, сказано прямо, а снять её можно только отказом (кнопка ниже)
+    expect(within(box).getByText("Запись о незавершённой отправке комплекта на этом телефоне не читается, повторять попытку бессмысленно. Её можно снять и собрать комплект заново.")).toBeTruthy();
     await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
     expect(screen.getByTestId("prep-package-preview").props.accessibilityState).toMatchObject({ disabled: true });
     expect(await AsyncStorage.getItem(packagesPending.key(scope, "submit", REVISION_ID))).toBe("{сломано");
@@ -210,5 +212,172 @@ describe("хранилище устройства не работает при �
     }
     expect(t.named("application_package_submit_v1")).toHaveLength(0);
     expect(await packageKeys()).toEqual([]);
+  });
+});
+
+describe("отказ от незавершённой отправки комплекта", () => {
+  type AlertButton = { text?: string; style?: string; onPress?: () => void };
+  const OTHER_APPLICATION = "bbbbbbbb-0000-4000-8000-0000000000ff";
+  const OTHER_MEMBER = "aaaaaaaa-0000-4000-8000-0000000000ff";
+  const OTHER_ORGANIZATION = "bbbbbbbb-0000-4000-8000-0000000000ee";
+  const SECOND_REVISION = "dddddddd-0000-4000-8000-0000000000d2";
+  const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+  let alert: jest.SpyInstance;
+  beforeEach(() => {
+    alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    spoken.mockClear();
+  });
+  afterEach(() => alert.mockRestore());
+
+  const lastAlert = () => ({ title: String(alert.mock.lastCall![0]), body: String(alert.mock.lastCall![1]), buttons: alert.mock.lastCall![2] as AlertButton[] });
+  /** Нажать кнопку отказа и ответить в окне подтверждения. */
+  async function discard(testID: string, answer: "Отказаться" | "Оставить") {
+    await fireEvent.press(await screen.findByTestId(testID));
+    const button = lastAlert().buttons.find((value) => value.text === answer)!;
+    await act(async () => button.onPress?.());
+  }
+  const DISCARD = `prep-recovery-discard-${PACKAGE_REQUEST}`;
+
+  it("исход неизвестен: рядом с «Проверить результат» кнопка отказа; «Оставить» ничего не меняет, «Отказаться» снимает запись, выбор снова открыт", async () => {
+    await seed();
+    await open();
+    const button = await screen.findByTestId(DISCARD);
+    expect(button).toHaveTextContent("Отказаться от незавершённой отправки комплекта");
+    expect(button).toHaveStyle({ minHeight: 44 });
+    // читаемая запись сохраняет «Проверить результат»: отказ не вместо проверки
+    expect(screen.getByTestId(`prep-recovery-check-${PACKAGE_REQUEST}`)).toHaveTextContent("Проверить результат");
+
+    await discard(DISCARD, "Оставить");
+    const { title, body, buttons } = lastAlert();
+    expect(title).toBe("Отказаться от незавершённого действия?");
+    // честный текст: если комплект уже дошёл до EVO, новая отправка может добавить версию комплекта (больше ничего не обещано)
+    expect(body).toBe("Телефон забудет, что отправка комплекта не завершилась. Если комплект уже дошёл до EVO, новая отправка может добавить ещё одну версию комплекта.");
+    expect(buttons.map((value) => [value.text, value.style])).toEqual([["Оставить", "cancel"], ["Отказаться", "destructive"]]);
+    expect(await packageKeys()).toHaveLength(1);
+
+    await discard(DISCARD, "Отказаться");
+    await waitFor(async () => expect(await packageKeys()).toEqual([]));
+    await waitFor(() => expect(screen.queryByTestId("prep-package-recovery")).toBeNull());
+    expect(screen.getByTestId("prep-package-message")).toHaveTextContent("Незавершённое действие снято с этого телефона.");
+    await waitFor(() => expect(spoken).toHaveBeenCalledWith("Незавершённое действие снято с этого телефона."));
+    // новый комплект снова можно готовить
+    await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    await waitForEnabled("prep-package-preview");
+  });
+
+  it("снимается только запись этой программы: другая программа, другой участник, другая организация и вторая ревизия этой же программы целы", async () => {
+    await seed();
+    const own = packagesPending.key(scope, "submit", REVISION_ID);
+    await packagesPending.persist({ ...scope, applicationId: OTHER_APPLICATION }, "submit", REVISION_ID, submitIntentOf([0], [5], { applicationId: OTHER_APPLICATION, requestId: "99999999-0000-4000-8000-0000000000c1" }) as never);
+    await packagesPending.persist({ ...scope, membershipId: OTHER_MEMBER }, "submit", REVISION_ID, intent() as never);
+    await packagesPending.persist({ ...scope, organizationId: OTHER_ORGANIZATION }, "submit", REVISION_ID, intent() as never);
+    await packagesPending.persist(scope, "submit", SECOND_REVISION, submitIntentOf([0], [5], { requirementsRevisionId: SECOND_REVISION, requestId: "99999999-0000-4000-8000-0000000000c2" }) as never);
+    const before = (await packageKeys()).sort();
+    expect(before).toHaveLength(5);
+    await open();
+    await discard(DISCARD, "Отказаться");
+    await waitFor(async () => expect((await packageKeys()).sort()).toEqual(before.filter((key) => key !== own)));
+    // вторая запись этой программы осталась и всё ещё на экране со своей кнопкой отказа
+    expect(await screen.findByTestId("prep-recovery-discard-99999999-0000-4000-8000-0000000000c2")).toBeTruthy();
+  });
+
+  it("запись нечитаема: до отказа она на месте, после подтверждения снята, выбор открыт; «Оставить» ничего не снимает", async () => {
+    const key = packagesPending.key(scope, "submit", REVISION_ID);
+    await AsyncStorage.setItem(key, "{сломано");
+    await open();
+    const DISCARD_BROKEN = `prep-recovery-discard-unreadable-${REVISION_ID}`;
+    expect(await screen.findByTestId(`prep-recovery-unreadable-${REVISION_ID}`)).toHaveTextContent("не читается, повторять попытку бессмысленно", { exact: false });
+    expect(screen.getByTestId(DISCARD_BROKEN)).toHaveTextContent("Отказаться от незавершённой отправки комплекта");
+    await discard(DISCARD_BROKEN, "Оставить");
+    expect(await AsyncStorage.getItem(key)).toBe("{сломано");
+    await discard(DISCARD_BROKEN, "Отказаться");
+    await waitFor(async () => expect(await AsyncStorage.getItem(key)).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId("prep-package-recovery")).toBeNull());
+    await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    await waitForEnabled("prep-package-preview");
+  });
+
+  it("идёт отправка или проверка этой программы (замок команд): отказ получает «занято», запись цела", async () => {
+    await seed();
+    await open();
+    await screen.findByTestId(DISCARD);
+    // замок команд комплекта один на программу: его берёт «Отправить комплект» и «Проверить результат»
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const running = packagesPending.withLock(scope, "submit", APPLICATION_ID, () => gate);
+    await discard(DISCARD, "Отказаться");
+    expect(await screen.findByTestId(`${DISCARD}-error`)).toHaveTextContent("Это действие сейчас выполняется. Дождитесь результата.");
+    expect(await packageKeys()).toHaveLength(1);
+    expect(screen.getByTestId(DISCARD)).toBeTruthy();
+    release();
+    await running;
+    await discard(DISCARD, "Отказаться");
+    await waitFor(async () => expect(await packageKeys()).toEqual([]));
+  });
+
+  it("проверка результата этой записи идёт: кнопка отказа выключена, запись цела", async () => {
+    await seed();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await open({ application_package_recover_v1: (args: Raw | undefined) => recoveryCommitted(args!.p_intent as Raw, 1) }, current(), (inner) => async (name, args, options) => {
+      if (name === "application_package_recover_v1") await gate;
+      return inner(name, args, options);
+    });
+    await waitForEnabled(`prep-recovery-check-${PACKAGE_REQUEST}`);
+    await fireEvent.press(screen.getByTestId(`prep-recovery-check-${PACKAGE_REQUEST}`));
+    await waitFor(() => expect(screen.getByTestId(DISCARD).props.accessibilityState).toMatchObject({ disabled: true }));
+    await fireEvent.press(screen.getByTestId(DISCARD));
+    expect(alert).not.toHaveBeenCalled();
+    expect(await packageKeys()).toHaveLength(1);
+    await act(async () => release());
+    await waitFor(async () => expect(await packageKeys()).toEqual([]));
+  });
+
+  it("хранилище не читается целиком (перечень записей недоступен): записи не видно, кнопки отказа нет", async () => {
+    await seed();
+    const original = AsyncStorage.getAllKeys;
+    (AsyncStorage as { getAllKeys: typeof AsyncStorage.getAllKeys }).getAllKeys = jest.fn(async () => {
+      throw new Error("нет доступа");
+    });
+    try {
+      await open();
+      const box = await screen.findByTestId("prep-package-recovery");
+      expect(within(box).getByText("Не удалось прочитать или сохранить действие на этом телефоне. Проверьте результат.")).toBeTruthy();
+      await settle();
+      expect(screen.queryByTestId(DISCARD)).toBeNull();
+    } finally {
+      (AsyncStorage as { getAllKeys: typeof AsyncStorage.getAllKeys }).getAllKeys = original;
+    }
+  });
+
+  it("хранилище не удаляет: сказано словами, запись на месте", async () => {
+    await seed();
+    await open();
+    await screen.findByTestId(DISCARD);
+    const original = AsyncStorage.removeItem;
+    AsyncStorage.removeItem = (async () => {
+      throw new Error("диск");
+    }) as typeof AsyncStorage.removeItem;
+    try {
+      await discard(DISCARD, "Отказаться");
+      expect(await screen.findByTestId(`${DISCARD}-error`)).toHaveTextContent("Повторите попытку позже", { exact: false });
+    } finally {
+      AsyncStorage.removeItem = original;
+    }
+    expect(await packageKeys()).toHaveLength(1);
+  });
+
+  it("кыргызский язык: кнопка и окно написаны по-кыргызски", async () => {
+    await seed();
+    await open({}, current(), undefined, "ky");
+    const button = await screen.findByTestId(DISCARD);
+    expect(button).toHaveTextContent("Бүтпөгөн топтомду жөнөтүүдөн баш тартуу");
+    await fireEvent.press(button);
+    expect(lastAlert().title).toBe("Бүтпөгөн аракеттен баш тартасызбы?");
+    expect(lastAlert().body).toContain("топтомдун дагы бир версиясын");
   });
 });

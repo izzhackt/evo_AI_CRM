@@ -119,6 +119,16 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
   // уход перехватывается и спрашивает подтверждение; жест закрыт, и экран закрывается через flush.
   const navigation = useNavigation();
   const scroller = useRef<ScrollTarget>(null);
+  // Страница одна и та же прокрутка, а содержимое под ней меняется: «Перед началом» длиннее первого задания, и студент жмёт «Начать»,
+  // долистав до кнопки (QA 23, D3). Так же итог открывается сверху, а не с низа последнего задания, и «Пройти ещё раз» возвращает к началу.
+  // Смена задания внутри теста сбрасывает прокрутку сама (`Runner`). Сброс при смене стадии, а не фазы: `running` и `finishing` одна стадия.
+  const stage = phase === "result" ? "result" : running ? "runner" : "intro";
+  const shownStage = useRef(stage);
+  useEffect(() => {
+    if (shownStage.current === stage) return;
+    shownStage.current = stage;
+    scroller.current?.scrollTo({ y: 0, animated: false });
+  }, [stage]);
   const [leaving, setLeaving] = useState<Parameters<typeof navigation.dispatch>[0] | null>(null);
   usePreventRemove(running && leaving === null, ({ data }) => confirmLeave(session, () => setLeaving(data.action), m));
   useEffect(() => {

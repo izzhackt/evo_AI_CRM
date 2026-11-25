@@ -1,6 +1,6 @@
 // Полоса шагов «Учёба»: вид по умолчанию не изменился (его держат тесты «как раньше», они же прошли на коде до правки),
 // а новые возможности включаются только явными свойствами: слова состояний, зона 44 pt, цельная полоса для длинных тестов.
-import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
+import { fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -149,6 +149,29 @@ describe("SegmentBar: зона нажатия 44 pt (G66)", () => {
     expect(onPress).toHaveBeenCalledWith(4);
   });
 
+  it("без onPress большая зона ничего не меняет: полоса только для показа выглядит ровно как без неё", async () => {
+    await render(
+      wrap(
+        <>
+          <SegmentBar testID="plain" states={FIVE} labels={labels} />
+          <SegmentBar testID="large" states={FIVE} labels={labels} largeTarget />
+        </>,
+      ),
+    );
+    const look = (id: string) => ({
+      row: flat(screen.getByTestId(id).props.style),
+      segments: within(screen.getByTestId(id))
+        .getAllByRole("image")
+        .map((segment) => ({ style: flat(segment.props.style), hitSlop: segment.props.hitSlop, bar: firstChildStyle(segment) })),
+    });
+    expect(look("large")).toEqual(look("plain"));
+    // И это именно прежний вид: ни поля, ни высоты 44, ни отключённых «кнопок» по 44 pt поверх соседей.
+    expect(look("large").row).toEqual({ flexDirection: "row", gap: 3 });
+    expect(look("large").segments).toHaveLength(5);
+    expect(look("large").segments[0]).toMatchObject({ style: { flex: 1 }, hitSlop: { top: 12, bottom: 12 } });
+    expect(within(screen.getByTestId("large")).queryAllByRole("button")).toHaveLength(0);
+  });
+
   it("слова и большая зона работают вместе", async () => {
     await render(wrap(<SegmentBar states={["ok", "current"]} labels={["Шаг 1", "Шаг 2"]} stateWords={{ ok: "верно", current: "текущее" }} onPress={jest.fn()} largeTarget />));
     const [first, second] = screen.getAllByRole("button");
@@ -185,7 +208,7 @@ describe("SegmentBar: цельная полоса для длинных тест
     const states: SegmentState[] = ["ok", "bad", "done", "current", "todo"];
     expect(answeredSegments(states)).toBe(3);
     expect(answeredSegments([])).toBe(0);
-    await render(wrap(<SegmentBar testID="bar" variant="continuous" states={states} />));
+    await render(wrap(<SegmentBar testID="bar" variant="continuous" states={states} summaryLabel="Ответили на 3 из 5" />));
     expect(screen.getByTestId("bar")).toHaveAccessibilityValue({ min: 0, max: 5, now: 3 });
     expect(firstChildStyle(screen.getByTestId("bar")).width).toBe("60%");
   });
@@ -205,12 +228,21 @@ describe("SegmentBar: цельная полоса для длинных тест
     expect(bar).toHaveAccessibleName("Ответили");
   });
 
+  it("название цельной полосы обязательно, а сегментам оно не нужно: это проверяет `npm run typecheck`", () => {
+    // Обе строки ниже не должны собираться. Если требование ослабят, `@ts-expect-error` сам станет ошибкой типов.
+    // @ts-expect-error нет summaryLabel у variant="continuous": читалка услышала бы безымянную полосу
+    const nameless = <SegmentBar variant="continuous" states={["done"]} />;
+    // @ts-expect-error summaryLabel бывает только у variant="continuous"
+    const stray = <SegmentBar states={["done"]} summaryLabel="Ответили на 1 из 1" />;
+    expect([nameless, stray]).toHaveLength(2);
+  });
+
   it("всё отвечено - заливка на всю ширину; пустой список не ломает полосу", async () => {
     await render(
       wrap(
         <>
-          <SegmentBar testID="full" variant="continuous" states={["done", "done"]} />
-          <SegmentBar testID="none" variant="continuous" states={[]} />
+          <SegmentBar testID="full" variant="continuous" states={["done", "done"]} summaryLabel="Ответили на 2 из 2" />
+          <SegmentBar testID="none" variant="continuous" states={[]} summaryLabel="Ответили на 0 из 0" />
         </>,
       ),
     );

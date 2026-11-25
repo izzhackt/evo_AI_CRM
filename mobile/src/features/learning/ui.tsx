@@ -94,30 +94,42 @@ export function segmentA11yLabel(label: string | undefined, state: SegmentState,
   return name ? `${name}, ${word}` : word;
 }
 
-export type SegmentBarProps = {
+type SegmentBarCommon = {
   states: readonly SegmentState[];
   onPress?: (i: number) => void;
   testID?: string;
   labels?: readonly string[];
-  /**
-   * `"segments"` (по умолчанию, вид и поведение прежние) - по сегменту на шаг. `"continuous"` - одна цельная полоса для
-   * длинных тестов (92 утверждения: сегмент в 1 pt нельзя ни нажать, ни услышать 92 раза). Как `<progress>` веба:
-   * читалка слышит один элемент с названием `summaryLabel` и долей; перехода по шагам нет, `onPress` и `labels`
-   * игнорируются.
-   */
-  variant?: "segments" | "continuous";
   /** Слова состояний: к подписи сегмента добавляется слово («Задание 3 из 12, верно»). Текущему шагу ставится `selected`. */
   stateWords?: SegmentStateWords;
-  /** Зона нажатия сегмента 44 pt вместо прежних 30 pt (HIG, WCAG 2.5.8); вид и место полосы на экране те же. */
+  /**
+   * Зона нажатия сегмента 44 pt вместо прежних 30 pt (HIG, WCAG 2.5.8), рамка фокуса читалки тоже 44 pt; вид полосы и её
+   * место в раскладке те же. Действует только вместе с `onPress`: у полосы только для показа (без `onPress`) свойство
+   * ничего не меняет, иначе невидимые отключённые элементы по 44 pt перехватывали бы касания того, что лежит под ними.
+   *
+   * Правило: сверху и снизу от такой полосы держите не меньше 19 pt свободного места. Зона заходит за полосу на
+   * (44 - 6) / 2 = 19 pt, а в пересечении касание достаётся тому из соседей, кто нарисован позже: кнопка ближе 19 pt над
+   * полосой теряла бы касания, а элемент ближе 19 pt под ней перекрывал бы часть полосы.
+   */
   largeTarget?: boolean;
-  /** Название цельной полосы для читалки («Ответили на 12 из 92»). Только для `"continuous"`. */
-  summaryLabel?: string;
 };
 
+/** Полоса сегментов: по элементу на шаг. Вид и поведение прежние, пока не включены `stateWords` и `largeTarget`. */
+type SegmentsBarProps = SegmentBarCommon & { variant?: "segments"; summaryLabel?: undefined };
+
+/**
+ * Цельная полоса для длинных тестов (92 утверждения: сегмент в 1 pt нельзя ни нажать, ни услышать 92 раза). Как
+ * `<progress>` веба: читалка слышит один элемент с названием `summaryLabel` и долей; перехода по шагам нет, `onPress`,
+ * `labels`, `stateWords` и `largeTarget` игнорируются. Название обязательно: без него читалка услышит безымянную полосу.
+ */
+type ContinuousBarProps = SegmentBarCommon & { variant: "continuous"; summaryLabel: string };
+
+export type SegmentBarProps = SegmentsBarProps | ContinuousBarProps;
+
 /** Полоса шагов (сегменты): готово / верно / неверно / текущий. Для длинных тестов - `variant="continuous"`. */
-export function SegmentBar({ states, onPress, testID, labels, variant = "segments", stateWords, largeTarget = false, summaryLabel }: SegmentBarProps) {
+export function SegmentBar(props: SegmentBarProps) {
+  const { states, onPress, testID, labels, stateWords, largeTarget = false } = props;
   const { tokens } = useTheme();
-  if (variant === "continuous") {
+  if (props.variant === "continuous") {
     const total = states.length;
     const answered = answeredSegments(states);
     return (
@@ -125,7 +137,7 @@ export function SegmentBar({ states, onPress, testID, labels, variant = "segment
         testID={testID}
         accessible
         accessibilityRole="progressbar"
-        accessibilityLabel={summaryLabel}
+        accessibilityLabel={props.summaryLabel}
         accessibilityValue={{ min: 0, max: Math.max(total, 1), now: answered }}
         style={{ height: PROGRESS_HEIGHT, borderRadius: tokens.radiusChip, backgroundColor: tokens.line, overflow: "hidden" }}
       >
@@ -133,11 +145,17 @@ export function SegmentBar({ states, onPress, testID, labels, variant = "segment
       </View>
     );
   }
-  // Зона нажатия 44 pt: сам Pressable высотой 44, полоса по центру. Отрицательное поле возвращает строке прежние 6 pt
-  // в раскладке, поэтому экран не сдвигается. `hitSlop` не годится: он не выходит за границы родителя (его высота 6 pt).
+  // Большая зона только у полосы с нажатиями: у полосы для показа она создала бы невидимые отключённые элементы по 44 pt,
+  // которые перехватывают касания соседей.
+  const large = largeTarget && onPress !== undefined;
+  // Зона нажатия 44 pt: сам Pressable высотой 44, полоса по центру. Не `hitSlop`: он расширяет только место касания
+  // пальцем (в RN 0.88 его читают лишь проверки попадания: Android `TouchTargetHelper`, iOS `hitTestEdgeInsets`), а
+  // рамка фокуса читалки (VoiceOver, TalkBack) и цель Switch Control и Voice Control остаются размером самого элемента,
+  // то есть 6 pt. Отрицательное поле возвращает строке прежние 6 pt в раскладке, экран не сдвигается; о соседях см. JSDoc
+  // `largeTarget`.
   const reach = (MIN_TARGET - SEGMENT_HEIGHT) / 2;
   return (
-    <View testID={testID} style={largeTarget ? { flexDirection: "row", gap: 3, marginVertical: -reach } : { flexDirection: "row", gap: 3 }}>
+    <View testID={testID} style={large ? { flexDirection: "row", gap: 3, marginVertical: -reach } : { flexDirection: "row", gap: 3 }}>
       {states.map((s, i) => {
         const bg = s === "ok" || s === "done" ? tokens.ok : s === "bad" ? tokens.error : s === "current" ? tokens.accent : tokens.line;
         return (
@@ -148,8 +166,8 @@ export function SegmentBar({ states, onPress, testID, labels, variant = "segment
             accessibilityLabel={segmentA11yLabel(labels?.[i], s, stateWords)}
             accessibilityState={stateWords && s === "current" ? { selected: true } : undefined}
             onPress={() => onPress?.(i)}
-            hitSlop={largeTarget ? undefined : { top: 12, bottom: 12 }}
-            style={largeTarget ? { flex: 1, minHeight: MIN_TARGET, justifyContent: "center" } : { flex: 1 }}
+            hitSlop={large ? undefined : { top: 12, bottom: 12 }}
+            style={large ? { flex: 1, minHeight: MIN_TARGET, justifyContent: "center" } : { flex: 1 }}
           >
             <View style={{ height: SEGMENT_HEIGHT, borderRadius: 3, backgroundColor: bg }} />
           </Pressable>

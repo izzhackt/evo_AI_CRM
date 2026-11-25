@@ -14,6 +14,7 @@ import { loadErrorKey, useFavorites, usePreparations } from "@/api/queries";
 import { FavoritesAll } from "@/features/home/FavoritesAll";
 import { nearestIntakeLine } from "@/features/home/HomeCards";
 import { go } from "@/features/portal/navigation";
+import { PendingPackagesLink } from "@/features/preparations/PendingPackagesLink";
 import { preparationHref } from "@/features/preparations/routes";
 import { RemotePhoto, universityUrls } from "@/features/universities/parts";
 import { useLang } from "@/i18n/LangProvider";
@@ -215,6 +216,8 @@ export function HomeList({
   return (
     <Card>
       <CardHead title={home.listHeading} />
+      {/* Оборванная отправка комплекта видна на любой вкладке списка, как в вебе (#1341). */}
+      <PendingPackagesLink />
       <Segmented<HomeListTab>
         value={tab}
         onChange={onTabChange}

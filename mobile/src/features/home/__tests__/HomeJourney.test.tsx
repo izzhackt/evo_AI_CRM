@@ -2,10 +2,10 @@
 // блоков, шапка с красными пятнами, прокрутка к текущему шагу, вход блоков по очереди.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
-import { AccessibilityInfo, Animated, ScrollView } from "react-native";
+import { AccessibilityInfo, Animated, Dimensions, ScrollView } from "react-native";
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { cardEdge, journeyEdges } from "@/features/admission/JourneySection";
+import { PIN_MAX_SHARE, cardEdge, journeyEdges, rowPinned } from "@/features/admission/JourneySection";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { lightTokens } from "@/theme/tokens.generated";
 import { setReducedMotionForTests } from "@/ui/motion";
@@ -42,17 +42,17 @@ afterEach(() => {
 });
 
 describe("строка текущего шага закрепляется у верха", () => {
-  it("свёрнутый путь: шапка, закреплённая строка и закреплённый нулевой блок за картой пути, дальше блоки экрана", async () => {
+  it("свёрнутый путь (по умолчанию у всех): строка шага НЕ закреплена и нулевого блока нет, под ней сразу блоки экрана", async () => {
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("slot-news");
     const { ids, sticky } = scrollBlocks();
-    expect(ids.slice(0, 3)).toEqual(["home-screen", "journey-now-row", "journey-end"]);
-    expect(sticky).toEqual([1, 2]);
-    expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]);
-    // блок за путём невидим и не занимает места: он только выталкивает строку, когда карточка пути кончается
-    const end = screen.getByTestId("journey-end", { includeHiddenElements: true });
-    expect(flat(end).height).toBe(0);
+    // Закреплять нечего: карточка пути кончается этой строкой. А закреплённая свёрнутая строка не отпускалась (React Native
+    // отпускает блок, только если `nextHeaderLayoutY - layoutHeight >= layoutY`: у свёрнутого пути обе стороны равны, решает
+    // округление) и закрывала карточки «Мой список» и «Ближайшие даты».
+    expect(ids.slice(0, 2)).toEqual(["home-screen", "journey-now-row"]);
+    expect(ids).not.toContain("journey-end");
+    expect(sticky).toEqual([]);
   });
 
   it("раскрытый путь: шаги стоят между строкой и нулевым блоком, закрепление охватывает их", async () => {
@@ -63,6 +63,76 @@ describe("строка текущего шага закрепляется у в�
     const { ids, sticky } = scrollBlocks();
     expect(ids.slice(0, 4)).toEqual(["home-screen", "journey-now-row", "journey-body", "journey-end"]);
     expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]);
+  });
+
+  it("свернуть раскрытый путь снимает закрепление, раскрыть - возвращает его", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    expect(scrollBlocks().sticky).toHaveLength(2);
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    expect(scrollBlocks().sticky).toEqual([]);
+    expect(scrollBlocks().ids).not.toContain("journey-end");
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    expect(scrollBlocks().sticky).toHaveLength(2);
+  });
+
+  it("между закреплённой строкой и нулевым блоком стоят шаги: React Native отпускает строку по строгому неравенству, а не по равенству", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    const { ids, sticky } = scrollBlocks();
+    const [row, end] = sticky;
+    // тело шагов между ними: `nextHeaderLayoutY - layoutHeight` больше `layoutY` на высоту тела, а не равно ему
+    expect(end - row).toBeGreaterThan(1);
+    expect(ids.slice(row, end + 1)).toEqual(["journey-now-row", "journey-body", "journey-end"]);
+  });
+
+  describe("крупный шрифт: строка выше 40% экрана не закрепляется", () => {
+    const WINDOW = { width: 402, height: 874, scale: 3, fontScale: 1 };
+    beforeEach(() => {
+      jest.spyOn(Dimensions, "get").mockReturnValue(WINDOW);
+    });
+
+    async function openedPath() {
+      const { transport } = fakeTransport(homeHandlers("MY"));
+      await renderPortal(<HomeScreen />, testApi(transport));
+      await fireEvent.press(await screen.findByTestId("journey-fold"));
+      await screen.findByTestId("journey-body");
+    }
+
+    it("строка 374 pt на экране 874 pt (43%, iPhone Dynamic Type Accessibility Large): не закреплена, шаги и карточки под ней читаются", async () => {
+      await openedPath();
+      expect(scrollBlocks().sticky).toHaveLength(2); // до первой раскладки высота неизвестна: закреплена
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(374));
+      await waitFor(() => expect(scrollBlocks().sticky).toEqual([]));
+      expect(scrollBlocks().ids).not.toContain("journey-end");
+      expect(screen.getByTestId("journey-body")).toBeTruthy(); // путь по-прежнему раскрыт
+    });
+
+    it("строка 340 pt (39%): закреплена; ровно 40% (349,6 pt) - ещё закреплена, чуть больше - нет", async () => {
+      await openedPath();
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(340));
+      expect(scrollBlocks().sticky).toHaveLength(2);
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(WINDOW.height * 0.4));
+      expect(scrollBlocks().sticky).toHaveLength(2);
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(WINDOW.height * 0.4 + 1));
+      await waitFor(() => expect(scrollBlocks().sticky).toEqual([]));
+    });
+
+    it("после смены раскладки строка снова невысокая - закрепление возвращается; доли пикселя его не дёргают", async () => {
+      await openedPath();
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(374));
+      await waitFor(() => expect(scrollBlocks().sticky).toEqual([]));
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(374.3));
+      expect(scrollBlocks().sticky).toEqual([]);
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(120));
+      await waitFor(() => expect(scrollBlocks().sticky).toHaveLength(2));
+    });
   });
 
   it("без прогресса (approved) строки шага нет, закреплять нечего", async () => {
@@ -83,6 +153,30 @@ describe("строка текущего шага закрепляется у в�
     expect(ids[0]).toBe("home-screen");
     expect(ids).not.toContain("journey-now-row");
     expect(sticky).toEqual([]);
+  });
+});
+
+describe("правило закрепления строки шага", () => {
+  const base = { hasStrip: true, folded: false, rowHeight: 120, viewportHeight: 874 };
+
+  it("закрепляется только у раскрытого пути и невысокой строки", () => {
+    expect(rowPinned(base)).toBe(true);
+    expect(rowPinned({ ...base, folded: true })).toBe(false); // свёрнутый путь: закреплять нечего
+    expect(rowPinned({ ...base, hasStrip: false })).toBe(false); // строки нет
+    expect(rowPinned({ ...base, rowHeight: 374 })).toBe(false); // 43% экрана
+  });
+
+  it("порог - доля экрана, ровно на пороге закреплена", () => {
+    expect(PIN_MAX_SHARE).toBe(0.4);
+    expect(rowPinned({ ...base, rowHeight: 874 * PIN_MAX_SHARE })).toBe(true);
+    expect(rowPinned({ ...base, rowHeight: 874 * PIN_MAX_SHARE + 0.01 })).toBe(false);
+    expect(rowPinned({ ...base, rowHeight: 300, viewportHeight: 600 })).toBe(false); // тот же рост на низком экране
+  });
+
+  it("высота строки или экрана ещё неизвестна (0, NaN) - закреплена: до первой раскладки решать нечем", () => {
+    expect(rowPinned({ ...base, rowHeight: 0 })).toBe(true);
+    expect(rowPinned({ ...base, viewportHeight: 0 })).toBe(true);
+    expect(rowPinned({ ...base, rowHeight: Number.NaN })).toBe(true);
   });
 });
 

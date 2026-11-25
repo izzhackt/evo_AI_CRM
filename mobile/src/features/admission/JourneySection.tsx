@@ -139,6 +139,8 @@ export function useJourney({
   const { folded, setFolded } = useFolded(true, userKey);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  // Высота строки шага: от неё зависит, закреплять ли её (`rowPinned`), поэтому это состояние, а не только запись в `layouts`.
+  const [nowHeight, setNowHeight] = useState(0);
   // Фото, которое не загрузилось: шапка остаётся тёмной плашкой, «©» не к чему.
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const layouts = useRef<Layouts>({ body: 0, list: 0, now: 0, steps: {} });
@@ -191,8 +193,11 @@ export function useJourney({
     failedPhoto,
     setFailedPhoto,
     jumpToCurrent,
+    nowHeight,
     onNowLayout: (height: number) => {
       layouts.current.now = height;
+      // Доли пикселя при пересчёте раскладки не считаются изменением: иначе строка могла бы мигать закреплением.
+      setNowHeight((previous) => (Math.abs(previous - height) < 0.5 ? previous : height));
     },
     onBodyLayout: (y: number) => {
       layouts.current.body = y;
@@ -247,6 +252,30 @@ export function journeyEdges(journey: Pick<Journey, "strip" | "folded">): Readon
   const hasNow = journey.strip !== null;
   const hasBody = !journey.folded;
   return { head: hasNow || hasBody ? "first" : "only", now: hasBody ? "middle" : "last", body: "last" };
+}
+
+/**
+ * Какую долю высоты экрана строка шага может занимать, оставаясь закреплённой. При крупном шрифте системы (iPhone, Dynamic Type
+ * «Accessibility») строка выше трети экрана: закреплённая, она закрывала бы почти половину и мешала читать карточки под ней.
+ */
+export const PIN_MAX_SHARE = 0.4;
+
+/**
+ * Закреплять ли строку шага у верха экрана (веб: `position: sticky` у `.pt-journey-now` внутри карточки пути).
+ *
+ * - Путь свёрнут - нет. Под строкой нечего прокручивать: карточка пути кончается ею же, и у веба закреплять негде. Главное: React
+ *   Native отпускает закреплённый блок, только если `nextHeaderLayoutY - layoutHeight >= layoutY` (ScrollViewStickyHeader). У
+ *   свёрнутого пути нулевой блок `JourneyEnd` стоит ровно у нижнего края строки, обе стороны РАВНЫ, и результат решают
+ *   округления float32: на одних устройствах и размерах шрифта строка отпускалась, на других (Android по умолчанию, iPhone
+ *   Accessibility Large и Extra Large) оставалась на экране навсегда и закрывала карточки. Раскрытый путь надёжен: между
+ *   строкой и `JourneyEnd` стоит тело шагов высотой в сотни пунктов, неравенство строгое.
+ * - Строка занимает больше `PIN_MAX_SHARE` экрана - нет (крупный шрифт).
+ * - Высота строки или экрана ещё неизвестна (0) - закрепляем: до первой раскладки решать нечем.
+ */
+export function rowPinned(input: Readonly<{ hasStrip: boolean; folded: boolean; rowHeight: number; viewportHeight: number }>): boolean {
+  if (!input.hasStrip || input.folded) return false;
+  if (!(input.rowHeight > 0) || !(input.viewportHeight > 0)) return true;
+  return input.rowHeight <= input.viewportHeight * PIN_MAX_SHARE;
 }
 
 /** «Все шаги» / «Свернуть»: весь путь сворачивается в строку текущего шага (веб, 08.11.2026). */
@@ -382,6 +411,7 @@ export function JourneyHead({
  * «Все шаги» в её конце; дело завершено или закрыто - «Поступление завершено» без полосы. Текущий шаг всегда на виду
  * при прокрутке пути (веб, 08.11.2026: `position: sticky`): в списке экрана это закреплённый блок, его толкает вверх
  * следующий закреплённый блок - `JourneyEnd`, стоящий сразу за путём, поэтому закрепление не выходит за карточку пути.
+ * Закрепляется только у раскрытого пути и невысокой строки (`rowPinned`); у свёрнутого пути строка обычный блок карточки.
  * Корневой элемент берёт `style` от списка (ScrollView переносит стиль на обёртку закреплённого блока).
  */
 export function JourneyNow({ journey, edge, style }: { journey: Journey; edge: Edge; style?: StyleProp<ViewStyle> }) {

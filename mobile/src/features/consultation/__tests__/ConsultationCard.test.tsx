@@ -1,6 +1,8 @@
 // «Запись на консультацию» в приложении (G14 аудита паритета 25.11.2026, решение владельца D1). Настоящий сервер не вызывается:
 // RPC `own_portal_consultation_requests_v1` и `create_portal_consultation_request_v1` отвечают поддельным транспортом.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { useState } from "react";
+import { Pressable, Text as RNText } from "react-native";
 
 import { ConsultationCard } from "@/features/consultation/ConsultationCard";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -9,6 +11,7 @@ import { failure, fakeTransport } from "@/test-fixtures/universities";
 const R1 = "11111111-1111-4111-8111-111111111111";
 const R2 = "22222222-2222-4222-8222-222222222222";
 const INSTITUTION = "33333333-3333-4333-8333-333333333333";
+const OTHER_INSTITUTION = "44444444-4444-4444-8444-444444444444";
 
 const receipt = (over: Record<string, unknown> = {}) => ({
   requestId: R1,
@@ -176,7 +179,9 @@ describe("карточка «Консультация» в «Профиле»", 
       },
     });
     await renderPortal(<ConsultationCard />, testApi(transport));
-    expect(await screen.findByText("Не удалось загрузить запросы. Обновите страницу.")).toBeTruthy();
+    // слово приложения, а не веба «Обновите страницу»: рядом кнопка «Повторить»
+    expect(await screen.findByText("Не удалось загрузить запросы. Повторите.")).toBeTruthy();
+    expect(screen.queryByText(/Обновите страницу/)).toBeNull();
     expect(screen.queryByTestId("consult-cta")).toBeNull();
     await fireEvent.press(screen.getByText("Повторить"));
     expect(await screen.findByTestId("consult-cta")).toBeTruthy();
@@ -229,5 +234,65 @@ describe("запрос на странице вуза (variant=university)", () 
     await renderPortal(<ConsultationCard variant="university" institutionId={INSTITUTION} />, testApi(transport, { tier: "approved" }));
     expect(await screen.findByTestId("consult-cta")).toBeTruthy();
     expect(screen.queryByTestId("consult-history-error")).toBeNull();
+  });
+});
+
+// Рецензия #1568: идентификатор запроса привязан к вузу. База отвечает на уже виденный `p_request_id` прежней строкой и остальные
+// аргументы не читает (миграция 197): повтор с тем же id и другим вузом был бы молча записан на прежний вуз.
+describe("идентификатор запроса и вуз", () => {
+  /** Один и тот же экземпляр карточки получает другой вуз (без `key`): так бывает, пока страница не поставила `key={institutionId}`. */
+  function Switch() {
+    const [institution, setInstitution] = useState(INSTITUTION);
+    return (
+      <>
+        <Pressable testID="switch-institution" onPress={() => setInstitution(institution === INSTITUTION ? OTHER_INSTITUTION : INSTITUTION)}>
+          <RNText>{institution}</RNText>
+        </Pressable>
+        <ConsultationCard variant="university" institutionId={institution} initialOpenRequest={null} />
+      </>
+    );
+  }
+
+  it("после сбоя другой вуз: новый p_request_id и новый вуз в запросе, старый вуз не получает чужую заметку", async () => {
+    const { transport, calls } = fakeTransport({ create_portal_consultation_request_v1: failure("XX000", 500) });
+    await renderPortal(<Switch />, testApi(transport, { tier: "approved" }));
+    await fireEvent.press(await screen.findByTestId("consult-cta"));
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await screen.findByTestId("consult-error");
+    await fireEvent.press(screen.getByTestId("switch-institution"));
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await waitFor(() => expect(writes(calls)).toHaveLength(2));
+    const [first, second] = writes(calls);
+    expect(first?.args?.p_institution_id).toBe(INSTITUTION);
+    expect(second?.args?.p_institution_id).toBe(OTHER_INSTITUTION);
+    expect(second?.args?.p_request_id).not.toBe(first?.args?.p_request_id);
+  });
+
+  it("тот же вуз после сбоя: повтор шлёт тот же p_request_id", async () => {
+    const { transport, calls } = fakeTransport({ create_portal_consultation_request_v1: failure("XX000", 500) });
+    await renderPortal(<Switch />, testApi(transport, { tier: "approved" }));
+    await fireEvent.press(await screen.findByTestId("consult-cta"));
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await screen.findByTestId("consult-error");
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await waitFor(() => expect(writes(calls)).toHaveLength(2));
+    expect(writes(calls)[1]?.args?.p_request_id).toBe(writes(calls)[0]?.args?.p_request_id);
+    expect(writes(calls)[1]?.args?.p_institution_id).toBe(INSTITUTION);
+  });
+
+  it("вернулись к первому вузу после второго: идентификатор снова новый, а не чужой старый", async () => {
+    const { transport, calls } = fakeTransport({ create_portal_consultation_request_v1: failure("XX000", 500) });
+    await renderPortal(<Switch />, testApi(transport, { tier: "approved" }));
+    await fireEvent.press(await screen.findByTestId("consult-cta"));
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await screen.findByTestId("consult-error");
+    await fireEvent.press(screen.getByTestId("switch-institution"));
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await waitFor(() => expect(writes(calls)).toHaveLength(2));
+    await fireEvent.press(screen.getByTestId("switch-institution"));
+    await fireEvent.press(screen.getByTestId("consult-submit"));
+    await waitFor(() => expect(writes(calls)).toHaveLength(3));
+    const ids = writes(calls).map((call) => call.args?.p_request_id);
+    expect(new Set(ids).size).toBe(3);
   });
 });

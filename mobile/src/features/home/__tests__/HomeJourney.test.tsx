@@ -400,6 +400,113 @@ describe("«Шаг N из M» ведёт к текущему шагу", () => {
   });
 });
 
+describe("«Свернуть» возвращает экран к карточке пути", () => {
+  // QA 25.11.2026: «Свернуть» на закреплённой строке глубоко в пути оставляло прежний сдвиг прокрутки, и экран оказывался на ~1500 pt
+  // ниже карточки: шаги под строкой пропали, а сдвиг остался. Ревью: у самого верха страницы (карточка на 16 pt ниже края) возврат
+  // сдвигал страницу на эти 16 pt, поэтому возвращаем только когда экран ниже верха карточки.
+  /** Сообщить карточке пути её место на экране: до того, как путь отрисован, на её месте стоит плашка без `onLayout`. */
+  async function placeCard(y: number) {
+    await screen.findByTestId("journey");
+    await fireEvent(screen.getByTestId("home-screen"), "layout", layout(420, y));
+  }
+  /** Прокрутка списка: верх окна стоит на `y` пунктов от начала содержимого. */
+  const scrollTop = (y: number) => fireEvent.scroll(screen.getByTestId("screen-scroll"), { nativeEvent: { contentOffset: { y } } });
+
+  it("свернули глубоко в пути - экран сразу, без анимации, встаёт на верх карточки; раскрытие экран не двигает", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await placeCard(24);
+    await fireEvent.press(await screen.findByTestId("journey-fold")); // раскрыли весь путь
+    await screen.findByTestId("journey-body");
+    expect(scrollTo).not.toHaveBeenCalled();
+    await scrollTop(1500); // ушли вглубь пути
+    await fireEvent.press(screen.getByTestId("journey-fold")); // свернули со строки шага
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ y: 24, animated: false });
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    // и снова раскрыли: прокрутки нет
+    scrollTo.mockClear();
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("у самого верха страницы «Свернуть» её не двигает: на верху карточки и выше (в том числе отрицательный сдвиг iPhone) прокрутки нет", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await placeCard(16); // верх карточки на 16 pt: боковой отступ содержимого
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    const foldAt = async (y: number) => {
+      await scrollTop(y);
+      scrollTo.mockClear();
+      await fireEvent.press(screen.getByTestId("journey-fold")); // свернуть
+      const called = scrollTo.mock.calls.length;
+      await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+      await fireEvent.press(screen.getByTestId("journey-fold")); // раскрыть обратно для следующего прогона
+      await screen.findByTestId("journey-body");
+      return called;
+    };
+    expect(await foldAt(0)).toBe(0); // страница у самого верха: двигать нечего
+    expect(await foldAt(-30)).toBe(0); // «резинка» iPhone: сдвиг отрицательный
+    expect(await foldAt(16)).toBe(0); // ровно на верху карточки
+    expect(await foldAt(16.5)).toBe(1); // чуть ниже карточки: возвращаем
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 16, animated: false });
+  });
+
+  it("верх карточки выше края (минус от раскладки): возврат не уходит в минус", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await placeCard(-3);
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await scrollTop(300);
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+  });
+
+  it("место карточки ещё не известно (раскладки не было): путь сворачивается без прокрутки", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await scrollTop(300);
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("положение прокрутки не знают, пока список не прокручивали: считается верх страницы, прокрутки нет", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await placeCard(24);
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await fireEvent.press(screen.getByTestId("journey-fold")); // событий прокрутки не было
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("«Свернуть» в шапке (без строки шага, approved) тоже возвращает к карточке, если экран ниже неё", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport, { tier: "approved" }));
+    await placeCard(8);
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await scrollTop(300);
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 8, animated: false });
+  });
+
+  it("список сообщает положение прокрутки: событие каждые 16 мс, обработчик только у экрана, которому он нужен", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const scroll = await screen.findByTestId("screen-scroll");
+    expect(scroll.props.scrollEventThrottle).toBe(16);
+    expect(typeof scroll.props.onScroll).toBe("function");
+  });
+});
+
 describe("блоки входят по очереди", () => {
   it("дело, даты, «Мой список», «Что нового», CSCA - с шагом stagger; задача EVO не входит; блок скрыт до своей очереди", async () => {
     setReducedMotionForTests(false);

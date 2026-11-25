@@ -146,7 +146,7 @@ describe("требования", () => {
     expect(within(block).getByText("Срок документа")).toBeTruthy();
     expect(within(block).getByText("31.12.2026, 23:59 (Asia/Bishkek)")).toBeTruthy();
     expect(within(block).getByText("Срок проверен: 01.11.2026")).toBeTruthy();
-    await fireEvent.press(screen.getByTestId(`prep-deadline-source-${itemId(0)}`));
+    await fireEvent.press(screen.getByTestId(`prep-deadline-${itemId(0)}-source`));
     expect(spy).toHaveBeenCalledWith("https://example.org/rules");
     expect(screen.getByText("Источник срока (откроется в браузере)")).toBeTruthy();
     spy.mockRestore();
@@ -157,7 +157,7 @@ describe("требования", () => {
     await open(handlers(readiness(requirements([requirementItem(0, { deadline, definitionImpact: "changed" })]))));
     const block = await screen.findByTestId(`prep-deadline-${itemId(0)}`);
     expect(within(block).getByText("31.12.2026")).toBeTruthy();
-    expect(screen.queryByTestId(`prep-deadline-source-${itemId(0)}`)).toBeNull();
+    expect(screen.queryByTestId(`prep-deadline-${itemId(0)}-source`)).toBeNull();
     expect(screen.getByTestId(`prep-changed-${itemId(0)}`)).toHaveTextContent("Требование изменилось.", { exact: false });
   });
 

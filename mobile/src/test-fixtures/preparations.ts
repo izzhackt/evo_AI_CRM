@@ -218,3 +218,84 @@ export function initializeReceipt(requestId: string): Raw {
     items: [0, 1].map((index) => ({ requirementItemId: itemId(index), requirementKey: ["evo.photo.v1", "evo.passport.v1"][index], documentSlotId: slotId(index) })),
   };
 }
+
+/** Определение требования внутри записи истории (`ApplicationDocumentDefinition`). */
+export function definitionOf(index: number, over: Raw = {}): Raw {
+  return {
+    requirementKey: `admission.item${index + 1}.v1`,
+    required: true,
+    label: `Требование ${index + 1}`,
+    groupLabel: "Основные документы",
+    instructions: `Инструкция к требованию ${index + 1}.`,
+    deadline: null,
+    documentSlotId: slotId(index),
+    ...over,
+  };
+}
+
+/** Запись истории «сохранён файл». */
+export function historyUpload(index: number, n: number, createdAt = "2026-10-07T09:55:00+00:00", over: Raw = {}): Raw {
+  const upload = draftOf(index, n);
+  return {
+    id: uploadId(n),
+    kind: "upload",
+    createdAt,
+    requirementsRevisionId: REVISION_ID,
+    requirementItemId: itemId(index),
+    definition: definitionOf(index),
+    materialSnapshot: null,
+    upload,
+    submission: null,
+    ...over,
+  };
+}
+
+/** Запись истории «отправлено на проверку». */
+export function historySubmission(index: number, n: number, review: Raw | null = null, createdAt = "2026-10-07T10:05:00+00:00", over: Raw = {}): Raw {
+  return {
+    id: submissionId(n),
+    kind: "submission",
+    createdAt,
+    requirementsRevisionId: REVISION_ID,
+    requirementItemId: itemId(index),
+    definition: definitionOf(index),
+    materialSnapshot: null,
+    upload: null,
+    submission: submissionOf(index, n, review),
+    ...over,
+  };
+}
+
+/** Страница истории документов (по требованию или по всей программе). События от новых к старым. */
+export function historyPage(events: Raw[], requirementItemId: string | null, nextCursor: Raw | null = null): Raw {
+  return { protocolVersion: 1, studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID, requirementItemId, events, nextCursor };
+}
+
+/** Прежняя версия файла, которую можно отправить снова. */
+export function reusableVersion(n: number, fileOver: Raw = {}): Raw {
+  return { selection: { kind: "existing_version", documentVersionId: versionId(n) }, file: documentFile(n, fileOver) };
+}
+
+/** Страница сохранённых файлов требования. Версии от новых к старым. */
+export function versionsPage(index: number, versions: Raw[], nextCursor: Raw | null = null): Raw {
+  return { protocolVersion: 1, studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID, requirementItemId: itemId(index), versions, nextCursor };
+}
+
+/** Квитанция `submit_application_document_v1` на запрос `requestId`. */
+export function submitReceipt(index: number, requestId: string, documentVersionId: string, over: Raw = {}): Raw {
+  return {
+    protocolVersion: 1,
+    studentCaseId: STUDENT_CASE_ID,
+    applicationId: APPLICATION_ID,
+    requirementsRevisionId: REVISION_ID,
+    requirementItemId: itemId(index),
+    documentSlotId: slotId(index),
+    requestId,
+    submissionId: submissionId(90),
+    documentVersionId,
+    versionNo: "1",
+    submittedAt: "2026-10-26T10:00:00+00:00",
+    reused: false,
+    ...over,
+  };
+}

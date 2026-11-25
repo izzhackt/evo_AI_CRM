@@ -2,17 +2,21 @@
 // которые нужны для неё, с состоянием файла и решением EVO. Экран читает `student_catalog_preparations_v1` (общий
 // запрос «Мои программы») и `application_package_readiness_v1`; единственная запись здесь - «Открыть список документов»
 // (`student_initialize_application_requirements_v1`), только для дела на сопровождении и программы «Собираем документы».
-// Файлы, комплект и незавершённые отправки добавляют следующие PR этого среза (G36-G38).
+// Файл к требованию (загрузка, отправка на проверку, сохранённые версии, история) идёт через `PreparationProvider`;
+// комплект программы и восстановление прерванных отправок комплекта добавляет следующий PR этого среза (G37, G38).
 import { universityUuid } from "@web/lib/platform-university-catalog";
 import type { ApplicationRequirementsIntent } from "@web/lib/portal/application-requirements";
 import { randomUUID } from "expo-crypto";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { useApplicationReadiness } from "@/api/preparations-queries";
 import { initializeApplicationRequirements } from "@/api/preparations-writes";
 import { loadErrorKey, usePreparations, useRefetchOnFocus } from "@/api/queries";
+import { PreparationProvider } from "@/features/preparations/context";
+import { useDocumentStrings } from "@/features/preparations/document-strings";
+import { nativePreparationIo, type PreparationIo } from "@/features/preparations/io";
 import { PreparationHeader } from "@/features/preparations/PreparationHeader";
 import { RequirementsSection, type RequirementsBusy } from "@/features/preparations/RequirementsSection";
 import { PROGRAMS_LIST_ROUTE, canInitializeRequirements } from "@/features/preparations/model";
@@ -45,26 +49,28 @@ function NotFound() {
   );
 }
 
-export function PreparationScreen({ applicationId: raw }: { applicationId: string }) {
+export function PreparationScreen({ applicationId: raw, io = nativePreparationIo }: { applicationId: string; io?: PreparationIo }) {
   // Как веб: `universityUuid(route.applicationId)?.toLowerCase() ?? notFound()`.
   const applicationId = universityUuid(String(raw ?? ""))?.toLowerCase() ?? null;
   // Экран один на все программы (`preparations/_layout.tsx`): другая программа приходит новым параметром, и ключ начинает
   // её с чистого состояния (текст ошибки и запрос прежней программы к ней не относятся).
-  return applicationId === null ? <NotFound /> : <PreparationBody key={applicationId} applicationId={applicationId} />;
+  return applicationId === null ? <NotFound /> : <PreparationBody key={applicationId} applicationId={applicationId} io={io} />;
 }
 
-function PreparationBody({ applicationId }: { applicationId: string }) {
+function PreparationBody({ applicationId, io }: { applicationId: string; io: PreparationIo }) {
   const { lang, m, t } = useLang();
   const strings = t("preparations");
-  const documentStrings = t("programDocuments");
+  const documentStrings = useDocumentStrings();
   const universityStrings = t("universities");
-  const { transport, studentCaseId, tier, canSelectPrograms } = usePortalApi();
+  const { transport, studentCaseId, organizationId, membershipId, tier, canSelectPrograms } = usePortalApi();
   useRefetchOnFocus();
   const preparations = usePreparations();
   const saved = preparations.data?.find((item) => item.applicationId === applicationId) ?? null;
   const readiness = useApplicationReadiness(applicationId, saved !== null);
   const [busy, setBusy] = useState<RequirementsBusy>(null);
   const [error, setError] = useState<RequirementsErrorKey | null>(null);
+  // Растёт при каждом обновлении: истории перечитываются, а не показывают прежние страницы (веб: `historyEpoch`).
+  const [epoch, setEpoch] = useState(0);
   const lock = useRef(false);
   // Замороженный запрос «Открыть список документов» живёт в памяти экрана, а не в хранилище телефона. Это безопасно: сервер
   // повторяет квитанцию на тот же `requestId`, а новый `requestId` после потери прежнего не создаёт второй список (если список
@@ -92,10 +98,17 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
   const stale = readiness.isError && documents !== null;
   const errorText = useCallback((key: RequirementsErrorKey) => (key === "prep.forbidden" ? m("prep.forbidden") : strings[key]), [m, strings]);
 
+  /**
+   * `announceSuccess`: сказать читалке об удачной проверке. После действия с документом (`onSaved`) этого не нужно: его итог
+   * («Документ отправлен на проверку») уже сказан, и второе сообщение перебило бы первое. Ошибки озвучиваются всегда.
+   */
   const update = useCallback(
-    async (initialize: boolean) => {
+    async (initialize: boolean, announceSuccess = true) => {
       if (lock.current || saved === null) return;
       lock.current = true;
+      // Прежний ответ был: если чтение не удастся, он останется на экране с пометкой, и озвучить нужно её, а не «не загрузилось».
+      const hadAnswer = readiness.data !== undefined;
+      setEpoch((value) => value + 1);
       setBusy(initialize ? "initialize" : "read");
       setError(null);
       try {
@@ -114,7 +127,8 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
           newRequestId: randomUUID,
         });
         setError(outcome.error);
-        announce(outcome.error ? errorText(outcome.error) : m(outcome.initialized ? "prep.listOpened" : "prep.checked"));
+        if (outcome.error) announce(outcome.error === "requirementsUnavailable" && hadAnswer ? m("prep.stale") : errorText(outcome.error));
+        else if (announceSuccess) announce(m(outcome.initialized ? "prep.listOpened" : "prep.checked"));
       } finally {
         lock.current = false;
         setBusy(null);
@@ -123,6 +137,7 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
     [applicationId, canInitialize, errorText, m, readiness, saved, studentCaseId, transport],
   );
 
+  const scope = useMemo(() => ({ organizationId, membershipId, studentCaseId, applicationId }), [organizationId, membershipId, studentCaseId, applicationId]);
   const refresh = () => {
     void preparations.refetch();
     if (saved) void readiness.refetch();
@@ -159,7 +174,6 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
           staleNotice={stale ? { message: m("prep.stale"), retryLabel: m("gate.retry") } : null}
           loadingLabel={`${strings.requirements}. ${m("state.loading")}`}
           strings={strings}
-          documentStrings={documentStrings}
           onCheck={() => void update(false)}
           onInitialize={() => void update(true)}
           onOpenDocuments={isAllowed("documents", tier) ? () => go("/documents") : null}
@@ -170,10 +184,12 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
   }
   return (
     <Screen topInset={false} tabBar onRefresh={refresh} refreshing={preparations.isRefetching || readiness.isRefetching}>
-      <View style={{ gap: 16 }} testID="prep-screen">
-        <BackLink label={strings.back} />
-        {body}
-      </View>
+      <PreparationProvider value={{ scope, io, strings: documentStrings, onSaved: () => void update(false, false), epoch }}>
+        <View style={{ gap: 16 }} testID="prep-screen">
+          <BackLink label={strings.back} />
+          {body}
+        </View>
+      </PreparationProvider>
     </Screen>
   );
 }

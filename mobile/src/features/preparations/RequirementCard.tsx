@@ -1,28 +1,30 @@
-// Одно требование программы: название, «Обязательно / Необязательно», группа, инструкция, срок документа и состояние файла.
-// Веб: `Requirement` в `ApplicationRequirementsUI.tsx` (+ `ProgramDocumentItem`, его действия добавляет следующий PR).
-import { Linking, View } from "react-native";
+// Одно требование программы: название, «Обязательно / Необязательно», группа, инструкция, срок документа, причины недоступной
+// связи и документ (файл, загрузка, отправка, решение, история). Веб: `Requirement` в `ApplicationRequirementsUI.tsx`.
+import { View } from "react-native";
 
 import type { ApplicationDocumentItemState } from "@web/lib/portal/application-documents";
 import type { PortalStrings } from "@web/lib/portal/i18n";
 import type { ApplicationRequirementItemV2 } from "@web/lib/portal/application-requirements-v2";
 
-import { ItemDocumentState } from "@/features/preparations/ItemDocumentState";
-import { associationReasons, dottedDate, materialDeadlineLine } from "@/features/preparations/model";
-import { useLang } from "@/i18n/LangProvider";
-import { LinkButton } from "@/ui/CardParts";
+import { DeadlineBlock } from "@/features/preparations/DeadlineBlock";
+import { DocumentItem } from "@/features/preparations/DocumentItem";
+import { usePreparation } from "@/features/preparations/context";
+import { associationReasons } from "@/features/preparations/model";
 import { Card } from "@/ui/Screen";
 import { StatusPill } from "@/ui/StatusPill";
 import { Text } from "@/ui/Text";
 
-export function RequirementCard({ item, state, strings, documentStrings }: {
+export function RequirementCard({ item, state, revisionId, strings }: {
   item: ApplicationRequirementItemV2;
   state: ApplicationDocumentItemState;
+  /** Ревизия требований, по которой читался этот ответ: к ней привязаны загрузка и отправка. */
+  revisionId: string;
   strings: PortalStrings<"preparations">;
-  documentStrings: PortalStrings<"programDocuments">;
 }) {
-  const { m } = useLang();
+  const { scope, strings: documentStrings } = usePreparation();
   const unavailable = associationReasons(item);
   const { deadline } = item;
+  const target = { studentCaseId: scope.studentCaseId, applicationId: scope.applicationId, requirementsRevisionId: revisionId, requirementItemId: item.requirementItemId, documentSlotId: item.documentSlotId };
   return (
     <Card>
       <View style={{ gap: 8 }} testID={`prep-requirement-${item.requirementItemId}`}>
@@ -41,24 +43,7 @@ export function RequirementCard({ item, state, strings, documentStrings }: {
             {strings.definitionChanged}
           </Text>
         ) : null}
-        {deadline ? (
-          <View style={{ gap: 2 }} testID={`prep-deadline-${item.requirementItemId}`}>
-            <Text variant="caption" tone="text2" bold>
-              {strings.materialDeadline}
-            </Text>
-            <Text variant="data">{materialDeadlineLine(deadline)}</Text>
-            <Text variant="secondary" tone="text2">
-              {strings.deadlineVerified} {dottedDate(deadline.verifiedOn)}
-            </Text>
-            {deadline.sourceUrl ? (
-              <LinkButton
-                label={m("prep.deadlineSource")}
-                onPress={() => void Linking.openURL(deadline.sourceUrl ?? "").catch(() => undefined)}
-                testID={`prep-deadline-source-${item.requirementItemId}`}
-              />
-            ) : null}
-          </View>
-        ) : null}
+        {deadline ? <DeadlineBlock deadline={deadline} heading={strings.materialDeadline} verified={strings.deadlineVerified} sourceLabel={documentStrings.deadlineSource} testID={`prep-deadline-${item.requirementItemId}`} /> : null}
         {unavailable.length > 0 ? (
           <View style={{ gap: 2 }}>
             <Text variant="caption" tone="text2" bold>
@@ -72,7 +57,9 @@ export function RequirementCard({ item, state, strings, documentStrings }: {
           </View>
         ) : null}
       </View>
-      <ItemDocumentState state={state} strings={documentStrings} testID={`prep-document-${item.requirementItemId}`} />
+      <View style={{ borderTopWidth: 0 }}>
+        <DocumentItem label={item.label} state={state} target={target} />
+      </View>
     </Card>
   );
 }

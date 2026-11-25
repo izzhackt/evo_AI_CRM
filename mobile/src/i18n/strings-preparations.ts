@@ -19,6 +19,12 @@ export const PREPARATIONS_RU = {
   "prep.stale": "Не удалось обновить. Показаны последние полученные данные.",
   // Подпись пояса у времени: сайт пишет «(Бишкек)» одним словом на русском и на кыргызском (`ProgramDocumentTime`).
   "prep.timeZone": "(Бишкек)",
+  // --- G36: файлы программы (загрузка, отправка, сохранённые версии, история) ---
+  "prep.storageUnavailable": "Не удалось проверить незавершённое действие на этом телефоне. Повторите попытку позже.",
+  "prep.cleanupFailed": "Результат подтверждён, но телефон сохранил незавершённый запрос. Его можно проверить повторно.",
+  "prep.savedSendBusy": "Файл сохранён, но не отправлен: этот документ сейчас отправляется. Дождитесь результата и отправьте файл, если он не ушёл.",
+  "prep.progress": "Загружено {percent}%",
+  "prep.downloadAria": "Скачать файл: {name}",
 } as const;
 
 export type PreparationsStringKey = keyof typeof PREPARATIONS_RU;
@@ -31,4 +37,9 @@ export const PREPARATIONS_KY: Readonly<Record<PreparationsStringKey, string>> = 
   "prep.checked": "Документтердин абалы жаңыланды.", // KY: needs native proofreading
   "prep.stale": "Жаңыртуу мүмкүн болгон жок. Акыркы алынган маалымат көрсөтүлдү.", // KY: needs native proofreading
   "prep.timeZone": "(Бишкек)", // KY: то же слово, что на сайте (там оно одно для обоих языков)
+  "prep.storageUnavailable": "Бул телефондогу аякталбаган аракетти текшерүү мүмкүн болгон жок. Кийинчерээк кайра аракет кылыңыз.", // KY: needs native proofreading
+  "prep.cleanupFailed": "Натыйжа ырасталды, бирок телефон аякталбаган сурамды сактап калды. Аны кайра текшерсе болот.", // KY: needs native proofreading
+  "prep.savedSendBusy": "Файл сакталды, бирок жөнөтүлгөн жок: бул документ азыр жөнөтүлүп жатат. Натыйжаны күтүңүз, файл кетпесе, кайра жөнөтүңүз.", // KY: needs native proofreading
+  "prep.progress": "Жүктөлдү: {percent}%", // KY: needs native proofreading
+  "prep.downloadAria": "Файлды жүктөп алуу: {name}", // KY: needs native proofreading
 };

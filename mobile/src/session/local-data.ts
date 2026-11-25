@@ -4,6 +4,7 @@
 import { clearPerUserUiState } from "@/features/admission/useOpenSteps";
 import { clearDownloadCache } from "@/features/documents/download-cache";
 import { clearCscaUiState } from "@/features/learning/csca/ui-state";
+import { documentsPending } from "@/features/preparations/documents-pending";
 import { clearRegistrationLocalData } from "@/features/registration/draft-store";
 import { clearUniversityCaches } from "@/features/universities/cache";
 
@@ -15,6 +16,7 @@ const cleaners = new Set<Cleaner>([
   () => clearUniversityCaches(), // M4: копия каталога вузов на диске
   () => clearCscaUiState(), // M5: вкладка обзора CSCA по студенту
   () => clearRegistrationLocalData(), // M7: личная ссылка и черновики анкеты
+  () => documentsPending.clearAll(), // G36: незавершённые загрузки и отправки документов программы (имена файлов, отпечатки)
 ]);
 
 /** Добавить очистку; возвращает отмену регистрации. */

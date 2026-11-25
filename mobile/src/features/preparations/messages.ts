@@ -10,18 +10,25 @@ export function documentActionMessage(reason: string, strings: DocumentStrings):
   if (reason === "forbidden") return strings.forbidden;
   if (["stale_context", "request_conflict", "invalid", "case_ineligible", "application_ineligible"].includes(reason)) return strings.changed;
   if (["file_too_large", "unsupported_type"].includes(reason)) return strings.fileInvalid;
-  if (reason === "malware_detected") return strings.uploadFailed;
+  // `not_sent`: сбой до отправки (нет сессии, файл не скопировался): в сеть ничего не ушло, файл можно выбрать снова.
+  if (reason === "malware_detected" || reason === "not_sent") return strings.uploadFailed;
   if (reason === "storage_unavailable") return strings.storageUnavailable;
   return strings.unavailable;
 }
 
 type UploadFailure = Extract<UploadAndSubmitOutcome, { stage: "upload" }>["upload"];
 
+/** Тексты приложения, которых нет в словаре веба. */
+export type LocalMessages = Readonly<{ unreadable: string }>;
+
 /** Загрузка не состоялась. */
-export function uploadFailureMessage(outcome: UploadFailure | Exclude<UploadOutcome, { status: "uploaded" }>, strings: DocumentStrings): string {
+export function uploadFailureMessage(outcome: UploadFailure | Exclude<UploadOutcome, { status: "uploaded" }>, strings: DocumentStrings, local: LocalMessages): string {
   switch (outcome.status) {
     case "invalid_file":
       return strings.fileInvalid;
+    // Файл исчез или не открывается: это не «неверный формат», и повторный выбор может помочь.
+    case "unreadable":
+      return local.unreadable;
     case "wrong_file":
       return strings.wrongFile;
     case "rejected":

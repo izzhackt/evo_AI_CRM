@@ -52,6 +52,8 @@ export type PendingEntry<Operation extends string, Intent> = Readonly<{ operatio
 
 export type LockResult<T> = Readonly<{ acquired: true; value: T }> | Readonly<{ acquired: false; reason: "busy" | "storage_unavailable" }>;
 
+export type DiscardResult = Readonly<{ ok: true }> | Readonly<{ ok: false; reason: "busy" | "storage_unavailable" }>;
+
 function normalizeScope(scope: PendingScope): PendingScope {
   if (!scope || ![scope.organizationId, scope.membershipId, scope.studentCaseId, scope.applicationId].every(uuid)) throw new Error("Pending scope unavailable");
   return { organizationId: scope.organizationId, membershipId: scope.membershipId, studentCaseId: scope.studentCaseId, applicationId: scope.applicationId };
@@ -179,6 +181,27 @@ export function createPendingStore<Operation extends string, Intent>(kind: Pendi
       } finally {
         held.delete(k);
       }
+    },
+    /**
+     * Отказ от незавершённой записи ОДНОЙ цели (кнопка «Отказаться от незавершённой загрузки»): снимает ровно её ключ; чужие
+     * цели, записи других операций и других программ не трогаются. В отличие от `clear` снимает и испорченную запись
+     * (`blocked`), которая иначе не уходит. Берёт замок цели, поэтому идущую команду этой цели не прерывает (`busy`);
+     * снятие проверяется чтением, подписчики узнают о нём.
+     */
+    async discard(scope: PendingScope, operation: Operation, target: string, storage: PendingStorage = asyncPendingStorage): Promise<DiscardResult> {
+      const locked = await this.withLock(
+        scope,
+        operation,
+        target,
+        async () => {
+          const k = key(scope, operation, target);
+          await storage.removeItem(k);
+          if ((await storage.getItem(k)) !== null) throw new Error("Pending discarding unavailable");
+          notify();
+        },
+        storage,
+      );
+      return locked.acquired ? { ok: true } : { ok: false, reason: locked.reason };
     },
     /** Выход и удаление аккаунта: стираются запросы всех участников этого телефона. */
     async clearAll(storage: PendingStorage = asyncPendingStorage): Promise<void> {

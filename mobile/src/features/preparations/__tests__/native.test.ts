@@ -6,7 +6,7 @@ import type { ApplicationDocumentUploadIntent } from "@web/lib/portal/applicatio
 
 import type { PickedFile } from "@/domain/documents-model";
 import { createProgramUploader, fingerprintFile, toHex } from "@/features/preparations/native";
-import { UPLOAD_INTENT_HEADER, UPLOAD_PATH, UPLOAD_TRANSPORT_FILENAME, encodeUploadHeader, freezeUploadIntent } from "@/features/preparations/upload-protocol";
+import { encodeUploadHeader, freezeUploadIntent } from "@/features/preparations/upload-protocol";
 import { APPLICATION_ID, REVISION_ID, STUDENT_CASE_ID, itemId, slotId, uploadId, versionId } from "@/test-fixtures/preparations";
 
 type Task = { fileUri: string; url: string; options: { uploadType: string; fieldName: string; mimeType: string; headers: Record<string, string>; onProgress: (event: { bytesSent: number; totalBytes: number }) => void } };
@@ -18,6 +18,11 @@ const mockState = {
   deleted: [] as string[],
   results: [] as ({ status: number; body: string } | Error)[],
   progress: [] as { bytesSent: number; totalBytes: number }[],
+  /** Размер файла по файловой системе; `null` - столько же, сколько байтов. */
+  size: null as number | null,
+  /** Сбои до начала отправки. */
+  createError: null as Error | null,
+  copyError: null as Error | null,
 };
 
 jest.mock("expo-crypto", () => ({
@@ -37,6 +42,7 @@ jest.mock("expo-file-system", () => {
       this.uri = parts.map((part) => (typeof part === "string" ? part : (part as { uri: string }).uri)).join("/");
     }
     create() {
+      if (mockState.createError) throw mockState.createError;
       mockState.created.push(this.uri);
     }
     get exists() {
@@ -54,7 +60,11 @@ jest.mock("expo-file-system", () => {
     get name() {
       return name(this.uri);
     }
+    get size() {
+      return mockState.size ?? mockState.bytes.byteLength;
+    }
     copy(destination: { uri: string }) {
+      if (mockState.copyError) throw mockState.copyError;
       mockState.copies.push([this.uri, destination.uri]);
     }
     async arrayBuffer() {
@@ -85,8 +95,8 @@ const digest = createHash("sha256").update(mockState.bytes).digest("hex");
 
 async function intent(): Promise<ApplicationDocumentUploadIntent> {
   const value = await freezeUploadIntent({ target, file: picked, requestId: REQUEST, fingerprint: fingerprintFile });
-  if (!value) throw new Error("не заморозился");
-  return value;
+  if (value.status !== "frozen") throw new Error(`не заморозился: ${value.status}`);
+  return value.intent;
 }
 const receiptBody = (value: ApplicationDocumentUploadIntent) =>
   JSON.stringify({ upload: { protocolVersion: 1, ...target, requestId: value.requestId, uploadContextId: uploadId(1), documentVersionId: versionId(1), versionNo: "1", file: value.file, finalizedAt: "2026-10-07T10:00:00+00:00", publishedToLegacySlot: false } });
@@ -98,6 +108,9 @@ beforeEach(() => {
   mockState.deleted.length = 0;
   mockState.results.length = 0;
   mockState.progress.length = 0;
+  mockState.size = null;
+  mockState.createError = null;
+  mockState.copyError = null;
 });
 
 describe("отпечаток файла", () => {
@@ -108,6 +121,22 @@ describe("отпечаток файла", () => {
 
   it("размер и SHA-256 по байтам файла", async () => {
     expect(await fingerprintFile(picked)).toEqual({ byteSize: mockState.bytes.byteLength, sha256Hex: digest });
+  });
+
+  it("размер берётся из прочитанных байтов, а не из ответа выбора файла", async () => {
+    expect(await fingerprintFile({ ...picked, size: 999 })).toEqual({ byteSize: mockState.bytes.byteLength, sha256Hex: digest });
+  });
+
+  it("файл менялся во время чтения (размер по файловой системе не равен числу прочитанных байтов): отпечатка нет", async () => {
+    for (const size of [mockState.bytes.byteLength + 1, mockState.bytes.byteLength - 1, 0]) {
+      mockState.size = size;
+      await expect(fingerprintFile(picked)).rejects.toThrow("file_changed_while_reading");
+    }
+  });
+
+  it("такой файл не замораживается: «не прочитался», а не «не годится»", async () => {
+    mockState.size = mockState.bytes.byteLength + 5;
+    expect((await freezeUploadIntent({ target, file: picked, requestId: REQUEST, fingerprint: fingerprintFile })).status).toBe("unreadable");
   });
 });
 
@@ -120,18 +149,20 @@ describe("отправка файла программы", () => {
     expect(result).toMatchObject({ ok: true, receipt: { requestId: REQUEST, documentVersionId: versionId(1) } });
     expect(mockState.tasks).toHaveLength(1);
     const task = mockState.tasks[0]!;
-    expect(task.url).toBe(`${BASE}${UPLOAD_PATH}`);
+    // Адрес, поле, имена заголовков и имя файла в части записаны буквами: сверка с константами приложения не заметила бы в них опечатки
+    // (сами константы сверены с вебом в `upload-protocol.test.ts`).
+    expect(task.url).toBe(`${BASE}/api/portal/application-document-uploads`);
     expect(task.options).toMatchObject({ uploadType: "MULTIPART", fieldName: "file", mimeType: "application/pdf" });
     expect(task.options.headers).toEqual({
       Authorization: "Bearer synthetic-token",
       "Idempotency-Key": REQUEST,
-      [UPLOAD_INTENT_HEADER]: encodeUploadHeader({ protocolVersion: 1, ...target, file: value.file }),
+      "X-EVO-Upload-Intent": encodeUploadHeader({ protocolVersion: 1, ...target, file: value.file }),
       Accept: "application/json",
     });
     // выбранный файл скопирован байт в байт под именем `upload` в свой подкаталог, и именно он отправлен
     expect(mockState.copies).toHaveLength(1);
     expect(mockState.copies[0]![0]).toBe(picked.uri);
-    expect(mockState.copies[0]![1].endsWith(`/${UPLOAD_TRANSPORT_FILENAME}`)).toBe(true);
+    expect(mockState.copies[0]![1].endsWith("/upload")).toBe(true);
     expect(task.fileUri).toBe(mockState.copies[0]![1]);
     expect(task.fileUri.split("/").pop()).toBe("upload");
   });
@@ -180,11 +211,43 @@ describe("отправка файла программы", () => {
     expect(await createProgramUploader(BASE, async () => "old")({ intent: value, file: picked })).toEqual({ ok: false, reason: "unavailable", resolution: "retain" });
   });
 
-  it("нет токена: ничего не отправляется", async () => {
-    const value = await intent();
-    expect(await createProgramUploader(BASE, async () => null)({ intent: value, file: picked })).toEqual({ ok: false, reason: "unavailable", resolution: "retain" });
-    expect(mockState.tasks).toHaveLength(0);
-    expect(mockState.copies).toHaveLength(0);
+  describe("сбой до начала отправки: ничего не ушло, запись о загрузке можно снять", () => {
+    const NOT_SENT = { ok: false, reason: "not_sent", resolution: "not_written" };
+
+    it("нет токена или его получение упало: ничего не отправляется", async () => {
+      const value = await intent();
+      expect(await createProgramUploader(BASE, async () => null)({ intent: value, file: picked })).toEqual(NOT_SENT);
+      expect(await createProgramUploader(BASE, async () => { throw new Error("keychain"); })({ intent: value, file: picked })).toEqual(NOT_SENT);
+      expect(mockState.tasks).toHaveLength(0);
+      expect(mockState.copies).toHaveLength(0);
+    });
+
+    it("каталог для копии не создался или файл не скопировался: запрос не уходит, копия убрана", async () => {
+      const value = await intent();
+      mockState.createError = new Error("disk full");
+      expect(await createProgramUploader(BASE, async () => "t")({ intent: value, file: picked })).toEqual(NOT_SENT);
+      mockState.createError = null;
+      mockState.copyError = new Error("file vanished");
+      expect(await createProgramUploader(BASE, async () => "t")({ intent: value, file: picked })).toEqual(NOT_SENT);
+      expect(mockState.tasks).toHaveLength(0);
+      // каталог второй попытки создан, и он удалён
+      expect(mockState.created).toHaveLength(1);
+      expect(mockState.deleted).toEqual(mockState.created);
+    });
+
+    it("описание запроса не кодируется в заголовок: не отправляется, и повтор того же файла не нужен", async () => {
+      const value = await intent();
+      const broken = { ...value, file: { ...value.file, originalFilename: "а/б.pdf" } } as ApplicationDocumentUploadIntent;
+      expect(await createProgramUploader(BASE, async () => "t")({ intent: broken, file: picked })).toEqual(NOT_SENT);
+      expect(mockState.tasks).toHaveLength(0);
+    });
+
+    it("после начала отправки сбой связи снова «исход неизвестен»: запрос остаётся", async () => {
+      const value = await intent();
+      mockState.results.push(new Error("Network request failed"));
+      expect(await createProgramUploader(BASE, async () => "t")({ intent: value, file: picked })).toEqual({ ok: false, reason: "unavailable", resolution: "retain" });
+      expect(mockState.tasks).toHaveLength(1);
+    });
   });
 
   it("ответы сервера разбираются по правилам протокола: точный отказ, чужое тело, не JSON", async () => {
@@ -204,10 +267,4 @@ describe("отправка файла программы", () => {
     expect(await createProgramUploader(BASE, async () => "t")({ intent: value, file: picked })).toEqual({ ok: false, reason: "unavailable", resolution: "retain" });
   });
 
-  it("запрос, который не кодируется в заголовок, не отправляется", async () => {
-    const value = await intent();
-    const broken = { ...value, file: { ...value.file, originalFilename: "а/б.pdf" } } as ApplicationDocumentUploadIntent;
-    expect(await createProgramUploader(BASE, async () => "t")({ intent: broken, file: picked })).toEqual({ ok: false, reason: "invalid", resolution: "retain" });
-    expect(mockState.tasks).toHaveLength(0);
-  });
 });

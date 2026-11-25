@@ -57,9 +57,7 @@ export function RequirementCard({ item, state, revisionId, strings }: {
           </View>
         ) : null}
       </View>
-      <View style={{ borderTopWidth: 0 }}>
-        <DocumentItem label={item.label} state={state} target={target} />
-      </View>
+      <DocumentItem label={item.label} state={state} target={target} />
     </Card>
   );
 }

@@ -13,6 +13,7 @@ import type { DocumentStrings } from "@/features/preparations/document-strings";
 import { availabilityText, programTime } from "@/features/preparations/model";
 import { usePreparation } from "@/features/preparations/context";
 import { useLang } from "@/i18n/LangProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { InlineAlert } from "@/ui/CardParts";
 import { StatusPill } from "@/ui/StatusPill";
@@ -26,17 +27,24 @@ function DownloadButton({ file, target, testID }: { file: ApplicationDocumentFil
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const lock = useRef(false);
+  // Читалка слышит сбой скачивания сама: «alert» без объявления молчит на iPhone.
+  const fail = () => {
+    setFailed(true);
+    announce(strings.downloadFailed);
+  };
   async function download() {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setFailed(false);
+    // `Button busy` рисует только колесо: «Готовим файл…» слышно по имени кнопки и одному объявлению (как на экране «Английский»).
+    announce(strings.downloading);
     try {
       const result = await downloadApplicationFile(io.createDownloadDeps(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), target, file.documentVersionId, file.originalFilename, file.declaredMimeType);
-      if (!result.ok) setFailed(true);
+      if (!result.ok) fail();
       else await io.openLocalFile(result.uri, file.declaredMimeType);
     } catch {
-      setFailed(true);
+      fail();
     } finally {
       lock.current = false;
       setBusy(false);
@@ -47,7 +55,7 @@ function DownloadButton({ file, target, testID }: { file: ApplicationDocumentFil
       <Button
         variant="ghost"
         label={busy ? strings.downloading : strings.download}
-        accessibilityLabel={format(m("prep.downloadAria"), { name: file.originalFilename })}
+        accessibilityLabel={busy ? strings.downloading : format(m("prep.downloadAria"), { name: file.originalFilename })}
         busy={busy}
         disabled={file.technicalAvailability !== "available"}
         onPress={() => void download()}

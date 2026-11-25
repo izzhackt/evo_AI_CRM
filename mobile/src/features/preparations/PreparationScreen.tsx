@@ -131,7 +131,10 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
         // Читалка слышит то, что написано на экране: пометку «Не удалось обновить» (прежний ответ остался), полную ошибку
         // раздела (ответа не было) или текст ошибки действия. Если запись удалась, а контрольное чтение нет, на экране та же
         // пометка или ошибка раздела, и озвучивается она: «список открыт» экран пока не показывает.
-        if (outcome.error) announce(outcome.error === "requirementsUnavailable" ? (hadAnswer ? m("prep.stale") : strings.requirementsUnavailable) : errorText(outcome.error));
+        // После действия с документом (`announceSuccess` ложно) итог действия уже сказан и читается: сбой обновления встаёт в очередь
+        // за ним (iPhone: `queue`), а не обрывает его на полуслове.
+        const queued = announceSuccess ? undefined : { queue: true };
+        if (outcome.error) announce(outcome.error === "requirementsUnavailable" ? (hadAnswer ? m("prep.stale") : strings.requirementsUnavailable) : errorText(outcome.error), queued);
         else if (announceSuccess) announce(m(outcome.initialized ? "prep.listOpened" : "prep.checked"));
       } finally {
         lock.current = false;

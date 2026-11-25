@@ -86,13 +86,17 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
   const sending = oneTapRun !== null || standaloneSending;
   const sendAfterSave: SendAfterSave | undefined =
     oneTapRun ?? (canSubmit && submitPending.hydrated && (!isSubmitIntent(submitPending.intent) || standaloneSending) && !submitPending.blocked ? { previousSubmissionId: state.submission?.submissionId ?? null } : undefined);
+  // Подтверждение «отправлено» держится, пока свежий снимок не скажет другого. Если после отправки чтение не удалось (вид устарел),
+  // снимок прежний и подтвердить отправку не может, но сервер её подтвердил квитанцией: слово студенту остаётся, а пометка
+  // «Не удалось обновить» объясняет, почему рядом прежний вид (иначе успех пропал бы вместе с закрытой формой).
   const noticeShown =
     notice !== null &&
-    applicationDocumentNoticeVisible(notice, {
+    (applicationDocumentNoticeVisible(notice, {
       submittedVersionId: state.submission?.file.documentVersionId ?? null,
       reviewed: Boolean(state.submission?.review),
       unsentDraftVersionId: draft ? draft.file.documentVersionId : null,
-    });
+    }) ||
+      (stale && notice.tone === "success"));
   const heading = state.submission?.review && state.submission.review.decision !== "approved" ? strings.correctFile : draft || state.submission ? strings.replaceFile : strings.chooseFile;
 
   return (

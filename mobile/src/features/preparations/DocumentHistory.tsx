@@ -11,6 +11,7 @@ import { Collapsible } from "@/features/preparations/Collapsible";
 import { DeadlineBlock } from "@/features/preparations/DeadlineBlock";
 import { usePreparation } from "@/features/preparations/context";
 import { Block, FileFacts, SubmissionFacts } from "@/features/preparations/ItemDocumentState";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
 
@@ -74,12 +75,14 @@ export function DocumentHistory({ requirementItemId, testID }: {
         setEvents((current) => (more ? [...current, ...result.events.filter((item) => !current.some((old) => old.id === item.id))] : result.events));
       } catch {
         setFailed(true);
+        // Текст ошибки стоит с ролью «alert», а на iPhone она без объявления молчит.
+        announce(strings.historyUnavailable);
       } finally {
         lock.current = false;
         setBusy(false);
       }
     },
-    [page, requirementItemId, scope.applicationId, scope.studentCaseId, transport],
+    [page, requirementItemId, scope.applicationId, scope.studentCaseId, strings.historyUnavailable, transport],
   );
 
   return (

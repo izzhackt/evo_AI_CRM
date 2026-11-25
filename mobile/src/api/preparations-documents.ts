@@ -1,6 +1,6 @@
 // RPC документов программы: отправка на проверку, сохранённые версии файла, история. Веб: `application-documents-actions.ts`
 // (`submit`, `readApplicationDocumentReusableVersionsAction`, `readApplicationDocumentHistoryAction`). Ответ принимают
-// только строгие разборщики веба; загрузка файла идёт не через RPC, а через маршрут портала (`features/preparations/native-upload.ts`).
+// только строгие разборщики веба; загрузка файла идёт не через RPC, а через маршрут портала (`features/preparations/native.ts`).
 import {
   applicationDocumentFailure,
   parseApplicationDocumentCursor,

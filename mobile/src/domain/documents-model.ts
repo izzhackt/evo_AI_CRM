@@ -51,14 +51,26 @@ export function checkPickedFile(file: PickedFile): FileCheck {
   return mimeType ? { ok: true, mimeType } : { ok: false, reason: "type" };
 }
 
-/** Имя для локального файла: без путей и служебных знаков, с расширением по типу. */
+/**
+ * Имя для локального файла: без путей и служебных знаков, с расширением по типу. Годится и серверу (`applicationDocumentFilename`
+ * веба): без управляющих знаков (в том числе U+0080-U+009F), без половинок суррогатных пар, без пробелов по краям; длина по
+ * знакам Юникода, а не по парам UTF-16, поэтому эмодзи на границе обрезки не разрезается.
+ */
 export function safeFileName(name: string | null | undefined, mimeType: string | null | undefined): string {
-  const cleaned = (name ?? "")
-    .replace(/[\u0000-\u001F\u007F]/g, "")
-    .replace(/[\\/:*?"<>|]+/g, "_")
-    .replace(/^\.+/, "")
-    .trim()
-    .slice(0, 120);
+  const cleaned = Array.from(
+    (name ?? "")
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/^\.+/, "")
+      .trim(),
+  )
+    .filter((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code < 0xd800 || code > 0xdfff;
+    })
+    .slice(0, 120)
+    .join("")
+    .trim();
   const base = cleaned.length > 0 ? cleaned : "document";
   const wanted = mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : mimeType === "image/jpeg" ? "jpg" : null;
   if (!wanted) return base;

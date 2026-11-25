@@ -188,10 +188,16 @@ describe("перечень записей программы", () => {
     await documentsPending.persist(scope, "upload", item, uploadIntent() as never, storage);
     const other = { ...scope, applicationId: itemId(9) };
     await documentsPending.persist(other, "upload", item, uploadIntent({ applicationId: itemId(9) }) as never, storage);
+    // тот же студент и та же программа, но другой участник, другая организация и оба сразу: приставка ключа у каждого своя
+    await documentsPending.persist({ ...scope, membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }, "upload", item, uploadIntent() as never, storage);
+    await documentsPending.persist({ ...scope, organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }, "upload", item, uploadIntent() as never, storage);
+    await documentsPending.persist({ ...scope, organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }, "submit", item, submitIntent() as never, storage);
     storage.data.set(`${documentsPending.key(scope, "upload", item)}:лишнее`, "x");
     storage.data.set(documentsPending.key(scope, "upload", itemId(1)), "{bad");
     storage.data.set("evo.lang", "ru");
     const list = await documentsPending.list(scope, storage);
+    // записи другого участника, другой организации и обоих сразу в перечень не попали (иначе их было бы пять)
+    expect(list).toHaveLength(3);
     expect(list.map((entry) => [entry.operation, entry.target, entry.blocked, entry.intent !== null])).toEqual([
       ["submit", item, false, true],
       ["upload", item, false, true],
@@ -203,6 +209,82 @@ describe("перечень записей программы", () => {
     const storage = memoryPendingStorage();
     storage.failing = true;
     await expect(documentsPending.list(scope, storage)).rejects.toThrow("Pending inventory unavailable");
+  });
+});
+
+describe("отказ от незавершённой записи", () => {
+  const SIBLING = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  /** Записи, которых отказ не касается, и та, которой касается. */
+  async function seeded() {
+    const storage = memoryPendingStorage();
+    await documentsPending.persist(scope, "upload", item, uploadIntent() as never, storage);
+    await documentsPending.persist(scope, "submit", item, submitIntent() as never, storage);
+    await documentsPending.persist(scope, "upload", itemId(1), uploadIntent({ requirementItemId: itemId(1) }) as never, storage);
+    await documentsPending.persist({ ...scope, applicationId: itemId(9) }, "upload", item, uploadIntent({ applicationId: itemId(9) }) as never, storage);
+    await documentsPending.persist({ ...scope, membershipId: SIBLING }, "upload", item, uploadIntent() as never, storage);
+    return storage;
+  }
+
+  it("снимает ровно запись этой операции этого требования: другое требование, другая операция, другая программа и другой участник целы", async () => {
+    const storage = await seeded();
+    const before = [...storage.data.keys()].sort();
+    expect(await documentsPending.discard(scope, "upload", item, storage)).toEqual({ ok: true });
+    const mine = documentsPending.key(scope, "upload", item);
+    expect([...storage.data.keys()].sort()).toEqual(before.filter((key) => key !== mine));
+    expect(await documentsPending.read(scope, "upload", item, storage)).toEqual({ intent: null, blocked: false });
+    expect((await documentsPending.read(scope, "submit", item, storage)).intent).not.toBeNull();
+  });
+
+  it("снимает и испорченную запись, которую `clear` снять не может", async () => {
+    const key = documentsPending.key(scope, "upload", item);
+    const storage = memoryPendingStorage({ [key]: "{oops" });
+    expect(await documentsPending.read(scope, "upload", item, storage)).toEqual({ intent: null, blocked: true });
+    expect(await documentsPending.clear(scope, "upload", item, uploadIntent() as never, storage)).toBe(false);
+    expect(storage.data.get(key)).toBe("{oops");
+    expect(await documentsPending.discard(scope, "upload", item, storage)).toEqual({ ok: true });
+    expect(await documentsPending.read(scope, "upload", item, storage)).toEqual({ intent: null, blocked: false });
+  });
+
+  it("подписчики экрана узнают об отказе; записи нет вовсе - тоже без ошибки", async () => {
+    const storage = await seeded();
+    const seen: string[] = [];
+    const off = documentsPending.subscribe(() => seen.push("changed"));
+    await documentsPending.discard(scope, "upload", item, storage);
+    await documentsPending.discard(scope, "upload", item, storage);
+    off();
+    expect(seen).toEqual(["changed", "changed"]);
+  });
+
+  it("идёт команда этой цели: «занято», запись цела; после неё замок свободен", async () => {
+    const storage = await seeded();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const running = documentsPending.withLock(scope, "upload", item, () => gate, storage);
+    expect(await documentsPending.discard(scope, "upload", item, storage)).toEqual({ ok: false, reason: "busy" });
+    expect((await documentsPending.read(scope, "upload", item, storage)).intent).not.toBeNull();
+    release();
+    await running;
+    expect(await documentsPending.discard(scope, "upload", item, storage)).toEqual({ ok: true });
+  });
+
+  it("хранилище не отвечает или не удаляет: ошибка, а не молчаливый успех, и запись на месте", async () => {
+    const storage = await seeded();
+    storage.stubborn = true;
+    expect(await documentsPending.discard(scope, "upload", item, storage)).toEqual({ ok: false, reason: "storage_unavailable" });
+    expect(storage.data.has(documentsPending.key(scope, "upload", item))).toBe(true);
+    storage.stubborn = false;
+    storage.failing = true;
+    expect(await documentsPending.discard(scope, "upload", item, storage)).toEqual({ ok: false, reason: "storage_unavailable" });
+  });
+
+  it("негодная область или цель: «хранилище недоступно», ничего не тронуто", async () => {
+    const storage = await seeded();
+    const before = [...storage.data.entries()];
+    expect(await documentsPending.discard({ ...scope, membershipId: "нет" }, "upload", item, storage)).toEqual({ ok: false, reason: "storage_unavailable" });
+    expect(await documentsPending.discard(scope, "upload", "не uuid", storage)).toEqual({ ok: false, reason: "storage_unavailable" });
+    expect([...storage.data.entries()]).toEqual(before);
   });
 });
 

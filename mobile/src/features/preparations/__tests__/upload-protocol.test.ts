@@ -10,7 +10,10 @@ import {
 import type { PickedFile } from "@/domain/documents-model";
 import {
   UPLOAD_HEADER_MAX,
+  UPLOAD_INTENT_HEADER,
   UPLOAD_METADATA_MAX,
+  UPLOAD_PATH,
+  UPLOAD_TRANSPORT_FILENAME,
   encodeUploadHeader,
   freezeUploadIntent,
   parseUploadResponse,
@@ -26,6 +29,15 @@ type WebUpload = {
 };
 // requireActual: модуль веба трогает `document` и `XMLHttpRequest`; импортом в приложении он запрещён стражем общих импортов.
 const web = jest.requireActual("@web/lib/portal/application-documents-upload") as WebUpload;
+// Константы и правила имени веба: приложение сверяется с ними, а не с собой (опечатка в константе приложения иначе осталась бы незамеченной).
+const webConstants = jest.requireActual("@web/lib/portal/application-documents-upload") as {
+  APPLICATION_DOCUMENT_UPLOAD_HEADER: string;
+  APPLICATION_DOCUMENT_UPLOAD_HEADER_MAX: number;
+  APPLICATION_DOCUMENT_UPLOAD_METADATA_MAX: number;
+  APPLICATION_DOCUMENT_TRANSPORT_FILENAME: string;
+};
+const webRoutes = jest.requireActual("@web/lib/platform-route-contract") as { isConnectedStudentPortalApi: (path: string, method: string) => boolean };
+const webFilename = (jest.requireActual("@web/lib/portal/application-documents") as { applicationDocumentFilename: (value: unknown) => boolean }).applicationDocumentFilename;
 
 const target = { studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID, requirementsRevisionId: REVISION_ID, requirementItemId: itemId(0), documentSlotId: slotId(0) };
 const REQUEST = "99999999-0000-4000-8000-000000000001";
@@ -35,10 +47,28 @@ const picked = (over: Partial<PickedFile> = {}): PickedFile => ({ uri: "file:///
 const fingerprint: Fingerprinter = async () => ({ byteSize: bytes.byteLength, sha256Hex: digest });
 
 async function frozen(over: Partial<PickedFile> = {}, requestId = REQUEST) {
-  const intent = await freezeUploadIntent({ target, file: picked(over), requestId, fingerprint });
-  if (!intent) throw new Error("не заморозился");
-  return intent;
+  const result = await freezeUploadIntent({ target, file: picked(over), requestId, fingerprint });
+  if (result.status !== "frozen") throw new Error(`не заморозился: ${result.status}`);
+  return result.intent;
 }
+const statusOf = async (input: Partial<Parameters<typeof freezeUploadIntent>[0]> = {}) => (await freezeUploadIntent({ target, file: picked(), requestId: REQUEST, fingerprint, ...input })).status;
+
+describe("константы протокола сверены с вебом и закреплены буквами", () => {
+  it("заголовок запроса, имя файла в части, пределы заголовка", () => {
+    expect(UPLOAD_INTENT_HEADER).toBe("X-EVO-Upload-Intent");
+    expect(UPLOAD_INTENT_HEADER).toBe(webConstants.APPLICATION_DOCUMENT_UPLOAD_HEADER);
+    expect(UPLOAD_TRANSPORT_FILENAME).toBe("upload");
+    expect(UPLOAD_TRANSPORT_FILENAME).toBe(webConstants.APPLICATION_DOCUMENT_TRANSPORT_FILENAME);
+    expect(UPLOAD_HEADER_MAX).toBe(webConstants.APPLICATION_DOCUMENT_UPLOAD_HEADER_MAX);
+    expect(UPLOAD_METADATA_MAX).toBe(webConstants.APPLICATION_DOCUMENT_UPLOAD_METADATA_MAX);
+  });
+
+  it("адрес загрузки: тот, что сервер принимает от студента по Bearer (контракт маршрутов веба), и только POST", () => {
+    expect(UPLOAD_PATH).toBe("/api/portal/application-document-uploads");
+    expect(webRoutes.isConnectedStudentPortalApi(UPLOAD_PATH, "POST")).toBe(true);
+    expect(webRoutes.isConnectedStudentPortalApi(UPLOAD_PATH, "GET")).toBe(false);
+  });
+});
 
 describe("замороженный запрос", () => {
   it("цель, тип, размер и SHA-256 содержимого, id запроса сохранён как есть", async () => {
@@ -67,27 +97,40 @@ describe("замороженный запрос", () => {
   it("тип определяется по расширению, если выбор файла его не назвал; чужие типы не годятся", async () => {
     expect((await frozen({ mimeType: null, name: "scan.JPEG" })).file.declaredMimeType).toBe("image/jpeg");
     for (const bad of [{ mimeType: "image/heic", name: "a.heic" }, { mimeType: "image/gif", name: "a.gif" }, { mimeType: null, name: "a.docx" }]) {
-      expect(await freezeUploadIntent({ target, file: picked(bad), requestId: REQUEST, fingerprint })).toBeNull();
+      expect(await statusOf({ file: picked(bad) })).toBe("invalid");
     }
   });
 
   it("пустой файл и файл больше 25 МБ не годятся ни по ответу выбора, ни по байтам", async () => {
-    expect(await freezeUploadIntent({ target, file: picked({ size: 0 }), requestId: REQUEST, fingerprint })).toBeNull();
-    expect(await freezeUploadIntent({ target, file: picked({ size: 25 * 1024 * 1024 + 1 }), requestId: REQUEST, fingerprint })).toBeNull();
+    expect(await statusOf({ file: picked({ size: 0 }) })).toBe("invalid");
+    expect(await statusOf({ file: picked({ size: 25 * 1024 * 1024 + 1 }) })).toBe("invalid");
     for (const byteSize of [0, 25 * 1024 * 1024 + 1, 1.5]) {
-      expect(await freezeUploadIntent({ target, file: picked(), requestId: REQUEST, fingerprint: async () => ({ byteSize, sha256Hex: digest }) })).toBeNull();
+      expect(await statusOf({ fingerprint: async () => ({ byteSize, sha256Hex: digest }) })).toBe("invalid");
     }
-    expect((await freezeUploadIntent({ target, file: picked({ size: 25 * 1024 * 1024 }), requestId: REQUEST, fingerprint: async () => ({ byteSize: 25 * 1024 * 1024, sha256Hex: digest }) }))?.file.byteSize).toBe(String(25 * 1024 * 1024));
+    const edge = await freezeUploadIntent({ target, file: picked({ size: 25 * 1024 * 1024 }), requestId: REQUEST, fingerprint: async () => ({ byteSize: 25 * 1024 * 1024, sha256Hex: digest }) });
+    expect(edge.status === "frozen" && edge.intent.file.byteSize).toBe(String(25 * 1024 * 1024));
   });
 
-  it("байты не прочитались или отпечаток негодный: файла нет", async () => {
-    expect(await freezeUploadIntent({ target, file: picked(), requestId: REQUEST, fingerprint: async () => { throw new Error("нет файла"); } })).toBeNull();
-    expect(await freezeUploadIntent({ target, file: picked(), requestId: REQUEST, fingerprint: async () => ({ byteSize: 10, sha256Hex: "не хэш" }) })).toBeNull();
+  it("байты не прочитались - это «не прочитался», а не «не годится»; негодный отпечаток - «не годится»", async () => {
+    expect(await statusOf({ fingerprint: async () => { throw new Error("нет файла"); } })).toBe("unreadable");
+    expect(await statusOf({ fingerprint: async () => ({ byteSize: 10, sha256Hex: "не хэш" }) })).toBe("invalid");
   });
 
   it("негодная цель и негодный id запроса: файла нет", async () => {
-    expect(await freezeUploadIntent({ target: { ...target, applicationId: "x" }, file: picked(), requestId: REQUEST, fingerprint })).toBeNull();
-    expect(await freezeUploadIntent({ target, file: picked(), requestId: "не uuid", fingerprint })).toBeNull();
+    expect(await statusOf({ target: { ...target, applicationId: "x" } })).toBe("invalid");
+    expect(await statusOf({ requestId: "не uuid" })).toBe("invalid");
+  });
+
+  it("неподходящий файл не читается вовсе: отпечаток не считается, пока тип, размер и цель не проверены", async () => {
+    let reads = 0;
+    const counting: Fingerprinter = async () => {
+      reads += 1;
+      return { byteSize: bytes.byteLength, sha256Hex: digest };
+    };
+    expect(await statusOf({ file: picked({ mimeType: "image/heic", name: "a.heic" }), fingerprint: counting })).toBe("invalid");
+    expect(reads).toBe(0);
+    expect(await statusOf({ fingerprint: counting })).toBe("frozen");
+    expect(reads).toBe(1);
   });
 
   it("запрос принимается разборщиком веба", async () => {
@@ -104,6 +147,58 @@ describe("замороженный запрос", () => {
     expect(sameUploadIntent(a, { ...a, file: { ...a.file, declaredMimeType: "image/png" } })).toBe(false);
     expect(sameUploadIntent(a, { ...a, documentSlotId: slotId(3) })).toBe(false);
     expect(sameUploadIntent(a, { ...a, requirementsRevisionId: slotId(4) })).toBe(false);
+  });
+});
+
+describe("имя файла проходит правила веба (`applicationDocumentFilename`)", () => {
+  const emoji = "\u{1F600}"; // два знака UTF-16
+  const wellFormed = (value: string) => {
+    try {
+      encodeURIComponent(value); // бросает на одинокой половине суррогатной пары
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const nameOf = async (name: string) => (await frozen({ name })).file.originalFilename;
+
+  it("эмодзи на границе обрезки не разрезается: ни одинокой половины, имя принимает веб", async () => {
+    // 119 букв и эмодзи: сто двадцатая единица UTF-16 пришлась бы на середину пары
+    const filename = await nameOf(`${"а".repeat(119)}${emoji}${"б".repeat(30)}.pdf`);
+    expect(filename).toBe(`${"а".repeat(119)}${emoji}.pdf`);
+    expect(wellFormed(filename)).toBe(true);
+    expect(webFilename(filename)).toBe(true);
+  });
+
+  it("длина по знакам, а не по единицам UTF-16: сто двадцать эмодзи остаются целыми", async () => {
+    const filename = await nameOf(`${emoji.repeat(130)}.pdf`);
+    expect(Array.from(filename.replace(/\.pdf$/u, ""))).toHaveLength(120);
+    expect(wellFormed(filename)).toBe(true);
+    expect(webFilename(filename)).toBe(true);
+  });
+
+  it("управляющие знаки C1 (U+0080-U+009F) убираются: имя принимает веб, а не отказ «Выберите PDF…»", async () => {
+    const filename = await nameOf("ск\u0085а\u009Fн\u0080.pdf");
+    expect(filename).toBe("скан.pdf");
+    expect(webFilename(filename)).toBe(true);
+  });
+
+  it("после обрезки пробел на краю не остаётся (веб требует имя без пробелов по краям)", async () => {
+    const filename = await nameOf(`${"а".repeat(119)} ${"б".repeat(5)}.pdf`);
+    expect(filename).toBe(`${"а".repeat(119)}.pdf`);
+    expect(webFilename(filename)).toBe(true);
+  });
+
+  it("одинокая половина пары во входном имени убирается", async () => {
+    expect(await nameOf("ска\uD83Dн\uDE00.pdf")).toBe("скан.pdf");
+  });
+
+  it("любое трудное имя даёт имя, которое принимает веб", async () => {
+    const names = ["\u0085", "\u009F.pdf", `${emoji}`.repeat(200), "а".repeat(500), ` ${"я".repeat(125)} .jpg`, "..\\..\\x\u0085.pdf", "\u007Fа\u0080"];
+    for (const name of names) {
+      const filename = await nameOf(name);
+      expect([name, wellFormed(filename), webFilename(filename)]).toEqual([name, true, true]);
+    }
   });
 });
 

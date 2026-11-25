@@ -2,7 +2,7 @@
 // с настоящим хранилищем запросов и поддельными загрузкой и отправкой. Повторяет сценарии `tests/application-documents-commands.test.mjs` веба.
 import { createHash } from "node:crypto";
 
-import type { ApplicationDocumentSubmitIntent, ApplicationDocumentUploadIntent, ApplicationDocumentUploadResult } from "@web/lib/portal/application-documents";
+import type { ApplicationDocumentSubmitIntent, ApplicationDocumentUploadIntent } from "@web/lib/portal/application-documents";
 
 import type { PickedFile } from "@/domain/documents-model";
 import { runSubmit, runUpload, runUploadAndSubmit, type SubmitFn, type UploadFn } from "@/features/preparations/document-commands";
@@ -46,7 +46,14 @@ type World = ReturnType<typeof world>;
 
 const receiptFor = (intent: ApplicationDocumentUploadIntent) => ({ ...intent, uploadContextId: uploadId(7), documentVersionId: versionId(8), versionNo: "1", finalizedAt: "2026-10-26T10:00:00+00:00", publishedToLegacySlot: false as const });
 
-function fakes(w: World, options: { uploadResult?: (intent: ApplicationDocumentUploadIntent) => ApplicationDocumentUploadResult; submitResult?: Awaited<ReturnType<SubmitFn>>; submitThrows?: boolean } = {}) {
+/** Замороженный запрос прежней загрузки, оставшийся на телефоне. */
+async function retainedUpload(over: Partial<typeof target> = {}) {
+  const frozen = await freezeUploadIntent({ target: { ...target, ...over }, file, requestId: "99999999-0000-4000-8000-000000000006", fingerprint });
+  if (frozen.status !== "frozen") throw new Error(`не заморозился: ${frozen.status}`);
+  return frozen.intent;
+}
+
+function fakes(w: World, options: { uploadResult?: (intent: ApplicationDocumentUploadIntent) => Awaited<ReturnType<UploadFn>>; submitResult?: Awaited<ReturnType<SubmitFn>>; submitThrows?: boolean } = {}) {
   const calls = { upload: [] as ApplicationDocumentUploadIntent[], submit: [] as ApplicationDocumentSubmitIntent[] };
   const probes: { uploadFree?: boolean; submitHeld?: boolean } = {};
   const upload: UploadFn = async ({ intent }) => {
@@ -188,8 +195,7 @@ describe("одно нажатие: загрузить и отправить", ()
 
   it("неоконченная загрузка доходит до конца и продолжается отправкой со своим прежним запросом", async () => {
     const w = world();
-    const retained = await freezeUploadIntent({ target, file, requestId: "99999999-0000-4000-8000-000000000006", fingerprint });
-    await documentsPending.persist(scope, "upload", ITEM, retained!, w.storage);
+    await documentsPending.persist(scope, "upload", ITEM, await retainedUpload(), w.storage);
     w.log.length = 0;
     const f = fakes(w);
     const outcome = await oneTap(w, f);
@@ -201,8 +207,7 @@ describe("одно нажатие: загрузить и отправить", ()
 
   it("неоконченная загрузка с другим файлом отклоняется до любой отправки", async () => {
     const w = world();
-    const retained = await freezeUploadIntent({ target, file, requestId: "99999999-0000-4000-8000-000000000006", fingerprint });
-    await documentsPending.persist(scope, "upload", ITEM, retained!, w.storage);
+    await documentsPending.persist(scope, "upload", ITEM, await retainedUpload(), w.storage);
     const f = fakes(w);
     const outcome = await oneTap(w, f, { file: { ...file, name: "другой.pdf", size: 5 } });
     expect(outcome).toEqual({ stage: "upload", upload: { status: "wrong_file" } });
@@ -212,8 +217,7 @@ describe("одно нажатие: загрузить и отправить", ()
 
   it("неоконченная загрузка по прежним требованиям сохраняется, но не отправляется", async () => {
     const w = world();
-    const retained = await freezeUploadIntent({ target: { ...target, requirementsRevisionId: slotId(33) }, file, requestId: "99999999-0000-4000-8000-000000000006", fingerprint });
-    await documentsPending.persist(scope, "upload", ITEM, retained!, w.storage);
+    await documentsPending.persist(scope, "upload", ITEM, await retainedUpload({ requirementsRevisionId: slotId(33) }), w.storage);
     const f = fakes(w);
     const outcome = await oneTap(w, f);
     expect(outcome).toMatchObject({ upload: { status: "uploaded" }, submit: { status: "skipped", why: "target_changed" } });
@@ -314,6 +318,38 @@ describe("загрузка отдельно", () => {
     expect(await runUpload({ scope, target, file: { ...file, mimeType: "image/heic", name: "a.heic" }, fingerprint, upload: f.upload, env: { storage: w.storage } })).toEqual({ status: "invalid_file" });
     expect(f.calls.upload).toHaveLength(0);
     expect(w.data.size).toBe(0);
+  });
+
+  it("файл не прочитался: «не прочитался», а не «не годится»; запрос не пишется, сеть не вызывается", async () => {
+    const w = world();
+    const f = fakes(w);
+    const unreadable: Fingerprinter = async () => {
+      throw new Error("file vanished");
+    };
+    expect(await runUpload({ scope, target, file, fingerprint: unreadable, upload: f.upload, env: { storage: w.storage } })).toEqual({ status: "unreadable" });
+    expect(f.calls.upload).toHaveLength(0);
+    expect(w.data.size).toBe(0);
+  });
+
+  it("неоконченная загрузка и файл, который не прочитался: запись цела, чужим файлом это не считается", async () => {
+    const w = world();
+    const f = fakes(w);
+    const retained = await retainedUpload();
+    await documentsPending.persist(scope, "upload", ITEM, retained, w.storage);
+    const unreadable: Fingerprinter = async () => {
+      throw new Error("file vanished");
+    };
+    expect(await runUpload({ scope, target, file, fingerprint: unreadable, upload: f.upload, env: { storage: w.storage } })).toEqual({ status: "unreadable" });
+    expect((await documentsPending.read(scope, "upload", ITEM, w.storage)).intent).toEqual(retained);
+    expect(f.calls.upload).toHaveLength(0);
+  });
+
+  it("сбой до отправки (`not_sent`, «не записано»): запись о загрузке снимается, файл можно выбрать любой", async () => {
+    const w = world();
+    const f = fakes(w, { uploadResult: () => ({ ok: false, reason: "not_sent", resolution: "not_written" }) });
+    expect(await runUpload({ scope, target, file, fingerprint, upload: f.upload, env: { storage: w.storage } })).toEqual({ status: "rejected", reason: "not_sent", resolution: "not_written" });
+    expect(w.data.size).toBe(0);
+    expect(w.log).toEqual(["store upload:item", "call upload", "clear upload:item"]);
   });
 
   it("испорченная запись загрузки блокирует: «хранилище недоступно», сеть не вызывается", async () => {

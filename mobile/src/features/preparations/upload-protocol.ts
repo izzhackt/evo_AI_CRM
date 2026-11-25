@@ -26,7 +26,7 @@ import { checkPickedFile, safeFileName, type PickedFile } from "@/domain/documen
 export const UPLOAD_INTENT_HEADER = "X-EVO-Upload-Intent";
 export const UPLOAD_HEADER_MAX = 8192;
 export const UPLOAD_METADATA_MAX = 6144;
-/** Имя части multipart: сервер принимает только его (`file.name !== "upload"` - отказ). Файл перед отправкой копируется под этим именем. */
+/** Имя ФАЙЛА в части multipart (поле части называется `file`): сервер принимает только его (`file.name !== "upload"` - отказ). Файл перед отправкой копируется под этим именем. */
 export const UPLOAD_TRANSPORT_FILENAME = "upload";
 /** Адрес маршрута загрузки: тот же, что у веба; Bearer принимается (`platform-document-storage-route-handlers.ts`). */
 export const UPLOAD_PATH = "/api/portal/application-document-uploads";
@@ -51,9 +51,17 @@ export function encodeUploadHeader(value: ApplicationDocumentUploadHeader): stri
   return encoded.length <= UPLOAD_HEADER_MAX ? encoded : null;
 }
 
+/** Итог заморозки: запрос, «файл не годится» или «файл не прочитался» (студенту говорят о них разное). */
+export type FrozenUpload =
+  | Readonly<{ status: "frozen"; intent: ApplicationDocumentUploadIntent }>
+  /** Тип, пустой файл, больше 25 МБ, имя или цель не проходят правила веба: выбрать другой файл. */
+  | Readonly<{ status: "invalid" }>
+  /** Байты не прочитались (файл исчез, не открывается или менялся во время чтения): тот же файл можно выбрать ещё раз. */
+  | Readonly<{ status: "unreadable" }>;
+
 /**
  * Замороженный запрос на загрузку выбранного файла: цель, тип, размер и SHA-256 содержимого, `requestId`.
- * `null`: файл не годится (тип, пустой, больше 25 МБ), байты не прочитались или имя не проходит правила веба.
+ * `invalid`: файл не годится (тип, пустой, больше 25 МБ) или имя не проходит правила веба; `unreadable`: байты не прочитались.
  * Имя файла приводится к безопасному и получает расширение по типу (одно и то же имя для одного и того же файла: оно
  * сравнивается при повторном выборе).
  */
@@ -62,21 +70,27 @@ export async function freezeUploadIntent(input: Readonly<{
   file: PickedFile;
   requestId: string;
   fingerprint: Fingerprinter;
-}>): Promise<ApplicationDocumentUploadIntent | null> {
+}>): Promise<FrozenUpload> {
   const target = parseApplicationDocumentItemTarget(input.target);
   const check = checkPickedFile(input.file);
-  if (!target || !check.ok) return null;
+  if (!target || !check.ok) return { status: "invalid" };
+  let print: Fingerprint;
   try {
-    const print = await input.fingerprint(input.file);
-    if (!Number.isInteger(print.byteSize) || print.byteSize < 1 || print.byteSize > APPLICATION_DOCUMENT_MAX_FILE_BYTES) return null;
-    return parseApplicationDocumentUploadIntent({
+    print = await input.fingerprint(input.file);
+  } catch {
+    return { status: "unreadable" };
+  }
+  if (!Number.isInteger(print.byteSize) || print.byteSize < 1 || print.byteSize > APPLICATION_DOCUMENT_MAX_FILE_BYTES) return { status: "invalid" };
+  try {
+    const intent = parseApplicationDocumentUploadIntent({
       protocolVersion: 1,
       ...target,
       requestId: input.requestId,
       file: { originalFilename: safeFileName(input.file.name, check.mimeType), declaredMimeType: check.mimeType, byteSize: String(print.byteSize), sha256Hex: print.sha256Hex },
     });
+    return intent ? { status: "frozen", intent } : { status: "invalid" };
   } catch {
-    return null;
+    return { status: "invalid" };
   }
 }
 

@@ -2,7 +2,7 @@
 // нажатие, неоконченная загрузка и отправка. Сеть и устройство подменены (транспорт RPC, загрузка, выбор файла).
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
-import { AccessibilityInfo, Platform } from "react-native";
+import { AccessibilityInfo, Alert, Platform } from "react-native";
 
 import { documentsPending } from "@/features/preparations/documents-pending";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
@@ -23,9 +23,10 @@ import {
   uploadId,
   versionId,
 } from "@/test-fixtures/preparations";
-import { OTHER_PICKED, makeIo, receiptFor, type FakeIo } from "@/test-fixtures/preparations-io";
+import { FILE_BYTES, FILE_DIGEST, OTHER_PICKED, PICKED, makeIo, receiptFor, type FakeIo } from "@/test-fixtures/preparations-io";
 import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
+import { settle, waitForDisabled, waitForEnabled } from "@/test-fixtures/settle";
 import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -84,8 +85,8 @@ afterEach(() => restore());
 describe("одно нажатие: загрузить и отправить на проверку", () => {
   it("видна кнопка и подсказка «сразу уйдёт на проверку»; файл ещё не загружен", async () => {
     await open({ ready: answer(emptyItem(), documentState(0)) });
-    const button = await screen.findByTestId(`prep-upload-button-${ITEM}`);
-    expect(button).toHaveTextContent("Загрузить и отправить на проверку", { exact: false });
+    // подпись и подсказка «одним нажатием» появляются, когда прочитана запись отправки: ждём её, а не кнопку
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Загрузить и отправить на проверку", { exact: false }));
     expect(screen.getByText("Файл сразу уйдёт на проверку EVO.")).toBeTruthy();
     expect(screen.getByText("PDF, JPG или PNG, до 25 МБ.")).toBeTruthy();
     expect(screen.getByTestId(`prep-document-${ITEM}`)).toHaveTextContent("Файл ещё не загружен", { exact: false });
@@ -136,7 +137,7 @@ describe("одно нажатие: загрузить и отправить на
     await chooseFile();
     await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Загружаем…", { exact: false }));
     expect(screen.getByTestId(`prep-upload-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: true });
-    expect(screen.getByRole("progressbar", { name: "Загружено 50%" })).toBeTruthy();
+    expect(await screen.findByRole("progressbar", { name: "Загружено 50%" })).toBeTruthy();
     await act(async () => release(null));
     await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: false }));
   });
@@ -273,6 +274,8 @@ describe("одно нажатие: загрузить и отправить на
     expect(await screen.findByTestId(`prep-pick-notice-${ITEM}`)).toHaveTextContent("Нет доступа к камере.", { exact: false });
     expect(screen.getByText("Открыть настройки")).toBeTruthy();
     expect(t.fake.uploads).toHaveLength(0);
+    // «alert» без объявления на iPhone молчит
+    expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Нет доступа к камере."));
   });
 
   it("выбор файла не удался: сообщение", async () => {
@@ -280,6 +283,7 @@ describe("одно нажатие: загрузить и отправить на
     await open({ ready: answer(emptyItem(), documentState(0)), io });
     await chooseFile();
     expect(await screen.findByTestId(`prep-pick-notice-${ITEM}`)).toHaveTextContent("Не удалось получить файл.", { exact: false });
+    expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Не удалось получить файл."));
   });
 
   it("неподходящий файл (HEIC): не уходит на сервер, сообщение о формате, запрос не записан", async () => {
@@ -308,7 +312,7 @@ describe("устаревший вид: чтение не удалось, пре�
     await staleScreen();
     await screen.findByTestId(`prep-upload-button-${ITEM}`);
     expect(screen.getByText("Загрузить другой файл")).toBeTruthy();
-    expect(screen.getByTestId(`prep-submit-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: false });
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
     const banner = await goStale();
     expect(screen.queryByTestId(`prep-upload-button-${ITEM}`)).toBeNull();
     expect(screen.queryByText("Загрузить и отправить на проверку")).toBeNull();
@@ -319,7 +323,7 @@ describe("устаревший вид: чтение не удалось, пре�
     expect(screen.getByTestId(`prep-document-${ITEM}-draft-file`)).toBeTruthy();
     await fireEvent.press(within(banner).getByText("Повторить"));
     expect(await screen.findByTestId(`prep-upload-button-${ITEM}`)).toBeTruthy();
-    expect(screen.getByTestId(`prep-submit-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: false });
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
     expect(screen.queryByTestId("prep-requirements-stale")).toBeNull();
   });
 
@@ -328,10 +332,10 @@ describe("устаревший вид: чтение не удалось, пре�
     await documentsPending.persist(scope, "submit", ITEM, stored as never);
     const t = await staleScreen({ submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) });
     await goStale();
-    const retry = screen.getByTestId(`prep-submit-button-${ITEM}`);
-    expect(retry).toHaveTextContent("Проверить результат", { exact: false });
-    expect(retry.props.accessibilityState).toMatchObject({ disabled: false });
-    await fireEvent.press(retry);
+    // «Проверить результат» и включённая кнопка появляются, когда прочитана запись отправки
+    await waitFor(() => expect(screen.getByTestId(`prep-submit-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
     await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
     expect(t.calls.find((c) => c.name === "submit_application_document_v1")!.args).toMatchObject({ p_request_id: REQUEST });
   });
@@ -346,7 +350,7 @@ describe("замки: два нажатия раньше, чем кнопка в
 
   it("«Отправить на проверку»: запрос отправки уходит один раз и один раз озвучивается итог", async () => {
     const t = await saved();
-    await screen.findByTestId(`prep-submit-button-${ITEM}`);
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
     announceNative.mockClear();
     await pressTwiceInOneTick(`prep-submit-button-${ITEM}`);
     await waitFor(() => expect(screen.getByTestId(`prep-document-notice-${ITEM}`)).toHaveTextContent("Документ отправлен на проверку EVO.", { exact: false }));
@@ -361,6 +365,7 @@ describe("замки: два нажатия раньше, чем кнопка в
     await documentsPending.persist(scope, "submit", ITEM, stored as never);
     const t = await saved();
     await screen.findByTestId(`prep-submit-retained-${ITEM}`);
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
     announceNative.mockClear();
     await pressTwiceInOneTick(`prep-submit-button-${ITEM}`);
     await waitFor(async () => expect(await storedKeys()).toEqual([]));
@@ -379,7 +384,8 @@ describe("отправка сохранённого файла и неоконч
     });
     // решение «нужно исправить» меняет подпись загрузки
     expect(await screen.findByText("Загрузить исправленный файл")).toBeTruthy();
-    await fireEvent.press(await screen.findByTestId(`prep-submit-button-${ITEM}`));
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
     await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
     const submit = t.calls.find((c) => c.name === "submit_application_document_v1")!;
     expect(submit.args).toMatchObject({
@@ -405,12 +411,13 @@ describe("отправка сохранённого файла и неоконч
       ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })) : answer(sentItem(9), documentState(0, { submission: submissionOf(0, 9, null), canSubmit: false }))),
       extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) },
     });
-    const retry = await screen.findByTestId(`prep-submit-button-${ITEM}`);
-    expect(retry).toHaveTextContent("Проверить результат", { exact: false });
-    expect(screen.getByTestId(`prep-submit-retained-${ITEM}`)).toHaveTextContent("Не уверены, дошёл ли файл", { exact: false });
+    // запись отправки читается в фоне: всё, что от неё зависит, ждём по условию
+    expect(await screen.findByTestId(`prep-submit-retained-${ITEM}`)).toHaveTextContent("Не уверены, дошёл ли файл", { exact: false });
+    await waitFor(() => expect(screen.getByTestId(`prep-submit-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
     // пока запрос не доведён, загрузка новым файлом не отправляет его сама
-    expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Сохранить файл", { exact: false });
-    await fireEvent.press(retry);
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Сохранить файл", { exact: false }));
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
     await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
     expect(t.calls.find((c) => c.name === "submit_application_document_v1")!.args).toMatchObject({ p_request_id: REQUEST, p_selection: stored.selection });
     await waitFor(async () => expect(await storedKeys()).toEqual([]));
@@ -421,7 +428,8 @@ describe("отправка сохранённого файла и неоконч
       ready: answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })),
       errors: { submit_application_document_v1: { code: "PT500", message: "", status: 500 } },
     });
-    await fireEvent.press(await screen.findByTestId(`prep-submit-button-${ITEM}`));
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
     expect(await screen.findByTestId(`prep-submit-message-${ITEM}`)).toHaveTextContent("Не удалось получить результат", { exact: false });
     expect((await storedKeys()).length).toBe(1);
     await waitFor(() => expect(screen.getByTestId(`prep-submit-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
@@ -431,7 +439,288 @@ describe("отправка сохранённого файла и неоконч
   it("хранилище запросов испорчено: кнопки заблокированы, сказано словами", async () => {
     await AsyncStorage.setItem(documentsPending.key(scope, "upload", ITEM), "{bad");
     await open({ ready: answer(emptyItem(), documentState(0)) });
-    await waitFor(() => expect(screen.getAllByText("Не удалось проверить незавершённое действие на этом телефоне. Повторите попытку позже.").length).toBeGreaterThan(0));
-    expect(screen.getByTestId(`prep-upload-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: true });
+    // Ждём состояние, а не его соседа: текст об испорченной записи появляется и в разделе восстановления раньше, чем загрузится
+    // список требований, а до чтения записи кнопка выключена по другой причине (проверка «до чтения» прошла бы и без блокировки).
+    expect(await screen.findByTestId(`prep-upload-unreadable-${ITEM}`)).toHaveTextContent("повторять попытку бессмысленно", { exact: false });
+    await waitForDisabled(`prep-upload-button-${ITEM}`);
+  });
+});
+
+describe("файл не прочитался и сбой до отправки", () => {
+  it("файл исчез или не открылся: «Не удалось прочитать файл. Выберите его ещё раз.», а не «Выберите PDF…»; запись не создана", async () => {
+    const io = makeIo({
+      over: {
+        fingerprint: async () => {
+          throw new Error("file vanished");
+        },
+      },
+    });
+    const t = await open({ ready: answer(emptyItem(), documentState(0)), io });
+    await chooseFile();
+    const message = await screen.findByTestId(`prep-upload-message-${ITEM}`);
+    expect(message).toHaveTextContent("Не удалось прочитать файл. Выберите его ещё раз.", { exact: false });
+    expect(message).not.toHaveTextContent("Выберите PDF");
+    expect(t.fake.uploads).toHaveLength(0);
+    expect(await storedKeys()).toEqual([]);
+    expect(announceNative).toHaveBeenCalledWith("Не удалось прочитать файл. Выберите его ещё раз.");
+  });
+
+  it("сбой до отправки (нет сессии, файл не скопировался): «Файл не сохранён…», запись снята, ждать «тот же файл» не нужно", async () => {
+    const io = makeIo({ upload: () => ({ ok: false, reason: "not_sent", resolution: "not_written" }) });
+    await open({ ready: answer(emptyItem(), documentState(0)), io });
+    await chooseFile();
+    expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Файл не сохранён. Проверьте формат и соединение", { exact: false });
+    expect(await storedKeys()).toEqual([]);
+    await settle();
+    expect(screen.queryByTestId(`prep-upload-retained-${ITEM}`)).toBeNull();
+    expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).not.toHaveTextContent("Проверить результат");
+    expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
+  });
+});
+
+describe("два ответа выбора файла в одном кадре", () => {
+  it("загрузка идёт одна; второй ответ остановлен раньше замка и не говорит «Не уверены, дошёл ли файл»", async () => {
+    const fingerprint = jest.fn(async () => ({ byteSize: FILE_BYTES.byteLength, sha256Hex: FILE_DIGEST }));
+    const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io: makeIo({ over: { fingerprint } }) });
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-upload-button-${ITEM}`));
+    announceNative.mockClear();
+    await pressTwiceInOneTick("pick-file");
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Файл сохранён", { exact: false }));
+    await settle();
+    // выбор файла запускался дважды (защита стоит не в нём), а читался и загружался файл один раз
+    expect(t.fake.io.pick).toHaveBeenCalledTimes(2);
+    expect(fingerprint).toHaveBeenCalledTimes(1);
+    expect(t.fake.uploads).toHaveLength(1);
+    expect(announceNative.mock.calls.filter(([text]) => String(text).includes("Не уверены, дошёл ли файл"))).toHaveLength(0);
+  });
+});
+
+describe("отказ от незавершённого действия", () => {
+  type AlertButton = { text?: string; style?: string; onPress?: () => void };
+  let alert: jest.SpyInstance;
+  beforeEach(() => {
+    alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+  });
+  afterEach(() => alert.mockRestore());
+
+  const upload = (over: Raw = {}) => ({
+    protocolVersion: 1,
+    studentCaseId: STUDENT_CASE_ID,
+    applicationId: APPLICATION_ID,
+    requirementsRevisionId: REVISION_ID,
+    requirementItemId: ITEM,
+    documentSlotId: slotId(0),
+    requestId: REQUEST,
+    file: { originalFilename: "справка.pdf", declaredMimeType: "application/pdf", byteSize: String(FILE_BYTES.byteLength), sha256Hex: FILE_DIGEST },
+    ...over,
+  });
+  const submit = (over: Raw = {}) => ({
+    studentCaseId: STUDENT_CASE_ID,
+    applicationId: APPLICATION_ID,
+    requirementsRevisionId: REVISION_ID,
+    requirementItemId: ITEM,
+    requestId: REQUEST,
+    selection: { kind: "program_upload", uploadContextId: uploadId(9), documentVersionId: versionId(9) },
+    expectedPreviousSubmissionId: null,
+    ...over,
+  });
+  const lastAlert = () => ({ title: String(alert.mock.lastCall![0]), body: String(alert.mock.lastCall![1]), buttons: alert.mock.lastCall![2] as AlertButton[] });
+  /** Нажать кнопку отказа и ответить в окне подтверждения. */
+  async function discard(testID: string, answerText: "Отказаться" | "Оставить") {
+    await fireEvent.press(await screen.findByTestId(testID));
+    const answerButton = lastAlert().buttons.find((button) => button.text === answerText)!;
+    await act(async () => answerButton.onPress?.());
+  }
+
+  it("исход загрузки неизвестен: «Оставить» ничего не меняет, «Отказаться» снимает запись, и форма снова принимает любой файл", async () => {
+    let attempt = 0;
+    const io = makeIo({ picks: [PICKED, OTHER_PICKED], upload: (intent) => (++attempt === 1 ? { ok: false, reason: "unavailable", resolution: "retain" } : { ok: true, receipt: receiptFor(intent) as never }) });
+    const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Не удалось получить результат", { exact: false });
+    const button = await screen.findByTestId(`prep-discard-upload-${ITEM}`);
+    expect(button).toHaveTextContent("Отказаться от незавершённой загрузки");
+    expect(button).toHaveStyle({ minHeight: 44 });
+
+    await discard(`prep-discard-upload-${ITEM}`, "Оставить");
+    // честный текст окна: если файл уже дошёл, новая отправка может добавить версию (ничего сверх этого не обещано)
+    const { title, body, buttons } = lastAlert();
+    expect(title).toBe("Отказаться от незавершённого действия?");
+    expect(body).toContain("Если файл уже дошёл до EVO, новая отправка может добавить в список ещё одну версию.");
+    expect(buttons.map((b) => [b.text, b.style])).toEqual([["Оставить", "cancel"], ["Отказаться", "destructive"]]);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(await storedKeys()).toHaveLength(1);
+    expect(screen.getByTestId(`prep-discard-upload-${ITEM}`)).toBeTruthy();
+
+    await discard(`prep-discard-upload-${ITEM}`, "Отказаться");
+    await waitFor(async () => expect(await storedKeys()).toEqual([]));
+    await waitFor(() => expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull());
+    expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Незавершённое действие снято с этого телефона.", { exact: false });
+    expect(announceNative).toHaveBeenCalledWith("Незавершённое действие снято с этого телефона.");
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Сохранить файл", { exact: false }));
+    expect(screen.queryByTestId(`prep-upload-retained-${ITEM}`)).toBeNull();
+
+    // теперь принимается другой файл: новый запрос под новым номером
+    await chooseFile();
+    await waitFor(() => expect(t.fake.uploads).toHaveLength(2));
+    expect(t.fake.uploads[1]!.requestId).not.toBe(t.fake.uploads[0]!.requestId);
+    expect(t.fake.uploads[1]!.file.originalFilename).toBe("другой.pdf");
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Файл сохранён.", { exact: false }));
+  });
+
+  it("снимается только запись загрузки этого требования: другое требование и запись отправки этого же требования целы", async () => {
+    const OLD_ITEM = itemId(8);
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await documentsPending.persist(scope, "submit", ITEM, submit() as never);
+    await documentsPending.persist(scope, "upload", OLD_ITEM, upload({ requirementItemId: OLD_ITEM, documentSlotId: slotId(8) }) as never);
+    await open({ ready: answer(emptyItem(), documentState(0)) });
+    await discard(`prep-discard-upload-${ITEM}`, "Отказаться");
+    await waitFor(async () => expect((await storedKeys()).sort()).toEqual([documentsPending.key(scope, "submit", ITEM), documentsPending.key(scope, "upload", OLD_ITEM)].sort()));
+  });
+
+  it("испорченная запись загрузки: сказано, что повторять бессмысленно; после отказа форма снова рабочая", async () => {
+    const key = documentsPending.key(scope, "upload", ITEM);
+    await AsyncStorage.setItem(key, "{bad");
+    const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })) });
+    expect(await screen.findByTestId(`prep-upload-unreadable-${ITEM}`)).toHaveTextContent("Запись о незавершённом действии на этом телефоне не читается, повторять попытку бессмысленно.", { exact: false });
+    await waitForDisabled(`prep-upload-button-${ITEM}`);
+    // испорченная запись не стирается втихую: до отказа она на месте
+    expect(await AsyncStorage.getItem(key)).toBe("{bad");
+    await discard(`prep-discard-upload-${ITEM}`, "Отказаться");
+    await waitFor(async () => expect(await AsyncStorage.getItem(key)).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId(`prep-upload-unreadable-${ITEM}`)).toBeNull());
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    await chooseFile();
+    await waitFor(() => expect(t.fake.uploads).toHaveLength(1));
+  });
+
+  it("испорченная запись отправки: сказано словами, после отказа кнопка «Отправить на проверку» работает", async () => {
+    const key = documentsPending.key(scope, "submit", ITEM);
+    await AsyncStorage.setItem(key, "{bad");
+    const t = await open({
+      ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })) : answer(sentItem(9), documentState(0, { submission: submissionOf(0, 9, null), canSubmit: false }))),
+      extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) },
+    });
+    expect(await screen.findByTestId(`prep-submit-unreadable-${ITEM}`)).toHaveTextContent("повторять попытку бессмысленно", { exact: false });
+    await waitForDisabled(`prep-submit-button-${ITEM}`);
+    expect(screen.getByTestId(`prep-discard-submit-${ITEM}`)).toHaveTextContent("Отказаться от незавершённой отправки");
+    await discard(`prep-discard-submit-${ITEM}`, "Отказаться");
+    expect(lastAlert().body).toContain("обновите список документов");
+    await waitFor(async () => expect(await AsyncStorage.getItem(key)).toBeNull());
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
+    await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
+  });
+
+  it("хранилище не удаляет: сказано словами, запись на месте, кнопка остаётся", async () => {
+    const key = documentsPending.key(scope, "upload", ITEM);
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await open({ ready: answer(emptyItem(), documentState(0)) });
+    const original = AsyncStorage.removeItem;
+    AsyncStorage.removeItem = (async () => {
+      throw new Error("disk");
+    }) as typeof AsyncStorage.removeItem;
+    try {
+      await discard(`prep-discard-upload-${ITEM}`, "Отказаться");
+      expect(await screen.findByTestId(`prep-discard-upload-${ITEM}-error`)).toHaveTextContent("Повторите попытку позже", { exact: false });
+      expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Повторите попытку позже"));
+    } finally {
+      AsyncStorage.removeItem = original;
+    }
+    expect(await AsyncStorage.getItem(key)).not.toBeNull();
+    expect(screen.getByTestId(`prep-discard-upload-${ITEM}`)).toBeTruthy();
+  });
+
+  it("пока идёт повторная проверка загрузки, кнопки отказа нет", async () => {
+    let release: (value: unknown) => void = () => undefined;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    const io = makeIo({ upload: async (intent) => (await gate, { ok: true, receipt: receiptFor(intent) as never }) });
+    const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await screen.findByTestId(`prep-discard-upload-${ITEM}`);
+    await chooseFile();
+    await waitFor(() => expect(t.fake.uploads).toHaveLength(1));
+    expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
+    await act(async () => release(null));
+    await waitFor(async () => expect(await storedKeys()).toEqual([]));
+  });
+
+  it("кыргызский язык: кнопка и окно написаны по-кыргызски", async () => {
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await open({ ready: answer(emptyItem(), documentState(0)), lang: "ky" });
+    await fireEvent.press(await screen.findByTestId(`prep-discard-upload-${ITEM}`));
+    expect(screen.getByTestId(`prep-discard-upload-${ITEM}`)).toHaveTextContent("Бүтпөгөн жүктөөдөн баш тартуу");
+    expect(lastAlert().title).toBe("Бүтпөгөн аракеттен баш тартасызбы?");
+  });
+
+  it("запись загрузки и запись отправки сразу: две «Проверить результат» называются по-разному для читалки", async () => {
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await documentsPending.persist(scope, "submit", ITEM, submit() as never);
+    await open({ ready: answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })) });
+    const forUpload = await screen.findByRole("button", { name: "Проверить результат: загрузка файла" });
+    const forSubmit = await screen.findByRole("button", { name: "Проверить результат: отправка на проверку" });
+    expect(forUpload).toHaveTextContent("Проверить результат");
+    expect(forSubmit).toHaveTextContent("Проверить результат");
+    expect(forUpload).toBe(screen.getByTestId(`prep-upload-button-${ITEM}`));
+    expect(forSubmit).toBe(screen.getByTestId(`prep-submit-button-${ITEM}`));
+  });
+});
+
+describe("после успешной отправки чтение не удалось", () => {
+  const SENT = "Документ отправлен на проверку EVO.";
+  const STALE = "Не удалось обновить. Показаны последние полученные данные.";
+  const queued = AccessibilityInfo.announceForAccessibilityWithOptions as unknown as jest.Mock;
+  /** Сохранённый файл отправляется, а обновление после отправки (второе чтение) не удаётся. */
+  async function sendThenFailToRefresh() {
+    const t = await open({
+      ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })) : failure("PT500", 500)),
+      extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) },
+    });
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    announceNative.mockClear();
+    queued.mockClear();
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
+    await screen.findByTestId("prep-requirements-stale");
+    return t;
+  }
+
+  it("подтверждение «отправлено» остаётся на экране рядом с пометкой «Не удалось обновить»; читалке сначала итог, потом пометка", async () => {
+    await sendThenFailToRefresh();
+    expect(screen.getByTestId(`prep-document-notice-${ITEM}`)).toHaveTextContent(SENT, { exact: false });
+    const spoken = announceNative.mock.calls.map(([text]) => String(text));
+    expect(spoken).toContain(SENT);
+    expect(spoken).toContain(STALE);
+    expect(spoken.indexOf(SENT)).toBeLessThan(spoken.indexOf(STALE));
+    // и только по разу
+    expect(spoken.filter((text) => text === SENT)).toHaveLength(1);
+    expect(spoken.filter((text) => text === STALE)).toHaveLength(1);
+  });
+
+  it("на iPhone пометка встаёт в очередь за итогом, а не обрывает его", async () => {
+    restore();
+    const ios = jest.replaceProperty(Platform, "OS", "ios");
+    restore = () => ios.restore();
+    await sendThenFailToRefresh();
+    expect(screen.getByTestId(`prep-document-notice-${ITEM}`)).toHaveTextContent(SENT, { exact: false });
+    expect(announceNative).toHaveBeenCalledWith(SENT);
+    expect(queued).toHaveBeenCalledWith(STALE, { queue: true });
+    expect(announceNative).not.toHaveBeenCalledWith(STALE);
+  });
+
+  it("обычное «Проверить состояние» со сбоем чтения по-прежнему не встаёт в очередь (никакого итога перед ним нет)", async () => {
+    restore();
+    const ios = jest.replaceProperty(Platform, "OS", "ios");
+    restore = () => ios.restore();
+    await open({ ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0)) : failure("PT500", 500)) });
+    await screen.findByTestId("prep-requirement-list");
+    announceNative.mockClear();
+    queued.mockClear();
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await screen.findByTestId("prep-requirements-stale");
+    expect(announceNative).toHaveBeenCalledWith(STALE);
+    expect(queued).not.toHaveBeenCalled();
   });
 });

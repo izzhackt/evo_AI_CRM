@@ -22,7 +22,9 @@ import { freezeUploadIntent, sameUploadIntent, type Fingerprinter } from "@/feat
 
 type Resolution = "retain" | "not_written";
 
-export type UploadFn = (input: Readonly<{ intent: ApplicationDocumentUploadIntent; file: PickedFile; onProgress?: (percent: number) => void }>) => Promise<ApplicationDocumentUploadResult>;
+/** Сбой ДО отправки (нет сессии, файл не скопировался): в сеть ничего не ушло, запись о загрузке можно снять. */
+export type NotSentFailure = Readonly<{ ok: false; reason: "not_sent"; resolution: "not_written" }>;
+export type UploadFn = (input: Readonly<{ intent: ApplicationDocumentUploadIntent; file: PickedFile; onProgress?: (percent: number) => void }>) => Promise<ApplicationDocumentUploadResult | NotSentFailure>;
 export type SubmitFn = (intent: ApplicationDocumentSubmitIntent) => Promise<ApplicationDocumentSubmitResult>;
 
 export type CommandEnv = Readonly<{
@@ -33,9 +35,12 @@ export type CommandEnv = Readonly<{
 
 export type UploadOutcome =
   | Readonly<{ status: "uploaded"; receipt: ApplicationDocumentUploadReceipt; cleared: boolean }>
+  /** Файл не годится (тип, пустой, больше 25 МБ). */
   | Readonly<{ status: "invalid_file" }>
+  /** Файл не прочитался: запрос не создан и не записан, тот же файл можно выбрать ещё раз. */
+  | Readonly<{ status: "unreadable" }>
   | Readonly<{ status: "wrong_file" }>
-  | Readonly<{ status: "rejected"; reason: ApplicationDocumentFailure; resolution: Resolution }>
+  | Readonly<{ status: "rejected"; reason: ApplicationDocumentFailure | "not_sent"; resolution: Resolution }>
   | Readonly<{ status: "locked"; reason: "busy" | "storage_unavailable" }>;
 
 /** Загрузка: заморозить запрос по файлу, записать, отправить, снять после подтверждённого исхода. */
@@ -62,8 +67,10 @@ export async function runUpload(input: Readonly<{
       const originalTarget = old
         ? { studentCaseId: old.studentCaseId, applicationId: old.applicationId, requirementsRevisionId: old.requirementsRevisionId, requirementItemId: old.requirementItemId, documentSlotId: old.documentSlotId }
         : target;
-      const next = await freezeUploadIntent({ target: originalTarget, file, requestId: old?.requestId ?? (env?.newRequestId ?? randomUUID)(), fingerprint: input.fingerprint });
-      if (!next) return { status: "invalid_file" };
+      const frozen = await freezeUploadIntent({ target: originalTarget, file, requestId: old?.requestId ?? (env?.newRequestId ?? randomUUID)(), fingerprint: input.fingerprint });
+      if (frozen.status === "invalid") return { status: "invalid_file" };
+      if (frozen.status === "unreadable") return { status: "unreadable" };
+      const next = frozen.intent;
       if (old && !sameUploadIntent(old, next)) return { status: "wrong_file" };
       const intent = old ?? next;
       await documentsPending.persist(scope, "upload", itemId, intent, env?.storage);

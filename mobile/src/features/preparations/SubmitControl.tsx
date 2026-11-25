@@ -6,11 +6,13 @@ import { View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { submitApplicationDocument } from "@/api/preparations-documents";
+import { DiscardPending } from "@/features/preparations/DiscardPending";
 import { runSubmit } from "@/features/preparations/document-commands";
 import { documentsPending, isSubmitIntent } from "@/features/preparations/documents-pending";
 import { usePreparation } from "@/features/preparations/context";
 import { documentActionMessage } from "@/features/preparations/messages";
 import { usePending } from "@/features/preparations/pending-store";
+import { useLang } from "@/i18n/LangProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
@@ -33,6 +35,7 @@ export function SubmitControl({ target, selection, previousSubmissionId, disable
 }) {
   const { scope, strings, onSaved } = usePreparation();
   const api = usePortalApi();
+  const { m } = useLang();
   const pending = usePending(documentsPending, scope, "submit", target.requirementItemId);
   const sending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -126,16 +129,31 @@ export function SubmitControl({ target, selection, previousSubmissionId, disable
     <View style={{ gap: 8 }} accessibilityState={{ busy }} testID={`prep-submit-${target.requirementItemId}`}>
       {retained && !succeeded ? <Text variant="secondary" testID={`prep-submit-retained-${target.requirementItemId}`}>{strings.pending}</Text> : null}
       {pending.blocked ? (
-        <Text variant="secondary" tone="error" accessibilityRole="alert">
-          {strings.storageUnavailable}
+        <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-submit-unreadable-${target.requirementItemId}`}>
+          {m("prep.recordUnreadable")}
         </Text>
       ) : null}
       <Button
         label={busy ? strings.sending : retained ? strings.retry : strings.send}
+        // Рядом может стоять такая же «Проверить результат» у загрузки: читалке нужно знать, чей это результат.
+        accessibilityLabel={retained && !busy ? m("prep.retrySubmitAria") : undefined}
         onPress={() => void submit()}
         disabled={!pending.hydrated || busy || suppressed || pending.blocked || (!retained && (disabled || !selection))}
         testID={`prep-submit-button-${target.requirementItemId}`}
       />
+      {/* Повторить испорченную запись нельзя; неоконченную, но читаемую отправку доводит «Проверить результат», отказ ей не нужен. */}
+      {pending.blocked ? (
+        <DiscardPending
+          operation="submit"
+          target={target.requirementItemId}
+          disabled={!pending.hydrated || busy || suppressed}
+          onDiscarded={(text) => {
+            setMessage(text);
+            setSucceeded(true);
+          }}
+          testID={`prep-discard-submit-${target.requirementItemId}`}
+        />
+      ) : null}
       {shownMessage ? (
         <Text variant="secondary" tone={succeeded ? "text2" : "error"} accessibilityRole={succeeded ? undefined : "alert"} testID={`prep-submit-message-${target.requirementItemId}`}>
           {shownMessage}

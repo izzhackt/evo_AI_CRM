@@ -11,6 +11,7 @@ import { usePortalApi } from "@/api/PortalApi";
 import { submitApplicationDocument } from "@/api/preparations-documents";
 import type { PickedFile } from "@/domain/documents-model";
 import { SourceSheet } from "@/features/documents/SourceSheet";
+import { DiscardPending } from "@/features/preparations/DiscardPending";
 import { runUploadAndSubmit } from "@/features/preparations/document-commands";
 import { documentsPending, isUploadIntent } from "@/features/preparations/documents-pending";
 import { usePreparation } from "@/features/preparations/context";
@@ -65,6 +66,8 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
   const oneTap = Boolean(sendAfterSave);
 
   async function save(file: PickedFile) {
+    // Два ответа выбора файла в одном кадре (форма ещё не успела выключиться): вторую остановит `sending`, раньше замка цели.
+    // Без этой строки вторая дошла бы до замка, получила «занято» и сказала бы «Не уверены, дошёл ли файл» поверх идущей загрузки.
     if (sending.current || elsewhere || pending.blocked || !pending.hydrated || (disabled && !retained)) return;
     sending.current = true;
     setStage("upload");
@@ -98,7 +101,7 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
         sendAfterUpload: run ? { previousSubmissionId: run.previousSubmissionId, submit: (intent) => submitApplicationDocument(api.transport, intent) } : null,
       });
       if (outcome.stage === "upload") {
-        const text = uploadFailureMessage(outcome.upload, strings);
+        const text = uploadFailureMessage(outcome.upload, strings, { unreadable: m("prep.fileUnreadable") });
         setMessage(text);
         announce(text);
         return;
@@ -155,10 +158,17 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
   useEffect(() => {
     latestSave.current = save;
   });
-  const picker = useSourcePicker({ pick: io.pick, onPicked: (file) => void latestSave.current(file), onNotice: setPickNotice });
+  // Сбой выбора файла (камера не разрешена, система не отдала файл) читалка узнаёт сама: «alert» без объявления молчит на iPhone.
+  const onPickNotice = (notice: PickNotice | null) => {
+    setPickNotice(notice);
+    if (notice) announce(notice.kind === "camera" ? m("docs.cameraDenied") : m("docs.errorPick"));
+  };
+  const picker = useSourcePicker({ pick: io.pick, onPicked: (file) => void latestSave.current(file), onNotice: onPickNotice });
 
   if (disabled && !retained && !pending.blocked) return null;
   const inert = !pending.hydrated || busy || elsewhere || pending.blocked || (disabled && !retained);
+  // Запись загрузки ждёт результата и ничего не идёт: главная кнопка «Проверить результат», у неё своё имя для читалки (рядом может стоять такая же у отправки).
+  const retrying = !busy && !elsewhere && retained !== null;
   const buttonLabel =
     stage === "submit" || elsewhere ? strings.sending : stage === "upload" ? (oneTap ? strings.uploading : strings.saving) : retained ? strings.retry : oneTap ? strings.uploadAndSend : strings.saveFile;
   return (
@@ -172,11 +182,31 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
         </Text>
       ) : null}
       {pending.blocked ? (
-        <Text variant="secondary" tone="error" accessibilityRole="alert">
-          {strings.storageUnavailable}
+        <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-upload-unreadable-${target.requirementItemId}`}>
+          {m("prep.recordUnreadable")}
         </Text>
       ) : null}
-      <Button variant={oneTap && !quiet ? "primary" : "ghost"} label={buttonLabel} onPress={picker.open} disabled={inert} testID={`prep-upload-button-${target.requirementItemId}`} />
+      <Button
+        variant={oneTap && !quiet ? "primary" : "ghost"}
+        label={buttonLabel}
+        accessibilityLabel={retrying ? m("prep.retryUploadAria") : undefined}
+        onPress={picker.open}
+        disabled={inert}
+        testID={`prep-upload-button-${target.requirementItemId}`}
+      />
+      {/* Запись ждёт ТОТ ЖЕ файл (снимок с камеры повторить нельзя) или не читается: выход - отказаться и начать заново. */}
+      {shownRetained || pending.blocked ? (
+        <DiscardPending
+          operation="upload"
+          target={target.requirementItemId}
+          disabled={!pending.hydrated || busy || elsewhere}
+          onDiscarded={(text) => {
+            setMessage(text);
+            setSucceeded(true);
+          }}
+          testID={`prep-discard-upload-${target.requirementItemId}`}
+        />
+      ) : null}
       {stage === "upload" && progress !== null ? (
         <View accessible accessibilityRole="progressbar" accessibilityLabel={format(m("prep.progress"), { percent: String(Math.round(progress)) })} accessibilityValue={{ min: 0, max: 100, now: Math.round(progress) }} style={{ height: 6, borderRadius: 3, backgroundColor: tokens.skeleton, overflow: "hidden" }}>
           <View style={{ width: `${Math.round(progress)}%`, height: 6, backgroundColor: tokens.accent }} />

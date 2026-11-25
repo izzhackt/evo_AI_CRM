@@ -20,6 +20,7 @@ import { usePreparation } from "@/features/preparations/context";
 import { FileFacts } from "@/features/preparations/ItemDocumentState";
 import { availabilityText } from "@/features/preparations/model";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -27,6 +28,7 @@ import { Text } from "@/ui/Text";
 /** Загруженные страницы сохранённых версий: первая из ответа программы, следующие по курсору. Одинаковые версии не повторяются. */
 export function useSavedVersions(state: Pick<ApplicationDocumentItemState, "reusableVersions" | "reusableVersionsNextCursor">, target: ApplicationDocumentItemTarget) {
   const { transport } = usePortalApi();
+  const { strings } = usePreparation();
   const [versions, setVersions] = useState<readonly ApplicationDocumentReusableVersion[]>(state.reusableVersions);
   const [cursor, setCursor] = useState<ApplicationDocumentVersionCursor | null>(state.reusableVersionsNextCursor);
   const [loading, setLoading] = useState(false);
@@ -43,11 +45,13 @@ export function useSavedVersions(state: Pick<ApplicationDocumentItemState, "reus
       setCursor(page.nextCursor);
     } catch {
       setFailed(true);
+      // Текст ошибки стоит под списком с ролью «alert», а на iPhone она без объявления молчит.
+      announce(strings.historyUnavailable);
     } finally {
       lock.current = false;
       setLoading(false);
     }
-  }, [cursor, transport, target.studentCaseId, target.applicationId, target.requirementItemId]);
+  }, [cursor, transport, strings.historyUnavailable, target.studentCaseId, target.applicationId, target.requirementItemId]);
   return { versions, cursor, loading, failed, more };
 }
 

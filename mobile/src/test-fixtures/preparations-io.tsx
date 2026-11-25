@@ -5,6 +5,7 @@ import type { ApplicationDocumentUploadIntent, ApplicationDocumentUploadResult }
 
 import type { PickedFile } from "@/domain/documents-model";
 import type { DownloadDeps } from "@/features/documents/download";
+import type { NotSentFailure } from "@/features/preparations/document-commands";
 import type { PreparationIo } from "@/features/preparations/io";
 import { uploadId, versionId } from "@/test-fixtures/preparations";
 
@@ -24,6 +25,8 @@ export const receiptFor = (intent: ApplicationDocumentUploadIntent, n = 7) => ({
 });
 
 type FakeFetch = Awaited<ReturnType<DownloadDeps["fetchImpl"]>>;
+/** Итог подставленной загрузки: ответ сервера или сбой до отправки. */
+type UploadResult = ApplicationDocumentUploadResult | NotSentFailure;
 
 export type FakeIo = Readonly<{
   io: PreparationIo;
@@ -34,7 +37,7 @@ export type FakeIo = Readonly<{
 
 export function makeIo(options: {
   picks?: PickedFile[];
-  upload?: (intent: ApplicationDocumentUploadIntent) => ApplicationDocumentUploadResult | Promise<ApplicationDocumentUploadResult>;
+  upload?: (intent: ApplicationDocumentUploadIntent) => UploadResult | Promise<UploadResult>;
   over?: Partial<PreparationIo>;
   fetchResponses?: FakeFetch[];
 } = {}): FakeIo {

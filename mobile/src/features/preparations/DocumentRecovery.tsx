@@ -11,9 +11,11 @@ import { submitApplicationDocument } from "@/api/preparations-documents";
 import { runSubmit } from "@/features/preparations/document-commands";
 import { documentsPending, isSubmitIntent, isUploadIntent, type DocumentOperation, type DocumentPendingIntent } from "@/features/preparations/documents-pending";
 import { usePreparation } from "@/features/preparations/context";
+import { DiscardPending } from "@/features/preparations/DiscardPending";
 import { documentActionMessage } from "@/features/preparations/messages";
 import type { PendingEntry } from "@/features/preparations/pending-store";
 import { UploadControl } from "@/features/preparations/UploadControl";
+import { useLang } from "@/i18n/LangProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
@@ -23,6 +25,7 @@ type Entry = PendingEntry<DocumentOperation, DocumentPendingIntent>;
 function RecoverEntry({ entry }: { entry: Entry }) {
   const { scope, strings, onSaved } = usePreparation();
   const api = usePortalApi();
+  const { m } = useLang();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
@@ -79,10 +82,14 @@ function RecoverEntry({ entry }: { entry: Entry }) {
   }
 
   if (entry.blocked || !intent) {
+    // Испорченную запись не повторить и не стереть втихую: текст говорит прямо, а снять её можно только отказом.
     return (
-      <Text variant="secondary" tone="error" accessibilityRole="alert">
-        {strings.storageUnavailable}
-      </Text>
+      <View style={{ gap: 8 }}>
+        <Text variant="secondary" tone="error" accessibilityRole="alert">
+          {m("prep.recordUnreadable")}
+        </Text>
+        <DiscardPending operation={entry.operation} target={entry.target} testID={`prep-discard-recover-${entry.operation}-${entry.target}`} />
+      </View>
     );
   }
   if (isUploadIntent(intent)) {

@@ -14,7 +14,10 @@
 //    (`laterClockOffset` раннера тестов): телефон, переставленный вперёд руками, так никогда не поправился бы;
 //  - поправка больше 48 часов (`MAX_OFFSET_MS`: 1970 и 9999 год, не числа, значения за пределом `Date`) не принимается вовсе,
 //    а не обрезается: обрезанная выдавала бы за время сервера выдуманное;
-//  - `serverNow()` всегда настоящая дата: `Invalid Date` ломает `todayForTimeline` (RangeError в `toISOString`).
+//  - `serverNow()` всегда настоящая дата: `Invalid Date` ломает `todayForTimeline` (RangeError в `toISOString`);
+//  - заголовок `Date` читается движком (Hermes разбирает HTTP-дату `Tue, 08 Sep 2026 05:00:00 GMT` через `Date.parse`; на устройстве
+//    это не проверено). Разбор, который ошибся, но не вернул `NaN`, сдвинул бы «сегодня» на часы, поэтому при загрузке движок
+//    проверяется на известной дате (`Thu, 01 Jan 1970 00:00:00 GMT` должно дать ровно 0), а не прошёл - заголовок не читается совсем.
 
 /** Секунды в заголовке `Date` и дорога ответа дают разброс около секунды: меньшие сдвиги поправку не меняют. */
 const NOISE_MS = 1000;
@@ -26,6 +29,8 @@ const MAX_ROUND_TRIP_MS = 10_000;
 const JUMP_MS = 120_000;
 /** Два ответа согласны, если их поправки различаются не больше чем на это. */
 const AGREE_MS = 3_000;
+/** Дата, на которой при загрузке проверяется разбор HTTP-даты движком: начало эпохи, ровно 0. */
+const EPOCH_HTTP_DATE = "Thu, 01 Jan 1970 00:00:00 GMT";
 /** Правдоподобная поправка: переставленные руками часы бывают неправы на часы и сутки, но не на годы. */
 const MAX_OFFSET_MS = 48 * 3_600_000;
 /** Предел значений `Date` (ECMAScript): дальше `new Date(...)` - `Invalid Date`. */
@@ -96,13 +101,28 @@ export function resetServerClockForTests(): void {
 }
 
 /**
+ * Разбирает ли движок HTTP-дату правильно: известная дата начала эпохи даёт ровно 0. `NaN` (не разобрал) и любое другое число
+ * (разобрал со сдвигом, например как местное время) - нет. `parse` подставляется в тестах.
+ */
+export function httpDateParsesCorrectly(parse: (value: string) => number = Date.parse): boolean {
+  try {
+    return parse(EPOCH_HTTP_DATE) === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Итог проверки движка при загрузке модуля: разобрал неверно - заголовку `Date` не верим. */
+const HTTP_DATE_OK = httpDateParsesCorrectly();
+
+/**
  * `fetch`, который по пути записывает время сервера из заголовка `Date` ответа. Ответ возвращается нетронутым (тело не
  * читается), любой сбой разбора заголовка остаётся незамеченным: часы необязательны, запрос важнее. Заголовок ставит сервер,
  * пока готовит ответ, то есть где-то между отправкой запроса и получением ответа: сопоставляем его с серединой этого отрезка.
  * Если часы телефона переставили посреди запроса (получение раньше отправки) или запрос шёл дольше `MAX_ROUND_TRIP_MS`, отрезок
  * ничего не значит и ответ не учитывается.
  */
-export function withServerClock(baseFetch: typeof fetch = fetch, clockMs: () => number = Date.now): typeof fetch {
+export function withServerClock(baseFetch: typeof fetch = fetch, clockMs: () => number = Date.now, httpDateOk: boolean = HTTP_DATE_OK): typeof fetch {
   return async (input, init) => {
     const sentAt = clockMs();
     const response = await baseFetch(input, init);
@@ -110,7 +130,7 @@ export function withServerClock(baseFetch: typeof fetch = fetch, clockMs: () => 
       const receivedAt = clockMs();
       const date = response.headers?.get("date");
       const age = Number(response.headers?.get("age") ?? 0);
-      if (date && !(age > MAX_AGE_SECONDS) && receivedAt >= sentAt && receivedAt - sentAt <= MAX_ROUND_TRIP_MS) observeServerTime(date, sentAt + (receivedAt - sentAt) / 2);
+      if (httpDateOk && date && !(age > MAX_AGE_SECONDS) && receivedAt >= sentAt && receivedAt - sentAt <= MAX_ROUND_TRIP_MS) observeServerTime(date, sentAt + (receivedAt - sentAt) / 2);
     } catch {
       // Часы необязательны.
     }

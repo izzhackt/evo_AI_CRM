@@ -1,6 +1,6 @@
 import { todayForTimeline } from "@web/lib/portal/country-timeline";
 
-import { now, observeServerTime, resetServerClockForTests, serverNow, serverOffsetMs, subscribeServerClock, withServerClock } from "@/lib/server-clock";
+import { httpDateParsesCorrectly, now, observeServerTime, resetServerClockForTests, serverNow, serverOffsetMs, subscribeServerClock, withServerClock } from "@/lib/server-clock";
 
 beforeEach(resetServerClockForTests);
 
@@ -330,6 +330,65 @@ describe("withServerClock: время сервера из заголовка Dat
     const odd = (async () => ({ headers: { get: () => { throw new Error("boom"); } } })) as unknown as typeof fetch;
     await expect(withServerClock(odd)("https://example.test/c")).resolves.toBeDefined();
     expect(serverOffsetMs()).toBeNull();
+  });
+});
+
+describe("проверка разбора HTTP-даты движком при загрузке", () => {
+  const EPOCH = "Thu, 01 Jan 1970 00:00:00 GMT";
+  const respond = (headers: Record<string, string>) => jest.fn(async () => new Response("{}", { status: 200, headers })) as unknown as typeof fetch;
+
+  it("настоящий движок (Node) разбирает дату начала эпохи в ровно 0", () => {
+    expect(Date.parse(EPOCH)).toBe(0);
+    expect(httpDateParsesCorrectly()).toBe(true);
+  });
+
+  it("не разобрал (NaN), разобрал со сдвигом (на 6 часов, как местное время Бишкека) или бросил - проверка не пройдена", () => {
+    expect(httpDateParsesCorrectly(() => Number.NaN)).toBe(false);
+    expect(httpDateParsesCorrectly(() => -6 * 3_600_000)).toBe(false);
+    expect(httpDateParsesCorrectly(() => 6 * 3_600_000)).toBe(false);
+    expect(httpDateParsesCorrectly(() => 1)).toBe(false);
+    expect(httpDateParsesCorrectly(() => { throw new Error("parse"); })).toBe(false);
+    expect(httpDateParsesCorrectly(() => 0)).toBe(true);
+  });
+
+  it("проверка спрашивает именно дату начала эпохи", () => {
+    const asked: string[] = [];
+    httpDateParsesCorrectly((value) => (asked.push(value), 0));
+    expect(asked).toEqual([EPOCH]);
+  });
+
+  it("движок не прошёл проверку: заголовок Date не читается совсем, даже правильный и близкий; прошёл - читается", async () => {
+    const header = { date: "Tue, 08 Sep 2026 05:00:30 GMT" };
+    await withServerClock(respond(header), () => T, false)("https://example.test/a");
+    await withServerClock(respond(header), () => T, false)("https://example.test/b");
+    expect(serverOffsetMs()).toBeNull();
+    await withServerClock(respond(header), () => T, true)("https://example.test/c");
+    expect(serverOffsetMs()).toBe(30_000);
+  });
+
+  it("по умолчанию (проверка при загрузке в Node прошла) заголовок читается", async () => {
+    await withServerClock(respond({ date: "Tue, 08 Sep 2026 05:00:30 GMT" }), () => T)("https://example.test/a");
+    expect(serverOffsetMs()).toBe(30_000);
+  });
+
+  it("проверка идёт именно при загрузке модуля: движок ошибся на эпохе - свежезагруженный модуль заголовок не читает, исправный - читает", async () => {
+    const load = () => {
+      let loaded: typeof import("@/lib/server-clock") | undefined;
+      jest.isolateModules(() => {
+        loaded = jest.requireActual<typeof import("@/lib/server-clock")>("@/lib/server-clock");
+      });
+      return loaded!;
+    };
+    const header = { date: "Tue, 08 Sep 2026 05:00:30 GMT" };
+    const realParse = Date.parse;
+    const parse = jest.spyOn(Date, "parse").mockImplementation((value) => (value === EPOCH ? 6 * 3_600_000 : realParse(value))); // ошибся на 6 часов
+    const broken = load();
+    await broken.withServerClock(respond(header), () => T)("https://example.test/a");
+    expect(broken.serverOffsetMs()).toBeNull();
+    parse.mockRestore();
+    const healthy = load();
+    await healthy.withServerClock(respond(header), () => T)("https://example.test/b");
+    expect(healthy.serverOffsetMs()).toBe(30_000);
   });
 });
 

@@ -1,15 +1,22 @@
 import { Menu } from "lucide-react-native";
-import { Pressable, View } from "react-native";
+import { Image, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
+import { TopBarActions } from "@/shell/TopBarActions";
 import { useTheme } from "@/theme/ThemeProvider";
-import { EvoMark } from "@/ui/EvoMark";
-import { Text } from "@/ui/Text";
 
-/** Верх телефона: ☰, знак и подпись, фон страницы, без рамки (высота 52). */
+// Лого веба (`public/brand/evo-logo.png` и `evo-logo-on-dark.png`, 1843 x 842): полный знак с подписью, 88 pt шириной, как в
+// полосе телефона. В тёмной теме - тот же файл с белыми буквами и тем же красным знаком (EvoLogo `onDark`), без плашки.
+const LOGO = require("../../assets/images/evo-logo.png");
+const LOGO_ON_DARK = require("../../assets/images/evo-logo-on-dark.png");
+const LOGO_WIDTH = 88;
+const LOGO_HEIGHT = Math.round((LOGO_WIDTH * 842) / 1843);
+
+/** Верх телефона: ☰, лого-ссылка на «Главную», справа колокольчик; фон страницы, без рамки (высота 52). */
 export function TopBar({ onMenu }: { onMenu: () => void }) {
-  const { tokens } = useTheme();
+  const { tokens, scheme } = useTheme();
   const { shell } = useLang();
   const insets = useSafeAreaInsets();
   return (
@@ -25,10 +32,18 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         >
           <Menu size={24} strokeWidth={1.75} color={tokens.text} />
         </Pressable>
-        <EvoMark size={26} color={tokens.brandRed} />
-        <Text variant="body" bold>
-          EVO admissions
-        </Text>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={shell.home}
+          onPress={() => go("/home")}
+          hitSlop={4}
+          style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 4 }}
+          testID="topbar-logo"
+        >
+          <Image source={scheme === "dark" ? LOGO_ON_DARK : LOGO} style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }} resizeMode="contain" accessibilityIgnoresInvertColors testID="topbar-logo-image" />
+        </Pressable>
+        <View style={{ flex: 1 }} />
+        <TopBarActions />
       </View>
     </View>
   );

@@ -10,6 +10,7 @@ import { UniversityIndexWarmup } from "@/features/universities/IndexWarmup";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { ChatFab } from "@/shell/ChatFab";
 import { MenuSheet } from "@/shell/MenuSheet";
+import { PollFailureNotice } from "@/shell/PollFailureNotice";
 import { SECTIONS, isAllowed, type SectionId } from "@/shell/sections";
 import { TabBar } from "@/shell/TabBar";
 import { TopBar } from "@/shell/TopBar";
@@ -79,6 +80,8 @@ export default function AppLayout() {
           </Tabs.Protected>
         ))}
       </Tabs>
+      {/* «Не удалось обновить уведомления» + «Повторить» под верхней полосой, пока последний опрос не удался (веб). */}
+      <PollFailureNotice />
       {/* Одна кнопка к команде EVO с любого экрана кабинета; не рисуется на «Входящих» и в беседе. */}
       <ChatFab />
       </PortalPoll>

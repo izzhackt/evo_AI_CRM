@@ -9,6 +9,7 @@ import { Appearance, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ConfigError, getConfig } from "@/config";
+import { UpdatePrompt } from "@/features/app/UpdatePrompt";
 import { LangProvider, useLang } from "@/i18n/LangProvider";
 import { bindAutoRefresh, getSupabase } from "@/lib/supabase";
 import { SessionProvider, useSession } from "@/session/SessionProvider";
@@ -16,6 +17,9 @@ import { FONT_FILES } from "@/theme/fonts";
 import { ThemeProvider, useTheme } from "@/theme/ThemeProvider";
 import { primeReducedMotion } from "@/ui/motion";
 import { Text } from "@/ui/Text";
+
+// Сбой отрисовки: свой экран на языке студента вместо английского «Something went wrong» expo-router (G5 аудита паритета).
+export { AppErrorBoundary as ErrorBoundary } from "@/features/app/AppErrorBoundary";
 
 void SplashScreen.preventAutoHideAsync();
 // Настройка «Уменьшить движение» читается при запуске: к первому показу «Главной» она уже известна.
@@ -112,6 +116,8 @@ function Routes({ fontsLoaded }: { fontsLoaded: boolean }) {
           <Stack.Screen name="(app)" />
         </Stack.Protected>
       </Stack>
+      {/* Обновление скачано: предложить перезапуск (G4). Без обновлений и в разработке карточки нет. */}
+      <UpdatePrompt />
     </>
   );
 }

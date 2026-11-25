@@ -10,13 +10,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePortalPollFailure } from "@/api/PortalPoll";
 import { useLang } from "@/i18n/LangProvider";
+import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { LinkButton } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
-
-/** Высота верхней полосы (TopBar) без отступа безопасной зоны. */
-const TOPBAR_HEIGHT = 52;
 
 /** Сбой чтения состояния обновлений не должен стоить студенту приложения: при любой ошибке отрисовки карточки просто нет. */
 class NoticeBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -45,7 +43,7 @@ function PollFailureCard() {
   }, [visible, shell.notificationsFailed]);
   if (!visible) return null;
   return (
-    <View pointerEvents="box-none" testID="poll-failure-anchor" style={{ position: "absolute", top: insets.top + TOPBAR_HEIGHT + 8, right: 16 }}>
+    <View pointerEvents="box-none" testID="poll-failure-anchor" style={{ position: "absolute", top: insets.top + TOP_BAR_HEIGHT + 8, right: 16 }}>
       <View
         accessibilityRole="alert"
         testID="poll-failure"

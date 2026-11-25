@@ -20,6 +20,15 @@ jest.mock("expo-updates", () => ({
   useUpdates: () => mockUpdates.state(),
 }));
 
+// Общая мера высоты верхней полосы читается через геттер: тест подменяет число и видит, что полоса берёт его оттуда, а не своим
+// числом (настоящее значение сверяет тест карточки обновления, `shell/top-bar-metrics`).
+let mockBarHeight = 52;
+jest.mock("@/shell/top-bar-metrics", () => ({
+  get TOP_BAR_HEIGHT() {
+    return mockBarHeight;
+  },
+}));
+
 const announce = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 const tree = (lang: "ru" | "ky") => (
@@ -35,6 +44,7 @@ const renderNotice = (lang: "ru" | "ky" = "ru") => render(tree(lang));
 
 beforeEach(() => {
   mockFailed = false;
+  mockBarHeight = 52;
   mockRetry.mockClear();
   announce.mockClear();
   mockUpdates.isEnabled = true;
@@ -56,13 +66,14 @@ describe("карточка «Не удалось обновить уведомл
     expect(mockRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("встаёт под верхней полосой справа, не шире 320", async () => {
+  it("встаёт под верхней полосой справа, не шире 320; высоту полосы берёт из общей меры, а не своим числом", async () => {
     mockFailed = true;
+    mockBarHeight = 64;
     await renderNotice();
     const card = screen.getByTestId("poll-failure");
     expect(card.props.style).toMatchObject({ width: 320 });
-    // отступ безопасной зоны 47 + полоса 52 + зазор 8
-    expect(screen.getByTestId("poll-failure-anchor").props.style).toMatchObject({ position: "absolute", top: 47 + 52 + 8, right: 16 });
+    // отступ безопасной зоны 47 + полоса (общая мера, здесь подменена на 64) + зазор 8
+    expect(screen.getByTestId("poll-failure-anchor").props.style).toMatchObject({ position: "absolute", top: 47 + 64 + 8, right: 16 });
   });
 
   it("кыргызский язык", async () => {

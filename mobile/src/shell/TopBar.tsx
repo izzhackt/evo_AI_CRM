@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
+import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
 import { TopBarActions } from "@/shell/TopBarActions";
 import { useTheme } from "@/theme/ThemeProvider";
 
@@ -14,14 +15,14 @@ const LOGO_ON_DARK = require("../../assets/images/evo-logo-on-dark.png");
 const LOGO_WIDTH = 88;
 const LOGO_HEIGHT = Math.round((LOGO_WIDTH * 842) / 1843);
 
-/** Верх телефона: ☰, лого-ссылка на «Главную», справа колокольчик; фон страницы, без рамки (высота 52). */
+/** Верх телефона: ☰, лого-ссылка на «Главную», справа колокольчик; фон страницы, без рамки (высота - общая мера `TOP_BAR_HEIGHT`). */
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { tokens, scheme } = useTheme();
   const { shell } = useLang();
   const insets = useSafeAreaInsets();
   return (
     <View style={{ paddingTop: insets.top, backgroundColor: tokens.bg }}>
-      <View style={{ height: 52, flexDirection: "row", alignItems: "center", paddingHorizontal: 4, gap: 4 }}>
+      <View testID="topbar-row" style={{ height: TOP_BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingHorizontal: 4, gap: 4 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={shell["nav.menu"]}

@@ -11,6 +11,14 @@ import { testApi } from "@/test-fixtures/render";
 jest.mock("@/api/PortalPoll", () => ({ usePortalUnread: () => 4 }));
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, usePathname: () => "/home" }));
 const navigate = router.navigate as jest.Mock;
+// Общая мера высоты верхней полосы читается через геттер: тест подменяет число и видит, что полоса берёт его оттуда, а не своим
+// числом (настоящее значение сверяет тест карточки обновления, `shell/top-bar-metrics`).
+let mockBarHeight = 52;
+jest.mock("@/shell/top-bar-metrics", () => ({
+  get TOP_BAR_HEIGHT() {
+    return mockBarHeight;
+  },
+}));
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 
@@ -27,7 +35,10 @@ async function renderBar({ tier = "assisted", lang = "ru", theme = "light", onMe
   );
 }
 
-beforeEach(() => navigate.mockClear());
+beforeEach(() => {
+  navigate.mockClear();
+  mockBarHeight = 52;
+});
 
 describe("верхняя полоса телефона (веб Shell.tsx: .pt-topbar)", () => {
   it("assisted: ☰, лого-ссылка, справа колокольчик «Что нового» с числом, затем кнопка темы (порядок веба)", async () => {
@@ -67,7 +78,13 @@ describe("верхняя полоса телефона (веб Shell.tsx: .pt-to
     expect(screen.getByLabelText("EVO Admissions — студенттин кабинети")).toBeTruthy();
   });
 
-  it("кнопка ☰ зовёт меню; высота полосы 52", async () => {
+  it("высота строки полосы - общая мера `TOP_BAR_HEIGHT`, а не число в самой полосе", async () => {
+    mockBarHeight = 64;
+    await renderBar();
+    expect(screen.getByTestId("topbar-row").props.style).toMatchObject({ height: 64 });
+  });
+
+  it("кнопка ☰ зовёт меню", async () => {
     const onMenu = jest.fn();
     await renderBar({ onMenu });
     await fireEvent.press(screen.getByTestId("menu-button"));

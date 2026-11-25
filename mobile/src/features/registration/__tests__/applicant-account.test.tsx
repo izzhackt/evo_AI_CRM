@@ -262,6 +262,25 @@ describe("«Анкета не отправилась» и «Доступ гот�
     expect(mockSignOut).toHaveBeenCalledTimes(1);
   });
 
+  it("в сессии нет почты (аудит U19): вместо вечной загрузки обновить, выйти, язык и удаление аккаунта", async () => {
+    mockState = { kind: "needsApplication", entry: { signedInEmail: null, resume: false } };
+    await renderScreen(<GateScreen />);
+    expect(await screen.findByTestId("no-email-sign-out")).toBeTruthy();
+    expect(screen.getByTestId("no-email-refresh")).toBeTruthy();
+    expect(screen.getByTestId("lang-ky")).toBeTruthy();
+    // секция удаления аккаунта: человек, застрявший здесь, всё равно может удалить аккаунт (Apple 5.1.1(v))
+    expect(screen.getByTestId("applicant-deletion-heading")).toHaveTextContent("Удаление аккаунта");
+    await fireEvent.press(await screen.findByTestId("deletion-start"));
+    await press("deletion-confirm-yes");
+    await waitFor(() => expect(mockCalls.some((c) => c.name === "request_account_deletion_v2")).toBe(true));
+    // и мастера нет: без почты анкету не открыть
+    expect(screen.queryByTestId("wizard-next")).toBeNull();
+    await press("no-email-refresh");
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    await press("no-email-sign-out");
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
   it("«Доступ готовится»: повтор, выход, язык и удаление аккаунта", async () => {
     mockState = { kind: "accessPending" };
     await renderScreen(<GateScreen />);

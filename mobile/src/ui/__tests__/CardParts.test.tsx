@@ -1,6 +1,7 @@
-// Скелетон (G6): при включённом в системе «Уменьшить движение» блок стоит ровным цветом и ничего не зацикливает; без него
-// пульсирует, как раньше, и останавливает цикл при уходе с экрана. Кадры в Jest не идут, поэтому проверяются запуск и
-// остановка цикла и стартовое состояние блоков, а не плавность. Блоки берутся из `CardSkeleton`: у самого `Skeleton` нет testID.
+// Скелетон (G6): всегда ровный блок цветом токена, без пульсации, как на вебе (`portal/loading.tsx`, правило владельца «без
+// бесконечных анимаций»). Системная настройка «Уменьшить движение» ему не нужна: пульсировать нечему ни при какой. Кадры в
+// Jest не идут, поэтому проверяются отсутствие цикла и вид блоков. Блоки берутся из `CardSkeleton`: у самого `Skeleton`
+// нет testID.
 import { act, render, screen } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { Animated, StyleSheet } from "react-native";
@@ -24,26 +25,35 @@ function wrap(ui: ReactElement) {
   );
 }
 
-/** Цикл пульсации без кадров: считает созданные, запущенные и остановленные циклы. */
+/** Цикл пульсации без кадров: считает созданные и запущенные циклы. Скелетон не должен создавать ни одного. */
 function spyLoop() {
   const start = jest.fn();
-  const stop = jest.fn();
-  const loop = jest.spyOn(Animated, "loop").mockImplementation(() => ({ start, stop, reset: jest.fn() }) as never);
-  return { loop, start, stop };
+  const loop = jest.spyOn(Animated, "loop").mockImplementation(() => ({ start, stop: jest.fn(), reset: jest.fn() }) as never);
+  return { loop, start };
 }
 
 type Host = { props: Record<string, unknown> };
 /** Три блока карточки: заголовок и две строки. */
 const blocks = () => (screen.getByTestId("card").children as unknown as Host[]).map((block) => ({ props: block.props, style: StyleSheet.flatten(block.props.style as never) as Record<string, unknown> }));
 
+const FLAT = [
+  [22, "55%", lightTokens.skeleton, 6],
+  [14, "100%", lightTokens.skeleton, 6],
+  [14, "70%", lightTokens.skeleton, 6],
+];
+const look = () => blocks().map(({ style }) => [style.height, style.width, style.backgroundColor, style.borderRadius]);
+
 afterEach(() => {
   jest.restoreAllMocks();
   setReducedMotionForTests(true); // как в jest.setup: по умолчанию движения в тестах нет
 });
 
-describe("Skeleton при «Уменьшить движение»", () => {
+describe.each([
+  ["включена", true],
+  ["выключена", false],
+])("Skeleton: настройка «Уменьшить движение» %s", (_name, reduced) => {
   it("цикл пульсации не создаётся и не запускается", async () => {
-    setReducedMotionForTests(true);
+    setReducedMotionForTests(reduced);
     const spy = spyLoop();
     await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
     expect(blocks()).toHaveLength(3);
@@ -51,19 +61,16 @@ describe("Skeleton при «Уменьшить движение»", () => {
     expect(spy.start).not.toHaveBeenCalled();
   });
 
-  it("блоки стоят ровным цветом токена: размер и цвет прежние, прозрачность не анимируется", async () => {
-    setReducedMotionForTests(true);
+  it("блоки стоят ровным цветом токена: размер, цвет и скругление прежние, прозрачность не анимируется", async () => {
+    setReducedMotionForTests(reduced);
     await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
-    expect(blocks().map(({ style }) => [style.height, style.width, style.backgroundColor, style.borderRadius])).toEqual([
-      [22, "55%", lightTokens.skeleton, 6],
-      [14, "100%", lightTokens.skeleton, 6],
-      [14, "70%", lightTokens.skeleton, 6],
-    ]);
+    expect(look()).toEqual(FLAT);
     for (const { style } of blocks()) expect(style.opacity).toBeUndefined();
   });
+});
 
+describe("Skeleton: доступность и настройка на лету", () => {
   it("читалке блоки не видны: «загрузка» читается один раз, у родителя", async () => {
-    setReducedMotionForTests(true);
     await render(wrap(<CardSkeleton testID="card" label="Загрузка карточки" />));
     for (const { props } of blocks()) {
       expect(props.importantForAccessibility).toBe("no");
@@ -73,57 +80,21 @@ describe("Skeleton при «Уменьшить движение»", () => {
     expect(screen.getByTestId("card").props.accessibilityRole).toBe("progressbar");
     expect(screen.getByTestId("card")).toBeBusy();
   });
-});
 
-describe("Skeleton без «Уменьшить движение»: пульсирует, как раньше", () => {
-  it("каждый блок запускает свой цикл пульсации", async () => {
+  it("настройку меняют при открытом экране: блоки те же, циклов нет ни до, ни после", async () => {
     setReducedMotionForTests(false);
     const spy = spyLoop();
     await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
-    expect(spy.loop).toHaveBeenCalledTimes(3);
-    expect(spy.start).toHaveBeenCalledTimes(3);
-    expect(spy.stop).not.toHaveBeenCalled();
-  });
-
-  it("первый кадр: прозрачность 0,55, размер и цвет те же, что у статичного блока", async () => {
-    setReducedMotionForTests(false);
-    spyLoop();
-    await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
-    expect(blocks().map(({ style }) => [style.height, style.width, style.backgroundColor, style.borderRadius, style.opacity])).toEqual([
-      [22, "55%", lightTokens.skeleton, 6, 0.55],
-      [14, "100%", lightTokens.skeleton, 6, 0.55],
-      [14, "70%", lightTokens.skeleton, 6, 0.55],
-    ]);
-  });
-
-  it("уход с экрана останавливает циклы", async () => {
-    setReducedMotionForTests(false);
-    const spy = spyLoop();
-    const view = await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
-    await view.unmount();
-    expect(spy.stop).toHaveBeenCalledTimes(3);
-  });
-});
-
-describe("Skeleton: настройку меняют на лету", () => {
-  it("включили «Уменьшить движение» при открытом экране: циклы остановлены, блоки стоят ровно, новых циклов нет", async () => {
-    setReducedMotionForTests(false);
-    const spy = spyLoop();
-    await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
-    expect(spy.loop).toHaveBeenCalledTimes(3);
+    expect(look()).toEqual(FLAT);
     await act(async () => setReducedMotionForTests(true));
-    expect(spy.stop).toHaveBeenCalledTimes(3);
-    expect(spy.loop).toHaveBeenCalledTimes(3);
-    for (const { style } of blocks()) expect(style.opacity).toBeUndefined();
+    expect(look()).toEqual(FLAT);
+    await act(async () => setReducedMotionForTests(false));
+    expect(look()).toEqual(FLAT);
+    expect(spy.loop).not.toHaveBeenCalled();
   });
 
-  it("выключили «Уменьшить движение»: пульсация начинается", async () => {
-    setReducedMotionForTests(true);
-    const spy = spyLoop();
-    await render(wrap(<CardSkeleton testID="card" label="Загрузка" />));
-    expect(spy.loop).not.toHaveBeenCalled();
-    await act(async () => setReducedMotionForTests(false));
-    expect(spy.loop).toHaveBeenCalledTimes(3);
-    expect(spy.start).toHaveBeenCalledTimes(3);
+  it("число строк карточки: заголовок и заданное число строк", async () => {
+    await render(wrap(<CardSkeleton testID="card" label="Загрузка" lines={4} />));
+    expect(blocks()).toHaveLength(5);
   });
 });

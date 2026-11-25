@@ -395,11 +395,11 @@
  * боковой панели рядом, выбрана иначе — `aria-current` и подложка `surface-2`
  * (Э7, 27.09: одна боковая панель везде). Сплошной красный
  * остаётся только главному действию экрана. Вид включается лишь объявленным
- * состоянием — aria-current, aria-pressed="true" или aria-expanded="true", —
+ * состоянием — aria-current, aria-pressed="true", aria-expanded="true" или выбранная вкладка на месте (role="tab"), —
  * поэтому выбранное нельзя показать одним цветом без смысла для читалки.
  * --accent-text на --accent-weak: 6.4:1; рамка (если она есть) того же цвета.
  */
-.v3-world .v3-choice:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-expanded="true"]) {
+.v3-world .v3-choice:is([aria-current]:not([aria-current="false"]), [aria-pressed="true"], [aria-expanded="true"], [role="tab"][aria-selected="true"]) {
   border-color: var(--accent-text);
   background-color: var(--accent-weak);
   color: var(--accent-text);

@@ -248,7 +248,7 @@ test("university page: the overview with the photo first, then programmes and in
   const programs = html.indexOf('<section id="program-');
   const about = html.indexOf('id="university-about"');
   const photo = html.indexOf('aria-label="Фото кампуса"');
-  assert.ok(about > 0 && photo > about && programs > photo, "overview → photo → programmes");
+  assert.ok(about > 0 && photo > 0 && programs > Math.max(about, photo), "overview card with the photo → programmes");
   // Длинный список (9+ программ) — поиск по названию и свёрнутые группы по уровню со счётчиком, в порядке уровней каталога.
   const levels = [...html.matchAll(/<details[^>]*data-program-level="([a-z]+)"/gu)].map((match) => match[1]);
   if (utmCount >= 9) {
@@ -265,7 +265,7 @@ test("university page: the overview with the photo first, then programmes and in
   assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
   assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
-  assert.match(html, /<aside aria-label="Фото кампуса" class="min-w-0 @max-4xl:max-w-80">/u, "the photo is a side column, at most 20 rem on a phone");
+  assert.match(html, /<aside aria-label="Фото кампуса" class="hidden min-w-0 max-w-80 has-\[\.v3-uni-photo\]:block @3xl:max-w-none">/u, "the photo is a side column of the overview card, at most 20 rem on a phone, gone when there is no photo");
   assert.match(html, /aspect-\[4\/3\]/u);
   assert.match(html, /<th [^>]*>Срок подачи<\/th>/u);
   assert.match(html, /<span[^>]*data-cell="deadline"[^>]*><span[^>]*><time dateTime="2026-07-17"[^>]*>17\.07<\/time>/u);

@@ -62,15 +62,15 @@ export default function SetPasswordScreen() {
     <Screen>
       <View style={{ gap: 8, marginBottom: 24 }}>
         <Text variant="display" accessibilityRole="header">
-          {m("setPassword.title")}
+          {m("newPassword.title")}
         </Text>
         <Text variant="body" tone="text2">
-          {m("setPassword.intro")}
+          {m("newPassword.intro")}
         </Text>
       </View>
       <Card>
-        <TextField label={profile.passwordNew} hint={profile.passwordHint} value={password} onChangeText={setPassword} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="new-password" />
-        <TextField label={profile.passwordConfirm} value={confirm} onChangeText={setConfirm} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="confirm-password" />
+        <TextField label={profile.passwordNew} hint={m("newPassword.hint")} value={password} onChangeText={setPassword} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="new-password" />
+        <TextField label={m("newPassword.confirm")} value={confirm} onChangeText={setConfirm} secure showLabel={m("auth.showPassword")} hideLabel={m("auth.hidePassword")} autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" maxLength={4096} editable={!busy} testID="confirm-password" />
         {problem ? (
           <Text variant="secondary" tone="error" accessibilityRole="alert">
             {text[problem]}

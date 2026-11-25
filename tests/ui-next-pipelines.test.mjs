@@ -467,3 +467,16 @@ test("role preview of «Воронка продаж» answers with a quiet state
   assert.match(read("src/components/staff/pipeline-next/PipelineNextPage.tsx"),
     /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });
+
+test("«Воронка продаж»: пустой поиск — одно состояние со «Сбросить поиск», лид не на доске — сказано, условие этапа — за «?»", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.pipelineWords.noResults("QA"), "По запросу «QA» лидов нет");
+  const board = readFileSync(new URL("../src/components/staff/pipeline-next/PipelineBoardNext.tsx", import.meta.url), "utf8");
+  assert.match(board, /const noResults = query !== "" && leads\.length === 0;/u);
+  assert.match(board, /\{noResults \? \(/u);
+  assert.match(board, /href=\{href\(\{ q: null, lead: null \}\)\}/u);
+  assert.match(board, /const leadMissing = selectedId !== null && selected === null && !closedHere;/u);
+  const column = readFileSync(new URL("../src/components/staff/pipeline-next/PipelineColumn.tsx", import.meta.url), "utf8");
+  assert.match(column, /<HelpTip label=\{pipelineWords\.gateLabel\}>\{pipelineWords\.gate\}<\/HelpTip>/u);
+  assert.doesNotMatch(column, /title="Есть условия"/u);
+});

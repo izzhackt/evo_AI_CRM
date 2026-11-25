@@ -560,6 +560,19 @@ export const admissionsPipelineStage = (v: string | null | undefined) =>
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
 export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
+
+/**
+ * «Воронка продаж» (чек-лист 23.11): пустой поиск, ссылка на лида, которого на доске нет, и условие этапа
+ * «Квалифицирован» (вместо замка с подсказкой «Есть условия», которую не открыть с телефона и клавиатуры).
+ */
+export const pipelineWords = {
+  noResults: (query: string) => `По запросу «${query}» лидов нет`,
+  resetSearch: "Сбросить поиск",
+  leadMissing: "Лид не найден на доске — возможно, закрыт или передан.",
+  closedLink: "Закрытые",
+  gateLabel: "Пояснение: этап «Квалифицирован»",
+  gate: "Передать в поступление можно только с этого этапа. Договор и оплату проверяют при передаче.",
+} as const;
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentSlotStatus = (v: string | null | undefined) =>

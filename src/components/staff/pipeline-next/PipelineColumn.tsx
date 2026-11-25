@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { MouseEvent } from "react";
 
-import { Icon } from "@/components/icons";
+import { HelpTip } from "@/components/kit/HelpTip";
 import { BoardColumnCard } from "@/components/staff/board-next/BoardColumnCard";
 import { BOARD_EMPTY } from "@/components/staff/board/Board";
 import { LeadCardNext } from "@/components/staff/pipeline-next/LeadCardNext";
 import { HANDED_VISIBLE_LIMIT, leadDueWord, type StageColumn } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead } from "@/components/staff/pipeline-next/types";
 import { cn } from "@/lib/utils";
+import { pipelineWords } from "@/lib/v3/wording";
 
 const MORE_LINK = "flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg";
 
@@ -39,7 +40,7 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
         className={rows}
         title={stage.title}
         count={inStage.length}
-        marker={stage.gate ? <span title="Есть условия" className="inline-flex items-center"><Icon name="lock" size={14} /><span className="sr-only">Есть условия</span></span> : null}
+        marker={stage.gate ? <HelpTip label={pipelineWords.gateLabel}>{pipelineWords.gate}</HelpTip> : null}
       >
         <ul className={`flex flex-col gap-1.5 ${spread ? "@[43.75rem]:grid @[43.75rem]:grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] @[43.75rem]:content-start" : ""}`}>
           {visible.map((lead) => (

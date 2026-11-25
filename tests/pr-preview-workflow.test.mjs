@@ -86,7 +86,8 @@ test("the artifact carries screenshots, logs and the timing table, and runs even
 test("the script is synthetic-only: isolated project and ports, local Docker, no real credentials", () => {
   assert.match(script, /PROJECT_ID = "evo-pr-preview"/u);
   assert.doesNotMatch(script, /evo-mobile-dev/u);
-  assert.match(script, /BASE_PORT = 46440/u);
+  // 18440-18451: below the Linux ephemeral range 32768-60999 (tests/pr-preview-ports.test.mjs guards the whole block).
+  assert.match(script, /BASE_PORT = 18440;/u);
   assert.match(script, /REMOTE_DOCKER_FORBIDDEN/u);
   assert.match(script, /seedMobileDevStack/u);
   assert.match(script, /ENV_FILE_IN_CHECKOUT/u);

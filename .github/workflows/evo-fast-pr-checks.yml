@@ -323,6 +323,43 @@ jobs:
       - name: Check the mobile app
         run: npm run verify -- --only mobile
 
+  # «Кабинет и приложение идут вместе» (AGENTS.md, правило владельца 25.11.2026): PR, который меняет то, что студент видит
+  # (кабинет, вход, заявка; список путей в AGENTS.md и в scripts/ci/mobile-parity-check.mjs), меняет и приложение либо одной
+  # строкой в описании говорит, почему приложению это не нужно. «Fast checks» ниже ждёт этого задания и требует «success», поэтому проверка обязательна и без правки
+  # настроек ветки. Скрипт сам не ломает PR: при своей временной ошибке (сеть, 5xx, git, ввод) он печатает предупреждение
+  # (в логе, аннотацией и в итоге шага) и выходит с 0. Падает он, когда точно знает, что правило нарушено, и когда в Actions
+  # не может прочитать описание этого PR из-за прав или настройки (HTTP 401/403/404): молча пропускать такое нельзя.
+  # Переменная репозитория MOBILE_PARITY_MODE=warn превращает падения в предупреждения. Описание читается через API при запуске,
+  # а не из события: после правки описания хватает перезапуска упавшего задания (`gh run rerun <run-id> --failed`),
+  # событие pull_request при перезапуске остаётся от первого запуска.
+  mobile-parity:
+    name: Mobile parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check that the cabinet and the app change together
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Emergency switch that needs no settings edit: `gh variable set MOBILE_PARITY_MODE --body warn` turns the
+          # check's failures into warnings (exit 0); `gh variable delete MOBILE_PARITY_MODE` brings the strict mode back.
+          MOBILE_PARITY_MODE: ${{ vars.MOBILE_PARITY_MODE }}
+        run: node scripts/ci/mobile-parity-check.mjs --base origin/main
+
   migration_boundary:
     name: Migration boundary
     needs: changed-range
@@ -524,6 +561,7 @@ jobs:
       - build
       - mobile
       - migration_boundary
+      - mobile-parity
     runs-on: ubuntu-latest
     steps:
       - name: Require selected fast PR checks
@@ -540,6 +578,7 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           MOBILE_RESULT: ${{ needs.mobile.result }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
+          MOBILE_PARITY_RESULT: ${{ needs.mobile-parity.result }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
@@ -551,7 +590,7 @@ jobs:
             test "$TESTS_RESULT" = "success"
             test "$PREVIEW_RESULT" = "success"
           fi
-          for result in "$TYPECHECK_RESULT" "$TESTS_RESULT" "$PREVIEW_RESULT" "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
+          for result in "$TYPECHECK_RESULT" "$TESTS_RESULT" "$PREVIEW_RESULT" "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT" "$MOBILE_PARITY_RESULT"; do
             case "$result" in
               success|skipped) ;;
               *)
@@ -560,3 +599,8 @@ jobs:
                 ;;
             esac
           done
+          # «Mobile parity» has no condition and looks at every pull request: «skipped» would mean it never looked.
+          if test "$MOBILE_PARITY_RESULT" != "success"; then
+            echo "::error::Mobile parity must succeed on every pull request, but its result is '${MOBILE_PARITY_RESULT}' (skipped means it never looked)"
+            exit 1
+          fi

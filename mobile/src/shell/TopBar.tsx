@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useLang } from "@/i18n/LangProvider";
+import { ThemeToggle } from "@/theme/ThemeToggle";
 import { useTheme } from "@/theme/ThemeProvider";
 import { EvoMark } from "@/ui/EvoMark";
 import { Text } from "@/ui/Text";
@@ -26,9 +27,10 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
           <Menu size={24} strokeWidth={1.75} color={tokens.text} />
         </Pressable>
         <EvoMark size={26} color={tokens.brandRed} />
-        <Text variant="body" bold>
+        <Text variant="body" bold style={{ flex: 1 }}>
           EVO admissions
         </Text>
+        <ThemeToggle />
       </View>
     </View>
   );

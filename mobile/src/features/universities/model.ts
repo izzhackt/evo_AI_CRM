@@ -40,9 +40,11 @@ export function placeCounts(strings: UniversityStrings, universities: number, ci
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "few";
     return "many";
   };
-  const uni = formatPortalString(strings[`count.university.${form(universities)}`], { count: String(universities) });
+  // Число и слово не разрываются переносом («3 города», а не «3 / города»): как `placeCountsLabel` веба (Places.tsx).
+  const keep = (value: string) => value.replace(" ", "\u00a0");
+  const uni = keep(formatPortalString(strings[`count.university.${form(universities)}`], { count: String(universities) }));
   if (cities === null) return uni;
-  return `${uni} · ${formatPortalString(strings[`count.city.${form(cities)}`], { count: String(cities) })}`;
+  return `${uni} · ${keep(formatPortalString(strings[`count.city.${form(cities)}`], { count: String(cities) }))}`;
 }
 
 export function intakeText(nearest: NearestIndexIntake | null, strings: UniversityStrings, lang: Lang): string {
@@ -97,7 +99,7 @@ export function countryCards(index: StudentUniversityIndex, strings: UniversityS
   }));
 }
 
-export type CityCard = Readonly<{ key: string; name: string; count: string; summary: string; photo: IndexCity["photo"]; search: string }>;
+export type CityCard = Readonly<{ key: string; name: string; count: string; summary: string; fact: string; photo: IndexCity["photo"]; search: string }>;
 
 export type CountryPageModel = Readonly<{
   country: IndexCountry;
@@ -131,6 +133,8 @@ export function countryPageModel(index: StudentUniversityIndex, code: string, st
       name: localizedText(city.name, lang),
       count: placeCounts(strings, city.universityCount, null, lang),
       summary: localizedText(city.summary, lang),
+      // «Интересный факт» на карточке города, как у веба (Places.tsx, CityCards).
+      fact: lang === "ky" ? city.fact.ky : city.fact.ru,
       photo: city.photo,
       search: citySearchText(city),
     });

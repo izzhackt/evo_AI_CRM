@@ -22,6 +22,7 @@ const CONSENT = { status: null, policyVersion: null, decidedAt: null, currentPol
 
 function handlers(extra: Record<string, unknown> = {}) {
   return {
+    own_portal_consultation_requests_v1: [],
     get_own_portal_profile_v1: PROFILE,
     own_student_login_v1: "test.student",
     portal_ai_consent_get_v1: CONSENT,
@@ -59,10 +60,10 @@ describe("ProfileScreen", () => {
     expect(router.navigate).toHaveBeenLastCalledWith("/messages/chat");
     const approved = fakeTransport(handlers());
     await renderPortal(<ProfileScreen />, testApi(approved.transport, { tier: "approved" }));
-    expect(await screen.findByText("Телефон и имя меняет менеджер: напишите в поддержку EVO, и он исправит.")).toBeTruthy();
+    // как на вебе: самостоятельному студенту говорят о записи на консультацию ниже, ссылки на чат или поддержку в «Моих данных» нет
+    expect(await screen.findByText("Телефон и имя меняет менеджер: запишитесь на консультацию ниже, и он исправит.")).toBeTruthy();
     expect(screen.queryByTestId("profile-write-evo")).toBeNull();
-    await fireEvent.press(screen.getByTestId("profile-data-support"));
-    expect(openURL).toHaveBeenCalledWith("https://evoadmissions.com/ru/support/");
+    expect(screen.queryByTestId("profile-data-support")).toBeNull();
   });
 
   it("язык: сохраняется в БД (set_own_portal_language_v1), интерфейс меняется после ответа", async () => {
@@ -127,5 +128,54 @@ describe("ProfileScreen", () => {
     await screen.findByTestId("deletion-start");
     await fireEvent.press(screen.getByTestId("sign-out"));
     await waitFor(() => expect(mockSession.signOut).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("запись на консультацию в «Профиле» (G14)", () => {
+  it("у самостоятельного студента и у студента на сопровождении: карточка «Консультация» после «Моих данных», запрос уходит в RPC", async () => {
+    for (const tier of ["approved", "assisted"] as const) {
+      const { transport, calls } = fakeTransport(
+        handlers({
+          create_portal_consultation_request_v1: {
+            requestId: "11111111-1111-4111-8111-111111111111",
+            status: "requested",
+            institutionId: null,
+            institutionName: null,
+            note: null,
+            requestedAt: "2026-11-09T08:00:00+00:00",
+            handledAt: null,
+          },
+          own_portal_consultation_requests_v1: () => (calls.some((c) => c.name === "create_portal_consultation_request_v1") ? [{ requestId: "11111111-1111-4111-8111-111111111111", status: "requested", institutionId: null, institutionName: null, note: null, requestedAt: "2026-11-09T08:00:00+00:00", handledAt: null }] : []),
+        }),
+      );
+      const view = await renderPortal(<ProfileScreen />, testApi(transport, { tier }));
+      await fireEvent.press(await screen.findByTestId("consult-cta"));
+      await fireEvent.press(screen.getByTestId("consult-submit"));
+      expect(await screen.findByTestId("consult-sent")).toBeTruthy();
+      expect(calls.some((c) => c.name === "create_portal_consultation_request_v1")).toBe(true);
+      await view.unmount();
+    }
+  });
+
+  it("карточка «Консультация» стоит между «Моими данными» и «Языком»", async () => {
+    const { transport } = fakeTransport(handlers());
+    await renderPortal(<ProfileScreen />, testApi(transport));
+    await screen.findByTestId("consult-cta");
+    // тексты экрана по порядку сверху вниз (в самом дереве есть циклические ссылки контекстов, поэтому обходим только детей)
+    const texts: string[] = [];
+    const walk = (node: unknown): void => {
+      if (typeof node === "string") texts.push(node);
+      else if (node && typeof node === "object") {
+        const children = (node as { children?: unknown }).children;
+        if (Array.isArray(children)) children.forEach(walk);
+      }
+    };
+    const root = screen.toJSON();
+    (Array.isArray(root) ? root : [root]).forEach(walk);
+    const text = texts.join("\n");
+    const at = (needle: string) => text.indexOf(needle);
+    expect(at("Мои данные")).toBeGreaterThan(-1);
+    expect(at("Мои данные")).toBeLessThan(at("Задайте вопрос о поступлении"));
+    expect(at("Задайте вопрос о поступлении")).toBeLessThan(at("Язык портала"));
   });
 });

@@ -35,7 +35,13 @@ type ThemeContextValue = Readonly<{
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initial = "system" }: { children: ReactNode; initial?: ThemeChoice }) {
+/**
+ * Тема по умолчанию светлая, как на вебе (решение владельца 02.10 и 25.11.2026): тема ОС не читается, пока студент сам не выбрал
+ * «Как в системе» в «Профиле». Выбор студента (кнопка «солнце/луна» вверху или три варианта в «Профиле») хранится на устройстве.
+ */
+export const DEFAULT_THEME_CHOICE: ThemeChoice = "light";
+
+export function ThemeProvider({ children, initial = DEFAULT_THEME_CHOICE }: { children: ReactNode; initial?: ThemeChoice }) {
   const [choice, setChoiceState] = useState<ThemeChoice>(initial);
   const system = useColorScheme();
 

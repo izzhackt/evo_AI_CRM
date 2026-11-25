@@ -434,3 +434,36 @@ describe("загрузка отдельно", () => {
     expect(w.data.size).toBe(0);
   });
 });
+
+describe("остановка студента («Отменить загрузку»)", () => {
+  it("сигнал доходит до загрузки тем же объектом: и из «Сохранить файл», и из одного нажатия; без сигнала его нет", async () => {
+    const stop = new AbortController();
+    const seen: (AbortSignal | undefined)[] = [];
+    const upload: UploadFn = async ({ intent, signal }) => {
+      seen.push(signal);
+      return { ok: true, receipt: receiptFor(intent) as never };
+    };
+    const w = world();
+    await runUpload({ scope, target, file, fingerprint, upload, signal: stop.signal, env: { storage: w.storage } });
+    await runUploadAndSubmit({ scope, target, file, fingerprint, upload, signal: stop.signal, sendAfterUpload: null, env: { storage: w.storage } });
+    await runUpload({ scope, target, file, fingerprint, upload, env: { storage: w.storage } });
+    expect(seen).toEqual([stop.signal, stop.signal, undefined]);
+  });
+
+  it("остановка до начала отправки на первой попытке снимает запись, после начала - оставляет её (правило то же, что у обрыва связи)", async () => {
+    for (const [result, kept] of [
+      [{ ok: false, reason: "not_sent", resolution: "not_written" }, false],
+      [{ ok: false, reason: "unavailable", resolution: "retain" }, true],
+    ] as const) {
+      const w = world();
+      const stop = new AbortController();
+      const upload: UploadFn = async () => {
+        stop.abort();
+        return result;
+      };
+      const outcome = await runUpload({ scope, target, file, fingerprint, upload, signal: stop.signal, env: { storage: w.storage } });
+      expect(outcome).toEqual({ status: "rejected", reason: result.reason, resolution: result.resolution });
+      expect(isUploadIntent((await documentsPending.read(scope, "upload", ITEM, w.storage)).intent)).toBe(kept);
+    }
+  });
+});

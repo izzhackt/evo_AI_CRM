@@ -15,7 +15,7 @@ import { DiscardPending } from "@/features/preparations/DiscardPending";
 import { runUploadAndSubmit } from "@/features/preparations/document-commands";
 import { documentsPending, isUploadIntent } from "@/features/preparations/documents-pending";
 import { usePreparation } from "@/features/preparations/context";
-import { sendFailureMessage, uploadFailureMessage } from "@/features/preparations/messages";
+import { sendFailureMessage, uploadFailureMessage, uploadWasStopped } from "@/features/preparations/messages";
 import { usePending } from "@/features/preparations/pending-store";
 import { useSourcePicker, type PickNotice } from "@/features/preparations/use-source-picker";
 import { useLang } from "@/i18n/LangProvider";
@@ -50,10 +50,14 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
   const { tokens } = useTheme();
   const pending = usePending(documentsPending, scope, "upload", target.requirementItemId);
   const sending = useRef(false);
+  // Останавливает идущую загрузку («Отменить загрузку»): по одному на нажатие, пока оно идёт.
+  const stopper = useRef<AbortController | null>(null);
   const [stage, setStage] = useState<"upload" | "submit" | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
+  // Студент остановил загрузку: текст спокойный (не ошибка), а неоконченная запись, если она осталась, видна как обычно.
+  const [stopped, setStopped] = useState(false);
   const [pickNotice, setPickNotice] = useState<PickNotice | null>(null);
   const upload = useMemo(() => io.createUploader(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), [io, api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken]);
 
@@ -72,10 +76,13 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
     // Без этой строки вторая дошла бы до замка, получила «занято» и сказала бы «Не уверены, дошёл ли файл» поверх идущей загрузки.
     if (sending.current || elsewhere || pending.blocked || !pending.hydrated || (disabled && !retained)) return;
     sending.current = true;
+    const abort = new AbortController();
+    stopper.current = abort;
     setStage("upload");
     setProgress(null);
     setMessage(null);
     setSucceeded(false);
+    setStopped(false);
     try {
       onNotice?.(null);
     } catch {
@@ -100,10 +107,15 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
         upload,
         onStage: setStage,
         onProgress: setProgress,
+        signal: abort.signal,
         sendAfterUpload: run ? { previousSubmissionId: run.previousSubmissionId, submit: (intent) => submitApplicationDocument(api.transport, intent) } : null,
       });
       if (outcome.stage === "upload") {
-        const text = uploadFailureMessage(outcome.upload, strings, { unreadable: m("prep.fileUnreadable") });
+        // Студент нажал «Отменить загрузку»: так и сказать, а не «Не удалось получить результат». Если отправка уже началась, запись
+        // осталась, и ниже она показана как неоконченная загрузка («Проверить результат»).
+        const byStudent = abort.signal.aborted && uploadWasStopped(outcome.upload);
+        const text = byStudent ? m("docs.uploadCancelled") : uploadFailureMessage(outcome.upload, strings, { unreadable: m("prep.fileUnreadable") });
+        setStopped(byStudent);
         setMessage(text);
         announce(text);
         return;
@@ -136,6 +148,7 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
       announce(strings.unavailable);
     } finally {
       sending.current = false;
+      stopper.current = null;
       setStage(null);
       setProgress(null);
       if (run) {
@@ -220,6 +233,8 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
           <View style={{ width: `${Math.round(progress)}%`, height: 6, backgroundColor: tokens.accent }} />
         </View>
       ) : null}
+      {/* Загрузка идёт, а связи нет или она оборвалась: выход есть всегда. После подтверждённой квитанции (идёт отправка) отменять нечего. */}
+      {stage === "upload" ? <Button variant="ghost" label={m("docs.cancelUpload")} onPress={() => stopper.current?.abort()} testID={`prep-upload-cancel-${target.requirementItemId}`} /> : null}
       {pickNotice ? (
         <View style={{ gap: 4 }}>
           <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-pick-notice-${target.requirementItemId}`}>
@@ -229,7 +244,7 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
         </View>
       ) : null}
       {message ? (
-        <Text variant="secondary" tone={succeeded ? "text2" : "error"} accessibilityRole={succeeded ? undefined : "alert"} testID={`prep-upload-message-${target.requirementItemId}`}>
+        <Text variant="secondary" tone={succeeded || stopped ? "text2" : "error"} accessibilityRole={succeeded || stopped ? undefined : "alert"} testID={`prep-upload-message-${target.requirementItemId}`}>
           {message}
         </Text>
       ) : null}

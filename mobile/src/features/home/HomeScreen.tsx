@@ -8,7 +8,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState, type ReactElement } from "react";
-import { View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
+import { View, type LayoutChangeEvent } from "react-native";
 import { cscaAvailableFor, cscaHomeDates, selectCscaHomeCard } from "@web/lib/portal/csca-home-card";
 import { selectStudentJourney } from "@web/lib/portal/student-journey";
 import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
@@ -16,7 +16,7 @@ import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
 import { HOME_FAVORITES_LIMIT, collectHomeDates, homeCountdown, homeParams, homeSlots, homeToday, latestNews, showCountryChoice, type HomeListTab, type HomeSlotId } from "@/domain/home-model";
 import { usePortalApi } from "@/api/PortalApi";
 import { useCountryChoice, useCscaHome, useFavorites, useHomeApplication, useNotifications, useOverview, usePreparations, useRefetchOnFocus } from "@/api/queries";
-import { JourneyBody, JourneyEnd, JourneyHead, JourneyNow, journeyEdges, rowPinned, useJourney } from "@/features/admission/JourneySection";
+import { JourneyBody, JourneyEnd, JourneyHead, JourneyNow, ROW_SLACK, journeyEdges, useJourney } from "@/features/admission/JourneySection";
 import { ApplicationCard, CaseCard, CscaCard, DatesCard, EvoTaskCard, NewsCard } from "@/features/home/HomeCards";
 import { capitalGeographyPhoto } from "@/features/home/capital-photo";
 import { HeroContent, HomeHero } from "@/features/home/HomeHero";
@@ -43,7 +43,6 @@ const SLOT_ENTER: Readonly<Record<HomeSlotId, number | null>> = { evo: null, cas
 export function HomeScreen() {
   const { lang, m, t } = useLang();
   const { tier, displayName, userKey } = usePortalApi();
-  const { height: viewportHeight } = useWindowDimensions();
   const client = useQueryClient();
   const assisted = tier === "assisted";
   useRefetchOnFocus();
@@ -173,11 +172,13 @@ export function HomeScreen() {
   };
 
   // Блоки списка экрана: шапка пути (или тёмная плашка), строка шага, шаги, выбор страны, блоки под ними. Закрепляются строка
-  // шага и нулевой блок сразу за путём: он выталкивает строку, когда карточка пути кончается. Только у раскрытого пути и пока строка
-  // не занимает больше 40% экрана (`rowPinned`): у свёрнутого пути закреплять нечего, а React Native такую строку не отпускает.
+  // шага и нулевой блок `JourneyEnd`: он выталкивает строку, когда карточка пути кончается. Оба закреплены ВСЕГДА, пока строка есть
+  // (иначе строка пересоздавалась бы при каждом «Свернуть»); меняется только место нулевого блока. За шагами - строка держится у
+  // верха на всё их протяжение; сразу за строкой (путь свёрнут или строка выше 40% окна, `rowPinned`) - она почти не держится, а
+  // `ROW_SLACK` под ней не даёт React Native оставить её на экране навсегда (там левая и правая часть неравенства равны).
   const blocks: ReactElement[] = [];
   const sticky: number[] = [];
-  const pinned = rowPinned({ hasStrip: journeyState.strip !== null, folded: journeyState.folded, rowHeight: journeyState.nowHeight, viewportHeight });
+  const endAfterRow = !journeyState.pinned;
   if (journey.view) {
     const edges = journeyEdges(journeyState);
     blocks.push(
@@ -193,11 +194,15 @@ export function HomeScreen() {
       </View>,
     );
     if (journeyState.strip) {
-      if (pinned) sticky.push(blocks.length);
-      blocks.push(<JourneyNow key="journey-now" journey={journeyState} edge={edges.now} />);
+      sticky.push(blocks.length);
+      blocks.push(<JourneyNow key="journey-now" journey={journeyState} edge={edges.now} style={endAfterRow ? { marginBottom: ROW_SLACK } : undefined} />);
+      if (endAfterRow) {
+        sticky.push(blocks.length);
+        blocks.push(<JourneyEnd key="journey-end" />);
+      }
     }
     if (!journeyState.folded) blocks.push(<JourneyBody key="journey-body" journey={journeyState} edge={edges.body} assisted={assisted} />);
-    if (pinned) {
+    if (journeyState.strip && !endAfterRow) {
       sticky.push(blocks.length);
       blocks.push(<JourneyEnd key="journey-end" />);
     }

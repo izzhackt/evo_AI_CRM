@@ -5,7 +5,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { AccessibilityInfo, Animated, Dimensions, ScrollView } from "react-native";
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { PIN_MAX_SHARE, cardEdge, journeyEdges, rowPinned } from "@/features/admission/JourneySection";
+import { PIN_MAX_SHARE, ROW_SLACK, cardEdge, journeyEdges, rowPinned } from "@/features/admission/JourneySection";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { lightTokens } from "@/theme/tokens.generated";
 import { setReducedMotionForTests } from "@/ui/motion";
@@ -41,21 +41,24 @@ afterEach(() => {
   setReducedMotionForTests(true);
 });
 
-describe("строка текущего шага закрепляется у верха", () => {
-  it("свёрнутый путь (по умолчанию у всех): строка шага НЕ закреплена и нулевого блока нет, под ней сразу блоки экрана", async () => {
+describe("строка текущего шага закреплена, а порядок блоков и запас под ней зависят от пути и шрифта", () => {
+  /** Запас под строкой стоит на ней самой: у заглушки Jest закреплённые блоки не оборачиваются (настоящий ScrollView - в HomeJourneySticky). */
+  const slack = () => flat(screen.getByTestId("journey-now-row")).marginBottom;
+
+  it("свёрнутый путь (по умолчанию у всех): строка и нулевой блок закреплены, блок сразу за строкой, у строки запас; дальше блоки экрана", async () => {
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId("slot-news");
     const { ids, sticky } = scrollBlocks();
-    // Закреплять нечего: карточка пути кончается этой строкой. А закреплённая свёрнутая строка не отпускалась (React Native
-    // отпускает блок, только если `nextHeaderLayoutY - layoutHeight >= layoutY`: у свёрнутого пути обе стороны равны, решает
-    // округление) и закрывала карточки «Мой список» и «Ближайшие даты».
-    expect(ids.slice(0, 2)).toEqual(["home-screen", "journey-now-row"]);
-    expect(ids).not.toContain("journey-end");
-    expect(sticky).toEqual([]);
+    expect(ids.slice(0, 3)).toEqual(["home-screen", "journey-now-row", "journey-end"]);
+    expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]);
+    // блок за путём невидим и не занимает места: он только выталкивает строку, когда карточка пути кончается
+    expect(flat(screen.getByTestId("journey-end", { includeHiddenElements: true })).height).toBe(0);
+    // ровно у нижнего края строки React Native её не отпускает (левая и правая часть неравенства равны): под строкой запас
+    expect(slack()).toBe(ROW_SLACK);
   });
 
-  it("раскрытый путь: шаги стоят между строкой и нулевым блоком, закрепление охватывает их", async () => {
+  it("раскрытый путь: шаги стоят между строкой и нулевым блоком, закрепление охватывает их, запаса у строки нет", async () => {
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("journey-fold"));
@@ -63,21 +66,24 @@ describe("строка текущего шага закрепляется у в�
     const { ids, sticky } = scrollBlocks();
     expect(ids.slice(0, 4)).toEqual(["home-screen", "journey-now-row", "journey-body", "journey-end"]);
     expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]);
+    expect(slack()).toBeUndefined();
   });
 
-  it("свернуть раскрытый путь снимает закрепление, раскрыть - возвращает его", async () => {
+  it("свернуть и раскрыть: строка и нулевой блок закреплены всегда, меняются место нулевого блока и запас", async () => {
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent.press(await screen.findByTestId("journey-fold"));
     await screen.findByTestId("journey-body");
-    expect(scrollBlocks().sticky).toHaveLength(2);
+    const pinnedIds = () => scrollBlocks().sticky.map((index) => scrollBlocks().ids[index]);
+    expect(pinnedIds()).toEqual(["journey-now-row", "journey-end"]);
     await fireEvent.press(screen.getByTestId("journey-fold"));
     await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
-    expect(scrollBlocks().sticky).toEqual([]);
-    expect(scrollBlocks().ids).not.toContain("journey-end");
+    expect(pinnedIds()).toEqual(["journey-now-row", "journey-end"]); // как и при раскрытом пути: закрепление не выключается
+    expect(slack()).toBe(ROW_SLACK);
     await fireEvent.press(screen.getByTestId("journey-fold"));
     await screen.findByTestId("journey-body");
-    expect(scrollBlocks().sticky).toHaveLength(2);
+    expect(pinnedIds()).toEqual(["journey-now-row", "journey-end"]);
+    expect(slack()).toBeUndefined();
   });
 
   it("между закреплённой строкой и нулевым блоком стоят шаги: React Native отпускает строку по строгому неравенству, а не по равенству", async () => {
@@ -92,8 +98,9 @@ describe("строка текущего шага закрепляется у в�
     expect(ids.slice(row, end + 1)).toEqual(["journey-now-row", "journey-body", "journey-end"]);
   });
 
-  describe("крупный шрифт: строка выше 40% экрана не закрепляется", () => {
+  describe("крупный шрифт: строка выше 40% окна не держится, а блоки лишь переставляются", () => {
     const WINDOW = { width: 402, height: 874, scale: 3, fontScale: 1 };
+    const THRESHOLD = WINDOW.height * PIN_MAX_SHARE;
     beforeEach(() => {
       jest.spyOn(Dimensions, "get").mockReturnValue(WINDOW);
     });
@@ -104,34 +111,65 @@ describe("строка текущего шага закрепляется у в�
       await fireEvent.press(await screen.findByTestId("journey-fold"));
       await screen.findByTestId("journey-body");
     }
+    /** Держится ли строка: нулевой блок за шагами (да) или сразу за строкой (нет). */
+    const held = () => {
+      const { ids } = scrollBlocks();
+      return ids.indexOf("journey-end") > ids.indexOf("journey-body");
+    };
 
-    it("строка 374 pt на экране 874 pt (43%, iPhone Dynamic Type Accessibility Large): не закреплена, шаги и карточки под ней читаются", async () => {
+    it("строка 374 pt на окне 874 pt (43%, iPhone Dynamic Type Accessibility Large): не держится, нулевой блок сразу за ней, шаги остаются", async () => {
       await openedPath();
-      expect(scrollBlocks().sticky).toHaveLength(2); // до первой раскладки высота неизвестна: закреплена
+      expect(held()).toBe(true); // до первой раскладки высота неизвестна: считаем строку держащейся
       await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(374));
-      await waitFor(() => expect(scrollBlocks().sticky).toEqual([]));
-      expect(scrollBlocks().ids).not.toContain("journey-end");
-      expect(screen.getByTestId("journey-body")).toBeTruthy(); // путь по-прежнему раскрыт
+      await waitFor(() => expect(held()).toBe(false));
+      const { ids, sticky } = scrollBlocks();
+      expect(ids.slice(0, 4)).toEqual(["home-screen", "journey-now-row", "journey-end", "journey-body"]);
+      expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]); // закреплены по-прежнему оба
+      expect(flat(screen.getByTestId("journey-now-row")).marginBottom).toBe(ROW_SLACK);
     });
 
-    it("строка 340 pt (39%): закреплена; ровно 40% (349,6 pt) - ещё закреплена, чуть больше - нет", async () => {
+    it("строка 340 pt (39%): держится; ровно 40% (349,6 pt) - ещё держится, на пункт больше - нет", async () => {
       await openedPath();
       await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(340));
-      expect(scrollBlocks().sticky).toHaveLength(2);
-      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(WINDOW.height * 0.4));
-      expect(scrollBlocks().sticky).toHaveLength(2);
-      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(WINDOW.height * 0.4 + 1));
-      await waitFor(() => expect(scrollBlocks().sticky).toEqual([]));
+      expect(held()).toBe(true);
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(THRESHOLD));
+      expect(held()).toBe(true);
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(THRESHOLD + 1));
+      await waitFor(() => expect(held()).toBe(false));
     });
 
-    it("после смены раскладки строка снова невысокая - закрепление возвращается; доли пикселя его не дёргают", async () => {
+    it("доли пикселя при пересчёте раскладки решения не меняют: 349,5 -> 349,7 через порог 349,6 строка продолжает держаться", async () => {
+      await openedPath();
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(THRESHOLD - 0.1)); // 349,5
+      expect(held()).toBe(true);
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(THRESHOLD + 0.1)); // 349,7: перешагнул порог на 0,2 pt
+      expect(held()).toBe(true); // сдвиг меньше половины пункта не считается изменением, закрепление не мигает
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(THRESHOLD + 0.6)); // 350,2: сдвиг от прежних 349,5 больше 0,5
+      await waitFor(() => expect(held()).toBe(false));
+      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(THRESHOLD + 0.3)); // 349,9: снова меньше пункта
+      expect(held()).toBe(false); // и обратно не мигает
+    });
+
+    it("после смены раскладки строка снова невысокая - держится опять", async () => {
       await openedPath();
       await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(374));
-      await waitFor(() => expect(scrollBlocks().sticky).toEqual([]));
-      await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(374.3));
-      expect(scrollBlocks().sticky).toEqual([]);
+      await waitFor(() => expect(held()).toBe(false));
       await fireEvent(screen.getByTestId("journey-now-row"), "layout", layout(120));
-      await waitFor(() => expect(scrollBlocks().sticky).toHaveLength(2));
+      await waitFor(() => expect(held()).toBe(true));
+      expect(flat(screen.getByTestId("journey-now-row")).marginBottom).toBeUndefined();
+    });
+
+    it("«Шаг N из M» под не держащейся строкой: шаг встаёт на 12 pt от верха, а не на высоту строки ниже", async () => {
+      const stepsLabel = getPortalStrings("timeline", "ru").stepsLabel;
+      const { transport } = fakeTransport(homeHandlers("MY"));
+      await renderPortal(<HomeScreen />, testApi(transport));
+      await fireEvent(await screen.findByTestId("journey-now-row"), "layout", layout(374)); // высокая строка: не держится
+      await fireEvent.press(screen.getByTestId("journey-now"));
+      await fireEvent(await screen.findByTestId("journey-body"), "layout", layout(700, 400));
+      await fireEvent(screen.getByLabelText(stepsLabel), "layout", layout(500, 60));
+      await fireEvent(screen.getByTestId("step-my-2-documents"), "layout", layout(120, 120));
+      // 400 (блок) + 60 (список) + 120 (шаг) - 12: высоту строки не вычитаем, под ней ничего не держится
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ y: 568, animated: true }));
     });
   });
 

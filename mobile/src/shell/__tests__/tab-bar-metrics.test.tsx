@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react-native";
+import { useEffect } from "react";
 import { Text } from "react-native";
 
 import { reportTabBarHeight, useMeasuredTabBarHeight } from "@/shell/tab-bar-metrics";
@@ -29,16 +30,20 @@ describe("измеренная высота панели вкладок", () => 
   });
 
   it("то же значение читателей не будит; после отписки (размонтирования) ничего не ломается", async () => {
-    let renders = 0;
+    const commits = { count: 0 };
     function Counting() {
-      renders += 1;
-      return <Text>{useMeasuredTabBarHeight()}</Text>;
+      const height = useMeasuredTabBarHeight();
+      // число отрисовок считаем в эффекте: менять внешнюю переменную прямо в отрисовке нельзя
+      useEffect(() => {
+        commits.count += 1;
+      });
+      return <Text>{height}</Text>;
     }
     const view = await render(<Counting />);
     await act(async () => reportTabBarHeight(62));
-    const after = renders;
+    const after = commits.count;
     await act(async () => reportTabBarHeight(62));
-    expect(renders).toBe(after);
+    expect(commits.count).toBe(after);
     await view.unmount();
     expect(() => reportTabBarHeight(90)).not.toThrow();
   });

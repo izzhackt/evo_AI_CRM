@@ -10,7 +10,8 @@ import { act, render, screen, waitFor } from "@testing-library/react-native";
 import RootLayout from "@/app/_layout";
 import { getSupabase } from "@/lib/supabase";
 import { fakeAccount, installFakeBackend, syntheticPassword, type FakeAccount, type FakeBackend } from "@/test-fixtures/auth-backend";
-import { sessionProbe } from "@/test-fixtures/session-probe";
+import { registerLocalDataCleaner } from "@/session/local-data";
+import { sessionHistory, sessionProbe } from "@/test-fixtures/session-probe";
 
 const mockSecure = new Map<string, string>();
 jest.mock("expo-secure-store", () => ({
@@ -48,6 +49,7 @@ beforeEach(async () => {
   mockSecure.clear();
   await AsyncStorage.clear();
   backend.calls.length = 0;
+  sessionHistory.length = 0;
 });
 afterEach(() => jest.restoreAllMocks());
 afterAll(async () => {
@@ -134,7 +136,7 @@ describe("вход после выхода в том же запуске", () =>
 
     let outcome: unknown;
     await act(async () => {
-      outcome = await sessionProbe.current?.setOwnPassword("new-password-12345");
+      outcome = await sessionProbe.current?.setOwnPassword(syntheticPassword("test.temporary.next"));
     });
     expect(outcome).toBe("ok");
     await onScreen("(app)");
@@ -143,10 +145,8 @@ describe("вход после выхода в том же запуске", () =>
   });
 
   it("перезапуск с сохранённой временной сессией открывает тот же экран (этот путь не проходит через «Входим…» и работал всегда)", async () => {
-    const first = await startApp();
-    await signInAs("temporary");
-    await onScreen("set-password");
-    await first.unmount();
+    // сессию кладёт сама библиотека, без `signIn` из приложения: так на кодах до исправления путь тот же, и тест не зависит от исправления
+    await getSupabase().auth.setSession(backend.tokensFor("test.temporary"));
     backend.calls.length = 0;
 
     await render(<RootLayout />);
@@ -201,15 +201,157 @@ describe("маршрут после входа ведёт сам вход", () =
     expect(probeText()).toBe("active|free|ready");
   });
 
+  const rounds = (name: string) => backend.calls.filter((call) => call === `POST /rest/v1/rpc/${name}`).length;
+
   it("SIGNED_IN от библиотеки для токена, который вход уже маршрутизировал, второго опроса доступа не запускает", async () => {
     await startApp();
     await signInAs("approved");
     await onScreen("(app)");
     // `signInAs` дождался отложенного обработчика SIGNED_IN: к этому месту он уже отработал и пропущен
-    const rounds = (name: string) => backend.calls.filter((call) => call === `POST /rest/v1/rpc/${name}`).length;
     expect(rounds("current_actor_authority")).toBe(1);
     expect(rounds("student_portal_cases")).toBe(1);
     expect(rounds("portal_consent_status_v1")).toBe(1);
+  });
+
+  it("настоящее обновление токена (новый токен) после входа не пропускается: опрос доступа идёт ещё раз", async () => {
+    await startApp();
+    await signInAs("approved");
+    await onScreen("(app)");
+    expect(rounds("current_actor_authority")).toBe(1);
+
+    await act(async () => {
+      await getSupabase().auth.refreshSession();
+    });
+    await waitFor(() => expect(rounds("current_actor_authority")).toBe(2));
+    await waitFor(() => expect(probeText()).toBe("active|free|ready"));
+  });
+
+  it("обновление токена в открытом кабинете идёт тихо: «Проверяем доступ…» поверх кабинета не мелькает, даже когда сеть медленная", async () => {
+    await startApp();
+    await signInAs("approved");
+    await onScreen("(app)");
+    expect(sessionHistory.at(-1)).toBe("active"); // кабинет открыт, дальше смотрим только то, что нарисуется при обновлении токена
+
+    sessionHistory.length = 0;
+    backend.flags.rpcDelayMs = 25; // без задержки промежуточное состояние не успело бы нарисоваться
+    // без `act`: пока опрос доступа ждёт сеть, приложение рисует то, что поставило; `waitFor` отдаёт отрисовке время
+    const refreshing = getSupabase().auth.refreshSession();
+    await waitFor(() => expect(rounds("portal_consent_status_v1")).toBe(2));
+    await refreshing;
+    await letEventsLand();
+    expect(probeText()).toBe("active|free|ready");
+    expect(sessionHistory).not.toContain("resolvingAccess");
+  });
+});
+
+describe("выход, который ждёт ответа сервера, не трогает вход, начатый за это время", () => {
+  // Счётчик стираний: `clearAllLocalData` зовут событие SIGNED_OUT (сразу) и хвост выхода (после ответа сервера).
+  let cleaned: jest.Mock;
+  let unregister: () => void;
+  beforeEach(() => {
+    cleaned = jest.fn(async () => undefined);
+    unregister = registerLocalDataCleaner(cleaned);
+  });
+  afterEach(() => unregister());
+
+  /** Выход начат и локальную сессию уже снял (экран входа показан), а сервер ещё не ответил об отзыве токена. */
+  async function startSignOutThatWaitsForServer() {
+    let release!: () => void;
+    backend.flags.logoutGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let finished!: Promise<void>;
+    await act(async () => {
+      finished = sessionProbe.current!.signOut();
+      await new Promise((resolve) => setTimeout(resolve, 0)); // отложенный SIGNED_OUT показывает экран входа
+    });
+    await onScreen("(auth)");
+    return {
+      /** Сервер ответил: хвост выхода получает слово. */
+      async answer() {
+        release();
+        await act(async () => {
+          await finished;
+        });
+        await letEventsLand();
+      },
+    };
+  }
+
+  it("обычный студент вошёл, пока выход ждал сервер: после ответа сервера он остаётся в кабинете", async () => {
+    await startApp();
+    await signInAs("assisted");
+    await onScreen("(app)");
+    const signingOut = await startSignOutThatWaitsForServer();
+
+    expect(await signInAs("approved")).toEqual({ ok: true });
+    await onScreen("(app)");
+    await signingOut.answer();
+
+    expect(screen.getByTestId("screen:(app)")).toBeTruthy();
+    expect(screen.queryByTestId("screen:(auth)")).toBeNull();
+    expect(probeText()).toBe("active|free|ready");
+    // данные прежнего студента стёрло событие выхода; хвост выхода не стёр то, что уже копит новый
+    expect(cleaned).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["temporary", "portalonly"] as const)("%s: вошёл с временным паролем, пока выход ждал сервер: экран пароля остаётся, пометка не теряется", async (who) => {
+    await startApp();
+    await signInAs("assisted");
+    await onScreen("(app)");
+    const signingOut = await startSignOutThatWaitsForServer();
+
+    expect(await signInAs(who)).toEqual({ ok: true });
+    await onScreen("set-password");
+    await signingOut.answer();
+
+    expect(screen.getByTestId("screen:set-password")).toBeTruthy();
+    expect(screen.queryByTestId("screen:(auth)")).toBeNull();
+    expect(probeText()).toBe("resolvingAccess|must|ready");
+  });
+
+  it("если никто не входил, хвост выхода работает как раньше: экран входа, кабинет закрыт", async () => {
+    await startApp();
+    await signInAs("assisted");
+    await onScreen("(app)");
+    const signingOut = await startSignOutThatWaitsForServer();
+    await signingOut.answer();
+
+    expect(screen.getByTestId("screen:(auth)")).toBeTruthy();
+    expect(probeText()).toBe("signedOut|free|ready");
+    expect(cleaned).toHaveBeenCalledTimes(2); // событие выхода и хвост
+  });
+
+  it("новый вход начат, пока хвост выхода стирал локальные данные: состояние нового входа не сбрасывается", async () => {
+    await startApp();
+    await signInAs("assisted");
+    await onScreen("(app)");
+    // стирание зовут и хвост выхода, и событие SIGNED_OUT: держим обоих, отпускаем вместе
+    const held: (() => void)[] = [];
+    const unblock = () => held.forEach((release) => release());
+    cleaned.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          held.push(resolve);
+        }),
+    );
+    let finished!: Promise<void>;
+    await act(async () => {
+      finished = sessionProbe.current!.signOut();
+      await new Promise((resolve) => setTimeout(resolve, 0)); // событие выхода показывает экран входа; стирание ждёт
+    });
+    await onScreen("(auth)");
+
+    expect(await signInAs("approved")).toEqual({ ok: true });
+    await onScreen("(app)");
+    unblock();
+    await act(async () => {
+      await finished;
+    });
+    await letEventsLand();
+
+    expect(screen.getByTestId("screen:(app)")).toBeTruthy();
+    expect(probeText()).toBe("active|free|ready");
   });
 });
 
@@ -225,7 +367,7 @@ describe("вход, который не удался, не оставляет «
     expect(screen.getByTestId("screen:(auth)")).toBeTruthy();
   });
 
-  it("установка сессии отказала: «Не удалось», экран входа свободен", async () => {
+  it("установка сессии отказала: причина «сервис входа недоступен», экран входа свободен", async () => {
     await startApp();
     const refusal = new AuthApiError("refused", 400, "bad_jwt");
     jest.spyOn(getSupabase().auth, "setSession").mockResolvedValueOnce({ data: { user: null, session: null }, error: refusal });
@@ -233,10 +375,24 @@ describe("вход, который не удался, не оставляет «
     await waitFor(() => expect(probeText()).toBe("signedOut|free|ready"));
   });
 
-  it("библиотека не вернула ни сессии, ни ошибки: тоже «Не удалось», а не вечное «Входим…»", async () => {
+  it("библиотека не вернула ни сессии, ни ошибки: тоже «сервис входа недоступен», а не вечное «Входим…»; пометка «смените пароль» от этого входа не остаётся", async () => {
     await startApp();
     jest.spyOn(getSupabase().auth, "setSession").mockResolvedValueOnce({ data: { user: null, session: null }, error: null });
+    // временный пароль: портал сказал «смените пароль», но сессии нет, и пометка не должна пережить неудавшийся вход
+    expect(await signInAs("temporary")).toEqual({ ok: false, reason: "unavailable" });
+    await waitFor(() => expect(probeText()).toBe("signedOut|free|ready"));
+  });
+
+  it("`setSession` бросил исключение (запись сессии в хранилище не удалась): причина «недоступно», экран входа свободен, повторный вход работает", async () => {
+    await startApp();
+    jest.spyOn(getSupabase().auth, "setSession").mockRejectedValueOnce(new Error("хранилище недоступно"));
     expect(await signInAs("approved")).toEqual({ ok: false, reason: "unavailable" });
     await waitFor(() => expect(probeText()).toBe("signedOut|free|ready"));
+    expect(screen.getByTestId("screen:(auth)")).toBeTruthy();
+
+    // исключение было одноразовым: следующий вход идёт по-настоящему
+    expect(await signInAs("approved")).toEqual({ ok: true });
+    await onScreen("(app)");
+    expect(probeText()).toBe("active|free|ready");
   });
 });

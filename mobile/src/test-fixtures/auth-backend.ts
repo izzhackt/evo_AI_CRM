@@ -22,8 +22,8 @@ export type FakeAccount = {
 export const syntheticPassword = (login: string) => `synthetic-${login}-1`;
 
 /** Учебная запись; пароль - `syntheticPassword(login)`. */
-export function fakeAccount(account: Omit<FakeAccount, "password" | "caseState"> & { caseState?: FakeAccount["caseState"] }): FakeAccount {
-  return { caseState: "pending", ...account, password: syntheticPassword(account.login) };
+export function fakeAccount(account: Omit<FakeAccount, "password" | "caseState" | "temporary"> & { caseState?: FakeAccount["caseState"]; temporary?: boolean }): FakeAccount {
+  return { caseState: "pending", temporary: false, ...account, password: syntheticPassword(account.login) };
 }
 
 const base64url = (value: unknown) => Buffer.from(typeof value === "string" ? value : JSON.stringify(value)).toString("base64url");
@@ -42,8 +42,12 @@ export function createFakeBackend(accounts: readonly FakeAccount[]) {
   const byRefresh = new Map<string, FakeAccount>();
   let issued = 0;
 
-  /** Переключатели сервера для тестов. */
-  const flags = { portalTokensExpired: false };
+  /**
+   * Переключатели сервера для тестов: `portalTokensExpired` - портал выдаёт просроченный токен; `logoutGate` - ответ на отзыв токена при выходе
+   * (`POST /auth/v1/logout`) ждёт, пока не выполнится это обещание; `rpcDelayMs` - каждый вызов PostgREST отвечает не сразу (задержка сети:
+   * без неё промежуточные состояния приложения не успевают нарисоваться).
+   */
+  const flags: { portalTokensExpired: boolean; logoutGate: Promise<void> | null; rpcDelayMs: number } = { portalTokensExpired: false, logoutGate: null, rpcDelayMs: 0 };
 
   const issue = (account: FakeAccount, expired = false) => {
     issued += 1;
@@ -98,7 +102,10 @@ export function createFakeBackend(accounts: readonly FakeAccount[]) {
         const account = accountOf(init);
         return account ? reply(200, userOf(account)) : reply(401, { code: 401, error_code: "bad_jwt", msg: "invalid JWT" });
       }
-      if (url.pathname === "/auth/v1/logout") return reply(204);
+      if (url.pathname === "/auth/v1/logout") {
+        if (flags.logoutGate) await flags.logoutGate;
+        return reply(204);
+      }
       if (url.pathname === "/auth/v1/token") {
         const account = byRefresh.get(String(body.refresh_token));
         if (!account) return reply(400, { code: 400, error_code: "refresh_token_not_found", msg: "Invalid Refresh Token" });
@@ -106,6 +113,7 @@ export function createFakeBackend(accounts: readonly FakeAccount[]) {
         return reply(200, { access_token: access, refresh_token: refresh, expires_at: expiresAt, expires_in: 3600, token_type: "bearer", user: userOf(account) });
       }
       if (url.pathname.startsWith("/rest/v1/rpc/")) {
+        if (flags.rpcDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, flags.rpcDelayMs));
         const account = accountOf(init);
         if (!account) return reply(401, { code: "PGRST301", message: "JWT expired" });
         switch (url.pathname.slice("/rest/v1/rpc/".length)) {
@@ -123,7 +131,15 @@ export function createFakeBackend(accounts: readonly FakeAccount[]) {
     return reply(404, { error: "not_found_in_fake_backend", path: url.pathname });
   };
 
-  return { handler, calls, flags };
+  /** Токены, как их выдаёт портал при входе, но без обращения к порталу: чтобы создать сохранённую сессию средствами одной библиотеки. */
+  const tokensFor = (login: string) => {
+    const account = accounts.find((a) => a.login === login);
+    if (!account) throw new Error(`нет учебной записи ${login}`);
+    const { access, refresh } = issue(account);
+    return { access_token: access, refresh_token: refresh };
+  };
+
+  return { handler, calls, flags, tokensFor };
 }
 
 export type FakeBackend = ReturnType<typeof createFakeBackend>;

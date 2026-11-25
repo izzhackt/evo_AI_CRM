@@ -60,6 +60,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const runId = useRef(0);
   // Токен сессии, для которой маршрут уже провёл сам вход (`signIn`).
   const routedTokenRef = useRef<string | null>(null);
+  // Сколько входов начато. Выход ждёт ответа сервера об отзыве токена (до 20 с), а хвост выхода стирает состояние: вход, начатый за это
+  // время, он не должен трогать (сессию уже сняло событие SIGNED_OUT).
+  const signInEpochRef = useRef(0);
 
   const resolve = useCallback(
     async (quiet: boolean) => {
@@ -134,42 +137,54 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback<SessionContextValue["signIn"]>(
     async (login, password) => {
+      signInEpochRef.current += 1;
       accountDeletedRef.current = false;
       setState({ kind: "authenticating" });
-      const result = await portalAuth.signIn(login.trim(), password);
-      if (!result.ok) {
-        setState({ kind: "signedOut", accountDeleted: false });
-        return result;
-      }
-      const { data, error } = await supabase.auth.setSession({
-        access_token: result.session.accessToken,
-        refresh_token: result.session.refreshToken,
-      });
-      const session = data.session;
-      if (error || !session) {
+      try {
+        const result = await portalAuth.signIn(login.trim(), password);
+        if (!result.ok) {
+          setState({ kind: "signedOut", accountDeleted: false });
+          return result;
+        }
+        const { data, error } = await supabase.auth.setSession({
+          access_token: result.session.accessToken,
+          refresh_token: result.session.refreshToken,
+        });
+        const session = data.session;
+        if (error || !session) {
+          setState({ kind: "signedOut", accountDeleted: false });
+          return { ok: false, reason: "unavailable" };
+        }
+        if (result.session.mustSetPassword) {
+          forcedMustSetRef.current = true;
+          setMustSetPassword(true);
+        }
+        // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку); ожидание подтверждения почты тоже.
+        void clearInviteToken();
+        void clearPendingSignup();
+        // Состояние «Входим…» ставил этот вызов, и заканчивает его тоже он: маршрут по установленной сессии ведём здесь, а не ждём
+        // SIGNED_IN от библиотеки (оно придёт следом и для этого токена будет пропущено).
+        routedTokenRef.current = session.access_token;
+        routeSession("SIGNED_IN", session);
+        return { ok: true };
+      } catch {
+        // `setSession` пробрасывает то, что не ошибка авторизации (например, запись сессии в хранилище не удалась): без этого вызов
+        // отклонился бы, состояние осталось `authenticating`, а экран входа - занятым. Так `authenticating` не переживает вызов ни при
+        // успехе, ни при отказе, ни при исключении, а длится не дольше портала и `setSession` (по 20 секунд; на пути просроченного токена
+        // у auth-js ещё повторы обновления с затуханием в пределах 30 секунд), и не зависит от того, как и когда дошло событие.
         setState({ kind: "signedOut", accountDeleted: false });
         return { ok: false, reason: "unavailable" };
       }
-      if (result.session.mustSetPassword) {
-        forcedMustSetRef.current = true;
-        setMustSetPassword(true);
-      }
-      // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку); ожидание подтверждения почты тоже.
-      void clearInviteToken();
-      void clearPendingSignup();
-      // Состояние «Входим…» ставил этот вызов, и заканчивает его тоже он: маршрут по установленной сессии ведём здесь, а не ждём
-      // SIGNED_IN от библиотеки (оно придёт следом и для этого токена будет пропущено). Так `authenticating` живёт не дольше
-      // двух вызовов с таймаутом (портал и `setSession`) и не зависит от того, как и когда дошло событие.
-      routedTokenRef.current = session.access_token;
-      routeSession("SIGNED_IN", session);
-      return { ok: true };
     },
     [portalAuth, routeSession, supabase],
   );
 
   const signOut = useCallback(async () => {
+    const epoch = signInEpochRef.current;
     await supabase.auth.signOut({ scope: "local" });
+    if (epoch !== signInEpochRef.current) return; // за ожиданием сервера начат другой вход: хвост выхода чужой
     await clearAllLocalData();
+    if (epoch !== signInEpochRef.current) return;
     runId.current += 1;
     forcedMustSetRef.current = false;
     setMustSetPassword(false);

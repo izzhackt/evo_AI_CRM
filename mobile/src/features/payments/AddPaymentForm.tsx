@@ -5,6 +5,8 @@
 // (сегодня по Бишкеку) и в формате «дд.мм.гггг», как все даты страницы; «гггг-мм-дд» тоже принимается. День подставляется один раз, когда
 // форма открывается, и дальше только меняется рукой: повтор после обрыва сети уходит с тем же телом и тем же ключом, даже после полуночи.
 // Идущая отправка не обрывается, когда форма исчезает: как на сайте, она доходит до конца и список перечитывается (`invalidate`).
+// Токены у неё привязаны к студенту, который её начал (`ownerBoundTokens`): после выхода и входа другого студента она не берёт его сессию
+// (у «Добавить платёж» платежа нет, и сервер не отличил бы чужой файл).
 // Пока идёт отправка, экран получает `onBusyChange(true)` и не даёт нажать «Добавить платёж» в шапке (закрыть форму посреди отправки).
 import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
@@ -18,6 +20,7 @@ import type { PaymentsIo } from "@/features/payments/io";
 import { PickedFileChip } from "@/features/payments/PickedFileChip";
 import { ReceiptUploadController, todayInBishkek } from "@/features/payments/receipt-upload";
 import { SlotButton } from "@/features/payments/SlotButton";
+import { ownerBoundTokens } from "@/features/payments/upload-session";
 import { useAnnounceProblem } from "@/features/payments/use-announce-problem";
 import { pickNoticeText, useFilePick } from "@/features/payments/use-file-pick";
 import { useLang } from "@/i18n/LangProvider";
@@ -47,7 +50,10 @@ export function AddPaymentForm({
   const api = usePortalApi();
   const invalidate = useInvalidatePaymentCenter();
   const strings = t("admission");
-  const [controller] = useState(() => new ReceiptUploadController(io.createReceiptSend(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), randomUUID, invalidate));
+  const [controller] = useState(() => {
+    const tokens = ownerBoundTokens(api, () => io.liveUserId());
+    return new ReceiptUploadController(io.createReceiptSend(api.portalBaseUrl, tokens.getToken, tokens.refreshToken), randomUUID, invalidate);
+  });
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);

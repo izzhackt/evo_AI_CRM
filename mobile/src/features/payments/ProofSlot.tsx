@@ -3,6 +3,7 @@
 // Когда файл сохранён, слот сообщает об этом строке (`onAttached`): строка показывает ссылку на файл и «Чек приложен» и держит их,
 // пока открыта страница, даже когда перечитанные данные уже дали записи файл и слот исчез (G34 аудита паритета).
 // Идущая отправка не обрывается, когда слот исчезает: как на сайте, она доходит до конца и список перечитывается (`invalidate`).
+// Токены у неё привязаны к студенту, который её начал (`ownerBoundTokens`): после выхода и входа другого студента она не берёт его сессию.
 import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
@@ -15,6 +16,7 @@ import type { PaymentsIo } from "@/features/payments/io";
 import { PickedFileChip } from "@/features/payments/PickedFileChip";
 import { ProofUploadController } from "@/features/payments/proof-upload";
 import { SlotButton } from "@/features/payments/SlotButton";
+import { ownerBoundTokens } from "@/features/payments/upload-session";
 import { useAnnounceProblem } from "@/features/payments/use-announce-problem";
 import { pickNoticeText, useFilePick } from "@/features/payments/use-file-pick";
 import { useLang } from "@/i18n/LangProvider";
@@ -42,7 +44,10 @@ export function ProofSlot({
   const api = usePortalApi();
   const invalidate = useInvalidatePaymentCenter();
   const strings = t("admission");
-  const [controller] = useState(() => new ProofUploadController(io.createProofSend(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), randomUUID, invalidate));
+  const [controller] = useState(() => {
+    const tokens = ownerBoundTokens(api, () => io.liveUserId());
+    return new ProofUploadController(io.createProofSend(api.portalBaseUrl, tokens.getToken, tokens.refreshToken), randomUUID, invalidate);
+  });
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const clearMessage = useCallback(() => controller.clearMessage(), [controller]);
   const pick = useFilePick(io, clearMessage);

@@ -3,7 +3,8 @@
 // (`receiptInputForLine`), студент их не вводит. Кнопку («+ Приложить чек» к остатку или «Заменить» у отклонённого) решает
 // общий модуль веба (`PaymentLine.attach` / `replace`), здесь только показ и отправка.
 // Идущая отправка не обрывается, когда слот исчезает (строку заменили свежие данные, студент ушёл с экрана): как на сайте, она
-// доходит до конца, список перечитывается (`invalidate`), а чек не теряется молча.
+// доходит до конца, список перечитывается (`invalidate`), а чек не теряется молча. Токены у неё привязаны к студенту, который её
+// начал (`ownerBoundTokens`): после выхода и входа другого студента она не берёт его сессию.
 import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
@@ -16,6 +17,7 @@ import type { PaymentsIo } from "@/features/payments/io";
 import { PickedFileChip } from "@/features/payments/PickedFileChip";
 import { receiptInputForLine, ReceiptUploadController } from "@/features/payments/receipt-upload";
 import { SlotButton } from "@/features/payments/SlotButton";
+import { ownerBoundTokens } from "@/features/payments/upload-session";
 import { useAnnounceProblem } from "@/features/payments/use-announce-problem";
 import { pickNoticeText, useFilePick } from "@/features/payments/use-file-pick";
 import { useLang } from "@/i18n/LangProvider";
@@ -28,10 +30,18 @@ export function ReceiptSlot({ io, view, mode, testID }: { io: PaymentsIo; view: 
   const api = usePortalApi();
   const invalidate = useInvalidatePaymentCenter();
   const strings = t("admission");
-  const [controller] = useState(() => new ReceiptUploadController(io.createReceiptSend(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), randomUUID, invalidate));
+  const [controller] = useState(() => {
+    const tokens = ownerBoundTokens(api, () => io.liveUserId());
+    return new ReceiptUploadController(io.createReceiptSend(api.portalBaseUrl, tokens.getToken, tokens.refreshToken), randomUUID, invalidate);
+  });
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
-  const clearMessage = useCallback(() => controller.clearMessage(), [controller]);
-  const pick = useFilePick(io, clearMessage);
+  // Момент первого «Сохранить» для этого файла: от него считается день чека (см. `save`). Другой файл - другая отправка, момент забывается.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const fileChanged = useCallback(() => {
+    setSavedAt(null);
+    controller.clearMessage();
+  }, [controller, setSavedAt]);
+  const pick = useFilePick(io, fileChanged);
   const sent = state.status === "success";
   const busy = state.status === "sending";
   const failed = state.status === "error" ? state : null;
@@ -51,9 +61,14 @@ export function ReceiptSlot({ io, view, mode, testID }: { io: PaymentsIo; view: 
   }
 
   const label = mode === "replace" ? strings.replaceButton : strings.receiptAttach;
-  // День чека считается от момента выбора файла и не меняется, пока файл тот же: повтор после неизвестного исхода (обрыв сети)
-  // и после полуночи по Бишкеку уходит с тем же телом и тем же ключом, а не вторым чеком.
-  const save = () => controller.submit(receiptInputForLine(view.line, pick.file, pick.pickedAt ?? Date.now()));
+  // День чека - сегодня по Бишкеку на момент нажатия «Сохранить», как на сайте. Пока исход прежней отправки неизвестен (обрыв сети,
+  // ключ повтора жив), повтор берёт тот же момент: тело и ключ те же и после полуночи, второго чека не будет. Новая отправка
+  // (первое нажатие, другой файл, повтор после окончательного отказа) берёт сегодняшний момент заново.
+  const save = () => {
+    const at = savedAt !== null && controller.currentKey() !== null ? savedAt : Date.now();
+    setSavedAt(at);
+    controller.submit(receiptInputForLine(view.line, pick.file, at));
+  };
 
   return (
     <View style={{ gap: 6, flexShrink: 1 }} testID={testID}>
@@ -63,7 +78,7 @@ export function ReceiptSlot({ io, view, mode, testID }: { io: PaymentsIo; view: 
             name={pick.file.name}
             onClear={() => {
               pick.clear();
-              controller.clearMessage();
+              fileChanged();
             }}
             disabled={busy}
             testID={`${testID}-file`}

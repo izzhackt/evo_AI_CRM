@@ -27,12 +27,11 @@ export function pickNoticeText(notice: PickNotice, m: (key: MobileStringKey) => 
 }
 
 /**
- * Состояние выбора файла. `onPicked` вызывается после выбранного (подходящего) файла: экран сбрасывает прежнее сообщение об ошибке.
- * `pickedAt` - момент выбора: от него считается день чека у строки, и он не меняется, пока файл тот же (см. `receiptInputForLine`).
- * Лист `SourceSheet` получает `sheet`, `onPick`, `closeSheet` и `flush` (`onDismissed`).
+ * Состояние выбора файла. `onPicked` вызывается после выбранного (подходящего) файла: экран сбрасывает прежнее сообщение об ошибке
+ * и всё, что связано с прежним файлом. Лист `SourceSheet` получает `sheet`, `onPick`, `closeSheet` и `flush` (`onDismissed`).
  */
 export function useFilePick(io: Pick<PaymentsIo, "pick">, onPicked: () => void) {
-  const [picked, setPicked] = useState<Readonly<{ file: PickedFile; at: number }> | null>(null);
+  const [file, setFile] = useState<PickedFile | null>(null);
   const [sheet, setSheet] = useState(false);
   const [notice, setNotice] = useState<PickNotice>(null);
   // Каждый отказ выбора - событие, даже если причина та же (камера запрещена дважды): читалка слышит его каждый раз.
@@ -60,11 +59,11 @@ export function useFilePick(io: Pick<PaymentsIo, "pick">, onPicked: () => void) 
         const checked = checkPickedFile(outcome.file);
         if (!checked.ok) {
           // Как на сайте: негодный файл не выбирается, прежний выбор сбрасывается, причина остаётся на виду.
-          setPicked(null);
+          setFile(null);
           raise(fileCheckErrorKey(checked.reason));
           return;
         }
-        setPicked({ file: outcome.file, at: Date.now() });
+        setFile(outcome.file);
         onPicked();
       } else if (outcome.kind === "denied") raise("camera");
       else if (outcome.kind === "failed") raise("pick");
@@ -92,7 +91,7 @@ export function useFilePick(io: Pick<PaymentsIo, "pick">, onPicked: () => void) 
 
   const openSheet = useCallback(() => setSheet(true), []);
   const closeSheet = useCallback(() => setSheet(false), []);
-  const clear = useCallback(() => setPicked(null), []);
+  const clear = useCallback(() => setFile(null), []);
 
-  return { file: picked?.file ?? null, pickedAt: picked?.at ?? null, clear, sheet, openSheet, closeSheet, onPick, flush, notice, noticeSeq };
+  return { file, clear, sheet, openSheet, closeSheet, onPick, flush, notice, noticeSeq };
 }

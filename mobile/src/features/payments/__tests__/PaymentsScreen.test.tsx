@@ -4,7 +4,7 @@ import { AccessibilityInfo } from "react-native";
 
 import type { PaymentsIo } from "@/features/payments/io";
 import type { ProofAttempt } from "@/features/payments/proof-upload";
-import { todayInBishkek, type ReceiptAttempt, type ReceiptResponse } from "@/features/payments/receipt-upload";
+import { sendWithRefresh, todayInBishkek, type ReceiptAttempt, type ReceiptResponse } from "@/features/payments/receipt-upload";
 import { PaymentsScreen } from "@/features/payments/PaymentsScreen";
 import { OBLIGATION_ID, QR_ID, RECEIPT_FILE_ID, paymentCenterRow, paymentDueRow, paymentEntryRow } from "@/test-fixtures/rpc-rows";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -77,6 +77,8 @@ function makeIo(responses: Reply[] = [ACK], proofResponses: Reply[] = [], picked
       writeFile: async (name) => `file:///cache/${name}`,
     }),
     openLocalFile: jest.fn(async (uri: string) => void opened.push(uri)),
+    // На устройстве вошёл тот же студент, что в `testApi` (`user-test`): обычные тесты проверяют страницу, а не смену студента.
+    liveUserId: async () => "user-test",
   };
   return { io, attempts, downloads, opened, proofs, copied, copyResult };
 }
@@ -623,7 +625,7 @@ describe("Оплата: идущая отправка не обрывается 
     const io = makeIo([ACK], [], PHOTO, hold.promise);
     const { unmount, client } = await startAddPayment(io);
     expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(false);
-    unmount();
+    await unmount();
     hold.open();
     await waitFor(() => expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(true));
     expect(io.attempts[0]?.signal.aborted).toBe(false);
@@ -637,7 +639,7 @@ describe("Оплата: идущая отправка не обрывается 
     await choosePhoto("payment-0-entry-1-slot-attach", io.io);
     await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
     await waitFor(() => expect(io.attempts).toHaveLength(1));
-    unmount();
+    await unmount();
     hold.open();
     await waitFor(() => expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(true));
     expect(io.attempts[0]?.signal.aborted).toBe(false);
@@ -673,7 +675,7 @@ describe("Оплата: идущая отправка не обрывается 
     await choosePhoto("payment-0-entry-0-proof-attach", io.io);
     await fireEvent.press(await screen.findByTestId("payment-0-entry-0-proof-save"));
     await waitFor(() => expect(io.proofs).toHaveLength(1));
-    unmount();
+    await unmount();
     hold.open();
     await waitFor(() => expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(true));
     expect(io.proofs[0]?.signal.aborted).toBe(false);
@@ -740,6 +742,154 @@ describe("Оплата: повтор после полуночи по Бишке
     expect(attempts[0]?.fields.paidOn).toBe("2026-11-25");
     expect(attempts[1]?.fields).toEqual(attempts[0]?.fields);
     expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
+  });
+});
+
+describe("Оплата: день чека у строки - сегодня на момент «Сохранить», как на сайте (N1)", () => {
+  const BEFORE = Date.UTC(2026, 10, 25, 17, 0, 0); // 25.11, 23:00 в Бишкеке
+  const AFTER = Date.UTC(2026, 10, 25, 18, 30, 0); // 26.11, 00:30 в Бишкеке
+
+  it("файл выбран до полуночи, «Сохранить» нажато после: день - день нажатия, а не день выбора файла", async () => {
+    jest.useFakeTimers({ now: BEFORE });
+    const { transport } = center();
+    const { io, attempts } = makeIo();
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    jest.setSystemTime(AFTER);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    expect(attempts[0]?.fields.paidOn).toBe("2026-11-26");
+  });
+
+  it("повтор после обрыва сети держит момент первого нажатия: день и ключ те же, хотя наступила полночь", async () => {
+    jest.useFakeTimers({ now: BEFORE });
+    const { transport } = center();
+    const { io, attempts } = makeIo([new Error("network down"), ACK]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toBeTruthy();
+    jest.setSystemTime(AFTER);
+    await fireEvent.press(screen.getByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts[0]?.fields.paidOn).toBe("2026-11-25");
+    expect(attempts[1]?.fields).toEqual(attempts[0]?.fields);
+    expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
+  });
+
+  it("после окончательного отказа (ключ освобождён) следующее «Сохранить» - новая отправка: сегодняшний день и новый ключ", async () => {
+    jest.useFakeTimers({ now: BEFORE });
+    const { transport } = center();
+    const { io, attempts } = makeIo([{ status: 409, body: { error: "receipt_duplicate" } }, ACK]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toHaveTextContent("Этот чек уже отправлен.");
+    jest.setSystemTime(AFTER);
+    await fireEvent.press(screen.getByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts[0]?.fields.paidOn).toBe("2026-11-25");
+    expect(attempts[1]?.fields.paidOn).toBe("2026-11-26");
+    expect(attempts[1]?.idempotencyKey).not.toBe(attempts[0]?.idempotencyKey);
+  });
+});
+
+describe("Оплата: отправка студента А не уходит с сессией студента Б (L-A)", () => {
+  /**
+   * Устройство со сменой студента. `device.user` - кто вошёл сейчас (единственный клиент Supabase на телефоне); токены берутся у
+   * вошедшего, как в `(app)/_layout.tsx`. Отправка настоящая по устройству запроса: токен и один повтор после 401 (`sendWithRefresh`);
+   * первый запрос висит, пока тест не ответит на него, повтор принимается сразу.
+   */
+  function twoStudentsDevice() {
+    const device: { user: string | null } = { user: "user-A" };
+    const posted: { bearer: string; file: string; obligation: string | null }[] = [];
+    const first: ((response: ReceiptResponse) => void)[] = [];
+    const post = (token: string, file: string, obligation: string | null) => {
+      posted.push({ bearer: token, file, obligation });
+      return posted.length === 1 ? new Promise<ReceiptResponse>((resolve) => first.push(resolve)) : Promise.resolve(ACK);
+    };
+    const io: PaymentsIo = {
+      ...makeIo().io,
+      liveUserId: async () => device.user,
+      createReceiptSend: (_url, getToken, refreshToken) => (attempt) => sendWithRefresh((token) => post(token, attempt.file.name, attempt.fields.obligationId), getToken, refreshToken),
+      createProofSend: (_url, getToken, refreshToken) => (attempt) => sendWithRefresh((token) => post(token, attempt.file.name, null), getToken, refreshToken),
+    };
+    const api = { userKey: "user-A", getAccessToken: async () => (device.user ? `token-${device.user}` : null), refreshAccessToken: async () => (device.user ? `renewed-${device.user}` : null) };
+    return { device, posted, io, api, answerFirst: (response: ReceiptResponse) => first[0]?.(response) };
+  }
+  const later = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 30))));
+
+  async function startAddPayment(s: ReturnType<typeof twoStudentsDevice>) {
+    const { transport } = center();
+    const view = await renderPortal(<PaymentsScreen io={s.io} />, testApi(transport, s.api));
+    await fireEvent.press(await screen.findByTestId("payments-add"));
+    await fireEvent.changeText(screen.getByTestId("payment-add-amount"), "10");
+    await choosePhoto("payment-add-pick", s.io);
+    await fireEvent.press(await screen.findByTestId("payment-add-save"));
+    await waitFor(() => expect(s.posted).toHaveLength(1));
+    return view;
+  }
+
+  it("«Добавить платёж» (платежа нет, сервер не отличил бы чужой файл): А вышел, вошёл Б, 401 пришёл позже - повторного запроса нет", async () => {
+    const s = twoStudentsDevice();
+    const view = await startAddPayment(s);
+    expect(s.posted[0]).toMatchObject({ bearer: "token-user-A", file: "chek.jpg", obligation: null });
+    await view.unmount(); // А вышел
+    s.device.user = "user-B"; // вошёл Б: живая сессия на устройстве теперь его
+    s.answerFirst({ status: 401, body: null });
+    await later();
+    expect(s.posted).toHaveLength(1);
+    expect(s.posted.some((request) => request.bearer.includes("user-B"))).toBe(false);
+  });
+
+  it("чек у строки: то же самое", async () => {
+    const s = twoStudentsDevice();
+    const { transport } = center();
+    const view = await renderPortal(<PaymentsScreen io={s.io} />, testApi(transport, s.api));
+    await choosePhoto("payment-0-entry-1-slot-attach", s.io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(s.posted).toHaveLength(1));
+    expect(s.posted[0]).toMatchObject({ bearer: "token-user-A", obligation: OBLIGATION_ID });
+    await view.unmount();
+    s.device.user = "user-B";
+    s.answerFirst({ status: 401, body: null });
+    await later();
+    expect(s.posted).toHaveLength(1);
+  });
+
+  it("чек к принятой оплате: то же самое", async () => {
+    const s = twoStudentsDevice();
+    const accepted = paymentEntryRow({ kind: "payment", status: "accepted", entry_id: "d4444444-4444-4444-8444-444444444450", file_kind: null, file_id: null, filename: null });
+    const { transport } = center({ dues: [paymentDueRow({ entries: [accepted] })] });
+    const view = await renderPortal(<PaymentsScreen io={s.io} />, testApi(transport, s.api));
+    await choosePhoto("payment-0-entry-0-proof-attach", s.io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-0-proof-save"));
+    await waitFor(() => expect(s.posted).toHaveLength(1));
+    await view.unmount();
+    s.device.user = "user-B";
+    s.answerFirst({ status: 401, body: null });
+    await later();
+    expect(s.posted).toHaveLength(1);
+  });
+
+  it("никто не вошёл (А вышел, Б ещё не вошёл): отправка тоже не повторяется", async () => {
+    const s = twoStudentsDevice();
+    const view = await startAddPayment(s);
+    await view.unmount();
+    s.device.user = null;
+    s.answerFirst({ status: 401, body: null });
+    await later();
+    expect(s.posted).toHaveLength(1);
+  });
+
+  it("контроль: А остался в кабинете - на 401 сессия обновляется и отправка повторяется со свежим токеном А, успех виден", async () => {
+    const s = twoStudentsDevice();
+    await startAddPayment(s);
+    s.answerFirst({ status: 401, body: null });
+    expect(await screen.findByTestId("payment-add-sent")).toHaveTextContent(RECEIPT_SENT);
+    expect(s.posted.map((request) => request.bearer)).toEqual(["token-user-A", "renewed-user-A"]);
   });
 });
 

@@ -185,6 +185,13 @@ describe("имя файла проходит правила веба (`applicati
     }
   });
 
+  it("граница ровно в 240 байт: последний знак, который влезает, остаётся, следующий нет", async () => {
+    // 79 иероглифов по 3 байта = 237 байт; три латинские буквы доводят до 240, четвёртая уже не влезает
+    const filename = await nameOf(`${"\u540D".repeat(79)}abcde.pdf`);
+    expect(filename).toBe(`${"\u540D".repeat(79)}abc.pdf`);
+    expect(bytes(filename.replace(/\.pdf$/u, ""))).toBe(240);
+  });
+
   it("кириллица в 120 знаков (ровно 240 байт) и латиница в 120 знаков остаются целыми", async () => {
     expect(await nameOf(`${"я".repeat(120)}.pdf`)).toBe(`${"я".repeat(120)}.pdf`);
     expect(await nameOf(`${"z".repeat(125)}.pdf`)).toBe(`${"z".repeat(120)}.pdf`);

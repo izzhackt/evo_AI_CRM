@@ -42,6 +42,8 @@ export function SubmitControl({ target, selection, previousSubmissionId, disable
   const [message, setMessage] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
   const retained = !suppressed && isSubmitIntent(pending.intent) ? pending.intent : null;
+  // Нечитаемая (повреждённая) запись: повтор не поможет, её можно только снять. «Хранилище не ответило» - другое состояние.
+  const corrupt = pending.blocked && !pending.unavailable;
 
   async function submit() {
     if (sending.current || suppressed || pending.blocked || !pending.hydrated || (!retained && (disabled || !selection))) return;
@@ -128,9 +130,14 @@ export function SubmitControl({ target, selection, previousSubmissionId, disable
   return (
     <View style={{ gap: 8 }} accessibilityState={{ busy }} testID={`prep-submit-${target.requirementItemId}`}>
       {retained && !succeeded ? <Text variant="secondary" testID={`prep-submit-retained-${target.requirementItemId}`}>{strings.pending}</Text> : null}
-      {pending.blocked ? (
+      {corrupt ? (
         <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-submit-unreadable-${target.requirementItemId}`}>
           {m("prep.recordUnreadable")}
+        </Text>
+      ) : null}
+      {pending.unavailable ? (
+        <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-submit-storage-${target.requirementItemId}`}>
+          {strings.storageUnavailable}
         </Text>
       ) : null}
       <Button
@@ -142,7 +149,7 @@ export function SubmitControl({ target, selection, previousSubmissionId, disable
         testID={`prep-submit-button-${target.requirementItemId}`}
       />
       {/* Повторить испорченную запись нельзя; неоконченную, но читаемую отправку доводит «Проверить результат», отказ ей не нужен. */}
-      {pending.blocked ? (
+      {corrupt ? (
         <DiscardPending
           operation="submit"
           target={target.requirementItemId}

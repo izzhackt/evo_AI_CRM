@@ -352,6 +352,30 @@ describe("загрузка отдельно", () => {
     expect(w.log).toEqual(["store upload:item", "call upload", "clear upload:item"]);
   });
 
+  it("сбой до отправки на ПОВТОРЕ после неизвестного исхода: запись прежней попытки остаётся (она могла дойти), исход по-прежнему неизвестен", async () => {
+    const w = world();
+    const first = fakes(w, { uploadResult: () => ({ ok: false, reason: "unavailable", resolution: "retain" }) });
+    await runUpload({ scope, target, file, fingerprint, upload: first.upload, env: { storage: w.storage, newRequestId: () => "99999999-0000-4000-8000-000000000006" } });
+    const kept = (await documentsPending.read(scope, "upload", ITEM, w.storage)).intent;
+    expect(isUploadIntent(kept) && kept.requestId).toBe("99999999-0000-4000-8000-000000000006");
+    // нет сессии без связи: файл выбран заново, а до отправки дело не дошло
+    const offline = fakes(w, { uploadResult: () => ({ ok: false, reason: "not_sent", resolution: "not_written" }) });
+    expect(await runUpload({ scope, target, file, fingerprint, upload: offline.upload, env: { storage: w.storage } })).toEqual({ status: "rejected", reason: "unavailable", resolution: "retain" });
+    expect((await documentsPending.read(scope, "upload", ITEM, w.storage)).intent).toEqual(kept);
+    // следующая настоящая попытка идёт с тем же номером запроса: на сервере дубля не будет
+    const again = fakes(w);
+    expect((await runUpload({ scope, target, file, fingerprint, upload: again.upload, env: { storage: w.storage } })).status).toBe("uploaded");
+    expect(again.calls.upload[0]?.requestId).toBe("99999999-0000-4000-8000-000000000006");
+    expect(w.data.size).toBe(0);
+  });
+
+  it("сбой до отправки на ПЕРВОЙ попытке (записи не было): запись, которую написала эта же команда, снимается", async () => {
+    const w = world();
+    const offline = fakes(w, { uploadResult: () => ({ ok: false, reason: "not_sent", resolution: "not_written" }) });
+    expect(await runUpload({ scope, target, file, fingerprint, upload: offline.upload, env: { storage: w.storage } })).toEqual({ status: "rejected", reason: "not_sent", resolution: "not_written" });
+    expect(w.data.size).toBe(0);
+  });
+
   it("испорченная запись загрузки блокирует: «хранилище недоступно», сеть не вызывается", async () => {
     const w = world();
     const f = fakes(w);

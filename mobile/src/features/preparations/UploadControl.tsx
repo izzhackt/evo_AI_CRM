@@ -58,6 +58,8 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
   const upload = useMemo(() => io.createUploader(api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken), [io, api.portalBaseUrl, api.getAccessToken, api.refreshAccessToken]);
 
   const retained = isUploadIntent(pending.intent) ? pending.intent : null;
+  // Нечитаемая (повреждённая) запись: повтор не поможет, её можно только снять. «Хранилище не ответило» - другое состояние.
+  const corrupt = pending.blocked && !pending.unavailable;
   const busy = stage !== null;
   // Обновление после записи пересоздало форму, а одно нажатие этого требования ещё идёт: ждём его, второе не начинаем.
   const elsewhere = itemSending && !busy;
@@ -181,9 +183,15 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
           {strings.pending} <Text variant="secondary" bold>{shownRetained.file.originalFilename}</Text>
         </Text>
       ) : null}
-      {pending.blocked ? (
+      {corrupt ? (
         <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-upload-unreadable-${target.requirementItemId}`}>
           {m("prep.recordUnreadable")}
+        </Text>
+      ) : null}
+      {/* Хранилище не ответило: запись, возможно, цела. Повтор позже может помочь, поэтому отказа здесь нет. */}
+      {pending.unavailable ? (
+        <Text variant="secondary" tone="error" accessibilityRole="alert" testID={`prep-upload-storage-${target.requirementItemId}`}>
+          {strings.storageUnavailable}
         </Text>
       ) : null}
       <Button
@@ -195,7 +203,7 @@ export function UploadControl({ target, label, sendAfterSave, quiet = false, dis
         testID={`prep-upload-button-${target.requirementItemId}`}
       />
       {/* Запись ждёт ТОТ ЖЕ файл (снимок с камеры повторить нельзя) или не читается: выход - отказаться и начать заново. */}
-      {shownRetained || pending.blocked ? (
+      {shownRetained || corrupt ? (
         <DiscardPending
           operation="upload"
           target={target.requirementItemId}

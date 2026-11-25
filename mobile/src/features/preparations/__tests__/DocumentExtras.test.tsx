@@ -370,7 +370,10 @@ describe("неоконченные записи прежних требован�
       ready: answer(emptyItem(), documentState(0)),
       extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => ({ ...submitReceipt(0, String(args?.p_request_id), versionId(9)), requirementsRevisionId: OLD_REVISION, requirementItemId: OLD_ITEM, documentSlotId: slotId(8) }) },
     });
-    await fireEvent.press(await screen.findByTestId(`prep-recover-submit-${OLD_ITEM}`));
+    const retry = await screen.findByTestId(`prep-recover-submit-${OLD_ITEM}`);
+    // читаемая отправка доводится «Проверить результат»: отказа у неё нет
+    expect(screen.queryByTestId(`prep-discard-recover-submit-${OLD_ITEM}`)).toBeNull();
+    await fireEvent.press(retry);
     await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
     expect(t.calls.find((c) => c.name === "submit_application_document_v1")!.args).toMatchObject({ p_request_id: REQUEST, p_requirements_revision_id: OLD_REVISION, p_requirement_item_id: OLD_ITEM });
     await waitFor(async () => expect(await storedKeys()).toEqual([]));

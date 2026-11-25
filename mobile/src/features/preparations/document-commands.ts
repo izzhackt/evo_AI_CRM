@@ -74,7 +74,11 @@ export async function runUpload(input: Readonly<{
       if (old && !sameUploadIntent(old, next)) return { status: "wrong_file" };
       const intent = old ?? next;
       await documentsPending.persist(scope, "upload", itemId, intent, env?.storage);
-      const result = await input.upload({ intent, file, onProgress: input.onProgress });
+      const sent = await input.upload({ intent, file, onProgress: input.onProgress });
+      // «Не отправлено» говорит только об ЭТОЙ попытке. На повторе запись и номер запроса остались от прежней попытки, а она могла
+      // дойти до сервера (обрыв связи после начала отправки): сбой до отправки (нет сессии без связи, файл не скопировался) о ней
+      // ничего не знает, поэтому запись не снимается, а исход, как и прежде, неизвестен. Снимается она только на первой попытке.
+      const result = !sent.ok && sent.reason === "not_sent" && old !== null ? ({ ok: false, reason: "unavailable", resolution: "retain" } as const) : sent;
       let cleared = true;
       if (result.ok || result.resolution === "not_written") {
         try {

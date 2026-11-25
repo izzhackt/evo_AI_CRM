@@ -51,26 +51,42 @@ export function checkPickedFile(file: PickedFile): FileCheck {
   return mimeType ? { ok: true, mimeType } : { ok: false, reason: "type" };
 }
 
+/** Сколько знаков и байтов UTF-8 остаётся от имени. Файловые системы телефона держат имя до 255 байт, а расширение дописывается позже. */
+const MAX_NAME_CHARACTERS = 120;
+const MAX_NAME_BYTES = 240;
+
+function utf8Length(character: string): number {
+  const code = character.codePointAt(0) ?? 0;
+  return code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+}
+
 /**
  * Имя для локального файла: без путей и служебных знаков, с расширением по типу. Годится и серверу (`applicationDocumentFilename`
- * веба): без управляющих знаков (в том числе U+0080-U+009F), без половинок суррогатных пар, без пробелов по краям; длина по
- * знакам Юникода, а не по парам UTF-16, поэтому эмодзи на границе обрезки не разрезается.
+ * веба): без управляющих знаков (в том числе U+0080-U+009F) и без половинок суррогатных пар; пробелы по краям убираются до
+ * обрезки, как раньше (расширение дописывается после, поэтому пробел перед ним имя не портит). Длина по знакам Юникода, а
+ * не по парам UTF-16 (эмодзи на границе обрезки не разрезается), и не больше 240 байт UTF-8: файл с таким
+ * именем кладётся в кэш (`new File(stage, имя)`), а имя из 100 иероглифов или 100 эмодзи в 255 байт файловой системы не влезало.
  */
 export function safeFileName(name: string | null | undefined, mimeType: string | null | undefined): string {
-  const cleaned = Array.from(
+  const characters = Array.from(
     (name ?? "")
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
       .replace(/[\\/:*?"<>|]+/g, "_")
       .replace(/^\.+/, "")
       .trim(),
-  )
-    .filter((character) => {
-      const code = character.codePointAt(0) ?? 0;
-      return code < 0xd800 || code > 0xdfff;
-    })
-    .slice(0, 120)
-    .join("")
-    .trim();
+  ).filter((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 0xd800 || code > 0xdfff;
+  });
+  const kept: string[] = [];
+  let bytes = 0;
+  for (const character of characters) {
+    const size = utf8Length(character);
+    if (kept.length >= MAX_NAME_CHARACTERS || bytes + size > MAX_NAME_BYTES) break;
+    kept.push(character);
+    bytes += size;
+  }
+  const cleaned = kept.join("");
   const base = cleaned.length > 0 ? cleaned : "document";
   const wanted = mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : mimeType === "image/jpeg" ? "jpg" : null;
   if (!wanted) return base;

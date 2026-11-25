@@ -414,6 +414,8 @@ describe("отправка сохранённого файла и неоконч
     });
     // запись отправки читается в фоне: всё, что от неё зависит, ждём по условию
     expect(await screen.findByTestId(`prep-submit-retained-${ITEM}`)).toHaveTextContent("Не уверены, дошёл ли файл", { exact: false });
+    // читаемая неоконченная отправка доводится «Проверить результат» (тем же запросом, файл не нужен): отказа у неё нет
+    expect(screen.queryByTestId(`prep-discard-submit-${ITEM}`)).toBeNull();
     await waitFor(() => expect(screen.getByTestId(`prep-submit-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
     // пока запрос не доведён, загрузка новым файлом не отправляет его сама
     await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Сохранить файл", { exact: false }));
@@ -476,6 +478,27 @@ describe("файл не прочитался и сбой до отправки",
     expect(screen.queryByTestId(`prep-upload-retained-${ITEM}`)).toBeNull();
     expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).not.toHaveTextContent("Проверить результат");
     expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
+  });
+});
+
+describe("сбой до отправки на повторе", () => {
+  it("прежняя попытка с неизвестным исходом, а теперь нет сессии без связи: запись остаётся, текст про неизвестный исход, а не «Файл не сохранён»", async () => {
+    let attempt = 0;
+    const io = makeIo({ upload: () => (++attempt === 1 ? { ok: false, reason: "unavailable", resolution: "retain" } : { ok: false, reason: "not_sent", resolution: "not_written" }) });
+    const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Не удалось получить результат", { exact: false });
+    const [key] = await storedKeys();
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
+    await chooseFile();
+    await waitFor(() => expect(t.fake.uploads).toHaveLength(2));
+    // сообщение прежней попытки снимается в начале новой: ждём сообщение именно этой
+    const message = await screen.findByTestId(`prep-upload-message-${ITEM}`);
+    expect(message).toHaveTextContent("Не удалось получить результат", { exact: false });
+    expect(message).not.toHaveTextContent("Файл не сохранён");
+    expect(await storedKeys()).toEqual([key]);
+    expect(t.fake.uploads[1]!.requestId).toBe(t.fake.uploads[0]!.requestId);
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
   });
 });
 
@@ -585,6 +608,11 @@ describe("отказ от незавершённого действия", () => 
     await AsyncStorage.setItem(key, "{bad");
     const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })) });
     expect(await screen.findByTestId(`prep-upload-unreadable-${ITEM}`)).toHaveTextContent("Запись о незавершённом действии на этом телефоне не читается, повторять попытку бессмысленно.", { exact: false });
+    // запись видимого требования показывает само требование, один раз: ни второго текста, ни второй кнопки в разделе восстановления
+    await settle();
+    expect(screen.getAllByText(/повторять попытку бессмысленно/u)).toHaveLength(1);
+    expect(screen.getAllByTestId(`prep-discard-upload-${ITEM}`)).toHaveLength(1);
+    expect(screen.queryByTestId("prep-recovery")).toBeNull();
     await waitForDisabled(`prep-upload-button-${ITEM}`);
     // испорченная запись не стирается втихую: до отказа она на месте
     expect(await AsyncStorage.getItem(key)).toBe("{bad");
@@ -612,6 +640,31 @@ describe("отказ от незавершённого действия", () => 
     await waitForEnabled(`prep-submit-button-${ITEM}`);
     await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
     await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
+  });
+
+  it("хранилище не ответило при чтении записи (запись, возможно, цела): «повторите позже» и никакого отказа; у повреждённой записи отказ есть", async () => {
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await documentsPending.persist(scope, "submit", ITEM, submit() as never);
+    const original = AsyncStorage.getItem;
+    AsyncStorage.getItem = (async (key: string) => {
+      if (key.startsWith("evo.application-documents.v1:")) throw new Error("storage down");
+      return original(key);
+    }) as typeof AsyncStorage.getItem;
+    try {
+      await open({ ready: answer(emptyItem(), documentState(0)) });
+      expect(await screen.findByTestId(`prep-upload-storage-${ITEM}`)).toHaveTextContent("Повторите попытку позже", { exact: false });
+      expect(await screen.findByTestId(`prep-submit-storage-${ITEM}`)).toHaveTextContent("Повторите попытку позже", { exact: false });
+      await settle();
+      // «повторять бессмысленно» здесь было бы неправдой, а снять живую запись по ошибке чтения нельзя
+      expect(screen.queryByTestId(`prep-upload-unreadable-${ITEM}`)).toBeNull();
+      expect(screen.queryByTestId(`prep-submit-unreadable-${ITEM}`)).toBeNull();
+      expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
+      expect(screen.queryByTestId(`prep-discard-submit-${ITEM}`)).toBeNull();
+      await waitForDisabled(`prep-upload-button-${ITEM}`);
+    } finally {
+      AsyncStorage.getItem = original;
+    }
+    expect((await storedKeys()).sort()).toEqual([documentsPending.key(scope, "submit", ITEM), documentsPending.key(scope, "upload", ITEM)].sort());
   });
 
   it("хранилище не удаляет: сказано словами, запись на месте, кнопка остаётся", async () => {
@@ -729,6 +782,24 @@ describe("после успешной отправки чтение не уда�
     // и только по разу
     expect(spoken.filter((text) => text === SENT)).toHaveLength(1);
     expect(spoken.filter((text) => text === STALE)).toHaveLength(1);
+  });
+
+  it("итог «отправлено» не возвращается после удачного снимка «Принят»: позже чтение не удалось - рядом с решением итога нет", async () => {
+    const approved = answer(sentItem(9), documentState(0, { submission: submissionOf(0, 9, reviewOf(9, "approved")), canSubmit: false }));
+    await open({
+      ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })) : call === 2 ? approved : failure("PT500", 500)),
+      extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) },
+    });
+    await waitForEnabled(`prep-submit-button-${ITEM}`);
+    await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
+    // после отправки приходит свежий ответ: документ уже принят, итог «отправлено» по правилам сайта скрыт
+    expect(await screen.findByTestId(`prep-document-${ITEM}-submission-decision`)).toHaveTextContent("Принят для этой программы", { exact: false });
+    await waitForEnabled("prep-check");
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await screen.findByTestId("prep-requirements-stale");
+    await settle();
+    expect(screen.queryByTestId(`prep-document-notice-${ITEM}`)).toBeNull();
+    expect(screen.getByTestId(`prep-document-${ITEM}-submission-decision`)).toHaveTextContent("Принят для этой программы", { exact: false });
   });
 
   it("на iPhone пометка встаёт в очередь за итогом, а не обрывает его", async () => {

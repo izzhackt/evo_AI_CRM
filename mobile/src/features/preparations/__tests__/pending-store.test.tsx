@@ -105,7 +105,8 @@ describe("запись и чтение", () => {
   it("хранилище недоступно: чтение даёт «заблокировано», а не пустоту", async () => {
     const storage = memoryPendingStorage();
     storage.failing = true;
-    expect(await documentsPending.read(scope, "upload", item, storage)).toEqual({ intent: null, blocked: true });
+    // хранилище не ответило: «заблокировано», и пометка «не удалось прочитать сейчас» (повтор может помочь); у повреждённой записи её нет
+    expect(await documentsPending.read(scope, "upload", item, storage)).toEqual({ intent: null, blocked: true, unavailable: true });
     await expect(documentsPending.persist(scope, "upload", item, uploadIntent() as never, storage)).rejects.toThrow();
   });
 

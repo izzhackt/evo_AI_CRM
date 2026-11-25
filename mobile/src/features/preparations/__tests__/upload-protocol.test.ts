@@ -7,7 +7,7 @@ import {
   type ApplicationDocumentUploadIntent,
 } from "@web/lib/portal/application-documents";
 
-import type { PickedFile } from "@/domain/documents-model";
+import { safeFileName, type PickedFile } from "@/domain/documents-model";
 import {
   UPLOAD_HEADER_MAX,
   UPLOAD_INTENT_HEADER,
@@ -162,19 +162,43 @@ describe("имя файла проходит правила веба (`applicati
   };
   const nameOf = async (name: string) => (await frozen({ name })).file.originalFilename;
 
+  const bytes = (value: string) => new TextEncoder().encode(value).byteLength;
+
   it("эмодзи на границе обрезки не разрезается: ни одинокой половины, имя принимает веб", async () => {
-    // 119 букв и эмодзи: сто двадцатая единица UTF-16 пришлась бы на середину пары
-    const filename = await nameOf(`${"а".repeat(119)}${emoji}${"б".repeat(30)}.pdf`);
-    expect(filename).toBe(`${"а".repeat(119)}${emoji}.pdf`);
+    // 119 латинских букв и эмодзи: сто двадцатая единица UTF-16 пришлась бы на середину пары
+    const filename = await nameOf(`${"a".repeat(119)}${emoji}${"b".repeat(30)}.pdf`);
+    expect(filename).toBe(`${"a".repeat(119)}${emoji}.pdf`);
     expect(wellFormed(filename)).toBe(true);
     expect(webFilename(filename)).toBe(true);
   });
 
-  it("длина по знакам, а не по единицам UTF-16: сто двадцать эмодзи остаются целыми", async () => {
-    const filename = await nameOf(`${emoji.repeat(130)}.pdf`);
-    expect(Array.from(filename.replace(/\.pdf$/u, ""))).toHaveLength(120);
-    expect(wellFormed(filename)).toBe(true);
-    expect(webFilename(filename)).toBe(true);
+  it("не больше 240 байт UTF-8 (в кэш кладётся файл с этим именем, предел файловой системы 255): эмодзи и иероглифы режутся целыми знаками", async () => {
+    const emojis = await nameOf(`${emoji.repeat(130)}.pdf`);
+    expect(Array.from(emojis.replace(/\.pdf$/u, ""))).toHaveLength(60);
+    expect(bytes(emojis.replace(/\.pdf$/u, ""))).toBe(240);
+    const han = await nameOf(`${"\u540D".repeat(100)}.pdf`);
+    expect(Array.from(han.replace(/\.pdf$/u, ""))).toHaveLength(80);
+    for (const filename of [emojis, han]) {
+      expect(bytes(filename)).toBeLessThanOrEqual(244);
+      expect(wellFormed(filename)).toBe(true);
+      expect(webFilename(filename)).toBe(true);
+    }
+  });
+
+  it("кириллица в 120 знаков (ровно 240 байт) и латиница в 120 знаков остаются целыми", async () => {
+    expect(await nameOf(`${"я".repeat(120)}.pdf`)).toBe(`${"я".repeat(120)}.pdf`);
+    expect(await nameOf(`${"z".repeat(125)}.pdf`)).toBe(`${"z".repeat(120)}.pdf`);
+  });
+
+  it("сама функция для локального файла (её берут и «Документы», и «Оплата»): имя с расширением не длиннее 244 байт, одно и то же при повторе", () => {
+    for (const name of [emoji.repeat(300), "\u540D".repeat(300), "я".repeat(300), "a".repeat(300), `${"\u0085".repeat(10)}${emoji.repeat(70)}`]) {
+      for (const mime of ["application/pdf", "image/png", "image/jpeg", null]) {
+        const filename = safeFileName(name, mime);
+        expect(bytes(filename)).toBeLessThanOrEqual(244);
+        expect(wellFormed(filename)).toBe(true);
+        expect(safeFileName(name, mime)).toBe(filename);
+      }
+    }
   });
 
   it("управляющие знаки C1 (U+0080-U+009F) убираются: имя принимает веб, а не отказ «Выберите PDF…»", async () => {
@@ -183,9 +207,9 @@ describe("имя файла проходит правила веба (`applicati
     expect(webFilename(filename)).toBe(true);
   });
 
-  it("после обрезки пробел на краю не остаётся (веб требует имя без пробелов по краям)", async () => {
+  it("пробел на границе обрезки ничего не портит: расширение дописывается после него, и имя годится вебу (как и раньше)", async () => {
     const filename = await nameOf(`${"а".repeat(119)} ${"б".repeat(5)}.pdf`);
-    expect(filename).toBe(`${"а".repeat(119)}.pdf`);
+    expect(filename).toBe(`${"а".repeat(119)} .pdf`);
     expect(webFilename(filename)).toBe(true);
   });
 

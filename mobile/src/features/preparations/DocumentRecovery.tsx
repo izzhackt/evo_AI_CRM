@@ -156,8 +156,10 @@ export function DocumentRecovery({ currentItemIds, loading }: {
     );
   }
   if (loading) return null;
-  // Записи видимых требований доводят сами требования; здесь остальные и нечитаемые.
-  const hidden = entries.filter((entry) => entry.blocked || !currentItemIds.includes(entry.target));
+  // Записи видимых требований доводят сами требования, в том числе нечитаемые (у требования свой текст и свой отказ): здесь они
+  // были бы второй копией с второй кнопкой. Здесь остальные записи; а пока список требований не прочитан или не прочитался,
+  // видимых требований нет, и здесь все записи, чтобы довести начатое можно было и без списка.
+  const hidden = entries.filter((entry) => !currentItemIds.includes(entry.target));
   if (hidden.length === 0) return null;
   return (
     <View style={{ gap: 8 }} testID="prep-recovery">

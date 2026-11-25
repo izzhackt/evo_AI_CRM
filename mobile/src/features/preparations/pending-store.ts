@@ -26,7 +26,15 @@ import { useEffect, useState } from "react";
 /** Организация, участник, дело и программа: весь адрес записей одной программы. */
 export type PendingScope = ApplicationDocumentScope;
 
-export type Pending<Intent> = Readonly<{ intent: Intent | null; blocked: boolean }>;
+export type Pending<Intent> = Readonly<{
+  intent: Intent | null;
+  blocked: boolean;
+  /**
+   * Запись не удалось прочитать СЕЙЧАС: хранилище не ответило. Повтор позже может помочь, и снимать такую запись нельзя: не
+   * ясно, что она вообще нечитаема. Для повреждённой записи (`blocked` без этого признака) повтор не поможет.
+   */
+  unavailable?: true;
+}>;
 
 /** То, что нужно от AsyncStorage; подменяется в тестах. */
 export type PendingStorage = Readonly<{
@@ -115,7 +123,7 @@ export function createPendingStore<Operation extends string, Intent>(kind: Pendi
       try {
         return decode(await storage.getItem(key(scope, operation, target)), scope, operation, target);
       } catch {
-        return { intent: null, blocked: true };
+        return { intent: null, blocked: true, unavailable: true };
       }
     },
     /** Только под замком. Чужой неизвестный запрос на ту же цель не перезаписывается. */
@@ -221,6 +229,8 @@ export type PendingStore<Operation extends string, Intent> = ReturnType<typeof c
 export type PendingView<Intent> = Readonly<{
   intent: Intent | null;
   blocked: boolean;
+  /** Запись не удалось прочитать сейчас (см. `Pending.unavailable`): повтор может помочь, снимать её нельзя. */
+  unavailable?: true;
   /** Запись прочитана хотя бы раз: до этого форма не принимает нажатий (веб: `useDocumentHydration`). */
   hydrated: boolean;
 }>;

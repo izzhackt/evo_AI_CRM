@@ -25,6 +25,9 @@ import { SubmitControl } from "@/features/preparations/SubmitControl";
 import { UploadControl, type SendAfterSave } from "@/features/preparations/UploadControl";
 import { Text } from "@/ui/Text";
 
+/** Итог одного нажатия и снимок документа, с которым студент его получил (без этого его нельзя отличить от нового снимка). */
+type SnapshotNotice = ApplicationDocumentNotice & Readonly<{ snapshot: string }>;
+
 type ItemProps = Readonly<{
   /** Название требования: подпись листа выбора файла. */
   label: string;
@@ -36,7 +39,7 @@ export function DocumentItem(props: ItemProps) {
   // Новый снимок с сервера отменяет постраничные выборы, сделанные на прежнем. Неоконченные записи живут вне формы.
   const key = JSON.stringify([props.target, props.state.savedDraft, props.state.submission, props.state.reusableVersions, props.state.previousEvidence]);
   // «Отправлено» и «сохранён, не отправлен» должны пережить пересоздание формы, которое вызывает обновление после записи.
-  const [notice, setNotice] = useState<ApplicationDocumentNotice | null>(null);
+  const [notice, setNotice] = useState<SnapshotNotice | null>(null);
   // Идущее нажатие, чтобы пересоздание посреди него не приняло его запрос отправки за неоконченный.
   const [oneTapRun, setOneTapRun] = useState<SendAfterSave | null>(null);
   const onOneTapRun = (run: SendAfterSave, active: boolean) => setOneTapRun((current) => nextOneTapRun(current, run, active));
@@ -46,8 +49,9 @@ export function DocumentItem(props: ItemProps) {
     <DocumentItemSnapshot
       key={key}
       {...props}
+      snapshot={key}
       notice={notice}
-      onNotice={setNotice}
+      onNotice={(value) => setNotice(value ? { ...value, snapshot: key } : null)}
       oneTapRun={oneTapRun}
       onOneTapRun={onOneTapRun}
       standaloneSending={standaloneSending}
@@ -56,8 +60,10 @@ export function DocumentItem(props: ItemProps) {
   );
 }
 
-function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRun, onOneTapRun, standaloneSending, onStandaloneSending }: ItemProps & {
-  notice: ApplicationDocumentNotice | null;
+function DocumentItemSnapshot({ label, state, target, snapshot, notice, onNotice, oneTapRun, onOneTapRun, standaloneSending, onStandaloneSending }: ItemProps & {
+  /** Ключ этого снимка документа (по нему форма пересоздаётся при любом изменении ответа сервера). */
+  snapshot: string;
+  notice: SnapshotNotice | null;
   onNotice: (notice: ApplicationDocumentNotice | null) => void;
   oneTapRun: SendAfterSave | null;
   onOneTapRun: (run: SendAfterSave, active: boolean) => void;
@@ -88,7 +94,9 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
     oneTapRun ?? (canSubmit && submitPending.hydrated && (!isSubmitIntent(submitPending.intent) || standaloneSending) && !submitPending.blocked ? { previousSubmissionId: state.submission?.submissionId ?? null } : undefined);
   // Подтверждение «отправлено» держится, пока свежий снимок не скажет другого. Если после отправки чтение не удалось (вид устарел),
   // снимок прежний и подтвердить отправку не может, но сервер её подтвердил квитанцией: слово студенту остаётся, а пометка
-  // «Не удалось обновить» объясняет, почему рядом прежний вид (иначе успех пропал бы вместе с закрытой формой).
+  // «Не удалось обновить» объясняет, почему рядом прежний вид (иначе успех пропал бы вместе с закрытой формой). Исключение
+  // действует только пока на экране тот самый снимок, с которым получен итог: пришёл новый удачный (например, «Принят», и итог
+  // из-за этого скрылся), а позже чтение не удалось, - прежний итог рядом с ним уже не возвращается.
   const noticeShown =
     notice !== null &&
     (applicationDocumentNoticeVisible(notice, {
@@ -96,7 +104,7 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
       reviewed: Boolean(state.submission?.review),
       unsentDraftVersionId: draft ? draft.file.documentVersionId : null,
     }) ||
-      (stale && notice.tone === "success"));
+      (stale && notice.tone === "success" && notice.snapshot === snapshot));
   const heading = state.submission?.review && state.submission.review.decision !== "approved" ? strings.correctFile : draft || state.submission ? strings.replaceFile : strings.chooseFile;
 
   return (

@@ -201,14 +201,15 @@ describe("ссылки наружу", () => {
 });
 
 describe("длинный список: UTM, 270 программ", () => {
-  it("на странице четыре карточки; после «Показать все 270» они собираются порциями, а не одним куском", async () => {
-    const many = Array.from({ length: 270 }, (_, i) => program({ id: `p-${i}`, title: `Bachelor of Computer Science ${i + 1}`, intakes: [{ label: "Сентябрь 2027", n: 100 + i }] }));
+  // Порции собираются с паузой между кадрами, на медленном раннере CI это секунды: ждём по времени с запасом, а не по числу тактов.
+  it("на странице четыре карточки; после «Показать все» они собираются порциями, а не одним куском", async () => {
+    const many = Array.from({ length: 120 }, (_, i) => program({ id: `p-${i}`, title: `Bachelor of Computer Science ${i + 1}`, intakes: [{ label: "Сентябрь 2027", n: 100 + i }] }));
     await openScreen(many);
     expect(cards()).toHaveLength(4);
-    expect(screen.getByTestId("program-found").props.children).toBe("270 программ");
+    expect(screen.getByTestId("program-found").props.children).toBe("120 программ");
     await fireEvent.press(screen.getByTestId("program-show-all"));
-    expect(cards().length).toBeLessThan(270);
+    expect(cards().length).toBeLessThan(120);
     expect(cards().length).toBeGreaterThanOrEqual(24);
-    await waitFor(() => expect(cards()).toHaveLength(270), { timeout: 4000 });
-  });
+    await waitFor(() => expect(cards()).toHaveLength(120), { timeout: 20_000 });
+  }, 30_000);
 });

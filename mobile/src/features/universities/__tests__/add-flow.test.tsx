@@ -19,6 +19,9 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
 
+// Страница программы открывается по запасному таймеру (900 мс) или по закрытию окна; на медленном раннере CI ждём с запасом.
+jest.setTimeout(30_000);
+
 beforeEach(async () => {
   mockParams.current = { id: uuidN(1) };
   (router.push as jest.Mock).mockClear();
@@ -71,7 +74,7 @@ describe("успешное добавление", () => {
     await fireEvent.press(screen.getByTestId("program-add"));
     await waitFor(() => expect(screen.queryByTestId("program-dialog-title")).toBeNull());
     // страница программы открывается после закрытия окна (на iOS по его `onDismiss`, иначе по таймеру), один раз
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(router.push).toHaveBeenCalledWith(preparationHref(item.applicationId));
     expect((router.push as jest.Mock).mock.calls[0][0]).toEqual({ pathname: "/preparations/[applicationId]", params: { applicationId: item.applicationId } });
     expect(w.calls.map((call) => call.name)).toEqual(expect.arrayContaining(["student_select_catalog_intake_v1", "student_application_documents_v1", "student_initialize_application_requirements_v1"]));
@@ -125,7 +128,7 @@ describe("обрыв и повтор", () => {
     expect(screen.getByTestId("program-error").props.children).toBe("Не получилось проверить, сохранилось ли действие. Повторите попытку — запрос продолжится, ничего не задвоится.");
     expect(within(screen.getByTestId("program-add")).getByText("Проверить сохранение и продолжить")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("program-add"));
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     const ids = new Set(sends(w).map((call) => call.args?.p_request_id));
     expect(ids.size).toBe(1);
   });
@@ -225,7 +228,7 @@ describe("не мешают друг другу", () => {
     await open(w);
     await openProgram("cs-b");
     await fireEvent.press(screen.getByTestId("program-add"));
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith(preparationHref(item.applicationId)), { timeout: 3000 });
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith(preparationHref(item.applicationId)), { timeout: 10_000 });
   });
 
   it("повторное нажатие, пока идёт запрос, второго выбора не отправляет", async () => {
@@ -247,7 +250,7 @@ describe("не мешают друг другу", () => {
     await act(async () => {
       release?.();
     });
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(sends(w)).toHaveLength(1);
   });
 

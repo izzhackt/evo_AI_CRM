@@ -34,7 +34,7 @@ const RESULTS: Record<Exclude<CaseCoverageActionState["status"], "idle">, string
   unavailable: "Не удалось подтвердить сохранение. Проверьте актуальные данные перед повтором.",
 };
 
-export function CuratorCoverageForm({ preview, curators, requestId, today, returnHref = null }: Readonly<{
+export function CuratorCoverageForm({ preview, curators, requestId, today, returnHref = null, onPendingChange }: Readonly<{
   preview: CoveragePreview | null; curators: readonly CoverageCurator[]; requestId: string;
   /** Сегодня в Бишкеке, YYYY-MM-DD. */
   today: string;
@@ -43,18 +43,20 @@ export function CuratorCoverageForm({ preview, curators, requestId, today, retur
    * «Нагрузку кураторов». null — прежнее поведение раздела «Нагрузка кураторов».
    */
   returnHref?: string | null;
+  /** Сохранение идёт: панель карточки не закрывается, пока не придёт ответ. */
+  onPendingChange?: (pending: boolean) => void;
 }>) {
   // A failed refresh must not unmount a user's draft. Cached data stays visibly
   // unavailable and cannot authorize a mutation; never use it as a live fallback.
   const [lastRead, setLastRead] = useState(preview ? { preview, curators } : null);
   if (preview && preview !== lastRead?.preview) setLastRead({ preview, curators });
   if (!lastRead) return null;
-  return <CoverageDraft preview={lastRead.preview} curators={lastRead.curators} requestId={requestId} readUnavailable={preview === null} today={today} returnHref={returnHref} />;
+  return <CoverageDraft preview={lastRead.preview} curators={lastRead.curators} requestId={requestId} readUnavailable={preview === null} today={today} returnHref={returnHref} onPendingChange={onPendingChange} />;
 }
 
-function CoverageDraft({ preview, curators, requestId, readUnavailable, today, returnHref }: Readonly<{
+function CoverageDraft({ preview, curators, requestId, readUnavailable, today, returnHref, onPendingChange }: Readonly<{
   preview: CoveragePreview; curators: readonly CoverageCurator[]; requestId: string; readUnavailable: boolean; today: string;
-  returnHref: string | null;
+  returnHref: string | null; onPendingChange?: (pending: boolean) => void;
 }>) {
   const router = useRouter();
   // Stable case identity, not scope/task versions: refresh never discards the draft.
@@ -79,6 +81,8 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today, r
   const locked = pending || status === "saved";
   const canSubmit = !locked && !readUnavailable && !needsReview && status !== "stale" && !hasConflict
     && reason.trim().length > 0 && (returning || (endOn !== "" && availableSubstitutes.some((curator) => curator.id === substitute)));
+
+  useEffect(() => { onPendingChange?.(pending); }, [onPendingChange, pending]);
 
   useEffect(() => {
     if (status === "saved") {
@@ -166,7 +170,10 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today, r
         <button type="submit" disabled={!canSubmit} className={CONFIRM}>
           {pending ? "Сохраняем…" : returning ? "Подтвердить возврат" : "Подтвердить замещение"}
         </button>
-        {!pending ? <Link className={`${btnGhostCls} min-h-11`} href={returnHref ?? coverageHref(preview.owner_id)}>Отмена</Link> : null}
+        {!pending ? (returnHref
+          // Из карточки: тот же переход, что у крестика и сохранения — без прокрутки наверх и без лишней записи истории.
+          ? <Link className={`${btnGhostCls} min-h-11`} href={returnHref} replace scroll={false}>Отмена</Link>
+          : <Link className={`${btnGhostCls} min-h-11`} href={coverageHref(preview.owner_id)}>Отмена</Link>) : null}
       </div>
     </form>
   );

@@ -440,7 +440,9 @@ export default async function ProfilePart({
   if (queueInput) return <StudentsNextLazy input={queueInput} />;
 
   // «Сменить куратора» в карточке (`panel=curator`): то же чтение замещения, что у «Нагрузки кураторов», по этому делу.
-  const curatorPanelFor = singleSearchParam(params.panel) === "curator" ? singleSearchParam(params.coverage_curator) : undefined;
+  // Куратор — из прочитанного дела, а не из адреса; замещать можно только в активном деле (иначе база откажет).
+  const curatorPanelFor = singleSearchParam(params.panel) === "curator" && view?.details.admissions?.caseState === "active"
+    ? caseWork?.row?.currentCuratorMembershipId ?? undefined : undefined;
   const curatorChange = caseTarget && curatorPanelFor && studentsQueueActor(actor).coverage ? {
     coverage: await loadStudentsCoverage(actor, { coverage_curator: curatorPanelFor, coverage_case: caseTarget.studentCaseId }, undefined),
     requestId: randomUUID(),

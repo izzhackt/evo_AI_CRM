@@ -293,7 +293,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       name: draft.responsible,
       membershipId: work.row?.currentCuratorMembershipId ?? null,
       coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
-      change: curatorChangeLink(input, work.row?.currentCuratorMembershipId ?? null, work.today),
+      // Панель замещения — только у активного дела; у остальных ссылка ведёт в «Нагрузку кураторов», как раньше.
+      change: admissions.caseState === "active" ? curatorChangeLink(input, work.row?.currentCuratorMembershipId ?? null, work.today) : null,
     },
     handedOffBy: draft.handedOffBy ?? null,
     portal,
@@ -325,14 +326,15 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
 }
 
 /**
- * «Сменить куратора» в карточке: адрес этой же карточки на «Обзоре» с панелью (`panel=curator`, куратор — в
- * `coverage_curator`) и сама панель, когда адрес её открыл. Нет куратора — нечего менять (ссылка ведёт в «Нагрузку»).
+ * «Сменить куратора» в карточке: адрес этой же карточки на «Обзоре» с панелью (`panel=curator`) и сама панель, когда
+ * адрес её открыл. Нет куратора — нечего менять (ссылка ведёт в «Нагрузку»).
  */
 function curatorChangeLink(input: CaseWorkPartsInput, curatorId: string | null, today: string) {
   if (!curatorId) return null;
   const [base] = input.hrefFor("overview").split("#");
   const closeHref = base ?? input.hrefFor("overview");
-  const href = `${closeHref}${closeHref.includes("?") ? "&" : "?"}panel=curator&coverage_curator=${encodeURIComponent(curatorId)}`;
+  // Куратора страница берёт из самого дела: в адресе только то, что панель открыта.
+  const href = `${closeHref}${closeHref.includes("?") ? "&" : "?"}panel=curator`;
   const sheet = input.curatorChange
     ? <CuratorChangeSheet coverage={input.curatorChange.coverage} requestId={input.curatorChange.requestId} today={today} closeHref={closeHref} />
     : null;

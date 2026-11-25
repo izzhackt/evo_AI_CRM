@@ -313,7 +313,7 @@ export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ lin
         ) : null) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
         {curator.coverage && !input.work.needsCurator ? (
           <Link href={curator.membershipId ? curator.change?.href ?? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
-            className={FACT_LINK} scroll={false}>
+            className={FACT_LINK} scroll={curator.change ? false : undefined} aria-haspopup={curator.change ? "dialog" : undefined}>
             {curator.membershipId ? "Сменить куратора" : "Нагрузка кураторов"}
           </Link>
         ) : null}

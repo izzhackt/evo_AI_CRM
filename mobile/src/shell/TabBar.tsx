@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "expo-router";
 import { useEffect } from "react";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
@@ -13,6 +14,7 @@ import { isConversationPath } from "@/shell/chat-fab-rules";
 import { inboxStackOf, inboxToListActions } from "@/shell/inbox-stack";
 import { PHONE_TABS, SECTIONS, hasTabBar } from "@/shell/sections";
 import { reportTabBarHeight } from "@/shell/tab-bar-metrics";
+import { hasUnsentChat } from "@/shell/unsent-chat";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "@/ui/Text";
 
@@ -26,6 +28,7 @@ export function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps)
   const unread = usePortalUnread();
   const pathname = usePathname();
   const { tier } = usePortalApi();
+  const cabinet = useQueryClient();
   const hidden = isConversationPath(pathname) || !hasTabBar(tier);
   // Панели нет (беседа, approved) или она ушла: высота для кнопки «Написать EVO» снова «неизвестна» (tab-bar-metrics.ts).
   useEffect(() => {
@@ -76,8 +79,9 @@ export function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps)
                   return;
                 }
                 // Нажатие на открытую вкладку «Входящие» возвращает к списку (вкладки iOS: «на корень»), в том числе из ленты,
-                // открытой колокольчиком: списка под ней в стеке нет (`shell/inbox-stack.ts`).
-                if (section.id === "messages") {
+                // открытой колокольчиком: списка под ней в стеке нет (`shell/inbox-stack.ts`). Если под лентой или списком лежит беседа с
+                // неотправленным, нажатие ничего не делает, как на main: возврат к списку закрыл бы беседу и унёс набранное (`shell/unsent-chat.ts`).
+                if (section.id === "messages" && !hasUnsentChat(cabinet)) {
                   const dispatch = descriptors?.[route.key]?.navigation.dispatch;
                   for (const action of inboxToListActions(inboxStackOf(route))) dispatch?.(action as never);
                 }

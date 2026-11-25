@@ -6,11 +6,12 @@
 // - прямой заход и вход из списка работают как раньше; «Назад» с экрана решения (F9 ревью P2a) не изменилось;
 // - стрелка «назад» называется по тому, куда ведёт: «Все чаты» только когда под экраном список;
 // - беседа с неотправленным (черновик, сообщение в пути или не ушедшее) при уходе с вкладки НЕ закрывается: сброс унёс бы набранное
-//   (ревью #1590); беседа без неотправленного сбрасывается к списку, как решено в D2.
+//   (ревью #1590); то же при нажатии на уже открытую вкладку «Входящие» (лента или список поверх беседы) и когда в стеке две беседы;
+//   беседа без неотправленного сбрасывается к списку, как решено в D2.
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { type ComponentType, type ReactNode } from "react";
-import { Pressable, Text } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import * as AppLayoutModule from "@/app/(app)/_layout";
@@ -21,6 +22,7 @@ import PreparationsLayout from "@/app/(app)/preparations/_layout";
 import { LangProvider } from "@/i18n/LangProvider";
 import type { RpcTransport } from "@/lib/rpc";
 import { SECTIONS } from "@/shell/sections";
+import { holdRpc } from "@/test-fixtures/hold-rpc";
 import { MSG_A, MSG_B, POST_RECEIPT, chatMessage, chatPage } from "@/test-fixtures/inbox";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 import { ThemeProvider } from "@/theme/ThemeProvider";
@@ -76,12 +78,17 @@ function ReplyMarker() {
     </Pressable>
   );
 }
-/** Список «Входящих»: метка со ссылкой на ленту, как карточка «Что нового» настоящего списка. */
+/** Список «Входящих»: метка со ссылкой на ленту («Что нового») и строкой беседы, как у настоящего списка (`go` = `router.navigate`). */
 function InboxMarker() {
   return (
-    <Pressable testID="inbox-to-updates" onPress={() => router.navigate("/messages/updates")}>
-      <Text testID="route-inbox">список</Text>
-    </Pressable>
+    <View>
+      <Pressable testID="inbox-to-updates" onPress={() => router.navigate("/messages/updates")}>
+        <Text testID="route-inbox">список</Text>
+      </Pressable>
+      <Pressable testID="inbox-to-chat" onPress={() => router.navigate("/messages/chat")}>
+        <Text>беседа</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -232,23 +239,27 @@ describe("экран решения с «Главной» (F9 ревью P2a): �
   });
 });
 
-describe("беседа с неотправленным, открытая снаружи, при уходе с вкладки не закрывается (ревью #1590)", () => {
+describe("беседа с неотправленным не закрывается сбросом стека «Входящих»: при уходе с вкладки, при нажатии на открытую вкладку, при двух беседах и при отправке в пути (ревью #1590)", () => {
   const FIRST = chatMessage(MSG_A, "11", true, "Здравствуйте", "2026-09-07T08:00:00+00:00");
   const SECOND = chatMessage(MSG_B, "12", false, "Принесите оригинал паспорта", "2026-09-07T08:30:00+00:00");
   const THIRD = chatMessage("a0000000-0000-4000-8000-000000000009", "13", false, "Новое от команды", "2026-09-07T09:00:00+00:00");
-  /** Сервер беседы: `post` - ответ на отправку (по умолчанию принимает и добавляет «Новое от команды»). */
-  function serveChat(post?: unknown) {
+  /**
+   * Сервер беседы. `post` - ответ на отправку (по умолчанию принимает и кладёт в ленту `reply`, по умолчанию «Новое от команды»);
+   * `wrap` оборачивает транспорт (например, придержать отправку).
+   */
+  function serveChat(options: { post?: unknown; reply?: ReturnType<typeof chatMessage>; wrap?: (inner: RpcTransport) => RpcTransport } = {}) {
     let page = chatPage([SECOND, FIRST]);
-    mockTransport = fakeTransport({
+    const inner = fakeTransport({
       portal_case_chat_page_v1: () => page,
       mark_own_case_chat_notifications_read_v1: null,
       portal_case_chat_post_v1:
-        post ??
+        options.post ??
         ((args: Record<string, unknown> | undefined) => {
-          page = chatPage([THIRD, SECOND, FIRST]);
+          page = chatPage([options.reply ?? THIRD, SECOND, FIRST]);
           return POST_RECEIPT(String(args?.p_request_id), "13");
         }),
-    }).transport;
+    });
+    mockTransport = options.wrap ? options.wrap(inner.transport) : inner.transport;
   }
   /** «Написать EVO» с «Главной»: в стеке «Входящих» одна беседа, списка под ней нет. */
   async function openChat(state: unknown = signedIn) {
@@ -286,7 +297,7 @@ describe("беседа с неотправленным, открытая сна�
   });
 
   it("сообщение не ушло (сбой отправки): после ухода и возврата оно в ленте с «Повторить», а не пропало", async () => {
-    serveChat(failure("42501", 403));
+    serveChat({ post: failure("42501", 403) });
     await openChat();
     await typeIntoChat("Это не отправилось");
     await press("chat-send");
@@ -328,6 +339,90 @@ describe("беседа с неотправленным, открытая сна�
     await openChat(second);
     expect(screen.getByTestId("chat-input").props.value).toBe("");
     await backHomeAndReturn();
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+  });
+
+  it("путь A: черновик, затем колокольчик (лента поверх беседы): нажатие на открытую вкладку «Входящие» ничего не меняет, «назад» из ленты возвращает беседу с черновиком", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Черновик под лентой");
+    await fireEvent.press(await bell());
+    await waitFor(() => expect(shown()).toBe("updates-screen"));
+    await press("tab-messages"); // вкладка уже открыта: возврат к списку закрыл бы беседу и унёс черновик
+    expect(shown()).toBe("updates-screen");
+    await press("updates-back");
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("chat-input").props.value).toBe("Черновик под лентой");
+  });
+
+  it("путь B: черновик, затем ☰ «Входящие» (список поверх беседы): нажатие на открытую вкладку не закрывает беседу, «назад» возвращает её с черновиком", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Черновик под списком");
+    await act(async () => router.navigate("/messages")); // пункт ☰ «Входящие»
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+    await press("tab-messages");
+    expect(shown()).toBe("route-inbox");
+    await act(async () => router.back());
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("chat-input").props.value).toBe("Черновик под списком");
+  });
+
+  it("беседа без неотправленного под лентой: нажатие на открытую вкладку по-прежнему возвращает к списку (D2)", async () => {
+    serveChat();
+    await openChat();
+    await fireEvent.press(await bell());
+    await waitFor(() => expect(shown()).toBe("updates-screen"));
+    await press("tab-messages");
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+  });
+
+  it("две беседы в стеке (☰ «Входящие», затем строка беседы в списке): во второй написали и стёрли - черновик первой остаётся, уход с вкладки не закрывает ни одну", async () => {
+    serveChat();
+    await openChat();
+    await typeIntoChat("Черновик первой беседы");
+    await act(async () => router.navigate("/messages")); // [беседа, список]
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+    await press("inbox-to-chat"); // [беседа, список, беседа]
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("chat-input").props.value).toBe(""); // это вторая беседа
+    await typeIntoChat("Второй черновик");
+    await typeIntoChat(""); // стёрли: у второй неотправленного нет, у первой есть
+    await act(async () => router.navigate("/documents"));
+    await waitFor(() => expect(visible("route-documents")).toBe(true));
+    await press("tab-messages");
+    await waitFor(() => expect(shown()).toBe("chat-screen")); // стек не сброшен
+    await act(async () => router.back()); // вторая беседа -> список
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+    await act(async () => router.back()); // список -> первая беседа
+    await waitFor(() => expect(shown()).toBe("chat-screen"));
+    expect(screen.getByTestId("chat-input").props.value).toBe("Черновик первой беседы");
+  });
+
+  it("отправка в пути («Отправляем…»): уход с вкладки беседу не закрывает; отправка закончилась без студента - при возврате беседа и сообщение на месте, следующий уход сбрасывает к списку", async () => {
+    const SENT = chatMessage("a0000000-0000-4000-8000-00000000000a", "13", true, "Отправляю при выходе", "2026-09-07T09:00:00+00:00");
+    const gate: { held: ReturnType<typeof holdRpc> | null } = { held: null };
+    serveChat({
+      reply: SENT,
+      wrap: (inner) => {
+        gate.held = holdRpc(inner, "portal_case_chat_post_v1");
+        return gate.held.transport;
+      },
+    });
+    await openChat();
+    gate.held!.hold(); // отправка зависает на сервере
+    await typeIntoChat("Отправляю при выходе");
+    await press("chat-send");
+    await screen.findByTestId("outbox-sending");
+    await act(async () => router.navigate("/documents")); // ушли, пока отправка в пути
+    await waitFor(() => expect(visible("route-documents")).toBe(true));
+    await act(async () => gate.held!.release()); // отправка закончилась, пока беседа под другой вкладкой
+    await press("tab-messages");
+    await waitFor(() => expect(shown()).toBe("chat-screen")); // беседа не сброшена к списку
+    expect(screen.getByTestId("chat-back").props.accessibilityLabel).toBe("Назад"); // в стеке одна беседа, списка под ней нет
+    await waitFor(() => expect(screen.queryByTestId("outbox-sending")).toBeNull());
+    expect(screen.getAllByText("Отправляю при выходе")).toHaveLength(1);
+    await backHomeAndReturn(); // теперь неотправленного нет
     await waitFor(() => expect(shown()).toBe("route-inbox"));
   });
 });

@@ -35,6 +35,42 @@ describe("беседа с неотправленным и сброс стека 
     expect(hasUnsentChat(cabinet)).toBe(false);
   });
 
+  it("две беседы одного кабинета (в стеке `[беседа, список, беседа]`): у одной неотправленное осталось, у другой нет - признак стоит, пока держит хоть одна", async () => {
+    const cabinet = new QueryClient();
+    const pair = (first: boolean, second: boolean) => (
+      <QueryClientProvider client={cabinet}>
+        <Reporter key="first" unsent={first} />
+        <Reporter key="second" unsent={second} />
+      </QueryClientProvider>
+    );
+    const view = await render(pair(true, true));
+    expect(hasUnsentChat(cabinet)).toBe(true);
+    await view.rerender(pair(true, false)); // вторая стёрла или отправила
+    expect(hasUnsentChat(cabinet)).toBe(true);
+    await view.rerender(pair(false, true)); // первая тоже: держит вторая
+    expect(hasUnsentChat(cabinet)).toBe(true);
+    await view.rerender(pair(false, false));
+    expect(hasUnsentChat(cabinet)).toBe(false);
+  });
+
+  it("закрылась одна из двух бесед с неотправленным: признак остаётся, пока открыта вторая, и снимается, когда закрылась и она", async () => {
+    const cabinet = new QueryClient();
+    const view = await render(
+      <QueryClientProvider client={cabinet}>
+        <Reporter key="first" unsent />
+        <Reporter key="second" unsent />
+      </QueryClientProvider>,
+    );
+    await view.rerender(
+      <QueryClientProvider client={cabinet}>
+        <Reporter key="first" unsent />
+      </QueryClientProvider>,
+    );
+    expect(hasUnsentChat(cabinet)).toBe(true);
+    await view.unmount();
+    expect(hasUnsentChat(cabinet)).toBe(false);
+  });
+
   it("два студента (два кабинета): признак одного другому не виден, и закрытие одной беседы чужой признак не снимает", async () => {
     const first = new QueryClient();
     const second = new QueryClient();

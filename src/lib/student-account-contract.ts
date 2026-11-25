@@ -128,7 +128,7 @@ export function hasTemporaryPassword(appMetadata: unknown): boolean {
     && (appMetadata as Record<string, unknown>)[TEMPORARY_PASSWORD_FLAG] === true;
 }
 
-/** Сброс пароля студента администратором (344): новый временный пароль виден один раз и нигде не хранится. */
+/** Сброс пароля студента (344; с 374 — и куратором этого дела): новый временный пароль виден один раз и нигде не хранится. */
 export type StudentPasswordResetActionState =
   | Readonly<{ status: "idle"; requestId: string }>
   | Readonly<{ status: "reset"; requestId: string; password: string }>

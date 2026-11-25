@@ -1,4 +1,5 @@
 import { usePathname } from "expo-router";
+import { useEffect } from "react";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,8 +8,10 @@ import { usePortalUnread } from "@/api/PortalPoll";
 import { usePortalApi } from "@/api/PortalApi";
 import { useLang } from "@/i18n/LangProvider";
 import { SECTION_ICONS } from "@/shell/icons";
+import { BADGE_MAX_FONT_SCALE, BADGE_MIN_SIZE } from "@/shell/badge";
 import { isConversationPath } from "@/shell/chat-fab-rules";
 import { PHONE_TABS, SECTIONS, hasTabBar } from "@/shell/sections";
+import { reportTabBarHeight } from "@/shell/tab-bar-metrics";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "@/ui/Text";
 
@@ -22,6 +25,12 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
   const unread = usePortalUnread();
   const pathname = usePathname();
   const { tier } = usePortalApi();
+  const hidden = isConversationPath(pathname) || !hasTabBar(tier);
+  // Панели нет (беседа, approved) или она ушла: высота для кнопки «Написать EVO» снова «неизвестна» (tab-bar-metrics.ts).
+  useEffect(() => {
+    if (hidden) reportTabBarHeight(0);
+  }, [hidden]);
+  useEffect(() => () => reportTabBarHeight(0), []);
   // В беседе (с командой и с Эви) панель убрана: поле ввода и клавиатура получают весь низ экрана.
   if (isConversationPath(pathname)) return null;
   // Одна вкладка (approved) - не панель: остаётся шапка с ☰ (веб Shell.tsx, `tabSections.length > 1`).
@@ -34,6 +43,9 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
     >
       <View
         accessibilityRole="tablist"
+        testID="tab-bar"
+        // Настоящая высота панели уходит кнопке «Написать EVO»: она стоит над верхом панели, а не над предполагаемым.
+        onLayout={(event) => reportTabBarHeight(event.nativeEvent.layout.height)}
         style={{
           flexDirection: "row",
           backgroundColor: tokens.surface,
@@ -67,8 +79,8 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
               <View>
                 {Icon ? <Icon size={20} strokeWidth={1.75} color={color} /> : null}
                 {section.id === "messages" && unread ? (
-                  <View testID="tab-messages-badge" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: "absolute", top: -6, right: -12, minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center" }}>
-                    <Text variant="caption" tone="onAccent" bold style={{ fontSize: 11, lineHeight: 14 }}>
+                  <View testID="tab-messages-badge" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: "absolute", top: -6, right: -12, minWidth: BADGE_MIN_SIZE, minHeight: BADGE_MIN_SIZE, paddingHorizontal: 5, borderRadius: BADGE_MIN_SIZE / 2, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center" }}>
+                    <Text variant="caption" tone="onAccent" bold maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE} style={{ fontSize: 11, lineHeight: 14 }}>
                       {unread > 99 ? "99+" : unread}
                     </Text>
                   </View>

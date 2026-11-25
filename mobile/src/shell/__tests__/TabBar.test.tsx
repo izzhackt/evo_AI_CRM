@@ -1,9 +1,11 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render, within } from "@testing-library/react-native";
 import type { BottomTabBarProps } from "expo-router/js-tabs";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { LangProvider } from "@/i18n/LangProvider";
+import { BADGE_MAX_FONT_SCALE } from "@/shell/badge";
 import { TabBar } from "@/shell/TabBar";
+import { reportTabBarHeight, useMeasuredTabBarHeight } from "@/shell/tab-bar-metrics";
 import { TAB_BAR_CLEARANCE, useTabBarClearance } from "@/shell/useTabBarClearance";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { PortalApiProvider } from "@/api/PortalApi";
@@ -84,5 +86,61 @@ describe("вкладка «Входящие»: число непрочитанн
     expect(flat(bar.getByTestId("tab-home")).backgroundColor).toBeUndefined();
     expect(bar.getByTestId("tab-home").props.accessibilityState).toMatchObject({ selected: true });
     expect(bar.getByTestId("tab-documents").props.accessibilityState).toMatchObject({ selected: false });
+  });
+});
+
+describe("высота панели уходит кнопке «Написать EVO»", () => {
+  afterEach(() => reportTabBarHeight(0));
+  const layout = (height: number) => ({ nativeEvent: { layout: { x: 0, y: 0, width: 366, height } } });
+  function Height() {
+    return <Text testID="measured">{String(useMeasuredTabBarHeight())}</Text>;
+  }
+
+  it("после раскладки панель сообщает высоту, при размонтировании снимает её", async () => {
+    const view = await renderWith(
+      "assisted",
+      <>
+        <TabBar {...props} />
+        <Height />
+      </>,
+    );
+    expect(view.getByTestId("measured")).toHaveTextContent("0");
+    await fireEvent(view.getByTestId("tab-bar"), "layout", layout(88));
+    expect(view.getByTestId("measured")).toHaveTextContent("88");
+    await view.unmount();
+    expect(() => reportTabBarHeight(0)).not.toThrow();
+    const after = await renderWith("assisted", <Height />);
+    expect(after.getByTestId("measured")).toHaveTextContent("0"); // размонтированная панель оставила 0
+  });
+
+  it("панели нет (approved): ничего не сообщается, измеренная высота 0", async () => {
+    reportTabBarHeight(70); // осталось от прежней панели
+    const view = await renderWith(
+      "approved",
+      <>
+        <TabBar {...props} />
+        <Height />
+      </>,
+    );
+    expect(view.getByTestId("measured")).toHaveTextContent("0");
+  });
+});
+
+describe("кружок «Входящих» при крупном шрифте", () => {
+  beforeEach(() => {
+    mockUnread = 12;
+  });
+  afterEach(() => {
+    mockUnread = null;
+  });
+
+  it("цифра не обрезается и кружок не раздувается: высота минимальная, а не жёсткая, масштаб числа ограничен", async () => {
+    const bar = await renderWith("assisted", <TabBar {...props} />);
+    const badge = bar.getByTestId("tab-messages-badge", { includeHiddenElements: true });
+    const style = Object.assign({}, ...[badge.props.style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+    expect(style.minHeight).toBe(18);
+    expect(style.height).toBeUndefined(); // раньше было height: 18, и цифра при крупном шрифте обрезалась
+    const digits = within(badge).getByText("12", { includeHiddenElements: true });
+    expect(digits.props.maxFontSizeMultiplier).toBe(BADGE_MAX_FONT_SCALE);
   });
 });

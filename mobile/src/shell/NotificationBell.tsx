@@ -9,13 +9,13 @@ import { Platform, Pressable, View } from "react-native";
 import { usePortalUnread } from "@/api/PortalPoll";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
+import { BADGE_MAX_FONT_SCALE, BADGE_MIN_SIZE } from "@/shell/badge";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Text } from "@/ui/Text";
 
+export { BADGE_MAX_FONT_SCALE };
 export const BELL_ROUTE = "/messages/updates";
-/** Предел увеличения шрифта числа в кружке (системный масштаб до 2x раздул бы кружок поверх значка). */
-export const BADGE_MAX_FONT_SCALE = 1.2;
 
 /** Подпись колокольчика по числу непрочитанного (веб: label в PortalNotificationUpdates). */
 function useUnreadLabel(): string {
@@ -55,7 +55,7 @@ export function NotificationBell() {
           testID="notification-bell-count"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
-          style={{ position: "absolute", top: 2, right: 0, minWidth: 18, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 999, backgroundColor: tokens.accent, alignItems: "center" }}
+          style={{ position: "absolute", top: 2, right: 0, minWidth: BADGE_MIN_SIZE, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 999, backgroundColor: tokens.accent, alignItems: "center" }}
         >
           {/* Кружок маленький: крупный шрифт системы не должен раздувать число поверх значка колокольчика. */}
           <Text variant="caption" tone="onAccent" bold maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE} style={{ fontSize: 11, lineHeight: 14 }}>

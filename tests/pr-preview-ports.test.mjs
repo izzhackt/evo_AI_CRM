@@ -10,10 +10,12 @@ import {
 
 // The preview checks its fixed port block (18440-18451) before `supabase start`. The block used to be 46440-46451, INSIDE the
 // Linux ephemeral range (32768-60999): an outgoing connection of the runner, and the 60 s TIME_WAIT it leaves behind, can hold
-// a port of that range, and bind() on it fails. On 25.11.2026 4 of 99 Preview runs failed with PORT_BUSY, and the retry of #1584
-// (6 attempts, 5 s apart) saved none of the 26 runs that had it: the port stayed busy for longer. The block now lies below the
-// range (the guard below), the retry stays as a second line of defence, and a port that is still busy after the last attempt is
-// explained in the log (what holds it, never a command line) before the unchanged PORT_BUSY message.
+// a port of that range, and bind() on it fails. Since 22.11.2026, 6 of 183 Preview runs failed, all on an even port of that block
+// (25.11.2026): 5 times the port check (PORT_BUSY db:46442 twice, pop3:46446, shadow:46440, inspector:46448) and once Docker itself,
+// 34 s after a passing check and the image pulls ("failed to bind host port 0.0.0.0:46442/tcp: address already in use"). The retry
+// of #1584 (6 attempts, 5 s apart) saved none of the 26 runs that had it and cannot help the Docker case. The block now lies
+// below the range (the guard below), the retry stays as a second line of defence, and a port that is still busy after the last
+// attempt is explained in the log (what holds it, never a command line) before the unchanged PORT_BUSY message.
 // These tests hold real loopback listeners on ports the OS hands out (never the fixed block) and replace the pause with a
 // recorder, so they run in milliseconds and cannot collide with a real preview. The command-line tools (ss, lsof, /proc) are
 // replaced with canned output, except one smoke test that looks at a live listener of this very process.

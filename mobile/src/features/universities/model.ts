@@ -163,11 +163,29 @@ export function countryPageModel(index: StudentUniversityIndex, code: string, st
   };
 }
 
-/** Точки карты страны: только вузы с проверенной координатой; остальные считаются в `missing`. */
-export function countryPins(index: StudentUniversityIndex, code: string, lang: Lang) {
+type CountryPins = ReturnType<typeof buildCampusPins>;
+/** Готовые точки по индексу (он неизменен, пока не придёт новая версия каталога), стране и языку. */
+const pinsCache = new WeakMap<StudentUniversityIndex, Map<string, CountryPins>>();
+
+/**
+ * Точки карты страны: только вузы с проверенной координатой; остальные считаются в `missing`. Для того же индекса, страны и языка
+ * это один и тот же результат (одни и те же массив и точки): экран строит модель страницы при каждой отрисовке, а карте нужны стабильные
+ * точки, иначе выбранная точка при каждой отрисовке экрана «новая» и обработчик «Назад» карточки подписывается заново.
+ */
+export function countryPins(index: StudentUniversityIndex, code: string, lang: Lang): CountryPins {
+  let byKey = pinsCache.get(index);
+  if (byKey === undefined) {
+    byKey = new Map();
+    pinsCache.set(index, byKey);
+  }
+  const cacheKey = `${code}:${lang}`;
+  const cached = byKey.get(cacheKey);
+  if (cached !== undefined) return cached;
   const items = index.universities.filter((item) => item.country === code);
   const byId = new Map(items.map((item) => [item.id, item]));
-  return buildCampusPins(items, (item) => universityPlace(index, byId.get(item.id) as IndexUniversity, lang));
+  const built = buildCampusPins(items, (item) => universityPlace(index, byId.get(item.id) as IndexUniversity, lang));
+  byKey.set(cacheKey, built);
+  return built;
 }
 
 export type CityPageModel = Readonly<{ city: IndexCity; name: string; counts: string; summary: string; fact: string; universities: readonly IndexUniversity[] }>;

@@ -9,6 +9,7 @@ import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
 import { useAssessmentCatalog } from "@/features/learning/tests/queries";
 import { assessmentDateLabel } from "@/features/learning/tests/dates";
 import { Chip } from "@/features/learning/ui";
+import { usePullRefresh } from "@/features/universities/use-pull-refresh";
 import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
@@ -24,9 +25,10 @@ export function TestsScreen() {
   const s = t("tests");
   useRefetchOnFocus();
   const catalog = useAssessmentCatalog();
+  const { refreshing, pull } = usePullRefresh(catalog.refetch);
   const data = catalog.data;
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void catalog.refetch()} refreshing={catalog.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void pull()} refreshing={refreshing}>
       <View style={{ gap: 16 }} testID="tests-screen">
         <Text variant="display" accessibilityRole="header" testID="title-tests">
           {s.title}

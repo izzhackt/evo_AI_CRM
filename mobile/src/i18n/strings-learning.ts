@@ -7,6 +7,9 @@ export const LEARN_RU = {
   "learn.testExitBody": "Таймер продолжит идти, ответы сохранены. Вернуться можно с экрана CSCA.",
   "learn.testExitStay": "Остаться",
   "learn.testExitLeave": "Выйти",
+  // Тексты теста на время без слов веба «в другой вкладке» и «Обновите страницу» (в приложении вкладок и страниц нет).
+  "learn.testConflict": "Попытка изменилась на другом устройстве. Показаны сохранённые ответы.",
+  "learn.testRejected": "Ответ не принят. Откройте тест заново.",
   "learn.navOpen": "Все задания",
   "learn.navClose": "Закрыть",
   "learn.finishTitle": "Завершить тест?",
@@ -61,6 +64,8 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.testExitBody": "Таймер иштей берет, жооптор сакталган. CSCA экранынан кайра кире аласыз.",
   "learn.testExitStay": "Калуу",
   "learn.testExitLeave": "Чыгуу",
+  "learn.testConflict": "Аракет башка түзмөктө өзгөрдү. Сакталган жооптор көрсөтүлдү.", // KY: needs native proofreading
+  "learn.testRejected": "Жооп кабыл алынган жок. Тестти кайра ачыңыз.", // KY: needs native proofreading
   "learn.navOpen": "Бардык тапшырмалар",
   "learn.navClose": "Жабуу",
   "learn.finishTitle": "Тестти бүтүрөсүзбү?",

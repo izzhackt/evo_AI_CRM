@@ -5,6 +5,7 @@ import {
   minorToDecimal,
   normalizeDay,
   parseReceiptAck,
+  receiptInputForLine,
   ReceiptUploadController,
   receiptFailureKey,
   sendWithRefresh,
@@ -67,7 +68,7 @@ describe("поля и проверки до отправки", () => {
     ["ноль", { amount: "0" }, "receiptErrorInvalid", "amount"],
     ["три знака после запятой", { amount: "1.234" }, "receiptErrorInvalid", "amount"],
     ["буквы в сумме", { amount: "сто" }, "receiptErrorInvalid", "amount"],
-    ["валюта не из трёх букв", { currency: "US" }, "receiptErrorCurrency", "currency"],
+    ["валюта не из трёх букв (слова сайта: «проверьте сумму, валюту, дату и файл»)", { currency: "US" }, "receiptErrorInvalid", "currency"],
     ["дата не дата", { paidOn: "вчера" }, "receiptErrorInvalid", "date"],
     ["дата в будущем (по Бишкеку)", { paidOn: "2026-11-11" }, "receiptErrorDate", "date"],
   ] as const)("отказ до отправки: %s", (_name, over, error, field) => {
@@ -76,6 +77,35 @@ describe("поля и проверки до отправки", () => {
   it("сегодняшняя дата по Бишкеку принимается, даже если в UTC ещё вчера", () => {
     const lateUtc = Date.UTC(2026, 10, 10, 20, 0, 0); // 11.11 02:00 в Бишкеке
     expect(checkReceiptInput(input({ paidOn: "2026-11-11" }), lateUtc).ok).toBe(true);
+  });
+});
+
+describe("чек у строки платежа: только файл (решение 25.11, как на сайте)", () => {
+  const line = { submitAmountMinor: 6000, currency: "USD", submitDate: null as string | null, obligationId: OBLIGATION as string | null };
+
+  it("поля берутся из строки: сумма как у сайта (minorToReceiptInput), валюта строки, сегодня по Бишкеку, платёж строки", () => {
+    expect(receiptInputForLine(line, jpg, NOW)).toEqual({ file: jpg, amount: "60", currency: "USD", paidOn: "2026-11-10", obligationId: OBLIGATION });
+    expect(receiptInputForLine({ ...line, submitAmountMinor: 5950 }, jpg, NOW).amount).toBe("59.50");
+    expect(receiptInputForLine({ ...line, submitAmountMinor: 105 }, jpg, NOW).amount).toBe("1.05");
+  });
+
+  it("день строки (замена отклонённого чека) остаётся; позже сегодняшнего (часы телефона отстают) - обрезается до сегодняшнего", () => {
+    expect(receiptInputForLine({ ...line, submitDate: "2026-11-03" }, jpg, NOW).paidOn).toBe("2026-11-03");
+    expect(receiptInputForLine({ ...line, submitDate: "2026-11-10" }, jpg, NOW).paidOn).toBe("2026-11-10");
+    expect(receiptInputForLine({ ...line, submitDate: "2026-11-12" }, jpg, NOW).paidOn).toBe("2026-11-10");
+  });
+
+  it("у «добавленного платежа» платежа нет: payment_obligation_id пуст", () => {
+    expect(receiptInputForLine({ ...line, obligationId: null }, jpg, NOW).obligationId).toBeNull();
+  });
+
+  it("поля строки проходят ту же проверку и уходят как есть: сумма с двумя знаками, валюта, день, платёж", () => {
+    const checked = checkReceiptInput(receiptInputForLine({ ...line, submitAmountMinor: 5950, submitDate: "2026-11-03" }, jpg, NOW), NOW);
+    expect(checked).toMatchObject({ ok: true, fields: { amount: "59.50", currency: "USD", paidOn: "2026-11-03", obligationId: OBLIGATION } });
+  });
+
+  it("без файла отправка отказывает до сети, поля не придумываются", () => {
+    expect(checkReceiptInput(receiptInputForLine(line, null, NOW), NOW)).toEqual({ ok: false, error: "receiptErrorInvalid", field: "file" });
   });
 });
 

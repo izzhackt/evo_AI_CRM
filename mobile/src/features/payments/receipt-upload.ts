@@ -6,12 +6,16 @@
 //  2. Другой файл или другие поля - всегда новый ключ (иначе сервер увидит тот же ключ с иным телом).
 //  3. Размер, тип, сумма, валюта и дата проверяются до отправки; текст ответа сервера в сообщение
 //     не попадает, из него берётся только код ошибки по словарю общего модуля.
+//  4. Чек у строки платежа - только файл (решение владельца 25.11, как на сайте): сумма, валюта, день и платёж берутся из
+//     строки (`receiptInputForLine`), студент их не вводит. Вводит их только «Добавить платёж», у платежа вне графика.
 import {
   PAYMENT_RECEIPT_ERROR_KEYS,
+  minorToReceiptInput,
   paymentReceiptErrorKey,
   receiptAmountToMinor,
   type PaymentReceiptErrorKey,
 } from "@web/lib/portal/payment-center";
+import type { PaymentLine } from "@web/lib/portal/payment-rows";
 
 import { checkPickedFile, type PickedFile } from "@/domain/documents-model";
 import type { DocumentMimeType } from "@/domain/portal-source";
@@ -66,6 +70,18 @@ export function todayInBishkek(now: number = Date.now()): string {
   return new Date(now + BISHKEK_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/**
+ * Поля чека у строки платежа, как их шлёт сайт (PaymentReceiptForm.tsx, ReceiptSlot): сумма и валюта строки, день строки
+ * (день отклонённого чека) или сегодня по Бишкеку, платёж строки (у «добавленного платежа» его нет). Студент ничего не вводит.
+ * День из строки не бывает позже «сегодня» сервера; если часы телефона отстают, он обрезается до сегодняшнего дня телефона,
+ * иначе замена отклонённого чека упёрлась бы в «дата в будущем», которую студенту нечем исправить.
+ */
+export function receiptInputForLine(line: Pick<PaymentLine, "submitAmountMinor" | "currency" | "submitDate" | "obligationId">, file: PickedFile | null, now: number = Date.now()): ReceiptInput {
+  const today = todayInBishkek(now);
+  const day = line.submitDate !== null && line.submitDate < today ? line.submitDate : today;
+  return { file, amount: minorToReceiptInput(line.submitAmountMinor), currency: line.currency, paidOn: day, obligationId: line.obligationId };
+}
+
 /** `YYYY-MM-DD` или `дд.мм.гггг` -> настоящий календарный день `YYYY-MM-DD`; иначе `null`. */
 export function normalizeDay(input: string): string | null {
   const value = input.trim();
@@ -98,7 +114,9 @@ export function checkReceiptInput(input: ReceiptInput, now: number = Date.now())
   const minor = receiptAmountToMinor(input.amount);
   if (minor === null) return { ok: false, error: "receiptErrorInvalid", field: "amount" };
   const currency = input.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) return { ok: false, error: "receiptErrorCurrency", field: "currency" };
+  // Валюту вводят только в «Добавить платёж»: слова те же, что на сайте («проверьте сумму, валюту, дату и файл»).
+  // «Валюта должна совпадать с валютой платежа» приходит только от сервера (`receipt_currency_mismatch`).
+  if (!/^[A-Z]{3}$/.test(currency)) return { ok: false, error: "receiptErrorInvalid", field: "currency" };
   const paidOn = normalizeDay(input.paidOn);
   if (paidOn === null) return { ok: false, error: "receiptErrorInvalid", field: "date" };
   if (paidOn > todayInBishkek(now)) return { ok: false, error: "receiptErrorDate", field: "date" };

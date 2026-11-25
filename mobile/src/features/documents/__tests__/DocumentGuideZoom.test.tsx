@@ -8,8 +8,8 @@ import { Dimensions, Pressable } from "react-native";
 import { DocumentsScreen } from "@/features/documents/DocumentsScreen";
 import { DOUBLE_TAP_SCALE, pinchView, type Size } from "@/features/documents/zoom-math";
 import {
-  addFinger, ATTESTAT, CASE_ID, directions, drag, failImage, FRAME_AT, FRAME_ORIGIN, inFrame, instantAnimations, layoutFrame, lift, makeIo, move, openGuide, outside, pinch, press, readView, renderDocs, S_ATTESTAT, SAMPLES, sizeOf, tap,
-  touch, uriOf,
+  addFinger, ATTESTAT, CASE_ID, directions, drag, failImage, FRAME_AT, FRAME_ORIGIN, inFrame, instantAnimations, layoutFrame, lift, makeIo, move, onCard, openGuide, outside, pinch, press, readView, renderDocs, S_ATTESTAT, SAMPLES, sizeOf, tap,
+  touch, uriOf, wholeTap,
 } from "@/test-fixtures/document-guide";
 import { PortalShell, testApi, testClient } from "@/test-fixtures/render";
 import { fakeTransport } from "@/test-fixtures/universities";
@@ -455,5 +455,85 @@ describe("просмотр: щипок начинается там, куда с�
     // она по самой высокой странице: на 20 pt стола сверху и снизу выше неё
     const tallest = Math.max(...pages) / 1000;
     expect([...frames][0]! / 1000).toBeCloseTo(tallest + 40, 2);
+  });
+});
+
+describe("просмотр: двойное касание, как оно приходит от платформы (два отдельных касания живого пальца)", () => {
+  // Нажатие 90 мс и пауза 250 мс: от отпускания до отпускания 340 мс, а от отпускания до начала второго - 250 мс (окно 300).
+  const DOWN1 = 5000;
+  const UP1 = 5090;
+  const DOWN2 = 5340;
+  const UP2 = 5430;
+
+  async function open() {
+    await openLightbox();
+    await screen.findByTestId(ZOOM); // рамка рисуется вместе с карточкой, но ждём именно то, чем пользуемся ниже
+    await layoutFrame(ZOOM);
+    return sizeOf(ZOOM);
+  }
+  async function doubleTapAt(targetId: string, finger: ReturnType<typeof onCard>, shift = 0) {
+    await wholeTap(targetId, finger, DOWN1, UP1);
+    expect(readView(ZOOM).scale).toBe(1); // одно касание ничего не делает
+    await wholeTap(targetId, { ...finger, locationX: finger.locationX + shift, pageX: finger.pageX + shift }, DOWN2, UP2);
+  }
+
+  it("по странице: приближает до 2,5, следующее двойное касание возвращает целую страницу", async () => {
+    const frame = await open();
+    const page = inFrame(frame.width / 2 + 60, frame.height / 2);
+    await doubleTapAt(CARD, page);
+    expect(readView(ZOOM).scale).toBe(DOUBLE_TAP_SCALE);
+    await wholeTap(CARD, page, 9000, 9090);
+    await wholeTap(CARD, page, 9340, 9430);
+    expect(readView(ZOOM).scale).toBe(1);
+  });
+
+  it("по подписи под страницей (касание подписи доходит до карточки): тоже приближает", async () => {
+    const frame = await open();
+    const underPage = inFrame(frame.width / 2, frame.height + 36); // подпись и ряд «‹ ›» стоят под рамкой
+    await screen.findByTestId(`${id}-lightbox-caption`);
+    await doubleTapAt(`${id}-lightbox-caption`, underPage);
+    expect(readView(ZOOM).scale).toBe(DOUBLE_TAP_SCALE);
+  });
+
+  it("по полю карточки и по шапке: тоже приближает; второе касание в 40 pt от первого - двойное, в 41 - нет", async () => {
+    const frame = await open();
+    await doubleTapAt(CARD, inFrame(-8, frame.height / 2)); // левое поле карточки (16 шириной): вне рамки
+    expect(readView(ZOOM).scale).toBe(DOUBLE_TAP_SCALE);
+    await wholeTap(CARD, inFrame(frame.width / 2, -30), 9000, 9090); // шапка над рамкой, возврат целой
+    await wholeTap(CARD, inFrame(frame.width / 2 + 40, -30), 9340, 9430);
+    expect(readView(ZOOM).scale).toBe(1);
+    await wholeTap(CARD, inFrame(frame.width / 2, -30), 12000, 12090);
+    await wholeTap(CARD, inFrame(frame.width / 2 + 41, -30), 12340, 12430);
+    expect(readView(ZOOM).scale).toBe(1);
+  });
+
+  it("пауза дольше 300 мс - не двойное касание (так и приходит двойное касание Maestro: 0,4-0,65 с между касаниями)", async () => {
+    const frame = await open();
+    const page = inFrame(frame.width / 2, frame.height / 2);
+    await wholeTap(CARD, page, 5000, 5090);
+    await wholeTap(CARD, page, 5090 + 410, 5090 + 410 + 90);
+    expect(readView(ZOOM).scale).toBe(1);
+  });
+});
+
+describe("просмотр: стрелки листания «‹ ›»", () => {
+  it("выключенная стрелка (‹ на первой странице, › на последней) не принимает касаний, включённая принимает", async () => {
+    await openLightbox();
+    await screen.findByTestId(`${id}-pager-prev`);
+    await screen.findByTestId(`${id}-pager-next`);
+    const prev = () => screen.getByTestId(`${id}-pager-prev`);
+    const next = () => screen.getByTestId(`${id}-pager-next`);
+    // первая страница: «назад» выключено
+    expect(prev().props.pointerEvents).toBe("none");
+    expect(next().props.pointerEvents).toBe("auto");
+    // середина набора: обе включены
+    await fireEvent.press(next());
+    expect(prev().props.pointerEvents).toBe("auto");
+    expect(next().props.pointerEvents).toBe("auto");
+    // последняя страница (7 из 7): «вперёд» выключено
+    for (let page = 2; page < 7; page += 1) await fireEvent.press(next());
+    expect(uriOf(IMAGE)).toBe(`${SAMPLES}/attestat-7.jpg`);
+    expect(next().props.pointerEvents).toBe("none");
+    expect(prev().props.pointerEvents).toBe("auto");
   });
 });

@@ -381,8 +381,8 @@ export class AssessmentSession {
   /** «Завершить»: нужны ответы на все вопросы; сначала досылается несохранённое. */
   async complete(): Promise<void> {
     const attempt = this.state.attempt;
-    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired || this.abandoned) return;
-    this.keepIfDiscarded();
+    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired) return;
+    this.keepIfDiscarded(); // после выхода из аккаунта отказ окончательный, и `runComplete` ничего не отправит
     if (attempt.questions.some((q) => !(q.id in this.answers))) return this.patch({ error: "invalid" });
     this.patch({ phase: "completing", error: null });
     const run = this.runComplete(attempt);

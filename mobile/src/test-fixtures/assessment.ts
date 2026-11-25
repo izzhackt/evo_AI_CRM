@@ -58,6 +58,29 @@ export function attemptFixture(key: FixtureKey, overrides: Record<string, unknow
   };
 }
 
+/** Завершённая попытка с итогом (все вопросы отвечены первым вариантом). */
+export function completedFixture(key: FixtureKey, revision = 9) {
+  const questions = questionsFor(key);
+  const english = key === "english36";
+  return attemptFixture(key, {
+    status: "completed",
+    revision,
+    answers: answersFor(key, questions.length),
+    completedAt: "2026-11-09T10:05:00+00:00",
+    result: {
+      instrumentKey: key,
+      version: "1.0.0",
+      metadata: { title: "t", description: "d", instructions: ["i"], limitations: ["l"] },
+      answeredCount: questions.length,
+      questionCount: questions.length,
+      completedAt: "2026-11-09T10:05:00+00:00",
+      ...(english
+        ? { english: { correctCount: 1, totalCount: questions.length, topics: [{ topic: "grammar", correctCount: 1, totalCount: questions.length }], feedback: questions.map((q) => ({ questionId: q.id, selectedOptionId: "a", correctOptionId: "a", correct: true, explanation: "e", topic: "grammar" })) } }
+        : { orvis: { scales: [{ scale: "analysis", rawSum: 40, itemCount: 14, mean: 2.86 }], topScales: ["analysis"] } }),
+    },
+  });
+}
+
 /** Каталог с одним инструментом: черновик (`draft`) или последний завершённый (`completed`) по желанию. */
 export function catalogFixture(key: FixtureKey, opts: { draft?: string | null; completed?: string | null; questionCount?: number; attempts?: unknown[] } = {}) {
   return {

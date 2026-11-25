@@ -16,7 +16,7 @@ import { formatPortalString, type PortalStrings } from "@web/lib/portal/i18n";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import { nearestUniversityIntake } from "@web/lib/portal/universities";
 
-import { actionTarget, actionTitle, linkTarget } from "@/domain/presentation";
+import { actionHref, actionTitle, linkTarget } from "@/domain/presentation";
 import type { StudentPortalNotification, StudentPortalOverview } from "@/domain/portal-source";
 import type { AccessTier } from "@/session/access";
 import type { ApplicationHead } from "@/domain/own-application";
@@ -82,9 +82,6 @@ export function showCountryChoice(hasJourney: boolean): boolean {
 
 export type HomeDate = HomeDateItem;
 
-/** «Мои программы» на «Главной»: сроки программ ведут сюда (страницы подготовки программы в приложении пока нет). */
-export const PROGRAMS_ROUTE = "/home?list=programs";
-
 /** Адрес из общего кода веба (`/portal/csca`) -> маршрут приложения (`/csca`); адрес приложения остаётся как есть. */
 function appRoute(href: string): string {
   const target = linkTarget(href);
@@ -92,10 +89,10 @@ function appRoute(href: string): string {
 }
 
 /**
- * Датированные пункты «Ближайших дат» (HomeView.tsx, веб #1489): сроки действий дела, сроки своих программ из «Мои
- * программы» (`preparationHomeDates`), дедлайн или старт избранного вуза (месяц старта без дня пропускается; у вуза, чья
- * программа уже в списке, общей строки нет) и официальные даты CSCA для выбравшего Китай (`cscaHomeDates`). Свои чтения
- * и выдуманные даты не добавляются.
+ * Датированные пункты «Ближайших дат» (HomeView.tsx, веб #1489): сроки действий дела (документ ведёт на свою строку
+ * «Документов»), сроки своих программ из «Мои программы» (`preparationHomeDates`, ведут на экран программы), дедлайн или
+ * старт избранного вуза (месяц старта без дня пропускается; у вуза, чья программа уже в списке, общей строки нет) и
+ * официальные даты CSCA для выбравшего Китай (`cscaHomeDates`). Свои чтения и выдуманные даты не добавляются.
  */
 export function collectHomeDates(input: Readonly<{
   overview: StudentPortalOverview | null;
@@ -110,12 +107,12 @@ export function collectHomeDates(input: Readonly<{
   const today = todayForTimeline(input.now);
   const fromActions = (input.overview?.studentActions ?? []).flatMap((action) => {
     if (!action.dueAt) return [];
-    const target = actionTarget(action);
-    return [{ day: bishkekDay(action.dueAt), title: actionTitle(action, input.admission), href: target.route }];
+    return [{ day: bishkekDay(action.dueAt), title: actionTitle(action, input.admission), href: actionHref(action) }];
   });
   const programDates = preparationHomeDates(input.preparations ?? [], today, input.home);
   const programInstitutions = new Set(programDates.map((item) => item.institutionId));
-  const fromPrograms = programDates.map(({ day, title }) => ({ day, title, href: PROGRAMS_ROUTE }));
+  // Срок программы ведёт на её экран (веб: `/portal/preparations/<applicationId>`), а не на общий список.
+  const fromPrograms = programDates.map(({ day, title, href }) => ({ day, title, href: appRoute(href) }));
   const fromFavorites = (input.favorites ?? []).flatMap((item) => {
     if (programInstitutions.has(item.id)) return [];
     const nearest = nearestUniversityIntake(item.content, input.now);
@@ -146,7 +143,7 @@ export function homeCountdown(input: Readonly<{
     .filter((action) => action.dueAt !== null && Date.parse(action.dueAt) < input.now.getTime())
     .sort((a, b) => Date.parse(a.dueAt ?? "") - Date.parse(b.dueAt ?? ""))[0] ?? null;
   if (overdue?.dueAt) {
-    return { day: bishkekDay(overdue.dueAt), title: actionTitle(overdue, input.admission), href: actionTarget(overdue).route, days: 0, overdue: true };
+    return { day: bishkekDay(overdue.dueAt), title: actionTitle(overdue, input.admission), href: actionHref(overdue), days: 0, overdue: true };
   }
   const nearest = upcomingHomeDates(input.dated, today)[0] ?? null;
   return nearest ? { ...nearest, days: homeDaysUntil(nearest.day, today) } : null;
@@ -230,10 +227,8 @@ export const homeToday = (now: Date): string => todayForTimeline(now);
 
 /** Сколько последних событий видно на «Главной»; вся лента во «Входящих». */
 export const HOME_NEWS_LIMIT = 3;
-/** Сколько избранных вузов видно на «Главной». */
+/** Сколько избранных вузов читает и показывает «Главная»; весь список - «Всё избранное». */
 export const HOME_FAVORITES_LIMIT = 4;
-/** Один запрос избранного на Главную и Поступление; Главная показывает первые HOME_FAVORITES_LIMIT. */
-export const FAVORITES_QUERY_LIMIT = 120;
 
 export type HomeNewsView = Readonly<{ items: readonly StudentPortalNotification[]; unread: number }>;
 

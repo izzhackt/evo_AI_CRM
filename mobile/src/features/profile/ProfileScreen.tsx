@@ -8,6 +8,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
+import { ConsultationCard } from "@/features/consultation/ConsultationCard";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { openExternal, PRIVACY_URL, SUPPORT_URL } from "@/features/profile/external";
 import { AiConsentRow } from "@/features/profile/AiConsent";
@@ -105,19 +106,18 @@ export function ProfileScreen() {
           {name ? <Row label={m("profile.nameLabel")} value={name} testID="profile-name" /> : null}
           {profile.data ? <Row label={m("profile.emailLabel")} value={profile.data.email} testID="profile-email" /> : null}
           {login.data ? <Row label={web.loginLabel} value={login.data} testID="profile-login-row" /> : null}
-          {/* #1360: телефон и имя в кабинете не правятся (RPC для этого нет), меняет куратор: ссылка ведёт в чат. */}
+          {/* #1360: телефон и имя в кабинете не правятся (RPC для этого нет), меняет куратор: у клиента на сопровождении ссылка
+              ведёт в чат, у самостоятельного студента на запись на консультацию ниже (как на вебе). */}
           <Text variant="secondary" tone="text2" testID="profile-data-note">
-            {tier === "assisted" ? web.dataNote : m("profile.dataNoteApproved")}
+            {tier === "assisted" ? web.dataNote : web.dataNoteApproved}
           </Text>
-          {tier === "assisted" ? (
-            <LinkButton label={web.dataWrite} onPress={() => go(WRITE_EVO_ROUTE)} testID="profile-write-evo" />
-          ) : (
-            <LinkButton label={web.supportLink} onPress={() => void open(SUPPORT_URL)} testID="profile-data-support" />
-          )}
+          {tier === "assisted" ? <LinkButton label={web.dataWrite} onPress={() => go(WRITE_EVO_ROUTE)} testID="profile-write-evo" /> : null}
           <Text variant="caption" tone="text2">
             {shell.accountRole}
           </Text>
         </Card>
+
+        <ConsultationCard />
 
         <Card>
           <CardHead title={web.languageHeading} />

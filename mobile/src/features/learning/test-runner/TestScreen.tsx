@@ -376,7 +376,6 @@ function Result({ attempt, onRestart }: { attempt: CscaTestAttempt; onRestart: (
         return (
           <View key={entry.itemKey} style={{ gap: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: tokens.line }} testID={`review-${i + 1}`}>
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {entry.selected === null ? <Chip tone="warn" label={c.notAnswered} /> : null}
               {entry.seconds !== null ? <Text variant="caption" tone="text2">{format(c.secondsSpent, { n: String(entry.seconds) })}</Text> : null}
               {entry.flagged ? <Chip label={c.legendFlagged} testID="review-flagged" /> : null}
             </View>

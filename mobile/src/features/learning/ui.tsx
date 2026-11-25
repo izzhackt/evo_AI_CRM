@@ -16,21 +16,42 @@ export function useBack(fallback: string): () => void {
   return () => (router.canGoBack() ? router.back() : router.navigate(fallback as Href));
 }
 
-export function SubHeader({ title, subtitle, onBack, backLabel, testID, right }: { title: string; subtitle?: string | null; onBack: () => void; backLabel: string; testID?: string; right?: ReactNode }) {
+export function SubHeader({ title, subtitle, subtitleExtra, avatar, onBack, backLabel, testID, right }: {
+  title: string;
+  subtitle?: string | null;
+  /** Рядом со второй строкой (бегущие точки «печатает»); без `subtitle` не рисуется. */
+  subtitleExtra?: ReactNode;
+  /** Между «назад» и названием (неподвижный робот в шапке Эви). */
+  avatar?: ReactNode;
+  onBack: () => void;
+  backLabel: string;
+  testID?: string;
+  right?: ReactNode;
+}) {
   const { tokens } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.line, backgroundColor: tokens.bg }}>
       <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} testID={testID ? `${testID}-back` : undefined} hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
         <ArrowLeft size={22} strokeWidth={1.75} color={tokens.text} />
       </Pressable>
+      {avatar}
       <View style={{ flex: 1 }}>
         <Text variant="body" bold accessibilityRole="header" numberOfLines={1} testID={testID}>
           {title}
         </Text>
         {subtitle ? (
-          <Text variant="caption" tone="text2" numberOfLines={1}>
-            {subtitle}
-          </Text>
+          subtitleExtra ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text variant="caption" tone="text2" numberOfLines={1} style={{ flexShrink: 1 }} testID={testID ? `${testID}-subtitle` : undefined}>
+                {subtitle}
+              </Text>
+              {subtitleExtra}
+            </View>
+          ) : (
+            <Text variant="caption" tone="text2" numberOfLines={1} testID={testID ? `${testID}-subtitle` : undefined}>
+              {subtitle}
+            </Text>
+          )
         ) : null}
       </View>
       {right}

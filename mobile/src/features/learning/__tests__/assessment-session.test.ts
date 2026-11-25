@@ -710,6 +710,26 @@ describe("«Выйти без сохранения» - настоящий отк
       session.dispose();
     });
 
+    it("«Показать сохранённые ответы» отказ не снимает: чтение не удалось, ревизия не сверена, и таймер сохранения не возвращается (ревью #1594)", async () => {
+      const h = sessionHarness({ [SAVE]: ["CONFLICT"], [READ]: ["NETWORK"] });
+      const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+      session.select("o1", "3");
+      const sending = session.flush(); // запрос в полёте
+      session.select("o2", "4"); // выбор, пока запрос в полёте: не отправлено
+      await sending; // конфликт: нужна сверка, неотправленное осталось
+      expect(session.getState().reloadRequired).toBe(true);
+      session.discard();
+      expect(h.pendingTimers()).toBe(0);
+      await session.loadSaved();
+      expect(session.getState().reload).toBe("failed");
+      expect(session.getState().reloadRequired).toBe(true);
+      expect(h.pendingTimers()).toBe(0); // с отказом, снятым здесь, вернулся бы таймер сохранения при несверенной ревизии
+      await h.advance(10 * ASSESSMENT_RETRY_MS);
+      expect(saves(h)).toHaveLength(1);
+      session.dispose();
+      expect(saves(h)).toHaveLength(1);
+    });
+
     it("выбор, сделанный пока стоял отказ, оставляет один таймер, а не два (прежняя ручка не теряется)", async () => {
       const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
       const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));

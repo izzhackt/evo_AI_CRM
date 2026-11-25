@@ -7,7 +7,7 @@ import { Dimensions, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { EnglishScreen } from "@/features/learning/english/EnglishScreen";
-import { actionsStacked, longestWordLength } from "@/features/learning/english/module-actions";
+import { ACTIONS_GAP, BUTTON_CHROME, WORD_EM, actionsStacked, longestWordLength } from "@/features/learning/english/module-actions";
 import { LessonTileCover, fallbackArtWidth, lessonHeroHeight } from "@/features/learning/english/LessonCover";
 import { LESSON_ART_KEYS, LessonArt } from "@/features/learning/english/LessonArt";
 import { LESSON_COVERS } from "@/features/learning/english/covers";
@@ -132,6 +132,19 @@ describe("две кнопки модуля: вместе в строке или 
     expect(stacked(358, 5)).toBe(stacked(358, 2));
     // Кыргызские подписи короче по самому длинному слову.
     expect(stacked(320, 1.2, ["Каталарды кайталоо", "Англис тили боюнча тест"])).toBe(false);
+  });
+
+  it("порог точный: слово с полями кнопки должно поместиться в половину строки без зазора между кнопками (зазор 8 pt входит в расчёт, ревью #1594)", () => {
+    const labels = [REVIEW, TEST];
+    const fontSize = 17;
+    const stackedAt = (rowWidth: number) => actionsStacked({ rowWidth, labels, fontSize, fontScale: 1 });
+    // Ширина строки, при которой слово («английскому») с полями кнопки ровно занимает половину строки: 2 * слово + зазор.
+    const exact = 2 * (longestWordLength(labels) * WORD_EM * fontSize + BUTTON_CHROME) + ACTIONS_GAP;
+    expect(ACTIONS_GAP).toBe(8);
+    expect(stackedAt(Math.floor(exact))).toBe(true); // на пиксель уже: слово не помещается
+    expect(stackedAt(Math.ceil(exact))).toBe(false); // на пиксель шире: помещается
+    // Без зазора порог лёг бы на 8 pt ниже, и строка в `exact - 4` осталась бы строкой.
+    expect(stackedAt(Math.floor(exact) - ACTIONS_GAP / 2)).toBe(true);
   });
 
   it("строка 358 pt при обычном шрифте: кнопки в одной строке поровну", async () => {

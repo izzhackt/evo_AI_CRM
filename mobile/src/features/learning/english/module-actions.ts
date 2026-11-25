@@ -7,7 +7,7 @@
 // у «английскому» в SF Semibold 17 pt около 105 pt, оценка 116 pt), рост шрифта у общего `Text` ограничен вдвое (`body`).
 export const ACTIONS_GAP = 8;
 /** Внутри `Button`: поля по 16 pt и рамка по 1 pt с каждой стороны. */
-const BUTTON_CHROME = 2 * (16 + 1);
+export const BUTTON_CHROME = 2 * (16 + 1);
 /** Ширина буквы в долях кегля. */
 export const WORD_EM = 0.62;
 /** Предел роста шрифта общего `Text` (вариант `body`). */

@@ -4,13 +4,16 @@
 // Префикс ключей: `pay.*`. Закрывает G31-G34 аудита паритета 25.11.2026.
 // Новый ключ добавляется в RU и в KY сразу: тип `PaymentsStringKey` не даст собрать KY без пары.
 // Соглашение: каждая новая KY-строка получает в конце пометку `// KY: needs native proofreading`.
+// Страница «Оплата» говорит словами сайта (admission.receipt*, payStatus.*): здесь только то, чего на сайте нет, потому что
+// там дата выбирается календарём браузера, а в приложении без нового нативного модуля её печатают.
 
 export const PAYMENTS_RU = {
-  // Пока пусто: строки добавляет срез.
+  /** Подсказка в пустом поле «Дата оплаты» у «Добавить платёж»: день печатают, обычно он уже подставлен (сегодня). */
+  "pay.dateHint": "дд.мм.гггг",
 } as const;
 
 export type PaymentsStringKey = keyof typeof PAYMENTS_RU;
 
 export const PAYMENTS_KY: Readonly<Record<PaymentsStringKey, string>> = {
-  // Пока пусто: см. соглашение в шапке.
+  "pay.dateHint": "кк.аа.жжжж", // KY: needs native proofreading
 };

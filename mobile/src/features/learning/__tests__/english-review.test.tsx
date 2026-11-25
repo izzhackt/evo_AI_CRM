@@ -153,7 +153,7 @@ describe("повторение ошибок", () => {
     const fake = fakeTransport({ learning_review_v1: reviewItems(1, 1), learning_review_check_v1: failure("42501", 403) });
     await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
     await fireEvent.press(await screen.findByTestId("opt-b"));
-    await fireEvent.press(screen.getByTestId("english-review-check"));
+    await fireEvent.press(await screen.findByTestId("english-review-check"));
     expect(await screen.findByTestId("english-review-error")).toHaveTextContent("Урок недоступен. Войдите в кабинет заново.");
     await waitFor(() => expect(announce).toHaveBeenCalledWith("Урок недоступен. Войдите в кабинет заново."));
     // Без сбоя плашки нет, и пустая строка не озвучивается.

@@ -310,7 +310,7 @@ describe("выход из аккаунта посреди теста (QA 23: `sa
 
   it("контроль: без выхода закрытие экрана досылает выбор, который не успел уйти по таймеру", async () => {
     const { calls } = await openRunning();
-    await fireEvent.press(screen.getByTestId("option-b"));
+    await fireEvent.press(await screen.findByTestId("option-b"));
     expect(saves(calls)).toHaveLength(0);
     await screen.unmount();
     await settle();
@@ -319,7 +319,7 @@ describe("выход из аккаунта посреди теста (QA 23: `sa
 
   it("выход, затем закрытие экрана: выбор не уходит с отозванным токеном", async () => {
     const { calls } = await openRunning();
-    await fireEvent.press(screen.getByTestId("option-b"));
+    await fireEvent.press(await screen.findByTestId("option-b"));
     await act(async () => announceSignOut());
     await screen.unmount();
     await settle();
@@ -330,7 +330,7 @@ describe("выход из аккаунта посреди теста (QA 23: `sa
     jest.useFakeTimers();
     try {
       const { calls } = await openRunning();
-      await fireEvent.press(screen.getByTestId("option-b"));
+      await fireEvent.press(await screen.findByTestId("option-b"));
       await act(async () => announceSignOut());
       await act(async () => {
         await jest.advanceTimersByTimeAsync(30_000);

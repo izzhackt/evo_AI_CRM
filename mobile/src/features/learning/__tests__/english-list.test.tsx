@@ -106,6 +106,11 @@ describe("две кнопки модуля: вместе в строке или 
   const measureActions = (width: number) => fireEvent(screen.getByTestId("english-module-actions"), "layout", { nativeEvent: { layout: { x: 0, y: 0, width, height: 0 } } });
   const REVIEW = "Повторить ошибки";
   const TEST = "Тест по английскому";
+  /** «Повторить ошибки» появляется, когда банк ошибок прочитан (отдельное чтение): без неё в строке одна кнопка и колонки нет. */
+  async function openWithReview() {
+    await open({ learning_review_v1: reviewItems(1, 2) });
+    await screen.findByTestId("english-review-open");
+  }
 
   it("правило: самое длинное слово подписи («английскому», 11 букв) должно помещаться в половину строки; ширина строки и масштаб шрифта измерены, не угаданы", () => {
     expect(longestWordLength([REVIEW, TEST])).toBe(11);
@@ -130,7 +135,7 @@ describe("две кнопки модуля: вместе в строке или 
   });
 
   it("строка 358 pt при обычном шрифте: кнопки в одной строке поровну", async () => {
-    await open({ learning_review_v1: reviewItems(1, 2) });
+    await openWithReview();
     await measureActions(358);
     expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("row");
     for (const id of ["english-review-open", "english-test-open"]) expect(flat(screen.getByTestId(id)).flex).toBe(1);
@@ -138,14 +143,14 @@ describe("две кнопки модуля: вместе в строке или 
 
   it("крупный шрифт системы: кнопки одна под другой на всю ширину, а не по половине (длинное слово не ломается посреди)", async () => {
     setFontScale(1.6);
-    await open({ learning_review_v1: reviewItems(1, 2) });
+    await openWithReview();
     await measureActions(358);
     expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("column");
     for (const id of ["english-review-open", "english-test-open"]) expect(flat(screen.getByTestId(id)).flex).toBeUndefined();
   });
 
   it("узкий экран (320 pt, строка 288) при обычном шрифте: одна под другой", async () => {
-    await open({ learning_review_v1: reviewItems(1, 2) });
+    await openWithReview();
     await measureActions(288);
     expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("column");
   });

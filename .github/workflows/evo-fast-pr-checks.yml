@@ -323,6 +323,37 @@ jobs:
       - name: Check the mobile app
         run: npm run verify -- --only mobile
 
+  # «Кабинет и приложение идут вместе» (AGENTS.md, правило владельца 25.11.2026): PR, который меняет кабинет студента
+  # (src/app/(portal)/**, src/components/portal/**), меняет и mobile/ либо одной строкой в описании говорит, почему приложению
+  # это не нужно. «Fast checks» ниже ждёт этого задания и требует «success», поэтому проверка обязательна и без правки
+  # настроек ветки. Скрипт сам не ломает PR: при своей ошибке (API, git, ввод) он печатает предупреждение и выходит с 0, падает
+  # только когда точно знает, что правило нарушено. Описание читается через API при запуске, а не из события: после правки
+  # описания хватает перезапуска упавшего задания (`gh run rerun <run-id> --failed`), событие pull_request несёт старый текст.
+  mobile-parity:
+    name: Mobile parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check that the cabinet and the app change together
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/ci/mobile-parity-check.mjs --base origin/main
+
   migration_boundary:
     name: Migration boundary
     needs: changed-range
@@ -524,6 +555,7 @@ jobs:
       - build
       - mobile
       - migration_boundary
+      - mobile-parity
     runs-on: ubuntu-latest
     steps:
       - name: Require selected fast PR checks
@@ -540,6 +572,7 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           MOBILE_RESULT: ${{ needs.mobile.result }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
+          MOBILE_PARITY_RESULT: ${{ needs.mobile-parity.result }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
@@ -551,7 +584,7 @@ jobs:
             test "$TESTS_RESULT" = "success"
             test "$PREVIEW_RESULT" = "success"
           fi
-          for result in "$TYPECHECK_RESULT" "$TESTS_RESULT" "$PREVIEW_RESULT" "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
+          for result in "$TYPECHECK_RESULT" "$TESTS_RESULT" "$PREVIEW_RESULT" "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MOBILE_RESULT" "$MIGRATION_BOUNDARY_RESULT" "$MOBILE_PARITY_RESULT"; do
             case "$result" in
               success|skipped) ;;
               *)
@@ -560,3 +593,5 @@ jobs:
                 ;;
             esac
           done
+          # «Mobile parity» has no condition and looks at every pull request: «skipped» would mean it never looked.
+          test "$MOBILE_PARITY_RESULT" = "success"

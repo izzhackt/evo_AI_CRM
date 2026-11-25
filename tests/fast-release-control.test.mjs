@@ -1007,6 +1007,8 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
     TYPECHECK_RESULT: "skipped", TESTS_RESULT: "skipped", PREVIEW_RESULT: "skipped",
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped", MOBILE_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
+    // «Mobile parity» has no condition: it looks at every pull request, docs-only ones included.
+    MOBILE_PARITY_RESULT: "success",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
   assert.equal(run({}), 0, "a docs-only change needs no code checks");
@@ -1017,11 +1019,12 @@ test("actual Fast checks shell requires every selected check to succeed or be sk
   assert.notEqual(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", PREVIEW_RESULT: "success" }), 0, "a non-docs change without tests");
   assert.notEqual(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success" }), 0, "a non-docs change without the preview");
   assert.equal(run({ ORDINARY_DOCS: "false", TYPECHECK_RESULT: "success", TESTS_RESULT: "success", PREVIEW_RESULT: "success" }), 0);
-  for (const name of ["TYPECHECK_RESULT", "TESTS_RESULT", "PREVIEW_RESULT", "CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
+  for (const name of ["TYPECHECK_RESULT", "TESTS_RESULT", "PREVIEW_RESULT", "CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MOBILE_RESULT", "MIGRATION_BOUNDARY_RESULT", "MOBILE_PARITY_RESULT"]) {
     for (const result of ["failure", "cancelled", "", "unknown"]) {
       assert.notEqual(run({ [name]: result }), 0, `${name}=${result}`);
     }
   }
+  assert.notEqual(run({ MOBILE_PARITY_RESULT: "skipped" }), 0, "the parity guard is never skipped: skipped would mean it did not look");
   assert.notEqual(run({ RANGE_RESULT: "failure" }), 0);
   assert.notEqual(run({ HAS_CHANGES: "false" }), 0);
   assert.notEqual(run({ UNKNOWN: "true" }), 0);

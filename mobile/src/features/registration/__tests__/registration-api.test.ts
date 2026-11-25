@@ -99,3 +99,75 @@ describe("invite-acceptance", () => {
     expect(await api.acceptInvite("t")).toEqual({ ok: false });
   });
 });
+
+// Проверка личной ссылки до анкеты (G11 аудита паритета 25.11.2026). Сервер: POST /api/portal/registration/link-check.
+describe("проверка личной ссылки (checkInvite)", () => {
+  const api = (status: number, body: unknown) => {
+    const fake = fakeFetch(status, body);
+    return { api: createRegistrationApi({ baseUrl: "http://x.test/", fetch: fake.fetch }), calls: fake.calls };
+  };
+
+  it("шлёт POST со ссылкой только в теле, без Bearer и без флага потока регистрации", async () => {
+    const { api: client, calls } = api(200, { status: "valid", firstName: "Айдана", lastName: "Осмонова" });
+    await client.checkInvite(INVITE);
+    expect(calls[0].url).toBe("http://x.test/api/portal/registration/link-check");
+    expect(calls[0].init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ invite: INVITE });
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers.Authorization).toBeUndefined();
+    expect(headers[REGISTRATION_FLOW_HEADER]).toBeUndefined();
+    // токен в адресе попал бы в журналы доступа
+    expect(calls[0].url).not.toContain(INVITE);
+  });
+
+  it("действующая ссылка: имя для предзаполнения; нет имени - null", async () => {
+    expect(await api(200, { status: "valid", firstName: "Айдана", lastName: "Осмонова" }).api.checkInvite(INVITE)).toEqual({ status: "valid", prefill: { firstName: "Айдана", lastName: "Осмонова" } });
+    expect(await api(200, { status: "valid", firstName: "Айдана", lastName: "" }).api.checkInvite(INVITE)).toEqual({ status: "valid", prefill: { firstName: "Айдана", lastName: "" } });
+    expect(await api(200, { status: "valid", firstName: null, lastName: null }).api.checkInvite(INVITE)).toEqual({ status: "valid", prefill: null });
+    // слишком длинное или не строка: ссылка действует, а имя не подставляется
+    expect(await api(200, { status: "valid", firstName: "а".repeat(61), lastName: "б" }).api.checkInvite(INVITE)).toEqual({ status: "valid", prefill: null });
+    expect(await api(200, { status: "valid", firstName: 5, lastName: "б" }).api.checkInvite(INVITE)).toEqual({ status: "valid", prefill: null });
+  });
+
+  it.each(["used", "expired", "unknown", "unavailable"] as const)("статус %s доходит как есть", async (status) => {
+    expect(await api(200, { status }).api.checkInvite(INVITE)).toEqual({ status });
+  });
+
+  it.each([
+    [404, { status: "valid", firstName: null, lastName: null }],
+    [429, { status: "rate_limit" }],
+    [400, { status: "invalid" }],
+    [415, { status: "invalid" }],
+    [500, null],
+    [503, { status: "unavailable" }],
+  ])("HTTP %s - маршрут недоступен: null, приложение идёт дальше без проверки", async (code, body) => {
+    expect(await api(code, body).api.checkInvite(INVITE)).toBeNull();
+  });
+
+  it("200 с чужой формой, обрыв связи и сбой разбора - тоже null", async () => {
+    expect(await api(200, { status: "approved" }).api.checkInvite(INVITE)).toBeNull();
+    expect(await api(200, null).api.checkInvite(INVITE)).toBeNull();
+    expect(await api(200, ["valid"]).api.checkInvite(INVITE)).toBeNull();
+    const offline = createRegistrationApi({ baseUrl: "http://x.test", fetch: async () => { throw new Error("offline"); } });
+    expect(await offline.checkInvite(INVITE)).toBeNull();
+  });
+
+  it("не отвечает дольше 8 секунд - null, человек не застревает на загрузке", async () => {
+    jest.useFakeTimers();
+    try {
+      const hanging = createRegistrationApi({
+        baseUrl: "http://x.test",
+        fetch: (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      });
+      const pending = hanging.checkInvite(INVITE);
+      await jest.advanceTimersByTimeAsync(8_100);
+      expect(await pending).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});

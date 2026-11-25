@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 
 import { isInviteToken } from "@/features/registration/invite-link";
+import { clearPendingSignup } from "@/features/registration/pending-store";
 import { restoreStep, restoreValues, type WizardValues } from "@/features/registration/wizard-model";
 
 const DRAFT_PREFIX = "evo.application-draft.v1";
@@ -110,7 +111,7 @@ export async function clearInviteToken(): Promise<void> {
   }
 }
 
-/** Выход или смена пользователя: все черновики (анонимный и по студентам) и личная ссылка стираются. */
+/** Выход или смена пользователя: все черновики (анонимный и по студентам), личная ссылка и ожидающая регистрация стираются. */
 export async function clearRegistrationLocalData(): Promise<void> {
   try {
     const keys = await AsyncStorage.getAllKeys();
@@ -120,4 +121,5 @@ export async function clearRegistrationLocalData(): Promise<void> {
     // нечего чистить
   }
   await clearInviteToken();
+  await clearPendingSignup();
 }

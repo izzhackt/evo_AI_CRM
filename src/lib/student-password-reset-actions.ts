@@ -11,9 +11,10 @@ import type { StudentPasswordResetActionState } from "./student-account-contract
 import { createSupabaseServerClient } from "./supabase/server";
 
 /**
- * «Карточка студента → Доступ к порталу → Сбросить пароль» (344, 07.11.2026). Только администратор вне просмотра роли;
- * право и студента дела ещё раз проверяет база. После ответа базы следующий сброс — новый запрос. Новый временный
- * пароль возвращается один раз и нигде не хранится.
+ * «Карточка студента → Доступ к порталу → Сбросить пароль» (344, 07.11.2026). Сбрасывает администратор или куратор этого
+ * дела (374, решение владельца 25.11.2026); кто именно может, и студента дела проверяет база. Просмотр роли не пишет
+ * ничего. После ответа базы следующий сброс — новый запрос. Новый временный пароль возвращается один раз и нигде не
+ * хранится.
  */
 export async function resetStudentPasswordAction(
   previous: StudentPasswordResetActionState,
@@ -22,7 +23,7 @@ export async function resetStudentPasswordAction(
   const actor = await requirePlatformStaffActor();
   const fields = exactActionStringFields(form, ["request_id", "student_case_id"]);
   const requestId = parsePlatformSalesUuid(fields?.get("request_id")) ?? previous.requestId;
-  if (actor.systemRole !== "admin" || isStaffPreview(actor)) return { status: "forbidden", requestId };
+  if (isStaffPreview(actor)) return { status: "forbidden", requestId };
   const studentCaseId = parsePlatformSalesUuid(fields?.get("student_case_id"));
   if (!studentCaseId) return { status: "invalid", requestId };
   try {

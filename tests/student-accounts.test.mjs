@@ -364,7 +364,7 @@ test("the card shows the form, «open» or the reason in one place (review 07.11
   assert.equal(contract.studentCaseRefusal("other"), null);
 });
 
-test("the case card (363): the curator whom the database gave the cabinet state gets the form, an open cabinet no reset", async () => {
+test("the case card (363, 374): the curator whom the database gave the cabinet state gets the form, an open cabinet its login and reset", async () => {
   const { execFileSync } = await import("node:child_process");
   const { fileURLToPath } = await import("node:url");
   const surfaces = new Map(JSON.parse(execFileSync(process.execPath,
@@ -374,7 +374,10 @@ test("the case card (363): the curator whom the database gave the cabinet state 
   assert.match(form, /data-testid="case-cabinet-account"/u, "the curator of the case sees «Создать кабинет»");
   assert.match(form, />Доступ к порталу</u, "«⋯» offers «Доступ к порталу» next to «Завершить дело»");
   const open = surfaces.get("curator-cabinet-open");
-  assert.doesNotMatch(open, /case-cabinet-reset/u, "the password reset stays with the Admin");
+  assert.match(open, /data-testid="case-cabinet-open"/u, "the curator of the case sees «Кабинет открыт» (374)");
+  assert.match(open, /aidai\.chynarova/u, "… with the student's login");
+  assert.match(open, />Сбросить пароль</u, "… and «Сбросить пароль»");
+  assert.match(open, />Доступ к порталу</u, "«⋯» offers «Доступ к порталу» for an open cabinet too");
   assert.doesNotMatch(open, /data-testid="case-cabinet-account"/u);
   assert.doesNotMatch(surfaces.get("curator"), /case-cabinet-account/u, "without the database's answer there is no form");
 });

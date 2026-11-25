@@ -14,6 +14,7 @@ import type { HomeApplication } from "@/domain/home-model";
 import {
   buildPortalOverview,
   decodeBoardStage,
+  decodeCaseDirections,
   decodeCaseFiles,
   decodeDocuments,
   decodeNotifications,
@@ -117,6 +118,15 @@ export async function readDocuments(transport: RpcTransport): Promise<readonly S
 /** Договор и чеки (`student_portal_case_files_v1`): дополнение, сбой не роняет чек-лист. */
 export async function readCaseFiles(transport: RpcTransport): Promise<readonly StudentPortalCaseFile[]> {
   return decodeCaseFiles(await rpcRead(transport, "student_portal_case_files_v1", {}, { get: true }));
+}
+
+/**
+ * Страна каждого своего дела (`student_portal_case_directions_v1`, STABLE: GET; миграция 373): по ней справка «Пример»
+ * показывает образцы той страны, по которой поставлен список документов. Сбой уходит вызывающему, а тот берёт запасную
+ * страну (выбор студента) или общую справку.
+ */
+export async function readCaseDirections(transport: RpcTransport): Promise<ReadonlyMap<string, string>> {
+  return decodeCaseDirections(await rpcRead(transport, "student_portal_case_directions_v1", {}, { get: true }));
 }
 
 /** Начисления (`student_portal_finance_v2`). */

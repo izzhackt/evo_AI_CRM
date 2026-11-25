@@ -9,6 +9,7 @@ import { Pressable, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
 import type { CscaExplain, CscaFigure, CscaItem, CscaOptionId } from "@web/lib/portal/csca";
+import type { PortalStrings } from "@web/lib/portal/i18n";
 
 import { StepReveal } from "@/features/learning/csca/StepReveal";
 import { tint } from "@/features/learning/csca/tint";
@@ -155,10 +156,28 @@ function OptionAnswered({ id, label, chosen, correct, explain, testID }: { id: C
   );
 }
 
+type Format = (template: string, values: Readonly<Record<string, string>>) => string;
+
+/** Слова вердикта: «Верно», «Неверно» или «Без ответа» и, пока ответ не верный, «Верный ответ: B». Из них же экран и читалка собирают текст. */
+function verdictWords(selected: CscaOptionId | null, correct: boolean, correctOption: CscaOptionId, c: PortalStrings<"csca">, format: Format): { word: string; correctIs: string | null } {
+  const word = selected === null ? c.notAnswered : correct ? c.verdictCorrect : c.verdictWrong;
+  return { word, correctIs: correct ? null : format(c.verdictCorrectIs, { option: LETTER[correctOption] }) };
+}
+
+/**
+ * Что читалка слышит после ответа: весь вердикт, как на вебе, где фокус переходит на его текст, а не только слово. Верный ответ,
+ * когда студент ошибся, слышно сразу: «Неверно. Верный ответ: B» (на экране между ними «·», читалке нужна точка). Говорит это
+ * `announce` экрана (урок, «Ошибки»), потому что живая область у новой строки на Android ненадёжна (`ui/useAnnouncer.tsx`).
+ */
+export function verdictAnnouncement(selected: CscaOptionId | null, correct: boolean, correctOption: CscaOptionId, c: PortalStrings<"csca">, format: Format): string {
+  const { word, correctIs } = verdictWords(selected, correct, correctOption, c, format);
+  return correctIs === null ? word : `${word}. ${correctIs}`;
+}
+
 /**
  * Вердикт сразу под условием, пока взгляд ещё там: «Верно», «Неверно · Верный ответ: B» или «Без ответа · Верный ответ: B».
- * Живой области у него нет: после ответа его читает `announce` самого экрана (урок, «Ошибки»), а живая область на Android
- * сказала бы то же ещё раз. Вердикт, который открыт заново (возврат к отвеченному заданию), читалке не объявляется.
+ * Живой области у него нет: весь текст после ответа читает `announce` самого экрана (`verdictAnnouncement`), и живая область
+ * на Android сказала бы его второй раз. Вердикт, который открыт заново (возврат к отвеченному заданию), читалке не объявляется.
  */
 function Verdict({ selected, correct, correctOption }: { selected: CscaOptionId | null; correct: boolean; correctOption: CscaOptionId }) {
   const { t, format } = useLang();
@@ -166,7 +185,7 @@ function Verdict({ selected, correct, correctOption }: { selected: CscaOptionId 
   const c = t("csca");
   const kind: MarkKind = selected === null ? "skipped" : correct ? "ok" : "bad";
   const color = kind === "ok" ? tokens.ok : kind === "bad" ? tokens.error : tokens.text2;
-  const word = kind === "skipped" ? c.notAnswered : correct ? c.verdictCorrect : c.verdictWrong;
+  const { word, correctIs } = verdictWords(selected, correct, correctOption, c, format);
   return (
     <View
       accessibilityLiveRegion="none"
@@ -176,7 +195,7 @@ function Verdict({ selected, correct, correctOption }: { selected: CscaOptionId 
       <Mark kind={kind} />
       <Text variant="body" bold style={{ color, flex: 1 }}>
         {word}
-        {!correct ? <Text variant="body" style={{ fontFamily: sansFont("medium"), color: tokens.text }}>{` · ${format(c.verdictCorrectIs, { option: LETTER[correctOption] })}`}</Text> : null}
+        {correctIs !== null ? <Text variant="body" style={{ fontFamily: sansFont("medium"), color: tokens.text }}>{` · ${correctIs}`}</Text> : null}
       </Text>
     </View>
   );

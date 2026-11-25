@@ -12,7 +12,7 @@ import { formatPortalString } from "@web/lib/portal/i18n";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
-import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { ItemCard, verdictAnnouncement } from "@/features/learning/csca/ItemCard";
 import { siblingLessonLink } from "@/features/learning/csca/lesson-links";
 import { LessonSession } from "@/features/learning/csca/lesson-session";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
@@ -68,13 +68,13 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
   const meta = view.lesson.metadata;
   const sibling = siblingLessonLink(home.data?.lessons ?? [], { lessonId, topicKey: meta.topic_key, kind: meta.kind });
 
-  /** «Проверить»: после ответа вердикт слышит и читалка, не только тот, кто видит экран. */
+  /** «Проверить»: после ответа вердикт слышит и читалка, не только тот, кто видит экран, и слышит целиком: слово и верный вариант. */
   async function check() {
     if (!current) return;
     const exerciseId = current.exerciseId;
     await session.submit();
     const answer = session.getState().answered[exerciseId];
-    if (answer) announce(answer.correct ? c.verdictCorrect : c.verdictWrong);
+    if (answer) announce(verdictAnnouncement(answer.selected, answer.correct, answer.explain.correctOptionId, c, format));
   }
 
   const progress = (

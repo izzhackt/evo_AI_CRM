@@ -38,9 +38,9 @@ const run = (change: (receipt: Record<string, any>, call: number) => Record<stri
   complete_learning_lesson_v1: fx("csca_lesson_complete"),
 });
 
-async function open(lesson: Record<string, any> = fx(LESSON), handlers: Record<string, unknown> = run(), wrap?: (transport: RpcTransport) => RpcTransport) {
+async function open(lesson: Record<string, any> = fx(LESSON), handlers: Record<string, unknown> = run(), wrap?: (transport: RpcTransport) => RpcTransport, lang: "ru" | "ky" = "ru") {
   const { transport, calls } = fakeTransport({ learning_lesson_v2: lesson, learning_track_home_v1: fx("csca_home_after"), ...handlers });
-  await renderPortal(<LessonScreen lessonId={lesson.lesson.lessonId} />, testApi(wrap ? wrap(transport) : transport));
+  await renderPortal(<LessonScreen lessonId={lesson.lesson.lessonId} />, testApi(wrap ? wrap(transport) : transport), lang);
   return { calls };
 }
 
@@ -192,9 +192,10 @@ describe("задание: ответ и разбор", () => {
     await screen.findByTestId("option-a");
     await answer("a");
     expect(screen.getByTestId("verdict")).toHaveTextContent("Неверно · Верный ответ: B", { exact: false });
-    expect(announce).toHaveBeenCalledWith("Неверно");
-    // Вердикт читает `announce`; у самого блока живой области нет, иначе Android прочитал бы «Неверно» второй раз.
-    expect(announce.mock.calls.filter(([text]) => text === "Неверно")).toHaveLength(1);
+    // Читалка слышит весь вердикт, как веб при переводе фокуса на его текст: слово и верный вариант, а не одно слово.
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith("Неверно. Верный ответ: B");
+    // У самого блока живой области нет, иначе Android прочитал бы то же второй раз.
     expect(screen.getByTestId("verdict").props.accessibilityLiveRegion).toBe("none");
     expect(screen.getByTestId("option-a-tags")).toHaveTextContent("Ваш ответ");
     expect(screen.getByTestId("option-b-tags")).toHaveTextContent("Верный ответ");
@@ -213,7 +214,18 @@ describe("задание: ответ и разбор", () => {
     expect(screen.getByTestId("verdict")).toHaveTextContent(/^Верно$/u);
     expect(screen.queryByText(/Верный ответ: /)).toBeNull();
     expect(screen.getByTestId("option-b-tags")).toHaveTextContent("Ваш ответ · Верный ответ");
+    // Верный ответ: одно слово, строки «Верный ответ: X» нет ни на экране, ни в озвучке.
+    expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith("Верно");
+  });
+
+  it("на кыргызском вердикт для читалки целиком по-кыргызски: слово и верный вариант", async () => {
+    await open(fx(LESSON), run(), undefined, "ky");
+    await screen.findByTestId("option-a");
+    await answer("a");
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith("Туура эмес. Туура жооп: B");
+    expect(screen.getByTestId("verdict")).toHaveTextContent("Туура эмес · Туура жооп: B");
   });
 
   it("решение: сначала только кнопки, шаги по одному; термины пилюлями без заголовка", async () => {

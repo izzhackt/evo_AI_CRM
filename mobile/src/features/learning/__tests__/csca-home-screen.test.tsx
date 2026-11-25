@@ -103,6 +103,23 @@ describe("вкладки: как на вебе", () => {
     expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 
+  it("новая ссылка на открытый раздел с другой вкладкой тоже читается с начала; ссылка, не менявшая вкладку, прокрутку не трогает", async () => {
+    const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
+    scrollTo.mockClear();
+    await open();
+    await screen.findByTestId("csca-overview");
+    // Другое значение параметра, но вкладка та же «Об экзамене»: сбрасывать нечего.
+    await act(async () => setView("unknown"));
+    expect(scrollTo).not.toHaveBeenCalled();
+    await act(async () => setView("lessons"));
+    expect(await screen.findByTestId("csca-lessons")).toBeTruthy();
+    expect(scrollTo.mock.calls).toEqual([[{ y: 0, animated: false }]]);
+    // И обратно: ссылка без параметра возвращает «Об экзамене» и тоже с начала.
+    await act(async () => setView(undefined));
+    expect(await screen.findByTestId("csca-overview")).toBeTruthy();
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
   it("новая ссылка на открытый раздел меняет вкладку", async () => {
     await open();
     await screen.findByTestId("csca-overview");

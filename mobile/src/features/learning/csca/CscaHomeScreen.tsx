@@ -6,7 +6,7 @@
 // на «Главной»).
 import { router, useLocalSearchParams } from "expo-router";
 import { NotebookPen } from "lucide-react-native";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, View } from "react-native";
 
 import { CSCA_OVERVIEW } from "@web/lib/portal/csca-overview";
@@ -52,9 +52,15 @@ export function CscaHomeScreen() {
   }
   // Прокрутка к календарю сессий: плитка «Ближайший экзамен» и ответ «Когда проходит экзамен?» ведут к нему, как якорь веба.
   const scroller = useRef<ScrollTarget>(null);
+  // Другая вкладка читается с начала, откуда бы ни пришла смена (нажатие на вкладку или новая ссылка `?view=` у открытого экрана):
+  // иначе она открылась бы на той прокрутке, до которой дочитали прежнюю. Нажатие на ту же вкладку ничего не сбрасывает.
+  const shownTab = useRef(tab);
+  useEffect(() => {
+    if (shownTab.current === tab) return;
+    shownTab.current = tab;
+    scroller.current?.scrollTo({ y: 0, animated: false });
+  }, [tab]);
   const pick = (next: CscaTab) => {
-    // Другая вкладка читается с начала: иначе она открылась бы на той прокрутке, до которой дочитали прежнюю.
-    if (next !== tab) scroller.current?.scrollTo({ y: 0, animated: false });
     setTab(next);
     // Параметр повторяет вкладку: следующая ссылка «К темам» из урока или теста тогда всегда меняет значение.
     router.setParams({ view: next });

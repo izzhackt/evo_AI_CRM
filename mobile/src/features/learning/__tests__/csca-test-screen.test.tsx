@@ -233,6 +233,12 @@ describe("запуск и завершение: что недоступно, п�
     await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={null} />, testApi(gate.wrap(transport)));
     await fireEvent.press(await screen.findByTestId("test-begin"));
     await screen.findByTestId("test-clock");
+    // Второе из трёх: «Назад» и «Далее» здесь доступны сами по себе (на первом «Назад», на последнем «Далее» недоступны и без
+    // завершения), поэтому их недоступность при завершении что-то значит.
+    await fireEvent.press(screen.getByTestId("test-next"));
+    expect(await screen.findByText("Задание 2 из 3")).toBeTruthy();
+    expect(screen.getByTestId("test-prev").props.accessibilityState?.disabled).toBeFalsy();
+    expect(screen.getByTestId("test-next").props.accessibilityState?.disabled).toBeFalsy();
     await fireEvent.press(screen.getByTestId("test-finish"));
     await fireEvent.press(screen.getByTestId("test-confirm-yes"));
     await waitFor(() => expect(screen.getByTestId("test-save-status")).toHaveTextContent("Подводим итог…"));
@@ -240,11 +246,11 @@ describe("запуск и завершение: что недоступно, п�
     expect(screen.getByTestId("test-flag").props.accessibilityState).toMatchObject({ disabled: true });
     expect(screen.getByTestId("test-prev").props.accessibilityState).toMatchObject({ disabled: true });
     expect(screen.getByTestId("test-next").props.accessibilityState).toMatchObject({ disabled: true });
-    // Нажатия по недоступным элементам ничего не меняют: то же задание, флажка нет.
-    await fireEvent.press(screen.getByTestId("nav-3"));
-    await fireEvent.press(screen.getByTestId("test-flag"));
-    expect(screen.getByTestId("nav-1").props.accessibilityState).toMatchObject({ selected: true });
-    expect(screen.queryByTestId("nav-flag-1", { includeHiddenElements: true })).toBeNull();
+    // Нажатия по недоступным элементам ничего не меняют: то же второе задание, флажка нет.
+    for (const id of ["test-prev", "test-next", "nav-1", "nav-3", "test-flag"]) await fireEvent.press(screen.getByTestId(id));
+    expect(screen.getByText("Задание 2 из 3")).toBeTruthy();
+    expect(screen.getByTestId("nav-2").props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.queryByTestId("nav-flag-2", { includeHiddenElements: true })).toBeNull();
     // Слова завершения: живой области нет (иначе Android прочитал бы их второй раз), читалке их говорит `announce` один раз.
     expect(screen.getByTestId("test-save-status").props.accessibilityLiveRegion).toBe("none");
     expect(announce.mock.calls.filter(([text]) => text === "Подводим итог…")).toHaveLength(1);

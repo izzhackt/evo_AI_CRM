@@ -22,6 +22,7 @@ export function caseNextParts(source: CaseNextSource, actions: ReactNode): Reado
       {source.mark}
       <SummaryCard
         testId="v3-case-summary"
+        summaryFromSm
         summary={parts.length > 0 ? (
           <p className="t-body-compact flex flex-wrap items-baseline gap-x-2 text-fg" data-testid="v3-case-summary-line">
             {parts.map((part, index) => (

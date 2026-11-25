@@ -266,3 +266,10 @@ test("«Ещё N»: ссылка строки на место страницы �
   assert.match(read("src/components/kit/SectionTabs.tsx"), /<QueueViewTabs\s+label=\{label\}\s+focusable=\{focusable\}/u);
   assert.match(read("src/components/staff/queue/QueueViewTabs.tsx"), /<QueueTabStrip id=\{id\} label=\{label\} focusable=\{focusable\}>/u);
 });
+
+test("шапка дела на телефоне: строка «Документы · Оплата» только от sm — она повторяет «Сведения» и вкладки", () => {
+  const card = readFileSync(new URL("../src/components/staff/profile/next/SummaryCard.tsx", import.meta.url), "utf8");
+  assert.match(card, /summaryFromSm \? "border-t border-border py-3 max-sm:hidden" : "border-t border-border py-3"/u);
+  const caseNext = readFileSync(new URL("../src/components/staff/profile/next/CaseNext.tsx", import.meta.url), "utf8");
+  assert.match(caseNext, /testId="v3-case-summary"\n\s+summaryFromSm\n/u);
+});

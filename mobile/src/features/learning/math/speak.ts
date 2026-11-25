@@ -141,6 +141,13 @@ class Speech {
   }
 }
 
+/**
+ * Команды, для которых у диктора есть слова: таблица `WORDS` плюс разобранные отдельно (`frac`, `sqrt`, `log`, `mathbb`, `left`,
+ * `right`). Команда вне списка читалась бы голым именем («backslash varphi»); тест выпуска контента сверяет по этому списку каждую
+ * команду каждой формулы, так что новая команда в контенте без слов для диктора ломает тест, а не озвучку у студента.
+ */
+export const SPEECH_COMMANDS: ReadonlySet<string> = new Set([...Object.keys(WORDS), "frac", "sqrt", "log", "mathbb", "left", "right"]);
+
 /** Формула простыми английскими словами для экранного диктора. */
 export function speakTex(tex: string): string {
   return new Speech(tokenize(tex))

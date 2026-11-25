@@ -34,21 +34,27 @@ const RESULTS: Record<Exclude<CaseCoverageActionState["status"], "idle">, string
   unavailable: "Не удалось подтвердить сохранение. Проверьте актуальные данные перед повтором.",
 };
 
-export function CuratorCoverageForm({ preview, curators, requestId, today }: Readonly<{
+export function CuratorCoverageForm({ preview, curators, requestId, today, returnHref = null }: Readonly<{
   preview: CoveragePreview | null; curators: readonly CoverageCurator[]; requestId: string;
   /** Сегодня в Бишкеке, YYYY-MM-DD. */
   today: string;
+  /**
+   * Форма открыта из карточки дела («Сменить куратора»): после сохранения и по «Отмене» — назад в карточку, а не на
+   * «Нагрузку кураторов». null — прежнее поведение раздела «Нагрузка кураторов».
+   */
+  returnHref?: string | null;
 }>) {
   // A failed refresh must not unmount a user's draft. Cached data stays visibly
   // unavailable and cannot authorize a mutation; never use it as a live fallback.
   const [lastRead, setLastRead] = useState(preview ? { preview, curators } : null);
   if (preview && preview !== lastRead?.preview) setLastRead({ preview, curators });
   if (!lastRead) return null;
-  return <CoverageDraft preview={lastRead.preview} curators={lastRead.curators} requestId={requestId} readUnavailable={preview === null} today={today} />;
+  return <CoverageDraft preview={lastRead.preview} curators={lastRead.curators} requestId={requestId} readUnavailable={preview === null} today={today} returnHref={returnHref} />;
 }
 
-function CoverageDraft({ preview, curators, requestId, readUnavailable, today }: Readonly<{
+function CoverageDraft({ preview, curators, requestId, readUnavailable, today, returnHref }: Readonly<{
   preview: CoveragePreview; curators: readonly CoverageCurator[]; requestId: string; readUnavailable: boolean; today: string;
+  returnHref: string | null;
 }>) {
   const router = useRouter();
   // Stable case identity, not scope/task versions: refresh never discards the draft.
@@ -76,11 +82,13 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
 
   useEffect(() => {
     if (status === "saved") {
+      // Из карточки дела — назад в карточку: там уже новый куратор.
+      if (returnHref) { router.replace(returnHref, { scroll: false }); return; }
       // Update the owner filter before fetching: the old owner no longer owns this case.
       const query = new URLSearchParams({ view: "curators", coverage_curator: destination, coverage_case: reviewed.id });
       router.replace(`/profile?${query.toString()}#curator-coverage`, { scroll: false });
     }
-  }, [destination, reviewed.id, router, status]);
+  }, [destination, returnHref, reviewed.id, router, status]);
 
   return (
     <form action={action} aria-busy={pending} className="space-y-4 border-t border-border pt-5" data-testid="v3-curator-coverage-form">
@@ -158,7 +166,7 @@ function CoverageDraft({ preview, curators, requestId, readUnavailable, today }:
         <button type="submit" disabled={!canSubmit} className={CONFIRM}>
           {pending ? "Сохраняем…" : returning ? "Подтвердить возврат" : "Подтвердить замещение"}
         </button>
-        {!pending ? <Link className={`${btnGhostCls} min-h-11`} href={coverageHref(preview.owner_id)}>Отмена</Link> : null}
+        {!pending ? <Link className={`${btnGhostCls} min-h-11`} href={returnHref ?? coverageHref(preview.owner_id)}>Отмена</Link> : null}
       </div>
     </form>
   );

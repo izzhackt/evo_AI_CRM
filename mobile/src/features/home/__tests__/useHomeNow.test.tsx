@@ -6,6 +6,31 @@ import { todayForTimeline } from "@web/lib/portal/country-timeline";
 import { msUntilBishkekMidnight, nextDueAfter, useHomeNow } from "@/features/home/useHomeNow";
 import { observeServerTime, resetServerClockForTests } from "@/lib/server-clock";
 
+// Фокус вкладки ведёт тест: общий упрощённый `useFocusEffect` из jest.setup.ts срабатывает только при монтировании и не умеет
+// «вкладка снова в фокусе». Здесь `__refocus()` гасит эффекты фокуса и запускает их заново, как возврат на вкладку.
+jest.mock("@/lib/focus", () => {
+  const { useEffect, useSyncExternalStore } = jest.requireActual<typeof import("react")>("react");
+  let epoch = 0;
+  const listeners = new Set<() => void>();
+  return {
+    __refocus: () => {
+      epoch += 1;
+      for (const listener of [...listeners]) listener();
+    },
+    useFocusEffect: (effect: () => void | (() => void)) => {
+      const seen = useSyncExternalStore(
+        (listener: () => void) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        () => epoch,
+      );
+      useEffect(() => effect(), [effect, seen]);
+    },
+  };
+});
+const refocus = () => act(async () => (jest.requireMock("@/lib/focus") as { __refocus: () => void }).__refocus());
+
 const at = (iso: string) => new Date(iso);
 
 /** Часы и таймеры подменены, а очередь микрозадач, `setImmediate` и прочее настоящие: `await render` и `act` Testing Library живут на них. */
@@ -104,17 +129,70 @@ describe("useHomeNow", () => {
     expect(dayOf(result.current)).toBe("2026-09-09");
   });
 
-  it("возврат на вкладку пересчитывает время, только если оно ушло заметно или день сменился", async () => {
+  describe("возврат на вкладку (настоящий эффект фокуса)", () => {
+    it("секунды экран не перерисовывают: сдвиг на 59,999 с и тот же день - прежнее время", async () => {
+      fakeClock("2026-09-08T05:00:00Z");
+      const { result } = await renderHook(() => useHomeNow());
+      const first = result.current;
+      jest.setSystemTime(at("2026-09-08T05:00:59.999Z"));
+      await refocus();
+      expect(result.current).toBe(first);
+    });
+
+    it("минута и больше: сдвиг ровно на 60 с и дальше пересчитывает время (граница `>=`)", async () => {
+      fakeClock("2026-09-08T05:00:00Z");
+      const { result } = await renderHook(() => useHomeNow());
+      const first = result.current;
+      jest.setSystemTime(at("2026-09-08T05:01:00Z"));
+      await refocus();
+      expect(result.current).not.toBe(first);
+      expect(result.current.toISOString()).toBe("2026-09-08T05:01:00.000Z");
+      // и пятью минутами позже тоже (порог не час)
+      const second = result.current;
+      jest.setSystemTime(at("2026-09-08T05:06:00Z"));
+      await refocus();
+      expect(result.current).not.toBe(second);
+      expect(result.current.toISOString()).toBe("2026-09-08T05:06:00.000Z");
+    });
+
+    it("граница суток по Бишкеку: сдвиг всего на 20 с, но день сменился - время пересчитывается", async () => {
+      fakeClock("2026-09-08T17:59:50Z"); // 23:59:50 в Бишкеке
+      const { result } = await renderHook(() => useHomeNow());
+      const first = result.current;
+      expect(dayOf(first)).toBe("2026-09-08");
+      jest.setSystemTime(at("2026-09-08T18:00:10Z")); // 00:00:10 9 сентября
+      await refocus();
+      expect(result.current).not.toBe(first);
+      expect(dayOf(result.current)).toBe("2026-09-09");
+    });
+
+    it("без возврата на вкладку время не меняется само (его будят границы суток, срок, возврат в приложение), с возвратом - меняется", async () => {
+      fakeClock("2026-09-08T05:00:00Z");
+      const { result } = await renderHook(() => useHomeNow());
+      const first = result.current;
+      jest.setSystemTime(at("2026-09-08T09:00:00Z"));
+      expect(result.current).toBe(first);
+      await refocus();
+      expect(result.current.toISOString()).toBe("2026-09-08T09:00:00.000Z");
+    });
+
+    it("время сервера: возврат на вкладку берёт часы сервера, а не телефона", async () => {
+      fakeClock("2026-09-09T05:00:00Z");
+      observeServerTime("2026-09-08T05:00:00Z", Date.now());
+      observeServerTime("2026-09-08T05:00:00Z", Date.now()); // телефон на сутки впереди
+      const { result } = await renderHook(() => useHomeNow());
+      jest.setSystemTime(at("2026-09-09T06:00:00Z"));
+      await refocus();
+      expect(result.current.toISOString()).toBe("2026-09-08T06:00:00.000Z");
+    });
+  });
+
+  it("возврат приложения на передний план пересчитывает время и после возврата на вкладку (оба пути независимы)", async () => {
     fakeClock("2026-09-08T05:00:00Z");
-    const { result, rerender } = await renderHook(() => useHomeNow());
-    const first = result.current;
-    // эффект фокуса в тестах срабатывает при монтировании и при смене обратного вызова: секунды не перерисовывают экран
-    jest.setSystemTime(at("2026-09-08T05:00:20Z"));
-    await rerender({});
-    expect(result.current).toBe(first);
+    const { result } = await renderHook(() => useHomeNow());
     jest.setSystemTime(at("2026-09-08T09:00:00Z"));
     await act(async () => appState?.("active"));
-    expect(result.current).not.toBe(first);
+    expect(result.current.toISOString()).toBe("2026-09-08T09:00:00.000Z");
   });
 
   it("часы телефона переставлены на сутки вперёд: один ответ сервера время не меняет, два согласных возвращают время сервера", async () => {

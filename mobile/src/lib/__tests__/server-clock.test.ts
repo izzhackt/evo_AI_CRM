@@ -62,6 +62,14 @@ describe("поправка к часам телефона", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
+  it("граница шума: сдвиг на 999 мс - шум, ровно на секунду - уже новая поправка", () => {
+    observeServerTime(T + 500, T);
+    observeServerTime(T + 500 + 999, T);
+    expect(serverOffsetMs()).toBe(500);
+    observeServerTime(T + 500 + 1_000, T);
+    expect(serverOffsetMs()).toBe(1_500);
+  });
+
   it("подписка снимается", () => {
     const listener = jest.fn();
     const off = subscribeServerClock(listener);
@@ -133,6 +141,15 @@ describe("сдвиг больше двух минут принимается, т
     expect(listener).not.toHaveBeenCalled();
     observeServerTime(T + HOUR + 1_000, T);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("сброс для тестов забывает и кандидата: ответ после сброса не подтверждается ответом до него", () => {
+    observeServerTime(T + HOUR, T); // кандидат
+    resetServerClockForTests();
+    observeServerTime(T + HOUR + 100, T); // согласен с прежним кандидатом, но того уже нет
+    expect(serverOffsetMs()).toBeNull();
+    observeServerTime(T + HOUR + 200, T); // а теперь подряд два согласных
+    expect(serverOffsetMs()).toBe(HOUR + 200);
   });
 
   it("уже принятая поправка не мешает принять обратный большой сдвиг: человек исправил часы телефона", () => {
@@ -257,6 +274,36 @@ describe("withServerClock: время сервера из заголовка Dat
     await fresh("https://example.test/b");
     await fresh("https://example.test/b2");
     expect(serverOffsetMs()).toBe(2 * HOUR);
+  });
+
+  it("возраст ответа: ровно 5 секунд ещё свежий, 6 и 100 уже из кэша", async () => {
+    const withAge = (age: string) => withServerClock(respond({ date: "Tue, 08 Sep 2026 05:00:30 GMT", age }), () => T)("https://example.test/age");
+    await withAge("5");
+    expect(serverOffsetMs()).toBe(30_000);
+    for (const age of ["6", "100", "500"]) {
+      resetServerClockForTests();
+      await withAge(age);
+      expect(serverOffsetMs()).toBeNull();
+    }
+  });
+
+  it("запрос дольше десяти секунд времени сервера не говорит; ровно десять секунд - говорит", async () => {
+    // отправили в T, ответ через 10 с; заголовок на 5 с впереди середины отрезка
+    await withServerClock(respond({ date: "Tue, 08 Sep 2026 05:00:10 GMT" }), ticking(T, 10_000))("https://example.test/a");
+    expect(serverOffsetMs()).toBe(5_000);
+    resetServerClockForTests();
+    await withServerClock(respond({ date: "Tue, 08 Sep 2026 05:00:10 GMT" }), ticking(T, 10_001))("https://example.test/b");
+    expect(serverOffsetMs()).toBeNull();
+  });
+
+  it("телефон уснул посреди запроса: ответ в 30 секунд не сдвигает поправку на -15 секунд, два десятиминутных не соглашаются на -300", async () => {
+    // заголовок = момент отправки, середина отрезка на полдлины позже: без предела получилось бы «сервер отстаёт»
+    await withServerClock(respond({ date: "Tue, 08 Sep 2026 05:00:00 GMT" }), ticking(T, 30_000))("https://example.test/slow");
+    expect(serverOffsetMs()).toBeNull();
+    const tenMinutes = withServerClock(respond({ date: "Tue, 08 Sep 2026 05:00:00 GMT" }), ticking(T, 600_000));
+    await tenMinutes("https://example.test/a");
+    await tenMinutes("https://example.test/b"); // два согласных ответа: поправка -300 секунд, принята бы без предела
+    expect(serverOffsetMs()).toBeNull();
   });
 
   it("отказ сервера тоже несёт время; обрыв запроса пробрасывается как был", async () => {

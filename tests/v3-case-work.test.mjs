@@ -172,7 +172,7 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.doesNotMatch(text, /Открыть вузы и программы|Открыть договор и оплату/u, "заявки есть, оплата не видна — ссылок нет");
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
-  assert.match(text, /Шанхайский университет · Международная торговля — вариант · основная · срок подачи 30\.11/u);
+  assert.match(text, /Шанхайский университет · Международная торговля — вариант · основной · срок подачи 30\.11/u);
   // Последнее сообщение переписки — в ленте.
   assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
   // Прежние дубли ушли: ссылка дела на само себя, «Коротко», вторая «Создать задачу по студенту».
@@ -1004,5 +1004,9 @@ test("статус заявки одним словом во всей карто
   assert.equal(wording.applicationPathWord("preparation"), wording.applicationStatus("preparation"), "«Обзор» и «Вузы» говорят одно и то же");
   assert.equal(wording.APPLICATION_PATH_STEPS[0], wording.applicationStatus("preparation"));
   assert.doesNotMatch(read("src/lib/v3/wording.ts"), /preparation: "готовится"/u);
-  assert.doesNotMatch(read("src/components/staff/profile/CaseOverview.tsx"), /основной вариант/u, "«вариант · основной вариант» не повторяется");
+  // Пометка основной заявки — «основной», как в живой карточке («Обзор» нового вида) и на «Вузах» («★ основной»).
+  for (const file of ["src/components/staff/profile/CaseOverview.tsx", "src/components/staff/profile/next/CaseApplications.tsx"]) {
+    assert.doesNotMatch(read(file), /основной вариант/u, `${file}: «вариант · основной вариант» не повторяется`);
+    assert.match(read(file), /application\.primary \? " · основной"/u, file);
+  }
 });

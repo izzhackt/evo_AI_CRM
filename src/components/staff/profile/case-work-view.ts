@@ -177,7 +177,7 @@ export function caseMomentLabel(iso: string, today: string): string {
   return `${formatQueueDay(dayInOrganizationTimezone(moment), today)} ${BISHKEK_TIME.format(moment)}`;
 }
 
-/** Заявка «Обзора» одной строкой: вуз · программа, статус, «основная» и дедлайн. */
+/** Заявка «Обзора» одной строкой: вуз · программа, статус, «основной» и дедлайн. */
 export type CaseApplicationLine = Readonly<{
   id: string;
   title: string;

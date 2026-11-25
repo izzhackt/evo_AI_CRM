@@ -2,7 +2,7 @@
 // «По предыдущим требованиям», неоконченные записи прежних требований. Сеть и устройство подменены.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 
 import { documentsPending } from "@/features/preparations/documents-pending";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
@@ -29,11 +29,13 @@ import {
   versionsPage,
 } from "@/test-fixtures/preparations";
 import { makeIo, type FakeIo } from "@/test-fixtures/preparations-io";
+import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
 
+const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 const ITEM = itemId(0);
 const REQUEST = "99999999-0000-4000-8000-000000000001";
 const scope = { organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID };
@@ -158,6 +160,18 @@ describe("скачивание файла", () => {
     expect(fake.fetches[0]!.headers.Authorization).toBe("Bearer synthetic-token");
     expect(fake.fetches[1]).toEqual({ url: storage, headers: { Accept: "*/*" } });
     expect(fake.io.openLocalFile).toHaveBeenCalledWith("file:///cache/scan-1.pdf", "application/pdf");
+  });
+
+  it("два нажатия «Скачать файл» раньше, чем кнопка выключилась: файл скачивается и открывается один раз", async () => {
+    const storage = "https://storage.example.test/object/sign/private/abc?token=SIGNED";
+    const fake = makeIo({ fetchResponses: [{ status: 302, ok: false, headers: new Headers({ location: storage }), arrayBuffer: async () => new ArrayBuffer(0) }] });
+    await open({ ready: submitted(), io: fake });
+    await screen.findByTestId(`prep-document-${ITEM}-submission-file-download`);
+    await pressTwiceInOneTick(`prep-document-${ITEM}-submission-file-download`);
+    await waitFor(() => expect(fake.opened).toHaveLength(1));
+    // одно скачивание = два запроса (портал и подписанный адрес хранилища)
+    expect(fake.fetches).toHaveLength(2);
+    expect(fake.io.openLocalFile).toHaveBeenCalledTimes(1);
   });
 
   it("файл недоступен (идёт проверка): кнопка скачивания заблокирована", async () => {
@@ -317,6 +331,22 @@ describe("неоконченные записи прежних требован�
     expect(t.calls.find((c) => c.name === "submit_application_document_v1")!.args).toMatchObject({ p_request_id: REQUEST, p_requirements_revision_id: OLD_REVISION, p_requirement_item_id: OLD_ITEM });
     await waitFor(async () => expect(await storedKeys()).toEqual([]));
     await waitFor(() => expect(screen.queryByTestId("prep-recovery")).toBeNull());
+  });
+
+  it("два нажатия «Проверить результат» раньше, чем кнопка выключилась: тот же запрос уходит один раз", async () => {
+    const stored = { studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID, requirementsRevisionId: OLD_REVISION, requirementItemId: OLD_ITEM, requestId: REQUEST, selection: { kind: "existing_version", documentVersionId: versionId(9) }, expectedPreviousSubmissionId: null };
+    await documentsPending.persist(scope, "submit", OLD_ITEM, stored as never);
+    const t = await open({
+      ready: answer(emptyItem(), documentState(0)),
+      extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => ({ ...submitReceipt(0, String(args?.p_request_id), versionId(9)), requirementsRevisionId: OLD_REVISION, requirementItemId: OLD_ITEM, documentSlotId: slotId(8) }) },
+    });
+    await screen.findByTestId(`prep-recover-submit-${OLD_ITEM}`);
+    spoken.mockClear();
+    await pressTwiceInOneTick(`prep-recover-submit-${OLD_ITEM}`);
+    await waitFor(async () => expect(await storedKeys()).toEqual([]));
+    expect(t.calls.filter((c) => c.name === "submit_application_document_v1")).toHaveLength(1);
+    // второе нажатие не дошло до замка цели и не сказало «Не уверены, дошёл ли файл»
+    expect(spoken.mock.calls.filter(([text]) => String(text).includes("Не уверены, дошёл ли файл"))).toHaveLength(0);
   });
 
   it("запись видимого требования внизу не дублируется: её доводит само требование", async () => {

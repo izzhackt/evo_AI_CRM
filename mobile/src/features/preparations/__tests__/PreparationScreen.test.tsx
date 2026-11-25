@@ -21,6 +21,7 @@ import {
   uninitializedReadiness,
   versionId,
 } from "@/test-fixtures/preparations";
+import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
@@ -40,20 +41,6 @@ async function open(h: Handlers, options: { api?: Parameters<typeof testApi>[1];
   const { transport, calls } = fakeTransport(h);
   const view = await renderPortal(<PreparationScreen applicationId={options.id ?? APPLICATION_ID} />, testApi(transport, options.api), options.lang ?? "ru");
   return { ...view, calls };
-}
-
-/**
- * Два нажатия, пришедшие раньше, чем React выключил кнопку: `onClick` кнопки вызывается дважды подряд без перерисовки между
- * ними (`fireEvent.press` после первого же нажатия увидел бы уже выключенную кнопку). Второе нажатие держит один замок экрана.
- */
-async function pressTwiceInOneTick(testID: string) {
-  const click = screen.getByTestId(testID).props.onClick as ((event: unknown) => void) | undefined;
-  if (!click) throw new Error(`у ${testID} нет обработчика нажатия`);
-  const event = { stopPropagation: () => undefined, preventDefault: () => undefined, nativeEvent: {} };
-  await act(async () => {
-    click(event);
-    click(event);
-  });
 }
 
 beforeEach(() => {

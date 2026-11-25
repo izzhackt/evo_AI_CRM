@@ -24,6 +24,7 @@ import {
   versionId,
 } from "@/test-fixtures/preparations";
 import { OTHER_PICKED, makeIo, receiptFor, type FakeIo } from "@/test-fixtures/preparations-io";
+import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
@@ -288,6 +289,38 @@ describe("одно нажатие: загрузить и отправить на
     expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Выберите PDF, JPG или PNG размером до 25 МБ.", { exact: false });
     expect(t.fake.uploads).toHaveLength(0);
     expect(await storedKeys()).toEqual([]);
+  });
+});
+
+describe("замки: два нажатия раньше, чем кнопка выключилась", () => {
+  const saved = () =>
+    open({
+      ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) })) : answer(sentItem(9), documentState(0, { submission: submissionOf(0, 9, null), canSubmit: false }))),
+      extra: { submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) },
+    });
+
+  it("«Отправить на проверку»: запрос отправки уходит один раз и один раз озвучивается итог", async () => {
+    const t = await saved();
+    await screen.findByTestId(`prep-submit-button-${ITEM}`);
+    announceNative.mockClear();
+    await pressTwiceInOneTick(`prep-submit-button-${ITEM}`);
+    await waitFor(() => expect(screen.getByTestId(`prep-document-notice-${ITEM}`)).toHaveTextContent("Документ отправлен на проверку EVO.", { exact: false }));
+    expect(t.calls.filter((c) => c.name === "submit_application_document_v1")).toHaveLength(1);
+    // второе нажатие не успело сказать «ещё не подтверждено» и не заняло замок цели
+    expect(announceNative.mock.calls.filter(([text]) => String(text).includes("Не уверены, дошёл ли файл"))).toHaveLength(0);
+    expect(await storedKeys()).toEqual([]);
+  });
+
+  it("«Проверить результат» оборванной отправки: запрос повторяется один раз", async () => {
+    const stored = { studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID, requirementsRevisionId: REVISION_ID, requirementItemId: ITEM, requestId: REQUEST, selection: { kind: "program_upload", uploadContextId: uploadId(9), documentVersionId: versionId(9) }, expectedPreviousSubmissionId: null };
+    await documentsPending.persist(scope, "submit", ITEM, stored as never);
+    const t = await saved();
+    await screen.findByTestId(`prep-submit-retained-${ITEM}`);
+    announceNative.mockClear();
+    await pressTwiceInOneTick(`prep-submit-button-${ITEM}`);
+    await waitFor(async () => expect(await storedKeys()).toEqual([]));
+    expect(t.calls.filter((c) => c.name === "submit_application_document_v1")).toHaveLength(1);
+    expect(announceNative.mock.calls.filter(([text]) => String(text).includes("Не уверены, дошёл ли файл"))).toHaveLength(0);
   });
 });
 

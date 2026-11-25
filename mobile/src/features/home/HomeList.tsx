@@ -1,8 +1,9 @@
 // «Мой список» на «Главной» (HomeList.tsx, веб #1355): вкладки «Вузы» и «Мои программы» с числом
 // и полные списки под ними. Числа стоят прямо во вкладках: прежних плиток «Поступления» нет.
 // Чтения общие с «Главной» (избранное читается один раз), сбой одного списка не трогает второй.
-import { GraduationCap, Landmark } from "lucide-react-native";
-import { PixelRatio, ScrollView, View, useWindowDimensions } from "react-native";
+import { router } from "expo-router";
+import { Landmark } from "lucide-react-native";
+import { PixelRatio, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import type { CatalogPreparation } from "@web/lib/portal/catalog-preparations";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import { universityCountryLabel } from "@web/lib/portal/universities";
@@ -11,10 +12,12 @@ import { HOME_FAVORITES_LIMIT, type HomeListTab } from "@/domain/home-model";
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useFavorites, usePreparations } from "@/api/queries";
 import { FavoritesAll } from "@/features/home/FavoritesAll";
-import { nearestIntakeText } from "@/features/home/HomeCards";
+import { nearestIntakeLine } from "@/features/home/HomeCards";
 import { go } from "@/features/portal/navigation";
+import { preparationHref } from "@/features/preparations/routes";
 import { RemotePhoto, universityUrls } from "@/features/universities/parts";
 import { useLang } from "@/i18n/LangProvider";
+import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
 import { CardHead, CardSkeleton, EmptyBlock, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
@@ -23,31 +26,51 @@ import { Enter, PressableScale } from "@/ui/motion";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
 
-function ProgramRow({ item }: { item: CatalogPreparation }) {
+/**
+ * «Мои программы» (веб PreparationList): вуз, название программы ссылкой, набор, статус, пометка про срок и «Открыть»
+ * кнопкой - обе ведут на экран программы `/portal/preparations/<applicationId>` (`preparationHref`).
+ */
+function ProgramRow({ item, first }: { item: CatalogPreparation; first: boolean }) {
   const { t } = useLang();
+  const { tokens } = useTheme();
   const preparations = t("preparations");
   const program = item.content.programs.find((entry) => entry.id === item.programId);
   const intake = program?.intakes.find((entry) => entry.id === item.intakeId);
   const status = preparations[`status.${item.applicationStatus}`];
+  const title = program?.title ?? item.content.name;
+  const open = () => router.navigate(preparationHref(item.applicationId));
   return (
-    <View style={{ gap: 2, paddingVertical: 8, minHeight: MIN_TARGET }} testID={`program-${item.applicationId}`}>
-      <Text variant="caption" tone="text2">
-        {item.content.name}
-      </Text>
-      <Text variant="body" bold>
-        {program?.title ?? item.content.name}
-      </Text>
-      {intake ? (
+    <View
+      style={{ gap: 12, paddingVertical: 16, borderTopWidth: first ? 0 : 1, borderTopColor: tokens.line }}
+      testID={`program-${item.applicationId}`}
+    >
+      <View style={{ gap: 2 }}>
         <Text variant="secondary" tone="text2">
-          {intake.label}
+          {item.content.name}
         </Text>
-      ) : null}
-      <Text variant="secondary">{status}</Text>
-      {item.deadlineStateAtSelection === "needs_confirmation" ? (
-        <Text variant="caption" tone="text2">
-          {preparations.savedDeadline}
+        <Pressable
+          accessibilityRole="link"
+          onPress={open}
+          testID={`program-link-${item.applicationId}`}
+          style={{ minHeight: MIN_TARGET, justifyContent: "center" }}
+        >
+          <Text variant="heading">{title}</Text>
+        </Pressable>
+        {intake ? (
+          <Text variant="secondary" tone="text2">
+            {intake.label}
+          </Text>
+        ) : null}
+        <Text variant="secondary" bold style={{ marginTop: 6 }}>
+          {status}
         </Text>
-      ) : null}
+        {item.deadlineStateAtSelection === "needs_confirmation" ? (
+          <Text variant="secondary" tone="text2">
+            {preparations.savedDeadline}
+          </Text>
+        ) : null}
+      </View>
+      <Button variant="ghost" label={preparations.open} accessibilityLabel={`${preparations.open}: ${title}`} onPress={open} testID={`program-open-${item.applicationId}`} />
     </View>
   );
 }
@@ -81,10 +104,15 @@ function FavoriteCard({ item, width, now, index }: { item: PublishedUniversity; 
   const { lang, t } = useLang();
   const universities = t("universities");
   const country = universityCountryLabel(item.content.country, lang);
+  const place = item.content.city ? `${item.content.city} · ${country}` : country;
+  // Веб HomeFavorites: строка набора только при открытом наборе; «даты уточняются» на карточке не пишется.
+  const intakeLine = nearestIntakeLine(item, lang, now, universities);
+  const intake = intakeLine === null ? null : capitalized(intakeLine);
   const card = (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={item.content.name}
+      // Метка заменяет видимые строки для читалки, поэтому несёт все: у ссылки веба текст - название, место и набор.
+      accessibilityLabel={[item.content.name, place, intake].filter((part): part is string => part !== null).join(". ")}
       onPress={() => go(`/universities/${item.id}`)}
       testID={`fav-${item.id}`}
       style={{ width, minHeight: MIN_TARGET }}
@@ -102,16 +130,61 @@ function FavoriteCard({ item, width, now, index }: { item: PublishedUniversity; 
           {item.content.name}
         </Text>
         <Text variant="caption" tone="text2">
-          {item.content.city ? `${item.content.city} · ${country}` : country}
+          {place}
         </Text>
-        <Text variant="caption" bold testID={`fav-intake-${item.id}`}>
-          {capitalized(nearestIntakeText(item, lang, now, universities))}
-        </Text>
+        {intake !== null ? (
+          <Text variant="caption" bold testID={`fav-intake-${item.id}`}>
+            {intake}
+          </Text>
+        ) : null}
       </View>
     </PressableScale>
   );
   // Первые шесть карточек входят по очереди (веб: `.pt-home-fav-grid > :nth-child(-n + 6)`).
   return index < FAV_ENTER_LIMIT ? <Enter index={index}>{card}</Enter> : card;
+}
+
+/**
+ * Вкладка «Мои программы» (веб PreparationList): заголовок и ссылка в каталог («Добавить программу», а пока выбор закрыт
+ * для дела - «Каталог университетов»), пояснение, строки программ или пустое состояние. Сбой чтения - плашка с повтором
+ * на языке приложения: веб зовёт «Обновите страницу» (`listUnavailable`), у телефона страницы нет.
+ */
+function ProgramsTab({ preparations }: { preparations: ReturnType<typeof usePreparations> }) {
+  const { m, t } = useLang();
+  const { canSelectPrograms } = usePortalApi();
+  const strings = t("preparations");
+  if (preparations.data === undefined) {
+    return preparations.status === "error" ? (
+      <InlineAlert message={m(loadErrorKey(preparations.error))} retryLabel={m("gate.retry")} onRetry={() => void preparations.refetch()} testID="programs-error" />
+    ) : (
+      <CardSkeleton label={`${strings.title}. ${m("state.loading")}`} />
+    );
+  }
+  const items = preparations.data;
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 12 }}>
+        <Text variant="heading" accessibilityRole="header">
+          {strings.title}
+        </Text>
+        <LinkButton label={canSelectPrograms ? strings.catalog : strings.catalogBrowse} onPress={() => go("/universities")} testID="programs-catalog" />
+      </View>
+      <Text variant="secondary" tone="text2">
+        {strings.lead}
+      </Text>
+      {items.length === 0 ? (
+        <Text variant="body" testID="programs-empty" style={{ marginVertical: 8 }}>
+          {canSelectPrograms ? strings.empty : strings.emptyBrowse}
+        </Text>
+      ) : (
+        <View accessibilityRole="list">
+          {items.map((item, index) => (
+            <ProgramRow key={item.applicationId} item={item} first={index === 0} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
 }
 
 export function HomeList({
@@ -129,13 +202,11 @@ export function HomeList({
   now: Date;
 }) {
   const { m, t, format } = useLang();
-  const { canSelectPrograms } = usePortalApi();
   const favorites = useFavorites();
   const preparations = usePreparations();
   const home = t("home");
   const admission = t("admission");
   const favoritesStrings = t("favorites");
-  const preparationStrings = t("preparations");
   const favoritesCount = favorites.data?.total ?? null;
   const { width } = useWindowDimensions();
   const cardWidth = stripCardWidth(width);
@@ -148,9 +219,12 @@ export function HomeList({
         value={tab}
         onChange={onTabChange}
         testIDPrefix="tab"
+        // Веб `<nav aria-label={admission.tabsLabel}>` с вкладками «Вузы» и «Мои программы» (`tab.programs`) и числом в каждой.
+        accessibilityLabel={admission.tabsLabel}
+        semantics="tabs"
         options={[
           { value: "universities", label: favoritesCount !== null ? `${admission["tab.universities"]} ${favoritesCount}` : admission["tab.universities"] },
-          { value: "programs", label: programsCount !== null ? `${m("programs.mine")} ${programsCount}` : m("programs.mine") },
+          { value: "programs", label: programsCount !== null ? `${admission["tab.programs"]} ${programsCount}` : admission["tab.programs"] },
         ]}
       />
       {tab === "universities" ? (
@@ -205,26 +279,11 @@ export function HomeList({
             )}
           </>
         )
-      ) : preparations.data === undefined ? (
-        preparations.status === "error" ? (
-          <InlineAlert message={m(loadErrorKey(preparations.error))} retryLabel={m("gate.retry")} onRetry={() => void preparations.refetch()} testID="programs-error" />
-        ) : (
-          <CardSkeleton label={`${preparationStrings.title}. ${m("state.loading")}`} />
-        )
-      ) : preparations.data.length === 0 ? (
-        <EmptyBlock
-          icon={GraduationCap}
-          title={canSelectPrograms ? preparationStrings.empty : preparationStrings.emptyBrowse}
-          action={<Button variant="ghost" label={preparationStrings.catalogBrowse} onPress={() => go("/universities")} />}
-        />
       ) : (
-        <View accessibilityRole="list">
-          {preparations.data.map((item) => (
-            <ProgramRow key={item.applicationId} item={item} />
-          ))}
-        </View>
+        // Чтение одно на «Главную» и вкладку (наблюдатель стоит в HomeList): смена вкладки не перечитывает сбойный источник.
+        <ProgramsTab preparations={preparations} />
       )}
-      {/* TODO(M2): «Открыть подготовку» и незавершённые отправки пакетов. */}
+      {/* TODO(M2): незавершённые отправки пакетов (веб PendingPackagesLink) - вместе с отправкой пакета программы. */}
     </Card>
   );
 }

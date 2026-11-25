@@ -23,6 +23,8 @@ import { Turn } from "@/ui/motion";
 import { Text } from "@/ui/Text";
 
 const NODE = 32;
+/** Низ шапки пути: веб `padding-bottom: 52px` у `.pt-journey-head[data-hero]` на узкой шапке, с фото столицы и без него. */
+const HERO_BOTTOM = 52;
 /** Круг с номером текущего шага и промежуток до названия (веб: `--pt-now-node` 36, `--pt-now-gap` 14). */
 const NOW_NODE = 36;
 const NOW_GAP = 14;
@@ -334,12 +336,17 @@ export function JourneyHead({
         {/* Красные пятна лежат под фото: пока оно грузится или не загрузилось, видна плашка. */}
         <HeroWash />
         {shownPhoto ? <HeroPhotoLayer key={shownPhoto.urls.original} urls={shownPhoto.urls} onFailed={() => setFailedPhoto(shownPhoto.urls.original)} /> : null}
-        <View style={{ gap: 16, paddingHorizontal: 16, paddingTop: 22, paddingBottom: shownPhoto ? 52 : 20 }}>
-          {/* Заголовок пути только для читалки: на экране его место занимает приветствие. */}
-          <Text accessibilityRole="header" testID="journey-heading" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", color: "transparent" }}>
-            {title}
-          </Text>
-          {hero(shownPhoto !== null)}
+        {/* Низ шапки 52 всегда, с фото и без (веб: `.pt-journey-head[data-hero]` на узкой шапке): фото приходит позже индекса каталога,
+            и шапка не должна вырасти на 32 после первой отрисовки; под «©» и так нужно место. */}
+        <View testID="hero-content" style={{ gap: 16, paddingHorizontal: 16, paddingTop: 22, paddingBottom: HERO_BOTTOM }}>
+          {/* Приветствие первым, за ним заголовок пути (веб: h1 приветствия, затем скрытый h2). Заголовок лежит в левом нижнем
+              углу блока приветствия: и по порядку в разметке, и по месту на экране он идёт после приветствия, отсчёта и «страны». */}
+          <View>
+            {hero(shownPhoto !== null)}
+            <Text accessibilityRole="header" testID="journey-heading" style={{ position: "absolute", left: 0, bottom: 0, width: 1, height: 1, overflow: "hidden", color: "transparent" }}>
+              {title}
+            </Text>
+          </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
             {strip ? null : <FoldButton journey={journey} onHero />}
             <Pressable

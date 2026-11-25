@@ -19,6 +19,7 @@ import { nearestUniversityIntake } from "@web/lib/portal/universities";
 import { actionHref, actionTitle, linkTarget } from "@/domain/presentation";
 import type { StudentPortalNotification, StudentPortalOverview } from "@/domain/portal-source";
 import type { AccessTier } from "@/session/access";
+import type { ApplicationHead } from "@/domain/own-application";
 
 type Lang = "ru" | "ky";
 
@@ -200,8 +201,8 @@ export function caseRows(overview: StudentPortalOverview | null) {
   };
 }
 
-/** Своя анкета студента до договора (tier approved): статус и даты отметок «Ваша анкета». */
-export type HomeApplication = Readonly<{ status: "pending" | "approved" | "rejected"; submittedAt: string; decidedAt: string | null }>;
+/** Своя анкета студента до договора (tier approved): статус и даты отметок «Ваша анкета» (общая «голова» анкеты). */
+export type HomeApplication = ApplicationHead;
 
 export type ApplicationStep = Readonly<{ kind: "done" | "current"; text: string; date: string | null }>;
 

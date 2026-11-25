@@ -7,7 +7,9 @@ import { View } from "react-native";
 import { bishkekTime } from "@/features/inbox/format";
 import { useLang } from "@/i18n/LangProvider";
 import type { PortalStrings } from "@/i18n";
+import { RpcError } from "@/lib/rpc";
 import { sansFont } from "@/theme/fonts";
+import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
 export type ProgramDocumentStrings = PortalStrings<"programDocuments">;
@@ -78,5 +80,30 @@ export function SubmissionEvidence({ submission }: { submission: ApplicationDocu
       </Text>
       <ReviewLines review={submission.review} />
     </View>
+  );
+}
+
+/**
+ * Сервер ответил «нет доступа» (42501): такого уведомления у этого студента нет (чужое, несуществующее, не ответ куратора). Повтор
+ * этого не изменит, поэтому экран говорит «не найдено» без «Повторить» (веб: `notFound()`), а не «не удалось, повторите».
+ */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof RpcError && error.kind === "forbidden";
+}
+
+/** «Такой страницы здесь нет» (слова веба, как у экрана «страница не найдена»), без кнопки повтора. */
+export function DetailNotFound() {
+  const { m } = useLang();
+  return (
+    <Card>
+      <View accessibilityRole="alert" style={{ gap: 4 }} testID="detail-not-found">
+        <Text variant="body" bold accessibilityRole="header">
+          {m("app.notFound.title")}
+        </Text>
+        <Text variant="secondary" tone="text2">
+          {m("app.notFound.text")}
+        </Text>
+      </View>
+    </Card>
   );
 }

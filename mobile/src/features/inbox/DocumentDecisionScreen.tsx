@@ -8,7 +8,7 @@ import { View } from "react-native";
 import { isNotificationId } from "@/api/inbox-detail-api";
 import { useDocumentNotification } from "@/api/inbox-queries";
 import { DetailFrame } from "@/features/inbox/DetailFrame";
-import { SubmissionEvidence } from "@/features/inbox/DecisionParts";
+import { DetailNotFound, isNotFoundError, SubmissionEvidence } from "@/features/inbox/DecisionParts";
 import { go } from "@/features/portal/navigation";
 import { preparationHref } from "@/features/preparations/routes";
 import { useLang } from "@/i18n/LangProvider";
@@ -38,8 +38,10 @@ export function DocumentDecisionScreen({ notificationId }: { notificationId: str
             <LinkButton label={docs.openProgram} onPress={() => router.navigate(preparationHref(notification.applicationId))} testID="decision-open-program" />
           </View>
         </View>
-      ) : !isNotificationId(notificationId) || query.status === "error" ? (
-        <InlineAlert message={docs.readUnavailable} retryLabel={isNotificationId(notificationId) ? docs.refresh : undefined} onRetry={retry} testID="document-decision-error" />
+      ) : !isNotificationId(notificationId) || isNotFoundError(query.error) ? (
+        <DetailNotFound />
+      ) : query.status === "error" ? (
+        <InlineAlert message={docs.readUnavailable} retryLabel={docs.refresh} onRetry={retry} testID="document-decision-error" />
       ) : (
         <Text variant="secondary" tone="text2" accessibilityLiveRegion="polite">
           {m("state.loading")}

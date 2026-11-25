@@ -51,7 +51,7 @@ describe("«Прежние вопросы куратору и ответы» п�
   it("кыргызский язык: заголовок и подписи", async () => {
     const { transport } = fakeTransport({ ...base, case_help_workspace_v1: helpPageRow([OPEN]) });
     await renderPortal(<InboxScreen />, testApi(transport), "ky");
-    expect(await screen.findByText("Куратордон мурунку суроолор жана жооптор")).toBeTruthy();
+    expect(await screen.findByText("Кураторго мурунку суроолор жана жооптор")).toBeTruthy();
     expect(screen.getByTestId(`help-item-${OPEN.id}`)).toHaveTextContent("Жооп күтүлүүдө", { exact: false });
   });
 

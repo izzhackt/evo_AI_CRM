@@ -26,7 +26,7 @@ export const INBOX_KY: Readonly<Record<InboxStringKey, string>> = {
   "inbox.sendLabel": "Билдирүү жөнөтүү",
   "inbox.failedLabel": "Жөнөтүлгөн жок",
   "inbox.discard": "Өчүрүү",
-  "inbox.helpFootTitle": "Куратордон мурунку суроолор жана жооптор", // KY: needs native proofreading
+  "inbox.helpFootTitle": "Кураторго мурунку суроолор жана жооптор", // KY: needs native proofreading
   "inbox.helpFootFailedTitle": "Иш боюнча жардам", // KY: needs native proofreading
   "inbox.helpFootFailed": "Кайрылуулар азырынча жеткиликсиз. Кайра окуу үчүн экранды ылдый тартыңыз.", // KY: needs native proofreading
   "inbox.helpAwaiting": "Жооп күтүлүүдө", // KY: needs native proofreading

@@ -156,11 +156,26 @@ describe("Решение по комплекту (веб: /portal/package-notifi
     expect(await screen.findByTestId("package-detail")).toBeTruthy();
   });
 
-  it("уведомление не прочиталось: «Не удалось обновить данные» и «Обновить»", async () => {
-    const { transport } = fakeTransport({ application_package_notification_v1: failure("42501", 403) });
+  it("уведомление не прочиталось (обрыв, сервер): «Не удалось обновить данные» и «Обновить»; повтор читает снова", async () => {
+    let reads = 0;
+    const { transport } = fakeTransport({
+      application_package_notification_v1: () => (++reads === 1 ? failure(null, 503) : packageNotificationRow()),
+      application_package_detail_v1: packageDetailRow(),
+    });
     await render(transport);
     expect(await screen.findByTestId("package-decision-error")).toBeTruthy();
     expect(screen.getByText("Не удалось обновить данные. Попробуйте ещё раз.")).toBeTruthy();
+    await fireEvent.press(within(screen.getByTestId("package-decision-error")).getByText("Обновить"));
+    expect(await screen.findByTestId("package-detail")).toBeTruthy();
+  });
+
+  it("чужое или несуществующее уведомление (сервер: «нет доступа»): «Такой страницы здесь нет» без «Обновить»", async () => {
+    const { transport, calls } = fakeTransport({ application_package_notification_v1: failure("42501", 403) });
+    await render(transport);
+    expect(await screen.findByTestId("detail-not-found")).toHaveTextContent("Такой страницы здесь нет", { exact: false });
+    expect(screen.queryByTestId("package-decision-error")).toBeNull();
+    expect(screen.queryByText("Обновить")).toBeNull();
+    expect(calls).toHaveLength(1);
   });
 
   it("«Открыть программу» ведёт на экран требований программы; «Что нового» на ленту", async () => {
@@ -175,7 +190,7 @@ describe("Решение по комплекту (веб: /portal/package-notifi
   it("негодный идентификатор: на сервер не ходит", async () => {
     const { transport, calls } = fakeTransport({ application_package_notification_v1: packageNotificationRow() });
     await render(transport, "ru", "не-uuid");
-    expect(await screen.findByTestId("package-decision-error")).toBeTruthy();
+    expect(await screen.findByTestId("detail-not-found")).toBeTruthy();
     expect(calls).toHaveLength(0);
   });
 

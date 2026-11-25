@@ -1,7 +1,9 @@
 // «Что нового»: лента уведомлений в одном месте под одним названием (#1358). Строка ведёт на свой экран (ответ куратора,
 // решение по документу или по комплекту, документы, оплата, чат, «Главная») с подписью ссылки, как у веба (NotificationsView).
 // Прочитанным отмечает и нажатие на строку (приложение), и кнопка «Отметить прочитанным» у каждого непрочитанного (веб);
-// переход от записи не зависит: сбой записи показывается плашкой, но экран всё равно открывается (как в вебе).
+// переход от записи не зависит: экран всё равно открывается (как в вебе). Сбой записи стоит плашкой с «Повторить» ПОД самой
+// строкой (не вверху ленты: лента могла уйти вверх, а студент - на другой экран), хранится по уведомлению и читается вслух.
+// Сбой «Отметить все» - плашка вверху ленты, как в вебе (markAllReadError).
 import { useRouter } from "expo-router";
 import { ArrowLeft, Bell } from "lucide-react-native";
 import { useCallback, useState } from "react";
@@ -14,10 +16,12 @@ import { unreadNotifications } from "@/domain/inbox-model";
 import type { StudentPortalNotification } from "@/domain/portal-source";
 import { formatPortalDeadline, formatPortalTimestamp, notificationRoute, notificationTargetLabel, portalNotificationText } from "@/domain/presentation";
 import { useNotificationRead } from "@/features/inbox/useNotificationRead";
+import { useScreenVisible } from "@/features/inbox/visibility";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { TAB_BAR_CLEARANCE } from "@/shell/TabBar";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { EmptyBlock, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -32,7 +36,13 @@ export function UpdatesScreen() {
   const messages = t("messages");
   const admission = t("admission");
   const notifications = useNotifications();
-  const read = useNotificationRead();
+  const visible = useScreenVisible();
+  // iPhone сам не читает accessibilityRole="alert": сбой записи озвучивается, пока лента на виду.
+  const read = useNotificationRead({
+    onFailure: (scope) => {
+      if (visible) announce(scope === "all" ? admission.markAllReadError : admission.markReadError);
+    },
+  });
   const [refreshing, setRefreshing] = useState(false);
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -49,7 +59,7 @@ export function UpdatesScreen() {
 
   const open = (item: StudentPortalNotification) => {
     // Запись «прочитано» идёт сама; переход её не ждёт, а при сбое плашка остаётся на ленте (она в стеке под экраном).
-    if (item.readAt === null) void read.markRead([item]);
+    if (item.readAt === null) void read.markRead([item], "one");
     go(notificationRoute(item));
   };
 
@@ -95,9 +105,11 @@ export function UpdatesScreen() {
               <Text variant="caption" tone="text2">
                 {admission.notificationsTimeNote}
               </Text>
-              {read.failure ? <InlineAlert message={read.failure === "all" ? admission.markAllReadError : admission.markReadError} testID="updates-read-error" /> : null}
+              {read.allFailed && unread.length > 0 ? (
+                <InlineAlert message={admission.markAllReadError} retryLabel={m("gate.retry")} onRetry={() => void read.markRead(unread, "all")} testID="updates-read-error" />
+              ) : null}
               {unread.length > 0 ? (
-                <Button variant="ghost" label={read.busy ? admission.marking : admission.markAllRead} disabled={read.busy} onPress={() => void read.markRead(unread)} testID="updates-mark-all" />
+                <Button variant="ghost" label={read.busy ? admission.marking : admission.markAllRead} disabled={read.busy} onPress={() => void read.markRead(unread, "all")} testID="updates-mark-all" />
               ) : null}
             </View>
           }
@@ -141,6 +153,11 @@ export function UpdatesScreen() {
                     {targetLabel}
                   </Text>
                 </Pressable>
+                {isUnread && read.failedIds.has(item.notificationId) ? (
+                  <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+                    <InlineAlert message={admission.markReadError} retryLabel={m("gate.retry")} onRetry={() => void read.markRead([item], "one")} testID={`update-read-error-${item.notificationId}`} />
+                  </View>
+                ) : null}
                 {isUnread ? (
                   <View style={{ paddingHorizontal: 12, paddingBottom: 12, alignItems: "flex-start" }}>
                     <Button
@@ -148,7 +165,7 @@ export function UpdatesScreen() {
                       label={read.isPending(item.notificationId) ? admission.marking : admission.markRead}
                       accessibilityLabel={`${read.isPending(item.notificationId) ? admission.marking : admission.markRead}: ${text.title}`}
                       disabled={read.isPending(item.notificationId)}
-                      onPress={() => void read.markRead([item])}
+                      onPress={() => void read.markRead([item], "one")}
                       testID={`update-read-${item.notificationId}`}
                     />
                   </View>

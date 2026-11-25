@@ -1,8 +1,11 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { AccessibilityInfo } from "react-native";
 
 import { InboxScreen } from "@/features/inbox/InboxScreen";
+import { applyReadOutcome, resetReadFailuresForTests } from "@/features/inbox/read-failures";
 import { UpdatesScreen } from "@/features/inbox/UpdatesScreen";
+import { useScreenVisible } from "@/features/inbox/visibility";
 import { notificationReadRequestId } from "@/domain/inbox-model";
 import { MSG_A, chatMessage, chatPage } from "@/test-fixtures/inbox";
 import { helpPageRow } from "@/test-fixtures/program-decisions";
@@ -12,8 +15,19 @@ import { failure, fakeTransport } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }), usePathname: () => "/messages" }));
 const AUTH = "11111111-1111-4111-8111-111111111111";
+jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
 const navigate = router.navigate as jest.Mock;
-beforeEach(() => navigate.mockClear());
+const visible = useScreenVisible as jest.Mock;
+const announce = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+const READ_FAILED = "Не удалось подтвердить отметку о прочтении. Повторите попытку.";
+beforeEach(() => {
+  navigate.mockClear();
+  announce.mockClear();
+  visible.mockReturnValue(true);
+});
+// Сбои записи «прочитано» живут в общем хранилище (по студенту): между тестами его забываем.
+afterEach(() => resetReadFailuresForTests());
+const WRITE = "mark_own_student_portal_notification_read_v2";
 
 const CHAT_ROW = { ...NOTIFICATION_ROW, notification_id: "66666666-6666-4666-8666-666666666668", category: "case", event_code: "case_chat_message", subject_label: "текст по-русски", created_at: "2026-09-07T09:00:00+00:00" };
 const DOC_ROW = { ...NOTIFICATION_ROW, notification_id: "66666666-6666-4666-8666-66666666666a", category: "application.document.review", event_code: "application_document_review", subject_label: "Паспорт · Тестовый университет", detail: "Скан обрезан", created_at: "2026-09-07T06:00:00+00:00" };
@@ -80,14 +94,62 @@ describe("Что нового", () => {
     await waitFor(() => expect(calls.filter((c) => c.name === "mark_own_student_portal_notification_read_v2")).toHaveLength(1));
     expect(calls.find((c) => c.name === "mark_own_student_portal_notification_read_v2")!.args!.p_notification_id).toBe(NOTIFICATION_ID);
     expect(navigate).not.toHaveBeenCalled();
+    expect(announce).not.toHaveBeenCalled(); // удача читалке ничего не говорит: сбоев нет
   });
 
-  it("нажатие на строку не ждёт записи: переход идёт сразу, а сбой записи виден на ленте словами веба", async () => {
-    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW], mark_own_student_portal_notification_read_v2: failure("42501", 403) });
+  it("нажатие на строку не ждёт записи: переход идёт сразу, сбой записи стоит ПОД этой строкой словами веба, с «Повторить», и читается вслух", async () => {
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, CHAT_ROW], [WRITE]: failure("42501", 403) });
     await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(await screen.findByTestId(`update-${NOTIFICATION_ID}`));
     expect(navigate).toHaveBeenCalledWith("/documents");
-    expect(await screen.findByText("Не удалось подтвердить отметку о прочтении. Повторите попытку.")).toBeTruthy();
+    const plaque = await screen.findByTestId(`update-read-error-${NOTIFICATION_ID}`);
+    expect(plaque).toHaveTextContent(READ_FAILED, { exact: false });
+    // плашка внутри карточки нажатой строки, а не вверху ленты и не у соседней
+    expect(within(screen.getByTestId(`update-card-${NOTIFICATION_ID}`)).getByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeTruthy();
+    expect(screen.queryByTestId(`update-read-error-${CHAT_ROW.notification_id}`)).toBeNull();
+    expect(screen.queryByTestId("updates-read-error")).toBeNull();
+    expect(within(plaque).getByText("Повторить")).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith(READ_FAILED);
+  });
+
+  it("«Повторить» у строки шлёт ТОТ ЖЕ запрос (тот же id) и снимает плашку после удачи", async () => {
+    let writes = 0;
+    const { transport, calls } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW], [WRITE]: () => (++writes === 1 ? failure("42501", 403) : {}) }); // отказ не повторяется сам (в отличие от обрыва связи)
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId(`update-read-${NOTIFICATION_ID}`));
+    await fireEvent.press(await screen.findByText("Повторить"));
+    await waitFor(() => expect(screen.queryByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeNull());
+    const sent = calls.filter((c) => c.name === WRITE);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.args).toEqual(sent[0]!.args); // повтор не создаёт новый запрос
+  });
+
+  it("«Повторить» у строки не удалось снова: плашка остаётся под строкой, а верхней «для всех» нет (область «одна», не «все»)", async () => {
+    const { transport, calls } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, CHAT_ROW], [WRITE]: failure("42501", 403) });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId(`update-read-${NOTIFICATION_ID}`));
+    await fireEvent.press(await screen.findByText("Повторить"));
+    await waitFor(() => expect(calls.filter((c) => c.name === WRITE)).toHaveLength(2));
+    expect(await screen.findByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeTruthy();
+    expect(screen.queryByTestId("updates-read-error")).toBeNull();
+  });
+
+  it("прежний сбой не рисуется под строкой, которая уже прочитана (отмечена на сайте или на другом устройстве)", async () => {
+    applyReadOutcome(AUTH, { scope: "one", ok: false, succeeded: [], failed: [NOTIFICATION_ID, CHAT_ROW.notification_id] });
+    const readRow = { ...NOTIFICATION_ROW, read_at: "2026-09-07T10:00:00+00:00" };
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [readRow, CHAT_ROW] });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    expect(await screen.findByTestId(`update-read-error-${CHAT_ROW.notification_id}`)).toBeTruthy(); // непрочитанная - плашка есть
+    expect(screen.queryByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeNull(); // прочитанная - нет
+  });
+
+  it("лента ушла с экрана (другая вкладка): сбой не читается вслух поверх чужого экрана, но плашка ждёт под строкой", async () => {
+    visible.mockReturnValue(false);
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW], [WRITE]: failure("42501", 403) });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId(`update-${NOTIFICATION_ID}`));
+    expect(await screen.findByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeTruthy();
+    expect(announce).not.toHaveBeenCalled();
   });
 
   it("«Отметить все»: по записи на каждое непрочитанное", async () => {
@@ -99,15 +161,61 @@ describe("Что нового", () => {
     expect(new Set(ids)).toEqual(new Set([NOTIFICATION_ID, CHAT_ROW.notification_id]));
   });
 
-  it("кнопка у строки: сбой записи — «markReadError»; «Отметить все» — своё сообщение «markAllReadError»", async () => {
-    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, CHAT_ROW], mark_own_student_portal_notification_read_v2: failure("42501", 403) });
+  it("кнопка у строки: сбой стоит под строкой («markReadError»); «Отметить все» - своя плашка вверху («markAllReadError»); обе рядом", async () => {
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, CHAT_ROW], [WRITE]: failure("42501", 403) });
     await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(await screen.findByTestId(`update-read-${NOTIFICATION_ID}`));
-    expect(await screen.findByText("Не удалось подтвердить отметку о прочтении. Повторите попытку.")).toBeTruthy();
+    expect(await screen.findByTestId(`update-read-error-${NOTIFICATION_ID}`)).toHaveTextContent(READ_FAILED, { exact: false });
+    expect(screen.queryByTestId("updates-read-error")).toBeNull(); // вверху для одной строки ничего нет
     expect(navigate).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByTestId("updates-mark-all"));
-    expect(await screen.findByText(/Не удалось подтвердить отметку для всех уведомлений/)).toBeTruthy();
-    expect(screen.queryByText("Не удалось подтвердить отметку о прочтении. Повторите попытку.")).toBeNull();
+    expect(await screen.findByTestId("updates-read-error")).toHaveTextContent("Не удалось подтвердить отметку для всех уведомлений", { exact: false });
+    expect(screen.getByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeTruthy(); // сбой строки остаётся, пока строка не отмечена
+    expect(announce).toHaveBeenCalledWith(expect.stringContaining("для всех уведомлений"));
+  });
+
+  it("«Отметить все» при ровно одном непрочитанном: сбой словами «для всех» (веб), а не «о прочтении», и вверху, а не под строкой", async () => {
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, { ...CHAT_ROW, read_at: "2026-09-07T10:00:00+00:00" }], [WRITE]: failure("42501", 403) });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId("updates-mark-all"));
+    expect(await screen.findByTestId("updates-read-error")).toHaveTextContent("Не удалось подтвердить отметку для всех уведомлений", { exact: false });
+    expect(screen.queryByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeNull();
+    expect(screen.queryByText(READ_FAILED)).toBeNull();
+  });
+
+  it("плашка «Отметить все» с «Повторить»: повтор отмечает оставшиеся и снимает плашку", async () => {
+    let writes = 0;
+    const { transport, calls } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, CHAT_ROW], [WRITE]: () => (++writes === 1 ? failure("42501", 403) : {}) });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId("updates-mark-all"));
+    const plaque = await screen.findByTestId("updates-read-error");
+    await fireEvent.press(within(plaque).getByText("Повторить"));
+    await waitFor(() => expect(screen.queryByTestId("updates-read-error")).toBeNull());
+    expect(calls.filter((c) => c.name === WRITE).length).toBeGreaterThanOrEqual(3); // первая неудачная и по записи на каждое непрочитанное
+  });
+
+  it("плашка «Отметить все» уходит, когда непрочитанных не осталось (другая отметка дошла)", async () => {
+    const readIds = new Set<string>();
+    let chatWrites = true;
+    const rows = () => [NOTIFICATION_ROW, CHAT_ROW].map((row) => (readIds.has(row.notification_id) ? { ...row, read_at: "2026-09-07T10:00:00+00:00" } : row));
+    const { transport } = fakeTransport({
+      student_portal_notifications_v2: rows,
+      [WRITE]: (args?: Record<string, unknown>) => {
+        const id = String(args?.p_notification_id);
+        if (id === CHAT_ROW.notification_id && !chatWrites) return failure(null, 503);
+        readIds.add(id);
+        return {};
+      },
+    });
+    chatWrites = false; // «Отметить все»: первая запись проходит, вторая нет
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId("updates-mark-all"));
+    expect(await screen.findByTestId("updates-read-error")).toBeTruthy();
+    expect(readIds).toEqual(new Set([NOTIFICATION_ID]));
+    chatWrites = true; // связь вернулась: оставшееся отмечено кнопкой у строки
+    await fireEvent.press(await screen.findByTestId(`update-read-${CHAT_ROW.notification_id}`));
+    await waitFor(() => expect(screen.queryByTestId("updates-read-error")).toBeNull());
+    expect(screen.queryByTestId("updates-mark-all")).toBeNull(); // и кнопки «Отметить все» тоже нет: непрочитанного нет
   });
 
   it("лента не загрузилась: слова веба «updatesUnavailable» с повтором; повтор читает снова", async () => {

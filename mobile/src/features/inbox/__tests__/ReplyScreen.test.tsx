@@ -1,7 +1,10 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { AccessibilityInfo } from "react-native";
 
+import { applyReadOutcome, resetReadFailuresForTests } from "@/features/inbox/read-failures";
 import { ReplyScreen } from "@/features/inbox/ReplyScreen";
+import { useScreenVisible } from "@/features/inbox/visibility";
 import { notificationReadRequestId } from "@/domain/inbox-model";
 import { HELP_NOTIFICATION_ID, helpReplyRow } from "@/test-fixtures/program-decisions";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -9,12 +12,18 @@ import { failure, fakeTransport } from "@/test-fixtures/universities";
 
 const mockBack = jest.fn();
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useRouter: () => ({ back: mockBack, canGoBack: () => true, navigate: jest.fn() }), usePathname: () => "/messages/reply/x" }));
+jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
 const navigate = router.navigate as jest.Mock;
+const visible = useScreenVisible as jest.Mock;
+const announce = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 const AUTH = "11111111-1111-4111-8111-111111111111";
 beforeEach(() => {
   navigate.mockClear();
   mockBack.mockClear();
+  announce.mockClear();
+  visible.mockReturnValue(true);
 });
+afterEach(() => resetReadFailuresForTests());
 
 describe("Ответ куратора (веб: /portal/notifications/[id])", () => {
   it("тема, «Ваш вопрос», «Ответ EVO» с временем по Бишкеку; запрос по идентификатору уведомления", async () => {
@@ -28,6 +37,14 @@ describe("Ответ куратора (веб: /portal/notifications/[id])", () 
     expect(screen.getByTestId("reply-answer")).toHaveTextContent("Да, перевод нужен. Заверьте его у нотариуса и загрузите в «Документы».");
     expect(screen.getByText("19.11.2026, 13:15")).toBeTruthy(); // 07:15 UTC = 13:15 в Бишкеке
     expect(calls).toEqual([{ name: "student_portal_help_reply_v1", args: { p_notification_id: HELP_NOTIFICATION_ID }, get: true }]);
+  });
+
+  it("сбой записи ДРУГОГО уведомления плашки на этом экране не ставит", async () => {
+    applyReadOutcome(AUTH, { scope: "one", ok: false, succeeded: [], failed: ["66666666-6666-4666-8666-6666666666cc"] });
+    const { transport } = fakeTransport({ student_portal_help_reply_v1: helpReplyRow() });
+    await renderPortal(<ReplyScreen notificationId={HELP_NOTIFICATION_ID} />, testApi(transport, { userKey: AUTH }));
+    expect(await screen.findByTestId("reply-mark-read")).toBeTruthy();
+    expect(screen.queryByTestId("reply-read-error")).toBeNull();
   });
 
   it("непрочитанное: кнопка пишет детерминированный запрос «прочитано», затем кнопки нет и ответ перечитан", async () => {
@@ -57,12 +74,33 @@ describe("Ответ куратора (веб: /portal/notifications/[id])", () 
     expect(screen.queryByTestId("reply-mark-read")).toBeNull();
   });
 
-  it("сбой записи: слова веба «markReadError», кнопка остаётся, повтор возможен", async () => {
+  it("сбой записи: слова веба «markReadError» с «Повторить», читается вслух, кнопка остаётся; «Повторить» отмечает и убирает плашку", async () => {
+    let writes = 0;
+    const { transport, calls } = fakeTransport({
+      student_portal_help_reply_v1: helpReplyRow(),
+      mark_own_student_portal_notification_read_v2: () => (++writes === 1 ? failure("42501", 403) : {}),
+    });
+    await renderPortal(<ReplyScreen notificationId={HELP_NOTIFICATION_ID} />, testApi(transport, { userKey: AUTH }));
+    await fireEvent.press(await screen.findByTestId("reply-mark-read"));
+    const plaque = await screen.findByTestId("reply-read-error");
+    expect(plaque).toHaveTextContent("Не удалось подтвердить отметку о прочтении. Повторите попытку.", { exact: false });
+    expect(announce).toHaveBeenCalledWith("Не удалось подтвердить отметку о прочтении. Повторите попытку.");
+    expect(screen.getByTestId("reply-mark-read")).toBeTruthy();
+    await fireEvent.press(within(plaque).getByText("Повторить"));
+    await waitFor(() => expect(screen.queryByTestId("reply-read-error")).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId("reply-mark-read")).toBeNull());
+    const sent = calls.filter((c) => c.name === "mark_own_student_portal_notification_read_v2");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.args).toEqual(sent[0]!.args); // тот же запрос
+  });
+
+  it("экран не на виду: сбой записи не читается вслух", async () => {
+    visible.mockReturnValue(false);
     const { transport } = fakeTransport({ student_portal_help_reply_v1: helpReplyRow(), mark_own_student_portal_notification_read_v2: failure("42501", 403) });
     await renderPortal(<ReplyScreen notificationId={HELP_NOTIFICATION_ID} />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(await screen.findByTestId("reply-mark-read"));
-    expect(await screen.findByText("Не удалось подтвердить отметку о прочтении. Повторите попытку.")).toBeTruthy();
-    expect(screen.getByTestId("reply-mark-read")).toBeTruthy();
+    expect(await screen.findByTestId("reply-read-error")).toBeTruthy();
+    expect(announce).not.toHaveBeenCalled();
   });
 
   it("уже прочитано: кнопки нет", async () => {
@@ -91,11 +129,21 @@ describe("Ответ куратора (веб: /portal/notifications/[id])", () 
     expect(await screen.findByText("Какие документы нужны для визы")).toBeTruthy();
   });
 
-  it("негодный идентификатор в адресе: на сервер не ходит, плашка", async () => {
+  it("негодный идентификатор в адресе: на сервер не ходит, «Такой страницы здесь нет» без «Повторить»", async () => {
     const { transport, calls } = fakeTransport({ student_portal_help_reply_v1: helpReplyRow() });
     await renderPortal(<ReplyScreen notificationId="не-uuid" />, testApi(transport, { userKey: AUTH }));
-    expect(await screen.findByTestId("reply-error")).toBeTruthy();
+    expect(await screen.findByTestId("detail-not-found")).toHaveTextContent("Такой страницы здесь нет", { exact: false });
+    expect(screen.queryByText("Повторить")).toBeNull();
     expect(calls).toHaveLength(0);
+  });
+
+  it("чужое или несуществующее уведомление (сервер: «нет доступа»): «Такой страницы здесь нет», повторять нечего", async () => {
+    const { transport, calls } = fakeTransport({ student_portal_help_reply_v1: failure("42501", 403) });
+    await renderPortal(<ReplyScreen notificationId={HELP_NOTIFICATION_ID} />, testApi(transport, { userKey: AUTH }));
+    expect(await screen.findByTestId("detail-not-found")).toHaveTextContent("Такой страницы здесь нет", { exact: false });
+    expect(screen.queryByText("Повторить")).toBeNull();
+    expect(screen.queryByTestId("reply-error")).toBeNull();
+    expect(calls).toHaveLength(1); // один запрос, повторов нет
   });
 
   it("кыргызский язык: заголовок и подписи из общего словаря", async () => {

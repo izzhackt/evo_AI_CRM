@@ -60,11 +60,20 @@ describe("Решение по документу программы (веб: /po
 
   it("сбой чтения: слова веба «readUnavailable» и кнопка «Обновить документы»; повтор читает снова", async () => {
     let reads = 0;
-    const { transport } = fakeTransport({ student_application_document_notification_v1: () => (++reads === 1 ? failure("42501", 403) : documentNotificationRow()) });
+    const { transport } = fakeTransport({ student_application_document_notification_v1: () => (++reads === 1 ? failure(null, 503) : documentNotificationRow()) });
     await render(transport);
     expect(await screen.findByText("Не удалось открыть документ. Обновите страницу или вернитесь к уведомлениям.")).toBeTruthy();
     await fireEvent.press(screen.getByText("Обновить документы"));
     expect(await screen.findByText("passport.pdf")).toBeTruthy();
+  });
+
+  it("чужое или несуществующее уведомление (сервер: «нет доступа»): «Такой страницы здесь нет» без кнопки повтора", async () => {
+    const { transport, calls } = fakeTransport({ student_application_document_notification_v1: failure("42501", 403) });
+    await render(transport);
+    expect(await screen.findByTestId("detail-not-found")).toHaveTextContent("Такой страницы здесь нет", { exact: false });
+    expect(screen.queryByText("Обновить документы")).toBeNull();
+    expect(screen.queryByTestId("document-decision-error")).toBeNull();
+    expect(calls).toHaveLength(1);
   });
 
   it("чужое дело в ответе: показывается как недоступное, а не содержимое", async () => {
@@ -77,7 +86,7 @@ describe("Решение по документу программы (веб: /po
   it("негодный идентификатор: на сервер не ходит", async () => {
     const { transport, calls } = fakeTransport({ student_application_document_notification_v1: documentNotificationRow() });
     await render(transport, "ru", "не-uuid");
-    expect(await screen.findByTestId("document-decision-error")).toBeTruthy();
+    expect(await screen.findByTestId("detail-not-found")).toBeTruthy();
     expect(calls).toHaveLength(0);
   });
 

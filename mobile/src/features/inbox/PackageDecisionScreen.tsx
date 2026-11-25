@@ -18,7 +18,7 @@ import { usePackageDetail, usePackageNotification } from "@/api/inbox-queries";
 import { usePortalApi } from "@/api/PortalApi";
 import { allDayDate } from "@/domain/presentation";
 import { DetailFrame } from "@/features/inbox/DetailFrame";
-import { FileEvidence, reviewWord, type ProgramDocumentStrings } from "@/features/inbox/DecisionParts";
+import { DetailNotFound, FileEvidence, isNotFoundError, reviewWord, type ProgramDocumentStrings } from "@/features/inbox/DecisionParts";
 import { bishkekTime } from "@/features/inbox/format";
 import { go } from "@/features/portal/navigation";
 import { preparationHref } from "@/features/preparations/routes";
@@ -336,8 +336,8 @@ export function PackageDecisionScreen({ notificationId }: { notificationId: stri
             <Button variant="ghost" label={strings.refresh} onPress={refresh} testID="package-refresh" />
           </View>
         </View>
-      ) : !valid ? (
-        <InlineAlert message={strings.unavailable} testID="package-decision-error" />
+      ) : !valid || isNotFoundError(query.error) ? (
+        <DetailNotFound />
       ) : query.status === "error" ? (
         <InlineAlert message={strings.unavailable} retryLabel={strings.refresh} onRetry={() => void query.refetch()} testID="package-decision-error" />
       ) : (

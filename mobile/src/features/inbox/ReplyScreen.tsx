@@ -7,11 +7,14 @@ import { isNotificationId } from "@/api/inbox-detail-api";
 import { useHelpReply } from "@/api/inbox-queries";
 import { loadErrorKey } from "@/api/queries";
 import { formatPortalTimestamp } from "@/domain/presentation";
+import { DetailNotFound, isNotFoundError } from "@/features/inbox/DecisionParts";
 import { DetailFrame } from "@/features/inbox/DetailFrame";
 import { useNotificationRead } from "@/features/inbox/useNotificationRead";
+import { useScreenVisible } from "@/features/inbox/visibility";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { InlineAlert, LinkButton } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
@@ -23,13 +26,18 @@ export function ReplyScreen({ notificationId }: { notificationId: string }) {
   const admission = t("admission");
   const valid = isNotificationId(notificationId);
   const query = useHelpReply(notificationId);
-  const read = useNotificationRead();
+  const visible = useScreenVisible();
+  const read = useNotificationRead({
+    onFailure: () => {
+      if (visible) announce(admission.markReadError);
+    },
+  });
   const [marked, setMarked] = useState(false);
   const reply = query.data;
   const unread = reply !== undefined && reply.readAt === null && !marked;
 
   const markRead = async () => {
-    if (await read.markRead([{ notificationId }])) {
+    if (await read.markRead([{ notificationId }], "one")) {
       setMarked(true);
       void query.refetch();
     }
@@ -68,13 +76,13 @@ export function ReplyScreen({ notificationId }: { notificationId: string }) {
           </View>
           {unread ? (
             <View style={{ gap: 8, alignItems: "flex-start" }}>
-              {read.failure ? <InlineAlert message={admission.markReadError} testID="reply-read-error" /> : null}
+              {read.failedIds.has(notificationId) ? <InlineAlert message={admission.markReadError} retryLabel={m("gate.retry")} onRetry={() => void markRead()} testID="reply-read-error" /> : null}
               <Button variant="ghost" label={read.busy ? admission.marking : admission.markRead} disabled={read.busy} onPress={() => void markRead()} testID="reply-mark-read" />
             </View>
           ) : null}
         </Card>
-      ) : !valid ? (
-        <InlineAlert message={m("error.load")} testID="reply-error" />
+      ) : !valid || isNotFoundError(query.error) ? (
+        <DetailNotFound />
       ) : query.status === "error" ? (
         <InlineAlert message={m(loadErrorKey(query.error))} retryLabel={m("gate.retry")} onRetry={() => void query.refetch()} testID="reply-error" />
       ) : (

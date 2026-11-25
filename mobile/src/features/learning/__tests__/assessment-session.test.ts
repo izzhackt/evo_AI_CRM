@@ -643,6 +643,7 @@ describe("«Выйти без сохранения» - настоящий отк
     for (let k = 0; k < 3; k += 1) await hang.fail();
     await completing;
     expect(hang.calls).toHaveLength(3); // ни одного запроса завершения
+    expect(hang.timers.size).toBe(0); // и повтора по таймеру после отказа тоже нет
     expect(mid.getState().phase).toBe("running"); // экран не застрял на «сохраняем»
     mid.dispose();
   });

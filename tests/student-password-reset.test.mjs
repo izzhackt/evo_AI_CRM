@@ -100,14 +100,14 @@ test("Auth refuses: the permission is closed and nothing is shown", async () => 
   assert.deepEqual(run.calls[2][2], { p_reset_id: RESET });
 });
 
-test("the journal: a lost answer is asked again; no confirmed row shows no password and closes the permission", async () => {
+test("the journal: a lost answer is asked again; no confirmed row shows no password, closes the permission and warns the old one may be dead", async () => {
   let asked = 0;
   const recovered = reset({ complete: () => (++asked === 1 ? { data: null, error: { code: "" } } : { data: { reset_id: RESET, state: "completed" }, error: null }) });
   assert.equal((await recovered.run()).status, "reset");
   assert.deepEqual(steps(recovered.calls),
     ["authorize_student_password_reset_v1", "updateUserById", "complete_student_password_reset_v1", "complete_student_password_reset_v1"]);
   for (const [complete, status] of [[{ data: null, error: { code: "" } }, "unavailable"], [{ data: null, error: { code: "55000" } }, "unavailable"],
-    [{ data: null, error: { code: "42501" } }, "forbidden"], [{ data: null, error: { code: "PT409", message: "student_case_no_cabinet" } }, "no_cabinet"],
+    [{ data: null, error: { code: "42501" } }, "unavailable"], [{ data: null, error: { code: "PT409", message: "student_case_no_cabinet" } }, "unavailable"],
     [{ data: { state: "authorized" }, error: null }, "unavailable"]]) {
     const run = reset({ complete });
     assert.deepEqual(await run.run(), { status }, JSON.stringify(complete));

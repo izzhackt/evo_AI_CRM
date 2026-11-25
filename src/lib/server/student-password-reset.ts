@@ -82,5 +82,7 @@ export async function resetStudentPassword(
   if (completed.error && !completed.error.code) completed = await complete();
   if (!completed.error && record(completed.data)?.state === "completed") return { status: "reset", password };
   await fail();
-  return { status: refusal(completed.error) ?? "unavailable" };
+  // Auth already holds the new password, so whatever the database refused (a curator taken off the case meanwhile, 374;
+  // the student unbound), the old one may be dead: the screen says so and offers a new reset (review 25.11).
+  return { status: "unavailable" };
 }

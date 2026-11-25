@@ -121,8 +121,9 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // rename-and-union wrapper (`..._pre_student_payment_proof`). Its object is the existing `payment_receipt_file` type, so no resource type
 // is added; the row keeps ids and the file name, never the file. Like every `finance.*` action it maps to `["finance_status"]`
 // in `expectedChangedFieldCodes` (the `finance.` branch), exactly like the server's `finance.%` branch of `p7a_changed_field_codes` (071).
-// Migration 344 («Сброс пароля студента администратором») adds one action, `student.password.reset` (written by
-// `platform.complete_student_password_reset_v1`: one row per temporary password an administrator gives a student), by the
+// Migration 344 («Сброс пароля студента администратором»; since 374 also by the case's curator) adds one action,
+// `student.password.reset` (written by `platform.complete_student_password_reset_v1`: one row per temporary password a staff
+// member gives a student), by the
 // same rename-and-union wrapper (`..._pre_student_password_resets`). Its object is the existing `student_case` type; the
 // row keeps only the student's Auth user, never the password. It falls through to the `["record_status"]` default of
 // `expectedChangedFieldCodes`.

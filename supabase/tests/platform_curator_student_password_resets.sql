@@ -4,14 +4,17 @@
 --
 -- Proves:
 --  1. the assigned curator of a case gets a reset permission for the student bound to it; a curator who only reads the
---     case, another curator, a seller, anon and the service get none and nothing is stored; the curator's own case
---     without a cabinet is refused as before; the System Admin keeps the 344 permission;
+--     case, another curator, a curator of the case without full access to it, a seller, anon and the service get none
+--     and nothing is stored; the curator's own case without a cabinet is refused as before; the System Admin keeps the
+--     344 permission;
 --  2. the server completes the curator's and the Admin's resets: one journal row each in their names, «сотрудником»;
 --     a replay writes nothing;
 --  3. a curator reassigned, or with another access version, between permission and completion is refused and nothing
 --     is written; the reassigned curator's replay is refused; the new curator gets the permission;
 --  4. the card still reads the cabinet and the login for the curator of the case only (363 is unchanged);
---  5. catalog: SECURITY DEFINER with an empty search_path, the new helpers closed to every API role, 344 grants unchanged.
+--  5. an Admin who stops being one between permission and completion is refused and nothing is written;
+--  6. catalog: the patched bodies use the new rule and the new journal reason, SECURITY DEFINER with an empty search_path,
+--     the new helpers closed to every API role, 344 grants unchanged.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -89,13 +92,14 @@ GRANT EXECUTE ON FUNCTION pg_temp.a374_id(INTEGER) TO authenticated, anon, servi
 
 -- Fixture, members modelled like production (as in the 363 suite): 101 the System Admin (coarse admin, organization
 -- scope); 102 and 103 curators without a coarse role, with the production «Admissions» role on their own cases; 102 also
--- reads the whole admissions department («Case reader»); 104 a seller. 111..113 the Auth users of three students.
--- Cases: 401 curated by 102; 402 curated by 103 (102 reads it); 403 curated by 102, reassigned to 103 in section 3 —
--- each gets its cabinet through 343 from the Admin; 404 curated by 102 without a cabinet. All four are active.
+-- reads the whole admissions department («Case reader»); 104 a seller. 111..114 the Auth users of four students.
+-- Cases: 401 curated by 102; 402 curated by 103 (102 reads it); 403 curated by 102, reassigned to 103 in section 3;
+-- 405 curated by the seller 104, who has no full access to cases — each gets its cabinet through 343 from the Admin;
+-- 404 curated by 102 without a cabinet. All five are active.
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.a374_id(1), 'A374 Fictional organization');
 INSERT INTO auth.users(id, email, raw_user_meta_data)
   SELECT pg_temp.a374_id(100 + n), 'a374-' || (100 + n) || '@example.invalid', '{}'::JSONB
-  FROM unnest(ARRAY[1, 2, 3, 4, 11, 12, 13]) AS n;
+  FROM unnest(ARRAY[1, 2, 3, 4, 11, 12, 13, 14]) AS n;
 INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_version)
   SELECT pg_temp.a374_id(200 + n), pg_temp.a374_id(100 + n), 'A374 Person ' || n, 'active', 1 FROM unnest(ARRAY[1, 2, 3, 4]) AS n;
 INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id, is_system_admin)
@@ -109,7 +113,7 @@ INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, s
   VALUES (pg_temp.a374_id(501), pg_temp.a374_id(1), 'organization', pg_temp.a374_id(1), 1);
 INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version)
   SELECT pg_temp.a374_id(1000 + n), pg_temp.a374_id(1), 'student_case', pg_temp.a374_id(n), 1
-  FROM unnest(ARRAY[401, 402, 403, 404]) AS n;
+  FROM unnest(ARRAY[401, 402, 403, 404, 405]) AS n;
 INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
   assignment_version, granted, actor_kind, reason, request_id)
   VALUES (pg_temp.a374_id(1), pg_temp.a374_id(301), pg_temp.a374_id(501), 1, 1, TRUE, 'system',
@@ -130,7 +134,7 @@ INSERT INTO platform.student_cases(id, organization_id, student_membership_id, r
 SELECT pg_temp.a374_id(c.n), pg_temp.a374_id(1), NULL, pg_temp.a374_id(304), pg_temp.a374_id(c.curator),
   'synthetic:a374:' || c.n, 'A374 Student ' || c.n, 'Malaysia', 'Bachelor', 'Engineering', 'active',
   statement_timestamp(), pg_temp.a374_id(1000 + c.n), 1
-FROM (VALUES (401, 302), (402, 303), (403, 302), (404, 302)) AS c(n, curator);
+FROM (VALUES (401, 302), (402, 303), (403, 302), (404, 302), (405, 304)) AS c(n, curator);
 SET LOCAL session_replication_role = origin;
 
 -- Roles with the production permission keys of the curator (the same lists as the 363 suite).
@@ -187,7 +191,7 @@ SELECT pg_temp.a374_assert(platform_private.staff_can_access(pg_temp.a374_id(1),
     'student_case', pg_temp.a374_id(401)),
   'fixture: curator 102 reads his case 401 and case 402 he does not curate; curator 103 does not read 401');
 
--- Cases 401..403 get their cabinets through 343 from the Admin, one statement each.
+-- Cases 401..403 and 405 get their cabinets through 343 from the Admin, one statement each.
 SELECT pg_temp.a374_call(101, format('platform.authorize_student_case_account_v1(%L::UUID, %L::UUID, %L::UUID)',
   pg_temp.a374_id(1), pg_temp.a374_id(801), pg_temp.a374_id(401))) #>> '{ok,provisioning_id}' AS a374_open_401 \gset
 SELECT pg_temp.a374_as('service_role', format('platform.complete_student_case_account_v1(%L::UUID, %L::UUID, %L)',
@@ -200,12 +204,19 @@ SELECT pg_temp.a374_call(101, format('platform.authorize_student_case_account_v1
   pg_temp.a374_id(1), pg_temp.a374_id(803), pg_temp.a374_id(403))) #>> '{ok,provisioning_id}' AS a374_open_403 \gset
 SELECT pg_temp.a374_as('service_role', format('platform.complete_student_case_account_v1(%L::UUID, %L::UUID, %L)',
   :'a374_open_403', pg_temp.a374_id(113), 'aliya.sydykova')) AS a374_cabinet_403 \gset
+SELECT pg_temp.a374_call(101, format('platform.authorize_student_case_account_v1(%L::UUID, %L::UUID, %L::UUID)',
+  pg_temp.a374_id(1), pg_temp.a374_id(804), pg_temp.a374_id(405))) #>> '{ok,provisioning_id}' AS a374_open_405 \gset
+SELECT pg_temp.a374_as('service_role', format('platform.complete_student_case_account_v1(%L::UUID, %L::UUID, %L)',
+  :'a374_open_405', pg_temp.a374_id(114), 'bermet.alieva')) AS a374_cabinet_405 \gset
 SELECT pg_temp.a374_assert(:'a374_cabinet_401'::JSONB #>> '{ok,login}' = 'nurai.asanova'
     AND :'a374_cabinet_402'::JSONB #>> '{ok,login}' = 'temir.bekov'
     AND :'a374_cabinet_403'::JSONB #>> '{ok,login}' = 'aliya.sydykova'
-    AND (SELECT count(*) = 3 FROM platform.student_cases c
-      WHERE c.organization_id = pg_temp.a374_id(1) AND c.student_membership_id IS NOT NULL AND c.portal_activated_at IS NOT NULL),
-  'fixture: cases 401..403 have their cabinets, 404 has none');
+    AND :'a374_cabinet_405'::JSONB #>> '{ok,login}' = 'bermet.alieva'
+    AND (SELECT count(*) = 4 FROM platform.student_cases c
+      WHERE c.organization_id = pg_temp.a374_id(1) AND c.student_membership_id IS NOT NULL AND c.portal_activated_at IS NOT NULL)
+    AND NOT platform_private.staff_can_access(pg_temp.a374_id(1), pg_temp.a374_id(304), 'case.read.full',
+      'student_case', pg_temp.a374_id(405)),
+  'fixture: cases 401..403 and 405 have their cabinets, 404 has none; the seller curating 405 has no full access to it');
 
 -- ---------------------------------------------------------------------------
 -- 1. Permission.
@@ -221,14 +232,15 @@ SELECT pg_temp.a374_assert(:'a374_first'::JSONB #>> '{ok,state}' = 'authorized'
       FROM platform_private.student_password_resets r WHERE r.organization_id = pg_temp.a374_id(1)),
   'the curator of case 401 gets one reset permission for its student: ' || :'a374_first');
 SELECT pg_temp.a374_assert(pg_temp.a374_reset(102, 951, 401) #>> '{ok,reset_id}' = :'a374_first'::JSONB #>> '{ok,reset_id}'
-    AND pg_temp.a374_reset(103, 951, 401) ->> 'error' IN ('42501', '23505'),
-  'a replay returns the same permission; another curator cannot take the request');
+    AND pg_temp.a374_reset(103, 951, 401) ->> 'error' = '42501',
+  'a replay returns the same permission; another curator cannot take the request (the rule refuses before the replay)');
 SELECT pg_temp.a374_assert(pg_temp.a374_reset(102, 952, 402) ->> 'error' = '42501'
     AND pg_temp.a374_reset(103, 952, 401) ->> 'error' = '42501'
     AND pg_temp.a374_reset(104, 952, 401) ->> 'error' = '42501'
+    AND pg_temp.a374_reset(104, 952, 405) ->> 'error' = '42501'
     AND pg_temp.a374_as('anon', pg_temp.a374_authorize_sql(952, 401)) ->> 'error' = '42501'
     AND pg_temp.a374_as('service_role', pg_temp.a374_authorize_sql(952, 401)) ->> 'error' = '42501',
-  'a case the curator only reads, another curator, a seller, anon and the service get no permission');
+  'a case the curator only reads, another curator, a seller, the seller curating 405 without full access, anon and the service get no permission');
 SELECT pg_temp.a374_assert(NOT EXISTS (SELECT 1 FROM platform_private.student_password_resets r
     WHERE r.request_id = pg_temp.a374_id(952)),
   'a refused request stores nothing');
@@ -298,8 +310,28 @@ SELECT pg_temp.a374_assert(pg_temp.a374_cabinet(102, 401) #>> '{ok,state}' = 'op
   'the card shows the cabinet and the login to the curator of the case and the Admin only');
 
 -- ---------------------------------------------------------------------------
--- 5. Catalog.
+-- 5. An Admin who stops being one between permission and completion.
 -- ---------------------------------------------------------------------------
+SELECT pg_temp.a374_reset(101, 971, 401) AS a374_demoted \gset
+SELECT pg_temp.a374_assert(:'a374_demoted'::JSONB #>> '{ok,state}' = 'authorized', 'fixture: an Admin permission for case 401');
+SET LOCAL session_replication_role = replica;
+UPDATE platform.organization_memberships SET is_system_admin = FALSE WHERE id = pg_temp.a374_id(301);
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a374_complete(:'a374_demoted'::JSONB #>> '{ok,reset_id}') AS a374_demoted_done \gset
+SELECT pg_temp.a374_assert(:'a374_demoted_done'::JSONB ->> 'error' = '42501'
+    AND NOT EXISTS (SELECT 1 FROM platform.audit_events e WHERE e.request_id = pg_temp.a374_id(971)),
+  'an Admin who is no longer one (and does not curate the case) is refused at completion: ' || :'a374_demoted_done');
+
+-- ---------------------------------------------------------------------------
+-- 6. Catalog.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a374_assert(
+    position('require_student_password_reset_actor' IN pg_get_functiondef('platform.authorize_student_password_reset_v1(uuid,uuid,uuid)'::regprocedure)) > 0
+    AND position('require_admin_actor' IN pg_get_functiondef('platform.authorize_student_password_reset_v1(uuid,uuid,uuid)'::regprocedure)) = 0
+    AND position('student_password_reset_allowed' IN pg_get_functiondef('platform.complete_student_password_reset_v1(uuid)'::regprocedure)) > 0
+    AND position('Пароль студента сброшен сотрудником' IN pg_get_functiondef('platform.complete_student_password_reset_v1(uuid)'::regprocedure)) > 0
+    AND position('администратором' IN pg_get_functiondef('platform.complete_student_password_reset_v1(uuid)'::regprocedure)) = 0,
+  'the patched bodies use the new rule and the new journal reason, and no admin-only check is left');
 SELECT pg_temp.a374_assert((SELECT count(*) = 4 AND bool_and(p.prosecdef AND p.proconfig = ARRAY['search_path=""'])
     FROM pg_proc p WHERE p.oid IN ('platform_private.student_password_reset_allowed(uuid,uuid,uuid)'::regprocedure,
       'platform_private.require_student_password_reset_actor(uuid,uuid)'::regprocedure,

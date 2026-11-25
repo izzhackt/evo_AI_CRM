@@ -6218,9 +6218,10 @@ SQL
   fi
   # «Пароль студента сбрасывает и его куратор» (migration 374, решение владельца 25.11.2026). Matched by name, not number.
   # The migration patches two 344 bodies by checked fragments: right after it a second apply refuses
-  # (a374_already_applied), then the suite, insisting on its marker. The suite proves: the assigned curator resets the
-  # password of the student of the own case only, the Admin keeps it, a reassigned curator or a changed access version is
-  # refused at completion, the journal names who reset it, the card is unchanged, the helpers are closed.
+  # (a374_already_applied), then the suite, insisting on its marker. The suite proves: the assigned curator with full
+  # access resets the password of the student of the own case only, the Admin keeps it, a reassigned curator, a changed
+  # access version or a demoted Admin is refused at completion, the journal names who reset it, the card is unchanged,
+  # the patched bodies keep no admin-only check, the helpers are closed.
   if [[ "$(basename "$migration")" == *_platform_curator_student_password_resets.sql ]]; then
     t374_again_log="$(mktemp -t evo-t374-again.XXXXXX)"
     if docker exec "$container_name" \

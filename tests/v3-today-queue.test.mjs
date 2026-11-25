@@ -294,6 +294,10 @@ test("no invented numbers: a band counts only when every read writing into it is
   const chatRow = bandOf(withChats, "waiting").items.find((item) => item.source === "chats");
   assert.equal(chatRow.reason, "Переписка");
   assert.equal(chatRow.who, null);
+  assert.equal(chatRow.title, "Студент 1");
+  // Имя ссылки строки называет и причину: «Открыть: Студент 1 — Переписка» (куда ведёт, без «кто»).
+  assert.match(readFileSync(new URL("../src/components/staff/today/TodayRow.tsx", import.meta.url), "utf8"),
+    /aria-label=\{`Открыть: \$\{item\.title\} — \$\{item\.who\?\.name \?\? item\.reason\}`\}/u);
   assert.notEqual(chatRow.title, "Ответить в переписке");
   assert.equal(bandOf(withChats, "overdue").count, 1, "other bands keep their numbers");
   assert.equal(withChats.complete, true, "rows are all read: «На сегодня всё» is not blocked by the missing number");

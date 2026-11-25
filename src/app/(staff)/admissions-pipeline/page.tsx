@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { AdmissionsPipelineNextLazy } from "@/components/staff/admissions-pipeline-next/AdmissionsPipelineNextLazy";
 import { AddStudentDrawer } from "@/components/staff/admissions/AddStudentDrawer";
 import { BoardReset, BoardSearch } from "@/components/staff/board/Board";
-import { BoardFilters, NavigateSelect } from "@/components/staff/board/BoardToolbar";
+import { FilterPanel } from "@/components/staff/list-next/LinkFilters";
+import type { LinkFilterMenu } from "@/components/staff/list-next/link-filters-model";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
@@ -107,21 +108,33 @@ export default async function AdmissionsPipelinePart({
     />
   ) : null;
 
-  const countryOptions = [
-    { value: "", label: "Все страны", href: boardHref({ ...query, country: null }) },
+  // 25.11.2026: «Направление» и «Куратор» — в панели «Фильтры», как на «Студентах» и в «Воронке продаж», вместо двух
+  // выпадающих списков в строке; поле называется одним словом с «Студентами». Адреса прежние (`country`, `curator`): фильтр
+  // по стране набора дела (`target_country`), список стран — тот же.
+  const countryChoices = [
+    { key: "all", label: "Все направления", href: boardHref({ ...query, country: null }), selected: query.country === null },
     ...PLATFORM_APPLICATION_COUNTRIES.map((code) => ({
-      value: code,
+      key: code,
       label: countryLabel(code) ?? code,
       href: boardHref({ ...query, country: code }),
+      selected: query.country === code,
     })),
   ];
-  const curatorSelectOptions = [
-    { value: "", label: "Все кураторы", href: boardHref({ ...query, curator: null }) },
+  const curatorChoices = [
+    { key: "all", label: "Все кураторы", href: boardHref({ ...query, curator: null }), selected: query.curator === null },
     ...curatorOptions.map((option) => ({
-      value: option.membershipId,
+      key: option.membershipId,
       label: option.displayName,
       href: boardHref({ ...query, curator: option.membershipId }),
+      selected: query.curator === option.membershipId,
     })),
+    ...(query.curator !== null && !curatorOptions.some((option) => option.membershipId === query.curator)
+      ? [{ key: query.curator, label: "Выбранный куратор", href: boardHref(query), selected: true }]
+      : []),
+  ];
+  const filterMenus: readonly LinkFilterMenu[] = [
+    { key: "country", label: "Направление", valueLabel: null, options: countryChoices },
+    ...(curatorOptions.length > 0 || query.curator !== null ? [{ key: "curator", label: "Куратор", valueLabel: null, options: curatorChoices }] : []),
   ];
 
   const search = (
@@ -140,26 +153,10 @@ export default async function AdmissionsPipelinePart({
       }
     />
   );
-  const filters = (
-    <BoardFilters activeCount={Number(query.country !== null) + Number(query.curator !== null)}>
-      <NavigateSelect key={`country:${query.country ?? ""}`} label="Страна" value={query.country ?? ""} options={countryOptions} />
-      {curatorOptions.length > 0 ? (
-        <NavigateSelect
-          key={`curator:${query.curator ?? ""}`}
-          label="Куратор"
-          value={query.curator ?? ""}
-          options={
-            query.curator !== null && !curatorOptions.some((option) => option.membershipId === query.curator)
-              ? [...curatorSelectOptions, { value: query.curator, label: "Выбранный куратор", href: boardHref(query) }]
-              : curatorSelectOptions
-          }
-        />
-      ) : null}
-    </BoardFilters>
-  );
-  const reset = filtersActive ? (
-    <BoardReset href={boardHref({ tab: query.tab, q: null, country: null, curator: null })} />
-  ) : null;
+  const resetHref = boardHref({ tab: query.tab, q: null, country: null, curator: null });
+  const filters = <FilterPanel menus={filterMenus} resetHref={filtersActive ? resetHref : null} />;
+  // Поиск без фильтров «Сбросить» в панели не показывает (там его нет): строка оставляет свою ссылку только для поиска.
+  const reset = query.q !== null && query.country === null && query.curator === null ? <BoardReset href={resetHref} /> : null;
 
   // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — вкладки разделов, колонки-карточки с
   // перетаскиванием (`@dnd-kit/core`) и те же части строки инструментов.

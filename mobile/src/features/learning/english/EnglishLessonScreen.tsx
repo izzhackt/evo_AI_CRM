@@ -23,6 +23,7 @@ import { useEnglishLesson } from "@/features/learning/queries-english";
 import { SubHeader, useBack } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
+import { useAbandonOnSignOut } from "@/session/sign-out-signal";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
@@ -205,8 +206,8 @@ function LessonBody({ view, lessonId, onScrollTop }: { view: LearningLessonView;
   const client = useQueryClient();
   const [session] = useState(() => new EnglishSession(transport, lessonId, view.lesson.exercises, view.draft, view.latestCompleted));
   const state = useSyncExternalStore(session.subscribe, session.getState);
-  // Выход из урока ничем не заперт; закрытие экрана досылает один раз то, что отправлено без подтверждения (см. `dispose`).
-  useEffect(() => () => session.dispose(), [session]);
+  // Выход из аккаунта: токен отозван, закрытие экрана ничего не досылает.
+  useAbandonOnSignOut(session);
   // `busy` у общей кнопки прячет подпись, а у веба «Сохраняем…» читается в строке состояния: называем сохранение читалке сами.
   useEffect(() => {
     if (state.busy) announce(e.saving);
@@ -216,6 +217,9 @@ function LessonBody({ view, lessonId, onScrollTop }: { view: LearningLessonView;
   const refresh = useCallback(() => {
     for (const name of ["english-modules", "english-review"]) void client.invalidateQueries({ queryKey: ["portal", userKey, name] });
   }, [client, userKey]);
+  // Выход из урока ничем не заперт; закрытие экрана досылает один раз то, что отправлено без подтверждения (см. `dispose`), и когда
+  // сервер это подтвердил, список уроков перечитывается (завершение досланное в фоне иначе не попало бы в плитки).
+  useEffect(() => () => session.dispose(refresh), [session, refresh]);
   const start = useCallback(async () => {
     if (await session.begin()) {
       setPhase("exercises");

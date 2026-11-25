@@ -45,6 +45,8 @@ export class EnglishSession {
   private pending: { exerciseId: string; key: string; write: FrozenWrite | null } | null = null;
   private completeWrite: FrozenWrite | null = null;
   private busy = false;
+  /** Студент вышел из аккаунта: ни одного запроса с отозванным токеном, ни по кнопке, ни при закрытии экрана (`abandon`). */
+  private abandoned = false;
   /** Запросы, уже повторённые при закрытии экрана: второй вызов `dispose` (двойная очистка эффекта) их не шлёт ещё раз. */
   private readonly resent = new WeakSet<FrozenWrite>();
 
@@ -88,7 +90,7 @@ export class EnglishSession {
    */
   begin(): Promise<boolean> {
     if (this.beginning) return this.beginning;
-    if (this.busy) return Promise.resolve(false);
+    if (this.busy || this.abandoned) return Promise.resolve(false);
     if (this.state.attemptId !== null) return Promise.resolve(true);
     const run = this.runBegin().finally(() => {
       this.beginning = null;
@@ -122,7 +124,7 @@ export class EnglishSession {
   /** Ответить на текущее упражнение. `answer` уже проверен по форме (`exerciseValueToAnswer`). */
   async answer(answer: LearningAnswer): Promise<void> {
     const exercise = this.exercises[this.state.index];
-    if (!exercise || this.busy || this.state.answers[exercise.exerciseId]) return;
+    if (!exercise || this.busy || this.abandoned || this.state.answers[exercise.exerciseId]) return;
     const key = JSON.stringify(answer);
     // Тот же ответ после сбоя: тот же замороженный запрос; другой ответ это новый запрос.
     if (!(this.pending?.exerciseId === exercise.exerciseId && this.pending.key === key)) this.pending = { exerciseId: exercise.exerciseId, key, write: null };
@@ -173,7 +175,7 @@ export class EnglishSession {
    */
   async finish(): Promise<boolean> {
     const { attemptId, revision } = this.state;
-    if (this.busy || attemptId === null || revision === null) return false;
+    if (this.busy || this.abandoned || attemptId === null || revision === null) return false;
     this.busy = true;
     this.patch({ busy: true, error: null });
     try {
@@ -195,6 +197,7 @@ export class EnglishSession {
 
   /** Конфликт ревизии: свежее состояние с сервера. */
   async reload(): Promise<void> {
+    if (this.abandoned) return;
     let view: LearningLessonView;
     try {
       view = await readEnglishLesson(this.transport, this.lessonId);
@@ -230,18 +233,26 @@ export class EnglishSession {
    * Досылается только то, что студент уже отправил, а подтверждения нет (обрыв): один повтор того же замороженного запроса. Запись
    * идемпотентна по `p_request_id` (если сервер уже принял её, вернётся та же квитанция), поэтому повтор безопасен; не вышло
    * и на этот раз, ответ придётся дать заново. Повторов по таймеру и окна с вопросом нет: выход из урока ничем не заперт.
+   * `onConfirmed` зовётся, когда сервер подтвердил такую досылку: список уроков к этому часу уже перечитан (при возврате на экран) и
+   * не знает про завершённый или начатый урок, поэтому экран просит его перечитать (иначе плитка «Пройден» появилась бы только после
+   * следующего ухода и возврата).
    */
-  dispose(): void {
-    if (this.busy || this.state.error !== "unavailable") return;
+  dispose(onConfirmed?: () => void): void {
+    if (this.abandoned || this.busy || this.state.error !== "unavailable") return;
     const answerWrite = this.pending?.write ?? null;
     if (answerWrite && !this.resent.has(answerWrite)) {
       this.resent.add(answerWrite);
-      void sendEnglishAnswer(this.transport, answerWrite).catch(() => undefined);
+      void sendEnglishAnswer(this.transport, answerWrite).then(() => onConfirmed?.(), () => undefined);
     }
     const completeWrite = this.completeWrite;
     if (completeWrite && !this.resent.has(completeWrite)) {
       this.resent.add(completeWrite);
-      void sendEnglishAttempt(this.transport, completeWrite).catch(() => undefined);
+      void sendEnglishAttempt(this.transport, completeWrite).then(() => onConfirmed?.(), () => undefined);
     }
+  }
+
+  /** Выход из аккаунта: токен отозван, любой запрос кончился бы 401. Окончательно: ни кнопки, ни закрытие экрана больше ничего не шлют. */
+  abandon(): void {
+    this.abandoned = true;
   }
 }

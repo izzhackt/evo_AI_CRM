@@ -56,6 +56,9 @@ export function EnglishReviewScreen({ moduleId: requested = null }: { moduleId?:
   useEffect(() => {
     if (busy) announce(e.saving);
   }, [busy, e.saving]);
+  // Плашка с ролью alert на iPhone сама не озвучивается (в уроке её называет `LessonAlert`): сбой проверки читается через `announce`.
+  const errorText = error ? englishErrorText(e, error) : "";
+  useEffect(() => announce(errorText), [errorText]);
   const header = <SubHeader title={e.reviewTitle} onBack={back} backLabel={e.backToModule} testID="english-review-title" />;
   // Сбой чтения списка модулей важен, только когда модуль не пришёл в ссылке; модулей нет вовсе - повторять нечего, как на сайте.
   const failedToLoad = review.status === "error" || (requested === null && modules.status === "error");

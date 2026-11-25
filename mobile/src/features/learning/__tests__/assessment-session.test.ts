@@ -1,7 +1,9 @@
 // Сессия теста как у сайта (G57-G59): страницы по правилу веба, «слать больше нечего» перед уходом, конфликт без
 // молчаливой замены ответов, замороженный запрос завершения, досылка при закрытии экрана. Сеть и таймеры поддельные.
+import { completeAssessmentWrite, saveAssessmentWrite, sendAssessment, UnreadableReceiptError } from "@/features/learning/tests/api";
 import { normalizeAssessmentAttempt } from "@/features/learning/tests/assessment-decode";
 import { ASSESSMENT_RETRY_MS, ASSESSMENT_SAVE_MS, AssessmentSession } from "@/features/learning/tests/assessment-session";
+import type { FrozenWrite, RpcTransport } from "@/lib/rpc";
 import { answersFor, attemptFixture, ATTEMPT_ID, completedFixture, OTHER_ATTEMPT_ID, sessionHarness, type FixtureKey } from "@/test-fixtures/assessment";
 
 const SAVE = "save_student_assessment_answers_v1";
@@ -612,30 +614,22 @@ describe("«Выйти без сохранения» - настоящий отк
     expect(saves(gone.h)).toHaveLength(9); // подтверждённый отказ: ничего не ушло, сервер ответа не получил
   });
 
-  it("отказ снимает таймер повтора: время идёт, а запросов нет; flush отвечает «слать нечего», уход не ждёт сохранения", async () => {
+  it("отказ снимает таймер повтора: время идёт, а запросов нет; системный flush (фон приложения) отвечает «слать нечего» и отказ не снимает", async () => {
     const { h, session } = await offline();
     session.discard();
     expect(h.pendingTimers()).toBe(0);
     await h.advance(10 * ASSESSMENT_RETRY_MS);
     expect(saves(h)).toHaveLength(9);
     await expect(session.flush()).resolves.toBe(true);
-    await expect(session.saveForExit()).resolves.toBe(true);
+    expect(saves(h)).toHaveLength(9);
+    await h.advance(10 * ASSESSMENT_RETRY_MS);
     expect(saves(h)).toHaveLength(9);
     session.dispose();
   });
 
-  it("отказ не даёт отправить и завершение (замороженный запрос завершения тоже), в том числе когда он выбран посреди завершения", async () => {
-    // До завершения: нажатие «Завершить» после отказа ничего не шлёт.
+  it("отказ не даёт отправить завершение (замороженный запрос тоже), когда он выбран посреди завершения: отправка ответов в полёте", async () => {
     const answered = attemptFixture("english36", { answers: answersFor("english36", 36) });
-    const h = sessionHarness({ [COMPLETE]: [done("english36")], [SAVE]: [attemptFixture("english36", { revision: 2 })] });
-    const early = new AssessmentSession(h.env, "english36", null, normalizeAssessmentAttempt(answered));
-    early.discard();
-    await early.complete();
-    expect(h.calls).toHaveLength(0);
-    expect(early.getState().phase).toBe("running");
-    early.dispose();
-
-    // Посреди завершения: отправка ответов в полёте, студент выбирает отказ, она заканчивается, а запрос завершения не уходит.
+    // Отправка ответов в полёте не удалась: повтора по таймеру и запроса завершения нет, экран не застрял на «сохраняем».
     const hang = hangingEnv();
     const mid = new AssessmentSession(hang.env, "english36", null, normalizeAssessmentAttempt(answered));
     mid.select("e1", "b");
@@ -648,7 +642,7 @@ describe("«Выйти без сохранения» - настоящий отк
     await completing;
     expect(hang.calls).toHaveLength(3); // ни одного запроса завершения
     expect(hang.timers.size).toBe(0); // и повтора по таймеру после отказа тоже нет
-    expect(mid.getState().phase).toBe("running"); // экран не застрял на «сохраняем»
+    expect(mid.getState().phase).toBe("running");
     mid.dispose();
 
     // То же, но отправка ответов в полёте удаётся: без отказа сразу ушло бы завершение, с отказом оно не уходит.
@@ -666,73 +660,206 @@ describe("«Выйти без сохранения» - настоящий отк
     sent.dispose();
   });
 
-  it("«Завершить» после отказа ничего не делает: состояние не мигает «Сохраняем…»", async () => {
-    const answered = attemptFixture("english36", { answers: answersFor("english36", 36) });
-    const session = new AssessmentSession(sessionHarness({}).env, "english36", null, normalizeAssessmentAttempt(answered));
-    const phases: string[] = [];
-    session.subscribe(() => phases.push(session.getState().phase));
-    session.discard();
-    await session.complete();
-    expect(phases).toEqual([]);
-    session.dispose();
-  });
-
-  it("уход не состоялся: `keep` возвращает сохранение, тот же замороженный запрос уходит снова, ничего не потеряно", async () => {
+  it("время само отказ не снимает: экран закрывается медленно (JS занят дольше 0,8 с), и закрытие ничего не шлёт (позднее сохранение после «пропадут»)", async () => {
     const { h, session } = await offline();
-    const frozen = saves(h)[0].args.p_request_id;
     session.discard();
-    session.keep();
-    expect(h.pendingTimers()).toBe(1); // таймер повтора снова взведён
-    await h.advance(ASSESSMENT_RETRY_MS);
-    expect(saves(h)).toHaveLength(10);
-    expect(saves(h)[9].args.p_request_id).toBe(frozen);
-    expect(session.getState().saveStatus).toBe("saved");
+    await h.advance(5_000); // «медленный» уход: прошло много времени, студент ничего не нажимал
+    expect(saves(h)).toHaveLength(9);
     session.dispose();
+    await h.settle();
+    expect(saves(h)).toHaveLength(9);
   });
 
-  it("`keep` при ответе, выбранном, но ещё не отправленном, возвращает и таймер 0,9 с; без отказа он ничего не делает", async () => {
+  describe("следующее действие студента после отказа, который не состоялся (экран остался), снимает отказ", () => {
+    /** Действия, после которых студент уже не уходит: каждое возвращает сохранение, и тот же замороженный запрос уходит снова. */
+    const actions: [string, (session: AssessmentSession) => Promise<unknown> | void][] = [
+      ["выбор ответа", (session) => session.select("o2", "4")],
+      ["переход на страницу", (session) => session.goTo(1)],
+      ["«Завершить»", (session) => session.complete()],
+      ["«Повторить сохранение»", (session) => session.retryNow()],
+      ["«Сохранить и выйти»", (session) => session.saveForExit()],
+    ];
+    it.each(actions)("%s: отказ снят, повтор сохранения идёт тем же запросом", async (_name, act) => {
+      const { h, session } = await offline();
+      const frozen = saves(h)[0].args.p_request_id;
+      session.discard();
+      await h.advance(10 * ASSESSMENT_RETRY_MS);
+      expect(saves(h)).toHaveLength(9); // пока студент ничего не делает, ничего не уходит
+      await act(session);
+      await h.advance(ASSESSMENT_RETRY_MS);
+      await h.settle();
+      expect(saves(h).length).toBeGreaterThanOrEqual(10);
+      expect(saves(h)[9].args.p_request_id).toBe(frozen);
+      expect(session.getState().saveStatus === "saved" || session.getState().saveStatus === "dirty").toBe(true);
+      session.dispose();
+    });
+
+    it("«Показать сохранённые ответы» после отказа: чтение идёт, а следующий выбор уходит как обычно", async () => {
+      const h = sessionHarness({ [SAVE]: ["CONFLICT"], [READ]: [attemptFixture("orvis92", { revision: 5, answers: { o1: "5" } })] });
+      const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+      session.select("o1", "3");
+      await h.advance(ASSESSMENT_SAVE_MS);
+      expect(session.getState().reloadRequired).toBe(true);
+      session.discard();
+      await session.loadSaved();
+      expect(h.calls.filter((c) => c.name === READ)).toHaveLength(1);
+      expect(session.getState().reloadRequired).toBe(false);
+      session.select("o2", "4"); // отказ снят: выбор уходит как обычно
+      await h.advance(ASSESSMENT_SAVE_MS);
+      expect(saves(h).length).toBeGreaterThanOrEqual(2);
+      session.dispose();
+    });
+
+    it("«Показать сохранённые ответы» отказ не снимает: чтение не удалось, ревизия не сверена, и таймер сохранения не возвращается (ревью #1594)", async () => {
+      const h = sessionHarness({ [SAVE]: ["CONFLICT"], [READ]: ["NETWORK"] });
+      const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+      session.select("o1", "3");
+      const sending = session.flush(); // запрос в полёте
+      session.select("o2", "4"); // выбор, пока запрос в полёте: не отправлено
+      await sending; // конфликт: нужна сверка, неотправленное осталось
+      expect(session.getState().reloadRequired).toBe(true);
+      session.discard();
+      expect(h.pendingTimers()).toBe(0);
+      await session.loadSaved();
+      expect(session.getState().reload).toBe("failed");
+      expect(session.getState().reloadRequired).toBe(true);
+      expect(h.pendingTimers()).toBe(0); // с отказом, снятым здесь, вернулся бы таймер сохранения при несверенной ревизии
+      await h.advance(10 * ASSESSMENT_RETRY_MS);
+      expect(saves(h)).toHaveLength(1);
+      session.dispose();
+      expect(saves(h)).toHaveLength(1);
+    });
+
+    it("выбор, сделанный пока стоял отказ, оставляет один таймер, а не два (прежняя ручка не теряется)", async () => {
+      const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
+      const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+      session.select("o1", "3");
+      session.discard();
+      expect(h.pendingTimers()).toBe(0);
+      session.select("o2", "4"); // действие студента: отказ снят, таймер 0,9 с один
+      expect(h.pendingTimers()).toBe(1);
+      session.dispose();
+      expect(h.pendingTimers()).toBe(0); // после закрытия экрана ничего не остаётся
+    });
+
+    it("страница после отказа при ответе, выбранном, но ещё не отправленном, возвращает таймер 0,9 с", async () => {
+      const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
+      const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+      session.select("o1", "3");
+      session.discard();
+      await h.advance(ASSESSMENT_SAVE_MS);
+      expect(saves(h)).toHaveLength(0);
+      session.goTo(1);
+      await h.advance(ASSESSMENT_SAVE_MS);
+      expect(saves(h)).toHaveLength(1);
+      session.dispose();
+    });
+  });
+
+  it("отказ после закрытия экрана и действия после него ни на что не влияют", async () => {
     const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
     const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
-    session.keep();
-    expect(h.pendingTimers()).toBe(0);
+    session.dispose();
+    session.discard();
     session.select("o1", "3");
-    session.discard();
-    expect(h.pendingTimers()).toBe(0);
-    await h.advance(ASSESSMENT_SAVE_MS);
-    expect(saves(h)).toHaveLength(0);
-    session.keep();
-    await h.advance(ASSESSMENT_SAVE_MS);
-    expect(saves(h)).toHaveLength(1);
-    session.dispose();
-  });
-
-  it("выбор, сделанный пока стоял отказ, и `keep` после него оставляют один таймер, а не два (прежняя ручка не теряется)", async () => {
-    const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
-    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
-    session.select("o1", "3");
-    session.discard();
-    session.select("o2", "4"); // таймер 0,9 с взведён снова, но при отказе его выстрел ничего не отправит
-    expect(h.pendingTimers()).toBe(1);
-    session.keep();
-    expect(h.pendingTimers()).toBe(1);
-    session.dispose();
-    expect(h.pendingTimers()).toBe(0); // после закрытия экрана ничего не остаётся
-  });
-
-  it("отказ после закрытия экрана ни на что не влияет", async () => {
-    const h = sessionHarness({ [SAVE]: [attemptFixture("orvis92", { revision: 2 })] });
-    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
-    session.dispose();
-    session.discard();
-    session.keep();
     await h.settle();
     expect(h.calls).toHaveLength(0);
   });
 });
 
+describe("выход из аккаунта: сессия бросает неотправленное окончательно (QA 23: запись с отозванным токеном)", () => {
+  const saves = (h: ReturnType<typeof sessionHarness>) => h.calls.filter((c) => c.name === SAVE);
+  async function offline() {
+    const h = sessionHarness({ [SAVE]: [...down(3), attemptFixture("orvis92", { revision: 2 })], [READ]: [attemptFixture("orvis92", { revision: 5 })], [START]: [attemptFixture("orvis92")] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    await h.advance(ASSESSMENT_RETRY_MS);
+    expect(saves(h)).toHaveLength(9);
+    return { h, session };
+  }
+
+  it("закрытие экрана после выхода ничего не досылает, таймеров нет; без выхода досылало бы", async () => {
+    const control = await offline();
+    control.session.dispose();
+    await control.h.settle();
+    expect(saves(control.h)).toHaveLength(10);
+
+    const { h, session } = await offline();
+    session.abandon();
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(10 * ASSESSMENT_RETRY_MS);
+    session.dispose();
+    await h.settle();
+    expect(saves(h)).toHaveLength(9);
+  });
+
+  it("действия студента после выхода отказа не снимают и ничего не шлют: выбор, страница, повтор, «Сохранить и выйти», «Завершить», «Показать сохранённые»", async () => {
+    const { h, session } = await offline();
+    session.abandon();
+    session.select("o2", "4");
+    session.goTo(1);
+    await expect(session.retryNow()).resolves.toBe(true);
+    await expect(session.saveForExit()).resolves.toBe(true);
+    await session.complete();
+    await session.loadSaved();
+    await h.advance(10 * ASSESSMENT_RETRY_MS);
+    expect(h.calls).toHaveLength(9);
+    expect(h.pendingTimers()).toBe(0);
+    session.dispose();
+  });
+
+  it("выход до начала теста: «Начать» ничего не шлёт", async () => {
+    const h = sessionHarness({ [START]: [attemptFixture("orvis92")] });
+    const session = new AssessmentSession(h.env, "orvis92", null);
+    session.abandon();
+    await session.start();
+    expect(h.calls).toHaveLength(0);
+    expect(session.getState().phase).toBe("intro");
+  });
+
+  it("выход посреди отправки: когда она заканчивается сбоем, повтора по таймеру нет", async () => {
+    const hang = hangingEnv();
+    const session = new AssessmentSession(hang.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await hang.advance(ASSESSMENT_SAVE_MS);
+    expect(hang.calls).toEqual([SAVE]);
+    session.abandon();
+    for (let k = 0; k < 3; k += 1) await hang.fail();
+    expect(hang.timers.size).toBe(0);
+    session.dispose();
+    expect(hang.calls).toHaveLength(3);
+  });
+});
+
+describe("квитанция, которую не удалось прочитать: ревизия видна только у записи ответов (ревью #1581, #17)", () => {
+  const reply = (data: unknown): RpcTransport => async () => ({ data, error: null, status: 200 });
+  const revisionOf = async (write: FrozenWrite, data: unknown) => {
+    const error = await sendAssessment(reply(data), write).then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(UnreadableReceiptError);
+    return (error as UnreadableReceiptError).revision;
+  };
+  const input = { attemptId: ATTEMPT_ID, expectedRevision: 4, answers: { o1: "3" } };
+
+  it("запись ответов: ровно следующая ревизия (5) видна, остальное и чужая попытка нет", async () => {
+    const save = saveAssessmentWrite(input);
+    expect(await revisionOf(save, { attemptId: ATTEMPT_ID, revision: 5 })).toBe(5);
+    for (const revision of [4, 6, 3, 4.5, "5", Number.MAX_SAFE_INTEGER]) expect(await revisionOf(save, { attemptId: ATTEMPT_ID, revision })).toBeNull();
+    expect(await revisionOf(save, { attemptId: OTHER_ATTEMPT_ID, revision: 5 })).toBeNull();
+  });
+
+  it("запрос завершения: даже ровно следующая ревизия не берётся (после завершения ревизия попытки уже другого рода)", async () => {
+    expect(await revisionOf(completeAssessmentWrite(input), { attemptId: ATTEMPT_ID, revision: 5 })).toBeNull();
+  });
+});
+
 describe("квитанцию записи не удалось прочитать: ревизия не теряется (ревью #1581)", () => {
   const saves = (h: ReturnType<typeof sessionHarness>) => h.calls.filter((c) => c.name === SAVE);
-  /** Ответ сервера без вопросов и метаданных: строгий разборщик его отвергает, но ревизия и номер попытки видны. */
+  /** Ответ сервера без вопросов и метаданных: строгий разборщик его отвергает, но ревизия и номер попытки видны (запись шла с ревизией 1, ответ - 2). */
   const unreadable = (extra: Record<string, unknown> = {}) => ({ attemptId: ATTEMPT_ID, revision: 2, ...extra });
 
   it("ревизия берётся из ответа: следующий выбор уходит с ней, ложного конфликта «Тест открыт в другой вкладке» нет", async () => {
@@ -754,9 +881,24 @@ describe("квитанцию записи не удалось прочитать
     session.dispose();
   });
 
-  it("ревизии в ответе нет, она не целая, чужая попытка или она меньше известной: прежняя ревизия остаётся, как раньше", async () => {
-    // Числа больше известной ревизии (4): иначе правило «только вперёд» скрыло бы, что остальное отвергается само по себе.
-    for (const reply of [{ attemptId: ATTEMPT_ID }, unreadable({ revision: "9" }), unreadable({ revision: 9.5 }), unreadable({ revision: Number.POSITIVE_INFINITY }), unreadable({ revision: -1 }), unreadable({ attemptId: OTHER_ATTEMPT_ID, revision: 9 }), unreadable({ attemptId: undefined, revision: 9 }), unreadable({ revision: 3 }), "не объект", null]) {
+  it("верится только ровно следующей ревизии (запись шла с 4, значит 5): любое другое число, чужая попытка, не число, чужой объект - прежняя ревизия остаётся", async () => {
+    const wrong: unknown[] = [
+      { attemptId: ATTEMPT_ID },
+      unreadable({ revision: "5" }),
+      unreadable({ revision: 5.5 }),
+      unreadable({ revision: Number.POSITIVE_INFINITY }),
+      unreadable({ revision: Number.MAX_SAFE_INTEGER }), // раньше принималось любое целое: следующая запись ушла бы с ним и дала бы ложный конфликт
+      unreadable({ revision: 9 }),
+      unreadable({ revision: 6 }), // на две вперёд
+      unreadable({ revision: 4 }), // запись ревизию не продвинула
+      unreadable({ revision: 3 }),
+      unreadable({ revision: -1 }),
+      unreadable({ attemptId: OTHER_ATTEMPT_ID, revision: 5 }),
+      unreadable({ attemptId: undefined, revision: 5 }),
+      "не объект",
+      null,
+    ];
+    for (const reply of wrong) {
       const h = sessionHarness({ [SAVE]: [reply] });
       const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92", { revision: 4 }));
       session.select("o1", "3");
@@ -765,6 +907,41 @@ describe("квитанцию записи не удалось прочитать
       expect(session.debug().revision).toBe(4);
       session.dispose();
     }
+    // А ровно следующая принимается.
+    const h = sessionHarness({ [SAVE]: [unreadable({ revision: 5 })] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92", { revision: 4 }));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.debug().revision).toBe(5);
+    session.dispose();
+  });
+
+  it("у запроса завершения ревизию из нечитаемого ответа не берут: «Завершить» после сбоя уходит тем же замороженным запросом", async () => {
+    const answered = attemptFixture("english36", { answers: answersFor("english36", 36) });
+    const h = sessionHarness({ [COMPLETE]: [{ attemptId: ATTEMPT_ID, revision: 2 }, done("english36")] });
+    const session = new AssessmentSession(h.env, "english36", null, normalizeAssessmentAttempt(answered));
+    await session.complete();
+    expect(session.getState().error).toBe("unavailable");
+    expect(session.debug().revision).toBe(1);
+    await session.complete();
+    const completes = h.calls.filter((c) => c.name === COMPLETE);
+    expect(new Set(completes.map((c) => c.args.p_request_id)).size).toBe(1);
+    expect(session.getState().phase).toBe("result");
+    session.dispose();
+  });
+
+  it("прежний сбой «не удалось прочитать» не прячет следующий, сетевой: плашка называет настоящую причину", async () => {
+    const h = sessionHarness({ [SAVE]: [unreadable(), ...down(1)] });
+    const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
+    session.select("o1", "3");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().error).toBe("unreadable");
+    session.select("o2", "4");
+    await h.advance(ASSESSMENT_SAVE_MS);
+    expect(session.getState().saveStatus).toBe("unconfirmed");
+    expect(session.getState().failures).toBe(1);
+    expect(session.getState().error).toBeNull(); // раньше оставалось «unreadable», и плашка говорила «не удалось прочитать» вместо «нет связи»
+    session.dispose();
   });
 
   it("следующее успешное сохранение убирает сбой, а сбой другого рода заменяет его", async () => {

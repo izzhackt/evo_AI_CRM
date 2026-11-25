@@ -54,16 +54,15 @@ export function useLeaveGuard({ session, active, back }: { session: AssessmentSe
     [session],
   );
 
-  // Уход пошёл, а экран остался (действие не сняло его со стека): защита возвращается, иначе новые ответы остались бы без неё;
-  // а если это был отказ от сохранения, сессия снова сохраняет (`keep`). Если экран ушёл, он размонтирован и таймер снят.
+  // Уход пошёл, а экран остался (действие не сняло его со стека): защита возвращается, иначе новые ответы остались бы без неё.
+  // Отказ от сохранения (`session.discard`) этим таймером НЕ снимается: если экран закрывается медленно (JS занят дольше 0,8 с), поздний
+  // сброс отправил бы ответы при закрытии вопреки окну «пропадут». Его снимает следующее действие студента (выбор, страница, «Завершить»,
+  // «Повторить сохранение», «Сохранить и выйти»): оно значит, что экран остался. Если экран ушёл, он размонтирован и таймер снят.
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => {
-      setLeaving(false);
-      session.keep();
-    }, LEAVING_RESET_MS);
+    const timer = setTimeout(() => setLeaving(false), LEAVING_RESET_MS);
     return () => clearTimeout(timer);
-  }, [leaving, session]);
+  }, [leaving]);
 
   const disablePrevention = usePreventRemove(guarded, ({ repeat }) => {
     void settle(repeat);

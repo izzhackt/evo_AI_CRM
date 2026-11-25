@@ -630,6 +630,22 @@ test("PORT-9a intake routes admit only their exact path and method", () => {
     assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
   }
 
+  // Проверка личной ссылки (приложение, G11): ровно этот путь и только POST, не подключённый студенческий API.
+  assert.equal(isPublicStudentRegistrationApi("/api/portal/registration/link-check", "POST"), true);
+  assert.equal(isConnectedStudentPortalApi("/api/portal/registration/link-check", "POST"), false);
+  for (const [path, method] of [
+    ["/api/portal/registration/link-check", "GET"],
+    ["/api/portal/registration/link-check", "PUT"],
+    ["/api/portal/registration/link-check", "DELETE"],
+    ["/api/portal/registration/link-check/", "POST"],
+    ["/api/portal/registration/link-check/child", "POST"],
+    ["/api/portal/registration/link-check?invite=x", "POST"],
+    ["/API/portal/registration/link-check", "POST"],
+    ["/api/portal/registration/linkcheck", "POST"],
+  ]) {
+    assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
+  }
+
   // Proxy pins: the registration pass-through exists exactly once and runs
   // BEFORE the canonical-origin redirect and every session gate; it never
   // introduces a second Authorization check (PORT-8a pin stays intact).

@@ -54,6 +54,9 @@ export const REGISTRATION_RU = {
   "status.loadFailed": "Не удалось загрузить ответы анкеты.",
   // Экран «Придумайте свой пароль» после входа с временным паролем: слова веба слово в слово
   // (src/components/student-application/NewPasswordForm.tsx; там они лежат внутри компонента, а не в общем словаре).
+  // Подтверждение выхода из мастера анкеты: выход стирает ответы, сохранённые на этом телефоне (рецензия #1554).
+  "wizard.signOutTitle": "Выйти из аккаунта?",
+  "wizard.signOutNote": "Ответы анкеты, сохранённые на этом телефоне, будут стёрты. После входа анкету можно будет заполнить заново.",
   "newPassword.title": "Придумайте свой пароль",
   "newPassword.intro": "Вы вошли с временным паролем. Придумайте свой — дальше входите с ним.",
   "newPassword.confirm": "Повторите пароль",
@@ -111,6 +114,8 @@ export const REGISTRATION_KY: Readonly<Record<RegistrationStringKey, string>> = 
   "status.resubmitHint": "Жоопторуңузду оңдоп, анкетаны кайра жөнөтүңүз.",
   "status.refreshing": "Жаңыртылууда…",
   "status.loadFailed": "Анкетанын жоопторун жүктөй алган жокпуз.",
+  "wizard.signOutTitle": "Аккаунттан чыгасызбы?", // KY: needs native proofreading
+  "wizard.signOutNote": "Бул телефондо сакталган анкетанын жооптору өчүрүлөт. Кирген соң анкетаны кайра толтурууга болот.", // KY: needs native proofreading
   "newPassword.title": "Өз сырсөзүңүздү ойлоп табыңыз", // KY: needs native proofreading (текст веба NewPasswordForm.tsx)
   "newPassword.intro": "Сиз убактылуу сырсөз менен кирдиңиз. Өзүңүздүкүн ойлоп табыңыз — мындан ары аны менен кириңиз.", // KY: needs native proofreading
   "newPassword.confirm": "Сырсөздү кайталаңыз", // KY: needs native proofreading

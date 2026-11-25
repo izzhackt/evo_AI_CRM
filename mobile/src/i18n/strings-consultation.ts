@@ -6,11 +6,13 @@
 // Соглашение: каждая новая KY-строка получает в конце пометку `// KY: needs native proofreading`.
 
 export const CONSULTATION_RU = {
-  // Пока пусто: строки добавляет срез.
+  // Слово веба `consultation.historyUnavailable` говорит «Обновите страницу»; в приложении страницы нет, а рядом стоит кнопка
+  // «Повторить» (рецензия #1568).
+  "consult.historyUnavailable": "Не удалось загрузить запросы. Повторите.",
 } as const;
 
 export type ConsultationStringKey = keyof typeof CONSULTATION_RU;
 
 export const CONSULTATION_KY: Readonly<Record<ConsultationStringKey, string>> = {
-  // Пока пусто: см. соглашение в шапке.
+  "consult.historyUnavailable": "Сурамдар жүктөлгөн жок. Кайталаңыз.", // KY: needs native proofreading
 };

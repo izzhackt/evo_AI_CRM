@@ -16,6 +16,7 @@ import { LessonsView } from "@/features/learning/csca/LessonsView";
 import { OverviewSection } from "@/features/learning/csca/OverviewSection";
 import { SessionPicker } from "@/features/learning/csca/SessionPicker";
 import { useCscaHome } from "@/features/learning/queries";
+import { usePullRefresh } from "@/features/universities/use-pull-refresh";
 import { useLang } from "@/i18n/LangProvider";
 import { CardSkeleton, EmptyBlock, InlineAlert, LinkButton } from "@/ui/CardParts";
 import { Card, Screen, type ScrollTarget } from "@/ui/Screen";
@@ -39,6 +40,7 @@ export function CscaHomeScreen() {
   const c = t("csca");
   useRefetchOnFocus();
   const home = useCscaHome(true);
+  const { refreshing, pull } = usePullRefresh(home.refetch);
   const data = home.data;
   const track = data?.modules[0] ?? null;
   const params = useLocalSearchParams<{ view?: string | string[] }>();
@@ -101,7 +103,7 @@ export function CscaHomeScreen() {
     ) : null;
 
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void home.refetch()} refreshing={home.isRefetching} scrollRef={scroller}>
+    <Screen topInset={false} tabBar onRefresh={() => void pull()} refreshing={refreshing} scrollRef={scroller}>
       <View style={{ gap: 16 }} testID="csca-screen" onLayout={(event) => (offsets.current.root = event.nativeEvent.layout.y)}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: 14, rowGap: 4 }}>
           <Text variant="display" accessibilityRole="header" testID="title-csca">

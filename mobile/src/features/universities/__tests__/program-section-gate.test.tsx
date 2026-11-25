@@ -136,4 +136,20 @@ describe("ProgramSection: переход на страницу программ�
     expect(await screen.findByTestId("program-cs-b")).toBeTruthy();
     expect(screen.queryByTestId("program-dialog-title")).toBeNull();
   });
+
+  it("«Открыть» у программы A, а окно B открыто раньше запасного таймера (`onDismiss` не пришёл): страница A не открывается", async () => {
+    await show();
+    await fireEvent.press(screen.getByTestId("program-cs-b"));
+    await screen.findByTestId("program-dialog-title");
+    const openA = mockIntakes["cs-b"]!.onOpenApplication;
+    await act(async () => {
+      openA(item.applicationId); // «Открыть»: окно A закрывается, переход ждёт его закрытия или таймера (900 мс)
+    });
+    await waitFor(() => expect(screen.queryByTestId("program-dialog-title")).toBeNull());
+    await fireEvent.press(screen.getByTestId("program-ai-m")); // студент открыл B, не дождавшись; `onDismiss` у заглушки Jest не приходит никогда
+    expect((await screen.findByTestId("program-dialog-title")).props.children).toBe("Master of Artificial Intelligence");
+    await idle(1_200); // дольше запасного таймера A
+    expect(router.push).not.toHaveBeenCalled();
+    expect(screen.getByTestId("program-dialog-title")).toBeTruthy(); // окно B на месте
+  });
 });

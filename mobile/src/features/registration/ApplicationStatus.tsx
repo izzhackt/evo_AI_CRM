@@ -12,6 +12,7 @@ import { ApplicantDeletionSection } from "@/features/registration/ApplicantDelet
 import { SignedInWizard, useSubmitDeps } from "@/features/registration/SignedInApplication";
 import { applicationAnswers } from "@/features/registration/answers";
 import { readOwnApplication, type FullApplication } from "@/features/registration/own-application";
+import { usePullRefresh } from "@/features/universities/use-pull-refresh";
 import { useLang } from "@/i18n/LangProvider";
 import { rpcErrorKey } from "@/lib/rpc";
 import type { OwnApplication } from "@/session/access";
@@ -60,6 +61,8 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
   const full: FullApplication | null = query.data ?? null;
   const loadFailed = query.isError ? m(rpcErrorKey(query.error)) : null;
   const load = () => void query.refetch();
+  // Режим «только чтение» (вкладка кабинета): полоса горит только у перечитывания, начатого студентом, а не от любого фонового.
+  const { refreshing: pulling, pull } = usePullRefresh(query.refetch);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -95,7 +98,7 @@ function ApplicationStatusBody({ application, readOnly }: { application: OwnAppl
   const lead = status === "approved" ? strings.statusApprovedLead : status === "rejected" ? strings.statusRejectedLead : strings.statusPendingLead;
 
   return (
-    <Screen onRefresh={() => void (readOnly ? query.refetch() : refresh())} refreshing={refreshing || (readOnly && query.isRefetching)} topInset={!readOnly} tabBar={readOnly}>
+    <Screen onRefresh={() => void (readOnly ? pull() : refresh())} refreshing={refreshing || (readOnly && pulling)} topInset={!readOnly} tabBar={readOnly}>
       <View style={{ gap: 16 }}>
         {readOnly ? null : (
           <View style={{ alignItems: "flex-end" }}>

@@ -57,7 +57,11 @@ export function RemotePhoto({
   strings: UniversityStrings;
   rounded?: boolean;
   quiet?: boolean;
-  /** Фото - фон, его смысл несёт соседний текст (веб: `alt=""` у фото мест): читалка его пропускает. */
+  /**
+   * Фото места (страны или города) - фон, его смысл несёт соседний текст (веб: `alt=""` у `PlaceImage`): читалка его пропускает, а если
+   * фото нет или оно не загрузилось, остаётся тёмная подложка без значка и надписи, как у веба. Слов для места в словаре нет, а «фото
+   * кампуса» про страну или город неверно: эти надписи только у фото вузов.
+   */
   decorative?: boolean;
   active?: boolean;
   priority?: "low" | "normal" | "high";
@@ -76,13 +80,14 @@ export function RemotePhoto({
     // Далеко от экрана: ровная подложка без значка и надписи, чтобы не мигать подписью «нет фото» (фото есть, оно только не загружено).
     return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID={testID ? `${testID}-idle` : undefined} style={{ height, borderRadius: radius, backgroundColor: tokens.skeleton }} />;
   }
-  if (uri === null && quiet) {
-    // Маленькая карточка («Мои вузы» на Главной): серая подложка без надписи, название стоит под ней (как на вебе).
-    return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ height, borderRadius: radius, backgroundColor: tokens.skeleton }} />;
+  if (uri === null && (quiet || decorative)) {
+    // Маленькая карточка («Мои вузы» на Главной) и фото места: серая подложка без надписи, название стоит рядом (как на вебе).
+    return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID={testID ? `${testID}-placeholder` : undefined} style={{ height, borderRadius: radius, backgroundColor: tokens.skeleton }} />;
   }
   if (uri === null) {
     return (
       <View
+        testID={testID ? `${testID}-placeholder` : undefined}
         accessible
         accessibilityLabel={urls === null ? strings.photoMissing : strings.photoFailed}
         style={{ height, borderRadius: radius, backgroundColor: tokens.skeleton, alignItems: "center", justifyContent: "center", gap: 6, padding: 12 }}

@@ -6,7 +6,8 @@
 // Как в вебе (MapCanvas.tsx, MapView.tsx; аудит паритета 25.11.2026, G43): кнопки «+» и «-», пока карта грузится - «Загружаем карту…»,
 // при «Уменьшить движение» камера прыгает без анимации, мини-карточка закрывается кнопкой «Закрыть» и кнопкой «Назад» Android
 // (пока экран с картой в фокусе), а каждый вуз на карте доступен читалке отдельной кнопкой (у веба маркеры - кнопки DOM; слои
-// нативной карты читалка не видит). Выбор вуза читалкой переносит её фокус на карточку (веб: `node.focus()` у диалога).
+// нативной карты читалка не видит). Выбор вуза читалкой переносит её фокус на карточку (веб: `node.focus()` у диалога), закрытие
+// карточки возвращает его на кнопку вуза (веб: `closeCard`, `marker.focus()`).
 import { Camera, GeoJSONSource, Layer, Map as MapView, type CameraRef, type GeoJSONSourceRef, type MapRef } from "@maplibre/maplibre-react-native";
 import { Minus, Plus } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -43,6 +44,11 @@ const READER_ONLY = { position: "absolute", left: 0, top: 0, width: 1, height: 1
 const READER_PIN = { position: "absolute", left: 0, top: 0, width: 1, height: 1 } as const;
 /** TalkBack доставляет двойное касание действием `activate` (ACTION_CLICK), а не касанием экрана; на iOS для этого `onAccessibilityTap`. */
 const ACTIVATE: readonly AccessibilityActionInfo[] = [{ name: "activate" }];
+/**
+ * Android: событие фокуса, посланное в том же кадре, где вид создан (карточка) или убран (карточка закрылась), TalkBack может пропустить,
+ * поэтому там оно идёт чуть позже. На iPhone оно идёт сразу после отрисовки.
+ */
+const FOCUS_DELAY_MS = 150;
 
 export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (id: string) => void; onFail: () => void }) {
   const { tokens, scheme } = useTheme();
@@ -54,18 +60,25 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
   const source = useRef<GeoJSONSourceRef>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
-  // Читалка выбрала вуз: после появления карточки её фокус переходит на название (у веба фокус получает диалог). Номер запроса, а не
-  // флаг: выбор вуза нажатием на карту фокус не трогает, а повторный выбор той же кнопкой переносит его снова.
+  // Перенос фокуса читалки: после выбора вуза кнопкой - на название карточки (`pinId === null`), после закрытия карточки - на кнопку этого
+  // вуза. Запрос с новым номером, а не флаг: выбор вуза нажатием на карту фокус не трогает, повторный выбор той же кнопкой переносит снова.
   const cardHead = useRef<HostInstance>(null);
-  const [focusRequest, setFocusRequest] = useState(0);
-  const focusedRequest = useRef(0);
+  const pinNodes = useRef(new Map<string, HostInstance>());
+  const [focusRequest, setFocusRequest] = useState<Readonly<{ n: number; pinId: string | null }> | null>(null);
   const { width } = useWindowDimensions();
   const data = useMemo(() => pinsToGeoJSON(pins), [pins]);
   // Рамка считается по окну карты: на планшете та же рамка встаёт глубже, чем на телефоне (камера принимает её один раз, при показе).
   const initial = useMemo(() => initialCamera(pins, { width: width - SCREEN_GUTTERS, height: MAP_HEIGHT }), [pins, width]);
   const pin = selected === null ? null : (pins[selected] ?? null);
 
+  /** Нажатие на пустое место карты: карточка закрывается, фокус читалки не трогается (читалка ходит по кнопкам вузов, а не по карте). */
   const close = useCallback(() => setSelected(null), []);
+  /** «Закрыть», «Назад» Android и жест «Escape» читалки: карточка закрывается, а фокус возвращается на кнопку вуза (веб: `closeCard`). */
+  const closeCard = useCallback(() => {
+    if (pin === null) return;
+    setSelected(null);
+    setFocusRequest((previous) => ({ n: (previous?.n ?? 0) + 1, pinId: pin.id }));
+  }, [pin]);
   // Кнопка «Назад» Android закрывает мини-карточку, а не уводит со страницы (веб: Esc закрывает карточку). Обработчик живёт, только
   // пока экран с картой в фокусе: «Открыть карточку» ведёт на страницу вуза, а экран карты остаётся под ней с открытой карточкой, и
   // его обработчик, последний из зарегистрированных, проглотил бы первое же «Назад» на странице вуза.
@@ -73,17 +86,24 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
     useCallback(() => {
       if (pin === null) return undefined;
       const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-        setSelected(null);
+        closeCard();
         return true;
       });
       return () => subscription.remove();
-    }, [pin]),
+    }, [pin, closeCard]),
   );
   useEffect(() => {
-    if (pin === null || focusedRequest.current === focusRequest) return;
-    focusedRequest.current = focusRequest;
-    if (cardHead.current !== null) AccessibilityInfo.sendAccessibilityEvent(cardHead.current, "focus");
-  }, [focusRequest, pin]);
+    if (focusRequest === null) return undefined;
+    const node = focusRequest.pinId === null ? cardHead.current : (pinNodes.current.get(focusRequest.pinId) ?? null);
+    if (node === null) return undefined;
+    const send = () => AccessibilityInfo.sendAccessibilityEvent(node, "focus");
+    if (Platform.OS !== "android") {
+      send();
+      return undefined;
+    }
+    const timer = setTimeout(send, FOCUS_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [focusRequest]);
 
   const onPress = async (event: NativeSyntheticEvent<PressLike>) => {
     // Нажатие на точку не должно доходить до карты: её onPress закрывает мини-карточку.
@@ -110,7 +130,7 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
 
   const choose = (index: number) => {
     setSelected(index);
-    setFocusRequest((n) => n + 1);
+    setFocusRequest((previous) => ({ n: (previous?.n ?? 0) + 1, pinId: null }));
   };
 
   return (
@@ -171,6 +191,10 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
             }}
             testID={`map-pin-${entry.id}`}
             style={READER_PIN}
+            ref={(node) => {
+              if (node) pinNodes.current.set(entry.id, node);
+              else pinNodes.current.delete(entry.id);
+            }}
           />
         ))}
       </View>
@@ -179,6 +203,7 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
       {pin ? (
         <View
           style={{ position: "absolute", zIndex: 10, elevation: 10, left: 8, right: 8, bottom: 8, padding: 12, gap: 8, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }}
+          onAccessibilityEscape={closeCard}
           testID="map-card"
         >
           {/* Одним элементом для читалки: сюда переходит её фокус после выбора вуза (название и место читаются вместе). */}
@@ -192,7 +217,7 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Button label={strings.mapOpenCard} onPress={() => onOpen(pin.id)} testID="map-open" style={{ flex: 1 }} />
-            <Button variant="ghost" label={strings.mapCloseCard} onPress={close} testID="map-close" />
+            <Button variant="ghost" label={strings.mapCloseCard} onPress={closeCard} testID="map-close" />
           </View>
         </View>
       ) : null}

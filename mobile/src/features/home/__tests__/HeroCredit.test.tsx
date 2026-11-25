@@ -61,3 +61,25 @@ describe("HeroCredit: ссылка на источник", () => {
     open.mockRestore();
   });
 });
+
+const flat = (node: { props: { style?: unknown } }) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+
+// Подпись раскрывается в потоке шапки под её кнопками (#1580): поверх «Сменить страну» она не лежит, а правый край стоит на одной линии с
+// кружком «©» (колонка содержимого отступает на 16, кружок на 10: отрицательный отступ -6). Панель общая у ссылки и у простого текста.
+describe("HeroCredit: место подписи в шапке", () => {
+  it.each([
+    ["ссылка", "https://commons.wikimedia.org/wiki/File:Test.jpg"],
+    ["простой текст (адрес небезопасен)", "javascript:alert(1)"],
+  ])("%s: панель в потоке, прижата вправо, правый край на одной линии с кружком «©»", async (_name, url) => {
+    const line = await show(credit(url));
+    const panel = flat(line);
+    expect(panel).toMatchObject({ alignSelf: "flex-end", marginRight: -6, maxWidth: 260 });
+    expect(panel.minHeight as number).toBeGreaterThanOrEqual(44);
+    expect(panel.position).toBeUndefined(); // не абсолютная: значит, не поверх кнопок шапки
+  });
+
+  it("кнопка «©» лежит в правом нижнем углу шапки: цель нажатия 44, отступы 2 справа и 6 снизу", async () => {
+    await show(credit("https://commons.wikimedia.org/wiki/File:Test.jpg"));
+    expect(flat(screen.getByTestId("hero-credit"))).toMatchObject({ position: "absolute", right: 2, bottom: 6, width: 44, height: 44 });
+  });
+});

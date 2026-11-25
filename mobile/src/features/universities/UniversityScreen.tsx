@@ -29,8 +29,8 @@ import { buildCostView } from "./costs-view";
 import { useFavoriteState } from "./FavoritesContext";
 import { useSelectProgram, useUniversityDetail } from "./hooks";
 import { NotFoundBlock } from "./NotFoundBlock";
-import { FavoriteHeart, PathRow, PhotoCredit, RemotePhoto, universityUrls, usePhotoPixels } from "./parts";
-import { universityPhotoCredit } from "./photos";
+import { cityRoute, countryRoute, CreditedPhoto, FavoriteHeart, PathRow, universityUrls, usePhotoPixels } from "./parts";
+import { universityPhotoCaption, universityPhotoCredit } from "./photos";
 import type { StudentUniversityDetail } from "@web/lib/portal/university-index";
 import type { UniversityStrings } from "./model";
 
@@ -57,7 +57,7 @@ function UniversityBody({ id }: { id: string }) {
     <Screen topInset={false} tabBar onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
       <View style={{ gap: 16 }}>
         {detail.error instanceof UniversityNotFoundError ? (
-          <NotFoundBlock />
+          <NotFoundBlock embedded />
         ) : detail.data ? (
           <DetailView detail={detail.data} strings={strings} />
         ) : detail.isError ? (
@@ -81,13 +81,22 @@ function DetailView({ detail, strings }: { detail: StudentUniversityDetail; stri
   const content = university.content;
   const cost = costs ? buildCostView(costs, content.programs, strings, lang) : null;
   const favored = favorites.isFavored(university.id) ?? detail.favored;
-  const crumbs = [localizedText(country.name, lang), ...(city ? [localizedText(city.name, lang)] : [])];
+  // Путь, как в вебе (Detail.tsx, `[id]/page.tsx`): «Университеты › Страна › Город»; страна и город - ссылки, название вуза в пути нет (оно в заголовке).
+  const crumbs = [
+    { label: localizedText(country.name, lang), href: countryRoute(country.code) },
+    ...(city ? [{ label: localizedText(city.name, lang), href: cityRoute(country.code, city.key) }] : []),
+  ];
+  // Шапка с фото есть, только когда есть проверенная копия в нашем бакете: без неё блока нет вовсе (веб: PhotoFigure.tsx, review S3 N6),
+  // серая плашка «фото не добавлено» первым экраном ничего не говорила. «©» в нижнем углу фото, подпись фото - его описание из библиотеки.
+  const heroUrls = universityUrls(content.photoKey, pixels);
+  const heroCredit = universityPhotoCredit(content.photoKey);
   return (
     <>
-      <PathRow crumbs={[...crumbs, content.name]} strings={strings} />
+      <PathRow crumbs={crumbs} strings={strings} />
       <View style={{ gap: 8 }}>
-        <RemotePhoto urls={universityUrls(content.photoKey, pixels)} height={190} label={content.name} strings={strings} />
-        <PhotoCredit credit={universityPhotoCredit(content.photoKey)} universityName={content.name} strings={strings} />
+        {heroUrls !== null && heroCredit !== null ? (
+          <CreditedPhoto urls={heroUrls} height={190} label={universityPhotoCaption(content.photoKey) ?? content.name} strings={strings} credit={heroCredit} universityName={content.name} placement="bottom" />
+        ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
           <Text variant="title" accessibilityRole="header" style={{ flex: 1 }}>
             {content.name}

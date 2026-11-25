@@ -14,15 +14,16 @@ describe("страны и счётчики", () => {
   it("шесть стран в порядке продукта, счётчики пересчитаны по вузам", () => {
     const cards = countryCards(index, ru, "ru");
     expect(cards.map((c) => c.code)).toEqual(["CN", "MY", "AE", "TR", "IT", "CZ"]);
-    expect(cards[1]?.counts).toBe("5 университетов · 3 города");
+    // Число и слово не разрываются переносом (неразрывный пробел, как `placeCountsLabel` веба).
+    expect(cards[1]?.counts).toBe("5\u00a0университетов · 3\u00a0города");
     expect(cards[2]).toMatchObject({ counts: "Пока нет университетов", empty: true });
   });
 
   it("склонение: RU по правилам, KY одна форма", () => {
-    expect(placeCounts(ru, 1, null, "ru")).toBe("1 университет");
-    expect(placeCounts(ru, 5, 11, "ru")).toBe("5 университетов · 11 городов");
-    expect(placeCounts(ru, 22, 2, "ru")).toBe("22 университета · 2 города");
-    expect(placeCounts(ky, 2, 3, "ky")).toBe(`${ky["count.university.many"].replace("{count}", "2")} · ${ky["count.city.many"].replace("{count}", "3")}`);
+    expect(placeCounts(ru, 1, null, "ru")).toBe("1\u00a0университет");
+    expect(placeCounts(ru, 5, 11, "ru")).toBe("5\u00a0университетов · 11\u00a0городов");
+    expect(placeCounts(ru, 22, 2, "ru")).toBe("22\u00a0университета · 2\u00a0города");
+    expect(placeCounts(ky, 2, 3, "ky")).toBe(`${ky["count.university.many"].replace("{count}", "2").replace(" ", "\u00a0")} · ${ky["count.city.many"].replace("{count}", "3").replace(" ", "\u00a0")}`);
   });
 });
 
@@ -44,6 +45,12 @@ describe("страница страны", () => {
     const cn = countryPageModel(index, "CN", ru, "ru");
     expect(cn?.groups.map((g) => [g.title, g.cityKey])).toEqual([[ru.listNoCity, null]]);
     expect(cn?.groups[0]?.universities.map((u) => u.name)).toEqual(["Еда и право", "Ёлка-университет"]);
+  });
+
+  it("карточка города несёт «Интересный факт» на языке интерфейса (веб: Places.tsx, CityCards)", () => {
+    const my = countryPageModel(index, "MY", ru, "ru");
+    expect(my?.cityCards.find((card) => card.key === "penang")?.fact).toBe("Факт Пенанг");
+    expect(countryPageModel(index, "MY", ky, "ky")?.cityCards.find((card) => card.key === "subang-jaya")?.fact).toBe("Факт Субанг-Жая");
   });
 
   it("KY: названия городов и стран на кыргызском, порядок по локали", () => {

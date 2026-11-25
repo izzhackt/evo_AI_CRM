@@ -14,7 +14,7 @@ import { NamedCard } from "../NamedCard";
 export const HISTORY_SHOWN = 10;
 
 /** Название события словами; неизвестное событие — `null`, и строки нет: сырой ключ на экране не нужен. */
-const historyLabel = (entry: ProfileEvent) => journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
+const historyLabel = (entry: ProfileEvent) => journalEventText(entry.transition, entry.directionChange, entry.paymentDetail) ?? eventLabel(entry.transition);
 
 /** Событие журнала: название (ссылка, если есть куда), момент, что изменено и кто. */
 function HistoryRow({ entry, label, today }: Readonly<{ entry: ProfileEvent; label: string; today: string }>) {

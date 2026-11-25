@@ -19,6 +19,7 @@ import type {
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
 import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type { CaseDirectionChange } from "@/lib/platform-case-direction-change";
+import type { CasePaymentDetail } from "@/lib/platform-case-payment-detail";
 import type {
   PlatformCaseContractWorkspace,
   PlatformContractRetryOperation,
@@ -129,6 +130,8 @@ export type ProfileEvent = Readonly<{
    * неизвестен; подпись со словами строит `journalEventText`.
    */
   directionChange?: CaseDirectionChange;
+  /** Сумма и название записанного платежа (376) — только у `finance.payment.record`; подпись строит `journalEventText`. */
+  paymentDetail?: CasePaymentDetail;
 }>;
 
 /** Настоящие данные. */

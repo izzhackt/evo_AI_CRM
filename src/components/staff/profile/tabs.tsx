@@ -635,7 +635,7 @@ export function History({ profile, nextUi = false }: { profile: PersonProfile; /
       <Card eyebrow title="Что происходило">
         <ol>
           {profile.timeline.map((entry) => {
-            const label = journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
+            const label = journalEventText(entry.transition, entry.directionChange, entry.paymentDetail) ?? eventLabel(entry.transition);
             // Неизвестное событие пропускается: сырой ключ на экране — это
             // ровно то, что мы убирали.
             if (!label) return null;

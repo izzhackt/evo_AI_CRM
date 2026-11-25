@@ -85,11 +85,47 @@ test("the history reads the direction change as codes only, requires it on its e
     assert.match(text, /journalEventText\(/u, file);
     assert.doesNotMatch(text, /Направление: |DIRECTION_LABELS/u, file);
   }
-  assert.match(read("src/components/staff/profile/tabs.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
-  assert.match(read("src/components/staff/profile/case-work-view.ts"), /journalEventText\(event\.transition, event\.directionChange\)/u);
+  assert.match(read("src/components/staff/profile/tabs.tsx"), /journalEventText\(entry\.transition, entry\.directionChange(?:, entry\.paymentDetail)?\)/u);
+  assert.match(read("src/components/staff/profile/case-work-view.ts"), /journalEventText\(event\.transition, event\.directionChange(?:, event\.paymentDetail)?\)/u);
   assert.match(read("src/lib/v3/settings-next-journal.ts"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
 });
 
 test("the direction event in the history has wording, so the stream does not refuse the page", () => {
   assert.equal(journalEvent("case.direction.set"), "Направление дела изменено");
+});
+
+// Сумма и название записанного платежа в «Истории» (миграция 376, 25.11.2026).
+// Исходные проверки дополняют, но не заменяют настоящую проверку БД и браузера.
+const paymentMigration = read("supabase/migrations/376_platform_case_history_payment_detail.sql");
+
+test("376: only the recorded payment gains `payment_detail`, read from its own payment and obligation, behind the same finance gate", async () => {
+  assert.match(paymentMigration, /\|\| CASE WHEN action = 'finance\.payment\.record' AND kind = 'money' THEN jsonb_build_object\('payment_detail',/u);
+  assert.match(paymentMigration, /FROM platform\.payment_events AS payment\s+LEFT JOIN platform\.payment_obligations AS obligation/u);
+  assert.match(paymentMigration, /payment\.organization_id = actor\.organization_id AND payment\.id = numbered\.target_id\s+AND payment\.student_case_id = p_student_case_id/u);
+  assert.match(paymentMigration, /char_length\(obligation\.label\) <= 500 AND obligation\.label !~ '\[\[:cntrl:\]\]'/u, "название — с той же проверкой текста, что в блоке «Оплата»");
+  assert.match(paymentMigration, /a376_activity_anchor_drift/u);
+  assert.doesNotMatch(paymentMigration, /DROP FUNCTION|GRANT |REVOKE |CREATE FUNCTION private\.staff_student_case_activity|before_state|after_state/u);
+  // Строка `money` у этого действия и так видна только с finance.read.summary (310): новых прав нет.
+  const gate = read("supabase/migrations/310_platform_permission_once.sql");
+  assert.match(gate, /finance_summary_ok := private\.platform_has_permission\(actor\.organization_id, 'finance\.read\.summary'\)/u);
+  assert.match(gate, /AND finance_summary_ok/u);
+
+  assert.match(source, /if \(carriesPayment && \(row\.action !== PAYMENT_ACTION \|\| kind !== "money"\)\) return fail\(\);/u);
+  assert.match(source, /\.\.\.\(paymentDetail \? \{ paymentDetail \} : \{\}\)/u);
+  const { parseCasePaymentDetail, casePaymentLine } = await import("../src/lib/platform-case-payment-detail.ts");
+  const { journalEventText } = await import("../src/lib/v3/wording.ts");
+  const second = parseCasePaymentDetail({ amount_minor: 50000, currency: "USD", kind: "payment", label: "Второй платёж" });
+  assert.equal(casePaymentLine(second), "Записана оплата 500 USD · Второй платёж");
+  assert.equal(journalEventText("finance.payment.record", undefined, second), "Записана оплата 500 USD · Второй платёж");
+  assert.equal(casePaymentLine(parseCasePaymentDetail({ amount_minor: 12050, currency: "USD", kind: "refund", label: null })), "Записан возврат 120,50 USD");
+  // Разряды — неразрывным пробелом, как в остальных суммах денег (Intl ru-RU).
+  assert.equal(casePaymentLine(parseCasePaymentDetail({ amount_minor: 350000, currency: "USD", kind: "payment", label: "" })), "Записана оплата 3\u00a0500 USD");
+  for (const bad of [null, [], { amount_minor: -1, currency: "USD", kind: "payment" }, { amount_minor: 1, currency: "usd", kind: "payment" }, { amount_minor: 1, currency: "USD", kind: "other" }]) {
+    assert.equal(parseCasePaymentDetail(bad), null, JSON.stringify(bad));
+  }
+  assert.equal(journalEventText("finance.payment.record"), "Платёж записан", "без поля (до 376) — прежние слова");
+  assert.equal(journalEventText("finance.obligation.create", undefined, second), journalEvent("finance.obligation.create"), "сумма — только у записанного платежа");
+  for (const file of ["src/components/staff/profile/tabs.tsx", "src/components/staff/profile/case-work-view.ts", "src/components/staff/profile/next/tabs/HistoryNext.tsx", "src/components/staff/knowledge/KnowledgeDossiers.tsx"]) {
+    assert.match(read(file), /journalEventText\(\w+\.transition, \w+\.directionChange, \w+\.paymentDetail\)/u, file);
+  }
 });

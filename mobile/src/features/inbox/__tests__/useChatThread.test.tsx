@@ -29,6 +29,7 @@ function Probe() {
     <>
       <Text testID="ids">{thread.messages.map((m) => m.sequenceId).join(",")}</Text>
       <Text testID="busy">{String(thread.earlierBusy)}</Text>
+      <Text testID="has-earlier">{String(thread.hasEarlier)}</Text>
       <Text testID="failed">{String(thread.earlierFailed)}</Text>
       <Text testID="labels">{thread.messages.map((m) => m.attachmentLabel ?? "-").join(",")}</Text>
       <Pressable testID="earlier" onPress={() => void thread.loadEarlier()} />
@@ -64,6 +65,14 @@ async function open(total: { value: number }, options: { gate?: Promise<void>; f
 /** Какие курсоры «Показать более ранние» уходили на сервер, по порядку. */
 const cursorsAsked = (calls: readonly { name: string; args?: Record<string, unknown> }[]) =>
   calls.filter((c) => c.name === "portal_case_chat_page_v1" && c.args?.p_before_sequence_id !== undefined).map((c) => Number(c.args!.p_before_sequence_id));
+/** Нажимает «Показать более ранние», пока кнопка не пропала (`hasEarlier` ложь), но не больше `limit` раз; каждое нажатие ждёт своего ответа. */
+async function pressEarlierUntilDone(calls: readonly { name: string; args?: Record<string, unknown> }[], limit = 14) {
+  for (let step = 1; step <= limit && screen.getByTestId("has-earlier").props.children === "true"; step += 1) {
+    await fireEvent.press(screen.getByTestId("earlier"));
+    await waitFor(() => expect(cursorsAsked(calls)).toHaveLength(step));
+    await waitFor(() => expect(screen.getByTestId("busy").props.children).toBe("false"));
+  }
+}
 const refresh = (client: Awaited<ReturnType<typeof open>>["client"]) =>
   act(async () => {
     await client.refetchQueries({ queryKey: KEY });
@@ -247,6 +256,39 @@ describe("«Показать более ранние»: мелочи после 
     }
     expect(cursorsAsked(calls)).toEqual([151, 121, 91, 61, 31]);
     expect(ids()).toEqual(range(1, 180));
+  });
+
+  it("окно прыгнуло, затем сдвинулось на одно сообщение, а студент ещё не нажимал: «ранние» идут от окна прыжка и закрывают пропуск целиком (ревью #1590, раунд 3)", async () => {
+    const total = { value: 100 };
+    const { client, calls } = await open(total);
+    await waitFor(() => expect(ids()).toEqual(range(71, 100)));
+    total.value = 250; // прыжок: окно 221..250, пропуск 101..220
+    await refresh(client);
+    await waitFor(() => expect(ids()).toEqual([...range(71, 100), ...range(221, 250)]));
+    total.value = 251; // окно сдвинулось на одно: 222..251, а «ранние» ещё не начинали
+    await refresh(client);
+    await waitFor(() => expect(ids()).toEqual([...range(71, 100), ...range(221, 251)]));
+    await pressEarlierUntilDone(calls);
+    // Начало похода - окно в момент прыжка (221), а не уехавшее окно (222): страница 221..192 содержала бы уже загруженное 221, поход
+    // решил бы, что дошёл до прежнего куска, и перешагнул 101..191.
+    expect(cursorsAsked(calls)).toEqual([221, 191, 161, 131, 101, 71, 41, 11]);
+    expect(ids()).toEqual(range(1, 251));
+    expect(screen.getByTestId("has-earlier").props.children).toBe("false");
+  });
+
+  it("то же при сдвиге окна на пять сообщений и пропуске в 60: ни одно сообщение пропуска не теряется", async () => {
+    const total = { value: 100 };
+    const { client, calls } = await open(total);
+    await waitFor(() => expect(ids()).toEqual(range(71, 100)));
+    total.value = 190; // прыжок: окно 161..190, пропуск 101..160 (60 сообщений)
+    await refresh(client);
+    await waitFor(() => expect(ids()).toEqual([...range(71, 100), ...range(161, 190)]));
+    total.value = 195; // окно сдвинулось на пять: 166..195
+    await refresh(client);
+    await waitFor(() => expect(ids()).toEqual([...range(71, 100), ...range(161, 195)]));
+    await pressEarlierUntilDone(calls);
+    expect(cursorsAsked(calls)).toEqual([161, 131, 101, 71, 41, 11]);
+    expect(ids()).toEqual(range(1, 195));
   });
 });
 

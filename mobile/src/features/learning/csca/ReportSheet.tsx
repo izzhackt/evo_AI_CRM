@@ -18,8 +18,13 @@ export function normalizeReportText(raw: string): string | null {
   return text.length >= 1 && text.length <= 500 ? text : null;
 }
 
+/** Сколько знаков в сообщении: пробелы по краям не считаются, как при отправке (веб: счётчик `n/500`). */
+export function reportLength(raw: string): number {
+  return raw.trim().length;
+}
+
 export function ReportSheet({ itemKey, visible, onClose }: { itemKey: string; visible: boolean; onClose: () => void }) {
-  const { t } = useLang();
+  const { m, t } = useLang();
   const { tokens } = useTheme();
   const { transport } = usePortalApi();
   const c = t("csca");
@@ -51,7 +56,7 @@ export function ReportSheet({ itemKey, visible, onClose }: { itemKey: string; vi
           <Text variant="heading" accessibilityRole="header">
             {c.reportOpen}
           </Text>
-          <TextField label={c.reportLabel} hint={c.reportHint} value={text} onChangeText={(v) => { setText(v.slice(0, 500)); if (status !== "sending") setStatus("idle"); }} multiline maxLength={500} testID="report-input" />
+          <TextField label={c.reportLabel} hint={`${c.reportHint} ${reportLength(text)}/500`} value={text} onChangeText={(v) => { setText(v.slice(0, 500)); if (status !== "sending") setStatus("idle"); }} multiline maxLength={500} testID="report-input" />
           {message ? (
             <Text variant="secondary" tone={status === "sent" ? "ok" : "error"} accessibilityRole="alert" testID="report-status">
               {message}
@@ -59,7 +64,7 @@ export function ReportSheet({ itemKey, visible, onClose }: { itemKey: string; vi
           ) : null}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Button label={status === "sending" ? c.reportSending : c.reportSend} onPress={() => void send()} busy={status === "sending"} disabled={status === "sent"} testID="report-send" style={{ flex: 1 }} />
-            <Button variant="ghost" label={c.reportCancel} onPress={() => { setStatus("idle"); onClose(); }} testID="report-cancel" style={{ flex: 1 }} />
+            <Button variant="ghost" label={status === "sent" ? m("learn.navClose") : c.reportCancel} onPress={() => { setStatus("idle"); onClose(); }} testID="report-cancel" style={{ flex: 1 }} />
           </View>
         </View>
       </KeyboardAvoidingView>

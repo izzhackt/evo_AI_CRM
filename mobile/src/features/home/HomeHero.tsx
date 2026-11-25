@@ -11,17 +11,27 @@ import { universityDateLabel } from "@web/lib/portal/universities";
 
 import { countdownWhen, heroSub, type HomeCountdown } from "@/domain/home-model";
 import { goStamped } from "@/features/portal/navigation";
+import { creditSourceUrl } from "@/features/universities/credit";
 import { creditLine } from "@/features/universities/parts";
 import type { PhotoCreditView, PhotoUrls } from "@/features/universities/photos";
 import { useLang } from "@/i18n/LangProvider";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
+import { useReducedMotion } from "@/ui/a11y";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { EvoMark } from "@/ui/EvoMark";
 import { Text } from "@/ui/Text";
 
+/** Появление фото шапки: короткий переход прозрачности. */
+const PHOTO_FADE_MS = 150;
+
 /** Подложка под текстом на фото: на узкой шапке она ровная (`.pt-journey-head[data-hero] .pt-journey-photo::after`, ≤640 px). */
 const PHOTO_SCRIM = "rgba(20,16,12,0.76)";
+
+/** Во сколько раз системный шрифт может увеличить число и слово отсчёта: как приветствие шапки (`display`, 1.2). */
+const BIG_MAX_SCALE = 1.2;
+/** Ширина, с которой подпись отсчёта («дней до 25 сент.» и дело) остаётся рядом с числом; уже - переносится строкой ниже. */
+const COUNT_TEXT_BASIS = 150;
 
 /** `rgb(255 255 255 / 0.05)` из токенов -> строка, понятная RN. */
 function markColor(value: string): string {
@@ -81,11 +91,15 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
           })}
           onPress={() => goStamped(countdown.href)}
           testID="hero-countdown"
+          // Строка переносится: при крупном шрифте системы и в кыргызском («Мөөнөтү өттү») подпись уходит под число, а не
+          // сжимается в узкий столбец (веб: сетка `auto minmax(0, 1fr)` внутри шапки, текст там масштабируется масштабом страницы).
           style={({ pressed }) => ({
             minHeight: MIN_TARGET,
             flexDirection: "row",
+            flexWrap: "wrap",
             alignItems: "baseline",
-            gap: 10,
+            columnGap: 10,
+            rowGap: 2,
             paddingTop: 14,
             borderTopWidth: 1,
             borderTopColor: tokens.heroLine,
@@ -99,6 +113,9 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
             style={countdown.overdue ? { paddingHorizontal: 12, paddingVertical: 4, borderRadius: tokens.radiusItem, backgroundColor: tokens.brandRed } : undefined}
           >
             <Text
+              // Крупное число (44) и слово («Просрочено», 24) растут вместе с шрифтом системы не больше, чем заголовок шапки:
+              // читалка и так слышит всю фразу (метка плашки), а видимый ряд не должен выходить за ширину шапки.
+              maxFontSizeMultiplier={BIG_MAX_SCALE}
               style={{
                 color: tokens.heroInk,
                 fontFamily: sansFont("bold"),
@@ -111,7 +128,7 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
               {when.big}
             </Text>
           </View>
-          <View style={{ flex: 1, gap: 2 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: COUNT_TEXT_BASIS, minWidth: 0, gap: 2 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="hero-countdown-text">
             <Text variant="secondary" style={{ color: soft, fontFamily: sansFont("medium") }}>
               {when.word ? format(home.heroCountdownLine, { word: when.word, date: homeDayMonth(countdown.day, lang) }) : homeDayMonth(countdown.day, lang)}
             </Text>
@@ -193,6 +210,7 @@ export function HomeHero(props: Omit<HeroContentProps, "onPhoto">) {
  * `onFailed`: шапка остаётся тёмной плашкой, «©» не к чему (PlaceImage веба убирает картинку так же).
  */
 export function HeroPhotoLayer({ urls, onFailed }: { urls: PhotoUrls; onFailed: () => void }) {
+  const reduced = useReducedMotion();
   const [stage, setStage] = useState<"sized" | "original">("sized");
   const uri = stage === "sized" ? (urls.sized ?? urls.original) : urls.original;
   return (
@@ -203,7 +221,8 @@ export function HeroPhotoLayer({ urls, onFailed }: { urls: PhotoUrls; onFailed: 
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         contentFit="cover"
-        transition={150}
+        // Плавное появление фото - движение: «Уменьшить движение» в системе его выключает (веб: `prefers-reduced-motion`).
+        transition={reduced ? 0 : PHOTO_FADE_MS}
         onError={() => (stage === "sized" && urls.sized ? setStage("original") : onFailed())}
         style={StyleSheet.absoluteFill}
       />
@@ -217,19 +236,25 @@ export function HeroCredit({ credit }: { credit: PhotoCreditView }) {
   const { t, m } = useLang();
   const strings = t("universities");
   const [shown, setShown] = useState(false);
+  // Ссылка открывает внешний сайт: только безопасный https-адрес, а у фото мест ещё и хост названного источника (как в панели «©»).
+  const link = creditSourceUrl(credit);
+  const panel = { marginRight: 8, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" } as const;
   return (
     <View style={{ position: "absolute", right: 2, bottom: 6, alignItems: "flex-end", maxWidth: "92%" }} pointerEvents="box-none">
       {shown ? (
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(credit.sourceUrl).catch(() => undefined)}
-          testID="hero-credit-text"
-          style={{ marginRight: 8, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" }}
-        >
-          <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
-            {creditLine(credit, strings)}
-          </Text>
-        </Pressable>
+        link === null ? (
+          <View testID="hero-credit-text" style={panel}>
+            <Text variant="caption" style={{ color: "#ffffff" }}>
+              {creditLine(credit, strings)}
+            </Text>
+          </View>
+        ) : (
+          <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(link).catch(() => undefined)} testID="hero-credit-text" style={panel}>
+            <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
+              {creditLine(credit, strings)}
+            </Text>
+          </Pressable>
+        )
       ) : null}
       <Pressable
         accessibilityRole="button"

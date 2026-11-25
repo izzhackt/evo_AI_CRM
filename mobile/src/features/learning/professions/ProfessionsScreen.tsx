@@ -56,7 +56,8 @@ export function ProfessionsScreen() {
   };
   const title = (card: ProfessionCardSummary) => (lang === "ky" ? card.titleKy : card.titleRu);
   const open = (card: ProfessionCardSummary) => router.navigate({ pathname: "/professions/[cardId]", params: { cardId: card.cardId } });
-  const openTest = () => router.navigate({ pathname: "/tests/[key]", params: { key: "orvis92" } });
+  // `from`: после выхода из теста вернуться на «Профессии», а не остаться в каталоге «Тестов» (ревью QA 22).
+  const openTest = () => router.navigate({ pathname: "/tests/[key]", params: { key: "orvis92", from: "professions" } });
   return (
     <Screen topInset={false} tabBar onRefresh={() => void cards.refetch()} refreshing={cards.isRefetching}>
       <View style={{ gap: 16 }} testID="professions-screen">

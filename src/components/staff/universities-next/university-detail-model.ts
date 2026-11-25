@@ -20,6 +20,7 @@ export function universityPrograms(content: UniversityContent, now: Date): Progr
     id: program.id,
     title: program.title,
     level: UNIVERSITY_LEVEL_LABELS[program.level],
+    levelKey: program.level,
     duration: program.duration,
     language: program.language,
     summary: program.summary,

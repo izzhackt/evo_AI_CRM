@@ -239,15 +239,26 @@ test("catalogue read (364): one light read per page, no paging of full cards, th
   assert.doesNotMatch(reader, /CATALOGUE_SORT_PAGES|CatalogueChangedError|readWholeCatalogue/u, "no batched reading of full cards");
 });
 
-test("university page: programmes and intakes first, then the overview; the photo smaller at the side with one Russian credit line", () => {
+const LEVEL_ORDER = ["language", "foundation", "diploma", "bachelor", "master", "doctorate"];
+
+test("university page: the overview with the photo first, then programmes and intakes; the photo smaller at the side with one Russian credit line", () => {
   const html = page("universities-detail");
-  // «Новый вид»: каждая программа — своя секция с таблицей наборов, затем «Об университете», фото — боковая колонка (`aside`) последним в разметке.
+  const utmCount = catalogueCards.find((card) => card.key === "utm").content.programs.length;
+  // 25.11.2026: «Об университете» с фото сбоку — сверху (у вуза с 53 программами оно уходило в самый низ), затем программы.
   const programs = html.indexOf('<section id="program-');
   const about = html.indexOf('id="university-about"');
   const photo = html.indexOf('aria-label="Фото кампуса"');
-  assert.ok(programs > 0 && about > programs && photo > about, "programmes → overview → photo");
+  assert.ok(about > 0 && photo > about && programs > photo, "overview → photo → programmes");
+  // Длинный список (9+ программ) — поиск по названию и свёрнутые группы по уровню со счётчиком, в порядке уровней каталога.
+  const levels = [...html.matchAll(/<details[^>]*data-program-level="([a-z]+)"/gu)].map((match) => match[1]);
+  if (utmCount >= 9) {
+    assert.match(html, /<h2 id="university-programs"[^>]*>Программы<\/h2>/u);
+    assert.match(html, /<label for="university-program-search" class="sr-only">Поиск по названию программы<\/label>/u);
+    assert.deepEqual(levels, [...new Set(catalogueCards.find((card) => card.key === "utm").content.programs.map((program) => program.level))].sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b)));
+    assert.doesNotMatch(html, /<details[^>]*data-program-level="[a-z]+"[^>]* open/u, "несколько уровней — все свёрнуты");
+  } else assert.equal(levels.length, 0);
   // Name and place read as one unit: the place is the line under the h1, the Admin links come after it.
-  const utm = catalogueCards.find((card) => card.key === "utm").content.programs.length;
+  const utm = utmCount;
   const h1 = html.indexOf("<h1");
   const place = html.indexOf(`<p class="t-meta basis-full text-fg-3">Малайзия · Johor Bahru · ${utm} программ</p>`);
   assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, "h1 → place → Admin links → programmes");

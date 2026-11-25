@@ -102,6 +102,20 @@ describe("выход из теста: «Профессии» - тест - «Со
     expect(screen.queryByTestId("assessment-screen")).toBeNull();
   });
 
+  it("вкладку «Тесты» открывали каталогом раньше: тест с «Профессий» лёг на каталог, а выход всё равно возвращает на «Профессии» и оставляет в «Тестах» один каталог", async () => {
+    const { view } = await mount("/home");
+    await act(async () => router.navigate("/tests"));
+    await act(async () => router.navigate("/professions"));
+    await press("start-interests");
+    await waitFor(() => expect(view.getPathname()).toBe("/tests/orvis92"));
+    expect(stack(view, "tests")).toEqual(["index", "[key]"]);
+    await startAndAnswer();
+    await press("assessment-exit");
+    await settle();
+    await waitFor(() => expect(view.getPathname()).toBe("/professions"));
+    expect(stack(view, "tests")).toEqual(["index"]);
+  });
+
   it("стрелка в шапке теста ведёт туда же, что «Сохранить и выйти»", async () => {
     const { view } = await mount("/home");
     await act(async () => router.navigate("/professions"));

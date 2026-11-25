@@ -6216,6 +6216,35 @@ SQL
       exit 1
     fi
   fi
+  # «Поиск и фильтр по стране дела» (migration 374, 25.11.2026). Matched by name, not number. The migration adds one closed
+  # function with the words of a case country (platform.study_countries through study_country_from_text) and patches four
+  # reads by checked fragments: right after it a second apply refuses (a374_already_applied), then the suite, insisting on
+  # its marker. The suite proves: the words for every spelling of a country; the «Студенты» page, queue and counts find a
+  # case by the word of its country and keep every older match; the board country filter takes one country however it is
+  # written; a curator without access gets nothing; posture and grants.
+  if [[ "$(basename "$migration")" == *_platform_case_country_search.sql ]]; then
+    t374_again_log="$(mktemp -t evo-t374-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t374_again_log" 2>&1; then
+      echo "migration 374 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a374_already_applied" "$t374_again_log"; then
+      echo "a second apply of migration 374 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t374_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t374_again_log"
+    case_country_search_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_country_search.sql </dev/null)"
+    printf '%s\n' "$case_country_search_log"
+    if ! grep -q 'A374_CASE_COUNTRY_SEARCH_SUITE_PASSED' <<<"$case_country_search_log"; then
+      echo "platform_case_country_search.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

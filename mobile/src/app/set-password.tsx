@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 
+import { ApplicantDeletionSection } from "@/features/registration/ApplicantDeletion";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
 import { Button } from "@/ui/Button";
@@ -77,8 +78,12 @@ export default function SetPasswordScreen() {
           </Text>
         ) : null}
         <Button label={busy ? m("setPassword.saving") : m("setPassword.submit")} onPress={submit} busy={busy} testID="set-password-submit" />
-        <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} disabled={busy} />
+        <Button label={profile.logout} variant="ghost" onPress={() => void signOut()} disabled={busy} testID="set-password-sign-out" />
       </Card>
+      {/* Экран, на котором можно застрять (временный пароль): аккаунт удаляется и отсюда (Apple 5.1.1(v); рецензия #1554). */}
+      <View style={{ marginTop: 16 }}>
+        <ApplicantDeletionSection />
+      </View>
     </Screen>
   );
 }

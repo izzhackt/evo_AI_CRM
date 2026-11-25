@@ -19,11 +19,20 @@ jest.mock("@/session/SessionProvider", () => ({
 }));
 
 type Call = { name: string; args?: Record<string, unknown> };
+// Вызовы согласий (`mockCalls`) и вызовы секции «Удалить аккаунт» (`mockDeletionCalls`) считаются порознь: секция читает статус
+// запроса на удаление при открытии экрана, и это не про согласия (на экране, где можно застрять, удаление аккаунта обязательно).
 const mockCalls: Call[] = [];
+const mockDeletionCalls: Call[] = [];
 let mockReply: (call: number) => { data?: unknown; error?: { code: string } | null; status?: number } = () => ({ data: null });
+let mockDeletionReply: (name: string) => { data?: unknown; error?: { code: string } | null; status?: number } = () => ({ data: null });
 jest.mock("@/lib/supabase", () => ({
   getSupabase: () => ({}),
   platformTransport: () => async (name: string, args?: Record<string, unknown>) => {
+    if (name === "own_account_deletion_request_v1" || name === "request_account_deletion_v2") {
+      mockDeletionCalls.push({ name, args });
+      const d = mockDeletionReply(name);
+      return { data: d.data ?? null, error: d.error ?? null, status: d.status ?? 200 };
+    }
     mockCalls.push({ name, args });
     const r = mockReply(mockCalls.length);
     return { data: r.data ?? null, error: r.error ?? null, status: r.status ?? 200 };
@@ -50,6 +59,8 @@ const renderScreen = (ui: React.ReactElement, lang: "ru" | "ky" = "ru") =>
 
 beforeEach(() => {
   mockCalls.length = 0;
+  mockDeletionCalls.length = 0;
+  mockDeletionReply = () => ({ data: null });
   mockReply = () => ({ data: accepted });
   mockComplete.mockClear();
   mockSignOut.mockClear();
@@ -155,5 +166,57 @@ describe("«Задайте свой пароль» без галочек (кон
     await waitFor(() => expect(mockSetOwnPassword).toHaveBeenCalledWith("synthetic-password-1"));
     expect(mockSetOwnPassword.mock.calls[0]).toHaveLength(1);
     expect(mockCalls).toHaveLength(0);
+  });
+});
+
+// Аккаунт, созданный в приложении или администратором, удаляется с любого экрана, на котором человек может остаться (Apple
+// 5.1.1(v); рецензия #1554): экран «Конфиденциальность» и экран нового пароля. Сессия на них уже есть, а база не связывает удаление
+// с признаком временного пароля, поэтому общая секция работает и здесь.
+describe("«Удалить аккаунт» на экранах, где можно застрять", () => {
+  const OPEN = { requestId: "11111111-1111-4111-8111-111111111111", status: "requested", requestedAt: "2026-11-09T08:00:00+00:00", dueAt: "2026-12-09T08:00:00+00:00" };
+
+  it.each([
+    ["«Конфиденциальность»", () => <ConsentScreen />],
+    ["новый пароль", () => <SetPasswordScreen />],
+  ] as const)("%s: секция удаления на месте, запрос уходит с p_request_id, повтор после сбоя тем же id", async (_name, screenOf) => {
+    let attempts = 0;
+    mockDeletionReply = (name) => {
+      if (name === "own_account_deletion_request_v1") return { data: null };
+      attempts += 1;
+      return attempts === 1 ? { error: { code: "XX000" }, status: 500 } : { data: OPEN };
+    };
+    await renderScreen(screenOf());
+    expect(screen.getByTestId("applicant-deletion-heading")).toHaveTextContent("Удаление аккаунта");
+    await fireEvent.press(await screen.findByTestId("deletion-start"));
+    await fireEvent.press(screen.getByTestId("deletion-confirm-yes"));
+    expect(await screen.findByTestId("deletion-error")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("deletion-confirm-yes"));
+    expect(await screen.findByText("Запрос на удаление принят 09.11.2026.")).toBeTruthy();
+    const writes = mockDeletionCalls.filter((c) => c.name === "request_account_deletion_v2");
+    expect(writes).toHaveLength(2);
+    expect(writes[0]?.args).toEqual({ p_request_id: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(writes[1]?.args?.p_request_id).toBe(writes[0]?.args?.p_request_id);
+    // согласий и пароля это не касается
+    expect(mockCalls).toHaveLength(0);
+    expect(mockSetOwnPassword).not.toHaveBeenCalled();
+  });
+
+  it("запрос на удаление уже принят: виден статус и «Выйти и стереть данные на этом устройстве»", async () => {
+    mockDeletionReply = () => ({ data: OPEN });
+    await renderScreen(<ConsentScreen />);
+    expect(await screen.findByTestId("deletion-status")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("deletion-sign-out"));
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("секция не мешает экранам: «Продолжить» без галочек по-прежнему закрыта, пароль уходит как раньше", async () => {
+    await renderScreen(<ConsentScreen />);
+    expect(screen.getByTestId("consent-submit").props.accessibilityState.disabled).toBe(true);
+    await screen.unmount();
+    await renderScreen(<SetPasswordScreen />);
+    await fireEvent.changeText(screen.getByTestId("new-password"), "synthetic-password-1");
+    await fireEvent.changeText(screen.getByTestId("confirm-password"), "synthetic-password-1");
+    await fireEvent.press(screen.getByTestId("set-password-submit"));
+    await waitFor(() => expect(mockSetOwnPassword).toHaveBeenCalledWith("synthetic-password-1"));
   });
 });

@@ -4,7 +4,6 @@ import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import {
   HOME_CASE_ROWS,
   HOME_NEWS_LIMIT,
-  PROGRAMS_ROUTE,
   applicationSteps,
   caseRows,
   collectHomeDates,
@@ -20,7 +19,7 @@ import {
 } from "@/domain/home-model";
 import { buildPortalOverview, normalizeStudentPortalNotification } from "@/domain/portal-source";
 
-import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW } from "@/test-fixtures/rpc-rows";
+import { NOTIFICATION_ROW, OVERVIEW_ROW, PAYMENT_ROW, SLOT_ID } from "@/test-fixtures/rpc-rows";
 import { preparationRow, uuidN } from "@/test-fixtures/universities";
 
 describe("порядок блоков Главной (под шапкой пути)", () => {
@@ -95,7 +94,8 @@ describe("ближайшие даты", () => {
     });
     expect(dates.map((d) => d.title)).toEqual(["Замените документ: Паспорт", "Оплата: Услуги EVO", "Вуз A: последний день подачи"]);
     expect(dates.map((d) => d.day)).toEqual(["2026-09-12", "2026-10-01", "2027-02-01"]);
-    expect(dates.map((d) => d.href)).toEqual(["/documents", "/payments", "/universities/A"]);
+    // документ ведёт на свою строку «Документов» (веб `/portal/documents#document-<slotId>`), оплата - на «Оплату»
+    expect(dates.map((d) => d.href)).toEqual([`/documents?focus=${SLOT_ID}`, "/payments", "/universities/A"]);
   });
 
   it("сроки своих программ идут в даты, а общая строка того же вуза из избранного их не повторяет", () => {
@@ -107,7 +107,8 @@ describe("ближайшие даты", () => {
       favorites: [university(uuidN(1), { applicationDeadline: "2027-02-01", startDate: null, startMonth: null }), university("Z", { applicationDeadline: "2027-03-01", startDate: null, startMonth: null })],
     });
     expect(dates.map((d) => d.title)).toEqual(["Информатика, Университет 1: последний день подачи", "Вуз Z: последний день подачи"]);
-    expect(dates[0]).toMatchObject({ day: "2027-05-01", href: PROGRAMS_ROUTE });
+    // срок программы ведёт на экран этой программы (веб `/portal/preparations/<applicationId>`), а не на общий список
+    expect(dates[0]).toMatchObject({ day: "2027-05-01", href: `/preparations/${uuidN(1, "bbbbbbbb")}` });
     expect(dates.some((d) => d.title.startsWith("Вуз " + uuidN(1)))).toBe(false);
   });
 
@@ -140,7 +141,7 @@ describe("отсчёт в шапке", () => {
   it("просроченное дело важнее будущей даты: слово «Просрочено» и ссылка на это дело", () => {
     // срок паспорта 12.09 03:00 UTC (09:00 Бишкека) прошёл; ближайшая дата окна - платёж 1.10
     const countdown = homeCountdown({ overview, dated: [dated[1]], now: new Date("2026-09-20T05:00:00Z"), admission });
-    expect(countdown).toEqual({ day: "2026-09-12", title: "Замените документ: Паспорт", href: "/documents", days: 0, overdue: true });
+    expect(countdown).toEqual({ day: "2026-09-12", title: "Замените документ: Паспорт", href: `/documents?focus=${SLOT_ID}`, days: 0, overdue: true });
     expect(countdownWhen(countdown!, "ru", home)).toEqual({ big: "Просрочено", word: null });
   });
 

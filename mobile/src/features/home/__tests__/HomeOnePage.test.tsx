@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react-nativ
 import { router, useLocalSearchParams } from "expo-router";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
+import { preparationHref } from "@/features/preparations/routes";
 import { OVERVIEW_ROW_EMPTY } from "@/test-fixtures/rpc-rows";
 import { APPLICATION_ROW, favorites, homeHandlers, restoreNow, saved, setNow } from "@/test-fixtures/home";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -287,13 +288,61 @@ describe("Главная: «Мой список»", () => {
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId(`fav-${uuidN(1)}`)).toBeTruthy();
-    expect(screen.getByTestId("tab-universities").props.accessibilityState).toMatchObject({ checked: true });
+    // вкладки раздела (веб: `nav` с подписью «Вузы и программы» и текущей вкладкой), а не переключатель вида
+    expect(screen.getByTestId("tab-group").props).toMatchObject({ accessibilityRole: "tablist", accessibilityLabel: "Вузы и программы" });
+    expect(screen.getByTestId("tab-universities").props).toMatchObject({ accessibilityRole: "tab", accessibilityState: { selected: true } });
     await fireEvent.press(screen.getByTestId("tab-programs"));
     const row = await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`);
     expect(within(row).getByText("Информатика")).toBeTruthy();
     expect(within(row).getByText("Осень 2027")).toBeTruthy();
     expect(within(row).getByText("Сроки этого набора нужно подтвердить с куратором.")).toBeTruthy();
+    expect(within(row).getByText("Университет 1")).toBeTruthy();
     expect(screen.getByText("Мои программы 1")).toBeTruthy();
+  });
+
+  it("«Мои программы»: заголовок, ссылка в каталог, пояснение (веб PreparationList)", async () => {
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`);
+    expect(screen.getByText("Здесь программы, которые вы добавили, и документы по каждой из них.")).toBeTruthy();
+    // выбор открыт: ссылка зовёт добавить программу, ведёт в каталог
+    const link = screen.getByTestId("programs-catalog");
+    expect(link).toHaveTextContent("Добавить программу");
+    await fireEvent.press(link);
+    expect(navigate).toHaveBeenCalledWith("/universities");
+  });
+
+  it("выбор программ закрыт для дела: ссылка в шапке - «Каталог университетов», и она есть всегда, даже когда список пуст", async () => {
+    const { transport } = fakeTransport(handlers("MY", { student_catalog_preparations_v1: [] }));
+    await renderPortal(<HomeScreen />, testApi(transport, { canSelectPrograms: false }));
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    expect(await screen.findByTestId("programs-empty")).toHaveTextContent(/^Пока здесь пусто\./);
+    expect(screen.getByTestId("programs-catalog")).toHaveTextContent("Каталог университетов");
+  });
+
+  it("строка программы открывается: название и «Открыть» ведут на экран программы (preparationHref)", async () => {
+    const id = uuidN(1, "bbbbbbbb");
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(screen.getByTestId("tab-programs"));
+    const open = await screen.findByTestId(`program-open-${id}`);
+    // веб: aria-label «Открыть: <название программы>»
+    expect(open.props.accessibilityLabel).toBe("Открыть: Информатика");
+    await fireEvent.press(open);
+    expect(navigate).toHaveBeenLastCalledWith(preparationHref(id));
+    await fireEvent.press(screen.getByTestId(`program-link-${id}`));
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenLastCalledWith({ pathname: "/preparations/[applicationId]", params: { applicationId: id } });
+  });
+
+  it("кыргызский: слова вкладок и «Открыть» из общего словаря", async () => {
+    const { transport } = fakeTransport(handlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport), "ky");
+    await fireEvent.press(await screen.findByTestId("tab-programs"));
+    const open = await screen.findByTestId(`program-open-${uuidN(1, "bbbbbbbb")}`);
+    expect(open.props.accessibilityLabel).toBe("Ачуу: Информатика");
+    expect(screen.getByTestId("programs-catalog")).toHaveTextContent("Программа кошуу");
   });
 
   it("«Мои вузы»: карточки с названием и «город · страна», фото только из бакета, без фото - подложка", async () => {
@@ -314,12 +363,12 @@ describe("Главная: «Мой список»", () => {
     // фото: адрес только из нашего бакета (render/image), у вуза без фото картинки нет и надписи нет
     // у карточки с фото кроме кнопки есть картинка (та же подпись), у карточки без фото - только кнопка
     // Фото в карточке скрыто от читалки (название читает сама карточка), поэтому ищем узел с source.
-    expect(screen.getAllByLabelText("Университет 1")).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^Университет 1\. Куала-Лумпур · Малайзия/)).toHaveLength(1);
     const photo = screen.getAllByTestId(/^fav-photo-/, { includeHiddenElements: true })[0];
     const source = (photo.props as { source: { uri: string } | { uri: string }[] }).source;
     const uri = [source].flat()[0].uri;
     expect(uri).toMatch(/^http:\/\/localhost:46421\/storage\/v1\/render\/image\/public\/portal-university-photos\/sunway\.jpg\?/);
-    expect(screen.getAllByLabelText("Университет 2")).toHaveLength(1);
+    expect(screen.getAllByLabelText(/^Университет 2\. Куала-Лумпур · Малайзия/)).toHaveLength(1);
     expect(within(second).queryByText(/Фото/)).toBeNull();
     // две карточки - всё избранное уже видно, ссылки «Всё избранное» нет
     expect(screen.queryByTestId("favorites-all")).toBeNull();
@@ -382,7 +431,7 @@ describe("Главная: переходы из старых ссылок и к�
     const { transport } = fakeTransport(handlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(await screen.findByTestId(`program-${uuidN(1, "bbbbbbbb")}`)).toBeTruthy();
-    expect(screen.getByTestId("tab-programs").props.accessibilityState).toMatchObject({ checked: true });
+    expect(screen.getByTestId("tab-programs").props.accessibilityState).toMatchObject({ selected: true });
   });
 
   it("строка избранного ведёт на карточку вуза", async () => {

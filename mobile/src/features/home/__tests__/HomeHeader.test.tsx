@@ -1,7 +1,7 @@
 // Шапка «Главной» (веб #1489): фото столицы с «©», «страна · набор», отсчёт до ближайшей даты, тёмная плашка без фото
 // и без страны, светлая и тёмная темы.
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { Linking } from "react-native";
 import { homeDayMonth } from "@web/lib/portal/home-dates";
@@ -9,7 +9,8 @@ import { formatPortalString, getPortalStrings } from "@web/lib/portal/i18n";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { darkTokens, lightTokens } from "@/theme/tokens.generated";
-import { OVERVIEW_ROW_EMPTY } from "@/test-fixtures/rpc-rows";
+import { setReducedMotionForTests } from "@/ui/motion";
+import { OVERVIEW_ROW_EMPTY, SLOT_ID } from "@/test-fixtures/rpc-rows";
 import { homeHandlers, moveNow, restoreNow, setNow } from "@/test-fixtures/home";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
@@ -69,6 +70,35 @@ describe("шапка на фото столицы", () => {
     expect(screen.getByTestId("journey-now")).toBeTruthy();
   });
 
+  it.each([
+    [false, 150],
+    [true, 0],
+  ])("«Уменьшить движение» = %s: фото появляется за %s мс (веб: `prefers-reduced-motion`)", async (reduced, duration) => {
+    setReducedMotionForTests(reduced);
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    // expo-image принимает число миллисекунд и отдаёт нативному слою `{ duration }`
+    expect((await screen.findByTestId("hero-photo", { includeHiddenElements: true })).props.transition).toEqual({ duration });
+    setReducedMotionForTests(true);
+  });
+
+  it("фото не загрузилось - потянуть вниз даёт ему ещё одну попытку (веб: перезагрузка страницы)", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const first = await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    await fireEvent(first, "error", { nativeEvent: { error: "load failed" } });
+    const second = await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    await fireEvent(second, "error", { nativeEvent: { error: "load failed" } });
+    await waitFor(() => expect(screen.queryByTestId("hero-photo", { includeHiddenElements: true })).toBeNull());
+    await act(async () => {
+      screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    // снова копия нужной ширины, а не оригинал: попытка начинается сначала
+    const again = await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    expect(uriOf(again)).toContain("/render/image/public/");
+    expect(screen.getByTestId("hero-credit")).toBeTruthy();
+  });
+
   it("нет фото столицы (у Китая в тестовом каталоге нет ни Пекина, ни фото страны) - плашка без «©»", async () => {
     const { transport } = fakeTransport(homeHandlers("CN"));
     await renderPortal(<HomeScreen />, testApi(transport));
@@ -109,7 +139,28 @@ describe("отсчёт до ближайшей даты", () => {
     // читалка слышит одну фразу: «4 дня до: дело, полная дата»
     expect(count.props.accessibilityLabel).toBe("4 дня до: Замените документ: Паспорт, 12 сентября 2026 г.");
     await fireEvent.press(count);
-    expect(navigate).toHaveBeenCalledWith("/documents");
+    expect(navigate).toHaveBeenCalledWith(`/documents?focus=${SLOT_ID}`);
+  });
+
+  it("при крупном шрифте системы число растёт не больше, чем заголовок шапки, а подпись уходит под него, а не сжимается", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const count = await screen.findByTestId("hero-countdown");
+    expect(flat(count)).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
+    const big = within(screen.getByTestId("hero-countdown-big", { includeHiddenElements: true })).getByText("4", { includeHiddenElements: true });
+    expect(big.props.maxFontSizeMultiplier).toBe(1.2);
+    // подпись держит свою ширину (не уже 150) и растягивается на остаток строки
+    expect(flat(screen.getByTestId("hero-countdown-text", { includeHiddenElements: true }))).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: 150, minWidth: 0 });
+  });
+
+  it("слово «Просрочено» (на кыргызском длинное) тоже ограничено в росте и переносится вместе со строкой", async () => {
+    moveNow("2026-09-20T05:00:00Z");
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport), "ky");
+    const count = await screen.findByTestId("hero-countdown");
+    const word = within(screen.getByTestId("hero-countdown-big", { includeHiddenElements: true })).getByText(getPortalStrings("home", "ky").heroOverdue, { includeHiddenElements: true });
+    expect(word.props.maxFontSizeMultiplier).toBe(1.2);
+    expect(flat(count).flexWrap).toBe("wrap");
   });
 
   it.each([
@@ -133,7 +184,7 @@ describe("отсчёт до ближайшей даты", () => {
     expect(within(count).getByText("Замените документ: Паспорт", { includeHiddenElements: true })).toBeTruthy();
     expect(flat(screen.getByTestId("hero-countdown-big", { includeHiddenElements: true })).backgroundColor).toBe(lightTokens.brandRed);
     await fireEvent.press(count);
-    expect(navigate).toHaveBeenCalledWith("/documents");
+    expect(navigate).toHaveBeenCalledWith(`/documents?focus=${SLOT_ID}`);
   });
 
   it("дат на 60 дней нет - отсчёта нет", async () => {

@@ -27,6 +27,7 @@ import { useUniversityIndex } from "@/features/universities/hooks";
 import { geographyUrls, usePhotoPixels } from "@/features/universities/parts";
 import { geographyPhotoCredit } from "@/features/universities/photos";
 import { useLang } from "@/i18n/LangProvider";
+import { useReducedMotion } from "@/ui/a11y";
 import { CardSkeleton } from "@/ui/CardParts";
 import { Enter } from "@/ui/motion";
 import { Card, Screen, type ScrollTarget } from "@/ui/Screen";
@@ -61,14 +62,7 @@ export function HomeScreen() {
   const { index } = useUniversityIndex();
   const photoPixels = usePhotoPixels();
   const [refreshing, setRefreshing] = useState(false);
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await client.refetchQueries({ queryKey: ["portal", userKey], type: "active" });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [client, userKey]);
+  const reducedMotion = useReducedMotion();
 
   // Вкладка «Мой список» и раскрытый путь: из ссылок (`?list=programs`, `?path=open`, в том числе из старого /overview)
   // и из нажатий на самом экране.
@@ -79,7 +73,8 @@ export function HomeScreen() {
   const [unfoldStamp, setUnfoldStamp] = useState(params.openPath ? params.stamp : "");
   const scroller = useRef<ScrollTarget>(null);
   const offsets = useRef<Partial<Record<"list" | "path", number>>>({});
-  const scrollToY = useCallback((y: number) => scroller.current?.scrollTo({ y: Math.max(0, y), animated: true }), []);
+  // Прокрутка к блоку и к текущему шагу плавная, а при «Уменьшить движение» мгновенная (веб: `behavior: "auto"` при `prefers-reduced-motion`).
+  const scrollToY = useCallback((y: number) => scroller.current?.scrollTo({ y: Math.max(0, y), animated: !reducedMotion }), [reducedMotion]);
   const scrollTo = useCallback(
     (slot: "list" | "path") => {
       const y = offsets.current[slot];
@@ -121,6 +116,17 @@ export function HomeScreen() {
     unfoldStamp,
     scrollTo: scrollToY,
   });
+  // Потянуть вниз перечитывает источники и даёт фото шапки, которое не загрузилось, ещё одну попытку (веб: перезагрузка страницы).
+  const { setFailedPhoto } = journeyState;
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    setFailedPhoto(null);
+    try {
+      await client.refetchQueries({ queryKey: ["portal", userKey], type: "active" });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [client, userKey, setFailedPhoto]);
   const country = choiceData?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, lang) : null;
   const cscaCard = selectCscaHomeCard({ choice: choiceData, home: csca.data ?? null, locale: lang, cscaStrings: t("csca"), homeStrings: home });
@@ -219,17 +225,21 @@ export function HomeScreen() {
     );
   }
   for (const id of slots) {
+    const content = slot(id);
+    // Пустое место не рисуется (веб: `{csca ? <div className="pt-home-slot">…</div> : null}`): иначе у выбравшего Китай, пока
+    // карточка CSCA не прочиталась или чтение не удалось, под последним блоком оставался бы пустой промежуток в 16 pt.
+    if (content === null) continue;
     const enter = SLOT_ENTER[id];
     const onLayout = id === "list" ? (event: LayoutChangeEvent) => placed("list")(event.nativeEvent.layout.y) : undefined;
     // Задача команды EVO стоит вне колонок веба и не входит по очереди; остальные блоки входят с шагом `stagger`.
     blocks.push(
       enter === null ? (
         <View key={id} testID={`slot-${id}`} style={{ marginTop: BLOCK_GAP }} onLayout={onLayout}>
-          {slot(id)}
+          {content}
         </View>
       ) : (
         <Enter key={id} testID={`slot-${id}`} index={enter} style={{ marginTop: BLOCK_GAP }} onLayout={onLayout}>
-          {slot(id)}
+          {content}
         </Enter>
       ),
     );

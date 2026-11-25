@@ -1,6 +1,6 @@
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { ADMISSION_STAGE_PATH, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
+import { ADMISSION_STAGE_PATH, DOCUMENT_FOCUS_PARAM, actionHref, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
 import { normalizeStudentPortalOverview } from "@/domain/portal-source";
 
 import { OVERVIEW_ROW, SLOT_ID } from "@/test-fixtures/rpc-rows";
@@ -37,6 +37,13 @@ describe("действия дела", () => {
     expect(actionTitle(action, ky)).toContain("Паспорт");
     expect(actionTarget(action)).toEqual({ route: "/documents", slotId: SLOT_ID });
     expect(actionTarget({ kind: "payment", label: "x", dueAt: null, amountMinor: 1, currency: "USD" })).toEqual({ route: "/payments", slotId: null });
+  });
+  it("адрес действия: документ открывает «Документы» на своей строке (`focus` = слот), оплата - «Оплату»", () => {
+    const action = overview.studentAction!;
+    expect(DOCUMENT_FOCUS_PARAM).toBe("focus");
+    expect(actionHref(action)).toBe(`/documents?focus=${SLOT_ID}`);
+    expect(actionHref({ ...action, documentSlotId: "слот/с пробелом?" } as typeof action)).toBe("/documents?focus=%D1%81%D0%BB%D0%BE%D1%82%2F%D1%81%20%D0%BF%D1%80%D0%BE%D0%B1%D0%B5%D0%BB%D0%BE%D0%BC%3F");
+    expect(actionHref({ kind: "payment", label: "x", dueAt: null, amountMinor: 1, currency: "USD" })).toBe("/payments");
   });
   it("задача EVO: срок датой или временем, статус словарём", () => {
     expect(evoActionDueLabel(overview.evoAction!)).toBe("13.09.2026");
@@ -126,5 +133,21 @@ describe("уведомления и ссылки", () => {
     expect(linkTarget("javascript:alert(1)")).toBeNull();
     expect(linkTarget("evo-app://csca")).toBeNull();
     expect(linkTarget("/apply/status")).toBeNull();
+  });
+
+  it("страницы с идентификатором сохраняют его: программа и вуз (общее правило отбросило бы всё после раздела)", () => {
+    const id = "bbbbbbbb-0000-4000-8000-000000000001";
+    expect(linkTarget(`/portal/preparations/${id}`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}/`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget("/portal/preparations/a%20b")).toEqual({ kind: "route", route: "/preparations/a%20b" });
+    // негодный идентификатор не уводит на чужой маршрут и не бросает исключения
+    expect(linkTarget("/portal/preparations/%E0%A4%A")).toBeNull();
+    expect(linkTarget("/portal/preparations/..")).toEqual({ kind: "route", route: "/home?list=programs" });
+    expect(linkTarget("/portal/preparations")).toEqual({ kind: "route", route: "/preparations" });
+    const university = "aaaaaaaa-0000-4000-8000-000000000001";
+    expect(linkTarget(`/portal/universities/${university}`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    expect(linkTarget(`/portal/universities/${university.toUpperCase()}`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    // не uuid - прежнее правило раздела
+    expect(linkTarget("/portal/universities/country/cn")).toEqual({ kind: "route", route: "/universities" });
   });
 });

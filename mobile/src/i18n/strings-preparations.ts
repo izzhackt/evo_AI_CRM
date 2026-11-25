@@ -4,13 +4,24 @@
 // Префикс ключей: `prep.*`. Закрывает G35-G38 аудита паритета 25.11.2026.
 // Новый ключ добавляется в RU и в KY сразу: тип `PreparationsStringKey` не даст собрать KY без пары.
 // Соглашение: каждая новая KY-строка получает в конце пометку `// KY: needs native proofreading`.
+//
+// Что здесь, а что берётся из веба. Тексты экрана «Требования программы» (`preparations.*`, `programDocuments.*`) приложение
+// читает из общих словарей веба без копий. Здесь только то, что в вебе написано про страницу и браузер и в приложении
+// было бы неверным («обновите страницу», «откроется в новой вкладке»), и то, чего у веба нет (экран «не найдено»).
 
 export const PREPARATIONS_RU = {
-  // Пока пусто: строки добавляет срез.
+  // --- G35: экран «Требования программы» (только чтение) ---
+  "prep.notFound": "Эта программа не найдена в вашем списке.",
+  "prep.forbidden": "Не получается открыть это сейчас. Проверьте, что вы вошли в свой аккаунт, и повторите.",
+  "prep.deadlineSource": "Источник срока (откроется в браузере)",
+  "prep.listOpened": "Список документов открыт.",
 } as const;
 
 export type PreparationsStringKey = keyof typeof PREPARATIONS_RU;
 
 export const PREPARATIONS_KY: Readonly<Record<PreparationsStringKey, string>> = {
-  // Пока пусто: см. соглашение в шапке.
+  "prep.notFound": "Бул программа сиздин тизмеңизден табылган жок.", // KY: needs native proofreading
+  "prep.forbidden": "Муну азыр ачуу мүмкүн эмес. Өз аккаунтуңузга киргениңизди текшерип, кайра аракет кылыңыз.", // KY: needs native proofreading
+  "prep.deadlineSource": "Мөөнөттүн булагы (браузерде ачылат)", // KY: needs native proofreading
+  "prep.listOpened": "Документтердин тизмеси ачылды.", // KY: needs native proofreading
 };

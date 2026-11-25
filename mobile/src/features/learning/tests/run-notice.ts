@@ -6,8 +6,8 @@
 // видит: меню ☰ и вкладки) и «Выйти без сохранения» после нескольких неудачных попыток подряд (без связи экран держал бы вечно).
 import { ASSESSMENT_LEAVE_AFTER_FAILURES, type AssessmentUiState } from "@/features/learning/tests/assessment-session";
 
-/** Строки веба (`tests`) и строка приложения `assess.unsavedNote`. */
-export type RunNoticeKey = "error.conflict" | "error.invalid" | "error.denied" | "error.unavailable" | "reloadUnavailable" | "reloadBeforeExit" | "exitBlocked" | "assess.unsavedNote";
+/** Строки веба (`tests`) и две строки приложения: `assess.unsavedNote` и `assess.swipeOff`. */
+export type RunNoticeKey = "error.conflict" | "error.invalid" | "error.denied" | "error.unavailable" | "reloadUnavailable" | "reloadBeforeExit" | "exitBlocked" | "assess.unsavedNote" | "assess.swipeOff";
 export type RunNoticeAction = "loadSaved" | "retrySave" | "leaveAnyway";
 export type RunNotice = Readonly<{ messages: readonly RunNoticeKey[]; actions: readonly RunNoticeAction[] }>;
 
@@ -18,7 +18,8 @@ export function isBlocked(state: Pick<AssessmentUiState, "saveStatus" | "reloadR
   return state.unsaved && (state.reloadRequired || state.saveStatus === "unconfirmed");
 }
 
-export function runNotice(state: NoticeState, exitNotice: boolean): RunNotice {
+/** `swipeOff`: на этом телефоне жест назад выключен, пока защита держит экран (iPhone; у Android «назад» идёт через защиту, как кнопка). */
+export function runNotice(state: NoticeState, exitNotice: boolean, swipeOff = false): RunNotice {
   const messages: RunNoticeKey[] = [];
   const actions: RunNoticeAction[] = [];
   if (state.reloadRequired) {
@@ -35,6 +36,7 @@ export function runNotice(state: NoticeState, exitNotice: boolean): RunNotice {
   if (exitNotice) messages.push(state.reloadRequired ? "reloadBeforeExit" : "exitBlocked");
   if (isBlocked(state)) {
     messages.push("assess.unsavedNote");
+    if (swipeOff) messages.push("assess.swipeOff");
     if (state.failures >= ASSESSMENT_LEAVE_AFTER_FAILURES) actions.push("leaveAnyway");
   }
   return { messages, actions };

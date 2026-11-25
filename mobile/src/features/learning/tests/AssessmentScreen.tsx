@@ -109,18 +109,16 @@ function AssessmentFlow({ instrumentKey, knownDraft, initial, instrument, origin
   const running = phase === "running" || phase === "completing";
   const { exitNotice, saveAndExit, leaveAnyway } = useLeaveGuard({ session, active: running, back: exit });
   const loading = resuming && (phase === "intro" || phase === "starting");
+  const restart = () => {
+    session.restart();
+    toTop(); // «Перед началом» короче результата: без прокрутки открылся бы пустой низ экрана
+  };
   return (
     <RunnerPage header={<SubHeader title={title} onBack={saveAndExit} backLabel={s.backToCatalog} testID="assessment-title" />} scrollRef={scroller} testID="assessment-screen">
       {loading ? <CardSkeleton label={m("state.loading")} lines={4} /> : null}
       {!loading && (phase === "intro" || phase === "starting") ? <Intro instrument={instrument} state={state} onStart={() => void session.start()} resume={state.resumable} /> : null}
       {running && state.attempt ? <AssessmentRunner session={session} state={state} attempt={state.attempt} exitNotice={exitNotice} onSaveAndExit={saveAndExit} onLeaveAnyway={leaveAnyway} onPageChange={toTop} /> : null}
-      {phase === "result" && state.attempt ? <AssessmentResult
-          attempt={state.attempt}
-          onRestart={() => {
-            session.restart();
-            toTop(); // «Перед началом» короче результата: без прокрутки открылся бы пустой низ экрана
-          }}
-        /> : null}
+      {phase === "result" && state.attempt ? <AssessmentResult attempt={state.attempt} onRestart={restart} /> : null}
     </RunnerPage>
   );
 }
@@ -317,7 +315,8 @@ function AssessmentResult({ attempt, onRestart }: { attempt: AssessmentAttempt; 
         {s.resultSavedNote}
       </Text>
       <Button variant="ghost" label={s.cardRetake} onPress={onRestart} testID="assessment-restart" />
-      <Button variant="ghost" label={s.backToTests} onPress={() => router.navigate("/tests")} />
+      {/* К каталогу, а не новый каталог поверх теста: из другого раздела тест в стеке «Тестов» единственный (см. `exit.ts`). */}
+      <Button variant="ghost" label={s.backToTests} onPress={() => router.dismissTo("/tests")} testID="assessment-back-to-tests" />
     </View>
   );
 }

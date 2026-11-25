@@ -12,7 +12,8 @@ export const LEARN2_RU = {
   "assess.replaceCancel": "Отмена",
   "assess.replaceConfirm": "Заменить",
   // Тесты: упорный сбой сохранения (ревью #1559). У веба этих строк нет: у телефона есть выходы, которых защита не видит (меню ☰ и вкладки).
-  "assess.unsavedNote": "Ответы ещё не сохранены, свайп назад выключен. Если выйти через меню или вкладки, сохранение остановится, и ответы могут пропасть.",
+  "assess.unsavedNote": "Ответы ещё не сохранены. Если выйти через меню или вкладки, сохранение остановится, и ответы могут пропасть.",
+  "assess.swipeOff": "Свайп назад выключен, пока ответы не сохранены.",
   "assess.leaveAnyway": "Выйти без сохранения",
   "assess.leaveTitle": "Выйти без сохранения?",
   "assess.leaveBody": "Ответы, которые не удалось сохранить, пропадут. Те, что сохранены раньше, останутся.",
@@ -26,7 +27,8 @@ export const LEARN2_KY: Readonly<Record<Learn2StringKey, string>> = {
   // Пока пусто: см. соглашение в шапке.
   "assess.replaceCancel": "Жокко чыгаруу", // KY: needs native proofreading
   "assess.replaceConfirm": "Алмаштыруу", // KY: needs native proofreading
-  "assess.unsavedNote": "Жооптор азырынча сакталган жок, артка сүрүү өчүрүлгөн. Меню же өтмөктөр аркылуу чыксаңыз, сактоо токтойт жана жооптор жоголушу мүмкүн.", // KY: needs native proofreading
+  "assess.unsavedNote": "Жооптор азырынча сакталган жок. Меню же өтмөктөр аркылуу чыксаңыз, сактоо токтойт жана жооптор жоголушу мүмкүн.", // KY: needs native proofreading
+  "assess.swipeOff": "Жооптор сакталмайынча артка сүрүү өчүрүлгөн.", // KY: needs native proofreading
   "assess.leaveAnyway": "Сактабай чыгуу", // KY: needs native proofreading
   "assess.leaveTitle": "Сактабай чыгасызбы?", // KY: needs native proofreading
   "assess.leaveBody": "Сакталбай калган жооптор жоголот. Мурда сакталгандары калат.", // KY: needs native proofreading

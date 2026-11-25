@@ -64,6 +64,12 @@ describe("«Выйти без сохранения» (ревью #1559: упор
     expect(notice({ saveStatus: "saving", unsaved: true, failures: 5 }).actions).toEqual([]);
   });
 
+  it("на телефоне, где жест назад выключен (iPhone), плашка называет и это; без сбоя и там её нет", () => {
+    expect(runNotice({ ...base, ...failing }, false, true).messages).toEqual(["error.unavailable", NOTE, "assess.swipeOff"]);
+    expect(runNotice({ ...base, ...failing }, false, false).messages).toEqual(["error.unavailable", NOTE]);
+    expect(runNotice({ ...base, saveStatus: "saving", unsaved: true }, false, true).messages).toEqual([]);
+  });
+
   it("isBlocked: сбой при несохранённом (обрыв или сверка), но не обычная отправка и не сохранённое", () => {
     expect(isBlocked({ saveStatus: "unconfirmed", reloadRequired: false, unsaved: true })).toBe(true);
     expect(isBlocked({ saveStatus: "dirty", reloadRequired: true, unsaved: true })).toBe(true);

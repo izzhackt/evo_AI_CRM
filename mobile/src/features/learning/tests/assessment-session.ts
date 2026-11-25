@@ -169,7 +169,7 @@ export class AssessmentSession {
     if (this.timer) this.env.clearTimer(this.timer);
     this.timer = this.env.setTimer(() => {
       this.timer = null;
-      if (!this.disposed) void this.flush();
+      void this.flush();
     }, ASSESSMENT_SAVE_MS);
   }
 
@@ -264,7 +264,7 @@ export class AssessmentSession {
     if (this.disposed || this.paused) return;
     this.timer = this.env.setTimer(() => {
       this.timer = null;
-      if (!this.disposed && !this.paused) void this.flush();
+      void this.flush();
     }, ASSESSMENT_RETRY_MS);
   }
 

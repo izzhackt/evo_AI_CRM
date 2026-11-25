@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { Alert, BackHandler, Pressable, Text } from "react-native";
 
 import AssessmentRoute from "@/app/(app)/tests/[key]";
-import { attemptFixture, catalogFixture } from "@/test-fixtures/assessment";
+import { ATTEMPT_ID, attemptFixture, catalogFixture, completedFixture } from "@/test-fixtures/assessment";
 import { PortalShell, testApi, testClient } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
@@ -120,6 +120,17 @@ describe("выход из теста: «Профессии» - тест - «Со
     await screen.findByTestId("assessment-begin");
     await press("assessment-title-back");
     await waitFor(() => expect(view.getPathname()).toBe("/professions"));
+    expect(stack(view, "tests")).toEqual(["index"]);
+  });
+});
+
+describe("выход из теста: результат", () => {
+  it("«К тестам» на результате, открытом из другого раздела, ведёт в каталог, а не кладёт его поверх теста (иначе «назад» возвращала бы на результат)", async () => {
+    const { view } = await mount("/home", { student_assessments_v1: catalogFixture("english36"), student_assessment_attempt_v1: completedFixture("english36") });
+    await act(async () => router.navigate("/english"));
+    await act(async () => router.navigate({ pathname: "/tests/[key]", params: { key: "english36", attempt: ATTEMPT_ID } }));
+    await press((await screen.findByTestId("assessment-back-to-tests")).props.testID);
+    await waitFor(() => expect(view.getPathname()).toBe("/tests"));
     expect(stack(view, "tests")).toEqual(["index"]);
   });
 });

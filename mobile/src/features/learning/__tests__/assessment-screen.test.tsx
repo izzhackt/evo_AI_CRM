@@ -3,7 +3,7 @@
 // идут по настоящему пути приложения (слой RPC, разборщики) на поддельном транспорте; данные синтетические.
 import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
-import { AccessibilityInfo, Alert, ScrollView } from "react-native";
+import { AccessibilityInfo, Alert, Platform, ScrollView } from "react-native";
 
 import { AssessmentScreen } from "@/features/learning/tests/AssessmentScreen";
 import { answersFor, attemptFixture, ATTEMPT_ID, catalogFixture, completedFixture, type FixtureKey } from "@/test-fixtures/assessment";
@@ -183,8 +183,9 @@ describe("уход с теста (G58)", () => {
     await screen.findByTestId("assessment-retry-save", undefined, { timeout: 3000 });
     expect(mockNav.setOptions.mock.calls).toEqual([[{ gestureEnabled: false }]]);
     // Плашка говорит, почему жест молчит и что будет, если выйти другим путём.
-    expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Ответы ещё не сохранены, свайп назад выключен/);
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Ответы ещё не сохранены\./);
     expect(screen.getByTestId("assessment-error")).toHaveTextContent(/через меню или вкладки/);
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Свайп назад выключен, пока ответы не сохранены/);
     await fireEvent.press(screen.getByTestId("assessment-retry-save"));
     await waitFor(() => expect(screen.queryByTestId("assessment-error")).toBeNull());
     expect(mockNav.setOptions.mock.calls).toEqual([[{ gestureEnabled: false }], [{ gestureEnabled: true }]]);
@@ -407,10 +408,19 @@ describe("упорный сбой: «Выйти без сохранения» (�
     const { alert } = await offlineThreeTimes();
     const notice = screen.getByTestId("assessment-error");
     expect(notice).toHaveTextContent(/Не удалось подтвердить сохранение/);
-    expect(notice).toHaveTextContent(/Ответы ещё не сохранены, свайп назад выключен/);
+    expect(notice).toHaveTextContent(/Ответы ещё не сохранены/);
     const spoken = announce.mock.calls.map((c) => String(c[0])).filter((text) => text.includes("Не удалось подтвердить сохранение"));
-    expect(spoken[spoken.length - 1]).toContain("свайп назад выключен");
+    expect(spoken[spoken.length - 1]).toContain("Свайп назад выключен");
     announce.mockRestore();
+    alert.mockRestore();
+  });
+
+  it("на Android строки про выключенный свайп нет: там «назад» идёт через защиту, как кнопка, а жест не выключается", async () => {
+    const platform = jest.replaceProperty(Platform, "OS", "android");
+    const { alert } = await offlineThreeTimes();
+    expect(screen.getByTestId("assessment-error")).toHaveTextContent(/Ответы ещё не сохранены\./);
+    expect(screen.getByTestId("assessment-error")).not.toHaveTextContent(/Свайп назад выключен/);
+    platform.restore();
     alert.mockRestore();
   });
 
@@ -459,6 +469,13 @@ describe("карточка вариантов и «Пройти заново»",
     await begin();
     expect(screen.getByTestId("assessment-options-e1").props.accessibilityLabel).toBe("Choose the word 1");
     expect(screen.getByTestId("assessment-options-e1").props.accessibilityLanguage).toBe("en");
+  });
+
+  it("«К тестам» на результате ведёт `dismissTo`, а не кладёт каталог поверх теста", async () => {
+    await open("english36", { student_assessment_attempt_v1: completedFixture("english36") }, { attemptId: ATTEMPT_ID });
+    await fireEvent.press(await screen.findByTestId("assessment-back-to-tests"));
+    expect(router.dismissTo).toHaveBeenCalledWith("/tests");
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
   it("«Пройти заново» прокручивает наверх: «Перед началом» короче результата, без этого страница открылась бы с пустого низа", async () => {

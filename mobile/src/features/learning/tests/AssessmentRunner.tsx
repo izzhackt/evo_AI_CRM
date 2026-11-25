@@ -3,7 +3,7 @@
 // утверждения: «Часть N из 23»), «Назад» и «Далее», шаг «Готовы завершить?»; под ней «Сохранить и выйти».
 // Сохранение, повторы и конфликт ведёт `AssessmentSession`; уход с экрана придерживает экран (`useLeaveGuard`).
 import { useEffect, useRef } from "react";
-import { Alert, View } from "react-native";
+import { Alert, Platform, View } from "react-native";
 
 import type { AssessmentAttempt } from "@web/lib/student-assessment-contract";
 
@@ -50,9 +50,9 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
     onPageChange();
   };
   const select = (questionId: string, optionId: string) => session.select(questionId, optionId);
-  const notice = runNotice(state, exitNotice);
+  const notice = runNotice(state, exitNotice, Platform.OS === "ios");
   // Строки веба берутся из словаря `tests`, строка «ответы ещё не сохранены» своя (у телефона есть выходы, которых нет у сайта).
-  const textOf = (key: RunNoticeKey) => (key === "assess.unsavedNote" ? m(key) : s[key]);
+  const textOf = (key: RunNoticeKey) => (key === "assess.unsavedNote" || key === "assess.swipeOff" ? m(key) : s[key]);
   const noticeText = notice.messages.map(textOf);
   const spokenNotice = noticeText.join(" ");
   // Читалка узнаёт о сбое сохранения без поиска плашки глазами (на iPhone живые области не работают): плашка читается целиком.

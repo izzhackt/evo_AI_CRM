@@ -11,7 +11,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  CABINET_UI_EXCLUDED,
+  CABINET_UI_PATHS,
+  GitHubApiError,
+  MAX_DECLARATION_LINE,
   MIN_REASON_LENGTH,
+  MOBILE_APP_PATHS,
+  MODE_VARIABLE,
   checkReason,
   createGitHubClient,
   evaluateParity,
@@ -24,6 +30,7 @@ import {
   parseDeclarations,
   parseFileList,
   renderFailure,
+  renderMisconfiguration,
   stripHtmlComments,
 } from "../scripts/ci/mobile-parity-check.mjs";
 
@@ -45,14 +52,15 @@ const collector = () => {
   return { write: (text) => { chunks.push(text); return true; }, text: () => chunks.join("") };
 };
 const never = (name) => () => { throw new Error(`${name} must not be called`); };
-const reply = (status, body = {}) => ({ status, json: async () => body });
+const reply = (status, body = {}, headers = {}) => ({ status, json: async () => body, headers: { get: (name) => headers[name.toLowerCase()] ?? null } });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Which files count
 // ---------------------------------------------------------------------------------------------------------------------
 
-test("cabinet UI is src/app/(portal) and src/components/portal in any file type, minus test files", () => {
+test("student UI is the cabinet, sign-in, recovery and the application, in any file type, minus test files", () => {
   for (const path of [
+    // The cabinet.
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal.css",
     "src/app/(portal)/layout.tsx",
@@ -63,29 +71,63 @@ test("cabinet UI is src/app/(portal) and src/components/portal in any file type,
     "src/components/portal/admission/presentation.ts",
     // A folder called «tests» here is product UI (the English and career tests), not a test folder.
     "src/components/portal/tests/AssessmentPage.tsx",
+    // Sign-in, recovery and the application: they have counterparts in mobile/src/app/(auth).
+    "src/app/login/page.tsx",
+    "src/app/apply/page.tsx",
+    "src/app/apply/status/page.tsx",
+    "src/app/apply/error.tsx",
+    "src/app/auth/callback/page.tsx",
+    "src/app/auth/forgot-password/page.tsx",
+    "src/app/auth/new-password/page.tsx",
+    "src/app/auth/reset-password/page.tsx",
+    "src/app/auth/set-password/page.tsx",
+    "src/app/auth/signup-confirmation/page.tsx",
+    "src/app/auth/account-pending/page.tsx",
+    "src/app/auth/account-deleted/route.ts",
+    "src/components/student-application/ApplicationWizard.tsx",
+    "src/components/student-application/ApplicationWizard.module.css",
+    "src/components/student-recovery/StudentForgotPasswordForm.tsx",
+    "src/components/student-recovery/recovery-styles.ts",
+    "src/components/AuthForms.tsx",
+    "src/components/PasswordInput.tsx",
+    "src/components/StudentAccountPending.tsx",
+    "src/components/StudentInviteCallback.tsx",
+    "src/components/StudentSetPasswordForm.tsx",
   ]) assert.equal(isCabinetUiPath(path), true, path);
 
   for (const path of [
     // Shared logic: the app imports it as @web/*, so a change there already reaches both.
     "src/lib/portal/home-dates.ts",
+    "src/lib/student-password-recovery-contract.ts",
     "tests/portal-evi.test.mjs",
     "tests/e2e/portal-accessibility.spec.ts",
     "docs/portal/country-timeline-contract.md",
     "docs/design/v3/product.md",
-    // Staff product, other apps and look-alike prefixes.
+    // Staff product (the staff sign-in has no counterpart in the app), other apps and look-alike prefixes.
     "src/components/staff/Foo.tsx",
     "src/app/(staff)/main/page.tsx",
+    "src/app/auth/staff/page.tsx",
+    "src/app/auth/staff/extra/Panel.tsx",
+    "src/components/StaffAccountAccess.tsx",
     "src/app/api/portal/mobile/evi/route.ts",
     "src/components/portal-extra/Foo.tsx",
     "src/components/portals/Foo.tsx",
     "src/app/(portal)x/page.tsx",
+    "src/app/login-extra/page.tsx",
+    "src/app/applying/page.tsx",
+    "src/app/authentic/page.tsx",
+    "src/components/AuthFormsExtra.tsx",
+    "src/components/student-application-x/Foo.tsx",
+    // Shared by staff and student screens: deliberately not a trigger.
+    "src/components/account-deletion/AccountDeletionPanel.tsx",
     "mobile/src/features/home/HomeScreen.tsx",
     ".github/pull_request_template.md",
     "AGENTS.md",
   ]) assert.equal(isCabinetUiPath(path), false, path);
+  assert.deepEqual([...CABINET_UI_EXCLUDED], ["src/app/auth/staff/"]);
 });
 
-test("test files inside the cabinet folders do not count: *.test.*, *.spec.* and __tests__", () => {
+test("test files inside those folders do not count: *.test.*, *.spec.*, __tests__, __mocks__ and __snapshots__", () => {
   for (const path of [
     "src/components/portal/home/HomeHero.test.tsx",
     "src/components/portal/home/HomeHero.test.ts",
@@ -93,8 +135,14 @@ test("test files inside the cabinet folders do not count: *.test.*, *.spec.* and
     "src/components/portal/home/HomeHero.spec.tsx",
     "src/components/portal/home/__tests__/HomeHero.tsx",
     "src/components/portal/home/__tests__/fixtures/data.json",
+    "src/components/portal/home/__snapshots__/HomeHero.snap",
+    "src/components/portal/__mocks__/api.ts",
     "src/app/(portal)/portal/page.test.tsx",
     "src/app/(portal)/__tests__/helpers.ts",
+    "src/app/login/page.test.tsx",
+    "src/app/auth/__mocks__/session.ts",
+    "src/components/student-application/__tests__/Wizard.test.tsx",
+    "src/components/student-recovery/StudentResetPasswordForm.spec.tsx",
   ]) {
     assert.equal(isTestFile(path), true, path);
     assert.equal(isCabinetUiPath(path), false, path);
@@ -104,13 +152,31 @@ test("test files inside the cabinet folders do not count: *.test.*, *.spec.* and
   }
 });
 
-test("an app change is any file under mobile/ except markdown", () => {
-  for (const path of ["mobile/src/app/(app)/index.tsx", MOBILE_FILE, "mobile/package.json", "mobile/app.config.ts", "mobile/src/home/__tests__/Home.test.tsx"]) {
-    assert.equal(isMobileAppChange(path), true, path);
-  }
-  for (const path of ["mobile/AGENTS.md", "mobile/docs/guide.MD", "mobile/notes.mdx", "mobile/readme.markdown", "docs/mobile/PLAN.md", "mobile-extra/x.ts", "src/lib/portal/x.ts", "mobile"]) {
-    assert.equal(isMobileAppChange(path), false, path);
-  }
+test("an app change is non-test mobile/src, mobile/assets or mobile/app.config.ts: not lockfiles, tests, .maestro, config or markdown", () => {
+  for (const path of [
+    "mobile/src/app/(app)/index.tsx",
+    MOBILE_FILE,
+    "mobile/src/app/(auth)/sign-in.tsx",
+    "mobile/src/features/learning/evi/api.ts",
+    "mobile/src/theme/tokens.json",
+    "mobile/assets/images/icon.png",
+    "mobile/assets/fonts/GolosText_400Regular.ttf",
+    "mobile/app.config.ts",
+  ]) assert.equal(isMobileAppChange(path), true, path);
+
+  for (const path of [
+    // Dependencies, configuration, flows and scripts are not the app.
+    "mobile/package.json", "mobile/package-lock.json", "mobile/eas.json", "mobile/tsconfig.json", "mobile/metro.config.js",
+    "mobile/eslint.config.js", "mobile/jest.setup.ts", "mobile/.maestro/flows/sign-in.yaml", "mobile/scripts/e2e.mjs", "mobile/plugins/with-x.js",
+    // Tests and their helpers.
+    "mobile/src/home/__tests__/Home.test.tsx", "mobile/src/home/Home.test.tsx", "mobile/src/home/Home.spec.ts",
+    "mobile/src/__mocks__/x.ts", "mobile/src/home/__snapshots__/Home.snap", "mobile/src/__tests__/app-config.test.ts",
+    // Markdown, anywhere.
+    "mobile/AGENTS.md", "mobile/src/features/README.md", "mobile/assets/NOTICE.md", "mobile/docs/guide.MD", "mobile/notes.mdx", "mobile/readme.markdown",
+    // Not under mobile/, or only a look-alike.
+    "docs/mobile/PLAN.md", "mobile-extra/src/x.ts", "src/lib/portal/x.ts", "mobile", "mobile/app.config.tsx", "mobile/app.config.ts.bak",
+  ]) assert.equal(isMobileAppChange(path), false, path);
+  assert.deepEqual([...MOBILE_APP_PATHS], ["mobile/src/", "mobile/assets/", "mobile/app.config.ts"]);
 });
 
 test("paths are normalised and file lists accept newlines, NUL and duplicates", () => {
@@ -234,13 +300,23 @@ test("no cabinet UI change: nothing else is looked at", async () => {
   }
 });
 
-test("a change of the app passes together with the cabinet, markdown does not count", async () => {
+test("a change of the app passes together with the cabinet; only the app counts", async () => {
   const noBody = { readBody: never("readBody"), lookupPullRequest: never("lookupPullRequest") };
   const result = await evaluateParity({ files: [CABINET_FILE, MOBILE_FILE], ...noBody });
   assert.deepEqual([result.outcome, result.reason, result.mobile], ["pass", "mobile-changed", [MOBILE_FILE]]);
+  for (const app of [["mobile/app.config.ts"], ["mobile/assets/images/icon.png"], ["src/app/login/page.tsx", "mobile/src/app/(auth)/sign-in.tsx"]]) {
+    assert.equal((await evaluateParity({ files: [CABINET_FILE, ...app], ...noBody })).outcome, "pass", app.join(","));
+  }
 
-  const markdownOnly = await evaluateParity({ files: [CABINET_FILE, "mobile/AGENTS.md", "docs/mobile/PLAN.md"], readBody: async () => "", lookupPullRequest: never("lookup") });
-  assert.equal(markdownOnly.outcome, "fail");
+  // None of these is the app: the description is asked for, and with no line the check fails.
+  for (const notTheApp of [
+    ["mobile/AGENTS.md", "docs/mobile/PLAN.md"],
+    ["mobile/package-lock.json", "mobile/package.json", "mobile/eas.json"],
+    ["mobile/src/__tests__/app-config.test.ts", "mobile/src/home/Home.test.tsx", "mobile/.maestro/flows/a.yaml"],
+  ]) {
+    const result = await evaluateParity({ files: [CABINET_FILE, ...notTheApp], readBody: async () => "", lookupPullRequest: never("lookup") });
+    assert.equal(result.outcome, "fail", notTheApp.join(","));
+  }
 });
 
 test("the «не нужно» line passes; a bad one fails with the reason why", async () => {
@@ -302,7 +378,7 @@ test("the «отдельным PR» line needs an existing PR: open or merged, n
   assert.deepEqual([second.outcome, second.number, lookups], ["pass", 1540, [5, 1540]]);
 });
 
-test("the guard's own errors never fail the check: they are fail-open results", async () => {
+test("the guard's own errors never fail the check: they are fail-open results; only a marked reading error fails closed", async () => {
   const boom = (message) => async () => { throw new Error(message); };
   const body = await evaluateParity({ files: [CABINET_FILE], readBody: boom("API 500"), lookupPullRequest: never("lookup") });
   assert.equal(body.outcome, "fail-open");
@@ -311,21 +387,37 @@ test("the guard's own errors never fail the check: they are fail-open results", 
   const lookup = await evaluateParity({ files: [CABINET_FILE], readBody: async () => "Приложение: отдельным PR #1540", lookupPullRequest: boom("timeout") });
   assert.equal(lookup.outcome, "fail-open");
   assert.match(lookup.warning, /не удалось проверить PR #1540 \(timeout\)/u);
+
+  // A broken setup is marked by the caller; nothing else makes the check fail closed.
+  const marked = Object.assign(new GitHubApiError("GitHub API ответил 403", { status: 403 }), { failClosed: true });
+  const closed = await evaluateParity({ files: [CABINET_FILE], readBody: async () => { throw marked; }, lookupPullRequest: never("lookup") });
+  assert.deepEqual([closed.outcome, closed.status, closed.error], ["fail-closed", 403, "GitHub API ответил 403"]);
+  const unmarked = await evaluateParity({ files: [CABINET_FILE], readBody: async () => { throw new GitHubApiError("GitHub API ответил 403", { status: 403 }); }, lookupPullRequest: never("lookup") });
+  assert.equal(unmarked.outcome, "fail-open");
+  // Looking up ANOTHER pull request never fails closed, even with the mark.
+  const other = await evaluateParity({ files: [CABINET_FILE], readBody: async () => "Приложение: отдельным PR #1540", lookupPullRequest: async () => { throw marked; } });
+  assert.equal(other.outcome, "fail-open");
+  // No reading at all when nothing in the PR asks for the description.
+  assert.equal((await evaluateParity({ files: ["docs/x.md"], readBody: async () => { throw marked; }, lookupPullRequest: never("lookup") })).outcome, "pass");
 });
 
-test("the failure message says what triggered it, the three ways to fix and how to re-run", () => {
+test("the failure message says what triggered it, the three ways to fix, the line rule and how to re-run", () => {
   const files = Array.from({ length: 17 }, (_, index) => `src/components/portal/home/Part${index}.tsx`);
   const text = renderFailure({ cabinet: files, problems: ["строка «Приложение:» не заполнена"], runId: "9001" });
   assert.match(text, /кабинет студента изменён, а приложение — нет/u);
-  assert.match(text, /\(17 файлов\)/u);
+  assert.match(text, /в кабинете, на входе или в заявке \(17 файлов\)/u);
   assert.ok(text.includes("  - src/components/portal/home/Part0.tsx"));
   assert.ok(text.includes("  - src/components/portal/home/Part14.tsx"));
   assert.ok(!text.includes("Part15.tsx"));
   assert.ok(text.includes("… и ещё 2"));
+  assert.match(text, /считаются mobile\/src\/\*\* без тестов, mobile\/assets\/\*\* и mobile\/app\.config\.ts; тесты, лок-файлы и \.md не считаются/u);
   assert.ok(text.includes("Что не так в описании:\n  - строка «Приложение:» не заполнена"));
   assert.ok(text.includes("1. Обновить приложение в этом же PR"));
   assert.ok(text.includes("Приложение: не нужно — <причина, не короче 12 знаков>"));
   assert.ok(text.includes("Приложение: отдельным PR #<номер>"));
+  // The line must begin with the word, with only list, quote and emphasis marks before it.
+  assert.ok(text.includes(`Строка должна начинаться со слова «Приложение:» и быть не длиннее ${MAX_DECLARATION_LINE} знаков.`));
+  assert.ok(text.includes("«- », «* », «> », «- [x] », «1. », «**»"));
   assert.ok(text.includes("gh run rerun 9001 --failed --repo izzhackt/evo_AI_CRM"));
   assert.match(text, /Правка описания проверку сама не запускает/u);
   assert.ok(text.includes('git commit --allow-empty -m "chore: перезапуск проверок" && git push'), "a way out for those who cannot re-run jobs");
@@ -335,20 +427,38 @@ test("the failure message says what triggered it, the three ways to fix and how 
   assert.equal(renderFailure({ cabinet: files.slice(0, 3) }).includes("Что не так в описании"), false);
 });
 
+test("the broken-setup message says it is not a violation, what to check and how to switch to warnings", () => {
+  const reason = "GitHub API ответил 403 на GET /repos/izzhackt/evo_AI_CRM/pulls/7";
+  const text = renderMisconfiguration({ cabinet: ["src/app/login/page.tsx", "src/components/portal/a.tsx"], reason, runId: "77" });
+  assert.match(text, /^Mobile parity: проверка не смогла прочитать описание этого PR и остановлена\./u);
+  assert.ok(text.includes(`Причина: ${reason}`));
+  assert.match(text, /Это не нарушение правила, а поломка настройки/u);
+  assert.match(text, /Молча пропускать такой PR нельзя/u);
+  assert.match(text, /\(2 файла\)/u);
+  assert.ok(text.includes("  - src/app/login/page.tsx"));
+  assert.ok(text.includes("permissions: contents: read и pull-requests: read"));
+  assert.ok(text.includes("GITHUB_TOKEN: ${{ github.token }}"));
+  assert.ok(text.includes("gh variable set MOBILE_PARITY_MODE --body warn"));
+  assert.ok(text.includes("gh variable delete MOBILE_PARITY_MODE"));
+  assert.ok(text.includes("gh run rerun 77 --failed --repo izzhackt/evo_AI_CRM"));
+  assert.equal(MODE_VARIABLE, "MOBILE_PARITY_MODE");
+});
+
 // ---------------------------------------------------------------------------------------------------------------------
 // GitHub API
 // ---------------------------------------------------------------------------------------------------------------------
 
-test("the API client reads one pull request, retries network errors, 5xx and 429, and gives up on other statuses", async () => {
+test("the API client reads one pull request, retries transient errors up to three times, refuses redirects and fails fast on the rest", async () => {
   const calls = [];
+  const pauses = [];
   const client = (responses, options = {}) => {
     let index = 0;
     return createGitHubClient({
       repository: "izzhackt/evo_AI_CRM",
       token: "test-token",
-      sleep: async () => {},
+      sleep: async (milliseconds) => { pauses.push(milliseconds); },
       fetchImpl: async (url, init) => {
-        calls.push({ url, headers: init.headers });
+        calls.push({ url, headers: init.headers, init });
         const next = responses[Math.min(index, responses.length - 1)];
         index += 1;
         if (next instanceof Error) throw next;
@@ -357,38 +467,67 @@ test("the API client reads one pull request, retries network errors, 5xx and 429
       ...options,
     });
   };
+  const reset = () => { calls.length = 0; pauses.length = 0; };
 
-  calls.length = 0;
+  reset();
   const ok = await client([reply(200, { body: "text", state: "open" })]).getPull(77);
   assert.deepEqual(ok, { found: true, data: { body: "text", state: "open" } });
   assert.equal(calls[0].url, "https://api.github.com/repos/izzhackt/evo_AI_CRM/pulls/77");
   assert.equal(calls[0].headers.Authorization, "Bearer test-token");
   assert.match(calls[0].headers.Accept, /application\/vnd\.github\+json/u);
   assert.ok(calls[0].headers["User-Agent"]);
+  assert.equal(calls[0].init.redirect, "error", "the token never follows a redirect");
+  assert.ok(calls[0].init.signal, "every request has a timeout");
 
-  calls.length = 0;
+  reset();
   assert.deepEqual(await client([reply(404)]).getPull(5), { found: false });
   assert.equal(calls.length, 1, "a missing PR is an answer, not an error");
 
-  calls.length = 0;
+  // Transient: up to three retries (four requests) with a short, growing pause.
+  reset();
+  assert.equal((await client([reply(500), reply(502), reply(503), reply(200, { body: "ok" })]).getPull(1)).found, true);
+  assert.equal(calls.length, 4);
+  assert.deepEqual(pauses, [500, 1000, 1500]);
+  reset();
   assert.equal((await client([reply(502), new Error("socket hang up"), reply(200, { body: "ok" })]).getPull(1)).found, true);
   assert.equal(calls.length, 3);
-  calls.length = 0;
-  assert.equal((await client([reply(429), reply(200, {})]).getPull(1)).found, true);
+  for (const status of [408, 429]) {
+    reset();
+    assert.equal((await client([reply(status), reply(200, {})]).getPull(1)).found, true, String(status));
+  }
+  reset();
+  const exhausted = await client([reply(500)]).getPull(1).catch((error) => error);
+  assert.ok(exhausted instanceof GitHubApiError);
+  assert.deepEqual([exhausted.status, exhausted.retriable, exhausted.rateLimited, exhausted.failClosed], [500, true, false, false]);
+  assert.match(exhausted.message, /GitHub API ответил 500 на GET \/repos\/izzhackt\/evo_AI_CRM\/pulls\/1/u);
+  assert.equal(calls.length, 4, "three retries, then the error");
+  reset();
+  const network = await client([Object.assign(new TypeError("fetch failed"), { cause: new Error("getaddrinfo ENOTFOUND api.github.com") })]).getPull(1).catch((error) => error);
+  assert.ok(network instanceof GitHubApiError);
+  assert.equal(network.status, null);
+  assert.match(network.message, /fetch failed: getaddrinfo ENOTFOUND api\.github\.com/u, "the real reason is not lost");
+  assert.equal(calls.length, 4);
 
-  for (const status of [401, 403, 422]) {
-    calls.length = 0;
-    await assert.rejects(client([reply(status)]).getPull(1), new RegExp(`GitHub API ответил ${status}`, "u"));
+  // Everything else fails at once: it is not going to get better by asking again.
+  for (const status of [400, 401, 403, 410, 422]) {
+    reset();
+    const error = await client([reply(status)]).getPull(1).catch((caught) => caught);
+    assert.ok(error instanceof GitHubApiError, String(status));
+    assert.deepEqual([error.status, error.retriable, error.rateLimited], [status, false, false], String(status));
     assert.equal(calls.length, 1, `${status} is not retried`);
   }
-  calls.length = 0;
-  await assert.rejects(client([reply(500)]).getPull(1), /GitHub API ответил 500/u);
-  assert.equal(calls.length, 3, "three attempts, then the error");
-  calls.length = 0;
-  await assert.rejects(client([new Error("ECONNRESET")]).getPull(1), /ECONNRESET/u);
+  // A rate limit is told apart from a refusal: 403 with an exhausted budget or a retry-after is not a broken setup.
+  for (const headers of [{ "x-ratelimit-remaining": "0" }, { "retry-after": "60" }]) {
+    reset();
+    const error = await client([reply(403, {}, headers)]).getPull(1).catch((caught) => caught);
+    assert.deepEqual([error.status, error.rateLimited, error.retriable], [403, true, false], JSON.stringify(headers));
+    assert.equal(calls.length, 1);
+  }
+  reset();
+  assert.equal((await client([reply(403, {}, { "x-ratelimit-remaining": "17" })]).getPull(1).catch((error) => error)).rateLimited, false);
 
   const anonymous = createGitHubClient({ repository: "a/b", apiUrl: "https://ghe.example.test/api/v3/", fetchImpl: async (url, init) => { calls.push({ url, headers: init.headers }); return reply(404); } });
-  calls.length = 0;
+  reset();
   await anonymous.getPull(9);
   assert.equal(calls[0].url, "https://ghe.example.test/api/v3/repos/a/b/pulls/9");
   assert.equal("Authorization" in calls[0].headers, false, "no token, no header");
@@ -426,6 +565,7 @@ test("command: a cabinet change without the app and without a line fails with th
   assert.ok(annotation, "an error annotation");
   assert.equal(annotation.includes("\n"), false);
   assert.match(annotation, /Приложение: не нужно — <причина>/u);
+  assert.match(annotation, /приложение не изменено \(mobile\/src без тестов, mobile\/assets, mobile\/app\.config\.ts\)/u, "the annotation names what counts as the app");
   assert.match(readFileSync(summary, "utf8"), /^## Mobile parity\n\n    Mobile parity: кабинет студента изменён/u);
 });
 
@@ -494,18 +634,27 @@ test("command: only pull_request events are checked", async (t) => {
   assert.equal((await run(["--files-file", filesFile, "--body-file", bodyFile, "--event", "pull_request"], { GITHUB_EVENT_NAME: "push" })).code, 1, "the option wins");
 });
 
-test("command: its own errors print a warning and exit 0, they never block a PR", async (t) => {
+test("command: its own errors print a warning and exit 0, with a prominent block in the job summary, they never block a PR", async (t) => {
   const { dir, filesFile, bodyFile } = inputs(t);
-  const failOpen = async (label, argv, env = {}, deps = {}, expected) => {
-    const result = await run(argv, env, deps);
-    assert.equal(result.code, 0, label);
-    assert.match(result.text, /ВНИМАНИЕ: /u, label);
-    assert.match(result.text, /Проверка пропущена, PR из-за этого не блокируется\./u, label);
-    if (expected) assert.match(result.text, expected, label);
-    const inActions = await run(argv, { ...env, GITHUB_ACTIONS: "true" }, deps);
+  writeFileSync(join(dir, "separate.md"), "Приложение: отдельным PR #1540");
+  let counter = 0;
+  const failOpen = async (label, argv, env = {}, deps = {}, expected, { actions = true } = {}) => {
+    const local = await run(argv, env, deps);
+    assert.equal(local.code, 0, label);
+    assert.match(local.text, /ВНИМАНИЕ: /u, label);
+    assert.match(local.text, /Проверка пропущена, PR из-за этого не блокируется\./u, label);
+    if (expected) assert.match(local.text, expected, label);
+    if (!actions) return;
+    const summary = join(dir, `summary-${counter += 1}.md`);
+    const inActions = await run(argv, { ...env, GITHUB_ACTIONS: "true", GITHUB_STEP_SUMMARY: summary }, deps);
     assert.equal(inActions.code, 0, `${label} (Actions)`);
     assert.match(inActions.text, /^::warning title=Mobile parity::/mu, label);
     assert.equal(inActions.text.includes("::error"), false, label);
+    // Not only an annotation: a prominent block in the job summary, where nobody scrolls past it.
+    const written = readFileSync(summary, "utf8");
+    assert.match(written, /^## Mobile parity: ПРОВЕРКА ПРОПУЩЕНА\n\n\*\*Проверка сама не смогла сработать и не блокирует этот PR\. Если такая запись есть во многих PR, правило не действует: сообщите владельцу\.\*\*\n\n {4}/u, label);
+    assert.match(written, /Проверка пропущена, PR из-за этого не блокируется\./u, label);
+    if (expected) assert.match(written, expected, label);
   };
 
   await failOpen("unknown flag", ["--nope"], {}, {}, /неизвестный аргумент --nope/u);
@@ -514,13 +663,15 @@ test("command: its own errors print a warning and exit 0, they never block a PR"
   await failOpen("missing files file", ["--files-file", join(dir, "missing.txt"), "--body-file", bodyFile], {}, {}, /проверка сама дала сбой/u);
   await failOpen("a directory instead of a file", ["--files-file", dir, "--body-file", bodyFile]);
   await failOpen("git fails", ["--body-file", bodyFile], {}, { listChangedFiles: () => { throw new Error("git diff origin/main...HEAD не выполнился: bad revision"); } }, /bad revision/u);
-  await failOpen("no PR number and no body file", ["--files-file", filesFile], {}, {}, /номер PR неизвестен/u);
   await failOpen("strange repository name", ["--files-file", filesFile, "--pr", "5", "--repo", "not a repo"], {}, {}, /странное имя репозитория/u);
-  await failOpen("API 500 on the description", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(500), sleep: async () => {} }, /GitHub API ответил 500/u);
-  await failOpen("API 403 on the description", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(403) }, /GitHub API ответил 403/u);
+  await failOpen("API 500 on the description, after the retries", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(500), sleep: async () => {} }, /GitHub API ответил 500/u);
+  await failOpen("API 502 on the lookup of another PR", ["--files-file", filesFile, "--body-file", join(dir, "separate.md"), "--pr", "5"], {}, { fetchImpl: async () => reply(502), sleep: async () => {} }, /не удалось проверить PR #1540/u);
   await failOpen("network error", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => { throw new Error("getaddrinfo ENOTFOUND"); }, sleep: async () => {} }, /ENOTFOUND/u);
-  await failOpen("PR not found for the description", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(404) }, /API не нашёл PR #5/u);
-  await failOpen("API fails on the «отдельным PR» lookup", ["--files-file", filesFile, "--body-file", (writeFileSync(join(dir, "separate.md"), "Приложение: отдельным PR #1540"), join(dir, "separate.md")), "--pr", "5"], {}, { fetchImpl: async () => reply(503), sleep: async () => {} }, /не удалось проверить PR #1540/u);
+  await failOpen("a rate limit is not a broken setup", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(403, {}, { "x-ratelimit-remaining": "0" }) }, /GitHub API ответил 403/u);
+  // Outside Actions a refusal is only a warning; inside Actions these three fail closed (tested below).
+  await failOpen("no PR number and no body file", ["--files-file", filesFile], {}, {}, /номер PR неизвестен/u, { actions: false });
+  await failOpen("API 403 on the description, not in Actions", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(403) }, /GitHub API ответил 403/u, { actions: false });
+  await failOpen("PR not found for the description, not in Actions", ["--files-file", filesFile, "--pr", "5"], {}, { fetchImpl: async () => reply(404) }, /не нашёл PR #5/u, { actions: false });
 });
 
 test("command: the description comes from the API, with the PR number from the option, PR_NUMBER or the event payload", async (t) => {
@@ -734,7 +885,9 @@ test("workflow: «Mobile parity» is a small read-only job that looks at every p
   assert.match(guardJob, /- name: Check out full history\n        uses: actions\/checkout@[0-9a-f]{40} # v7\n        with:\n          fetch-depth: 0\n          persist-credentials: false\n/u);
   assert.match(guardJob, /uses: actions\/setup-node@[0-9a-f]{40} # v6\n        with:\n          node-version-file: \.nvmrc\n/u);
   for (const [, reference] of guardJob.matchAll(/^\s*(?:-\s*)?uses:\s*(\S+)/gmu)) assert.match(reference, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/u, reference);
-  assert.match(guardJob, /env:\n          GITHUB_TOKEN: \$\{\{ github\.token \}\}\n          PR_NUMBER: \$\{\{ github\.event\.pull_request\.number \}\}\n        run: node scripts\/ci\/mobile-parity-check\.mjs --base origin\/main\n/u);
+  assert.match(guardJob, /env:\n          GITHUB_TOKEN: \$\{\{ github\.token \}\}\n          PR_NUMBER: \$\{\{ github\.event\.pull_request\.number \}\}\n          MOBILE_PARITY_MODE: \$\{\{ vars\.MOBILE_PARITY_MODE \}\}\n        run: node scripts\/ci\/mobile-parity-check\.mjs --base origin\/main\n/u);
+  // The emergency switch is a repository VARIABLE (no secret, no settings edit): the job only reads it.
+  assert.equal([...guardJob.matchAll(/\$\{\{ (?:vars|secrets)\.[^}]+\}\}/gu)].map((match) => match[0]).join("|"), "${{ vars.MOBILE_PARITY_MODE }}");
   assert.equal([...guardJob.matchAll(/^      - name:/gmu)].length, 3, "checkout, Node, the check: nothing that could fail for another reason");
 });
 
@@ -751,7 +904,7 @@ test("workflow: «Fast checks» waits for «Mobile parity» and fails unless it 
   assert.match(gate, /needs:\n      - changed-range\n      - typecheck\n      - tests\n      - preview\n      - contracts\n      - lint\n      - build\n      - mobile\n      - migration_boundary\n      - mobile-parity\n    runs-on:/u);
   assert.match(gate, /\n          MOBILE_PARITY_RESULT: \$\{\{ needs\.mobile-parity\.result \}\}\n/u);
   assert.match(gate, /"\$MIGRATION_BOUNDARY_RESULT" "\$MOBILE_PARITY_RESULT"; do/u);
-  assert.match(gate, /\n          test "\$MOBILE_PARITY_RESULT" = "success"\n/u);
+  assert.match(gate, /\n          if test "\$MOBILE_PARITY_RESULT" != "success"; then\n            echo "::error::Mobile parity must succeed on every pull request, but its result is '\$\{MOBILE_PARITY_RESULT\}' \(skipped means it never looked\)"\n            exit 1\n          fi\n/u);
 
   // Every job but the gate is awaited by the gate, every awaited job exists, every result it reads is awaited.
   const jobs = [...executable.slice(executable.indexOf("\njobs:\n")).matchAll(/^  ([\w-]+):\s*$/gmu)].map((match) => match[1]);
@@ -784,6 +937,12 @@ test("workflow: the real «Fast checks» shell blocks on a parity failure, a ski
     }
   }
   assert.match(code({ MOBILE_PARITY_RESULT: "failure" }).stdout, /::error::A selected fast PR check failed or was cancelled/u);
+  // A skip passes the generic loop, so it needs a message of its own: the result is named, nobody has to guess.
+  assert.match(code({ MOBILE_PARITY_RESULT: "skipped" }).stdout, /::error::Mobile parity must succeed on every pull request, but its result is 'skipped' \(skipped means it never looked\)/u);
+  for (const result of ["", "unknown"]) {
+    assert.match(code({ MOBILE_PARITY_RESULT: result }).stdout, /::error::A selected fast PR check failed or was cancelled/u, `the generic message for «${result}»`);
+  }
+  assert.equal(code({ MOBILE_PARITY_RESULT: "success" }).stdout.includes("::error"), false);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -801,6 +960,10 @@ test("the PR template asks the four usual questions and carries the three forms 
   assert.match(comments, /^ *Приложение: отдельным PR #<номер>$/mu);
   assert.match(comments, /Mobile parity/u);
   assert.match(comments, /AGENTS\.md/u);
+  assert.match(comments, /строка начинается со слова «Приложение:»/u);
+  assert.match(comments, /кабинет, вход или заявку студента/u);
+  assert.match(comments, /mobile\/src без тестов, mobile\/assets,\s+mobile\/app\.config\.ts/u);
+  assert.match(comments, /PR не про интерфейс студента \(CRM, документы, тесты\)\? Строка не нужна/u);
 
   // Left as it is, the template declares nothing (the comment is invisible), so a cabinet PR cannot pass by accident.
   assert.match(stripHtmlComments(template), /^Приложение:\s*$/mu);
@@ -817,6 +980,7 @@ test("AGENTS.md holds the rule once and CLAUDE.md points to it with the key line
   const heading = "## Кабинет и приложение идут вместе";
   assert.equal(agents.split(heading).length - 1, 1, "one section in AGENTS.md");
   const section = agents.slice(agents.indexOf(heading)).split("\n## ")[0];
+  const flat = (text) => text.replace(/\s+/gu, " ");
   for (const needle of [
     "mobile/", "src/lib/portal/*", "@web/", "Приложение: не нужно — <причина>", "Приложение: отдельным PR #<номер>",
     "Mobile parity", "Fast checks", "gh run rerun", "cd mobile && npm ci && npm run check", "eas build", "eas submit", "eas update", "App Store", "Google Play", "TestFlight",
@@ -825,9 +989,249 @@ test("AGENTS.md holds the rule once and CLAUDE.md points to it with the key line
   assert.equal(claude.split(heading).length - 1, 1, "one section in CLAUDE.md");
   const pointer = claude.slice(claude.indexOf(heading)).split("\n## ")[0];
   assert.match(pointer, /AGENTS\.md/u);
-  for (const needle of ["Приложение: не нужно — <причина>", "Приложение: отдельным PR #<номер>", "Mobile parity", "src/lib/portal/*", "mobile/"]) {
+  for (const needle of ["Приложение: не нужно — <причина>", "Приложение: отдельным PR #<номер>", "Mobile parity", "src/lib/portal/*", "mobile/", "gh pr create --body"]) {
     assert.ok(pointer.includes(needle), `CLAUDE.md section: ${needle}`);
   }
   assert.ok(pointer.length < section.length, "CLAUDE.md carries the short version, not a second copy");
-  assert.ok(pointer.length < 2200, `the CLAUDE.md section stays short (${pointer.length})`);
+  assert.ok(pointer.length < 3000, `the CLAUDE.md section stays short (${pointer.length})`);
+  assert.equal(flat(pointer).includes("src/components/student-recovery"), false, "the list of paths lives in AGENTS.md only");
+
+  // The list of paths in AGENTS.md is the list the script checks.
+  for (const entry of CABINET_UI_PATHS) assert.ok(flat(section).includes(`\`${entry.endsWith("/") ? `${entry}**` : entry}\``), `AGENTS.md lists ${entry}`);
+  for (const entry of CABINET_UI_EXCLUDED) assert.ok(flat(section).includes(`\`${entry}**\``), `AGENTS.md names the exclusion ${entry}`);
+  for (const entry of MOBILE_APP_PATHS) assert.ok(flat(section).includes(`\`${entry.endsWith("/") ? `${entry}**` : entry}\``), `AGENTS.md lists the app path ${entry}`);
+
+  // L7: the images wording, one phrase for who runs builds, the fallbacks, the exemption.
+  assert.equal(section.includes("картинки — свободно"), false);
+  assert.match(flat(section), /значок приложения, адаптивный значок и заставка \(картинки в `mobile\/assets\/images`, подключённые в `app\.config\.ts`\)/u);
+  assert.match(flat(section), /картинки, которые экраны подключают из кода \(например, из `src\/content`\), — свободно/u);
+  const who = "только владелец или Claude по его команде";
+  assert.ok(flat(section).includes(who) && flat(pointer).includes(who), "the same phrase in both files");
+  assert.match(flat(section), /EAS Update Claude выкатывает только по постоянному разрешению владельца и после проверки \(QA\)/u);
+  assert.match(flat(pointer), /EAS Update — по постоянному разрешению владельца и после QA/u);
+  assert.match(flat(section), /PR, который этих путей не меняет \(CRM сотрудников, документы, тесты, `src\/lib\/portal`\), строки не требует/u);
+  for (const text of [section, pointer]) {
+    assert.ok(flat(text).includes('git commit --allow-empty -m "chore: перезапуск проверок" && git push'), "the empty-commit fallback");
+    assert.ok(flat(text).includes("gh variable set MOBILE_PARITY_MODE --body warn"), "the emergency switch");
+  }
+  assert.ok(flat(section).includes("gh variable delete MOBILE_PARITY_MODE"));
+  assert.match(flat(section), /Строка должна начинаться со слова «Приложение:»/u);
+  assert.match(flat(section), /HTTP 401\/403\/404/u);
+  assert.match(flat(section), /\(в логе, аннотацией и в итоге шага\)/u);
+});
+
+test("mobile/AGENTS.md points to the root rule for builds, submits and updates; the mobile plan only points to AGENTS.md", () => {
+  const flat = (text) => text.replace(/\s+/gu, " ");
+  const mobileAgents = flat(read("mobile/AGENTS.md"));
+  assert.match(mobileAgents, /EVO rule \(owner, 2026-11-25\):\*\* `eas build`, `eas submit` and `eas update` are run only by the owner, or by Claude on the owner's command \(EAS Update by Claude only under the owner's standing permission, after QA\); native changes need the owner's OK\./u);
+  assert.ok(mobileAgents.includes("`../AGENTS.md`, section «Кабинет и приложение идут вместе»"));
+
+  const plan = read("docs/mobile/PLAN.md");
+  const parity = plan.slice(plan.indexOf("## Правило паритета"), plan.indexOf("## 2.1 parity"));
+  assert.ok(parity.startsWith("## Правило паритета (решение владельца 25.11.2026)"));
+  assert.ok(flat(parity).includes("`AGENTS.md`, раздел «Кабинет и приложение идут вместе»"));
+  assert.ok(flat(parity).includes("единственный источник, здесь они не повторяются"));
+  for (const mechanics of ["gh run rerun", "--allow-empty", "MOBILE_PARITY_MODE", "Приложение: не нужно", "Приложение: отдельным", "mobile-parity-check", "src/components/portal"]) {
+    assert.equal(parity.includes(mechanics), false, `the mobile plan does not repeat «${mechanics}»`);
+  }
+  assert.ok(parity.length < 1800, `the pointer stays short (${parity.length})`);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Review hardening (25.11.2026): prefixes, bounded matching, the emergency switch, a broken setup, the canary
+// ---------------------------------------------------------------------------------------------------------------------
+
+test("the line may follow list, checkbox, quote, heading and emphasis marks, but must begin with the word", () => {
+  for (const prefix of ["- ", "* ", "+ ", "> ", ">> ", "- [x] ", "- [ ] ", "* [X] ", "- [x]  ", "1. ", "12. ", "2) ", "1. [x] ", "- 1. ", "> - [x] ", "## ", "### **", "**", "__", "`", "  ", "\t"]) {
+    assert.equal(parseDeclarations(`${prefix}Приложение: не нужно — ${REASON}`).notNeeded[0]?.ok, true, JSON.stringify(prefix));
+    assert.deepEqual(parseDeclarations(`${prefix}Приложение: отдельным PR #1540`).separate.map((entry) => entry.number), [1540], JSON.stringify(prefix));
+  }
+  // Words, a path, a long number or a bare bracket in front are not marks: the line does not start with the word.
+  for (const prefix of ["Итог: ", "Итог. ", "см. ", "[link] ", "a- ", "#1489 ", "1234. ", "[x]", "[xx] ", "x "]) {
+    const parsed = parseDeclarations(`${prefix}Приложение: не нужно — ${REASON}`);
+    assert.deepEqual([parsed.notNeeded.length, parsed.separate.length], [0, 0], JSON.stringify(prefix));
+  }
+});
+
+test("a hostile description cannot make the check slow: only the start of a line is looked at, long lines are never matched", async () => {
+  const started = performance.now();
+  const nbsp = String.fromCharCode(0xa0);
+  for (const filler of ["*", " ", ">", "- ", "1. ", "[x] ", "_", "`", "* ", "> ", "#", "+", "1)", nbsp]) {
+    const long = filler.repeat(Math.ceil(70_000 / filler.length));
+    const parsed = parseDeclarations(`${long}\n${long}x\n${long}Приложение: не нужно — ${REASON}\n`);
+    // Plain whitespace is trimmed away, so a declaration behind it is read; any other filler leaves the key outside the window.
+    const blank = filler.trim() === "";
+    assert.deepEqual([parsed.notNeeded.length, parsed.separate.length], [blank ? 1 : 0, 0], JSON.stringify(filler));
+  }
+  // The one line that starts like a declaration but is huge: unrecognised, shown short.
+  const huge = `Приложение: ${"а".repeat(100_000)}`;
+  const parsed = parseDeclarations(huge);
+  assert.equal(parsed.unrecognized.length, 1);
+  assert.ok(parsed.unrecognized[0].length <= 101);
+  const verdict = await evaluateParity({ files: [CABINET_FILE], readBody: async () => huge, lookupPullRequest: never("lookup") });
+  assert.equal(verdict.outcome, "fail");
+  assert.match(verdict.problems.join("\n"), /не подходит ни под одну из форм/u);
+  assert.ok(verdict.problems.join("\n").length < 300);
+  // Inputs that made the first version need 2-3.5 seconds each (a quadratic match). Now well under a millisecond: the limit is generous.
+  const slowOnce = [
+    () => parseDeclarations(`${"*".repeat(60_000)}п`),
+    () => parseDeclarations(`${"*_".repeat(30_000)}пр`),
+    () => parseDeclarations(`Приложение: не нужно — а${" ".repeat(60_000)}б`),
+    () => parseDeclarations(`Приложение: не нужно — а${"*".repeat(60_000)}б`),
+    // The reason check is linear too, whatever is in it.
+    () => assert.equal(checkReason(`а${" ".repeat(60_000)}б`).ok, false),
+    () => assert.equal(checkReason(`${"а".repeat(20)}${"*".repeat(60_000)}`).ok, true),
+  ];
+  for (const [index, work] of slowOnce.entries()) {
+    const begun = performance.now();
+    work();
+    assert.ok(performance.now() - begun < 500, `case ${index} took ${Math.round(performance.now() - begun)} ms`);
+  }
+  assert.ok(performance.now() - started < 3000, `took ${Math.round(performance.now() - started)} ms`);
+
+  // The limit itself: a line of exactly MAX_DECLARATION_LINE characters is still read, one more is not.
+  const head = "Приложение: не нужно — ";
+  const atLimit = head + "а".repeat(MAX_DECLARATION_LINE - head.length);
+  assert.equal(atLimit.length, MAX_DECLARATION_LINE);
+  assert.equal(parseDeclarations(atLimit).notNeeded.length, 1);
+  assert.equal(parseDeclarations(`${atLimit}а`).notNeeded.length, 0);
+});
+
+test("MOBILE_PARITY_MODE=warn is the emergency switch: failures become warnings with exit 0, and it says so", async (t) => {
+  const { dir, filesFile, bodyFile } = inputs(t);
+  const summary = join(dir, "summary.md");
+  const args = ["--files-file", filesFile, "--body-file", bodyFile];
+
+  assert.equal((await run(args, { GITHUB_ACTIONS: "true" })).code, 1, "strict by default");
+  for (const value of ["warn", "WARN", " Warn "]) {
+    const warned = await run(args, { GITHUB_ACTIONS: "true", GITHUB_STEP_SUMMARY: summary, [MODE_VARIABLE]: value });
+    assert.equal(warned.code, 0, value);
+    assert.match(warned.text, /кабинет студента изменён, а приложение — нет/u, "the violation is still shown");
+    assert.match(warned.text, /^::warning title=Mobile parity::Режим предупреждений \(MOBILE_PARITY_MODE=warn\): /mu);
+    assert.equal(warned.text.includes("::error"), false);
+  }
+  assert.match(readFileSync(summary, "utf8"), /^## Mobile parity \(режим предупреждений, PR не блокируется\)\n\n\*\*Включён MOBILE_PARITY_MODE=warn: нарушение показано, но не блокирует PR\.\*\*\n\n {4}Mobile parity: кабинет студента изменён/mu);
+  const local = await run(args, { [MODE_VARIABLE]: "warn" });
+  assert.deepEqual([local.code, /ВНИМАНИЕ: Режим предупреждений/u.test(local.text)], [0, true]);
+
+  // Anything else is the strict mode; a value nobody knows is called out instead of silently obeyed.
+  for (const value of ["", "enforce", "ENFORCE", " "]) {
+    const result = await run(args, { [MODE_VARIABLE]: value });
+    assert.equal(result.code, 1, JSON.stringify(value));
+    assert.equal(result.text.includes("не распознано"), false, JSON.stringify(value));
+  }
+  for (const value of ["off", "warning", "0", "false"]) {
+    const result = await run(args, { GITHUB_ACTIONS: "true", [MODE_VARIABLE]: value });
+    assert.equal(result.code, 1, value);
+    assert.ok(result.text.includes(`::warning title=Mobile parity::MOBILE_PARITY_MODE=«${value}» не распознано`), value);
+  }
+  // The mode changes nothing else: a PR that passes passes, a foreign event is skipped.
+  const fine = inputs(t, { files: ["docs/x.md"] });
+  assert.match((await run(["--files-file", fine.filesFile, "--body-file", fine.bodyFile], { [MODE_VARIABLE]: "warn" })).text, /пропуск — PR не меняет кабинет студента/u);
+  assert.match((await run(args, { [MODE_VARIABLE]: "warn", GITHUB_EVENT_NAME: "push" })).text, /пропуск — событие «push»/u);
+});
+
+test("command: in Actions a refusal to read THIS pull request stops the check with a clear message instead of passing it", async (t) => {
+  const { dir, filesFile } = inputs(t);
+  const summary = join(dir, "summary.md");
+  const actions = { GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "izzhackt/evo_AI_CRM", GITHUB_RUN_ID: "5150", GITHUB_STEP_SUMMARY: summary };
+  const args = ["--files-file", filesFile, "--pr", "7"];
+
+  for (const status of [401, 403, 404]) {
+    writeFileSync(summary, "");
+    const urls = [];
+    const result = await run(args, actions, { fetchImpl: async (url) => { urls.push(url); return reply(status); }, sleep: async () => {} });
+    assert.equal(result.code, 1, `HTTP ${status}`);
+    assert.deepEqual(urls, ["https://api.github.com/repos/izzhackt/evo_AI_CRM/pulls/7"], "one request: a refusal is not retried");
+    assert.match(result.text, /^Mobile parity: проверка не смогла прочитать описание этого PR и остановлена\./u);
+    assert.match(result.text, new RegExp(`GET /repos/izzhackt/evo_AI_CRM/pulls/7|ответил ${status}`, "u"));
+    assert.match(result.text, new RegExp(`${status}`, "u"));
+    assert.match(result.text, /Это не нарушение правила, а поломка настройки/u);
+    assert.ok(result.text.includes("gh variable set MOBILE_PARITY_MODE --body warn"));
+    assert.ok(result.text.includes("gh run rerun 5150 --failed --repo izzhackt/evo_AI_CRM"));
+    const annotation = result.text.split("\n").find((line) => line.startsWith("::error title=Mobile parity::"));
+    assert.ok(annotation, "an error annotation");
+    assert.match(annotation, /поломка настройки, а не нарушение/u);
+    assert.match(readFileSync(summary, "utf8"), /^## Mobile parity: ПРОВЕРКА НЕ МОЖЕТ ПРОЧИТАТЬ ОПИСАНИЕ\n\n {4}Mobile parity: проверка не смогла прочитать описание этого PR/u);
+  }
+  // The same in warn mode: the emergency switch lets work go on, loudly.
+  const warned = await run(args, { ...actions, [MODE_VARIABLE]: "warn" }, { fetchImpl: async () => reply(403) });
+  assert.equal(warned.code, 0);
+  assert.match(warned.text, /::warning title=Mobile parity::Режим предупреждений \(MOBILE_PARITY_MODE=warn\): /u);
+  assert.equal(warned.text.includes("::error"), false);
+  assert.match(readFileSync(summary, "utf8"), /ПРОВЕРКА НЕ МОЖЕТ ПРОЧИТАТЬ ОПИСАНИЕ \(режим предупреждений, PR не блокируется\)/u);
+
+  // No number to ask about is the same kind of broken setup.
+  const unknown = await run(["--files-file", filesFile], actions);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.text, /номер PR неизвестен/u);
+
+  // Not a broken setup: a hiccup that retrying cures, a server that stays down, a rate limit, a network error. None fails closed.
+  let attempts = 0;
+  const flaky = async () => { attempts += 1; return attempts < 4 ? reply(503) : reply(200, { body: `Приложение: не нужно — ${REASON}`, state: "open" }); };
+  const recovered = await run(args, actions, { fetchImpl: flaky, sleep: async () => {} });
+  assert.deepEqual([recovered.code, attempts], [0, 4], "three retries, then the description");
+  assert.match(recovered.text, /OK — в описании PR сказано/u);
+  for (const [label, fetchImpl] of [
+    ["503 forever", async () => reply(503)],
+    ["rate limit, budget gone", async () => reply(403, {}, { "x-ratelimit-remaining": "0" })],
+    ["rate limit, retry-after", async () => reply(403, {}, { "retry-after": "30" })],
+    ["network error", async () => { throw new TypeError("fetch failed", { cause: new Error("ECONNRESET") }); }],
+  ]) {
+    writeFileSync(summary, "");
+    const result = await run(args, actions, { fetchImpl, sleep: async () => {} });
+    assert.equal(result.code, 0, label);
+    assert.match(result.text, /^::warning title=Mobile parity::/mu, label);
+    assert.equal(result.text.includes("::error"), false, label);
+    assert.match(readFileSync(summary, "utf8"), /^## Mobile parity: ПРОВЕРКА ПРОПУЩЕНА/u, label);
+  }
+  // Another pull request that does not exist is a violation (it is the author's line), not a broken setup; a refusal there is the guard's own trouble.
+  writeFileSync(join(dir, "separate.md"), "Приложение: отдельным PR #999");
+  const missing = await run(["--files-file", filesFile, "--body-file", join(dir, "separate.md"), "--pr", "7"], actions, { fetchImpl: async () => reply(404) });
+  assert.equal(missing.code, 1);
+  assert.match(missing.text, /PR #999: такого PR нет/u);
+  assert.equal(missing.text.includes("остановлена"), false);
+  const refused = await run(["--files-file", filesFile, "--body-file", join(dir, "separate.md"), "--pr", "7"], actions, { fetchImpl: async () => reply(403) });
+  assert.equal(refused.code, 0);
+});
+
+test("command: the real HTTP path, a refusal fails closed in Actions and a server error is retried and then fails open", async (t) => {
+  const { filesFile } = inputs(t);
+  const requests = [];
+  const server = createServer((request, response) => {
+    requests.push(request.url);
+    response.writeHead(request.url?.endsWith("/pulls/403") ? 403 : 500, { "content-type": "application/json" });
+    response.end(JSON.stringify({ message: "no" }));
+  });
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  t.after(() => new Promise((done) => { server.closeAllConnections?.(); server.close(done); }));
+  const env = (pr) => ({ GITHUB_ACTIONS: "true", GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`, GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "izzhackt/evo_AI_CRM", PR_NUMBER: String(pr), GITHUB_EVENT_NAME: "pull_request" });
+
+  const refused = await run(["--files-file", filesFile], env(403), { sleep: async () => {} });
+  assert.equal(refused.code, 1);
+  assert.match(refused.text, /Это не нарушение правила, а поломка настройки/u);
+  assert.equal(requests.filter((url) => url.endsWith("/pulls/403")).length, 1, "a refusal is asked once");
+
+  const down = await run(["--files-file", filesFile], env(500), { sleep: async () => {} });
+  assert.equal(down.code, 0);
+  assert.match(down.text, /^::warning title=Mobile parity::.*GitHub API ответил 500/mu);
+  assert.equal(requests.filter((url) => url.endsWith("/pulls/500")).length, 4, "one request and three retries");
+});
+
+test("canary: every trigger path still matches a tracked file, so a rename cannot silently disable the guard", () => {
+  const listed = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  assert.equal(listed.status, 0, `git ls-files failed: ${listed.stderr}`);
+  const tracked = listed.stdout.split("\0").filter(Boolean);
+  assert.ok(tracked.length > 1000, `git lists only ${tracked.length} files`);
+  const under = (entry) => (path) => (entry.endsWith("/") ? path.startsWith(entry) : path === entry);
+
+  for (const entry of CABINET_UI_PATHS) {
+    assert.ok(tracked.some((path) => under(entry)(path) && isCabinetUiPath(path)), `no tracked student-UI file under ${entry}: renamed or deleted? Update CABINET_UI_PATHS, AGENTS.md, CLAUDE.md and the PR template`);
+  }
+  for (const entry of CABINET_UI_EXCLUDED) assert.ok(tracked.some(under(entry)), `the excluded staff path ${entry} is gone: update CABINET_UI_EXCLUDED`);
+  for (const entry of MOBILE_APP_PATHS) {
+    assert.ok(tracked.some((path) => under(entry)(path) && isMobileAppChange(path)), `no tracked app file under ${entry}: renamed or deleted? Update MOBILE_APP_PATHS and AGENTS.md`);
+  }
+  assert.ok(tracked.some((path) => path.startsWith("mobile/src/app/(auth)/")), "the app's sign-in screens, the reason the sign-in paths trigger, are gone or moved");
+  assert.ok(tracked.includes("src/app/auth/staff/page.tsx"), "the staff sign-in page the exclusion is about");
 });

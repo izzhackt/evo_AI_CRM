@@ -3,6 +3,9 @@
 // «столе» по размеру страницы, подпись со счётчиком и «‹ ›» между страницами набора.
 // Сверх веба - то, что даёт браузер на телефоне: щипок и двойное касание приближают страницу, палец её двигает, движение
 // пальца по целой странице листает (ZoomableScan.tsx). Нет образцов или нет сети - схема с легендой.
+// Поверхность жестов - вся карточка, а не рамка: щипок начинается там, куда село первое касание (поле, шапка, подпись).
+// Для этого всё, что в карточке не кнопка, касаний не принимает ("none" / "box-none"): цель такого касания - сама карточка.
+// Высота рамки одна на весь набор страниц, поэтому карточка не прыгает, когда листаешь страницы разных пропорций.
 // Доступность: заголовок «Пример: {документ}» читается первым и получает фокус при открытии; кнопки «Предыдущая /
 // Следующая страница» (выключены на краях) - полный запасной способ листать; смена страницы озвучивается (iOS: announce,
 // Android: живая область). Лист под карточкой скрыт от читалки родителем (`accessibilityElementsHidden`), не
@@ -15,8 +18,8 @@ import type { DocumentGuideView } from "@web/lib/portal/document-guides";
 
 import { currentSample, pageAspect, PHONE_WIDTH, sampleUrl, type SampleCursor } from "@/features/documents/guide-model";
 import { SchemeFigure, SchemeLegend } from "@/features/documents/GuideScheme";
-import { ZoomableScan } from "@/features/documents/ZoomableScan";
-import { fitContain } from "@/features/documents/zoom-math";
+import { useZoomSurface, ZoomableScan } from "@/features/documents/ZoomableScan";
+import { fitContain, type Size } from "@/features/documents/zoom-math";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { MIN_TARGET } from "@/ui/CardParts";
@@ -45,6 +48,14 @@ function PagerButton({ direction, disabled, label, onPress, id }: { direction: "
   );
 }
 
+/** Самая высокая страница набора, вписанная в `box`: по ней задаётся высота рамки, одна на весь набор. */
+function tallestPage(pages: readonly { src: string }[], box: Size): number {
+  return pages.reduce((top, page) => {
+    const ratio = pageAspect(page.src);
+    return Math.max(top, ratio ? fitContain(ratio, box).height : box.height);
+  }, 0);
+}
+
 type LightboxProps = Readonly<{
   guide: DocumentGuideView;
   base: string;
@@ -65,6 +76,7 @@ export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, f
   const insets = useSafeAreaInsets();
   const { width, height, fontScale } = useWindowDimensions();
   const strings = t("admission");
+  const surface = useZoomSurface();
   const current = currentSample(guide, cursor);
   const fullUri = current ? sampleUrl(base, current.page.src) : null;
   // Страница есть, адрес годится и она не отказала - показываем её; иначе (и без образцов вовсе) - схема.
@@ -83,7 +95,7 @@ export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, f
   const available = { width: innerWidth - 2 * TABLE_PAD, height: Math.max(120, cardMaxHeight - 2 * CARD_PAD - MIN_TARGET - 24 - pagerRow - 2 * TABLE_PAD) };
   const aspect = current ? pageAspect(current.page.src) : null;
   const content = aspect ? fitContain(aspect, available) : available;
-  const frame = { width: innerWidth, height: content.height + 2 * TABLE_PAD };
+  const frame = { width: innerWidth, height: Math.max(content.height, current ? tallestPage(current.set.pages, available) : 0) + 2 * TABLE_PAD };
 
   // Фокус читалки - на заголовок: лист под карточкой скрыт, а прежний элемент (кнопка страницы) остался под ней.
   const heading = useRef<HostInstance>(null);
@@ -110,9 +122,9 @@ export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, f
   };
 
   return (
-    <View testID={`${id}-lightbox`} style={{ width: cardWidth, maxHeight: cardMaxHeight, padding: CARD_PAD, gap: 12, borderRadius: tokens.radiusCard, backgroundColor: tokens.surface, boxShadow: tokens.shadowRaised }}>
-      <View ref={heading} accessible accessibilityRole="header" accessibilityLabel={title} style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1 }} />
-      <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+    <View testID={`${id}-lightbox`} {...surface.props} style={{ width: cardWidth, maxHeight: cardMaxHeight, padding: CARD_PAD, gap: 12, borderRadius: tokens.radiusCard, backgroundColor: tokens.surface, boxShadow: tokens.shadowRaised }}>
+      <View ref={heading} pointerEvents="none" accessible accessibilityRole="header" accessibilityLabel={title} style={{ position: "absolute", left: 0, top: 0, width: 1, height: 1 }} />
+      <View testID={`${id}-lightbox-top`} pointerEvents="box-none" style={{ flexDirection: "row", justifyContent: "flex-end" }}>
         <Pressable accessibilityRole="button" accessibilityLabel={strings.guideSampleClose} onPress={onClose} testID={`${id}-lightbox-close`} style={{ width: MIN_TARGET, height: MIN_TARGET, borderRadius: tokens.radiusChip, alignItems: "center", justifyContent: "center" }}>
           <X size={20} strokeWidth={1.8} color={tokens.text2} />
         </Pressable>
@@ -128,6 +140,7 @@ export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, f
           label={`${real.current.set.label}: ${real.current.page.caption}`}
           onFailed={() => onImageError(real.fullUri)}
           onStep={(step) => go(step)}
+          connect={surface.connect}
           testID={`${id}-lightbox-zoom`}
           imageTestID={`${id}-lightbox-image`}
         />
@@ -138,9 +151,9 @@ export function GuideLightbox({ guide, base, label, cursor, onSelect, onClose, f
         </ScrollView>
       )}
       {current ? (
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <View testID={`${id}-lightbox-pager`} pointerEvents="box-none" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
           {current.many ? <PagerButton direction="prev" disabled={current.pageIndex === 0} label={strings.guidePagePrev} onPress={() => go(-1)} id={id} /> : null}
-          <View accessible accessibilityLabel={spoken} accessibilityLiveRegion="polite" style={{ minWidth: 140, alignItems: "center", gap: 2, flexShrink: 1 }} testID={`${id}-lightbox-caption`}>
+          <View pointerEvents="none" accessible accessibilityLabel={spoken} accessibilityLiveRegion="polite" style={{ minWidth: 140, alignItems: "center", gap: 2, flexShrink: 1 }} testID={`${id}-lightbox-caption`}>
             <Text variant="caption" bold style={{ textAlign: "center" }}>
               {current.page.caption}
             </Text>

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useColorScheme } from "react-native";
 
+import { hydrateFromStorage } from "@/lib/storage-hydration";
 import { darkTokens, lightTokens, menuTokens } from "@/theme/tokens.generated";
 
 export type ThemeChoice = "light" | "dark" | "system";
@@ -31,6 +32,11 @@ type ThemeContextValue = Readonly<{
   setChoice: (choice: ThemeChoice) => void;
   scheme: Scheme;
   tokens: Tokens;
+  /**
+   * Выбор студента с устройства уже применён (или его нет, или чтение сорвалось). До этого первая отрисовка идёт с темой по
+   * умолчанию; экраны, которые могут появиться первыми (сбой, «не настроено»), ждут этого флага (рецензия #1568).
+   */
+  hydrated: boolean;
 }>;
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -43,15 +49,18 @@ export const DEFAULT_THEME_CHOICE: ThemeChoice = "light";
 
 export function ThemeProvider({ children, initial = DEFAULT_THEME_CHOICE }: { children: ReactNode; initial?: ThemeChoice }) {
   const [choice, setChoiceState] = useState<ThemeChoice>(initial);
+  const [hydrated, setHydrated] = useState(false);
   const system = useColorScheme();
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
+  useEffect(
+    () =>
+      hydrateFromStorage(STORAGE_KEY, (stored) => {
+        // Выбор и флаг ставятся одним обновлением: кадра «готово, но тема ещё не та» не бывает.
         if (isThemeChoice(stored)) setChoiceState(stored);
-      })
-      .catch(() => undefined);
-  }, []);
+        setHydrated(true);
+      }),
+    [],
+  );
 
   const setChoice = useCallback((next: ThemeChoice) => {
     setChoiceState(next);
@@ -60,8 +69,8 @@ export function ThemeProvider({ children, initial = DEFAULT_THEME_CHOICE }: { ch
 
   const scheme = resolveScheme(choice, system === "dark" ? "dark" : "light");
   const value = useMemo<ThemeContextValue>(
-    () => ({ choice, setChoice, scheme, tokens: tokensFor(scheme) }),
-    [choice, setChoice, scheme],
+    () => ({ choice, setChoice, scheme, tokens: tokensFor(scheme), hydrated }),
+    [choice, setChoice, scheme, hydrated],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

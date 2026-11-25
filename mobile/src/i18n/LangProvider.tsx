@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { hydrateFromStorage } from "@/lib/storage-hydration";
 import {
   DEFAULT_LANG,
   fillRecoveryString,
@@ -20,6 +21,8 @@ const STORAGE_KEY = "evo.lang";
 type LangContextValue = Readonly<{
   lang: Lang;
   setLang: (lang: Lang) => void;
+  /** Язык студента с устройства уже применён (или его нет, или чтение сорвалось); см. `ThemeProvider.hydrated`. */
+  hydrated: boolean;
   /** Строка приложения. */
   m: (key: MobileStringKey) => string;
   /** Подстановка `{name}` в строку приложения или веба. */
@@ -36,14 +39,16 @@ const LangContext = createContext<LangContextValue | null>(null);
 
 export function LangProvider({ children, initial = DEFAULT_LANG }: { children: ReactNode; initial?: Lang }) {
   const [lang, setLangState] = useState<Lang>(initial);
+  const [hydrated, setHydrated] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
+  useEffect(
+    () =>
+      hydrateFromStorage(STORAGE_KEY, (stored) => {
         if (isLang(stored)) setLangState(stored);
-      })
-      .catch(() => undefined);
-  }, []);
+        setHydrated(true);
+      }),
+    [],
+  );
 
   const setLang = useCallback((next: Lang) => {
     setLangState(next);
@@ -54,6 +59,7 @@ export function LangProvider({ children, initial = DEFAULT_LANG }: { children: R
     () => ({
       lang,
       setLang,
+      hydrated,
       m: (key) => mobileString(lang, key),
       format: formatPortalString,
       t: (namespace) => getPortalStrings(namespace, lang),
@@ -62,7 +68,7 @@ export function LangProvider({ children, initial = DEFAULT_LANG }: { children: R
       recovery: getPasswordRecoveryStrings(lang),
       fill: fillRecoveryString,
     }),
-    [lang, setLang],
+    [lang, setLang, hydrated],
   );
 
   return <LangContext.Provider value={value}>{children}</LangContext.Provider>;

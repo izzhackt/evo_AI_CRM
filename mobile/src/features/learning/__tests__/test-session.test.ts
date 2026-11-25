@@ -59,7 +59,7 @@ function harness(replies: Record<string, Reply[]>) {
     now = target;
     await flushMicrotasks();
   }
-  return { env, calls, advance, setNow: (v: number) => (now = v), getNow: () => now };
+  return { env, calls, advance, setNow: (v: number) => (now = v), getNow: () => now, pendingTimers: () => timers.size };
 }
 
 async function flushMicrotasks() {
@@ -151,6 +151,54 @@ describe("сессия: старт, отсчёт, возобновление", (
     expect(Object.values(state.answers)).toEqual(["b"]);
     expect(state.index).toBe(1); // первое неотвеченное
     session.dispose();
+  });
+
+  describe("выход с экрана, пока идёт запрос запуска", () => {
+    /** Транспорт, который придерживает ответы, пока тест не отпустит: ученик успевает уйти с экрана до ответа сервера. */
+    function held(replies: Record<string, Reply[]>) {
+      const h = harness(replies);
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const env: SessionEnv = { ...h.env, transport: async (name, args, options) => (await gate, h.env.transport(name, args, options)) };
+      return { h, env, release: () => release() };
+    }
+
+    it("новый запуск: после ответа сервера часы не заводятся, таймеров нет, сохранений нет", async () => {
+      const { h, env, release } = held({ start_learning_test_v1: [draftAttempt()] });
+      const session = new CscaTestSession(env, FORM, null);
+      const starting = session.start();
+      expect(session.getState().phase).toBe("starting");
+      session.dispose(); // «К темам» или стрелка «назад» до ответа сервера
+      release();
+      await starting;
+      await h.advance(5_000);
+      expect(h.pendingTimers()).toBe(0);
+      expect(session.getState().phase).toBe("starting"); // экрана нет, показывать некому
+      expect(h.calls.map((call) => call.name)).toEqual(["start_learning_test_v1"]);
+    });
+
+    it("«Продолжить тест»: чтение черновика после ухода с экрана тоже не заводит часы", async () => {
+      const attempt = draftAttempt();
+      const { h, env, release } = held({ learning_test_attempt_v1: [attempt] });
+      const session = new CscaTestSession(env, FORM, attempt.attemptId);
+      const starting = session.start();
+      session.dispose();
+      release();
+      await starting;
+      await h.advance(5_000);
+      expect(h.pendingTimers()).toBe(0);
+      expect(h.calls.map((call) => call.name)).toEqual(["learning_test_attempt_v1"]);
+    });
+
+    it("ушли после того, как тест уже идёт: часы остановлены закрытием, как раньше", async () => {
+      const h = harness({ start_learning_test_v1: [draftAttempt()] });
+      const session = new CscaTestSession(h.env, FORM, null);
+      await session.start();
+      expect(h.pendingTimers()).toBeGreaterThan(0); // часы идут
+      session.dispose();
+      await h.advance(5_000);
+      expect(h.pendingTimers()).toBe(0);
+    });
   });
 
   it("«Продолжить» после срока показывает итог этой попытки, а не новый тест", async () => {

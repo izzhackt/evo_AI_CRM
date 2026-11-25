@@ -10,6 +10,8 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 jest.mock("@/session/SessionProvider", () => ({
   useSession: () => ({ setOwnPassword: jest.fn(async () => "ok"), signOut: jest.fn(async () => undefined) }),
 }));
+// Под карточкой пароля стоит секция «Удалить аккаунт» (читает статус запроса через RPC платформы): сеть заменена.
+jest.mock("@/lib/supabase", () => ({ getSupabase: () => ({}), platformTransport: () => async () => ({ data: null, error: null, status: 200 }) }));
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 async function renderScreen(lang: "ru" | "ky") {

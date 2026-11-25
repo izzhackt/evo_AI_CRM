@@ -21,8 +21,6 @@ jest.mock("@/api/PortalPoll", () => ({
   PortalPoll: ({ children }: { children: unknown }) => children,
   usePortalPollFailure: () => mockPoll,
 }));
-// Карточка сбоя читает состояние обновлений приложения: настоящий `expo-updates` без нативного модуля заменён.
-jest.mock("expo-updates", () => ({ __esModule: true, isEnabled: false, useUpdates: () => ({ isUpdatePending: false }) }));
 jest.mock("@/features/universities/IndexWarmup", () => ({ UniversityIndexWarmup: () => null }));
 jest.mock("@/features/learning/csca/useCscaAccess", () => ({ useCscaAccess: () => ({ available: false }) }));
 jest.mock("@/shell/ChatFab", () => ({ ChatFab: () => null }));

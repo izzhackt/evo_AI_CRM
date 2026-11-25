@@ -1,23 +1,20 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { AccessibilityInfo } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { LangProvider } from "@/i18n/LangProvider";
 import { PollFailureNotice } from "@/shell/PollFailureNotice";
+import { reportUpdatePromptVisible } from "@/shell/update-prompt-visibility";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
 let mockFailed = false;
+let mockBroken = false;
 const mockRetry = jest.fn();
-jest.mock("@/api/PortalPoll", () => ({ usePortalPollFailure: () => ({ failed: mockFailed, retry: mockRetry }) }));
-
-// Состояние обновлений приложения: настоящий `expo-updates` заменён (как в тесте карточки «Вышла новая версия»).
-const mockUpdates: { isEnabled: boolean; state: () => { isUpdatePending: boolean } } = { isEnabled: true, state: () => ({ isUpdatePending: false }) };
-jest.mock("expo-updates", () => ({
-  __esModule: true,
-  get isEnabled() {
-    return mockUpdates.isEnabled;
+jest.mock("@/api/PortalPoll", () => ({
+  usePortalPollFailure: () => {
+    if (mockBroken) throw new Error("poll context is broken");
+    return { failed: mockFailed, retry: mockRetry };
   },
-  useUpdates: () => mockUpdates.state(),
 }));
 
 // Общая мера высоты верхней полосы читается через геттер: тест подменяет число и видит, что полоса берёт его оттуда, а не своим
@@ -44,11 +41,11 @@ const renderNotice = (lang: "ru" | "ky" = "ru") => render(tree(lang));
 
 beforeEach(() => {
   mockFailed = false;
+  mockBroken = false;
   mockBarHeight = 52;
   mockRetry.mockClear();
   announce.mockClear();
-  mockUpdates.isEnabled = true;
-  mockUpdates.state = () => ({ isUpdatePending: false });
+  reportUpdatePromptVisible(false);
 });
 
 describe("карточка «Не удалось обновить уведомления» (веб: .pt-notification-error)", () => {
@@ -83,36 +80,42 @@ describe("карточка «Не удалось обновить уведомл
     expect(screen.getByText("Кайталоо")).toBeTruthy();
   });
 
-  describe("пока скачано обновление приложения (веб: `failed && !stale`)", () => {
-    it("карточка «Вышла новая версия» стоит на том же месте, поэтому эту не показываем", async () => {
+  describe("пока на виду карточка «Вышла новая версия» (веб: `failed && !stale`)", () => {
+    it("карточка обновления стоит на том же месте, поэтому эту не показываем", async () => {
       mockFailed = true;
-      mockUpdates.state = () => ({ isUpdatePending: true });
+      reportUpdatePromptVisible(true);
       await renderNotice();
       expect(screen.queryByTestId("poll-failure")).toBeNull();
     });
 
-    it("обновление не скачано: карточка сбоя показывается", async () => {
+    it("карточки обновления нет (нет обновления, обновления выключены или студент нажал «Позже»): карточка сбоя показывается", async () => {
       mockFailed = true;
-      mockUpdates.state = () => ({ isUpdatePending: false });
       await renderNotice();
       expect(screen.getByTestId("poll-failure")).toBeTruthy();
     });
 
-    it("обновления выключены (разработка, Expo Go): флаг хука ничего не значит, карточка показывается", async () => {
-      mockFailed = true;
-      mockUpdates.isEnabled = false;
-      mockUpdates.state = () => ({ isUpdatePending: true });
-      await renderNotice();
-      expect(screen.getByTestId("poll-failure")).toBeTruthy();
-    });
-
-    it("сбой чтения состояния обновлений не роняет оболочку: карточки нет, ничего не падает", async () => {
-      const spy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    it("карточка обновления появилась и ушла: эта уступает, потом возвращается и говорится читалке заново", async () => {
+      // повтор того же сообщения быстрее 800 мс общий помощник глушит: время сдвигается, как у настоящего студента
+      const clock = jest.spyOn(Date, "now").mockReturnValue(1_000_000);
       try {
         mockFailed = true;
-        mockUpdates.state = () => {
-          throw new Error("native module is missing");
-        };
+        await renderNotice();
+        expect(announce).toHaveBeenCalledTimes(1);
+        await act(async () => reportUpdatePromptVisible(true));
+        expect(screen.queryByTestId("poll-failure")).toBeNull();
+        clock.mockReturnValue(1_005_000);
+        await act(async () => reportUpdatePromptVisible(false));
+        expect(screen.getByTestId("poll-failure")).toBeTruthy();
+        expect(announce).toHaveBeenCalledTimes(2);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
+    it("сбой отрисовки не роняет оболочку: карточки нет, ничего не падает", async () => {
+      const spy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+      try {
+        mockBroken = true;
         await renderNotice();
         expect(screen.queryByTestId("poll-failure")).toBeNull();
       } finally {
@@ -131,10 +134,14 @@ describe("карточка «Не удалось обновить уведомл
       expect(announce).toHaveBeenCalledTimes(1);
     });
 
-    it("опрос в порядке или обновление скачано (карточки нет): ничего не озвучивается", async () => {
+    it("опрос в порядке: ничего не озвучивается", async () => {
       await renderNotice();
+      expect(announce).not.toHaveBeenCalled();
+    });
+
+    it("карточка уступает карточке обновления (карточки нет): ничего не озвучивается", async () => {
       mockFailed = true;
-      mockUpdates.state = () => ({ isUpdatePending: true });
+      reportUpdatePromptVisible(true);
       await renderNotice();
       expect(announce).not.toHaveBeenCalled();
     });

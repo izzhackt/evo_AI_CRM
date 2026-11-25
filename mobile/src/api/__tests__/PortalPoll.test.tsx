@@ -205,6 +205,58 @@ describe("Опрос оболочки", () => {
       });
       expect(polls(calls)).toHaveLength(5); // а не через 8 минут, как было бы при счёте нажатий
     });
+
+    // Как `known` у веба (`light-poll.ts`): последнее известное число живёт через сбои. Лента открыта с числом 2, опрос не удался, после
+    // возврата связи число 5: колокольчик показывает 5, а открытые экраны (лента, список «Входящих») перечитываются сразу, не ждут
+    // «потяни, чтобы обновить».
+    it.each([
+      ["обрыв (503)", () => failure(null, 503)],
+      ["«нет доступа»", () => ({ access: false })],
+    ])("после сбоя (%s) помнится последнее число: 2, сбой, затем 5 - открытые экраны перечитываются", async (_name, broken) => {
+      let mode: "ok" | "broken" = "ok";
+      let unread = 2;
+      const { transport } = fakeTransport({ student_portal_poll_v1: () => (mode === "ok" ? { access: true, unread, version: VERSION_1 } : broken()) });
+      const { client } = await renderPortal(<PortalPoll><Badge /></PortalPoll>, testApi(transport));
+      const spy = jest.spyOn(client, "invalidateQueries");
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10);
+      });
+      expect(screen.getByTestId("unread").props.children).toBe("2");
+      mode = "broken";
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(60_000); // сбой: число для колокольчика сброшено
+      });
+      expect(screen.getByTestId("failed").props.children).toBe("failed");
+      expect(screen.getByTestId("unread").props.children).toBe("none");
+      expect(spy).not.toHaveBeenCalled();
+      mode = "ok";
+      unread = 5;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(120_500); // первый успех после 120 с
+      });
+      expect(screen.getByTestId("unread").props.children).toBe("5");
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("после сбоя число и версия те же: открытые экраны зря не перечитываются", async () => {
+      let ok = true;
+      const { transport } = fakeTransport({ student_portal_poll_v1: () => (ok ? { access: true, unread: 2, version: VERSION_1 } : failure(null, 503)) });
+      const { client } = await renderPortal(<PortalPoll><Badge /></PortalPoll>, testApi(transport));
+      const spy = jest.spyOn(client, "invalidateQueries");
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10);
+      });
+      ok = false;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(60_000);
+      });
+      ok = true;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(120_500);
+      });
+      expect(screen.getByTestId("unread").props.children).toBe("2");
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 
   describe("фон и возврат: не чаще чем раз в 30 с", () => {

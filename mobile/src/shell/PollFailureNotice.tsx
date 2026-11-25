@@ -1,9 +1,9 @@
 // Карточка «Не удалось обновить уведомления» + «Повторить» (веб: `.pt-notification-error` в PortalNotificationUpdates): тихая
 // карточка под верхней полосой справа, показывается, пока последний опрос не удался. Кнопка опрашивает сразу.
-// Пока скачано обновление приложения (карточка «Вышла новая версия», features/app/UpdatePrompt), эту карточку не показываем: веб в
-// такой момент останавливает опросы и прячет её (`failed && !stale`), а обе карточки в верхнем правом углу легли бы друг на друга.
-// Состояние обновлений читается так же осторожно, как у UpdatePrompt: сбой чтения прячет карточку, а не роняет оболочку.
-import * as Updates from "expo-updates";
+// Пока на виду карточка «Вышла новая версия» (features/app/UpdatePrompt), эту не показываем: веб в такой момент останавливает опросы
+// и прячет её (`failed && !stale`), а обе карточки в верхнем правом углу легли бы друг на друга. Уступает только пока та ВИДНА
+// (`update-prompt-visibility.ts`): после «Позже» обновление остаётся скачанным, но карточки обновления уже нет, и сбой опроса
+// надо показывать (у веба «Позже» нет). Сбой отрисовки прячет карточку, а не роняет оболочку.
 import { Component, useEffect, type ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePortalPollFailure } from "@/api/PortalPoll";
 import { useLang } from "@/i18n/LangProvider";
 import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
+import { useUpdatePromptVisible } from "@/shell/update-prompt-visibility";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { LinkButton } from "@/ui/CardParts";
@@ -33,9 +34,8 @@ function PollFailureCard() {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  // При выключенных обновлениях (разработка, Expo Go) хук возвращает пустое состояние.
-  const { isUpdatePending } = Updates.useUpdates();
-  const visible = failed && !(Updates.isEnabled && isUpdatePending);
+  const promptVisible = useUpdatePromptVisible();
+  const visible = failed && !promptVisible;
   // Веб: `role="alert"` читается сам. В React Native iPhone `accessibilityRole="alert"` ничего не говорит, поэтому карточку, когда она
   // появилась, озвучивает `announce` (повторные сбои подряд карточку не пересоздают и не повторяют сообщение).
   useEffect(() => {

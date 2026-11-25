@@ -11,6 +11,7 @@ import { universityDateLabel } from "@web/lib/portal/universities";
 
 import { countdownWhen, heroSub, type HomeCountdown } from "@/domain/home-model";
 import { goStamped } from "@/features/portal/navigation";
+import { creditSourceUrl } from "@/features/universities/credit";
 import { creditLine } from "@/features/universities/parts";
 import type { PhotoCreditView, PhotoUrls } from "@/features/universities/photos";
 import { useLang } from "@/i18n/LangProvider";
@@ -217,19 +218,25 @@ export function HeroCredit({ credit }: { credit: PhotoCreditView }) {
   const { t, m } = useLang();
   const strings = t("universities");
   const [shown, setShown] = useState(false);
+  // Ссылка открывает внешний сайт: только безопасный https-адрес, а у фото мест ещё и хост названного источника (как в панели «©»).
+  const link = creditSourceUrl(credit);
+  const panel = { marginRight: 8, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" } as const;
   return (
     <View style={{ position: "absolute", right: 2, bottom: 6, alignItems: "flex-end", maxWidth: "92%" }} pointerEvents="box-none">
       {shown ? (
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(credit.sourceUrl).catch(() => undefined)}
-          testID="hero-credit-text"
-          style={{ marginRight: 8, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" }}
-        >
-          <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
-            {creditLine(credit, strings)}
-          </Text>
-        </Pressable>
+        link === null ? (
+          <View testID="hero-credit-text" style={panel}>
+            <Text variant="caption" style={{ color: "#ffffff" }}>
+              {creditLine(credit, strings)}
+            </Text>
+          </View>
+        ) : (
+          <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(link).catch(() => undefined)} testID="hero-credit-text" style={panel}>
+            <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
+              {creditLine(credit, strings)}
+            </Text>
+          </Pressable>
+        )
       ) : null}
       <Pressable
         accessibilityRole="button"

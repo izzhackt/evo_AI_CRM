@@ -148,6 +148,7 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                     {found !== null && foundCount !== 0 ? (
                       <NearList
                         gap={16}
+                        listKey={`search:${trimmed}`}
                         items={[
                           ...(found.cities.length > 0 ? [nodeItem("heading:cities", <SectionHeading title={strings.citiesHeading} />)] : []),
                           ...found.cities.map((card, position) => cityItem({ card, code, strings, spaceBefore: position === 0 ? 12 : 16 })),
@@ -159,6 +160,7 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                     {found === null && (page.cityCards.length > 0 || page.others.length > 0) ? (
                       <NearList
                         gap={16}
+                        listKey="cities"
                         items={[
                           ...page.cityCards.map((card) => cityItem({ card, code, strings })),
                           ...(page.others.length > 0
@@ -232,7 +234,7 @@ function ListView({
       position += 1;
     }
   });
-  return <NearList gap={12} items={items} />;
+  return <NearList gap={12} listKey="list" items={items} />;
 }
 
 /** Заголовок группы «Списком»: название и число вузов; у города со страницей это кнопка (цель 44, подсказка «Открыть страницу города»). */

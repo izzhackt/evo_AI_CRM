@@ -87,6 +87,7 @@ export function UniversitiesScreen() {
                 {found.length > 0 ? (
                   <NearList
                     gap={16}
+                    listKey={`search:${trimmed}`}
                     items={found.map((item, position) => tileItem({ id: item.id, tile: tileModel(index, item, { strings, lang, now, showPlace: true }), strings, favorites, position }))}
                   />
                 ) : null}

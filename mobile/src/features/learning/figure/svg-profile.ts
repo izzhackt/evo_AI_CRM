@@ -19,6 +19,13 @@ export const SVG_ATTRS: ReadonlySet<string> = new Set([
 export const SVG_PALETTE: ReadonlySet<string> = new Set(["#ffffff", "#191714", "#6b6660", "#e4dfd7", "#d70217", "#177245"]);
 
 const MAX_BYTES = 24 * 1024;
+/**
+ * Самое длинное значение у геометрии (`d` кривой графика). Верхняя граница это размер всего рисунка (сервер принимает рисунок
+ * до 24 КБ и не ограничивает отдельный атрибут): раньше стояло 4096 знаков, и три настоящих рисунка выпуска с кривыми
+ * по 4690-5446 знаков (`func-graphs-reflect`, `item-func-graphs-v-shape`, `item-quad-power-signs`) на экране не рисовались,
+ * студент видел только подпись. Размер целиком проверяется первым делом, поэтому длинное значение не открывает разбор длинных строк.
+ */
+const MAX_PATH_VALUE = MAX_BYTES;
 const NUMBER = /^-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?$/iu;
 const NUMBER_LIST = /^[-0-9.eE\s,]+$/u;
 const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s-]+$/u;
@@ -32,8 +39,8 @@ const ENUM: Readonly<Record<string, ReadonlySet<string>>> = {
   "text-anchor": new Set(["start", "middle", "end"]),
   "dominant-baseline": new Set(["auto", "middle", "central", "hanging", "alphabetic"]),
 };
-const ELEMENT_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[a-zA-Z][a-zA-Z0-9-]*="[^"<>]{0,4096}")*)\s*(\/?)>/y;
-const ATTR_RE = /\s+([a-zA-Z][a-zA-Z0-9-]*)="([^"<>]{0,4096})"/gy;
+const ELEMENT_RE = new RegExp(`<(\\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\\s+[a-zA-Z][a-zA-Z0-9-]*="[^"<>]{0,${MAX_PATH_VALUE}}")*)\\s*(\\/?)>`, "y");
+const ATTR_RE = new RegExp(`\\s+([a-zA-Z][a-zA-Z0-9-]*)="([^"<>]{0,${MAX_PATH_VALUE}})"`, "gy");
 const ENTITY_RE = /&(#[0-9]{1,6}|#x[0-9a-fA-F]{1,5}|amp|lt|gt|quot|apos);/gu;
 
 function decodeEntities(text: string): string | null {
@@ -50,7 +57,7 @@ function decodeEntities(text: string): string | null {
 }
 
 /** Длина значения проверяется до любого регулярного выражения: обычные атрибуты короткие, длинные только у геометрии. */
-const MAX_VALUE: Readonly<Record<string, number>> = { d: 4096, points: 2048, transform: 128, "font-family": 96, "stroke-dasharray": 64 };
+const MAX_VALUE: Readonly<Record<string, number>> = { d: MAX_PATH_VALUE, points: 2048, transform: 128, "font-family": 96, "stroke-dasharray": 64 };
 const DEFAULT_MAX_VALUE = 64;
 
 function validValue(name: string, value: string): boolean {

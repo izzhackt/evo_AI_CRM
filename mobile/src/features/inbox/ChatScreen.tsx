@@ -1,20 +1,23 @@
 // Чат с командой EVO: Telegram-подобная лента, поле ввода всегда над клавиатурой.
 // Образец: MessagesThread.tsx (веб #1412). Вложений в веб-чате нет (только подпись
-// документа в сообщении команды), поэтому и здесь только текст.
+// документа в сообщении команды), поэтому и здесь только текст. Как у веба (PORT-6a): лента названа для читалки
+// (`threadAria`), новое входящее объявляется («Новое сообщение от …»), под полем ввода «Отправляем…» и «Сообщение отправлено.»,
+// сбой обновления говорит «Не удалось обновить переписку.» с «Повторить».
 import { useRouter } from "expo-router";
 import { ArrowLeft, ArrowUp, MessagesSquare } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { loadErrorKey } from "@/api/queries";
 import { PORTAL_CASE_MESSAGE_BODY_LIMIT, type OutboxItem, type PortalCaseMessage } from "@/domain/inbox-model";
 import { dayKey, dayLabel, timeLabel } from "@/features/inbox/format";
 import { useChatThread } from "@/features/inbox/useChatThread";
+import { useIncomingNotice } from "@/features/inbox/useIncomingNotice";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import { useLang } from "@/i18n/LangProvider";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { EmptyBlock, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
@@ -82,6 +85,13 @@ export function ChatScreen() {
   );
   const trimmed = draft.trim();
   const canSend = trimmed.length >= 1;
+  // Статус отправки под полем (веб: `role="status"` у формы): «Отправляем…», затем «Сообщение отправлено.» до следующей отправки.
+  const sending = thread.outbox.some((item) => item.status === "sending");
+  const sendStatus = sending ? strings.sending : thread.justSent ? strings.sentStatus : "";
+  useIncomingNotice(thread.messages, strings.newMessageNotice, format);
+  useEffect(() => {
+    if (thread.justSent) announce(strings.sentStatus, { queue: true });
+  }, [thread.justSent, strings.sentStatus]);
 
   const submit = () => {
     if (thread.send(draft)) setDraft("");
@@ -139,6 +149,7 @@ export function ChatScreen() {
         ) : (
           <FlatList
             testID="chat-list"
+            accessibilityLabel={strings.threadAria}
             inverted
             data={entries}
             keyExtractor={(e) => e.key}
@@ -223,7 +234,7 @@ export function ChatScreen() {
 
       {thread.query.isError && thread.query.data !== undefined ? (
         <View style={{ paddingHorizontal: 12 }}>
-          <InlineAlert message={m(loadErrorKey(thread.query.error))} retryLabel={strings.retry} onRetry={() => void thread.query.refetch()} testID="chat-refresh-error" />
+          <InlineAlert message={strings.refreshError} retryLabel={strings.retry} onRetry={() => void thread.query.refetch()} testID="chat-refresh-error" />
         </View>
       ) : null}
       {thread.sendErrorKey ? (
@@ -236,9 +247,6 @@ export function ChatScreen() {
 
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "flex-end",
-          gap: 8,
           paddingHorizontal: 12,
           paddingTop: 8,
           paddingBottom: keyboard > 0 ? 8 : Math.max(insets.bottom, 8),
@@ -247,43 +255,50 @@ export function ChatScreen() {
           backgroundColor: tokens.bg,
         }}
       >
-        <TextInput
-          testID="chat-input"
-          accessibilityLabel={strings.composerLabel}
-          accessibilityHint={strings.limitHint}
-          placeholder={strings.composerPlaceholder}
-          placeholderTextColor={tokens.text2}
-          value={draft}
-          onChangeText={setDraft}
-          multiline
-          maxLength={PORTAL_CASE_MESSAGE_BODY_LIMIT}
-          style={{
-            flex: 1,
-            minHeight: 44,
-            maxHeight: 120,
-            paddingHorizontal: 14,
-            paddingTop: 11,
-            paddingBottom: 11,
-            borderRadius: 22,
-            borderWidth: 1,
-            borderColor: tokens.controlEdge,
-            backgroundColor: tokens.surface,
-            color: tokens.text,
-            fontFamily: sansFont(),
-            fontSize: tokens.sizeBody,
-          }}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={m("inbox.sendLabel")}
-          accessibilityState={{ disabled: !canSend }}
-          disabled={!canSend}
-          onPress={submit}
-          testID="chat-send"
-          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tokens.accent, opacity: canSend ? 1 : 0.5, alignItems: "center", justifyContent: "center" }}
-        >
-          <ArrowUp size={22} strokeWidth={2} color={tokens.onAccent} />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+          <TextInput
+            testID="chat-input"
+            accessibilityLabel={strings.composerLabel}
+            accessibilityHint={strings.limitHint}
+            placeholder={strings.composerPlaceholder}
+            placeholderTextColor={tokens.text2}
+            value={draft}
+            onChangeText={setDraft}
+            multiline
+            maxLength={PORTAL_CASE_MESSAGE_BODY_LIMIT}
+            style={{
+              flex: 1,
+              minHeight: 44,
+              maxHeight: 120,
+              paddingHorizontal: 14,
+              paddingTop: 11,
+              paddingBottom: 11,
+              borderRadius: 22,
+              borderWidth: 1,
+              borderColor: tokens.controlEdge,
+              backgroundColor: tokens.surface,
+              color: tokens.text,
+              fontFamily: sansFont(),
+              fontSize: tokens.sizeBody,
+            }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={m("inbox.sendLabel")}
+            accessibilityState={{ disabled: !canSend }}
+            disabled={!canSend}
+            onPress={submit}
+            testID="chat-send"
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tokens.accent, opacity: canSend ? 1 : 0.5, alignItems: "center", justifyContent: "center" }}
+          >
+            <ArrowUp size={22} strokeWidth={2} color={tokens.onAccent} />
+          </Pressable>
+        </View>
+        {sendStatus ? (
+          <Text variant="caption" tone="text2" style={{ marginTop: 4 }} testID="chat-send-status">
+            {sendStatus}
+          </Text>
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );

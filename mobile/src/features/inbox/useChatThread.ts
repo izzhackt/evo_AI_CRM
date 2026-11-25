@@ -38,6 +38,8 @@ export function useChatThread() {
   const [earlierFailed, setEarlierFailed] = useState(false);
   const [outbox, setOutbox] = useState<readonly OutboxItem[]>([]);
   const [sendErrorKey, setSendErrorKey] = useState<ReturnType<typeof rpcErrorKey> | null>(null);
+  // «Сообщение отправлено.» (веб sentStatus): после подтверждённой отправки, до следующей попытки.
+  const [justSent, setJustSent] = useState(false);
   const writes = useRef(new Map<string, FrozenWrite>());
 
   const page = latest.data;
@@ -79,11 +81,13 @@ export function useChatThread() {
       if (!write) return;
       setOutbox((current) => markOutbox(current, requestId, "sending"));
       setSendErrorKey(null);
+      setJustSent(false);
       try {
         await postChatMessage(transport, write);
         await client.refetchQueries({ queryKey });
         writes.current.delete(requestId);
         setOutbox((current) => dropSent(current, requestId));
+        setJustSent(true);
       } catch (error) {
         setOutbox((current) => markOutbox(current, requestId, "failed"));
         setSendErrorKey(error instanceof RpcError ? rpcErrorKey(error) : "error.generic");
@@ -138,6 +142,7 @@ export function useChatThread() {
     earlierFailed,
     outbox,
     sendErrorKey,
+    justSent,
     send,
     retry,
     discard,

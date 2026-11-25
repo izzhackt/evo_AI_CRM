@@ -8,6 +8,7 @@ import {
   dropSent,
   markOutbox,
   newestSequenceId,
+  newIncomingAuthor,
   notificationReadRequestId,
   pollSectionFor,
   prepareBody,
@@ -145,5 +146,39 @@ describe("UUIDv5 «прочитано»", () => {
 
   it("плохой UUID отвергается", () => {
     expect(() => notificationReadRequestId(actor, "not-a-uuid")).toThrow(TypeError);
+  });
+});
+
+describe("новое входящее сообщение для читалки (веб MessagesThread, PORT-6a)", () => {
+  const mine = chatMessage("a0000000-0000-4000-8000-0000000000a1", "11", true, "Здравствуйте");
+  const team = chatMessage("a0000000-0000-4000-8000-0000000000a2", "12", false, "Принесите оригинал");
+  const team2 = chatMessage("a0000000-0000-4000-8000-0000000000a3", "13", false, "И перевод");
+  const older = chatMessage("a0000000-0000-4000-8000-0000000000a0", "10", false, "Раньше");
+
+  it("лента была непустой, пришло чужое новое: имя автора", () => {
+    expect(newIncomingAuthor([mine], [mine, team])).toBe("Команда EVO");
+    expect(newIncomingAuthor([mine, team], [mine, team, team2])).toBe("Команда EVO");
+  });
+
+  it("первый показ ленты не объявляется", () => {
+    expect(newIncomingAuthor([], [mine, team])).toBeNull();
+    expect(newIncomingAuthor([], [])).toBeNull();
+  });
+
+  it("своё новое сообщение не объявляется, даже если оно последнее", () => {
+    expect(newIncomingAuthor([team], [team, mine])).toBeNull();
+  });
+
+  it("подгрузка более ранних (число выросло, последнее то же) не объявляется", () => {
+    expect(newIncomingAuthor([mine, team], [older, mine, team])).toBeNull();
+  });
+
+  it("то же содержимое и меньше сообщений не объявляются", () => {
+    expect(newIncomingAuthor([mine, team], [mine, team])).toBeNull();
+    expect(newIncomingAuthor([mine, team, team2], [mine, team])).toBeNull();
+  });
+
+  it("новое чужое объявляется и когда рядом пришло и своё, если самое новое чужое", () => {
+    expect(newIncomingAuthor([mine], [mine, team, team2])).toBe("Команда EVO");
   });
 });

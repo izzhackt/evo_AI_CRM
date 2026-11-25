@@ -66,6 +66,18 @@ export function newestSequenceId(messages: readonly PortalCaseMessage[]): string
   return messages.length === 0 ? null : messages[messages.length - 1]!.sequenceId;
 }
 
+/**
+ * Имя автора нового входящего сообщения, если обновление принесло его после уже показанных (веб MessagesThread, PORT-6a,
+ * WCAG 4.1.3: обновление добавляет сообщения молча, поэтому новое входящее объявляется). Условия те же, что у веба: лента уже
+ * была непустой, сообщений стало больше, самое новое не своё и не то, что было последним. Первый показ, своё сообщение,
+ * подгрузка более ранних и то же самое содержимое дают `null`.
+ */
+export function newIncomingAuthor(existing: readonly PortalCaseMessage[], merged: readonly PortalCaseMessage[]): string | null {
+  const newest = merged[merged.length - 1];
+  if (existing.length === 0 || merged.length <= existing.length || !newest || newest.mine) return null;
+  return newest.sequenceId !== existing[existing.length - 1]?.sequenceId ? newest.authorName : null;
+}
+
 /** Нужно ли слать «прочитано»: чат виден, приложение на переднем плане, есть что отметить и это ещё не отправлено. */
 export function shouldMarkRead(input: { visible: boolean; foreground: boolean; newest: string | null; lastSent: string | null }): boolean {
   return input.visible && input.foreground && input.newest !== null && input.newest !== input.lastSent;

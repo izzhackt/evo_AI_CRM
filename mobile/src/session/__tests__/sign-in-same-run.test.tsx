@@ -11,6 +11,7 @@ import RootLayout from "@/app/_layout";
 import { getSupabase } from "@/lib/supabase";
 import { fakeAccount, installFakeBackend, syntheticPassword, type FakeAccount, type FakeBackend } from "@/test-fixtures/auth-backend";
 import { registerLocalDataCleaner } from "@/session/local-data";
+import { onSignOut } from "@/session/sign-out-signal";
 import { sessionHistory, sessionProbe } from "@/test-fixtures/session-probe";
 
 const mockSecure = new Map<string, string>();
@@ -352,6 +353,73 @@ describe("выход, который ждёт ответа сервера, не 
 
     expect(screen.getByTestId("screen:(app)")).toBeTruthy();
     expect(probeText()).toBe("active|free|ready");
+  });
+
+  // Сессии записи открытых экранов (тест, тест на время, урок) подписаны на выход так же, как `useAbandonOnSignOut`: здесь вместо
+  // экрана подписка с пометкой в журнале сервера, чтобы видеть порядок («бросил» раньше «отзыв токена») и кто кого бросил.
+  describe("сессии записи открытых экранов (QA 23)", () => {
+    let offs: (() => void)[] = [];
+    afterEach(() => {
+      offs.forEach((off) => off());
+      offs = [];
+    });
+    function openScreenSession(label: string) {
+      const abandon = jest.fn(() => void backend.calls.push(`abandon:${label}`));
+      offs.push(onSignOut(abandon));
+      return abandon;
+    }
+
+    it("кнопка «Выйти»: сессия открытого экрана брошена раньше запроса на отзыв токена (иначе закрытие экрана писало бы без токена)", async () => {
+      await startApp();
+      await signInAs("assisted");
+      await onScreen("(app)");
+      const old = openScreenSession("старый");
+      const signingOut = await startSignOutThatWaitsForServer();
+
+      expect(old).toHaveBeenCalled();
+      const abandoned = backend.calls.indexOf("abandon:старый");
+      const revoked = backend.calls.indexOf("POST /auth/v1/logout");
+      expect(abandoned).toBeGreaterThanOrEqual(0);
+      expect(revoked).toBeGreaterThan(abandoned);
+      await signingOut.answer();
+    });
+
+    it("вход другого студента, пока выход ждал сервер: его сессии записи свежие, хвост выхода их не бросает, а его собственный выход бросает", async () => {
+      await startApp();
+      await signInAs("assisted");
+      await onScreen("(app)");
+      const old = openScreenSession("старый");
+      const signingOut = await startSignOutThatWaitsForServer();
+
+      expect(await signInAs("approved")).toEqual({ ok: true });
+      await onScreen("(app)");
+      const fresh = openScreenSession("новый"); // экран нового входа открывает свою сессию записи
+      await signingOut.answer(); // хвост прежнего выхода пропущен (начат другой вход)
+
+      expect(old).toHaveBeenCalled();
+      expect(fresh).not.toHaveBeenCalled(); // сигнал событие, а не состояние: ни хвост, ни прежний выход новому входу не передаются
+      expect(probeText()).toBe("active|free|ready");
+
+      await signOutNow(); // новый студент выходит сам: сигнал по-прежнему живой
+      expect(fresh).toHaveBeenCalled();
+    });
+
+    it("если никто не входил: после следующего входа сессии свежие, прежний выход на них не сказывается", async () => {
+      await startApp();
+      await signInAs("assisted");
+      await onScreen("(app)");
+      const old = openScreenSession("старый");
+      const signingOut = await startSignOutThatWaitsForServer();
+      await signingOut.answer();
+      expect(old).toHaveBeenCalled();
+
+      expect(await signInAs("approved")).toEqual({ ok: true });
+      await onScreen("(app)");
+      const fresh = openScreenSession("новый");
+      await letEventsLand();
+      expect(fresh).not.toHaveBeenCalled();
+      expect(probeText()).toBe("active|free|ready");
+    });
   });
 });
 

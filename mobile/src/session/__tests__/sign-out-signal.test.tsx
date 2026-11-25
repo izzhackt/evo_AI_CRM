@@ -128,6 +128,22 @@ describe("сигнал выхода: подписка и рассылка", () =
   });
 });
 
+describe("сигнал выхода это событие, а не состояние (сессии следующего студента свежие)", () => {
+  it("подписчик, подписавшийся после сигнала, его задним числом не получает; следующий сигнал получает", () => {
+    const earlier = jest.fn();
+    const offEarlier = onSignOut(earlier);
+    announceSignOut();
+    const later = jest.fn();
+    const offLater = onSignOut(later);
+    expect(earlier).toHaveBeenCalledTimes(1);
+    expect(later).not.toHaveBeenCalled();
+    announceSignOut();
+    expect(later).toHaveBeenCalledTimes(1);
+    offEarlier();
+    offLater();
+  });
+});
+
 describe("useAbandonOnSignOut: сессия бросает неотправленное", () => {
   it("сигнал зовёт `abandon`; после размонтирования и при смене сессии старая не зовётся", async () => {
     const first = { abandon: jest.fn() };

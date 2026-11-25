@@ -83,9 +83,12 @@ describe("шапка на фото столицы", () => {
     const text = screen.getByTestId("hero-credit-text");
     // подпись не абсолютная и не лежит ни в одном абсолютном блоке до самой шапки: она в потоке, значит не поверх чего-либо
     expect(flat(text).position).toBeUndefined();
+    let ancestors = 0;
     for (let node = text.parent; node && node.props.testID !== "home-hero"; node = node.parent) {
-      expect((node.props.style as { position?: string } | undefined)?.position).not.toBe("absolute");
+      expect(flat(node).position).not.toBe("absolute"); // `flat` сворачивает и стили-массивы
+      ancestors += 1;
     }
+    expect(ancestors).toBeGreaterThan(0); // обход действительно прошёл по предкам, а не стоял на месте
     // и она идёт в колонке шапки ПОСЛЕ кнопок «Все шаги» / «Сменить страну»: ниже них, а не над ними
     const column = columnOf(screen.toJSON(), "change-country", "hero-credit-text");
     expect(column).not.toBeNull();

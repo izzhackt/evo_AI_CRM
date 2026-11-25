@@ -54,18 +54,30 @@ export function geographyPhotoUrls(photo: Pick<GeographyPhoto, "path"> | null, s
   return urls(supabaseUrl, photo.path, width);
 }
 
+/**
+ * Подпись фото (веб: `PhotoCredit` в PhotoRights.tsx). У фото вуза с открытой лицензией автор ведёт на страницу источника
+ * (`authorUrl` = `sourceUrl`, отдельного источника нет), у фото мест автор ведёт на свою страницу (если она есть), а источник
+ * всегда на страницу файла (review S3 веба, F13; CC BY-SA 4.0, раздел 3(a)(1)(A)(v)). `authorUrl` необязателен: подпись,
+ * собранная прежним кодом без него, остаётся годной.
+ */
 export type PhotoCreditView =
   | Readonly<{ kind: "official"; sourceUrl: string }>
-  | Readonly<{ kind: "author"; author: string; license: string; licenseUrl: string | null; sourceUrl: string; sourceName: string | null }>;
+  | Readonly<{ kind: "author"; author: string; authorUrl?: string | null; license: string; licenseUrl: string | null; sourceUrl: string; sourceName: string | null }>;
 
 /** Подпись фото вуза: у официальных медиа - ссылка на источник, у прочих автор и лицензия. */
 export function universityPhotoCredit(photoKey: string | null): PhotoCreditView | null {
   if (photoKey === null || !Object.hasOwn(UNIVERSITY_PHOTOS, photoKey)) return null;
   const entry = UNIVERSITY_PHOTOS[photoKey as keyof typeof UNIVERSITY_PHOTOS];
   if (isOfficialMediaLicense(entry.license)) return { kind: "official", sourceUrl: entry.sourceUrl };
-  return { kind: "author", author: entry.author, license: entry.license, licenseUrl: entry.licenseUrl, sourceUrl: entry.sourceUrl, sourceName: null };
+  return { kind: "author", author: entry.author, authorUrl: entry.sourceUrl, license: entry.license, licenseUrl: entry.licenseUrl, sourceUrl: entry.sourceUrl, sourceName: null };
+}
+
+/** Описание фото вуза из библиотеки (веб: `alt={photo.caption}`); нет ключа - null. */
+export function universityPhotoCaption(photoKey: string | null): string | null {
+  if (photoKey === null || !Object.hasOwn(UNIVERSITY_PHOTOS, photoKey)) return null;
+  return UNIVERSITY_PHOTOS[photoKey as keyof typeof UNIVERSITY_PHOTOS].caption;
 }
 
 export function geographyPhotoCredit(photo: GeographyPhoto): PhotoCreditView {
-  return { kind: "author", author: photo.author, license: photo.license, licenseUrl: photo.licenseUrl, sourceUrl: photo.sourceUrl, sourceName: photo.sourceName };
+  return { kind: "author", author: photo.author, authorUrl: photo.authorUrl, license: photo.license, licenseUrl: photo.licenseUrl, sourceUrl: photo.sourceUrl, sourceName: photo.sourceName };
 }

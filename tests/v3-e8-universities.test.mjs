@@ -164,7 +164,7 @@ test("a row: university · program · intake, the path with one chip, the deadli
   assert.equal(rows.length, 3);
   const [main, submitted, decided] = rows.map((row) => text(visible(row)));
   assert.match(rows[0], /data-primary="true"/u);
-  assert.match(main, /^Шанхайский университет ★ основной Международная торговля · Осень 2027 Китай · Бакалавриат · Добавил: Айгүл Осмонова вариант — шаг 1 из 3: вариант, заявка подана, решение Срок подачи 30\.11 через 68 дн Документы программы$/u);
+  assert.match(main, /^Шанхайский университет ★ основной Международная торговля · Осень 2027 Китай · Бакалавриат · Добавил: Айгүл Осмонова вариант — шаг 1 из 3: вариант, заявка подана, решение Срок подачи 30\.11 через 68 дн Документы программы \?$/u, "правило отправки — за «?» рядом с разделом");
   // Порядок чтения: путь и срок — до подтверждения и партнёра (на телефоне это и порядок строк).
   assert.match(submitted, /Добавил: Айгүл Осмонова заявка подана — шаг 2 из 3: вариант, заявка подана, решение Срок подачи 30\.09 Подтверждение: Номер заявления 0000 \(синтетика\)$/u);
   assert.match(decided, /получен оффер — шаг 3 из 3: вариант, заявка подана, решение Срок подачи 15\.08 Партнёр: Партнёр «Синтетика» · Решение: Оффер № 0000 Ссылка партнёра \(откроется в новой вкладке\)$/u);
@@ -194,7 +194,7 @@ test("a row: university · program · intake, the path with one chip, the deadli
 test("disclosures: one chevron style, 44 px, no red summaries; anchors and proof addresses stay", () => {
   const html = surfaces.get("decision");
   assert.match(html, /<section id="applications" aria-labelledby="applications-title" class="@container\/unis scroll-mt-4" data-testid="v3-profile-admissions-workspace">/u);
-  assert.match(html, /<section id="preparation-66666666-5555-4555-8555-000000000001" class="mt-1 scroll-mt-6" aria-label="Подготовка по выбранной программе"><button type="button" class="group [^"]*min-h-11[^"]*" aria-expanded="false" aria-controls="preparation-66666666-5555-4555-8555-000000000001-documents">Документы программы<svg[^>]*class="[^"]*group-aria-expanded:rotate-180/u);
+  assert.match(html, /<section id="preparation-66666666-5555-4555-8555-000000000001" class="v3-staff-disclosures mt-1 scroll-mt-6" aria-label="Подготовка по выбранной программе"><button type="button" class="group [^"]*min-h-11[^"]*" aria-expanded="false" aria-controls="preparation-66666666-5555-4555-8555-000000000001-documents">Документы программы<svg[^>]*class="[^"]*group-aria-expanded:rotate-180/u);
   // scripts/lib/document-package-browser-proof.mjs: `<details id="partner-packets">` и `:scope > summary`.
   assert.match(html, /<details class="group scroll-mt-4 border-b border-border" id="partner-packets"><summary class="flex min-h-12 [^"]*">[\s\S]*?Пакеты документов партнёру[\s\S]*?group-open:rotate-180/u);
   assert.match(html, /data-testid="v3-application-create-launcher"[^>]*>Добавить вручную<\/button>/u);
@@ -254,4 +254,19 @@ test("the packet form is not recreated by «⋯ → Пакет партнёру�
   // Поведение в браузере с настоящим React — tests/e2e/case-route-static-render.cjs --client.
   const harness = read("tests/e2e/case-route-static-render.cjs");
   assert.match(harness, /an uncertain «Зафиксировать пакет» survives «Пакет партнёру» of another row/u);
+});
+
+test("раскрытия из кабинета в «Документах программы» и «Пакетах»: шеврон карточки вместо ▶, только в CRM; правила — за «?»", () => {
+  const css = read("src/app/(staff)/staff.css");
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-staff-disclosures summary \{[^}]*list-style: none;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-staff-disclosures summary::-webkit-details-marker \{\s*display: none;/u);
+  assert.match(css, /\.v3-world\[data-surface="staff"\] \.v3-staff-disclosures details\[open\] > summary::after \{\s*transform: rotate\(180deg\);/u);
+  // Кабинет не меняется: правило только под staff, компоненты кабинета не тронуты.
+  assert.doesNotMatch(css, /^\.v3-world \.v3-staff-disclosures/mu);
+  assert.match(read("src/components/staff/profile/StaffPreparationPanel.tsx"), /<section id=\{id\} className="v3-staff-disclosures mt-1 scroll-mt-6"/u);
+  assert.match(read("src/components/staff/profile/PartnerPacketsPanel.tsx"), /<div className="v3-staff-disclosures pb-4 pt-1">/u);
+  const prep = read("src/components/staff/profile/StaffPreparationPanel.tsx");
+  assert.match(prep, /<HelpTip label="Пояснение: документы программы">\{documentStrings\.saveHint\}<\/HelpTip>/u);
+  assert.doesNotMatch(prep, /<p className="text-sm text-fg-3">\{documentStrings\.saveHint\}<\/p>/u);
+  assert.match(read("src/components/staff/profile/CaseOperationsForms.tsx"), /<HelpTip label=\{`Пояснение: \$\{words\.zipLimit\}`\}>\{words\.cap\}<\/HelpTip>/u);
 });

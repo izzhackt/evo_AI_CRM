@@ -80,6 +80,7 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                 credit={page.country.photo ? geographyPhotoCredit(page.country.photo) : null}
                 placement="top"
                 decorative
+                testID="country-photo"
               />
               <Text variant="title" accessibilityRole="header">
                 {page.name}

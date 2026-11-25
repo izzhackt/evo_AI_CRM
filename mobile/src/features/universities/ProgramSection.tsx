@@ -56,7 +56,8 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
     timer.current = null;
     const applicationId = follow.current;
     follow.current = null;
-    if (applicationId !== null) router.push(preparationHref(applicationId));
+    // Окно другой программы уже открылось (запасной таймер прежней сработал позже, а `onDismiss` не пришёл): страницу прежней не открываем.
+    if (applicationId !== null && openRef.current === null) router.push(preparationHref(applicationId));
   }, []);
   useEffect(
     () => () => {

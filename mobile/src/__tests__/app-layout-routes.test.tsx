@@ -32,7 +32,12 @@ let mockTransport: RpcTransport = async () => ({ data: null, error: { code: "428
 jest.mock("@/session/SessionProvider", () => ({ useSession: () => mockSession }));
 jest.mock("@/config", () => ({ getConfig: () => ({ portalBaseUrl: "https://portal.example.test" }) }));
 jest.mock("@/lib/supabase", () => ({ getSupabase: () => ({}), platformTransport: () => (...args: Parameters<RpcTransport>) => mockTransport(...args) }));
-jest.mock("@/api/PortalPoll", () => ({ PortalPoll: ({ children }: { children: unknown }) => children, usePortalUnread: () => 0 }));
+// `usePortalPollFailure`: его читает `PollFailureNotice` (#1565) в оболочке; без него граница ошибок скрывала бы падение, но React писал бы «Caught error» в каждом тесте.
+jest.mock("@/api/PortalPoll", () => ({
+  PortalPoll: ({ children }: { children: unknown }) => children,
+  usePortalUnread: () => 0,
+  usePortalPollFailure: () => ({ failed: false, retry: () => undefined }),
+}));
 jest.mock("@/features/universities/IndexWarmup", () => ({ UniversityIndexWarmup: () => null }));
 jest.mock("@/features/learning/csca/useCscaAccess", () => ({ useCscaAccess: () => ({ available: false }) }));
 jest.mock("@/shell/ChatFab", () => ({ ChatFab: () => null }));

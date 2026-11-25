@@ -1,12 +1,16 @@
 // «Документы для этой программы»: заголовок с «Проверить состояние», заметки, состояние «список не открыт» и «нужно
-// уточнить», список требований и ссылки внизу. Веб: `ApplicationRequirementsUI` (без блоков файлов и комплекта, их
-// добавляют следующие PR этого среза).
+// уточнить», список требований с файлами, неоконченные записи, история всех документов и ссылки внизу. Веб:
+// `ApplicationRequirementsUI` (без блока комплекта, его добавляет следующий PR этого среза).
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { studentDocumentPageHint } from "@web/lib/portal/application-documents-one-tap";
 import type { ApplicationPackageReadiness } from "@web/lib/portal/application-packages";
 import type { PortalStrings } from "@web/lib/portal/i18n";
 
+import { usePreparation } from "@/features/preparations/context";
+import { DocumentHistory } from "@/features/preparations/DocumentHistory";
+import { DocumentRecovery } from "@/features/preparations/DocumentRecovery";
 import { RequirementCard } from "@/features/preparations/RequirementCard";
 import { requirementsNotes } from "@/features/preparations/model";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -34,7 +38,6 @@ export function RequirementsSection({
   staleNotice,
   loadingLabel,
   strings,
-  documentStrings,
   onCheck,
   onInitialize,
   onOpenDocuments,
@@ -52,7 +55,6 @@ export function RequirementsSection({
   staleNotice: Readonly<{ message: string; retryLabel: string }> | null;
   loadingLabel: string;
   strings: PortalStrings<"preparations">;
-  documentStrings: PortalStrings<"programDocuments">;
   onCheck: () => void;
   onInitialize: () => void;
   /** `null`: ссылки нет (в уровне доступа нет раздела «Документы»). */
@@ -60,8 +62,11 @@ export function RequirementsSection({
   /** `null`: ссылки нет (беседа с командой есть только при сопровождении). */
   onWrite: (() => void) | null;
 }) {
+  const { epoch, strings: documentStrings } = usePreparation();
   const current = documents?.requirements ?? null;
   const notes = requirementsNotes(current, eligible);
+  // Подсказка под списком говорит «два шага» только если это верно для каждого документа, куда можно загружать.
+  const pageHint = studentDocumentPageHint(documents?.documentItems);
   return (
     <View style={{ gap: 12 }} accessibilityState={{ busy: busy !== null }} testID="prep-requirements">
       <CardHead
@@ -104,11 +109,18 @@ export function RequirementsSection({
         <View style={{ gap: 12 }} accessibilityRole="list" testID="prep-requirement-list">
           {current.items.map((item, index) => {
             const state = documents.documentItems[index];
-            return state ? <RequirementCard key={item.requirementItemId} item={item} state={state} strings={strings} documentStrings={documentStrings} /> : null;
+            return state ? <RequirementCard key={item.requirementItemId} item={item} state={state} revisionId={current.revisionId} strings={strings} /> : null;
           })}
         </View>
       ) : null}
+      <DocumentRecovery currentItemIds={documents?.documentItems.map((item) => item.requirementItemId) ?? []} loading={loading} />
+      <DocumentHistory key={epoch} requirementItemId={null} testID="prep-program-history" />
       {error ? <InlineAlert message={error} testID="prep-error" /> : null}
+      {pageHint === "two_step" ? (
+        <Text variant="secondary" tone="text2" testID="prep-page-hint">
+          {documentStrings.saveHint}
+        </Text>
+      ) : null}
       {onOpenDocuments || onWrite ? (
         <View style={{ gap: 4 }}>
           {onOpenDocuments ? <Button variant="ghost" label={strings.allDocuments} onPress={onOpenDocuments} testID="prep-all-documents" /> : null}

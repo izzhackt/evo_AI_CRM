@@ -19,6 +19,27 @@ export const PREPARATIONS_RU = {
   "prep.stale": "Не удалось обновить. Показаны последние полученные данные.",
   // Подпись пояса у времени: сайт пишет «(Бишкек)» одним словом на русском и на кыргызском (`ProgramDocumentTime`).
   "prep.timeZone": "(Бишкек)",
+  // --- G36: файлы программы (загрузка, отправка, сохранённые версии, история) ---
+  "prep.storageUnavailable": "Не удалось проверить незавершённое действие на этом телефоне. Повторите попытку позже.",
+  "prep.cleanupFailed": "Результат подтверждён, но телефон сохранил незавершённый запрос. Его можно проверить повторно.",
+  "prep.savedSendBusy": "Файл сохранён, но не отправлен: этот документ сейчас отправляется. Дождитесь результата и отправьте файл, если он не ушёл.",
+  // Отказ от незавершённого действия (только в приложении: на сайте запись живёт в браузере, и от неё отказываются очисткой данных).
+  // Неоконченную загрузку иначе не закрыть: форма ждёт ТОТ ЖЕ файл, а снимок с камеры повторить нельзя.
+  "prep.discardUpload": "Отказаться от незавершённой загрузки",
+  "prep.discardSubmit": "Отказаться от незавершённой отправки",
+  "prep.discardTitle": "Отказаться от незавершённого действия?",
+  "prep.discardUploadBody": "Телефон забудет, что загрузка файла не завершилась, и вы сможете выбрать любой файл. Если файл уже дошёл до EVO, новая отправка может добавить в список ещё одну версию.",
+  "prep.discardSubmitBody": "Телефон забудет, что отправка не завершилась. Если она уже дошла до EVO, обновите список документов, чтобы увидеть её.",
+  "prep.discardConfirm": "Отказаться",
+  "prep.discardKeep": "Оставить",
+  "prep.discarded": "Незавершённое действие снято с этого телефона.",
+  "prep.discardBusy": "Это действие сейчас выполняется. Дождитесь результата.",
+  "prep.recordUnreadable": "Запись о незавершённом действии на этом телефоне не читается, повторять попытку бессмысленно. Её можно снять и начать заново.",
+  "prep.fileUnreadable": "Не удалось прочитать файл. Выберите его ещё раз.",
+  "prep.retryUploadAria": "Проверить результат: загрузка файла",
+  "prep.retrySubmitAria": "Проверить результат: отправка на проверку",
+  "prep.progress": "Загружено {percent}%",
+  "prep.downloadAria": "Скачать файл: {name}",
 } as const;
 
 export type PreparationsStringKey = keyof typeof PREPARATIONS_RU;
@@ -31,4 +52,22 @@ export const PREPARATIONS_KY: Readonly<Record<PreparationsStringKey, string>> = 
   "prep.checked": "Документтердин абалы жаңыланды.", // KY: needs native proofreading
   "prep.stale": "Жаңыртуу мүмкүн болгон жок. Акыркы алынган маалымат көрсөтүлдү.", // KY: needs native proofreading
   "prep.timeZone": "(Бишкек)", // KY: то же слово, что на сайте (там оно одно для обоих языков)
+  "prep.storageUnavailable": "Бул телефондогу аякталбаган аракетти текшерүү мүмкүн болгон жок. Кийинчерээк кайра аракет кылыңыз.", // KY: needs native proofreading
+  "prep.cleanupFailed": "Натыйжа ырасталды, бирок телефон аякталбаган сурамды сактап калды. Аны кайра текшерсе болот.", // KY: needs native proofreading
+  "prep.savedSendBusy": "Файл сакталды, бирок жөнөтүлгөн жок: бул документ азыр жөнөтүлүп жатат. Натыйжаны күтүңүз, файл кетпесе, кайра жөнөтүңүз.", // KY: needs native proofreading
+  "prep.discardUpload": "Бүтпөгөн жүктөөдөн баш тартуу", // KY: needs native proofreading
+  "prep.discardSubmit": "Бүтпөгөн жөнөтүүдөн баш тартуу", // KY: needs native proofreading
+  "prep.discardTitle": "Бүтпөгөн аракеттен баш тартасызбы?", // KY: needs native proofreading
+  "prep.discardUploadBody": "Телефон файлды жүктөө аякталбаганын унутат, андан кийин каалаган файлды тандай аласыз. Эгер файл EVO тарабына жетип калган болсо, жаңы жөнөтүү тизмеге дагы бир версияны кошушу мүмкүн.", // KY: needs native proofreading
+  "prep.discardSubmitBody": "Телефон жөнөтүү аякталбаганын унутат. Эгер ал EVO тарабына жетип калган болсо, аны көрүү үчүн документтердин тизмесин жаңыртыңыз.", // KY: needs native proofreading
+  "prep.discardConfirm": "Баш тартуу", // KY: needs native proofreading
+  "prep.discardKeep": "Калтыруу", // KY: needs native proofreading
+  "prep.discarded": "Бүтпөгөн аракет бул телефондон алынды.", // KY: needs native proofreading
+  "prep.discardBusy": "Бул аракет азыр аткарылып жатат. Натыйжаны күтүңүз.", // KY: needs native proofreading
+  "prep.recordUnreadable": "Бул телефондогу бүтпөгөн аракеттин жазуусу окулбайт, кайра аракет кылуунун пайдасы жок. Аны алып салып, баштан баштасаңыз болот.", // KY: needs native proofreading
+  "prep.fileUnreadable": "Файлды окуу мүмкүн болгон жок. Аны кайра тандаңыз.", // KY: needs native proofreading
+  "prep.retryUploadAria": "Жыйынтыкты текшерүү: файлды жүктөө", // KY: needs native proofreading
+  "prep.retrySubmitAria": "Жыйынтыкты текшерүү: текшерүүгө жөнөтүү", // KY: needs native proofreading
+  "prep.progress": "Жүктөлдү: {percent}%", // KY: needs native proofreading
+  "prep.downloadAria": "Файлды жүктөп алуу: {name}", // KY: needs native proofreading
 };

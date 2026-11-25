@@ -22,6 +22,22 @@ function handlers(count: number, extra: Record<string, unknown> = {}) {
   return homeHandlers("MY", { student_university_favorites_v1: favorites(count), student_hidden_university_favorites_v1: { hiddenCount: 0 }, ...extra });
 }
 
+type Json = { type: string; props: Record<string, unknown>; children: (Json | string)[] | null };
+const styleOf = (node: Json) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+/** Все узлы поддерева, сверху вниз. */
+const nodesOf = (node: Json | string): Json[] => (typeof node === "string" ? [] : [node, ...(node.children ?? []).flatMap(nodesOf)]);
+/** Цепочка узлов от `node` до первого узла с этим testID (включительно); `null` - в поддереве такого нет. */
+function chainTo(node: Json | string, testID: string): Json[] | null {
+  if (typeof node === "string") return null;
+  if (node.props.testID === testID) return [node];
+  for (const child of node.children ?? []) {
+    const rest = chainTo(child, testID);
+    if (rest !== null) return [node, ...rest];
+  }
+  return null;
+}
+const tree = (): Json => ([] as Json[]).concat(screen.toJSON() as never)[0];
+
 const byIdsCalls = (calls: { name: string; args?: Record<string, unknown> }[]) => calls.filter((call) => call.name === "student_university_catalog_by_ids_v1").map((call) => (call.args?.p_institution_ids as string[]).length);
 
 beforeEach(async () => {
@@ -92,6 +108,80 @@ describe("«Всё избранное»: ссылка и полный списо
     await screen.findByTestId("favorites-all");
     expect(byIdsCalls(calls)).toEqual([4]);
     expect(calls.map((call) => call.name)).not.toContain("student_hidden_university_favorites_v1");
+  });
+});
+
+describe("запись избранного на карточке каталога (#1558): флажок, сердечко и «©»", () => {
+  const withPhoto = (args?: Record<string, unknown>) => ({
+    items: ((args?.p_institution_ids as string[]) ?? []).map((id) => {
+      const n = Number(id.slice(-12));
+      const row = universityRow(n);
+      return n === 1 ? { ...row, content: { ...row.content, photoKey: "sunway" } } : row;
+    }),
+    nextOffset: null,
+  });
+
+  it("флажок «Сравнивать» стоит над карточкой, в потоке; сердечко и «©» лежат на фото карточки в разных углах и не пересекаются", async () => {
+    await openAll(2, { student_university_catalog_by_ids_v1: withPhoto });
+    const id = uuidN(1);
+    const heartId = "heart-Университет 1";
+    const entry = nodesOf(tree()).find((node) => node.props.testID === `favorite-entry-${id}`);
+    expect(entry).toBeDefined();
+    const [pick, card] = entry!.children as Json[];
+    // строка флажка и карточка - соседи записи: флажок не лежит на фото и ничего не закрывает
+    expect(chainTo(pick, `compare-pick-${id}`)).not.toBeNull();
+    expect(styleOf(pick).position).toBeUndefined();
+    for (const testID of [`tile-${id}`, heartId, `credit-${id}`]) {
+      expect(chainTo(pick, testID)).toBeNull(); // ни карточки, ни сердечка, ни «©» в строке флажка
+      expect(chainTo(card, testID)).not.toBeNull(); // они все - в карточке
+    }
+    // сердечко (над фото сверху справа) и «©» (над фото снизу справа) считаем по настоящим стилям карточки каталога
+    const heart = chainTo(card, heartId)!;
+    const credit = chainTo(card, `credit-${id}`)!;
+    const absolute = (chain: Json[]) => chain.map(styleOf).filter((style) => style.position === "absolute");
+    // слой над фото растянут на всю ширину (`left` и `right`), у угла прижат один край (`right`) и верх или низ
+    const layer = absolute(heart).find((style) => typeof style.height === "number" && style.left !== undefined);
+    const heartCorner = absolute(heart).filter((style) => style.top !== undefined && style.right !== undefined && style.left === undefined).at(-1);
+    const creditCorner = absolute(credit).filter((style) => style.bottom !== undefined && style.right !== undefined && style.left === undefined).at(-1);
+    expect(layer).toBeDefined();
+    expect(heartCorner).toBeDefined();
+    expect(creditCorner).toBeDefined();
+    const target = (chain: Json[]) => styleOf(chain.at(-1)!).height as number; // цель нажатия кнопки
+    const heartBottom = (heartCorner!.top as number) + target(heart);
+    const creditTop = (layer!.height as number) - (creditCorner!.bottom as number) - target(credit);
+    expect(target(heart)).toBeGreaterThanOrEqual(44);
+    expect(target(credit)).toBeGreaterThanOrEqual(44);
+    expect(heartBottom).toBeLessThanOrEqual(creditTop); // сердечко кончается выше, чем начинается «©»
+    expect(creditTop + target(credit)).toBeLessThanOrEqual(layer!.height as number); // и обе кнопки целиком на фото
+  });
+
+  it("вуз без фото: сердечко на месте, «©» нет; флажок над карточкой, как у вуза с фото", async () => {
+    await openAll(2, { student_university_catalog_by_ids_v1: withPhoto });
+    const second = within(screen.getByTestId(`favorite-entry-${uuidN(2)}`));
+    expect(second.getByTestId("heart-Университет 2")).toBeTruthy();
+    expect(second.queryByTestId(`credit-${uuidN(2)}`)).toBeNull();
+    expect(second.getByTestId(`compare-pick-${uuidN(2)}`)).toBeTruthy();
+  });
+
+  it("нажатия не мешают друг другу: сердечко не открывает вуз и не ставит флажок, флажок не снимает сердечко, карточка открывает вуз", async () => {
+    let saved = favorites(2);
+    const { calls } = await openAll(2, {
+      student_university_favorites_v1: () => saved,
+      set_university_favorite_v1: (args?: Record<string, unknown>) => {
+        saved = saved.filter((entry) => entry.institutionId !== args?.p_institution_id);
+        return { institutionId: args?.p_institution_id, favored: false, favoritesCount: saved.length };
+      },
+    });
+    const entry = within(screen.getByTestId(`favorite-entry-${uuidN(1)}`));
+    await fireEvent.press(entry.getByTestId(`compare-pick-${uuidN(1)}`));
+    expect(screen.getByTestId(`compare-pick-${uuidN(1)}`).props.accessibilityState).toMatchObject({ checked: true });
+    expect(calls.map((call) => call.name)).not.toContain("set_university_favorite_v1"); // флажок сердечко не трогает
+    expect(push).not.toHaveBeenCalled();
+    await fireEvent.press(entry.getByRole("button", { name: /Убрать из избранного/ }));
+    await waitFor(() => expect(screen.queryByTestId(`favorite-entry-${uuidN(1)}`)).toBeNull());
+    expect(push).not.toHaveBeenCalled(); // сердечко не открывает вуз
+    await fireEvent.press(screen.getByTestId(`tile-${uuidN(2)}`));
+    expect(push).toHaveBeenCalledWith(`/universities/${uuidN(2)}`); // а карточка открывает
   });
 });
 
@@ -231,7 +321,8 @@ describe("возврат и состояния списка", () => {
         return { institutionId: args?.p_institution_id, favored: false, favoritesCount: saved.length };
       },
     });
-    const heart = within(screen.getByTestId(`tile-${uuidN(2)}`)).getByRole("button", { name: /Убрать из избранного/ });
+    // Сердечко лежит над карточкой отдельным элементом (каталог #1558, G44), а не внутри её кнопки: ищем его в записи избранного.
+    const heart = within(screen.getByTestId(`favorite-entry-${uuidN(2)}`)).getByRole("button", { name: /Убрать из избранного/ });
     await fireEvent.press(heart);
     await waitFor(() => expect(screen.queryByTestId(`tile-${uuidN(2)}`)).toBeNull());
     expect(calls.find((call) => call.name === "set_university_favorite_v1")?.args).toEqual({ p_institution_id: uuidN(2), p_favored: false });
@@ -247,7 +338,7 @@ describe("возврат и состояния списка", () => {
         return { institutionId: args?.p_institution_id, favored: false, favoritesCount: 0 };
       },
     });
-    await fireEvent.press(within(screen.getByTestId(`tile-${uuidN(1)}`)).getByRole("button", { name: /Убрать из избранного/ }));
+    await fireEvent.press(within(screen.getByTestId(`favorite-entry-${uuidN(1)}`)).getByRole("button", { name: /Убрать из избранного/ }));
     expect(await screen.findByText("Пока ничего не сохранено")).toBeTruthy();
     expect(screen.queryByTestId("favorites-all-view")).toBeNull();
     expect(screen.queryByTestId("favorites-all")).toBeNull();

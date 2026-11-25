@@ -11,7 +11,7 @@ import { COMPARE_MIN, compareRows, publishedTile, selectedUniversities, type Com
 import { useAllFavorites, useHiddenFavorites } from "@/features/home/favorites-queries";
 import { go } from "@/features/portal/navigation";
 import { useFavoriteState } from "@/features/universities/FavoritesContext";
-import { UniversityTileView } from "@/features/universities/parts";
+import { UniversityTileView } from "@/features/universities/cards";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";

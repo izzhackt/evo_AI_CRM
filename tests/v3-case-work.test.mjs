@@ -172,7 +172,7 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.doesNotMatch(text, /Открыть вузы и программы|Открыть договор и оплату/u, "заявки есть, оплата не видна — ссылок нет");
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
-  assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · срок подачи 30\.11/u);
+  assert.match(text, /Шанхайский университет · Международная торговля — вариант · основная · срок подачи 30\.11/u);
   // Последнее сообщение переписки — в ленте.
   assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
   // Прежние дубли ушли: ссылка дела на само себя, «Коротко», вторая «Создать задачу по студенту».
@@ -996,4 +996,13 @@ test("the contract download reads the file through the staff session, the servic
   assert.match(suite, /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a327_already_applied/u);
+});
+
+test("статус заявки одним словом во всей карточке: «вариант», как первый шаг пути, без второго словаря", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.equal(wording.applicationStatus("preparation"), "вариант");
+  assert.equal(wording.applicationPathWord("preparation"), wording.applicationStatus("preparation"), "«Обзор» и «Вузы» говорят одно и то же");
+  assert.equal(wording.APPLICATION_PATH_STEPS[0], wording.applicationStatus("preparation"));
+  assert.doesNotMatch(read("src/lib/v3/wording.ts"), /preparation: "готовится"/u);
+  assert.doesNotMatch(read("src/components/staff/profile/CaseOverview.tsx"), /основной вариант/u, "«вариант · основной вариант» не повторяется");
 });

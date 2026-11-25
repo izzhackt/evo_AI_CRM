@@ -1,4 +1,4 @@
-// Запросы и записи «Университетов». Индекс: диск -> один вызов с версией за запуск
+// Запросы и записи «Университетов». Индекс: диск -> вызов с известной версией при открытии, возврате и не чаще раза в минуту (G46)
 // (тянуть вниз проверяет всегда); избранное: оптимистичное сердечко с откатом,
 // правда - квитанция сервера, нажатия по тому же вузу в полёте игнорируются.
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
@@ -13,23 +13,56 @@ import { addProgram, type AddTarget } from "./add-program";
 import { decodeIndexBody, loadUniversityIndex, readFavoriteIds, readUniversityDetail, setFavorite, type IndexLoad } from "./api";
 import { fileDisk, type IndexDisk } from "./cache";
 import { intentStore, selectionTarget } from "./pending-intents";
+import { usePullRefresh } from "./use-pull-refresh";
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
+
+/**
+ * Через сколько (мс) после последней ПОПЫТКИ - удачной или нет - версия каталога проверяется снова: вызов идёт с известной версией
+ * и при отсутствии перемен отвечает «не изменился» без тела. Веб проверяет версию при каждом открытии вида
+ * (`university-index-source.ts`), приложение не чаще раза в минуту: срок подачи, опубликованный, пока приложение открыто, больше
+ * не ждёт перезапуска (G46).
+ *
+ * Возврат сети сюда не входит: `onlineManager` TanStack Query в React Native событий сети не получает без `@react-native-community/netinfo`
+ * или `expo-network`, а это нативный модуль (нативная сборка заморожена), поэтому у запроса явно `refetchOnReconnect: false`, как было
+ * до G46 (общие настройки кабинета держат `true`, и без этой строки запрос его унаследовал бы). Когда источник событий сети появится,
+ * строку нужно убрать.
+ */
+export const INDEX_RECHECK_MS = 60_000;
+
+type Attempts = Readonly<{ dataUpdatedAt: number; errorUpdatedAt: number }>;
+/** Когда закончилась последняя попытка загрузить индекс (удачная или нет); 0 - попыток не было. */
+const lastAttemptAt = (state: Attempts) => Math.max(state.dataUpdatedAt, state.errorUpdatedAt);
+/** Пора ли проверять снова: прошла минута после последней попытки (без попыток - пора). Сбой считается попыткой: повтор не при каждом возврате. */
+const recheckDue = (state: Attempts) => Date.now() - lastAttemptAt(state) >= INDEX_RECHECK_MS;
 
 /** Индекс каталога. Данные из кэша важнее свежей ошибки; `index === null` пока нечего показать. */
 export function useUniversityIndex(disk: IndexDisk = fileDisk) {
   const { transport, userKey } = usePortalApi();
   const client = useQueryClient();
-  const queryKey = key(userKey, "university-index");
+  const queryKey = useMemo(() => key(userKey, "university-index"), [userKey]);
   const query = useQuery<IndexLoad>({
     queryKey,
     queryFn: () => loadUniversityIndex(transport, disk, userKey, client.getQueryData<IndexLoad>(queryKey)?.index ?? null),
-    // Одна проверка версии за запуск; дальше только по тяге вниз.
-    staleTime: Infinity,
+    // Версия перепроверяется при открытии каталога и при возврате в приложение (`focusManager` кабинета), не чаще раза в минуту
+    // после последней попытки: и после сбоя тоже, иначе каждый возврат и каждый новый экран каталога повторял бы запрос
+    // (с двумя повторами при обрыве связи и полосой загрузки без копии).
+    staleTime: INDEX_RECHECK_MS,
     gcTime: Infinity,
     refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: (current) => recheckDue(current.state),
+    refetchOnMount: (current) => recheckDue(current.state),
+    retryOnMount: (current) => recheckDue(current.state),
   });
+  /**
+   * Перепроверка при возвращении на экран каталога (экран остаётся в стеке, поэтому `refetchOnMount` его не видит): не чаще раза в
+   * `INDEX_RECHECK_MS` после последней попытки, не поверх идущего запроса и не раньше первой попытки.
+   */
+  const recheck = useCallback(() => {
+    const state = client.getQueryState(queryKey);
+    if (!state || state.fetchStatus === "fetching" || lastAttemptAt(state) === 0 || !recheckDue(state)) return;
+    void client.refetchQueries({ queryKey, exact: true }, { cancelRefetch: false });
+  }, [client, queryKey]);
   // Копия с диска показывается сразу, не дожидаясь сети.
   const [diskCopy, setDiskCopy] = useState<{ userKey: string; index: StudentUniversityIndex } | null>(null);
   useEffect(() => {
@@ -45,15 +78,17 @@ export function useUniversityIndex(disk: IndexDisk = fileDisk) {
   }, [disk, userKey]);
   // Копия прежнего пользователя не показывается новому.
   const index = query.data?.index ?? (diskCopy?.userKey === userKey ? diskCopy.index : null);
-  const refresh = useCallback(() => query.refetch(), [query]);
+  // Полоса «потянули вниз» горит только пока идёт запрос, который начал сам студент: автоматическая перепроверка идёт молча.
+  const { refreshing: pulling, pull: refresh } = usePullRefresh(query.refetch);
   return {
     index,
     refreshFailed: query.data?.refreshFailed === true || (query.isError && index !== null),
     isLoading: index === null && !query.isError,
     isError: index === null && query.isError,
     error: query.error,
-    refreshing: query.isFetching && index !== null,
+    refreshing: pulling && index !== null,
     refresh,
+    recheck,
   };
 }
 

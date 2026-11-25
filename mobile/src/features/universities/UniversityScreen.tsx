@@ -31,6 +31,7 @@ import { useFavoriteState } from "./FavoritesContext";
 import { useSelectProgram, useUniversityDetail } from "./hooks";
 import { NotFoundBlock } from "./NotFoundBlock";
 import { closeCreditPanel } from "./PhotoCredit";
+import { usePullRefresh } from "./use-pull-refresh";
 import { cityRoute, countryRoute, CreditedPhoto, FavoriteHeart, PathRow, universityUrls, usePhotoPixels } from "./parts";
 import { universityPhotoCaption, universityPhotoCredit } from "./photos";
 import type { StudentUniversityDetail } from "@web/lib/portal/university-index";
@@ -55,8 +56,11 @@ function UniversityBody({ id }: { id: string }) {
   const { t, m } = useLang();
   const strings = t("universities");
   const detail = useUniversityDetail(id);
+  // Полоса «потянули вниз» горит только у запроса студента: перечитывание карточки после сердечка, «Добавить в мои программы» и возврата
+  // в приложение идёт молча (раньше `isRefetching` зажигал её при любом перечитывании).
+  const { refreshing, pull } = usePullRefresh(detail.refetch);
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={() => void pull()} refreshing={refreshing}>
       {/* Касание содержимого (мимо подписи фото) и начало прокрутки закрывают открытую панель «©». */}
       <View style={{ gap: 16 }} onTouchStart={closeCreditPanel} testID="university-content">
         {detail.error instanceof UniversityNotFoundError ? (

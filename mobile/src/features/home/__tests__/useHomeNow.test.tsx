@@ -117,10 +117,14 @@ describe("useHomeNow", () => {
     expect(result.current).not.toBe(first);
   });
 
-  it("часы телефона переставлены на два дня вперёд: первый ответ сервера возвращает время сервера", async () => {
-    fakeClock("2026-09-10T05:00:00Z");
+  it("часы телефона переставлены на сутки вперёд: один ответ сервера время не меняет, два согласных возвращают время сервера", async () => {
+    fakeClock("2026-09-09T05:00:00Z");
     const { result } = await renderHook(() => useHomeNow());
-    expect(dayOf(result.current)).toBe("2026-09-10"); // пока серверного времени нет - часы телефона
+    expect(dayOf(result.current)).toBe("2026-09-09"); // пока серверного времени нет - часы телефона
+    await act(async () => {
+      observeServerTime("Tue, 08 Sep 2026 05:00:00 GMT", Date.now());
+    });
+    expect(dayOf(result.current)).toBe("2026-09-09"); // сдвиг в сутки ждёт подтверждения вторым ответом
     await act(async () => {
       observeServerTime("Tue, 08 Sep 2026 05:00:00 GMT", Date.now());
     });
@@ -139,10 +143,44 @@ describe("useHomeNow", () => {
   });
 
   it("время берётся по часам сервера уже на первой отрисовке, если поправка известна", async () => {
-    fakeClock("2026-09-10T05:00:00Z");
+    fakeClock("2026-09-09T05:00:00Z");
+    observeServerTime("2026-09-08T05:00:00Z", Date.now());
     observeServerTime("2026-09-08T05:00:00Z", Date.now());
     const { result } = await renderHook(() => useHomeNow());
     expect(dayOf(result.current)).toBe("2026-09-08");
+  });
+
+  it("уже первая отрисовка идёт по часам сервера, а не по часам телефона (до эффектов фокуса)", async () => {
+    fakeClock("2026-09-09T05:00:00Z"); // телефон на сутки впереди сервера
+    observeServerTime("2026-09-08T05:00:00Z", Date.now());
+    observeServerTime("2026-09-08T05:00:00Z", Date.now());
+    const seen: Date[] = [];
+    await renderHook(() => {
+      const value = useHomeNow();
+      seen.push(value);
+      return value;
+    });
+    expect(dayOf(seen[0])).toBe("2026-09-08");
+  });
+
+  it("возврат в приложение и таймеры берут часы сервера, а не телефона", async () => {
+    fakeClock("2026-09-09T05:00:00Z");
+    observeServerTime("2026-09-08T05:00:00Z", Date.now());
+    observeServerTime("2026-09-08T05:00:00Z", Date.now());
+    const { result } = await renderHook(() => useHomeNow());
+    jest.setSystemTime(at("2026-09-09T06:00:00Z")); // прошёл час: по серверу 8 сентября, 12:00 в Бишкеке
+    await act(async () => appState?.("active"));
+    expect(dayOf(result.current)).toBe("2026-09-08");
+    expect(result.current.toISOString()).toBe("2026-09-08T06:00:00.000Z");
+    // полночь по Бишкеку считается тоже по серверу: до неё ещё 12 часов, а не 11 по часам телефона
+    await act(async () => {
+      jest.advanceTimersByTime(11 * 3_600_000);
+    });
+    expect(dayOf(result.current)).toBe("2026-09-08");
+    await act(async () => {
+      jest.advanceTimersByTime(2 * 3_600_000);
+    });
+    expect(dayOf(result.current)).toBe("2026-09-09");
   });
 
   it("при размонтировании таймер снимается", async () => {

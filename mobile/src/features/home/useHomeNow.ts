@@ -10,7 +10,7 @@ import { AppState } from "react-native";
 import { todayForTimeline } from "@web/lib/portal/country-timeline";
 
 import { useFocusEffect } from "@/lib/focus";
-import { serverNow, subscribeServerClock } from "@/lib/server-clock";
+import { now as clockNow, subscribeServerClock } from "@/lib/server-clock";
 
 /** Бишкек - UTC+6 без перехода на летнее время с 2005 года; тест сверяет границу суток с `todayForTimeline`. */
 const BISHKEK_OFFSET_MS = 6 * 3_600_000;
@@ -41,15 +41,15 @@ export function nextDueAfter(now: Date, dueAts: readonly (string | null)[]): num
  * «просрочено». Возвращает один и тот же `Date`, пока ничего из перечисленного выше не случилось.
  */
 export function useHomeNow(dueAts: readonly (string | null)[] = []): Date {
-  const [now, setNow] = useState(() => serverNow());
+  const [now, setNow] = useState(() => clockNow());
 
   /** Принудительно: границу суток, срок и возврат в приложение пропустить нельзя, даже если сдвиг мал. */
-  const renew = useCallback(() => setNow(serverNow()), []);
+  const renew = useCallback(() => setNow(clockNow()), []);
   /** Мягко: возврат на вкладку и смена поправки не перерисовывают экран из-за секунд. */
   const renewIfFar = useCallback(
     () =>
       setNow((previous) => {
-        const next = serverNow();
+        const next = clockNow();
         return Math.abs(next.getTime() - previous.getTime()) >= REFRESH_AFTER_MS || todayForTimeline(next) !== todayForTimeline(previous) ? next : previous;
       }),
     [],

@@ -73,8 +73,9 @@ describe("«Сегодня» не застывает", () => {
 });
 
 describe("часы сервера важнее часов телефона", () => {
-  it("телефон на двое суток впереди, а сервер говорит 8 сентября: экран живёт по серверу", async () => {
-    setNow("2026-09-10T05:00:00Z"); // по часам телефона до срока паспорта два дня, по серверу - четыре
+  it("телефон на сутки впереди, а сервер (два согласных ответа) говорит 8 сентября: экран живёт по серверу", async () => {
+    setNow("2026-09-09T05:00:00Z"); // по часам телефона до срока паспорта три дня, по серверу - четыре
+    observeServerTime("Tue, 08 Sep 2026 05:00:00 GMT", Date.now());
     observeServerTime("Tue, 08 Sep 2026 05:00:00 GMT", Date.now());
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
@@ -83,12 +84,15 @@ describe("часы сервера важнее часов телефона", () 
     expect(screen.getByTestId("case-primary-due")).toHaveTextContent("через 4 дня");
   });
 
-  it("первый ответ сервера исправляет уже нарисованный экран", async () => {
-    setNow("2026-09-14T05:00:00Z"); // по часам телефона срок паспорта давно прошёл
+  it("два согласных ответа сервера исправляют уже нарисованный экран, один ответ - нет", async () => {
+    setNow("2026-09-12T04:00:00Z"); // по часам телефона срок паспорта (12.09, 03:00 UTC) уже прошёл
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     expect(within(await screen.findByTestId("hero-countdown")).getByText("Просрочено", { includeHiddenElements: true })).toBeTruthy();
-    await act(async () => observeServerTime("Tue, 08 Sep 2026 05:00:00 GMT", Date.now()));
-    expect(within(screen.getByTestId("hero-countdown")).getByText("4", { includeHiddenElements: true })).toBeTruthy();
+    // по серверу (на 47 часов раньше) до срока два дня; один ответ с таким сдвигом ещё ждёт подтверждения
+    await act(async () => observeServerTime("Thu, 10 Sep 2026 05:00:00 GMT", Date.now()));
+    expect(within(screen.getByTestId("hero-countdown")).getByText("Просрочено", { includeHiddenElements: true })).toBeTruthy();
+    await act(async () => observeServerTime("Thu, 10 Sep 2026 05:00:00 GMT", Date.now()));
+    expect(within(screen.getByTestId("hero-countdown")).getByText("2", { includeHiddenElements: true })).toBeTruthy();
   });
 });

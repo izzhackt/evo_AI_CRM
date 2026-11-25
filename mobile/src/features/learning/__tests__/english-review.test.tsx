@@ -15,6 +15,30 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }),
 }));
 
+type Json = { type: string; props?: Record<string, unknown>; children?: (Json | string)[] | null } | (Json | string)[] | null;
+/** Поддерево экрана с данным testID (дерево сериализовать нельзя: в свойствах провайдеров есть циклы, поэтому обход вручную). */
+function subtree(node: Json, testID: string): Json {
+  if (node === null || typeof node === "string") return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = subtree(child as Json, testID);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (node.props?.testID === testID) return node;
+  for (const child of node.children ?? []) {
+    const found = subtree(child as Json, testID);
+    if (found) return found;
+  }
+  return null;
+}
+function hasHostType(node: Json, type: string): boolean {
+  if (node === null || typeof node === "string") return false;
+  if (Array.isArray(node)) return node.some((child) => hasHostType(child as Json, type));
+  return node.type === type || (node.children ?? []).some((child) => hasHostType(child as Json, type));
+}
+
 const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
 beforeEach(() => {
   scrollTo.mockClear();
@@ -90,6 +114,8 @@ describe("повторение ошибок", () => {
     expect(screen.getByText("Здесь появятся задания, решённые с ошибкой в завершённых уроках.")).toBeTruthy();
     expect(screen.getByTestId("english-review-empty-action")).toHaveTextContent("К урокам");
     expect(screen.queryByTestId("english-review-done")).toBeNull();
+    // Значок lucide рисуется векторным элементом внутри самого блока пустого состояния (стрелка шапки не в счёт).
+    expect(hasHostType(subtree(screen.toJSON() as Json, "english-review-empty"), "RNSVGSvgView")).toBe(true);
   });
 
   it("модулей нет вовсе: «Повторять пока нечего», а не вечная загрузка", async () => {

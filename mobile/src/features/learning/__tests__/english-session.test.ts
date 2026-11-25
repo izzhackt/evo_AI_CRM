@@ -136,6 +136,27 @@ describe("урок: идентификаторы запросов и ответ 
     expect(saves[1].args).toMatchObject({ p_attempt_id: NEW_ATTEMPT_ID });
   });
 
+  it("«Пройти ещё раз» после неподтверждённого завершения: замороженный запрос завершения забыт, новая попытка завершается новым p_request_id", async () => {
+    let tries = 0;
+    const { session: s, calls } = single(
+      {
+        [COMPLETE]: () => (++tries <= 3 ? failure(null, 0) : done(NEW_ATTEMPT_ID)),
+        [START]: attemptFixture(1, { id: NEW_ATTEMPT_ID, total: 1 }),
+        [SAVE]: answerOne,
+      },
+      { draft: attemptFixture(1, { total: 1, answers: { [exerciseId(1, 1)]: attemptEntry("b", true) } }) },
+    );
+    await expect(s.finish()).resolves.toBe(false); // запрос завершения заморожен, подтверждения нет
+    const frozen = calls.filter((c) => c.name === COMPLETE)[0].args?.p_request_id;
+    s.restart();
+    await s.begin();
+    await s.answer({ selected: "b" });
+    await expect(s.finish()).resolves.toBe(true);
+    const last = calls.filter((c) => c.name === COMPLETE).at(-1);
+    expect(last?.args?.p_request_id).not.toBe(frozen);
+    expect(last?.args).toMatchObject({ p_attempt_id: NEW_ATTEMPT_ID });
+  });
+
   it("двойное нажатие «Начать урок» шлёт один запрос старта, оба вызова получают один исход", async () => {
     const { session: s, calls } = single({ [START]: attemptFixture(1, { total: 1 }) });
     await expect(Promise.all([s.begin(), s.begin()])).resolves.toEqual([true, true]);
@@ -222,6 +243,18 @@ describe("урок: закрытие экрана досылает неподт�
     await conflict.session.answer({ selected: "b" });
     conflict.session.dispose();
     expect(conflict.calls.filter((c) => c.name === SAVE)).toHaveLength(1);
+  });
+
+  it("ответ не подтверждён, а потом чтение вернуло окончательный отказ (доступ закрыт): при закрытии повтор не шлётся", async () => {
+    const { session: s, calls } = session({ ...down(SAVE, saveResult(1, 1, true)), [READ]: failure("42501", 403) }, { draft: draft() });
+    await s.answer({ selected: "b" });
+    expect(s.getState().error).toBe("unavailable");
+    await s.reload();
+    expect(s.getState().error).toBe("denied"); // замороженный ответ остался, но повторять его после отказа бессмысленно
+    s.dispose();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls.filter((c) => c.name === SAVE)).toHaveLength(3);
   });
 
   it("«Завершить» не подтверждено: при закрытии один повтор запроса завершения с тем же p_request_id", async () => {

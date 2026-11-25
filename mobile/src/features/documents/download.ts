@@ -102,6 +102,24 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
     }
     if (REDIRECT_STATUSES.has(response.status)) return { ok: false, error: "docs.downloadFailed" };
   }
+  return saveBody(deps, response, fileName, mimeTypes);
+}
+
+/** PDF по первым байтам: заголовок `%PDF-` стоит в начале файла (спецификация допускает до 1024 байт мусора перед ним). */
+export function looksLikePdf(bytes: Uint8Array): boolean {
+  const head = bytes.subarray(0, 1024);
+  for (let index = 0; index + 5 <= head.length; index += 1) {
+    if (head[index] === 0x25 && head[index + 1] === 0x50 && head[index + 2] === 0x44 && head[index + 3] === 0x46 && head[index + 4] === 0x2d) return true;
+  }
+  return false;
+}
+
+/**
+ * Общий хвост скачивания: ответ 2xx нужного типа, непустое тело в пределах лимита, запись в кэш приложения.
+ * `accept` - проверка содержимого до записи (магические байты): `octet-stream` от хранилища или страница ошибки под видом файла
+ * тип не выдаёт.
+ */
+async function saveBody(deps: Pick<DownloadDeps, "writeFile">, response: FetchResult, fileName: string, mimeTypes: readonly string[], accept?: (bytes: Uint8Array) => boolean): Promise<DownloadResult> {
   if (!response.ok) return { ok: false, error: "docs.downloadUnavailable" };
   if (!contentTypeMatches(response.headers.get("content-type"), mimeTypes)) return { ok: false, error: "docs.downloadFailed" };
   let bytes: Uint8Array;
@@ -111,10 +129,29 @@ export async function downloadFile(deps: DownloadDeps, target: DownloadTarget, f
     return { ok: false, error: "errorNetwork" };
   }
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_UPLOAD_BYTES) return { ok: false, error: "docs.downloadFailed" };
+  if (accept && !accept(bytes)) return { ok: false, error: "docs.downloadFailed" };
   const name = safeFileName(fileName, resolvedMime(response.headers.get("content-type"), mimeTypes));
   try {
     return { ok: true, uri: await deps.writeFile(name, bytes), name };
   } catch {
     return { ok: false, error: "docs.downloadFailed" };
   }
+}
+
+/**
+ * Публичный файл портала без входа: пустой бланк медсправки Китая из public/portal/document-samples (его отдаёт прокси
+ * без сессии, `isDocumentSampleFile`). Один простой GET: ни Bearer, ни перехода по перенаправлению (перенаправление на
+ * вход означало бы, что файл не публичный, и файл не берётся). Тип, размер и запись в кэш - как у `downloadFile`; у PDF
+ * ещё проверяются первые байты (`%PDF-`), чтобы страница ошибки с типом `octet-stream` не легла в кэш под видом бланка.
+ * `signal` отменяет запрос и чтение тела (закрыли лист, вышло время).
+ */
+export async function downloadPublicFile(deps: Pick<DownloadDeps, "fetchImpl" | "writeFile">, url: string, fileName: string, mimeType: string, signal?: AbortSignal): Promise<DownloadResult> {
+  let response: FetchResult;
+  try {
+    response = await deps.fetchImpl(url, { method: "GET", headers: { Accept: mimeType }, redirect: "manual", signal });
+  } catch {
+    return { ok: false, error: "errorNetwork" };
+  }
+  if (REDIRECT_STATUSES.has(response.status)) return { ok: false, error: "docs.downloadFailed" };
+  return saveBody(deps, response, fileName, [mimeType], mimeType === "application/pdf" ? looksLikePdf : undefined);
 }

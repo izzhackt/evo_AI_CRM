@@ -1,25 +1,27 @@
-// «Профессии»: тест интересов, «Подходят вам» (три лучших совпадения с собственным тестом), поиск,
-// фильтр по интересам и группы. Веб: src/app/(portal)/portal/professions/page.tsx, ProfessionMatches,
-// ProfessionsBrowser (правки владельца 10–11.11.2026). Отметка «созвучно» осталась как в первой версии
-// приложения: на карточке, когда шкалы профессии совпали с топ-шкалами теста.
+// «Профессии»: вход в подбор с Эви или карточка теста интересов, «Подходят вам» (три лучших совпадения с собственным тестом),
+// поиск, фильтр по интересам и группы, у карточек фото профессии. Веб: src/app/(portal)/portal/professions/page.tsx,
+// ProfessionMatches, ProfessionsBrowser (правки владельца 10–11.11.2026, 17.11.2026). Отметки «созвучно вашим интересам» нет:
+// веб убрал её в #1446, приложение - вместе с подсказкой под списком.
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
-import { aiConsentState } from "@web/lib/portal/ai-consent";
 import { groupProfessionsByScale, searchProfessions, topProfessionMatches } from "@web/lib/portal/profession-guide";
-import { ORVIS_SCALE_IDS, professionResonates, type OrvisScaleId, type ProfessionCardSummary } from "@web/lib/portal/professions";
+import { ORVIS_SCALE_IDS, type OrvisScaleId, type ProfessionCardSummary } from "@web/lib/portal/professions";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
+import { useEviEntry } from "@/features/learning/evi/hooks";
+import { useOpenEvi } from "@/features/learning/evi/navigation";
 import { readProfessionCards } from "@/features/learning/professions/api";
-import { useOwnOrvisProfile } from "@/features/learning/tests/queries";
+import { interestTestFromCatalog } from "@/features/learning/professions/model";
+import { EviHero, TestHero } from "@/features/learning/professions/ProfessionsHero";
+import { ProfessionPhoto } from "@/features/learning/professions/ProfessionPhoto";
+import { useAssessmentCatalog, useOwnOrvisProfile } from "@/features/learning/tests/queries";
 import { Chip } from "@/features/learning/ui";
-import { useAiConsent } from "@/features/profile/use-profile";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
-import { Button } from "@/ui/Button";
 import { CardSkeleton, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
@@ -33,13 +35,14 @@ export function ProfessionsScreen() {
   useRefetchOnFocus();
   const cards = useQuery({ queryKey: ["portal", userKey, "profession-cards"], queryFn: () => readProfessionCards(transport) });
   const profile = useOwnOrvisProfile();
-  // Как на вебе: Эви скрыта у ученика, отозвавшего согласие на ИИ-помощников; не прочиталось - показываем, сервер проверит сам.
-  const consent = useAiConsent();
-  const eviShown = !consent.data || aiConsentState(consent.data) === "granted";
+  // Как на вебе: сверху вход в Эви, а карточка теста - когда Эви скрыта: у студента, отозвавшего согласие на ИИ-помощников, или когда
+  // на сервере нет ключа Эви. Не прочиталось ни то ни другое - Эви показана, сервер проверит сам (`useEviEntry`).
+  const entry = useEviEntry();
+  const openEvi = useOpenEvi();
+  const testState = interestTestFromCatalog(useAssessmentCatalog().data);
   const [scale, setScale] = useState<OrvisScaleId | null>(null);
   const [query, setQuery] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
-  const topScales = profile?.topScales ?? null;
   const all = cards.data ?? [];
   // Как на сайте: «Подходят вам» только без фильтра по интересу и только при завершённом тесте.
   const matches = useMemo(() => (cards.data && profile && scale === null ? topProfessionMatches(cards.data, profile) : []), [cards.data, profile, scale]);
@@ -53,32 +56,14 @@ export function ProfessionsScreen() {
   };
   const title = (card: ProfessionCardSummary) => (lang === "ky" ? card.titleKy : card.titleRu);
   const open = (card: ProfessionCardSummary) => router.navigate({ pathname: "/professions/[cardId]", params: { cardId: card.cardId } });
+  const openTest = () => router.navigate({ pathname: "/tests/[key]", params: { key: "orvis92" } });
   return (
     <Screen topInset={false} tabBar onRefresh={() => void cards.refetch()} refreshing={cards.isRefetching}>
       <View style={{ gap: 16 }} testID="professions-screen">
         <Text variant="display" accessibilityRole="header" testID="title-professions">
           {p.title}
         </Text>
-        {eviShown ? (
-          <Card>
-            <Text variant="body" bold>
-              {p["tab.evi"]}
-            </Text>
-            <Text variant="secondary" tone="text2">
-              {p["evi.heroMeta"]}
-            </Text>
-            <Button label={p["evi.heroAction"]} onPress={() => router.navigate("/professions/evi")} testID="professions-evi-open" />
-          </Card>
-        ) : null}
-        <Card>
-          <Text variant="body" bold>
-            {p.testEntry}
-          </Text>
-          <Text variant="secondary" tone="text2">
-            {p.testEntryHint}
-          </Text>
-          <Button variant="ghost" label={p.testEntry} onPress={() => router.navigate({ pathname: "/tests/[key]", params: { key: "orvis92" } })} testID="professions-test-open" />
-        </Card>
+        {entry.shown ? <EviHero strings={p} onOpen={openEvi} /> : <TestHero strings={p} state={testState} onOpen={openTest} />}
 
         {matches.length > 0 ? (
           <View style={{ gap: 10 }} testID="profession-matches">
@@ -109,17 +94,20 @@ export function ProfessionsScreen() {
                 accessibilityLabel={`${title(card)}. ${format(p.matchPercent, { percent: String(percent) })}`}
                 onPress={() => open(card)}
                 testID={`match-${card.cardKey}`}
-                style={{ minHeight: MIN_TARGET + 16, gap: 6, padding: 14, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
+                style={{ overflow: "hidden", borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
               >
-                <Text variant="heading" tone="accent" testID={`match-percent-${card.cardKey}`}>
-                  {percent}%
-                </Text>
-                <Text variant="body" bold>
-                  {title(card)}
-                </Text>
-                <Text variant="secondary" tone="text2">
-                  {format(p.matchReasons, { scales: reasons.map((id) => p[`scale.${id}`]).join(", ") })}
-                </Text>
+                <ProfessionPhoto cardKey={card.cardKey} testID={`match-photo-${card.cardKey}`} />
+                <View style={{ minHeight: MIN_TARGET + 16, gap: 6, padding: 14 }}>
+                  <Text variant="heading" tone="accent" testID={`match-percent-${card.cardKey}`}>
+                    {percent}%
+                  </Text>
+                  <Text variant="body" bold>
+                    {title(card)}
+                  </Text>
+                  <Text variant="secondary" tone="text2">
+                    {format(p.matchReasons, { scales: reasons.map((id) => p[`scale.${id}`]).join(", ") })}
+                  </Text>
+                </View>
               </Pressable>
             ))}
           </View>
@@ -167,42 +155,38 @@ export function ProfessionsScreen() {
                 </Text>
               </View>
               {group.cards.map((card) => {
-                const resonates = professionResonates(card.orvisScales, topScales);
                 const summary = lang === "ky" ? card.summaryKy : card.summaryRu;
                 return (
                   <Pressable
                     key={card.cardId}
                     accessibilityRole="button"
-                    accessibilityLabel={`${title(card)}${resonates ? `. ${p.resonance}` : ""}`}
+                    accessibilityLabel={title(card)}
                     onPress={() => open(card)}
                     testID={`profession-${card.cardKey}`}
-                    style={{ minHeight: MIN_TARGET + 16, gap: 8, padding: 14, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
+                    style={{ overflow: "hidden", borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface }}
                   >
-                    <Text variant="body" bold>
-                      {title(card)}
-                    </Text>
-                    {summary ? (
-                      <Text variant="secondary" tone="text2">
-                        {summary}
+                    <ProfessionPhoto cardKey={card.cardKey} testID={`tile-photo-${card.cardKey}`} />
+                    <View style={{ minHeight: MIN_TARGET + 16, gap: 8, padding: 14 }}>
+                      <Text variant="body" bold>
+                        {title(card)}
                       </Text>
-                    ) : null}
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                      {card.orvisScales.map((sc) => (
-                        <Chip key={sc} label={p[`scale.${sc}`]} />
-                      ))}
+                      {summary ? (
+                        <Text variant="secondary" tone="text2">
+                          {summary}
+                        </Text>
+                      ) : null}
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                        {card.orvisScales.map((sc) => (
+                          <Chip key={sc} label={p[`scale.${sc}`]} />
+                        ))}
+                      </View>
                     </View>
-                    {resonates ? <Chip tone="accent" label={p.resonance} testID="resonance" /> : null}
                   </Pressable>
                 );
               })}
             </View>
           ))
         )}
-        {topScales ? (
-          <Text variant="caption" tone="text2">
-            {p.resonanceHint}
-          </Text>
-        ) : null}
       </View>
     </Screen>
   );

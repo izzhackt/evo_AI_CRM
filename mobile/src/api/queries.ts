@@ -10,6 +10,7 @@ import type { StudentCountryChoice } from "@web/lib/portal/country-choice";
 import { usePortalApi } from "@/api/PortalApi";
 import {
   countryChoiceWrite,
+  readCaseDirections,
   readCaseFiles,
   readCountryChoice,
   readDocuments,
@@ -48,6 +49,18 @@ export function useDocuments() {
 export function useCaseFiles() {
   const { transport, tier, userKey } = usePortalApi();
   return useQuery({ queryKey: key(userKey, "case-files"), queryFn: () => readCaseFiles(transport), enabled: tier === "assisted" });
+}
+
+/**
+ * Страна своих дел (373) для справки «Пример». Страна дела меняется редко, поэтому по времени ответ не «стареет» и не
+ * выгружается из кэша: пока открыт кабинет, лист открывается сразу, без запроса. Перечитывается, когда кабинет сам
+ * обновляет чтения: вытягивание экрана и опрос оболочки (`PortalPoll` обновляет все открытые чтения, когда видит
+ * изменение). Ключ с `userKey`: чужой кэш другому студенту не достаётся. Сбой на экран не выходит: справка берёт
+ * выбор студента, а без него общую; сбой перечитывания оставляет прежнюю страну.
+ */
+export function useCaseDirections() {
+  const { transport, tier, userKey } = usePortalApi();
+  return useQuery({ queryKey: key(userKey, "case-directions"), queryFn: () => readCaseDirections(transport), enabled: tier === "assisted", staleTime: Infinity, gcTime: Infinity });
 }
 
 export function usePayments() {

@@ -6,21 +6,32 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { fakeTransport } from "@/test-fixtures/universities";
 
 const mockNavigate = jest.fn();
+const mockDismissTo = jest.fn();
 jest.mock("expo-router", () => ({
-  router: { navigate: (...args: unknown[]) => mockNavigate(...args), canGoBack: () => false, back: jest.fn() },
+  router: { navigate: (...args: unknown[]) => mockNavigate(...args), dismissTo: (...args: unknown[]) => mockDismissTo(...args), canGoBack: () => false, back: jest.fn() },
   useRouter: () => ({ canGoBack: () => false, back: jest.fn(), navigate: (...args: unknown[]) => mockNavigate(...args) }),
 }));
+// Робот и точки без бегущего движения: проверяется поведение экрана, а не кадры (их проверяют EviRobot.test и TypingDots.test).
+jest.mock("@/ui/useReduceMotion", () => ({ useReduceMotion: () => true }));
 
 type Ask = EviApi["ask"];
 const answer = (over: Record<string, unknown> = {}) => ({ ok: true as const, answer: { message: "Что тебе нравится делать?", mood: "talk" as const, options: ["Рисовать", "Считать"], multi: false, results: null, progress: { step: 1, total: 10 }, ...over } });
 
+const GRANTED = { status: "granted", policyVersion: "2026-10-25", decidedAt: "2026-11-01T10:00:00Z", currentPolicyVersion: "2026-10-25" };
+
 async function open(ask: Ask, lang: "ru" | "ky" = "ru") {
-  const { transport } = fakeTransport({});
-  return renderPortal(<EviScreen api={{ ask }} />, testApi(transport), lang);
+  const { transport } = fakeTransport({ portal_ai_consent_get_v1: GRANTED });
+  const view = await renderPortal(<EviScreen api={{ ask }} />, testApi(transport), lang);
+  // Согласие читается до чата (как страница веба).
+  await screen.findByTestId("evi-screen");
+  return view;
 }
 
 describe("«Подбор с Эви»", () => {
-  beforeEach(() => mockNavigate.mockReset());
+  beforeEach(() => {
+    mockNavigate.mockReset();
+    mockDismissTo.mockReset();
+  });
 
   it("приветствие: имя, строка о том, что будет, и два варианта; шапки разговора ещё нет", async () => {
     await open(jest.fn());
@@ -114,7 +125,9 @@ describe("«Подбор с Эви»", () => {
     expect(screen.getByText("Эви сейчас недоступен. Загляните позже.")).toBeTruthy();
     expect(screen.queryByTestId("evi-input")).toBeNull();
     await fireEvent.press(screen.getByTestId("evi-catalog"));
-    expect(mockNavigate).toHaveBeenCalledWith("/professions");
+    // К каталогу, который уже в стеке (а не второй каталог поверх Эви): `dismissTo`, не `navigate`.
+    expect(mockDismissTo).toHaveBeenCalledWith("/professions");
+    expect(mockNavigate).not.toHaveBeenCalled();
     const text = JSON.stringify(screen.toJSON());
     expect(text).not.toMatch(/конфиденц|персональн|согласи|privacy/iu);
   });

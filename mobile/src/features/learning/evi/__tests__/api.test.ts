@@ -1,4 +1,4 @@
-import { createEviApi, parseEviActionResult, type EviFetch } from "@/features/learning/evi/api";
+import { createEviApi, parseEviActionResult, parseEviAvailability, type EviFetch } from "@/features/learning/evi/api";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const HISTORY = [
@@ -92,5 +92,54 @@ describe("разбор ответа", () => {
     expect(parseEviActionResult({ ok: true, answer: { ...ANSWER.answer, message: "" } })).toBeNull();
     expect(parseEviActionResult({ ok: true, answer: { ...ANSWER.answer, options: [1] } })).toBeNull();
     expect(parseEviActionResult({ ok: true, answer: { ...ANSWER.answer, results: [{ cardId: "a" }] } })).toBeNull();
+  });
+});
+
+describe("GET /api/portal/mobile/evi: есть ли у сервера ключ Эви", () => {
+  it("шлёт один GET с Bearer без тела; `{ available }` приходит как есть", async () => {
+    for (const available of [true, false]) {
+      const { api, calls } = harness(() => json(200, { available }));
+      await expect(api.available?.()).resolves.toBe(available);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe("https://portal.example.test/api/portal/mobile/evi");
+      expect(calls[0]?.init.method).toBe("GET");
+      expect(calls[0]?.init.body).toBeUndefined();
+      expect(calls[0]?.init.headers).toEqual({ Accept: "application/json", Authorization: "Bearer tok-1" });
+    }
+  });
+
+  it("401: сессия обновляется один раз и запрос повторяется; второй 401 или нет нового токена - «не узнали»", async () => {
+    const refresh = jest.fn(async () => "tok-2");
+    const first = harness((n) => (n === 1 ? json(401, { error: "unauthorized" }) : json(200, { available: true })), { refreshToken: refresh });
+    await expect(first.api.available?.()).resolves.toBe(true);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect((first.calls[1]?.init.headers as Record<string, string>).Authorization).toBe("Bearer tok-2");
+    const second = harness(() => json(401, {}), { refreshToken: async () => "tok-2" });
+    await expect(second.api.available?.()).resolves.toBeNull();
+    expect(second.calls).toHaveLength(2);
+    const noToken = harness(() => json(200, { available: true }), { getToken: async () => null });
+    await expect(noToken.api.available?.()).resolves.toBeNull();
+    expect(noToken.calls).toHaveLength(0);
+    const noRefresh = harness(() => json(401, {}), { refreshToken: async () => null });
+    await expect(noRefresh.api.available?.()).resolves.toBeNull();
+    expect(noRefresh.calls).toHaveLength(1);
+  });
+
+  it("всё, что не `{ available: boolean }` с кодом 200 - «не узнали» (null), без исключения: старый сервер, чужой ответ, сбой", async () => {
+    for (const status of [400, 403, 404, 405, 429, 500, 503]) {
+      await expect(harness(() => json(status, { available: true })).api.available?.()).resolves.toBeNull();
+    }
+    for (const body of [{}, { available: "yes" }, { available: 1 }, { available: null }, [], "true", null]) {
+      await expect(harness(() => json(200, body)).api.available?.()).resolves.toBeNull();
+    }
+    await expect(harness(() => new Response("<html>", { status: 200 })).api.available?.()).resolves.toBeNull();
+    const offline = createEviApi({ baseUrl: "https://portal.example.test", getToken: async () => "t", fetch: async () => { throw new TypeError("network"); } });
+    await expect(offline.available?.()).resolves.toBeNull();
+  });
+
+  it("разбор: ровно булево поле `available`, лишние поля не мешают, остальное - null", () => {
+    expect(parseEviAvailability({ available: true })).toBe(true);
+    expect(parseEviAvailability({ available: false, extra: 1 })).toBe(false);
+    for (const value of [null, undefined, 1, "x", [], {}, { available: "true" }, { available: 0 }]) expect(parseEviAvailability(value)).toBeNull();
   });
 });

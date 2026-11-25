@@ -7,10 +7,11 @@ import path from "node:path";
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
-import { AccessibilityInfo, ScrollView } from "react-native";
+import { AccessibilityInfo, ScrollView, StyleSheet } from "react-native";
 
 import { TestScreen } from "@/features/learning/test-runner/TestScreen";
 import type { RpcTransport } from "@/lib/rpc";
+import { CHAT_FAB_CLEARANCE, TAB_BAR_CLEARANCE } from "@/shell/useTabBarClearance";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
@@ -470,5 +471,13 @@ describe("итог теста", () => {
   it("на кыргызском: подписи фактов и кнопок на кыргызском", async () => {
     await openResult(() => undefined, fx("csca_home_after"), "ky");
     expect(within(screen.getByTestId("result-actions")).getByTestId("result-topics")).toHaveTextContent("Темаларга");
+  });
+});
+
+describe("запас под плавающую панель", () => {
+  it("у теста на время тот же запас, что у любой страницы стека «Учёбы»: прежнего явного запаса 32 pt поверх запаса под панель нет", async () => {
+    await openRunning();
+    const content = StyleSheet.flatten(screen.getByTestId("test-screen-scroll").props.contentContainerStyle) as { paddingBottom: number };
+    expect(content.paddingBottom).toBe(34 + TAB_BAR_CLEARANCE + CHAT_FAB_CLEARANCE); // 34 pt - нижняя безопасная зона телефона в тестах
   });
 });

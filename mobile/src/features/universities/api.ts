@@ -111,17 +111,21 @@ export async function setFavorite(transport: RpcTransport, institutionId: string
 
 /**
  * Запись выбора программы: замораживается один раз на набор, повтор шлёт тот же запрос
- * (`p_request_id`). Подготовка документов открывается отдельно (экран программы), здесь
- * только выбор.
+ * (`p_request_id`). `requestId` - сохранённый запрос (после обрыва или перезапуска повтор идёт с тем же id); без него создаётся
+ * новый. Список документов открывается отдельной операцией (`add-program.ts`), здесь только выбор.
  */
-export function selectProgramWrite(intent: Omit<CatalogPreparationIntent, "requestId">): FrozenWrite {
-  return createWrite("student_select_catalog_intake_v1", {
-    p_student_case_id: intent.studentCaseId,
-    p_catalog_institution_id: intent.institutionId,
-    p_program_id: intent.programId,
-    p_intake_id: intent.intakeId,
-    p_publication_version: intent.publicationVersion,
-  });
+export function selectProgramWrite(intent: Omit<CatalogPreparationIntent, "requestId">, requestId?: string): FrozenWrite {
+  return createWrite(
+    "student_select_catalog_intake_v1",
+    {
+      p_student_case_id: intent.studentCaseId,
+      p_catalog_institution_id: intent.institutionId,
+      p_program_id: intent.programId,
+      p_intake_id: intent.intakeId,
+      p_publication_version: intent.publicationVersion,
+    },
+    requestId === undefined ? {} : { requestId },
+  );
 }
 
 export async function selectProgram(

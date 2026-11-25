@@ -3,14 +3,14 @@
 // утверждения: «Часть N из 23»), «Назад» и «Далее», шаг «Готовы завершить?»; под ней «Сохранить и выйти».
 // Сохранение, повторы и конфликт ведёт `AssessmentSession`; уход с экрана придерживает экран (`useLeaveGuard`).
 import { useEffect, useRef } from "react";
-import { Alert, View } from "react-native";
+import { Alert, Platform, View } from "react-native";
 
 import type { AssessmentAttempt } from "@web/lib/student-assessment-contract";
 
 import { AssessmentQuestionView } from "@/features/learning/tests/AssessmentQuestionView";
 import type { AssessmentSession, AssessmentUiState } from "@/features/learning/tests/assessment-session";
 import { assessmentPageCount, assessmentPageSize, firstOpenPage, pageQuestions } from "@/features/learning/tests/paging";
-import { runNotice } from "@/features/learning/tests/run-notice";
+import { isAppNoticeKey, runNotice, type RunNoticeKey } from "@/features/learning/tests/run-notice";
 import { SegmentBar } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -19,7 +19,7 @@ import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
-export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAndExit, onPageChange }: { session: AssessmentSession; state: AssessmentUiState; attempt: AssessmentAttempt; exitNotice: boolean; onSaveAndExit: () => void; onPageChange: () => void }) {
+export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAndExit, onLeaveAnyway, onPageChange }: { session: AssessmentSession; state: AssessmentUiState; attempt: AssessmentAttempt; exitNotice: boolean; onSaveAndExit: () => void; onLeaveAnyway: () => void; onPageChange: () => void }) {
   const { m, t, format } = useLang();
   const { tokens } = useTheme();
   const s = t("tests");
@@ -50,16 +50,25 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
     onPageChange();
   };
   const select = (questionId: string, optionId: string) => session.select(questionId, optionId);
-  const notice = runNotice(state, exitNotice);
-  const noticeText = notice.messages.map((key) => s[key]);
-  const lastNotice = noticeText.length > 0 ? noticeText[noticeText.length - 1] : "";
-  // Читалка узнаёт о сбое сохранения без поиска плашки глазами (на iPhone живые области не работают).
-  useEffect(() => announce(lastNotice), [lastNotice]);
+  const notice = runNotice(state, exitNotice, Platform.OS === "ios");
+  // Строки веба берутся из словаря `tests`, строка «ответы ещё не сохранены» своя (у телефона есть выходы, которых нет у сайта).
+  const textOf = (key: RunNoticeKey) => (isAppNoticeKey(key) ? m(key) : s[key]);
+  const noticeText = notice.messages.map(textOf);
+  const spokenNotice = noticeText.join(" ");
+  // Читалка узнаёт о сбое сохранения без поиска плашки глазами (на iPhone живые области не работают): плашка читается целиком.
+  useEffect(() => announce(spokenNotice), [spokenNotice]);
   // Веб: `window.confirm`; на телефоне системное окно с теми же словами.
   const confirmLoadSaved = () =>
     Alert.alert(s.loadSaved, s.confirmReload, [
       { text: m("assess.replaceCancel"), style: "cancel" },
       { text: m("assess.replaceConfirm"), style: "destructive", onPress: () => void session.loadSaved() },
+    ]);
+
+  // «Выйти без сохранения»: окно с теми же словами, что и у «Показать сохранённые ответы» (веб: `window.confirm`).
+  const confirmLeave = () =>
+    Alert.alert(m("assess.leaveTitle"), m("assess.leaveBody"), [
+      { text: m("assess.leaveCancel"), style: "cancel" },
+      { text: m("assess.leaveConfirm"), style: "destructive", onPress: onLeaveAnyway },
     ]);
 
   return (
@@ -87,8 +96,9 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
               {text}
             </Text>
           ))}
-          {notice.action === "loadSaved" ? <Button variant="ghost" label={s.loadSaved} busy={state.reload === "loading"} onPress={confirmLoadSaved} testID="assessment-load-saved" /> : null}
-          {notice.action === "retrySave" ? <Button variant="ghost" label={s.retrySave} onPress={() => void session.flush()} testID="assessment-retry-save" /> : null}
+          {notice.actions.includes("loadSaved") ? <Button variant="ghost" label={s.loadSaved} busy={state.reload === "loading"} onPress={confirmLoadSaved} testID="assessment-load-saved" /> : null}
+          {notice.actions.includes("retrySave") ? <Button variant="ghost" label={s.retrySave} onPress={() => void session.flush()} testID="assessment-retry-save" /> : null}
+          {notice.actions.includes("leaveAnyway") ? <Button variant="ghost" label={m("assess.leaveAnyway")} onPress={confirmLeave} testID="assessment-leave-anyway" /> : null}
         </View>
       ) : null}
       <Card>

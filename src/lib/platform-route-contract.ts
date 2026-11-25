@@ -125,6 +125,9 @@ const STUDENT_CASE_FILE_DOWNLOAD_PATH =
 // registration is a public intake whose handler owns its whole boundary.
 const STUDENT_INVITE_ACCEPTANCE_API_PATH = "/api/portal/invite-acceptance";
 const STUDENT_REGISTRATION_API_PATH = "/api/portal/registration";
+// Проверка личной ссылки регистрации (341) для приложения: анонимный POST `{invite}`, ответ - только статус ссылки и имя
+// для предзаполнения; обработчик сам держит ограничение частоты.
+const STUDENT_REGISTRATION_LINK_CHECK_API_PATH = "/api/portal/registration/link-check";
 // Native password recovery (#1287): anonymous, same core as /auth/forgot-password.
 const STUDENT_PASSWORD_RECOVERY_API_PATH = "/api/portal/password-recovery";
 // Мобильное приложение (Expo): вход на сервере (аноним) и смена пароля (Bearer).
@@ -345,6 +348,8 @@ export function isPublicStudentRegistrationApi(
   return method === "POST" && (
     path === STUDENT_REGISTRATION_API_PATH
     || path === "/api/portal/registration/resend"
+    // Приложение проверяет личную ссылку до анкеты: обработчик сам ограничивает частоту и отвечает только статусом.
+    || path === STUDENT_REGISTRATION_LINK_CHECK_API_PATH
     || path === STUDENT_PASSWORD_RECOVERY_API_PATH
     // Мобильный вход: аноним, обработчик сам владеет ограничением частоты и проверкой пароля.
     || path === STUDENT_MOBILE_SESSION_API_PATH

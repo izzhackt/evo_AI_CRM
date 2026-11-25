@@ -14,6 +14,7 @@ import {
   requirementsNotes,
   selectedProgramOf,
 } from "@/features/preparations/model";
+import { PREPARATIONS_KY, PREPARATIONS_RU } from "@/i18n/strings-preparations";
 import { preparationRow } from "@/test-fixtures/universities";
 
 describe("сроки", () => {
@@ -38,10 +39,21 @@ describe("сроки", () => {
     expect(intakeDeadlineLine(intake, "ky")).toMatch(/2027.*18:00 \(Asia\/Shanghai\)$/u);
   });
 
-  it("момент по Бишкеку (UTC+6) с подписью пояса, в обоих языках одинаково", () => {
-    expect(programTime("2026-10-07T10:05:00+00:00")).toBe("07.10.2026, 16:05 (Бишкек)");
-    expect(programTime("2026-10-07T20:30:00-04:00")).toBe("08.10.2026, 06:30 (Бишкек)");
+  it("момент по Бишкеку (UTC+6) с подписью пояса, как у сайта: «7 окт. 2026 г., 16:05 (Бишкек)»", () => {
+    expect(programTime("2026-10-07T10:05:00+00:00")).toBe("7 окт. 2026 г., 16:05 (Бишкек)");
+    expect(programTime("2026-10-07T20:30:00-04:00")).toBe("8 окт. 2026 г., 06:30 (Бишкек)");
     expect(programTime("не дата")).toBe("не дата (Бишкек)");
+  });
+
+  it("совпадает с `ProgramDocumentTime` сайта (dateStyle medium, timeStyle short, Asia/Bishkek) в любой день года и в полночь", () => {
+    // Ровно та форма, которой пользуется сайт: компонент не импортируется (React DOM), формат повторён строкой в строку.
+    const web = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bishkek" });
+    const moments = ["2026-01-01T18:00:00Z", "2026-02-28T19:00:00Z", "2026-05-09T00:00:00Z", "2026-08-31T18:30:00Z", "2026-10-07T10:05:00+00:00", "2026-12-31T23:59:59Z", "2027-03-15T03:07:00Z"];
+    for (const moment of moments) expect(programTime(moment)).toBe(`${web.format(new Date(moment))} (Бишкек)`);
+  });
+
+  it("подпись пояса одна и в русском, и в кыргызском словаре (сайт пишет одно слово)", () => {
+    expect(PREPARATIONS_KY["prep.timeZone"]).toBe(PREPARATIONS_RU["prep.timeZone"]);
   });
 });
 

@@ -19,6 +19,7 @@ import { PROGRAMS_LIST_ROUTE, canInitializeRequirements } from "@/features/prepa
 import { memoryIntentHolder, runRequirementsUpdate, type RequirementsErrorKey } from "@/features/preparations/requirements-flow";
 import { go, goStamped, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
+import { useFocusEffect } from "@/lib/focus";
 import { isAllowed } from "@/shell/sections";
 import { announce } from "@/ui/a11y";
 import { CardSkeleton, InlineAlert, LinkButton } from "@/ui/CardParts";
@@ -47,7 +48,9 @@ function NotFound() {
 export function PreparationScreen({ applicationId: raw }: { applicationId: string }) {
   // Как веб: `universityUuid(route.applicationId)?.toLowerCase() ?? notFound()`.
   const applicationId = universityUuid(String(raw ?? ""))?.toLowerCase() ?? null;
-  return applicationId === null ? <NotFound /> : <PreparationBody applicationId={applicationId} />;
+  // Экран один на все программы (`preparations/_layout.tsx`): другая программа приходит новым параметром, и ключ начинает
+  // её с чистого состояния (текст ошибки и запрос прежней программы к ней не относятся).
+  return applicationId === null ? <NotFound /> : <PreparationBody key={applicationId} applicationId={applicationId} />;
 }
 
 function PreparationBody({ applicationId }: { applicationId: string }) {
@@ -63,10 +66,30 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
   const [busy, setBusy] = useState<RequirementsBusy>(null);
   const [error, setError] = useState<RequirementsErrorKey | null>(null);
   const lock = useRef(false);
+  // Замороженный запрос «Открыть список документов» живёт в памяти экрана, а не в хранилище телефона. Это безопасно: сервер
+  // повторяет квитанцию на тот же `requestId`, а новый `requestId` после потери прежнего не создаёт второй список (если список
+  // уже открыт, сервер отвечает квитанцией на существующий и пишет одну строку аудита; записи идут под блокировкой дела и
+  // программы, `student_initialize_application_requirements_v1`, миграция 218). Потерянный при закрытии приложения запрос
+  // дубля не даёт.
   const intent = useRef<ApplicationRequirementsIntent | null>(null);
+  // Экран остаётся смонтированным в скрытой вкладке, когда студент уходит на другую: уход сбрасывает то, что относилось к
+  // прошлому показу (текст ошибки и замороженный запрос). Идущее обновление не трогается: у него свой замок.
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setError(null);
+        intent.current = null;
+      },
+      [setError],
+    ),
+  );
   const canInitialize = saved !== null && canInitializeRequirements(canSelectPrograms, saved.applicationStatus);
-  // Неудачное чтение не оставляет прежний ответ «текущим» (веб: `setDocuments(null)`): после сбоя список и файлы не показываются.
-  const documents = readiness.isError ? null : (readiness.data ?? null);
+  // Прежний ответ остаётся на экране, если очередное чтение не удалось (возврат на экран, опрос, «Проверить состояние»): под
+  // списком пометка «Не удалось обновить» и повтор, полная ошибка только когда данных нет совсем. Сайт здесь прячет список
+  // (`setDocuments(null)`), потому что читает только по нажатию; в приложении то же прятанье стирало бы хороший список при
+  // каждом обрыве связи. Записи (файл, отправка) сервер всё равно сверяет с ожидаемым состоянием, прежний ответ их не подменяет.
+  const documents = readiness.data ?? null;
+  const stale = readiness.isError && documents !== null;
   const errorText = useCallback((key: RequirementsErrorKey) => (key === "prep.forbidden" ? m("prep.forbidden") : strings[key]), [m, strings]);
 
   const update = useCallback(
@@ -91,7 +114,7 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
           newRequestId: randomUUID,
         });
         setError(outcome.error);
-        announce(outcome.error ? errorText(outcome.error) : outcome.initialized ? m("prep.listOpened") : null);
+        announce(outcome.error ? errorText(outcome.error) : m(outcome.initialized ? "prep.listOpened" : "prep.checked"));
       } finally {
         lock.current = false;
         setBusy(null);
@@ -131,7 +154,9 @@ function PreparationBody({ applicationId }: { applicationId: string }) {
           loading={readiness.isPending}
           eligible={canInitialize && documents !== null}
           busy={busy}
-          error={error ? errorText(error) : null}
+          // Пока прежний ответ на экране, о сбое чтения говорит пометка «Не удалось обновить», а не второй текст ошибки.
+          error={error && !(error === "requirementsUnavailable" && stale) ? errorText(error) : null}
+          staleNotice={stale ? { message: m("prep.stale"), retryLabel: m("gate.retry") } : null}
           loadingLabel={`${strings.requirements}. ${m("state.loading")}`}
           strings={strings}
           documentStrings={documentStrings}

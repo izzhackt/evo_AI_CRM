@@ -15,6 +15,10 @@ export const PREPARATIONS_RU = {
   "prep.forbidden": "Не получается открыть это сейчас. Проверьте, что вы вошли в свой аккаунт, и повторите.",
   "prep.deadlineSource": "Источник срока (откроется в браузере)",
   "prep.listOpened": "Список документов открыт.",
+  "prep.checked": "Состояние документов обновлено.",
+  "prep.stale": "Не удалось обновить. Показаны последние полученные данные.",
+  // Подпись пояса у времени: сайт пишет «(Бишкек)» одним словом на русском и на кыргызском (`ProgramDocumentTime`).
+  "prep.timeZone": "(Бишкек)",
 } as const;
 
 export type PreparationsStringKey = keyof typeof PREPARATIONS_RU;
@@ -24,4 +28,7 @@ export const PREPARATIONS_KY: Readonly<Record<PreparationsStringKey, string>> = 
   "prep.forbidden": "Муну азыр ачуу мүмкүн эмес. Өз аккаунтуңузга киргениңизди текшерип, кайра аракет кылыңыз.", // KY: needs native proofreading
   "prep.deadlineSource": "Мөөнөттүн булагы (браузерде ачылат)", // KY: needs native proofreading
   "prep.listOpened": "Документтердин тизмеси ачылды.", // KY: needs native proofreading
+  "prep.checked": "Документтердин абалы жаңыланды.", // KY: needs native proofreading
+  "prep.stale": "Жаңыртуу мүмкүн болгон жок. Акыркы алынган маалымат көрсөтүлдү.", // KY: needs native proofreading
+  "prep.timeZone": "(Бишкек)", // KY: то же слово, что на сайте (там оно одно для обоих языков)
 };

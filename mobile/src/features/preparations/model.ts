@@ -13,8 +13,8 @@ import type { PortalStrings } from "@web/lib/portal/i18n";
 import type { ApplicationRequirementDeadline, ApplicationRequirementItemV2, ApplicationRequirementsV2 } from "@web/lib/portal/application-requirements-v2";
 import { universityDateLabel } from "@web/lib/portal/universities";
 
-import { formatPortalTimestamp } from "@/domain/presentation";
 import type { Lang } from "@/i18n";
+import { PREPARATIONS_RU } from "@/i18n/strings-preparations";
 
 /** Куда ведёт «К моему поступлению»: «Мои программы» на «Главной» (веб: `/portal?view=programs#list`). */
 export const PROGRAMS_LIST_ROUTE = "/home?list=programs";
@@ -35,9 +35,24 @@ export function intakeDeadlineLine(intake: Pick<UniversityIntake, "applicationDe
   return `${universityDateLabel(intake.applicationDeadline, lang)}${intake.deadlineTime ? `, ${intake.deadlineTime}` : ""}${intake.timezone ? ` (${intake.timezone})` : ""}`;
 }
 
-/** Момент по Бишкеку (дата, время) с подписью пояса: веб всегда пишет «(Бишкек)», в обоих языках. */
+/**
+ * Как `ProgramDocumentTime` веба: `Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bishkek" })`,
+ * то есть «7 окт. 2026 г., 16:05». Поля названы явно (а не стилями): так читается и на Hermes, и в тесте, и текст тот же.
+ */
+const PROGRAM_MOMENT = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: "Asia/Bishkek",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** Момент по Бишкеку (дата, время) с подписью пояса: сайт пишет «(Бишкек)» одним словом в обоих языках (строка `prep.timeZone`). */
 export function programTime(value: string): string {
-  return `${formatPortalTimestamp(value) ?? value} (Бишкек)`;
+  const date = new Date(value);
+  const moment = Number.isFinite(date.valueOf()) ? PROGRAM_MOMENT.format(date) : value;
+  return `${moment} ${PREPARATIONS_RU["prep.timeZone"]}`;
 }
 
 /** Программа и набор, выбранные студентом (веб: `saved.content.programs.find`, `program.intakes.find`). */

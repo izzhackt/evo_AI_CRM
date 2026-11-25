@@ -9,5 +9,14 @@ import { useStatusBarStyle } from "@/theme/useStatusBarStyle";
  */
 export default function PreparationsLayout() {
   const statusBarStyle = useStatusBarStyle();
-  return <Stack screenOptions={{ statusBarStyle, headerShown: false, animation: "slide_from_right" }} />;
+  return (
+    <Stack screenOptions={{ statusBarStyle, headerShown: false, animation: "slide_from_right" }}>
+      {/*
+        Один экран на все программы: выбор другой программы меняет параметр, а не кладёт ещё один экран в стопку. Скрытая
+        вкладка хранит свою стопку, пока студент на других вкладках; без этого «назад» после ухода и возврата попадало
+        на программу, которую студент давно закрыл («Главная» -> A -> «К моему поступлению» -> B -> «назад» -> A).
+      */}
+      <Stack.Screen name="[applicationId]" dangerouslySingular={() => "preparation"} />
+    </Stack>
+  );
 }

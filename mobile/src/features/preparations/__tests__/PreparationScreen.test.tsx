@@ -42,6 +42,20 @@ async function open(h: Handlers, options: { api?: Parameters<typeof testApi>[1];
   return { ...view, calls };
 }
 
+/**
+ * Два нажатия, пришедшие раньше, чем React выключил кнопку: `onClick` кнопки вызывается дважды подряд без перерисовки между
+ * ними (`fireEvent.press` после первого же нажатия увидел бы уже выключенную кнопку). Второе нажатие держит один замок экрана.
+ */
+async function pressTwiceInOneTick(testID: string) {
+  const click = screen.getByTestId(testID).props.onClick as ((event: unknown) => void) | undefined;
+  if (!click) throw new Error(`у ${testID} нет обработчика нажатия`);
+  const event = { stopPropagation: () => undefined, preventDefault: () => undefined, nativeEvent: {} };
+  await act(async () => {
+    click(event);
+    click(event);
+  });
+}
+
 beforeEach(() => {
   navigate.mockClear();
   announceNative.mockClear?.();
@@ -182,7 +196,7 @@ describe("файл у требования", () => {
     expect(within(block).getByText("Отправленный документ")).toBeTruthy();
     expect(within(block).getByText("scan-1.pdf")).toBeTruthy();
     expect(within(block).getByText("Версия 1")).toBeTruthy();
-    expect(within(block).getByText("07.10.2026, 16:05 (Бишкек)")).toBeTruthy();
+    expect(within(block).getByText("7 окт. 2026 г., 16:05 (Бишкек)")).toBeTruthy();
     expect(screen.getByTestId(`prep-document-${itemId(0)}-submission-decision`)).toHaveTextContent("Ожидает проверки EVO", { exact: false });
     expect(within(block).queryByText(/Проверен:/u)).toBeNull();
   });
@@ -199,7 +213,7 @@ describe("файл у требования", () => {
       const block = await screen.findByTestId(`prep-document-${itemId(0)}-submission`);
       expect(screen.getByTestId(`prep-document-${itemId(0)}-submission-decision`)).toHaveTextContent(word, { exact: false });
       if (review.reason) expect(within(block).getByText(review.reason as string)).toBeTruthy();
-      expect(within(block).getByText("08.10.2026, 11:30 (Бишкек)")).toBeTruthy();
+      expect(within(block).getByText("8 окт. 2026 г., 11:30 (Бишкек)")).toBeTruthy();
       expect(within(block).getByText("Проверен:", { exact: false })).toBeTruthy();
       await view.unmount();
     }
@@ -256,6 +270,25 @@ describe("«Открыть список документов»", () => {
     expect(screen.queryByTestId("prep-error")).toBeNull();
     // читалке сказано, что список открыт
     expect(announceNative).toHaveBeenCalledWith("Список документов открыт.");
+  });
+
+  it("два нажатия раньше, чем экран успел выключить кнопку: чтение и запись идут один раз (замок экрана)", async () => {
+    const { calls } = await open(uninitializedThenStarter());
+    await screen.findByTestId("prep-continue");
+    await pressTwiceInOneTick("prep-continue");
+    expect(await screen.findByTestId("prep-requirement-list")).toBeTruthy();
+    expect(calls.filter((c) => c.name === "student_initialize_application_requirements_v1")).toHaveLength(1);
+    // чтение при открытии экрана, свежее чтение перед записью и контрольное после неё: по одному разу
+    expect(calls.filter((c) => c.name === "application_package_readiness_v1")).toHaveLength(3);
+  });
+
+  it("два нажатия «Проверить состояние» в одном кадре читают один раз", async () => {
+    const { calls } = await open(handlers(starterReadiness()));
+    await screen.findByTestId("prep-requirement-list");
+    const before = calls.filter((c) => c.name === "application_package_readiness_v1").length;
+    await pressTwiceInOneTick("prep-check");
+    await waitFor(() => expect(screen.getByTestId("prep-check")).toHaveTextContent("Проверить состояние", { exact: false }));
+    expect(calls.filter((c) => c.name === "application_package_readiness_v1")).toHaveLength(before + 1);
   });
 
   it("пока идёт запись, кнопки заблокированы, подписи сменились", async () => {
@@ -359,6 +392,18 @@ describe("«Проверить состояние» и сбои чтения", (
     expect(screen.queryByTestId("prep-error")).toBeNull();
   });
 
+  it("успешная проверка состояния озвучивается читалке; сбой озвучивается текстом ошибки", async () => {
+    await open(handlers((_args: unknown, call: number) => (call === 1 ? starterReadiness() : call === 2 ? starterReadiness() : failure("PT500", 500))));
+    await screen.findByTestId("prep-requirement-list");
+    announceNative.mockClear();
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await waitFor(() => expect(announceNative).toHaveBeenCalledWith("Состояние документов обновлено."));
+    announceNative.mockClear();
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await waitFor(() => expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Не удалось загрузить требования этой программы.")));
+    expect(announceNative).not.toHaveBeenCalledWith("Состояние документов обновлено.");
+  });
+
   it("чтение требований не удалось: «Не удалось загрузить требования», кнопка «Проверить состояние» читает снова", async () => {
     const { calls } = await open(handlers((_args: unknown, call: number) => (call === 1 ? failure("PT500", 500) : starterReadiness())));
     expect(await screen.findByTestId("prep-requirements-error")).toHaveTextContent("Не удалось загрузить требования этой программы.", { exact: false });
@@ -371,13 +416,40 @@ describe("«Проверить состояние» и сбои чтения", (
     expect(calls.filter((c) => c.name === "application_package_readiness_v1")).toHaveLength(2);
   });
 
-  it("неудачное обновление не оставляет прежний ответ текущим", async () => {
-    await open(handlers((_args: unknown, call: number) => (call === 1 ? starterReadiness() : failure(null, 0))));
+  it("неудачное обновление оставляет прежний список с пометкой «Не удалось обновить»; повтор читает снова и убирает пометку", async () => {
+    const { calls } = await open(handlers((_args: unknown, call: number) => (call === 1 ? starterReadiness() : call === 2 ? failure(null, 0) : readiness(requirements([requirementItem(0, { label: "Новое требование" })])))));
     await screen.findByTestId("prep-requirement-list");
+    expect(screen.queryByTestId("prep-requirements-stale")).toBeNull();
     await fireEvent.press(screen.getByTestId("prep-check"));
+    const stale = await screen.findByTestId("prep-requirements-stale");
+    expect(within(stale).getByText("Не удалось обновить. Показаны последние полученные данные.")).toBeTruthy();
+    // список остался, второго текста ошибки нет, полной ошибки «не удалось загрузить» тоже
+    expect(screen.getByTestId("prep-requirement-list")).toBeTruthy();
+    expect(screen.queryByTestId("prep-error")).toBeNull();
+    expect(screen.queryByTestId("prep-requirements-error")).toBeNull();
+    // «Повторить» в пометке читает требования заново
+    await fireEvent.press(within(stale).getByText("Повторить"));
+    expect(await screen.findByText("Новое требование")).toBeTruthy();
+    expect(screen.queryByTestId("prep-requirements-stale")).toBeNull();
+    expect(calls.filter((c) => c.name === "application_package_readiness_v1")).toHaveLength(3);
+  });
+
+  it("сбой чтения не от нажатия (опрос, возврат на экран) тоже оставляет список и показывает пометку", async () => {
+    const view = await open(handlers((_args: unknown, call: number) => (call === 1 ? starterReadiness() : failure("PT500", 500))));
+    await screen.findByTestId("prep-requirement-list");
+    // обновление «потянуть вниз» читает без нажатия на «Проверить состояние»
+    await act(async () => {
+      await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    expect(await screen.findByTestId("prep-requirements-stale")).toBeTruthy();
+    expect(screen.getByTestId("prep-requirement-list")).toBeTruthy();
+    expect(view.calls.filter((c) => c.name === "application_package_readiness_v1").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("первого ответа не было: полная ошибка, пометки «Не удалось обновить» нет", async () => {
+    await open(handlers(failure("PT500", 500)));
     expect(await screen.findByTestId("prep-requirements-error")).toBeTruthy();
-    expect(screen.queryByTestId("prep-requirement-list")).toBeNull();
-    expect(screen.getByTestId("prep-error")).toHaveTextContent("Не удалось загрузить требования этой программы.", { exact: false });
+    expect(screen.queryByTestId("prep-requirements-stale")).toBeNull();
   });
 
   it("чужая форма ответа - это сбой данных, а не пустой список", async () => {

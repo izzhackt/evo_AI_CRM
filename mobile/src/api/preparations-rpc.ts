@@ -25,10 +25,19 @@ export type RpcOutcome =
 export type CallOptions = Readonly<{
   /** Сколько раз повторить ТОТ ЖЕ запрос при обрыве и шлюзовых 502/503/504; записи идемпотентны по `p_request_id`. */
   retries?: number;
+  /** Пауза перед повтором (номер попытки с нуля). Не задана: 250 мс, 500 мс, затем 1 с. */
   wait?: (attempt: number) => Promise<void>;
 }>;
 
 const GATEWAY = new Set([502, 503, 504]);
+
+/**
+ * Пауза перед повтором того же запроса, если вызывающий не задал свою: 250 мс, затем 500 мс, дальше 1 с. Без паузы три
+ * попытки уходят подряд за доли секунды и бьют в ту же обрывающуюся связь (`rpcWrite` из `lib/rpc.ts` ждёт только то, что ему
+ * передали, поэтому пауза нужна здесь).
+ */
+const BACKOFF_MS = [250, 500, 1000] as const;
+const defaultWait = (attempt: number) => new Promise<void>((resolve) => setTimeout(resolve, BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]));
 
 function once(transport: RpcTransport, name: string, args: Readonly<Record<string, unknown>>): Promise<RpcOutcome> {
   return Promise.resolve()
@@ -59,7 +68,7 @@ export async function callRpc(
     if (outcome.ok) return outcome;
     const retryable = outcome.transport || (outcome.failure.status !== null && GATEWAY.has(outcome.failure.status));
     if (!retryable || attempt >= retries) return outcome;
-    await options.wait?.(attempt);
+    await (options.wait ?? defaultWait)(attempt);
   }
 }
 

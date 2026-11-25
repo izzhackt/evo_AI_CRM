@@ -31,6 +31,7 @@ export function RequirementsSection({
   eligible,
   busy,
   error,
+  staleNotice,
   loadingLabel,
   strings,
   documentStrings,
@@ -39,7 +40,7 @@ export function RequirementsSection({
   onOpenDocuments,
   onWrite,
 }: {
-  /** Свежий ответ сервера; `null`: чтение не удалось, прежний ответ текущим не показывается. */
+  /** Последний полученный ответ сервера; `null`: ответа ещё не было (первое чтение не удалось). */
   documents: ApplicationPackageReadiness | null;
   /** Первое чтение ещё идёт. */
   loading: boolean;
@@ -47,6 +48,8 @@ export function RequirementsSection({
   busy: RequirementsBusy;
   /** Готовый текст ошибки последнего нажатия или `null`. */
   error: string | null;
+  /** Очередное чтение не удалось, а прежний ответ показан: пометка с повтором (`null`: чтение удалось). */
+  staleNotice: Readonly<{ message: string; retryLabel: string }> | null;
   loadingLabel: string;
   strings: PortalStrings<"preparations">;
   documentStrings: PortalStrings<"programDocuments">;
@@ -75,6 +78,7 @@ export function RequirementsSection({
           {strings.confirmed}
         </Text>
       ) : null}
+      {staleNotice ? <InlineAlert message={staleNotice.message} retryLabel={staleNotice.retryLabel} onRetry={onCheck} testID="prep-requirements-stale" /> : null}
       {loading ? <CardSkeleton label={loadingLabel} lines={3} testID="prep-requirements-loading" /> : null}
       {!loading && current === null ? <InlineAlert message={strings.requirementsUnavailable} testID="prep-requirements-error" /> : null}
       {current?.state === "uninitialized" ? (

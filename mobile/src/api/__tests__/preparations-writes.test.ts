@@ -17,6 +17,7 @@ function scripted(results: (RpcTransportResult | Error)[]) {
   };
   return { transport, calls };
 }
+const noWait = async () => undefined;
 const ok = (data: unknown): RpcTransportResult => ({ data, error: null, status: 200 });
 const bad = (code: string | null, status: number, message: string | null = null): RpcTransportResult => ({ data: null, error: { code, message }, status });
 
@@ -57,15 +58,30 @@ describe("student_initialize_application_requirements_v1", () => {
 
   it("обрыв связи: тот же запрос повторяется сам и успех принимается", async () => {
     const { transport, calls } = scripted([new Error("Network request failed"), bad(null, 503), ok(initializeReceipt(REQUEST_ID))]);
-    const result = await initializeApplicationRequirements(transport, intent);
+    const result = await initializeApplicationRequirements(transport, intent, { wait: noWait });
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(3);
     expect(new Set(calls.map((c) => JSON.stringify(c.args))).size).toBe(1);
   });
 
+  it("повтор при обрыве идёт с паузой, а не подряд (пауза по умолчанию 250 мс)", async () => {
+    jest.useFakeTimers();
+    try {
+      const { transport, calls } = scripted([new Error("Network request failed"), ok(initializeReceipt(REQUEST_ID))]);
+      const pending = initializeApplicationRequirements(transport, intent);
+      await jest.advanceTimersByTimeAsync(249);
+      expect(calls).toHaveLength(1);
+      await jest.advanceTimersByTimeAsync(1);
+      expect((await pending).ok).toBe(true);
+      expect(calls).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("связи нет совсем: результат неизвестен (unavailable), запрос возвращается для повтора", async () => {
     const { transport, calls } = scripted([new Error("a"), new Error("b"), new Error("c")]);
-    expect(await initializeApplicationRequirements(transport, intent)).toEqual({ ok: false, reason: "unavailable", intent });
+    expect(await initializeApplicationRequirements(transport, intent, { wait: noWait })).toEqual({ ok: false, reason: "unavailable", intent });
     expect(calls).toHaveLength(3);
   });
 

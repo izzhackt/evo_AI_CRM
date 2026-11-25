@@ -14,6 +14,7 @@ function scripted(results: (RpcTransportResult | Error)[]) {
   return { transport, calls };
 }
 
+const noWait = async () => undefined;
 const ok = (data: unknown): RpcTransportResult => ({ data, error: null, status: 200 });
 const bad = (code: string | null, status: number, message: string | null = null): RpcTransportResult => ({ data: null, error: { code, message }, status });
 
@@ -56,14 +57,56 @@ describe("callRpc", () => {
   it("не повторяет отказ сервера (конфликт, запрет, 500) и не выходит за предел повторов", async () => {
     for (const result of [bad("PT409", 409), bad("42501", 403), bad("PT500", 500), bad("22023", 400)]) {
       const { transport, calls } = scripted([result]);
-      const outcome = await callRpc(transport, "x_v1", {}, { retries: 3 });
+      const outcome = await callRpc(transport, "x_v1", {}, { retries: 3, wait: noWait });
       expect(outcome).toMatchObject({ ok: false, transport: false });
       expect(calls).toHaveLength(1);
     }
     const { transport, calls } = scripted([new Error("a"), new Error("b"), new Error("c"), new Error("d")]);
-    const outcome = await callRpc(transport, "x_v1", {}, { retries: 2 });
+    const outcome = await callRpc(transport, "x_v1", {}, { retries: 2, wait: noWait });
     expect(outcome).toMatchObject({ ok: false, transport: true });
     expect(calls).toHaveLength(3);
+  });
+
+  it("без своей паузы повторы идут с паузами 250, 500 и 1000 мс, а не подряд", async () => {
+    jest.useFakeTimers();
+    try {
+      const { transport, calls } = scripted([new Error("a"), new Error("b"), bad(null, 503), ok("done")]);
+      const pending = callRpc(transport, "x_v1", { p_request_id: "r" }, { retries: 3 });
+      await jest.advanceTimersByTimeAsync(0);
+      expect(calls).toHaveLength(1);
+      await jest.advanceTimersByTimeAsync(249);
+      expect(calls).toHaveLength(1);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(calls).toHaveLength(2);
+      await jest.advanceTimersByTimeAsync(499);
+      expect(calls).toHaveLength(2);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(calls).toHaveLength(3);
+      await jest.advanceTimersByTimeAsync(999);
+      expect(calls).toHaveLength(3);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(await pending).toEqual({ ok: true, data: "done" });
+      // тот же запрос с теми же аргументами на каждой попытке
+      expect(new Set(calls.map((c) => JSON.stringify(c.args))).size).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("пауза дольше четвёртой попытки остаётся секундой", async () => {
+    jest.useFakeTimers();
+    try {
+      const { transport, calls } = scripted([new Error("a"), new Error("b"), new Error("c"), new Error("d"), ok(1)]);
+      const pending = callRpc(transport, "x_v1", {}, { retries: 4 });
+      await jest.advanceTimersByTimeAsync(250 + 500 + 1000);
+      expect(calls).toHaveLength(4);
+      await jest.advanceTimersByTimeAsync(999);
+      expect(calls).toHaveLength(4);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(await pending).toEqual({ ok: true, data: 1 });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("без разрешённых повторов запрос уходит один раз", async () => {

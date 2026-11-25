@@ -1,7 +1,7 @@
 // «Комплект программы» через настоящий экран «Требования программы»: выбор файлов, «Проверить состав», отправка комплекта,
 // сбои, смена требований под выбором, последний комплект. Сеть и устройство подменены; хранилище записей - jest-мок AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { AccessibilityInfo, Platform } from "react-native";
 
 import { packageCandidates } from "@/features/preparations/PackageSelectionRow";
@@ -288,6 +288,34 @@ describe("«Отправить комплект в EVO»", () => {
     expect(screen.queryByTestId("prep-package-message")).toBeNull();
     // точный отказ записи запрос не снимает: судит проверка результата
     expect(await packageKeys()).toHaveLength(1);
+  });
+});
+
+describe("устаревший вид списка: комплект собирается из свежего ответа", () => {
+  it("чтение списка не удалось, прежний ответ на экране: «Проверить состав» читает заново, отправка идёт только из этого ответа", async () => {
+    let plain = 0;
+    const t = await open({
+      ready: (args: Raw | undefined) => {
+        if ((args?.p_selections as unknown[] | undefined)?.length) return withPicked([selectionEcho(0, 5)]);
+        plain += 1;
+        return plain === 2 ? failure("PT500", 500) : current();
+      },
+      extra: { application_package_submit_v1: (args: Raw | undefined) => submitReceiptOf(args!.p_intent as Raw, 1) },
+    });
+    await openChoice();
+    await act(async () => {
+      await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    expect(await screen.findByTestId("prep-requirements-stale")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    await fireEvent.press(screen.getByTestId("prep-package-preview"));
+    await screen.findByTestId("prep-package-preview-box");
+    // выбор ушёл на сервер: состав проверен по свежему ответу, а не по прежнему списку
+    const reads = t.packageCalls("application_package_readiness_v1");
+    expect((reads[reads.length - 1]!.args as Raw).p_selections).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId("prep-package-submit"));
+    await waitFor(() => expect(screen.getByTestId("prep-package-message")).toHaveTextContent("Комплект отправлен в EVO", { exact: false }));
+    expect(t.packageCalls("application_package_submit_v1")).toHaveLength(1);
   });
 });
 

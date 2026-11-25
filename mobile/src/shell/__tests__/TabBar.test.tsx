@@ -71,6 +71,30 @@ describe("вкладка «Входящие»: число непрочитанн
     expect(big.getByTestId("tab-messages-badge", { includeHiddenElements: true })).toHaveTextContent("99+");
   });
 
+  it("число в имени вкладки ровно один раз: цифра кружка в дереве доступности отдельно не читается (QA 22: было «2, 2, Входящие»)", async () => {
+    mockUnread = 2;
+    const bar = await renderWith("assisted", <TabBar {...props} />);
+    const tab = bar.getByTestId("tab-messages");
+    // имя, которое читает читалка: слова и число в одной подписи
+    expect(tab).toHaveAccessibleName("Входящие, Новых уведомлений: 2");
+    expect(String(tab.props.accessibilityLabel).match(/2/g)).toHaveLength(1);
+    // внутри вкладки читалке не остаётся ни одной цифры: кружок скрыт от дерева доступности, иначе число прозвучало бы дважды
+    expect(within(tab).queryAllByText(/\d/)).toHaveLength(0);
+    const badge = bar.getByTestId("tab-messages-badge", { includeHiddenElements: true });
+    expect(badge.props.accessibilityElementsHidden).toBe(true);
+    expect(badge.props.importantForAccessibility).toBe("no-hide-descendants");
+    expect(badge.props.accessibilityLabel).toBeUndefined(); // у кружка нет и своего имени (раньше он звучал голой цифрой)
+  });
+
+  it("то же при большом числе: в имени настоящее число один раз, в кружке 99+ читалке не виден", async () => {
+    mockUnread = 120;
+    const bar = await renderWith("assisted", <TabBar {...props} />);
+    const tab = bar.getByTestId("tab-messages");
+    expect(tab).toHaveAccessibleName("Входящие, Новых уведомлений: 120");
+    expect(String(tab.props.accessibilityLabel).match(/120/g)).toHaveLength(1);
+    expect(within(tab).queryAllByText(/\d/)).toHaveLength(0);
+  });
+
   it("без числа: подписи нет, кружка нет; у других вкладок подписи не бывает", async () => {
     const bar = await renderWith("assisted", <TabBar {...props} />);
     expect(bar.getByTestId("tab-messages").props.accessibilityLabel).toBeUndefined();
@@ -108,9 +132,9 @@ describe("высота панели уходит кнопке «Написать
     await fireEvent(view.getByTestId("tab-bar"), "layout", layout(88));
     expect(view.getByTestId("measured")).toHaveTextContent("88");
     await view.unmount();
-    expect(() => reportTabBarHeight(0)).not.toThrow();
+    // размонтированная панель сняла высоту сама (тест её не трогает): новый читатель видит 0, а не 88
     const after = await renderWith("assisted", <Height />);
-    expect(after.getByTestId("measured")).toHaveTextContent("0"); // размонтированная панель оставила 0
+    expect(after.getByTestId("measured")).toHaveTextContent("0");
   });
 
   it("панели нет (approved): ничего не сообщается, измеренная высота 0", async () => {

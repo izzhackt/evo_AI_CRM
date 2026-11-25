@@ -560,6 +560,16 @@ export const admissionsPipelineStage = (v: string | null | undefined) =>
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
 export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
+/**
+ * Те же три сегмента на узкой переписке (телефон, чек-лист 23.11): «Ждём студента» переносилось на две строки, и
+ * сегменты были разной высоты. Полное слово остаётся именем кнопки для читалки.
+ */
+const CASE_CHAT_AWAIT_CHOICE_SHORT: Record<string, string> = {
+  needs_reply: "Нужен ответ",
+  awaiting_student: "Ждём",
+  none: "Не нужен",
+};
+export const caseChatAwaitChoiceShort = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE_SHORT, v);
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentSlotStatus = (v: string | null | undefined) =>

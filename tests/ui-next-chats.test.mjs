@@ -315,3 +315,13 @@ test("стенд и данные на месте: страницы, Chromium-п�
   for (const file of ["tests/e2e/chats-next-static-render.cjs", "tests/e2e/chats-next-checks.cjs", "tests/e2e/chats-next-fixtures.cjs"]) assert.ok(existsSync(new URL(`../${file}`, import.meta.url)), file);
   assert.match(read("tests/e2e/chats-next-fixtures.cjs"), /ВЫДУМАНЫ/u);
 });
+
+test("переписка на телефоне: короткие подписи состояния и «Дело», полные слова — имена для читалки", async () => {
+  const wording = await import("../src/lib/v3/wording.ts");
+  assert.deepEqual(["needs_reply", "awaiting_student", "none"].map(wording.caseChatAwaitChoiceShort), ["Нужен ответ", "Ждём", "Не нужен"]);
+  const header = read("src/components/staff/case-chat-next/CaseChatNextHeader.tsx");
+  assert.match(header, /aria-label=\{caseChatAwaitChoice\(value\) \?\? undefined\}/u);
+  assert.match(header, /<span aria-hidden="true" className="@2xl:hidden">\{caseChatAwaitChoiceShort\(value\)\}<\/span>/u);
+  assert.match(header, /label="Открыть дело" shortLabel="Дело"/u);
+  assert.match(read("src/components/staff/chats-next/ChatHeaderLink.tsx"), /<Link href=\{href\} title=\{label\} aria-label=\{label\} data-testid=\{testId\}>/u);
+});

@@ -32,7 +32,7 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
   const now = new Date();
   // Общий порядок по сроку — только из полного чтения; каталог за пределом — страницы сервера по названию.
   const page = catalogue.kind === "complete"
-    ? catalogueSortedPage(sortCatalogueRows(catalogue.items, filters.level, now), filters.offset)
+    ? catalogueSortedPage(sortCatalogueRows(catalogue.items, filters.level, now, filters.sort), filters.offset)
     : catalogueServerPage(catalogue.items, filters.offset, catalogue.nextOffset, filters.level, now);
   // «Новый вид» (единственный вид, #1327): тот же каталог, те же чтения и права — таблица из набора виджетов.
   return <UniversitiesListNextLazy {...universityListProps(page, filters, facet.countries, canManage, dayInOrganizationTimezone(now))} />;

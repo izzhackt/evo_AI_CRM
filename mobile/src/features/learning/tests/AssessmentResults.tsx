@@ -306,7 +306,8 @@ export function AssessmentResult({ attempt, onRestart }: { attempt: AssessmentAt
       </Disclosure>
       <View style={{ gap: 8 }}>
         <Button variant="ghost" label={s.cardRetake} onPress={onRestart} testID="assessment-restart" />
-        <Button variant="ghost" label={s.backToTests} onPress={() => router.navigate("/tests")} testID="assessment-back-to-tests" />
+        {/* К каталогу, а не новый каталог поверх теста: из другого раздела тест в стеке «Тестов» единственный (см. `exit.ts`). */}
+        <Button variant="ghost" label={s.backToTests} onPress={() => router.dismissTo("/tests")} testID="assessment-back-to-tests" />
       </View>
     </View>
   );

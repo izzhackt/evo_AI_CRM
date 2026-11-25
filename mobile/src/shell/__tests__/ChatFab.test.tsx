@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { PortalApiProvider } from "@/api/PortalApi";
 import { LangProvider } from "@/i18n/LangProvider";
 import { ChatFab } from "@/shell/ChatFab";
-import { CHAT_FAB_GAP, TAB_BAR_BODY, chatFabBottom, chatFabVisible, isConversationPath } from "@/shell/chat-fab-rules";
+import { CHAT_FAB_GAP, CHAT_FAB_SIZE, TAB_BAR_BODY, chatFabBottom, chatFabVisible, isConversationPath } from "@/shell/chat-fab-rules";
+import { reportTabBarHeight } from "@/shell/tab-bar-metrics";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { testApi } from "@/test-fixtures/render";
 
@@ -44,6 +45,25 @@ describe("плавающая кнопка «Написать EVO»", () => {
     expect(chatFabVisible("approved", "/home")).toBe(false);
   });
 
+  it("над настоящим верхом панели: высота, которую панель измерила сама, поднимает кнопку; меньше обычной не бывает", () => {
+    expect(chatFabBottom("assisted", 34, 62)).toBe(34 + 62 + CHAT_FAB_GAP);
+    expect(chatFabBottom("assisted", 34, 90)).toBe(34 + 90 + CHAT_FAB_GAP); // панель выше обычной: кнопка выше
+    expect(chatFabBottom("assisted", 34, 40)).toBe(34 + TAB_BAR_BODY + CHAT_FAB_GAP); // ниже обычной не опускаемся
+    expect(chatFabBottom("assisted", 34, 0)).toBe(34 + TAB_BAR_BODY + CHAT_FAB_GAP); // ещё не измерена
+    expect(chatFabBottom("assisted", 34, Number.NaN)).toBe(34 + TAB_BAR_BODY + CHAT_FAB_GAP);
+    expect(chatFabBottom("approved", 34, 120)).toBe(34 + CHAT_FAB_GAP); // без панели измерение ничего не значит
+  });
+
+  it("кнопка никогда не ниже верха панели плюс зазор: кружок «Входящих» внутри панели ею не закрыт ни при какой высоте панели", () => {
+    for (const bar of [40, 62, 70, 84, 100, 140]) {
+      for (const safeBottom of [0, 12, 34]) {
+        const edge = Math.max(safeBottom, 12);
+        const barTop = edge + Math.max(bar, TAB_BAR_BODY); // верх панели от низа экрана
+        expect(chatFabBottom("assisted", safeBottom, bar)).toBeGreaterThanOrEqual(barTop + CHAT_FAB_GAP);
+      }
+    }
+  });
+
   it("беседы без панели вкладок: с командой и с Эви", () => {
     expect(isConversationPath("/messages/chat")).toBe(true);
     expect(isConversationPath("/professions/evi")).toBe(true);
@@ -73,5 +93,20 @@ describe("плавающая кнопка «Написать EVO»", () => {
     mockPathname = "/messages";
     await renderFab("assisted");
     expect(screen.queryByTestId("chat-fab")).toBeNull();
+  });
+
+  describe("кнопка в оболочке читает высоту панели", () => {
+    afterEach(() => reportTabBarHeight(0));
+
+    it("панель не измерена: обычная высота; измерена выше: кнопка поднимается над ней; панель ушла: снова обычная", async () => {
+      const anchor = () => screen.getByTestId("chat-fab-anchor").props.style as { bottom: number };
+      await renderFab("assisted");
+      expect(anchor().bottom).toBe(34 + TAB_BAR_BODY + CHAT_FAB_GAP);
+      await act(async () => reportTabBarHeight(96));
+      expect(anchor().bottom).toBe(34 + 96 + CHAT_FAB_GAP);
+      await act(async () => reportTabBarHeight(0));
+      expect(anchor().bottom).toBe(34 + TAB_BAR_BODY + CHAT_FAB_GAP);
+      expect(CHAT_FAB_SIZE).toBe(52); // размер кнопки не зависит от панели
+    });
   });
 });

@@ -222,27 +222,19 @@ describe("Страница вуза", () => {
     ...extra,
   });
 
-  it("стоимость в валюте вуза с ориентиром USD, курс с датой; «Добавить в мои программы» шлёт выбор", async () => {
+  it("стоимость в валюте вуза с ориентиром USD, курс с датой; программа открывается окном с кнопкой «Добавить в мои программы»", async () => {
     mockParams.current = { id: uuidN(1) };
-    const receipt = (a: Record<string, unknown> | undefined) => ({
-      applicationId: uuidN(9, "bbbbbbbb"), studentCaseId: CASE, institutionId: uuidN(1), programId: "cs", intakeId: "11111111-1111-4111-8111-111111111111",
-      publicationId: uuidN(9, "cccccccc"), publicationVersion: 3, catalogLevel: "bachelor", applicationDegree: "bachelor", selectedAt: "2026-11-09T08:00:00+00:00",
-      deadlineStateAtSelection: "needs_confirmation", requestId: a?.p_request_id,
-    });
-    const t = fakeTransport({ student_university_detail_v1: detail(), student_university_favorites_v1: [], student_select_catalog_intake_v1: receipt });
+    const t = fakeTransport({ student_university_detail_v1: detail(), student_university_favorites_v1: [] });
     await renderPortal(<UniversityScreen />, testApi(t.transport));
     expect(await screen.findByText("Стоимость")).toBeTruthy();
     expect(screen.getByLabelText(/Бакалавриат, на английском\. 35.000 MYR в год/)).toBeTruthy();
     expect(screen.getByText(/1 USD = 4,67 MYR/)).toBeTruthy();
     expect(screen.getByText("Программы вуза")).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("program-add"));
-    await waitFor(() => expect(t.calls.some((c) => c.name === "student_select_catalog_intake_v1")).toBe(true));
-    const call = t.calls.find((c) => c.name === "student_select_catalog_intake_v1");
-    expect(call?.args).toMatchObject({ p_program_id: "cs", p_publication_version: 3 });
-    expect(typeof call?.args?.p_request_id).toBe("string");
-    const mine = await screen.findByTestId("program-open-mine");
-    await fireEvent.press(mine);
-    expect(router.navigate).toHaveBeenLastCalledWith({ pathname: "/home", params: { list: "programs", at: expect.any(String) } });
+    // одна программа: подбора нет, на странице её карточка, а выбор набора - в окне программы (порядок добавления - add-flow.test.tsx)
+    expect(screen.queryByTestId("program-filter")).toBeNull();
+    await fireEvent.press(screen.getByTestId("program-cs"));
+    expect(await screen.findByTestId("program-add")).toBeTruthy();
+    expect(t.calls.some((c) => c.name === "student_select_catalog_intake_v1")).toBe(false);
   });
 
   it("«Написать EVO» (#1356): у assisted кнопка ведёт в беседу, у approved её нет", async () => {

@@ -485,7 +485,7 @@ describe("карточка теста интересов (когда Эви не
     expect(screen.getByText("Пройти тест")).toBeTruthy();
     expect(screen.queryByTestId("test-hero-progress")).toBeNull();
     await fireEvent.press(button);
-    expect(router.navigate).toHaveBeenCalledWith({ pathname: "/tests/[key]", params: { key: "orvis92" } });
+    expect(router.navigate).toHaveBeenCalledWith({ pathname: "/tests/[key]", params: { key: "orvis92", from: "professions" } });
   });
 
   it("начат: «Отвечено», «12 из 92», полоса по доле и «Продолжить»", async () => {
@@ -496,7 +496,7 @@ describe("карточка теста интересов (когда Эви не
     expect(screen.getByTestId("test-hero-bar", { includeHiddenElements: true }).props.style.width).toBe("13%");
     expect(screen.getByText("Продолжить")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("professions-test-open"));
-    expect(router.navigate).toHaveBeenCalledWith({ pathname: "/tests/[key]", params: { key: "orvis92" } });
+    expect(router.navigate).toHaveBeenCalledWith({ pathname: "/tests/[key]", params: { key: "orvis92", from: "professions" } });
   });
 
   it("пройден: «Тест пройден», «92 из 92», полная полоса и «Пройти заново»; начатая заново попытка главнее - «Продолжить»", async () => {

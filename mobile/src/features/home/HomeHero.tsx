@@ -11,14 +11,19 @@ import { universityDateLabel } from "@web/lib/portal/universities";
 
 import { countdownWhen, heroSub, type HomeCountdown } from "@/domain/home-model";
 import { goStamped } from "@/features/portal/navigation";
+import { creditSourceUrl } from "@/features/universities/credit";
 import { creditLine } from "@/features/universities/parts";
 import type { PhotoCreditView, PhotoUrls } from "@/features/universities/photos";
 import { useLang } from "@/i18n/LangProvider";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
+import { useReducedMotion } from "@/ui/a11y";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { EvoMark } from "@/ui/EvoMark";
 import { Text } from "@/ui/Text";
+
+/** Появление фото шапки: короткий переход прозрачности. */
+const PHOTO_FADE_MS = 150;
 
 /** Подложка под текстом на фото: на узкой шапке она ровная (`.pt-journey-head[data-hero] .pt-journey-photo::after`, ≤640 px). */
 const PHOTO_SCRIM = "rgba(20,16,12,0.76)";
@@ -220,6 +225,7 @@ export function HomeHero(props: Omit<HeroContentProps, "onPhoto">) {
  * `onFailed`: шапка остаётся тёмной плашкой, «©» не к чему (PlaceImage веба убирает картинку так же).
  */
 export function HeroPhotoLayer({ urls, onFailed }: { urls: PhotoUrls; onFailed: () => void }) {
+  const reduced = useReducedMotion();
   const [stage, setStage] = useState<"sized" | "original">("sized");
   const uri = stage === "sized" ? (urls.sized ?? urls.original) : urls.original;
   return (
@@ -230,7 +236,8 @@ export function HeroPhotoLayer({ urls, onFailed }: { urls: PhotoUrls; onFailed: 
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
         contentFit="cover"
-        transition={150}
+        // Плавное появление фото - движение: «Уменьшить движение» в системе его выключает (веб: `prefers-reduced-motion`).
+        transition={reduced ? 0 : PHOTO_FADE_MS}
         onError={() => (stage === "sized" && urls.sized ? setStage("original") : onFailed())}
         style={StyleSheet.absoluteFill}
       />
@@ -251,20 +258,26 @@ export function HeroCredit({ credit }: { credit: PhotoCreditView }) {
   const { t, m } = useLang();
   const strings = t("universities");
   const [shown, setShown] = useState(false);
+  // Ссылка открывает внешний сайт: только безопасный https-адрес, а у фото мест ещё и хост названного источника (как в панели «©»).
+  const link = creditSourceUrl(credit);
+  // Подпись стоит в потоке шапки под кнопками (не поверх них), её правый край на одной линии с кружком «©»: колонка содержимого отступает на 16, кружок - на 10.
+  const panel = { alignSelf: "flex-end", marginRight: -6, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" } as const;
   return (
     <>
       {shown ? (
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(credit.sourceUrl).catch(() => undefined)}
-          testID="hero-credit-text"
-          // Правый край подписи на одной линии с кружком «©»: колонка содержимого отступает на 16, кружок - на 10.
-          style={{ alignSelf: "flex-end", marginRight: -6, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" }}
-        >
-          <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
-            {creditLine(credit, strings)}
-          </Text>
-        </Pressable>
+        link === null ? (
+          <View testID="hero-credit-text" style={panel}>
+            <Text variant="caption" style={{ color: "#ffffff" }}>
+              {creditLine(credit, strings)}
+            </Text>
+          </View>
+        ) : (
+          <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(link).catch(() => undefined)} testID="hero-credit-text" style={panel}>
+            <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
+              {creditLine(credit, strings)}
+            </Text>
+          </Pressable>
+        )
       ) : null}
       <Pressable
         accessibilityRole="button"

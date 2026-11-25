@@ -7,6 +7,7 @@ import { usePortalApi } from "@/api/PortalApi";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
 import { CHAT_FAB_SIZE, chatFabBottom, chatFabVisible } from "@/shell/chat-fab-rules";
+import { useMeasuredTabBarHeight } from "@/shell/tab-bar-metrics";
 import { useTheme } from "@/theme/ThemeProvider";
 
 /** Круглая кнопка «Написать EVO» в правом нижнем углу любого экрана кабинета (веб `.pt-chat-fab`): открывает беседу. */
@@ -16,10 +17,11 @@ export function ChatFab() {
   const insets = useSafeAreaInsets();
   const { tokens, scheme } = useTheme();
   const { t } = useLang();
+  const tabBarHeight = useMeasuredTabBarHeight();
   if (!chatFabVisible(tier, pathname)) return null;
   const label = t("home").writeAction;
   return (
-    <View pointerEvents="box-none" style={{ position: "absolute", right: Math.max(insets.right, 16), bottom: chatFabBottom(tier, insets.bottom) }}>
+    <View pointerEvents="box-none" testID="chat-fab-anchor" style={{ position: "absolute", right: Math.max(insets.right, 16), bottom: chatFabBottom(tier, insets.bottom, tabBarHeight) }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}

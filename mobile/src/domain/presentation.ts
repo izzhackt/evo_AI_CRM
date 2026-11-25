@@ -4,6 +4,7 @@
 import { formatPortalString, type PortalStrings } from "@web/lib/portal/i18n";
 
 import type { StudentPortalAction, StudentPortalEvoAction, StudentPortalNotification } from "@/domain/portal-source";
+import { preparationPath } from "@/features/preparations/routes";
 
 type AdmissionStrings = PortalStrings<"admission">;
 
@@ -61,11 +62,27 @@ export function actionTitle(action: StudentPortalAction, strings: AdmissionStrin
   return `${verb}: ${action.label}`;
 }
 
-/** Куда ведёт действие: вкладка приложения. Якорь слота документа поймёт M2. */
+/** Куда ведёт действие: вкладка приложения; у документа ещё и строка чек-листа (`slotId`, веб: якорь `#document-<slotId>`). */
 export type ActionTarget = Readonly<{ route: "/documents" | "/payments"; slotId: string | null }>;
 
 export function actionTarget(action: StudentPortalAction): ActionTarget {
   return action.kind === "payment" ? { route: "/payments", slotId: null } : { route: "/documents", slotId: action.documentSlotId };
+}
+
+/**
+ * Имя параметра «показать этот документ» у экрана «Документы» (`/documents?focus=<documentSlotId>`). Значение - тот же
+ * идентификатор слота, что в веб-ссылке `/portal/documents#document-<slotId>` (HomeCase.actionHref): экран прокручивает
+ * к строке и подсвечивает её. Пока экран параметр не читает, он просто игнорируется.
+ */
+export const DOCUMENT_FOCUS_PARAM = "focus";
+
+/**
+ * Адрес действия строкой для `go()` и строк «Ближайших дат» (веб `actionHref`, HomeCase.tsx): оплата - «Оплата»;
+ * документ - «Документы» с параметром `focus`, чтобы открылась строка этого документа, а не верх списка.
+ */
+export function actionHref(action: StudentPortalAction): string {
+  const target = actionTarget(action);
+  return target.slotId === null ? target.route : `${target.route}?${DOCUMENT_FOCUS_PARAM}=${encodeURIComponent(target.slotId)}`;
 }
 
 // ---- этапы дела (OverviewView.tsx, PORT-8c) ------------------------------------
@@ -199,16 +216,38 @@ export function evoActionStatusLabel(action: StudentPortalEvoAction, strings: Ad
 
 export type LinkTarget = Readonly<{ kind: "route"; route: string }> | Readonly<{ kind: "external"; url: string }>;
 
+/** Сегмент адреса без процентного кодирования; испорченное кодирование - `null` (ссылка не открывается, исключения нет). */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Ссылки контента ведут на страницы веба (`/portal/csca`) или на внешние сайты. В
  * приложении `/portal/<раздел>` становится вкладкой `/<раздел>`. `/portal` и
  * `/portal/home` — «Главная»; `/portal?view=programs` — «Главная» с вкладкой «Мои
  * программы»; `/portal/messages?view=chat|updates` — беседа или лента «Входящих» (#1356:
- * «Написать EVO»). Внешние адреса открывает браузер. Прочее (неизвестный относительный
- * адрес) в приложение не ведёт: `null`.
+ * «Написать EVO»). `/portal/preparations/<id>` - экран программы (`preparationPath`), `/portal/universities/<id>` -
+ * карточка вуза: идентификатор сохраняется, а не отбрасывается общим правилом. Веб добавляет к адресу программы
+ * хвост (`#requirement-…`, запрос): у экрана программы в приложении якорей нет, хвост отбрасывается. Адрес программы без
+ * годного идентификатора (пустой, лишний сегмент, `.`, `..`, испорченное кодирование) ведёт в «Мои программы»: туда же ведёт
+ * `preparationPath` для негодного идентификатора. У карточки вуза хвост (`?x`, `#x`, косая черта) тоже отбрасывается, а
+ * идентификатор сохраняется. Внешние адреса открывает браузер.
+ * Прочее (неизвестный относительный адрес) в приложение не ведёт: `null`.
  */
 export function linkTarget(href: string): LinkTarget | null {
   if (/^https:\/\//i.test(href)) return { kind: "external", url: href };
+  // Страницы с идентификатором в адресе: общее правило ниже его отбросило бы (`/portal/universities/<id>` -> `/universities`).
+  if (/^\/portal\/preparations(?:[/?#]|$)/.test(href)) {
+    const preparation = /^\/portal\/preparations\/([^/?#]+)\/?(?:[?#].*)?$/.exec(href);
+    // Нет годного идентификатора - пустая строка, а `preparationPath("")` - «Мои программы» (одно запасное место для всех таких ссылок).
+    return { kind: "route", route: preparationPath((preparation && decodeSegment(preparation[1])) ?? "") };
+  }
+  const university = /^\/portal\/universities\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?(?:[?#].*)?$/.exec(href);
+  if (university) return { kind: "route", route: `/universities/${university[1].toLowerCase()}` };
   const home = /^\/portal(?:\/home)?(?:\?view=(programs|universities))?(?:#[a-z-]*)?$/.exec(href);
   if (home) {
     if (home[1] === "programs") return { kind: "route", route: "/home?list=programs" };

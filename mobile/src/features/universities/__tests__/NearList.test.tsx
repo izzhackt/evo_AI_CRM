@@ -134,3 +134,69 @@ describe("NearList: картинки у близких", () => {
     expect(style("k2")).toEqual({ marginTop: 40 });
   });
 });
+
+describe("NearList: после фона, смена списка, обновление данных", () => {
+  it("после фона часы ушли вперёд, а такт ещё не получил ответа: картинки не открываются разом", async () => {
+    // настоящее `measureInWindow` отвечает позже самого такта
+    const pending: ((top: number | null) => void)[] = [];
+    const measureTop: MeasureTop = (_node, done) => {
+      pending.push(done);
+    };
+    const answer = () => act(async () => pending.splice(0).forEach((done) => done(0)));
+    await render(<NearList items={items(30)} measureTop={measureTop} eager={3} firstBatch={30} testID="list" />);
+    await layoutAll(30);
+    await answer();
+    await act(async () => {
+      jest.advanceTimersByTime(NEAR_POLL_MS);
+    });
+    // приложение ушло в фон на 10 секунд: таймеры стояли, часы прошли
+    jest.setSystemTime(Date.now() + 10_000);
+    await act(async () => {
+      jest.advanceTimersByTime(NEAR_POLL_MS);
+    });
+    expect(screen.getByTestId("item-20").props.children).toBe("far-20");
+    await answer();
+    expect(screen.getByTestId("item-20").props.children).toBe("far-20");
+  });
+
+  it("настоящее молчание считается тактами: тот же срок, что и раньше", async () => {
+    const silent: MeasureTop = () => undefined;
+    await render(<NearList items={items(30)} measureTop={silent} eager={3} firstBatch={30} testID="list" />);
+    await layoutAll(30);
+    await act(async () => {
+      jest.advanceTimersByTime(NEAR_FAIL_OPEN_MS - NEAR_POLL_MS);
+    });
+    expect(screen.getByTestId("item-20").props.children).toBe("far-20");
+    await act(async () => {
+      jest.advanceTimersByTime(NEAR_POLL_MS * 3);
+    });
+    expect(screen.getByTestId("item-20").props.children).toBe("near-20");
+  });
+
+  it("первые карточки всегда с картинкой и у нового списка (поиск), не дожидаясь такта измерения", async () => {
+    const waiting: MeasureTop = () => undefined;
+    const { rerender } = await render(<NearList items={items(40)} measureTop={waiting} eager={3} firstBatch={40} testID="list" />);
+    const other = items(40).map((item) => ({ ...item, key: `other-${item.key}` }));
+    await rerender(<NearList items={other} measureTop={waiting} eager={3} firstBatch={40} testID="list" />);
+    expect(screen.getByTestId("item-0").props.children).toBe("near-0");
+    expect(screen.getByTestId("item-2").props.children).toBe("near-2");
+    expect(screen.getByTestId("item-3").props.children).toBe("far-3");
+  });
+
+  it("обновление данных (тот же `listKey`) не сжимает собранный список; другой список собирается заново", async () => {
+    const measureTop: MeasureTop = (_node, done) => done(0);
+    const { rerender } = await render(<NearList items={items(60)} listKey="list" measureTop={measureTop} />);
+    await stage(4);
+    expect(screen.queryAllByTestId(/^item-/)).toHaveLength(60);
+    // фоновая перепроверка каталога: новый вуз в середине, длина другая, список тот же
+    const base = items(60);
+    const refreshed: NearItem[] = [...base.slice(0, 30), { key: "fresh", render: () => <Text testID="item-fresh">fresh</Text> }, ...base.slice(30)];
+    await rerender(<NearList items={refreshed} listKey="list" measureTop={measureTop} />);
+    expect(screen.queryAllByTestId(/^item-/).length).toBeGreaterThanOrEqual(60);
+    expect(screen.getByTestId("item-fresh")).toBeTruthy();
+    // поиск: другой список
+    const other = items(60).map((item) => ({ ...item, key: `other-${item.key}` }));
+    await rerender(<NearList items={other} listKey="search:абв" measureTop={measureTop} />);
+    expect(screen.queryAllByTestId(/^item-/)).toHaveLength(STAGE_FIRST);
+  });
+});

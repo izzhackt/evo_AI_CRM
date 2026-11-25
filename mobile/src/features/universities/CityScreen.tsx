@@ -70,6 +70,7 @@ export function CityScreen() {
             </Text>
             <NearList
               gap={12}
+              listKey={`city:${cityKey}`}
               items={page.universities.map((item, position) =>
                 tileItem({ id: item.id, tile: tileModel(index, item, { strings, lang, now, showPlace: false }), strings, favorites, position }),
               )}

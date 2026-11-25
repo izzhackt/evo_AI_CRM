@@ -4,10 +4,12 @@
 //
 // Кнопка лежит над фото отдельным элементом, а не внутри нажимаемой карточки: вложенная кнопка не доступна читалке
 // (VoiceOver и TalkBack читают карточку как один элемент и скрывают то, что внутри). Как и в вебе, открыта одна панель на
-// экране: открытие следующей закрывает прежнюю.
-import { useEffect, useId, useSyncExternalStore } from "react";
-import { Linking, Pressable, View } from "react-native";
+// экране: открытие следующей закрывает прежнюю. Панель закрывается и сама: касанием мимо подписи или началом прокрутки (экран
+// вешает `closeCreditPanel` на касание своего содержимого, веб: клик вне подписи), кнопкой «Назад» Android и уходом с экрана.
+import { useCallback, useEffect, useId, useSyncExternalStore } from "react";
+import { BackHandler, Linking, Pressable, View, type GestureResponderEvent } from "react-native";
 
+import { useFocusEffect } from "@/lib/focus";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { MIN_TARGET } from "@/ui/CardParts";
@@ -36,6 +38,40 @@ function subscribe(listener: () => void) {
   return () => {
     listeners.delete(listener);
   };
+}
+
+/**
+ * Закрыть открытую панель. Экраны каталога вешают её на `onTouchStart` своего содержимого: любое касание, не попавшее в саму подпись
+ * (она останавливает касание у себя), закрывает панель, и начало прокрутки тоже: палец ложится на содержимое до того, как оно поехало.
+ */
+export function closeCreditPanel() {
+  setOpen(null);
+}
+
+/** Касание внутри подписи не доходит до экрана: иначе нажатие на «©» закрывало бы панель касанием, а `onPress` открывал бы её снова. */
+const keepOpen = (event: GestureResponderEvent) => event.stopPropagation();
+
+/**
+ * Пока панель открыта: «Назад» Android закрывает её (а не страницу), уход с экрана тоже. Живёт только у открытой панели. Очистка
+ * фокуса срабатывает и когда панель закрылась сама (открыли другую), поэтому закрывает она только свою панель.
+ */
+function CloseOnLeave({ id }: { id: string }) {
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        if (openId === id) setOpen(null);
+      },
+      [id],
+    ),
+  );
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setOpen(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, []);
+  return null;
 }
 
 export type CreditPlacement = "top" | "bottom";
@@ -81,6 +117,7 @@ export function PhotoCredit({
   return (
     <View
       pointerEvents="box-none"
+      onTouchStart={keepOpen}
       style={{
         position: "absolute",
         right: 2,
@@ -107,6 +144,7 @@ export function PhotoCredit({
           </Text>
         </View>
       </Pressable>
+      {open ? <CloseOnLeave id={id} /> : null}
       {open ? (
         <View
           testID={`${testID}-panel`}

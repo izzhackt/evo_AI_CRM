@@ -1,16 +1,21 @@
 // «Подбор с Эви»: то, что приложение доводит до веба (25.11.2026): робот на своих местах, шапка с «печатает» и «Новым чатом» словами,
 // новая реплика с начала, объявления для читалки, «Эви недоступен» без ключа на сервере и уход в каталог при отозванном согласии.
 // Робот подменён заглушкой, которая записывает, что ей передали: рисунок и движение проверяет EviRobot.test.
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { useState } from "react";
 import { AccessibilityInfo, Platform, Pressable, ScrollView } from "react-native";
 
+import { SubHeader } from "@/features/learning/ui";
 import { EviScreen } from "@/features/learning/evi/EviScreen";
 import { EviMemoryProvider } from "@/features/learning/evi/EviMemory";
 import type { EviApi } from "@/features/learning/evi/api";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 import type { RpcTransport } from "@/lib/rpc";
+import { getPortalStrings } from "@web/lib/portal/i18n";
 
 const mockNavigate = jest.fn();
 const mockDismissTo = jest.fn();
@@ -433,5 +438,139 @@ describe("согласие отозвано - экран уходит в кат�
     await chatOpen();
     view.client.setQueryData(["portal", "user-test", "ai-consent"], DECLINED);
     await waitFor(() => expect(mockDismissTo).toHaveBeenCalledWith("/professions"));
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Находки проверки на симуляторе (QA 25.11): имя поля ввода читалось дважды, подпись шапки обрезалась рядом с «Новым чатом»
+
+describe("поле ввода: одно имя для читалки", () => {
+  /** Как iOS собирает имя многострочного поля (RN, `RCTUITextView.accessibilityLabel`): подпись, и подсказка, пока текста нет. */
+  const iosName = (props: { accessibilityLabel?: string; placeholder?: string }, text: string) =>
+    [props.accessibilityLabel, text === "" ? props.placeholder : undefined].filter(Boolean).join(" ");
+  const times = (name: string, phrase: string) => name.split(phrase).length - 1;
+  const input = () => screen.getByTestId("evi-input");
+
+  it("причина: RN на iOS действительно склеивает подпись и подсказку пустого поля (если RN это изменит, тест напомнит пересмотреть подпись)", () => {
+    const source = readFileSync(path.resolve(__dirname, "../../../../../node_modules/react-native/Libraries/Text/TextInput/Multiline/RCTUITextView.mm"), "utf8");
+    expect(source).toMatch(/- \(NSString \*\)accessibilityLabel/u);
+    expect(source).toMatch(/self\.placeholder\.length > 0 && self\.attributedText\.string\.length == 0/u);
+    expect(source).toMatch(/\[accessibilityLabel appendString:self\.placeholder\]/u);
+  });
+
+  it.each([
+    ["ru", "Сообщение для Эви", "Сообщение для Эви…"],
+    ["ky", "Эвиге билдирүү", "Эвиге билдирүү…"],
+  ] as const)("%s: пустое поле называет подсказка, подписи нет - имя одно, фраза звучит один раз", async (lang, label, placeholder) => {
+    await open(jest.fn(), { lang });
+    await chatOpen();
+    expect(input().props.accessibilityLabel).toBeUndefined();
+    expect(input().props.placeholder).toBe(placeholder);
+    const name = iosName(input().props, "");
+    expect(name).toBe(placeholder);
+    expect(times(name, label)).toBe(1);
+  });
+
+  it.each([
+    ["ru", "Сообщение для Эви", "Мне нравится биология"],
+    ["ky", "Эвиге билдирүү", "Мага биология жагат"],
+  ] as const)("%s: с первой буквой появляется подпись, а подсказка в имя уже не входит - у набранного текста есть имя, фраза один раз", async (lang, label, typed) => {
+    await open(jest.fn(), { lang });
+    await chatOpen();
+    await fireEvent.changeText(input(), typed);
+    expect(input().props.accessibilityLabel).toBe(label);
+    const name = iosName(input().props, typed);
+    expect(name).toBe(label);
+    expect(times(name, label)).toBe(1);
+  });
+
+  it("поле очистили - подписи снова нет, имя снова одно", async () => {
+    await open(jest.fn());
+    await chatOpen();
+    await fireEvent.changeText(input(), "Привет");
+    expect(input().props.accessibilityLabel).toBe("Сообщение для Эви");
+    await fireEvent.changeText(input(), "");
+    expect(input().props.accessibilityLabel).toBeUndefined();
+    expect(times(iosName(input().props, ""), "Сообщение для Эви")).toBe(1);
+  });
+
+  it("подпись и подсказка - слова одного словаря, поэтому дублировались: без этого различия правка не нужна (и тест ниже её держит)", () => {
+    const ru = getPortalStrings("professions", "ru");
+    expect(ru["evi.placeholder"].startsWith(ru["evi.inputLabel"])).toBe(true);
+    const ky = getPortalStrings("professions", "ky");
+    expect(ky["evi.placeholder"].startsWith(ky["evi.inputLabel"])).toBe(true);
+  });
+});
+
+describe("шапка: подпись под рядом «аватар, название, кнопка»", () => {
+  const rowAndColumn = () => {
+    const row = screen.getByTestId("evi-title-row");
+    return { row, column: row.parent! };
+  };
+
+  it.each([
+    ["ru", "ИИ-профориентатор EVO"],
+    ["ky", "EVO ЖИ-кесиптик кеңешчиси"],
+  ] as const)("%s: подпись «%s» не стоит в одной строке с кнопкой «Новый чат» и берёт ширину шапки; для очень крупного шрифта у неё две строки", async (lang, role) => {
+    await talk(jest.fn(async () => answer({ progress: null })), { lang });
+    const { row, column } = rowAndColumn();
+    // В ряду: аватар, название, кнопка. Подпись - соседка ряда в той же колонке, а не его часть.
+    expect(within(row).getByTestId("evi-new-chat")).toBeTruthy();
+    expect(within(row).getByTestId("evi-avatar", { includeHiddenElements: true })).toBeTruthy();
+    expect(within(row).getByTestId("evi-title")).toBeTruthy();
+    expect(within(row).queryByTestId("evi-title-subtitle")).toBeNull();
+    expect(within(column).getByTestId("evi-title-subtitle")).toBe(screen.getByTestId("evi-title-subtitle"));
+    expect(screen.getByTestId("evi-title-subtitle").props.children).toBe(role);
+    expect(screen.getByTestId("evi-title-subtitle").props.numberOfLines).toBe(2);
+  });
+
+  it.each([
+    ["ru", "Вопрос 10 из 10"],
+    ["ky", "10 суроонун 10-суроосу"],
+  ] as const)("%s: «%s» (строка вопроса) тоже под рядом, в шапке нет ничего, что сжимало бы её", async (lang, line) => {
+    await talk(jest.fn(async () => answer({ progress: { step: 10, total: 10 } })), { lang });
+    expect(screen.getByTestId("evi-title-subtitle").props.children).toBe(line);
+    const { row } = rowAndColumn();
+    expect(within(row).queryByTestId("evi-title-subtitle")).toBeNull();
+  });
+
+  it("пока Эви печатает, слово и бегущие точки тоже под рядом: точки рядом со словом, не рядом с кнопкой", async () => {
+    await open(jest.fn(() => new Promise(() => undefined)));
+    await chatOpen();
+    await fireEvent.press(screen.getByTestId("evi-option-Начнём!"));
+    const { row, column } = rowAndColumn();
+    expect(within(row).queryByTestId("evi-header-dots", { includeHiddenElements: true })).toBeNull();
+    expect(within(column).getByTestId("evi-header-dots", { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId("evi-title-subtitle").props.children).toBe("печатает");
+  });
+
+  it("кнопка «Новый чат» осталась с метками и целью нажатия 44; «назад» стоит у верхнего ряда, а не по центру высокой шапки", async () => {
+    await talk(jest.fn(async () => answer()));
+    const pill = Object.assign({}, ...[screen.getByTestId("evi-new-chat").props.style].flat(Infinity).filter(Boolean));
+    expect(pill.minHeight).toBeGreaterThanOrEqual(44);
+    expect(screen.getByText("Новый чат")).toBeTruthy();
+    const frame = screen.getByTestId("evi-title-back").parent!;
+    expect(Object.assign({}, ...[frame.props.style].flat(Infinity).filter(Boolean)).alignItems).toBe("flex-start");
+  });
+});
+
+describe("SubHeader: остальные экраны остались как были", () => {
+  const show = (props: Partial<Parameters<typeof SubHeader>[0]> = {}) =>
+    renderPortal(<SubHeader title="Заголовок" subtitle="Подпись" onBack={jest.fn()} backLabel="Назад" testID="h" {...props} />, testApi(fakeTransport({}).transport));
+
+  it("по умолчанию подпись в той же колонке, что название, в одну строку, лишнего ряда нет", async () => {
+    await show();
+    expect(screen.getByTestId("h-subtitle").props.numberOfLines).toBe(1);
+    expect(screen.queryByTestId("h-row")).toBeNull();
+    const column = screen.getByTestId("h").parent!;
+    expect(within(column).getByTestId("h-subtitle")).toBeTruthy();
+  });
+
+  it("`subtitleBelow` без аватара и кнопки: ряд с названием и подпись под ним", async () => {
+    await show({ subtitleBelow: true });
+    const row = screen.getByTestId("h-row");
+    expect(within(row).getByTestId("h")).toBeTruthy();
+    expect(within(row).queryByTestId("h-subtitle")).toBeNull();
+    expect(screen.getByTestId("h-subtitle").props.numberOfLines).toBe(2);
   });
 });

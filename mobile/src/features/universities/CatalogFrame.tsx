@@ -1,11 +1,12 @@
 // Каркас экранов каталога: страница с тягой вниз (всегда проверяет версию индекса),
 // скелетон, плашка сбоя, строка «показан сохранённый каталог». Данные - `useUniversityIndex`.
 import type { StudentUniversityIndex } from "@web/lib/portal/university-index";
-import type { ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import { View } from "react-native";
 
 import { loadErrorKey } from "@/api/queries";
 import { useLang } from "@/i18n/LangProvider";
+import { useFocusEffect } from "@/lib/focus";
 import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
 import { Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
@@ -16,6 +17,13 @@ export function CatalogFrame({ children, header }: { children: (index: StudentUn
   const { t, m } = useLang();
   const strings = t("universities");
   const catalog = useUniversityIndex();
+  // Возврат на экран каталога (назад с карточки вуза, с другой вкладки): версия каталога перепроверяется, если давно не проверялась.
+  const { recheck } = catalog;
+  useFocusEffect(
+    useCallback(() => {
+      recheck();
+    }, [recheck]),
+  );
   return (
     <Screen topInset={false} tabBar onRefresh={() => void catalog.refresh()} refreshing={catalog.refreshing}>
       <View style={{ gap: 16 }}>

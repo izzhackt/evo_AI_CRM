@@ -159,7 +159,15 @@ describe("уведомления и ссылки", () => {
     expect(linkTarget("/portal/preparationsx/a")).toEqual({ kind: "route", route: "/preparationsx" });
     expect(linkTarget(`/portal/universities/${university}`)).toEqual({ kind: "route", route: `/universities/${university}` });
     expect(linkTarget(`/portal/universities/${university.toUpperCase()}`)).toEqual({ kind: "route", route: `/universities/${university}` });
-    // не uuid - прежнее правило раздела
+    // хвост адреса вуза (якорь, запрос, косая черта) отбрасывается, идентификатор остаётся: как у программы
+    for (const tail of ["#reviews", "?tab=programs", "?tab=programs#reviews", "/#reviews", "/?x=1", "?", "#"]) {
+      expect(linkTarget(`/portal/universities/${university}${tail}`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    }
+    expect(linkTarget(`/portal/universities/${university.toUpperCase()}#x`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    // не uuid - прежнее правило раздела, с хвостом и без
     expect(linkTarget("/portal/universities/country/cn")).toEqual({ kind: "route", route: "/universities" });
+    expect(linkTarget("/portal/universities/country/cn?x=1#y")).toEqual({ kind: "route", route: "/universities" });
+    expect(linkTarget(`/portal/universities/${university}/extra`)).toEqual({ kind: "route", route: "/universities" });
+    expect(linkTarget("/portal/universities/not-a-uuid#x")).toEqual({ kind: "route", route: "/universities" });
   });
 });

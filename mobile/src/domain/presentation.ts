@@ -234,7 +234,8 @@ function decodeSegment(segment: string): string | null {
  * карточка вуза: идентификатор сохраняется, а не отбрасывается общим правилом. Веб добавляет к адресу программы
  * хвост (`#requirement-…`, запрос): у экрана программы в приложении якорей нет, хвост отбрасывается. Адрес программы без
  * годного идентификатора (пустой, лишний сегмент, `.`, `..`, испорченное кодирование) ведёт в «Мои программы»: туда же ведёт
- * `preparationPath` для негодного идентификатора. Внешние адреса открывает браузер.
+ * `preparationPath` для негодного идентификатора. У карточки вуза хвост (`?x`, `#x`, косая черта) тоже отбрасывается, а
+ * идентификатор сохраняется. Внешние адреса открывает браузер.
  * Прочее (неизвестный относительный адрес) в приложение не ведёт: `null`.
  */
 export function linkTarget(href: string): LinkTarget | null {
@@ -245,7 +246,7 @@ export function linkTarget(href: string): LinkTarget | null {
     // Нет годного идентификатора - пустая строка, а `preparationPath("")` - «Мои программы» (одно запасное место для всех таких ссылок).
     return { kind: "route", route: preparationPath((preparation && decodeSegment(preparation[1])) ?? "") };
   }
-  const university = /^\/portal\/universities\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$/.exec(href);
+  const university = /^\/portal\/universities\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?(?:[?#].*)?$/.exec(href);
   if (university) return { kind: "route", route: `/universities/${university[1].toLowerCase()}` };
   const home = /^\/portal(?:\/home)?(?:\?view=(programs|universities))?(?:#[a-z-]*)?$/.exec(href);
   if (home) {

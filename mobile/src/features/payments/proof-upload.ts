@@ -9,7 +9,7 @@ import type { PaymentReceiptErrorKey } from "@web/lib/portal/payment-center";
 
 import { checkPickedFile, type PickedFile } from "@/domain/documents-model";
 import type { DocumentMimeType } from "@/domain/portal-source";
-import { receiptFailureKey, sendWithRefresh, type ReceiptResponse } from "@/features/payments/receipt-upload";
+import { fileCheckErrorKey, receiptFailureKey, sendWithRefresh, type ReceiptResponse } from "@/features/payments/receipt-upload";
 
 export { PAYMENT_PROOF_UPLOAD_PATH };
 
@@ -70,6 +70,10 @@ export class ProofUploadController {
     this.set({ status: "idle" });
   }
 
+  /**
+   * Оборвать идущую отправку по решению студента (кнопки «Отменить отправку» пока нет, ничто это не вызывает). Закрытие формы, слота
+   * или экрана отправку НЕ обрывает: сайт её тоже не обрывает, а оборванный чек пропадал бы молча (ревью #1560, M1).
+   */
   cancel(): void {
     this.abort?.abort();
   }
@@ -82,7 +86,7 @@ export class ProofUploadController {
     }
     const checked = checkPickedFile(file);
     if (!checked.ok) {
-      this.set({ status: "error", error: checked.reason === "type" ? "receiptErrorFileType" : "receiptErrorTooLarge", retryable: false });
+      this.set({ status: "error", error: fileCheckErrorKey(checked.reason), retryable: false });
       return;
     }
     const fingerprint = JSON.stringify([paymentEventId, file.uri, file.size, checked.mimeType]);

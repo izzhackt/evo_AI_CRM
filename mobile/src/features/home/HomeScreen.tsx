@@ -106,7 +106,6 @@ export function HomeScreen() {
       setPending("path");
     }
   }
-
   // Избранное опустело (последний вуз убран из полного списка): ленты и кнопки больше нет, прежнее «открыто» не остаётся.
   if (favoritesAll && favorites.data?.total === 0) setFavoritesAll(false);
 

@@ -249,10 +249,10 @@ describe("«Отправить комплект в EVO»", () => {
 
   it("после отправки появляется «Открыть комплект» и последний комплект со статусом «Отправлен на проверку EVO · Комплект 1»", async () => {
     const t = await open(sendable());
-    expect(screen.queryByTestId("prep-package-open")).toBeNull();
+    expect(screen.queryByTestId("prep-package-open-toggle")).toBeNull();
     await toPreview();
     await fireEvent.press(screen.getByTestId("prep-package-submit"));
-    await waitFor(() => expect(screen.getByTestId("prep-package-open")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("prep-package-open-toggle")).toBeTruthy());
     await waitFor(() => expect(screen.getByTestId("prep-package-latest")).toHaveTextContent("Отправлен на проверку EVO · Комплект 1"));
     expect(t.packageCalls("application_package_detail_v1")).toHaveLength(0);
   });
@@ -383,11 +383,13 @@ describe("последний комплект и стартовый список
     const summary = packageSummary(2, 1, { latestReview: null });
     const t = await open({ ready: current({ latestPackage: summary }), extra: { application_package_detail_v1: packageDetail(summary, [packageItem(0, 5)]) } });
     expect(await screen.findByTestId("prep-package-latest")).toHaveTextContent("Отправлен на проверку EVO · Комплект 2");
-    await fireEvent.press(screen.getByTestId("prep-package-open"));
+    expect(screen.getByTestId("prep-package-open-toggle").props.accessibilityState).toMatchObject({ expanded: false });
+    await fireEvent.press(screen.getByTestId("prep-package-open-toggle"));
     const view = await screen.findByTestId(`prep-package-detail-${summary.packageId as string}`);
+    expect(screen.getByTestId("prep-package-open-toggle").props.accessibilityState).toMatchObject({ expanded: true });
     expect(within(view).getByText("Информатика · Осень 2027")).toBeTruthy();
     expect(t.packageCalls("application_package_detail_v1")[0]!.args).toMatchObject({ p_package_id: summary.packageId });
-    await fireEvent.press(screen.getByTestId("prep-package-open"));
+    await fireEvent.press(screen.getByTestId("prep-package-open-toggle"));
     expect(screen.queryByTestId(`prep-package-detail-${summary.packageId as string}`)).toBeNull();
   });
 

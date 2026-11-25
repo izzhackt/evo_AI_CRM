@@ -142,7 +142,7 @@ describe("комплект подробно", () => {
   const toRowDetail = async (summary: Raw, extra: Record<string, unknown>, ready: unknown = base(), io = makeIo()) => {
     const t = await open({ application_package_history_v1: packageHistoryPage([summary]), ...extra }, ready, io);
     await fireEvent.press(await screen.findByTestId("prep-package-history-toggle"));
-    await fireEvent.press(await screen.findByTestId(`prep-package-open-${summary.packageId as string}`));
+    await fireEvent.press(await screen.findByTestId(`prep-package-open-${summary.packageId as string}-toggle`));
     return t;
   };
 
@@ -150,6 +150,10 @@ describe("комплект подробно", () => {
     const summary = packageSummary(1, 1);
     const t = await toRowDetail(summary, { application_package_detail_v1: detailOf(summary) });
     const view = await screen.findByTestId(`prep-package-detail-${summary.packageId as string}`);
+    // кнопка сообщает читалке, что комплект раскрыт, и называет его номер
+    const toggle = screen.getByTestId(`prep-package-open-${summary.packageId as string}-toggle`);
+    expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
+    expect(toggle.props.accessibilityLabel).toBe("Открыть комплект: Комплект 1");
     expect(t.named("application_package_detail_v1")[0]!.args).toMatchObject({ p_package_id: summary.packageId, p_application_id: APPLICATION_ID });
     expect(within(view).getByText("Комплект 1")).toBeTruthy();
     expect(within(view).getByText("Информатика · Осень 2027")).toBeTruthy();
@@ -160,8 +164,9 @@ describe("комплект подробно", () => {
     expect(within(item).getByText("Основные документы · Обязательно")).toBeTruthy();
     expect(within(item).getByText("scan-5.pdf")).toBeTruthy();
     // повторное нажатие скрывает комплект
-    await fireEvent.press(screen.getByTestId(`prep-package-open-${summary.packageId as string}`));
+    await fireEvent.press(screen.getByTestId(`prep-package-open-${summary.packageId as string}-toggle`));
     expect(screen.queryByTestId(`prep-package-detail-${summary.packageId as string}`)).toBeNull();
+    expect(screen.getByTestId(`prep-package-open-${summary.packageId as string}-toggle`).props.accessibilityState).toMatchObject({ expanded: false });
   });
 
   it("нужны исправления: решение, замечание, какие материалы исправить; проверен: «Комплект проверен» без списка исправлений", async () => {
@@ -239,7 +244,7 @@ describe("история решений по комплекту", () => {
   const open1 = async (extra: Record<string, unknown>) => {
     const t = await open({ application_package_history_v1: packageHistoryPage([summary]), application_package_detail_v1: packageDetail(summary, [packageItem(0, 5, null)], []), ...extra });
     await fireEvent.press(await screen.findByTestId("prep-package-history-toggle"));
-    await fireEvent.press(await screen.findByTestId(`prep-package-open-${summary.packageId as string}`));
+    await fireEvent.press(await screen.findByTestId(`prep-package-open-${summary.packageId as string}-toggle`));
     await fireEvent.press(await screen.findByTestId(`prep-review-history-${summary.packageId as string}-toggle`));
     return t;
   };

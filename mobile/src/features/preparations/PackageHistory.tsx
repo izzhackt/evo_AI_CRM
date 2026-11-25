@@ -56,14 +56,15 @@ export function PackageHistory({ strings: t }: { strings: PackageStrings }) {
             {t.version} {row.packageVersion} · {packageStatus(row, t)}
           </Text>
           <Text variant="caption" tone="text2">{programTime(row.submittedAt)}</Text>
-          <Button
-            variant="ghost"
-            label={t.open}
+          <Collapsible
+            title={t.open}
             accessibilityLabel={`${t.open}: ${t.version} ${row.packageVersion}`}
-            onPress={() => setOpenId(openId === row.packageId ? null : row.packageId)}
+            open={openId === row.packageId}
+            onToggle={(open) => setOpenId(open ? row.packageId : null)}
             testID={`prep-package-open-${row.packageId}`}
-          />
-          {openId === row.packageId ? <PackageDetailLoader packageId={row.packageId} /> : null}
+          >
+            <PackageDetailLoader packageId={row.packageId} />
+          </Collapsible>
         </View>
       ))}
       <View style={{ gap: 8 }}>

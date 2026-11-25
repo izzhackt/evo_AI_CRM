@@ -339,9 +339,10 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
         </Text>
       ) : null}
       {openTarget ? (
-        <Button variant="ghost" label={t.open} onPress={() => setOpened((old) => (old ? null : openTarget))} testID="prep-package-open" />
+        <Collapsible title={t.open} open={Boolean(opened)} onToggle={(open) => setOpened(open ? openTarget : null)} testID="prep-package-open">
+          {opened ? <PackageDetailLoader packageId={opened} /> : null}
+        </Collapsible>
       ) : null}
-      {opened ? <PackageDetailLoader packageId={opened} /> : null}
       <PackageHistory key={epoch} strings={t} />
     </View>
   );

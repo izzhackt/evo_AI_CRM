@@ -362,6 +362,154 @@ describe("фокус читалки после выбора вуза", () => {
   });
 });
 
+/** Узел, на который послан фокус: у кнопки вуза это `map-pin-<id>`, у карточки `map-card-head`. */
+const focusTarget = (call: unknown[]) => (call[0] as { props: { testID: string } }).props.testID;
+
+describe("закрытие карточки возвращает фокус читалки на кнопку вуза (веб: closeCard, marker.focus)", () => {
+  const spyFocus = () => jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
+
+  it("«Закрыть»: карточка уходит, фокус идёт на кнопку выбранного вуза (не на карточку и не на другую кнопку)", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u2");
+    focus.mockClear();
+    await fireEvent.press(screen.getByTestId("map-close"));
+    expect(screen.queryByTestId("map-card")).toBeNull();
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focus.mock.calls[0]![1]).toBe("focus");
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-pin-u2");
+  });
+
+  it("жест «Escape» читалки на карточке (VoiceOver, два пальца Z) закрывает её так же, как «Закрыть»", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u1");
+    focus.mockClear();
+    await fireEvent(screen.getByTestId("map-card"), "accessibilityEscape");
+    expect(screen.queryByTestId("map-card")).toBeNull();
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-pin-u1");
+  });
+
+  it("«Назад» Android закрывает карточку и возвращает фокус на кнопку вуза", async () => {
+    const focus = spyFocus();
+    const subscribe = jest.spyOn(BackHandler, "addEventListener");
+    await show();
+    await activate("u2");
+    focus.mockClear();
+    const back = subscribe.mock.calls[0]![1] as () => boolean;
+    let answer = false;
+    await act(async () => {
+      answer = back();
+    });
+    expect(answer).toBe(true);
+    expect(screen.queryByTestId("map-card")).toBeNull();
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-pin-u2");
+  });
+
+  it("карточка открыта нажатием на точку карты, закрыта «Закрыть»: фокус тоже возвращается на кнопку этого вуза", async () => {
+    const focus = spyFocus();
+    await show();
+    await act(async () => {
+      await (mockState.source.onPress as (event: unknown) => Promise<void>)({ stopPropagation: jest.fn(), nativeEvent: { features: [{ properties: { pin: 1 }, geometry: { type: "Point", coordinates: [100.3, 5.4] } }] } });
+    });
+    expect(focus).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId("map-close"));
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-pin-u2");
+  });
+
+  it("нажатие на пустое место карты и на группу карточку закрывают, но фокус читалки не трогают", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u1");
+    focus.mockClear();
+    await act(async () => {
+      (mockState.map.onPress as () => void)();
+    });
+    expect(screen.queryByTestId("map-card")).toBeNull();
+    expect(focus).not.toHaveBeenCalled();
+    await activate("u2");
+    focus.mockClear();
+    await act(async () => {
+      await (mockState.source.onPress as (event: unknown) => Promise<void>)({ stopPropagation: jest.fn(), nativeEvent: { features: [{ properties: { cluster_id: 3 }, geometry: { type: "Point", coordinates: [101, 3] } }] } });
+    });
+    expect(screen.queryByTestId("map-card")).toBeNull();
+    expect(focus).not.toHaveBeenCalled();
+  });
+});
+
+describe("Android: перенос фокуса идёт с задержкой, на iPhone сразу", () => {
+  const spyFocus = () => jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.replaceProperty(Platform, "OS", "android");
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.replaceProperty(Platform, "OS", "ios");
+  });
+  const wait = (ms: number) =>
+    act(async () => {
+      jest.advanceTimersByTime(ms);
+    });
+
+  it("выбор вуза: событие не в том же кадре, а через 150 мс, на название карточки", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u2");
+    expect(screen.getByTestId("map-card")).toBeTruthy();
+    expect(focus).not.toHaveBeenCalled();
+    await wait(149);
+    expect(focus).not.toHaveBeenCalled();
+    await wait(1);
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-card-head");
+  });
+
+  it("закрытие карточки: событие на кнопку вуза тоже через 150 мс", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u1");
+    await wait(150);
+    focus.mockClear();
+    await fireEvent.press(screen.getByTestId("map-close"));
+    expect(focus).not.toHaveBeenCalled();
+    await wait(150);
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-pin-u1");
+  });
+
+  it("новый выбор раньше срока отменяет прежнее событие: фокус идёт один раз, на последнюю цель; уход с экрана событие снимает", async () => {
+    const focus = spyFocus();
+    await show();
+    await activate("u1");
+    await wait(100);
+    await fireEvent.press(screen.getByTestId("map-close")); // закрыли, пока выбор вуза ещё ждал своего события
+    await wait(149);
+    expect(focus).not.toHaveBeenCalled();
+    await wait(1);
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focusTarget(focus.mock.calls[0]!)).toBe("map-pin-u1");
+    focus.mockClear();
+    await activate("u2");
+    await act(async () => {
+      screen.unmount();
+    });
+    await wait(500);
+    expect(focus).not.toHaveBeenCalled();
+  });
+
+  it("на iPhone событие идёт сразу, без задержки", async () => {
+    jest.replaceProperty(Platform, "OS", "ios");
+    const focus = spyFocus();
+    await show();
+    await activate("u2");
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("рамка камеры по окну карты", () => {
   const initial = () => (mockState.map.camera as { initialViewState: Record<string, unknown> }).initialViewState;
 

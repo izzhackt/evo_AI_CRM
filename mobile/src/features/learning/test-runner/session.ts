@@ -146,7 +146,6 @@ export class CscaTestSession {
    * уходят «по возможности» (запрос идёт и после закрытия), затем таймеры останавливаются.
    */
   dispose(): void {
-    if (this.abandoned) return;
     if (this.attempt?.status === "draft" && this.state.phase === "running") void this.flush({ settle: true }).catch(() => undefined);
     this.disposed = true;
     if (this.batchTimer) this.env.clearTimer(this.batchTimer);
@@ -379,9 +378,8 @@ export class CscaTestSession {
   }
 
   async flush(options: { settle?: boolean } = {}): Promise<void> {
-    if (this.abandoned) return;
     while (this.saving) await this.saving;
-    if (this.abandoned) return; // вышли, пока ждали прошлый запрос: следующий уже не уходит
+    if (this.abandoned) return; // вышли из аккаунта (в том числе пока ждали прошлый запрос): следующий уже не уходит
     const current = this.attempt;
     if (!current || current.status !== "draft") return;
     if (options.settle) {
@@ -490,7 +488,7 @@ export class CscaTestSession {
 
   // ---- завершение ------------------------------------------------------------------------
   async finalize(): Promise<void> {
-    if (this.finalizing || this.abandoned) return;
+    if (this.finalizing) return;
     const current = this.attempt;
     if (!current) return;
     this.finalizing = true;
@@ -499,7 +497,9 @@ export class CscaTestSession {
       // Сначала несохранённое (§7.4): повтор после сбоя, текущее состояние и время на задании.
       for (;;) {
         await this.flush({ settle: true });
-        if (this.abandoned) return; // вышли из аккаунта посреди завершения: повторы и запрос завершения уже не нужны
+        // Вышли из аккаунта (до завершения или пока шла отправка): повторы и запрос завершения уже не нужны; без этого при истёкшем
+        // времени цикл ждал бы `wait` до конца запаса, ничего не отправляя.
+        if (this.abandoned) return;
         const latest = this.attempt;
         if (!latest || latest.status !== "draft") return;
         if (!this.dirty && !this.retry) break;

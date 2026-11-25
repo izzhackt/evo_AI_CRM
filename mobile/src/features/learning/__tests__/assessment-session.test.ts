@@ -1,7 +1,9 @@
 // Сессия теста как у сайта (G57-G59): страницы по правилу веба, «слать больше нечего» перед уходом, конфликт без
 // молчаливой замены ответов, замороженный запрос завершения, досылка при закрытии экрана. Сеть и таймеры поддельные.
+import { completeAssessmentWrite, saveAssessmentWrite, sendAssessment, UnreadableReceiptError } from "@/features/learning/tests/api";
 import { normalizeAssessmentAttempt } from "@/features/learning/tests/assessment-decode";
 import { ASSESSMENT_RETRY_MS, ASSESSMENT_SAVE_MS, AssessmentSession } from "@/features/learning/tests/assessment-session";
+import type { FrozenWrite, RpcTransport } from "@/lib/rpc";
 import { answersFor, attemptFixture, ATTEMPT_ID, completedFixture, OTHER_ATTEMPT_ID, sessionHarness, type FixtureKey } from "@/test-fixtures/assessment";
 
 const SAVE = "save_student_assessment_answers_v1";
@@ -692,7 +694,7 @@ describe("«Выйти без сохранения» - настоящий отк
       session.dispose();
     });
 
-    it("«Показать сохранённые ответы»: чтение идёт, отказ снят", async () => {
+    it("«Показать сохранённые ответы» после отказа: чтение идёт, а следующий выбор уходит как обычно", async () => {
       const h = sessionHarness({ [SAVE]: ["CONFLICT"], [READ]: [attemptFixture("orvis92", { revision: 5, answers: { o1: "5" } })] });
       const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92"));
       session.select("o1", "3");
@@ -808,6 +810,30 @@ describe("выход из аккаунта: сессия бросает неот
     expect(hang.timers.size).toBe(0);
     session.dispose();
     expect(hang.calls).toHaveLength(3);
+  });
+});
+
+describe("квитанция, которую не удалось прочитать: ревизия видна только у записи ответов (ревью #1581, #17)", () => {
+  const reply = (data: unknown): RpcTransport => async () => ({ data, error: null, status: 200 });
+  const revisionOf = async (write: FrozenWrite, data: unknown) => {
+    const error = await sendAssessment(reply(data), write).then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(UnreadableReceiptError);
+    return (error as UnreadableReceiptError).revision;
+  };
+  const input = { attemptId: ATTEMPT_ID, expectedRevision: 4, answers: { o1: "3" } };
+
+  it("запись ответов: ровно следующая ревизия (5) видна, остальное и чужая попытка нет", async () => {
+    const save = saveAssessmentWrite(input);
+    expect(await revisionOf(save, { attemptId: ATTEMPT_ID, revision: 5 })).toBe(5);
+    for (const revision of [4, 6, 3, 4.5, "5", Number.MAX_SAFE_INTEGER]) expect(await revisionOf(save, { attemptId: ATTEMPT_ID, revision })).toBeNull();
+    expect(await revisionOf(save, { attemptId: OTHER_ATTEMPT_ID, revision: 5 })).toBeNull();
+  });
+
+  it("запрос завершения: даже ровно следующая ревизия не берётся (после завершения ревизия попытки уже другого рода)", async () => {
+    expect(await revisionOf(completeAssessmentWrite(input), { attemptId: ATTEMPT_ID, revision: 5 })).toBeNull();
   });
 });
 

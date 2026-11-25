@@ -586,6 +586,41 @@ describe("сессия: выход из аккаунта (QA 23: `save_learning_
     expect(total(h, SAVE_RPC)).toBe(1);
   });
 
+  it("выход, пока шёл запрос завершения, и сервер ответил конфликтом: попытку не перечитывают с отозванным токеном", async () => {
+    const { h, session } = await running(
+      { [COMPLETE_RPC]: [err("40001", "Learning attempt changed")], learning_test_attempt_v1: [draftAttempt()] },
+      (get, inner) => async (name, args, options) => {
+        if (name === COMPLETE_RPC) get().abandon();
+        return inner(name, args, options);
+      },
+    );
+    await session.finalize();
+    await flushMicrotasks();
+    expect(total(h, COMPLETE_RPC)).toBe(1);
+    expect(total(h, "learning_test_attempt_v1")).toBe(0);
+  });
+
+  it("выход до завершения при несохранённом выборе и истёкшем времени: цикл ожидания не заводится (раньше он ждал до конца запаса, ничего не отправляя)", async () => {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt] });
+    const waits: number[] = [];
+    const env: SessionEnv = {
+      ...h.env,
+      wait: async (ms) => {
+        waits.push(ms);
+        await h.env.wait(ms);
+      },
+    };
+    const session = new CscaTestSession(env, FORM, null);
+    await session.start();
+    session.select(attempt.items[0].itemKey, "a"); // не отправлено
+    session.abandon();
+    h.setNow(h.getNow() + 245_000); // срок (4 минуты) вышел, запас ещё идёт
+    await session.finalize();
+    expect(waits).toEqual([]);
+    expect(h.calls.map((c) => c.name)).toEqual(["start_learning_test_v1"]);
+  });
+
   it("выход посреди завершения: запрос завершения не повторяется (раньше шёл до 12 раз с отозванным токеном)", async () => {
     const { h, session } = await running({ [COMPLETE_RPC]: [NETWORK] }, (get, inner) => async (name, args, options) => {
       if (name === COMPLETE_RPC) get().abandon();

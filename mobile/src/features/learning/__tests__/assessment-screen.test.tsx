@@ -650,6 +650,18 @@ describe("повтор в полёте не прячет плашку и «Вы�
     announce.mockRestore();
   });
 
+  it("обычное сохранение без сбоя: отдельного «Все ответы сохранены» нет, говорит только живая область строки статуса", async () => {
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    announce.mockClear();
+    const g = gate();
+    await openOffline(g.handler);
+    await tick(ASSESSMENT_SAVE_MS); // отправка идёт
+    await g.succeed(attemptFixture("orvis92", { revision: 2 }));
+    expect(screen.getByTestId("assessment-save-status")).toHaveTextContent("Все ответы сохранены");
+    expect(announce.mock.calls.map((call) => String(call[0]))).not.toContain("Все ответы сохранены");
+    announce.mockRestore();
+  });
+
   it("на Android о восстановлении говорит живая область строки статуса сама: отдельного объявления нет", async () => {
     const platform = jest.replaceProperty(Platform, "OS", "android");
     const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);

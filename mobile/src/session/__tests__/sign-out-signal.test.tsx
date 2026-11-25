@@ -114,17 +114,17 @@ describe("сигнал выхода: подписка и рассылка", () =
 
   it("подписка, сделанная прямо во время рассылки, начинает действовать со следующей (иначе подписчик, подписывающий подписчиков, зациклил бы рассылку)", () => {
     const seen: string[] = [];
-    let offLate: (() => void) | null = null;
+    const late: { off: (() => void) | null } = { off: null };
     const offFirst = onSignOut(() => {
       seen.push("first");
-      offLate ??= onSignOut(() => void seen.push("late"));
+      late.off ??= onSignOut(() => void seen.push("late"));
     });
     announceSignOut();
     expect(seen).toEqual(["first"]);
     announceSignOut();
     expect(seen).toEqual(["first", "first", "late"]);
     offFirst();
-    offLate?.();
+    late.off?.();
   });
 });
 

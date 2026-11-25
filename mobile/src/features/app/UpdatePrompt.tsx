@@ -23,6 +23,7 @@ import { useForegroundUpdateCheck } from "@/features/app/update-check";
 import { useLang } from "@/i18n/LangProvider";
 import { useSession } from "@/session/SessionProvider";
 import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
+import { reportUpdatePromptVisible } from "@/shell/update-prompt-visibility";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Text } from "@/ui/Text";
@@ -62,6 +63,11 @@ function UpdatePromptCard() {
   useEffect(() => {
     if (visible) announce(text);
   }, [visible, text]);
+  // Карточка сбоя опроса стоит в том же углу и уступает, пока эта ВИДНА (после «Позже» её нет, хотя обновление всё ещё скачано).
+  useEffect(() => {
+    reportUpdatePromptVisible(visible);
+    return () => reportUpdatePromptVisible(false);
+  }, [visible]);
   useEffect(
     () => () => {
       if (resetTimer.current) clearTimeout(resetTimer.current);

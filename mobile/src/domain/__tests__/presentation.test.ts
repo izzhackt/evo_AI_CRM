@@ -1,6 +1,6 @@
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { ADMISSION_STAGE_PATH, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, notificationTargetLabel, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
+import { ADMISSION_STAGE_PATH, DOCUMENT_FOCUS_PARAM, actionHref, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, notificationTargetLabel, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
 import { normalizeStudentPortalOverview } from "@/domain/portal-source";
 
 import { OVERVIEW_ROW, SLOT_ID } from "@/test-fixtures/rpc-rows";
@@ -37,6 +37,13 @@ describe("действия дела", () => {
     expect(actionTitle(action, ky)).toContain("Паспорт");
     expect(actionTarget(action)).toEqual({ route: "/documents", slotId: SLOT_ID });
     expect(actionTarget({ kind: "payment", label: "x", dueAt: null, amountMinor: 1, currency: "USD" })).toEqual({ route: "/payments", slotId: null });
+  });
+  it("адрес действия: документ открывает «Документы» на своей строке (`focus` = слот), оплата - «Оплату»", () => {
+    const action = overview.studentAction!;
+    expect(DOCUMENT_FOCUS_PARAM).toBe("focus");
+    expect(actionHref(action)).toBe(`/documents?focus=${SLOT_ID}`);
+    expect(actionHref({ ...action, documentSlotId: "слот/с пробелом?" } as typeof action)).toBe("/documents?focus=%D1%81%D0%BB%D0%BE%D1%82%2F%D1%81%20%D0%BF%D1%80%D0%BE%D0%B1%D0%B5%D0%BB%D0%BE%D0%BC%3F");
+    expect(actionHref({ kind: "payment", label: "x", dueAt: null, amountMinor: 1, currency: "USD" })).toBe("/payments");
   });
   it("задача EVO: срок датой или временем, статус словарём", () => {
     expect(evoActionDueLabel(overview.evoAction!)).toBe("13.09.2026");
@@ -148,5 +155,49 @@ describe("уведомления и ссылки", () => {
     expect(linkTarget("javascript:alert(1)")).toBeNull();
     expect(linkTarget("evo-app://csca")).toBeNull();
     expect(linkTarget("/apply/status")).toBeNull();
+  });
+
+  it("страницы с идентификатором сохраняют его: программа и вуз (общее правило отбросило бы всё после раздела)", () => {
+    const id = "bbbbbbbb-0000-4000-8000-000000000001";
+    expect(linkTarget(`/portal/preparations/${id}`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}/`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget("/portal/preparations/a%20b")).toEqual({ kind: "route", route: "/preparations/a%20b" });
+    // негодный идентификатор не уводит на чужой маршрут и не бросает исключения: «Мои программы»
+    expect(linkTarget("/portal/preparations/%E0%A4%A")).toEqual({ kind: "route", route: "/home?list=programs" });
+    expect(linkTarget("/portal/preparations/..")).toEqual({ kind: "route", route: "/home?list=programs" });
+    expect(linkTarget("/portal/preparations/.")).toEqual({ kind: "route", route: "/home?list=programs" });
+    const university = "aaaaaaaa-0000-4000-8000-000000000001";
+    // веб добавляет к адресу программы хвост: якорь требования или запрос; экран программы в приложении якорей не знает - хвост отбрасывается
+    expect(linkTarget(`/portal/preparations/${id}#requirement-passport`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}?tab=requirements`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}?tab=requirements#requirement-passport`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget(`/portal/preparations/${id}/#requirement-passport`)).toEqual({ kind: "route", route: `/preparations/${id}` });
+    expect(linkTarget("/portal/preparations/a%20b#requirement-x")).toEqual({ kind: "route", route: "/preparations/a%20b" });
+    // без годного идентификатора - «Мои программы», с хвостом или без: пустой, лишний сегмент, только хвост
+    for (const malformed of ["/portal/preparations", "/portal/preparations/", "/portal/preparations/a/b", `/portal/preparations/${id}/extra`, "/portal/preparations/#requirement-x", "/portal/preparations?x=1", "/portal/preparations#requirement-x", "/portal/preparations//", "/portal/preparations/..#requirement-x"]) {
+      expect(linkTarget(malformed)).toEqual({ kind: "route", route: "/home?list=programs" });
+    }
+    // соседние имена разделов правило программы не задевает
+    expect(linkTarget("/portal/preparationsx/a")).toEqual({ kind: "route", route: "/preparationsx" });
+    expect(linkTarget(`/portal/universities/${university}`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    expect(linkTarget(`/portal/universities/${university.toUpperCase()}`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    // хвост адреса вуза (якорь, запрос, косая черта) отбрасывается, идентификатор остаётся: как у программы
+    for (const tail of ["#reviews", "?tab=programs", "?tab=programs#reviews", "/#reviews", "/?x=1", "?", "#"]) {
+      expect(linkTarget(`/portal/universities/${university}${tail}`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    }
+    expect(linkTarget(`/portal/universities/${university.toUpperCase()}#x`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    // uuid ровно 8-4-4-4-12 знаков: длиннее (13 и больше знаков в последней группе), короче, без дефисов и с не шестнадцатеричным знаком - прежнее правило раздела
+    for (const id of [`${university}2`, `${university}23456`, university.slice(0, -1), university.replace(/-/g, ""), `${university}g`, `0${university}`]) {
+      expect(linkTarget(`/portal/universities/${id}`)).toEqual({ kind: "route", route: "/universities" });
+      expect(linkTarget(`/portal/universities/${id}#x`)).toEqual({ kind: "route", route: "/universities" });
+    }
+    // адрес должен начинаться с /portal/: чужой префикс - не наша ссылка, в приложение не ведёт
+    expect(linkTarget(`/x/portal/universities/${university}`)).toBeNull();
+    expect(linkTarget(`portal/universities/${university}`)).toBeNull();
+    // не uuid - прежнее правило раздела, с хвостом и без
+    expect(linkTarget("/portal/universities/country/cn")).toEqual({ kind: "route", route: "/universities" });
+    expect(linkTarget("/portal/universities/country/cn?x=1#y")).toEqual({ kind: "route", route: "/universities" });
+    expect(linkTarget(`/portal/universities/${university}/extra`)).toEqual({ kind: "route", route: "/universities" });
+    expect(linkTarget("/portal/universities/not-a-uuid#x")).toEqual({ kind: "route", route: "/universities" });
   });
 });

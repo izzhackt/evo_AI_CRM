@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 
+import { MoreHorizontalIcon } from "lucide-react";
+
 import { PageShell } from "@/components/kit";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { UniversityBack } from "./UniversityBack";
 import { UniversityDetailTabs } from "./UniversityDetailTabs";
@@ -17,8 +21,6 @@ import type { UniversityDetailProps } from "./university-detail-types";
  * (`UniversityDetailTabs`), а не панель под всей страницей. Чтение и права те же; управление каталогом (бланки,
  * «Предложить обновление») — тихие кнопки в шапке только тому, у кого есть право.
  */
-const QUIET = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
-
 export function UniversityDetailNext({ name, place, programs, overview, websiteUrl, sourceUrl, verified, photo, manage, children }: UniversityDetailProps) {
   const list = <UniversityProgramGroups programs={programs} titled={!children} />;
   return (
@@ -28,11 +30,16 @@ export function UniversityDetailNext({ name, place, programs, overview, websiteU
       meta={place}
       back={<UniversityBack href="/universities" label="Все университеты" />}
       actions={manage ? (
-        // Управление каталогом — редкая задача редактора: тихие ссылки в одну строку, как на списке «Университетов».
-        <div className="flex flex-wrap gap-x-4 max-sm:-my-2">
-          <Link href={manage.formsHref} className={QUIET}>Бланки университета</Link>
-          <Link href={manage.editHref} className={QUIET}>Предложить обновление</Link>
-        </div>
+        // Управление каталогом — редкая задача редактора: одна кнопка «⋯» рядом с названием, а не строка ссылок под ним.
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="Действия с карточкой университета" data-testid="university-manage-menu"><MoreHorizontalIcon aria-hidden="true" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuItem asChild><Link href={manage.formsHref}>Бланки университета</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href={manage.editHref}>Предложить обновление</Link></DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : undefined}
     >
       {/* Фото кампуса — обложка карточки во всю ширину, с авторством под ним; без фото карточка начинается с текста. */}
@@ -43,10 +50,10 @@ export function UniversityDetailNext({ name, place, programs, overview, websiteU
             <h2 id="university-about" className="t-section text-fg">Об университете</h2>
             <p className="max-w-[70ch] t-body text-fg">{overview}</p>
             <div className="-ms-4 flex flex-wrap items-center gap-x-1">
-              <ExternalButton href={websiteUrl}>Сайт учебного заведения</ExternalButton>
-              <ExternalButton href={sourceUrl}>Основной источник карточки</ExternalButton>
+              <ExternalButton href={websiteUrl}>Официальный сайт</ExternalButton>
+              <ExternalButton href={sourceUrl}>Источник данных</ExternalButton>
             </div>
-            <p className="t-meta text-fg-3">Карточка проверена <time dateTime={verified.dateTime} className="font-mono tabular-nums">{verified.text}</time></p>
+            <p className="t-meta text-fg-3">Данные проверены <time dateTime={verified.dateTime} className="font-mono tabular-nums">{verified.text}</time></p>
           </div>
         </div>
       </section>

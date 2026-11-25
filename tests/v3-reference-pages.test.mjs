@@ -261,7 +261,7 @@ test("university page: the overview with the photo first, then programmes and in
   const utm = utmCount;
   const h1 = html.indexOf("<h1");
   const place = html.indexOf(`<p class="t-meta basis-full text-fg-3">Малайзия · Johor Bahru · ${utm} программ</p>`);
-  assert.ok(h1 > 0 && place > h1 && html.indexOf(">Бланки университета</a>") > place && programs > place, "h1 → place → Admin links → programmes");
+  assert.ok(h1 > 0 && place > h1 && html.indexOf('data-testid="university-manage-menu"') > place && programs > place, "h1 → place → Admin menu «⋯» → programmes");
   assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
   assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
@@ -271,10 +271,10 @@ test("university page: the overview with the photo first, then programmes and in
   assert.match(html, /<span[^>]*data-cell="deadline"[^>]*><span[^>]*><time dateTime="2026-07-17"[^>]*>17\.07<\/time>/u);
   assert.match(html, />Приём закрыт по данным источника</u);
   const [year, month, day] = catalogueCards.find((card) => card.key === "utm").content.verifiedOn.split("-");
-  assert.match(html, new RegExp(`>Карточка проверена <time dateTime="${year}-${month}-${day}"[^>]*>${day}\\.${month}</time>`, "u"), "the card's own verification day");
+  assert.match(html, new RegExp(`>Данные проверены <time dateTime="${year}-${month}-${day}"[^>]*>${day}\\.${month}</time>`, "u"), "the card's own verification day");
   assert.match(html, />проверено <time dateTime="2026-09-10"[^>]*>10\.09<\/time>/u, "the intake's verification day in its state cell");
-  assert.match(html, />Бланки университета<\/a>/u);
-  assert.match(html, />Предложить обновление<\/a>/u);
+  // 25.11.2026: «Бланки университета» и «Предложить обновление» — пункты меню «⋯» рядом с названием (в разметке меню закрыто).
+  assert.match(html, /<button[^>]*aria-label="Действия с карточкой университета"[^>]*data-testid="university-manage-menu"/u);
   assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
 });
 

@@ -37,6 +37,15 @@ export function universityPrograms(content: UniversityContent, now: Date): Progr
   }));
 }
 
+/**
+ * Описание вуза для «Об университете» без служебной фразы «В каталоге N программ: языковые 1, foundation 1, …» (25.11.2026):
+ * её дописывал импорт каталога, а те же числа по уровням стоят рядом — в списке программ со счётчиками. В модели текст прежний.
+ */
+export function universityOverviewText(overview: string): string {
+  const text = overview.replace(/\s*В каталоге \d+ программ[^.]*\.(?=\s|$)/gu, "").trim();
+  return text === "" ? overview : text;
+}
+
 export function universityVerified(content: Pick<UniversityContent, "verifiedOn">, now: Date) {
   return { dateTime: content.verifiedOn, text: formatCatalogueDay(content.verifiedOn, dayInOrganizationTimezone(now)) };
 }

@@ -1,7 +1,8 @@
 // Урок английского: ответы по одному, каждый финален (вердикт и разбор из ответа сервера), попытка
-// открывается первым ответом и завершается кнопкой «Завершить урок» (правило веба LessonRunner).
+// открывается кнопкой «Начать урок» (как на сайте; если её не нажимали, первым ответом) и завершается кнопкой
+// «Завершить урок» (правило веба LessonRunner).
 // Каждая запись замораживается: повтор после обрыва идёт тем же p_request_id и аргументами.
-import type { LearningAnswer, LearningAnswerEntry, LearningAttempt, LearningExercise, LearningLessonView } from "@web/lib/portal/learning";
+import type { LearningAnswer, LearningAnswerEntry, LearningAttempt, LearningExercise, LearningLessonView, LearningResult } from "@web/lib/portal/learning";
 import { firstUnansweredIndex } from "@web/lib/portal/learning";
 
 import {
@@ -22,9 +23,17 @@ export type EnglishRunState = Readonly<{
   answers: Readonly<Record<string, Pick<LearningAnswerEntry, "answer" | "correct" | "verdict" | "explain">>>;
   index: number;
   completed: boolean;
+  /** Итог последней завершённой попытки (счёт и номера заданий с ошибками): экран завершения показывает его, а не пересчитывает. */
+  result: LearningResult | null;
   busy: boolean;
   error: CscaFailure | null;
 }>;
+
+type AnswerEntries = EnglishRunState["answers"];
+
+function answersOf(attempt: LearningAttempt | null): AnswerEntries {
+  return attempt ? Object.fromEntries(Object.entries(attempt.answers).map(([id, e]) => [id, { answer: e.answer, correct: e.correct, verdict: e.verdict, explain: e.explain }])) : {};
+}
 
 export class EnglishSession {
   private state: EnglishRunState;
@@ -43,13 +52,14 @@ export class EnglishSession {
     private readonly newId: () => string = randomUUID,
   ) {
     const source = draft ?? latestCompleted;
-    const answers = source ? Object.fromEntries(Object.entries(source.answers).map(([id, e]) => [id, { answer: e.answer, correct: e.correct, verdict: e.verdict, explain: e.explain }])) : {};
+    const answers = answersOf(source);
     this.state = {
       attemptId: draft?.attemptId ?? null,
       revision: draft?.revision ?? null,
       answers,
       index: draft ? firstUnansweredIndex(exercises, answers) : 0,
       completed: !draft && latestCompleted !== null,
+      result: !draft ? (latestCompleted?.result ?? null) : null,
       busy: false,
       error: null,
     };
@@ -63,6 +73,26 @@ export class EnglishSession {
   private patch(next: Partial<EnglishRunState>): void {
     this.state = { ...this.state, ...next };
     for (const l of this.listeners) l();
+  }
+
+  /** Открыть попытку, если её ещё нет: «Начать урок» создаёт черновик сразу, как на сайте. Повтор после обрыва - тот же запрос. */
+  async begin(): Promise<boolean> {
+    if (this.busy) return false;
+    if (this.state.attemptId !== null) return true;
+    this.busy = true;
+    this.patch({ busy: true, error: null });
+    try {
+      this.startWrite ??= startEnglishWrite(this.lessonId, this.newId());
+      const attempt = await sendEnglishAttempt(this.transport, this.startWrite);
+      this.patch({ attemptId: attempt.attemptId, revision: attempt.revision });
+      return true;
+    } catch (error) {
+      this.patch({ error: cscaFailure(error) });
+      return false;
+    } finally {
+      this.busy = false;
+      this.patch({ busy: false });
+    }
   }
 
   /** Ответить на текущее упражнение. `answer` уже проверен по форме (`exerciseValueToAnswer`). */
@@ -115,8 +145,8 @@ export class EnglishSession {
     this.patch({ busy: true, error: null });
     try {
       this.completeId ??= this.newId();
-      await sendEnglishAttempt(this.transport, completeEnglishWrite({ attemptId, expectedRevision: revision }, this.completeId));
-      this.patch({ completed: true, attemptId: null, revision: null });
+      const done = await sendEnglishAttempt(this.transport, completeEnglishWrite({ attemptId, expectedRevision: revision }, this.completeId));
+      this.patch({ completed: true, attemptId: null, revision: null, result: done.result });
     } catch (error) {
       this.patch({ error: cscaFailure(error) });
     } finally {
@@ -136,14 +166,22 @@ export class EnglishSession {
     }
     this.pending = null;
     const source = view.draft ?? view.latestCompleted;
-    const answers = source ? Object.fromEntries(Object.entries(source.answers).map(([id, e]) => [id, { answer: e.answer, correct: e.correct, verdict: e.verdict, explain: e.explain }])) : {};
-    this.patch({ answers, attemptId: view.draft?.attemptId ?? null, revision: view.draft?.revision ?? null, index: firstUnansweredIndex(this.exercises, answers), completed: !view.draft && view.latestCompleted !== null, error: null });
+    const answers = answersOf(source);
+    this.patch({
+      answers,
+      attemptId: view.draft?.attemptId ?? null,
+      revision: view.draft?.revision ?? null,
+      index: firstUnansweredIndex(this.exercises, answers),
+      completed: !view.draft && view.latestCompleted !== null,
+      result: !view.draft ? (view.latestCompleted?.result ?? null) : null,
+      error: null,
+    });
   }
 
   restart(): void {
     this.startWrite = null;
     this.completeId = null;
     this.pending = null;
-    this.patch({ attemptId: null, revision: null, answers: {}, index: 0, completed: false, error: null });
+    this.patch({ attemptId: null, revision: null, answers: {}, index: 0, completed: false, result: null, error: null });
   }
 }

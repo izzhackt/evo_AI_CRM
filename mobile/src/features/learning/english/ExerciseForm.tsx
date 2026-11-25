@@ -97,7 +97,7 @@ export function ExerciseForm({ exercise, value, disabled, onChange }: { exercise
                         onChange({ kind: "matching", matches: next });
                       }}
                       testID={`match-${index}-${rightIndex}`}
-                      style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: tokens.radiusChip, borderWidth: on ? 2 : 1, borderColor: on ? tokens.accent : tokens.line, backgroundColor: on ? tokens.accentSoft : tokens.surface, opacity: blocked ? 0.4 : 1 }}
+                      style={{ minHeight: MIN_TARGET, paddingHorizontal: 12, justifyContent: "center", borderRadius: tokens.radiusChip, borderWidth: on ? 2 : 1, borderColor: on ? tokens.accent : tokens.line, backgroundColor: on ? tokens.accentSoft : tokens.surface, opacity: blocked ? 0.4 : 1 }}
                     >
                       <Text variant="secondary" bold={on}>
                         {lang === "ky" ? right.rightKy : right.rightRu}

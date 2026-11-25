@@ -27,7 +27,11 @@ jest.mock("@/api/portal-auth", () => ({ createPortalAuthApi: () => ({ signIn: ()
 let mockSetSessionError: { message: string } | null = null;
 const mockAuth = {
   onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
-  setSession: async () => ({ error: mockSetSessionError }),
+  // Как у настоящей библиотеки: при успехе в `data` лежит сессия, при отказе `data` пустая, а ответ без `data` невозможен.
+  setSession: async () => ({
+    data: mockSetSessionError ? { user: null, session: null } : { user: { id: "u1" }, session: { access_token: "a", refresh_token: "r", user: { id: "u1", app_metadata: {} } } },
+    error: mockSetSessionError,
+  }),
   getSession: async () => ({ data: { session: null } }),
   refreshSession: async () => ({ data: {}, error: null }),
   signOut: async () => ({ error: null }),

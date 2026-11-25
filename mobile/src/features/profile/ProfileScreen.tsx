@@ -69,38 +69,60 @@ function Chip({ label }: { label: string }) {
 }
 
 /**
+ * Имя занимает не больше двух строк, дальше шрифт ужимается (не мельче 60%). Это смягчение, а не гарантия: RN считает вторую строку с
+ * посимвольным переносом уместившейся и может шрифт не ужать. Целым слово держит ширина колонки имени (см. `ProfileHero`).
+ */
+const NAME_LINES = 2;
+const NAME_MIN_SCALE = 0.6;
+
+/**
  * Карточка студента наверху (веб: ProfileHero.tsx): круг с инициалами вместо фото (поля фото у студента нет), имя, метки
- * страны и этапа, «Выйти» справа и под чертой строка «Личные результаты тестов». Метки читаются отдельно от профиля:
- * сбой чтения - без метки, как на вебе.
+ * страны и этапа, «Выйти» и под чертой строка «Личные результаты тестов». Метки читаются отдельно от профиля: сбой чтения -
+ * без метки, как на вебе.
+ *
+ * На телефоне «Выйти» стоит отдельной строкой под именем, а не справа от него (веб, `.pt-profile-hero-action`: «Телефон: «Выйти»
+ * под именем; от 640 px - справа в той же строке»; приложение только на телефоне). Справа кнопка отнимала у имени около 80 pt из
+ * 270, и «Сопровождаемый» ломалось посреди слова (QA#2, D6). У имени своя колонка (`flex: 1`, `minWidth: 0`): ничто рядом её не
+ * сужает; на крупном шрифте имя занимает до двух рядов и ужимается.
+ *
+ * Запас по замеру независимого рецензента (Golos SemiBold 20 pt): «Сопровождаемый» - 179 pt при масштабе шрифта 1, 215 при 1,2 и 251 на
+ * пределе 1,4 (`maxFontSizeMultiplier` у `heading`); колонка имени - ширина экрана минус 134: 268 pt на 402, 259 на 393, 241 на 375,
+ * 226 на 360, 186 на 320. Значит, при обычном шрифте слово помещается на любой ширине от 320 pt, а на пределе 1,4 - от 385 pt (402 и 393
+ * подходят); на 375, 360 и 320 pt при самом крупном шрифте оно ещё может порваться: `numberOfLines` и `adjustsFontSizeToFit` целого слова
+ * не гарантируют. Эту границу проверяет только устройство.
  */
 function ProfileHero({ name, chips, busy, onSignOut, onTests, signOutLabel, testsLabel }: { name: string; chips: readonly string[]; busy: boolean; onSignOut: () => void; onTests: () => void; signOutLabel: string; testsLabel: string }) {
   const { tokens } = useTheme();
   return (
     <Card>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }} testID="profile-hero">
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}
-          testID="profile-avatar"
-        >
-          <Text variant="heading" tone="accent" bold>
-            {accountInitials(name)}
-          </Text>
+      <View style={{ gap: 12 }} testID="profile-hero">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }} testID="profile-hero-main">
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}
+            testID="profile-avatar"
+          >
+            <Text variant="heading" tone="accent" bold>
+              {accountInitials(name)}
+            </Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }} testID="profile-hero-identity">
+            <Text variant="heading" accessibilityRole="header" numberOfLines={NAME_LINES} adjustsFontSizeToFit minimumFontScale={NAME_MIN_SCALE} testID="profile-hero-name">
+              {name}
+            </Text>
+            {chips.length > 0 ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }} testID="profile-chips">
+                {chips.map((chip) => (
+                  <Chip key={chip} label={chip} />
+                ))}
+              </View>
+            ) : null}
+          </View>
         </View>
-        <View style={{ flex: 1, gap: 6 }}>
-          <Text variant="heading" accessibilityRole="header" testID="profile-hero-name">
-            {name}
-          </Text>
-          {chips.length > 0 ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }} testID="profile-chips">
-              {chips.map((chip) => (
-                <Chip key={chip} label={chip} />
-              ))}
-            </View>
-          ) : null}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }} testID="profile-hero-actions">
+          <Button label={signOutLabel} variant="ghost" busy={busy} onPress={onSignOut} testID="sign-out" />
         </View>
-        <Button label={signOutLabel} variant="ghost" busy={busy} onPress={onSignOut} testID="sign-out" />
       </View>
       <LinkRow label={testsLabel} onPress={onTests} testID="profile-tests-link" />
     </Card>

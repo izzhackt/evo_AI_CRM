@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Animated, Easing, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { useTheme } from "@/theme/ThemeProvider";
+import { useReducedMotion } from "@/ui/a11y";
 import { Text } from "@/ui/Text";
 import type { LucideIcon } from "lucide-react-native";
 
@@ -114,8 +115,22 @@ export function InlineAlert({ message, retryLabel, onRetry, testID }: { message:
   );
 }
 
-/** Блок скелетона: мягкая пульсация; читалке сообщает «загрузка» только родитель. */
-export function Skeleton({ height = 16, width = "100%", radius = 6, style }: { height?: number; width?: number | `${number}%`; radius?: number; style?: StyleProp<ViewStyle> }) {
+type SkeletonProps = { height?: number; width?: number | `${number}%`; radius?: number; style?: StyleProp<ViewStyle> };
+
+/**
+ * Блок скелетона: мягкая пульсация; читалке сообщает «загрузка» только родитель. При включённом в системе «Уменьшить
+ * движение» блок стоит ровным цветом без пульсации (G6; веб: скелетон не пульсирует, `portal/loading.tsx`).
+ */
+export function Skeleton(props: SkeletonProps) {
+  return useReducedMotion() ? <StaticSkeleton {...props} /> : <PulsingSkeleton {...props} />;
+}
+
+function StaticSkeleton({ height = 16, width = "100%", radius = 6, style }: SkeletonProps) {
+  const { tokens } = useTheme();
+  return <View importantForAccessibility="no" accessibilityElementsHidden style={[{ height, width, borderRadius: radius, backgroundColor: tokens.skeleton }, style]} />;
+}
+
+function PulsingSkeleton({ height = 16, width = "100%", radius = 6, style }: SkeletonProps) {
   const { tokens } = useTheme();
   const [opacity] = useState(() => new Animated.Value(0.55));
   useEffect(() => {

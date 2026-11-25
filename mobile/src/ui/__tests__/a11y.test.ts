@@ -2,7 +2,9 @@
 // что и когда до него доходит: пустое не доходит, повтор внутри окна склеивается, настоящий повтор позже окна проходит.
 import { AccessibilityInfo } from "react-native";
 
+import * as a11y from "@/ui/a11y";
 import { ANNOUNCE_REPEAT_MS, announce, resetAnnouncementsForTests } from "@/ui/a11y";
+import * as motion from "@/ui/motion";
 
 const native = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 
@@ -112,6 +114,13 @@ describe("announce: быстрые повторы", () => {
     time.set(1_000_000);
     announce("Верно");
     expect(native).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("«Уменьшить движение»", () => {
+  it("хук доступен из ui/a11y и это тот же хук, что в ui/motion: второго нет", () => {
+    expect(typeof a11y.useReducedMotion).toBe("function");
+    expect(a11y.useReducedMotion).toBe(motion.useReducedMotion);
   });
 });
 

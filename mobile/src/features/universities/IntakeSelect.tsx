@@ -1,7 +1,6 @@
 // Набор программы: подпись, статус, даты, источник и действие «Добавить в мои программы» (веб: `Intake` в Detail.tsx и
 // SelectionAction.tsx). Прежде это был `IntakeBlock` в UniversityScreen.tsx; тексты действия теперь из словаря веба
 // (`preparations`), а не свои сокращённые, и порядок действий как у веба (`useAddProgram`, `add-program.ts`).
-import { router } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
 
@@ -13,7 +12,6 @@ import { universityDateLabel, universityIntakeStatusKey, universityMonthLabel } 
 import { usePortalApi } from "@/api/PortalApi";
 import type { Lang } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
-import { preparationHref } from "@/features/preparations/routes";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
@@ -31,7 +29,7 @@ export function IntakeSelect({
   strings,
   now,
   lang,
-  onAdded,
+  onOpenApplication,
   onRefresh,
 }: {
   intake: UniversityIntake;
@@ -40,8 +38,11 @@ export function IntakeSelect({
   strings: UniversityStrings;
   now: Date;
   lang: Lang;
-  /** Программа добавлена: экран закрывает окно программы и ведёт на её страницу. */
-  onAdded: (applicationId: string) => void;
+  /**
+   * Открыть страницу программы: после добавления и по кнопке «Открыть». Экран сначала закрывает окно программы и только потом
+   * переходит (иначе страница откроется ПОД ещё показанным нативным окном).
+   */
+  onOpenApplication: (applicationId: string) => void;
   /** Перечитать карточку вуза («Обновить страницу»). */
   onRefresh: () => void;
 }) {
@@ -66,7 +67,7 @@ export function IntakeSelect({
       : intake.status === "closed"
         ? "closedIntake"
         : null;
-  const add = useAddProgram(intake.id ? { institutionId: detail.university.id, programId: program.id, intakeId: intake.id, publicationVersion: detail.university.version } : null, onAdded);
+  const add = useAddProgram(intake.id ? { institutionId: detail.university.id, programId: program.id, intakeId: intake.id, publicationVersion: detail.university.version } : null, onOpenApplication);
   const busy = add.state.phase === "busy";
   const message = add.state.phase === "uncertain" || add.state.phase === "refused" ? selectionMessage(add.state.reason, prep) : null;
   // Ошибку слышит и читалка iPhone (роль «alert» там ничего не произносит).
@@ -77,7 +78,7 @@ export function IntakeSelect({
   const openedId = existing?.applicationId ?? (add.state.phase === "done" ? add.state.applicationId : null);
   let action: React.ReactNode = null;
   if (openedId !== null) {
-    action = <Button label={prep.open} onPress={() => router.push(preparationHref(openedId))} testID="program-open" />;
+    action = <Button label={prep.open} onPress={() => onOpenApplication(openedId)} testID="program-open" />;
   } else if (bindings !== null && !canSelectPrograms) {
     action = null; // одно объяснение стоит над списком программ, на каждом наборе оно не повторяется
   } else {

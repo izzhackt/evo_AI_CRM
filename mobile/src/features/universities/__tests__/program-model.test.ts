@@ -111,15 +111,32 @@ describe("подписи", () => {
     expect(programStarts({ ...program({ id: "y", title: "Bachelor of Law" }), intakes: [] })).toBe("");
   });
 
-  it("название месяца: язык без поддержки заменяется русским, без Intl вовсе - таблицей", () => {
+  it("название месяца: язык без поддержки заменяется русским, без Intl вовсе остаётся номер (своей таблицы названий нет)", () => {
     expect(monthName(7, "ru")).toBe("Июль");
-    const supported = jest.spyOn(Intl.DateTimeFormat, "supportedLocalesOf").mockImplementation((tags) => (tags as string[]).filter((tag) => tag !== "ky"));
-    expect(monthName(2, "ky")).toBe("Февраль");
-    supported.mockImplementation(() => {
+    expect(monthName(7, "ky")).toBe("Июль"); // в CLDR у «ky» то же слово
+    // Hermes без «ky»: он не отказывает, а молча подставляет английское название; поэтому язык проверяется заранее
+    const Real = Intl.DateTimeFormat;
+    class WithoutKy extends Real {
+      constructor(tag?: string | string[], options?: Intl.DateTimeFormatOptions) {
+        super(tag === "ky" ? "en" : tag, options);
+      }
+      static supportedLocalesOf(tags: string | string[]) {
+        return Real.supportedLocalesOf(tags).filter((tag) => tag !== "ky");
+      }
+    }
+    Object.defineProperty(Intl, "DateTimeFormat", { value: WithoutKy, configurable: true, writable: true });
+    try {
+      expect(monthName(2, "ky")).toBe("Февраль");
+      expect(monthName(2, "ru")).toBe("Февраль");
+    } finally {
+      Object.defineProperty(Intl, "DateTimeFormat", { value: Real, configurable: true, writable: true });
+    }
+    // Intl недоступен вовсе: номер месяца, а не таблица
+    const supported = jest.spyOn(Intl.DateTimeFormat, "supportedLocalesOf").mockImplementation(() => {
       throw new RangeError("no intl");
     });
-    expect(monthName(12, "ky")).toBe("Декабрь");
-    expect(monthName(5, "ru")).toBe("Май");
+    expect(monthName(12, "ky")).toBe("12");
+    expect(monthName(5, "ru")).toBe("5");
     supported.mockRestore();
   });
 });

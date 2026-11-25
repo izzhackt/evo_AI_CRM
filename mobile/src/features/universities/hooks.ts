@@ -135,6 +135,15 @@ export function useAddProgram(target: AddTarget | null, onAdded?: (applicationId
   useEffect(() => {
     latest.current = { target, onAdded };
   });
+  // Выбор, начатый и не законченный к моменту, когда студент ушёл с экрана или закрыл окно программы, доезжает до конца (запрос на
+  // сервер ушёл), но ни экран, ни переход он не трогает: иначе страница программы открылась бы из того места, где студент оказался.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const store = useMemo(() => intentStore({ userKey, studentCaseId }), [userKey, studentCaseId]);
   const targetKey = target === null ? null : selectionTarget(target);
   const [state, setState] = useState<AddState>({ phase: "idle" });
@@ -165,10 +174,10 @@ export function useAddProgram(target: AddTarget | null, onAdded?: (applicationId
       if (outcome.ok) {
         setStoredFor(null);
         setState({ phase: "done", applicationId: outcome.applicationId });
-        // Списки «Мои программы» (Главная, страница вуза) перечитываются: у набора теперь «Открыть».
+        // Списки «Мои программы» (Главная, страница вуза) перечитываются, даже если студент уже ушёл: у набора теперь «Открыть».
         void client.invalidateQueries({ queryKey: key(userKey, "preparations") });
         void client.invalidateQueries({ queryKey: key(userKey, "university-detail", current.institutionId) });
-        latest.current.onAdded?.(outcome.applicationId);
+        if (alive.current) latest.current.onAdded?.(outcome.applicationId);
       } else {
         setStoredFor(outcome.uncertain ? selectionTarget(current) : null);
         setState(outcome.uncertain ? { phase: "uncertain", reason: outcome.reason } : { phase: "refused", reason: outcome.reason });

@@ -39,26 +39,22 @@ const asItem = (row: ProgramRow) => ({ ...row.facets, level: row.level });
 export type PickerOption = Readonly<{ value: string; label: string }>;
 export type PickerOptions = Readonly<Record<Facet, readonly PickerOption[]>>;
 
-const MONTH_FALLBACK_RU = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"] as const;
-
 /**
- * Название месяца: у веба `Intl.DateTimeFormat(ky|ru, { month: "long" })`. На телефоне Hermes может не знать «ky» (U7 аудита) и тогда
- * подставил бы английское название, поэтому язык проверяется, а без поддержки берётся русское написание (в CLDR у «ky» те же слова)
- * и, если Intl нет вовсе, таблица.
+ * Название месяца: у веба `Intl.DateTimeFormat(ky|ru, { month: "long" })` (Detail.tsx), так же у остальных экранов приложения. На
+ * телефоне Hermes может не знать «ky» (U7 аудита) и тогда подставил бы английское название, поэтому язык проверяется, а без
+ * поддержки берётся русское написание (в CLDR у «ky» те же слова). Своей таблицы названий нет: если `Intl` недоступен вовсе, остаётся
+ * номер месяца.
  */
 export function monthName(month: number, lang: Lang): string {
-  const date = new Date(Date.UTC(2026, month - 1, 15));
-  const tags = lang === "ky" ? ["ky", "ru"] : ["ru"];
-  for (const tag of tags) {
-    try {
-      if (Intl.DateTimeFormat.supportedLocalesOf([tag]).length === 0) continue;
-      const label = new Intl.DateTimeFormat(tag, { month: "long", timeZone: "UTC" }).format(date);
-      if (label) return label.charAt(0).toUpperCase() + label.slice(1);
-    } catch {
-      // этот язык не поддержан: пробуем следующий
-    }
+  try {
+    const tags = lang === "ky" ? ["ky", "ru"] : ["ru"];
+    const tag = tags.find((candidate) => Intl.DateTimeFormat.supportedLocalesOf([candidate]).length > 0) ?? "ru";
+    const label = new Intl.DateTimeFormat(tag, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2026, month - 1, 15)));
+    if (label) return label.charAt(0).toUpperCase() + label.slice(1);
+  } catch {
+    // Intl недоступен: ниже номер месяца
   }
-  return MONTH_FALLBACK_RU[month - 1] ?? String(month);
+  return String(month);
 }
 
 /** Варианты полей, которые есть у вуза: уровни по шкале, направления и длительности по порядку, месяцы по году (веб: `programOptions`). */

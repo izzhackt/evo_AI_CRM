@@ -32,8 +32,9 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
   const [openId, setOpenId] = useState<string | null>(null);
   const open = rows.find((row) => row.program.id === openId) ?? null;
 
-  // После добавления окно закрывается, и только потом открывается страница программы: нативное окно iOS, ещё уезжающее вниз,
-  // не даёт показать следующий экран. Переход один раз, по `onDismiss` окна или по таймеру, что раньше.
+  // К странице программы ведут два пути: после добавления и кнопка «Открыть» у уже добавленного набора. И там и там окно закрывается,
+  // и только потом открывается страница: нативное окно iOS, ещё уезжающее вниз, не даёт показать следующий экран (страница
+  // открывалась бы ПОД ним). Переход один раз, по `onDismiss` окна или по таймеру, что раньше.
   const follow = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flush = useCallback(() => {
@@ -49,10 +50,11 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
     },
     [],
   );
-  const onAdded = useCallback(
+  const openApplication = useCallback(
     (applicationId: string) => {
       follow.current = applicationId;
       setOpenId(null);
+      if (timer.current !== null) clearTimeout(timer.current);
       timer.current = setTimeout(flush, FOLLOW_FALLBACK_MS);
     },
     [flush],
@@ -73,7 +75,7 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
         {(row) => (
           <View style={{ gap: 12 }}>
             {row.program.intakes.map((intake, index) => (
-              <IntakeSelect key={intake.id ?? index} intake={intake} program={row.program} detail={detail} strings={strings} now={now} lang={lang} onAdded={onAdded} onRefresh={onRefresh} />
+              <IntakeSelect key={intake.id ?? index} intake={intake} program={row.program} detail={detail} strings={strings} now={now} lang={lang} onOpenApplication={openApplication} onRefresh={onRefresh} />
             ))}
           </View>
         )}

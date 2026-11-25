@@ -65,6 +65,12 @@ async function openProgram(id: string) {
 
 const sends = (w: ReturnType<typeof world>) => w.calls.filter((call) => call.name === "student_select_catalog_intake_v1");
 
+/** Подождать, пока отработают таймеры экрана (запасной переход на страницу программы - 900 мс); внутри `act`, чтобы оповещения запросов не шумели. */
+const idle = (ms: number) =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+
 describe("успешное добавление", () => {
   it("выбор уходит, окно закрывается, открывается страница программы; список документов открыт отдельным вызовом", async () => {
     const w = world();
@@ -93,13 +99,40 @@ describe("успешное добавление", () => {
     expect(screen.queryByTestId("program-add")).toBeNull();
   });
 
-  it("уже добавленный набор: «Открыть» ведёт на страницу программы, добавить второй раз нельзя", async () => {
+  it("уже добавленный набор: «Открыть» сначала закрывает окно и только по его закрытию ведёт на страницу программы, добавить второй раз нельзя", async () => {
     const w = world({}, { preparations: { studentCaseId: STUDENT_CASE_ID, items: [item] } });
     await open(w);
     await openProgram("cs-b");
     expect(screen.queryByTestId("program-add")).toBeNull();
     expect(within(screen.getByTestId("program-open")).getByText("Открыть")).toBeTruthy();
+    // к переходу окно уже закрыто: иначе страница программы открылась бы ПОД ещё показанным нативным окном
+    let dialogOpenAtPush: boolean | null = null;
+    (router.push as jest.Mock).mockImplementationOnce(() => {
+      dialogOpenAtPush = screen.queryByTestId("program-dialog-title") !== null;
+    });
+    // окно у настоящего iOS само вызывает `onDismiss`, когда закрылось; здесь обработчик берётся, пока окно открыто, и вызывается после
+    const dismissed = screen.getByTestId("program-dialog").props.onDismiss as () => void;
     await fireEvent.press(screen.getByTestId("program-open"));
+    expect(screen.queryByTestId("program-dialog-title")).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+    await act(async () => {
+      dismissed();
+    });
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(router.push).toHaveBeenCalledWith(preparationHref(item.applicationId));
+    expect(dialogOpenAtPush).toBe(false);
+    // запасной таймер второй переход не делает
+    await idle(1_200);
+    expect(router.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Открыть», если окно не сообщило о закрытии: страница программы открывается по запасному таймеру, один раз", async () => {
+    const w = world({}, { preparations: { studentCaseId: STUDENT_CASE_ID, items: [item] } });
+    await open(w);
+    await openProgram("cs-b");
+    await fireEvent.press(screen.getByTestId("program-open"));
+    expect(router.push).not.toHaveBeenCalled();
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(router.push).toHaveBeenCalledWith(preparationHref(item.applicationId));
   });
 
@@ -252,6 +285,61 @@ describe("не мешают друг другу", () => {
     });
     await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     expect(sends(w)).toHaveLength(1);
+  });
+
+  it("студент ушёл с экрана, пока выбор в полёте: выбор доходит до конца, но страница программы из чужого места не открывается", async () => {
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const w = world({
+      student_select_catalog_intake_v1: async (args: Record<string, unknown> | undefined) => {
+        await gate;
+        w.state.selected = true;
+        return selectReceipt(item, args);
+      },
+    });
+    const view = await open(w);
+    await openProgram("cs-b");
+    await fireEvent.press(screen.getByTestId("program-add"));
+    await view.unmount(); // «Назад» со страницы вуза
+    await act(async () => {
+      release?.();
+    });
+    await waitFor(() => expect(w.calls.some((call) => call.name === "student_initialize_application_requirements_v1")).toBe(true), { timeout: 10_000 });
+    await waitFor(async () => expect(await AsyncStorage.getAllKeys()).toEqual([]));
+    await idle(1_200); // дольше запасного таймера перехода (900 мс)
+    expect(sends(w)).toHaveLength(1);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("окно программы закрыли, пока выбор в полёте: выбор доходит до конца, страница программы не открывается, у набора потом «Открыть»", async () => {
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const w = world({
+      student_select_catalog_intake_v1: async (args: Record<string, unknown> | undefined) => {
+        await gate;
+        w.state.selected = true;
+        return selectReceipt(item, args);
+      },
+    });
+    await open(w);
+    await openProgram("cs-b");
+    await fireEvent.press(screen.getByTestId("program-add"));
+    await fireEvent.press(screen.getByTestId("program-dialog-close"));
+    expect(screen.queryByTestId("program-dialog-title")).toBeNull();
+    const reads = () => w.calls.filter((call) => call.name === "student_university_detail_v1").length;
+    const before = reads();
+    await act(async () => {
+      release?.();
+    });
+    await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 10_000 }); // карточка вуза перечитана и без окна
+    await idle(1_200);
+    expect(router.push).not.toHaveBeenCalled();
+    await fireEvent.press(await screen.findByTestId("program-cs-b"));
+    expect(await screen.findByTestId("program-open")).toBeTruthy();
   });
 
   it("кэш кабинета с настоящими настройками: заявка в списке «Мои программы» перечитывается после добавления", async () => {

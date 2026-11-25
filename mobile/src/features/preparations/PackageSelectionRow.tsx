@@ -20,6 +20,7 @@ import { usePreparation } from "@/features/preparations/context";
 import { VersionRow } from "@/features/preparations/SavedVersions";
 import type { PackageStrings } from "@/features/preparations/package-strings";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -47,7 +48,7 @@ function NoneRow({ label, selected, disabled, onPress, testID }: { label: string
       testID={testID}
       style={{ minHeight: MIN_TARGET + 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: tokens.radiusItem, borderWidth: selected ? 2 : 1, borderColor: selected ? tokens.accent : tokens.controlEdge, backgroundColor: tokens.surface, opacity: disabled ? 0.6 : 1 }}
     >
-      <Text variant="body" tone="text2" bold={selected}>
+      <Text variant="body" tone="text2" bold={selected} style={{ flexShrink: 1 }}>
         {label}
       </Text>
       {selected ? <Check size={18} strokeWidth={2} color={tokens.accent} /> : null}
@@ -86,6 +87,8 @@ export function PackageSelectionRow({ item, state, selected, included, disabled,
       setCursor(page.nextCursor);
     } catch {
       setFailed(true);
+      // Роль «alert» на iPhone молчит: сбой нужно сказать читалке самим.
+      announce(t.unavailable);
     } finally {
       lock.current = false;
       setLoading(false);

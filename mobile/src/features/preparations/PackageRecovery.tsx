@@ -79,7 +79,7 @@ function RecoveryEntry({ scope, intent, strings: t, onSaved, historyLink }: { sc
   }
 
   async function run(checkOnly: boolean) {
-    if (lock.current || (!checkOnly && !files)) return;
+    if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setMessage(null);

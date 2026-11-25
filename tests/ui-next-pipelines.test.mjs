@@ -468,15 +468,18 @@ test("role preview of «Воронка продаж» answers with a quiet state
     /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });
 
-test("«Воронка продаж»: пустой поиск — одно состояние со «Сбросить поиск», лид не на доске — сказано, условие этапа — за «?»", async () => {
+test("«Воронка продаж»: пустой поиск по видимой доске с учётом фильтров, лид не на доске — сказано почему, замка у этапа нет", async () => {
   const wording = await import("../src/lib/v3/wording.ts");
-  assert.equal(wording.pipelineWords.noResults("QA"), "По запросу «QA» лидов нет");
-  const board = readFileSync(new URL("../src/components/staff/pipeline-next/PipelineBoardNext.tsx", import.meta.url), "utf8");
-  assert.match(board, /const noResults = query !== "" && leads\.length === 0;/u);
-  assert.match(board, /\{noResults \? \(/u);
-  assert.match(board, /href=\{href\(\{ q: null, lead: null \}\)\}/u);
-  assert.match(board, /const leadMissing = selectedId !== null && selected === null && !closedHere;/u);
-  const column = readFileSync(new URL("../src/components/staff/pipeline-next/PipelineColumn.tsx", import.meta.url), "utf8");
-  assert.match(column, /<HelpTip label=\{pipelineWords\.gateLabel\}>\{pipelineWords\.gate\}<\/HelpTip>/u);
+  assert.equal(wording.pipelineWords.noResults("QA", false), "По запросу «QA» лидов нет");
+  assert.equal(wording.pipelineWords.noResults("QA", true), "По запросу «QA» с выбранными фильтрами лидов нет");
+  assert.equal(wording.pipelineWords.resetSearch(true), "Сбросить поиск и фильтры");
+  const board = read("src/components/staff/pipeline-next/PipelineBoardNext.tsx");
+  assert.match(board, /const noResults = query !== "" && columns\.every\(\(column\) => column\.inStage\.length === 0\);/u);
+  assert.match(board, /const handedFound = noResults && filteredStage !== "handed_off" && leads\.some/u);
+  assert.match(board, /const resetHref = href\(\{ q: null, due: null, assignment: null, owner: null, lead: null \}\);/u);
+  assert.match(board, /\{readFiltered \? pipelineWords\.leadFiltered : pipelineWords\.leadMissing\}/u);
+  // Нынешняя передача — запись в «Отчёте продаж» (215), этап она не проверяет: значка «условий» у «Квалифицирован» нет.
+  const column = read("src/components/staff/pipeline-next/PipelineColumn.tsx");
+  assert.doesNotMatch(column, /marker=\{stage\.gate/u);
   assert.doesNotMatch(column, /title="Есть условия"/u);
 });

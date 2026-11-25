@@ -561,17 +561,15 @@ export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIP
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
 export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
 
-/**
- * «Воронка продаж» (чек-лист 23.11): пустой поиск, ссылка на лида, которого на доске нет, и условие этапа
- * «Квалифицирован» (вместо замка с подсказкой «Есть условия», которую не открыть с телефона и клавиатуры).
- */
+/** «Воронка продаж» (чек-лист 23.11): пустой поиск и ссылка на лида, которого на доске нет. */
 export const pipelineWords = {
-  noResults: (query: string) => `По запросу «${query}» лидов нет`,
-  resetSearch: "Сбросить поиск",
+  noResults: (query: string, filtered: boolean) => filtered ? `По запросу «${query}» с выбранными фильтрами лидов нет` : `По запросу «${query}» лидов нет`,
+  resetSearch: (filtered: boolean) => filtered ? "Сбросить поиск и фильтры" : "Сбросить поиск",
+  foundHanded: "Найдены среди переданных",
   leadMissing: "Лид не найден на доске — возможно, закрыт или передан.",
+  leadFiltered: "Лид не подходит под поиск или фильтры.",
   closedLink: "Закрытые",
-  gateLabel: "Пояснение: этап «Квалифицирован»",
-  gate: "Передать в поступление можно только с этого этапа. Договор и оплату проверяют при передаче.",
+  showAll: "Показать всю доску",
 } as const;
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);

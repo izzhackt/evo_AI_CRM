@@ -1,19 +1,18 @@
 import Link from "next/link";
 import type { MouseEvent } from "react";
 
-import { HelpTip } from "@/components/kit/HelpTip";
 import { BoardColumnCard } from "@/components/staff/board-next/BoardColumnCard";
 import { BOARD_EMPTY } from "@/components/staff/board/Board";
 import { LeadCardNext } from "@/components/staff/pipeline-next/LeadCardNext";
 import { HANDED_VISIBLE_LIMIT, leadDueWord, type StageColumn } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead } from "@/components/staff/pipeline-next/types";
 import { cn } from "@/lib/utils";
-import { pipelineWords } from "@/lib/v3/wording";
 
 const MORE_LINK = "flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg";
 
 /**
- * Колонка этапа: карточка набора (`BoardColumnCard`) с названием, числом и замком «Есть условия» у этапа с условиями. С фокусом на
+ * Колонка этапа: карточка набора (`BoardColumnCard`) с названием и числом. Замка «Есть условия» у «Квалифицирован» больше нет
+ * (25.11): он остался от передачи из карточки, а нынешняя передача — запись в «Отчёте продаж» (215) — этап не проверяет. С фокусом на
  * этапе карточки лежат сеткой (240 px и больше), иначе в колонку шириной с шестую часть страницы. У «Переданных» — последние
  * 20 и «Показать все N» (тот же адрес `?handed=all`, что у прежней доски).
  */
@@ -40,7 +39,6 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
         className={rows}
         title={stage.title}
         count={inStage.length}
-        marker={stage.gate ? <HelpTip label={pipelineWords.gateLabel}>{pipelineWords.gate}</HelpTip> : null}
       >
         <ul className={`flex flex-col gap-1.5 ${spread ? "@[43.75rem]:grid @[43.75rem]:grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] @[43.75rem]:content-start" : ""}`}>
           {visible.map((lead) => (

@@ -67,11 +67,16 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
     ...stages.map((stage) => ({ key: stage.key, label: stage.title, count: leads.filter((lead) => lead.stageKey === stage.key).length, href: href({ stage: stage.key, lead: null }) })),
   ];
   const closedHere = closed !== null && !closed.reopened && closed.receipt.leadId === last?.workflow.leadId;
-  // Поиск ничего не нашёл: одно пустое состояние вместо «Нет лидов» в каждой колонке (неясно было, пуста ли воронка).
+  // Поиск ничего не нашёл на видимой доске: одно пустое состояние вместо «Нет лидов» в каждой колонке. Сервер применяет поиск
+  // вместе со сроком, назначением и ответственным — если выбраны и они, так и сказано, а сброс снимает всё сразу.
   const query = search?.get("q")?.trim() ?? "";
-  const noResults = query !== "" && leads.length === 0;
-  // `?lead=` указывает на лида, которого на доске нет (закрыт, передан, старая ссылка из «Сегодня»): сказать, а не молчать.
+  const filtered = ["due", "assignment", "owner"].some((key) => { const value = search?.get(key)?.trim(); return Boolean(value) && value !== "all"; });
+  const noResults = query !== "" && columns.every((column) => column.inStage.length === 0);
+  const handedFound = noResults && filteredStage !== "handed_off" && leads.some((lead) => lead.stageKey === "handed_off");
+  const resetHref = href({ q: null, due: null, assignment: null, owner: null, lead: null });
+  // `?lead=` указывает на лида, которого на доске нет. С поиском или фильтрами он мог просто не подойти под них.
   const leadMissing = selectedId !== null && selected === null && !closedHere;
+  const readFiltered = query !== "" || filtered;
 
   useEffect(() => {
     if (closed) noticeRef.current?.focus();
@@ -110,14 +115,15 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
       <SectionTabs label="Этапы воронки" tabs={tabs} value={filteredStage} pinnedKey="handed_off" />
       {leadMissing ? (
         <p role="status" className="flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2" data-testid="v3-pipeline-lead-missing">
-          {pipelineWords.leadMissing}
-          <Link href={CLOSED_HREF} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.closedLink}</Link>
+          {readFiltered ? pipelineWords.leadFiltered : pipelineWords.leadMissing}
+          <Link href={readFiltered ? resetHref : CLOSED_HREF} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{readFiltered ? pipelineWords.showAll : pipelineWords.closedLink}</Link>
         </p>
       ) : null}
       {noResults ? (
         <div className="grid justify-items-start gap-2 py-6" data-testid="v3-pipeline-no-results">
-          <p role="status" className="t-body text-fg">{pipelineWords.noResults(query)}</p>
-          <Link href={href({ q: null, lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.resetSearch}</Link>
+          <p role="status" className="t-body text-fg">{pipelineWords.noResults(query, filtered)}</p>
+          {handedFound ? <Link href={href({ stage: "handed_off", lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.foundHanded}</Link> : null}
+          <Link href={filtered ? resetHref : href({ q: null, lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.resetSearch(filtered)}</Link>
         </div>
       ) : <div role="group" aria-label="Воронка продаж" data-testid="v3-pipeline-board" data-focus={filteredStage} style={style}
         className={filteredStage === "all" ? "grid min-w-0 gap-3 @[43.75rem]:grid-rows-[auto_1fr] @[43.75rem]:overflow-x-auto @[43.75rem]:[grid-template-columns:repeat(var(--board-cols),minmax(150px,1fr))]" : "grid min-w-0 gap-3"}>

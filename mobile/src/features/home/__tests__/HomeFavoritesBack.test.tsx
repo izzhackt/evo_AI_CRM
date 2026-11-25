@@ -15,7 +15,7 @@ jest.mock("expo-router", () => ({ router: { navigate: jest.fn(), push: jest.fn()
 jest.mock("expo-file-system", () => jest.requireActual("@/test-fixtures/memory-file-system").memoryFileSystem());
 // Фокус вкладки управляется из теста: общий упрощённый `useFocusEffect` из jest.setup.ts не умеет «ушла из фокуса».
 jest.mock("@/lib/focus", () => {
-  const { useEffect, useSyncExternalStore } = require("react");
+  const { useEffect, useSyncExternalStore } = jest.requireActual<typeof import("react")>("react");
   let focused = true;
   const listeners = new Set<() => void>();
   return {

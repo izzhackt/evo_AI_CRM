@@ -22,6 +22,26 @@ const navigate = router.navigate as jest.Mock;
 const uriOf = (node: { props: unknown }) => [(node.props as { source: { uri: string } | { uri: string }[] }).source].flat()[0].uri;
 const flat = (node: { props: { style?: unknown } }) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
 
+type JsonNode = { props?: { testID?: string }; children?: (JsonNode | string)[] | null };
+/** Есть ли в поддереве узел с таким `testID`. */
+function containsTestId(node: JsonNode | string, testID: string): boolean {
+  return typeof node !== "string" && (node.props?.testID === testID || (node.children ?? []).some((child) => containsTestId(child, testID)));
+}
+/** Самая глубокая колонка, у которой в разных детях лежат оба узла: общий предок двух элементов. */
+function columnOf(tree: unknown, first: string, second: string): JsonNode | null {
+  const roots = ([] as unknown[]).concat(tree) as JsonNode[];
+  for (const node of roots) {
+    const children = (node.children ?? []).filter((child): child is JsonNode => typeof child !== "string");
+    for (const child of children) {
+      const deeper = columnOf(child, first, second);
+      if (deeper) return deeper;
+    }
+    const holders = children.filter((child) => containsTestId(child, first) || containsTestId(child, second));
+    if (holders.length >= 2 && holders.some((child) => containsTestId(child, first)) && holders.some((child) => containsTestId(child, second))) return node;
+  }
+  return null;
+}
+
 beforeEach(async () => {
   jest.requireMock("expo-file-system").__files.clear(); // копия индекса каталога с диска не переходит между тестами
   await AsyncStorage.clear();
@@ -50,6 +70,33 @@ describe("шапка на фото столицы", () => {
     await fireEvent.press(line);
     expect(open).toHaveBeenCalledWith("https://commons.wikimedia.org/wiki/File:Test.jpg");
     open.mockRestore();
+  });
+
+  it("раскрытая подпись «©» не закрывает кнопки шапки: стоит в потоке под ними, а кнопка «©» лежит в углу", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("hero-photo", { includeHiddenElements: true });
+    // кнопка «©» - в правом нижнем углу шапки, в запасе под кнопками (нижний отступ шапки 52 pt, кнопка 44 pt)
+    const button = screen.getByTestId("hero-credit");
+    expect(flat(button)).toMatchObject({ position: "absolute", right: 2, bottom: 6, width: 44, height: 44 });
+    await fireEvent.press(button);
+    const text = screen.getByTestId("hero-credit-text");
+    // подпись не абсолютная и не лежит ни в одном абсолютном блоке до самой шапки: она в потоке, значит не поверх чего-либо
+    expect(flat(text).position).toBeUndefined();
+    for (let node = text.parent; node && node.props.testID !== "home-hero"; node = node.parent) {
+      expect((node.props.style as { position?: string } | undefined)?.position).not.toBe("absolute");
+    }
+    // и она идёт в колонке шапки ПОСЛЕ кнопок «Все шаги» / «Сменить страну»: ниже них, а не над ними
+    const column = columnOf(screen.toJSON(), "change-country", "hero-credit-text");
+    expect(column).not.toBeNull();
+    const children = column!.children as JsonNode[];
+    const at = (testID: string) => children.findIndex((child) => containsTestId(child, testID));
+    expect(at("hero-credit-text")).toBeGreaterThan(at("change-country"));
+    expect(at("change-country")).toBeGreaterThan(at("hero-countdown"));
+    // повторное нажатие сворачивает подпись, шапка возвращается к прежней высоте
+    await fireEvent.press(button);
+    expect(screen.queryByTestId("hero-credit-text")).toBeNull();
+    expect(screen.getByTestId("hero-credit").props.accessibilityState).toMatchObject({ expanded: false });
   });
 
   it("копия не загрузилась - оригинал; и он не загрузился - тёмная плашка без «©»", async () => {
@@ -98,6 +145,27 @@ describe("шапка на фото столицы", () => {
   });
 });
 
+describe("приветствие", () => {
+  it("два ряда, дальше шрифт ужимается, но не мельче 60%: длинное слово не рвётся посреди (QA, «Сопровождаемы / й» при крупном шрифте)", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const greeting = await screen.findByText("Здравствуйте, Тест Студентов");
+    expect(greeting.props.accessibilityRole).toBe("header");
+    expect(greeting.props.numberOfLines).toBe(2);
+    expect(greeting.props.adjustsFontSizeToFit).toBe(true);
+    expect(greeting.props.minimumFontScale).toBe(0.6);
+    // шрифт системы растёт не больше, чем на 20%: заголовок не вытесняет остальную шапку
+    expect(greeting.props.maxFontSizeMultiplier).toBe(1.2);
+  });
+
+  it("у тёмной плашки без страны приветствие устроено так же", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY", { student_country_choice_v1: { country: null, source: "none", savedAt: null } }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const greeting = await screen.findByText("Здравствуйте, Тест Студентов");
+    expect(greeting.props).toMatchObject({ numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.6, maxFontSizeMultiplier: 1.2 });
+  });
+});
+
 describe("отсчёт до ближайшей даты", () => {
   it("число дней, «дней до 12 сент.» и само дело; вся плашка ведёт к делу", async () => {
     const { transport } = fakeTransport(homeHandlers("MY"));
@@ -134,6 +202,37 @@ describe("отсчёт до ближайшей даты", () => {
     expect(flat(screen.getByTestId("hero-countdown-big", { includeHiddenElements: true })).backgroundColor).toBe(lightTokens.brandRed);
     await fireEvent.press(count);
     expect(navigate).toHaveBeenCalledWith("/documents");
+  });
+
+  // QA 25.11.2026: слово «Просрочено» рисовалось размером числа (44 pt) и занимало три четверти строки, число - размером слова.
+  it.each([
+    ["2026-09-08T05:00:00Z", "4", lightTokens.sizeDisplay * 1.375, lightTokens.sizeDisplay * 1.375], // число: крупно, интерлиньяж 1
+    ["2026-09-12T02:00:00Z", "Сегодня", lightTokens.sizeTitle, lightTokens.sizeTitle * 1.2],
+    ["2026-09-11T05:00:00Z", "Завтра", lightTokens.sizeTitle, lightTokens.sizeTitle * 1.2],
+    ["2026-09-20T05:00:00Z", "Просрочено", lightTokens.sizeTitle, lightTokens.sizeTitle * 1.2],
+  ])("при «сегодня» %s «%s» набрано размером %s, интерлиньяж %s: слово мельче числа", async (today, text, fontSize, lineHeight) => {
+    moveNow(today);
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("hero-countdown");
+    const big = within(screen.getByTestId("hero-countdown-big", { includeHiddenElements: true })).getByText(text, { includeHiddenElements: true });
+    expect(flat(big)).toMatchObject({ fontSize, lineHeight });
+    // система не раздувает ни число, ни слово больше, чем на 20%: иначе при крупном шрифте плашка выходит за шапку
+    expect(big.props.maxFontSizeMultiplier).toBe(1.2);
+    expect(big.props.numberOfLines).toBeUndefined(); // «Просрочено» не обрезается
+  });
+
+  it("строка отсчёта переносится: дата и дело остаются рядом с числом, пока им хватает 180 pt, иначе уходят строкой ниже на всю ширину", async () => {
+    moveNow("2026-09-20T05:00:00Z"); // просрочено: самая широкая плашка
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const count = await screen.findByTestId("hero-countdown");
+    expect(flat(count)).toMatchObject({ flexDirection: "row", flexWrap: "wrap", columnGap: 10 });
+    const text = screen.getByTestId("hero-countdown-text", { includeHiddenElements: true });
+    // столбец подписи растёт на остаток строки, сжимается и не требует меньше 180 pt; нулевой минимум - чтобы название не распирало шапку
+    expect(flat(text)).toMatchObject({ flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0 });
+    // название дела в одну строку с многоточием (как на вебе), дата - над ним
+    expect(within(text).getByText("Замените документ: Паспорт", { includeHiddenElements: true }).props.numberOfLines).toBe(1);
   });
 
   it("дат на 60 дней нет - отсчёта нет", async () => {

@@ -23,6 +23,19 @@ import { Text } from "@/ui/Text";
 /** Подложка под текстом на фото: на узкой шапке она ровная (`.pt-journey-head[data-hero] .pt-journey-photo::after`, ≤640 px). */
 const PHOTO_SCRIM = "rgba(20,16,12,0.76)";
 
+/** Во сколько раз системный шрифт может увеличить число и слово отсчёта: как приветствие шапки (`display`, 1.2). */
+const BIG_MAX_SCALE = 1.2;
+/**
+ * Ширина, с которой подпись отсчёта («дней до 25 сент.» и дело) остаётся рядом с числом или словом; уже - переносится строкой
+ * ниже. Красная плашка «Просрочено» (24, жирный, поля по 12) занимает около 160 pt из 335 pt ширины шапки на телефоне: рядом с ней
+ * подписи оставалось бы около 170 pt, и название дела обрезалось бы на 18 знаках. Поэтому плашка стоит на своей строке, а дата и
+ * дело идут под ней на всю ширину; число дней («24») и слова без плашки («Сегодня», «Завтра») остаются в одной строке с подписью.
+ */
+const COUNT_TEXT_BASIS = 180;
+/** Приветствие занимает не больше двух строк: дальше шрифт ужимается (не мельче 60%, около 19 pt при 32), а слово не рвётся посреди. */
+const GREETING_LINES = 2;
+const GREETING_MIN_SCALE = 0.6;
+
 /** `rgb(255 255 255 / 0.05)` из токенов -> строка, понятная RN. */
 function markColor(value: string): string {
   const match = /^rgb\((\d+)\s+(\d+)\s+(\d+)\s*\/\s*([\d.]+)\)$/.exec(value);
@@ -50,16 +63,22 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
   const when = countdown ? countdownWhen(countdown, lang, home) : null;
   const soft = onPhoto ? tokens.heroInk : tokens.heroMuted;
   // Число дней - главное в отсчёте (веб, 19.11.2026): вдвое крупнее прежнего; на узкой шапке 1.375 размера заголовка.
-  // «Сегодня», «Завтра» и «Просрочено» стоят на месте числа и мельче (`data-word`).
-  const bigSize = when?.word ? tokens.sizeTitle : tokens.sizeDisplay * 1.375;
+  // «Сегодня», «Завтра» и «Просрочено» стоят на месте числа и мельче (`data-word`). У числа `when.word` - единица («дня», «дней»),
+  // у слова он пуст: условие было перевёрнуто, слово «Просрочено» рисовалось в 44 pt и занимало три четверти строки, число - в 24.
+  const bigIsWord = when !== null && !when.word;
+  const bigSize = bigIsWord ? tokens.sizeTitle : tokens.sizeDisplay * 1.375;
 
   return (
     <View style={{ gap: 14 }}>
       <View style={{ gap: 8 }}>
         {/* Заголовок «Главной»: display, вес 700, трекинг -0.02em, интерлиньяж 1.15 (`.pt-home-hero-title`). */}
+        {/* Два ряда, дальше шрифт ужимается: при крупном шрифте системы длинное слово («Сопровождаемый») не рвётся посреди. */}
         <Text
           variant="display"
           maxFontSizeMultiplier={1.2}
+          numberOfLines={GREETING_LINES}
+          adjustsFontSizeToFit
+          minimumFontScale={GREETING_MIN_SCALE}
           accessibilityRole="header"
           style={{ color: tokens.heroInk, fontFamily: sansFont("bold"), lineHeight: tokens.sizeDisplay * 1.15, letterSpacing: -0.02 * tokens.sizeDisplay }}
         >
@@ -81,11 +100,15 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
           })}
           onPress={() => goStamped(countdown.href)}
           testID="hero-countdown"
+          // Строка переносится: при крупном шрифте системы и в кыргызском («Мөөнөтү өттү») подпись уходит под число, а не
+          // сжимается в узкий столбец (веб: сетка `auto minmax(0, 1fr)` внутри шапки, текст там масштабируется масштабом страницы).
           style={({ pressed }) => ({
             minHeight: MIN_TARGET,
             flexDirection: "row",
+            flexWrap: "wrap",
             alignItems: "baseline",
-            gap: 10,
+            columnGap: 10,
+            rowGap: 2,
             paddingTop: 14,
             borderTopWidth: 1,
             borderTopColor: tokens.heroLine,
@@ -99,11 +122,15 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
             style={countdown.overdue ? { paddingHorizontal: 12, paddingVertical: 4, borderRadius: tokens.radiusItem, backgroundColor: tokens.brandRed } : undefined}
           >
             <Text
+              // Крупное число (44) и слово («Просрочено», 24) растут вместе с шрифтом системы не больше, чем заголовок шапки:
+              // читалка и так слышит всю фразу (метка плашки), а видимый ряд не должен выходить за ширину шапки.
+              maxFontSizeMultiplier={BIG_MAX_SCALE}
               style={{
                 color: tokens.heroInk,
                 fontFamily: sansFont("bold"),
                 fontSize: bigSize,
-                lineHeight: when.word ? bigSize * 1.2 : bigSize,
+                // Слову (кириллица с выносными «р», «у», «д») нужен запас снизу, числу нет.
+                lineHeight: bigIsWord ? bigSize * 1.2 : bigSize,
                 fontVariant: ["tabular-nums"],
                 letterSpacing: -0.03 * bigSize,
               }}
@@ -111,7 +138,7 @@ export function HeroContent({ displayName, studyCountry, intake, countdown, onPh
               {when.big}
             </Text>
           </View>
-          <View style={{ flex: 1, gap: 2 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: COUNT_TEXT_BASIS, minWidth: 0, gap: 2 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="hero-countdown-text">
             <Text variant="secondary" style={{ color: soft, fontFamily: sansFont("medium") }}>
               {when.word ? format(home.heroCountdownLine, { word: when.word, date: homeDayMonth(countdown.day, lang) }) : homeDayMonth(countdown.day, lang)}
             </Text>
@@ -212,19 +239,27 @@ export function HeroPhotoLayer({ urls, onFailed }: { urls: PhotoUrls; onFailed: 
   );
 }
 
-/** «©» в нижнем углу шапки: автор, источник и лицензия по нажатию (PhotoRights, веб; сверху справа стоит отсчёт). */
+/**
+ * «©» в нижнем углу шапки: автор, источник и лицензия по нажатию (PhotoRights, веб; сверху справа стоит отсчёт).
+ *
+ * Кнопка лежит в углу, в запасе под кнопками шапки (нижний отступ 52 pt). Подпись, раскрытая по нажатию, стоит в потоке шапки под
+ * её кнопками, а не всплывает над «©» поверх них: шапка на время вырастает на высоту подписи, и подпись никогда не закрывает
+ * «Сменить страну» и «Все шаги» (QA 25.11.2026: поверх них она ложилась). Компонент стоит последним в колонке содержимого шапки,
+ * поэтому правый и нижний край колонки - край шапки.
+ */
 export function HeroCredit({ credit }: { credit: PhotoCreditView }) {
   const { t, m } = useLang();
   const strings = t("universities");
   const [shown, setShown] = useState(false);
   return (
-    <View style={{ position: "absolute", right: 2, bottom: 6, alignItems: "flex-end", maxWidth: "92%" }} pointerEvents="box-none">
+    <>
       {shown ? (
         <Pressable
           accessibilityRole="link"
           onPress={() => void Linking.openURL(credit.sourceUrl).catch(() => undefined)}
           testID="hero-credit-text"
-          style={{ marginRight: 8, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" }}
+          // Правый край подписи на одной линии с кружком «©»: колонка содержимого отступает на 16, кружок - на 10.
+          style={{ alignSelf: "flex-end", marginRight: -6, maxWidth: 260, minHeight: MIN_TARGET, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(20,16,12,0.86)" }}
         >
           <Text variant="caption" style={{ color: "#ffffff", textDecorationLine: "underline" }}>
             {creditLine(credit, strings)}
@@ -237,7 +272,7 @@ export function HeroCredit({ credit }: { credit: PhotoCreditView }) {
         accessibilityState={{ expanded: shown }}
         onPress={() => setShown((value) => !value)}
         testID="hero-credit"
-        style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}
+        style={{ position: "absolute", right: 2, bottom: 6, width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}
       >
         <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: shown ? "rgba(20,16,12,0.86)" : "rgba(20,16,12,0.55)" }}>
           <Text variant="secondary" style={{ color: "#ffffff", lineHeight: 16 }}>
@@ -245,6 +280,6 @@ export function HeroCredit({ credit }: { credit: PhotoCreditView }) {
           </Text>
         </View>
       </Pressable>
-    </View>
+    </>
   );
 }

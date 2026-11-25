@@ -216,6 +216,64 @@ describe("«Шаг N из M» ведёт к текущему шагу", () => {
   });
 });
 
+describe("«Свернуть» возвращает экран к карточке пути", () => {
+  // QA 25.11.2026: «Свернуть» на закреплённой строке глубоко в пути оставляло прежний сдвиг прокрутки, и экран оказывался на ~1500 pt
+  // ниже карточки: шаги под строкой пропали, а сдвиг остался.
+  /** Сообщить карточке пути её место на экране: до того, как путь отрисован, на её месте стоит плашка без `onLayout`. */
+  async function placeCard(y: number) {
+    await screen.findByTestId("journey");
+    await fireEvent(screen.getByTestId("home-screen"), "layout", layout(420, y));
+  }
+
+  it("свернули - экран сразу, без анимации, встаёт на верх карточки пути; раскрытие экран не двигает", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await placeCard(24);
+    await fireEvent.press(await screen.findByTestId("journey-fold")); // раскрыли весь путь
+    await screen.findByTestId("journey-body");
+    expect(scrollTo).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId("journey-fold")); // свернули со строки шага
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ y: 24, animated: false });
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    // и снова раскрыли: прокрутки нет
+    scrollTo.mockClear();
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("карточка у самого верха или чуть выше (минус от раскладки) - не уходит в минус", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await placeCard(-3);
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+  });
+
+  it("место карточки ещё не известно (раскладки не было): путь сворачивается без прокрутки", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("«Свернуть» в шапке (без строки шага, approved) тоже возвращает к карточке", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport, { tier: "approved" }));
+    await placeCard(8);
+    await fireEvent.press(await screen.findByTestId("journey-fold"));
+    await screen.findByTestId("journey-body");
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 8, animated: false });
+  });
+});
+
 describe("блоки входят по очереди", () => {
   it("дело, даты, «Мой список», «Что нового», CSCA - с шагом stagger; задача EVO не входит; блок скрыт до своей очереди", async () => {
     setReducedMotionForTests(false);

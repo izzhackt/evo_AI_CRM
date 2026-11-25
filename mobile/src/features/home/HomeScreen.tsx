@@ -120,6 +120,11 @@ export function HomeScreen() {
     initiallyUnfolded: pathOpen,
     unfoldStamp,
     scrollTo: scrollToY,
+    // Свернули путь, стоя глубоко в нём: к верху карточки пути сразу, без анимации (место карточки известно после её раскладки).
+    scrollToCard: () => {
+      const y = offsets.current.path;
+      if (y !== undefined) scroller.current?.scrollTo({ y: Math.max(0, y), animated: false });
+    },
   });
   const country = choiceData?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, lang) : null;

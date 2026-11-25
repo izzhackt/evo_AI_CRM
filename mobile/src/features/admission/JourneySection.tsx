@@ -122,6 +122,7 @@ export function useJourney({
   initiallyUnfolded = false,
   unfoldStamp = "",
   scrollTo,
+  scrollToCard,
 }: {
   view: CountryTimelineView | null;
   progress: Readonly<Record<string, TimelineStepProgress>> | null;
@@ -132,6 +133,8 @@ export function useJourney({
   /** Метка запроса «раскрыть» (`at` ссылки): новая метка раскрывает путь снова, даже если студент его свернул. */
   unfoldStamp?: string;
   scrollTo?: (y: number) => void;
+  /** Мгновенный возврат экрана к верху карточки пути: нужен, когда путь сворачивают, стоя глубоко в нём (см. `toggleFold`). */
+  scrollToCard?: () => void;
 }) {
   const { userKey } = usePortalApi();
   const { open, toggle } = useOpenSteps(view, userKey);
@@ -164,6 +167,14 @@ export function useJourney({
     [scrollTo],
   );
 
+  // «Свернуть» с закреплённой строки, когда студент глубоко в пути: шаги под строкой пропадают, а положение прокрутки остаётся и
+  // уносит экран на сотни пунктов ниже карточки пути (QA 25.11.2026: на ~1500 pt). Поэтому при сворачивании экран сначала
+  // возвращается к верху карточки: мгновенно, без анимации (содержимое меняется в тот же момент), и раскрытие его не двигает.
+  const toggleFold = () => {
+    if (!folded) scrollToCard?.();
+    setFolded(!folded);
+  };
+
   const jumpToCurrent = () => {
     if (!currentStep) return;
     const id = currentStep.id;
@@ -184,6 +195,7 @@ export function useJourney({
     toggle,
     folded,
     setFolded,
+    toggleFold,
     pickerOpen,
     setPickerOpen,
     showDone,
@@ -254,13 +266,13 @@ function FoldButton({ journey, onHero }: { journey: Journey; onHero: boolean }) 
   const { tokens } = useTheme();
   const { t } = useLang();
   const timeline = t("timeline");
-  const { folded, setFolded } = journey;
+  const { folded, toggleFold } = journey;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ expanded: !folded }}
       accessibilityLabel={folded ? timeline.showSteps : timeline.hideSteps}
-      onPress={() => setFolded(!folded)}
+      onPress={toggleFold}
       testID="journey-fold"
       style={({ pressed }) => ({
         minHeight: MIN_TARGET,
@@ -362,8 +374,9 @@ export function JourneyHead({
               </Text>
             </Pressable>
           </View>
+          {/* Последней в колонке: раскрытая подпись встаёт под кнопками и не закрывает их, кнопка «©» лежит в углу шапки. */}
+          {shownPhoto ? <HeroCredit credit={shownPhoto.credit} /> : null}
         </View>
-        {shownPhoto ? <HeroCredit credit={shownPhoto.credit} /> : null}
       </View>
       {showExtras ? (
         <View style={{ gap: 12, paddingHorizontal: 16, paddingTop: 16, paddingBottom: edge === "only" ? 20 : 0 }}>

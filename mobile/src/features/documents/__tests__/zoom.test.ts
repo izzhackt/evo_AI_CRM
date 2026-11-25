@@ -332,3 +332,61 @@ describe("ZoomController: смена размеров", () => {
     expect(next.scale).toBe(clamped.scale);
   });
 });
+
+// Двойное касание так, как оно приходит от платформы: каждое касание - отдельный захват ответчика (захват, начало, конец без
+// пальцев, отпускание), между касаниями ответчик свободен, а автомат живёт дальше. Окно двойного касания меряется как у
+// платформы (Android: `getDoubleTapTimeout()`, 300 мс) - от отпускания первого касания до НАЧАЛА второго, а не от отпускания
+// до отпускания: иначе окно съедает длительность второго касания (у живого пальца 40-250 мс).
+describe("двойное касание: окно от отпускания первого до начала второго", () => {
+  const T = (x: number, y: number): Touch => ({ x, y });
+  type Pair = Readonly<{ press1: number; gap: number; press2: number; shift?: number }>;
+
+  /** Два отдельных касания по центру 1000 x 1000; возвращает масштаб после второго отпускания. */
+  function scaleAfter({ press1, gap, press2, shift = 0 }: Pair): number {
+    const controller = new ZoomController({ width: 1000, height: 1000 }, { width: 1000, height: 1000 }, { onView: () => undefined, onStep: () => undefined });
+    const tap = (point: Touch, down: number, up: number) => {
+      controller.grant([point], down);
+      controller.move([point]); // начало
+      controller.move([]); // конец: пальцев не осталось
+      controller.release(up);
+    };
+    tap(T(500, 500), 1000, 1000 + press1);
+    const second = 1000 + press1 + gap;
+    tap(T(500 + shift, 500), second, second + press2);
+    return controller.getView().scale;
+  }
+
+  it("касания живого пальца (нажатие 40-250 мс, пауза 50-300 мс, до 40 pt в сторону) - двойное касание, в любом сочетании", () => {
+    const failed: Pair[] = [];
+    for (const press1 of [40, 90, 250]) {
+      for (const press2 of [40, 90, 250]) {
+        for (const gap of [50, 150, 250, 300]) {
+          for (const shift of [0, 25, 40]) {
+            const pair = { press1, gap, press2, shift };
+            if (scaleAfter(pair) !== DOUBLE_TAP_SCALE) failed.push(pair);
+          }
+        }
+      }
+    }
+    expect(failed).toEqual([]);
+  });
+
+  it("не двойное: пауза дольше 300 мс (в том числе пауза двойного касания Maestro, 0,4-0,65 с), сдвиг дальше 40 pt, долгое нажатие", () => {
+    const notDouble: Pair[] = [
+      { press1: 90, gap: 301, press2: 90 },
+      { press1: 40, gap: 410, press2: 40 },
+      { press1: 40, gap: 640, press2: 40 },
+      { press1: 90, gap: 150, press2: 90, shift: 41 },
+      { press1: 301, gap: 50, press2: 90 },
+      { press1: 90, gap: 50, press2: 301 },
+    ];
+    const zoomed = notDouble.filter((pair) => scaleAfter(pair) === DOUBLE_TAP_SCALE);
+    expect(zoomed).toEqual([]);
+  });
+
+  it("пауза считается до начала второго касания: нажатие 120 мс и пауза 250 мс - двойное, хотя от отпускания до отпускания 370 мс", () => {
+    expect(scaleAfter({ press1: 90, gap: 250, press2: 120 })).toBe(DOUBLE_TAP_SCALE);
+    // а пауза 310 мс - нет, как бы коротко ни было второе нажатие
+    expect(scaleAfter({ press1: 90, gap: 310, press2: 40 })).toBe(1);
+  });
+});

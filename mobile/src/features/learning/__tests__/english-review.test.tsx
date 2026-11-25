@@ -1,6 +1,8 @@
-// «Повторение ошибок» (G53, G54): модуль из ссылки, проверка ответа сразу сервером, вердикт и номер задания слышит читалка,
-// «Далее» прокручивает наверх. Чтения идут по настоящему пути приложения на поддельном транспорте; данные синтетические.
+// «Повторение ошибок» как на сайте (G53, G54 и ревью #1567): модуль из ссылки, проверка ответа сразу сервером, вместо формы формулировка
+// и разбор, вердикт и номер задания слышит читалка, «Далее» прокручивает наверх, четыре кода ошибки сайта, пустой банк со значком,
+// «Разобрано: N из M» и «Все уроки». Чтения идут по настоящему пути приложения на поддельном транспорте; данные синтетические.
 import { fireEvent, screen } from "@testing-library/react-native";
+import { router } from "expo-router";
 import { AccessibilityInfo, ScrollView } from "react-native";
 
 import { EnglishReviewScreen } from "@/features/learning/english/EnglishReviewScreen";
@@ -14,7 +16,10 @@ jest.mock("expo-router", () => ({
 }));
 
 const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
-beforeEach(() => scrollTo.mockClear());
+beforeEach(() => {
+  scrollTo.mockClear();
+  jest.mocked(router.navigate).mockClear();
+});
 
 const check = (args: Record<string, unknown> | undefined) => {
   const correct = (args?.p_answer as { selected?: string })?.selected === "b";
@@ -25,7 +30,7 @@ describe("повторение ошибок", () => {
   it("модуль из ссылки: банк читается по нему, список модулей не нужен; без ссылки берётся первый модуль", async () => {
     const withLink = fakeTransport({ learning_review_v1: reviewItems(1, 2) });
     await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(withLink.transport));
-    expect(await screen.findByText(/Урок 1 · Задание 1 из 2/)).toBeTruthy();
+    expect(await screen.findByTestId("english-review-counter")).toHaveTextContent("Задание 1 из 2 · Урок 1");
     expect(withLink.calls.find((c) => c.name === "learning_review_v1")?.args).toMatchObject({ p_module_id: MODULE_ID });
     expect(withLink.calls.some((c) => c.name === "learning_modules_v1")).toBe(false);
   });
@@ -33,18 +38,28 @@ describe("повторение ошибок", () => {
   it("без ссылки: первый модуль, как на сайте", async () => {
     const fake = fakeTransport({ learning_modules_v1: modulesFixture([{ n: 1 }]), learning_review_v1: reviewItems(1, 1) });
     await renderPortal(<EnglishReviewScreen />, testApi(fake.transport));
-    expect(await screen.findByText(/Урок 1 · Задание 1 из 1/)).toBeTruthy();
+    expect(await screen.findByTestId("english-review-counter")).toHaveTextContent("Задание 1 из 1 · Урок 1");
     expect(fake.calls.find((c) => c.name === "learning_review_v1")?.args).toMatchObject({ p_module_id: MODULE_ID });
   });
 
-  it("проверка ответа: вердикт и разбор, читалка слышит вердикт; «Далее» называет следующее задание и прокручивает наверх", async () => {
+  it("счётчик идёт первым, затем «Урок N» (порядок сайта: «Задание 1 из 5 · Урок 3»)", async () => {
+    const fake = fakeTransport({ learning_review_v1: reviewItems(3, 2) });
+    await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
+    expect(await screen.findByTestId("english-review-counter")).toHaveTextContent("Задание 1 из 2 · Урок 3");
+  });
+
+  it("проверка ответа: вместо формы формулировка и разбор, читалка слышит вердикт; «Далее» называет следующее задание и прокручивает наверх", async () => {
     const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
     const fake = fakeTransport({ learning_review_v1: reviewItems(1, 2), learning_review_check_v1: check });
     await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
     await screen.findByTestId("english-review-check");
+    // Первое задание при загрузке банка вслух не называется (счётчик «1 из 0» стал «1 из 2»), называются только переходы.
+    expect(announce).not.toHaveBeenCalledWith("Задание 1 из 2");
     await fireEvent.press(screen.getByTestId("opt-a"));
     await fireEvent.press(screen.getByTestId("english-review-check"));
     expect(await screen.findByTestId("explain-panel")).toBeTruthy();
+    expect(screen.queryByTestId("opt-a")).toBeNull();
+    expect(screen.getByTestId("english-review-prompt")).toHaveTextContent("Pick the right word 1.");
     expect(screen.getByTestId("verdict")).toHaveTextContent("Неверно");
     expect(announce).toHaveBeenCalledWith("Неверно");
     expect(fake.calls.find((c) => c.name === "learning_review_check_v1")?.args).toMatchObject({ p_exercise_id: exerciseId(1, 1), p_answer: { selected: "a" } });
@@ -52,20 +67,35 @@ describe("повторение ошибок", () => {
     await fireEvent.press(screen.getByTestId("english-review-next"));
     expect(announce).toHaveBeenCalledWith("Задание 2 из 2");
     expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
-    expect(screen.getByText(/Урок 1 · Задание 2 из 2/)).toBeTruthy();
+    expect(screen.getByTestId("english-review-counter")).toHaveTextContent("Задание 2 из 2 · Урок 1");
     announce.mockRestore();
   });
 
-  it("банк пуст: «Повторять пока нечего»", async () => {
+  it("разобрали всё: «Разобрано: 1 из 1» и «Все уроки» (на сайте так, раньше кнопка называлась «К урокам»)", async () => {
+    const fake = fakeTransport({ learning_review_v1: reviewItems(1, 1), learning_review_check_v1: check });
+    await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
+    await fireEvent.press(await screen.findByTestId("opt-b"));
+    await fireEvent.press(screen.getByTestId("english-review-check"));
+    await fireEvent.press(await screen.findByTestId("english-review-next"));
+    expect(await screen.findByTestId("english-review-done")).toHaveTextContent("Разобрано: 1 из 1");
+    expect(screen.getByTestId("english-review-back")).toHaveTextContent("Все уроки");
+    await fireEvent.press(screen.getByTestId("english-review-back"));
+    expect(router.navigate).toHaveBeenCalledWith("/english");
+  });
+
+  it("банк пуст: значок, «Повторять пока нечего», пояснение и «К урокам», как на сайте", async () => {
     const fake = fakeTransport({ learning_review_v1: reviewItems(1, 0) });
     await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
-    expect(await screen.findByTestId("english-review-empty")).toHaveTextContent("Повторять пока нечего");
+    expect(await screen.findByTestId("english-review-empty")).toHaveTextContent(/Повторять пока нечего/);
+    expect(screen.getByText("Здесь появятся задания, решённые с ошибкой в завершённых уроках.")).toBeTruthy();
+    expect(screen.getByTestId("english-review-empty-action")).toHaveTextContent("К урокам");
+    expect(screen.queryByTestId("english-review-done")).toBeNull();
   });
 
   it("модулей нет вовсе: «Повторять пока нечего», а не вечная загрузка", async () => {
     const fake = fakeTransport({ learning_modules_v1: { modules: [] } });
     await renderPortal(<EnglishReviewScreen />, testApi(fake.transport));
-    expect(await screen.findByTestId("english-review-empty")).toHaveTextContent("Повторять пока нечего");
+    expect(await screen.findByTestId("english-review-empty")).toHaveTextContent(/Повторять пока нечего/);
     expect(fake.calls.some((c) => c.name === "learning_review_v1")).toBe(false);
   });
 
@@ -73,5 +103,32 @@ describe("повторение ошибок", () => {
     const fake = fakeTransport({ learning_review_v1: failure(null, 0) });
     await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
     expect(await screen.findByText("Повторить")).toBeTruthy();
+  });
+
+  it.each([
+    ["доступ закрыт", failure("42501", 403), "Урок недоступен. Войдите в кабинет заново."],
+    ["конфликт", failure("40001", 409), "Попытка изменилась в другой вкладке. Загрузите сохранённую попытку."],
+    ["не принято", failure("22023", 400), "Ответ не принят. Проверьте заполнение и повторите."],
+    ["нет подтверждения", failure(null, 0), "Не удалось подтвердить сохранение. Ответ остался на экране — повторите."],
+  ])("проверка не удалась (%s): текст по коду, как у четырёх кодов сайта", async (_name, reply, text) => {
+    const fake = fakeTransport({ learning_review_v1: reviewItems(1, 1), learning_review_check_v1: reply });
+    await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
+    await fireEvent.press(await screen.findByTestId("opt-b"));
+    await fireEvent.press(screen.getByTestId("english-review-check"));
+    expect(await screen.findByTestId("english-review-error")).toHaveTextContent(text);
+    // Форма остаётся: ответ можно проверить ещё раз.
+    expect(screen.getByTestId("opt-b")).toBeTruthy();
+  });
+
+  it("пока идёт проверка: кнопка называется «Сохраняем…» для читалки (общая кнопка прячет подпись при busy)", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const fake = fakeTransport({ learning_review_v1: reviewItems(1, 1), learning_review_check_v1: async (args: Record<string, unknown> | undefined) => (await gate, check(args)) });
+    await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
+    await fireEvent.press(await screen.findByTestId("opt-b"));
+    await fireEvent.press(screen.getByTestId("english-review-check"));
+    expect(await screen.findByLabelText("Сохраняем…")).toBeTruthy();
+    release();
+    expect(await screen.findByTestId("explain-panel")).toBeTruthy();
   });
 });

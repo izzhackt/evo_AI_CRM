@@ -39,7 +39,7 @@ export function LessonCompletion({ view, state, onReview, onRepeat, onBack }: { 
         <Text variant="body">{wrong === 0 ? e.completionNoMistakes : format(e.completionMistakes, { count: String(wrong) })}</Text>
         <View style={{ gap: 8 }}>
           {wrong > 0 ? <Button label={e.reviewEntry} onPress={onReview} testID="english-review-open" /> : null}
-          <Button variant="ghost" label={e.repeatLesson} busy={state.busy} onPress={onRepeat} testID="english-repeat" />
+          <Button variant="ghost" label={state.busy ? e.saving : e.repeatLesson} accessibilityLabel={state.busy ? e.saving : e.repeatLesson} busy={state.busy} onPress={onRepeat} testID="english-repeat" />
           <Button variant="ghost" label={e.backToModule} onPress={onBack} testID="english-back-module" />
         </View>
       </Card>

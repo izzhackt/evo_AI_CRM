@@ -1,6 +1,7 @@
-// Урок английского как на сайте (`lesson/[lessonId]/page.tsx`, `LessonRunner.tsx`): фото темы сверху, затем «Перед началом» (цель
-// и объяснение, кнопка «Начать урок» или «Продолжить»), только после неё задания по одному (ответ финален, разбор сразу) и итог.
-// Пройденный урок открывается сразу на итоге. Запись через EnglishSession (замороженные запросы).
+// Урок английского как на сайте (`lesson/[lessonId]/page.tsx`, `LessonRunner.tsx`): ссылка «Все уроки», фото темы, заголовок «Урок N.
+// Название», затем «Перед началом» (цель и объяснение, кнопка «Начать урок» или «Продолжить»), только после неё задания по одному
+// (ответ финален, после него вместо формы формулировка и разбор) и итог. Пройденный урок открывается сразу на итоге.
+// Запись через EnglishSession (замороженные запросы).
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -10,14 +11,16 @@ import type { LearningLessonView } from "@web/lib/portal/learning";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
+import { englishErrorText } from "@/features/learning/english/error-text";
 import { EnglishSession, type EnglishRunState } from "@/features/learning/english/english-session";
 import { ExerciseForm, ExplainPanel } from "@/features/learning/english/ExerciseForm";
-import { emptyExerciseValue, exerciseValueComplete, exerciseValueToAnswer, type ExerciseValue } from "@/features/learning/english/exercise-value";
+import { emptyExerciseValue, exerciseValueComplete, exercisePrompt, exerciseValueToAnswer, type ExerciseValue } from "@/features/learning/english/exercise-value";
+import { ExerciseMeter, type MeterState } from "@/features/learning/english/ExerciseMeter";
 import { LessonHero } from "@/features/learning/english/LessonCover";
 import { LessonCompletion } from "@/features/learning/english/LessonCompletion";
 import { LessonPage } from "@/features/learning/english/LessonPage";
 import { useEnglishLesson } from "@/features/learning/queries-english";
-import { SegmentBar, SubHeader, useBack } from "@/features/learning/ui";
+import { SubHeader, useBack } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
@@ -26,14 +29,14 @@ import { CardSkeleton, InlineAlert } from "@/ui/CardParts";
 import { Card, type ScrollTarget } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
-/** Плашка ошибки, строящая плашку для действия, которое упало: «Повторить» после обрыва, «Загрузить сохранённую попытку» после конфликта. */
-type RenderAlert = (retry: () => void) => ReactNode;
+/** Плашка ошибки для действия, которое упало: «Повторить» после обрыва, «Загрузить сохранённую попытку» после конфликта. */
+type RenderAlert = (retry: () => void, reload?: () => void) => ReactNode;
 
-/** Ошибка записи словами сайта. */
+/** Ошибка записи словами сайта (четыре кода веба). */
 function LessonAlert({ state, onReload, onRetry }: { state: EnglishRunState; onReload: () => void; onRetry: () => void }) {
   const { t } = useLang();
   const e = t("english");
-  const text = state.error ? (({ conflict: e.errorConflict, denied: e.errorDenied, unavailable: e.errorUnavailable, already_answered: e.errorConflict } as Record<string, string>)[state.error] ?? e.errorInvalid) : "";
+  const text = state.error ? englishErrorText(e, state.error) : "";
   // На iPhone плашка с ролью alert сама не озвучивается: ошибку называет читалке `announce`.
   useEffect(() => announce(text), [text]);
   if (!state.error) return null;
@@ -52,6 +55,7 @@ function LessonIntro({ view, state, onStart, alert }: { view: LearningLessonView
   const { tokens } = useTheme();
   const e = t("english");
   const meta = view.lesson.metadata;
+  const label = state.busy ? e.saving : state.attemptId !== null ? e.continueLesson : e.startLesson;
   return (
     <Card>
       <View style={{ gap: 4, paddingHorizontal: 18, paddingVertical: 14, borderRadius: tokens.radiusItem, backgroundColor: tokens.accentSoft }}>
@@ -62,41 +66,41 @@ function LessonIntro({ view, state, onStart, alert }: { view: LearningLessonView
           {lang === "ky" ? meta.goal_ky : meta.goal_ru}
         </Text>
       </View>
-      {view.lesson.theory.length > 0 ? (
-        <View style={{ gap: 12 }}>
-          <Text variant="heading" accessibilityRole="header">
-            {e.theoryHeading}
-          </Text>
-          {view.lesson.theory.map((block, i) => (
-            <View key={i} style={{ gap: 8 }}>
-              <Text variant="body">{lang === "ky" ? block.text_ky : block.text_ru}</Text>
-              {block.examples.length > 0 ? (
-                <View style={{ borderWidth: 1, borderColor: tokens.line, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, overflow: "hidden" }}>
-                  {block.examples.map((example, k) => (
-                    <View key={k} style={{ gap: 2, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: k === 0 ? 0 : 1, borderTopColor: tokens.line }}>
-                      <Text variant="body" bold accessibilityLanguage="en">
-                        {example.en}
-                      </Text>
-                      <Text variant="secondary" tone="text2">
-                        {lang === "ky" ? example.ky : example.ru}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
+      {/* Заголовок объяснения на сайте есть всегда, и у урока без теории тоже. */}
+      <View style={{ gap: 12 }}>
+        <Text variant="heading" accessibilityRole="header" testID="english-theory-heading">
+          {e.theoryHeading}
+        </Text>
+        {view.lesson.theory.map((block, i) => (
+          <View key={i} style={{ gap: 8 }}>
+            <Text variant="body">{lang === "ky" ? block.text_ky : block.text_ru}</Text>
+            {block.examples.length > 0 ? (
+              <View style={{ borderWidth: 1, borderColor: tokens.line, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, overflow: "hidden" }}>
+                {block.examples.map((example, k) => (
+                  <View key={k} style={{ gap: 2, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: k === 0 ? 0 : 1, borderTopColor: tokens.line }}>
+                    <Text variant="body" bold accessibilityLanguage="en">
+                      {example.en}
+                    </Text>
+                    <Text variant="secondary" tone="text2">
+                      {lang === "ky" ? example.ky : example.ru}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ))}
+      </View>
       {alert(onStart)}
-      <Button label={state.busy ? e.saving : state.attemptId !== null ? e.continueLesson : e.startLesson} busy={state.busy} onPress={onStart} testID="english-start" />
+      {/* `busy` у общей кнопки прячет подпись: читалке имя «Сохраняем…» отдаём явно. */}
+      <Button label={label} accessibilityLabel={label} busy={state.busy} onPress={onStart} testID="english-start" />
     </Card>
   );
 }
 
-/** Задания по одному: счётчик, полоса, форма, разбор после ответа; когда ответили на все, шаг «Завершить урок». */
+/** Задания по одному: счётчик, полоса, форма, после ответа формулировка с разбором; когда ответили на все, шаг «Завершить урок». */
 function LessonExercises({ view, session, state, onScrollTop, onFinished, alert }: { view: LearningLessonView; session: EnglishSession; state: EnglishRunState; onScrollTop: () => void; onFinished: () => void; alert: RenderAlert }) {
-  const { t, format } = useLang();
+  const { lang, t, format } = useLang();
   const e = t("english");
   const exercises = view.lesson.exercises;
   const [value, setValue] = useState<ExerciseValue | null>(null);
@@ -114,9 +118,19 @@ function LessonExercises({ view, session, state, onScrollTop, onFinished, alert 
     }
     announce(counter);
   }, [counter]);
-  const finish = () => void session.finish().then(onFinished);
+  // Веб (`reloadDraft`): после «Загрузить сохранённую попытку» выбор на экране сбрасывается, иначе в форме остался бы выбор из прежней попытки.
+  const reload = () => {
+    setValue(null);
+    void session.reload();
+  };
+  // Дальше (обновить список, прокрутить) только когда сервер завершил урок: после отказа экран остаётся как был.
+  const finish = () =>
+    void session.finish().then((done) => {
+      if (done) onFinished();
+    });
 
   if (!current) {
+    const label = state.busy ? e.saving : e.finishButton;
     return (
       <Card>
         <Text variant="heading" accessibilityRole="header" testID="english-finish-heading">
@@ -125,15 +139,16 @@ function LessonExercises({ view, session, state, onScrollTop, onFinished, alert 
         <Text variant="secondary" tone="text2">
           {e.finishHint}
         </Text>
-        {alert(finish)}
-        <Button label={state.busy ? e.saving : e.finishButton} busy={state.busy} disabled={state.attemptId === null} onPress={finish} testID="english-finish" />
+        {alert(finish, reload)}
+        <Button label={label} accessibilityLabel={label} busy={state.busy} disabled={state.attemptId === null} onPress={finish} testID="english-finish" />
       </Card>
     );
   }
-  const segments = exercises.map((x, i) => {
+  const segments: MeterState[] = exercises.map((x, i) => {
     const a = state.answers[x.exerciseId];
     return a ? (a.correct ? "ok" : "bad") : i === state.index ? "current" : "todo";
-  }) as ("ok" | "bad" | "current" | "todo")[];
+  });
+  const prompt = exercisePrompt(current, lang);
   const submit = async () => {
     const answer = form ? exerciseValueToAnswer(form) : null;
     if (!answer) return;
@@ -142,18 +157,30 @@ function LessonExercises({ view, session, state, onScrollTop, onFinished, alert 
     const entry = session.getState().answers[current.exerciseId];
     if (entry) announce(entry.verdict.correct ? e.verdictCorrect : e.verdictWrong);
   };
+  const answerLabel = state.busy ? e.saving : e.answerButton;
   return (
     <View style={{ gap: 12 }}>
-      {/* Полоса повторяет счётчик ниже, у веба она скрыта от читалки (aria-hidden): 12 безымянных элементов не нужны. */}
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <SegmentBar states={segments} testID="english-segments" />
+      {/* Как на сайте: сначала счётчик, под ним полоса (она скрыта от читалки и повторяет счётчик). */}
+      <View style={{ gap: 8 }}>
+        <Text variant="secondary" tone="text2" accessibilityRole="header" testID="english-counter">
+          {counter}
+        </Text>
+        <ExerciseMeter states={segments} testID="english-segments" />
       </View>
-      <Text variant="caption" tone="text2" bold accessibilityRole="header" testID="english-counter">
-        {counter}
-      </Text>
-      <ExerciseForm key={current.exerciseId} exercise={current} value={form as ExerciseValue} disabled={answered !== undefined || state.busy} onChange={setValue} />
-      {answered ? <ExplainPanel exercise={current} verdict={answered.verdict} explain={answered.explain} answer={answered.answer} /> : null}
-      {alert(() => void submit())}
+      {answered ? (
+        // Веб заменяет форму формулировкой и разбором: выбранные варианты второй раз не показываются.
+        <View style={{ gap: 12 }}>
+          {prompt ? (
+            <Text variant="body" bold accessibilityLanguage={current.promptEn ? "en" : undefined} testID="english-answered-prompt">
+              {prompt}
+            </Text>
+          ) : null}
+          <ExplainPanel exercise={current} verdict={answered.verdict} explain={answered.explain} answer={answered.answer} />
+        </View>
+      ) : (
+        <ExerciseForm key={current.exerciseId} exercise={current} value={form as ExerciseValue} disabled={state.busy} onChange={setValue} />
+      )}
+      {alert(() => void submit(), reload)}
       {answered ? (
         <Button
           label={state.index + 1 < total ? e.nextButton : e.toCompletion}
@@ -165,7 +192,7 @@ function LessonExercises({ view, session, state, onScrollTop, onFinished, alert 
           testID="english-next"
         />
       ) : (
-        <Button label={state.busy ? e.saving : e.answerButton} busy={state.busy} disabled={!(form && exerciseValueComplete(current, form))} onPress={() => void submit()} testID="english-answer" />
+        <Button label={answerLabel} accessibilityLabel={answerLabel} busy={state.busy} disabled={!(form && exerciseValueComplete(current, form))} onPress={() => void submit()} testID="english-answer" />
       )}
     </View>
   );
@@ -173,10 +200,17 @@ function LessonExercises({ view, session, state, onScrollTop, onFinished, alert 
 
 function LessonBody({ view, lessonId, onScrollTop }: { view: LearningLessonView; lessonId: string; onScrollTop: () => void }) {
   const { transport, userKey } = usePortalApi();
-  const { t, format } = useLang();
+  const { lang, t, format } = useLang();
+  const e = t("english");
   const client = useQueryClient();
   const [session] = useState(() => new EnglishSession(transport, lessonId, view.lesson.exercises, view.draft, view.latestCompleted));
   const state = useSyncExternalStore(session.subscribe, session.getState);
+  // Выход из урока ничем не заперт; закрытие экрана досылает один раз то, что отправлено без подтверждения (см. `dispose`).
+  useEffect(() => () => session.dispose(), [session]);
+  // `busy` у общей кнопки прячет подпись, а у веба «Сохраняем…» читается в строке состояния: называем сохранение читалке сами.
+  useEffect(() => {
+    if (state.busy) announce(e.saving);
+  }, [state.busy, e.saving]);
   // Веб: черновик с ответами открывается сразу на заданиях; без ответов (и новый урок) начинается с «Перед началом».
   const [phase, setPhase] = useState<"intro" | "exercises">(view.draft && Object.keys(view.draft.answers).length > 0 ? "exercises" : "intro");
   const refresh = useCallback(() => {
@@ -187,9 +221,9 @@ function LessonBody({ view, lessonId, onScrollTop }: { view: LearningLessonView;
       setPhase("exercises");
       onScrollTop();
       // Веб после «Начать урок» переводит фокус на заголовок первого задания: читалка называет его.
-      announce(format(t("english").exerciseCounter, { n: String(session.getState().index + 1), total: String(view.lesson.exercises.length) }));
+      announce(format(e.exerciseCounter, { n: String(Math.min(session.getState().index + 1, view.lesson.exercises.length)), total: String(view.lesson.exercises.length) }));
     }
-  }, [session, onScrollTop, format, t, view.lesson.exercises.length]);
+  }, [session, onScrollTop, format, e.exerciseCounter, view.lesson.exercises.length]);
   const repeat = useCallback(() => {
     session.restart();
     setPhase("intro");
@@ -200,10 +234,15 @@ function LessonBody({ view, lessonId, onScrollTop }: { view: LearningLessonView;
     refresh();
     onScrollTop();
   }, [refresh, onScrollTop]);
-  const alert: RenderAlert = (retry) => <LessonAlert state={state} onReload={() => void session.reload()} onRetry={retry} />;
+  const alert: RenderAlert = (retry, reload) => <LessonAlert state={state} onReload={reload ?? (() => void session.reload())} onRetry={retry} />;
+  const title = lang === "ky" ? view.lesson.metadata.title_ky : view.lesson.metadata.title_ru;
   return (
     <>
+      {/* Порядок сайта: ссылка «Все уроки» (стрелка шапки), фото, заголовок «Урок N. Название». */}
       <LessonHero lessonKey={view.lesson.lessonKey} />
+      <Text variant="title" accessibilityRole="header" testID="english-lesson-title">
+        {format(e.lessonLabel, { n: String(view.lesson.orderIndex) })}. {title}
+      </Text>
       {state.completed ? (
         <LessonCompletion
           view={view}
@@ -225,20 +264,15 @@ function LessonBody({ view, lessonId, onScrollTop }: { view: LearningLessonView;
 }
 
 export function EnglishLessonScreen({ lessonId }: { lessonId: string }) {
-  const { lang, m, t, format } = useLang();
+  const { m, t } = useLang();
   const back = useBack("/english");
   const e = t("english");
   const lesson = useEnglishLesson(lessonId);
   const view = lesson.data;
   const scroller = useRef<ScrollTarget>(null);
   const toTop = useCallback(() => scroller.current?.scrollTo({ y: 0, animated: false }), []);
-  const title = view ? (lang === "ky" ? view.lesson.metadata.title_ky : view.lesson.metadata.title_ru) : e.lessonTitle;
   return (
-    <LessonPage
-      header={<SubHeader title={title} subtitle={view ? format(e.lessonLabel, { n: String(view.lesson.orderIndex) }) : null} onBack={back} backLabel={e.backToModule} testID="english-lesson-title" />}
-      scrollRef={scroller}
-      testID="english-lesson-screen"
-    >
+    <LessonPage header={<SubHeader title={e.title} onBack={back} backLabel={e.backToModule} testID="english-lesson-header" />} scrollRef={scroller} testID="english-lesson-screen">
       {!view ? (
         lesson.status === "error" ? (
           <InlineAlert message={m(loadErrorKey(lesson.error))} retryLabel={m("gate.retry")} onRetry={() => void lesson.refetch()} testID="english-lesson-error" />

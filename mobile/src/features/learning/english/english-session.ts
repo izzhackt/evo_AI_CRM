@@ -1,7 +1,9 @@
 // Урок английского: ответы по одному, каждый финален (вердикт и разбор из ответа сервера), попытка
 // открывается кнопкой «Начать урок» (как на сайте; если её не нажимали, первым ответом) и завершается кнопкой
 // «Завершить урок» (правило веба LessonRunner).
-// Каждая запись замораживается: повтор после обрыва идёт тем же p_request_id и аргументами.
+// Каждая запись замораживается: повтор после обрыва идёт тем же p_request_id и аргументами; новая попытка («Пройти ещё раз»)
+// получает новые идентификаторы старта и завершения: сервер на повторный p_request_id отдаёт сохранённую квитанцию
+// (старую попытку), и первая же запись в «новую» упала бы конфликтом.
 import type { LearningAnswer, LearningAnswerEntry, LearningAttempt, LearningExercise, LearningLessonView, LearningResult } from "@web/lib/portal/learning";
 import { firstUnansweredIndex } from "@web/lib/portal/learning";
 
@@ -39,9 +41,12 @@ export class EnglishSession {
   private state: EnglishRunState;
   private readonly listeners = new Set<() => void>();
   private startWrite: FrozenWrite | null = null;
+  private beginning: Promise<boolean> | null = null;
   private pending: { exerciseId: string; key: string; write: FrozenWrite | null } | null = null;
-  private completeId: string | null = null;
+  private completeWrite: FrozenWrite | null = null;
   private busy = false;
+  /** Запросы, уже повторённые при закрытии экрана: второй вызов `dispose` (двойная очистка эффекта) их не шлёт ещё раз. */
+  private readonly resent = new WeakSet<FrozenWrite>();
 
   constructor(
     private readonly transport: RpcTransport,
@@ -75,16 +80,29 @@ export class EnglishSession {
     for (const l of this.listeners) l();
   }
 
-  /** Открыть попытку, если её ещё нет: «Начать урок» создаёт черновик сразу, как на сайте. Повтор после обрыва - тот же запрос. */
-  async begin(): Promise<boolean> {
-    if (this.busy) return false;
-    if (this.state.attemptId !== null) return true;
+  /**
+   * Открыть попытку, если её ещё нет: «Начать урок» создаёт черновик сразу, как на сайте. Повтор после обрыва - тот же запрос;
+   * двойное нажатие шлёт один запрос и отдаёт обоим один ответ. Ответ сервера принимается целиком, как на сайте (`start()` в
+   * LessonRunner): если черновик уже начат на другом устройстве, его ответы и первое неотвеченное задание берутся оттуда, иначе
+   * первый ответ упал бы отказом «задание уже отвечено».
+   */
+  begin(): Promise<boolean> {
+    if (this.beginning) return this.beginning;
+    if (this.busy) return Promise.resolve(false);
+    if (this.state.attemptId !== null) return Promise.resolve(true);
+    const run = this.runBegin().finally(() => {
+      this.beginning = null;
+    });
+    this.beginning = run;
+    return run;
+  }
+
+  private async runBegin(): Promise<boolean> {
     this.busy = true;
     this.patch({ busy: true, error: null });
     try {
       this.startWrite ??= startEnglishWrite(this.lessonId, this.newId());
-      const attempt = await sendEnglishAttempt(this.transport, this.startWrite);
-      this.patch({ attemptId: attempt.attemptId, revision: attempt.revision });
+      this.adoptStarted(await sendEnglishAttempt(this.transport, this.startWrite));
       return true;
     } catch (error) {
       this.patch({ error: cscaFailure(error) });
@@ -93,6 +111,12 @@ export class EnglishSession {
       this.busy = false;
       this.patch({ busy: false });
     }
+  }
+
+  /** Состояние открытой (или уже начатой) попытки с сервера: ответы, первое неотвеченное задание, итог прежней попытки сброшен. */
+  private adoptStarted(attempt: LearningAttempt): void {
+    const answers = answersOf(attempt);
+    this.patch({ attemptId: attempt.attemptId, revision: attempt.revision, answers, index: firstUnansweredIndex(this.exercises, answers), completed: false, result: null });
   }
 
   /** Ответить на текущее упражнение. `answer` уже проверен по форме (`exerciseValueToAnswer`). */
@@ -111,9 +135,14 @@ export class EnglishSession {
       if (attemptId === null) {
         this.startWrite ??= startEnglishWrite(this.lessonId, this.newId());
         const attempt = await sendEnglishAttempt(this.transport, this.startWrite);
+        this.adoptStarted(attempt);
+        // Черновик уже начат в другом месте и это задание в нём отвечено: на экране теперь оно с разбором, второй ответ не шлём.
+        if (attempt.answers[exercise.exerciseId]) {
+          this.pending = null;
+          return;
+        }
         attemptId = attempt.attemptId;
         revision = attempt.revision;
-        this.patch({ attemptId, revision });
       }
       pending.write ??= answerEnglishWrite({ attemptId, expectedRevision: revision as number, exerciseId: exercise.exerciseId, answer }, this.newId());
       const receipt = await sendEnglishAnswer(this.transport, pending.write);
@@ -137,18 +166,27 @@ export class EnglishSession {
     this.patch({ index: Math.min(target, this.exercises.length), error: null });
   }
 
-  /** «Завершить урок»: все ответы есть. Тот же запрос при повторе. */
-  async finish(): Promise<void> {
+  /**
+   * «Завершить урок»: все ответы есть. Тот же запрос при повторе после обрыва; любой другой отказ сбрасывает замороженный запрос
+   * (как `completeRequestId.current = null` на сайте). `true` только когда сервер завершил попытку: экран после успеха обновляет
+   * список, после отказа не трогает ничего.
+   */
+  async finish(): Promise<boolean> {
     const { attemptId, revision } = this.state;
-    if (this.busy || attemptId === null || revision === null) return;
+    if (this.busy || attemptId === null || revision === null) return false;
     this.busy = true;
     this.patch({ busy: true, error: null });
     try {
-      this.completeId ??= this.newId();
-      const done = await sendEnglishAttempt(this.transport, completeEnglishWrite({ attemptId, expectedRevision: revision }, this.completeId));
+      this.completeWrite ??= completeEnglishWrite({ attemptId, expectedRevision: revision }, this.newId());
+      const done = await sendEnglishAttempt(this.transport, this.completeWrite);
+      this.completeWrite = null;
       this.patch({ completed: true, attemptId: null, revision: null, result: done.result });
+      return true;
     } catch (error) {
-      this.patch({ error: cscaFailure(error) });
+      const code = cscaFailure(error);
+      if (code !== "unavailable") this.completeWrite = null;
+      this.patch({ error: code });
+      return false;
     } finally {
       this.busy = false;
       this.patch({ busy: false });
@@ -165,6 +203,7 @@ export class EnglishSession {
       return;
     }
     this.pending = null;
+    this.completeWrite = null;
     const source = view.draft ?? view.latestCompleted;
     const answers = answersOf(source);
     this.patch({
@@ -178,10 +217,31 @@ export class EnglishSession {
     });
   }
 
+  /** «Пройти ещё раз»: всё прежнее забыто, включая замороженные запросы старта и завершения (новая попытка - новые идентификаторы). */
   restart(): void {
     this.startWrite = null;
-    this.completeId = null;
+    this.completeWrite = null;
     this.pending = null;
     this.patch({ attemptId: null, revision: null, answers: {}, index: 0, completed: false, result: null, error: null });
+  }
+
+  /**
+   * Экран закрыт. Ответ в уроке финален и уходит по кнопке «Ответить», поэтому выбранный, но не отправленный ответ не досылается.
+   * Досылается только то, что студент уже отправил, а подтверждения нет (обрыв): один повтор того же замороженного запроса. Запись
+   * идемпотентна по `p_request_id` (если сервер уже принял её, вернётся та же квитанция), поэтому повтор безопасен; не вышло
+   * и на этот раз, ответ придётся дать заново. Повторов по таймеру и окна с вопросом нет: выход из урока ничем не заперт.
+   */
+  dispose(): void {
+    if (this.busy || this.state.error !== "unavailable") return;
+    const answerWrite = this.pending?.write ?? null;
+    if (answerWrite && !this.resent.has(answerWrite)) {
+      this.resent.add(answerWrite);
+      void sendEnglishAnswer(this.transport, answerWrite).catch(() => undefined);
+    }
+    const completeWrite = this.completeWrite;
+    if (completeWrite && !this.resent.has(completeWrite)) {
+      this.resent.add(completeWrite);
+      void sendEnglishAttempt(this.transport, completeWrite).catch(() => undefined);
+    }
   }
 }

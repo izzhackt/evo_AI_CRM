@@ -6,16 +6,26 @@ import type { ReactNode, RefObject } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useChatFabClearance, useTabBarClearance } from "@/shell/useTabBarClearance";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { ScrollTarget } from "@/ui/Screen";
 
+/**
+ * Нижний запас такой же, как у `Screen`: безопасная зона плюс высота плавающей панели вкладок плюс место под кнопку «Написать EVO»
+ * (те же хуки, а не число). Без этого последняя кнопка урока в конце прокрутки оказывалась наполовину под панелью.
+ */
+export function useLessonPageBottomPadding(): number {
+  const insets = useSafeAreaInsets();
+  return Math.max(insets.bottom, 16) + useTabBarClearance() + useChatFabClearance();
+}
+
 export function LessonPage({ children, header, scrollRef, testID }: { children: ReactNode; header: ReactNode; scrollRef?: RefObject<ScrollTarget | null>; testID?: string }) {
   const { tokens } = useTheme();
-  const insets = useSafeAreaInsets();
+  const paddingBottom = useLessonPageBottomPadding();
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }} testID={testID}>
       {header}
-      <ScrollView ref={scrollRef as RefObject<never> | undefined} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 32 }}>
+      <ScrollView ref={scrollRef as RefObject<never> | undefined} testID={testID ? `${testID}-scroll` : undefined} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom }}>
         {children}
       </ScrollView>
     </View>

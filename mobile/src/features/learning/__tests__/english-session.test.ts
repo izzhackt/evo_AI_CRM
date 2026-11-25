@@ -100,3 +100,141 @@ describe("урок: итог", () => {
     expect(s.getState().result).toMatchObject({ correctCount: 3 });
   });
 });
+
+describe("урок: идентификаторы запросов и ответ старта (ревью #1567)", () => {
+  const one = (extra: Parameters<typeof lessonView>[1] = {}) => parseLearningLessonView(lessonView({ n: 1, exercises: 1 }, extra));
+  const single = (handlers: Record<string, unknown>, extra: Parameters<typeof lessonView>[1] = {}) => {
+    const parsed = one(extra);
+    const fake = fakeTransport(handlers);
+    return { ...fake, session: new EnglishSession(fake.transport, parsed.lesson.lessonId, parsed.lesson.exercises, parsed.draft, parsed.latestCompleted, newId) };
+  };
+  const done = (id: string) => attemptFixture(1, { id, status: "completed", total: 1, result: { correct: 1, total: 1, wrong: [] }, answers: { [exerciseId(1, 1)]: attemptEntry("b", true) } });
+  const answerOne = saveResult(1, 1, true, 2, 1, 1);
+
+  it("«Пройти ещё раз»: старт и завершение новой попытки идут с НОВЫМИ p_request_id (иначе сервер вернул бы квитанцию старой)", async () => {
+    const { session: s, calls } = single({
+      [START]: (_args: unknown, call: number) => (call === 1 ? attemptFixture(1, { total: 1 }) : attemptFixture(1, { id: NEW_ATTEMPT_ID, total: 1 })),
+      [SAVE]: answerOne,
+      [COMPLETE]: (_args: unknown, call: number) => (call === 1 ? done(ATTEMPT_ID) : done(NEW_ATTEMPT_ID)),
+    });
+    await s.begin();
+    await s.answer({ selected: "b" });
+    await expect(s.finish()).resolves.toBe(true);
+    s.restart();
+    await s.begin();
+    expect(s.getState().attemptId).toBe(NEW_ATTEMPT_ID);
+    await s.answer({ selected: "b" });
+    await expect(s.finish()).resolves.toBe(true);
+    const starts = calls.filter((c) => c.name === START).map((c) => c.args?.p_request_id);
+    const completes = calls.filter((c) => c.name === COMPLETE).map((c) => c.args?.p_request_id);
+    expect(starts).toHaveLength(2);
+    expect(new Set(starts).size).toBe(2);
+    expect(completes).toHaveLength(2);
+    expect(new Set(completes).size).toBe(2);
+    // Ответ второй попытки идёт в неё, а не в первую.
+    const saves = calls.filter((c) => c.name === SAVE);
+    expect(saves[1].args).toMatchObject({ p_attempt_id: NEW_ATTEMPT_ID });
+  });
+
+  it("двойное нажатие «Начать урок» шлёт один запрос старта, оба вызова получают один исход", async () => {
+    const { session: s, calls } = single({ [START]: attemptFixture(1, { total: 1 }) });
+    await expect(Promise.all([s.begin(), s.begin()])).resolves.toEqual([true, true]);
+    expect(calls.filter((c) => c.name === START)).toHaveLength(1);
+    expect(s.getState().attemptId).toBe(ATTEMPT_ID);
+    expect(s.getState().busy).toBe(false);
+  });
+
+  it("старт возвращает уже начатый на другом устройстве черновик: ответы и первое неотвеченное задание берутся из него, как на сайте", async () => {
+    const parsed = parseLearningLessonView(lessonView({ n: 1 }));
+    const started = attemptFixture(1, { revision: 4, answers: { [exerciseId(1, 1)]: attemptEntry("b", true), [exerciseId(1, 2)]: attemptEntry("a", false) } });
+    const fake = fakeTransport({ [START]: started });
+    const s = new EnglishSession(fake.transport, parsed.lesson.lessonId, parsed.lesson.exercises, null, null, newId);
+    await expect(s.begin()).resolves.toBe(true);
+    expect(s.getState()).toMatchObject({ attemptId: ATTEMPT_ID, revision: 4, index: 2, completed: false });
+    expect(Object.keys(s.getState().answers)).toEqual([exerciseId(1, 1), exerciseId(1, 2)]);
+  });
+
+  it("первый ответ без «Начать урок»: если задание уже отвечено в найденном черновике, второй ответ не шлётся (иначе отказ «уже отвечено»)", async () => {
+    const parsed = parseLearningLessonView(lessonView({ n: 1 }));
+    const started = attemptFixture(1, { revision: 3, answers: { [exerciseId(1, 1)]: attemptEntry("b", true) } });
+    const fake = fakeTransport({ [START]: started, [SAVE]: saveResult(1, 1, true) });
+    const s = new EnglishSession(fake.transport, parsed.lesson.lessonId, parsed.lesson.exercises, null, null, newId);
+    await s.answer({ selected: "a" });
+    expect(nameOf(fake.calls)).toEqual([START]);
+    expect(s.getState().index).toBe(1);
+    expect(s.getState().answers[exerciseId(1, 1)]).toMatchObject({ correct: true });
+    expect(s.getState().error).toBeNull();
+  });
+
+  it("«Завершить»: true при успехе; при обрыве false, тот же p_request_id при повторе; конфликт сбрасывает запрос, повтор идёт новым id", async () => {
+    let n = 0;
+    const { session: s, calls } = single(
+      { [COMPLETE]: () => (++n <= 3 ? failure(null, 0) : n === 4 ? failure("40001", 409) : done(ATTEMPT_ID)) },
+      { draft: attemptFixture(1, { total: 1, answers: { [exerciseId(1, 1)]: attemptEntry("b", true) } }) },
+    );
+    await expect(s.finish()).resolves.toBe(false); // обрыв: три попытки слоя RPC, один id
+    expect(s.getState().error).toBe("unavailable");
+    await expect(s.finish()).resolves.toBe(false); // тот же замороженный запрос, теперь конфликт
+    expect(s.getState().error).toBe("conflict");
+    await expect(s.finish()).resolves.toBe(true); // после конфликта запрос новый
+    const ids = calls.filter((c) => c.name === COMPLETE).map((c) => c.args?.p_request_id);
+    expect(ids).toHaveLength(5);
+    expect(new Set(ids.slice(0, 4)).size).toBe(1);
+    expect(ids[4]).not.toBe(ids[0]);
+    expect(s.getState().completed).toBe(true);
+  });
+});
+
+describe("урок: закрытие экрана досылает неподтверждённое один раз (замена запирающего выхода)", () => {
+  const draft = () => attemptFixture(1, { total: 3 });
+  const down = (name: string, reply: unknown) => {
+    let n = 0;
+    return { [name]: (args: Record<string, unknown> | undefined) => (++n <= 3 ? failure(null, 0) : typeof reply === "function" ? (reply as (a: unknown) => unknown)(args) : reply) };
+  };
+
+  it("ответ отправлен, подтверждения нет: при закрытии один повтор того же замороженного запроса; второе закрытие ничего не шлёт", async () => {
+    const { session: s, calls } = session(down(SAVE, saveResult(1, 1, true)), { draft: draft() });
+    await s.answer({ selected: "b" });
+    expect(s.getState().error).toBe("unavailable");
+    const before = calls.filter((c) => c.name === SAVE);
+    expect(before).toHaveLength(3);
+    s.dispose();
+    s.dispose();
+    await Promise.resolve();
+    await Promise.resolve();
+    const saves = calls.filter((c) => c.name === SAVE);
+    expect(saves).toHaveLength(4);
+    expect(new Set(saves.map((c) => c.args?.p_request_id)).size).toBe(1);
+    expect(saves[3].args).toMatchObject({ p_answer: { selected: "b" }, p_exercise_id: exerciseId(1, 1) });
+  });
+
+  it("ответ подтверждён, ничего не отправлялось, отказ окончательный или запрос ещё идёт: при закрытии ничего не шлётся", async () => {
+    const ok = session({ [SAVE]: saveResult(1, 1, true) }, { draft: draft() });
+    await ok.session.answer({ selected: "b" });
+    ok.session.dispose();
+    expect(ok.calls.filter((c) => c.name === SAVE)).toHaveLength(1);
+
+    const idle = session({}, { draft: draft() }); // студент только выбрал вариант (сессия об этом не знает): досылать нечего
+    idle.session.dispose();
+    expect(idle.calls).toHaveLength(0);
+
+    const conflict = session({ [SAVE]: failure("40001", 409) }, { draft: draft() });
+    await conflict.session.answer({ selected: "b" });
+    conflict.session.dispose();
+    expect(conflict.calls.filter((c) => c.name === SAVE)).toHaveLength(1);
+  });
+
+  it("«Завершить» не подтверждено: при закрытии один повтор запроса завершения с тем же p_request_id", async () => {
+    const full = attemptFixture(1, { total: 1, answers: { [exerciseId(1, 1)]: attemptEntry("b", true) } });
+    const parsed = parseLearningLessonView(lessonView({ n: 1, exercises: 1 }, { draft: full }));
+    const fake = fakeTransport(down(COMPLETE, attemptFixture(1, { status: "completed", total: 1, result: { correct: 1, total: 1, wrong: [] }, answers: full.answers })));
+    const s = new EnglishSession(fake.transport, parsed.lesson.lessonId, parsed.lesson.exercises, parsed.draft, null, newId);
+    await expect(s.finish()).resolves.toBe(false);
+    s.dispose();
+    await Promise.resolve();
+    await Promise.resolve();
+    const completes = fake.calls.filter((c) => c.name === COMPLETE);
+    expect(completes).toHaveLength(4);
+    expect(new Set(completes.map((c) => c.args?.p_request_id)).size).toBe(1);
+  });
+});

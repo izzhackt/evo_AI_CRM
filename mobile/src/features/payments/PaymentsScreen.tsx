@@ -35,6 +35,8 @@ export function PaymentsScreen({ io = nativePaymentsIo }: { io?: PaymentsIo }) {
   const center = usePaymentCenter();
   const [refreshing, setRefreshing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  // Идёт отправка из «Добавить платёж»: закрыть форму посреди отправки нельзя (студент не увидел бы ни успеха, ни отказа).
+  const [addBusy, setAddBusy] = useState(false);
   const [attached, setAttached] = useState<AttachedProofs>(() => new Map());
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -75,14 +77,14 @@ export function PaymentsScreen({ io = nativePaymentsIo }: { io?: PaymentsIo }) {
               <View style={{ gap: 4 }}>
                 <CardHead
                   title={strings.paymentsHeading}
-                  action={data.canUpload ? <SlotButton look="primary" label={strings.receiptAddPayment} expanded={addOpen} onPress={() => setAddOpen((open) => !open)} testID="payments-add" /> : null}
+                  action={data.canUpload ? <SlotButton look="primary" label={strings.receiptAddPayment} expanded={addOpen} disabled={addBusy} onPress={() => setAddOpen((open) => !open)} testID="payments-add" /> : null}
                 />
                 <Text variant="caption" tone="text2">
                   {strings.bishkekNote}
                 </Text>
               </View>
 
-              {addOpen && data.canUpload ? <AddPaymentForm io={io} currencies={page.currencies} defaultCurrency={page.defaultCurrency} onClose={() => setAddOpen(false)} /> : null}
+              {addOpen && data.canUpload ? <AddPaymentForm io={io} currencies={page.currencies} defaultCurrency={page.defaultCurrency} onClose={() => setAddOpen(false)} onBusyChange={setAddBusy} /> : null}
 
               {page.empty ? (
                 <EmptyBlock icon={Wallet} title={strings.paymentsEmptyTitle} body={strings.paymentsEmptyBody} action={write} />

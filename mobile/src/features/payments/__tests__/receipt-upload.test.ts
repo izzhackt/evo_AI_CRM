@@ -2,6 +2,7 @@ import type { PickedFile } from "@/domain/documents-model";
 import { MAX_UPLOAD_BYTES } from "@/domain/documents-model";
 import {
   checkReceiptInput,
+  fileCheckErrorKey,
   minorToDecimal,
   normalizeDay,
   parseReceiptAck,
@@ -23,6 +24,7 @@ const NOW = Date.UTC(2026, 10, 10, 12, 0, 0);
 const jpg: PickedFile = { uri: "file:///cache/chek.jpg", name: "chek.jpg", size: 2000, mimeType: "image/jpeg", source: "photo" };
 const input = (over: Partial<ReceiptInput> = {}): ReceiptInput => ({ file: jpg, amount: "100,5", currency: "usd", paidOn: "2026-11-09", obligationId: OBLIGATION, ...over });
 const ok: ReceiptResponse = { status: 201, body: { receipt_id: RECEIPT_ID, status: "pending" } };
+const NET_DOWN = new Error("network down");
 
 function setup(responses: (ReceiptResponse | Error)[]) {
   const attempts: ReceiptAttempt[] = [];
@@ -106,6 +108,69 @@ describe("чек у строки платежа: только файл (реше
 
   it("без файла отправка отказывает до сети, поля не придумываются", () => {
     expect(checkReceiptInput(receiptInputForLine(line, null, NOW), NOW)).toEqual({ ok: false, error: "receiptErrorInvalid", field: "file" });
+  });
+});
+
+describe("граница суток по Бишкеку: UTC+6 закреплён на самих секундах (L6)", () => {
+  // 25.11.2026: в Бишкеке сутки сменяются в 18:00:00 UTC. Сдвиг на 5 или 7 часов сдвинул бы границу, и тесты ниже упали бы.
+  const lastMomentOfDay = Date.UTC(2026, 10, 25, 17, 59, 59, 999);
+  const firstMomentOfNextDay = Date.UTC(2026, 10, 25, 18, 0, 0, 0);
+  const row = { submitAmountMinor: 6000, currency: "USD", obligationId: OBLIGATION as string | null };
+
+  it("todayInBishkek: 17:59:59.999 UTC - ещё 25-е, 18:00:00 UTC - уже 26-е; переходы месяца, года и високосного дня", () => {
+    expect(todayInBishkek(lastMomentOfDay)).toBe("2026-11-25");
+    expect(todayInBishkek(firstMomentOfNextDay)).toBe("2026-11-26");
+    expect(todayInBishkek(Date.UTC(2026, 11, 31, 17, 59, 59, 999))).toBe("2026-12-31");
+    expect(todayInBishkek(Date.UTC(2026, 11, 31, 18, 0, 0))).toBe("2027-01-01");
+    expect(todayInBishkek(Date.UTC(2028, 1, 28, 18, 0, 0))).toBe("2028-02-29");
+  });
+
+  it("проверка до отправки: «сегодня» принимается, «завтра» нет, и ровно в 18:00 UTC они меняются местами", () => {
+    expect(checkReceiptInput(input({ paidOn: "2026-11-25" }), lastMomentOfDay).ok).toBe(true);
+    expect(checkReceiptInput(input({ paidOn: "2026-11-26" }), lastMomentOfDay)).toEqual({ ok: false, error: "receiptErrorDate", field: "date" });
+    expect(checkReceiptInput(input({ paidOn: "2026-11-26" }), firstMomentOfNextDay).ok).toBe(true);
+    expect(checkReceiptInput(input({ paidOn: "2026-11-27" }), firstMomentOfNextDay)).toEqual({ ok: false, error: "receiptErrorDate", field: "date" });
+  });
+
+  it("чек у строки без своего дня: сегодня по Бишкеку, на границе суток тоже", () => {
+    expect(receiptInputForLine({ ...row, submitDate: null }, jpg, lastMomentOfDay).paidOn).toBe("2026-11-25");
+    expect(receiptInputForLine({ ...row, submitDate: null }, jpg, firstMomentOfNextDay).paidOn).toBe("2026-11-26");
+  });
+
+  it("день отклонённого чека остаётся, пока он не позже сегодняшнего; позже (часы телефона отстают) - обрезается до сегодняшнего", () => {
+    // вчерашний и сегодняшний день остаются как есть
+    expect(receiptInputForLine({ ...row, submitDate: "2026-11-24" }, jpg, lastMomentOfDay).paidOn).toBe("2026-11-24");
+    expect(receiptInputForLine({ ...row, submitDate: "2026-11-25" }, jpg, lastMomentOfDay).paidOn).toBe("2026-11-25");
+    // завтрашний обрезается до 25-го ровно до полуночи по Бишкеку и остаётся 26-м сразу после неё
+    expect(receiptInputForLine({ ...row, submitDate: "2026-11-26" }, jpg, lastMomentOfDay).paidOn).toBe("2026-11-25");
+    expect(receiptInputForLine({ ...row, submitDate: "2026-11-26" }, jpg, firstMomentOfNextDay).paidOn).toBe("2026-11-26");
+    expect(receiptInputForLine({ ...row, submitDate: "2026-11-27" }, jpg, firstMomentOfNextDay).paidOn).toBe("2026-11-26");
+  });
+
+  it("повтор с тем же моментом даёт то же тело и тот же ключ; свежий момент после полуночи дал бы другой день, а с ним другое тело и новый ключ", async () => {
+    // часы контроллера в этом наборе - `NOW` (10.11 12:00 UTC); граница суток того же дня - 18:00 UTC
+    const beforeMidnight = Date.UTC(2026, 10, 10, 17, 59, 59, 999);
+    const afterMidnight = Date.UTC(2026, 10, 10, 18, 0, 0, 0);
+    const t = setup([NET_DOWN, NET_DOWN, ok]);
+    t.controller.submit(receiptInputForLine({ ...row, submitDate: null }, jpg, beforeMidnight));
+    await t.settle();
+    expect(t.controller.getState()).toMatchObject({ status: "error", retryable: true });
+    // повтор: день считается от того же момента, ключ и поля те же
+    t.controller.submit(receiptInputForLine({ ...row, submitDate: null }, jpg, beforeMidnight));
+    await t.settle();
+    expect(t.attempts).toHaveLength(2);
+    expect(t.attempts[1]?.idempotencyKey).toBe(t.attempts[0]?.idempotencyKey);
+    expect(t.attempts[1]?.fields).toEqual(t.attempts[0]?.fields);
+    expect(t.attempts[0]?.fields.paidOn).toBe("2026-11-10");
+    // то, что слот не делает: пересчёт дня «сейчас» после полуночи меняет тело, поэтому момент замораживается при выборе файла
+    expect(receiptInputForLine({ ...row, submitDate: null }, jpg, afterMidnight).paidOn).toBe("2026-11-11");
+    expect(receiptInputForLine({ ...row, submitDate: null }, jpg, afterMidnight)).not.toEqual(receiptInputForLine({ ...row, submitDate: null }, jpg, beforeMidnight));
+  });
+
+  it("слова отказа файла: чужой тип - про тип, размер и пустой - про размер", () => {
+    expect(fileCheckErrorKey("type")).toBe("receiptErrorFileType");
+    expect(fileCheckErrorKey("size")).toBe("receiptErrorTooLarge");
+    expect(fileCheckErrorKey("empty")).toBe("receiptErrorTooLarge");
   });
 });
 

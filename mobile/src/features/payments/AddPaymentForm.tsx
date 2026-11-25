@@ -2,7 +2,10 @@
 // Единственное место, где студент сам вводит сумму, валюту и день: у платежа вне графика их взять не из чего. Чек уходит тем же
 // маршрутом, что чек у строки, без платежа; куратор относит его сам («Добавленные платежи»).
 // Календаря браузера в приложении нет (новый нативный модуль запрещён заморозкой сборки), поэтому день печатают: он уже подставлен
-// (сегодня по Бишкеку) и в формате «дд.мм.гггг», как все даты страницы; «гггг-мм-дд» тоже принимается.
+// (сегодня по Бишкеку) и в формате «дд.мм.гггг», как все даты страницы; «гггг-мм-дд» тоже принимается. День подставляется один раз, когда
+// форма открывается, и дальше только меняется рукой: повтор после обрыва сети уходит с тем же телом и тем же ключом, даже после полуночи.
+// Идущая отправка не обрывается, когда форма исчезает: как на сайте, она доходит до конца и список перечитывается (`invalidate`).
+// Пока идёт отправка, экран получает `onBusyChange(true)` и не даёт нажать «Добавить платёж» в шапке (закрыть форму посреди отправки).
 import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Pressable, View } from "react-native";
@@ -15,7 +18,8 @@ import type { PaymentsIo } from "@/features/payments/io";
 import { PickedFileChip } from "@/features/payments/PickedFileChip";
 import { ReceiptUploadController, todayInBishkek } from "@/features/payments/receipt-upload";
 import { SlotButton } from "@/features/payments/SlotButton";
-import { useFilePick } from "@/features/payments/use-file-pick";
+import { useAnnounceProblem } from "@/features/payments/use-announce-problem";
+import { pickNoticeText, useFilePick } from "@/features/payments/use-file-pick";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
@@ -24,7 +28,20 @@ import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 import { TextField } from "@/ui/TextField";
 
-export function AddPaymentForm({ io, currencies, defaultCurrency, onClose }: { io: PaymentsIo; currencies: readonly string[]; defaultCurrency: string; onClose: () => void }) {
+export function AddPaymentForm({
+  io,
+  currencies,
+  defaultCurrency,
+  onClose,
+  onBusyChange,
+}: {
+  io: PaymentsIo;
+  currencies: readonly string[];
+  defaultCurrency: string;
+  onClose: () => void;
+  /** Идёт ли отправка: экран на это время отключает кнопку «Добавить платёж» в шапке. Стабильная функция. */
+  onBusyChange: (busy: boolean) => void;
+}) {
   const { m, t } = useLang();
   const { tokens } = useTheme();
   const api = usePortalApi();
@@ -38,11 +55,18 @@ export function AddPaymentForm({ io, currencies, defaultCurrency, onClose }: { i
   const clearMessage = useCallback(() => controller.clearMessage(), [controller]);
   const pick = useFilePick(io, clearMessage);
   const sent = state.status === "success";
+  const busy = state.status === "sending";
+  const failed = state.status === "error" ? state : null;
+  const problem = pickNoticeText(pick.notice, m, strings) ?? (failed ? strings[failed.error] : null);
 
-  useEffect(() => () => controller.cancel(), [controller]);
+  useAnnounceProblem(problem, failed, pick.noticeSeq);
   useEffect(() => {
     if (sent) announce(strings.receiptSent);
   }, [sent, strings.receiptSent]);
+  useEffect(() => {
+    onBusyChange(busy);
+    return () => onBusyChange(false);
+  }, [busy, onBusyChange]);
 
   if (sent) {
     return (
@@ -52,9 +76,6 @@ export function AddPaymentForm({ io, currencies, defaultCurrency, onClose }: { i
     );
   }
 
-  const busy = state.status === "sending";
-  const failed = state.status === "error" ? state : null;
-  const problem = pick.notice === "camera" ? m("docs.cameraDenied") : pick.notice === "pick" ? m("docs.errorPick") : failed ? strings[failed.error] : null;
   const edited = (setter: (value: string) => void) => (value: string) => {
     setter(value);
     controller.clearMessage();

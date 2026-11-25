@@ -2,10 +2,12 @@ import type { PaymentCenter, PaymentDue, PaymentEntry } from "@web/lib/portal/pa
 import { buildPaymentSchedule } from "@web/lib/portal/payment-rows";
 
 import {
+  bishkekDay,
   buildPaymentsPage,
   formatEntryDay,
   howToPayAmount,
   lineDateText,
+  lineDay,
   lineMoney,
   lineStatus,
   progressLabel,
@@ -102,12 +104,25 @@ describe("слова строки (веб: LineStatus, Money, shownDate)", () =>
   });
 
   it("день: свой день записи; нет его - срок транша; нет и его - тире; странный формат не показывается", () => {
-    expect(lineDateText({ onDate: "2026-11-03" }, undefined)).toBe("03.11.2026");
-    expect(lineDateText({ onDate: null }, { dueAt: "2026-12-01T08:00:00+00:00" })).toBe("01.12.2026");
-    expect(lineDateText({ onDate: null }, { dueAt: null })).toBe("—");
-    expect(lineDateText({ onDate: null }, undefined)).toBe("—");
-    expect(lineDateText({ onDate: "12/01/2026" }, { dueAt: "2026-12-01T08:00:00+00:00" })).toBe("01.12.2026");
+    expect(lineDateText({ onDate: "2026-11-03", status: "accepted" }, undefined)).toBe("03.11.2026");
+    expect(lineDateText({ onDate: null, status: "accepted" }, { dueAt: "2026-12-01T08:00:00+00:00" })).toBe("01.12.2026");
+    expect(lineDateText({ onDate: null, status: "accepted" }, { dueAt: null })).toBe("—");
+    expect(lineDateText({ onDate: null, status: "accepted" }, undefined)).toBe("—");
+    expect(lineDateText({ onDate: "12/01/2026", status: "accepted" }, { dueAt: "2026-12-01T08:00:00+00:00" })).toBe("01.12.2026");
     expect(formatEntryDay("2026-01-05")).toBe("05.01.2026");
+  });
+
+  it("строка «Нет чека» стоит на сроке транша по Бишкеку, а не на том, что вернул форматтер устройства", () => {
+    // срок 20:00 UTC - в Бишкеке уже следующие сутки (02:00)
+    const due = { dueAt: "2026-12-01T20:00:00.000Z" };
+    expect(lineDay({ onDate: "2026-12-01", status: "missing" }, due)).toBe("2026-12-02");
+    expect(lineDateText({ onDate: "мусор", status: "missing" }, due)).toBe("02.12.2026");
+    expect(lineDay({ onDate: "2026-12-01", status: "missing" }, undefined)).toBeNull();
+    expect(lineDay({ onDate: null, status: "missing" }, { dueAt: null })).toBeNull();
+    expect(lineDay({ onDate: null, status: "missing" }, { dueAt: "не дата" })).toBeNull();
+    expect(lineDay({ onDate: null, status: "missing" }, { dueAt: "+275760-09-13T00:00:00.000Z" })).toBeNull();
+    // запись с сервера - его день как есть, срок транша ей не нужен
+    expect(lineDay({ onDate: "2026-11-03", status: "review" }, due)).toBe("2026-11-03");
   });
 });
 
@@ -303,5 +318,137 @@ describe("страница видит ровно то, что решил общ�
       }
     }
     expect(checked).toBeGreaterThan(200);
+  });
+});
+
+describe("день по Бишкеку (UTC+6) и порядок строк не зависят от форматтера устройства", () => {
+  it("граница суток: 17:59:59.999 UTC - ещё тот же день, 18:00:00 UTC - уже следующий", () => {
+    expect(bishkekDay(Date.UTC(2026, 10, 25, 17, 59, 59, 999))).toBe("2026-11-25");
+    expect(bishkekDay(Date.UTC(2026, 10, 25, 18, 0, 0, 0))).toBe("2026-11-26");
+    expect(bishkekDay(Date.UTC(2026, 10, 25, 0, 0, 0, 0))).toBe("2026-11-25");
+    expect(bishkekDay(Date.UTC(2026, 10, 24, 18, 0, 0, 0))).toBe("2026-11-25");
+    expect(bishkekDay(Date.UTC(2026, 10, 24, 17, 59, 59, 999))).toBe("2026-11-24");
+  });
+
+  it("переход через месяц, год и високосный день", () => {
+    expect(bishkekDay(Date.UTC(2026, 10, 30, 18, 0, 0))).toBe("2026-12-01");
+    expect(bishkekDay(Date.UTC(2026, 11, 31, 17, 59, 59, 999))).toBe("2026-12-31");
+    expect(bishkekDay(Date.UTC(2026, 11, 31, 18, 0, 0))).toBe("2027-01-01");
+    expect(bishkekDay(Date.UTC(2028, 1, 28, 17, 59, 59, 999))).toBe("2028-02-28");
+    expect(bishkekDay(Date.UTC(2028, 1, 28, 18, 0, 0))).toBe("2028-02-29");
+    expect(bishkekDay(Date.UTC(2028, 1, 29, 18, 0, 0))).toBe("2028-03-01");
+  });
+
+  /** Подмена форматтера: на устройстве `Intl.DateTimeFormat("en-CA")` мог бы вернуть не `YYYY-MM-DD` (не проверено). */
+  function withBrokenDayFormatter<T>(run: () => T, output: string): T {
+    const real = Intl.DateTimeFormat;
+    const fake = jest.spyOn(Intl, "DateTimeFormat").mockImplementation(((locale?: string | string[], options?: Intl.DateTimeFormatOptions) =>
+      locale === "en-CA" ? ({ format: () => output } as unknown as Intl.DateTimeFormat) : new real(locale, options)) as unknown as typeof Intl.DateTimeFormat);
+    try {
+      return run();
+    } finally {
+      fake.mockRestore();
+    }
+  }
+
+  // Два транша одной услуги: по порядку ключей первый A, по срокам первым должен стоять B. Общий модуль сортирует по своему `onDate`.
+  const trancheA = due({ obligationId: "a1111111-1111-4111-8111-111111111111", label: "Первый", dueAt: "2026-12-20T00:00:00.000Z" });
+  const trancheB = due({ obligationId: "b2222222-2222-4222-8222-222222222222", label: "Второй", dueAt: "2026-12-05T00:00:00.000Z" });
+  const order = (c: PaymentCenter) => buildPaymentsPage(c, ru).services[0]?.lines.map((line) => [line.line.obligationId === trancheA.obligationId ? "A" : "B", line.dateText]);
+
+  it("форматтер работает: строки по срокам, B раньше A", () => {
+    expect(order(center({ dues: [trancheA, trancheB] }))).toEqual([["B", "05.12.2026"], ["A", "20.12.2026"]]);
+  });
+
+  it.each(["11/25/2026", "25/11/2026", "", "Nov 25, 2026", "2026-1-5"])("форматтер вернул «%s»: порядок и дата те же, свои вычисления", (garbage) => {
+    expect(withBrokenDayFormatter(() => order(center({ dues: [trancheA, trancheB] })), garbage)).toEqual([["B", "05.12.2026"], ["A", "20.12.2026"]]);
+  });
+
+  it("форматтер ошибся днём (часовой пояс проигнорирован): день срока всё равно по Бишкеку", () => {
+    const late = due({ dueAt: "2026-12-01T20:00:00.000Z" }); // в Бишкеке 02.12
+    expect(withBrokenDayFormatter(() => lines({ dues: [late] })[0]?.dateText, "2026-12-01")).toBe("02.12.2026");
+  });
+
+  it("записи с сервера и чеки без платежа сортируются по своему дню; без дня - в конце; при равном дне по ключу", () => {
+    const paid = entry({ entryId: B, onDate: "2026-11-20", fileKind: "receipt", fileId: B, filename: "a.pdf" });
+    const sameDay = entry({ entryId: A, onDate: "2026-11-20", fileKind: "receipt", fileId: A, filename: "b.pdf" });
+    const early = receipt({ entryId: E, onDate: "2026-10-01" });
+    const list = lines({ dues: [due({ paidMinor: 60000, outstandingMinor: 60000, dueAt: null, status: "partially_paid", entries: [paid, sameDay, early] })] });
+    expect(list.map((line) => line.dateText)).toEqual(["01.10.2026", "20.11.2026", "20.11.2026", "—"]);
+    expect(list.slice(1, 3).map((line) => line.line.key)).toEqual([`payment:${A}`, `payment:${B}`]);
+  });
+});
+
+describe("полоса для читалки: целое число процентов округляется вниз", () => {
+  const bar = (amountMinor: number, outstandingMinor: number, reviewMinor = 0) => serviceBar({ amountMinor, outstandingMinor, paidMinor: amountMinor - outstandingMinor, reviewMinor, currency: "USD" }, ru);
+
+  it("99,7 % - это 99, а не 100, пока остаток открыт; 100 только когда закрыт", () => {
+    expect(bar(100000, 300)?.valueNow).toBe(99);
+    expect(bar(100000, 1)?.valueNow).toBe(99);
+    expect(bar(100000, 0)?.valueNow).toBe(100);
+    expect(bar(100000, 100000)?.valueNow).toBe(0);
+  });
+
+  it("целые проценты без ошибки числа с плавающей точкой: 29 % остаётся 29, а не 28", () => {
+    expect(0.29 * 100).toBeLessThan(29); // сама ловушка: 28,999999999999996
+    expect(bar(100000, 71000)?.valueNow).toBe(29);
+    for (let percent = 0; percent <= 100; percent++) expect(bar(100000, 100000 - percent * 1000)?.valueNow).toBe(percent);
+  });
+
+  it("чеки на проверке в значение не входят: оно про зачтённое", () => {
+    expect(bar(100000, 60000, 40000)?.valueNow).toBe(40);
+  });
+});
+
+describe("имя транша под заголовком: сверка как у сайта (localeCompare, sensitivity accent)", () => {
+  const web = (a: string, b: string) => a.localeCompare(b, "ru", { sensitivity: "accent" }) === 0;
+  const hidden = (title: string, name: string) => sharedServiceName(title, [name]) === null;
+
+  it("регистр, неразрывный пробел, «й» из двух знаков - тот же текст, имя не повторяется под заголовком", () => {
+    expect(hidden("Услуги EVO", "услуги evo")).toBe(true);
+    expect(hidden("Услуги EVO", "Услуги\u00A0EVO")).toBe(true);
+    expect(hidden("Услуги EVO", "Услуги\u202FEVO")).toBe(true);
+    expect(hidden("Дополнительный", "Дополнительны\u0438\u0306")).toBe(true);
+  });
+
+  it("разный текст остаётся именем: два пробела, «ё» и «е», русская «е» и латинская «e», лишнее слово", () => {
+    expect(hidden("Услуги EVO", "Услуги  EVO")).toBe(false);
+    expect(hidden("Ёлка", "Елка")).toBe(false);
+    expect(hidden("е", "e")).toBe(false);
+    expect(hidden("Услуги EVO", "Услуги EVO Плюс")).toBe(false);
+  });
+
+  it("и на телефоне, где localeCompare не знает про нашу чувствительность (сравнивает по кодам знаков), тот же текст не повторяется", () => {
+    const codeUnits = jest.spyOn(String.prototype, "localeCompare").mockImplementation(function (this: string, that: string) {
+      return this === that ? 0 : this < that ? -1 : 1;
+    });
+    try {
+      expect(hidden("Услуги EVO", "услуги evo")).toBe(true);
+      expect(hidden("Услуги EVO", "Услуги\u00A0EVO")).toBe(true);
+      expect(hidden("Дополнительный", "Дополнительны\u0438\u0306")).toBe(true);
+      expect(hidden("Услуги EVO", "Услуги  EVO")).toBe(false);
+      expect(hidden("Ёлка", "Елка")).toBe(false);
+    } finally {
+      codeUnits.mockRestore();
+    }
+  });
+
+  it("на случайных строках ответ тот же, что у сравнения сайта", () => {
+    const alphabet = ["а", "А", "е", "Е", "ё", "й", "Й", "и", "\u0306", "E", "e", "V", "O", "o", " ", "\u00A0", "\u202F", "1"];
+    let seed = 20261125;
+    const next = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    const random = () => Array.from({ length: 1 + Math.floor(next() * 4) }, () => alphabet[Math.floor(next() * alphabet.length)]).join("");
+    let same = 0;
+    for (let i = 0; i < 6000; i++) {
+      const a = random();
+      // половина пар - тот же текст, записанный иначе: так одинаковые по сайту пары встречаются часто
+      const b = next() < 0.5 ? a.toUpperCase().replace(/ /g, "\u00A0") : random();
+      if (web(a, b)) same++;
+      expect([a, b, hidden(a, b)]).toEqual([a, b, web(a, b)]);
+    }
+    expect(same).toBeGreaterThan(500);
   });
 });

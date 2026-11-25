@@ -42,7 +42,7 @@ function Bar({ bar, testID }: { bar: ProgressBar; testID: string }) {
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel={bar.label}
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(bar.paidPct) }}
+      accessibilityValue={{ min: 0, max: 100, now: bar.valueNow }}
       testID={testID}
       style={{ flexDirection: "row", height: 6, overflow: "hidden", borderRadius: tokens.radiusChip, backgroundColor: tokens.bg }}
     >

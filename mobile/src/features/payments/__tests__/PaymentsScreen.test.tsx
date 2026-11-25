@@ -24,12 +24,22 @@ jest.mock("@/features/payments/native", () => ({ createReceiptSend: jest.fn(), c
 
 const navigate = router.navigate as jest.Mock;
 const announceMock = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+const announceQueuedMock = AccessibilityInfo.announceForAccessibilityWithOptions as unknown as jest.Mock;
+/** Всё, что было сказано читалке: обычные объявления и поставленные в очередь (так объявляются отказы). */
+const spoken = () => [...announceMock.mock.calls, ...announceQueuedMock.mock.calls].map((call) => call[0] as string);
 const ACK: ReceiptResponse = { status: 201, body: { receipt_id: "e5555555-5555-4555-8555-555555555555", status: "pending" } };
 const REJECTED_ID = "d4444444-4444-4444-8444-444444444445";
 const RECEIPT_SENT = "Чек отправлен на проверку. Оплата засчитается, когда куратор его примет.";
 const PHOTO = { uri: "file:///cache/chek.jpg", name: "chek.jpg", size: 2000, mimeType: "image/jpeg", source: "photo" as const };
 
-function makeIo(responses: ReceiptResponse[] = [ACK], proofResponses: ReceiptResponse[] = [], picked: typeof PHOTO | Record<string, unknown> = PHOTO) {
+/** Ответ отправки: настоящий или ошибка сети (отправка бросает, исход неизвестен). */
+type Reply = ReceiptResponse | Error;
+
+/**
+ * `hold` - отправки ждут, пока тест не отпустит их (идущая отправка на экране); без него отвечают сразу.
+ * `Error` в ответах - обрыв сети: контроллер держит ключ повтора.
+ */
+function makeIo(responses: Reply[] = [ACK], proofResponses: Reply[] = [], picked: typeof PHOTO | Record<string, unknown> = PHOTO, hold?: Promise<unknown>, outcome?: Record<string, unknown>) {
   const attempts: ReceiptAttempt[] = [];
   const proofs: ProofAttempt[] = [];
   const copied: string[] = [];
@@ -37,15 +47,21 @@ function makeIo(responses: ReceiptResponse[] = [ACK], proofResponses: ReceiptRes
   const downloads: string[] = [];
   const opened: string[] = [];
   const io: PaymentsIo = {
-    pick: jest.fn(async () => ({ kind: "picked" as const, file: picked as typeof PHOTO })),
+    pick: jest.fn(async () => (outcome ?? { kind: "picked" as const, file: picked as typeof PHOTO }) as never),
     createUploadSend: jest.fn(),
     createReceiptSend: () => async (attempt) => {
       attempts.push(attempt);
-      return responses.shift() ?? { status: 503, body: null };
+      if (hold) await hold;
+      const next = responses.shift() ?? { status: 503, body: null };
+      if (next instanceof Error) throw next;
+      return next;
     },
     createProofSend: () => async (attempt) => {
       proofs.push(attempt);
-      return proofResponses.shift() ?? { status: 503, body: null };
+      if (hold) await hold;
+      const next = proofResponses.shift() ?? { status: 503, body: null };
+      if (next instanceof Error) throw next;
+      return next;
     },
     copyText: jest.fn(async (value: string) => {
       copied.push(value);
@@ -68,24 +84,40 @@ function makeIo(responses: ReceiptResponse[] = [ACK], proofResponses: ReceiptRes
 beforeEach(() => {
   navigate.mockClear();
   announceMock.mockClear();
+  announceQueuedMock.mockClear();
 });
+afterEach(() => jest.useRealTimers());
+
+/** Задержка, которую тест отпускает сам: так отправка «идёт», пока он нажимает кнопки. */
+function gate() {
+  let open: () => void = () => undefined;
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { promise, open };
+}
 
 const center = (over: Record<string, unknown> = {}) => fakeTransport({ student_portal_payment_center_v1: paymentCenterRow(over) });
 /** Первый ответ - как дан, следующие - после того, как данные «обновились» (чек появился, файл приложен). */
 const changing = (first: Record<string, unknown>, later: Record<string, unknown>) =>
   fakeTransport({ student_portal_payment_center_v1: (_args: unknown, call: number) => paymentCenterRow(call === 1 ? first : later) });
 
-/** Нажать кнопку, выбрать «Фото» в листе и дождаться выбранного файла (на iOS лист закрывается 700 мс, пока таймер не пройдёт, выбора нет). */
-async function choosePhoto(openTestId: string, io: PaymentsIo) {
-  jest.useFakeTimers();
+/**
+ * Нажать кнопку, выбрать «Фото» в листе и дождаться выбранного файла (на iOS лист закрывается 700 мс, пока таймер не пройдёт, выбора нет).
+ * `clock`: тест уже включил часы (`jest.useFakeTimers({ now })`) и сам решает, какой сейчас момент; тогда здесь их не трогают.
+ */
+async function choosePhoto(openTestId: string, io: PaymentsIo, clock = false) {
+  // Кнопка находится на настоящих часах: данные страницы приходят через таймеры, и ждать их на поддельных значит гадать о скорости машины.
+  const opener = await screen.findByTestId(openTestId);
+  if (!clock) jest.useFakeTimers();
   try {
-    await fireEvent.press(await screen.findByTestId(openTestId));
+    await fireEvent.press(opener);
     await fireEvent.press(screen.getByTestId("pick-photo"));
     await act(async () => {
       jest.advanceTimersByTime(800);
     });
   } finally {
-    jest.useRealTimers();
+    if (!clock) jest.useRealTimers();
   }
   await waitFor(() => expect(io.pick).toHaveBeenCalledWith("photo"));
 }
@@ -350,13 +382,39 @@ describe("Оплата: чек у строки - только файл (D8)", ()
     expect(attempts).toHaveLength(0);
   });
 
-  it("не тот тип файла (HEIC): понятная строка, сеть не вызывается", async () => {
+  it("не тот тип файла (HEIC): отказ сразу при выборе, как на сайте: файл не выбран, «Сохранить» нет, сеть не вызывается, читалка слышит причину", async () => {
     const { transport } = center();
     const { io, attempts } = makeIo([ACK], [], { uri: "file:///cache/a.heic", name: "a.heic", size: 2000, mimeType: "image/heic", source: "photo" });
     await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
     await choosePhoto("payment-0-entry-1-slot-attach", io);
-    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
     expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toHaveTextContent("Выберите PDF, JPG или PNG.");
+    expect(screen.queryByTestId("payment-0-entry-1-slot-save")).toBeNull();
+    expect(screen.queryByTestId("payment-0-entry-1-slot-file-name")).toBeNull();
+    expect(screen.getByTestId("payment-0-entry-1-slot-attach")).toBeTruthy();
+    expect(attempts).toHaveLength(0);
+    expect(announceQueuedMock).toHaveBeenCalledWith("Выберите PDF, JPG или PNG.", { queue: true });
+  });
+
+  it("файл больше 25 МБ или пустой: отказ при выборе", async () => {
+    const { transport } = center();
+    const big = makeIo([ACK], [], { ...PHOTO, size: 26 * 1024 * 1024 });
+    await renderPortal(<PaymentsScreen io={big.io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", big.io);
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toHaveTextContent("Файл больше 25 МБ или пустой.");
+    expect(screen.queryByTestId("payment-0-entry-1-slot-save")).toBeNull();
+    expect(big.attempts).toHaveLength(0);
+  });
+
+  it("после отказа можно выбрать другой, подходящий файл: причина уходит", async () => {
+    const { transport } = center();
+    const { io, attempts } = makeIo();
+    (io.pick as jest.Mock).mockResolvedValueOnce({ kind: "picked", file: { ...PHOTO, name: "a.heic", mimeType: "image/heic" } });
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io);
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toBeTruthy();
+    await choosePhoto("payment-0-entry-1-slot-attach", io);
+    expect(await screen.findByTestId("payment-0-entry-1-slot-file-name")).toHaveTextContent("chek.jpg");
+    expect(screen.queryByTestId("payment-0-entry-1-slot-error")).toBeNull();
     expect(attempts).toHaveLength(0);
   });
 
@@ -511,6 +569,257 @@ describe("Оплата: «Добавленные платежи» (чеки бе
     await fireEvent.press(await screen.findByTestId("added-entry-0-slot-save"));
     await waitFor(() => expect(attempts).toHaveLength(1));
     expect(attempts[0]?.fields).toEqual({ amount: "1500.00", currency: "KGS", paidOn: "2026-11-10", obligationId: null });
+  });
+});
+
+describe("Оплата: идущая отправка не обрывается (M1)", () => {
+  const PAYMENT_KEY = ["portal", "user-test", "payment-center"] as const;
+
+  /** Форма «Добавить платёж» заполнена, «Сохранить» нажато, отправка идёт (держится `hold`). */
+  async function startAddPayment(io: ReturnType<typeof makeIo>, over: Record<string, unknown> = {}) {
+    const { transport, calls } = center(over);
+    const rendered = await renderPortal(<PaymentsScreen io={io.io} />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("payments-add"));
+    await fireEvent.changeText(screen.getByTestId("payment-add-amount"), "10");
+    await choosePhoto("payment-add-pick", io.io);
+    await fireEvent.press(await screen.findByTestId("payment-add-save"));
+    await waitFor(() => expect(io.attempts).toHaveLength(1));
+    return { ...rendered, calls };
+  }
+
+  it("пока идёт отправка из «Добавить платёж», кнопка в шапке и «Отмена» отключены; форма остаётся, отправка доходит до успеха, список перечитывается", async () => {
+    const hold = gate();
+    const io = makeIo([ACK], [], PHOTO, hold.promise);
+    const { calls } = await startAddPayment(io);
+    const toggle = screen.getByTestId("payments-add");
+    expect(toggle.props.accessibilityState).toMatchObject({ disabled: true, expanded: true });
+    expect(screen.getByTestId("payment-add-cancel").props.accessibilityState).toMatchObject({ disabled: true });
+    await fireEvent.press(toggle);
+    await fireEvent.press(screen.getByTestId("payment-add-cancel"));
+    expect(screen.getByTestId("payment-add-form")).toBeTruthy();
+    expect(io.attempts[0]?.signal.aborted).toBe(false);
+    const before = paymentCenterCalls(calls);
+    hold.open();
+    expect(await screen.findByTestId("payment-add-sent")).toHaveTextContent(RECEIPT_SENT);
+    expect(io.attempts[0]?.signal.aborted).toBe(false);
+    await waitFor(() => expect(paymentCenterCalls(calls)).toBeGreaterThan(before));
+    expect(screen.getByTestId("payments-add").props.accessibilityState).toMatchObject({ disabled: false });
+  });
+
+  it("отправка не удалась: кнопка в шапке снова работает, форму можно закрыть", async () => {
+    const hold = gate();
+    const io = makeIo([{ status: 409, body: { error: "receipt_duplicate" } }], [], PHOTO, hold.promise);
+    await startAddPayment(io);
+    expect(screen.getByTestId("payments-add").props.accessibilityState).toMatchObject({ disabled: true });
+    hold.open();
+    expect(await screen.findByTestId("payment-add-error")).toHaveTextContent("Этот чек уже отправлен.");
+    await waitFor(() => expect(screen.getByTestId("payments-add").props.accessibilityState).toMatchObject({ disabled: false }));
+    await fireEvent.press(screen.getByTestId("payments-add"));
+    expect(screen.queryByTestId("payment-add-form")).toBeNull();
+  });
+
+  it("экран закрыт посреди отправки из «Добавить платёж»: отправка не обрывается, список помечается устаревшим", async () => {
+    const hold = gate();
+    const io = makeIo([ACK], [], PHOTO, hold.promise);
+    const { unmount, client } = await startAddPayment(io);
+    expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(false);
+    unmount();
+    hold.open();
+    await waitFor(() => expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(true));
+    expect(io.attempts[0]?.signal.aborted).toBe(false);
+  });
+
+  it("то же у «Приложить чек» в строке: экран закрыт посреди отправки - отправка идёт до конца", async () => {
+    const hold = gate();
+    const io = makeIo([ACK], [], PHOTO, hold.promise);
+    const { transport } = center();
+    const { unmount, client } = await renderPortal(<PaymentsScreen io={io.io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io.io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(io.attempts).toHaveLength(1));
+    unmount();
+    hold.open();
+    await waitFor(() => expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(true));
+    expect(io.attempts[0]?.signal.aborted).toBe(false);
+  });
+
+  it("строку заменили свежие данные посреди отправки: слот исчез, отправка не оборвана, после неё список перечитывается", async () => {
+    const hold = gate();
+    const io = makeIo([ACK], [], PHOTO, hold.promise);
+    // свежие данные: остаток закрыт чеком, строки «Нет чека» (а с ней слота) больше нет
+    const covering = paymentEntryRow({ entry_id: ENTRY_ID(80), amount_minor: 2000, on_date: "2026-11-24", filename: "other.jpg" });
+    const { transport, calls } = changing({}, { dues: [paymentDueRow({ entries: [paymentEntryRow(), covering] })] });
+    const { client } = await renderPortal(<PaymentsScreen io={io.io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io.io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(io.attempts).toHaveLength(1));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: PAYMENT_KEY });
+    });
+    await waitFor(() => expect(screen.queryByTestId("payment-0-entry-1-slot-save")).toBeNull());
+    expect(io.attempts[0]?.signal.aborted).toBe(false);
+    const before = paymentCenterCalls(calls);
+    hold.open();
+    await waitFor(() => expect(paymentCenterCalls(calls)).toBeGreaterThan(before));
+    expect(io.attempts[0]?.signal.aborted).toBe(false);
+  });
+
+  it("и у «Приложить чек» к принятой оплате: экран закрыт посреди отправки - не обрывается", async () => {
+    const accepted = paymentEntryRow({ kind: "payment", status: "accepted", entry_id: "d4444444-4444-4444-8444-444444444450", file_kind: null, file_id: null, filename: null });
+    const hold = gate();
+    const io = makeIo([ACK], [{ status: 201, body: { payment_receipt_file_id: RECEIPT_FILE_ID, original_filename: "chek.jpg" } }], PHOTO, hold.promise);
+    const { transport } = center({ dues: [paymentDueRow({ entries: [accepted] })] });
+    const { unmount, client } = await renderPortal(<PaymentsScreen io={io.io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-0-proof-attach", io.io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-0-proof-save"));
+    await waitFor(() => expect(io.proofs).toHaveLength(1));
+    unmount();
+    hold.open();
+    await waitFor(() => expect(client.getQueryState(PAYMENT_KEY)?.isInvalidated).toBe(true));
+    expect(io.proofs[0]?.signal.aborted).toBe(false);
+  });
+});
+
+describe("Оплата: повтор после полуночи по Бишкеку уходит с тем же ключом и телом (L1)", () => {
+  // 25.11.2026 23:59 в Бишкеке = 17:59 UTC; через две минуты в Бишкеке уже 26.11
+  const BEFORE_MIDNIGHT = Date.UTC(2026, 10, 25, 17, 59, 0);
+  const AFTER_MIDNIGHT = Date.UTC(2026, 10, 25, 18, 1, 0);
+  const NETWORK_DOWN = new Error("network down");
+
+  it("чек у строки: обрыв сети (исход неизвестен), полночь, «Сохранить» ещё раз - тот же Idempotency-Key и те же поля", async () => {
+    jest.useFakeTimers({ now: BEFORE_MIDNIGHT });
+    const { transport } = center();
+    const { io, attempts } = makeIo([NETWORK_DOWN, ACK]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toHaveTextContent("Не получилось отправить чек. Проверьте соединение и попробуйте ещё раз.");
+    jest.setSystemTime(AFTER_MIDNIGHT);
+    await fireEvent.press(screen.getByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts[0]?.fields.paidOn).toBe("2026-11-25");
+    expect(attempts[1]?.fields).toEqual(attempts[0]?.fields);
+    expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
+    expect(await screen.findByTestId("payment-0-entry-1-slot-sent")).toBeTruthy();
+  });
+
+  it("другой файл после полуночи - уже другая попытка: день новый, ключ новый", async () => {
+    jest.useFakeTimers({ now: BEFORE_MIDNIGHT });
+    const { transport } = center();
+    const { io, attempts } = makeIo([NETWORK_DOWN, ACK]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    jest.setSystemTime(AFTER_MIDNIGHT);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-file-clear"));
+    (io.pick as jest.Mock).mockResolvedValueOnce({ kind: "picked", file: { ...PHOTO, uri: "file:///cache/second.jpg", name: "second.jpg" } });
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts[1]?.fields.paidOn).toBe("2026-11-26");
+    expect(attempts[1]?.idempotencyKey).not.toBe(attempts[0]?.idempotencyKey);
+  });
+
+  it("«Добавить платёж»: день подставлен при открытии формы и дальше не меняется сам - повтор после полуночи с тем же ключом и телом", async () => {
+    jest.useFakeTimers({ now: BEFORE_MIDNIGHT });
+    const { transport } = center();
+    const { io, attempts } = makeIo([NETWORK_DOWN, ACK]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("payments-add"));
+    expect(screen.getByTestId("payment-add-date").props.value).toBe("25.11.2026");
+    await fireEvent.changeText(screen.getByTestId("payment-add-amount"), "10");
+    await choosePhoto("payment-add-pick", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-add-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    expect(await screen.findByTestId("payment-add-error")).toBeTruthy();
+    jest.setSystemTime(AFTER_MIDNIGHT);
+    await fireEvent.press(screen.getByTestId("payment-add-save"));
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts[0]?.fields.paidOn).toBe("2026-11-25");
+    expect(attempts[1]?.fields).toEqual(attempts[0]?.fields);
+    expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
+  });
+});
+
+describe("Оплата: отказы слышит читалка (L2)", () => {
+  const DUPLICATE = "Этот чек уже отправлен.";
+
+  it("чек у строки: отказ сервера показан под кнопкой и объявлен в очереди за речью читалки", async () => {
+    const { transport } = center();
+    const { io } = makeIo([{ status: 409, body: { error: "receipt_duplicate" } }]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toHaveTextContent(DUPLICATE);
+    await waitFor(() => expect(announceQueuedMock).toHaveBeenCalledWith(DUPLICATE, { queue: true }));
+    expect(spoken().filter((text) => text === DUPLICATE)).toHaveLength(1);
+  });
+
+  it("«Добавить платёж»: и проверка до отправки, и отказ сервера объявляются", async () => {
+    const { transport } = center();
+    const { io } = makeIo([{ status: 429, body: { error: "receipt_too_many" } }]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("payments-add"));
+    await fireEvent.press(screen.getByTestId("payment-add-save"));
+    await waitFor(() => expect(spoken()).toContain("Проверьте сумму, валюту, дату и файл."));
+    await fireEvent.changeText(screen.getByTestId("payment-add-amount"), "10");
+    await choosePhoto("payment-add-pick", io);
+    await fireEvent.press(await screen.findByTestId("payment-add-save"));
+    await waitFor(() => expect(spoken()).toContain("Слишком много чеков на проверке. Дождитесь решения куратора."));
+  });
+
+  it("чек к принятой оплате: отказ объявляется", async () => {
+    const accepted = paymentEntryRow({ kind: "payment", status: "accepted", entry_id: "d4444444-4444-4444-8444-444444444450", file_kind: null, file_id: null, filename: null });
+    const { transport } = center({ dues: [paymentDueRow({ entries: [accepted] })] });
+    const { io } = makeIo([ACK], [{ status: 413, body: { error: "file_too_large" } }]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-0-proof-attach", io);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-0-proof-save"));
+    expect(await screen.findByTestId("payment-0-entry-0-proof-error")).toHaveTextContent("Файл больше 25 МБ или пустой.");
+    await waitFor(() => expect(spoken()).toContain("Файл больше 25 МБ или пустой."));
+  });
+
+  it("нет доступа к камере и сбой выбора файла: причина объявляется", async () => {
+    const { transport } = center();
+    const denied = makeIo([ACK], [], PHOTO, undefined, { kind: "denied", canAskAgain: false });
+    await renderPortal(<PaymentsScreen io={denied.io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", denied.io);
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toHaveTextContent("Нет доступа к камере. Разрешите его в настройках телефона.");
+    await waitFor(() => expect(spoken()).toContain("Нет доступа к камере. Разрешите его в настройках телефона."));
+  });
+
+  it("тот же отказ во второй раз объявляется снова: между отправками причина пропадает", async () => {
+    jest.useFakeTimers({ now: Date.UTC(2026, 10, 25, 10, 0, 0) });
+    const { transport } = center();
+    const { io, attempts } = makeIo([{ status: 409, body: { error: "receipt_duplicate" } }, { status: 409, body: { error: "receipt_duplicate" } }]);
+    await renderPortal(<PaymentsScreen io={io} />, testApi(transport));
+    await choosePhoto("payment-0-entry-1-slot-attach", io, true);
+    await fireEvent.press(await screen.findByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(1));
+    expect(await screen.findByTestId("payment-0-entry-1-slot-error")).toBeTruthy();
+    // окно «то же сообщение подряд» у `announce` - 0,8 с; настоящий повтор студента позже
+    jest.setSystemTime(Date.UTC(2026, 10, 25, 10, 0, 5));
+    await fireEvent.press(screen.getByTestId("payment-0-entry-1-slot-save"));
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    await waitFor(() => expect(spoken().filter((text) => text === DUPLICATE)).toHaveLength(2));
+  });
+});
+
+describe("Оплата: полоса для читалки не округляет вверх (L4)", () => {
+  it("оплачено 99,7 %, остаток открыт: читалка слышит 99, а не 100", async () => {
+    const { transport } = center({ dues: [paymentDueRow({ amount_minor: 100000, paid_minor: 99700, outstanding_minor: 300, entries: [] })] });
+    await renderPortal(<PaymentsScreen io={makeIo().io} />, testApi(transport));
+    const bar = await screen.findByTestId("payment-0-bar");
+    expect(bar.props.accessibilityValue).toEqual({ min: 0, max: 100, now: 99 });
+    expect(parseFloat(screen.getByTestId("payment-0-bar-paid").props.style.width)).toBeCloseTo(99.7);
+  });
+
+  it("оплачено целиком: 100", async () => {
+    const { transport } = center({ dues: [paymentDueRow({ amount_minor: 100000, paid_minor: 100000, outstanding_minor: 0, derived_status: "paid", entries: [] })] });
+    await renderPortal(<PaymentsScreen io={makeIo().io} />, testApi(transport));
+    expect((await screen.findByTestId("payment-0-bar")).props.accessibilityValue).toEqual({ min: 0, max: 100, now: 100 });
   });
 });
 

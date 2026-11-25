@@ -2,6 +2,7 @@
 // Только файл: сумма, дата и статус не меняются, куратор ничего не проверяет. Выбор файла - лист «файл, фото, камера».
 // Когда файл сохранён, слот сообщает об этом строке (`onAttached`): строка показывает ссылку на файл и «Чек приложен» и держит их,
 // пока открыта страница, даже когда перечитанные данные уже дали записи файл и слот исчез (G34 аудита паритета).
+// Идущая отправка не обрывается, когда слот исчезает: как на сайте, она доходит до конца и список перечитывается (`invalidate`).
 import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
@@ -14,7 +15,8 @@ import type { PaymentsIo } from "@/features/payments/io";
 import { PickedFileChip } from "@/features/payments/PickedFileChip";
 import { ProofUploadController } from "@/features/payments/proof-upload";
 import { SlotButton } from "@/features/payments/SlotButton";
-import { useFilePick } from "@/features/payments/use-file-pick";
+import { useAnnounceProblem } from "@/features/payments/use-announce-problem";
+import { pickNoticeText, useFilePick } from "@/features/payments/use-file-pick";
 import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
@@ -45,7 +47,11 @@ export function ProofSlot({
   const clearMessage = useCallback(() => controller.clearMessage(), [controller]);
   const pick = useFilePick(io, clearMessage);
 
-  useEffect(() => () => controller.cancel(), [controller]);
+  const busy = state.status === "sending";
+  const failed = state.status === "error" ? state : null;
+  const errorText = failed ? ((strings as Record<string, string>)[failed.error] ?? strings.receiptErrorUnavailable) : null;
+  const problem = pickNoticeText(pick.notice, m, strings) ?? errorText;
+  useAnnounceProblem(problem, failed, pick.noticeSeq);
   // Сохранён файл: строка запоминает это и держит «Чек приложен» с ссылкой после перечитывания. «Файл уже есть» (409) - не успех слота:
   // состояние остаётся «пусто», данные перечитываются, и строка просто показывает файл.
   useEffect(() => {
@@ -59,11 +65,6 @@ export function ProofSlot({
       </Text>
     );
   }
-
-  const busy = state.status === "sending";
-  const failed = state.status === "error" ? state : null;
-  const errorText = failed ? ((strings as Record<string, string>)[failed.error] ?? strings.receiptErrorUnavailable) : null;
-  const problem = pick.notice === "camera" ? m("docs.cameraDenied") : pick.notice === "pick" ? m("docs.errorPick") : errorText;
 
   return (
     <View style={{ gap: 6, flexShrink: 1 }} testID={testID}>

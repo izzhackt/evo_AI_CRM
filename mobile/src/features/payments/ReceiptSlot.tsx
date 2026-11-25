@@ -2,6 +2,8 @@
 // Только файл (решение владельца 25.11, как на сайте): сумма, валюта, день и платёж берутся из строки
 // (`receiptInputForLine`), студент их не вводит. Кнопку («+ Приложить чек» к остатку или «Заменить» у отклонённого) решает
 // общий модуль веба (`PaymentLine.attach` / `replace`), здесь только показ и отправка.
+// Идущая отправка не обрывается, когда слот исчезает (строку заменили свежие данные, студент ушёл с экрана): как на сайте, она
+// доходит до конца, список перечитывается (`invalidate`), а чек не теряется молча.
 import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
@@ -14,7 +16,8 @@ import type { PaymentsIo } from "@/features/payments/io";
 import { PickedFileChip } from "@/features/payments/PickedFileChip";
 import { receiptInputForLine, ReceiptUploadController } from "@/features/payments/receipt-upload";
 import { SlotButton } from "@/features/payments/SlotButton";
-import { useFilePick } from "@/features/payments/use-file-pick";
+import { useAnnounceProblem } from "@/features/payments/use-announce-problem";
+import { pickNoticeText, useFilePick } from "@/features/payments/use-file-pick";
 import { useLang } from "@/i18n/LangProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
@@ -30,8 +33,11 @@ export function ReceiptSlot({ io, view, mode, testID }: { io: PaymentsIo; view: 
   const clearMessage = useCallback(() => controller.clearMessage(), [controller]);
   const pick = useFilePick(io, clearMessage);
   const sent = state.status === "success";
+  const busy = state.status === "sending";
+  const failed = state.status === "error" ? state : null;
+  const problem = pickNoticeText(pick.notice, m, strings) ?? (failed ? strings[failed.error] : null);
 
-  useEffect(() => () => controller.cancel(), [controller]);
+  useAnnounceProblem(problem, failed, pick.noticeSeq);
   useEffect(() => {
     if (sent) announce(strings.receiptSent);
   }, [sent, strings.receiptSent]);
@@ -44,18 +50,26 @@ export function ReceiptSlot({ io, view, mode, testID }: { io: PaymentsIo; view: 
     );
   }
 
-  const busy = state.status === "sending";
-  const failed = state.status === "error" ? state : null;
-  const problem = pick.notice === "camera" ? m("docs.cameraDenied") : pick.notice === "pick" ? m("docs.errorPick") : failed ? strings[failed.error] : null;
   const label = mode === "replace" ? strings.replaceButton : strings.receiptAttach;
+  // День чека считается от момента выбора файла и не меняется, пока файл тот же: повтор после неизвестного исхода (обрыв сети)
+  // и после полуночи по Бишкеку уходит с тем же телом и тем же ключом, а не вторым чеком.
+  const save = () => controller.submit(receiptInputForLine(view.line, pick.file, pick.pickedAt ?? Date.now()));
 
   return (
     <View style={{ gap: 6, flexShrink: 1 }} testID={testID}>
       {pick.file ? (
         <View style={{ gap: 8 }}>
-          <PickedFileChip name={pick.file.name} onClear={() => { pick.clear(); controller.clearMessage(); }} disabled={busy} testID={`${testID}-file`} />
+          <PickedFileChip
+            name={pick.file.name}
+            onClear={() => {
+              pick.clear();
+              controller.clearMessage();
+            }}
+            disabled={busy}
+            testID={`${testID}-file`}
+          />
           <View style={{ flexDirection: "row" }}>
-            <Button label={busy ? strings.receiptSaving : strings.receiptSave} busy={busy} onPress={() => controller.submit(receiptInputForLine(view.line, pick.file))} testID={`${testID}-save`} />
+            <Button label={busy ? strings.receiptSaving : strings.receiptSave} busy={busy} onPress={save} testID={`${testID}-save`} />
           </View>
         </View>
       ) : (

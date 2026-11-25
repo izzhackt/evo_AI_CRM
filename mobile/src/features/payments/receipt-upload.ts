@@ -17,7 +17,8 @@ import {
 } from "@web/lib/portal/payment-center";
 import type { PaymentLine } from "@web/lib/portal/payment-rows";
 
-import { checkPickedFile, type PickedFile } from "@/domain/documents-model";
+import { checkPickedFile, type FileCheck, type PickedFile } from "@/domain/documents-model";
+import { bishkekDay } from "@/domain/payments-model";
 import type { DocumentMimeType } from "@/domain/portal-source";
 
 export type ReceiptField = "amount" | "currency" | "date" | "file";
@@ -63,11 +64,15 @@ export type ReceiptSend = (attempt: ReceiptAttempt) => Promise<ReceiptResponse>;
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DOTTED = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
-const BISHKEK_OFFSET_MS = 6 * 60 * 60 * 1000;
 
-/** Сегодняшний день по Бишкеку (UTC+6, без перехода на летнее время). */
+/** Сегодняшний день по Бишкеку (UTC+6, без перехода на летнее время; сам расчёт - `bishkekDay`). */
 export function todayInBishkek(now: number = Date.now()): string {
-  return new Date(now + BISHKEK_OFFSET_MS).toISOString().slice(0, 10);
+  return bishkekDay(now);
+}
+
+/** Слова отказа проверки файла: чужой тип - «выберите PDF, JPG или PNG», слишком большой или пустой - «больше 25 МБ или пустой». */
+export function fileCheckErrorKey(reason: Extract<FileCheck, { ok: false }>["reason"]): "receiptErrorFileType" | "receiptErrorTooLarge" {
+  return reason === "type" ? "receiptErrorFileType" : "receiptErrorTooLarge";
 }
 
 /**
@@ -75,6 +80,8 @@ export function todayInBishkek(now: number = Date.now()): string {
  * (день отклонённого чека) или сегодня по Бишкеку, платёж строки (у «добавленного платежа» его нет). Студент ничего не вводит.
  * День из строки не бывает позже «сегодня» сервера; если часы телефона отстают, он обрезается до сегодняшнего дня телефона,
  * иначе замена отклонённого чека упёрлась бы в «дата в будущем», которую студенту нечем исправить.
+ * `now` - момент, а не «сейчас»: вызывающий держит его, пока жив ключ повтора (слот берёт момент выбора файла). Иначе повтор после
+ * полуночи по Бишкеку, когда исход первой отправки неизвестен, получил бы другой день, другое тело и новый ключ: возможный дубль чека.
  */
 export function receiptInputForLine(line: Pick<PaymentLine, "submitAmountMinor" | "currency" | "submitDate" | "obligationId">, file: PickedFile | null, now: number = Date.now()): ReceiptInput {
   const today = todayInBishkek(now);
@@ -110,7 +117,7 @@ export function checkReceiptInput(input: ReceiptInput, now: number = Date.now())
   const file = input.file;
   if (!file) return { ok: false, error: "receiptErrorInvalid", field: "file" };
   const checked = checkPickedFile(file);
-  if (!checked.ok) return { ok: false, error: checked.reason === "type" ? "receiptErrorFileType" : "receiptErrorTooLarge", field: "file" };
+  if (!checked.ok) return { ok: false, error: fileCheckErrorKey(checked.reason), field: "file" };
   const minor = receiptAmountToMinor(input.amount);
   if (minor === null) return { ok: false, error: "receiptErrorInvalid", field: "amount" };
   const currency = input.currency.trim().toUpperCase();
@@ -210,6 +217,10 @@ export class ReceiptUploadController {
     this.set({ status: "idle" });
   }
 
+  /**
+   * Оборвать идущую отправку по решению студента (кнопки «Отменить отправку» пока нет, ничто это не вызывает). Закрытие формы, слота
+   * или экрана отправку НЕ обрывает: сайт её тоже не обрывает, а оборванный чек пропадал бы молча (ревью #1560, M1).
+   */
   cancel(): void {
     this.abort?.abort();
   }

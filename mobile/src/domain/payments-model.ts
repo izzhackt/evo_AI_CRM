@@ -22,6 +22,22 @@ type AdmissionStrings = PortalStrings<"admission">;
 /** Минус суммы возврата: тот же знак, что в вебе (`−`, не дефис). */
 const MINUS = "−";
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** Бишкек - UTC+6 круглый год (перехода на летнее время нет), поэтому день считается сдвигом, а не форматтером устройства. */
+const BISHKEK_OFFSET_MS = 6 * 60 * 60 * 1000;
+/** Самый поздний момент, который понимает `Date` (±8,64e15 мс): за ним `toISOString` бросает исключение. */
+const MAX_DATE_MS = 8.64e15;
+
+/** День по Бишкеку для момента `ms` (миллисекунды Unix): `YYYY-MM-DD`. 17:59:59.999 UTC - ещё тот же день, 18:00:00 UTC - уже следующий. */
+export function bishkekDay(ms: number): string {
+  return new Date(ms + BISHKEK_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** День срока транша по Бишкеку. Нет срока, он не разбирается или не помещается в `Date` - `null`. */
+function dueDay(dueAt: string | null): string | null {
+  if (dueAt === null) return null;
+  const ms = Date.parse(dueAt);
+  return Number.isFinite(ms) && Math.abs(ms + BISHKEK_OFFSET_MS) <= MAX_DATE_MS ? bishkekDay(ms) : null;
+}
 
 export function paymentCategoryLabel(payment: Pick<PaymentDue, "category">, strings: AdmissionStrings): string | null {
   return strings[`payCategory.${payment.category}`] ?? null;
@@ -104,16 +120,39 @@ export function lineMoney(line: Pick<PaymentLine, "amountMinor" | "currency" | "
 }
 
 /**
- * День строки: свой день записи, иначе срок транша, иначе «—» (веб: `shownDate`). День, не похожий на `YYYY-MM-DD`
- * (форматтер времени устройства вернул что-то иное), в таблицу не попадает: берётся срок транша.
+ * День строки для порядка и показа. Строка «Нет чека» стоит на сроке транша: его день считается здесь, по Бишкеку, а не берётся из
+ * `line.onDate`, который общий модуль получает от форматтера устройства (`Intl`; что он выдаёт на телефоне, не проверено, а порядок
+ * строк зависит от этого). Остальные строки - день записи с сервера (`YYYY-MM-DD`, строго разобран); странный формат не
+ * показывается, берётся срок транша. Нет и его - `null`.
  */
-export function lineDateText(line: Pick<PaymentLine, "onDate">, due: Pick<PaymentDue, "dueAt"> | undefined): string {
-  if (line.onDate !== null && ISO_DAY.test(line.onDate)) return formatEntryDay(line.onDate);
-  return (due ? formatPortalDeadline(due.dueAt) : null) ?? "—";
+export function lineDay(line: Pick<PaymentLine, "onDate" | "status">, due: Pick<PaymentDue, "dueAt"> | undefined): string | null {
+  if (line.status !== "missing" && line.onDate !== null && ISO_DAY.test(line.onDate)) return line.onDate;
+  return due ? dueDay(due.dueAt) : null;
 }
 
-function lineView(line: PaymentLine, dues: ReadonlyMap<string, PaymentDue>, strings: AdmissionStrings): PaymentLineView {
-  const dateText = lineDateText(line, line.obligationId ? dues.get(line.obligationId) : undefined);
+/** День строки словами таблицы: «дд.мм.гггг» или «—» (веб: `shownDate`). */
+export function lineDateText(line: Pick<PaymentLine, "onDate" | "status">, due: Pick<PaymentDue, "dueAt"> | undefined): string {
+  const day = lineDay(line, due);
+  return day === null ? "—" : formatEntryDay(day);
+}
+
+/** Порядок общего модуля (`byDate`): по дню, строки без дня в конце, при равном дне по ключу. День здесь свой (`lineDay`), не из `Intl`. */
+function byDay(a: Readonly<{ day: string | null; line: PaymentLine }>, b: Readonly<{ day: string | null; line: PaymentLine }>): number {
+  if (a.day === b.day) return a.line.key < b.line.key ? -1 : a.line.key > b.line.key ? 1 : 0;
+  if (a.day === null) return 1;
+  if (b.day === null) return -1;
+  return a.day < b.day ? -1 : 1;
+}
+
+function orderedViews(lines: readonly PaymentLine[], dues: ReadonlyMap<string, PaymentDue>, strings: AdmissionStrings): PaymentLineView[] {
+  return lines
+    .map((line) => ({ line, day: lineDay(line, line.obligationId ? dues.get(line.obligationId) : undefined) }))
+    .sort(byDay)
+    .map(({ line, day }) => lineView(line, day, strings));
+}
+
+function lineView(line: PaymentLine, day: string | null, strings: AdmissionStrings): PaymentLineView {
+  const dateText = day === null ? "—" : formatEntryDay(day);
   return {
     line,
     dateText,
@@ -143,6 +182,8 @@ export type ProgressBar = Readonly<{
   /** Доля зачтённого и доля чеков на проверке, в процентах ширины полосы. */
   paidPct: number;
   reviewPct: number;
+  /** Целое число процентов для читалки: округляется вниз, чтобы «100» не звучало, пока остаток не закрыт. */
+  valueNow: number;
   label: string;
 }>;
 
@@ -157,25 +198,30 @@ export type ServiceView = Readonly<{
   lines: readonly PaymentLineView[];
 }>;
 
+/**
+ * Один и тот же текст для глаза: как `localeCompare(..., "ru", { sensitivity: "accent" })` на сайте (регистр не важен, «й» из одного знака
+ * и «и» с краткой - одно и то же, неразрывный пробел - обычный). Сама проверка сайта берётся как есть, но что она скажет на телефоне, зависит
+ * от `Intl` устройства, поэтому рядом стоит своя сверка на тех же различиях, без `Intl`: имя не должно повторять заголовок ни на одном телефоне.
+ */
+function sameText(a: string, b: string): boolean {
+  const fold = (text: string) => text.normalize("NFC").replace(/[\u00A0\u2007\u202F]/gu, " ").toLocaleLowerCase("ru-RU");
+  return fold(a) === fold(b) || a.localeCompare(b, "ru", { sensitivity: "accent" }) === 0;
+}
+
 /** Имя услуги под заголовком (веб: `sharedName`): не «Получено в USD», не повтор заголовка с точностью до регистра. */
 export function sharedServiceName(title: string, labels: readonly string[]): string | null {
   const names = [...new Set(labels.filter((label) => !isGeneratedReceivedLabel(label)))];
   if (names.length !== 1) return null;
-  const name = names[0];
-  return name.toLocaleLowerCase("ru-RU") === title.toLocaleLowerCase("ru-RU") ? null : name;
-}
-
-function money(minor: number, currency: string): string {
-  return formatPortalMoney(minor, currency);
+  return sameText(names[0], title) ? null : names[0];
 }
 
 function reviewAside(group: Pick<PaymentGroup, "reviewMinor" | "currency">, strings: AdmissionStrings): string | null {
-  return group.reviewMinor > 0 ? formatPortalString(strings.receiptReviewAside, { amount: money(group.reviewMinor, group.currency) }) : null;
+  return group.reviewMinor > 0 ? formatPortalString(strings.receiptReviewAside, { amount: formatPortalMoney(group.reviewMinor, group.currency) }) : null;
 }
 
 /** Подпись полосы для читалки: «Оплачено X из Y» и, если есть, «N на проверке». */
 export function progressLabel(group: Pick<PaymentGroup, "paidMinor" | "amountMinor" | "reviewMinor" | "currency">, strings: AdmissionStrings): string {
-  const paid = formatPortalString(strings.receiptProgressLabel, { paid: money(group.paidMinor, group.currency), total: money(group.amountMinor, group.currency) });
+  const paid = formatPortalString(strings.receiptProgressLabel, { paid: formatPortalMoney(group.paidMinor, group.currency), total: formatPortalMoney(group.amountMinor, group.currency) });
   const aside = reviewAside(group, strings);
   return aside ? `${paid}. ${aside}` : paid;
 }
@@ -186,16 +232,18 @@ export function serviceBar(group: Pick<PaymentGroup, "paidMinor" | "amountMinor"
   const credited = Math.max(0, group.amountMinor - group.outstandingMinor);
   const paidPct = Math.min(100, (credited / group.amountMinor) * 100);
   const reviewPct = Math.min(100 - paidPct, (group.reviewMinor / group.amountMinor) * 100);
-  return { paidPct, reviewPct, label: progressLabel(group, strings) };
+  // Целыми числами: `0,29 * 100` в числах с плавающей точкой даёт 28,999..., и «29 %» превратилось бы в «28».
+  const valueNow = Math.min(100, Math.floor((credited * 100) / group.amountMinor));
+  return { paidPct, reviewPct, valueNow, label: progressLabel(group, strings) };
 }
 
 function serviceTiles(group: PaymentGroup, strings: AdmissionStrings): AmountTile[] {
   const tiles: AmountTile[] = [
-    { key: "toPay", label: strings.toPayTerm, value: money(group.amountMinor, group.currency), aside: null },
-    { key: "paid", label: strings.paidTerm, value: money(group.paidMinor, group.currency), aside: reviewAside(group, strings) },
-    { key: "outstanding", label: strings.outstandingTerm, value: money(group.outstandingMinor, group.currency), aside: null },
+    { key: "toPay", label: strings.toPayTerm, value: formatPortalMoney(group.amountMinor, group.currency), aside: null },
+    { key: "paid", label: strings.paidTerm, value: formatPortalMoney(group.paidMinor, group.currency), aside: reviewAside(group, strings) },
+    { key: "outstanding", label: strings.outstandingTerm, value: formatPortalMoney(group.outstandingMinor, group.currency), aside: null },
   ];
-  if (group.refundedMinor > 0) tiles.push({ key: "refunded", label: strings.refundedTerm, value: money(group.refundedMinor, group.currency), aside: null });
+  if (group.refundedMinor > 0) tiles.push({ key: "refunded", label: strings.refundedTerm, value: formatPortalMoney(group.refundedMinor, group.currency), aside: null });
   return tiles;
 }
 
@@ -226,10 +274,10 @@ export function buildPaymentsPage(center: PaymentCenter, strings: AdmissionStrin
       tiles: serviceTiles(group, strings),
       bar: serviceBar(group, strings),
       nextActions: group.nextActions,
-      lines: group.lines.map((line) => lineView(line, dues, strings)),
+      lines: orderedViews(group.lines, dues, strings),
     };
   });
-  const added = schedule.added.map((line) => lineView(line, dues, strings));
+  const added = orderedViews(schedule.added, dues, strings);
   const currencies = [...new Set([...center.dues.map((due) => due.currency), ...center.unassigned.map((entry) => entry.currency)])];
   return { services, added, empty: services.length === 0 && added.length === 0, currencies, defaultCurrency: currencies[0] ?? "KGS" };
 }

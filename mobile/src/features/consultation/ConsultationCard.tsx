@@ -1,10 +1,14 @@
 // «Запись на консультацию» (веб: ConsultationRequest.tsx и ConsultationHistory в portal/profile/page.tsx; PORT-5b, миграция 197).
-// Решение владельца 25.11.2026 (D1): порт запроса консультации в приложение. Тексты - словарь `consultation` веба (RU и KY),
-// новых слов нет.
+// Решение владельца 25.11.2026 (D1): порт запроса консультации в приложение. Тексты - словарь `consultation` веба (RU и KY); одно
+// слово приложения: `consult.historyUnavailable` вместо «Обновите страницу» (страницы в приложении нет).
 //   variant="profile": карточка «Консультация» с формой запроса и историей своих запросов (до 20), как раздел «Профиля» веба.
-//   variant="university": только запрос, без заголовка и истории, как на странице вуза веба (студенту без сопровождения; у
-//   клиента на сопровождении один вход к команде - чат). `institutionId` - вуз, о котором запрос. `initialOpenRequest` - открытый
-//   запрос, который страница уже знает (`detail.openConsultation`): тогда история не читается; без него карточка читает её сама.
+//   variant="university": только запрос, без заголовка и истории, как на странице вуза веба. Монтировать его нужно ТОЛЬКО студенту
+//   без сопровождения (`tier !== "assisted"`): веб прячет запрос консультации на странице вуза у клиента на сопровождении, у него
+//   один вход к команде - чат (`universities/[id]/page.tsx`: `consultation={actor.accessTier === "assisted" ? null : ...}`), а в
+//   «Профиле» запрос есть у всех. `institutionId` - вуз, о котором запрос; страница ставит карточке `key={institutionId}`, чтобы
+//   другой вуз был новой карточкой с чистой формой (идентификатор запроса привязан к вузу и без `key`, но форма и заметка
+//   прежнего вуза остались бы). `initialOpenRequest` - открытый запрос, который страница уже знает (`detail.openConsultation`):
+//   тогда история не читается; без него карточка читает её сама.
 // Состояние «Запрос отправлен - менеджер свяжется» честное: оно показывается после ответа базы, не раньше. Один открытый запрос
 // на участника держит база, повтор нажатия и повтор после обрыва связи дубля не создают (тот же `p_request_id`).
 import { CheckCircle2 } from "lucide-react-native";
@@ -25,8 +29,12 @@ import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
 export type ConsultationCardProps = Readonly<{
-  /** Вуз, о котором запрос (страница вуза); без него запрос из «Профиля». */
+  /** Вуз, о котором запрос (страница вуза); без него запрос из «Профиля». Страница ставит карточке `key={institutionId}`. */
   institutionId?: string | null;
+  /**
+   * `profile`: «Профиль», любой студент (заголовок, запрос, история). `university`: страница вуза, ТОЛЬКО студент без сопровождения
+   * (веб прячет запрос на странице вуза у клиента на сопровождении: у него один вход к команде, чат); без заголовка и истории.
+   */
   variant?: "profile" | "university";
   /** Открытый запрос, известный странице; `undefined` - карточка читает историю сама. */
   initialOpenRequest?: ConsultationReceipt | null;
@@ -83,6 +91,13 @@ function History({ history }: { history: readonly ConsultationReceipt[] }) {
   );
 }
 
+/**
+ * «Запись на консультацию»: форма запроса и (в «Профиле») история своих запросов.
+ *
+ * Страница вуза: монтировать `variant="university"` только студенту без сопровождения (`tier !== "assisted"`), как на вебе, и ставить
+ * `key={institutionId}`: другой вуз - новая карточка с чистой формой. Идентификатор запроса привязан к вузу и без `key`, так что
+ * чужой вуз не получит чужой идентификатор, но заметка и раскрытая форма прежнего вуза остались бы.
+ */
 export function ConsultationCard({ institutionId = null, variant = "profile", initialOpenRequest }: ConsultationCardProps) {
   const { m, t } = useLang();
   const { tokens } = useTheme();
@@ -188,7 +203,7 @@ export function ConsultationCard({ institutionId = null, variant = "profile", in
     return (
       <Card>
         <CardHead title={strings.heading} />
-        <InlineAlert message={strings.historyUnavailable} retryLabel={m("profile.retry")} onRetry={() => void history.refetch()} testID="consult-history-error" />
+        <InlineAlert message={m("consult.historyUnavailable")} retryLabel={m("profile.retry")} onRetry={() => void history.refetch()} testID="consult-history-error" />
       </Card>
     );
   }

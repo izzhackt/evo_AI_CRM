@@ -14,7 +14,6 @@ import {
   appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync,
   readSync, rmSync, statSync, writeFileSync, cpSync,
 } from "node:fs";
-import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -25,6 +24,7 @@ import { waitForLocalSupabaseAuthAdmin } from "../local-dev/supabase-auth-readin
 import { seedMobileDevStack } from "../local-dev/mobile-dev-stack-seed.mjs";
 import { redact } from "./redact.mjs";
 import { STAFF_PAGES, STUDENT_PAGES } from "./pr-preview-pages.mjs";
+import { assertPortsFree } from "./pr-preview-ports.mjs";
 import { parseTimingLines } from "../maintenance/timing-report.mjs";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -79,12 +79,6 @@ function run(binary, args, options = {}) {
   return result.stdout ?? "";
 }
 const supabase = (...args) => run(npx, ["--no-install", "supabase", ...args, "--workdir", PROJECT_DIR]);
-
-const portFree = (port, host) => new Promise((ok) => {
-  const server = createServer();
-  server.once("error", () => ok(false));
-  server.listen(port, host, () => server.close(() => ok(true)));
-});
 
 function writeProjectConfig() {
   mkdirSync(join(PROJECT_DIR, "supabase"), { recursive: true });
@@ -276,9 +270,8 @@ async function main() {
     // Свой прошлый (прерванный) прогон снимаем до проверки портов; чужие стенды не трогаем.
     writeProjectConfig();
     stopSupabase();
-    for (const [name, port] of Object.entries(PORTS)) {
-      assert.ok(await portFree(port, "0.0.0.0"), `PORT_BUSY ${name}:${port} занят чужим процессом`);
-    }
+    // Порты стенда лежат в эфемерном диапазоне Linux: исходящее соединение раннера может занять один на мгновения, поэтому проверка повторяется (pr-preview-ports.mjs).
+    await assertPortsFree(PORTS, { host: "0.0.0.0", log });
 
     const statusEnv = await phase("Supabase: запуск стенда и все миграции", async () => {
       const out = supabase("start", "--yes", "-x", EXCLUDED_SERVICES.join(","));

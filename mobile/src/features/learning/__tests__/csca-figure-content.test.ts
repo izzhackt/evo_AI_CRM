@@ -26,6 +26,20 @@ describe("рисунки выпуска контента CSCA", () => {
     expect(rejected).toEqual([]);
   });
 
+  it("кривые и многоугольники доходят до отрисовки целиком: `d` и `points` разобранного рисунка равны исходным", () => {
+    let checked = 0;
+    for (const name of files) {
+      const source = readFileSync(path.join(DIR, name), "utf8");
+      const parsed = parseSvgProfile(source);
+      const expected = [...source.matchAll(/\s(d|points)="([^"]*)"/gu)].map((match) => `${match[1]}=${match[2]}`);
+      const actual = (parsed ? nodes(parsed.root) : []).flatMap((node) => (["d", "points"] as const).filter((attribute) => attribute in node.attrs).map((attribute) => `${attribute}=${node.attrs[attribute]}`));
+      expect([name, actual]).toEqual([name, expected]);
+      checked += expected.length;
+    }
+    // Не пустая проверка: в выпуске десятки кривых и многоугольников, в том числе три кривые длиннее прежнего предела 4096.
+    expect(checked).toBeGreaterThan(150);
+  });
+
   it("у текста и его частей только проверенные атрибуты, `dominant-baseline` не нужен ни одному рисунку", () => {
     const unknown = new Set<string>();
     for (const name of files) {

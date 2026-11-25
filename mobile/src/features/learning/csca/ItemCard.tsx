@@ -155,7 +155,11 @@ function OptionAnswered({ id, label, chosen, correct, explain, testID }: { id: C
   );
 }
 
-/** Вердикт сразу под условием, пока взгляд ещё там: «Верно», «Неверно · Верный ответ: B» или «Без ответа · Верный ответ: B». */
+/**
+ * Вердикт сразу под условием, пока взгляд ещё там: «Верно», «Неверно · Верный ответ: B» или «Без ответа · Верный ответ: B».
+ * Живой области у него нет: после ответа его читает `announce` самого экрана (урок, «Ошибки»), а живая область на Android
+ * сказала бы то же ещё раз. Вердикт, который открыт заново (возврат к отвеченному заданию), читалке не объявляется.
+ */
 function Verdict({ selected, correct, correctOption }: { selected: CscaOptionId | null; correct: boolean; correctOption: CscaOptionId }) {
   const { t, format } = useLang();
   const { tokens } = useTheme();
@@ -165,7 +169,7 @@ function Verdict({ selected, correct, correctOption }: { selected: CscaOptionId 
   const word = kind === "skipped" ? c.notAnswered : correct ? c.verdictCorrect : c.verdictWrong;
   return (
     <View
-      accessibilityLiveRegion="polite"
+      accessibilityLiveRegion="none"
       testID="verdict"
       style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: tokens.radiusItem, backgroundColor: kind === "ok" ? tint(tokens.ok, 9) : kind === "bad" ? tint(tokens.error, 8) : tokens.bg }}
     >

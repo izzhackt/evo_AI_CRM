@@ -8,7 +8,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-
 import { router } from "expo-router";
 import { Linking, ScrollView } from "react-native";
 
-import { CscaHomeScreen } from "@/features/learning/csca/CscaHomeScreen";
+import { CscaHomeScreen, cscaTabFromParam } from "@/features/learning/csca/CscaHomeScreen";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
@@ -90,6 +90,19 @@ describe("вкладки: как на вебе", () => {
     expect(router.setParams).toHaveBeenLastCalledWith({ view: "about" });
   });
 
+  it("другая вкладка читается с начала: прокрутка возвращается к нулю; та же вкладка прокрутку не трогает", async () => {
+    const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
+    scrollTo.mockClear();
+    await open();
+    await screen.findByTestId("csca-overview");
+    await fireEvent.press(screen.getByTestId("csca-tab-lessons"));
+    expect(scrollTo.mock.calls).toEqual([[{ y: 0, animated: false }]]);
+    await fireEvent.press(screen.getByTestId("csca-tab-lessons"));
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByTestId("csca-tab-about"));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
   it("новая ссылка на открытый раздел меняет вкладку", async () => {
     await open();
     await screen.findByTestId("csca-overview");
@@ -113,6 +126,24 @@ describe("вкладки: как на вебе", () => {
     // Ни вводной строки под заголовком, ни «Сейчас в EVO математика»: веб их убрал.
     expect(screen.queryByText(/Уроки, практика и тесты на время по программе/)).toBeNull();
     expect(screen.queryByText(/Сейчас в EVO математика/)).toBeNull();
+  });
+});
+
+describe("параметр ?view=", () => {
+  it.each([
+    ["lessons", "lessons"],
+    [undefined, "about"],
+    ["about", "about"],
+    ["", "about"],
+    ["Lessons", "about"],
+    ["lessons ", "about"],
+    ["unknown", "about"],
+    [["lessons"], "lessons"],
+    [["lessons", "about"], "lessons"],
+    [["about", "lessons"], "about"],
+    [[], "about"],
+  ] as [string | string[] | undefined, string][])("%j открывает «%s»", (view, tab) => {
+    expect(cscaTabFromParam(view)).toBe(tab);
   });
 });
 
@@ -169,11 +200,34 @@ describe("«Занятия»", () => {
     await fireEvent(screen.getByTestId("csca-about"), "layout", at(120));
     await fireEvent(screen.getByTestId("sessions-block"), "layout", at(300));
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ y: 16 + 120 + 300 - 8, animated: true }));
-    expect(scrollTo).toHaveBeenCalledTimes(1);
+    // Два вызова: смена вкладки читается с начала, затем прокрутка к блоку сессий.
+    expect(scrollTo.mock.calls).toEqual([[{ y: 0, animated: false }], [{ y: 16 + 120 + 300 - 8, animated: true }]]);
     // Повторное сообщение о месте блока (поворот, подгрузка) экран не прокручивает.
     await fireEvent(screen.getByTestId("sessions-block"), "layout", at(310));
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
+  it("плитка экзамена без сессий не оставляет прокрутку «на потом»: сессии, пришедшие позже, экран не прокручивают", async () => {
+    const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
+    let current = homeAfter((raw) => (raw.sessions = []));
+    const { client } = await open(() => current);
+    await fireEvent.press(await screen.findByTestId("tile-exam"));
+    expect(await screen.findByTestId("csca-overview")).toBeTruthy();
+    expect(screen.queryByTestId("sessions-block")).toBeNull();
+    // Сессии появились позже (обновление данных): блок встаёт на место и сообщает о нём.
+    current = homeAfter();
+    scrollTo.mockClear();
+    await act(async () => {
+      await client.invalidateQueries();
+    });
+    const block = await screen.findByTestId("sessions-block");
+    const at = (y: number) => ({ nativeEvent: { layout: { x: 0, y, width: 358, height: 100 } } });
+    await fireEvent(screen.getByTestId("csca-screen"), "layout", at(16));
+    await fireEvent(screen.getByTestId("csca-about"), "layout", at(120));
+    await fireEvent(block, "layout", at(300));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("плитка экзамена без сессий впереди: «Даты не опубликованы»", async () => {

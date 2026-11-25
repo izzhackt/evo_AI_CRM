@@ -2,12 +2,13 @@
 // строка варианта ответа. Ничего про данные: только оформление по токенам приложения.
 import { useRouter, type Href } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/theme/ThemeProvider";
 import { MIN_TARGET } from "@/ui/CardParts";
+import type { ScrollTarget } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
 /** Назад по стеку; если стека нет (ссылка, перезапуск), на корень раздела. */
@@ -60,13 +61,14 @@ export function SubHeader({ title, subtitle, subtitleExtra, avatar, onBack, back
 }
 
 /** Страница со шапкой и прокруткой. */
-export function StackPage({ children, header, refreshing, onRefresh, bottomPad = 32, testID }: { children: ReactNode; header: ReactNode; refreshing?: boolean; onRefresh?: () => void; bottomPad?: number; testID?: string }) {
+export function StackPage({ children, header, refreshing, onRefresh, bottomPad = 32, scrollRef, testID }: { children: ReactNode; header: ReactNode; refreshing?: boolean; onRefresh?: () => void; bottomPad?: number; scrollRef?: RefObject<ScrollTarget | null>; testID?: string }) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }} testID={testID}>
       {header}
       <ScrollView
+        ref={scrollRef as RefObject<never> | undefined}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} tintColor={tokens.text2} /> : undefined}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + bottomPad }}

@@ -88,6 +88,9 @@ describe("«Ошибки»: ответ", () => {
     expect(await screen.findByTestId("review-next-due")).toHaveTextContent("Задание вернётся завтра.");
     expect(calls.find((call) => call.name === "record_learning_review_v1")?.args).toMatchObject({ p_item_key: "csca-math-exp-log-001", p_answer: { selected: "a" } });
     expect(announce).toHaveBeenCalledWith("Неверно");
+    // Вердикт читает `announce`; живой области у блока нет (Android сказал бы то же второй раз).
+    expect(announce.mock.calls.filter(([text]) => text === "Неверно")).toHaveLength(1);
+    expect(screen.getByTestId("verdict").props.accessibilityLiveRegion).toBe("none");
     expect(screen.getByTestId("review-progress")).toHaveTextContent("Повторено 1 из 6", { exact: false });
     await fireEvent.press(screen.getByTestId("review-next"));
     expect(screen.getByTestId("review-progress")).toHaveTextContent("Повторено 1 из 6 · Интервал 1 из 4", { exact: false });

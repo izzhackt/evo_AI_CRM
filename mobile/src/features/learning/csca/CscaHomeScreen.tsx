@@ -50,14 +50,15 @@ export function CscaHomeScreen() {
     setSeenView(view);
     setTab(cscaTabFromParam(view));
   }
+  // Прокрутка к календарю сессий: плитка «Ближайший экзамен» и ответ «Когда проходит экзамен?» ведут к нему, как якорь веба.
+  const scroller = useRef<ScrollTarget>(null);
   const pick = (next: CscaTab) => {
+    // Другая вкладка читается с начала: иначе она открылась бы на той прокрутке, до которой дочитали прежнюю.
+    if (next !== tab) scroller.current?.scrollTo({ y: 0, animated: false });
     setTab(next);
     // Параметр повторяет вкладку: следующая ссылка «К темам» из урока или теста тогда всегда меняет значение.
     router.setParams({ view: next });
   };
-
-  // Прокрутка к календарю сессий: плитка «Ближайший экзамен» и ответ «Когда проходит экзамен?» ведут к нему, как якорь веба.
-  const scroller = useRef<ScrollTarget>(null);
   const offsets = useRef({ root: 0, about: 0, sessions: null as number | null });
   const wantSessions = useRef(false);
   const scrollToSessions = useCallback(() => {
@@ -75,16 +76,17 @@ export function CscaHomeScreen() {
     },
     [scrollToSessions],
   );
+  const sessionsShown = data !== undefined && track !== null && data.sessions.length > 0;
   const openSessions = () => {
     if (tab === "about") {
       scrollToSessions();
       return;
     }
-    wantSessions.current = true;
+    // Прокрутку «на потом» взводим, только если блок сессий появится: без сессий он не придёт, и взведённая прокрутка
+    // сработала бы позже, когда сессии наконец подгрузятся, на экране, куда ученик к тому времени уже смотрит иначе.
+    wantSessions.current = sessionsShown;
     pick("about");
   };
-
-  const sessionsShown = data !== undefined && track !== null && data.sessions.length > 0;
   const sessions =
     data && track && data.sessions.length > 0 ? (
       <SessionPicker home={data} testID="sessions-block" onLayoutY={onSessionsLayout} />

@@ -16,6 +16,7 @@ import { ItemCard } from "@/features/learning/csca/ItemCard";
 import { siblingLessonLink } from "@/features/learning/csca/lesson-links";
 import { LessonSession } from "@/features/learning/csca/lesson-session";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
+import { CSCA_TOPICS_FALLBACK, openCscaTopics } from "@/features/learning/csca/routes";
 import { TheoryBlocks } from "@/features/learning/csca/TheoryBlocks";
 import { MathText } from "@/features/learning/math/MathText";
 import { useWarmMath } from "@/features/learning/math/useWarmMath";
@@ -32,10 +33,6 @@ import { Text } from "@/ui/Text";
 const BAR_CLEARANCE = 19;
 /** Расстояние между блоками колонки задания (`gap` ниже): к нему добавляется поле, чтобы свободных стало 19 pt. */
 const COLUMN_GAP = 12;
-
-function openTopics() {
-  router.dismissTo({ pathname: "/csca", params: { view: "lessons" } });
-}
 
 function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string }) {
   const { m, t, format } = useLang();
@@ -128,7 +125,7 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
             {sibling ? (
               <Button label={sibling.kind === "practice" ? c.toPractice : c.toLesson} onPress={() => router.replace({ pathname: "/csca/lesson/[lessonId]", params: { lessonId: sibling.lessonId } })} testID="lesson-to-sibling" />
             ) : null}
-            <Button variant={sibling ? "ghost" : "primary"} label={c.backToTopics} onPress={openTopics} testID="lesson-to-topics" />
+            <Button variant={sibling ? "ghost" : "primary"} label={c.backToTopics} onPress={openCscaTopics} testID="lesson-to-topics" />
             <Button variant="ghost" label={c.repeatCheck} onPress={() => session.restart()} testID="lesson-repeat" />
           </View>
         )}
@@ -173,7 +170,7 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
 export function LessonScreen({ lessonId }: { lessonId: string }) {
   useWarmMath();
   const { lang, m, t, format } = useLang();
-  const back = useBack("/csca?view=lessons");
+  const back = useBack(CSCA_TOPICS_FALLBACK);
   const c = t("csca");
   const lesson = useCscaLesson(lessonId);
   const view = lesson.data;

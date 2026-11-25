@@ -40,6 +40,13 @@ describe("карточка задания: после ответа", () => {
     expect(screen.getByTestId("option-b-tags")).toHaveTextContent("Ваш ответ · Верный ответ");
   });
 
+  it("вердикт не живая область: после ответа его читает `announce` экрана, область сказала бы то же второй раз", async () => {
+    for (const state of [{ kind: "answered", selected: "a", correct: false, explain }, { kind: "answered", selected: "b", correct: true, explain }, { kind: "answered", selected: null, correct: false, explain }] as const) {
+      await show(state);
+      expect(screen.getByTestId("verdict").props.accessibilityLiveRegion).toBe("none");
+    }
+  });
+
   it("пропущенный вопрос теста: «Без ответа · Верный ответ: B», слов «Неверно» нет", async () => {
     await show({ kind: "answered", selected: null, correct: false, explain });
     const verdict = screen.getByTestId("verdict");

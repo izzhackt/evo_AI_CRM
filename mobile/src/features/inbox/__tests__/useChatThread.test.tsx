@@ -253,4 +253,3 @@ describe("сообщение, уже загруженное, обновляет�
     await waitFor(() => expect(screen.getByTestId("labels").props.children).toBe("-,Диплом"));
   });
 });
-

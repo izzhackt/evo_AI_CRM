@@ -24,10 +24,10 @@ import { buildCostView } from "./costs-view";
 import { ExternalLink } from "./ExternalLink";
 import { useFavoriteState } from "./FavoritesContext";
 import { useUniversityDetail } from "./hooks";
+import { ProgramSection } from "./ProgramSection";
 import { NotFoundBlock } from "./NotFoundBlock";
 import { FavoriteHeart, PathRow, PhotoCredit, RemotePhoto, universityUrls, usePhotoPixels } from "./parts";
 import { universityPhotoCredit } from "./photos";
-import { ProgramSection } from "./ProgramSection";
 import type { StudentUniversityDetail } from "@web/lib/portal/university-index";
 import type { UniversityStrings } from "./model";
 

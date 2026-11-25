@@ -25,14 +25,14 @@ export function AiNotices({ settings, featureOn, preview, consentRequestId }: Re
   const consent = settings?.consent.recorded ?? true;
   return (
     <>
-      {!featureOn ? <Line tone="muted" testId="v3-ai-feature-off">ИИ-агент не подключён на сервере — «Помочь с ответом» в чате не готовит ответы. Подключает администратор.</Line> : null}
+      {!featureOn ? <Line tone="muted" testId="v3-ai-feature-off">Помощник в чате не подключён на сервере — «Помочь с ответом» в чате не готовит ответы. Подключает администратор.</Line> : null}
       {!consent && settings?.isAdmin && !preview ? (
         <div data-testid="v3-ai-consent">
-          <WidgetCard title="Включить ИИ-агента">
+          <WidgetCard title="Включить помощника в чате">
             <div className="grid gap-4">
               <div className="grid max-w-[70ch] gap-2 t-body-compact text-fg-2">
                 <p>
-                  ИИ-агент готовит черновики ответов в чате продаж с помощью Google Gemini (платный проект Google Cloud EVO). Для этого в Gemini
+                  Помощник в чате готовит черновики ответов в чате продаж с помощью Google Gemini (платный проект Google Cloud EVO). Для этого в Gemini
                   передаются последние 20 сообщений диалога, имя, интерес и этап лида и материалы «Информации для агента». Телефон, email и
                   документы клиентов не передаются.
                 </p>
@@ -42,17 +42,17 @@ export function AiNotices({ settings, featureOn, preview, consentRequestId }: Re
                 requestId={consentRequestId}
                 action={recordAiConsentAction}
                 fields={{ consent_action: "grant" }}
-                label="Включить ИИ-агента"
+                label="Включить помощника в чате"
                 pendingLabel="Записываю согласие…"
                 buttonClassName={AI_PRIMARY_BUTTON}
-                messages={{ saved: "Согласие записано. ИИ-агент включён.", forbidden: "Согласие записывает только администратор." }}
+                messages={{ saved: "Согласие записано. Помощник в чате включён.", forbidden: "Согласие записывает только администратор." }}
                 testId="v3-ai-consent-form"
               />
             </div>
           </WidgetCard>
         </div>
       ) : null}
-      {!consent && (!settings?.isAdmin || preview) ? <Line tone="warn" testId="v3-ai-consent-wait">ИИ-агента включает администратор: до этого окно «Помочь с ответом» в чате не готовит ответы.</Line> : null}
+      {!consent && (!settings?.isAdmin || preview) ? <Line tone="warn" testId="v3-ai-consent-wait">Помощника в чате включает администратор: до этого окно «Помочь с ответом» в чате не готовит ответы.</Line> : null}
     </>
   );
 }

@@ -19,11 +19,11 @@ import type { AiAgentNextProps } from "./ai-agent-next-types";
 export function AiAgentNextPage({ section, tabs, notice, pause, hubHref, body }: AiAgentNextProps) {
   return (
     <PageShell
-      title="ИИ-агент"
+      title="Помощник в чате WhatsApp"
       testId="v3-ai-agent"
       back={<Button variant="ghost" asChild className="mb-2 -ml-3"><Link href={hubHref}><ArrowLeftIcon aria-hidden="true" />Все ИИ-агенты</Link></Button>}
     >
-      <SectionTabs label="Подразделы ИИ-агента" tabs={tabs} value={section} />
+      <SectionTabs label="Подразделы помощника в чате" tabs={tabs} value={section} />
       <AiNotices {...notice} />
       {pause ? <AiPauseBanner state={pause.state} preview={pause.preview} compactHref={pause.compactHref} resumeRequestId="" /> : null}
       <AiBody body={body} />

@@ -9,7 +9,6 @@ import type { AiAgentsPending } from "@/lib/v3/ai-agents-source";
 import type { NextAgentsHasDefault } from "./agent-defaults";
 import { NextAgentsNow } from "./NextAgentsNow";
 import { NextAgentsDrafts, NextAgentsRoster } from "./NextAgentsSide";
-import { NextApiKeyMissing } from "./NextNotices";
 
 /**
  * Хаб «ИИ-агенты» (11.11.2026, по образцу Molar AI с Dribbble; отзыв владельца к #1449, 12.11.2026): тёмная полоса
@@ -28,7 +27,6 @@ export function NextAgentsHub({
   const canAskOf = (agent: AiAgentListItem) => runtimeConfigured && !preview && !(agent.key === "director" && !list.isAdmin);
   return (
     <div className="grid min-w-0 gap-4" data-testid="v3-aia-hub">
-      {runtimeConfigured ? null : <NextApiKeyMissing />}
       <NextAgentsNow list={list} runtimeConfigured={runtimeConfigured} />
       {pending?.partial ? <p className="t-meta text-warn" data-testid="v3-aia-pending-partial">Черновики не загрузились — список «Ждут решения» может быть неполным.</p> : null}
       <NextAgentsDrafts drafts={pending?.drafts ?? []} total={pending?.total ?? null} agents={list.agents} />

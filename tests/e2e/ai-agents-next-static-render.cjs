@@ -388,7 +388,7 @@ async function main() {
       } else if (mode === "running-staff") {
         report(`${key}/hub[${label}]: the Director is named without a link (the runs tab is denied to staff), Sales stays a link`, names.join("|") === "Директор / Аналитик|Продажи (Closer)" && JSON.stringify(linked) === JSON.stringify([["Продажи (Closer)", "/ai-agents/sales?tab=runs"]]), { names, linked });
       } else if (mode === "key") {
-        report(`${key}/hub[${label}]: the strip says «не подключены», not «на связи», and names nobody as working`, text.includes("ИИ-агенты · не подключены") && text.includes("Запуски недоступны: не задан ключ Claude") && !/на связи|в работе/u.test(text) && names.length === 0 && (await page.locator("[data-testid=v3-aia-key-missing]").count()) === 1, { text });
+        report(`${key}/hub[${label}]: the strip says «не подключены», not «на связи», and names nobody as working`, text.includes("ИИ-агенты · не подключены") && text.includes("Запуски недоступны: не задан ключ Claude") && !/на связи|в работе/u.test(text) && names.length === 0 && (await page.locator("[data-testid=v3-aia-key-missing]").count()) === 0 && (await page.locator("[data-testid=v3-aia-now-key]").count()) === 1, { text });
       } else if (mode === "off") {
         report(`${key}/hub[${label}]: the strip says «выключены»`, text.includes("ИИ-агенты · выключены") && text.includes("Ни один агент не включён") && !/на связи|в работе/u.test(text), { text });
         report(`${key}/hub[${label}]: a disabled agent shows no «Авто: вкл» chip even though «Авто» is on for Sales`, !(await page.locator("[data-testid=v3-ai-agents]").innerText()).includes("Авто: вкл"), null);

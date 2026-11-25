@@ -366,7 +366,7 @@ test("доступ: раздел и пункт меню — право ai.agent.
   assert.equal(LINK_ICONS["ai-agents"], "sparkles");
   assert.equal(v3SectionTitle("/ai-agents"), "ИИ-агенты");
   assert.equal(v3SectionTitle("/ai-agents/director"), "ИИ-агенты");
-  assert.equal(v3SectionTitle("/ai-agent"), "ИИ-агент", "вкладка Gemini-страницы называет саму страницу");
+  assert.equal(v3SectionTitle("/ai-agent"), "Помощник в чате WhatsApp", "вкладка Gemini-страницы называет саму страницу так же, как хаб");
   assert.match(read("src/app/(staff)/access-denied/page.tsx"), /"\/ai-agents": "ИИ-агенты",/u);
 });
 

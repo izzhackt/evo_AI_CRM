@@ -148,7 +148,7 @@ describe("тесты: сессия прохождения", () => {
     session.dispose();
   });
 
-  it("конфликт ревизии: показываются сохранённые ответы сервера", async () => {
+  it("конфликт ревизии: ответы на экране остаются, сохранённые ответы сервера показываются по «Показать сохранённые ответы»", async () => {
     const h = harness({
       start_student_assessment_v1: [attempt()],
       save_student_assessment_answers_v1: ["CONFLICT"],
@@ -158,6 +158,10 @@ describe("тесты: сессия прохождения", () => {
     await session.start();
     session.select("q2", "a");
     await h.advance(ASSESSMENT_SAVE_MS + 10);
+    // Веб: ответы студента не заменяются молча; текст ошибки обещает кнопку, и она есть (подробнее: assessment-session.test.ts).
+    expect(session.getState().answers).toEqual({ q2: "a" });
+    expect(session.getState().reloadRequired).toBe(true);
+    await session.loadSaved();
     expect(session.getState().answers).toEqual({ q1: "b" });
     expect(session.debug().revision).toBe(5);
     session.dispose();

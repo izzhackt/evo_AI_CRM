@@ -1,7 +1,8 @@
 // Рисунок CSCA: только через строгий профиль (svg-profile.ts), векторно (react-native-svg),
 // тёмная тема заменой шести цветов один к одному (контракт §15). Подписи не мельче 12 px
 // (индексы 11): рисунок уже `figureMinWidth` не сжимается, а прокручивается в своей рамке.
-// Касание открывает рисунок крупнее. Не разобранный рисунок: виден alt, не пустота.
+// Касание открывает рисунок крупнее. Не разобранный рисунок: виден alt, не пустота. Когда рисунок шире рамки и
+// прокручивается, под ним подсказка «Рисунок прокручивается вбок» и виден указатель прокрутки (веб: FigureFrame.tsx).
 import { memo, useMemo, useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import Svg, { Circle, Line, Path, Polygon, Rect, Text as SvgText, TSpan } from "react-native-svg";
@@ -58,8 +59,11 @@ function Drawing({ root, width, height, pixelWidth, dark }: { root: SvgNode; wid
   );
 }
 
+/** Пара пикселей округления не считается прокруткой: подсказка была бы лишней (веб: `scrollWidth - clientWidth > 4`). */
+const SCROLL_SLACK = 4;
+
 function FigureViewBase({ figure, testID }: { figure: CscaFigure; testID?: string }) {
-  const { lang, m } = useLang();
+  const { lang, m, t } = useLang();
   const { tokens, scheme } = useTheme();
   const [available, setAvailable] = useState(0);
   const [zoomed, setZoomed] = useState(false);
@@ -77,13 +81,19 @@ function FigureViewBase({ figure, testID }: { figure: CscaFigure; testID?: strin
   }
   const minWidth = figureMinWidth(figure.svg, parsed.width);
   const pixelWidth = Math.max(available, minWidth);
+  const scrolls = available > 0 && minWidth > available + SCROLL_SLACK;
   return (
     <View testID={testID} onLayout={(e) => setAvailable(Math.floor(e.nativeEvent.layout.width))}>
       <Pressable accessibilityRole="imagebutton" accessibilityLabel={alt} accessibilityHint={m("learn.figureOpen")} onPress={() => setZoomed(true)} style={{ minHeight: MIN_TARGET }}>
-        <ScrollView horizontal scrollEnabled={available > 0 && minWidth > available} showsHorizontalScrollIndicator={false} style={{ borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: tokens.line, overflow: "hidden", backgroundColor: dark ? CSCA_FIGURE_DARK_PALETTE["#ffffff"] : "#ffffff" }}>
+        <ScrollView horizontal scrollEnabled={available > 0 && minWidth > available} showsHorizontalScrollIndicator={scrolls} testID={testID ? `${testID}-scroll` : undefined} style={{ borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: tokens.line, overflow: "hidden", backgroundColor: dark ? CSCA_FIGURE_DARK_PALETTE["#ffffff"] : "#ffffff" }}>
           {available > 0 ? <Drawing root={parsed.root} width={parsed.width} height={parsed.height} pixelWidth={pixelWidth} dark={dark} /> : null}
         </ScrollView>
       </Pressable>
+      {scrolls ? (
+        <Text variant="caption" tone="text2" testID="figure-scroll-hint">
+          {t("csca").figureScrolls}
+        </Text>
+      ) : null}
       <Modal visible={zoomed} animationType="fade" onRequestClose={() => setZoomed(false)} transparent>
         <Pressable accessibilityRole="button" accessibilityLabel={m("learn.figureClose")} onPress={() => setZoomed(false)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", minHeight: MIN_TARGET }}>
           <ScrollView horizontal contentContainerStyle={{ alignItems: "center" }}>

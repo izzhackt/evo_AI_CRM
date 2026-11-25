@@ -17,21 +17,25 @@ export function useConsultationHistory(enabled = true) {
 }
 
 /**
- * Отправка запроса. Идентификатор один на форму, пока запрос не принят (веб: `useState(() => crypto.randomUUID())`): повтор
- * после сбоя шлёт тот же id. После успеха идентификатор меняется: когда менеджер обработает запрос, следующий будет новым, а не
- * тем же (иначе база вернула бы старый обработанный).
+ * Отправка запроса. Идентификатор один на форму и на вуз, пока запрос не принят (веб: `useState(() => crypto.randomUUID())`):
+ * повтор после сбоя шлёт тот же id. После успеха идентификатор меняется: когда менеджер обработает запрос, следующий будет новым,
+ * а не тем же (иначе база вернула бы старый обработанный).
+ *
+ * Идентификатор привязан к вузу (рецензия #1568): база отвечает на уже виденный `p_request_id` прежней строкой и остальные
+ * аргументы не читает (миграция 197). Если тот же экземпляр хука получил другой вуз после неудачной попытки, повтор с тем же id и
+ * новым вузом был бы молча записан на старый вуз. Поэтому при смене вуза идентификатор новый.
  */
 export function useRequestConsultation(institutionId: string | null) {
   const { transport, userKey } = usePortalApi();
   const client = useQueryClient();
-  const requestId = useRef<string | null>(null);
+  const attempt = useRef<{ institutionId: string | null; requestId: string } | null>(null);
   return useMutation<ConsultationReceipt, Error, string>({
     mutationFn: (note) => {
-      requestId.current ??= randomUUID();
-      return sendConsultation(transport, consultationWrite(requestId.current, institutionId, note));
+      if (attempt.current === null || attempt.current.institutionId !== institutionId) attempt.current = { institutionId, requestId: randomUUID() };
+      return sendConsultation(transport, consultationWrite(attempt.current.requestId, institutionId, note));
     },
     onSuccess: (receipt) => {
-      requestId.current = null;
+      attempt.current = null;
       // Уже прочитанная история получает новый запрос сразу (экран не мигает «Записаться» между ответом и повторным чтением),
       // а затем читается заново: менеджер мог обработать прежние запросы. Непрочитанная (страница вуза) не трогается.
       client.setQueryData<readonly ConsultationReceipt[] | undefined>(key(userKey), (old) =>

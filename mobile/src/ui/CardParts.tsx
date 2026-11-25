@@ -32,10 +32,19 @@ export function CardHead({ title, count = null, action = null, headingId }: { ti
   );
 }
 
-/** Текстовая ссылка (`.pt-link`) с целью нажатия не меньше 44 pt. */
-export function LinkButton({ label, onPress, testID, accessibilityHint }: { label: string; onPress: () => void; testID?: string; accessibilityHint?: string }) {
+/** Текстовая ссылка (`.pt-link`) с целью нажатия не меньше 44 pt. `disabled`: пока идёт запрос, переход не нужен (как у `Button`). */
+export function LinkButton({ label, onPress, testID, accessibilityHint, disabled = false }: { label: string; onPress: () => void; testID?: string; accessibilityHint?: string; disabled?: boolean }) {
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={label} accessibilityHint={accessibilityHint} onPress={onPress} testID={testID} hitSlop={4} style={{ minHeight: MIN_TARGET, justifyContent: "center" }}>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      disabled={disabled}
+      onPress={onPress}
+      testID={testID}
+      hitSlop={4}
+      style={disabled ? { minHeight: MIN_TARGET, justifyContent: "center", opacity: 0.6 } : { minHeight: MIN_TARGET, justifyContent: "center" }}
+    >
       <Text variant="secondary" tone="accent" bold>
         {label}
       </Text>

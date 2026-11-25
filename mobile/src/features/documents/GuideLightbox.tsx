@@ -38,6 +38,9 @@ function PagerButton({ direction, disabled, label, onPress, id }: { direction: "
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
+      // Выключенная стрелка касаний не принимает: иначе на iOS она остаётся целью касания, и щипок или двойное касание с пальцем
+      // на ней считались бы от неё, а не от карточки (точка жеста уехала бы на её место в карточке).
+      pointerEvents={disabled ? "none" : "auto"}
       onPress={onPress}
       hitSlop={4}
       testID={`${id}-pager-${direction}`}

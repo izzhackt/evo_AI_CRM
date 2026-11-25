@@ -12,6 +12,7 @@ import { usePreparation } from "@/features/preparations/context";
 import { programTime } from "@/features/preparations/model";
 import { PackageDetailLoader, packageStatus } from "@/features/preparations/PackageDetail";
 import type { PackageStrings } from "@/features/preparations/package-strings";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
 
@@ -38,12 +39,14 @@ export function PackageHistory({ strings: t }: { strings: PackageStrings }) {
         setLoaded(true);
       } catch {
         setFailed(true);
+        // Роль «alert» на iPhone молчит: сбой нужно сказать читалке самим.
+        announce(t.unavailable);
       } finally {
         lock.current = false;
         setBusy(false);
       }
     },
-    [cursor, scope.applicationId, scope.studentCaseId, transport],
+    [cursor, scope.applicationId, scope.studentCaseId, t.unavailable, transport],
   );
   return (
     <Collapsible title={t.history} testID="prep-package-history" onToggle={(open) => { if (open && !loaded && !lock.current) void load(true); }}>

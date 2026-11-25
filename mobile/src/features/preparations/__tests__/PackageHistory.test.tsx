@@ -2,7 +2,7 @@
 // изменилось после решения, история решений, скачивание файла из комплекта. Сеть и устройство подменены.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
 import {
@@ -31,6 +31,8 @@ import {
   reviewHistoryPage,
 } from "@/test-fixtures/preparations-packages";
 import { renderPortal, testApi } from "@/test-fixtures/render";
+import { settle } from "@/test-fixtures/settle";
+import { LangSwitch } from "@/ui/LangSwitch";
 import { failure, fakeTransport, preparationRow, uuidN } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -47,11 +49,15 @@ async function open(extra: Record<string, unknown>, ready: unknown = base(), io 
   return { ...view, calls, io, named: (name: string) => calls.filter((call) => call.name === name) };
 }
 
+const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+const READ_FAILED = "Не удалось обновить данные. Попробуйте ещё раз.";
+
 let restore: () => void = () => undefined;
 beforeEach(async () => {
   const spy = jest.replaceProperty(Platform, "OS", "android");
   restore = () => spy.restore();
   await AsyncStorage.clear();
+  spoken.mockClear();
 });
 afterEach(() => restore());
 
@@ -87,7 +93,9 @@ describe("история комплектов", () => {
     let call = 0;
     await open({ application_package_history_v1: () => (++call === 1 ? failure("PT500", 500) : packageHistoryPage([p1])) });
     await fireEvent.press(await screen.findByTestId("prep-package-history-toggle"));
-    expect(await screen.findByTestId("prep-package-history-error")).toHaveTextContent("Не удалось обновить данные. Попробуйте ещё раз.");
+    expect(await screen.findByTestId("prep-package-history-error")).toHaveTextContent(READ_FAILED);
+    // роль «alert» на iPhone молчит: сбой сказан читалке самим вызовом
+    expect(spoken).toHaveBeenCalledWith(READ_FAILED);
     await fireEvent.press(screen.getByTestId("prep-package-history-refresh"));
     await waitFor(() => expect(screen.getByTestId(`prep-package-row-${p1.packageId as string}`)).toBeTruthy());
     expect(screen.queryByTestId("prep-package-history-error")).toBeNull();
@@ -145,6 +153,33 @@ describe("комплект подробно", () => {
     await fireEvent.press(await screen.findByTestId(`prep-package-open-${summary.packageId as string}-toggle`));
     return t;
   };
+
+  it("смена языка не перечитывает открытый комплект: текст сбоя для читалки берётся из последнего показа, а не из зависимостей чтения", async () => {
+    const summary = packageSummary(1, 1);
+    const id = summary.packageId as string;
+    const { transport, calls } = fakeTransport({
+      student_catalog_preparations_v1: [preparationRow(1)],
+      application_package_readiness_v1: base(),
+      application_package_history_v1: packageHistoryPage([summary]),
+      application_package_detail_v1: detailOf(summary),
+    });
+    await renderPortal(
+      <>
+        <PreparationScreen applicationId={APPLICATION_ID} io={makeIo().io} />
+        <LangSwitch />
+      </>,
+      testApi(transport),
+    );
+    await fireEvent.press(await screen.findByTestId("prep-package-history-toggle"));
+    await fireEvent.press(await screen.findByTestId(`prep-package-open-${id}-toggle`));
+    await screen.findByTestId(`prep-package-detail-${id}`);
+    const reads = () => calls.filter((call) => call.name === "application_package_detail_v1").length;
+    expect(reads()).toBe(1);
+    await fireEvent.press(screen.getByTestId("lang-ky"));
+    await waitFor(() => expect(screen.getByTestId("lang-ky").props.accessibilityState).toMatchObject({ checked: true }));
+    await settle();
+    expect(reads()).toBe(1);
+  });
 
   it("ждёт проверки: версия, программа, время отправки, файл с версией, «Отправлен на проверку EVO»", async () => {
     const summary = packageSummary(1, 1);
@@ -220,6 +255,7 @@ describe("комплект подробно", () => {
     let call = 0;
     const t = await toRowDetail(summary, { application_package_detail_v1: () => (++call === 1 ? failure("PT500", 500) : detailOf(summary)) });
     expect(await screen.findByTestId(`prep-package-detail-error-${summary.packageId as string}`)).toBeTruthy();
+    expect(spoken).toHaveBeenCalledWith(READ_FAILED);
     await fireEvent.press(screen.getByTestId(`prep-package-detail-refresh-${summary.packageId as string}`));
     await waitFor(() => expect(screen.getByTestId(`prep-package-detail-${summary.packageId as string}`)).toBeTruthy());
     expect(t.named("application_package_detail_v1")).toHaveLength(2);
@@ -270,7 +306,8 @@ describe("история решений по комплекту", () => {
   it("решений нет: «Решения пока нет»; сбой: сообщение", async () => {
     let call = 0;
     await open1({ application_package_review_history_v1: () => (++call === 1 ? failure("PT500", 500) : reviewHistoryPage(2, [])) });
-    expect(await screen.findByTestId(`prep-review-history-error-${packageId(2)}`)).toHaveTextContent("Не удалось обновить данные. Попробуйте ещё раз.");
+    expect(await screen.findByTestId(`prep-review-history-error-${packageId(2)}`)).toHaveTextContent(READ_FAILED);
+    expect(spoken).toHaveBeenCalledWith(READ_FAILED);
     await fireEvent.press(screen.getByTestId(`prep-review-history-refresh-${packageId(2)}`));
     expect(await screen.findByTestId(`prep-review-history-empty-${packageId(2)}`)).toHaveTextContent("Решения пока нет");
     expect(screen.queryByTestId(`prep-review-history-error-${packageId(2)}`)).toBeNull();

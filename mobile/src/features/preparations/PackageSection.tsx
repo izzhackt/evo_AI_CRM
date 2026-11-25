@@ -4,7 +4,7 @@
 import { buildApplicationPackageSubmitIntent } from "@web/lib/portal/application-package-ui";
 import type { ApplicationPackageReadiness, ApplicationPackageSelection } from "@web/lib/portal/application-packages";
 import { randomUUID } from "expo-crypto";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
@@ -67,7 +67,7 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
   const [optional, setOptional] = useState<readonly string[]>([]);
   const [selectionRevision, setSelectionRevision] = useState<string | null>(null);
   const [selectionLabels, setSelectionLabels] = useState<Record<string, string>>({});
-  const [preview, setPreview] = useState<{ value: ApplicationPackageReadiness; epoch: number } | null>(null);
+  const [preview, setPreview] = useState<{ value: ApplicationPackageReadiness; epoch: number; base: ApplicationPackageReadiness | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -81,10 +81,28 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
   // Выбор сделан по одним требованиям, а сервер уже читает другие: прежний выбор показан и сбрасывается только с подтверждением.
   const revisionChanged = Boolean(selectionRevision) && Boolean(readiness) && selectionRevision !== readiness?.requirements.revisionId && (Object.keys(choices).length > 0 || optional.length > 0);
   const missingOptional = readiness?.requirements.items.filter((item) => !item.required && optional.includes(item.requirementItemId) && !choices[item.requirementItemId]) ?? [];
+  const optionalMissing = missingOptional.length > 0;
   const blocked = !pending.hydrated || pending.blocked || pending.entries.length > 0 || busy || loading;
-  // Комплект отправляется только из ответа, прочитанного в этом же показе: после обновления программы предпросмотр снимается.
-  const shown = !revisionChanged && preview?.epoch === epoch ? preview.value : null;
+  // Комплект отправляется только из ответа, прочитанного в этом же показе: предпросмотр снимается при «Проверить состояние»,
+  // «потянуть вниз», после действия с документом и когда студент уходит с экрана (всё это растит `epoch`), а также когда
+  // ответ о программе под ним изменился (возврат в приложение перечитал данные): `base` - тот ответ, по которому выбирали.
+  // Перечитывание без изменений ответ не заменяет (общая часть сохраняется), и предпросмотр остаётся.
+  const shown = !revisionChanged && preview?.epoch === epoch && preview.base === readiness ? preview.value : null;
   const choicesForCurrent = readiness?.requirements.items.flatMap((item) => ((item.required || optional.includes(item.requirementItemId)) && choices[item.requirementItemId] ? [choices[item.requirementItemId]!] : [])) ?? [];
+  // Веб переносит фокус на заголовок проверки; в приложении его читает вслух читалка вместе с готовностью. Говорится то, что
+  // появилось на экране: за время запроса показ мог смениться (обновление, уход с экрана, новые данные), и тогда предпросмотра нет,
+  // а слышалось бы «Комплект можно отправить». Поэтому не по ответу сервера, а по появлению предпросмотра.
+  useEffect(() => {
+    if (shown) announce(shown.canSubmit ? `${t.previewTitle}. ${t.ready}` : t.previewTitle);
+  }, [shown, t.previewTitle, t.ready]);
+  // Две плашки появляются сами, от выбора студента или от обновления требований, а роль «alert» на iPhone молчит: читалке их говорим
+  // в момент появления (повторно - только после того, как плашка пропала и появилась снова).
+  useEffect(() => {
+    if (revisionChanged) announce(t.revisionChanged);
+  }, [revisionChanged, t.revisionChanged]);
+  useEffect(() => {
+    if (optionalMissing) announce(t.optionalNeedsFile);
+  }, [optionalMissing, t.optionalNeedsFile]);
   const edit = () => {
     setPreview(null);
     setSuccess(false);
@@ -92,18 +110,17 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
   };
 
   async function prepare() {
-    if (lock.current || blocked || !readiness || revisionChanged || missingOptional.length) return;
+    if (lock.current || blocked || !readiness || revisionChanged || optionalMissing) return;
     lock.current = true;
     setBusy(true);
     setPreview(null);
     setMessage(null);
     setSuccess(false);
     const startEpoch = epoch;
+    const startBase = readiness;
     try {
       const value = await readApplicationReadiness(api.transport, scope.studentCaseId, scope.applicationId, choicesForCurrent);
-      setPreview({ value, epoch: startEpoch });
-      // Веб переносит фокус на заголовок проверки; в приложении его читает вслух читалка вместе с готовностью.
-      announce(value.canSubmit ? `${t.previewTitle}. ${t.ready}` : t.previewTitle);
+      setPreview({ value, epoch: startEpoch, base: startBase });
     } catch (error) {
       const text = error instanceof RpcError && error.kind === "forbidden" ? t.forbidden : t.unavailable;
       setMessage(text);
@@ -230,7 +247,7 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
                 };
                 return (
                   <PackageSelectionRow
-                    key={`${item.requirementItemId}:${epoch}`}
+                    key={item.requirementItemId}
                     item={item}
                     state={state}
                     selected={choices[item.requirementItemId]}
@@ -253,7 +270,7 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
                   />
                 );
               })}
-              {missingOptional.length ? (
+              {optionalMissing ? (
                 <View accessibilityRole="alert" style={{ gap: 2 }}>
                   <Text variant="secondary">{t.optionalNeedsFile}</Text>
                   {missingOptional.map((item) => (
@@ -266,7 +283,7 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
               <Button
                 label={busy ? t.loading : t.preview}
                 onPress={() => void prepare()}
-                disabled={blocked || revisionChanged || missingOptional.length > 0 || !readiness.requirements.revisionId}
+                disabled={blocked || revisionChanged || optionalMissing || !readiness.requirements.revisionId}
                 testID="prep-package-preview"
               />
             </View>

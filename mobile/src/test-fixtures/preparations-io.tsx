@@ -37,7 +37,8 @@ export type FakeIo = Readonly<{
 
 export function makeIo(options: {
   picks?: PickedFile[];
-  upload?: (intent: ApplicationDocumentUploadIntent) => UploadResult | Promise<UploadResult>;
+  /** `signal` - остановка студентом («Отменить загрузку»); подставленная загрузка отвечает на неё так же, как настоящая. */
+  upload?: (intent: ApplicationDocumentUploadIntent, signal?: AbortSignal) => UploadResult | Promise<UploadResult>;
   over?: Partial<PreparationIo>;
   fetchResponses?: FakeFetch[];
 } = {}): FakeIo {
@@ -49,10 +50,10 @@ export function makeIo(options: {
   const io: PreparationIo = {
     pick: jest.fn(async () => ({ kind: "picked" as const, file: picks.shift() ?? PICKED })),
     fingerprint: async (file) => (file.name === OTHER_PICKED.name ? { byteSize: 5, sha256Hex: OTHER_DIGEST } : { byteSize: FILE_BYTES.byteLength, sha256Hex: FILE_DIGEST }),
-    createUploader: () => async ({ intent, onProgress }) => {
+    createUploader: () => async ({ intent, onProgress, signal }) => {
       uploads.push(intent);
       onProgress?.(50);
-      return options.upload ? options.upload(intent) : { ok: true, receipt: receiptFor(intent) as never };
+      return options.upload ? options.upload(intent, signal) : { ok: true, receipt: receiptFor(intent) as never };
     },
     createDownloadDeps: () => ({
       baseUrl: "https://portal.example.test",

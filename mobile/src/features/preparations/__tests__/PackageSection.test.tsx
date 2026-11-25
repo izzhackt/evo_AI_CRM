@@ -2,7 +2,7 @@
 // сбои, смена требований под выбором, последний комплект. Сеть и устройство подменены; хранилище записей - jest-мок AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
-import { AccessibilityInfo, Alert, Platform } from "react-native";
+import { AccessibilityInfo, Alert, Platform, StyleSheet } from "react-native";
 
 import { packageCandidates } from "@/features/preparations/PackageSelectionRow";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
@@ -28,7 +28,7 @@ import { PACKAGE_REQUEST, packageDetail, packageItem, packageSummary, submitRece
 import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { makeIo } from "@/test-fixtures/preparations-io";
 import { PortalShell, renderPortal, testApi, testClient } from "@/test-fixtures/render";
-import { settle, waitForEnabled } from "@/test-fixtures/settle";
+import { settle, waitForDisabled, waitForEnabled } from "@/test-fixtures/settle";
 import { failure, fakeTransport, preparationRow, uuidN } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -90,6 +90,20 @@ describe("выбор файлов для комплекта", () => {
     expect(within(second).getByText("Необязательно")).toBeTruthy();
     expect(screen.getByTestId(`prep-package-include-${SECOND}`).props.accessibilityState).toMatchObject({ checked: false });
     expect(screen.queryByTestId(`prep-package-none-${SECOND}`)).toBeNull();
+  });
+
+  it("подпись «Файл не выбран» сжимается, а не выталкивает галочку за край строки (при крупном шрифте она переносится)", async () => {
+    let call = 0;
+    const gone = readiness(requirements(items()), [documentState(0), documentState(1)]);
+    await open({ ready: () => (++call === 1 ? current() : gone) });
+    await openReadyChoice();
+    const none = StyleSheet.flatten(within(screen.getByTestId(`prep-package-none-${FIRST}`)).getByText("Файл не выбран").props.style);
+    expect(none.flexShrink).toBe(1);
+    // та же строка с длинной подписью «Выбранный файл недоступен»: выбранная версия 5 пропала из списка
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    const missing = await screen.findByTestId(`prep-package-missing-${FIRST}`);
+    expect(StyleSheet.flatten(within(missing).getByText("Выбранный файл недоступен").props.style).flexShrink).toBe(1);
   });
 
   it("«Проверить состав» без выбора: пустой выбор уходит на сервер, видны причины, отправить нельзя", async () => {
@@ -405,6 +419,22 @@ describe("сбои чтения", () => {
     await waitFor(() => expect(screen.getByTestId("prep-package-error")).toHaveTextContent("Нет доступа к этому действию"));
   });
 
+  it("«Показать ещё файлы» не удалось: сообщение у требования, озвучено, кнопка остаётся для повтора", async () => {
+    const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+    const more = readiness(requirements(items()), [
+      documentState(0, { savedDraft: draftOf(0, 4), reusableVersions: [reusableVersion(5)], reusableVersionsNextCursor: { versionNo: "5", documentVersionId: versionId(5) } }),
+      documentState(1),
+    ]);
+    await open({ ready: more, extra: { application_document_reusable_versions_v1: failure("PT500", 500) } });
+    await openReadyChoice();
+    spoken.mockClear();
+    await fireEvent.press(screen.getByTestId(`prep-package-more-${FIRST}`));
+    await waitFor(() => expect(within(screen.getByTestId(`prep-package-row-${FIRST}`)).getByText("Не удалось обновить данные. Попробуйте ещё раз.")).toBeTruthy());
+    // роль «alert» на iPhone молчит: сбой сказан читалке самим вызовом
+    expect(spoken).toHaveBeenCalledWith("Не удалось обновить данные. Попробуйте ещё раз.");
+    await waitForEnabled(`prep-package-more-${FIRST}`);
+  });
+
   it("список требований не прочитан: вместо выбора «Не удалось обновить данные», выбора нет", async () => {
     await open({ ready: failure("PT500", 500) });
     expect(await screen.findByTestId("prep-package-unavailable")).toHaveTextContent("Не удалось обновить данные. Попробуйте ещё раз.");
@@ -458,6 +488,33 @@ describe("обновление требований", () => {
 });
 
 describe("изменились требования", () => {
+  it("пока идёт обновление, «Сбросить выбор» закрыт: сброс по прежнему ответу записал бы выбор на старую ревизию", async () => {
+    let call = 0;
+    let held = false;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const next = readiness(requirements(items(), { revisionId: NEW_REVISION, revisionVersion: "2" }), [documentState(0, { reusableVersions: [reusableVersion(5)] }), documentState(1)]);
+    await open({
+      ready: () => (++call === 1 ? current() : next),
+      wrap: (inner) => async (name, args, options) => {
+        if (name === "application_package_readiness_v1" && held) await gate;
+        return inner(name, args, options);
+      },
+    });
+    await openReadyChoice();
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await screen.findByTestId("prep-package-revision-changed");
+    await waitForEnabled("prep-package-reset");
+    // следующее чтение идёт, ответа ещё нет: плашка стоит, а кнопка сброса закрыта
+    held = true;
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await waitForDisabled("prep-package-reset");
+    expect(screen.getByTestId("prep-package-revision-changed")).toBeTruthy();
+    release();
+    await waitForEnabled("prep-package-reset");
+  });
+
   it("выбор сделан по прежней ревизии: он показан, «Проверить состав» закрыт; сброс по кнопке открывает выбор заново", async () => {
     let call = 0;
     const next = readiness(requirements(items(), { revisionId: NEW_REVISION, revisionVersion: "2" }), [documentState(0, { reusableVersions: [reusableVersion(5)] }), documentState(1)]);
@@ -589,6 +646,32 @@ describe("читалка экрана слышит итог", () => {
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
   };
+
+  it("плашка «Выберите файл для включённых необязательных материалов…» озвучена, когда появилась, и не повторяется, пока стоит", async () => {
+    await open({ ready: current() });
+    await openReadyChoice();
+    spoken.mockClear();
+    await fireEvent.press(screen.getByTestId(`prep-package-include-${SECOND}`));
+    await screen.findByText("Выберите файл для включённых необязательных материалов или уберите их из комплекта.");
+    expect(spoken.mock.calls.filter(([text]) => String(text).startsWith("Выберите файл для включённых необязательных"))).toHaveLength(1);
+    // выбор файла для материала убирает плашку; без неё ничего нового не говорится
+    spoken.mockClear();
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${SECOND}-${versionId(7)}`));
+    await waitFor(() => expect(screen.queryByText("Выберите файл для включённых необязательных материалов или уберите их из комплекта.")).toBeNull());
+    expect(spoken).not.toHaveBeenCalled();
+  });
+
+  it("плашка «Требования изменились…» озвучена, когда обновление принесло другую ревизию", async () => {
+    let call = 0;
+    const next = readiness(requirements(items(), { revisionId: NEW_REVISION, revisionVersion: "2" }), [documentState(0, { reusableVersions: [reusableVersion(5)] }), documentState(1)]);
+    await open({ ready: () => (++call === 1 ? current() : next) });
+    await openReadyChoice();
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    spoken.mockClear();
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await screen.findByTestId("prep-package-revision-changed");
+    expect(spoken).toHaveBeenCalledWith("Требования изменились. Прежний выбор сохранён ниже. Перед новым выбором подтвердите его сброс.");
+  });
 
   it("проверка состава: «Состав перед отправкой. Комплект можно отправить»", async () => {
     await open({ ready: readyAnswer });

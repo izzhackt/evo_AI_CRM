@@ -38,6 +38,14 @@ export function uploadFailureMessage(outcome: UploadFailure | Exclude<UploadOutc
   }
 }
 
+/**
+ * Итог загрузки, которую остановил студент («Отменить загрузку»): либо до начала отправки (`not_sent`), либо после неё
+ * («исход неизвестен», запись остаётся). Ответ сервера (отказ с причиной) и сбой самого файла сюда не относятся.
+ */
+export function uploadWasStopped(outcome: UploadFailure | Exclude<UploadOutcome, { status: "uploaded" }>): boolean {
+  return outcome.status === "rejected" && (outcome.reason === "not_sent" || (outcome.reason === "unavailable" && outcome.resolution === "retain"));
+}
+
 type SendStep = Extract<UploadAndSubmitOutcome, { stage: "done" }>["submit"];
 
 /** Файл сохранён, а отправка не прошла: что сказать студенту (`null`: всё в порядке или говорить нечего). */

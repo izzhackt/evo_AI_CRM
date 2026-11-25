@@ -14,6 +14,7 @@ import { usePreparation } from "@/features/preparations/context";
 import { Block, FileFacts } from "@/features/preparations/ItemDocumentState";
 import { programTime } from "@/features/preparations/model";
 import { usePackageStrings, type PackageStrings } from "@/features/preparations/package-strings";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
 
@@ -98,12 +99,14 @@ function ReviewHistory({ detail, strings: t }: { detail: Detail; strings: Packag
         setLoaded(true);
       } catch {
         setFailed(true);
+        // Роль «alert» на iPhone молчит: сбой нужно сказать читалке самим.
+        announce(t.unavailable);
       } finally {
         lock.current = false;
         setBusy(false);
       }
     },
-    [cursor, packageId, scope.applicationId, scope.studentCaseId, transport],
+    [cursor, packageId, scope.applicationId, scope.studentCaseId, t.unavailable, transport],
   );
   return (
     <Collapsible title={t.reviewHistory} testID={`prep-review-history-${packageId}`} onToggle={(open) => { if (open && !loaded && !lock.current) void load(true); }}>
@@ -207,6 +210,11 @@ export function PackageDetailLoader({ packageId, frozenReview, showDecision = tr
   const [failed, setFailed] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const { studentCaseId, applicationId } = scope;
+  // Текст сбоя для читалки берётся из последнего показа, а не из зависимостей чтения: смена языка не должна перечитывать комплект.
+  const failureText = useRef(t.unavailable);
+  useEffect(() => {
+    failureText.current = t.unavailable;
+  });
   useEffect(() => {
     let active = true;
     readPackageDetail(transport, { studentCaseId, applicationId }, packageId)
@@ -216,7 +224,10 @@ export function PackageDetailLoader({ packageId, frozenReview, showDecision = tr
         setFailed(false);
       })
       .catch(() => {
-        if (active) setFailed(true);
+        if (!active) return;
+        setFailed(true);
+        // Роль «alert» на iPhone молчит: сбой нужно сказать читалке самим.
+        announce(failureText.current);
       })
       .finally(() => {
         if (active) setLoading(false);

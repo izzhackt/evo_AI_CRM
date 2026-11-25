@@ -2,7 +2,7 @@
 // документов», пустые и ошибочные состояния. Сеть и устройство подменены: транспорт RPC поддельный, навигация записывается.
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
-import { AccessibilityInfo, Linking } from "react-native";
+import { AccessibilityInfo, Linking, StyleSheet } from "react-native";
 
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
 import {
@@ -115,6 +115,28 @@ describe("требования", () => {
     expect(screen.queryByTestId("prep-uninitialized")).toBeNull();
     expect(calls.filter((c) => c.name === "application_package_readiness_v1")).toHaveLength(1);
     expect(calls.find((c) => c.name === "application_package_readiness_v1")?.args).toMatchObject({ p_application_id: APPLICATION_ID, p_selections: [] });
+  });
+
+  // QA 25.11.2026: при самом крупном шрифте системы (AX3) «Обязательно» занимало полстроки, и «Загранпаспорт» ломалось на «Загранпа / спорт».
+  // Правило: строка переносится, у названия нет `flex: 1`; плашка идёт после названия и, когда тесно, оказывается под ним.
+  // Раскладку проверяли настоящим Yoga из react-native 0.88.1 (описано в PR); здесь закреплено правило, а не пиксели.
+  it("название и плашка «Обязательно»: строка переносится, название не растягивается (`flex: 1` его сжимало), плашка идёт после названия", async () => {
+    const items = [requirementItem(0), requirementItem(1, { required: false })];
+    await open(handlers(readiness(requirements(items))));
+    await screen.findByTestId("prep-requirement-list");
+    for (const index of [0, 1]) {
+      const id = itemId(index);
+      const head = screen.getByTestId(`prep-requirement-head-${id}`);
+      expect(StyleSheet.flatten(head.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" });
+      const title = StyleSheet.flatten(screen.getByTestId(`prep-requirement-title-${id}`).props.style);
+      expect(title.flexShrink).toBe(1);
+      expect(title.flex).toBeUndefined();
+      expect(title.flexGrow).toBeUndefined();
+      // порядок в строке: название, затем плашка (при переносе плашка оказывается под названием, а не над ним)
+      expect(head.children.map((child) => (typeof child === "string" ? child : child.props.testID))).toEqual([`prep-requirement-title-${id}`, `prep-requirement-pill-${id}`]);
+    }
+    expect(screen.getByTestId(`prep-requirement-pill-${itemId(0)}`)).toHaveTextContent("Обязательно");
+    expect(screen.getByTestId(`prep-requirement-pill-${itemId(1)}`)).toHaveTextContent("Необязательно");
   });
 
   it("подтверждённый сотрудником состав: заметка «подтверждён», необязательное требование с пометкой", async () => {
@@ -491,6 +513,16 @@ describe("нет программы и сбой списка", () => {
     expect(await screen.findByTestId("prep-title")).toHaveTextContent("Информатика", { exact: false });
     expect(screen.queryByTestId("prep-error-list")).toBeNull();
     expect(calls.filter((c) => c.name === "student_catalog_preparations_v1")).toHaveLength(3);
+  });
+
+  it("«потянуть вниз» там, где программы нет в списке: список перечитывается, а закрытый запрос требований не уходит", async () => {
+    const { calls } = await open(handlers(starterReadiness(), {}, [preparationRow(2)]));
+    expect(await screen.findByTestId("prep-not-found")).toBeTruthy();
+    await act(async () => {
+      await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    expect(calls.filter((c) => c.name === "student_catalog_preparations_v1")).toHaveLength(2);
+    expect(calls.some((c) => c.name === "application_package_readiness_v1")).toBe(false);
   });
 
   it("программы с таким идентификатором в списке студента нет: «не найдена», запрос требований не уходит", async () => {

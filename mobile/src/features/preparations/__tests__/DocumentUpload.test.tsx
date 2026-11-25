@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { AccessibilityInfo, Alert, Platform } from "react-native";
 
+import * as commands from "@/features/preparations/document-commands";
 import { documentsPending } from "@/features/preparations/documents-pending";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
 import {
@@ -46,7 +47,7 @@ const answer = (item: Raw, state: Raw) => readiness(requirements([item]), [state
 /** Ошибка базы с кодом и текстом, как её отдаёт PostgREST: по тексту разборщики веба различают причины. */
 type DbError = Readonly<{ code: string; message: string; status: number }>;
 
-async function open(options: { ready: unknown; extra?: Record<string, unknown>; errors?: Record<string, DbError>; io?: FakeIo; lang?: "ru" | "ky"; /** Ответ о требованиях задерживается, пока это обещание не выполнено. */ hold?: Promise<void> }) {
+async function open(options: { ready: unknown; extra?: Record<string, unknown>; errors?: Record<string, DbError>; io?: FakeIo; lang?: "ru" | "ky"; /** Ответ о требованиях задерживается, пока это обещание не выполнено. */ hold?: Promise<void>; /** Ответ на «отправить на проверку» задерживается так же. */ holdSubmit?: Promise<void> }) {
   const fake = options.io ?? makeIo();
   const inner = fakeTransport({
     student_catalog_preparations_v1: [preparationRow(1)],
@@ -56,6 +57,7 @@ async function open(options: { ready: unknown; extra?: Record<string, unknown>; 
   const calls = inner.calls;
   const transport: typeof inner.transport = async (name, args, opts) => {
     if (options.hold && name === "application_package_readiness_v1") await options.hold;
+    if (options.holdSubmit && name === "submit_application_document_v1") await options.holdSubmit;
     const error = options.errors?.[name];
     if (error) {
       calls.push({ name, args: args as Record<string, unknown> | undefined, get: opts.get });
@@ -825,5 +827,147 @@ describe("после успешной отправки чтение не уда�
     await screen.findByTestId("prep-requirements-stale");
     await waitFor(() => expect(announceNative).toHaveBeenCalledWith(STALE));
     expect(queued).not.toHaveBeenCalled();
+  });
+});
+
+// QA 25.11.2026 (D5): при остановленном портале «Загружаем…» стояло минутами и выхода не было. Теперь у идущей загрузки есть
+// «Отменить загрузку». Подставленная загрузка отвечает на остановку так же, как настоящая (`native.test.ts`): до начала отправки
+// это `not_sent`, после - «исход неизвестен».
+describe("отмена загрузки студентом", () => {
+  type StopAnswer = { ok: false; reason: "unavailable"; resolution: "retain" } | { ok: false; reason: "not_sent"; resolution: "not_written" };
+  const UNKNOWN: StopAnswer = { ok: false, reason: "unavailable", resolution: "retain" };
+  const NOT_SENT: StopAnswer = { ok: false, reason: "not_sent", resolution: "not_written" };
+  /** Загрузка, которая стоит, пока её не остановят; после остановки отвечает `answer`. */
+  const stoppable = (answer: StopAnswer) => (_intent: unknown, signal?: AbortSignal) =>
+    new Promise<StopAnswer>((resolve) => signal?.addEventListener("abort", () => resolve(answer), { once: true }));
+  const cancelId = `prep-upload-cancel-${ITEM}`;
+
+  it("кнопка «Отменить загрузку» есть, только пока идёт загрузка; нажатие после начала отправки: «Загрузка отменена.», запись остаётся", async () => {
+    const io = makeIo({ upload: stoppable(UNKNOWN) });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    expect(screen.queryByTestId(cancelId)).toBeNull();
+    await chooseFile();
+    const cancel = await screen.findByTestId(cancelId);
+    expect(cancel).toHaveTextContent("Отменить загрузку");
+    expect(screen.getByTestId(`prep-upload-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: true });
+    announceNative.mockClear();
+    await fireEvent.press(cancel);
+    // нажатие остановило загрузку: кнопка снова рабочая, отмены уже нет
+    await waitFor(() => expect(screen.queryByTestId(cancelId)).toBeNull());
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    const message = screen.getByTestId(`prep-upload-message-${ITEM}`);
+    expect(message).toHaveTextContent("Загрузка отменена.");
+    // не ошибка (запись неоконченной загрузки ниже сама объясняет, что делать) и не «Не удалось получить результат»
+    expect(message.props.accessibilityRole).toBeUndefined();
+    expect(message).not.toHaveTextContent("Не удалось получить результат");
+    expect(announceNative).toHaveBeenCalledWith("Загрузка отменена.");
+    // байты могли дойти: запрос остался, форма просит тот же файл и даёт отказаться
+    expect(await storedKeys()).toHaveLength(1);
+    expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false });
+    expect(screen.getByTestId(`prep-upload-retained-${ITEM}`)).toHaveTextContent("справка.pdf", { exact: false });
+    expect(screen.getByTestId(`prep-discard-upload-${ITEM}`)).toBeTruthy();
+  });
+
+  it("отмена до начала отправки: «Загрузка отменена.», запись снята, форма как в начале и принимает любой файл", async () => {
+    const io = makeIo({ upload: stoppable(NOT_SENT) });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    await fireEvent.press(await screen.findByTestId(cancelId));
+    expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Загрузка отменена.");
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    expect(await storedKeys()).toEqual([]);
+    expect(screen.queryByTestId(`prep-upload-retained-${ITEM}`)).toBeNull();
+    expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
+    expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).not.toHaveTextContent("Проверить результат");
+  });
+
+  it("после остановки неожиданный сбой следующей попытки снова виден как ошибка, а не как спокойное «Загрузка отменена.»", async () => {
+    let attempt = 0;
+    const io = makeIo({ upload: (intent, signal) => (++attempt === 1 ? stoppable(UNKNOWN)(intent, signal) : { ok: true, receipt: receiptFor(intent) as never }) });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    await fireEvent.press(await screen.findByTestId(cancelId));
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Загрузка отменена."));
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    // вторая попытка падает мимо обычных исходов команды (исключение): сообщение должно быть ошибкой, а не наследовать «остановлено»
+    const spy = jest.spyOn(commands, "runUploadAndSubmit").mockRejectedValueOnce(new Error("unexpected"));
+    try {
+      await chooseFile();
+      await waitFor(() => expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Не удалось получить результат", { exact: false }));
+      expect(screen.getByTestId(`prep-upload-message-${ITEM}`).props.accessibilityRole).toBe("alert");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("сервер успел ответить отказом раньше остановки: студент видит причину отказа, а не «Загрузка отменена.»; запрос снят", async () => {
+    const io = makeIo({ upload: stoppable({ ok: false, reason: "file_too_large", resolution: "not_written" } as never) });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    await fireEvent.press(await screen.findByTestId(cancelId));
+    expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Выберите PDF, JPG или PNG размером до 25 МБ.", { exact: false });
+    expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).not.toHaveTextContent("Загрузка отменена.");
+    expect(await storedKeys()).toEqual([]);
+  });
+
+  it("после отмены тот же файл повторяет тот же запрос (ключ идемпотентности не меняется) и доходит до конца", async () => {
+    let attempt = 0;
+    const io = makeIo({ upload: (intent, signal) => (++attempt === 1 ? stoppable(UNKNOWN)(intent, signal) : { ok: true, receipt: receiptFor(intent) as never }) });
+    const t = await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    await fireEvent.press(await screen.findByTestId(cancelId));
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Проверить результат", { exact: false }));
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    await chooseFile();
+    await waitFor(() => expect(t.fake.uploads).toHaveLength(2));
+    expect(t.fake.uploads[1]!.requestId).toBe(t.fake.uploads[0]!.requestId);
+    await waitFor(async () => expect(await storedKeys()).toEqual([]));
+    // повторная попытка идёт со своим сигналом: прежняя отмена её не останавливает
+    expect(screen.queryByTestId(cancelId)).toBeNull();
+  });
+
+  it("сигнал у каждой попытки свой: нажатие «Отменить» остановило только идущую загрузку", async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    let attempt = 0;
+    const io = makeIo({
+      upload: (intent, signal) => {
+        signals.push(signal);
+        return ++attempt === 1 ? stoppable(UNKNOWN)(intent, signal) : { ok: true, receipt: receiptFor(intent) as never };
+      },
+    });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    await fireEvent.press(await screen.findByTestId(cancelId));
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    await chooseFile();
+    await waitFor(() => expect(signals).toHaveLength(2));
+    expect(signals[0]).not.toBe(signals[1]);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
+  it("когда файл уже сохранён и идёт отправка на проверку, отменять нечего: кнопки нет", async () => {
+    let release: () => void = () => undefined;
+    const holdSubmit = new Promise<void>((resolve) => (release = resolve));
+    const t = await open({
+      ready: (_a: unknown, call: number) => (call === 1 ? answer(emptyItem(), documentState(0)) : answer(sentItem(7), documentState(0, { submission: submissionOf(0, 7, null), canSubmit: false }))),
+      extra: { submit_application_document_v1: (a: Record<string, unknown> | undefined) => submitReceipt(0, String(a?.p_request_id), versionId(7)) },
+      holdSubmit,
+    });
+    await chooseFile();
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Отправляем…", { exact: false }));
+    expect(screen.queryByTestId(cancelId)).toBeNull();
+    await act(async () => release());
+    await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
+  });
+
+  it("кыргызский язык: кнопка называется по-кыргызски", async () => {
+    const io = makeIo({ upload: stoppable(UNKNOWN) });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io, lang: "ky" });
+    await chooseFile();
+    expect(await screen.findByTestId(cancelId)).toHaveTextContent("Жүктөөнү токтотуу");
+    await fireEvent.press(screen.getByTestId(cancelId));
+    expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Жүктөө токтотулду.");
   });
 });

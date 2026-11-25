@@ -23,6 +23,7 @@ import { RequirementsSection, type RequirementsBusy } from "@/features/preparati
 import { PROGRAMS_LIST_ROUTE, canInitializeRequirements } from "@/features/preparations/model";
 import { memoryIntentHolder, runRequirementsUpdate, type RequirementsErrorKey } from "@/features/preparations/requirements-flow";
 import { go, goStamped, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
+import { usePullRefresh } from "@/features/universities/use-pull-refresh";
 import { useLang } from "@/i18n/LangProvider";
 import { useFocusEffect } from "@/lib/focus";
 import { isAllowed } from "@/shell/sections";
@@ -80,14 +81,16 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
   // дубля не даёт.
   const intent = useRef<ApplicationRequirementsIntent | null>(null);
   // Экран остаётся смонтированным в скрытой вкладке, когда студент уходит на другую: уход сбрасывает то, что относилось к
-  // прошлому показу (текст ошибки и замороженный запрос). Идущее обновление не трогается: у него свой замок.
+  // прошлому показу (текст ошибки, замороженный запрос и проверенный состав комплекта: `epoch` снимает его предпросмотр).
+  // Идущее обновление не трогается: у него свой замок.
   useFocusEffect(
     useCallback(
       () => () => {
         setError(null);
         intent.current = null;
+        setEpoch((value) => value + 1);
       },
-      [setError],
+      [setError, setEpoch],
     ),
   );
   const canInitialize = saved !== null && canInitializeRequirements(canSelectPrograms, saved.applicationStatus);
@@ -146,9 +149,20 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
   );
 
   const scope = useMemo(() => ({ organizationId, membershipId, studentCaseId, applicationId }), [organizationId, membershipId, studentCaseId, applicationId]);
+  // «Потянуть вниз»: полоса горит только у этого перечитывания (веб: «Обновить»). Автоматические перечитывания - возврат на вкладку или
+  // в приложение, список программ после «Добавить в мои программы» - идут молча: раньше `isRefetching` зажигал полосу при любом из них.
+  const hasSaved = saved !== null;
+  const { refetch: refetchPreparations } = preparations;
+  const { refetch: refetchReadiness } = readiness;
+  const refetchBoth = useCallback(async () => {
+    await Promise.all([refetchPreparations(), hasSaved ? refetchReadiness() : null]);
+  }, [refetchPreparations, refetchReadiness, hasSaved]);
+  const { refreshing, pull } = usePullRefresh(refetchBoth);
+  // Как «Проверить состояние»: новый показ. Проверенный состав комплекта (предпросмотр) снимается и истории перечитываются, потому что
+  // данные могли измениться, а отправка идёт только из ответа, прочитанного в этом же показе.
   const refresh = () => {
-    void preparations.refetch();
-    if (saved) void readiness.refetch();
+    setEpoch((value) => value + 1);
+    return pull();
   };
 
   let body;
@@ -196,7 +210,7 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
     );
   }
   return (
-    <Screen topInset={false} tabBar onRefresh={refresh} refreshing={preparations.isRefetching || readiness.isRefetching}>
+    <Screen topInset={false} tabBar onRefresh={refresh} refreshing={refreshing}>
       <PreparationProvider value={{ scope, io, strings: documentStrings, onSaved: () => void update(false, false), epoch, stale }}>
         <View style={{ gap: 16 }} testID="prep-screen">
           <BackLink label={strings.back} />

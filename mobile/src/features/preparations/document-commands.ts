@@ -24,7 +24,13 @@ type Resolution = "retain" | "not_written";
 
 /** Сбой ДО отправки (нет сессии, файл не скопировался): в сеть ничего не ушло, запись о загрузке можно снять. */
 export type NotSentFailure = Readonly<{ ok: false; reason: "not_sent"; resolution: "not_written" }>;
-export type UploadFn = (input: Readonly<{ intent: ApplicationDocumentUploadIntent; file: PickedFile; onProgress?: (percent: number) => void }>) => Promise<ApplicationDocumentUploadResult | NotSentFailure>;
+export type UploadFn = (input: Readonly<{
+  intent: ApplicationDocumentUploadIntent;
+  file: PickedFile;
+  onProgress?: (percent: number) => void;
+  /** Студент остановил загрузку («Отменить загрузку»): до начала отправки это `not_sent`, после - исход неизвестен (запись остаётся). */
+  signal?: AbortSignal;
+}>) => Promise<ApplicationDocumentUploadResult | NotSentFailure>;
 export type SubmitFn = (intent: ApplicationDocumentSubmitIntent) => Promise<ApplicationDocumentSubmitResult>;
 
 export type CommandEnv = Readonly<{
@@ -51,6 +57,7 @@ export async function runUpload(input: Readonly<{
   fingerprint: Fingerprinter;
   upload: UploadFn;
   onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
   env?: CommandEnv;
 }>): Promise<UploadOutcome> {
   const { scope, target, file, env } = input;
@@ -74,7 +81,7 @@ export async function runUpload(input: Readonly<{
       if (old && !sameUploadIntent(old, next)) return { status: "wrong_file" };
       const intent = old ?? next;
       await documentsPending.persist(scope, "upload", itemId, intent, env?.storage);
-      const sent = await input.upload({ intent, file, onProgress: input.onProgress });
+      const sent = await input.upload({ intent, file, onProgress: input.onProgress, signal: input.signal });
       // «Не отправлено» говорит только об ЭТОЙ попытке. На повторе запись и номер запроса остались от прежней попытки, а она могла
       // дойти до сервера (обрыв связи после начала отправки): сбой до отправки (нет сессии без связи, файл не скопировался) о ней
       // ничего не знает, поэтому запись не снимается, а исход, как и прежде, неизвестен. Снимается она только на первой попытке.
@@ -186,6 +193,8 @@ export async function runUploadAndSubmit(input: Readonly<{
   env?: CommandEnv;
   onStage?: (stage: "upload" | "submit") => void;
   onProgress?: (percent: number) => void;
+  /** Остановка загрузки студентом; на отправку после подтверждённой квитанции она не действует. */
+  signal?: AbortSignal;
 }>): Promise<UploadAndSubmitOutcome> {
   const { scope, target } = input;
   const stage = (value: "upload" | "submit") => {
@@ -196,7 +205,7 @@ export async function runUploadAndSubmit(input: Readonly<{
     }
   };
   stage("upload");
-  const upload = await runUpload({ scope, target, file: input.file, fingerprint: input.fingerprint, upload: input.upload, onProgress: input.onProgress, env: input.env });
+  const upload = await runUpload({ scope, target, file: input.file, fingerprint: input.fingerprint, upload: input.upload, onProgress: input.onProgress, signal: input.signal, env: input.env });
   if (upload.status !== "uploaded") return { stage: "upload", upload };
   const send = input.sendAfterUpload;
   if (!send) return { stage: "done", upload, submit: { status: "skipped", why: "upload_only" } };

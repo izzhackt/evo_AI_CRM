@@ -20,6 +20,7 @@ import { usePreparation } from "@/features/preparations/context";
 import { VersionRow } from "@/features/preparations/SavedVersions";
 import type { PackageStrings } from "@/features/preparations/package-strings";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
@@ -47,7 +48,7 @@ function NoneRow({ label, selected, disabled, onPress, testID }: { label: string
       testID={testID}
       style={{ minHeight: MIN_TARGET + 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: tokens.radiusItem, borderWidth: selected ? 2 : 1, borderColor: selected ? tokens.accent : tokens.controlEdge, backgroundColor: tokens.surface, opacity: disabled ? 0.6 : 1 }}
     >
-      <Text variant="body" tone="text2" bold={selected}>
+      <Text variant="body" tone="text2" bold={selected} style={{ flexShrink: 1 }}>
         {label}
       </Text>
       {selected ? <Check size={18} strokeWidth={2} color={tokens.accent} /> : null}
@@ -68,12 +69,15 @@ export function PackageSelectionRow({ item, state, selected, included, disabled,
   const { tokens } = useTheme();
   const api = usePortalApi();
   const { scope } = usePreparation();
-  const [more, setMore] = useState<readonly ApplicationDocumentReusableVersion[]>([]);
-  const [cursor, setCursor] = useState<ApplicationDocumentVersionCursor | null>(state.reusableVersionsNextCursor);
+  // Страницы «Показать ещё файлы», которые студент уже открыл. Строка при обновлении не пересоздаётся (раньше её ключ рос вместе с
+  // `epoch`): выбранный файл со второй страницы остаётся в списке, а не превращается в «Выбранный файл недоступен». Пока ничего не
+  // загружено, курсор берётся из свежего ответа (обновление могло изменить первую страницу и появление «Показать ещё файлы»).
+  const [loaded, setLoaded] = useState<Readonly<{ versions: readonly ApplicationDocumentReusableVersion[]; cursor: ApplicationDocumentVersionCursor | null }> | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const lock = useRef(false);
-  const candidates = packageCandidates(state, more);
+  const cursor = loaded ? loaded.cursor : state.reusableVersionsNextCursor;
+  const candidates = packageCandidates(state, loaded?.versions ?? []);
   const value = selected?.selection.documentVersionId ?? "";
   async function load() {
     if (lock.current || !cursor) return;
@@ -82,10 +86,11 @@ export function PackageSelectionRow({ item, state, selected, included, disabled,
     setFailed(false);
     try {
       const page = await readReusableVersions(api.transport, { studentCaseId: scope.studentCaseId, applicationId: scope.applicationId, requirementItemId: item.requirementItemId }, cursor);
-      setMore((old) => [...old, ...page.versions]);
-      setCursor(page.nextCursor);
+      setLoaded((old) => ({ versions: [...(old?.versions ?? []), ...page.versions], cursor: page.nextCursor }));
     } catch {
       setFailed(true);
+      // Роль «alert» на iPhone молчит: сбой нужно сказать читалке самим.
+      announce(t.unavailable);
     } finally {
       lock.current = false;
       setLoading(false);

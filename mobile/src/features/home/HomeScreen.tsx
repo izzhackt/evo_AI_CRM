@@ -68,6 +68,8 @@ export function HomeScreen() {
   // и из нажатий на самом экране.
   const params = homeParams(useLocalSearchParams<{ list?: string; path?: string; at?: string }>());
   const [listTab, setListTab] = useState<HomeListTab>(params.listTab ?? "universities");
+  // «Всё избранное» (полный список со сравнением): веб `?all=1#list`; вкладка «Вузы» и ссылка на список возвращают ленту.
+  const [favoritesAll, setFavoritesAll] = useState(false);
   const [pathOpen, setPathOpen] = useState(params.openPath);
   // Каждый запрос «раскрыть путь» (ссылка с новой меткой `at`) - новая метка для JourneySection.
   const [unfoldStamp, setUnfoldStamp] = useState(params.openPath ? params.stamp : "");
@@ -91,6 +93,7 @@ export function HomeScreen() {
     setSeenLink(linkKey);
     if (params.listTab) {
       setListTab(params.listTab);
+      setFavoritesAll(false);
       setPending("list");
     } else if (params.openPath) {
       setPathOpen(true);
@@ -98,6 +101,8 @@ export function HomeScreen() {
       setPending("path");
     }
   }
+  // Избранное опустело (последний вуз убран из полного списка): ленты и кнопки больше нет, прежнее «открыто» не остаётся.
+  if (favoritesAll && favorites.data?.total === 0) setFavoritesAll(false);
 
   const now = new Date();
   const home = t("home");
@@ -173,7 +178,18 @@ export function HomeScreen() {
       case "csca":
         return cscaCard ? <CscaCard view={cscaCard} /> : null;
       case "list":
-        return <HomeList tab={listTab} onTabChange={setListTab} now={now} />;
+        return (
+          <HomeList
+            tab={listTab}
+            onTabChange={(next) => {
+              setListTab(next);
+              setFavoritesAll(false);
+            }}
+            favoritesAll={favoritesAll}
+            onFavoritesAll={setFavoritesAll}
+            now={now}
+          />
+        );
     }
   };
 

@@ -370,17 +370,18 @@ describe("Главная: «Мой список»", () => {
     expect(uri).toMatch(/^http:\/\/localhost:46421\/storage\/v1\/render\/image\/public\/portal-university-photos\/sunway\.jpg\?/);
     expect(screen.getAllByLabelText(/^Университет 2\. Куала-Лумпур · Малайзия/)).toHaveLength(1);
     expect(within(second).queryByText(/Фото/)).toBeNull();
-    // две карточки - всё избранное уже видно, ссылки «Всё избранное» нет
-    expect(screen.queryByTestId("favorites-all")).toBeNull();
+    // «Всё избранное» есть и при двух карточках (веб: `total > 0`); полный список со сравнением - в HomeFavoritesAll.test.tsx
+    expect(screen.getByTestId("favorites-all")).toHaveTextContent("Всё избранное");
   });
 
-  it("больше четырёх вузов: четыре карточки и «Всё избранное» открывает полный список", async () => {
+  it("больше четырёх вузов: на ленте четыре карточки, остальные - в «Всё избранное»", async () => {
     const { transport } = fakeTransport(handlers("MY", { student_university_favorites_v1: favorites(6) }));
     await renderPortal(<HomeScreen />, testApi(transport));
     await screen.findByTestId(`fav-${uuidN(1)}`);
     expect(screen.queryByTestId(`fav-${uuidN(5)}`)).toBeNull();
     await fireEvent.press(screen.getByTestId("favorites-all"));
-    expect(await screen.findByTestId(`fav-${uuidN(5)}`)).toBeTruthy();
+    expect(await screen.findByTestId(`tile-${uuidN(5)}`)).toBeTruthy();
+    expect(screen.getByTestId(`tile-${uuidN(6)}`)).toBeTruthy();
     expect(screen.queryByTestId("favorites-all")).toBeNull();
   });
 

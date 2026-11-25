@@ -1,10 +1,13 @@
 // Серверные маршруты регистрации (src/lib/server/student-portal-intake-route-handlers.ts):
 //   POST /api/portal/registration         (аноним, заголовок потока v2)
 //   POST /api/portal/registration/resend  (аноним, предъявляется resendCapability)
+//   POST /api/portal/registration/link-check (аноним; статус личной ссылки и имя для предзаполнения; приложение
+//                                          при любом сбое этого маршрута идёт дальше, как будто ссылка действует)
 //   POST /api/portal/invite-acceptance    (Bearer; имя для предзаполнения)
 // Тела ответов и тексты ошибок сервера наружу не отдаются: только классы исходов.
 
 import type { FetchLike } from "@/api/portal-auth";
+import type { NamePrefill } from "@/features/registration/wizard-model";
 
 export const REGISTRATION_FLOW_HEADER = "X-EVO-Registration-Flow";
 export const REGISTRATION_FLOW_VERSION = "email-confirmation-v2";
@@ -37,6 +40,15 @@ export type RegisterResult = { ok: true; pending: PendingConfirmation } | { ok: 
 export type ResendFailure = "confirmed" | "expired" | "rate_limit" | "account_conflict" | "unavailable" | "upgrade_required" | "invalid" | "network";
 export type ResendResult = { ok: true; pending: PendingConfirmation } | { ok: false; reason: ResendFailure };
 
+/**
+ * Ответ проверки личной ссылки до анкеты (веб: `RegistrationLinkCheck` страницы /apply). `valid` несёт имя для предзаполнения
+ * (или `null`), остальные статусы - экран «Регистрация по приглашению» с нужным текстом (`invite.*`). `null` у вызывающего:
+ * маршрута нет или он сбоит (старый сервер, нет связи, 429); тогда приложение работает как раньше и ссылку проверяет отправка.
+ */
+export type InviteCheck =
+  | Readonly<{ status: "valid"; prefill: NamePrefill | null }>
+  | Readonly<{ status: "used" | "expired" | "unknown" | "unavailable" }>;
+
 export type InviteAcceptance = Readonly<{ intakeFlow: string | null; accountPending: boolean; displayName: string | null }>;
 export type InviteAcceptanceResult = { ok: true; acceptance: InviteAcceptance } | { ok: false };
 
@@ -51,9 +63,14 @@ export type RegistrationApi = Readonly<{
   register(request: RegistrationRequest): Promise<RegisterResult>;
   resend(capability: string): Promise<ResendResult>;
   acceptInvite(accessToken: string): Promise<InviteAcceptanceResult>;
+  /** Проверка ссылки до анкеты; `null` - маршрут недоступен или сбоит (приложение идёт дальше без проверки). */
+  checkInvite(invite: string): Promise<InviteCheck | null>;
 }>;
 
 const TIMEOUT_MS = 20_000;
+/** Проверка ссылки стоит перед анкетой и не должна держать человека на загрузке: через 8 с идём дальше без неё. */
+const INVITE_CHECK_TIMEOUT_MS = 8_000;
+const INVITE_NAME_MAX = 60;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -68,6 +85,18 @@ export function parsePending(json: unknown): PendingConfirmation | null {
   if (dispatch !== "accepted" && dispatch !== "failed" && dispatch !== "unknown") return null;
   if (retryAfterSeconds !== null && !(typeof retryAfterSeconds === "number" && Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0)) return null;
   return { maskedEmail, expiresAt, retryAfterSeconds: retryAfterSeconds ?? null, dispatch, resendCapability };
+}
+
+/** 200 проверки ссылки: известный статус, у `valid` имя либо обе строки, либо `null`; чужая форма - `null` (идём дальше без проверки). */
+export function parseInviteCheck(json: unknown): InviteCheck | null {
+  if (!isRecord(json)) return null;
+  const status = json.status;
+  if (status === "used" || status === "expired" || status === "unknown" || status === "unavailable") return { status };
+  if (status !== "valid") return null;
+  const { firstName, lastName } = json;
+  const named = typeof firstName === "string" && typeof lastName === "string" && firstName.trim() !== "";
+  const within = named && firstName.length <= INVITE_NAME_MAX && lastName.length <= INVITE_NAME_MAX;
+  return { status: "valid", prefill: within ? { firstName: firstName.trim(), lastName: lastName.trim() } : null };
 }
 
 function bodyStatus(json: unknown): string | null {
@@ -133,9 +162,9 @@ export function createRegistrationApi(options: { baseUrl: string; fetch?: FetchL
 
   type Raw = { status: number; json: unknown } | { network: true };
 
-  async function post(path: string, body: unknown, extraHeaders: Record<string, string>): Promise<Raw> {
+  async function post(path: string, body: unknown, extraHeaders: Record<string, string>, timeoutMs: number = TIMEOUT_MS): Promise<Raw> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await doFetch(`${base}${path}`, {
         method: "POST",
@@ -171,6 +200,13 @@ export function createRegistrationApi(options: { baseUrl: string; fetch?: FetchL
       const raw = await post("/api/portal/registration/resend", { cap: capability }, flow);
       if ("network" in raw) return { ok: false, reason: "network" };
       return mapResendResponse(raw.status, raw.json);
+    },
+
+    async checkInvite(invite) {
+      // Токен идёт в теле, не в адресе (журналы доступа); флаг потока не нужен: маршрут не создаёт ничего.
+      const raw = await post("/api/portal/registration/link-check", { invite }, {}, INVITE_CHECK_TIMEOUT_MS);
+      if ("network" in raw || raw.status !== 200) return null;
+      return parseInviteCheck(raw.json);
     },
 
     async acceptInvite(accessToken) {

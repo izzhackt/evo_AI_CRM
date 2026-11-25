@@ -1,5 +1,6 @@
 // Окно программы (веб: `<dialog>` в ProgramCard.tsx, на телефоне - лист снизу): уровень и название, длительность и язык
-// обучения, описание, страница программы и наборы с выбором. Закрывается крестиком, нажатием «Назад» и (iOS) жестом вниз.
+// обучения, описание, страница программы и наборы с выбором. Закрывается крестиком, нажатием «Назад» и (iOS) жестом вниз: жест у
+// листа iOS по умолчанию выключен (`allowSwipeDismissal`), он включён, и закрывает окно тем же путём, что крестик (`onRequestClose`).
 import { X } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
@@ -55,7 +56,7 @@ export function ProgramDialog({
   if (row !== null && row !== last) setLast(row);
   const shown = row ?? last;
   return (
-    <Modal visible={row !== null} animationType={reduced ? "none" : "slide"} presentationStyle="pageSheet" onRequestClose={onClose} onDismiss={onDismiss} testID="program-dialog">
+    <Modal visible={row !== null} animationType={reduced ? "none" : "slide"} presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose} onDismiss={onDismiss} testID="program-dialog">
       <View style={{ flex: 1, backgroundColor: tokens.surface }}>
         {shown ? (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 16) + 16, gap: 12 }} keyboardShouldPersistTaps="handled">

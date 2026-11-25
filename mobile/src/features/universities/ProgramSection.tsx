@@ -30,6 +30,13 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
   const options = useMemo(() => programOptions(rows, content, strings, lang), [rows, content, strings, lang]);
   const bindings = detail.preparations?.studentCaseId === studentCaseId ? detail.preparations.items : null;
   const [openId, setOpenId] = useState<string | null>(null);
+  // Какая программа открыта сейчас. Читается из обработчиков, которые могут сработать позже отрисовки (выбор заканчивается через
+  // секунды), поэтому не только состояние. Уход с экрана тоже закрывает окно.
+  const openRef = useRef<string | null>(null);
+  const show = useCallback((id: string | null) => {
+    openRef.current = id;
+    setOpenId(id);
+  }, []);
   const open = rows.find((row) => row.program.id === openId) ?? null;
 
   // К странице программы ведут два пути: после добавления и кнопка «Открыть» у уже добавленного набора. И там и там окно закрывается,
@@ -46,18 +53,23 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
   }, []);
   useEffect(
     () => () => {
+      openRef.current = null;
       if (timer.current !== null) clearTimeout(timer.current);
     },
     [],
   );
   const openApplication = useCallback(
-    (applicationId: string) => {
+    (programId: string, applicationId: string) => {
+      // Окно этой программы уже закрыто (студент закрыл его, пока выбор шёл): выбор сохранён и списки перечитаны, но страница программы
+      // из чужого места не открывается. На iPhone содержимое окна живёт до его `onDismiss`, около 0,4 с после закрытия, поэтому
+      // «жив ли экран» ничего не говорит: считается, открыто ли окно именно этой программы.
+      if (openRef.current !== programId) return;
       follow.current = applicationId;
-      setOpenId(null);
+      show(null);
       if (timer.current !== null) clearTimeout(timer.current);
       timer.current = setTimeout(flush, FOLLOW_FALLBACK_MS);
     },
-    [flush],
+    [flush, show],
   );
 
   return (
@@ -70,12 +82,12 @@ export function ProgramSection({ detail, strings, now, onRefresh }: { detail: St
           {prep.caseIneligible}
         </Text>
       ) : null}
-      <ProgramPicker rows={rows} options={options} strings={strings} lang={lang} onOpen={setOpenId} />
-      <ProgramDialog row={open} strings={strings} onClose={() => setOpenId(null)} onDismiss={flush}>
+      <ProgramPicker rows={rows} options={options} strings={strings} lang={lang} onOpen={show} />
+      <ProgramDialog row={open} strings={strings} onClose={() => show(null)} onDismiss={flush}>
         {(row) => (
           <View style={{ gap: 12 }}>
             {row.program.intakes.map((intake, index) => (
-              <IntakeSelect key={intake.id ?? index} intake={intake} program={row.program} detail={detail} strings={strings} now={now} lang={lang} onOpenApplication={openApplication} onRefresh={onRefresh} />
+              <IntakeSelect key={intake.id ?? index} intake={intake} program={row.program} detail={detail} strings={strings} now={now} lang={lang} onOpenApplication={(applicationId) => openApplication(row.program.id, applicationId)} onRefresh={onRefresh} />
             ))}
           </View>
         )}

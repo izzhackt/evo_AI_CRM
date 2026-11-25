@@ -126,6 +126,35 @@ describe("успешное добавление", () => {
     expect(router.push).toHaveBeenCalledTimes(1);
   });
 
+  it("«Открыть»: запасной таймер сработал раньше `onDismiss` окна, запоздавший `onDismiss` второго перехода не делает (ровно один переход)", async () => {
+    const w = world({}, { preparations: { studentCaseId: STUDENT_CASE_ID, items: [item] } });
+    await open(w);
+    await openProgram("cs-b");
+    const dismissed = screen.getByTestId("program-dialog").props.onDismiss as () => void;
+    await fireEvent.press(screen.getByTestId("program-open"));
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1), { timeout: 10_000 });
+    await act(async () => {
+      dismissed(); // iOS сообщил о закрытии окна уже после запасного таймера
+    });
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(router.push).toHaveBeenCalledWith(preparationHref(item.applicationId));
+  });
+
+  it("окно программы закрывается и жестом вниз на iOS (`allowSwipeDismissal`): тем же путём, что крестик", async () => {
+    const w = world();
+    await open(w);
+    await openProgram("cs-b");
+    const sheet = screen.getByTestId("program-dialog");
+    expect(sheet.props.allowSwipeDismissal).toBe(true);
+    await act(async () => {
+      sheet.props.onRequestClose(); // жест вниз и «Назад» Android приходят сюда же
+    });
+    expect(screen.queryByTestId("program-dialog-title")).toBeNull();
+    await openProgram("cs-b");
+    await fireEvent.press(screen.getByTestId("program-dialog-close"));
+    expect(screen.queryByTestId("program-dialog-title")).toBeNull();
+  });
+
   it("«Открыть», если окно не сообщило о закрытии: страница программы открывается по запасному таймеру, один раз", async () => {
     const w = world({}, { preparations: { studentCaseId: STUDENT_CASE_ID, items: [item] } });
     await open(w);

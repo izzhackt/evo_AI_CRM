@@ -75,6 +75,8 @@ export function HomeScreen() {
   // Каждый запрос «раскрыть путь» (ссылка с новой меткой `at`) - новая метка для JourneySection.
   const [unfoldStamp, setUnfoldStamp] = useState(params.openPath ? params.stamp : "");
   const scroller = useRef<ScrollTarget>(null);
+  // Где сейчас верх окна (по событиям прокрутки): «Свернуть» возвращает к карточке пути, только если экран ниже неё.
+  const scrollY = useRef(0);
   const offsets = useRef<Partial<Record<"list" | "path", number>>>({});
   // Прокрутка к блоку и к текущему шагу плавная, а при «Уменьшить движение» мгновенная (веб: `behavior: "auto"` при `prefers-reduced-motion`).
   const scrollToY = useCallback((y: number) => scroller.current?.scrollTo({ y: Math.max(0, y), animated: !reducedMotion }), [reducedMotion]);
@@ -134,6 +136,13 @@ export function HomeScreen() {
     initiallyUnfolded: pathOpen,
     unfoldStamp,
     scrollTo: scrollToY,
+    // Свернули путь, стоя глубоко в нём: к верху карточки пути сразу, без анимации (место карточки известно после её раскладки).
+    // Экран на карточке или выше неё (у самого верха страницы верх карточки на 16 pt ниже края) не двигаем: иначе «Свернуть» у верха
+    // сдвигало бы страницу на эти 16 pt.
+    scrollToCard: () => {
+      const y = offsets.current.path;
+      if (y !== undefined && scrollY.current > y) scroller.current?.scrollTo({ y: Math.max(0, y), animated: false });
+    },
   });
   // Потянуть вниз перечитывает источники и даёт фото шапки, которое не загрузилось, ещё одну попытку (веб: перезагрузка страницы).
   const { setFailedPhoto } = journeyState;
@@ -287,7 +296,17 @@ export function HomeScreen() {
   }
 
   return (
-    <Screen topInset={false} tabBar onRefresh={() => void refresh()} refreshing={refreshing} scrollRef={scroller} stickyHeaderIndices={sticky}>
+    <Screen
+      topInset={false}
+      tabBar
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
+      scrollRef={scroller}
+      stickyHeaderIndices={sticky}
+      onScrollY={(y) => {
+        scrollY.current = y;
+      }}
+    >
       {blocks}
     </Screen>
   );

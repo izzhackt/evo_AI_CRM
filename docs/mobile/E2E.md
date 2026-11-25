@@ -17,7 +17,7 @@
 | `11-documents-example.yaml` | «Документы» → «Пример»: лист, крупный просмотр, закрытие; после них меню ☰ показывает «Оплату» и «Профессии» (проверка #1488). Добавлен без запуска |
 
 Каждый поток начинается с `clearState` (локальные данные и Keychain стёрты) и сам входит под `test.assisted`.
-Подпотоки: `subflows/` (вход, раздел через меню ☰).
+Подпотоки: `subflows/` (вход, раздел через меню ☰, закрытие системного окна «Сохранить пароль?»).
 
 ## Подготовка
 
@@ -41,6 +41,10 @@
   чужой `debug_http_host`, выполните `adb shell pm clear com.evoadmissions.app`. Холодный старт debug-сборки на
   нагруженном Mac занимает до 2 минут, поэтому ожидания входа длинные (120 с).
 - **iOS.** Системные окна «Save Password?» и «Open in EVO admissions?» не часть приложения: потоки их закрывают.
+  «Сохранить пароль?» приходит на языке системы, поэтому его закрывает `subflows/dismiss-save-password.yaml`: подпись кнопки отказа
+  там перечислена на языках iOS (54 локали, строки симулятора 26.5) и Android (en, ru, ky, uk, kk, uz); окна нет - поток идёт дальше.
+  Список проверяет `src/__tests__/maestro-flows.test.ts`. «Open in EVO admissions?» поток 09 закрывает только английской
+  подписью «Open»: на симуляторе с другим языком системы кнопка не найдётся и поток 09 не пройдёт (пока не исправлено).
 - Проверка release-манифеста Android (без `ACCESS_LOCAL_NETWORK`, без cleartext): `npx expo prebuild --platform android`,
   затем `./gradlew :app:processReleaseMainManifest` и просмотр `app/build/intermediates/merged_manifest/release/`.
 

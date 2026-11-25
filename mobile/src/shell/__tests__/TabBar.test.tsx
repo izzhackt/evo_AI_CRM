@@ -86,4 +86,3 @@ describe("вкладка «Входящие»: число непрочитанн
     expect(bar.getByTestId("tab-documents").props.accessibilityState).toMatchObject({ selected: false });
   });
 });
-

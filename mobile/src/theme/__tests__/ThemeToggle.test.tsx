@@ -6,12 +6,17 @@ import type { ReactElement } from "react";
 import * as ReactNative from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { PortalApiProvider } from "@/api/PortalApi";
 import { LangProvider } from "@/i18n/LangProvider";
 import { TopBar } from "@/shell/TopBar";
 import { DEFAULT_THEME_CHOICE, ThemeProvider, useTheme, type ThemeChoice } from "@/theme/ThemeProvider";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { useStatusBarStyle } from "@/theme/useStatusBarStyle";
+import { testApi } from "@/test-fixtures/render";
 import { Text } from "@/ui/Text";
+
+// Верхняя полоса тянет «Назад на Главную» через expo-router; в этом тесте навигации нет.
+jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, usePathname: () => "/home" }));
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 
@@ -145,10 +150,29 @@ describe("кнопка «солнце/луна»", () => {
 });
 
 describe("верхняя полоса кабинета", () => {
-  it("кнопка темы стоит в верхней полосе рядом с ☰ и названием", async () => {
-    await renderThemed(<TopBar onMenu={() => undefined} />);
-    expect(screen.getByTestId("menu-button")).toBeTruthy();
-    expect(screen.getByTestId("theme-toggle")).toBeTruthy();
-    expect(screen.getByText("EVO admissions")).toBeTruthy();
+  it("кнопка темы стоит в верхней полосе рядом с ☰ и лого, у каждого уровня доступа", async () => {
+    for (const tier of ["assisted", "approved"] as const) {
+      const view = await renderThemed(
+        <PortalApiProvider api={testApi(async () => ({ data: null, error: null, status: 200 }), { tier })}>
+          <TopBar onMenu={() => undefined} />
+        </PortalApiProvider>,
+      );
+      expect(view.getByTestId("menu-button")).toBeTruthy();
+      expect(view.getByTestId("topbar-logo")).toBeTruthy();
+      expect(view.getByTestId("theme-toggle")).toBeTruthy();
+      await view.unmount();
+    }
+  });
+
+  it("нажатие на кнопку темы в верхней полосе переключает тему", async () => {
+    await renderThemed(
+      <PortalApiProvider api={testApi(async () => ({ data: null, error: null, status: 200 }), { tier: "approved" })}>
+        <TopBar onMenu={() => undefined} />
+        <Probe />
+      </PortalApiProvider>,
+    );
+    expect(probe()).toBe("light|light|dark");
+    await fireEvent.press(screen.getByTestId("theme-toggle"));
+    expect(probe()).toBe("dark|dark|light");
   });
 });

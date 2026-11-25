@@ -227,7 +227,7 @@ describe("карточка обновления: доработки после �
       expect(screen.getByTestId("update-prompt-host").props.style.top).toBe(47 + 8);
     });
 
-    it("настоящее значение константы - высота ряда полосы кабинета, 52 (пока полоса держит своё число, `TopBar.tsx`: `height: 52`)", () => {
+    it("настоящее значение константы - высота ряда полосы кабинета, 52 (её же берут полоса `TopBar.tsx`, карточка сбоя опроса и экраны с клавиатурой)", () => {
       expect(jest.requireActual<{ TOP_BAR_HEIGHT: number }>("@/shell/top-bar-metrics").TOP_BAR_HEIGHT).toBe(52);
     });
   });

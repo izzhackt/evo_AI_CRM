@@ -26,7 +26,11 @@ test("the preview runs on pull_request only, never on pull_request_target or oth
 
 test("the workflow is read-only, bounded and one run per PR", () => {
   assert.match(executable, /^permissions:\n  contents: read\n/mu);
-  assert.equal([...executable.matchAll(/^\s*permissions:/gmu)].length, 1, "no job widens permissions");
+  // Exactly one job has a permissions block of its own: «Mobile parity» also reads its pull request (the description),
+  // read-only. The preview and every other job keep the workflow default.
+  assert.equal([...executable.matchAll(/^\s*permissions:/gmu)].length, 2, "no job but «Mobile parity» has permissions of its own");
+  const parityJob = executable.slice(executable.indexOf("\n  mobile-parity:\n"), executable.indexOf("\n  migration_boundary:\n"));
+  assert.match(parityJob, /\n    permissions:\n      contents: read\n      pull-requests: read\n    steps:\n/u);
   assert.doesNotMatch(executable, /contents:\s*write|id-token|pull-requests:\s*write|packages:|actions:\s*write/u);
   assert.match(executable, /concurrency:\n  group: evo-fast-pr-checks-\$\{\{ github\.event\.pull_request\.number \}\}\n  cancel-in-progress: true/u);
   const timeout = Number(previewJob.match(/timeout-minutes:\s*(\d+)/u)?.[1]);

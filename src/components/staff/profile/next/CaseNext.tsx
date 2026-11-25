@@ -14,7 +14,14 @@ import { SummaryCard } from "./SummaryCard";
  * (`CaseNextOverview`), там же подробности документов и оплаты. «Обзор» - виджеты.
  * Ссылки «Открыть документы / вузы / договор / переписку» не рисуются: те же переходы есть у вкладок и у «Написать».
  */
-export function caseNextParts(source: CaseNextSource, actions: ReactNode): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode }> {
+/**
+ * `tab` — открытая вкладка. На телефоне строка «Документы · Оплата» не рисуется там, где она повторяет вкладку:
+ * «Обзор» («Сведения»), «Документы», «Деньги» (чек-лист 23.11: до вкладок было около 530 px). На остальных вкладках
+ * она остаётся: других мест с этими числами там нет.
+ */
+export const CASE_SUMMARY_REPEATED_ON = ["overview", "documents", "money"] as const;
+
+export function caseNextParts(source: CaseNextSource, actions: ReactNode, tab: string | null = null): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode }> {
   const values = caseFactValues(source.overview, { links: false, flush: true });
   const parts = caseSummaryParts(source.overview);
   const header = (
@@ -22,7 +29,7 @@ export function caseNextParts(source: CaseNextSource, actions: ReactNode): Reado
       {source.mark}
       <SummaryCard
         testId="v3-case-summary"
-        summaryFromSm
+        summaryFromSm={tab !== null && (CASE_SUMMARY_REPEATED_ON as readonly string[]).includes(tab)}
         summary={parts.length > 0 ? (
           <p className="t-body-compact flex flex-wrap items-baseline gap-x-2 text-fg" data-testid="v3-case-summary-line">
             {parts.map((part, index) => (

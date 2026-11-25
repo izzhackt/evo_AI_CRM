@@ -152,6 +152,12 @@ describe("карточка сбоя опроса в раскладке каби�
     expect(columnStyle?.flex).toBe(1);
     const cardStyle = StyleSheet.flatten(screen.getByTestId("poll-failure-anchor").props.style) as { position?: string };
     expect(cardStyle.position).not.toBe("absolute");
+    // Ветка с экранами (контейнер вкладок) - второй брат в той же колонке: тоже в потоке и занимает остаток высоты. Поставь её поверх
+    // (absolute), она не сдвигалась бы вниз вслед за карточкой, и карточка снова закрывала бы верх экрана (ревью #1590, мелочь).
+    const tabs = nodeAt([...column, screenContent![column.length]!]);
+    const tabsStyle = StyleSheet.flatten(tabs.props.style as never) as { position?: string; flex?: number } | undefined;
+    expect(tabsStyle?.position).not.toBe("absolute");
+    expect(tabsStyle?.flex).toBe(1);
   });
 
   it("управляющий элемент наверху прокрутки лежит ниже карточки и остаётся нажимаемым", async () => {

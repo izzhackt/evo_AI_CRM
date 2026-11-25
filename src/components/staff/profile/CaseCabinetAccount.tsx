@@ -30,10 +30,10 @@ const MESSAGES: Readonly<Record<Exclude<StudentCaseAccountActionState["status"],
  * «Доступ к порталу → Кабинет с временным паролем» (343, 07.11.2026): кабинет сразу с этим делом. Логин и временный
  * пароль видны только здесь и один раз — CRM их не хранит, поэтому блок стоит на одном месте для формы, «Кабинет открыт»
  * и причины отказа: когда карточка обновится (заметка, задача), показанный пароль не пропадёт. Имя и фамилия — из анкеты
- * или имени дела, логин виден до создания: порядок в CRM бывает «Фамилия Имя». Открытый кабинет — «Сбросить пароль» (344),
- * только администратору: куратор (363) открывает кабинет, а сброс пароля остаётся за админом.
+ * или имени дела, логин виден до создания: порядок в CRM бывает «Фамилия Имя». Открытый кабинет — логин и «Сбросить
+ * пароль» (344): администратору и куратору этого дела (374), тем же людям, кому база отдаёт состояние кабинета (363).
  */
-export function CaseCabinetAccount({ studentCaseId, requestId, firstName, lastName, portalOrigin, view, reset, canReset }: Readonly<{
+export function CaseCabinetAccount({ studentCaseId, requestId, firstName, lastName, portalOrigin, view, reset }: Readonly<{
   studentCaseId: string;
   requestId: string;
   firstName: string;
@@ -41,8 +41,6 @@ export function CaseCabinetAccount({ studentCaseId, requestId, firstName, lastNa
   portalOrigin: string;
   view: CaseCabinetView;
   reset: Readonly<{ requestId: string; login: string | null; email: string | null }>;
-  /** «Сбросить пароль» (344) — только администратору. */
-  canReset: boolean;
 }>) {
   const router = useRouter();
   const [state, action, pending] = useActionState(createStudentCaseAccountAction, { status: "idle", requestId } as StudentCaseAccountActionState);
@@ -77,7 +75,7 @@ export function CaseCabinetAccount({ studentCaseId, requestId, firstName, lastNa
       </div>
     );
   }
-  if (view === "open") return canReset ? <CaseCabinetReset studentCaseId={studentCaseId} portalOrigin={portalOrigin} {...reset} /> : null;
+  if (view === "open") return <CaseCabinetReset studentCaseId={studentCaseId} portalOrigin={portalOrigin} {...reset} />;
   if (view !== "form") return <p className="t-body-compact text-fg-2" data-testid="case-cabinet-refusal">{MESSAGES[view]}</p>;
 
   return (

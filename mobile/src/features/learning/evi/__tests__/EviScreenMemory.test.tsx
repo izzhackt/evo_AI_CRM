@@ -13,9 +13,10 @@ import { fakeTransport } from "@/test-fixtures/universities";
 
 const mockNavigate = jest.fn();
 jest.mock("expo-router", () => ({
-  router: { navigate: (...args: unknown[]) => mockNavigate(...args), canGoBack: () => false, back: jest.fn() },
+  router: { navigate: (...args: unknown[]) => mockNavigate(...args), dismissTo: jest.fn(), canGoBack: () => false, back: jest.fn() },
   useRouter: () => ({ canGoBack: () => false, back: jest.fn(), navigate: (...args: unknown[]) => mockNavigate(...args) }),
 }));
+jest.mock("@/ui/useReduceMotion", () => ({ useReduceMotion: () => true }));
 
 type Ask = EviApi["ask"];
 const answer = (over: Record<string, unknown> = {}) => ({ ok: true as const, answer: { message: "Что тебе нравится делать?", mood: "talk" as const, options: ["Рисовать", "Считать"], multi: false, results: null, progress: { step: 1, total: 10 }, ...over } });
@@ -48,15 +49,20 @@ function Cabinet({ ask }: { ask: Ask }) {
   );
 }
 
+const GRANTED = { status: "granted", policyVersion: "2026-10-25", decidedAt: "2026-11-01T10:00:00Z", currentPolicyVersion: "2026-10-25" };
+
 async function openCabinet(ask: Ask, lang: "ru" | "ky" = "ru") {
-  const { transport } = fakeTransport({});
-  return renderPortal(<Cabinet ask={ask} />, testApi(transport), lang);
+  const { transport } = fakeTransport({ portal_ai_consent_get_v1: GRANTED });
+  const view = await renderPortal(<Cabinet ask={ask} />, testApi(transport), lang);
+  await screen.findByTestId("evi-screen");
+  return view;
 }
 
 async function leaveAndReturn() {
   await fireEvent.press(screen.getByTestId("leave"));
   expect(screen.queryByTestId("evi-screen")).toBeNull();
   await fireEvent.press(screen.getByTestId("return"));
+  // Согласие уже в кэше кабинета: чат возвращается сразу, без ожидания.
   expect(screen.getByTestId("evi-screen")).toBeTruthy();
 }
 
@@ -132,7 +138,8 @@ describe("«Подбор с Эви» помнит разговор, пока о�
     await openCabinet(jest.fn(async () => answer()));
     await startTalking();
     await fireEvent.press(screen.getByTestId("student-b"));
-    expect(screen.getByTestId("evi-welcome")).toBeTruthy();
+    // У другого студента своё согласие в кэше: пока оно читается, чата нет, потом - только приветствие.
+    expect(await screen.findByTestId("evi-welcome")).toBeTruthy();
     expect(screen.queryByText("Что тебе нравится делать?")).toBeNull();
     // Первый вернулся, но его разговор стёрт приветствием второго - так же на вебе.
     await fireEvent.press(screen.getByTestId("student-a"));

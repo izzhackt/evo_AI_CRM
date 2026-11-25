@@ -1,35 +1,61 @@
-// Набор программы: подпись, статус, даты, источник и действие «Добавить в мои программы». Вынесен из UniversityScreen.tsx
-// (прежнее имя IntakeBlock) без изменений.
+// Набор программы: подпись, статус, даты, источник и действие «Добавить в мои программы» (веб: `Intake` в Detail.tsx и
+// SelectionAction.tsx). Прежде это был `IntakeBlock` в UniversityScreen.tsx; тексты действия теперь из словаря веба
+// (`preparations`), а не свои сокращённые, и порядок действий как у веба (`useAddProgram`, `add-program.ts`).
+import { router } from "expo-router";
+import { useEffect } from "react";
+import { View } from "react-native";
+
 import { isPlatformApplicationCountryCode } from "@web/lib/platform-application-contract";
 import type { UniversityIntake, UniversityProgram } from "@web/lib/platform-university-catalog";
 import type { StudentUniversityDetail } from "@web/lib/portal/university-index";
 import { universityDateLabel, universityIntakeStatusKey, universityMonthLabel } from "@web/lib/portal/universities";
-import { View } from "react-native";
 
 import { usePortalApi } from "@/api/PortalApi";
-import { go } from "@/features/portal/navigation";
+import type { Lang } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
-import { rpcErrorKey } from "@/lib/rpc";
+import { preparationHref } from "@/features/preparations/routes";
 import { useTheme } from "@/theme/ThemeProvider";
+import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
 
+import { selectionMessage } from "./add-program";
 import { ExternalLink } from "./ExternalLink";
-import { useSelectProgram } from "./hooks";
+import { useAddProgram } from "./hooks";
 import type { UniversityStrings } from "./model";
 
-export function IntakeSelect({ intake, program, detail, strings, now, lang }: { intake: UniversityIntake; program: UniversityProgram; detail: StudentUniversityDetail; strings: UniversityStrings; now: Date; lang: "ru" | "ky" }) {
+export function IntakeSelect({
+  intake,
+  program,
+  detail,
+  strings,
+  now,
+  lang,
+  onAdded,
+  onRefresh,
+}: {
+  intake: UniversityIntake;
+  program: UniversityProgram;
+  detail: StudentUniversityDetail;
+  strings: UniversityStrings;
+  now: Date;
+  lang: Lang;
+  /** Программа добавлена: экран закрывает окно программы и ведёт на её страницу. */
+  onAdded: (applicationId: string) => void;
+  /** Перечитать карточку вуза («Обновить страницу»). */
+  onRefresh: () => void;
+}) {
   const { tokens } = useTheme();
-  const { m, t } = useLang();
+  const { t } = useLang();
+  const prep = t("preparations");
   const { canSelectPrograms, studentCaseId } = usePortalApi();
-  const select = useSelectProgram();
   const start = intake.startDate ? universityDateLabel(intake.startDate, lang) : intake.startMonth ? universityMonthLabel(intake.startMonth, lang) : null;
   const deadline = intake.applicationDeadline
     ? `${universityDateLabel(intake.applicationDeadline, lang)}${intake.deadlineTime ? `, ${intake.deadlineTime} (${intake.timezone})` : ""}`
     : null;
   const statusKey = universityIntakeStatusKey(intake, now);
-  const uncertain = !["open", "announced"].includes(intake.status) || !intake.applicationDeadline || !intake.timezone || statusKey === "intakeStatus.needsConfirmation";
-  // Подготовки читаются в том же вызове; чужое дело или нечитаемый список: честно «не знаем».
+  const uncertainDeadline = !["open", "announced"].includes(intake.status) || !intake.applicationDeadline || !intake.timezone || statusKey === "intakeStatus.needsConfirmation";
+  // Подготовки читаются в том же вызове; чужое дело или нечитаемый список: честно «не знаем» (`bindings === null`).
   const bindings = detail.preparations?.studentCaseId === studentCaseId ? detail.preparations.items : null;
   const existing = bindings?.find((item) => item.institutionId === detail.university.id && item.programId === program.id && item.intakeId === intake.id) ?? null;
   // Причина отказа та же, что в вебе (SelectionAction): текст берётся из его словаря «preparations».
@@ -40,46 +66,64 @@ export function IntakeSelect({ intake, program, detail, strings, now, lang }: { 
       : intake.status === "closed"
         ? "closedIntake"
         : null;
+  const add = useAddProgram(intake.id ? { institutionId: detail.university.id, programId: program.id, intakeId: intake.id, publicationVersion: detail.university.version } : null, onAdded);
+  const busy = add.state.phase === "busy";
+  const message = add.state.phase === "uncertain" || add.state.phase === "refused" ? selectionMessage(add.state.reason, prep) : null;
+  // Ошибку слышит и читалка iPhone (роль «alert» там ничего не произносит).
+  useEffect(() => {
+    if (message !== null) announce(message);
+  }, [message]);
 
+  const openedId = existing?.applicationId ?? (add.state.phase === "done" ? add.state.applicationId : null);
   let action: React.ReactNode = null;
-  if (existing || select.isSuccess) {
-    action = <Button variant="ghost" label={m("programs.openMine")} onPress={() => go("/home", { list: "programs", at: String(Date.now()) })} testID="program-open-mine" />;
+  if (openedId !== null) {
+    action = <Button label={prep.open} onPress={() => router.push(preparationHref(openedId))} testID="program-open" />;
   } else if (bindings !== null && !canSelectPrograms) {
-    action = null; // одно объяснение стоит ниже, на каждом наборе оно не повторяется
-  } else if (blocked) {
-    action = (
-      <Text variant="caption" tone="text2">
-        {t("preparations")[blocked]}
-      </Text>
-    );
-  } else if (bindings === null) {
-    action = null;
+    action = null; // одно объяснение стоит над списком программ, на каждом наборе оно не повторяется
   } else {
+    const unavailable = bindings === null ? prep.listUnavailable : blocked ? prep[blocked] : null;
+    const refused = add.state.phase === "refused";
     action = (
       <View style={{ gap: 8 }}>
-        <Text variant="caption" tone="text2">
-          {m("programs.hint")}
-          {uncertain ? ` ${m("programs.confirmDeadline")}` : ""}
-        </Text>
-        <Button
-          label={select.isPending ? m("programs.adding") : m("programs.add")}
-          busy={select.isPending}
-          onPress={() =>
-            select.mutate({ studentCaseId, institutionId: detail.university.id, programId: program.id, intakeId: intake.id as string, publicationVersion: detail.university.version })
-          }
-          testID="program-add"
-        />
-        {select.isError ? (
-          <Text variant="caption" tone="error" accessibilityRole="alert">
-            {select.error && rpcErrorKey(select.error) !== "error.generic" ? m(rpcErrorKey(select.error)) : m("programs.error")}
+        {unavailable ? (
+          <Text variant="caption" tone="text2" testID="program-unavailable">
+            {unavailable}
           </Text>
+        ) : (
+          <>
+            <Text variant="caption" tone="text2">
+              {prep.selectionHint}
+            </Text>
+            {uncertainDeadline ? (
+              <Text variant="caption" tone="text2">
+                {prep.confirmDeadline}
+              </Text>
+            ) : null}
+            {refused ? null : <Button label={busy ? prep.selecting : add.pending || add.state.phase === "uncertain" ? prep.retrySelection : prep.select} busy={busy} onPress={() => void add.run()} testID="program-add" />}
+          </>
+        )}
+        {message ? (
+          <Text variant="caption" tone="error" accessibilityRole="alert" testID="program-error">
+            {message}
+          </Text>
+        ) : null}
+        {refused || bindings === null ? (
+          <Button
+            variant="ghost"
+            label={prep.refresh}
+            onPress={() => {
+              add.reset();
+              onRefresh();
+            }}
+            testID="program-refresh"
+          />
         ) : null}
       </View>
     );
   }
   return (
-    <View style={{ gap: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: tokens.line }}>
-      <Text variant="body" bold>
+    <View style={{ gap: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: tokens.line }} testID="intake">
+      <Text variant="body" bold accessibilityRole="header">
         {intake.label}
       </Text>
       <Text variant="secondary" tone="text2">

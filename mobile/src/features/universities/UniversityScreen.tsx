@@ -1,5 +1,5 @@
 // Страница вуза: путь, фото с подписью, сердечко, обзор, сайт, «Стоимость» (если есть опубликованные
-// строки), «Программы вуза» с наборами и кнопка «Добавить в мои программы».
+// строки), «Программы вуза» (подбор, окно программы, кнопка «Добавить в мои программы» - ProgramSection.tsx).
 // Программы по #1357: описание программ вуза живёт здесь (каталог), а выбранные студентом программы -
 // ОДНО место, «Мои программы» (вкладка «Мой список» на Главной); это название везде одно.
 // Веб: src/app/(portal)/portal/universities/[id]/page.tsx, components/portal/universities/Detail.tsx.
@@ -48,7 +48,7 @@ function UniversityBody({ id }: { id: string }) {
         {detail.error instanceof UniversityNotFoundError ? (
           <NotFoundBlock />
         ) : detail.data ? (
-          <DetailView detail={detail.data} strings={strings} />
+          <DetailView detail={detail.data} strings={strings} onRefresh={() => void detail.refetch()} />
         ) : detail.isError ? (
           <InlineAlert message={m(loadErrorKey(detail.error) === "error.load" ? "uni.unavailable" : loadErrorKey(detail.error))} retryLabel={m("gate.retry")} onRetry={() => void detail.refetch()} testID="detail-error" />
         ) : (
@@ -59,7 +59,7 @@ function UniversityBody({ id }: { id: string }) {
   );
 }
 
-function DetailView({ detail, strings }: { detail: StudentUniversityDetail; strings: UniversityStrings }) {
+function DetailView({ detail, strings, onRefresh }: { detail: StudentUniversityDetail; strings: UniversityStrings; onRefresh: () => void }) {
   const { lang, t } = useLang();
   const favorites = useFavoriteState();
   const pixels = usePhotoPixels();
@@ -138,7 +138,7 @@ function DetailView({ detail, strings }: { detail: StudentUniversityDetail; stri
         </Card>
       ) : null}
 
-      <ProgramSection detail={detail} strings={strings} now={now} />
+      <ProgramSection detail={detail} strings={strings} now={now} onRefresh={onRefresh} />
       <ExternalLink url={content.sourceUrl} label={strings.cardSource} />
     </>
   );

@@ -2,8 +2,7 @@
 // и полные списки под ними. Числа стоят прямо во вкладках: прежних плиток «Поступления» нет.
 // Чтения общие с «Главной» (избранное читается один раз), сбой одного списка не трогает второй.
 import { GraduationCap, Landmark } from "lucide-react-native";
-import { useState } from "react";
-import { PixelRatio, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
+import { PixelRatio, ScrollView, View, useWindowDimensions } from "react-native";
 import type { CatalogPreparation } from "@web/lib/portal/catalog-preparations";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import { universityCountryLabel } from "@web/lib/portal/universities";
@@ -11,13 +10,15 @@ import { universityCountryLabel } from "@web/lib/portal/universities";
 import { HOME_FAVORITES_LIMIT, type HomeListTab } from "@/domain/home-model";
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useFavorites, usePreparations } from "@/api/queries";
+import { FavoritesAll } from "@/features/home/FavoritesAll";
 import { nearestIntakeText } from "@/features/home/HomeCards";
 import { go } from "@/features/portal/navigation";
 import { RemotePhoto, universityUrls } from "@/features/universities/parts";
 import { useLang } from "@/i18n/LangProvider";
 import { Button } from "@/ui/Button";
-import { CardHead, CardSkeleton, EmptyBlock, InlineAlert, MIN_TARGET } from "@/ui/CardParts";
+import { CardHead, CardSkeleton, EmptyBlock, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
+import { announce } from "@/ui/a11y";
 import { Enter, PressableScale } from "@/ui/motion";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
@@ -113,18 +114,29 @@ function FavoriteCard({ item, width, now, index }: { item: PublishedUniversity; 
   return index < FAV_ENTER_LIMIT ? <Enter index={index}>{card}</Enter> : card;
 }
 
-export function HomeList({ tab, onTabChange, now }: { tab: HomeListTab; onTabChange: (tab: HomeListTab) => void; now: Date }) {
-  const { lang, m, t } = useLang();
+export function HomeList({
+  tab,
+  onTabChange,
+  favoritesAll,
+  onFavoritesAll,
+  now,
+}: {
+  tab: HomeListTab;
+  onTabChange: (tab: HomeListTab) => void;
+  /** Открыт ли полный список избранного со сравнением («Всё избранное»); состояние держит экран, чтобы сбросить его ссылкой и вкладкой. */
+  favoritesAll: boolean;
+  onFavoritesAll: (open: boolean) => void;
+  now: Date;
+}) {
+  const { m, t, format } = useLang();
   const { canSelectPrograms } = usePortalApi();
   const favorites = useFavorites();
   const preparations = usePreparations();
   const home = t("home");
   const admission = t("admission");
   const favoritesStrings = t("favorites");
-  const universities = t("universities");
   const preparationStrings = t("preparations");
   const favoritesCount = favorites.data?.total ?? null;
-  const [allFavorites, setAllFavorites] = useState(false);
   const { width } = useWindowDimensions();
   const cardWidth = stripCardWidth(width);
   const programsCount = preparations.data?.length ?? null;
@@ -157,51 +169,40 @@ export function HomeList({ tab, onTabChange, now }: { tab: HomeListTab; onTabCha
           />
         ) : (
           <>
-            {allFavorites ? (
-              <View accessibilityRole="list">
-                {favorites.data.items.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    accessibilityRole="button"
-                    onPress={() => go(`/universities/${item.id}`)}
-                    testID={`fav-${item.id}`}
-                    style={{ minHeight: MIN_TARGET, gap: 2, paddingVertical: 8 }}
-                  >
-                    <Text variant="body" bold>
-                      {item.content.name}
-                    </Text>
-                    <Text variant="secondary" tone="text2">
-                      {item.content.city ?? favoritesStrings.cityUnknown}
-                    </Text>
-                    <Text variant="caption" tone="text2">
-                      {universities.nearestIntake}
-                      {": "}
-                      <Text variant="data">{nearestIntakeText(item, lang, now, universities)}</Text>
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+            {favoritesAll ? (
+              <FavoritesAll now={now} />
             ) : (
-              <ScrollView
-                horizontal
-                accessibilityRole="list"
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                snapToInterval={cardWidth + STRIP_GAP}
-                snapToAlignment="start"
-                testID="home-favorites"
-                style={{ marginHorizontal: -16 }}
-                contentContainerStyle={{ gap: STRIP_GAP, paddingHorizontal: 16, paddingVertical: 6 }}
-              >
-                {favorites.data.items.slice(0, HOME_FAVORITES_LIMIT).map((item, index) => (
-                  <FavoriteCard key={item.id} item={item} width={cardWidth} now={now} index={index} />
-                ))}
-              </ScrollView>
+              <>
+                <ScrollView
+                  horizontal
+                  accessibilityRole="list"
+                  showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  snapToInterval={cardWidth + STRIP_GAP}
+                  snapToAlignment="start"
+                  testID="home-favorites"
+                  style={{ marginHorizontal: -16 }}
+                  contentContainerStyle={{ gap: STRIP_GAP, paddingHorizontal: 16, paddingVertical: 6 }}
+                >
+                  {favorites.data.items.slice(0, HOME_FAVORITES_LIMIT).map((item, index) => (
+                    <FavoriteCard key={item.id} item={item} width={cardWidth} now={now} index={index} />
+                  ))}
+                </ScrollView>
+                {/* Всегда, когда в избранном что-то есть (веб: `total > 0`): полный список со сравнением. */}
+                {favorites.data.total > 0 ? (
+                  <LinkButton
+                    label={home.favoritesAll}
+                    onPress={() => {
+                      // Нажатая кнопка исчезает вместе с лентой, на её месте встаёт полный список, а фокус читалки сам не переходит:
+                      // сообщаем о новом виде («Всё избранное. Сохранено: N»).
+                      announce(`${home.favoritesAll}. ${format(favoritesStrings.savedCount, { count: String(favoritesCount ?? 0) })}`);
+                      onFavoritesAll(true);
+                    }}
+                    testID="favorites-all"
+                  />
+                ) : null}
+              </>
             )}
-            {/* Полный список (с ближайшим набором) только если вузов больше, чем карточек. */}
-            {!allFavorites && favorites.data.items.length > HOME_FAVORITES_LIMIT ? (
-              <Button variant="ghost" label={home.favoritesAll} onPress={() => setAllFavorites(true)} testID="favorites-all" />
-            ) : null}
           </>
         )
       ) : preparations.data === undefined ? (

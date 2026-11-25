@@ -10,6 +10,7 @@ import { View } from "react-native";
 import { usePortalApi } from "@/api/PortalApi";
 import { readApplicationReadiness } from "@/api/preparations-reads";
 import { recoverApplicationPackage, submitApplicationPackage } from "@/api/preparations-packages";
+import { Collapsible } from "@/features/preparations/Collapsible";
 import { FileFacts } from "@/features/preparations/ItemDocumentState";
 import { PackageDetailLoader, packageStatus } from "@/features/preparations/PackageDetail";
 import { PackageHistory } from "@/features/preparations/PackageHistory";
@@ -24,7 +25,6 @@ import { RpcError } from "@/lib/rpc";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
-import { Collapsible } from "@/features/preparations/Collapsible";
 import { Text } from "@/ui/Text";
 
 /** Причина неготовности комплекта -> строка словаря (веб: `readyReason`). */

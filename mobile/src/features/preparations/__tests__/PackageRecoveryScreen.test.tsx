@@ -14,7 +14,7 @@ import { PACKAGE_RECOVERY_ROUTE } from "@/features/preparations/recovery-route";
 import { APPLICATION_ID, REVISION_ID, STUDENT_CASE_ID } from "@/test-fixtures/preparations";
 import { PACKAGE_REQUEST, recoveryCommitted, submitIntentOf } from "@/test-fixtures/preparations-packages";
 import { renderPortal, testApi } from "@/test-fixtures/render";
-import { failure, fakeTransport } from "@/test-fixtures/universities";
+import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
 
@@ -27,7 +27,7 @@ const seed = (over: Partial<typeof scope> = {}, intentOver: Raw = {}) => package
 const navigate = router.navigate as jest.Mock;
 
 async function renderPage(handlers: Record<string, unknown> = {}) {
-  const { transport, calls } = fakeTransport(handlers);
+  const { transport, calls } = fakeTransport({ student_catalog_preparations_v1: [preparationRow(1)], ...handlers });
   const view = await renderPortal(<PackageRecoveryScreen />, testApi(transport));
   return { ...view, calls };
 }
@@ -112,6 +112,26 @@ describe("страница «Незавершённые отправки на э
     expect(navigate).toHaveBeenCalledWith(`/preparations/${APPLICATION_ID}`);
     await fireEvent.press(screen.getByTestId("prep-recovery-history-99999999-0000-4000-8000-0000000000a2"));
     expect(navigate).toHaveBeenLastCalledWith(`/preparations/${OTHER_APPLICATION}`);
+  });
+
+  it("над записью подпись программы из списка «Мои программы»; программы нет в списке или список не прочитался: подписи нет, запись видна", async () => {
+    await seed();
+    await seed({ applicationId: OTHER_APPLICATION }, { applicationId: OTHER_APPLICATION, requestId: "99999999-0000-4000-8000-0000000000a2" });
+    await renderPage();
+    const title = await screen.findByTestId(`prep-recovery-program-${APPLICATION_ID}`);
+    expect(within(title).getByText("Университет 1")).toBeTruthy();
+    expect(within(title).getByText("Информатика")).toBeTruthy();
+    expect(within(title).getByText("Осень 2027")).toBeTruthy();
+    // второй программы в списке нет: запись есть, подписи нет
+    expect(screen.getByTestId("prep-recovery-package-99999999-0000-4000-8000-0000000000a2")).toBeTruthy();
+    expect(screen.queryByTestId(`prep-recovery-program-${OTHER_APPLICATION}`)).toBeNull();
+  });
+
+  it("список «Мои программы» не прочитался: записи видны без подписи", async () => {
+    await seed();
+    await renderPage({ student_catalog_preparations_v1: failure("PT500", 500) });
+    expect(await screen.findByTestId(`prep-recovery-package-${PACKAGE_REQUEST}`)).toBeTruthy();
+    expect(screen.queryByTestId(`prep-recovery-program-${APPLICATION_ID}`)).toBeNull();
   });
 
   it("«Проверить результат» подтвердил запись: запрос снят, программа пропала со страницы, итог остаётся виден", async () => {

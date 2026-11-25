@@ -20,7 +20,7 @@ const scope = { organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", membersh
 
 async function renderList(tab: "universities" | "programs") {
   const { transport } = fakeTransport({ student_catalog_preparations_v1: [preparationRow(1)] });
-  await renderPortal(<HomeList tab={tab} onTabChange={() => undefined} now={new Date("2026-11-25T05:00:00Z")} />, testApi(transport));
+  await renderPortal(<HomeList tab={tab} onTabChange={() => undefined} favoritesAll={false} onFavoritesAll={() => undefined} now={new Date("2026-11-25T05:00:00Z")} />, testApi(transport));
   await waitFor(() => expect(AsyncStorage.getAllKeys).toHaveBeenCalled());
   await act(async () => undefined);
 }

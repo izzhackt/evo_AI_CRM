@@ -4,6 +4,7 @@
 import * as Crypto from "expo-crypto";
 import { Directory, File, Paths, UploadType, type UploadResult, type UploadTask } from "expo-file-system";
 import { randomUUID } from "expo-crypto";
+import { AppState } from "react-native";
 
 import { progressPercent } from "@/domain/documents-model";
 import { UPLOAD_STAGE_DIR } from "@/features/documents/download-cache";
@@ -46,6 +47,27 @@ const notSent = (): NotSentFailure => ({ ok: false, reason: "not_sent", resoluti
  */
 export const UPLOAD_INACTIVITY_MS = 90_000;
 
+/** Знак «студент нажал «Отменить», пока ждали обновления сессии»: отличается от «обновить не удалось» (`null`). */
+const STOPPED = Symbol("stopped");
+
+/**
+ * Ждёт `pending`, но не дольше остановки студента: после неё сразу возвращает `onStop`, а запоздавший ответ или сбой
+ * игнорируются. У токена нет своего срока (при просроченном токене внутри идёт обновление сессии, до минуты), и без этой гонки
+ * «Отменить загрузку» молчала бы всё это время.
+ */
+function untilStopped<T, S>(pending: Promise<T>, signal: AbortSignal | undefined, onStop: S): Promise<T | S> {
+  if (!signal) return pending;
+  if (signal.aborted) {
+    pending.catch(() => undefined);
+    return Promise.resolve(onStop);
+  }
+  return new Promise<T | S>((resolve, reject) => {
+    const stop = () => resolve(onStop);
+    signal.addEventListener("abort", stop, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
+  });
+}
+
 /**
  * Multipart POST `/api/portal/application-document-uploads`: поле `file`, Bearer, `Idempotency-Key` и `X-EVO-Upload-Intent`.
  * Сервер принимает только файл, названный `upload` внутри части (сама часть называется `file`), с тем же типом, размером и
@@ -66,9 +88,10 @@ export function createProgramUploader(baseUrl: string, getToken: () => Promise<s
     let stage: Directory | null = null;
     let started = false;
     try {
-      const first = await getToken();
+      // Остановка студента, пока берётся токен, равна «токена нет»: в сеть ничего не ушло, а ответ приходит сразу, не дожидаясь токена.
+      const first = await untilStopped(getToken(), signal, null);
       if (!first) return notSent();
-      // Студент остановил загрузку, пока брался токен: в сеть ничего не ушло. Дальше до начала отправки ожиданий нет.
+      // Токен мог прийти первым, а остановка случиться до этой строки. Дальше до начала отправки ожиданий нет.
       if (signal?.aborted) return notSent();
       stage = new Directory(Paths.cache, UPLOAD_STAGE_DIR, randomUUID());
       stage.create({ intermediates: true });
@@ -80,8 +103,12 @@ export function createProgramUploader(baseUrl: string, getToken: () => Promise<s
         let sentBytes = 0;
         // Таймер тишины: каждый прирост отправленных байтов начинает отсчёт заново; по истечении задача отменяется, а её
         // обещание отклоняется (ниже это «исход неизвестен»). Повторы одного и того же числа байтов ходом не считаются.
-        const arm = () => {
+        const disarm = () => {
           if (silence !== null) clearTimeout(silence);
+          silence = null;
+        };
+        const arm = () => {
+          disarm();
           silence = setTimeout(() => {
             try {
               task?.cancel();
@@ -90,6 +117,9 @@ export function createProgramUploader(baseUrl: string, getToken: () => Promise<s
             }
           }, UPLOAD_INACTIVITY_MS);
         };
+        // Пока приложение не активно (свёрнуто, системное окно), JS стоит вместе со связью: время тишины не идёт, а когда приложение
+        // возвращается, отсчёт начинается заново (иначе после долгого сворачивания задача отменялась бы в первую же секунду).
+        const appState = AppState.addEventListener("change", (next) => (next === "active" ? arm() : disarm()));
         try {
           task = staged.createUploadTask(`${baseUrl}${UPLOAD_PATH}`, {
             uploadType: UploadType.MULTIPART,
@@ -111,14 +141,17 @@ export function createProgramUploader(baseUrl: string, getToken: () => Promise<s
           arm();
           return await task.uploadAsync();
         } finally {
-          if (silence !== null) clearTimeout(silence);
+          appState.remove();
+          disarm();
         }
       };
       // С этой строки запрос мог дойти до сервера: любой сбой дальше - «исход неизвестен».
       started = true;
       let result = await post(first);
       if (result.status === 401 && refreshToken) {
-        const renewed = await refreshToken();
+        // Обновление сессии тоже можно остановить: отказ первого запроса уже мог дойти, поэтому итог «исход неизвестен».
+        const renewed = await untilStopped(refreshToken(), signal, STOPPED);
+        if (renewed === STOPPED) return { ok: false, reason: "unavailable", resolution: "retain" };
         if (renewed) result = await post(renewed);
       }
       let body: unknown = null;

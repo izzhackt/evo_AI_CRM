@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 
 import type { ApplicationDocumentUploadIntent } from "@web/lib/portal/application-documents";
+import { AppState, type AppStateStatus } from "react-native";
 
 import type { PickedFile } from "@/domain/documents-model";
 import { UPLOAD_INACTIVITY_MS, createProgramUploader, fingerprintFile, toHex } from "@/features/preparations/native";
@@ -426,6 +427,126 @@ describe("отправка не ждёт вечно: обычная сессия
     expect(mockState.tasks).toHaveLength(0);
     expect(mockState.copies).toHaveLength(0);
     expect(mockState.created).toHaveLength(0);
+  });
+
+  it("студент нажал «Отменить», пока токен ещё не пришёл (просроченный токен обновляется до минуты): ответ сразу, `not_sent`, токена не ждали", async () => {
+    const value = await intent();
+    const stop = new AbortController();
+    const answered = jest.fn();
+    void createProgramUploader(BASE, () => new Promise<string>(() => undefined))({ intent: value, file: picked, signal: stop.signal }).then(answered);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(answered).not.toHaveBeenCalled();
+    stop.abort();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(answered).toHaveBeenCalledWith(NOT_SENT);
+    expect(mockState.tasks).toHaveLength(0);
+    expect(mockState.copies).toHaveLength(0);
+    expect(mockState.created).toHaveLength(0);
+  });
+
+  it("токен пришёл первым, а остановка случилась раньше, чем загрузка пошла дальше: ничего не запускается", async () => {
+    const value = await intent();
+    const stop = new AbortController();
+    let giveToken: (token: string) => void = () => undefined;
+    const promise = createProgramUploader(BASE, () => new Promise<string>((resolve) => (giveToken = resolve)))({ intent: value, file: picked, signal: stop.signal });
+    await jest.advanceTimersByTimeAsync(0);
+    giveToken("t");
+    // остановка встаёт в очередь сразу за доставкой токена: ожидание токена уже закончилось токеном, а продолжение ещё не началось
+    void Promise.resolve().then(() => stop.abort());
+    expect(await promise).toEqual(NOT_SENT);
+    expect(mockState.tasks).toHaveLength(0);
+    expect(mockState.copies).toHaveLength(0);
+    expect(mockState.created).toHaveLength(0);
+  });
+
+  it("токен пришёл (или не получился) уже после остановки: ничего не запускается, запоздавший ответ ни на что не влияет", async () => {
+    for (const late of ["token", "failure"] as const) {
+      const value = await intent();
+      const stop = new AbortController();
+      let settle: () => void = () => undefined;
+      const promise = createProgramUploader(BASE, () => new Promise<string>((resolve, reject) => (settle = () => (late === "token" ? resolve("late") : reject(new Error("keychain"))))))({ intent: value, file: picked, signal: stop.signal });
+      await jest.advanceTimersByTimeAsync(0);
+      stop.abort();
+      expect(await promise).toEqual(NOT_SENT);
+      settle();
+      await jest.advanceTimersByTimeAsync(0);
+      expect(mockState.tasks).toHaveLength(0);
+      expect(mockState.created).toHaveLength(0);
+    }
+  });
+
+  it("студент нажал «Отменить» во время обновления сессии после 401: ответ сразу, исход неизвестен, второй запрос не создаётся", async () => {
+    const value = await intent();
+    const stop = new AbortController();
+    mockState.results.push({ status: 401, body: "" });
+    const answered = jest.fn();
+    void createProgramUploader(BASE, async () => "old", () => new Promise<string>(() => undefined))({ intent: value, file: picked, signal: stop.signal }).then(answered);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(mockState.tasks).toHaveLength(1);
+    expect(answered).not.toHaveBeenCalled();
+    stop.abort();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(answered).toHaveBeenCalledWith(UNKNOWN);
+    expect(mockState.tasks).toHaveLength(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  describe("приложение не активно", () => {
+    /**
+     * Подписка на смену состояния приложения: тест сам говорит «свернули», «вернулись». `AppState.addEventListener` в Jest уже
+     * подставлен (возвращает подписку с `remove`), поэтому `mockRestore` его бы обнулил: после теста возвращается прежняя подмена.
+     */
+    function trackAppState() {
+      const handlers: ((state: AppStateStatus) => void)[] = [];
+      const removed = jest.fn();
+      const previous = (AppState.addEventListener as unknown as jest.Mock).getMockImplementation() ?? (() => ({ remove: jest.fn() }));
+      const spy = jest.spyOn(AppState, "addEventListener").mockImplementation(((_event: string, handler: (state: AppStateStatus) => void) => {
+        handlers.push(handler);
+        return { remove: removed };
+      }) as never);
+      return { say: (state: AppStateStatus) => handlers.forEach((handler) => handler(state)), removed, restore: () => spy.mockImplementation(previous as never), handlers };
+    }
+
+    it("пока приложение свёрнуто, срок тишины не идёт; вернулось - отсчёт начинается заново, а не отменяет задачу в первую секунду", async () => {
+      const app = trackAppState();
+      try {
+        const { promise, task } = await startHanging();
+        expect(app.handlers).toHaveLength(1);
+        await jest.advanceTimersByTimeAsync(60_000);
+        app.say("background");
+        expect(jest.getTimerCount()).toBe(0);
+        await jest.advanceTimersByTimeAsync(10 * 60_000);
+        expect(task.cancels).toBe(0);
+        app.say("active");
+        await jest.advanceTimersByTimeAsync(UPLOAD_INACTIVITY_MS - 1);
+        expect(task.cancels).toBe(0);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(task.cancels).toBe(1);
+        expect(await promise).toEqual(UNKNOWN);
+        expect(app.removed).toHaveBeenCalledTimes(1);
+      } finally {
+        app.restore();
+      }
+    });
+
+    it("подписка на состояние приложения снимается и при ответе, и при сбое, и у каждой из двух отправок после 401", async () => {
+      const app = trackAppState();
+      try {
+        const value = await intent();
+        mockState.results.push({ status: 201, body: receiptBody(value) });
+        await createProgramUploader(BASE, async () => "t")({ intent: value, file: picked });
+        expect(app.removed).toHaveBeenCalledTimes(1);
+        mockState.results.push(new Error("Could not connect to the server."));
+        await createProgramUploader(BASE, async () => "t")({ intent: value, file: picked });
+        expect(app.removed).toHaveBeenCalledTimes(2);
+        mockState.results.push({ status: 401, body: "" }, { status: 201, body: receiptBody(value) });
+        await createProgramUploader(BASE, async () => "old", async () => "new")({ intent: value, file: picked });
+        expect(app.removed).toHaveBeenCalledTimes(4);
+        expect(app.handlers).toHaveLength(4);
+      } finally {
+        app.restore();
+      }
+    });
   });
 
   it("сигнал уже отменён к началу: ничего не делается, `not_sent`", async () => {

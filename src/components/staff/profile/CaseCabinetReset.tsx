@@ -9,14 +9,15 @@ import { resetStudentPasswordAction } from "@/lib/student-password-reset-actions
 const MESSAGES: Readonly<Record<Exclude<StudentPasswordResetActionState["status"], "idle" | "reset">, string>> = {
   already_reset: "Этот сброс уже выполнен. Чтобы выдать новый пароль, сбросьте ещё раз.",
   invalid: "Пароль не сброшен. Обновите страницу.",
-  forbidden: "Пароли сбрасывает только администратор.",
+  forbidden: "Пароль сбрасывает администратор или куратор этого студента.",
   no_cabinet: "У студента этого дела нет кабинета.",
   // Auth мог принять новый пароль до того, как ответ не пришёл: старый тогда уже не работает.
   unavailable: "Новый пароль не выдан, а старый мог перестать работать. Сбросьте ещё раз.",
 };
 
 /**
- * «Кабинет открыт», чем студент входит, и «Сбросить пароль» (344, 07.11.2026). Старый пароль перестаёт работать,
+ * «Кабинет открыт», чем студент входит, и «Сбросить пароль» (344, 07.11.2026; с 374 — администратору и куратору этого
+ * дела). Старый пароль перестаёт работать,
  * поэтому сначала подтверждение. Новый временный пароль виден один раз — CRM его не хранит; блок стоит на одном месте,
  * и обычное обновление карточки показанный пароль не стирает (если при обновлении не сорвётся чтение кабинета).
  */
@@ -35,7 +36,7 @@ export function CaseCabinetReset({ studentCaseId, requestId, login, email, porta
   const confirmRef = useRef<HTMLButtonElement>(null);
   const doneRef = useRef<HTMLDivElement>(null);
   const done = state.status === "reset";
-  // The confirm button that had focus is gone: focus goes to the new password, which the admin dictates or copies.
+  // The confirm button that had focus is gone: focus goes to the new password, which the staff member dictates or copies.
   useEffect(() => {
     if (done) doneRef.current?.focus();
   }, [done]);

@@ -60,23 +60,39 @@ describe("профиль SVG рисунков (контракт §15)", () => {
     expect(parseSvgProfile(svg)).toBeNull();
   });
 
-  // Кривая графика это сотни точек в одном атрибуте `d`; у трёх настоящих рисунков выпуска он 4690-5446 знаков. Раньше предел
-  // стоял на 4096, и такие рисунки на экране не рисовались (виден был только alt).
+  // Кривая графика это сотни точек в одном атрибуте `d`, а у многоугольника столько же в `points`; у трёх настоящих рисунков
+  // выпуска `d` занимает 4690-5446 знаков. Раньше пределы стояли на 4096 и 2048, и такие рисунки на экране не рисовались
+  // (виден был только alt). Сервер ограничивает только весь рисунок (24 КБ), и приложение теперь так же.
   const withPath = (length: number) => ok.replace("<rect", `<path d="M10 10 ${"L10 20 ".repeat(Math.ceil(length / 7))}" stroke="#191714" fill="none"/><rect`);
+  const withPolygon = (length: number) => ok.replace("<rect", `<polygon points="${"10,20 ".repeat(Math.ceil(length / 6))}" fill="#e4dfd7"/><rect`);
+  const attributeOf = (svg: string, tag: string, name: string) => {
+    const node = parseSvgProfile(svg)?.root.children.find((child) => typeof child !== "string" && child.tag === tag);
+    return typeof node === "object" ? node.attrs[name] : undefined;
+  };
 
-  it("принимает длинные данные кривой графика (5000 знаков и больше предыдущего предела)", () => {
+  it("принимает длинные данные кривой графика (5000 знаков и больше прежнего предела 4096)", () => {
     const svg = withPath(5_000);
     expect(svg.length).toBeGreaterThan(5_000);
-    const parsed = parseSvgProfile(svg);
-    expect(parsed?.root.children.some((node) => typeof node !== "string" && node.tag === "path" && (node.attrs.d?.length ?? 0) > 4_096)).toBe(true);
+    expect(attributeOf(svg, "path", "d")?.length).toBeGreaterThan(4_096);
   });
 
-  it("длинная кривая не обходит размер рисунка: больше 24 КБ отклоняется целиком", () => {
+  it("принимает длинные точки многоугольника (больше прежнего предела 2048)", () => {
+    const svg = withPolygon(5_000);
+    expect(attributeOf(svg, "polygon", "points")?.length).toBeGreaterThan(2_048);
+  });
+
+  it("длинная геометрия не обходит размер рисунка: больше 24 КБ отклоняется целиком (кривая и многоугольник)", () => {
     expect(parseSvgProfile(withPath(24_600))).toBeNull();
+    expect(parseSvgProfile(withPolygon(24_600))).toBeNull();
   });
 
-  it("длинное значение обычного атрибута по-прежнему отклоняется (длинным бывает только `d`)", () => {
+  it("длинное значение негеометрического атрибута по-прежнему отклоняется (длинным бывает только `d` и `points`)", () => {
     expect(parseSvgProfile(ok.replace('font-size="14"', `font-size="${"1".repeat(65)}"`))).toBeNull();
-    expect(parseSvgProfile(ok.replace("<rect ", `<rect points="${"1 ".repeat(1_100)}" `))).toBeNull();
+    expect(parseSvgProfile(ok.replace("<rect ", `<rect transform="${"translate(1 1)".repeat(12)}" `))).toBeNull();
+  });
+
+  it("длинные значения не мешают разбору соседних атрибутов и элементов: после кривой на 5 КБ рисунок разобран целиком", () => {
+    const parsed = parseSvgProfile(withPolygon(5_000).replace("<rect", `<path d="M10 10 ${"L10 20 ".repeat(800)}" stroke="#191714" fill="none"/><rect`));
+    expect(parsed?.root.children.filter((child) => typeof child !== "string").map((child) => (child as { tag: string }).tag)).toEqual(["polygon", "path", "rect", "text"]);
   });
 });

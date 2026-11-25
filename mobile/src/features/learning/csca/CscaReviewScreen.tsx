@@ -12,7 +12,7 @@ import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { cscaFailure, reviewWrite, sendReview, type CscaFailure } from "@/features/learning/csca/api";
 import { cscaOnLabelSafe } from "@/features/learning/csca/format";
-import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { ItemCard, verdictAnnouncement } from "@/features/learning/csca/ItemCard";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
 import { CSCA_TOPICS_FALLBACK, openCscaTopics } from "@/features/learning/csca/routes";
 import { useWarmMath } from "@/features/learning/math/useWarmMath";
@@ -122,7 +122,7 @@ function ReviewRunner({ review }: { review: CscaReview }) {
       setRetryable(false);
       setReceipts((prev) => ({ ...prev, [current.itemKey]: { selected: choice, receipt } }));
       setSelected(null);
-      announce(receipt.correct ? c.verdictCorrect : c.verdictWrong);
+      announce(verdictAnnouncement(choice, receipt.correct, receipt.explain.correctOptionId, c, format));
       invalidate();
     } catch (e) {
       const code = cscaFailure(e);

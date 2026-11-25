@@ -12,10 +12,11 @@ import { formatPortalString } from "@web/lib/portal/i18n";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
-import { ItemCard } from "@/features/learning/csca/ItemCard";
+import { ItemCard, verdictAnnouncement } from "@/features/learning/csca/ItemCard";
 import { siblingLessonLink } from "@/features/learning/csca/lesson-links";
 import { LessonSession } from "@/features/learning/csca/lesson-session";
 import { ReportSheet } from "@/features/learning/csca/ReportSheet";
+import { CSCA_TOPICS_FALLBACK, openCscaTopics } from "@/features/learning/csca/routes";
 import { TheoryBlocks } from "@/features/learning/csca/TheoryBlocks";
 import { MathText } from "@/features/learning/math/MathText";
 import { useWarmMath } from "@/features/learning/math/useWarmMath";
@@ -32,10 +33,6 @@ import { Text } from "@/ui/Text";
 const BAR_CLEARANCE = 19;
 /** Расстояние между блоками колонки задания (`gap` ниже): к нему добавляется поле, чтобы свободных стало 19 pt. */
 const COLUMN_GAP = 12;
-
-function openTopics() {
-  router.dismissTo({ pathname: "/csca", params: { view: "lessons" } });
-}
 
 function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string }) {
   const { m, t, format } = useLang();
@@ -71,13 +68,13 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
   const meta = view.lesson.metadata;
   const sibling = siblingLessonLink(home.data?.lessons ?? [], { lessonId, topicKey: meta.topic_key, kind: meta.kind });
 
-  /** «Проверить»: после ответа вердикт слышит и читалка, не только тот, кто видит экран. */
+  /** «Проверить»: после ответа вердикт слышит и читалка, не только тот, кто видит экран, и слышит целиком: слово и верный вариант. */
   async function check() {
     if (!current) return;
     const exerciseId = current.exerciseId;
     await session.submit();
     const answer = session.getState().answered[exerciseId];
-    if (answer) announce(answer.correct ? c.verdictCorrect : c.verdictWrong);
+    if (answer) announce(verdictAnnouncement(answer.selected, answer.correct, answer.explain.correctOptionId, c, format));
   }
 
   const progress = (
@@ -128,7 +125,7 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
             {sibling ? (
               <Button label={sibling.kind === "practice" ? c.toPractice : c.toLesson} onPress={() => router.replace({ pathname: "/csca/lesson/[lessonId]", params: { lessonId: sibling.lessonId } })} testID="lesson-to-sibling" />
             ) : null}
-            <Button variant={sibling ? "ghost" : "primary"} label={c.backToTopics} onPress={openTopics} testID="lesson-to-topics" />
+            <Button variant={sibling ? "ghost" : "primary"} label={c.backToTopics} onPress={openCscaTopics} testID="lesson-to-topics" />
             <Button variant="ghost" label={c.repeatCheck} onPress={() => session.restart()} testID="lesson-repeat" />
           </View>
         )}
@@ -173,7 +170,7 @@ function LessonBody({ view, lessonId }: { view: CscaLessonView; lessonId: string
 export function LessonScreen({ lessonId }: { lessonId: string }) {
   useWarmMath();
   const { lang, m, t, format } = useLang();
-  const back = useBack("/csca?view=lessons");
+  const back = useBack(CSCA_TOPICS_FALLBACK);
   const c = t("csca");
   const lesson = useCscaLesson(lessonId);
   const view = lesson.data;

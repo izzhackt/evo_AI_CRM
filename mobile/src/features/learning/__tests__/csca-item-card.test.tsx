@@ -7,9 +7,10 @@ import { fireEvent, screen, within } from "@testing-library/react-native";
 
 import { parseCscaLessonView, type CscaExplain } from "@web/lib/portal/csca";
 
-import { ItemCard, type ItemState } from "@/features/learning/csca/ItemCard";
+import { ItemCard, verdictAnnouncement, type ItemState } from "@/features/learning/csca/ItemCard";
 import { MathText } from "@/features/learning/math/MathText";
 import { speakMathText } from "@/features/learning/math/speak";
+import { formatPortalString, getPortalStrings } from "@/i18n";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { fakeTransport } from "@/test-fixtures/universities";
 
@@ -38,6 +39,13 @@ describe("карточка задания: после ответа", () => {
     expect(screen.getByTestId("verdict")).toHaveTextContent(/^Верно$/u);
     expect(screen.queryByText(/Верный ответ: /)).toBeNull();
     expect(screen.getByTestId("option-b-tags")).toHaveTextContent("Ваш ответ · Верный ответ");
+  });
+
+  it("вердикт не живая область: после ответа его читает `announce` экрана, область сказала бы то же второй раз", async () => {
+    for (const state of [{ kind: "answered", selected: "a", correct: false, explain }, { kind: "answered", selected: "b", correct: true, explain }, { kind: "answered", selected: null, correct: false, explain }] as const) {
+      await show(state);
+      expect(screen.getByTestId("verdict").props.accessibilityLiveRegion).toBe("none");
+    }
   });
 
   it("пропущенный вопрос теста: «Без ответа · Верный ответ: B», слов «Неверно» нет", async () => {
@@ -72,6 +80,36 @@ describe("карточка задания: после ответа", () => {
     await show({ kind: "answered", selected: "a", correct: false, explain });
     expect(screen.getByTestId("item-stem").props.accessibilityLanguage).toBe("en");
     expect(screen.getByTestId("item-difficulty").props.accessibilityLabel).toBe(`Сложность ${item.difficulty} из 3`);
+  });
+});
+
+describe("вердикт для читалки: весь текст, а не одно слово", () => {
+  const ru = getPortalStrings("csca", "ru");
+  const ky = getPortalStrings("csca", "ky");
+
+  it("верный ответ: одно слово, без верного варианта", () => {
+    expect(verdictAnnouncement("b", true, "b", ru, formatPortalString)).toBe("Верно");
+  });
+
+  it("неверный: слово и верный вариант через точку (на экране между ними «·», читалке нужна пауза)", () => {
+    expect(verdictAnnouncement("a", false, "b", ru, formatPortalString)).toBe("Неверно. Верный ответ: B");
+    expect(verdictAnnouncement("c", false, "d", ru, formatPortalString)).toBe("Неверно. Верный ответ: D");
+  });
+
+  it("пропущенный вопрос: «Без ответа. Верный ответ: B», слова «Неверно» нет", () => {
+    expect(verdictAnnouncement(null, false, "b", ru, formatPortalString)).toBe("Без ответа. Верный ответ: B");
+  });
+
+  it("на кыргызском слова кыргызские", () => {
+    expect(verdictAnnouncement("b", true, "b", ky, formatPortalString)).toBe("Туура");
+    expect(verdictAnnouncement("a", false, "c", ky, formatPortalString)).toBe("Туура эмес. Туура жооп: C");
+  });
+
+  it("то же, что видит глаз: текст вердикта на экране равен тексту для читалки с «·» вместо точки", async () => {
+    for (const [selected, correct] of [["a", false], ["b", true], [null, false]] as const) {
+      await show({ kind: "answered", selected, correct, explain });
+      expect(screen.getByTestId("verdict")).toHaveTextContent(verdictAnnouncement(selected, correct, explain.correctOptionId, ru, formatPortalString).replace(". ", " · "));
+    }
   });
 });
 

@@ -58,6 +58,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const forcedMustSetRef = useRef(false);
   // Устаревшие ответы маршрутизатора отбрасываются.
   const runId = useRef(0);
+  // Токен сессии, для которой маршрут уже провёл сам вход (`signIn`).
+  const routedTokenRef = useRef<string | null>(null);
 
   const resolve = useCallback(
     async (quiet: boolean) => {
@@ -70,6 +72,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setReady(true);
     },
     [deps],
+  );
+
+  /**
+   * Единственное место, где сессия превращается в состояние экрана. Его зовут и события библиотеки (запуск, обновление токена),
+   * и сам вход (`signIn`): «Входим…» (`authenticating`) заканчивает тот, кто его поставил, а не событие, которое должно прийти.
+   */
+  const routeSession = useCallback(
+    (event: AuthChangeEvent, session: Session) => {
+      const must = forcedMustSetRef.current || hasTemporaryPassword(session);
+      setMustSetPassword(must);
+      if (must) {
+        // Пока пароль временный, кабинет не открываем: нужен экран «Придумайте свой пароль». Состояние при этом не может остаться
+        // `authenticating`: охранники маршрутов читают его как «вход идёт» и держат экран входа с колесом (QA#2, D1: колесо вечно, хотя
+        // сессия уже сохранена). Из него уходим в `resolvingAccess` - то же состояние, с которым приложение стартует при сохранённой
+        // сессии; по нему и открывается экран пароля. Так же поступает и обычная ветка: `resolve(false)` ставит его из любого состояния.
+        setState((current) => (current.kind === "resolvingAccess" ? current : { kind: "resolvingAccess" }));
+        setReady(true);
+        return;
+      }
+      // Тихо (без «Проверяем доступ…») только когда кабинет или экран согласия уже открыт: отметки на экране не теряются.
+      void resolve(event === "TOKEN_REFRESHED" && (stateRef.current.kind === "active" || stateRef.current.kind === "needsConsent"));
+    },
+    [resolve],
   );
 
   useEffect(() => {
@@ -86,15 +111,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               setReady(true);
               return;
             }
-            const must = forcedMustSetRef.current || hasTemporaryPassword(session);
-            setMustSetPassword(must);
-            if (must) {
-              // Пока пароль временный, кабинет не открываем.
-              setReady(true);
-              return;
-            }
-            // Тихо (без «Проверяем доступ…») только когда кабинет или экран согласия уже открыт: отметки на экране не теряются.
-            void resolve(event === "TOKEN_REFRESHED" && (stateRef.current.kind === "active" || stateRef.current.kind === "needsConsent"));
+            // Вход уже провёл маршрут для этого токена сам: событие библиотеки о нём (SIGNED_IN, а при просроченном токене портала
+            // TOKEN_REFRESHED) второй раз маршрут не ведёт. Запуск приложения токена ещё не знает (`null`), поэтому маршрут ведёт.
+            if (routedTokenRef.current === session.access_token) return;
+            routeSession(event, session);
             return;
           case "SIGNED_OUT":
             void clearAllLocalData();
@@ -110,7 +130,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }, 0);
     });
     return () => data.subscription.unsubscribe();
-  }, [supabase, resolve]);
+  }, [supabase, routeSession]);
 
   const signIn = useCallback<SessionContextValue["signIn"]>(
     async (login, password) => {
@@ -121,11 +141,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setState({ kind: "signedOut", accountDeleted: false });
         return result;
       }
-      const { error } = await supabase.auth.setSession({
+      const { data, error } = await supabase.auth.setSession({
         access_token: result.session.accessToken,
         refresh_token: result.session.refreshToken,
       });
-      if (error) {
+      const session = data.session;
+      if (error || !session) {
         setState({ kind: "signedOut", accountDeleted: false });
         return { ok: false, reason: "unavailable" };
       }
@@ -136,10 +157,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку); ожидание подтверждения почты тоже.
       void clearInviteToken();
       void clearPendingSignup();
-      // Дальше маршрут ведёт onAuthStateChange (SIGNED_IN).
+      // Состояние «Входим…» ставил этот вызов, и заканчивает его тоже он: маршрут по установленной сессии ведём здесь, а не ждём
+      // SIGNED_IN от библиотеки (оно придёт следом и для этого токена будет пропущено). Так `authenticating` живёт не дольше
+      // двух вызовов с таймаутом (портал и `setSession`) и не зависит от того, как и когда дошло событие.
+      routedTokenRef.current = session.access_token;
+      routeSession("SIGNED_IN", session);
       return { ok: true };
     },
-    [portalAuth, supabase],
+    [portalAuth, routeSession, supabase],
   );
 
   const signOut = useCallback(async () => {

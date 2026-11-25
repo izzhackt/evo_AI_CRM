@@ -3,7 +3,7 @@
 // «потянули вниз» горит только у перечитывания, которое начал студент. Сеть и устройство подменены; хранилище записей - jest-мок.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
-import { Platform } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
 import type { RpcTransport } from "@/lib/rpc";
@@ -19,6 +19,7 @@ import {
   reusableVersion,
   selectionEcho,
   versionId,
+  versionsPage,
 } from "@/test-fixtures/preparations";
 import { makeIo } from "@/test-fixtures/preparations-io";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -69,20 +70,28 @@ const current = () => readiness(requirements(items()), states());
 const withoutVersion5 = () => readiness(requirements(items()), [documentState(0, { savedDraft: draftOf(0, 4) }), documentState(1, { reusableVersions: [reusableVersion(7)] })]);
 const withPicked = () => readinessWithSelections(requirements(items()), states(), [selectionEcho(0, 5)]);
 
-async function open(ready: (args: Raw | undefined) => unknown) {
+const hasSelections = (args: Raw | undefined) => Array.isArray(args?.p_selections) && (args.p_selections as unknown[]).length > 0;
+
+async function open(ready: (args: Raw | undefined) => unknown, extra: Record<string, unknown> = {}) {
   const { transport, calls } = fakeTransport({
     student_catalog_preparations_v1: [preparationRow(1)],
-    application_package_readiness_v1: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked() : ready(args)),
+    application_package_readiness_v1: (args: Raw | undefined) => (hasSelections(args) ? withPicked() : ready(args)),
+    ...extra,
   });
-  // Ответ на список программ можно задержать: перечитывание «идёт», пока тест не отпустит.
-  const hold = { list: null as Promise<void> | null };
+  // Ответ на список программ и на «Проверить состав» можно задержать: чтение «идёт», пока тест не отпустит.
+  const hold = { list: null as Promise<void> | null, preview: null as Promise<void> | null, previewStarted: 0 };
   const wrapped: RpcTransport = async (name, args, options) => {
     if (hold.list && name === "student_catalog_preparations_v1") await hold.list;
+    if (name === "application_package_readiness_v1" && hasSelections(args as Raw | undefined)) {
+      hold.previewStarted += 1;
+      if (hold.preview) await hold.preview;
+    }
     return transport(name, args, options);
   };
   const view = await renderPortal(<PreparationScreen applicationId={APPLICATION_ID} io={makeIo().io} />, testApi(wrapped));
   return { ...view, calls, hold, reads: () => calls.filter((call) => call.name === "application_package_readiness_v1").length };
 }
+const readinessQuery = (query: { queryKey: readonly unknown[] }) => query.queryKey.includes("readiness");
 
 /** Раскрыть выбор, выбрать сохранённую версию 5 и проверить состав: на экране предпросмотр с «Отправить комплект в EVO». */
 async function showPreview() {
@@ -158,6 +167,32 @@ describe("проверенный состав комплекта не переж
     expect(await screen.findByTestId(`prep-package-missing-${FIRST}`)).toHaveTextContent("Выбранный файл недоступен");
   });
 
+  it("ответ о составе пришёл, когда данные под ним уже изменились: предпросмотра нет, и читалке о нём не сказано", async () => {
+    const spoken = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+    let phase: "before" | "after" = "before";
+    const t = await open(() => (phase === "before" ? current() : withoutVersion5()));
+    await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    await waitForEnabled("prep-package-preview");
+    await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
+    let release: () => void = () => undefined;
+    t.hold.preview = new Promise<void>((resolve) => (release = resolve));
+    spoken.mockClear();
+    await fireEvent.press(screen.getByTestId("prep-package-preview"));
+    await waitFor(() => expect(t.hold.previewStarted).toBe(1));
+    // пока идёт проверка состава, возврат в приложение перечитал данные: версии 5 больше нет, и экран уже показывает это
+    phase = "after";
+    await act(async () => {
+      await t.client.refetchQueries({ predicate: readinessQuery });
+    });
+    expect(await screen.findByTestId(`prep-package-missing-${FIRST}`)).toHaveTextContent("Выбранный файл недоступен");
+    await act(async () => release());
+    await waitForEnabled("prep-package-preview");
+    expect(screen.queryByTestId("prep-package-preview-box")).toBeNull();
+    expect(screen.queryByTestId("prep-package-submit")).toBeNull();
+    // «Состав перед отправкой. Комплект можно отправить» не прозвучало: на экране его нет
+    expect(spoken.mock.calls.filter(([text]) => String(text).startsWith("Состав перед отправкой"))).toHaveLength(0);
+  });
+
   it("перечитывание, которое ничего не изменило, предпросмотр не снимает", async () => {
     const t = await open(current);
     await showPreview();
@@ -168,6 +203,56 @@ describe("проверенный состав комплекта не переж
     expect(t.reads()).toBeGreaterThan(before);
     expect(screen.getByTestId("prep-package-preview-box")).toBeTruthy();
     expect(screen.getByTestId("prep-package-submit").props.accessibilityState).toMatchObject({ disabled: false });
+  });
+});
+
+describe("строка выбора файлов не теряет открытые страницы при обновлении", () => {
+  const CURSOR = { versionNo: "5", documentVersionId: versionId(5) };
+  /** У первого требования есть ещё сохранённые версии за первой страницей (`cursor`), если он задан. */
+  const withMore = (cursor: Raw | null) =>
+    readiness(requirements(items()), [documentState(0, { savedDraft: draftOf(0, 4), reusableVersions: [reusableVersion(5)], reusableVersionsNextCursor: cursor }), documentState(1, { reusableVersions: [reusableVersion(7)] })]);
+  const moreButton = () => screen.queryByTestId(`prep-package-more-${FIRST}`);
+  const version = (n: number) => screen.getByTestId(`prep-package-version-${FIRST}-${versionId(n)}`);
+
+  it("файл со второй страницы «Показать ещё файлы» после «потянуть вниз» остаётся в списке и выбранным, а не «Выбранный файл недоступен»", async () => {
+    // две дополнительные страницы: версия 3, затем версия 2 (последняя)
+    const NEXT = { versionNo: "3", documentVersionId: versionId(3) };
+    const t = await open(() => withMore(CURSOR), {
+      application_document_reusable_versions_v1: (args: Raw | undefined) => (args?.p_cursor && (args.p_cursor as Raw).versionNo === "3" ? versionsPage(0, [reusableVersion(2)], null) : versionsPage(0, [reusableVersion(3)], NEXT)),
+    });
+    await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    await waitForEnabled("prep-package-preview");
+    await fireEvent.press(screen.getByTestId(`prep-package-more-${FIRST}`));
+    await screen.findByTestId(`prep-package-version-${FIRST}-${versionId(3)}`);
+    await fireEvent.press(screen.getByTestId(`prep-package-more-${FIRST}`));
+    await fireEvent.press(await screen.findByTestId(`prep-package-version-${FIRST}-${versionId(2)}`));
+    expect(version(2).props.accessibilityState).toMatchObject({ selected: true });
+    expect(moreButton()).toBeNull();
+    const before = t.reads();
+    await act(async () => {
+      await pullDown();
+    });
+    expect(t.reads()).toBeGreaterThan(before);
+    await waitForEnabled("prep-package-preview");
+    expect(screen.queryByTestId(`prep-package-missing-${FIRST}`)).toBeNull();
+    // обе открытые страницы на месте, выбранная версия выбрана
+    expect(version(2).props.accessibilityState).toMatchObject({ selected: true });
+    expect(version(3).props.accessibilityState).toMatchObject({ selected: false });
+    // последняя страница прочитана: «Показать ещё файлы» не возвращается, хотя в свежем ответе курсор первой страницы тот же
+    expect(moreButton()).toBeNull();
+  });
+
+  it("после обновления у требования появились ещё сохранённые версии: «Показать ещё файлы» появляется (курсор берётся из свежего ответа)", async () => {
+    let phase: "before" | "after" = "before";
+    await open(() => withMore(phase === "before" ? null : CURSOR));
+    await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    await waitForEnabled("prep-package-preview");
+    expect(moreButton()).toBeNull();
+    phase = "after";
+    await act(async () => {
+      await pullDown();
+    });
+    expect(await screen.findByTestId(`prep-package-more-${FIRST}`)).toBeTruthy();
   });
 });
 

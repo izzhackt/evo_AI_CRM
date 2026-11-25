@@ -89,6 +89,12 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
   // Перечитывание без изменений ответ не заменяет (общая часть сохраняется), и предпросмотр остаётся.
   const shown = !revisionChanged && preview?.epoch === epoch && preview.base === readiness ? preview.value : null;
   const choicesForCurrent = readiness?.requirements.items.flatMap((item) => ((item.required || optional.includes(item.requirementItemId)) && choices[item.requirementItemId] ? [choices[item.requirementItemId]!] : [])) ?? [];
+  // Веб переносит фокус на заголовок проверки; в приложении его читает вслух читалка вместе с готовностью. Говорится то, что
+  // появилось на экране: за время запроса показ мог смениться (обновление, уход с экрана, новые данные), и тогда предпросмотра нет,
+  // а слышалось бы «Комплект можно отправить». Поэтому не по ответу сервера, а по появлению предпросмотра.
+  useEffect(() => {
+    if (shown) announce(shown.canSubmit ? `${t.previewTitle}. ${t.ready}` : t.previewTitle);
+  }, [shown, t.previewTitle, t.ready]);
   // Две плашки появляются сами, от выбора студента или от обновления требований, а роль «alert» на iPhone молчит: читалке их говорим
   // в момент появления (повторно - только после того, как плашка пропала и появилась снова).
   useEffect(() => {
@@ -115,8 +121,6 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
     try {
       const value = await readApplicationReadiness(api.transport, scope.studentCaseId, scope.applicationId, choicesForCurrent);
       setPreview({ value, epoch: startEpoch, base: startBase });
-      // Веб переносит фокус на заголовок проверки; в приложении его читает вслух читалка вместе с готовностью.
-      announce(value.canSubmit ? `${t.previewTitle}. ${t.ready}` : t.previewTitle);
     } catch (error) {
       const text = error instanceof RpcError && error.kind === "forbidden" ? t.forbidden : t.unavailable;
       setMessage(text);
@@ -243,7 +247,7 @@ function PackageState({ readiness, loading }: PackageSectionProps) {
                 };
                 return (
                   <PackageSelectionRow
-                    key={`${item.requirementItemId}:${epoch}`}
+                    key={item.requirementItemId}
                     item={item}
                     state={state}
                     selected={choices[item.requirementItemId]}

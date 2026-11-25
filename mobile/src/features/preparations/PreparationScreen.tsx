@@ -106,7 +106,8 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
     async (initialize: boolean, announceSuccess = true) => {
       if (lock.current || saved === null) return;
       lock.current = true;
-      // Прежний ответ был: если чтение не удастся, он останется на экране с пометкой, и озвучить нужно её, а не «не загрузилось».
+      // Ответ был: если очередное чтение не удастся, он останется на экране с пометкой, и озвучить нужно её. Открыть список можно
+      // только при готовом ответе, поэтому ответ не появляется посреди обновления с записью.
       const hadAnswer = readiness.data !== undefined;
       setEpoch((value) => value + 1);
       setBusy(initialize ? "initialize" : "read");
@@ -127,14 +128,17 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
           newRequestId: randomUUID,
         });
         setError(outcome.error);
-        if (outcome.error) announce(outcome.error === "requirementsUnavailable" && hadAnswer ? m("prep.stale") : errorText(outcome.error));
+        // Читалка слышит то, что написано на экране: пометку «Не удалось обновить» (прежний ответ остался), полную ошибку
+        // раздела (ответа не было) или текст ошибки действия. Если запись удалась, а контрольное чтение нет, на экране та же
+        // пометка или ошибка раздела, и озвучивается она: «список открыт» экран пока не показывает.
+        if (outcome.error) announce(outcome.error === "requirementsUnavailable" ? (hadAnswer ? m("prep.stale") : strings.requirementsUnavailable) : errorText(outcome.error));
         else if (announceSuccess) announce(m(outcome.initialized ? "prep.listOpened" : "prep.checked"));
       } finally {
         lock.current = false;
         setBusy(null);
       }
     },
-    [applicationId, canInitialize, errorText, m, readiness, saved, studentCaseId, transport],
+    [applicationId, canInitialize, errorText, m, readiness, saved, strings, studentCaseId, transport],
   );
 
   const scope = useMemo(() => ({ organizationId, membershipId, studentCaseId, applicationId }), [organizationId, membershipId, studentCaseId, applicationId]);
@@ -154,6 +158,10 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
   } else if (saved === null && preparations.isFetching) {
     // Программу только что добавили, а список в кэше ещё прежний: пока он перечитывается, «не найдена» не мигает.
     body = <CardSkeleton label={m("state.loading")} lines={4} testID="prep-loading" />;
+  } else if (saved === null && preparations.isError) {
+    // Программы нет в прежнем списке, а свежий список прочитать не удалось (например, ссылка открыта без связи): «не найдена»
+    // здесь было бы неправдой, студент видит ошибку списка с повтором.
+    body = <InlineAlert message={m(loadErrorKey(preparations.error))} retryLabel={m("gate.retry")} onRetry={() => void preparations.refetch()} testID="prep-error-list" />;
   } else if (saved === null) {
     body = (
       <Text variant="body" accessibilityRole="alert" testID="prep-not-found">
@@ -169,8 +177,9 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
           loading={readiness.isPending}
           eligible={canInitialize && documents !== null}
           busy={busy}
-          // Пока прежний ответ на экране, о сбое чтения говорит пометка «Не удалось обновить», а не второй текст ошибки.
-          error={error && !(error === "requirementsUnavailable" && stale) ? errorText(error) : null}
+          // О сбое чтения уже говорит либо ошибка раздела (ответа не было), либо пометка «Не удалось обновить» (прежний ответ
+          // остался): второй текст ошибки рядом с ними не нужен.
+          error={error && error !== "requirementsUnavailable" ? errorText(error) : null}
           staleNotice={stale ? { message: m("prep.stale"), retryLabel: m("gate.retry") } : null}
           loadingLabel={`${strings.requirements}. ${m("state.loading")}`}
           strings={strings}
@@ -184,7 +193,7 @@ function PreparationBody({ applicationId, io }: { applicationId: string; io: Pre
   }
   return (
     <Screen topInset={false} tabBar onRefresh={refresh} refreshing={preparations.isRefetching || readiness.isRefetching}>
-      <PreparationProvider value={{ scope, io, strings: documentStrings, onSaved: () => void update(false, false), epoch }}>
+      <PreparationProvider value={{ scope, io, strings: documentStrings, onSaved: () => void update(false, false), epoch, stale }}>
         <View style={{ gap: 16 }} testID="prep-screen">
           <BackLink label={strings.back} />
           {body}

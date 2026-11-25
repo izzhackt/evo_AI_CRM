@@ -1,7 +1,7 @@
 // Загрузка и отправка файла к требованию программы через настоящий экран: лист выбора, замок, запись запроса до сети, одно
 // нажатие, неоконченная загрузка и отправка. Сеть и устройство подменены (транспорт RPC, загрузка, выбор файла).
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { AccessibilityInfo, Platform } from "react-native";
 
 import { documentsPending } from "@/features/preparations/documents-pending";
@@ -26,7 +26,7 @@ import {
 import { OTHER_PICKED, makeIo, receiptFor, type FakeIo } from "@/test-fixtures/preparations-io";
 import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
-import { fakeTransport, preparationRow } from "@/test-fixtures/universities";
+import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
 
@@ -289,6 +289,51 @@ describe("одно нажатие: загрузить и отправить на
     expect(await screen.findByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Выберите PDF, JPG или PNG размером до 25 МБ.", { exact: false });
     expect(t.fake.uploads).toHaveLength(0);
     expect(await storedKeys()).toEqual([]);
+  });
+});
+
+describe("устаревший вид: чтение не удалось, прежний ответ остался на экране", () => {
+  const withDraft = () => answer(emptyItem(), documentState(0, { savedDraft: draftOf(0, 9) }));
+  /** Первое чтение удаётся, второе (потянуть вниз) нет, третье (повтор в пометке) снова удаётся. */
+  const staleScreen = (extra: Record<string, unknown> = {}) => open({ ready: (_a: unknown, call: number) => (call === 2 ? failure("PT500", 500) : withDraft()), extra });
+  const goStale = async () => {
+    await screen.findByTestId(`prep-submit-button-${ITEM}`);
+    await act(async () => {
+      await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    return screen.findByTestId("prep-requirements-stale");
+  };
+
+  it("новая загрузка и отправка закрыты (форма и кнопка убраны, «Отправить на проверку» выключена); «Повторить» в пометке возвращает их", async () => {
+    await staleScreen();
+    await screen.findByTestId(`prep-upload-button-${ITEM}`);
+    expect(screen.getByText("Загрузить другой файл")).toBeTruthy();
+    expect(screen.getByTestId(`prep-submit-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: false });
+    const banner = await goStale();
+    expect(screen.queryByTestId(`prep-upload-button-${ITEM}`)).toBeNull();
+    expect(screen.queryByText("Загрузить и отправить на проверку")).toBeNull();
+    // и заголовок с подсказкой убраны вместе с кнопкой: «Загрузить другой файл» без кнопки под ним читалось бы как обрыв
+    expect(screen.queryByText("Загрузить другой файл")).toBeNull();
+    expect(screen.getByTestId(`prep-submit-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: true });
+    // сам файл и скачивание остаются: читать прежний ответ можно
+    expect(screen.getByTestId(`prep-document-${ITEM}-draft-file`)).toBeTruthy();
+    await fireEvent.press(within(banner).getByText("Повторить"));
+    expect(await screen.findByTestId(`prep-upload-button-${ITEM}`)).toBeTruthy();
+    expect(screen.getByTestId(`prep-submit-button-${ITEM}`).props.accessibilityState).toMatchObject({ disabled: false });
+    expect(screen.queryByTestId("prep-requirements-stale")).toBeNull();
+  });
+
+  it("неоконченная отправка из прошлого запуска на устаревшем виде доводится: «Проверить результат» нажимается", async () => {
+    const stored = { studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID, requirementsRevisionId: REVISION_ID, requirementItemId: ITEM, requestId: REQUEST, selection: { kind: "program_upload", uploadContextId: uploadId(9), documentVersionId: versionId(9) }, expectedPreviousSubmissionId: null };
+    await documentsPending.persist(scope, "submit", ITEM, stored as never);
+    const t = await staleScreen({ submit_application_document_v1: (args: Record<string, unknown> | undefined) => submitReceipt(0, String(args?.p_request_id), versionId(9)) });
+    await goStale();
+    const retry = screen.getByTestId(`prep-submit-button-${ITEM}`);
+    expect(retry).toHaveTextContent("Проверить результат", { exact: false });
+    expect(retry.props.accessibilityState).toMatchObject({ disabled: false });
+    await fireEvent.press(retry);
+    await waitFor(() => expect(t.calls.some((c) => c.name === "submit_application_document_v1")).toBe(true));
+    expect(t.calls.find((c) => c.name === "submit_application_document_v1")!.args).toMatchObject({ p_request_id: REQUEST });
   });
 });
 

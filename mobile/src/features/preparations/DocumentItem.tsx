@@ -64,8 +64,11 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
   standaloneSending: boolean;
   onStandaloneSending: (busy: boolean) => void;
 }) {
-  const { strings, scope, epoch } = usePreparation();
+  const { strings, scope, epoch, stale } = usePreparation();
   const view = itemDocumentView(state);
+  // На устаревшем виде (чтение не удалось, прежний ответ остался на экране) новые действия закрыты: загрузка и отправка опираются
+  // на то, что студент видит, а сервер ответил бы «документ изменился». Неоконченные записи (они идемпотентны) доводятся как обычно.
+  const canSubmit = state.canSubmit && !stale;
   const draft = view.unsubmittedDraft;
   const saved = useSavedVersions(state, target);
   const [selected, setSelected] = useState<string | null>(null);
@@ -82,7 +85,7 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
   // Пока идёт одно нажатие или отправка кнопкой, записанный ими запрос отправки - их собственный: вид требования не меняется.
   const sending = oneTapRun !== null || standaloneSending;
   const sendAfterSave: SendAfterSave | undefined =
-    oneTapRun ?? (state.canSubmit && submitPending.hydrated && (!isSubmitIntent(submitPending.intent) || standaloneSending) && !submitPending.blocked ? { previousSubmissionId: state.submission?.submissionId ?? null } : undefined);
+    oneTapRun ?? (canSubmit && submitPending.hydrated && (!isSubmitIntent(submitPending.intent) || standaloneSending) && !submitPending.blocked ? { previousSubmissionId: state.submission?.submissionId ?? null } : undefined);
   const noticeShown =
     notice !== null &&
     applicationDocumentNoticeVisible(notice, {
@@ -111,13 +114,18 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
 
       {state.canUpload ? (
         <View style={{ gap: 6 }}>
-          <Text variant="body" bold>
-            {heading}
-          </Text>
-          <Text variant="secondary" tone="text2">
-            {sendAfterSave ? strings.saveHintOneTap : strings.saveHint}
-          </Text>
-          <UploadControl target={target} label={label} sendAfterSave={sendAfterSave} quiet={selection !== null} itemSending={sending} onNotice={onNotice} onSendingChange={onOneTapRun} />
+          {/* Устаревший вид: заголовок и подсказка убраны вместе с кнопкой, а сама форма остаётся тем же экземпляром (не пересоздаётся посреди загрузки). */}
+          {stale ? null : (
+            <>
+              <Text variant="body" bold>
+                {heading}
+              </Text>
+              <Text variant="secondary" tone="text2">
+                {sendAfterSave ? strings.saveHintOneTap : strings.saveHint}
+              </Text>
+            </>
+          )}
+          <UploadControl target={target} label={label} sendAfterSave={sendAfterSave} quiet={selection !== null} itemSending={sending} onNotice={onNotice} onSendingChange={onOneTapRun} disabled={stale} />
         </View>
       ) : (
         <UploadControl target={target} label={label} sendAfterSave={sendAfterSave} quiet={selection !== null} itemSending={sending} onNotice={onNotice} onSendingChange={onOneTapRun} disabled />
@@ -145,7 +153,7 @@ function DocumentItemSnapshot({ label, state, target, notice, onNotice, oneTapRu
         target={target}
         selection={selection}
         previousSubmissionId={state.submission?.submissionId ?? null}
-        disabled={!state.canSubmit || !selectionAvailable}
+        disabled={!canSubmit || !selectionAvailable}
         suppressed={sending}
         confirmationShown={noticeShown && notice?.tone === "success"}
         onAttempt={() => onNotice(null)}

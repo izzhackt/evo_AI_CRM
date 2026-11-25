@@ -439,6 +439,33 @@ describe("«Проверить состояние» и сбои чтения", (
     expect(screen.queryByTestId("prep-requirements-stale")).toBeNull();
   });
 
+  it("ответа не было, «Проверить состояние» снова не удалось: текст «не удалось загрузить» один раз и озвучен тот же", async () => {
+    await open(handlers(failure("PT500", 500)));
+    await screen.findByTestId("prep-requirements-error");
+    announceNative.mockClear();
+    await fireEvent.press(screen.getByTestId("prep-check"));
+    await waitFor(() => expect(announceNative).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByText(/Не удалось загрузить требования этой программы/u)).toHaveLength(1);
+    expect(screen.queryByTestId("prep-error")).toBeNull();
+    expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Не удалось загрузить требования этой программы."));
+  });
+
+  it("запись удалась, контрольное чтение нет, прежний список на экране: озвучена пометка со списка, а не «список открыт» и не ошибка раздела", async () => {
+    const { calls } = await open(
+      handlers((_args: unknown, call: number) => (call <= 2 ? uninitializedReadiness() : failure("PT500", 500)), {
+        student_initialize_application_requirements_v1: (args: Record<string, unknown> | undefined) => initializeReceipt(String(args?.p_request_id)),
+      }),
+    );
+    await fireEvent.press(await screen.findByTestId("prep-continue"));
+    expect(await screen.findByTestId("prep-requirements-stale")).toBeTruthy();
+    expect(calls.filter((c) => c.name === "student_initialize_application_requirements_v1")).toHaveLength(1);
+    expect(announceNative).toHaveBeenCalledWith("Не удалось обновить. Показаны последние полученные данные.");
+    expect(announceNative).not.toHaveBeenCalledWith("Список документов открыт.");
+    // на экране одна пометка: ни второго текста ошибки, ни полной ошибки раздела
+    expect(screen.queryByTestId("prep-error")).toBeNull();
+    expect(screen.queryByTestId("prep-requirements-error")).toBeNull();
+  });
+
   it("чужая форма ответа - это сбой данных, а не пустой список", async () => {
     await open(handlers({ protocolVersion: 1, requirements: null }));
     expect(await screen.findByTestId("prep-requirements-error")).toBeTruthy();
@@ -447,6 +474,25 @@ describe("«Проверить состояние» и сбои чтения", (
 });
 
 describe("нет программы и сбой списка", () => {
+  it("программы нет в прежнем списке, а свежий список не прочитался (нет связи): ошибка списка с повтором, а не «не найдена»", async () => {
+    const { calls } = await open(
+      handlers(starterReadiness(), {
+        // прежний список без этой программы; обновление (потянуть вниз) не удаётся; повтор приносит список с программой
+        student_catalog_preparations_v1: (_args: unknown, call: number) => (call === 1 ? [preparationRow(2)] : call === 2 ? failure("PT500", 500) : [preparationRow(1)]),
+      }),
+    );
+    expect(await screen.findByTestId("prep-not-found")).toBeTruthy();
+    await act(async () => {
+      await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    const alert = await screen.findByTestId("prep-error-list");
+    expect(screen.queryByTestId("prep-not-found")).toBeNull();
+    await fireEvent.press(within(alert).getByText("Повторить"));
+    expect(await screen.findByTestId("prep-title")).toHaveTextContent("Информатика", { exact: false });
+    expect(screen.queryByTestId("prep-error-list")).toBeNull();
+    expect(calls.filter((c) => c.name === "student_catalog_preparations_v1")).toHaveLength(3);
+  });
+
   it("программы с таким идентификатором в списке студента нет: «не найдена», запрос требований не уходит", async () => {
     const { calls } = await open(handlers(starterReadiness(), {}, [preparationRow(2)]));
     expect(await screen.findByTestId("prep-not-found")).toHaveTextContent("Эта программа не найдена в вашем списке.", { exact: false });

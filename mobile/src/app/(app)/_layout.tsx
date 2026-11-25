@@ -79,6 +79,9 @@ export default function AppLayout() {
             <Tabs.Screen name={section.id} options={{ title: section.id }} />
           </Tabs.Protected>
         ))}
+        {/* Экраны кабинета вне меню ☰ и вне панели: без объявления вкладка не показывается, а переход на неё уходит на «Главную». */}
+        <Tabs.Screen name="application" options={{ title: "application" }} />
+        <Tabs.Screen name="preparations" options={{ title: "preparations" }} />
       </Tabs>
       {/* «Не удалось обновить уведомления» + «Повторить» под верхней полосой, пока последний опрос не удался (веб). */}
       <PollFailureNotice />

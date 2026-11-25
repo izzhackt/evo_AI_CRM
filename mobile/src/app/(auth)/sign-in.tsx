@@ -1,8 +1,10 @@
 import { Link } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { getSignupConfirmationStrings } from "@web/lib/portal/signup-confirmation-i18n";
 
 import type { SignInFailure } from "@/api/portal-auth";
+import { loadPendingSignup } from "@/features/registration/pending-store";
 import { useLang } from "@/i18n/LangProvider";
 import type { MobileStringKey } from "@/i18n";
 import { useSession } from "@/session/SessionProvider";
@@ -17,12 +19,24 @@ import { TextField } from "@/ui/TextField";
 
 export default function SignInScreen() {
   const { tokens } = useTheme();
-  const { m, recovery } = useLang();
+  const { lang, m, recovery } = useLang();
   const { state, signIn } = useSession();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [notice] = useState(() => takeSignInNotice());
   const [failure, setFailure] = useState<SignInFailure | null>(null);
+  // Человек, который зарегистрировался и ушёл читать письмо, возвращается сюда: ссылка ведёт на «Подтвердите почту» с повтором
+  // письма, а не на ввод ссылки регистрации (веб: /apply восстанавливает тот же экран).
+  const [pendingSignup, setPendingSignup] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void loadPendingSignup().then((restored) => {
+      if (alive) setPendingSignup(restored !== null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const busy = state.kind === "authenticating";
   const accountDeleted = state.kind === "signedOut" && state.accountDeleted && failure === null;
 
@@ -105,8 +119,8 @@ export default function SignInScreen() {
           </Text>
         </Link>
         <Link href="/apply" style={{ alignSelf: "center", minHeight: 44, paddingVertical: 12 }} testID="apply-link">
-          <Text variant="secondary" tone="accent" bold>
-            {m("apply.signInLink")}
+          <Text variant="secondary" tone="accent" bold testID="apply-link-label">
+            {pendingSignup ? getSignupConfirmationStrings(lang).title : m("apply.signInLink")}
           </Text>
         </Link>
       </Card>

@@ -1,6 +1,6 @@
-// Запросы и записи «Университетов». Индекс: диск -> вызов с известной версией; версия проверяется при открытии каталога,
-// при возврате в приложение и на экран каталога не чаще раза в минуту, тянуть вниз проверяет всегда; избранное:
-// оптимистичное сердечко с откатом, правда - квитанция сервера, нажатия по тому же вузу в полёте игнорируются.
+// Запросы и записи «Университетов». Индекс: диск -> вызов с известной версией при открытии, возврате и раз в минуту (G46)
+// (тянуть вниз проверяет всегда); избранное: оптимистичное сердечко с откатом,
+// правда - квитанция сервера, нажатия по тому же вузу в полёте игнорируются.
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CatalogPreparationIntent, CatalogPreparationReceipt } from "@web/lib/portal/catalog-preparations";
 import type { StudentUniversityDetail, StudentUniversityIndex } from "@web/lib/portal/university-index";

@@ -2,8 +2,9 @@
 // которые нужны для неё, с состоянием файла и решением EVO. Экран читает `student_catalog_preparations_v1` (общий
 // запрос «Мои программы») и `application_package_readiness_v1`; единственная запись здесь - «Открыть список документов»
 // (`student_initialize_application_requirements_v1`), только для дела на сопровождении и программы «Собираем документы».
-// Файл к требованию (загрузка, отправка на проверку, сохранённые версии, история) идёт через `PreparationProvider`;
-// комплект программы и восстановление прерванных отправок комплекта добавляет следующий PR этого среза (G37, G38).
+// Файл к требованию (загрузка, отправка на проверку, сохранённые версии, история) и комплект программы (выбор файлов,
+// «Отправить комплект в EVO», история комплектов, оборванные отправки) идут через `PreparationProvider`; страница всех
+// оборванных отправок комплекта - `PackageRecoveryScreen` (`app/(app)/preparations/recovery.tsx`).
 import { universityUuid } from "@web/lib/platform-university-catalog";
 import type { ApplicationRequirementsIntent } from "@web/lib/portal/application-requirements";
 import { randomUUID } from "expo-crypto";

@@ -7,25 +7,31 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
-export function Collapsible({ title, children, initiallyOpen = false, onToggle, testID }: {
+export function Collapsible({ title, children, initiallyOpen = false, open: controlled, onToggle, accessibilityLabel, testID }: {
   title: string;
   children: ReactNode;
   initiallyOpen?: boolean;
+  /** Полное имя кнопки для читалки, когда подписи в списке одинаковы («Открыть комплект» у каждой строки). */
+  accessibilityLabel?: string;
+  /** Состояние держит владелец (веб: `open` у `details` из состояния родителя): блок может исчезать и возвращаться раскрытым. */
+  open?: boolean;
   /** Сообщает новое состояние (веб: `onToggle` у `details`, история читается при первом раскрытии). */
   onToggle?: (open: boolean) => void;
   testID?: string;
 }) {
   const { tokens } = useTheme();
-  const [open, setOpen] = useState(initiallyOpen);
+  const [inner, setOpen] = useState(initiallyOpen);
+  const open = controlled ?? inner;
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <View testID={testID} style={{ gap: 8 }}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
         accessibilityState={{ expanded: open }}
         onPress={() => {
           const next = !open;
-          setOpen(next);
+          if (controlled === undefined) setOpen(next);
           onToggle?.(next);
         }}
         testID={testID ? `${testID}-toggle` : undefined}

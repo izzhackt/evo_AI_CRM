@@ -1,6 +1,6 @@
 // «Документы для этой программы»: заголовок с «Проверить состояние», заметки, состояние «список не открыт» и «нужно
-// уточнить», список требований с файлами, неоконченные записи, история всех документов и ссылки внизу. Веб:
-// `ApplicationRequirementsUI` (без блока комплекта, его добавляет следующий PR этого среза).
+// уточнить», комплект программы, список требований с файлами, неоконченные записи, история всех документов и ссылки
+// внизу. Веб: `ApplicationRequirementsUI`.
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
@@ -11,6 +11,7 @@ import type { PortalStrings } from "@web/lib/portal/i18n";
 import { usePreparation } from "@/features/preparations/context";
 import { DocumentHistory } from "@/features/preparations/DocumentHistory";
 import { DocumentRecovery } from "@/features/preparations/DocumentRecovery";
+import { PackageSection } from "@/features/preparations/PackageSection";
 import { RequirementCard } from "@/features/preparations/RequirementCard";
 import { requirementsNotes } from "@/features/preparations/model";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -105,6 +106,7 @@ export function RequirementsSection({
           ))}
         </Notice>
       ) : null}
+      <PackageSection readiness={documents} loading={loading || busy !== null} />
       {current && current.revisionId && documents && current.items.length > 0 ? (
         <View style={{ gap: 12 }} accessibilityRole="list" testID="prep-requirement-list">
           {current.items.map((item, index) => {

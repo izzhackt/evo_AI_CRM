@@ -73,7 +73,14 @@ const marker = (name: string) => function Marker() {
 /** Экраны кабинета вне меню ☰: путь для проверки и файлы маршрута (у `preparations` свой стек, он настоящий). */
 const HIDDEN: Record<string, { url: string; files: Record<string, ComponentType> }> = {
   application: { url: "/application", files: { "(app)/application": marker("application") } },
-  preparations: { url: `/preparations/${PROGRAM_A}`, files: { "(app)/preparations/_layout": PreparationsLayout, "(app)/preparations/[applicationId]": marker("preparations") } },
+  preparations: {
+    url: `/preparations/${PROGRAM_A}`,
+    files: {
+      "(app)/preparations/_layout": PreparationsLayout,
+      "(app)/preparations/[applicationId]": marker("preparations"),
+      "(app)/preparations/recovery": marker("recovery"),
+    },
+  },
 };
 
 const APP_DIR = path.join(__dirname, "../app/(app)");
@@ -166,6 +173,33 @@ describe("каждый экран кабинета объявлен в обол�
       // ни одна из трёх вкладок не выглядит выбранной на скрытом экране
       for (const id of ["home", "documents", "messages"]) expect(screen.getByTestId(`tab-${id}`).props.accessibilityState).toMatchObject({ selected: false });
     }
+  });
+});
+
+describe("«Незавершённые отправки» рядом с экраном программы", () => {
+  it("`/preparations/recovery` открывает страницу восстановления, а не экран программы с параметром «recovery»", async () => {
+    const view = await mount("/home");
+    await go("/preparations/recovery");
+    expect(view.getPathname()).toBe("/preparations/recovery");
+    expect(screen.queryByTestId("route-recovery")).toBeTruthy();
+    expect(screen.queryByTestId("route-preparations")).toBeNull();
+  });
+
+  it("страница восстановления -> программа -> «назад»: на страницу восстановления, потом на «Главную»", async () => {
+    const view = await mount("/home");
+    await go("/preparations/recovery");
+    await go(`/preparations/${PROGRAM_A}`);
+    expect(view.getPathname()).toBe(`/preparations/${PROGRAM_A}`);
+    await act(async () => router.back());
+    expect(view.getPathname()).toBe("/preparations/recovery");
+    await act(async () => router.back());
+    expect(view.getPathname()).toBe("/home");
+  });
+
+  it("холодный старт по ссылке на страницу восстановления", async () => {
+    const view = await mount("/preparations/recovery");
+    expect(view.getPathname()).toBe("/preparations/recovery");
+    expect(screen.queryByTestId("route-recovery")).toBeTruthy();
   });
 });
 

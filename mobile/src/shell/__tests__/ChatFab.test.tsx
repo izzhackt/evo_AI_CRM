@@ -39,6 +39,13 @@ describe("плавающая кнопка «Написать EVO»", () => {
     expect(chatFabVisible("assisted", "/universities/abc")).toBe(true);
     expect(chatFabVisible("assisted", "/messages")).toBe(false);
     expect(chatFabVisible("assisted", "/messages/chat")).toBe(false);
+    expect(chatFabVisible("assisted", "/messages/updates")).toBe(false);
+    // экраны решения (веб: /portal/notifications/..., /portal/document-notifications/..., /portal/package-notifications/...) вне
+    // /portal/messages, и кнопка на них есть: прочитав ответ куратора, студент пишет команде оттуда
+    expect(chatFabVisible("assisted", "/messages/reply/66666666-6666-4666-8666-666666666666")).toBe(true);
+    expect(chatFabVisible("assisted", "/messages/document-decision/66666666-6666-4666-8666-666666666666")).toBe(true);
+    expect(chatFabVisible("assisted", "/messages/package-decision/66666666-6666-4666-8666-666666666666")).toBe(true);
+    expect(chatFabVisible("approved", "/messages/reply/66666666-6666-4666-8666-666666666666")).toBe(false);
     expect(chatFabVisible("assisted", "/professions")).toBe(true);
     expect(chatFabVisible("assisted", "/professions/evi")).toBe(false);
     expect(chatFabVisible("approved", "/home")).toBe(false);

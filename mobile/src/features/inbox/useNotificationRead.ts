@@ -8,15 +8,21 @@ import { usePokePoll } from "@/api/PortalPoll";
 import { usePortalApi } from "@/api/PortalApi";
 import { notificationReadRequestId } from "@/domain/inbox-model";
 import type { StudentPortalNotification } from "@/domain/portal-source";
-import { rpcErrorKey, type FrozenWrite } from "@/lib/rpc";
+import type { FrozenWrite } from "@/lib/rpc";
+
+/**
+ * Что не получилось: одно уведомление или несколько («Отметить все»). Тексты у веба разные: markReadError и
+ * markAllReadError (`PortalNotificationReadForm`, «Часть могла быть отмечена»), поэтому экран берёт их по этому виду.
+ */
+export type NotificationReadFailure = "one" | "all";
 
 export function useNotificationRead() {
   const { transport, userKey, membershipId, organizationId, studentCaseId } = usePortalApi();
   const client = useQueryClient();
   const poke = usePokePoll();
   const writes = useRef(new Map<string, FrozenWrite>());
-  const [busy, setBusy] = useState(false);
-  const [errorKey, setErrorKey] = useState<ReturnType<typeof rpcErrorKey> | null>(null);
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  const [failure, setFailure] = useState<NotificationReadFailure | null>(null);
 
   const writeFor = useCallback(
     (notificationId: string) => {
@@ -31,25 +37,31 @@ export function useNotificationRead() {
     [userKey, membershipId, organizationId, studentCaseId],
   );
 
-  /** Отметить одно или несколько уведомлений. Возвращает, всё ли получилось. */
+  /** Отметить одно или несколько уведомлений. Возвращает, всё ли получилось; ошибка остаётся в `failure`. */
   const markRead = useCallback(
     async (items: readonly Pick<StudentPortalNotification, "notificationId">[]): Promise<boolean> => {
-      setBusy(true);
-      setErrorKey(null);
+      if (items.length === 0) return true;
+      const ids = items.map((item) => item.notificationId);
+      setPending((current) => new Set([...current, ...ids]));
+      setFailure(null);
       let ok = true;
       try {
         for (const item of items) {
           try {
             await sendNotificationRead(transport, writeFor(item.notificationId));
             writes.current.delete(item.notificationId);
-          } catch (error) {
+          } catch {
             ok = false;
-            setErrorKey(rpcErrorKey(error));
+            setFailure(items.length > 1 ? "all" : "one");
             break;
           }
         }
       } finally {
-        setBusy(false);
+        setPending((current) => {
+          const next = new Set(current);
+          for (const id of ids) next.delete(id);
+          return next;
+        });
         void client.invalidateQueries({ queryKey: ["portal", userKey, "notifications"] });
         poke();
       }
@@ -58,5 +70,5 @@ export function useNotificationRead() {
     [transport, writeFor, client, userKey, poke],
   );
 
-  return { markRead, busy, errorKey };
+  return { markRead, busy: pending.size > 0, isPending: (notificationId: string) => pending.has(notificationId), failure };
 }

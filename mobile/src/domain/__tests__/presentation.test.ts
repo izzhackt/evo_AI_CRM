@@ -1,6 +1,6 @@
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
-import { ADMISSION_STAGE_PATH, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
+import { ADMISSION_STAGE_PATH, actionTarget, actionTitle, allDayDate, evoActionDueLabel, evoActionStatusLabel, formatPortalDeadline, formatPortalMoney, linkTarget, notificationRoute, notificationTargetLabel, portalNotificationKind, portalNotificationText, stageIndex, stageLabel } from "@/domain/presentation";
 import { normalizeStudentPortalOverview } from "@/domain/portal-source";
 
 import { OVERVIEW_ROW, SLOT_ID } from "@/test-fixtures/rpc-rows";
@@ -66,16 +66,38 @@ describe("этапы дела", () => {
   });
 });
 
+const NID = "66666666-6666-4666-8666-666666666666";
+
 describe("уведомления и ссылки", () => {
+  // Одна ссылка на уведомление (веб portalNotificationTarget): три вида ведут на свои экраны решения с идентификатором.
   it.each([
     [{ category: "document", eventCode: "correction_required" }, "/documents"],
     [{ category: "payment_due", eventCode: "x" }, "/payments"],
     [{ category: "anything", eventCode: "case_chat_message" }, "/messages/chat"],
-    [{ category: "case", eventCode: "case_help_answer" }, "/messages/updates"],
-    [{ category: "application", eventCode: "application_package_review" }, "/messages/updates"],
-    [{ category: "application", eventCode: "application_document_review" }, "/messages/updates"],
+    [{ category: "case", eventCode: "case_help_answer" }, `/messages/reply/${NID}`],
+    [{ category: "application", eventCode: "application_package_review" }, `/messages/package-decision/${NID}`],
+    [{ category: "application", eventCode: "application_document_review" }, `/messages/document-decision/${NID}`],
     [{ category: "novelty", eventCode: "new_thing" }, "/home"],
-  ])("%j -> %s", (input, route) => expect(notificationRoute(input)).toBe(route));
+  ])("%j -> %s", (input, route) => expect(notificationRoute({ notificationId: NID, ...input })).toBe(route));
+
+  it("вид события важнее категории: проверка документа программы ведёт на своё решение, а не в «Документы»", () => {
+    expect(notificationRoute({ notificationId: NID, category: "document.review", eventCode: "application_document_review" })).toBe(`/messages/document-decision/${NID}`);
+    expect(notificationRoute({ notificationId: NID, category: "payment", eventCode: "case_help_answer" })).toBe(`/messages/reply/${NID}`);
+  });
+
+  // Подпись ссылки (веб targetReply, targetProgramDocument, targetProgramPackage ...): у каждого вида своя, ссылка есть всегда.
+  it.each([
+    [{ category: "case", eventCode: "case_help_answer" }, "Прочитать ответ куратора", "Куратордун жообун окуу"],
+    [{ category: "application", eventCode: "application_package_review" }, "Открыть решение по документам", "Документтер боюнча чечимди ачуу"],
+    [{ category: "application", eventCode: "application_document_review" }, "Открыть решение по документу", "Документ боюнча чечимди ачуу"],
+    [{ category: "anything", eventCode: "case_chat_message" }, "Открыть переписку", "Кат алышууну ачуу"],
+    [{ category: "document", eventCode: "x" }, "Открыть документы", "Документтерди ачуу"],
+    [{ category: "payment_due", eventCode: "x" }, "Открыть оплату", "Төлөмдү ачуу"],
+    [{ category: "novelty", eventCode: "x" }, "Открыть поступление", "Тапшырууну ачуу"],
+  ])("подпись %j: %s", (input, ruLabel, kyLabel) => {
+    expect(notificationTargetLabel({ notificationId: NID, ...input }, ru)).toBe(ruLabel);
+    expect(notificationTargetLabel({ notificationId: NID, ...input }, ky)).toBe(kyLabel);
+  });
 
   // Значок строки «Что нового» (веб portalNotificationKind): те же ветки, что у перехода.
   it.each([
@@ -89,11 +111,11 @@ describe("уведомления и ссылки", () => {
   ])("значок %j -> %s", (input, kind) => expect(portalNotificationKind(input)).toBe(kind));
 
   it("значок и переход согласованы: оплата ведёт в «Оплату», документ - в «Документы», остальное - на «Главную»", () => {
-    expect(notificationRoute({ category: "payment_due", eventCode: "x" })).toBe("/payments");
+    expect(notificationRoute({ notificationId: NID, category: "payment_due", eventCode: "x" })).toBe("/payments");
     expect(portalNotificationKind({ category: "payment_due", eventCode: "x" })).toBe("payment");
-    expect(notificationRoute({ category: "document", eventCode: "x" })).toBe("/documents");
+    expect(notificationRoute({ notificationId: NID, category: "document", eventCode: "x" })).toBe("/documents");
     expect(portalNotificationKind({ category: "document", eventCode: "x" })).toBe("document");
-    expect(notificationRoute({ category: "novelty", eventCode: "x" })).toBe("/home");
+    expect(notificationRoute({ notificationId: NID, category: "novelty", eventCode: "x" })).toBe("/home");
     expect(portalNotificationKind({ category: "novelty", eventCode: "x" })).toBe("other");
   });
 
@@ -108,7 +130,7 @@ describe("уведомления и ссылки", () => {
   it("решение по чеку: слова решения на языке студента, сумма и причина как хранятся", () => {
     expect(portalNotificationText({ eventCode: "payment_receipt_accepted", subjectLabel: "100.50 USD", detail: null }, ru)).toEqual({ title: "Чек принят: 100.50 USD", detail: null });
     expect(portalNotificationText({ eventCode: "payment_receipt_rejected", subjectLabel: "Не видно сумму", detail: null }, ky).title).toBe(`${ky.receiptNotifRejected.replace("{value}", "Не видно сумму")}`);
-    expect(notificationRoute({ category: "payment.receipt", eventCode: "payment_receipt_accepted" })).toBe("/payments");
+    expect(notificationRoute({ notificationId: NID, category: "payment.receipt", eventCode: "payment_receipt_accepted" })).toBe("/payments");
   });
 
   it("ссылки контента: вкладка, браузер или никуда", () => {

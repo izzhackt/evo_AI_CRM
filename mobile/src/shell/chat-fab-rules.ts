@@ -17,10 +17,17 @@ export function isConversationPath(pathname: string): boolean {
   return pathname === "/messages/chat" || pathname === EVI_ROUTE;
 }
 
+/**
+ * Список «Входящих», лента «Что нового» и сама беседа: кнопка «Написать EVO» на них лишняя (веб Shell.tsx: скрыта на
+ * /portal/messages). Экраны решения (ответ куратора, решение по документу и по комплекту) в вебе лежат вне /portal/messages
+ * (/portal/notifications/..., /portal/document-notifications/..., /portal/package-notifications/...), и кнопка на них есть:
+ * прочитав ответ куратора, студент пишет команде оттуда. В приложении они живут в стеке «Входящих», поэтому правило по пути.
+ */
+const INBOX_PATHS: readonly string[] = ["/messages", "/messages/updates", "/messages/chat"];
+
 export function chatFabVisible(tier: AccessTier, pathname: string): boolean {
   if (tier !== "assisted") return false;
-  const first = pathname.split("/").filter(Boolean)[0] ?? "";
-  return first !== "messages" && pathname !== EVI_ROUTE;
+  return !INBOX_PATHS.includes(pathname) && pathname !== EVI_ROUTE;
 }
 
 /** Расстояние от низа экрана до низа кнопки: над панелью вкладок, а без панели (approved) просто над безопасной зоной. */

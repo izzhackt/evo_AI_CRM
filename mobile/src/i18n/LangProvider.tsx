@@ -82,3 +82,8 @@ export function useLang(): LangContextValue {
   if (!value) throw new Error("useLang вне LangProvider");
   return value;
 }
+
+/** Язык, если провайдер языка есть; без него `null`. Для того, что работает и вне провайдера и берёт язык только для редкого сообщения. */
+export function useOptionalLang(): LangContextValue | null {
+  return useContext(LangContext);
+}

@@ -153,35 +153,45 @@ export function portalNotificationKind(notification: Pick<StudentPortalNotificat
   return "other";
 }
 
-export type NotificationRoute = "/documents" | "/payments" | "/messages/chat" | "/messages/updates" | "/home";
+/** Экраны решения по уведомлению во «Входящих» (веб: /portal/notifications, /portal/document-notifications, /portal/package-notifications). */
+export const REPLY_ROUTE_PREFIX = "/messages/reply/";
+export const DOCUMENT_DECISION_ROUTE_PREFIX = "/messages/document-decision/";
+export const PACKAGE_DECISION_ROUTE_PREFIX = "/messages/package-decision/";
+
+export type NotificationRoute =
+  | "/documents"
+  | "/payments"
+  | "/messages/chat"
+  | "/home"
+  | `/messages/reply/${string}`
+  | `/messages/document-decision/${string}`
+  | `/messages/package-decision/${string}`;
 
 /**
- * Цель уведомления по `category` и `eventCode` (portalNotificationTarget, веб). Сообщение
- * команды ведёт в чат. Ответ куратора и проверка пакета или документа вуза показываются
- * в ленте «Что нового» развёрнутым текстом уведомления (отдельные страницы разбора
- * веба в приложении пока не нужны). Любая новая категория ведёт на «Главную» (#1355: «Поступления» больше нет).
+ * Цель уведомления по `eventCode` и `category` (portalNotificationTarget, веб): одна ссылка на уведомление. Проверка пакета
+ * программы, проверка документа программы и ответ куратора ведут на свои экраны решения (в вебе это отдельные страницы;
+ * решение и файл есть только там, строка уведомления несёт лишь название и причину). Сообщение команды ведёт в чат. Любая
+ * новая категория ведёт на «Главную» (#1355: «Поступления» больше нет).
  */
-export function notificationRoute(notification: Pick<StudentPortalNotification, "category" | "eventCode">): NotificationRoute {
+export function notificationRoute(notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">): NotificationRoute {
+  if (notification.eventCode === "application_package_review") return `${PACKAGE_DECISION_ROUTE_PREFIX}${notification.notificationId}`;
+  if (notification.eventCode === "application_document_review") return `${DOCUMENT_DECISION_ROUTE_PREFIX}${notification.notificationId}`;
+  if (notification.eventCode === "case_help_answer") return `${REPLY_ROUTE_PREFIX}${notification.notificationId}`;
   if (notification.eventCode === "case_chat_message") return "/messages/chat";
-  if (
-    notification.eventCode === "application_package_review" ||
-    notification.eventCode === "application_document_review" ||
-    notification.eventCode === "case_help_answer"
-  ) {
-    return "/messages/updates";
-  }
   if (notification.category.startsWith("document")) return "/documents";
   if (notification.category.startsWith("payment")) return "/payments";
   return "/home";
 }
 
-/** Подпись ссылки уведомления (portalNotificationTarget.label, веб); `null`, когда ссылки нет. */
-export function notificationTargetLabel(notification: Pick<StudentPortalNotification, "category" | "eventCode">, strings: AdmissionStrings): string | null {
-  switch (notificationRoute(notification)) {
+/** Подпись ссылки уведомления (portalNotificationTarget.label, веб): у каждого вида своя, ссылка есть всегда. */
+export function notificationTargetLabel(notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">, strings: AdmissionStrings): string {
+  const route = notificationRoute(notification);
+  if (route.startsWith(PACKAGE_DECISION_ROUTE_PREFIX)) return strings.targetProgramPackage;
+  if (route.startsWith(DOCUMENT_DECISION_ROUTE_PREFIX)) return strings.targetProgramDocument;
+  if (route.startsWith(REPLY_ROUTE_PREFIX)) return strings.targetReply;
+  switch (route) {
     case "/messages/chat":
       return strings.targetMessages;
-    case "/messages/updates":
-      return null;
     case "/documents":
       return strings.targetDocuments;
     case "/payments":

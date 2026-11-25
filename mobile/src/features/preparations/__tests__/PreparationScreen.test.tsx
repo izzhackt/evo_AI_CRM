@@ -392,7 +392,7 @@ describe("«Проверить состояние» и сбои чтения", (
     expect(screen.queryByTestId("prep-error")).toBeNull();
   });
 
-  it("успешная проверка состояния озвучивается читалке; сбой озвучивается текстом ошибки", async () => {
+  it("успешная проверка состояния озвучивается читалке; сбой при прежнем ответе озвучивается пометкой «Не удалось обновить»", async () => {
     await open(handlers((_args: unknown, call: number) => (call === 1 ? starterReadiness() : call === 2 ? starterReadiness() : failure("PT500", 500))));
     await screen.findByTestId("prep-requirement-list");
     announceNative.mockClear();
@@ -400,7 +400,7 @@ describe("«Проверить состояние» и сбои чтения", (
     await waitFor(() => expect(announceNative).toHaveBeenCalledWith("Состояние документов обновлено."));
     announceNative.mockClear();
     await fireEvent.press(screen.getByTestId("prep-check"));
-    await waitFor(() => expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Не удалось загрузить требования этой программы.")));
+    await waitFor(() => expect(announceNative).toHaveBeenCalledWith("Не удалось обновить. Показаны последние полученные данные."));
     expect(announceNative).not.toHaveBeenCalledWith("Состояние документов обновлено.");
   });
 

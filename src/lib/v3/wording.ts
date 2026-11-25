@@ -567,7 +567,8 @@ export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE
 const CASE_CHAT_AWAIT_CHOICE_SHORT: Record<string, string> = {
   needs_reply: "Нужен ответ",
   awaiting_student: "Ждём",
-  none: "Не нужен",
+  // Видимое слово входит в имя кнопки (WCAG 2.5.3): «Не нужен» было бы другим словом, чем «Не требуется».
+  none: "Не требуется",
 };
 export const caseChatAwaitChoiceShort = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE_SHORT, v);
 export const portalConsultationStatus = (v: string | null | undefined) =>

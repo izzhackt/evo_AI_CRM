@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
  */
 export function ChatHeaderLink({ href, label, shortLabel, icon: Icon, testId }: Readonly<{
   href: string; label: string;
-  /** Короткая видимая подпись на узкой переписке («Дело»): одна иконка папки не говорила, что делает кнопка. */
+  /** Короткая видимая подпись на узкой переписке («Дело»): одна иконка папки не говорила, что делает кнопка. Без неё — на узкой только значок 44 px. */
   shortLabel?: string;
   icon: LucideIcon; testId?: string;
 }>) {

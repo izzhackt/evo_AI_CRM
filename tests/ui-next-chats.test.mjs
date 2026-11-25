@@ -232,7 +232,8 @@ test("текст: пояснение «WhatsApp» ушло за «?», пуст�
   assert.match(page("messages", "cabinet", "admin-cookie"), /aria-label="Пояснение: Переписка"/u);
   // «Не подключён»: честное состояние, ссылка на настройки — только у администратора вне просмотра роли (её даёт страница).
   const notConnected = page("inbox", "not-connected", "admin-cookie");
-  assert.match(text(notConnected), /WhatsApp не подключён к CRM — подключает Администратор/u);
+  // Администратору — к нему: «подключите в настройках» (чек-лист 23.11), а не о нём в третьем лице.
+  assert.match(text(notConnected), /WhatsApp не подключён — подключите в настройках/u);
   assert.match(notConnected, /href="\/settings\?section=integrations"[^>]*>Открыть настройки</u);
   assert.doesNotMatch(notConnected, /<h1[^>]*>WhatsApp\s*<span[^>]*>\d/u, "числа у заголовка нет");
   const attention = read("src/components/staff/inbox-next/InboxNextList.tsx");
@@ -318,7 +319,7 @@ test("стенд и данные на месте: страницы, Chromium-п�
 
 test("переписка на телефоне: короткие подписи состояния и «Дело», полные слова — имена для читалки", async () => {
   const wording = await import("../src/lib/v3/wording.ts");
-  assert.deepEqual(["needs_reply", "awaiting_student", "none"].map(wording.caseChatAwaitChoiceShort), ["Нужен ответ", "Ждём", "Не нужен"]);
+  assert.deepEqual(["needs_reply", "awaiting_student", "none"].map(wording.caseChatAwaitChoiceShort), ["Нужен ответ", "Ждём", "Не требуется"]);
   const header = read("src/components/staff/case-chat-next/CaseChatNextHeader.tsx");
   assert.match(header, /aria-label=\{caseChatAwaitChoice\(value\) \?\? undefined\}/u);
   assert.match(header, /<span aria-hidden="true" className="@2xl:hidden">\{caseChatAwaitChoiceShort\(value\)\}<\/span>/u);

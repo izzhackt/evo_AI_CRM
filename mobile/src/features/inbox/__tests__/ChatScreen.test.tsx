@@ -523,4 +523,140 @@ describe("Чат: что и когда говорит читалка (разбо
       expect(incoming()).toHaveLength(0);
     });
   });
+
+  // Веб говорит сбои `role="alert"` сам; в React Native `accessibilityRole="alert"` на iPhone ничего не произносит, поэтому каждый блок
+  // сбоя озвучивается явно: один раз за появление и только если он появился на виду (второй круг ревью #1566).
+  describe("сбои говорятся читалке сами", () => {
+    const plain = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
+    const spoken = (text: string) => plain.mock.calls.filter(([said]) => said === text);
+    const REFRESH = "Не удалось обновить переписку.";
+    const SEND = "Сообщение не отправлено. Повторите — текст сохранён.";
+    const EARLIER = "Не удалось загрузить более ранние сообщения. Повторите.";
+    beforeEach(() => plain.mockClear());
+
+    it("сбой обновления ленты: один раз за появление; пока держится, опросы молчат; после успеха новый сбой слышен снова", async () => {
+      let broken = false;
+      const { transport } = fakeTransport({ ...base, portal_case_chat_page_v1: () => (broken ? failure(null, 503) : windowPage(12, 3)) });
+      await renderWithClient(newClient(), transport);
+      await screen.findByText("сообщение 12");
+      broken = true;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_500);
+      });
+      expect(await screen.findByTestId("chat-refresh-error")).toBeTruthy();
+      expect(spoken(REFRESH)).toHaveLength(1);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_500); // сбой держится, опрос снова не удался
+      });
+      expect(spoken(REFRESH)).toHaveLength(1);
+      broken = false;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_500);
+      });
+      await waitFor(() => expect(screen.queryByTestId("chat-refresh-error")).toBeNull());
+      broken = true;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_500);
+      });
+      expect(await screen.findByTestId("chat-refresh-error")).toBeTruthy();
+      expect(spoken(REFRESH)).toHaveLength(2);
+    });
+
+    it("не на виду сбой не говорится, и вернувшись, студент его не «догоняет»", async () => {
+      const client = newClient();
+      let broken = false;
+      const { transport } = fakeTransport({ ...base, portal_case_chat_page_v1: () => (broken ? failure(null, 503) : windowPage(12, 3)) });
+      await renderWithClient(client, transport);
+      await screen.findByText("сообщение 12");
+      visible.mockReturnValue(false); // ушёл на другую вкладку, беседа осталась смонтированной
+      broken = true;
+      await act(async () => {
+        await client.refetchQueries({ queryKey: KEY });
+      });
+      expect(await screen.findByTestId("chat-refresh-error")).toBeTruthy();
+      expect(spoken(REFRESH)).toHaveLength(0);
+      visible.mockReturnValue(true);
+      await fireEvent.changeText(screen.getByTestId("chat-input"), "ещё"); // любая перерисовка
+      expect(spoken(REFRESH)).toHaveLength(0);
+    });
+
+    it("сбой отправки: слышен один раз за попытку, повтор с новой неудачей слышен снова", async () => {
+      const { transport } = fakeTransport({ ...base, portal_case_chat_page_v1: () => windowPage(12, 3), portal_case_chat_post_v1: failure("42501", 403) });
+      await renderWithClient(newClient(), transport);
+      await screen.findByText("сообщение 12");
+      await fireEvent.changeText(screen.getByTestId("chat-input"), "Вот скан");
+      await fireEvent.press(screen.getByTestId("chat-send"));
+      expect(await screen.findByTestId("chat-send-error")).toBeTruthy();
+      expect(spoken(SEND)).toHaveLength(1);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(1_000); // то же слово чаще раза в 800 мс общий помощник склеивает
+      });
+      await fireEvent.press(screen.getByTestId("chat-retry"));
+      await waitFor(() => expect(spoken(SEND)).toHaveLength(2));
+    });
+
+    it("не удалось загрузить более ранние: текст читается один раз", async () => {
+      const page = { ...windowPage(12, 3), hasMore: true };
+      const { transport } = fakeTransport({ ...base, portal_case_chat_page_v1: (args?: Record<string, unknown>) => (args?.p_before_sequence_id === undefined ? page : failure(null, 503)) });
+      await renderWithClient(newClient(), transport);
+      await screen.findByText("сообщение 12");
+      await fireEvent.press(await screen.findByTestId("chat-earlier"));
+      expect(await screen.findByText(EARLIER)).toBeTruthy();
+      expect(spoken(EARLIER)).toHaveLength(1);
+    });
+  });
+
+  // Две отправки в пути: подтверждение одной не должно висеть, пока другая не отправлена (второй круг ревью #1566).
+  describe("две отправки в пути", () => {
+    /** Каждая запись ждёт `release(текст)`; `fail` - тексты, на которые сервер отвечает отказом. */
+    function inFlight(fail: readonly string[]) {
+      const gates = new Map<string, () => void>();
+      const inner = fakeTransport({
+        ...base,
+        portal_case_chat_page_v1: () => PAGE,
+        portal_case_chat_post_v1: (args: Record<string, unknown> | undefined) => (fail.includes(String(args?.p_body)) ? failure("42501", 403) : POST_RECEIPT(String(args?.p_request_id), "13")),
+      });
+      const transport: RpcTransport = async (name, args, options) => {
+        if (name === "portal_case_chat_post_v1") {
+          const body = String((args as Record<string, unknown>).p_body);
+          await new Promise<void>((resolve) => gates.set(body, resolve));
+        }
+        return inner.transport(name, args, options);
+      };
+      return { transport, release: (body: string) => act(async () => gates.get(body)?.()) };
+    }
+    async function sendBoth() {
+      await screen.findByText("Здравствуйте");
+      for (const text of ["Первое", "Второе"]) {
+        await fireEvent.changeText(screen.getByTestId("chat-input"), text);
+        await fireEvent.press(screen.getByTestId("chat-send"));
+      }
+      await waitFor(() => expect(screen.getByTestId("chat-send-status")).toHaveTextContent("Отправляем…"));
+    }
+
+    it("первая дошла, потом вторая не отправилась: «Сообщение отправлено.» не остаётся, ошибка видна", async () => {
+      const flight = inFlight(["Второе"]);
+      await renderWithClient(newClient(), flight.transport);
+      await sendBoth();
+      await flight.release("Первое");
+      await waitFor(() => expect(screen.getByTestId("chat-send-status")).toHaveTextContent("Отправляем…")); // вторая ещё в пути
+      await flight.release("Второе");
+      expect(await screen.findByTestId("chat-send-error")).toBeTruthy();
+      expect(screen.queryByText("Сообщение отправлено.")).toBeNull();
+      await fireEvent.press(screen.getByTestId("chat-discard")); // неотправленное убрали: старое подтверждение не возвращается
+      expect(screen.queryByText("Сообщение отправлено.")).toBeNull();
+    });
+
+    it("вторая не отправилась раньше, чем дошла первая: неотправленное в ленте, «Сообщение отправлено.» не показывается", async () => {
+      const flight = inFlight(["Второе"]);
+      await renderWithClient(newClient(), flight.transport);
+      await sendBoth();
+      await flight.release("Второе");
+      expect(await screen.findByTestId("chat-send-error")).toBeTruthy();
+      await flight.release("Первое");
+      await waitFor(() => expect(screen.queryByTestId("chat-send-status")).toBeNull());
+      expect(screen.queryByText("Сообщение отправлено.")).toBeNull();
+      expect(screen.getByTestId("outbox-failed")).toBeTruthy();
+    });
+  });
 });

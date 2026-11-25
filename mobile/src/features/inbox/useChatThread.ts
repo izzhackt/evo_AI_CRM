@@ -1,5 +1,5 @@
-// Состояние чата: последняя страница (запрос), более ранние страницы, очередь отправки,
-// опрос раз в 30 с на видимом экране и «прочитано» только на видимом.
+// Состояние чата: последняя страница (запрос), всё уже загруженное (последние страницы по мере опроса и более ранние), очередь
+// отправки, опрос раз в 30 с на видимом экране и «прочитано» только на видимом.
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -23,6 +23,12 @@ import { RpcError, rpcErrorKey, type FrozenWrite } from "@/lib/rpc";
 
 export const CHAT_POLL_MS = 30_000;
 
+/** Все ли сообщения страницы уже загружены (слияние и лишняя перерисовка не нужны). */
+function hasAll(loaded: readonly PortalCaseMessage[], incoming: readonly PortalCaseMessage[]): boolean {
+  const known = new Set(loaded.map((message) => message.sequenceId));
+  return incoming.every((message) => known.has(message.sequenceId));
+}
+
 export function useChatThread() {
   const { transport, userKey } = usePortalApi();
   const client = useQueryClient();
@@ -34,7 +40,10 @@ export function useChatThread() {
   const [staleAtMount] = useState(() => latest.data !== undefined && latest.isStale);
   const awaitingFresh = staleAtMount && !latest.isFetchedAfterMount;
 
-  const [earlier, setEarlier] = useState<readonly PortalCaseMessage[]>([]);
+  // Всё, что студент уже загрузил: более ранние страницы и каждая последняя страница опроса. Последняя страница сервера - окно в 30
+  // сообщений, которое обновление заменяет целиком и которое уезжает вперёд: сообщение, выпавшее из окна после «Показать более ранние»,
+  // остаётся здесь, иначе в ленте дыра (веб копит ленту: `MessagesThread.tsx`, слияние по номеру).
+  const [loaded, setLoaded] = useState<readonly PortalCaseMessage[]>([]);
   const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
   const [earlierMore, setEarlierMore] = useState<boolean | null>(null);
   const [earlierBusy, setEarlierBusy] = useState(false);
@@ -46,7 +55,14 @@ export function useChatThread() {
   const writes = useRef(new Map<string, FrozenWrite>());
 
   const page = latest.data;
-  const messages = useMemo(() => (page ? mergePortalCaseMessages(earlier, page.messages) : earlier), [earlier, page]);
+  // Каждая новая последняя страница сразу вливается в загруженное (состояние выравнивается при отрисовке, без лишнего кадра с дырой).
+  const [foldedPage, setFoldedPage] = useState<typeof page>(undefined);
+  if (page !== foldedPage) {
+    setFoldedPage(page);
+    if (page && !hasAll(loaded, page.messages)) setLoaded(mergePortalCaseMessages(loaded, page.messages));
+  }
+  // Показывается загруженное плюс текущая страница.
+  const messages = useMemo(() => (page ? mergePortalCaseMessages(loaded, page.messages) : loaded), [loaded, page]);
   const hasEarlier = earlierMore ?? page?.hasMore ?? false;
   const cursor = earlierCursor ?? page?.cursor ?? null;
 
@@ -94,6 +110,8 @@ export function useChatThread() {
       } catch (error) {
         setOutbox((current) => markOutbox(current, requestId, "failed"));
         setSendErrorKey(error instanceof RpcError ? rpcErrorKey(error) : "error.generic");
+        // Две отправки подряд: подтверждение одной не должно пережить сбой другой.
+        setJustSent(false);
       }
     },
     [transport, client, queryKey],
@@ -125,7 +143,7 @@ export function useChatThread() {
     setEarlierFailed(false);
     try {
       const older = await readChatPage(transport, cursor);
-      setEarlier((current) => mergePortalCaseMessages(current, older.messages));
+      setLoaded((current) => mergePortalCaseMessages(current, older.messages));
       setEarlierCursor(older.cursor);
       setEarlierMore(older.hasMore);
     } catch {

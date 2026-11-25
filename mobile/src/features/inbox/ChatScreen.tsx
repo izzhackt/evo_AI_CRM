@@ -11,10 +11,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PORTAL_CASE_MESSAGE_BODY_LIMIT, type OutboxItem, type PortalCaseMessage } from "@/domain/inbox-model";
 import { dayKey, dayLabel, timeLabel } from "@/features/inbox/format";
+import { useAnnounceOnAppear } from "@/features/inbox/useAnnounceOnAppear";
 import { useChatThread } from "@/features/inbox/useChatThread";
 import { useIncomingNotice } from "@/features/inbox/useIncomingNotice";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import { useLang } from "@/i18n/LangProvider";
+import { TOP_BAR_HEIGHT } from "@/shell/top-bar-metrics";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
@@ -85,22 +87,29 @@ export function ChatScreen() {
   );
   const trimmed = draft.trim();
   const canSend = trimmed.length >= 1;
-  // Статус отправки под полем (веб: `role="status"` у формы): «Отправляем…», затем «Сообщение отправлено.» до следующей отправки.
+  // Статус отправки под полем (веб: `role="status"` у формы): «Отправляем…», затем «Сообщение отправлено.» до следующей отправки. Пока в
+  // ленте стоит неотправленное (сбой другой отправки), «отправлено» не показывается и не озвучивается: оно читалось бы как итог всего.
   const sending = thread.outbox.some((item) => item.status === "sending");
-  const sendStatus = sending ? strings.sending : thread.justSent ? strings.sentStatus : "";
+  const failedPending = thread.outbox.some((item) => item.status === "failed");
+  const confirmed = thread.justSent && !failedPending;
+  const sendStatus = sending ? strings.sending : confirmed ? strings.sentStatus : "";
   // Читалка говорит только о том, что случилось на виду: беседа под другой вкладкой молчит (useIncomingNotice, useScreenVisible).
   useIncomingNotice(thread.messages, strings.newMessageNotice, format, { visible: thread.visible, awaitingFresh: thread.awaitingFresh });
   // Подтверждение отправки озвучивается один раз за отправку и только если пришло на виду: вернувшись позже, студент его не услышит.
   const sentHandled = useRef(false);
   useEffect(() => {
-    if (!thread.justSent) {
+    if (!confirmed) {
       sentHandled.current = false;
       return;
     }
     if (sentHandled.current) return;
     sentHandled.current = true;
     if (thread.visible) announce(strings.sentStatus, { queue: true });
-  }, [thread.justSent, thread.visible, strings.sentStatus]);
+  }, [confirmed, thread.visible, strings.sentStatus]);
+  // Сбои говорятся читалке сами (веб: `role="alert"` читается, а на iPhone `accessibilityRole="alert"` молчит): один раз за появление.
+  useAnnounceOnAppear(thread.query.isError && thread.query.data !== undefined, thread.visible, strings.refreshError);
+  useAnnounceOnAppear(thread.sendErrorKey !== null, thread.visible, strings.sendError);
+  useAnnounceOnAppear(thread.earlierFailed, thread.visible, strings.loadEarlierError);
 
   const submit = () => {
     if (thread.send(draft)) setDraft("");
@@ -111,7 +120,7 @@ export function ChatScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + TOP_BAR_HEIGHT : 0}
       style={{ flex: 1, backgroundColor: tokens.bg, paddingBottom: keyboard > 0 ? keyboard + insets.bottom : 0 }}
       testID="chat-screen"
     >

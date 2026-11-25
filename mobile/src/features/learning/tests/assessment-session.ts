@@ -117,11 +117,11 @@ export class AssessmentSession {
   /**
    * Экран закрыт (свайп назад, выход, выход из кабинета): ответы, которые ещё не ушли, отправляются «по возможности»
    * (запрос идёт и после закрытия), повторов по таймеру больше нет. Кроме «Выйти без сохранения» (`discard`): там студент
-   * подтвердил, что несохранённое пропадёт, и закрытие экрана не должно его отправлять.
+   * подтвердил, что несохранённое пропадёт, и `flush` ничего не шлёт, так что закрытие экрана тоже ничего не отправит.
    */
   dispose(): void {
     if (this.disposed) return;
-    if (!this.discarded && this.state.attempt?.status === "draft" && !this.state.reloadRequired && (this.dirty || this.retry !== null)) void this.flush().catch(() => undefined);
+    if (this.state.attempt?.status === "draft" && !this.state.reloadRequired && (this.dirty || this.retry !== null)) void this.flush().catch(() => undefined);
     this.disposed = true;
     if (this.timer) this.env.clearTimer(this.timer);
     this.timer = null;

@@ -557,7 +557,11 @@ function hangingEnv() {
     waiting.shift()?.({ data: null, error: { code: null, message: "net" }, status: null });
     await settle();
   };
-  return { env, calls, timers, advance, settle, fail };
+  const succeed = async (data: unknown) => {
+    waiting.shift()?.({ data, error: null, status: 200 });
+    await settle();
+  };
+  return { env, calls, timers, advance, settle, fail, succeed };
 }
 
 describe("таймеры сессии не остаются без хозяина (ревью #1559)", () => {
@@ -646,6 +650,31 @@ describe("«Выйти без сохранения» - настоящий отк
     expect(hang.timers.size).toBe(0); // и повтора по таймеру после отказа тоже нет
     expect(mid.getState().phase).toBe("running"); // экран не застрял на «сохраняем»
     mid.dispose();
+
+    // То же, но отправка ответов в полёте удаётся: без отказа сразу ушло бы завершение, с отказом оно не уходит.
+    const ok = hangingEnv();
+    const sent = new AssessmentSession(ok.env, "english36", null, normalizeAssessmentAttempt(answered));
+    sent.select("e1", "b");
+    const finishing = sent.complete();
+    await ok.settle();
+    expect(ok.calls).toEqual([SAVE]);
+    sent.discard();
+    await ok.succeed(attemptFixture("english36", { revision: 2, answers: { ...answersFor("english36", 36), e1: "b" } }));
+    await finishing;
+    expect(ok.calls).toEqual([SAVE]); // завершение не ушло
+    expect(sent.getState().phase).toBe("running");
+    sent.dispose();
+  });
+
+  it("«Завершить» после отказа ничего не делает: состояние не мигает «Сохраняем…»", async () => {
+    const answered = attemptFixture("english36", { answers: answersFor("english36", 36) });
+    const session = new AssessmentSession(sessionHarness({}).env, "english36", null, normalizeAssessmentAttempt(answered));
+    const phases: string[] = [];
+    session.subscribe(() => phases.push(session.getState().phase));
+    session.discard();
+    await session.complete();
+    expect(phases).toEqual([]);
+    session.dispose();
   });
 
   it("уход не состоялся: `keep` возвращает сохранение, тот же замороженный запрос уходит снова, ничего не потеряно", async () => {
@@ -713,7 +742,8 @@ describe("квитанцию записи не удалось прочитать
   });
 
   it("ревизии в ответе нет, она не целая, чужая попытка или она меньше известной: прежняя ревизия остаётся, как раньше", async () => {
-    for (const reply of [{ attemptId: ATTEMPT_ID }, unreadable({ revision: "2" }), unreadable({ revision: 2.5 }), unreadable({ revision: -1 }), unreadable({ attemptId: OTHER_ATTEMPT_ID }), unreadable({ revision: 0 }), "не объект", null]) {
+    // Числа больше известной ревизии (4): иначе правило «только вперёд» скрыло бы, что остальное отвергается само по себе.
+    for (const reply of [{ attemptId: ATTEMPT_ID }, unreadable({ revision: "9" }), unreadable({ revision: 9.5 }), unreadable({ revision: Number.POSITIVE_INFINITY }), unreadable({ revision: -1 }), unreadable({ attemptId: OTHER_ATTEMPT_ID, revision: 9 }), unreadable({ attemptId: undefined, revision: 9 }), unreadable({ revision: 3 }), "не объект", null]) {
       const h = sessionHarness({ [SAVE]: [reply] });
       const session = new AssessmentSession(h.env, "orvis92", null, parse("orvis92", { revision: 4 }));
       session.select("o1", "3");

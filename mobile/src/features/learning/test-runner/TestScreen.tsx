@@ -129,7 +129,6 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
     <StackPage
       header={<SubHeader title={title} onBack={back} backLabel={c.backToHome} testID="test-title" right={running && state.remaining !== null ? <Clock state={state} /> : undefined} />}
       testID="test-screen"
-      bottomPad={32}
       scrollRef={scroller}
     >
       {phase === "intro" || phase === "starting" ? <Intro form={form} state={state} onStart={() => void session.start()} /> : null}

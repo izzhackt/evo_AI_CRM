@@ -290,6 +290,28 @@ describe("шапка пути и плашка", () => {
     expect(flat(heading)).toMatchObject({ position: "absolute", width: 1, height: 1, color: "transparent" });
   });
 
+  it("приветствие первым в дереве читалки, затем заголовок пути (веб: h1 приветствия, затем скрытый h2)", async () => {
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    const heading = await screen.findByTestId("journey-heading");
+    const headers = screen.getAllByRole("header", { includeHiddenElements: true });
+    expect(headers[0]).toHaveTextContent("Здравствуйте, Тест Студентов");
+    expect(headers[1]).toBe(heading);
+    // и по месту на экране заголовок не выше приветствия: он стоит у нижнего края блока приветствия, а не в углу шапки
+    expect(flat(heading)).toMatchObject({ position: "absolute", left: 0, bottom: 0 });
+    expect(flat(heading).top).toBeUndefined();
+  });
+
+  it.each([
+    ["MY", "с фото столицы"],
+    ["CN", "без фото (тёмная плашка)"],
+  ])("низ шапки пути 52 всегда, %s: когда фото приходит позже индекса каталога, шапка не вырастает (веб: `padding-bottom: 52px`)", async (country) => {
+    const { transport } = fakeTransport(homeHandlers(country));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("hero-sub");
+    expect(flat(screen.getByTestId("hero-content"))).toMatchObject({ paddingTop: 22, paddingBottom: 52 });
+  });
+
   it("после сохранения страны читалка называет новый заголовок пути; тот же выбор ничего не объявляет", async () => {
     let choice: unknown = saved("MY");
     const { transport } = fakeTransport(
@@ -321,6 +343,7 @@ describe("«Шаг N из M» ведёт к текущему шагу", () => {
   const stepsLabel = getPortalStrings("timeline", "ru").stepsLabel;
 
   it("раскрывает путь и текущий шаг и прокручивает его под закреплённую строку: место блоков, высота строки и 12 px", async () => {
+    setReducedMotionForTests(false); // плавная прокрутка; при «Уменьшить движение» она мгновенная (тест ниже)
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent(await screen.findByTestId("journey-now-row"), "layout", layout(90));
@@ -336,6 +359,7 @@ describe("«Шаг N из M» ведёт к текущему шагу", () => {
   });
 
   it("путь уже на экране - прокрутка сразу, без ожидания раскладки", async () => {
+    setReducedMotionForTests(false);
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent(await screen.findByTestId("journey-now-row"), "layout", layout(90));
@@ -348,7 +372,22 @@ describe("«Шаг N из M» ведёт к текущему шагу", () => {
     expect(scrollTo).toHaveBeenCalledWith({ y: 478, animated: true });
   });
 
+  it("при «Уменьшить движение» прокрутка к текущему шагу мгновенная (веб: `behavior: auto`)", async () => {
+    setReducedMotionForTests(true);
+    const { transport } = fakeTransport(homeHandlers("MY"));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await fireEvent(await screen.findByTestId("journey-now-row"), "layout", layout(90));
+    await fireEvent.press(screen.getByTestId("journey-fold"));
+    await fireEvent(await screen.findByTestId("journey-body"), "layout", layout(700, 400));
+    await fireEvent(screen.getByLabelText(stepsLabel), "layout", layout(500, 60));
+    await fireEvent(screen.getByTestId("step-my-2-documents"), "layout", layout(120, 120));
+    scrollTo.mockClear();
+    await fireEvent.press(screen.getByTestId("journey-now"));
+    expect(scrollTo).toHaveBeenCalledWith({ y: 478, animated: false });
+  });
+
   it("шаг у самого верха не уходит в минус", async () => {
+    setReducedMotionForTests(false);
     const { transport } = fakeTransport(homeHandlers("MY"));
     await renderPortal(<HomeScreen />, testApi(transport));
     await fireEvent(await screen.findByTestId("journey-now-row"), "layout", layout(90));

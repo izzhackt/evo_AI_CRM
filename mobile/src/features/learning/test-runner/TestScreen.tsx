@@ -22,6 +22,7 @@ import { TestNavigator } from "@/features/learning/test-runner/TestNavigator";
 import { Chip, StackPage, SubHeader, useBack } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import type { MobileStringKey } from "@/i18n";
+import { useAbandonOnSignOut } from "@/session/sign-out-signal";
 import { useTheme } from "@/theme/ThemeProvider";
 import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
@@ -74,6 +75,8 @@ function TestFlow({ formId, knownDraft, initialResult, form }: { formId: string;
 
   useWarmMath();
   useEffect(() => () => session.dispose(), [session]);
+  // Выход из аккаунта: токен отозван, ни таймер, ни закрытие экрана больше ничего не шлют (QA 23: `save_learning_test_v1` с отозванным токеном, 401).
+  useAbandonOnSignOut(session);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (status) => (status === "active" ? session.onForeground() : session.onBackground()));
     return () => sub.remove();

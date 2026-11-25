@@ -6,6 +6,8 @@ import { normalizeAssessmentAttempt, normalizeAssessmentCatalog } from "@/featur
 import { createWrite, rpcRead, rpcWrite, type FrozenWrite, type RpcTransport } from "@/lib/rpc";
 import { PortalDecodeError } from "@/domain/portal-source";
 
+const SAVE_WRITE = "save_student_assessment_answers_v1";
+
 function decoded<T>(parse: (value: unknown) => T, value: unknown): T {
   try {
     return parse(value);
@@ -20,7 +22,7 @@ export const readAssessmentAttempt = async (t: RpcTransport, attemptId: string):
 
 export const startAssessmentWrite = (key: StudentAssessmentKey, id?: string): FrozenWrite => createWrite("start_student_assessment_v1", { p_instrument_key: key }, { requestId: id });
 export const saveAssessmentWrite = (i: { attemptId: string; expectedRevision: number; answers: AssessmentAnswers }, id?: string): FrozenWrite =>
-  createWrite("save_student_assessment_answers_v1", { p_attempt_id: i.attemptId, p_expected_revision: i.expectedRevision, p_answers: i.answers }, { requestId: id });
+  createWrite(SAVE_WRITE, { p_attempt_id: i.attemptId, p_expected_revision: i.expectedRevision, p_answers: i.answers }, { requestId: id });
 export const completeAssessmentWrite = (i: { attemptId: string; expectedRevision: number; answers: AssessmentAnswers }, id?: string): FrozenWrite =>
   createWrite("complete_student_assessment_v1", { p_attempt_id: i.attemptId, p_expected_revision: i.expectedRevision, p_answers: i.answers }, { requestId: id });
 
@@ -36,10 +38,13 @@ export class UnreadableReceiptError extends PortalDecodeError {
   }
 }
 
-function receiptRevision(raw: unknown, attemptId: unknown): number | null {
-  if (typeof attemptId !== "string" || typeof raw !== "object" || raw === null) return null;
+/** Только для записи ответов и только ровно следующая ревизия (`p_expected_revision + 1`): любое другое число в нечитаемом ответе веры нет. */
+function receiptRevision(raw: unknown, write: FrozenWrite): number | null {
+  const { p_attempt_id: attemptId, p_expected_revision: expected } = write.args;
+  if (write.name !== SAVE_WRITE || typeof attemptId !== "string" || typeof expected !== "number" || !Number.isSafeInteger(expected + 1)) return null;
+  if (typeof raw !== "object" || raw === null) return null;
   const { attemptId: id, revision } = raw as { attemptId?: unknown; revision?: unknown };
-  return id === attemptId && typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
+  return id === attemptId && revision === expected + 1 ? revision : null;
 }
 
 export const sendAssessment = async (t: RpcTransport, w: FrozenWrite): Promise<AssessmentAttempt> => {
@@ -47,6 +52,6 @@ export const sendAssessment = async (t: RpcTransport, w: FrozenWrite): Promise<A
   try {
     return normalizeAssessmentAttempt(raw);
   } catch {
-    throw new UnreadableReceiptError(receiptRevision(raw, w.args.p_attempt_id));
+    throw new UnreadableReceiptError(receiptRevision(raw, w));
   }
 };

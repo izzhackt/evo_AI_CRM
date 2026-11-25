@@ -97,6 +97,8 @@ export class CscaTestSession {
   private finalizing = false;
   private startWrite: FrozenWrite | null = null;
   private disposed = false;
+  /** Выход из аккаунта: токен отозван, ни одного запроса, ни по таймеру, ни при закрытии экрана (`abandon`). */
+  private abandoned = false;
   private visible = true;
   /** Выборы и флажки, ещё не подтверждённые сервером (для повторного наложения после конфликта). */
   private touched = new Set<string>();
@@ -144,7 +146,21 @@ export class CscaTestSession {
    * уходят «по возможности» (запрос идёт и после закрытия), затем таймеры останавливаются.
    */
   dispose(): void {
+    if (this.abandoned) return;
     if (this.attempt?.status === "draft" && this.state.phase === "running") void this.flush({ settle: true }).catch(() => undefined);
+    this.disposed = true;
+    if (this.batchTimer) this.env.clearTimer(this.batchTimer);
+    if (this.tickTimer) this.env.clearTimer(this.tickTimer);
+    this.batchTimer = null;
+    this.tickTimer = null;
+  }
+
+  /**
+   * Выход из аккаунта: токен отозван (или вот-вот будет), и любой запрос закончился бы 401. Окончательно: таймеры остановлены,
+   * ни сохранение, ни досылка при закрытии экрана, ни завершение, ни перечитывание больше ничего не отправляют.
+   */
+  abandon(): void {
+    this.abandoned = true;
     this.disposed = true;
     if (this.batchTimer) this.env.clearTimer(this.batchTimer);
     if (this.tickTimer) this.env.clearTimer(this.tickTimer);
@@ -187,7 +203,7 @@ export class CscaTestSession {
 
   private async reloadAttempt(): Promise<CscaTestAttempt | null> {
     const current = this.attempt;
-    if (!current) return null;
+    if (!current || this.abandoned) return null;
     let fresh: CscaTestAttempt;
     try {
       fresh = await readCscaTestAttemptV1(this.env.transport, current.attemptId);
@@ -223,6 +239,7 @@ export class CscaTestSession {
   }
 
   async start(): Promise<void> {
+    if (this.abandoned) return; // вышли из аккаунта, а кнопку «Начать» успели нажать: запрос с отозванным токеном не нужен
     this.patch({ phase: "starting", error: null });
     if (this.knownDraft) {
       // «Продолжить тест»: сначала тот самый черновик. Если срок вышел, чтение завершает его
@@ -332,7 +349,7 @@ export class CscaTestSession {
    */
   async resyncClock(): Promise<void> {
     const current = this.attempt;
-    if (!current || current.status !== "draft") return;
+    if (!current || current.status !== "draft" || this.abandoned) return;
     let fresh: CscaTestAttempt;
     try {
       fresh = await readCscaTestAttemptV1(this.env.transport, current.attemptId);
@@ -349,6 +366,7 @@ export class CscaTestSession {
   // ---- сохранение ------------------------------------------------------------------------
   /** Выбор: статус «Сохраняем…», отправка через 1,5 с, не раньше 2 с после прошлой (§7.3). */
   private scheduleSave(minDelay = SAVE_ON_CHOICE_MS): void {
+    if (this.abandoned) return; // после выхода таймеров и записи больше нет (экран к этому часу уже замер: `patch` после `abandon` пуст)
     this.dirty = true;
     if (this.retry) return; // таймер повтора не сбивается
     this.patch({ saveStatus: "pending" });
@@ -361,7 +379,9 @@ export class CscaTestSession {
   }
 
   async flush(options: { settle?: boolean } = {}): Promise<void> {
+    if (this.abandoned) return;
     while (this.saving) await this.saving;
+    if (this.abandoned) return; // вышли, пока ждали прошлый запрос: следующий уже не уходит
     const current = this.attempt;
     if (!current || current.status !== "draft") return;
     if (options.settle) {
@@ -404,6 +424,8 @@ export class CscaTestSession {
     try {
       receipt = await sendTestSave(this.env.transport, request.write);
     } catch (error) {
+      // Вышли из аккаунта, пока запрос шёл: повтор, перечитывание и завершение с отозванным токеном не заводятся.
+      if (this.abandoned) return;
       const code = cscaFailure(error);
       this.lastSaveAt = this.env.now();
       if (code === "unavailable") {
@@ -468,7 +490,7 @@ export class CscaTestSession {
 
   // ---- завершение ------------------------------------------------------------------------
   async finalize(): Promise<void> {
-    if (this.finalizing) return;
+    if (this.finalizing || this.abandoned) return;
     const current = this.attempt;
     if (!current) return;
     this.finalizing = true;
@@ -477,6 +499,7 @@ export class CscaTestSession {
       // Сначала несохранённое (§7.4): повтор после сбоя, текущее состояние и время на задании.
       for (;;) {
         await this.flush({ settle: true });
+        if (this.abandoned) return; // вышли из аккаунта посреди завершения: повторы и запрос завершения уже не нужны
         const latest = this.attempt;
         if (!latest || latest.status !== "draft") return;
         if (!this.dirty && !this.retry) break;
@@ -493,6 +516,7 @@ export class CscaTestSession {
       let complete = completeTestWrite({ attemptId: current.attemptId, expectedRevision: this.revision }, this.env.newId());
       let completeRevision = this.revision;
       for (let n = 0; n < 12; n += 1) {
+        if (this.abandoned) return;
         if (completeRevision !== this.revision) {
           completeRevision = this.revision;
           complete = completeTestWrite({ attemptId: current.attemptId, expectedRevision: this.revision }, this.env.newId());

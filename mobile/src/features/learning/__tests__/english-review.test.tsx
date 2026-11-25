@@ -1,7 +1,7 @@
 // «Повторение ошибок» как на сайте (G53, G54 и ревью #1567): модуль из ссылки, проверка ответа сразу сервером, вместо формы формулировка
 // и разбор, вердикт и номер задания слышит читалка, «Далее» прокручивает наверх, четыре кода ошибки сайта, пустой банк со значком,
 // «Разобрано: N из M» и «Все уроки». Чтения идут по настоящему пути приложения на поддельном транспорте; данные синтетические.
-import { fireEvent, screen } from "@testing-library/react-native";
+import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { AccessibilityInfo, ScrollView } from "react-native";
 
@@ -144,6 +144,21 @@ describe("повторение ошибок", () => {
     expect(await screen.findByTestId("english-review-error")).toHaveTextContent(text);
     // Форма остаётся: ответ можно проверить ещё раз.
     expect(screen.getByTestId("opt-b")).toBeTruthy();
+  });
+
+  it("сбой проверки называет читалке `announce`: плашка с ролью alert на iPhone сама не озвучивается (ревью #1567, мелочь 2)", async () => {
+    // `announceForAccessibility` в Jest уже общий мок: вызовы прошлых тестов копятся, поэтому счёт начинается с нуля.
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    announce.mockClear();
+    const fake = fakeTransport({ learning_review_v1: reviewItems(1, 1), learning_review_check_v1: failure("42501", 403) });
+    await renderPortal(<EnglishReviewScreen moduleId={MODULE_ID} />, testApi(fake.transport));
+    await fireEvent.press(await screen.findByTestId("opt-b"));
+    await fireEvent.press(screen.getByTestId("english-review-check"));
+    expect(await screen.findByTestId("english-review-error")).toHaveTextContent("Урок недоступен. Войдите в кабинет заново.");
+    await waitFor(() => expect(announce).toHaveBeenCalledWith("Урок недоступен. Войдите в кабинет заново."));
+    // Без сбоя плашки нет, и пустая строка не озвучивается.
+    expect(announce).not.toHaveBeenCalledWith("");
+    announce.mockRestore();
   });
 
   it("пока идёт проверка: кнопка называется «Сохраняем…» для читалки (общая кнопка прячет подпись при busy)", async () => {

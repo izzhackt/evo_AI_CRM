@@ -83,6 +83,8 @@ export class AssessmentSession {
   private paused = false;
   /** Студент подтвердил «Выйти без сохранения»: неотправленное не отправляется ни по таймеру, ни при закрытии экрана (`discard`). */
   private discarded = false;
+  /** Студент вышел из аккаунта: отказ окончательный, ни одного запроса с уже отозванным токеном (`abandon`). */
+  private abandoned = false;
 
   constructor(
     private readonly env: AssessmentEnv,
@@ -139,7 +141,7 @@ export class AssessmentSession {
 
   /** «Начать» или «Продолжить»: известный черновик читается, иначе открывается новая попытка. */
   async start(): Promise<void> {
-    if (this.starting) return;
+    if (this.starting || this.abandoned) return;
     this.starting = true;
     this.patch({ phase: "starting", error: null });
     try {
@@ -168,6 +170,7 @@ export class AssessmentSession {
   select(questionId: string, optionId: string): void {
     // Веб: пока идёт завершение или нужна сверка после конфликта, выбор закрыт.
     if (this.state.phase !== "running" || this.state.reloadRequired) return;
+    this.keepIfDiscarded();
     this.answers = { ...this.answers, [questionId]: optionId };
     this.dirty = true;
     this.patch({ answers: { ...this.answers }, saveStatus: "dirty" });
@@ -188,6 +191,7 @@ export class AssessmentSession {
   goTo(page: number): void {
     const attempt = this.state.attempt;
     if (!attempt || this.state.phase !== "running") return;
+    this.keepIfDiscarded();
     this.patch({ page: Math.min(Math.max(0, page), assessmentPageCount(attempt.questions.length, this.pageSize)) });
   }
 
@@ -228,6 +232,7 @@ export class AssessmentSession {
    * После конфликта уйти нельзя, пока студент не сверит ответы (веб: `reloadBeforeExit`).
    */
   async saveForExit(): Promise<boolean> {
+    this.keepIfDiscarded(); // «Сохранить и выйти» после отказа, который не состоялся: студент просит сохранить
     while (this.completion) await this.completion;
     if (this.state.reloadRequired) return false;
     return this.flush();
@@ -260,7 +265,8 @@ export class AssessmentSession {
       if (code === "unavailable") {
         // Тот же запрос: сервер мог его уже принять, повтор вернёт ту же квитанцию.
         this.retry = request;
-        this.patch({ saveStatus: "unconfirmed", failures: this.state.failures + 1 });
+        // `error: null`: прежний сбой другого рода (например, «не удалось прочитать ответ») не должен прятать этот, сетевой.
+        this.patch({ saveStatus: "unconfirmed", error: null, failures: this.state.failures + 1 });
         this.scheduleRetry();
         return;
       }
@@ -291,7 +297,9 @@ export class AssessmentSession {
   /**
    * «Выйти без сохранения» (студент подтвердил окно): неотправленное отбрасывается по-настоящему. Таймеры снимаются, новых запросов
    * нет: ни повтора, ни досылки при закрытии экрана (`dispose`), ни завершения. Запрос, который уже в полёте, отозвать нельзя.
-   * Уход не состоялся (экран остался): `keep()` возвращает всё как было.
+   * Уход не состоялся (экран остался): первое же следующее действие студента (выбор, страница, «Завершить», «Повторить сохранение»,
+   * «Показать сохранённые», «Сохранить и выйти») снимает отказ, и сохранение идёт дальше тем же замороженным запросом. Таймером отказ
+   * не снимается: если экран закрывается медленно (JS занят), поздний сброс отправил бы ответы после слов «пропадут».
    */
   discard(): void {
     if (this.disposed || this.discarded) return;
@@ -302,12 +310,27 @@ export class AssessmentSession {
     }
   }
 
-  /** После `discard()` экран не ушёл: сохранение продолжается, замороженные запросы те же, ничего не потеряно. */
-  keep(): void {
-    if (this.disposed || !this.discarded) return;
+  /**
+   * Выход из аккаунта: то же, что `discard`, но окончательно. Токен уже отозван или вот-вот будет, и любой запрос закончился бы 401,
+   * поэтому ни повтор, ни досылка при закрытии экрана, ни следующее действие студента ничего не отправят.
+   */
+  abandon(): void {
+    this.discard();
+    this.abandoned = true;
+  }
+
+  /** Следующее действие студента после отказа: он остался на экране, значит, отказ недействителен; сохранение продолжается. */
+  private keepIfDiscarded(): void {
+    if (!this.discarded || this.abandoned || this.disposed) return;
     this.discarded = false;
     if (this.retry) this.scheduleRetry();
     else if (this.dirty) this.armSaveTimer();
+  }
+
+  /** «Повторить сохранение»: действие студента, поэтому снимает отказ (системные вызовы `flush` его не снимают) и шлёт сразу. */
+  retryNow(): Promise<boolean> {
+    this.keepIfDiscarded();
+    return this.flush();
   }
 
   /**
@@ -333,7 +356,8 @@ export class AssessmentSession {
    */
   async loadSaved(): Promise<void> {
     const attempt = this.state.attempt;
-    if (!attempt || this.state.reload === "loading") return;
+    if (!attempt || this.state.reload === "loading" || this.abandoned) return;
+    this.keepIfDiscarded();
     this.patch({ reload: "loading" });
     try {
       const fresh = await readAssessmentAttempt(this.env.transport, attempt.attemptId);
@@ -356,7 +380,8 @@ export class AssessmentSession {
   /** «Завершить»: нужны ответы на все вопросы; сначала досылается несохранённое. */
   async complete(): Promise<void> {
     const attempt = this.state.attempt;
-    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired || this.discarded) return;
+    if (!attempt || this.state.phase !== "running" || this.state.reloadRequired || this.abandoned) return;
+    this.keepIfDiscarded();
     if (attempt.questions.some((q) => !(q.id in this.answers))) return this.patch({ error: "invalid" });
     this.patch({ phase: "completing", error: null });
     const run = this.runComplete(attempt);

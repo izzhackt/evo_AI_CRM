@@ -7,6 +7,7 @@ import { Dimensions, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { EnglishScreen } from "@/features/learning/english/EnglishScreen";
+import { actionsStacked, longestWordLength } from "@/features/learning/english/module-actions";
 import { LessonTileCover, fallbackArtWidth, lessonHeroHeight } from "@/features/learning/english/LessonCover";
 import { LESSON_ART_KEYS, LessonArt } from "@/features/learning/english/LessonArt";
 import { LESSON_COVERS } from "@/features/learning/english/covers";
@@ -97,6 +98,63 @@ describe("блок модуля (G52)", () => {
     const row = flat(screen.getByTestId("english-module-actions"));
     expect(row.flexDirection).toBe("row");
     expect(row.flexWrap).not.toBe("wrap");
+  });
+});
+
+describe("две кнопки модуля: вместе в строке или одна под другой (ревью #1567, мелочь 3)", () => {
+  const setFontScale = (fontScale: number) => Dimensions.set({ window: { width: 390, height: 844, scale: 3, fontScale }, screen: { width: 390, height: 844, scale: 3, fontScale } });
+  const measureActions = (width: number) => fireEvent(screen.getByTestId("english-module-actions"), "layout", { nativeEvent: { layout: { x: 0, y: 0, width, height: 0 } } });
+  const REVIEW = "Повторить ошибки";
+  const TEST = "Тест по английскому";
+
+  it("правило: самое длинное слово подписи («английскому», 11 букв) должно помещаться в половину строки; ширина строки и масштаб шрифта измерены, не угаданы", () => {
+    expect(longestWordLength([REVIEW, TEST])).toBe(11);
+    expect(longestWordLength(["Каталарды кайталоо", "Англис тили боюнча тест"])).toBe(9);
+    const stacked = (rowWidth: number, fontScale: number, labels: readonly string[] = [REVIEW, TEST]) => actionsStacked({ rowWidth, labels, fontSize: 17, fontScale });
+    // Экран 390 pt (строка 358): обычный шрифт в строке, шрифт крупнее 1,5 в колонке.
+    expect(stacked(358, 1)).toBe(false);
+    expect(stacked(358, 1.5)).toBe(true);
+    // Экран 430 pt (строка 398) держит чуть больший шрифт, но не крупнейший.
+    expect(stacked(398, 1.2)).toBe(false);
+    expect(stacked(398, 2)).toBe(true);
+    // Узкий экран 300 pt при обычном шрифте уже в колонке: половина строки уже слова.
+    expect(stacked(268, 1)).toBe(true);
+    // Строка ещё не измерена или кнопка одна: колонки нет.
+    expect(stacked(0, 2)).toBe(false);
+    expect(stacked(100, 2, [TEST])).toBe(false);
+    // Шрифт мельче обычного ширину слова не уменьшает (запас по обычному размеру), больше двух раз не растёт (предел `Text`).
+    expect(stacked(358, 0.8)).toBe(stacked(358, 1));
+    expect(stacked(358, 5)).toBe(stacked(358, 2));
+    // Кыргызские подписи короче по самому длинному слову.
+    expect(stacked(320, 1.2, ["Каталарды кайталоо", "Англис тили боюнча тест"])).toBe(false);
+  });
+
+  it("строка 358 pt при обычном шрифте: кнопки в одной строке поровну", async () => {
+    await open({ learning_review_v1: reviewItems(1, 2) });
+    await measureActions(358);
+    expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("row");
+    for (const id of ["english-review-open", "english-test-open"]) expect(flat(screen.getByTestId(id)).flex).toBe(1);
+  });
+
+  it("крупный шрифт системы: кнопки одна под другой на всю ширину, а не по половине (длинное слово не ломается посреди)", async () => {
+    setFontScale(1.6);
+    await open({ learning_review_v1: reviewItems(1, 2) });
+    await measureActions(358);
+    expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("column");
+    for (const id of ["english-review-open", "english-test-open"]) expect(flat(screen.getByTestId(id)).flex).toBeUndefined();
+  });
+
+  it("узкий экран (320 pt, строка 288) при обычном шрифте: одна под другой", async () => {
+    await open({ learning_review_v1: reviewItems(1, 2) });
+    await measureActions(288);
+    expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("column");
+  });
+
+  it("кнопка одна (банк ошибок пуст): строка остаётся строкой при любом шрифте", async () => {
+    setFontScale(2);
+    await open({});
+    await measureActions(288);
+    expect(flat(screen.getByTestId("english-module-actions")).flexDirection).toBe("row");
   });
 });
 
@@ -245,6 +303,14 @@ describe("обложка (G52, G56)", () => {
     expect(within(without).queryByTestId("lesson-cover-photo", hidden)).toBeNull();
     expect(within(without).getByText("09", hidden)).toBeTruthy();
     expect(within(without).getByTestId("lesson-art", hidden)).toBeTruthy();
+  });
+
+  it("номер урока без фото не растёт с динамическим шрифтом: на сайте он фиксированные 44 px, а рисунок рядом посчитан под обычный размер (ревью #1567, мелочь 1)", async () => {
+    await open({ learning_modules_v1: modulesFixture([{ n: 9, key: "en-m9-l99" }]) });
+    const numeral = within(screen.getByTestId("lesson-cover-en-m9-l99", hidden)).getByText("09", hidden);
+    expect(numeral.props.allowFontScaling).toBe(false);
+    expect(numeral.props.maxFontSizeMultiplier).toBe(1);
+    expect(flat(numeral).fontSize).toBe(44);
   });
 
   it("плашка темы жирным начертанием (800 сайта у приложения самое жирное из шрифтов, 700), заглавными", async () => {

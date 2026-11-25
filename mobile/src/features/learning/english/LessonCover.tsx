@@ -65,7 +65,9 @@ export function LessonTileCover({ lessonKey, orderIndex, done, width }: { lesson
         </>
       ) : (
         <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: FALLBACK_GAP, paddingHorizontal: FALLBACK_PAD_X, paddingVertical: 10 }}>
-          <Text bold tone={done ? "ok" : "text2"} style={{ fontSize: 44, lineHeight: 44, letterSpacing: -1.76, fontVariant: ["tabular-nums"] }} testID="lesson-number-text">
+          {/* Номер урока на веб-плитке фиксированный (44 px), а ширина рисунка рядом (`fallbackArtWidth`) посчитана под обычный размер:
+              с динамическим шрифтом цифра вырастала бы до 88 pt и вытесняла рисунок. */}
+          <Text bold tone={done ? "ok" : "text2"} allowFontScaling={false} maxFontSizeMultiplier={1} style={{ fontSize: 44, lineHeight: 44, letterSpacing: -1.76, fontVariant: ["tabular-nums"] }} testID="lesson-number-text">
             {num}
           </Text>
           <View style={{ alignSelf: "center", flexShrink: 1 }}>

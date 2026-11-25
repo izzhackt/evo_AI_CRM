@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import { AccessibilityInfo, ScrollView, StyleSheet } from "react-native";
 
 import { TestScreen } from "@/features/learning/test-runner/TestScreen";
+import { announceSignOut } from "@/session/sign-out-signal";
 import type { RpcTransport } from "@/lib/rpc";
 import { CHAT_FAB_CLEARANCE, TAB_BAR_CLEARANCE } from "@/shell/useTabBarClearance";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -296,6 +297,48 @@ describe("часы и озвучка", () => {
     await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={done.attemptId} />, testApi(transport));
     await screen.findByTestId("test-result");
     expect(announce).not.toHaveBeenCalled();
+  });
+});
+
+describe("выход из аккаунта посреди теста (QA 23: `save_learning_test_v1` сразу после `/auth/v1/logout` кончался 401)", () => {
+  const saves = (calls: { name: string }[]) => calls.filter((c) => c.name === "save_learning_test_v1");
+  /** Закрытие экрана досылает выбор синхронно с очисткой эффекта; несколько проходов по обещаниям хватает, чтобы запрос дошёл до сети. */
+  const settle = () =>
+    act(async () => {
+      for (let i = 0; i < 20; i += 1) await Promise.resolve();
+    });
+
+  it("контроль: без выхода закрытие экрана досылает выбор, который не успел уйти по таймеру", async () => {
+    const { calls } = await openRunning();
+    await fireEvent.press(screen.getByTestId("option-b"));
+    expect(saves(calls)).toHaveLength(0);
+    await screen.unmount();
+    await settle();
+    expect(saves(calls)).toHaveLength(1);
+  });
+
+  it("выход, затем закрытие экрана: выбор не уходит с отозванным токеном", async () => {
+    const { calls } = await openRunning();
+    await fireEvent.press(screen.getByTestId("option-b"));
+    await act(async () => announceSignOut());
+    await screen.unmount();
+    await settle();
+    expect(saves(calls)).toHaveLength(0);
+  });
+
+  it("выход, затем срабатывает таймер сохранения: запись не уходит, даже если экран ещё открыт", async () => {
+    jest.useFakeTimers();
+    try {
+      const { calls } = await openRunning();
+      await fireEvent.press(screen.getByTestId("option-b"));
+      await act(async () => announceSignOut());
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_000);
+      });
+      expect(saves(calls)).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

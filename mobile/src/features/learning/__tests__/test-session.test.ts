@@ -467,6 +467,140 @@ describe("сессия: завершение", () => {
   });
 });
 
+describe("сессия: выход из аккаунта (QA 23: `save_learning_test_v1` сразу после `/auth/v1/logout` кончался 401)", () => {
+  const SAVE_RPC = "save_learning_test_v1";
+  const COMPLETE_RPC = "complete_learning_test_v1";
+  type Wrap = (session: () => CscaTestSession, inner: RpcTransport) => RpcTransport;
+  async function running(extra: Record<string, Reply[]> = {}, wrap?: Wrap) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    let session!: CscaTestSession;
+    const env: SessionEnv = wrap ? { ...h.env, transport: wrap(() => session, h.env.transport) } : h.env;
+    session = new CscaTestSession(env, FORM, null);
+    await session.start();
+    return { h, session, keys: attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[] };
+  }
+  const total = (h: { calls: Call[] }, name: string) => h.calls.filter((c) => c.name === name).length;
+
+  it("выбор не отправлен, выход, затем закрытие экрана: запись не уходит, таймеров не остаётся", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [saveReceipt(2)] });
+    session.select(keys[0], "a");
+    expect(h.pendingTimers()).toBeGreaterThan(0);
+    session.abandon();
+    expect(h.pendingTimers()).toBe(0);
+    session.dispose(); // экран закрывается следом и раньше досылал бы выбор
+    await h.advance(60_000);
+    expect(total(h, SAVE_RPC)).toBe(0);
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("без выхода то же закрытие экрана досылает выбор (чтобы тест выше проверял именно выход)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [saveReceipt(2)] });
+    session.select(keys[0], "a");
+    session.dispose();
+    await flushMicrotasks();
+    expect(total(h, SAVE_RPC)).toBe(1);
+  });
+
+  it("идёт повтор после обрыва: выход гасит таймер повтора, новых запросов нет", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(session.getState().saveStatus).toBe("retrying");
+    const sent = total(h, SAVE_RPC);
+    expect(sent).toBeGreaterThan(0);
+    expect(h.pendingTimers()).toBeGreaterThan(1); // отсчёт и повтор
+    session.abandon();
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 4);
+    expect(total(h, SAVE_RPC)).toBe(sent);
+  });
+
+  it("запрос уже в полёте и обрывается после выхода: повтор не заводится (ни таймера, ни перечитывания)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] }, (get, inner) => async (name, args, options) => {
+      if (name === SAVE_RPC) get().abandon(); // студент вышел, пока запрос шёл
+      return inner(name, args, options);
+    });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    await flushMicrotasks();
+    const sent = total(h, SAVE_RPC);
+    expect(sent).toBeGreaterThan(0);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 4);
+    expect(total(h, SAVE_RPC)).toBe(sent);
+    expect(total(h, "learning_test_attempt_v1")).toBe(0);
+  });
+
+  it("конфликт приходит уже после выхода: попытку не перечитывают с отозванным токеном", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [err("40001", "Learning attempt changed")] }, (get, inner) => async (name, args, options) => {
+      if (name === SAVE_RPC) get().abandon();
+      return inner(name, args, options);
+    });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    await flushMicrotasks();
+    expect(total(h, SAVE_RPC)).toBe(1);
+    expect(total(h, "learning_test_attempt_v1")).toBe(0);
+    expect(session.getState().notice).toBeNull();
+  });
+
+  it("после выхода «Начать», сохранение, завершение, фон и сверка часов ничего не шлют", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [saveReceipt(2)], [COMPLETE_RPC]: [fx("csca_test_complete_diagnostic")] });
+    session.abandon();
+    session.select(keys[0], "a"); // экран после выхода замер, записи и таймеров нет
+    expect(h.pendingTimers()).toBe(0);
+    await session.flush({ settle: true });
+    await session.finalize();
+    session.onBackground();
+    session.onForeground();
+    await session.resyncClock();
+    await h.advance(60_000);
+    expect(h.calls.map((c) => c.name)).toEqual(["start_learning_test_v1"]);
+
+    const idle = harness({ start_learning_test_v1: [draftAttempt()] });
+    const fresh = new CscaTestSession(idle.env, FORM, null);
+    fresh.abandon();
+    await fresh.start(); // кнопку «Начать» успели нажать, пока шёл выход
+    expect(idle.calls).toHaveLength(0);
+    expect(fresh.getState().phase).toBe("intro");
+  });
+
+  it("выход, пока ждали прошлый запрос: следующее сохранение не уходит", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let entered = 0;
+    const { h, session, keys } = await running({ [SAVE_RPC]: [saveReceipt(2)] }, (_get, inner) => async (name, args, options) => {
+      if (name === SAVE_RPC && (entered += 1) === 1) await held; // первый запрос не закончен, пока тест его не отпустит
+      return inner(name, args, options);
+    });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10); // первый запрос ушёл и ждёт ответа
+    expect(entered).toBe(1);
+    session.select(keys[1], "b"); // новый выбор, ещё не отправленный
+    const waiting = session.flush(); // ждёт конца первого запроса
+    session.abandon();
+    release();
+    await waiting;
+    await flushMicrotasks();
+    expect(total(h, SAVE_RPC)).toBe(1);
+  });
+
+  it("выход посреди завершения: запрос завершения не повторяется (раньше шёл до 12 раз с отозванным токеном)", async () => {
+    const { h, session } = await running({ [COMPLETE_RPC]: [NETWORK] }, (get, inner) => async (name, args, options) => {
+      if (name === COMPLETE_RPC) get().abandon();
+      return inner(name, args, options);
+    });
+    await session.finalize();
+    await flushMicrotasks();
+    const sent = total(h, COMPLETE_RPC);
+    expect(sent).toBeGreaterThan(0);
+    expect(sent).toBeLessThanOrEqual(3); // одна отправка с повторами слоя RPC, второго круга нет
+    await h.advance(60_000);
+    expect(total(h, COMPLETE_RPC)).toBe(sent);
+  });
+});
+
 describe("приватность", () => {
   it("тексты серверных ошибок не хранятся ни в состоянии, ни в журнале", async () => {
     const leak = "UNIQUE-SERVER-TEXT";

@@ -10,6 +10,7 @@ import { clearInviteToken } from "@/features/registration/draft-store";
 import { clearPendingSignup } from "@/features/registration/pending-store";
 import { createAccessDeps } from "@/session/deps";
 import { clearAllLocalData } from "@/session/local-data";
+import { announceSignOut } from "@/session/sign-out-signal";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
 
@@ -81,6 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           case "SIGNED_IN":
           case "TOKEN_REFRESHED":
             if (!session) {
+              announceSignOut();
               runId.current += 1;
               setState({ kind: "signedOut", accountDeleted: accountDeletedRef.current });
               setReady(true);
@@ -97,6 +99,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             void resolve(event === "TOKEN_REFRESHED" && (stateRef.current.kind === "active" || stateRef.current.kind === "needsConsent"));
             return;
           case "SIGNED_OUT":
+            announceSignOut();
             void clearAllLocalData();
             runId.current += 1;
             forcedMustSetRef.current = false;
@@ -143,6 +146,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // Первым делом, до запроса на отзыв токена: сессии записи (тест, урок) бросают неотправленное, иначе закрытие экрана слало бы его с отозванным токеном.
+    announceSignOut();
     await supabase.auth.signOut({ scope: "local" });
     await clearAllLocalData();
     runId.current += 1;
@@ -156,6 +161,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const refreshAccess = useCallback(async () => {
     if (await deps.authUserIsDeleted()) {
       accountDeletedRef.current = true;
+      announceSignOut();
       await supabase.auth.signOut({ scope: "local" });
       return;
     }

@@ -5,13 +5,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Languages } from "lucide-react-native";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, View, useWindowDimensions } from "react-native";
 
 import type { LearningLessonSummary, LearningModule } from "@web/lib/portal/learning";
 
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey, useRefetchOnFocus } from "@/api/queries";
 import { LessonTileCover } from "@/features/learning/english/LessonCover";
+import { ACTIONS_GAP, actionsStacked } from "@/features/learning/english/module-actions";
 import { useEnglishModules, useEnglishReview } from "@/features/learning/queries-english";
 import { SegmentBar } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
@@ -90,12 +91,19 @@ function LessonGrid({ lessons }: { lessons: readonly LearningLessonSummary[] }) 
 
 function ModuleBlock({ module }: { module: LearningModule }) {
   const { lang, t, format } = useLang();
+  const { tokens } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const e = t("english");
+  // Ширину строки кнопок сообщает сам телефон; до первого замера кнопки стоят в строке.
+  const [actionsWidth, setActionsWidth] = useState(0);
   // Веб: «Повторить ошибки» только когда банк ошибок не пуст; сбой чтения банка не роняет карту уроков.
   const review = useEnglishReview(module.moduleId);
   const hasReview = (review.data?.length ?? 0) > 0;
   const progress = format(e.progress, { done: String(module.lessonsCompleted), total: String(module.lessonsTotal) });
   const slots = Math.max(module.lessonsTotal, 1);
+  // Две кнопки в строке поровну, пока самое длинное слово подписи помещается в половину; иначе одна под другой (см. `module-actions.ts`).
+  const stacked = actionsStacked({ rowWidth: actionsWidth, labels: hasReview ? [e.reviewEntry, e.testEntry] : [e.testEntry], fontSize: tokens.sizeBody, fontScale });
+  const share = stacked ? undefined : { flex: 1 };
   return (
     <View style={{ gap: 16 }} testID={`english-module-${module.moduleKey}`}>
       <View style={{ gap: 8 }}>
@@ -112,9 +120,9 @@ function ModuleBlock({ module }: { module: LearningModule }) {
           summaryLabel={progress}
         />
         {/* Кнопки в одной строке поровну: когда банк ошибок прочитан и появляется вторая, строка не переносится и плитки не сдвигаются вниз. */}
-        <View testID="english-module-actions" style={{ flexDirection: "row", gap: 8, paddingTop: 4 }}>
-          {hasReview ? <Button label={e.reviewEntry} onPress={() => router.navigate({ pathname: "/english/review", params: { module: module.moduleId } })} style={{ flex: 1 }} testID="english-review-open" /> : null}
-          <Button variant="ghost" label={e.testEntry} onPress={() => router.navigate({ pathname: "/tests/[key]", params: { key: "english36" } })} style={{ flex: 1 }} testID="english-test-open" />
+        <View testID="english-module-actions" onLayout={(event) => setActionsWidth(Math.round(event.nativeEvent.layout.width))} style={{ flexDirection: stacked ? "column" : "row", gap: ACTIONS_GAP, paddingTop: 4 }}>
+          {hasReview ? <Button label={e.reviewEntry} onPress={() => router.navigate({ pathname: "/english/review", params: { module: module.moduleId } })} style={share} testID="english-review-open" /> : null}
+          <Button variant="ghost" label={e.testEntry} onPress={() => router.navigate({ pathname: "/tests/[key]", params: { key: "english36" } })} style={share} testID="english-test-open" />
         </View>
       </View>
       <LessonGrid lessons={module.lessons} />

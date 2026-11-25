@@ -10,7 +10,7 @@ import type { AssessmentAttempt } from "@web/lib/student-assessment-contract";
 import { AssessmentQuestionView } from "@/features/learning/tests/AssessmentQuestionView";
 import type { AssessmentSession, AssessmentUiState } from "@/features/learning/tests/assessment-session";
 import { assessmentPageCount, assessmentPageSize, firstOpenPage, pageQuestions } from "@/features/learning/tests/paging";
-import { isAppNoticeKey, runNotice, type RunNoticeKey } from "@/features/learning/tests/run-notice";
+import { isAppNoticeKey, isBlocked, runNotice, type RunNoticeKey } from "@/features/learning/tests/run-notice";
 import { SegmentBar } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -51,12 +51,33 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
   };
   const select = (questionId: string, optionId: string) => session.select(questionId, optionId);
   const notice = runNotice(state, exitNotice, Platform.OS === "ios");
-  // Строки веба берутся из словаря `tests`, строка «ответы ещё не сохранены» своя (у телефона есть выходы, которых нет у сайта).
-  const textOf = (key: RunNoticeKey) => (isAppNoticeKey(key) ? m(key) : s[key]);
-  const noticeText = notice.messages.map(textOf);
-  const spokenNotice = noticeText.join(" ");
-  // Читалка узнаёт о сбое сохранения без поиска плашки глазами (на iPhone живые области не работают): плашка читается целиком.
-  useEffect(() => announce(spokenNotice), [spokenNotice]);
+  // Строки веба берутся из словаря `tests`, строки «ответы ещё не сохранены» и т. п. свои (у телефона есть выходы, которых нет у сайта).
+  const noticeText = notice.messages.map((key) => (isAppNoticeKey(key) ? m(key) : s[key]));
+  // Читалка узнаёт о сбое сохранения без поиска плашки глазами (на iPhone живые области не работают). Говорится только то, что
+  // добавилось: плашка появилась - читается целиком, к ней прибавилась строка («Сначала сохраним ответы…» после попытки выйти) -
+  // только эта строка; строки ушли или набор тот же (круг повтора) - молчание.
+  const noticeKeys = notice.messages.join("|");
+  const announcedKeys = useRef<readonly string[]>([]);
+  useEffect(() => {
+    const keys = noticeKeys === "" ? [] : (noticeKeys.split("|") as RunNoticeKey[]);
+    const added = keys.filter((key) => !announcedKeys.current.includes(key));
+    announcedKeys.current = keys;
+    if (added.length > 0) announce(added.map((key) => (isAppNoticeKey(key) ? m(key) : s[key])).join(" "));
+  }, [noticeKeys, m, s]);
+  // У сайта сбой, который прошёл, говорит живая область строки статуса («Все ответы сохранены»). На iPhone живые области не работают,
+  // поэтому, когда ответы наконец сохранились после сбоя, это называет `announce`; на Android живая область делает это сама.
+  const failing = isBlocked(state);
+  const afterFailure = useRef(false);
+  useEffect(() => {
+    if (failing) {
+      afterFailure.current = true;
+      return;
+    }
+    if (afterFailure.current && state.saveStatus === "saved") {
+      afterFailure.current = false;
+      if (Platform.OS === "ios") announce(s.statusSaved);
+    }
+  }, [failing, state.saveStatus, s.statusSaved]);
   // Веб: `window.confirm`; на телефоне системное окно с теми же словами.
   const confirmLoadSaved = () =>
     Alert.alert(s.loadSaved, s.confirmReload, [
@@ -97,7 +118,7 @@ export function AssessmentRunner({ session, state, attempt, exitNotice, onSaveAn
             </Text>
           ))}
           {notice.actions.includes("loadSaved") ? <Button variant="ghost" label={s.loadSaved} busy={state.reload === "loading"} onPress={confirmLoadSaved} testID="assessment-load-saved" /> : null}
-          {notice.actions.includes("retrySave") ? <Button variant="ghost" label={s.retrySave} onPress={() => void session.flush()} testID="assessment-retry-save" /> : null}
+          {notice.actions.includes("retrySave") ? <Button variant="ghost" label={s.retrySave} onPress={() => void session.retryNow()} testID="assessment-retry-save" /> : null}
           {notice.actions.includes("leaveAnyway") ? <Button variant="ghost" label={m("assess.leaveAnyway")} onPress={confirmLeave} testID="assessment-leave-anyway" /> : null}
         </View>
       ) : null}

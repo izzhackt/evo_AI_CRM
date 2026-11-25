@@ -16,43 +16,72 @@ export function useBack(fallback: string): () => void {
   return () => (router.canGoBack() ? router.back() : router.navigate(fallback as Href));
 }
 
-export function SubHeader({ title, subtitle, subtitleExtra, avatar, onBack, backLabel, testID, right }: {
+export function SubHeader({ title, subtitle, subtitleExtra, avatar, subtitleBelow = false, onBack, backLabel, testID, right }: {
   title: string;
   subtitle?: string | null;
   /** Рядом со второй строкой (бегущие точки «печатает»); без `subtitle` не рисуется. */
   subtitleExtra?: ReactNode;
   /** Между «назад» и названием (неподвижный робот в шапке Эви). */
   avatar?: ReactNode;
+  /**
+   * Вторая строка стоит под рядом «аватар, название, кнопка» и берёт его ширину, а не узкую колонку между аватаром и кнопкой.
+   * Нужно Эви: рядом с кнопкой «Новый чат» на экране 360-402 pt для подписи остаётся 87-136 pt, и «ИИ-профориентатор EVO» (162 pt при
+   * 13 pt), «EVO ЖИ-кесиптик кеңешчиси» (191 pt) и «10 суроонун 3-суроосу» (154 pt) обрезались. Две строки в той колонке не спасали:
+   * слово «ИИ-профориентатор» (133 pt) шире её на половине телефонов. Остальным экранам такая шапка не нужна.
+   */
+  subtitleBelow?: boolean;
   onBack: () => void;
   backLabel: string;
   testID?: string;
   right?: ReactNode;
 }) {
   const { tokens } = useTheme();
+  const frame = { gap: 8, paddingHorizontal: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.line, backgroundColor: tokens.bg } as const;
+  const back = (
+    <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} testID={testID ? `${testID}-back` : undefined} hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
+      <ArrowLeft size={22} strokeWidth={1.75} color={tokens.text} />
+    </Pressable>
+  );
+  const line = subtitle ? (
+    subtitleExtra ? (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <Text variant="caption" tone="text2" numberOfLines={subtitleBelow ? 2 : 1} style={{ flexShrink: 1 }} testID={testID ? `${testID}-subtitle` : undefined}>
+          {subtitle}
+        </Text>
+        {subtitleExtra}
+      </View>
+    ) : (
+      <Text variant="caption" tone="text2" numberOfLines={subtitleBelow ? 2 : 1} testID={testID ? `${testID}-subtitle` : undefined}>
+        {subtitle}
+      </Text>
+    )
+  ) : null;
+  if (subtitleBelow) {
+    return (
+      <View style={{ ...frame, flexDirection: "row", alignItems: "flex-start" }}>
+        {back}
+        <View style={{ flex: 1 }}>
+          <View testID={testID ? `${testID}-row` : undefined} style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: MIN_TARGET }}>
+            {avatar}
+            <Text variant="body" bold accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }} testID={testID}>
+              {title}
+            </Text>
+            {right}
+          </View>
+          {line}
+        </View>
+      </View>
+    );
+  }
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.line, backgroundColor: tokens.bg }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} testID={testID ? `${testID}-back` : undefined} hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
-        <ArrowLeft size={22} strokeWidth={1.75} color={tokens.text} />
-      </Pressable>
+    <View style={{ ...frame, flexDirection: "row", alignItems: "center" }}>
+      {back}
       {avatar}
       <View style={{ flex: 1 }}>
         <Text variant="body" bold accessibilityRole="header" numberOfLines={1} testID={testID}>
           {title}
         </Text>
-        {subtitle ? (
-          subtitleExtra ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text variant="caption" tone="text2" numberOfLines={1} style={{ flexShrink: 1 }} testID={testID ? `${testID}-subtitle` : undefined}>
-                {subtitle}
-              </Text>
-              {subtitleExtra}
-            </View>
-          ) : (
-            <Text variant="caption" tone="text2" numberOfLines={1} testID={testID ? `${testID}-subtitle` : undefined}>
-              {subtitle}
-            </Text>
-          )
-        ) : null}
+        {line}
       </View>
       {right}
     </View>

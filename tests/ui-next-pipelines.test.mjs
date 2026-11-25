@@ -467,3 +467,11 @@ test("role preview of «Воронка продаж» answers with a quiet state
   assert.match(read("src/components/staff/pipeline-next/PipelineNextPage.tsx"),
     /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });
+
+test("«Воронка поступления» (25.11.2026): «Направление» и «Куратор» — в панели «Фильтры», как на «Студентах» и в «Воронке продаж», без выпадающих списков в строке", () => {
+  const page = readFileSync(new URL("../src/app/(staff)/admissions-pipeline/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /<FilterPanel menus=\{filterMenus\}/u);
+  assert.match(page, /key: "country", label: "Направление"/u, "одно слово с «Студентами»");
+  assert.match(page, /label: "Все направления"/u);
+  assert.doesNotMatch(page, /NavigateSelect|BoardFilters|label="Страна"/u);
+});

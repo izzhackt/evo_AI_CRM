@@ -164,6 +164,14 @@ describe("уведомления и ссылки", () => {
       expect(linkTarget(`/portal/universities/${university}${tail}`)).toEqual({ kind: "route", route: `/universities/${university}` });
     }
     expect(linkTarget(`/portal/universities/${university.toUpperCase()}#x`)).toEqual({ kind: "route", route: `/universities/${university}` });
+    // uuid ровно 8-4-4-4-12 знаков: длиннее (13 и больше знаков в последней группе), короче, без дефисов и с не шестнадцатеричным знаком - прежнее правило раздела
+    for (const id of [`${university}2`, `${university}23456`, university.slice(0, -1), university.replace(/-/g, ""), `${university}g`, `0${university}`]) {
+      expect(linkTarget(`/portal/universities/${id}`)).toEqual({ kind: "route", route: "/universities" });
+      expect(linkTarget(`/portal/universities/${id}#x`)).toEqual({ kind: "route", route: "/universities" });
+    }
+    // адрес должен начинаться с /portal/: чужой префикс - не наша ссылка, в приложение не ведёт
+    expect(linkTarget(`/x/portal/universities/${university}`)).toBeNull();
+    expect(linkTarget(`portal/universities/${university}`)).toBeNull();
     // не uuid - прежнее правило раздела, с хвостом и без
     expect(linkTarget("/portal/universities/country/cn")).toEqual({ kind: "route", route: "/universities" });
     expect(linkTarget("/portal/universities/country/cn?x=1#y")).toEqual({ kind: "route", route: "/universities" });

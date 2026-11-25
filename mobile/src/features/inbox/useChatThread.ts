@@ -30,6 +30,9 @@ export function useChatThread() {
   const visible = useScreenVisible();
   const queryKey = useMemo(() => ["portal", userKey, "chat"] as const, [userKey]);
   const latest = useChatLatest();
+  // Открыли с устаревшим кэшем: пока не пришло свежее чтение, показанное не итог (объявления нового сообщения ждут, useIncomingNotice).
+  const [staleAtMount] = useState(() => latest.data !== undefined && latest.isStale);
+  const awaitingFresh = staleAtMount && !latest.isFetchedAfterMount;
 
   const [earlier, setEarlier] = useState<readonly PortalCaseMessage[]>([]);
   const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
@@ -143,6 +146,8 @@ export function useChatThread() {
     outbox,
     sendErrorKey,
     justSent,
+    visible,
+    awaitingFresh,
     send,
     retry,
     discard,

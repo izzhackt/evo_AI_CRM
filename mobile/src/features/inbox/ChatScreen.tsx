@@ -5,7 +5,7 @@
 // сбой обновления говорит «Не удалось обновить переписку.» с «Повторить».
 import { useRouter } from "expo-router";
 import { ArrowLeft, ArrowUp, MessagesSquare } from "lucide-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -88,10 +88,19 @@ export function ChatScreen() {
   // Статус отправки под полем (веб: `role="status"` у формы): «Отправляем…», затем «Сообщение отправлено.» до следующей отправки.
   const sending = thread.outbox.some((item) => item.status === "sending");
   const sendStatus = sending ? strings.sending : thread.justSent ? strings.sentStatus : "";
-  useIncomingNotice(thread.messages, strings.newMessageNotice, format);
+  // Читалка говорит только о том, что случилось на виду: беседа под другой вкладкой молчит (useIncomingNotice, useScreenVisible).
+  useIncomingNotice(thread.messages, strings.newMessageNotice, format, { visible: thread.visible, awaitingFresh: thread.awaitingFresh });
+  // Подтверждение отправки озвучивается один раз за отправку и только если пришло на виду: вернувшись позже, студент его не услышит.
+  const sentHandled = useRef(false);
   useEffect(() => {
-    if (thread.justSent) announce(strings.sentStatus, { queue: true });
-  }, [thread.justSent, strings.sentStatus]);
+    if (!thread.justSent) {
+      sentHandled.current = false;
+      return;
+    }
+    if (sentHandled.current) return;
+    sentHandled.current = true;
+    if (thread.visible) announce(strings.sentStatus, { queue: true });
+  }, [thread.justSent, thread.visible, strings.sentStatus]);
 
   const submit = () => {
     if (thread.send(draft)) setDraft("");

@@ -154,31 +154,68 @@ describe("новое входящее сообщение для читалки (
   const team = chatMessage("a0000000-0000-4000-8000-0000000000a2", "12", false, "Принесите оригинал");
   const team2 = chatMessage("a0000000-0000-4000-8000-0000000000a3", "13", false, "И перевод");
   const older = chatMessage("a0000000-0000-4000-8000-0000000000a0", "10", false, "Раньше");
+  /** Окно из `size` сообщений с номерами от `first` (по возрастанию, как лента на экране): чужие, у самого нового задаётся автор. */
+  const window = (first: number, size: number, newestMine = false) =>
+    Array.from({ length: size }, (_, i) => {
+      const sequence = first + i;
+      const last = i === size - 1;
+      return chatMessage(`a0000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`, String(sequence), last ? newestMine : false, `сообщение ${sequence}`);
+    });
 
-  it("лента была непустой, пришло чужое новое: имя автора", () => {
+  it("самое новое сообщение стало новее прежнего и оно чужое: имя автора", () => {
     expect(newIncomingAuthor([mine], [mine, team])).toBe("Команда EVO");
     expect(newIncomingAuthor([mine, team], [mine, team, team2])).toBe("Команда EVO");
   });
 
-  it("первый показ ленты не объявляется", () => {
+  it("полное окно в 30 сообщений: новое вытесняет самое старое, длина прежняя, объявление есть (разбор ревью #1566)", () => {
+    const before = window(1, 30);
+    const after = window(2, 30); // номера 2..31: самое старое ушло, пришло 31
+    expect(after).toHaveLength(before.length);
+    expect(newIncomingAuthor(before, after)).toBe("Команда EVO");
+    // а то же окно без нового сообщения ничего не объявляет
+    expect(newIncomingAuthor(before, window(1, 30))).toBeNull();
+  });
+
+  it("окно сдвинулось, но самое новое своё: не объявляется", () => {
+    expect(newIncomingAuthor(window(1, 30), window(2, 30, true))).toBeNull();
+  });
+
+  it("номера сравниваются как числа, а не как строки (9 и 10)", () => {
+    const nine = chatMessage("a0000000-0000-4000-8000-000000000009", "9", false, "девять");
+    const ten = chatMessage("a0000000-0000-4000-8000-000000000010", "10", false, "десять");
+    expect(newIncomingAuthor([nine], [nine, ten])).toBe("Команда EVO");
+    expect(newIncomingAuthor([ten], [nine])).toBeNull(); // «9» позже «10» только по буквам
+  });
+
+  it("первый показ ленты не объявляется (прежней ленты нет)", () => {
     expect(newIncomingAuthor([], [mine, team])).toBeNull();
     expect(newIncomingAuthor([], [])).toBeNull();
+  });
+
+  it("лента опустела: ничего", () => {
+    expect(newIncomingAuthor([mine, team], [])).toBeNull();
   });
 
   it("своё новое сообщение не объявляется, даже если оно последнее", () => {
     expect(newIncomingAuthor([team], [team, mine])).toBeNull();
   });
 
-  it("подгрузка более ранних (число выросло, последнее то же) не объявляется", () => {
+  it("подгрузка более ранних (самое новое то же) не объявляется", () => {
     expect(newIncomingAuthor([mine, team], [older, mine, team])).toBeNull();
   });
 
-  it("то же содержимое и меньше сообщений не объявляются", () => {
+  it("то же содержимое и ушедшие сообщения не объявляются", () => {
     expect(newIncomingAuthor([mine, team], [mine, team])).toBeNull();
     expect(newIncomingAuthor([mine, team, team2], [mine, team])).toBeNull();
   });
 
   it("новое чужое объявляется и когда рядом пришло и своё, если самое новое чужое", () => {
     expect(newIncomingAuthor([mine], [mine, team, team2])).toBe("Команда EVO");
+  });
+
+  it("негодный номер не роняет разбор: нет объявления", () => {
+    const broken = { ...team, sequenceId: "не число" };
+    expect(newIncomingAuthor([mine], [mine, broken])).toBeNull();
+    expect(newIncomingAuthor([broken], [broken, team2])).toBeNull();
   });
 });

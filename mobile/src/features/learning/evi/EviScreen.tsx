@@ -1,10 +1,12 @@
 // «Подбор с Эви» (веб: вкладка «Подбор с Эви» в «Профессиях»): разговор с ИИ-профориентатором. Состояние разговора -
 // общий с вебом хук (`@web/lib/portal/evi-conversation`), ответы идут на сервер приложения (POST /api/portal/mobile/evi).
+// Разговор помнится, пока открыт кабинет (веб #1530): его держит память оболочки (`EviMemory.tsx`), не экран; после выхода и
+// после нового запуска приложения он начинается заново.
 // Экран без напоминаний о конфиденциальности: согласие на ИИ-помощников спрашивают при регистрации, не здесь. Если оно
 // отозвано, сервер отвечает `consent`, и экран говорит то же «Эви сейчас недоступен» с входом в каталог, что и веб.
 import { router } from "expo-router";
 import { ArrowUp, Bot, Check, SquarePen } from "lucide-react-native";
-import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,6 +15,7 @@ import { useEviConversation, type EviMessage } from "@web/lib/portal/evi-convers
 
 import { usePortalApi } from "@/api/PortalApi";
 import { createEviApi, type EviApi } from "@/features/learning/evi/api";
+import { useEviMemory } from "@/features/learning/evi/EviMemory";
 import { SubHeader, useBack } from "@/features/learning/ui";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import type { PortalStrings } from "@/i18n";
@@ -33,7 +36,14 @@ const FAILURE_TEXT: Readonly<Record<EviFailure, "evi.unavailable" | "evi.limit" 
   error: "evi.error",
 };
 
-export function EviScreen({ api: apiProp }: { api?: EviApi }) {
+export function EviScreen({ api }: { api?: EviApi }) {
+  const { userKey } = usePortalApi();
+  // Чат принадлежит одному студенту (веб: key={owner}): если на том же месте окажется другой, он начнёт с приветствия, а не
+  // перепишет чужой разговор на себя.
+  return <EviChat key={userKey} api={api} />;
+}
+
+function EviChat({ api: apiProp }: { api?: EviApi }) {
   const { lang, t, format } = useLang();
   const { tokens } = useTheme();
   const portal = usePortalApi();
@@ -45,9 +55,12 @@ export function EviScreen({ api: apiProp }: { api?: EviApi }) {
     () => apiProp ?? createEviApi({ baseUrl: portal.portalBaseUrl, getToken: portal.getAccessToken, refreshToken: portal.refreshAccessToken }),
     [apiProp, portal.portalBaseUrl, portal.getAccessToken, portal.refreshAccessToken],
   );
+  // Разговор из памяти кабинета: тот же студент получает его обратно, другой - только приветствие (см. EviMemory.tsx).
+  const memory = useEviMemory(portal.userKey);
   const chat = useEviConversation({
     strings: p,
     ask: (history) => evi.ask(history, lang),
+    memory,
     initialFailure: null,
   });
   // RN 0.88: тип ScrollView - компонент, не экземпляр (см. ui/Screen.tsx), поэтому ссылка описана тем, что нужно экрану.
@@ -58,6 +71,15 @@ export function EviScreen({ api: apiProp }: { api?: EviApi }) {
   useEffect(() => {
     logRef.current?.scrollToEnd({ animated: true });
   }, [chat.messages, chat.pending, chat.failure]);
+
+  // Разговор из памяти открывается на последней реплике, как на вебе (там при монтировании scrollTop = scrollHeight): первый же
+  // замер содержимого прокручивает к концу без анимации, до замера прокручивать нечего. Новые реплики дальше ведёт эффект выше.
+  const pinToEnd = useRef(!chat.intro);
+  const pinLogToEnd = useCallback((_width: number, height: number) => {
+    if (!pinToEnd.current || height <= 0) return;
+    pinToEnd.current = false;
+    logRef.current?.scrollToEnd({ animated: false });
+  }, []);
 
   const subtitle = chat.pending
     ? p["evi.typing"]
@@ -92,7 +114,7 @@ export function EviScreen({ api: apiProp }: { api?: EviApi }) {
         </View>
       ) : null}
 
-      <ScrollView ref={logRef as RefObject<never>} accessibilityLabel={p["evi.logLabel"]} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} testID="evi-log">
+      <ScrollView ref={logRef as RefObject<never>} accessibilityLabel={p["evi.logLabel"]} keyboardShouldPersistTaps="handled" onContentSizeChange={pinLogToEnd} contentContainerStyle={{ flexGrow: 1, padding: 16, gap: 12 }} testID="evi-log">
         {chat.intro ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 32 }} testID="evi-welcome">
             <Avatar size={96} />

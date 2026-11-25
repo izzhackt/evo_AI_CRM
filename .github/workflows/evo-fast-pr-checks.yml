@@ -320,6 +320,24 @@ jobs:
         working-directory: mobile
         run: npm ci
 
+      # «Замок отпечатка нативной сборки» (AGENTS.md, «Кабинет и приложение идут вместе»): отпечаток Expo (runtimeVersion)
+      # приложения должен равняться mobile/native-fingerprint.lock.json, иначе обновление по воздуху (EAS Update) не дойдёт
+      # ни до одного установленного приложения. Это отдельный именованный шаг сразу после `npm ci`, чтобы сбой было видно.
+      # Он идёт в этом задании: оно запускается, когда PR меняет mobile/ или общий код веба, который приложение берёт как
+      # @web/*, а «Fast checks» требует «success» именно тогда (skipped значит «нечего проверять», а не «не смотрел»).
+      # Шаг не пропускает молча: не смог посчитать, замок потерян или испорчен - падает. Переменная репозитория
+      # MOBILE_FINGERPRINT_LOCK_MODE=warn (`gh variable set MOBILE_FINGERPRINT_LOCK_MODE --body warn`) превращает падение
+      # в предупреждение, `gh variable delete MOBILE_FINGERPRINT_LOCK_MODE` возвращает строгий режим.
+      - name: Check the native fingerprint lock
+        env:
+          MOBILE_FINGERPRINT_LOCK_MODE: ${{ vars.MOBILE_FINGERPRINT_LOCK_MODE }}
+        run: |
+          set -Eeuo pipefail
+          # main only helps to explain a difference (which sources changed): a failed fetch must not hide the verdict.
+          git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main \
+            || echo "::warning title=Native fingerprint lock::origin/main could not be fetched, so a failure below will not say which sources changed"
+          node scripts/ci/mobile-native-fingerprint-check.mjs --base origin/main
+
       - name: Check the mobile app
         run: npm run verify -- --only mobile
 
@@ -577,6 +595,7 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           MOBILE_RESULT: ${{ needs.mobile.result }}
+          MOBILE_CHANGED: ${{ needs.changed-range.outputs.mobile }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
           MOBILE_PARITY_RESULT: ${{ needs.mobile-parity.result }}
         run: |
@@ -602,5 +621,12 @@ jobs:
           # «Mobile parity» has no condition and looks at every pull request: «skipped» would mean it never looked.
           if test "$MOBILE_PARITY_RESULT" != "success"; then
             echo "::error::Mobile parity must succeed on every pull request, but its result is '${MOBILE_PARITY_RESULT}' (skipped means it never looked)"
+            exit 1
+          fi
+          # «Mobile app» holds the native-fingerprint lock. It is skipped only when changed-range says the pull request touches
+          # neither mobile/ nor the web code the app shares (mobile=false): then there is nothing to lock. When it says
+          # mobile=true, a skipped «Mobile app» would mean the lock never looked.
+          if test "${MOBILE_CHANGED:-}" = "true" && test "$MOBILE_RESULT" != "success"; then
+            echo "::error::The mobile app checks and the native-fingerprint lock must succeed when the pull request changes mobile/ or the web code the app shares, but their result is '${MOBILE_RESULT}' (skipped means they never looked)"
             exit 1
           fi

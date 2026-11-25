@@ -59,4 +59,24 @@ describe("профиль SVG рисунков (контракт §15)", () => {
   ])("отклоняет: %s", (_name, svg) => {
     expect(parseSvgProfile(svg)).toBeNull();
   });
+
+  // Кривая графика это сотни точек в одном атрибуте `d`; у трёх настоящих рисунков выпуска он 4690-5446 знаков. Раньше предел
+  // стоял на 4096, и такие рисунки на экране не рисовались (виден был только alt).
+  const withPath = (length: number) => ok.replace("<rect", `<path d="M10 10 ${"L10 20 ".repeat(Math.ceil(length / 7))}" stroke="#191714" fill="none"/><rect`);
+
+  it("принимает длинные данные кривой графика (5000 знаков и больше предыдущего предела)", () => {
+    const svg = withPath(5_000);
+    expect(svg.length).toBeGreaterThan(5_000);
+    const parsed = parseSvgProfile(svg);
+    expect(parsed?.root.children.some((node) => typeof node !== "string" && node.tag === "path" && (node.attrs.d?.length ?? 0) > 4_096)).toBe(true);
+  });
+
+  it("длинная кривая не обходит размер рисунка: больше 24 КБ отклоняется целиком", () => {
+    expect(parseSvgProfile(withPath(24_600))).toBeNull();
+  });
+
+  it("длинное значение обычного атрибута по-прежнему отклоняется (длинным бывает только `d`)", () => {
+    expect(parseSvgProfile(ok.replace('font-size="14"', `font-size="${"1".repeat(65)}"`))).toBeNull();
+    expect(parseSvgProfile(ok.replace("<rect ", `<rect points="${"1 ".repeat(1_100)}" `))).toBeNull();
+  });
 });

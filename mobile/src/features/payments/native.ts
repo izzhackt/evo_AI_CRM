@@ -10,6 +10,7 @@ import { writeCopiedText } from "@web/lib/portal/how-to-pay";
 
 import { progressPercent, safeFileName } from "@/domain/documents-model";
 import { UPLOAD_STAGE_DIR } from "@/features/documents/download-cache";
+import { getSupabase } from "@/lib/supabase";
 import { PAYMENT_PROOF_UPLOAD_PATH, type ProofSend } from "@/features/payments/proof-upload";
 import { sendWithRefresh, type ReceiptSend } from "@/features/payments/receipt-upload";
 
@@ -20,6 +21,18 @@ export function copyText(value: string): Promise<boolean> {
       if (!(await Clipboard.setStringAsync(text))) throw new Error("clipboard");
     },
   });
+}
+
+/**
+ * Кто сейчас вошёл на устройстве: auth user id живой сессии единственного клиента Supabase или `null` (никто не вошёл). Сбой чтения
+ * тоже `null`: отправка без уверенности, чья сессия на устройстве, не продолжается (`ownerBoundTokens`).
+ */
+export async function liveUserId(): Promise<string | null> {
+  try {
+    return (await getSupabase().auth.getSession()).data.session?.user.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Чек к принятой оплате: тот же путь, что у `createReceiptSend`, другие поля (`payment_event_id`). */

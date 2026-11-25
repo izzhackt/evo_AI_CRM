@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import type {
+  ApplicationDocumentFile,
   ApplicationDocumentItemState,
   ApplicationDocumentItemTarget,
   ApplicationDocumentReusableVersion,
@@ -55,19 +56,20 @@ export function useSavedVersions(state: Pick<ApplicationDocumentItemState, "reus
   return { versions, cursor, loading, failed, more };
 }
 
-function VersionRow({ version, selected, onPress, testID }: { version: ApplicationDocumentReusableVersion; selected: boolean; onPress: () => void; testID: string }) {
+/** Строка выбора версии файла (веб: `<option>`): имя, версия, причины недоступности; недоступную версию выбрать нельзя. */
+export function VersionRow({ file, selected, onPress, testID, disabled = false }: { file: ApplicationDocumentFile; selected: boolean; onPress: () => void; testID: string; /** Выбор сейчас закрыт (идёт запись): строка видна, но не нажимается. */ disabled?: boolean }) {
   const { tokens } = useTheme();
   const { strings } = usePreparation();
-  const available = version.file.technicalAvailability === "available";
-  const versionLabel = formatPortalString(strings.version, { version: version.file.versionNo });
+  const available = file.technicalAvailability === "available";
+  const versionLabel = formatPortalString(strings.version, { version: file.versionNo });
   // Недоступную версию выбрать нельзя; читалка слышит и причину («Файл проходит проверку безопасности»).
-  const reasons = available ? [] : version.file.unavailableReasons.map((reason) => availabilityText(strings, reason));
+  const reasons = available ? [] : file.unavailableReasons.map((reason) => availabilityText(strings, reason));
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityLabel={[version.file.originalFilename, versionLabel, ...reasons].join(". ")}
-      accessibilityState={{ selected, disabled: !available }}
-      disabled={!available}
+      accessibilityLabel={[file.originalFilename, versionLabel, ...reasons].join(". ")}
+      accessibilityState={{ selected, disabled: !available || disabled }}
+      disabled={!available || disabled}
       onPress={onPress}
       testID={testID}
       style={{
@@ -82,12 +84,12 @@ function VersionRow({ version, selected, onPress, testID }: { version: Applicati
         borderWidth: selected ? 2 : 1,
         borderColor: selected ? tokens.accent : tokens.controlEdge,
         backgroundColor: tokens.surface,
-        opacity: available ? 1 : 0.6,
+        opacity: available && !disabled ? 1 : 0.6,
       }}
     >
       <View style={{ flexShrink: 1, gap: 2 }}>
         <Text variant="body" bold={selected}>
-          {version.file.originalFilename}
+          {file.originalFilename}
         </Text>
         <Text variant="caption" tone="text2">
           {versionLabel}
@@ -125,7 +127,7 @@ export function SavedVersions({ target, versions, cursor, loading, failed, onMor
         {versions.map((version) => (
           <VersionRow
             key={version.file.documentVersionId}
-            version={version}
+            file={version.file}
             selected={version.file.documentVersionId === selected}
             onPress={() => onSelect(version.file.documentVersionId === selected ? null : version.file.documentVersionId)}
             testID={`prep-version-${version.file.documentVersionId}`}

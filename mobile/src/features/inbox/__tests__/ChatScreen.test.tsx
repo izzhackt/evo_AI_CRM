@@ -657,6 +657,10 @@ describe("Чат: что и когда говорит читалка (разбо
       await waitFor(() => expect(screen.queryByTestId("chat-send-status")).toBeNull());
       expect(screen.queryByText("Сообщение отправлено.")).toBeNull();
       expect(screen.getByTestId("outbox-failed")).toBeTruthy();
+      await fireEvent.press(screen.getByTestId("chat-discard")); // убрали неотправленное: скрытое «отправлено» не появляется и не звучит
+      expect(screen.queryByTestId("chat-send-status")).toBeNull();
+      expect(screen.queryByText("Сообщение отправлено.")).toBeNull();
+      expect(queued.mock.calls.filter(([text]) => text === "Сообщение отправлено.")).toHaveLength(0);
     });
   });
 });

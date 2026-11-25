@@ -23,10 +23,17 @@ import { RpcError, rpcErrorKey, type FrozenWrite } from "@/lib/rpc";
 
 export const CHAT_POLL_MS = 30_000;
 
-/** Все ли сообщения страницы уже загружены (слияние и лишняя перерисовка не нужны). */
-function hasAll(loaded: readonly PortalCaseMessage[], incoming: readonly PortalCaseMessage[]): boolean {
+/** Постраничное чтение «Показать более ранние»: курсор и признак «есть ещё» (`null` - берутся у последней страницы); `epoch` меняется, когда окно ушло далеко. */
+type EarlierPaging = Readonly<{ epoch: number; cursor: string | null; more: boolean | null }>;
+
+/**
+ * Сколько сообщений страницы уже загружено: все (слияние и лишняя перерисовка не нужны), часть (окно сдвинулось, но осталось рядом)
+ * или ни одного (между двумя чтениями пришло больше окна: между загруженным и новым окном пропуск).
+ */
+function overlap(loaded: readonly PortalCaseMessage[], incoming: readonly PortalCaseMessage[]): "all" | "some" | "none" {
   const known = new Set(loaded.map((message) => message.sequenceId));
-  return incoming.every((message) => known.has(message.sequenceId));
+  const hits = incoming.filter((message) => known.has(message.sequenceId)).length;
+  return hits === incoming.length ? "all" : hits === 0 ? "none" : "some";
 }
 
 export function useChatThread() {
@@ -44,8 +51,7 @@ export function useChatThread() {
   // сообщений, которое обновление заменяет целиком и которое уезжает вперёд: сообщение, выпавшее из окна после «Показать более ранние»,
   // остаётся здесь, иначе в ленте дыра (веб копит ленту: `MessagesThread.tsx`, слияние по номеру).
   const [loaded, setLoaded] = useState<readonly PortalCaseMessage[]>([]);
-  const [earlierCursor, setEarlierCursor] = useState<string | null>(null);
-  const [earlierMore, setEarlierMore] = useState<boolean | null>(null);
+  const [paging, setPaging] = useState<EarlierPaging>({ epoch: 0, cursor: null, more: null });
   const [earlierBusy, setEarlierBusy] = useState(false);
   const [earlierFailed, setEarlierFailed] = useState(false);
   const [outbox, setOutbox] = useState<readonly OutboxItem[]>([]);
@@ -59,12 +65,18 @@ export function useChatThread() {
   const [foldedPage, setFoldedPage] = useState<typeof page>(undefined);
   if (page !== foldedPage) {
     setFoldedPage(page);
-    if (page && !hasAll(loaded, page.messages)) setLoaded(mergePortalCaseMessages(loaded, page.messages));
+    const seen = page ? overlap(loaded, page.messages) : "all";
+    if (page && seen !== "all") {
+      setLoaded(mergePortalCaseMessages(loaded, page.messages));
+      // Окно не пересекается ни с чем загруженным: между ними пропуск, и «Показать более ранние» должно начаться от нового окна, а не
+      // от старого курсора (иначе пропуск не закрыть никогда). `epoch` отбрасывает ответ запроса, начатого ещё от старого курсора.
+      if (seen === "none" && loaded.length > 0) setPaging((current) => ({ epoch: current.epoch + 1, cursor: null, more: null }));
+    }
   }
-  // Показывается загруженное плюс текущая страница.
-  const messages = useMemo(() => (page ? mergePortalCaseMessages(loaded, page.messages) : loaded), [loaded, page]);
-  const hasEarlier = earlierMore ?? page?.hasMore ?? false;
-  const cursor = earlierCursor ?? page?.cursor ?? null;
+  // Показывается ровно загруженное: страница уже влита выше (повтор слияния здесь скрыл бы дубли, накопленные во вливании).
+  const messages = loaded;
+  const hasEarlier = paging.more ?? page?.hasMore ?? false;
+  const cursor = paging.cursor ?? page?.cursor ?? null;
 
   // Опрос раз в 30 с, пока чат виден. Идущий запрос не дублируется.
   const refetchRef = useRef(latest.refetch);
@@ -135,23 +147,26 @@ export function useChatThread() {
   const discard = useCallback((requestId: string) => {
     writes.current.delete(requestId);
     setOutbox((current) => dropSent(current, requestId));
+    // Убрали неотправленное: подтверждение другой отправки, скрытое, пока оно стояло в ленте, не должно появиться и прозвучать теперь.
+    setJustSent(false);
   }, []);
 
   const loadEarlier = useCallback(async () => {
     if (!cursor || earlierBusy) return;
+    const epoch = paging.epoch;
     setEarlierBusy(true);
     setEarlierFailed(false);
     try {
       const older = await readChatPage(transport, cursor);
       setLoaded((current) => mergePortalCaseMessages(current, older.messages));
-      setEarlierCursor(older.cursor);
-      setEarlierMore(older.hasMore);
+      // Окно ушло далеко, пока шёл этот запрос: курсор остаётся у нового окна, ответ на старый не возвращает «ранние» назад.
+      setPaging((current) => (current.epoch === epoch ? { epoch, cursor: older.cursor, more: older.hasMore } : current));
     } catch {
       setEarlierFailed(true);
     } finally {
       setEarlierBusy(false);
     }
-  }, [cursor, earlierBusy, transport]);
+  }, [cursor, earlierBusy, paging.epoch, transport]);
 
   return {
     query: latest,

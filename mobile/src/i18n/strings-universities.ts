@@ -30,6 +30,10 @@ export const UNIVERSITIES_RU = {
   "programs.confirmDeadline": "Срок и доступность набора уточните у куратора.",
   "programs.caseIneligible": "Новые программы добавляет куратор при активном сопровождении.",
   "programs.error": "Не получилось проверить, добавлена ли программа. Повторите: ничего не задвоится.",
+  // Каталог: общая «страница не найдена» вместо «в этой стране нет университетов» (G42); переход в город из «Списком» (G44).
+  "uni.notFoundTitle": "Страница не найдена",
+  "uni.notFoundBody": "Ссылка устарела или адрес введён неверно. Вернитесь в личный кабинет и откройте нужный раздел заново.",
+  "uni.cityOpenHint": "Открыть страницу города",
 } as const;
 
 export type UniversitiesStringKey = keyof typeof UNIVERSITIES_RU;
@@ -58,4 +62,8 @@ export const UNIVERSITIES_KY: Readonly<Record<UniversitiesStringKey, string>> = 
   "programs.confirmDeadline": "Кабыл алуунун мөөнөтүн жана жеткиликтүүлүгүн куратордон тактаңыз.",
   "programs.caseIneligible": "Жаңы программаларды активдүү коштоодо куратор кошот.",
   "programs.error": "Программа кошулганын текшерүү мүмкүн болгон жок. Кайталаңыз: эч нерсе эки эседей болбойт.",
+  // Каталог: общая «страница не найдена» вместо «в этой стране нет университетов» (G42); переход в город из «Списком» (G44).
+  "uni.notFoundTitle": "Барак табылган жок", // KY: needs native proofreading
+  "uni.notFoundBody": "Шилтеме эскирген же дарек туура эмес киргизилген. Жеке кабинетке кайтып, керектүү бөлүмдү кайра ачыңыз.", // KY: needs native proofreading
+  "uni.cityOpenHint": "Шаардын барагын ачуу", // KY: needs native proofreading
 };

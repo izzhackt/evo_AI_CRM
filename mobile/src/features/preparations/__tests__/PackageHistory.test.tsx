@@ -62,9 +62,9 @@ describe("история комплектов", () => {
 
   it("читается при первом раскрытии и один раз: комплекты от новых к старым со статусом и временем", async () => {
     const t = await open({ application_package_history_v1: packageHistoryPage([p3, p2, p1]) });
-    await screen.findByTestId("prep-package-section");
+    const toggle = await screen.findByTestId("prep-package-history-toggle");
     expect(t.named("application_package_history_v1")).toHaveLength(0);
-    await fireEvent.press(screen.getByTestId("prep-package-history-toggle"));
+    await fireEvent.press(toggle);
     await waitFor(() => expect(screen.getByTestId(`prep-package-row-${p3.packageId as string}`)).toBeTruthy());
     expect(t.named("application_package_history_v1")[0]!.args).toMatchObject({ p_student_case_id: STUDENT_CASE_ID, p_application_id: APPLICATION_ID, p_cursor: null, p_limit: 20 });
     expect(within(screen.getByTestId(`prep-package-row-${p3.packageId as string}`)).getByText("Комплект 3 · Нужны исправления")).toBeTruthy();

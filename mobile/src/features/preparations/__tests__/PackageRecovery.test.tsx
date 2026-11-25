@@ -27,6 +27,7 @@ import { makeIo } from "@/test-fixtures/preparations-io";
 import { PACKAGE_REQUEST, recoveryAbsent, recoveryCommitted, submitIntentOf, submitReceiptOf } from "@/test-fixtures/preparations-packages";
 import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { renderPortal, testApi } from "@/test-fixtures/render";
+import { settle, waitForEnabled } from "@/test-fixtures/settle";
 import { failure, fakeTransport, preparationRow } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -85,7 +86,8 @@ describe("оборванная отправка комплекта на экра
     expect(screen.getByTestId("prep-package-message")).toHaveTextContent("Комплект отправлен в EVO");
     expect(reads()).toBeGreaterThan(1);
     await fireEvent.press(screen.getByTestId("prep-package-choose-toggle"));
-    expect(screen.getByTestId("prep-package-preview").props.accessibilityState).toMatchObject({ disabled: false });
+    // после подтверждения список перечитывается: выбор открывается, когда ответ пришёл
+    await waitForEnabled("prep-package-preview");
   });
 
   it("два нажатия «Проверить результат» раньше, чем кнопка выключилась: проверка уходит один раз", async () => {
@@ -178,8 +180,11 @@ describe("оборванная отправка комплекта на экра
     await packagesPending.persist(otherMember, "submit", REVISION_ID, intent() as never);
     await open();
     await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    // записи устройства читаются в фоне: выбор открывается, когда они прочитаны (чужие его не закрывают), и только потом
+    // «раздела восстановления нет» чего-то стоит
+    await waitForEnabled("prep-package-preview");
+    await settle();
     expect(screen.queryByTestId("prep-package-recovery")).toBeNull();
-    expect(screen.getByTestId("prep-package-preview").props.accessibilityState).toMatchObject({ disabled: false });
   });
 });
 
@@ -189,6 +194,7 @@ describe("хранилище устройства не работает при �
     const ready = (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? readinessWithSelections(requirements(items()), states(), [selectionEcho(0, 5)]) : current());
     const t = await open({ application_package_submit_v1: (args: Raw | undefined) => submitReceiptOf(args!.p_intent as Raw, 1) }, ready);
     await fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+    await waitForEnabled("prep-package-preview");
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");

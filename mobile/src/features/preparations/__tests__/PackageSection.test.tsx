@@ -28,6 +28,7 @@ import { PACKAGE_REQUEST, packageDetail, packageItem, packageSummary, submitRece
 import { pressTwiceInOneTick } from "@/test-fixtures/press";
 import { makeIo } from "@/test-fixtures/preparations-io";
 import { PortalShell, renderPortal, testApi, testClient } from "@/test-fixtures/render";
+import { settle, waitForEnabled } from "@/test-fixtures/settle";
 import { failure, fakeTransport, preparationRow, uuidN } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -52,6 +53,14 @@ async function open(options: { ready: unknown; extra?: Record<string, unknown>; 
   return { ...view, calls, packageCalls: (name: string) => calls.filter((call) => call.name === name) };
 }
 const openChoice = async () => fireEvent.press(await screen.findByTestId("prep-package-choose-toggle"));
+/**
+ * Выбор раскрыт и готов к нажатиям. Кнопки выбора и «Проверить состав» закрыты, пока не прочитаны записи устройства и не пришёл
+ * ответ о требованиях: нажатие на закрытую кнопку ничего не делает, и тест иногда проверял бы не то. Поэтому ждём включения.
+ */
+const openReadyChoice = async () => {
+  await openChoice();
+  await waitForEnabled("prep-package-preview");
+};
 const packageKeys = async () => (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith("evo.application-packages.v1:"));
 
 let restore: () => void = () => undefined;
@@ -69,7 +78,7 @@ describe("выбор файлов для комплекта", () => {
     expect(within(section).getByText("Комплект программы")).toBeTruthy();
     expect(screen.queryByTestId(`prep-package-row-${FIRST}`)).toBeNull();
     expect(screen.getByTestId("prep-package-choose-toggle").props.accessibilityState).toMatchObject({ expanded: false });
-    await openChoice();
+    await openReadyChoice();
     expect(screen.getByTestId("prep-package-choose-toggle").props.accessibilityState).toMatchObject({ expanded: true });
     const first = screen.getByTestId(`prep-package-row-${FIRST}`);
     expect(within(first).getByText("Обязательно")).toBeTruthy();
@@ -85,7 +94,7 @@ describe("выбор файлов для комплекта", () => {
 
   it("«Проверить состав» без выбора: пустой выбор уходит на сервер, видны причины, отправить нельзя", async () => {
     const t = await open({ ready: current() });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
     const reads = t.packageCalls("application_package_readiness_v1");
@@ -101,7 +110,7 @@ describe("выбор файлов для комплекта", () => {
 
   it("выбор сохранённого файла уходит в запросе проверки как есть; предпросмотр показывает файл и «Комплект можно отправить»", async () => {
     const t = await open({ ready: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([selectionEcho(0, 5)]) : current()) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     expect(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`).props.accessibilityState).toMatchObject({ selected: true });
     expect(screen.getByTestId(`prep-package-none-${FIRST}`).props.accessibilityState).toMatchObject({ selected: false });
@@ -122,7 +131,7 @@ describe("выбор файлов для комплекта", () => {
 
   it("сохранённый файл программы идёт как program_upload с номером загрузки; повторное нажатие на «Файл не выбран» снимает выбор", async () => {
     const t = await open({ ready: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([savedDraftChoice()]) : current()) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(4)}`));
     await fireEvent.press(screen.getByTestId(`prep-package-none-${FIRST}`));
     expect(screen.getByTestId(`prep-package-none-${FIRST}`).props.accessibilityState).toMatchObject({ selected: true });
@@ -138,7 +147,7 @@ describe("выбор файлов для комплекта", () => {
     const echo = selectionEcho(0, 5, { expectedPreviousSubmissionId: uuidN(3, "33333333") });
     const ready = (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? readinessWithSelections(requirements(items()), withSubmission, [echo]) : readiness(requirements(items()), withSubmission));
     const t = await open({ ready });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
@@ -148,7 +157,7 @@ describe("выбор файлов для комплекта", () => {
 
   it("«Изменить состав» возвращает к выбору, прежний выбор остаётся; повторная проверка читает сервер заново", async () => {
     const t = await open({ ready: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([selectionEcho(0, 5)]) : current()) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
@@ -165,7 +174,7 @@ describe("выбор файлов для комплекта", () => {
 describe("необязательные материалы", () => {
   it("включённый без файла блокирует «Проверить состав» и называет материал; после выбора файла кнопка доступна; снятая галочка убирает материал из запроса", async () => {
     const t = await open({ ready: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([selectionEcho(0, 5), selectionEcho(1, 7)]) : current()) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId(`prep-package-include-${SECOND}`));
     expect(screen.getByTestId(`prep-package-include-${SECOND}`).props.accessibilityState).toMatchObject({ checked: true });
@@ -205,7 +214,7 @@ describe("«Отправить комплект в EVO»", () => {
     };
   };
   const toPreview = async () => {
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
@@ -250,6 +259,9 @@ describe("«Отправить комплект в EVO»", () => {
 
   it("после отправки появляется «Открыть комплект» и последний комплект со статусом «Отправлен на проверку EVO · Комплект 1»", async () => {
     const t = await open(sendable());
+    // комплектов ещё не было: проверка «кнопки нет» после загрузки экрана, иначе она верна и до неё
+    await screen.findByTestId("prep-package-choose-toggle");
+    await settle();
     expect(screen.queryByTestId("prep-package-open-toggle")).toBeNull();
     await toPreview();
     await fireEvent.press(screen.getByTestId("prep-package-submit"));
@@ -302,7 +314,7 @@ describe("устаревший вид списка: комплект собир�
       },
       extra: { application_package_submit_v1: (args: Raw | undefined) => submitReceiptOf(args!.p_intent as Raw, 1) },
     });
-    await openChoice();
+    await openReadyChoice();
     await act(async () => {
       await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
     });
@@ -325,7 +337,7 @@ describe("замки: два нажатия раньше, чем кнопка в
 
   it("«Проверить состав»: состав читается один раз", async () => {
     const t = await open({ ready });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     const reads = t.packageCalls("application_package_readiness_v1").length;
     await pressTwiceInOneTick("prep-package-preview");
@@ -335,7 +347,7 @@ describe("замки: два нажатия раньше, чем кнопка в
 
   it("«Отправить комплект в EVO»: комплект уходит один раз, второе нажатие не говорит «действие уже выполняется»", async () => {
     const t = await open({ ready, extra: { application_package_submit_v1: (args: Raw | undefined) => submitReceiptOf(args!.p_intent as Raw, 1) } });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
@@ -352,7 +364,7 @@ describe("сбои чтения", () => {
   it("состав не читается: «Не удалось обновить данные»; чужой доступ: «Нет доступа к этому действию»", async () => {
     let call = 0;
     await open({ ready: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? (++call === 1 ? failure("PT500", 500) : failure("42501", 403)) : current()) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     expect(await screen.findByTestId("prep-package-error")).toHaveTextContent("Не удалось обновить данные. Попробуйте ещё раз.");
@@ -402,7 +414,7 @@ describe("обновление требований", () => {
         return inner(name, args, options);
       },
     });
-    await openChoice();
+    await openReadyChoice();
     expect(screen.getByTestId("prep-package-preview")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("prep-check"));
     await waitFor(() => expect(screen.queryByTestId("prep-package-preview")).toBeNull());
@@ -418,7 +430,7 @@ describe("изменились требования", () => {
     let call = 0;
     const next = readiness(requirements(items(), { revisionId: NEW_REVISION, revisionVersion: "2" }), [documentState(0, { reusableVersions: [reusableVersion(5)] }), documentState(1)]);
     await open({ ready: () => (++call === 1 ? current() : next) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     expect(screen.queryByTestId("prep-package-revision-changed")).toBeNull();
     await fireEvent.press(screen.getByTestId("prep-check"));
@@ -454,14 +466,15 @@ describe("последний комплект и стартовый список
   it("стартовый список EVO: подписи «Стартовый комплект EVO» и «Полный перечень университета ещё нужно уточнить»", async () => {
     await open({ ready: starterReadiness() });
     const section = await screen.findByTestId("prep-package-section");
-    expect(within(section).getByText("Стартовый комплект EVO")).toBeTruthy();
+    // блок виден, пока ответ ещё читается: подписи приходят вместе с ответом, их и ждём
+    expect(await within(section).findByText("Стартовый комплект EVO")).toBeTruthy();
     expect(within(section).getByText("Полный перечень университета ещё нужно уточнить.")).toBeTruthy();
   });
 
   it("на кыргызском текст комплекта берётся из словаря сайта", async () => {
     await open({ ready: current(), lang: "ky" });
     const section = await screen.findByTestId("prep-package-section");
-    expect(within(section).getByText("Программанын топтому")).toBeTruthy();
+    expect(await within(section).findByText("Программанын топтому")).toBeTruthy();
   });
 });
 
@@ -489,7 +502,7 @@ describe("состояние выбора", () => {
 
   it("«Проверить состояние» при открытом предпросмотре снимает его: комплект отправляется только из ответа, прочитанного в этом показе", async () => {
     await open({ ready: (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([selectionEcho(0, 5)]) : current()) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
@@ -504,7 +517,7 @@ describe("состояние выбора", () => {
     let call = 0;
     const gone = readiness(requirements(items()), [documentState(0), documentState(1)]);
     await open({ ready: () => (++call === 1 ? current() : gone) });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-check"));
     const missing = await screen.findByTestId(`prep-package-missing-${FIRST}`);
@@ -522,13 +535,13 @@ describe("состояние выбора", () => {
       </PortalShell>
     );
     const view = await render(tree("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"));
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     expect(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`).props.accessibilityState).toMatchObject({ selected: true });
     await view.rerender(tree("aaaaaaaa-0000-4000-8000-0000000000ff"));
     // блок начал заново: закрыт и без выбора прежнего участника
     await waitFor(() => expect(screen.getByTestId("prep-package-choose-toggle").props.accessibilityState).toMatchObject({ expanded: false }));
-    await openChoice();
+    await openReadyChoice();
     expect(screen.getByTestId(`prep-package-none-${FIRST}`).props.accessibilityState).toMatchObject({ selected: true });
   });
 });
@@ -539,7 +552,7 @@ describe("читалка экрана слышит итог", () => {
 
   const readyAnswer = (args: Raw | undefined) => ((args?.p_selections as unknown[] | undefined)?.length ? withPicked([selectionEcho(0, 5)]) : current());
   const toPreview = async () => {
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId(`prep-package-version-${FIRST}-${versionId(5)}`));
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
@@ -553,7 +566,7 @@ describe("читалка экрана слышит итог", () => {
 
   it("состав не готов: озвучен только заголовок, без «Комплект можно отправить»", async () => {
     await open({ ready: current() });
-    await openChoice();
+    await openReadyChoice();
     await fireEvent.press(screen.getByTestId("prep-package-preview"));
     await screen.findByTestId("prep-package-preview-box");
     expect(spoken).toHaveBeenCalledWith("Состав перед отправкой");

@@ -155,6 +155,22 @@ describe("Segmented: доступность без изменения вида (
     expect(onChange).toHaveBeenCalledWith("lessons");
   });
 
+  it("вид по умолчанию прежний: размеры, отступы и выравнивание такие же, как до правки", async () => {
+    await render(wrap(<Segmented value="list" onChange={jest.fn()} testIDPrefix="v" options={view} />));
+    for (const o of view) {
+      expect(StyleSheet.flatten(screen.getByTestId(`v-${o.value}`).props.style)).toMatchObject({
+        flexGrow: 1,
+        flexBasis: 0,
+        minWidth: 0,
+        paddingHorizontal: 6,
+        minHeight: 44,
+        alignItems: "center",
+        justifyContent: "center",
+      });
+    }
+    expect(StyleSheet.flatten(screen.getByTestId("v-group").props.style)).toMatchObject({ flexDirection: "row", padding: 3 });
+  });
+
   it("вид не меняется: стили группы и вариантов одинаковы с подписями и без них, в обоих видах семантики", async () => {
     const withLabels = view.map((o) => ({ ...o, accessibilityLabel: `${o.label}!`, accessibilityHint: "подсказка" }));
     await render(

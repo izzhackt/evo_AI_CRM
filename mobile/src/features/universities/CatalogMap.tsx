@@ -9,7 +9,7 @@
 import { Camera, GeoJSONSource, Layer, Map as MapView, type CameraRef, type GeoJSONSourceRef, type MapRef } from "@maplibre/maplibre-react-native";
 import { Minus, Plus } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, Pressable, View, type NativeSyntheticEvent } from "react-native";
+import { BackHandler, Platform, Pressable, View, useWindowDimensions, type AccessibilityActionEvent, type AccessibilityActionInfo, type NativeSyntheticEvent } from "react-native";
 
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -18,7 +18,7 @@ import { Button } from "@/ui/Button";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
-import { initialCamera, MAP_STYLES, pinsToGeoJSON, type MapPins } from "./map-data";
+import { initialCamera, MAP_STYLES, MAX_ZOOM, MIN_ZOOM, pinsToGeoJSON, type MapPins } from "./map-data";
 
 type PressLike = Readonly<{ features: GeoJSON.Feature[] }>;
 
@@ -27,11 +27,18 @@ const ZOOM_STEP = 1;
 const EASE_MS = 400;
 const ZOOM_MS = 250;
 
+/** Высота карты и поля экрана по бокам (по 16 pt у `Screen`): по ним считается рамка камеры. */
+const MAP_HEIGHT = 420;
+const SCREEN_GUTTERS = 32;
+
 /**
  * Вид, невидимый глазу и видимый читалке: 1 x 1 pt без фона. Читалка (VoiceOver, TalkBack) не видит слоёв нативной карты, а кнопка
- * размером в точку у неё есть; пока читалка выключена, она никому не мешает.
+ * размером в точку у неё есть; пока читалка выключена, она никому не мешает. Касаниям вид недоступен (`pointerEvents="none"` на
+ * слое): вуз открывается только жестом читалки, а не касанием левого верхнего угла карты.
  */
 const READER_ONLY = { position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "hidden" } as const;
+/** TalkBack доставляет двойное касание действием `activate` (ACTION_CLICK), а не касанием экрана; на iOS для этого `onAccessibilityTap`. */
+const ACTIVATE: readonly AccessibilityActionInfo[] = [{ name: "activate" }];
 
 export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (id: string) => void; onFail: () => void }) {
   const { tokens, scheme } = useTheme();
@@ -43,8 +50,10 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
   const source = useRef<GeoJSONSourceRef>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const { width } = useWindowDimensions();
   const data = useMemo(() => pinsToGeoJSON(pins), [pins]);
-  const initial = useMemo(() => initialCamera(pins), [pins]);
+  // Рамка считается по окну карты: на планшете та же рамка встаёт глубже, чем на телефоне (камера принимает её один раз, при показе).
+  const initial = useMemo(() => initialCamera(pins, { width: width - SCREEN_GUTTERS, height: MAP_HEIGHT }), [pins, width]);
   const pin = selected === null ? null : (pins[selected] ?? null);
 
   const close = useCallback(() => setSelected(null), []);
@@ -74,11 +83,11 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
     }
   };
 
-  /** «+» и «-»: на уровень ближе или дальше от нынешнего масштаба (камера знает его только по запросу). */
+  /** «+» и «-»: на уровень ближе или дальше от нынешнего масштаба (камера знает его только по запросу), в пределах карты. */
   const zoomBy = async (step: number) => {
     const current = await map.current?.getZoom().catch(() => undefined);
     if (current === undefined) return;
-    camera.current?.zoomTo(Math.max(0, current + step), { duration: reduced ? 0 : ZOOM_MS });
+    camera.current?.zoomTo(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current + step)), { duration: reduced ? 0 : ZOOM_MS });
   };
 
   const choose = (index: number) => {
@@ -88,7 +97,7 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
   };
 
   return (
-    <View style={{ height: 420, borderRadius: tokens.radiusCard, overflow: "hidden", borderWidth: 1, borderColor: tokens.line }} accessibilityLabel={strings.mapAria} testID="catalog-map">
+    <View style={{ height: MAP_HEIGHT, borderRadius: tokens.radiusCard, overflow: "hidden", borderWidth: 1, borderColor: tokens.line }} accessibilityLabel={strings.mapAria} testID="catalog-map">
       {/* Нативный вид карты читалке не нужен: она идёт по кнопкам вузов ниже. */}
       <View style={{ flex: 1 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <MapView
@@ -129,15 +138,20 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
         </MapView>
       </View>
 
-      {/* Каждый вуз на карте - кнопка для читалки (веб: маркеры - кнопки с aria-label). */}
-      <View accessible={false} style={READER_ONLY} testID="map-reader-pins">
+      {/* Каждый вуз на карте - кнопка для читалки (веб: маркеры - кнопки с aria-label); касанием не открывается (см. READER_ONLY). */}
+      <View accessible={false} pointerEvents="none" style={READER_ONLY} testID="map-reader-pins">
         {pins.map((entry, index) => (
-          <Pressable
+          <View
             key={entry.id}
+            accessible
             accessibilityRole="button"
             accessibilityLabel={`${entry.name}. ${entry.place}`}
             accessibilityHint={strings.mapOpenCard}
-            onPress={() => choose(index)}
+            accessibilityActions={Platform.OS === "android" ? ACTIVATE : undefined}
+            onAccessibilityTap={() => choose(index)}
+            onAccessibilityAction={(event: AccessibilityActionEvent) => {
+              if (event.nativeEvent.actionName === "activate") choose(index);
+            }}
             testID={`map-pin-${entry.id}`}
             style={{ width: 1, height: 1 }}
           />

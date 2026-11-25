@@ -52,7 +52,11 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
   const favorites = useFavoriteState();
   const pixels = usePhotoPixels();
   const now = useMemo(() => new Date(), []);
-  const [mapFailed, setMapFailed] = useState(false);
+  // Загрузка карты: номер попытки и номер той, что не удалась. Пока сбой показан, карта не смонтирована, поэтому новая попытка
+  // (кнопка «Повторить» или выбор «Карта» после сбоя) монтирует её заново. Сбой не липнет к экрану (у веба он жил, пока открыт вид).
+  const [mapAttempt, setMapAttempt] = useState(0);
+  const [failedAttempt, setFailedAttempt] = useState<number | null>(null);
+  const mapFailed = failedAttempt === mapAttempt;
   const [query, setQuery] = useState("");
   return (
     <CatalogFrame>
@@ -105,7 +109,11 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                     { value: "list", label: strings.viewList },
                     { value: "map", label: strings.viewMap },
                   ]}
-                  onChange={(next) => router.setParams({ view: next === "cities" ? undefined : next } as never)}
+                  onChange={(next) => {
+                    // «Карта» после сбоя (из другого вида или повторным нажатием) - новая попытка; здоровую карту нажатие не перезагружает.
+                    if (next === "map" && mapFailed) setMapAttempt((n) => n + 1);
+                    router.setParams({ view: next === "cities" ? undefined : next } as never);
+                  }}
                 />
                 {view === "map" ? (
                   <View style={{ gap: 8 }}>
@@ -114,16 +122,20 @@ function CountryBody({ code, view }: { code: string; view: View_ }) {
                         {formatPortalString(strings.mapWithoutPoint, { count: String(page.missingPins) })}
                       </Text>
                     ) : mapFailed ? (
-                      // Сбой карты - предупреждение с выходом на «Города» (веб: UniversitiesMapView, `role="alert"` и кнопка «Города»).
+                      // Сбой карты - предупреждение с выходом на «Города» (веб: UniversitiesMapView, `role="alert"` и кнопка «Города»)
+                      // и с повтором, которого у веба нет: страница там перезагружается, а экран приложения остаётся в стеке.
                       <View accessibilityRole="alert" style={{ gap: 8, alignItems: "flex-start" }} testID="map-failed">
                         <Text variant="secondary" tone="text2">
                           {strings.mapFailed}
                         </Text>
-                        <Button variant="ghost" label={strings.viewCities} onPress={() => router.setParams({ view: undefined } as never)} testID="map-failed-cities" />
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                          <Button variant="ghost" label={m("gate.retry")} onPress={() => setMapAttempt((n) => n + 1)} testID="map-failed-retry" />
+                          <Button variant="ghost" label={strings.viewCities} onPress={() => router.setParams({ view: undefined } as never)} testID="map-failed-cities" />
+                        </View>
                       </View>
                     ) : (
                       <>
-                        <CatalogMap pins={page.pins} onOpen={(id) => open(universityRoute(id))} onFail={() => setMapFailed(true)} />
+                        <CatalogMap pins={page.pins} onOpen={(id) => open(universityRoute(id))} onFail={() => setFailedAttempt(mapAttempt)} />
                         <Text variant="caption" tone="text2" testID="map-summary">
                           {formatPortalString(strings.mapShown, { count: String(page.pins.length) })}
                           {page.missingPins > 0 ? `. ${formatPortalString(strings.mapWithoutPoint, { count: String(page.missingPins) })}` : ""}

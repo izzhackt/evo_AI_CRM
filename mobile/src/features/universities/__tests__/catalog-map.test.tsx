@@ -1,8 +1,9 @@
-// Карта страны (G43): кнопки «+» и «-», загрузка, «Уменьшить движение», вузы для читалки, мини-карточка и кнопка «Назад», цвета
-// слоёв по теме. Нативная карта заменена заглушкой, которая запоминает свойства и отдаёт ссылки на камеру, карту и источник.
+// Карта страны (G43): кнопки «+» и «-», загрузка, «Уменьшить движение», вузы для читалки (не для касаний), мини-карточка и кнопка
+// «Назад», рамка камеры по окну, цвета слоёв по теме. Нативная карта заменена заглушкой, которая запоминает свойства и отдаёт ссылки
+// на камеру, карту и источник.
 import { act, fireEvent, isHiddenFromAccessibility, render, screen } from "@testing-library/react-native";
 import type { ReactElement } from "react";
-import { AccessibilityInfo, BackHandler } from "react-native";
+import { AccessibilityInfo, BackHandler, Dimensions, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { CatalogMap } from "@/features/universities/CatalogMap";
@@ -47,6 +48,16 @@ const pins = [
   { id: "u1", name: "Университет Зета", place: "Куала-Лумпур · Малайзия", lat: 3.1, lng: 101.6 },
   { id: "u2", name: "Академия Альфа", place: "Пенанг · Малайзия", lat: 5.4, lng: 100.3 },
 ];
+// Два кампуса в 0,1 градуса друг от друга: на телефоне рамка по ним ещё влезает, на планшете встала бы глубже масштаба 11.
+const nearPins = [
+  { id: "n1", name: "Кампус Север", place: "Куала-Лумпур · Малайзия", lat: 3.2, lng: 101.7 },
+  { id: "n2", name: "Кампус Юг", place: "Куала-Лумпур · Малайзия", lat: 3.1, lng: 101.6 },
+];
+
+/** Размер окна приложения: по нему карта считает рамку камеры (ширина минус поля экрана по 16 pt). */
+function setWindow(width: number) {
+  jest.spyOn(Dimensions, "get").mockImplementation(() => ({ width, height: 844, scale: 3, fontScale: 1 }));
+}
 
 function wrap(ui: ReactElement, scheme: "light" | "dark" = "light", lang: "ru" | "ky" = "ru") {
   return (
@@ -58,11 +69,16 @@ function wrap(ui: ReactElement, scheme: "light" | "dark" = "light", lang: "ru" |
   );
 }
 
-async function show(options: { scheme?: "light" | "dark"; lang?: "ru" | "ky"; onOpen?: (id: string) => void; onFail?: () => void } = {}) {
+async function show(options: { scheme?: "light" | "dark"; lang?: "ru" | "ky"; onOpen?: (id: string) => void; onFail?: () => void; pins?: typeof pins } = {}) {
   const onOpen = options.onOpen ?? jest.fn();
   const onFail = options.onFail ?? jest.fn();
-  await render(wrap(<CatalogMap pins={pins} onOpen={onOpen} onFail={onFail} />, options.scheme, options.lang));
+  await render(wrap(<CatalogMap pins={options.pins ?? pins} onOpen={onOpen} onFail={onFail} />, options.scheme, options.lang));
   return { onOpen, onFail };
+}
+
+/** Двойное касание читалки: на iOS - `onAccessibilityTap`, на Android - действие `activate` у узла. */
+async function activate(id: string) {
+  await fireEvent(screen.getByTestId(`map-pin-${id}`), "accessibilityTap");
 }
 
 async function finishLoading() {
@@ -76,7 +92,9 @@ beforeEach(() => {
   mockMap.getZoom.mockResolvedValue(8);
   mockState.layers = {};
   setReducedMotionForTests(true);
+  setWindow(390);
 });
+afterEach(() => jest.restoreAllMocks());
 afterAll(() => setReducedMotionForTests(true));
 
 describe("загрузка и сбой", () => {
@@ -118,12 +136,18 @@ describe("кнопки «+» и «-»", () => {
     expect(mockCamera.zoomTo).toHaveBeenLastCalledWith(7, { duration: 0 });
   });
 
-  it("масштаб не уходит ниже нуля; не ответила карта - ничего не происходит", async () => {
+  it("масштаб остаётся в пределах карты: не ниже 0 и не выше 22; не ответила карта - ничего не происходит", async () => {
     await show();
     await finishLoading();
     mockMap.getZoom.mockResolvedValue(0.4);
     await fireEvent.press(screen.getByTestId("map-zoom-out"));
     expect(mockCamera.zoomTo).toHaveBeenLastCalledWith(0, { duration: 0 });
+    mockMap.getZoom.mockResolvedValue(21.6);
+    await fireEvent.press(screen.getByTestId("map-zoom-in"));
+    expect(mockCamera.zoomTo).toHaveBeenLastCalledWith(22, { duration: 0 });
+    mockMap.getZoom.mockResolvedValue(22);
+    await fireEvent.press(screen.getByTestId("map-zoom-in"));
+    expect(mockCamera.zoomTo).toHaveBeenLastCalledWith(22, { duration: 0 });
     mockCamera.zoomTo.mockClear();
     mockMap.getZoom.mockRejectedValue(new Error("map not ready"));
     await fireEvent.press(screen.getByTestId("map-zoom-in"));
@@ -162,10 +186,20 @@ describe("вузы на карте для читалки и мини-карто�
     expect(screen.getByTestId("catalog-map").props.accessibilityLabel).toBe("Карта университетов");
   });
 
-  it("кнопка вуза открывает мини-карточку и озвучивает её; «Открыть карточку» ведёт на вуз, «Закрыть» закрывает", async () => {
+  it("кнопки вузов не принимают касаний: слой не ловит касание, у кнопок нет onPress, касание угла карты ничего не открывает", async () => {
+    await show();
+    expect(screen.getByTestId("map-reader-pins").props.pointerEvents).toBe("none");
+    expect(screen.getByTestId("map-pin-u1").props.onPress).toBeUndefined();
+    expect(screen.getByTestId("map-pin-u2").props.onPress).toBeUndefined();
+    await fireEvent.press(screen.getByTestId("map-pin-u2"));
+    await fireEvent(screen.getByTestId("map-pin-u2"), "touchEnd");
+    expect(screen.queryByTestId("map-card")).toBeNull();
+  });
+
+  it("двойное касание читалки (iOS: onAccessibilityTap) открывает мини-карточку и озвучивает её; «Открыть карточку» ведёт на вуз, «Закрыть» закрывает", async () => {
     const speak = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
     const { onOpen } = await show();
-    await fireEvent.press(screen.getByTestId("map-pin-u2"));
+    await activate("u2");
     expect(screen.getByTestId("map-card")).toBeTruthy();
     expect(screen.getByText("Академия Альфа")).toBeTruthy();
     expect(speak).toHaveBeenCalledWith("Академия Альфа. Пенанг · Малайзия");
@@ -174,7 +208,23 @@ describe("вузы на карте для читалки и мини-карто�
     expect(screen.getByTestId("map-close").props.accessibilityLabel ?? "Закрыть").toBe("Закрыть");
     await fireEvent.press(screen.getByTestId("map-close"));
     expect(screen.queryByTestId("map-card")).toBeNull();
-    speak.mockRestore();
+  });
+
+  it("TalkBack: у кнопки есть действие activate (ACTION_CLICK), и оно открывает карточку; другие действия - нет; на iOS действий нет (двойное касание - onAccessibilityTap)", async () => {
+    await show();
+    expect(screen.getByTestId("map-pin-u1").props.accessibilityActions).toBeUndefined();
+    jest.replaceProperty(Platform, "OS", "android");
+    try {
+      await show();
+      const pin = screen.getAllByTestId("map-pin-u1").at(-1)!;
+      expect(pin.props.accessibilityActions).toEqual([{ name: "activate" }]);
+      await fireEvent(pin, "accessibilityAction", { nativeEvent: { actionName: "longpress" } });
+      expect(screen.queryByTestId("map-card")).toBeNull();
+      await fireEvent(pin, "accessibilityAction", { nativeEvent: { actionName: "activate" } });
+      expect(screen.getByText("Университет Зета")).toBeTruthy();
+    } finally {
+      jest.replaceProperty(Platform, "OS", "ios");
+    }
   });
 
   it("нажатие на точку карты открывает карточку, нажатие на пустое место закрывает", async () => {
@@ -193,7 +243,7 @@ describe("вузы на карте для читалки и мини-карто�
     const subscribe = jest.spyOn(BackHandler, "addEventListener");
     await show();
     expect(subscribe).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByTestId("map-pin-u1"));
+    await activate("u1");
     expect(screen.getByTestId("map-card")).toBeTruthy();
     expect(subscribe).toHaveBeenCalledWith("hardwareBackPress", expect.any(Function));
     const handled = subscribe.mock.calls[0]![1] as () => boolean;
@@ -203,7 +253,26 @@ describe("вузы на карте для читалки и мини-карто�
     });
     expect(answer).toBe(true); // «Назад» поглощена: страница остаётся
     expect(screen.queryByTestId("map-card")).toBeNull();
-    subscribe.mockRestore();
+  });
+});
+
+describe("рамка камеры по окну карты", () => {
+  const initial = () => (mockState.map.camera as { initialViewState: Record<string, unknown> }).initialViewState;
+
+  it("телефон: два кампуса в 0,1 градуса - рамка с полями; планшет - центр на предельном масштабе 11 (веб: fitBounds, maxZoom 11)", async () => {
+    setWindow(390);
+    await show({ pins: nearPins });
+    expect(initial()).toMatchObject({ bounds: [101.6, 3.1, 101.7, 3.2], padding: { top: 48, right: 48, bottom: 48, left: 48 } });
+    setWindow(744);
+    await show({ pins: nearPins });
+    expect(initial()).toMatchObject({ zoom: 11 });
+    expect(initial().bounds).toBeUndefined();
+  });
+
+  it("разброс по стране - рамка при любом окне", async () => {
+    setWindow(744);
+    await show();
+    expect(initial()).toMatchObject({ bounds: [100.3, 3.1, 101.6, 5.4] });
   });
 });
 

@@ -227,6 +227,27 @@ describe("«Показать более ранние»: мелочи после 
     await waitFor(() => expect(ids()).toEqual(range(11, 70)));
     expect(cursorsAsked(calls)).toEqual([41]);
   });
+
+  it("окно прыгнуло дважды, пока до первого пропуска не дошли: каждый пропуск закрывается по порядку, ни один не перепрыгивается (ревью #1590)", async () => {
+    const total = { value: 70 };
+    const { client, calls } = await open(total);
+    await waitFor(() => expect(ids()).toEqual(range(41, 70)));
+    total.value = 120; // прыжок 1: окно 91..120, пропуск 71..90
+    await refresh(client);
+    await waitFor(() => expect(ids()).toEqual([...range(41, 70), ...range(91, 120)]));
+    total.value = 180; // прыжок 2, до пропуска первого прыжка ещё не дошли: окно 151..180, пропуск 121..150
+    await refresh(client);
+    await waitFor(() => expect(ids()).toEqual([...range(41, 70), ...range(91, 120), ...range(151, 180)]));
+    // Вниз: 150..121 (пропуск второго прыжка), 120..91 (это уже загружено: дальше от окна 91, а не от окна 41), 90..61 (пропуск первого
+    // прыжка 71..90 закрыт), 60..31, 30..1. Если бы второй прыжок оставил `resume` первого, после 91 шли бы 41 и 11, а 71..90 остались бы дырой.
+    for (let step = 1; step <= 5; step += 1) {
+      await fireEvent.press(screen.getByTestId("earlier"));
+      await waitFor(() => expect(cursorsAsked(calls)).toHaveLength(step));
+      await waitFor(() => expect(screen.getByTestId("busy").props.children).toBe("false"));
+    }
+    expect(cursorsAsked(calls)).toEqual([151, 121, 91, 61, 31]);
+    expect(ids()).toEqual(range(1, 180));
+  });
 });
 
 describe("сообщение, уже загруженное, обновляется, если сервер отдал его иначе (разбор после слияния #1566)", () => {

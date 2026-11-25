@@ -40,18 +40,26 @@ function overlap(loaded: readonly PortalCaseMessage[], incoming: readonly Portal
   return hits === incoming.length ? "all" : hits === 0 ? "none" : "some";
 }
 
+/**
+ * Поля сообщения, по которым оно считается прежним. Список обязан быть полным: у нового поля `PortalCaseMessage` без записи здесь
+ * не пройдёт проверка типов, и изменение в нём не останется незамеченным (иначе оно не вливалось бы, пока приходит под тем же номером).
+ */
+const MESSAGE_FIELDS: Readonly<Record<keyof PortalCaseMessage, true>> = {
+  id: true,
+  sequenceId: true,
+  mine: true,
+  authorName: true,
+  body: true,
+  createdAt: true,
+  attachmentKind: true,
+  attachmentLabel: true,
+  quotedBodyPreview: true,
+};
+const MESSAGE_KEYS = Object.keys(MESSAGE_FIELDS) as (keyof PortalCaseMessage)[];
+
 /** Одно и то же сообщение без изменений (сервер считает вложение по слоту документа на лету, поэтому подпись у того же номера может смениться). */
 function sameMessage(a: PortalCaseMessage, b: PortalCaseMessage): boolean {
-  return (
-    a.id === b.id &&
-    a.mine === b.mine &&
-    a.authorName === b.authorName &&
-    a.body === b.body &&
-    a.createdAt === b.createdAt &&
-    a.attachmentKind === b.attachmentKind &&
-    a.attachmentLabel === b.attachmentLabel &&
-    a.quotedBodyPreview === b.quotedBodyPreview
-  );
+  return MESSAGE_KEYS.every((key) => a[key] === b[key]);
 }
 
 /** Есть ли на странице что-то новое или изменившееся против загруженного (иначе слияние и перерисовка не нужны). */
@@ -106,7 +114,9 @@ export function useChatThread() {
           epoch: current.epoch + 1,
           cursor: null,
           more: null,
-          resume: current.resume ?? { cursor: current.cursor ?? foldedPage?.cursor ?? null, more: current.more ?? foldedPage?.hasMore ?? false },
+          // Каждый прыжок записывает СВОЙ `resume` (откуда продолжить после загруженного сейчас). Прежний, до которого ещё не дошли, лежит
+          // ниже, и ходом вниз по новому пропуску он будет пройден сам; оставленный прежним, он перепрыгнул бы пропуск между двумя кусками.
+          resume: { cursor: current.cursor ?? foldedPage?.cursor ?? null, more: current.more ?? foldedPage?.hasMore ?? false },
         }));
       }
     }

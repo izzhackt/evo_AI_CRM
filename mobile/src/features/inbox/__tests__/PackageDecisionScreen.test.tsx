@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { AccessibilityInfo } from "react-native";
 
 import { PackageDecisionScreen } from "@/features/inbox/PackageDecisionScreen";
 import { preparationHref } from "@/features/preparations/routes";
@@ -24,9 +25,15 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }), usePathname: () => "/messages/package-decision/x" }));
+jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
 const navigate = router.navigate as jest.Mock;
+const announce = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 const AUTH = "11111111-1111-4111-8111-111111111111";
-beforeEach(() => navigate.mockClear());
+const NOT_FOUND_SPOKEN = "Такой страницы здесь нет. Ссылка устарела или адрес введён неверно. Вернитесь в личный кабинет и откройте нужный раздел заново.";
+beforeEach(() => {
+  navigate.mockClear();
+  announce.mockClear();
+});
 
 const render = (transport: Parameters<typeof testApi>[0], lang: "ru" | "ky" = "ru", id = PACKAGE_NOTIFICATION_ID) =>
   renderPortal(<PackageDecisionScreen notificationId={id} />, testApi(transport, { userKey: AUTH }), lang);
@@ -78,6 +85,7 @@ describe("Решение по комплекту (веб: /portal/package-notifi
     });
     await render(transport);
     expect(await screen.findByTestId("package-decision-word")).toHaveTextContent("Комплект проверен");
+    await screen.findByTestId("package-detail"); // состав прочитан: отсутствие замечания и списка исправлений проверяется на полном экране
     expect(screen.queryByTestId("package-decision-reason")).toBeNull();
     expect(screen.queryByTestId("package-affected")).toBeNull();
   });
@@ -97,11 +105,12 @@ describe("Решение по комплекту (веб: /portal/package-notifi
       }),
     });
     await render(transport);
+    // Состав комплекта читается вторым запросом, после уведомления: слово решения может появиться раньше, чем «позднее решение».
     expect(await screen.findByTestId("package-decision-word")).toHaveTextContent("Нужны исправления"); // решение из уведомления не подменяется
-    expect(within(screen.getByTestId("package-newer")).getByText("Есть более позднее решение по комплекту")).toBeTruthy();
-    expect(screen.getByTestId("package-newer-decision-word")).toHaveTextContent("Комплект проверен");
-    expect(within(screen.getByTestId("package-warnings")).getByText("Паспорт: Решение по файлу изменилось")).toBeTruthy();
-    expect(screen.getByText("Это решение из уведомления. Более поздние решения доступны в истории.")).toBeTruthy();
+    expect(within(await screen.findByTestId("package-newer")).getByText("Есть более позднее решение по комплекту")).toBeTruthy();
+    expect(await screen.findByTestId("package-newer-decision-word")).toHaveTextContent("Комплект проверен");
+    expect(within(await screen.findByTestId("package-warnings")).getByText("Паспорт: Решение по файлу изменилось")).toBeTruthy();
+    expect(await screen.findByText("Это решение из уведомления. Более поздние решения доступны в истории.")).toBeTruthy();
   });
 
   it("файл больше недоступен: предупреждение «Выбранный файл недоступен» и причина у файла", async () => {
@@ -176,6 +185,7 @@ describe("Решение по комплекту (веб: /portal/package-notifi
     expect(screen.queryByTestId("package-decision-error")).toBeNull();
     expect(screen.queryByText("Обновить")).toBeNull();
     expect(calls).toHaveLength(1);
+    expect(announce.mock.calls.filter(([said]) => said === NOT_FOUND_SPOKEN)).toHaveLength(1); // на iPhone alert молчит: «не найдено» читается вслух
   });
 
   it("«Открыть программу» ведёт на экран требований программы; «Что нового» на ленту", async () => {

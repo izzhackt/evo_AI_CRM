@@ -1,5 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { AccessibilityInfo } from "react-native";
 
 import { DocumentDecisionScreen } from "@/features/inbox/DocumentDecisionScreen";
 import { preparationHref } from "@/features/preparations/routes";
@@ -8,9 +9,15 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }), usePathname: () => "/messages/document-decision/x" }));
+jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));
 const navigate = router.navigate as jest.Mock;
+const announce = AccessibilityInfo.announceForAccessibility as unknown as jest.Mock;
 const AUTH = "11111111-1111-4111-8111-111111111111";
-beforeEach(() => navigate.mockClear());
+const NOT_FOUND_SPOKEN = "Такой страницы здесь нет. Ссылка устарела или адрес введён неверно. Вернитесь в личный кабинет и откройте нужный раздел заново.";
+beforeEach(() => {
+  navigate.mockClear();
+  announce.mockClear();
+});
 
 const render = (transport: Parameters<typeof testApi>[0], lang: "ru" | "ky" = "ru", id = DOCUMENT_NOTIFICATION_ID) =>
   renderPortal(<DocumentDecisionScreen notificationId={id} />, testApi(transport, { userKey: AUTH }), lang);
@@ -74,6 +81,7 @@ describe("Решение по документу программы (веб: /po
     expect(screen.queryByText("Обновить документы")).toBeNull();
     expect(screen.queryByTestId("document-decision-error")).toBeNull();
     expect(calls).toHaveLength(1);
+    expect(announce.mock.calls.filter(([said]) => said === NOT_FOUND_SPOKEN)).toHaveLength(1); // на iPhone alert молчит: «не найдено» читается вслух
   });
 
   it("чужое дело в ответе: показывается как недоступное, а не содержимое", async () => {

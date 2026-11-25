@@ -1,9 +1,9 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { AccessibilityInfo } from "react-native";
 
 import { InboxScreen } from "@/features/inbox/InboxScreen";
-import { applyReadOutcome, resetReadFailuresForTests } from "@/features/inbox/read-failures";
+import { applyReadOutcome } from "@/features/inbox/read-failures";
 import { UpdatesScreen } from "@/features/inbox/UpdatesScreen";
 import { useScreenVisible } from "@/features/inbox/visibility";
 import { notificationReadRequestId } from "@/domain/inbox-model";
@@ -25,8 +25,6 @@ beforeEach(() => {
   announce.mockClear();
   visible.mockReturnValue(true);
 });
-// Сбои записи «прочитано» живут в общем хранилище (по студенту): между тестами его забываем.
-afterEach(() => resetReadFailuresForTests());
 const WRITE = "mark_own_student_portal_notification_read_v2";
 
 const CHAT_ROW = { ...NOTIFICATION_ROW, notification_id: "66666666-6666-4666-8666-666666666668", category: "case", event_code: "case_chat_message", subject_label: "текст по-русски", created_at: "2026-09-07T09:00:00+00:00" };
@@ -84,6 +82,16 @@ describe("Что нового", () => {
     expect(navigate).toHaveBeenLastCalledWith(`/messages/package-decision/${PACKAGE_ROW.notification_id}`);
   });
 
+  it("строка читается целиком: подпись для читалки включает пояснение (причину, замечание) и срок, а не только название и время", async () => {
+    const row = { ...DOC_ROW, due_at: "2026-12-01T12:00:00+00:00" };
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [row] });
+    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    const label = (await screen.findByTestId(`update-${row.notification_id}`)).props.accessibilityLabel as string;
+    expect(label).toContain("Скан обрезан"); // пояснение видно на экране, значит и читается
+    expect(label).toContain("Срок: 01.12.2026");
+    expect(label).toContain("07.09.2026"); // время уведомления, как и раньше
+  });
+
   it("кнопка «Отметить прочитанным» у каждого непрочитанного: пишет одну запись и никуда не ведёт", async () => {
     const readRow = { ...CHAT_ROW, read_at: "2026-09-07T10:00:00+00:00" };
     const { transport, calls } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, readRow], mark_own_student_portal_notification_read_v2: {} });
@@ -135,10 +143,10 @@ describe("Что нового", () => {
   });
 
   it("прежний сбой не рисуется под строкой, которая уже прочитана (отмечена на сайте или на другом устройстве)", async () => {
-    applyReadOutcome(AUTH, { scope: "one", ok: false, succeeded: [], failed: [NOTIFICATION_ID, CHAT_ROW.notification_id] });
     const readRow = { ...NOTIFICATION_ROW, read_at: "2026-09-07T10:00:00+00:00" };
     const { transport } = fakeTransport({ student_portal_notifications_v2: [readRow, CHAT_ROW] });
-    await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    const { client } = await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    await act(async () => applyReadOutcome(client, AUTH, { scope: "one", ok: false, succeeded: [], failed: [NOTIFICATION_ID, CHAT_ROW.notification_id] }));
     expect(await screen.findByTestId(`update-read-error-${CHAT_ROW.notification_id}`)).toBeTruthy(); // непрочитанная - плашка есть
     expect(screen.queryByTestId(`update-read-error-${NOTIFICATION_ID}`)).toBeNull(); // прочитанная - нет
   });
@@ -215,7 +223,55 @@ describe("Что нового", () => {
     chatWrites = true; // связь вернулась: оставшееся отмечено кнопкой у строки
     await fireEvent.press(await screen.findByTestId(`update-read-${CHAT_ROW.notification_id}`));
     await waitFor(() => expect(screen.queryByTestId("updates-read-error")).toBeNull());
-    expect(screen.queryByTestId("updates-mark-all")).toBeNull(); // и кнопки «Отметить все» тоже нет: непрочитанного нет
+    // плашка уходит сразу (записанный номер снят), а лента перечитывается следом: кнопки «Отметить все» нет, когда непрочитанного нет
+    await waitFor(() => expect(screen.queryByTestId("updates-mark-all")).toBeNull());
+  });
+
+  it("плашка «Отметить все» стоит, пока не отмечены те, что не отметились; прочитали их на сайте или другом устройстве - уходит, новое непрочитанное её не воскрешает", async () => {
+    const readIds = new Set<string>();
+    let failing = true;
+    let withNew = false;
+    const NEWEST = { ...CHAT_ROW, notification_id: "66666666-6666-4666-8666-66666666666c", created_at: "2026-09-07T11:00:00+00:00" };
+    const rows = () => [NOTIFICATION_ROW, CHAT_ROW, ...(withNew ? [NEWEST] : [])].map((row) => (readIds.has(row.notification_id) ? { ...row, read_at: "2026-09-07T10:00:00+00:00" } : row));
+    const { transport } = fakeTransport({
+      student_portal_notifications_v2: rows,
+      [WRITE]: (args?: Record<string, unknown>) => {
+        if (failing) return failure("42501", 403);
+        readIds.add(String(args?.p_notification_id));
+        return {};
+      },
+    });
+    const { client } = await renderPortal(<UpdatesScreen />, testApi(transport, { userKey: AUTH }));
+    const refetch = () =>
+      act(async () => {
+        await client.refetchQueries({ queryKey: ["portal", AUTH, "notifications"] });
+      });
+    await fireEvent.press(await screen.findByTestId("updates-mark-all"));
+    expect(await screen.findByTestId("updates-read-error")).toBeTruthy();
+    failing = false;
+    await fireEvent.press(screen.getByTestId(`update-read-${NOTIFICATION_ID}`)); // отметили поодиночке в приложении: вторая ещё не отмечена
+    await waitFor(() => expect(screen.queryByTestId(`update-read-${NOTIFICATION_ID}`)).toBeNull());
+    expect(screen.getByTestId("updates-read-error")).toBeTruthy();
+    readIds.add(CHAT_ROW.notification_id); // вторую прочитали на сайте (приложение об этом не писало)
+    await refetch();
+    await waitFor(() => expect(screen.queryByTestId("updates-mark-all")).toBeNull());
+    expect(screen.queryByTestId("updates-read-error")).toBeNull();
+    withNew = true; // позже пришло новое непрочитанное: прежний сбой к нему не относится
+    await refetch();
+    expect(await screen.findByTestId("updates-mark-all")).toBeTruthy();
+    expect(screen.queryByTestId("updates-read-error")).toBeNull();
+  });
+
+  it("вышли и вошли заново (новый кабинет, новый кэш): сбой «Отметить все» прошлого входа не показывается", async () => {
+    const { transport } = fakeTransport({ student_portal_notifications_v2: [NOTIFICATION_ROW, CHAT_ROW], [WRITE]: failure("42501", 403) });
+    const api = testApi(transport, { userKey: AUTH });
+    const before = await renderPortal(<UpdatesScreen />, api);
+    await fireEvent.press(await screen.findByTestId("updates-mark-all"));
+    expect(await screen.findByTestId("updates-read-error")).toBeTruthy();
+    await before.unmount();
+    await renderPortal(<UpdatesScreen />, api); // тот же студент и те же непрочитанные, но кабинет открыт заново
+    expect(await screen.findByTestId("updates-mark-all")).toBeTruthy();
+    expect(screen.queryByTestId("updates-read-error")).toBeNull();
   });
 
   it("лента не загрузилась: слова веба «updatesUnavailable» с повтором; повтор читает снова", async () => {
@@ -249,8 +305,9 @@ describe("Входящие: список", () => {
     expect(screen.getByLabelText("Переписка и новости")).toBeTruthy();
     // без прежних обращений блока «Прежние вопросы куратору» нет (веб: CaseHelpPanel возвращает null)
     expect(screen.queryByTestId("help-foot")).toBeNull();
-    expect(screen.getByTestId("inbox-updates-badge")).toBeTruthy();
-    expect(screen.getByText("2")).toBeTruthy();
+    // счётчик читается другим запросом (уведомления), чем последнее сообщение (чат): ждём его отдельно
+    expect(await screen.findByTestId("inbox-updates-badge")).toBeTruthy();
+    expect(await screen.findByText("2")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("inbox-chat"));
     expect(navigate).toHaveBeenCalledWith("/messages/chat");
     await fireEvent.press(screen.getByTestId("inbox-updates"));

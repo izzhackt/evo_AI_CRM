@@ -4,7 +4,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Pressable, Text } from "react-native";
 
-import { resetReadFailuresForTests } from "@/features/inbox/read-failures";
 import { useNotificationRead, type NotificationReadFailure } from "@/features/inbox/useNotificationRead";
 import type { RpcTransport } from "@/lib/rpc";
 import { PortalShell, renderPortal, testApi, testClient } from "@/test-fixtures/render";
@@ -19,7 +18,6 @@ const B = "66666666-6666-4666-8666-6666666666bb";
 const WRITE = "mark_own_student_portal_notification_read_v2";
 
 beforeEach(() => mockPoke.mockClear());
-afterEach(() => resetReadFailuresForTests());
 
 type ProbeProps = Readonly<{ ids: readonly string[]; scope: NotificationReadFailure; onFailure?: (scope: NotificationReadFailure) => void }>;
 
@@ -28,7 +26,7 @@ function Probe({ ids, scope, onFailure }: ProbeProps) {
   return (
     <>
       <Pressable testID="go" onPress={() => void read.markRead(ids.map((notificationId) => ({ notificationId })), scope)} />
-      <Text testID="state">{`${[...read.failedIds].sort().join(",")}|${read.allFailed ? "all" : "-"}|${read.busy ? "busy" : "idle"}`}</Text>
+      <Text testID="state">{`${[...read.failedIds].sort().join(",")}|${[...read.allFailedIds].sort().join(",") || "-"}|${read.busy ? "busy" : "idle"}`}</Text>
     </>
   );
 }
@@ -40,7 +38,7 @@ describe("useNotificationRead", () => {
     const { transport, calls } = fakeTransport({ [WRITE]: failure("42501", 403) });
     await renderPortal(<Probe ids={[A, B]} scope="all" />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(screen.getByTestId("go"));
-    await waitFor(() => expect(state()).toBe("|all|idle"));
+    await waitFor(() => expect(state()).toBe(`|${A},${B}|idle`)); // оба остались неотмеченными: первая встала, вторая не пробовалась
     expect(written(calls)).toEqual([A]);
   });
 
@@ -50,7 +48,7 @@ describe("useNotificationRead", () => {
     await renderPortal(<Probe ids={[A, B]} scope="one" onFailure={onFailure} />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(screen.getByTestId("go"));
     await waitFor(() => expect(state()).toBe(`${B}|-|idle`));
-    expect(onFailure).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onFailure).toHaveBeenCalledTimes(1));
     expect(onFailure).toHaveBeenCalledWith("one");
   });
 
@@ -60,7 +58,7 @@ describe("useNotificationRead", () => {
     await renderPortal(<Probe ids={[A]} scope="one" onFailure={onFailure} />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(screen.getByTestId("go"));
     await waitFor(() => expect(mockPoke).toHaveBeenCalledTimes(1));
-    expect(state()).toBe("|-|idle");
+    await waitFor(() => expect(state()).toBe("|-|idle"));
     expect(onFailure).not.toHaveBeenCalled();
   });
 
@@ -70,7 +68,7 @@ describe("useNotificationRead", () => {
     await renderPortal(<Probe ids={[A, B]} scope="all" onFailure={onFailure} />, testApi(transport, { userKey: AUTH }));
     await fireEvent.press(screen.getByTestId("go"));
     await waitFor(() => expect(onFailure).toHaveBeenCalledWith("all"));
-    expect(mockPoke).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockPoke).toHaveBeenCalledTimes(1));
   });
 
   it("о сбое извещается то, что экран хочет сейчас, а не то, что было при нажатии (экран мог уйти с виду)", async () => {

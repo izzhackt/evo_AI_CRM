@@ -1,6 +1,6 @@
 // «Прочитано» для ленты: запись замораживается на уведомление, id детерминированный
-// (UUIDv5, как в вебе), повтор после сбоя шлёт тот же запрос. Сбои хранятся по студенту и уведомлению (`read-failures.ts`),
-// поэтому не пропадают с экраном и не залипают после удачной записи на другом экране.
+// (UUIDv5, как в вебе), повтор после сбоя шлёт тот же запрос. Сбои хранятся по кабинету, студенту и уведомлению (`read-failures.ts`),
+// поэтому не пропадают с экраном, не залипают после удачной записи на другом экране и не переживают выход из кабинета.
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -25,7 +25,7 @@ export function useNotificationRead(options: NotificationReadOptions = {}) {
   const poke = usePokePoll();
   const writes = useRef(new Map<string, FrozenWrite>());
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
-  const { failed, all } = useReadFailures(userKey);
+  const { failed, allFailed } = useReadFailures(client, userKey);
   // Колбэк экрана живёт в ссылке: запись, начатая с одной отрисовки, сообщает о сбое тому, что экран хочет сейчас.
   const onFailure = useRef(options.onFailure);
   useEffect(() => {
@@ -74,7 +74,7 @@ export function useNotificationRead(options: NotificationReadOptions = {}) {
           for (const id of ids) next.delete(id);
           return next;
         });
-        applyReadOutcome(userKey, { scope, ok, succeeded, failed: ids.filter((id) => !succeeded.includes(id)) });
+        applyReadOutcome(client, userKey, { scope, ok, succeeded, failed: ids.filter((id) => !succeeded.includes(id)) });
         void client.invalidateQueries({ queryKey: ["portal", userKey, "notifications"] });
         poke();
       }
@@ -90,7 +90,7 @@ export function useNotificationRead(options: NotificationReadOptions = {}) {
     isPending: (notificationId: string) => pending.has(notificationId),
     /** Номера уведомлений, запись которых не удалась (у каждого своя плашка с «Повторить»). */
     failedIds: failed,
-    /** «Отметить все» не удалась. */
-    allFailed: all,
+    /** Номера уведомлений, которые остались неотмеченными после неудачной «Отметить все» (плашка стоит, пока непрочитано хоть одно). */
+    allFailedIds: allFailed,
   };
 }

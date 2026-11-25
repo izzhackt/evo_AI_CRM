@@ -3,7 +3,8 @@
 // Прочитанным отмечает и нажатие на строку (приложение), и кнопка «Отметить прочитанным» у каждого непрочитанного (веб);
 // переход от записи не зависит: экран всё равно открывается (как в вебе). Сбой записи стоит плашкой с «Повторить» ПОД самой
 // строкой (не вверху ленты: лента могла уйти вверх, а студент - на другой экран), хранится по уведомлению и читается вслух.
-// Сбой «Отметить все» - плашка вверху ленты, как в вебе (markAllReadError).
+// Сбой «Отметить все» - плашка вверху ленты, как в вебе (markAllReadError); она стоит, пока непрочитано хотя бы одно из тех уведомлений,
+// что остались неотмеченными при этой попытке (отметили поодиночке или прочитали на сайте - уходит, новое уведомление её не воскрешает).
 import { useRouter } from "expo-router";
 import { ArrowLeft, Bell } from "lucide-react-native";
 import { useCallback, useState } from "react";
@@ -55,6 +56,7 @@ export function UpdatesScreen() {
 
   const items = notifications.data ?? [];
   const unread = unreadNotifications(items);
+  const allFailed = unread.some((item) => read.allFailedIds.has(item.notificationId));
   const back = () => (router.canGoBack() ? router.back() : router.navigate("/messages"));
 
   const open = (item: StudentPortalNotification) => {
@@ -105,7 +107,7 @@ export function UpdatesScreen() {
               <Text variant="caption" tone="text2">
                 {admission.notificationsTimeNote}
               </Text>
-              {read.allFailed && unread.length > 0 ? (
+              {allFailed ? (
                 <InlineAlert message={admission.markAllReadError} retryLabel={m("gate.retry")} onRetry={() => void read.markRead(unread, "all")} testID="updates-read-error" />
               ) : null}
               {unread.length > 0 ? (
@@ -126,7 +128,7 @@ export function UpdatesScreen() {
               >
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${isUnread ? `${admission.statusNew}: ` : ""}${text.title}${created ? `. ${created}` : ""}`}
+                  accessibilityLabel={`${isUnread ? `${admission.statusNew}: ` : ""}${text.title}${text.detail ? `. ${text.detail}` : ""}${created ? `. ${created}` : ""}${due ? `. ${admission.dueTerm} ${due}` : ""}`}
                   accessibilityHint={targetLabel}
                   onPress={() => open(item)}
                   testID={`update-${item.notificationId}`}

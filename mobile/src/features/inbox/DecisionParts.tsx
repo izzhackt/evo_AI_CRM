@@ -2,13 +2,16 @@
 // веба (`programDocuments`, пакетные `packageStrings`), как у страниц /portal/document-notifications и
 // /portal/package-notifications; своих формулировок решений здесь нет.
 import type { ApplicationDocumentFile, ApplicationDocumentReview, ApplicationDocumentSubmission } from "@web/lib/portal/application-documents";
+import { useEffect, useRef } from "react";
 import { View } from "react-native";
 
 import { bishkekTime } from "@/features/inbox/format";
+import { useScreenVisible } from "@/features/inbox/visibility";
 import { useLang } from "@/i18n/LangProvider";
 import type { PortalStrings } from "@/i18n";
 import { RpcError } from "@/lib/rpc";
 import { sansFont } from "@/theme/fonts";
+import { announce } from "@/ui/a11y";
 import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
@@ -84,8 +87,11 @@ export function SubmissionEvidence({ submission }: { submission: ApplicationDocu
 }
 
 /**
- * Сервер ответил «нет доступа» (42501): такого уведомления у этого студента нет (чужое, несуществующее, не ответ куратора). Повтор
- * этого не изменит, поэтому экран говорит «не найдено» без «Повторить» (веб: `notFound()`), а не «не удалось, повторите».
+ * Сервер ответил «нет доступа» (42501): такого уведомления у этого студента нет (чужое, несуществующее или не того вида; миграция 153
+ * отвечает так на все три случая). Повтор этого не изменит, поэтому экран говорит «не найдено» без «Повторить».
+ * Это ОСОЗНАННОЕ отличие от сайта, а не паритет: страница ответа куратора при 42501 бросает ошибку в границу ошибок, страницы решения по
+ * документу и по комплекту (`.catch(() => null)`) показывают «недоступно» с ссылкой «обновить», а `notFound()` у сайта только для
+ * неверного номера и чужого дела.
  */
 export function isNotFoundError(error: unknown): boolean {
   return error instanceof RpcError && error.kind === "forbidden";
@@ -94,14 +100,24 @@ export function isNotFoundError(error: unknown): boolean {
 /** «Такой страницы здесь нет» (слова веба, как у экрана «страница не найдена»), без кнопки повтора. */
 export function DetailNotFound() {
   const { m } = useLang();
+  const visible = useScreenVisible();
+  const title = m("app.notFound.title");
+  const text = m("app.notFound.text");
+  // `accessibilityRole="alert"` на iPhone ничего не произносит: «не найдено» говорится читалке явно, один раз и только на виду.
+  const said = useRef(false);
+  useEffect(() => {
+    if (said.current || !visible) return;
+    said.current = true;
+    announce(`${title}. ${text}`);
+  }, [visible, title, text]);
   return (
     <Card>
       <View accessibilityRole="alert" style={{ gap: 4 }} testID="detail-not-found">
         <Text variant="body" bold accessibilityRole="header">
-          {m("app.notFound.title")}
+          {title}
         </Text>
         <Text variant="secondary" tone="text2">
-          {m("app.notFound.text")}
+          {text}
         </Text>
       </View>
     </Card>

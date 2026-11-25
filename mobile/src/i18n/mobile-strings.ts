@@ -2,12 +2,23 @@
 // есть в вебе (навигация, профиль, пароль, восстановление), берётся оттуда.
 // Тексты входа повторяют логин-страницу веба (src/app/login/page.tsx, COPY).
 // KY: needs native proofreading, как и в вебе.
+// Строки срезов лежат в `strings-*.ts`, по файлу на срез (таблица владельцев: docs/mobile/PLAN.md, «Волна 0 паритета»);
+// здесь файлы только подключены: срез правит свой файл и не правит этот.
+// Соглашение: каждая новая KY-строка получает в конце пометку `// KY: needs native proofreading`.
 
 import { INBOX_KY, INBOX_RU } from "@/i18n/strings-inbox";
 import { LEARN_KY, LEARN_RU } from "@/i18n/strings-learning";
 import { DOCS_KY, DOCS_RU } from "@/i18n/strings-documents";
 import { PROFILE_KY, PROFILE_RU } from "@/i18n/strings-profile";
 import { REGISTRATION_KY, REGISTRATION_RU } from "@/i18n/strings-registration";
+import { APP_KY, APP_RU } from "@/i18n/strings-app";
+import { CONSULTATION_KY, CONSULTATION_RU } from "@/i18n/strings-consultation";
+import { HOME_KY, HOME_RU } from "@/i18n/strings-home";
+import { LEARN2_KY, LEARN2_RU } from "@/i18n/strings-learning-2";
+import { PAYMENTS_KY, PAYMENTS_RU } from "@/i18n/strings-payments";
+import { PREPARATIONS_KY, PREPARATIONS_RU } from "@/i18n/strings-preparations";
+import { SHELL_KY, SHELL_RU } from "@/i18n/strings-shell";
+import { UNIVERSITIES_KY, UNIVERSITIES_RU } from "@/i18n/strings-universities";
 
 const ru = {
   "auth.title": "Кабинет студента",
@@ -93,6 +104,14 @@ const ru = {
   ...LEARN_RU,
   ...PROFILE_RU,
   ...REGISTRATION_RU,
+  ...APP_RU,
+  ...CONSULTATION_RU,
+  ...HOME_RU,
+  ...LEARN2_RU,
+  ...PAYMENTS_RU,
+  ...PREPARATIONS_RU,
+  ...SHELL_RU,
+  ...UNIVERSITIES_RU,
 } as const;
 
 export type MobileStringKey = keyof typeof ru;
@@ -181,6 +200,14 @@ const ky: Readonly<Record<MobileStringKey, string>> = {
   ...LEARN_KY,
   ...PROFILE_KY,
   ...REGISTRATION_KY,
+  ...APP_KY,
+  ...CONSULTATION_KY,
+  ...HOME_KY,
+  ...LEARN2_KY,
+  ...PAYMENTS_KY,
+  ...PREPARATIONS_KY,
+  ...SHELL_KY,
+  ...UNIVERSITIES_KY,
 };
 
 export const MOBILE_STRINGS = { ru, ky } as const;

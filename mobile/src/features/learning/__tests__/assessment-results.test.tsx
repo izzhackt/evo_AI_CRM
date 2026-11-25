@@ -9,9 +9,12 @@ import { RESULT_ATTEMPT_ID, completedCareer, completedEnglish } from "@/test-fix
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { fakeTransport } from "@/test-fixtures/universities";
 
+// Экран теперь придерживает уход через `useLeaveGuard` (#1559): ему нужны навигатор и `usePreventRemove`.
 jest.mock("expo-router", () => ({
   router: { navigate: jest.fn(), back: jest.fn() },
   useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }),
+  useNavigation: () => ({ setOptions: jest.fn(), dispatch: jest.fn() }),
+  usePreventRemove: () => jest.fn(),
 }));
 
 async function open(key: "english36" | "orvis92", attempt: unknown, lang: "ru" | "ky" = "ru") {

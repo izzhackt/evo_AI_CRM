@@ -3,7 +3,7 @@
 // loopback HTTP server, git runs in throwaway repositories.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -580,6 +580,22 @@ test("command: --help and the script as a real process: exit 1 only for a violat
   const noGit = cli(["--body-file", bodyFile], { GIT_CEILING_DIRECTORIES: dir, GIT_DIR: join(dir, "no-such-git-dir") });
   assert.equal(noGit.status, 0);
   assert.match(noGit.stdout, /ВНИМАНИЕ: .*git diff origin\/main\.\.\.HEAD не выполнился/u);
+});
+
+test("command: it runs the way CI starts it (relative path from the repository root) and through a symlinked checkout", (t) => {
+  const { filesFile, bodyFile, dir } = inputs(t);
+  const run = (path, cwd) => spawnSync(process.execPath, [path, "--files-file", filesFile, "--body-file", bodyFile], { cwd, env: { PATH: process.env.PATH }, encoding: "utf8" });
+
+  const relative = run("scripts/ci/mobile-parity-check.mjs", root);
+  assert.equal(relative.status, 1, relative.stdout + relative.stderr);
+  assert.match(relative.stdout, /кабинет студента изменён, а приложение — нет/u);
+
+  // A symlinked checkout (the old EVO path is one): the script must still run, not silently do nothing.
+  mkdirSync(join(dir, "linked"));
+  symlinkSync(join(root, "scripts"), join(dir, "linked/scripts"), "dir");
+  const linked = run(join(dir, "linked/scripts/ci/mobile-parity-check.mjs"), dir);
+  assert.equal(linked.status, 1, linked.stdout + linked.stderr);
+  assert.match(linked.stdout, /кабинет студента изменён, а приложение — нет/u);
 });
 
 test("command: stdin as the file list", (t) => {

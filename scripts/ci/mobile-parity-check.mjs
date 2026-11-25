@@ -20,9 +20,8 @@
 //   node scripts/ci/mobile-parity-check.mjs --base origin/main --body-file body.md      laptop: the description from a file
 //   node scripts/ci/mobile-parity-check.mjs --files-file files.txt --body-file body.md   dry runs and tests: no git, no API
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { appendFileSync, readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export const CHECK_NAME = "Mobile parity";
 export const DEFAULT_REPOSITORY = "izzhackt/evo_AI_CRM";
@@ -418,8 +417,15 @@ export async function main({ argv = process.argv.slice(2), env = process.env, st
   }
 }
 
+// Real paths on both sides: run through a symlinked checkout, the plain comparison would be false and the check would
+// silently do nothing.
 function isMainModule() {
-  return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
 }
 
 if (isMainModule()) {

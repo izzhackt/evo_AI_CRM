@@ -119,10 +119,21 @@ export function FavoritesAll({ now }: { now: Date }) {
       <CardSkeleton label={`${strings.title}. ${m("state.loading")}`} testID="favorites-all-loading" />
     );
   }
+  // Число «вне каталога» читается отдельным запросом, а список ждёт и его: иначе строка «Больше нет в каталоге: N» всплывала бы над
+  // уже нарисованными карточками и сдвигала их (веб рисует обе части одним ответом сервера). Сбой этого числа список не прячет:
+  // ошибка - ноль, как `.catch(() => 0)` веба; приостановленное чтение (нет сети) тоже не держит список.
+  if (hidden.isPending && hidden.fetchStatus !== "paused") {
+    return <CardSkeleton label={`${strings.title}. ${m("state.loading")}`} testID="favorites-all-loading" />;
+  }
 
   const items = all.data.items;
   const hiddenCount = hidden.data ?? 0;
-  const selected = selectedUniversities(items, selectedIds);
+  // Вуз пропал из избранного, а потом вернулся (убрали и добавили снова): прежняя отметка «Сравнивать» не воскресает. Лишние отметки
+  // сбрасываются прямо при отрисовке (без эффекта, как состояние «Главной» по ссылке), а в этой же отрисовке уже не учитываются.
+  const itemIds = new Set(items.map((item) => item.id));
+  const keptIds = selectedIds.filter((id) => itemIds.has(id));
+  if (keptIds.length !== selectedIds.length) setSelectedIds(keptIds);
+  const selected = selectedUniversities(items, keptIds);
   const toggle = (id: string) => setSelectedIds((previous) => (previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id]));
 
   return (
@@ -147,7 +158,7 @@ export function FavoritesAll({ now }: { now: Date }) {
           <View accessibilityRole="list" style={{ gap: 20 }}>
             {items.map((item) => (
               <View key={item.id} style={{ gap: 4 }} testID={`favorite-entry-${item.id}`}>
-                <ComparePick id={item.id} label={format(strings.compareSelect, { name: item.content.name })} checked={selectedIds.includes(item.id)} onToggle={() => toggle(item.id)} />
+                <ComparePick id={item.id} label={format(strings.compareSelect, { name: item.content.name })} checked={keptIds.includes(item.id)} onToggle={() => toggle(item.id)} />
                 {/* Запись из избранного по определению: сердечко закрашено, пока его состояние не прочитано (после снятия - как в каталоге). */}
                 <UniversityTileView tile={publishedTile(item, universities, lang, now)} strings={universities} favored={marks.isFavored(item.id) ?? true} onToggle={marks.toggle} />
               </View>

@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { getPortalStrings } from "@web/lib/portal/i18n";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
+import type { RpcTransport } from "@/lib/rpc";
 import { byIds, favorites, homeHandlers, restoreNow, setNow } from "@/test-fixtures/home";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { failure, fakeTransport, universityRow, uuidN } from "@/test-fixtures/universities";
@@ -182,6 +183,90 @@ describe("запись избранного на карточке каталог
     expect(push).not.toHaveBeenCalled(); // сердечко не открывает вуз
     await fireEvent.press(screen.getByTestId(`tile-${uuidN(2)}`));
     expect(push).toHaveBeenCalledWith(`/universities/${uuidN(2)}`); // а карточка открывает
+  });
+});
+
+describe("полный список: пробелы, найденные ревью", () => {
+  /** «Потянуть вниз» на «Главной»: перечитывает открытые чтения (так приходит «избранное изменилось в другом месте»). */
+  const pullToRefresh = () =>
+    act(async () => {
+      screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+  const unfavor = (saved: { institutionId: string }[]) => (args?: Record<string, unknown>) => {
+    const next = saved.filter((entry) => entry.institutionId !== args?.p_institution_id);
+    saved.splice(0, saved.length, ...next);
+    return { institutionId: args?.p_institution_id, favored: false, favoritesCount: saved.length };
+  };
+
+  it("избранное опустело, потом снова появилось: открывается лента, а не прежний полный список", async () => {
+    const saved = favorites(1);
+    await openAll(1, { student_university_favorites_v1: () => saved, set_university_favorite_v1: unfavor(saved) });
+    await fireEvent.press(within(screen.getByTestId(`favorite-entry-${uuidN(1)}`)).getByRole("button", { name: /Убрать из избранного/ }));
+    expect(await screen.findByText("Пока ничего не сохранено")).toBeTruthy();
+    // вуз добавлен в каталоге: «потянуть вниз» перечитывает избранное
+    saved.push(...favorites(2));
+    await pullToRefresh();
+    expect(await screen.findByTestId("home-favorites")).toBeTruthy();
+    expect(screen.queryByTestId("favorites-all-view")).toBeNull();
+    expect(screen.getByTestId("favorites-all")).toBeTruthy(); // ссылка «Всё избранное» вернулась, список открывает только она
+  });
+
+  it("вуз убран из избранного и добавлен снова: прежняя отметка «Сравнивать» не возвращается, остальные остаются", async () => {
+    const saved = favorites(3);
+    await openAll(3, { student_university_favorites_v1: () => saved, set_university_favorite_v1: unfavor(saved) });
+    await fireEvent.press(screen.getByTestId(`compare-pick-${uuidN(1)}`));
+    await fireEvent.press(screen.getByTestId(`compare-pick-${uuidN(2)}`));
+    expect(await screen.findByTestId("compare-table")).toBeTruthy();
+    await fireEvent.press(within(screen.getByTestId(`favorite-entry-${uuidN(2)}`)).getByRole("button", { name: /Убрать из избранного/ }));
+    await waitFor(() => expect(screen.queryByTestId(`favorite-entry-${uuidN(2)}`)).toBeNull());
+    expect(screen.getByTestId("compare-hint")).toBeTruthy(); // остался один выбранный вуз
+    saved.splice(0, saved.length, ...favorites(3)); // тот же вуз снова в избранном
+    await pullToRefresh();
+    const back = await screen.findByTestId(`favorite-entry-${uuidN(2)}`);
+    expect(within(back).getByTestId(`compare-pick-${uuidN(2)}`).props.accessibilityState).toMatchObject({ checked: false });
+    expect(screen.queryByTestId("compare-table")).toBeNull();
+    expect(screen.getByTestId(`compare-pick-${uuidN(1)}`).props.accessibilityState).toMatchObject({ checked: true });
+  });
+
+  it("«Больше нет в каталоге» не всплывает после списка: список ждёт и это число, обе части приходят вместе", async () => {
+    let release = () => {};
+    let hiddenAsked = false;
+    let byIdsDone = 0;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const view = fakeTransport(handlers(2, { student_hidden_university_favorites_v1: { hiddenCount: 3 } }));
+    const gated: RpcTransport = async (name, args, options) => {
+      if (name === "student_hidden_university_favorites_v1") {
+        hiddenAsked = true;
+        await gate;
+      }
+      const result = await view.transport(name, args, options);
+      if (name === "student_university_catalog_by_ids_v1") byIdsDone += 1;
+      return result;
+    };
+    await renderPortal(<HomeScreen />, testApi(gated));
+    await fireEvent.press(await screen.findByTestId("favorites-all"));
+    // список карточек прочитан, а число «вне каталога» ещё нет: на экране заглушка, карточек нет
+    await waitFor(() => expect(hiddenAsked).toBe(true));
+    // карточки полного списка прочитаны (вторая выборка по id закончилась: первую делает лента «Главной»)
+    await waitFor(() => expect(byIdsDone).toBeGreaterThanOrEqual(2));
+    // результат чтения доходит до экрана очередью уведомлений React Query, а она идёт таймером: двигаем часы, а не ждём
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => jest.advanceTimersByTime(100));
+    expect(screen.getByTestId("favorites-all-loading")).toBeTruthy();
+    expect(screen.queryByTestId(`tile-${uuidN(1)}`)).toBeNull();
+    expect(screen.queryByTestId("favorites-hidden")).toBeNull();
+    await act(async () => release());
+    expect(await screen.findByTestId("favorites-hidden")).toHaveTextContent("Больше нет в каталоге: 3");
+    expect(screen.getByTestId(`tile-${uuidN(1)}`)).toBeTruthy();
+    expect(screen.queryByTestId("favorites-all-loading")).toBeNull();
+  });
+
+  it("число «вне каталога» не прочиталось: список всё равно появляется, без строки", async () => {
+    await openAll(2, { student_hidden_university_favorites_v1: failure(null, 503) });
+    expect(await screen.findByTestId(`tile-${uuidN(1)}`)).toBeTruthy();
+    expect(screen.queryByTestId("favorites-all-loading")).toBeNull();
+    expect(screen.queryByTestId("favorites-hidden")).toBeNull();
   });
 });
 

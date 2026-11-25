@@ -24,11 +24,11 @@ const mockDevice = {
 };
 
 jest.mock("expo-crypto", () => ({
-  randomUUID: () => require("node:crypto").randomUUID(),
+  randomUUID: () => jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID(),
   getRandomBytes: (size: number) => new Uint8Array(size),
   CryptoDigestAlgorithm: { SHA256: "SHA-256" },
   digest: async (_algorithm: string, data: ArrayBuffer) => {
-    const out = require("node:crypto").createHash("sha256").update(Buffer.from(data)).digest();
+    const out = jest.requireActual<typeof import("node:crypto")>("node:crypto").createHash("sha256").update(Buffer.from(data)).digest();
     return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength);
   },
 }));

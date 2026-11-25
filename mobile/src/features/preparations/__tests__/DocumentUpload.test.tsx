@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { AccessibilityInfo, Alert, Platform } from "react-native";
 
+import * as commands from "@/features/preparations/document-commands";
 import { documentsPending } from "@/features/preparations/documents-pending";
 import { PreparationScreen } from "@/features/preparations/PreparationScreen";
 import {
@@ -879,6 +880,25 @@ describe("отмена загрузки студентом", () => {
     expect(screen.queryByTestId(`prep-upload-retained-${ITEM}`)).toBeNull();
     expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
     expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).not.toHaveTextContent("Проверить результат");
+  });
+
+  it("после остановки неожиданный сбой следующей попытки снова виден как ошибка, а не как спокойное «Загрузка отменена.»", async () => {
+    let attempt = 0;
+    const io = makeIo({ upload: (intent, signal) => (++attempt === 1 ? stoppable(UNKNOWN)(intent, signal) : { ok: true, receipt: receiptFor(intent) as never }) });
+    await open({ ready: answer(emptyItem(), documentState(0, { canSubmit: false })), io });
+    await chooseFile();
+    await fireEvent.press(await screen.findByTestId(cancelId));
+    await waitFor(() => expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Загрузка отменена."));
+    await waitForEnabled(`prep-upload-button-${ITEM}`);
+    // вторая попытка падает мимо обычных исходов команды (исключение): сообщение должно быть ошибкой, а не наследовать «остановлено»
+    const spy = jest.spyOn(commands, "runUploadAndSubmit").mockRejectedValueOnce(new Error("unexpected"));
+    try {
+      await chooseFile();
+      await waitFor(() => expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Не удалось получить результат", { exact: false }));
+      expect(screen.getByTestId(`prep-upload-message-${ITEM}`).props.accessibilityRole).toBe("alert");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("сервер успел ответить отказом раньше остановки: студент видит причину отказа, а не «Загрузка отменена.»; запрос снят", async () => {

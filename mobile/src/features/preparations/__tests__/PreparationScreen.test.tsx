@@ -515,6 +515,16 @@ describe("нет программы и сбой списка", () => {
     expect(calls.filter((c) => c.name === "student_catalog_preparations_v1")).toHaveLength(3);
   });
 
+  it("«потянуть вниз» там, где программы нет в списке: список перечитывается, а закрытый запрос требований не уходит", async () => {
+    const { calls } = await open(handlers(starterReadiness(), {}, [preparationRow(2)]));
+    expect(await screen.findByTestId("prep-not-found")).toBeTruthy();
+    await act(async () => {
+      await screen.getByTestId("screen-scroll").props.refreshControl.props.onRefresh();
+    });
+    expect(calls.filter((c) => c.name === "student_catalog_preparations_v1")).toHaveLength(2);
+    expect(calls.some((c) => c.name === "application_package_readiness_v1")).toBe(false);
+  });
+
   it("программы с таким идентификатором в списке студента нет: «не найдена», запрос требований не уходит", async () => {
     const { calls } = await open(handlers(starterReadiness(), {}, [preparationRow(2)]));
     expect(await screen.findByTestId("prep-not-found")).toHaveTextContent("Эта программа не найдена в вашем списке.", { exact: false });

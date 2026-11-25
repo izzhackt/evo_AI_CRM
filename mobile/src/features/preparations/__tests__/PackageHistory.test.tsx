@@ -31,6 +31,8 @@ import {
   reviewHistoryPage,
 } from "@/test-fixtures/preparations-packages";
 import { renderPortal, testApi } from "@/test-fixtures/render";
+import { settle } from "@/test-fixtures/settle";
+import { LangSwitch } from "@/ui/LangSwitch";
 import { failure, fakeTransport, preparationRow, uuidN } from "@/test-fixtures/universities";
 
 jest.mock("expo-router", () => ({ router: { navigate: jest.fn() }, useLocalSearchParams: jest.fn(() => ({})) }));
@@ -151,6 +153,33 @@ describe("комплект подробно", () => {
     await fireEvent.press(await screen.findByTestId(`prep-package-open-${summary.packageId as string}-toggle`));
     return t;
   };
+
+  it("смена языка не перечитывает открытый комплект: текст сбоя для читалки берётся из последнего показа, а не из зависимостей чтения", async () => {
+    const summary = packageSummary(1, 1);
+    const id = summary.packageId as string;
+    const { transport, calls } = fakeTransport({
+      student_catalog_preparations_v1: [preparationRow(1)],
+      application_package_readiness_v1: base(),
+      application_package_history_v1: packageHistoryPage([summary]),
+      application_package_detail_v1: detailOf(summary),
+    });
+    await renderPortal(
+      <>
+        <PreparationScreen applicationId={APPLICATION_ID} io={makeIo().io} />
+        <LangSwitch />
+      </>,
+      testApi(transport),
+    );
+    await fireEvent.press(await screen.findByTestId("prep-package-history-toggle"));
+    await fireEvent.press(await screen.findByTestId(`prep-package-open-${id}-toggle`));
+    await screen.findByTestId(`prep-package-detail-${id}`);
+    const reads = () => calls.filter((call) => call.name === "application_package_detail_v1").length;
+    expect(reads()).toBe(1);
+    await fireEvent.press(screen.getByTestId("lang-ky"));
+    await waitFor(() => expect(screen.getByTestId("lang-ky").props.accessibilityState).toMatchObject({ checked: true }));
+    await settle();
+    expect(reads()).toBe(1);
+  });
 
   it("ждёт проверки: версия, программа, время отправки, файл с версией, «Отправлен на проверку EVO»", async () => {
     const summary = packageSummary(1, 1);

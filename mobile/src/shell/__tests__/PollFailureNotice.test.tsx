@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, StyleSheet, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { LangProvider } from "@/i18n/LangProvider";
 import { PollFailureNotice } from "@/shell/PollFailureNotice";
+import { reportTopNoticeHeight, useTopChromeHeight } from "@/shell/top-chrome";
 import { reportUpdatePromptVisible } from "@/shell/update-prompt-visibility";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
@@ -14,15 +15,6 @@ jest.mock("@/api/PortalPoll", () => ({
   usePortalPollFailure: () => {
     if (mockBroken) throw new Error("poll context is broken");
     return { failed: mockFailed, retry: mockRetry };
-  },
-}));
-
-// Общая мера высоты верхней полосы читается через геттер: тест подменяет число и видит, что полоса берёт его оттуда, а не своим
-// числом (настоящее значение сверяет тест карточки обновления, `shell/top-bar-metrics`).
-let mockBarHeight = 52;
-jest.mock("@/shell/top-bar-metrics", () => ({
-  get TOP_BAR_HEIGHT() {
-    return mockBarHeight;
   },
 }));
 
@@ -42,10 +34,10 @@ const renderNotice = (lang: "ru" | "ky" = "ru") => render(tree(lang));
 beforeEach(() => {
   mockFailed = false;
   mockBroken = false;
-  mockBarHeight = 52;
   mockRetry.mockClear();
   announce.mockClear();
   reportUpdatePromptVisible(false);
+  reportTopNoticeHeight(0);
 });
 
 describe("карточка «Не удалось обновить уведомления» (веб: .pt-notification-error)", () => {
@@ -63,14 +55,58 @@ describe("карточка «Не удалось обновить уведомл
     expect(mockRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("встаёт под верхней полосой справа, не шире 320; высоту полосы берёт из общей меры, а не своим числом", async () => {
+  it("стоит в потоке раскладки, а не поверх содержимого: без абсолютного положения и сдвигов, во всю ширину под верхней полосой (QA#2, D4)", async () => {
     mockFailed = true;
-    mockBarHeight = 64;
     await renderNotice();
-    const card = screen.getByTestId("poll-failure");
-    expect(card.props.style).toMatchObject({ width: 320 });
-    // отступ безопасной зоны 47 + полоса (общая мера, здесь подменена на 64) + зазор 8
-    expect(screen.getByTestId("poll-failure-anchor").props.style).toMatchObject({ position: "absolute", top: 47 + 64 + 8, right: 16 });
+    const anchor = StyleSheet.flatten(screen.getByTestId("poll-failure-anchor").props.style);
+    expect(anchor.position).not.toBe("absolute");
+    expect(anchor).not.toHaveProperty("top");
+    expect(anchor).not.toHaveProperty("right");
+    const card = StyleSheet.flatten(screen.getByTestId("poll-failure").props.style);
+    expect(card.position).not.toBe("absolute");
+    expect(card.width).toBeUndefined(); // ширина по месту, а не 320 pt: в потоке карточка занимает строку
+  });
+
+  describe("высота карточки идёт экранам с клавиатурой (`shell/top-chrome.ts`)", () => {
+    function Chrome() {
+      return <Text testID="chrome">{String(useTopChromeHeight())}</Text>;
+    }
+    const withChrome = () => (
+      <SafeAreaProvider initialMetrics={metrics}>
+        <ThemeProvider>
+          <LangProvider initial="ru">
+            <PollFailureNotice />
+            <Chrome />
+          </LangProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    );
+    const chrome = () => screen.getByTestId("chrome").props.children as string;
+
+    it("после раскладки карточка сообщает высоту; ушла - сообщает 0", async () => {
+      mockFailed = true;
+      const view = await render(withChrome());
+      expect(chrome()).toBe("99"); // 47 + 52, раскладки ещё не было
+      await fireEvent(screen.getByTestId("poll-failure-anchor"), "layout", { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 60 } } });
+      expect(chrome()).toBe("159");
+      await act(async () => reportUpdatePromptVisible(true)); // уступила карточке обновления
+      expect(screen.queryByTestId("poll-failure")).toBeNull();
+      expect(chrome()).toBe("99");
+      await view.unmount();
+    });
+
+    it("карточка размонтирована (выход из кабинета): высота не залипает", async () => {
+      mockFailed = true;
+      const view = await render(withChrome());
+      await fireEvent(screen.getByTestId("poll-failure-anchor"), "layout", { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 60 } } });
+      await view.unmount();
+      const probe = await render(
+        <SafeAreaProvider initialMetrics={metrics}>
+          <Chrome />
+        </SafeAreaProvider>,
+      );
+      expect(probe.getByTestId("chrome")).toHaveTextContent("99");
+    });
   });
 
   it("кыргызский язык", async () => {

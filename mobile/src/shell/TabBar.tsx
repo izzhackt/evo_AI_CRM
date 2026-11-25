@@ -10,6 +10,7 @@ import { useLang } from "@/i18n/LangProvider";
 import { SECTION_ICONS } from "@/shell/icons";
 import { BADGE_MAX_FONT_SCALE, BADGE_MIN_SIZE } from "@/shell/badge";
 import { isConversationPath } from "@/shell/chat-fab-rules";
+import { inboxStackOf, inboxToListActions } from "@/shell/inbox-stack";
 import { PHONE_TABS, SECTIONS, hasTabBar } from "@/shell/sections";
 import { reportTabBarHeight } from "@/shell/tab-bar-metrics";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -18,7 +19,7 @@ import { Text } from "@/ui/Text";
 export { TAB_BAR_CLEARANCE } from "@/shell/useTabBarClearance";
 
 /** Плавающая панель: отступ 12, радиус 20, поверхность + линия + тень, вкладка >= 52. */
-export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
+export function TabBar({ state, descriptors, navigateToTab }: BottomTabBarProps) {
   const { tokens, scheme } = useTheme();
   const { shell, format } = useLang();
   const insets = useSafeAreaInsets();
@@ -70,7 +71,16 @@ export function TabBar({ state, navigateToTab }: BottomTabBarProps) {
               // Имя вкладки со словами, а не голой цифрой (веб: «Входящие» и скрытое «Новых уведомлений: N» в одной ссылке).
               accessibilityLabel={section.id === "messages" && unread ? `${shell[section.navKey]}, ${format(shell.notificationsUnread, { count: String(unread) })}` : undefined}
               onPress={() => {
-                if (!focused) navigateToTab(route.key);
+                if (!focused) {
+                  navigateToTab(route.key);
+                  return;
+                }
+                // Нажатие на открытую вкладку «Входящие» возвращает к списку (вкладки iOS: «на корень»), в том числе из ленты,
+                // открытой колокольчиком: списка под ней в стеке нет (`shell/inbox-stack.ts`).
+                if (section.id === "messages") {
+                  const dispatch = descriptors?.[route.key]?.navigation.dispatch;
+                  for (const action of inboxToListActions(inboxStackOf(route))) dispatch?.(action as never);
+                }
               }}
               testID={`tab-${section.id}`}
               // Открытая вкладка: красные значок и слово, без плашки (веб, телефон: `.pt-nav-link[aria-current]` без фона и планки).

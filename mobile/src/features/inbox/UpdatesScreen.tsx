@@ -5,7 +5,6 @@
 // строкой (не вверху ленты: лента могла уйти вверх, а студент - на другой экран), хранится по уведомлению и читается вслух.
 // Сбой «Отметить все» - плашка вверху ленты, как в вебе (markAllReadError); она стоит, пока непрочитано хотя бы одно из тех уведомлений,
 // что остались неотмеченными при этой попытке (отметили поодиночке или прочитали на сайте - уходит, новое уведомление её не воскрешает).
-import { useRouter } from "expo-router";
 import { ArrowLeft, Bell } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
@@ -16,6 +15,7 @@ import { useNotifications, useRefetchOnFocus } from "@/api/queries";
 import { unreadNotifications } from "@/domain/inbox-model";
 import type { StudentPortalNotification } from "@/domain/portal-source";
 import { formatPortalDeadline, formatPortalTimestamp, notificationRoute, notificationTargetLabel, portalNotificationText } from "@/domain/presentation";
+import { useInboxBack } from "@/features/inbox/useInboxBack";
 import { useNotificationRead } from "@/features/inbox/useNotificationRead";
 import { useScreenVisible } from "@/features/inbox/visibility";
 import { go } from "@/features/portal/navigation";
@@ -30,7 +30,6 @@ import { Text } from "@/ui/Text";
 export function UpdatesScreen() {
   const { m, t } = useLang();
   const { tokens } = useTheme();
-  const router = useRouter();
   const { userKey } = usePortalApi();
   const client = useQueryClient();
   useRefetchOnFocus();
@@ -57,7 +56,7 @@ export function UpdatesScreen() {
   const items = notifications.data ?? [];
   const unread = unreadNotifications(items);
   const allFailed = unread.some((item) => read.allFailedIds.has(item.notificationId));
-  const back = () => (router.canGoBack() ? router.back() : router.navigate("/messages"));
+  const back = useInboxBack();
 
   const open = (item: StudentPortalNotification) => {
     // Запись «прочитано» идёт сама; переход её не ждёт, а при сбое плашка остаётся на ленте (она в стеке под экраном).
@@ -68,7 +67,7 @@ export function UpdatesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }} testID="updates-screen">
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.line }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={messages.backToList} onPress={back} testID="updates-back" hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={back.label} onPress={back.onPress} testID="updates-back" hitSlop={4} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
           <ArrowLeft size={22} strokeWidth={1.75} color={tokens.text} />
         </Pressable>
         <View style={{ flex: 1 }}>

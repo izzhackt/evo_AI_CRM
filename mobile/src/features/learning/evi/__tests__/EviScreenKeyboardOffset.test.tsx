@@ -5,6 +5,7 @@ import { Platform } from "react-native";
 
 import type { EviApi } from "@/features/learning/evi/api";
 import { EviScreen } from "@/features/learning/evi/EviScreen";
+import { reportTopNoticeHeight } from "@/shell/top-chrome";
 import { renderPortal, testApi } from "@/test-fixtures/render";
 import { fakeTransport } from "@/test-fixtures/universities";
 
@@ -41,6 +42,8 @@ jest.mock("@/shell/top-bar-metrics", () => ({
 const GRANTED = { status: "granted", policyVersion: "2026-10-25", decidedAt: "2026-11-01T10:00:00Z", currentPolicyVersion: "2026-10-25" };
 const api: EviApi = { ask: async () => ({ ok: false, code: "unavailable" }) as never, available: async () => true };
 
+afterEach(() => reportTopNoticeHeight(0));
+
 describe("Эви: смещение клавиатуры", () => {
   it("iPhone: отступ безопасной зоны (47) + общая мера высоты верхней полосы, а не число в экране", async () => {
     mockBarHeight = 64;
@@ -48,5 +51,13 @@ describe("Эви: смещение клавиатуры", () => {
     await renderPortal(<EviScreen api={api} />, testApi(transport));
     expect(Platform.OS).toBe("ios");
     expect((await screen.findByTestId("evi-screen")).props.keyboardVerticalOffset).toBe(47 + 64);
+  });
+
+  it("карточка «Не удалось обновить уведомления» стоит в потоке над экраном: её высота входит в смещение", async () => {
+    mockBarHeight = 64;
+    reportTopNoticeHeight(60);
+    const { transport } = fakeTransport({ portal_ai_consent_get_v1: GRANTED });
+    await renderPortal(<EviScreen api={api} />, testApi(transport));
+    expect((await screen.findByTestId("evi-screen")).props.keyboardVerticalOffset).toBe(47 + 64 + 60);
   });
 });

@@ -8,10 +8,15 @@
 
 export const LEARN2_RU = {
   // Пока пусто: строки добавляет срез.
+  // Тесты: окно подтверждения замены ответов (веб показывает системное `window.confirm`, у телефона своё окно с двумя кнопками).
+  "assess.replaceCancel": "Отмена",
+  "assess.replaceConfirm": "Заменить",
 } as const;
 
 export type Learn2StringKey = keyof typeof LEARN2_RU;
 
 export const LEARN2_KY: Readonly<Record<Learn2StringKey, string>> = {
   // Пока пусто: см. соглашение в шапке.
+  "assess.replaceCancel": "Жокко чыгаруу", // KY: needs native proofreading
+  "assess.replaceConfirm": "Алмаштыруу", // KY: needs native proofreading
 };

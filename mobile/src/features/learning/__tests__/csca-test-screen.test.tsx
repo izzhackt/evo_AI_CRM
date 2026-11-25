@@ -5,9 +5,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { router } from "expo-router";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, ScrollView } from "react-native";
 
 import { TestScreen } from "@/features/learning/test-runner/TestScreen";
 import type { RpcTransport } from "@/lib/rpc";
@@ -22,11 +22,24 @@ jest.mock("expo-router", () => ({
   usePreventRemove: jest.fn(),
 }));
 
+// Навигатор считает свои отрисовки (внутри настоящий): часы перерисовывают экран каждые полсекунды, а ему свойства менять незачем.
+const mockNavigatorRenders = { count: 0 };
+jest.mock("@/features/learning/test-runner/TestNavigator", () => {
+  const actual = jest.requireActual<typeof import("@/features/learning/test-runner/TestNavigator")>("@/features/learning/test-runner/TestNavigator");
+  const { memo, createElement } = jest.requireActual<typeof import("react")>("react");
+  const Counted = memo(function Counted(props: Parameters<typeof actual.TestNavigator>[0]) {
+    mockNavigatorRenders.count += 1;
+    return createElement(actual.TestNavigator, props);
+  });
+  return { ...actual, TestNavigator: Counted };
+});
+
 const fx = (name: string) => JSON.parse(readFileSync(path.join(__dirname, "../../../test-fixtures/csca", `${name}.json`), "utf8"));
 const DIAGNOSTIC = "1d2696aa-39b5-5b89-8f3e-e645a1b61dc2";
 
 let announce: jest.SpyInstance;
 beforeEach(() => {
+  mockNavigatorRenders.count = 0;
   jest.mocked(router.dismissTo).mockClear();
   jest.mocked(router.navigate).mockClear();
   announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
@@ -127,9 +140,122 @@ describe("навигатор по заданиям", () => {
     expect(announce).toHaveBeenCalledWith("Задание 3 из 3");
   });
 
+  it("переход к другому заданию возвращает страницу к началу, ответ и флажок её не двигают", async () => {
+    const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
+    await openRunning();
+    scrollTo.mockClear();
+    await fireEvent.press(screen.getByTestId("option-b"));
+    await fireEvent.press(screen.getByTestId("test-flag"));
+    expect(scrollTo).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId("test-next"));
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+    await fireEvent.press(screen.getByTestId("nav-1"));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    // Упёрлись в край: перехода нет, прокрутки тоже.
+    await fireEvent.press(screen.getByTestId("test-prev"));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
+  it("часы идут и перерисовывают экран, а навигатор не перерисовывается: свойства те же; ответ обновляет его один раз", async () => {
+    await openRunning();
+    const mounted = mockNavigatorRenders.count;
+    expect(mounted).toBeGreaterThanOrEqual(1);
+    // Два-три шага часов (каждые полсекунды): экран перерисован, навигатору нечего менять.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1300));
+    });
+    expect(mockNavigatorRenders.count).toBe(mounted);
+    await fireEvent.press(screen.getByTestId("option-b"));
+    expect(mockNavigatorRenders.count).toBe(mounted + 1);
+  });
+
+  it("у состояния сохранения живая область «вежливая», пока идёт тест", async () => {
+    await openRunning();
+    const status = screen.getByTestId("test-save-status");
+    expect(status.props.accessibilityLiveRegion).toBe("polite");
+    await fireEvent.press(screen.getByTestId("option-b"));
+    expect(screen.getByTestId("test-save-status").props.accessibilityLiveRegion).toBe("polite");
+  });
+
   it("на кыргызском: пояснение и подписи ячеек на кыргызском", async () => {
     await openRunning(240, {}, "ky");
     expect(screen.getByTestId("nav-1").props.accessibilityLabel).toMatch(/^1-тапшырма|Тапшырма 1/u);
+  });
+});
+
+describe("запуск и завершение: что недоступно, пока идёт запрос", () => {
+  /** Придержать ответ одной функции, пока тест не отпустит: экран остаётся в промежуточной фазе. */
+  function hold(name: string) {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const wrap = (base: RpcTransport): RpcTransport => async (called, args, options) => {
+      if (called === name) await gate;
+      return base(called, args, options);
+    };
+    return { wrap, release: () => release() };
+  }
+
+  it("пока тест запускается, «К темам» недоступна: уход в этот момент оставил бы запущенный тест без экрана", async () => {
+    const start = started(240);
+    const { transport } = fakeTransport({ learning_track_home_v1: fx("csca_home_after"), start_learning_test_v1: start });
+    const gate = hold("start_learning_test_v1");
+    await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={null} />, testApi(gate.wrap(transport)));
+    await screen.findByTestId("test-begin");
+    expect(screen.getByTestId("test-intro-topics").props.accessibilityState?.disabled).toBeFalsy();
+    await fireEvent.press(screen.getByTestId("test-begin"));
+    await waitFor(() => expect(screen.getByTestId("test-begin").props.accessibilityState).toMatchObject({ busy: true }));
+    expect(screen.getByTestId("test-intro-topics").props.accessibilityState).toMatchObject({ disabled: true });
+    await fireEvent.press(screen.getByTestId("test-intro-topics"));
+    expect(router.dismissTo).not.toHaveBeenCalled();
+    gate.release();
+    await screen.findByTestId("test-clock");
+  });
+
+  it("после запуска «К темам» нет, а при ошибке запуска ссылка снова доступна", async () => {
+    const { transport } = fakeTransport({ learning_track_home_v1: fx("csca_home_after"), start_learning_test_v1: failure("42501", 403) });
+    await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={null} />, testApi(transport));
+    await fireEvent.press(await screen.findByTestId("test-begin"));
+    await screen.findByTestId("test-start-error");
+    expect(screen.getByTestId("test-intro-topics").props.accessibilityState?.disabled).toBeFalsy();
+    await fireEvent.press(screen.getByTestId("test-intro-topics"));
+    expect(router.dismissTo).toHaveBeenCalledWith({ pathname: "/csca", params: { view: "lessons" } });
+  });
+
+  it("пока идёт завершение: ячейки навигатора, флажок, «Назад» и «Далее» недоступны, а слова завершения читает только `announce`", async () => {
+    const start = started(240);
+    const { transport } = fakeTransport({
+      learning_track_home_v1: fx("csca_home_after"),
+      start_learning_test_v1: start,
+      save_learning_test_v1: { ...fx("csca_test_save"), attemptId: start.attemptId },
+      complete_learning_test_v1: fx("csca_test_complete_diagnostic"),
+    });
+    const gate = hold("complete_learning_test_v1");
+    await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={null} />, testApi(gate.wrap(transport)));
+    await fireEvent.press(await screen.findByTestId("test-begin"));
+    await screen.findByTestId("test-clock");
+    // Второе из трёх: «Назад» и «Далее» здесь доступны сами по себе (на первом «Назад», на последнем «Далее» недоступны и без
+    // завершения), поэтому их недоступность при завершении что-то значит.
+    await fireEvent.press(screen.getByTestId("test-next"));
+    expect(await screen.findByText("Задание 2 из 3")).toBeTruthy();
+    expect(screen.getByTestId("test-prev").props.accessibilityState?.disabled).toBeFalsy();
+    expect(screen.getByTestId("test-next").props.accessibilityState?.disabled).toBeFalsy();
+    await fireEvent.press(screen.getByTestId("test-finish"));
+    await fireEvent.press(screen.getByTestId("test-confirm-yes"));
+    await waitFor(() => expect(screen.getByTestId("test-save-status")).toHaveTextContent("Подводим итог…"));
+    for (const n of [1, 2, 3]) expect(screen.getByTestId(`nav-${n}`).props.accessibilityState).toMatchObject({ disabled: true });
+    expect(screen.getByTestId("test-flag").props.accessibilityState).toMatchObject({ disabled: true });
+    expect(screen.getByTestId("test-prev").props.accessibilityState).toMatchObject({ disabled: true });
+    expect(screen.getByTestId("test-next").props.accessibilityState).toMatchObject({ disabled: true });
+    // Нажатия по недоступным элементам ничего не меняют: то же второе задание, флажка нет.
+    for (const id of ["test-prev", "test-next", "nav-1", "nav-3", "test-flag"]) await fireEvent.press(screen.getByTestId(id));
+    expect(screen.getByText("Задание 2 из 3")).toBeTruthy();
+    expect(screen.getByTestId("nav-2").props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.queryByTestId("nav-flag-2", { includeHiddenElements: true })).toBeNull();
+    // Слова завершения: живой области нет (иначе Android прочитал бы их второй раз), читалке их говорит `announce` один раз.
+    expect(screen.getByTestId("test-save-status").props.accessibilityLiveRegion).toBe("none");
+    expect(announce.mock.calls.filter(([text]) => text === "Подводим итог…")).toHaveLength(1);
+    gate.release();
+    await screen.findByTestId("test-result");
   });
 });
 
@@ -327,6 +453,18 @@ describe("итог теста", () => {
     expect(row.getByTestId("review-flagged")).toHaveTextContent("Вернуться позже");
     expect(row.getByText("Ваше время: 41 с")).toBeTruthy();
     expect(row.queryByText(/Было отмечено/)).toBeNull();
+  });
+
+  it("завершённая попытка без разбора: «Итог этой попытки сейчас недоступен», а не «Ответ не принят»", async () => {
+    // Итог без `result` разборщик отвергает (экран ошибки чтения); без `review` он допустим, и экран не должен называть это отказом.
+    const done = fx("csca_test_complete_diagnostic");
+    done.review = null;
+    const { transport } = fakeTransport({ learning_track_home_v1: fx("csca_home_after"), learning_test_attempt_v1: done });
+    await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={done.attemptId} />, testApi(transport));
+    const note = await screen.findByTestId("test-result-missing");
+    expect(note).toHaveTextContent("Итог этой попытки сейчас недоступен. Откройте его позже.");
+    expect(note).not.toHaveTextContent(/Ответ не принят|страниц|вкладк/u);
+    expect(screen.queryByTestId("test-result")).toBeNull();
   });
 
   it("на кыргызском: подписи фактов и кнопок на кыргызском", async () => {

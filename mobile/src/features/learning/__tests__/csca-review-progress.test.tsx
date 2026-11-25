@@ -87,7 +87,10 @@ describe("«Ошибки»: ответ", () => {
     await fireEvent.press(screen.getByTestId("review-check"));
     expect(await screen.findByTestId("review-next-due")).toHaveTextContent("Задание вернётся завтра.");
     expect(calls.find((call) => call.name === "record_learning_review_v1")?.args).toMatchObject({ p_item_key: "csca-math-exp-log-001", p_answer: { selected: "a" } });
-    expect(announce).toHaveBeenCalledWith("Неверно");
+    // Читалка слышит весь вердикт: слово и верный вариант, а не одно слово; живой области у блока нет (Android сказал бы то же второй раз).
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith("Неверно. Верный ответ: B");
+    expect(screen.getByTestId("verdict").props.accessibilityLiveRegion).toBe("none");
     expect(screen.getByTestId("review-progress")).toHaveTextContent("Повторено 1 из 6", { exact: false });
     await fireEvent.press(screen.getByTestId("review-next"));
     expect(screen.getByTestId("review-progress")).toHaveTextContent("Повторено 1 из 6 · Интервал 1 из 4", { exact: false });
@@ -101,6 +104,7 @@ describe("«Ошибки»: ответ", () => {
     await fireEvent.press(screen.getByTestId("option-b"));
     await fireEvent.press(screen.getByTestId("review-check"));
     expect(await screen.findByTestId("review-next-due")).toHaveTextContent("Следующий повтор 19 октября.");
+    expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith("Верно");
     // Интервал после ответа берётся из квитанции.
     expect(screen.getByTestId("review-progress")).toHaveTextContent("Интервал 2 из 4", { exact: false });

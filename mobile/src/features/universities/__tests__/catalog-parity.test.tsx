@@ -298,6 +298,7 @@ describe("поиск и списки", () => {
     await renderPortal(<CountryScreen />, testApi(transport({ student_university_index_v1: long }).transport));
     await screen.findByText("Вуз номер 1");
     expect(screen.getAllByTestId(/^tile-/).length).toBeLessThan(60);
-    await waitFor(() => expect(screen.getAllByTestId(/^tile-/)).toHaveLength(60), { timeout: 3000 });
-  });
+    // Порции идут с паузой между кадрами, на медленном раннере CI это секунды: ждём по времени с запасом.
+    await waitFor(() => expect(screen.getAllByTestId(/^tile-/)).toHaveLength(60), { timeout: 20_000 });
+  }, 30_000);
 });

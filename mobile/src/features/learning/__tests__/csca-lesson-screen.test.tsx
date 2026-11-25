@@ -38,9 +38,9 @@ const run = (change: (receipt: Record<string, any>, call: number) => Record<stri
   complete_learning_lesson_v1: fx("csca_lesson_complete"),
 });
 
-async function open(lesson: Record<string, any> = fx(LESSON), handlers: Record<string, unknown> = run(), wrap?: (transport: RpcTransport) => RpcTransport) {
+async function open(lesson: Record<string, any> = fx(LESSON), handlers: Record<string, unknown> = run(), wrap?: (transport: RpcTransport) => RpcTransport, lang: "ru" | "ky" = "ru") {
   const { transport, calls } = fakeTransport({ learning_lesson_v2: lesson, learning_track_home_v1: fx("csca_home_after"), ...handlers });
-  await renderPortal(<LessonScreen lessonId={lesson.lesson.lessonId} />, testApi(wrap ? wrap(transport) : transport));
+  await renderPortal(<LessonScreen lessonId={lesson.lesson.lessonId} />, testApi(wrap ? wrap(transport) : transport), lang);
   return { calls };
 }
 
@@ -143,6 +143,26 @@ describe("теория листом", () => {
     expect(screen.getByTestId("theory-example-7-steps-answer")).toBeTruthy();
   });
 
+  it("«Показать решение» читает читалке все открытые шаги одной фразой, а следующий шаг после первого только свой", async () => {
+    const lesson = fx(LESSON);
+    const steps = lesson.lesson.theory[7].steps.length;
+    expect(steps).toBeGreaterThan(2);
+    await open(lesson);
+    await screen.findByTestId("theory-example-7");
+    // Первый шаг открыт «Следующим шагом»: говорится один раз, только он.
+    await fireEvent.press(screen.getByTestId("theory-example-7-steps-next"));
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenLastCalledWith(expect.stringMatching(/^Шаг 1\. /u));
+    expect(announce.mock.calls[0][0]).not.toMatch(/Шаг 2\./u);
+    // Остальные шаги открыты разом: в одной фразе «Шаг 2.» … «Шаг N.», без первого, который уже прозвучал.
+    await fireEvent.press(screen.getByTestId("theory-example-7-steps-all"));
+    expect(announce).toHaveBeenCalledTimes(2);
+    const spoken = announce.mock.calls[1][0] as string;
+    expect(spoken).toMatch(/^Шаг 2\. /u);
+    for (let n = 2; n <= steps; n += 1) expect(spoken).toContain(`Шаг ${n}. `);
+    expect(spoken).not.toContain("Шаг 1. ");
+  });
+
   it("термины блока: английский жирно с английским голосом, перевод рядом", async () => {
     await open();
     const terms = within(await screen.findByTestId("theory-terms-10"));
@@ -172,7 +192,11 @@ describe("задание: ответ и разбор", () => {
     await screen.findByTestId("option-a");
     await answer("a");
     expect(screen.getByTestId("verdict")).toHaveTextContent("Неверно · Верный ответ: B", { exact: false });
-    expect(announce).toHaveBeenCalledWith("Неверно");
+    // Читалка слышит весь вердикт, как веб при переводе фокуса на его текст: слово и верный вариант, а не одно слово.
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith("Неверно. Верный ответ: B");
+    // У самого блока живой области нет, иначе Android прочитал бы то же второй раз.
+    expect(screen.getByTestId("verdict").props.accessibilityLiveRegion).toBe("none");
     expect(screen.getByTestId("option-a-tags")).toHaveTextContent("Ваш ответ");
     expect(screen.getByTestId("option-b-tags")).toHaveTextContent("Верный ответ");
     expect(screen.queryByTestId("option-c-tags")).toBeNull();
@@ -190,7 +214,18 @@ describe("задание: ответ и разбор", () => {
     expect(screen.getByTestId("verdict")).toHaveTextContent(/^Верно$/u);
     expect(screen.queryByText(/Верный ответ: /)).toBeNull();
     expect(screen.getByTestId("option-b-tags")).toHaveTextContent("Ваш ответ · Верный ответ");
+    // Верный ответ: одно слово, строки «Верный ответ: X» нет ни на экране, ни в озвучке.
+    expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith("Верно");
+  });
+
+  it("на кыргызском вердикт для читалки целиком по-кыргызски: слово и верный вариант", async () => {
+    await open(fx(LESSON), run(), undefined, "ky");
+    await screen.findByTestId("option-a");
+    await answer("a");
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith("Туура эмес. Туура жооп: B");
+    expect(screen.getByTestId("verdict")).toHaveTextContent("Туура эмес · Туура жооп: B");
   });
 
   it("решение: сначала только кнопки, шаги по одному; термины пилюлями без заголовка", async () => {

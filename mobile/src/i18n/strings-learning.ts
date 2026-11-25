@@ -12,6 +12,10 @@ export const LEARN_RU = {
   "learn.testRejected": "Ответ не принят. Откройте тест заново.",
   "learn.navOpen": "Все задания",
   "learn.navClose": "Закрыть",
+  // Навигатор по заданиям: у длинного теста лента в один ряд и кнопка, раскрывающая полную сетку (на вебе сетка всегда целиком).
+  "learn.navCollapse": "Свернуть",
+  // Завершённая попытка без итога или разбора: не «Ответ не принят» (ответа никто не отправлял) и не «Обновите страницу».
+  "learn.testNoResult": "Итог этой попытки сейчас недоступен. Откройте его позже.",
   "learn.finishTitle": "Завершить тест?",
   "learn.retry": "Повторить",
   "learn.licensesTitle": "Лицензии и источники",
@@ -70,6 +74,8 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.testRejected": "Жооп кабыл алынган жок. Тестти кайра ачыңыз.", // KY: needs native proofreading
   "learn.navOpen": "Бардык тапшырмалар",
   "learn.navClose": "Жабуу",
+  "learn.navCollapse": "Жыйыштыруу", // KY: needs native proofreading
+  "learn.testNoResult": "Бул аракеттин жыйынтыгы азыр жеткиликсиз. Аны кийинчерээк ачыңыз.", // KY: needs native proofreading
   "learn.finishTitle": "Тестти бүтүрөсүзбү?",
   "learn.retry": "Кайталоо",
   "learn.licensesTitle": "Лицензиялар жана булактар",

@@ -143,6 +143,7 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
         subtitle={chat.intro ? null : subtitle}
         subtitleExtra={chat.pending ? <TypingDots size={4} gap={3} tone="text2" testID="evi-header-dots" /> : null}
         avatar={chat.intro ? null : <EviRobot face={chat.pending ? "thinking" : "happy"} settled still size={44} testID="evi-avatar" />}
+        subtitleBelow
         onBack={back}
         backLabel={p.backToGrid}
         testID="evi-title"
@@ -253,7 +254,10 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
           <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
             <TextInput
               testID="evi-input"
-              accessibilityLabel={p["evi.inputLabel"]}
+              // Одно имя у поля: iOS (RN, RCTUITextView.accessibilityLabel) склеивает подпись и подсказку, пока поле пусто, и читалка
+              // слышала «Сообщение для Эви Сообщение для Эви…». Пустое поле называет сама подсказка, подпись появляется с первой
+              // буквой, когда подсказки уже нет (иначе у набранного текста не осталось бы имени).
+              accessibilityLabel={chat.draft.length > 0 ? p["evi.inputLabel"] : undefined}
               placeholder={p["evi.placeholder"]}
               placeholderTextColor={tokens.text2}
               value={chat.draft}

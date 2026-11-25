@@ -32,7 +32,6 @@ export const LEARN_RU = {
   "learn.examPast": "Эта сессия уже прошла",
   "learn.aboutShow": "Об экзамене",
   "learn.aboutHide": "Скрыть",
-  "learn.photoCredit": "Фото: {author}, Pexels",
   "learn.shortAnswer": "Ваш ответ",
   "learn.check": "Проверить",
   "learn.next": "Далее",
@@ -40,6 +39,9 @@ export const LEARN_RU = {
   "learn.lessonNotFound": "Урок не найден",
   "learn.progressLabel": "Пройдено {done} из {total}",
   "learn.reviewMistakes": "Повторить ошибки",
+  // Тексты «Ошибок» без слов веба «Обновите страницу» (в приложении страниц нет).
+  "learn.reviewNotDue": "Срок этого задания ещё не наступил. Откройте повторение заново.",
+  "learn.reviewRejected": "Ответ не принят. Откройте повторение заново.",
   "learn.testsHistory": "История",
   "learn.attemptOpen": "Открыть результат",
   "learn.timeLeft": "Осталось {time}",
@@ -82,7 +84,6 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.examPast": "Бул сессия өтүп кетти",
   "learn.aboutShow": "Экзамен жөнүндө",
   "learn.aboutHide": "Жашыруу",
-  "learn.photoCredit": "Сүрөт: {author}, Pexels",
   "learn.shortAnswer": "Жообуңуз",
   "learn.check": "Текшерүү",
   "learn.next": "Кийинки",
@@ -90,6 +91,8 @@ export const LEARN_KY: Readonly<Record<LearnStringKey, string>> = {
   "learn.lessonNotFound": "Сабак табылган жок",
   "learn.progressLabel": "Өтүлдү {done} / {total}",
   "learn.reviewMistakes": "Каталарды кайталоо",
+  "learn.reviewNotDue": "Бул тапшырманын мөөнөтү азырынча келе элек. Кайталоону кайра ачыңыз.", // KY: needs native proofreading
+  "learn.reviewRejected": "Жооп кабыл алынган жок. Кайталоону кайра ачыңыз.", // KY: needs native proofreading
   "learn.testsHistory": "Тарых",
   "learn.attemptOpen": "Жыйынтыкты ачуу",
   "learn.timeLeft": "Калды {time}",

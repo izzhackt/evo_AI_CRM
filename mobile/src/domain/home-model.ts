@@ -16,10 +16,10 @@ import { formatPortalString, type PortalStrings } from "@web/lib/portal/i18n";
 import type { PublishedUniversity } from "@web/lib/platform-university-catalog";
 import { nearestUniversityIntake } from "@web/lib/portal/universities";
 
-import type { ApplicationHead } from "@/domain/own-application";
 import { actionTarget, actionTitle, linkTarget } from "@/domain/presentation";
 import type { StudentPortalNotification, StudentPortalOverview } from "@/domain/portal-source";
 import type { AccessTier } from "@/session/access";
+import type { ApplicationHead } from "@/domain/own-application";
 
 type Lang = "ru" | "ky";
 

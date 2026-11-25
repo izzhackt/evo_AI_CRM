@@ -169,6 +169,28 @@ export function createPendingStore<Operation extends string, Intent>(kind: Pendi
       }
     },
     /**
+     * Программы владельца, по которым на телефоне есть записи: только по ключам, значения не читаются (чужие записи, даже
+     * этого владельца, здесь не открываются). Веб: `listApplicationPackagePendingScopes`.
+     */
+    async scopes(owner: Readonly<{ organizationId: string; membershipId: string }>, storage: PendingStorage = asyncPendingStorage): Promise<readonly PendingScope[]> {
+      try {
+        if (!owner || !uuid(owner.organizationId) || !uuid(owner.membershipId)) throw new Error("Invalid owner");
+        const ownerPrefix = `${kind.name}:${owner.organizationId}:${owner.membershipId}:`;
+        const found = new Map<string, PendingScope>();
+        for (const k of await storage.getAllKeys()) {
+          if (!k.startsWith(ownerPrefix)) continue;
+          const parts = k.slice(ownerPrefix.length).split(":");
+          if (parts.length !== 4) continue;
+          const [studentCaseId, applicationId, operation, target] = parts as [string, string, string, string];
+          if (![studentCaseId, applicationId, target].every(uuid) || !kind.operations.includes(operation as Operation)) continue;
+          found.set(`${studentCaseId}:${applicationId}`, { organizationId: owner.organizationId, membershipId: owner.membershipId, studentCaseId, applicationId });
+        }
+        return [...found.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, scope]) => scope);
+      } catch {
+        throw new Error("Pending scope inventory unavailable");
+      }
+    },
+    /**
      * Замок цели: один запрос за раз. Занято - `busy`; хранилище не отвечает или команда бросила - `storage_unavailable`
      * (так же у веба: «Web Locks + localStorage»). Замок берётся синхронно, поэтому два нажатия подряд не пройдут оба.
      */

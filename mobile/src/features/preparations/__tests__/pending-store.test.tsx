@@ -4,9 +4,11 @@ import { act, render, screen } from "@testing-library/react-native";
 import { Text } from "react-native";
 
 import { documentsPending, isSubmitIntent, isUploadIntent } from "@/features/preparations/documents-pending";
+import { packagesPending } from "@/features/preparations/packages-pending";
 import { usePending, type PendingScope } from "@/features/preparations/pending-store";
 import { APPLICATION_ID, STUDENT_CASE_ID, REVISION_ID, itemId, slotId, sha, versionId, uploadId } from "@/test-fixtures/preparations";
 import { memoryPendingStorage } from "@/test-fixtures/pending-storage";
+import { submitIntentOf } from "@/test-fixtures/preparations-packages";
 
 const scope: PendingScope = { organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", studentCaseId: STUDENT_CASE_ID, applicationId: APPLICATION_ID };
 const item = itemId(0);
@@ -395,5 +397,56 @@ describe("usePending", () => {
     storage.failing = true;
     await render(<Probe storage={storage} />);
     expect(await screen.findByText("H:B:-")).toBeTruthy();
+  });
+});
+
+// --- комплекты программы: тот же формат ключа и записи, что у веба (`application-packages-pending.ts`) ---
+type WebPackages = {
+  applicationPackagePendingKey: (scope: PendingScope, operation: string, target: string) => string;
+  readApplicationPackagePending: (scope: PendingScope, operation: string, target: string, storage: unknown) => { intent: unknown; blocked: boolean };
+  persistApplicationPackagePending: (scope: PendingScope, operation: string, target: string, value: unknown, storage: unknown) => void;
+  listApplicationPackagePendingScopes: (owner: { organizationId: string; membershipId: string }, storage: unknown) => PendingScope[];
+};
+const webPackages = jest.requireActual("@web/lib/portal/application-packages-pending") as WebPackages;
+const packageIntent = submitIntentOf([0, 1], [3, 4]);
+
+describe("комплекты: формат совпадает с вебом", () => {
+  it("ключ записи и запись читаются в обе стороны", async () => {
+    const storage = memoryPendingStorage();
+    expect(packagesPending.key(scope, "submit", REVISION_ID)).toBe(webPackages.applicationPackagePendingKey(scope, "submit", REVISION_ID));
+    await packagesPending.persist(scope, "submit", REVISION_ID, packageIntent as never, storage);
+    expect(webPackages.readApplicationPackagePending(scope, "submit", REVISION_ID, syncPort(storage.data))).toEqual({ intent: packageIntent, blocked: false });
+    const other = { ...scope, applicationId: itemId(9) };
+    webPackages.persistApplicationPackagePending(other, "submit", REVISION_ID, { ...packageIntent, applicationId: itemId(9) }, syncPort(storage.data));
+    expect((await packagesPending.read(other, "submit", REVISION_ID, storage)).intent).toMatchObject({ applicationId: itemId(9) });
+  });
+
+  it("программы владельца находятся по одним ключам, как у веба; чужой владелец не виден", async () => {
+    const storage = memoryPendingStorage();
+    await packagesPending.persist(scope, "submit", REVISION_ID, packageIntent as never, storage);
+    const second = { ...scope, applicationId: itemId(9) };
+    await packagesPending.persist(second, "submit", REVISION_ID, { ...packageIntent, applicationId: itemId(9) } as never, storage);
+    const stranger = { ...scope, membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" };
+    await packagesPending.persist(stranger, "submit", REVISION_ID, packageIntent as never, storage);
+    storage.data.set("evo.application-packages.v1:мусор", "x");
+    const owner = { organizationId: scope.organizationId, membershipId: scope.membershipId };
+    const mine = await packagesPending.scopes(owner, storage);
+    expect(mine).toEqual(webPackages.listApplicationPackagePendingScopes(owner, syncPort(storage.data)));
+    expect(mine.map((s) => s.applicationId).sort()).toEqual([APPLICATION_ID, itemId(9)].sort());
+    expect(await packagesPending.scopes({ ...owner, membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }, storage)).toEqual([]);
+  });
+
+  it("негодный владелец и недоступное хранилище: ошибка перечня", async () => {
+    const storage = memoryPendingStorage();
+    await expect(packagesPending.scopes({ organizationId: "x", membershipId: "y" }, storage)).rejects.toThrow("Pending scope inventory unavailable");
+    storage.failing = true;
+    await expect(packagesPending.scopes({ organizationId: scope.organizationId, membershipId: scope.membershipId }, storage)).rejects.toThrow("Pending scope inventory unavailable");
+  });
+
+  it("запись комплекта до 262144 знаков допустима, больше - испорчена", async () => {
+    const storage = memoryPendingStorage();
+    const key = packagesPending.key(scope, "submit", REVISION_ID);
+    storage.data.set(key, "x".repeat(262145));
+    expect(await packagesPending.read(scope, "submit", REVISION_ID, storage)).toEqual({ intent: null, blocked: true });
   });
 });

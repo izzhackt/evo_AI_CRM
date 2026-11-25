@@ -40,6 +40,8 @@ export const PREPARATIONS_RU = {
   "prep.retrySubmitAria": "Проверить результат: отправка на проверку",
   "prep.progress": "Загружено {percent}%",
   "prep.downloadAria": "Скачать файл: {name}",
+  // --- G37, G38: комплект программы и незавершённые отправки комплекта ---
+  "prep.packageStorage": "Не удалось прочитать или сохранить действие на этом телефоне. Проверьте результат.",
 } as const;
 
 export type PreparationsStringKey = keyof typeof PREPARATIONS_RU;
@@ -70,4 +72,5 @@ export const PREPARATIONS_KY: Readonly<Record<PreparationsStringKey, string>> = 
   "prep.retrySubmitAria": "Жыйынтыкты текшерүү: текшерүүгө жөнөтүү", // KY: needs native proofreading
   "prep.progress": "Жүктөлдү: {percent}%", // KY: needs native proofreading
   "prep.downloadAria": "Файлды жүктөп алуу: {name}", // KY: needs native proofreading
+  "prep.packageStorage": "Бул телефондогу аракетти окуу же сактоо мүмкүн болгон жок. Натыйжаны текшериңиз.", // KY: needs native proofreading
 };

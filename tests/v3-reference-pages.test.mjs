@@ -265,8 +265,8 @@ test("university page: the overview with the photo first, then programmes and in
   assert.equal([...html.matchAll(/Малайзия · Johor Bahru/gu)].length, 1, "the place once");
   assert.match(html, /<a class="inline-flex min-h-11[^"]*" href="\/universities">(?:<svg[\s\S]*?<\/svg>)?Все университеты<\/a>/u);
   assert.match(html, /data-photo-credit="">Фото: <a[^>]*>[^<]+<span class="sr-only"> \(в новой вкладке\)<\/span><\/a> · <a[^>]*>CC BY-SA 4\.0<span/u);
-  assert.match(html, /<aside aria-label="Фото кампуса" class="hidden min-w-0 max-w-80 has-\[\.v3-uni-photo\]:block @3xl:max-w-none">/u, "the photo is a side column of the overview card, at most 20 rem on a phone, gone when there is no photo");
-  assert.match(html, /aspect-\[4\/3\]/u);
+  assert.match(html, /<aside aria-label="Фото кампуса" class="hidden min-w-0 has-\[\.v3-uni-photo\]:block">/u, "the photo is the cover of the overview card, gone when there is no photo");
+  assert.match(html, /aspect-\[16\/9\][^"]*@3xl:aspect-\[5\/2\]/u, "the photo is the full-width cover of the overview card");
   assert.match(html, /<th [^>]*>Срок подачи<\/th>/u);
   assert.match(html, /<span[^>]*data-cell="deadline"[^>]*><span[^>]*><time dateTime="2026-07-17"[^>]*>17\.07<\/time>/u);
   assert.match(html, />Приём закрыт по данным источника</u);

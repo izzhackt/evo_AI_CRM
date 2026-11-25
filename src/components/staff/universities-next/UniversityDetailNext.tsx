@@ -35,9 +35,10 @@ export function UniversityDetailNext({ name, place, programs, overview, websiteU
         </div>
       ) : undefined}
     >
-      <section aria-labelledby="university-about" className="@container min-w-0 rounded-card border border-border bg-surface p-4 sm:p-5">
-        <div className="grid min-w-0 gap-5 @3xl:has-[.v3-uni-photo]:grid-cols-[16rem_minmax(0,1fr)] @3xl:items-start">
-          <aside aria-label="Фото кампуса" className="hidden min-w-0 max-w-80 has-[.v3-uni-photo]:block @3xl:max-w-none">{photo}</aside>
+      {/* Фото кампуса — обложка карточки во всю ширину, с авторством под ним; без фото карточка начинается с текста. */}
+      <section aria-labelledby="university-about" className="@container min-w-0 overflow-hidden rounded-card border border-border bg-surface">
+        <aside aria-label="Фото кампуса" className="hidden min-w-0 has-[.v3-uni-photo]:block">{photo}</aside>
+        <div className="grid min-w-0 gap-5 p-4 sm:p-5">
           <div className="grid min-w-0 content-start gap-2">
             <h2 id="university-about" className="t-section text-fg">Об университете</h2>
             <p className="max-w-[70ch] t-body text-fg">{overview}</p>

@@ -4,30 +4,42 @@
 // нет сети - нарисованная схема с метками. Под примером действие строки (загрузить, заменить или скачать) и «Спросить
 // куратора». Описание, «Где взять», формат, частые ошибки и «Мои программы» лист не показывает: их тексты остаются в
 // общем каталоге веба. Нет подходящей справки - кнопки нет.
-// Крупный просмотр открывается в том же листе (два Modal на iOS подряд не дружат); `accessibilityViewIsModal` внутри
-// Modal не ставим (ломал дерево доступности после закрытия, #1488).
-import { X } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+// Крупный просмотр - карточка по центру поверх затемнённого листа в том же Modal (два Modal на iOS подряд не дружат; как в
+// вебе лист под ним остаётся открытым). Пока она открыта, лист скрыт от читалки (`accessibilityElementsHidden`);
+// `accessibilityViewIsModal` внутри Modal не ставим (ломал дерево доступности после закрытия, #1488).
+import { Download, X } from "lucide-react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type HostInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { documentGuideView, type DocumentGuideView } from "@web/lib/portal/document-guides";
 
 import { usePortalApi } from "@/api/PortalApi";
 import type { PortalTone } from "@/domain/documents-model";
 import { downloadPublicFile } from "@/features/documents/download";
-import { FIRST_PAGE, guideBlank, sampleFileName, sampleUrl, type SampleCursor } from "@/features/documents/guide-model";
+import { FIRST_PAGE, guideBlank, PHONE_WIDTH, sampleFileName, sampleUrl, type SampleCursor } from "@/features/documents/guide-model";
+import { GuideLightbox } from "@/features/documents/GuideLightbox";
+import { GuideMark } from "@/features/documents/GuideMark";
 import { GuidePhotoRules } from "@/features/documents/GuidePhotoRules";
-import { GuideLightbox, GuideSamples, type BlankState } from "@/features/documents/GuideSamples";
+import { GuideSamples, type BlankState } from "@/features/documents/GuideSamples";
 import type { DocumentsIo } from "@/features/documents/io";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
+import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
-import { LinkButton, MIN_TARGET } from "@/ui/CardParts";
+import { MIN_TARGET } from "@/ui/CardParts";
 import { StatusPill } from "@/ui/StatusPill";
 import { Text } from "@/ui/Text";
 
-export type GuideAction = Readonly<{ label: string; accessibilityLabel?: string; onPress: () => void; testID?: string; busy?: boolean }>;
+export type GuideAction = Readonly<{
+  label: string;
+  accessibilityLabel?: string;
+  onPress: () => void;
+  testID?: string;
+  busy?: boolean;
+  /** Скачивание принятого файла: тёмная кнопка со значком, как у веба (`.pt-doc-guide-download`). */
+  kind?: "download";
+}>;
 
 /**
  * Подбор справки. `country` - страна дела (`CN`, `MY`...): по ней выбираются образцы страны (бланк медсправки Китая) и
@@ -36,6 +48,9 @@ export type GuideAction = Readonly<{ label: string; accessibilityLabel?: string;
 export function guideFor(label: string, requirementKey: string | null, lang: "ru" | "ky", country: string | null = null): DocumentGuideView | null {
   return documentGuideView({ requirementKey, label }, lang, country);
 }
+
+/** Через сколько после закрытия окна читалке возвращают фокус на кнопку, с которой лист открыли (мс). */
+const FOCUS_DELAY = 350;
 
 /**
  * Кнопка «Пример» рядом со статусом документа. `action` - главное действие в листе (загрузить, заменить или скачать):
@@ -75,14 +90,18 @@ export function DocumentGuideButton({
   const [blank, setBlank] = useState<BlankState>({ status: "idle" });
   const pending = useRef<(() => void) | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
   const shown = useRef(false);
+  const button = useRef<HostInstance>(null);
+  const opener = useRef<HostInstance>(null);
 
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
       if (timer.current) clearTimeout(timer.current);
+      if (focusTimer.current) clearTimeout(focusTimer.current);
     };
   }, []);
   // Скачивание бланка читает «лист ещё открыт?» после ожидания, когда замыкание уже устарело: нужна ссылка.
@@ -90,6 +109,14 @@ export function DocumentGuideButton({
     shown.current = open;
   }, [open]);
 
+  /** Окно закрылось - читалка продолжает с того места, откуда его открыли (веб: `openerRef.current?.focus()`). */
+  const restoreFocus = useCallback((target: { current: HostInstance | null }) => {
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => {
+      focusTimer.current = null;
+      if (target.current) AccessibilityInfo.sendAccessibilityEvent(target.current, "focus");
+    }, FOCUS_DELAY);
+  }, []);
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
@@ -98,9 +125,11 @@ export function DocumentGuideButton({
     run?.();
   }, []);
   const close = useCallback(() => {
+    // за закрытием идёт действие (загрузка, чат, бланк) - фокус вернётся туда, куда оно приведёт
+    if (!pending.current) restoreFocus(button);
     setOpen(false);
     setEnlarged(false);
-  }, []);
+  }, [restoreFocus]);
   const closeThen = (run: () => void) => {
     pending.current = run;
     close();
@@ -108,7 +137,10 @@ export function DocumentGuideButton({
     else flush();
   };
   const enlarge = () => setEnlarged(true);
-  const shrink = () => setEnlarged(false);
+  const shrink = () => {
+    setEnlarged(false);
+    restoreFocus(opener);
+  };
   // Каждое открытие пробует картинки заново: «нет сети» прошлого раза листу не прилипает.
   const openSheet = () => {
     setSchemeOnly(false);
@@ -140,40 +172,48 @@ export function DocumentGuideButton({
   const id = testID ?? "guide";
   const sheetWidth = Math.min(width, 640);
   const contentWidth = sheetWidth - 32;
+  // Карточка просмотра: поля 8 на телефоне, 16 шире (веб: `.pt-doc-guide-lightbox[open] { padding }`).
+  const margin = width < PHONE_WIDTH ? 8 : 16;
 
   return (
     <>
       <Pressable
+        ref={button}
         accessibilityRole="button"
         accessibilityLabel={format(strings.guideButtonAria, { name: label })}
         onPress={openSheet}
         hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
         testID={`${id}-open`}
-        style={({ pressed }) => ({ alignSelf: "flex-start", minHeight: 32, paddingHorizontal: 14, justifyContent: "center", borderRadius: tokens.radiusChip, backgroundColor: tokens.bg, borderWidth: 1, borderColor: pressed ? tokens.controlEdge : tokens.line, transform: [{ scale: pressed ? tokens.pressScale : 1 }] })}
+        style={({ pressed }) => ({ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 7, minHeight: 32, paddingLeft: 3, paddingRight: 11, borderRadius: tokens.radiusChip, backgroundColor: tokens.bg, borderWidth: 1, borderColor: pressed ? tokens.controlEdge : tokens.line, transform: [{ scale: pressed ? tokens.pressScale : 1 }] })}
       >
+        <GuideMark />
         <Text variant="caption" bold>
           {strings.guideButton}
         </Text>
       </Pressable>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => (enlarged ? shrink() : close())} onDismiss={flush} statusBarTranslucent>
-        <View style={{ flex: 1, justifyContent: "flex-end", alignItems: "center" }}>
-          <Pressable accessibilityLabel={strings.guideClose} accessibilityRole="button" onPress={close} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }} />
-          {enlarged ? (
-            <GuideLightbox guide={guide} base={api.portalBaseUrl} label={label} sheetWidth={sheetWidth} cursor={cursor} onSelect={setCursor} onClose={shrink} schemeOnly={schemeOnly} onImageError={() => setSchemeOnly(true)} id={id} />
-          ) : (
-            <View testID={`${id}-sheet`} style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingLeft: 16, paddingRight: 4, paddingTop: 12 }}>
-                <View style={{ flex: 1, gap: 6, paddingTop: 8 }}>
-                  <Text variant="heading" accessibilityRole="header">
+      <Modal testID={`${id}-modal`} visible={open} transparent animationType="slide" onRequestClose={() => (enlarged ? shrink() : close())} onDismiss={flush} statusBarTranslucent>
+        <View style={{ flex: 1 }}>
+          {/* Лист: пока открыт просмотр, он остаётся на месте (под затемнением), но читалке не виден. */}
+          <View
+            testID={`${id}-layer`}
+            accessibilityElementsHidden={enlarged}
+            importantForAccessibility={enlarged ? "no-hide-descendants" : "auto"}
+            style={{ flex: 1, justifyContent: "flex-end", alignItems: "center" }}
+          >
+            <Pressable accessibilityLabel={strings.guideClose} accessibilityRole="button" onPress={close} style={[StyleSheet.absoluteFill, { backgroundColor: tokens.dialogBackdrop }]} />
+            <View testID={`${id}-sheet`} style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: tokens.radiusCard, borderTopRightRadius: tokens.radiusCard }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, paddingTop: 24, paddingLeft: 16, paddingRight: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: tokens.line }}>
+                <View style={{ flex: 1, gap: 10 }}>
+                  <Text variant="title" accessibilityRole="header" style={{ fontFamily: sansFont("bold"), letterSpacing: -0.02 * tokens.sizeTitle }}>
                     {label}
                   </Text>
                   {statusLabel ? <StatusPill label={statusLabel} tone={statusTone} /> : null}
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel={strings.guideClose} onPress={close} testID={`${id}-close`} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
-                  <X size={20} strokeWidth={1.8} color={tokens.text} />
+                <Pressable accessibilityRole="button" accessibilityLabel={strings.guideClose} onPress={close} testID={`${id}-close`} style={{ width: MIN_TARGET, height: MIN_TARGET, marginTop: -10, marginRight: -10, borderRadius: tokens.radiusChip, alignItems: "center", justifyContent: "center" }}>
+                  <X size={20} strokeWidth={1.8} color={tokens.text2} />
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 14 }}>
+              <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24, gap: 14 }}>
                 {guide.photoRules ? (
                   <GuidePhotoRules country={guide.photoRules.country} width={contentWidth} id={id} />
                 ) : (
@@ -184,6 +224,7 @@ export function DocumentGuideButton({
                     cursor={cursor}
                     onSelect={setCursor}
                     onOpen={enlarge}
+                    openerRef={opener}
                     schemeOnly={schemeOnly}
                     onImageError={() => setSchemeOnly(true)}
                     blank={blank}
@@ -192,18 +233,47 @@ export function DocumentGuideButton({
                   />
                 )}
               </ScrollView>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 16), borderTopWidth: 1, borderTopColor: tokens.line }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 16, rowGap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16), borderTopWidth: 1, borderTopColor: tokens.line }}>
                 {action ? <ActionButton action={action} closeThen={closeThen} id={id} /> : null}
-                <LinkButton label={strings.guideAskCurator} onPress={() => closeThen(() => go("/messages/chat"))} testID={`${id}-ask`} />
+                <Button variant="ghost" label={strings.guideAskCurator} onPress={() => closeThen(() => go("/messages/chat"))} testID={`${id}-ask`} />
               </View>
             </View>
-          )}
+          </View>
+          {enlarged ? (
+            <View testID={`${id}-overlay`} style={StyleSheet.absoluteFill}>
+              <Pressable testID={`${id}-overlay-scrim`} accessible={false} importantForAccessibility="no" onPress={shrink} style={[StyleSheet.absoluteFill, { backgroundColor: tokens.dialogBackdrop }]} />
+              <View pointerEvents="box-none" style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: insets.top + margin, paddingBottom: insets.bottom + margin }}>
+                <GuideLightbox guide={guide} base={api.portalBaseUrl} label={label} cursor={cursor} onSelect={setCursor} onClose={shrink} schemeOnly={schemeOnly} onImageError={() => setSchemeOnly(true)} id={id} />
+              </View>
+            </View>
+          ) : null}
         </View>
       </Modal>
     </>
   );
 }
 
-function ActionButton({ action, closeThen, id }: { action: GuideAction; closeThen: (run: () => void) => void; id: string }): ReactNode {
-  return <Button variant="primary" label={action.label} accessibilityLabel={action.accessibilityLabel} busy={action.busy} onPress={() => closeThen(action.onPress)} testID={action.testID ?? `${id}-action`} />;
+/** Главное действие листа: «Загрузить» / «Заменить» - обычная красная кнопка, «Скачать» - тёмная со значком (как у веба). */
+function ActionButton({ action, closeThen, id }: { action: GuideAction; closeThen: (run: () => void) => void; id: string }) {
+  const { tokens } = useTheme();
+  const testID = action.testID ?? `${id}-action`;
+  if (action.kind !== "download") {
+    return <Button variant="primary" label={action.label} accessibilityLabel={action.accessibilityLabel} busy={action.busy} onPress={() => closeThen(action.onPress)} testID={testID} />;
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel ?? action.label}
+      accessibilityState={{ disabled: action.busy === true, busy: action.busy === true }}
+      disabled={action.busy === true}
+      onPress={() => closeThen(action.onPress)}
+      testID={testID}
+      style={({ pressed }) => ({ minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 16, borderRadius: tokens.radiusControl, borderWidth: 1, borderColor: tokens.text, backgroundColor: tokens.text, opacity: action.busy ? 0.6 : 1, transform: [{ scale: pressed ? tokens.pressScale : 1 }] })}
+    >
+      <Download size={15} strokeWidth={2} color={tokens.surface} />
+      <Text variant="body" style={{ color: tokens.surface, fontFamily: sansFont("semibold") }}>
+        {action.label}
+      </Text>
+    </Pressable>
+  );
 }

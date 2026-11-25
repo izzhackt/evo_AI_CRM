@@ -63,7 +63,7 @@ function CaseFileRow({ file, io, first }: { file: StudentPortalCaseFile; io: Doc
             requirementKey={file.kind === "contract" ? "contract" : file.kind}
             statusLabel={file.kind === "contract" ? null : file.kind === "receipt" ? strings.caseFileReceiptAttached : strings.caseFileReceiptPending}
             statusTone={file.kind === "receipt" ? "ok" : "neutral"}
-            action={{ label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: file.originalFilename }), onPress: () => void open(), testID: `guide-download-${file.kind}-${file.fileId}` }}
+            action={{ label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: file.originalFilename }), onPress: () => void open(), testID: `guide-download-${file.kind}-${file.fileId}`, kind: "download" as const }}
             io={io}
             testID={`guide-${file.kind}-${file.fileId}`}
           />

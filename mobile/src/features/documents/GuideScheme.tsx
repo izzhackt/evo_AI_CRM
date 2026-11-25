@@ -30,10 +30,10 @@ export function SchemeFigure({ guide, width }: { guide: DocumentGuideView; width
   const xml = schemeXml(guide.sampleSrc);
   if (!xml) return null;
   return (
-    <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width, height: width / SCHEME_RATIO, borderRadius: tokens.radiusControl, overflow: "hidden", borderWidth: 1, borderColor: tokens.line }} testID="guide-sample">
+    <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width, height: width / SCHEME_RATIO, borderRadius: tokens.radiusCard, overflow: "hidden", borderWidth: 1, borderColor: tokens.line }} testID="guide-sample">
       <SvgXml xml={xml} width={width} height={width / SCHEME_RATIO} />
       {guide.pins.map((pin) => (
-        <View key={pin.n} style={{ position: "absolute", left: `${pin.x}%`, top: `${pin.y}%`, width: 24, height: 24, marginLeft: -12, marginTop: -12, borderRadius: 12, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#FFFFFF" }}>
+        <View key={pin.n} style={{ position: "absolute", left: `${pin.x}%`, top: `${pin.y}%`, width: 22, height: 22, marginLeft: -11, marginTop: -11, borderRadius: 11, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center", boxShadow: tokens.shadowCard }}>
           <Text variant="caption" bold tone="onAccent" style={{ fontSize: 12, lineHeight: 14 }}>
             {pin.n}
           </Text>

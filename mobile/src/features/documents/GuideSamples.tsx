@@ -1,73 +1,28 @@
-// Образцы в листе «Пример» (веб: DocumentGuideSamples.tsx): наборы вкладками, страница крупно на сером «столе», подпись
-// со счётчиком, ряд миниатюр, крупный просмотр с листанием. Картинки НЕ лежат в сборке: грузятся по адресу портала
-// (public/portal/document-samples, вход не нужен), миниатюры `-t.jpg` в ряду, полный файл на странице и в просмотре;
-// кэш на диске ведёт expo-image. Не загрузилась страница (нет сети) - вместо образцов нарисованная схема с метками,
-// как было до «Примера» (GuideScheme.tsx); следующее открытие листа пробует картинки снова.
-// Доступность: вкладки (`tablist`/`tab`), страницы ряда с состоянием «выбрано», кнопки «Предыдущая/Следующая страница»,
-// смена страницы озвучивается (iOS: announce, Android: живая область). Окно просмотра - в том же `Modal`, что и лист;
-// `accessibilityViewIsModal` внутри `Modal` не используется (ломал дерево доступности, #1488), фокус переносится на заголовок.
-import { Image, type ImageStyle } from "expo-image";
-import { ChevronLeft, ChevronRight, Download, Maximize2, X } from "lucide-react-native";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Platform, Pressable, ScrollView, View, useWindowDimensions, type HostInstance, type ScrollViewInstance, type StyleProp } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+// Образцы в листе «Пример» (веб: DocumentGuideSamples.tsx): наборы вкладками, страница листом на сером «столе», подпись
+// со счётчиком, ряд миниатюр. Картинки НЕ лежат в сборке: грузятся по адресу портала (public/portal/document-samples, вход
+// не нужен), миниатюры `-t.jpg` в ряду, полный файл на странице и в просмотре; кэш на диске ведёт expo-image. Пропорции
+// страницы известны заранее (document-sample-sizes.generated.ts), поэтому лист встаёт в рамку и получает тень до загрузки.
+// Не загрузилась страница (нет сети) - вместо образцов нарисованная схема с метками, как было до «Примера»
+// (GuideScheme.tsx); следующее открытие листа пробует картинки снова. Крупный просмотр - GuideLightbox.tsx.
+// Доступность: вкладки (`tablist`/`tab`), страницы ряда с состоянием «выбрано», кнопка вокруг страницы подписана
+// «Открыть пример целиком: набор, подпись».
+import { Download, Maximize2 } from "lucide-react-native";
+import { useEffect, useRef, type Ref } from "react";
+import { Pressable, ScrollView, View, useWindowDimensions, type HostInstance, type ScrollViewInstance } from "react-native";
 import type { DocumentGuideView } from "@web/lib/portal/document-guides";
 
 import type { DownloadErrorKey } from "@/features/documents/download";
-import { currentSample, guideBlank, sampleHeadingKey, sampleUrl, type CurrentSample, type SampleCursor } from "@/features/documents/guide-model";
+import { SampleImage, ScanPage } from "@/features/documents/GuideImages";
+import { currentSample, guideBlank, pageAspect, PHONE_WIDTH, sampleHeadingKey, sampleUrl, type CurrentSample, type SampleCursor } from "@/features/documents/guide-model";
 import { SchemeFigure, SchemeLegend } from "@/features/documents/GuideScheme";
+import { GuideTitle } from "@/features/documents/GuideTitle";
+import { fitContain } from "@/features/documents/zoom-math";
 import type { MobileStringKey } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
-import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
 export type BlankState = Readonly<{ status: "idle" }> | Readonly<{ status: "busy" }> | Readonly<{ status: "error"; error: DownloadErrorKey }>;
-
-type SampleImageProps = Readonly<{
-  uri: string;
-  /** Миниатюра на время загрузки крупной страницы: вместо пустого места - размытый вид той же страницы. */
-  placeholderUri?: string | null;
-  fit?: "contain" | "cover";
-  label?: string;
-  onFailed?: () => void;
-  /** Что рисовать вместо картинки, если она не загрузилась. */
-  fallback?: ReactNode;
-  style?: StyleProp<ImageStyle>;
-  testID?: string;
-}>;
-
-/**
- * Одна картинка образца. Состояние «не загрузилась» привязано к адресу (`key`): другая страница - новая попытка, а
- * старая картинка не висит под новой подписью.
- */
-function SampleImage(props: SampleImageProps) {
-  return <SampleImageView key={props.uri} {...props} />;
-}
-
-function SampleImageView({ uri, placeholderUri = null, fit = "contain", label, onFailed, fallback = null, style, testID }: SampleImageProps) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <>{fallback}</>;
-  return (
-    <Image
-      source={{ uri }}
-      placeholder={placeholderUri ? { uri: placeholderUri } : undefined}
-      placeholderContentFit={fit}
-      contentFit={fit}
-      contentPosition={fit === "cover" ? "top center" : "center"}
-      cachePolicy="disk"
-      transition={150}
-      accessible={label !== undefined}
-      accessibilityLabel={label}
-      onError={() => {
-        setFailed(true);
-        onFailed?.();
-      }}
-      style={style}
-      testID={testID}
-    />
-  );
-}
 
 /** «Развернуть» в углу картинки: подсказка, что она открывается крупно. Для читалки скрыта (кнопка вокруг уже подписана). */
 function ZoomBadge() {
@@ -126,9 +81,9 @@ function SetTabs({ guide, selected, onSelect, id }: { guide: DocumentGuideView; 
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             onPress={() => onSelect({ set: index, page: 0 })}
-            hitSlop={{ top: 4, bottom: 4 }}
+            hitSlop={{ top: 6, bottom: 6 }}
             testID={`${id}-tab-${item.id}`}
-            style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: tokens.radiusControl, backgroundColor: on ? tokens.surface : "transparent", boxShadow: on && scheme === "light" ? tokens.shadowCard : undefined }}
+            style={{ minHeight: 36, paddingHorizontal: 12, justifyContent: "center", borderRadius: tokens.radiusControl, backgroundColor: on ? tokens.surface : "transparent", boxShadow: on && scheme === "light" ? tokens.shadowCard : undefined }}
           >
             <Text variant="caption" bold tone={on ? "text" : "text2"}>
               {item.label}
@@ -157,7 +112,7 @@ function PageStrip({ current, base, counter, onSelect, id }: { current: CurrentS
       horizontal
       showsHorizontalScrollIndicator={false}
       accessibilityLabel={current.set.label}
-      contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 8, paddingHorizontal: 4, paddingVertical: 4 }}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: "center", gap: 8, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 6 }}
       testID={`${id}-pages`}
     >
       {current.set.pages.map((item, index) => {
@@ -197,6 +152,8 @@ type SamplesProps = Readonly<{
   cursor: SampleCursor;
   onSelect: (cursor: SampleCursor) => void;
   onOpen: () => void;
+  /** Кнопка, открывающая крупный просмотр: после его закрытия фокус читалки возвращается на неё. */
+  openerRef: Ref<HostInstance>;
   /** Настоящая страница не загрузилась: показываем схему, пока лист открыт. */
   schemeOnly: boolean;
   onImageError: () => void;
@@ -205,10 +162,10 @@ type SamplesProps = Readonly<{
   id: string;
 }>;
 
-export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, schemeOnly, onImageError, blank, onBlank, id }: SamplesProps) {
+export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, openerRef, schemeOnly, onImageError, blank, onBlank, id }: SamplesProps) {
   const { tokens } = useTheme();
   const { format, t } = useLang();
-  const { height } = useWindowDimensions();
+  const { width: screen } = useWindowDimensions();
   const errorText = useErrorText();
   const strings = t("admission");
   const picked = schemeOnly ? null : currentSample(guide, cursor);
@@ -217,14 +174,18 @@ export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, sch
   const real = picked !== null && heroUri !== null ? { current: picked, heroUri } : null;
   const download = guideBlank(guide);
   const counter = (index: number, total: number) => format(strings.guidePageCounter, { n: String(index + 1), m: String(total) });
-  const heroHeight = Math.round(Math.min(340, Math.max(220, height * 0.36)));
+  // Стол под страницей: на телефоне 280 px и поля 12, шире - 340 и 16 (веб: `.pt-doc-guide-scan`).
+  const phone = screen < PHONE_WIDTH;
+  const heroHeight = phone ? 280 : 340;
+  const pad = phone ? 12 : 16;
+  const box = { width: width - 2 * pad, height: heroHeight - 2 * pad };
+  const aspect = real ? pageAspect(real.current.page.src) : null;
+  const size = aspect ? fitContain(aspect, box) : null;
 
   return (
     <View style={{ gap: 12 }} testID={`${id}-samples`}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <Text variant="caption" tone="text2" bold accessibilityRole="header" style={{ flexShrink: 1 }}>
-          {real ? strings[sampleHeadingKey(guide, real.current)] : strings.guideSample}
-        </Text>
+        <GuideTitle style={{ flexShrink: 1 }}>{real ? strings[sampleHeadingKey(guide, real.current)] : strings.guideSample}</GuideTitle>
         {download ? <BlankChip label={download.label} blank={blank} onPress={onBlank} id={id} /> : null}
       </View>
       {blank.status === "error" ? (
@@ -236,13 +197,14 @@ export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, sch
         <>
           {guide.sampleSets.length > 1 ? <SetTabs guide={guide} selected={real.current.setIndex} onSelect={onSelect} id={id} /> : null}
           <Pressable
+            ref={openerRef}
             accessibilityRole="button"
             accessibilityLabel={`${strings.guideSampleOpen}: ${real.current.set.label}, ${real.current.page.caption}`}
             onPress={onOpen}
             testID={`${id}-sample-open`}
-            style={{ height: heroHeight, padding: 12, borderRadius: tokens.radiusCard, backgroundColor: tokens.bg, overflow: "hidden" }}
+            style={{ height: heroHeight, alignItems: "center", justifyContent: "center", borderRadius: tokens.radiusCard, backgroundColor: tokens.bg, overflow: "hidden" }}
           >
-            <SampleImage uri={real.heroUri} placeholderUri={sampleUrl(base, real.current.page.thumb)} onFailed={onImageError} style={{ flex: 1 }} testID={`${id}-hero-image`} />
+            <ScanPage uri={real.heroUri} placeholderUri={sampleUrl(base, real.current.page.thumb)} size={size} box={box} onFailed={onImageError} testID={`${id}-hero-image`} />
             <ZoomBadge />
           </Pressable>
           <Text variant="caption" bold style={{ textAlign: "center" }} testID={`${id}-caption`}>
@@ -257,131 +219,12 @@ export function GuideSamples({ guide, base, width, cursor, onSelect, onOpen, sch
         </>
       ) : (
         <>
-          <Pressable accessibilityRole="button" accessibilityLabel={strings.guideSampleOpen} onPress={onOpen} testID={`${id}-sample-open`} style={{ borderRadius: tokens.radiusControl, overflow: "hidden", alignSelf: "flex-start" }}>
+          <Pressable ref={openerRef} accessibilityRole="button" accessibilityLabel={strings.guideSampleOpen} onPress={onOpen} testID={`${id}-sample-open`} style={{ borderRadius: tokens.radiusCard, overflow: "hidden", alignSelf: "flex-start" }}>
             <SchemeFigure guide={guide} width={width} />
             <ZoomBadge />
           </Pressable>
           <SchemeLegend guide={guide} />
         </>
-      )}
-    </View>
-  );
-}
-
-function PagerButton({ direction, disabled, label, onPress, id }: { direction: "prev" | "next"; disabled: boolean; label: string; onPress: () => void; id: string }) {
-  const { tokens } = useTheme();
-  const Icon = direction === "prev" ? ChevronLeft : ChevronRight;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={4}
-      testID={`${id}-pager-${direction}`}
-      style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? tokens.skeleton : tokens.bg, opacity: disabled ? 0.5 : 1 })}
-    >
-      <Icon size={20} strokeWidth={2.2} color={disabled ? tokens.controlEdge : tokens.text} />
-    </Pressable>
-  );
-}
-
-type LightboxProps = Readonly<{
-  guide: DocumentGuideView;
-  base: string;
-  /** Название документа: заголовок окна «Пример: {название}». */
-  label: string;
-  /** Ширина листа. */
-  sheetWidth: number;
-  cursor: SampleCursor;
-  onSelect: (cursor: SampleCursor) => void;
-  onClose: () => void;
-  schemeOnly: boolean;
-  onImageError: () => void;
-  id: string;
-}>;
-
-/** Крупный просмотр: страница на весь лист, подпись со счётчиком и «‹ ›» между страницами набора. Нет образцов или нет сети - схема. */
-export function GuideLightbox({ guide, base, label, sheetWidth, cursor, onSelect, onClose, schemeOnly, onImageError, id }: LightboxProps) {
-  const { tokens } = useTheme();
-  const { format, t } = useLang();
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-  const strings = t("admission");
-  const picked = schemeOnly ? null : currentSample(guide, cursor);
-  const fullUri = picked ? sampleUrl(base, picked.page.src) : null;
-  const real = picked !== null && fullUri !== null ? { current: picked, fullUri } : null;
-  const current = real?.current ?? null;
-  const pages = current?.set.pages.length ?? 0;
-  const counterText = current && current.many ? format(strings.guidePageCounter, { n: String(current.pageIndex + 1), m: String(pages) }) : "";
-  const spoken = current ? (counterText ? `${current.page.caption}, ${counterText}` : current.page.caption) : "";
-  const imageHeight = Math.round(Math.max(240, Math.min(height * 0.92 - 200 - insets.bottom, 640)));
-
-  // Фокус читалки - на заголовок окна: содержимое листа заменилось, а прежний элемент исчез.
-  const heading = useRef<HostInstance>(null);
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (heading.current) AccessibilityInfo.sendAccessibilityEvent(heading.current, "focus");
-    }, 250);
-    return () => clearTimeout(timer);
-  }, []);
-  // Листание кнопкой озвучивается: на iOS - announce, на Android - живая область у подписи (ниже).
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    if (Platform.OS === "ios" && spoken) AccessibilityInfo.announceForAccessibility(spoken);
-  }, [spoken]);
-
-  const go = (step: number) => {
-    if (!current) return;
-    const next = current.pageIndex + step;
-    if (next >= 0 && next < pages) onSelect({ set: current.setIndex, page: next });
-  };
-
-  return (
-    <View
-      testID={`${id}-lightbox`}
-      style={{ width: sheetWidth, maxHeight: height * 0.92, backgroundColor: tokens.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16) + 8, gap: 12 }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <View ref={heading} accessible accessibilityRole="header" style={{ flex: 1 }}>
-          <Text variant="heading" numberOfLines={2}>
-            {`${strings.guideSample}: ${label}`}
-          </Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={strings.guideSampleClose} onPress={onClose} testID={`${id}-lightbox-close`} style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
-          <X size={20} strokeWidth={1.8} color={tokens.text} />
-        </Pressable>
-      </View>
-      {real ? (
-        <>
-          <View style={{ height: imageHeight, padding: 12, borderRadius: tokens.radiusCard, backgroundColor: tokens.bg, overflow: "hidden" }}>
-            <SampleImage uri={real.fullUri} placeholderUri={sampleUrl(base, real.current.page.thumb)} label={`${real.current.set.label}: ${real.current.page.caption}`} onFailed={onImageError} style={{ flex: 1 }} testID={`${id}-lightbox-image`} />
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 }}>
-            {real.current.many ? <PagerButton direction="prev" disabled={real.current.pageIndex === 0} label={strings.guidePagePrev} onPress={() => go(-1)} id={id} /> : null}
-            <View accessible accessibilityLabel={spoken} accessibilityLiveRegion="polite" style={{ minWidth: 140, alignItems: "center", gap: 2, flexShrink: 1 }} testID={`${id}-lightbox-caption`}>
-              <Text variant="caption" bold style={{ textAlign: "center" }}>
-                {real.current.page.caption}
-              </Text>
-              {counterText ? (
-                <Text variant="caption" tone="text2">
-                  {counterText}
-                </Text>
-              ) : null}
-            </View>
-            {real.current.many ? <PagerButton direction="next" disabled={real.current.pageIndex === pages - 1} label={strings.guidePageNext} onPress={() => go(1)} id={id} /> : null}
-          </View>
-        </>
-      ) : (
-        <ScrollView contentContainerStyle={{ gap: 12 }}>
-          <SchemeFigure guide={guide} width={sheetWidth - 32} />
-          <SchemeLegend guide={guide} />
-        </ScrollView>
       )}
     </View>
   );

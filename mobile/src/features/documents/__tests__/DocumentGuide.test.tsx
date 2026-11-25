@@ -9,6 +9,9 @@ import type { DocumentsIo } from "@/features/documents/io";
 import { DocumentsScreen } from "@/features/documents/DocumentsScreen";
 import { DOCUMENT_SAMPLE_SVG } from "@/features/documents/document-samples.generated";
 import { decodeSvgText } from "@/features/documents/GuideScheme";
+import { PAGE_SHADOW } from "@/features/documents/GuideImages";
+import { pageAspect } from "@/features/documents/guide-model";
+import { fitContain } from "@/features/documents/zoom-math";
 import { getPortalStrings } from "@/i18n";
 import { CASE_FILE_ROW, CASE_ID, DOCUMENT_ROW_CORRECTION, DOCUMENT_ROW_EMPTY, FILE_ID, SLOT_ID } from "@/test-fixtures/rpc-rows";
 import { renderPortal, testApi } from "@/test-fixtures/render";
@@ -93,6 +96,19 @@ const openGuide = async (id: string) => fireEvent.press(await screen.findByTestI
 const uriOf = (testID: string): string => (screen.getByTestId(testID).props.source as { uri: string }[])[0]!.uri;
 const placeholderOf = (testID: string): string => (screen.getByTestId(testID).props.placeholder as { uri: string }[])[0]!.uri;
 const failImage = async (testID: string) => fireEvent(screen.getByTestId(testID), "error", { nativeEvent: { error: "offline" } });
+/** Касание рамки просмотра: точки относительно рамки (`locationX/Y`), время в мс. */
+const touch = (x: number, y: number) => ({ locationX: x, locationY: y });
+async function drag(testID: string, from: [number, number], to: [number, number], at = 1000, duration = 120) {
+  const zoom = screen.getByTestId(testID);
+  await fireEvent(zoom, "responderGrant", { nativeEvent: { touches: [touch(...from)], timestamp: at } });
+  await fireEvent(zoom, "responderMove", { nativeEvent: { touches: [touch(...to)], timestamp: at + duration / 2 } });
+  await fireEvent(zoom, "responderRelease", { nativeEvent: { touches: [], timestamp: at + duration } });
+}
+async function tap(testID: string, at: [number, number], time: number) {
+  const zoom = screen.getByTestId(testID);
+  await fireEvent(zoom, "responderGrant", { nativeEvent: { touches: [touch(...at)], timestamp: time } });
+  await fireEvent(zoom, "responderRelease", { nativeEvent: { touches: [], timestamp: time + 40 } });
+}
 
 beforeEach(() => {
   navigate.mockClear();
@@ -203,6 +219,24 @@ describe("Пример: лист показывает только пример"
     expect(screen.getByTestId(`guide-${S_PASSPORT}-ask`)).toBeTruthy();
   });
 
+  it("страница встаёт в рамку по пропорциям файла (manifest), листом с тенью и скруглением, ещё до загрузки", async () => {
+    await renderDocs([DOCUMENT_ROW_EMPTY]);
+    await openGuide(S_PASSPORT);
+    await screen.findByTestId(`guide-${S_PASSPORT}-sheet`);
+    const image = screen.getByTestId(`guide-${S_PASSPORT}-hero-image`);
+    const style = Object.assign({}, ...[image.props.style].flat(2).filter(Boolean));
+    const aspect = pageAspect("/portal/document-samples/passport-1.jpg")!;
+    expect(aspect).toBeCloseTo(1300 / 926, 6);
+    // окно теста 750 pt: «телефон» (< 768): стол 280 pt с полями 12, лист 640 - 32 = 608 pt без полей 2 * 12
+    const expected = fitContain(aspect, { width: 608 - 24, height: 280 - 24 });
+    expect(style.width).toBeCloseTo(expected.width, 6);
+    expect(style.height).toBeCloseTo(expected.height, 6);
+    expect(style.borderRadius).toBe(3);
+    const frame = Object.assign({}, ...[image.parent!.props.style].flat(2).filter(Boolean));
+    expect(frame.boxShadow).toBe(PAGE_SHADOW);
+    expect([frame.width, frame.height]).toEqual([style.width, style.height]);
+  });
+
   it("образцы берутся по адресу портала без входа, а не из сборки: страница крупно, миниатюра как заставка", async () => {
     await renderDocs([DOCUMENT_ROW_EMPTY]);
     await openGuide(S_PASSPORT);
@@ -303,15 +337,24 @@ describe("Пример: наборы, страницы и крупный про�
     expect(screen.getByTestId(`${id}-caption`)).toHaveTextContent("Табель, если ещё учитесь · 1 из 3");
   });
 
-  it("крупный просмотр: полный файл, «‹ ›» между страницами набора, озвучивание, возврат в лист на той же странице", async () => {
+  it("крупный просмотр: карточка поверх листа, полный файл, «‹ ›» между страницами набора, озвучивание, возврат в лист на той же странице", async () => {
     await renderDocs([ATTESTAT]);
     await openGuide(S_ATTESTAT);
     await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
-    const box = await screen.findByTestId(`${id}-lightbox`);
+    await screen.findByTestId(`${id}-lightbox`);
+    // лист остаётся открытым под карточкой (как в вебе), но читалке не виден
+    const layer = screen.getByTestId(`${id}-layer`, { includeHiddenElements: true });
+    expect(layer.props.accessibilityElementsHidden).toBe(true);
+    expect(layer.props.importantForAccessibility).toBe("no-hide-descendants");
+    expect(screen.getByTestId(`${id}-sheet`, { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByTestId(`${id}-sheet`)).toBeNull();
-    expect(within(box).getByText("Пример: Аттестат")).toBeTruthy();
+    // заголовок окна «Пример: {документ}» читается первым; на экране его нет, как в вебе (sr-only)
+    expect(screen.getByRole("header", { name: "Пример: Аттестат" })).toBeTruthy();
+    expect(screen.queryByText("Пример: Аттестат")).toBeNull();
+    const zoom = screen.getByTestId(`${id}-lightbox-zoom`);
+    expect(zoom.props.accessibilityRole).toBe("image");
+    expect(zoom.props.accessibilityLabel).toBe("Аттестат: Оригинал");
     expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
-    expect(screen.getByTestId(`${id}-lightbox-image`).props.accessibilityLabel).toBe("Аттестат: Оригинал");
     expect(screen.getByTestId(`${id}-lightbox-caption`).props.accessibilityLabel).toBe("Оригинал, 1 из 7");
     // на первой странице «назад» выключено, на последней выключено «вперёд»
     expect(screen.getByTestId(`${id}-pager-prev`)).toBeDisabled();
@@ -333,11 +376,102 @@ describe("Пример: наборы, страницы и крупный про�
     expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-7.jpg`);
     await fireEvent.press(screen.getByTestId(`${id}-pager-prev`));
     expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-6.jpg`);
-    // закрыть просмотр: лист на той же странице
+    // закрыть просмотр: лист на той же странице, снова виден читалке
     await fireEvent.press(screen.getByTestId(`${id}-lightbox-close`));
     expect(await screen.findByTestId(`${id}-sheet`)).toBeTruthy();
+    expect(screen.queryByTestId(`${id}-lightbox`)).toBeNull();
+    expect(screen.getByTestId(`${id}-layer`).props.accessibilityElementsHidden).toBe(false);
     expect(screen.getByTestId(`${id}-caption`)).toHaveTextContent("Заверка нотариуса · 6 из 7");
     expect(uriOf(`${id}-hero-image`)).toBe(`${SAMPLES}/attestat-6.jpg`);
+  });
+
+  it("жесты в просмотре: палец влево листает вперёд, вправо - назад, на краях и по вертикали страница остаётся", async () => {
+    await renderDocs([ATTESTAT]);
+    await openGuide(S_ATTESTAT);
+    await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
+    await screen.findByTestId(`${id}-lightbox`);
+    const zoom = `${id}-lightbox-zoom`;
+    // на первой странице движение вправо - «назад» некуда
+    await drag(zoom, [200, 300], [330, 300]);
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+    // вертикальное движение не листает
+    await drag(zoom, [200, 100], [210, 330]);
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+    // короткий сдвиг не листает
+    await drag(zoom, [200, 300], [180, 300], 2000, 600);
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+    // влево - следующая, подпись и озвучивание те же, что у кнопок
+    await drag(zoom, [330, 300], [190, 300], 3000);
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-2.jpg`);
+    expect(screen.getByTestId(`${id}-lightbox-caption`).props.accessibilityLabel).toBe("Оценки, 2 из 7");
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenLastCalledWith("Оценки, 2 из 7");
+    // вправо - назад
+    await drag(zoom, [190, 300], [340, 300], 4000);
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+  });
+
+  it("двойное касание приближает страницу, а не листает; рамка принимает касания и не отдаёт их выше", async () => {
+    await renderDocs([ATTESTAT]);
+    await openGuide(S_ATTESTAT);
+    await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
+    await screen.findByTestId(`${id}-lightbox`);
+    const zoom = screen.getByTestId(`${id}-lightbox-zoom`);
+    expect(zoom.props.onStartShouldSetResponder()).toBe(true);
+    expect(zoom.props.onMoveShouldSetResponder()).toBe(true);
+    expect(zoom.props.onResponderTerminationRequest()).toBe(false);
+    await tap(`${id}-lightbox-zoom`, [300, 200], 5000);
+    await tap(`${id}-lightbox-zoom`, [302, 201], 5120);
+    expect(uriOf(`${id}-lightbox-image`)).toBe(`${SAMPLES}/attestat-1.jpg`);
+    // жест отобрали системой: просмотр цел
+    await fireEvent(zoom, "responderGrant", { nativeEvent: { touches: [touch(100, 100), touch(200, 100)], timestamp: 6000 } });
+    await fireEvent(zoom, "responderMove", { nativeEvent: { touches: [touch(50, 100), touch(250, 100)], timestamp: 6050 } });
+    await fireEvent(zoom, "responderTerminate", { nativeEvent: { touches: [], timestamp: 6100 } });
+    expect(screen.getByTestId(`${id}-lightbox`)).toBeTruthy();
+  });
+
+  it("просмотр закрывается затемнением и кнопкой «Назад» Android; сначала он, потом лист", async () => {
+    await renderDocs([ATTESTAT]);
+    await openGuide(S_ATTESTAT);
+    await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
+    await screen.findByTestId(`${id}-lightbox`);
+    // затемнение вокруг карточки
+    await fireEvent.press(screen.getByTestId(`${id}-overlay-scrim`));
+    await waitFor(() => expect(screen.queryByTestId(`${id}-lightbox`)).toBeNull());
+    expect(screen.getByTestId(`${id}-sheet`)).toBeTruthy();
+    // «Назад» при открытом просмотре закрывает просмотр, не лист
+    await fireEvent.press(screen.getByTestId(`${id}-sample-open`));
+    await screen.findByTestId(`${id}-lightbox`);
+    await fireEvent(screen.getByTestId(`${id}-modal`, { includeHiddenElements: true }), "requestClose");
+    await waitFor(() => expect(screen.queryByTestId(`${id}-lightbox`)).toBeNull());
+    expect(screen.getByTestId(`${id}-sheet`)).toBeTruthy();
+    // второе «Назад» закрывает лист
+    await fireEvent(screen.getByTestId(`${id}-modal`, { includeHiddenElements: true }), "requestClose");
+    await waitFor(() => expect(screen.queryByTestId(`${id}-sheet`)).toBeNull());
+  });
+
+  it("читалка: после закрытия просмотра фокус возвращается на страницу, после закрытия листа - на «Пример»", async () => {
+    await renderDocs([ATTESTAT]);
+    await openGuide(S_ATTESTAT);
+    await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
+    await screen.findByTestId(`${id}-lightbox`);
+    jest.useFakeTimers();
+    try {
+      (AccessibilityInfo.sendAccessibilityEvent as jest.Mock).mockClear();
+      await fireEvent.press(screen.getByTestId(`${id}-lightbox-close`));
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+      const afterLightbox = (AccessibilityInfo.sendAccessibilityEvent as jest.Mock).mock.calls;
+      expect(afterLightbox).toHaveLength(1);
+      expect(afterLightbox[0]![1]).toBe("focus");
+      await fireEvent.press(await screen.findByTestId(`${id}-close`));
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+      expect((AccessibilityInfo.sendAccessibilityEvent as jest.Mock).mock.calls).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("просмотр одной страницы без «‹ ›»; фокус читалки уходит на заголовок окна", async () => {
@@ -360,7 +494,7 @@ describe("Пример: наборы, страницы и крупный про�
     // и ни в одном файле экрана «Документы» (комментарии не в счёт)
     const dir = path.resolve(__dirname, "..");
     const files = readdirSync(dir).filter((name) => name.endsWith(".tsx"));
-    expect(files).toEqual(expect.arrayContaining(["DocumentGuide.tsx", "GuideSamples.tsx", "GuidePhotoRules.tsx", "SourceSheet.tsx"]));
+    expect(files).toEqual(expect.arrayContaining(["DocumentGuide.tsx", "GuideSamples.tsx", "GuideLightbox.tsx", "ZoomableScan.tsx", "GuidePhotoRules.tsx", "SourceSheet.tsx"]));
     for (const name of files) {
       const code = readFileSync(path.join(dir, name), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
       expect([name, code.includes("accessibilityViewIsModal")]).toEqual([name, false]);
@@ -384,14 +518,14 @@ describe("Пример: нарисованная схема вместо обр�
     }
   });
 
-  it("паспорт: легенда схемы (метки 1-3) совпадает с каталогом, схема открывается крупно и закрывается обратно в лист", async () => {
+  it("схема открывается крупно в той же карточке и закрывается обратно в лист", async () => {
     await renderDocs([FORM]);
     await openGuide(S_FORM);
     await fireEvent.press(await screen.findByTestId(`guide-${S_FORM}-sample-open`));
     const box = await screen.findByTestId(`guide-${S_FORM}-lightbox`);
-    expect(within(box).getByText("Пример: Анкета")).toBeTruthy();
-    expect(screen.getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.getByTestId("guide-legend")).toBeTruthy();
+    expect(screen.getByRole("header", { name: "Пример: Анкета" })).toBeTruthy();
+    expect(within(box).getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
+    expect(within(box).getByTestId("guide-legend")).toBeTruthy();
     expect(screen.queryByTestId(`guide-${S_FORM}-pager-next`)).toBeNull();
     await fireEvent.press(screen.getByTestId(`guide-${S_FORM}-lightbox-close`));
     expect(await screen.findByTestId(`guide-${S_FORM}-sheet`)).toBeTruthy();
@@ -411,8 +545,8 @@ describe("Пример: нарисованная схема вместо обр�
     expect(screen.getByTestId(`${id}-ask`)).toBeTruthy();
     // схема открывается крупно, листания нет
     await fireEvent.press(screen.getByTestId(`${id}-sample-open`));
-    await screen.findByTestId(`${id}-lightbox`);
-    expect(screen.getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
+    const box = await screen.findByTestId(`${id}-lightbox`);
+    expect(within(box).getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByTestId(`${id}-pager-next`)).toBeNull();
     await fireEvent.press(screen.getByTestId(`${id}-lightbox-close`));
     await fireEvent.press(await screen.findByTestId(`${id}-close`));
@@ -429,7 +563,7 @@ describe("Пример: нарисованная схема вместо обр�
     await fireEvent.press(await screen.findByTestId(`${id}-sample-open`));
     await screen.findByTestId(`${id}-lightbox`);
     await failImage(`${id}-lightbox-image`);
-    expect(screen.getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
+    expect(within(screen.getByTestId(`${id}-lightbox`)).getByTestId("guide-sample", { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByTestId(`${id}-lightbox-image`)).toBeNull();
     expect(screen.getByTestId(`${id}-lightbox`)).toBeTruthy();
   });
@@ -486,7 +620,7 @@ describe("Пример: IELTS и HSK в листе", () => {
     expect(within(sheet).getByText("Үлгү")).toBeTruthy();
     expect(screen.getByTestId(`guide-${S_HSK}-caption`)).toHaveTextContent("Үлгү, маалыматтар ойдон чыгарылган");
     expect(screen.getByTestId(`guide-${S_HSK}-close`).props.accessibilityLabel).toBe(ky.guideClose);
-    expect(screen.getByTestId(`guide-${S_HSK}-ask`).props.accessibilityLabel).toBe("Куратордон суроо");
+    expect(screen.getByTestId(`guide-${S_HSK}-ask`)).toHaveTextContent("Куратордон суроо");
   });
 });
 

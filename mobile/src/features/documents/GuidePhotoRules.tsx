@@ -6,6 +6,7 @@ import { View, useWindowDimensions } from "react-native";
 import Svg, { Circle, Ellipse, G, Path, Rect } from "react-native-svg";
 import type { GuideCountry } from "@web/lib/portal/document-guides";
 
+import { GuideTitle } from "@/features/documents/GuideTitle";
 import { useLang } from "@/i18n/LangProvider";
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "@/ui/Text";
@@ -77,9 +78,7 @@ export function GuidePhotoRules({ country, width, id }: { country: GuideCountry 
   const frame = Math.min(cell, 112);
   return (
     <View style={{ gap: 10 }} testID={`${id}-photo-rules`}>
-      <Text variant="caption" tone="text2" bold accessibilityRole="header">
-        {strings.guidePhotoRulesTitle}
-      </Text>
+      <GuideTitle>{strings.guidePhotoRulesTitle}</GuideTitle>
       <Text variant="caption" bold testID={`${id}-photo-spec`}>
         {spec}
       </Text>

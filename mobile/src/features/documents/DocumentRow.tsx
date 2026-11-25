@@ -102,7 +102,7 @@ export function DocumentRow({ document, io, country = null, first = false, highl
   const guideAction: GuideAction | null =
     document.status === "approved"
       ? document.documentVersionId
-        ? { label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: fileLabelFor(document, strings.lastFileFallback) }), onPress: () => void onDownload(), testID: `guide-download-${document.documentSlotId}` }
+        ? { label: strings.downloadButton, accessibilityLabel: format(strings.downloadAria, { name: fileLabelFor(document, strings.lastFileFallback) }), onPress: () => void onDownload(), testID: `guide-download-${document.documentSlotId}`, kind: "download" as const }
         : null
       : busy
         ? null

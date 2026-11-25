@@ -4,7 +4,7 @@
 // приходят из src/content/timelines/*.json через общий разбор веба (набор bundled, работает без сети); здесь только вид.
 import { Calendar, Check, ChevronDown, ExternalLink, Info } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Pressable, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import type { CountryChoiceSource } from "@web/lib/portal/country-choice";
 import type { CountryTimelineView, TimelineStepProgress, TimelineViewStep } from "@web/lib/portal/country-timeline";
 import { journeyStrip } from "@web/lib/portal/journey-strip";
@@ -141,6 +141,8 @@ export function useJourney({
   const { folded, setFolded } = useFolded(true, userKey);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  // Высота строки шага: от неё зависит, закреплять ли её (`rowPinned`), поэтому это состояние, а не только запись в `layouts`.
+  const [nowHeight, setNowHeight] = useState(0);
   // Фото, которое не загрузилось: шапка остаётся тёмной плашкой, «©» не к чему.
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const layouts = useRef<Layouts>({ body: 0, list: 0, now: 0, steps: {} });
@@ -154,16 +156,20 @@ export function useJourney({
   // `order` шага, всего - все шаги, «дальше» пропускает шаги «по желанию». Нет прогресса (дела нет) - строки нет.
   const strip = view ? journeyStrip(view.steps, progress, stage) : null;
   const currentStep = view?.steps.find((step) => progress?.[step.id] === "current") ?? null;
+  // Держится ли строка у верха, пока прокручиваются шаги (`rowPinned`): решает и порядок блоков списка, и то, под чем встаёт шаг.
+  const { height: viewportHeight } = useWindowDimensions();
+  const pinned = rowPinned({ hasStrip: strip !== null, folded, rowHeight: nowHeight, viewportHeight });
 
   const scrollToStep = useCallback(
     (id: string) => {
       const at = layouts.current;
       const step = at.steps[id];
       if (!scrollTo || step === undefined) return;
-      // Шаг встаёт под закреплённой строкой: её высота и 12 px запаса.
-      scrollTo(Math.max(0, at.body + at.list + step - at.now - 12));
+      // Шаг встаёт под закреплённой строкой: её высота и 12 px запаса. Строка не держится (высокий шрифт, строка выше 40% окна) -
+      // под ней ничего нет, остаются только 12 px запаса.
+      scrollTo(Math.max(0, at.body + at.list + step - (pinned ? at.now : 0) - 12));
     },
-    [scrollTo],
+    [scrollTo, pinned],
   );
 
   const jumpToCurrent = () => {
@@ -193,8 +199,12 @@ export function useJourney({
     failedPhoto,
     setFailedPhoto,
     jumpToCurrent,
+    nowHeight,
+    pinned,
     onNowLayout: (height: number) => {
       layouts.current.now = height;
+      // Доли пикселя при пересчёте раскладки не считаются изменением: иначе строка могла бы мигать закреплением.
+      setNowHeight((previous) => (Math.abs(previous - height) < 0.5 ? previous : height));
     },
     onBodyLayout: (y: number) => {
       layouts.current.body = y;
@@ -249,6 +259,44 @@ export function journeyEdges(journey: Pick<Journey, "strip" | "folded">): Readon
   const hasNow = journey.strip !== null;
   const hasBody = !journey.folded;
   return { head: hasNow || hasBody ? "first" : "only", now: hasBody ? "middle" : "last", body: "last" };
+}
+
+/**
+ * Какую долю высоты окна строка шага может занимать, оставаясь закреплённой. При крупном шрифте системы (iPhone, Dynamic Type
+ * «Accessibility») строка выше 40% окна: закреплённая, она закрывала бы почти половину и мешала читать карточки под ней. Берётся
+ * высота окна, а не прокрутки (она на панель вкладок меньше): в пользу закрепления, граница не точна до пункта.
+ */
+export const PIN_MAX_SHARE = 0.4;
+
+/**
+ * Запас под строкой шага (pt), когда нулевой блок `JourneyEnd` стоит сразу за ней (путь свёрнут или строка высокая). React Native
+ * (`ScrollViewStickyHeader`) отпускает закреплённый блок, только если `nextHeaderLayoutY - layoutHeight >= layoutY`. Блок за
+ * строкой стоит ровно у её нижнего края, обе стороны РАВНЫ, и результат решают округления float32 (на реальном телефоне
+ * y=356.190491, высота 117.333336, блок 473.523804: левая часть меньше правой на 2e-5, строка оставалась на экране навсегда и
+ * закрывала карточки). Два пункта запаса делают неравенство строгим с большим зазором, а строка успевает закрепиться на те же
+ * два пункта прокрутки, то есть уезжает вместе с содержимым. Меньший запас не годится: на стенде ревьюера (Yoga и настоящий
+ * ScrollView, 1000 раскладок) при 0,05 pt застревает 316 раскладок, при 0,2 pt - 145, при 2 pt ни одной. Видимой щели запас не
+ * оставляет: блок `JourneyEnd` тянет следующий за ним блок обратно на `-ROW_SLACK` (`HomeScreen.tsx`).
+ */
+export const ROW_SLACK = 2;
+
+/**
+ * Держится ли строка шага у верха экрана, пока прокручиваются раскрытые шаги (веб: `position: sticky` у `.pt-journey-now` внутри
+ * карточки пути). Строка закреплена ВСЕГДА (в списке экрана она закреплённый блок и при свёрнутом пути): если закрепление
+ * включать и выключать, блок пересоздаётся при каждом «Свернуть» и «Все шаги» (полоса шагов растёт заново, стрелка не
+ * поворачивается, кнопка с фокусом читалки пропадает). От этого правила зависит только место нулевого блока `JourneyEnd`:
+ * за шагами (строка держится на всё их протяжение) или сразу за строкой (почти не держится, `ROW_SLACK`).
+ *
+ * - Путь свёрнут - нет: шагов под строкой нет, карточка пути кончается ею же (у веба закреплять негде).
+ * - Строка занимает больше `PIN_MAX_SHARE` окна - нет (крупный шрифт).
+ * - Строки нет - нет.
+ * - Высота строки или окна ещё неизвестна (0) - да, пока путь раскрыт: до первой раскладки решать нечем, а ошибка стоит одного
+ *   кадра без видимого эффекта (закрепление заметно только при прокрутке), блоки при этом лишь переставляются, не пересоздаются.
+ */
+export function rowPinned(input: Readonly<{ hasStrip: boolean; folded: boolean; rowHeight: number; viewportHeight: number }>): boolean {
+  if (!input.hasStrip || input.folded) return false;
+  if (!(input.rowHeight > 0) || !(input.viewportHeight > 0)) return true;
+  return input.rowHeight <= input.viewportHeight * PIN_MAX_SHARE;
 }
 
 /** «Все шаги» / «Свернуть»: весь путь сворачивается в строку текущего шага (веб, 08.11.2026). */
@@ -389,6 +437,7 @@ export function JourneyHead({
  * «Все шаги» в её конце; дело завершено или закрыто - «Поступление завершено» без полосы. Текущий шаг всегда на виду
  * при прокрутке пути (веб, 08.11.2026: `position: sticky`): в списке экрана это закреплённый блок, его толкает вверх
  * следующий закреплённый блок - `JourneyEnd`, стоящий сразу за путём, поэтому закрепление не выходит за карточку пути.
+ * Закреплена всегда, пока она есть; держится ли у верха на время шагов, решает `rowPinned` (место блока `JourneyEnd`, `ROW_SLACK`).
  * Корневой элемент берёт `style` от списка (ScrollView переносит стиль на обёртку закреплённого блока).
  */
 export function JourneyNow({ journey, edge, style }: { journey: Journey; edge: Edge; style?: StyleProp<ViewStyle> }) {

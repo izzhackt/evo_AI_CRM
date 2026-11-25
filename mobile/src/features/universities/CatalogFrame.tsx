@@ -12,6 +12,7 @@ import { Screen } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
 import { useUniversityIndex } from "./hooks";
+import { closeCreditPanel } from "./PhotoCredit";
 
 export function CatalogFrame({ children, header }: { children: (index: StudentUniversityIndex) => ReactNode; header?: ReactNode }) {
   const { t, m } = useLang();
@@ -26,7 +27,8 @@ export function CatalogFrame({ children, header }: { children: (index: StudentUn
   );
   return (
     <Screen topInset={false} tabBar onRefresh={() => void catalog.refresh()} refreshing={catalog.refreshing}>
-      <View style={{ gap: 16 }}>
+      {/* Касание содержимого (мимо подписи фото) и начало прокрутки закрывают открытую панель «©». */}
+      <View style={{ gap: 16 }} onTouchStart={closeCreditPanel} testID="catalog-content">
         {header}
         {catalog.isLoading ? (
           <CardSkeleton label={`${strings.title}. ${m("state.loading")}`} lines={3} testID="catalog-loading" />

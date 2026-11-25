@@ -1,8 +1,10 @@
 // Подпись фото: части строки со ссылками и проверка адреса (G41). Данные настоящие: библиотека фото вузов и разборщик индекса.
+import { catalogUrl } from "@web/lib/catalog-text";
+import { UNIVERSITY_PHOTOS } from "@web/lib/platform-university-catalog";
 import { getPortalStrings } from "@web/lib/portal/i18n";
 import { parseStudentUniversityIndexResponse } from "@web/lib/portal/university-index";
 
-import { creditLine, creditSegments, safeHttpsUrl } from "@/features/universities/credit";
+import { creditLine, creditSegments, creditSourceUrl, safeHttpsUrl } from "@/features/universities/credit";
 import { geographyPhotoCredit, universityPhotoCaption, universityPhotoCredit, type PhotoCreditView } from "@/features/universities/photos";
 import { indexBody } from "@/test-fixtures/university-index";
 
@@ -26,6 +28,52 @@ describe("адрес перед открытием", () => {
       expect(credit).not.toBeNull();
       expect(safeHttpsUrl(credit?.sourceUrl)).not.toBeNull();
     }
+  });
+});
+
+describe("проверка адреса мягче `catalogUrl` намеренно", () => {
+  it("настоящий адрес источника с явным портом правило каталога отвергает, а подпись его открывает", () => {
+    const url = "https://library.csuft.edu.cn:443/";
+    expect(catalogUrl(url)).toBe(false);
+    expect(safeHttpsUrl(url)).toBe(url);
+    const official = universityPhotoCredit("central-south-university-of-forestry-and-technology");
+    expect(official).toMatchObject({ kind: "official", sourceUrl: url });
+    expect(creditSegments(official as PhotoCreditView, ru, "Университет").find((segment) => segment.text === "Университет")?.url).toBe(url);
+  });
+
+  it("все адреса источников и лицензий библиотеки проходят проверку: подпись не теряет ссылку из-за неё", () => {
+    for (const [key, entry] of Object.entries(UNIVERSITY_PHOTOS)) {
+      for (const url of [entry.sourceUrl, entry.licenseUrl]) {
+        if (url === null || url === undefined) continue;
+        expect([key, safeHttpsUrl(url)]).toEqual([key, url]);
+      }
+    }
+  });
+});
+
+describe("ссылка на всю строку подписи (шапка «Главной»)", () => {
+  const parsed = parseStudentUniversityIndexResponse(indexBody());
+  if (!parsed || parsed.notModified) throw new Error("fixture");
+  const place = geographyPhotoCredit(parsed.index.cities.find((city) => city.key === "penang")!.photo);
+
+  it("безопасный адрес источника; у фото мест хост должен принадлежать названному источнику", () => {
+    expect(creditSourceUrl(place)).toBe("https://commons.wikimedia.org/wiki/File:Test.jpg");
+    for (const sourceUrl of [
+      "javascript:alert(1)",
+      "http://commons.wikimedia.org/wiki/File:Test.jpg",
+      "https://commons.wikimedia.org.evil.example/wiki/File:Test.jpg",
+      "https://evil.example/wiki/File:Test.jpg",
+      "https://user:pw@commons.wikimedia.org/wiki/File:Test.jpg",
+      "https://commons.wikimedia.org/wiki/File: Test.jpg",
+    ]) {
+      expect([sourceUrl, creditSourceUrl({ ...(place as Extract<PhotoCreditView, { kind: "author" }>), sourceUrl })]).toEqual([sourceUrl, null]);
+    }
+  });
+
+  it("официальный адрес и фото вуза без названного источника: достаточно безопасного адреса", () => {
+    expect(creditSourceUrl({ kind: "official", sourceUrl: "https://example.org/" })).toBe("https://example.org/");
+    expect(creditSourceUrl({ kind: "official", sourceUrl: "javascript:alert(1)" })).toBeNull();
+    expect(creditSourceUrl(universityPhotoCredit("sunway") as PhotoCreditView)).toBe("https://commons.wikimedia.org/wiki/File:Cmglee_Sunway_University_new_building.jpg");
   });
 });
 

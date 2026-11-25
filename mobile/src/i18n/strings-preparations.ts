@@ -58,8 +58,8 @@ export const PREPARATIONS_KY: Readonly<Record<PreparationsStringKey, string>> = 
   "prep.discardUpload": "Бүтпөгөн жүктөөдөн баш тартуу", // KY: needs native proofreading
   "prep.discardSubmit": "Бүтпөгөн жөнөтүүдөн баш тартуу", // KY: needs native proofreading
   "prep.discardTitle": "Бүтпөгөн аракеттен баш тартасызбы?", // KY: needs native proofreading
-  "prep.discardUploadBody": "Телефон файлды жүктөө аякталбаганын унутат, андан кийин каалаган файлды тандай аласыз. Эгер файл EVO'го жетип калган болсо, жаңы жөнөтүү тизмеге дагы бир версияны кошушу мүмкүн.", // KY: needs native proofreading
-  "prep.discardSubmitBody": "Телефон жөнөтүү аякталбаганын унутат. Эгер ал EVO'го жетип калган болсо, аны көрүү үчүн документтердин тизмесин жаңыртыңыз.", // KY: needs native proofreading
+  "prep.discardUploadBody": "Телефон файлды жүктөө аякталбаганын унутат, андан кийин каалаган файлды тандай аласыз. Эгер файл EVO тарабына жетип калган болсо, жаңы жөнөтүү тизмеге дагы бир версияны кошушу мүмкүн.", // KY: needs native proofreading
+  "prep.discardSubmitBody": "Телефон жөнөтүү аякталбаганын унутат. Эгер ал EVO тарабына жетип калган болсо, аны көрүү үчүн документтердин тизмесин жаңыртыңыз.", // KY: needs native proofreading
   "prep.discardConfirm": "Баш тартуу", // KY: needs native proofreading
   "prep.discardKeep": "Калтыруу", // KY: needs native proofreading
   "prep.discarded": "Бүтпөгөн аракет бул телефондон алынды.", // KY: needs native proofreading

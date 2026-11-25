@@ -113,7 +113,7 @@ export function RequirementsSection({
           })}
         </View>
       ) : null}
-      <DocumentRecovery currentItemIds={documents?.documentItems.map((item) => item.requirementItemId) ?? []} />
+      <DocumentRecovery currentItemIds={documents?.documentItems.map((item) => item.requirementItemId) ?? []} loading={loading} />
       <DocumentHistory key={epoch} requirementItemId={null} testID="prep-program-history" />
       {error ? <InlineAlert message={error} testID="prep-error" /> : null}
       {pageHint === "two_step" ? (

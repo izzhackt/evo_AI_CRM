@@ -114,7 +114,15 @@ function RecoverEntry({ entry }: { entry: Entry }) {
   );
 }
 
-export function DocumentRecovery({ currentItemIds }: { currentItemIds: readonly string[] }) {
+export function DocumentRecovery({ currentItemIds, loading }: {
+  currentItemIds: readonly string[];
+  /**
+   * Первое чтение требований ещё идёт: какие записи относятся к видимым требованиям, пока неизвестно. Без этого запись каждого
+   * требования мигала бы здесь «прежней» (с лишней кнопкой «Проверить результат» и отказом) до ответа сервера, и тот же
+   * экран нажимался бы дважды в разных местах. Веб этого не знает: страница получает первый ответ вместе с разметкой.
+   */
+  loading: boolean;
+}) {
   const { scope, strings } = usePreparation();
   const [entries, setEntries] = useState<readonly Entry[] | "unavailable">([]);
   const { organizationId, membershipId, studentCaseId, applicationId } = scope;
@@ -147,6 +155,7 @@ export function DocumentRecovery({ currentItemIds }: { currentItemIds: readonly 
       </Text>
     );
   }
+  if (loading) return null;
   // Записи видимых требований доводят сами требования; здесь остальные и нечитаемые.
   const hidden = entries.filter((entry) => entry.blocked || !currentItemIds.includes(entry.target));
   if (hidden.length === 0) return null;

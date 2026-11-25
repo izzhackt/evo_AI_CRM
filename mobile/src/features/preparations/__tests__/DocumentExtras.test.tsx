@@ -429,7 +429,7 @@ describe("неоконченные записи прежних требован�
       await act(async () => confirm.onPress?.());
       await waitFor(async () => expect(await AsyncStorage.getItem(key)).toBeNull());
       expect(await AsyncStorage.getItem(sibling)).toBe("{bad too");
-      expect(spoken).toHaveBeenCalledWith("Незавершённое действие снято с этого телефона.");
+      await waitFor(() => expect(spoken).toHaveBeenCalledWith("Незавершённое действие снято с этого телефона."));
       await waitFor(() => expect(screen.queryByTestId(`prep-discard-recover-upload-${OLD_ITEM}`)).toBeNull());
     } finally {
       alert.mockRestore();

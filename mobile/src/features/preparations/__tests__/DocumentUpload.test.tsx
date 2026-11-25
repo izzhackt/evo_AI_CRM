@@ -46,7 +46,7 @@ const answer = (item: Raw, state: Raw) => readiness(requirements([item]), [state
 /** Ошибка базы с кодом и текстом, как её отдаёт PostgREST: по тексту разборщики веба различают причины. */
 type DbError = Readonly<{ code: string; message: string; status: number }>;
 
-async function open(options: { ready: unknown; extra?: Record<string, unknown>; errors?: Record<string, DbError>; io?: FakeIo; lang?: "ru" | "ky" }) {
+async function open(options: { ready: unknown; extra?: Record<string, unknown>; errors?: Record<string, DbError>; io?: FakeIo; lang?: "ru" | "ky"; /** Ответ о требованиях задерживается, пока это обещание не выполнено. */ hold?: Promise<void> }) {
   const fake = options.io ?? makeIo();
   const inner = fakeTransport({
     student_catalog_preparations_v1: [preparationRow(1)],
@@ -55,6 +55,7 @@ async function open(options: { ready: unknown; extra?: Record<string, unknown>; 
   });
   const calls = inner.calls;
   const transport: typeof inner.transport = async (name, args, opts) => {
+    if (options.hold && name === "application_package_readiness_v1") await options.hold;
     const error = options.errors?.[name];
     if (error) {
       calls.push({ name, args: args as Record<string, unknown> | undefined, get: opts.get });
@@ -557,7 +558,7 @@ describe("отказ от незавершённого действия", () => 
     await waitFor(async () => expect(await storedKeys()).toEqual([]));
     await waitFor(() => expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull());
     expect(screen.getByTestId(`prep-upload-message-${ITEM}`)).toHaveTextContent("Незавершённое действие снято с этого телефона.", { exact: false });
-    expect(announceNative).toHaveBeenCalledWith("Незавершённое действие снято с этого телефона.");
+    await waitFor(() => expect(announceNative).toHaveBeenCalledWith("Незавершённое действие снято с этого телефона."));
     await waitFor(() => expect(screen.getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Сохранить файл", { exact: false }));
     expect(screen.queryByTestId(`prep-upload-retained-${ITEM}`)).toBeNull();
 
@@ -624,7 +625,7 @@ describe("отказ от незавершённого действия", () => 
     try {
       await discard(`prep-discard-upload-${ITEM}`, "Отказаться");
       expect(await screen.findByTestId(`prep-discard-upload-${ITEM}-error`)).toHaveTextContent("Повторите попытку позже", { exact: false });
-      expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Повторите попытку позже"));
+      await waitFor(() => expect(announceNative).toHaveBeenCalledWith(expect.stringContaining("Повторите попытку позже")));
     } finally {
       AsyncStorage.removeItem = original;
     }
@@ -656,6 +657,35 @@ describe("отказ от незавершённого действия", () => 
     expect(lastAlert().title).toBe("Бүтпөгөн аракеттен баш тартасызбы?");
   });
 
+  it("пока требования читаются, записи видимых требований в разделе восстановления не мигают: кнопка отказа одна и стоит у самого требования", async () => {
+    let release: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await open({ ready: answer(emptyItem(), documentState(0)), hold });
+    await screen.findByTestId("prep-requirements-loading");
+    // список записей на телефоне дочитан, а раздела всё равно нет: какие записи «прежние», пока неизвестно
+    await settle();
+    expect(screen.queryByTestId("prep-recovery")).toBeNull();
+    expect(screen.queryByTestId(`prep-discard-upload-${ITEM}`)).toBeNull();
+    await act(async () => release());
+    expect(await screen.findByTestId(`prep-discard-upload-${ITEM}`)).toBeTruthy();
+    expect(screen.getAllByTestId(`prep-discard-upload-${ITEM}`)).toHaveLength(1);
+    expect(screen.queryByTestId("prep-recovery")).toBeNull();
+  });
+
+  it("первое чтение требований не удалось: записи остаются доступны в разделе восстановления (довести начатое можно и без списка)", async () => {
+    await documentsPending.persist(scope, "upload", ITEM, upload() as never);
+    await documentsPending.persist(scope, "submit", ITEM, submit() as never);
+    await open({ ready: failure("PT500", 500) });
+    await screen.findByTestId("prep-requirements-error");
+    const section = await screen.findByTestId("prep-recovery");
+    expect(within(section).getByTestId(`prep-upload-button-${ITEM}`)).toHaveTextContent("Проверить результат");
+    expect(within(section).getByTestId(`prep-recover-submit-${ITEM}`)).toHaveTextContent("Проверить результат");
+    expect(within(section).getByTestId(`prep-discard-upload-${ITEM}`)).toBeTruthy();
+  });
+
   it("запись загрузки и запись отправки сразу: две «Проверить результат» называются по-разному для читалки", async () => {
     await documentsPending.persist(scope, "upload", ITEM, upload() as never);
     await documentsPending.persist(scope, "submit", ITEM, submit() as never);
@@ -664,8 +694,8 @@ describe("отказ от незавершённого действия", () => 
     const forSubmit = await screen.findByRole("button", { name: "Проверить результат: отправка на проверку" });
     expect(forUpload).toHaveTextContent("Проверить результат");
     expect(forSubmit).toHaveTextContent("Проверить результат");
-    expect(forUpload).toBe(screen.getByTestId(`prep-upload-button-${ITEM}`));
-    expect(forSubmit).toBe(screen.getByTestId(`prep-submit-button-${ITEM}`));
+    expect(forUpload.props.testID).toBe(`prep-upload-button-${ITEM}`);
+    expect(forSubmit.props.testID).toBe(`prep-submit-button-${ITEM}`);
   });
 });
 
@@ -684,6 +714,8 @@ describe("после успешной отправки чтение не уда�
     queued.mockClear();
     await fireEvent.press(screen.getByTestId(`prep-submit-button-${ITEM}`));
     await screen.findByTestId("prep-requirements-stale");
+    // пометка и её объявление приходят из разных мест: объявление ждём, а не считаем, что оно уже сказано
+    await waitFor(() => expect([...announceNative.mock.calls, ...queued.mock.calls].map(([text]) => String(text))).toContain(STALE));
     return t;
   }
 
@@ -720,7 +752,7 @@ describe("после успешной отправки чтение не уда�
     queued.mockClear();
     await fireEvent.press(screen.getByTestId("prep-check"));
     await screen.findByTestId("prep-requirements-stale");
-    expect(announceNative).toHaveBeenCalledWith(STALE);
+    await waitFor(() => expect(announceNative).toHaveBeenCalledWith(STALE));
     expect(queued).not.toHaveBeenCalled();
   });
 });

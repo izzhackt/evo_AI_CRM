@@ -4,15 +4,16 @@ import { StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { LangProvider } from "@/i18n/LangProvider";
+import { darkTokens, lightTokens } from "@/theme/tokens.generated";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { Segmented } from "@/ui/Segmented";
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 
-function wrap(ui: ReactElement) {
+function wrap(ui: ReactElement, scheme: "light" | "dark" = "light") {
   return (
     <SafeAreaProvider initialMetrics={metrics}>
-      <ThemeProvider>
+      <ThemeProvider initial={scheme}>
         <LangProvider initial="ru">{ui}</LangProvider>
       </ThemeProvider>
     </SafeAreaProvider>
@@ -155,10 +156,13 @@ describe("Segmented: доступность без изменения вида (
     expect(onChange).toHaveBeenCalledWith("lessons");
   });
 
-  it("вид по умолчанию прежний: размеры, отступы и выравнивание такие же, как до правки", async () => {
+  const styleOf = (testID: string) => StyleSheet.flatten(screen.getByTestId(testID).props.style) as Record<string, unknown>;
+
+  it("вид по умолчанию прежний (светлая тема): размеры, отступы, цвета, скругление и тень такие же, как до правки", async () => {
     await render(wrap(<Segmented value="list" onChange={jest.fn()} testIDPrefix="v" options={view} />));
+    expect(styleOf("v-group")).toMatchObject({ flexDirection: "row", padding: 3, backgroundColor: lightTokens.skeleton, borderRadius: lightTokens.radiusChip });
     for (const o of view) {
-      expect(StyleSheet.flatten(screen.getByTestId(`v-${o.value}`).props.style)).toMatchObject({
+      expect(styleOf(`v-${o.value}`)).toMatchObject({
         flexGrow: 1,
         flexBasis: 0,
         minWidth: 0,
@@ -166,9 +170,23 @@ describe("Segmented: доступность без изменения вида (
         minHeight: 44,
         alignItems: "center",
         justifyContent: "center",
+        borderRadius: lightTokens.radiusChip,
       });
     }
-    expect(StyleSheet.flatten(screen.getByTestId("v-group").props.style)).toMatchObject({ flexDirection: "row", padding: 3 });
+    // Выбранный лежит на поверхности с тенью карточки, остальные прозрачные и без тени.
+    expect(styleOf("v-list")).toMatchObject({ backgroundColor: lightTokens.surface, boxShadow: lightTokens.shadowCard });
+    for (const value of ["cities", "map"]) {
+      expect(styleOf(`v-${value}`).backgroundColor).toBe("transparent");
+      expect(styleOf(`v-${value}`).boxShadow).toBeUndefined();
+    }
+  });
+
+  it("вид по умолчанию прежний (тёмная тема): поверхность тёмная, у выбранного тени нет", async () => {
+    await render(wrap(<Segmented value="list" onChange={jest.fn()} testIDPrefix="v" options={view} />, "dark"));
+    expect(styleOf("v-group")).toMatchObject({ backgroundColor: darkTokens.skeleton, borderRadius: darkTokens.radiusChip });
+    expect(styleOf("v-list").backgroundColor).toBe(darkTokens.surface);
+    expect(styleOf("v-list").boxShadow).toBeUndefined();
+    expect(styleOf("v-map").backgroundColor).toBe("transparent");
   });
 
   it("вид не меняется: стили группы и вариантов одинаковы с подписями и без них, в обоих видах семантики", async () => {

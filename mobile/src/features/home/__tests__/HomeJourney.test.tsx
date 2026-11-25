@@ -44,6 +44,8 @@ afterEach(() => {
 describe("строка текущего шага закреплена, а порядок блоков и запас под ней зависят от пути и шрифта", () => {
   /** Запас под строкой стоит на ней самой: у заглушки Jest закреплённые блоки не оборачиваются (настоящий ScrollView - в HomeJourneySticky). */
   const slack = () => flat(screen.getByTestId("journey-now-row")).marginBottom;
+  /** Обратный отступ у нулевого блока: он убирает видимую щель, которую оставил бы запас под строкой. */
+  const pullBack = () => flat(screen.getByTestId("journey-end", { includeHiddenElements: true })).marginBottom;
 
   it("свёрнутый путь (по умолчанию у всех): строка и нулевой блок закреплены, блок сразу за строкой, у строки запас; дальше блоки экрана", async () => {
     const { transport } = fakeTransport(homeHandlers("MY"));
@@ -56,6 +58,13 @@ describe("строка текущего шага закреплена, а пор
     expect(flat(screen.getByTestId("journey-end", { includeHiddenElements: true })).height).toBe(0);
     // ровно у нижнего края строки React Native её не отпускает (левая и правая часть неравенства равны): под строкой запас
     expect(slack()).toBe(ROW_SLACK);
+    // а видимой щели нет: нулевой блок тянет следующий за ним блок обратно на тот же запас, в сумме отступы дают ноль
+    expect(pullBack()).toBe(-ROW_SLACK);
+    expect(slack()! + pullBack()!).toBe(0);
+  });
+
+  it("запас под строкой не меньше пункта: меньший оставляет застрявшие раскладки (стенд ревьюера: 0,05 pt - 316 из 1000, 0,2 pt - 145, 2 pt - ни одной)", () => {
+    expect(ROW_SLACK).toBeGreaterThanOrEqual(1);
   });
 
   it("раскрытый путь: шаги стоят между строкой и нулевым блоком, закрепление охватывает их, запаса у строки нет", async () => {
@@ -67,6 +76,7 @@ describe("строка текущего шага закреплена, а пор
     expect(ids.slice(0, 4)).toEqual(["home-screen", "journey-now-row", "journey-body", "journey-end"]);
     expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]);
     expect(slack()).toBeUndefined();
+    expect(pullBack()).toBeUndefined(); // шаги между строкой и блоком: запаса нет, тянуть нечего
   });
 
   it("свернуть и раскрыть: строка и нулевой блок закреплены всегда, меняются место нулевого блока и запас", async () => {
@@ -80,6 +90,7 @@ describe("строка текущего шага закреплена, а пор
     await waitFor(() => expect(screen.queryByTestId("journey-body")).toBeNull());
     expect(pinnedIds()).toEqual(["journey-now-row", "journey-end"]); // как и при раскрытом пути: закрепление не выключается
     expect(slack()).toBe(ROW_SLACK);
+    expect(pullBack()).toBe(-ROW_SLACK);
     await fireEvent.press(screen.getByTestId("journey-fold"));
     await screen.findByTestId("journey-body");
     expect(pinnedIds()).toEqual(["journey-now-row", "journey-end"]);
@@ -126,6 +137,7 @@ describe("строка текущего шага закреплена, а пор
       expect(ids.slice(0, 4)).toEqual(["home-screen", "journey-now-row", "journey-end", "journey-body"]);
       expect(sticky.map((index) => ids[index])).toEqual(["journey-now-row", "journey-end"]); // закреплены по-прежнему оба
       expect(flat(screen.getByTestId("journey-now-row")).marginBottom).toBe(ROW_SLACK);
+      expect(pullBack()).toBe(-ROW_SLACK); // и шаги под высокой строкой встают вплотную, без щели в карточке
     });
 
     it("строка 340 pt (39%): держится; ровно 40% (349,6 pt) - ещё держится, на пункт больше - нет", async () => {
@@ -160,6 +172,7 @@ describe("строка текущего шага закреплена, а пор
     });
 
     it("«Шаг N из M» под не держащейся строкой: шаг встаёт на 12 pt от верха, а не на высоту строки ниже", async () => {
+      setReducedMotionForTests(false); // плавная прокрутка (после #1555 при «Уменьшить движение» она мгновенная, а в тестах оно включено)
       const stepsLabel = getPortalStrings("timeline", "ru").stepsLabel;
       const { transport } = fakeTransport(homeHandlers("MY"));
       await renderPortal(<HomeScreen />, testApi(transport));

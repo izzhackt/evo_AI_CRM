@@ -197,8 +197,11 @@ export function HomeScreen() {
       sticky.push(blocks.length);
       blocks.push(<JourneyNow key="journey-now" journey={journeyState} edge={edges.now} style={endAfterRow ? { marginBottom: ROW_SLACK } : undefined} />);
       if (endAfterRow) {
+        // Запас под строкой (+ROW_SLACK) не должен быть виден: блок за путём тянет следующий за ним блок обратно (-ROW_SLACK). Сам блок
+        // остаётся на ROW_SLACK ниже строки (там и нужен запас), а то, что за ним, встаёт ровно у нижнего края строки: между строкой и
+        // шагами нет щели в карточке, а свёрнутая карточка не удлиняется на лишние два пункта.
         sticky.push(blocks.length);
-        blocks.push(<JourneyEnd key="journey-end" />);
+        blocks.push(<JourneyEnd key="journey-end" style={{ marginBottom: -ROW_SLACK }} />);
       }
     }
     if (!journeyState.folded) blocks.push(<JourneyBody key="journey-body" journey={journeyState} edge={edges.body} assisted={assisted} />);

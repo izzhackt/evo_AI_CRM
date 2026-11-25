@@ -47,14 +47,16 @@ describe("строка закреплена и при свёрнутом, и п�
   it("строка и нулевой блок лежат в обёртках закреплённых блоков в обоих состояниях", async () => {
     await openHome();
     for (const testID of ["journey-now-row", "journey-end"]) expect(wrapperOf(testID).type).toBe("View");
-    // свёрнутый путь: обёртка есть, у строки запас под ней, нулевой блок сразу за ней
+    // свёрнутый путь: обёртка есть, у строки запас под ней, нулевой блок сразу за ней и тянет следующий блок обратно на тот же запас
     expect(flat(wrapperOf("journey-now-row")).marginBottom).toBe(ROW_SLACK);
+    expect(flat(wrapperOf("journey-end")).marginBottom).toBe(-ROW_SLACK);
     await fireEvent.press(screen.getByTestId("journey-fold"));
     await screen.findByTestId("journey-body");
     // раскрытый путь: обёртки те же, запаса нет (между строкой и нулевым блоком шаги)
     expect(wrapperOf("journey-now-row")).toBeTruthy();
     expect(wrapperOf("journey-end")).toBeTruthy();
     expect(flat(wrapperOf("journey-now-row")).marginBottom).toBeUndefined();
+    expect(flat(wrapperOf("journey-end")).marginBottom).toBeUndefined();
   });
 
   it("свернуть и раскрыть три раза: строка и кнопка остаются теми же узлами (читалка не теряет фокус), полоса шагов не перезапускается", async () => {

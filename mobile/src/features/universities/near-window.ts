@@ -62,9 +62,3 @@ export function sameKeys(a: ReadonlySet<string>, b: ReadonlySet<string>): boolea
   for (const key of a) if (!b.has(key)) return false;
   return true;
 }
-
-/** Размеры порций поэтапной сборки списка. */
-export const STAGE_FIRST = 24;
-export const STAGE_STEP = 24;
-/** Пауза между порциями (мс): достаточно, чтобы кадр успел отрисоваться и касание не ждало всей сборки. */
-export const STAGE_DELAY_MS = 32;

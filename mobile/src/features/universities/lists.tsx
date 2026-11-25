@@ -1,14 +1,14 @@
 // Строители пунктов для NearList: карточка вуза, карточка города, заголовок. Один вид пункта на всех экранах каталога, чтобы
 // порядок, ключи и подписи не расходились (поиск, «Другие вузы», «Списком», вузы города).
-import { useEffect, type ReactNode } from "react";
-import { Platform, View } from "react-native";
+import type { ReactNode } from "react";
+import { View } from "react-native";
 
 import { formatPortalString } from "@web/lib/portal/i18n";
 
-import { announce } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
 import { Text } from "@/ui/Text";
 
+import { useAnnounceResults } from "./announce-results";
 import { CityCardView, UniversityTileView } from "./cards";
 import type { useFavoriteState } from "./FavoritesContext";
 import type { CityCard, TileModel, UniversityStrings } from "./model";
@@ -50,18 +50,6 @@ export function cityItem({ card, code, strings, spaceBefore }: { card: CityCard;
 /** Пункт без картинки (заголовок раздела, строка): рисуется всегда одинаково. */
 export function nodeItem(key: string, node: ReactNode, spaceBefore?: number): NearItem {
   return { key, spaceBefore, render: () => node };
-}
-
-/**
- * «Найдено: N» для читалки на iOS: живая область (`accessibilityLiveRegion`) там не работает, поэтому число результатов
- * озвучивается после паузы, пока студент печатает (веб: `role="status"` у `UniversitySearch`). На Android область есть у текста.
- */
-export function useAnnounceResults(message: string | null): void {
-  useEffect(() => {
-    if (message === null || Platform.OS !== "ios") return undefined;
-    const id = setTimeout(() => announce(message), 700);
-    return () => clearTimeout(id);
-  }, [message]);
 }
 
 /**

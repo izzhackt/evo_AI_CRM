@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { Dimensions, Text } from "react-native";
 
 import { NearList, NEAR_FAIL_OPEN_MS, NEAR_POLL_MS, type MeasureTop, type NearItem } from "@/features/universities/NearList";
-import { STAGE_DELAY_MS, STAGE_FIRST } from "@/features/universities/near-window";
+import { STAGE_DELAY_MS, STAGE_FIRST } from "@/features/universities/staged";
 
 function items(n: number, rendered?: (key: string, near: boolean) => void): NearItem[] {
   return Array.from({ length: n }, (_, i) => ({

@@ -13,7 +13,8 @@ import { View, useWindowDimensions, type HostInstance, type LayoutChangeEvent } 
 
 import { useFocusEffect } from "@/lib/focus";
 
-import { NEAR_EAGER, nearKeys, sameKeys, STAGE_DELAY_MS, STAGE_FIRST, STAGE_STEP, type NearRect } from "./near-window";
+import { NEAR_EAGER, nearKeys, sameKeys, type NearRect } from "./near-window";
+import { STAGE_FIRST, STAGE_STEP, useStagedCount } from "./staged";
 
 export type NearItem = Readonly<{
   key: string;
@@ -37,23 +38,6 @@ export const measureTopInWindow: MeasureTop = (node, done) => {
 /** Как часто спрашивать, где список (мс), и через сколько без ответа открыть все картинки. */
 export const NEAR_POLL_MS = 250;
 export const NEAR_FAIL_OPEN_MS = 2500;
-
-/** Сколько карточек собрано: первая порция сразу, остальные по одной порции за такт; смена списка (поиск) начинает заново. */
-function useStagedCount(total: number, signature: string, first: number, step: number): number {
-  const [state, setState] = useState(() => ({ signature, count: Math.min(total, first) }));
-  let { count } = state;
-  if (state.signature !== signature) {
-    // Другой список: сборка начинается с первой порции. Состояние меняется во время отрисовки, пока ключ списка не совпал.
-    count = Math.min(total, first);
-    setState({ signature, count });
-  }
-  useEffect(() => {
-    if (count >= total) return undefined;
-    const id = setTimeout(() => setState((current) => ({ signature: current.signature, count: Math.min(total, current.count + step) })), STAGE_DELAY_MS);
-    return () => clearTimeout(id);
-  }, [count, total, step]);
-  return Math.min(count, total);
-}
 
 export function NearList({
   items,

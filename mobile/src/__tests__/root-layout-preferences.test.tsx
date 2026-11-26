@@ -8,6 +8,7 @@ import { Appearance, StyleSheet } from "react-native";
 
 import RootLayout from "@/app/_layout";
 import { deferredStorage } from "@/test-fixtures/deferred-storage";
+import { createSignal } from "@/test-fixtures/reactive-signal";
 import { darkTokens, lightTokens } from "@/theme/tokens.generated";
 
 // Порядок событий корневого макета: системная схема окна (`appearance:*`) и снятие заставки (`splash:hide`).
@@ -19,7 +20,15 @@ const mockHideAsync = jest.fn(async () => {
 const mockLayout: { configError: string | null; fontsLoaded: boolean } = { configError: null, fontsLoaded: true };
 
 jest.mock("@/polyfills", () => ({}));
-jest.mock("expo-font", () => ({ useFonts: () => [mockLayout.fontsLoaded] }));
+// `useFonts` настоящего модуля - useState: когда шрифты загрузились, перерисовывается САМ компонент, который его вызвал. Подмена делает то же,
+// когда тест изменил `mockLayout.fontsLoaded` и вызвал `mockFontsChanged.emit()`; перерисовка родителя тут ни при чём (см. `reactive-signal.ts`).
+const mockFontsChanged = createSignal();
+jest.mock("expo-font", () => ({
+  useFonts: () => {
+    MockReact.useSyncExternalStore(mockFontsChanged.subscribe, mockFontsChanged.version);
+    return [mockLayout.fontsLoaded];
+  },
+}));
 jest.mock("expo-splash-screen", () => ({ preventAutoHideAsync: jest.fn(async () => true), hideAsync: () => mockHideAsync() }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("expo-router", () => {
@@ -98,13 +107,15 @@ describe("корневой макет ждёт выбор темы и языка
 
     it("шрифты ещё грузятся: выбор прочитан, а экрана и снятия заставки нет, пока шрифты не готовы", async () => {
       mockLayout.fontsLoaded = false;
-      const view = await render(<RootLayout />);
+      await render(<RootLayout />);
       await act(async () => storage.release({ "evo.lang": "ky" }));
       expect(screen.toJSON()).toBeNull();
       expect(mockHideAsync).not.toHaveBeenCalled();
 
-      mockLayout.fontsLoaded = true;
-      await view.rerender(<RootLayout />);
+      await act(async () => {
+        mockLayout.fontsLoaded = true;
+        mockFontsChanged.emit();
+      });
       expect(screen.getByText("Колдонмо ыңгайлаштырылган эмес")).toBeTruthy();
       expect(mockHideAsync).toHaveBeenCalledTimes(1);
     });

@@ -236,3 +236,18 @@ test("pager numbers: the first, the last and two on each side of the current pag
   assert.deepEqual(pagerNumbers(17, 17), [1, "gap", 15, 16, 17]);
   assert.deepEqual(pagerNumbers(1, 2), [1, 2]);
 });
+
+test("an empty numbered page says «список изменился», like an empty page by cursor — not «Новых заявок нет» while requests wait on the first page", async () => {
+  const { requestsPastFirstPage } = await import("../src/lib/requests-queue-contract.ts");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({})), false, "the first page");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({ page: "1" })), false, "?page=1 is the first page");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({ page: "2" })), true, "?page=2 is already past the first page");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({ source: "website", status: "all", page: "3" })), true, "?page=3");
+  assert.equal(requestsPastFirstPage({ ...selection, cursor: cursor(row(1)) }), true, "a page by cursor, as before 377");
+  // Оба вида (новый и прежний) спрашивают это правило, а не один курсор.
+  for (const file of ["src/components/staff/requests-next/RequestsNextEmpty.tsx", "src/components/staff/requests/RequestsQueueView.tsx"]) {
+    const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.match(text, /if \(requestsPastFirstPage\(selection\)\) \{[\s\S]{0,400}?На этой странице заявок больше нет: список изменился\./u, file);
+    assert.doesNotMatch(text, /if \(selection\.cursor\b/u, `${file}: the cursor alone is not the whole rule`);
+  }
+});

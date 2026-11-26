@@ -5,6 +5,7 @@ import {
   requestOpenKey,
   requestKindOfSource,
   requestsHref,
+  requestsPastFirstPage,
   type RequestRow,
   type RequestSelection,
   type RequestsQueue,
@@ -288,7 +289,8 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
   queue: RequestsQueue; props: ViewProps; now: Date;
 }>) {
   const { selection } = props;
-  if (selection.cursor) {
+  // Не первая страница (курсор или номер, 377): очередь успела уменьшиться — «Новых заявок нет» было бы неправдой.
+  if (requestsPastFirstPage(selection)) {
     return (
       <div role="status" className="flex flex-col items-center gap-3 border-t border-border py-12 text-center" data-testid="queue-empty">
         <p className="t-item text-fg">На этой странице заявок больше нет: список изменился.</p>

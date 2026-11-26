@@ -166,6 +166,13 @@ export function requestsHref(selection: RequestSelection, open: string | null = 
   if (open) params.set("open", open);
   return `/requests${params.size ? `?${params}` : ""}`;
 }
+/**
+ * Выбрана не первая страница: курсором («Следующая / Предыдущая») или номером (377, `?page=3`). Пустая такая страница —
+ * «очередь изменилась, пока её листали», а не «заявок нет»: заявки могут ждать на первой.
+ */
+export function requestsPastFirstPage(selection: RequestSelection): boolean {
+  return Boolean(selection.cursor) || (selection.page ?? 1) > 1;
+}
 /** Номера рядом с текущей: первая, последняя и по две с каждой стороны, пропуски — «…». */
 export function pagerNumbers(current: number, last: number): readonly (number | "gap")[] {
   const wanted = new Set([1, last, current - 2, current - 1, current, current + 1, current + 2].filter((page) => page >= 1 && page <= last));

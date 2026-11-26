@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
-import { requestsHref, type RequestsQueue } from "@/lib/requests-queue-contract";
+import { requestsHref, requestsPastFirstPage, type RequestsQueue } from "@/lib/requests-queue-contract";
 import { requestCallsOff, requestClosedKinds, requestLatestLine } from "@/lib/v3/requests-view";
 
 import type { ViewProps } from "../requests/RequestsQueueView";
@@ -15,7 +15,8 @@ import type { ViewProps } from "../requests/RequestsQueueView";
  */
 export function RequestsNextEmpty({ queue, props, now }: Readonly<{ queue: RequestsQueue; props: ViewProps; now: Date }>) {
   const { selection } = props;
-  if (selection.cursor) {
+  // Не первая страница (курсор или номер, 377): очередь успела уменьшиться — «Новых заявок нет» было бы неправдой.
+  if (requestsPastFirstPage(selection)) {
     return (
       <EmptyState
         title="На этой странице заявок больше нет: список изменился."

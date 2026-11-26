@@ -8,9 +8,13 @@
 // поправить подпись, и проверка «подпись на экране» проходила на неисправном коде. Верное правило поэтому: НИ ОДИН кадр экрана
 // не показывает подпись, которой у него быть не должно. `useInboxBack` обёрнут только записью отданных подписей, логика его
 // настоящая; состояние навигации не подменяется нигде (прежние проверки на подменённом `getState()` убраны: они и пропустили ошибку).
-import { router } from "expo-router";
+// Второй блок (по независимому ревью #1602): подпись остаётся верной, пока лента на месте. Её кладёт поверх другой экран (читается
+// ключ СВОЕГО маршрута, а не «фокусного»), меняют язык, заменяют экран под ней (подпись следует за стеком, а не замёрзла на первом
+// кадре). Последний блок - запасная ветка «назад некуда» на настоящем роутере из одних стеков.
+import { router, Stack, useNavigation, useRoute } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { type ComponentType, type ReactNode } from "react";
+import { type ComponentType, type ReactNode, useEffect } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -19,7 +23,8 @@ import * as MessagesLayoutModule from "@/app/(app)/messages/_layout";
 import MessagesChatRoute from "@/app/(app)/messages/chat";
 import MessagesUpdatesRoute from "@/app/(app)/messages/updates";
 import PreparationsLayout from "@/app/(app)/preparations/_layout";
-import { LangProvider } from "@/i18n/LangProvider";
+import { useInboxBack } from "@/features/inbox/useInboxBack";
+import { LangProvider, useLang } from "@/i18n/LangProvider";
 import type { Lang } from "@/i18n";
 import type { RpcTransport } from "@/lib/rpc";
 import { SECTIONS } from "@/shell/sections";
@@ -61,12 +66,24 @@ const forgetFrames = () => {
   mockRendered.length = 0;
 };
 
+/** Даёт тесту сменить язык, пока экран на месте (запись во внешнюю переменную только в эффекте: правило react-hooks/globals). */
+let switchLang: ((lang: Lang) => void) | null = null;
+function LangProbe() {
+  const { setLang } = useLang();
+  useEffect(() => {
+    switchLang = setLang;
+  }, [setLang]);
+  return null;
+}
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
 function Wrapper({ children, lang }: { children: ReactNode; lang: Lang }) {
   return (
     <SafeAreaProvider initialMetrics={metrics}>
       <ThemeProvider>
-        <LangProvider initial={lang}>{children}</LangProvider>
+        <LangProvider initial={lang}>
+          <LangProbe />
+          {children}
+        </LangProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -87,7 +104,16 @@ const marker = (name: string) =>
     return <Text testID={`route-${name}`}>{name}</Text>;
   };
 /** Экран решения: метка (его настоящая рамка с собственной стрелкой здесь не нужна). */
+const stackHandle: { dispatch: (action: unknown) => void; stackKey: string; routeKey: string } = { dispatch: () => undefined, stackKey: "", routeKey: "" };
 function ReplyMarker() {
+  const navigation = useNavigation();
+  const { key } = useRoute();
+  // Ручка стека, чтобы тест мог заменить экран под лентой (как `useRestoreInboxRoot`): запись во внешнюю переменную только в эффекте.
+  useEffect(() => {
+    stackHandle.dispatch = (action) => navigation.dispatch(action as never);
+    stackHandle.stackKey = navigation.getState()?.key ?? "";
+    stackHandle.routeKey = key;
+  }, [navigation, key]);
   return <Text testID="route-reply">решение</Text>;
 }
 /** Список «Входящих»: метка с двумя строками, как у настоящего списка: «Что нового» и беседа (`go` = `router.navigate`). */
@@ -142,7 +168,10 @@ beforeEach(() => {
   forgetFrames();
   jest.spyOn(console, "warn").mockImplementation(() => undefined);
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(async () => {
+  jest.restoreAllMocks();
+  await AsyncStorage.clear(); // язык, выбранный в тесте, хранится на устройстве: упавший тест не должен оставить его следующим
+});
 
 describe("лента «Что нового»: подпись стрелки верна с первого кадра", () => {
   it("колокольчик на «Главной»: под лентой списка нет - «Назад», и стрелка ведёт на «Главную»", async () => {
@@ -228,5 +257,72 @@ describe("беседа: подпись стрелки верна с первог
     expect(labelOf("chat-back")).toBe("Все чаты");
     await press("chat-back");
     await waitFor(() => expect(shown()).toBe("route-inbox"));
+  });
+});
+
+describe("подпись стрелки обновляется, пока лента на месте", () => {
+  it("лента, поверх которой положили экран решения, не меняет подпись: ни одного кадра «Назад» (подпись зависит от ключа своего маршрута)", async () => {
+    await openList();
+    await press("inbox-to-updates");
+    await waitFor(() => expect(shown()).toBe("updates-screen"));
+    forgetFrames();
+    await act(async () => router.navigate(REPLY));
+    await waitFor(() => expect(shown()).toBe("route-reply"));
+    expect(framesSince()).not.toContain("Назад");
+  });
+
+  it("язык сменили, пока лента на месте: подпись переходит на новый язык и обратно", async () => {
+    await openList("ru");
+    await press("inbox-to-updates");
+    await waitFor(() => expect(shown()).toBe("updates-screen"));
+    expect(labelOf("updates-back")).toBe("Все чаты");
+    await act(async () => switchLang!("ky"));
+    await waitFor(() => expect(labelOf("updates-back")).toBe("Бардык маектер"));
+    await act(async () => switchLang!("ru")); // язык хранится на устройстве (AsyncStorage): не оставляем «ky» следующему тесту
+    await waitFor(() => expect(labelOf("updates-back")).toBe("Все чаты"));
+  });
+
+  it("под лентой заменили экран решения на список: подпись была «Назад», стала «Все чаты»", async () => {
+    await mount("/home");
+    await act(async () => router.navigate(REPLY));
+    await waitFor(() => expect(shown()).toBe("route-reply"));
+    await act(async () => router.navigate("/messages/updates"));
+    await waitFor(() => expect(shown()).toBe("updates-screen"));
+    expect(labelOf("updates-back")).toBe("Назад");
+    await act(async () => stackHandle.dispatch({ type: "REPLACE", payload: { name: "index" }, source: stackHandle.routeKey, target: stackHandle.stackKey }));
+    await waitFor(() => expect(labelOf("updates-back")).toBe("Все чаты"));
+  });
+});
+
+// Запасная ветка стрелки: назад некуда (`router.canGoBack() === false`), стрелка открывает список «Входящих». В кабинете её не бывает:
+// «Входящие» не первая вкладка, и у вкладок «назад» всегда есть (на «Главную»; проверено на настоящем кабинете: после `router.replace`
+// ленты вместо списка `canGoBack()` остаётся `true`, стрелка ведёт на «Главную»). Поэтому ветка проверяется на настоящем роутере из
+// одних стеков без вкладок, где назад на самом деле некуда; хук настоящий, ничего не подменяется.
+function PlainStack() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+function FeedProbe() {
+  const back = useInboxBack();
+  return (
+    <Pressable testID="probe-back" accessibilityLabel={back.label} onPress={back.onPress}>
+      <Text testID="route-probe-feed">лента</Text>
+    </Pressable>
+  );
+}
+
+describe("стрелка, когда назад некуда (`canGoBack() === false`)", () => {
+  it("в стеке одна лента и истории нет: стрелка открывает список «Входящих», а не молчит и не уводит в другое место", async () => {
+    await renderRouter({ _layout: PlainStack, "messages/_layout": PlainStack, "messages/index": InboxMarker, "messages/updates": FeedProbe } as never, {
+      initialUrl: "/messages",
+      wrapper: ({ children }: { children: ReactNode }) => <Wrapper lang="ru">{children}</Wrapper>,
+    });
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+    await act(async () => router.replace("/messages/updates")); // лента вместо списка: в стеке одна она
+    await waitFor(() => expect(visible("route-probe-feed")).toBe(true));
+    expect(router.canGoBack()).toBe(false); // условие проверки: иначе она шла бы по другой ветке
+    expect(labelOf("probe-back")).toBe("Назад");
+    await press("probe-back");
+    await waitFor(() => expect(shown()).toBe("route-inbox"));
+    expect(visible("route-probe-feed")).toBe(false);
   });
 });

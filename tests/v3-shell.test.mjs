@@ -477,3 +477,9 @@ test("boards stay side by side from a 700 px container on every laptop width wit
   assert.match(read("src/components/staff/pipeline-next/PipelineBoardNext.tsx"), /@\[43\.75rem\]:overflow-x-auto @\[43\.75rem\]:\[grid-template-columns:repeat\(var\(--board-cols\),minmax\(150px,1fr\)\)\]/u);
   assert.match(read("src/components/kit/DataTableParts.tsx"), /hidden @\[60rem\]:table-cell/u);
 });
+
+test("верхняя строка телефона — область header (banner): читалка находит логотип среди областей", () => {
+  const shell = readFileSync(new URL("../src/components/staff/AppShell.tsx", import.meta.url), "utf8");
+  assert.match(shell, /<header\n\s+inert=\{sheetOpen\}\n\s+data-testid="v3-shell-topbar"/u);
+  assert.doesNotMatch(shell, /<div\n\s+inert=\{sheetOpen\}\n\s+data-testid="v3-shell-topbar"/u);
+});

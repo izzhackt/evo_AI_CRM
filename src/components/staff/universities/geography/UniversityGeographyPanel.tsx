@@ -14,7 +14,8 @@ import { UniversityCosts } from "./UniversityCosts";
 export function UniversityGeographyPanel({ institutionId, content, geography, canConfirm, today }: Readonly<{
   institutionId: string; content: UniversityContent; geography: StaffGeography | null; canConfirm: boolean; today: string;
 }>) {
-  const frame = "mt-10 space-y-10 border-t border-border pt-6";
+  // Панель стоит во вкладке «Город и стоимость» карточки вуза (25.11.2026): своей линии и отступа сверху ей не нужно.
+  const frame = "space-y-8";
   if (geography === null) {
     return <div className={frame}><p role="alert" className="rounded-card border border-border bg-surface p-5 t-body-compact text-danger">Не удалось загрузить город и стоимость. Обновите страницу: это не значит, что строк нет.</p></div>;
   }

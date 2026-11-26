@@ -204,6 +204,7 @@ const SCENARIOS = {
   // `?stage=` из адреса (обновление страницы) — открыт он.
   "admissions-first-empty": { page: "admissions", search: "country=AE" },
   "admissions-stage": { page: "admissions", search: "stage=ready_to_submit" },
+  "admissions-volume": { page: "admissions", search: "", rows: "admissions-volume" },
 };
 
 /**
@@ -456,6 +457,7 @@ async function screenshots() {
     ["admissions-loading", ["1440"]],
     ["admissions-first-empty", ["390"]],
     ["admissions-stage", ["390"]],
+    ["admissions-volume", ["1440"]],
     ["rail-flyout", ["1280"]],
   ];
   const { chromium } = require("playwright");

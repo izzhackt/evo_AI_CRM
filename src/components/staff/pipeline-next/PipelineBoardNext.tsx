@@ -8,7 +8,8 @@ import { SectionTabs, type SectionTab } from "@/components/kit";
 import { LeadSheetNext } from "@/components/staff/pipeline-next/LeadSheetNext";
 import { PipelineClosedNotice, type ClosedNotice } from "@/components/staff/pipeline-next/PipelineClosedNotice";
 import { PipelineColumn } from "@/components/staff/pipeline-next/PipelineColumn";
-import { boardColumns, boardHrefOf, leadLabel } from "@/components/staff/pipeline-next/pipeline-next-model";
+import { PipelineNoResults } from "@/components/staff/pipeline-next/PipelineNoResults";
+import { boardColumns, boardHrefOf, COLUMN_STEP, leadLabel } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead, PipelineStage, PipelineStageKey } from "@/components/staff/pipeline-next/types";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
@@ -59,7 +60,13 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
   const [last, setLast] = useState<PipelineLead | null>(selected);
   if (selected && selected !== last) setLast(selected);
   const href = (patch: Readonly<Record<string, string | null>>) => boardHrefOf(pathname, search?.toString() ?? "", patch);
-  const columns = boardColumns(stages, leads, filteredStage, handedExpanded);
+  // Сколько карточек открыто в каждой рабочей колонке «Всех этапов» (сверх первых 20); «Показать ещё» ставит фокус на первую новую.
+  const [shown, setShown] = useState<Readonly<Partial<Record<string, number>>>>({});
+  const columns = boardColumns(stages, leads, filteredStage, handedExpanded, shown, selectedId);
+  const showMore = (key: string, before: number) => {
+    setShown((current) => ({ ...current, [key]: before + COLUMN_STEP }));
+    requestAnimationFrame(() => rootRef.current?.querySelectorAll<HTMLElement>(`[data-stage="${key}"] a[data-lead-link]`)[before]?.focus());
+  };
   const workflowStages = stages.flatMap((stage) => (stage.key === "handed_off" ? [] : [{ key: stage.key, title: stage.title }]));
   const stageOf = (lead: PipelineLead | null) => stages.find((stage) => stage.key === lead?.stageKey);
   const tabs: SectionTab[] = [
@@ -72,10 +79,7 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
   const query = search?.get("q")?.trim() ?? "";
   const filtered = ["due", "assignment", "owner"].some((key) => { const value = search?.get(key)?.trim(); return Boolean(value) && value !== "all"; });
   const noResults = query !== "" && columns.every((column) => column.inStage.length === 0);
-  // Этап — вид, а не фильтр чтения (доска читает все этапы): если на выбранной вкладке пусто, а лиды по запросу есть, они на других этапах.
-  // «Все этапы» ведёт к рабочим этапам, а переданных там нет — для них своя ссылка.
-  const stageEmpty = noResults && filteredStage !== "all" && leads.length > 0;
-  const workingElsewhere = stageEmpty && leads.some((lead) => lead.stageKey !== "handed_off");
+  // Переданных нет в «Всех этапах» — у них своя вкладка и своя ссылка (слова и остальные ссылки — в `PipelineNoResults`).
   const handedFound = noResults && filteredStage !== "handed_off" && leads.some((lead) => lead.stageKey === "handed_off");
   const resetHref = href({ q: null, due: null, assignment: null, owner: null, lead: null });
   // `?lead=` указывает на лида, которого на доске нет. С поиском или фильтрами он мог просто не подойти под них.
@@ -123,19 +127,14 @@ export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, owner
           <Link href={readFiltered ? resetHref : CLOSED_HREF} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{readFiltered ? pipelineWords.showAll : pipelineWords.closedLink}</Link>
         </p>
       ) : null}
-      {noResults ? (
-        <div className="grid justify-items-start gap-2 py-6" data-testid="v3-pipeline-no-results">
-          <p role="status" className="t-body text-fg">{stageEmpty ? pipelineWords.noResultsInStage(query, filtered) : pipelineWords.noResults(query, filtered)}</p>
-          {workingElsewhere ? <Link href={href({ stage: null, lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.showAllStages}</Link> : null}
-          {handedFound ? <Link href={href({ stage: "handed_off", lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.foundHanded}</Link> : null}
-          <Link href={filtered ? resetHref : href({ q: null, lead: null })} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">{pipelineWords.resetSearch(filtered)}</Link>
-        </div>
-      ) : <div role="group" aria-label="Воронка продаж" data-testid="v3-pipeline-board" data-focus={filteredStage} style={style}
+      {noResults ? <PipelineNoResults query={query} filtered={filtered} stage={filteredStage} leads={leads} handedFound={handedFound} href={href} resetHref={resetHref} />
+      : <div role="group" aria-label="Воронка продаж" data-testid="v3-pipeline-board" data-focus={filteredStage} style={style}
         className={filteredStage === "all" ? "grid min-w-0 gap-3 @[43.75rem]:grid-rows-[auto_1fr] @[43.75rem]:overflow-x-auto @[43.75rem]:[grid-template-columns:repeat(var(--board-cols),minmax(150px,1fr))]" : "grid min-w-0 gap-3"}>
         {columns.map((column) => (
           <PipelineColumn key={column.stage.key} column={column} spread={filteredStage !== "all"} selectedId={selectedId} showOwner={showOwner} today={today}
             hrefFor={(lead) => href({ lead: lead.id })} openLead={openLead} handedExpanded={handedExpanded}
-            handedHref={(expanded) => href({ handed: expanded ? "all" : null })} />
+            handedHref={(expanded) => href({ handed: expanded ? "all" : null })}
+            onMore={() => showMore(column.stage.key, column.visible.length)} stageHref={href({ stage: column.stage.key, lead: null })} />
         ))}
       </div>}
       {last ? (

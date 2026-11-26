@@ -30,6 +30,7 @@ import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 // Смена направления в «Журнале» и «Истории» (блок рядом с `journalActor`): названия направлений - тот же словарь, что у очереди, доски и дела.
 import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view.ts";
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
+import { casePaymentLine, type CasePaymentDetail } from "../platform-case-payment-detail.ts";
 import { studyCountryFromWebsiteValue, studyCountryName, studyCountryOptions } from "../study-countries.ts";
 
 export function studentProfileFieldState(value: string): string | null {
@@ -200,9 +201,13 @@ const LEAD_STAGE: Record<string, string> = {
   potential: "потенциальный клиент",
 };
 
-/** Канонический статус `platform.university_applications`. */
+/**
+ * Канонический статус `platform.university_applications`. `preparation` — «вариант», как первый шаг пути заявки
+ * (решение владельца 28.09, `APPLICATION_PATH_STEPS`): одно слово для статуса на «Обзоре», в бейдже и на «Вузах»
+ * (до 25.11 «Обзор» писал «готовится», а «Вузы» — «вариант»).
+ */
 const APPLICATION_STATUS: Record<string, string> = {
-  preparation: "готовится",
+  preparation: "вариант",
   ready: "готова к подаче",
   submitted: "подана",
   under_review: "на рассмотрении",
@@ -529,8 +534,8 @@ export const APPLICATION_PATH_STEPS = ["вариант", "заявка пода�
 const APPLICATION_PATH_STEP: Readonly<Record<string, 0 | 1 | 2>> = {
   preparation: 0, ready: 0, submitted: 1, under_review: 1, offer: 2, rejected: 2, enrolled: 2,
 };
-/** Слово текущего шага: у первых шагов — название шага пути, дальше — слово статуса. */
-const APPLICATION_PATH_WORD: Readonly<Record<string, string>> = { preparation: "вариант", submitted: "заявка подана" };
+/** Слово текущего шага: у поданной — название шага пути, иначе — слово статуса (у `preparation` оно и есть «вариант»). */
+const APPLICATION_PATH_WORD: Readonly<Record<string, string>> = { submitted: "заявка подана" };
 export function applicationPathStep(value: string | null | undefined): 0 | 1 | 2 | null {
   return value == null ? null : APPLICATION_PATH_STEP[value] ?? null;
 }
@@ -560,6 +565,17 @@ export const admissionsPipelineStage = (v: string | null | undefined) =>
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
 export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
+/**
+ * Те же три сегмента на узкой переписке (телефон, чек-лист 23.11): «Ждём студента» переносилось на две строки, и
+ * сегменты были разной высоты. Полное слово остаётся именем кнопки для читалки.
+ */
+const CASE_CHAT_AWAIT_CHOICE_SHORT: Record<string, string> = {
+  needs_reply: "Нужен ответ",
+  awaiting_student: "Ждём",
+  // Видимое слово входит в имя кнопки (WCAG 2.5.3): «Не нужен» было бы другим словом, чем «Не требуется».
+  none: "Не требуется",
+};
+export const caseChatAwaitChoiceShort = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE_SHORT, v);
 
 /** «Воронка продаж» (чек-лист 23.11): пустой поиск и ссылка на лида, которого на доске нет. */
 export const pipelineWords = {
@@ -1250,15 +1266,18 @@ export function caseDirectionChangeLine(change: unknown): string | null {
 
 /**
  * Подпись события для «Журнала», «Истории» дела, ленты и досье: слова действия
- * (`journalEvent`), а для смены направления - строка со значениями, если они
- * известны. Неизвестное действие - `null`, как у `journalEvent`.
+ * (`journalEvent`), для смены направления - строка со значениями, если они
+ * известны, а для записанного платежа - сумма и название (376), если они пришли.
+ * Неизвестное действие - `null`, как у `journalEvent`.
  */
 export function journalEventText(
   action: string | null | undefined,
   directionChange?: unknown,
+  paymentDetail?: CasePaymentDetail | null,
 ): string | null {
   const base = journalEvent(action);
   if (base === null) return null;
+  if (action === "finance.payment.record" && paymentDetail) return casePaymentLine(paymentDetail);
   return action === "case.direction.set"
     ? (caseDirectionChangeLine(directionChange) ?? base)
     : base;
@@ -1527,6 +1546,8 @@ export const partnerPacketExport = {
   title: "Пакеты документов партнёру",
   hint: "Состав фиксируется с версиями оригиналов и сохранённых форм. Подготовка и скачивание не означают отправку партнёру или подачу в университет.",
   cap: "ZIP до 50 МБ и 50 файлов; размер проверим перед сохранением.",
+  /** Подпись рядом с «?», за которым `cap`. */
+  zipLimit: "Размер ZIP",
   unavailable: "Не удалось загрузить пакеты. Обновите дело; файлы не изменены.",
   inactive: "Новые пакеты готовятся только в активном деле. История доступна ниже.",
   prerequisites: "Нужны заявление и хотя бы один принятый оригинал или сохранённая форма. Добавьте их в существующих разделах дела.",
@@ -1896,6 +1917,8 @@ export const caseMoneyWords = {
     /** «В графике: 1 000 USD из 1 500 USD» — сумма платежей не равна стоимости. */
     againstCost: "В графике",
     overpaid: "переплата в",
+    /** Строка остатка частично оплаченного платежа: «Второй платёж · остаток из 1 500 USD» — не второй платёж с тем же названием. */
+    remainderOf: "остаток из",
   },
   /**
    * Одна карточка «Оплата» (13.11.2026): сводка, договор и график в одном месте.

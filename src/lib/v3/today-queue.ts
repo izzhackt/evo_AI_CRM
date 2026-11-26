@@ -117,9 +117,9 @@ export type TodayItem = Readonly<{
   key: string;
   source: TodaySource;
   band: TodayBand;
-  /** Что сделать. */
+  /** Что сделать; у переписки — кто ждёт (имя студента). */
   title: string;
-  /** Кто: студент или лид; null — рабочая задача без человека. */
+  /** Кто: студент или лид; null — рабочая задача без человека или переписка (имя уже в заголовке). */
   who: TodayWho | null;
   /** Почему строка здесь — слово причины. */
   reason: string;
@@ -226,15 +226,11 @@ const TODAY_PATH = "/main";
 const TODAY_REQUESTS_PATH = "/requests";
 
 /**
- * Источники, чьи строки есть, а число — нет, даже при полном чтении. Переписки:
- * разбор 26.09 нашёл, что ответ сотрудника не снимает «Нужен ответ»
- * (`191_platform_case_chat.sql`, состояние треда сохраняется), поэтому часть
- * строк может быть уже отвечена. Пока сервер не исправлен, число группы с
- * такими строками было бы завышенным — его нет, а группа говорит почему.
+ * Источники, чьи строки есть, а число — нет, даже при полном чтении. Сейчас таких нет. Переписки были здесь до 25.11:
+ * разбор 26.09 нашёл, что ответ сотрудника не снимал «Нужен ответ» (191). С миграции 245 ответ сотрудника
+ * переводит тред в «Ждём студента» (`platform.case_chat_command`, post), и число группы снова честное.
  */
-export const TODAY_UNCOUNTED: Readonly<Partial<Record<TodaySource, string>>> = {
-  chats: "Числа нет: часть переписок могла получить ответ.",
-};
+export const TODAY_UNCOUNTED: Readonly<Partial<Record<TodaySource, string>>> = {};
 
 /** Слова источника в уведомлениях: ошибка, неполное чтение и где смотреть всё (null — такого списка нет). */
 type SourceCopy = Readonly<{ error: string; partial: string; denied: string; preview: string; all: Readonly<{ label: string; href: string }> | null }>;
@@ -536,9 +532,11 @@ export function todayChatItems(rows: readonly CaseChatThreadRow[]): readonly Tod
     key: `chat:${row.studentCaseId}`,
     source: "chats" as const,
     band: "waiting" as const,
-    title: "Ответить в переписке",
-    who: { name: row.studentDisplayName, href: studentHref(row.studentCaseId) },
-    reason: "нужен ответ",
+    // Кто ждёт — заголовок (чек-лист 23.11): «Ответить в переписке» у каждой строки ничего не различал, а имя
+    // стояло последним и обрезалось. Под ним — «Переписка» и с какого дня ждёт; «нужен ответ» повторял группу.
+    title: row.studentDisplayName,
+    who: null,
+    reason: "Переписка",
     due: null,
     since: row.lastMessageAt,
     waitingDays: null,

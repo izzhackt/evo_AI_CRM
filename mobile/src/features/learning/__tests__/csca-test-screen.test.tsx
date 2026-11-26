@@ -447,8 +447,10 @@ describe("слова ошибок", () => {
 });
 
 describe("сообщение о сбое в видимой части (QA 24, N2)", () => {
-  // Сообщения о сбое стоят над заданием, а «Завершить» внизу: сообщение показывается, если его верх выше видимой части. Раскладки в Jest
-  // нет, телефон сообщает её событием: раннер лежит на 16 от начала содержимого, сообщения на 140 от раннера.
+  // Сообщения о сбое стоят над заданием, а «Завершить» внизу: после отказа «Завершить» сообщение показывается, если его верх выше
+  // видимой части. Сообщение из фонового сохранения посреди теста (конфликт, «нет доступа», «ответ не принят») страницу не двигает:
+  // студент читает задание. Раскладки в Jest нет, телефон сообщает её событием: раннер лежит на 16 от начала содержимого, сообщения
+  // на 140 от раннера.
   const scrollTo = ScrollView.prototype.scrollTo as unknown as jest.Mock;
   const NOTICE_Y = 140;
   const shown = { y: 16 + NOTICE_Y - 12, animated: false }; // верх раннера + верх сообщений - запас над ними
@@ -476,17 +478,16 @@ describe("сообщение о сбое в видимой части (QA 24, N2
     await fireEvent.press(await screen.findByTestId("test-confirm-yes"));
   };
 
-  it("конфликт при сохранении, пока студент внизу страницы: страница идёт к сообщению один раз (раскладка приходит после появления сообщения)", async () => {
+  it("конфликт при сохранении посреди теста, пока студент внизу страницы: страница стоит (ни при появлении сообщения, ни когда телефон сообщил его раскладку)", async () => {
     const release = await openWithConflict();
     await layout("test-runner", 16);
     await scrollDown();
     scrollTo.mockClear();
     await fireEvent.press(await screen.findByTestId("option-b"));
     await screen.findByTestId("test-conflict", undefined, { timeout: 5000 });
-    expect(scrollTo).not.toHaveBeenCalled(); // раскладки сообщения ещё нет
-    await layout("test-notices", NOTICE_Y);
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    expect(scrollTo).not.toHaveBeenCalled();
+    await layout("test-notices", NOTICE_Y); // верх сообщения выше видимой части, но студент читает задание: страница стоит
+    expect(scrollTo).not.toHaveBeenCalled();
     release();
   });
 
@@ -524,16 +525,18 @@ describe("сообщение о сбое в видимой части (QA 24, N2
     online = true; // повторы после теста кончаются
   });
 
-  it("ответ не принят при сохранении, пока студент внизу страницы: сообщение об ошибке показано (ошибка тоже причина сообщения)", async () => {
-    await openRunning(240, { save_learning_test_v1: failure("22023", 400) });
+  it.each([
+    ["ответ не принят", failure("22023", 400), "Ответ не принят. Откройте тест заново."],
+    ["нет доступа", failure("42501", 403), "Раздел недоступен. Войдите в кабинет заново."],
+  ])("%s при сохранении посреди теста, пока студент внизу страницы: сообщение об ошибке появилось, страница стоит", async (_name, reply, words) => {
+    await openRunning(240, { save_learning_test_v1: reply });
     await layout("test-runner", 16);
     await scrollDown();
     scrollTo.mockClear();
     await fireEvent.press(await screen.findByTestId("option-b"));
-    await screen.findByTestId("test-error", undefined, { timeout: 5000 });
+    expect(await screen.findByTestId("test-error", undefined, { timeout: 5000 })).toHaveTextContent(words);
     await layout("test-notices", NOTICE_Y);
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo).toHaveBeenLastCalledWith(shown);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("«Завершить» не удалось (связи нет), а сообщение выше видимой части: оно показано; нажатие снова даёт тот же отказ, и сообщение показано снова", async () => {
@@ -556,6 +559,47 @@ describe("сообщение о сбое в видимой части (QA 24, N2
     expect(scrollTo).toHaveBeenLastCalledWith(shown);
     expect(screen.getAllByTestId("test-unsent")).toHaveLength(1);
     online = true; // связь вернулась: досылка при закрытии экрана проходит, и повторы после теста кончаются (без этого они шли бы вечно)
+  });
+
+  it("«Завершить» нажато, когда сообщение уже на экране: пока отправка идёт, страница стоит; отказ пришёл - страница идёт к сообщению один раз (начало завершения не повод)", async () => {
+    let online = false;
+    let held: Promise<void> | null = null; // отправка, которую тест придерживает, пока не отпустит
+    let release: () => void = () => undefined;
+    const start = started(240);
+    const { transport } = fakeTransport({
+      learning_track_home_v1: fx("csca_home_after"),
+      start_learning_test_v1: start,
+      save_learning_test_v1: (args: Record<string, unknown> | undefined) => (online ? { ...fx("csca_test_save"), attemptId: args?.p_attempt_id } : failure(null, 0)),
+    });
+    const gated: RpcTransport = async (called, args, options) => {
+      if (called === "save_learning_test_v1" && held) await held;
+      return transport(called, args, options);
+    };
+    await renderPortal(<TestScreen formId={DIAGNOSTIC} attemptId={null} />, testApi(gated));
+    try {
+      await fireEvent.press(await screen.findByTestId("test-begin"));
+      await screen.findByTestId("test-clock");
+      await layout("test-runner", 16);
+      await fireEvent.press(await screen.findByTestId("option-b")); // выбор не отправлен
+      await finish(); // первый отказ: страница вверху, сообщение на виду
+      await screen.findByTestId("test-unsent");
+      await layout("test-notices", NOTICE_Y);
+
+      await scrollDown(); // студент ушёл вниз, сообщение выше видимой части и его раскладка известна
+      scrollTo.mockClear();
+      held = new Promise<void>((resolve) => (release = resolve));
+      await finish(); // «Завершить» ещё раз: идёт «Подводим итог», отправка повисла
+      await waitFor(() => expect(screen.getByTestId("test-finish").props.accessibilityState).toMatchObject({ disabled: true }), { timeout: 5000 });
+      expect(scrollTo).not.toHaveBeenCalled(); // отказа ещё нет: страница стоит
+      release(); // отправка не прошла: тот же отказ
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1), { timeout: 5000 });
+      expect(scrollTo).toHaveBeenLastCalledWith(shown);
+      await waitFor(() => expect(screen.getByTestId("test-finish").props.accessibilityState).toMatchObject({ disabled: false }), { timeout: 5000 });
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+    } finally {
+      online = true; // связь вернулась: досылка при закрытии экрана проходит, и повторы после теста кончаются (даже если проверка выше упала)
+      release();
+    }
   });
 });
 

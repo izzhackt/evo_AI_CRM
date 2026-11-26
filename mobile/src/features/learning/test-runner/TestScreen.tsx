@@ -260,22 +260,20 @@ function Runner({ session, state, page }: { session: CscaTestSession; state: Tes
     shownIndex.current = state.index;
     page.toTop();
   }, [state.index, page]);
-  // Сообщения о сбое стоят над заданием, а «Завершить» внизу (QA 24, N2): сообщение прокручивается в видимую часть, когда оно
-  // появилось (или появилось другое) и когда студент нажал «Завершить» и снова получил отказ. Один раз на такое событие; только если
-  // верх сообщений выше видимой части (`page-reveal.ts`).
-  const noticeKeys = [state.notice, state.error ? `error:${state.error}` : null].filter((key) => key !== null).join("|");
+  // Сообщения о сбое стоят над заданием, а «Завершить» внизу (QA 24, N2): страница идёт к ним, только когда студент нажал «Завершить»
+  // и получил отказ (при втором отказе строки те же, а нажатие ответа ждёт). Сообщение из фонового сохранения посреди теста
+  // («Попытка изменилась…», «Ответ не принят…», «нет доступа») страницу не двигает: студент читает задание, и его нельзя уводить
+  // от текста; на следующем задании страница и так открывается сверху, где сообщение стоит. Один раз на отказ; только если верх
+  // сообщений выше видимой части (`page-reveal.ts`).
+  const hasNotices = state.notice !== null || state.error !== null;
   const block = useRevealBlock(page);
-  const shownNotices = useRef<readonly string[]>([]);
   const wasFinishing = useRef(false);
   useEffect(() => {
-    const keys = noticeKeys === "" ? [] : noticeKeys.split("|");
-    const added = keys.filter((key) => !shownNotices.current.includes(key));
-    shownNotices.current = keys;
     const finishFailed = wasFinishing.current && !finishing;
     wasFinishing.current = finishing;
-    if (keys.length === 0) block.hide();
-    if (keys.length > 0 && (added.length > 0 || finishFailed)) block.show();
-  }, [noticeKeys, finishing, block]);
+    if (!hasNotices) block.hide();
+    else if (finishFailed) block.show();
+  }, [hasNotices, finishing, block]);
   // Верхняя строка как на вебе: «Отвечено X из Y» и состояние сохранения; при завершении слова «Время вышло» или «Подводим итог».
   const barStatus = finishing ? (state.remaining === 0 ? c.timeUp : c.finishing) : status;
   return (
@@ -290,7 +288,7 @@ function Runner({ session, state, page }: { session: CscaTestSession; state: Tes
         </Text>
       </View>
       <TestNavigator attempt={attempt} answers={state.answers} flags={state.flags} index={state.index} disabled={finishing} onPick={goTo} />
-      {noticeKeys !== "" ? (
+      {hasNotices ? (
         <View style={{ gap: 12 }} onLayout={block.onBlockLayout} testID="test-notices">
           {state.notice === "finishUnsent" ? <InlineAlert message={c.finishUnsent} testID="test-unsent" /> : null}
           {state.notice === "conflict" ? <InlineAlert message={m("learn.testConflict")} testID="test-conflict" /> : null}

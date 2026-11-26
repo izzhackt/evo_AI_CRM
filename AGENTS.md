@@ -53,6 +53,14 @@
 - **Проверка приложения.** В `mobile/`: `cd mobile && npm ci && npm run check` (типы, lint, тесты, стражи). Замок отпечатка нативной
   сборки (пункт ниже) проверяет отдельная команда из корня репозитория: `node scripts/ci/mobile-native-fingerprint-check.mjs`. Живой проход
   по симулятору перед выпуском делают владелец или Claude.
+- **Тесты приложения идут и через компилятор React.** Приложение выходит скомпилированным (`experiments.reactCompiler`), а `npm test` и `npm run check`
+  гоняют код без компилятора (`jest-expo` не ставит признак Metro): так N3 (26.11.2026) прошёл зелёный CI. «Mobile app» запускает те же тесты ещё раз
+  через компилятор (шаг «Run the mobile Jest suite through the React Compiler»); локально: `cd mobile && npx jest -c jest.compiler.config.js --maxWorkers=2
+  [путь]`. Команда записана в workflow, а не в `scripts` файла `mobile/package.json`: этот раздел входит в нативный отпечаток. Набор, который не проходит
+  скомпилированным по свойству самого теста, записан с причиной в `COMPILED_SKIP` (`mobile/jest.compiler.config.js`); подмена хука в тесте должна быть
+  реактивной (`mobile/src/test-fixtures/reactive-signal.ts`). **Правило для хуков и компонентов:** при отрисовке не читать изменяемое внешнее состояние
+  (`navigation.getState()`, `ref.current`, `Date.now()`, `PixelRatio.getFontScale()`): компилятор запомнит прочитанное на всю жизнь экрана. Читать через
+  подписку (`useNavigationState`, `useSyncExternalStore`, `useWindowDimensions`) или в обработчике и эффекте.
 - **Сборки и магазины.** Не запускайте `eas build`, `eas submit`, `eas update` и не трогайте App Store, Google Play и
   TestFlight: только владелец или Claude по его команде. EAS Update Claude выкатывает только по постоянному разрешению
   владельца и после проверки (QA).

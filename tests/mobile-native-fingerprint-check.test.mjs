@@ -1007,6 +1007,7 @@ const code = (text) => text.split("\n").filter((line) => !/^\s*#/u.test(line)).j
 const prExecutable = code(read(".github/workflows/evo-fast-pr-checks.yml"));
 const mobileJob = prExecutable.slice(prExecutable.indexOf("\n  mobile:\n"), prExecutable.indexOf("\n  mobile-parity:\n"));
 const gate = prExecutable.slice(prExecutable.indexOf("\n  fast-checks:\n"));
+const COMPILED_STEP = "Run the mobile Jest suite through the React Compiler";
 const stepNames = (job) => [...job.matchAll(/^      - name: (.+)$/gmu)].map((match) => match[1]);
 const stepBlock = (job, name) => {
   const start = job.indexOf(`      - name: ${name}\n`);
@@ -1017,7 +1018,9 @@ const stepBlock = (job, name) => {
 
 test("PR workflow: the lock is its own named step of «Mobile app», right after npm ci and before the app check, strict, with the emergency variable", () => {
   assert.notEqual(prExecutable.indexOf("\n  mobile:\n"), -1);
-  assert.deepEqual(stepNames(mobileJob), ["Check out source", "Set up Node.js", "Install locked dependencies", "Check the native fingerprint lock", "Check the mobile app"]);
+  assert.deepEqual(stepNames(mobileJob), [
+    "Check out source", "Set up Node.js", "Install locked dependencies", "Check the native fingerprint lock", "Check the mobile app", COMPILED_STEP,
+  ]);
   const step = stepBlock(mobileJob, "Check the native fingerprint lock");
   assert.match(step, /\n        env:\n          MOBILE_FINGERPRINT_LOCK_MODE: \$\{\{ vars\.MOBILE_FINGERPRINT_LOCK_MODE \}\}\n        run: \|\n/u);
   assert.match(step, /\n          set -Eeuo pipefail\n/u);
@@ -1030,6 +1033,24 @@ test("PR workflow: the lock is its own named step of «Mobile app», right after
   assert.equal([...step.matchAll(/\$\{\{ [^}]+\}\}/gu)].map((match) => match[0]).join("|"), "${{ vars.MOBILE_FINGERPRINT_LOCK_MODE }}");
   // The scripts of mobile/package.json are part of the fingerprint: the guard is called from here and from the root, never from there.
   assert.doesNotMatch(read("mobile/package.json"), /fingerprint-check|native-fingerprint/u);
+});
+
+test("PR workflow: the compiled Jest run is its own named step of «Mobile app», after the app check, started from mobile/ and not through mobile/package.json", () => {
+  const step = stepBlock(mobileJob, COMPILED_STEP);
+  assert.ok(mobileJob.indexOf("      - name: Check the mobile app\n") < mobileJob.indexOf(`      - name: ${COMPILED_STEP}\n`), "after the ordinary app check");
+  assert.match(step, /\n        working-directory: mobile\n        run: npx jest -c jest\.compiler\.config\.js --ci --maxWorkers=2\n?$/u);
+  // Nothing that could make the step pass without running.
+  assert.doesNotMatch(step, /\n        (?:if|continue-on-error|timeout-minutes):/u);
+  assert.doesNotMatch(step, /secrets\.|\|\| true|exit 0/u);
+  // The step runs the config and the transform it names, and none of it goes through the scripts of mobile/package.json: they are part of the
+  // native fingerprint, so a script added there would give a build no student has and an EAS Update that reaches nobody.
+  for (const file of ["mobile/jest.compiler.config.js", "mobile/jest.compiler.transform.js"]) assert.ok(statSync(join(root, file)).isFile(), file);
+  assert.match(read("mobile/jest.compiler.config.js"), /jest\.compiler\.transform\.js/u, "the config uses the transform");
+  assert.match(read("mobile/jest.compiler.transform.js"), /const compiled = make\(\{ supportsReactCompiler: true \}\);/u, "app code goes through the compiler, as in Metro");
+  // The canary test (mobile/src/__tests__/react-compiler-canary.test.tsx) fails when the compiled run does not compile; it only runs when the config sets its flag.
+  assert.match(read("mobile/jest.compiler.config.js"), /globals: \{ \.\.\.pkg\.jest\.globals, __EVO_REACT_COMPILER__: true \}/u, "the config sets the flag the canary reads");
+  assert.match(read("mobile/src/__tests__/react-compiler-canary.test.tsx"), /__EVO_REACT_COMPILER__/u);
+  assert.doesNotMatch(read("mobile/package.json"), /jest\.compiler|test:compiled/u);
 });
 
 test("PR workflow: the job that holds the lock runs exactly when the pull request changes mobile/ or what the app shares with the web, and is never skipped for such a pull request", () => {

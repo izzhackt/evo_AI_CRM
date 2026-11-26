@@ -27,7 +27,10 @@ export type UniversityContent = Readonly<{
 export type PublishedUniversity = Readonly<{ id: string; version: number; publishedAt: string; content: UniversityContent }>;
 export type UniversityReviewKind = "content" | "intake_ids";
 export type UniversityDraft = Readonly<{ id: string; institutionId: string | null; baseVersion: number; createdAt: string; status: "draft"; content: UniversityContent; reason: string; reviewKind: UniversityReviewKind }>;
-export type UniversityFilters = Readonly<{ query: string; country: string; level: UniversityLevel | ""; offset: number }>;
+/** Порядок каталога в адресе (`sort=`): без параметра — ближайший срок подачи. */
+export const UNIVERSITY_SORTS = ["name", "programs"] as const;
+export type UniversitySort = (typeof UNIVERSITY_SORTS)[number];
+export type UniversityFilters = Readonly<{ query: string; country: string; level: UniversityLevel | ""; offset: number; sort?: UniversitySort }>;
 export type UniversityPage = Readonly<{ items: readonly PublishedUniversity[]; nextOffset: number | null }>;
 export type UniversityActionState = Readonly<{ status: "idle" | "saved" | "published" | "rejected" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable"; requestId: string; draftId: string | null; institutionId: string | null }>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -118,10 +121,12 @@ export function universityIntakeLabel(intake: UniversityIntake, now = new Date()
   return "Условия набора требуют уточнения";
 }
 export function parseUniversityFilters(params: Record<string, string | string[] | undefined>): UniversityFilters | null {
-  if (Object.entries(params).some(([key, value]) => !["q", "country", "level", "offset"].includes(key) || Array.isArray(value))) return null;
+  if (Object.entries(params).some(([key, value]) => !["q", "country", "level", "offset", "sort"].includes(key) || Array.isArray(value))) return null;
   const query = typeof params.q === "string" ? params.q : "", country = typeof params.country === "string" ? params.country : "", level = typeof params.level === "string" ? params.level : "", rawOffset = typeof params.offset === "string" ? params.offset : "0";
   if (!text(query, 100, true) || (country !== "" && !/^[A-Z]{2}$/.test(country)) || (level !== "" && !UNIVERSITY_LEVELS.includes(level as UniversityLevel)) || !/^(0|[1-9]\d{0,4})$/.test(rawOffset) || Number(rawOffset) > 50000) return null;
-  return { query, country, level: level as UniversityFilters["level"], offset: Number(rawOffset) };
+  const sort = typeof params.sort === "string" ? params.sort : null;
+  if (sort !== null && !UNIVERSITY_SORTS.includes(sort as UniversitySort)) return null;
+  return { query, country, level: level as UniversityFilters["level"], offset: Number(rawOffset), ...(sort ? { sort: sort as UniversitySort } : {}) };
 }
 export function parseUniversityPage(value: unknown): UniversityPage | null {
   const page = object(value);

@@ -476,8 +476,43 @@ test("«Воронка продаж» (26.11.2026): рабочая колонк�
   assert.match(model, /: focus === "all" \? inStage\.slice\(0, columnLimit\(inStage, shown\[stage\.key\], selectedId\)\) : inStage;/u, "вкладка этапа делит строки сама (список)");
   const list = read("src/components/staff/pipeline-next/PipelineStageList.tsx");
   assert.match(list, /STAGE_LIST_STEP = 50/u);
+  assert.match(list, /Math\.max\(shown, selectedAt \+ 1\)/u, "открытый лид виден среди первых строк");
+  assert.match(list, /setShown\(limit \+ STAGE_LIST_STEP\);/u, "«Показать ещё» прибавляет строки");
+  assert.match(list, /a\[data-lead-link\]"\)\[limit\]\?\.focus\(\)/u, "фокус — на первую новую строку");
   assert.match(list, /data-lead-link=\{lead\.id\}/u, "возврат фокуса после панели — на строку");
   assert.match(list, /\{leadLabel\(lead\)\}/u);
   assert.doesNotMatch(list, /\{lead\.name\}/u);
+  assert.match(list, /t-item line-clamp-2 min-w-0 break-words/u, "имя — до двух строк, как на карточке: фамилии и последние цифры звонков не режутся");
   assert.match(read("src/components/staff/pipeline-next/PipelineColumn.tsx"), /spread && !stage\.terminal \? \(\s*<PipelineStageList/u);
+  // Строка — то же, что карточка доски, и не больше (решение владельца 15.11 и 27.11.2026): без источника и «на этапе N дн»; ответственный —
+  // полным именем, без него «Не назначен»; у фильтра «Мои» столбца ответственного нет (и пустого столбца тоже); на телефоне ничего не прячется.
+  const code = list.replace(/\/\*[\s\S]*?\*\//gu, "");
+  assert.doesNotMatch(code, /sourceLabel|stageAgeDays|lead\.source|[Нн]а этапе|Источник/u, "источника и дней на этапе в строке нет");
+  assert.match(list, /\{owner \?\? "Не назначен"\}/u, "без ответственного — «Не назначен»");
+  assert.match(list, /showOwner \? COLUMNS\.withOwner : COLUMNS\.withoutOwner/u, "без ответственного — без его столбца");
+  assert.doesNotMatch(list, /@max-\[43\.75rem\]:hidden|@\[43\.75rem\]:hidden/u, "ответственный и действие видны и на телефоне");
+});
+
+test("«Воронка продаж»: вкладка этапа — строки с лидом, действием со сроком и ответственным; источника и дней нет, на телефоне ничего не скрыто (27.11.2026)", () => {
+  const stageList = nextBoards.get("next-sales-focus").match(/data-testid="v3-pipeline-stage-list">([\s\S]*?<\/ul>)/u)?.[1];
+  assert.ok(stageList, "вкладка этапа — список строк");
+  const rows = [...stageList.matchAll(/<li data-testid="v3-pipeline-row"[\s\S]*?<\/li>/gu)].map((match) => match[0]);
+  // Лиды 6 и 7 стенда («Квалифицирован»; ещё два лида этапа — переданные): читалка и глаз видят в строке ровно эти слова.
+  assert.deepEqual(rows.map(text), [
+    "Бекзат Тестов Следующее действие: Подготовить договор завтра Ответственный: Менеджер Первый",
+    "Айгерим Условная Следующее действие: Дождаться первой оплаты сегодня Ответственный: Менеджер Первый",
+  ]);
+  assert.equal(text(stageList.slice(0, stageList.indexOf("<ul"))), "Лид Следующее действие Ответственный", "заголовки столбцов — без «Источник» и «На этапе»");
+  for (const row of rows) {
+    // Ни одна часть строки не спрятана: ни от читалки (`aria-hidden`), ни классом `hidden` — ни на телефоне, ни на компьютере.
+    assert.doesNotMatch(row, /aria-hidden/u);
+    assert.doesNotMatch(row, /class="(?:[^"]*[\s:])?hidden[\s"]/u);
+    assert.match(row.match(/<a [^>]*>/u)?.[0] ?? "", /after:absolute after:inset-0/u, "нажимается вся строка");
+  }
+  // «Всех этапов» (#1604): у «Нового» 34 лида — открыты первые 20, под ними «Показать ещё 14» и «Весь этап · 34»; у остальных колонок кнопки нет.
+  const volume = nextBoards.get("next-sales-volume");
+  const newColumn = volume.slice(volume.indexOf('data-stage="new"'), volume.indexOf('data-stage="contacting"'));
+  assert.equal(count(newColumn, /data-testid="v3-pipeline-card"/gu), 20);
+  assert.match(text(newColumn), /Показать ещё 14 — Новый Весь этап · 34/u);
+  assert.equal(count(volume, /data-testid="v3-pipeline-column-more"/gu), 1);
 });

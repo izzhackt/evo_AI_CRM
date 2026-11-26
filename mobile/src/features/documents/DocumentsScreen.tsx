@@ -12,6 +12,7 @@ import { loadErrorKey, useCaseFiles, useDocuments, useRefetchOnFocus } from "@/a
 import { documentProgress, documentProgressCounts } from "@/domain/documents-model";
 import { CaseFilesCard } from "@/features/documents/CaseFilesCard";
 import { DocumentRow } from "@/features/documents/DocumentRow";
+import { useGuideCountry } from "@/features/documents/guide-country";
 import { nativeDocumentsIo, type DocumentsIo } from "@/features/documents/io";
 import { go } from "@/features/portal/navigation";
 import { useLang } from "@/i18n/LangProvider";
@@ -34,6 +35,8 @@ export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }
   const strings = t("admission");
   const documents = useDocuments();
   const caseFiles = useCaseFiles();
+  // Страна справки «Пример» для каждой строки: страна её дела, запасная - выбор студента (как на вебе, миграция 373).
+  const guideCountryOf = useGuideCountry();
   const [refreshing, setRefreshing] = useState(false);
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -103,7 +106,7 @@ export function DocumentsScreen({ io = nativeDocumentsIo }: { io?: DocumentsIo }
             <Card>
               <View testID="checklist">
                 {list.map((document, index) => (
-                  <DocumentRow key={document.documentSlotId} document={document} io={io} first={index === 0} />
+                  <DocumentRow key={document.documentSlotId} document={document} io={io} country={guideCountryOf(document.caseId)} first={index === 0} />
                 ))}
               </View>
             </Card>

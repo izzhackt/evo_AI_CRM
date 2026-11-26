@@ -76,6 +76,13 @@ name: Скриншоты для магазинов
     visible:
       id: csca-screen
     timeout: 30000
+# Раздел открывается на «Об экзамене» (как на сайте), а на скриншоте магазина нужна подготовка: следующий шаг, плитки, тесты на время.
+- tapOn:
+    id: csca-tab-lessons
+- extendedWaitUntil:
+    visible:
+      id: csca-lessons
+    timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: 06-csca
 - runFlow:

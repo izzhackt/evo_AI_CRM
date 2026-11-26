@@ -1,0 +1,72 @@
+name: EVO native fingerprint lock
+
+# «Замок отпечатка нативной сборки» после слияния (AGENTS.md, «Кабинет и приложение идут вместе»). В pull request замок
+# проверяет шаг «Check the native fingerprint lock» задания «Mobile app» (evo-fast-pr-checks.yml), внутри «Fast checks».
+# Здесь та же проверка на самом main: если нативное изменение всё же попало туда (аварийный режим
+# MOBILE_FINGERPRINT_LOCK_MODE=warn, слияние в обход проверок), расхождение видно красным значком на main, а не всплывает,
+# когда EAS Update уйдёт в никуда. Тот же скрипт и те же сообщения; ничего не публикует, секретов нет, токен только на чтение.
+# Запускается при слиянии в main, если изменилось что-то в mobile/ (или сам скрипт, или этот файл), и вручную. На pull request
+# работает только когда меняется этот файл: чтобы проверить его до слияния. Требуемым для слияния и для выпуска он не является.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - mobile/**
+      - scripts/ci/mobile-native-fingerprint-check.mjs
+      - .github/workflows/evo-native-fingerprint.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/evo-native-fingerprint.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evo-native-fingerprint-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lock:
+    name: Native fingerprint lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Two commits: HEAD^ is the previous main (pull requests are squash-merged), what a failure is explained against.
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: npm ci
+
+      # Переменная репозитория MOBILE_FINGERPRINT_LOCK_MODE=warn превращает падение в предупреждение (`gh variable set
+      # MOBILE_FINGERPRINT_LOCK_MODE --body warn`); `gh variable delete MOBILE_FINGERPRINT_LOCK_MODE` возвращает строгий режим.
+      - name: Check the native fingerprint lock
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MOBILE_FINGERPRINT_LOCK_MODE: ${{ vars.MOBILE_FINGERPRINT_LOCK_MODE }}
+        run: |
+          set -Eeuo pipefail
+          # The base only helps to explain a difference (which sources changed): a failed fetch must not hide the verdict.
+          if test "$EVENT_NAME" = "pull_request"; then
+            git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main \
+              || echo "::warning title=Native fingerprint lock::origin/main could not be fetched, so a failure below will not say which sources changed"
+            base=origin/main
+          else
+            base='HEAD^'
+          fi
+          node scripts/ci/mobile-native-fingerprint-check.mjs --base "$base"

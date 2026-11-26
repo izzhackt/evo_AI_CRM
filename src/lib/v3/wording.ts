@@ -30,6 +30,7 @@ import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 // Смена направления в «Журнале» и «Истории» (блок рядом с `journalActor`): названия направлений - тот же словарь, что у очереди, доски и дела.
 import { DIRECTION_LABELS } from "../../components/staff/profile/admissions-view.ts";
 import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
+import { casePaymentLine, type CasePaymentDetail } from "../platform-case-payment-detail.ts";
 import { studyCountryFromWebsiteValue, studyCountryName, studyCountryOptions } from "../study-countries.ts";
 
 export function studentProfileFieldState(value: string): string | null {
@@ -564,6 +565,17 @@ export const admissionsPipelineStage = (v: string | null | undefined) =>
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
 export const caseChatAwaitChoice = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE, v);
+/**
+ * Те же три сегмента на узкой переписке (телефон, чек-лист 23.11): «Ждём студента» переносилось на две строки, и
+ * сегменты были разной высоты. Полное слово остаётся именем кнопки для читалки.
+ */
+const CASE_CHAT_AWAIT_CHOICE_SHORT: Record<string, string> = {
+  needs_reply: "Нужен ответ",
+  awaiting_student: "Ждём",
+  // Видимое слово входит в имя кнопки (WCAG 2.5.3): «Не нужен» было бы другим словом, чем «Не требуется».
+  none: "Не требуется",
+};
+export const caseChatAwaitChoiceShort = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_CHOICE_SHORT, v);
 export const portalConsultationStatus = (v: string | null | undefined) =>
   lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentSlotStatus = (v: string | null | undefined) =>
@@ -1239,15 +1251,18 @@ export function caseDirectionChangeLine(change: unknown): string | null {
 
 /**
  * Подпись события для «Журнала», «Истории» дела, ленты и досье: слова действия
- * (`journalEvent`), а для смены направления - строка со значениями, если они
- * известны. Неизвестное действие - `null`, как у `journalEvent`.
+ * (`journalEvent`), для смены направления - строка со значениями, если они
+ * известны, а для записанного платежа - сумма и название (376), если они пришли.
+ * Неизвестное действие - `null`, как у `journalEvent`.
  */
 export function journalEventText(
   action: string | null | undefined,
   directionChange?: unknown,
+  paymentDetail?: CasePaymentDetail | null,
 ): string | null {
   const base = journalEvent(action);
   if (base === null) return null;
+  if (action === "finance.payment.record" && paymentDetail) return casePaymentLine(paymentDetail);
   return action === "case.direction.set"
     ? (caseDirectionChangeLine(directionChange) ?? base)
     : base;
@@ -1516,6 +1531,8 @@ export const partnerPacketExport = {
   title: "Пакеты документов партнёру",
   hint: "Состав фиксируется с версиями оригиналов и сохранённых форм. Подготовка и скачивание не означают отправку партнёру или подачу в университет.",
   cap: "ZIP до 50 МБ и 50 файлов; размер проверим перед сохранением.",
+  /** Подпись рядом с «?», за которым `cap`. */
+  zipLimit: "Размер ZIP",
   unavailable: "Не удалось загрузить пакеты. Обновите дело; файлы не изменены.",
   inactive: "Новые пакеты готовятся только в активном деле. История доступна ниже.",
   prerequisites: "Нужны заявление и хотя бы один принятый оригинал или сохранённая форма. Добавьте их в существующих разделах дела.",

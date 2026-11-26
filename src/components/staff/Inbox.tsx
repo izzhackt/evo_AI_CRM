@@ -186,7 +186,9 @@ export function Inbox({
         data-testid="v3-inbox-not-connected"
         data-source="supabase-platform"
       >
-        <h2 className="t-section text-fg">WhatsApp не подключён к CRM — подключает Администратор</h2>
+        {/* Тому, кто подключает (есть «Открыть настройки»), — к нему; остальным — кто это сделает (чек-лист 23.11:
+            Администратор читал про себя в третьем лице). */}
+        <h2 className="t-section text-fg">{settingsHref ? "WhatsApp не подключён — подключите в настройках" : "WhatsApp не подключён к CRM — подключает Администратор"}</h2>
         {settingsHref ? (
           <Link
             href={settingsHref}

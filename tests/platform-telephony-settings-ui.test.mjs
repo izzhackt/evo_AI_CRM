@@ -31,6 +31,8 @@ function compile(path, extra = {}) {
     "@/components/icons": { Icon: ({ name }) => React.createElement("i", { "data-icon": name }) },
     "@/components/ui": { btnCls: "btn-primary" },
     "@/components/staff/blocks/StatusChip": { StatusChip: ({ label, tone }) => React.createElement("span", { "data-chip": tone }, label) },
+    // 26.11.2026: пояснения разделов, включателей и списка пользователей ВАТС — за «?» (HelpTip); текст подсказки — внутри кнопки-заглушки.
+    "@/components/kit/HelpTip": { HelpTip: ({ label, children }) => React.createElement("span", { "data-help": label }, children) },
     "@/components/staff/queue/queue-buttons": { QUEUE_CONFIRM: "queue-confirm", QUEUE_SECONDARY: "queue-secondary" },
     "@/lib/v3/telephony-settings": telephonySettings,
     "@/lib/v3/telephony-health": telephonyHealth,
@@ -143,8 +145,8 @@ test("the mapping list: empty directory and a preview", () => {
   // A read-only mapped row whose employee has the same name as the PBX user has nothing to say or press: no empty 44 px line.
   const quiet = overview({ extensions: [{ ...extensions[0], name: "Staff A" }] });
   const quietRow = render(React.createElement(TelephonyExtensions, { extensions: quiet.extensions, staff, readOnly: true }));
-  assert.doesNotMatch(quietRow, /<p class="mt-1 flex min-h-11/u, "no empty line under a read-only mapped row");
-  assert.match(preview, /<p class="mt-1 flex min-h-11[^"]*">[^]*?Сотрудник: <span class="text-fg">Staff A<\/span>/u, "a read-only row with a different name still says who");
+  assert.doesNotMatch(quietRow, /<p class="flex min-h-11/u, "no empty line under a read-only mapped row");
+  assert.match(preview, /<p class="flex min-h-11[^"]*">[^]*?Сотрудник: <span class="text-fg">Staff A<\/span>/u, "a read-only row with a different name still says who");
 });
 
 test("the mapping client confirms against what the person saw and sends only ids", () => {
@@ -184,6 +186,9 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
     const toggle = markup.match(new RegExp(`<button id="tel-flag-${key}"[^>]*>`, "u"))[0];
     assert.match(toggle, /aria-checked="false"/u, `${key} ships off`);
     assert.match(toggle, /class="v3-switch/u, `${key} is a real switch (track and thumb), not a checkbox`);
+    // 27.11.2026: слово «Включено/Выключено» и пояснение на экране не стоят — читалка получает их от самого переключателя.
+    assert.match(toggle, new RegExp(`aria-labelledby="tel-flag-${key}-title" aria-describedby="tel-flag-${key}-hint"`, "u"), `${key}: name and description reach the screen reader`);
+    assert.ok(markup.includes(`<span id="tel-flag-${key}-hint" class="sr-only">${telephonySettings.TELEPHONY_FLAG_COPY[key].hint}</span>`), `${key}: its hint is the description`);
   }
   assert.doesNotMatch(markup, /<input id="tel-flag-/u, "no checkbox look for a switch");
   assert.equal([...markup.matchAll(/data-testid="v3-telephony-flag-state">Выключено</gu)].length, 7, "each switch says its state in a word");
@@ -215,7 +220,22 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
     assert.match(markup, new RegExp(`<label for="tel-${id}"`, "u"), `${id} has a label`);
   }
   for (const piece of ['type="text"', 'value="+996"']) assert.ok(tag("tel-prefixes").includes(piece), piece);
-  assert.match(text, /Сейчас: \+996\./u);
+  // 26.11.2026: строки «Через запятую или пробел. Сейчас: …» под полем нет — значение и так в поле; ошибку разбора говорит FieldIssues.
+  assert.doesNotMatch(text, /Сейчас: \+996\./u);
+  // Пояснения включателей — одним «?» у раздела, а не под каждым переключателем.
+  assert.equal((markup.match(/data-help="Пояснение: Включатели"/gu) ?? []).length, 1);
+  assert.doesNotMatch(markup, /data-help="Пояснение: Разбор звонков"/u);
+  // …и в этом «?» — все семь пояснений: их нет на экране, потерять их из «?» значило бы потерять сами пояснения.
+  const flagsHelpAt = markup.indexOf('data-help="Пояснение: Включатели"');
+  const flagsHelp = flat(markup.slice(flagsHelpAt, markup.indexOf("<fieldset", flagsHelpAt)));
+  assert.match(flagsHelp, /Пока включатель не включён здесь, сотрудникам ничего не показывается/u);
+  for (const copy of Object.values(telephonySettings.TELEPHONY_FLAG_COPY)) assert.ok(flagsHelp.includes(`${copy.title}. ${copy.hint}`), copy.title);
+  // Редкие настройки свёрнуты под одной строкой и по умолчанию закрыты (открывает их ошибка или потерянное право получателя).
+  assert.match(text, /Время, набор и пределы/u);
+  assert.match(markup, /<details class="group border-t border-border" data-testid="v3-telephony-more">/u);
+  // Нечего блокировать — ни одна группа полей не отключена; «?» каждой группы — рядом с группой, не внутри рамки.
+  assert.doesNotMatch(markup, /<fieldset disabled=/u);
+  assert.equal((markup.match(/<fieldset aria-labelledby=/gu) ?? []).length, 5, "пять групп полей, у каждой — имя от заголовка");
   // Recipients: those who hold the right, plus "nobody"; Staff B (no right) is not offered.
   const select = markup.match(/<select id="tel-escalation"[\s\S]*?<\/select>/u)[0];
   assert.match(select, /Не назначен: решает директор/u);
@@ -248,8 +268,16 @@ test("a recipient who lost the right is shown with a warning and can be replaced
   assert.match(markup, /data-testid="v3-telephony-escalation-lost"/u);
   assert.match(flat(markup), /У получателя «Staff B» больше нет права на телефонию\. Выберите другого\./u);
   assert.match(markup, /<option value="20000000-0000-4000-8000-000000000003" selected="">Staff B · права больше нет<\/option>/u);
+  // Предупреждение лежит в свёрнутом разделе: оно раскрывает его уже в первой отдаче, а не после загрузки скриптов.
+  assert.match(markup, /<details open="" class="group border-t border-border" data-testid="v3-telephony-more">/u);
   const preview = render(React.createElement(TelephonySettingsForm, { overview: overview(), server: SERVER_ON, readOnly: true }));
-  assert.match(preview, /<fieldset disabled="" class="@container min-w-0">/u);
+  // Просмотр роли: все пять групп полей отключены, а «?» каждой группы остаётся нажимаемым — он стоит рядом с группой, не внутри отключённой
+  // рамки (кнопка внутри `<fieldset disabled>` не нажимается, и пояснение в просмотре роли нельзя было бы открыть).
+  const groups = preview.match(/<fieldset disabled=""[\s\S]*?<\/fieldset>/gu) ?? [];
+  assert.equal(groups.length, 5, "every group of fields is disabled in a preview");
+  assert.equal((preview.match(/data-help="Пояснение: /gu) ?? []).length, 5, "every group keeps its «?»");
+  assert.ok(groups.every((group) => !group.includes("data-help=")), "the «?» stands outside the disabled group");
+  assert.doesNotMatch(preview, /<details open=/u, "nothing wrong in a clean preview: the folded section stays folded");
   assert.doesNotMatch(preview, /Сохранить настройки/u);
   assert.match(flat(preview), /В просмотре роли настройки не меняются/u);
 });
@@ -328,4 +356,49 @@ test("the new suites are in the unit manifest so they run with the rest", () => 
   for (const file of ["tests/platform-telephony-admin.test.mjs", "tests/platform-telephony-settings-ui.test.mjs"]) {
     assert.ok(manifest.includes(file), file);
   }
+});
+
+test("26.11.2026 «минималистичнее»: переключатели без слов рядом, редкие настройки свёрнуты и раскрываются сами при ошибке или потерянном праве", () => {
+  const form = source("src/components/staff/settings/TelephonySettingsForm.tsx");
+  assert.match(form, /<span className="sr-only" data-testid="v3-telephony-flag-state">/u, "положение — для читалки, на экране его показывает переключатель");
+  assert.match(form, /<ul className="grid gap-x-6 @2xl:grid-cols-2"/u);
+  assert.match(form, /const moreOpen = shown\.some\(\(issue\) => !\(TELEPHONY_FLAG_KEYS as readonly string\[\]\)\.includes\(issue\.field\)\) \|\| Boolean\(overview\.escalation && !overview\.escalation\.allowed\);/u);
+  // 27.11.2026: раздел не пересоздаётся (прежний `key` создавал его заново свёрнутым, когда уходила последняя ошибка, и фокус из поля падал на
+  // страницу). Новую ошибку раскрывает эффект; ушла ошибка — раздел остаётся, закрыть его может только человек (эффект не закрывает).
+  assert.doesNotMatch(form, /<details[^>]*\bkey=/u, "no key on the folded section");
+  assert.match(form, /const moreRef = useRef<HTMLDetailsElement>\(null\);/u);
+  assert.match(form, /useEffect\(\(\) => \{\s*if \(moreOpen && moreRef\.current\) moreRef\.current\.open = true;\s*\}, \[moreOpen\]\);/u);
+  assert.doesNotMatch(form, /\.open = (?:moreOpen|false)|\.open = !/u, "the effect only opens");
+  assert.match(form, /const \[moreOpenAtLoad\] = useState\(moreOpen\);/u, "the warning known at load opens the section in the first markup");
+  assert.match(form, /<details ref=\{moreRef\} open=\{moreOpenAtLoad \|\| undefined\}[^>]*data-testid="v3-telephony-more">/u);
+  // Группы полей отключает их собственная рамка; «?» рядом с ней, а не внутри (см. тест просмотра роли: разметка).
+  assert.match(form, /const locked = readOnly \|\| pending;/u);
+  assert.equal((form.match(/disabled=\{locked\}/gu) ?? []).length, 5, "all five groups follow the lock (preview and a save in progress)");
+  assert.match(form, /<fieldset disabled=\{disabled\} aria-labelledby=\{`\$\{id\}-title`\} aria-describedby=\{hint \? `\$\{id\}-hint` : undefined\}/u);
+  assert.doesNotMatch(form, /<fieldset disabled=\{readOnly/u, "no wide fieldset around the «?» buttons");
+});
+
+test("27.11.2026 the status line «Пользователи ВАТС» offers «Сопоставить» next to its value, and the link has a target", () => {
+  const { TelephonyStatus } = compile("src/components/staff/settings-next/TelephonyStatus.tsx", {
+    "lucide-react": { ListIcon: () => null },
+    "@/components/kit": {
+      WidgetCard: ({ title, actions, children }) => React.createElement("section", { "data-card": title }, actions, children),
+      DetailSheet: ({ children }) => React.createElement("div", { "data-sheet": "" }, children),
+      StatusBadge: ({ label }) => React.createElement("span", { "data-badge": "" }, label),
+    },
+    "@/components/ui/button": { Button: ({ children }) => React.createElement("button", null, children) },
+  });
+  const lines = telephonyHealth.telephonyStatusLines(SERVER_ON, overview(), new Date("2026-10-17T10:00:00.000Z"));
+  const status = render(React.createElement(TelephonyStatus, { lines }));
+  const directory = status.match(/<li data-line="directory"[\s\S]*?<\/li>/u)?.[0] ?? "";
+  assert.match(directory, /data-tone="warn"/u, "two PBX users are not mapped: the line needs attention");
+  assert.match(directory, /<span class="flex flex-wrap items-center gap-x-3"><span data-badge="">3 в ВАТС, не сопоставлено 2<\/span><a href="#tel-extensions-title"[^>]*>Сопоставить<\/a><\/span>/u, "the link stands in the value's own row");
+  // A line that is in order has no link.
+  const mapped = overview({ health: { directory: { active: 3, inactive: 1, unmapped: 0, last_seen_at: null } } });
+  const calm = render(React.createElement(TelephonyStatus, { lines: telephonyHealth.telephonyStatusLines(SERVER_ON, mapped, new Date("2026-10-17T10:00:00.000Z")) }));
+  assert.doesNotMatch(calm, /Сопоставить/u);
+  // The target: the mapping list's heading carries that id.
+  const { TelephonyExtensions } = compile("src/components/staff/settings/TelephonyExtensions.tsx");
+  const { extensions, staff } = overview();
+  assert.match(render(React.createElement(TelephonyExtensions, { extensions, staff, readOnly: false })), /<h3 id="tel-extensions-title"/u);
 });

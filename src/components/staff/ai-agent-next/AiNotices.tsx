@@ -25,7 +25,7 @@ export function AiNotices({ settings, featureOn, preview, consentRequestId }: Re
   const consent = settings?.consent.recorded ?? true;
   return (
     <>
-      {!featureOn ? <Line tone="muted" testId="v3-ai-feature-off">ИИ-агент не подключён на сервере — «Помочь с ответом» в чате не готовит ответы. Подключает администратор.</Line> : null}
+      {!featureOn ? <Line tone="muted" testId="v3-ai-feature-off">Помощник в чате не подключён на сервере — «Помочь с ответом» в чате не готовит ответы. Подключает администратор.</Line> : null}
       {!consent && settings?.isAdmin && !preview ? (
         <div data-testid="v3-ai-consent">
           <WidgetCard title="Включить ИИ-агента">

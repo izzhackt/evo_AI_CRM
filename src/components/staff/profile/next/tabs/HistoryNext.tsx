@@ -14,7 +14,7 @@ import { NamedCard } from "../NamedCard";
 export const HISTORY_SHOWN = 10;
 
 /** Название события словами; неизвестное событие — `null`, и строки нет: сырой ключ на экране не нужен. */
-const historyLabel = (entry: ProfileEvent) => journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
+const historyLabel = (entry: ProfileEvent) => journalEventText(entry.transition, entry.directionChange, entry.paymentDetail) ?? eventLabel(entry.transition);
 
 /** Событие журнала: название (ссылка, если есть куда), момент, что изменено и кто. */
 function HistoryRow({ entry, label, today }: Readonly<{ entry: ProfileEvent; label: string; today: string }>) {
@@ -25,8 +25,8 @@ function HistoryRow({ entry, label, today }: Readonly<{ entry: ProfileEvent; lab
     <li className="py-2.5 first:pt-0 last:pb-0" data-testid="v3-history-event">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         {entry.href ? (
-          <Link href={entry.href} className="inline-flex min-h-11 min-w-0 items-center t-body-compact text-fg underline underline-offset-4">{label}</Link>
-        ) : <span className="min-w-0 t-body-compact text-fg">{label}</span>}
+          <Link href={entry.href} className="inline-flex min-h-11 min-w-0 items-center break-words t-body-compact text-fg underline underline-offset-4">{label}</Link>
+        ) : <span className="min-w-0 break-words t-body-compact text-fg">{label}</span>}
         {moment ? <span className="t-meta font-mono tabular-nums text-fg-3">{moment}</span> : null}
       </div>
       {changed || by ? <p className="t-meta text-fg-3">{[changed ? `Изменено: ${changed}` : null, by].filter(Boolean).join(" · ")}</p> : null}

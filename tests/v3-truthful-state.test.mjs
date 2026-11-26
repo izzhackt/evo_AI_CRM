@@ -318,7 +318,8 @@ test("WhatsApp not connected: one honest state instead of «не подтвер�
   const { Inbox, inboxNotConnected } = inboxModule();
   const admin = Inbox({ view: EMPTY_VIEW, profileHref: null, settingsHref: "/settings?section=integrations" });
   assert.equal(admin.props["data-testid"], "v3-inbox-not-connected");
-  assert.match(textOf(admin), /^WhatsApp не подключён к CRM — подключает Администратор/u);
+  // Тому, кто подключает, — к нему, а не о нём в третьем лице (чек-лист 23.11).
+  assert.match(textOf(admin), /^WhatsApp не подключён — подключите в настройках/u);
   assert.doesNotMatch(textOf(admin), /не подтверждено|Пока нет доступных диалогов|Найти/u);
   const [settings] = findElements(admin, (node) => node.type?.name === "Link");
   assert.equal(settings.props.href, "/settings?section=integrations");

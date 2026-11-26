@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { HelpTip } from "@/components/kit/HelpTip";
 
 import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
@@ -367,7 +368,8 @@ export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ lin
     // Согласие студента на ИИ-помощников (320): слова вместо чипа «ИИ: не спрашивали»; не прочитано - строки нет.
     aiConsent: input.work.aiConsent ? (() => {
       const line = aiConsentLine(input.work.aiConsent);
-      return <span data-testid="v3-case-ai-consent-fact">{line.words}<span className="block t-meta text-fg-2">{line.hint}</span></span>;
+      // Одно значение на виду, что это значит — за «?» (чек-лист 23.11: «Студент разрешил» и строкой ниже то же самое).
+      return <span data-testid="v3-case-ai-consent-fact" className="inline-flex items-center gap-1.5">{line.words}<HelpTip label="Пояснение: ИИ-помощники">{line.hint}</HelpTip></span>;
     })() : null,
   };
 }

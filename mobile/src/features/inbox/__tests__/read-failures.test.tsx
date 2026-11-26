@@ -13,10 +13,13 @@ import { renderPortal, testApi } from "@/test-fixtures/render";
 import { NOTIFICATION_ROW } from "@/test-fixtures/rpc-rows";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
+// Стрелка «назад» (`useInboxBack`) читает состояние настоящего навигатора, которого в этом тесте нет: она проверена на настоящем
+// expo-router в `src/__tests__/app-layout-inbox-back.test.tsx` (подмена состояния навигации прежде и скрывала ошибку подписи).
+// Здесь нужна только кнопка, поэтому хук заменён.
+jest.mock("@/features/inbox/useInboxBack", () => ({ useInboxBack: () => ({ label: "Назад", onPress: () => undefined }) }));
 jest.mock("expo-router", () => ({
   router: { navigate: jest.fn() },
   useRouter: () => ({ back: jest.fn(), canGoBack: () => true, navigate: jest.fn() }),
-  useNavigation: () => ({ getState: () => ({ index: 1, routes: [{ name: "index" }, { name: "updates" }] }) }),
   usePathname: () => "/messages",
 }));
 jest.mock("@/features/inbox/visibility", () => ({ useScreenVisible: jest.fn(() => true) }));

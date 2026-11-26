@@ -22,12 +22,15 @@ import { useFocusEffect } from "@/lib/focus";
 /** Сколько ждать, прежде чем вернуть защиту, если уход не убрал экран (действие не дошло или другой перехватчик его остановил). */
 export const LEAVING_RESET_MS = 800;
 
-export function useLeaveGuard({ session, active, back }: { session: AssessmentSession; active: boolean; back: () => void }): { exitNotice: boolean; saveAndExit: () => void; leaveAnyway: () => void } {
+export function useLeaveGuard({ session, active, back }: { session: AssessmentSession; active: boolean; back: () => void }): { exitNotice: boolean; exitAttempts: number; saveAndExit: () => void; leaveAnyway: () => void } {
   const navigation = useNavigation();
   const unsaved = useSyncExternalStore(session.subscribe, () => session.getState().unsaved);
   const blocked = useSyncExternalStore(session.subscribe, () => isBlocked(session.getState()));
   const [leaving, setLeaving] = useState(false);
   const [exitNotice, setExitNotice] = useState(false);
+  // Сколько раз уход не состоялся (не сохранено): строка «Сначала сохраним ответы…» при втором нажатии та же, и раннеру нужно знать
+  // о нажатии, чтобы снова показать блок сбоя, если студент успел прокрутить страницу от него (QA 24, N2).
+  const [exitAttempts, setExitAttempts] = useState(0);
   const settling = useRef(false);
   const guarded = active && unsaved && !leaving;
 
@@ -46,6 +49,7 @@ export function useLeaveGuard({ session, active, back }: { session: AssessmentSe
           proceed();
         } else {
           setExitNotice(true);
+          setExitAttempts((count) => count + 1);
         }
       } finally {
         settling.current = false;
@@ -125,5 +129,5 @@ export function useLeaveGuard({ session, active, back }: { session: AssessmentSe
     }, [navigation]),
   );
 
-  return { exitNotice, saveAndExit, leaveAnyway };
+  return { exitNotice, exitAttempts, saveAndExit, leaveAnyway };
 }

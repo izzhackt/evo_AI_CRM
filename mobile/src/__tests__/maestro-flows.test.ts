@@ -3,6 +3,9 @@
 // а не английская подпись в каждом потоке. Maestro здесь не запускается: тест читает файлы потоков и проверяет подпись тем же
 // выражением, что читает Maestro (регулярное выражение, подпись целиком, без учёта регистра; точка - любой знак, в том
 // числе неразрывный пробел, который в русской подписи некоторых окон iOS стоит вместо обычного).
+// Второй блок держит общий прогон `npm run e2e:ios` зелёным по замыслу и документ полным (QA#3, N4): поток с меткой
+// `needs-undecided` (10, экран «Конфиденциальность» нужен студенту, который ещё не решал) исключён в config.yaml, а
+// docs/mobile/E2E.md называет каждый поток и говорит, как запускать исключённый.
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -70,5 +73,36 @@ describe("потоки Maestro: окно «Сохранить пароль?» н
     for (const file of flowFiles().filter((candidate) => path.basename(candidate) !== SUBFLOW)) {
       expect({ file: rel(file), text: /["'](Not Now|Не[  ]сейчас)["']/i.test(text(file)) }).toEqual({ file: rel(file), text: false });
     }
+  });
+});
+
+const CONFIG = path.join(MAESTRO, "config.yaml");
+const E2E_DOC = path.resolve(__dirname, "../../../docs/mobile/E2E.md");
+const UNDECIDED = "needs-undecided";
+
+/** Потоки общего списка `flows:` из config.yaml: числовые файлы верхнего каталога (подпотоки и скриншоты магазинов не в счёте). */
+const numbered = (): string[] => readdirSync(MAESTRO).filter((name) => /^\d\d-.+\.yaml$/.test(name)).sort();
+/** Пункты списка под ключом (`flows:`, `tags:`, `excludeTags:`): строки вида `  - метка` сразу под ним, без кавычек. */
+function listUnder(source: string, key: string): string[] {
+  const block = new RegExp(`^${key}:[ \\t]*\\r?\\n((?:[ \\t]+-[ \\t]+\\S+[ \\t]*\\r?\\n?)+)`, "m").exec(source);
+  return block ? [...block[1]!.matchAll(/-[ \t]+(\S+)/g)].map((match) => match[1]!.replace(/^(["'])(.*)\1$/, "$2")) : [];
+}
+
+describe("потоки Maestro: общий прогон и документ (QA#3, N4)", () => {
+  it("поток с меткой needs-undecided не входит в общий прогон (config.yaml) и запускается по имени файла (E2E.md)", () => {
+    const tagged = numbered().filter((file) => listUnder(text(path.join(MAESTRO, file)), "tags").includes(UNDECIDED));
+    expect(tagged).not.toEqual([]); // иначе проверка ничего не охраняет
+    expect(listUnder(text(CONFIG), "excludeTags")).toContain(UNDECIDED);
+    const doc = text(E2E_DOC);
+    for (const file of tagged) expect({ file, runByName: doc.includes(`npm run e2e:ios -- .maestro/${file}`) }).toEqual({ file, runByName: true });
+  });
+
+  it("config.yaml берёт числовые потоки верхнего каталога, а не подпотоки и скриншоты", () => {
+    expect(listUnder(text(CONFIG), "flows")).toEqual(["[0-9][0-9]-*.yaml"]);
+  });
+
+  it("docs/mobile/E2E.md называет каждый числовой поток", () => {
+    const doc = text(E2E_DOC);
+    for (const file of numbered()) expect({ file, listed: doc.includes(`\`${file}\``) }).toEqual({ file, listed: true });
   });
 });

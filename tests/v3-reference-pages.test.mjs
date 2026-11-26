@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { UNIVERSITY_PHOTOS, universityIntakeLabel } from "../src/lib/platform-university-catalog.ts";
+import { matchesSearch, searchPrograms } from "../src/lib/portal/university-search.ts";
 import { universityListItem } from "../src/lib/university-list-item.ts";
 import {
   UNIVERSITY_PAGE_SIZE,
@@ -253,7 +254,7 @@ test("university page: the overview with the photo first, then programmes and in
   const levels = [...html.matchAll(/<details[^>]*data-program-level="([a-z]+)"/gu)].map((match) => match[1]);
   if (utmCount >= 9) {
     assert.match(html, /<h2 id="university-programs"[^>]*>Программы<\/h2>/u);
-    assert.match(html, /<label for="university-program-search" class="sr-only">Поиск по названию программы<\/label>/u);
+    assert.match(html, /<label for="university-program-search" class="sr-only">Поиск по названию и описанию программы<\/label>/u);
     assert.deepEqual(levels, [...new Set(catalogueCards.find((card) => card.key === "utm").content.programs.map((program) => program.level))].sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b)));
     assert.doesNotMatch(html, /<details[^>]*data-program-level="[a-z]+"[^>]* open/u, "несколько уровней — все свёрнуты");
   } else assert.equal(levels.length, 0);
@@ -276,6 +277,20 @@ test("university page: the overview with the photo first, then programmes and in
   // 25.11.2026: «Бланки университета» и «Предложить обновление» — пункты меню «⋯» рядом с названием (в разметке меню закрыто).
   assert.match(html, /<button[^>]*aria-label="Действия с карточкой университета"[^>]*data-testid="university-manage-menu"/u);
   assert.doesNotMatch(html.slice(html.indexOf("<main"), html.indexOf("</main>")), /(?<![:\w-])bg-accent(?![\w-])/u, "no solid red on the reference page");
+});
+
+test("university page: the programme search reads the Russian description as well as the English title", () => {
+  // utm — карточка с длинным списком, поле поиска есть. Названия программ английские, описания русские.
+  const programs = catalogueCards.find((card) => card.key === "utm").content.programs;
+  for (const query of ["компьютер", "магистратура"]) {
+    assert.equal(programs.filter((program) => matchesSearch(program.title, query)).length, 0, `${query}: no title has the word, the title alone finds nothing`);
+    const found = searchPrograms(programs, query);
+    assert.ok(found.length > 0, `${query}: found through the description`);
+    assert.deepEqual(found, programs.filter((program) => matchesSearch(program.summary, query)), `${query}: exactly the programmes whose description has it, in the card's order`);
+  }
+  assert.ok(searchPrograms(programs, programs[0].title).includes(programs[0]), "a programme is still found by its own title");
+  assert.deepEqual(searchPrograms(programs, "компьютер zzzz"), [], "every word of the query has to be there");
+  assert.match(source("src/components/staff/universities-next/UniversityProgramGroups.tsx"), /deferred \? searchPrograms\(programs, deferred\) : programs/u, "the search box runs this search");
 });
 
 test("university page: each intake state is main's label — no deadline or zone reads «Срок приёма нужно уточнить»; the credit line is Russian (review #1079)", () => {

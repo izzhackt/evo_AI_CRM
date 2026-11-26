@@ -34,7 +34,7 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
       websiteUrl={content.websiteUrl}
       sourceUrl={content.sourceUrl}
       verified={universityVerified(content, now)}
-      photo={<UniversityPhoto content={content} variant="side" />}
+      photo={<UniversityPhoto content={content} variant="cover" />}
       canManage={canManage}
       manage={canManage ? { formsHref: `/universities/${id}/forms`, editHref: `/universities/manage?edit=${id}` } : null}
     >

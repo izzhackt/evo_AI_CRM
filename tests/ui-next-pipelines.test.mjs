@@ -467,3 +467,17 @@ test("role preview of «Воронка продаж» answers with a quiet state
   assert.match(read("src/components/staff/pipeline-next/PipelineNextPage.tsx"),
     /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });
+
+test("«Воронка продаж» (26.11.2026): рабочая колонка «Всех этапов» — первые 20 и «Показать ещё»; вкладка этапа — список строк по 50", async () => {
+  const model = read("src/components/staff/pipeline-next/pipeline-next-model.ts");
+  assert.match(model, /export const COLUMN_STEP = 20;/u);
+  assert.match(model, /return inStage\.length - limit <= COLUMN_SLACK \? inStage\.length : limit;/u, "хвост в пару карточек показывается сразу");
+  assert.match(model, /Math\.max\(base, selected \+ 1\)/u, "открытый лид виден");
+  assert.match(model, /: focus === "all" \? inStage\.slice\(0, columnLimit\(inStage, shown\[stage\.key\], selectedId\)\) : inStage;/u, "вкладка этапа делит строки сама (список)");
+  const list = read("src/components/staff/pipeline-next/PipelineStageList.tsx");
+  assert.match(list, /STAGE_LIST_STEP = 50/u);
+  assert.match(list, /data-lead-link=\{lead\.id\}/u, "возврат фокуса после панели — на строку");
+  assert.match(list, /\{leadLabel\(lead\)\}/u);
+  assert.doesNotMatch(list, /\{lead\.name\}/u);
+  assert.match(read("src/components/staff/pipeline-next/PipelineColumn.tsx"), /spread && !stage\.terminal \? \(\s*<PipelineStageList/u);
+});

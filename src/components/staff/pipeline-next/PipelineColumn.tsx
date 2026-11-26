@@ -5,6 +5,7 @@ import { Icon } from "@/components/icons";
 import { BoardColumnCard } from "@/components/staff/board-next/BoardColumnCard";
 import { BOARD_EMPTY } from "@/components/staff/board/Board";
 import { LeadCardNext } from "@/components/staff/pipeline-next/LeadCardNext";
+import { PipelineStageList } from "@/components/staff/pipeline-next/PipelineStageList";
 import { COLUMN_STEP, HANDED_VISIBLE_LIMIT, leadDueWord, type StageColumn } from "@/components/staff/pipeline-next/pipeline-next-model";
 import type { PipelineLead } from "@/components/staff/pipeline-next/types";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,10 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
         count={inStage.length}
         marker={stage.gate ? <span title="Есть условия" className="inline-flex items-center"><Icon name="lock" size={14} /><span className="sr-only">Есть условия</span></span> : null}
       >
+        {/* Вкладка рабочего этапа — список строк (26.11.2026), а не сетка карточек; «Переданы» — прежние карточки. */}
+        {spread && !stage.terminal ? (
+          <PipelineStageList leads={inStage} selectedId={selectedId} showOwner={showOwner} today={today} hrefFor={hrefFor} openLead={openLead} />
+        ) : (
         <ul className={`flex flex-col gap-1.5 ${spread ? "@[43.75rem]:grid @[43.75rem]:grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] @[43.75rem]:content-start" : ""}`}>
           {visible.map((lead) => (
             <li key={lead.id}>
@@ -66,6 +71,7 @@ export function PipelineColumn({ column, spread, selectedId, showOwner, today, h
             </li>
           ) : null}
         </ul>
+        )}
       </BoardColumnCard>
     </section>
   );

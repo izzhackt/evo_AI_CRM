@@ -510,6 +510,35 @@ describe("сессия: постоянный конфликт не гонит э
     session.dispose();
   });
 
+  it("после конфликта обычное сохранение не меняется: выбор, сделанный пока идёт запрос, уходит сразу после его ответа (хвост не заперт прежней паузой)", async () => {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], [SAVE_RPC]: [conflict(), saveReceipt(8), saveReceipt(9), saveReceipt(10)], [READ_RPC]: [draftAttempt({ revision: 7 })] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let entered = 0;
+    const transport: RpcTransport = async (name, args, options) => {
+      if (name === SAVE_RPC && (entered += 1) === 3) await held; // третье сохранение висит, пока тест не отпустит
+      return h.env.transport(name, args, options);
+    };
+    const session = new CscaTestSession({ ...h.env, transport }, FORM, null);
+    await session.start();
+    const keys = attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[];
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS); // конфликт, пауза
+    await h.advance(RETRY_MS); // повтор прошёл: пауза кончилась
+    expect(ofName(h, SAVE_RPC)).toHaveLength(2);
+    session.select(keys[1], "b");
+    await h.advance(SAVE_ON_MOVE_MS); // третье сохранение ушло и висит
+    expect(entered).toBe(3);
+    session.select(keys[2], "c"); // выбор, пока запрос в полёте
+    release();
+    await settle(); // время не двигаем: следующий запрос уходит сразу за ответом на предыдущий
+    const sent = ofName(h, SAVE_RPC);
+    expect(sent).toHaveLength(4);
+    expect((sent[3].args.p_answers as Record<string, string>)[keys[2]]).toBe("c");
+    session.dispose();
+  });
+
   it("«Пройти ещё раз» посреди серии: новая попытка получает свои два круга (счётчик прежней попытки не переходит)", async () => {
     const { h, session, keys } = await running({ [SAVE_RPC]: [conflict()], [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");

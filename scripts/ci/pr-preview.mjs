@@ -4,7 +4,7 @@
 //
 //   npm run preview:ci            (локально нужен Docker; на macOS: DOCKER_CONTEXT=orbstack)
 //
-// Что делает: изолированный стенд Supabase CLI (проект evo-pr-preview, порты 46440-46451) -> синтетические
+// Что делает: изолированный стенд Supabase CLI (проект evo-pr-preview, порты 18440-18451) -> синтетические
 // данные (готовый scripts/local-dev/mobile-dev-stack-seed.mjs) -> `next build` (standalone, как в production)
 // -> сервер приложения -> Playwright (chromium) -> таблица замеров из строк `evo_timing` -> остановка стенда.
 // Только синтетика (@example.test); секретов нет; продакшн не затрагивается. Ненулевой код выхода при любом сбое.
@@ -14,7 +14,6 @@ import {
   appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync,
   readSync, rmSync, statSync, writeFileSync, cpSync,
 } from "node:fs";
-import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -25,13 +24,19 @@ import { waitForLocalSupabaseAuthAdmin } from "../local-dev/supabase-auth-readin
 import { seedMobileDevStack } from "../local-dev/mobile-dev-stack-seed.mjs";
 import { redact } from "./redact.mjs";
 import { STAFF_PAGES, STUDENT_PAGES } from "./pr-preview-pages.mjs";
+import { diagnoseBusyPorts, logSocketStates } from "./pr-preview-port-holders.mjs";
+import { assertPortsFree, describePortBlock, readEphemeralRange } from "./pr-preview-ports.mjs";
 import { parseTimingLines } from "../maintenance/timing-report.mjs";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-// Стенд: свой id и свой блок портов (не пересекается с evo-mobile-dev 46420-46430, E4/E5 и 3000/3100).
+// Стенд: свой id и свой блок портов 18440-18451 (не пересекается с evo-mobile-dev 46420-46430, E4/E5 45420-45429 и 3000/3100).
+// Блок лежит ниже эфемерного диапазона Linux (32768-60999): порт диапазона может занять исходящее соединение самого раннера
+// (apt, Playwright, кэш, git, загрузка образов Docker; закрытое соединение ещё до 60 с держит порт в TIME_WAIT). С прежним блоком
+// 46440-46451 за 22-25.11.2026 упали 6 прогонов из 183: PORT_BUSY при проверке или «address already in use» от Docker при
+// `supabase start`. Ниже диапазона ядро порт исходящим соединениям не выдаёт. Блок нельзя возвращать в 32768-60999 (стережёт тест).
 export const PROJECT_ID = "evo-pr-preview";
-export const BASE_PORT = 46440;
+export const BASE_PORT = 18440;
 export const PORTS = {
   shadow: BASE_PORT, api: BASE_PORT + 1, db: BASE_PORT + 2, studio: BASE_PORT + 3, mail: BASE_PORT + 4,
   smtp: BASE_PORT + 5, pop3: BASE_PORT + 6, analytics: BASE_PORT + 7, inspector: BASE_PORT + 8,
@@ -79,12 +84,6 @@ function run(binary, args, options = {}) {
   return result.stdout ?? "";
 }
 const supabase = (...args) => run(npx, ["--no-install", "supabase", ...args, "--workdir", PROJECT_DIR]);
-
-const portFree = (port, host) => new Promise((ok) => {
-  const server = createServer();
-  server.once("error", () => ok(false));
-  server.listen(port, host, () => server.close(() => ok(true)));
-});
 
 function writeProjectConfig() {
   mkdirSync(join(PROJECT_DIR, "supabase"), { recursive: true });
@@ -276,9 +275,12 @@ async function main() {
     // Свой прошлый (прерванный) прогон снимаем до проверки портов; чужие стенды не трогаем.
     writeProjectConfig();
     stopSupabase();
-    for (const [name, port] of Object.entries(PORTS)) {
-      assert.ok(await portFree(port, "0.0.0.0"), `PORT_BUSY ${name}:${port} занят чужим процессом`);
-    }
+    // Блок портов вне эфемерного диапазона Linux; строка в журнале это показывает, на Linux следом идёт счёт TCP-сокетов по
+    // состояниям (сколько недавних соединений раннера в этот момент). Проверка всё равно повторяется (до ~25 с), а если порт
+    // занят и после этого, в журнал печатается, чем он занят (pr-preview-ports.mjs, pr-preview-port-holders.mjs).
+    log(describePortBlock(PORTS, readEphemeralRange()));
+    logSocketStates(log);
+    await assertPortsFree(PORTS, { host: "0.0.0.0", log, diagnose: diagnoseBusyPorts });
 
     const statusEnv = await phase("Supabase: запуск стенда и все миграции", async () => {
       const out = supabase("start", "--yes", "-x", EXCLUDED_SERVICES.join(","));

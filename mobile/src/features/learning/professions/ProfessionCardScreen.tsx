@@ -1,4 +1,4 @@
-// Карточка профессии: что это за работа, предметы и навыки, «Где учиться в EVO» (программы каталога с ценой,
+// Карточка профессии: фото, что это за работа, предметы и навыки, «Где учиться в EVO» (программы каталога с ценой,
 // набором и избранным), «Подробнее о работе» свёрнуто, источник O*NET (CC BY 4.0). Веб: professions/[cardId]/page.tsx.
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,15 +7,18 @@ import { Linking, Pressable, View } from "react-native";
 import { usePortalApi } from "@/api/PortalApi";
 import { loadErrorKey } from "@/api/queries";
 import { readProfessionCard } from "@/features/learning/professions/api";
+import { ProfessionPhoto } from "@/features/learning/professions/ProfessionPhoto";
 import { ProfessionPrograms } from "@/features/learning/professions/ProfessionPrograms";
 import { Chip, StackPage, SubHeader, useBack } from "@/features/learning/ui";
 import { useLang } from "@/i18n/LangProvider";
+import { useTheme } from "@/theme/ThemeProvider";
 import { CardSkeleton, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card } from "@/ui/Screen";
 import { Text } from "@/ui/Text";
 
 export function ProfessionCardScreen({ cardId }: { cardId: string }) {
   const { lang, m, t } = useLang();
+  const { tokens, scheme } = useTheme();
   const { transport, userKey } = usePortalApi();
   const back = useBack("/professions");
   const p = t("professions");
@@ -44,6 +47,12 @@ export function ProfessionCardScreen({ cardId }: { cardId: string }) {
         card.status === "error" ? <InlineAlert message={m(loadErrorKey(card.error))} retryLabel={m("gate.retry")} onRetry={() => void card.refetch()} testID="profession-error" /> : <CardSkeleton label={m("state.loading")} lines={5} />
       ) : (
         <>
+          {/* Снимок профессии над текстом, как в шапке страницы веба (`pt-prof-detail-photo`); нет файла - ничего не рисуется. */}
+          {card.data ? (
+            <View style={{ borderRadius: tokens.radiusCard, boxShadow: scheme === "dark" ? undefined : tokens.shadowCard }}>
+              <ProfessionPhoto cardKey={card.data.cardKey} radius={tokens.radiusCard} eager testID="profession-photo" />
+            </View>
+          ) : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {body.orvis_scales.map((sc) => (
               <Chip key={sc} label={p[`scale.${sc}`]} />

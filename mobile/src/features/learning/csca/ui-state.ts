@@ -1,9 +1,9 @@
-// Выбор вкладки обзора CSCA хранится на устройстве по студенту; при выходе все такие ключи стираются.
+// Вкладка CSCA больше не запоминается (решение владельца D7, 25.11.2026: как на вебе, всегда «Об экзамене», если нет
+// `?view=lessons`). Прежние версии приложения сохраняли выбор по студенту под ключами `csca_overview:<студент>`; при выходе
+// эти остатки по-прежнему стираются, чтобы на устройстве не осталось следов прошлого студента.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const CSCA_OVERVIEW_PREFIX = "csca_overview:";
-
-export const cscaOverviewKey = (userKey: string) => `${CSCA_OVERVIEW_PREFIX}${userKey}`;
 
 export async function clearCscaUiState(): Promise<void> {
   try {

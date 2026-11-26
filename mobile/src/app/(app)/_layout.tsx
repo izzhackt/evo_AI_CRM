@@ -1,14 +1,17 @@
 import { router, Tabs, usePathname, type Href } from "expo-router";
 import { useMemo, useState, type ComponentProps } from "react";
+import { View } from "react-native";
 
 import { PortalPoll } from "@/api/PortalPoll";
 import { PortalApiProvider, type PortalApi } from "@/api/PortalApi";
 import { getConfig } from "@/config";
 import { useCscaAccess } from "@/features/learning/csca/useCscaAccess";
+import { EviMemoryProvider } from "@/features/learning/evi/EviMemory";
 import { UniversityIndexWarmup } from "@/features/universities/IndexWarmup";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { ChatFab } from "@/shell/ChatFab";
 import { MenuSheet } from "@/shell/MenuSheet";
+import { PollFailureNotice } from "@/shell/PollFailureNotice";
 import { SECTIONS, isAllowed, type SectionId } from "@/shell/sections";
 import { TabBar } from "@/shell/TabBar";
 import { TopBar } from "@/shell/TopBar";
@@ -28,7 +31,8 @@ function AppMenu(props: Omit<ComponentProps<typeof MenuSheet>, "cscaAvailable">)
 /**
  * Оболочка кабинета (веб #1412, #1355): плавающая панель на 3 вкладки (Главная, Документы, Входящие;
  * у approved вкладка одна, панель не рисуется), меню ☰ со всеми разделами уровня и «Выйти». Разделы вне уровня
- * закрыты Tabs.Protected, поэтому на них нельзя попасть ни по ссылке, ни из меню.
+ * закрыты Tabs.Protected, поэтому на них нельзя попасть ни по ссылке, ни из меню. Всё, что кабинет держит в памяти (кэш
+ * чтений, разговор с Эви), живёт, пока открыта эта оболочка: выход размонтирует её (`session` пуст), и чужого не остаётся.
  */
 export default function AppLayout() {
   const { state, signOut } = useSession();
@@ -63,21 +67,33 @@ export default function AppLayout() {
 
   return (
     <PortalApiProvider api={api}>
+      {/* Разговор с Эви держится, пока открыт кабинет (веб #1530): память снаружи экранов, переход и «Назад» её не сбрасывают. */}
+      <EviMemoryProvider>
       <PortalPoll>
       <UniversityIndexWarmup />
-      <Tabs
-        tabBar={(props) => <TabBar {...props} />}
-        screenOptions={{ header: () => <TopBar onMenu={() => setMenuOpen(true)} /> }}
-      >
-        {SECTIONS.map((section) => (
-          <Tabs.Protected key={section.id} guard={isAllowed(section.id, tier)}>
-            <Tabs.Screen name={section.id} options={{ title: section.id }} />
-          </Tabs.Protected>
-        ))}
-      </Tabs>
+      {/* Колонка кабинета: верхняя полоса, «Не удалось обновить уведомления» (пока последний опрос не удался, веб) и вкладки. Карточка
+          стоит в потоке, а не поверх: экраны ниже сдвигаются, и она не закрывает их верх (QA#2, D4). Полоса вне `header` вкладок:
+          у вкладок свои шапки по одной на раздел, а карточке нужна одна на всех. */}
+      <View style={{ flex: 1 }}>
+        <TopBar onMenu={() => setMenuOpen(true)} />
+        <PollFailureNotice />
+        <View style={{ flex: 1 }}>
+          <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
+            {SECTIONS.map((section) => (
+              <Tabs.Protected key={section.id} guard={isAllowed(section.id, tier)}>
+                <Tabs.Screen name={section.id} options={{ title: section.id }} />
+              </Tabs.Protected>
+            ))}
+            {/* Экраны кабинета вне меню ☰ и вне панели: без объявления вкладка не показывается, а переход на неё уходит на «Главную». */}
+            <Tabs.Screen name="application" options={{ title: "application" }} />
+            <Tabs.Screen name="preparations" options={{ title: "preparations" }} />
+          </Tabs>
+        </View>
+      </View>
       {/* Одна кнопка к команде EVO с любого экрана кабинета; не рисуется на «Входящих» и в беседе. */}
       <ChatFab />
       </PortalPoll>
+      </EviMemoryProvider>
       <AppMenu
         visible={menuOpen}
         tier={tier}

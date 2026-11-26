@@ -1,4 +1,4 @@
--- 376: «История» дела называет записанный платёж суммой и названием.
+-- 376: «История» дела называет записанный платёж суммой и названием; выгрузка в базу знаний не меняется.
 --
 -- Было: событие `finance.payment.record` в «Истории» и «Ленте» карточки студента
 -- приходило только типом и временем, и две оплаты читались одинаково:
@@ -11,15 +11,58 @@
 -- из самой записи платежа (`payment_events`) и названия обязательства
 -- (`payment_obligations.label`). Строка `money` этого события и так видна только
 -- с `finance.read.summary` (ветка `finance_summary_ok` из 310); те же сумма и
--- название уже видны этому же читателю в блоке «Оплата» карточки
--- (`staff_case_finance_control`, 189: чтение по `finance.read.summary`). Новых
--- прав и новых строк нет; название, которое не прошло бы проверку текста
--- блока «Оплата» (длиннее 500 знаков или с управляющими символами), не
--- отдаётся (`label: null`).
+-- название уже видны этому же читателю в блоке «Договор и оплата» карточки
+-- (`staff_case_agreement_v1`, 189: чтение дела вместе с `finance.read.summary`
+-- либо полное право на финансы). Новых прав и новых строк нет; название, которое
+-- не прошло бы проверку текста этого блока (длиннее 500 знаков или с
+-- управляющими символами), не отдаётся (`label: null`).
 --
--- Тело функции меняется самопроверяемой заменой, как в 302: якорь — конец
--- поля `direction_change`; если тело разошлось с ожидаемым, миграция падает,
--- а не тихо пропускает изменение. Права, владелец и сигнатура не меняются.
+-- Выгрузка в базу знаний (решение владельца, 27.11.2026): страницу «История дела»
+-- в `platform_private.kb_canonical_snapshots` (203) строит та же
+-- `platform.staff_student_case_activity`, а события кладёт в текст как есть.
+-- Без правки сумма и название каждого платежа ушли бы в базу знаний, а их там
+-- быть не должно. Поэтому первым шагом у каждого события перед записью на
+-- страницу срезается ключ `payment_detail`; всё остальное в выгрузке (порядок,
+-- остальные поля событий, постраничный обход) остаётся ровно таким, каким было
+-- до 376. Шаг выгрузки стоит первым: ни в какой момент она не видит нового поля.
+--
+-- Тела обеих функций меняются самопроверяемой заменой, как в 302: якорь в
+-- выгрузке — вызов `jsonb_pretty(page->'events')`, в «Истории» — конец поля
+-- `direction_change`. Если якорь встречается не ровно один раз или тело разошлось
+-- с ожидаемым, миграция падает, а не тихо пропускает изменение; повторное
+-- применение тоже падает (якоря уже нет). Права, владелец, SECURITY DEFINER,
+-- search_path и сигнатуры обеих функций не меняются.
+
+DO $a376_export$
+DECLARE original TEXT; body TEXT;
+BEGIN
+  IF to_regprocedure('platform_private.kb_canonical_snapshots(uuid,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'a376_export_missing';
+  END IF;
+  original := pg_get_functiondef(
+    'platform_private.kb_canonical_snapshots(uuid,jsonb)'::regprocedure
+  );
+  IF (length(original) - length(replace(original, $chk$jsonb_pretty(page->'events')$chk$, '')))
+    / length($chk$jsonb_pretty(page->'events')$chk$) <> 1
+  THEN
+    RAISE EXCEPTION 'a376_export_anchor_drift';
+  END IF;
+  body := replace(
+    original,
+    $old$jsonb_pretty(page->'events')$old$,
+    $new$jsonb_pretty((SELECT coalesce(jsonb_agg(history_event - 'payment_detail' ORDER BY history_ordinal), '[]'::JSONB)
+      FROM jsonb_array_elements(page->'events') WITH ORDINALITY AS history(history_event, history_ordinal)))$new$
+  );
+  IF body = original
+    OR (length(body) - length(replace(body, $chk$'payment_detail'$chk$, '')))
+      / length($chk$'payment_detail'$chk$) <> 1
+    OR position($chk$jsonb_pretty(page->'events')$chk$ IN body) <> 0
+  THEN
+    RAISE EXCEPTION 'a376_export_anchor_drift';
+  END IF;
+  EXECUTE body;
+END
+$a376_export$;
 
 DO $a376_activity$
 DECLARE original TEXT; body TEXT;

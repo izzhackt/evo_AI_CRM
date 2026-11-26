@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { journalEvent } from "../src/lib/v3/wording.ts";
 
@@ -128,4 +128,28 @@ test("376: only the recorded payment gains `payment_detail`, read from its own p
   for (const file of ["src/components/staff/profile/tabs.tsx", "src/components/staff/profile/case-work-view.ts", "src/components/staff/profile/next/tabs/HistoryNext.tsx", "src/components/staff/knowledge/KnowledgeDossiers.tsx"]) {
     assert.match(read(file), /journalEventText\(\w+\.transition, \w+\.directionChange, \w+\.paymentDetail\)/u, file);
   }
+  // Название может быть длиной до 500 знаков: оба вида строки «Истории» переносят длинное слово, а не вылезают из карточки.
+  assert.equal((read("src/components/staff/profile/next/tabs/HistoryNext.tsx").match(/\bbreak-words\b/gu) ?? []).length, 2);
+});
+
+// Решение владельца 27.11.2026: выгрузка в базу знаний остаётся ровно такой, какой была до 376 (без суммы и названия платежей).
+// Проверено на настоящей БД (цепочка 1..375 + 376: текст выгрузки побайтно тот же, с 376 и без); здесь — контракт текста миграции.
+test("376: the knowledge-base export keeps its text — the same migration strips `payment_detail` from every event of the «История дела» page", () => {
+  const exportDefinition = read("supabase/migrations/203_platform_knowledge_canonical_exports.sql");
+  // Страница строится из событий «Истории» как есть, и вызов, который заменяет 376, в теле ровно один.
+  assert.match(exportDefinition, /page:=platform\.staff_student_case_activity\(c\.id,100,/u);
+  assert.equal(exportDefinition.match(/jsonb_pretty\(page->'events'\)/gu)?.length, 1);
+  assert.match(paymentMigration, /DO \$a376_export\$/u);
+  assert.match(paymentMigration, /to_regprocedure\('platform_private\.kb_canonical_snapshots\(uuid,jsonb\)'\)/u);
+  assert.match(paymentMigration, /jsonb_pretty\(\(SELECT coalesce\(jsonb_agg\(history_event - 'payment_detail' ORDER BY history_ordinal\), '\[\]'::JSONB\)\s+FROM jsonb_array_elements\(page->'events'\) WITH ORDINALITY AS history\(history_event, history_ordinal\)\)\)/u);
+  assert.match(paymentMigration, /RAISE EXCEPTION 'a376_export_missing'/u);
+  assert.match(paymentMigration, /RAISE EXCEPTION 'a376_export_anchor_drift'/u);
+  assert.match(paymentMigration, /position\(\$chk\$jsonb_pretty\(page->'events'\)\$chk\$ IN body\) <> 0/u, "старого вызова в новом теле не остаётся");
+  // Шаг выгрузки стоит раньше шага «Истории»: ни в какой момент выгрузка не видит нового поля.
+  assert.ok(paymentMigration.indexOf("DO $a376_export$") !== -1 && paymentMigration.indexOf("DO $a376_export$") < paymentMigration.indexOf("DO $a376_activity$"));
+  // Функцию выгрузки создаёт только 203: пересоздание в другой миграции разошлось бы с якорем 376 и потеряло срез.
+  const migrationsDirectory = new URL("../supabase/migrations/", import.meta.url);
+  const redefining = readdirSync(migrationsDirectory).filter((name) => name.endsWith(".sql")
+    && /CREATE (?:OR REPLACE )?FUNCTION platform_private\.kb_canonical_snapshots\b/iu.test(readFileSync(new URL(name, migrationsDirectory), "utf8")));
+  assert.deepEqual(redefining, ["203_platform_knowledge_canonical_exports.sql"]);
 });

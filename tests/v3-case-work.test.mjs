@@ -280,7 +280,8 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
   assert.match(read("src/components/staff/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
-  assert.match(text, /Оплата 40% оплачено · остаток 900 \$/u);
+  // Один вид денег на карточку (как в таблице «Оплата»): «900 USD», не «900 $».
+  assert.match(text, /Оплата 40% оплачено · остаток 900 USD/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
   assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);

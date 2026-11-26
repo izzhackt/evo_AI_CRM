@@ -399,7 +399,7 @@ const SCENARIOS = {
     work: work({ aiConsent: { status: null, decidedAt: null, aiAllowed: true } }) },
   // Admin по делу, связанному с лидом: контакты, доступ к порталу, продажа, оплата, «Данные продажи».
   "admin": { actor: ADMIN, profile: profile({ leadId: LEAD_ID, email: "student@example.invalid", phone: "+996 000 000 001" }),
-    draft: draft({ finance: true, contract: true, paidPercent: 40, paid: "600 $", remaining: "900 $", saleConditions: SALE_CONDITIONS,
+    draft: draft({ finance: true, contract: true, paidPercent: 40, paid: "600 USD", remaining: "900 USD", saleConditions: SALE_CONDITIONS,
       studentApplication: { id: uuid("11111111", 1), status: "approved", revision: 1, email: "student@example.invalid", questionnaire: {},
         submittedAt: "2026-08-20T04:00:00.000Z", decidedAt: "2026-08-21T04:00:00.000Z", decisionReason: null, studentCaseId: CASE_ID,
         admissionsDirection: "CN", canonicalLeadId: LEAD_ID } }),

@@ -1,5 +1,6 @@
 "use client";
 import { startTransition, useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { HelpTip } from "@/components/kit/HelpTip";
 import { useRouter } from "next/navigation";
 import { answerCaseHelpAction, preparePartnerPacketAction } from "@/lib/platform-admissions-support-actions";
 import type { CaseHelpRequest, CaseOperationResult, PacketGeneratedExport, PacketWorkspace, PartnerPacket } from "@/lib/platform-admissions-support-contract";
@@ -221,7 +222,8 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
   // Состав на странице устарел: сообщение просит «обновить данные», кнопка делает это на месте.
   const stale = STALE_STATUSES.includes(status);
   return <div className="space-y-5" aria-busy={busy}>
-    <p className="text-sm leading-6 text-fg-2">{words.cap}</p>
+    {/* Лимит ZIP — правило, а не данные: за «?» (чек-лист 23.11). */}
+    <p className="flex items-center gap-1 text-sm text-fg-2">{words.zipLimit}<HelpTip label={`Пояснение: ${words.zipLimit}`}>{words.cap}</HelpTip></p>
     <PreparePartnerPacketForm caseId={caseId} workspace={workspace} applications={applications} active={active}
       disabled={busy || Boolean(unresolved) || uncertainReconciles.length > 0 || pending} action={prepare} initialApplicationId={initialApplicationId} />
     <div><h4 className="text-sm font-medium text-fg-2">{words.recent}</h4>{!workspace.packets.length ? <p className="mt-2 text-sm text-fg-3">{words.noPackets}</p> : <ul className="mt-3 space-y-3">{workspace.packets.map(packet => {

@@ -85,7 +85,8 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
 
     {item.canUpload ? <details className={styles.details} open={!draft && !item.submission ? true : undefined}>
       <summary className={styles.summary}>{item.submission?.review && item.submission.review.decision !== "approved" ? strings.correctFile : draft || item.submission ? strings.replaceFile : strings.chooseFile}</summary>
-      <p className={styles.note}>{sendAfterSave ? strings.saveHintOneTap : strings.saveHint}</p>
+      {/* Сотруднику это правило показывает «?» у «Документов программы» (CRM, 25.11); студенту — как было. */}
+      {audience === "student" ? <p className={styles.note}>{sendAfterSave ? strings.saveHintOneTap : strings.saveHint}</p> : null}
       <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
         sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={sending} quiet={selection !== null} />
     </details> : <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}

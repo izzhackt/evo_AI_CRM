@@ -23,7 +23,7 @@ const SHARED_REASON_ROWS = 4;
  * звонок») стоит один раз под заголовком, а не на каждой из десятков строк.
  * Только там, где причина говорит больше заголовка (у «Просрочено» слово
  * «шаг просрочен» повторило бы его), и только у чистых групп без задач; у
- * группы со своей строкой-пояснением (переписки) — не трогаем.
+ * группы со своей строкой-пояснением — не трогаем.
  */
 export function sharedReason(band: TodayBandView): string | null {
   if (band.band !== "waiting" || band.note !== null || band.items.length < SHARED_REASON_ROWS) return null;

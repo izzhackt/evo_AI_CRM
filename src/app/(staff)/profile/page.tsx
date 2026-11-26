@@ -427,9 +427,12 @@ export default async function ProfilePart({
     leadCallsRead,
     leadDialRead,
     leadTasksRead,
-    // «Доступ к порталу» (343): есть ли у дела кабинет. Создаёт его Admin или куратор этого дела (363), вне просмотра
-    // роли; кому именно можно, решает база (остальным она отказывает, и кнопки нет). Сбой — без кнопки.
-    caseTarget && tab === "overview" && !isStaffPreview(actor) && (actor.systemRole === "admin" || staffHasPermission(actor, "case.read.full"))
+    // «Доступ к порталу» (343): есть ли у дела кабинет. Открывает его и сбрасывает пароль Admin или куратор этого дела
+    // (363, 374), вне просмотра роли; кому именно можно, решает база (остальным она отказывает, и кнопки нет). Сбой —
+    // без кнопки. Admin читает на «Обзоре»: пункт «⋯» у него есть на любой вкладке и без чтения. Куратору пункт даёт
+    // только это чтение, поэтому оно на любой вкладке (25.11: на «Деньгах» в «⋯» было одно «Завершить дело»).
+    caseTarget && !isStaffPreview(actor)
+      && (actor.systemRole === "admin" ? tab === "overview" : staffHasPermission(actor, "case.read.full"))
       ? readStudentCaseCabinet(actor, caseTarget.studentCaseId).catch(() => null) : null,
   ]);
   const caseClosure = previewClosure(actor, caseClosureRead);

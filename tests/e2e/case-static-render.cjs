@@ -380,7 +380,7 @@ const SCENARIOS = {
   "curator": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null, work: work(),
     closure: { studentCaseId: CASE_ID, state: "active", admissionsVersion: "4", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true } },
   // Кабинет студенту открывает и его куратор (363): база отдала куратору этого дела состояние кабинета — форма
-  // «Создать кабинет» в «Доступе к порталу»; открытый кабинет куратору ничего не показывает (сброс пароля — у Admin).
+  // «Создать кабинет» в «Доступе к порталу»; открытый кабинет — логин студента и «Сбросить пароль» (374).
   "curator-cabinet": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
     work: work(), cabinet: { state: "none", refusal: null, login: null, email: null, requestId: uuid("12121212", 20),
       resetRequestId: uuid("12121212", 21), portalOrigin: "https://app.example.invalid", firstName: "Айдай", lastName: "Чынарова" } },

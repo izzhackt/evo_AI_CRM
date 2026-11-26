@@ -48,6 +48,7 @@ export type NetworkErrorKey = "error.offline" | "error.server";
 
 export type SessionState =
   | { kind: "signedOut"; accountDeleted: boolean }
+  /** Идёт вход (`SessionProvider.signIn`): живёт не дольше самого вызова; успех, отказ и исключение оставляют другое состояние, и заканчивает его сам вызов, а не событие библиотеки. */
   | { kind: "authenticating" }
   | { kind: "resolvingAccess" }
   | { kind: "active"; session: PortalSession }

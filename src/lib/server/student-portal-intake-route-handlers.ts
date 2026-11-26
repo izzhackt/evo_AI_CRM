@@ -5,6 +5,11 @@ import { isStudentSignupConfirmationEnvelope } from "../student-signup-confirmat
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { createRecoveryRateLimiter, recoveryClientIpKey, type RecoveryRateLimit, type RecoveryRateLimiter } from "../student-password-recovery-rate-limit.ts";
+import { invitedNamePrefill } from "../student-invited-name.ts";
+import { readBoundedJsonBody as readJsonBodyWithLimits } from "./bounded-json-body.ts";
+import type { RegistrationLinkCheck } from "./student-registration-link.ts";
+
 import { STUDENT_APPLICATION_CONSENT_VERSION, validateStudentApplicationDraft, type StudentApplicationDraft } from "../student-application-contract.ts";
 import {
   normalizeStudentInviteIdentity,
@@ -223,6 +228,71 @@ export function createStudentPortalRegistrationResendHandler(
     if (result.status === "pending_confirmation") return pendingResponse(result);
     const codes = { confirmed: 200, expired: 410, rate_limit: 429, account_conflict: 409, unavailable: 503 } as const;
     return statusResponse(codes[result.status], result.status);
+  };
+}
+
+// --- Проверка личной ссылки регистрации (приложение, G11 аудита паритета 25.11.2026) -----------------------------------
+// Веб проверяет ссылку на сервере при открытии /apply?invite= и показывает отдельные экраны «уже использована», «срок
+// истёк», «не удалось проверить» (src/app/apply/page.tsx, RegistrationInviteRequired.tsx). Приложению нужен тот же ответ до
+// анкеты, чтобы не заставлять человека заполнять семь шагов ради отказа на последнем. Обработчик - тонкая обёртка над той
+// же `checkRegistrationLink`; он отвечает только статусом ссылки и, для действующей, именем приглашённого для предзаполнения
+// (веб делает то же на странице): ничего больше. Токен лежит в теле, не в адресе, чтобы он не попал в журналы доступа.
+const LINK_CHECK_API_KEYS = "invite";
+const MAX_LINK_CHECK_BODY_BYTES = 512;
+const MAX_LINK_CHECK_INVITE_CHARS = 256;
+// Проверка - бесплатный «да или нет» по токену; токен в 192 бита не подобрать, но маршрут не должен быть и бесплатным
+// генератором нагрузки на базу. Один процесс приложения: счётчик в памяти (как у восстановления пароля). Приложение при
+// отказе 429 пропускает проверку и работает как раньше, поэтому предел может быть щедрым для общих адресов операторов.
+const LINK_CHECK_RATE: RecoveryRateLimit = Object.freeze({ limit: 60, windowMs: 10 * 60_000 });
+const defaultLinkCheckLimiter = createRecoveryRateLimiter();
+
+export type StudentPortalRegistrationLinkCheckDependencies = Readonly<{
+  /** По умолчанию `checkRegistrationLink` (service-role RPC `check_student_registration_link_v1`). */
+  check: (token: string) => Promise<RegistrationLinkCheck>;
+  limiter: RecoveryRateLimiter;
+  rule: RecoveryRateLimit;
+}>;
+
+export function createStudentPortalRegistrationLinkCheckHandler(
+  dependencies?: Partial<StudentPortalRegistrationLinkCheckDependencies>,
+): (request: Request) => Promise<Response> {
+  const check = dependencies?.check ?? (async (token: string) => {
+    const { checkRegistrationLink } = await import("./student-registration-link.ts");
+    return checkRegistrationLink(token);
+  });
+  const limiter = dependencies?.limiter ?? defaultLinkCheckLimiter;
+  const rule = dependencies?.rule ?? LINK_CHECK_RATE;
+  return async (request: Request): Promise<Response> => {
+    // Частота считается до разбора тела: мусорные запросы тоже расходуют лимит адреса.
+    const key = `registration-link-check:${recoveryClientIpKey(request.headers.get("x-forwarded-for"))}`;
+    if (!limiter.consume(key, rule)) return statusResponse(429, "rate_limit");
+    if (!/^application\/json\s*(;|$)/i.test(request.headers.get("content-type") ?? "")) return statusResponse(415, "invalid");
+    let body: unknown;
+    try {
+      body = await readJsonBodyWithLimits(request, { maxBytes: MAX_LINK_CHECK_BODY_BYTES, deadlineMs: BODY_READ_DEADLINE_MS });
+    } catch {
+      return statusResponse(400, "invalid");
+    }
+    if (typeof body !== "object" || body === null || Array.isArray(body) || Object.keys(body).join(",") !== LINK_CHECK_API_KEYS) {
+      return statusResponse(400, "invalid");
+    }
+    const invite = (body as Record<string, unknown>).invite;
+    if (typeof invite !== "string" || invite.length > MAX_LINK_CHECK_INVITE_CHARS) return statusResponse(400, "invalid");
+    let result: RegistrationLinkCheck;
+    try {
+      result = await check(invite);
+    } catch {
+      result = { status: "unavailable" };
+    }
+    // Явная проекция: в ответ не попадает ничего, кроме статуса и (у действующей ссылки) имени для предзаполнения.
+    if (result.status === "valid") {
+      const name = invitedNamePrefill(result.displayName);
+      return Response.json(
+        { status: "valid", firstName: name?.firstName ?? null, lastName: name?.lastName ?? null },
+        { status: 200, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } },
+      );
+    }
+    return statusResponse(200, result.status);
   };
 }
 

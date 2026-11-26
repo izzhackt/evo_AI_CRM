@@ -6,9 +6,9 @@ import { readEnglishLesson, readEnglishModules, readEnglishReview } from "@/feat
 
 const key = (userKey: string, name: string, ...rest: unknown[]) => ["portal", userKey, name, ...rest] as const;
 
-export function useEnglishModules() {
+export function useEnglishModules(enabled = true) {
   const { transport, userKey } = usePortalApi();
-  return useQuery({ queryKey: key(userKey, "english-modules"), queryFn: () => readEnglishModules(transport), staleTime: 0 });
+  return useQuery({ queryKey: key(userKey, "english-modules"), queryFn: () => readEnglishModules(transport), staleTime: 0, enabled });
 }
 
 export function useEnglishLesson(lessonId: string) {

@@ -6,7 +6,8 @@ import { isConnectedStudentPortalApi, isPublicStudentRegistrationApi } from "../
 import { runEviTurn } from "../src/lib/portal/evi-core.ts";
 import { parseProfessionCard } from "../src/lib/portal/professions.ts";
 import { resetEviSlots } from "../src/lib/server/evi/limiter.ts";
-import { createStudentPortalMobileEviHandler } from "../src/lib/server/student-portal-mobile-evi-route-handler.ts";
+import { readEviApiKey } from "../src/lib/server/evi/messages.ts";
+import { createStudentPortalMobileEviHandler, createStudentPortalMobileEviStatusHandler } from "../src/lib/server/student-portal-mobile-evi-route-handler.ts";
 
 // «Подбор с Эви» в приложении: границы маршрута и общее ядро. Все данные выдуманы; Supabase и модель не вызываются:
 // клиент базы — заглушка с записью вызовов, сеть модели — подмена `fetch` на границе провайдера (api.anthropic.com).
@@ -250,25 +251,162 @@ test("the rate limit is per student: the 41st answer in ten minutes is «busy»,
   assert.equal((await (await other.handler(post({ history: HISTORY }))).json()).ok, true);
 });
 
-test("route contract: a connected Student POST-only path, never public, no look-alikes", () => {
+test("route contract: a connected Student path for POST (the turn) and GET (the status) only, never public, no look-alikes", () => {
   const path = "/api/portal/mobile/evi";
-  assert.equal(isConnectedStudentPortalApi(path, "POST"), true);
-  assert.equal(isPublicStudentRegistrationApi(path, "POST"), false);
-  for (const method of ["GET", "PUT", "DELETE"]) assert.equal(isConnectedStudentPortalApi(path, method), false, method);
-  for (const variant of [`${path}/`, `${path}/x`, path.toUpperCase(), "/api/portal/mobile/evi2"]) {
-    assert.equal(isConnectedStudentPortalApi(variant, "POST") || isPublicStudentRegistrationApi(variant, "POST"), false, variant);
+  for (const method of ["POST", "GET"]) {
+    assert.equal(isConnectedStudentPortalApi(path, method), true, method);
+    assert.equal(isPublicStudentRegistrationApi(path, method), false, method);
+  }
+  for (const method of ["PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]) assert.equal(isConnectedStudentPortalApi(path, method), false, method);
+  for (const variant of [`${path}/`, `${path}/x`, path.toUpperCase(), "/api/portal/mobile/evi2", "/api/portal/mobile/evi/status"]) {
+    for (const method of ["POST", "GET"]) {
+      assert.equal(isConnectedStudentPortalApi(variant, method) || isPublicStudentRegistrationApi(variant, method), false, `${method} ${variant}`);
+    }
   }
 });
 
-test("the route file is POST-only on the node runtime, and web and mobile share one core", () => {
+test("the route file exports exactly POST (the turn) and GET (the status) on the node runtime, and web and mobile share one core", () => {
   const route = read("src/app/api/portal/mobile/evi/route.ts");
   assert.match(route, /export const POST = createStudentPortalMobileEviHandler\(\);/u);
+  assert.match(route, /export const GET = createStudentPortalMobileEviStatusHandler\(\);/u);
   assert.match(route, /export const runtime = "nodejs";/u);
   assert.match(route, /export const dynamic = "force-dynamic";/u);
-  assert.doesNotMatch(route, /GET|PUT|DELETE/u);
+  assert.deepEqual([...route.matchAll(/^export const ([A-Za-z]+) =/gmu)].map((match) => match[1]).sort(), ["GET", "POST", "dynamic", "runtime"]);
+  assert.doesNotMatch(route, /export (?:async )?function|export const (?:PUT|DELETE|PATCH|HEAD|OPTIONS)\b/u);
   const handler = read("src/lib/server/student-portal-mobile-evi-route-handler.ts");
   assert.match(handler, /resolveStudentPortalBearerActor/u);
   assert.match(handler, /createSupabaseBearerServerClient/u);
   assert.doesNotMatch(handler, /cookies\(|createSupabaseServerClient|console\./u, "no cookie path, no logging");
   assert.doesNotMatch(handler, /eviSystemPrompt|callEviModel|takeEviSlot/u, "no prompt, model or limiter code of its own");
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// GET: «есть ли у сервера ключ Эви» (приложение не предлагает разговор, который заведомо не ответит, как страница «Профессий»)
+
+const STATUS_URL = "https://app.evoadmissions.com/api/portal/mobile/evi";
+const get = (headers = { authorization: `Bearer ${TOKEN}` }, method = "GET") => new Request(STATUS_URL, { method, headers });
+
+function statusHarness({ env = ENV, resolve } = {}) {
+  const state = { resolved: [] };
+  const handler = createStudentPortalMobileEviStatusHandler({
+    async resolveActor(token) {
+      state.resolved.push(token);
+      return resolve ? resolve(token) : { status: "authenticated", actor: STUDENT };
+    },
+    env,
+  });
+  return { handler, state };
+}
+
+test("status: no token, a malformed token or another scheme is 401 before anything is resolved; cookies are never read or set", async () => {
+  const { handler, state } = statusHarness();
+  for (const headers of [{}, { authorization: "Bearer" }, { authorization: "Bearer not-a-jwt" }, { authorization: `Basic ${TOKEN}` }, { authorization: `Bearer ${TOKEN} extra` }, { cookie: "sb-access-token=abc; sb-refresh-token=def" }]) {
+    const response = await handler(get(headers));
+    assert.equal(response.status, 401, JSON.stringify(headers));
+    assert.deepEqual(await response.json(), { error: "unauthorized" });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+  assert.deepEqual(state.resolved, []);
+});
+
+test("status: an expired or rejected session is 401, a staff account or any non-student is 403, an unavailable authority is 503 - as for the turn", async () => {
+  const outcomes = [
+    [{ status: "invalid", actor: null, reason: "supabase_session_invalid" }, 401, "unauthorized"],
+    [{ status: "anonymous", actor: null }, 401, "unauthorized"],
+    [{ status: "invalid", actor: null, reason: "student_authority_invalid" }, 403, "not_a_student"],
+    [{ status: "invalid", actor: null, reason: "student_authority_unavailable" }, 503, "unavailable"],
+  ];
+  for (const [result, status, error] of outcomes) {
+    const { handler } = statusHarness({ resolve: () => result });
+    const response = await handler(get());
+    assert.equal(response.status, status, JSON.stringify(result));
+    assert.deepEqual(await response.json(), { error });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("set-cookie"), null);
+    // Отказ тем же словом, что у POST: приложение не отличает два маршрута по тексту ошибки.
+    const turn = harness({ resolve: () => result });
+    const turnResponse = await turn.handler(post({ history: HISTORY }));
+    assert.equal(turnResponse.status, status);
+    assert.deepEqual(await turnResponse.json(), { error });
+  }
+});
+
+test("status: with the key set on the server the answer is exactly { available: true }, uncached, and never carries the key", async () => {
+  const { handler, state } = statusHarness();
+  const response = await handler(get());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("set-cookie"), null);
+  const text = await response.text();
+  assert.deepEqual(JSON.parse(text), { available: true });
+  assert.deepEqual(Object.keys(JSON.parse(text)), ["available"]);
+  assert.ok(!text.includes(KEY) && !text.includes("sk-ant"), "the key is never part of the answer");
+  assert.deepEqual(state.resolved, [TOKEN], "the caller is verified with the token before the flag is read");
+});
+
+test("status: no key, an empty key or a blank key on the server is { available: false } - the same check the web page makes", async () => {
+  for (const env of [{}, { EVO_EVI_ANTHROPIC_API_KEY: "" }, { EVO_EVI_ANTHROPIC_API_KEY: "   " }, { EVO_EVI_ANTHROPIC_API_KEY: undefined }, { OTHER_KEY: KEY }]) {
+    const { handler } = statusHarness({ env });
+    const response = await handler(get());
+    assert.equal(response.status, 200, JSON.stringify(env));
+    assert.deepEqual(await response.json(), { available: false }, JSON.stringify(env));
+    // Совпадение с проверкой страницы веба (`readEviApiKey(process.env) !== null`), а не вторая своя.
+    assert.equal(readEviApiKey(env) !== null, false);
+  }
+  for (const env of [ENV, { EVO_EVI_ANTHROPIC_API_KEY: ` ${KEY} ` }]) {
+    assert.equal(readEviApiKey(env) !== null, true);
+    assert.deepEqual(await (await statusHarness({ env }).handler(get())).json(), { available: true });
+  }
+});
+
+test("status: without an injected environment the flag follows the server's process.env at the time of each request", async () => {
+  const before = process.env.EVO_EVI_ANTHROPIC_API_KEY;
+  try {
+    const handler = createStudentPortalMobileEviStatusHandler({ resolveActor: async () => ({ status: "authenticated", actor: STUDENT }) });
+    delete process.env.EVO_EVI_ANTHROPIC_API_KEY;
+    assert.deepEqual(await (await handler(get())).json(), { available: false });
+    process.env.EVO_EVI_ANTHROPIC_API_KEY = KEY;
+    assert.deepEqual(await (await handler(get())).json(), { available: true });
+  } finally {
+    if (before === undefined) delete process.env.EVO_EVI_ANTHROPIC_API_KEY; else process.env.EVO_EVI_ANTHROPIC_API_KEY = before;
+  }
+});
+
+test("status: it is read-only - no database client, no model call, no rate slot is spent, and it works for a student who has used up the turn limit", async () => {
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (...args) => { calls.push(args); throw new Error("the status route must not call the network"); };
+  try {
+    const first = harness();
+    for (let index = 0; index < 40; index += 1) assert.equal((await (await first.handler(post({ history: HISTORY }))).json()).ok, true);
+    assert.deepEqual(await (await first.handler(post({ history: HISTORY }))).json(), { ok: false, reason: "busy" });
+    const { handler } = statusHarness();
+    for (let index = 0; index < 5; index += 1) assert.deepEqual(await (await handler(get())).json(), { available: true });
+    assert.deepEqual(calls, []);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  const handlerSource = read("src/lib/server/student-portal-mobile-evi-route-handler.ts");
+  const status = handlerSource.slice(handlerSource.indexOf("export function createStudentPortalMobileEviStatusHandler"));
+  assert.doesNotMatch(status, /createClient|createSupabase|runTurn|callEviModel|takeEviSlot|cookies\(|console\./u);
+  assert.match(status, /readEviApiKey\(deps\.env \?\? process\.env\) !== null/u);
+});
+
+test("status: the web page and the status route use one key check, so «Эви отвечает» cannot drift between them", () => {
+  const page = read("src/app/(portal)/portal/professions/page.tsx");
+  assert.match(page, /const eviOnline = readEviApiKey\(process\.env\) !== null;/u);
+  assert.match(page, /import \{ eviOwnerKey, readEviApiKey \} from "@\/lib\/server\/evi\/messages";/u);
+  assert.match(read("src/lib/server/student-portal-mobile-evi-route-handler.ts"), /import \{ readEviApiKey, type Env \} from "\.\/evi\/messages\.ts";/u);
+  // Ядро разговора берёт ключ той же функцией: без ключа ход отвечает «unavailable», и это то же состояние.
+  assert.match(read("src/lib/portal/evi-core.ts"), /readEviApiKey\(dependencies\.env \?\? process\.env\)/u);
+});
+
+test("status: nothing is read from the request body or its content type", async () => {
+  const { handler } = statusHarness();
+  // Метод выбирает Next по экспорту маршрута; обработчик тело не читает, лишний заголовок ничего не меняет.
+  const response = await handler(new Request(STATUS_URL, { method: "GET", headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" } }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { available: true });
 });

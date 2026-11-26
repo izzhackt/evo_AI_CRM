@@ -558,6 +558,58 @@ describe("сессия: постоянный конфликт не гонит э
     session.dispose();
   });
 
+  it("экран закрыт, пока идёт перечитывание после конфликта: наложенный выбор всё равно уходит одной досылкой (ревью #1598, F1)", async () => {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], [SAVE_RPC]: [conflict(), saveReceipt(8)], [READ_RPC]: [draftAttempt({ revision: 7 })] });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    const transport: RpcTransport = async (name, args, options) => {
+      if (name === READ_RPC && (reads += 1) === 1) await held; // перечитывание висит, пока тест не отпустит
+      return h.env.transport(name, args, options);
+    };
+    const session = new CscaTestSession({ ...h.env, transport }, FORM, null);
+    await session.start();
+    const keys = attempt.items.map((i: { itemKey: string }) => i.itemKey) as string[];
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS); // сохранение: конфликт, перечитывание в полёте
+    expect(reads).toBe(1);
+    session.dispose();
+    release();
+    await settle();
+    await h.advance(120_000);
+    await settle();
+    const sent = ofName(h, SAVE_RPC);
+    expect(sent).toHaveLength(2); // досылка при закрытии (на `main` она уходила, без правки её нет)
+    expect((sent[1].args.p_answers as Record<string, string>)[keys[0]]).toBe("a");
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("обрыв посреди серии серию не обнуляет: конфликт, обрыв, конфликт, конфликт - шесть сохранений (три из них попытки слоя RPC одного запроса) и три перечитывания, потом тишина (ревью #1598, F2)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [conflict(), NETWORK, NETWORK, NETWORK, conflict(), conflict(), conflict(), saveReceipt(9)], [READ_RPC]: [draftAttempt({ revision: 7 })] });
+    session.select(keys[0], "a");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    expect(ofName(h, READ_RPC)).toHaveLength(3);
+    expect(session.getState().notice).toBe("conflict");
+    expect(session.getState().saveStatus).toBe("saved");
+    session.dispose();
+  });
+
+  it("после предела флажок, как и ответ, начинает новую серию: ещё одно сохранение и два круга (ревью #1598, F2)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    session.toggleFlag(keys[1]);
+    await h.advance(120_000);
+    await settle();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    session.dispose();
+  });
+
   it("экран закрыт во время паузы после конфликта: наложенные выборы уходят одной досылкой, дальше тишина", async () => {
     const { h, session, keys } = await running({ [SAVE_RPC]: alwaysConflict(), [READ_RPC]: [draftAttempt()] });
     session.select(keys[0], "a");

@@ -2,7 +2,7 @@
 // бесконечных анимаций»). Системная настройка «Уменьшить движение» ему не нужна: пульсировать нечему ни при какой. Кадры в
 // Jest не идут, поэтому проверяются отсутствие цикла и вид блоков. Блоки берутся из `CardSkeleton`: у самого `Skeleton`
 // нет testID.
-import { act, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { Animated, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LangProvider } from "@/i18n/LangProvider";
 import { lightTokens } from "@/theme/tokens.generated";
 import { ThemeProvider } from "@/theme/ThemeProvider";
-import { CardSkeleton } from "@/ui/CardParts";
+import { CardSkeleton, LinkButton } from "@/ui/CardParts";
 import { setReducedMotionForTests } from "@/ui/motion";
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } };
@@ -96,5 +96,27 @@ describe("Skeleton: доступность и настройка на лету",
   it("число строк карточки: заголовок и заданное число строк", async () => {
     await render(wrap(<CardSkeleton testID="card" label="Загрузка" lines={4} />));
     expect(blocks()).toHaveLength(5);
+  });
+});
+
+describe("LinkButton: недоступная ссылка", () => {
+  it("по умолчанию доступна: нажатие доходит, вид прежний (цель 44 pt без прозрачности)", async () => {
+    const onPress = jest.fn();
+    await render(wrap(<LinkButton label="К темам" onPress={onPress} testID="link" />));
+    const link = screen.getByTestId("link");
+    expect(link.props.accessibilityState?.disabled).toBeFalsy();
+    expect(StyleSheet.flatten(link.props.style as never)).toEqual({ minHeight: 44, justifyContent: "center" });
+    await fireEvent.press(link);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("`disabled`: читалка слышит «недоступно», нажатие не доходит, ссылка приглушена", async () => {
+    const onPress = jest.fn();
+    await render(wrap(<LinkButton label="К темам" onPress={onPress} testID="link" disabled />));
+    const link = screen.getByTestId("link");
+    expect(link.props.accessibilityState).toMatchObject({ disabled: true });
+    expect(StyleSheet.flatten(link.props.style as never)).toMatchObject({ minHeight: 44, opacity: 0.6 });
+    await fireEvent.press(link);
+    expect(onPress).not.toHaveBeenCalled();
   });
 });

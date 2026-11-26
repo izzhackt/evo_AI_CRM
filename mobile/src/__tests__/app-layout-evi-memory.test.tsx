@@ -36,6 +36,7 @@ jest.mock("@/features/universities/IndexWarmup", () => ({ UniversityIndexWarmup:
 jest.mock("@/features/learning/csca/useCscaAccess", () => ({ useCscaAccess: () => ({ available: false }) }));
 jest.mock("@/shell/ChatFab", () => ({ ChatFab: () => null }));
 jest.mock("@/shell/MenuSheet", () => ({ MenuSheet: () => null }));
+jest.mock("@/shell/PollFailureNotice", () => ({ PollFailureNotice: () => null }));
 jest.mock("@/shell/TabBar", () => ({ TabBar: () => null }));
 jest.mock("@/shell/TopBar", () => ({ TopBar: () => null }));
 

@@ -3,12 +3,20 @@ name: Сообщения, отправка куратору
 ---
 - evalScript: ${output.msg = 'E2E ' + Date.now()}
 - runFlow: subflows/fresh-login.yaml
-- tapOn:
-    id: tab-messages
-- extendedWaitUntil:
-    visible:
-      id: inbox-chat
-    timeout: 20000
+# Сразу после появления `home-screen` «Главная» ещё проявляется, и первое нажатие на вкладку однажды пропало (QA#3, N4: список не
+# открылся, `inbox-chat` не появился). Ждём, пока экран успокоится, и открываем вкладку парой «нажать - убедиться, что список
+# «Входящих» открылся»: пара повторяется целиком, а проверка остаётся прежней (строка беседы видна).
+- waitForAnimationToEnd:
+    timeout: 8000
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: tab-messages
+      - extendedWaitUntil:
+          visible:
+            id: inbox-chat
+          timeout: 10000
 - tapOn:
     id: inbox-chat
 - extendedWaitUntil:

@@ -27,6 +27,7 @@ import { SubHeader, useBack } from "@/features/learning/ui";
 import { useKeyboardInset } from "@/features/inbox/useKeyboardInset";
 import type { PortalStrings } from "@/i18n";
 import { useLang } from "@/i18n/LangProvider";
+import { useTopChromeHeight } from "@/shell/top-chrome";
 import { sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { useFocusEffect } from "@/lib/focus";
@@ -83,6 +84,7 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
   const portal = usePortalApi();
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardInset();
+  const topChrome = useTopChromeHeight();
   const back = useBack("/professions");
   const p = t("professions");
   // Разговор из памяти кабинета: тот же студент получает его обратно, другой - только приветствие (см. EviMemory.tsx). Без ключа на
@@ -133,7 +135,7 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? topChrome : 0}
       style={{ flex: 1, backgroundColor: tokens.bg, paddingBottom: keyboard > 0 ? keyboard + insets.bottom : 0 }}
       testID="evi-screen"
     >
@@ -142,6 +144,7 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
         subtitle={chat.intro ? null : subtitle}
         subtitleExtra={chat.pending ? <TypingDots size={4} gap={3} tone="text2" testID="evi-header-dots" /> : null}
         avatar={chat.intro ? null : <EviRobot face={chat.pending ? "thinking" : "happy"} settled still size={44} testID="evi-avatar" />}
+        subtitleBelow
         onBack={back}
         backLabel={p.backToGrid}
         testID="evi-title"
@@ -252,7 +255,10 @@ function EviChat({ api, offline }: { api: EviApi; offline: boolean }) {
           <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
             <TextInput
               testID="evi-input"
-              accessibilityLabel={p["evi.inputLabel"]}
+              // Одно имя у поля: iOS (RN, RCTUITextView.accessibilityLabel) склеивает подпись и подсказку, пока поле пусто, и читалка
+              // слышала «Сообщение для Эви Сообщение для Эви…». Пустое поле называет сама подсказка, подпись появляется с первой
+              // буквой, когда подсказки уже нет (иначе у набранного текста не осталось бы имени).
+              accessibilityLabel={chat.draft.length > 0 ? p["evi.inputLabel"] : undefined}
               placeholder={p["evi.placeholder"]}
               placeholderTextColor={tokens.text2}
               value={chat.draft}

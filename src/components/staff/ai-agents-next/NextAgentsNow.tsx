@@ -45,6 +45,8 @@ export function NextAgentsNow({ list, runtimeConfigured }: Readonly<{ list: AiAg
             ИИ-агенты · {state}
           </h2>
           <p className="t-record-title text-balance" data-testid="v3-aia-now-line">{line}</p>
+          {/* Без ключа полоса — единственное место хаба, где об этом сказано (25.11.2026: жёлтая плашка над ней повторяла то же). */}
+          {mode === "key" ? <p className="v3-aia-hero-muted t-body-compact" data-testid="v3-aia-now-key">Его добавляет администратор.</p> : null}
           {mode === "working" ? (
             <ul className="-mb-3 -mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 t-meta" aria-label="Кто работает">
               {running.map((agent) => (

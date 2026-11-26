@@ -4,7 +4,7 @@ import { aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
 import { SyncNowButton } from "@/components/staff/ai-agents/SyncPanel";
 import type { NextAgentPageProps } from "./agent-defaults";
 import { agentGate } from "./agent-gate";
-import { NextBackLink } from "./NextBackLink";
+import { NextBackArrow, NextBackLink } from "./NextBackLink";
 import { NextAgentSwitches } from "./NextAgentSwitches";
 import { NextAgentTab } from "./NextAgentTab";
 import { NextAgentTabs } from "./NextAgentTabs";
@@ -44,8 +44,14 @@ export function NextAgentPage(props: NextAgentPageProps) {
   const body = <NextAgentTab props={props} gate={gate} />;
   // Маскот агента в шапке каждой вкладки (13.11.2026): тот же, что на главной и в чате.
   const mascot = <NextAgentMascot agentKey={detail.key} size="md" />;
-  // Состояние агента — строкой под шапкой, а не `meta`: со вторичной строкой ряд шапки переносится, и «?» на телефоне уходил вниз.
-  const status = <div className="-mt-2 t-meta text-fg-3"><NextAgentStatus detail={detail} now={now} /></div>;
+  // Состояние агента и «Включён» / «Авто» — одной строкой под именем (25.11.2026, шапка на телефоне занимала почти весь экран):
+  // слева что с агентом сейчас, справа переключатели. Не `meta`: со вторичной строкой ряд шапки переносится, и «?» уходил вниз.
+  const status = (
+    <div className="-mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2" data-testid="v3-aia-head-row">
+      <div className="min-w-0 t-meta text-fg-3"><NextAgentStatus detail={detail} now={now} /></div>
+      {switches}
+    </div>
+  );
   const tabs = (bare: boolean) => <NextAgentTabs bare={bare} agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />;
 
   if (chat) {
@@ -59,7 +65,7 @@ export function NextAgentPage(props: NextAgentPageProps) {
     );
   }
   return (
-    <PageShell title={detail.title} leading={mascot} help={roleLine} actions={switches} testId="v3-ai-agent-page" back={<NextBackLink />}>
+    <PageShell title={detail.title} leading={<><NextBackArrow />{mascot}</>} help={roleLine} testId="v3-ai-agent-page" back={<NextBackLink phone="arrow" />}>
       <div className="grid min-w-0 gap-4" data-testid="v3-aia-agent" data-tab={tab}>
         {status}
         {alerts}

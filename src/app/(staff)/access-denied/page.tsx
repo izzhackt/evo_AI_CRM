@@ -27,7 +27,7 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/marketing": "Маркетинг",
   "/finance": "Финансы",
   "/ui-kit": "Набор виджетов",
-  "/ai-agent": "ИИ-агент",
+  "/ai-agent": "Помощник в чате WhatsApp",
   "/ai-agents": "ИИ-агенты",
   "/documents": "Документы",
   "/reply-snippets": "Шаблоны ответов",

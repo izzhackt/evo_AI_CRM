@@ -40,7 +40,13 @@ export type RequestFilters = Readonly<{
 export type RequestCursor = RequestFilters & Readonly<{
   v: 3; direction: "next" | "previous"; timestamp: string; kind: RequestKind; id: string;
 }>;
-export type RequestSelection = RequestFilters & Readonly<{ cursor: RequestCursor | null }>;
+/**
+ * Выбор страницы: курсор («Предыдущая / Следующая страница» — от границы показанной страницы) или номер страницы (377, `page`,
+ * с 1): смещение `(page − 1) × limit`. Вместе не бывают.
+ */
+export type RequestSelection = RequestFilters & Readonly<{ cursor: RequestCursor | null; page?: number }>;
+/** Самая дальняя страница, которую можно открыть номером (предел смещения 377 — 50 000 строк). */
+export const REQUESTS_MAX_PAGE = 1000;
 export type ConsultationRow = Readonly<{
   id: string; status: "requested" | "handled"; studentName: string;
   institutionId: string | null; institutionName: string | null; note: string | null;
@@ -80,6 +86,8 @@ export type RequestsQueue = Readonly<{
   /** Последняя заявка выбранного источника в любом состоянии; null — заявок не было. */
   latestAt: string | null;
   nextCursor: RequestCursor | null; previousCursor: RequestCursor | null;
+  /** Сколько строк отбора стоит до первой строки страницы (377): номер текущей страницы = offset / limit + 1. */
+  offset: number;
 }>;
 
 function invalid(): never { throw new Error("Requests queue unavailable."); }
@@ -140,9 +148,12 @@ export function parseRequestSelection(params: Readonly<Record<string, string | r
   if (!REQUEST_SOURCE_FILTERS.includes(source as RequestSourceFilter)
     || !REQUEST_STATUS_FILTERS.includes(status as RequestStatusFilter)
     || !Number.isInteger(limit) || limit < 1 || limit > REQUESTS_PAGE_SIZE
-    || (params.cursor !== undefined && typeof params.cursor !== "string")) return invalid();
+    || (params.cursor !== undefined && typeof params.cursor !== "string")
+    || (params.page !== undefined && (typeof params.page !== "string" || !/^[1-9]\d{0,3}$/u.test(params.page) || Number(params.page) > REQUESTS_MAX_PAGE))
+    || (params.page !== undefined && params.cursor !== undefined)) return invalid();
   const filters: RequestFilters = { source: source as RequestSourceFilter, status: status as RequestStatusFilter, limit };
-  return { ...filters, cursor: params.cursor === undefined ? null : decodeRequestCursor(params.cursor as string, filters) };
+  const page = params.page === undefined ? 1 : Number(params.page);
+  return { ...filters, cursor: params.cursor === undefined ? null : decodeRequestCursor(params.cursor as string, filters), ...(page > 1 ? { page } : {}) };
 }
 /** Адрес очереди; `open` — запись в правой панели («kind:id»). */
 export function requestsHref(selection: RequestSelection, open: string | null = null): string {
@@ -151,9 +162,24 @@ export function requestsHref(selection: RequestSelection, open: string | null = 
   if (selection.status !== "waiting") params.set("status", selection.status);
   if (selection.limit !== REQUESTS_PAGE_SIZE) params.set("limit", String(selection.limit));
   if (selection.cursor) params.set("cursor", encodeRequestCursor(selection.cursor));
+  else if (selection.page && selection.page > 1) params.set("page", String(selection.page));
   if (open) params.set("open", open);
   return `/requests${params.size ? `?${params}` : ""}`;
 }
+/**
+ * Выбрана не первая страница: курсором («Следующая / Предыдущая») или номером (377, `?page=3`). Пустая такая страница —
+ * «очередь изменилась, пока её листали», а не «заявок нет»: заявки могут ждать на первой.
+ */
+export function requestsPastFirstPage(selection: RequestSelection): boolean {
+  return Boolean(selection.cursor) || (selection.page ?? 1) > 1;
+}
+/** Номера рядом с текущей: первая, последняя и по две с каждой стороны, пропуски — «…». */
+export function pagerNumbers(current: number, last: number): readonly (number | "gap")[] {
+  const wanted = new Set([1, last, current - 2, current - 1, current, current + 1, current + 2].filter((page) => page >= 1 && page <= last));
+  const sorted = [...wanted].sort((a, b) => a - b);
+  return sorted.flatMap((page, index) => (index > 0 && page - sorted[index - 1] > 1 ? ["gap" as const, page] : [page]));
+}
+
 /** Запись правой панели из адреса: «lead|application|consultation:uuid», иначе null. */
 export function parseRequestOpen(value: unknown): Readonly<{ kind: RequestKind; id: string }> | null {
   if (typeof value !== "string") return null;
@@ -170,7 +196,7 @@ export function parseRequestsReturnTo(value: unknown): string | null {
     if (url.pathname !== "/requests" || url.hash || url.origin !== "https://internal.invalid") return null;
     const params: Record<string, string> = {};
     for (const [key, val] of url.searchParams) {
-      if (!["source", "status", "limit", "cursor"].includes(key) || key in params) return null;
+      if (!["source", "status", "limit", "cursor", "page"].includes(key) || key in params) return null;
       params[key] = val;
     }
     return requestsHref(parseRequestSelection(params));
@@ -230,8 +256,9 @@ export function parseRequestsQueue(
   decodeApplication: (raw: unknown) => StudentApplication,
   decodeConsultation: (raw: unknown) => ConsultationRow,
 ): RequestsQueue {
-  if (!keys(value, "counts,latestAt,limit,nextCursor,organizationId,phoneCalls,previousCursor,rows,source,states,status,version")
-    || value.version !== 3 || value.organizationId !== organizationId || !sameFilters(value, selection)
+  if (!keys(value, "counts,latestAt,limit,nextCursor,offset,organizationId,phoneCalls,previousCursor,rows,source,states,status,version")
+    || value.version !== 4 || value.organizationId !== organizationId || !sameFilters(value, selection)
+    || !Number.isSafeInteger(value.offset) || (value.offset as number) < 0
     || !keys(value.states, "application,consultation,lead")
     || !keys(value.counts, "application,consultation,phone_call,website,whatsapp")
     || typeof value.phoneCalls !== "boolean"
@@ -296,7 +323,10 @@ export function parseRequestsQueue(
     if (rows.filter((row) => requestRowTab(row) === tab).length > (counts[tab] ?? 0)) return invalid();
   }
   const knownCount = tabs.reduce((total, tab) => total + (counts[tab] ?? 0), 0);
-  if (!selection.cursor && rows.length !== Math.min(knownCount, selection.limit)) return invalid();
+  const offset = value.offset as number;
+  const skipped = ((selection.page ?? 1) - 1) * selection.limit;
+  // Страница номером: смещение то, что просили (или строк не осталось), строк — сколько осталось после него.
+  if (!selection.cursor && (offset !== skipped || rows.length !== Math.min(Math.max(knownCount - skipped, 0), selection.limit))) return invalid();
   // Заявок источника не было вовсе — нет и строк ни в одном состоянии.
   if (latestAt === null && knownCount !== 0) return invalid();
   const nextCursor = value.nextCursor === null ? null : parseRequestCursor(value.nextCursor, selection);
@@ -305,5 +335,5 @@ export function parseRequestsQueue(
     if (cursor && (cursor.direction !== direction || (boundary ? compare(cursor, position(boundary)) !== 0
       : !selection.cursor || compare(cursor, selection.cursor) !== 0 || cursor.direction === selection.cursor.direction))) return invalid();
   }
-  return { rows, states, phoneCalls, counts, latestAt, nextCursor, previousCursor };
+  return { rows, states, phoneCalls, counts, latestAt, nextCursor, previousCursor, offset };
 }

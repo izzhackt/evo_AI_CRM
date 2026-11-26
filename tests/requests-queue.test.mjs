@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   parseRequestSelection, parseRequestCursor, encodeRequestCursor, decodeRequestCursor,
   requestsHref, parseRequestsReturnTo, parseRequestsQueue, parseRequestOpen, requestTabCount,
@@ -20,7 +21,7 @@ const cursor = (entry, direction = "next", filters = selection) => ({
   timestamp: entry.occurredAt, kind: entry.kind, id: entry.id,
 });
 const page = (rows = [], filters = selection) => ({
-  version: 3, organizationId: org, source: filters.source, status: filters.status, limit: filters.limit,
+  version: 4, offset: 0, organizationId: org, source: filters.source, status: filters.status, limit: filters.limit,
   states: { lead: "ready", application: "ready", consultation: "forbidden" },
   phoneCalls: false,
   counts: { website: rows.length, whatsapp: 0, phone_call: null, application: 0, consultation: null },
@@ -201,4 +202,52 @@ test("a phone-call lead keeps the take/owner/handed-off rules of every other lea
   assert.equal(parse(callPage([callRow(1, { take: TAKE })], waiting), waiting).rows.length, 1);
   assert.throws(() => parse(callPage([callRow(1, { owner })], waiting), waiting));
   assert.throws(() => parse(callPage([callRow(1, { handedOff: true })], waiting), waiting));
+});
+
+test("377: page numbers — `page` in the address is an offset, never together with a cursor; the read echoes the offset of its first row", async () => {
+  const { requestsHref: href, REQUESTS_MAX_PAGE } = await import("../src/lib/requests-queue-contract.ts");
+  const third = parseRequestSelection({ page: "3" });
+  assert.equal(third.page, 3);
+  assert.equal(href(third), "/requests?page=3");
+  assert.equal(href({ ...third, page: undefined }), "/requests", "tabs and «К началу» drop the number");
+  assert.equal(href(parseRequestSelection({})), "/requests");
+  assert.equal("page" in parseRequestSelection({ page: "1" }), false, "the first page has no number in the address");
+  for (const bad of ["0", "01", "x", String(REQUESTS_MAX_PAGE + 1)]) assert.throws(() => parseRequestSelection({ page: bad }), undefined, bad);
+  const rows = Array.from({ length: 3 }, (_, index) => row(index + 1, `2026-09-2${3 - index}T00:00:00.000000Z`));
+  const selection3 = parseRequestSelection({ source: "website", status: "all", limit: "1", page: "3" });
+  const third3 = { ...page([rows[2]], selection3), latestAt: rows[0].occurredAt, counts: { website: 3, whatsapp: 0, phone_call: null, application: 0, consultation: null }, offset: 2 };
+  assert.equal(parseRequestsQueue(third3, org, selection3, unexpectedKind, unexpectedKind).offset, 2);
+  assert.throws(() => parseRequestsQueue({ ...third3, offset: 1 }, org, selection3, unexpectedKind, unexpectedKind), undefined, "offset must be the one asked for");
+  assert.throws(() => parseRequestsQueue({ ...third3, version: 3 }, org, selection3, unexpectedKind, unexpectedKind), undefined, "v3 answers are not read any more");
+  const sql = readFileSync(new URL("../supabase/migrations/377_platform_requests_queue_page_numbers.sql", import.meta.url), "utf8");
+  assert.match(sql, /FUNCTION platform\.staff_requests_queue_v4\(p_organization_id uuid, p_source text DEFAULT 'all'::text, p_status text DEFAULT 'waiting'::text, p_limit integer DEFAULT 50, p_cursor jsonb DEFAULT NULL::jsonb, p_offset integer DEFAULT 0\)/u);
+  assert.match(sql, /OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 50000 OR \(p_offset > 0 AND p_cursor IS NOT NULL\) THEN/u);
+  assert.match(sql, /LIMIT p_limit OFFSET p_offset/u);
+  assert.match(sql, /a377_queue_anchor_drift/u);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.staff_requests_queue_v4\(UUID, TEXT, TEXT, INTEGER, JSONB, INTEGER\) TO authenticated;/u);
+  assert.doesNotMatch(sql, /DROP FUNCTION|CREATE OR REPLACE FUNCTION platform\.staff_requests_queue_v3/u, "v3 stays for the previous release");
+});
+
+test("pager numbers: the first, the last and two on each side of the current page, gaps as «…»", async () => {
+  const { pagerNumbers } = await import("../src/lib/requests-queue-contract.ts");
+  assert.deepEqual(pagerNumbers(1, 17), [1, 2, 3, "gap", 17]);
+  assert.deepEqual(pagerNumbers(4, 17), [1, 2, 3, 4, 5, 6, "gap", 17]);
+  assert.deepEqual(pagerNumbers(9, 17), [1, "gap", 7, 8, 9, 10, 11, "gap", 17]);
+  assert.deepEqual(pagerNumbers(17, 17), [1, "gap", 15, 16, 17]);
+  assert.deepEqual(pagerNumbers(1, 2), [1, 2]);
+});
+
+test("an empty numbered page says «список изменился», like an empty page by cursor — not «Новых заявок нет» while requests wait on the first page", async () => {
+  const { requestsPastFirstPage } = await import("../src/lib/requests-queue-contract.ts");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({})), false, "the first page");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({ page: "1" })), false, "?page=1 is the first page");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({ page: "2" })), true, "?page=2 is already past the first page");
+  assert.equal(requestsPastFirstPage(parseRequestSelection({ source: "website", status: "all", page: "3" })), true, "?page=3");
+  assert.equal(requestsPastFirstPage({ ...selection, cursor: cursor(row(1)) }), true, "a page by cursor, as before 377");
+  // Оба вида (новый и прежний) спрашивают это правило, а не один курсор.
+  for (const file of ["src/components/staff/requests-next/RequestsNextEmpty.tsx", "src/components/staff/requests/RequestsQueueView.tsx"]) {
+    const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.match(text, /if \(requestsPastFirstPage\(selection\)\) \{[\s\S]{0,400}?На этой странице заявок больше нет: список изменился\./u, file);
+    assert.doesNotMatch(text, /if \(selection\.cursor\b/u, `${file}: the cursor alone is not the whole rule`);
+  }
 });

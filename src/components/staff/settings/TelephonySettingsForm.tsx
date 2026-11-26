@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { HelpTip } from "@/components/kit/HelpTip";
 import { btnCls } from "@/components/ui";
 import type { TelephonyServerFacts } from "@/lib/v3/telephony-health";
 import {
@@ -14,7 +15,6 @@ import {
   TELEPHONY_FLAG_KEYS,
   TELEPHONY_NUMBER_LABEL,
   normalizeTelephonySaveReceipt,
-  parseTelephonyPrefixes,
   telephonyDraftFrom,
   telephonyDraftIssues,
   telephonyErrorMessage,
@@ -49,10 +49,11 @@ function Row({ title, hint, children, testId }: Readonly<{ title: string; hint?:
       aria-describedby={hint ? `${id}-hint` : undefined}
       data-testid={testId}
     >
+      {/* 26.11.2026: пояснение раздела — за «?», а не серой строкой под каждым заголовком; читалка слышит его из описания. */}
       <legend className="contents">
-        <span className="block">
-          <span className="block t-item text-fg">{title}</span>
-          {hint ? <span id={`${id}-hint`} className="mt-1 block t-meta text-fg-3">{hint}</span> : null}
+        <span className="flex items-center gap-1.5">
+          <span className="t-item text-fg">{title}</span>
+          {hint ? <><span id={`${id}-hint`} className="sr-only">{hint}</span><HelpTip label={`Пояснение: ${title}`}>{hint}</HelpTip></> : null}
         </span>
       </legend>
       <div className="min-w-0">{children}</div>
@@ -109,7 +110,6 @@ export function TelephonySettingsForm({
   // Отметка «понимаю» относится к тому набору, что открывается сейчас: изменился набор — отметка снимается.
   const openingKey = opening.join(",");
   const understood = opening.length > 0 && confirmedKey === openingKey;
-  const prefixes = parseTelephonyPrefixes(draft.prefixes);
   const managers = staff.filter((option) => option.canManage || option.membershipId === settings.escalationMembershipId);
 
   const update = (next: Partial<TelephonyDraft>) => { setDraft((current) => ({ ...current, ...next })); setResult(null); };
@@ -196,14 +196,18 @@ export function TelephonySettingsForm({
       noValidate
       aria-busy={pending}
       onSubmit={(event) => { event.preventDefault(); void save(); }}
-      className="rounded-card border border-border bg-surface px-4 py-5 sm:px-6"
+      className="min-w-0"
       data-testid="v3-telephony-settings"
       data-dirty={dirty || undefined}
     >
       <fieldset disabled={readOnly || pending} className="@container min-w-0">
-        <Row title="Включатели" hint="Пока включатель не включён здесь, сотрудникам ничего не показывается" testId="v3-telephony-flags">
+        {/* 26.11.2026 («ещё минималистичнее»): одно «?» на все включатели — что каждый делает, — а не «?» у каждого. */}
+        <Row title="Включатели" testId="v3-telephony-flags" hint={<>
+          Пока включатель не включён здесь, сотрудникам ничего не показывается.
+          {TELEPHONY_FLAG_KEYS.map((key) => <span key={key} className="mt-1.5 block"><b className="font-semibold">{TELEPHONY_FLAG_COPY[key].title}.</b> {TELEPHONY_FLAG_COPY[key].hint}</span>)}
+        </>}>
           {/* Светлая подложка формы: ручка включённого переключателя — цвета листа, иначе она сливается с тёмной дорожкой. */}
-          <ul className="space-y-3" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
+          <ul className="space-y-0.5" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
             {TELEPHONY_FLAG_KEYS.map((key) => {
               const copy = TELEPHONY_FLAG_COPY[key];
               const note = flagServerNote(key, server);
@@ -213,20 +217,22 @@ export function TelephonySettingsForm({
                 <li key={key} data-flag={key} data-on={on || undefined}>
                   {/* Настоящий переключатель (тот же `v3-switch`, что у автоответчика): дорожка и слово «Включено»/«Выключено»,
                       а не квадратик флажка. Нажатие на слова тоже переключает. */}
-                  <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3">
+                  {/* 26.11.2026: пояснение включателя — в общем «?» раздела, читалка слышит его из описания переключателя; замечание
+                      сервера (`note`) — предупреждение, оно остаётся на виду. Слова тоже переключают. */}
+                  <div className="flex min-h-11 items-start gap-3">
                     <button id={id} type="button" role="switch" aria-checked={on} onClick={() => setFlag(key, !on)}
                       aria-labelledby={`${id}-title`} aria-describedby={`${id}-hint`} className="v3-switch -mt-1.5">
                       <span className="v3-switch-track" aria-hidden="true" />
                     </button>
                     <span className="min-w-0">
-                      <span className="flex flex-wrap items-baseline gap-x-2">
-                        <span id={`${id}-title`} className="t-body text-fg">{copy.title}</span>
+                      <span className="flex flex-wrap items-center gap-x-2">
+                        <label htmlFor={id} id={`${id}-title`} className="cursor-pointer t-body text-fg">{copy.title}</label>
                         <span className={`t-meta font-medium ${on ? "text-fg" : "text-fg-3"}`} data-testid="v3-telephony-flag-state">{on ? "Включено" : "Выключено"}</span>
                       </span>
-                      <span id={`${id}-hint`} className="block t-meta text-fg-3">{copy.hint}</span>
+                      <span id={`${id}-hint`} className="sr-only">{copy.hint}</span>
                       {note ? <span className="mt-0.5 block t-meta text-fg-2">{note}</span> : null}
                     </span>
-                  </label>
+                  </div>
                   <FieldIssues messages={issuesFor(shown, key)} />
                 </li>
               );
@@ -267,9 +273,6 @@ export function TelephonySettingsForm({
           <input id="tel-prefixes" type="text" value={draft.prefixes} autoComplete="off" spellCheck={false} placeholder="+996, +7"
             aria-invalid={issuesFor(shown, "dialPrefixes").length > 0 || undefined}
             className={`${fieldCls} mt-1 block w-full max-w-md`} onChange={(event) => update({ prefixes: event.target.value })} />
-          <span className="mt-0.5 block t-meta text-fg-3">
-            Через запятую или пробел. Сейчас: {prefixes.invalid.length === 0 && prefixes.list.length > 0 ? prefixes.list.join(" ") : "—"}.
-          </span>
           <FieldIssues messages={issuesFor(shown, "dialPrefixes")} />
           <div className={NUMBER_GRID}>
             {numberField("limitUserDay", undefined, true)}

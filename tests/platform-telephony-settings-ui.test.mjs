@@ -31,6 +31,8 @@ function compile(path, extra = {}) {
     "@/components/icons": { Icon: ({ name }) => React.createElement("i", { "data-icon": name }) },
     "@/components/ui": { btnCls: "btn-primary" },
     "@/components/staff/blocks/StatusChip": { StatusChip: ({ label, tone }) => React.createElement("span", { "data-chip": tone }, label) },
+    // 26.11.2026: пояснения разделов, включателей и списка пользователей ВАТС — за «?» (HelpTip); текст подсказки — внутри кнопки-заглушки.
+    "@/components/kit/HelpTip": { HelpTip: ({ label, children }) => React.createElement("span", { "data-help": label }, children) },
     "@/components/staff/queue/queue-buttons": { QUEUE_CONFIRM: "queue-confirm", QUEUE_SECONDARY: "queue-secondary" },
     "@/lib/v3/telephony-settings": telephonySettings,
     "@/lib/v3/telephony-health": telephonyHealth,
@@ -143,8 +145,8 @@ test("the mapping list: empty directory and a preview", () => {
   // A read-only mapped row whose employee has the same name as the PBX user has nothing to say or press: no empty 44 px line.
   const quiet = overview({ extensions: [{ ...extensions[0], name: "Staff A" }] });
   const quietRow = render(React.createElement(TelephonyExtensions, { extensions: quiet.extensions, staff, readOnly: true }));
-  assert.doesNotMatch(quietRow, /<p class="mt-1 flex min-h-11/u, "no empty line under a read-only mapped row");
-  assert.match(preview, /<p class="mt-1 flex min-h-11[^"]*">[^]*?Сотрудник: <span class="text-fg">Staff A<\/span>/u, "a read-only row with a different name still says who");
+  assert.doesNotMatch(quietRow, /<p class="flex min-h-11/u, "no empty line under a read-only mapped row");
+  assert.match(preview, /<p class="flex min-h-11[^"]*">[^]*?Сотрудник: <span class="text-fg">Staff A<\/span>/u, "a read-only row with a different name still says who");
 });
 
 test("the mapping client confirms against what the person saw and sends only ids", () => {
@@ -215,7 +217,11 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
     assert.match(markup, new RegExp(`<label for="tel-${id}"`, "u"), `${id} has a label`);
   }
   for (const piece of ['type="text"', 'value="+996"']) assert.ok(tag("tel-prefixes").includes(piece), piece);
-  assert.match(text, /Сейчас: \+996\./u);
+  // 26.11.2026: строки «Через запятую или пробел. Сейчас: …» под полем нет — значение и так в поле; ошибку разбора говорит FieldIssues.
+  assert.doesNotMatch(text, /Сейчас: \+996\./u);
+  // Пояснения включателей — одним «?» у раздела, а не под каждым переключателем.
+  assert.equal((markup.match(/data-help="Пояснение: Включатели"/gu) ?? []).length, 1);
+  assert.doesNotMatch(markup, /data-help="Пояснение: Разбор звонков"/u);
   // Recipients: those who hold the right, plus "nobody"; Staff B (no right) is not offered.
   const select = markup.match(/<select id="tel-escalation"[\s\S]*?<\/select>/u)[0];
   assert.match(select, /Не назначен: решает директор/u);

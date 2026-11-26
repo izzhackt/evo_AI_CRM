@@ -108,11 +108,11 @@ export default async function AdmissionsPipelinePart({
     />
   ) : null;
 
-  // 25.11.2026: «Направление» и «Куратор» — в панели «Фильтры», как на «Студентах» и в «Воронке продаж», вместо двух
-  // выпадающих списков в строке; поле называется одним словом с «Студентами». Адреса прежние (`country`, `curator`): фильтр
-  // по стране набора дела (`target_country`), список стран — тот же.
+  // 25.11.2026: «Страна» и «Куратор» — в панели «Фильтры», как на «Студентах» и в «Воронке продаж», вместо двух выпадающих
+  // списков в строке. Адреса прежние (`country`, `curator`): фильтр по стране набора дела (`target_country`), список стран — тот
+  // же. 27.11.2026, решение владельца: поле называется «Страна» (в нём шесть стран), а не «Направление», как у списка «Студентов».
   const countryChoices = [
-    { key: "all", label: "Все направления", href: boardHref({ ...query, country: null }), selected: query.country === null },
+    { key: "all", label: "Все страны", href: boardHref({ ...query, country: null }), selected: query.country === null },
     ...PLATFORM_APPLICATION_COUNTRIES.map((code) => ({
       key: code,
       label: countryLabel(code) ?? code,
@@ -133,7 +133,7 @@ export default async function AdmissionsPipelinePart({
       : []),
   ];
   const filterMenus: readonly LinkFilterMenu[] = [
-    { key: "country", label: "Направление", valueLabel: null, options: countryChoices },
+    { key: "country", label: "Страна", valueLabel: null, options: countryChoices },
     ...(curatorOptions.length > 0 || query.curator !== null ? [{ key: "curator", label: "Куратор", valueLabel: null, options: curatorChoices }] : []),
   ];
 

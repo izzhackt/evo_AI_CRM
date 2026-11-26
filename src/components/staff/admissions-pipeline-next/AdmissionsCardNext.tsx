@@ -54,17 +54,13 @@ export function AdmissionsCardBody({ row, showCurator, returnTo }: Readonly<{ ro
           {row.studentDisplayName}
         </Link>
       </p>
-      {/* 26.11.2026: страна · вуз и куратор (кругом) — одной строкой (карточка была на строку выше, колонка «Документы» — бесконечной). */}
-      {secondLine || curator ? (
-        <p className="t-meta flex min-w-0 items-center gap-2 text-fg-2">
-          {secondLine ? <span className="min-w-0 flex-1 truncate" title={secondLine}>{secondLine}</span> : <span className="flex-1" />}
-          {curator ? (
-            // В колонке шириной ~200 px имя куратора съедало страну и вуз: на карточке — круг с буквами, имя — в подсказке и для читалки.
-            <span className="flex shrink-0 items-center" title={curator} data-testid="v3-admissions-card-curator">
-              <Initials name={curator} size="sm" decorative />
-              <span className="sr-only">Куратор: {shortPersonName(curator)}</span>
-            </span>
-          ) : null}
+      {secondLine ? (
+        <p className="t-meta min-w-0 truncate pe-8 text-fg-2" title={secondLine}>{secondLine}</p>
+      ) : null}
+      {curator ? (
+        <p className="t-meta flex min-w-0 items-center gap-1.5 text-fg-2" title={curator} data-testid="v3-admissions-card-curator">
+          <Initials name={curator} size="sm" decorative />
+          <span className="min-w-0 truncate">{shortPersonName(curator)}</span>
         </p>
       ) : null}
       {marks.length > 0 ? <p className="flex min-w-0 max-w-full flex-wrap gap-1 py-px">{marks}</p> : null}

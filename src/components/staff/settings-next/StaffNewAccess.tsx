@@ -1,53 +1,52 @@
 "use client";
 
 import { MailPlusIcon, UserPlusIcon } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useState } from "react";
 
-import { WidgetCard } from "@/components/kit";
+import { DetailSheet } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { GuardedBody, useSheetGuard } from "@/components/staff/admin-next/SheetGuard";
+import { sheetEscape } from "@/components/staff/panel/sheet-escape";
 import { StaffInviteForm, StaffPasswordForm } from "@/components/staff/settings/StaffInviteForm";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 
 type Panel = "invite" | "account";
 const TITLE: Readonly<Record<Panel, string>> = { invite: "Пригласить сотрудника", account: "Создать аккаунт" };
-const PANELS: readonly Panel[] = ["invite", "account"];
+const ICON = { invite: MailPlusIcon, account: UserPlusIcon } as const;
 
 /**
- * «Пригласить сотрудника» и «Создать аккаунт»: кнопки раскрывают форму на странице под собой, а не в панели. У создания аккаунта есть одноразовый
- * пароль, который показывается один раз, а у приглашения с неизвестным итогом — исходный запрос, который проверяют тем же request_id. Оба живут
- * только в смонтированной форме, поэтому формы стоят на странице всегда, а «закрыть» и выбор соседней только прячут (`hidden`), как прячет
- * `StaffDisclosure` прежнего вида: щелчок по соседней кнопке не теряет пароль. «Закрыть» возвращает фокус на кнопку, что открыла форму.
+ * Одна кнопка и её выезжающая панель (25.11.2026): форма раскрывалась прямо в строке кнопок, строка вырастала, а «Журнал доступа» уезжал
+ * на середину её высоты. Теперь строка кнопок не меняется. Панель под охраной (`useSheetGuard`): пока запрос не завершён или его итог
+ * неизвестен, она не закрывается (Esc, щелчок мимо, крестик) — исходный запрос с тем же request_id остаётся; введённое без отправки
+ * закрывается только после вопроса. Одноразовый пароль после создания — тоже поле формы: закрыть панель с ним можно только после вопроса.
  */
-export function StaffNewAccess({ roles, organizationId }: Readonly<{ roles: StaffRoleWorkspace; organizationId: string }>) {
-  const [panel, setPanel] = useState<Panel | null>(null);
-  const regionId = useId();
-  const buttons = { invite: useRef<HTMLButtonElement>(null), account: useRef<HTMLButtonElement>(null) };
-  const toggle = (next: Panel) => setPanel((current) => (current === next ? null : next));
-  const close = () => {
-    const opener = panel;
-    setPanel(null);
-    if (opener) buttons[opener].current?.focus();
-  };
-  const icons = { invite: MailPlusIcon, account: UserPlusIcon };
+function NewAccessSheet({ panel, roles, organizationId }: Readonly<{ panel: Panel; roles: StaffRoleWorkspace; organizationId: string }>) {
+  const [open, setOpen] = useState(false);
+  const guard = useSheetGuard();
+  const Icon = ICON[panel];
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap gap-2">
-        {PANELS.map((key) => {
-          const Icon = icons[key];
-          return (
-            <Button key={key} ref={buttons[key]} variant="outline" aria-expanded={panel === key} aria-controls={`${regionId}-${key}`} onClick={() => toggle(key)}>
-              <Icon aria-hidden="true" />{TITLE[key]}
-            </Button>
-          );
-        })}
-      </div>
-      {PANELS.map((key) => (
-        <div key={key} id={`${regionId}-${key}`} data-testid={`v3-staff-new-${key}`} hidden={panel !== key}>
-          <WidgetCard title={TITLE[key]} headingLevel={3} actions={<Button variant="ghost" onClick={close}>Закрыть</Button>}>
-            {key === "invite" ? <StaffInviteForm workspace={roles} organizationId={organizationId} /> : <StaffPasswordForm workspace={roles} organizationId={organizationId} />}
-          </WidgetCard>
+    <DetailSheet
+      onEscapeKeyDown={sheetEscape}
+      title={TITLE[panel]}
+      trigger={<Button variant="outline"><Icon aria-hidden="true" />{TITLE[panel]}</Button>}
+      open={open}
+      onOpenChange={(next) => { if (next) setOpen(true); else if (guard.allowClose()) setOpen(false); }}
+    >
+      <GuardedBody guard={guard}>
+        <div data-testid={`v3-staff-new-${panel}`}>
+          {panel === "invite" ? <StaffInviteForm workspace={roles} organizationId={organizationId} bare /> : <StaffPasswordForm workspace={roles} organizationId={organizationId} bare />}
         </div>
-      ))}
+      </GuardedBody>
+    </DetailSheet>
+  );
+}
+
+/** «Пригласить сотрудника» и «Создать аккаунт» — кнопки в строке раздела «Сотрудники»; форма каждой — в своей панели. */
+export function StaffNewAccess({ roles, organizationId }: Readonly<{ roles: StaffRoleWorkspace; organizationId: string }>) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <NewAccessSheet panel="invite" roles={roles} organizationId={organizationId} />
+      <NewAccessSheet panel="account" roles={roles} organizationId={organizationId} />
     </div>
   );
 }

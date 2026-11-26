@@ -132,6 +132,8 @@ const common = id => {
   if (id === "@/lib/v3/wording") return wording;
   if (id === "@/lib/document-export-client" || id === "@/lib/platform-admissions-support-actions") return boundaries;
   if (id === "next/navigation") return { useRouter: () => ({ refresh: noCommand }) };
+  // «?» с лимитом ZIP (25.11): кнопка пояснения, текст — в её детях.
+  if (id === "@/components/kit/HelpTip") return { HelpTip: ({ label, children }) => createElement("span", { "data-help-tip": label }, children) };
   return require(id);
 };
 const universityPanel = compile("src/components/staff/profile/UniversityFormExportPanel.tsx", common);

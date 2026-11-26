@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
+import { HelpTip } from "@/components/kit/HelpTip";
 import { btnGhostCls } from "@/components/ui";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
 import type { ApplicationPackageReadiness } from "@/lib/portal/application-packages";
@@ -113,7 +114,8 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   const documentStrings = getPortalStrings("programDocuments", "ru");
   // Э8.2: подготовка — раскрытие в строке вуза «Вузов и программ»; вуз, программа, набор и срок
   // названы самой строкой. Якорь `#preparation-<id>` по-прежнему раскрывает её (только чтение).
-  return <section id={id} className="mt-1 scroll-mt-6" aria-label="Подготовка по выбранной программе">
+  // `v3-staff-disclosures`: раскрытия, взятые из кабинета (`audience="staff"`), получают шеврон карточки вместо нативного ▶ (staff.css).
+  return <section id={id} className="v3-staff-disclosures mt-1 scroll-mt-6" aria-label="Подготовка по выбранной программе">
     <button type="button" className="group -ms-1 inline-flex min-h-11 items-center gap-1.5 rounded-nav px-1 t-label text-fg-2 hover:text-fg disabled:text-fg-3" disabled={editorOpen} aria-expanded={opened} aria-controls={`${id}-documents`} onClick={() => {
       setOpened(!opened);
       if (!opened) void load();
@@ -125,6 +127,8 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
       Документы программы
       <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-aria-expanded:rotate-180 motion-reduce:transition-none" />
     </button>
+    {/* Правило отправки — пояснение, а не строка на экране: за «?» рядом с разделом. */}
+    {canRead && view?.status !== "forbidden" && !editorOpen ? <HelpTip label="Пояснение: документы программы">{documentStrings.saveHint}</HelpTip> : null}
     <PackageRecovery scope={documentScope} audience="staff" strings={packageStrings("ru")} onSaved={() => void load()} />
     {opened ? <div id={`${id}-documents`} className="mt-2 space-y-3" aria-busy={loading || pending}>
       {editorOpen ? <StaffRequirementsEditor key={`${scope.organizationId}:${scope.membershipId}:${scope.studentCaseId}:${preparation.applicationId}`} scope={{ ...scope, applicationId: preparation.applicationId }} onSaved={() => { void load(); }} onClose={() => { setEditorOpen(false); requestAnimationFrame(() => editorButton.current?.focus()); }} /> : <>
@@ -165,7 +169,6 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
           ? <p className="self-center text-sm text-fg-2" data-testid="staff-preparation-documents-await">Документы {caseDocumentsWords.awaitCurator}.</p>
           : <a href={docsHref} className={btnGhostCls}>Все документы дела</a>}</div>
         {canInitialize || hasEditorPending ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>{hasEditorPending ? "Проверить сохранение списка" : "Настроить список документов"}</button> : null}
-        <p className="text-sm text-fg-3">{documentStrings.saveHint}</p>
       </>}
       {message ? <p role="alert" className="text-sm text-danger">{message}</p> : null}
       </>}

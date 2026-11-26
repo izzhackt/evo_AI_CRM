@@ -444,6 +444,6 @@ test("no invented progress: the documents bar is the read checklist, and there i
   assert.doesNotMatch(pages.get("unread"), /v3-progress|из \d+ принято/u);
   // Оплата — только тому, кому её отдаёт чтение; «Передал» — только у дела из продаж.
   assert.doesNotMatch(text(pages.get("curator")), /Оплата /u);
-  assert.match(text(pages.get("admin")), /Оплата 40% оплачено · остаток 900 \$/u);
+  assert.match(text(pages.get("admin")), /Оплата 40% оплачено · остаток 900 USD/u);
   assert.doesNotMatch(text(pages.get("unread")), /Передал/u);
 });

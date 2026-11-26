@@ -75,8 +75,8 @@ const TABS = {
   money: (state) => ({
     profile: { ...state.profile, financeStop: state.stop ? fx.STOP.reason : null },
     draft: { ...state.draft, access: { ...state.draft.access, finance: true, contract: true }, contract: { workspace: fx.contractWorkspace(true), handoff: fx.HANDOFF_CTX },
-      admissions: { ...state.draft.admissions, finance: fx.financeControl(state.stop) }, budget: "1 500 $", paid: "600 $", remaining: "900 $",
-      payments: [{ name: "Первый платёж", amount: "600 $", state: "paid", at: "2026-09-12T08:00:00.000Z" }, { name: "Второй платёж — после оффера", amount: "900 $", state: "overdue", at: "2026-09-20T18:00:00.000Z" }] },
+      admissions: { ...state.draft.admissions, finance: fx.financeControl(state.stop) }, budget: "1 500 USD", paid: "600 USD", remaining: "900 USD",
+      payments: [{ id: "obligation-1", name: "Первый платёж", amount: "600 USD", paidPart: null, state: "paid", at: "2026-09-12T08:00:00.000Z" }, { id: "obligation-2", name: "Второй платёж — после оффера", amount: "900 USD", paidPart: null, state: "overdue", at: "2026-09-20T18:00:00.000Z" }] },
   }),
   route: (state) => {
     const applications = state.applications ?? fx.ROUTE.applications;

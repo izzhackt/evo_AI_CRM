@@ -26,7 +26,7 @@ export function PartnerPacketsPanel({ caseId, active, applications, workspace, i
       <span className={nextUi ? "min-w-0 flex-1 t-section text-fg" : "min-w-0 flex-1 t-item text-fg"}>{words.title}</span>
       <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
     </summary>
-    <div className="pb-4 pt-1">
+    <div className="v3-staff-disclosures pb-4 pt-1">
       {!workspace ? <p role="alert" className="text-sm text-danger">{words.unavailable}</p>
         : <PartnerPacketWorkspace key={caseId} caseId={caseId} active={active} applications={applications} workspace={workspace} initialApplicationId={initialApplicationId} />}
     </div>

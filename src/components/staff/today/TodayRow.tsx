@@ -130,7 +130,8 @@ export function TodayRow({ item, nowIso, dial = null, hideReason = false, stacke
         <IntentPrefetchLink
           href={item.openHref}
           data-queue-open=""
-          aria-label={`Открыть: ${item.title}${item.who ? ` — ${item.who.name}` : ""}`}
+          // Строка без «кто» (переписка: имя — заголовок) называет причину: «Открыть: Имя — Переписка», куда ведёт ссылка.
+          aria-label={`Открыть: ${item.title} — ${item.who?.name ?? item.reason}`}
           className={joinClasses("grid min-h-11 min-w-11 place-items-center rounded-nav t-label text-fg-2 before:absolute before:inset-0 before:content-[''] hover:text-fg", wide("@min-[32rem]:px-3 @min-[32rem]:underline @min-[32rem]:underline-offset-4"))}
         >
           <span aria-hidden="true" className={joinClasses("hidden", wide("@min-[32rem]:inline"))}>Открыть</span>

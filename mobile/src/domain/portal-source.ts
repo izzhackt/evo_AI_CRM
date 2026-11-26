@@ -409,6 +409,25 @@ export function decodeCaseFiles(data: unknown): readonly StudentPortalCaseFile[]
   return rows(data, normalizeStudentPortalCaseFile, (row) => `${row.kind}:${row.fileId}`);
 }
 
+/**
+ * `student_portal_case_directions_v1()` (миграция 373): страна каждого своего дела, по которой справка «Пример» берёт
+ * свои образцы. Как у веба (`readStudentPortalCaseDirections`) это добавка, а не чек-лист, поэтому разбор мягкий:
+ * не массив или строка не той формы пропускаются, а не роняют экран. Ключ - id дела в нижнем регистре, как у
+ * `StudentPortalDocument.caseId`; значение - код направления (`CN`, `MY`, ...), какой он есть.
+ */
+export function decodeCaseDirections(data: unknown): ReadonlyMap<string, string> {
+  const directions = new Map<string, string>();
+  if (!Array.isArray(data)) return directions;
+  for (const row of data as readonly unknown[]) {
+    if (!row || typeof row !== "object") continue;
+    const { student_case_id: caseId, direction } = row as Record<string, unknown>;
+    if (typeof caseId !== "string" || !UUID_PATTERN.test(caseId) || typeof direction !== "string") continue;
+    const code = direction.trim();
+    if (code.length > 0) directions.set(caseId.toLowerCase(), code);
+  }
+  return directions;
+}
+
 /** Одна строка `student_portal_finance_v2()`. */
 export function normalizeStudentPortalPayment(value: unknown): StudentPortalPayment {
   const row = exactRecord(value, [

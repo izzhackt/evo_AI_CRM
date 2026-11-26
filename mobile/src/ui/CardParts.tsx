@@ -1,7 +1,7 @@
 // Общие части карточек кабинета: шапка, пустое состояние, плашка сбоя с повтором,
 // скелетон, ссылка-кнопка. Образец: src/components/portal/home/HomeParts.tsx (веб #1412).
-import { useEffect, useState, type ReactNode } from "react";
-import { Animated, Easing, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
+import type { ReactNode } from "react";
+import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { useTheme } from "@/theme/ThemeProvider";
 import { Text } from "@/ui/Text";
@@ -32,10 +32,19 @@ export function CardHead({ title, count = null, action = null, headingId }: { ti
   );
 }
 
-/** Текстовая ссылка (`.pt-link`) с целью нажатия не меньше 44 pt. */
-export function LinkButton({ label, onPress, testID, accessibilityHint }: { label: string; onPress: () => void; testID?: string; accessibilityHint?: string }) {
+/** Текстовая ссылка (`.pt-link`) с целью нажатия не меньше 44 pt. `disabled`: пока идёт запрос, переход не нужен (как у `Button`). */
+export function LinkButton({ label, onPress, testID, accessibilityHint, disabled = false }: { label: string; onPress: () => void; testID?: string; accessibilityHint?: string; disabled?: boolean }) {
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={label} accessibilityHint={accessibilityHint} onPress={onPress} testID={testID} hitSlop={4} style={{ minHeight: MIN_TARGET, justifyContent: "center" }}>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      disabled={disabled}
+      onPress={onPress}
+      testID={testID}
+      hitSlop={4}
+      style={disabled ? { minHeight: MIN_TARGET, justifyContent: "center", opacity: 0.6 } : { minHeight: MIN_TARGET, justifyContent: "center" }}
+    >
       <Text variant="secondary" tone="accent" bold>
         {label}
       </Text>
@@ -43,9 +52,35 @@ export function LinkButton({ label, onPress, testID, accessibilityHint }: { labe
   );
 }
 
-/** Пустое состояние: значок в бледно-красном круге, заголовок, строка и действие. */
-export function EmptyBlock({ icon: Icon, title, body = null, action = null }: { icon: LucideIcon; title: string; body?: string | null; action?: ReactNode }) {
+/**
+ * Пустое состояние: значок в бледно-красном круге, заголовок, строка и действие. `compact` - одной строкой со значком
+ * слева (веб, 18.11.2026: «Ближайшие даты» без дат не занимают пол-экрана под неделей).
+ */
+export function EmptyBlock({ icon: Icon, title, body = null, action = null, compact = false }: { icon: LucideIcon; title: string; body?: string | null; action?: ReactNode; compact?: boolean }) {
   const { tokens } = useTheme();
+  if (compact) {
+    return (
+      <View accessible={false} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 4 }}>
+        <View
+          style={{ width: 36, height: 36, borderRadius: tokens.radiusChip, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Icon size={18} strokeWidth={1.75} color={tokens.accent} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="body" bold>
+            {title}
+          </Text>
+          {body ? (
+            <Text variant="secondary" tone="text2">
+              {body}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   return (
     <View accessible={false} style={{ alignItems: "flex-start", gap: 4 }}>
       <View
@@ -88,21 +123,13 @@ export function InlineAlert({ message, retryLabel, onRetry, testID }: { message:
   );
 }
 
-/** Блок скелетона: мягкая пульсация; читалке сообщает «загрузка» только родитель. */
+/**
+ * Блок скелетона: ровный цвет токена, без пульсации. Веб: скелетон не пульсирует (`portal/loading.tsx`, правило владельца
+ * «без бесконечных анимаций»), поэтому и «Уменьшить движение» ему не нужно (G6). Читалке сообщает «загрузка» только родитель.
+ */
 export function Skeleton({ height = 16, width = "100%", radius = 6, style }: { height?: number; width?: number | `${number}%`; radius?: number; style?: StyleProp<ViewStyle> }) {
   const { tokens } = useTheme();
-  const [opacity] = useState(() => new Animated.Value(0.55));
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.55, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
-  return <Animated.View importantForAccessibility="no" accessibilityElementsHidden style={[{ height, width, borderRadius: radius, backgroundColor: tokens.skeleton, opacity }, style]} />;
+  return <View importantForAccessibility="no" accessibilityElementsHidden style={[{ height, width, borderRadius: radius, backgroundColor: tokens.skeleton }, style]} />;
 }
 
 /** Карточка-скелетон: заголовок и две строки. `label` читает читалка. */

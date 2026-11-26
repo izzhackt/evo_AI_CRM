@@ -1,11 +1,12 @@
 // Полная своя анкета (own_student_application_v1) для экрана статуса и исправления.
 // Строго: форма ответа проверяется, чужая форма = сбой сервера, а не выдуманные данные.
 import { RpcError, rpcRead, type RpcTransport } from "@/lib/rpc";
+import { isApplicationStatus, type ApplicationStatus } from "@/domain/own-application";
 import { isStudentApplicationUuid, validateStudentApplicationDraft, type StudentApplicationDraft } from "@/features/registration/application-contract";
 
 export type FullApplication = Readonly<{
   id: string;
-  status: "pending" | "approved" | "rejected";
+  status: ApplicationStatus;
   revision: number;
   email: string;
   questionnaire: StudentApplicationDraft;
@@ -23,7 +24,7 @@ export function decodeFullApplication(value: unknown): FullApplication | null {
   if (
     !questionnaire ||
     !isStudentApplicationUuid(id) ||
-    (status !== "pending" && status !== "approved" && status !== "rejected") ||
+    !isApplicationStatus(status) ||
     typeof revision !== "number" ||
     !Number.isSafeInteger(revision) ||
     revision < 0 ||

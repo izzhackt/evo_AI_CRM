@@ -1,4 +1,5 @@
 // Время и день в ленте чата: по Бишкеку, как в вебе (MessagesThread).
+import { formatPortalTimestamp } from "@/domain/presentation";
 import type { Lang } from "@/i18n";
 
 const TZ = "Asia/Bishkek";
@@ -18,3 +19,12 @@ export const timeLabel = (iso: string, lang: Lang) => fmt("t", loc(lang), { hour
 export const dayLabel = (iso: string, lang: Lang) => fmt("d", loc(lang), { day: "numeric", month: "long" }).format(new Date(iso));
 /** Ключ дня по Бишкеку (для разделителей и «Сегодня»). */
 export const dayKey = (iso: string) => fmt("k", "en-CA", {}).format(new Date(iso));
+
+/**
+ * «25.11.2026, 14:30 (Бишкек)»: время решения и отправки на экранах решений (веб ProgramDocumentTime: время по Бишкеку и
+ * пометка города, в обоих языках одинаково). Пустая строка, если время не разобрать.
+ */
+export function bishkekTime(value: string | null): string {
+  const label = formatPortalTimestamp(value);
+  return label === null ? "" : `${label} (Бишкек)`;
+}

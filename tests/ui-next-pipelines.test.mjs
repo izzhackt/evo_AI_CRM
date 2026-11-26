@@ -467,3 +467,46 @@ test("role preview of «Воронка продаж» answers with a quiet state
   assert.match(read("src/components/staff/pipeline-next/PipelineNextPage.tsx"),
     /data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается\.</u);
 });
+
+test("«Воронка поступления» (25.11.2026): «Страна» и «Куратор» — в панели «Фильтры», как на «Студентах» и в «Воронке продаж», без выпадающих списков в строке", () => {
+  const page = readFileSync(new URL("../src/app/(staff)/admissions-pipeline/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /<FilterPanel menus=\{filterMenus\}/u);
+  // Решение владельца 27.11.2026: в списке шесть стран, поэтому «Страна / Все страны», а не «Направление» списка студентов.
+  assert.match(page, /key: "country", label: "Страна"/u, "поле — «Страна»");
+  assert.match(page, /label: "Все страны"/u);
+  assert.doesNotMatch(page, /Все направления|label: "Направление"/u, "слов «Направление» в этом фильтре нет");
+  assert.doesNotMatch(page, /NavigateSelect|BoardFilters|label="Страна"/u);
+  // Настоящая страница с выдуманными делами (панель закрыта и в разметку не входит): выбранные фильтры — чипами рядом с «Фильтры».
+  const chips = (name) => all(nextBoards.get(name), /data-testid="list-filter-applied" href="[^"]*">([\s\S]*?)<\/a>/gu).map(text);
+  assert.deepEqual(chips("next-admissions-first-empty"), ["Страна: ОАЭ"], "выбрана страна — чип «Страна: …»");
+  assert.deepEqual(chips("next-admissions-curator"), ["Куратор: Куратор Один"]);
+  assert.deepEqual(chips("next-admissions"), [], "ничего не выбрано — чипов нет");
+  const uae = nextBoards.get("next-admissions-first-empty");
+  assert.equal(all(uae, /data-student-case-id="([^"]+)"/gu).length, 1, "страна доходит до чтения доски: из дел раздела по ОАЭ — одно");
+  assert.match(text(uae), /Элина Демо/u);
+  assert.doesNotMatch(text(uae), /Айжан Примерова|Бекзат Тестов/u, "дел других стран на доске нет");
+  assert.ok(all(nextBoards.get("next-admissions"), /data-student-case-id="([^"]+)"/gu).length > 1, "без выбора — все дела раздела");
+  // То, что панель прячет: выбор доходит до чтения и до адреса, куратора предлагают, «Сбросить» снимает оба, поиск без фильтров сбрасывается строкой.
+  assert.match(page, /readAdmissionsPipelineBoard\(actor, \{\s*country: query\.country,\s*curatorMembershipId: query\.curator,\s*query: query\.q,?\s*\}\)/u);
+  assert.match(page, /href: boardHref\(\{ \.\.\.query, country: code \}\),\s*selected: query\.country === code/u);
+  assert.match(page, /href: boardHref\(\{ \.\.\.query, curator: option\.membershipId \}\),\s*selected: query\.curator === option\.membershipId/u);
+  assert.match(page, /\.\.\.\(curatorOptions\.length > 0 \|\| query\.curator !== null \? \[\{ key: "curator", label: "Куратор", valueLabel: null, options: curatorChoices \}\] : \[\]\)/u);
+  assert.match(page, /\.\.\.\(query\.curator !== null && !curatorOptions\.some\(\(option\) => option\.membershipId === query\.curator\)\s*\? \[\{ key: query\.curator, label: "Выбранный куратор", href: boardHref\(query\), selected: true \}\]/u,
+    "куратор из адреса, которого нет в списке, не пропадает из панели");
+  assert.match(page, /const resetHref = boardHref\(\{ tab: query\.tab, q: null, country: null, curator: null \}\);/u, "«Сбросить» снимает оба");
+  assert.match(page, /<FilterPanel menus=\{filterMenus\} resetHref=\{filtersActive \? resetHref : null\} \/>/u, "«Сбросить» в панели, когда что-то выбрано");
+  assert.match(page, /const reset = query\.q !== null && query\.country === null && query\.curator === null \? <BoardReset href=\{resetHref\} \/> : null;/u);
+});
+
+test("«Воронка поступления» (26.11.2026): длинная колонка — первые 20 дел и «Показать ещё»; куратор на карточке — видимым коротким именем, круг только украшает", () => {
+  const column = read("src/components/staff/admissions-pipeline-next/AdmissionsColumnNext.tsx");
+  assert.match(column, /const COLUMN_STEP = 20;/u);
+  assert.match(column, /\{rows\.slice\(0, limit\)\.map\(/u);
+  assert.match(column, /data-testid="v3-admissions-column-more"/u);
+  assert.match(column, /useDroppable\(\{ id: stage/u, "бросить можно и на свёрнутую колонку");
+  // Решение владельца 06.11.2026 (подтверждено 27.11): «Умут М.» — видимый текст карточки, круг с буквами только украшает; «страна · вуз» — своя строка.
+  const card = read("src/components/staff/admissions-pipeline-next/AdmissionsCardNext.tsx");
+  assert.match(card, /<span className="min-w-0 truncate">\{shortPersonName\(curator\)\}<\/span>/u, "имя куратора — видимый текст");
+  assert.doesNotMatch(card, /sr-only/u, "имя куратора не спрятано для глаз");
+  assert.match(card, /<p className="t-meta min-w-0 truncate pe-8 text-fg-2" title=\{secondLine\}>\{secondLine\}<\/p>/u, "«страна · вуз» — одна строка");
+});

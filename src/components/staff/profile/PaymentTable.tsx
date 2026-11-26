@@ -81,7 +81,10 @@ function PaymentRow({ line, several }: Readonly<{ line: CaseMoneyLine; several: 
           </p>
           {line.kind === "payment" && line.who ? <p className="t-meta text-fg-3">{line.who}</p> : null}
           {line.kind === "plan" || (line.kind === "payment" && several) ? (
-            <p className="break-words t-meta text-fg-3">{line.kind === "plan" ? line.tranche.label : line.trancheLabel}</p>
+            <p className="break-words t-meta text-fg-3">
+              {line.kind === "plan" ? line.tranche.label : line.trancheLabel}
+              {line.kind === "plan" && line.remainderOf ? <> · {caseMoneyWords.schedule.remainderOf} <span className="tabular-nums">{line.remainderOf}</span></> : null}
+            </p>
           ) : null}
         </div>
         <div className="col-start-3 row-start-1 justify-self-end @3xl:col-start-5">

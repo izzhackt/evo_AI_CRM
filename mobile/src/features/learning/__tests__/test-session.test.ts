@@ -636,6 +636,152 @@ describe("сессия: выход из аккаунта (QA 23: `save_learning_
   });
 });
 
+describe("сессия: после закрытия экрана ничего не заводится (повторы, таймеры, завершение)", () => {
+  const SAVE_RPC = "save_learning_test_v1";
+  const COMPLETE_RPC = "complete_learning_test_v1";
+  const READ_RPC = "learning_test_attempt_v1";
+  const ofName = (h: { calls: Call[] }, name: string) => h.calls.filter((c) => c.name === name);
+  const keysOf = (attempt: { items: { itemKey: string }[] }) => attempt.items.map((i) => i.itemKey);
+
+  async function running(extra: Record<string, Reply[]> = {}) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    const session = new CscaTestSession(h.env, FORM, null);
+    await session.start();
+    return { h, session, keys: keysOf(attempt) };
+  }
+
+  /** Первый запрос сохранения не заканчивается, пока тест его не отпустит: так экран закрывается при запросе «в полёте». */
+  async function runningWithHeldSave(extra: Record<string, Reply[]>) {
+    const attempt = draftAttempt();
+    const h = harness({ start_learning_test_v1: [attempt], ...extra });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let entered = 0;
+    const transport: RpcTransport = async (name, args, options) => {
+      if (name === SAVE_RPC && (entered += 1) === 1) await held;
+      return h.env.transport(name, args, options);
+    };
+    const session = new CscaTestSession({ ...h.env, transport }, FORM, null);
+    await session.start();
+    return { h, session, keys: keysOf(attempt), release: () => release(), entered: () => entered };
+  }
+
+  it("закрытие экрана без связи: одна досылка, а повторов по таймеру нет, сколько бы времени ни прошло (раньше запрос шёл каждые 3 с, пока не пройдёт)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a"); // не отправлено
+    session.dispose();
+    await flushMicrotasks();
+    const sent = ofName(h, SAVE_RPC).length;
+    expect(sent).toBe(3); // три попытки слоя RPC одного запроса
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(sent);
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("пока экран открыт, повтор после обрыва идёт по таймеру как раньше (защита касается только закрытого экрана)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    expect(h.pendingTimers()).toBeGreaterThan(1); // отсчёт и повтор
+    await h.advance(RETRY_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(6);
+    await h.advance(RETRY_MS + 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(9);
+    session.dispose();
+  });
+
+  it("двойное закрытие экрана шлёт один раз (второй вызов `dispose` ничего не делает)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    session.dispose();
+    session.dispose();
+    await flushMicrotasks();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(3);
+    expect(h.pendingTimers()).toBe(0);
+  });
+
+  it("запрос в полёте, экран закрыт, затем ответ «нет связи»: повтор не заводится, состояние экрана не тронуто", async () => {
+    const { h, session, keys, release, entered } = await runningWithHeldSave({ [SAVE_RPC]: [NETWORK] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(entered()).toBe(1); // запрос ушёл и висит
+    const before = session.getState();
+    session.dispose();
+    release(); // ответ пришёл уже после закрытия
+    await flushMicrotasks();
+    const sent = ofName(h, SAVE_RPC).length;
+    expect(sent).toBe(6); // три попытки висевшего запроса и досылка при закрытии (тот же запрос ещё раз)
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(sent);
+    expect(session.getState()).toBe(before);
+  });
+
+  it("запрос в полёте, экран закрыт, затем ответ «принято»: ничего не заводится, состояние экрана не тронуто (так и было: проверка не даёт это сломать)", async () => {
+    const { h, session, keys, release, entered } = await runningWithHeldSave({ [SAVE_RPC]: [saveReceipt(2)] });
+    session.select(keys[0], "a");
+    await h.advance(SAVE_ON_CHOICE_MS + 10);
+    expect(entered()).toBe(1);
+    const before = session.getState();
+    session.dispose();
+    release();
+    await flushMicrotasks();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(RETRY_MS * 10);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(session.getState()).toBe(before);
+    expect(session.debug().revision).toBe(2); // внутренняя ревизия идёт дальше: завершение, начатое до закрытия, ждёт её
+  });
+
+  it("сервер отвечает конфликтом уже после закрытия экрана (и ответит так всегда): одно перечитывание и тишина, повторных отправок по кругу нет", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [err("40001", "Learning attempt changed")], [READ_RPC]: [draftAttempt()] });
+    session.select(keys[0], "a");
+    session.dispose();
+    await flushMicrotasks();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(ofName(h, READ_RPC)).toHaveLength(1);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(60_000);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(ofName(h, READ_RPC)).toHaveLength(1);
+  });
+
+  it("выбор после закрытия экрана (опоздавший ввод) таймера сохранения не заводит", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [saveReceipt(2)] });
+    session.dispose();
+    session.select(keys[0], "b");
+    session.toggleFlag(keys[0]);
+    expect(h.pendingTimers()).toBe(0);
+    await h.advance(60_000);
+    expect(ofName(h, SAVE_RPC)).toHaveLength(0);
+  });
+
+  it("ответ «срок прошёл» уже после закрытия экрана: нового завершения не начинается (сервер завершит попытку при следующем чтении)", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [err("22023", "learning_test_deadline_passed")], [COMPLETE_RPC]: [fx("csca_test_complete_diagnostic")] });
+    session.select(keys[0], "a");
+    session.dispose();
+    await flushMicrotasks();
+    expect(ofName(h, SAVE_RPC)).toHaveLength(1);
+    expect(ofName(h, COMPLETE_RPC)).toHaveLength(0);
+  });
+
+  it("экран закрыт посреди досрочного завершения, а отправка не прошла: неотправленное остаётся помеченным, завершение без этих ответов не уходит, таймеров нет", async () => {
+    const { h, session, keys } = await running({ [SAVE_RPC]: [NETWORK], [COMPLETE_RPC]: [fx("csca_test_complete_diagnostic")] });
+    session.select(keys[0], "a");
+    const finishing = session.finalize();
+    session.dispose();
+    await finishing;
+    await flushMicrotasks();
+    expect(ofName(h, COMPLETE_RPC)).toHaveLength(0);
+    expect(h.pendingTimers()).toBe(0);
+    expect(session.debug().retry).not.toBeNull(); // замороженный запрос на месте: завершение ждёт его
+  });
+});
+
 describe("приватность", () => {
   it("тексты серверных ошибок не хранятся ни в состоянии, ни в журнале", async () => {
     const leak = "UNIQUE-SERVER-TEXT";

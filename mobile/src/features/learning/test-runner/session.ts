@@ -144,8 +144,11 @@ export class CscaTestSession {
   /**
    * Экран закрыт (свайп назад, системная «назад», выход): несохранённые ответы и время на задании
    * уходят «по возможности» (запрос идёт и после закрытия), затем таймеры останавливаются.
+   * Досылка одна: после закрытия новых таймеров и повторов нет (сбой досылки, опоздавший ответ, конфликт, выбор после закрытия),
+   * иначе без связи запрос шёл бы каждые 3 с, пока не пройдёт. Второе закрытие ничего не шлёт.
    */
   dispose(): void {
+    if (this.disposed) return;
     if (this.attempt?.status === "draft" && this.state.phase === "running") void this.flush({ settle: true }).catch(() => undefined);
     this.disposed = true;
     if (this.batchTimer) this.env.clearTimer(this.batchTimer);
@@ -365,7 +368,9 @@ export class CscaTestSession {
   // ---- сохранение ------------------------------------------------------------------------
   /** Выбор: статус «Сохраняем…», отправка через 1,5 с, не раньше 2 с после прошлой (§7.3). */
   private scheduleSave(minDelay = SAVE_ON_CHOICE_MS): void {
-    if (this.abandoned) return; // после выхода таймеров и записи больше нет (экран к этому часу уже замер: `patch` после `abandon` пуст)
+    // После выхода из аккаунта и после закрытия экрана таймеров и записи больше нет (экран к этому часу уже замер: `patch` пуст).
+    // Сюда приходят выбор, флажок, переход и наложение выбора после конфликта; во время завершения они закрыты (`phase` не `running`).
+    if (this.abandoned || this.disposed) return;
     this.dirty = true;
     if (this.retry) return; // таймер повтора не сбивается
     this.patch({ saveStatus: "pending" });
@@ -430,7 +435,9 @@ export class CscaTestSession {
         // Тот же запрос: сервер мог его уже принять, повтор вернёт ту же квитанцию.
         this.retry = request;
         this.patch({ saveStatus: "retrying" });
-        this.batchTimer = this.env.setTimer(() => void this.flush(), RETRY_MS);
+        // Экран закрыт: повтор по таймеру не заводится (досылка при закрытии одна); запрос остаётся замороженным, чтобы завершение,
+        // начатое до закрытия, не ушло без ответов, которые не дошли.
+        if (!this.disposed) this.batchTimer = this.env.setTimer(() => void this.flush(), RETRY_MS);
         return;
       }
       this.retry = null;
@@ -465,9 +472,10 @@ export class CscaTestSession {
         return;
       }
       if (code === "deadline_passed") {
-        // Срок держит сервер: завершаем тем, что сохранено до срока.
+        // Срок держит сервер: завершаем тем, что сохранено до срока. Экран закрыт: нового завершения не начинаем (сервер сам завершит
+        // попытку при следующем чтении, §7.5); уже идущее завершение довершается.
         this.patch({ saveStatus: "idle" });
-        void this.finalize();
+        if (!this.disposed) void this.finalize();
         return;
       }
       this.patch({ saveStatus: "idle", error: code === "denied" ? "denied" : "invalid" });

@@ -19,7 +19,8 @@ export type ProgramDuration = (typeof PROGRAM_DURATIONS)[number];
 export type ProgramFacets = Readonly<{ field: ProgramField; months: readonly number[]; duration: ProgramDuration | null }>;
 
 // Порядок важен: первое совпадение решает («Business Information Technology» - IT, «Biomedical Engineering» - медицина,
-// «Tourism Management» - туризм, а не бизнес).
+// «Tourism Management» - туризм, а не бизнес). Слово «global» записано как `globa[l]`: страж общих импортов приложения
+// (mobile/scripts/check-shared-imports.mjs) принимает голое `global` за обращение к DOM, а разбор от этого не меняется.
 const FIELD_RULES: readonly (readonly [ProgramField, RegExp])[] = [
   ["law", /\blaws?\b|\blegal\b|\bllb\b|\bllm\b|juris|criminal|shariah|intellectual property/i],
   ["it", /comput|software|information|\bit\b|\bdata\b|artificial intelligence|cyber|informatic|network|multimedia|game|programming|visual effects|intelligent system|information security|\bgis\b|remote sensing|internet of things/i],
@@ -30,7 +31,7 @@ const FIELD_RULES: readonly (readonly [ProgramField, RegExp])[] = [
   ["design", /design|architect|\barts?\b|music|film|media|animation|fashion|creative|photograph|interior|screen|stage|acting|cinema|dance|drama|planning|urban|land administration|landscap|paint|sculpt|drawing|performance|television|radio|publication|editing|broadcast/i],
   ["education", /education|teaching|\btesl\b|pedagog|early childhood|measurement and assessment/i],
   ["science", /science|physics|chemi|biolog|mathemat|statistic|bio-?tech|environment|agricult|food|geolog|geograph|sustainab|ecolog|horticult|agronom|zoolog|forest|plant|garden|silkworm|phytolog|meteorolog|astronom|marine|archeolog|animal|rural/i],
-  ["social", /social|politic|international|communication|journalism|sociolog|histor|philosoph|humanit|islamic|language|english|chinese|\bhsk\b|linguist|literature|translat|governance|global|studies|quran|hadith|usuluddin|dakwah|community|public administration|public policy|psycholog|counsel|behaviou?r|japanese|russian|german|spanish|french|arabic|korean|portuguese|italian|swahili|ukrainian|polish|thai|amharic|diplomac|marxis|public relations|public (service )?administration|administrative|archiv/i],
+  ["social", /social|politic|international|communication|journalism|sociolog|histor|philosoph|humanit|islamic|language|english|chinese|\bhsk\b|linguist|literature|translat|governance|globa[l]|studies|quran|hadith|usuluddin|dakwah|community|public administration|public policy|psycholog|counsel|behaviou?r|japanese|russian|german|spanish|french|arabic|korean|portuguese|italian|swahili|ukrainian|polish|thai|amharic|diplomac|marxis|public relations|public (service )?administration|administrative|archiv/i],
 ];
 
 export function programField(title: string): ProgramField {

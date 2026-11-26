@@ -2,29 +2,108 @@
 // OpenFreeMap, что в вебе, без ключей. Точки только у вузов с проверенной координатой, группы
 // собирает сам источник; нажатие на группу приближает, на точку открывает мини-карточку.
 // Карта - второй путь к тем же вузам: вид «Списком» всегда доступен.
-import { Camera, GeoJSONSource, Layer, Map as MapView, type CameraRef, type GeoJSONSourceRef } from "@maplibre/maplibre-react-native";
-import { useMemo, useRef, useState } from "react";
-import type { NativeSyntheticEvent } from "react-native";
-import { View } from "react-native";
+//
+// Как в вебе (MapCanvas.tsx, MapView.tsx; аудит паритета 25.11.2026, G43): кнопки «+» и «-», пока карта грузится - «Загружаем карту…»,
+// при «Уменьшить движение» камера прыгает без анимации, мини-карточка закрывается кнопкой «Закрыть» и кнопкой «Назад» Android
+// (пока экран с картой в фокусе), а каждый вуз на карте доступен читалке отдельной кнопкой (у веба маркеры - кнопки DOM; слои
+// нативной карты читалка не видит). Выбор вуза читалкой переносит её фокус на карточку (веб: `node.focus()` у диалога), закрытие
+// карточки возвращает его на кнопку вуза (веб: `closeCard`, `marker.focus()`).
+import { Camera, GeoJSONSource, Layer, Map as MapView, type CameraRef, type GeoJSONSourceRef, type MapRef } from "@maplibre/maplibre-react-native";
+import { Minus, Plus } from "lucide-react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, BackHandler, Platform, Pressable, View, useWindowDimensions, type AccessibilityActionEvent, type AccessibilityActionInfo, type HostInstance, type NativeSyntheticEvent } from "react-native";
 
 import { useLang } from "@/i18n/LangProvider";
+import { useFocusEffect } from "@/lib/focus";
 import { useTheme } from "@/theme/ThemeProvider";
+import { useReducedMotion } from "@/ui/a11y";
 import { Button } from "@/ui/Button";
+import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
-import { initialCamera, MAP_STYLES, pinsToGeoJSON, type MapPins } from "./map-data";
+import { initialCamera, MAP_STYLES, MAX_ZOOM, MIN_ZOOM, pinsToGeoJSON, type MapPins } from "./map-data";
 
 type PressLike = Readonly<{ features: GeoJSON.Feature[] }>;
 
+/** Шаг кнопок «+» и «-» (один уровень масштаба, как у NavigationControl веба) и время плавного перехода. */
+const ZOOM_STEP = 1;
+const EASE_MS = 400;
+const ZOOM_MS = 250;
+
+/** Высота карты и поля экрана по бокам (по 16 pt у `Screen`): по ним считается рамка камеры. */
+const MAP_HEIGHT = 420;
+const SCREEN_GUTTERS = 32;
+
+/**
+ * Вид, невидимый глазу и видимый читалке: 1 x 1 pt без фона. Читалка (VoiceOver, TalkBack) не видит слоёв нативной карты, а кнопка
+ * размером в точку у неё есть; пока читалка выключена, она никому не мешает. Касаниям вид недоступен (`pointerEvents="none"` на
+ * слое): вуз открывается только жестом читалки, а не касанием левого верхнего угла карты.
+ */
+const READER_ONLY = { position: "absolute", left: 0, top: 0, width: 1, height: 1, overflow: "hidden" } as const;
+/** Кнопка вуза для читалки: все лежат в одной точке слоя (второй и дальше не выходят за его 1 x 1 pt). */
+const READER_PIN = { position: "absolute", left: 0, top: 0, width: 1, height: 1 } as const;
+/** TalkBack доставляет двойное касание действием `activate` (ACTION_CLICK), а не касанием экрана; на iOS для этого `onAccessibilityTap`. */
+const ACTIVATE: readonly AccessibilityActionInfo[] = [{ name: "activate" }];
+/**
+ * Android: событие фокуса, посланное в том же кадре, где вид создан (карточка) или убран (карточка закрылась), TalkBack может пропустить,
+ * поэтому там оно идёт чуть позже. На iPhone оно идёт сразу после отрисовки.
+ */
+const FOCUS_DELAY_MS = 150;
+
 export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (id: string) => void; onFail: () => void }) {
   const { tokens, scheme } = useTheme();
-  const { t } = useLang();
+  const { t, m } = useLang();
   const strings = t("universities");
+  const reduced = useReducedMotion();
   const camera = useRef<CameraRef>(null);
+  const map = useRef<MapRef>(null);
   const source = useRef<GeoJSONSourceRef>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  // Перенос фокуса читалки: после выбора вуза кнопкой - на название карточки (`pinId === null`), после закрытия карточки - на кнопку этого
+  // вуза. Запрос с новым номером, а не флаг: выбор вуза нажатием на карту фокус не трогает, повторный выбор той же кнопкой переносит снова.
+  const cardHead = useRef<HostInstance>(null);
+  const pinNodes = useRef(new Map<string, HostInstance>());
+  const [focusRequest, setFocusRequest] = useState<Readonly<{ n: number; pinId: string | null }> | null>(null);
+  const { width } = useWindowDimensions();
   const data = useMemo(() => pinsToGeoJSON(pins), [pins]);
-  const initial = useMemo(() => initialCamera(pins), [pins]);
+  // Рамка считается по окну карты: на планшете та же рамка встаёт глубже, чем на телефоне (камера принимает её один раз, при показе).
+  const initial = useMemo(() => initialCamera(pins, { width: width - SCREEN_GUTTERS, height: MAP_HEIGHT }), [pins, width]);
+  const pin = selected === null ? null : (pins[selected] ?? null);
+
+  /** Нажатие на пустое место карты: карточка закрывается, фокус читалки не трогается (читалка ходит по кнопкам вузов, а не по карте). */
+  const close = useCallback(() => setSelected(null), []);
+  /** «Закрыть», «Назад» Android и жест «Escape» читалки: карточка закрывается, а фокус возвращается на кнопку вуза (веб: `closeCard`). */
+  const closeCard = useCallback(() => {
+    if (pin === null) return;
+    setSelected(null);
+    setFocusRequest((previous) => ({ n: (previous?.n ?? 0) + 1, pinId: pin.id }));
+  }, [pin]);
+  // Кнопка «Назад» Android закрывает мини-карточку, а не уводит со страницы (веб: Esc закрывает карточку). Обработчик живёт, только
+  // пока экран с картой в фокусе: «Открыть карточку» ведёт на страницу вуза, а экран карты остаётся под ней с открытой карточкой, и
+  // его обработчик, последний из зарегистрированных, проглотил бы первое же «Назад» на странице вуза.
+  useFocusEffect(
+    useCallback(() => {
+      if (pin === null) return undefined;
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        closeCard();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [pin, closeCard]),
+  );
+  useEffect(() => {
+    if (focusRequest === null) return undefined;
+    const node = focusRequest.pinId === null ? cardHead.current : (pinNodes.current.get(focusRequest.pinId) ?? null);
+    if (node === null) return undefined;
+    const send = () => AccessibilityInfo.sendAccessibilityEvent(node, "focus");
+    if (Platform.OS !== "android") {
+      send();
+      return undefined;
+    }
+    const timer = setTimeout(send, FOCUS_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [focusRequest]);
 
   const onPress = async (event: NativeSyntheticEvent<PressLike>) => {
     // Нажатие на точку не должно доходить до карты: её onPress закрывает мини-карточку.
@@ -36,51 +115,99 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
     if (typeof props.cluster_id === "number") {
       setSelected(null);
       const zoom = await source.current?.getClusterExpansionZoom(props.cluster_id).catch(() => undefined);
-      camera.current?.easeTo({ center, zoom: (zoom ?? 6) + 0.2, duration: 400 });
+      camera.current?.easeTo({ center, zoom: (zoom ?? 6) + 0.2, duration: reduced ? 0 : EASE_MS });
     } else if (typeof props.pin === "number") {
       setSelected(props.pin);
     }
   };
 
-  const pin = selected === null ? null : (pins[selected] ?? null);
+  /** «+» и «-»: на уровень ближе или дальше от нынешнего масштаба (камера знает его только по запросу), в пределах карты. */
+  const zoomBy = async (step: number) => {
+    const current = await map.current?.getZoom().catch(() => undefined);
+    if (current === undefined) return;
+    camera.current?.zoomTo(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current + step)), { duration: reduced ? 0 : ZOOM_MS });
+  };
+
+  const choose = (index: number) => {
+    setSelected(index);
+    setFocusRequest((previous) => ({ n: (previous?.n ?? 0) + 1, pinId: null }));
+  };
+
   return (
-    <View style={{ height: 420, borderRadius: tokens.radiusCard, overflow: "hidden", borderWidth: 1, borderColor: tokens.line }} accessibilityLabel={strings.mapAria} testID="catalog-map">
-      <MapView
-        style={{ flex: 1 }}
-        mapStyle={MAP_STYLES[scheme === "dark" ? "dark" : "light"]}
-        logo={false}
-        attribution
-        attributionPosition={{ bottom: 8, right: 8 }}
-        compass={false}
-        onDidFailLoadingMap={onFail}
-        onPress={() => setSelected(null)}
-      >
-        <Camera ref={camera} initialViewState={initial} />
-        <GeoJSONSource ref={source} id="universities" data={data} cluster clusterRadius={44} clusterMaxZoom={13} onPress={onPress}>
-          <Layer
-            id="clusters"
-            type="circle"
-            filter={["has", "point_count"]}
-            paint={{ "circle-color": tokens.accent, "circle-radius": ["step", ["get", "point_count"], 18, 10, 22, 50, 28], "circle-stroke-width": 2, "circle-stroke-color": "#ffffff" }}
+    <View style={{ height: MAP_HEIGHT, borderRadius: tokens.radiusCard, overflow: "hidden", borderWidth: 1, borderColor: tokens.line }} accessibilityLabel={strings.mapAria} testID="catalog-map">
+      {/* Нативный вид карты читалке не нужен: она идёт по кнопкам вузов ниже. */}
+      <View style={{ flex: 1 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <MapView
+          ref={map}
+          style={{ flex: 1 }}
+          mapStyle={MAP_STYLES[scheme === "dark" ? "dark" : "light"]}
+          logo={false}
+          attribution
+          attributionPosition={{ bottom: 8, right: 8 }}
+          compass={false}
+          onDidFinishLoadingMap={() => setLoaded(true)}
+          onDidFailLoadingMap={onFail}
+          onPress={close}
+        >
+          <Camera ref={camera} initialViewState={initial} />
+          <GeoJSONSource ref={source} id="universities" data={data} cluster clusterRadius={44} clusterMaxZoom={13} onPress={onPress}>
+            {/* Подпись и кольцо берутся из токенов темы: белая подпись на светлом акценте тёмной темы давала около 3,3:1 (G43). */}
+            <Layer
+              id="clusters"
+              type="circle"
+              filter={["has", "point_count"]}
+              paint={{ "circle-color": tokens.accent, "circle-radius": ["step", ["get", "point_count"], 18, 10, 22, 50, 28], "circle-stroke-width": 2, "circle-stroke-color": tokens.surface }}
+            />
+            <Layer
+              id="cluster-count"
+              type="symbol"
+              filter={["has", "point_count"]}
+              layout={{ "text-field": ["get", "point_count_abbreviated"], "text-size": 13, "text-font": ["Noto Sans Bold"], "text-allow-overlap": true }}
+              paint={{ "text-color": tokens.onAccent }}
+            />
+            <Layer
+              id="points"
+              type="circle"
+              filter={["!", ["has", "point_count"]]}
+              paint={{ "circle-color": tokens.accent, "circle-radius": 9, "circle-stroke-width": 3, "circle-stroke-color": tokens.surface }}
+            />
+          </GeoJSONSource>
+        </MapView>
+      </View>
+
+      {/* Каждый вуз на карте - кнопка для читалки (веб: маркеры - кнопки с aria-label); касанием не открывается (см. READER_ONLY). */}
+      <View accessible={false} pointerEvents="none" style={READER_ONLY} testID="map-reader-pins">
+        {pins.map((entry, index) => (
+          <View
+            key={entry.id}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={`${entry.name}. ${entry.place}`}
+            accessibilityHint={strings.mapOpenCard}
+            accessibilityActions={Platform.OS === "android" ? ACTIVATE : undefined}
+            onAccessibilityTap={() => choose(index)}
+            onAccessibilityAction={(event: AccessibilityActionEvent) => {
+              if (event.nativeEvent.actionName === "activate") choose(index);
+            }}
+            testID={`map-pin-${entry.id}`}
+            style={READER_PIN}
+            ref={(node) => {
+              if (node) pinNodes.current.set(entry.id, node);
+              else pinNodes.current.delete(entry.id);
+            }}
           />
-          <Layer
-            id="cluster-count"
-            type="symbol"
-            filter={["has", "point_count"]}
-            layout={{ "text-field": ["get", "point_count_abbreviated"], "text-size": 13, "text-font": ["Noto Sans Bold"], "text-allow-overlap": true }}
-            paint={{ "text-color": "#ffffff" }}
-          />
-          <Layer
-            id="points"
-            type="circle"
-            filter={["!", ["has", "point_count"]]}
-            paint={{ "circle-color": tokens.accent, "circle-radius": 9, "circle-stroke-width": 3, "circle-stroke-color": "#ffffff" }}
-          />
-        </GeoJSONSource>
-      </MapView>
+        ))}
+      </View>
+
+      {/* Карточка идёт в дереве сразу за кнопками вузов (до кнопок масштаба): читалке Android она следующая после выбранного вуза. */}
       {pin ? (
-        <View style={{ position: "absolute", zIndex: 10, elevation: 10, left: 8, right: 8, bottom: 8, padding: 12, gap: 8, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }} testID="map-card">
-          <View>
+        <View
+          style={{ position: "absolute", zIndex: 10, elevation: 10, left: 8, right: 8, bottom: 8, padding: 12, gap: 8, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line }}
+          onAccessibilityEscape={closeCard}
+          testID="map-card"
+        >
+          {/* Одним элементом для читалки: сюда переходит её фокус после выбора вуза (название и место читаются вместе). */}
+          <View ref={cardHead} accessible accessibilityLabel={`${pin.name}. ${pin.place}`} testID="map-card-head">
             <Text variant="body" bold>
               {pin.name}
             </Text>
@@ -88,9 +215,40 @@ export function CatalogMap({ pins, onOpen, onFail }: { pins: MapPins; onOpen: (i
               {pin.place}
             </Text>
           </View>
-          <Button label={strings.mapOpenCard} onPress={() => onOpen(pin.id)} testID="map-open" />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Button label={strings.mapOpenCard} onPress={() => onOpen(pin.id)} testID="map-open" style={{ flex: 1 }} />
+            <Button variant="ghost" label={strings.mapCloseCard} onPress={closeCard} testID="map-close" />
+          </View>
         </View>
       ) : null}
+
+      {loaded ? (
+        <View
+          style={{ position: "absolute", top: 8, right: 8, borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface, overflow: "hidden" }}
+          testID="map-zoom"
+        >
+          <Pressable accessibilityRole="button" accessibilityLabel={m("uni.mapZoomIn")} onPress={() => void zoomBy(ZOOM_STEP)} testID="map-zoom-in" style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
+            <Plus size={20} strokeWidth={1.75} color={tokens.text} />
+          </Pressable>
+          <View style={{ height: 1, backgroundColor: tokens.line }} />
+          <Pressable accessibilityRole="button" accessibilityLabel={m("uni.mapZoomOut")} onPress={() => void zoomBy(-ZOOM_STEP)} testID="map-zoom-out" style={{ width: MIN_TARGET, height: MIN_TARGET, alignItems: "center", justifyContent: "center" }}>
+            <Minus size={20} strokeWidth={1.75} color={tokens.text} />
+          </Pressable>
+        </View>
+      ) : (
+        <View
+          accessibilityRole="progressbar"
+          accessibilityLabel={strings.mapLoading}
+          accessibilityState={{ busy: true }}
+          accessibilityLiveRegion="polite"
+          testID="map-loading"
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: tokens.surface, opacity: 0.9 }}
+        >
+          <Text variant="secondary" tone="text2">
+            {strings.mapLoading}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

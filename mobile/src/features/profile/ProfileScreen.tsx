@@ -1,13 +1,18 @@
-// Профиль (веб: portal/profile/page.tsx; iPhone: ProfileView): мои данные, язык, тема, пароль, одна секция
-// «Конфиденциальность» (политика, поддержка, согласие на ИИ одной строкой, удаление аккаунта; решение владельца
-// 14.11.2026: без объяснений о данных), о приложении (лицензии, версия) и выход.
+// Профиль (веб: portal/profile/page.tsx; iPhone: ProfileView): карточка студента сверху (инициалы, имя, страна и этап,
+// «Выйти», «Личные результаты тестов»), «Ваша анкета», мои данные, язык, тема, пароль, одна секция «Конфиденциальность»
+// (политика, поддержка, согласие на ИИ одной строкой, удаление аккаунта; решение владельца 14.11.2026: без объяснений
+// о данных) и «О приложении» (лицензии, версия). «Выйти» наверху, как на вебе.
 // Телефон не меняется: на вебе такой строки нет (меняет куратор), поэтому и здесь только чтение имени и почты.
 import { useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import { useCallback, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
+import { accountInitials } from "@web/components/portal/initials";
+import { isStudyCountryCode, studyCountryName } from "@web/lib/study-countries";
 
 import { usePortalApi } from "@/api/PortalApi";
+import { useCountryChoice, useOverview } from "@/api/queries";
+import { stageLabel } from "@/domain/presentation";
 import { ConsultationCard } from "@/features/consultation/ConsultationCard";
 import { go, WRITE_EVO_ROUTE } from "@/features/portal/navigation";
 import { openExternal, PRIVACY_URL, SUPPORT_URL } from "@/features/profile/external";
@@ -15,13 +20,14 @@ import { AiConsentRow } from "@/features/profile/AiConsent";
 import { DeletionPanel } from "@/features/profile/DeletionPanel";
 import { LicensesScreen } from "@/features/profile/LicensesScreen";
 import { PasswordCard } from "@/features/profile/PasswordCard";
-import { useOwnLogin, useOwnProfile, useSaveLanguage } from "@/features/profile/use-profile";
+import { useOwnApplication, useOwnLogin, useOwnProfile, useSaveLanguage } from "@/features/profile/use-profile";
+import { applicationAnswers } from "@/features/registration/answers";
 import { useLang } from "@/i18n/LangProvider";
 import type { Lang } from "@/i18n";
 import { useSession } from "@/session/SessionProvider";
 import { useTheme, type ThemeChoice } from "@/theme/ThemeProvider";
 import { Button } from "@/ui/Button";
-import { CardHead, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
+import { CardHead, CardSkeleton, InlineAlert, LinkButton, MIN_TARGET } from "@/ui/CardParts";
 import { Card, Screen } from "@/ui/Screen";
 import { Segmented } from "@/ui/Segmented";
 import { Text } from "@/ui/Text";
@@ -50,6 +56,79 @@ function LinkRow({ label, onPress, testID }: { label: string; onPress: () => voi
   );
 }
 
+/** Короткая метка под именем: страна поступления, этап дела (веб: `pt-chip`). */
+function Chip({ label }: { label: string }) {
+  const { tokens } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: tokens.radiusChip, backgroundColor: tokens.accentSoft }}>
+      <Text variant="caption" tone="accent" bold>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Имя занимает не больше двух строк, дальше шрифт ужимается (не мельче 60%). Это смягчение, а не гарантия: RN считает вторую строку с
+ * посимвольным переносом уместившейся и может шрифт не ужать. Целым слово держит ширина колонки имени (см. `ProfileHero`).
+ */
+const NAME_LINES = 2;
+const NAME_MIN_SCALE = 0.6;
+
+/**
+ * Карточка студента наверху (веб: ProfileHero.tsx): круг с инициалами вместо фото (поля фото у студента нет), имя, метки
+ * страны и этапа, «Выйти» и под чертой строка «Личные результаты тестов». Метки читаются отдельно от профиля: сбой чтения -
+ * без метки, как на вебе.
+ *
+ * На телефоне «Выйти» стоит отдельной строкой под именем, а не справа от него (веб, `.pt-profile-hero-action`: «Телефон: «Выйти»
+ * под именем; от 640 px - справа в той же строке»; приложение только на телефоне). Справа кнопка отнимала у имени около 80 pt из
+ * 270, и «Сопровождаемый» ломалось посреди слова (QA#2, D6). У имени своя колонка (`flex: 1`, `minWidth: 0`): ничто рядом её не
+ * сужает; на крупном шрифте имя занимает до двух рядов и ужимается.
+ *
+ * Запас по замеру независимого рецензента (Golos SemiBold 20 pt): «Сопровождаемый» - 179 pt при масштабе шрифта 1, 215 при 1,2 и 251 на
+ * пределе 1,4 (`maxFontSizeMultiplier` у `heading`); колонка имени - ширина экрана минус 134: 268 pt на 402, 259 на 393, 241 на 375,
+ * 226 на 360, 186 на 320. Значит, при обычном шрифте слово помещается на любой ширине от 320 pt, а на пределе 1,4 - от 385 pt (402 и 393
+ * подходят); на 375, 360 и 320 pt при самом крупном шрифте оно ещё может порваться: `numberOfLines` и `adjustsFontSizeToFit` целого слова
+ * не гарантируют. Эту границу проверяет только устройство.
+ */
+function ProfileHero({ name, chips, busy, onSignOut, onTests, signOutLabel, testsLabel }: { name: string; chips: readonly string[]; busy: boolean; onSignOut: () => void; onTests: () => void; signOutLabel: string; testsLabel: string }) {
+  const { tokens } = useTheme();
+  return (
+    <Card>
+      <View style={{ gap: 12 }} testID="profile-hero">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }} testID="profile-hero-main">
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: tokens.accentSoft, alignItems: "center", justifyContent: "center" }}
+            testID="profile-avatar"
+          >
+            <Text variant="heading" tone="accent" bold>
+              {accountInitials(name)}
+            </Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }} testID="profile-hero-identity">
+            <Text variant="heading" accessibilityRole="header" numberOfLines={NAME_LINES} adjustsFontSizeToFit minimumFontScale={NAME_MIN_SCALE} testID="profile-hero-name">
+              {name}
+            </Text>
+            {chips.length > 0 ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }} testID="profile-chips">
+                {chips.map((chip) => (
+                  <Chip key={chip} label={chip} />
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }} testID="profile-hero-actions">
+          <Button label={signOutLabel} variant="ghost" busy={busy} onPress={onSignOut} testID="sign-out" />
+        </View>
+      </View>
+      <LinkRow label={testsLabel} onPress={onTests} testID="profile-tests-link" />
+    </Card>
+  );
+}
+
 /** Блок секции под линией, как у строк-ссылок: согласие на ИИ и удаление аккаунта. */
 function Divided({ children }: { children: ReactNode }) {
   const { tokens } = useTheme();
@@ -57,13 +136,16 @@ function Divided({ children }: { children: ReactNode }) {
 }
 
 export function ProfileScreen() {
-  const { lang, setLang, profile: web, shell, m, format } = useLang();
+  const { lang, setLang, profile: web, shell, m, format, t } = useLang();
   const { choice, setChoice } = useTheme();
   const { state, signOut } = useSession();
   const { userKey, tier } = usePortalApi();
   const client = useQueryClient();
   const profile = useOwnProfile();
   const login = useOwnLogin();
+  const application = useOwnApplication();
+  const countryChoice = useCountryChoice();
+  const overview = useOverview();
   const saveLanguage = useSaveLanguage();
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,6 +153,14 @@ export function ProfileScreen() {
   const [linkFailed, setLinkFailed] = useState(false);
   const name = profile.data?.displayName ?? (state.kind === "active" ? state.session.authority.displayName : "");
   const version = Constants.expoConfig?.version ?? "";
+  const admission = t("admission");
+  const apply = t("apply") as unknown as Readonly<Record<string, string>>;
+  // Метки как на вебе: страна поступления (если выбрана) и этап дела (только у клиента на сопровождении).
+  const country = countryChoice.data?.country ?? null;
+  const stage = tier === "assisted" && overview.data ? stageLabel(overview.data.operationalStage, admission) : null;
+  const chips = [country !== null && isStudyCountryCode(country) ? studyCountryName(country, lang) : null, stage ? `${admission.stageTerm}: ${stage}` : null].filter(
+    (chip): chip is string => chip !== null,
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -98,6 +188,46 @@ export function ProfileScreen() {
         {web.title}
       </Text>
       <View style={{ gap: 16 }} testID="profile-screen">
+        <ProfileHero
+          name={name}
+          chips={chips}
+          busy={busy}
+          signOutLabel={busy ? m("profile.signingOut") : web.logout}
+          testsLabel={web.testsLink}
+          onTests={() => go("/tests")}
+          onSignOut={() => {
+            setBusy(true);
+            void signOut().finally(() => setBusy(false));
+          }}
+        />
+
+        {application.isPending ? (
+          <Card>
+            <CardSkeleton label={`${apply.answersHeading}. ${m("state.loading")}`} lines={3} testID="profile-application-loading" />
+          </Card>
+        ) : application.isError ? (
+          <Card>
+            <CardHead title={apply.answersHeading} />
+            <InlineAlert message={web.applicationUnavailable} retryLabel={m("profile.retry")} onRetry={() => void application.refetch()} testID="profile-application-error" />
+          </Card>
+        ) : application.data ? (
+          <Card>
+            <CardHead title={apply.answersHeading} />
+            <View style={{ gap: 12 }} testID="profile-application">
+              {applicationAnswers(application.data.questionnaire, apply, lang).map((row) => (
+                <View key={row.label} accessible accessibilityLabel={`${row.label}: ${row.value}`} style={{ gap: 2 }}>
+                  <Text variant="caption" tone="text2">
+                    {row.label}
+                  </Text>
+                  <Text variant="body" selectable>
+                    {row.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHead title={m("profile.myData")} />
           {profile.isError && !profile.data ? (
@@ -131,9 +261,6 @@ export function ProfileScreen() {
             ]}
           />
           {saveLanguage.isError ? <InlineAlert message={web.languageError} testID="profile-lang-error" /> : null}
-          <Text variant="caption" tone="text2">
-            {m("profile.languageNote")}
-          </Text>
         </Card>
 
         <Card>
@@ -174,17 +301,6 @@ export function ProfileScreen() {
             </Text>
           ) : null}
         </Card>
-
-        <Button
-          label={busy ? m("profile.signingOut") : web.logout}
-          variant="ghost"
-          busy={busy}
-          testID="sign-out"
-          onPress={() => {
-            setBusy(true);
-            void signOut().finally(() => setBusy(false));
-          }}
-        />
       </View>
       <LicensesScreen visible={licensesOpen} onClose={() => setLicensesOpen(false)} />
     </Screen>

@@ -1125,6 +1125,34 @@ SQL
     rm -f "$t370_tamper_log"
   fi
 
+  # «Поиск и фильтр по стране дела» (375). Matched by name, not number. Immediately BEFORE it: a board body whose country
+  # filter is not the one 375 was written against makes it fail closed with a375_replace_drift, inside a transaction that
+  # the failure rolls back (the three patches before it too); the ordinary apply below then proves nothing was kept.
+  if [[ "$(basename "$migration")" == *_platform_case_country_search.sql ]]; then
+    t375_tamper_log="$(mktemp -t evo-t375-fragment-tamper.XXXXXX)"
+    if docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v "migration_file=/workspace/$migration" \
+      >"$t375_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(pg_get_functiondef('platform.staff_admissions_pipeline_board_v1(uuid,text,text,text)'::regprocedure),
+  'AND (p_country IS NULL OR c.target_country = p_country)',
+  'AND (p_country IS NULL OR c.target_country = lower(p_country))') AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+    then
+      echo "migration 375 accepted an edited board body" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a375_replace_drift: platform.staff_admissions_pipeline_board_v1" "$t375_tamper_log"; then
+      echo "migration 375 failed for the wrong drift reason" >&2
+      sed -n '1,60p' "$t375_tamper_log" >&2
+      exit 1
+    fi
+    rm -f "$t375_tamper_log"
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -6245,6 +6273,36 @@ SQL
       exit 1
     fi
   fi
+  # «Поиск и фильтр по стране дела» (migration 375, 25.11.2026). Matched by name, not number. The migration adds two closed
+  # functions (the countries a typed word means, from platform.study_countries and study_country_from_text; the spellings
+  # one organization's cases hold for them) and patches four reads by checked fragments: right after it a second apply
+  # refuses (a375_already_applied), then the suite, insisting on its marker. The suite proves: the words and aliases of a
+  # country; the «Студенты» page, queue and counts find a case by the word of its country and keep every older match; the
+  # board country filter takes one country however it is written; a curator without access gets nothing, a seller with
+  # summary access nothing beyond his list, another organization only its own cases; posture and grants.
+  if [[ "$(basename "$migration")" == *_platform_case_country_search.sql ]]; then
+    t375_again_log="$(mktemp -t evo-t375-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t375_again_log" 2>&1; then
+      echo "migration 375 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a375_already_applied" "$t375_again_log"; then
+      echo "a second apply of migration 375 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t375_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t375_again_log"
+    case_country_search_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_country_search.sql </dev/null)"
+    printf '%s\n' "$case_country_search_log"
+    if ! grep -q 'A375_CASE_COUNTRY_SEARCH_SUITE_PASSED' <<<"$case_country_search_log"; then
+      echo "platform_case_country_search.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
@@ -6294,6 +6352,32 @@ docker exec "$container_name" \
 # migration that changes the access chain fails here until the primitives and the anchors in the suite
 # are updated together; if the FIXTURE breaks, fix the fixture, do not weaken the checks.
 run_permission_once_suite "-v pw_sets_only=1"
+
+# «Поиск и фильтр по стране дела» (migration 375): the rule lives in the bodies of four reads that other migrations also
+# patch. The 375 suite ran right after 375; this check, on the LATEST chain, fails when a later migration replaces one of
+# the four bodies from an older copy and the country rule silently disappears (the search stops finding «Китай» by CN and
+# China, the board filter stops taking one country). A later migration must patch the body by fragment, as 370 and 375 do.
+docker exec -i "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" <<'SQL'
+DO $a375_end_of_chain$
+DECLARE
+  routine TEXT;
+BEGIN
+  FOREACH routine IN ARRAY ARRAY[
+    'platform.staff_student_case_page(integer,timestamp with time zone,uuid,platform.student_case_state,text,uuid,text,uuid,text)',
+    'platform.staff_student_case_queue_v1(text,integer,text,text,text,uuid,text,text)',
+    'platform.staff_student_case_queue_counts_v1(text,text,uuid,text,text)',
+    'platform.staff_admissions_pipeline_board_v1(uuid,text,text,text)'
+  ] LOOP
+    IF to_regprocedure(routine) IS NULL
+      OR strpos(pg_get_functiondef(to_regprocedure(routine)), 'platform_private.case_country_spellings(') = 0 THEN
+      RAISE EXCEPTION 'a375_rule_lost_at_end_of_chain: % no longer carries the country rule of migration 375', routine
+        USING ERRCODE = '55000';
+    END IF;
+  END LOOP;
+END
+$a375_end_of_chain$;
+SQL
 
 # P7A journal contract (fix for PLAN_CHANGES 29.09.2026 — «Журнал действий»:
 # контракт аудита отстал от сервера): proves src/lib/platform-audit.ts's

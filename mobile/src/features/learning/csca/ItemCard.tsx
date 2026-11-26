@@ -1,17 +1,24 @@
-// Карточка задания CSCA: условие (английский, формулы), рисунок, четыре варианта, вердикт и
-// разбор каждого варианта, решение по шагам, термины, «Сообщить об ошибке». Ключ ответа до
-// ответа клиенту не приходит никогда (контракт §5): верный вариант виден только из `explain`.
-import { useState, type ReactNode } from "react";
+// Карточка задания CSCA (контракт §5..§7; веб: components/portal/csca/ItemCard.tsx): условие (английский, формулы), рисунок,
+// четыре варианта, вердикт и разбор каждого варианта, решение по шагам, термины, «Сообщить об ошибке». Ключ ответа до ответа
+// клиенту не приходит никогда (контракт §5): верный вариант виден только из `explain`.
+// После ответа варианты становятся разбором: у верного и выбранного неверного значок и слова «Ваш ответ» и «Верный ответ»
+// (состояние не одним цветом), вердикт стоит сразу под условием, «Верный ответ: X» только при неверном ответе, а ответ без
+// выбора называется «Без ответа». Читалка получает варианты и формулы словами (`speakMathText`), а не сырым TeX.
+import { type ReactNode } from "react";
 import { Pressable, View } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import type { CscaExplain, CscaFigure, CscaItem, CscaOptionId } from "@web/lib/portal/csca";
+import type { PortalStrings } from "@web/lib/portal/i18n";
 
+import { StepReveal } from "@/features/learning/csca/StepReveal";
+import { tint } from "@/features/learning/csca/tint";
 import { FigureView } from "@/features/learning/figure/FigureView";
 import { MathText } from "@/features/learning/math/MathText";
-import { Chip } from "@/features/learning/ui";
+import { speakMathText } from "@/features/learning/math/speak";
 import { useLang } from "@/i18n/LangProvider";
+import { monoFont, sansFont } from "@/theme/fonts";
 import { useTheme } from "@/theme/ThemeProvider";
-import { Button } from "@/ui/Button";
 import { MIN_TARGET } from "@/ui/CardParts";
 import { Text } from "@/ui/Text";
 
@@ -23,77 +30,190 @@ export type ItemState =
 
 const LETTER: Readonly<Record<CscaOptionId, string>> = { a: "A", b: "B", c: "C", d: "D" };
 
-export function OptionRow({ id, label, selected, mark, onPress, disabled, children, testID }: { id: CscaOptionId; label: string; selected: boolean; mark: "none" | "correct" | "wrong"; onPress?: () => void; disabled?: boolean; children?: ReactNode; testID?: string }) {
+type MarkKind = "ok" | "bad" | "skipped";
+
+/** Значок результата (веб: `Mark` и `SkipMark`): круг с галочкой, крестом или чертой. Слово рядом, значок подкрепляет. */
+function Mark({ kind, size = 20 }: { kind: MarkKind; size?: number }) {
   const { tokens } = useTheme();
-  const { t } = useLang();
-  const c = t("csca");
-  const border = mark === "correct" ? tokens.ok : mark === "wrong" ? tokens.error : selected ? tokens.accent : tokens.line;
+  const color = kind === "ok" ? tokens.ok : kind === "bad" ? tokens.error : tokens.text2;
   return (
-    <View style={{ borderWidth: mark === "none" && !selected ? 1 : 2, borderColor: border, borderRadius: tokens.radiusItem, backgroundColor: tokens.surface, overflow: "hidden" }}>
-      <Pressable
-        accessibilityRole="radio"
-        accessibilityState={{ checked: selected, disabled: disabled ?? false }}
-        accessibilityLabel={`${LETTER[id]}. ${label.replaceAll("$", "")}${mark === "correct" ? `. ${c.correctChoice}` : mark === "wrong" ? `. ${c.yourChoice}, ${c.verdictWrong}` : ""}`}
-        disabled={disabled}
-        onPress={onPress}
-        testID={testID}
-        style={{ minHeight: MIN_TARGET + 8, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 10 }}
-      >
-        <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: border, alignItems: "center", justifyContent: "center", backgroundColor: selected || mark !== "none" ? border : "transparent" }}>
-          <Text variant="caption" bold tone={selected || mark !== "none" ? "onAccent" : "text2"}>
-            {LETTER[id]}
-          </Text>
-        </View>
-        <View style={{ flex: 1 }} importantForAccessibility="no-hide-descendants">
-          <MathText source={label} variant="body" />
-        </View>
-      </Pressable>
-      {children}
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+        {kind === "skipped" ? (
+          <>
+            <Circle cx={10} cy={10} r={8.25} stroke={color} strokeWidth={1.5} />
+            <Path d="M6.5 10h7" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+          </>
+        ) : (
+          <>
+            <Circle cx={10} cy={10} r={9} fill={color} />
+            {kind === "ok" ? (
+              <Path d="m6 10.2 2.6 2.6L14 7.4" stroke={tokens.surface} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            ) : (
+              <Path d="m7 7 6 6M13 7l-6 6" stroke={tokens.surface} strokeWidth={2} strokeLinecap="round" />
+            )}
+          </>
+        )}
+      </Svg>
     </View>
   );
 }
 
-/** Решение по шагам: «Следующий шаг» открывает следующую строку, «Показать решение» всё сразу. */
-export function Steps({ steps, testID }: { steps: readonly string[]; testID?: string }) {
+/** Сложность тремя полосками (веб `.cs-difficulty`); читалка слышит «Сложность N из 3». */
+function Difficulty({ level }: { level: number }) {
   const { t, format } = useLang();
-  const c = t("csca");
-  const [shown, setShown] = useState(1);
+  const { tokens } = useTheme();
   return (
-    <View style={{ gap: 8 }} testID={testID}>
-      {steps.slice(0, shown).map((step, i) => (
-        <View key={i} style={{ gap: 2 }}>
-          <Text variant="caption" tone="text2" bold>
-            {format(c.exampleStep, { n: String(i + 1) })}
-          </Text>
-          <MathText source={step} variant="secondary" />
-        </View>
+    <View accessible accessibilityRole="image" accessibilityLabel={format(t("csca").difficulty, { n: String(level) })} style={{ flexDirection: "row", gap: 3 }} testID="item-difficulty">
+      {[1, 2, 3].map((dot) => (
+        <View key={dot} style={{ width: 6, height: 14, borderRadius: 2, backgroundColor: dot <= level ? tokens.text2 : tokens.line }} />
       ))}
-      {shown < steps.length ? (
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="ghost" label={c.nextSolutionStep} onPress={() => setShown((n) => n + 1)} testID={testID ? `${testID}-next` : undefined} />
-          <Button variant="ghost" label={c.showSolution} onPress={() => setShown(steps.length)} testID={testID ? `${testID}-all` : undefined} />
+    </View>
+  );
+}
+
+/** Буква варианта в круге: выбранный закрашен цветом действия, разобранный верный и неверный своим цветом. */
+function Letter({ id, tone }: { id: CscaOptionId; tone: "plain" | "selected" | "ok" | "bad" }) {
+  const { tokens } = useTheme();
+  const fill = tone === "selected" ? tokens.accent : tone === "ok" ? tokens.ok : tone === "bad" ? tokens.error : "transparent";
+  const edge = tone === "plain" ? tokens.controlEdge : fill;
+  return (
+    <View style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: edge, backgroundColor: fill, alignItems: "center", justifyContent: "center" }}>
+      <Text variant="caption" bold style={{ fontFamily: monoFont("bold"), color: tone === "plain" ? tokens.text2 : tone === "selected" ? tokens.onAccent : tokens.surface }}>
+        {LETTER[id]}
+      </Text>
+    </View>
+  );
+}
+
+/** Вариант до ответа: выбор одним нажатием. Читалка слышит «A. текст словами», выбранный отмечен. */
+function OptionOpen({ id, label, selected, disabled, onPress, testID }: { id: CscaOptionId; label: string; selected: boolean; disabled: boolean; onPress?: () => void; testID?: string }) {
+  const { tokens } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected, disabled }}
+      accessibilityLabel={`${LETTER[id]}. ${speakMathText(label)}`}
+      accessibilityLanguage="en"
+      disabled={disabled}
+      onPress={onPress}
+      testID={testID}
+      style={{
+        minHeight: 58,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        // Рамка выбранного толще на пиксель, поля меньше на пиксель: строка не прыгает при нажатии.
+        paddingHorizontal: selected ? 15 : 16,
+        paddingVertical: selected ? 10 : 11,
+        borderRadius: tokens.radiusItem,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? tokens.accent : tokens.line,
+        backgroundColor: selected ? tint(tokens.accent, 7) : tokens.surface,
+      }}
+    >
+      <Letter id={id} tone={selected ? "selected" : "plain"} />
+      <View style={{ flex: 1 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <MathText source={label} variant="body" lang="en" />
+      </View>
+    </Pressable>
+  );
+}
+
+/**
+ * Вариант после ответа: верный и выбранный неверный с рамкой, значком и словами «Верный ответ» и «Ваш ответ», у каждого
+ * разбор. Строка не нажимается; для читалки это три отдельных элемента (вариант на английском, слова, разбор на языке студента).
+ */
+function OptionAnswered({ id, label, chosen, correct, explain, testID }: { id: CscaOptionId; label: string; chosen: boolean; correct: boolean; explain: string | undefined; testID?: string }) {
+  const { t } = useLang();
+  const { tokens } = useTheme();
+  const c = t("csca");
+  const mark: "ok" | "bad" | null = correct ? "ok" : chosen ? "bad" : null;
+  const color = mark === "ok" ? tokens.ok : mark === "bad" ? tokens.error : tokens.line;
+  const tags: string[] = [];
+  if (chosen) tags.push(c.yourChoice);
+  if (correct) tags.push(c.correctChoice);
+  return (
+    <View testID={testID} style={{ gap: 6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, borderRadius: tokens.radiusItem, borderWidth: 1, borderColor: color, backgroundColor: mark ? tint(color, 9) : tokens.surface }}>
+      <View accessible accessibilityLabel={`${LETTER[id]}. ${speakMathText(label)}`} accessibilityLanguage="en" style={{ flexDirection: "row", alignItems: "center", gap: 14, minHeight: 34 }}>
+        <Letter id={id} tone={mark ?? "plain"} />
+        <View style={{ flex: 1 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <MathText source={label} variant="body" lang="en" />
+        </View>
+        {mark ? <Mark kind={mark} /> : null}
+      </View>
+      {tags.length > 0 ? (
+        <Text variant="caption" tone="text2" bold style={{ marginLeft: 48 }} testID={testID ? `${testID}-tags` : undefined}>
+          {tags.join(" · ")}
+        </Text>
+      ) : null}
+      {explain ? (
+        <View style={{ marginLeft: 48 }}>
+          <MathText source={explain} variant="secondary" tone={mark ? "text" : "text2"} />
         </View>
       ) : null}
     </View>
   );
 }
 
-export function TermsList({ terms }: { terms: readonly { en: string; ru: string; ky: string }[] }) {
-  const { lang, t } = useLang();
+type Format = (template: string, values: Readonly<Record<string, string>>) => string;
+
+/** Слова вердикта: «Верно», «Неверно» или «Без ответа» и, пока ответ не верный, «Верный ответ: B». Из них же экран и читалка собирают текст. */
+function verdictWords(selected: CscaOptionId | null, correct: boolean, correctOption: CscaOptionId, c: PortalStrings<"csca">, format: Format): { word: string; correctIs: string | null } {
+  const word = selected === null ? c.notAnswered : correct ? c.verdictCorrect : c.verdictWrong;
+  return { word, correctIs: correct ? null : format(c.verdictCorrectIs, { option: LETTER[correctOption] }) };
+}
+
+/**
+ * Что читалка слышит после ответа: весь вердикт, как на вебе, где фокус переходит на его текст, а не только слово. Верный ответ,
+ * когда студент ошибся, слышно сразу: «Неверно. Верный ответ: B» (на экране между ними «·», читалке нужна точка). Говорит это
+ * `announce` экрана (урок, «Ошибки»), потому что живая область у новой строки на Android ненадёжна (`ui/useAnnouncer.tsx`).
+ */
+export function verdictAnnouncement(selected: CscaOptionId | null, correct: boolean, correctOption: CscaOptionId, c: PortalStrings<"csca">, format: Format): string {
+  const { word, correctIs } = verdictWords(selected, correct, correctOption, c, format);
+  return correctIs === null ? word : `${word}. ${correctIs}`;
+}
+
+/**
+ * Вердикт сразу под условием, пока взгляд ещё там: «Верно», «Неверно · Верный ответ: B» или «Без ответа · Верный ответ: B».
+ * Живой области у него нет: весь текст после ответа читает `announce` самого экрана (`verdictAnnouncement`), и живая область
+ * на Android сказала бы его второй раз. Вердикт, который открыт заново (возврат к отвеченному заданию), читалке не объявляется.
+ */
+function Verdict({ selected, correct, correctOption }: { selected: CscaOptionId | null; correct: boolean; correctOption: CscaOptionId }) {
+  const { t, format } = useLang();
   const { tokens } = useTheme();
   const c = t("csca");
+  const kind: MarkKind = selected === null ? "skipped" : correct ? "ok" : "bad";
+  const color = kind === "ok" ? tokens.ok : kind === "bad" ? tokens.error : tokens.text2;
+  const { word, correctIs } = verdictWords(selected, correct, correctOption, c, format);
+  return (
+    <View
+      accessibilityLiveRegion="none"
+      testID="verdict"
+      style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: tokens.radiusItem, backgroundColor: kind === "ok" ? tint(tokens.ok, 9) : kind === "bad" ? tint(tokens.error, 8) : tokens.bg }}
+    >
+      <Mark kind={kind} />
+      <Text variant="body" bold style={{ color, flex: 1 }}>
+        {word}
+        {correctIs !== null ? <Text variant="body" style={{ fontFamily: sansFont("medium"), color: tokens.text }}>{` · ${correctIs}`}</Text> : null}
+      </Text>
+    </View>
+  );
+}
+
+/** Термины разбора пилюлями: английский жирно, перевод рядом (веб `.cs-item-terms`). */
+function ItemTerms({ terms }: { terms: readonly { en: string; ru: string; ky: string }[] }) {
+  const { lang, t } = useLang();
+  const { tokens } = useTheme();
   if (terms.length === 0) return null;
   return (
-    <View style={{ gap: 4 }}>
-      <Text variant="caption" tone="text2" bold>
-        {c.itemTerms}
-      </Text>
-      {terms.map((term, i) => (
-        <View key={i} style={{ flexDirection: "row", gap: 8, paddingVertical: 2, borderBottomWidth: i < terms.length - 1 ? 1 : 0, borderBottomColor: tokens.line }}>
-          <Text variant="secondary" bold style={{ flex: 1 }} accessibilityLanguage="en">
+    <View accessibilityRole="list" accessibilityLabel={t("csca").itemTerms} style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} testID="item-terms">
+      {terms.map((term) => (
+        <View key={term.en} style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 8, paddingHorizontal: 12, paddingVertical: 5, borderRadius: tokens.radiusChip, borderWidth: 1, borderColor: tokens.line }}>
+          <Text variant="caption" bold accessibilityLanguage="en">
             {term.en}
           </Text>
-          <Text variant="secondary" tone="text2" style={{ flex: 1 }}>
+          <Text variant="caption" tone="text2">
             {lang === "ky" ? term.ky : term.ru}
           </Text>
         </View>
@@ -122,72 +242,70 @@ export function ItemCard({
   testID?: string;
 }) {
   const { lang, t, format } = useLang();
-  const { tokens } = useTheme();
+  const { tokens, scheme } = useTheme();
   const c = t("csca");
   const answered = state.kind === "answered" ? state : null;
   const explainById = answered ? Object.fromEntries(answered.explain.options.map((o) => [o.id, lang === "ky" ? o.explainKy : o.explainRu])) : {};
   const solution = answered ? (lang === "ky" ? answered.explain.solutionKy : answered.explain.solutionRu) : [];
   return (
-    <View style={{ gap: 12 }} testID={testID}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <View
+      testID={testID}
+      style={{ gap: 16, padding: 16, borderRadius: tokens.radiusCard, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.surface, boxShadow: scheme === "dark" ? undefined : tokens.shadowCard }}
+    >
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 16, rowGap: 6 }}>
         {counter ? (
-          <Text variant="caption" tone="text2" bold accessibilityRole="header">
+          <Text variant="secondary" tone="text2" bold accessibilityRole="header">
             {counter}
           </Text>
         ) : null}
-        <Text variant="caption" tone="text2">
-          {format(c.difficulty, { n: String(item.difficulty) })} · {format(c.estSeconds, { n: String(item.estSeconds) })}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Difficulty level={item.difficulty} />
+          <Text variant="caption" tone="text2">
+            {format(c.estSeconds, { n: String(item.estSeconds) })}
+          </Text>
+        </View>
       </View>
-      <View accessible accessibilityLanguage="en">
-        <MathText source={item.stemEn} variant="body" testID="item-stem" />
-      </View>
+      <MathText source={item.stemEn} variant="body" lang="en" style={{ fontFamily: sansFont("medium") }} testID="item-stem" />
       {figure ? <FigureView figure={figure} /> : null}
-      <View accessibilityRole="radiogroup" accessibilityLabel={c.optionsLabel} style={{ gap: 8 }}>
-        {item.options.map((option) => {
-          const isSelected = state.selected === option.id;
-          const isCorrect = answered?.explain.correctOptionId === option.id;
-          const mark = answered ? (isCorrect ? "correct" : isSelected ? "wrong" : "none") : "none";
-          const text = explainById[option.id];
-          return (
-            <OptionRow
+      {answered ? <Verdict selected={answered.selected} correct={answered.correct} correctOption={answered.explain.correctOptionId} /> : null}
+      {answered ? (
+        <View accessibilityRole="list" accessibilityLabel={c.optionsLabel} style={{ gap: 10 }}>
+          {item.options.map((option) => (
+            <OptionAnswered
               key={option.id}
               id={option.id}
               label={option.label}
-              selected={isSelected}
-              mark={mark}
-              disabled={answered !== null || (state.kind === "open" && state.busy === true)}
+              chosen={answered.selected === option.id}
+              correct={answered.explain.correctOptionId === option.id}
+              explain={explainById[option.id]}
+              testID={`option-${option.id}`}
+            />
+          ))}
+        </View>
+      ) : (
+        <View accessibilityRole="radiogroup" accessibilityLabel={c.optionsLabel} style={{ gap: 10 }}>
+          {item.options.map((option) => (
+            <OptionOpen
+              key={option.id}
+              id={option.id}
+              label={option.label}
+              selected={state.selected === option.id}
+              disabled={state.kind === "open" && state.busy === true}
               onPress={() => onSelect?.(option.id)}
               testID={`option-${option.id}`}
-            >
-              {answered && text ? (
-                <View style={{ paddingHorizontal: 12, paddingBottom: 10, paddingLeft: 52 }}>
-                  <MathText source={text} variant="secondary" tone="text2" />
-                </View>
-              ) : null}
-            </OptionRow>
-          );
-        })}
-      </View>
-      {answered ? (
-        <View style={{ gap: 10 }} accessibilityLiveRegion="polite">
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Chip tone={answered.correct ? "ok" : "bad"} label={answered.correct ? c.verdictCorrect : c.verdictWrong} testID="verdict" />
-            <Text variant="secondary" tone="text2">
-              {format(c.verdictCorrectIs, { option: LETTER[answered.explain.correctOptionId] })}
-            </Text>
-          </View>
-          {solution.length > 0 ? (
-            <View style={{ gap: 6, padding: 12, borderRadius: tokens.radiusItem, backgroundColor: tokens.accentSoft }}>
-              <Text variant="secondary" bold>
-                {c.solutionHeading}
-              </Text>
-              <Steps steps={solution} testID="solution" />
-            </View>
-          ) : null}
-          <TermsList terms={answered.explain.terms} />
+            />
+          ))}
+        </View>
+      )}
+      {answered && solution.length > 0 ? (
+        <View style={{ gap: 12, padding: 16, borderRadius: tokens.radiusItem, backgroundColor: tokens.bg }} testID="solution-block">
+          <Text variant="secondary" bold accessibilityRole="header">
+            {c.solutionHeading}
+          </Text>
+          <StepReveal steps={solution} testID="solution" />
         </View>
       ) : null}
+      {answered ? <ItemTerms terms={answered.explain.terms} /> : null}
       {footer}
       {onReport ? (
         <Pressable accessibilityRole="button" onPress={onReport} hitSlop={6} testID="report-open" style={{ minHeight: MIN_TARGET, justifyContent: "center", alignSelf: "flex-start" }}>

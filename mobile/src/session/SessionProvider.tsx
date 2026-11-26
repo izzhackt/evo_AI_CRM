@@ -1,14 +1,19 @@
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Alert } from "react-native";
 
 import { createPortalAuthApi, type PortalAuthApi, type SignInFailure } from "@/api/portal-auth";
 import { clearDownloadCache } from "@/features/documents/download-cache";
 import { getConfig } from "@/config";
+import { DEFAULT_LANG, mobileString } from "@/i18n";
+import { useOptionalLang } from "@/i18n/LangProvider";
 import { getSupabase, platformTransport } from "@/lib/supabase";
 import { resolveAccess, type SessionState } from "@/session/access";
 import { clearInviteToken } from "@/features/registration/draft-store";
+import { clearPendingSignup } from "@/features/registration/pending-store";
 import { createAccessDeps } from "@/session/deps";
 import { clearAllLocalData } from "@/session/local-data";
+import { announceSignOut } from "@/session/sign-out-signal";
 
 export type SignInOutcome = { ok: true } | { ok: false; reason: SignInFailure };
 
@@ -45,6 +50,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [mustSetPassword, setMustSetPassword] = useState(false);
   const [ready, setReady] = useState(false);
   const stateRef = useRef(state);
+  // Язык нужен только для слов «выйти не удалось»; провайдер языка есть в приложении всегда, а в проверках его может не быть.
+  const lang = useOptionalLang()?.lang ?? DEFAULT_LANG;
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
   // Запуск приложения: файлы документов прошлой сессии в кэше не нужны.
   useEffect(() => {
     void clearDownloadCache();
@@ -57,6 +68,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const forcedMustSetRef = useRef(false);
   // Устаревшие ответы маршрутизатора отбрасываются.
   const runId = useRef(0);
+  // Токен сессии, для которой маршрут уже провёл сам вход (`signIn`).
+  const routedTokenRef = useRef<string | null>(null);
+  // Сколько входов начато. Выход ждёт ответа сервера об отзыве токена (до 20 с), а хвост выхода стирает состояние: вход, начатый за это
+  // время, он не должен трогать (сессию уже сняло событие SIGNED_OUT).
+  const signInEpochRef = useRef(0);
 
   const resolve = useCallback(
     async (quiet: boolean) => {
@@ -71,6 +87,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [deps],
   );
 
+  /**
+   * Единственное место, где сессия превращается в состояние экрана. Его зовут и события библиотеки (запуск, обновление токена),
+   * и сам вход (`signIn`): «Входим…» (`authenticating`) заканчивает тот, кто его поставил, а не событие, которое должно прийти.
+   */
+  const routeSession = useCallback(
+    (event: AuthChangeEvent, session: Session) => {
+      const must = forcedMustSetRef.current || hasTemporaryPassword(session);
+      setMustSetPassword(must);
+      if (must) {
+        // Пока пароль временный, кабинет не открываем: нужен экран «Придумайте свой пароль». Состояние при этом не может остаться
+        // `authenticating`: охранники маршрутов читают его как «вход идёт» и держат экран входа с колесом (QA#2, D1: колесо вечно, хотя
+        // сессия уже сохранена). Из него уходим в `resolvingAccess` - то же состояние, с которым приложение стартует при сохранённой
+        // сессии; по нему и открывается экран пароля. Так же поступает и обычная ветка: `resolve(false)` ставит его из любого состояния.
+        setState((current) => (current.kind === "resolvingAccess" ? current : { kind: "resolvingAccess" }));
+        setReady(true);
+        return;
+      }
+      // Тихо (без «Проверяем доступ…») только когда кабинет или экран согласия уже открыт: отметки на экране не теряются.
+      void resolve(event === "TOKEN_REFRESHED" && (stateRef.current.kind === "active" || stateRef.current.kind === "needsConsent"));
+    },
+    [resolve],
+  );
+
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       // Не вызываем Supabase внутри колбэка (документация Supabase): уходим из него.
@@ -80,22 +119,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           case "SIGNED_IN":
           case "TOKEN_REFRESHED":
             if (!session) {
+              announceSignOut();
               runId.current += 1;
               setState({ kind: "signedOut", accountDeleted: accountDeletedRef.current });
               setReady(true);
               return;
             }
-            const must = forcedMustSetRef.current || hasTemporaryPassword(session);
-            setMustSetPassword(must);
-            if (must) {
-              // Пока пароль временный, кабинет не открываем.
-              setReady(true);
-              return;
-            }
-            // Тихо (без «Проверяем доступ…») только когда кабинет или экран согласия уже открыт: отметки на экране не теряются.
-            void resolve(event === "TOKEN_REFRESHED" && (stateRef.current.kind === "active" || stateRef.current.kind === "needsConsent"));
+            // Вход уже провёл маршрут для этого токена сам: событие библиотеки о нём (SIGNED_IN, а при просроченном токене портала
+            // TOKEN_REFRESHED) второй раз маршрут не ведёт. Запуск приложения токена ещё не знает (`null`), поэтому маршрут ведёт.
+            if (routedTokenRef.current === session.access_token) return;
+            routeSession(event, session);
             return;
           case "SIGNED_OUT":
+            announceSignOut();
             void clearAllLocalData();
             runId.current += 1;
             forcedMustSetRef.current = false;
@@ -109,51 +145,84 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }, 0);
     });
     return () => data.subscription.unsubscribe();
-  }, [supabase, resolve]);
+  }, [supabase, routeSession]);
 
   const signIn = useCallback<SessionContextValue["signIn"]>(
     async (login, password) => {
+      signInEpochRef.current += 1;
       accountDeletedRef.current = false;
       setState({ kind: "authenticating" });
-      const result = await portalAuth.signIn(login.trim(), password);
-      if (!result.ok) {
-        setState({ kind: "signedOut", accountDeleted: false });
-        return result;
-      }
-      const { error } = await supabase.auth.setSession({
-        access_token: result.session.accessToken,
-        refresh_token: result.session.refreshToken,
-      });
-      if (error) {
+      try {
+        const result = await portalAuth.signIn(login.trim(), password);
+        if (!result.ok) {
+          setState({ kind: "signedOut", accountDeleted: false });
+          return result;
+        }
+        const { data, error } = await supabase.auth.setSession({
+          access_token: result.session.accessToken,
+          refresh_token: result.session.refreshToken,
+        });
+        const session = data.session;
+        if (error || !session) {
+          setState({ kind: "signedOut", accountDeleted: false });
+          return { ok: false, reason: "unavailable" };
+        }
+        if (result.session.mustSetPassword) {
+          forcedMustSetRef.current = true;
+          setMustSetPassword(true);
+        }
+        // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку); ожидание подтверждения почты тоже.
+        void clearInviteToken();
+        void clearPendingSignup();
+        // Состояние «Входим…» ставил этот вызов, и заканчивает его тоже он: маршрут по установленной сессии ведём здесь, а не ждём
+        // SIGNED_IN от библиотеки (оно придёт следом и для этого токена будет пропущено).
+        routedTokenRef.current = session.access_token;
+        routeSession("SIGNED_IN", session);
+        return { ok: true };
+      } catch {
+        // `setSession` пробрасывает то, что не ошибка авторизации (например, запись сессии в хранилище не удалась): без этого вызов
+        // отклонился бы, состояние осталось `authenticating`, а экран входа - занятым. Так `authenticating` не переживает вызов ни при
+        // успехе, ни при отказе, ни при исключении, а длится не дольше портала и `setSession` (по 20 секунд; на пути просроченного токена
+        // у auth-js ещё повторы обновления с затуханием в пределах 30 секунд), и не зависит от того, как и когда дошло событие.
         setState({ kind: "signedOut", accountDeleted: false });
         return { ok: false, reason: "unavailable" };
       }
-      if (result.session.mustSetPassword) {
-        forcedMustSetRef.current = true;
-        setMustSetPassword(true);
-      }
-      // Личная ссылка регистрации после входа не нужна (и не должна достаться следующему человеку).
-      void clearInviteToken();
-      // Дальше маршрут ведёт onAuthStateChange (SIGNED_IN).
-      return { ok: true };
     },
-    [portalAuth, supabase],
+    [portalAuth, routeSession, supabase],
   );
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut({ scope: "local" });
+    const epoch = signInEpochRef.current;
+    // Первым делом, до запроса на отзыв токена: сессии записи (тест, урок) бросают неотправленное, иначе закрытие экрана слало бы его с отозванным токеном.
+    announceSignOut();
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // Хранилище не дало стереть сессию: SIGNED_OUT не пришло, студент остался внутри, а экраны записи уже брошены и ничего не сохраняют
+      // (тест молча не пишет, урок не принимает ответ, тест на время замер). Вернуть им запись нельзя (таймеры сняты), поэтому говорим
+      // о сбое и открываем кабинет заново: экраны, а с ними и сессии записи, новые. Обрыв сети сюда не попадает: библиотека убирает
+      // локальную сессию и шлёт SIGNED_OUT раньше запроса, а ответ её ошибки выход не читает.
+      if (epoch === signInEpochRef.current) {
+        Alert.alert(mobileString(langRef.current, "error.generic"));
+        await resolve(false);
+      }
+      return;
+    }
+    if (epoch !== signInEpochRef.current) return; // за ожиданием сервера начат другой вход: хвост выхода чужой
     await clearAllLocalData();
+    if (epoch !== signInEpochRef.current) return;
     runId.current += 1;
     forcedMustSetRef.current = false;
     setMustSetPassword(false);
     setState({ kind: "signedOut", accountDeleted: false });
-  }, [supabase]);
+  }, [resolve, supabase]);
 
   const retry = useCallback(() => resolve(false), [resolve]);
 
   const refreshAccess = useCallback(async () => {
     if (await deps.authUserIsDeleted()) {
       accountDeletedRef.current = true;
+      announceSignOut();
       await supabase.auth.signOut({ scope: "local" });
       return;
     }

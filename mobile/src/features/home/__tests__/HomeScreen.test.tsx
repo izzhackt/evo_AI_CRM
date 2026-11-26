@@ -2,9 +2,10 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-
 import { router } from "expo-router";
 
 import { HomeScreen } from "@/features/home/HomeScreen";
-import { NOTIFICATION_ROW, OVERVIEW_ROW, OVERVIEW_ROW_EMPTY } from "@/test-fixtures/rpc-rows";
+import { NOTIFICATION_ROW, OVERVIEW_ROW, OVERVIEW_ROW_EMPTY, SLOT_ID } from "@/test-fixtures/rpc-rows";
 import { homeHandlers, restoreNow, saved, setNow } from "@/test-fixtures/home";
 import { renderPortal, testApi } from "@/test-fixtures/render";
+import cscaHome from "@/test-fixtures/csca-home-fresh.json";
 import { failure, fakeTransport } from "@/test-fixtures/universities";
 
 jest.mock("@/config", () => ({ getConfig: () => ({ supabaseUrl: "http://localhost:46421", supabasePublishableKey: "k", portalBaseUrl: "http://localhost:46430" }) }));
@@ -48,8 +49,9 @@ describe("Главная: assisted", () => {
     expect(within(screen.getByTestId("case-next-0")).getByText("Оплата: Услуги EVO")).toBeTruthy();
     expect(within(screen.getByTestId("case-next-0")).getByText("через 23 дня")).toBeTruthy();
     expect(screen.queryByTestId("case-more")).toBeNull();
+    // документ открывает «Документы» на своей строке (`focus` - слот документа, веб `#document-<slot>`), оплата - «Оплату»
     await fireEvent.press(screen.getByTestId("case-open"));
-    expect(navigate).toHaveBeenCalledWith("/documents");
+    expect(navigate).toHaveBeenCalledWith(`/documents?focus=${SLOT_ID}`);
     await fireEvent.press(screen.getByTestId("case-next-0"));
     expect(navigate).toHaveBeenCalledWith("/payments");
   });
@@ -100,6 +102,29 @@ describe("Главная: assisted", () => {
     expect(within(screen.getByTestId("csca-session")).queryByText(/Регистрация/)).toBeNull();
     await fireEvent.press(screen.getByTestId("csca-open"));
     expect(navigate).toHaveBeenCalledWith("/csca");
+  });
+
+  it("Китай: пока карточка CSCA не прочиталась, пустого места под ней нет; прочиталась - блок встаёт на место", async () => {
+    let release: (() => void) | undefined;
+    const { transport } = fakeTransport(
+      assistedHandlers("CN", { learning_track_home_v1: () => new Promise((resolve) => (release = () => resolve(cscaHome))) }),
+    );
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("slot-news");
+    // веб: `{csca ? <div className="pt-home-slot">…</div> : null}` - обёртки без карточки нет, а с нею и 16 pt отступа
+    expect(screen.queryByTestId("slot-csca")).toBeNull();
+    expect(screen.getAllByTestId(/^slot-/).map((node) => node.props.testID)).toEqual(["slot-evo", "slot-case", "slot-list", "slot-dates", "slot-news"]);
+    await act(async () => release?.());
+    expect(await screen.findByTestId("csca-open")).toBeTruthy();
+    expect(screen.getAllByTestId(/^slot-/).map((node) => node.props.testID)).toEqual(["slot-evo", "slot-case", "slot-list", "slot-dates", "slot-news", "slot-csca"]);
+  });
+
+  it("Китай: чтение CSCA не удалось - пустого блока нет, остальное на месте", async () => {
+    const { transport } = fakeTransport(assistedHandlers("CN", { learning_track_home_v1: failure(null, 503) }));
+    await renderPortal(<HomeScreen />, testApi(transport));
+    await screen.findByTestId("slot-news");
+    await waitFor(() => expect(screen.queryByTestId("slot-csca")).toBeNull());
+    expect(screen.getByTestId("slot-dates")).toBeTruthy();
   });
 
   it("«Мой список» и «Что нового»: строки и переходы", async () => {

@@ -175,7 +175,7 @@ export function v3SectionTitle(
   if (pathname === "/profile" && isLeadProfile(query)) return "Лид";
   // Gemini-помощник — дочерняя страница хаба «ИИ-агенты»: пункт меню подсвечен
   // тот же, а вкладка называет саму страницу, как карточка лида.
-  if (pathname === "/ai-agent") return "ИИ-агент";
+  if (pathname === "/ai-agent") return "Помощник в чате WhatsApp";
   // «Набор виджетов» «Нового вида» (27.10.2026) — страница владельца без пункта меню: вкладка называет её сама.
   if (pathname === "/ui-kit") return "Набор виджетов";
   const id: V3NavigationLinkId | undefined = pathname === "/main"

@@ -24,7 +24,7 @@ import {
 } from "@/lib/v3/ai-agent-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ИИ-агент" };
+export const metadata = { title: "Помощник в чате WhatsApp" };
 
 type Query = Record<string, string | string[] | undefined>;
 

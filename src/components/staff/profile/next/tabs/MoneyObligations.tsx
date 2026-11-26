@@ -18,10 +18,11 @@ export function MoneyObligations({ draft, today }: Readonly<{ draft: ProfileDraf
       ]} />
       <ul className="divide-y divide-border border-t border-border">
         {draft.payments.map((payment) => (
-          <li key={payment.name} className="flex min-h-11 flex-wrap items-center gap-x-4 py-1.5">
+          <li key={payment.id} className="flex min-h-11 flex-wrap items-center gap-x-4 py-1.5">
             <span className="min-w-0 flex-1 break-words t-body-compact text-fg">{payment.name}</span>
             <span className="t-body-compact tabular-nums text-fg">{payment.amount}</span>
             <span className="t-meta text-fg-2">
+              {payment.paidPart ? <>оплачено <span className="tabular-nums">{payment.paidPart}</span>{payment.at ? " · " : null}</> : null}
               {payment.at ? <>{payment.state === "paid" ? "оплачен" : "до"}{" "}
                 <time dateTime={payment.at} className="font-mono tabular-nums">{moneyMomentDay(payment.at, today)}</time></>
                 : payment.state === "paid" ? "оплачен" : null}

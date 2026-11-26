@@ -116,6 +116,15 @@ export function universityCityRef(item: CityCard, directory: CityDirectory | nul
   return label === null ? null : { key: labelCityKey(label), label };
 }
 
+/**
+ * Название города вуза для строки списка и шапки карточки (25.11.2026: «Шанхай» и «SHANGHAI» в одном каталоге): то же, что
+ * у группы города (`universityCityRef`) — русское название из справочника, если вуз с городом связан или его подпись совпала
+ * с русским или английским названием города; иначе подпись карточки. Без справочника (`null`) — подпись карточки.
+ */
+export function universityCityName(item: CityCard, directory: CityDirectory | null): string | null {
+  return universityCityRef(item, directory)?.label ?? null;
+}
+
 /** Вузы страны по городам (см. `groupByCity`). */
 export function groupCountryUniversities<T extends CityCard>(items: readonly T[], directory: CityDirectory | null, locale = "ru"): CityGroup<T>[] {
   return groupByCity(items, (item) => universityCityRef(item, directory), (item) => item.content.name, locale);

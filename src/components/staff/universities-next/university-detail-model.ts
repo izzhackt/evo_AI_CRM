@@ -20,6 +20,7 @@ export function universityPrograms(content: UniversityContent, now: Date): Progr
     id: program.id,
     title: program.title,
     level: UNIVERSITY_LEVEL_LABELS[program.level],
+    levelKey: program.level,
     duration: program.duration,
     language: program.language,
     summary: program.summary,
@@ -34,6 +35,15 @@ export function universityPrograms(content: UniversityContent, now: Date): Progr
       sourceUrl: intake.sourceUrl,
     })),
   }));
+}
+
+/**
+ * Описание вуза для «Об университете» без служебной фразы «В каталоге N программ: языковые 1, foundation 1, …» (25.11.2026):
+ * её дописывал импорт каталога, а те же числа по уровням стоят рядом — в списке программ со счётчиками. В модели текст прежний.
+ */
+export function universityOverviewText(overview: string): string {
+  const text = overview.replace(/\s*В каталоге \d+ программ[^.]*\.(?=\s|$)/gu, "").trim();
+  return text === "" ? overview : text;
 }
 
 export function universityVerified(content: Pick<UniversityContent, "verifiedOn">, now: Date) {

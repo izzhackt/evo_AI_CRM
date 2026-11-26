@@ -36,3 +36,11 @@ export function matchesSearch(haystack: string, query: string): boolean {
 export function searchUniversities<T extends Readonly<{ name: string; search?: string }>>(items: readonly T[], query: string): readonly T[] {
   return items.filter((item) => matchesSearch(item.search ? `${item.name} ${item.search}` : item.name, query));
 }
+
+/**
+ * Программы на карточке вуза у сотрудника: все слова запроса есть в названии или в описании; порядок сохраняется. Названия
+ * программ английские, описания русские — по одному названию «компьютер» и «магистратура» не находили ничего.
+ */
+export function searchPrograms<T extends Readonly<{ title: string; summary: string }>>(items: readonly T[], query: string): readonly T[] {
+  return items.filter((item) => matchesSearch(`${item.title} ${item.summary}`, query));
+}

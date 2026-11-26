@@ -96,7 +96,8 @@ test("«Сотрудники», «Роли и доступ», «Отделы»: 
     assert.match(staffLegacy, new RegExp(word, "u"), `прежний: ${word}`);
   }
   assert.match(html("settings-staff:admin-cookie"), /aria-label="Список сотрудников"/u);
-  assert.match(html("settings-staff:admin-cookie"), /aria-expanded="false"[^>]*>(?:<svg.*?<\/svg>)?Пригласить сотрудника/su, "приглашение — раскрывающаяся форма, не панель");
+  // 25.11.2026: приглашение — выезжающая панель (форма в строке кнопок ломала раскладку), кнопка открывает диалог.
+  assert.match(html("settings-staff:admin-cookie"), /aria-haspopup="dialog"[^>]*>(?:<svg.*?<\/svg>)?Пригласить сотрудника/su, "приглашение — панель, не форма в строке");
   const rolesNext = text(html("settings-roles:admin-cookie"));
   for (const word of ["Admissions", "Sales Manager", "Финансист \\(черновик\\)", "Черновик", "Опубликована", "Создать роль", "Посмотреть интерфейс роли"]) assert.match(rolesNext, new RegExp(word, "u"), word);
   assert.doesNotMatch(rolesNext, /Прежний куратор/u, "архивные скрыты, пока не включены");
@@ -409,17 +410,19 @@ test("файлы нового вида короткие (до 150 строк) и
 
 const region = (value, id) => value.match(new RegExp(`<div[^>]*data-testid="${id}"[^>]*>`, "u"))?.[0] ?? "";
 
-test("«Создать аккаунт» и «Пригласить сотрудника»: обе формы стоят на странице с самого начала (скрыты), а не собираются заново при каждом выборе: пароль и неизвестный итог не теряются", () => {
+test("«Создать аккаунт» и «Пригласить сотрудника» (25.11.2026): каждая — кнопка и своя панель под охраной; строка кнопок не меняется, у панели один заголовок", () => {
   const next = html("settings-staff:admin-cookie");
-  for (const [id, operation] of [["v3-staff-new-account", "password"], ["v3-staff-new-invite", "invite"]]) {
-    assert.match(region(next, id), /\shidden=""/u, `${id}: скрыта, но в разметке`);
-    const from = next.indexOf(`data-testid="${id}"`);
-    assert.ok(next.indexOf(`name="operation" value="${operation}"`, from) > from, `${id}: форма «${operation}» внутри`);
+  for (const title of ["Пригласить сотрудника", "Создать аккаунт"]) {
+    assert.match(next, new RegExp(`<button[^>]*aria-haspopup="dialog"[^>]*>(?:<svg[\\s\\S]*?</svg>)?${title}</button>`, "u"), `${title}: кнопка открывает панель`);
   }
+  assert.doesNotMatch(next, /data-testid="v3-staff-new-(?:invite|account)"/u, "закрытые панели формы в строку не кладут");
   const source = read("src/components/staff/settings-next/StaffNewAccess.tsx");
-  assert.doesNotMatch(source, /panel \? \(/u, "форма не выбрасывается условием");
-  assert.match(source, /hidden=\{panel !== /u);
-  assert.match(source, /\.focus\(\)/u, "«Закрыть» возвращает фокус на кнопку, что открыла форму");
+  assert.match(source, /<DetailSheet\b/u);
+  assert.match(source, /useSheetGuard\(\)/u, "пока запрос не завершён или итог неизвестен, панель не закрывается");
+  assert.match(source, /data-testid=\{`v3-staff-new-\$\{panel\}`\}/u, "тело панели — та же метка, что у сценария подключения сотрудника");
+  assert.match(source, /\bbare\b/u, "свой заголовок формы в панели не повторяется");
+  const form = read("src/components/staff/settings/StaffInviteForm.tsx");
+  assert.match(form, /\{bare \? null : <h3/u);
 });
 
 test("панели «Журнала доступа», сотрудника, роли, отдела, расхода и запроса на удаление не закрываются, пока запрос не завершён или итог неизвестен, и спрашивают при несохранённой правке", () => {
@@ -427,7 +430,7 @@ test("панели «Журнала доступа», сотрудника, ро
   assert.match(guard, /Есть несохранённые изменения\. Закрыть без сохранения\?/u, "тот же вопрос, что у первой волны");
   assert.match(guard, /window\.confirm/u);
   assert.match(guard, /isConnected/u, "правка в уже закрытой форме не считается");
-  for (const file of ["StaffAccessLog", "StaffNext", "RolesNext", "DepartmentsNext", "DeletionNext"]) {
+  for (const file of ["StaffAccessLog", "StaffNext", "StaffNewAccess", "RolesNext", "DepartmentsNext", "DeletionNext"]) {
     assert.match(read(`src/components/staff/settings-next/${file}.tsx`), /useSheetGuard\(\)/u, file);
     assert.match(read(`src/components/staff/settings-next/${file}.tsx`), /allowClose\(/u, `${file}: закрытие идёт через охрану`);
   }
@@ -536,7 +539,7 @@ test("панели с полями у «Настроек», «Маркетинг
   const WITH_FIELDS = [
     "ai-agent-next/AiDocumentsNext", "ai-agent-next/AiExamplesNext", "ai-agent-next/AiReviewNext", "marketing-next/LeadFiltersSheet", "marketing-next/LeadsNext",
     "marketing-next/SpendAddSheet", "settings-next/DeletionNext", "settings-next/DepartmentsNext", "settings-next/IntegrationsNext", "settings-next/RolesNext",
-    "settings-next/StaffAccessLog", "settings-next/StaffNext",
+    "settings-next/StaffAccessLog", "settings-next/StaffNext", "settings-next/StaffNewAccess",
   ];
   for (const name of WITH_FIELDS) {
     const source = read(`src/components/staff/${name}.tsx`);

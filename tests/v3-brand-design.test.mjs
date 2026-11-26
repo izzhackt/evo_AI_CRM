@@ -108,7 +108,7 @@ test("sales table scroll regions contain absolutely positioned screen-reader lab
 });
 
 test("solid red stays for the main action and every selection shares one accent-weak style", () => {
-  const rule = css.match(/\.v3-world \.v3-choice:is\(\[aria-current\]:not\(\[aria-current="false"\]\), \[aria-pressed="true"\], \[aria-expanded="true"\]\) \{([^}]+)\}/u);
+  const rule = css.match(/\.v3-world \.v3-choice:is\(\[aria-current\]:not\(\[aria-current="false"\]\), \[aria-pressed="true"\], \[aria-expanded="true"\], \[role="tab"\]\[aria-selected="true"\]\) \{([^}]+)\}/u);
   assert.ok(rule, "one selected rule keyed on the announced state");
   assert.match(rule[1], /background-color: var\(--accent-weak\);/u);
   assert.match(rule[1], /color: var\(--accent-text\);/u);

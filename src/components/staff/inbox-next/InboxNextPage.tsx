@@ -22,7 +22,8 @@ export function InboxNextPage({ count, settingsHref, ...props }: Readonly<{ coun
       {notConnected ? (
         <section className="rounded-card border border-border bg-surface" data-testid="v3-inbox-not-connected" data-source="supabase-platform">
           <EmptyState
-            title="WhatsApp не подключён к CRM — подключает Администратор"
+            // Тому, кто подключает (есть «Открыть настройки»), — к нему, а не о нём в третьем лице (чек-лист 23.11).
+            title={settingsHref ? "WhatsApp не подключён — подключите в настройках" : "WhatsApp не подключён к CRM — подключает Администратор"}
             action={settingsHref ? <Button variant="outline" asChild><Link href={settingsHref} data-testid="v3-inbox-settings">Открыть настройки</Link></Button> : undefined}
           />
         </section>

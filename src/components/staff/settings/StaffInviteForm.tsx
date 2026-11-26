@@ -8,8 +8,10 @@ import { StaffInvitationFields, type InvitationRoleRow } from "./StaffInvitation
 import { invitationAccessIsValid } from "@/lib/v3/staff-invitation-access";
 import { StaffCommandFeedback, useStaffCommandForm } from "./useStaffCommandForm";
 
-function Invitation({ workspace, organizationId, onNext, mode }: {
+function Invitation({ workspace, organizationId, onNext, mode, bare = false }: {
   workspace: StaffRoleWorkspace; organizationId: string; onNext: () => void; mode: "invite" | "password";
+  /** В выезжающей панели (25.11.2026): заголовок у панели, свой `h3` и верхняя линия не нужны. */
+  bare?: boolean;
 }) {
   const [state, action, pending] = useStaffCommandForm(staffAuthAction);
   const [rows, setRows] = useState<readonly InvitationRoleRow[]>([]);
@@ -22,12 +24,12 @@ function Invitation({ workspace, organizationId, onNext, mode }: {
   const unknown = state.outcome === "unknown";
   const locked = pending || unknown || state.status === "success";
   const valid = invitationAccessIsValid(rows, noAccess, workspace, organizationId);
-  return <form action={action} aria-busy={pending} className="space-y-4 border-t border-border py-4" onChange={(event) => {
+  return <form action={action} aria-busy={pending} className={bare ? "space-y-4" : "space-y-4 border-t border-border py-4"} onChange={(event) => {
     const name = event.target instanceof HTMLInputElement ? event.target.name : "";
     if (name !== "rights_confirmed") setRightsConfirmed(false);
     if (name === "email" || name === "display_name") setRecipientConfirmed(false);
   }}>
-    <h3 className="t-section">{mode === "password" ? "Создать аккаунт" : "Пригласить сотрудника"}</h3>
+    {bare ? null : <h3 className="t-section">{mode === "password" ? "Создать аккаунт" : "Пригласить сотрудника"}</h3>}
     <p className="text-sm leading-6 text-fg-3">{mode === "password"
       ? "Укажите сотрудника и его права. Пароль из 12 символов появится после создания — сохраните его и передайте лично."
       : "Выберите рабочие права и согласованный email. Сотрудник сам установит пароль по письму."}</p>
@@ -60,12 +62,12 @@ function Invitation({ workspace, organizationId, onNext, mode }: {
   </form>;
 }
 
-export function StaffInviteForm({ workspace, organizationId }: { workspace: StaffRoleWorkspace; organizationId: string }) {
+export function StaffInviteForm({ workspace, organizationId, bare = false }: { workspace: StaffRoleWorkspace; organizationId: string; bare?: boolean }) {
   const [generation, setGeneration] = useState(0);
-  return <Invitation key={generation} mode="invite" workspace={workspace} organizationId={organizationId} onNext={() => setGeneration((value) => value + 1)} />;
+  return <Invitation key={generation} mode="invite" workspace={workspace} organizationId={organizationId} bare={bare} onNext={() => setGeneration((value) => value + 1)} />;
 }
 
-export function StaffPasswordForm({ workspace, organizationId }: { workspace: StaffRoleWorkspace; organizationId: string }) {
+export function StaffPasswordForm({ workspace, organizationId, bare = false }: { workspace: StaffRoleWorkspace; organizationId: string; bare?: boolean }) {
   const [generation, setGeneration] = useState(0);
-  return <Invitation key={generation} mode="password" workspace={workspace} organizationId={organizationId} onNext={() => setGeneration((value) => value + 1)} />;
+  return <Invitation key={generation} mode="password" workspace={workspace} organizationId={organizationId} bare={bare} onNext={() => setGeneration((value) => value + 1)} />;
 }

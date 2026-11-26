@@ -104,6 +104,7 @@ export function TelephonySettingsForm({
   const statusRef = useRef<HTMLParagraphElement>(null);
   const issues = useMemo(() => telephonyDraftIssues(draft), [draft]);
   const shown = tried ? issues : [];
+  const moreOpen = shown.some((issue) => !(TELEPHONY_FLAG_KEYS as readonly string[]).includes(issue.field)) || Boolean(overview.escalation && !overview.escalation.allowed);
   const patch = useMemo(() => (issues.length === 0 ? telephonyPatchFrom(settings, draft) : null), [issues, settings, draft]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const opening = useMemo(() => telephonyOpeningFlags(settings, draft), [settings, draft]);
@@ -207,7 +208,7 @@ export function TelephonySettingsForm({
           {TELEPHONY_FLAG_KEYS.map((key) => <span key={key} className="mt-1.5 block"><b className="font-semibold">{TELEPHONY_FLAG_COPY[key].title}.</b> {TELEPHONY_FLAG_COPY[key].hint}</span>)}
         </>}>
           {/* Светлая подложка формы: ручка включённого переключателя — цвета листа, иначе она сливается с тёмной дорожкой. */}
-          <ul className="space-y-0.5" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
+          <ul className="grid gap-x-6 @2xl:grid-cols-2" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
             {TELEPHONY_FLAG_KEYS.map((key) => {
               const copy = TELEPHONY_FLAG_COPY[key];
               const note = flagServerNote(key, server);
@@ -227,7 +228,8 @@ export function TelephonySettingsForm({
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-x-2">
                         <label htmlFor={id} id={`${id}-title`} className="cursor-pointer t-body text-fg">{copy.title}</label>
-                        <span className={`t-meta font-medium ${on ? "text-fg" : "text-fg-3"}`} data-testid="v3-telephony-flag-state">{on ? "Включено" : "Выключено"}</span>
+                        {/* Положение видно по самому переключателю (и читалка слышит его из role="switch"): слово рядом было лишним шумом. */}
+                        <span className="sr-only" data-testid="v3-telephony-flag-state">{on ? "Включено" : "Выключено"}</span>
                       </span>
                       <span id={`${id}-hint`} className="sr-only">{copy.hint}</span>
                       {note ? <span className="mt-0.5 block t-meta text-fg-2">{note}</span> : null}
@@ -240,6 +242,13 @@ export function TelephonySettingsForm({
           </ul>
         </Row>
 
+        {/* 26.11.2026 («минималистичнее»): рабочее время, набор, потолки и эскалации меняют редко — они свёрнуты под одной строкой.
+            Раскрываются сами, если в них ошибка проверки или у получателя эскалаций пропало право (предупреждения не прячем). */}
+        <details key={moreOpen ? "open" : "closed"} open={moreOpen || undefined} className="group border-t border-border" data-testid="v3-telephony-more">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 py-2 hover:text-fg [&::-webkit-details-marker]:hidden">
+            <span className="t-item text-fg">Время, набор и пределы</span>
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+          </summary>
         <Row title="Рабочее время и перезвон" hint="По Бишкеку; от этого считается срок задачи «Перезвонить»" testId="v3-telephony-hours">
           <div role="group" aria-label="Рабочие дни" className="flex flex-wrap gap-1.5">
             {[1, 2, 3, 4, 5, 6, 7].map((day) => (
@@ -309,6 +318,7 @@ export function TelephonySettingsForm({
             </p>
           ) : null}
         </Row>
+        </details>
       </fieldset>
 
       {readOnly ? (

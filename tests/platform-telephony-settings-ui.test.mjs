@@ -335,3 +335,11 @@ test("the new suites are in the unit manifest so they run with the rest", () => 
     assert.ok(manifest.includes(file), file);
   }
 });
+
+test("26.11.2026 «минималистичнее»: переключатели без слов рядом, редкие настройки свёрнуты и раскрываются сами при ошибке или потерянном праве", () => {
+  const form = source("src/components/staff/settings/TelephonySettingsForm.tsx");
+  assert.match(form, /<span className="sr-only" data-testid="v3-telephony-flag-state">/u, "положение — для читалки, на экране его показывает переключатель");
+  assert.match(form, /<ul className="grid gap-x-6 @2xl:grid-cols-2"/u);
+  assert.match(form, /<details key=\{moreOpen \? "open" : "closed"\} open=\{moreOpen \|\| undefined\}[^>]*data-testid="v3-telephony-more">/u);
+  assert.match(form, /const moreOpen = shown\.some\(\(issue\) => !\(TELEPHONY_FLAG_KEYS as readonly string\[\]\)\.includes\(issue\.field\)\) \|\| Boolean\(overview\.escalation && !overview\.escalation\.allowed\);/u);
+});

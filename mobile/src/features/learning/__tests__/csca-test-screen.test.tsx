@@ -501,6 +501,29 @@ describe("сообщение о сбое в видимой части (QA 24, N2
     release();
   });
 
+  it("сообщение исчезло (связь вернулась) и появилось снова: показ идёт по его новому положению, а не по прежнему", async () => {
+    let online = false;
+    await openRunning(240, { save_learning_test_v1: (args: Record<string, unknown> | undefined) => (online ? { ...fx("csca_test_save"), attemptId: args?.p_attempt_id } : failure(null, 0)) });
+    await layout("test-runner", 16);
+    await fireEvent.press(await screen.findByTestId("option-b"));
+    await finish();
+    await screen.findByTestId("test-unsent");
+    await layout("test-notices", NOTICE_Y); // страница вверху: сообщение на виду
+    online = true; // связь вернулась: повтор сохранения через 3 с проходит, и сообщение уходит
+    await waitFor(() => expect(screen.queryByTestId("test-unsent")).toBeNull(), { timeout: 8000 });
+
+    online = false;
+    await fireEvent.press(await screen.findByTestId("option-a")); // новый выбор, связи снова нет
+    await scrollDown();
+    scrollTo.mockClear();
+    await finish();
+    await screen.findByTestId("test-unsent");
+    await layout("test-notices", 170); // сообщение появилось в другом месте (выше стал навигатор)
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 16 + 170 - 12, animated: false });
+    online = true; // повторы после теста кончаются
+  });
+
   it("ответ не принят при сохранении, пока студент внизу страницы: сообщение об ошибке показано (ошибка тоже причина сообщения)", async () => {
     await openRunning(240, { save_learning_test_v1: failure("22023", 400) });
     await layout("test-runner", 16);
